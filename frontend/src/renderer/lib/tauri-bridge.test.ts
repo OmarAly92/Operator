@@ -123,7 +123,6 @@ describe("tauri-bridge settings errors", () => {
 	it("does not turn a failed settings read into local defaults", async () => {
 		const tauri = bridge();
 
-		await expect(tauri.appState.getMigration()).rejects.toThrow("settings unavailable");
 		await expect(tauri.updateSettings.get()).rejects.toThrow("settings unavailable");
 		await expect(tauri.uiSettings.get()).rejects.toThrow("settings unavailable");
 		await expect(tauri.keybindings.get()).rejects.toThrow("settings unavailable");

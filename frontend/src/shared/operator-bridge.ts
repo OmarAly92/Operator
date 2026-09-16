@@ -2,7 +2,6 @@ import type { KeybindingOverrides } from "./shortcuts";
 import type { TrayAttentionState, TrayOpenSessionTarget } from "./tray";
 import type { DaemonStatus } from "./daemon-status";
 import type { TelemetryBootstrap } from "./telemetry";
-import type { MigrationState } from "./app-state";
 import type { UpdateSettings, UpdateStatus } from "./update-settings";
 import type { UpdateOutcome } from "./update-telemetry";
 import type { UiSettings } from "./ui-locale";
@@ -87,10 +86,6 @@ export type OperatorBridge = {
 	tray: {
 		setAttentionState: (state: TrayAttentionState) => void;
 		onOpenSession: (listener: (target: TrayOpenSessionTarget) => void) => () => void;
-	};
-	appState: {
-		getMigration: () => Promise<MigrationState>;
-		setMigration: (migration: MigrationState) => Promise<void>;
 	};
 	updateSettings: {
 		get: () => Promise<UpdateSettings>;

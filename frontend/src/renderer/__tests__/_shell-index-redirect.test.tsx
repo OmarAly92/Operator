@@ -22,7 +22,6 @@ vi.mock("../hooks/useWorkspaceQuery", () => ({
 	}),
 }));
 
-vi.mock("../components/MigrationPopup", () => ({ MigrationPopup: () => null }));
 vi.mock("../components/SessionsBoard", () => ({ SessionsBoard: () => <div data-testid="sessions-board" /> }));
 
 import { Route } from "../routes/_shell.index";

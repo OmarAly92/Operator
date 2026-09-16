@@ -1,7 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi, expectTypeOf } from "vitest";
 import type { OperatorBridge } from "../../shared/operator-bridge";
 import type { DaemonStatus } from "../../shared/daemon-status";
-import type { MigrationState } from "../../shared/app-state";
 import type { UpdateSettings, UpdateStatus } from "../../shared/update-settings";
 import type { UiSettings } from "../../shared/ui-locale";
 import type { FeatureBuild } from "../../shared/feature-builds";
@@ -172,13 +171,17 @@ describe("createTauriBridge", async () => {
 		const bridge = await create();
 		expect("preview" in bridge).toBe(true);
 	});
+
+	it("appState exposes no migration accessors", async () => {
+		const bridge = await create();
+		expect("appState" in bridge).toBe(false);
+	});
 });
 
 describe("compile-time ownership of shared types", () => {
 	it("pins every non-browser namespace to its shared contract", () => {
 		type Bridge = SharedOperatorBridge;
 		expectTypeOf<Bridge["daemon"]["getStatus"]>().returns.resolves.toEqualTypeOf<DaemonStatus>();
-		expectTypeOf<Bridge["appState"]["getMigration"]>().returns.resolves.toEqualTypeOf<MigrationState>();
 		expectTypeOf<Bridge["updateSettings"]["get"]>().returns.resolves.toEqualTypeOf<UpdateSettings>();
 		expectTypeOf<Bridge["updates"]["getStatus"]>().returns.resolves.toEqualTypeOf<UpdateStatus>();
 		expectTypeOf<Bridge["uiSettings"]["get"]>().returns.resolves.toEqualTypeOf<UiSettings>();

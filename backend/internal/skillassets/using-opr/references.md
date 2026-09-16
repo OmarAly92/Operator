@@ -36,4 +36,3 @@ Natural-language-to-command mappings for common Operator tasks.
 | Claim an existing PR for a session | `opr session claim-pr <id> <pr-ref>` |
 | Submit a code review verdict | `opr review submit <session-id> --run <run-id> --verdict approved` |
 | Configure a project's default branch or model | `opr project set-config <id> --default-branch <branch> --model <model>` |
-| Import projects from a legacy Operator install | `opr import --dry-run` (preview), then `opr import -y` |

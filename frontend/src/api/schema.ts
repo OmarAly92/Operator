@@ -312,24 +312,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/import": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Check whether a legacy Operator install is available to import */
-        get: operations["getImportStatus"];
-        put?: never;
-        /** Run the legacy Operator project import through the daemon store */
-        post: operations["runImport"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/mobile/disable": {
         parameters: {
             query?: never;
@@ -1463,23 +1445,6 @@ export interface paths {
         patch: operations["setKeybindingOverrides"];
         trace?: never;
     };
-    "/api/v1/settings/migration": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        /** Record the legacy desktop import decision */
-        patch: operations["setMigrationState"];
-        trace?: never;
-    };
     "/api/v1/settings/ui": {
         parameters: {
             query?: never;
@@ -2026,19 +1991,6 @@ export interface components {
             repos: components["schemas"]["ImportFolderScanRepo"][];
             setupWarning?: string;
         };
-        ImportReport: {
-            dryRun: boolean;
-            notes?: string[];
-            projectsImported: number;
-            projectsSkipped: number;
-        };
-        ImportRunResponse: {
-            report: components["schemas"]["ImportReport"];
-        };
-        ImportStatusResponse: {
-            available: boolean;
-            legacyRoot: string;
-        };
         InboxEntryView: {
             id: string;
             /** @enum {string} */
@@ -2152,20 +2104,6 @@ export interface components {
             method: string;
             ok: boolean;
             prNumber: number;
-        };
-        MigrationReport: {
-            projectsImported: number;
-            projectsSkipped: number;
-        };
-        MigrationState: {
-            /** Format: date-time */
-            completedAt?: string;
-            error?: string;
-            /** Format: date-time */
-            lastAttemptAt?: string;
-            report?: components["schemas"]["MigrationReport"];
-            /** @enum {string} */
-            status: "pending" | "completed" | "declined" | "failed";
         };
         MobileAuthtokenRequest: {
             /** @description ngrok authtoken. Stored via ngrok's own config tooling; never echoed back. */
@@ -2647,7 +2585,6 @@ export interface components {
         };
         SettingsResponse: {
             keybindings: components["schemas"]["KeybindingOverrides"];
-            migration: components["schemas"]["MigrationState"];
             ui: components["schemas"]["UiSettings"];
             updates: components["schemas"]["UpdateSettings"];
         };
@@ -3929,82 +3866,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["APIError"];
-                };
-            };
-            /** @description Internal Server Error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["APIError"];
-                };
-            };
-            /** @description Not Implemented */
-            501: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["APIError"];
-                };
-            };
-        };
-    };
-    getImportStatus: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ImportStatusResponse"];
-                };
-            };
-            /** @description Internal Server Error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["APIError"];
-                };
-            };
-            /** @description Not Implemented */
-            501: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["APIError"];
-                };
-            };
-        };
-    };
-    runImport: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ImportRunResponse"];
                 };
             };
             /** @description Internal Server Error */
@@ -8133,57 +7994,6 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["KeybindingOverrides"];
-            };
-        };
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SettingsResponse"];
-                };
-            };
-            /** @description Bad Request */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["APIError"];
-                };
-            };
-            /** @description Internal Server Error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["APIError"];
-                };
-            };
-            /** @description Not Implemented */
-            501: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["APIError"];
-                };
-            };
-        };
-    };
-    setMigrationState: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["MigrationState"];
             };
         };
         responses: {

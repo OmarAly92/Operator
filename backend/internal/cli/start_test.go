@@ -331,7 +331,6 @@ func TestResolveApp_SchemaV2MarkerHit(t *testing.T) {
 		"installedAt":      "2026-08-22T00:00:00.000Z",
 		"lastReconciledAt": "2026-08-22T00:00:00.000Z",
 		"installSource":    "npm-bootstrap",
-		"migration":        map[string]any{"status": "pending"},
 	}
 	data, err := json.Marshal(marker)
 	if err != nil {

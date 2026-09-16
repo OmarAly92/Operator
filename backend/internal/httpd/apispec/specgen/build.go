@@ -75,8 +75,6 @@ func Build() ([]byte, error) {
 			"Mobile push-device registration for OS push notifications"),
 		*(&openapi31.Tag{Name: "events"}).WithDescription(
 			"Server-sent CDC event stream with durable replay"),
-		*(&openapi31.Tag{Name: "import"}).WithDescription(
-			"Legacy Operator project import (availability probe and run)"),
 		*(&openapi31.Tag{Name: "dev"}).WithDescription(
 			"Developer-only maintenance operations"),
 		*(&openapi31.Tag{Name: "mobile"}).WithDescription(
@@ -148,12 +146,10 @@ func schemaName(_ reflect.Type, defaultName string) string {
 var schemaNames = map[string]string{
 	"ControllersSettingsResponse": "SettingsResponse",
 	"ControllersUiSettings":       "UiSettings",
-	"ControllersMigrationState":   "MigrationState",
 	"SettingsUpdateSettings":      "UpdateSettings",
 	"SettingsFeaturePin":          "FeaturePin",
 	"SettingsKeybindingOverrides": "KeybindingOverrides",
 	"SettingsShortcutBinding":     "ShortcutBinding",
-	"SettingsMigrationReport":     "MigrationReport",
 	// httpd/envelope
 	"EnvelopeAPIError": "APIError",
 	// domain
@@ -308,9 +304,6 @@ var schemaNames = map[string]string{
 	// domain review entities
 	"DomainReviewRun":     "ReviewRun",
 	"ReviewPRReviewState": "PRReviewState",
-	// httpd/controllers: import wire envelopes
-	"ControllersImportStatusResponse": "ImportStatusResponse",
-	"ControllersImportRunResponse":    "ImportRunResponse",
 	// httpd/controllers: dev wire envelopes
 	"ControllersDevImportProjectsRequest":      "DevImportProjectsRequest",
 	"ControllersDevImportProjectsResponse":     "DevImportProjectsResponse",
@@ -336,8 +329,6 @@ var schemaNames = map[string]string{
 	"ControllersPushDeviceEnvelope":           "PushDeviceEnvelope",
 	"ControllersPushDeviceResponse":           "PushDeviceResponse",
 	"ControllersUnregisterPushDeviceResponse": "UnregisterPushDeviceResponse",
-	// legacyimport report
-	"LegacyimportReport": "ImportReport",
 	// service/project entities + DTOs
 	"ProjectProject":                    "Project",
 	"ProjectSummary":                    "ProjectSummary",
@@ -435,7 +426,6 @@ func operations() []operation {
 	ops = append(ops, notificationOperations()...)
 	ops = append(ops, usageOperations()...)
 	ops = append(ops, pushOperations()...)
-	ops = append(ops, importOperations()...)
 	ops = append(ops, devOperations()...)
 	ops = append(ops, mobileOperations()...)
 	ops = append(ops, desktopOperations()...)
@@ -608,17 +598,6 @@ func shellTerminalOperations() []operation {
 			method: http.MethodPatch, path: "/api/v1/settings/keybindings", id: "setKeybindingOverrides", tag: "settings",
 			summary: "Set the persisted desktop shortcut overrides",
 			reqBody: settingssvc.KeybindingOverrides{},
-			resps: []respUnit{
-				{http.StatusOK, controllers.SettingsResponse{}},
-				{http.StatusBadRequest, envelope.APIError{}},
-				{http.StatusInternalServerError, envelope.APIError{}},
-				{http.StatusNotImplemented, envelope.APIError{}},
-			},
-		},
-		{
-			method: http.MethodPatch, path: "/api/v1/settings/migration", id: "setMigrationState", tag: "settings",
-			summary: "Record the legacy desktop import decision",
-			reqBody: controllers.MigrationState{},
 			resps: []respUnit{
 				{http.StatusOK, controllers.SettingsResponse{}},
 				{http.StatusBadRequest, envelope.APIError{}},
@@ -906,31 +885,6 @@ func desktopOperations() []operation {
 			summary: "Identify this desktop to an authenticated phone",
 			resps: []respUnit{
 				{http.StatusOK, controllers.DesktopResponse{}},
-			},
-		},
-	}
-}
-
-// importOperations declares the 2 /import operations. Must stay 1:1 with
-// the routes ImportController.Register mounts (enforced by the parity test).
-func importOperations() []operation {
-	return []operation{
-		{
-			method: http.MethodGet, path: "/api/v1/import", id: "getImportStatus", tag: "import",
-			summary: "Check whether a legacy Operator install is available to import",
-			resps: []respUnit{
-				{http.StatusOK, controllers.ImportStatusResponse{}},
-				{http.StatusInternalServerError, envelope.APIError{}},
-				{http.StatusNotImplemented, envelope.APIError{}},
-			},
-		},
-		{
-			method: http.MethodPost, path: "/api/v1/import", id: "runImport", tag: "import",
-			summary: "Run the legacy Operator project import through the daemon store",
-			resps: []respUnit{
-				{http.StatusOK, controllers.ImportRunResponse{}},
-				{http.StatusInternalServerError, envelope.APIError{}},
-				{http.StatusNotImplemented, envelope.APIError{}},
 			},
 		},
 	}

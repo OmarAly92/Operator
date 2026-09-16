@@ -1,6 +1,6 @@
 // Package devimport copies the native rewrite project registry between Operator data
-// directories. It is intentionally narrower than legacy import: only active
-// project rows and workspace child repo registry are copied.
+// directories. Only active project rows and workspace child repo registry are
+// copied.
 package devimport
 
 import (

@@ -1,6 +1,5 @@
 import type { components } from "../../api/schema";
 import type { DaemonStatus } from "../../shared/daemon-status";
-import type { MigrationState } from "../../shared/app-state";
 import type { UpdateSettings, UpdateStatus } from "../../shared/update-settings";
 import type { UiSettings } from "../../shared/ui-locale";
 import { coerceLocale } from "../../shared/ui-locale";
@@ -16,7 +15,6 @@ import { isAllowedPreviewUrl } from "./preview-url";
 
 type SettingsPayload = components["schemas"]["SettingsResponse"];
 
-const PENDING_MIGRATION: MigrationState = { status: "pending" };
 const DEFAULT_UPDATE_SETTINGS: UpdateSettings = {
 	enabled: false,
 	feature: null,
@@ -258,13 +256,6 @@ export function createTauriBridge({ invoke, listen }: TauriBridgeTransports): Op
 			onOpenSession: (listener: (target: TrayOpenSessionTarget) => void) => {
 				void Promise.resolve(invoke("tray_renderer_ready")).catch(() => undefined);
 				return subscribe<TrayOpenSessionTarget>("tray:open-session", listener);
-			},
-		},
-		appState: {
-			getMigration: async () => (await fetchSettings()).migration ?? PENDING_MIGRATION,
-			setMigration: async (migration: MigrationState) => {
-				const { error } = await apiClient.PATCH("/api/v1/settings/migration", { body: migration });
-				if (error) throw new Error(apiErrorMessage(error));
 			},
 		},
 		updateSettings: {

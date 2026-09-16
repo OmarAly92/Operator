@@ -7,7 +7,6 @@ import (
 
 	"github.com/OmarAly92/operator/backend/internal/devimport"
 	"github.com/OmarAly92/operator/backend/internal/domain"
-	"github.com/OmarAly92/operator/backend/internal/legacyimport"
 	"github.com/OmarAly92/operator/backend/internal/ports"
 	agentsvc "github.com/OmarAly92/operator/backend/internal/service/agent"
 	blockeventsvc "github.com/OmarAly92/operator/backend/internal/service/blockevent"
@@ -1327,19 +1326,6 @@ type MarkAllNotificationsReadResponse struct {
 	UpdatedCount  int64                  `json:"updatedCount" description:"Number of notifications changed from unread to read."`
 }
 
-// ImportStatusResponse is the body of GET /api/v1/import: whether a legacy Operator
-// install is available to import, and the root the daemon would read from.
-type ImportStatusResponse struct {
-	Available  bool   `json:"available"`
-	LegacyRoot string `json:"legacyRoot"`
-}
-
-// ImportRunResponse is the body of POST /api/v1/import: the structured outcome
-// of the import run (counts + notes), reused verbatim from the import engine.
-type ImportRunResponse struct {
-	Report legacyimport.Report `json:"report"`
-}
-
 // DevImportProjectsRequest is the body of POST /api/v1/dev/import-projects.
 type DevImportProjectsRequest struct {
 	SourceDataDir string `json:"sourceDataDir" minLength:"1"`
@@ -1467,24 +1453,11 @@ type SettingsResponse struct {
 	// Keybindings are the persisted shortcut overrides; absent IDs fall back to
 	// client defaults.
 	Keybindings settingssvc.KeybindingOverrides `json:"keybindings"`
-	// Migration is the legacy desktop-import decision.
-	Migration MigrationState `json:"migration"`
 }
 
 // UiSettings holds the desktop presentation preferences.
 type UiSettings struct {
 	Locale string `json:"locale" enum:"en,zh-CN,ja,ko,es,fr,de,pt-BR"`
-}
-
-// MigrationState is the wire form of the legacy desktop-import decision.
-// Timestamps are RFC3339 strings and absent when unset, mirroring the desktop
-// client's MigrationState shape exactly.
-type MigrationState struct {
-	Status        string                       `json:"status" enum:"pending,completed,declined,failed"`
-	LastAttemptAt string                       `json:"lastAttemptAt,omitempty" format:"date-time"`
-	CompletedAt   string                       `json:"completedAt,omitempty" format:"date-time"`
-	Report        *settingssvc.MigrationReport `json:"report,omitempty"`
-	Error         string                       `json:"error,omitempty"`
 }
 
 // TriggerReviewRequest is the optional body of the review trigger route. An

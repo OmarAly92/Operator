@@ -40,7 +40,6 @@ import (
 	browsersvc "github.com/OmarAly92/operator/backend/internal/service/browser"
 	claudeaccountssvc "github.com/OmarAly92/operator/backend/internal/service/claudeaccounts"
 	devimportsvc "github.com/OmarAly92/operator/backend/internal/service/devimport"
-	importsvc "github.com/OmarAly92/operator/backend/internal/service/importer"
 	notificationsvc "github.com/OmarAly92/operator/backend/internal/service/notification"
 	prsvc "github.com/OmarAly92/operator/backend/internal/service/pr"
 	projectsvc "github.com/OmarAly92/operator/backend/internal/service/project"
@@ -400,7 +399,6 @@ func Run() error {
 		Notifications:       notifier,
 		NotificationStream:  notificationHub,
 		Push:                pushRegistry,
-		Import:              importsvc.New(importsvc.Deps{Store: store}),
 		ShellTerminals:      shellTermSvc,
 		ShellTerminalBlocks: terminalBlocks,
 		ClaudeAccounts:      claudeAccounts,

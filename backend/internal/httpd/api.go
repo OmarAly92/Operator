@@ -47,7 +47,6 @@ type APIDeps struct {
 	Notifications       controllers.NotificationService
 	NotificationStream  controllers.NotificationStream
 	Push                controllers.PushRegistry
-	Import              controllers.ImportService
 	ShellTerminals      controllers.ShellTerminalService
 	ShellTerminalBlocks controllers.ShellTerminalBlockHistory
 	ClaudeAccounts      controllers.ClaudeAccountService
@@ -82,7 +81,6 @@ type API struct {
 	reviews        *controllers.ReviewsController
 	notifications  *controllers.NotificationsController
 	push           *controllers.PushController
-	imports        *controllers.ImportController
 	shellTerms     *controllers.ShellTerminalsController
 	claudeAccounts *controllers.ClaudeAccountsController
 	settings       *controllers.SettingsController
@@ -120,7 +118,6 @@ func NewAPI(cfg config.Config, deps APIDeps) *API {
 		reviews:        &controllers.ReviewsController{Svc: deps.Reviews},
 		notifications:  &controllers.NotificationsController{Svc: deps.Notifications, Stream: deps.NotificationStream},
 		push:           &controllers.PushController{Registry: deps.Push},
-		imports:        &controllers.ImportController{Svc: deps.Import},
 		shellTerms:     &controllers.ShellTerminalsController{Svc: deps.ShellTerminals, Blocks: deps.ShellTerminalBlocks},
 		claudeAccounts: &controllers.ClaudeAccountsController{Svc: deps.ClaudeAccounts, Terminals: deps.ShellTerminals},
 		settings:       &controllers.SettingsController{Svc: deps.Settings},
@@ -158,7 +155,6 @@ func (a *API) Register(root chi.Router) {
 			a.reviews.Register(r)
 			a.notifications.Register(r)
 			a.push.Register(r)
-			a.imports.Register(r)
 			a.shellTerms.Register(r)
 			a.settings.Register(r)
 			a.claudeAccounts.Register(r)

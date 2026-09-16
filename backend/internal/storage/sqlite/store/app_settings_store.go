@@ -23,7 +23,6 @@ type AppSettings struct {
 	UpdateOptIn     bool
 	UpdateFeaturePR *int64
 	KeybindingsJSON string
-	MigrationJSON   string
 }
 
 // GetAppSettings reads the preference row.
@@ -37,7 +36,6 @@ func (s *Store) GetAppSettings(ctx context.Context) (AppSettings, error) {
 		UILocale:        row.UiLocale,
 		UpdateOptIn:     row.UpdateOptIn,
 		KeybindingsJSON: row.KeybindingsJson,
-		MigrationJSON:   row.MigrationJson,
 	}
 	if row.UpdateFeaturePR.Valid {
 		pr := row.UpdateFeaturePR.Int64
@@ -79,16 +77,6 @@ func (s *Store) SetAppKeybindings(ctx context.Context, raw string, now time.Time
 	defer s.writeMu.Unlock()
 	if err := s.qw.SetAppKeybindings(ctx, gen.SetAppKeybindingsParams{KeybindingsJson: raw, UpdatedAt: now}); err != nil {
 		return fmt.Errorf("set keybindings: %w", err)
-	}
-	return nil
-}
-
-// SetAppMigrationState persists the encoded legacy-import decision facet.
-func (s *Store) SetAppMigrationState(ctx context.Context, raw string, now time.Time) error {
-	s.writeMu.Lock()
-	defer s.writeMu.Unlock()
-	if err := s.qw.SetAppMigrationState(ctx, gen.SetAppMigrationStateParams{MigrationJson: raw, UpdatedAt: now}); err != nil {
-		return fmt.Errorf("set migration state: %w", err)
 	}
 	return nil
 }

@@ -3,14 +3,10 @@ package settings
 import (
 	"context"
 	"encoding/json"
-	"errors"
-	"fmt"
 	"strings"
 	"sync"
 	"testing"
 	"time"
-
-	"github.com/OmarAly92/operator/backend/internal/httpd/apierr"
 )
 
 type fakeStore struct {
@@ -68,21 +64,6 @@ func (f *fakeStore) SetKeybindings(_ context.Context, overrides KeybindingOverri
 	return nil
 }
 
-func (f *fakeStore) SetMigrationState(_ context.Context, state MigrationState, now time.Time) error {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	if f.err != nil {
-		return f.err
-	}
-	raw, err := json.Marshal(state)
-	if err != nil {
-		return err
-	}
-	f.rec.MigrationJSON = string(raw)
-	f.rec.UpdatedAt = now
-	return nil
-}
-
 func newTestService(store *fakeStore) *Service {
 	return New(store, func() time.Time {
 		return time.Date(2026, 8, 21, 12, 0, 0, 0, time.UTC)
@@ -96,7 +77,6 @@ func TestGetNormalizesPersistedDesktopPreferences(t *testing.T) {
 		UpdateOptIn:     true,
 		UpdateFeaturePR: nil,
 		KeybindingsJSON: `{"new-session":not-json`,
-		MigrationJSON:   `{`,
 	}}
 	svc := newTestService(store)
 
@@ -115,9 +95,6 @@ func TestGetNormalizesPersistedDesktopPreferences(t *testing.T) {
 	}
 	if len(snapshot.Keybindings) != 0 {
 		t.Errorf("keybindings = %v, want empty overrides for corrupt JSON", snapshot.Keybindings)
-	}
-	if snapshot.Migration.Status != MigrationPending {
-		t.Errorf("migration status = %q, want %q for corrupt JSON", snapshot.Migration.Status, MigrationPending)
 	}
 }
 
@@ -331,79 +308,6 @@ func TestSetKeybindingsPersistsCoercedOverrides(t *testing.T) {
 	}
 }
 
-func migrationState(status MigrationStatus) MigrationState {
-	return MigrationState{Status: status}
-}
-
-func TestSetMigrationStateAcceptsFrontendTransitions(t *testing.T) {
-	ctx := context.Background()
-	transitions := []struct {
-		name string
-		from MigrationState
-		to   MigrationStatus
-	}{
-		{"pending to declined", migrationState(MigrationPending), MigrationDeclined},
-		{"failed to completed", migrationState(MigrationFailed), MigrationCompleted},
-		{"completed to failed on re-run", migrationState(MigrationCompleted), MigrationFailed},
-		{"declined to completed on re-run", migrationState(MigrationDeclined), MigrationCompleted},
-		{"pending to failed", migrationState(MigrationPending), MigrationFailed},
-	}
-	for _, tt := range transitions {
-		t.Run(tt.name, func(t *testing.T) {
-			store := &fakeStore{rec: Record{MigrationJSON: mustJSON(t, tt.from)}}
-			svc := newTestService(store)
-
-			snapshot, err := svc.SetMigrationState(ctx, migrationState(tt.to))
-			if err != nil {
-				t.Fatalf("set migration: %v", err)
-			}
-			if snapshot.Migration.Status != tt.to {
-				t.Errorf("status = %q, want %q", snapshot.Migration.Status, tt.to)
-			}
-		})
-	}
-}
-
-func TestSetMigrationStateKeepsReportAndTimestamps(t *testing.T) {
-	store := &fakeStore{}
-	svc := newTestService(store)
-	attempt := time.Date(2026, 8, 20, 8, 30, 0, 0, time.UTC)
-	done := attempt.Add(time.Minute)
-
-	snapshot, err := svc.SetMigrationState(context.Background(), MigrationState{
-		Status:        MigrationCompleted,
-		LastAttemptAt: &attempt,
-		CompletedAt:   &done,
-		Report:        &MigrationReport{ProjectsImported: 3, ProjectsSkipped: 1},
-	})
-	if err != nil {
-		t.Fatalf("set migration: %v", err)
-	}
-	if snapshot.Migration.LastAttemptAt == nil || !snapshot.Migration.LastAttemptAt.Equal(attempt) {
-		t.Errorf("lastAttemptAt = %v, want %v", snapshot.Migration.LastAttemptAt, attempt)
-	}
-	if snapshot.Migration.Report == nil || snapshot.Migration.Report.ProjectsImported != 3 {
-		t.Errorf("report = %+v, want 3 imported", snapshot.Migration.Report)
-	}
-}
-
-func TestSetMigrationStateRejectsUnknownStatus(t *testing.T) {
-	store := &fakeStore{}
-	svc := newTestService(store)
-
-	_, err := svc.SetMigrationState(context.Background(), MigrationState{Status: "skipped"})
-	var apiErr *apierr.Error
-	if !errors.As(err, &apiErr) {
-		t.Fatalf("err = %v, want an apierr.Error", err)
-	}
-	if apiErr.Code != "MIGRATION_STATUS_INVALID" {
-		t.Errorf("code = %q, want MIGRATION_STATUS_INVALID", apiErr.Code)
-	}
-	if len(store.rec.MigrationJSON) != 0 {
-		t.Errorf("rejected state persisted: %q", store.rec.MigrationJSON)
-	}
-}
-
 func TestFacetUpdatesPreserveUnrelatedFields(t *testing.T) {
 	store := &fakeStore{}
 	svc := newTestService(store)
@@ -417,9 +321,6 @@ func TestFacetUpdatesPreserveUnrelatedFields(t *testing.T) {
 	}
 	if _, err := svc.SetKeybindings(ctx, KeybindingOverrides{"toggle-sidebar": {binding("b", "c")}}); err != nil {
 		t.Fatalf("set keybindings: %v", err)
-	}
-	if _, err := svc.SetMigrationState(ctx, migrationState(MigrationDeclined)); err != nil {
-		t.Fatalf("set migration: %v", err)
 	}
 
 	snapshot, err := svc.Get(ctx)
@@ -435,9 +336,6 @@ func TestFacetUpdatesPreserveUnrelatedFields(t *testing.T) {
 	if len(snapshot.Keybindings["toggle-sidebar"]) != 1 {
 		t.Errorf("keybindings = %v, want preserved", snapshot.Keybindings)
 	}
-	if snapshot.Migration.Status != MigrationDeclined {
-		t.Errorf("migration = %q, want declined preserved", snapshot.Migration.Status)
-	}
 }
 
 func TestConcurrentFacetWritesAllLand(t *testing.T) {
@@ -446,7 +344,7 @@ func TestConcurrentFacetWritesAllLand(t *testing.T) {
 	ctx := context.Background()
 
 	var wg sync.WaitGroup
-	wg.Add(4)
+	wg.Add(3)
 	go func() {
 		defer wg.Done()
 		if _, err := svc.SetUILocale(ctx, "fr"); err != nil {
@@ -465,12 +363,6 @@ func TestConcurrentFacetWritesAllLand(t *testing.T) {
 			t.Errorf("set keybindings: %v", err)
 		}
 	}()
-	go func() {
-		defer wg.Done()
-		if _, err := svc.SetMigrationState(ctx, migrationState(MigrationCompleted)); err != nil {
-			t.Errorf("set migration: %v", err)
-		}
-	}()
 	wg.Wait()
 
 	snapshot, err := svc.Get(ctx)
@@ -485,37 +377,5 @@ func TestConcurrentFacetWritesAllLand(t *testing.T) {
 	}
 	if len(snapshot.Keybindings["focus-terminal"]) != 1 {
 		t.Errorf("keybindings = %v, want focus-terminal override", snapshot.Keybindings)
-	}
-	if snapshot.Migration.Status != MigrationCompleted {
-		t.Errorf("migration = %q, want completed", snapshot.Migration.Status)
-	}
-}
-
-func mustJSON(t *testing.T, v any) string {
-	t.Helper()
-	raw, err := json.Marshal(v)
-	if err != nil {
-		t.Fatalf("marshal %T: %v", v, err)
-	}
-	return string(raw)
-}
-
-func TestParseMigrationSelfHeals(t *testing.T) {
-	cases := []struct {
-		raw  string
-		want MigrationStatus
-	}{
-		{"", MigrationPending},
-		{"{}", MigrationPending},
-		{"not json", MigrationPending},
-		{`{"status":"weird"}`, MigrationPending},
-		{`{"status":"completed","completedAt":"2026-08-20T10:00:00Z"}`, MigrationCompleted},
-	}
-	for _, tc := range cases {
-		t.Run(fmt.Sprintf("%q", tc.raw), func(t *testing.T) {
-			if got := parseMigration(tc.raw).Status; got != tc.want {
-				t.Errorf("status = %q, want %q", got, tc.want)
-			}
-		})
 	}
 }

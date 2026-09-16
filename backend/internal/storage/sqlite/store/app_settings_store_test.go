@@ -27,9 +27,6 @@ func TestAppSettingsMigrationSeedsDesktopDefaults(t *testing.T) {
 	if row.KeybindingsJSON != "{}" {
 		t.Errorf("keybindings json = %q, want {}", row.KeybindingsJSON)
 	}
-	if row.MigrationJSON != "{}" {
-		t.Errorf("migration json = %q, want {}", row.MigrationJSON)
-	}
 	if row.UpdatedAt.IsZero() {
 		t.Error("updated_at zero after migration seed")
 	}
@@ -50,9 +47,6 @@ func TestAppSettingsFacetWritesPreserveUnrelatedColumns(t *testing.T) {
 	if err := s.SetAppKeybindings(ctx, `{"next-tab":[{"key":"Tab","ctrl":true}]}`, now); err != nil {
 		t.Fatalf("set keybindings: %v", err)
 	}
-	if err := s.SetAppMigrationState(ctx, `{"status":"declined","lastAttemptAt":"2026-08-21T10:00:00Z"}`, now); err != nil {
-		t.Fatalf("set migration state: %v", err)
-	}
 
 	row, err := s.GetAppSettings(ctx)
 	if err != nil {
@@ -70,9 +64,6 @@ func TestAppSettingsFacetWritesPreserveUnrelatedColumns(t *testing.T) {
 	if row.KeybindingsJSON != `{"next-tab":[{"key":"Tab","ctrl":true}]}` {
 		t.Errorf("keybindings = %q, want preserved", row.KeybindingsJSON)
 	}
-	if row.MigrationJSON == "" {
-		t.Error("migration state lost")
-	}
 }
 
 func TestAppSettingsLaterFacetWriteKeepsEarlierFacets(t *testing.T) {
@@ -87,19 +78,16 @@ func TestAppSettingsLaterFacetWriteKeepsEarlierFacets(t *testing.T) {
 	if err := s.SetAppUpdateSettings(ctx, false, &pr, now); err != nil {
 		t.Fatalf("set update settings: %v", err)
 	}
-	if err := s.SetAppMigrationState(ctx, `{"status":"completed"}`, now); err != nil {
-		t.Fatalf("set migration state: %v", err)
-	}
 
 	row, err := s.GetAppSettings(ctx)
 	if err != nil {
 		t.Fatalf("read app settings: %v", err)
 	}
 	if row.UILocale != "pt-BR" {
-		t.Errorf("locale = %q, want pt-BR untouched by update/migration writes", row.UILocale)
+		t.Errorf("locale = %q, want pt-BR untouched by update write", row.UILocale)
 	}
 	if row.UpdateFeaturePR == nil || *row.UpdateFeaturePR != 3 {
-		t.Errorf("feature pr = %v, want 3 untouched by migration write", row.UpdateFeaturePR)
+		t.Errorf("feature pr = %v, want 3", row.UpdateFeaturePR)
 	}
 }
 
@@ -109,7 +97,7 @@ func TestAppSettingsConcurrentFacetWritesAllLand(t *testing.T) {
 	now := time.Date(2026, 8, 21, 12, 0, 0, 0, time.UTC)
 
 	var wg sync.WaitGroup
-	wg.Add(4)
+	wg.Add(3)
 	go func() {
 		defer wg.Done()
 		if err := s.SetAppUILocale(ctx, "es", now); err != nil {
@@ -128,12 +116,6 @@ func TestAppSettingsConcurrentFacetWritesAllLand(t *testing.T) {
 			t.Errorf("set keybindings: %v", err)
 		}
 	}()
-	go func() {
-		defer wg.Done()
-		if err := s.SetAppMigrationState(ctx, `{"status":"pending"}`, now); err != nil {
-			t.Errorf("set migration state: %v", err)
-		}
-	}()
 	wg.Wait()
 
 	row, err := s.GetAppSettings(ctx)
@@ -149,9 +131,6 @@ func TestAppSettingsConcurrentFacetWritesAllLand(t *testing.T) {
 	if row.KeybindingsJSON == "{}" {
 		t.Error("keybindings write lost")
 	}
-	if row.MigrationJSON == "{}" {
-		t.Error("migration write lost")
-	}
 }
 
 func TestAppSettingsMutationsEmitNoChangeLogRows(t *testing.T) {
@@ -164,7 +143,6 @@ func TestAppSettingsMutationsEmitNoChangeLogRows(t *testing.T) {
 		func() error { return s.SetAppUILocale(ctx, "zh-CN", now) },
 		func() error { return s.SetAppUpdateSettings(ctx, true, &pr, now) },
 		func() error { return s.SetAppKeybindings(ctx, `{"new-session":[]}`, now) },
-		func() error { return s.SetAppMigrationState(ctx, `{"status":"failed","error":"boom"}`, now) },
 	}
 	for i, m := range mutate {
 		if err := m(); err != nil {

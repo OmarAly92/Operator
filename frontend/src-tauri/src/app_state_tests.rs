@@ -8,11 +8,10 @@ use std::thread;
 use std::{collections::HashMap, env, io};
 
 use chrono::{TimeZone, Utc};
-use serde_json::json;
 
 use crate::app_state::{
     format_timestamp, parse_installed_via, read_marker, resolve_bundle_path, write_marker,
-    AppStateMarker, MigrationReport, MigrationState, APP_STATE_FILE_NAME, SCHEMA_VERSION,
+    AppStateMarker, APP_STATE_FILE_NAME, SCHEMA_VERSION,
 };
 use crate::relocation::{
     decide_relocation, execute_relocation, inspect_installed_bundle_in, installed_bundle_path,
@@ -109,7 +108,6 @@ fn first_write_captures_provenance_from_installed_via() {
         Some("2023-11-14T22:13:20.000Z")
     );
     assert_eq!(marker.install_source.as_deref(), Some("npm-bootstrap"));
-    assert_eq!(marker.migration, None);
 }
 
 #[test]
@@ -163,54 +161,6 @@ fn relaunch_preserves_provenance_while_refreshing_facts() {
     assert_eq!(
         marker.last_reconciled_at.as_deref(),
         Some("2023-11-14T22:15:00.000Z")
-    );
-}
-
-#[test]
-fn relaunch_preserves_migration_block_verbatim() {
-    let dir = scratch_dir("migration-preserved");
-    let seeded = json!({
-        "schemaVersion": 2,
-        "appPath": "/Applications/Operator.app",
-        "version": "0.10.2",
-        "installedAt": "2023-11-14T22:13:20.000Z",
-        "lastReconciledAt": "2023-11-14T22:13:20.000Z",
-        "installSource": "npm-bootstrap",
-        "migration": {
-            "status": "completed",
-            "lastAttemptAt": "2023-11-15T08:00:00.000Z",
-            "completedAt": "2023-11-15T08:00:01.000Z",
-            "report": {"projectsImported": 2, "projectsSkipped": 1},
-            "legacyExtra": {"kept": true}
-        }
-    });
-    fs::write(marker_path(&dir), serde_json::to_vec(&seeded).unwrap()).unwrap();
-
-    write_marker(
-        &dir,
-        "/Applications/Operator.app",
-        "0.10.3",
-        None,
-        instant(1_700_000_200, 0),
-    )
-    .unwrap();
-
-    let marker = read_marker(&dir).unwrap();
-    assert_eq!(
-        marker.migration,
-        Some(MigrationState {
-            status: "completed".to_string(),
-            last_attempt_at: Some("2023-11-15T08:00:00.000Z".to_string()),
-            completed_at: Some("2023-11-15T08:00:01.000Z".to_string()),
-            report: Some(MigrationReport {
-                projects_imported: 2,
-                projects_skipped: 1,
-            }),
-            error: None,
-            extra: [("legacyExtra".to_string(), json!({"kept": true}))]
-                .into_iter()
-                .collect(),
-        })
     );
 }
 

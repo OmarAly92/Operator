@@ -216,7 +216,6 @@ backend/internal/
 │   ├── settings/        # App settings
 │   ├── notification/    # Desktop notification fan-out
 │   ├── browser/         # agent-browser capability issuance
-│   ├── importer/        # External session import
 │   └── devimport/       # Development import helpers
 ├── session_manager/     # Internal session command engine
 ├── lifecycle/           # Durable session fact reducer
@@ -250,7 +249,6 @@ backend/internal/
 ├── daemonmeta/          # Daemon build and version metadata
 ├── telemetrymeta/       # Telemetry metadata
 ├── skillassets/         # Packaged skill assets
-├── legacyimport/        # Legacy data import
 ├── devimport/           # Development import
 ├── integration/         # Cross-package integration tests
 ├── testsupport/         # Test-only helpers, including a real pty
@@ -855,7 +853,7 @@ flowchart TD
         Usage[Usage]
         Settings[Settings]
         Mobile[Mobile pairing]
-        Others[Notifications, Push, Imports, Browser, Dev]
+        Others[Notifications, Push, Browser, Dev]
     end
 
     subgraph Services["Services"]

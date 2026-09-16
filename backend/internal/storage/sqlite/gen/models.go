@@ -68,7 +68,6 @@ type AppSetting struct {
 	UpdateOptIn     bool
 	UpdateFeaturePR sql.NullInt64
 	KeybindingsJson string
-	MigrationJson   string
 }
 
 type BlockEvent struct {

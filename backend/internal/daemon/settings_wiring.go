@@ -28,7 +28,6 @@ func (s settingsStore) GetAppSettings(ctx context.Context) (settingssvc.Record, 
 		UpdateOptIn:     row.UpdateOptIn,
 		UpdateFeaturePR: row.UpdateFeaturePR,
 		KeybindingsJSON: row.KeybindingsJSON,
-		MigrationJSON:   row.MigrationJSON,
 	}, nil
 }
 
@@ -62,16 +61,4 @@ func (s settingsStore) SetKeybindings(
 		return err
 	}
 	return s.store.SetAppKeybindings(ctx, string(raw), now)
-}
-
-func (s settingsStore) SetMigrationState(
-	ctx context.Context,
-	state settingssvc.MigrationState,
-	now time.Time,
-) error {
-	raw, err := json.Marshal(state)
-	if err != nil {
-		return err
-	}
-	return s.store.SetAppMigrationState(ctx, string(raw), now)
 }

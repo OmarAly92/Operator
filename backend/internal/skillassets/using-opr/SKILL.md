@@ -22,7 +22,6 @@ trigger: "Using the opr CLI in an Operator workspace: spawning workers, managing
 | `stop` | Stop the Operator daemon | Shutting down Operator | [commands/stop.md](commands/stop.md) |
 | `status` | Show daemon status | Verifying the daemon is up and healthy | [commands/status.md](commands/status.md) |
 | `doctor` | Run local health checks | Diagnosing Operator setup problems | [commands/doctor.md](commands/doctor.md) |
-| `import` | Import projects from a legacy Operator install | Migrating from the old flat-file store | [commands/import.md](commands/import.md) |
 | `version` | Print version information | Checking installed version | - |
 | `completion` | Generate shell completion scripts | Setting up tab completion | - |
 

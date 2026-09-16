@@ -7,11 +7,8 @@ package settings
 
 import (
 	"context"
-	"fmt"
 	"runtime"
 	"time"
-
-	"github.com/OmarAly92/operator/backend/internal/httpd/apierr"
 )
 
 // Record is the persisted preference row before preference-level
@@ -23,7 +20,6 @@ type Record struct {
 	UpdateOptIn     bool
 	UpdateFeaturePR *int64
 	KeybindingsJSON string
-	MigrationJSON   string
 }
 
 // Store is the durable preference surface.
@@ -32,7 +28,6 @@ type Store interface {
 	SetUILocale(ctx context.Context, locale string, now time.Time) error
 	SetUpdateSettings(ctx context.Context, prefs UpdateSettings, now time.Time) error
 	SetKeybindings(ctx context.Context, overrides KeybindingOverrides, now time.Time) error
-	SetMigrationState(ctx context.Context, state MigrationState, now time.Time) error
 }
 
 // Snapshot is the current preference set.
@@ -41,7 +36,6 @@ type Snapshot struct {
 	UILocale    string
 	Updates     UpdateSettings
 	Keybindings KeybindingOverrides
-	Migration   MigrationState
 }
 
 // Service reads and writes preferences.
@@ -96,21 +90,6 @@ func (s *Service) SetKeybindings(ctx context.Context, overrides KeybindingOverri
 	return s.readAfterWrite(ctx)
 }
 
-// SetMigrationState records the legacy-import decision. Every status remains
-// reachable from every other because the desktop client re-runs imports from
-// Settings even after completion or decline; only the value vocabulary is fixed.
-func (s *Service) SetMigrationState(ctx context.Context, state MigrationState) (Snapshot, error) {
-	if !state.Status.Valid() {
-		return Snapshot{}, apierr.Invalid("MIGRATION_STATUS_INVALID",
-			fmt.Sprintf("status must be %q, %q, %q, or %q",
-				MigrationPending, MigrationCompleted, MigrationDeclined, MigrationFailed), nil)
-	}
-	if err := s.store.SetMigrationState(ctx, state, s.now()); err != nil {
-		return Snapshot{}, err
-	}
-	return s.readAfterWrite(ctx)
-}
-
 func (s *Service) readAfterWrite(ctx context.Context) (Snapshot, error) {
 	record, err := s.store.GetAppSettings(ctx)
 	if err != nil {
@@ -130,7 +109,6 @@ func snapshotFromRecord(record Record) Snapshot {
 		UILocale:    CoerceUILocale(record.UILocale),
 		Updates:     coerceUpdateSettings(UpdateSettings{Enabled: record.UpdateOptIn, Feature: feature}),
 		Keybindings: CoerceKeybindingOverrides(parseKeybindings(record.KeybindingsJSON), macHost()),
-		Migration:   parseMigration(record.MigrationJSON),
 	}
 }
 

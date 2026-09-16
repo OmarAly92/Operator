@@ -16,6 +16,3 @@ WHERE id = 1;
 
 -- name: SetAppKeybindings :exec
 UPDATE app_settings SET keybindings_json = ?, updated_at = ? WHERE id = 1;
-
--- name: SetAppMigrationState :exec
-UPDATE app_settings SET migration_json = ?, updated_at = ? WHERE id = 1;

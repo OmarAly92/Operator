@@ -1,4 +1,3 @@
-use std::collections::BTreeMap;
 use std::fs::{self, OpenOptions};
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
@@ -8,40 +7,12 @@ use std::os::unix::fs::OpenOptionsExt;
 
 use chrono::{DateTime, SecondsFormat, Utc};
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
 
 /// Current marker format version (spec §5 `schemaVersion`).
 pub const SCHEMA_VERSION: i64 = 2;
 
 /// File name of the marker beside the daemon run file under the Operator state root.
 pub const APP_STATE_FILE_NAME: &str = "app-state.json";
-
-/// One migration report payload inside the preserved migration block.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct MigrationReport {
-    pub projects_imported: u64,
-    pub projects_skipped: u64,
-}
-
-/// The desktop-migration block carried on the marker; this process never writes
-/// a new one, it only preserves what earlier launches or Electron recorded.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct MigrationState {
-    #[serde(default)]
-    pub status: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub last_attempt_at: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub completed_at: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub report: Option<MigrationReport>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub error: Option<String>,
-    #[serde(flatten)]
-    pub extra: BTreeMap<String, Value>,
-}
 
 /// The launch marker `opr start` reads as its fast-path hint; the JSON keys
 /// mirror backend/internal/cli/start.go `appState` exactly (camelCase).
@@ -59,8 +30,6 @@ pub struct AppStateMarker {
     pub last_reconciled_at: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub install_source: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub migration: Option<MigrationState>,
 }
 
 /// Read the marker on disk; None when absent or unparseable so the caller treats
@@ -78,8 +47,7 @@ pub fn format_timestamp(now: DateTime<Utc>) -> String {
 
 /// Write the launch marker. On first creation `installedAt` and `installSource`
 /// capture provenance and then stay sticky across launches; `appPath`, `version`,
-/// and `lastReconciledAt` refresh every launch; an existing migration block is
-/// preserved unchanged.
+/// and `lastReconciledAt` refresh every launch.
 pub fn write_marker(
     state_dir: &Path,
     app_path: &str,
@@ -106,7 +74,6 @@ pub fn write_marker(
                 .and_then(|state| state.install_source.clone())
                 .unwrap_or_else(|| installed_via.unwrap_or("unknown").to_string()),
         ),
-        migration: existing.and_then(|state| state.migration),
     };
     atomic_write(state_dir, &marker, now.timestamp_millis())
 }

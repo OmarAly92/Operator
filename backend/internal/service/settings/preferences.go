@@ -3,7 +3,6 @@ package settings
 import (
 	"encoding/json"
 	"strings"
-	"time"
 )
 
 // DefaultUILocale is what an unknown or unreadable locale resolves to.
@@ -171,41 +170,6 @@ func normalizedBindingKey(key string) string {
 	return strings.ToLower(key)
 }
 
-// MigrationStatus is the legacy-import decision state.
-type MigrationStatus string
-
-// The migration statuses.
-const (
-	MigrationPending   MigrationStatus = "pending"
-	MigrationCompleted MigrationStatus = "completed"
-	MigrationDeclined  MigrationStatus = "declined"
-	MigrationFailed    MigrationStatus = "failed"
-)
-
-// Valid reports whether the status is one the API accepts.
-func (s MigrationStatus) Valid() bool {
-	switch s {
-	case MigrationPending, MigrationCompleted, MigrationDeclined, MigrationFailed:
-		return true
-	}
-	return false
-}
-
-// MigrationReport summarizes one legacy-import run.
-type MigrationReport struct {
-	ProjectsImported int `json:"projectsImported"`
-	ProjectsSkipped  int `json:"projectsSkipped"`
-}
-
-// MigrationState is the durable record of the legacy desktop import.
-type MigrationState struct {
-	Status        MigrationStatus  `json:"status" enum:"pending,completed,declined,failed"`
-	LastAttemptAt *time.Time       `json:"lastAttemptAt,omitempty"`
-	CompletedAt   *time.Time       `json:"completedAt,omitempty"`
-	Report        *MigrationReport `json:"report,omitempty"`
-	Error         *string          `json:"error,omitempty"`
-}
-
 func parseKeybindings(raw string) KeybindingOverrides {
 	trimmed := strings.TrimSpace(raw)
 	if trimmed == "" {
@@ -214,18 +178,6 @@ func parseKeybindings(raw string) KeybindingOverrides {
 	var parsed KeybindingOverrides
 	if err := json.Unmarshal([]byte(trimmed), &parsed); err != nil || parsed == nil {
 		return KeybindingOverrides{}
-	}
-	return parsed
-}
-
-func parseMigration(raw string) MigrationState {
-	trimmed := strings.TrimSpace(raw)
-	if trimmed == "" || trimmed == "{}" {
-		return MigrationState{Status: MigrationPending}
-	}
-	var parsed MigrationState
-	if err := json.Unmarshal([]byte(trimmed), &parsed); err != nil || !parsed.Status.Valid() {
-		return MigrationState{Status: MigrationPending}
 	}
 	return parsed
 }

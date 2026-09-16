@@ -116,6 +116,7 @@ var shippedMigrations = map[int64]string{
 	109: "0109_claude_accounts.sql",
 	110: "0110_claude_accounts_preferred.sql",
 	111: "0111_drop_nightly_and_legacy_prefs.sql",
+	112: "0112_drop_migration_json.sql",
 }
 
 // burnedVersion reports version numbers that must never be (re)used: they

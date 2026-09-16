@@ -108,10 +108,6 @@ export async function installFakeBridge(page: Page, opts: FakeBridgeOptions = {}
 					setAttentionState: () => undefined,
 					onOpenSession: unsubscribe,
 				},
-				appState: {
-					getMigration: async () => ({ status: "completed" }),
-					setMigration: async () => undefined,
-				},
 				updateSettings: {
 					get: async () => ({ enabled: false, feature: null }),
 					set: async () => undefined,
@@ -473,7 +469,6 @@ export async function installFakeAgent(page: Page, opts: FakeAgentOptions = {}):
 					onClick: unsubscribe,
 				},
 				tray: { setAttentionState: () => undefined, onOpenSession: unsubscribe },
-				appState: { getMigration: async () => ({ status: "completed" }), setMigration: async () => undefined },
 				updateSettings: {
 					get: async () => ({ enabled: false, feature: null }),
 					set: async () => undefined,

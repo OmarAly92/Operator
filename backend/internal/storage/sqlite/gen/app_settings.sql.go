@@ -13,7 +13,7 @@ import (
 
 const getAppSettings = `-- name: GetAppSettings :one
 
-SELECT id, updated_at, ui_locale, update_opt_in, update_feature_pr, keybindings_json, migration_json FROM app_settings WHERE id = 1
+SELECT id, updated_at, ui_locale, update_opt_in, update_feature_pr, keybindings_json FROM app_settings WHERE id = 1
 `
 
 // Daemon-owned user preferences. One row, seeded by migration 0042, so a read
@@ -30,7 +30,6 @@ func (q *Queries) GetAppSettings(ctx context.Context) (AppSetting, error) {
 		&i.UpdateOptIn,
 		&i.UpdateFeaturePR,
 		&i.KeybindingsJson,
-		&i.MigrationJson,
 	)
 	return i, err
 }
@@ -46,20 +45,6 @@ type SetAppKeybindingsParams struct {
 
 func (q *Queries) SetAppKeybindings(ctx context.Context, arg SetAppKeybindingsParams) error {
 	_, err := q.db.ExecContext(ctx, setAppKeybindings, arg.KeybindingsJson, arg.UpdatedAt)
-	return err
-}
-
-const setAppMigrationState = `-- name: SetAppMigrationState :exec
-UPDATE app_settings SET migration_json = ?, updated_at = ? WHERE id = 1
-`
-
-type SetAppMigrationStateParams struct {
-	MigrationJson string
-	UpdatedAt     time.Time
-}
-
-func (q *Queries) SetAppMigrationState(ctx context.Context, arg SetAppMigrationStateParams) error {
-	_, err := q.db.ExecContext(ctx, setAppMigrationState, arg.MigrationJson, arg.UpdatedAt)
 	return err
 }
 

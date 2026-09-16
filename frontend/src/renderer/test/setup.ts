@@ -214,10 +214,6 @@ if (typeof window !== "undefined") {
 			setAttentionState: () => undefined,
 			onOpenSession: () => () => undefined,
 		},
-		appState: {
-			getMigration: async () => ({ status: "pending" }),
-			setMigration: async () => undefined,
-		},
 		updateSettings: {
 			get: async () => ({ enabled: false, feature: null }),
 			set: async () => undefined,
