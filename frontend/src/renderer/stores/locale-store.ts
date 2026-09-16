@@ -36,12 +36,12 @@ export const useLocaleStore = create<LocaleState>((set, get) => ({
 		if (pendingLoad) return pendingLoad;
 		const revisionAtStart = localeRevision;
 		pendingLoad = (async () => {
-			let locale = DEFAULT_LOCALE;
+			let locale: AppLocale;
 			try {
 				const settings = await operatorBridge.uiSettings.get();
 				locale = coerceLocale(settings.locale);
 			} catch {
-				// A missing bridge or unreadable setting must not prevent the UI from starting.
+				return;
 			}
 			if (revisionAtStart !== localeRevision) return;
 			await applyLocale(locale);

@@ -96,8 +96,20 @@ describe("locale-store", () => {
 		getUiSettings.mockRejectedValue(new Error("bridge unavailable"));
 		await expect(useLocaleStore.getState().load()).resolves.toBeUndefined();
 		expect(useLocaleStore.getState().locale).toBe("en");
-		expect(useLocaleStore.getState().loaded).toBe(true);
+		expect(useLocaleStore.getState().loaded).toBe(false);
 		expect(appI18n.t("settings.general")).toBe("General");
+	});
+
+	it("retries the load once the daemon answers after a boot-time failure", async () => {
+		getUiSettings.mockRejectedValueOnce(new Error("Operator daemon is starting."));
+		await useLocaleStore.getState().load();
+		expect(useLocaleStore.getState().loaded).toBe(false);
+
+		getUiSettings.mockResolvedValue({ locale: "zh-CN" });
+		await useLocaleStore.getState().load();
+		expect(getUiSettings).toHaveBeenCalledTimes(2);
+		expect(useLocaleStore.getState()).toMatchObject({ locale: "zh-CN", loaded: true });
+		expect(appI18n.t("settings.general")).toBe("通用");
 	});
 
 	it("keeps the current locale and exposes an error when persistence fails", async () => {

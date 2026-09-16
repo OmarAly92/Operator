@@ -29,7 +29,12 @@ export const useKeybindingsStore = create<KeybindingsState>((set, get) => ({
 	loaded: false,
 	load: async () => {
 		if (get().loaded) return;
-		const overrides = await operatorBridge.keybindings.get();
+		let overrides: KeybindingOverrides;
+		try {
+			overrides = await operatorBridge.keybindings.get();
+		} catch {
+			return;
+		}
 		set({ overrides, loaded: true });
 	},
 	setOverrides: async (candidate) => {

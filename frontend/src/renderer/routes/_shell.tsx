@@ -47,7 +47,8 @@ import {
 	hidesShellTopbar,
 } from "../lib/platform";
 import { useUiStore } from "../stores/ui-store";
-import { matchesRendererShortcut } from "../stores/keybindings-store";
+import { matchesRendererShortcut, useKeybindingsStore } from "../stores/keybindings-store";
+import { useLocaleStore } from "../stores/locale-store";
 import { sessionIsActive, toProjectKind, type WorkspaceSummary } from "../types/workspace";
 import type { components } from "../../api/schema";
 import { useAgentInventoryTelemetry } from "../hooks/useAgentInventoryTelemetry";
@@ -402,6 +403,12 @@ function ShellLayout() {
 	useEffect(() => {
 		applyDocumentThemeStyle(themeStyle);
 	}, [themeStyle]);
+
+	useEffect(() => {
+		if (daemonStatus.state !== "ready" || !daemonStatus.port) return;
+		void useLocaleStore.getState().load();
+		void useKeybindingsStore.getState().load();
+	}, [daemonStatus.state, daemonStatus.port]);
 
 	// A daemon port is not enough to render a trustworthy empty state: the
 	// route loader may have cached [] before the shell reported the port. Fetch
