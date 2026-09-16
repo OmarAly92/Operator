@@ -20,7 +20,25 @@
 	"bundle": {
 		"active": true,
 		"targets": ["app", "dmg", "nsis", "deb", "rpm", "appimage"],
-		"icon": ["../assets/icon.png", "../assets/icon.icns", "../assets/icon.ico"],
+		"icon": [
+			"../assets/icons/32x32.png",
+			"../assets/icons/64x64.png",
+			"../assets/icons/128x128.png",
+			"../assets/icons/128x128@2x.png",
+			"../assets/icon.png",
+			"../assets/icon.icns",
+			"../assets/icon.ico",
+			"../assets/icons/Square30x30Logo.png",
+			"../assets/icons/Square44x44Logo.png",
+			"../assets/icons/Square71x71Logo.png",
+			"../assets/icons/Square89x89Logo.png",
+			"../assets/icons/Square107x107Logo.png",
+			"../assets/icons/Square142x142Logo.png",
+			"../assets/icons/Square150x150Logo.png",
+			"../assets/icons/Square284x284Logo.png",
+			"../assets/icons/Square310x310Logo.png",
+			"../assets/icons/StoreLogo.png"
+		],
 		"resources": {
 			"../daemon/": "daemon/",
 			"../agent-browser/": "agent-browser/"
