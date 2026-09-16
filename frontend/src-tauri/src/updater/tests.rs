@@ -21,9 +21,8 @@ use super::status::{
 };
 use super::storage::{StorageError, UpdaterStorage};
 use super::{
-    first_run_settings, BoxFuture, CheckOptions, ClockFn, EngineConfig, FeedClient, FirstRunAnswer,
-    ProgressCallback, ReleaseHandle, StatusSink, UpdaterEngine, APPLY_DEFERRED_MESSAGE,
-    UNSUPPORTED_MESSAGE,
+    BoxFuture, CheckOptions, ClockFn, EngineConfig, FeedClient, ProgressCallback, ReleaseHandle,
+    StatusSink, UpdaterEngine, APPLY_DEFERRED_MESSAGE, UNSUPPORTED_MESSAGE,
 };
 
 const APP_VERSION: &str = "1.0.0";
@@ -1040,24 +1039,6 @@ async fn start_with_disabled_settings_skips_checks_and_keeps_retirement_capable(
     assert!(!should_schedule);
     assert!(h.client.urls().is_empty());
     assert_eq!(h.engine.status(), UpdateStatus::idle());
-}
-
-#[test]
-fn first_run_opt_in_policy_writes_expected_defaults() {
-    assert_eq!(
-        first_run_settings(FirstRunAnswer::Decline),
-        UpdateSettings {
-            enabled: false,
-            feature: None,
-        }
-    );
-    assert_eq!(
-        first_run_settings(FirstRunAnswer::EnableLatest),
-        UpdateSettings {
-            enabled: true,
-            feature: None,
-        }
-    );
 }
 
 #[tokio::test]

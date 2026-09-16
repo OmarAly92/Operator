@@ -1,4 +1,3 @@
-use crate::menu::MenuPlatform;
 
 pub const MAX_MENU_SESSIONS: usize = 8;
 pub const TRAY_ICON_PNG: &[u8] = include_bytes!("../../assets/trayIcon.png");
@@ -91,10 +90,6 @@ pub struct TrayStrings {
     pub tooltip_other: String,
     pub zone_merge: String,
     pub zone_action: String,
-}
-
-pub fn is_tray_enabled(platform: MenuPlatform) -> bool {
-    platform == MenuPlatform::Macos
 }
 
 const EN_CATALOG: &[u8] = include_bytes!("../../src/renderer/i18n/en.json");
@@ -459,14 +454,6 @@ pub fn apply_state(app: &tauri::AppHandle, sessions: &[SessionEntry]) -> Result<
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn tray_is_macos_only() {
-        assert!(is_tray_enabled(MenuPlatform::Macos));
-        for platform in [MenuPlatform::Windows, MenuPlatform::Linux] {
-            assert!(!is_tray_enabled(platform));
-        }
-    }
 
     #[test]
     fn every_locale_resolves_the_full_tray_string_set_from_the_shared_catalogs() {

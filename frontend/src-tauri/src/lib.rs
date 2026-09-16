@@ -581,9 +581,9 @@ fn install_app_menu(app: &tauri::AppHandle) -> Result<(), Box<dyn Error>> {
                 menu::MenuItemKind::NativeQuit => {
                     submenu.item(&tauri::menu::PredefinedMenuItem::quit(app, None)?)
                 }
-                menu::MenuItemKind::NativePaste => {
-                    submenu.item(&tauri::menu::PredefinedMenuItem::paste(app, Some(item.label))?)
-                }
+                menu::MenuItemKind::NativePaste => submenu.item(
+                    &tauri::menu::PredefinedMenuItem::paste(app, Some(item.label))?,
+                ),
             };
         }
         menu_builder = menu_builder.item(&submenu.build()?);
@@ -1224,12 +1224,14 @@ void (async () => {
                 tauri::WindowEvent::Resized(_) => {
                     poll_fullscreen_state(app_handle);
                     #[cfg(target_os = "macos")]
-                    if let Some(window) = app_handle.get_webview_window(shortcuts::MAIN_WINDOW_LABEL) {
+                    if let Some(window) =
+                        app_handle.get_webview_window(shortcuts::MAIN_WINDOW_LABEL)
+                    {
                         if let Err(error) = mac_window_controls::align(&window) {
                             eprintln!("could not align window controls: {error}");
                         }
                     }
-                },
+                }
                 tauri::WindowEvent::Focused(focused) => {
                     request_window_focus_state(focused);
                     let app_handle = app_handle.clone();

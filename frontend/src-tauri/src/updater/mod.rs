@@ -715,22 +715,6 @@ impl<C: FeedClient> UpdaterEngine<C> {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum FirstRunAnswer {
-    Decline,
-    EnableLatest,
-}
-
-pub fn first_run_settings(answer: FirstRunAnswer) -> UpdateSettings {
-    match answer {
-        FirstRunAnswer::Decline => UpdateSettings::default(),
-        FirstRunAnswer::EnableLatest => UpdateSettings {
-            enabled: true,
-            feature: None,
-        },
-    }
-}
-
 pub const UPDATER_STATE_DIR_NAME: &str = "updater";
 
 /// The minisign verification key, compiled in at build time. A build without
