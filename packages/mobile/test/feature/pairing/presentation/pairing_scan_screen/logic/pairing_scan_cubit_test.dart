@@ -6,12 +6,15 @@ import 'package:operator_mobile/core/api/server_config.dart';
 import 'package:operator_mobile/core/api/server_config_store.dart';
 import 'package:operator_mobile/core/error_handling/failures/failure.dart';
 import 'package:operator_mobile/core/helpers/result/result.dart';
+import 'package:operator_mobile/feature/pairing/data/model/desktop_model.dart';
 import 'package:operator_mobile/feature/pairing/data/repository/pairing_repository.dart';
 import 'package:operator_mobile/feature/pairing/presentation/pairing_scan_screen/logic/pairing_scan_cubit.dart';
 
 class _MockPairingRepository extends Mock implements PairingRepository {}
 
 class _MockServerConfigStore extends Mock implements ServerConfigStore {}
+
+const _desktop = DesktopModel(id: 'a', name: 'Mac', host: '10.0.0.5', port: '3011', secure: false, isActive: true);
 
 void main() {
   setUpAll(() {
@@ -38,7 +41,7 @@ void main() {
   blocTest<PairingScanCubit, PairingScanState>(
     'verifies a valid payload and emits success',
     build: () {
-      when(() => repository.verifyAndConnect(any())).thenAnswer((_) async => Result.success(true));
+      when(() => repository.verifyAndConnect(any())).thenAnswer((_) async => Result.success(_desktop));
       return PairingScanCubit(repository, store, fromOnboarding: false);
     },
     act: (cubit) => cubit.onScan('{"v":1,"host":"10.0.0.5","port":"3011","password":"secret12"}', TargetPlatform.iOS),
@@ -51,7 +54,7 @@ void main() {
       when(() => store.current).thenReturn(
         const ServerConfig(host: 'old-host', httpPort: '3011', secure: true, password: 'old-pass'),
       );
-      when(() => repository.verifyAndConnect(any())).thenAnswer((_) async => Result.success(true));
+      when(() => repository.verifyAndConnect(any())).thenAnswer((_) async => Result.success(_desktop));
       return PairingScanCubit(repository, store, fromOnboarding: false);
     },
     act: (cubit) => cubit.onScan('{"v":1,"host":"10.0.0.5","port":"3011"}', TargetPlatform.iOS),
@@ -66,7 +69,7 @@ void main() {
   blocTest<PairingScanCubit, PairingScanState>(
     'a v2 payload connects over https',
     build: () {
-      when(() => repository.verifyAndConnect(any())).thenAnswer((_) async => Result.success(true));
+      when(() => repository.verifyAndConnect(any())).thenAnswer((_) async => Result.success(_desktop));
       return PairingScanCubit(repository, store, fromOnboarding: false);
     },
     act: (cubit) => cubit.onScan(
@@ -85,7 +88,7 @@ void main() {
   blocTest<PairingScanCubit, PairingScanState>(
     'a v1 payload stays on plain http',
     build: () {
-      when(() => repository.verifyAndConnect(any())).thenAnswer((_) async => Result.success(true));
+      when(() => repository.verifyAndConnect(any())).thenAnswer((_) async => Result.success(_desktop));
       return PairingScanCubit(repository, store, fromOnboarding: false);
     },
     act: (cubit) => cubit.onScan('{"v":1,"host":"10.0.0.5","port":"3011","password":"secret12"}', TargetPlatform.iOS),

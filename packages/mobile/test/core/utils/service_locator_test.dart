@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:operator_mobile/core/api/api_request_helpers/api_consumer.dart';
@@ -25,6 +27,7 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   const secureStorageChannel = MethodChannel('plugins.it_nomads.com/flutter_secure_storage');
+  const pathProviderChannel = MethodChannel('plugins.flutter.io/path_provider');
 
   setUp(() async {
     SharedPreferences.setMockInitialValues({});
@@ -33,9 +36,13 @@ void main() {
       secureStorageChannel,
       (call) async => call.method == 'read' ? null : <String, String>{},
     );
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(
+      pathProviderChannel,
+      (call) async => Directory.systemTemp.path,
+    );
     await sl.reset();
     await ServiceLocator.init();
-    await sl<ServerConfigStore>().save(
+    sl<ServerConfigStore>().set(
       const ServerConfig(host: '10.0.0.5', httpPort: '3011', secure: false, password: 'secret12'),
     );
   });
@@ -51,7 +58,7 @@ void main() {
   });
 
   test('resolves the pairing and sessions singletons', () async {
-    await sl<ServerConfigStore>().save(
+    sl<ServerConfigStore>().set(
       const ServerConfig(host: '10.0.0.5', httpPort: '3011', secure: false, password: 'secret12'),
     );
     expect(sl<PairingRepository>(), isA<PairingRepository>());
@@ -60,7 +67,7 @@ void main() {
   });
 
   test('resolves the pull request cubit and repository', () async {
-    await sl<ServerConfigStore>().save(
+    sl<ServerConfigStore>().set(
       const ServerConfig(host: '10.0.0.5', httpPort: '3011', secure: false, password: 'secret12'),
     );
     expect(sl<PullRequestCubit>(), isA<PullRequestCubit>());
@@ -68,7 +75,7 @@ void main() {
   });
 
   test('resolves the orchestrator cubit and repository', () async {
-    await sl<ServerConfigStore>().save(
+    sl<ServerConfigStore>().set(
       const ServerConfig(host: '10.0.0.5', httpPort: '3011', secure: false, password: 'secret12'),
     );
     expect(sl<OrchestratorCubit>(), isA<OrchestratorCubit>());
@@ -76,7 +83,7 @@ void main() {
   });
 
   test('resolves the spawn cubit and repository', () async {
-    await sl<ServerConfigStore>().save(
+    sl<ServerConfigStore>().set(
       const ServerConfig(host: '10.0.0.5', httpPort: '3011', secure: false, password: 'secret12'),
     );
     expect(sl<SpawnCubit>(), isA<SpawnCubit>());
@@ -84,14 +91,14 @@ void main() {
   });
 
   test('resolves the settings cubit', () async {
-    await sl<ServerConfigStore>().save(
+    sl<ServerConfigStore>().set(
       const ServerConfig(host: '10.0.0.5', httpPort: '3011', secure: false, password: 'secret12'),
     );
     expect(sl<SettingsCubit>(), isA<SettingsCubit>());
   });
 
   test('resolves the terminal repository and data source', () async {
-    await sl<ServerConfigStore>().save(
+    sl<ServerConfigStore>().set(
       const ServerConfig(host: '10.0.0.5', httpPort: '3011', secure: false, password: 'secret12'),
     );
     expect(sl<TerminalRepository>(), isA<TerminalRepository>());

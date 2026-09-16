@@ -91,7 +91,7 @@ class ServiceLocator {
     sl.registerLazySingleton<DesktopsRepository>(() => DesktopsRepositoryImp(sl<DesktopsLocalDataSource>()));
 
     sl.registerLazySingleton<ServerConfigStore>(
-      () => ServerConfigStore(sl<FlutterSecureStorage>()),
+      () => ServerConfigStore(sl<DesktopsLocalDataSource>()),
     );
     sl.registerLazySingleton<ApiConsumer>(
       () => DioConsumer(sl<ServerConfigStore>()),
@@ -127,6 +127,7 @@ class ServiceLocator {
     sl.registerLazySingleton<PairingRepository>(
       () => PairingRepositoryImp(
         sl<PairingRemoteDataSource>(),
+        sl<DesktopsRepository>(),
         sl<ServerConfigStore>(),
       ),
     );

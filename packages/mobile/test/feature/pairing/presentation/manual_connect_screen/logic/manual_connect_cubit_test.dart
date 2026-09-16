@@ -6,12 +6,15 @@ import 'package:operator_mobile/core/api/server_config.dart';
 import 'package:operator_mobile/core/api/server_config_store.dart';
 import 'package:operator_mobile/core/error_handling/failures/failure.dart';
 import 'package:operator_mobile/core/helpers/result/result.dart';
+import 'package:operator_mobile/feature/pairing/data/model/desktop_model.dart';
 import 'package:operator_mobile/feature/pairing/data/repository/pairing_repository.dart';
 import 'package:operator_mobile/feature/pairing/presentation/manual_connect_screen/logic/manual_connect_cubit.dart';
 
 class _MockPairingRepository extends Mock implements PairingRepository {}
 
 class _MockServerConfigStore extends Mock implements ServerConfigStore {}
+
+const _desktop = DesktopModel(id: 'a', name: 'Mac', host: '10.0.0.5', port: '3011', secure: false, isActive: true);
 
 void main() {
   setUpAll(() {
@@ -58,7 +61,7 @@ void main() {
     'trims the host and verifies before emitting success',
     build: () {
       when(() => store.current).thenReturn(null);
-      when(() => repository.verifyAndConnect(any())).thenAnswer((_) async => Result.success(true));
+      when(() => repository.verifyAndConnect(any())).thenAnswer((_) async => Result.success(_desktop));
       return ManualConnectCubit(repository, store);
     },
     act: (cubit) {

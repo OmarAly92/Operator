@@ -21,6 +21,7 @@ import 'package:operator_mobile/feature/onboarding/presentation/onboarding_scree
 import 'package:operator_mobile/feature/orchestrator/data/model/params/launch_orchestrator_params.dart';
 import 'package:operator_mobile/feature/orchestrator/data/repository/orchestrator_repository.dart';
 import 'package:operator_mobile/feature/orchestrator/presentation/orchestrator_screen/logic/orchestrator_cubit.dart';
+import 'package:operator_mobile/feature/pairing/data/model/desktop_model.dart';
 import 'package:operator_mobile/feature/pairing/data/repository/pairing_repository.dart';
 import 'package:operator_mobile/feature/pairing/presentation/manual_connect_screen/logic/manual_connect_cubit.dart';
 import 'package:operator_mobile/feature/pairing/presentation/pairing_scan_screen/logic/pairing_scan_cubit.dart';
@@ -38,6 +39,8 @@ import 'telemetry_test.dart' show RecordingClient;
 class _MockPairingRepository extends Mock implements PairingRepository {}
 
 class _MockServerConfigStore extends Mock implements ServerConfigStore {}
+
+const _desktop = DesktopModel(id: 'a', name: 'Mac', host: '10.0.0.5', port: '3011', secure: false, isActive: true);
 
 class _MockSessionsRepository extends Mock implements SessionsRepository {}
 
@@ -97,7 +100,7 @@ void main() {
     final repository = _MockPairingRepository();
     final store = _MockServerConfigStore();
     when(() => store.current).thenReturn(null);
-    when(() => repository.verifyAndConnect(any())).thenAnswer((_) async => Result.success(true));
+    when(() => repository.verifyAndConnect(any())).thenAnswer((_) async => Result.success(_desktop));
     final cubit = PairingScanCubit(repository, store, fromOnboarding: true);
 
     await cubit.onScan(_qr, TargetPlatform.iOS);
@@ -112,7 +115,7 @@ void main() {
     final repository = _MockPairingRepository();
     final store = _MockServerConfigStore();
     when(() => store.current).thenReturn(_config);
-    when(() => repository.verifyAndConnect(any())).thenAnswer((_) async => Result.success(true));
+    when(() => repository.verifyAndConnect(any())).thenAnswer((_) async => Result.success(_desktop));
     final cubit = ManualConnectCubit(repository, store);
 
     await cubit.connect(TargetPlatform.iOS);
