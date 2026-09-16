@@ -27,6 +27,17 @@ Two facts that are easy to get wrong from the code alone:
 **`AGENTS.md` covers `backend/` and `frontend/` only.** The third deliverable, the Flutter
 mobile client at `packages/mobile`, is documented below.
 
+## Release signing key is backed up — never regenerate it
+
+The Tauri updater keypair lives at `~/.tauri/operator-updater.key`, `.key.pub` and
+`.password` on the user's machine and is backed up in their password manager
+(*Operator — Tauri updater signing key*, saved 2026-09-17). GitHub holds it as the
+secrets `TAURI_SIGNING_PRIVATE_KEY` / `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` and the
+repo variable `OPERATOR_UPDATER_PUBLIC_KEY`. Do not run `tauri signer generate` again
+or overwrite those: the public key is compiled into every shipped build and a new
+key would permanently break auto-update for every installed app. If a release needs
+the key, point the user at the backup.
+
 ## Nested worktrees poison repo-wide search
 
 Some git worktrees live *inside* this checkout (`.worktrees/`, `.claude/worktrees/`),

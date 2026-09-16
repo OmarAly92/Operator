@@ -188,6 +188,16 @@ opr start
 
 </details>
 
+### Releasing
+
+Pushing a `desktop-vX.Y.Z` tag (with `frontend/package.json` already at that version)
+runs `.github/workflows/frontend-release.yml`, which builds every platform, signs the
+updater archives and publishes `latest.json` — the feed installed apps poll. The
+updater signing key (`~/.tauri/operator-updater.key` + `.password` on the maintainer's
+machine) is backed up in the maintainer's password manager as *Operator — Tauri
+updater signing key*. Never regenerate it: the public half is compiled into every
+shipped build, and a new key would strand every installed app on its current version.
+
 ## Documentation
 
 | Document                                                         | Start here when you need                                                                     |
