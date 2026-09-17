@@ -47,6 +47,25 @@ func TestServerMsgSessionFrameWireShape(t *testing.T) {
 	}
 }
 
+func TestServerMsgSessionFrameCarriesPayload(t *testing.T) {
+	msg := serverMsg{
+		Ch:   chSessions,
+		Type: msgSnapshot,
+		Session: &sessionUpdate{
+			Seq: 8, ProjectID: "p1", SessionID: "s1", EventType: "session_updated",
+			Payload: json.RawMessage(`{"id":"s1","activity":"active"}`),
+		},
+	}
+	raw, err := json.Marshal(msg)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	want := `{"ch":"sessions","type":"snapshot","session":{"seq":8,"projectId":"p1","sessionId":"s1","eventType":"session_updated","payload":{"id":"s1","activity":"active"}}}`
+	if string(raw) != want {
+		t.Fatalf("wire shape:\n got %s\nwant %s", raw, want)
+	}
+}
+
 func TestServerMsgOmitsEmptyOptionalFields(t *testing.T) {
 	raw, err := json.Marshal(serverMsg{Ch: chTerminal, ID: "t1", Type: msgOpened})
 	if err != nil {

@@ -200,12 +200,13 @@ class MuxClient {
             (eventType.startsWith('session_') || eventType.startsWith('project_') || eventType.startsWith('pr_'))) {
           _boardChangesController.add(null);
         }
+        final sessionId = change['sessionId'];
+        if (eventType == 'session_updated' && sessionId is String) {
+          final patch = SessionPatch.fromChangePayload(sessionId, change['payload']);
+          if (patch != null) _sessionPatchesController.add([patch]);
+        }
         return;
       }
-      final rawSessions = msg['sessions'] as List<dynamic>? ?? [];
-      _sessionPatchesController.add(
-        rawSessions.map((s) => SessionPatch.fromJson(s as Map<String, dynamic>)).toList(),
-      );
       return;
     }
 

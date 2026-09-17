@@ -360,8 +360,6 @@ void main() {
         id: 's-1',
         status: 'terminated',
         activity: 'exited',
-        attentionLevel: 'none',
-        lastActivityAt: '2026-08-27T10:00:00Z',
       ),
     ]);
     await Future<void>.delayed(Duration.zero);
@@ -381,8 +379,6 @@ void main() {
         id: 's-2',
         status: 'terminated',
         activity: 'exited',
-        attentionLevel: 'none',
-        lastActivityAt: '2026-08-27T10:00:00Z',
       ),
     ]);
     await Future<void>.delayed(Duration.zero);
@@ -437,8 +433,6 @@ void main() {
         id: 's-1',
         status: 'working',
         activity: 'active',
-        attentionLevel: 'none',
-        lastActivityAt: '2026-09-04T00:00:00.000Z',
       ),
     ]);
     await Future<void>.delayed(Duration.zero);
@@ -449,8 +443,6 @@ void main() {
         id: 's-1',
         status: 'idle',
         activity: 'idle',
-        attentionLevel: 'none',
-        lastActivityAt: '2026-09-04T00:00:01.000Z',
       ),
     ]);
     await Future<void>.delayed(Duration.zero);

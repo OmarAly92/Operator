@@ -347,8 +347,6 @@ void main() {
           id: 's1',
           status: 'running',
           activity: 'active',
-          attentionLevel: 'none',
-          lastActivityAt: '2026-09-05T00:00:00Z',
         ),
       ]);
       await Future<void>.delayed(Duration.zero);
@@ -365,8 +363,6 @@ void main() {
         id: 'other',
         status: 'running',
         activity: 'active',
-        attentionLevel: 'none',
-        lastActivityAt: '2026-09-05T00:00:00Z',
       ),
     ]);
     await Future<void>.delayed(Duration.zero);
@@ -479,8 +475,6 @@ void main() {
         id: 's1',
         status: 'running',
         activity: 'active',
-        attentionLevel: 'none',
-        lastActivityAt: '2026-09-05T00:00:00Z',
       ),
     ]);
     events.add(const BlockEventEnvelope('s1', {'kind': 'compaction'}));

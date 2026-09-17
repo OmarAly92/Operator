@@ -1,6 +1,7 @@
 package terminal
 
 import (
+	"encoding/json"
 	"time"
 
 	blockeventsvc "github.com/OmarAly92/operator/backend/internal/service/blockevent"
@@ -123,11 +124,14 @@ type terminalBlockFrame struct {
 }
 
 // sessionUpdate is the ch "sessions" payload: a single CDC change projected to
-// the fields a client needs to refresh its view. It deliberately omits the raw
-// change_log payload blob; the client refetches detail over the REST surface.
+// the fields a client needs to refresh its view. Payload is the trigger-built
+// change_log JSON, carried so a client watching one session (the phone's
+// header pill) can read the new activity state without a REST round trip;
+// board-level detail is still refetched over the REST surface.
 type sessionUpdate struct {
-	Seq       int64  `json:"seq"`
-	ProjectID string `json:"projectId"`
-	SessionID string `json:"sessionId,omitempty"`
-	EventType string `json:"eventType"`
+	Seq       int64           `json:"seq"`
+	ProjectID string          `json:"projectId"`
+	SessionID string          `json:"sessionId,omitempty"`
+	EventType string          `json:"eventType"`
+	Payload   json.RawMessage `json:"payload,omitempty"`
 }

@@ -530,6 +530,7 @@ func (c *connState) handleSubscribe(msg clientMsg) {
 				ProjectID: e.ProjectID,
 				SessionID: e.SessionID,
 				EventType: string(e.Type),
+				Payload:   e.Payload,
 			},
 		})
 	})
