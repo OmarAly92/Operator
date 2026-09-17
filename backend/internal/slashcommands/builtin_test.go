@@ -55,3 +55,13 @@ func TestBuiltinTableIsWellFormed(t *testing.T) {
 		}
 	}
 }
+
+func TestExportIsInteractive(t *testing.T) {
+	cmd, ok := Lookup("/export")
+	if !ok || !cmd.Interactive {
+		t.Fatalf("Lookup(/export) = %+v, %v; want an interactive built-in (it opens an export-method picker)", cmd, ok)
+	}
+	if cmd, _ := Lookup("/doctor"); cmd.Interactive {
+		t.Fatalf("/doctor runs as an ordinary turn and must stay non-interactive")
+	}
+}

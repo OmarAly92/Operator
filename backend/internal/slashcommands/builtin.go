@@ -22,7 +22,7 @@ var Builtin = []Command{
 	{Name: "context", Description: "Show current context usage as a colored grid", Source: SourceBuiltin},
 	{Name: "cost", Description: "Show the total cost and duration of the current session", Source: SourceBuiltin},
 	{Name: "doctor", Description: "Diagnose and verify your Claude Code installation and settings", Source: SourceBuiltin},
-	{Name: "export", Description: "Export the current conversation to a file or clipboard", Source: SourceBuiltin},
+	{Name: "export", Description: "Export the current conversation to a file or clipboard", Source: SourceBuiltin, Interactive: true},
 	{Name: "help", Description: "Show help and available commands", Source: SourceBuiltin},
 	{Name: "init", Description: "Initialize a new CLAUDE.md file with codebase documentation", Source: SourceBuiltin},
 	{Name: "pr-comments", Description: "Get comments from a GitHub pull request", Source: SourceBuiltin},
