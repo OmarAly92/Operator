@@ -17,7 +17,7 @@
 - Mobile conventions (`CLAUDE.md`): Cubit only; hand-written models with all-nullable fields, `fromJson` after the constructor; one params class per method; parameterized paths via static methods on `EndPoints`; no `flutter_screenutil` in feature code; inline English copy; `context.skin` for colours; `AppTextStyle.*` for type.
 - No comments in code (user global rule), except where the surrounding file already carries a load-bearing comment that the change must update.
 - Every task ends with a commit on `development`. Never touch `master`.
-- Commit trailer: `Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>`.
+- Commit trailer: the `Co-Authored-By` line your session's attribution reminder gives; do not copy one from another session.
 
 ## File map
 
@@ -32,7 +32,8 @@ Daemon (`backend/`):
 - Create `internal/httpd/controllers/sessions_slash_commands_test.go`.
 - Create `internal/service/slashcommands/service.go`, `service_test.go`.
 - Modify `internal/httpd/api.go` — `APIDeps.SlashCommands`, wire into `SessionsController`.
-- Modify `internal/httpd/apispec/specgen/build.go` — route entry; regenerate `openapi.yaml`.
+- Modify `internal/httpd/apispec/specgen/build.go` — route entry; regenerate `openapi.yaml` and `frontend/src/api/schema.ts` (CI diffs it, `.github/workflows/go.yml:96`).
+- Modify `internal/service/session/service.go:875` — map `ErrInteractiveSlashCommand` to `409 SLASH_COMMAND_INTERACTIVE`.
 - Modify `internal/daemon/daemon.go:400-420` — construct the service.
 
 Mobile (`packages/mobile/`):
@@ -44,6 +45,7 @@ Mobile (`packages/mobile/`):
 - Modify `lib/core/utils/service_locator.dart:207` (`_terminalFeatureSetup`), `lib/core/app_routes/app_router.dart:105-134`.
 - Create `lib/feature/terminal/presentation/terminal_screen/ui/widgets/slash_command_menu.dart`, `slash_command_row.dart`.
 - Modify `lib/feature/terminal/presentation/terminal_screen/ui/widgets/terminal_composer.dart:120-126`.
+- Modify `test/feature/terminal/terminal_harness.dart` and every test that mounts `TerminalComposer` directly (`terminal_composer_test.dart`, `terminal_dock_test.dart`) — provide a `SlashMenuCubit`.
 - Create tests: `test/feature/terminal/data/model/slash_command_model_test.dart`, `test/feature/terminal/presentation/terminal_screen/logic/slash_menu_cubit_test.dart`, `test/feature/terminal/presentation/terminal_screen/ui/widgets/slash_command_menu_test.dart`.
 
 ---
@@ -55,7 +57,7 @@ Mobile (`packages/mobile/`):
 - Test: `backend/internal/slashcommands/builtin_test.go`
 
 **Interfaces:**
-- Produces: `slashcommands.Command{Name, Description, Source string; Interactive bool}`, `slashcommands.Builtin []Command`, `slashcommands.IsBuiltin(message string) bool`.
+- Produces: `slashcommands.Command{Name, Description, Source string; Interactive bool}`, `slashcommands.Builtin []Command`, `slashcommands.Lookup(message string) (Command, bool)`, `slashcommands.IsBuiltin(message string) bool`.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -84,6 +86,16 @@ func TestIsBuiltin(t *testing.T) {
 		if got := IsBuiltin(tc.message); got != tc.want {
 			t.Errorf("IsBuiltin(%q) = %v, want %v", tc.message, got, tc.want)
 		}
+	}
+}
+
+func TestLookupReturnsTheEntry(t *testing.T) {
+	cmd, ok := Lookup("/model sonnet")
+	if !ok || cmd.Name != "model" || !cmd.Interactive {
+		t.Fatalf("Lookup(/model sonnet) = %+v, %v; want the interactive model entry", cmd, ok)
+	}
+	if _, ok := Lookup("/sc:analyze"); ok {
+		t.Fatal("Lookup(/sc:analyze) matched a built-in")
 	}
 }
 
@@ -170,20 +182,25 @@ var Builtin = []Command{
 	{Name: "vim", Description: "Toggle between Vim and Normal editing modes", Source: SourceBuiltin, Interactive: true},
 }
 
-var builtinNames = func() map[string]struct{} {
-	names := make(map[string]struct{}, len(Builtin))
+var builtinByName = func() map[string]Command {
+	byName := make(map[string]Command, len(Builtin))
 	for _, c := range Builtin {
-		names[c.Name] = struct{}{}
+		byName[c.Name] = c
 	}
-	return names
+	return byName
 }()
 
-func IsBuiltin(message string) bool {
+func Lookup(message string) (Command, bool) {
 	fields := strings.Fields(message)
 	if len(fields) == 0 || !strings.HasPrefix(fields[0], "/") {
-		return false
+		return Command{}, false
 	}
-	_, ok := builtinNames[fields[0][1:]]
+	cmd, ok := builtinByName[fields[0][1:]]
+	return cmd, ok
+}
+
+func IsBuiltin(message string) bool {
+	_, ok := Lookup(message)
 	return ok
 }
 ```
@@ -202,15 +219,16 @@ git commit -m "feat(daemon): built-in Claude Code slash command catalogue"
 
 ---
 
-### Task 2: Send skips activity confirmation for built-in slash commands
+### Task 2: Send refuses interactive built-ins and skips confirmation for the rest
 
 **Files:**
-- Modify: `backend/internal/session_manager/manager.go:2361-2381`
+- Modify: `backend/internal/session_manager/manager.go:117-123` (errors), `manager.go:2326-2381` (`send`)
+- Modify: `backend/internal/service/session/service.go:875` (error mapping)
 - Test: `backend/internal/session_manager/manager_test.go` (add after `TestSend_SkipsConfirmForHooklessHarness`, line ~6297)
 
 **Interfaces:**
-- Consumes: `slashcommands.IsBuiltin` from Task 1.
-- Produces: `Manager.Send` returns `nil` after one write for a built-in, regardless of harness signals.
+- Consumes: `slashcommands.Lookup` / `IsBuiltin` from Task 1.
+- Produces: `sessionmanager.ErrInteractiveSlashCommand`; `Manager.Send` returns it with no write for an interactive built-in, and returns `nil` after one write (no latest-prompt record, no nudges) for any other built-in.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -231,6 +249,25 @@ func TestSend_BuiltinSlashCommandSkipsConfirm(t *testing.T) {
 	if msg.msgs[0] != "/compact" {
 		t.Fatalf("delivered %q, want /compact", msg.msgs[0])
 	}
+	if got := st.sessions["s1"].Metadata.LatestUserPrompt; got != "" {
+		t.Fatalf("LatestUserPrompt = %q, want untouched (a built-in is not task direction)", got)
+	}
+}
+
+func TestSend_InteractiveBuiltinIsRefused(t *testing.T) {
+	st := newFakeStore()
+	st.sessions["s1"] = domain.SessionRecord{ID: "s1", Harness: "claude-code",
+		Activity: domain.Activity{State: domain.ActivityIdle}}
+	msg := &fakeMessenger{}
+	m := newSendTestManager(t, signalingAgent{}, msg, st)
+
+	err := m.Send(context.Background(), "s1", "/model sonnet", nil)
+	if !errors.Is(err, ErrInteractiveSlashCommand) {
+		t.Fatalf("Send err = %v, want ErrInteractiveSlashCommand", err)
+	}
+	if len(msg.msgs) != 0 {
+		t.Fatalf("Send calls = %d, want 0 (nothing may reach the pane)", len(msg.msgs))
+	}
 }
 
 func TestSend_CustomSlashCommandStillConfirms(t *testing.T) {
@@ -247,35 +284,60 @@ func TestSend_CustomSlashCommandStillConfirms(t *testing.T) {
 }
 ```
 
-Check `fakeMessenger.msgs` is a `[]string` of delivered messages (`grep -n "type fakeMessenger" -A 8 internal/session_manager/manager_test.go`); if it stores a struct, compare its message field instead.
+`fakeMessenger.msgs` is a `[]string` of delivered messages (`manager_test.go:832-840`) and `fakeStore.RecordSessionLatestUserPrompt` writes `Metadata.LatestUserPrompt` (`manager_test.go:73-81`).
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `cd backend && go test ./internal/session_manager/ -run 'TestSend_BuiltinSlashCommandSkipsConfirm|TestSend_CustomSlashCommandStillConfirms'`
-Expected: the first fails with `Send err = session: agent did not accept the message` (or `Send calls = 3, want 1`); the second passes.
+Run: `cd backend && go test ./internal/session_manager/ -run 'TestSend_BuiltinSlashCommandSkipsConfirm|TestSend_InteractiveBuiltinIsRefused|TestSend_CustomSlashCommandStillConfirms'`
+Expected: the first fails with `Send err = session: agent did not accept the message` (or `Send calls = 3, want 1`), the second fails to compile (`undefined: ErrInteractiveSlashCommand`); the third passes.
 
-- [ ] **Step 3: Add the early return**
+- [ ] **Step 3: Refuse, skip the prompt record, skip confirmation**
 
-In `manager.go` `send`, immediately after the `switch outcome {...}` block and before the comment beginning `// confirmActive only helps`:
+In `manager.go`, next to `ErrAgentNotResponding` (line 123):
 
 ```go
-	if slashcommands.IsBuiltin(message) {
+	ErrInteractiveSlashCommand = errors.New("session: slash command opens a dialog on the desktop")
+```
+
+In `send`, right after `prepareOutboundMessage` returns:
+
+```go
+	builtin, isBuiltin := slashcommands.Lookup(message)
+	if isBuiltin && builtin.Interactive {
+		return fmt.Errorf("send %s: %w", id, ErrInteractiveSlashCommand)
+	}
+```
+
+Change the `afterWrite` condition from `if strings.TrimSpace(message) != ""` to `if !isBuiltin && strings.TrimSpace(message) != ""`.
+
+Immediately after the `switch outcome {...}` block and before the comment beginning `// confirmActive only helps`:
+
+```go
+	if isBuiltin {
 		return nil
 	}
 ```
 
 Add the import `"github.com/OmarAly92/operator/backend/internal/slashcommands"`. Extend the existing comment above the `harnessNudgeSafe` gate with one sentence: `A built-in slash command (/compact, /clear, …) is handled by the TUI and never fires the prompt-submit hook, so confirmation could only ever time out; it returns as soon as the paste is written.`
 
+In `service/session/service.go`, in the `switch` that maps manager errors (line ~875, next to `ErrAgentNotResponding`):
+
+```go
+	case errors.Is(err, sessionmanager.ErrInteractiveSlashCommand):
+		return apierr.Conflict("SLASH_COMMAND_INTERACTIVE",
+			"This command opens a dialog on the desktop; run it there", nil)
+```
+
 - [ ] **Step 4: Run the package tests**
 
-Run: `cd backend && go test ./internal/session_manager/ && go vet ./internal/session_manager/`
+Run: `cd backend && go test ./internal/session_manager/ ./internal/service/session/ && go vet ./internal/session_manager/ ./internal/service/session/`
 Expected: `ok`.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add backend/internal/session_manager/manager.go backend/internal/session_manager/manager_test.go
-git commit -m "fix(daemon): do not wait for a submit hook after a built-in slash command"
+git add backend/internal/session_manager/manager.go backend/internal/session_manager/manager_test.go backend/internal/service/session/service.go
+git commit -m "fix(daemon): deliver built-in slash commands without a submit hook; refuse interactive ones"
 ```
 
 ---
@@ -512,13 +574,26 @@ func fixture(t *testing.T) (configDir, workspace string) {
 	write(t, filepath.Join(workspace, ".claude", "commands", "deploy.md"), "---\ndescription: Deploy it\n---\n")
 	write(t, filepath.Join(pluginDir, "skills", "brainstorming", "SKILL.md"), "---\ndescription: Brainstorm first\n---\n")
 	write(t, filepath.Join(pluginDir, "commands", "review.md"), "---\ndescription: Plugin review\n---\n")
+	disabledDir := filepath.Join(root, "plugin-cache", "disabled", "1.0.0")
+	write(t, filepath.Join(disabledDir, "skills", "hidden", "SKILL.md"), "---\ndescription: installed but not enabled\n---\n")
+	localDir := filepath.Join(root, "plugin-cache", "frontend-design", "unknown")
+	write(t, filepath.Join(localDir, "skills", "frontend-design", "SKILL.md"), "---\ndescription: enabled for another project\n---\n")
 	installed, _ := json.Marshal(map[string]any{
 		"version": 2,
 		"plugins": map[string]any{
-			"superpowers@claude-plugins-official": []map[string]any{{"installPath": pluginDir, "scope": "user"}},
+			"superpowers@claude-plugins-official":     []map[string]any{{"installPath": pluginDir, "scope": "user"}},
+			"disabled@claude-plugins-official":        []map[string]any{{"installPath": disabledDir, "scope": "user"}},
+			"frontend-design@claude-plugins-official": []map[string]any{{"installPath": localDir, "scope": "local", "projectPath": filepath.Join(root, "elsewhere")}},
 		},
 	})
 	write(t, filepath.Join(configDir, "plugins", "installed_plugins.json"), string(installed))
+	settings, _ := json.Marshal(map[string]any{
+		"enabledPlugins": map[string]any{
+			"superpowers@claude-plugins-official":     true,
+			"frontend-design@claude-plugins-official": true,
+		},
+	})
+	write(t, filepath.Join(configDir, "settings.json"), string(settings))
 	return configDir, workspace
 }
 
@@ -588,6 +663,38 @@ func TestListDropsDuplicatesKeepingEarlierSource(t *testing.T) {
 		if n != 1 {
 			t.Errorf("%s listed %d times", name, n)
 		}
+	}
+}
+
+func TestListTakesALocalScopePluginOnlyInItsProject(t *testing.T) {
+	configDir, workspace := fixture(t)
+	elsewhere := filepath.Join(filepath.Dir(configDir), "elsewhere")
+	sessions := fakeSessions{recs: map[domain.SessionID]domain.SessionRecord{
+		"s1": {ID: "s1", Harness: "claude-code", Metadata: domain.SessionMetadata{WorkspacePath: elsewhere}},
+		"s2": {ID: "s2", Harness: "claude-code", Metadata: domain.SessionMetadata{WorkspacePath: workspace}},
+	}}
+	s := svc.New(sessions, fakeAgents{agent: configDirAgent{}}, fakeAccounts{configDir: configDir})
+
+	has := func(id domain.SessionID, name string) bool {
+		got, err := s.List(context.Background(), id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, c := range got {
+			if c.Name == name {
+				return true
+			}
+		}
+		return false
+	}
+	if !has("s1", "frontend-design:frontend-design") {
+		t.Error("the local-scope plugin is missing from the project it was installed for")
+	}
+	if has("s2", "frontend-design:frontend-design") {
+		t.Error("the local-scope plugin leaked into another project")
+	}
+	if has("s1", "disabled:hidden") || has("s2", "disabled:hidden") {
+		t.Error("a plugin without an enabledPlugins entry was listed")
 	}
 }
 
@@ -711,7 +818,7 @@ func (s *Service) List(ctx context.Context, id domain.SessionID) ([]slashcommand
 			add(commandsIn(filepath.Join(ws, ".claude", "commands"), "", slashcommands.SourceProject))
 			add(skillsIn(filepath.Join(ws, ".claude", "skills"), "", slashcommands.SourceProject))
 		}
-		for _, p := range installedPlugins(configDir) {
+		for _, p := range installedPlugins(configDir, rec.Metadata.WorkspacePath) {
 			add(skillsIn(filepath.Join(p.installPath, "skills"), p.name+":", slashcommands.SourcePlugin))
 			add(commandsIn(filepath.Join(p.installPath, "commands"), p.name+":", slashcommands.SourcePlugin))
 		}
@@ -800,24 +907,34 @@ type installedPlugin struct {
 	installPath string
 }
 
-func installedPlugins(configDir string) []installedPlugin {
+func installedPlugins(configDir, workspace string) []installedPlugin {
 	raw, err := os.ReadFile(filepath.Join(configDir, "plugins", "installed_plugins.json"))
 	if err != nil {
 		return nil
 	}
 	var file struct {
 		Plugins map[string][]struct {
+			Scope       string `json:"scope"`
+			ProjectPath string `json:"projectPath"`
 			InstallPath string `json:"installPath"`
 		} `json:"plugins"`
 	}
 	if err := json.Unmarshal(raw, &file); err != nil {
 		return nil
 	}
+	enabled := enabledPlugins(configDir)
+	workspace = filepath.Clean(strings.TrimSpace(workspace))
 	var out []installedPlugin
 	for key, installs := range file.Plugins {
+		if !enabled[key] {
+			continue
+		}
 		name, _, _ := strings.Cut(key, "@")
 		for _, in := range installs {
 			if strings.TrimSpace(in.InstallPath) == "" {
+				continue
+			}
+			if in.Scope != "user" && (workspace == "." || filepath.Clean(in.ProjectPath) != workspace) {
 				continue
 			}
 			out = append(out, installedPlugin{name: name, installPath: in.InstallPath})
@@ -825,6 +942,20 @@ func installedPlugins(configDir string) []installedPlugin {
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].name < out[j].name })
 	return out
+}
+
+func enabledPlugins(configDir string) map[string]bool {
+	raw, err := os.ReadFile(filepath.Join(configDir, "settings.json"))
+	if err != nil {
+		return nil
+	}
+	var file struct {
+		EnabledPlugins map[string]bool `json:"enabledPlugins"`
+	}
+	if err := json.Unmarshal(raw, &file); err != nil {
+		return nil
+	}
+	return file.EnabledPlugins
 }
 
 func frontMatterDescription(path string) string {
@@ -1033,8 +1164,8 @@ In `specgen/build.go`, after the `listSessionInteractions` route unit:
 		},
 ```
 
-Run: `cd backend && go generate ./internal/httpd/apispec/`
-Expected: `openapi.yaml` gains the route; `git diff --stat` shows only that file changed besides your edits.
+Run: `cd backend && go generate ./internal/httpd/apispec/ && cd ../frontend && npm run api:ts`
+Expected: `openapi.yaml` gains the route and `frontend/src/api/schema.ts` gains `listSessionSlashCommands`; `git diff --stat` shows only those two files changed besides your edits. CI diffs `schema.ts` (`.github/workflows/go.yml:96`), so it must be committed with the route.
 
 - [ ] **Step 7: Full daemon gate**
 
@@ -1044,7 +1175,7 @@ Expected: no gofmt output, vet clean, all packages `ok` (parity test included).
 - [ ] **Step 8: Commit**
 
 ```bash
-git add backend/internal/httpd backend/internal/daemon/daemon.go
+git add backend/internal/httpd backend/internal/daemon/daemon.go frontend/src/api/schema.ts
 git commit -m "feat(daemon): GET /sessions/{id}/slash-commands"
 ```
 
@@ -1238,7 +1369,7 @@ void main() {
   blocTest<SlashMenuCubit, SlashMenuState>(
     'loads the session commands and drops interactive ones',
     build: build,
-    expect: () => [isA<GetSlashCommandsLoadingState>(), isA<GetSlashCommandsSuccessState>()],
+    expect: () => [isA<GetSlashCommandsSuccessState>()],
     verify: (cubit) {
       expect(cubit.commands.map((c) => c.name), ['compact', 'context', 'sc:analyze']);
       expect(cubit.open, isFalse);
@@ -1253,7 +1384,7 @@ void main() {
       composer.text = '/';
       composer.text = '/co';
     },
-    skip: 2,
+    skip: 1,
     expect: () => [
       const SlashMenuChangedState(open: true, matches: [_commands[0], _commands[1], _commands[3]]),
       const SlashMenuChangedState(open: true, matches: [_commands[0], _commands[1]]),
@@ -1267,7 +1398,7 @@ void main() {
       await Future<void>.delayed(Duration.zero);
       composer.text = '/analy';
     },
-    skip: 2,
+    skip: 1,
     expect: () => [
       const SlashMenuChangedState(open: true, matches: [_commands[3]]),
     ],
@@ -1282,7 +1413,7 @@ void main() {
       composer.text = '/compact ';
       composer.text = 'plain text';
     },
-    skip: 2,
+    skip: 1,
     expect: () => [
       const SlashMenuChangedState(open: true, matches: [_commands[0]]),
       const SlashMenuChangedState(open: false, matches: []),
@@ -1316,13 +1447,13 @@ void main() {
       await Future<void>.delayed(Duration.zero);
       composer.text = '/';
     },
-    expect: () => [isA<GetSlashCommandsLoadingState>(), isA<GetSlashCommandsFailureState>()],
+    expect: () => [isA<GetSlashCommandsFailureState>()],
     verify: (cubit) => expect(cubit.open, isFalse),
   );
 }
 ```
 
-`skip: 2` skips the loading/success pair emitted by the constructor's fetch. If `GlobalResponse` has no `data:` named constructor parameter, check `packages/mobile/lib/core/api/models/global_response.dart` and construct it the way `session_command_cubit_test.dart:59` does.
+The constructor starts the fetch, as every other cubit in this package does (`BlocksCubit`, `SessionCommandCubit`, `SessionsCubit`). `blocTest` subscribes after `build()` returns, so the synchronous `GetSlashCommandsLoadingState` emitted inside the constructor is never observed; the `GetSlashCommandsSuccessState` (or failure) that follows the `await` is. Hence the first test expects only the success state and the others `skip: 1` and `await Future<void>.delayed(Duration.zero)` in `act` so the fetch has landed before the composer is edited. `GlobalResponse` has a `const` constructor with named parameters (`global_response.dart:10`); check that `data:` is among them.
 
 - [ ] **Step 2: Run test to verify it fails**
 
@@ -1719,12 +1850,16 @@ In `terminal_composer.dart`, inside the `Column` children, insert between `const
 
 (`cubit` is the `TerminalCubit` already read at the top of `build`; confirm the variable name at `terminal_composer.dart:~110`.) Import the menu.
 
-- [ ] **Step 6: Run the widget test, then the whole suite**
+- [ ] **Step 6: Provide the cubit to the existing composer tests**
+
+`TerminalComposer` now reads `SlashMenuCubit`, so every test that mounts it without the route fails with `Could not find the correct Provider<SlashMenuCubit>`. Known mounts: `test/feature/terminal/terminal_harness.dart:189-195` (`MultiBlocProvider`), `test/feature/terminal/presentation/terminal_screen/ui/terminal_composer_test.dart`, `test/feature/terminal/presentation/terminal_screen/ui/terminal_dock_test.dart`; confirm with `grep -rln "TerminalComposer(" test`. In each, add a `BlocProvider<SlashMenuCubit>.value` over a real `SlashMenuCubit(mockRepository, cubit.composer, sessionId: ...)` whose `getSlashCommands` is never called (the menu stays closed and no stub is needed), and close it in the test's teardown / the harness's `dispose()`.
+
+- [ ] **Step 7: Run the widget test, then the whole suite**
 
 Run: `cd packages/mobile && flutter test test/feature/terminal/presentation/terminal_screen/ui/widgets/slash_command_menu_test.dart && flutter analyze && flutter test`
-Expected: all green, `No issues found!`. If `terminal_body_test` or the terminal harness now fails with `Could not find the correct Provider<SlashMenuCubit>`, add a `BlocProvider<SlashMenuCubit>.value` to `test/feature/terminal/terminal_harness.dart`'s provider list using a real `SlashMenuCubit` over the harness's mocked `TerminalRepository` with `getSlashCommands` stubbed to `Result.success(GlobalResponse<List<SlashCommandModel>>(data: const []))`, and dispose it in the harness's `dispose()`.
+Expected: all green, `No issues found!`.
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 8: Commit**
 
 ```bash
 git add packages/mobile/lib packages/mobile/test
@@ -1749,20 +1884,24 @@ Open a `claude-code` session, focus the composer, type `/`. Expected: a panel ab
 
 Tap `/compact`, then Send. Expected: no red banner; the field clears; a `/compact` bubble appears in the conversation; the `CONVERSATION COMPACTED (MANUAL)` divider follows. On the desktop the block timeline shows the same `/compact` prompt block.
 
-- [ ] **Step 4: Custom command send**
+- [ ] **Step 4: Interactive refusal**
 
-Send `/sc:analyze`. Expected: either a normal turn starts (bubble via the hook, no banner) — done — or the phone shows `Send failed: The agent did not accept the message…`. In the second case, widen the gate: in `slashcommands`, add `func IsSlashCommand(message string) bool` (first token starts with `/`, length > 1) with a test, use it in place of `IsBuiltin` in `manager.go` `send` and in `recordBuiltinSlashPrompt` (rename to `recordSlashPrompt`), update §4.2/§4.3 of the spec with the finding, and commit as `fix(daemon): treat every slash command as hookless`.
+Type `/model` by hand (the menu hides it) and Send. Expected: the red banner reads `Send failed: This command opens a dialog on the desktop; run it there`, the text stays in the field, and the desktop TUI never opens the picker.
 
-- [ ] **Step 5: `/doctor` and `/export`**
+- [ ] **Step 5: Custom command send**
+
+Send `/sc:analyze`. Expected: either a normal turn starts (bubble via the hook, no banner) — done — or the phone shows `Send failed: The agent did not accept the message…`. In the second case, widen the gate: in `slashcommands`, add `func IsSlashCommand(message string) bool` (first token starts with `/`, length > 1) with a test, use it for the `afterWrite` skip and the early return in `manager.go` `send` (the interactive refusal keeps using `Lookup`) and in `recordBuiltinSlashPrompt` (rename to `recordSlashPrompt`), update §4.2/§4.3 of the spec with the finding, and commit as `fix(daemon): treat every slash command as hookless`.
+
+- [ ] **Step 6: `/doctor` and `/export`**
 
 Send each from the phone and watch the desktop TUI. Expected: output prints and the prompt returns. If either parks the TUI in a dialog, flip its `Interactive` flag in `builtin.go`, run `go test ./internal/slashcommands/`, commit as `fix(daemon): mark /<name> interactive`.
 
-- [ ] **Step 6: Record the verdict**
+- [ ] **Step 7: Record the verdict**
 
-Append a dated line to `docs/mobile-chat-bugs.md` (create the section `## Slash commands` if absent) stating which of steps 3–5 passed and any widening applied, and commit as `docs: slash command verification 2026-09-17`.
+Append a dated line to `docs/mobile-chat-bugs.md` (create the section `## Slash commands` if absent) stating which of steps 3–6 passed and any widening applied, and commit as `docs: slash command verification 2026-09-17`.
 
 ## Self-review
 
 - **Spec coverage:** §4.1 → Task 1; §4.2 → Task 2; §4.3 → Task 3; §4.4 → Tasks 4–5; §5.1 → Task 6; §5.2 → Task 7; §5.3 → Task 8; §5.4 needs no task; §6 tests are embedded per task; §7 → Task 9.
 - **Placeholder scan:** none; every code step carries the code. Two "check the real name" instructions (`HarnessClaudeCode`, `SessionMetadata`, `AppInkWell` params) are lookups the executor performs, with the fallback stated.
-- **Type consistency:** `slashcommands.Command` fields (`Name`, `Description`, `Source`, `Interactive`) match the DTO, the JSON golden, `SlashCommandModel`, and the test fixtures; `SlashMenuCubit` members (`commands`, `matches`, `query`, `open`, `pick`, `getSlashCommands`) match Task 8's reads and the tests; `SlashMenuChangedState(open:, matches:)` matches in Tasks 7 and 8; `SlashCommandLister.List(ctx, id)` matches the fake in Task 5 and the service in Task 4.
+- **Type consistency:** `slashcommands.Command` fields (`Name`, `Description`, `Source`, `Interactive`) match the DTO, the JSON golden, `SlashCommandModel`, and the test fixtures; `SlashMenuCubit` members (`commands`, `matches`, `query`, `open`, `pick`, `getSlashCommands`) match Task 8's reads and the tests; `SlashMenuChangedState(open:, matches:)` matches in Tasks 7 and 8; `SlashCommandLister.List(ctx, id)` matches the fake in Task 5 and the service in Task 4; `installedPlugins(configDir, workspace)` matches its call in `List`.

@@ -90,10 +90,13 @@ type Command struct {
 // TUI's one-liners. Interactive marks commands that open a dialog.
 var Builtin = []Command{...}
 
-// IsBuiltin reports whether message is a built-in command invocation: the
-// first whitespace-delimited token, minus its leading '/', matches a Builtin
-// name exactly (case-sensitive). "/compact" and "/compact focus on tests"
-// are built-in; "/sc:analyze" and "hello /compact" are not.
+// Lookup returns the built-in the message invokes: the first
+// whitespace-delimited token, minus its leading '/', matches a Builtin name
+// exactly (case-sensitive). "/compact" and "/compact focus on tests" resolve;
+// "/sc:analyze" and "hello /compact" do not.
+func Lookup(message string) (Command, bool)
+
+// IsBuiltin is Lookup's boolean form.
 func IsBuiltin(message string) bool
 ```
 
@@ -142,8 +145,26 @@ non-interactive and the real-device check in the plan verifies them.
 
 ### 4.2 Send path: a built-in slash command is delivered, not confirmed
 
-In `Manager.send` (`manager.go:2326-2381`), after the messenger reports the
-paste was written and before the `harnessNudgeSafe` gate:
+In `Manager.send` (`manager.go:2326-2381`), three changes, all keyed on
+`slashcommands.Lookup(message)`:
+
+1. **Interactive built-ins are refused before anything is written.** A
+   built-in with `Interactive: true` (`/model`, `/config`, `/resume`, …)
+   would park the desktop TUI in a dialog the phone cannot drive, which is
+   exactly what `commandModel` exists to avoid (`command.go:78-90`). The
+   phone hides them, but a typed `/model` must not get through either, so
+   `send` returns a new `ErrInteractiveSlashCommand` before
+   `DeliverWithPostWrite`, and `service/session/service.go:875` maps it to
+   `409 SLASH_COMMAND_INTERACTIVE` ("This command opens a dialog on the
+   desktop; run it there"). `/model` stays reachable through
+   `POST /sessions/{id}/command`.
+2. **The latest-user-prompt fact is not recorded.** The `afterWrite`
+   callback at `manager.go:2332-2341` persists the message as the session's
+   `LatestUserPrompt`, which feeds the handoff artifact
+   (`handoff_artifact.go`), agent switching and the CLI board. `/compact` is
+   not task direction, so for a built-in `afterWrite` stays nil.
+3. **Confirmation is skipped.** After the `switch outcome` block and before
+   the `harnessNudgeSafe` gate:
 
 ```go
 if slashcommands.IsBuiltin(message) {
@@ -151,8 +172,8 @@ if slashcommands.IsBuiltin(message) {
 }
 ```
 
-Rationale: the confirmation loop's only signal is the prompt-submit hook,
-which built-ins never fire, so waiting can only ever end in a false
+Rationale for 3: the confirmation loop's only signal is the prompt-submit
+hook, which built-ins never fire, so waiting can only ever end in a false
 `ErrAgentNotResponding` after sending stray Enters. The paste itself is
 still gated by every existing guard (terminated, exited, awaiting a
 decision, switch in progress) because those run inside
@@ -246,13 +267,28 @@ It then scans, in this order, appending in place:
    `rec.Metadata.WorkspacePath` (`backend/internal/domain/session.go:29`),
    skipped when empty.
 5. Plugins: read `<configDir>/plugins/installed_plugins.json`, shape
-   `{"version": 2, "plugins": {"<plugin>@<marketplace>": [{"installPath": "...", ...}]}}`
-   (observed at `~/.claude/plugins/installed_plugins.json` on 2026-09-17).
-   For every entry, scan `<installPath>/skills/*/SKILL.md` and
+   `{"version": 2, "plugins": {"<plugin>@<marketplace>": [{"scope": "user"|"local"|"project", "projectPath": "...", "installPath": "...", ...}]}}`
+   (observed at `~/.claude/plugins/installed_plugins.json` on 2026-09-17;
+   `projectPath` is present only for non-`user` scopes). An install is
+   taken only when **both** hold:
+   - its `scope` is `user`, or its `projectPath` equals the session's
+     workspace path (`rec.Metadata.WorkspacePath`, compared after
+     `filepath.Clean`);
+   - `<configDir>/settings.json` has `"enabledPlugins": {"<key>": true}`
+     for the full `<plugin>@<marketplace>` key (observed shape on
+     2026-09-17: a map of key → bool). A missing or unreadable
+     `settings.json`, or a missing key, means disabled.
+
+   Evidence this filter is load-bearing: the machine holds
+   `frontend-design@claude-plugins-official` with `scope: local` for an
+   unrelated project and without an `enabledPlugins` entry, and this very
+   session's skill listing does not show it. Whether project-level
+   `.claude/settings.json` / `settings.local.json` can also enable a plugin
+   is **not known**; only the config-dir settings file is consulted.
+
+   For every taken install, scan `<installPath>/skills/*/SKILL.md` and
    `<installPath>/commands/**/*.md` → `source: plugin`, name
-   `<plugin>:<skill>` where `<plugin>` is the key up to `@`. Whether Claude
-   Code additionally filters by `enabledPlugins` in `settings.json` is
-   **not known**; this milestone lists every installed plugin.
+   `<plugin>:<skill>` where `<plugin>` is the key up to `@`.
 
 Description for a Markdown file is the `description:` value of its YAML
 front matter (`gopkg.in/yaml.v3` is already a dependency, `go.mod:25`), or
@@ -270,6 +306,11 @@ that errors stops that one source, not the request.
 `apispec.NotImplemented` like the other optional deps; `daemon.go` builds
 `slashcommandssvc.New(store, agents, claudeAccounts)` next to
 `transcriptsvc.NewResolver(agents, claudeAccounts)` (`daemon.go:483`).
+
+The route changes `openapi.yaml`, and CI fails on drift of the generated
+desktop client (`.github/workflows/go.yml:96` diffs
+`frontend/src/api/schema.ts`), so `npm run api:ts` in `frontend/` is part
+of the same change.
 
 ## 5. Mobile
 
@@ -307,7 +348,6 @@ class SlashMenuCubit extends Cubit<SlashMenuState> {
   SlashMenuCubit(this._repository, this.composer, {required this.sessionId})
       : super(const SlashMenuInitialState()) {
     composer.addListener(_onComposerChanged);
-    getSlashCommands();
   }
 
   List<SlashCommandModel> commands = const [];   // full list from the daemon, interactive ones dropped
@@ -328,6 +368,11 @@ whitespace yet, and at least one command matches; `query` is the text after
 at match time. A failed fetch leaves `commands` empty and the menu simply
 never opens; the failure is not surfaced (the composer must keep working
 without the daemon route, e.g. against an older daemon).
+
+The constructor starts the fetch, like every other cubit in the package
+(`BlocksCubit`, `SessionCommandCubit`, `SessionsCubit`). Tests accept that
+`bloc_test` subscribes after construction and so never sees the synchronous
+loading state; they assert the success/failure state and the cubit's fields.
 
 `pick` fills rather than sends: it sets `composer.text = '/${command.name} '`
 with the selection at the end, which closes the menu (there is now
@@ -368,20 +413,24 @@ error path for genuine refusals.
 
 Daemon:
 
-- `slashcommands` package: table-driven `IsBuiltin` test (`/compact`,
+- `slashcommands` package: table-driven `Lookup`/`IsBuiltin` test (`/compact`,
   `/compact args`, `  /compact`, `/sc:analyze`, `hello /compact`, `/`, `/Compact`).
 - `session_manager`: `TestSend_BuiltinSlashCommandSkipsConfirm` — a
   signaling harness that never goes active, message `/compact`, expects
-  `nil` and exactly one messenger write (no nudges). Mirrors
-  `TestSend_ConfirmBudgetCapsRetries` (`manager_test.go:6341`).
+  `nil`, exactly one messenger write (no nudges), and the store's
+  `LatestUserPrompt` untouched. Mirrors `TestSend_ConfirmBudgetCapsRetries`
+  (`manager_test.go:6341`). `TestSend_InteractiveBuiltinIsRefused` — `/model`
+  returns `ErrInteractiveSlashCommand` with zero messenger writes.
 - controllers: `TestSendBuiltinSlashCommandRecordsPromptBlock` — fake
   recorder captures one `user-prompt-submit` signal with
   `LatestUserPrompt: "/compact"`; `TestSendPlainMessageRecordsNothing`.
 - `service/slashcommands`: builds a temp config dir with `commands/sc/analyze.md`
   (front matter), `skills/paseo/SKILL.md`, a project `.claude/skills/x/SKILL.md`,
-  and `plugins/installed_plugins.json` pointing at a temp install path with
-  one skill; asserts names, sources, descriptions, order, and that a
-  non-claude harness yields an empty list.
+  `settings.json` with `enabledPlugins`, and `plugins/installed_plugins.json`
+  with three installs: one enabled `user`-scope plugin, one installed but not
+  enabled, and one `local`-scope plugin whose `projectPath` is another
+  folder; asserts names, sources, descriptions, order, that only the first
+  plugin's skills appear, and that a non-claude harness yields an empty list.
 - controllers: `TestListSlashCommands` golden JSON; `404` on unknown session.
 
 Mobile:
@@ -403,7 +452,10 @@ release), on the phone:
    `sc:*` commands and skills; type `co` — only `compact`, `context`, `cost`.
 2. Tap `compact`, Send — the field clears, a `/compact` bubble appears, then
    the `CONVERSATION COMPACTED (MANUAL)` divider; no red banner.
-3. Send `/sc:analyze` (or any user command) — if the phone shows
+3. Type `/model` by hand and Send — the phone shows the
+   `SLASH_COMMAND_INTERACTIVE` refusal and the desktop TUI stays on its
+   prompt.
+4. Send `/sc:analyze` (or any user command) — if the phone shows
    `AGENT_NOT_RESPONDING`, apply the widening described in §4.2.
-4. Send `/doctor` and `/export` — confirm neither parks the desktop TUI in a
+5. Send `/doctor` and `/export` — confirm neither parks the desktop TUI in a
    dialog; if one does, flip its `interactive` flag.
