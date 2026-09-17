@@ -10,6 +10,7 @@ import 'package:operator_mobile/core/widgets/main_widgets/app_text.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/typing_dots.dart';
 import 'package:operator_mobile/feature/blocks/logic/block_actions.dart';
 import 'package:operator_mobile/feature/blocks/logic/block_find.dart';
+import 'package:operator_mobile/feature/blocks/logic/block_question.dart';
 import 'package:operator_mobile/feature/blocks/logic/session_block.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/session_command_cubit.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/block_action_sheet.dart';
@@ -890,14 +891,17 @@ class _QuestionBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final skin = context.skin;
+    final questions = (block.detail! as QuestionBlockDetail).questions;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         AppText(display.displayName, style: AppTextStyle.style13SemiBold.copyWith(color: skin.textPrimary)),
         const SizedBox(height: 6),
         BlockQuestionOptions(
-          questions: (block.detail! as QuestionBlockDetail).questions,
+          questions: questions,
           interactionId: block.interactionId,
+          answered: block.status != BlockStatus.blocked,
+          answers: parseQuestionAnswers(block.result ?? '', questions),
         ),
       ],
     );
