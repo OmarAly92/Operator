@@ -51,8 +51,10 @@ The mobile composer has no notion of slash commands: it is a bare
 ## 3. Non-goals
 
 - Commands for harnesses other than `claude-code`. Codex/grok/copilot
-  sessions get an empty list and no menu; the daemon still treats a
-  leading-`/` message for them exactly as today.
+  sessions get an empty list and no menu. The send-path rules in §4.2 key on
+  the message alone, so they apply to every harness: an interactive built-in
+  name is refused everywhere (the same names open pickers in codex), and the
+  confirmation skip is a no-op for harnesses that never confirmed.
 - Argument completion (e.g. `/model <name>`), argument hints, or
   descriptions beyond one line.
 - Executing interactive built-ins from the phone. Commands that open a TUI
@@ -109,7 +111,7 @@ The built-in table, with `interactive` as decided in §3:
 | context | Show current context usage as a colored grid | no |
 | cost | Show the total cost and duration of the current session | no |
 | doctor | Diagnose and verify your Claude Code installation and settings | no |
-| export | Export the current conversation to a file or clipboard | no |
+| export | Export the current conversation to a file or clipboard | yes |
 | help | Show help and available commands | no |
 | init | Initialize a new CLAUDE.md file with codebase documentation | no |
 | pr-comments | Get comments from a GitHub pull request | no |
@@ -139,9 +141,11 @@ The built-in table, with `interactive` as decided in §3:
 
 The descriptions are transcribed from the Claude Code 2.1 `/help` output as
 best known on 2026-09-17; exact wording is not load-bearing and the table is
-plain data, so a wrong line is a one-line fix. Whether `/doctor` and
-`/export` print or open a dialog is **not known**; they are listed as
-non-interactive and the real-device check in the plan verifies them.
+plain data, so a wrong line is a one-line fix. Verified on 2026-09-17
+against Claude Code 2.1.273: `/doctor` runs an ordinary agentic turn that
+ends in an `AskUserQuestion` the phone already answers, so it stays
+non-interactive; `/export` opens an export-method picker (clipboard or
+file), so it is interactive.
 
 ### 4.2 Send path: a built-in slash command is delivered, not confirmed
 
@@ -180,11 +184,10 @@ decision, switch in progress) because those run inside
 `DeliverWithPostWrite` before this point.
 
 Custom commands and skills (`/sc:analyze`, `/paseo`) are expanded into a
-prompt by Claude Code; whether that expansion fires `UserPromptSubmit` is
-**not known**. They keep today's confirmed path. The plan's real-device
-check sends one; if it reports `AGENT_NOT_RESPONDING`, the gate widens to
-"any message whose first token starts with `/`" and the synthetic prompt
-block in §4.3 widens with it.
+prompt by Claude Code, and that expansion **does** fire `UserPromptSubmit`
+(verified 2026-09-17: `/sc:help` returned 200 in 0.66 s and the hook itself
+recorded the `prompt_submit` block). They keep today's confirmed path and
+need no synthetic block.
 
 ### 4.3 The bubble: a synthetic `prompt_submit` block
 
@@ -298,8 +301,12 @@ the next `---` line; a file without it has an empty description.
 Duplicates by name keep the first occurrence (built-in > user > project >
 plugin). The result is sorted: built-ins first in table order, then the
 rest alphabetically by name. Every scan is bounded to the directories named
-above; symlinks are followed by `filepath.WalkDir` as normal, and a walk
-that errors stops that one source, not the request.
+above. Symlinks are resolved explicitly (`filepath.EvalSymlinks` on each
+directory, `os.Stat` on entries, a visited set against cycles): an adopted
+Claude account links `commands/` to `~/.claude/commands` and individual
+skill folders elsewhere, and `filepath.WalkDir` on its own treats a
+symlinked root as a file and skips symlinked folders. A walk that errors
+stops that one source, not the request.
 
 **Wiring.** `SessionsController` gains `SlashCommands SlashCommandLister`
 (`List(ctx, id) ([]slashcommands.Command, error)`), nil-guarded with
