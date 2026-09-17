@@ -219,6 +219,30 @@ func TestListToleratesMissingFolders(t *testing.T) {
 	}
 }
 
+func TestListFrontMatterWithoutDescriptionIsEmpty(t *testing.T) {
+	root := t.TempDir()
+	configDir := filepath.Join(root, "claude")
+	write(t, filepath.Join(configDir, "commands", "foo.md"), "---\nname: foo\n---\nbody\n")
+	sessions := fakeSessions{recs: map[domain.SessionID]domain.SessionRecord{
+		"s1": {ID: "s1", Harness: "claude-code"},
+	}}
+	s := svc.New(sessions, fakeAgents{agent: configDirAgent{}}, fakeAccounts{configDir: configDir})
+
+	got, err := s.List(context.Background(), "s1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range got {
+		if c.Name == "foo" {
+			if c.Description != "" {
+				t.Errorf("Description = %q, want empty for front matter with no description key", c.Description)
+			}
+			return
+		}
+	}
+	t.Fatal("foo command not found in results")
+}
+
 func TestListUnknownSession(t *testing.T) {
 	s := svc.New(fakeSessions{recs: map[domain.SessionID]domain.SessionRecord{}}, fakeAgents{}, fakeAccounts{})
 	if _, err := s.List(context.Background(), "ghost"); err != svc.ErrSessionNotFound {

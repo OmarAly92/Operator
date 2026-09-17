@@ -66,13 +66,16 @@ func (s *Service) List(ctx context.Context, id domain.SessionID) ([]slashcommand
 		}
 	}
 
-	if configDir := s.configDir(ctx, rec); configDir != "" {
+	configDir := s.configDir(ctx, rec)
+	if configDir != "" {
 		add(commandsIn(filepath.Join(configDir, "commands"), "", slashcommands.SourceUser))
 		add(skillsIn(filepath.Join(configDir, "skills"), "", slashcommands.SourceUser))
-		if ws := strings.TrimSpace(rec.Metadata.WorkspacePath); ws != "" {
-			add(commandsIn(filepath.Join(ws, ".claude", "commands"), "", slashcommands.SourceProject))
-			add(skillsIn(filepath.Join(ws, ".claude", "skills"), "", slashcommands.SourceProject))
-		}
+	}
+	if ws := strings.TrimSpace(rec.Metadata.WorkspacePath); ws != "" {
+		add(commandsIn(filepath.Join(ws, ".claude", "commands"), "", slashcommands.SourceProject))
+		add(skillsIn(filepath.Join(ws, ".claude", "skills"), "", slashcommands.SourceProject))
+	}
+	if configDir != "" {
 		for _, p := range installedPlugins(configDir, rec.Metadata.WorkspacePath) {
 			add(skillsIn(filepath.Join(p.installPath, "skills"), p.name+":", slashcommands.SourcePlugin))
 			add(commandsIn(filepath.Join(p.installPath, "commands"), p.name+":", slashcommands.SourcePlugin))
