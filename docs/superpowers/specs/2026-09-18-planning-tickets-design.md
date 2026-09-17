@@ -346,22 +346,110 @@ Frontend (Vitest):
 - editor: dirty tracking, Cmd+S, 409 bar, SSE reload only when clean
 - i18n coverage
 
-## 6. Phases
+## 6. Implementation plans
 
-Each phase is one implementation plan under `docs/superpowers/plans/`.
+The work is three implementation plans under `docs/superpowers/plans/`, each
+written only after the previous one has merged into `development`
+([[land-a-milestone-before-planning-the-next]]), so that each plan targets the
+code that actually landed. Each plan must be executable by a fresh session
+that has read this spec and nothing else; the pointers below are where that
+session starts reading.
 
-1. **Daemon core**: folder contract, scanner, tables + triggers, read routes,
-   create route, session `ticket` field. No UI.
-2. **Board and ticket page, read-only**: PLANNED column, cards, ticket route
-   with preview only, archive bar entries.
-3. **Planning session**: plan route and prompt, `Plan with agent`, badges on
-   session cards and topbar.
-4. **Assign**: dnd-kit drag, confirm sheet with dry run, assign route and
-   prompt builder, `done` and reassign, completion into the archive bar.
-5. **Editor**: CodeMirror, save, conflict bar.
+### Plan 1: daemon
 
-Phases 3 and 5 are independent of each other and can run in parallel
-worktrees once phase 2 is merged. Mobile is a separate ticket.
+Scope: everything in §1 and §2 plus §4, with no frontend changes beyond
+regenerating the API types.
+
+Deliverables:
+
+- `backend/internal/domain/ticket.go`: `TicketRecord`, `PlanAssignmentRecord`,
+  the read models `Ticket` and `Plan` (with derived `TicketStatus` and
+  `PlanStatus` enums), and the `SessionTicketRef {Slug, PlanFile, Role}` added
+  as an optional field on `domain.Session` (`backend/internal/domain/session.go:127`).
+- Migration `backend/internal/storage/sqlite/migrations/0114_tickets.sql`
+  creating `tickets` and `plan_assignments` (§1.2) with `change_log`
+  triggers matching the existing tables; queries under
+  `storage/sqlite/queries/tickets.sql`; regenerate with `npm run sqlc`.
+- `backend/internal/service/ticket/`: the scanner (§2.1), frontmatter parser,
+  slug derivation, status derivation (§1.3) reusing
+  `service/session/status.go` for the session side, and the two prompt
+  builders (§2.3, §2.4) placed next to `session_manager/prompt.go` so they
+  share the worker preamble.
+- Watch: hook the scanner into the workspace file watcher that backs
+  `GET /sessions/{id}/workspace/events` (`controllers/sessions.go:258`) or,
+  if that watcher is session-scoped, a project-root watcher on
+  `.operator/tickets/` only, debounced 250ms.
+- Controller `backend/internal/httpd/controllers/tickets.go` with every route
+  in §2.1, the dry-run query on assign, and the warning and error codes.
+  Routes and schemas added to `httpd/apispec/openapi.yaml`; then
+  `npm run api:ts` so `frontend/src/api/schema.ts` matches.
+- Spawn integration: planning and implementing sessions go through the
+  existing spawn path (`session_manager/manager.go:578-663`), passing the
+  extra system prompt text and the built task prompt; branch name override
+  via the existing `cfg.Branch` (`adapters/workspace/gitworktree/workspace.go:1368`).
+- Session read model: joins so `GET /sessions` and the SSE change stream
+  carry `ticket` on sessions that have one.
+
+Acceptance: the Go tests in §5 pass; an end-to-end test with the `fake`
+harness creates a ticket, spawns a planning session in place, writes a plan
+file by hand, assigns it, and asserts the session has `ticket` set, branch
+`opr/<slug>-01`, and the plan reads `working` then `terminated`. `curl`
+against a running daemon on port 3002 reproduces the same
+([[verify-operator-desktop-through-daemon-api-and-mux]]).
+
+### Plan 2: board and ticket page
+
+Scope: §3.1, §3.3 without editing, §3.4, §3.5, §3.6, plus `Plan with agent`
+and the create sheet. No drag, no editor.
+
+Deliverables:
+
+- `frontend/src/renderer/hooks/useTicketsQuery.ts` and `useTicketQuery.ts`
+  over the generated client (`lib/api-client.ts`), invalidated from the SSE
+  change events in `lib/event-transport.ts` the way sessions are.
+- `SessionsBoard.tsx`: a fifth zone `planned` added to
+  `boardAttentionZoneOrder` in `lib/session-presentation.ts:187` and to the
+  zone labels, rendered by a new `PlannedColumn` and `TicketCard` in
+  `components/tickets/`. Column grid becomes five columns.
+- `components/tickets/CreateTicketSheet.tsx` (project, title, brief) and
+  `PlanWithAgentSheet.tsx` (harness, Claude account, extra), both on shadcn
+  primitives from `components/ui/*`, reusing the harness and account pickers
+  from the spawn dialog.
+- Route `routes/_shell.projects.$projectId_.tickets.$slug.tsx`: file list
+  and preview pane. Preview extracts `ReviewMarkdownBody` from
+  `SessionInspector.tsx:1744` into `components/MarkdownBody.tsx` and reuses
+  it.
+- Ticket badge on `SessionCard` (`SessionsBoard.tsx:820`) and in the session
+  topbar, linking to the ticket route with the file preselected.
+- Archive bar entries for `done` and `archived` tickets with `Reopen`.
+- Message keys in every `renderer/i18n/*.json`; the coverage test passes.
+
+Acceptance: Vitest suites in §5 for status mapping, card render, create and
+plan sheets; the real app shows a ticket created via curl, its plans, and the
+planning session's badge.
+
+### Plan 3: assign and edit
+
+Scope: §3.2 and the editing half of §3.3.
+
+Deliverables:
+
+- dnd-kit context around the board: `PlanRow` draggable, `WorkLaneColumn`
+  and sidebar project headers droppable, dimming and the dashed highlight.
+- `components/tickets/AssignPlanSheet.tsx`: calls assign with `dryRun=1` on
+  open to render warnings, then assign with `force` when confirmed;
+  `Terminate and start` uses the existing terminate route first.
+- Reassign and mark done actions on plan rows.
+- Editor: add `@codemirror/state`, `@codemirror/view`, `@codemirror/lang-markdown`
+  and `@codemirror/language`; `components/tickets/MarkdownEditor.tsx` with
+  Edit / Preview / Split, Cmd+S to `PUT` with `ifUnmodifiedSince`, dirty
+  tracking, the reload-or-keep bar on SSE change and on 409, skin colours
+  via the theme tokens used by the terminal.
+
+Acceptance: Vitest suites for drag to sheet to assign call, dry-run warnings,
+editor dirty and conflict behaviour; in the real app a drag from PLANNED to
+WORKING starts a session whose card carries the badge, and an edit saved
+in the app appears in the file on disk.
 
 ## Out of scope
 
