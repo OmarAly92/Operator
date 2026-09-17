@@ -139,6 +139,9 @@ type WorkspaceFileQuery struct {
 // fields are json:"-"; these curated fields are what serialize.
 type SessionView struct {
 	domain.Session
+	// Model is the model the session last ran a turn on, from its transcript.
+	// Empty until the first turn or when the harness does not report one.
+	Model         string `json:"model,omitempty"`
 	Branch        string `json:"branch,omitempty"`
 	WorkspaceMode string `json:"workspaceMode,omitempty" enum:"worktree,in_place"`
 	WorkspacePath string `json:"workspacePath,omitempty"`

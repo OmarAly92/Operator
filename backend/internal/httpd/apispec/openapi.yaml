@@ -5314,6 +5314,8 @@ components:
         latestUserPrompt:
           maxLength: 2048
           type: string
+        model:
+          type: string
         pinnedAt:
           format: date-time
           type:

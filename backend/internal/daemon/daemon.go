@@ -412,6 +412,7 @@ func Run() error {
 		Activity:            lcStack.LCM,
 		BlockEvents:         blockEvents,
 		BlockHistory:        blockEvents,
+		SessionModels:       blockEvents,
 		Interactions:        sessMgr,
 		SlashCommands:       slashcommandssvc.New(store, agents, claudeAccounts),
 		UsageHooks:          usageCollector,

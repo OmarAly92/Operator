@@ -41,6 +41,7 @@ type Store interface {
 	SelectBlockEventsBySession(ctx context.Context, sessionID string, afterSeq int64, limit int) ([]Record, error)
 	SelectBlockEventsBeforeSeq(ctx context.Context, sessionID string, beforeSeq int64, limit int) ([]Record, error)
 	TrimBlockEvents(ctx context.Context, sessionID string, keep int) (int64, error)
+	SelectLatestTurnModels(ctx context.Context) (map[string]string, error)
 }
 
 // Publisher fans a recorded event out to live clients.

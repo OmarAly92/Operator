@@ -1903,6 +1903,7 @@ export interface components {
             kind: string;
             latestAssistantUpdate?: string;
             latestUserPrompt?: string;
+            model?: string;
             /** Format: date-time */
             pinnedAt?: null | string;
             /** Format: int64 */

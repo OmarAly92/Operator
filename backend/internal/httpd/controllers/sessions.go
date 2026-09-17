@@ -144,6 +144,12 @@ type BlockEventHistory interface {
 	HistoryBefore(ctx context.Context, sessionID domain.SessionID, beforeSeq int64, limit int) ([]blockeventsvc.Record, error)
 }
 
+// SessionModelReader names the model each session last ran a turn on, from
+// its block-event log. Nil leaves the session view's model empty.
+type SessionModelReader interface {
+	LatestModels(ctx context.Context) (map[domain.SessionID]string, error)
+}
+
 // InteractionReader serves a session's currently pending dialogs. This exists
 // for reconnect reconciliation: a phone that was backgrounded when the dialog
 // appeared has no block event for it.
@@ -183,6 +189,7 @@ type SessionsController struct {
 	Svc           SessionService
 	Activity      ActivityRecorder
 	BlockEvents   BlockEventRecorder
+	Models        SessionModelReader
 	BlockHistory  BlockEventHistory
 	Interactions  InteractionReader
 	SlashCommands SlashCommandLister
@@ -266,7 +273,9 @@ func (c *SessionsController) list(w http.ResponseWriter, r *http.Request) {
 		envelope.WriteError(w, r, err)
 		return
 	}
-	envelope.WriteJSON(w, http.StatusOK, ListSessionsResponse{Sessions: sessionViews(sessions)})
+	views := sessionViews(sessions)
+	c.attachModels(r.Context(), views)
+	envelope.WriteJSON(w, http.StatusOK, ListSessionsResponse{Sessions: views})
 }
 
 func sessionModeRequested(body []byte) bool {
@@ -461,7 +470,25 @@ func (c *SessionsController) get(w http.ResponseWriter, r *http.Request) {
 		envelope.WriteError(w, r, err)
 		return
 	}
-	envelope.WriteJSON(w, http.StatusOK, SessionResponse{Session: sessionView(sess)})
+	views := []SessionView{sessionView(sess)}
+	c.attachModels(r.Context(), views)
+	envelope.WriteJSON(w, http.StatusOK, SessionResponse{Session: views[0]})
+}
+
+// attachModels is best effort: a failed read leaves the field empty rather
+// than failing the list, which the board polls constantly.
+func (c *SessionsController) attachModels(ctx context.Context, views []SessionView) {
+	if c.Models == nil || len(views) == 0 {
+		return
+	}
+	models, err := c.Models.LatestModels(ctx)
+	if err != nil {
+		slog.Default().Warn("session models read failed", "err", err)
+		return
+	}
+	for i := range views {
+		views[i].Model = models[views[i].ID]
+	}
 }
 
 func (c *SessionsController) preview(w http.ResponseWriter, r *http.Request) {

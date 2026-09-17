@@ -2,6 +2,7 @@ package controllers_test
 
 import (
 	"context"
+	"errors"
 	"io"
 	"log/slog"
 	"net/http"
@@ -254,5 +255,44 @@ func TestListModelsMapsCommandErrors(t *testing.T) {
 	body, status, _ := doRequest(t, srv, http.MethodGet, "/api/v1/sessions/opr-1/models", "")
 	if status != http.StatusConflict || !strings.Contains(string(body), "SESSION_COMMAND_UNAVAILABLE") {
 		t.Fatalf("status = %d body = %s, want 409 SESSION_COMMAND_UNAVAILABLE", status, body)
+	}
+}
+
+type fakeModelReader struct {
+	models map[domain.SessionID]string
+	err    error
+}
+
+func (f fakeModelReader) LatestModels(context.Context) (map[domain.SessionID]string, error) {
+	return f.models, f.err
+}
+
+func TestSessionViewsCarryTheLatestTurnModel(t *testing.T) {
+	svc := newFakeSessionService()
+	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+	deps := httpd.APIDeps{Sessions: svc, SessionModels: fakeModelReader{models: map[domain.SessionID]string{"opr-1": "claude-sonnet-5"}}}
+	srv := httptest.NewServer(httpd.NewRouterWithControl(config.Config{}, log, nil, deps, httpd.ControlDeps{}))
+	t.Cleanup(srv.Close)
+
+	body, status, _ := doRequest(t, srv, http.MethodGet, "/api/v1/sessions", "")
+	if status != http.StatusOK || !strings.Contains(string(body), `"model":"claude-sonnet-5"`) {
+		t.Fatalf("list status = %d body = %s, want the model on opr-1", status, body)
+	}
+	body, status, _ = doRequest(t, srv, http.MethodGet, "/api/v1/sessions/opr-1", "")
+	if status != http.StatusOK || !strings.Contains(string(body), `"model":"claude-sonnet-5"`) {
+		t.Fatalf("get status = %d body = %s, want the model", status, body)
+	}
+}
+
+func TestSessionViewsOmitTheModelWhenTheReadFails(t *testing.T) {
+	svc := newFakeSessionService()
+	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+	deps := httpd.APIDeps{Sessions: svc, SessionModels: fakeModelReader{err: errors.New("db closed")}}
+	srv := httptest.NewServer(httpd.NewRouterWithControl(config.Config{}, log, nil, deps, httpd.ControlDeps{}))
+	t.Cleanup(srv.Close)
+
+	body, status, _ := doRequest(t, srv, http.MethodGet, "/api/v1/sessions", "")
+	if status != http.StatusOK || strings.Contains(string(body), `"model"`) {
+		t.Fatalf("status = %d body = %s, want 200 without a model", status, body)
 	}
 }

@@ -8,6 +8,7 @@ import 'package:operator_mobile/core/widgets/main_widgets/app_text.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/space_widgets.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/status_dot.dart';
 import 'package:operator_mobile/feature/sessions/data/model/session_model.dart';
+import 'package:operator_mobile/feature/blocks/logic/model_label.dart';
 import 'package:operator_mobile/feature/sessions/logic/agent_line.dart';
 import 'package:operator_mobile/feature/sessions/logic/agents_view.dart';
 import 'package:operator_mobile/feature/sessions/logic/session_status.dart';
@@ -48,6 +49,7 @@ class SessionCard extends StatelessWidget {
     final when = relativeTime(session.updatedAt);
     final harness = session.harness;
     final account = sessionAccountLabel(session, accountLabels);
+    final model = session.model == null || session.model!.isEmpty ? null : formatModelLabel(session.model!);
 
     return AppContainer(
       onTap: onTap,
@@ -119,6 +121,10 @@ class SessionCard extends StatelessWidget {
                     if (account != null) ...[
                       const HorizontalSpace(6),
                       _MetaChip(icon: Icons.person_outline, label: account),
+                    ],
+                    if (model != null) ...[
+                      const HorizontalSpace(6),
+                      _MetaChip(icon: Icons.auto_awesome_outlined, label: model, accent: true),
                     ],
                   ],
                 ),
@@ -248,28 +254,30 @@ class SessionCard extends StatelessWidget {
 }
 
 class _MetaChip extends StatelessWidget {
-  const _MetaChip({required this.icon, required this.label});
+  const _MetaChip({required this.icon, required this.label, this.accent = false});
 
   final IconData icon;
   final String label;
+  final bool accent;
 
   @override
   Widget build(BuildContext context) {
     final skin = context.skin;
+    final color = accent ? skin.accent : skin.textSecondary;
     return Container(
       padding: const EdgeInsets.fromLTRB(7, 3, 8, 3),
       decoration: BoxDecoration(
-        color: skin.bgColumn,
+        color: accent ? skin.accentTint : skin.bgColumn,
         borderRadius: BorderRadius.circular(AppConstants.radiusPill),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 11, color: skin.textTertiary),
+          Icon(icon, size: 11, color: accent ? skin.accent : skin.textTertiary),
           const HorizontalSpace(4),
           AppText(
             label,
-            style: AppTextStyle.mono10Regular.copyWith(color: skin.textSecondary),
+            style: AppTextStyle.mono10Regular.copyWith(color: color),
           ),
         ],
       ),

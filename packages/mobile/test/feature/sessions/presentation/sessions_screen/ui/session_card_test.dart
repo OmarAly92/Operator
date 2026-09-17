@@ -189,4 +189,61 @@ void main() {
     expect(find.text('github:42'), findsOneWidget);
     expect(find.byIcon(Icons.folder_outlined), findsNothing);
   });
+
+  testWidgets('shows the agent, its Claude account and the model it last ran on', (tester) async {
+    const session = SessionModel(
+      id: 'proj-1',
+      projectId: 'proj',
+      displayName: 'Fix auth',
+      status: 'working',
+      harness: 'claude-code',
+      claudeAccountId: 'personal',
+      model: 'claude-sonnet-5',
+    );
+
+    await tester.pumpWidget(
+      ScreenUtilInit(
+        designSize: const Size(390, 844),
+        builder: (context, child) => MaterialApp(
+          home: SkinScope(
+            skin: const DarkSkin(),
+            child: Scaffold(
+              body: SessionCard(
+                session: session,
+                showProject: true,
+                accountLabels: const {'personal': 'Personal'},
+                onTap: () {},
+                onLongPress: () {},
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('claude-code'), findsOneWidget);
+    expect(find.text('Personal'), findsOneWidget);
+    expect(find.text('Sonnet 5'), findsOneWidget);
+  });
+
+  testWidgets('a non-Claude session shows only its agent', (tester) async {
+    const session = SessionModel(id: 'proj-1', projectId: 'proj', displayName: 'Fix auth', status: 'working', harness: 'codex');
+
+    await tester.pumpWidget(
+      ScreenUtilInit(
+        designSize: const Size(390, 844),
+        builder: (context, child) => MaterialApp(
+          home: SkinScope(
+            skin: const DarkSkin(),
+            child: Scaffold(
+              body: SessionCard(session: session, showProject: true, onTap: () {}, onLongPress: () {}),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('codex'), findsOneWidget);
+    expect(find.text('Default'), findsNothing);
+  });
 }

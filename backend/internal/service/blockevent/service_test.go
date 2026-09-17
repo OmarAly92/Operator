@@ -25,6 +25,10 @@ func (f *fakeStore) InsertBlockEvent(_ context.Context, rec Record) (int64, erro
 	return rec.Seq, nil
 }
 
+func (f *fakeStore) SelectLatestTurnModels(context.Context) (map[string]string, error) {
+	return nil, nil
+}
+
 func (f *fakeStore) SelectBlockEventsBySession(context.Context, string, int64, int) ([]Record, error) {
 	return f.inserted, nil
 }
@@ -132,6 +136,10 @@ func (s *concurrentStore) InsertBlockEvent(context.Context, Record) (int64, erro
 	defer s.mu.Unlock()
 	s.n++
 	return s.n, nil
+}
+
+func (s *concurrentStore) SelectLatestTurnModels(context.Context) (map[string]string, error) {
+	return nil, nil
 }
 
 func (s *concurrentStore) SelectBlockEventsBySession(context.Context, string, int64, int) ([]Record, error) {

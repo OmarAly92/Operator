@@ -50,6 +50,22 @@ func (s *Store) InsertBlockEvent(ctx context.Context, rec blockeventsvc.Record) 
 	return row.Seq, nil
 }
 
+// SelectLatestTurnModels returns, per session, the model named by its newest
+// turn_model event: the model the session last ran a turn on.
+func (s *Store) SelectLatestTurnModels(ctx context.Context) (map[string]string, error) {
+	rows, err := s.qr.SelectLatestTurnModels(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("select latest turn models: %w", err)
+	}
+	out := make(map[string]string, len(rows))
+	for _, row := range rows {
+		if row.Text != "" {
+			out[row.SessionID] = row.Text
+		}
+	}
+	return out, nil
+}
+
 // SelectBlockEventsBySession returns events after afterSeq in ascending order.
 func (s *Store) SelectBlockEventsBySession(ctx context.Context, sessionID string, afterSeq int64, limit int) ([]blockeventsvc.Record, error) {
 	rows, err := s.qr.SelectBlockEventsBySession(ctx, gen.SelectBlockEventsBySessionParams{

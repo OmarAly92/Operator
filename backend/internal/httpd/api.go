@@ -37,6 +37,8 @@ type APIDeps struct {
 	// than an empty list, so a client can tell "no blocks yet" from "this daemon
 	// cannot serve them".
 	BlockHistory controllers.BlockEventHistory
+	// SessionModels names the model each session last ran on. Nil omits it.
+	SessionModels controllers.SessionModelReader
 	// Interactions serves a session's currently pending dialogs, for reconnect
 	// reconciliation.
 	Interactions controllers.InteractionReader
@@ -111,6 +113,7 @@ func NewAPI(cfg config.Config, deps APIDeps) *API {
 			Activity:      deps.Activity,
 			BlockEvents:   deps.BlockEvents,
 			BlockHistory:  deps.BlockHistory,
+			Models:        deps.SessionModels,
 			Interactions:  deps.Interactions,
 			SlashCommands: deps.SlashCommands,
 			Usage:         deps.UsageHooks,
