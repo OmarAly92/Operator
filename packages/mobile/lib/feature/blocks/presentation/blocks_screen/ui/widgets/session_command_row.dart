@@ -125,11 +125,7 @@ class SessionCommandRow extends StatelessWidget {
       return;
     }
     if (command == 'model') {
-      final harness = context.read<TerminalCubit>().args.harness;
-      showModalBottomSheet<void>(
-        context: context,
-        builder: (_) => BlocProvider.value(value: cubit, child: ModelPickerSheet(harness: harness)),
-      );
+      showModelPicker(context, harness: context.read<TerminalCubit>().args.harness);
       return;
     }
     cubit.run(command);

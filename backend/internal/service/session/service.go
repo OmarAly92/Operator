@@ -68,7 +68,9 @@ type commander interface {
 	WaitForMessageDeliveryReady(ctx context.Context, id domain.SessionID) error
 	Send(ctx context.Context, id domain.SessionID, message string, attachment *ports.SpawnAttachment) error
 	Command(ctx context.Context, id domain.SessionID, command domain.SessionCommand, model string) (sessionmanager.CommandResult, error)
+	Models(ctx context.Context, id domain.SessionID) ([]sessionmanager.ModelOption, error)
 	Draft(ctx context.Context, id domain.SessionID) (string, error)
+	SlashOutput(ctx context.Context, id domain.SessionID, message string) (string, error)
 	Decide(ctx context.Context, id domain.SessionID, interactionID, behavior string) error
 	Answer(ctx context.Context, id domain.SessionID, interactionID string, selections [][]string) error
 	Cleanup(ctx context.Context, project domain.ProjectID) (sessionmanager.CleanupResult, error)
@@ -621,6 +623,14 @@ func (s *Service) Draft(ctx context.Context, id domain.SessionID) (string, error
 	return s.manager.Draft(ctx, id)
 }
 
+func (s *Service) Models(ctx context.Context, id domain.SessionID) ([]sessionmanager.ModelOption, error) {
+	return s.manager.Models(ctx, id)
+}
+
+func (s *Service) SlashOutput(ctx context.Context, id domain.SessionID, message string) (string, error) {
+	return s.manager.SlashOutput(ctx, id, message)
+}
+
 func (s *Service) Decide(ctx context.Context, id domain.SessionID, interactionID, behavior string) error {
 	return s.manager.Decide(ctx, id, interactionID, behavior)
 }
@@ -875,6 +885,9 @@ func toAPIError(err error) error {
 	case errors.Is(err, sessionmanager.ErrAgentNotResponding):
 		return apierr.Conflict("AGENT_NOT_RESPONDING",
 			"The agent did not accept the message; the terminal is not responding to input", nil)
+	case errors.Is(err, sessionmanager.ErrInteractiveSlashCommand):
+		return apierr.Conflict("SLASH_COMMAND_INTERACTIVE",
+			"This command opens a dialog on the desktop; run it there", nil)
 	case errors.Is(err, sessionmanager.ErrAgentExited):
 		return apierr.Conflict("AGENT_EXITED",
 			"The agent process exited; relaunch it before sending another message", nil)

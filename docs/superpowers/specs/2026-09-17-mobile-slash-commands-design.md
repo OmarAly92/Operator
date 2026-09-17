@@ -51,8 +51,10 @@ The mobile composer has no notion of slash commands: it is a bare
 ## 3. Non-goals
 
 - Commands for harnesses other than `claude-code`. Codex/grok/copilot
-  sessions get an empty list and no menu; the daemon still treats a
-  leading-`/` message for them exactly as today.
+  sessions get an empty list and no menu. The send-path rules in §4.2 key on
+  the message alone, so they apply to every harness: an interactive built-in
+  name is refused everywhere (the same names open pickers in codex), and the
+  confirmation skip is a no-op for harnesses that never confirmed.
 - Argument completion (e.g. `/model <name>`), argument hints, or
   descriptions beyond one line.
 - Executing interactive built-ins from the phone. Commands that open a TUI
@@ -100,48 +102,30 @@ func Lookup(message string) (Command, bool)
 func IsBuiltin(message string) bool
 ```
 
-The built-in table, with `interactive` as decided in §3:
+The built-in table lives in `backend/internal/slashcommands/builtin.go` and
+is the source of truth; this spec no longer duplicates it. It was rebuilt on
+2026-09-17 from the command definitions embedded in the Claude Code 2.1.273
+binary (`strings claude | grep 'type:"local-jsx"'` and friends): every
+command the TUI's `/` menu lists is present, with its menu description.
+`interactive` is `true` for every `local-jsx` command (they render an Ink
+panel or dialog) and `false` for the `local` commands that print inline
+(`clear`, `compact`, `recap`, `reload-plugins`, `reload-skills`,
+`list-agents`), the `prompt` commands that run an ordinary agentic turn
+(`init`, `insights`, `statusline`, `doctor`, `code-review`,
+`security-review`) and `/context`, which was verified to print inline.
+Aliases (`cost`/`stats` → `usage`, `review` → `code-review`,
+`checkup` → `doctor`, `quit` → `exit`, `undo`/`checkpoint` → `rewind`,
+`name` → `rename`, `allowed-tools` → `permissions`) resolve through
+`Lookup` but are not listed on the wire. Bundled skills that Claude Code
+also lists under `/` (`commit`, `batch`, `loop`, `debug`, …) are gated per
+account and version and are out of scope for the catalogue.
 
-| name | description | interactive |
-|---|---|---|
-| clear | Clear conversation history and free up context | no |
-| compact | Clear conversation history but keep a summary in context | no |
-| context | Show current context usage as a colored grid | no |
-| cost | Show the total cost and duration of the current session | no |
-| doctor | Diagnose and verify your Claude Code installation and settings | no |
-| export | Export the current conversation to a file or clipboard | no |
-| help | Show help and available commands | no |
-| init | Initialize a new CLAUDE.md file with codebase documentation | no |
-| pr-comments | Get comments from a GitHub pull request | no |
-| release-notes | View release notes | no |
-| review | Review a pull request | no |
-| security-review | Complete a security review of the pending changes on the current branch | no |
-| status | Show Claude Code status including version, model, account, API connectivity, and tool statuses | no |
-| usage | Show plan usage limits | no |
-| add-dir | Add a new working directory | yes |
-| agents | Manage agent configurations | yes |
-| bug | Submit feedback about Claude Code | yes |
-| config | Open config panel | yes |
-| exit | Exit the REPL | yes |
-| hooks | Manage hook configurations for tool events | yes |
-| ide | Manage IDE integrations and show status | yes |
-| login | Sign in with your Anthropic account | yes |
-| logout | Sign out from your Anthropic account | yes |
-| mcp | Manage MCP servers | yes |
-| memory | Edit Claude memory files | yes |
-| model | Set the AI model for Claude Code | yes |
-| permissions | Manage allow & deny tool permission rules | yes |
-| resume | Resume a conversation | yes |
-| rewind | Restore the code and/or conversation to a previous point | yes |
-| statusline | Set up Claude Code's status line UI | yes |
-| terminal-setup | Install Shift+Enter key binding for newlines | yes |
-| vim | Toggle between Vim and Normal editing modes | yes |
-
-The descriptions are transcribed from the Claude Code 2.1 `/help` output as
-best known on 2026-09-17; exact wording is not load-bearing and the table is
-plain data, so a wrong line is a one-line fix. Whether `/doctor` and
-`/export` print or open a dialog is **not known**; they are listed as
-non-interactive and the real-device check in the plan verifies them.
+Verified on 2026-09-17 against Claude Code 2.1.273 by sending each one and
+reading the pane: `/context` prints inline and `/doctor` runs an ordinary
+agentic turn that ends in an `AskUserQuestion` the phone already answers, so
+both stay non-interactive; `/export`, `/cost`, `/status`, `/usage`, `/help`
+and `/release-notes` each open an Esc-to-cancel panel, so they are
+interactive. `/pr-comments` no longer exists in 2.1.273 and was dropped.
 
 ### 4.2 Send path: a built-in slash command is delivered, not confirmed
 
@@ -180,11 +164,10 @@ decision, switch in progress) because those run inside
 `DeliverWithPostWrite` before this point.
 
 Custom commands and skills (`/sc:analyze`, `/paseo`) are expanded into a
-prompt by Claude Code; whether that expansion fires `UserPromptSubmit` is
-**not known**. They keep today's confirmed path. The plan's real-device
-check sends one; if it reports `AGENT_NOT_RESPONDING`, the gate widens to
-"any message whose first token starts with `/`" and the synthetic prompt
-block in §4.3 widens with it.
+prompt by Claude Code, and that expansion **does** fire `UserPromptSubmit`
+(verified 2026-09-17: `/sc:help` returned 200 in 0.66 s and the hook itself
+recorded the `prompt_submit` block). They keep today's confirmed path and
+need no synthetic block.
 
 ### 4.3 The bubble: a synthetic `prompt_submit` block
 
@@ -298,8 +281,12 @@ the next `---` line; a file without it has an empty description.
 Duplicates by name keep the first occurrence (built-in > user > project >
 plugin). The result is sorted: built-ins first in table order, then the
 rest alphabetically by name. Every scan is bounded to the directories named
-above; symlinks are followed by `filepath.WalkDir` as normal, and a walk
-that errors stops that one source, not the request.
+above. Symlinks are resolved explicitly (`filepath.EvalSymlinks` on each
+directory, `os.Stat` on entries, a visited set against cycles): an adopted
+Claude account links `commands/` to `~/.claude/commands` and individual
+skill folders elsewhere, and `filepath.WalkDir` on its own treats a
+symlinked root as a file and skips symlinked folders. A walk that errors
+stops that one source, not the request.
 
 **Wiring.** `SessionsController` gains `SlashCommands SlashCommandLister`
 (`List(ctx, id) ([]slashcommands.Command, error)`), nil-guarded with
@@ -311,6 +298,36 @@ The route changes `openapi.yaml`, and CI fails on drift of the generated
 desktop client (`.github/workflows/go.yml:96` diffs
 `frontend/src/api/schema.ts`), so `npm run api:ts` in `frontend/` is part
 of the same change.
+
+### 4.5 The reply: what the TUI printed
+
+Verified on 2026-09-17: a built-in's answer exists only on the terminal
+screen. `/context` prints its grid, `/compact` prints `Compacted` or
+`Not enough messages to compact.`, and neither writes a transcript line or
+fires a hook, so after §4.3 the phone shows the user's bubble and nothing
+else. The Session-actions buttons never had this problem because their
+effect is visible some other way (a `compaction` block, a model change).
+
+After a successful non-interactive built-in send, the daemon reads the pane
+(`runtime.GetOutput`, the same read `commandModel` uses for the `/model`
+picker, `command.go:102`) and lifts the block the TUI rendered for the
+command: the lines after the last `❯ /<command>` echo up to the `─` separator
+that sits above the next prompt, with the `⎿` marker and indentation
+stripped. The read repeats every 250 ms until two consecutive reads agree or
+20 s pass; a still-changing block (a `Compacting conversation… (20s)` spinner)
+is never captured, and the `compaction` transcript block covers that case
+when it lands. The capture runs in a goroutine detached from the request
+(`context.WithoutCancel`, 30 s cap) so the send response returns as soon as
+the prompt block is written: `/recap` and the other model-backed built-ins
+take several seconds, which the phone's 12 s Dio timeout cannot absorb. When
+the capture lands, the daemon records a `stop` signal carrying the text as
+`LatestAssistantUpdate`, which every client already renders as the
+assistant's reply, and which closes the prompt block §4.3 opened.
+
+This is heuristic by nature: it depends on the TUI's `❯` echo and `─`
+separator, which have been stable across Claude Code 2.x. When the shape
+changes the capture returns empty and the phone degrades to §4.3's behaviour
+(bubble, no reply) rather than showing garbage.
 
 ## 5. Mobile
 
@@ -350,7 +367,7 @@ class SlashMenuCubit extends Cubit<SlashMenuState> {
     composer.addListener(_onComposerChanged);
   }
 
-  List<SlashCommandModel> commands = const [];   // full list from the daemon, interactive ones dropped
+  List<SlashCommandModel> commands = const [];   // full list from the daemon, interactive ones sorted last
   List<SlashCommandModel> matches = const [];    // what the menu shows now
   String query = '';                              // text after the '/', lower-cased
 
@@ -364,8 +381,8 @@ The menu is **open** when the composer text starts with `/`, contains no
 whitespace yet, and at least one command matches; `query` is the text after
 `/`. Matching is a case-insensitive prefix match on `name`, falling back to
 "contains" when no prefix match exists (so `/analyze` still finds
-`sc:analyze`). Interactive commands are dropped when the list is loaded, not
-at match time. A failed fetch leaves `commands` empty and the menu simply
+`sc:analyze`). Interactive commands are kept but sorted after the sendable
+ones when the list is loaded, so filtering treats both alike. A failed fetch leaves `commands` empty and the menu simply
 never opens; the failure is not surfaced (the composer must keep working
 without the daemon route, e.g. against an older daemon).
 
@@ -389,15 +406,20 @@ that builds the field), wrapped in `BlocBuilder<SlashMenuCubit,
 SlashMenuState>` with `buildWhen` on `SlashMenuChangedState`. When closed it
 is `SizedBox.shrink()`. When open it is a rounded `AppContainer`-style panel
 (`skin.bgElevated`, `skin.borderDefault`, radius 11 — the composer's own
-tokens, `terminal_composer.dart:145-148`) holding at most 6 rows in a
-`ListView` with `shrinkWrap: true`; each row is `SlashCommandRow(name,
-description, source)` — a leaf taking primitives — showing `/name` in
-`AppTextStyle.mono12Regular` and the description in `style11Regular` with
-`skin.textTertiary`, one line, ellipsised, and a small source tag (`user`,
-`project`, `plugin`; nothing for built-ins) in `style10Regular`. Tapping a
-row calls `context.read<SlashMenuCubit>().pick(command)` and gives
-`Haptics.selection()` if that helper exists (`core/utils/haptics.dart`),
-else no haptic.
+tokens, `terminal_composer.dart:145-148`) capped at 300 logical pixels
+(about six rows) around a `ListView.builder` with `shrinkWrap: true`, so a
+longer match list scrolls inside the panel instead of being truncated; each
+row is `SlashCommandRow(name, description, source, interactive)` — a leaf
+taking primitives — showing `/name` in `AppTextStyle.mono12Regular` and the
+description in `style11Regular` with `skin.textTertiary`, one line,
+ellipsised, and a small source tag (`user`, `project`, `plugin`; nothing for
+built-ins) in `style10Regular`. Interactive commands are listed too, after
+the sendable ones, greyed (`skin.textTertiary` name, `skin.textFaint`
+description) with a `desktop` tag in place of the source; tapping one shows
+an `AppToast` saying it opens a panel in the terminal and must be run on
+the desktop, and does not fill the composer. Tapping a sendable row calls
+`context.read<SlashMenuCubit>().pick(command)` and gives
+`Haptics.select()`.
 
 The panel does not steal focus: rows are `AppInkWell`/`InkWell` targets, not
 focusable widgets, so the keyboard stays up.

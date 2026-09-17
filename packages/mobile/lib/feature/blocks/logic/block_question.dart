@@ -41,3 +41,22 @@ QuestionBlockDetail? parseQuestionDetail(String toolInput) {
   }
   return questions.isEmpty ? null : QuestionBlockDetail(questions: questions);
 }
+
+final _answerPair = RegExp(r'"((?:[^"\\]|\\.)*)"="((?:[^"\\]|\\.)*)"');
+
+Map<int, List<String>> parseQuestionAnswers(String result, List<BlockQuestion> questions) {
+  final answers = <int, List<String>>{};
+  for (final match in _answerPair.allMatches(result)) {
+    final question = match.group(1)!;
+    final index = questions.indexWhere((q) => q.question == question);
+    if (index < 0) continue;
+    answers[index] = _splitAnswer(match.group(2)!, questions[index]);
+  }
+  return answers;
+}
+
+List<String> _splitAnswer(String raw, BlockQuestion question) {
+  final labels = question.options.map((option) => option.label ?? '').where((label) => label.isNotEmpty).toList();
+  final chosen = labels.where((label) => raw.split(', ').contains(label)).toList();
+  return chosen.isEmpty ? [raw] : chosen;
+}

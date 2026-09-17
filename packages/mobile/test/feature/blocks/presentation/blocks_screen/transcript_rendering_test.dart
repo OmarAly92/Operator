@@ -23,12 +23,13 @@ SessionBlock _base({
   String body = '',
   String? result,
   BlockDetail? detail,
+  BlockStatus status = BlockStatus.ok,
 }) => SessionBlock(
   id: id,
   firstSeq: 1,
   lastSeq: 1,
   kind: kind,
-  status: BlockStatus.ok,
+  status: status,
   title: title,
   body: body,
   result: result,
@@ -100,6 +101,7 @@ void main() {
         _base(
           id: 'b-3',
           kind: BlockKind.notice,
+          status: BlockStatus.blocked,
           title: 'Which branch?',
           detail: const QuestionBlockDetail(
             questions: [

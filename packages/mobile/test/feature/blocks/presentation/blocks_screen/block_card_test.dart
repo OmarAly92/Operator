@@ -22,15 +22,22 @@ SessionBlock _permissionBlock({String? interactionId}) => SessionBlock(
   interactionId: interactionId,
 );
 
-SessionBlock _questionBlock({String? interactionId, required List<String> options, bool multiSelect = false}) =>
+SessionBlock _questionBlock({
+  String? interactionId,
+  required List<String> options,
+  bool multiSelect = false,
+  BlockStatus status = BlockStatus.blocked,
+  String? result,
+}) =>
     SessionBlock(
       id: 'b-2',
       firstSeq: 1,
       lastSeq: 1,
       kind: BlockKind.notice,
-      status: BlockStatus.blocked,
+      status: status,
       title: 'Which one?',
       body: '',
+      result: result,
       interactionId: interactionId,
       detail: QuestionBlockDetail(
         questions: [
@@ -160,5 +167,45 @@ void main() {
     verify(() => cubit.answer('q1', [
       ['a', 'c'],
     ])).called(1);
+  });
+
+  testWidgets('an answered question marks the chosen option and stops taking taps', (tester) async {
+    final cubit = MockSessionCommandCubit();
+    when(() => cubit.answer(any(), any())).thenAnswer((_) async {});
+
+    await tester.pumpWidget(
+      _card(
+        _questionBlock(
+          interactionId: 'q1',
+          options: ['first', 'second'],
+          status: BlockStatus.ok,
+          result: 'Your questions have been answered: "Which one?"="second". You can now continue.',
+        ),
+        cubit: cubit,
+      ),
+    );
+
+    expect(find.byIcon(Icons.check_rounded), findsOneWidget);
+    expect(find.text('Answer in the terminal'), findsNothing);
+    final chosen = find.ancestor(of: find.text('second'), matching: find.byType(AnimatedContainer)).first;
+    expect(find.descendant(of: chosen, matching: find.byIcon(Icons.check_rounded)), findsOneWidget);
+
+    await tester.tap(find.text('first'));
+    await tester.pump();
+    verifyNever(() => cubit.answer(any(), any()));
+  });
+
+  testWidgets('a tapped single-select option is highlighted while the answer is in flight', (tester) async {
+    final cubit = MockSessionCommandCubit();
+    when(() => cubit.answer(any(), any())).thenAnswer((_) async {});
+
+    await tester.pumpWidget(
+      _card(_questionBlock(interactionId: 'q1', options: ['first', 'second']), cubit: cubit),
+    );
+    await tester.tap(find.text('second'));
+    await tester.pump();
+
+    final chosen = find.ancestor(of: find.text('second'), matching: find.byType(AnimatedContainer)).first;
+    expect(find.descendant(of: chosen, matching: find.byIcon(Icons.check_rounded)), findsOneWidget);
   });
 }

@@ -139,6 +139,9 @@ type WorkspaceFileQuery struct {
 // fields are json:"-"; these curated fields are what serialize.
 type SessionView struct {
 	domain.Session
+	// Model is the model the session last ran a turn on, from its transcript.
+	// Empty until the first turn or when the harness does not report one.
+	Model         string `json:"model,omitempty"`
 	Branch        string `json:"branch,omitempty"`
 	WorkspaceMode string `json:"workspaceMode,omitempty" enum:"worktree,in_place"`
 	WorkspacePath string `json:"workspacePath,omitempty"`
@@ -1473,4 +1476,25 @@ type TriggerReviewRequest struct {
 type DesktopResponse struct {
 	Name     string `json:"name" description:"Display name derived from the hostname: trailing .local stripped, hyphens as spaces. Never empty."`
 	Hostname string `json:"hostname" description:"os.Hostname() verbatim; empty if the OS could not report one."`
+}
+
+type SlashCommandView struct {
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	Source      string `json:"source"`
+	Interactive bool   `json:"interactive"`
+}
+
+type SessionSlashCommandsResponse struct {
+	Commands []SlashCommandView `json:"commands"`
+}
+
+type SessionModelView struct {
+	Label       string `json:"label"`
+	Description string `json:"description"`
+	Current     bool   `json:"current"`
+}
+
+type SessionModelsResponse struct {
+	Models []SessionModelView `json:"models"`
 }

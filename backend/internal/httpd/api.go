@@ -37,9 +37,14 @@ type APIDeps struct {
 	// than an empty list, so a client can tell "no blocks yet" from "this daemon
 	// cannot serve them".
 	BlockHistory controllers.BlockEventHistory
+	// SessionModels names the model each session last ran on. Nil omits it.
+	SessionModels controllers.SessionModelReader
 	// Interactions serves a session's currently pending dialogs, for reconnect
 	// reconciliation.
-	Interactions        controllers.InteractionReader
+	Interactions controllers.InteractionReader
+	// SlashCommands lists the slash commands a session's harness offers, for
+	// the phone's composer menu. Nil answers 501.
+	SlashCommands       controllers.SlashCommandLister
 	UsageHooks          controllers.UsageHookRecorder
 	UsageSummary        controllers.UsageSummaryService
 	PRs                 prsvc.ActionManager
@@ -108,7 +113,9 @@ func NewAPI(cfg config.Config, deps APIDeps) *API {
 			Activity:      deps.Activity,
 			BlockEvents:   deps.BlockEvents,
 			BlockHistory:  deps.BlockHistory,
+			Models:        deps.SessionModels,
 			Interactions:  deps.Interactions,
+			SlashCommands: deps.SlashCommands,
 			Usage:         deps.UsageHooks,
 			PreviewServer: deps.PreviewServer,
 			Capabilities:  deps.SessionCapabilities,

@@ -6,6 +6,7 @@ import 'package:operator_mobile/feature/blocks/data/model/params/session_command
 import 'package:operator_mobile/feature/blocks/data/model/params/session_decision_params.dart';
 import 'package:operator_mobile/feature/blocks/data/model/pending_interaction_model.dart';
 import 'package:operator_mobile/feature/blocks/data/model/session_command_result_model.dart';
+import 'package:operator_mobile/feature/blocks/data/model/session_model_option_model.dart';
 
 abstract class SessionControlRemoteDataSource {
   Future<GlobalResponse<SessionCommandResultModel>> sendCommand(
@@ -21,6 +22,7 @@ abstract class SessionControlRemoteDataSource {
     SessionAnswerParams params,
   );
   Future<GlobalResponse<List<PendingInteractionModel>>> getInteractions(String sessionId);
+  Future<GlobalResponse<List<SessionModelOptionModel>>> getModels(String sessionId);
 }
 
 class SessionControlRemoteDataSourceImp implements SessionControlRemoteDataSource {
@@ -83,6 +85,16 @@ class SessionControlRemoteDataSourceImp implements SessionControlRemoteDataSourc
       response.data as Map<String, dynamic>,
       withDataKey: false,
       fromJsonT: PendingInteractionModel.listFromJson,
+    );
+  }
+
+  @override
+  Future<GlobalResponse<List<SessionModelOptionModel>>> getModels(String sessionId) async {
+    final response = await _apiConsumer.get(EndPoints.sessionModels(sessionId));
+    return GlobalResponse<List<SessionModelOptionModel>>.fromJson(
+      response.data as Map<String, dynamic>,
+      withDataKey: false,
+      fromJsonT: SessionModelOptionModel.listFromJson,
     );
   }
 }

@@ -129,6 +129,7 @@ class _SessionsBodyState extends State<SessionsBody> with WidgetsBindingObserver
               child: SessionCard(
                 session: session,
                 showProject: true,
+                accountLabels: cubit.accountLabels,
                 onTap: () => Navigator.of(context).pushNamed(
                   RoutesStrings.session,
                   arguments: {'sessionId': session.id},

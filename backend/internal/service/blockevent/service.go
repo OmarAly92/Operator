@@ -135,6 +135,20 @@ func (s *Service) RecordTranscript(
 	})
 }
 
+// LatestModels maps every session with a recorded turn to the model that
+// turn ran on. The board shows it next to the harness.
+func (s *Service) LatestModels(ctx context.Context) (map[domain.SessionID]string, error) {
+	rows, err := s.store.SelectLatestTurnModels(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[domain.SessionID]string, len(rows))
+	for id, model := range rows {
+		out[domain.SessionID(id)] = model
+	}
+	return out, nil
+}
+
 // History returns persisted events after afterSeq so a reconnecting client can
 // replay what it missed instead of only seeing what arrives next.
 func (s *Service) History(ctx context.Context, sessionID domain.SessionID, afterSeq int64, limit int) ([]Record, error) {

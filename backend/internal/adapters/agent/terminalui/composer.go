@@ -26,7 +26,7 @@ func LastPromptIsEmptyOrDimPlaceholder(output, marker string) bool {
 	if marker == "" {
 		return false
 	}
-	lines := styledTerminalLines(output)
+	lines := trimTrailingBlankLines(styledTerminalLines(output))
 	start := len(lines) - composerLookbackLines
 	if start < 0 {
 		start = 0
@@ -77,7 +77,7 @@ func LastBorderedPromptIsEmptyOrDimPlaceholder(output, marker string) bool {
 	if marker == "" {
 		return false
 	}
-	lines := styledTerminalLines(output)
+	lines := trimTrailingBlankLines(styledTerminalLines(output))
 	markerRunes := []rune(marker)
 	start := len(lines) - composerLookbackLines
 	if start < 0 {
@@ -135,7 +135,7 @@ func LastPromptDraft(output, marker string) (string, bool) {
 	if marker == "" {
 		return "", false
 	}
-	lines := styledTerminalLines(output)
+	lines := trimTrailingBlankLines(styledTerminalLines(output))
 	markerRunes := []rune(marker)
 	start := len(lines) - composerLookbackLines
 	if start < 0 {
@@ -174,7 +174,7 @@ func LastBorderedPromptDraft(output, marker string) (string, bool) {
 	if marker == "" {
 		return "", false
 	}
-	lines := styledTerminalLines(output)
+	lines := trimTrailingBlankLines(styledTerminalLines(output))
 	markerRunes := []rune(marker)
 	start := len(lines) - composerLookbackLines
 	if start < 0 {
@@ -332,6 +332,16 @@ func applySGRDim(current bool, params string) bool {
 		}
 	}
 	return current
+}
+
+// trimTrailingBlankLines drops the empty rows a top-anchored TUI leaves under
+// its footer when the screen is taller than its content. They carry no draft,
+// and counting them against the lookback would hide the composer entirely.
+func trimTrailingBlankLines(lines [][]styledRune) [][]styledRune {
+	for len(lines) > 0 && isBlankStyledLine(lines[len(lines)-1]) {
+		lines = lines[:len(lines)-1]
+	}
+	return lines
 }
 
 func isBlankStyledLine(line []styledRune) bool {

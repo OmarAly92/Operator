@@ -1900,8 +1900,448 @@ Send each from the phone and watch the desktop TUI. Expected: output prints and 
 
 Append a dated line to `docs/mobile-chat-bugs.md` (create the section `## Slash commands` if absent) stating which of steps 3–6 passed and any widening applied, and commit as `docs: slash command verification 2026-09-17`.
 
+---
+
+### Task 10: Capture what the TUI printed for a built-in
+
+**Files:**
+- Create: `backend/internal/session_manager/slash_output.go`
+- Test: `backend/internal/session_manager/slash_output_test.go`
+
+**Interfaces:**
+- Consumes: `slashcommands.Lookup`, `m.store.GetSession`, `m.runtime.GetOutput(ctx, handle, lines)` (`internal/ports/outbound.go:85`), `runtimeHandle(meta)` (`manager.go:3906`), `commandPaneLines` (`command.go:183`), `fakeRuntime.panes` (`manager_test.go:225`, consumed one read at a time by `GetOutput`).
+- Produces: `func extractSlashOutput(pane, message string) string` and `func (m *Manager) SlashOutput(ctx context.Context, id domain.SessionID, message string) (string, error)`; `slashOutputConfig{pollInterval, budget time.Duration}` on `Manager` as `m.slashOutput`, defaulted in `New` and shrunk by tests.
+
+Why: Claude Code prints a built-in's answer (`/context`, `/compact`, `/clear`)
+only in the TUI — no hook, no transcript record — so after the paste the
+daemon reads the pane and lifts the lines between the echoed `❯ /context`
+and the separator that precedes the next prompt. The read repeats until two
+consecutive reads agree (a spinner such as `Compacting conversation… (20s)`
+keeps changing) or the budget runs out, in which case nothing is captured
+and the caller records no reply. Pane shape, from a real 2.1.273 capture on
+2026-09-17: the echo line is `❯ /context ` (trailing space), the first
+output line starts with `  ⎿  `, later lines are indented five spaces, and
+the block ends at a line of `─` characters above the empty `❯` prompt.
+
+- [ ] **Step 1: Write the failing tests**
+
+```go
+package sessionmanager
+
+import (
+	"context"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/OmarAly92/operator/backend/internal/domain"
+)
+
+const paneAfterContext = "" +
+	"❯ /help \n" +
+	"  ⎿  Help dialog dismissed\n" +
+	"\n" +
+	"❯ /context \n" +
+	"  ⎿  Context Usage\n" +
+	"     ⛁ ⛁ ⛁ ⛁ ⛶   Sonnet 5\n" +
+	"     ⛶ ⛶ ⛶ ⛶ ⛶   87.9k/1m tokens (9%)\n" +
+	"     Skills · /skills\n" +
+	"     ├ sc:analyze: ~40 tokens\n" +
+	"     └ init: ~20 tokens\n" +
+	"────────────────────────────────────────────────────────────────────\n" +
+	"❯ \n" +
+	"────────────────────────────────────────────────────────────────────\n" +
+	"  ⏵⏵ auto mode on (shift+tab to cycle) · ← for agents\n" +
+	"                                                       87856 tokens\n"
+
+const paneAfterCompactTwice = "" +
+	"❯ /compact\n" +
+	"  ⎿  Compacted\n" +
+	"❯ /compact\n" +
+	"  ⎿  Not enough messages to compact.\n" +
+	"────────────────────────────────────────────────────────────────────\n" +
+	"❯ \n" +
+	"────────────────────────────────────────────────────────────────────\n"
+
+const paneWhileCompacting = "" +
+	"❯ /compact\n" +
+	"✻ Compacting conversation… (3s)\n" +
+	"────────────────────────────────────────────────────────────────────\n" +
+	"❯ \n"
+
+func TestExtractSlashOutputLiftsTheBlockAfterTheLastEcho(t *testing.T) {
+	got := extractSlashOutput(paneAfterContext, "/context")
+	want := "Context Usage\n" +
+		"⛁ ⛁ ⛁ ⛁ ⛶   Sonnet 5\n" +
+		"⛶ ⛶ ⛶ ⛶ ⛶   87.9k/1m tokens (9%)\n" +
+		"Skills · /skills\n" +
+		"├ sc:analyze: ~40 tokens\n" +
+		"└ init: ~20 tokens"
+	if got != want {
+		t.Fatalf("extract:\n got %q\nwant %q", got, want)
+	}
+}
+
+func TestExtractSlashOutputUsesTheLastEchoAndTrailingWhitespaceIsIgnored(t *testing.T) {
+	if got := extractSlashOutput(paneAfterCompactTwice, "/compact"); got != "Not enough messages to compact." {
+		t.Fatalf("got %q", got)
+	}
+	if got := extractSlashOutput(paneAfterCompactTwice, "/compact  "); got != "Not enough messages to compact." {
+		t.Fatalf("message with trailing spaces: got %q", got)
+	}
+}
+
+func TestExtractSlashOutputIsEmptyWhenTheEchoIsAbsent(t *testing.T) {
+	if got := extractSlashOutput(paneAfterContext, "/clear"); got != "" {
+		t.Fatalf("got %q, want empty", got)
+	}
+	if got := extractSlashOutput("", "/context"); got != "" {
+		t.Fatalf("empty pane: got %q", got)
+	}
+}
+
+func newSlashOutputTestManager(t *testing.T, panes ...string) (*Manager, *fakeRuntime, *fakeStore) {
+	t.Helper()
+	st := newFakeStore()
+	st.sessions["s1"] = domain.SessionRecord{ID: "s1", Harness: "claude-code",
+		Metadata: domain.SessionMetadata{RuntimeHandleID: "s1"}}
+	rt := &fakeRuntime{panes: panes}
+	m := newSendTestManager(t, fakeAgent{}, &fakeMessenger{}, st)
+	m.runtime = rt
+	m.slashOutput = slashOutputConfig{pollInterval: time.Millisecond, budget: 20 * time.Millisecond}
+	return m, rt, st
+}
+
+func TestSlashOutputReturnsOnceTwoReadsAgree(t *testing.T) {
+	m, rt, _ := newSlashOutputTestManager(t, paneAfterContext, paneAfterContext)
+
+	got, err := m.SlashOutput(context.Background(), "s1", "/context")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasPrefix(got, "Context Usage") {
+		t.Fatalf("got %q", got)
+	}
+	if rt.outputCalls != 2 {
+		t.Fatalf("pane reads = %d, want 2 (stable after the second)", rt.outputCalls)
+	}
+}
+
+func TestSlashOutputGivesUpOnAChangingSpinner(t *testing.T) {
+	m, _, _ := newSlashOutputTestManager(t,
+		strings.ReplaceAll(paneWhileCompacting, "(3s)", "(1s)"),
+		strings.ReplaceAll(paneWhileCompacting, "(3s)", "(2s)"),
+		paneWhileCompacting,
+		strings.ReplaceAll(paneWhileCompacting, "(3s)", "(4s)"),
+	)
+
+	got, err := m.SlashOutput(context.Background(), "s1", "/compact")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != "" {
+		t.Fatalf("got %q, want empty (never stable within the budget)", got)
+	}
+}
+
+func TestSlashOutputIsEmptyForNonBuiltinsAndSessionsWithoutARuntime(t *testing.T) {
+	m, rt, st := newSlashOutputTestManager(t, paneAfterContext)
+
+	if got, err := m.SlashOutput(context.Background(), "s1", "/sc:analyze"); err != nil || got != "" {
+		t.Fatalf("custom command: got %q, %v", got, err)
+	}
+	if rt.outputCalls != 0 {
+		t.Fatalf("a custom command must not read the pane; reads = %d", rt.outputCalls)
+	}
+	st.sessions["s1"] = domain.SessionRecord{ID: "s1", Harness: "claude-code"}
+	if got, err := m.SlashOutput(context.Background(), "s1", "/context"); err != nil || got != "" {
+		t.Fatalf("no runtime handle: got %q, %v", got, err)
+	}
+	if _, err := m.SlashOutput(context.Background(), "ghost", "/context"); err != ErrNotFound {
+		t.Fatalf("unknown session err = %v, want ErrNotFound", err)
+	}
+}
+```
+
+Check that `fakeRuntime` returns its last pane repeatedly once the slice is exhausted (`manager_test.go:388-392` keeps the final element), so two identical entries are enough for "stable". If `m.runtime` is not an assignable field named `runtime`, find the field `newSendTestManager` populates from `Deps.Runtime` and assign that.
+
+- [ ] **Step 2: Run tests to verify they fail**
+
+Run: `cd backend && go test ./internal/session_manager/ -run 'TestExtractSlashOutput|TestSlashOutput'`
+Expected: build failure, `undefined: extractSlashOutput`.
+
+- [ ] **Step 3: Implement**
+
+`slash_output.go`:
+
+```go
+package sessionmanager
+
+import (
+	"context"
+	"strings"
+	"time"
+
+	"github.com/OmarAly92/operator/backend/internal/domain"
+	"github.com/OmarAly92/operator/backend/internal/slashcommands"
+)
+
+type slashOutputConfig struct {
+	pollInterval time.Duration
+	budget       time.Duration
+}
+
+const (
+	slashOutputPollInterval = 250 * time.Millisecond
+	slashOutputBudget       = 3 * time.Second
+	slashOutputMarker       = "⎿"
+)
+
+func (m *Manager) SlashOutput(ctx context.Context, id domain.SessionID, message string) (string, error) {
+	cmd, ok := slashcommands.Lookup(message)
+	if !ok || cmd.Interactive {
+		return "", nil
+	}
+	rec, found, err := m.store.GetSession(ctx, id)
+	if err != nil {
+		return "", err
+	}
+	if !found {
+		return "", ErrNotFound
+	}
+	if rec.Metadata.RuntimeHandleID == "" {
+		return "", nil
+	}
+	handle := runtimeHandle(rec.Metadata)
+	deadline := time.Now().Add(m.slashOutput.budget)
+	previous := ""
+	seen := false
+	for {
+		pane, err := m.runtime.GetOutput(ctx, handle, commandPaneLines)
+		if err != nil {
+			return "", nil
+		}
+		current := extractSlashOutput(pane, message)
+		if seen && current != "" && current == previous {
+			return current, nil
+		}
+		previous, seen = current, true
+		if time.Now().After(deadline) {
+			return "", nil
+		}
+		if err := sleepContext(ctx, m.slashOutput.pollInterval); err != nil {
+			return "", nil
+		}
+	}
+}
+
+func extractSlashOutput(pane, message string) string {
+	echo := "❯ " + strings.TrimSpace(message)
+	lines := strings.Split(pane, "\n")
+	start := -1
+	for i, line := range lines {
+		if strings.TrimRight(line, "  \t") == echo {
+			start = i
+		}
+	}
+	if start < 0 {
+		return ""
+	}
+	var out []string
+	for _, line := range lines[start+1:] {
+		trimmed := strings.TrimRight(line, "  \t")
+		if isPaneSeparator(trimmed) || strings.HasPrefix(strings.TrimLeft(trimmed, " "), "❯") {
+			break
+		}
+		body := strings.TrimLeft(trimmed, " ")
+		body = strings.TrimSpace(strings.TrimPrefix(body, slashOutputMarker))
+		out = append(out, body)
+	}
+	for len(out) > 0 && out[len(out)-1] == "" {
+		out = out[:len(out)-1]
+	}
+	return strings.Join(out, "\n")
+}
+
+func isPaneSeparator(line string) bool {
+	line = strings.TrimSpace(line)
+	return len(line) >= 10 && strings.Trim(line, "─") == ""
+}
+```
+
+Add the field `slashOutput slashOutputConfig` to `Manager` next to `sendConfirm` (`manager.go:320`) and default it in `New` beside `sendConfirm`'s defaults (`manager.go:489`): `slashOutput: slashOutputConfig{pollInterval: slashOutputPollInterval, budget: slashOutputBudget},`. `sleepContext` already exists (`manager.go:3429`); check its signature (`sleepContext(ctx, d)`) and match it.
+
+- [ ] **Step 4: Run the package**
+
+Run: `cd backend && gofmt -l internal/session_manager && go vet ./internal/session_manager/ && go test ./internal/session_manager/`
+Expected: `ok`.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add backend/internal/session_manager/slash_output.go backend/internal/session_manager/slash_output_test.go backend/internal/session_manager/manager.go
+git commit -m "feat(daemon): read what the TUI printed for a built-in slash command"
+```
+
+---
+
+### Task 11: Record the captured output as the reply
+
+**Files:**
+- Modify: `backend/internal/service/session/service.go:69-71` (interface) and `:611-622` (passthroughs)
+- Modify: `backend/internal/httpd/controllers/sessions.go:104-106` (`SessionService`), the `send` handler and `recordBuiltinSlashPrompt`
+- Modify: `backend/internal/httpd/controllers/sessions_test.go` (`fakeSessionService`)
+- Test: `backend/internal/httpd/controllers/sessions_slash_commands_test.go` (append)
+
+**Interfaces:**
+- Consumes: `Manager.SlashOutput` from Task 10; `c.BlockEvents.Record`; `blockdispatch` maps `"stop"` to `BlockEventStop` (`dispatch.go:56`), which the phone renders as the assistant's reply and which closes the prompt block opened by the synthetic `user-prompt-submit`.
+- Produces: `SessionService.SlashOutput(ctx, id, message) (string, error)`; after a successful built-in send the handler records `user-prompt-submit` and then, when output is non-empty, `stop` with `LatestAssistantUpdate` set.
+
+- [ ] **Step 1: Write the failing test** (append to `sessions_slash_commands_test.go`)
+
+```go
+type recordingBlockEvents struct {
+	signals []ports.ActivitySignal
+}
+
+func (r *recordingBlockEvents) Record(_ context.Context, _ domain.SessionID, _ string, sig ports.ActivitySignal) error {
+	r.signals = append(r.signals, sig)
+	return nil
+}
+
+func TestSendBuiltinRecordsThePaneOutputAsTheReply(t *testing.T) {
+	svc := newFakeSessionService()
+	s := svc.sessions["opr-1"]
+	s.Harness = "claude-code"
+	svc.sessions["opr-1"] = s
+	svc.slashOutput = "Context Usage\n⛁ ⛁ ⛁   Sonnet 5"
+	rec := &recordingBlockEvents{}
+	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+	deps := httpd.APIDeps{Sessions: svc, BlockEvents: rec}
+	srv := httptest.NewServer(httpd.NewRouterWithControl(config.Config{}, log, nil, deps, httpd.ControlDeps{}))
+	t.Cleanup(srv.Close)
+
+	_, status, _ := doRequest(t, srv, http.MethodPost, "/api/v1/sessions/opr-1/send", `{"message":"/context"}`)
+	if status != http.StatusOK {
+		t.Fatalf("status = %d, want 200", status)
+	}
+	if svc.slashOutputCalls != 1 || svc.slashOutputMessage != "/context" {
+		t.Fatalf("SlashOutput called %d times with %q, want once with /context", svc.slashOutputCalls, svc.slashOutputMessage)
+	}
+	if len(rec.signals) != 2 {
+		t.Fatalf("recorded %d signals, want prompt then stop: %+v", len(rec.signals), rec.signals)
+	}
+	if rec.signals[0].Event != "user-prompt-submit" || rec.signals[0].LatestUserPrompt != "/context" {
+		t.Fatalf("first signal = %+v", rec.signals[0])
+	}
+	if rec.signals[1].Event != "stop" || rec.signals[1].LatestAssistantUpdate != svc.slashOutput || rec.signals[1].Harness != "claude-code" {
+		t.Fatalf("second signal = %+v", rec.signals[1])
+	}
+}
+
+func TestSendBuiltinWithNoPaneOutputRecordsOnlyThePrompt(t *testing.T) {
+	svc := newFakeSessionService()
+	s := svc.sessions["opr-1"]
+	s.Harness = "claude-code"
+	svc.sessions["opr-1"] = s
+	rec := &recordingBlockEvents{}
+	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+	deps := httpd.APIDeps{Sessions: svc, BlockEvents: rec}
+	srv := httptest.NewServer(httpd.NewRouterWithControl(config.Config{}, log, nil, deps, httpd.ControlDeps{}))
+	t.Cleanup(srv.Close)
+
+	_, status, _ := doRequest(t, srv, http.MethodPost, "/api/v1/sessions/opr-1/send", `{"message":"/compact"}`)
+	if status != http.StatusOK {
+		t.Fatalf("status = %d, want 200", status)
+	}
+	if len(rec.signals) != 1 || rec.signals[0].Event != "user-prompt-submit" {
+		t.Fatalf("signals = %+v, want just the prompt", rec.signals)
+	}
+}
+```
+
+Add `slashOutput string`, `slashOutputErr error`, `slashOutputCalls int`, `slashOutputMessage string` to `fakeSessionService` and:
+
+```go
+func (f *fakeSessionService) SlashOutput(_ context.Context, _ domain.SessionID, message string) (string, error) {
+	f.slashOutputCalls++
+	f.slashOutputMessage = message
+	return f.slashOutput, f.slashOutputErr
+}
+```
+
+- [ ] **Step 2: Run tests to verify they fail**
+
+Run: `cd backend && go test ./internal/httpd/controllers/ -run 'TestSendBuiltin'`
+Expected: build failure — `fakeSessionService` has a method the interface lacks is fine, but `svc.slashOutput` compiles, so the failure is the assertion `recorded 1 signals, want prompt then stop` once the interface method exists. If the package does not compile because `SessionService` lacks `SlashOutput`, proceed to Step 3 and re-run.
+
+- [ ] **Step 3: Thread `SlashOutput` through the service and controller**
+
+`service.go` interface (line ~71): add `SlashOutput(ctx context.Context, id domain.SessionID, message string) (string, error)`; passthrough next to `Draft`:
+
+```go
+func (s *Service) SlashOutput(ctx context.Context, id domain.SessionID, message string) (string, error) {
+	return s.manager.SlashOutput(ctx, id, message)
+}
+```
+
+`sessions.go` `SessionService` (line ~106): the same method. Replace `recordBuiltinSlashPrompt` with:
+
+```go
+// recordBuiltinSlashPrompt writes the prompt block the UserPromptSubmit hook
+// would have written for an ordinary message, then the reply Claude Code
+// printed only in the TUI. Built-ins fire no hook and write no transcript,
+// so without both the timelines show neither the command nor its answer.
+func (c *SessionsController) recordBuiltinSlashPrompt(r *http.Request, message string) {
+	if c.BlockEvents == nil || !slashcommands.IsBuiltin(message) {
+		return
+	}
+	sess, err := c.Svc.Get(r.Context(), sessionID(r))
+	if err != nil || sess.Harness != domain.HarnessClaudeCode {
+		return
+	}
+	harness := string(sess.Harness)
+	prompt := ports.ActivitySignal{
+		Event:            "user-prompt-submit",
+		Harness:          harness,
+		LatestUserPrompt: message,
+	}
+	if err := c.BlockEvents.Record(r.Context(), sessionID(r), harness, prompt); err != nil {
+		slog.Default().Warn("slash prompt block recording failed", "session", sessionID(r), "err", err)
+	}
+	output, err := c.Svc.SlashOutput(r.Context(), sessionID(r), message)
+	if err != nil || output == "" {
+		return
+	}
+	reply := ports.ActivitySignal{
+		Event:                 "stop",
+		Harness:               harness,
+		LatestAssistantUpdate: output,
+	}
+	if err := c.BlockEvents.Record(r.Context(), sessionID(r), harness, reply); err != nil {
+		slog.Default().Warn("slash reply block recording failed", "session", sessionID(r), "err", err)
+	}
+}
+```
+
+- [ ] **Step 4: Full daemon gate**
+
+Run: `cd backend && gofmt -l internal && go vet ./... && go test ./...`
+Expected: clean; the earlier `TestSendBuiltinSlashCommandRecordsPromptBlock` still passes because the fake's default `slashOutput` is `""` (it asserts `rec.calls == 1`).
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add backend/internal/service/session/service.go backend/internal/httpd/controllers
+git commit -m "feat(daemon): post a built-in slash command's TUI output as the reply"
+```
+
+- [ ] **Step 6: Real-session check (reviewing session)**
+
+With the dev daemon rebuilt: from the phone send `/context` — a reply bubble with the context grid follows the `/context` bubble within a second; send `/compact` on a session with nothing to compact — reply `Not enough messages to compact.`; send `/compact` on a long session — no reply bubble, only the `CONVERSATION COMPACTED (MANUAL)` divider once it finishes.
+
 ## Self-review
 
-- **Spec coverage:** §4.1 → Task 1; §4.2 → Task 2; §4.3 → Task 3; §4.4 → Tasks 4–5; §5.1 → Task 6; §5.2 → Task 7; §5.3 → Task 8; §5.4 needs no task; §6 tests are embedded per task; §7 → Task 9.
+- **Spec coverage:** §4.1 → Task 1; §4.2 → Task 2; §4.3 → Task 3; §4.4 → Tasks 4–5; §4.5 → Tasks 10–11; §5.1 → Task 6; §5.2 → Task 7; §5.3 → Task 8; §5.4 needs no task; §6 tests are embedded per task; §7 → Task 9.
 - **Placeholder scan:** none; every code step carries the code. Two "check the real name" instructions (`HarnessClaudeCode`, `SessionMetadata`, `AppInkWell` params) are lookups the executor performs, with the fallback stated.
 - **Type consistency:** `slashcommands.Command` fields (`Name`, `Description`, `Source`, `Interactive`) match the DTO, the JSON golden, `SlashCommandModel`, and the test fixtures; `SlashMenuCubit` members (`commands`, `matches`, `query`, `open`, `pick`, `getSlashCommands`) match Task 8's reads and the tests; `SlashMenuChangedState(open:, matches:)` matches in Tasks 7 and 8; `SlashCommandLister.List(ctx, id)` matches the fake in Task 5 and the service in Task 4; `installedPlugins(configDir, workspace)` matches its call in `List`.

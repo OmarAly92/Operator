@@ -8,12 +8,14 @@ class BoardSnapshot extends Equatable {
     this.sessions = const [],
     this.orchestrators = const [],
     this.projects = const [],
+    this.accountLabels = const {},
   });
 
   final List<SessionModel> sessions;
   final List<OrchestratorModel> orchestrators;
   final List<ProjectModel> projects;
+  final Map<String, String> accountLabels;
 
   @override
-  List<Object?> get props => [sessions, orchestrators, projects];
+  List<Object?> get props => [sessions, orchestrators, projects, accountLabels];
 }

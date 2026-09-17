@@ -33,3 +33,11 @@ WHERE outer_be.session_id = ?
     ORDER BY be.seq DESC
     LIMIT 1 OFFSET ?
   );
+
+-- name: SelectLatestTurnModels :many
+SELECT session_id, text
+FROM block_events
+WHERE kind = 'turn_model'
+  AND seq IN (
+    SELECT MAX(seq) FROM block_events WHERE kind = 'turn_model' GROUP BY session_id
+  );

@@ -30,8 +30,10 @@ import (
 	"github.com/OmarAly92/operator/backend/internal/previewserver"
 	blockeventsvc "github.com/OmarAly92/operator/backend/internal/service/blockevent"
 	sessionsvc "github.com/OmarAly92/operator/backend/internal/service/session"
+	slashcommandssvc "github.com/OmarAly92/operator/backend/internal/service/slashcommands"
 	usagesvc "github.com/OmarAly92/operator/backend/internal/service/usage"
 	sessionmanager "github.com/OmarAly92/operator/backend/internal/session_manager"
+	"github.com/OmarAly92/operator/backend/internal/slashcommands"
 	"github.com/OmarAly92/operator/backend/internal/workspacewatch"
 )
 
@@ -101,7 +103,9 @@ type SessionService interface {
 	SetReviewerHarness(ctx context.Context, id domain.SessionID, harness domain.ReviewerHarness) (domain.Session, error)
 	Send(ctx context.Context, id domain.SessionID, message string, attachment *ports.SpawnAttachment) error
 	Command(ctx context.Context, id domain.SessionID, command domain.SessionCommand, model string) (sessionmanager.CommandResult, error)
+	Models(ctx context.Context, id domain.SessionID) ([]sessionmanager.ModelOption, error)
 	Draft(ctx context.Context, id domain.SessionID) (string, error)
+	SlashOutput(ctx context.Context, id domain.SessionID, message string) (string, error)
 	Decide(ctx context.Context, id domain.SessionID, interactionID, behavior string) error
 	Answer(ctx context.Context, id domain.SessionID, interactionID string, selections [][]string) error
 	DelegateTask(ctx context.Context, in sessionsvc.DelegateTaskInput) (sessionsvc.DelegateTaskOutcome, error)
@@ -140,11 +144,23 @@ type BlockEventHistory interface {
 	HistoryBefore(ctx context.Context, sessionID domain.SessionID, beforeSeq int64, limit int) ([]blockeventsvc.Record, error)
 }
 
+// SessionModelReader names the model each session last ran a turn on, from
+// its block-event log. Nil leaves the session view's model empty.
+type SessionModelReader interface {
+	LatestModels(ctx context.Context) (map[domain.SessionID]string, error)
+}
+
 // InteractionReader serves a session's currently pending dialogs. This exists
 // for reconnect reconciliation: a phone that was backgrounded when the dialog
 // appeared has no block event for it.
 type InteractionReader interface {
 	Interactions(ctx context.Context, sessionID domain.SessionID) ([]domain.PendingInteraction, error)
+}
+
+// SlashCommandLister lists the slash commands, skills and plugin skills a
+// session's harness offers, for the phone's composer menu.
+type SlashCommandLister interface {
+	List(ctx context.Context, sessionID domain.SessionID) ([]slashcommands.Command, error)
 }
 
 // ManagedPreviewServer is the deterministic server lifecycle attached to a
@@ -173,8 +189,10 @@ type SessionsController struct {
 	Svc           SessionService
 	Activity      ActivityRecorder
 	BlockEvents   BlockEventRecorder
+	Models        SessionModelReader
 	BlockHistory  BlockEventHistory
 	Interactions  InteractionReader
+	SlashCommands SlashCommandLister
 	Usage         UsageHookRecorder
 	PreviewServer ManagedPreviewServer
 	Capabilities  SessionCapabilityValidator
@@ -215,6 +233,8 @@ func (c *SessionsController) Register(r chi.Router) {
 	r.Post("/sessions/{sessionId}/decision", c.decision)
 	r.Post("/sessions/{sessionId}/answer", c.answer)
 	r.Get("/sessions/{sessionId}/interactions", c.listInteractions)
+	r.Get("/sessions/{sessionId}/slash-commands", c.listSlashCommands)
+	r.Get("/sessions/{sessionId}/models", c.listModels)
 	r.Get("/sessions/{sessionId}/draft", c.draft)
 	r.Post("/sessions/{sessionId}/activity", c.activity)
 	r.Post("/sessions/{sessionId}/pin", c.pin)
@@ -253,7 +273,9 @@ func (c *SessionsController) list(w http.ResponseWriter, r *http.Request) {
 		envelope.WriteError(w, r, err)
 		return
 	}
-	envelope.WriteJSON(w, http.StatusOK, ListSessionsResponse{Sessions: sessionViews(sessions)})
+	views := sessionViews(sessions)
+	c.attachModels(r.Context(), views)
+	envelope.WriteJSON(w, http.StatusOK, ListSessionsResponse{Sessions: views})
 }
 
 func sessionModeRequested(body []byte) bool {
@@ -448,7 +470,25 @@ func (c *SessionsController) get(w http.ResponseWriter, r *http.Request) {
 		envelope.WriteError(w, r, err)
 		return
 	}
-	envelope.WriteJSON(w, http.StatusOK, SessionResponse{Session: sessionView(sess)})
+	views := []SessionView{sessionView(sess)}
+	c.attachModels(r.Context(), views)
+	envelope.WriteJSON(w, http.StatusOK, SessionResponse{Session: views[0]})
+}
+
+// attachModels is best effort: a failed read leaves the field empty rather
+// than failing the list, which the board polls constantly.
+func (c *SessionsController) attachModels(ctx context.Context, views []SessionView) {
+	if c.Models == nil || len(views) == 0 {
+		return
+	}
+	models, err := c.Models.LatestModels(ctx)
+	if err != nil {
+		slog.Default().Warn("session models read failed", "err", err)
+		return
+	}
+	for i := range views {
+		views[i].Model = models[views[i].ID]
+	}
 }
 
 func (c *SessionsController) preview(w http.ResponseWriter, r *http.Request) {
@@ -1362,7 +1402,52 @@ func (c *SessionsController) send(w http.ResponseWriter, r *http.Request) {
 		envelope.WriteError(w, r, err)
 		return
 	}
+	c.recordBuiltinSlashPrompt(r, message)
 	envelope.WriteJSON(w, http.StatusOK, SendSessionMessageResponse{OK: true, SessionID: sessionID(r), Message: message})
+}
+
+const slashReplyTimeout = 30 * time.Second
+
+// recordBuiltinSlashPrompt writes the prompt block the UserPromptSubmit hook
+// would have written for an ordinary message, then, off the request path,
+// the reply Claude Code printed only in the TUI. Built-ins fire no hook and
+// write no transcript, so without both the timelines show neither the
+// command nor its answer; commands like /recap take several seconds, so the
+// send response must not wait for them.
+func (c *SessionsController) recordBuiltinSlashPrompt(r *http.Request, message string) {
+	if c.BlockEvents == nil || !slashcommands.IsBuiltin(message) {
+		return
+	}
+	sess, err := c.Svc.Get(r.Context(), sessionID(r))
+	if err != nil || sess.Harness != domain.HarnessClaudeCode {
+		return
+	}
+	harness := string(sess.Harness)
+	prompt := ports.ActivitySignal{
+		Event:            "user-prompt-submit",
+		Harness:          harness,
+		LatestUserPrompt: message,
+	}
+	if err := c.BlockEvents.Record(r.Context(), sessionID(r), harness, prompt); err != nil {
+		slog.Default().Warn("slash prompt block recording failed", "session", sessionID(r), "err", err)
+	}
+	id := sessionID(r)
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(r.Context()), slashReplyTimeout)
+	go func() {
+		defer cancel()
+		output, err := c.Svc.SlashOutput(ctx, id, message)
+		if err != nil || output == "" {
+			return
+		}
+		reply := ports.ActivitySignal{
+			Event:                 "stop",
+			Harness:               harness,
+			LatestAssistantUpdate: "```text\n" + output + "\n```",
+		}
+		if err := c.BlockEvents.Record(ctx, id, harness, reply); err != nil {
+			slog.Default().Warn("slash reply block recording failed", "session", id, "err", err)
+		}
+	}()
 }
 
 func (c *SessionsController) command(w http.ResponseWriter, r *http.Request) {
@@ -1389,31 +1474,11 @@ func (c *SessionsController) command(w http.ResponseWriter, r *http.Request) {
 	}
 
 	result, err := c.Svc.Command(r.Context(), sessionID(r), command, in.Model)
-	switch {
-	case err == nil:
-		envelope.WriteJSON(w, http.StatusOK, SessionCommandResponse{State: "sent", Models: result.Models})
-	case errors.Is(err, sessionmanager.ErrNotFound):
-		envelope.WriteAPIError(w, r, http.StatusNotFound, "not_found", "SESSION_NOT_FOUND", "session not found", nil)
-	case errors.Is(err, sessionmanager.ErrAwaitingDecision):
-		envelope.WriteAPIError(w, r, http.StatusConflict, "conflict", "SESSION_AWAITING_DECISION",
-			"the session is paused on a permission decision", nil)
-	case errors.Is(err, sessionmanager.ErrWrongActivityState):
-		envelope.WriteAPIError(w, r, http.StatusConflict, "conflict", "SESSION_COMMAND_UNAVAILABLE",
-			"the command is not available in the session's current state", nil)
-	case errors.Is(err, sessionmanager.ErrComposerNotEmpty):
-		envelope.WriteAPIError(w, r, http.StatusConflict, "conflict", "SESSION_COMPOSER_NOT_EMPTY",
-			"the terminal composer holds an unsent draft", nil)
-	case errors.Is(err, sessionmanager.ErrModelNotOffered):
-		envelope.WriteAPIError(w, r, http.StatusConflict, "conflict", "SESSION_MODEL_NOT_OFFERED",
-			"the harness did not offer that model", map[string]any{"models": result.Models})
-	case errors.Is(err, sessionmanager.ErrDialogAbsent):
-		envelope.WriteAPIError(w, r, http.StatusConflict, "conflict", "SESSION_DIALOG_ABSENT",
-			"the expected dialog is no longer on screen", nil)
-	case errors.Is(err, sessionmanager.ErrTerminated), errors.Is(err, sessionmanager.ErrAgentExited):
-		envelope.WriteAPIError(w, r, http.StatusConflict, "conflict", "SESSION_NOT_RUNNING", "the session is not running", nil)
-	default:
-		envelope.WriteError(w, r, err)
+	if err != nil {
+		c.writeCommandError(w, r, err, result.Models)
+		return
 	}
+	envelope.WriteJSON(w, http.StatusOK, SessionCommandResponse{State: "sent", Models: result.Models})
 }
 
 func (c *SessionsController) decision(w http.ResponseWriter, r *http.Request) {
@@ -1500,6 +1565,70 @@ func (c *SessionsController) listInteractions(w http.ResponseWriter, r *http.Req
 		return
 	}
 	envelope.WriteJSON(w, http.StatusOK, SessionInteractionsResponse{Interactions: sessionInteractionViews(interactions)})
+}
+
+func (c *SessionsController) writeCommandError(w http.ResponseWriter, r *http.Request, err error, models []string) {
+	switch {
+	case errors.Is(err, sessionmanager.ErrNotFound):
+		envelope.WriteAPIError(w, r, http.StatusNotFound, "not_found", "SESSION_NOT_FOUND", "session not found", nil)
+	case errors.Is(err, sessionmanager.ErrAwaitingDecision):
+		envelope.WriteAPIError(w, r, http.StatusConflict, "conflict", "SESSION_AWAITING_DECISION",
+			"the session is paused on a permission decision", nil)
+	case errors.Is(err, sessionmanager.ErrWrongActivityState):
+		envelope.WriteAPIError(w, r, http.StatusConflict, "conflict", "SESSION_COMMAND_UNAVAILABLE",
+			"the command is not available in the session's current state", nil)
+	case errors.Is(err, sessionmanager.ErrComposerNotEmpty):
+		envelope.WriteAPIError(w, r, http.StatusConflict, "conflict", "SESSION_COMPOSER_NOT_EMPTY",
+			"the terminal composer holds an unsent draft", nil)
+	case errors.Is(err, sessionmanager.ErrModelNotOffered):
+		envelope.WriteAPIError(w, r, http.StatusConflict, "conflict", "SESSION_MODEL_NOT_OFFERED",
+			"the harness did not offer that model", map[string]any{"models": models})
+	case errors.Is(err, sessionmanager.ErrDialogAbsent):
+		envelope.WriteAPIError(w, r, http.StatusConflict, "conflict", "SESSION_DIALOG_ABSENT",
+			"the expected dialog is no longer on screen", nil)
+	case errors.Is(err, sessionmanager.ErrTerminated), errors.Is(err, sessionmanager.ErrAgentExited):
+		envelope.WriteAPIError(w, r, http.StatusConflict, "conflict", "SESSION_NOT_RUNNING", "the session is not running", nil)
+	default:
+		envelope.WriteError(w, r, err)
+	}
+}
+
+func (c *SessionsController) listModels(w http.ResponseWriter, r *http.Request) {
+	if c.Svc == nil {
+		apispec.NotImplemented(w, r, "GET", "/api/v1/sessions/{sessionId}/models")
+		return
+	}
+	options, err := c.Svc.Models(r.Context(), sessionID(r))
+	if err != nil {
+		c.writeCommandError(w, r, err, nil)
+		return
+	}
+	views := make([]SessionModelView, 0, len(options))
+	for _, option := range options {
+		views = append(views, SessionModelView{Label: option.Label, Description: option.Description, Current: option.Current})
+	}
+	envelope.WriteJSON(w, http.StatusOK, SessionModelsResponse{Models: views})
+}
+
+func (c *SessionsController) listSlashCommands(w http.ResponseWriter, r *http.Request) {
+	if c.SlashCommands == nil {
+		apispec.NotImplemented(w, r, "GET", "/api/v1/sessions/{sessionId}/slash-commands")
+		return
+	}
+	commands, err := c.SlashCommands.List(r.Context(), sessionID(r))
+	if err != nil {
+		if errors.Is(err, slashcommandssvc.ErrSessionNotFound) {
+			envelope.WriteAPIError(w, r, http.StatusNotFound, "not_found", "SESSION_NOT_FOUND", "Unknown session", nil)
+			return
+		}
+		envelope.WriteError(w, r, err)
+		return
+	}
+	views := make([]SlashCommandView, 0, len(commands))
+	for _, cmd := range commands {
+		views = append(views, SlashCommandView{Name: cmd.Name, Description: cmd.Description, Source: cmd.Source, Interactive: cmd.Interactive})
+	}
+	envelope.WriteJSON(w, http.StatusOK, SessionSlashCommandsResponse{Commands: views})
 }
 
 func (c *SessionsController) draft(w http.ResponseWriter, r *http.Request) {

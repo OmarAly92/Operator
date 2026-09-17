@@ -214,6 +214,43 @@ func (q *Queries) SelectBlockEventsBySession(ctx context.Context, arg SelectBloc
 	return items, nil
 }
 
+const selectLatestTurnModels = `-- name: SelectLatestTurnModels :many
+SELECT session_id, text
+FROM block_events
+WHERE kind = 'turn_model'
+  AND seq IN (
+    SELECT MAX(seq) FROM block_events WHERE kind = 'turn_model' GROUP BY session_id
+  )
+`
+
+type SelectLatestTurnModelsRow struct {
+	SessionID string
+	Text      string
+}
+
+func (q *Queries) SelectLatestTurnModels(ctx context.Context) ([]SelectLatestTurnModelsRow, error) {
+	rows, err := q.db.QueryContext(ctx, selectLatestTurnModels)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []SelectLatestTurnModelsRow{}
+	for rows.Next() {
+		var i SelectLatestTurnModelsRow
+		if err := rows.Scan(&i.SessionID, &i.Text); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const trimBlockEventsForSession = `-- name: TrimBlockEventsForSession :execrows
 DELETE FROM block_events AS outer_be
 WHERE outer_be.session_id = ?

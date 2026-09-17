@@ -3,7 +3,9 @@ package sessionmanager
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"strings"
+	"time"
 
 	"github.com/OmarAly92/operator/backend/internal/domain"
 	"github.com/OmarAly92/operator/backend/internal/ports"
@@ -17,22 +19,16 @@ type CommandResult struct {
 	Models []string
 }
 
+type ModelOption struct {
+	Label       string
+	Description string
+	Current     bool
+}
+
 func (m *Manager) Command(ctx context.Context, id domain.SessionID, cmd domain.SessionCommand, model string) (CommandResult, error) {
-	rec, ok, err := m.store.GetSession(ctx, id)
+	rec, err := m.commandRecord(ctx, id)
 	if err != nil {
-		return CommandResult{}, fmt.Errorf("command %s: %w", id, err)
-	}
-	if !ok {
-		return CommandResult{}, ErrNotFound
-	}
-	if rec.IsTerminated {
-		return CommandResult{}, ErrTerminated
-	}
-	if rec.Activity.State == domain.ActivityExited {
-		return CommandResult{}, ErrAgentExited
-	}
-	if rec.Metadata.RuntimeHandleID == "" {
-		return CommandResult{}, ErrIncompleteHandle
+		return CommandResult{}, err
 	}
 
 	switch cmd {
@@ -45,6 +41,114 @@ func (m *Manager) Command(ctx context.Context, id domain.SessionID, cmd domain.S
 	default:
 		return CommandResult{}, fmt.Errorf("command %s: %w", id, ErrWrongActivityState)
 	}
+}
+
+func (m *Manager) commandRecord(ctx context.Context, id domain.SessionID) (domain.SessionRecord, error) {
+	rec, ok, err := m.store.GetSession(ctx, id)
+	if err != nil {
+		return domain.SessionRecord{}, fmt.Errorf("command %s: %w", id, err)
+	}
+	if !ok {
+		return domain.SessionRecord{}, ErrNotFound
+	}
+	if rec.IsTerminated {
+		return domain.SessionRecord{}, ErrTerminated
+	}
+	if rec.Activity.State == domain.ActivityExited {
+		return domain.SessionRecord{}, ErrAgentExited
+	}
+	if rec.Metadata.RuntimeHandleID == "" {
+		return domain.SessionRecord{}, ErrIncompleteHandle
+	}
+	return rec, nil
+}
+
+// Models opens the harness's model picker just long enough to read it, then
+// backs out with Esc. It is the only way to learn which models this Claude
+// Code build offers and which one the session is on: the picker marks the
+// current row with ✔ and neither fact is written anywhere else.
+func (m *Manager) Models(ctx context.Context, id domain.SessionID) ([]ModelOption, error) {
+	rec, err := m.commandRecord(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if rec.Activity.State == domain.ActivityBlocked {
+		return nil, ErrAwaitingDecision
+	}
+	if rec.Activity.State != domain.ActivityIdle {
+		return nil, ErrWrongActivityState
+	}
+	reader, ok := m.menuReaderFor(rec.Harness)
+	if !ok {
+		return nil, ErrWrongActivityState
+	}
+	if err := m.requireEmptyComposer(ctx, rec); err != nil {
+		return nil, err
+	}
+	handle := runtimeHandle(rec.Metadata)
+	driver := m.driverFor(handle)
+	if err := driver.Press(ctx, "/model\r"); err != nil {
+		return nil, fmt.Errorf("models %s: %w", rec.ID, err)
+	}
+	menu, open, err := m.awaitMenu(ctx, reader, handle)
+	m.escape(ctx, driver, rec.ID)
+	if err != nil {
+		return nil, fmt.Errorf("models %s: read picker: %w", rec.ID, err)
+	}
+	if !open {
+		return nil, ErrDialogAbsent
+	}
+	return parseModelOptions(menu), nil
+}
+
+// awaitMenu re-reads the pane until the picker has rendered. One read after a
+// fixed settle was enough on a quiet machine and not on a busy one; a menu
+// that has not appeared within the budget is reported absent.
+func (m *Manager) awaitMenu(ctx context.Context, reader ports.TerminalMenuReader, handle ports.RuntimeHandle) (ports.Menu, bool, error) {
+	deadline := time.Now().Add(menuAppearBudget)
+	for {
+		pane, err := m.runtime.GetOutput(ctx, handle, commandPaneLines)
+		if err != nil {
+			return ports.Menu{}, false, err
+		}
+		if menu, open := reader.ReadMenu(pane); open {
+			return menu, true, nil
+		}
+		if time.Now().After(deadline) {
+			return ports.Menu{}, false, nil
+		}
+		if err := sleepContext(ctx, menuAppearPoll); err != nil {
+			return ports.Menu{}, false, nil
+		}
+	}
+}
+
+const (
+	menuAppearBudget = 2 * time.Second
+	menuAppearPoll   = 100 * time.Millisecond
+)
+
+var (
+	menuRowNumber  = regexp.MustCompile(`^\d+\.\s+`)
+	menuRowColumns = regexp.MustCompile(`\s{2,}`)
+)
+
+func parseModelOptions(menu ports.Menu) []ModelOption {
+	options := make([]ModelOption, 0, len(menu.Rows))
+	marked := false
+	for _, row := range menu.Rows {
+		row = menuRowNumber.ReplaceAllString(strings.TrimSpace(row), "")
+		label, description, _ := strings.Cut(row, "  ")
+		description = strings.TrimSpace(menuRowColumns.ReplaceAllString(description, " "))
+		current := strings.Contains(label, "✔")
+		label = strings.TrimSpace(strings.ReplaceAll(label, "✔", ""))
+		marked = marked || current
+		options = append(options, ModelOption{Label: label, Description: description, Current: current})
+	}
+	if !marked && menu.Selected >= 0 && menu.Selected < len(options) {
+		options[menu.Selected].Current = true
+	}
+	return options
 }
 
 func (m *Manager) commandStop(ctx context.Context, rec domain.SessionRecord) (CommandResult, error) {
@@ -99,11 +203,10 @@ func (m *Manager) commandModel(ctx context.Context, rec domain.SessionRecord, la
 		return CommandResult{}, fmt.Errorf("command model %s: %w", rec.ID, err)
 	}
 
-	pane, err := m.runtime.GetOutput(ctx, handle, commandPaneLines)
+	menu, open, err := m.awaitMenu(ctx, reader, handle)
 	if err != nil {
 		return CommandResult{}, fmt.Errorf("command model %s: read picker: %w", rec.ID, err)
 	}
-	menu, open := reader.ReadMenu(pane)
 	if !open {
 		m.escape(ctx, driver, rec.ID)
 		return CommandResult{}, ErrDialogAbsent
@@ -169,6 +272,11 @@ func indexOfRow(rows []string, label string) int {
 	want := strings.ToLower(strings.TrimSpace(label))
 	if want == "" {
 		return -1
+	}
+	for i, option := range parseModelOptions(ports.Menu{Rows: rows, Selected: -1}) {
+		if strings.ToLower(option.Label) == want {
+			return i
+		}
 	}
 	for i, row := range rows {
 		if strings.Contains(strings.ToLower(row), want) {

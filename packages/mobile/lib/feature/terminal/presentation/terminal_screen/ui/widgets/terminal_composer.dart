@@ -14,8 +14,11 @@ import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/wid
 import 'package:operator_mobile/feature/dictation/logic/voice_input_cubit.dart';
 import 'package:operator_mobile/feature/dictation/ui/mic_key.dart';
 import 'package:operator_mobile/feature/dictation/ui/voice_strip.dart';
+import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/model_picker_sheet.dart';
+import 'package:operator_mobile/feature/terminal/logic/model_command.dart';
 import 'package:operator_mobile/feature/terminal/logic/send_route.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/logic/terminal_cubit.dart';
+import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/ui/widgets/slash_command_menu.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/ui/widgets/terminal_composer_draft_hint.dart';
 
 class TerminalComposer extends StatefulWidget {
@@ -52,6 +55,23 @@ class _TerminalComposerState extends State<TerminalComposer> {
     _lifecycle.dispose();
     unawaited(_voice.close());
     super.dispose();
+  }
+
+  void _send(BuildContext context, TerminalCubit cubit) {
+    final command = cubit.args.shellOnly || cubit.sendTarget == SendTarget.terminal
+        ? null
+        : parseModelCommand(cubit.composer.text);
+    if (command == null) {
+      unawaited(cubit.send());
+      return;
+    }
+    cubit.composer.clear();
+    final label = command.label;
+    if (label == null) {
+      showModelPicker(context, harness: cubit.args.harness);
+      return;
+    }
+    unawaited(switchModel(context, label));
   }
 
   void _openActions(BuildContext context) {
@@ -123,6 +143,7 @@ class _TerminalComposerState extends State<TerminalComposer> {
         mainAxisSize: MainAxisSize.min,
         children: [
           const VoiceStrip(),
+          if (!cubit.args.shellOnly) const SlashCommandMenu(),
           BlocBuilder<TerminalCubit, TerminalState>(
             buildWhen: (previous, current) => current is TerminalReadyState,
             builder: (context, state) {
@@ -230,7 +251,7 @@ class _TerminalComposerState extends State<TerminalComposer> {
                                 button: true,
                                 label: 'Send',
                                 child: InkWell(
-                                  onTap: cubit.sending ? null : cubit.send,
+                                  onTap: cubit.sending ? null : () => _send(context, cubit),
                                   borderRadius: BorderRadius.circular(23),
                                   child: Container(
                                     width: 46,

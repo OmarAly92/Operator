@@ -45,6 +45,7 @@ class SessionsCubit extends Cubit<SessionsState> {
   List<SessionModel> sessions = [];
   List<OrchestratorModel> orchestrators = [];
   List<ProjectModel> projects = [];
+  Map<String, String> accountLabels = const {};
   String activeProjectId = (CacheHelper.get(CacheKeys.activeProjectId) as String?) ?? kAllProjects;
 
   List<SessionModel> get visibleSessions => activeProjectId == kAllProjects
@@ -128,6 +129,7 @@ class SessionsCubit extends Cubit<SessionsState> {
         sessions = board.sessions;
         orchestrators = board.orchestrators;
         projects = board.projects;
+        accountLabels = board.accountLabels;
         if (!_connectionOpen) {
           _connectionOpen = true;
           TelemetryRuntime.capture(MobileEvents.connected, {

@@ -25,7 +25,7 @@ void main() {
       Response<dynamic>(requestOptions: RequestOptions(path: '/'), data: body);
 
   group('getBoard', () {
-    test('probes /sessions alone before fanning out to the other two', () async {
+    test('probes /sessions alone before fanning out to the other three', () async {
       final sessionsGate = Completer<Response<dynamic>>();
       final calls = <String>[];
 
@@ -44,9 +44,30 @@ void main() {
       sessionsGate.complete(jsonResponse({'sessions': <dynamic>[]}));
       await pending;
 
-      expect(calls.length, 3);
+      expect(calls.length, 4);
       expect(calls.first, EndPoints.sessions);
-      expect(calls.sublist(1).toSet(), {EndPoints.orchestrators, EndPoints.projects});
+      expect(calls.sublist(1).toSet(), {EndPoints.orchestrators, EndPoints.projects, EndPoints.claudeAccounts});
+    });
+
+    test('maps claude account ids to their labels and survives a failed accounts read', () async {
+      when(() => apiConsumer.get(EndPoints.sessions)).thenAnswer((_) async => jsonResponse({'sessions': <dynamic>[]}));
+      when(() => apiConsumer.get(EndPoints.orchestrators)).thenAnswer((_) async => jsonResponse({'sessions': <dynamic>[]}));
+      when(() => apiConsumer.get(EndPoints.projects)).thenAnswer((_) async => jsonResponse({'projects': <dynamic>[]}));
+      when(() => apiConsumer.get(EndPoints.claudeAccounts)).thenAnswer(
+        (_) async => jsonResponse({
+          'accounts': [
+            {'id': 'default', 'label': 'Default'},
+            {'id': 'personal', 'label': 'Personal'},
+          ],
+        }),
+      );
+
+      final board = await dataSource.getBoard();
+      expect(board.data!.accountLabels, {'default': 'Default', 'personal': 'Personal'});
+
+      when(() => apiConsumer.get(EndPoints.claudeAccounts)).thenThrow(Exception('older daemon'));
+      final degraded = await dataSource.getBoard();
+      expect(degraded.data!.accountLabels, isEmpty);
     });
 
     test('drops orchestrator-kind rows from the session list', () async {
