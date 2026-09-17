@@ -65,7 +65,10 @@ func (m *Manager) Decide(ctx context.Context, id domain.SessionID, interactionID
 		return fmt.Errorf("decide %s: read dialog: %w", id, err)
 	}
 	dlg, on := reader.ReadDialog(pane)
-	if !on || dlg.Kind != ports.DialogPermission {
+	if !on {
+		return m.dialogAbsent(ctx, rec)
+	}
+	if dlg.Kind != ports.DialogPermission {
 		return ErrDialogAbsent
 	}
 	row, found := reader.AllowRow(dlg.Menu)
@@ -81,7 +84,7 @@ func (m *Manager) Decide(ctx context.Context, id domain.SessionID, interactionID
 		return d.Menu, on
 	}
 	if err := driver.NavigateTo(ctx, readMenu, keys, row); err != nil {
-		return m.answerFailure(id, err)
+		return m.answerFailure(ctx, rec, err)
 	}
 	// The row, not just the dialog. NavigateTo confirmed the highlight was on
 	// the allow/deny row, but the person at the desktop can move it before the
@@ -97,8 +100,7 @@ func (m *Manager) Decide(ctx context.Context, id domain.SessionID, interactionID
 		m.ClearInteractions(id)
 		return nil
 	case errors.Is(err, dialogdriver.ErrNotOnScreen):
-		m.ClearInteractions(id)
-		return ErrDialogAbsent
+		return m.dialogAbsent(ctx, rec)
 	case errors.Is(err, dialogdriver.ErrUnconfirmed):
 		return ErrUnconfirmed
 	default:
@@ -171,7 +173,7 @@ func (m *Manager) Answer(ctx context.Context, id domain.SessionID, interactionID
 		}
 		menu, on := readMenu(pane)
 		if !on {
-			return ports.Menu{}, ErrDialogAbsent
+			return ports.Menu{}, m.dialogAbsent(ctx, rec)
 		}
 		return menu, nil
 	}
@@ -197,13 +199,13 @@ func (m *Manager) Answer(ctx context.Context, id domain.SessionID, interactionID
 		last := -1
 		for j, row := range rows {
 			if err := driver.NavigateTo(ctx, readMenu, keys, row); err != nil {
-				return m.answerFailure(id, err)
+				return m.answerFailure(ctx, rec, err)
 			}
 			// Multi-select toggles each row and submits once at the end; a
 			// single-select submits on the row itself.
 			if len(rows) > 1 && keys.Multi != "" && j < len(rows) {
 				if err := driver.AnswerDialog(ctx, onRow(row), keys.Multi); err != nil {
-					return m.answerFailure(id, err)
+					return m.answerFailure(ctx, rec, err)
 				}
 			}
 			last = row
@@ -214,7 +216,7 @@ func (m *Manager) Answer(ctx context.Context, id domain.SessionID, interactionID
 		// and the screen is checked after, which is also what lets an answer
 		// report itself unconfirmed rather than silently succeed.
 		if err := driver.AnswerDialog(ctx, onRow(last), keys.Select); err != nil {
-			return m.answerFailure(id, err)
+			return m.answerFailure(ctx, rec, err)
 		}
 	}
 	m.ClearInteractions(id)
@@ -240,13 +242,52 @@ func resolveRows(id domain.SessionID, menu ports.Menu, group []string) ([]int, e
 	return rows, nil
 }
 
-func (m *Manager) answerFailure(id domain.SessionID, err error) error {
+func (m *Manager) answerFailure(ctx context.Context, rec domain.SessionRecord, err error) error {
 	if errors.Is(err, dialogdriver.ErrNotOnScreen) {
-		m.ClearInteractions(id)
-		return ErrDialogAbsent
+		return m.dialogAbsent(ctx, rec)
 	}
 	if errors.Is(err, dialogdriver.ErrUnconfirmed) {
 		return ErrUnconfirmed
 	}
-	return fmt.Errorf("answer %s: %w", id, err)
+	return fmt.Errorf("answer %s: %w", rec.ID, err)
+}
+
+func (m *Manager) dialogAbsent(ctx context.Context, rec domain.SessionRecord) error {
+	m.ClearInteractions(rec.ID)
+	if rec.Activity.State == domain.ActivityBlocked {
+		err := m.lcm.ApplyActivitySignal(ctx, rec.ID, ports.ActivitySignal{
+			Valid:     true,
+			State:     domain.ActivityIdle,
+			Timestamp: m.clock(),
+			Event:     ports.EventDialogAbsent,
+			LaunchID:  rec.Metadata.RuntimeLaunchID,
+		})
+		if err != nil {
+			m.logger.Warn("dialog absent: activity signal failed", "sessionID", rec.ID, "error", err)
+		}
+	}
+	return ErrDialogAbsent
+}
+
+func (m *Manager) DialogOnScreen(ctx context.Context, id domain.SessionID) (bool, error) {
+	rec, ok, err := m.store.GetSession(ctx, id)
+	if err != nil {
+		return false, fmt.Errorf("dialog on screen %s: %w", id, err)
+	}
+	if !ok {
+		return false, ErrNotFound
+	}
+	if rec.Metadata.RuntimeHandleID == "" {
+		return false, ErrIncompleteHandle
+	}
+	reader, ok := m.dialogReaderFor(rec.Harness)
+	if !ok {
+		return false, fmt.Errorf("dialog on screen %s: harness %q has no dialog reader", id, rec.Harness)
+	}
+	pane, err := m.runtime.GetOutput(ctx, runtimeHandle(rec.Metadata), commandPaneLines)
+	if err != nil {
+		return false, fmt.Errorf("dialog on screen %s: read pane: %w", id, err)
+	}
+	_, on := reader.ReadDialog(pane)
+	return on, nil
 }

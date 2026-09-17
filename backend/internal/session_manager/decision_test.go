@@ -478,3 +478,64 @@ func TestAnswerReportsUnconfirmedWhenTheScreenDoesNotMoveAfterSelect(t *testing.
 		t.Fatalf("an unconfirmed answer must not retry, got %q", rt.inputs)
 	}
 }
+
+func TestDecideClearsTheInteractionAndReportsIdleWhenTheDialogWasCancelled(t *testing.T) {
+	m, rt := newCommandTestManager(t, domain.ActivityBlocked)
+	lcm := m.lcm.(*fakeLCM)
+	rt.panes = []string{"❯ "}
+	m.dialogReader = fakeDialogReader{present: false}
+	m.RegisterInteraction("s1", domain.PendingInteraction{ID: "i1", Kind: domain.InteractionPermission, ToolName: "AskUserQuestion"})
+
+	err := m.Decide(context.Background(), "s1", "i1", "allow")
+	if !errors.Is(err, ErrDialogAbsent) {
+		t.Fatalf("expected ErrDialogAbsent, got %v", err)
+	}
+	if len(rt.inputs) != 0 {
+		t.Fatalf("expected no writes, got %q", rt.inputs)
+	}
+	if pending, _ := m.Interactions(context.Background(), "s1"); len(pending) != 0 {
+		t.Fatalf("expected the pending interaction to be dropped, got %+v", pending)
+	}
+	if len(lcm.signals) != 1 || lcm.signals[0].id != "s1" {
+		t.Fatalf("expected one activity signal for s1, got %+v", lcm.signals)
+	}
+	got := lcm.signals[0].signal
+	if !got.Valid || got.State != domain.ActivityIdle || got.Event != ports.EventDialogAbsent {
+		t.Fatalf("expected a valid idle dialog-absent signal, got %+v", got)
+	}
+}
+
+func TestAnswerClearsTheInteractionAndReportsIdleWhenTheDialogWasCancelled(t *testing.T) {
+	m, rt := newCommandTestManager(t, domain.ActivityBlocked)
+	lcm := m.lcm.(*fakeLCM)
+	rt.panes = []string{"❯ "}
+	m.dialogReader = fakeQuestionReader{noMenu: true}
+	m.RegisterInteraction("s1", domain.PendingInteraction{ID: "q1", Kind: domain.InteractionQuestion})
+
+	err := m.Answer(context.Background(), "s1", "q1", [][]string{{"first"}})
+	if !errors.Is(err, ErrDialogAbsent) {
+		t.Fatalf("expected ErrDialogAbsent, got %v", err)
+	}
+	if pending, _ := m.Interactions(context.Background(), "s1"); len(pending) != 0 {
+		t.Fatalf("expected the pending interaction to be dropped, got %+v", pending)
+	}
+	if len(lcm.signals) != 1 || lcm.signals[0].signal.Event != ports.EventDialogAbsent {
+		t.Fatalf("expected one dialog-absent signal, got %+v", lcm.signals)
+	}
+}
+
+func TestDialogOnScreenReadsTheHarnessDialog(t *testing.T) {
+	m, rt := newCommandTestManager(t, domain.ActivityBlocked)
+	rt.panes = []string{"DIALOG SEL:0", "❯ "}
+	m.dialogReader = fakeDialogReader{present: true}
+
+	on, err := m.DialogOnScreen(context.Background(), "s1")
+	if err != nil || !on {
+		t.Fatalf("expected the dialog to be on screen, got on=%v err=%v", on, err)
+	}
+	m.dialogReader = fakeDialogReader{present: false}
+	on, err = m.DialogOnScreen(context.Background(), "s1")
+	if err != nil || on {
+		t.Fatalf("expected no dialog on screen, got on=%v err=%v", on, err)
+	}
+}

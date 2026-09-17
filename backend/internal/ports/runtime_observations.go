@@ -26,6 +26,8 @@ type RuntimeFacts struct {
 	LaunchID   string
 }
 
+const EventDialogAbsent = "dialog-absent"
+
 // ActivitySignal is pushed by the agent hooks. Only a Valid activity state is
 // authoritative; a stale/absent one is ignored rather than read as idleness.
 // AgentSessionID may be supplied independently by metadata-only hooks such as

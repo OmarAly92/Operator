@@ -166,6 +166,7 @@ type lifecycleRecorder interface {
 	ConfirmAgentSwitchSourceStopped(ctx context.Context, confirmation domain.AgentSwitchSourceStopConfirmation) (bool, error)
 	ActivateAgentSwitchTarget(ctx context.Context, activation domain.AgentSwitchTargetActivation) (bool, error)
 	MarkTerminated(ctx context.Context, id domain.SessionID) error
+	ApplyActivitySignal(ctx context.Context, id domain.SessionID, s ports.ActivitySignal) error
 }
 
 // ReviewerTerminator tears down a worker's reviewer pane when the worker leaves
