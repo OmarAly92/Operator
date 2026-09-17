@@ -156,7 +156,10 @@ jobs:
         run: |
           set -euo pipefail
           binary="/Applications/Operator.app/Contents/MacOS/operator"
-          if strings "$binary" | grep -q "github.com/OmarAly92/operator/releases/latest/download/"; then
+          # grep -q closes the pipe early and strings then fails under pipefail,
+          # so let strings finish into a file first.
+          strings "$binary" > "$RUNNER_TEMP/operator-strings.txt"
+          if grep -q "github.com/OmarAly92/operator/releases/latest/download/" "$RUNNER_TEMP/operator-strings.txt"; then
             echo "updated app embeds the production feed base URL"
           else
             echo "::error::updated app does not carry the baked production feed base URL" >&2
