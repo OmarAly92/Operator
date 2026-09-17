@@ -134,29 +134,42 @@ is an explicit action that also hides tickets you abandon.
 
 ### 2.1 Reading
 
-A ticket scanner reads `<project.Path>/.operator/tickets/` (for `workspace`
-projects: each registered repo's path, ticket identity is `repo + slug`; for
-`scratch` projects tickets are unsupported and the column shows a hint). It
-runs on project load and on file events from the same watcher that feeds the
-workspace files view, debounced. It never reads git; it reads the checkout as
-it is on disk.
+A ticket scanner reads `<project.Path>/.operator/tickets/` **on every
+request**; there is no cached index. The folder holds a few dozen small files,
+so a scan is cheaper than keeping a cache coherent. Tickets are supported only
+for `single_repo` projects in this version (in-place sessions already require
+that kind); `workspace` and `scratch` projects get `TICKET_UNSUPPORTED_PROJECT`
+and the column shows a hint. The scanner never reads git; it reads the checkout
+as it is on disk.
 
-Routes (all under `/api/v1/projects/{projectId}`):
+Two change signals reach the frontend:
+
+- **Folder changes** (an agent or editor wrote a file): a per-project SSE route
+  `GET /projects/{id}/tickets/events` built on the same `workspacewatch.Watch`
+  that backs the session workspace-events route, emitting `tickets_changed`.
+- **Database changes** (create, plan, assign, done, archive): triggers on the
+  two tables emit a new `ticket_updated` change-log event with
+  `{projectId, slug}`, delivered over the existing `/events` stream.
+
+Routes (all under `/api/v1/projects/{id}`; the project param is `{id}` like
+the inbox routes):
 
 ```
 GET  /tickets                          list, with derived statuses and plan summaries
-GET  /tickets/{slug}                   ticket, plans in order, linked session ids
-GET  /tickets/{slug}/files/{path}      raw markdown + mtime
-PUT  /tickets/{slug}/files/{path}      body: content, ifUnmodifiedSince (mtime)
 POST /tickets                          body: title, brief  → creates folder, commits
+GET  /tickets/events                   SSE, `tickets_changed` on folder change
+GET  /tickets/{slug}                   ticket, plans in order, linked session ids
+GET  /tickets/{slug}/file?path=        raw markdown + modifiedAt
+PUT  /tickets/{slug}/file?path=        body: content, ifUnmodifiedSince
 POST /tickets/{slug}/plan              spawn planning session (body: harness, claudeAccountId, extra)
-POST /tickets/{slug}/plans/{file}/assign   spawn implementing session (body below)
-POST /tickets/{slug}/plans/{file}/done     manual mark done
+POST /tickets/{slug}/plans/{plan}/assign   spawn implementing session (body below)
+POST /tickets/{slug}/plans/{plan}/done     manual mark done
 POST /tickets/{slug}/archive           and /unarchive
 ```
 
-`{path}` is resolved and must stay inside the ticket folder; anything else is
-400. `PUT` with a stale `ifUnmodifiedSince` is 409 with the current mtime.
+`{plan}` is the file name inside `plans/`, e.g. `01-daemon.md`. `path` is
+resolved and must stay inside the ticket folder; anything else is 400. `PUT`
+with a stale `ifUnmodifiedSince` is 409 carrying the current `modifiedAt`.
 
 Error envelope is the locked `{error, code, message, requestId}`; new codes:
 `ticket_not_found`, `ticket_path_outside`, `ticket_file_stale`,
@@ -178,13 +191,16 @@ and do not commit.
 
 - `workspaceMode: in_place`, `projectId`, chosen `harness` and
   `claudeAccountId`, `displayName` = ticket title truncated to 20.
-- System prompt addition (appended after the existing worker preamble and
-  project rules) stating: ticket slug, absolute folder path, the file layout
-  and frontmatter contract from §1.1, that plans get a two-digit numeric
-  prefix in dependency order, and to commit the folder when done.
-- Task prompt: the brief, then "brainstorm with the user, write `spec.md`,
-  then one plan per phase" if no plans exist, or "revise the existing docs"
-  if they do, then the user's extra instructions verbatim.
+- Everything the agent needs is in the **task prompt**, which the existing
+  spawn path already submits verbatim (`ports.SpawnConfig.Prompt`). No system
+  prompt addition: the prompt lives in the agent's own transcript, so a
+  restore keeps it without the daemon persisting anything extra. The prompt
+  states: ticket slug, the folder path relative to the working directory, the
+  file layout and frontmatter contract from §1.1, that plans get a two-digit
+  numeric prefix in dependency order, to commit the folder when done, then
+  the brief, then "brainstorm with the user, write `spec.md`, then one plan
+  per phase" if no plans exist or "revise the existing docs" if they do, then
+  the user's extra instructions verbatim.
 - The prompt is workflow-agnostic: it names no skill, plugin or method. The
   agent uses whatever planning workflow its harness and the user's plugins
   provide (superpowers, speckit, none); only the output contract in §1.1 is
@@ -209,10 +225,10 @@ branch is the project's default branch, as today.
 Task prompt, built by the daemon:
 
 1. Ticket title and brief.
-2. "Read these first": absolute paths (inside the worktree) of `spec.md` and
-   the assigned plan.
+2. "Read these first": paths of `spec.md` and the assigned plan, relative to
+   the working directory (the worktree contains the ticket folder).
 3. Earlier plans in the ticket, each marked `merged`, `in progress`, or
-   `not started`, with paths.
+   `not started`, with relative paths.
 4. "Implement only this phase. Open a pull request when the plan's final
    verification passes."
 5. The user's `extra`, verbatim.
@@ -232,9 +248,10 @@ The response returns the new session id and the assignment row.
 ### 2.5 Session read model additions
 
 `Session` gains an optional `ticket` object: `{slug, planFile, role}` with role
-`planning` or `implementing`, populated by joining the two tables. This is
-what the board card badge and the topbar link render. No new session kind is
-introduced; sessions stay `worker`.
+`planning` or `implementing`, populated at read time in the session service's
+`toSession` by looking the session id up in the two tables. Nothing is added
+to the sessions table. This is what the board card badge and the topbar link
+render. No new session kind is introduced; sessions stay `worker`.
 
 ## 3. Frontend
 
@@ -375,20 +392,26 @@ Deliverables:
   `service/session/status.go` for the session side, and the two prompt
   builders (§2.3, §2.4) placed next to `session_manager/prompt.go` so they
   share the worker preamble.
-- Watch: hook the scanner into the workspace file watcher that backs
-  `GET /sessions/{id}/workspace/events` (`controllers/sessions.go:258`) or,
-  if that watcher is session-scoped, a project-root watcher on
-  `.operator/tickets/` only, debounced 250ms.
+- Watch: `GET /projects/{id}/tickets/events` calls
+  `workspacewatch.Watch(ctx, <root>/.operator/tickets)` the way
+  `streamWorkspaceChanges` (`controllers/sessions.go:655`) does.
+- CDC: migration widens the `change_log.event_type` CHECK with
+  `ticket_updated` using the writable-schema rewrite from `0108_board_cdc.sql`,
+  `cdc.EventTicketUpdated` is added, and the frontend `CDC_EVENT_TYPES` list in
+  `lib/event-transport.ts` gains the name so the stream reaches the browser.
 - Controller `backend/internal/httpd/controllers/tickets.go` with every route
-  in §2.1, the dry-run query on assign, and the warning and error codes.
-  Routes and schemas added to `httpd/apispec/openapi.yaml`; then
-  `npm run api:ts` so `frontend/src/api/schema.ts` matches.
+  in §2.1, the dry-run query on assign, and the warning and error codes. The
+  API is code-first: DTOs in `controllers/dto.go`, operations in
+  `httpd/apispec/specgen/build.go` (`ticketOperations()` plus `schemaNames`
+  entries), then `npm run api` regenerates `openapi.yaml` and
+  `frontend/src/api/schema.ts`; both are committed with the Go change.
 - Spawn integration: planning and implementing sessions go through the
   existing spawn path (`session_manager/manager.go:578-663`), passing the
   extra system prompt text and the built task prompt; branch name override
   via the existing `cfg.Branch` (`adapters/workspace/gitworktree/workspace.go:1368`).
-- Session read model: joins so `GET /sessions` and the SSE change stream
-  carry `ticket` on sessions that have one.
+- Session read model: `toSession` in `service/session/service.go:974` looks
+  up the session's ticket ref so `GET /sessions` carries `ticket` on sessions
+  that have one.
 
 Acceptance: the Go tests in §5 pass; an end-to-end test with the `fake`
 harness creates a ticket, spawns a planning session in place, writes a plan
