@@ -6,11 +6,12 @@ import { useUiStore } from "../stores/ui-store";
 import type { SessionActivityState, WorkspaceSession, WorkspaceSummary } from "../types/workspace";
 import { ShellTopbar } from "./ShellTopbar";
 
-const { navigateMock, paramsMock, postMock, spawnMock, useWorkspaceQueryMock } = vi.hoisted(() => ({
+const { navigateMock, paramsMock, postMock, spawnMock, useClaudeAccountsMock, useWorkspaceQueryMock } = vi.hoisted(() => ({
 	navigateMock: vi.fn(),
 	paramsMock: { projectId: undefined as string | undefined, sessionId: undefined as string | undefined },
 	postMock: vi.fn(),
 	spawnMock: vi.fn(),
+	useClaudeAccountsMock: vi.fn(),
 	useWorkspaceQueryMock: vi.fn(),
 }));
 
@@ -47,6 +48,10 @@ vi.mock("../lib/telemetry", () => ({
 	captureRendererEvent: vi.fn(),
 	captureRendererException: vi.fn(),
 }));
+vi.mock("../hooks/useClaudeAccounts", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("../hooks/useClaudeAccounts")>();
+	return { ...actual, useClaudeAccounts: () => useClaudeAccountsMock() };
+});
 vi.mock("./NewTaskDialog", () => ({ NewTaskDialog: () => null }));
 vi.mock("./NotificationCenter", () => ({ NotificationCenter: () => null }));
 
@@ -126,6 +131,8 @@ beforeEach(() => {
 	postMock.mockResolvedValue({ data: { ok: true, sessionId: "sess-1" }, error: undefined });
 	useWorkspaceQueryMock.mockReset();
 	useWorkspaceQueryMock.mockReturnValue({ data: [], isError: false, isLoading: false });
+	useClaudeAccountsMock.mockReset();
+	useClaudeAccountsMock.mockReturnValue({ data: [], isError: false, isLoading: false });
 	useUiStore.setState({ inspectorSessions: {}, settingsModal: null });
 });
 
@@ -299,5 +306,33 @@ describe("ShellTopbar inspector state", () => {
 
 		expect(useUiStore.getState().inspectorSessions["sess-1"]?.isOpen).toBe(true);
 		expect(useUiStore.getState().inspectorSessions["sess-2"]).toEqual({ isOpen: true, view: "files" });
+	});
+});
+
+describe("ShellTopbar Claude account", () => {
+	const accounts = [
+		{ id: "default", label: "Work", configDir: "/a", isDefault: true, isPreferred: false, sharedSetup: null, status: { loggedIn: true } },
+		{ id: "personal", label: "Personal Pro", configDir: "/b", isDefault: false, isPreferred: false, sharedSetup: null, status: { loggedIn: true } },
+	];
+
+	it("names the session's Claude account before the inspector toggle", () => {
+		useClaudeAccountsMock.mockReturnValue({ data: accounts, isError: false, isLoading: false });
+		renderTopbar(sessionWith({ claudeAccountId: "personal" }));
+		const chip = screen.getByText("Personal Pro");
+		const toggle = screen.getByRole("button", { name: /inspector panel/ });
+		expect(chip.compareDocumentPosition(toggle) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+	});
+
+	it("shows the default account when the session names none", () => {
+		useClaudeAccountsMock.mockReturnValue({ data: accounts, isError: false, isLoading: false });
+		renderTopbar(sessionWith());
+		expect(screen.getByText("Work")).toBeInTheDocument();
+	});
+
+	it("shows nothing for non-Claude sessions", () => {
+		useClaudeAccountsMock.mockReturnValue({ data: accounts, isError: false, isLoading: false });
+		renderTopbar(sessionWith({ provider: "codex", claudeAccountId: "personal" }));
+		expect(screen.queryByText("Personal Pro")).not.toBeInTheDocument();
+		expect(screen.queryByText("Work")).not.toBeInTheDocument();
 	});
 });

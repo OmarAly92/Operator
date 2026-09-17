@@ -5,6 +5,7 @@ import type { components } from "../../api/schema";
 import { apiClient, hasTrustedApiBaseUrl } from "../lib/api-client";
 import { paneGridBody } from "../lib/pane-grid";
 import { shellTerminalsQueryKey, toShellTerminal, type ShellTerminal } from "./useShellTerminals";
+import type { WorkspaceSession } from "../types/workspace";
 
 export type ClaudeAccount = components["schemas"]["ClaudeAccountView"];
 
@@ -25,6 +26,38 @@ export function claudeAccountSlug(label: string): string {
 		.toLowerCase()
 		.replace(/[^a-z0-9]+/g, "-")
 		.replace(/^-+|-+$/g, "");
+}
+
+export function claudeAccountLabelForSession(
+	session: Pick<WorkspaceSession, "provider" | "claudeAccountId">,
+	accounts: readonly ClaudeAccount[] | undefined,
+): string | undefined {
+	if (session.provider !== "claude-code") return undefined;
+	const id = session.claudeAccountId?.trim() || "default";
+	const known = accounts?.find((account) => account.id === id)?.label.trim();
+	if (known) return known;
+	return id.charAt(0).toUpperCase() + id.slice(1);
+}
+
+export function sharedClaudeLogins(accounts: readonly ClaudeAccount[]): Map<string, string[]> {
+	const byLogin = new Map<string, ClaudeAccount[]>();
+	for (const account of accounts) {
+		const email = account.status?.reportedEmail?.trim().toLowerCase();
+		if (!email) continue;
+		const key = `${email}\u0000${account.status?.reportedOrgId ?? ""}`;
+		byLogin.set(key, [...(byLogin.get(key) ?? []), account]);
+	}
+	const shared = new Map<string, string[]>();
+	for (const group of byLogin.values()) {
+		if (group.length < 2) continue;
+		for (const account of group) {
+			shared.set(
+				account.id,
+				group.filter((other) => other.id !== account.id).map((other) => other.label),
+			);
+		}
+	}
+	return shared;
 }
 
 const PLAN_KEYS = {

@@ -13,6 +13,7 @@ const {
 	workspaceQueryMock,
 	usageQueryMock,
 	boardActionsInPanelMock,
+	claudeAccountsQueryMock,
 } = vi.hoisted(() => ({
 	navigateMock: vi.fn(),
 	notificationShowMock: vi.fn(),
@@ -20,6 +21,11 @@ const {
 	workspaceQueryMock: vi.fn(),
 	usageQueryMock: vi.fn(),
 	boardActionsInPanelMock: vi.fn(() => false),
+	claudeAccountsQueryMock: vi.fn((): { data: unknown[]; isError: boolean; isLoading: boolean } => ({
+		data: [],
+		isError: false,
+		isLoading: false,
+	})),
 }));
 
 vi.mock("@tanstack/react-router", () => ({
@@ -30,6 +36,11 @@ vi.mock("../hooks/useWorkspaceQuery", () => ({
 	workspaceQueryKey: ["workspaces"],
 	useWorkspaceQuery: workspaceQueryMock,
 }));
+
+vi.mock("../hooks/useClaudeAccounts", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("../hooks/useClaudeAccounts")>();
+	return { ...actual, useClaudeAccounts: () => claudeAccountsQueryMock() };
+});
 
 vi.mock("../hooks/useSessionUsageSummaries", () => ({
 	useSessionUsageSummaries: usageQueryMock,
@@ -270,6 +281,48 @@ describe("SessionsBoard", () => {
 		expect(terminateButton.querySelector("svg")).toHaveClass("lucide-trash-2");
 		expect(within(idleCard).getByText("Idle").parentElement).toHaveClass("flex", "justify-between");
 		expect(within(idleCard).getByText("brand-font-pipeline")).toHaveClass("font-semibold", "line-clamp-2");
+	});
+
+	it("names each Claude session's account on its card and nothing on other harnesses", () => {
+		claudeAccountsQueryMock.mockReturnValue({
+			data: [
+				{ id: "default", label: "Work", configDir: "/a", isDefault: true, isPreferred: false, sharedSetup: null, status: { loggedIn: true } },
+				{ id: "personal", label: "Personal Pro", configDir: "/b", isDefault: false, isPreferred: false, sharedSetup: null, status: { loggedIn: true } },
+			],
+			isError: false,
+			isLoading: false,
+		});
+		const base = {
+			workspaceId: "p1",
+			workspaceName: "radic",
+			status: "idle" as const,
+			activity: { state: "idle" as const, lastActivityAt: "2026-01-01T00:00:00Z" },
+			updatedAt: "2026-01-01T00:00:00Z",
+			prs: [],
+		};
+		workspaceQueryMock.mockReturnValue({
+			data: [
+				{
+					id: "p1",
+					name: "radic",
+					path: "/tmp/radic",
+					sessions: [
+						{ ...base, id: "s1", title: "on personal", provider: "claude-code", claudeAccountId: "personal" },
+						{ ...base, id: "s2", title: "on default", provider: "claude-code" },
+						{ ...base, id: "s3", title: "on codex", provider: "codex", claudeAccountId: "personal" },
+					],
+				},
+			],
+			isError: false,
+		});
+
+		renderBoard("p1");
+
+		const card = (title: string) =>
+			screen.getByText(title).closest('[data-testid="board-session-card"]') as HTMLElement;
+		expect(within(card("on personal")).getByTestId("session-claude-account")).toHaveTextContent("Personal Pro");
+		expect(within(card("on default")).getByTestId("session-claude-account")).toHaveTextContent("Work");
+		expect(within(card("on codex")).queryByTestId("session-claude-account")).not.toBeInTheDocument();
 	});
 
 	it("shows the branch and worktree directory for a worktree session", () => {
