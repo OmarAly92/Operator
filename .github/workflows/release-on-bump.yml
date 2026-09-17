@@ -1,0 +1,52 @@
+# Turns a version bump on master into a desktop release.
+#
+# When a push to master changes frontend/package.json's version, this tags the
+# commit desktop-v<version> and dispatches frontend-release.yml on that tag.
+# It dispatches explicitly because a tag pushed with GITHUB_TOKEN never fires
+# other workflows' `push: tags` triggers. Ordinary commits do nothing; a bump
+# whose release already exists is skipped, so re-running is harmless.
+name: Release on version bump
+
+on:
+  push:
+    branches: [master]
+    paths: [frontend/package.json]
+
+concurrency:
+  group: release-on-bump
+  cancel-in-progress: false
+
+jobs:
+  tag-and-dispatch:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - name: Tag the bump and dispatch the release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          version="$(node -p "require('./frontend/package.json').version")"
+          previous="$(git show HEAD~1:frontend/package.json 2>/dev/null | node -p "JSON.parse(require('fs').readFileSync(0,'utf8')).version" || echo none)"
+          echo "package.json version: $previous -> $version"
+          if [ "$previous" = "$version" ]; then
+            echo "version unchanged; nothing to release"
+            exit 0
+          fi
+          if gh release view "v$version" >/dev/null 2>&1; then
+            echo "release v$version already exists; skipping"
+            exit 0
+          fi
+          tag="desktop-v$version"
+          if ! git rev-parse -q --verify "refs/tags/$tag" >/dev/null && ! git ls-remote --exit-code --tags origin "$tag" >/dev/null; then
+            git tag "$tag" "$GITHUB_SHA"
+            git push origin "$tag"
+          fi
+          gh workflow run frontend-release.yml --ref "$tag"
+          echo "dispatched frontend-release.yml on $tag"

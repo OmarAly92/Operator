@@ -121,32 +121,30 @@ Installed desktop apps check
 `https://github.com/OmarAly92/operator/releases/latest/download/latest.json` at
 launch and every hour, download the matching signed archive in the background,
 and install it when the user quits (or clicks "Restart & install" in
-Settings → Updates). Shipping a new version is one commit and one tag; CI does the
-rest. Verified end to end on 2026-09-17 (0.13.9 → 0.14.0 installed on quit).
+Settings → Updates). Verified end to end on 2026-09-17 (0.13.9 → 0.14.0
+installed on quit).
 
-1. Bump the version. The release is keyed off `frontend/package.json`; the GitHub
-   release and tag are `v<version>`:
-
-```bash
-cd frontend && npm version 0.14.3 --no-git-tag-version && cd .. && git add -A && git commit -m "release: bump to 0.14.3"
-```
-
-2. Tag the commit and push both. The tag name must start with `desktop-v`:
+Shipping a new version is one commit: bump the version in `frontend/package.json`
+and push it to `master`.
 
 ```bash
-git tag desktop-v0.14.3 && git push origin master desktop-v0.14.3
+cd frontend && npm version 0.14.3 --no-git-tag-version && cd .. && git add -A && git commit -m "release: bump to 0.14.3" && git push origin master
 ```
 
-3. Watch the run (`.github/workflows/frontend-release.yml`, ~35 min: macOS arm64
-   and Intel, Windows, Linux, then `publish-feed`):
+`.github/workflows/release-on-bump.yml` sees the version change, tags the commit
+`desktop-v<version>` and dispatches `frontend-release.yml` (~35 min: macOS arm64 and
+Intel, Windows, Linux, then `publish-feed`). Commits that do not touch the version
+release nothing. Watch it with:
 
 ```bash
 gh run list --workflow frontend-release.yml --limit 1
 ```
 
-When `publish-feed` finishes, the release `v0.14.3` holds the installers, their
+When `publish-feed` finishes, the release `v<version>` holds the installers, their
 `.sig` files and a `latest.json` with absolute download URLs. Every installed app
 picks it up on its next check; nothing else to do.
+
+Pushing a `desktop-v*` tag by hand still works and triggers the same release.
 
 Requirements already in place — do not recreate them:
 
