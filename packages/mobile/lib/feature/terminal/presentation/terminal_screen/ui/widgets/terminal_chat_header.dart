@@ -128,15 +128,21 @@ class TerminalChatHeader extends StatelessWidget {
                               ),
                             ),
                           ),
+                          if (!args.shellOnly)
+                            _SessionModelLabel(harness: args.harness),
                         ],
                       ),
-                      _SessionSubtitle(
-                        harnessLabel:
-                            args.harness ??
-                            (args.shellOnly ? 'shell' : 'agent'),
-                        projectName: args.projectName,
-                        showModel: !args.shellOnly,
-                        harness: args.harness,
+                      Text(
+                        [
+                          args.harness ?? (args.shellOnly ? 'shell' : 'agent'),
+                          if (args.projectName != null) args.projectName!,
+                        ].join(' · '),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTextStyle.mono11Regular.copyWith(
+                          color: skin.textTertiary,
+                          height: 1.4,
+                        ),
                       ),
                     ],
                   ),
@@ -206,35 +212,14 @@ class TerminalChatHeader extends StatelessWidget {
   }
 }
 
-class _SessionSubtitle extends StatelessWidget {
-  const _SessionSubtitle({
-    required this.harnessLabel,
-    required this.showModel,
-    this.projectName,
-    this.harness,
-  });
+class _SessionModelLabel extends StatelessWidget {
+  const _SessionModelLabel({this.harness});
 
-  final String harnessLabel;
-  final String? projectName;
-  final bool showModel;
   final String? harness;
 
   @override
   Widget build(BuildContext context) {
     final skin = context.skin;
-    final style = AppTextStyle.mono11Regular.copyWith(
-      color: skin.textTertiary,
-      height: 1.4,
-    );
-    final trailing = projectName == null ? '' : ' · $projectName';
-    if (!showModel) {
-      return Text(
-        '$harnessLabel$trailing',
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: style,
-      );
-    }
     return BlocBuilder<BlocksCubit, BlocksState>(
       builder: (context, _) =>
           BlocBuilder<SessionCommandCubit, SessionCommandState>(
@@ -242,25 +227,16 @@ class _SessionSubtitle extends StatelessWidget {
                 previous.currentModel != current.currentModel,
             builder: (context, state) {
               final model = state.currentModel ?? _latestBlockModel(context);
+              if (model == null) return const SizedBox.shrink();
               return GestureDetector(
                 onTap: () => showModelPicker(context, harness: harness),
-                child: Text.rich(
-                  TextSpan(
-                    text: harnessLabel,
-                    children: [
-                      if (model != null) ...[
-                        const TextSpan(text: ' · '),
-                        TextSpan(
-                          text: model,
-                          style: style.copyWith(color: skin.accent),
-                        ),
-                      ],
-                      TextSpan(text: trailing),
-                    ],
-                  ),
+                child: Text(
+                  model,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: style,
+                  style: AppTextStyle.mono11Regular.copyWith(
+                    color: skin.accent,
+                  ),
                 ),
               );
             },
