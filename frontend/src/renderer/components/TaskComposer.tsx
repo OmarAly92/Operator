@@ -31,6 +31,10 @@ import { AgentModelCombobox } from "./settings/AgentModelCombobox";
 import { SettingsOptionMenu } from "./settings/SettingsOptionMenu";
 import { ClaudeAccountSelect } from "./ClaudeAccountSelect";
 import { preferredClaudeAccountId, useClaudeAccounts } from "../hooks/useClaudeAccounts";
+import { MAX_TASK_BRIEF_LENGTH } from "../../shared/task-brief";
+
+// Only surface the counter once it's actually useful context, not on every task.
+const BRIEF_LENGTH_WARNING_THRESHOLD = MAX_TASK_BRIEF_LENGTH * 0.9;
 
 type Project = components["schemas"]["Project"];
 type DelegateAgent = components["schemas"]["DelegateTaskRequest"]["agent"];
@@ -190,8 +194,13 @@ export function TaskComposer({
 	useEffect(() => () => onSubmittingChange?.(false), [onSubmittingChange]);
 	useEffect(() => () => clearAttachments(), [clearAttachments]);
 
+	// The daemon caps the brief in bytes, not JS string length, so multi-byte
+	// paste (emoji, CJK, …) needs the same encoding to stay accurate.
+	const briefLength = new TextEncoder().encode(prompt).length;
+	const briefTooLong = briefLength > MAX_TASK_BRIEF_LENGTH;
+
 	const submitTask = async () => {
-		if (!projectId || isSubmitting) return;
+		if (!projectId || isSubmitting || briefTooLong) return;
 		if (projectQuery.isFetching && projectQuery.data === undefined) return;
 
 		const cleanModel = model.trim();
@@ -325,7 +334,7 @@ export function TaskComposer({
 				<p className="px-4 pb-2 text-caption text-destructive">{attachmentError}</p>
 			)}
 
-			{(error || modelWarning) && (
+			{(error || modelWarning || briefLength > BRIEF_LENGTH_WARNING_THRESHOLD) && (
 				<div className="px-3 pb-2">
 					{error && (
 						<div className="flex items-center justify-between gap-3 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
@@ -333,6 +342,14 @@ export function TaskComposer({
 						</div>
 					)}
 					{!error && modelWarning && <p className="text-caption text-warning">{modelWarning}</p>}
+					{!error && briefLength > BRIEF_LENGTH_WARNING_THRESHOLD && (
+						<p className={cn("text-caption", briefTooLong ? "text-destructive" : "text-warning")}>
+							{t(briefTooLong ? "newTask.briefTooLong" : "newTask.briefNearLimit", {
+								count: briefLength,
+								max: MAX_TASK_BRIEF_LENGTH,
+							})}
+						</p>
+					)}
 				</div>
 			)}
 
@@ -418,7 +435,9 @@ export function TaskComposer({
 					type="submit"
 					variant="primary"
 					size="none"
-					disabled={isSubmitting || !projectId || (projectQuery.isFetching && projectQuery.data === undefined)}
+					disabled={
+					isSubmitting || !projectId || briefTooLong || (projectQuery.isFetching && projectQuery.data === undefined)
+				}
 					className="h-(--size-settings-action-height) min-w-(--size-composer-start-button) px-3"
 				>
 					{isSubmitting ? <Loader2 className="size-icon-base animate-spin" aria-hidden="true" /> : null}

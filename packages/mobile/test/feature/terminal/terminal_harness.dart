@@ -25,7 +25,9 @@ import 'package:operator_mobile/feature/dictation/voice_types.dart';
 import 'package:operator_mobile/feature/preview/data/repository/preview_repository.dart';
 import 'package:operator_mobile/feature/preview/presentation/preview_screen/logic/preview_cubit.dart';
 import 'package:operator_mobile/feature/sessions/data/repository/sessions_repository.dart';
+import 'package:operator_mobile/feature/terminal/data/model/slash_command_model.dart';
 import 'package:operator_mobile/feature/terminal/data/repository/terminal_repository.dart';
+import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/logic/slash_menu_cubit.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/logic/terminal_cubit.dart';
 import 'package:operator_mobile/feature/usage/data/repository/usage_repository.dart';
 
@@ -84,6 +86,7 @@ class TerminalHarness {
   late SessionViewCubit viewCubit;
   late BlocksCubit blocksCubit;
   late SessionCommandCubit commandCubit;
+  late SlashMenuCubit slashMenuCubit;
 
   void start({bool shellOnly = false, String? harness}) {
     if (!sl.isRegistered<VoiceInputCubit>()) {
@@ -110,6 +113,9 @@ class TerminalHarness {
       );
     }
     registerFallbackValue(const GetSessionBlocksParams());
+    when(() => terminalRepository.getSlashCommands(any())).thenAnswer(
+      (_) async => Result.success(GlobalResponse<List<SlashCommandModel>>(data: const [])),
+    );
     when(() => mux.status).thenAnswer((_) => statuses.stream);
     when(() => mux.terminalEvents).thenAnswer((_) => events.stream);
     when(() => mux.currentStatus).thenReturn(MuxStatus.open);
@@ -148,6 +154,8 @@ class TerminalHarness {
               harness: harness,
             ),
     );
+
+    slashMenuCubit = SlashMenuCubit(terminalRepository, cubit.composer, sessionId: cubit.args.sessionId);
 
     final blocksRepository = MockBlocksRepository();
     when(
@@ -192,6 +200,7 @@ class TerminalHarness {
                   BlocProvider<SessionViewCubit>.value(value: viewCubit),
                   BlocProvider<BlocksCubit>.value(value: blocksCubit),
                   BlocProvider<SessionCommandCubit>.value(value: commandCubit),
+                  BlocProvider<SlashMenuCubit>.value(value: slashMenuCubit),
                   BlocProvider<PreviewCubit>(
                     create: (_) => sl<PreviewCubit>(
                       param1: cubit.args.sessionId,
@@ -213,6 +222,7 @@ class TerminalHarness {
     await viewCubit.close();
     await blocksCubit.close();
     await commandCubit.close();
+    await slashMenuCubit.close();
     await blockEvents.close();
     await sessionPatches.close();
     await cubit.close();

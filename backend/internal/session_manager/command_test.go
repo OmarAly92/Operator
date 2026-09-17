@@ -269,3 +269,64 @@ func TestCommandCompactIsNotGatedWhenTheHarnessHasNoDetector(t *testing.T) {
 		t.Fatalf("expected the write to proceed, got %q", rt.inputs)
 	}
 }
+
+func TestModelsReadsThePickerAndBacksOut(t *testing.T) {
+	m, rt := newCommandTestManager(t, domain.ActivityIdle)
+	rt.panes = []string{"MENU:3"}
+	m.menuReader = fakeMenuReader{rows: []string{
+		"1. Default (recommended)  Opus 5 with 1M context · Best for everyday, complex tasks",
+		"2. Opus (1M context)      Opus 5 with 1M context · Best for everyday, complex tasks",
+		"3. Fable                  Fable 5.1 · Most capable for your hardest and longest-running tasks",
+		"4. Sonnet ✔               Sonnet 5 · Efficient for routine tasks",
+		"5. Haiku                  Haiku 4.5 · Fastest for quick answers",
+	}}
+
+	options, err := m.Models(context.Background(), "s1")
+	if err != nil {
+		t.Fatalf("Models: %v", err)
+	}
+	want := []ModelOption{
+		{Label: "Default (recommended)", Description: "Opus 5 with 1M context · Best for everyday, complex tasks"},
+		{Label: "Opus (1M context)", Description: "Opus 5 with 1M context · Best for everyday, complex tasks"},
+		{Label: "Fable", Description: "Fable 5.1 · Most capable for your hardest and longest-running tasks"},
+		{Label: "Sonnet", Description: "Sonnet 5 · Efficient for routine tasks", Current: true},
+		{Label: "Haiku", Description: "Haiku 4.5 · Fastest for quick answers"},
+	}
+	if !slices.Equal(options, want) {
+		t.Fatalf("Models = %+v, want %+v", options, want)
+	}
+	if got := rt.inputs; len(got) != 2 || got[0] != "/model\r" || got[1] != "\x1b" {
+		t.Fatalf("inputs = %q, want /model then Esc", got)
+	}
+}
+
+func TestModelsFallsBackToTheCursorRowWhenNothingIsTicked(t *testing.T) {
+	options := parseModelOptions(ports.Menu{Rows: []string{"1. sonnet", "2. opus"}, Selected: 1})
+	if !options[1].Current || options[0].Current {
+		t.Fatalf("options = %+v, want the cursor row marked current", options)
+	}
+}
+
+func TestModelsRefusedWhileActive(t *testing.T) {
+	m, rt := newCommandTestManager(t, domain.ActivityActive)
+	if _, err := m.Models(context.Background(), "s1"); !errors.Is(err, ErrWrongActivityState) {
+		t.Fatalf("expected ErrWrongActivityState, got %v", err)
+	}
+	if len(rt.inputs) != 0 {
+		t.Fatalf("a refused read must write nothing, got %q", rt.inputs)
+	}
+}
+
+func TestIndexOfRowPrefersAnExactLabelOverASubstring(t *testing.T) {
+	rows := []string{
+		"1. Default (recommended)  Opus 5 with 1M context",
+		"2. Opus (1M context)      Opus 5 with 1M context",
+		"3. Sonnet ✔               Sonnet 5",
+	}
+	if got := indexOfRow(rows, "Opus (1M context)"); got != 1 {
+		t.Fatalf("indexOfRow(Opus (1M context)) = %d, want 1", got)
+	}
+	if got := indexOfRow(rows, "sonnet"); got != 2 {
+		t.Fatalf("indexOfRow(sonnet) = %d, want 2", got)
+	}
+}

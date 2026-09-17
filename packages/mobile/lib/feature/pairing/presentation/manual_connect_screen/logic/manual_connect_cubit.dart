@@ -8,20 +8,19 @@ import 'package:operator_mobile/core/helpers/result/result.dart';
 import 'package:operator_mobile/core/telemetry/events.dart';
 import 'package:operator_mobile/core/telemetry/runtime.dart';
 import 'package:operator_mobile/feature/pairing/data/repository/pairing_repository.dart';
+import 'package:operator_mobile/feature/pairing/logic/host_address.dart';
 
 part 'manual_connect_state.dart';
 
 class ManualConnectCubit extends Cubit<ManualConnectState> {
   ManualConnectCubit(this._repository, ServerConfigStore serverConfigStore)
-    : hostController = TextEditingController(text: serverConfigStore.current?.host ?? ''),
-      portController = TextEditingController(text: serverConfigStore.current?.httpPort ?? '3011'),
+    : hostController = TextEditingController(text: _prefillHost(serverConfigStore.current)),
       passwordController = TextEditingController(text: serverConfigStore.current?.password ?? ''),
       _secure = serverConfigStore.current?.secure ?? false,
       super(const ManualConnectInitialState());
 
   final PairingRepository _repository;
   final TextEditingController hostController;
-  final TextEditingController portController;
   final TextEditingController passwordController;
   bool _secure;
 
@@ -34,10 +33,11 @@ class ManualConnectCubit extends Cubit<ManualConnectState> {
 
   Future<void> connect(TargetPlatform platform) async {
     emit(const ConnectLoadingState());
+    final address = parseHostAddress(hostController.text);
     final target = ServerConfig(
-      host: hostController.text.trim(),
-      httpPort: portController.text.trim(),
-      secure: _secure,
+      host: address.host,
+      httpPort: address.port,
+      secure: address.secure ?? _secure,
       password: passwordController.text,
     );
     final result = await _repository.verifyAndConnect(target);
@@ -62,8 +62,10 @@ class ManualConnectCubit extends Cubit<ManualConnectState> {
   @override
   Future<void> close() {
     hostController.dispose();
-    portController.dispose();
     passwordController.dispose();
     return super.close();
   }
 }
+
+String _prefillHost(ServerConfig? current) =>
+    current == null ? '' : formatHostAddress(current.host, current.httpPort);

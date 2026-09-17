@@ -68,3 +68,12 @@ func TestSessionAnswerNotFound(t *testing.T) {
 	body, status, _ := doRequest(t, srv, http.MethodPost, "/api/v1/sessions/s1/answer", `{"requestId":"q1","selections":[["second"]]}`)
 	assertErrorCode(t, body, status, http.StatusNotFound, "SESSION_NOT_FOUND")
 }
+
+func TestSessionAnswerDialogKindMismatchIsConflict(t *testing.T) {
+	svc := newFakeSessionService()
+	svc.answerErr = sessionmanager.ErrDialogKindMismatch
+	srv := newSessionTestServer(t, svc)
+
+	body, status, _ := doRequest(t, srv, http.MethodPost, "/api/v1/sessions/s1/answer", `{"requestId":"i1","selections":[["1. Yes"]]}`)
+	assertErrorCode(t, body, status, http.StatusConflict, "SESSION_DIALOG_KIND_MISMATCH")
+}

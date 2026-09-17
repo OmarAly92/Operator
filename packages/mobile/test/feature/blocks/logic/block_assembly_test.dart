@@ -171,17 +171,29 @@ void main() {
       expect(assembleBlocks([_event(1, 'permission_replied', sourceId: 'ghost')]), isEmpty);
     });
 
-    test('a question blocks the session rather than reading as a benign notice', () {
-      final blocks = assembleBlocks([_event(1, 'question_asked', text: 'Which branch?')]);
+    test('session_start produces no block', () {
+      expect(assembleBlocks([_event(1, 'session_start', text: 'Session started')]), isEmpty);
+    });
+
+    test('a hook question is not shown as a "Waiting on you" divider', () {
+      final blocks = assembleBlocks([
+        _event(1, 'prompt_submit', text: 'go'),
+        _event(2, 'question_asked', sourceId: 'native-1', source: 'hook', text: 'Which branch?'),
+      ]);
+
+      expect(blocks.map((block) => block.title).toList(), ['Prompt']);
+    });
+
+    test('a transcript question without tool input blocks the session', () {
+      final blocks = assembleBlocks([_event(1, 'question_asked', sourceId: 'q', source: 'transcript')]);
 
       expect(blocks.single.kind, BlockKind.notice);
       expect(blocks.single.status, BlockStatus.blocked);
       expect(blocks.single.title, 'Waiting on you');
-      expect(blocks.single.body, 'Which branch?');
     });
 
     test('a question left unanswered when the session dies does not stay pending', () {
-      final blocks = assembleBlocks([_event(1, 'question_asked', text: 'Which branch?')]);
+      final blocks = assembleBlocks([_event(1, 'question_asked', sourceId: 'q', source: 'transcript')]);
 
       expect(resolveStranded(blocks, 'Session ended').single.status, BlockStatus.failed);
     });
@@ -341,6 +353,34 @@ void main() {
       expect(blocks[1].status, BlockStatus.ok);
       expect(blocks[1].result, 'main');
       expect(blocks[2].status, BlockStatus.blocked);
+    });
+
+    test('a real AskUserQuestion collapses to one answerable question block', () {
+      final blocks = assembleBlocks([
+        _event(0, 'question_asked', sourceId: 'native-p', source: 'hook'),
+        _event(1, 'prompt_submit', text: 'go'),
+        _event(2, 'tool_start', sourceId: 'toolu_q', toolUseId: 'toolu_q', toolName: 'AskUserQuestion', source: 'hook', toolInput: _question('Which colour?')),
+        _event(3, 'permission_request', sourceId: 'native-p', toolName: 'AskUserQuestion', source: 'hook', toolInput: _question('Which colour?'), interactionId: 'i-q'),
+        _event(4, 'question_asked', sourceId: 'toolu_q', toolUseId: 'toolu_q', toolName: 'AskUserQuestion', source: 'transcript', toolInput: _question('Which colour?')),
+        _event(5, 'question_asked', sourceId: 'native-p', source: 'hook'),
+      ]);
+
+      expect(blocks.map((block) => block.title).toList(), ['Prompt', 'Which colour?']);
+      final question = blocks.last;
+      expect(question.detail, isA<QuestionBlockDetail>());
+      expect(question.status, BlockStatus.blocked);
+      expect(question.interactionId, 'i-q');
+    });
+
+    test('a permission request keeps its interaction id when the tool block already exists', () {
+      final blocks = assembleBlocks([
+        _event(1, 'prompt_submit', text: 'go'),
+        _event(2, 'tool_start', sourceId: 'toolu_b', toolUseId: 'toolu_b', toolName: 'Bash', source: 'hook'),
+        _event(3, 'permission_request', sourceId: 'toolu_b', toolUseId: 'toolu_b', toolName: 'Bash', source: 'hook', interactionId: 'i-b'),
+      ]);
+
+      expect(blocks.last.kind, BlockKind.permission);
+      expect(blocks.last.interactionId, 'i-b');
     });
 
     test('the hook notice is replaced in place and only once', () {

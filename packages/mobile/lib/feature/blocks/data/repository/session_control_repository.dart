@@ -8,6 +8,7 @@ import 'package:operator_mobile/feature/blocks/data/model/params/session_command
 import 'package:operator_mobile/feature/blocks/data/model/params/session_decision_params.dart';
 import 'package:operator_mobile/feature/blocks/data/model/pending_interaction_model.dart';
 import 'package:operator_mobile/feature/blocks/data/model/session_command_result_model.dart';
+import 'package:operator_mobile/feature/blocks/data/model/session_model_option_model.dart';
 
 abstract class SessionControlRepository {
   FutureResult<GlobalResponse<SessionCommandResultModel>> sendCommand(
@@ -23,6 +24,7 @@ abstract class SessionControlRepository {
     SessionAnswerParams params,
   );
   FutureResult<GlobalResponse<List<PendingInteractionModel>>> getInteractions(String sessionId);
+  FutureResult<GlobalResponse<List<SessionModelOptionModel>>> getModels(String sessionId);
 }
 
 class SessionControlRepositoryImp implements SessionControlRepository {
@@ -52,6 +54,10 @@ class SessionControlRepositoryImp implements SessionControlRepository {
   @override
   FutureResult<GlobalResponse<List<PendingInteractionModel>>> getInteractions(String sessionId) =>
       _guard(() => _remoteDataSource.getInteractions(sessionId));
+
+  @override
+  FutureResult<GlobalResponse<List<SessionModelOptionModel>>> getModels(String sessionId) =>
+      _guard(() => _remoteDataSource.getModels(sessionId));
 
   Future<Result<T, Failure>> _guard<T>(Future<T> Function() action) async {
     if (await _network.isConnected) {

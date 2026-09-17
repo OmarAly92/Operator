@@ -25,6 +25,7 @@ import (
 	"github.com/OmarAly92/operator/backend/internal/service/dialogdriver"
 	"github.com/OmarAly92/operator/backend/internal/sessionguard"
 	"github.com/OmarAly92/operator/backend/internal/skillassets"
+	"github.com/OmarAly92/operator/backend/internal/slashcommands"
 )
 
 // Sentinel errors returned by the Session Manager; callers match them with
@@ -38,6 +39,7 @@ var (
 	ErrIncompleteHandle   = errors.New("session: incomplete teardown handle")
 	ErrWrongActivityState = errors.New("session: command not available in this activity state")
 	ErrDialogAbsent       = errors.New("session: dialog is no longer on screen")
+	ErrDialogKindMismatch = errors.New("session: the pending dialog is not of that kind")
 	ErrModelNotOffered    = errors.New("session: model not offered by this harness")
 	// ErrComposerNotEmpty means a human draft is sitting unsent in the
 	// harness's composer, so an unattended slash-command write would submit
@@ -120,7 +122,8 @@ var (
 	// delivery: a pty-host orphaned by a daemon restart still accepts the bytes
 	// and drops them. Reporting success there loses the message silently, so
 	// the API maps this to a 409 the caller can retry or surface.
-	ErrAgentNotResponding = errors.New("session: agent did not accept the message")
+	ErrAgentNotResponding      = errors.New("session: agent did not accept the message")
+	ErrInteractiveSlashCommand = errors.New("session: slash command opens a dialog on the desktop")
 )
 
 // Env vars a spawned process reads to learn who it is. A worker that starts
@@ -166,6 +169,7 @@ type lifecycleRecorder interface {
 	ConfirmAgentSwitchSourceStopped(ctx context.Context, confirmation domain.AgentSwitchSourceStopConfirmation) (bool, error)
 	ActivateAgentSwitchTarget(ctx context.Context, activation domain.AgentSwitchTargetActivation) (bool, error)
 	MarkTerminated(ctx context.Context, id domain.SessionID) error
+	ApplyActivitySignal(ctx context.Context, id domain.SessionID, s ports.ActivitySignal) error
 }
 
 // ReviewerTerminator tears down a worker's reviewer pane when the worker leaves
@@ -318,6 +322,7 @@ type Manager struct {
 	// actually became active (the agent accepted the prompt). New fills in the
 	// sendConfirm* defaults; tests in this package shrink the timings directly.
 	sendConfirm sendConfirmConfig
+	slashOutput slashOutputConfig
 	logger      *slog.Logger
 
 	reviewersMu sync.Mutex
@@ -488,7 +493,8 @@ func New(d Deps) *Manager {
 			attemptDeadline: sendConfirmAttemptDeadline,
 			maxAttempts:     sendConfirmMaxAttempts,
 		},
-		logger: d.Logger,
+		slashOutput: slashOutputConfig{pollInterval: slashOutputPollInterval, budget: slashOutputBudget},
+		logger:      d.Logger,
 	}
 	if m.clock == nil {
 		// UTC so spawn-stamped CreatedAt/UpdatedAt match every other session
@@ -2328,8 +2334,12 @@ func (m *Manager) send(ctx context.Context, id domain.SessionID, message string)
 	if err != nil {
 		return err
 	}
+	builtin, isBuiltin := slashcommands.Lookup(message)
+	if isBuiltin && builtin.Interactive {
+		return fmt.Errorf("send %s: %w", id, ErrInteractiveSlashCommand)
+	}
 	var afterWrite func(context.Context) error
-	if strings.TrimSpace(message) != "" {
+	if !isBuiltin && strings.TrimSpace(message) != "" {
 		if recorder, ok := m.store.(latestUserPromptRecorder); ok {
 			afterWrite = func(writeCtx context.Context) error {
 				if _, recordErr := recorder.RecordSessionLatestUserPrompt(writeCtx, id, boundedConversationFact(message), m.clock()); recordErr != nil {
@@ -2355,13 +2365,19 @@ func (m *Manager) send(ctx context.Context, id domain.SessionID, message string)
 	case sessionguard.SuppressedInputGated:
 		return fmt.Errorf("send %s: %w", id, ErrSwitchInProgress)
 	}
+	if isBuiltin {
+		return nil
+	}
 	// confirmActive only helps — and is only SAFE — when the harness reports
 	// both a prompt-submit signal (so the loop can observe active) and a
 	// blocked signal it can clear mid-turn (so it can tell an unsubmitted
 	// draft from a pending permission dialog and never Enter into the latter).
 	// Only claude-code and its hook-delegators (grok/continueagent/devin)
 	// satisfy both; every other harness opts out via EmitsBlockedActivity —
-	// see ports.BlockedActivitySignaler.
+	// see ports.BlockedActivitySignaler. A built-in slash command (/compact,
+	// /clear, …) is handled by the TUI and never fires the prompt-submit hook,
+	// so confirmation could only ever time out; it returns as soon as the
+	// paste is written.
 	rec, ok, err := m.store.GetSession(ctx, id)
 	if err != nil {
 		// Confirmation is best-effort and never fails the send (the message

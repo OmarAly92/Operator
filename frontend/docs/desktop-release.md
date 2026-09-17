@@ -9,6 +9,9 @@ publishes installers, `*.app.tar.gz`/`.exe`/`.AppImage` updater archives with
 
 ## How releases work
 
+- The release is created as a **draft** by the `create-release` job and
+  published by `publish-feed` only after `latest.json` is uploaded, so
+  installed apps never see a release without its feed.
 - **Stable** releases start from a version bump on `master`:
   `.github/workflows/release-on-bump.yml` tags the bump `desktop-vX.Y.Z` and
   dispatches `.github/workflows/frontend-release.yml` (pushing such a tag by

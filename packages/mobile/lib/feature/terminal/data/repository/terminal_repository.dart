@@ -6,12 +6,14 @@ import 'package:operator_mobile/feature/terminal/data/data_source/terminal_remot
 import 'package:operator_mobile/feature/terminal/data/model/params/open_session_shell_params.dart';
 import 'package:operator_mobile/feature/terminal/data/model/params/send_session_message_params.dart';
 import 'package:operator_mobile/feature/terminal/data/model/shell_terminal_model.dart';
+import 'package:operator_mobile/feature/terminal/data/model/slash_command_model.dart';
 
 abstract class TerminalRepository {
   FutureResult<GlobalResponse<ShellTerminalModel>> openSessionShell(OpenSessionShellParams params);
   FutureResult<bool> closeShellTerminal(String handleId);
   FutureResult<bool> sendSessionMessage(String sessionId, SendSessionMessageParams params);
   FutureResult<String?> getDraft(String sessionId);
+  FutureResult<GlobalResponse<List<SlashCommandModel>>> getSlashCommands(String sessionId);
 }
 
 class TerminalRepositoryImp implements TerminalRepository {
@@ -54,6 +56,10 @@ class TerminalRepositoryImp implements TerminalRepository {
   @override
   FutureResult<String?> getDraft(String sessionId) =>
       _guard(() async => (await _remoteDataSource.getDraft(sessionId)).data);
+
+  @override
+  FutureResult<GlobalResponse<List<SlashCommandModel>>> getSlashCommands(String sessionId) =>
+      _guard(() => _remoteDataSource.getSlashCommands(sessionId));
 
   Future<Result<T, Failure>> _guard<T>(Future<T> Function() action) async {
     if (await _network.isConnected) {

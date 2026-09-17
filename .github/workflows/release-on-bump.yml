@@ -39,8 +39,8 @@ jobs:
             echo "version unchanged; nothing to release"
             exit 0
           fi
-          if gh release view "v$version" >/dev/null 2>&1; then
-            echo "release v$version already exists; skipping"
+          if gh release view "v$version" --json isDraft -q 'select(.isDraft | not) | "published"' 2>/dev/null | grep -q published; then
+            echo "release v$version is already published; skipping"
             exit 0
           fi
           tag="desktop-v$version"

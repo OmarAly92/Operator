@@ -44,6 +44,7 @@ import (
 	prsvc "github.com/OmarAly92/operator/backend/internal/service/pr"
 	projectsvc "github.com/OmarAly92/operator/backend/internal/service/project"
 	settingssvc "github.com/OmarAly92/operator/backend/internal/service/settings"
+	slashcommandssvc "github.com/OmarAly92/operator/backend/internal/service/slashcommands"
 	terminalblocksvc "github.com/OmarAly92/operator/backend/internal/service/terminalblock"
 	capturesvc "github.com/OmarAly92/operator/backend/internal/service/terminalcapture"
 	usagesvc "github.com/OmarAly92/operator/backend/internal/service/usage"
@@ -231,6 +232,7 @@ func Run() error {
 	lcStack.LCM.SetSessionInputLease(sessMgr)
 	lcStack.LCM.SetSessionOperationGate(sessMgr)
 	lcStack.LCM.SetInteractionRegistry(sessMgr)
+	lcStack.LCM.SetDialogObserver(sessMgr)
 	termMgr.SetSessionInputLease(sessMgr)
 	projectSvc := projectsvc.NewWithDeps(projectsvc.Deps{Store: store, Sessions: sessionSvc, DefaultHarness: domain.AgentHarness(cfg.Agent), Telemetry: telemetrySink})
 	if err := seedScratchProjectOnBoot(ctx, cfg, projectSvc); err != nil {
@@ -410,7 +412,9 @@ func Run() error {
 		Activity:            lcStack.LCM,
 		BlockEvents:         blockEvents,
 		BlockHistory:        blockEvents,
+		SessionModels:       blockEvents,
 		Interactions:        sessMgr,
+		SlashCommands:       slashcommandssvc.New(store, agents, claudeAccounts),
 		UsageHooks:          usageCollector,
 		UsageSummary:        usagesvc.NewSummaryReader(store),
 		Telemetry:           telemetrySink,

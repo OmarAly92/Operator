@@ -7,6 +7,7 @@ import 'package:operator_mobile/core/api/interceptors/server_config_interceptor.
 import 'package:operator_mobile/core/api/server_config.dart';
 import 'package:operator_mobile/core/mux/mux_backoff.dart';
 import 'package:operator_mobile/core/mux/mux_client.dart';
+import 'package:operator_mobile/core/mux/session_patch.dart';
 import 'package:operator_mobile/core/mux/mux_socket.dart';
 
 class _FakeMuxSocket implements MuxSocket {
@@ -296,27 +297,51 @@ void main() {
       await client.disconnect();
     });
 
-    test('decodes a sessions snapshot into SessionPatch', () async {
+    test('a session_updated frame carrying activity becomes a SessionPatch', () async {
       late _FakeMuxSocket socket;
       final client = MuxClient(_source, connect: (_, _) => socket = _FakeMuxSocket());
       client.connect();
       await Future<void>.delayed(Duration.zero);
 
-      final patches = <List<dynamic>>[];
+      final patches = <List<SessionPatch>>[];
       client.sessionPatches.listen(patches.add);
 
       socket.pushMessage({
         'ch': 'sessions',
         'type': 'snapshot',
-        'sessions': [
-          {'id': 'proj-1', 'status': 'working', 'activity': 'active', 'attentionLevel': 'working', 'lastActivityAt': 't'},
-        ],
+        'session': {
+          'seq': 9,
+          'projectId': 'p1',
+          'sessionId': 's1',
+          'eventType': 'session_updated',
+          'payload': {'id': 's1', 'activity': 'active', 'isTerminated': false},
+        },
+      });
+      socket.pushMessage({
+        'ch': 'sessions',
+        'type': 'snapshot',
+        'session': {
+          'seq': 10,
+          'projectId': 'p1',
+          'sessionId': 's1',
+          'eventType': 'session_updated',
+          'payload': {'id': 's1', 'activity': 'exited', 'isTerminated': true},
+        },
+      });
+      socket.pushMessage({
+        'ch': 'sessions',
+        'type': 'snapshot',
+        'session': {'seq': 11, 'projectId': 'p1', 'sessionId': 's1', 'eventType': 'session_updated'},
       });
       await Future<void>.delayed(Duration.zero);
 
-      expect(patches, hasLength(1));
-      expect(patches.first, hasLength(1));
-      expect((patches.first.first as dynamic).id, 'proj-1');
+      expect(patches, hasLength(2));
+      expect(patches[0].single.id, 's1');
+      expect(patches[0].single.activity, 'active');
+      expect(patches[0].single.status, isNull);
+      expect(patches[1].single.activity, 'exited');
+      expect(patches[1].single.status, 'terminated');
+      await client.disconnect();
     });
 
     test('acknowledges board streaming and forwards relevant Go CDC frames', () {

@@ -9,6 +9,8 @@ import 'package:operator_mobile/core/app_themes/text_style/app_text_style.dart';
 import 'package:operator_mobile/core/mux/mux_client.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/session_command_cubit.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/session_view_cubit.dart';
+import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/model_picker_sheet.dart';
+import 'package:operator_mobile/feature/blocks/logic/model_label.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/logic/terminal_cubit.dart';
 import 'package:operator_mobile/feature/preview/presentation/preview_screen/logic/preview_cubit.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/ui/widgets/terminal_preview_globe.dart';
@@ -126,6 +128,8 @@ class TerminalChatHeader extends StatelessWidget {
                               ),
                             ),
                           ),
+                          if (!args.shellOnly)
+                            _SessionModelLabel(harness: args.harness),
                         ],
                       ),
                       Text(
@@ -205,6 +209,47 @@ class TerminalChatHeader extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+class _SessionModelLabel extends StatelessWidget {
+  const _SessionModelLabel({this.harness});
+
+  final String? harness;
+
+  @override
+  Widget build(BuildContext context) {
+    final skin = context.skin;
+    return BlocBuilder<BlocksCubit, BlocksState>(
+      builder: (context, _) =>
+          BlocBuilder<SessionCommandCubit, SessionCommandState>(
+            buildWhen: (previous, current) =>
+                previous.currentModel != current.currentModel,
+            builder: (context, state) {
+              final model = state.currentModel ?? _latestBlockModel(context);
+              if (model == null) return const SizedBox.shrink();
+              return GestureDetector(
+                onTap: () => showModelPicker(context, harness: harness),
+                child: Text(
+                  model,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTextStyle.mono11Regular.copyWith(
+                    color: skin.accent,
+                  ),
+                ),
+              );
+            },
+          ),
+    );
+  }
+
+  String? _latestBlockModel(BuildContext context) {
+    for (final block in context.read<BlocksCubit>().blocks.reversed) {
+      final model = block.model;
+      if (model != null && model.isNotEmpty) return formatModelLabel(model);
+    }
+    return null;
   }
 }
 

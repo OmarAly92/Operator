@@ -1,6 +1,8 @@
 package lifecycle
 
 import (
+	"context"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -407,5 +409,144 @@ func TestToolPrecedence_NotificationCorrelationSiblingDoesNotClear(t *testing.T)
 	mustApply(t, m, "mer-1", sig(domain.ActivityActive, "post-tool-use-failure", "Bash", "toolu_1"))
 	if got := stateOf(st, "mer-1"); got != domain.ActivityActive {
 		t.Fatalf("after approved failure post: state = %q, want active", got)
+	}
+}
+
+type fakeInteractionRegistry struct {
+	pending map[domain.SessionID]domain.PendingInteraction
+}
+
+func (r *fakeInteractionRegistry) RegisterInteraction(id domain.SessionID, in domain.PendingInteraction) {
+	if r.pending == nil {
+		r.pending = map[domain.SessionID]domain.PendingInteraction{}
+	}
+	r.pending[id] = in
+}
+
+func (r *fakeInteractionRegistry) ClearInteractions(id domain.SessionID) { delete(r.pending, id) }
+
+type fakeDialogObserver struct {
+	onScreen bool
+	err      error
+	reads    int
+}
+
+func (o *fakeDialogObserver) DialogOnScreen(context.Context, domain.SessionID) (bool, error) {
+	o.reads++
+	return o.onScreen, o.err
+}
+
+func TestToolPrecedence_DialogAbsentClearsBlockedAndTheInteraction(t *testing.T) {
+	m, st, _ := newManager()
+	registry := &fakeInteractionRegistry{}
+	m.SetInteractionRegistry(registry)
+	seedSignaled(st, "mer-1", domain.ActivityActive)
+	blockOnDialog(t, m, st, "mer-1", "AskUserQuestion", "toolu_1")
+	if _, ok := registry.pending["mer-1"]; !ok {
+		t.Fatal("setup: expected a registered interaction")
+	}
+
+	mustApply(t, m, "mer-1", sig(domain.ActivityIdle, ports.EventDialogAbsent, "", ""))
+	if got := stateOf(st, "mer-1"); got != domain.ActivityIdle {
+		t.Fatalf("state after dialog-absent = %q, want idle", got)
+	}
+	if _, ok := registry.pending["mer-1"]; ok {
+		t.Fatal("dialog-absent must clear the pending interaction")
+	}
+}
+
+func TestToolPrecedence_DialogAbsentIsIgnoredUnlessBlocked(t *testing.T) {
+	m, st, _ := newManager()
+	seedSignaled(st, "mer-1", domain.ActivityActive)
+
+	mustApply(t, m, "mer-1", sig(domain.ActivityIdle, ports.EventDialogAbsent, "", ""))
+	if got := stateOf(st, "mer-1"); got != domain.ActivityActive {
+		t.Fatalf("state after dialog-absent on an active session = %q, want active", got)
+	}
+}
+
+func TestToolPrecedence_IdleNotificationClearsBlockedWhenNoDialogIsOnScreen(t *testing.T) {
+	m, st, _ := newManager()
+	registry := &fakeInteractionRegistry{}
+	m.SetInteractionRegistry(registry)
+	observer := &fakeDialogObserver{onScreen: false}
+	m.SetDialogObserver(observer)
+	seedSignaled(st, "mer-1", domain.ActivityActive)
+	blockOnDialog(t, m, st, "mer-1", "AskUserQuestion", "toolu_1")
+
+	mustApply(t, m, "mer-1", sig(domain.ActivityIdle, "notification", "", ""))
+	if got := stateOf(st, "mer-1"); got != domain.ActivityIdle {
+		t.Fatalf("state after idle notification with an empty screen = %q, want idle", got)
+	}
+	if _, ok := registry.pending["mer-1"]; ok {
+		t.Fatal("an observed-absent dialog must clear the pending interaction")
+	}
+	if observer.reads != 1 {
+		t.Fatalf("observer reads = %d, want 1", observer.reads)
+	}
+}
+
+func TestToolPrecedence_IdleNotificationKeepsBlockedWhileTheDialogIsOnScreen(t *testing.T) {
+	m, st, _ := newManager()
+	observer := &fakeDialogObserver{onScreen: true}
+	m.SetDialogObserver(observer)
+	seedSignaled(st, "mer-1", domain.ActivityActive)
+	blockOnDialog(t, m, st, "mer-1", "Bash", "toolu_1")
+
+	mustApply(t, m, "mer-1", sig(domain.ActivityIdle, "notification", "", ""))
+	if got := stateOf(st, "mer-1"); got != domain.ActivityBlocked {
+		t.Fatalf("state after idle notification with the dialog on screen = %q, want blocked", got)
+	}
+	observer.err = errors.New("pane unreadable")
+	mustApply(t, m, "mer-1", sig(domain.ActivityIdle, "notification", "", ""))
+	if got := stateOf(st, "mer-1"); got != domain.ActivityBlocked {
+		t.Fatalf("state after a failed observation = %q, want blocked (fail closed)", got)
+	}
+}
+
+func TestToolPrecedence_ObserverIsNotConsultedUnlessBlocked(t *testing.T) {
+	m, st, _ := newManager()
+	observer := &fakeDialogObserver{onScreen: false}
+	m.SetDialogObserver(observer)
+	seedSignaled(st, "mer-1", domain.ActivityActive)
+
+	mustApply(t, m, "mer-1", sig(domain.ActivityIdle, "notification", "", ""))
+	if observer.reads != 0 {
+		t.Fatalf("observer reads = %d, want 0", observer.reads)
+	}
+}
+
+func TestToolPrecedence_AskUserQuestionRegistersAQuestionInteraction(t *testing.T) {
+	m, st, _ := newManager()
+	registry := &fakeInteractionRegistry{}
+	m.SetInteractionRegistry(registry)
+	seedSignaled(st, "mer-1", domain.ActivityActive)
+	blockOnDialog(t, m, st, "mer-1", "AskUserQuestion", "toolu_1")
+
+	pending, ok := registry.pending["mer-1"]
+	if !ok {
+		t.Fatal("expected a registered interaction")
+	}
+	if pending.Kind != domain.InteractionQuestion {
+		t.Fatalf("kind = %q, want %q", pending.Kind, domain.InteractionQuestion)
+	}
+	if pending.ToolName != "AskUserQuestion" {
+		t.Fatalf("tool name = %q, want AskUserQuestion", pending.ToolName)
+	}
+}
+
+func TestToolPrecedence_OtherToolsRegisterAPermissionInteraction(t *testing.T) {
+	m, st, _ := newManager()
+	registry := &fakeInteractionRegistry{}
+	m.SetInteractionRegistry(registry)
+	seedSignaled(st, "mer-1", domain.ActivityActive)
+	blockOnDialog(t, m, st, "mer-1", "Bash", "toolu_1")
+
+	pending, ok := registry.pending["mer-1"]
+	if !ok {
+		t.Fatal("expected a registered interaction")
+	}
+	if pending.Kind != domain.InteractionPermission {
+		t.Fatalf("kind = %q, want %q", pending.Kind, domain.InteractionPermission)
 	}
 }

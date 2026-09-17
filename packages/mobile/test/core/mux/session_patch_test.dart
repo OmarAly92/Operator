@@ -2,42 +2,20 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:operator_mobile/core/mux/session_patch.dart';
 
 void main() {
-  test('parses a mux sessions-snapshot entry', () {
-    final patch = SessionPatch.fromJson({
-      'id': 'proj-7',
-      'status': 'working',
-      'activity': 'active',
-      'attentionLevel': 'working',
-      'lastActivityAt': '2026-08-12T10:00:00Z',
-    });
+  test('reads activity from a session_updated change payload', () {
+    final patch = SessionPatch.fromChangePayload('s-7', {'id': 's-7', 'activity': 'active', 'isTerminated': false});
 
-    expect(patch.id, 'proj-7');
-    expect(patch.status, 'working');
-    expect(patch.activity, 'active');
-    expect(patch.attentionLevel, 'working');
-    expect(patch.lastActivityAt, '2026-08-12T10:00:00Z');
+    expect(patch, const SessionPatch(id: 's-7', activity: 'active'));
   });
 
-  test('tolerates a null activity', () {
-    final patch = SessionPatch.fromJson({
-      'id': 'proj-7',
-      'status': 'idle',
-      'activity': null,
-      'attentionLevel': 'working',
-      'lastActivityAt': '2026-08-12T10:00:00Z',
-    });
+  test('a terminated session reads as status terminated', () {
+    final patch = SessionPatch.fromChangePayload('s-7', {'id': 's-7', 'activity': 'exited', 'isTerminated': true});
 
-    expect(patch.activity, isNull);
+    expect(patch?.status, 'terminated');
   });
 
-  test('two patches with the same fields are equal', () {
-    Map<String, dynamic> json() => {
-      'id': 'proj-7',
-      'status': 'working',
-      'activity': 'active',
-      'attentionLevel': 'working',
-      'lastActivityAt': '2026-08-12T10:00:00Z',
-    };
-    expect(SessionPatch.fromJson(json()), SessionPatch.fromJson(json()));
+  test('a payload without activity yields no patch', () {
+    expect(SessionPatch.fromChangePayload('s-7', {'id': 's-7'}), isNull);
+    expect(SessionPatch.fromChangePayload('s-7', null), isNull);
   });
 }

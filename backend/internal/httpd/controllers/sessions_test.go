@@ -17,6 +17,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -43,6 +44,14 @@ type fakeSessionService struct {
 	commandCalls       int
 	draftResult        string
 	draftErr           error
+	slashOutput        string
+	slashOutputErr     error
+	modelsCalls        int
+	models             []sessionmanager.ModelOption
+	modelsErr          error
+	slashMu            sync.Mutex
+	slashOutputCalls   int
+	slashOutputMessage string
 	sendErr            error
 	decideErr          error
 	decideCalls        int
@@ -409,6 +418,25 @@ func (f *fakeSessionService) Command(_ context.Context, _ domain.SessionID, _ do
 
 func (f *fakeSessionService) Draft(_ context.Context, _ domain.SessionID) (string, error) {
 	return f.draftResult, f.draftErr
+}
+
+func (f *fakeSessionService) Models(_ context.Context, _ domain.SessionID) ([]sessionmanager.ModelOption, error) {
+	f.modelsCalls++
+	return f.models, f.modelsErr
+}
+
+func (f *fakeSessionService) SlashOutput(_ context.Context, _ domain.SessionID, message string) (string, error) {
+	f.slashMu.Lock()
+	defer f.slashMu.Unlock()
+	f.slashOutputCalls++
+	f.slashOutputMessage = message
+	return f.slashOutput, f.slashOutputErr
+}
+
+func (f *fakeSessionService) slashOutputSeen() (int, string) {
+	f.slashMu.Lock()
+	defer f.slashMu.Unlock()
+	return f.slashOutputCalls, f.slashOutputMessage
 }
 
 func (f *fakeSessionService) Decide(_ context.Context, _ domain.SessionID, _, _ string) error {

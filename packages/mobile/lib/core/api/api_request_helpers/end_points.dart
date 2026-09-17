@@ -34,10 +34,12 @@ sealed class EndPoints {
       '$shellTerminals/${Uri.encodeComponent(handleId)}';
   static String sessionSend(String sessionId) => '${_session(sessionId)}/send';
   static String sessionCommand(String sessionId) => '${_session(sessionId)}/command';
+  static String sessionModels(String sessionId) => '${_session(sessionId)}/models';
   static String sessionDecision(String sessionId) => '${_session(sessionId)}/decision';
   static String sessionAnswer(String sessionId) => '${_session(sessionId)}/answer';
   static String sessionInteractions(String sessionId) => '${_session(sessionId)}/interactions';
   static String sessionDraft(String sessionId) => '${_session(sessionId)}/draft';
+  static String sessionSlashCommands(String sessionId) => '${_session(sessionId)}/slash-commands';
   static String sessionBlocks(String sessionId) => '${_session(sessionId)}/blocks';
 
   static String sessionPreview(String sessionId) => '${_session(sessionId)}/preview';

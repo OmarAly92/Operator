@@ -139,6 +139,9 @@ type WorkspaceFileQuery struct {
 // fields are json:"-"; these curated fields are what serialize.
 type SessionView struct {
 	domain.Session
+	// Model is the model the session last ran a turn on, from its transcript.
+	// Empty until the first turn or when the harness does not report one.
+	Model         string `json:"model,omitempty"`
 	Branch        string `json:"branch,omitempty"`
 	WorkspaceMode string `json:"workspaceMode,omitempty" enum:"worktree,in_place"`
 	WorkspacePath string `json:"workspacePath,omitempty"`
@@ -203,7 +206,7 @@ type SpawnSessionRequest struct {
 	Kind          domain.SessionKind  `json:"kind,omitempty" enum:"worker,orchestrator"`
 	Harness       domain.AgentHarness `json:"harness,omitempty" enum:"claude-code,codex,aider,opencode,grok,droid,amp,agy,crush,cursor,qwen,copilot,goose,auggie,continue,devin,cline,kimi,muse,kiro,kilocode,vibe,pi,kimchi,prime-agent,autohand"`
 	Branch        string              `json:"branch,omitempty"`
-	Prompt        string              `json:"prompt,omitempty" maxLength:"4096"`
+	Prompt        string              `json:"prompt,omitempty" maxLength:"65536"`
 	WorkspaceMode string              `json:"workspaceMode,omitempty" enum:"worktree,in_place"`
 	// DisplayName is the sidebar label for the session, capped at 20 characters.
 	// `opr spawn --name` always sets it; other clients (e.g. the desktop new-task
@@ -703,7 +706,7 @@ type SessionAnswerResponse struct {
 // An omitted agent tells the orchestrator to use the project's worker default.
 type DelegateTaskRequest struct {
 	ProjectID domain.ProjectID    `json:"projectId"`
-	Brief     string              `json:"brief" maxLength:"4096"`
+	Brief     string              `json:"brief" maxLength:"65536"`
 	Agent     domain.AgentHarness `json:"agent,omitempty" enum:"claude-code,codex,aider,opencode,grok,droid,amp,agy,crush,cursor,qwen,copilot,goose,auggie,continue,devin,cline,kimi,muse,kiro,kilocode,vibe,pi,kimchi,prime-agent,autohand,fake"`
 	Model     string              `json:"model,omitempty" maxLength:"256"`
 	// Attachments are files pasted, dropped, or picked into the delegated task
@@ -1473,4 +1476,25 @@ type TriggerReviewRequest struct {
 type DesktopResponse struct {
 	Name     string `json:"name" description:"Display name derived from the hostname: trailing .local stripped, hyphens as spaces. Never empty."`
 	Hostname string `json:"hostname" description:"os.Hostname() verbatim; empty if the OS could not report one."`
+}
+
+type SlashCommandView struct {
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	Source      string `json:"source"`
+	Interactive bool   `json:"interactive"`
+}
+
+type SessionSlashCommandsResponse struct {
+	Commands []SlashCommandView `json:"commands"`
+}
+
+type SessionModelView struct {
+	Label       string `json:"label"`
+	Description string `json:"description"`
+	Current     bool   `json:"current"`
+}
+
+type SessionModelsResponse struct {
+	Models []SessionModelView `json:"models"`
 }

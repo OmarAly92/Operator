@@ -48,7 +48,7 @@ interface ConnectMobileModalProps {
 export function ConnectMobileModal({ open, onOpenChange }: ConnectMobileModalProps) {
 	const { t } = useTranslation();
 	const queryClient = useQueryClient();
-	const [copied, setCopied] = useState(false);
+	const [copied, setCopied] = useState<"address" | "password" | null>(null);
 	const [confirmOpen, setConfirmOpen] = useState(false);
 	const [tokenOpen, setTokenOpen] = useState(false);
 	const copiedTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -144,6 +144,7 @@ export function ConnectMobileModal({ open, onOpenChange }: ConnectMobileModalPro
 
 	const tunnel = status?.tunnel;
 	const tunnelLive = tunnel?.state === "live" && tunnel.url !== "";
+	const address = tunnelLive && tunnel ? tunnel.url : status ? `${status.host}:${status.port}` : undefined;
 	const tunnelBusy = tunnelEnable.isPending || tunnelDisable.isPending;
 	const tunnelOn = tunnelLive || tunnel?.state === "starting" || tunnel?.state === "downloading" || tunnel?.state === "reconnecting";
 	const needsAuthtoken = tunnel?.needsAuthtoken ?? false;
@@ -185,13 +186,13 @@ export function ConnectMobileModal({ open, onOpenChange }: ConnectMobileModalPro
 		tunnelEnable.mutate();
 	};
 
-	const copyPassword = async () => {
-		if (!status?.password) return;
+	const copyField = async (field: "address" | "password", value: string | undefined) => {
+		if (!value) return;
 		try {
-			await navigator.clipboard.writeText(status.password);
-			setCopied(true);
+			await navigator.clipboard.writeText(value);
+			setCopied(field);
 			if (copiedTimeoutRef.current) clearTimeout(copiedTimeoutRef.current);
-			copiedTimeoutRef.current = setTimeout(() => setCopied(false), 1500);
+			copiedTimeoutRef.current = setTimeout(() => setCopied(null), 1500);
 		} catch {
 			// Clipboard can reject (permissions / non-secure context).
 		}
@@ -364,9 +365,22 @@ export function ConnectMobileModal({ open, onOpenChange }: ConnectMobileModalPro
 										<div className="mt-6 flex w-full flex-col gap-1 px-(--size-settings-mobile-details-pad-x)">
 											<div className="flex items-center gap-6 text-sm leading-5">
 												<span className="w-(--size-settings-mobile-label) shrink-0 text-settings-muted">{t("mobile.address")}</span>
-												<span className="tracking-settings-mono break-all text-settings-label">
-													{tunnelLive && tunnel ? tunnel.url : `${status.host}:${status.port}`}
-												</span>
+												<div className="flex min-w-0 items-center gap-2">
+													<span className="tracking-settings-mono break-all text-settings-label">{address}</span>
+													<button
+														type="button"
+														aria-label={copied === "address" ? t("mobile.addressCopied") : t("mobile.copyAddress")}
+														tabIndex={enabled ? 0 : -1}
+														className="inline-flex size-6 shrink-0 items-center justify-center text-settings-muted transition-colors hover:text-settings-label"
+														onClick={() => void copyField("address", address)}
+													>
+														{copied === "address" ? (
+															<Check className="size-4" aria-hidden="true" />
+														) : (
+															<Copy className="size-4" aria-hidden="true" />
+														)}
+													</button>
+												</div>
 											</div>
 											<div className="flex items-center gap-6 text-sm leading-5">
 												<span className="w-(--size-settings-mobile-label) shrink-0 text-settings-muted">{t("mobile.password")}</span>
@@ -374,12 +388,12 @@ export function ConnectMobileModal({ open, onOpenChange }: ConnectMobileModalPro
 													<span className="tracking-settings-mono text-settings-label">{status.password}</span>
 													<button
 														type="button"
-														aria-label={copied ? t("mobile.passwordCopied") : t("mobile.copyPassword")}
+														aria-label={copied === "password" ? t("mobile.passwordCopied") : t("mobile.copyPassword")}
 														tabIndex={enabled ? 0 : -1}
 														className="inline-flex size-6 shrink-0 items-center justify-center text-settings-muted transition-colors hover:text-settings-label"
-														onClick={() => void copyPassword()}
+														onClick={() => void copyField("password", status.password)}
 													>
-														{copied ? (
+														{copied === "password" ? (
 															<Check className="size-4" aria-hidden="true" />
 														) : (
 															<Copy className="size-4" aria-hidden="true" />

@@ -29,7 +29,9 @@ import 'package:operator_mobile/feature/sessions/data/model/session_model.dart';
 import 'package:operator_mobile/feature/sessions/data/repository/sessions_repository.dart';
 import 'package:operator_mobile/feature/sessions/presentation/session_route/ui/session_route_screen.dart';
 import 'package:operator_mobile/feature/sessions/presentation/sessions_screen/logic/sessions_cubit.dart';
+import 'package:operator_mobile/feature/terminal/data/model/slash_command_model.dart';
 import 'package:operator_mobile/feature/terminal/data/repository/terminal_repository.dart';
+import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/logic/slash_menu_cubit.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/logic/terminal_cubit.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/ui/terminal_screen.dart';
 import 'package:operator_mobile/feature/usage/data/repository/usage_repository.dart';
@@ -125,9 +127,16 @@ void main() {
       () => mux.resize(any(), any(), any(), projectId: any(named: 'projectId')),
     ).thenReturn(null);
 
+    when(() => terminalRepository.getSlashCommands(any())).thenAnswer(
+      (_) async => Result.success(GlobalResponse<List<SlashCommandModel>>(data: const [])),
+    );
+
     await sl.reset();
     sl.registerFactoryParam<TerminalCubit, TerminalArgs, void>(
       (args, _) => TerminalCubit(mux, terminalRepository, repository, args),
+    );
+    sl.registerFactoryParam<SlashMenuCubit, TextEditingController, String>(
+      (composer, sessionId) => SlashMenuCubit(terminalRepository, composer, sessionId: sessionId),
     );
     sl.registerFactoryParam<SessionViewCubit, TerminalArgs, void>(
       (args, _) => SessionViewCubit(defaultViewMode(args)),

@@ -14,6 +14,7 @@ import 'package:operator_mobile/feature/blocks/data/model/params/session_command
 import 'package:operator_mobile/feature/blocks/data/model/params/session_decision_params.dart';
 import 'package:operator_mobile/feature/blocks/data/model/pending_interaction_model.dart';
 import 'package:operator_mobile/feature/blocks/data/model/session_command_result_model.dart';
+import 'package:operator_mobile/feature/blocks/data/model/session_model_option_model.dart';
 import 'package:operator_mobile/feature/blocks/data/repository/session_control_repository.dart';
 import 'package:operator_mobile/feature/blocks/logic/command_confirmation.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/session_command_cubit.dart';
@@ -347,8 +348,6 @@ void main() {
           id: 's1',
           status: 'running',
           activity: 'active',
-          attentionLevel: 'none',
-          lastActivityAt: '2026-09-05T00:00:00Z',
         ),
       ]);
       await Future<void>.delayed(Duration.zero);
@@ -365,8 +364,6 @@ void main() {
         id: 'other',
         status: 'running',
         activity: 'active',
-        attentionLevel: 'none',
-        lastActivityAt: '2026-09-05T00:00:00Z',
       ),
     ]);
     await Future<void>.delayed(Duration.zero);
@@ -479,8 +476,6 @@ void main() {
         id: 's1',
         status: 'running',
         activity: 'active',
-        attentionLevel: 'none',
-        lastActivityAt: '2026-09-05T00:00:00Z',
       ),
     ]);
     events.add(const BlockEventEnvelope('s1', {'kind': 'compaction'}));
@@ -512,4 +507,56 @@ void main() {
       await expectLater(runFuture, completes);
     },
   );
+
+  group('current model', () {
+    test('fetchModels stores the picker rows and the ticked one as current', () async {
+      when(() => repo.getModels(any())).thenAnswer(
+        (_) async => Result.success(
+          GlobalResponse<List<SessionModelOptionModel>>(
+            data: const [
+              SessionModelOptionModel(label: 'Opus (1M context)', description: 'Opus 5', current: false),
+              SessionModelOptionModel(label: 'Sonnet', description: 'Sonnet 5', current: true),
+            ],
+          ),
+        ),
+      );
+
+      await cubit.fetchModels();
+
+      expect(cubit.currentModel, 'Sonnet');
+      expect(cubit.models, ['Opus (1M context)', 'Sonnet']);
+      expect(cubit.state.modelsLoading, isFalse);
+      expect(cubit.modelOptions.length, 2);
+    });
+
+    test('a failed fetch clears loading and keeps what was known', () async {
+      when(() => repo.getModels(any())).thenAnswer(
+        (_) async => Result.failure(ServerFailure(error: 'x', message: 'busy', statusCode: 409)),
+      );
+
+      await cubit.fetchModels();
+
+      expect(cubit.state.modelsLoading, isFalse);
+      expect(cubit.currentModel, isNull);
+    });
+
+    test('a turn_model event names the model the turn ran on', () async {
+      events.add(const BlockEventEnvelope('s1', {'kind': 'turn_model', 'text': 'claude-opus-5[1m]'}));
+      await Future<void>.delayed(Duration.zero);
+
+      expect(cubit.currentModel, 'Opus 5 (1M)');
+    });
+
+    test('a successful switch shows the picked label until the next turn confirms it', () async {
+      when(() => repo.sendCommand(any(), any())).thenAnswer(
+        (_) async => Result.success(GlobalResponse<SessionCommandResultModel>(data: const SessionCommandResultModel())),
+      );
+      cubit.onActivity('idle');
+
+      await cubit.run('model', model: 'Haiku');
+
+      expect(cubit.currentModel, 'Haiku');
+      expect(cubit.phases['model'], CommandPhase.sent);
+    });
+  });
 }

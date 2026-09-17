@@ -1,28 +1,23 @@
 import 'package:equatable/equatable.dart';
 
 class SessionPatch extends Equatable {
-  const SessionPatch({
-    required this.id,
-    required this.status,
-    required this.activity,
-    required this.attentionLevel,
-    required this.lastActivityAt,
-  });
+  const SessionPatch({required this.id, required this.activity, this.status});
 
   final String id;
-  final String status;
   final String? activity;
-  final String attentionLevel;
-  final String lastActivityAt;
+  final String? status;
 
-  factory SessionPatch.fromJson(Map<String, dynamic> json) => SessionPatch(
-    id: json['id'] as String,
-    status: json['status'] as String,
-    activity: json['activity'] as String?,
-    attentionLevel: json['attentionLevel'] as String,
-    lastActivityAt: json['lastActivityAt'] as String,
-  );
+  static SessionPatch? fromChangePayload(String sessionId, Object? payload) {
+    if (payload is! Map<String, dynamic>) return null;
+    final activity = payload['activity'];
+    if (activity is! String) return null;
+    return SessionPatch(
+      id: sessionId,
+      activity: activity,
+      status: payload['isTerminated'] == true ? 'terminated' : null,
+    );
+  }
 
   @override
-  List<Object?> get props => [id, status, activity, attentionLevel, lastActivityAt];
+  List<Object?> get props => [id, activity, status];
 }

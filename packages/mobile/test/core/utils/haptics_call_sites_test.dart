@@ -189,7 +189,6 @@ void main() {
     MockManualConnectCubit stubbedCubit() {
       final cubit = MockManualConnectCubit();
       when(() => cubit.hostController).thenReturn(TextEditingController());
-      when(() => cubit.portController).thenReturn(TextEditingController(text: '3011'));
       when(() => cubit.passwordController).thenReturn(TextEditingController());
       when(() => cubit.secure).thenReturn(false);
       return cubit;

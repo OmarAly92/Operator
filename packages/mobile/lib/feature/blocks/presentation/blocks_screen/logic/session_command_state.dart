@@ -6,6 +6,9 @@ part of 'session_command_cubit.dart';
 class SessionCommandState extends Equatable {
   final Map<String, CommandPhase> phases;
   final List<String> models;
+  final List<SessionModelOptionModel> modelOptions;
+  final bool modelsLoading;
+  final String? currentModel;
   final ContextReadoutData? contextReadout;
 
   /// The session's activity state. It lives in the state, not only in the
@@ -16,6 +19,9 @@ class SessionCommandState extends Equatable {
   const SessionCommandState({
     this.phases = const {},
     this.models = const [],
+    this.modelOptions = const [],
+    this.modelsLoading = false,
+    this.currentModel,
     this.activity,
     this.contextReadout,
   });
@@ -23,9 +29,15 @@ class SessionCommandState extends Equatable {
   SessionCommandState copyWith({
     Map<String, CommandPhase>? phases,
     List<String>? models,
+    List<SessionModelOptionModel>? modelOptions,
+    bool? modelsLoading,
+    String? currentModel,
   }) => SessionCommandState(
     phases: phases ?? this.phases,
     models: models ?? this.models,
+    modelOptions: modelOptions ?? this.modelOptions,
+    modelsLoading: modelsLoading ?? this.modelsLoading,
+    currentModel: currentModel ?? this.currentModel,
     activity: activity,
     contextReadout: contextReadout,
   );
@@ -33,6 +45,9 @@ class SessionCommandState extends Equatable {
   SessionCommandState withActivity(String? next) => SessionCommandState(
     phases: phases,
     models: models,
+    modelOptions: modelOptions,
+    modelsLoading: modelsLoading,
+    currentModel: currentModel,
     activity: next,
     contextReadout: contextReadout,
   );
@@ -41,10 +56,13 @@ class SessionCommandState extends Equatable {
       SessionCommandState(
         phases: phases,
         models: models,
+        modelOptions: modelOptions,
+        modelsLoading: modelsLoading,
+        currentModel: currentModel,
         activity: activity,
         contextReadout: next,
       );
 
   @override
-  List<Object?> get props => [phases, models, activity, contextReadout];
+  List<Object?> get props => [phases, models, modelOptions, modelsLoading, currentModel, activity, contextReadout];
 }
