@@ -171,7 +171,7 @@ func TestSendBuiltinRecordsThePaneOutputAsTheReply(t *testing.T) {
 	if rec.signals[0].Event != "user-prompt-submit" || rec.signals[0].LatestUserPrompt != "/context" {
 		t.Fatalf("first signal = %+v", rec.signals[0])
 	}
-	if rec.signals[1].Event != "stop" || rec.signals[1].LatestAssistantUpdate != svc.slashOutput || rec.signals[1].Harness != "claude-code" {
+	if rec.signals[1].Event != "stop" || rec.signals[1].LatestAssistantUpdate != "```text\n"+svc.slashOutput+"\n```" || rec.signals[1].Harness != "claude-code" {
 		t.Fatalf("second signal = %+v", rec.signals[1])
 	}
 }

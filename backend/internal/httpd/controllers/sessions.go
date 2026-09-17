@@ -1405,7 +1405,7 @@ func (c *SessionsController) recordBuiltinSlashPrompt(r *http.Request, message s
 	reply := ports.ActivitySignal{
 		Event:                 "stop",
 		Harness:               harness,
-		LatestAssistantUpdate: output,
+		LatestAssistantUpdate: "```text\n" + output + "\n```",
 	}
 	if err := c.BlockEvents.Record(r.Context(), sessionID(r), harness, reply); err != nil {
 		slog.Default().Warn("slash reply block recording failed", "session", sessionID(r), "err", err)
