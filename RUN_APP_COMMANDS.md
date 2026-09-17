@@ -161,9 +161,13 @@ triggers a release. Watch it with:
 gh run list --workflow frontend-release.yml --limit 1
 ```
 
-When `publish-feed` finishes, the release `v<version>` holds the installers, their
-`.sig` files and a `latest.json` with absolute download URLs. Every installed app
-picks it up on its next check; nothing else to do.
+The release `v<version>` is created as a draft first, so `/releases/latest` and
+every installed app keep seeing the previous version while the four legs build.
+When `publish-feed` finishes, the draft holds the installers, their `.sig` files
+and a `latest.json` with absolute download URLs, and is published as latest in
+one step. Every installed app picks it up on its next check; nothing else to do.
+A failed run leaves a draft behind; delete it or just push the next bump, which
+reuses it.
 
 Pushing a `desktop-v*` tag by hand still works and triggers the same release.
 

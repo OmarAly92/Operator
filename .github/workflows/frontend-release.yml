@@ -31,7 +31,35 @@ on:
   workflow_dispatch:
 
 jobs:
+  # One draft release per version, created once so the parallel legs cannot
+  # race each other into two drafts. It stays a draft, invisible to
+  # /releases/latest and the installed apps, until publish-feed has uploaded
+  # latest.json; a leg that fails leaves the previous release current.
+  create-release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      tag: ${{ steps.draft.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: draft
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          TAG="v$(node -p "require('./frontend/package.json').version")"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "release $TAG already exists (draft or published); reusing it"
+          else
+            gh release create "$TAG" --draft --target "$GITHUB_SHA" --title "$TAG" \
+              --notes "Operator desktop release ${TAG}."
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
   release:
+    needs: [create-release]
     strategy:
       fail-fast: false
       matrix:
@@ -195,8 +223,6 @@ jobs:
           # The release is keyed off package.json's version (the Tauri bundle
           # stamps that same version), not the triggering git tag.
           TAG="v$(node -p "require('./package.json').version")"
-          gh release create "$TAG" --title "$TAG" \
-            --notes "Operator desktop release ${TAG}." || true
           find dist -type f \( -name '*.zip' -o -name '*.dmg' -o -name '*.exe' -o -name '*.AppImage' -o -name '*.deb' -o -name '*.rpm' -o -name '*.app.tar.gz' -o -name '*.sig' \) -print0 |
             while IFS= read -r -d '' f; do
               echo "uploading: $f"
@@ -254,6 +280,7 @@ jobs:
   # publish-feed waits on it so the x64 entries always ship. Runner is
   # macos-15-intel: macos-13 is deprecated/has no capacity.
   release-intel:
+    needs: [create-release]
     runs-on: macos-15-intel
     environment: release # same approval gate as the matrix release job
     permissions:
@@ -364,7 +391,6 @@ jobs:
           ./scripts/verify-tauri-artifacts.sh --dist dist $STRICT \
             --platform darwin --arch x64 \
             --expect-version "$VERSION" --emit-gates artifact-gates.json
-          gh release create "$TAG" --title "$TAG" --notes "Operator desktop release ${TAG}." || true
           find dist -maxdepth 1 -type f \( -name '*.zip' -o -name '*.dmg' -o -name '*.app.tar.gz' -o -name '*.sig' \) -print0 |
             xargs -0 gh release upload "$TAG" --clobber
           cp "dist/operator-darwin-x64-${VERSION}.zip" operator-darwin-x64.zip
@@ -405,3 +431,6 @@ jobs:
           assets=(dist/latest.json)
           if [ ${#assets[@]} -eq 0 ]; then echo "no feed assets generated" >&2; exit 1; fi
           gh release upload "$TAG" "${assets[@]}" --clobber
+          # Only now does the release become /releases/latest: the feed and
+          # every installer it points at are already in place.
+          gh release edit "$TAG" --draft=false --latest
