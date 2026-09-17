@@ -1474,3 +1474,14 @@ type DesktopResponse struct {
 	Name     string `json:"name" description:"Display name derived from the hostname: trailing .local stripped, hyphens as spaces. Never empty."`
 	Hostname string `json:"hostname" description:"os.Hostname() verbatim; empty if the OS could not report one."`
 }
+
+type SlashCommandView struct {
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	Source      string `json:"source"`
+	Interactive bool   `json:"interactive"`
+}
+
+type SessionSlashCommandsResponse struct {
+	Commands []SlashCommandView `json:"commands"`
+}

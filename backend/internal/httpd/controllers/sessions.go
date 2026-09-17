@@ -30,6 +30,7 @@ import (
 	"github.com/OmarAly92/operator/backend/internal/previewserver"
 	blockeventsvc "github.com/OmarAly92/operator/backend/internal/service/blockevent"
 	sessionsvc "github.com/OmarAly92/operator/backend/internal/service/session"
+	slashcommandssvc "github.com/OmarAly92/operator/backend/internal/service/slashcommands"
 	usagesvc "github.com/OmarAly92/operator/backend/internal/service/usage"
 	sessionmanager "github.com/OmarAly92/operator/backend/internal/session_manager"
 	"github.com/OmarAly92/operator/backend/internal/slashcommands"
@@ -148,6 +149,12 @@ type InteractionReader interface {
 	Interactions(ctx context.Context, sessionID domain.SessionID) ([]domain.PendingInteraction, error)
 }
 
+// SlashCommandLister lists the slash commands, skills and plugin skills a
+// session's harness offers, for the phone's composer menu.
+type SlashCommandLister interface {
+	List(ctx context.Context, sessionID domain.SessionID) ([]slashcommands.Command, error)
+}
+
 // ManagedPreviewServer is the deterministic server lifecycle attached to a
 // worker. It is separate from static file rendering and browser automation.
 type ManagedPreviewServer interface {
@@ -176,6 +183,7 @@ type SessionsController struct {
 	BlockEvents   BlockEventRecorder
 	BlockHistory  BlockEventHistory
 	Interactions  InteractionReader
+	SlashCommands SlashCommandLister
 	Usage         UsageHookRecorder
 	PreviewServer ManagedPreviewServer
 	Capabilities  SessionCapabilityValidator
@@ -216,6 +224,7 @@ func (c *SessionsController) Register(r chi.Router) {
 	r.Post("/sessions/{sessionId}/decision", c.decision)
 	r.Post("/sessions/{sessionId}/answer", c.answer)
 	r.Get("/sessions/{sessionId}/interactions", c.listInteractions)
+	r.Get("/sessions/{sessionId}/slash-commands", c.listSlashCommands)
 	r.Get("/sessions/{sessionId}/draft", c.draft)
 	r.Post("/sessions/{sessionId}/activity", c.activity)
 	r.Post("/sessions/{sessionId}/pin", c.pin)
@@ -1519,6 +1528,27 @@ func (c *SessionsController) listInteractions(w http.ResponseWriter, r *http.Req
 		return
 	}
 	envelope.WriteJSON(w, http.StatusOK, SessionInteractionsResponse{Interactions: sessionInteractionViews(interactions)})
+}
+
+func (c *SessionsController) listSlashCommands(w http.ResponseWriter, r *http.Request) {
+	if c.SlashCommands == nil {
+		apispec.NotImplemented(w, r, "GET", "/api/v1/sessions/{sessionId}/slash-commands")
+		return
+	}
+	commands, err := c.SlashCommands.List(r.Context(), sessionID(r))
+	if err != nil {
+		if errors.Is(err, slashcommandssvc.ErrSessionNotFound) {
+			envelope.WriteAPIError(w, r, http.StatusNotFound, "not_found", "SESSION_NOT_FOUND", "Unknown session", nil)
+			return
+		}
+		envelope.WriteError(w, r, err)
+		return
+	}
+	views := make([]SlashCommandView, 0, len(commands))
+	for _, cmd := range commands {
+		views = append(views, SlashCommandView{Name: cmd.Name, Description: cmd.Description, Source: cmd.Source, Interactive: cmd.Interactive})
+	}
+	envelope.WriteJSON(w, http.StatusOK, SessionSlashCommandsResponse{Commands: views})
 }
 
 func (c *SessionsController) draft(w http.ResponseWriter, r *http.Request) {

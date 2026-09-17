@@ -1,15 +1,19 @@
 package controllers_test
 
 import (
+	"context"
 	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/OmarAly92/operator/backend/internal/config"
 	"github.com/OmarAly92/operator/backend/internal/domain"
 	"github.com/OmarAly92/operator/backend/internal/httpd"
+	slashcommandssvc "github.com/OmarAly92/operator/backend/internal/service/slashcommands"
+	"github.com/OmarAly92/operator/backend/internal/slashcommands"
 )
 
 func newSendWithBlocksServer(t *testing.T, svc *fakeSessionService, rec *fakeBlockEventRecorder) *httptest.Server {
@@ -72,5 +76,62 @@ func TestSendBuiltinOnOtherHarnessRecordsNoBlock(t *testing.T) {
 	}
 	if rec.calls != 0 {
 		t.Fatalf("Record calls = %d, want 0 for a non-claude harness", rec.calls)
+	}
+}
+
+type fakeSlashCommandLister struct {
+	commands []slashcommands.Command
+	err      error
+	gotID    domain.SessionID
+}
+
+func (f *fakeSlashCommandLister) List(_ context.Context, id domain.SessionID) ([]slashcommands.Command, error) {
+	f.gotID = id
+	return f.commands, f.err
+}
+
+func TestListSlashCommands(t *testing.T) {
+	lister := &fakeSlashCommandLister{commands: []slashcommands.Command{
+		{Name: "compact", Description: "Clear conversation history but keep a summary in context", Source: "builtin"},
+		{Name: "model", Description: "Set the AI model for Claude Code", Source: "builtin", Interactive: true},
+		{Name: "sc:analyze", Description: "Comprehensive code analysis", Source: "user"},
+	}}
+	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+	deps := httpd.APIDeps{Sessions: newFakeSessionService(), SlashCommands: lister}
+	srv := httptest.NewServer(httpd.NewRouterWithControl(config.Config{}, log, nil, deps, httpd.ControlDeps{}))
+	t.Cleanup(srv.Close)
+
+	body, status, _ := doRequest(t, srv, http.MethodGet, "/api/v1/sessions/opr-1/slash-commands", "")
+	if status != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", status, body)
+	}
+	if lister.gotID != "opr-1" {
+		t.Fatalf("listed %q, want opr-1", lister.gotID)
+	}
+	want := `{"commands":[` +
+		`{"name":"compact","description":"Clear conversation history but keep a summary in context","source":"builtin","interactive":false},` +
+		`{"name":"model","description":"Set the AI model for Claude Code","source":"builtin","interactive":true},` +
+		`{"name":"sc:analyze","description":"Comprehensive code analysis","source":"user","interactive":false}]}`
+	if strings.TrimSpace(string(body)) != want {
+		t.Fatalf("body:\n got %s\nwant %s", body, want)
+	}
+}
+
+func TestListSlashCommandsUnknownSession(t *testing.T) {
+	lister := &fakeSlashCommandLister{err: slashcommandssvc.ErrSessionNotFound}
+	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+	deps := httpd.APIDeps{Sessions: newFakeSessionService(), SlashCommands: lister}
+	srv := httptest.NewServer(httpd.NewRouterWithControl(config.Config{}, log, nil, deps, httpd.ControlDeps{}))
+	t.Cleanup(srv.Close)
+
+	body, status, _ := doRequest(t, srv, http.MethodGet, "/api/v1/sessions/ghost/slash-commands", "")
+	assertErrorCode(t, body, status, http.StatusNotFound, "SESSION_NOT_FOUND")
+}
+
+func TestListSlashCommandsNotWired(t *testing.T) {
+	srv := newSessionTestServer(t, newFakeSessionService())
+	_, status, _ := doRequest(t, srv, http.MethodGet, "/api/v1/sessions/opr-1/slash-commands", "")
+	if status != http.StatusNotImplemented {
+		t.Fatalf("status = %d, want 501 when the lister is nil", status)
 	}
 }

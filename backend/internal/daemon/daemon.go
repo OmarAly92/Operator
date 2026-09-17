@@ -44,6 +44,7 @@ import (
 	prsvc "github.com/OmarAly92/operator/backend/internal/service/pr"
 	projectsvc "github.com/OmarAly92/operator/backend/internal/service/project"
 	settingssvc "github.com/OmarAly92/operator/backend/internal/service/settings"
+	slashcommandssvc "github.com/OmarAly92/operator/backend/internal/service/slashcommands"
 	terminalblocksvc "github.com/OmarAly92/operator/backend/internal/service/terminalblock"
 	capturesvc "github.com/OmarAly92/operator/backend/internal/service/terminalcapture"
 	usagesvc "github.com/OmarAly92/operator/backend/internal/service/usage"
@@ -411,6 +412,7 @@ func Run() error {
 		BlockEvents:         blockEvents,
 		BlockHistory:        blockEvents,
 		Interactions:        sessMgr,
+		SlashCommands:       slashcommandssvc.New(store, agents, claudeAccounts),
 		UsageHooks:          usageCollector,
 		UsageSummary:        usagesvc.NewSummaryReader(store),
 		Telemetry:           telemetrySink,

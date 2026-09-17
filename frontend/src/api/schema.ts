@@ -1326,6 +1326,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/sessions/{sessionId}/slash-commands": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List the slash commands, skills and plugin skills available to a session */
+        get: operations["listSessionSlashCommands"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/sessions/{sessionId}/switch-agent": {
         parameters: {
             query?: never;
@@ -1840,6 +1857,9 @@ export interface components {
         ControllersSessionInteractionsResponse: {
             interactions: components["schemas"]["ControllersSessionInteraction"][];
         };
+        ControllersSessionSlashCommandsResponse: {
+            commands: components["schemas"]["ControllersSlashCommandView"][];
+        };
         ControllersSessionView: {
             activity: components["schemas"]["DomainActivity"];
             autoInjectReview: boolean;
@@ -1881,6 +1901,12 @@ export interface components {
             /** @enum {string} */
             workspaceMode?: "worktree" | "in_place";
             workspacePath?: string;
+        };
+        ControllersSlashCommandView: {
+            description: string;
+            interactive: boolean;
+            name: string;
+            source: string;
         };
         CreateClaudeAccountRequest: {
             label: string;
@@ -7662,6 +7688,56 @@ export interface operations {
             };
             /** @description Internal Server Error */
             500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    listSessionSlashCommands: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Session identifier, e.g. project-1. */
+                sessionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ControllersSessionSlashCommandsResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
                 headers: {
                     [name: string]: unknown;
                 };

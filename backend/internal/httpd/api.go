@@ -39,7 +39,10 @@ type APIDeps struct {
 	BlockHistory controllers.BlockEventHistory
 	// Interactions serves a session's currently pending dialogs, for reconnect
 	// reconciliation.
-	Interactions        controllers.InteractionReader
+	Interactions controllers.InteractionReader
+	// SlashCommands lists the slash commands a session's harness offers, for
+	// the phone's composer menu. Nil answers 501.
+	SlashCommands       controllers.SlashCommandLister
 	UsageHooks          controllers.UsageHookRecorder
 	UsageSummary        controllers.UsageSummaryService
 	PRs                 prsvc.ActionManager
@@ -109,6 +112,7 @@ func NewAPI(cfg config.Config, deps APIDeps) *API {
 			BlockEvents:   deps.BlockEvents,
 			BlockHistory:  deps.BlockHistory,
 			Interactions:  deps.Interactions,
+			SlashCommands: deps.SlashCommands,
 			Usage:         deps.UsageHooks,
 			PreviewServer: deps.PreviewServer,
 			Capabilities:  deps.SessionCapabilities,

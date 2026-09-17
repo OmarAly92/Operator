@@ -1674,6 +1674,17 @@ func sessionOperations() []operation {
 			},
 		},
 		{
+			method: http.MethodGet, path: "/api/v1/sessions/{sessionId}/slash-commands", id: "listSessionSlashCommands", tag: "sessions",
+			summary:    "List the slash commands, skills and plugin skills available to a session",
+			pathParams: []any{controllers.SessionIDParam{}},
+			resps: []respUnit{
+				{http.StatusOK, controllers.SessionSlashCommandsResponse{}},
+				{http.StatusNotFound, envelope.APIError{}},
+				{http.StatusInternalServerError, envelope.APIError{}},
+				{http.StatusNotImplemented, envelope.APIError{}},
+			},
+		},
+		{
 			method: http.MethodGet, path: "/api/v1/sessions/{sessionId}/draft", id: "getSessionDraft", tag: "sessions",
 			summary:    "Read a session's unsent composer draft",
 			pathParams: []any{controllers.SessionIDParam{}},
