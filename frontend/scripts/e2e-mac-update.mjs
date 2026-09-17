@@ -207,6 +207,38 @@ async function waitFor(label, timeoutMs, check) {
 // removeRunFile clears a stale daemon handshake without treating an arbitrary
 // JSON file as disposable harness state. The daemon always writes pid, port and
 // startedAt; require that complete shape whenever a target already exists.
+// A relaunch must not race the previous instance: the shell installs during
+// its exit handler and its daemon keeps the port until it is gone, so wait for
+// both before clearing the run file.
+async function waitForShutdown(opts) {
+	await waitFor("the previous app process to exit", opts.swapTimeoutMs, () => !isAppRunning(opts.app));
+	await waitFor("the previous daemon to release its port", opts.swapTimeoutMs, async () => {
+		try {
+			return !(await isDaemonAlive(opts.runFile));
+		} catch {
+			return true;
+		}
+	});
+	removeRunFile(opts.runFile);
+}
+
+function dumpRelaunchState(opts) {
+	const show = (label, fn) => {
+		try {
+			console.error(`--- ${label}\n${fn()}`);
+		} catch (error) {
+			console.error(`--- ${label}: ${error.message}`);
+		}
+	};
+	show("run file", () => (existsSync(opts.runFile) ? readFileSync(opts.runFile, "utf8") : "(absent)"));
+	show("operator processes", () => execFileSync("pgrep", ["-fl", "Operator.app|/opr"], { stdio: "pipe" }).toString());
+	show("panic report", () => {
+		const report = join(opts.stateDir, "rust-panic-report");
+		return existsSync(report) ? readFileSync(report, "utf8") : "(none)";
+	});
+	show("listeners", () => execFileSync("lsof", ["-nP", "-iTCP", "-sTCP:LISTEN"], { stdio: "pipe" }).toString());
+}
+
 export function isAppRunning(app) {
 	try {
 		execFileSync("pgrep", ["-f", join(app, "Contents", "MacOS", "")], { stdio: "pipe" });
@@ -296,8 +328,7 @@ async function run(opts) {
 	console.log("auto-updates enabled; relaunching for the launch-time check");
 
 	quitApp(opts.appName);
-	await sleep(5000);
-	removeRunFile(opts.runFile);
+	await waitForShutdown(opts);
 	spawn(join(opts.app, "Contents", "MacOS", plistValue(opts.app, "CFBundleExecutable")), [], {
 		env,
 		stdio: "inherit",
@@ -321,16 +352,20 @@ async function run(opts) {
 		// The old process installs during its exit handler and then stops its
 		// daemon; relaunching before it is gone races the new daemon against
 		// the old one for the port.
-		await waitFor("the previous app process to exit", opts.swapTimeoutMs, () => !isAppRunning(opts.app));
-		removeRunFile(opts.runFile);
+		await waitForShutdown(opts);
 		spawn(join(opts.app, "Contents", "MacOS", plistValue(opts.app, "CFBundleExecutable")), [], {
 			env,
 			stdio: "inherit",
 			detached: false,
 		}).unref();
-		await waitFor("the relaunched app's daemon to answer /healthz", opts.launchTimeoutMs, () =>
-			isDaemonAlive(opts.runFile),
-		);
+		try {
+			await waitFor("the relaunched app's daemon to answer /healthz", opts.launchTimeoutMs, () =>
+				isDaemonAlive(opts.runFile),
+			);
+		} catch (error) {
+			dumpRelaunchState(opts);
+			throw error;
+		}
 	}
 
 	quitApp(opts.appName);
