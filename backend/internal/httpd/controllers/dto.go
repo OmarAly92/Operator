@@ -612,6 +612,9 @@ type RelaunchAgentRequest struct {
 	// KeepPrompt re-delivers the session's saved task prompt into the new
 	// conversation. Default false starts the agent with its system prompt only.
 	KeepPrompt bool `json:"keepPrompt,omitempty"`
+	// ClaudeAccountID moves a claude-code session onto another Claude account
+	// before the relaunch. Omit to keep the session's current account.
+	ClaudeAccountID domain.ClaudeAccountID `json:"claudeAccountId,omitempty" maxLength:"64"`
 }
 
 // RelaunchAgentResponse is the body of POST /api/v1/sessions/{sessionId}/relaunch-agent.
@@ -1283,6 +1286,7 @@ type ClaudeAccountStatus struct {
 	LoggedIn         *bool      `json:"loggedIn"`
 	SubscriptionType string     `json:"subscriptionType,omitempty"`
 	ReportedEmail    string     `json:"reportedEmail,omitempty"`
+	ReportedOrgID    string     `json:"reportedOrgId,omitempty"`
 	CheckedAt        *time.Time `json:"checkedAt,omitempty"`
 }
 

@@ -67,8 +67,21 @@ func (f *fakeStore) CreateSession(_ context.Context, rec domain.SessionRecord) (
 	return rec, nil
 }
 func (f *fakeStore) UpdateSession(_ context.Context, rec domain.SessionRecord) error {
+	prev, ok := f.sessions[rec.ID]
+	if ok {
+		rec.ClaudeAccountID = prev.ClaudeAccountID
+	}
 	f.sessions[rec.ID] = rec
 	return nil
+}
+func (f *fakeStore) SetSessionClaudeAccount(_ context.Context, id domain.SessionID, account domain.ClaudeAccountID, _ time.Time) (bool, error) {
+	rec, ok := f.sessions[id]
+	if !ok {
+		return false, nil
+	}
+	rec.ClaudeAccountID = account
+	f.sessions[id] = rec
+	return true, nil
 }
 func (f *fakeStore) RecordSessionLatestUserPrompt(_ context.Context, id domain.SessionID, prompt string, updatedAt time.Time) (bool, error) {
 	rec, ok := f.sessions[id]
@@ -6701,7 +6714,7 @@ func TestRelaunchAgentFresh_BypassesNativeResumeAndMintsFreshID(t *testing.T) {
 	agent := &callerAssignedAgent{}
 	m, _, runtime := newRelaunchManager(t, agent)
 
-	result, err := m.RelaunchAgentFresh(ctx, "mer-1", false)
+	result, err := m.RelaunchAgentFresh(ctx, "mer-1", RelaunchAgentConfig{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -6729,7 +6742,7 @@ func TestRelaunchAgentFresh_AcceptsLiveAgentAndReusesHandle(t *testing.T) {
 	if _, err := m.ResumeAgentWithMode(ctx, "mer-1"); !errors.Is(err, ErrAgentNotExited) {
 		t.Fatalf("precondition: resume of a live agent = %v, want ErrAgentNotExited", err)
 	}
-	if _, err := m.RelaunchAgentFresh(ctx, "mer-1", false); err != nil {
+	if _, err := m.RelaunchAgentFresh(ctx, "mer-1", RelaunchAgentConfig{}); err != nil {
 		t.Fatalf("relaunch of a live agent: %v", err)
 	}
 	if runtime.destroyed != 1 || !slices.Contains(runtime.destroyedIDs, "pty-mer-1") {
@@ -6744,7 +6757,7 @@ func TestRelaunchAgentFresh_ClearsConversationWithoutDestroyingSavedPrompt(t *te
 	agent := &callerAssignedAgent{}
 	m, st, _ := newRelaunchManager(t, agent)
 
-	if _, err := m.RelaunchAgentFresh(ctx, "mer-1", false); err != nil {
+	if _, err := m.RelaunchAgentFresh(ctx, "mer-1", RelaunchAgentConfig{}); err != nil {
 		t.Fatal(err)
 	}
 	if agent.lastLaunch.Prompt != "" {
@@ -6763,7 +6776,7 @@ func TestRelaunchAgentFresh_KeepPromptReplaysSavedTask(t *testing.T) {
 	agent := &callerAssignedAgent{}
 	m, _, _ := newRelaunchManager(t, agent)
 
-	result, err := m.RelaunchAgentFresh(ctx, "mer-1", true)
+	result, err := m.RelaunchAgentFresh(ctx, "mer-1", RelaunchAgentConfig{KeepPrompt: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -6785,10 +6798,64 @@ func TestRelaunchAgentFresh_RejectsTerminatedSession(t *testing.T) {
 	rec.IsTerminated = true
 	st.sessions["mer-1"] = rec
 
-	if _, err := m.RelaunchAgentFresh(ctx, "mer-1", false); !errors.Is(err, ErrTerminated) {
+	if _, err := m.RelaunchAgentFresh(ctx, "mer-1", RelaunchAgentConfig{}); !errors.Is(err, ErrTerminated) {
 		t.Fatalf("relaunch of a terminated session = %v, want ErrTerminated", err)
 	}
 	if runtime.created != 0 || runtime.destroyed != 0 {
 		t.Fatalf("rejected relaunch touched the runtime: created=%d destroyed=%d", runtime.created, runtime.destroyed)
+	}
+}
+
+func newClaudeRelaunchManager(t *testing.T, agent ports.Agent) (*Manager, *fakeStore, *fakeRuntime) {
+	t.Helper()
+	m, st, runtime := newRelaunchManager(t, agent)
+	accounts := newFakeClaudeAccounts()
+	m.claudeAccounts = accounts
+	rec := st.sessions["mer-1"]
+	rec.Harness = domain.HarnessClaudeCode
+	rec.ClaudeAccountID = domain.DefaultClaudeAccountID
+	st.sessions["mer-1"] = rec
+	return m, st, runtime
+}
+
+func TestRelaunchAgentFresh_SwitchesClaudeAccount(t *testing.T) {
+	agent := &callerAssignedAgent{}
+	m, st, runtime := newClaudeRelaunchManager(t, agent)
+
+	if _, err := m.RelaunchAgentFresh(ctx, "mer-1", RelaunchAgentConfig{ClaudeAccountID: "personal"}); err != nil {
+		t.Fatal(err)
+	}
+	if got := st.sessions["mer-1"].ClaudeAccountID; got != "personal" {
+		t.Fatalf("stored account = %q, want personal", got)
+	}
+	if got := runtime.lastCfg.Env[domain.ClaudeConfigDirEnv]; got != "/Users/u/.claude-personal" {
+		t.Fatalf("launch CLAUDE_CONFIG_DIR = %q, want the personal account folder", got)
+	}
+}
+
+func TestRelaunchAgentFresh_RejectsUnknownClaudeAccount(t *testing.T) {
+	agent := &callerAssignedAgent{}
+	m, st, _ := newClaudeRelaunchManager(t, agent)
+
+	_, err := m.RelaunchAgentFresh(ctx, "mer-1", RelaunchAgentConfig{ClaudeAccountID: "missing"})
+	if !errors.Is(err, domain.ErrInvalidClaudeAccount) {
+		t.Fatalf("relaunch on unknown account = %v, want ErrInvalidClaudeAccount", err)
+	}
+	if agent.launchCalls != 0 || st.sessions["mer-1"].ClaudeAccountID != domain.DefaultClaudeAccountID {
+		t.Fatalf("rejected relaunch had side effects: launches=%d account=%q", agent.launchCalls, st.sessions["mer-1"].ClaudeAccountID)
+	}
+}
+
+func TestRelaunchAgentFresh_RejectsClaudeAccountOnOtherHarness(t *testing.T) {
+	agent := &callerAssignedAgent{}
+	m, _, _ := newRelaunchManager(t, agent)
+	m.claudeAccounts = newFakeClaudeAccounts()
+
+	_, err := m.RelaunchAgentFresh(ctx, "mer-1", RelaunchAgentConfig{ClaudeAccountID: "personal"})
+	if !errors.Is(err, domain.ErrInvalidClaudeAccount) {
+		t.Fatalf("codex relaunch with an account = %v, want ErrInvalidClaudeAccount", err)
+	}
+	if agent.launchCalls != 0 {
+		t.Fatalf("rejected relaunch launched %d times", agent.launchCalls)
 	}
 }

@@ -209,6 +209,23 @@ func (s *Store) SetSessionAutoInjectReview(ctx context.Context, id domain.Sessio
 	return rows > 0, nil
 }
 
+// SetSessionClaudeAccount moves one session onto another Claude account.
+// UpdateSession deliberately leaves claude_account_id alone so a stale record
+// cannot clobber an in-flight agent switch; this is the only other writer.
+func (s *Store) SetSessionClaudeAccount(ctx context.Context, id domain.SessionID, account domain.ClaudeAccountID, updatedAt time.Time) (bool, error) {
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
+	rows, err := s.qw.SetSessionClaudeAccount(ctx, gen.SetSessionClaudeAccountParams{
+		ClaudeAccountID: domain.NormalizeClaudeAccountID(account),
+		UpdatedAt:       updatedAt,
+		ID:              id,
+	})
+	if err != nil {
+		return false, fmt.Errorf("set claude account for %s: %w", id, err)
+	}
+	return rows > 0, nil
+}
+
 // SetSessionReviewerHarness persists the reviewer preference for one session.
 func (s *Store) SetSessionReviewerHarness(ctx context.Context, id domain.SessionID, harness domain.ReviewerHarness, updatedAt time.Time) (bool, error) {
 	s.writeMu.Lock()

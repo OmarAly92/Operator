@@ -72,6 +72,7 @@ func claudeAccountView(view claudeaccountssvc.AccountView) ClaudeAccountView {
 		LoggedIn:         view.Status.LoggedIn,
 		SubscriptionType: view.Status.SubscriptionType,
 		ReportedEmail:    view.Status.ReportedEmail,
+		ReportedOrgID:    view.Status.ReportedOrgID,
 	}
 	if !view.Status.CheckedAt.IsZero() {
 		checked := view.Status.CheckedAt

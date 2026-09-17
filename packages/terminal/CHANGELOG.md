@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+A process boundary mark ends the current block and starts a fresh one.
+
+- `OSC 7000 ; v=1 ; boundary=<exit>` tells `vt-core` the process that owned
+  the pty has been replaced in place (tmux `respawn-pane`). It closes the open
+  block with that exit code, or turns the markless rows so far into a finished
+  synthetic block, then moves the whole frame into scrollback and homes the
+  cursor, even when clears are in place (agent TUI mode). Output after it lands
+  in a new running synthetic block, so a relaunched agent gets its own block
+  instead of painting over the previous frame.
+- Markless rows before the first `OSC 133 ; A` are now their own abandoned
+  synthetic block rather than rows no block owns, and markless rows after the
+  last closed block are a running synthetic block. Both keep every row in the
+  snapshot renderable.
+
 A host can put keyboard focus in the terminal.
 
 - `TerminalSurface` takes a `focusToken`. Each new value moves focus into the

@@ -69,3 +69,36 @@ func TestProcessEnvironmentDoesNotInheritLauncherNoColor(t *testing.T) {
 		t.Fatalf("explicit NO_COLOR override lost: %q", value)
 	}
 }
+
+func TestHostProcessEnvironmentRecordsTheSessionKeys(t *testing.T) {
+	env := hostProcessEnvironment(map[string]string{"ZETA": "1", "ALPHA": "2"})
+
+	if got, ok := envValue(env, sessionEnvKeysVar); !ok || got != "ALPHA,ZETA" {
+		t.Fatalf("%s = %q (present %v), want the sorted session keys", sessionEnvKeysVar, got, ok)
+	}
+	if got, _ := envValue(env, "ALPHA"); got != "2" {
+		t.Fatalf("ALPHA = %q, want 2", got)
+	}
+}
+
+func TestRespawnEnvironmentDropsSessionKeysTheNewOverlayOmits(t *testing.T) {
+	t.Setenv(sessionEnvKeysVar, "OPERATOR_RESPAWN_PROBE_GONE,OPERATOR_RESPAWN_PROBE_KEPT")
+	t.Setenv("OPERATOR_RESPAWN_PROBE_GONE", "stale")
+	t.Setenv("OPERATOR_RESPAWN_PROBE_KEPT", "stale")
+	t.Setenv("OPERATOR_RESPAWN_PROBE_BASE", "base")
+
+	env := respawnEnvironment(map[string]string{"OPERATOR_RESPAWN_PROBE_KEPT": "fresh"})
+
+	if value, ok := envValue(env, "OPERATOR_RESPAWN_PROBE_GONE"); ok {
+		t.Fatalf("a session key the respawn omitted survived from the host's own environment: %q", value)
+	}
+	if got, _ := envValue(env, "OPERATOR_RESPAWN_PROBE_KEPT"); got != "fresh" {
+		t.Fatalf("kept key = %q, want fresh", got)
+	}
+	if got, _ := envValue(env, "OPERATOR_RESPAWN_PROBE_BASE"); got != "base" {
+		t.Fatalf("base environment lost: %q", got)
+	}
+	if value, ok := envValue(env, sessionEnvKeysVar); ok {
+		t.Fatalf("%s leaked into the child: %q", sessionEnvKeysVar, value)
+	}
+}

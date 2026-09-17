@@ -36,7 +36,7 @@ vi.mock("../hooks/useRelaunchAgent", () => ({
 
 vi.mock("../hooks/useClaudeAccounts", async (importOriginal) => {
 	const actual = await importOriginal<typeof import("../hooks/useClaudeAccounts")>();
-	return { ...actual, useClaudeAccounts: () => ({ data: [] }) };
+	return { ...actual, useClaudeAccounts: () => ({ data: claudeAccountsMock.accounts }) };
 });
 
 vi.mock("./TerminalSwitchAgentButton", () => ({
@@ -78,6 +78,23 @@ const relaunchMocks = vi.hoisted(() => ({
 	mutateAsync: vi.fn(),
 	isPending: false,
 }));
+
+const claudeAccountsMock = vi.hoisted(() => ({
+	accounts: [] as Array<{
+		id: string;
+		label: string;
+		configDir: string;
+		isDefault: boolean;
+		isPreferred: boolean;
+		sharedSetup: null;
+		status: { loggedIn: boolean };
+	}>,
+}));
+
+const claudeAccountFixtures = [
+	{ id: "default", label: "Work", configDir: "/a", isDefault: true, isPreferred: false, sharedSetup: null, status: { loggedIn: true } },
+	{ id: "personal", label: "Personal", configDir: "/b", isDefault: false, isPreferred: true, sharedSetup: null, status: { loggedIn: true } },
+];
 
 const worker = {
 	id: "sess-1",
@@ -121,6 +138,7 @@ beforeEach(() => {
 	relaunchMocks.mutateAsync.mockReset();
 	relaunchMocks.mutateAsync.mockResolvedValue(undefined);
 	relaunchMocks.isPending = false;
+	claudeAccountsMock.accounts = [];
 });
 
 describe("CenterPane toolbar session label", () => {
@@ -608,6 +626,37 @@ describe("agent tab relaunch menu", () => {
 			fireEvent.click(screen.getByRole("button", { name: "Relaunch" }));
 		});
 		expect(relaunchMocks.mutateAsync).toHaveBeenCalledWith({ sessionId: "sess-1", keepPrompt: true });
+	});
+
+	it("lists the other Claude accounts for a Claude session and relaunches on the chosen one", async () => {
+		claudeAccountsMock.accounts = claudeAccountFixtures;
+		renderCenterPane({ session: { ...worker, kind: "orchestrator", claudeAccountId: "default" } });
+		openTabMenu(/Orchestrator/);
+		const trigger = screen.getByRole("menuitem", { name: /^Claude account/ });
+		fireEvent.pointerMove(trigger);
+		fireEvent.click(trigger);
+		const personal = await screen.findByRole("menuitem", { name: "Personal" });
+		expect(screen.getByRole("menuitem", { name: "Work" })).toHaveAttribute("data-disabled");
+
+		fireEvent.click(personal);
+		expect(relaunchMocks.mutateAsync).not.toHaveBeenCalled();
+		expect(screen.getByText("Switch to Personal?")).toBeInTheDocument();
+
+		await act(async () => {
+			fireEvent.click(screen.getByRole("button", { name: "Relaunch" }));
+		});
+		expect(relaunchMocks.mutateAsync).toHaveBeenCalledWith({
+			sessionId: "sess-1",
+			keepPrompt: false,
+			claudeAccountId: "personal",
+		});
+	});
+
+	it("hides the account submenu for non-Claude sessions", () => {
+		claudeAccountsMock.accounts = claudeAccountFixtures;
+		renderCenterPane({ session: { ...worker, provider: "codex" } });
+		openTabMenu(/do the thing/);
+		expect(screen.queryByRole("menuitem", { name: /^Claude account/ })).not.toBeInTheDocument();
 	});
 
 	it("disables relaunch for a terminated session", () => {

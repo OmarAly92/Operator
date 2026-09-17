@@ -6,6 +6,8 @@ export type RelaunchAgentInput = {
 	sessionId: string;
 	/** Re-deliver the session's saved task prompt into the new conversation. */
 	keepPrompt: boolean;
+	/** Move a claude-code session onto another Claude account before relaunching. */
+	claudeAccountId?: string;
 };
 
 export const relaunchAgentMutationKey = ["relaunch-agent"] as const;
@@ -23,12 +25,12 @@ export function useRelaunchAgent() {
 	const queryClient = useQueryClient();
 	return useMutation({
 		mutationKey: relaunchAgentMutationKey,
-		mutationFn: async ({ sessionId, keepPrompt }: RelaunchAgentInput) => {
+		mutationFn: async ({ sessionId, keepPrompt, claudeAccountId }: RelaunchAgentInput) => {
 			const { data, error, response } = await apiClient.POST(
 				"/api/v1/sessions/{sessionId}/relaunch-agent",
 				{
 					params: { path: { sessionId } },
-					body: { keepPrompt },
+					body: claudeAccountId ? { keepPrompt, claudeAccountId } : { keepPrompt },
 				},
 			);
 			if (error) {

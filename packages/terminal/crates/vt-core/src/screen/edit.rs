@@ -42,6 +42,19 @@ impl ScreenGrid {
         }
     }
 
+    pub fn evict_frame(&mut self) {
+        let frame = self.frame_rows();
+        let (top, bottom) = (self.scroll_top, self.scroll_bottom);
+        self.scroll_top = 0;
+        self.scroll_bottom = self.rows() - 1;
+        self.scroll_up(frame);
+        self.scroll_top = top;
+        self.scroll_bottom = bottom;
+        self.max_cursor_row = 0;
+        self.move_to(0, 0);
+        self.pending_wrap = false;
+    }
+
     pub fn erase_in_line(&mut self, mode: u16) {
         let (row, col) = self.cursor();
         let cols = self.cols();

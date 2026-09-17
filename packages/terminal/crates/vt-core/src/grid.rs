@@ -127,7 +127,7 @@ pub(crate) fn build_snapshot(
             bookmarked: false,
         }]
     } else {
-        let mut records = Vec::with_capacity(grid.blocks().count());
+        let mut records = Vec::with_capacity(grid.blocks().count() + 1);
         for block in grid.blocks() {
             let command = append_block_text(&mut block_text, &block.meta.command)?;
             let cwd = append_block_text(&mut block_text, &block.meta.cwd)?;
@@ -156,6 +156,24 @@ pub(crate) fn build_snapshot(
                 cwd,
                 git_branch,
                 bookmarked: block.meta.bookmarked,
+            });
+        }
+        let covered_end = grid.covered_end();
+        let trailing_has_content = !grid.has_open_block()
+            && (covered_end..row_ranges.len()).any(|row| row_ranges[row].1 > row_ranges[row].0);
+        if trailing_has_content {
+            records.push(BlockRecord {
+                id: grid.next_id(),
+                first_row: checked_u32(covered_end)?,
+                row_count: checked_u32(row_ranges.len() - covered_end)?,
+                state: BlockState::Running,
+                source: BlockSource::Synthetic,
+                exit_code: None,
+                duration_ms: None,
+                command: TextSpan::default(),
+                cwd: TextSpan::default(),
+                git_branch: TextSpan::default(),
+                bookmarked: false,
             });
         }
         records

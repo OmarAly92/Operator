@@ -57,6 +57,7 @@ import { restartProjectOrchestrator } from "../lib/restart-orchestrator";
 import { prBrowserUrl, sessionPRDisplaySummaries } from "../lib/pr-display";
 import { formatTimeCompact } from "../lib/format-time";
 import { formatTokenCount } from "../lib/format-token-count";
+import { SessionClaudeAccountChip } from "./SessionClaudeAccountChip";
 import { operatorBridge } from "../lib/bridge";
 import { usesPreviewWorkspaceData } from "../lib/preview-mode";
 import { cn } from "../lib/utils";
@@ -999,6 +1000,10 @@ function SessionCard({
 							{branchAction}
 						</div>
 					)}
+					<SessionClaudeAccountChip
+						className="mt-1 rounded-sm border border-border bg-surface px-1 py-px text-micro text-passive"
+						session={session}
+					/>
 				</div>
 			</div>
 			<div aria-hidden="true" className="mx-3.5 my-px h-px bg-border" />

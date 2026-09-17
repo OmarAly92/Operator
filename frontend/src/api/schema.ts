@@ -1798,6 +1798,7 @@ export interface components {
             checkedAt?: null | string;
             loggedIn: null | boolean;
             reportedEmail?: string;
+            reportedOrgId?: string;
             subscriptionType?: string;
         };
         ClaudeAccountView: {
@@ -1830,6 +1831,7 @@ export interface components {
             disabled?: boolean;
         };
         ControllersRelaunchAgentRequest: {
+            claudeAccountId?: string;
             keepPrompt?: boolean;
         };
         ControllersRelaunchAgentResponse: {

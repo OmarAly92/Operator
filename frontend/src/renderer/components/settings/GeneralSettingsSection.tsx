@@ -4,6 +4,7 @@ import type { AppLocale } from "../../i18n";
 import { useLocaleStore } from "../../stores/locale-store";
 import { useUiStore } from "../../stores/ui-store";
 import { TERMINAL_BACKGROUNDS, type TerminalBackground } from "../../lib/terminal-background";
+import { TERMINAL_FONT_SIZES, clampTerminalFontSize } from "../../lib/terminal-font-size";
 import { SettingsOptionMenu, type SettingsOption } from "./SettingsOptionMenu";
 import { SettingsLinkRow, SettingsRow } from "./SettingsRow";
 import { SettingsSection } from "./SettingsSection";
@@ -45,6 +46,8 @@ export function GeneralSettingsSection({
 	const setThemeStyle = useUiStore((state) => state.setThemeStyle);
 	const terminalBackground = useUiStore((state) => state.terminalBackground);
 	const setTerminalBackground = useUiStore((state) => state.setTerminalBackground);
+	const terminalFontSize = useUiStore((state) => state.terminalFontSize);
+	const setTerminalFontSize = useUiStore((state) => state.setTerminalFontSize);
 	const locale = useLocaleStore((state) => state.locale);
 	const setLocale = useLocaleStore((state) => state.setLocale);
 	const localeSaving = useLocaleStore((state) => state.saving);
@@ -64,6 +67,11 @@ export function GeneralSettingsSection({
 		label: t(option.labelKey),
 		icon: <ColorChip color={option.color} />,
 	})) satisfies SettingsOption<TerminalBackground>[];
+
+	const terminalFontSizeOptions = TERMINAL_FONT_SIZES.map((size) => ({
+		value: String(size),
+		label: t("settings.terminalFontSize.value", { size }),
+	})) satisfies SettingsOption<string>[];
 
 	const languageOptions = [
 		{ value: "en", label: t("settings.language.en") },
@@ -100,6 +108,14 @@ export function GeneralSettingsSection({
 					value={themePreference}
 					options={themeOptions}
 					onChange={setThemePreference}
+				/>
+			</SettingsRow>
+			<SettingsRow label={t("settings.terminalFontSize")}>
+				<SettingsOptionMenu
+					aria-label={t("settings.terminalFontSize")}
+					value={String(terminalFontSize)}
+					options={terminalFontSizeOptions}
+					onChange={(next) => setTerminalFontSize(clampTerminalFontSize(Number(next)))}
 				/>
 			</SettingsRow>
 			<SettingsRow label={t("settings.language")}>

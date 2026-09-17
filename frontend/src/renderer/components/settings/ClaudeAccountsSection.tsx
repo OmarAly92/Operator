@@ -6,6 +6,7 @@ import {
 	claudeAccountPlanLabel,
 	claudeAccountSlug,
 	type ClaudeAccount,
+	sharedClaudeLogins,
 	useClaudeAccountLogin,
 	useClaudeAccounts,
 	useCreateClaudeAccount,
@@ -111,6 +112,7 @@ export function ClaudeAccountsSection({ titleHidden }: { titleHidden?: boolean }
 	};
 
 	const accounts = accountsQuery.data ?? [];
+	const sharedLogins = sharedClaudeLogins(accounts);
 	const slug = claudeAccountSlug(label);
 
 	return (
@@ -122,6 +124,7 @@ export function ClaudeAccountsSection({ titleHidden }: { titleHidden?: boolean }
 					.filter(([, state]) => state === "replaced")
 					.map(([name]) => name)
 					.sort();
+				const sameLoginAs = sharedLogins.get(account.id);
 				const isRenaming = renaming?.id === account.id;
 				const menuAction = (fn: () => Promise<unknown>) => () => {
 					setError(null);
@@ -208,6 +211,9 @@ export function ClaudeAccountsSection({ titleHidden }: { titleHidden?: boolean }
 							<span className="truncate font-mono">{account.configDir}</span>
 							{account.status?.reportedEmail ? <span className="truncate">{account.status.reportedEmail}</span> : null}
 						</div>
+						{sameLoginAs ? (
+							<p className="text-caption text-warning">{t("settings.claudeAccounts.sameLogin", { labels: sameLoginAs.join(", ") })}</p>
+						) : null}
 						{replaced.length > 0 ? (
 							<div className="flex items-center gap-2 text-caption text-warning">
 								<span>{t("settings.claudeAccounts.setupReplaced", { items: replaced.join(", ") })}</span>

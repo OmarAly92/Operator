@@ -89,7 +89,7 @@ type SessionService interface {
 	Get(ctx context.Context, id domain.SessionID) (domain.Session, error)
 	Restore(ctx context.Context, id domain.SessionID, grid ports.PaneGrid) (sessionsvc.RestoreOutcome, error)
 	ResumeAgent(ctx context.Context, id domain.SessionID) (sessionsvc.ResumeAgentOutcome, error)
-	RelaunchAgent(ctx context.Context, id domain.SessionID, keepPrompt bool) (sessionsvc.ResumeAgentOutcome, error)
+	RelaunchAgent(ctx context.Context, id domain.SessionID, cfg sessionmanager.RelaunchAgentConfig) (sessionsvc.ResumeAgentOutcome, error)
 	SwitchAgent(ctx context.Context, id domain.SessionID, in sessionsvc.SwitchAgentInput) (domain.AgentSwitch, error)
 	ListAgentSwitches(ctx context.Context, id domain.SessionID) ([]domain.AgentSwitch, error)
 	SubmitAgentHandoff(ctx context.Context, id domain.SessionID, switchID domain.AgentSwitchID, sourceGenerationID domain.AgentGenerationID, handoff json.RawMessage) (domain.AgentSwitch, error)
@@ -1159,7 +1159,7 @@ func (c *SessionsController) relaunchAgent(w http.ResponseWriter, r *http.Reques
 			return
 		}
 	}
-	out, err := c.Svc.RelaunchAgent(r.Context(), sessionID(r), req.KeepPrompt)
+	out, err := c.Svc.RelaunchAgent(r.Context(), sessionID(r), sessionmanager.RelaunchAgentConfig{KeepPrompt: req.KeepPrompt, ClaudeAccountID: req.ClaudeAccountID})
 	if err != nil {
 		envelope.WriteError(w, r, err)
 		return

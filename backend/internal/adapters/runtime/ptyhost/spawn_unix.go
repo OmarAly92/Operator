@@ -28,7 +28,7 @@ func defaultSpawnHost(ctx context.Context, sessionID, cwd string, argv []string,
 	args := hostArgs(sessionID, cwd, argv, cols, rows)
 	cmd := exec.Command(exe, args...)
 	cmd.Dir = cwd
-	cmd.Env = processEnvironment(env)
+	cmd.Env = hostProcessEnvironment(env)
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
 
 	stdout, err := cmd.StdoutPipe()

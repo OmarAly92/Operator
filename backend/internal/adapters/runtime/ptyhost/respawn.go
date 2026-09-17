@@ -5,12 +5,21 @@ package ptyhost
 import (
 	"encoding/json"
 	"net"
+	"strconv"
 	"time"
 
 	"github.com/OmarAly92/operator/backend/internal/adapters/runtime/ptyhost/vtwasm"
 )
 
 const respawnCloseTimeout = 5 * time.Second
+
+func respawnBoundary(exitCode int, exited bool) []byte {
+	code := ""
+	if exited {
+		code = strconv.Itoa(exitCode)
+	}
+	return []byte("\x1b[?1049l\x1b[0m\x1b]7000;v=1;boundary=" + code + "\x07")
+}
 
 // handleRespawn runs the nine-step respawn sequence for a MsgRespawnReq and
 // replies with a MsgRespawnRes. respawnMu serializes this against any other
@@ -33,6 +42,7 @@ func (h *host) handleRespawn(conn net.Conn, payload []byte) {
 		h.sendTo(conn, respawnResFrame(false, 0, "timed out waiting for the previous process to exit"))
 		return
 	}
+	oldExitCode, oldExited := old.ExitCode()
 
 	h.mu.Lock()
 	pumpDone := h.pumpDone
@@ -74,6 +84,10 @@ func (h *host) handleRespawn(conn net.Conn, payload []byte) {
 	h.applyLargestLocked()
 	h.pumpDone = make(chan struct{})
 	h.mu.Unlock()
+
+	if frame, err := EncodeMessage(MsgTerminalData, respawnBoundary(oldExitCode, oldExited)); err == nil {
+		h.broadcast(frame)
+	}
 
 	go h.pumpPTY()
 

@@ -1,3 +1,4 @@
+import { ChevronRight } from "lucide-react";
 import { ContextMenu as ContextMenuPrimitive } from "radix-ui";
 import { cn } from "../../lib/utils";
 
@@ -65,4 +66,47 @@ export function ContextMenuSeparator({
 	...props
 }: React.ComponentProps<typeof ContextMenuPrimitive.Separator>) {
 	return <ContextMenuPrimitive.Separator className={cn("-mx-1 my-1 h-px bg-border", className)} {...props} />;
+}
+
+export const ContextMenuSub = ContextMenuPrimitive.Sub;
+
+export function ContextMenuSubTrigger({
+	className,
+	inset,
+	children,
+	...props
+}: React.ComponentProps<typeof ContextMenuPrimitive.SubTrigger> & { inset?: boolean }) {
+	return (
+		<ContextMenuPrimitive.SubTrigger
+			className={cn(
+				"relative flex cursor-default select-none items-center gap-2.5 rounded-md px-2 py-1.5 text-control outline-none transition-colors",
+				"text-muted-foreground focus:bg-surface focus:text-foreground data-[state=open]:bg-surface data-[state=open]:text-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
+				"[&_svg]:size-icon-lg [&_svg]:shrink-0 [&_svg]:text-passive",
+				inset && "pl-8",
+				className,
+			)}
+			{...props}
+		>
+			{children}
+			<ChevronRight aria-hidden="true" className="ml-auto" />
+		</ContextMenuPrimitive.SubTrigger>
+	);
+}
+
+export function ContextMenuSubContent({
+	className,
+	...props
+}: React.ComponentProps<typeof ContextMenuPrimitive.SubContent>) {
+	return (
+		<ContextMenuPrimitive.Portal>
+			<ContextMenuPrimitive.SubContent
+				className={cn(
+					"z-overlay min-w-[10rem] overflow-hidden rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-md",
+					"data-[state=open]:animate-overlay-in",
+					className,
+				)}
+				{...props}
+			/>
+		</ContextMenuPrimitive.Portal>
+	);
 }

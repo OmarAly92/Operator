@@ -106,6 +106,9 @@ UPDATE sessions SET is_pinned = ?, pinned_at = ?, updated_at = ? WHERE id = ?;
 -- name: SetSessionReviewerHarness :execrows
 UPDATE sessions SET reviewer_harness = ?, updated_at = ? WHERE id = ?;
 
+-- name: SetSessionClaudeAccount :execrows
+UPDATE sessions SET claude_account_id = ?, updated_at = ? WHERE id = ?;
+
 -- name: SessionIsSeed :one
 -- SessionIsSeed reports whether the session id matches a row still in seed
 -- state (see DeleteSeedSession for the conditions). Callers probe with this

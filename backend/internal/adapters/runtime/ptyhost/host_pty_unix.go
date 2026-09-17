@@ -27,7 +27,7 @@ type unixPTY struct {
 func newPTY(cwd, shellCmd string, shellArgs []string, env map[string]string, cols, rows int) (ptyConn, error) {
 	cmd := exec.Command(shellCmd, shellArgs...)
 	cmd.Dir = cwd
-	cmd.Env = processEnvironment(env)
+	cmd.Env = childEnvironment(env)
 	file, err := pty.StartWithSize(cmd, &pty.Winsize{Rows: uint16(rows), Cols: uint16(cols)})
 	if err != nil {
 		return nil, err

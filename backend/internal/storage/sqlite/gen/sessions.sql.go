@@ -645,6 +645,24 @@ func (q *Queries) SetSessionAutoInjectReview(ctx context.Context, arg SetSession
 	return result.RowsAffected()
 }
 
+const setSessionClaudeAccount = `-- name: SetSessionClaudeAccount :execrows
+UPDATE sessions SET claude_account_id = ?, updated_at = ? WHERE id = ?
+`
+
+type SetSessionClaudeAccountParams struct {
+	ClaudeAccountID domain.ClaudeAccountID
+	UpdatedAt       time.Time
+	ID              domain.SessionID
+}
+
+func (q *Queries) SetSessionClaudeAccount(ctx context.Context, arg SetSessionClaudeAccountParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, setSessionClaudeAccount, arg.ClaudeAccountID, arg.UpdatedAt, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const setSessionPinned = `-- name: SetSessionPinned :execrows
 UPDATE sessions SET is_pinned = ?, pinned_at = ?, updated_at = ? WHERE id = ?
 `

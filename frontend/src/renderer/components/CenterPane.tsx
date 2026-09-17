@@ -9,7 +9,6 @@ import {
 } from "../hooks/useAgentSwitches";
 import { useSwitchAgentState } from "../hooks/useSwitchAgent";
 import { useTruncatedText } from "../hooks/useTruncatedText";
-import { TERMINAL_FONT_SIZE_DEFAULT, TERMINAL_FONT_SIZE_MAX, TERMINAL_FONT_SIZE_MIN } from "../lib/design-tokens";
 import { getAgentActivityView } from "../lib/session-presentation";
 import { agentLabel } from "../lib/agent-options";
 import { isLinuxPlatform, isMacPlatform, windowDragRegion } from "../lib/platform";
@@ -43,18 +42,9 @@ type CenterPaneProps = {
 	topbarActions?: ReactNode;
 };
 
-const terminalFontSizeStorageKey = "opr.terminal.fontSize";
 const isMac = isMacPlatform();
 const isLinux = isLinuxPlatform();
 const dragRegion = windowDragRegion();
-
-function initialTerminalFontSize(): number {
-	if (typeof window === "undefined") return TERMINAL_FONT_SIZE_DEFAULT;
-	const raw = window.localStorage?.getItem(terminalFontSizeStorageKey);
-	const parsed = raw === null ? Number.NaN : Number(raw);
-	if (!Number.isFinite(parsed)) return TERMINAL_FONT_SIZE_DEFAULT;
-	return Math.min(TERMINAL_FONT_SIZE_MAX, Math.max(TERMINAL_FONT_SIZE_MIN, parsed));
-}
 
 export function CenterPane({
 	session,
@@ -72,7 +62,7 @@ export function CenterPane({
 }: CenterPaneProps) {
 	const { t } = useTranslation();
 	const paneRef = useRef<HTMLDivElement | null>(null);
-	const [fontSize] = useState(initialTerminalFontSize);
+	const fontSize = useUiStore((state) => state.terminalFontSize);
 	const [terminalBounds, setTerminalBounds] = useState({ width: 0 });
 	const isSidebarOpen = useUiStore((state) => state.isSidebarOpen);
 	const shells = shellTerminals ?? [];

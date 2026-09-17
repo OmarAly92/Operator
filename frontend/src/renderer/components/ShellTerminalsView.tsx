@@ -37,6 +37,7 @@ export function ShellTerminalsView() {
 	const requestNewShellTerminal = useUiStore((state) => state.requestNewShellTerminal);
 	const activeHandleId = useUiStore((state) => state.activeShellTerminalHandleId);
 	const setActiveShellTerminal = useUiStore((state) => state.setActiveShellTerminal);
+	const terminalFontSize = useUiStore((state) => state.terminalFontSize);
 
 	// Keep the selection pointed at a shell that still exists: closing the active
 	// tab (or a daemon-side exit pruning it) would otherwise leave the pane bound
@@ -155,7 +156,7 @@ export function ShellTerminalsView() {
 				{active ? (
 					<TerminalPane
 						daemonReady={daemonStatus.state === "ready"}
-						fontSize={12}
+						fontSize={terminalFontSize}
 						terminalTarget={{
 							generation: active.createdAt,
 							kind: "shell",

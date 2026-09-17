@@ -44,7 +44,7 @@ func newConPTY(cwd, shellCmd string, shellArgs []string, env map[string]string, 
 	cmd := cp.Command(shellCmd, shellArgs...)
 	cmd.Dir = cwd
 	// Inherit parent env so PATH, HOME, etc. are available.
-	cmd.Env = processEnvironment(env)
+	cmd.Env = childEnvironment(env)
 
 	if err := cmd.Start(); err != nil {
 		_ = cp.Close()

@@ -218,6 +218,9 @@ type Store interface {
 	ListWorkspaceRepos(ctx context.Context, projectID string) ([]domain.WorkspaceRepoRecord, error)
 	CreateSession(ctx context.Context, rec domain.SessionRecord) (domain.SessionRecord, error)
 	UpdateSession(ctx context.Context, rec domain.SessionRecord) error
+	// SetSessionClaudeAccount is the only way to move a session's Claude account:
+	// UpdateSession does not write that column.
+	SetSessionClaudeAccount(ctx context.Context, id domain.SessionID, account domain.ClaudeAccountID, updatedAt time.Time) (bool, error)
 	GetSession(ctx context.Context, id domain.SessionID) (domain.SessionRecord, bool, error)
 	ListSessions(ctx context.Context, project domain.ProjectID) ([]domain.SessionRecord, error)
 	ListAllSessions(ctx context.Context) ([]domain.SessionRecord, error)
@@ -1407,7 +1410,12 @@ func (m *Manager) ResumeAgentWithMode(ctx context.Context, id domain.SessionID) 
 // identity. Unlike ResumeAgentWithMode it accepts a *live* agent - killing the
 // running process is the point - and it never resumes the native transcript.
 // keepPrompt re-delivers the saved task prompt into the new conversation.
-func (m *Manager) RelaunchAgentFresh(ctx context.Context, id domain.SessionID, keepPrompt bool) (RestoreResult, error) {
+type RelaunchAgentConfig struct {
+	KeepPrompt      bool
+	ClaudeAccountID domain.ClaudeAccountID
+}
+
+func (m *Manager) RelaunchAgentFresh(ctx context.Context, id domain.SessionID, cfg RelaunchAgentConfig) (RestoreResult, error) {
 	if err := m.beginAgentOperation(ctx, id, agentOperationRelaunch); err != nil {
 		if errors.Is(err, errAgentOperationInProgress) {
 			err = ErrSwitchInProgress
@@ -1425,6 +1433,14 @@ func (m *Manager) RelaunchAgentFresh(ctx context.Context, id domain.SessionID, k
 	}
 	if rec.IsTerminated {
 		return RestoreResult{}, fmt.Errorf("relaunch agent %s: %w", id, ErrTerminated)
+	}
+	if cfg.ClaudeAccountID != "" {
+		if rec.Harness != domain.HarnessClaudeCode {
+			return RestoreResult{}, fmt.Errorf("relaunch agent %s: %w: only claude-code sessions take an account", id, domain.ErrInvalidClaudeAccount)
+		}
+		if err := m.checkClaudeAccount(ctx, cfg.ClaudeAccountID); err != nil {
+			return RestoreResult{}, fmt.Errorf("relaunch agent %s: %w", id, err)
+		}
 	}
 	project, err := m.loadProject(ctx, rec.ProjectID)
 	if err != nil {
@@ -1444,8 +1460,14 @@ func (m *Manager) RelaunchAgentFresh(ctx context.Context, id domain.SessionID, k
 		Mode:      meta.WorkspaceMode,
 	}
 	handle := ports.RuntimeHandle{ID: meta.RuntimeHandleID}
+	if cfg.ClaudeAccountID != "" && cfg.ClaudeAccountID != rec.ClaudeAccountID {
+		rec.ClaudeAccountID = cfg.ClaudeAccountID
+		if _, err := m.store.SetSessionClaudeAccount(ctx, rec.ID, cfg.ClaudeAccountID, m.clock()); err != nil {
+			return RestoreResult{}, fmt.Errorf("relaunch agent %s: persist account: %w", id, err)
+		}
+	}
 	return m.relaunchSessionWithPolicy(ctx, "relaunch agent", rec, project, ws, &handle, ports.PaneGrid{},
-		relaunchPolicy{forceFresh: true, keepPrompt: keepPrompt})
+		relaunchPolicy{forceFresh: true, keepPrompt: cfg.KeepPrompt})
 }
 
 // relaunchPolicy selects how a relaunch rebuilds the agent's conversation.

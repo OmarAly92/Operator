@@ -24,6 +24,10 @@ pub(crate) fn apply_event(parser: &mut Parser, alt: &mut AltScreen, event: MarkE
             parser.grid_mut().set_meta_field("cwd", &path);
         }
         MarkEvent::Extension(fields) => {
+            if let Some((_, value)) = fields.pairs.iter().find(|(key, _)| key == "boundary") {
+                parser.process_boundary(value.parse::<i32>().ok());
+                return;
+            }
             let grid = parser.grid_mut();
             for (key, value) in fields.pairs {
                 // The `v` key is the version sentinel from the extension

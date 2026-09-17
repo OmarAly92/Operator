@@ -118,3 +118,15 @@ test("remove asks for confirmation and shows the in-use error", async () => {
 	expect(h.remove).toHaveBeenCalledWith("personal");
 	expect(await screen.findByText("Sessions still use this account; remove or switch them first")).toBeInTheDocument();
 });
+
+test("warns when two accounts hold the same Claude login", () => {
+	h.accounts = [
+		{ id: "default", label: "Default", configDir: "/Users/u/.claude", isDefault: true, isPreferred: true, status: { loggedIn: true, subscriptionType: "max", reportedEmail: "a@b.c", reportedOrgId: "org-1" }, sharedSetup: {} },
+		{ id: "personal", label: "Personal", configDir: "/Users/u/.claude-personal", isDefault: false, status: { loggedIn: true, subscriptionType: "max", reportedEmail: "a@b.c", reportedOrgId: "org-1" }, sharedSetup: {} },
+		{ id: "work", label: "Work", configDir: "/Users/u/.claude-work", isDefault: false, status: { loggedIn: true, subscriptionType: "pro", reportedEmail: "w@b.c", reportedOrgId: "org-2" }, sharedSetup: {} },
+	];
+	render(<ClaudeAccountsSection />);
+	expect(within(screen.getByTestId("claude-account-personal")).getByText("Same Claude login as Default. Sign out of claude.ai in your browser, then log in again here to use a different account.")).toBeInTheDocument();
+	expect(within(screen.getByTestId("claude-account-default")).getByText(/Same Claude login as Personal\./)).toBeInTheDocument();
+	expect(within(screen.getByTestId("claude-account-work")).queryByText(/Same Claude login/)).toBeNull();
+});
