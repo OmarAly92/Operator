@@ -57,7 +57,7 @@ test("renderer: first-run home renders with the app launched @T0 @INS", async ({
 	await page.goto("/");
 	await expect(page.getByTestId("board")).toBeVisible();
 	await expect(page.getByTestId("daemon-status")).toBeAttached();
-	await expect(page.getByText("Projects")).toBeVisible();
+	await expect(page.getByText("Projects", { exact: true })).toBeVisible();
 });
 
 // #2483 INS-003.

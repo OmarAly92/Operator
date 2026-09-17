@@ -147,6 +147,7 @@ func TestStoreDownloadsAndExtractsTarGzVerifyingChecksum(t *testing.T) {
 	defer srv.Close()
 
 	spec := CloudflaredProvider().Binary()
+	spec.Archive = ArchiveTarGz
 	spec.URL = func(string, string) (string, error) { return srv.URL, nil }
 	spec.SHA256 = map[string]string{runtime.GOOS + "/" + runtime.GOARCH: hex.EncodeToString(sum[:])}
 
@@ -176,6 +177,7 @@ func TestStoreRejectsAnOldPathCloudflaredInFavourOfThePinnedCopy(t *testing.T) {
 	defer srv.Close()
 
 	spec := CloudflaredProvider().Binary()
+	spec.Archive = ArchiveTarGz
 	spec.URL = func(string, string) (string, error) { return srv.URL, nil }
 	spec.SHA256 = map[string]string{runtime.GOOS + "/" + runtime.GOARCH: hex.EncodeToString(sum[:])}
 
