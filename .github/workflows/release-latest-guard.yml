@@ -15,7 +15,7 @@ jobs:
     # Stable /releases/latest only exists on the canonical repo. Forks copy
     # this workflow (including the hourly schedule) but have no desktop
     # release, so the check fails red every hour.
-    if: github.repository == 'OmarAly92/operator'
+    if: github.repository == 'OmarAly92/Operator'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -74,6 +74,13 @@ jobs:
             sig="$(jq -r --arg p "$platform" '.platforms[$p].signature // ""' "$RUNNER_TEMP/feed/latest.json")"
             if [ -z "$sig" ]; then
               echo "::error::latest.json on '$tag' has an empty signature for '$platform'."
+              exit 1
+            fi
+            # The Tauri updater rejects relative urls, so every entry must be
+            # an absolute https download pinned to this release's tag.
+            url="$(jq -r --arg p "$platform" '.platforms[$p].url // ""' "$RUNNER_TEMP/feed/latest.json")"
+            if [[ ! "$url" =~ ^https://.*/releases/download/$tag/ ]]; then
+              echo "::error::latest.json on '$tag' has url '$url' for '$platform'; expected https://.../releases/download/$tag/<asset>."
               exit 1
             fi
           done

@@ -1,11 +1,10 @@
 name: macOS update e2e
 
-# End-to-end macOS auto-update test: install version N-1, point it at version
-# N's REAL published feed, and prove the Tauri updater engine checks, downloads,
-# signature-verifies and STAGES version N. With --expect-stage-only (the mode
-# this workflow runs while the project-owned verified apply path is pending)
-# staging is the assertion; full install mode additionally proves the quit-swap,
-# relaunch and daemon liveness once apply lands.
+# End-to-end macOS auto-update test: install version N-1, let it resolve version
+# N through the REAL published feed, and prove the Tauri updater engine checks,
+# downloads, signature-verifies and stages version N, then installs it on quit
+# and relaunches with a live daemon (full-install, the default). stage-only stops
+# after staging.
 #
 # This is POST-RELEASE MONITORING, NOT A PROMOTION GATE. Read that literally
 # before wiring it anywhere.
@@ -35,7 +34,7 @@ on:
       mode:
         description: "stage-only or full-install"
         required: false
-        default: stage-only
+        default: full-install
         type: choice
         options: [stage-only, full-install]
   workflow_call:
@@ -48,7 +47,7 @@ on:
         type: string
       mode:
         required: false
-        default: stage-only
+        default: full-install
         type: string
 
 permissions:
