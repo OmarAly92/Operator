@@ -596,6 +596,8 @@
 	"settings.terminalColor.graphite": "石墨",
 	"settings.terminalColor.midnight": "午夜",
 	"settings.terminalColor.slate": "石板",
+	"settings.terminalFontSize": "Terminal Font Size",
+	"settings.terminalFontSize.value": "{{size}} px",
 	"settings.theme": "主题",
 	"settings.theme.dark": "深色",
 	"settings.theme.light": "浅色",

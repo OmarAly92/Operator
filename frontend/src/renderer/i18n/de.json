@@ -612,6 +612,8 @@
 	"settings.terminalColor.graphite": "Graphit",
 	"settings.terminalColor.midnight": "Mitternacht",
 	"settings.terminalColor.slate": "Schiefer",
+	"settings.terminalFontSize": "Terminal Font Size",
+	"settings.terminalFontSize.value": "{{size}} px",
 	"settings.theme": "Design",
 	"settings.theme.dark": "Dunkel",
 	"settings.theme.light": "Hell",

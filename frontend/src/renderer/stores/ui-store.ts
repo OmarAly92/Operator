@@ -22,6 +22,7 @@ import {
 
 export type { Theme, ThemePreference, ThemeStyle } from "../lib/theme";
 export type { TerminalBackground } from "../lib/terminal-background";
+import { readStoredTerminalFontSize, terminalFontSizeStorageKey, type TerminalFontSize } from "../lib/terminal-font-size";
 export { readStoredTerminalBackground } from "../lib/terminal-background";
 export { readStoredThemePreference, readStoredThemeStyle, resolveTheme } from "../lib/theme";
 
@@ -58,6 +59,7 @@ type UiState = {
 	/** Named color style theme (e.g. "catppuccin", "nord") — independent of light/dark mode. */
 	themeStyle: ThemeStyle;
 	terminalBackground: TerminalBackground;
+	terminalFontSize: TerminalFontSize;
 	restartingProjectIds: ReadonlySet<string>;
 	orchestratorReplacementErrors: Record<string, OrchestratorReplacementFailure>;
 	orchestratorStartupErrors: Record<string, string>;
@@ -89,6 +91,7 @@ type UiState = {
 	setThemePreference: (theme: ThemePreference) => void;
 	setThemeStyle: (style: ThemeStyle) => void;
 	setTerminalBackground: (background: TerminalBackground) => void;
+	setTerminalFontSize: (size: TerminalFontSize) => void;
 	openGlobalSettings: () => void;
 	openProjectSettings: (projectId: string) => void;
 	closeSettings: () => void;
@@ -149,6 +152,7 @@ export function inspectorState(
 const initialThemePreference = readStoredThemePreference();
 const initialThemeStyle = readStoredThemeStyle();
 const initialTerminalBackground = readStoredTerminalBackground();
+const initialTerminalFontSize = readStoredTerminalFontSize();
 
 export const useUiStore = create<UiState>((set, get) => ({
 	workbenchTab: "changes",
@@ -161,6 +165,7 @@ export const useUiStore = create<UiState>((set, get) => ({
 	resolvedTheme: resolveTheme(initialThemePreference),
 	themeStyle: initialThemeStyle,
 	terminalBackground: initialTerminalBackground,
+	terminalFontSize: initialTerminalFontSize,
 	restartingProjectIds: new Set<string>(),
 	orchestratorReplacementErrors: {},
 	orchestratorStartupErrors: {},
@@ -192,6 +197,11 @@ export const useUiStore = create<UiState>((set, get) => ({
 		getLocalStorage()?.setItem(terminalBackgroundStorageKey, terminalBackground);
 		applyTerminalBackground(terminalBackground);
 		set({ terminalBackground });
+	},
+	setTerminalFontSize: (terminalFontSize) => {
+		if (get().terminalFontSize === terminalFontSize) return;
+		getLocalStorage()?.setItem(terminalFontSizeStorageKey, String(terminalFontSize));
+		set({ terminalFontSize });
 	},
 	openGlobalSettings: () => set({ settingsModal: { scope: "global" } }),
 	openProjectSettings: (projectId) => set({ settingsModal: { scope: "project", projectId } }),

@@ -612,6 +612,8 @@
 	"settings.terminalColor.graphite": "グラファイト",
 	"settings.terminalColor.midnight": "ミッドナイト",
 	"settings.terminalColor.slate": "スレート",
+	"settings.terminalFontSize": "Terminal Font Size",
+	"settings.terminalFontSize.value": "{{size}} px",
 	"settings.theme": "テーマ",
 	"settings.theme.dark": "ダーク",
 	"settings.theme.light": "ライト",

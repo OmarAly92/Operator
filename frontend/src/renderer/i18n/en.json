@@ -600,6 +600,8 @@
 	"settings.terminalColor.graphite": "Graphite",
 	"settings.terminalColor.midnight": "Midnight",
 	"settings.terminalColor.slate": "Slate",
+	"settings.terminalFontSize": "Terminal Font Size",
+	"settings.terminalFontSize.value": "{{size}} px",
 	"settings.theme": "Theme",
 	"settings.theme.dark": "Dark",
 	"settings.theme.light": "Light",
