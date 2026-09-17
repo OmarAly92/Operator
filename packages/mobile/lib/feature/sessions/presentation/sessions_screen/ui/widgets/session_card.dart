@@ -8,6 +8,7 @@ import 'package:operator_mobile/core/widgets/main_widgets/app_text.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/space_widgets.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/status_dot.dart';
 import 'package:operator_mobile/feature/sessions/data/model/session_model.dart';
+import 'package:operator_mobile/feature/sessions/logic/agent_line.dart';
 import 'package:operator_mobile/feature/sessions/logic/agents_view.dart';
 import 'package:operator_mobile/feature/sessions/logic/session_status.dart';
 import 'package:operator_mobile/feature/sessions/logic/status_visual.dart';
@@ -20,10 +21,12 @@ class SessionCard extends StatelessWidget {
     required this.showProject,
     required this.onTap,
     required this.onLongPress,
+    this.accountLabels = const {},
   });
 
   final SessionModel session;
   final bool showProject;
+  final Map<String, String> accountLabels;
   final VoidCallback onTap;
   final VoidCallback onLongPress;
 
@@ -43,6 +46,8 @@ class SessionCard extends StatelessWidget {
     final issue = trackerIssueId(session.issueId);
     final prs = prLine(session);
     final when = relativeTime(session.updatedAt);
+    final harness = session.harness;
+    final account = sessionAccountLabel(session, accountLabels);
 
     return AppContainer(
       onTap: onTap,
@@ -104,6 +109,21 @@ class SessionCard extends StatelessWidget {
                 ),
               ],
             ),
+            if (harness != null && harness.isNotEmpty) ...[
+              const VerticalSpace(5),
+              Padding(
+                padding: const EdgeInsets.only(left: 29),
+                child: Row(
+                  children: [
+                    _MetaChip(icon: Icons.smart_toy_outlined, label: harness),
+                    if (account != null) ...[
+                      const HorizontalSpace(6),
+                      _MetaChip(icon: Icons.person_outline, label: account),
+                    ],
+                  ],
+                ),
+              ),
+            ],
             if (project != null ||
                 showLocation ||
                 issue != null ||
@@ -222,6 +242,36 @@ class SessionCard extends StatelessWidget {
             ],
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _MetaChip extends StatelessWidget {
+  const _MetaChip({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final skin = context.skin;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(7, 3, 8, 3),
+      decoration: BoxDecoration(
+        color: skin.bgColumn,
+        borderRadius: BorderRadius.circular(AppConstants.radiusPill),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 11, color: skin.textTertiary),
+          const HorizontalSpace(4),
+          AppText(
+            label,
+            style: AppTextStyle.mono10Regular.copyWith(color: skin.textSecondary),
+          ),
+        ],
       ),
     );
   }

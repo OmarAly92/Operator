@@ -23,8 +23,10 @@ class SessionsRemoteDataSourceImp implements SessionsRemoteDataSource {
 
     final orchestratorsFuture = _apiConsumer.get(EndPoints.orchestrators);
     final projectsFuture = _fetchProjects();
+    final accountsFuture = _fetchAccountLabels();
     final orchestratorsResponse = await orchestratorsFuture;
     final projects = await projectsFuture;
+    final accountLabels = await accountsFuture;
 
     final nameOf = {
       for (final project in projects)
@@ -43,8 +45,22 @@ class SessionsRemoteDataSourceImp implements SessionsRemoteDataSource {
             .map((row) => OrchestratorModel.fromJson(row, projectName: nameOf[row['projectId']]))
             .toList(),
         projects: projects,
+        accountLabels: accountLabels,
       ),
     );
+  }
+
+  Future<Map<String, String>> _fetchAccountLabels() async {
+    try {
+      final response = await _apiConsumer.get(EndPoints.claudeAccounts);
+      final body = response.data as Map<String, dynamic>;
+      return {
+        for (final account in (body['accounts'] as List<dynamic>? ?? const []).cast<Map<String, dynamic>>())
+          if (account['id'] is String) account['id'] as String: (account['label'] as String?) ?? account['id'] as String,
+      };
+    } catch (_) {
+      return const {};
+    }
   }
 
   Future<List<ProjectModel>> _fetchProjects() async {
