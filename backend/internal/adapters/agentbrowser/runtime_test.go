@@ -731,7 +731,9 @@ func TestScavengeSocketAliasesRemovesOnlyOwnedAliases(t *testing.T) {
 }
 
 func TestExecuteTriggersStaleRunScavenging(t *testing.T) {
-	adapter, calls, _, dataDir := newTestAdapter(t, nil)
+	adapter, calls, _, dataDir := newTestAdapter(t, func(options *Options) {
+		options.ProcessAlive = func(pid int) bool { return pid != 999 }
+	})
 	runtimeRoot := runtimeRootFor(dataDir)
 	stale := filepath.Join(runtimeRoot, "run-999-"+strings.Repeat("f", 12))
 	if err := os.MkdirAll(stale, 0o755); err != nil {

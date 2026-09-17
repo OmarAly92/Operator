@@ -1,13 +1,18 @@
 # operator status
 
-Current `codex/tauri-port` ships a working single-user local loop: the Go daemon
-and the Tauri + React desktop shell both drive a live daemon over HTTP/SSE/WebSocket.
-The core GitHub flow works end-to-end: add project → spawn session/orchestrator →
-attach terminal → observe PR → merge.
+Operator ships a working single-user local loop: the Go daemon and the Tauri +
+React desktop shell drive a live daemon over HTTP/SSE/WebSocket. The core GitHub
+flow works end-to-end: add project → spawn session/orchestrator → attach terminal
+→ observe PR → merge.
 
+`master` is what users have (desktop releases are cut from it, latest v0.14.3 on
+2026-09-17); `development` carries everything below that is not yet released.
 This file tracks progress. For what the product _is_ and how to run it, see the
 top-level [`README.md`](../README.md); for the backend mental model see
-[`architecture.md`](architecture.md).
+[`architecture.md`](architecture.md); for shipping a release see
+[`RUN_APP_COMMANDS.md`](../RUN_APP_COMMANDS.md).
+
+_Last reviewed 2026-09-17._
 
 ## Build & test
 
@@ -67,10 +72,7 @@ surface (`npm run sqlc`, `npm run api`).
 - SCM observer (`internal/observe/scm`) wired into the daemon: GitHub provider,
   lazy/non-blocking auth, per-PR polling with ETag guards and semantic diffing,
   feeding PR facts into lifecycle, which sends agent nudges for CI failures,
-  review feedback, and merge conflicts
-  ([#75](https://github.com/OmarAly92/operator/issues/75),
-  [#108](https://github.com/OmarAly92/operator/issues/108),
-  [#109](https://github.com/OmarAly92/operator/issues/109)).
+  review feedback, and merge conflicts.
 - Terminal mux over WebSocket (`/mux`): per-client pty-host attach stream on
   Darwin/Linux; conpty loopback pty-host on Windows.
 - Durable shell blocks for standalone shells: a single capture tee writes a
@@ -91,8 +93,8 @@ surface (`npm run sqlc`, `npm run api`).
   The Rust shell (`frontend/src-tauri`) supervises the daemon, owns native
   integrations, and pins every webview/state path under `~/.operator`.
   WebdriverIO E2E drives the real binary through Tauri's
-  embedded WebDriver (`npm run test:e2e:tauri`); Windows/Linux legs are
-  authored but await their first native CI runs.
+  embedded WebDriver (`npm run test:e2e:tauri`) on macOS and Linux in CI
+  (`tauri-webdriver.yml`); no Windows leg exists yet.
 - Native integrations live in Rust behind narrow ACLs: window
   overlay/fullscreen/theme events, application menus and keyboard shortcuts
   (persisted through Go settings), tray with attention/session actions,
@@ -109,12 +111,15 @@ surface (`npm run sqlc`, `npm run api`).
   once in the user's default browser; `opr preview clear` removes it without
   opening anything. The embedded Browser panel was removed with the Tauri port
   (`docs/todo/browser-panel-webview.md` records the deferral).
-- Updates: a pinned-plugin updater engine with staged downloads under
-  `<state-root>/updater`, latest/feature channels, downgrade support,
-  interrupted-download recovery, and first-run opt-in that keeps updates
-  disabled until accepted. Applying an update still fails closed
-  (`APPLY_DEFERRED_MESSAGE`) pending the project-owned verified-apply path — a
-  release-gating follow-up.
+- Updates, end to end: installed apps check the published `latest.json` at
+  launch and hourly, download and minisign-verify the archive into
+  `<state-root>/updater/staged`, and install it on quit or via "Restart &
+  install"; latest/feature channels, downgrade support, interrupted-download
+  recovery, staged-artifact adoption across launches, and a first-run opt-in
+  that keeps updates disabled until accepted. Proven on macOS on 2026-09-17
+  (0.13.9 → 0.14.0 on quit; 0.14.2 → 0.14.3 fully hands-off). Releases are
+  built and signed by `frontend-release.yml` on four runners and triggered by a
+  version bump on `master` (`release-on-bump.yml`).
 - Real daemon wiring via the generated `openapi-fetch` typed client
   (`src/api/schema.ts`); mock data only in `VITE_RENDERER_PREVIEW` web-preview mode.
 - Shell: sidebar (projects + sessions, add/remove project), sessions board,
@@ -161,24 +166,31 @@ surface (`npm run sqlc`, `npm run api`).
 
 ## In flight / not yet a runtime feature
 
-- **Tauri release gates (external, native-runner work)**: Phase 0 still records
-  `stop-port` because signed native artifacts, all-platform evidence, updater
-  signing, and authorized-runner trust anchors are not yet supplied; warm-start,
-  first-run, idle-memory, download-size, and installed-footprint comparisons are
-  unmeasured pending native runners; Windows/Linux WebdriverIO legs await their
-  first native runs. Release-gating follow-ups that must land before any release
-  ships: the project-owned verified-apply updater path (updates currently fail
-  closed at apply) and real OS toast-click activation.
-- **Release sign-off ledger**: recorded here so release sign-off is auditable
-  without the SDD workspace. By explicit deferral, `hidden`/`hiddenInset`
-  titlebars are not implemented,
-  so macOS and Windows ship fully decorated native chrome until a coordinated
-  drag-region migration lands, and that divergence requires explicit user
-  sign-off before any release (Task 13 ruling).
-  The shell-side GitHub HTTPS transport (`ReleasesSource`) remains unwired by
-  design after the Task 17 TLS-surface ruling; the stopped transport degrades
+- **macOS signing and notarization**: there is no Apple Developer account, so
+  macOS builds are ad-hoc signed and not notarized. Auto-update works, but a
+  fresh DMG download must be allowed through Gatekeeper by hand. Adding the
+  `APPLE_*` secrets switches `frontend-release.yml` to signed, notarized builds
+  with no other change.
+- **Unverified on Windows and Linux**: every release builds and signs all four
+  targets, and the updater engine is unit-tested, but install-on-quit has only
+  been exercised on macOS. Windows relies on the plugin's NSIS hand-off (the
+  daemon is shut down from `on_before_exit` first) and Linux on the AppImage
+  replace; neither has been run on real hardware. Windows has no WebdriverIO
+  leg. Warm-start, idle-memory, download-size and installed-footprint numbers
+  are unmeasured.
+- **OS toast-click activation**: clicking a native notification to focus the
+  window needs UNUserNotificationCenter/WinRT activation; the routing layer is
+  in place, delivery is not.
+- **Feature (`pr<N>`) builds have no in-app picker**: the shell-side GitHub
+  releases transport (`ReleasesSource`) is deliberately unwired, so a feature
+  pin can only be set through the settings API; the stopped transport degrades
   safely, and escalation is only the 48-hour rule for a staged stable update
   (`evaluate_escalation(staged_at_ms, now_ms)`).
+- **Terminal package size rule**: `packages/terminal`'s `check:boundaries`
+  caps source files at 600 lines and four files have exceeded it since
+  2026-09-10 (`crates/vt-wasm/src/lib.rs`, `ts/react/src/TerminalSurface.tsx`,
+  `ts/renderer-dom/src/dom-block-renderer.ts` and its test), so `terminal.yml`
+  and the `frontend.yml` boundary step are red until they are split.
 - **Browser automation acceptance**: the runtime implementation is complete.
   Browser automation is owned by the daemon: one checksum-pinned `agent-browser`
   binary, per-session isolated Chromium profiles under the state root, a closed
@@ -192,13 +204,11 @@ surface (`npm run sqlc`, `npm run api`).
 
 - **Tracker lane**: GitHub tracker adapter exists, but there is no daemon
   observer loop or agent-lifecycle→issue mirroring yet, so the tracker does
-  nothing at runtime ([#112](https://github.com/OmarAly92/operator/issues/112)).
+  nothing at runtime.
 - **Full raw PR/tracker fact surfacing**: the SCM observer writes facts and the
-  desktop consumes concise PR summaries, but exposing the full raw `pr_*` /
-  `tracker_*` CDC events to live consumers
-  ([#110](https://github.com/OmarAly92/operator/issues/110)) and in
-  `opr session get` ([#111](https://github.com/OmarAly92/operator/issues/111))
-  is still open.
-
-Tracking milestone:
-[`rewrite`](https://github.com/OmarAly92/operator/milestone/1).
+  desktop consumes concise PR summaries, but the full raw `pr_*` /
+  `tracker_*` CDC events are not exposed to live consumers or `opr session get`.
+- **Deferred designs** live in [`docs/todo/`](todo/): the embedded browser panel
+  (`browser-panel-webview.md`), direct-spawn orchestration
+  (`operator-approach-3-direct-spawn-spec.md`) and worktree isolation state
+  (`worktree-isolation-state.md`).

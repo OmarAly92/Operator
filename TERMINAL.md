@@ -111,8 +111,8 @@ rebuilt (§6).
 
 ## 4. Bugs already solved — do not reintroduce
 
-Each entry: symptom → real cause → what guards it now. Commits are on master
-(local, unpushed at the time of writing).
+Each entry: symptom → real cause → what guards it now. The commits are in the
+history of `master`.
 
 ### 4.1 "No blank lines between messages above the screen" — `3a850c24d`
 - Symptom: rows still on screen kept their spacing, everything scrolled off read
@@ -361,7 +361,7 @@ Backend API changes: `cd backend/internal/httpd/apispec && go generate ./...`
 then `npm run api:ts` in `frontend/` (regenerates `src/api/schema.ts`).
 
 Changelog: `packages/terminal/CHANGELOG.md`, "Unreleased" section, one entry per
-behaviour change. Commits go straight to master, message ends with the
+behaviour change. Commits go straight to `development`, message ends with the
 `Co-Authored-By` trailer the harness gives you.
 
 ---

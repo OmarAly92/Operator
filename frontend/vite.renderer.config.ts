@@ -129,6 +129,7 @@ export default defineConfig(({ command }) => ({
 			"dist/**",
 			"e2e/**",
 			"scripts/audit-tauri-state.test.mjs",
+			"scripts/bump-version.test.mjs",
 			"scripts/e2e-mac-update.test.mjs",
 			"scripts/detect-duplicate-react.test.mjs",
 			"scripts/e2e-tauri-build-contract.test.mjs",

@@ -24,6 +24,13 @@ Two facts that are easy to get wrong from the code alone:
   the app and supervises the daemon, and rebuilds `packages/terminal` on start.
   `RUN_APP_COMMANDS.md` is the truth.
 
+**Branches: work on `development`, release from `master`.** `development` is the
+default branch and holds unreleased changes. `master` is released code only: a
+release is `development` merged into `master` plus a version bump on `master`,
+which `.github/workflows/release-on-bump.yml` turns into a tagged desktop release.
+Never commit ordinary work to `master`; never bump the version on `development`.
+The commands are in `RUN_APP_COMMANDS.md` under "Push an update to installed apps".
+
 **`AGENTS.md` covers `backend/` and `frontend/` only.** The third deliverable, the Flutter
 mobile client at `packages/mobile`, is documented below.
 

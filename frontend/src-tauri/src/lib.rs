@@ -1011,9 +1011,7 @@ void (async () => {
                     .open_js_links_on_click(false)
                     .build(),
             );
-        if context.config().plugins.0.contains_key("updater") {
-            builder = builder.plugin(tauri_plugin_updater::Builder::new().build());
-        }
+        builder = builder.plugin(tauri_plugin_updater::Builder::new().build());
         global_shortcuts_available = shortcuts::probe_global_shortcuts();
         if global_shortcuts_available {
             builder = builder.plugin(tauri_plugin_global_shortcut::Builder::new().build());

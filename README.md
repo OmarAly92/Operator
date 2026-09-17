@@ -188,11 +188,15 @@ opr start
 
 </details>
 
-### Releasing
+### Branches and releasing
 
-Pushing a `desktop-vX.Y.Z` tag (with `frontend/package.json` already at that version)
-runs `.github/workflows/frontend-release.yml`, which builds every platform, signs the
-updater archives and publishes `latest.json` — the feed installed apps poll. The
+`development` is the default branch and holds unreleased work; `master` holds only
+what has shipped. A release is: merge `development` into `master`, bump
+`frontend/package.json` on `master`, push. `.github/workflows/release-on-bump.yml`
+tags the bump `desktop-vX.Y.Z` and runs `.github/workflows/frontend-release.yml`,
+which builds every platform, signs the updater archives and publishes
+`latest.json` — the feed installed apps poll and install from on quit. The exact
+commands are in [RUN_APP_COMMANDS.md](RUN_APP_COMMANDS.md#push-an-update-to-installed-apps). The
 updater signing key (`~/.tauri/operator-updater.key` + `.password` on the maintainer's
 machine) is backed up in the maintainer's password manager as *Operator — Tauri
 updater signing key*. Never regenerate it: the public half is compiled into every

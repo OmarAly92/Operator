@@ -9,6 +9,7 @@ use std::future::Future;
 use std::pin::Pin;
 use std::sync::{Arc, Mutex};
 
+use tauri::Manager as _;
 use tauri_plugin_updater::UpdaterExt as _;
 
 use channel::{ActiveChannel, ReleasesSource, UpdateSettings};
@@ -26,6 +27,9 @@ pub const UNSUPPORTED_MESSAGE: &str = "Updates are only available in the install
 /// before the engine changes its active channel state.
 pub trait SettingsSource: Send + Sync {
     fn read<'a>(&'a self) -> BoxFuture<'a, Result<UpdateSettings, String>>;
+    fn wait_ready<'a>(&'a self) -> BoxFuture<'a, ()> {
+        Box::pin(async {})
+    }
     fn write<'a>(&'a self, settings: UpdateSettings) -> BoxFuture<'a, Result<(), String>>;
 }
 
@@ -597,6 +601,18 @@ impl<C: FeedClient> UpdaterEngine<C> {
 
     pub async fn install_staged(&self) -> Result<String, String> {
         let _guard = self.op_lock.lock().await;
+        self.install_staged_locked().await
+    }
+
+    pub async fn install_staged_if_idle(&self) -> Result<String, String> {
+        let _guard = self
+            .op_lock
+            .try_lock()
+            .map_err(|_| "an update operation is still running".to_string())?;
+        self.install_staged_locked().await
+    }
+
+    async fn install_staged_locked(&self) -> Result<String, String> {
         let staged = self
             .with_state(|state| state.staged.clone())
             .ok_or_else(|| "no update is staged".to_string())?;
@@ -608,7 +624,10 @@ impl<C: FeedClient> UpdaterEngine<C> {
             .map_err(|error| format!("read staged update {}: {error}", staged.version))?;
         let release = match self.staged_release_for(&staged.version) {
             Some(release) => release,
-            None => self.refetch_release(&staged.version).await?,
+            None => {
+                self.refetch_release(&staged.version, artifact.meta.url.clone())
+                    .await?
+            }
         };
         if let Err(message) = self.client.install(&release, bytes).await {
             self.broadcast(
@@ -653,9 +672,39 @@ impl<C: FeedClient> UpdaterEngine<C> {
             .cloned()
     }
 
-    async fn refetch_release(&self, version: &str) -> Result<C::Release, String> {
-        let settings = self.settings.read().await?;
-        let feed_url = self.resolve_feed_url(settings.active_channel())?;
+    /// Adopts artifacts staged by an earlier run so they install on quit
+    /// instead of being downloaded again. Anything staged at the running
+    /// version was already installed and is discarded.
+    pub fn restore_staged(&self) {
+        let mut adopted = None;
+        for artifact in self.storage.staged_all() {
+            if adopted.is_none() && artifact.meta.version != self.config.app_version {
+                adopted = Some(artifact);
+                continue;
+            }
+            if let Err(error) = self.storage.remove_staged(&artifact.meta.version) {
+                eprintln!(
+                    "stale staged update {} was not removed: {error}",
+                    artifact.meta.version
+                );
+            }
+        }
+        let Some(artifact) = adopted else {
+            return;
+        };
+        self.with_state(|state| {
+            let staged = StagedUpdate {
+                version: artifact.meta.version.clone(),
+                at_ms: artifact.meta.staged_at_ms,
+                escalated: false,
+                request_id: None,
+            };
+            state.last_status = Self::staged_downloaded_status(&staged);
+            state.staged = Some(staged);
+        });
+    }
+
+    async fn refetch_release(&self, version: &str, feed_url: String) -> Result<C::Release, String> {
         match self.client.check(feed_url).await? {
             Some(release) if release.version() == version => Ok(release),
             Some(release) => Err(format!(
@@ -668,6 +717,11 @@ impl<C: FeedClient> UpdaterEngine<C> {
 
     pub async fn apply_settings(&self, settings: UpdateSettings) {
         self.with_state(|state| state.automatic_scheduled = settings.enabled);
+    }
+
+    pub async fn run_launch_check(&self) {
+        self.settings.wait_ready().await;
+        self.run_hourly_tick().await;
     }
 
     pub async fn run_hourly_tick(&self) {
@@ -897,6 +951,16 @@ impl FeedClient for PluginFeedClient {
                 .endpoints(vec![endpoint])
                 .map_err(|error| error.to_string())?
                 .pubkey(key)
+                .on_before_exit({
+                    let app = self.app.clone();
+                    move || {
+                        if let Some(manager) =
+                            app.try_state::<crate::daemon::supervisor::DaemonManager>()
+                        {
+                            manager.request_shutdown();
+                        }
+                    }
+                })
                 .version_comparator(|current, candidate| {
                     channel::feed_offers_candidate(
                         &current.to_string(),
@@ -996,21 +1060,11 @@ fn loopback_http(
     })
 }
 
-const DAEMON_PORT_WAIT_MS: u64 = 60_000;
-const DAEMON_PORT_POLL_MS: u64 = 500;
+const DAEMON_READY_WAIT_MS: u64 = 60_000;
+const DAEMON_READY_POLL_MS: u64 = 500;
 
 async fn daemon_port(manager: &crate::daemon::supervisor::DaemonManager) -> Option<u16> {
-    let deadline =
-        tokio::time::Instant::now() + std::time::Duration::from_millis(DAEMON_PORT_WAIT_MS);
-    loop {
-        if let Some(port) = manager.status().await.port {
-            return Some(port);
-        }
-        if tokio::time::Instant::now() >= deadline {
-            return None;
-        }
-        tokio::time::sleep(std::time::Duration::from_millis(DAEMON_PORT_POLL_MS)).await;
-    }
+    manager.status().await.port
 }
 
 /// Settings access against the daemon's `/api/v1/settings`, which is the store
@@ -1032,6 +1086,18 @@ impl DaemonSettingsSource {
 }
 
 impl SettingsSource for DaemonSettingsSource {
+    fn wait_ready<'a>(&'a self) -> BoxFuture<'a, ()> {
+        Box::pin(async move {
+            let deadline = tokio::time::Instant::now()
+                + std::time::Duration::from_millis(DAEMON_READY_WAIT_MS);
+            while daemon_port(&self.manager).await.is_none()
+                && tokio::time::Instant::now() < deadline
+            {
+                tokio::time::sleep(std::time::Duration::from_millis(DAEMON_READY_POLL_MS)).await;
+            }
+        })
+    }
+
     fn read<'a>(&'a self) -> BoxFuture<'a, Result<UpdateSettings, String>> {
         Box::pin(async move {
             let port = daemon_port(&self.manager)
@@ -1155,7 +1221,7 @@ pub fn install_staged_on_exit(engine: &ShellEngine) {
     if !engine.has_staged_update() {
         return;
     }
-    match tauri::async_runtime::block_on(engine.install_staged()) {
+    match tauri::async_runtime::block_on(engine.install_staged_if_idle()) {
         Ok(version) => eprintln!("installed staged update {version}; it runs on the next launch"),
         Err(error) => eprintln!("staged update was not installed: {error}"),
     }
@@ -1193,7 +1259,7 @@ pub async fn updates_apply_settings(
 /// first hour.
 pub fn spawn_updater_timers(engine: Arc<ShellEngine>) {
     let launch_check = engine.clone();
-    tauri::async_runtime::spawn(async move { launch_check.run_hourly_tick().await });
+    tauri::async_runtime::spawn(async move { launch_check.run_launch_check().await });
     let hourly = engine.clone();
     tauri::async_runtime::spawn(async move {
         let mut timer = tokio::time::interval(std::time::Duration::from_millis(
@@ -1273,7 +1339,7 @@ pub fn open_shell_engine(
             .unwrap_or_default()
     });
     let client = Arc::new(client);
-    Ok(Arc::new(UpdaterEngine::new(
+    let engine = Arc::new(UpdaterEngine::new(
         client,
         Arc::new(DaemonSettingsSource { manager }),
         Arc::new(StoppedReleasesSource),
@@ -1281,5 +1347,7 @@ pub fn open_shell_engine(
         sink,
         clock,
         config,
-    )))
+    ));
+    engine.restore_staged();
+    Ok(engine)
 }

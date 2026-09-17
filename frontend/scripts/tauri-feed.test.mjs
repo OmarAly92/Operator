@@ -287,6 +287,13 @@ test("missingAliases reports every unpublished version-free alias", () => {
 	assert.equal(VERSION_FREE_ALIASES.length, 6);
 });
 
+test("feedUrl inserts the missing slash between base and asset", () => {
+	assert.equal(
+		feedUrl("a.tar.gz", { base: "https://github.com/OmarAly92/operator/releases/download/v1.0.0" }),
+		"https://github.com/OmarAly92/operator/releases/download/v1.0.0/a.tar.gz",
+	);
+});
+
 test("generateFeeds writes only the Tauri JSON feed", async () => {
 	const dir = fixtureDir(BASE_FILES());
 	const written = await generateFeeds(dir, V, "latest", {

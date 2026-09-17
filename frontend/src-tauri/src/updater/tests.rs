@@ -1639,6 +1639,76 @@ async fn install_staged_keeps_the_staged_update_when_the_install_fails() {
 }
 
 #[tokio::test]
+async fn restore_staged_adopts_a_previous_runs_artifact_and_installs_it_from_the_feed() {
+    let h = harness().build(FakeClient::new().release_check("2.0.0"));
+    h.engine
+        .storage
+        .complete_download(
+            "2.0.0",
+            "https://releases.example.com/operator/latest.json",
+            b"pkg",
+            BASE_TIME - 1_000,
+        )
+        .unwrap();
+    assert!(!h.engine.has_staged_update());
+
+    h.engine.restore_staged();
+
+    assert!(h.engine.has_staged_update());
+    let status = h.engine.status();
+    assert_eq!(status.state, UpdateState::Downloaded);
+    assert_eq!(status.version.as_deref(), Some("2.0.0"));
+    assert_eq!(staged_at(&status), BASE_TIME - 1_000);
+
+    let installed = h.engine.install_staged().await.unwrap();
+
+    assert_eq!(installed, "2.0.0");
+    assert_eq!(
+        h.client.installs(),
+        vec![("2.0.0".to_string(), b"pkg".to_vec())]
+    );
+    assert!(!h.updater_root.join("staged").join("2.0.0").exists());
+    assert!(!h.engine.has_staged_update());
+}
+
+#[tokio::test]
+async fn restore_staged_discards_an_artifact_at_the_running_version() {
+    let h = harness().build(FakeClient::new());
+    h.engine
+        .storage
+        .complete_download(
+            APP_VERSION,
+            "https://releases.example.com/operator/latest.json",
+            b"pkg",
+            BASE_TIME,
+        )
+        .unwrap();
+
+    h.engine.restore_staged();
+
+    assert!(!h.engine.has_staged_update());
+    assert!(!h.updater_root.join("staged").join(APP_VERSION).exists());
+}
+
+#[tokio::test]
+async fn install_staged_if_idle_refuses_while_another_operation_runs() {
+    let h = harness().build(
+        FakeClient::new()
+            .release_check("2.0.0")
+            .download_bytes(b"pkg"),
+    );
+    h.engine.manual_check(CheckOptions::default()).await;
+    h.engine.download_now(None).await;
+    let _busy = h.engine.op_lock.lock().await;
+
+    let error = h.engine.install_staged_if_idle().await.unwrap_err();
+
+    assert_eq!(error, "an update operation is still running");
+    assert!(h.client.installs().is_empty());
+    assert!(h.engine.has_staged_update());
+}
+
+#[tokio::test]
 async fn active_feature_reporting_parses_the_running_version() {
     let mut builder = harness();
     builder.app_version = "0.2.0-pr2270.202607061200".to_string();

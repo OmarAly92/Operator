@@ -2,7 +2,7 @@ name: Mobile (Flutter)
 
 on:
   push:
-    branches: [master]
+    branches: [master, development]
   pull_request:
     paths:
       - "packages/mobile/**"

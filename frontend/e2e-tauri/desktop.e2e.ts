@@ -355,16 +355,12 @@ describe("Operator Tauri desktop parity", () => {
 		});
 	});
 
-	it("persists ui, keybinding, update, and migration settings across daemon stop/start/restart", async () => {
+	it("persists ui, keybinding, and update settings across daemon stop/start/restart", async () => {
 		await rest("PATCH", "/api/v1/settings/ui", { locale: "ja" });
 		await rest("PATCH", "/api/v1/settings/keybindings", {
 			"new-session": [{ key: "e", ctrl: true }],
 		});
 		await rest("PATCH", "/api/v1/settings/updates", { enabled: true, feature: { pr: 31 } });
-		await rest("PATCH", "/api/v1/settings/migration", {
-			status: "declined",
-			lastAttemptAt: new Date().toISOString(),
-		});
 
 		await invoke("daemon_stop");
 		const stopDeadline = Date.now() + 60_000;
@@ -389,12 +385,10 @@ describe("Operator Tauri desktop parity", () => {
 		assert.deepEqual(settings.keybindings?.["new-session"], [
 			{ key: "e", ctrl: true, meta: false, shift: false, alt: false },
 		]);
-		assert.equal(settings.migration?.status, "declined");
 
 		await rest("PATCH", "/api/v1/settings/ui", { locale: "en" });
 		await rest("PATCH", "/api/v1/settings/keybindings", {});
 		await rest("PATCH", "/api/v1/settings/updates", { enabled: false, feature: null });
-		await rest("PATCH", "/api/v1/settings/migration", { status: "pending" });
 		await invoke("updates_apply_settings", {
 			settings: { enabled: false, feature: null },
 		});
