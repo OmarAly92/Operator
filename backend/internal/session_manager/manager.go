@@ -38,6 +38,7 @@ var (
 	ErrIncompleteHandle   = errors.New("session: incomplete teardown handle")
 	ErrWrongActivityState = errors.New("session: command not available in this activity state")
 	ErrDialogAbsent       = errors.New("session: dialog is no longer on screen")
+	ErrDialogKindMismatch = errors.New("session: the pending dialog is not of that kind")
 	ErrModelNotOffered    = errors.New("session: model not offered by this harness")
 	// ErrComposerNotEmpty means a human draft is sitting unsent in the
 	// harness's composer, so an unattended slash-command write would submit

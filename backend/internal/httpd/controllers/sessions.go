@@ -1442,6 +1442,9 @@ func (c *SessionsController) decision(w http.ResponseWriter, r *http.Request) {
 	case errors.Is(err, sessionmanager.ErrDialogAbsent):
 		envelope.WriteAPIError(w, r, http.StatusConflict, "conflict", "SESSION_DIALOG_ABSENT",
 			"the expected dialog is no longer on screen", nil)
+	case errors.Is(err, sessionmanager.ErrDialogKindMismatch):
+		envelope.WriteAPIError(w, r, http.StatusConflict, "conflict", "SESSION_DIALOG_KIND_MISMATCH",
+			"the pending dialog is not of the kind this route answers", nil)
 	case errors.Is(err, sessionmanager.ErrNotFound):
 		envelope.WriteAPIError(w, r, http.StatusNotFound, "not_found", "SESSION_NOT_FOUND", "session not found", nil)
 	case errors.Is(err, sessionmanager.ErrTerminated), errors.Is(err, sessionmanager.ErrAgentExited):
@@ -1472,6 +1475,9 @@ func (c *SessionsController) answer(w http.ResponseWriter, r *http.Request) {
 	case errors.Is(err, sessionmanager.ErrDialogAbsent):
 		envelope.WriteAPIError(w, r, http.StatusConflict, "conflict", "SESSION_DIALOG_ABSENT",
 			"the expected dialog is no longer on screen", nil)
+	case errors.Is(err, sessionmanager.ErrDialogKindMismatch):
+		envelope.WriteAPIError(w, r, http.StatusConflict, "conflict", "SESSION_DIALOG_KIND_MISMATCH",
+			"the pending dialog is not of the kind this route answers", nil)
 	case errors.Is(err, sessionmanager.ErrNotFound):
 		envelope.WriteAPIError(w, r, http.StatusNotFound, "not_found", "SESSION_NOT_FOUND", "session not found", nil)
 	case errors.Is(err, sessionmanager.ErrTerminated), errors.Is(err, sessionmanager.ErrAgentExited):

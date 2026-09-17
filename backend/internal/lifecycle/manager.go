@@ -320,6 +320,13 @@ func (m *Manager) observeDialogAbsent(ctx context.Context, id domain.SessionID, 
 	return s
 }
 
+func interactionKindFor(toolName string) string {
+	if toolName == "AskUserQuestion" {
+		return domain.InteractionQuestion
+	}
+	return domain.InteractionPermission
+}
+
 func (m *Manager) registerInteraction(id domain.SessionID, in domain.PendingInteraction) {
 	m.interactionsMu.RLock()
 	registry := m.interactions
@@ -962,7 +969,7 @@ func (m *Manager) applyToolPrecedenceLocked(id domain.SessionID, cur domain.Acti
 			}
 			m.registerInteraction(id, domain.PendingInteraction{
 				ID:        mintedID,
-				Kind:      domain.InteractionPermission,
+				Kind:      interactionKindFor(s.ToolName),
 				ToolName:  s.ToolName,
 				ToolInput: s.ToolInput,
 				CreatedAt: m.clock(),

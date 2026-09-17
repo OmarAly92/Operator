@@ -43,8 +43,11 @@ func (m *Manager) Decide(ctx context.Context, id domain.SessionID, interactionID
 		return ErrIncompleteHandle
 	}
 	pending, ok := m.Interaction(id, interactionID)
-	if !ok || pending.Kind != domain.InteractionPermission {
+	if !ok {
 		return ErrDialogAbsent
+	}
+	if pending.Kind != domain.InteractionPermission {
+		return ErrDialogKindMismatch
 	}
 	reader, ok := m.dialogReaderFor(rec.Harness)
 	if !ok {
@@ -139,8 +142,11 @@ func (m *Manager) Answer(ctx context.Context, id domain.SessionID, interactionID
 		return ErrIncompleteHandle
 	}
 	pending, ok := m.Interaction(id, interactionID)
-	if !ok || pending.Kind != domain.InteractionQuestion {
+	if !ok {
 		return ErrDialogAbsent
+	}
+	if pending.Kind != domain.InteractionQuestion {
+		return ErrDialogKindMismatch
 	}
 	reader, ok := m.dialogReaderFor(rec.Harness)
 	if !ok {

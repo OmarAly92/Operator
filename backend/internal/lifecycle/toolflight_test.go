@@ -515,3 +515,38 @@ func TestToolPrecedence_ObserverIsNotConsultedUnlessBlocked(t *testing.T) {
 		t.Fatalf("observer reads = %d, want 0", observer.reads)
 	}
 }
+
+func TestToolPrecedence_AskUserQuestionRegistersAQuestionInteraction(t *testing.T) {
+	m, st, _ := newManager()
+	registry := &fakeInteractionRegistry{}
+	m.SetInteractionRegistry(registry)
+	seedSignaled(st, "mer-1", domain.ActivityActive)
+	blockOnDialog(t, m, st, "mer-1", "AskUserQuestion", "toolu_1")
+
+	pending, ok := registry.pending["mer-1"]
+	if !ok {
+		t.Fatal("expected a registered interaction")
+	}
+	if pending.Kind != domain.InteractionQuestion {
+		t.Fatalf("kind = %q, want %q", pending.Kind, domain.InteractionQuestion)
+	}
+	if pending.ToolName != "AskUserQuestion" {
+		t.Fatalf("tool name = %q, want AskUserQuestion", pending.ToolName)
+	}
+}
+
+func TestToolPrecedence_OtherToolsRegisterAPermissionInteraction(t *testing.T) {
+	m, st, _ := newManager()
+	registry := &fakeInteractionRegistry{}
+	m.SetInteractionRegistry(registry)
+	seedSignaled(st, "mer-1", domain.ActivityActive)
+	blockOnDialog(t, m, st, "mer-1", "Bash", "toolu_1")
+
+	pending, ok := registry.pending["mer-1"]
+	if !ok {
+		t.Fatal("expected a registered interaction")
+	}
+	if pending.Kind != domain.InteractionPermission {
+		t.Fatalf("kind = %q, want %q", pending.Kind, domain.InteractionPermission)
+	}
+}

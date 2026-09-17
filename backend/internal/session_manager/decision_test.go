@@ -539,3 +539,50 @@ func TestDialogOnScreenReadsTheHarnessDialog(t *testing.T) {
 		t.Fatalf("expected no dialog on screen, got on=%v err=%v", on, err)
 	}
 }
+
+func TestDecideRefusesAQuestionInteractionWithAKindMismatch(t *testing.T) {
+	m, rt := newCommandTestManager(t, domain.ActivityBlocked)
+	rt.panes = []string{"MENU:0"}
+	m.dialogReader = fakeQuestionReader{rows: questionRows("first", "second")}
+	m.RegisterInteraction("s1", domain.PendingInteraction{ID: "q1", Kind: domain.InteractionQuestion, ToolName: "AskUserQuestion"})
+
+	err := m.Decide(context.Background(), "s1", "q1", "allow")
+	if !errors.Is(err, ErrDialogKindMismatch) {
+		t.Fatalf("expected ErrDialogKindMismatch, got %v", err)
+	}
+	if len(rt.inputs) != 0 {
+		t.Fatalf("expected no writes, got %q", rt.inputs)
+	}
+}
+
+func TestAnswerRefusesAPermissionInteractionWithAKindMismatch(t *testing.T) {
+	m, rt := newCommandTestManager(t, domain.ActivityBlocked)
+	rt.panes = []string{"DIALOG SEL:0"}
+	m.dialogReader = fakeDialogReader{present: true}
+	m.RegisterInteraction("s1", domain.PendingInteraction{ID: "i1", Kind: domain.InteractionPermission, ToolName: "Bash"})
+
+	err := m.Answer(context.Background(), "s1", "i1", [][]string{{"1. Yes"}})
+	if !errors.Is(err, ErrDialogKindMismatch) {
+		t.Fatalf("expected ErrDialogKindMismatch, got %v", err)
+	}
+	if len(rt.inputs) != 0 {
+		t.Fatalf("expected no writes, got %q", rt.inputs)
+	}
+}
+
+func TestAnswerOnAnAskUserQuestionInteractionProceedsToThePaneRead(t *testing.T) {
+	m, rt := newCommandTestManager(t, domain.ActivityBlocked)
+	rt.panes = []string{"MENU:0", "MENU:0", "MENU:0", "moved on"}
+	m.dialogReader = fakeQuestionReader{rows: questionRows("first", "second")}
+	m.RegisterInteraction("s1", domain.PendingInteraction{ID: "q1", Kind: domain.InteractionQuestion, ToolName: "AskUserQuestion"})
+
+	if err := m.Answer(context.Background(), "s1", "q1", [][]string{{"first"}}); err != nil {
+		t.Fatalf("Answer: %v", err)
+	}
+	if rt.outputCalls == 0 {
+		t.Fatal("expected Answer to read the pane")
+	}
+	if len(rt.inputs) == 0 || rt.inputs[len(rt.inputs)-1] != "\r" {
+		t.Fatalf("expected Enter to be driven into the question, got %q", rt.inputs)
+	}
+}

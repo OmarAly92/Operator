@@ -81,3 +81,12 @@ func TestSendRemainsRefusedWhileAnApprovalIsPending(t *testing.T) {
 		t.Fatalf("status = %d, want 409 — decision is the ONLY write admitted while blocked; body=%s", status, body)
 	}
 }
+
+func TestSessionDecisionDialogKindMismatchIsConflict(t *testing.T) {
+	svc := newFakeSessionService()
+	svc.decideErr = sessionmanager.ErrDialogKindMismatch
+	srv := newSessionTestServer(t, svc)
+
+	body, status, _ := doRequest(t, srv, http.MethodPost, "/api/v1/sessions/s1/decision", `{"requestId":"q1","behavior":"allow"}`)
+	assertErrorCode(t, body, status, http.StatusConflict, "SESSION_DIALOG_KIND_MISMATCH")
+}
