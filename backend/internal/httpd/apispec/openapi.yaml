@@ -2685,6 +2685,51 @@ paths:
       summary: Configure whether PR completion terminates the session
       tags:
       - sessions
+  /api/v1/sessions/{sessionId}/models:
+    get:
+      operationId: listSessionModels
+      parameters:
+      - description: Session identifier, e.g. project-1.
+        in: path
+        name: sessionId
+        required: true
+        schema:
+          description: Session identifier, e.g. project-1.
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ControllersSessionModelsResponse'
+          description: OK
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Conflict
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: Read the models a session's harness offers and which one is current
+      tags:
+      - sessions
   /api/v1/sessions/{sessionId}/pin:
     delete:
       operationId: unpinSession
@@ -5199,6 +5244,28 @@ components:
           type: array
       required:
       - interactions
+      type: object
+    ControllersSessionModelView:
+      properties:
+        current:
+          type: boolean
+        description:
+          type: string
+        label:
+          type: string
+      required:
+      - label
+      - description
+      - current
+      type: object
+    ControllersSessionModelsResponse:
+      properties:
+        models:
+          items:
+            $ref: '#/components/schemas/ControllersSessionModelView'
+          type: array
+      required:
+      - models
       type: object
     ControllersSessionSlashCommandsResponse:
       properties:

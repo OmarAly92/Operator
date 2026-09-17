@@ -16,6 +16,7 @@ import (
 	"github.com/OmarAly92/operator/backend/internal/httpd"
 	"github.com/OmarAly92/operator/backend/internal/ports"
 	slashcommandssvc "github.com/OmarAly92/operator/backend/internal/service/slashcommands"
+	sessionmanager "github.com/OmarAly92/operator/backend/internal/session_manager"
 	"github.com/OmarAly92/operator/backend/internal/slashcommands"
 )
 
@@ -219,5 +220,39 @@ func TestSendBuiltinWithNoPaneOutputRecordsOnlyThePrompt(t *testing.T) {
 	time.Sleep(20 * time.Millisecond)
 	if signals = rec.snapshot(); len(signals) != 1 || signals[0].Event != "user-prompt-submit" {
 		t.Fatalf("signals = %+v, want just the prompt", signals)
+	}
+}
+
+func TestListModelsReturnsThePickerRows(t *testing.T) {
+	svc := newFakeSessionService()
+	svc.models = []sessionmanager.ModelOption{
+		{Label: "Opus (1M context)", Description: "Opus 5 with 1M context"},
+		{Label: "Sonnet", Description: "Sonnet 5 · Efficient for routine tasks", Current: true},
+	}
+	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+	srv := httptest.NewServer(httpd.NewRouterWithControl(config.Config{}, log, nil, httpd.APIDeps{Sessions: svc}, httpd.ControlDeps{}))
+	t.Cleanup(srv.Close)
+
+	body, status, _ := doRequest(t, srv, http.MethodGet, "/api/v1/sessions/opr-1/models", "")
+	if status != http.StatusOK {
+		t.Fatalf("status = %d, want 200: %s", status, body)
+	}
+	want := `{"models":[{"label":"Opus (1M context)","description":"Opus 5 with 1M context","current":false},` +
+		`{"label":"Sonnet","description":"Sonnet 5 · Efficient for routine tasks","current":true}]}`
+	if strings.TrimSpace(string(body)) != want {
+		t.Fatalf("body = %s, want %s", body, want)
+	}
+}
+
+func TestListModelsMapsCommandErrors(t *testing.T) {
+	svc := newFakeSessionService()
+	svc.modelsErr = sessionmanager.ErrWrongActivityState
+	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+	srv := httptest.NewServer(httpd.NewRouterWithControl(config.Config{}, log, nil, httpd.APIDeps{Sessions: svc}, httpd.ControlDeps{}))
+	t.Cleanup(srv.Close)
+
+	body, status, _ := doRequest(t, srv, http.MethodGet, "/api/v1/sessions/opr-1/models", "")
+	if status != http.StatusConflict || !strings.Contains(string(body), "SESSION_COMMAND_UNAVAILABLE") {
+		t.Fatalf("status = %d body = %s, want 409 SESSION_COMMAND_UNAVAILABLE", status, body)
 	}
 }

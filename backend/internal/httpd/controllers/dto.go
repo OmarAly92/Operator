@@ -1485,3 +1485,13 @@ type SlashCommandView struct {
 type SessionSlashCommandsResponse struct {
 	Commands []SlashCommandView `json:"commands"`
 }
+
+type SessionModelView struct {
+	Label       string `json:"label"`
+	Description string `json:"description"`
+	Current     bool   `json:"current"`
+}
+
+type SessionModelsResponse struct {
+	Models []SessionModelView `json:"models"`
+}

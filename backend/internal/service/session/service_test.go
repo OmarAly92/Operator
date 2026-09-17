@@ -1324,6 +1324,10 @@ func (*fakeCommander) Command(context.Context, domain.SessionID, domain.SessionC
 func (*fakeCommander) Draft(context.Context, domain.SessionID) (string, error) {
 	return "", nil
 }
+func (*fakeCommander) Models(context.Context, domain.SessionID) ([]sessionmanager.ModelOption, error) {
+	return nil, nil
+}
+
 func (*fakeCommander) SlashOutput(context.Context, domain.SessionID, string) (string, error) {
 	return "", nil
 }

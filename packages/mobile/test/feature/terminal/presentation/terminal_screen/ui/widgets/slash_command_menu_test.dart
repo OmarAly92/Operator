@@ -14,7 +14,7 @@ class _MockSlashMenuCubit extends MockCubit<SlashMenuState> implements SlashMenu
 
 const _compact = SlashCommandModel(name: 'compact', description: 'Keep a summary', source: 'builtin');
 const _analyze = SlashCommandModel(name: 'sc:analyze', description: 'Analyze', source: 'user');
-const _model = SlashCommandModel(name: 'model', description: 'Pick a model', source: 'builtin', interactive: true);
+const _export = SlashCommandModel(name: 'export', description: 'Export', source: 'builtin', interactive: true);
 
 Widget _host(SlashMenuCubit cubit) => SkinScope(
   skin: const DarkSkin(),
@@ -60,19 +60,19 @@ void main() {
 
   testWidgets('an interactive command is tagged desktop and never picked', (tester) async {
     final cubit = _MockSlashMenuCubit();
-    when(() => cubit.state).thenReturn(const SlashMenuChangedState(open: true, matches: [_compact, _model]));
+    when(() => cubit.state).thenReturn(const SlashMenuChangedState(open: true, matches: [_compact, _export]));
     when(() => cubit.open).thenReturn(true);
-    when(() => cubit.matches).thenReturn(const [_compact, _model]);
+    when(() => cubit.matches).thenReturn(const [_compact, _export]);
 
     await tester.pumpWidget(_host(cubit));
 
-    expect(find.text('/model'), findsOneWidget);
+    expect(find.text('/export'), findsOneWidget);
     expect(find.text('desktop'), findsOneWidget);
 
-    await tester.tap(find.text('/model'));
+    await tester.tap(find.text('/export'));
     await tester.pump();
     verifyNever(() => cubit.pick(any()));
-    expect(find.text('Run /model on the desktop'), findsOneWidget);
+    expect(find.text('Run /export on the desktop'), findsOneWidget);
   });
 
   testWidgets('a long list scrolls inside a capped height', (tester) async {

@@ -103,6 +103,7 @@ type SessionService interface {
 	SetReviewerHarness(ctx context.Context, id domain.SessionID, harness domain.ReviewerHarness) (domain.Session, error)
 	Send(ctx context.Context, id domain.SessionID, message string, attachment *ports.SpawnAttachment) error
 	Command(ctx context.Context, id domain.SessionID, command domain.SessionCommand, model string) (sessionmanager.CommandResult, error)
+	Models(ctx context.Context, id domain.SessionID) ([]sessionmanager.ModelOption, error)
 	Draft(ctx context.Context, id domain.SessionID) (string, error)
 	SlashOutput(ctx context.Context, id domain.SessionID, message string) (string, error)
 	Decide(ctx context.Context, id domain.SessionID, interactionID, behavior string) error
@@ -226,6 +227,7 @@ func (c *SessionsController) Register(r chi.Router) {
 	r.Post("/sessions/{sessionId}/answer", c.answer)
 	r.Get("/sessions/{sessionId}/interactions", c.listInteractions)
 	r.Get("/sessions/{sessionId}/slash-commands", c.listSlashCommands)
+	r.Get("/sessions/{sessionId}/models", c.listModels)
 	r.Get("/sessions/{sessionId}/draft", c.draft)
 	r.Post("/sessions/{sessionId}/activity", c.activity)
 	r.Post("/sessions/{sessionId}/pin", c.pin)
@@ -1445,31 +1447,11 @@ func (c *SessionsController) command(w http.ResponseWriter, r *http.Request) {
 	}
 
 	result, err := c.Svc.Command(r.Context(), sessionID(r), command, in.Model)
-	switch {
-	case err == nil:
-		envelope.WriteJSON(w, http.StatusOK, SessionCommandResponse{State: "sent", Models: result.Models})
-	case errors.Is(err, sessionmanager.ErrNotFound):
-		envelope.WriteAPIError(w, r, http.StatusNotFound, "not_found", "SESSION_NOT_FOUND", "session not found", nil)
-	case errors.Is(err, sessionmanager.ErrAwaitingDecision):
-		envelope.WriteAPIError(w, r, http.StatusConflict, "conflict", "SESSION_AWAITING_DECISION",
-			"the session is paused on a permission decision", nil)
-	case errors.Is(err, sessionmanager.ErrWrongActivityState):
-		envelope.WriteAPIError(w, r, http.StatusConflict, "conflict", "SESSION_COMMAND_UNAVAILABLE",
-			"the command is not available in the session's current state", nil)
-	case errors.Is(err, sessionmanager.ErrComposerNotEmpty):
-		envelope.WriteAPIError(w, r, http.StatusConflict, "conflict", "SESSION_COMPOSER_NOT_EMPTY",
-			"the terminal composer holds an unsent draft", nil)
-	case errors.Is(err, sessionmanager.ErrModelNotOffered):
-		envelope.WriteAPIError(w, r, http.StatusConflict, "conflict", "SESSION_MODEL_NOT_OFFERED",
-			"the harness did not offer that model", map[string]any{"models": result.Models})
-	case errors.Is(err, sessionmanager.ErrDialogAbsent):
-		envelope.WriteAPIError(w, r, http.StatusConflict, "conflict", "SESSION_DIALOG_ABSENT",
-			"the expected dialog is no longer on screen", nil)
-	case errors.Is(err, sessionmanager.ErrTerminated), errors.Is(err, sessionmanager.ErrAgentExited):
-		envelope.WriteAPIError(w, r, http.StatusConflict, "conflict", "SESSION_NOT_RUNNING", "the session is not running", nil)
-	default:
-		envelope.WriteError(w, r, err)
+	if err != nil {
+		c.writeCommandError(w, r, err, result.Models)
+		return
 	}
+	envelope.WriteJSON(w, http.StatusOK, SessionCommandResponse{State: "sent", Models: result.Models})
 }
 
 func (c *SessionsController) decision(w http.ResponseWriter, r *http.Request) {
@@ -1556,6 +1538,49 @@ func (c *SessionsController) listInteractions(w http.ResponseWriter, r *http.Req
 		return
 	}
 	envelope.WriteJSON(w, http.StatusOK, SessionInteractionsResponse{Interactions: sessionInteractionViews(interactions)})
+}
+
+func (c *SessionsController) writeCommandError(w http.ResponseWriter, r *http.Request, err error, models []string) {
+	switch {
+	case errors.Is(err, sessionmanager.ErrNotFound):
+		envelope.WriteAPIError(w, r, http.StatusNotFound, "not_found", "SESSION_NOT_FOUND", "session not found", nil)
+	case errors.Is(err, sessionmanager.ErrAwaitingDecision):
+		envelope.WriteAPIError(w, r, http.StatusConflict, "conflict", "SESSION_AWAITING_DECISION",
+			"the session is paused on a permission decision", nil)
+	case errors.Is(err, sessionmanager.ErrWrongActivityState):
+		envelope.WriteAPIError(w, r, http.StatusConflict, "conflict", "SESSION_COMMAND_UNAVAILABLE",
+			"the command is not available in the session's current state", nil)
+	case errors.Is(err, sessionmanager.ErrComposerNotEmpty):
+		envelope.WriteAPIError(w, r, http.StatusConflict, "conflict", "SESSION_COMPOSER_NOT_EMPTY",
+			"the terminal composer holds an unsent draft", nil)
+	case errors.Is(err, sessionmanager.ErrModelNotOffered):
+		envelope.WriteAPIError(w, r, http.StatusConflict, "conflict", "SESSION_MODEL_NOT_OFFERED",
+			"the harness did not offer that model", map[string]any{"models": models})
+	case errors.Is(err, sessionmanager.ErrDialogAbsent):
+		envelope.WriteAPIError(w, r, http.StatusConflict, "conflict", "SESSION_DIALOG_ABSENT",
+			"the expected dialog is no longer on screen", nil)
+	case errors.Is(err, sessionmanager.ErrTerminated), errors.Is(err, sessionmanager.ErrAgentExited):
+		envelope.WriteAPIError(w, r, http.StatusConflict, "conflict", "SESSION_NOT_RUNNING", "the session is not running", nil)
+	default:
+		envelope.WriteError(w, r, err)
+	}
+}
+
+func (c *SessionsController) listModels(w http.ResponseWriter, r *http.Request) {
+	if c.Svc == nil {
+		apispec.NotImplemented(w, r, "GET", "/api/v1/sessions/{sessionId}/models")
+		return
+	}
+	options, err := c.Svc.Models(r.Context(), sessionID(r))
+	if err != nil {
+		c.writeCommandError(w, r, err, nil)
+		return
+	}
+	views := make([]SessionModelView, 0, len(options))
+	for _, option := range options {
+		views = append(views, SessionModelView{Label: option.Label, Description: option.Description, Current: option.Current})
+	}
+	envelope.WriteJSON(w, http.StatusOK, SessionModelsResponse{Models: views})
 }
 
 func (c *SessionsController) listSlashCommands(w http.ResponseWriter, r *http.Request) {

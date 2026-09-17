@@ -11,6 +11,7 @@ import 'package:operator_mobile/core/mux/mux_client.dart';
 import 'package:operator_mobile/core/mux/session_patch.dart';
 import 'package:operator_mobile/core/utils/service_locator.dart';
 import 'package:operator_mobile/feature/blocks/data/model/pending_interaction_model.dart';
+import 'package:operator_mobile/feature/blocks/data/model/session_model_option_model.dart';
 import 'package:operator_mobile/feature/blocks/data/repository/session_control_repository.dart';
 import 'package:operator_mobile/feature/blocks/logic/command_confirmation.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/blocks_cubit.dart';
@@ -66,6 +67,8 @@ void _stubBloc(MockSessionCommandCubit cubit) {
   when(() => cubit.stream).thenAnswer((_) => const Stream.empty());
   when(() => cubit.state).thenReturn(const SessionCommandState());
   when(() => cubit.close()).thenAnswer((_) async {});
+  when(() => cubit.fetchModels()).thenAnswer((_) async {});
+  when(() => cubit.isClosed).thenReturn(false);
 }
 
 final _harnesses = <TerminalHarness>[];
@@ -263,6 +266,36 @@ void main() {
     await tester.pumpAndSettle();
 
     verify(() => cubit.run('model', model: 'opus')).called(1);
+  });
+
+  testWidgets('the picker marks the current model and does not re-send it', (tester) async {
+    final cubit = MockSessionCommandCubit();
+    when(() => cubit.phases).thenReturn(const {});
+    when(() => cubit.enabled('stop')).thenReturn(false);
+    when(() => cubit.enabled('compact')).thenReturn(true);
+    when(() => cubit.enabled('model')).thenReturn(true);
+    when(() => cubit.models).thenReturn(['Opus (1M context)', 'Sonnet']);
+    final host = _host(activity: 'idle', cubit: cubit);
+    when(() => cubit.state).thenReturn(
+      const SessionCommandState(
+        modelOptions: [
+          SessionModelOptionModel(label: 'Opus (1M context)', description: 'Opus 5 with 1M context'),
+          SessionModelOptionModel(label: 'Sonnet', description: 'Sonnet 5 · Efficient for routine tasks', current: true),
+        ],
+        currentModel: 'Sonnet',
+      ),
+    );
+
+    await tester.pumpWidget(host);
+    await tester.tap(find.text('Model'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Sonnet 5 · Efficient for routine tasks'), findsOneWidget);
+    expect(find.byIcon(Icons.check_rounded), findsOneWidget);
+
+    await tester.tap(find.text('Sonnet'));
+    await tester.pumpAndSettle();
+    verifyNever(() => cubit.run(any(), model: any(named: 'model')));
   });
 
   testWidgets(

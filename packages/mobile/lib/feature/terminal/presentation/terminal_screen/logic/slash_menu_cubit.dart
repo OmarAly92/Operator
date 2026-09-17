@@ -8,6 +8,11 @@ import 'package:operator_mobile/feature/terminal/data/repository/terminal_reposi
 
 part 'slash_menu_state.dart';
 
+const Set<String> kPhoneHandledCommands = {'model'};
+
+bool slashCommandNeedsDesktop(SlashCommandModel command) =>
+    command.interactive == true && !kPhoneHandledCommands.contains(command.name);
+
 class SlashMenuCubit extends Cubit<SlashMenuState> {
   SlashMenuCubit(this._repository, this.composer, {required this.sessionId}) : super(const SlashMenuInitialState()) {
     composer.addListener(_onComposerChanged);
@@ -31,8 +36,8 @@ class SlashMenuCubit extends Cubit<SlashMenuState> {
       onSuccess: (response) {
         final listed = (response.data ?? const []).where((command) => (command.name ?? '').isNotEmpty);
         commands = [
-          ...listed.where((command) => command.interactive != true),
-          ...listed.where((command) => command.interactive == true),
+          ...listed.where((command) => !slashCommandNeedsDesktop(command)),
+          ...listed.where(slashCommandNeedsDesktop),
         ];
         emit(const GetSlashCommandsSuccessState());
         _onComposerChanged();

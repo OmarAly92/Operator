@@ -46,6 +46,9 @@ type fakeSessionService struct {
 	draftErr           error
 	slashOutput        string
 	slashOutputErr     error
+	modelsCalls        int
+	models             []sessionmanager.ModelOption
+	modelsErr          error
 	slashMu            sync.Mutex
 	slashOutputCalls   int
 	slashOutputMessage string
@@ -415,6 +418,11 @@ func (f *fakeSessionService) Command(_ context.Context, _ domain.SessionID, _ do
 
 func (f *fakeSessionService) Draft(_ context.Context, _ domain.SessionID) (string, error) {
 	return f.draftResult, f.draftErr
+}
+
+func (f *fakeSessionService) Models(_ context.Context, _ domain.SessionID) ([]sessionmanager.ModelOption, error) {
+	f.modelsCalls++
+	return f.models, f.modelsErr
 }
 
 func (f *fakeSessionService) SlashOutput(_ context.Context, _ domain.SessionID, message string) (string, error) {

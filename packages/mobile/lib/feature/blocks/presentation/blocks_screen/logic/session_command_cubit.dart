@@ -8,11 +8,13 @@ import 'package:operator_mobile/core/mux/mux_client.dart';
 import 'package:operator_mobile/core/mux/session_patch.dart';
 import 'package:operator_mobile/feature/blocks/data/model/block_event_model.dart';
 import 'package:operator_mobile/feature/blocks/data/model/pending_interaction_model.dart';
+import 'package:operator_mobile/feature/blocks/data/model/session_model_option_model.dart';
 import 'package:operator_mobile/feature/blocks/data/model/params/session_answer_params.dart';
 import 'package:operator_mobile/feature/blocks/data/model/params/session_command_params.dart';
 import 'package:operator_mobile/feature/blocks/data/model/params/session_decision_params.dart';
 import 'package:operator_mobile/feature/blocks/data/repository/session_control_repository.dart';
 import 'package:operator_mobile/feature/blocks/logic/command_confirmation.dart';
+import 'package:operator_mobile/feature/blocks/logic/model_label.dart';
 import 'package:operator_mobile/feature/usage/data/repository/usage_repository.dart';
 import 'package:operator_mobile/feature/usage/logic/context_readout.dart';
 
@@ -92,6 +94,39 @@ class SessionCommandCubit extends Cubit<SessionCommandState> {
 
   Map<String, CommandPhase> get phases => state.phases;
   List<String> get models => state.models;
+  List<SessionModelOptionModel> get modelOptions => state.modelOptions;
+  String? get currentModel => state.currentModel;
+
+  String _canonicalModelLabel(String label) {
+    final wanted = label.trim().toLowerCase();
+    for (final option in state.modelOptions) {
+      final known = option.label ?? '';
+      if (known.toLowerCase() == wanted) return known;
+    }
+    for (final known in state.models) {
+      if (known.toLowerCase() == wanted) return known;
+    }
+    return label.trim();
+  }
+
+  Future<void> fetchModels() async {
+    emit(state.copyWith(modelsLoading: true));
+    final result = await _repo.getModels(sessionId);
+    if (isClosed) return;
+    result.when(
+      onSuccess: (response) {
+        final options = response.data ?? const <SessionModelOptionModel>[];
+        final current = options.where((option) => option.current == true).firstOrNull?.label;
+        emit(state.copyWith(
+          modelOptions: options,
+          modelsLoading: false,
+          currentModel: current,
+          models: options.map((option) => option.label ?? '').where((label) => label.isNotEmpty).toList(),
+        ));
+      },
+      onFailure: (_) => emit(state.copyWith(modelsLoading: false)),
+    );
+  }
 
   bool enabled(String command) {
     if (_activity == 'blocked') return false;
@@ -128,7 +163,11 @@ class SessionCommandCubit extends Cubit<SessionCommandState> {
           return;
         }
         _setPhase(command, CommandPhase.sent, models: offered);
-        if (command != 'model') _startTimer(command);
+        if (command == 'model' && model != null) {
+          emit(state.copyWith(currentModel: _canonicalModelLabel(model)));
+        } else {
+          _startTimer(command);
+        }
       },
       onFailure: (failure) {
         List<String>? offered;
@@ -145,6 +184,10 @@ class SessionCommandCubit extends Cubit<SessionCommandState> {
   }
 
   void onEvent(BlockEventModel event) {
+    if (event.kind == 'turn_model' && (event.text ?? '').trim().isNotEmpty) {
+      final label = formatModelLabel(event.text!);
+      if (label != state.currentModel) emit(state.copyWith(currentModel: label));
+    }
     final next = Map<String, CommandPhase>.of(state.phases);
     var changed = false;
     for (final key in state.phases.keys.toList()) {

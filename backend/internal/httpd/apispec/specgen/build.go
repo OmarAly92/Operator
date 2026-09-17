@@ -1685,6 +1685,18 @@ func sessionOperations() []operation {
 			},
 		},
 		{
+			method: http.MethodGet, path: "/api/v1/sessions/{sessionId}/models", id: "listSessionModels", tag: "sessions",
+			summary:    "Read the models a session's harness offers and which one is current",
+			pathParams: []any{controllers.SessionIDParam{}},
+			resps: []respUnit{
+				{http.StatusOK, controllers.SessionModelsResponse{}},
+				{http.StatusNotFound, envelope.APIError{}},
+				{http.StatusConflict, envelope.APIError{}},
+				{http.StatusInternalServerError, envelope.APIError{}},
+				{http.StatusNotImplemented, envelope.APIError{}},
+			},
+		},
+		{
 			method: http.MethodGet, path: "/api/v1/sessions/{sessionId}/draft", id: "getSessionDraft", tag: "sessions",
 			summary:    "Read a session's unsent composer draft",
 			pathParams: []any{controllers.SessionIDParam{}},

@@ -998,6 +998,23 @@ export interface paths {
         patch: operations["setSessionMergePolicy"];
         trace?: never;
     };
+    "/api/v1/sessions/{sessionId}/models": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read the models a session's harness offers and which one is current */
+        get: operations["listSessionModels"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/sessions/{sessionId}/pin": {
         parameters: {
             query?: never;
@@ -1856,6 +1873,14 @@ export interface components {
         };
         ControllersSessionInteractionsResponse: {
             interactions: components["schemas"]["ControllersSessionInteraction"][];
+        };
+        ControllersSessionModelView: {
+            current: boolean;
+            description: string;
+            label: string;
+        };
+        ControllersSessionModelsResponse: {
+            models: components["schemas"]["ControllersSessionModelView"][];
         };
         ControllersSessionSlashCommandsResponse: {
             commands: components["schemas"]["ControllersSlashCommandView"][];
@@ -6223,6 +6248,65 @@ export interface operations {
             };
             /** @description Not Found */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    listSessionModels: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Session identifier, e.g. project-1. */
+                sessionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ControllersSessionModelsResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Conflict */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

@@ -3,7 +3,9 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/utils/haptics.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_toast.dart';
+import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/model_picker_sheet.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/logic/slash_menu_cubit.dart';
+import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/logic/terminal_cubit.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/ui/widgets/slash_command_row.dart';
 
 const double _kMaxMenuHeight = 300;
@@ -36,7 +38,7 @@ class SlashCommandMenu extends StatelessWidget {
               itemCount: rows.length,
               itemBuilder: (context, index) {
                 final command = rows[index];
-                final interactive = command.interactive == true;
+                final interactive = slashCommandNeedsDesktop(command);
                 return SlashCommandRow(
                   name: command.name ?? '',
                   description: command.description ?? '',
@@ -44,6 +46,11 @@ class SlashCommandMenu extends StatelessWidget {
                   interactive: interactive,
                   onTap: () {
                     Haptics.select();
+                    if (command.name == 'model') {
+                      cubit.composer.clear();
+                      showModelPicker(context, harness: context.read<TerminalCubit>().args.harness);
+                      return;
+                    }
                     if (interactive) {
                       AppToast.show(
                         context,

@@ -144,3 +144,16 @@ func TestLastPromptDraft(t *testing.T) {
 		})
 	}
 }
+
+func TestBorderedComposerIsFoundBeneathTrailingBlankRows(t *testing.T) {
+	rule := "\x1b[38;2;136;136;136m" + strings.Repeat("─", 40) + "\x1b[0m"
+	output := "\x1b[0m❯ /model\x1b[0m\n" + rule + "\n\x1b[0m❯ \x1b[0m\n" + rule + "\n\x1b[0m  \x1b[38;2;255;193;7m⏵⏵ auto mode on\x1b[0m\n" +
+		strings.Repeat("\x1b[0m\n", 12)
+	if !LastBorderedPromptIsEmptyOrDimPlaceholder(output, "❯") {
+		t.Fatal("an empty bordered composer above blank screen rows must read as empty")
+	}
+	typed := strings.Replace(output, "❯\u00a0", "❯ fix the tests", 1)
+	if draft, ok := LastBorderedPromptDraft(typed, "❯"); !ok || draft != "fix the tests" {
+		t.Fatalf("draft = %q, %v; want the typed text beneath the blank rows", draft, ok)
+	}
+}

@@ -14,6 +14,7 @@ class _MockTerminalRepository extends Mock implements TerminalRepository {}
 const _commands = [
   SlashCommandModel(name: 'compact', description: 'Keep a summary', source: 'builtin', interactive: false),
   SlashCommandModel(name: 'context', description: 'Context grid', source: 'builtin', interactive: false),
+  SlashCommandModel(name: 'export', description: 'Export', source: 'builtin', interactive: true),
   SlashCommandModel(name: 'model', description: 'Pick a model', source: 'builtin', interactive: true),
   SlashCommandModel(name: 'sc:analyze', description: 'Analyze', source: 'user', interactive: false),
 ];
@@ -39,7 +40,7 @@ void main() {
     build: build,
     expect: () => [isA<GetSlashCommandsSuccessState>()],
     verify: (cubit) {
-      expect(cubit.commands.map((c) => c.name), ['compact', 'context', 'sc:analyze', 'model']);
+      expect(cubit.commands.map((c) => c.name), ['compact', 'context', 'model', 'sc:analyze', 'export']);
       expect(cubit.open, isFalse);
     },
   );
@@ -54,7 +55,7 @@ void main() {
     },
     skip: 1,
     expect: () => [
-      SlashMenuChangedState(open: true, matches: [_commands[0], _commands[1], _commands[3], _commands[2]]),
+      SlashMenuChangedState(open: true, matches: [_commands[0], _commands[1], _commands[3], _commands[4], _commands[2]]),
       SlashMenuChangedState(open: true, matches: [_commands[0], _commands[1]]),
     ],
   );
@@ -68,7 +69,7 @@ void main() {
     },
     skip: 1,
     expect: () => [
-      SlashMenuChangedState(open: true, matches: [_commands[3]]),
+      SlashMenuChangedState(open: true, matches: [_commands[4]]),
     ],
   );
 
