@@ -18,6 +18,7 @@ const (
 	paneTrailingSpace       = " \u00a0\t"
 	slashOutputPollInterval = 250 * time.Millisecond
 	slashOutputBudget       = 3 * time.Second
+	slashOutputPaneLines    = 400
 	slashOutputMarker       = "⎿"
 )
 
@@ -41,7 +42,7 @@ func (m *Manager) SlashOutput(ctx context.Context, id domain.SessionID, message 
 	previous := ""
 	seen := false
 	for {
-		pane, err := m.runtime.GetOutput(ctx, handle, commandPaneLines)
+		pane, err := m.runtime.GetOutput(ctx, handle, slashOutputPaneLines)
 		if err != nil {
 			return "", nil
 		}

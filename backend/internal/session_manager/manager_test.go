@@ -235,6 +235,7 @@ type fakeRuntime struct {
 	outputs            []string
 	panes              []string
 	outputCalls        int
+	outputLines        int
 	outputErr          error
 	sendInputErr       error
 	inputs             []string
@@ -391,8 +392,9 @@ func (r *fakeRuntime) IsExactSupervisedProcessAlive(ctx context.Context, handle 
 	}
 	return r.IsSupervisedProcessAlive(ctx, handle, ref)
 }
-func (r *fakeRuntime) GetOutput(_ context.Context, _ ports.RuntimeHandle, _ int) (string, error) {
+func (r *fakeRuntime) GetOutput(_ context.Context, _ ports.RuntimeHandle, lines int) (string, error) {
 	r.outputCalls++
+	r.outputLines = lines
 	if r.outputErr != nil {
 		return "", r.outputErr
 	}

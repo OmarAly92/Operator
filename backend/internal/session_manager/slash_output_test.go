@@ -133,3 +133,14 @@ func TestSlashOutputIsEmptyForNonBuiltinsAndSessionsWithoutARuntime(t *testing.T
 		t.Fatalf("unknown session err = %v, want ErrNotFound", err)
 	}
 }
+
+func TestSlashOutputReadsDeepEnoughForALongBlock(t *testing.T) {
+	m, rt, _ := newSlashOutputTestManager(t, paneAfterContext, paneAfterContext)
+
+	if _, err := m.SlashOutput(context.Background(), "s1", "/context"); err != nil {
+		t.Fatal(err)
+	}
+	if rt.outputLines != slashOutputPaneLines || slashOutputPaneLines < 200 {
+		t.Fatalf("pane read depth = %d, want slashOutputPaneLines (>= 200): /context alone renders over 100 lines on a real session and the echo scrolls out of a 40-line read", rt.outputLines)
+	}
+}
