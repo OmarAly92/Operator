@@ -207,6 +207,15 @@ async function waitFor(label, timeoutMs, check) {
 // removeRunFile clears a stale daemon handshake without treating an arbitrary
 // JSON file as disposable harness state. The daemon always writes pid, port and
 // startedAt; require that complete shape whenever a target already exists.
+export function isAppRunning(app) {
+	try {
+		execFileSync("pgrep", ["-f", join(app, "Contents", "MacOS", "")], { stdio: "pipe" });
+		return true;
+	} catch {
+		return false;
+	}
+}
+
 export function removeRunFile(runFile) {
 	if (!existsSync(runFile)) return;
 	let info;
@@ -309,6 +318,10 @@ async function run(opts) {
 			return current === opts.expectVersion;
 		});
 		console.log(`installed bundle is now ${opts.expectVersion}`);
+		// The old process installs during its exit handler and then stops its
+		// daemon; relaunching before it is gone races the new daemon against
+		// the old one for the port.
+		await waitFor("the previous app process to exit", opts.swapTimeoutMs, () => !isAppRunning(opts.app));
 		removeRunFile(opts.runFile);
 		spawn(join(opts.app, "Contents", "MacOS", plistValue(opts.app, "CFBundleExecutable")), [], {
 			env,
