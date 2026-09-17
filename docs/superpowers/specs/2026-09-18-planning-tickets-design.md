@@ -159,9 +159,9 @@ POST /tickets/{slug}/archive           and /unarchive
 400. `PUT` with a stale `ifUnmodifiedSince` is 409 with the current mtime.
 
 Error envelope is the locked `{error, code, message, requestId}`; new codes:
-`ticket_not_found`, `ticket_slug_taken` (never returned, kept for the
-collision fallback path's logging), `ticket_path_outside`, `ticket_file_stale`,
-`ticket_repo_dirty` (see 2.4).
+`ticket_not_found`, `ticket_path_outside`, `ticket_file_stale`,
+`ticket_planning_active`, `ticket_unsupported_project` (scratch projects), and
+the assign pre-check codes in §2.4.
 
 ### 2.2 Create
 
