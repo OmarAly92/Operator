@@ -233,7 +233,7 @@ function dumpRelaunchState(opts) {
 	show("run file", () => (existsSync(opts.runFile) ? readFileSync(opts.runFile, "utf8") : "(absent)"));
 	show("operator processes", () => execFileSync("pgrep", ["-fl", "Operator.app|/opr"], { stdio: "pipe" }).toString());
 	show("panic report", () => {
-		const report = join(opts.stateDir, "rust-panic-report");
+		const report = join(opts.stateDir, "tauri", "rust-panic-report");
 		return existsSync(report) ? readFileSync(report, "utf8") : "(none)";
 	});
 	show("listeners", () => execFileSync("lsof", ["-nP", "-iTCP", "-sTCP:LISTEN"], { stdio: "pipe" }).toString());
