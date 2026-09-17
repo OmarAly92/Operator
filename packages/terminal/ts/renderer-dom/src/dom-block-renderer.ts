@@ -8,13 +8,11 @@ import {
 	type FontConfig,
 	type RowRange,
 	type TerminalCore,
-	type TerminalSnapshot,
 	type TerminalTheme,
 } from "@operator/terminal-core";
 import { renderAltSurface } from "./alt-surface.js";
 import { populateBlock } from "./block-body.js";
 import { primaryCursorPlacement, type CursorPlacement } from "./cursor.js";
-import { fillGradient, runFill } from "./selection-fill.js";
 import { bindActionEvents } from "./action-events.js";
 import { applyFilter, type BlockFilter } from "./block-filter.js";
 import { mountBlockNavFromRenderer, type BlockNavHandle } from "./block-nav.js";
@@ -25,16 +23,17 @@ import { ensureMeasureHost, HIDDEN_MEASURE_ID, listenScroll } from "./host-dom.j
 import { BLOCK_PADDING_X_PX, BLOCK_PADDING_TOP_LINES, BLOCK_COMMAND_GAP_LINES, blockPaddingY } from "./block-metrics.js";
 import { blockIsBlank, trimTrailingBlankRows } from "./block-rows.js";
 import { paintedRowOrigin, type RowOrigin } from "./row-geometry.js";
-import { pointAtFromRows, rowFillSpan, type RowBox } from "./selection-geometry.js";
+import { pointAtFromRows } from "./selection-geometry.js";
+import { type SelectionKind, type SelectionPoint, type SelectionState } from "./selection-model.js";
+import { selectedText } from "./selection-text.js";
 import {
-	resolveRange,
-	type BlockOrder,
-	type SelectionKind,
-	type SelectionPoint,
-	type SelectionRange,
-	type SelectionState,
-} from "./selection-model.js";
-import { selectedText, type TextRows } from "./selection-text.js";
+	paintSelectionFill,
+	renderedRows,
+	resolveSelectionView,
+	snapshotTextRows,
+	type RenderedRow,
+	type SelectionView,
+} from "./selection-view.js";
 import { styleVarEntries, styleVarsString } from "./style-vars.js";
 import { terminalStylesForDocument } from "./styles.js";
 import { warpDarkTheme } from "./theme-warp.js";
@@ -47,10 +46,7 @@ const OVERSCAN_ROWS = 6;
 const STICK_THRESHOLD_PX = 4;
 const PAINT_INTERVAL_MS = 1000 / 60;
 const FRAME_EPSILON_MS = 0.25;
-export const ALT_BLOCK_ID = "alt";
-
-type SelectionView = Readonly<{ range: SelectionRange; order: BlockOrder; rows: TextRows }>;
-type RenderedRow = Readonly<{ box: RowBox; element: HTMLElement }>;
+export { ALT_BLOCK_ID } from "./selection-view.js";
 
 export class DomBlockRenderer implements BlockRenderer {
 	private container: HTMLElement | null = null;
@@ -250,66 +246,7 @@ export class DomBlockRenderer implements BlockRenderer {
 		const selection = this.selection;
 		const core = this.core;
 		if (!selection || !core) return null;
-		const rows = this.textRows(core.snapshot());
-		const index = new Map(rows.blockIds.map((id, position) => [id, position] as const));
-		const order: BlockOrder = (blockId) => index.get(blockId) ?? -1;
-		if (order(selection.head.blockId) < 0 || order(selection.tail.blockId) < 0) return null;
-		const range = resolveRange(selection, order, rows.rowText);
-		return range ? { range, order, rows } : null;
-	}
-
-	private textRows(snapshot: TerminalSnapshot): TextRows {
-		const alt = snapshot.altScreen;
-		if (alt) {
-			return {
-				blockIds: [ALT_BLOCK_ID],
-				rowCount: () => alt.rows,
-				rowText: (_id, row) => this.rowString(alt.content, alt.rowRanges, row),
-			};
-		}
-		const blocks = applyFilter(decodeBlocks(snapshot), this.currentFilter).map((block) =>
-			trimTrailingBlankRows(snapshot, block),
-		);
-		const byId = new Map(blocks.map((block) => [block.id, block] as const));
-		return {
-			blockIds: blocks.map((block) => block.id),
-			rowCount: (id) => byId.get(id)?.rowCount ?? 0,
-			rowText: (id, row) => {
-				const block = byId.get(id);
-				return block ? this.rowString(snapshot.content, snapshot.rows, block.firstRow + row) : "";
-			},
-		};
-	}
-
-	private rowString(content: Uint8Array, rows: Uint32Array, row: number): string {
-		const start = rows[row * 2] ?? 0;
-		const end = rows[row * 2 + 1] ?? start;
-		if (end <= start) return "";
-		return this.decoder.decode(content.subarray(start, end));
-	}
-
-	private renderedRows(): RenderedRow[] {
-		const out: RenderedRow[] = [];
-		const push = (blockId: string, rowCount: number, element: HTMLElement) => {
-			const rect = element.getBoundingClientRect();
-			out.push({
-				element,
-				box: { blockId, row: Number(element.dataset.terminalRow), rowCount, left: rect.left, top: rect.top, bottom: rect.bottom, width: rect.width },
-			});
-		};
-		const alt = this.altRoot && !this.altRoot.hidden ? this.altRoot : null;
-		if (alt) {
-			const rows = alt.querySelectorAll<HTMLElement>("[data-terminal-row]");
-			for (const row of rows) push(ALT_BLOCK_ID, rows.length, row);
-			return out;
-		}
-		const rowCounts = new Map(this.filteredBlocks.map((block) => [block.id, block.rowCount] as const));
-		for (const [id, section] of this.blockElements) {
-			for (const row of section.querySelectorAll<HTMLElement>("[data-terminal-row]")) {
-				push(id, rowCounts.get(id) ?? 0, row);
-			}
-		}
-		return out;
+		return resolveSelectionView(selection, snapshotTextRows(core.snapshot(), this.currentFilter, this.decoder));
 	}
 
 	dispose(): void {
@@ -555,21 +492,11 @@ export class DomBlockRenderer implements BlockRenderer {
 		this.filledRows = [];
 		const view = this.selectionView();
 		if (!view) return;
-		const { cellWidth } = this.cellMetrics();
-		const colour = "var(--terminal-selection)";
-		for (const { box, element } of this.renderedRows()) {
-			const span = rowFillSpan(view.range, box, view.order, cellWidth);
-			if (!span) continue;
-			element.style.backgroundImage = fillGradient(span, colour);
-			this.filledRows.push(element);
-			for (const run of element.querySelectorAll<HTMLElement>("[data-terminal-run]")) {
-				if (run.style.backgroundColor === "") continue;
-				const runSpan = runFill(run.getBoundingClientRect(), box.left, span);
-				if (!runSpan) continue;
-				run.style.backgroundImage = fillGradient(runSpan, colour);
-				this.filledRows.push(run);
-			}
-		}
+		this.filledRows = paintSelectionFill(view, this.renderedRows(), this.cellMetrics().cellWidth);
+	}
+
+	private renderedRows(): RenderedRow[] {
+		return renderedRows(this.altRoot, this.filteredBlocks, this.blockElements);
 	}
 
 	private updateStickiness(): void {
