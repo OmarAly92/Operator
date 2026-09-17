@@ -320,6 +320,32 @@ desktop client (`.github/workflows/go.yml:96` diffs
 `frontend/src/api/schema.ts`), so `npm run api:ts` in `frontend/` is part
 of the same change.
 
+### 4.5 The reply: what the TUI printed
+
+Verified on 2026-09-17: a built-in's answer exists only on the terminal
+screen. `/context` prints its grid, `/compact` prints `Compacted` or
+`Not enough messages to compact.`, and neither writes a transcript line or
+fires a hook, so after §4.3 the phone shows the user's bubble and nothing
+else. The Session-actions buttons never had this problem because their
+effect is visible some other way (a `compaction` block, a model change).
+
+After a successful non-interactive built-in send, the daemon reads the pane
+(`runtime.GetOutput`, the same read `commandModel` uses for the `/model`
+picker, `command.go:102`) and lifts the block the TUI rendered for the
+command: the lines after the last `❯ /<command>` echo up to the `─` separator
+that sits above the next prompt, with the `⎿` marker and indentation
+stripped. The read repeats every 250 ms until two consecutive reads agree or
+3 s pass; a still-changing block (a `Compacting conversation… (20s)` spinner)
+is never captured, and the `compaction` transcript block covers that case
+when it lands. The send handler then records a `stop` signal carrying the
+text as `LatestAssistantUpdate`, which every client already renders as the
+assistant's reply, and which closes the prompt block §4.3 opened.
+
+This is heuristic by nature: it depends on the TUI's `❯` echo and `─`
+separator, which have been stable across Claude Code 2.x. When the shape
+changes the capture returns empty and the phone degrades to §4.3's behaviour
+(bubble, no reply) rather than showing garbage.
+
 ## 5. Mobile
 
 ### 5.1 Data

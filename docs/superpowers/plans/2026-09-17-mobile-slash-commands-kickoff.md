@@ -18,13 +18,11 @@ Use `superpowers:using-git-worktrees`. The worktree must be **outside** this
 checkout: `.worktrees/` and `.claude/worktrees/` inside the repo poison
 repo-wide search (see `CLAUDE.md`, "Nested worktrees poison repo-wide search").
 
-```bash
-git worktree add -b feat/mobile-slash-commands ../Operator-slash-commands development
-```
-
-Do all work in `/Users/omaraly/development/AI/Operator-slash-commands`. The
-base is `development` at `47116a825` or later; never commit to `master`. After
-creating it, bootstrap the toolchains once:
+The worktree already exists at `/Users/omaraly/development/AI/Operator-slash-commands`
+on branch `feat/mobile-slash-commands`; `cd` there, confirm `git status` is
+clean and `git log --oneline -1` shows the docs commit that added Tasks
+10–11, and do not create another. Never commit to `master`. Toolchains are
+already bootstrapped there; if `go test ./...` complains about modules, run:
 
 ```bash
 cd ../Operator-slash-commands/packages/mobile && flutter pub get
@@ -35,9 +33,11 @@ cd ../../frontend && npm ci
 
 ## Execution rules
 
-- One fresh implementer subagent per task, in order, Tasks 1 → 8. Do **not**
-  run Task 9 (real-device verification): it needs the desktop app and the
-  phone, and the reviewing session does it. Stop after Task 8 and report.
+- Tasks 1–9 are done and verified on `feat/mobile-slash-commands` (worktree
+  `../Operator-slash-commands`). This round is **Tasks 10 and 11 only**, on
+  that same branch and worktree: one fresh implementer subagent per task, in
+  order. Task 11 Step 6 is the reviewing session's; stop after Step 5 and
+  report.
 - Each task is TDD as written: the failing test first, watch it fail, then
   the implementation, then the gate, then one commit. Do not batch tasks into
   one commit and do not skip the "verify it fails" step.
