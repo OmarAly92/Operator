@@ -320,6 +320,7 @@ type Manager struct {
 	// actually became active (the agent accepted the prompt). New fills in the
 	// sendConfirm* defaults; tests in this package shrink the timings directly.
 	sendConfirm sendConfirmConfig
+	slashOutput slashOutputConfig
 	logger      *slog.Logger
 
 	reviewersMu sync.Mutex
@@ -490,7 +491,8 @@ func New(d Deps) *Manager {
 			attemptDeadline: sendConfirmAttemptDeadline,
 			maxAttempts:     sendConfirmMaxAttempts,
 		},
-		logger: d.Logger,
+		slashOutput: slashOutputConfig{pollInterval: slashOutputPollInterval, budget: slashOutputBudget},
+		logger:      d.Logger,
 	}
 	if m.clock == nil {
 		// UTC so spawn-stamped CreatedAt/UpdatedAt match every other session
