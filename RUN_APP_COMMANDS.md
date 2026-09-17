@@ -115,6 +115,58 @@ The release `.dmg` lands in
 `--bundles dmg` to also produce the bare `.app` under `bundle/macos/`. Use the
 `tauri:release` script in place of `tauri:build` for a signed, updater-enabled DMG.
 
+## Push an update to installed apps
+
+Installed desktop apps check
+`https://github.com/OmarAly92/operator/releases/latest/download/latest.json` at
+launch and every hour, download the matching signed archive in the background,
+and install it when the user quits (or clicks "Restart & install" in
+Settings → Updates). Shipping a new version is one commit and one tag; CI does the
+rest. Verified end to end on 2026-09-17 (0.13.9 → 0.14.0 installed on quit).
+
+1. Bump the version. The release is keyed off `frontend/package.json`; the GitHub
+   release and tag are `v<version>`:
+
+```bash
+cd frontend && npm version 0.14.3 --no-git-tag-version && cd .. && git add -A && git commit -m "release: bump to 0.14.3"
+```
+
+2. Tag the commit and push both. The tag name must start with `desktop-v`:
+
+```bash
+git tag desktop-v0.14.3 && git push origin master desktop-v0.14.3
+```
+
+3. Watch the run (`.github/workflows/frontend-release.yml`, ~35 min: macOS arm64
+   and Intel, Windows, Linux, then `publish-feed`):
+
+```bash
+gh run list --workflow frontend-release.yml --limit 1
+```
+
+When `publish-feed` finishes, the release `v0.14.3` holds the installers, their
+`.sig` files and a `latest.json` with absolute download URLs. Every installed app
+picks it up on its next check; nothing else to do.
+
+Requirements already in place — do not recreate them:
+
+- GitHub secrets `TAURI_SIGNING_PRIVATE_KEY` and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`
+  and repo variable `OPERATOR_UPDATER_PUBLIC_KEY`. The keypair is backed up in the
+  password manager (*Operator — Tauri updater signing key*). Never run
+  `tauri signer generate` again: the public key is compiled into every shipped app and
+  a new key would stop all installed apps from updating.
+- The feed base URL is baked in from `frontend/src-tauri/tauri.release.conf.json`
+  (`plugins.operator-updates.feedBaseUrl`).
+
+To check what installed apps currently see:
+
+```bash
+curl -sL https://github.com/OmarAly92/operator/releases/latest/download/latest.json | jq '.version, (.platforms | map_values(.url))'
+```
+
+Installs older than 0.14.2 predate the working updater and must be reinstalled by
+hand from the release DMG once; from then on they update automatically.
+
 ## Checks
 
 ```bash
