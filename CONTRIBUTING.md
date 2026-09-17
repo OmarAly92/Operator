@@ -43,7 +43,7 @@ Bug reports should include Operator version, environment, repro steps, and expec
 ### Pull requests
 
 New PRs are prefilled from [`.github/pull_request_template.md`](.github/pull_request_template.md).
-Also follow **PR hygiene** in [AGENTS.md](AGENTS.md): branch from `master`, one issue per PR, conventional commits, explain intentional omissions, and keep CI green for the area you touched.
+Also follow **PR hygiene** in [AGENTS.md](AGENTS.md): branch from `development` (never `master`, which holds released code only), one issue per PR, conventional commits, explain intentional omissions, and keep CI green for the area you touched.
 
 ## Code of Conduct
 

@@ -57,15 +57,19 @@ npm ci
 
 ### Branching
 
+`development` is the default branch and the target for all work; `master` holds
+released code only and moves only when a release is cut (see
+[`RUN_APP_COMMANDS.md`](../RUN_APP_COMMANDS.md#push-an-update-to-installed-apps)).
+
 ```bash
-git checkout -b my-feature-branch
+git checkout -b my-feature-branch origin/development
 ```
 
-Keep your branch up to date by rebasing on master:
+Keep your branch up to date by rebasing on development:
 
 ```bash
 git fetch origin
-git rebase origin/master
+git rebase origin/development
 ```
 
 ### Committing

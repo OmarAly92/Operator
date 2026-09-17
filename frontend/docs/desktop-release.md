@@ -9,8 +9,10 @@ publishes installers, `*.app.tar.gz`/`.exe`/`.AppImage` updater archives with
 
 ## How releases work
 
-- **Stable** releases are triggered by pushing a `desktop-vX.Y.Z` tag to
-  `OmarAly92/operator`. `.github/workflows/frontend-release.yml` builds on four
+- **Stable** releases start from a version bump on `master`:
+  `.github/workflows/release-on-bump.yml` tags the bump `desktop-vX.Y.Z` and
+  dispatches `.github/workflows/frontend-release.yml` (pushing such a tag by
+  hand triggers it too). The workflow builds on four
   runners (macOS arm64, macOS Intel, Windows, Linux), signs and notarizes the
   macOS builds, signs every updater archive with the Tauri minisign key, and
   publishes a GitHub Release keyed off `frontend/package.json`'s version
@@ -105,15 +107,18 @@ Secrets/variables (repo level):
 - `TAURI_SIGNING_PRIVATE_KEY` (+ optional `_PASSWORD`) — minisign key whose
   PUBLIC half must also be set as the variable `OPERATOR_UPDATER_PUBLIC_KEY`;
   it is compiled into the shell at build time and a build without it fails
-  closed. Generate with `npx tauri signer generate`; NEVER commit the private
-  half anywhere.
+  closed. The key already exists and is backed up in the maintainer's password
+  manager (*Operator — Tauri updater signing key*); NEVER run
+  `npx tauri signer generate` again and NEVER commit the private half anywhere.
 
 ## Cutting a stable release
 
 ### 1. Decide the version and review what ships
 
-Same as before: bump `frontend/package.json` on master via a PR, merge, then
-tag the merge commit `desktop-vX.Y.Z`.
+Merge `development` into `master`, bump `frontend/package.json` on `master` and
+push; the tag and dispatch are automatic. Then merge `master` back into
+`development` so both carry the version. The exact commands are in
+`RUN_APP_COMMANDS.md`, "Push an update to installed apps".
 
 ### 2. Approve the `release` environment
 

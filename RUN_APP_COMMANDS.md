@@ -124,17 +124,38 @@ and install it when the user quits (or clicks "Restart & install" in
 Settings → Updates). Verified end to end on 2026-09-17 (0.13.9 → 0.14.0
 installed on quit).
 
-Shipping a new version is one commit: bump the version in `frontend/package.json`
-and push it to `master`.
+### Branches
+
+- `development` — the default branch. All work lands here first; it is always ahead
+  of `master` with changes users do not have yet.
+- `master` — released code only. It moves only by merging `development` and by the
+  version bump that ships it. Never commit day-to-day work to `master`.
+
+### Release
+
+1. Merge `development` into `master`:
 
 ```bash
-cd frontend && npm version 0.14.3 --no-git-tag-version && cd .. && git add -A && git commit -m "release: bump to 0.14.3" && git push origin master
+git checkout master && git pull && git merge --no-ff development -m "release: merge development" && git push origin master
 ```
 
-`.github/workflows/release-on-bump.yml` sees the version change, tags the commit
-`desktop-v<version>` and dispatches `frontend-release.yml` (~35 min: macOS arm64 and
-Intel, Windows, Linux, then `publish-feed`). Commits that do not touch the version
-release nothing. Watch it with:
+2. Bump the version on `master` and push. This is the release trigger:
+
+```bash
+cd frontend && npm version 0.14.4 --no-git-tag-version && cd .. && git add -A && git commit -m "release: bump to 0.14.4" && git push origin master
+```
+
+3. Bring the bump back so `development` carries the same version:
+
+```bash
+git checkout development && git merge master && git push origin development
+```
+
+`.github/workflows/release-on-bump.yml` sees the version change on `master`, tags
+the commit `desktop-v<version>` and dispatches `frontend-release.yml` (~35 min:
+macOS arm64 and Intel, Windows, Linux, then `publish-feed`). Pushes to `master`
+that do not change the version release nothing, and nothing on `development` ever
+triggers a release. Watch it with:
 
 ```bash
 gh run list --workflow frontend-release.yml --limit 1
