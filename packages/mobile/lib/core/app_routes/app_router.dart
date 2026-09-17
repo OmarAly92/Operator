@@ -23,6 +23,7 @@ import 'package:operator_mobile/feature/sessions/presentation/session_route/ui/s
 import 'package:operator_mobile/feature/sessions/presentation/sessions_screen/logic/sessions_cubit.dart';
 import 'package:operator_mobile/feature/spawn/presentation/spawn_screen/logic/spawn_cubit.dart';
 import 'package:operator_mobile/feature/spawn/presentation/spawn_screen/ui/spawn_screen.dart';
+import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/logic/slash_menu_cubit.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/logic/terminal_cubit.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/ui/terminal_screen.dart';
 import 'package:operator_mobile/feature/usage/presentation/usage_screen/logic/usage_cubit.dart';
@@ -118,6 +119,13 @@ sealed class AppRouter {
                   create: (_) => sl<BlocksCubit>(
                     param1: terminalArgs.sessionId,
                     param2: terminalArgs.harness,
+                  ),
+                ),
+              if (!terminalArgs.shellOnly)
+                BlocProvider<SlashMenuCubit>(
+                  create: (context) => sl<SlashMenuCubit>(
+                    param1: context.read<TerminalCubit>().composer,
+                    param2: terminalArgs.sessionId,
                   ),
                 ),
               if (!terminalArgs.shellOnly)
