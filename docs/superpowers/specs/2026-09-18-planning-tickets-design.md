@@ -185,6 +185,12 @@ and do not commit.
 - Task prompt: the brief, then "brainstorm with the user, write `spec.md`,
   then one plan per phase" if no plans exist, or "revise the existing docs"
   if they do, then the user's extra instructions verbatim.
+- The prompt is workflow-agnostic: it names no skill, plugin or method. The
+  agent uses whatever planning workflow its harness and the user's plugins
+  provide (superpowers, speckit, none); only the output contract in §1.1 is
+  fixed. The session is an ordinary harness session started in the project
+  root, so it loads the repo's and the user's own instructions and plugins as
+  a terminal session would.
 
 The session id is stored in `tickets.planning_session_id`. Running plan again
 while that session is alive is refused with `ticket_planning_active`; the UI
