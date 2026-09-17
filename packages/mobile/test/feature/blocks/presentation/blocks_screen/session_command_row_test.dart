@@ -19,6 +19,7 @@ import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/model_picker_sheet.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/session_command_row.dart';
 import 'package:operator_mobile/feature/preview/presentation/preview_screen/logic/preview_cubit.dart';
+import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/logic/slash_menu_cubit.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/logic/terminal_cubit.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/ui/widgets/terminal_body.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/ui/widgets/terminal_key_row.dart';
@@ -112,6 +113,9 @@ Widget _terminalBody({required SessionViewMode mode}) {
               BlocProvider<BlocksCubit>.value(value: harness.blocksCubit),
               BlocProvider<SessionCommandCubit>.value(
                 value: harness.commandCubit,
+              ),
+              BlocProvider<SlashMenuCubit>.value(
+                value: harness.slashMenuCubit,
               ),
               BlocProvider<PreviewCubit>(
                 create: (_) => sl<PreviewCubit>(

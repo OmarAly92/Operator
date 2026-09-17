@@ -16,6 +16,7 @@ import 'package:operator_mobile/feature/dictation/ui/mic_key.dart';
 import 'package:operator_mobile/feature/dictation/ui/voice_strip.dart';
 import 'package:operator_mobile/feature/terminal/logic/send_route.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/logic/terminal_cubit.dart';
+import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/ui/widgets/slash_command_menu.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/ui/widgets/terminal_composer_draft_hint.dart';
 
 class TerminalComposer extends StatefulWidget {
@@ -123,6 +124,7 @@ class _TerminalComposerState extends State<TerminalComposer> {
         mainAxisSize: MainAxisSize.min,
         children: [
           const VoiceStrip(),
+          if (!cubit.args.shellOnly) const SlashCommandMenu(),
           BlocBuilder<TerminalCubit, TerminalState>(
             buildWhen: (previous, current) => current is TerminalReadyState,
             builder: (context, state) {
