@@ -80,7 +80,7 @@ func defaultSpawnHost(ctx context.Context, sessionID, cwd string, argv []string,
 
 	// Merge env: inherit parent, overlay caller-provided vars, then apply the
 	// assignments stripped from the argv prefix.
-	merged := append(processEnvironment(env), envAssignments...)
+	merged := append(hostProcessEnvironment(env), envAssignments...)
 
 	cmd := exec.CommandContext(ctx, exe, args...)
 	cmd.Dir = cwd

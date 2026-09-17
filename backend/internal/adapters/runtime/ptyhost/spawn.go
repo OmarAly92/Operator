@@ -7,6 +7,8 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"slices"
+	"sort"
 	"strings"
 )
 
@@ -21,12 +23,54 @@ var terminalEnvironment = [][2]string{
 	{"TERM_PROGRAM", "Operator"},
 }
 
+const sessionEnvKeysVar = "OPERATOR_PTYHOST_SESSION_ENV"
+
 func processEnvironment(overrides map[string]string) []string {
+	return processEnvironmentExcluding(overrides, nil)
+}
+
+func hostProcessEnvironment(overrides map[string]string) []string {
+	keys := make([]string, 0, len(overrides))
+	for key := range overrides {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	stamped := make(map[string]string, len(overrides)+1)
+	for key, value := range overrides {
+		stamped[key] = value
+	}
+	stamped[sessionEnvKeysVar] = strings.Join(keys, ",")
+	return processEnvironmentExcluding(stamped, nil)
+}
+
+func respawnEnvironment(overrides map[string]string) []string {
+	var stale []string
+	for _, key := range strings.Split(os.Getenv(sessionEnvKeysVar), ",") {
+		if key == "" {
+			continue
+		}
+		if _, ok := overrides[key]; !ok {
+			stale = append(stale, key)
+		}
+	}
+	return processEnvironmentExcluding(overrides, stale)
+}
+
+func childEnvironment(overrides map[string]string) []string {
+	if overrides == nil {
+		return processEnvironment(nil)
+	}
+	return respawnEnvironment(overrides)
+}
+
+func processEnvironmentExcluding(overrides map[string]string, exclude []string) []string {
 	env := make([]string, 0, len(os.Environ()))
 	for _, entry := range os.Environ() {
-		if !strings.HasPrefix(entry, "NO_COLOR=") {
-			env = append(env, entry)
+		key, _, _ := strings.Cut(entry, "=")
+		if key == "NO_COLOR" || key == sessionEnvKeysVar || slices.Contains(exclude, key) {
+			continue
 		}
+		env = append(env, entry)
 	}
 	for _, pair := range terminalEnvironment {
 		if _, ok := overrides[pair[0]]; ok {
