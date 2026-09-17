@@ -171,17 +171,29 @@ void main() {
       expect(assembleBlocks([_event(1, 'permission_replied', sourceId: 'ghost')]), isEmpty);
     });
 
-    test('a question blocks the session rather than reading as a benign notice', () {
-      final blocks = assembleBlocks([_event(1, 'question_asked', text: 'Which branch?')]);
+    test('session_start produces no block', () {
+      expect(assembleBlocks([_event(1, 'session_start', text: 'Session started')]), isEmpty);
+    });
+
+    test('a hook question is not shown as a "Waiting on you" divider', () {
+      final blocks = assembleBlocks([
+        _event(1, 'prompt_submit', text: 'go'),
+        _event(2, 'question_asked', sourceId: 'native-1', source: 'hook', text: 'Which branch?'),
+      ]);
+
+      expect(blocks.map((block) => block.title).toList(), ['Prompt']);
+    });
+
+    test('a transcript question without tool input blocks the session', () {
+      final blocks = assembleBlocks([_event(1, 'question_asked', sourceId: 'q', source: 'transcript')]);
 
       expect(blocks.single.kind, BlockKind.notice);
       expect(blocks.single.status, BlockStatus.blocked);
       expect(blocks.single.title, 'Waiting on you');
-      expect(blocks.single.body, 'Which branch?');
     });
 
     test('a question left unanswered when the session dies does not stay pending', () {
-      final blocks = assembleBlocks([_event(1, 'question_asked', text: 'Which branch?')]);
+      final blocks = assembleBlocks([_event(1, 'question_asked', sourceId: 'q', source: 'transcript')]);
 
       expect(resolveStranded(blocks, 'Session ended').single.status, BlockStatus.failed);
     });

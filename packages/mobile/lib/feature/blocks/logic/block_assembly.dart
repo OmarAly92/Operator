@@ -15,6 +15,7 @@ List<SessionBlock> assembleBlocks(Iterable<BlockEventModel> events) {
   int? todoIndex;
   int? questionIndex;
   int? hookQuestionIndex;
+  final hookQuestionIds = <String>{};
   var sawTranscriptAssistant = false;
   int? hookAssistantIndex;
   var lastPromptSeq = 0;
@@ -30,10 +31,8 @@ List<SessionBlock> assembleBlocks(Iterable<BlockEventModel> events) {
 
     switch (event.kind) {
       case 'idle_prompt':
-        continue;
-
       case 'session_start':
-        _upsert(blocks, indexById, _create(event, id, BlockKind.notice, BlockStatus.ok, 'Session started', text, model));
+        continue;
 
       case 'prompt_submit':
         lastPromptSeq = seq;
@@ -172,6 +171,7 @@ List<SessionBlock> assembleBlocks(Iterable<BlockEventModel> events) {
         final block = _create(event, id, BlockKind.notice, BlockStatus.blocked, title, body, model, detail: questions);
         if (fromTranscript && hookQuestionIndex != null) {
           final interactionId = blocks[hookQuestionIndex].interactionId;
+          hookQuestionIds.remove(blocks[hookQuestionIndex].id);
           indexById.remove(blocks[hookQuestionIndex].id);
           blocks[hookQuestionIndex] = block.copyWith(interactionId: interactionId);
           indexById[block.id] = hookQuestionIndex;
@@ -180,7 +180,10 @@ List<SessionBlock> assembleBlocks(Iterable<BlockEventModel> events) {
         } else {
           _upsert(blocks, indexById, block);
           questionIndex = indexById[block.id];
-          if (!fromTranscript) hookQuestionIndex = questionIndex;
+          if (!fromTranscript) {
+            hookQuestionIndex = questionIndex;
+            hookQuestionIds.add(block.id);
+          }
         }
 
       case 'permission_replied':
@@ -228,12 +231,14 @@ List<SessionBlock> assembleBlocks(Iterable<BlockEventModel> events) {
     }
   }
 
-  return blocks.where((block) =>
-      !(block.kind == BlockKind.notice &&
-        block.status == BlockStatus.blocked &&
-        block.detail is! QuestionBlockDetail &&
-        block.lastSeq < lastPromptSeq)).toList();
+  return blocks.where((block) => !hookQuestionIds.contains(block.id) && !_isStaleQuestion(block, lastPromptSeq)).toList();
 }
+
+bool _isStaleQuestion(SessionBlock block, int lastPromptSeq) =>
+    block.kind == BlockKind.notice &&
+    block.status == BlockStatus.blocked &&
+    block.detail is! QuestionBlockDetail &&
+    block.lastSeq < lastPromptSeq;
 
 List<SessionBlock> resolveStranded(List<SessionBlock> blocks, String reason) => blocks
     .map(
