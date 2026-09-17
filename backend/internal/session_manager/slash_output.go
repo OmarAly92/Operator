@@ -15,6 +15,7 @@ type slashOutputConfig struct {
 }
 
 const (
+	paneTrailingSpace       = " \u00a0\t"
 	slashOutputPollInterval = 250 * time.Millisecond
 	slashOutputBudget       = 3 * time.Second
 	slashOutputMarker       = "⎿"
@@ -63,7 +64,7 @@ func extractSlashOutput(pane, message string) string {
 	lines := strings.Split(pane, "\n")
 	start := -1
 	for i, line := range lines {
-		if strings.TrimRight(line, "  \t") == echo {
+		if strings.TrimRight(line, paneTrailingSpace) == echo {
 			start = i
 		}
 	}
@@ -73,7 +74,7 @@ func extractSlashOutput(pane, message string) string {
 	var out []string
 	first := true
 	for _, line := range lines[start+1:] {
-		trimmed := strings.TrimRight(line, "  \t")
+		trimmed := strings.TrimRight(line, paneTrailingSpace)
 		if isPaneSeparator(trimmed) || strings.HasPrefix(strings.TrimLeft(trimmed, " "), "❯") {
 			break
 		}
