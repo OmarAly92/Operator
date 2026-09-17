@@ -16,6 +16,7 @@ List<SessionBlock> assembleBlocks(Iterable<BlockEventModel> events) {
   int? questionIndex;
   int? hookQuestionIndex;
   final hookQuestionIds = <String>{};
+  final droppedIndexes = <int>{};
   var sawTranscriptAssistant = false;
   int? hookAssistantIndex;
   var lastPromptSeq = 0;
@@ -145,6 +146,7 @@ List<SessionBlock> assembleBlocks(Iterable<BlockEventModel> events) {
             title: 'Permission requested',
             status: BlockStatus.blocked,
             lastSeq: seq,
+            interactionId: event.interactionId ?? blocks[at].interactionId,
           );
         } else {
           final detail = (event.toolInput ?? '').isNotEmpty ? event.toolInput! : text;
@@ -162,6 +164,10 @@ List<SessionBlock> assembleBlocks(Iterable<BlockEventModel> events) {
             ),
           );
         }
+        if (event.toolName == 'AskUserQuestion') {
+          hookQuestionIndex = indexById[id];
+          hookQuestionIds.add(id);
+        }
 
       case 'question_asked':
         final questions = fromTranscript ? parseQuestionDetail(event.toolInput ?? '') : null;
@@ -173,10 +179,16 @@ List<SessionBlock> assembleBlocks(Iterable<BlockEventModel> events) {
           final interactionId = blocks[hookQuestionIndex].interactionId;
           hookQuestionIds.remove(blocks[hookQuestionIndex].id);
           indexById.remove(blocks[hookQuestionIndex].id);
+          final toolAt = indexById[block.id];
+          if (toolAt != null && toolAt != hookQuestionIndex) droppedIndexes.add(toolAt);
           blocks[hookQuestionIndex] = block.copyWith(interactionId: interactionId);
           indexById[block.id] = hookQuestionIndex;
           questionIndex = hookQuestionIndex;
           hookQuestionIndex = null;
+        } else if (fromTranscript && indexById[block.id] != null) {
+          final at = indexById[block.id]!;
+          blocks[at] = block.copyWith(interactionId: blocks[at].interactionId);
+          questionIndex = at;
         } else {
           _upsert(blocks, indexById, block);
           questionIndex = indexById[block.id];
@@ -231,7 +243,11 @@ List<SessionBlock> assembleBlocks(Iterable<BlockEventModel> events) {
     }
   }
 
-  return blocks.where((block) => !hookQuestionIds.contains(block.id) && !_isStaleQuestion(block, lastPromptSeq)).toList();
+  return [
+    for (var i = 0; i < blocks.length; i++)
+      if (!droppedIndexes.contains(i) && !hookQuestionIds.contains(blocks[i].id) && !_isStaleQuestion(blocks[i], lastPromptSeq))
+        blocks[i],
+  ];
 }
 
 bool _isStaleQuestion(SessionBlock block, int lastPromptSeq) =>
@@ -251,11 +267,14 @@ List<SessionBlock> resolveStranded(List<SessionBlock> blocks, String reason) => 
 String _join(List<String> parts, String separator) => parts.where((part) => part.isNotEmpty).join(separator);
 
 String? _correlationKey(BlockEventModel event) {
-  final source = event.sourceId ?? '';
-  if (source.isNotEmpty) return source;
   final toolUse = event.toolUseId ?? '';
-  return toolUse.isNotEmpty ? toolUse : null;
+  if (toolUse.isNotEmpty) return toolUse;
+  if (event.source == 'hook' && _sessionScopedHookKinds.contains(event.kind)) return null;
+  final source = event.sourceId ?? '';
+  return source.isNotEmpty ? source : null;
 }
+
+const _sessionScopedHookKinds = {'permission_request', 'question_asked'};
 
 bool _isRedacted(BlockEventModel event) => (event.redactedSpans ?? const []).isNotEmpty;
 
