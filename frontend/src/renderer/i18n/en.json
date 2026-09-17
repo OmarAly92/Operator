@@ -353,6 +353,8 @@
 	"newTask.branch": "Branch",
 	"newTask.brief": "Brief",
 	"newTask.briefPlaceholder": "Describe the change, constraints, and expected verification. Paste or drop images to attach them.",
+	"newTask.briefNearLimit": "{{count}} / {{max}} characters",
+	"newTask.briefTooLong": "Task is too long ({{count}} / {{max}} characters). Shorten it or attach the rest as a file.",
 	"newTask.cancel": "Cancel",
 	"newTask.close": "Close new task dialog",
 	"newTask.configUnavailable": "Project config is unavailable.",

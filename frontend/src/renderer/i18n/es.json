@@ -355,6 +355,8 @@
 	"newTask.branch": "Rama",
 	"newTask.brief": "Descripción",
 	"newTask.briefPlaceholder": "Describe el cambio, las restricciones y la verificación esperada. Pega o suelta imágenes para adjuntarlas.",
+	"newTask.briefNearLimit": "{{count}} / {{max}} caracteres",
+	"newTask.briefTooLong": "La tarea es demasiado larga ({{count}} / {{max}} caracteres). Acórtala o adjunta el resto como archivo.",
 	"newTask.cancel": "Cancelar",
 	"newTask.close": "Cerrar diálogo de nueva tarea",
 	"newTask.configUnavailable": "La configuración del proyecto no está disponible.",

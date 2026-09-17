@@ -353,6 +353,8 @@
 	"newTask.branch": "分支",
 	"newTask.brief": "任务简述",
 	"newTask.briefPlaceholder": "描述改动、约束和预期验证方式。可粘贴或拖放图片作为附件。",
+	"newTask.briefNearLimit": "{{count}} / {{max}} 字符",
+	"newTask.briefTooLong": "任务内容过长（{{count}} / {{max}} 字符）。请缩短内容，或将其余部分作为文件附加。",
 	"newTask.cancel": "取消",
 	"newTask.close": "关闭新建任务对话框",
 	"newTask.configUnavailable": "项目配置不可用。",

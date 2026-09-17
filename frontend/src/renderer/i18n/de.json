@@ -353,6 +353,8 @@
 	"newTask.branch": "Branch",
 	"newTask.brief": "Briefing",
 	"newTask.briefPlaceholder": "Beschreiben Sie die Änderung, Einschränkungen und die erwartete Verifizierung. Bilder einfügen oder ablegen zum Anhängen.",
+	"newTask.briefNearLimit": "{{count}} / {{max}} Zeichen",
+	"newTask.briefTooLong": "Die Aufgabe ist zu lang ({{count}} / {{max}} Zeichen). Kürzen Sie sie oder hängen Sie den Rest als Datei an.",
 	"newTask.cancel": "Abbrechen",
 	"newTask.close": "Dialog „Neue Aufgabe“ schließen",
 	"newTask.configUnavailable": "Projektkonfiguration ist nicht verfügbar.",

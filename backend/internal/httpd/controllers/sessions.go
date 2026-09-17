@@ -36,7 +36,7 @@ import (
 )
 
 const (
-	maxPromptLen      = 4096
+	maxPromptLen      = 64 << 10
 	maxMessageLen     = 4096
 	maxModelLen       = 256
 	maxDisplayNameLen = 20

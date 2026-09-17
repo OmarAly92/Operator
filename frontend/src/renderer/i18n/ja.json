@@ -353,6 +353,8 @@
 	"newTask.branch": "ブランチ",
 	"newTask.brief": "ブリーフ",
 	"newTask.briefPlaceholder": "変更内容、制約、期待する検証を記述してください。画像は貼り付けまたはドロップで添付できます。",
+	"newTask.briefNearLimit": "{{count}} / {{max}} 文字",
+	"newTask.briefTooLong": "タスクが長すぎます（{{count}} / {{max}} 文字）。短くするか、残りをファイルとして添付してください。",
 	"newTask.cancel": "キャンセル",
 	"newTask.close": "新規タスクのダイアログを閉じる",
 	"newTask.configUnavailable": "プロジェクト設定を利用できません。",

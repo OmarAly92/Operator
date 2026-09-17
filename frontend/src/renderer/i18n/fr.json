@@ -355,6 +355,8 @@
 	"newTask.branch": "Branche",
 	"newTask.brief": "Brief",
 	"newTask.briefPlaceholder": "Décrivez le changement, les contraintes et la vérification attendue. Collez ou déposez des images pour les joindre.",
+	"newTask.briefNearLimit": "{{count}} / {{max}} caractères",
+	"newTask.briefTooLong": "La tâche est trop longue ({{count}} / {{max}} caractères). Raccourcissez-la ou joignez le reste en pièce jointe.",
 	"newTask.cancel": "Annuler",
 	"newTask.close": "Fermer la boîte de dialogue de nouvelle tâche",
 	"newTask.configUnavailable": "La configuration du projet n'est pas disponible.",

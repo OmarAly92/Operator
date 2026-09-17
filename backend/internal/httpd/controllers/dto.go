@@ -203,7 +203,7 @@ type SpawnSessionRequest struct {
 	Kind          domain.SessionKind  `json:"kind,omitempty" enum:"worker,orchestrator"`
 	Harness       domain.AgentHarness `json:"harness,omitempty" enum:"claude-code,codex,aider,opencode,grok,droid,amp,agy,crush,cursor,qwen,copilot,goose,auggie,continue,devin,cline,kimi,muse,kiro,kilocode,vibe,pi,kimchi,prime-agent,autohand"`
 	Branch        string              `json:"branch,omitempty"`
-	Prompt        string              `json:"prompt,omitempty" maxLength:"4096"`
+	Prompt        string              `json:"prompt,omitempty" maxLength:"65536"`
 	WorkspaceMode string              `json:"workspaceMode,omitempty" enum:"worktree,in_place"`
 	// DisplayName is the sidebar label for the session, capped at 20 characters.
 	// `opr spawn --name` always sets it; other clients (e.g. the desktop new-task
@@ -703,7 +703,7 @@ type SessionAnswerResponse struct {
 // An omitted agent tells the orchestrator to use the project's worker default.
 type DelegateTaskRequest struct {
 	ProjectID domain.ProjectID    `json:"projectId"`
-	Brief     string              `json:"brief" maxLength:"4096"`
+	Brief     string              `json:"brief" maxLength:"65536"`
 	Agent     domain.AgentHarness `json:"agent,omitempty" enum:"claude-code,codex,aider,opencode,grok,droid,amp,agy,crush,cursor,qwen,copilot,goose,auggie,continue,devin,cline,kimi,muse,kiro,kilocode,vibe,pi,kimchi,prime-agent,autohand,fake"`
 	Model     string              `json:"model,omitempty" maxLength:"256"`
 	// Attachments are files pasted, dropped, or picked into the delegated task

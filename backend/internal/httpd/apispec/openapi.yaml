@@ -5373,7 +5373,7 @@ components:
             $ref: '#/components/schemas/AttachmentInput'
           type: array
         brief:
-          maxLength: 4096
+          maxLength: 65536
           type: string
         claudeAccountId:
           description: Claude account for a claude-code worker. Omit for the default
@@ -7273,7 +7273,7 @@ components:
         projectId:
           type: string
         prompt:
-          maxLength: 4096
+          maxLength: 65536
           type: string
         requestedBy:
           type: string
