@@ -875,6 +875,9 @@ func toAPIError(err error) error {
 	case errors.Is(err, sessionmanager.ErrAgentNotResponding):
 		return apierr.Conflict("AGENT_NOT_RESPONDING",
 			"The agent did not accept the message; the terminal is not responding to input", nil)
+	case errors.Is(err, sessionmanager.ErrInteractiveSlashCommand):
+		return apierr.Conflict("SLASH_COMMAND_INTERACTIVE",
+			"This command opens a dialog on the desktop; run it there", nil)
 	case errors.Is(err, sessionmanager.ErrAgentExited):
 		return apierr.Conflict("AGENT_EXITED",
 			"The agent process exited; relaunch it before sending another message", nil)

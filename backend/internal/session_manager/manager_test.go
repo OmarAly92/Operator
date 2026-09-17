@@ -6296,6 +6296,56 @@ func TestSend_SkipsConfirmForHooklessHarness(t *testing.T) {
 	}
 }
 
+func TestSend_BuiltinSlashCommandSkipsConfirm(t *testing.T) {
+	st := newFakeStore()
+	st.sessions["s1"] = domain.SessionRecord{ID: "s1", Harness: "claude-code",
+		Activity: domain.Activity{State: domain.ActivityIdle}}
+	msg := &fakeMessenger{}
+	m := newSendTestManager(t, signalingAgent{}, msg, st)
+
+	if err := m.Send(context.Background(), "s1", "/compact", nil); err != nil {
+		t.Fatalf("Send: %v", err)
+	}
+	if len(msg.msgs) != 1 {
+		t.Fatalf("Send calls = %d, want 1 (a built-in never fires the submit hook, so no nudges)", len(msg.msgs))
+	}
+	if msg.msgs[0] != "/compact" {
+		t.Fatalf("delivered %q, want /compact", msg.msgs[0])
+	}
+	if got := st.sessions["s1"].Metadata.LatestUserPrompt; got != "" {
+		t.Fatalf("LatestUserPrompt = %q, want untouched (a built-in is not task direction)", got)
+	}
+}
+
+func TestSend_InteractiveBuiltinIsRefused(t *testing.T) {
+	st := newFakeStore()
+	st.sessions["s1"] = domain.SessionRecord{ID: "s1", Harness: "claude-code",
+		Activity: domain.Activity{State: domain.ActivityIdle}}
+	msg := &fakeMessenger{}
+	m := newSendTestManager(t, signalingAgent{}, msg, st)
+
+	err := m.Send(context.Background(), "s1", "/model sonnet", nil)
+	if !errors.Is(err, ErrInteractiveSlashCommand) {
+		t.Fatalf("Send err = %v, want ErrInteractiveSlashCommand", err)
+	}
+	if len(msg.msgs) != 0 {
+		t.Fatalf("Send calls = %d, want 0 (nothing may reach the pane)", len(msg.msgs))
+	}
+}
+
+func TestSend_CustomSlashCommandStillConfirms(t *testing.T) {
+	st := newFakeStore()
+	st.sessions["s1"] = domain.SessionRecord{ID: "s1", Harness: "claude-code",
+		Activity: domain.Activity{State: domain.ActivityIdle}}
+	msg := &fakeMessenger{}
+	m := newSendTestManager(t, signalingAgent{}, msg, st)
+
+	err := m.Send(context.Background(), "s1", "/sc:analyze", nil)
+	if !errors.Is(err, ErrAgentNotResponding) {
+		t.Fatalf("Send err = %v, want ErrAgentNotResponding (custom commands keep the confirmed path)", err)
+	}
+}
+
 func TestSend_RecordsDeliveredUserInput(t *testing.T) {
 	st := newFakeStore()
 	st.sessions["s1"] = domain.SessionRecord{ID: "s1", Harness: "claude-code"}
