@@ -57,6 +57,11 @@ jobs:
   update-e2e:
     # macos-latest is Apple silicon, so the arm64 asset is the one under test.
     runs-on: macos-latest
+    env:
+      # Without Apple secrets the release ships ad-hoc signed, unnotarized
+      # builds; the seal checks then report instead of failing, as in
+      # frontend-release.yml.
+      MAC_SIGNED: ${{ secrets.APPLE_SIGNING_IDENTITY != '' }}
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
@@ -85,9 +90,16 @@ jobs:
 
       - name: Verify the baseline artifact is sealed, notarized and stapled
         # Same canonical script the release pipeline's post-staple gate uses.
-        # An unsigned or unstapled baseline cannot auto-update, so a failure
-        # here is a real signal, not harness noise.
-        run: frontend/scripts/verify-mac-artifact.sh "$RUNNER_TEMP/baseline/operator-darwin-arm64.zip"
+        # With Apple secrets an unsigned or unstapled baseline is a real signal;
+        # without them the build is ad-hoc signed by design and the report is
+        # informational.
+        run: |
+          if [ "$MAC_SIGNED" = true ]; then
+            frontend/scripts/verify-mac-artifact.sh "$RUNNER_TEMP/baseline/operator-darwin-arm64.zip"
+          else
+            frontend/scripts/verify-mac-artifact.sh "$RUNNER_TEMP/baseline/operator-darwin-arm64.zip" \
+              || echo "::warning::baseline is ad-hoc signed (no Apple secrets); trust checks are informational"
+          fi
 
       - name: Install the baseline into /Applications
         run: |
@@ -126,7 +138,13 @@ jobs:
         # The swap (when running full-install) is done by the apply step, not by
         # our signing pipeline, so re-run the full trio on what ended up on disk.
         if: always()
-        run: frontend/scripts/verify-mac-artifact.sh "/Applications/Operator.app"
+        run: |
+          if [ "$MAC_SIGNED" = true ]; then
+            frontend/scripts/verify-mac-artifact.sh "/Applications/Operator.app"
+          else
+            frontend/scripts/verify-mac-artifact.sh "/Applications/Operator.app" \
+              || echo "::warning::installed app is ad-hoc signed (no Apple secrets); trust checks are informational"
+          fi
 
       - name: Verify the updated app bakes the production feed base URL
         # The update above already proved the REAL published feed resolves. This

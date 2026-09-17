@@ -21,7 +21,7 @@ name: Tauri WebDriver e2e
 
 on:
   push:
-    branches: [master]
+    branches: [master, development]
   pull_request:
     paths:
       - "frontend/e2e-tauri/**"
