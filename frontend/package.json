@@ -26,6 +26,7 @@
     "package:tauri-mac-zip": "./scripts/package-tauri-mac-zip.sh",
     "verify:tauri-artifacts": "./scripts/verify-tauri-artifacts.sh",
     "tauri:release": "tauri build --config src-tauri/tauri.release.conf.json",
+    "release:bump": "node scripts/bump-version.mjs",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src",
     "lint:fix": "eslint src --fix",

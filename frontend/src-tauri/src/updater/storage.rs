@@ -170,6 +170,26 @@ impl UpdaterStorage {
         })
     }
 
+    /// Lists every completed staged artifact, newest staging first.
+    pub fn staged_all(&self) -> Vec<StagedArtifact> {
+        let mut staged = Vec::new();
+        let Ok(entries) = fs::read_dir(self.root.join(STAGED_DIR_NAME)) else {
+            return staged;
+        };
+        for entry in entries.flatten() {
+            let Some(version) = entry.file_name().to_str().map(str::to_string) else {
+                continue;
+            };
+            if let Some(artifact) = self.staged(&version) {
+                if artifact.path.is_file() {
+                    staged.push(artifact);
+                }
+            }
+        }
+        staged.sort_by_key(|artifact| std::cmp::Reverse(artifact.meta.staged_at_ms));
+        staged
+    }
+
     /// Lists unfinished downloads (intent recorded, artifact never completed).
     pub fn pending_downloads(&self) -> Vec<PendingDownload> {
         let mut pending = Vec::new();

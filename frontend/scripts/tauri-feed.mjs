@@ -245,7 +245,8 @@ export function assertNoPrivateKeyMaterial(dir) {
 // feedUrl joins a feed base URL and an asset name, refusing insecure http
 // outside loopback unless allowInsecure opts in (local dev servers only).
 export function feedUrl(nameOrUrl, { base = PRODUCTION_FEED_BASE_URL, allowInsecure = false } = {}) {
-	const raw = nameOrUrl.includes("://") ? nameOrUrl : `${base}${nameOrUrl}`;
+	const joined = base.endsWith("/") ? base : `${base}/`;
+	const raw = nameOrUrl.includes("://") ? nameOrUrl : `${joined}${nameOrUrl}`;
 	let url;
 	try {
 		url = new URL(raw);
