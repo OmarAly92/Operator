@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"io/fs"
 	"os"
 	"path/filepath"
 	"sort"
@@ -114,27 +113,49 @@ func (s *Service) configDir(ctx context.Context, rec domain.SessionRecord) strin
 
 func commandsIn(root, prefix, source string) []slashcommands.Command {
 	var out []slashcommands.Command
-	_ = filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return nil
-		}
-		if d.IsDir() || !strings.HasSuffix(path, ".md") || d.Name() == "README.md" {
-			return nil
-		}
-		rel, relErr := filepath.Rel(root, path)
-		if relErr != nil {
-			return nil
-		}
-		name := strings.TrimSuffix(filepath.ToSlash(rel), ".md")
-		name = strings.ReplaceAll(name, "/", ":")
+	walkCommands(root, "", &out, map[string]struct{}{}, func(rel, path string) {
+		name := strings.ReplaceAll(strings.TrimSuffix(rel, ".md"), "/", ":")
 		out = append(out, slashcommands.Command{
 			Name:        prefix + name,
 			Description: frontMatterDescription(path),
 			Source:      source,
 		})
-		return nil
 	})
 	return out
+}
+
+func walkCommands(dir, rel string, out *[]slashcommands.Command, visited map[string]struct{}, visit func(rel, path string)) {
+	resolved, err := filepath.EvalSymlinks(dir)
+	if err != nil {
+		return
+	}
+	if _, seen := visited[resolved]; seen {
+		return
+	}
+	visited[resolved] = struct{}{}
+	entries, err := os.ReadDir(resolved)
+	if err != nil {
+		return
+	}
+	for _, e := range entries {
+		path := filepath.Join(resolved, e.Name())
+		childRel := e.Name()
+		if rel != "" {
+			childRel = rel + "/" + e.Name()
+		}
+		info, err := os.Stat(path)
+		if err != nil {
+			continue
+		}
+		if info.IsDir() {
+			walkCommands(path, childRel, out, visited, visit)
+			continue
+		}
+		if !strings.HasSuffix(e.Name(), ".md") || e.Name() == "README.md" {
+			continue
+		}
+		visit(childRel, path)
+	}
 }
 
 func skillsIn(root, prefix, source string) []slashcommands.Command {
@@ -144,11 +165,8 @@ func skillsIn(root, prefix, source string) []slashcommands.Command {
 	}
 	var out []slashcommands.Command
 	for _, e := range entries {
-		if !e.IsDir() {
-			continue
-		}
 		skill := filepath.Join(root, e.Name(), "SKILL.md")
-		if _, statErr := os.Stat(skill); statErr != nil {
+		if info, statErr := os.Stat(skill); statErr != nil || info.IsDir() {
 			continue
 		}
 		out = append(out, slashcommands.Command{

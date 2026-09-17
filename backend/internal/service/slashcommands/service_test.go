@@ -249,3 +249,51 @@ func TestListUnknownSession(t *testing.T) {
 		t.Fatalf("err = %v, want ErrSessionNotFound", err)
 	}
 }
+
+func TestListFollowsSymlinkedFoldersLikeAnAdoptedAccount(t *testing.T) {
+	root := t.TempDir()
+	shared := filepath.Join(root, "shared")
+	write(t, filepath.Join(shared, "commands", "sc", "analyze.md"), "---\ndescription: Analyze\n---\n")
+	write(t, filepath.Join(shared, "one-skill", "SKILL.md"), "---\ndescription: Linked skill\n---\n")
+	write(t, filepath.Join(shared, "nested", "deploy.md"), "---\ndescription: Nested via link\n---\n")
+
+	configDir := filepath.Join(root, "claude-personal")
+	if err := os.MkdirAll(filepath.Join(configDir, "skills"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(filepath.Join(shared, "commands"), filepath.Join(configDir, "commands")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(filepath.Join(shared, "one-skill"), filepath.Join(configDir, "skills", "linked")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(filepath.Join(shared, "nested"), filepath.Join(shared, "commands", "extra")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(filepath.Join(root, "missing"), filepath.Join(configDir, "skills", "dangling")); err != nil {
+		t.Fatal(err)
+	}
+
+	sessions := fakeSessions{recs: map[domain.SessionID]domain.SessionRecord{"s1": {ID: "s1", Harness: "claude-code"}}}
+	s := svc.New(sessions, fakeAgents{agent: configDirAgent{}}, fakeAccounts{configDir: configDir})
+
+	got, err := s.List(context.Background(), "s1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var names []string
+	for _, c := range got {
+		if c.Source == catalogue.SourceUser {
+			names = append(names, c.Name)
+		}
+	}
+	want := []string{"extra:deploy", "linked", "sc:analyze"}
+	if len(names) != len(want) {
+		t.Fatalf("user commands = %v, want %v", names, want)
+	}
+	for i := range want {
+		if names[i] != want[i] {
+			t.Fatalf("user commands = %v, want %v", names, want)
+		}
+	}
+}
