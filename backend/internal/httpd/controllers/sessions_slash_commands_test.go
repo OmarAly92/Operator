@@ -12,6 +12,7 @@ import (
 	"github.com/OmarAly92/operator/backend/internal/config"
 	"github.com/OmarAly92/operator/backend/internal/domain"
 	"github.com/OmarAly92/operator/backend/internal/httpd"
+	"github.com/OmarAly92/operator/backend/internal/ports"
 	slashcommandssvc "github.com/OmarAly92/operator/backend/internal/service/slashcommands"
 	"github.com/OmarAly92/operator/backend/internal/slashcommands"
 )
@@ -133,5 +134,64 @@ func TestListSlashCommandsNotWired(t *testing.T) {
 	_, status, _ := doRequest(t, srv, http.MethodGet, "/api/v1/sessions/opr-1/slash-commands", "")
 	if status != http.StatusNotImplemented {
 		t.Fatalf("status = %d, want 501 when the lister is nil", status)
+	}
+}
+
+type recordingBlockEvents struct {
+	signals []ports.ActivitySignal
+}
+
+func (r *recordingBlockEvents) Record(_ context.Context, _ domain.SessionID, _ string, sig ports.ActivitySignal) error {
+	r.signals = append(r.signals, sig)
+	return nil
+}
+
+func TestSendBuiltinRecordsThePaneOutputAsTheReply(t *testing.T) {
+	svc := newFakeSessionService()
+	s := svc.sessions["opr-1"]
+	s.Harness = "claude-code"
+	svc.sessions["opr-1"] = s
+	svc.slashOutput = "Context Usage\n⛁ ⛁ ⛁   Sonnet 5"
+	rec := &recordingBlockEvents{}
+	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+	deps := httpd.APIDeps{Sessions: svc, BlockEvents: rec}
+	srv := httptest.NewServer(httpd.NewRouterWithControl(config.Config{}, log, nil, deps, httpd.ControlDeps{}))
+	t.Cleanup(srv.Close)
+
+	_, status, _ := doRequest(t, srv, http.MethodPost, "/api/v1/sessions/opr-1/send", `{"message":"/context"}`)
+	if status != http.StatusOK {
+		t.Fatalf("status = %d, want 200", status)
+	}
+	if svc.slashOutputCalls != 1 || svc.slashOutputMessage != "/context" {
+		t.Fatalf("SlashOutput called %d times with %q, want once with /context", svc.slashOutputCalls, svc.slashOutputMessage)
+	}
+	if len(rec.signals) != 2 {
+		t.Fatalf("recorded %d signals, want prompt then stop: %+v", len(rec.signals), rec.signals)
+	}
+	if rec.signals[0].Event != "user-prompt-submit" || rec.signals[0].LatestUserPrompt != "/context" {
+		t.Fatalf("first signal = %+v", rec.signals[0])
+	}
+	if rec.signals[1].Event != "stop" || rec.signals[1].LatestAssistantUpdate != svc.slashOutput || rec.signals[1].Harness != "claude-code" {
+		t.Fatalf("second signal = %+v", rec.signals[1])
+	}
+}
+
+func TestSendBuiltinWithNoPaneOutputRecordsOnlyThePrompt(t *testing.T) {
+	svc := newFakeSessionService()
+	s := svc.sessions["opr-1"]
+	s.Harness = "claude-code"
+	svc.sessions["opr-1"] = s
+	rec := &recordingBlockEvents{}
+	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+	deps := httpd.APIDeps{Sessions: svc, BlockEvents: rec}
+	srv := httptest.NewServer(httpd.NewRouterWithControl(config.Config{}, log, nil, deps, httpd.ControlDeps{}))
+	t.Cleanup(srv.Close)
+
+	_, status, _ := doRequest(t, srv, http.MethodPost, "/api/v1/sessions/opr-1/send", `{"message":"/compact"}`)
+	if status != http.StatusOK {
+		t.Fatalf("status = %d, want 200", status)
+	}
+	if len(rec.signals) != 1 || rec.signals[0].Event != "user-prompt-submit" {
+		t.Fatalf("signals = %+v, want just the prompt", rec.signals)
 	}
 }

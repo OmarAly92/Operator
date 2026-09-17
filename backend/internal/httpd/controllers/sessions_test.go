@@ -43,6 +43,10 @@ type fakeSessionService struct {
 	commandCalls       int
 	draftResult        string
 	draftErr           error
+	slashOutput        string
+	slashOutputErr     error
+	slashOutputCalls   int
+	slashOutputMessage string
 	sendErr            error
 	decideErr          error
 	decideCalls        int
@@ -409,6 +413,12 @@ func (f *fakeSessionService) Command(_ context.Context, _ domain.SessionID, _ do
 
 func (f *fakeSessionService) Draft(_ context.Context, _ domain.SessionID) (string, error) {
 	return f.draftResult, f.draftErr
+}
+
+func (f *fakeSessionService) SlashOutput(_ context.Context, _ domain.SessionID, message string) (string, error) {
+	f.slashOutputCalls++
+	f.slashOutputMessage = message
+	return f.slashOutput, f.slashOutputErr
 }
 
 func (f *fakeSessionService) Decide(_ context.Context, _ domain.SessionID, _, _ string) error {

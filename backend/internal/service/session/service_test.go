@@ -1324,6 +1324,9 @@ func (*fakeCommander) Command(context.Context, domain.SessionID, domain.SessionC
 func (*fakeCommander) Draft(context.Context, domain.SessionID) (string, error) {
 	return "", nil
 }
+func (*fakeCommander) SlashOutput(context.Context, domain.SessionID, string) (string, error) {
+	return "", nil
+}
 func (*fakeCommander) Decide(context.Context, domain.SessionID, string, string) error {
 	return nil
 }

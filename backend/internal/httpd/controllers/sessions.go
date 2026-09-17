@@ -104,6 +104,7 @@ type SessionService interface {
 	Send(ctx context.Context, id domain.SessionID, message string, attachment *ports.SpawnAttachment) error
 	Command(ctx context.Context, id domain.SessionID, command domain.SessionCommand, model string) (sessionmanager.CommandResult, error)
 	Draft(ctx context.Context, id domain.SessionID) (string, error)
+	SlashOutput(ctx context.Context, id domain.SessionID, message string) (string, error)
 	Decide(ctx context.Context, id domain.SessionID, interactionID, behavior string) error
 	Answer(ctx context.Context, id domain.SessionID, interactionID string, selections [][]string) error
 	DelegateTask(ctx context.Context, in sessionsvc.DelegateTaskInput) (sessionsvc.DelegateTaskOutcome, error)
@@ -1377,9 +1378,9 @@ func (c *SessionsController) send(w http.ResponseWriter, r *http.Request) {
 }
 
 // recordBuiltinSlashPrompt writes the prompt block the UserPromptSubmit hook
-// would have written for an ordinary message. Claude Code handles built-in
-// slash commands itself and never fires that hook, so without this the phone
-// and desktop timelines never show the command the user sent.
+// would have written for an ordinary message, then the reply Claude Code
+// printed only in the TUI. Built-ins fire no hook and write no transcript,
+// so without both the timelines show neither the command nor its answer.
 func (c *SessionsController) recordBuiltinSlashPrompt(r *http.Request, message string) {
 	if c.BlockEvents == nil || !slashcommands.IsBuiltin(message) {
 		return
@@ -1389,13 +1390,25 @@ func (c *SessionsController) recordBuiltinSlashPrompt(r *http.Request, message s
 		return
 	}
 	harness := string(sess.Harness)
-	sig := ports.ActivitySignal{
+	prompt := ports.ActivitySignal{
 		Event:            "user-prompt-submit",
 		Harness:          harness,
 		LatestUserPrompt: message,
 	}
-	if err := c.BlockEvents.Record(r.Context(), sessionID(r), harness, sig); err != nil {
+	if err := c.BlockEvents.Record(r.Context(), sessionID(r), harness, prompt); err != nil {
 		slog.Default().Warn("slash prompt block recording failed", "session", sessionID(r), "err", err)
+	}
+	output, err := c.Svc.SlashOutput(r.Context(), sessionID(r), message)
+	if err != nil || output == "" {
+		return
+	}
+	reply := ports.ActivitySignal{
+		Event:                 "stop",
+		Harness:               harness,
+		LatestAssistantUpdate: output,
+	}
+	if err := c.BlockEvents.Record(r.Context(), sessionID(r), harness, reply); err != nil {
+		slog.Default().Warn("slash reply block recording failed", "session", sessionID(r), "err", err)
 	}
 }
 
