@@ -9,6 +9,7 @@ import 'package:operator_mobile/core/widgets/main_widgets/app_text.dart';
 import 'package:operator_mobile/feature/blocks/logic/command_confirmation.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/session_command_cubit.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/model_picker_sheet.dart';
+import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/logic/terminal_cubit.dart';
 
 const _kCommands = ['stop', 'compact', 'model'];
 const _kLabels = {'stop': 'Stop', 'compact': 'Compact', 'model': 'Model'};
@@ -124,10 +125,10 @@ class SessionCommandRow extends StatelessWidget {
       return;
     }
     if (command == 'model') {
+      final harness = context.read<TerminalCubit>().args.harness;
       showModalBottomSheet<void>(
         context: context,
-        builder: (_) =>
-            BlocProvider.value(value: cubit, child: const ModelPickerSheet()),
+        builder: (_) => BlocProvider.value(value: cubit, child: ModelPickerSheet(harness: harness)),
       );
       return;
     }

@@ -67,9 +67,13 @@ void _stubBloc(MockSessionCommandCubit cubit) {
   when(() => cubit.close()).thenAnswer((_) async {});
 }
 
+final _harnesses = <TerminalHarness>[];
+
 Widget _host({required String activity, MockSessionCommandCubit? cubit}) {
   final commandCubit = cubit ?? _realCommandCubit(activity);
   if (cubit != null) _stubBloc(cubit);
+  final harness = TerminalHarness()..start(harness: 'claude-code');
+  _harnesses.add(harness);
 
   return SkinScope(
     skin: const DarkSkin(),
@@ -77,8 +81,11 @@ Widget _host({required String activity, MockSessionCommandCubit? cubit}) {
       designSize: const Size(390, 844),
       builder: (context, _) => MaterialApp(
         home: Scaffold(
-          body: BlocProvider<SessionCommandCubit>.value(
-            value: commandCubit,
+          body: MultiBlocProvider(
+            providers: [
+              BlocProvider<TerminalCubit>.value(value: harness.cubit),
+              BlocProvider<SessionCommandCubit>.value(value: commandCubit),
+            ],
             child: const SessionCommandRow(),
           ),
         ),
@@ -86,8 +93,6 @@ Widget _host({required String activity, MockSessionCommandCubit? cubit}) {
     ),
   );
 }
-
-final _harnesses = <TerminalHarness>[];
 
 Widget _terminalBody({required SessionViewMode mode}) {
   final harness = TerminalHarness()
@@ -215,6 +220,24 @@ void main() {
       verifyNever(() => cubit.run(any(), model: any(named: 'model')));
     },
   );
+
+  testWidgets('the picker falls back to harness placeholders when the daemon has listed none', (
+    tester,
+  ) async {
+    final cubit = MockSessionCommandCubit();
+    when(() => cubit.phases).thenReturn(const {});
+    when(() => cubit.enabled('stop')).thenReturn(false);
+    when(() => cubit.enabled('compact')).thenReturn(true);
+    when(() => cubit.enabled('model')).thenReturn(true);
+    when(() => cubit.models).thenReturn(const []);
+
+    await tester.pumpWidget(_host(activity: 'idle', cubit: cubit));
+    await tester.tap(find.text('Model'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('sonnet'), findsOneWidget);
+    expect(find.text('opus'), findsOneWidget);
+  });
 
   testWidgets('picking a model runs the command with that label', (
     tester,
