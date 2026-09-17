@@ -3,9 +3,9 @@ package claudeaccounts
 import "testing"
 
 func TestParseAuthStatus(t *testing.T) {
-	out := []byte("warning: x\n{\"loggedIn\":true,\"subscriptionType\":\"max\",\"email\":\"a@b.c\"}\n")
+	out := []byte("warning: x\n{\"loggedIn\":true,\"subscriptionType\":\"max\",\"email\":\"a@b.c\",\"orgId\":\"org-1\"}\n")
 	status, ok := parseAuthStatus(out)
-	if !ok || status.LoggedIn == nil || !*status.LoggedIn || status.SubscriptionType != "max" || status.ReportedEmail != "a@b.c" {
+	if !ok || status.LoggedIn == nil || !*status.LoggedIn || status.SubscriptionType != "max" || status.ReportedEmail != "a@b.c" || status.ReportedOrgID != "org-1" {
 		t.Fatalf("status = %+v ok=%v", status, ok)
 	}
 	status, ok = parseAuthStatus([]byte(`{"loggedIn":false,"authMethod":"none"}`))

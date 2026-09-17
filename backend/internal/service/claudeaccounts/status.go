@@ -17,6 +17,7 @@ type AuthStatus struct {
 	LoggedIn         *bool
 	SubscriptionType string
 	ReportedEmail    string
+	ReportedOrgID    string
 	CheckedAt        time.Time
 }
 
@@ -73,9 +74,10 @@ func parseAuthStatus(out []byte) (AuthStatus, bool) {
 		LoggedIn         *bool  `json:"loggedIn"`
 		SubscriptionType string `json:"subscriptionType"`
 		Email            string `json:"email"`
+		OrgID            string `json:"orgId"`
 	}
 	if json.Unmarshal(out[start:end+1], &raw) != nil || raw.LoggedIn == nil {
 		return AuthStatus{}, false
 	}
-	return AuthStatus{LoggedIn: raw.LoggedIn, SubscriptionType: raw.SubscriptionType, ReportedEmail: raw.Email}, true
+	return AuthStatus{LoggedIn: raw.LoggedIn, SubscriptionType: raw.SubscriptionType, ReportedEmail: raw.Email, ReportedOrgID: raw.OrgID}, true
 }
