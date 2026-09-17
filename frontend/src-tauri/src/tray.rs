@@ -1,4 +1,3 @@
-
 pub const MAX_MENU_SESSIONS: usize = 8;
 pub const TRAY_ICON_PNG: &[u8] = include_bytes!("../../assets/trayIcon.png");
 pub const TRAY_OPEN_SESSION_EVENT: &str = "tray:open-session";

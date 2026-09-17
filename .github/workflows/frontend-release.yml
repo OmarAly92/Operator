@@ -400,7 +400,7 @@ jobs:
           TAG="v$(node -p "require('./package.json').version")"
           mkdir -p dist
           gh release download "$TAG" --dir dist --clobber
-          node scripts/tauri-feed.mjs dist "${TAG#v}" latest --release-date "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --notes "Operator desktop release ${TAG}."
+          node scripts/tauri-feed.mjs dist "${TAG#v}" latest --release-date "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --notes "Operator desktop release ${TAG}." --base-url "https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/"
           shopt -s nullglob
           assets=(dist/latest.json)
           if [ ${#assets[@]} -eq 0 ]; then echo "no feed assets generated" >&2; exit 1; fi

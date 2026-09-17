@@ -151,18 +151,45 @@ fn decoded_packet(material: &str) -> Option<Vec<u8>> {
 /// two comment lines wrapping a 42-byte base64 packet whose algorithm bytes
 /// are "Ed". Anything else — including secret-key material — is rejected.
 pub fn validate_public_key(material: &str) -> Result<(), PublicKeyError> {
-    let trimmed = material.trim();
-    if !trimmed.starts_with("untrusted comment:") || trimmed.lines().count() < 2 {
+    let text = public_key_text(material)?;
+    if text.lines().count() < 2 {
         return Err(PublicKeyError::Malformed);
     }
-    if trimmed.to_lowercase().contains("secret key") {
+    if text.to_lowercase().contains("secret key") {
         return Err(PublicKeyError::PrivateKeyMaterial);
     }
-    let packet = decoded_packet(trimmed).ok_or(PublicKeyError::Malformed)?;
+    let packet = decoded_packet(&text).ok_or(PublicKeyError::Malformed)?;
     if packet.len() != MINISIGN_PUBLIC_PACKET_BYTES || &packet[..2] != b"Ed" {
         return Err(PublicKeyError::Malformed);
     }
     Ok(())
+}
+
+/// Key material arrives either as the minisign public-key file text or, as
+/// `tauri signer generate` writes `.pub` and the release pipeline compiles it
+/// in, as that whole file base64-encoded. Both normalise to the file text.
+fn public_key_text(material: &str) -> Result<String, PublicKeyError> {
+    use base64::Engine as _;
+    let trimmed = material.trim();
+    if trimmed.starts_with("untrusted comment:") {
+        return Ok(trimmed.to_string());
+    }
+    let decoded = base64::engine::general_purpose::STANDARD
+        .decode(trimmed)
+        .map_err(|_| PublicKeyError::Malformed)?;
+    let text = String::from_utf8(decoded).map_err(|_| PublicKeyError::Malformed)?;
+    if !text.trim().starts_with("untrusted comment:") {
+        return Err(PublicKeyError::Malformed);
+    }
+    Ok(text.trim().to_string())
+}
+
+/// The form `tauri-plugin-updater` expects: the public-key file base64-encoded.
+pub fn plugin_public_key(material: &str) -> Result<String, PublicKeyError> {
+    use base64::Engine as _;
+    validate_public_key(material)?;
+    let text = public_key_text(material)?;
+    Ok(base64::engine::general_purpose::STANDARD.encode(format!("{text}\n")))
 }
 
 /// Parses a version string for a feature-build prerelease identifier,

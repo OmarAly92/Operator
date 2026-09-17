@@ -289,14 +289,23 @@ test("missingAliases reports every unpublished version-free alias", () => {
 
 test("generateFeeds writes only the Tauri JSON feed", async () => {
 	const dir = fixtureDir(BASE_FILES());
-	const written = await generateFeeds(dir, V, "latest", { releaseDate: "2026-08-24T00:00:00Z" });
+	const written = await generateFeeds(dir, V, "latest", {
+		releaseDate: "2026-08-24T00:00:00Z",
+		baseUrl: "https://github.com/OmarAly92/operator/releases/download/v0.10.4/",
+	});
 	assert.deepEqual(written, ["latest.json"]);
 
 	const json = JSON.parse(readFileSync(join(dir, "latest.json"), "utf8"));
 	assert.equal(json.version, V);
-	assert.equal(json.platforms["darwin-aarch64"].url, "operator-darwin-arm64-0.10.4.app.tar.gz");
+	assert.equal(
+		json.platforms["darwin-aarch64"].url,
+		"https://github.com/OmarAly92/operator/releases/download/v0.10.4/operator-darwin-arm64-0.10.4.app.tar.gz",
+	);
 	assert.ok(json.platforms["darwin-aarch64"].signature.length > 0);
-	assert.equal(json.platforms["linux-x86_64"].url, "operator_0.10.4_amd64.AppImage");
+	assert.equal(
+		json.platforms["linux-x86_64"].url,
+		"https://github.com/OmarAly92/operator/releases/download/v0.10.4/operator_0.10.4_amd64.AppImage",
+	);
 
 	rmSync(dir, { recursive: true, force: true });
 });

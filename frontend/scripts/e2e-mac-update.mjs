@@ -3,10 +3,9 @@
 // Does what a real user does: takes an already-installed version N-1 Tauri
 // bundle, points it at a real published feed, and proves that version N is
 // checked, downloaded, signature-verified, and STAGED by the shell's updater
-// engine. With --expect-stage-only (the default gate while the verified apply
-// path is pending) it stops at the staging record; without it the harness goes
-// on to prove the install-on-quit swap and that the relaunched app reports
-// version N and its daemon is alive.
+// engine. With --expect-stage-only it stops at the staging record; without it
+// the harness goes on to prove the install-on-quit swap and that the relaunched
+// app reports version N and its daemon is alive.
 //
 // Dependency-free ESM so CI runs `node scripts/e2e-mac-update.mjs` directly and
 // node:test unit-tests the pure argument/payload contract. macOS only.
@@ -20,11 +19,10 @@
 //  2. Staging is observed through the engine's durable staging record
 //     `<state-root>/updater/staged/<version>/meta.json`, written only after the
 //     minisign signature verifies — not through any UI or log line.
-//  3. A plain macOS quit does not swap bundles; the apply step owns that. Until
-//     the project-owned verified apply path lands, --expect-stage-only is the
-//     honest ceiling of what this harness can assert locally, and full-install
-//     mode is exercised only by the designated release conductor on signed
-//     builds (mac-update-e2e.yml).
+//  3. The shell installs a staged update when it quits (and on "Restart &
+//     install"). Full mode therefore quits the app to apply the update and
+//     reads the new version off the bundle's Info.plist; --expect-stage-only
+//     stops at the staging record.
 //  4. Liveness is the daemon's running.json + loopback /healthz, the same
 //     check backend/internal/cli/e2e_test.go uses. "A process exists" is not
 //     proof the app came up.
@@ -302,12 +300,21 @@ async function run(opts) {
 	console.log(`update staged: ${marker}`);
 
 	if (!opts.expectStageOnly) {
-		await waitFor(`the apply swap to land ${opts.expectVersion}`, opts.swapTimeoutMs, () => {
+		// The shell installs a staged update when it quits, so quitting is
+		// what applies it; the bundle on disk is the evidence.
+		quitApp(opts.appName);
+		await waitFor(`the quit-time install to land ${opts.expectVersion}`, opts.swapTimeoutMs, () => {
 			const current = plistValue(opts.app, "CFBundleShortVersionString");
 			if (current !== startVersion) console.log(`bundle version now: ${current}`);
 			return current === opts.expectVersion;
 		});
 		console.log(`installed bundle is now ${opts.expectVersion}`);
+		removeRunFile(opts.runFile);
+		spawn(join(opts.app, "Contents", "MacOS", plistValue(opts.app, "CFBundleExecutable")), [], {
+			env,
+			stdio: "inherit",
+			detached: false,
+		}).unref();
 		await waitFor("the relaunched app's daemon to answer /healthz", opts.launchTimeoutMs, () =>
 			isDaemonAlive(opts.runFile),
 		);
@@ -317,7 +324,7 @@ async function run(opts) {
 	console.log(
 		opts.expectStageOnly
 			? `PASS: ${startVersion} checked, verified and staged ${opts.expectVersion} (stage-only)`
-			: `PASS: ${startVersion} updated to ${plistValue(opts.app, "CFBundleShortVersionString")}, relaunched, daemon alive`,
+			: `PASS: ${startVersion} updated to ${plistValue(opts.app, "CFBundleShortVersionString")} on quit, relaunched, daemon alive`,
 	);
 }
 

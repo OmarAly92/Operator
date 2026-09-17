@@ -10,9 +10,9 @@ use crate::updater::storage::PARTIAL_MAX_AGE_MS;
 
 use super::channel::{
     coerce_settings, collect_feature_builds, list_feature_builds, parse_feature_build,
-    reconcile_feature_pin, select_feed_url, validate_public_key, ActiveChannel, FeatureBuild,
-    FeaturePin, FeedUrlError, GitHubRelease, PublicKeyError, ReconcileResult, ReleasesSource,
-    UpdateSettings,
+    plugin_public_key, reconcile_feature_pin, select_feed_url, validate_public_key, ActiveChannel,
+    FeatureBuild, FeaturePin, FeedUrlError, GitHubRelease, PublicKeyError, ReconcileResult,
+    ReleasesSource, UpdateSettings,
 };
 use super::escalation;
 use super::status::{
@@ -22,13 +22,14 @@ use super::status::{
 use super::storage::{StorageError, UpdaterStorage};
 use super::{
     BoxFuture, CheckOptions, ClockFn, EngineConfig, FeedClient, ProgressCallback, ReleaseHandle,
-    StatusSink, UpdaterEngine, APPLY_DEFERRED_MESSAGE, UNSUPPORTED_MESSAGE,
+    StatusSink, UpdaterEngine, UNSUPPORTED_MESSAGE,
 };
 
 const APP_VERSION: &str = "1.0.0";
 
 // ---------------------------------------------------------------- fakes
 
+#[derive(Clone)]
 struct FakeRelease(String);
 
 impl ReleaseHandle for FakeRelease {
@@ -46,6 +47,8 @@ struct FakeClientState {
     download_versions: Vec<String>,
     event_log: Vec<String>,
     held_downloads: usize,
+    installs: Vec<(String, Vec<u8>)>,
+    install_failures: Vec<String>,
 }
 
 #[derive(Clone)]
@@ -136,6 +139,19 @@ impl FakeClient {
         self.state.lock().unwrap().urls.clone()
     }
 
+    fn installs(&self) -> Vec<(String, Vec<u8>)> {
+        self.state.lock().unwrap().installs.clone()
+    }
+
+    fn failed_install(self, message: &str) -> Self {
+        self.state
+            .lock()
+            .unwrap()
+            .install_failures
+            .push(message.to_string());
+        self
+    }
+
     fn event_log(&self) -> Vec<String> {
         self.state.lock().unwrap().event_log.clone()
     }
@@ -206,6 +222,22 @@ impl FeedClient for FakeClient {
                 }
             };
             outcome
+        })
+    }
+
+    fn install<'a>(
+        &'a self,
+        release: &'a FakeRelease,
+        bytes: Vec<u8>,
+    ) -> BoxFuture<'a, Result<(), String>> {
+        Box::pin(async move {
+            let mut state = self.state.lock().unwrap();
+            state.event_log.push("install".to_string());
+            if let Some(failure) = state.install_failures.pop() {
+                return Err(failure);
+            }
+            state.installs.push((release.version(), bytes));
+            Ok(())
         })
     }
 }
@@ -627,6 +659,25 @@ fn public_key_accepts_public_packets_and_rejects_other_shapes() {
     );
     assert_eq!(
         validate_public_key("untrusted comment: x\nc2hvcnQ=\n"),
+        Err(PublicKeyError::Malformed)
+    );
+}
+
+#[test]
+fn public_key_accepts_the_base64_encoded_file_the_release_pipeline_compiles_in() {
+    let encoded = simple_base64(minisign_public_key_material().as_bytes());
+    assert_eq!(validate_public_key(&encoded), Ok(()));
+    assert_eq!(plugin_public_key(&encoded), Ok(encoded.clone()));
+    assert_eq!(
+        plugin_public_key(&minisign_public_key_material()),
+        Ok(encoded)
+    );
+    assert_eq!(
+        validate_public_key(&simple_base64(minisign_private_key_material().as_bytes())),
+        Err(PublicKeyError::PrivateKeyMaterial)
+    );
+    assert_eq!(
+        validate_public_key(&simple_base64(b"garbage")),
         Err(PublicKeyError::Malformed)
     );
 }
@@ -1538,7 +1589,7 @@ async fn settings_read_failures_are_logged_and_retried_by_later_ticks() {
 }
 
 #[tokio::test]
-async fn install_update_is_a_recorded_stop_with_reason() {
+async fn install_staged_hands_the_verified_bytes_to_the_release_and_clears_staging() {
     let h = harness().build(
         FakeClient::new()
             .release_check("2.0.0")
@@ -1546,16 +1597,45 @@ async fn install_update_is_a_recorded_stop_with_reason() {
     );
     h.engine.manual_check(CheckOptions::default()).await;
     h.engine.download_now(None).await;
+    assert_eq!(h.engine.status().state, UpdateState::Downloaded);
 
-    let error = h.engine.install_update().unwrap_err();
+    let installed = h.engine.install_staged().await.unwrap();
 
-    assert_eq!(error, APPLY_DEFERRED_MESSAGE);
-    assert!(
-        std::fs::read_dir(h.updater_root.join("tmp"))
-            .unwrap()
-            .count()
-            == 0
+    assert_eq!(installed, "2.0.0");
+    assert_eq!(
+        h.client.installs(),
+        vec![("2.0.0".to_string(), b"pkg".to_vec())]
     );
+    assert_eq!(h.client.event_log(), vec!["check", "download", "install"]);
+    assert!(!h.updater_root.join("staged").join("2.0.0").exists());
+    assert_eq!(h.engine.status().state, UpdateState::Idle);
+}
+
+#[tokio::test]
+async fn install_staged_without_a_staged_update_is_an_error() {
+    let h = harness().build(FakeClient::new());
+    let error = h.engine.install_staged().await.unwrap_err();
+    assert_eq!(error, "no update is staged");
+    assert!(h.client.installs().is_empty());
+}
+
+#[tokio::test]
+async fn install_staged_keeps_the_staged_update_when_the_install_fails() {
+    let h = harness().build(
+        FakeClient::new()
+            .release_check("2.0.0")
+            .download_bytes(b"pkg")
+            .failed_install("disk full"),
+    );
+    h.engine.manual_check(CheckOptions::default()).await;
+    h.engine.download_now(None).await;
+
+    let error = h.engine.install_staged().await.unwrap_err();
+
+    assert_eq!(error, "disk full");
+    assert!(h.updater_root.join("staged").join("2.0.0").exists());
+    assert_eq!(h.engine.status().state, UpdateState::Error);
+    assert_eq!(h.engine.status().message.as_deref(), Some("disk full"));
 }
 
 #[tokio::test]

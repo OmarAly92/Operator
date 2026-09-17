@@ -431,7 +431,7 @@ describe("GlobalSettingsForm", () => {
 		expect(updCheck).not.toHaveBeenCalled();
 	});
 
-	it("returns to Stable, then auto-progresses check -> download -> install", async () => {
+	it("returns to Stable, then auto-progresses check -> download and stops before install", async () => {
 		getUpdate.mockResolvedValue({ enabled: true, feature: { pr: 2270 } });
 		featGetActive.mockResolvedValue({ pr: 2270 });
 		let emit: (s: { state: string; version?: string; requestId?: string }) => void = () => undefined;
@@ -450,6 +450,7 @@ describe("GlobalSettingsForm", () => {
 		act(() => emit({ state: "available", version: "1.3.0", requestId }));
 		await waitFor(() => expect(updDownload).toHaveBeenCalledWith(requestId));
 		act(() => emit({ state: "downloaded", version: "1.3.0", requestId }));
-		await waitFor(() => expect(updInstall).toHaveBeenCalled());
+		expect(await screen.findByRole("button", { name: "Restart & install" })).toBeInTheDocument();
+		expect(updInstall).not.toHaveBeenCalled();
 	});
 });

@@ -51,10 +51,12 @@ export function UpdatesSection({ titleHidden }: { titleHidden?: boolean } = {}) 
 		handledStatusRef.current = status.state;
 		if (status.state === "available") {
 			void operatorBridge.updates.download(requestId);
-		} else if (status.state === "downloaded") {
-			void operatorBridge.updates.install();
-			autoProgressRef.current = null;
-		} else if (status.state === "error" || status.state === "unsupported" || status.state === "not-available") {
+		} else if (
+			status.state === "downloaded" ||
+			status.state === "error" ||
+			status.state === "unsupported" ||
+			status.state === "not-available"
+		) {
 			autoProgressRef.current = null;
 		}
 	}, [status]);

@@ -544,7 +544,7 @@ jobs:
           channel="pr${PR_NUMBER}"
           mkdir -p dist
           gh release download "$tag" --dir dist --clobber
-          node scripts/tauri-feed.mjs dist "$version" "$channel" --release-date "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          node scripts/tauri-feed.mjs dist "$version" "$channel" --release-date "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --base-url "https://github.com/${GITHUB_REPOSITORY}/releases/download/${tag}/"
 
       - name: "Guard: assert feed channel and reject latest* assets"
         shell: bash

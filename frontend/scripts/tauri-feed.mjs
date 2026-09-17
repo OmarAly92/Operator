@@ -308,13 +308,15 @@ export function missingAliases(presentNames) {
 // options:
 //   releaseDate     ISO timestamp stamped into the feed
 //   notes           release notes string for the JSON feed
-//   baseUrl         feed base used to validate absolute urls (default production)
+//   baseUrl         release download base the asset names are resolved against;
+//                   the Tauri updater rejects relative urls (default production)
 //   allowInsecure   permits loopback http urls (local dev only)
 //   skipMacZipRequirement  drops the permanent-mac-zip invariant (tests only)
 export async function generateFeeds(dir, rawVersion, channel, options = {}) {
 	const {
 		releaseDate = new Date().toISOString(),
 		notes = "",
+		baseUrl = PRODUCTION_FEED_BASE_URL,
 		allowInsecure = false,
 		skipMacZipRequirement = false,
 	} = options;
@@ -340,8 +342,7 @@ export async function generateFeeds(dir, rawVersion, channel, options = {}) {
 			throw new Error(`tauri-feed: missing required .sig sidecar '${sigPath}'`);
 		}
 		validateSignature(signature);
-		feedUrl(archive, { allowInsecure });
-		entries.push({ key, url: archive, signature: signature.trim() });
+		entries.push({ key, url: feedUrl(archive, { base: baseUrl, allowInsecure }), signature: signature.trim() });
 	}
 
 	requireMacDittoZips(names, rawVersion, selected, { skip: skipMacZipRequirement });
@@ -383,11 +384,13 @@ function requireMacDittoZips(names, version, selected, { skip = false } = {}) {
 }
 
 // CLI: node scripts/tauri-feed.mjs <dir> <version> <channel>
-//        [--release-date <iso>] [--notes <text>]
+//        [--release-date <iso>] [--notes <text>] [--base-url <https://.../download/vX.Y.Z/>]
 if (import.meta.url === `file://${process.argv[1]}`) {
 	const [, , dir, version, channel] = process.argv;
 	if (!dir || !version || !channel) {
-		process.stderr.write("usage: node tauri-feed.mjs <dir> <version> <channel> [--release-date <iso>] [--notes <text>]\n");
+		process.stderr.write(
+			"usage: node tauri-feed.mjs <dir> <version> <channel> [--release-date <iso>] [--notes <text>] [--base-url <url>]\n",
+		);
 		process.exit(2);
 	}
 	const flagValue = (flag) => {
@@ -397,6 +400,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
 	generateFeeds(dir, version, channel, {
 		releaseDate: flagValue("--release-date") ?? new Date().toISOString(),
 		notes: flagValue("--notes") ?? "",
+		baseUrl: flagValue("--base-url") ?? PRODUCTION_FEED_BASE_URL,
 	})
 		.then((written) => {
 			process.stdout.write(`${written.join("\n")}\n`);

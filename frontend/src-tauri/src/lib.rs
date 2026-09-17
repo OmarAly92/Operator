@@ -390,8 +390,9 @@ fn resolved_state_root() -> Result<PathBuf, Box<dyn Error>> {
 
 fn install_panic_reporter(state_root: &Path) {
     let panic_report = state_root.join("rust-panic-report");
-    std::panic::set_hook(Box::new(move |_| {
-        let exit_code = if fs::write(&panic_report, b"panic").is_ok() {
+    std::panic::set_hook(Box::new(move |info| {
+        eprintln!("{info}");
+        let exit_code = if fs::write(&panic_report, info.to_string()).is_ok() {
             101
         } else {
             70
@@ -1010,6 +1011,9 @@ void (async () => {
                     .open_js_links_on_click(false)
                     .build(),
             );
+        if context.config().plugins.0.contains_key("updater") {
+            builder = builder.plugin(tauri_plugin_updater::Builder::new().build());
+        }
         global_shortcuts_available = shortcuts::probe_global_shortcuts();
         if global_shortcuts_available {
             builder = builder.plugin(tauri_plugin_global_shortcut::Builder::new().build());
@@ -1199,6 +1203,9 @@ void (async () => {
         .build(context)?;
     app.run(|app_handle, event| match event {
         tauri::RunEvent::Exit => {
+            if let Some(shell) = app_handle.try_state::<updater::UpdaterShell>() {
+                updater::install_staged_on_exit(&shell.0);
+            }
             if let Some(manager) = app_handle.try_state::<DaemonManager>() {
                 manager.request_shutdown();
             }
@@ -1458,10 +1465,9 @@ mod tests {
             .unwrap();
 
         assert_eq!(status.code(), Some(101));
-        assert_eq!(
-            fs::read(probe_root.join("rust-panic-report")).unwrap(),
-            b"panic"
-        );
+        let report = fs::read_to_string(probe_root.join("rust-panic-report")).unwrap();
+        assert!(report.contains("panic reporter probe"), "{report}");
+        assert!(report.contains("lib.rs"), "{report}");
         fs::remove_dir_all(probe_root).unwrap();
     }
 }

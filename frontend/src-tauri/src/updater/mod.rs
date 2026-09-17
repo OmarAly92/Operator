@@ -21,9 +21,6 @@ pub const AUTOMATIC_CHECK_INTERVAL_MS: u64 = 60 * 60 * 1000;
 pub const ESCALATION_INTERVAL_MS: u64 = 30 * 60 * 1000;
 pub const RETIREMENT_POLL_INTERVAL_MS: u64 = 30 * 60 * 1000;
 pub const UNSUPPORTED_MESSAGE: &str = "Updates are only available in the installed app.";
-pub const APPLY_DEFERRED_MESSAGE: &str =
-    "update installation is deferred to the packaging task: the pinned updater plugin writes installer and recovery files to OS-default temp and cache directories that are not configurable";
-
 /// Persisted-settings access behind the updater's serialized operations. The
 /// store of record is the daemon's `/api/v1/settings`; writes MUST complete
 /// before the engine changes its active channel state.
@@ -43,13 +40,18 @@ pub trait ReleaseHandle {
 /// download. Production wires the pinned tauri-plugin-updater client; tests
 /// inject fakes.
 pub trait FeedClient: Send + Sync {
-    type Release: ReleaseHandle + Send + 'static;
+    type Release: ReleaseHandle + Clone + Send + 'static;
     fn check<'a>(&'a self, url: String) -> BoxFuture<'a, Result<Option<Self::Release>, String>>;
     fn download<'a>(
         &'a self,
         release: Self::Release,
         progress: ProgressCallback,
     ) -> BoxFuture<'a, Result<Vec<u8>, String>>;
+    fn install<'a>(
+        &'a self,
+        release: &'a Self::Release,
+        bytes: Vec<u8>,
+    ) -> BoxFuture<'a, Result<(), String>>;
 }
 
 /// Forwards statuses and telemetry outcomes to the renderer window.
@@ -185,6 +187,7 @@ pub struct UpdaterEngine<C: FeedClient> {
     shared: Broadcast,
     op_lock: tokio::sync::Mutex<()>,
     release_slot: Mutex<Option<(C::Release, String)>>,
+    staged_release: Mutex<Option<C::Release>>,
     client: Arc<C>,
     settings: Arc<dyn SettingsSource>,
     releases: Arc<dyn ReleasesSource>,
@@ -228,6 +231,7 @@ impl<C: FeedClient> UpdaterEngine<C> {
             },
             op_lock: tokio::sync::Mutex::new(()),
             release_slot: Mutex::new(None),
+            staged_release: Mutex::new(None),
             client,
             settings,
             releases,
@@ -451,9 +455,14 @@ impl<C: FeedClient> UpdaterEngine<C> {
                 ..UpdateStatus::idle()
             });
         });
+        let handle = release.clone();
         match self.client.download(release, progress).await {
             Err(message) => self.record_error(op, &message),
             Ok(bytes) => {
+                *self
+                    .staged_release
+                    .lock()
+                    .unwrap_or_else(|poisoned| poisoned.into_inner()) = Some(handle);
                 let staged_at = self.now_ms();
                 let staged = match self
                     .storage
@@ -586,8 +595,75 @@ impl<C: FeedClient> UpdaterEngine<C> {
         self.end(Operation::ManualDownload);
     }
 
-    pub fn install_update(&self) -> Result<(), String> {
-        Err(APPLY_DEFERRED_MESSAGE.to_string())
+    pub async fn install_staged(&self) -> Result<String, String> {
+        let _guard = self.op_lock.lock().await;
+        let staged = self
+            .with_state(|state| state.staged.clone())
+            .ok_or_else(|| "no update is staged".to_string())?;
+        let artifact = self
+            .storage
+            .staged(&staged.version)
+            .ok_or_else(|| format!("staged update {} is missing from disk", staged.version))?;
+        let bytes = std::fs::read(&artifact.path)
+            .map_err(|error| format!("read staged update {}: {error}", staged.version))?;
+        let release = match self.staged_release_for(&staged.version) {
+            Some(release) => release,
+            None => self.refetch_release(&staged.version).await?,
+        };
+        if let Err(message) = self.client.install(&release, bytes).await {
+            self.broadcast(
+                UpdateStatus {
+                    state: UpdateState::Error,
+                    message: Some(message.clone()),
+                    version: Some(staged.version.clone()),
+                    ..UpdateStatus::idle()
+                },
+                true,
+            );
+            return Err(message);
+        }
+        if let Err(error) = self.storage.remove_staged(&staged.version) {
+            eprintln!(
+                "staged update {} was installed but not cleaned up: {error}",
+                staged.version
+            );
+        }
+        self.with_state(|state| {
+            state.staged = None;
+            state.pending_version = None;
+        });
+        *self
+            .staged_release
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner()) = None;
+        self.broadcast(UpdateStatus::idle(), true);
+        Ok(staged.version)
+    }
+
+    pub fn has_staged_update(&self) -> bool {
+        self.with_state(|state| state.staged.is_some())
+    }
+
+    fn staged_release_for(&self, version: &str) -> Option<C::Release> {
+        self.staged_release
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .as_ref()
+            .filter(|release| release.version() == version)
+            .cloned()
+    }
+
+    async fn refetch_release(&self, version: &str) -> Result<C::Release, String> {
+        let settings = self.settings.read().await?;
+        let feed_url = self.resolve_feed_url(settings.active_channel())?;
+        match self.client.check(feed_url).await? {
+            Some(release) if release.version() == version => Ok(release),
+            Some(release) => Err(format!(
+                "the feed now offers {} instead of the staged {version}",
+                release.version()
+            )),
+            None => Err(format!("the feed no longer offers the staged {version}")),
+        }
     }
 
     pub async fn apply_settings(&self, settings: UpdateSettings) {
@@ -802,8 +878,7 @@ impl PluginFeedClient {
         if self.public_key.is_empty() {
             return Err("this build has no compiled-in update verification key".to_string());
         }
-        channel::validate_public_key(&self.public_key).map_err(|error| error.to_string())?;
-        Ok(self.public_key.clone())
+        channel::plugin_public_key(&self.public_key).map_err(|error| error.to_string())
     }
 }
 
@@ -855,6 +930,14 @@ impl FeedClient for PluginFeedClient {
                 .await
                 .map_err(|error| error.to_string())
         })
+    }
+
+    fn install<'a>(
+        &'a self,
+        release: &'a tauri_plugin_updater::Update,
+        bytes: Vec<u8>,
+    ) -> BoxFuture<'a, Result<(), String>> {
+        Box::pin(async move { release.install(bytes).map_err(|error| error.to_string()) })
     }
 }
 
@@ -913,8 +996,21 @@ fn loopback_http(
     })
 }
 
+const DAEMON_PORT_WAIT_MS: u64 = 60_000;
+const DAEMON_PORT_POLL_MS: u64 = 500;
+
 async fn daemon_port(manager: &crate::daemon::supervisor::DaemonManager) -> Option<u16> {
-    manager.status().await.port
+    let deadline =
+        tokio::time::Instant::now() + std::time::Duration::from_millis(DAEMON_PORT_WAIT_MS);
+    loop {
+        if let Some(port) = manager.status().await.port {
+            return Some(port);
+        }
+        if tokio::time::Instant::now() >= deadline {
+            return None;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(DAEMON_PORT_POLL_MS)).await;
+    }
 }
 
 /// Settings access against the daemon's `/api/v1/settings`, which is the store
@@ -1047,8 +1143,22 @@ pub async fn updates_download(
 }
 
 #[tauri::command]
-pub fn updates_install(shell: tauri::State<'_, UpdaterShell>) -> Result<(), String> {
-    shell.0.install_update()
+pub async fn updates_install(
+    app: tauri::AppHandle,
+    shell: tauri::State<'_, UpdaterShell>,
+) -> Result<(), String> {
+    shell.0.install_staged().await?;
+    app.restart()
+}
+
+pub fn install_staged_on_exit(engine: &ShellEngine) {
+    if !engine.has_staged_update() {
+        return;
+    }
+    match tauri::async_runtime::block_on(engine.install_staged()) {
+        Ok(version) => eprintln!("installed staged update {version}; it runs on the next launch"),
+        Err(error) => eprintln!("staged update was not installed: {error}"),
+    }
 }
 
 #[tauri::command]
@@ -1151,7 +1261,7 @@ pub fn open_shell_engine(
         app_version: app_version.to_string(),
         feed_base_url: resolve_feed_base_url(
             std::env::var(FEED_BASE_ENV).ok(),
-            app.config().plugins.0.get(RELEASE_PLUGIN_CONFIG_KEY),
+            serde_json::to_value(&app.config().plugins.0).ok().as_ref(),
         ),
         public_key: COMPILED_UPDATER_PUBLIC_KEY.to_string(),
     };
