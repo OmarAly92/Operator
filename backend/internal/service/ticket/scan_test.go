@@ -6,13 +6,21 @@ import (
 	"testing"
 )
 
-func writeFile(t *testing.T, path, content string) {
-	t.Helper()
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+func writeFile(t testing.TB, path, content string) {
+	if t != nil {
+		t.Helper()
+	}
+	fail := func(err error) {
+		if t == nil {
+			panic(err)
+		}
 		t.Fatal(err)
 	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		fail(err)
+	}
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
-		t.Fatal(err)
+		fail(err)
 	}
 }
 
