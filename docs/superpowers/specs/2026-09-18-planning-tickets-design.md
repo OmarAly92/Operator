@@ -365,7 +365,7 @@ Deliverables:
 - `backend/internal/domain/ticket.go`: `TicketRecord`, `PlanAssignmentRecord`,
   the read models `Ticket` and `Plan` (with derived `TicketStatus` and
   `PlanStatus` enums), and the `SessionTicketRef {Slug, PlanFile, Role}` added
-  as an optional field on `domain.Session` (`backend/internal/domain/session.go:127`).
+  as an optional field on `domain.Session` (`backend/internal/domain/session.go:125`).
 - Migration `backend/internal/storage/sqlite/migrations/0114_tickets.sql`
   creating `tickets` and `plan_assignments` (§1.2) with `change_log`
   triggers matching the existing tables; queries under
@@ -408,7 +408,7 @@ Deliverables:
   over the generated client (`lib/api-client.ts`), invalidated from the SSE
   change events in `lib/event-transport.ts` the way sessions are.
 - `SessionsBoard.tsx`: a fifth zone `planned` added to
-  `boardAttentionZoneOrder` in `lib/session-presentation.ts:187` and to the
+  `boardAttentionZoneOrder` in `lib/session-presentation.ts:190` and to the
   zone labels, rendered by a new `PlannedColumn` and `TicketCard` in
   `components/tickets/`. Column grid becomes five columns.
 - `components/tickets/CreateTicketSheet.tsx` (project, title, brief) and
