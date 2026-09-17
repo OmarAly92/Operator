@@ -43,7 +43,7 @@ await mkdir(OUTPUT_DIR, { recursive: true });
 if ((await fileSHA256(binaryPath)) !== target.sha256) {
 	const temporaryPath = `${binaryPath}.download`;
 	await rm(temporaryPath, { force: true });
-	const response = await fetch(`${RELEASE_BASE}/${target.asset}`, { redirect: "follow" });
+	const response = await fetchWithRetry(`${RELEASE_BASE}/${target.asset}`);
 	if (!response.ok || !response.body) {
 		throw new Error(`download agent-browser ${VERSION}: HTTP ${response.status}`);
 	}
@@ -77,6 +77,25 @@ if ((await readText(licenseVersionPath)).trim() !== VERSION) {
 
 if (!quiet) console.log(`Prepared browser automation runtime for ${process.platform}-${process.arch}`);
 
+async function fetchWithRetry(url, attempts = 3) {
+	const delays = [5_000, 20_000];
+	for (let attempt = 1; attempt <= attempts; attempt++) {
+		let response;
+		try {
+			response = await fetch(url, { redirect: "follow" });
+		} catch (error) {
+			if (attempt === attempts) throw error;
+			response = null;
+		}
+		if (response && (response.ok || response.status < 500)) return response;
+		if (attempt === attempts) return response;
+		const delay = delays[attempt - 1];
+		console.warn(`fetch ${url}: ${response ? `HTTP ${response.status}` : "network error"}, retrying in ${delay / 1000}s`);
+		await new Promise((resolve) => setTimeout(resolve, delay));
+	}
+	throw new Error(`fetch ${url}: exhausted retries`);
+}
+
 async function fileSHA256(file) {
 	try {
 		const contents = await readFile(file);
@@ -97,7 +116,7 @@ async function readText(file) {
 }
 
 async function downloadText(url, destination) {
-	const response = await fetch(url, { redirect: "follow" });
+	const response = await fetchWithRetry(url);
 	if (!response.ok) throw new Error(`download ${url}: HTTP ${response.status}`);
 	await writeFile(destination, await response.text(), "utf8");
 }
