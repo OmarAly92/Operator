@@ -2,13 +2,13 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** The daemon reads ticket folders from a project's repo, stores planning-session and plan-assignment links in SQLite, derives ticket and plan status from linked sessions, and exposes create / read / write / plan / assign / done / archive routes plus a folder-change SSE stream. No UI.
+**Goal:** The daemon reads ticket folders from a project's repo, stores planning-session and plan-assignment links in SQLite, derives ticket and plan status from linked sessions, and exposes create / read / write / plan / assign / review / merge-ready / merge / done / archive routes plus a folder-change SSE stream. Reviews run in the planner session or a fresh one, auto-trigger when the implementer opens a PR, and stop for the user's merge confirmation. No UI.
 
 **Architecture:** Markdown lives in `<project>/.operator/tickets/<slug>/` and is scanned on every request. Two new tables (`tickets`, `plan_assignments`) hold runtime links and emit a new `ticket_updated` change-log event. A leaf service `internal/service/ticket` composes scanner + store + session list into `domain.Ticket` read models and spawns sessions through the existing session service with a daemon-built task prompt. A chi controller exposes it; the OpenAPI spec is regenerated from Go.
 
 **Tech Stack:** Go (chi, sqlc 1.31 + goose, `gopkg.in/yaml.v3`, fsnotify via `internal/workspacewatch`), real-SQLite tests via `sqlitetest`.
 
-**Spec:** `docs/superpowers/specs/2026-09-18-planning-tickets-design.md` (read §1, §2, §4, §5 and "Plan 1" in §6 before starting).
+**Spec:** `docs/superpowers/specs/2026-09-18-planning-tickets-design.md` (read §1, §2 including §2.6, §4, §5 and "Plan 1" in §6 before starting). Tasks run in file order: 1, 2, 3, 4, 5, 6, 7, 7b, 7c, 8, 9, 10.
 
 ## Global Constraints
 
@@ -34,6 +34,7 @@ Create:
 - `backend/internal/service/ticket/prompt.go`, `prompt_test.go`
 - `backend/internal/service/ticket/git.go`, `git_test.go`
 - `backend/internal/service/ticket/service.go`, `service_test.go`
+- `backend/internal/service/ticket/autoreview.go`, `autoreview_test.go`
 - `backend/internal/httpd/controllers/tickets.go`, `tickets_test.go`
 - `backend/internal/integration/tickets_sqlite_test.go`
 
@@ -42,11 +43,12 @@ Modify:
 - `backend/internal/cdc/event.go:22-34` — `EventTicketUpdated`.
 - `frontend/src/renderer/lib/event-transport.ts:26-35` — add `"ticket_updated"` to `CDC_EVENT_TYPES`.
 - `backend/internal/domain/session.go:125-134` — `Ticket *SessionTicketRef` on `Session`.
+- `backend/internal/domain/projectconfig.go:20` — `Tickets TicketDefaults` on `ProjectConfig`.
 - `backend/internal/service/session/service.go:974-987` — populate `Ticket` in `toSession`; the `store` interface in that file gains `SessionTicketRef`.
 - `backend/internal/httpd/controllers/dto.go` — ticket DTOs and params.
 - `backend/internal/httpd/apispec/specgen/build.go` — `ticketOperations()`, tag, `schemaNames`.
 - `backend/internal/httpd/api.go:70,95,131,160-167` — `APIDeps.Tickets`, controller field, construction, `Register`.
-- `backend/internal/daemon/daemon.go:395-435` — construct `ticketsvc` and pass `Tickets:`.
+- `backend/internal/daemon/daemon.go:395-435` — construct `ticketsvc` with the loopback base URL, subscribe the auto-reviewer to `cdcPipe.Broadcaster`, pass `Tickets:`.
 
 ---
 
@@ -75,7 +77,7 @@ Modify:
   - `SessionTicketRef(ctx, id domain.SessionID) (domain.SessionTicketRef, bool, error)`
   - `GetPlanAssignment(ctx, id int64) (domain.PlanAssignmentRecord, bool, error)`
   - `MarkPlanReviewRequested(ctx, id int64, reviewer domain.SessionID, at time.Time) error`
-  - `MarkPlanMergeReady(ctx, id int64, at time.Time, summary string) error`
+  - `MarkPlanMergeReady(ctx, id int64, at time.Time, summary string) error` — also clears `merge_approved_at`, starting a new confirmation cycle
   - `MarkPlanMergeApproved(ctx, id int64, at time.Time) error`
 - Produces (cdc): `cdc.EventTicketUpdated EventType = "ticket_updated"`.
 
@@ -327,7 +329,7 @@ SELECT * FROM plan_assignments WHERE reviewer_session_id = ? ORDER BY id DESC LI
 UPDATE plan_assignments SET reviewer_session_id = ?, review_requested_at = ? WHERE id = ?;
 
 -- name: SetPlanAssignmentMergeReady :execrows
-UPDATE plan_assignments SET merge_ready_at = ?, merge_summary = ? WHERE id = ?;
+UPDATE plan_assignments SET merge_ready_at = ?, merge_summary = ?, merge_approved_at = NULL WHERE id = ?;
 
 -- name: SetPlanAssignmentMergeApproved :execrows
 UPDATE plan_assignments SET merge_approved_at = ? WHERE id = ?;
@@ -3216,6 +3218,645 @@ git commit -m "feat(tickets): plan, assign, mark done and archive"
 
 ---
 
+### Task 7b: Review, merge-ready and merge confirmation
+
+**Files:**
+- Modify: `backend/internal/domain/projectconfig.go` — `TicketRoleDefaults`, `TicketDefaults`, `ProjectConfig.Tickets`
+- Modify: `backend/internal/service/ticket/service.go` (append)
+- Modify: `backend/internal/service/ticket/service_test.go` (append; fake gains `SessionTicketRef`)
+
+**Interfaces:**
+- Consumes: Task 4 `reviewPrompt`, `mergeApprovedPrompt`; Task 1 `MarkPlanReviewRequested`, `MarkPlanMergeReady`, `MarkPlanMergeApproved`, `SessionTicketRef`; Task 7 `spawnPlanner`, `findPlan`, `planningLive`.
+- Produces (domain):
+
+```go
+type TicketRoleDefaults struct {
+	Harness         AgentHarness    `json:"agent,omitempty"`
+	Model           string          `json:"model,omitempty"`
+	ClaudeAccountID ClaudeAccountID `json:"claudeAccountId,omitempty"`
+}
+
+type TicketDefaults struct {
+	Planner           TicketRoleDefaults `json:"planner,omitempty"`
+	Implementer       TicketRoleDefaults `json:"implementer,omitempty"`
+	Reviewer          TicketRoleDefaults `json:"reviewer,omitempty"`
+	ReviewerMode      string             `json:"reviewerMode,omitempty" enum:"planner,new"`
+	DisableAutoReview bool               `json:"disableAutoReview,omitempty"`
+}
+```
+  and `Tickets TicketDefaults \`json:"tickets,omitempty"\`` on `ProjectConfig` (`projectconfig.go:20`). `ProjectConfig` is stored as one JSON blob, so no migration.
+- Produces (service):
+  - `const ReviewerPlanner = "planner"`, `ReviewerNew = "new"`.
+  - `ReviewInput{SpawnInput; Reviewer string}`, `ReviewResult{Session domain.Session; Spawned bool}`.
+  - `(*Service) Review(ctx, project, slug, planName string, in ReviewInput) (ReviewResult, error)`
+  - `(*Service) MergeReady(ctx, project, slug, planName, summary string) (domain.Ticket, error)`
+  - `(*Service) ApproveMerge(ctx, project, slug, planName string) (domain.Ticket, error)`
+  - `(*Service) AutoReview(ctx, sessionID domain.SessionID) error` — used by Task 7c; no-op unless the session is an implementer whose assignment has no review yet and the project has not disabled auto-review.
+  - `Store` interface gains `SessionTicketRef(ctx, id domain.SessionID) (domain.SessionTicketRef, bool, error)`.
+  - Error codes: `TICKET_PLAN_UNASSIGNED` (409), `TICKET_NOT_REVIEWING` (409), `TICKET_NOT_MERGE_READY` (409), `TICKET_REVIEWER_INVALID` (400).
+
+- [ ] **Step 1: Add the config types**
+
+In `backend/internal/domain/projectconfig.go` add the two structs above and the `Tickets` field to `ProjectConfig`. If `WithDefaults()` (`projectconfig.go:158`) copies fields explicitly, leave `Tickets` untouched by it; zero values mean "inherit". Run `cd backend && go test ./internal/domain/ ./internal/service/project/` and fix any config round-trip test that enumerates fields.
+
+- [ ] **Step 2: Extend the fakes and write the failing tests**
+
+In `service_test.go`, make `fakeSessions.Spawn` record branch and workspace so review prompts can name them:
+
+```go
+	s := domain.Session{SessionRecord: domain.SessionRecord{
+		ID: domain.SessionID("tk-" + strings.Repeat("x", f.nextNum)), ProjectID: cfg.ProjectID,
+		Metadata: domain.SessionMetadata{Branch: cfg.Branch, WorkspaceMode: cfg.WorkspaceMode, WorkspacePath: "/ws/" + strings.Repeat("x", f.nextNum)},
+	}, Status: domain.StatusIdle}
+```
+
+Add to `fakeStore`:
+
+```go
+func (f *fakeStore) SessionTicketRef(_ context.Context, id domain.SessionID) (domain.SessionTicketRef, bool, error) {
+	for _, t := range f.tickets {
+		if t.PlanningSessionID == id {
+			return domain.SessionTicketRef{Slug: t.Slug, Role: domain.TicketRolePlanning}, true, nil
+		}
+	}
+	for i := len(f.assignments) - 1; i >= 0; i-- {
+		a := f.assignments[i]
+		if a.SessionID == id {
+			return domain.SessionTicketRef{Slug: a.Slug, PlanFile: a.PlanFile, Role: domain.TicketRoleImplementing}, true, nil
+		}
+	}
+	for i := len(f.assignments) - 1; i >= 0; i-- {
+		a := f.assignments[i]
+		if a.ReviewerSessionID == id {
+			return domain.SessionTicketRef{Slug: a.Slug, PlanFile: a.PlanFile, Role: domain.TicketRoleReviewing}, true, nil
+		}
+	}
+	return domain.SessionTicketRef{}, false, nil
+}
+func (f *fakeStore) GetPlanAssignment(_ context.Context, id int64) (domain.PlanAssignmentRecord, bool, error) {
+	for _, a := range f.assignments {
+		if a.ID == id {
+			return a, true, nil
+		}
+	}
+	return domain.PlanAssignmentRecord{}, false, nil
+}
+func (f *fakeStore) update(id int64, fn func(*domain.PlanAssignmentRecord)) error {
+	for i := range f.assignments {
+		if f.assignments[i].ID == id {
+			fn(&f.assignments[i])
+			return nil
+		}
+	}
+	return errors.New("missing assignment")
+}
+func (f *fakeStore) MarkPlanReviewRequested(_ context.Context, id int64, reviewer domain.SessionID, at time.Time) error {
+	return f.update(id, func(a *domain.PlanAssignmentRecord) { a.ReviewerSessionID, a.ReviewRequestedAt = reviewer, at })
+}
+func (f *fakeStore) MarkPlanMergeReady(_ context.Context, id int64, at time.Time, summary string) error {
+	return f.update(id, func(a *domain.PlanAssignmentRecord) {
+		a.MergeReadyAt, a.MergeSummary, a.MergeApprovedAt = at, summary, time.Time{}
+	})
+}
+func (f *fakeStore) MarkPlanMergeApproved(_ context.Context, id int64, at time.Time) error {
+	return f.update(id, func(a *domain.PlanAssignmentRecord) { a.MergeApprovedAt = at })
+}
+```
+
+Then the tests:
+
+```go
+func assignedHarness(t *testing.T) (*harness, domain.SessionID) {
+	t.Helper()
+	h := newHarness(t)
+	ctx := context.Background()
+	h.ticketFile("editor", "ticket.md", "---\ntitle: Editor\n---\n")
+	h.ticketFile("editor", "spec.md", "# s\n")
+	h.ticketFile("editor", "plans/01-daemon.md", "---\ntitle: Daemon\n---\n")
+	_ = gitCommitPath(ctx, h.repo, ".operator/tickets/editor", "ticket: add editor")
+	res, err := h.svc.Assign(ctx, "tk", "editor", "01-daemon.md", AssignInput{Force: true})
+	if err != nil || res.Session == nil {
+		t.Fatalf("assign = %+v err=%v", res, err)
+	}
+	return h, res.Session.ID
+}
+
+func TestReviewWithPlannerSendsOrSpawns(t *testing.T) {
+	h, impl := assignedHarness(t)
+	ctx := context.Background()
+	if _, err := h.svc.Review(ctx, "tk", "editor", "01-daemon.md", ReviewInput{}); err != nil {
+		t.Fatal(err)
+	}
+	if len(h.sessions.spawned) != 2 || h.sessions.spawned[1].WorkspaceMode != domain.WorkspaceModeInPlace || len(h.sessions.sent) != 0 {
+		t.Fatalf("no planner: spawned=%+v sent=%+v", h.sessions.spawned, h.sessions.sent)
+	}
+	prompt := h.sessions.spawned[1].Prompt
+	for _, want := range []string{"opr/editor-01", "/ws/x", "merge-ready", "http://127.0.0.1:3001/api/v1/projects/tk/tickets/editor/plans/01-daemon.md/merge-ready", "Do not merge"} {
+		if !strings.Contains(prompt, want) {
+			t.Errorf("review prompt missing %q:\n%s", want, prompt)
+		}
+	}
+	planner := h.sessions.sessions[1].ID
+	if h.store.tickets[key("tk", "editor")].PlanningSessionID != planner {
+		t.Fatal("spawned reviewer must become the planning session in planner mode")
+	}
+	tk, _ := h.svc.Get(ctx, "tk", "editor")
+	if tk.Plans[0].Status != domain.PlanStatusReviewing || tk.Plans[0].ReviewerID != planner || tk.Status != domain.TicketStatusInProgress {
+		t.Fatalf("ticket = %+v", tk)
+	}
+	ref, ok, _ := h.store.SessionTicketRef(ctx, planner)
+	if !ok || ref.Role != domain.TicketRolePlanning {
+		t.Fatalf("planner ref = %+v", ref)
+	}
+	_ = impl
+	if _, err := h.svc.Review(ctx, "tk", "editor", "01-daemon.md", ReviewInput{SpawnInput: SpawnInput{Extra: "Again."}}); err != nil {
+		t.Fatal(err)
+	}
+	if len(h.sessions.spawned) != 2 || len(h.sessions.sent) != 1 || h.sessions.sent[0].id != planner || !strings.Contains(h.sessions.sent[0].msg, "Again.") {
+		t.Fatalf("live planner must receive a send: spawned=%d sent=%+v", len(h.sessions.spawned), h.sessions.sent)
+	}
+}
+
+func TestReviewWithNewSessionUsesReviewerDefaults(t *testing.T) {
+	h, _ := assignedHarness(t)
+	ctx := context.Background()
+	p := h.store.projects["tk"]
+	p.Config.Tickets.Planner = domain.TicketRoleDefaults{Model: "opus"}
+	p.Config.Tickets.Reviewer = domain.TicketRoleDefaults{Model: "sonnet", ClaudeAccountID: "personal"}
+	h.store.projects["tk"] = p
+	planner, _ := h.svc.Plan(ctx, "tk", "editor", SpawnInput{})
+	res, err := h.svc.Review(ctx, "tk", "editor", "01-daemon.md", ReviewInput{Reviewer: ReviewerNew})
+	if err != nil || !res.Spawned || res.Session.ID == planner.ID {
+		t.Fatalf("res = %+v err=%v", res, err)
+	}
+	cfg := h.sessions.spawned[len(h.sessions.spawned)-1]
+	if cfg.AgentConfig.Model != "sonnet" || cfg.ClaudeAccountID != "personal" || cfg.WorkspaceMode != domain.WorkspaceModeInPlace || cfg.DisplayName != "editor review" {
+		t.Fatalf("reviewer cfg = %+v", cfg)
+	}
+	if h.store.tickets[key("tk", "editor")].PlanningSessionID != planner.ID {
+		t.Fatal("new-session review must not replace the planner")
+	}
+	if ref, ok, _ := h.store.SessionTicketRef(ctx, res.Session.ID); !ok || ref.Role != domain.TicketRoleReviewing {
+		t.Fatalf("reviewer ref = %+v ok=%v", ref, ok)
+	}
+	p.Config.Tickets.ReviewerMode = ReviewerNew
+	h.store.projects["tk"] = p
+	res2, _ := h.svc.Review(ctx, "tk", "editor", "01-daemon.md", ReviewInput{})
+	if !res2.Spawned {
+		t.Fatal("project default reviewerMode=new must spawn")
+	}
+	if _, err := h.svc.Review(ctx, "tk", "editor", "01-daemon.md", ReviewInput{Reviewer: "robot"}); codeOf(err) != "TICKET_REVIEWER_INVALID" {
+		t.Fatalf("err = %v", err)
+	}
+}
+
+func TestReviewRequiresAssignment(t *testing.T) {
+	h := newHarness(t)
+	ctx := context.Background()
+	h.ticketFile("editor", "ticket.md", "---\ntitle: Editor\n---\n")
+	h.ticketFile("editor", "plans/01-daemon.md", "---\ntitle: Daemon\n---\n")
+	if _, err := h.svc.Review(ctx, "tk", "editor", "01-daemon.md", ReviewInput{}); codeOf(err) != "TICKET_PLAN_UNASSIGNED" {
+		t.Fatalf("err = %v", err)
+	}
+	if _, err := h.svc.MergeReady(ctx, "tk", "editor", "01-daemon.md", "ready"); codeOf(err) != "TICKET_NOT_REVIEWING" {
+		t.Fatalf("err = %v", err)
+	}
+}
+
+func TestMergeReadyThenApproveSendsToReviewer(t *testing.T) {
+	h, _ := assignedHarness(t)
+	ctx := context.Background()
+	res, err := h.svc.Review(ctx, "tk", "editor", "01-daemon.md", ReviewInput{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	reviewer := res.Session.ID
+	if _, err := h.svc.ApproveMerge(ctx, "tk", "editor", "01-daemon.md"); codeOf(err) != "TICKET_NOT_MERGE_READY" {
+		t.Fatalf("err = %v", err)
+	}
+	tk, err := h.svc.MergeReady(ctx, "tk", "editor", "01-daemon.md", "gates green, verified in app")
+	if err != nil || tk.Plans[0].Status != domain.PlanStatusAwaitMerge || tk.Plans[0].MergeSummary != "gates green, verified in app" || tk.Status != domain.TicketStatusAwaitMerge {
+		t.Fatalf("tk = %+v err=%v", tk, err)
+	}
+	tk, err = h.svc.ApproveMerge(ctx, "tk", "editor", "01-daemon.md")
+	if err != nil || tk.Plans[0].Status != domain.PlanStatusReviewing {
+		t.Fatalf("tk = %+v err=%v", tk, err)
+	}
+	last := h.sessions.sent[len(h.sessions.sent)-1]
+	if last.id != reviewer || !strings.Contains(last.msg, "Approved") || !strings.Contains(last.msg, "opr/editor-01") || !strings.Contains(last.msg, "main") {
+		t.Fatalf("sent = %+v", last)
+	}
+	h.sessions.set(reviewer, domain.StatusTerminated)
+	if _, err := h.svc.MergeReady(ctx, "tk", "editor", "01-daemon.md", "again"); err != nil {
+		t.Fatal(err)
+	}
+	spawnedBefore := len(h.sessions.spawned)
+	if _, err := h.svc.ApproveMerge(ctx, "tk", "editor", "01-daemon.md"); err != nil {
+		t.Fatal(err)
+	}
+	if len(h.sessions.spawned) != spawnedBefore+1 || !strings.Contains(h.sessions.spawned[spawnedBefore].Prompt, "Approved") {
+		t.Fatalf("dead reviewer must be replaced by a fresh in-place session: %+v", h.sessions.spawned)
+	}
+}
+
+func TestAutoReviewOncePerAssignment(t *testing.T) {
+	h, impl := assignedHarness(t)
+	ctx := context.Background()
+	if err := h.svc.AutoReview(ctx, "unknown"); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.svc.AutoReview(ctx, impl); err != nil {
+		t.Fatal(err)
+	}
+	if len(h.sessions.spawned) != 2 {
+		t.Fatalf("auto review must trigger a planner-mode review: %+v", h.sessions.spawned)
+	}
+	if err := h.svc.AutoReview(ctx, impl); err != nil || len(h.sessions.spawned) != 2 || len(h.sessions.sent) != 0 {
+		t.Fatalf("second auto review must be a no-op: err=%v spawned=%d sent=%d", err, len(h.sessions.spawned), len(h.sessions.sent))
+	}
+	h2, impl2 := assignedHarness(t)
+	p := h2.store.projects["tk"]
+	p.Config.Tickets.DisableAutoReview = true
+	h2.store.projects["tk"] = p
+	if err := h2.svc.AutoReview(ctx, impl2); err != nil || len(h2.sessions.spawned) != 1 {
+		t.Fatalf("disabled auto review must not act: err=%v spawned=%d", err, len(h2.sessions.spawned))
+	}
+}
+```
+
+- [ ] **Step 3: Run to verify it fails**
+
+Run: `cd backend && go test ./internal/service/ticket/ -run 'TestReview|TestMergeReady|TestAutoReview'`
+Expected: undefined `ReviewInput`.
+
+- [ ] **Step 4: Implement**
+
+Add `SessionTicketRef`, `GetPlanAssignment`, `MarkPlanReviewRequested`, `MarkPlanMergeReady`, `MarkPlanMergeApproved` to the `Store` interface in `service.go` with the Task 1 signatures. Append:
+
+```go
+const (
+	ReviewerPlanner = "planner"
+	ReviewerNew     = "new"
+)
+
+type ReviewInput struct {
+	SpawnInput
+	Reviewer string
+}
+
+type ReviewResult struct {
+	Session domain.Session
+	Spawned bool
+}
+
+func (s *Service) currentAssignment(ctx context.Context, project domain.ProjectID, slug, planFile string) (domain.PlanAssignmentRecord, bool, error) {
+	rows, err := s.store.ListPlanAssignments(ctx, project, slug)
+	if err != nil {
+		return domain.PlanAssignmentRecord{}, false, err
+	}
+	a, ok := currentAssignments(rows)[planFile]
+	return a, ok, nil
+}
+
+func (s *Service) mergeReadyCurl(project domain.ProjectID, slug, planName string) string {
+	return fmt.Sprintf(`curl -s -X POST %s/api/v1/projects/%s/tickets/%s/plans/%s/merge-ready -H 'content-type: application/json' -d '{"summary":"<one line: what you verified>"}'`, s.baseURL, project, slug, planName)
+}
+
+func (s *Service) sessionLive(sessions map[domain.SessionID]*domain.Session, id domain.SessionID) bool {
+	return planningLive(sessions, id)
+}
+
+func (s *Service) Review(ctx context.Context, project domain.ProjectID, slug, planName string, in ReviewInput) (ReviewResult, error) {
+	p, rec, t, err := s.load(ctx, project, slug)
+	if err != nil {
+		return ReviewResult{}, err
+	}
+	idx, ok := findPlan(t, planName)
+	if !ok {
+		return ReviewResult{}, apierr.NotFound("TICKET_PLAN_NOT_FOUND", "No such plan in the ticket")
+	}
+	plan := t.Plans[idx]
+	a, ok, err := s.currentAssignment(ctx, project, slug, plan.File)
+	if err != nil {
+		return ReviewResult{}, err
+	}
+	if !ok || a.SessionID == "" {
+		return ReviewResult{}, apierr.Conflict("TICKET_PLAN_UNASSIGNED", "Assign the plan to a session before reviewing it", nil)
+	}
+	mode := strings.TrimSpace(in.Reviewer)
+	if mode == "" {
+		mode = strings.TrimSpace(p.Config.Tickets.ReviewerMode)
+	}
+	if mode == "" {
+		mode = ReviewerPlanner
+	}
+	if mode != ReviewerPlanner && mode != ReviewerNew {
+		return ReviewResult{}, apierr.Invalid("TICKET_REVIEWER_INVALID", "reviewer must be planner or new", nil)
+	}
+	impl, err := s.sessions.Get(ctx, a.SessionID)
+	if err != nil {
+		return ReviewResult{}, err
+	}
+	prompt := reviewPrompt(t, plan, impl.Metadata.Branch, impl.Metadata.WorkspacePath, s.mergeReadyCurl(project, slug, path.Base(plan.File)), in.Extra)
+	sessions, err := s.sessionIndex(ctx, project)
+	if err != nil {
+		return ReviewResult{}, err
+	}
+	var reviewer domain.Session
+	spawned := false
+	switch {
+	case mode == ReviewerPlanner && s.sessionLive(sessions, rec.PlanningSessionID):
+		if err := s.sessions.Send(ctx, rec.PlanningSessionID, prompt, nil); err != nil {
+			return ReviewResult{}, err
+		}
+		reviewer = *sessions[rec.PlanningSessionID]
+	case mode == ReviewerPlanner:
+		reviewer, err = s.spawnPlanner(ctx, p, t, in.SpawnInput, prompt)
+		if err != nil {
+			return ReviewResult{}, err
+		}
+		spawned = true
+	default:
+		defaults := p.Config.Tickets.Reviewer
+		if defaults == (domain.TicketRoleDefaults{}) {
+			defaults = p.Config.Tickets.Planner
+		}
+		role := in.SpawnInput.withDefaults(defaults)
+		reviewer, _, _, err = s.sessions.Spawn(ctx, ports.SpawnConfig{
+			ProjectID:       project,
+			Kind:            domain.KindWorker,
+			Harness:         role.Harness,
+			WorkspaceMode:   domain.WorkspaceModeInPlace,
+			Prompt:          prompt,
+			AgentConfig:     ports.AgentConfig{Model: strings.TrimSpace(role.Model)},
+			DisplayName:     truncateRunes(slug+" review", maxDisplayName),
+			ClaudeAccountID: role.ClaudeAccountID,
+		})
+		if err != nil {
+			return ReviewResult{}, err
+		}
+		spawned = true
+	}
+	if err := s.store.MarkPlanReviewRequested(ctx, a.ID, reviewer.ID, s.now()); err != nil {
+		return ReviewResult{}, err
+	}
+	return ReviewResult{Session: reviewer, Spawned: spawned}, nil
+}
+
+func (s *Service) MergeReady(ctx context.Context, project domain.ProjectID, slug, planName, summary string) (domain.Ticket, error) {
+	_, _, t, err := s.load(ctx, project, slug)
+	if err != nil {
+		return domain.Ticket{}, err
+	}
+	idx, ok := findPlan(t, planName)
+	if !ok {
+		return domain.Ticket{}, apierr.NotFound("TICKET_PLAN_NOT_FOUND", "No such plan in the ticket")
+	}
+	a, ok, err := s.currentAssignment(ctx, project, slug, t.Plans[idx].File)
+	if err != nil {
+		return domain.Ticket{}, err
+	}
+	if !ok || a.ReviewRequestedAt.IsZero() {
+		return domain.Ticket{}, apierr.Conflict("TICKET_NOT_REVIEWING", "No review is in progress for this plan", nil)
+	}
+	if err := s.store.MarkPlanMergeReady(ctx, a.ID, s.now(), strings.TrimSpace(summary)); err != nil {
+		return domain.Ticket{}, err
+	}
+	return s.Get(ctx, project, slug)
+}
+
+func (s *Service) ApproveMerge(ctx context.Context, project domain.ProjectID, slug, planName string) (domain.Ticket, error) {
+	p, _, t, err := s.load(ctx, project, slug)
+	if err != nil {
+		return domain.Ticket{}, err
+	}
+	idx, ok := findPlan(t, planName)
+	if !ok {
+		return domain.Ticket{}, apierr.NotFound("TICKET_PLAN_NOT_FOUND", "No such plan in the ticket")
+	}
+	plan := t.Plans[idx]
+	a, ok, err := s.currentAssignment(ctx, project, slug, plan.File)
+	if err != nil {
+		return domain.Ticket{}, err
+	}
+	if !ok || a.MergeReadyAt.IsZero() || !a.MergeApprovedAt.IsZero() {
+		return domain.Ticket{}, apierr.Conflict("TICKET_NOT_MERGE_READY", "The reviewer has not reported this plan as ready to merge", nil)
+	}
+	impl, err := s.sessions.Get(ctx, a.SessionID)
+	if err != nil {
+		return domain.Ticket{}, err
+	}
+	prompt := mergeApprovedPrompt(t, plan, impl.Metadata.Branch, p.Config.WithDefaults().DefaultBranch)
+	sessions, err := s.sessionIndex(ctx, project)
+	if err != nil {
+		return domain.Ticket{}, err
+	}
+	if s.sessionLive(sessions, a.ReviewerSessionID) {
+		if err := s.sessions.Send(ctx, a.ReviewerSessionID, prompt, nil); err != nil {
+			return domain.Ticket{}, err
+		}
+	} else {
+		defaults := p.Config.Tickets.Reviewer
+		if defaults == (domain.TicketRoleDefaults{}) {
+			defaults = p.Config.Tickets.Planner
+		}
+		role := SpawnInput{}.withDefaults(defaults)
+		fresh, _, _, err := s.sessions.Spawn(ctx, ports.SpawnConfig{
+			ProjectID:       project,
+			Kind:            domain.KindWorker,
+			Harness:         role.Harness,
+			WorkspaceMode:   domain.WorkspaceModeInPlace,
+			Prompt:          prompt,
+			AgentConfig:     ports.AgentConfig{Model: strings.TrimSpace(role.Model)},
+			DisplayName:     truncateRunes(slug+" merge", maxDisplayName),
+			ClaudeAccountID: role.ClaudeAccountID,
+		})
+		if err != nil {
+			return domain.Ticket{}, err
+		}
+		if err := s.store.MarkPlanReviewRequested(ctx, a.ID, fresh.ID, a.ReviewRequestedAt); err != nil {
+			return domain.Ticket{}, err
+		}
+	}
+	if err := s.store.MarkPlanMergeApproved(ctx, a.ID, s.now()); err != nil {
+		return domain.Ticket{}, err
+	}
+	return s.Get(ctx, project, slug)
+}
+
+func (s *Service) AutoReview(ctx context.Context, sessionID domain.SessionID) error {
+	ref, ok, err := s.store.SessionTicketRef(ctx, sessionID)
+	if err != nil || !ok || ref.Role != domain.TicketRoleImplementing {
+		return err
+	}
+	impl, err := s.sessions.Get(ctx, sessionID)
+	if err != nil {
+		return err
+	}
+	p, err := s.project(ctx, impl.ProjectID)
+	if err != nil {
+		return nil
+	}
+	if p.Config.Tickets.DisableAutoReview {
+		return nil
+	}
+	a, ok, err := s.currentAssignment(ctx, impl.ProjectID, ref.Slug, ref.PlanFile)
+	if err != nil {
+		return err
+	}
+	if !ok || a.SessionID != sessionID || !a.ReviewRequestedAt.IsZero() {
+		return nil
+	}
+	_, err = s.Review(ctx, impl.ProjectID, ref.Slug, path.Base(ref.PlanFile), ReviewInput{})
+	return err
+}
+```
+
+- [ ] **Step 5: Run, then commit**
+
+Run: `cd backend && go test ./internal/service/ticket/ -v && go vet ./internal/service/ticket/ ./internal/domain/`
+Expected: PASS.
+
+```bash
+git add backend/internal/domain/projectconfig.go backend/internal/service/ticket
+git commit -m "feat(tickets): review by planner or fresh session, merge-ready and merge confirmation"
+```
+
+---
+
+### Task 7c: Auto-review observer on PR creation
+
+**Files:**
+- Create: `backend/internal/service/ticket/autoreview.go`, `autoreview_test.go`
+
+**Interfaces:**
+- Consumes: `cdc.Broadcaster.Subscribe(fn func(cdc.Event)) func()` (`cdc/broadcast.go:28`, called synchronously from the poller so `fn` must not block), `cdc.EventPRCreated`, Task 7b `AutoReview`.
+- Produces:
+  - `type AutoReviewer struct` with `NewAutoReviewer(svc interface{ AutoReview(context.Context, domain.SessionID) error }, log *slog.Logger) *AutoReviewer`
+  - `(*AutoReviewer) Subscribe(ctx context.Context, b *cdc.Broadcaster) (unsubscribe func())` — each `pr_created` event with a session id runs `AutoReview` on a goroutine bound to `ctx`; errors are logged at warn and never retried.
+
+- [ ] **Step 1: Write the failing test**
+
+```go
+package ticket
+
+import (
+	"context"
+	"io"
+	"log/slog"
+	"sync"
+	"testing"
+	"time"
+
+	"github.com/OmarAly92/operator/backend/internal/cdc"
+	"github.com/OmarAly92/operator/backend/internal/domain"
+)
+
+type recordingReviewer struct {
+	mu  sync.Mutex
+	ids []domain.SessionID
+}
+
+func (r *recordingReviewer) AutoReview(_ context.Context, id domain.SessionID) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.ids = append(r.ids, id)
+	return nil
+}
+
+func TestAutoReviewerReactsToPRCreatedOnly(t *testing.T) {
+	rec := &recordingReviewer{}
+	b := cdc.NewBroadcaster()
+	ar := NewAutoReviewer(rec, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	unsub := ar.Subscribe(context.Background(), b)
+	defer unsub()
+	b.Publish(cdc.Event{Type: cdc.EventPRCreated, SessionID: "tk-1"})
+	b.Publish(cdc.Event{Type: cdc.EventPRUpdated, SessionID: "tk-1"})
+	b.Publish(cdc.Event{Type: cdc.EventSessionUpdated, SessionID: "tk-2"})
+	b.Publish(cdc.Event{Type: cdc.EventPRCreated})
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		rec.mu.Lock()
+		n := len(rec.ids)
+		rec.mu.Unlock()
+		if n == 1 {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	rec.mu.Lock()
+	defer rec.mu.Unlock()
+	if len(rec.ids) != 1 || rec.ids[0] != "tk-1" {
+		t.Fatalf("ids = %v", rec.ids)
+	}
+}
+```
+
+If the constructor is not `cdc.NewBroadcaster()`, use the one `cdc/broadcast.go:22` exports.
+
+- [ ] **Step 2: Run to verify it fails**
+
+Run: `cd backend && go test ./internal/service/ticket/ -run TestAutoReviewer`
+Expected: undefined `NewAutoReviewer`.
+
+- [ ] **Step 3: Implement**
+
+`backend/internal/service/ticket/autoreview.go`:
+
+```go
+package ticket
+
+import (
+	"context"
+	"log/slog"
+
+	"github.com/OmarAly92/operator/backend/internal/cdc"
+	"github.com/OmarAly92/operator/backend/internal/domain"
+)
+
+type autoReviewSource interface {
+	AutoReview(ctx context.Context, sessionID domain.SessionID) error
+}
+
+type AutoReviewer struct {
+	svc autoReviewSource
+	log *slog.Logger
+}
+
+func NewAutoReviewer(svc autoReviewSource, log *slog.Logger) *AutoReviewer {
+	if log == nil {
+		log = slog.Default()
+	}
+	return &AutoReviewer{svc: svc, log: log}
+}
+
+func (a *AutoReviewer) Subscribe(ctx context.Context, b *cdc.Broadcaster) func() {
+	return b.Subscribe(func(e cdc.Event) {
+		if e.Type != cdc.EventPRCreated || e.SessionID == "" {
+			return
+		}
+		id := domain.SessionID(e.SessionID)
+		go func() {
+			if err := a.svc.AutoReview(ctx, id); err != nil {
+				a.log.Warn("ticket auto-review failed", "session", id, "err", err)
+			}
+		}()
+	})
+}
+```
+
+- [ ] **Step 4: Run, then commit**
+
+Run: `cd backend && go test -race ./internal/service/ticket/ -run TestAutoReviewer -v`
+Expected: PASS.
+
+```bash
+git add backend/internal/service/ticket/autoreview.go backend/internal/service/ticket/autoreview_test.go
+git commit -m "feat(tickets): auto-review when an implementing session opens a PR"
+```
+
+---
+
 ### Task 8: `ticket` on the session read model
 
 **Files:**
@@ -3358,7 +3999,7 @@ git commit -m "feat(tickets): sessions carry their ticket link"
 - Produces:
   - `controllers.TicketService` interface (mirrors the service's exported methods).
   - `controllers.TicketsController{Svc TicketService}` with `Register(chi.Router)`.
-  - DTOs: `TicketSlugParam`, `TicketPlanParam`, `TicketFileQuery`, `TicketView`, `PlanView`, `ListTicketsResponse`, `TicketResponse`, `TicketFileResponse`, `CreateTicketRequest`, `CreateTicketResponse`, `SaveTicketFileRequest`, `PlanTicketRequest`, `AssignPlanRequest`, `AssignPlanQuery`, `AssignPlanResponse`.
+  - DTOs: `TicketSlugParam`, `TicketPlanParam`, `TicketFileQuery`, `TicketView`, `PlanView`, `ListTicketsResponse`, `TicketResponse`, `TicketFileResponse`, `CreateTicketRequest`, `CreateTicketResponse`, `SaveTicketFileRequest`, `PlanTicketRequest`, `AssignPlanRequest`, `AssignPlanQuery`, `AssignPlanResponse`, `ReviewPlanRequest`, `ReviewPlanResponse`, `MergeReadyRequest`.
   - `httpd.APIDeps.Tickets controllers.TicketService`.
 
 - [ ] **Step 1: Append the DTOs**
@@ -3383,13 +4024,16 @@ type AssignPlanQuery struct {
 }
 
 type PlanView struct {
-	File      string            `json:"file"`
-	Order     int               `json:"order"`
-	Title     string            `json:"title"`
-	Status    domain.PlanStatus `json:"status" enum:"todo,idle,working,needs_you,in_review,merged,done,terminated"`
-	SessionID domain.SessionID  `json:"sessionId,omitempty"`
-	Unordered bool              `json:"unordered,omitempty"`
-	Warning   string            `json:"warning,omitempty"`
+	File              string            `json:"file"`
+	Order             int               `json:"order"`
+	Title             string            `json:"title"`
+	Status            domain.PlanStatus `json:"status" enum:"todo,idle,working,needs_you,in_review,reviewing,awaiting_merge,merged,done,terminated"`
+	SessionID         domain.SessionID  `json:"sessionId,omitempty"`
+	ReviewerSessionID domain.SessionID  `json:"reviewerSessionId,omitempty"`
+	MergeSummary      string            `json:"mergeSummary,omitempty"`
+	KickoffFile       string            `json:"kickoffFile,omitempty"`
+	Unordered         bool              `json:"unordered,omitempty"`
+	Warning           string            `json:"warning,omitempty"`
 }
 
 type TicketView struct {
@@ -3397,7 +4041,7 @@ type TicketView struct {
 	Slug              string              `json:"slug"`
 	Title             string              `json:"title"`
 	Brief             string              `json:"brief,omitempty"`
-	Status            domain.TicketStatus `json:"status" enum:"draft,planning,ready,in_progress,done,archived"`
+	Status            domain.TicketStatus `json:"status" enum:"draft,planning,ready,in_progress,awaiting_merge,done,archived"`
 	PlanningSessionID domain.SessionID    `json:"planningSessionId,omitempty"`
 	Plans             []PlanView          `json:"plans"`
 	Files             []string            `json:"files"`
@@ -3437,12 +4081,14 @@ type SaveTicketFileRequest struct {
 
 type PlanTicketRequest struct {
 	Harness         domain.AgentHarness    `json:"harness,omitempty"`
+	Model           string                 `json:"model,omitempty" maxLength:"128"`
 	ClaudeAccountID domain.ClaudeAccountID `json:"claudeAccountId,omitempty" maxLength:"64"`
 	Extra           string                 `json:"extra,omitempty" maxLength:"65536"`
 }
 
 type AssignPlanRequest struct {
 	Harness         domain.AgentHarness    `json:"harness,omitempty"`
+	Model           string                 `json:"model,omitempty" maxLength:"128"`
 	ClaudeAccountID domain.ClaudeAccountID `json:"claudeAccountId,omitempty" maxLength:"64"`
 	Extra           string                 `json:"extra,omitempty" maxLength:"65536"`
 	Force           bool                   `json:"force,omitempty"`
@@ -3451,6 +4097,23 @@ type AssignPlanRequest struct {
 type AssignPlanResponse struct {
 	Warnings []string     `json:"warnings"`
 	Session  *SessionView `json:"session,omitempty"`
+}
+
+type ReviewPlanRequest struct {
+	Harness         domain.AgentHarness    `json:"harness,omitempty"`
+	Model           string                 `json:"model,omitempty" maxLength:"128"`
+	ClaudeAccountID domain.ClaudeAccountID `json:"claudeAccountId,omitempty" maxLength:"64"`
+	Extra           string                 `json:"extra,omitempty" maxLength:"65536"`
+	Reviewer        string                 `json:"reviewer,omitempty" enum:"planner,new"`
+}
+
+type ReviewPlanResponse struct {
+	Session SessionView `json:"session"`
+	Spawned bool        `json:"spawned"`
+}
+
+type MergeReadyRequest struct {
+	Summary string `json:"summary,omitempty" maxLength:"1000"`
 }
 ```
 
@@ -3488,6 +4151,10 @@ type fakeTicketService struct {
 	assigned   ticketsvc.AssignInput
 	assignName string
 	planned    ticketsvc.SpawnInput
+	reviewed   ticketsvc.ReviewInput
+	reviewName string
+	mergeReady string
+	merged     string
 	done       string
 	archived   *bool
 	err        error
@@ -3548,6 +4215,21 @@ func (f *fakeTicketService) SetArchived(_ context.Context, _ domain.ProjectID, _
 }
 func (f *fakeTicketService) WatchRoot(context.Context, domain.ProjectID) (string, error) {
 	return "", errors.New("not watched in tests")
+}
+func (f *fakeTicketService) Review(_ context.Context, _ domain.ProjectID, _, plan string, in ticketsvc.ReviewInput) (ticketsvc.ReviewResult, error) {
+	f.reviewed, f.reviewName = in, plan
+	if f.err != nil {
+		return ticketsvc.ReviewResult{}, f.err
+	}
+	return ticketsvc.ReviewResult{Session: domain.Session{SessionRecord: domain.SessionRecord{ID: "tk-9"}}, Spawned: in.Reviewer == "new"}, nil
+}
+func (f *fakeTicketService) MergeReady(_ context.Context, _ domain.ProjectID, _, plan, summary string) (domain.Ticket, error) {
+	f.mergeReady = summary
+	return domain.Ticket{Slug: "editor", Status: domain.TicketStatusAwaitMerge, Plans: []domain.Plan{{File: "plans/" + plan, Status: domain.PlanStatusAwaitMerge, MergeSummary: summary}}}, f.err
+}
+func (f *fakeTicketService) ApproveMerge(_ context.Context, _ domain.ProjectID, _, plan string) (domain.Ticket, error) {
+	f.merged = plan
+	return domain.Ticket{Slug: "editor", Status: domain.TicketStatusInProgress}, f.err
 }
 
 func newTicketsTestServer(t *testing.T, svc controllers.TicketService) *httptest.Server {
@@ -3667,6 +4349,32 @@ func TestTicketsCreatePlanAssignDoneArchive(t *testing.T) {
 	}
 }
 
+func TestTicketsReviewMergeReadyMerge(t *testing.T) {
+	svc := &fakeTicketService{}
+	srv := newTicketsTestServer(t, svc)
+	body, status, _ := doRequest(t, srv, "POST", "/api/v1/projects/p/tickets/editor/plans/01-core.md/review", `{"reviewer":"new","model":"sonnet","extra":"strict"}`)
+	var rr controllers.ReviewPlanResponse
+	mustJSON(t, body, &rr)
+	if status != http.StatusOK || rr.Session.ID != "tk-9" || !rr.Spawned || svc.reviewed.Reviewer != "new" || svc.reviewed.Model != "sonnet" || svc.reviewName != "01-core.md" {
+		t.Fatalf("review status %d rr=%+v reviewed=%+v", status, rr, svc.reviewed)
+	}
+	body, status, _ = doRequest(t, srv, "POST", "/api/v1/projects/p/tickets/editor/plans/01-core.md/merge-ready", `{"summary":"gates green"}`)
+	var tr controllers.TicketResponse
+	mustJSON(t, body, &tr)
+	if status != http.StatusOK || svc.mergeReady != "gates green" || tr.Ticket.Status != domain.TicketStatusAwaitMerge || tr.Ticket.Plans[0].MergeSummary != "gates green" {
+		t.Fatalf("merge-ready status %d tr=%+v", status, tr)
+	}
+	_, status, _ = doRequest(t, srv, "POST", "/api/v1/projects/p/tickets/editor/plans/01-core.md/merge", "")
+	if status != http.StatusOK || svc.merged != "01-core.md" {
+		t.Fatalf("merge status %d merged=%q", status, svc.merged)
+	}
+	svc.err = apierr.Conflict("TICKET_NOT_MERGE_READY", "x", nil)
+	_, status, _ = doRequest(t, srv, "POST", "/api/v1/projects/p/tickets/editor/plans/01-core.md/merge", "")
+	if status != http.StatusConflict {
+		t.Fatalf("not ready status %d", status)
+	}
+}
+
 func TestTicketsNotImplementedWithoutService(t *testing.T) {
 	srv := newTicketsTestServer(t, nil)
 	_, status, _ := doRequest(t, srv, "GET", "/api/v1/projects/p/tickets", "")
@@ -3715,6 +4423,9 @@ type TicketService interface {
 	MarkDone(ctx context.Context, project domain.ProjectID, slug, plan string) (domain.Ticket, error)
 	SetArchived(ctx context.Context, project domain.ProjectID, slug string, archived bool) (domain.Ticket, error)
 	WatchRoot(ctx context.Context, project domain.ProjectID) (string, error)
+	Review(ctx context.Context, project domain.ProjectID, slug, plan string, in ticketsvc.ReviewInput) (ticketsvc.ReviewResult, error)
+	MergeReady(ctx context.Context, project domain.ProjectID, slug, plan, summary string) (domain.Ticket, error)
+	ApproveMerge(ctx context.Context, project domain.ProjectID, slug, plan string) (domain.Ticket, error)
 }
 
 type TicketsController struct {
@@ -3733,13 +4444,16 @@ func (c *TicketsController) Register(r chi.Router) {
 	r.Post("/projects/{id}/tickets/{slug}/unarchive", c.unarchive)
 	r.Post("/projects/{id}/tickets/{slug}/plans/{plan}/assign", c.assign)
 	r.Post("/projects/{id}/tickets/{slug}/plans/{plan}/done", c.done)
+	r.Post("/projects/{id}/tickets/{slug}/plans/{plan}/review", c.review)
+	r.Post("/projects/{id}/tickets/{slug}/plans/{plan}/merge-ready", c.mergeReady)
+	r.Post("/projects/{id}/tickets/{slug}/plans/{plan}/merge", c.merge)
 }
 
 func ticketSlug(r *http.Request) string { return strings.TrimSpace(chi.URLParam(r, "slug")) }
 func ticketPlan(r *http.Request) string { return strings.TrimSpace(chi.URLParam(r, "plan")) }
 
 func planView(p domain.Plan) PlanView {
-	return PlanView{File: p.File, Order: p.Order, Title: p.Title, Status: p.Status, SessionID: p.SessionID, Unordered: p.Unordered, Warning: p.Warning}
+	return PlanView{File: p.File, Order: p.Order, Title: p.Title, Status: p.Status, SessionID: p.SessionID, ReviewerSessionID: p.ReviewerID, MergeSummary: p.MergeSummary, KickoffFile: p.KickoffFile, Unordered: p.Unordered, Warning: p.Warning}
 }
 
 func ticketView(t domain.Ticket) TicketView {
@@ -3880,7 +4594,7 @@ func (c *TicketsController) plan(w http.ResponseWriter, r *http.Request) {
 		envelope.WriteAPIError(w, r, http.StatusBadRequest, "bad_request", "INVALID_JSON", "Invalid JSON body", nil)
 		return
 	}
-	sess, err := c.Svc.Plan(r.Context(), projectID(r), ticketSlug(r), ticketsvc.SpawnInput{Harness: req.Harness, ClaudeAccountID: req.ClaudeAccountID, Extra: req.Extra})
+	sess, err := c.Svc.Plan(r.Context(), projectID(r), ticketSlug(r), ticketsvc.SpawnInput{Harness: req.Harness, Model: req.Model, ClaudeAccountID: req.ClaudeAccountID, Extra: req.Extra})
 	if err != nil {
 		envelope.WriteError(w, r, err)
 		return
@@ -3900,7 +4614,7 @@ func (c *TicketsController) assign(w http.ResponseWriter, r *http.Request) {
 	}
 	dry := r.URL.Query().Get("dryRun")
 	in := ticketsvc.AssignInput{
-		SpawnInput: ticketsvc.SpawnInput{Harness: req.Harness, ClaudeAccountID: req.ClaudeAccountID, Extra: req.Extra},
+		SpawnInput: ticketsvc.SpawnInput{Harness: req.Harness, Model: req.Model, ClaudeAccountID: req.ClaudeAccountID, Extra: req.Extra},
 		Force:      req.Force,
 		DryRun:     dry == "1" || dry == "true",
 	}
@@ -3928,6 +4642,58 @@ func (c *TicketsController) done(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	t, err := c.Svc.MarkDone(r.Context(), projectID(r), ticketSlug(r), ticketPlan(r))
+	if err != nil {
+		envelope.WriteError(w, r, err)
+		return
+	}
+	envelope.WriteJSON(w, http.StatusOK, TicketResponse{Ticket: ticketView(t)})
+}
+
+func (c *TicketsController) review(w http.ResponseWriter, r *http.Request) {
+	if c.Svc == nil {
+		apispec.NotImplemented(w, r, "POST", "/api/v1/projects/{id}/tickets/{slug}/plans/{plan}/review")
+		return
+	}
+	var req ReviewPlanRequest
+	if err := decodeOptionalJSON(r, &req); err != nil {
+		envelope.WriteAPIError(w, r, http.StatusBadRequest, "bad_request", "INVALID_JSON", "Invalid JSON body", nil)
+		return
+	}
+	res, err := c.Svc.Review(r.Context(), projectID(r), ticketSlug(r), ticketPlan(r), ticketsvc.ReviewInput{
+		SpawnInput: ticketsvc.SpawnInput{Harness: req.Harness, Model: req.Model, ClaudeAccountID: req.ClaudeAccountID, Extra: req.Extra},
+		Reviewer:   req.Reviewer,
+	})
+	if err != nil {
+		envelope.WriteError(w, r, err)
+		return
+	}
+	envelope.WriteJSON(w, http.StatusOK, ReviewPlanResponse{Session: sessionView(res.Session), Spawned: res.Spawned})
+}
+
+func (c *TicketsController) mergeReady(w http.ResponseWriter, r *http.Request) {
+	if c.Svc == nil {
+		apispec.NotImplemented(w, r, "POST", "/api/v1/projects/{id}/tickets/{slug}/plans/{plan}/merge-ready")
+		return
+	}
+	var req MergeReadyRequest
+	if err := decodeOptionalJSON(r, &req); err != nil {
+		envelope.WriteAPIError(w, r, http.StatusBadRequest, "bad_request", "INVALID_JSON", "Invalid JSON body", nil)
+		return
+	}
+	t, err := c.Svc.MergeReady(r.Context(), projectID(r), ticketSlug(r), ticketPlan(r), req.Summary)
+	if err != nil {
+		envelope.WriteError(w, r, err)
+		return
+	}
+	envelope.WriteJSON(w, http.StatusOK, TicketResponse{Ticket: ticketView(t)})
+}
+
+func (c *TicketsController) merge(w http.ResponseWriter, r *http.Request) {
+	if c.Svc == nil {
+		apispec.NotImplemented(w, r, "POST", "/api/v1/projects/{id}/tickets/{slug}/plans/{plan}/merge")
+		return
+	}
+	t, err := c.Svc.ApproveMerge(r.Context(), projectID(r), ticketSlug(r), ticketPlan(r))
 	if err != nil {
 		envelope.WriteError(w, r, err)
 		return
@@ -4020,10 +4786,11 @@ func (c *TicketsController) events(w http.ResponseWriter, r *http.Request) {
 `backend/internal/daemon/daemon.go`, before the `httpd.NewWithDeps(...)` call:
 
 ```go
-	ticketSvc := ticketsvc.New(ticketsvc.Deps{Store: store, Sessions: sessionSvc})
+	ticketSvc := ticketsvc.New(ticketsvc.Deps{Store: store, Sessions: sessionSvc, BaseURL: fmt.Sprintf("http://127.0.0.1:%d", cfg.Port)})
+	ticketsvc.NewAutoReviewer(ticketSvc, log).Subscribe(ctx, cdcPipe.Broadcaster)
 ```
 
-with import `ticketsvc "github.com/OmarAly92/operator/backend/internal/service/ticket"`, and `Tickets: ticketSvc,` in the `APIDeps` literal.
+with import `ticketsvc "github.com/OmarAly92/operator/backend/internal/service/ticket"`, and `Tickets: ticketSvc,` in the `APIDeps` literal. `cdcPipe` is the value from `startCDC` at `daemon.go:139`; `ctx` is the daemon's lifetime context already in scope there. The unsubscribe function is intentionally dropped: the subscription lives as long as the daemon.
 
 - [ ] **Step 6: Declare the operations**
 
@@ -4124,6 +4891,28 @@ func ticketOperations() []operation {
 			pathParams: []any{controllers.ProjectIDParam{}, controllers.TicketSlugParam{}, controllers.TicketPlanParam{}},
 			resps:      ticketOK(http.StatusOK, controllers.TicketResponse{}, http.StatusBadRequest, http.StatusNotFound, http.StatusInternalServerError),
 		},
+		{
+			method: http.MethodPost, path: "/api/v1/projects/{id}/tickets/{slug}/plans/{plan}/review", id: "reviewPlan", tag: "tickets",
+			summary:         "Ask the planner session, or a fresh session, to review the plan's implementation",
+			pathParams:      []any{controllers.ProjectIDParam{}, controllers.TicketSlugParam{}, controllers.TicketPlanParam{}},
+			reqBody:         controllers.ReviewPlanRequest{},
+			optionalReqBody: true,
+			resps:           ticketOK(http.StatusOK, controllers.ReviewPlanResponse{}, http.StatusBadRequest, http.StatusNotFound, http.StatusConflict, http.StatusInternalServerError),
+		},
+		{
+			method: http.MethodPost, path: "/api/v1/projects/{id}/tickets/{slug}/plans/{plan}/merge-ready", id: "reportPlanMergeReady", tag: "tickets",
+			summary:         "Called by the reviewer: the branch is ready and waits for the user's merge confirmation",
+			pathParams:      []any{controllers.ProjectIDParam{}, controllers.TicketSlugParam{}, controllers.TicketPlanParam{}},
+			reqBody:         controllers.MergeReadyRequest{},
+			optionalReqBody: true,
+			resps:           ticketOK(http.StatusOK, controllers.TicketResponse{}, http.StatusBadRequest, http.StatusNotFound, http.StatusConflict, http.StatusInternalServerError),
+		},
+		{
+			method: http.MethodPost, path: "/api/v1/projects/{id}/tickets/{slug}/plans/{plan}/merge", id: "approvePlanMerge", tag: "tickets",
+			summary:    "User confirmation: tell the reviewer to merge the branch now",
+			pathParams: []any{controllers.ProjectIDParam{}, controllers.TicketSlugParam{}, controllers.TicketPlanParam{}},
+			resps:      ticketOK(http.StatusOK, controllers.TicketResponse{}, http.StatusBadRequest, http.StatusNotFound, http.StatusConflict, http.StatusInternalServerError),
+		},
 	}
 }
 ```
@@ -4144,9 +4933,16 @@ Add to `schemaNames`:
 	"ControllersPlanTicketRequest":     "PlanTicketRequest",
 	"ControllersAssignPlanRequest":     "AssignPlanRequest",
 	"ControllersAssignPlanResponse":    "AssignPlanResponse",
+	"ControllersReviewPlanRequest":     "ReviewPlanRequest",
+	"ControllersReviewPlanResponse":    "ReviewPlanResponse",
+	"ControllersMergeReadyRequest":     "MergeReadyRequest",
 	"DomainTicketStatus":               "TicketStatus",
 	"DomainPlanStatus":                 "PlanStatus",
+	"DomainTicketDefaults":             "TicketDefaults",
+	"DomainTicketRoleDefaults":         "TicketRoleDefaults",
 ```
+
+`ProjectConfig` is already reflected (`"DomainProjectConfig": "ProjectConfig"`), so the two `Domain…` config entries are needed once `Tickets` exists on it.
 
 - [ ] **Step 7: Regenerate and run everything**
 
@@ -4324,6 +5120,41 @@ func TestTicketCreatePlanAssignRoundTrip(t *testing.T) {
 		t.Fatalf("ticket after kill = %+v", tk)
 	}
 
+	res2, err := svc.Assign(ctx, "tk", "editor", "01-daemon.md", ticketsvc.AssignInput{Force: true, SpawnInput: ticketsvc.SpawnInput{Harness: domain.HarnessClaudeCode}})
+	if err != nil || res2.Session == nil {
+		t.Fatalf("second assign = %+v err=%v", res2, err)
+	}
+	review, err := svc.Review(ctx, "tk", "editor", "01-daemon.md", ticketsvc.ReviewInput{SpawnInput: ticketsvc.SpawnInput{Harness: domain.HarnessClaudeCode}})
+	if err != nil || !review.Spawned {
+		t.Fatalf("review = %+v err=%v", review, err)
+	}
+	reviewer, err := st.sm.Get(ctx, review.Session.ID)
+	if err != nil || reviewer.Ticket == nil || reviewer.Ticket.Role != domain.TicketRolePlanning || reviewer.Metadata.WorkspaceMode != domain.WorkspaceModeInPlace {
+		t.Fatalf("reviewer = %+v err=%v", reviewer.Ticket, err)
+	}
+	tk, _ = svc.Get(ctx, "tk", "editor")
+	if tk.Plans[0].Status != domain.PlanStatusReviewing || tk.Plans[0].ReviewerID != review.Session.ID {
+		t.Fatalf("reviewing = %+v", tk.Plans[0])
+	}
+	tk, err = svc.MergeReady(ctx, "tk", "editor", "01-daemon.md", "verified")
+	if err != nil || tk.Plans[0].Status != domain.PlanStatusAwaitMerge || tk.Status != domain.TicketStatusAwaitMerge {
+		t.Fatalf("merge ready = %+v err=%v", tk, err)
+	}
+	tk, err = svc.ApproveMerge(ctx, "tk", "editor", "01-daemon.md")
+	if err != nil || tk.Plans[0].Status != domain.PlanStatusReviewing {
+		t.Fatalf("approve = %+v err=%v", tk, err)
+	}
+	fresh, err := svc.Review(ctx, "tk", "editor", "01-daemon.md", ticketsvc.ReviewInput{Reviewer: ticketsvc.ReviewerNew, SpawnInput: ticketsvc.SpawnInput{Harness: domain.HarnessClaudeCode}})
+	if err != nil || !fresh.Spawned || fresh.Session.ID == review.Session.ID {
+		t.Fatalf("fresh review = %+v err=%v", fresh, err)
+	}
+	if got, _ := st.sm.Get(ctx, fresh.Session.ID); got.Ticket == nil || got.Ticket.Role != domain.TicketRoleReviewing {
+		t.Fatalf("fresh reviewer ref = %+v", got.Ticket)
+	}
+	if _, err := st.sm.Kill(ctx, res2.Session.ID); err != nil {
+		t.Fatal(err)
+	}
+
 	tk, err = svc.MarkDone(ctx, "tk", "editor", "01-daemon.md")
 	if err != nil || tk.Status != domain.TicketStatusDone {
 		t.Fatalf("done = %+v err=%v", tk, err)
@@ -4339,8 +5170,8 @@ func TestTicketCreatePlanAssignRoundTrip(t *testing.T) {
 			ticketEvents++
 		}
 	}
-	if ticketEvents < 4 {
-		t.Fatalf("want ticket_updated for create, plan link, assign and done; got %d in %+v", ticketEvents, events)
+	if ticketEvents < 8 {
+		t.Fatalf("want ticket_updated for create, plan link, assigns, review, merge-ready, approve and done; got %d in %+v", ticketEvents, events)
 	}
 }
 ```
@@ -4373,11 +5204,14 @@ curl -s -X PUT "localhost:3002/api/v1/projects/<pid>/tickets/smoke-ticket/file?p
 curl -s -X POST "localhost:3002/api/v1/projects/<pid>/tickets/smoke-ticket/plans/01-first.md/assign?dryRun=1" | jq
 curl -s -X POST localhost:3002/api/v1/projects/<pid>/tickets/smoke-ticket/plans/01-first.md/assign -H 'content-type: application/json' -d '{"harness":"fake","force":true}' | jq '.session | {id, ticket, branch}'
 curl -s localhost:3002/api/v1/sessions | jq '.sessions[] | select(.ticket != null) | {id, ticket, status}'
+curl -s -X POST localhost:3002/api/v1/projects/<pid>/tickets/smoke-ticket/plans/01-first.md/review -H 'content-type: application/json' -d '{"reviewer":"new","harness":"fake"}' | jq '{spawned, id: .session.id, ticket: .session.ticket}'
+curl -s -X POST localhost:3002/api/v1/projects/<pid>/tickets/smoke-ticket/plans/01-first.md/merge-ready -H 'content-type: application/json' -d '{"summary":"smoke"}' | jq '.ticket | {status, plans}'
+curl -s -X POST localhost:3002/api/v1/projects/<pid>/tickets/smoke-ticket/plans/01-first.md/merge | jq '.ticket.plans[0].status'
 curl -s -N localhost:3002/api/v1/projects/<pid>/tickets/events &
 touch <project>/.operator/tickets/smoke-ticket/spec.md
 ```
 
-Expected: the create returns 201 with slug `smoke-ticket`; the dry run reports `ticket_repo_dirty` because the plan file written through the API is uncommitted; the forced assign returns a session whose `ticket` is `{slug: "smoke-ticket", planFile: "plans/01-first.md", role: "implementing"}` and whose branch is `opr/smoke-ticket-01`; the SSE stream prints `event: tickets_changed` after the touch. Kill the fake session afterwards through `POST /api/v1/sessions/{id}/kill` (check the exact route in `controllers/sessions.go:203-245`) and delete the smoke ticket folder and its commit from the project with `git reset --hard HEAD~1` only if the project is a throwaway; otherwise leave the folder and note it in the report.
+Expected: the create returns 201 with slug `smoke-ticket`; the dry run reports `ticket_repo_dirty` because the plan file written through the API is uncommitted; the forced assign returns a session whose `ticket` is `{slug: "smoke-ticket", planFile: "plans/01-first.md", role: "implementing"}` and whose branch is `opr/smoke-ticket-01`; the review with `reviewer: new` returns `spawned: true` and a session whose ticket role is `reviewing`; merge-ready flips the ticket to `awaiting_merge` with the plan carrying `mergeSummary: "smoke"`; merge returns the plan as `reviewing`; the SSE stream prints `event: tickets_changed` after the touch. Kill both fake sessions afterwards. Kill the fake session afterwards through `POST /api/v1/sessions/{id}/kill` (check the exact route in `controllers/sessions.go:203-245`) and delete the smoke ticket folder and its commit from the project with `git reset --hard HEAD~1` only if the project is a throwaway; otherwise leave the folder and note it in the report.
 
 - [ ] **Step 5: Commit and write the report**
 
@@ -4399,7 +5233,8 @@ Write `docs/superpowers/plans/2026-09-18-planning-tickets-daemon-report.md` with
 - §2.2 create writes both files, commits, warns off default branch: Task 6.
 - §2.3 planning session in place, prompt-only handoff, refuse while active, replace after termination: Tasks 4 and 7.
 - §2.4 assign branch naming with attempt suffix, prompt contents, dry run, warnings, force: Tasks 4 and 7; `TICKET_ASSIGN_BLOCKED` carries `warnings` in `details`.
-- §2.5 `ticket` on sessions via read-time lookup: Task 8.
+- §2.5 `ticket` on sessions via read-time lookup, including the `reviewing` role: Tasks 1 and 8.
+- §2.6 roles and model defaults (`ProjectConfig.Tickets`, `withDefaults`): Tasks 7 and 7b; kickoff files scanned, listed and used as the implementer prompt body: Tasks 2, 4, 7; review by planner (send, or spawn when dead) or by a fresh session, `reviewer_session_id` recorded: Task 7b; auto-review on `pr_created`, once per assignment, project opt-out: Tasks 7b and 7c; merge-ready with summary and the `awaiting_merge` statuses, user confirmation forwarded to the reviewer, dead reviewer replaced: Tasks 3 and 7b; routes and DTOs for all three: Task 9.
 - §4 malformed frontmatter warns not drops (Task 2), deleted session leaves rows (schema `ON DELETE SET NULL`, Task 1), deleted folder hides the ticket (Task 6 list iterates scanned folders), non-default branch warnings (Tasks 6 and 7), traversal and symlink rejection (Task 6).
 - §5 tests: scanner, status table, prompt, file routes, real-SQLite store, end to end: Tasks 1, 2, 3, 4, 6, 9, 10.
 - Deliberately not in this plan: the frontend beyond the one-line `CDC_EVENT_TYPES` addition and regenerated types (plan 2), drag and editor (plan 3), workspace-kind projects (spec §2.1 scopes them out).
