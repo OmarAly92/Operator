@@ -109,17 +109,17 @@ The built-in table, with `interactive` as decided in §3:
 | clear | Clear conversation history and free up context | no |
 | compact | Clear conversation history but keep a summary in context | no |
 | context | Show current context usage as a colored grid | no |
-| cost | Show the total cost and duration of the current session | no |
+| cost | Show the total cost and duration of the current session | yes |
 | doctor | Diagnose and verify your Claude Code installation and settings | no |
 | export | Export the current conversation to a file or clipboard | yes |
-| help | Show help and available commands | no |
+| help | Show help and available commands | yes |
 | init | Initialize a new CLAUDE.md file with codebase documentation | no |
 | pr-comments | Get comments from a GitHub pull request | no |
-| release-notes | View release notes | no |
+| release-notes | View release notes | yes |
 | review | Review a pull request | no |
 | security-review | Complete a security review of the pending changes on the current branch | no |
-| status | Show Claude Code status including version, model, account, API connectivity, and tool statuses | no |
-| usage | Show plan usage limits | no |
+| status | Show Claude Code status including version, model, account, API connectivity, and tool statuses | yes |
+| usage | Show plan usage limits | yes |
 | add-dir | Add a new working directory | yes |
 | agents | Manage agent configurations | yes |
 | bug | Submit feedback about Claude Code | yes |
@@ -142,10 +142,11 @@ The built-in table, with `interactive` as decided in §3:
 The descriptions are transcribed from the Claude Code 2.1 `/help` output as
 best known on 2026-09-17; exact wording is not load-bearing and the table is
 plain data, so a wrong line is a one-line fix. Verified on 2026-09-17
-against Claude Code 2.1.273: `/doctor` runs an ordinary agentic turn that
-ends in an `AskUserQuestion` the phone already answers, so it stays
-non-interactive; `/export` opens an export-method picker (clipboard or
-file), so it is interactive.
+against Claude Code 2.1.273 by sending each one and reading the pane:
+`/context` prints inline and `/doctor` runs an ordinary agentic turn that
+ends in an `AskUserQuestion` the phone already answers, so both stay
+non-interactive; `/export`, `/cost`, `/status`, `/usage`, `/help` and
+`/release-notes` each open an Esc-to-cancel panel, so they are interactive.
 
 ### 4.2 Send path: a built-in slash command is delivered, not confirmed
 
