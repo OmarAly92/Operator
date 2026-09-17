@@ -37,7 +37,7 @@ most compatible one.
 | Ticket birth | **Title + brief creates the folder; `Plan with agent` spawns the planning session.** Docs can also be written by hand. |
 | Plan status | **Derived from the linked session and its PR**, plus a manual `done` for hand-done work. |
 | Ticket completion | **Done when every plan is merged or marked done**; the ticket then shows in the Archive bar. Folder stays in the repo. |
-| Review and merge (added later the same day) | **Planner reviews, auto-triggered on PR open or by a Review action; it fixes and reports merge-ready; the user confirms with a Merge button; the planner then merges.** See §2.6. |
+| Review and merge (added later the same day) | **The planner session or a fresh session reviews (user's choice per review, project default), auto-triggered on PR open or by a Review action; it fixes and reports merge-ready; the user confirms with a Merge button; the reviewer then merges.** See §2.6. |
 
 ## Vocabulary
 
@@ -249,7 +249,7 @@ The response returns the new session id and the assignment row.
 ### 2.5 Session read model additions
 
 `Session` gains an optional `ticket` object: `{slug, planFile, role}` with role
-`planning` or `implementing`, populated at read time in the session service's
+`planning`, `implementing` or `reviewing`, populated at read time in the session service's
 `toSession` by looking the session id up in the two tables. Nothing is added
 to the sessions table. This is what the board card badge and the topbar link
 render. No new session kind is introduced; sessions stay `worker`.
@@ -268,7 +268,8 @@ kickoff prompt the planner wrote, and the planner reviews the result.
   `claudeAccountId`; `model` flows through `ports.AgentConfig.Model` exactly as
   orchestrator delegation does. Empty fields fall back to per-project defaults
   in `ProjectConfig.Tickets` (`planner` and `implementer`, each
-  `{agent, model, claudeAccountId}`) and then to the project's worker defaults.
+  `{agent, model, claudeAccountId}`, plus `reviewer` for fresh reviewer
+sessions) and then to the project's worker defaults.
 
 **The planner writes the kickoff prompt.** The planning prompt asks for
 `plans/NN-<phase>.kickoff.md` beside every plan: the prompt a fresh session
@@ -278,10 +279,21 @@ task prompt is the fixed header (ticket, brief, paths, earlier phases) followed
 by the kickoff file's body; without a kickoff file the daemon's default body
 (§2.4 items 4 and 5) is used, so hand-written tickets still work.
 
-**Review.** `POST /tickets/{slug}/plans/{plan}/review` (body: `extra`, plus
-the role fields) sends a review prompt into the ticket's planning session with
-`Send`; if that session is terminated or missing, a new in-place planning
-session is spawned with the same prompt and linked as the planner. The prompt
+**Review.** `POST /tickets/{slug}/plans/{plan}/review` (body: `extra`,
+`reviewer`, plus the role fields). `reviewer` is `planner` or `new`, defaulting
+to `ProjectConfig.Tickets.reviewer` and then `planner`:
+
+- `planner`: the review prompt is sent into the ticket's planning session with
+  `Send`, so it reviews with the context of having written the spec. If that
+  session is terminated or missing, a new in-place planning session is spawned
+  with the same prompt and linked as the planner.
+- `new`: a fresh in-place session is spawned with the review prompt, using the
+  `reviewer` role defaults (falling back to the planner defaults). It is linked
+  to the assignment as `reviewer_session_id` and carries the session ticket
+  role `reviewing`. The planning session is left alone.
+
+In both cases the assignment records `reviewer_session_id`, and the merge
+confirmation is sent to that session. The prompt
 names the spec, the plan, the implementer's branch and worktree path, and
 says: review the whole branch against the spec and plan, run the gates and the
 real-app verification, fix what is wrong, **do not merge**, and when the branch
@@ -300,8 +312,8 @@ once per assignment (`review_requested_at` already set means skip).
 the ticket `awaiting_merge`; the board card shows "Waiting for your
 confirmation" with the summary and a `Merge` button. `POST
 /tickets/{slug}/plans/{plan}/merge` is the user's confirmation: it records
-`merge_approved_at` and sends the planner "Approved: merge <branch> into
-<default branch> now, then report". The plan turns `merged` when the PR facts
+`merge_approved_at` and sends the reviewing session "Approved: merge <branch>
+into <default branch> now, then report". The plan turns `merged` when the PR facts
 say so, as before. Anything the user wants to say instead of approving goes
 through the planner's terminal like any other conversation.
 
@@ -311,9 +323,10 @@ when any plan is awaiting merge; it outranks `in_progress`. The derivation
 order for a plan is: manual done, session merged, awaiting merge, reviewing,
 then the session-derived statuses of §1.3.
 
-**Assignment columns added** (`plan_assignments`): `review_requested_at`,
-`merge_ready_at`, `merge_summary`, `merge_approved_at`, all nullable except
-`merge_summary` (empty string default).
+**Assignment columns added** (`plan_assignments`): `reviewer_session_id`,
+`review_requested_at`, `merge_ready_at`, `merge_summary`, `merge_approved_at`,
+all nullable except `merge_summary` (empty string default). `SessionTicketRef`
+resolves a reviewer session to role `reviewing`.
 
 ## 3. Frontend
 

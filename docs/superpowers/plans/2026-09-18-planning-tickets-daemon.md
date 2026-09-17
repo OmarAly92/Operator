@@ -73,6 +73,10 @@ Modify:
   - `ListPlanAssignments(ctx, project domain.ProjectID, slug string) ([]domain.PlanAssignmentRecord, error)` (newest first)
   - `InsertPlanAssignment(ctx, rec domain.PlanAssignmentRecord) error`
   - `SessionTicketRef(ctx, id domain.SessionID) (domain.SessionTicketRef, bool, error)`
+  - `GetPlanAssignment(ctx, id int64) (domain.PlanAssignmentRecord, bool, error)`
+  - `MarkPlanReviewRequested(ctx, id int64, reviewer domain.SessionID, at time.Time) error`
+  - `MarkPlanMergeReady(ctx, id int64, at time.Time, summary string) error`
+  - `MarkPlanMergeApproved(ctx, id int64, at time.Time) error`
 - Produces (cdc): `cdc.EventTicketUpdated EventType = "ticket_updated"`.
 
 - [ ] **Step 1: Write the domain file**
@@ -93,6 +97,7 @@ const (
 	TicketStatusPlanning   TicketStatus = "planning"
 	TicketStatusReady      TicketStatus = "ready"
 	TicketStatusInProgress TicketStatus = "in_progress"
+	TicketStatusAwaitMerge TicketStatus = "awaiting_merge"
 	TicketStatusDone       TicketStatus = "done"
 	TicketStatusArchived   TicketStatus = "archived"
 )
@@ -105,6 +110,8 @@ const (
 	PlanStatusWorking    PlanStatus = "working"
 	PlanStatusNeedsYou   PlanStatus = "needs_you"
 	PlanStatusInReview   PlanStatus = "in_review"
+	PlanStatusReviewing  PlanStatus = "reviewing"
+	PlanStatusAwaitMerge PlanStatus = "awaiting_merge"
 	PlanStatusMerged     PlanStatus = "merged"
 	PlanStatusDone       PlanStatus = "done"
 	PlanStatusTerminated PlanStatus = "terminated"
@@ -115,6 +122,7 @@ type TicketRole string
 const (
 	TicketRolePlanning     TicketRole = "planning"
 	TicketRoleImplementing TicketRole = "implementing"
+	TicketRoleReviewing    TicketRole = "reviewing"
 )
 
 type TicketRecord struct {
@@ -126,29 +134,38 @@ type TicketRecord struct {
 }
 
 type PlanAssignmentRecord struct {
-	ID         int64
-	ProjectID  ProjectID
-	Slug       string
-	PlanFile   string
-	SessionID  SessionID
-	AssignedAt time.Time
-	DoneAt     time.Time
+	ID                int64
+	ProjectID         ProjectID
+	Slug              string
+	PlanFile          string
+	SessionID         SessionID
+	AssignedAt        time.Time
+	DoneAt            time.Time
+	ReviewerSessionID SessionID
+	ReviewRequestedAt time.Time
+	MergeReadyAt      time.Time
+	MergeSummary      string
+	MergeApprovedAt   time.Time
 }
 
 type SessionTicketRef struct {
 	Slug     string     `json:"slug"`
 	PlanFile string     `json:"planFile,omitempty"`
-	Role     TicketRole `json:"role" enum:"planning,implementing"`
+	Role     TicketRole `json:"role" enum:"planning,implementing,reviewing"`
 }
 
 type Plan struct {
-	File      string
-	Order     int
-	Title     string
-	Status    PlanStatus
-	SessionID SessionID
-	Unordered bool
-	Warning   string
+	File         string
+	Order        int
+	Title        string
+	Status       PlanStatus
+	SessionID    SessionID
+	AssignmentID int64
+	ReviewerID   SessionID
+	MergeSummary string
+	KickoffFile  string
+	Unordered    bool
+	Warning      string
 }
 
 type Ticket struct {
@@ -198,10 +215,16 @@ CREATE TABLE plan_assignments (
     session_id  TEXT REFERENCES sessions (id) ON DELETE SET NULL,
     assigned_at TIMESTAMP NOT NULL,
     done_at     TIMESTAMP,
+    reviewer_session_id TEXT REFERENCES sessions (id) ON DELETE SET NULL,
+    review_requested_at TIMESTAMP,
+    merge_ready_at      TIMESTAMP,
+    merge_summary       TEXT NOT NULL DEFAULT '',
+    merge_approved_at   TIMESTAMP,
     FOREIGN KEY (project_id, slug) REFERENCES tickets (project_id, slug) ON DELETE CASCADE
 );
 CREATE INDEX idx_plan_assignments_ticket ON plan_assignments (project_id, slug, plan_file, id);
 CREATE INDEX idx_plan_assignments_session ON plan_assignments (session_id);
+CREATE INDEX idx_plan_assignments_reviewer ON plan_assignments (reviewer_session_id);
 
 -- +goose StatementBegin
 CREATE TRIGGER tickets_cdc_insert
@@ -244,6 +267,7 @@ DROP TRIGGER IF EXISTS plan_assignments_cdc_update;
 DROP TRIGGER IF EXISTS plan_assignments_cdc_insert;
 DROP TRIGGER IF EXISTS tickets_cdc_update;
 DROP TRIGGER IF EXISTS tickets_cdc_insert;
+DROP INDEX IF EXISTS idx_plan_assignments_reviewer;
 DROP INDEX IF EXISTS idx_plan_assignments_session;
 DROP INDEX IF EXISTS idx_plan_assignments_ticket;
 DROP TABLE IF EXISTS plan_assignments;
@@ -292,6 +316,21 @@ VALUES (?, ?, ?, ?, ?, ?);
 
 -- name: PlanAssignmentBySession :one
 SELECT * FROM plan_assignments WHERE session_id = ? ORDER BY id DESC LIMIT 1;
+
+-- name: GetPlanAssignment :one
+SELECT * FROM plan_assignments WHERE id = ?;
+
+-- name: PlanAssignmentByReviewer :one
+SELECT * FROM plan_assignments WHERE reviewer_session_id = ? ORDER BY id DESC LIMIT 1;
+
+-- name: SetPlanAssignmentReviewRequested :execrows
+UPDATE plan_assignments SET reviewer_session_id = ?, review_requested_at = ? WHERE id = ?;
+
+-- name: SetPlanAssignmentMergeReady :execrows
+UPDATE plan_assignments SET merge_ready_at = ?, merge_summary = ? WHERE id = ?;
+
+-- name: SetPlanAssignmentMergeApproved :execrows
+UPDATE plan_assignments SET merge_approved_at = ? WHERE id = ?;
 ```
 
 Append to the `overrides:` list in `backend/sqlc.yaml` (same indentation as the neighbouring entries):
@@ -315,12 +354,17 @@ Append to the `overrides:` list in `backend/sqlc.yaml` (same indentation as the 
               import: "github.com/OmarAly92/operator/backend/internal/domain"
               type: "SessionID"
               pointer: true
+          - column: "plan_assignments.reviewer_session_id"
+            go_type:
+              import: "github.com/OmarAly92/operator/backend/internal/domain"
+              type: "SessionID"
+              pointer: true
 ```
 
 - [ ] **Step 4: Regenerate and confirm the generated names**
 
 Run from the repo root: `npm run sqlc`
-Expected: `backend/internal/storage/sqlite/gen/tickets.sql.go` exists with `ListTickets`, `GetTicket(ctx, arg GetTicketParams)`, `InsertTicket(ctx, arg InsertTicketParams)`, `SetTicketPlanningSession(ctx, arg …Params) (int64, error)`, `SetTicketArchivedAt(...) (int64, error)`, `TicketByPlanningSession(ctx, *domain.SessionID)`, `ListPlanAssignments(ctx, arg …Params)`, `InsertPlanAssignment(ctx, arg …Params)`, `PlanAssignmentBySession(ctx, *domain.SessionID)`; `gen/models.go` gains `Ticket{ProjectID domain.ProjectID; Slug string; PlanningSessionID *domain.SessionID; ArchivedAt sql.NullTime; CreatedAt time.Time}` and `PlanAssignment{ID int64; ProjectID domain.ProjectID; Slug, PlanFile string; SessionID *domain.SessionID; AssignedAt time.Time; DoneAt sql.NullTime}`. If a generated field name differs, adapt Step 6 to the generated name, never the reverse.
+Expected: `backend/internal/storage/sqlite/gen/tickets.sql.go` exists with `ListTickets`, `GetTicket(ctx, arg GetTicketParams)`, `InsertTicket(ctx, arg InsertTicketParams)`, `SetTicketPlanningSession(ctx, arg …Params) (int64, error)`, `SetTicketArchivedAt(...) (int64, error)`, `TicketByPlanningSession(ctx, *domain.SessionID)`, `ListPlanAssignments(ctx, arg …Params)`, `InsertPlanAssignment(ctx, arg …Params)`, `PlanAssignmentBySession(ctx, *domain.SessionID)`; `gen/models.go` gains `Ticket{ProjectID domain.ProjectID; Slug string; PlanningSessionID *domain.SessionID; ArchivedAt sql.NullTime; CreatedAt time.Time}` and `PlanAssignment{ID int64; ProjectID domain.ProjectID; Slug, PlanFile string; SessionID *domain.SessionID; AssignedAt time.Time; DoneAt sql.NullTime; ReviewerSessionID *domain.SessionID; ReviewRequestedAt, MergeReadyAt sql.NullTime; MergeSummary string; MergeApprovedAt sql.NullTime}`; also `GetPlanAssignment(ctx, int64)`, `SetPlanAssignmentReviewRequested(ctx, arg …Params) (int64, error)`, `SetPlanAssignmentMergeReady(...)`, `SetPlanAssignmentMergeApproved(...)`. If a generated field name differs, adapt Step 6 to the generated name, never the reverse.
 
 - [ ] **Step 5: Write the failing store test**
 
@@ -447,6 +491,27 @@ func TestPlanAssignmentsNewestFirstAndRef(t *testing.T) {
 	if _, ok, _ := s.SessionTicketRef(ctx, "nope"); ok {
 		t.Fatal("unknown session resolved a ref")
 	}
+	id := rows[1].ID
+	reviewer := mk()
+	if err := s.MarkPlanReviewRequested(ctx, id, reviewer, now); err != nil {
+		t.Fatal(err)
+	}
+	if ref, ok, err := s.SessionTicketRef(ctx, reviewer); err != nil || !ok || ref.Role != domain.TicketRoleReviewing || ref.PlanFile != "plans/01-core.md" {
+		t.Fatalf("reviewer ref = %+v ok=%v err=%v", ref, ok, err)
+	}
+	if err := s.MarkPlanMergeReady(ctx, id, now.Add(time.Second), "gates green, verified in app"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.MarkPlanMergeApproved(ctx, id, now.Add(2*time.Second)); err != nil {
+		t.Fatal(err)
+	}
+	got, ok, err := s.GetPlanAssignment(ctx, id)
+	if err != nil || !ok || got.ReviewerSessionID != reviewer || !got.ReviewRequestedAt.Equal(now) || !got.MergeReadyAt.Equal(now.Add(time.Second)) || got.MergeSummary != "gates green, verified in app" || !got.MergeApprovedAt.Equal(now.Add(2*time.Second)) {
+		t.Fatalf("assignment = %+v ok=%v err=%v", got, ok, err)
+	}
+	if err := s.MarkPlanMergeReady(ctx, 9999, now, "x"); err == nil {
+		t.Fatal("unknown assignment must fail")
+	}
 }
 
 func TestTicketsEmitTicketUpdatedCDC(t *testing.T) {
@@ -471,8 +536,15 @@ func TestTicketsEmitTicketUpdatedCDC(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if err := s.MarkPlanMergeReady(ctx, 1, now, "ready"); err != nil {
+		t.Fatal(err)
+	}
 	if len(events) != 3 {
 		t.Fatalf("events = %+v, want three ticket_updated", events)
+	}
+	events, err = s.EventsAfter(ctx, head, 100)
+	if err != nil || len(events) != 4 || string(events[3].Type) != "ticket_updated" {
+		t.Fatalf("after merge-ready events = %+v err=%v", events, err)
 	}
 	for _, e := range events {
 		if string(e.Type) != "ticket_updated" || e.ProjectID != "tk" || e.SessionID != "" {
@@ -525,6 +597,19 @@ func planAssignmentFromGen(row gen.PlanAssignment) domain.PlanAssignmentRecord {
 	}
 	if row.DoneAt.Valid {
 		rec.DoneAt = row.DoneAt.Time
+	}
+	if row.ReviewerSessionID != nil {
+		rec.ReviewerSessionID = *row.ReviewerSessionID
+	}
+	if row.ReviewRequestedAt.Valid {
+		rec.ReviewRequestedAt = row.ReviewRequestedAt.Time
+	}
+	if row.MergeReadyAt.Valid {
+		rec.MergeReadyAt = row.MergeReadyAt.Time
+	}
+	rec.MergeSummary = row.MergeSummary
+	if row.MergeApprovedAt.Valid {
+		rec.MergeApprovedAt = row.MergeApprovedAt.Time
 	}
 	return rec
 }
@@ -649,13 +734,72 @@ func (s *Store) SessionTicketRef(ctx context.Context, id domain.SessionID) (doma
 		return domain.SessionTicketRef{}, false, fmt.Errorf("ticket by planning session %s: %w", id, err)
 	}
 	assignment, err := s.qr.PlanAssignmentBySession(ctx, &id)
+	if err == nil {
+		return domain.SessionTicketRef{Slug: assignment.Slug, PlanFile: assignment.PlanFile, Role: domain.TicketRoleImplementing}, true, nil
+	}
+	if !errors.Is(err, sql.ErrNoRows) {
+		return domain.SessionTicketRef{}, false, fmt.Errorf("plan assignment by session %s: %w", id, err)
+	}
+	review, err := s.qr.PlanAssignmentByReviewer(ctx, &id)
 	if errors.Is(err, sql.ErrNoRows) {
 		return domain.SessionTicketRef{}, false, nil
 	}
 	if err != nil {
-		return domain.SessionTicketRef{}, false, fmt.Errorf("plan assignment by session %s: %w", id, err)
+		return domain.SessionTicketRef{}, false, fmt.Errorf("plan assignment by reviewer %s: %w", id, err)
 	}
-	return domain.SessionTicketRef{Slug: assignment.Slug, PlanFile: assignment.PlanFile, Role: domain.TicketRoleImplementing}, true, nil
+	return domain.SessionTicketRef{Slug: review.Slug, PlanFile: review.PlanFile, Role: domain.TicketRoleReviewing}, true, nil
+}
+
+func (s *Store) GetPlanAssignment(ctx context.Context, id int64) (domain.PlanAssignmentRecord, bool, error) {
+	row, err := s.qr.GetPlanAssignment(ctx, id)
+	if errors.Is(err, sql.ErrNoRows) {
+		return domain.PlanAssignmentRecord{}, false, nil
+	}
+	if err != nil {
+		return domain.PlanAssignmentRecord{}, false, fmt.Errorf("get plan assignment %d: %w", id, err)
+	}
+	return planAssignmentFromGen(row), true, nil
+}
+
+var errPlanAssignmentNotFound = errors.New("plan assignment not found")
+
+func (s *Store) MarkPlanReviewRequested(ctx context.Context, id int64, reviewer domain.SessionID, at time.Time) error {
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
+	n, err := s.qw.SetPlanAssignmentReviewRequested(ctx, gen.SetPlanAssignmentReviewRequestedParams{ReviewerSessionID: optionalSessionID(reviewer), ReviewRequestedAt: optionalTime(at), ID: id})
+	if err != nil {
+		return fmt.Errorf("mark plan review requested %d: %w", id, err)
+	}
+	if n == 0 {
+		return errPlanAssignmentNotFound
+	}
+	return nil
+}
+
+func (s *Store) MarkPlanMergeReady(ctx context.Context, id int64, at time.Time, summary string) error {
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
+	n, err := s.qw.SetPlanAssignmentMergeReady(ctx, gen.SetPlanAssignmentMergeReadyParams{MergeReadyAt: optionalTime(at), MergeSummary: summary, ID: id})
+	if err != nil {
+		return fmt.Errorf("mark plan merge ready %d: %w", id, err)
+	}
+	if n == 0 {
+		return errPlanAssignmentNotFound
+	}
+	return nil
+}
+
+func (s *Store) MarkPlanMergeApproved(ctx context.Context, id int64, at time.Time) error {
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
+	n, err := s.qw.SetPlanAssignmentMergeApproved(ctx, gen.SetPlanAssignmentMergeApprovedParams{MergeApprovedAt: optionalTime(at), ID: id})
+	if err != nil {
+		return fmt.Errorf("mark plan merge approved %d: %w", id, err)
+	}
+	if n == 0 {
+		return errPlanAssignmentNotFound
+	}
+	return nil
 }
 ```
 
@@ -697,7 +841,7 @@ git commit -m "feat(tickets): ticket and plan assignment tables with store and C
   - `parseFrontmatter(content []byte) (frontmatter, string, error)` where `frontmatter{Title, Brief, Created string}` and the string is the body after the fences.
   - `titleOf(fm frontmatter, body, fallback string) string` — frontmatter title, else first `# ` heading, else `fallback`.
   - `slugify(title string) string` — kebab-case, max 48 runes, never empty (`"ticket"` fallback).
-  - `scannedTicket{Slug, Title, Brief string; Plans []scannedPlan; Files []string; Warning string}`, `scannedPlan{File string; Order int; Title string; Unordered bool; Warning string}`.
+  - `scannedTicket{Slug, Title, Brief string; Plans []scannedPlan; Files []string; Warning string}`, `scannedPlan{File string; Order int; Title string; Kickoff string; Unordered bool; Warning string}` where `Kickoff` is `plans/NN-<phase>.kickoff.md` when that file exists, else empty.
   - `scanTickets(root string) ([]scannedTicket, error)` — `root` is `<project>/.operator/tickets`; a missing root yields an empty slice and nil error.
   - `scanTicket(root, slug string) (scannedTicket, bool, error)`.
   - `planOrder(name string) (int, bool)` — parses the numeric prefix of `NN-<phase>.md`.
@@ -924,6 +1068,7 @@ func TestScanTicketsLayoutAndOrder(t *testing.T) {
 	writeFile(t, filepath.Join(root, "editor", "spec.md"), "# Editor spec\n")
 	writeFile(t, filepath.Join(root, "editor", "plans", "10-ui.md"), "---\ntitle: UI\n---\n")
 	writeFile(t, filepath.Join(root, "editor", "plans", "02-daemon.md"), "# Daemon phase\n")
+	writeFile(t, filepath.Join(root, "editor", "plans", "02-daemon.kickoff.md"), "Execute plan 02.\n")
 	writeFile(t, filepath.Join(root, "editor", "plans", "notes.md"), "# Loose\n")
 	writeFile(t, filepath.Join(root, "editor", "plans", "README.txt"), "ignored\n")
 	writeFile(t, filepath.Join(root, "auth", "ticket.md"), "# Auth from heading\n")
@@ -947,7 +1092,7 @@ func TestScanTicketsLayoutAndOrder(t *testing.T) {
 	if ed.Title != "Editor" || ed.Brief != "Add it" {
 		t.Fatalf("editor = %+v", ed)
 	}
-	wantFiles := []string{"ticket.md", "spec.md", "plans/02-daemon.md", "plans/10-ui.md", "plans/notes.md"}
+	wantFiles := []string{"ticket.md", "spec.md", "plans/02-daemon.md", "plans/02-daemon.kickoff.md", "plans/10-ui.md", "plans/notes.md"}
 	if len(ed.Files) != len(wantFiles) {
 		t.Fatalf("files = %v", ed.Files)
 	}
@@ -959,10 +1104,10 @@ func TestScanTicketsLayoutAndOrder(t *testing.T) {
 	if len(ed.Plans) != 3 {
 		t.Fatalf("plans = %+v", ed.Plans)
 	}
-	if ed.Plans[0].File != "plans/02-daemon.md" || ed.Plans[0].Order != 2 || ed.Plans[0].Title != "Daemon phase" {
+	if ed.Plans[0].File != "plans/02-daemon.md" || ed.Plans[0].Order != 2 || ed.Plans[0].Title != "Daemon phase" || ed.Plans[0].Kickoff != "plans/02-daemon.kickoff.md" {
 		t.Fatalf("plan0 = %+v", ed.Plans[0])
 	}
-	if ed.Plans[1].File != "plans/10-ui.md" || ed.Plans[1].Order != 10 || ed.Plans[1].Title != "UI" {
+	if ed.Plans[1].File != "plans/10-ui.md" || ed.Plans[1].Order != 10 || ed.Plans[1].Title != "UI" || ed.Plans[1].Kickoff != "" {
 		t.Fatalf("plan1 = %+v", ed.Plans[1])
 	}
 	if ed.Plans[2].File != "plans/notes.md" || !ed.Plans[2].Unordered || ed.Plans[2].Warning == "" || ed.Plans[2].Title != "Loose" {
@@ -1013,9 +1158,12 @@ type scannedPlan struct {
 	File      string
 	Order     int
 	Title     string
+	Kickoff   string
 	Unordered bool
 	Warning   string
 }
+
+const kickoffSuffix = ".kickoff.md"
 
 type scannedTicket struct {
 	Slug    string
@@ -1089,11 +1237,20 @@ func scanTicket(root, slug string) (scannedTicket, bool, error) {
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return scannedTicket{}, false, fmt.Errorf("read plans dir %s: %w", slug, err)
 	}
+	kickoffs := map[string]bool{}
 	for _, e := range plans {
-		if e.IsDir() || !strings.HasSuffix(e.Name(), ".md") {
+		if !e.IsDir() && strings.HasSuffix(e.Name(), kickoffSuffix) {
+			kickoffs[e.Name()] = true
+		}
+	}
+	for _, e := range plans {
+		if e.IsDir() || !strings.HasSuffix(e.Name(), ".md") || strings.HasSuffix(e.Name(), kickoffSuffix) {
 			continue
 		}
 		p := scannedPlan{File: "plans/" + e.Name()}
+		if kick := strings.TrimSuffix(e.Name(), ".md") + kickoffSuffix; kickoffs[kick] {
+			p.Kickoff = "plans/" + kick
+		}
 		if n, ok := planOrder(e.Name()); ok {
 			p.Order = n
 		} else {
@@ -1123,6 +1280,9 @@ func scanTicket(root, slug string) (scannedTicket, bool, error) {
 	})
 	for _, p := range t.Plans {
 		t.Files = append(t.Files, p.File)
+		if p.Kickoff != "" {
+			t.Files = append(t.Files, p.Kickoff)
+		}
 	}
 	return t, true, nil
 }
@@ -1153,7 +1313,8 @@ git commit -m "feat(tickets): frontmatter, slug and ticket folder scanner"
   - `currentAssignments(rows []domain.PlanAssignmentRecord) map[string]domain.PlanAssignmentRecord` — newest row per `PlanFile` (rows arrive newest first).
   - `planStatus(a domain.PlanAssignmentRecord, ok bool, sess *domain.Session) domain.PlanStatus`.
   - `ticketStatus(rec domain.TicketRecord, plans []domain.Plan, planning *domain.Session) domain.TicketStatus`.
-  - `planLive(status domain.PlanStatus) bool` — true for `idle`, `working`, `needs_you`, `in_review`.
+  - `planLive(status domain.PlanStatus) bool` — true for `idle`, `working`, `needs_you`, `in_review`, `reviewing`, `awaiting_merge`.
+  - Derivation order for a plan: no assignment → `todo`; `DoneAt` → `done`; session merged → `merged`; `MergeReadyAt` set and `MergeApprovedAt` zero → `awaiting_merge`; `ReviewRequestedAt` set → `reviewing`; otherwise the session-derived statuses. Ticket: `awaiting_merge` when any plan is awaiting merge, checked before `in_progress`.
 
 - [ ] **Step 1: Write the failing table test**
 
@@ -1195,6 +1356,11 @@ func TestPlanStatusTable(t *testing.T) {
 		{"approved", a, true, sessWith(domain.StatusApproved), domain.PlanStatusInReview},
 		{"mergeable", a, true, sessWith(domain.StatusMergeable), domain.PlanStatusInReview},
 		{"merged", a, true, sessWith(domain.StatusMerged), domain.PlanStatusMerged},
+		{"merged beats awaiting", domain.PlanAssignmentRecord{SessionID: "p-1", MergeReadyAt: time.Now()}, true, sessWith(domain.StatusMerged), domain.PlanStatusMerged},
+		{"awaiting merge", domain.PlanAssignmentRecord{SessionID: "p-1", ReviewRequestedAt: time.Now(), MergeReadyAt: time.Now()}, true, sessWith(domain.StatusPROpen), domain.PlanStatusAwaitMerge},
+		{"approved goes back to reviewing", domain.PlanAssignmentRecord{SessionID: "p-1", ReviewRequestedAt: time.Now(), MergeReadyAt: time.Now(), MergeApprovedAt: time.Now()}, true, sessWith(domain.StatusPROpen), domain.PlanStatusReviewing},
+		{"reviewing", domain.PlanAssignmentRecord{SessionID: "p-1", ReviewRequestedAt: time.Now()}, true, sessWith(domain.StatusPROpen), domain.PlanStatusReviewing},
+		{"reviewing even when implementer terminated", domain.PlanAssignmentRecord{SessionID: "p-1", ReviewRequestedAt: time.Now()}, true, sessWith(domain.StatusTerminated), domain.PlanStatusReviewing},
 		{"terminated", a, true, sessWith(domain.StatusTerminated), domain.PlanStatusTerminated},
 		{"exited", a, true, sessWith(domain.StatusExited), domain.PlanStatusTerminated},
 		{"idle", a, true, sessWith(domain.StatusIdle), domain.PlanStatusIdle},
@@ -1237,6 +1403,8 @@ func TestTicketStatusTable(t *testing.T) {
 		{"ready while planning still open", domain.TicketRecord{PlanningSessionID: "p-1"}, []domain.Plan{plan(domain.PlanStatusTodo)}, sessWith(domain.StatusIdle), domain.TicketStatusPlanning},
 		{"in progress", domain.TicketRecord{}, []domain.Plan{plan(domain.PlanStatusMerged), plan(domain.PlanStatusWorking)}, nil, domain.TicketStatusInProgress},
 		{"in review counts as progress", domain.TicketRecord{}, []domain.Plan{plan(domain.PlanStatusInReview), plan(domain.PlanStatusTodo)}, nil, domain.TicketStatusInProgress},
+		{"awaiting merge outranks progress", domain.TicketRecord{}, []domain.Plan{plan(domain.PlanStatusWorking), plan(domain.PlanStatusAwaitMerge)}, nil, domain.TicketStatusAwaitMerge},
+		{"reviewing is progress", domain.TicketRecord{}, []domain.Plan{plan(domain.PlanStatusReviewing)}, nil, domain.TicketStatusInProgress},
 		{"terminated only is ready", domain.TicketRecord{}, []domain.Plan{plan(domain.PlanStatusTerminated), plan(domain.PlanStatusTodo)}, nil, domain.TicketStatusReady},
 		{"done", domain.TicketRecord{}, []domain.Plan{plan(domain.PlanStatusMerged), plan(domain.PlanStatusDone)}, nil, domain.TicketStatusDone},
 	}
@@ -1279,6 +1447,15 @@ func planStatus(a domain.PlanAssignmentRecord, ok bool, sess *domain.Session) do
 	if !a.DoneAt.IsZero() {
 		return domain.PlanStatusDone
 	}
+	if sess != nil && sess.Status == domain.StatusMerged {
+		return domain.PlanStatusMerged
+	}
+	if !a.MergeReadyAt.IsZero() && a.MergeApprovedAt.IsZero() {
+		return domain.PlanStatusAwaitMerge
+	}
+	if !a.ReviewRequestedAt.IsZero() {
+		return domain.PlanStatusReviewing
+	}
 	if sess == nil {
 		return domain.PlanStatusTerminated
 	}
@@ -1301,7 +1478,8 @@ func planStatus(a domain.PlanAssignmentRecord, ok bool, sess *domain.Session) do
 
 func planLive(status domain.PlanStatus) bool {
 	switch status {
-	case domain.PlanStatusIdle, domain.PlanStatusWorking, domain.PlanStatusNeedsYou, domain.PlanStatusInReview:
+	case domain.PlanStatusIdle, domain.PlanStatusWorking, domain.PlanStatusNeedsYou, domain.PlanStatusInReview,
+		domain.PlanStatusReviewing, domain.PlanStatusAwaitMerge:
 		return true
 	default:
 		return false
@@ -1322,6 +1500,11 @@ func ticketStatus(rec domain.TicketRecord, plans []domain.Plan, planning *domain
 		}
 		if allSettled {
 			return domain.TicketStatusDone
+		}
+		for _, p := range plans {
+			if p.Status == domain.PlanStatusAwaitMerge {
+				return domain.TicketStatusAwaitMerge
+			}
 		}
 		for _, p := range plans {
 			if planLive(p.Status) {
@@ -1360,7 +1543,9 @@ git commit -m "feat(tickets): derive plan and ticket status from linked sessions
 - Consumes: `domain.Ticket`, `domain.Plan`, `domain.TicketsDir`.
 - Produces:
   - `planningPrompt(t domain.Ticket, extra string) string`
-  - `implementPrompt(t domain.Ticket, plan domain.Plan, extra string) string`
+  - `implementPrompt(t domain.Ticket, plan domain.Plan, kickoff, extra string) string` — `kickoff` is the kickoff file's body or empty.
+  - `reviewPrompt(t domain.Ticket, plan domain.Plan, branch, worktree, mergeReadyCurl, extra string) string`
+  - `mergeApprovedPrompt(t domain.Ticket, plan domain.Plan, branch, defaultBranch string) string`
   - `ticketFolder(slug string) string` → `".operator/tickets/<slug>"` (forward slashes, used in prompts and in git paths).
 
 - [ ] **Step 1: Write the failing tests**
@@ -1385,6 +1570,7 @@ func TestPlanningPromptFresh(t *testing.T) {
 		".operator/tickets/editor/",
 		"spec.md",
 		"plans/01-<phase>.md",
+		"plans/01-<phase>.kickoff.md",
 		"title:",
 		"Brief: Add a markdown editor.",
 		"write `spec.md`",
@@ -1418,7 +1604,7 @@ func TestImplementPrompt(t *testing.T) {
 		{File: "plans/03-editor.md", Title: "Editor", Status: domain.PlanStatusTodo},
 		{File: "plans/04-mobile.md", Title: "Mobile", Status: domain.PlanStatusTodo},
 	}}
-	got := implementPrompt(tk, tk.Plans[2], "Use TDD.")
+	got := implementPrompt(tk, tk.Plans[2], "", "Use TDD.")
 	for _, want := range []string{
 		"Editor",
 		"Brief: Add it.",
@@ -1436,6 +1622,36 @@ func TestImplementPrompt(t *testing.T) {
 	}
 	if strings.Contains(got, "04-mobile") {
 		t.Errorf("later plans must not be listed:\n%s", got)
+	}
+	withKickoff := implementPrompt(tk, tk.Plans[2], "Execute plan 03 with subagents.\n", "Use TDD.")
+	if !strings.Contains(withKickoff, "Execute plan 03 with subagents.") || strings.Contains(withKickoff, "Implement only this phase") {
+		t.Errorf("kickoff body must replace the default body:\n%s", withKickoff)
+	}
+	if !strings.Contains(withKickoff, ".operator/tickets/editor/spec.md") || !strings.Contains(withKickoff, "Use TDD.") {
+		t.Errorf("header and extra must survive with a kickoff:\n%s", withKickoff)
+	}
+}
+
+func TestReviewAndMergePrompts(t *testing.T) {
+	tk := domain.Ticket{Slug: "editor", Title: "Editor", Plans: []domain.Plan{{File: "plans/01-daemon.md", Title: "Daemon"}}}
+	curl := `curl -s -X POST http://127.0.0.1:3001/api/v1/projects/tk/tickets/editor/plans/01-daemon.md/merge-ready -H 'content-type: application/json' -d '{"summary":"<one line>"}'`
+	got := reviewPrompt(tk, tk.Plans[0], "opr/editor-01", "/data/worktrees/tk/tk-7", curl, "Be strict.")
+	for _, want := range []string{
+		".operator/tickets/editor/spec.md",
+		".operator/tickets/editor/plans/01-daemon.md",
+		"opr/editor-01",
+		"/data/worktrees/tk/tk-7",
+		"Do not merge",
+		curl,
+		"Be strict.",
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("missing %q in:\n%s", want, got)
+		}
+	}
+	m := mergeApprovedPrompt(tk, tk.Plans[0], "opr/editor-01", "development")
+	if !strings.Contains(m, "Approved") || !strings.Contains(m, "opr/editor-01") || !strings.Contains(m, "development") {
+		t.Errorf("merge prompt:\n%s", m)
 	}
 }
 ```
@@ -1473,9 +1689,12 @@ func planningPrompt(t domain.Ticket, extra string) string {
 	b.WriteString("  ticket.md            frontmatter: title, brief, created\n")
 	b.WriteString("  spec.md              the design spec\n")
 	b.WriteString("  plans/01-<phase>.md  one implementation plan per phase, in dependency order\n")
+	b.WriteString("  plans/01-<phase>.kickoff.md  the prompt a fresh session needs to execute that plan\n")
 	b.WriteString("  plans/02-<phase>.md\n")
+	b.WriteString("  plans/02-<phase>.kickoff.md\n")
 	b.WriteString("```\n\n")
 	b.WriteString("Every plan file starts with YAML frontmatter containing `title:`. The two-digit numeric prefix is the phase order; Operator reads it to know which phase depends on which. Do not put these documents anywhere else.\n\n")
+	b.WriteString("Each kickoff file is the complete prompt for a separate, weaker session that will implement that plan with no other context: which files to read first and in what order, the process to follow, the gates to run, what to report, and when to stop and ask. Operator hands it to the implementing session verbatim after a short header naming the ticket and the paths.\n\n")
 	if t.Brief != "" {
 		fmt.Fprintf(&b, "Brief: %s\n\n", t.Brief)
 	}
@@ -1494,7 +1713,7 @@ func planningPrompt(t domain.Ticket, extra string) string {
 	return b.String()
 }
 
-func implementPrompt(t domain.Ticket, plan domain.Plan, extra string) string {
+func implementPrompt(t domain.Ticket, plan domain.Plan, kickoff, extra string) string {
 	folder := ticketFolder(t.Slug)
 	var b strings.Builder
 	fmt.Fprintf(&b, "You are implementing one phase of ticket `%s` (%s).\n\n", t.Slug, t.Title)
@@ -1514,11 +1733,38 @@ func implementPrompt(t domain.Ticket, plan domain.Plan, extra string) string {
 	if len(earlier) > 0 {
 		b.WriteString("\nEarlier phases of this ticket:\n" + strings.Join(earlier, "\n") + "\n")
 	}
-	b.WriteString("\nImplement only this phase. Open a pull request when the plan's final verification passes.\n")
+	if kickoff = strings.TrimSpace(kickoff); kickoff != "" {
+		b.WriteString("\n" + kickoff + "\n")
+	} else {
+		b.WriteString("\nImplement only this phase. Open a pull request when the plan's final verification passes.\n")
+	}
 	if extra = strings.TrimSpace(extra); extra != "" {
 		b.WriteString("\nAdditional instructions:\n" + extra + "\n")
 	}
 	return b.String()
+}
+
+func reviewPrompt(t domain.Ticket, plan domain.Plan, branch, worktree, mergeReadyCurl, extra string) string {
+	folder := ticketFolder(t.Slug)
+	var b strings.Builder
+	fmt.Fprintf(&b, "Review the implementation of `%s` (%s) for ticket `%s` (%s).\n\n", plan.File, plan.Title, t.Slug, t.Title)
+	b.WriteString("Read first, relative to the project root:\n")
+	fmt.Fprintf(&b, "- `%s/spec.md`\n", folder)
+	fmt.Fprintf(&b, "- `%s/%s`\n", folder, plan.File)
+	fmt.Fprintf(&b, "\nThe implementing session worked on branch `%s`", branch)
+	if worktree != "" {
+		fmt.Fprintf(&b, " in the worktree `%s`", worktree)
+	}
+	b.WriteString(".\n\nReview the whole branch against the spec and the plan, not only the diff summary: read every changed file, run the gates the plan names, and verify the behaviour in the real app or daemon, not just in tests. Fix what is wrong on that branch and commit the fixes there. Do not merge.\n\n")
+	b.WriteString("When the branch is ready to merge, report it to Operator with one line describing what was verified:\n\n```\n" + mergeReadyCurl + "\n```\n\nThen wait. The user confirms the merge from the board and you will receive the go-ahead here.\n")
+	if extra = strings.TrimSpace(extra); extra != "" {
+		b.WriteString("\nAdditional instructions:\n" + extra + "\n")
+	}
+	return b.String()
+}
+
+func mergeApprovedPrompt(t domain.Ticket, plan domain.Plan, branch, defaultBranch string) string {
+	return fmt.Sprintf("Approved: merge `%s` (%s, ticket `%s`) into `%s` now, using the pull request if one is open, then report the merge commit and anything the next phase should know.\n", branch, plan.File, t.Slug, defaultBranch)
 }
 
 func phaseState(s domain.PlanStatus) string {
@@ -1730,8 +1976,8 @@ git commit -m "feat(tickets): git helpers for ticket folders"
 - Consumes: Task 1 store methods, Task 2 scanner, Task 3 status, Task 5 git; `sessionsvc.ListFilter` (`service/session/service.go:49`), `ports.SpawnConfig` (`ports/session.go:21`), `apierr` (`httpd/apierr`).
 - Produces (package `ticket`):
   - `type Store interface { GetProject; ListTickets; GetTicket; InsertTicket; SetTicketPlanningSession; SetTicketArchivedAt; ListPlanAssignments; InsertPlanAssignment }` with the exact signatures from Task 1 plus `GetProject(ctx, id string) (domain.ProjectRecord, bool, error)` (already on `*store.Store`, `project_store.go:164`).
-  - `type Sessions interface { List(ctx, sessionsvc.ListFilter) ([]domain.Session, error); Spawn(ctx, ports.SpawnConfig) (domain.Session, int, int, error) }` — satisfied by `*sessionsvc.Service`.
-  - `Deps{Store Store; Sessions Sessions; Now func() time.Time}`, `New(Deps) *Service`.
+  - `type Sessions interface { List(ctx, sessionsvc.ListFilter) ([]domain.Session, error); Get(ctx, domain.SessionID) (domain.Session, error); Spawn(ctx, ports.SpawnConfig) (domain.Session, int, int, error); Send(ctx, domain.SessionID, message string, attachment *ports.SpawnAttachment) error }` — satisfied by `*sessionsvc.Service` (`Send` at `service/session/service.go:614`).
+  - `Deps{Store Store; Sessions Sessions; Now func() time.Time; BaseURL string}`, `New(Deps) *Service`; `BaseURL` is the daemon's loopback origin, e.g. `http://127.0.0.1:3001`, used only to embed the merge-ready `curl` in review prompts.
   - `File{Path string; Content string; ModifiedAt time.Time}`, `CreateInput{Title, Brief string}`, `CreateResult{Ticket domain.Ticket; Warnings []string}`.
   - `(*Service) List(ctx, project domain.ProjectID) ([]domain.Ticket, error)`
   - `(*Service) Get(ctx, project domain.ProjectID, slug string) (domain.Ticket, error)`
@@ -1839,6 +2085,7 @@ func (f *fakeStore) InsertPlanAssignment(_ context.Context, rec domain.PlanAssig
 type fakeSessions struct {
 	sessions []domain.Session
 	spawned  []ports.SpawnConfig
+	sent     []sentMessage
 	spawnErr error
 	nextNum  int
 }
@@ -1861,6 +2108,24 @@ func (f *fakeSessions) Spawn(_ context.Context, cfg ports.SpawnConfig) (domain.S
 	s := domain.Session{SessionRecord: domain.SessionRecord{ID: domain.SessionID("tk-" + strings.Repeat("x", f.nextNum)), ProjectID: cfg.ProjectID}, Status: domain.StatusIdle}
 	f.sessions = append(f.sessions, s)
 	return s, 0, 0, nil
+}
+func (f *fakeSessions) Get(_ context.Context, id domain.SessionID) (domain.Session, error) {
+	for _, s := range f.sessions {
+		if s.ID == id {
+			return s, nil
+		}
+	}
+	return domain.Session{}, apierr.NotFound("SESSION_NOT_FOUND", "no session")
+}
+
+type sentMessage struct {
+	id  domain.SessionID
+	msg string
+}
+
+func (f *fakeSessions) Send(_ context.Context, id domain.SessionID, msg string, _ *ports.SpawnAttachment) error {
+	f.sent = append(f.sent, sentMessage{id: id, msg: msg})
+	return nil
 }
 func (f *fakeSessions) set(id domain.SessionID, status domain.SessionStatus) {
 	for i := range f.sessions {
@@ -2103,19 +2368,23 @@ type Store interface {
 
 type Sessions interface {
 	List(ctx context.Context, filter sessionsvc.ListFilter) ([]domain.Session, error)
+	Get(ctx context.Context, id domain.SessionID) (domain.Session, error)
 	Spawn(ctx context.Context, cfg ports.SpawnConfig) (domain.Session, int, int, error)
+	Send(ctx context.Context, id domain.SessionID, message string, attachment *ports.SpawnAttachment) error
 }
 
 type Deps struct {
 	Store    Store
 	Sessions Sessions
 	Now      func() time.Time
+	BaseURL  string
 }
 
 type Service struct {
 	store    Store
 	sessions Sessions
 	now      func() time.Time
+	baseURL  string
 }
 
 func New(d Deps) *Service {
@@ -2123,7 +2392,11 @@ func New(d Deps) *Service {
 	if now == nil {
 		now = func() time.Time { return time.Now().UTC() }
 	}
-	return &Service{store: d.Store, sessions: d.Sessions, now: now}
+	base := strings.TrimRight(d.BaseURL, "/")
+	if base == "" {
+		base = "http://127.0.0.1:3001"
+	}
+	return &Service{store: d.Store, sessions: d.Sessions, now: now, baseURL: base}
 }
 
 type File struct {
@@ -2196,9 +2469,12 @@ func (s *Service) build(ctx context.Context, rec domain.TicketRecord, sc scanned
 	}
 	for _, sp := range sc.Plans {
 		a, ok := current[sp.File]
-		p := domain.Plan{File: sp.File, Order: sp.Order, Title: sp.Title, Unordered: sp.Unordered, Warning: sp.Warning}
+		p := domain.Plan{File: sp.File, Order: sp.Order, Title: sp.Title, KickoffFile: sp.Kickoff, Unordered: sp.Unordered, Warning: sp.Warning}
 		if ok {
 			p.SessionID = a.SessionID
+			p.AssignmentID = a.ID
+			p.ReviewerID = a.ReviewerSessionID
+			p.MergeSummary = a.MergeSummary
 		}
 		p.Status = planStatus(a, ok, sessions[a.SessionID])
 		t.Plans = append(t.Plans, p)
@@ -2464,7 +2740,7 @@ git commit -m "feat(tickets): ticket service read models, files and create"
 **Interfaces:**
 - Consumes: Task 6 `Service`, `load`, `truncateRunes`; Task 4 prompts; Task 5 git.
 - Produces:
-  - `SpawnInput{Harness domain.AgentHarness; ClaudeAccountID domain.ClaudeAccountID; Extra string}`
+  - `SpawnInput{Harness domain.AgentHarness; Model string; ClaudeAccountID domain.ClaudeAccountID; Extra string}`; empty `Harness`/`Model`/`ClaudeAccountID` fall back to `ProjectConfig.Tickets.Planner` (for Plan and Review) or `.Implementer` (for Assign), see Task 11.
   - `AssignInput{SpawnInput; Force bool; DryRun bool}`
   - `AssignResult{Warnings []string; Session *domain.Session}`
   - `(*Service) Plan(ctx, project, slug string, in SpawnInput) (domain.Session, error)`
@@ -2544,12 +2820,12 @@ func TestAssignWarningsDryRunForceAndBranch(t *testing.T) {
 		t.Fatal("blocked assign must not spawn")
 	}
 
-	res, err = h.svc.Assign(ctx, "tk", "editor", "01-daemon.md", AssignInput{SpawnInput: SpawnInput{Harness: domain.HarnessCodex, Extra: "Use TDD."}})
+	res, err = h.svc.Assign(ctx, "tk", "editor", "01-daemon.md", AssignInput{SpawnInput: SpawnInput{Harness: domain.HarnessCodex, Model: "gpt-5-mini", Extra: "Use TDD."}})
 	if err != nil || res.Session == nil || len(res.Warnings) != 0 {
 		t.Fatalf("assign: %+v %v", res, err)
 	}
 	cfg := h.sessions.spawned[0]
-	if cfg.WorkspaceMode != domain.WorkspaceModeWorktree || cfg.Branch != "opr/editor-01" || cfg.Harness != domain.HarnessCodex ||
+	if cfg.WorkspaceMode != domain.WorkspaceModeWorktree || cfg.Branch != "opr/editor-01" || cfg.Harness != domain.HarnessCodex || cfg.AgentConfig.Model != "gpt-5-mini" ||
 		cfg.DisplayName != "editor · 01" || !strings.Contains(cfg.Prompt, "plans/01-daemon.md") || !strings.Contains(cfg.Prompt, "Use TDD.") {
 		t.Fatalf("cfg = %+v", cfg)
 	}
@@ -2583,6 +2859,46 @@ func TestAssignWarningsDryRunForceAndBranch(t *testing.T) {
 	}
 	if _, err := h.svc.Assign(ctx, "tk", "editor", "99-nope.md", AssignInput{}); codeOf(err) != "TICKET_PLAN_NOT_FOUND" {
 		t.Fatalf("err = %v", err)
+	}
+}
+
+func TestAssignUsesKickoffFileAndProjectDefaults(t *testing.T) {
+	h := newHarness(t)
+	ctx := context.Background()
+	p := h.store.projects["tk"]
+	p.Config.Tickets = domain.TicketDefaults{
+		Planner:     domain.TicketRoleDefaults{Harness: domain.HarnessClaudeCode, Model: "opus", ClaudeAccountID: "personal"},
+		Implementer: domain.TicketRoleDefaults{Harness: domain.HarnessClaudeCode, Model: "sonnet"},
+	}
+	h.store.projects["tk"] = p
+	h.ticketFile("editor", "ticket.md", "---\ntitle: Editor\n---\n")
+	h.ticketFile("editor", "plans/01-daemon.md", "---\ntitle: Daemon\n---\n")
+	h.ticketFile("editor", "plans/01-daemon.kickoff.md", "Execute plan 01 with subagents.\n")
+	_ = gitCommitPath(ctx, h.repo, ".operator/tickets/editor", "ticket: add editor")
+	if _, err := h.svc.Plan(ctx, "tk", "editor", SpawnInput{}); err != nil {
+		t.Fatal(err)
+	}
+	planner := h.sessions.spawned[0]
+	if planner.AgentConfig.Model != "opus" || planner.ClaudeAccountID != "personal" || planner.Harness != domain.HarnessClaudeCode {
+		t.Fatalf("planner cfg = %+v", planner)
+	}
+	if !strings.Contains(planner.Prompt, "kickoff.md") {
+		t.Fatalf("planning prompt must ask for kickoff files:\n%s", planner.Prompt)
+	}
+	res, err := h.svc.Assign(ctx, "tk", "editor", "01-daemon.md", AssignInput{Force: true})
+	if err != nil || res.Session == nil {
+		t.Fatalf("assign = %+v err=%v", res, err)
+	}
+	impl := h.sessions.spawned[1]
+	if impl.AgentConfig.Model != "sonnet" || impl.ClaudeAccountID != "" {
+		t.Fatalf("implementer cfg = %+v", impl)
+	}
+	if !strings.Contains(impl.Prompt, "Execute plan 01 with subagents.") || strings.Contains(impl.Prompt, "Implement only this phase") {
+		t.Fatalf("kickoff body not used:\n%s", impl.Prompt)
+	}
+	res, err = h.svc.Assign(ctx, "tk", "editor", "01-daemon.md", AssignInput{Force: true, SpawnInput: SpawnInput{Model: "haiku"}})
+	if err != nil || h.sessions.spawned[2].AgentConfig.Model != "haiku" {
+		t.Fatalf("override = %+v err=%v", h.sessions.spawned[2], err)
 	}
 }
 
@@ -2656,8 +2972,22 @@ Append to `service.go`:
 ```go
 type SpawnInput struct {
 	Harness         domain.AgentHarness
+	Model           string
 	ClaudeAccountID domain.ClaudeAccountID
 	Extra           string
+}
+
+func (in SpawnInput) withDefaults(d domain.TicketRoleDefaults) SpawnInput {
+	if in.Harness == "" {
+		in.Harness = d.Harness
+	}
+	if strings.TrimSpace(in.Model) == "" {
+		in.Model = d.Model
+	}
+	if in.ClaudeAccountID == "" {
+		in.ClaudeAccountID = d.ClaudeAccountID
+	}
+	return in
 }
 
 type AssignInput struct {
@@ -2688,7 +3018,7 @@ func planningLive(sessions map[domain.SessionID]*domain.Session, id domain.Sessi
 }
 
 func (s *Service) Plan(ctx context.Context, project domain.ProjectID, slug string, in SpawnInput) (domain.Session, error) {
-	_, rec, t, err := s.load(ctx, project, slug)
+	p, rec, t, err := s.load(ctx, project, slug)
 	if err != nil {
 		return domain.Session{}, err
 	}
@@ -2703,19 +3033,25 @@ func (s *Service) Plan(ctx context.Context, project domain.ProjectID, slug strin
 	if err != nil {
 		return domain.Session{}, err
 	}
+	return s.spawnPlanner(ctx, p, t, in, planningPrompt(t, in.Extra))
+}
+
+func (s *Service) spawnPlanner(ctx context.Context, p domain.ProjectRecord, t domain.Ticket, in SpawnInput, prompt string) (domain.Session, error) {
+	in = in.withDefaults(p.Config.Tickets.Planner)
 	sess, _, _, err := s.sessions.Spawn(ctx, ports.SpawnConfig{
-		ProjectID:       project,
+		ProjectID:       p.ID,
 		Kind:            domain.KindWorker,
 		Harness:         in.Harness,
 		WorkspaceMode:   domain.WorkspaceModeInPlace,
-		Prompt:          planningPrompt(t, in.Extra),
+		Prompt:          prompt,
+		AgentConfig:     ports.AgentConfig{Model: strings.TrimSpace(in.Model)},
 		DisplayName:     truncateRunes(t.Title, maxDisplayName),
 		ClaudeAccountID: in.ClaudeAccountID,
 	})
 	if err != nil {
 		return domain.Session{}, err
 	}
-	if err := s.store.SetTicketPlanningSession(ctx, project, slug, sess.ID); err != nil {
+	if err := s.store.SetTicketPlanningSession(ctx, p.ID, t.Slug, sess.ID); err != nil {
 		return domain.Session{}, err
 	}
 	return sess, nil
@@ -2801,15 +3137,25 @@ func (s *Service) Assign(ctx context.Context, project domain.ProjectID, slug, pl
 		}
 	}
 	plan := t.Plans[idx]
+	kickoff := ""
+	if plan.KickoffFile != "" {
+		raw, err := os.ReadFile(filepath.Join(ticketsRoot(p), slug, filepath.FromSlash(plan.KickoffFile)))
+		if err != nil {
+			return AssignResult{}, fmt.Errorf("read kickoff %s: %w", plan.KickoffFile, err)
+		}
+		kickoff = string(raw)
+	}
+	role := in.SpawnInput.withDefaults(p.Config.Tickets.Implementer)
 	sess, _, _, err := s.sessions.Spawn(ctx, ports.SpawnConfig{
 		ProjectID:       project,
 		Kind:            domain.KindWorker,
-		Harness:         in.Harness,
+		Harness:         role.Harness,
 		WorkspaceMode:   domain.WorkspaceModeWorktree,
 		Branch:          planBranch(slug, plan, attempt),
-		Prompt:          implementPrompt(t, plan, in.Extra),
+		Prompt:          implementPrompt(t, plan, kickoff, in.Extra),
+		AgentConfig:     ports.AgentConfig{Model: strings.TrimSpace(role.Model)},
 		DisplayName:     truncateRunes(fmt.Sprintf("%s · %s", slug, strings.TrimPrefix(planBranch(slug, plan, 1), "opr/"+slug+"-")), maxDisplayName),
-		ClaudeAccountID: in.ClaudeAccountID,
+		ClaudeAccountID: role.ClaudeAccountID,
 	})
 	if err != nil {
 		return AssignResult{}, err
