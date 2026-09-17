@@ -14,6 +14,7 @@ class _MockSlashMenuCubit extends MockCubit<SlashMenuState> implements SlashMenu
 
 const _compact = SlashCommandModel(name: 'compact', description: 'Keep a summary', source: 'builtin');
 const _analyze = SlashCommandModel(name: 'sc:analyze', description: 'Analyze', source: 'user');
+const _model = SlashCommandModel(name: 'model', description: 'Pick a model', source: 'builtin', interactive: true);
 
 Widget _host(SlashMenuCubit cubit) => SkinScope(
   skin: const DarkSkin(),
@@ -26,6 +27,8 @@ Widget _host(SlashMenuCubit cubit) => SkinScope(
 );
 
 void main() {
+  setUpAll(() => registerFallbackValue(_compact));
+
   testWidgets('renders nothing while closed', (tester) async {
     final cubit = _MockSlashMenuCubit();
     when(() => cubit.state).thenReturn(const SlashMenuChangedState(open: false, matches: []));
@@ -53,5 +56,40 @@ void main() {
 
     await tester.tap(find.text('/sc:analyze'));
     verify(() => cubit.pick(_analyze)).called(1);
+  });
+
+  testWidgets('an interactive command is tagged desktop and never picked', (tester) async {
+    final cubit = _MockSlashMenuCubit();
+    when(() => cubit.state).thenReturn(const SlashMenuChangedState(open: true, matches: [_compact, _model]));
+    when(() => cubit.open).thenReturn(true);
+    when(() => cubit.matches).thenReturn(const [_compact, _model]);
+
+    await tester.pumpWidget(_host(cubit));
+
+    expect(find.text('/model'), findsOneWidget);
+    expect(find.text('desktop'), findsOneWidget);
+
+    await tester.tap(find.text('/model'));
+    await tester.pump();
+    verifyNever(() => cubit.pick(any()));
+    expect(find.text('Run /model on the desktop'), findsOneWidget);
+  });
+
+  testWidgets('a long list scrolls inside a capped height', (tester) async {
+    final cubit = _MockSlashMenuCubit();
+    final many = [for (var i = 0; i < 30; i++) SlashCommandModel(name: 'cmd$i', description: 'Command $i', source: 'builtin')];
+    when(() => cubit.state).thenReturn(SlashMenuChangedState(open: true, matches: many));
+    when(() => cubit.open).thenReturn(true);
+    when(() => cubit.matches).thenReturn(many);
+
+    await tester.pumpWidget(_host(cubit));
+
+    expect(find.text('/cmd0'), findsOneWidget);
+    expect(find.text('/cmd29'), findsNothing);
+    expect(tester.getSize(find.byType(ListView)).height, lessThanOrEqualTo(300));
+
+    await tester.drag(find.byType(ListView), const Offset(0, -2000));
+    await tester.pumpAndSettle();
+    expect(find.text('/cmd29'), findsOneWidget);
   });
 }

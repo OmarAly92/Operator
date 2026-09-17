@@ -2,10 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/utils/haptics.dart';
+import 'package:operator_mobile/core/widgets/main_widgets/app_toast.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/logic/slash_menu_cubit.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/ui/widgets/slash_command_row.dart';
 
-const int _kMaxVisibleRows = 6;
+const double _kMaxMenuHeight = 300;
 
 class SlashCommandMenu extends StatelessWidget {
   const SlashCommandMenu({super.key});
@@ -17,7 +18,7 @@ class SlashCommandMenu extends StatelessWidget {
       final cubit = context.read<SlashMenuCubit>();
       if (!cubit.open) return const SizedBox.shrink();
       final skin = context.skin;
-      final rows = cubit.matches.take(_kMaxVisibleRows).toList();
+      final rows = cubit.matches;
       return Padding(
         padding: const EdgeInsets.fromLTRB(12, 0, 12, 6),
         child: Container(
@@ -27,20 +28,35 @@ class SlashCommandMenu extends StatelessWidget {
             borderRadius: BorderRadius.circular(11),
           ),
           clipBehavior: Clip.antiAlias,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              for (final command in rows)
-                SlashCommandRow(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxHeight: _kMaxMenuHeight),
+            child: ListView.builder(
+              shrinkWrap: true,
+              padding: EdgeInsets.zero,
+              itemCount: rows.length,
+              itemBuilder: (context, index) {
+                final command = rows[index];
+                final interactive = command.interactive == true;
+                return SlashCommandRow(
                   name: command.name ?? '',
                   description: command.description ?? '',
                   source: command.source ?? '',
+                  interactive: interactive,
                   onTap: () {
                     Haptics.select();
+                    if (interactive) {
+                      AppToast.show(
+                        context,
+                        message: 'Run /${command.name} on the desktop',
+                        icon: Icons.desktop_windows_outlined,
+                      );
+                      return;
+                    }
                     cubit.pick(command);
                   },
-                ),
-            ],
+                );
+              },
+            ),
           ),
         ),
       );

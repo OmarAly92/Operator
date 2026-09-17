@@ -29,9 +29,11 @@ class SlashMenuCubit extends Cubit<SlashMenuState> {
     if (isClosed) return;
     result.when(
       onSuccess: (response) {
-        commands = (response.data ?? const [])
-            .where((command) => command.interactive != true && (command.name ?? '').isNotEmpty)
-            .toList();
+        final listed = (response.data ?? const []).where((command) => (command.name ?? '').isNotEmpty);
+        commands = [
+          ...listed.where((command) => command.interactive != true),
+          ...listed.where((command) => command.interactive == true),
+        ];
         emit(const GetSlashCommandsSuccessState());
         _onComposerChanged();
       },

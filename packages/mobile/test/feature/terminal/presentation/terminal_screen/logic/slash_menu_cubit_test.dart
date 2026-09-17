@@ -35,11 +35,11 @@ void main() {
   SlashMenuCubit build() => SlashMenuCubit(repository, composer, sessionId: 's-1');
 
   blocTest<SlashMenuCubit, SlashMenuState>(
-    'loads the session commands and drops interactive ones',
+    'loads the session commands with interactive ones last',
     build: build,
     expect: () => [isA<GetSlashCommandsSuccessState>()],
     verify: (cubit) {
-      expect(cubit.commands.map((c) => c.name), ['compact', 'context', 'sc:analyze']);
+      expect(cubit.commands.map((c) => c.name), ['compact', 'context', 'sc:analyze', 'model']);
       expect(cubit.open, isFalse);
     },
   );
@@ -54,7 +54,7 @@ void main() {
     },
     skip: 1,
     expect: () => [
-      SlashMenuChangedState(open: true, matches: [_commands[0], _commands[1], _commands[3]]),
+      SlashMenuChangedState(open: true, matches: [_commands[0], _commands[1], _commands[3], _commands[2]]),
       SlashMenuChangedState(open: true, matches: [_commands[0], _commands[1]]),
     ],
   );

@@ -17,6 +17,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -45,6 +46,7 @@ type fakeSessionService struct {
 	draftErr           error
 	slashOutput        string
 	slashOutputErr     error
+	slashMu            sync.Mutex
 	slashOutputCalls   int
 	slashOutputMessage string
 	sendErr            error
@@ -416,9 +418,17 @@ func (f *fakeSessionService) Draft(_ context.Context, _ domain.SessionID) (strin
 }
 
 func (f *fakeSessionService) SlashOutput(_ context.Context, _ domain.SessionID, message string) (string, error) {
+	f.slashMu.Lock()
+	defer f.slashMu.Unlock()
 	f.slashOutputCalls++
 	f.slashOutputMessage = message
 	return f.slashOutput, f.slashOutputErr
+}
+
+func (f *fakeSessionService) slashOutputSeen() (int, string) {
+	f.slashMu.Lock()
+	defer f.slashMu.Unlock()
+	return f.slashOutputCalls, f.slashOutputMessage
 }
 
 func (f *fakeSessionService) Decide(_ context.Context, _ domain.SessionID, _, _ string) error {

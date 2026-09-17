@@ -7,7 +7,9 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/OmarAly92/operator/backend/internal/config"
 	"github.com/OmarAly92/operator/backend/internal/domain"
@@ -138,12 +140,33 @@ func TestListSlashCommandsNotWired(t *testing.T) {
 }
 
 type recordingBlockEvents struct {
+	mu      sync.Mutex
 	signals []ports.ActivitySignal
 }
 
 func (r *recordingBlockEvents) Record(_ context.Context, _ domain.SessionID, _ string, sig ports.ActivitySignal) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	r.signals = append(r.signals, sig)
 	return nil
+}
+
+func (r *recordingBlockEvents) snapshot() []ports.ActivitySignal {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return append([]ports.ActivitySignal(nil), r.signals...)
+}
+
+func waitForSignals(t *testing.T, rec *recordingBlockEvents, n int) []ports.ActivitySignal {
+	t.Helper()
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		got := rec.snapshot()
+		if len(got) >= n || time.Now().After(deadline) {
+			return got
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
 }
 
 func TestSendBuiltinRecordsThePaneOutputAsTheReply(t *testing.T) {
@@ -162,17 +185,18 @@ func TestSendBuiltinRecordsThePaneOutputAsTheReply(t *testing.T) {
 	if status != http.StatusOK {
 		t.Fatalf("status = %d, want 200", status)
 	}
-	if svc.slashOutputCalls != 1 || svc.slashOutputMessage != "/context" {
-		t.Fatalf("SlashOutput called %d times with %q, want once with /context", svc.slashOutputCalls, svc.slashOutputMessage)
+	signals := waitForSignals(t, rec, 2)
+	if len(signals) != 2 {
+		t.Fatalf("recorded %d signals, want prompt then stop: %+v", len(signals), signals)
 	}
-	if len(rec.signals) != 2 {
-		t.Fatalf("recorded %d signals, want prompt then stop: %+v", len(rec.signals), rec.signals)
+	if calls, msg := svc.slashOutputSeen(); calls != 1 || msg != "/context" {
+		t.Fatalf("SlashOutput called %d times with %q, want once with /context", calls, msg)
 	}
-	if rec.signals[0].Event != "user-prompt-submit" || rec.signals[0].LatestUserPrompt != "/context" {
-		t.Fatalf("first signal = %+v", rec.signals[0])
+	if signals[0].Event != "user-prompt-submit" || signals[0].LatestUserPrompt != "/context" {
+		t.Fatalf("first signal = %+v", signals[0])
 	}
-	if rec.signals[1].Event != "stop" || rec.signals[1].LatestAssistantUpdate != "```text\n"+svc.slashOutput+"\n```" || rec.signals[1].Harness != "claude-code" {
-		t.Fatalf("second signal = %+v", rec.signals[1])
+	if signals[1].Event != "stop" || signals[1].LatestAssistantUpdate != "```text\n"+svc.slashOutput+"\n```" || signals[1].Harness != "claude-code" {
+		t.Fatalf("second signal = %+v", signals[1])
 	}
 }
 
@@ -191,7 +215,9 @@ func TestSendBuiltinWithNoPaneOutputRecordsOnlyThePrompt(t *testing.T) {
 	if status != http.StatusOK {
 		t.Fatalf("status = %d, want 200", status)
 	}
-	if len(rec.signals) != 1 || rec.signals[0].Event != "user-prompt-submit" {
-		t.Fatalf("signals = %+v, want just the prompt", rec.signals)
+	signals := waitForSignals(t, rec, 1)
+	time.Sleep(20 * time.Millisecond)
+	if signals = rec.snapshot(); len(signals) != 1 || signals[0].Event != "user-prompt-submit" {
+		t.Fatalf("signals = %+v, want just the prompt", signals)
 	}
 }

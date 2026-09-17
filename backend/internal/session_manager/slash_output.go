@@ -17,7 +17,7 @@ type slashOutputConfig struct {
 const (
 	paneTrailingSpace       = " \u00a0\t"
 	slashOutputPollInterval = 250 * time.Millisecond
-	slashOutputBudget       = 3 * time.Second
+	slashOutputBudget       = 20 * time.Second
 	slashOutputPaneLines    = 400
 	slashOutputMarker       = "⎿"
 )

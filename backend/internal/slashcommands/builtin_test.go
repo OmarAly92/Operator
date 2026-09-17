@@ -35,6 +35,15 @@ func TestLookupReturnsTheEntry(t *testing.T) {
 	}
 }
 
+func TestLookupResolvesAliases(t *testing.T) {
+	for alias, want := range map[string]string{"cost": "usage", "stats": "usage", "review": "code-review", "checkup": "doctor", "quit": "exit", "undo": "rewind"} {
+		cmd, ok := Lookup("/" + alias)
+		if !ok || cmd.Name != want {
+			t.Errorf("Lookup(/%s) = %+v, %v; want %s", alias, cmd, ok, want)
+		}
+	}
+}
+
 func TestBuiltinTableIsWellFormed(t *testing.T) {
 	seen := map[string]bool{}
 	for _, c := range Builtin {
@@ -49,7 +58,15 @@ func TestBuiltinTableIsWellFormed(t *testing.T) {
 		}
 		seen[c.Name] = true
 	}
-	for _, name := range []string{"compact", "clear", "model", "cost"} {
+	for alias, name := range builtinAliases {
+		if seen[alias] {
+			t.Errorf("alias %s collides with a listed command", alias)
+		}
+		if !seen[name] {
+			t.Errorf("alias %s points at %s, which is not listed", alias, name)
+		}
+	}
+	for _, name := range []string{"compact", "clear", "model", "usage"} {
 		if !seen[name] {
 			t.Errorf("%s missing from Builtin", name)
 		}
@@ -62,7 +79,7 @@ func TestPanelCommandsAreInteractive(t *testing.T) {
 			t.Errorf("/%s opens an Esc-to-cancel panel on Claude Code 2.1 and must be interactive; got %+v, %v", name, cmd, ok)
 		}
 	}
-	for _, name := range []string{"context", "doctor", "compact", "clear"} {
+	for _, name := range []string{"context", "doctor", "compact", "clear", "code-review", "recap", "reload-plugins"} {
 		if cmd, _ := Lookup("/" + name); cmd.Interactive {
 			t.Errorf("/%s prints inline or runs an ordinary turn and must stay non-interactive", name)
 		}

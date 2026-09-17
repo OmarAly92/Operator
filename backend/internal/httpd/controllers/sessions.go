@@ -1377,10 +1377,14 @@ func (c *SessionsController) send(w http.ResponseWriter, r *http.Request) {
 	envelope.WriteJSON(w, http.StatusOK, SendSessionMessageResponse{OK: true, SessionID: sessionID(r), Message: message})
 }
 
+const slashReplyTimeout = 30 * time.Second
+
 // recordBuiltinSlashPrompt writes the prompt block the UserPromptSubmit hook
-// would have written for an ordinary message, then the reply Claude Code
-// printed only in the TUI. Built-ins fire no hook and write no transcript,
-// so without both the timelines show neither the command nor its answer.
+// would have written for an ordinary message, then, off the request path,
+// the reply Claude Code printed only in the TUI. Built-ins fire no hook and
+// write no transcript, so without both the timelines show neither the
+// command nor its answer; commands like /recap take several seconds, so the
+// send response must not wait for them.
 func (c *SessionsController) recordBuiltinSlashPrompt(r *http.Request, message string) {
 	if c.BlockEvents == nil || !slashcommands.IsBuiltin(message) {
 		return
@@ -1398,18 +1402,23 @@ func (c *SessionsController) recordBuiltinSlashPrompt(r *http.Request, message s
 	if err := c.BlockEvents.Record(r.Context(), sessionID(r), harness, prompt); err != nil {
 		slog.Default().Warn("slash prompt block recording failed", "session", sessionID(r), "err", err)
 	}
-	output, err := c.Svc.SlashOutput(r.Context(), sessionID(r), message)
-	if err != nil || output == "" {
-		return
-	}
-	reply := ports.ActivitySignal{
-		Event:                 "stop",
-		Harness:               harness,
-		LatestAssistantUpdate: "```text\n" + output + "\n```",
-	}
-	if err := c.BlockEvents.Record(r.Context(), sessionID(r), harness, reply); err != nil {
-		slog.Default().Warn("slash reply block recording failed", "session", sessionID(r), "err", err)
-	}
+	id := sessionID(r)
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(r.Context()), slashReplyTimeout)
+	go func() {
+		defer cancel()
+		output, err := c.Svc.SlashOutput(ctx, id, message)
+		if err != nil || output == "" {
+			return
+		}
+		reply := ports.ActivitySignal{
+			Event:                 "stop",
+			Harness:               harness,
+			LatestAssistantUpdate: "```text\n" + output + "\n```",
+		}
+		if err := c.BlockEvents.Record(ctx, id, harness, reply); err != nil {
+			slog.Default().Warn("slash reply block recording failed", "session", id, "err", err)
+		}
+	}()
 }
 
 func (c *SessionsController) command(w http.ResponseWriter, r *http.Request) {
