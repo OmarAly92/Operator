@@ -20,7 +20,7 @@ import { OrchestratorActivityIndicator } from "./OrchestratorActivityIndicator";
 import { getAgentActivityView } from "../lib/session-presentation";
 import { isMacPlatform, usesBoardActionsInPanel, windowDragRegion } from "../lib/platform";
 import { cn } from "../lib/utils";
-import { SessionClaudeAccountChip } from "./SessionClaudeAccountChip";
+import { SessionClaudeAccountMenu } from "./SessionClaudeAccountMenu";
 import { StatusPill } from "./StatusPill";
 import { BoardDiff, TopbarButton, TopbarKillError, topbarHeaderClass, topbarProjectLabelClass } from "./TopbarButton";
 
@@ -237,8 +237,8 @@ export function ShellTopbar({ embedded = false }: { embedded?: boolean } = {}) {
 							<ProjectTerminationFeedback projectId={projectId} />
 						) : null}
 						{session ? (
-							<SessionClaudeAccountChip
-								className="h-control-sm rounded-md border border-border bg-surface px-2 text-micro font-semibold tracking-wide-sm text-muted-foreground"
+							<SessionClaudeAccountMenu
+								className="h-control-sm rounded-md border border-border bg-surface px-2 text-micro font-semibold tracking-wide-sm text-muted-foreground hover:text-foreground"
 								session={session}
 							/>
 						) : null}

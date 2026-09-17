@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useUiStore } from "../stores/ui-store";
@@ -334,5 +334,36 @@ describe("ShellTopbar Claude account", () => {
 		renderTopbar(sessionWith({ provider: "codex", claudeAccountId: "personal" }));
 		expect(screen.queryByText("Personal Pro")).not.toBeInTheDocument();
 		expect(screen.queryByText("Work")).not.toBeInTheDocument();
+	});
+});
+
+describe("ShellTopbar Claude account menu", () => {
+	const accounts = [
+		{ id: "default", label: "Work", configDir: "/a", isDefault: true, isPreferred: false, sharedSetup: null, status: { loggedIn: true } },
+		{ id: "personal", label: "Personal Pro", configDir: "/b", isDefault: false, isPreferred: false, sharedSetup: null, status: { loggedIn: true } },
+	];
+
+	it("opens the account list from the chip and relaunches on the chosen account after confirming", async () => {
+		useClaudeAccountsMock.mockReturnValue({ data: accounts, isError: false, isLoading: false });
+		postMock.mockResolvedValue({ data: {}, error: undefined, response: { status: 200 } });
+		renderTopbar(sessionWith({ claudeAccountId: "personal" }));
+		await userEvent.click(screen.getByRole("button", { name: "Claude account: Personal Pro" }));
+		expect(await screen.findByRole("menuitem", { name: "Personal Pro" })).toHaveAttribute("data-disabled");
+		await userEvent.click(screen.getByRole("menuitem", { name: "Work" }));
+		expect(postMock).not.toHaveBeenCalled();
+		expect(screen.getByText("Switch to Work?")).toBeInTheDocument();
+		await userEvent.click(screen.getByRole("button", { name: "Relaunch" }));
+		await waitFor(() =>
+			expect(postMock).toHaveBeenCalledWith("/api/v1/sessions/{sessionId}/relaunch-agent", {
+				params: { path: { sessionId: "sess-1" } },
+				body: { keepPrompt: false, claudeAccountId: "default" },
+			}),
+		);
+	});
+
+	it("keeps the chip inert for a terminated session", async () => {
+		useClaudeAccountsMock.mockReturnValue({ data: accounts, isError: false, isLoading: false });
+		renderTopbar(sessionWith({ claudeAccountId: "personal", isTerminated: true }));
+		expect(screen.getByRole("button", { name: "Claude account: Personal Pro" })).toBeDisabled();
 	});
 });
