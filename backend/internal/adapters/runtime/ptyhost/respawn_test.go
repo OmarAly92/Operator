@@ -296,6 +296,13 @@ func TestRestartResetsRingAndKeepsClientAttached(t *testing.T) {
 	if !strings.Contains(got, "session-marker-B") {
 		t.Fatalf("pre-restart client connection never saw post-restart output; got %q", got)
 	}
+	boundary := strings.Index(got, "\x1b]7000;v=1;boundary=")
+	if boundary < 0 || boundary > strings.Index(got, "session-marker-B") {
+		t.Fatalf("attached client must see the process boundary before the new child's output; got %q", got)
+	}
+	if !strings.Contains(got[boundary:], "\x07") {
+		t.Fatalf("boundary mark must be terminated; got %q", got)
+	}
 }
 
 // failingRestartConfig names a binary that cannot exist, forcing newPTY to

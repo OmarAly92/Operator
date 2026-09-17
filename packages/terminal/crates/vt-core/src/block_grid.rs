@@ -81,6 +81,53 @@ impl BlockGrid {
         }
     }
 
+    pub fn covered_end(&self) -> usize {
+        match (&self.open, self.closed.len()) {
+            (Some(block), _) => block.first_row,
+            (None, 0) => 0,
+            (None, len) => self
+                .closed
+                .get(len - 1)
+                .map_or(0, |block| block.first_row + block.row_count),
+        }
+    }
+
+    pub fn next_row(&self) -> usize {
+        self.next_row
+    }
+
+    pub fn has_open_block(&self) -> bool {
+        self.open.is_some()
+    }
+
+    pub fn next_id(&self) -> BlockId {
+        self.next_id
+    }
+
+    pub fn push_synthetic(
+        &mut self,
+        first_row: usize,
+        end_row: usize,
+        state: BlockState,
+        exit_code: Option<i32>,
+    ) {
+        if end_row <= first_row {
+            return;
+        }
+        self.closed.push(Block {
+            id: self.next_id,
+            first_row,
+            row_count: end_row - first_row,
+            state,
+            source: BlockSource::Synthetic,
+            meta: BlockMeta {
+                exit_code,
+                ..BlockMeta::default()
+            },
+        });
+        self.next_id += 1;
+    }
+
     pub fn note_row_completed(&mut self) {
         self.next_row += 1;
     }

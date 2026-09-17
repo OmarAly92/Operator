@@ -306,6 +306,25 @@ history of `master`.
 
 ---
 
+### 4.15 Relaunched agent drawn over the previous frame
+- Symptom: after "Relaunch in a cleared session" (or a Claude-account switch,
+  which is the same respawn) the new Claude Code banner was painted on top of
+  the old one, rows overlapping.
+- Cause: `handleRespawn` resets the host's ring and mirror but attached
+  renderers keep their own vt-core, and the daemon stream forwards only
+  `MsgTerminalData`, so the new child's first bytes landed on the stale screen.
+- Now: `respawn.go` broadcasts a process-boundary mark
+  (`ESC[?1049l ESC[0m OSC 7000;v=1;boundary=<exit> BEL`) to every attached
+  client before the new pump starts. `vt-core` (`Parser::process_boundary`)
+  closes the open block, or the markless frame as a finished synthetic block,
+  then evicts the whole frame into scrollback and homes the cursor regardless
+  of clear policy (`ScreenGrid::evict_frame`); the new process's output forms a
+  new running synthetic block (`grid.rs` trailing block). The user asked for
+  "close the old, relaunch in a new block" over a plain clear.
+- Guards: `vt-core/tests/process_boundary.rs`;
+  `respawn_test.go::TestRestartResetsRingAndKeepsClientAttached` (the mark
+  must precede the new child's output on a pre-restart connection).
+
 ## 5. Known gaps (not bugs, decisions pending)
 
 - Copying a rewrapped block (`readBlockOutput`, `vt_render`) joins rows with

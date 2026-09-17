@@ -2,7 +2,7 @@ use vte::{Params, Perform};
 
 use crate::alt::AltGrid;
 use crate::attribute_map::AttributeMap;
-use crate::block::BlockSource;
+use crate::block::{BlockSource, BlockState};
 use crate::block_grid::BlockGrid;
 use crate::content::Content;
 use crate::row_index::RowIndex;
@@ -73,8 +73,52 @@ impl Parser {
     pub(crate) fn open_block(&mut self, source: BlockSource) {
         self.commit_evicted();
         let first_row = self.block_start_row();
+        self.materialize_uncovered_rows(first_row, BlockState::Abandoned, None);
         self.grid.sync_next_row(first_row);
         self.grid.open_block(source);
+    }
+
+    pub(crate) fn process_boundary(&mut self, exit_code: Option<i32>) {
+        if self.alt.is_some() {
+            self.leave_alt();
+        }
+        self.commit_evicted();
+        let end_row = self.rows.completed().len() + self.screen.frame_rows();
+        if self.grid.has_open_block() {
+            self.grid.sync_next_row(end_row);
+            self.grid.close_block(exit_code);
+        } else {
+            self.materialize_uncovered_rows(end_row, BlockState::Finished, exit_code);
+        }
+        self.screen.evict_frame();
+        self.commit_evicted();
+        self.grid.sync_next_row(self.rows.completed().len());
+        self.pending_style = CellStyle::DEFAULT;
+        self.sync_erase_background();
+    }
+
+    fn materialize_uncovered_rows(
+        &mut self,
+        end_row: usize,
+        state: BlockState,
+        exit_code: Option<i32>,
+    ) {
+        if self.grid.has_open_block() {
+            return;
+        }
+        let first_row = self.grid.covered_end();
+        if end_row > first_row && self.rows_have_content(first_row, end_row) {
+            self.grid
+                .push_synthetic(first_row, end_row, state, exit_code);
+        }
+    }
+
+    fn rows_have_content(&self, first_row: usize, end_row: usize) -> bool {
+        let completed = self.rows.completed();
+        (first_row..end_row).any(|row| match completed.get(row) {
+            Some(range) => range.end > range.start,
+            None => self.screen.row_has_content(row - completed.len()),
+        })
     }
 
     pub(crate) fn start_output(&mut self) {
