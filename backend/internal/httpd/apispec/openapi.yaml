@@ -5047,6 +5047,8 @@ components:
           - boolean
         reportedEmail:
           type: string
+        reportedOrgId:
+          type: string
         subscriptionType:
           type: string
       required:
@@ -5130,6 +5132,9 @@ components:
       type: object
     ControllersRelaunchAgentRequest:
       properties:
+        claudeAccountId:
+          maxLength: 64
+          type: string
         keepPrompt:
           type: boolean
       type: object

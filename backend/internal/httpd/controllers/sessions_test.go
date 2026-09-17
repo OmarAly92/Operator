@@ -34,52 +34,53 @@ import (
 )
 
 type fakeSessionService struct {
-	sessions           map[domain.SessionID]domain.Session
-	relaunchErr        error
-	relaunchKeptPrompt bool
-	sent               string
-	sentAttachment     *ports.SpawnAttachment
-	commandResult      sessionmanager.CommandResult
-	commandErr         error
-	commandCalls       int
-	draftResult        string
-	draftErr           error
-	slashOutput        string
-	slashOutputErr     error
-	modelsCalls        int
-	models             []sessionmanager.ModelOption
-	modelsErr          error
-	slashMu            sync.Mutex
-	slashOutputCalls   int
-	slashOutputMessage string
-	sendErr            error
-	decideErr          error
-	decideCalls        int
-	answerErr          error
-	answerCalls        int
-	answerSelections   [][]string
-	delegationInput    sessionsvc.DelegateTaskInput
-	delegationErr      error
-	cleanupProjects    []domain.ProjectID
-	cleanupResult      []domain.SessionID
-	cleanupSkipped     []sessionsvc.CleanupSkipped
-	workspaceFiles     sessionsvc.WorkspaceFiles
-	workspaceFile      sessionsvc.WorkspaceFileDetail
-	workspacePaths     []string
-	spawnErr           error
-	lastSpawnConfig    ports.SpawnConfig
-	lastRestoreGrid    ports.PaneGrid
-	claimErr           error
-	listPRErr          error
-	workspaceErr       error
-	staged             []ports.SpawnAttachment
-	stagedPaths        []string
-	stageErr           error
-	agentSwitches      map[domain.AgentSwitchID]domain.AgentSwitch
-	switchConfig       sessionsvc.SwitchAgentInput
-	switchErr          error
-	handoff            json.RawMessage
-	handoffSource      domain.AgentGenerationID
+	sessions                map[domain.SessionID]domain.Session
+	relaunchErr             error
+	relaunchKeptPrompt      bool
+	relaunchClaudeAccountID domain.ClaudeAccountID
+	sent                    string
+	sentAttachment          *ports.SpawnAttachment
+	commandResult           sessionmanager.CommandResult
+	commandErr              error
+	commandCalls            int
+	draftResult             string
+	draftErr                error
+	slashOutput             string
+	slashOutputErr          error
+	modelsCalls             int
+	models                  []sessionmanager.ModelOption
+	modelsErr               error
+	slashMu                 sync.Mutex
+	slashOutputCalls        int
+	slashOutputMessage      string
+	sendErr                 error
+	decideErr               error
+	decideCalls             int
+	answerErr               error
+	answerCalls             int
+	answerSelections        [][]string
+	delegationInput         sessionsvc.DelegateTaskInput
+	delegationErr           error
+	cleanupProjects         []domain.ProjectID
+	cleanupResult           []domain.SessionID
+	cleanupSkipped          []sessionsvc.CleanupSkipped
+	workspaceFiles          sessionsvc.WorkspaceFiles
+	workspaceFile           sessionsvc.WorkspaceFileDetail
+	workspacePaths          []string
+	spawnErr                error
+	lastSpawnConfig         ports.SpawnConfig
+	lastRestoreGrid         ports.PaneGrid
+	claimErr                error
+	listPRErr               error
+	workspaceErr            error
+	staged                  []ports.SpawnAttachment
+	stagedPaths             []string
+	stageErr                error
+	agentSwitches           map[domain.AgentSwitchID]domain.AgentSwitch
+	switchConfig            sessionsvc.SwitchAgentInput
+	switchErr               error
+	handoff                 json.RawMessage
+	handoffSource           domain.AgentGenerationID
 }
 
 type fakeManagedPreviewServer struct {
@@ -276,7 +277,7 @@ func (f *fakeSessionService) Restore(_ context.Context, id domain.SessionID, gri
 	return sessionsvc.RestoreOutcome{Session: s, Mode: sessionsvc.RestoreModeView("native")}, nil
 }
 
-func (f *fakeSessionService) RelaunchAgent(_ context.Context, id domain.SessionID, keepPrompt bool) (sessionsvc.ResumeAgentOutcome, error) {
+func (f *fakeSessionService) RelaunchAgent(_ context.Context, id domain.SessionID, cfg sessionmanager.RelaunchAgentConfig) (sessionsvc.ResumeAgentOutcome, error) {
 	if f.relaunchErr != nil {
 		return sessionsvc.ResumeAgentOutcome{}, f.relaunchErr
 	}
@@ -284,7 +285,9 @@ func (f *fakeSessionService) RelaunchAgent(_ context.Context, id domain.SessionI
 	s.Activity.State = domain.ActivityIdle
 	s.Status = domain.StatusIdle
 	f.sessions[id] = s
+	keepPrompt := cfg.KeepPrompt
 	f.relaunchKeptPrompt = keepPrompt
+	f.relaunchClaudeAccountID = cfg.ClaudeAccountID
 	mode := sessionsvc.RestoreModeViewFresh
 	if keepPrompt {
 		mode = sessionsvc.RestoreModeViewSavedPrompt
@@ -2704,6 +2707,18 @@ func TestRelaunchAgent(t *testing.T) {
 		}
 		if !strings.Contains(string(body), `"relaunchMode":"saved_prompt"`) {
 			t.Fatalf("relaunch body = %s", body)
+		}
+	})
+
+	t.Run("claudeAccountId is forwarded to the service", func(t *testing.T) {
+		svc := newFakeSessionService()
+		srv := newSessionTestServer(t, svc)
+		body, status, _ := doRequest(t, srv, http.MethodPost, "/api/v1/sessions/opr-1/relaunch-agent", `{"claudeAccountId":"personal"}`)
+		if status != http.StatusOK {
+			t.Fatalf("relaunch = %d, want 200; body=%s", status, body)
+		}
+		if svc.relaunchClaudeAccountID != "personal" {
+			t.Fatalf("claudeAccountId = %q, want personal", svc.relaunchClaudeAccountID)
 		}
 	})
 

@@ -87,6 +87,40 @@ func TestSessionPersistsReviewerHarness(t *testing.T) {
 	}
 }
 
+func TestSessionPersistsClaudeAccountChange(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	seedProject(t, s, "mer")
+	rec := sampleRecord("mer")
+	rec.Harness = domain.HarnessClaudeCode
+	rec.ClaudeAccountID = "personal"
+	rec, err := s.CreateSession(ctx, rec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ok, err := s.SetSessionClaudeAccount(ctx, rec.ID, domain.DefaultClaudeAccountID, time.Now().UTC()); err != nil || !ok {
+		t.Fatalf("set claude account = %v, %v", ok, err)
+	}
+	got, ok, err := s.GetSession(ctx, rec.ID)
+	if err != nil || !ok {
+		t.Fatalf("get session = %v, %v", ok, err)
+	}
+	if got.ClaudeAccountID != domain.DefaultClaudeAccountID {
+		t.Fatalf("claude account = %q, want %q", got.ClaudeAccountID, domain.DefaultClaudeAccountID)
+	}
+	got.Metadata.Prompt = "edited"
+	if err := s.UpdateSession(ctx, got); err != nil {
+		t.Fatal(err)
+	}
+	if ok, err := s.SetSessionClaudeAccount(ctx, rec.ID, "personal", time.Now().UTC()); err != nil || !ok {
+		t.Fatalf("set claude account back = %v, %v", ok, err)
+	}
+	got, _, _ = s.GetSession(ctx, rec.ID)
+	if got.ClaudeAccountID != "personal" {
+		t.Fatalf("claude account after second switch = %q, want personal", got.ClaudeAccountID)
+	}
+}
+
 func TestSessionPersistsDiffBaseMetadata(t *testing.T) {
 	s := newTestStore(t)
 	ctx := context.Background()

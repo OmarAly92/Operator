@@ -1274,9 +1274,9 @@ func (f *fakeCommander) RestoreWithMode(context.Context, domain.SessionID, ports
 	}
 	return f.restoreResult, nil
 }
-func (f *fakeCommander) RelaunchAgentFresh(_ context.Context, id domain.SessionID, keepPrompt bool) (sessionmanager.RestoreResult, error) {
+func (f *fakeCommander) RelaunchAgentFresh(_ context.Context, id domain.SessionID, cfg sessionmanager.RelaunchAgentConfig) (sessionmanager.RestoreResult, error) {
 	f.relaunched = append(f.relaunched, id)
-	f.relaunchKeptPrompt = keepPrompt
+	f.relaunchKeptPrompt = cfg.KeepPrompt
 	if f.restoreErr != nil {
 		return sessionmanager.RestoreResult{}, f.restoreErr
 	}
