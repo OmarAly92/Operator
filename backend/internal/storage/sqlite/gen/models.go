@@ -241,6 +241,21 @@ type PRReviewThread struct {
 	UpdatedAt    time.Time
 }
 
+type PlanAssignment struct {
+	ID                int64
+	ProjectID         domain.ProjectID
+	Slug              string
+	PlanFile          string
+	SessionID         *domain.SessionID
+	AssignedAt        time.Time
+	DoneAt            sql.NullTime
+	ReviewerSessionID *domain.SessionID
+	ReviewRequestedAt sql.NullTime
+	MergeReadyAt      sql.NullTime
+	MergeSummary      string
+	MergeApprovedAt   sql.NullTime
+}
+
 type Project struct {
 	ID            domain.ProjectID
 	Path          string
@@ -386,6 +401,14 @@ type TerminalBlock struct {
 	StartOffset    int64
 	EndOffset      int64
 	CreatedAt      time.Time
+}
+
+type Ticket struct {
+	ProjectID         domain.ProjectID
+	Slug              string
+	PlanningSessionID *domain.SessionID
+	ArchivedAt        sql.NullTime
+	CreatedAt         time.Time
 }
 
 type TranscriptOffset struct {

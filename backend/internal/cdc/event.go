@@ -31,6 +31,7 @@ const (
 	EventPRSessionChanged       EventType = "pr_session_changed"
 	EventPRReviewThreadAdded    EventType = "pr_review_thread_added"
 	EventPRReviewThreadResolved EventType = "pr_review_thread_resolved"
+	EventTicketUpdated          EventType = "ticket_updated"
 )
 
 // Event is one CDC change read from change_log. Seq is the monotonic ordering +

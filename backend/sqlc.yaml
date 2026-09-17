@@ -124,6 +124,29 @@ sql:
             go_type: "bool"
           - column: "claude_accounts.is_preferred"
             go_type: "bool"
+          - column: "tickets.project_id"
+            go_type:
+              import: "github.com/OmarAly92/operator/backend/internal/domain"
+              type: "ProjectID"
+          - column: "tickets.planning_session_id"
+            go_type:
+              import: "github.com/OmarAly92/operator/backend/internal/domain"
+              type: "SessionID"
+              pointer: true
+          - column: "plan_assignments.project_id"
+            go_type:
+              import: "github.com/OmarAly92/operator/backend/internal/domain"
+              type: "ProjectID"
+          - column: "plan_assignments.session_id"
+            go_type:
+              import: "github.com/OmarAly92/operator/backend/internal/domain"
+              type: "SessionID"
+              pointer: true
+          - column: "plan_assignments.reviewer_session_id"
+            go_type:
+              import: "github.com/OmarAly92/operator/backend/internal/domain"
+              type: "SessionID"
+              pointer: true
           - column: "agent_switches.from_claude_account_id"
             go_type:
               import: "github.com/OmarAly92/operator/backend/internal/domain"
