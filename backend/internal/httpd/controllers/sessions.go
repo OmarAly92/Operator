@@ -32,6 +32,7 @@ import (
 	sessionsvc "github.com/OmarAly92/operator/backend/internal/service/session"
 	usagesvc "github.com/OmarAly92/operator/backend/internal/service/usage"
 	sessionmanager "github.com/OmarAly92/operator/backend/internal/session_manager"
+	"github.com/OmarAly92/operator/backend/internal/slashcommands"
 	"github.com/OmarAly92/operator/backend/internal/workspacewatch"
 )
 
@@ -1362,7 +1363,31 @@ func (c *SessionsController) send(w http.ResponseWriter, r *http.Request) {
 		envelope.WriteError(w, r, err)
 		return
 	}
+	c.recordBuiltinSlashPrompt(r, message)
 	envelope.WriteJSON(w, http.StatusOK, SendSessionMessageResponse{OK: true, SessionID: sessionID(r), Message: message})
+}
+
+// recordBuiltinSlashPrompt writes the prompt block the UserPromptSubmit hook
+// would have written for an ordinary message. Claude Code handles built-in
+// slash commands itself and never fires that hook, so without this the phone
+// and desktop timelines never show the command the user sent.
+func (c *SessionsController) recordBuiltinSlashPrompt(r *http.Request, message string) {
+	if c.BlockEvents == nil || !slashcommands.IsBuiltin(message) {
+		return
+	}
+	sess, err := c.Svc.Get(r.Context(), sessionID(r))
+	if err != nil || sess.Harness != domain.HarnessClaudeCode {
+		return
+	}
+	harness := string(sess.Harness)
+	sig := ports.ActivitySignal{
+		Event:            "user-prompt-submit",
+		Harness:          harness,
+		LatestUserPrompt: message,
+	}
+	if err := c.BlockEvents.Record(r.Context(), sessionID(r), harness, sig); err != nil {
+		slog.Default().Warn("slash prompt block recording failed", "session", sessionID(r), "err", err)
+	}
 }
 
 func (c *SessionsController) command(w http.ResponseWriter, r *http.Request) {
