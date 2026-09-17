@@ -108,6 +108,10 @@ type InteractionRegistry interface {
 	ClearInteractions(id domain.SessionID)
 }
 
+type DialogObserver interface {
+	DialogOnScreen(ctx context.Context, id domain.SessionID) (bool, error)
+}
+
 type pendingLaunch struct {
 	launchID string
 	ready    chan struct{}
@@ -171,6 +175,7 @@ type Manager struct {
 
 	interactionsMu sync.RWMutex
 	interactions   InteractionRegistry
+	dialogObserver DialogObserver
 
 	mu        sync.Mutex
 	window    time.Duration
@@ -283,6 +288,43 @@ func (m *Manager) SetInteractionRegistry(r InteractionRegistry) {
 	m.interactionsMu.Lock()
 	defer m.interactionsMu.Unlock()
 	m.interactions = r
+}
+
+func (m *Manager) SetDialogObserver(o DialogObserver) {
+	m.interactionsMu.Lock()
+	defer m.interactionsMu.Unlock()
+	m.dialogObserver = o
+}
+
+func (m *Manager) observeDialogAbsent(ctx context.Context, id domain.SessionID, s ports.ActivitySignal) ports.ActivitySignal {
+	if !s.Valid || s.Event != "notification" || s.State != domain.ActivityIdle {
+		return s
+	}
+	m.interactionsMu.RLock()
+	observer := m.dialogObserver
+	m.interactionsMu.RUnlock()
+	if observer == nil {
+		return s
+	}
+	rec, ok, err := m.store.GetSession(ctx, id)
+	if err != nil || !ok || rec.IsTerminated || rec.Activity.State != domain.ActivityBlocked {
+		return s
+	}
+	readCtx, cancel := context.WithTimeout(ctx, dialogObservationTimeout)
+	defer cancel()
+	on, err := observer.DialogOnScreen(readCtx, id)
+	if err != nil || on {
+		return s
+	}
+	s.Event = ports.EventDialogAbsent
+	return s
+}
+
+func interactionKindFor(toolName string) string {
+	if toolName == "AskUserQuestion" {
+		return domain.InteractionQuestion
+	}
+	return domain.InteractionPermission
 }
 
 func (m *Manager) registerInteraction(id domain.SessionID, in domain.PendingInteraction) {
@@ -521,6 +563,7 @@ func (m *Manager) ApplyActivitySignal(ctx context.Context, id domain.SessionID, 
 			return err
 		}
 	}
+	s = m.observeDialogAbsent(ctx, id, s)
 	var intent *ports.NotificationIntent
 	m.mu.Lock()
 	for {
@@ -807,6 +850,8 @@ type toolFlight struct {
 // turn-boundary clearing (fail-safe).
 const maxInflightTools = 128
 
+const dialogObservationTimeout = 2 * time.Second
+
 // isToolUseEvent reports whether the Operator hook event is one of the tool-use
 // trio whose signals must not demote a sticky state on their own.
 func isToolUseEvent(event string) bool {
@@ -840,6 +885,9 @@ func (m *Manager) applyToolPrecedenceLocked(id domain.SessionID, cur domain.Acti
 	}
 	suppressed := s
 	suppressed.Valid = false
+	if s.Event == ports.EventDialogAbsent && cur != domain.ActivityBlocked {
+		return suppressed
+	}
 
 	fl := m.flights[id]
 	ensure := func() *toolFlight {
@@ -921,7 +969,7 @@ func (m *Manager) applyToolPrecedenceLocked(id domain.SessionID, cur domain.Acti
 			}
 			m.registerInteraction(id, domain.PendingInteraction{
 				ID:        mintedID,
-				Kind:      domain.InteractionPermission,
+				Kind:      interactionKindFor(s.ToolName),
 				ToolName:  s.ToolName,
 				ToolInput: s.ToolInput,
 				CreatedAt: m.clock(),
@@ -933,7 +981,7 @@ func (m *Manager) applyToolPrecedenceLocked(id domain.SessionID, cur domain.Acti
 		// Paused on a decision: only a turn boundary or the correlated post
 		// may change the state.
 		switch {
-		case isTurnBoundaryEvent(s.Event):
+		case isTurnBoundaryEvent(s.Event), s.Event == ports.EventDialogAbsent:
 			delete(m.flights, id)
 			m.clearInteractions(id)
 			return s

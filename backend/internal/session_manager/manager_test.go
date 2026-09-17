@@ -161,6 +161,17 @@ type fakeLCM struct {
 	cancelled []string
 	// terminated counts MarkTerminated calls per session id.
 	terminated map[domain.SessionID]int
+	signals    []fakeActivitySignal
+}
+
+type fakeActivitySignal struct {
+	id     domain.SessionID
+	signal ports.ActivitySignal
+}
+
+func (l *fakeLCM) ApplyActivitySignal(_ context.Context, id domain.SessionID, s ports.ActivitySignal) error {
+	l.signals = append(l.signals, fakeActivitySignal{id: id, signal: s})
+	return nil
 }
 
 func (l *fakeLCM) PrepareLaunch(id domain.SessionID, launchID string) error {
