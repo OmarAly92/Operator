@@ -25,9 +25,12 @@ class ManualConnectBody extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            AppTextField(controller: cubit.hostController, label: 'HOST', keyboardType: TextInputType.url),
-            const VerticalSpace(14),
-            AppTextField(controller: cubit.portController, label: 'API PORT', keyboardType: TextInputType.number),
+            AppTextField(
+              controller: cubit.hostController,
+              label: 'HOST',
+              hintText: '192.168.1.2:3011',
+              keyboardType: TextInputType.url,
+            ),
             const VerticalSpace(14),
             AppTextField(controller: cubit.passwordController, label: 'PASSWORD', obscureText: true),
             const VerticalSpace(14),

@@ -39,40 +39,73 @@ void main() {
     },
     verify: (cubit) {
       expect(cubit.hostController.text, '10.0.0.5');
-      expect(cubit.portController.text, '3011');
       expect(cubit.passwordController.text, 'secret12');
       expect(cubit.secure, isTrue);
     },
   );
 
   blocTest<ManualConnectCubit, ManualConnectState>(
-    'defaults to port 3011 and secure off with nothing paired',
+    'defaults to an empty host and secure off with nothing paired',
     build: () {
       when(() => store.current).thenReturn(null);
       return ManualConnectCubit(repository, store);
     },
     verify: (cubit) {
-      expect(cubit.portController.text, '3011');
+      expect(cubit.hostController.text, '');
       expect(cubit.secure, isFalse);
     },
   );
 
   blocTest<ManualConnectCubit, ManualConnectState>(
-    'trims the host and verifies before emitting success',
+    'prefills host:port when the paired port is not the default',
+    build: () {
+      when(() => store.current).thenReturn(
+        const ServerConfig(host: '10.0.0.5', httpPort: '58682', secure: false, password: ''),
+      );
+      return ManualConnectCubit(repository, store);
+    },
+    verify: (cubit) => expect(cubit.hostController.text, '10.0.0.5:58682'),
+  );
+
+  blocTest<ManualConnectCubit, ManualConnectState>(
+    'splits host:port from the host field and verifies before emitting success',
     build: () {
       when(() => store.current).thenReturn(null);
       when(() => repository.verifyAndConnect(any())).thenAnswer((_) async => Result.success(_desktop));
       return ManualConnectCubit(repository, store);
     },
     act: (cubit) {
-      cubit.hostController.text = '  10.0.0.9  ';
-      cubit.portController.text = '3011';
+      cubit.hostController.text = '  10.0.0.9:58682  ';
       return cubit.connect(TargetPlatform.iOS);
     },
     expect: () => [isA<ConnectLoadingState>(), isA<ConnectSuccessState>()],
     verify: (_) {
       final captured = verify(() => repository.verifyAndConnect(captureAny())).captured;
-      expect((captured.single as ServerConfig).host, '10.0.0.9');
+      final target = captured.single as ServerConfig;
+      expect(target.host, '10.0.0.9');
+      expect(target.httpPort, '58682');
+      expect(target.secure, isFalse);
+    },
+  );
+
+  blocTest<ManualConnectCubit, ManualConnectState>(
+    'an https URL in the host field forces TLS and port 443',
+    build: () {
+      when(() => store.current).thenReturn(null);
+      when(() => repository.verifyAndConnect(any())).thenAnswer((_) async => Result.success(_desktop));
+      return ManualConnectCubit(repository, store);
+    },
+    act: (cubit) {
+      cubit.hostController.text = 'https://imagines-livestock-widely.ngrok-free.dev';
+      return cubit.connect(TargetPlatform.iOS);
+    },
+    expect: () => [isA<ConnectLoadingState>(), isA<ConnectSuccessState>()],
+    verify: (_) {
+      final captured = verify(() => repository.verifyAndConnect(captureAny())).captured;
+      final target = captured.single as ServerConfig;
+      expect(target.host, 'imagines-livestock-widely.ngrok-free.dev');
+      expect(target.httpPort, '443');
+      expect(target.secure, isTrue);
     },
   );
 
@@ -87,7 +120,6 @@ void main() {
     },
     act: (cubit) {
       cubit.hostController.text = '10.0.0.9';
-      cubit.portController.text = '3011';
       return cubit.connect(TargetPlatform.iOS);
     },
     expect: () => [isA<ConnectLoadingState>(), isA<ConnectFailureState>()],
