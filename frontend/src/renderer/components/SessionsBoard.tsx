@@ -67,6 +67,7 @@ import { RestoreUnavailableDialog } from "./RestoreUnavailableDialog";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 import { SessionTerminationPopover } from "./SessionTerminationPopover";
 import { DaemonStartupLoader } from "./DaemonStartupLoader";
+import { TicketBadge } from "./tickets/TicketBadge";
 import { useShellMaybe } from "../lib/shell-context";
 import { dotGlow } from "../theme/effects";
 
@@ -1045,6 +1046,9 @@ function SessionCard({
 						{issueId}
 					</span>
 				)}
+				{session.ticket ? (
+					<TicketBadge className="self-start" projectId={session.workspaceId} ticket={session.ticket} />
+				) : null}
 			</div>
 			{termination.error ? (
 				<div className="border-t border-border px-3.5 py-1.5 text-2xs text-destructive" role="alert">

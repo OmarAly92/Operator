@@ -110,6 +110,9 @@ async function fetchWorkspaces(): Promise<WorkspaceSummary[]> {
 						isPinned: session.isPinned ?? false,
 						pinnedAt: session.pinnedAt ?? undefined,
 						prs: (session.prs ?? []).map(toPullRequestFacts),
+						ticket: session.ticket
+							? { slug: session.ticket.slug, role: session.ticket.role, planFile: session.ticket.planFile }
+							: undefined,
 					};
 				}),
 		};

@@ -1401,6 +1401,37 @@ describe("SessionsBoard", () => {
 		expect(await screen.findByRole("alert")).toHaveTextContent("Failed to terminate session (500)");
 		expect(screen.getByRole("button", { name: "Terminate merged worker" })).toBeEnabled();
 	});
+
+	it("shows the ticket badge on a linked session card and opens the ticket page from it", async () => {
+		workspaceQueryMock.mockReturnValue({
+			data: [
+				workspaceWithSessions([
+					boardSession({
+						id: "s-impl",
+						title: "implement ui",
+						status: "working",
+						ticket: { slug: "search-page", role: "implementing", planFile: "plans/02-ui.md" },
+					}),
+				]),
+			],
+			isError: false,
+			isSuccess: true,
+		});
+
+		renderBoard("p1");
+
+		const badge = screen.getByRole("button", { name: "Open ticket search-page · 02" });
+		expect(badge).toHaveTextContent("search-page · 02");
+		await userEvent.click(badge);
+		expect(navigateMock).toHaveBeenCalledWith({
+			to: "/projects/$projectId/tickets/$slug",
+			params: { projectId: "p1", slug: "search-page" },
+			search: { file: "plans/02-ui.md" },
+		});
+		expect(navigateMock).not.toHaveBeenCalledWith(
+			expect.objectContaining({ to: "/projects/$projectId/sessions/$sessionId" }),
+		);
+	});
 });
 
 function workspaceWithSessions(sessions: WorkspaceSession[]): WorkspaceSummary {

@@ -191,6 +191,19 @@ describe("ShellTopbar status pill", () => {
 		expect(screen.queryByText("session/sess-1")).not.toBeInTheDocument();
 		expect(screen.getByText("Working")).toBeInTheDocument();
 	});
+
+	it("shows the planning ticket badge beside the branch", async () => {
+		renderTopbar(sessionWith({ ticket: { slug: "search-page", role: "planning" } }));
+
+		const badge = screen.getByRole("button", { name: "Open ticket search-page · plan" });
+		expect(badge).toHaveTextContent("search-page · plan");
+		await userEvent.click(badge);
+		expect(navigateMock).toHaveBeenCalledWith({
+			to: "/projects/$projectId/tickets/$slug",
+			params: { projectId: "proj-1", slug: "search-page" },
+			search: { file: undefined },
+		});
+	});
 });
 
 describe("ShellTopbar orchestrator actions", () => {
