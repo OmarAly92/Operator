@@ -26,6 +26,11 @@ type Store interface {
 	SetTicketArchivedAt(ctx context.Context, project domain.ProjectID, slug string, at time.Time) error
 	ListPlanAssignments(ctx context.Context, project domain.ProjectID, slug string) ([]domain.PlanAssignmentRecord, error)
 	InsertPlanAssignment(ctx context.Context, rec domain.PlanAssignmentRecord) error
+	SessionTicketRef(ctx context.Context, id domain.SessionID) (domain.SessionTicketRef, bool, error)
+	GetPlanAssignment(ctx context.Context, id int64) (domain.PlanAssignmentRecord, bool, error)
+	MarkPlanReviewRequested(ctx context.Context, id int64, reviewer domain.SessionID, at time.Time) error
+	MarkPlanMergeReady(ctx context.Context, id int64, at time.Time, summary string) error
+	MarkPlanMergeApproved(ctx context.Context, id int64, at time.Time) error
 }
 
 type Sessions interface {
@@ -629,4 +634,213 @@ func (s *Service) SetArchived(ctx context.Context, project domain.ProjectID, slu
 		return domain.Ticket{}, err
 	}
 	return s.Get(ctx, project, slug)
+}
+
+const (
+	ReviewerPlanner = "planner"
+	ReviewerNew     = "new"
+)
+
+type ReviewInput struct {
+	SpawnInput
+	Reviewer string
+}
+
+type ReviewResult struct {
+	Session domain.Session
+	Spawned bool
+}
+
+func (s *Service) currentAssignment(ctx context.Context, project domain.ProjectID, slug, planFile string) (domain.PlanAssignmentRecord, bool, error) {
+	rows, err := s.store.ListPlanAssignments(ctx, project, slug)
+	if err != nil {
+		return domain.PlanAssignmentRecord{}, false, err
+	}
+	a, ok := currentAssignments(rows)[planFile]
+	return a, ok, nil
+}
+
+func (s *Service) mergeReadyCurl(project domain.ProjectID, slug, planName string) string {
+	return fmt.Sprintf(`curl -s -X POST %s/api/v1/projects/%s/tickets/%s/plans/%s/merge-ready -H 'content-type: application/json' -d '{"summary":"<one line: what you verified>"}'`, s.baseURL, project, slug, planName)
+}
+
+func (s *Service) sessionLive(sessions map[domain.SessionID]*domain.Session, id domain.SessionID) bool {
+	return planningLive(sessions, id)
+}
+
+func (s *Service) Review(ctx context.Context, project domain.ProjectID, slug, planName string, in ReviewInput) (ReviewResult, error) {
+	p, rec, t, sessions, err := s.loadWithSessions(ctx, project, slug)
+	if err != nil {
+		return ReviewResult{}, err
+	}
+	idx, ok := findPlan(t, planName)
+	if !ok {
+		return ReviewResult{}, apierr.NotFound("TICKET_PLAN_NOT_FOUND", "No such plan in the ticket")
+	}
+	plan := t.Plans[idx]
+	a, ok, err := s.currentAssignment(ctx, project, slug, plan.File)
+	if err != nil {
+		return ReviewResult{}, err
+	}
+	if !ok || a.SessionID == "" {
+		return ReviewResult{}, apierr.Conflict("TICKET_PLAN_UNASSIGNED", "Assign the plan to a session before reviewing it", nil)
+	}
+	mode := strings.TrimSpace(in.Reviewer)
+	if mode == "" {
+		mode = strings.TrimSpace(p.Config.Tickets.ReviewerMode)
+	}
+	if mode == "" {
+		mode = ReviewerPlanner
+	}
+	if mode != ReviewerPlanner && mode != ReviewerNew {
+		return ReviewResult{}, apierr.Invalid("TICKET_REVIEWER_INVALID", "reviewer must be planner or new", nil)
+	}
+	impl, err := s.sessions.Get(ctx, a.SessionID)
+	if err != nil {
+		return ReviewResult{}, err
+	}
+	prompt := reviewPrompt(t, plan, impl.Metadata.Branch, impl.Metadata.WorkspacePath, s.mergeReadyCurl(project, slug, path.Base(plan.File)), in.Extra)
+	var reviewer domain.Session
+	spawned := false
+	switch {
+	case mode == ReviewerPlanner && s.sessionLive(sessions, rec.PlanningSessionID):
+		if err := s.sessions.Send(ctx, rec.PlanningSessionID, prompt, nil); err != nil {
+			return ReviewResult{}, err
+		}
+		reviewer = *sessions[rec.PlanningSessionID]
+	case mode == ReviewerPlanner:
+		reviewer, err = s.spawnPlanner(ctx, p, t, in.SpawnInput, prompt)
+		if err != nil {
+			return ReviewResult{}, err
+		}
+		spawned = true
+	default:
+		defaults := p.Config.Tickets.Reviewer
+		if defaults == (domain.TicketRoleDefaults{}) {
+			defaults = p.Config.Tickets.Planner
+		}
+		role := in.SpawnInput.withDefaults(defaults)
+		reviewer, _, _, err = s.sessions.Spawn(ctx, ports.SpawnConfig{
+			ProjectID:       project,
+			Kind:            domain.KindWorker,
+			Harness:         role.Harness,
+			WorkspaceMode:   domain.WorkspaceModeInPlace,
+			Prompt:          prompt,
+			AgentConfig:     ports.AgentConfig{Model: strings.TrimSpace(role.Model)},
+			DisplayName:     truncateRunes(slug+" review", maxDisplayName),
+			ClaudeAccountID: role.ClaudeAccountID,
+		})
+		if err != nil {
+			return ReviewResult{}, err
+		}
+		spawned = true
+	}
+	if err := s.store.MarkPlanReviewRequested(ctx, a.ID, reviewer.ID, s.now()); err != nil {
+		return ReviewResult{}, err
+	}
+	return ReviewResult{Session: reviewer, Spawned: spawned}, nil
+}
+
+func (s *Service) MergeReady(ctx context.Context, project domain.ProjectID, slug, planName, summary string) (domain.Ticket, error) {
+	_, _, t, err := s.load(ctx, project, slug)
+	if err != nil {
+		return domain.Ticket{}, err
+	}
+	idx, ok := findPlan(t, planName)
+	if !ok {
+		return domain.Ticket{}, apierr.NotFound("TICKET_PLAN_NOT_FOUND", "No such plan in the ticket")
+	}
+	a, ok, err := s.currentAssignment(ctx, project, slug, t.Plans[idx].File)
+	if err != nil {
+		return domain.Ticket{}, err
+	}
+	if !ok || a.ReviewRequestedAt.IsZero() {
+		return domain.Ticket{}, apierr.Conflict("TICKET_NOT_REVIEWING", "No review is in progress for this plan", nil)
+	}
+	if err := s.store.MarkPlanMergeReady(ctx, a.ID, s.now(), strings.TrimSpace(summary)); err != nil {
+		return domain.Ticket{}, err
+	}
+	return s.Get(ctx, project, slug)
+}
+
+func (s *Service) ApproveMerge(ctx context.Context, project domain.ProjectID, slug, planName string) (domain.Ticket, error) {
+	p, _, t, sessions, err := s.loadWithSessions(ctx, project, slug)
+	if err != nil {
+		return domain.Ticket{}, err
+	}
+	idx, ok := findPlan(t, planName)
+	if !ok {
+		return domain.Ticket{}, apierr.NotFound("TICKET_PLAN_NOT_FOUND", "No such plan in the ticket")
+	}
+	plan := t.Plans[idx]
+	a, ok, err := s.currentAssignment(ctx, project, slug, plan.File)
+	if err != nil {
+		return domain.Ticket{}, err
+	}
+	if !ok || a.MergeReadyAt.IsZero() || !a.MergeApprovedAt.IsZero() {
+		return domain.Ticket{}, apierr.Conflict("TICKET_NOT_MERGE_READY", "The reviewer has not reported this plan as ready to merge", nil)
+	}
+	impl, err := s.sessions.Get(ctx, a.SessionID)
+	if err != nil {
+		return domain.Ticket{}, err
+	}
+	prompt := mergeApprovedPrompt(t, plan, impl.Metadata.Branch, p.Config.WithDefaults().DefaultBranch)
+	if s.sessionLive(sessions, a.ReviewerSessionID) {
+		if err := s.sessions.Send(ctx, a.ReviewerSessionID, prompt, nil); err != nil {
+			return domain.Ticket{}, err
+		}
+	} else {
+		defaults := p.Config.Tickets.Reviewer
+		if defaults == (domain.TicketRoleDefaults{}) {
+			defaults = p.Config.Tickets.Planner
+		}
+		role := SpawnInput{}.withDefaults(defaults)
+		fresh, _, _, err := s.sessions.Spawn(ctx, ports.SpawnConfig{
+			ProjectID:       project,
+			Kind:            domain.KindWorker,
+			Harness:         role.Harness,
+			WorkspaceMode:   domain.WorkspaceModeInPlace,
+			Prompt:          prompt,
+			AgentConfig:     ports.AgentConfig{Model: strings.TrimSpace(role.Model)},
+			DisplayName:     truncateRunes(slug+" merge", maxDisplayName),
+			ClaudeAccountID: role.ClaudeAccountID,
+		})
+		if err != nil {
+			return domain.Ticket{}, err
+		}
+		if err := s.store.MarkPlanReviewRequested(ctx, a.ID, fresh.ID, a.ReviewRequestedAt); err != nil {
+			return domain.Ticket{}, err
+		}
+	}
+	if err := s.store.MarkPlanMergeApproved(ctx, a.ID, s.now()); err != nil {
+		return domain.Ticket{}, err
+	}
+	return s.Get(ctx, project, slug)
+}
+
+func (s *Service) AutoReview(ctx context.Context, sessionID domain.SessionID) error {
+	ref, ok, err := s.store.SessionTicketRef(ctx, sessionID)
+	if err != nil || !ok || ref.Role != domain.TicketRoleImplementing {
+		return err
+	}
+	impl, err := s.sessions.Get(ctx, sessionID)
+	if err != nil {
+		return err
+	}
+	p, err := s.project(ctx, impl.ProjectID)
+	if err != nil {
+		return nil
+	}
+	if p.Config.Tickets.DisableAutoReview {
+		return nil
+	}
+	a, ok, err := s.currentAssignment(ctx, impl.ProjectID, ref.Slug, ref.PlanFile)
+	if err != nil {
+		return err
+	}
+	if !ok || a.SessionID != sessionID || !a.ReviewRequestedAt.IsZero() {
+		return nil
+	}
+	_, err = s.Review(ctx, impl.ProjectID, ref.Slug, path.Base(ref.PlanFile), ReviewInput{})
+	return err
 }

@@ -86,6 +86,54 @@ func (f *fakeStore) InsertPlanAssignment(_ context.Context, rec domain.PlanAssig
 	f.assignments = append(f.assignments, rec)
 	return nil
 }
+func (f *fakeStore) SessionTicketRef(_ context.Context, id domain.SessionID) (domain.SessionTicketRef, bool, error) {
+	for _, t := range f.tickets {
+		if t.PlanningSessionID == id {
+			return domain.SessionTicketRef{Slug: t.Slug, Role: domain.TicketRolePlanning}, true, nil
+		}
+	}
+	for i := len(f.assignments) - 1; i >= 0; i-- {
+		a := f.assignments[i]
+		if a.SessionID == id {
+			return domain.SessionTicketRef{Slug: a.Slug, PlanFile: a.PlanFile, Role: domain.TicketRoleImplementing}, true, nil
+		}
+	}
+	for i := len(f.assignments) - 1; i >= 0; i-- {
+		a := f.assignments[i]
+		if a.ReviewerSessionID == id {
+			return domain.SessionTicketRef{Slug: a.Slug, PlanFile: a.PlanFile, Role: domain.TicketRoleReviewing}, true, nil
+		}
+	}
+	return domain.SessionTicketRef{}, false, nil
+}
+func (f *fakeStore) GetPlanAssignment(_ context.Context, id int64) (domain.PlanAssignmentRecord, bool, error) {
+	for _, a := range f.assignments {
+		if a.ID == id {
+			return a, true, nil
+		}
+	}
+	return domain.PlanAssignmentRecord{}, false, nil
+}
+func (f *fakeStore) update(id int64, fn func(*domain.PlanAssignmentRecord)) error {
+	for i := range f.assignments {
+		if f.assignments[i].ID == id {
+			fn(&f.assignments[i])
+			return nil
+		}
+	}
+	return errors.New("missing assignment")
+}
+func (f *fakeStore) MarkPlanReviewRequested(_ context.Context, id int64, reviewer domain.SessionID, at time.Time) error {
+	return f.update(id, func(a *domain.PlanAssignmentRecord) { a.ReviewerSessionID, a.ReviewRequestedAt = reviewer, at })
+}
+func (f *fakeStore) MarkPlanMergeReady(_ context.Context, id int64, at time.Time, summary string) error {
+	return f.update(id, func(a *domain.PlanAssignmentRecord) {
+		a.MergeReadyAt, a.MergeSummary, a.MergeApprovedAt = at, summary, time.Time{}
+	})
+}
+func (f *fakeStore) MarkPlanMergeApproved(_ context.Context, id int64, at time.Time) error {
+	return f.update(id, func(a *domain.PlanAssignmentRecord) { a.MergeApprovedAt = at })
+}
 
 type fakeSessions struct {
 	sessions []domain.Session
@@ -110,7 +158,10 @@ func (f *fakeSessions) Spawn(_ context.Context, cfg ports.SpawnConfig) (domain.S
 	}
 	f.spawned = append(f.spawned, cfg)
 	f.nextNum++
-	s := domain.Session{SessionRecord: domain.SessionRecord{ID: domain.SessionID("tk-" + strings.Repeat("x", f.nextNum)), ProjectID: cfg.ProjectID}, Status: domain.StatusIdle}
+	s := domain.Session{SessionRecord: domain.SessionRecord{
+		ID: domain.SessionID("tk-" + strings.Repeat("x", f.nextNum)), ProjectID: cfg.ProjectID,
+		Metadata: domain.SessionMetadata{Branch: cfg.Branch, WorkspaceMode: cfg.WorkspaceMode, WorkspacePath: "/ws/" + strings.Repeat("x", f.nextNum)},
+	}, Status: domain.StatusIdle}
 	f.sessions = append(f.sessions, s)
 	return s, 0, 0, nil
 }
@@ -534,5 +585,162 @@ func TestPlanBranch(t *testing.T) {
 		if got := planBranch("editor", tc.plan, tc.attempt); got != tc.want {
 			t.Errorf("%+v attempt %d = %q want %q", tc.plan, tc.attempt, got, tc.want)
 		}
+	}
+}
+
+func assignedHarness(t *testing.T) (*harness, domain.SessionID) {
+	t.Helper()
+	h := newHarness(t)
+	ctx := context.Background()
+	h.ticketFile("editor", "ticket.md", "---\ntitle: Editor\n---\n")
+	h.ticketFile("editor", "spec.md", "# s\n")
+	h.ticketFile("editor", "plans/01-daemon.md", "---\ntitle: Daemon\n---\n")
+	_ = gitCommitPath(ctx, h.repo, ".operator/tickets/editor", "ticket: add editor")
+	res, err := h.svc.Assign(ctx, "tk", "editor", "01-daemon.md", AssignInput{Force: true})
+	if err != nil || res.Session == nil {
+		t.Fatalf("assign = %+v err=%v", res, err)
+	}
+	return h, res.Session.ID
+}
+
+func TestReviewWithPlannerSendsOrSpawns(t *testing.T) {
+	h, impl := assignedHarness(t)
+	ctx := context.Background()
+	if _, err := h.svc.Review(ctx, "tk", "editor", "01-daemon.md", ReviewInput{}); err != nil {
+		t.Fatal(err)
+	}
+	if len(h.sessions.spawned) != 2 || h.sessions.spawned[1].WorkspaceMode != domain.WorkspaceModeInPlace || len(h.sessions.sent) != 0 {
+		t.Fatalf("no planner: spawned=%+v sent=%+v", h.sessions.spawned, h.sessions.sent)
+	}
+	prompt := h.sessions.spawned[1].Prompt
+	for _, want := range []string{"opr/editor-01", "/ws/x", "merge-ready", "http://127.0.0.1:3001/api/v1/projects/tk/tickets/editor/plans/01-daemon.md/merge-ready", "Do not merge"} {
+		if !strings.Contains(prompt, want) {
+			t.Errorf("review prompt missing %q:\n%s", want, prompt)
+		}
+	}
+	planner := h.sessions.sessions[1].ID
+	if h.store.tickets[key("tk", "editor")].PlanningSessionID != planner {
+		t.Fatal("spawned reviewer must become the planning session in planner mode")
+	}
+	tk, _ := h.svc.Get(ctx, "tk", "editor")
+	if tk.Plans[0].Status != domain.PlanStatusReviewing || tk.Plans[0].ReviewerID != planner || tk.Status != domain.TicketStatusInProgress {
+		t.Fatalf("ticket = %+v", tk)
+	}
+	ref, ok, _ := h.store.SessionTicketRef(ctx, planner)
+	if !ok || ref.Role != domain.TicketRolePlanning {
+		t.Fatalf("planner ref = %+v", ref)
+	}
+	_ = impl
+	if _, err := h.svc.Review(ctx, "tk", "editor", "01-daemon.md", ReviewInput{SpawnInput: SpawnInput{Extra: "Again."}}); err != nil {
+		t.Fatal(err)
+	}
+	if len(h.sessions.spawned) != 2 || len(h.sessions.sent) != 1 || h.sessions.sent[0].id != planner || !strings.Contains(h.sessions.sent[0].msg, "Again.") {
+		t.Fatalf("live planner must receive a send: spawned=%d sent=%+v", len(h.sessions.spawned), h.sessions.sent)
+	}
+}
+
+func TestReviewWithNewSessionUsesReviewerDefaults(t *testing.T) {
+	h, _ := assignedHarness(t)
+	ctx := context.Background()
+	p := h.store.projects["tk"]
+	p.Config.Tickets.Planner = domain.TicketRoleDefaults{Model: "opus"}
+	p.Config.Tickets.Reviewer = domain.TicketRoleDefaults{Model: "sonnet", ClaudeAccountID: "personal"}
+	h.store.projects["tk"] = p
+	planner, _ := h.svc.Plan(ctx, "tk", "editor", SpawnInput{})
+	res, err := h.svc.Review(ctx, "tk", "editor", "01-daemon.md", ReviewInput{Reviewer: ReviewerNew})
+	if err != nil || !res.Spawned || res.Session.ID == planner.ID {
+		t.Fatalf("res = %+v err=%v", res, err)
+	}
+	cfg := h.sessions.spawned[len(h.sessions.spawned)-1]
+	if cfg.AgentConfig.Model != "sonnet" || cfg.ClaudeAccountID != "personal" || cfg.WorkspaceMode != domain.WorkspaceModeInPlace || cfg.DisplayName != "editor review" {
+		t.Fatalf("reviewer cfg = %+v", cfg)
+	}
+	if h.store.tickets[key("tk", "editor")].PlanningSessionID != planner.ID {
+		t.Fatal("new-session review must not replace the planner")
+	}
+	if ref, ok, _ := h.store.SessionTicketRef(ctx, res.Session.ID); !ok || ref.Role != domain.TicketRoleReviewing {
+		t.Fatalf("reviewer ref = %+v ok=%v", ref, ok)
+	}
+	p.Config.Tickets.ReviewerMode = ReviewerNew
+	h.store.projects["tk"] = p
+	res2, _ := h.svc.Review(ctx, "tk", "editor", "01-daemon.md", ReviewInput{})
+	if !res2.Spawned {
+		t.Fatal("project default reviewerMode=new must spawn")
+	}
+	if _, err := h.svc.Review(ctx, "tk", "editor", "01-daemon.md", ReviewInput{Reviewer: "robot"}); codeOf(err) != "TICKET_REVIEWER_INVALID" {
+		t.Fatalf("err = %v", err)
+	}
+}
+
+func TestReviewRequiresAssignment(t *testing.T) {
+	h := newHarness(t)
+	ctx := context.Background()
+	h.ticketFile("editor", "ticket.md", "---\ntitle: Editor\n---\n")
+	h.ticketFile("editor", "plans/01-daemon.md", "---\ntitle: Daemon\n---\n")
+	if _, err := h.svc.Review(ctx, "tk", "editor", "01-daemon.md", ReviewInput{}); codeOf(err) != "TICKET_PLAN_UNASSIGNED" {
+		t.Fatalf("err = %v", err)
+	}
+	if _, err := h.svc.MergeReady(ctx, "tk", "editor", "01-daemon.md", "ready"); codeOf(err) != "TICKET_NOT_REVIEWING" {
+		t.Fatalf("err = %v", err)
+	}
+}
+
+func TestMergeReadyThenApproveSendsToReviewer(t *testing.T) {
+	h, _ := assignedHarness(t)
+	ctx := context.Background()
+	res, err := h.svc.Review(ctx, "tk", "editor", "01-daemon.md", ReviewInput{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	reviewer := res.Session.ID
+	if _, err := h.svc.ApproveMerge(ctx, "tk", "editor", "01-daemon.md"); codeOf(err) != "TICKET_NOT_MERGE_READY" {
+		t.Fatalf("err = %v", err)
+	}
+	tk, err := h.svc.MergeReady(ctx, "tk", "editor", "01-daemon.md", "gates green, verified in app")
+	if err != nil || tk.Plans[0].Status != domain.PlanStatusAwaitMerge || tk.Plans[0].MergeSummary != "gates green, verified in app" || tk.Status != domain.TicketStatusAwaitMerge {
+		t.Fatalf("tk = %+v err=%v", tk, err)
+	}
+	tk, err = h.svc.ApproveMerge(ctx, "tk", "editor", "01-daemon.md")
+	if err != nil || tk.Plans[0].Status != domain.PlanStatusReviewing {
+		t.Fatalf("tk = %+v err=%v", tk, err)
+	}
+	last := h.sessions.sent[len(h.sessions.sent)-1]
+	if last.id != reviewer || !strings.Contains(last.msg, "Approved") || !strings.Contains(last.msg, "opr/editor-01") || !strings.Contains(last.msg, "main") {
+		t.Fatalf("sent = %+v", last)
+	}
+	h.sessions.set(reviewer, domain.StatusTerminated)
+	if _, err := h.svc.MergeReady(ctx, "tk", "editor", "01-daemon.md", "again"); err != nil {
+		t.Fatal(err)
+	}
+	spawnedBefore := len(h.sessions.spawned)
+	if _, err := h.svc.ApproveMerge(ctx, "tk", "editor", "01-daemon.md"); err != nil {
+		t.Fatal(err)
+	}
+	if len(h.sessions.spawned) != spawnedBefore+1 || !strings.Contains(h.sessions.spawned[spawnedBefore].Prompt, "Approved") {
+		t.Fatalf("dead reviewer must be replaced by a fresh in-place session: %+v", h.sessions.spawned)
+	}
+}
+
+func TestAutoReviewOncePerAssignment(t *testing.T) {
+	h, impl := assignedHarness(t)
+	ctx := context.Background()
+	if err := h.svc.AutoReview(ctx, "unknown"); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.svc.AutoReview(ctx, impl); err != nil {
+		t.Fatal(err)
+	}
+	if len(h.sessions.spawned) != 2 {
+		t.Fatalf("auto review must trigger a planner-mode review: %+v", h.sessions.spawned)
+	}
+	if err := h.svc.AutoReview(ctx, impl); err != nil || len(h.sessions.spawned) != 2 || len(h.sessions.sent) != 0 {
+		t.Fatalf("second auto review must be a no-op: err=%v spawned=%d sent=%d", err, len(h.sessions.spawned), len(h.sessions.sent))
+	}
+	h2, impl2 := assignedHarness(t)
+	p := h2.store.projects["tk"]
+	p.Config.Tickets.DisableAutoReview = true
+	h2.store.projects["tk"] = p
+	if err := h2.svc.AutoReview(ctx, impl2); err != nil || len(h2.sessions.spawned) != 1 {
+		t.Fatalf("disabled auto review must not act: err=%v spawned=%d", err, len(h2.sessions.spawned))
 	}
 }
