@@ -232,6 +232,16 @@ func TestReadWriteFileAndTraversal(t *testing.T) {
 			t.Fatalf("symlink escape err = %v", err)
 		}
 	}
+	h.ticketFile("boundary", "ticket.md", "---\ntitle: Boundary\n---\n")
+	outside := t.TempDir()
+	if err := os.Symlink(outside, filepath.Join(h.root, "boundary", "plans")); err == nil {
+		if _, err := h.svc.WriteFile(ctx, "tk", "boundary", "plans/new-file.md", "leak\n", time.Time{}); codeOf(err) != "TICKET_PATH_OUTSIDE" {
+			t.Fatalf("symlinked plans dir escape err = %v", err)
+		}
+		if _, err := os.Stat(filepath.Join(outside, "new-file.md")); err == nil {
+			t.Fatal("write escaped the ticket folder via symlinked plans dir")
+		}
+	}
 	w, err := h.svc.WriteFile(ctx, "tk", "editor", "plans/02-ui.md", "---\ntitle: UI\n---\n", time.Time{})
 	if err != nil || w.ModifiedAt.IsZero() {
 		t.Fatalf("w=%+v err=%v", w, err)

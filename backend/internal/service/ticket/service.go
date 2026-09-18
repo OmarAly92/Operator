@@ -232,11 +232,31 @@ func resolveTicketPath(dir, rel string) (string, error) {
 		return "", apierr.NotFound("TICKET_NOT_FOUND", "Unknown ticket")
 	}
 	if real, err := filepath.EvalSymlinks(abs); err == nil {
-		if real != realDir && !strings.HasPrefix(real, realDir+string(filepath.Separator)) {
+		if !withinRoot(real, realDir) {
 			return "", errPathOutside
+		}
+	} else {
+		anc := filepath.Dir(abs)
+		for {
+			real, err := filepath.EvalSymlinks(anc)
+			if err == nil {
+				if !withinRoot(real, realDir) {
+					return "", errPathOutside
+				}
+				break
+			}
+			next := filepath.Dir(anc)
+			if next == anc {
+				break
+			}
+			anc = next
 		}
 	}
 	return abs, nil
+}
+
+func withinRoot(real, realDir string) bool {
+	return real == realDir || strings.HasPrefix(real, realDir+string(filepath.Separator))
 }
 
 func (s *Service) ReadFile(ctx context.Context, project domain.ProjectID, slug, rel string) (File, error) {
