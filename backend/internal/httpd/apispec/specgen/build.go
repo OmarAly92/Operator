@@ -83,6 +83,8 @@ func Build() ([]byte, error) {
 			"Target-isolated desktop browser runtime (loopback only)"),
 		*(&openapi31.Tag{Name: "inbox"}).WithDescription(
 			"Per-project orchestrator inbox of pending worker/CI/review events"),
+		*(&openapi31.Tag{Name: "tickets"}).WithDescription(
+			"Planning tickets: spec and plan documents in the repo, assigned to sessions"),
 		*(&openapi31.Tag{Name: "claudeAccounts"}).WithDescription(
 			"Claude account folders: creation, login, relink, and status"),
 		*(&openapi31.Tag{Name: "desktop"}).WithDescription(
@@ -153,17 +155,37 @@ var schemaNames = map[string]string{
 	// httpd/envelope
 	"EnvelopeAPIError": "APIError",
 	// domain
-	"DomainProjectID":                 "ProjectID",
-	"DomainSessionID":                 "SessionID",
-	"DomainIssueID":                   "IssueID",
-	"DomainSession":                   "Session",
-	"DomainProjectConfig":             "ProjectConfig",
-	"DomainTrackerIntakeConfig":       "TrackerIntakeConfig",
-	"ControllersTriggerReviewRequest": "TriggerReviewRequest",
-	"DomainContainerReapConfig":       "ContainerReapConfig",
-	"DomainAgentConfig":               "AgentConfig",
-	"DomainRoleOverride":              "RoleOverride",
-	"DomainOrchestratorPolicy":        "OrchestratorPolicy",
+	"DomainProjectID":                  "ProjectID",
+	"DomainSessionID":                  "SessionID",
+	"DomainIssueID":                    "IssueID",
+	"DomainSession":                    "Session",
+	"DomainSessionTicketRef":           "SessionTicketRef",
+	"DomainTicketRole":                 "TicketRole",
+	"DomainProjectConfig":              "ProjectConfig",
+	"DomainTrackerIntakeConfig":        "TrackerIntakeConfig",
+	"ControllersTriggerReviewRequest":  "TriggerReviewRequest",
+	"DomainContainerReapConfig":        "ContainerReapConfig",
+	"DomainAgentConfig":                "AgentConfig",
+	"DomainRoleOverride":               "RoleOverride",
+	"DomainOrchestratorPolicy":         "OrchestratorPolicy",
+	"ControllersTicketView":            "TicketView",
+	"ControllersPlanView":              "PlanView",
+	"ControllersListTicketsResponse":   "ListTicketsResponse",
+	"ControllersTicketResponse":        "TicketResponse",
+	"ControllersTicketFileResponse":    "TicketFileResponse",
+	"ControllersCreateTicketRequest":   "CreateTicketRequest",
+	"ControllersCreateTicketResponse":  "CreateTicketResponse",
+	"ControllersSaveTicketFileRequest": "SaveTicketFileRequest",
+	"ControllersPlanTicketRequest":     "PlanTicketRequest",
+	"ControllersAssignPlanRequest":     "AssignPlanRequest",
+	"ControllersAssignPlanResponse":    "AssignPlanResponse",
+	"ControllersReviewPlanRequest":     "ReviewPlanRequest",
+	"ControllersReviewPlanResponse":    "ReviewPlanResponse",
+	"ControllersMergeReadyRequest":     "MergeReadyRequest",
+	"DomainTicketStatus":               "TicketStatus",
+	"DomainPlanStatus":                 "PlanStatus",
+	"DomainTicketDefaults":             "TicketDefaults",
+	"DomainTicketRoleDefaults":         "TicketRoleDefaults",
 	// httpd/controllers (wire envelopes)
 	"ControllersListProjectsResponse":               "ListProjectsResponse",
 	"ControllersProjectResponse":                    "ProjectResponse",
@@ -432,7 +454,127 @@ func operations() []operation {
 	ops = append(ops, browserOperations()...)
 	ops = append(ops, shellTerminalOperations()...)
 	ops = append(ops, inboxOperations()...)
+	ops = append(ops, ticketOperations()...)
 	return ops
+}
+
+// ticketOperations declares the canonical /projects/{id}/tickets operations. The
+// set must stay 1:1 with the routes TicketsController.Register mounts —
+// TestRouteSpecParity fails the build otherwise.
+func ticketOperations() []operation {
+	apiErr := func(codes ...int) []respUnit {
+		out := make([]respUnit, 0, len(codes)+1)
+		for _, c := range codes {
+			out = append(out, respUnit{c, envelope.APIError{}})
+		}
+		return append(out, respUnit{http.StatusNotImplemented, envelope.APIError{}})
+	}
+	ticketOK := func(status int, body any, codes ...int) []respUnit {
+		return append([]respUnit{{status, body}}, apiErr(codes...)...)
+	}
+	return []operation{
+		{
+			method: http.MethodGet, path: "/api/v1/projects/{id}/tickets", id: "listTickets", tag: "tickets",
+			summary:    "List a project's planning tickets with derived statuses",
+			pathParams: []any{controllers.ProjectIDParam{}},
+			resps:      ticketOK(http.StatusOK, controllers.ListTicketsResponse{}, http.StatusBadRequest, http.StatusNotFound, http.StatusInternalServerError),
+		},
+		{
+			method: http.MethodPost, path: "/api/v1/projects/{id}/tickets", id: "createTicket", tag: "tickets",
+			summary:    "Create a ticket folder with ticket.md and spec.md and commit it",
+			pathParams: []any{controllers.ProjectIDParam{}},
+			reqBody:    controllers.CreateTicketRequest{},
+			resps:      ticketOK(http.StatusCreated, controllers.CreateTicketResponse{}, http.StatusBadRequest, http.StatusNotFound, http.StatusInternalServerError),
+		},
+		{
+			method: http.MethodGet, path: "/api/v1/projects/{id}/tickets/events", id: "streamTicketChanges", tag: "tickets",
+			summary:    "Server-sent events: tickets_changed whenever the tickets folder changes",
+			pathParams: []any{controllers.ProjectIDParam{}},
+			resps: []respUnit{
+				{http.StatusOK, ""},
+				{http.StatusBadRequest, envelope.APIError{}},
+				{http.StatusNotFound, envelope.APIError{}},
+				{http.StatusInternalServerError, envelope.APIError{}},
+				{http.StatusNotImplemented, envelope.APIError{}},
+			},
+			contentTypes: map[int]string{http.StatusOK: "text/event-stream"},
+		},
+		{
+			method: http.MethodGet, path: "/api/v1/projects/{id}/tickets/{slug}", id: "getTicket", tag: "tickets",
+			summary:    "Fetch one ticket with its plans and linked sessions",
+			pathParams: []any{controllers.ProjectIDParam{}, controllers.TicketSlugParam{}},
+			resps:      ticketOK(http.StatusOK, controllers.TicketResponse{}, http.StatusBadRequest, http.StatusNotFound, http.StatusInternalServerError),
+		},
+		{
+			method: http.MethodGet, path: "/api/v1/projects/{id}/tickets/{slug}/file", id: "getTicketFile", tag: "tickets",
+			summary:    "Read one markdown file inside the ticket folder",
+			pathParams: []any{controllers.ProjectIDParam{}, controllers.TicketSlugParam{}, controllers.TicketFileQuery{}},
+			resps:      ticketOK(http.StatusOK, controllers.TicketFileResponse{}, http.StatusBadRequest, http.StatusNotFound, http.StatusInternalServerError),
+		},
+		{
+			method: http.MethodPut, path: "/api/v1/projects/{id}/tickets/{slug}/file", id: "saveTicketFile", tag: "tickets",
+			summary:    "Write one markdown file inside the ticket folder, optionally guarded by ifUnmodifiedSince",
+			pathParams: []any{controllers.ProjectIDParam{}, controllers.TicketSlugParam{}, controllers.TicketFileQuery{}},
+			reqBody:    controllers.SaveTicketFileRequest{},
+			resps:      ticketOK(http.StatusOK, controllers.TicketFileResponse{}, http.StatusBadRequest, http.StatusNotFound, http.StatusConflict, http.StatusInternalServerError),
+		},
+		{
+			method: http.MethodPost, path: "/api/v1/projects/{id}/tickets/{slug}/plan", id: "planTicket", tag: "tickets",
+			summary:         "Spawn the ticket's planning session in place at the project root",
+			pathParams:      []any{controllers.ProjectIDParam{}, controllers.TicketSlugParam{}},
+			reqBody:         controllers.PlanTicketRequest{},
+			optionalReqBody: true,
+			resps:           ticketOK(http.StatusCreated, controllers.SessionView{}, http.StatusBadRequest, http.StatusNotFound, http.StatusConflict, http.StatusInternalServerError),
+		},
+		{
+			method: http.MethodPost, path: "/api/v1/projects/{id}/tickets/{slug}/archive", id: "archiveTicket", tag: "tickets",
+			summary:    "Hide a ticket in the archive",
+			pathParams: []any{controllers.ProjectIDParam{}, controllers.TicketSlugParam{}},
+			resps:      ticketOK(http.StatusOK, controllers.TicketResponse{}, http.StatusBadRequest, http.StatusNotFound, http.StatusInternalServerError),
+		},
+		{
+			method: http.MethodPost, path: "/api/v1/projects/{id}/tickets/{slug}/unarchive", id: "unarchiveTicket", tag: "tickets",
+			summary:    "Bring an archived ticket back",
+			pathParams: []any{controllers.ProjectIDParam{}, controllers.TicketSlugParam{}},
+			resps:      ticketOK(http.StatusOK, controllers.TicketResponse{}, http.StatusBadRequest, http.StatusNotFound, http.StatusInternalServerError),
+		},
+		{
+			method: http.MethodPost, path: "/api/v1/projects/{id}/tickets/{slug}/plans/{plan}/assign", id: "assignPlan", tag: "tickets",
+			summary:         "Spawn an implementing session for one plan in a worktree; dryRun=1 only computes warnings",
+			pathParams:      []any{controllers.ProjectIDParam{}, controllers.TicketSlugParam{}, controllers.TicketPlanParam{}, controllers.AssignPlanQuery{}},
+			reqBody:         controllers.AssignPlanRequest{},
+			optionalReqBody: true,
+			resps:           append([]respUnit{{http.StatusOK, controllers.AssignPlanResponse{}}}, ticketOK(http.StatusCreated, controllers.AssignPlanResponse{}, http.StatusBadRequest, http.StatusNotFound, http.StatusConflict, http.StatusInternalServerError)...),
+		},
+		{
+			method: http.MethodPost, path: "/api/v1/projects/{id}/tickets/{slug}/plans/{plan}/done", id: "markPlanDone", tag: "tickets",
+			summary:    "Record a plan as done by hand",
+			pathParams: []any{controllers.ProjectIDParam{}, controllers.TicketSlugParam{}, controllers.TicketPlanParam{}},
+			resps:      ticketOK(http.StatusOK, controllers.TicketResponse{}, http.StatusBadRequest, http.StatusNotFound, http.StatusInternalServerError),
+		},
+		{
+			method: http.MethodPost, path: "/api/v1/projects/{id}/tickets/{slug}/plans/{plan}/review", id: "reviewPlan", tag: "tickets",
+			summary:         "Ask the planner session, or a fresh session, to review the plan's implementation",
+			pathParams:      []any{controllers.ProjectIDParam{}, controllers.TicketSlugParam{}, controllers.TicketPlanParam{}},
+			reqBody:         controllers.ReviewPlanRequest{},
+			optionalReqBody: true,
+			resps:           ticketOK(http.StatusOK, controllers.ReviewPlanResponse{}, http.StatusBadRequest, http.StatusNotFound, http.StatusConflict, http.StatusInternalServerError),
+		},
+		{
+			method: http.MethodPost, path: "/api/v1/projects/{id}/tickets/{slug}/plans/{plan}/merge-ready", id: "reportPlanMergeReady", tag: "tickets",
+			summary:         "Called by the reviewer: the branch is ready and waits for the user's merge confirmation",
+			pathParams:      []any{controllers.ProjectIDParam{}, controllers.TicketSlugParam{}, controllers.TicketPlanParam{}},
+			reqBody:         controllers.MergeReadyRequest{},
+			optionalReqBody: true,
+			resps:           ticketOK(http.StatusOK, controllers.TicketResponse{}, http.StatusBadRequest, http.StatusNotFound, http.StatusConflict, http.StatusInternalServerError),
+		},
+		{
+			method: http.MethodPost, path: "/api/v1/projects/{id}/tickets/{slug}/plans/{plan}/merge", id: "approvePlanMerge", tag: "tickets",
+			summary:    "User confirmation: tell the reviewer to merge the branch now",
+			pathParams: []any{controllers.ProjectIDParam{}, controllers.TicketSlugParam{}, controllers.TicketPlanParam{}},
+			resps:      ticketOK(http.StatusOK, controllers.TicketResponse{}, http.StatusBadRequest, http.StatusNotFound, http.StatusConflict, http.StatusInternalServerError),
+		},
+	}
 }
 
 // inboxOperations declares the canonical /projects/{id}/inbox operations. The

@@ -66,6 +66,22 @@ type ProjectConfig struct {
 	// opt-out travels with the container at `docker run` time rather than
 	// drifting out of sync with a project-config list.
 	ContainerReap ContainerReapConfig `json:"containerReap,omitempty"`
+
+	Tickets TicketDefaults `json:"tickets,omitempty"`
+}
+
+type TicketRoleDefaults struct {
+	Harness         AgentHarness    `json:"agent,omitempty"`
+	Model           string          `json:"model,omitempty"`
+	ClaudeAccountID ClaudeAccountID `json:"claudeAccountId,omitempty"`
+}
+
+type TicketDefaults struct {
+	Planner           TicketRoleDefaults `json:"planner,omitempty"`
+	Implementer       TicketRoleDefaults `json:"implementer,omitempty"`
+	Reviewer          TicketRoleDefaults `json:"reviewer,omitempty"`
+	ReviewerMode      string             `json:"reviewerMode,omitempty" enum:"planner,new"`
+	DisableAutoReview bool               `json:"disableAutoReview,omitempty"`
 }
 
 // ContainerReapConfig is the project-level opt-out for #2652's Docker

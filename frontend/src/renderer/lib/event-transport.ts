@@ -32,6 +32,7 @@ const CDC_EVENT_TYPES = [
 	"pr_session_changed",
 	"pr_review_thread_added",
 	"pr_review_thread_resolved",
+	"ticket_updated",
 ] as const;
 
 /**

@@ -130,5 +130,6 @@ type Session struct {
 	// PRs are the session's attributed pull requests (one session can own many).
 	// They feed status derivation and are surfaced on the API read model. Not
 	// serialized here: the HTTP boundary maps them to the curated wire shape.
-	PRs []PRFacts `json:"-"`
+	PRs    []PRFacts         `json:"-"`
+	Ticket *SessionTicketRef `json:"ticket,omitempty"`
 }

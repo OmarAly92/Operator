@@ -1502,3 +1502,112 @@ type SessionModelView struct {
 type SessionModelsResponse struct {
 	Models []SessionModelView `json:"models"`
 }
+
+type TicketSlugParam struct {
+	Slug string `path:"slug" description:"Ticket folder name under .operator/tickets."`
+}
+
+type TicketPlanParam struct {
+	Plan string `path:"plan" description:"Plan file name inside the ticket's plans/ folder, e.g. 01-daemon.md."`
+}
+
+type TicketFileQuery struct {
+	Path string `query:"path" description:"Ticket-folder-relative markdown path, e.g. spec.md or plans/01-daemon.md."`
+}
+
+type AssignPlanQuery struct {
+	DryRun bool `query:"dryRun" description:"Compute warnings without spawning."`
+}
+
+type PlanView struct {
+	File              string            `json:"file"`
+	Order             int               `json:"order"`
+	Title             string            `json:"title"`
+	Status            domain.PlanStatus `json:"status" enum:"todo,idle,working,needs_you,in_review,reviewing,awaiting_merge,merging,merged,done,terminated"`
+	SessionID         domain.SessionID  `json:"sessionId,omitempty"`
+	ReviewerSessionID domain.SessionID  `json:"reviewerSessionId,omitempty"`
+	MergeSummary      string            `json:"mergeSummary,omitempty"`
+	KickoffFile       string            `json:"kickoffFile,omitempty"`
+	Unordered         bool              `json:"unordered,omitempty"`
+	Warning           string            `json:"warning,omitempty"`
+}
+
+type TicketView struct {
+	ProjectID         domain.ProjectID    `json:"projectId"`
+	Slug              string              `json:"slug"`
+	Title             string              `json:"title"`
+	Brief             string              `json:"brief,omitempty"`
+	Status            domain.TicketStatus `json:"status" enum:"draft,planning,ready,in_progress,awaiting_merge,done,archived"`
+	PlanningSessionID domain.SessionID    `json:"planningSessionId,omitempty"`
+	Plans             []PlanView          `json:"plans"`
+	Files             []string            `json:"files"`
+	Warning           string              `json:"warning,omitempty"`
+	CreatedAt         *time.Time          `json:"createdAt,omitempty"`
+	ArchivedAt        *time.Time          `json:"archivedAt,omitempty"`
+}
+
+type ListTicketsResponse struct {
+	Tickets []TicketView `json:"tickets"`
+}
+
+type TicketResponse struct {
+	Ticket TicketView `json:"ticket"`
+}
+
+type TicketFileResponse struct {
+	Path       string    `json:"path"`
+	Content    string    `json:"content"`
+	ModifiedAt time.Time `json:"modifiedAt"`
+}
+
+type CreateTicketRequest struct {
+	Title string `json:"title" maxLength:"200"`
+	Brief string `json:"brief,omitempty" maxLength:"4000"`
+}
+
+type CreateTicketResponse struct {
+	Ticket   TicketView `json:"ticket"`
+	Warnings []string   `json:"warnings"`
+}
+
+type SaveTicketFileRequest struct {
+	Content           string     `json:"content" maxLength:"1048576"`
+	IfUnmodifiedSince *time.Time `json:"ifUnmodifiedSince,omitempty"`
+}
+
+type PlanTicketRequest struct {
+	Harness         domain.AgentHarness    `json:"harness,omitempty"`
+	Model           string                 `json:"model,omitempty" maxLength:"128"`
+	ClaudeAccountID domain.ClaudeAccountID `json:"claudeAccountId,omitempty" maxLength:"64"`
+	Extra           string                 `json:"extra,omitempty" maxLength:"65536"`
+}
+
+type AssignPlanRequest struct {
+	Harness         domain.AgentHarness    `json:"harness,omitempty"`
+	Model           string                 `json:"model,omitempty" maxLength:"128"`
+	ClaudeAccountID domain.ClaudeAccountID `json:"claudeAccountId,omitempty" maxLength:"64"`
+	Extra           string                 `json:"extra,omitempty" maxLength:"65536"`
+	Force           bool                   `json:"force,omitempty"`
+}
+
+type AssignPlanResponse struct {
+	Warnings []string     `json:"warnings"`
+	Session  *SessionView `json:"session,omitempty"`
+}
+
+type ReviewPlanRequest struct {
+	Harness         domain.AgentHarness    `json:"harness,omitempty"`
+	Model           string                 `json:"model,omitempty" maxLength:"128"`
+	ClaudeAccountID domain.ClaudeAccountID `json:"claudeAccountId,omitempty" maxLength:"64"`
+	Extra           string                 `json:"extra,omitempty" maxLength:"65536"`
+	Reviewer        string                 `json:"reviewer,omitempty" enum:"planner,new"`
+}
+
+type ReviewPlanResponse struct {
+	Session SessionView `json:"session"`
+	Spawned bool        `json:"spawned"`
+}
+
+type MergeReadyRequest struct {
+	Summary string `json:"summary,omitempty" maxLength:"1000"`
+}

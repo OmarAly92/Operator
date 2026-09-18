@@ -303,12 +303,13 @@ loopback URL is embedded) with a one-line summary. The assignment records
 
 **Auto-review.** A daemon observer subscribed to the CDC broadcaster reacts to
 `pr_created` events: when the PR's session is an implementer and
-`ProjectConfig.Tickets.autoReview` is not false, it triggers the same review
-once per assignment (`review_requested_at` already set means skip).
+`ProjectConfig.Tickets.disableAutoReview` is not set, it triggers the same
+review once per assignment (`review_requested_at` already set means skip).
 
 **Merge confirmation.** `POST /tickets/{slug}/plans/{plan}/merge-ready`
 (body: `summary`) is called by the reviewer agent and records
-`merge_ready_at` and `merge_summary`. The plan then reads `awaiting_merge` and
+`merge_ready_at` and `merge_summary`; once the user has approved it is refused
+with `TICKET_MERGE_APPROVED`, so an approval is never undone by a retry. The plan then reads `awaiting_merge` and
 the ticket `awaiting_merge`; the board card shows "Waiting for your
 confirmation" with the summary and a `Merge` button. `POST
 /tickets/{slug}/plans/{plan}/merge` is the user's confirmation: it records
@@ -317,11 +318,16 @@ into <default branch> now, then report". The plan turns `merged` when the PR fac
 say so, as before. Anything the user wants to say instead of approving goes
 through the planner's terminal like any other conversation.
 
-**Statuses added.** Plan: `reviewing` (review requested, not yet merge-ready)
-and `awaiting_merge` (merge-ready, not yet approved). Ticket: `awaiting_merge`
+**Statuses added.** Plan: `reviewing` (review requested, not yet merge-ready),
+`awaiting_merge` (merge-ready, not yet approved) and `merging` (approved, the
+reviewer is merging, PR facts do not yet say merged). Ticket: `awaiting_merge`
 when any plan is awaiting merge; it outranks `in_progress`. The derivation
-order for a plan is: manual done, session merged, awaiting merge, reviewing,
-then the session-derived statuses of §1.3.
+order for a plan is: manual done, session merged, awaiting merge, merging,
+reviewing, then the session-derived statuses of §1.3.
+
+**Dry run never returns a session.** `assign?dryRun=1` answers 200 with
+`warnings` only; a real assign answers 201 with the spawned session, which
+already carries its `ticket` link.
 
 **Assignment columns added** (`plan_assignments`): `reviewer_session_id`,
 `review_requested_at`, `merge_ready_at`, `merge_summary`, `merge_approved_at`,

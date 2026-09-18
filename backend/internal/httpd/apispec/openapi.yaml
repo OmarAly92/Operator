@@ -1620,6 +1620,841 @@ paths:
       summary: Acknowledge pending orchestrator inbox events by id
       tags:
       - inbox
+  /api/v1/projects/{id}/tickets:
+    get:
+      operationId: listTickets
+      parameters:
+      - description: Project identifier (registry key).
+        in: path
+        name: id
+        required: true
+        schema:
+          description: Project identifier (registry key).
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListTicketsResponse'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: List a project's planning tickets with derived statuses
+      tags:
+      - tickets
+    post:
+      operationId: createTicket
+      parameters:
+      - description: Project identifier (registry key).
+        in: path
+        name: id
+        required: true
+        schema:
+          description: Project identifier (registry key).
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTicketRequest'
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateTicketResponse'
+          description: Created
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: Create a ticket folder with ticket.md and spec.md and commit it
+      tags:
+      - tickets
+  /api/v1/projects/{id}/tickets/{slug}:
+    get:
+      operationId: getTicket
+      parameters:
+      - description: Project identifier (registry key).
+        in: path
+        name: id
+        required: true
+        schema:
+          description: Project identifier (registry key).
+          type: string
+      - description: Ticket folder name under .operator/tickets.
+        in: path
+        name: slug
+        required: true
+        schema:
+          description: Ticket folder name under .operator/tickets.
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TicketResponse'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: Fetch one ticket with its plans and linked sessions
+      tags:
+      - tickets
+  /api/v1/projects/{id}/tickets/{slug}/archive:
+    post:
+      operationId: archiveTicket
+      parameters:
+      - description: Project identifier (registry key).
+        in: path
+        name: id
+        required: true
+        schema:
+          description: Project identifier (registry key).
+          type: string
+      - description: Ticket folder name under .operator/tickets.
+        in: path
+        name: slug
+        required: true
+        schema:
+          description: Ticket folder name under .operator/tickets.
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TicketResponse'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: Hide a ticket in the archive
+      tags:
+      - tickets
+  /api/v1/projects/{id}/tickets/{slug}/file:
+    get:
+      operationId: getTicketFile
+      parameters:
+      - description: Project identifier (registry key).
+        in: path
+        name: id
+        required: true
+        schema:
+          description: Project identifier (registry key).
+          type: string
+      - description: Ticket folder name under .operator/tickets.
+        in: path
+        name: slug
+        required: true
+        schema:
+          description: Ticket folder name under .operator/tickets.
+          type: string
+      - description: Ticket-folder-relative markdown path, e.g. spec.md or plans/01-daemon.md.
+        in: query
+        name: path
+        schema:
+          description: Ticket-folder-relative markdown path, e.g. spec.md or plans/01-daemon.md.
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TicketFileResponse'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: Read one markdown file inside the ticket folder
+      tags:
+      - tickets
+    put:
+      operationId: saveTicketFile
+      parameters:
+      - description: Project identifier (registry key).
+        in: path
+        name: id
+        required: true
+        schema:
+          description: Project identifier (registry key).
+          type: string
+      - description: Ticket folder name under .operator/tickets.
+        in: path
+        name: slug
+        required: true
+        schema:
+          description: Ticket folder name under .operator/tickets.
+          type: string
+      - description: Ticket-folder-relative markdown path, e.g. spec.md or plans/01-daemon.md.
+        in: query
+        name: path
+        schema:
+          description: Ticket-folder-relative markdown path, e.g. spec.md or plans/01-daemon.md.
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SaveTicketFileRequest'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TicketFileResponse'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Conflict
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: Write one markdown file inside the ticket folder, optionally guarded
+        by ifUnmodifiedSince
+      tags:
+      - tickets
+  /api/v1/projects/{id}/tickets/{slug}/plan:
+    post:
+      operationId: planTicket
+      parameters:
+      - description: Project identifier (registry key).
+        in: path
+        name: id
+        required: true
+        schema:
+          description: Project identifier (registry key).
+          type: string
+      - description: Ticket folder name under .operator/tickets.
+        in: path
+        name: slug
+        required: true
+        schema:
+          description: Ticket folder name under .operator/tickets.
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PlanTicketRequest'
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ControllersSessionView'
+          description: Created
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Conflict
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: Spawn the ticket's planning session in place at the project root
+      tags:
+      - tickets
+  /api/v1/projects/{id}/tickets/{slug}/plans/{plan}/assign:
+    post:
+      operationId: assignPlan
+      parameters:
+      - description: Project identifier (registry key).
+        in: path
+        name: id
+        required: true
+        schema:
+          description: Project identifier (registry key).
+          type: string
+      - description: Ticket folder name under .operator/tickets.
+        in: path
+        name: slug
+        required: true
+        schema:
+          description: Ticket folder name under .operator/tickets.
+          type: string
+      - description: Plan file name inside the ticket's plans/ folder, e.g. 01-daemon.md.
+        in: path
+        name: plan
+        required: true
+        schema:
+          description: Plan file name inside the ticket's plans/ folder, e.g. 01-daemon.md.
+          type: string
+      - description: Compute warnings without spawning.
+        in: query
+        name: dryRun
+        schema:
+          description: Compute warnings without spawning.
+          type: boolean
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AssignPlanRequest'
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AssignPlanResponse'
+          description: OK
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AssignPlanResponse'
+          description: Created
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Conflict
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: Spawn an implementing session for one plan in a worktree; dryRun=1
+        only computes warnings
+      tags:
+      - tickets
+  /api/v1/projects/{id}/tickets/{slug}/plans/{plan}/done:
+    post:
+      operationId: markPlanDone
+      parameters:
+      - description: Project identifier (registry key).
+        in: path
+        name: id
+        required: true
+        schema:
+          description: Project identifier (registry key).
+          type: string
+      - description: Ticket folder name under .operator/tickets.
+        in: path
+        name: slug
+        required: true
+        schema:
+          description: Ticket folder name under .operator/tickets.
+          type: string
+      - description: Plan file name inside the ticket's plans/ folder, e.g. 01-daemon.md.
+        in: path
+        name: plan
+        required: true
+        schema:
+          description: Plan file name inside the ticket's plans/ folder, e.g. 01-daemon.md.
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TicketResponse'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: Record a plan as done by hand
+      tags:
+      - tickets
+  /api/v1/projects/{id}/tickets/{slug}/plans/{plan}/merge:
+    post:
+      operationId: approvePlanMerge
+      parameters:
+      - description: Project identifier (registry key).
+        in: path
+        name: id
+        required: true
+        schema:
+          description: Project identifier (registry key).
+          type: string
+      - description: Ticket folder name under .operator/tickets.
+        in: path
+        name: slug
+        required: true
+        schema:
+          description: Ticket folder name under .operator/tickets.
+          type: string
+      - description: Plan file name inside the ticket's plans/ folder, e.g. 01-daemon.md.
+        in: path
+        name: plan
+        required: true
+        schema:
+          description: Plan file name inside the ticket's plans/ folder, e.g. 01-daemon.md.
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TicketResponse'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Conflict
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: 'User confirmation: tell the reviewer to merge the branch now'
+      tags:
+      - tickets
+  /api/v1/projects/{id}/tickets/{slug}/plans/{plan}/merge-ready:
+    post:
+      operationId: reportPlanMergeReady
+      parameters:
+      - description: Project identifier (registry key).
+        in: path
+        name: id
+        required: true
+        schema:
+          description: Project identifier (registry key).
+          type: string
+      - description: Ticket folder name under .operator/tickets.
+        in: path
+        name: slug
+        required: true
+        schema:
+          description: Ticket folder name under .operator/tickets.
+          type: string
+      - description: Plan file name inside the ticket's plans/ folder, e.g. 01-daemon.md.
+        in: path
+        name: plan
+        required: true
+        schema:
+          description: Plan file name inside the ticket's plans/ folder, e.g. 01-daemon.md.
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MergeReadyRequest'
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TicketResponse'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Conflict
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: 'Called by the reviewer: the branch is ready and waits for the user''s
+        merge confirmation'
+      tags:
+      - tickets
+  /api/v1/projects/{id}/tickets/{slug}/plans/{plan}/review:
+    post:
+      operationId: reviewPlan
+      parameters:
+      - description: Project identifier (registry key).
+        in: path
+        name: id
+        required: true
+        schema:
+          description: Project identifier (registry key).
+          type: string
+      - description: Ticket folder name under .operator/tickets.
+        in: path
+        name: slug
+        required: true
+        schema:
+          description: Ticket folder name under .operator/tickets.
+          type: string
+      - description: Plan file name inside the ticket's plans/ folder, e.g. 01-daemon.md.
+        in: path
+        name: plan
+        required: true
+        schema:
+          description: Plan file name inside the ticket's plans/ folder, e.g. 01-daemon.md.
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReviewPlanRequest'
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReviewPlanResponse'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Conflict
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: Ask the planner session, or a fresh session, to review the plan's implementation
+      tags:
+      - tickets
+  /api/v1/projects/{id}/tickets/{slug}/unarchive:
+    post:
+      operationId: unarchiveTicket
+      parameters:
+      - description: Project identifier (registry key).
+        in: path
+        name: id
+        required: true
+        schema:
+          description: Project identifier (registry key).
+          type: string
+      - description: Ticket folder name under .operator/tickets.
+        in: path
+        name: slug
+        required: true
+        schema:
+          description: Ticket folder name under .operator/tickets.
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TicketResponse'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: Bring an archived ticket back
+      tags:
+      - tickets
+  /api/v1/projects/{id}/tickets/events:
+    get:
+      operationId: streamTicketChanges
+      parameters:
+      - description: Project identifier (registry key).
+        in: path
+        name: id
+        required: true
+        schema:
+          description: Project identifier (registry key).
+          type: string
+      responses:
+        "200":
+          content:
+            text/event-stream:
+              schema:
+                type: string
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: 'Server-sent events: tickets_changed whenever the tickets folder changes'
+      tags:
+      - tickets
   /api/v1/projects/initialize:
     post:
       operationId: initializeProjectRepository
@@ -4860,6 +5695,33 @@ components:
       required:
       - switch
       type: object
+    AssignPlanRequest:
+      properties:
+        claudeAccountId:
+          maxLength: 64
+          type: string
+        extra:
+          maxLength: 65536
+          type: string
+        force:
+          type: boolean
+        harness:
+          type: string
+        model:
+          maxLength: 128
+          type: string
+      type: object
+    AssignPlanResponse:
+      properties:
+        session:
+          $ref: '#/components/schemas/ControllersSessionView'
+        warnings:
+          items:
+            type: string
+          type: array
+      required:
+      - warnings
+      type: object
     AttachmentInput:
       properties:
         data:
@@ -5402,6 +6264,8 @@ components:
           type: string
         terminateOnPrMerge:
           type: boolean
+        ticket:
+          $ref: '#/components/schemas/SessionTicketRef'
         updatedAt:
           format: date-time
           type: string
@@ -5450,6 +6314,29 @@ components:
           type: string
       required:
       - label
+      type: object
+    CreateTicketRequest:
+      properties:
+        brief:
+          maxLength: 4000
+          type: string
+        title:
+          maxLength: 200
+          type: string
+      required:
+      - title
+      type: object
+    CreateTicketResponse:
+      properties:
+        ticket:
+          $ref: '#/components/schemas/TicketView'
+        warnings:
+          items:
+            type: string
+          type: array
+      required:
+      - ticket
+      - warnings
       type: object
     DegradedProject:
       properties:
@@ -5967,6 +6854,15 @@ components:
       required:
       - shellTerminals
       type: object
+    ListTicketsResponse:
+      properties:
+        tickets:
+          items:
+            $ref: '#/components/schemas/TicketView'
+          type: array
+      required:
+      - tickets
+      type: object
     ListWorkspaceFilesResponse:
       properties:
         compareBaseRef:
@@ -6051,6 +6947,12 @@ components:
       - ok
       - prNumber
       - method
+      type: object
+    MergeReadyRequest:
+      properties:
+        summary:
+          maxLength: 1000
+          type: string
       type: object
     MobileAuthtokenRequest:
       properties:
@@ -6263,6 +7165,60 @@ components:
       - targetSha
       - status
       type: object
+    PlanTicketRequest:
+      properties:
+        claudeAccountId:
+          maxLength: 64
+          type: string
+        extra:
+          maxLength: 65536
+          type: string
+        harness:
+          type: string
+        model:
+          maxLength: 128
+          type: string
+      type: object
+    PlanView:
+      properties:
+        file:
+          type: string
+        kickoffFile:
+          type: string
+        mergeSummary:
+          type: string
+        order:
+          type: integer
+        reviewerSessionId:
+          type: string
+        sessionId:
+          type: string
+        status:
+          enum:
+          - todo
+          - idle
+          - working
+          - needs_you
+          - in_review
+          - reviewing
+          - awaiting_merge
+          - merging
+          - merged
+          - done
+          - terminated
+          type: string
+        title:
+          type: string
+        unordered:
+          type: boolean
+        warning:
+          type: string
+      required:
+      - file
+      - order
+      - title
+      - status
+      type: object
     PreviewServerStatusResponse:
       properties:
         configuration:
@@ -6383,6 +7339,8 @@ components:
           items:
             type: string
           type: array
+        tickets:
+          $ref: '#/components/schemas/TicketDefaults'
         trackerIntake:
           $ref: '#/components/schemas/TrackerIntakeConfig'
         worker:
@@ -6591,6 +7549,35 @@ components:
       - resumeMode
       - session
       type: object
+    ReviewPlanRequest:
+      properties:
+        claudeAccountId:
+          maxLength: 64
+          type: string
+        extra:
+          maxLength: 65536
+          type: string
+        harness:
+          type: string
+        model:
+          maxLength: 128
+          type: string
+        reviewer:
+          enum:
+          - planner
+          - new
+          type: string
+      type: object
+    ReviewPlanResponse:
+      properties:
+        session:
+          $ref: '#/components/schemas/ControllersSessionView'
+        spawned:
+          type: boolean
+      required:
+      - session
+      - spawned
+      type: object
     ReviewRun:
       properties:
         autoInjectReview:
@@ -6675,6 +7662,19 @@ components:
       required:
       - ok
       - sessionId
+      type: object
+    SaveTicketFileRequest:
+      properties:
+        content:
+          maxLength: 1.048576e+06
+          type: string
+        ifUnmodifiedSince:
+          format: date-time
+          type:
+          - "null"
+          - string
+      required:
+      - content
       type: object
     SendSessionMessageRequest:
       properties:
@@ -7048,6 +8048,22 @@ components:
           $ref: '#/components/schemas/ControllersSessionView'
       required:
       - session
+      type: object
+    SessionTicketRef:
+      properties:
+        planFile:
+          type: string
+        role:
+          enum:
+          - planning
+          - implementing
+          - reviewing
+          type: string
+        slug:
+          type: string
+      required:
+      - slug
+      - role
       type: object
     SessionUsageResponse:
       properties:
@@ -7607,6 +8623,102 @@ components:
       - startOffset
       - endOffset
       type: object
+    TicketDefaults:
+      properties:
+        disableAutoReview:
+          type: boolean
+        implementer:
+          $ref: '#/components/schemas/TicketRoleDefaults'
+        planner:
+          $ref: '#/components/schemas/TicketRoleDefaults'
+        reviewer:
+          $ref: '#/components/schemas/TicketRoleDefaults'
+        reviewerMode:
+          enum:
+          - planner
+          - new
+          type: string
+      type: object
+    TicketFileResponse:
+      properties:
+        content:
+          type: string
+        modifiedAt:
+          format: date-time
+          type: string
+        path:
+          type: string
+      required:
+      - path
+      - content
+      - modifiedAt
+      type: object
+    TicketResponse:
+      properties:
+        ticket:
+          $ref: '#/components/schemas/TicketView'
+      required:
+      - ticket
+      type: object
+    TicketRoleDefaults:
+      properties:
+        agent:
+          type: string
+        claudeAccountId:
+          type: string
+        model:
+          type: string
+      type: object
+    TicketView:
+      properties:
+        archivedAt:
+          format: date-time
+          type:
+          - "null"
+          - string
+        brief:
+          type: string
+        createdAt:
+          format: date-time
+          type:
+          - "null"
+          - string
+        files:
+          items:
+            type: string
+          type: array
+        planningSessionId:
+          type: string
+        plans:
+          items:
+            $ref: '#/components/schemas/PlanView'
+          type: array
+        projectId:
+          type: string
+        slug:
+          type: string
+        status:
+          enum:
+          - draft
+          - planning
+          - ready
+          - in_progress
+          - awaiting_merge
+          - done
+          - archived
+          type: string
+        title:
+          type: string
+        warning:
+          type: string
+      required:
+      - projectId
+      - slug
+      - title
+      - status
+      - plans
+      - files
+      type: object
     TrackerIntakeConfig:
       properties:
         assignee:
@@ -8013,6 +9125,9 @@ tags:
   name: browser
 - description: Per-project orchestrator inbox of pending worker/CI/review events
   name: inbox
+- description: 'Planning tickets: spec and plan documents in the repo, assigned to
+    sessions'
+  name: tickets
 - description: 'Claude account folders: creation, login, relink, and status'
   name: claudeAccounts
 - description: Desktop machine identification for a paired phone
