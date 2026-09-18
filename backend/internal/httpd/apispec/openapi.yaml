@@ -5402,6 +5402,8 @@ components:
           type: string
         terminateOnPrMerge:
           type: boolean
+        ticket:
+          $ref: '#/components/schemas/SessionTicketRef'
         updatedAt:
           format: date-time
           type: string
@@ -7075,6 +7077,22 @@ components:
           $ref: '#/components/schemas/ControllersSessionView'
       required:
       - session
+      type: object
+    SessionTicketRef:
+      properties:
+        planFile:
+          type: string
+        role:
+          enum:
+          - planning
+          - implementing
+          - reviewing
+          type: string
+        slug:
+          type: string
+      required:
+      - slug
+      - role
       type: object
     SessionUsageResponse:
       properties:

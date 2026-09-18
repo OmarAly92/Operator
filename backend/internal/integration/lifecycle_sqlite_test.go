@@ -374,3 +374,30 @@ func TestCDCPollerReceivesSessionAndPREvents(t *testing.T) {
 		t.Fatalf("want CDC events, got %d", len(got))
 	}
 }
+
+func TestGetCarriesTicketRef(t *testing.T) {
+	ctx := context.Background()
+	st := newStack(t)
+	sess, _, _, err := st.sm.Spawn(ctx, ports.SpawnConfig{ProjectID: "mer", Kind: domain.KindWorker, Branch: "b", Prompt: "do it"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := st.sm.Get(ctx, sess.ID)
+	if err != nil || got.Ticket != nil {
+		t.Fatalf("unlinked session ticket = %+v err=%v", got.Ticket, err)
+	}
+	if err := st.store.InsertTicket(ctx, domain.TicketRecord{ProjectID: "mer", Slug: "editor", CreatedAt: time.Now()}); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.store.InsertPlanAssignment(ctx, domain.PlanAssignmentRecord{ProjectID: "mer", Slug: "editor", PlanFile: "plans/01-core.md", SessionID: sess.ID, AssignedAt: time.Now()}); err != nil {
+		t.Fatal(err)
+	}
+	got, err = st.sm.Get(ctx, sess.ID)
+	if err != nil || got.Ticket == nil || got.Ticket.Slug != "editor" || got.Ticket.PlanFile != "plans/01-core.md" || got.Ticket.Role != domain.TicketRoleImplementing {
+		t.Fatalf("ticket = %+v err=%v", got.Ticket, err)
+	}
+	list, err := st.sm.List(ctx, sessionsvc.ListFilter{ProjectID: "mer"})
+	if err != nil || len(list) != 1 || list[0].Ticket == nil {
+		t.Fatalf("list = %+v err=%v", list, err)
+	}
+}

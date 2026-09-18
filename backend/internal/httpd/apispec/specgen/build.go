@@ -157,6 +157,8 @@ var schemaNames = map[string]string{
 	"DomainSessionID":                 "SessionID",
 	"DomainIssueID":                   "IssueID",
 	"DomainSession":                   "Session",
+	"DomainSessionTicketRef":          "SessionTicketRef",
+	"DomainTicketRole":                "TicketRole",
 	"DomainProjectConfig":             "ProjectConfig",
 	"DomainTrackerIntakeConfig":       "TrackerIntakeConfig",
 	"ControllersTriggerReviewRequest": "TriggerReviewRequest",

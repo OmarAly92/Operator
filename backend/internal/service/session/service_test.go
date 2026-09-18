@@ -243,6 +243,10 @@ func (f *fakeStore) ListPRFactsForSession(_ context.Context, id domain.SessionID
 	return []domain.PRFacts{pr}, nil
 }
 
+func (f *fakeStore) SessionTicketRef(context.Context, domain.SessionID) (domain.SessionTicketRef, bool, error) {
+	return domain.SessionTicketRef{}, false, nil
+}
+
 func (f *fakeStore) ListChecks(_ context.Context, prURL string) ([]domain.PullRequestCheck, error) {
 	return append([]domain.PullRequestCheck(nil), f.checks[prURL]...), nil
 }

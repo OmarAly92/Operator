@@ -1924,6 +1924,7 @@ export interface components {
             status: "working" | "pr_open" | "draft" | "ci_failed" | "review_pending" | "changes_requested" | "approved" | "mergeable" | "merged" | "needs_input" | "exited" | "idle" | "terminated" | "no_signal";
             terminalHandleId?: string;
             terminateOnPrMerge: boolean;
+            ticket?: components["schemas"]["SessionTicketRef"];
             /** Format: date-time */
             updatedAt: string;
             /** @enum {string} */
@@ -2561,6 +2562,12 @@ export interface components {
         };
         SessionResponse: {
             session: components["schemas"]["ControllersSessionView"];
+        };
+        SessionTicketRef: {
+            planFile?: string;
+            /** @enum {string} */
+            role: "planning" | "implementing" | "reviewing";
+            slug: string;
         };
         SessionUsageResponse: {
             context?: components["schemas"]["SessionContextResponse"];
