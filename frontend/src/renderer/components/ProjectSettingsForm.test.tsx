@@ -1364,4 +1364,61 @@ describe("ProjectSettingsForm", () => {
 		expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["project", "proj-1"] });
 		expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: workspaceQueryKey });
 	});
+
+	it("loads and saves the ticket role defaults without touching other config", async () => {
+		mockProject({
+			id: "proj-1",
+			name: "Project One",
+			kind: "single_repo",
+			path: "/repo/project-one",
+			repo: "git@github.com:acme/project-one.git",
+			defaultBranch: "main",
+			config: {
+				defaultBranch: "develop",
+				worker: { agent: "claude-code" },
+				orchestrator: { agent: "claude-code" },
+				tickets: { planner: { agent: "claude-code", model: "claude-opus-5" } },
+			},
+		});
+
+		renderSettings("proj-1", undefined, "tickets");
+
+		expect(await screen.findByLabelText("Planner model")).toHaveValue("claude-opus-5");
+		await chooseOption(screen.getByRole("button", { name: "Implementer agent" }), "Codex");
+		await userEvent.type(screen.getByLabelText("Implementer model"), "gpt-5.4");
+		await userEvent.click(screen.getByRole("radio", { name: "New session" }));
+		await userEvent.click(screen.getByRole("switch", { name: "Skip automatic review" }));
+
+		submitSettings();
+
+		await waitFor(() => expect(putMock).toHaveBeenCalledTimes(1));
+		expect(putMock).toHaveBeenCalledWith("/api/v1/projects/{id}", {
+			params: { path: { id: "proj-1" } },
+			body: {
+				displayName: "Project One",
+				config: expect.objectContaining({
+					defaultBranch: "develop",
+					tickets: {
+						planner: { agent: "claude-code", model: "claude-opus-5" },
+						implementer: { agent: "codex", model: "gpt-5.4" },
+						reviewerMode: "new",
+						disableAutoReview: true,
+					},
+				}),
+			},
+		});
+	}, 20_000);
+
+	it("tells scratch projects that tickets are unavailable", async () => {
+		mockProject({
+			id: "proj-2",
+			name: "Scratch",
+			kind: "scratch",
+			path: "/tmp/scratch",
+			config: { worker: { agent: "claude-code" }, orchestrator: { agent: "claude-code" } },
+		});
+		renderSettings("proj-2", undefined, "tickets");
+		expect(await screen.findByText("Tickets are not available for scratch projects.")).toBeInTheDocument();
+		expect(screen.queryByRole("button", { name: "Planner agent" })).not.toBeInTheDocument();
+	});
 });

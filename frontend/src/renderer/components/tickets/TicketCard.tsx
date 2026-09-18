@@ -11,6 +11,7 @@ import { MergeConfirmDialog } from "./MergeConfirmDialog";
 import { PlanRow } from "./PlanRow";
 import { PlanWithAgentSheet } from "./PlanWithAgentSheet";
 import { ReviewPlanSheet } from "./ReviewPlanSheet";
+import { useTicketDrag } from "./TicketDndProvider";
 
 const liveSessionStatuses = new Set<WorkspaceSession["status"]>(["working", "idle", "needs_input", "no_signal"]);
 
@@ -26,6 +27,7 @@ export function TicketCard({
 }) {
 	const { t } = useTranslation();
 	const navigate = useNavigate();
+	const { requestAssign } = useTicketDrag();
 	const [planOpen, setPlanOpen] = useState(false);
 	const [reviewPlan, setReviewPlan] = useState<PlanView | null>(null);
 	const [mergePlan, setMergePlan] = useState<PlanView | null>(null);
@@ -101,9 +103,12 @@ export function TicketCard({
 						{plans.map((plan) => (
 							<div key={plan.file} role="listitem">
 								<PlanRow
+									ticket={ticket}
 									plan={plan}
+									draggable
 									session={plan.sessionId ? sessionsById.get(plan.sessionId) : undefined}
 									onOpenSession={openSession}
+									onAssign={(target) => requestAssign(ticket, target)}
 									onReview={(target) => setReviewPlan(target)}
 								/>
 							</div>

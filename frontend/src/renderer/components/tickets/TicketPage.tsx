@@ -1,29 +1,30 @@
-import { useNavigate } from "@tanstack/react-router";
-import { AlertTriangle, Archive, ArchiveRestore, FileText } from "lucide-react";
+import { useBlocker, useNavigate } from "@tanstack/react-router";
+import { AlertTriangle, Archive, ArchiveRestore, ChevronLeft, FileText } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ticketErrorMessage, useTicketMutations } from "../../hooks/useTicketMutations";
 import { useTicketFileQuery, useTicketQuery } from "../../hooks/useTicketsQuery";
 import { useWorkspaceQuery } from "../../hooks/useWorkspaceQuery";
-import { formatTimeCompact } from "../../lib/format-time";
 import { getAgentActivityView } from "../../lib/session-presentation";
 import {
 	getTicketStatusView,
 	isTicketInArchive,
-	splitFrontmatter,
 	ticketFileGroups,
 	type PlanView,
 	type TicketView,
+	type TicketWithProject,
 } from "../../lib/ticket-presentation";
 import { cn } from "../../lib/utils";
 import type { WorkspaceSession } from "../../types/workspace";
-import { MarkdownBody } from "../MarkdownBody";
+import { ConfirmDialog } from "../ConfirmDialog";
 import { StatusPill } from "../StatusPill";
 import { TopbarButton } from "../TopbarButton";
 import { MergeConfirmDialog } from "./MergeConfirmDialog";
 import { PlanRow } from "./PlanRow";
 import { PlanWithAgentSheet } from "./PlanWithAgentSheet";
 import { ReviewPlanSheet } from "./ReviewPlanSheet";
+import { useTicketDrag } from "./TicketDndProvider";
+import { TicketEditor } from "./TicketEditor";
 
 const liveSessionStatuses = new Set<WorkspaceSession["status"]>(["working", "idle", "needs_input", "no_signal"]);
 
@@ -45,11 +46,21 @@ export function TicketPage({ projectId, slug, file }: { projectId: string; slug:
 		if (workspace.id !== projectId) continue;
 		for (const session of workspace.sessions) sessionsById.set(session.id, session);
 	}
+	const projectName = workspaces.find((workspace) => workspace.id === projectId)?.name ?? "";
+	const { requestAssign } = useTicketDrag();
 	const { markPlanDone, setArchived } = useTicketMutations();
 	const [planOpen, setPlanOpen] = useState(false);
 	const [reviewPlan, setReviewPlan] = useState<PlanView | null>(null);
 	const [mergePlan, setMergePlan] = useState<PlanView | null>(null);
 	const [actionError, setActionError] = useState<string | null>(null);
+	const [dirty, setDirty] = useState(false);
+	const blocker = useBlocker({
+		shouldBlockFn: () => dirty,
+		withResolver: true,
+		disabled: !dirty,
+		enableBeforeUnload: false,
+	});
+	const openBoard = () => void navigate({ to: "/projects/$projectId", params: { projectId } });
 
 	const openFile = (next: string) =>
 		void navigate({
@@ -70,6 +81,7 @@ export function TicketPage({ projectId, slug, file }: { projectId: string; slug:
 	}
 	if (!ticket) return null;
 
+	const ticketWithProject: TicketWithProject = { ...ticket, projectName };
 	const status = getTicketStatusView(ticket, t);
 	const groups = ticketFileGroups(ticket);
 	const planningSession = ticket.planningSessionId ? sessionsById.get(ticket.planningSessionId) : undefined;
@@ -92,8 +104,6 @@ export function TicketPage({ projectId, slug, file }: { projectId: string; slug:
 			"flex w-full min-w-0 items-center gap-2 rounded-md px-2 py-1 text-left text-2xs text-foreground transition-colors hover:bg-interactive-hover",
 			active && "bg-interactive-hover font-medium",
 		);
-	const fileContent = fileQuery.data;
-	const parsed = fileContent ? splitFrontmatter(fileContent.content) : undefined;
 	const selectedPlan = ticket.plans.find((plan) => plan.file === selectedFile);
 	const fileWarning = selectedFile === "ticket.md" ? ticket.warning : selectedPlan?.warning;
 
@@ -134,11 +144,14 @@ export function TicketPage({ projectId, slug, file }: { projectId: string; slug:
 						{groups.plans.map(({ plan, kickoff }) => (
 							<div key={plan.file} role="listitem">
 								<PlanRow
+									ticket={ticketWithProject}
 									plan={plan}
+									draggable
 									session={plan.sessionId ? sessionsById.get(plan.sessionId) : undefined}
 									selectedFile={selectedFile}
 									onOpenFile={openFile}
 									onOpenSession={openSession}
+									onAssign={(target) => requestAssign(ticketWithProject, target)}
 									onReview={(target) => setReviewPlan(target)}
 									onMerge={(target) => setMergePlan(target)}
 									onMarkDone={(target) =>
@@ -214,44 +227,33 @@ export function TicketPage({ projectId, slug, file }: { projectId: string; slug:
 					</div>
 				</div>
 			</aside>
-			<section className="flex min-w-0 flex-1 flex-col">
-				<div className="flex h-toolbar shrink-0 items-center gap-2 border-b border-border-strong px-4">
-					<span className="min-w-0 truncate font-mono text-2xs text-foreground">{selectedFile ?? ""}</span>
-					<span className="min-w-0 flex-1" />
-					{fileContent ? (
-						<span className="font-mono text-micro text-passive">
-							{t("tickets.fileModified", { time: formatTimeCompact(fileContent.modifiedAt) })}
-						</span>
-					) : null}
-				</div>
-				<div className="board-scrollbar min-h-0 flex-1 overflow-y-auto px-6 py-5">
-					{fileWarning ? (
-						<p className="mb-4 flex items-start gap-1.5 rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-2xs text-warning" role="status">
-							<AlertTriangle aria-hidden="true" className="mt-px size-icon-2xs shrink-0" />
-							<span>{fileWarning}</span>
-						</p>
-					) : null}
-					{fileQuery.isError ? (
-						<p className="text-2xs text-error" role="alert">
-							{ticketErrorMessage(fileQuery.error, t, "tickets.fileLoadFailed")}
-						</p>
-					) : null}
-					{parsed && parsed.fields.length > 0 ? (
-						<dl
-							aria-label={t("tickets.frontmatter")}
-							className="mb-4 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 rounded-md border border-border bg-surface px-3 py-2 font-mono text-micro"
+			{selectedFile ? (
+				<TicketEditor
+					key={selectedFile}
+					projectId={projectId}
+					slug={slug}
+					path={selectedFile}
+					file={fileQuery.data}
+					isError={fileQuery.isError}
+					error={fileQuery.error}
+					warning={fileWarning}
+					reload={() => fileQuery.refetch()}
+					onDirtyChange={setDirty}
+					leading={
+						<button
+							type="button"
+							aria-label={t("tickets.backToBoard", { name: projectName || t("shell.board") })}
+							className="inline-flex h-control-md shrink-0 items-center gap-1 rounded-sm pr-2 pl-1 text-2xs text-muted-foreground transition-colors hover:bg-interactive-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+							onClick={openBoard}
 						>
-							{parsed.fields.map(([key, value]) => (
-								<div key={key} className="contents">
-									<dt className="text-passive">{key}</dt>
-									<dd className="min-w-0 truncate text-foreground">{value}</dd>
-								</div>
-							))}
-						</dl>
-					) : null}
-					{parsed ? <MarkdownBody body={parsed.body} className="max-w-3xl text-sm text-foreground" testId="ticket-file-preview" /> : null}
-				</div>
-			</section>
+							<ChevronLeft aria-hidden="true" className="size-icon-sm" />
+							<span className="max-w-40 truncate">{projectName || t("shell.board")}</span>
+						</button>
+					}
+				/>
+			) : (
+				<section className="flex min-w-0 flex-1 flex-col" />
+			)}
 			<PlanWithAgentSheet open={planOpen} onOpenChange={setPlanOpen} ticket={ticket} />
 			{reviewPlan ? (
 				<ReviewPlanSheet open onOpenChange={(open) => !open && setReviewPlan(null)} ticket={ticket} plan={reviewPlan} />
@@ -259,6 +261,17 @@ export function TicketPage({ projectId, slug, file }: { projectId: string; slug:
 			{mergePlan ? (
 				<MergeConfirmDialog open onOpenChange={(open) => !open && setMergePlan(null)} ticket={ticket} plan={mergePlan} />
 			) : null}
+			<ConfirmDialog
+				open={blocker.status === "blocked"}
+				title={t("tickets.editor.discardTitle")}
+				description={t("tickets.editor.discardBody", { file: selectedFile ?? "" })}
+				confirmLabel={t("tickets.editor.discard")}
+				destructive
+				onConfirm={() => blocker.proceed?.()}
+				onOpenChange={(open) => {
+					if (!open) blocker.reset?.();
+				}}
+			/>
 		</div>
 	);
 }

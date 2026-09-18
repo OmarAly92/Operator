@@ -4,15 +4,20 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { TooltipProvider } from "../ui/tooltip";
 
-const { navigateMock, ticketQueryMock, ticketFileQueryMock, workspaceQueryMock, mutationsMock } = vi.hoisted(() => ({
+const { navigateMock, ticketQueryMock, ticketFileQueryMock, workspaceQueryMock, mutationsMock, requestAssignMock, blockerMock } = vi.hoisted(() => ({
 	navigateMock: vi.fn(),
 	ticketQueryMock: vi.fn(),
 	ticketFileQueryMock: vi.fn(),
 	workspaceQueryMock: vi.fn(),
 	mutationsMock: vi.fn(),
+	requestAssignMock: vi.fn(),
+	blockerMock: vi.fn(),
 }));
 
-vi.mock("@tanstack/react-router", () => ({ useNavigate: () => navigateMock }));
+vi.mock("@tanstack/react-router", () => ({
+	useNavigate: () => navigateMock,
+	useBlocker: (options: unknown) => blockerMock(options),
+}));
 vi.mock("../../hooks/useTicketsQuery", () => ({
 	useTicketQuery: ticketQueryMock,
 	useTicketFileQuery: ticketFileQueryMock,
@@ -28,6 +33,16 @@ vi.mock("../../hooks/useTicketMutations", async (importOriginal) => {
 vi.mock("./PlanWithAgentSheet", () => ({ PlanWithAgentSheet: () => null }));
 vi.mock("./ReviewPlanSheet", () => ({ ReviewPlanSheet: () => null }));
 vi.mock("./MergeConfirmDialog", () => ({ MergeConfirmDialog: () => null }));
+vi.mock("./TicketDndProvider", () => ({
+	useTicketDrag: () => ({ active: null, requestAssign: requestAssignMock }),
+	usePlanDraggable: () => ({
+		attributes: {},
+		listeners: {},
+		setNodeRef: () => undefined,
+		setActivatorNodeRef: () => undefined,
+		isDragging: false,
+	}),
+}));
 
 import { TicketPage } from "./TicketPage";
 
@@ -89,6 +104,8 @@ beforeEach(() => {
 		markPlanDone: { mutateAsync: vi.fn(), isPending: false },
 		setArchived: { mutateAsync: vi.fn(), isPending: false },
 	});
+	requestAssignMock.mockReset();
+	blockerMock.mockReset().mockReturnValue({ status: "idle" });
 });
 
 describe("TicketPage", () => {
@@ -146,5 +163,42 @@ describe("TicketPage", () => {
 		const banners = screen.getAllByRole("status");
 		expect(banners).toHaveLength(2);
 		for (const banner of banners) expect(banner).toHaveTextContent("ticket.md: malformed frontmatter");
+	});
+
+	it("offers Assign on a todo plan from the file list", async () => {
+		ticketQueryMock.mockReturnValue({
+			data: { ...ticket, plans: [...ticket.plans, { file: "plans/03-docs.md", order: 3, title: "Docs", status: "todo" as const }] },
+			isError: false,
+			isSuccess: true,
+		});
+		renderPage();
+		await userEvent.click(screen.getByRole("button", { name: "Assign" }));
+		expect(requestAssignMock).toHaveBeenCalledWith(
+			expect.objectContaining({ slug: "search-page", projectName: "app" }),
+			expect.objectContaining({ file: "plans/03-docs.md" }),
+		);
+	});
+
+	it("renders a back crumb to the project board", async () => {
+		renderPage("spec.md");
+		await userEvent.click(screen.getByRole("button", { name: "Back to app" }));
+		expect(navigateMock).toHaveBeenCalledWith({ to: "/projects/$projectId", params: { projectId: "p1" } });
+	});
+
+	it("asks before leaving with unsaved edits and proceeds on Discard", async () => {
+		const proceed = vi.fn();
+		const reset = vi.fn();
+		blockerMock.mockReturnValue({ status: "blocked", proceed, reset });
+		renderPage("spec.md");
+
+		expect(screen.getByRole("dialog")).toHaveTextContent("Discard unsaved changes?");
+		expect(screen.getByRole("dialog")).toHaveTextContent("spec.md has edits that were not saved.");
+		await userEvent.click(screen.getByRole("button", { name: "Discard" }));
+		expect(proceed).toHaveBeenCalled();
+	});
+
+	it("registers the blocker disabled while the editor is clean", () => {
+		renderPage("spec.md");
+		expect(blockerMock).toHaveBeenCalledWith(expect.objectContaining({ withResolver: true, disabled: true }));
 	});
 });

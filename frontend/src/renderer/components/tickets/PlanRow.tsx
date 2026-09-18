@@ -1,15 +1,20 @@
-import { AlertTriangle } from "lucide-react";
-import type { KeyboardEvent, MouseEvent } from "react";
+import { AlertTriangle, GripVertical } from "lucide-react";
+import type { KeyboardEvent, MouseEvent, PointerEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { getAgentActivityView } from "../../lib/session-presentation";
-import { getPlanStatusView, planNumber, type PlanView } from "../../lib/ticket-presentation";
+import { assignActionKey, canAssignPlan } from "../../lib/ticket-assign";
+import { getPlanStatusView, planNumber, type PlanView, type TicketWithProject } from "../../lib/ticket-presentation";
 import { cn } from "../../lib/utils";
 import type { WorkspaceSession } from "../../types/workspace";
+import { usePlanDraggable } from "./TicketDndProvider";
 
 export type PlanRowProps = {
+	ticket: TicketWithProject;
 	plan: PlanView;
 	session?: WorkspaceSession;
+	draggable?: boolean;
 	onOpenSession: (sessionId: string) => void;
+	onAssign?: (plan: PlanView) => void;
 	onReview?: (plan: PlanView) => void;
 	onMerge?: (plan: PlanView) => void;
 	onMarkDone?: (plan: PlanView) => void;
@@ -28,9 +33,12 @@ const rowActionClass =
 	"inline-flex h-control-md shrink-0 items-center rounded-sm px-1.5 font-mono text-micro font-medium uppercase tracking-wide-sm transition-colors hover:bg-interactive-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 disabled:opacity-50";
 
 export function PlanRow({
+	ticket,
 	plan,
 	session,
+	draggable = false,
 	onOpenSession,
+	onAssign,
 	onReview,
 	onMerge,
 	onMarkDone,
@@ -52,17 +60,46 @@ export function PlanRow({
 	const showReview = onReview && canReviewPlan(plan);
 	const showDone = onMarkDone && !closedStatuses.has(plan.status);
 	const selected = selectedFile === plan.file;
+	const assignable = canAssignPlan(plan);
+	const drag = usePlanDraggable({ ticket, plan }, draggable && assignable);
+	const showAssign = onAssign && assignable;
+	const showHandle = draggable && assignable;
+	const dragListeners = drag.listeners ?? {};
+	const handlePointerDown = (event: PointerEvent<HTMLButtonElement>) => {
+		event.stopPropagation();
+		dragListeners.onPointerDown?.(event);
+	};
+	const handleKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
+		event.stopPropagation();
+		dragListeners.onKeyDown?.(event);
+	};
 
 	return (
 		<div
+			ref={drag.setNodeRef}
 			className={cn(
 				"flex flex-col gap-1 rounded-md px-1.5 py-1 text-2xs",
 				selected && "bg-interactive-hover",
+				drag.isDragging && "opacity-40",
 			)}
 			data-plan-file={plan.file}
 			data-testid="ticket-plan-row"
 		>
 			<div className="flex min-w-0 items-center gap-2">
+				{showHandle ? (
+					<button
+						ref={drag.setActivatorNodeRef}
+						type="button"
+						aria-label={t("tickets.dragHandleAria", { plan: plan.title })}
+						className="inline-flex size-control-md shrink-0 cursor-grab items-center justify-center rounded-sm text-passive transition-colors hover:bg-interactive-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 active:cursor-grabbing"
+						{...drag.attributes}
+						onClick={stop}
+						onKeyDown={handleKeyDown}
+						onPointerDown={handlePointerDown}
+					>
+						<GripVertical aria-hidden="true" className="size-icon-2xs" />
+					</button>
+				) : null}
 				<span className="w-5 shrink-0 font-mono text-micro text-passive">{number || "·"}</span>
 				{openFile ? (
 					<button
@@ -97,8 +134,8 @@ export function PlanRow({
 					{status.label}
 				</span>
 			</div>
-			{sessionId || showReview || showMerge || showDone ? (
-				<div className="flex items-center gap-1 pl-7">
+			{sessionId || showAssign || showReview || showMerge || showDone ? (
+				<div className="flex flex-wrap items-center gap-1 pl-7">
 					{sessionId ? (
 						<button
 							type="button"
@@ -112,6 +149,19 @@ export function PlanRow({
 						</button>
 					) : null}
 					<span className="flex-1" />
+					{showAssign ? (
+						<button
+							type="button"
+							className={cn(rowActionClass, "text-foreground")}
+							data-testid="plan-assign-button"
+							onClick={(event) => {
+								stop(event);
+								onAssign(plan);
+							}}
+						>
+							{t(assignActionKey(plan))}
+						</button>
+					) : null}
 					{showReview ? (
 						<button
 							type="button"

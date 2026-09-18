@@ -6,9 +6,10 @@ import type { WorkspaceSession } from "../../types/workspace";
 import type { TicketWithProject } from "../../lib/ticket-presentation";
 import { TooltipProvider } from "../ui/tooltip";
 
-const { navigateMock, approveMutateAsync } = vi.hoisted(() => ({
+const { navigateMock, approveMutateAsync, requestAssignMock } = vi.hoisted(() => ({
 	navigateMock: vi.fn(),
 	approveMutateAsync: vi.fn(),
+	requestAssignMock: vi.fn(),
 }));
 
 vi.mock("@tanstack/react-router", () => ({ useNavigate: () => navigateMock }));
@@ -28,6 +29,16 @@ vi.mock("./PlanWithAgentSheet", () => ({
 }));
 vi.mock("./ReviewPlanSheet", () => ({
 	ReviewPlanSheet: ({ open }: { open: boolean }) => (open ? <div data-testid="review-sheet" /> : null),
+}));
+vi.mock("./TicketDndProvider", () => ({
+	useTicketDrag: () => ({ active: null, requestAssign: requestAssignMock }),
+	usePlanDraggable: () => ({
+		attributes: {},
+		listeners: {},
+		setNodeRef: () => undefined,
+		setActivatorNodeRef: () => undefined,
+		isDragging: false,
+	}),
 }));
 
 import { TicketCard } from "./TicketCard";
@@ -72,6 +83,7 @@ function renderCard(data: TicketWithProject, sessions: WorkspaceSession[] = []) 
 beforeEach(() => {
 	navigateMock.mockReset();
 	approveMutateAsync.mockReset();
+	requestAssignMock.mockReset();
 });
 
 describe("TicketCard", () => {
@@ -166,5 +178,36 @@ describe("TicketCard", () => {
 	it("flags an unreadable ticket", () => {
 		renderCard(ticket({ warning: "ticket.md: malformed frontmatter" }));
 		expect(screen.getByRole("status")).toHaveTextContent("ticket.md: malformed frontmatter");
+	});
+
+	it("offers Assign on a todo plan and a drag handle, without opening the ticket", async () => {
+		const data = ticket({
+			status: "ready",
+			plans: [
+				{ file: "plans/01-index.md", order: 1, title: "Index", status: "todo" },
+				{ file: "plans/02-ui.md", order: 2, title: "UI", status: "working", sessionId: "s-2" },
+			],
+		});
+		renderCard(data, [session({ id: "s-2" })]);
+
+		expect(screen.getByRole("button", { name: "Drag Index to assign it" })).toBeInTheDocument();
+		expect(screen.queryByRole("button", { name: "Drag UI to assign it" })).not.toBeInTheDocument();
+		await userEvent.click(screen.getByRole("button", { name: "Drag Index to assign it" }));
+		await userEvent.click(screen.getByRole("button", { name: "Assign" }));
+
+		expect(requestAssignMock).toHaveBeenCalledWith(data, expect.objectContaining({ file: "plans/01-index.md" }));
+		expect(navigateMock).not.toHaveBeenCalled();
+	});
+
+	it("offers Reassign on a terminated plan", async () => {
+		renderCard(
+			ticket({
+				status: "in_progress",
+				plans: [{ file: "plans/01-index.md", order: 1, title: "Index", status: "terminated", sessionId: "s-gone" }],
+			}),
+		);
+		await userEvent.click(screen.getByRole("button", { name: "Reassign" }));
+		expect(requestAssignMock).toHaveBeenCalledWith(expect.objectContaining({ slug: "search-page" }), expect.objectContaining({ status: "terminated" }));
+		expect(navigateMock).not.toHaveBeenCalled();
 	});
 });

@@ -40,6 +40,15 @@ vi.mock("../lib/spawn-orchestrator", () => ({ spawnOrchestrator: spawnMock }));
 
 vi.mock("../hooks/useMobileTunnelStatus", () => ({ useMobileTunnelStatus: () => undefined }));
 
+const { sidebarDropMock } = vi.hoisted(() => ({
+	sidebarDropMock: vi.fn((id: string) => ({ setNodeRef: () => undefined, isOver: false, accepts: false, dragging: false, id })),
+}));
+
+vi.mock("./tickets/TicketDndProvider", () => ({
+	useTicketDropTarget: (id: string) => sidebarDropMock(id),
+	useTicketDrag: () => ({ active: null, requestAssign: () => undefined }),
+}));
+
 vi.mock("../hooks/useCommandPaletteEnabled", () => ({
 	useCommandPaletteEnabled: () => commandPaletteEnabled.current,
 }));
@@ -254,6 +263,7 @@ beforeEach(() => {
 	updateStatusMock.mockReset().mockResolvedValue({ state: "idle" });
 	mockParams.projectId = undefined;
 	mockParams.sessionId = undefined;
+	sidebarDropMock.mockReset().mockImplementation((id: string) => ({ setNodeRef: () => undefined, isOver: false, accepts: false, dragging: false, id }));
 });
 
 afterEach(() => {
@@ -435,6 +445,16 @@ describe("Sidebar", () => {
 		expect(screen.queryByLabelText("Open Project One dashboard")).not.toBeInTheDocument();
 		expect(screen.getByLabelText("Spawn Project One orchestrator")).toBeInTheDocument();
 		expect(screen.getByLabelText("Project actions for Project One")).toBeInTheDocument();
+	});
+
+	it("registers each project row as a drop target and highlights it while accepting", () => {
+		sidebarDropMock.mockImplementation((id: string) => ({ setNodeRef: () => undefined, isOver: true, accepts: true, dragging: true, id }));
+		renderSidebar({});
+		expect(sidebarDropMock).toHaveBeenCalledWith(`drop:project:${workspace.id}`);
+		const row = document.querySelector("[data-project-press]");
+		expect(row).toHaveAttribute("data-drop-accepts", "true");
+		expect(row).toHaveAttribute("data-drop-over", "true");
+		expect(row).toHaveAttribute("aria-label", `Assign a plan to ${workspace.name}`);
 	});
 
 	it("opens the new task dialog from the plus button on the project row", async () => {

@@ -24,7 +24,7 @@ async function fetchTickets(projectId: string): Promise<TicketView[]> {
 	return data?.tickets ?? [];
 }
 
-async function fetchTicket(projectId: string, slug: string): Promise<TicketView> {
+export async function fetchTicket(projectId: string, slug: string): Promise<TicketView> {
 	const { data, error } = await apiClient.GET("/api/v1/projects/{id}/tickets/{slug}", {
 		params: { path: { id: projectId, slug } },
 	});
