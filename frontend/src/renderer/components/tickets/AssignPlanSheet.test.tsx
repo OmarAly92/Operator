@@ -1,0 +1,148 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const { navigateMock, assignMutateAsync } = vi.hoisted(() => ({
+	navigateMock: vi.fn(),
+	assignMutateAsync: vi.fn(),
+}));
+
+vi.mock("@tanstack/react-router", () => ({ useNavigate: () => navigateMock }));
+
+vi.mock("../../hooks/useTicketMutations", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("../../hooks/useTicketMutations")>();
+	return {
+		...actual,
+		useTicketMutations: () => ({ assignPlan: { mutateAsync: assignMutateAsync, isPending: false } }),
+	};
+});
+
+vi.mock("../../hooks/useAgentsQuery", () => ({
+	agentsQueryKey: ["agents"],
+	agentsQueryOptions: {
+		queryKey: ["agents"],
+		queryFn: async () => ({
+			supported: [{ id: "claude-code", label: "Claude Code" }],
+			installed: [{ id: "claude-code", label: "Claude Code" }],
+			authorized: [{ id: "claude-code", label: "Claude Code" }],
+		}),
+	},
+	refreshAgentsIfStale: async () => undefined,
+}));
+
+vi.mock("../../hooks/useClaudeAccounts", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("../../hooks/useClaudeAccounts")>();
+	return { ...actual, useClaudeAccounts: () => ({ data: [], isError: false, isLoading: false }) };
+});
+
+vi.mock("../TaskModelPicker", () => ({
+	TaskModelPicker: ({ id, value, onModelChange }: { id: string; value: string; onModelChange: (v: string) => void }) => (
+		<input id={id} aria-label="Model" value={value} onChange={(event) => onModelChange(event.target.value)} />
+	),
+}));
+
+import { AssignPlanSheet } from "./AssignPlanSheet";
+
+const ticket = { projectId: "p1", slug: "search-page", title: "Search page", projectName: "app" };
+const todoPlan = { file: "plans/01-index.md", title: "Index", status: "todo" as const };
+const livePlan = { file: "plans/01-index.md", title: "Index", status: "working" as const, sessionId: "s-old" };
+
+function dryRunThen(warnings: string[], result: unknown = { warnings, session: { id: "s-new", projectId: "p1" } }) {
+	assignMutateAsync.mockImplementation(async (input: { dryRun?: boolean }) => {
+		if (input.dryRun) return { warnings };
+		if (result instanceof Error || (typeof result === "object" && result !== null && "code" in result)) throw result;
+		return result;
+	});
+}
+
+function renderSheet(plan: typeof todoPlan | typeof livePlan, onOpenChange = vi.fn()) {
+	render(
+		<QueryClientProvider client={new QueryClient()}>
+			<AssignPlanSheet open onOpenChange={onOpenChange} ticket={ticket} plan={plan} />
+		</QueryClientProvider>,
+	);
+	return onOpenChange;
+}
+
+beforeEach(() => {
+	navigateMock.mockReset();
+	assignMutateAsync.mockReset();
+});
+
+describe("AssignPlanSheet", () => {
+	it("dry-runs on open, shows the read-only rows and each warning, then forces and navigates", async () => {
+		dryRunThen(["ticket_repo_dirty", "plan_order"]);
+		renderSheet(todoPlan);
+
+		expect(screen.getByText("Checking…")).toBeInTheDocument();
+		expect(await screen.findByText("The ticket folder has uncommitted changes. The worktree is cut from the committed branch and will not see them.")).toBeInTheDocument();
+		expect(screen.getByText("An earlier plan in this ticket is not merged or done yet.")).toBeInTheDocument();
+		expect(screen.getByText("opr/search-page-01")).toBeInTheDocument();
+		expect(screen.getByText("01 Index")).toBeInTheDocument();
+		expect(screen.getByText("app")).toBeInTheDocument();
+		expect(assignMutateAsync).toHaveBeenCalledWith({ projectId: "p1", slug: "search-page", plan: "plans/01-index.md", dryRun: true });
+
+		await userEvent.click(screen.getByRole("button", { name: "Start" }));
+
+		await waitFor(() => expect(navigateMock).toHaveBeenCalledWith({
+			to: "/projects/$projectId/sessions/$sessionId",
+			params: { projectId: "p1", sessionId: "s-new" },
+		}));
+		expect(assignMutateAsync).toHaveBeenLastCalledWith(
+			expect.objectContaining({ plan: "plans/01-index.md", force: true, terminateSessionId: undefined }),
+		);
+	});
+
+	it("does not force when the dry run is clean", async () => {
+		dryRunThen([]);
+		renderSheet(todoPlan);
+		const start = await screen.findByRole("button", { name: "Start" });
+		await waitFor(() => expect(start).toBeEnabled());
+
+		await userEvent.click(start);
+
+		await waitFor(() => expect(navigateMock).toHaveBeenCalled());
+		expect(assignMutateAsync).toHaveBeenLastCalledWith(expect.objectContaining({ force: undefined }));
+	});
+
+	it("turns Start into Terminate and start for a live plan and kills that session first", async () => {
+		dryRunThen(["plan_assigned"]);
+		renderSheet(livePlan);
+
+		const button = await screen.findByRole("button", { name: "Terminate and start" });
+		await userEvent.click(button);
+
+		await waitFor(() => expect(navigateMock).toHaveBeenCalled());
+		expect(assignMutateAsync).toHaveBeenLastCalledWith(
+			expect.objectContaining({ force: true, terminateSessionId: "s-old" }),
+		);
+	});
+
+	it("submits on Enter and cancels on Escape without spawning", async () => {
+		dryRunThen([]);
+		const onOpenChange = renderSheet(todoPlan);
+		await waitFor(() => expect(screen.getByRole("button", { name: "Start" })).toBeEnabled());
+
+		await userEvent.keyboard("{Escape}");
+		expect(onOpenChange).toHaveBeenCalledWith(false);
+		expect(assignMutateAsync).toHaveBeenCalledTimes(1);
+
+		await userEvent.click(screen.getByLabelText("Model"));
+		await userEvent.keyboard("{Enter}");
+		await waitFor(() => expect(assignMutateAsync).toHaveBeenCalledTimes(2));
+		expect(assignMutateAsync.mock.calls[1]?.[0]).not.toHaveProperty("dryRun");
+	});
+
+	it("adopts the daemon's warnings when a submit comes back blocked", async () => {
+		dryRunThen([], { error: "conflict", code: "TICKET_ASSIGN_BLOCKED", message: "Assignment needs confirmation", details: { warnings: ["planning_active"] } });
+		renderSheet(todoPlan);
+		await waitFor(() => expect(screen.getByRole("button", { name: "Start" })).toBeEnabled());
+
+		await userEvent.click(screen.getByRole("button", { name: "Start" }));
+
+		expect(await screen.findByText("The planning session is still running.")).toBeInTheDocument();
+		expect(screen.getByRole("alert")).toHaveTextContent("The assignment needs confirmation.");
+		expect(navigateMock).not.toHaveBeenCalled();
+	});
+});
