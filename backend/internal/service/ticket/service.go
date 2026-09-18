@@ -227,6 +227,9 @@ func resolveTicketPath(dir, rel string) (string, error) {
 		return "", errPathOutside
 	}
 	abs := filepath.Join(dir, filepath.FromSlash(clean))
+	if info, err := os.Lstat(abs); err == nil && info.Mode()&os.ModeSymlink != 0 {
+		return "", errPathOutside
+	}
 	realDir, err := filepath.EvalSymlinks(dir)
 	if err != nil {
 		return "", apierr.NotFound("TICKET_NOT_FOUND", "Unknown ticket")

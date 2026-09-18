@@ -242,6 +242,22 @@ func TestReadWriteFileAndTraversal(t *testing.T) {
 			t.Fatal("write escaped the ticket folder via symlinked plans dir")
 		}
 	}
+	h.ticketFile("leafsym", "ticket.md", "---\ntitle: Leaf Symlink\n---\n")
+	leafOutside := filepath.Join(t.TempDir(), "outside.md")
+	if err := os.MkdirAll(filepath.Join(h.root, "leafsym", "plans"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(leafOutside, filepath.Join(h.root, "leafsym", "plans", "leak.md")); err == nil {
+		if _, err := h.svc.WriteFile(ctx, "tk", "leafsym", "plans/leak.md", "pwned", time.Time{}); codeOf(err) != "TICKET_PATH_OUTSIDE" {
+			t.Fatalf("dangling leaf symlink escape err = %v", err)
+		}
+		if _, err := os.Lstat(leafOutside); err == nil {
+			t.Fatal("write created the file at the dangling symlink's external target")
+		}
+		if _, err := h.svc.WriteFile(ctx, "tk", "leafsym", "plans/ok.md", "fine\n", time.Time{}); err != nil {
+			t.Fatalf("normal new-file write regressed: %v", err)
+		}
+	}
 	w, err := h.svc.WriteFile(ctx, "tk", "editor", "plans/02-ui.md", "---\ntitle: UI\n---\n", time.Time{})
 	if err != nil || w.ModifiedAt.IsZero() {
 		t.Fatalf("w=%+v err=%v", w, err)
