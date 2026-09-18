@@ -3,12 +3,18 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { navigateMock, assignMutateAsync } = vi.hoisted(() => ({
+const { navigateMock, assignMutateAsync, fetchTicketMock } = vi.hoisted(() => ({
 	navigateMock: vi.fn(),
 	assignMutateAsync: vi.fn(),
+	fetchTicketMock: vi.fn(),
 }));
 
 vi.mock("@tanstack/react-router", () => ({ useNavigate: () => navigateMock }));
+
+vi.mock("../../hooks/useTicketsQuery", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("../../hooks/useTicketsQuery")>();
+	return { ...actual, fetchTicket: (...args: [string, string]) => fetchTicketMock(...args) };
+});
 
 vi.mock("../../hooks/useTicketMutations", async (importOriginal) => {
 	const actual = await importOriginal<typeof import("../../hooks/useTicketMutations")>();
@@ -68,6 +74,14 @@ function renderSheet(plan: typeof todoPlan | typeof livePlan, onOpenChange = vi.
 beforeEach(() => {
 	navigateMock.mockReset();
 	assignMutateAsync.mockReset();
+	fetchTicketMock.mockReset().mockResolvedValue({
+		projectId: "p1",
+		slug: "search-page",
+		title: "Search page",
+		status: "in_progress",
+		files: [],
+		plans: [{ file: "plans/01-index.md", order: 1, title: "Index", status: "working", sessionId: "s-old" }],
+	});
 });
 
 describe("AssignPlanSheet", () => {
@@ -108,6 +122,49 @@ describe("AssignPlanSheet", () => {
 
 	it("turns Start into Terminate and start for a live plan and kills that session first", async () => {
 		dryRunThen(["plan_assigned"]);
+		renderSheet(livePlan);
+
+		const button = await screen.findByRole("button", { name: "Terminate and start" });
+		await userEvent.click(button);
+
+		await waitFor(() => expect(navigateMock).toHaveBeenCalled());
+		expect(fetchTicketMock).toHaveBeenCalledWith("p1", "search-page");
+		expect(assignMutateAsync).toHaveBeenLastCalledWith(
+			expect.objectContaining({ force: true, terminateSessionId: "s-old" }),
+		);
+	});
+
+	it("terminates the session that is actually live, not the stale prop, when the plan became assigned after the sheet opened", async () => {
+		dryRunThen([], { error: "conflict", code: "TICKET_ASSIGN_BLOCKED", message: "Assignment needs confirmation", details: { warnings: ["plan_assigned"] } });
+		fetchTicketMock.mockResolvedValue({
+			projectId: "p1",
+			slug: "search-page",
+			title: "Search page",
+			status: "in_progress",
+			files: [],
+			plans: [{ file: "plans/01-index.md", order: 1, title: "Index", status: "working", sessionId: "s-fresh" }],
+		});
+		renderSheet(todoPlan);
+		await waitFor(() => expect(screen.getByRole("button", { name: "Start" })).toBeEnabled());
+
+		await userEvent.click(screen.getByRole("button", { name: "Start" }));
+		const button = await screen.findByRole("button", { name: "Terminate and start" });
+		assignMutateAsync.mockImplementation(async (input: { dryRun?: boolean }) => {
+			if (input.dryRun) return { warnings: [] };
+			return { warnings: [], session: { id: "s-new", projectId: "p1" } };
+		});
+		await userEvent.click(button);
+
+		await waitFor(() => expect(navigateMock).toHaveBeenCalled());
+		expect(fetchTicketMock).toHaveBeenCalledWith("p1", "search-page");
+		expect(assignMutateAsync).toHaveBeenLastCalledWith(
+			expect.objectContaining({ force: true, terminateSessionId: "s-fresh" }),
+		);
+	});
+
+	it("falls back to the plan prop's session id when the fresh ticket fetch fails", async () => {
+		dryRunThen(["plan_assigned"]);
+		fetchTicketMock.mockRejectedValue(new Error("network down"));
 		renderSheet(livePlan);
 
 		const button = await screen.findByRole("button", { name: "Terminate and start" });

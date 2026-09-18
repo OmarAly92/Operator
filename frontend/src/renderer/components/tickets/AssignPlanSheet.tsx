@@ -1,8 +1,10 @@
+import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { X } from "lucide-react";
 import { useEffect, useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { assignBlockedWarnings, ticketErrorMessage, useTicketMutations } from "../../hooks/useTicketMutations";
+import { fetchTicket, ticketQueryKey } from "../../hooks/useTicketsQuery";
 import { assignWarningLabel, needsForce, planBranchName } from "../../lib/ticket-assign";
 import { planNumber, type PlanView, type TicketWithProject } from "../../lib/ticket-presentation";
 import { Button } from "../ui/button";
@@ -32,6 +34,7 @@ export function AssignPlanSheet({
 }) {
 	const { t } = useTranslation();
 	const navigate = useNavigate();
+	const queryClient = useQueryClient();
 	const { assignPlan } = useTicketMutations();
 	const assign = assignPlan.mutateAsync;
 	const [values, setValues] = useState<TicketRoleValues>(emptyTicketRoleValues);
@@ -66,19 +69,33 @@ export function AssignPlanSheet({
 		};
 	}, [assign, open, plan.file, t, ticket.projectId, ticket.slug]);
 
+	const resolveTerminateSessionId = async (): Promise<string | undefined> => {
+		try {
+			const fresh = await queryClient.fetchQuery({
+				queryKey: ticketQueryKey(ticket.projectId, ticket.slug),
+				queryFn: () => fetchTicket(ticket.projectId, ticket.slug),
+			});
+			const freshPlan = fresh.plans.find((candidate) => candidate.file === plan.file);
+			return freshPlan?.sessionId ?? plan.sessionId;
+		} catch {
+			return plan.sessionId;
+		}
+	};
+
 	const submit = async (event: FormEvent<HTMLFormElement>) => {
 		event.preventDefault();
 		if (busy || warnings === null) return;
 		setBusy(true);
 		setError(null);
 		try {
+			const terminateSessionId = terminating ? await resolveTerminateSessionId() : undefined;
 			const result = await assign({
 				projectId: ticket.projectId,
 				slug: ticket.slug,
 				plan: plan.file,
 				...values,
 				force: needsForce(warnings) || undefined,
-				terminateSessionId: terminating ? plan.sessionId : undefined,
+				terminateSessionId,
 			});
 			onOpenChange(false);
 			if (result.session) {
