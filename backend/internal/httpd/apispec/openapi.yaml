@@ -5698,6 +5698,31 @@ components:
       required:
       - harness
       type: object
+    DomainTicketDefaults:
+      properties:
+        disableAutoReview:
+          type: boolean
+        implementer:
+          $ref: '#/components/schemas/DomainTicketRoleDefaults'
+        planner:
+          $ref: '#/components/schemas/DomainTicketRoleDefaults'
+        reviewer:
+          $ref: '#/components/schemas/DomainTicketRoleDefaults'
+        reviewerMode:
+          enum:
+          - planner
+          - new
+          type: string
+      type: object
+    DomainTicketRoleDefaults:
+      properties:
+        agent:
+          type: string
+        claudeAccountId:
+          type: string
+        model:
+          type: string
+      type: object
     FeaturePin:
       properties:
         pr:
@@ -6383,6 +6408,8 @@ components:
           items:
             type: string
           type: array
+        tickets:
+          $ref: '#/components/schemas/DomainTicketDefaults'
         trackerIntake:
           $ref: '#/components/schemas/TrackerIntakeConfig'
         worker:
