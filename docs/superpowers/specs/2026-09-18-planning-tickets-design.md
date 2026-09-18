@@ -503,18 +503,21 @@ against a running daemon on port 3002 reproduces the same
 
 ### Plan 2: board and ticket page
 
-Scope: §3.1, §3.3 without editing, §3.4, §3.5, §3.6, plus `Plan with agent`
-and the create sheet. No drag, no editor.
+Scope: §3.1, §3.3 without editing, §3.4, §3.5, §3.6, plus `Plan with agent`,
+the create sheet, and the §2.6 review and merge-confirmation UI (Review sheet
+with the reviewer choice, the `reviewing`, `awaiting_merge` and `merging` plan
+statuses, "Waiting for your confirmation" with the summary and a Merge
+button). No drag, no editor.
 
 Deliverables:
 
 - `frontend/src/renderer/hooks/useTicketsQuery.ts` and `useTicketQuery.ts`
   over the generated client (`lib/api-client.ts`), invalidated from the SSE
   change events in `lib/event-transport.ts` the way sessions are.
-- `SessionsBoard.tsx`: a fifth zone `planned` added to
-  `boardAttentionZoneOrder` in `lib/session-presentation.ts:190` and to the
-  zone labels, rendered by a new `PlannedColumn` and `TicketCard` in
-  `components/tickets/`. Column grid becomes five columns.
+- `SessionsBoard.tsx`: a fifth grid cell rendered before the four session
+  zones by a new `PlannedColumn` and `TicketCard` in `components/tickets/`
+  (`AttentionZone` stays a session classification; `lib/command-palette.ts`
+  sorts sessions by it). Column grid becomes five columns.
 - `components/tickets/CreateTicketSheet.tsx` (project, title, brief) and
   `PlanWithAgentSheet.tsx` (harness, Claude account, extra), both on shadcn
   primitives from `components/ui/*`, reusing the harness and account pickers
