@@ -14,6 +14,7 @@ import {
 	ticketFileGroups,
 	type PlanView,
 	type TicketView,
+	type TicketWithProject,
 } from "../../lib/ticket-presentation";
 import { cn } from "../../lib/utils";
 import type { WorkspaceSession } from "../../types/workspace";
@@ -24,6 +25,7 @@ import { MergeConfirmDialog } from "./MergeConfirmDialog";
 import { PlanRow } from "./PlanRow";
 import { PlanWithAgentSheet } from "./PlanWithAgentSheet";
 import { ReviewPlanSheet } from "./ReviewPlanSheet";
+import { useTicketDrag } from "./TicketDndProvider";
 
 const liveSessionStatuses = new Set<WorkspaceSession["status"]>(["working", "idle", "needs_input", "no_signal"]);
 
@@ -45,6 +47,8 @@ export function TicketPage({ projectId, slug, file }: { projectId: string; slug:
 		if (workspace.id !== projectId) continue;
 		for (const session of workspace.sessions) sessionsById.set(session.id, session);
 	}
+	const projectName = workspaces.find((workspace) => workspace.id === projectId)?.name ?? "";
+	const { requestAssign } = useTicketDrag();
 	const { markPlanDone, setArchived } = useTicketMutations();
 	const [planOpen, setPlanOpen] = useState(false);
 	const [reviewPlan, setReviewPlan] = useState<PlanView | null>(null);
@@ -70,6 +74,7 @@ export function TicketPage({ projectId, slug, file }: { projectId: string; slug:
 	}
 	if (!ticket) return null;
 
+	const ticketWithProject: TicketWithProject = { ...ticket, projectName };
 	const status = getTicketStatusView(ticket, t);
 	const groups = ticketFileGroups(ticket);
 	const planningSession = ticket.planningSessionId ? sessionsById.get(ticket.planningSessionId) : undefined;
@@ -134,11 +139,14 @@ export function TicketPage({ projectId, slug, file }: { projectId: string; slug:
 						{groups.plans.map(({ plan, kickoff }) => (
 							<div key={plan.file} role="listitem">
 								<PlanRow
+									ticket={ticketWithProject}
 									plan={plan}
+									draggable
 									session={plan.sessionId ? sessionsById.get(plan.sessionId) : undefined}
 									selectedFile={selectedFile}
 									onOpenFile={openFile}
 									onOpenSession={openSession}
+									onAssign={(target) => requestAssign(ticketWithProject, target)}
 									onReview={(target) => setReviewPlan(target)}
 									onMerge={(target) => setMergePlan(target)}
 									onMarkDone={(target) =>
