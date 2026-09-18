@@ -479,7 +479,6 @@ function SettingsBody({
 				</>
 			)}
 
-			{/* ── Tickets: planner/implementer/reviewer defaults ────────── */}
 			{section === "tickets" && (
 				<>
 					{!isScratchProject ? (
