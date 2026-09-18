@@ -58,11 +58,7 @@ func scanTickets(root string) ([]scannedTicket, error) {
 		if !e.IsDir() {
 			continue
 		}
-		t, ok, err := scanTicket(root, e.Name())
-		if err != nil {
-			return nil, err
-		}
-		if ok {
+		if t, ok := scanTicket(root, e.Name()); ok {
 			out = append(out, t)
 		}
 	}
@@ -70,17 +66,19 @@ func scanTickets(root string) ([]scannedTicket, error) {
 	return out, nil
 }
 
-func scanTicket(root, slug string) (scannedTicket, bool, error) {
+func scanTicket(root, slug string) (scannedTicket, bool) {
 	dir := filepath.Join(root, slug)
 	ticketPath := filepath.Join(dir, "ticket.md")
-	raw, err := os.ReadFile(ticketPath)
-	if errors.Is(err, os.ErrNotExist) {
-		return scannedTicket{}, false, nil
-	}
-	if err != nil {
-		return scannedTicket{}, false, fmt.Errorf("read %s: %w", ticketPath, err)
+	raw, readErr := os.ReadFile(ticketPath)
+	if errors.Is(readErr, os.ErrNotExist) {
+		return scannedTicket{}, false
 	}
 	t := scannedTicket{Slug: slug, Files: []string{"ticket.md"}}
+	if readErr != nil {
+		t.Title = slug
+		t.Warning = "ticket.md: " + readErr.Error()
+		return t, true
+	}
 	fm, body, err := parseFrontmatter(raw)
 	if err != nil {
 		t.Warning = "ticket.md: " + err.Error()
@@ -92,7 +90,8 @@ func scanTicket(root, slug string) (scannedTicket, bool, error) {
 	}
 	plans, err := os.ReadDir(filepath.Join(dir, "plans"))
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
-		return scannedTicket{}, false, fmt.Errorf("read plans dir %s: %w", slug, err)
+		t.Warning = strings.TrimPrefix(t.Warning+"; plans: "+err.Error(), "; ")
+		return t, true
 	}
 	kickoffs := map[string]bool{}
 	for _, e := range plans {
@@ -116,7 +115,10 @@ func scanTicket(root, slug string) (scannedTicket, bool, error) {
 		}
 		raw, err := os.ReadFile(filepath.Join(dir, "plans", e.Name()))
 		if err != nil {
-			return scannedTicket{}, false, fmt.Errorf("read plan %s/%s: %w", slug, e.Name(), err)
+			p.Title = strings.TrimSuffix(e.Name(), ".md")
+			p.Warning = strings.TrimPrefix(p.Warning+"; "+err.Error(), "; ")
+			t.Plans = append(t.Plans, p)
+			continue
 		}
 		fm, body, err := parseFrontmatter(raw)
 		if err != nil {
@@ -145,5 +147,5 @@ func scanTicket(root, slug string) (scannedTicket, bool, error) {
 			t.Files = append(t.Files, p.Kickoff)
 		}
 	}
-	return t, true, nil
+	return t, true
 }

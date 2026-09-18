@@ -360,7 +360,7 @@ func TestCreateWritesFolderRecordAndCommit(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{"---\n", "title: Markdown Editor\n", "brief: Edit docs in app\n", "created: 2026-09-18\n"} {
+	for _, want := range []string{"---\n", "title: \"Markdown Editor\"\n", "brief: \"Edit docs in app\"\n", "created: 2026-09-18\n"} {
 		if !strings.Contains(string(raw), want) {
 			t.Errorf("ticket.md missing %q:\n%s", want, raw)
 		}
@@ -468,11 +468,12 @@ func TestAssignWarningsDryRunForceAndBranch(t *testing.T) {
 		t.Fatalf("ticket = %+v", tk)
 	}
 
+	first := res.Session.ID
 	res, err = h.svc.Assign(ctx, "tk", "editor", "01-daemon.md", AssignInput{DryRun: true})
-	if err != nil || len(res.Warnings) != 1 || res.Warnings[0] != "plan_assigned" {
+	if err != nil || res.Session != nil || len(res.Warnings) != 1 || res.Warnings[0] != "plan_assigned" {
 		t.Fatalf("reassign dry run = %+v %v", res, err)
 	}
-	h.sessions.set(res.Session.ID, domain.StatusTerminated)
+	h.sessions.set(first, domain.StatusTerminated)
 	res, err = h.svc.Assign(ctx, "tk", "editor", "01-daemon.md", AssignInput{})
 	if err != nil || h.sessions.spawned[1].Branch != "opr/editor-01-2" {
 		t.Fatalf("second attempt = %+v err=%v", h.sessions.spawned, err)
@@ -706,17 +707,31 @@ func TestMergeReadyThenApproveSendsToReviewer(t *testing.T) {
 		t.Fatalf("tk = %+v err=%v", tk, err)
 	}
 	tk, err = h.svc.ApproveMerge(ctx, "tk", "editor", "01-daemon.md")
-	if err != nil || tk.Plans[0].Status != domain.PlanStatusReviewing {
+	if err != nil || tk.Plans[0].Status != domain.PlanStatusMerging || tk.Status != domain.TicketStatusInProgress {
 		t.Fatalf("tk = %+v err=%v", tk, err)
 	}
 	last := h.sessions.sent[len(h.sessions.sent)-1]
 	if last.id != reviewer || !strings.Contains(last.msg, "Approved") || !strings.Contains(last.msg, "opr/editor-01") || !strings.Contains(last.msg, "main") {
 		t.Fatalf("sent = %+v", last)
 	}
-	h.sessions.set(reviewer, domain.StatusTerminated)
-	if _, err := h.svc.MergeReady(ctx, "tk", "editor", "01-daemon.md", "again"); err != nil {
+	if _, err := h.svc.MergeReady(ctx, "tk", "editor", "01-daemon.md", "again"); codeOf(err) != "TICKET_MERGE_APPROVED" {
+		t.Fatalf("merge-ready after approval err = %v", err)
+	}
+	if _, err := h.svc.Review(ctx, "tk", "editor", "01-daemon.md", ReviewInput{}); err != nil {
 		t.Fatal(err)
 	}
+	if _, err := h.svc.Assign(ctx, "tk", "editor", "01-daemon.md", AssignInput{Force: true}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := h.svc.Review(ctx, "tk", "editor", "01-daemon.md", ReviewInput{}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := h.svc.MergeReady(ctx, "tk", "editor", "01-daemon.md", "second attempt"); err != nil {
+		t.Fatal(err)
+	}
+	tk, _ = h.svc.Get(ctx, "tk", "editor")
+	reviewer = tk.Plans[0].ReviewerID
+	h.sessions.set(reviewer, domain.StatusTerminated)
 	spawnedBefore := len(h.sessions.spawned)
 	if _, err := h.svc.ApproveMerge(ctx, "tk", "editor", "01-daemon.md"); err != nil {
 		t.Fatal(err)
@@ -747,5 +762,57 @@ func TestAutoReviewOncePerAssignment(t *testing.T) {
 	h2.store.projects["tk"] = p
 	if err := h2.svc.AutoReview(ctx, impl2); err != nil || len(h2.sessions.spawned) != 1 {
 		t.Fatalf("disabled auto review must not act: err=%v spawned=%d", err, len(h2.sessions.spawned))
+	}
+}
+
+func TestReadFileRejectsSymlinkedTicketFolder(t *testing.T) {
+	h := newHarness(t)
+	ctx := context.Background()
+	outside := t.TempDir()
+	writeFile(t, filepath.Join(outside, "ticket.md"), "---\ntitle: Out\n---\n")
+	writeFile(t, filepath.Join(outside, "notes.md"), "secret\n")
+	if err := os.MkdirAll(h.root, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(outside, filepath.Join(h.root, "linked")); err != nil {
+		t.Skip("symlinks unavailable")
+	}
+	if _, err := h.svc.ReadFile(ctx, "tk", "linked", "notes.md"); codeOf(err) != "TICKET_PATH_OUTSIDE" {
+		t.Fatalf("err = %v", err)
+	}
+	if _, err := h.svc.WriteFile(ctx, "tk", "linked", "notes.md", "x", time.Time{}); codeOf(err) != "TICKET_PATH_OUTSIDE" {
+		t.Fatalf("err = %v", err)
+	}
+}
+
+func TestPlanTreatsExitedPlannerAsDead(t *testing.T) {
+	h := newHarness(t)
+	ctx := context.Background()
+	h.ticketFile("editor", "ticket.md", "---\ntitle: Editor\n---\n")
+	sess, err := h.svc.Plan(ctx, "tk", "editor", SpawnInput{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	h.sessions.set(sess.ID, domain.StatusExited)
+	if _, err := h.svc.Plan(ctx, "tk", "editor", SpawnInput{}); err != nil {
+		t.Fatalf("exited planner must be replaceable: %v", err)
+	}
+	tk, _ := h.svc.Get(ctx, "tk", "editor")
+	if tk.Status != domain.TicketStatusPlanning || tk.PlanningSessionID == sess.ID {
+		t.Fatalf("ticket = %+v", tk)
+	}
+}
+
+func TestCreateQuotesYamlHostileTitles(t *testing.T) {
+	h := newHarness(t)
+	ctx := context.Background()
+	for _, title := range []string{"- dash first", "? question", "null", "yes: colon", "a \"quoted\" b"} {
+		res, err := h.svc.Create(ctx, "tk", CreateInput{Title: title})
+		if err != nil {
+			t.Fatalf("%q: %v", title, err)
+		}
+		if res.Ticket.Warning != "" || res.Ticket.Title != title {
+			t.Fatalf("%q: ticket = %+v", title, res.Ticket)
+		}
 	}
 }

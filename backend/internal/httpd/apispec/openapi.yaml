@@ -7202,6 +7202,7 @@ components:
           - in_review
           - reviewing
           - awaiting_merge
+          - merging
           - merged
           - done
           - terminated

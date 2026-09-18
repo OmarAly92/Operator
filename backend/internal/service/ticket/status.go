@@ -22,8 +22,11 @@ func planStatus(a domain.PlanAssignmentRecord, ok bool, sess *domain.Session) do
 	if sess != nil && sess.Status == domain.StatusMerged {
 		return domain.PlanStatusMerged
 	}
-	if !a.MergeReadyAt.IsZero() && a.MergeApprovedAt.IsZero() {
-		return domain.PlanStatusAwaitMerge
+	if !a.MergeReadyAt.IsZero() {
+		if a.MergeApprovedAt.IsZero() {
+			return domain.PlanStatusAwaitMerge
+		}
+		return domain.PlanStatusMerging
 	}
 	if !a.ReviewRequestedAt.IsZero() {
 		return domain.PlanStatusReviewing
@@ -51,7 +54,7 @@ func planStatus(a domain.PlanAssignmentRecord, ok bool, sess *domain.Session) do
 func planLive(status domain.PlanStatus) bool {
 	switch status {
 	case domain.PlanStatusIdle, domain.PlanStatusWorking, domain.PlanStatusNeedsYou, domain.PlanStatusInReview,
-		domain.PlanStatusReviewing, domain.PlanStatusAwaitMerge:
+		domain.PlanStatusReviewing, domain.PlanStatusAwaitMerge, domain.PlanStatusMerging:
 		return true
 	default:
 		return false

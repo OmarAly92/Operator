@@ -112,6 +112,9 @@ func TestTicketCreatePlanAssignRoundTrip(t *testing.T) {
 	if err != nil || res.Session == nil {
 		t.Fatalf("assign = %+v err=%v", res, err)
 	}
+	if res.Session.Ticket == nil || res.Session.Ticket.Role != domain.TicketRoleImplementing {
+		t.Fatalf("assign response session ticket = %+v", res.Session.Ticket)
+	}
 	impl, err := st.sm.Get(ctx, res.Session.ID)
 	if err != nil {
 		t.Fatal(err)
@@ -163,7 +166,7 @@ func TestTicketCreatePlanAssignRoundTrip(t *testing.T) {
 		t.Fatalf("merge ready = %+v err=%v", tk, err)
 	}
 	tk, err = svc.ApproveMerge(ctx, "tk", "editor", "01-daemon.md")
-	if err != nil || tk.Plans[0].Status != domain.PlanStatusReviewing {
+	if err != nil || tk.Plans[0].Status != domain.PlanStatusMerging {
 		t.Fatalf("approve = %+v err=%v", tk, err)
 	}
 	fresh, err := svc.Review(ctx, "tk", "editor", "01-daemon.md", ticketsvc.ReviewInput{Reviewer: ticketsvc.ReviewerNew, SpawnInput: ticketsvc.SpawnInput{Harness: domain.HarnessClaudeCode}})

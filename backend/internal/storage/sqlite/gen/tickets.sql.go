@@ -253,7 +253,7 @@ func (q *Queries) SetPlanAssignmentMergeApproved(ctx context.Context, arg SetPla
 }
 
 const setPlanAssignmentMergeReady = `-- name: SetPlanAssignmentMergeReady :execrows
-UPDATE plan_assignments SET merge_ready_at = ?, merge_summary = ?, merge_approved_at = NULL WHERE id = ?
+UPDATE plan_assignments SET merge_ready_at = ?, merge_summary = ? WHERE id = ?
 `
 
 type SetPlanAssignmentMergeReadyParams struct {

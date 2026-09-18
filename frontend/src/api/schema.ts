@@ -2493,7 +2493,7 @@ export interface components {
             reviewerSessionId?: string;
             sessionId?: string;
             /** @enum {string} */
-            status: "todo" | "idle" | "working" | "needs_you" | "in_review" | "reviewing" | "awaiting_merge" | "merged" | "done" | "terminated";
+            status: "todo" | "idle" | "working" | "needs_you" | "in_review" | "reviewing" | "awaiting_merge" | "merging" | "merged" | "done" | "terminated";
             title: string;
             unordered?: boolean;
             warning?: string;

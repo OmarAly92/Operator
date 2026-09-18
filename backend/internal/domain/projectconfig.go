@@ -67,21 +67,15 @@ type ProjectConfig struct {
 	// drifting out of sync with a project-config list.
 	ContainerReap ContainerReapConfig `json:"containerReap,omitempty"`
 
-	// Tickets are the per-role defaults used when spawning planning ticket
-	// sessions (planner/implementer/reviewer), unset fields falling back to
-	// the harness's own defaults at spawn.
 	Tickets TicketDefaults `json:"tickets,omitempty"`
 }
 
-// TicketRoleDefaults is the harness/model/account default for one ticket
-// session role (planner, implementer or reviewer).
 type TicketRoleDefaults struct {
 	Harness         AgentHarness    `json:"agent,omitempty"`
 	Model           string          `json:"model,omitempty"`
 	ClaudeAccountID ClaudeAccountID `json:"claudeAccountId,omitempty"`
 }
 
-// TicketDefaults are the per-project defaults for planning ticket sessions.
 type TicketDefaults struct {
 	Planner           TicketRoleDefaults `json:"planner,omitempty"`
 	Implementer       TicketRoleDefaults `json:"implementer,omitempty"`

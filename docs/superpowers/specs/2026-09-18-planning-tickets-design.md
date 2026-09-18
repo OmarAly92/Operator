@@ -317,11 +317,16 @@ into <default branch> now, then report". The plan turns `merged` when the PR fac
 say so, as before. Anything the user wants to say instead of approving goes
 through the planner's terminal like any other conversation.
 
-**Statuses added.** Plan: `reviewing` (review requested, not yet merge-ready)
-and `awaiting_merge` (merge-ready, not yet approved). Ticket: `awaiting_merge`
+**Statuses added.** Plan: `reviewing` (review requested, not yet merge-ready),
+`awaiting_merge` (merge-ready, not yet approved) and `merging` (approved, the
+reviewer is merging, PR facts do not yet say merged). Ticket: `awaiting_merge`
 when any plan is awaiting merge; it outranks `in_progress`. The derivation
-order for a plan is: manual done, session merged, awaiting merge, reviewing,
-then the session-derived statuses of §1.3.
+order for a plan is: manual done, session merged, awaiting merge, merging,
+reviewing, then the session-derived statuses of §1.3.
+
+**Dry run never returns a session.** `assign?dryRun=1` answers 200 with
+`warnings` only; a real assign answers 201 with the spawned session, which
+already carries its `ticket` link.
 
 **Assignment columns added** (`plan_assignments`): `reviewer_session_id`,
 `review_requested_at`, `merge_ready_at`, `merge_summary`, `merge_approved_at`,

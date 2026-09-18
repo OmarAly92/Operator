@@ -35,7 +35,8 @@ func TestPlanStatusTable(t *testing.T) {
 		{"merged", a, true, sessWith(domain.StatusMerged), domain.PlanStatusMerged},
 		{"merged beats awaiting", domain.PlanAssignmentRecord{SessionID: "p-1", MergeReadyAt: time.Now()}, true, sessWith(domain.StatusMerged), domain.PlanStatusMerged},
 		{"awaiting merge", domain.PlanAssignmentRecord{SessionID: "p-1", ReviewRequestedAt: time.Now(), MergeReadyAt: time.Now()}, true, sessWith(domain.StatusPROpen), domain.PlanStatusAwaitMerge},
-		{"approved goes back to reviewing", domain.PlanAssignmentRecord{SessionID: "p-1", ReviewRequestedAt: time.Now(), MergeReadyAt: time.Now(), MergeApprovedAt: time.Now()}, true, sessWith(domain.StatusPROpen), domain.PlanStatusReviewing},
+		{"approved is merging", domain.PlanAssignmentRecord{SessionID: "p-1", ReviewRequestedAt: time.Now(), MergeReadyAt: time.Now(), MergeApprovedAt: time.Now()}, true, sessWith(domain.StatusPROpen), domain.PlanStatusMerging},
+		{"merged beats merging", domain.PlanAssignmentRecord{SessionID: "p-1", MergeReadyAt: time.Now(), MergeApprovedAt: time.Now()}, true, sessWith(domain.StatusMerged), domain.PlanStatusMerged},
 		{"reviewing", domain.PlanAssignmentRecord{SessionID: "p-1", ReviewRequestedAt: time.Now()}, true, sessWith(domain.StatusPROpen), domain.PlanStatusReviewing},
 		{"reviewing even when implementer terminated", domain.PlanAssignmentRecord{SessionID: "p-1", ReviewRequestedAt: time.Now()}, true, sessWith(domain.StatusTerminated), domain.PlanStatusReviewing},
 		{"terminated", a, true, sessWith(domain.StatusTerminated), domain.PlanStatusTerminated},
@@ -82,6 +83,7 @@ func TestTicketStatusTable(t *testing.T) {
 		{"in review counts as progress", domain.TicketRecord{}, []domain.Plan{plan(domain.PlanStatusInReview), plan(domain.PlanStatusTodo)}, nil, domain.TicketStatusInProgress},
 		{"awaiting merge outranks progress", domain.TicketRecord{}, []domain.Plan{plan(domain.PlanStatusWorking), plan(domain.PlanStatusAwaitMerge)}, nil, domain.TicketStatusAwaitMerge},
 		{"reviewing is progress", domain.TicketRecord{}, []domain.Plan{plan(domain.PlanStatusReviewing)}, nil, domain.TicketStatusInProgress},
+		{"merging is progress", domain.TicketRecord{}, []domain.Plan{plan(domain.PlanStatusMerging)}, nil, domain.TicketStatusInProgress},
 		{"terminated only is ready", domain.TicketRecord{}, []domain.Plan{plan(domain.PlanStatusTerminated), plan(domain.PlanStatusTodo)}, nil, domain.TicketStatusReady},
 		{"done", domain.TicketRecord{}, []domain.Plan{plan(domain.PlanStatusMerged), plan(domain.PlanStatusDone)}, nil, domain.TicketStatusDone},
 	}

@@ -37,7 +37,7 @@ SELECT * FROM plan_assignments WHERE reviewer_session_id = ? ORDER BY id DESC LI
 UPDATE plan_assignments SET reviewer_session_id = ?, review_requested_at = ? WHERE id = ?;
 
 -- name: SetPlanAssignmentMergeReady :execrows
-UPDATE plan_assignments SET merge_ready_at = ?, merge_summary = ?, merge_approved_at = NULL WHERE id = ?;
+UPDATE plan_assignments SET merge_ready_at = ?, merge_summary = ? WHERE id = ?;
 
 -- name: SetPlanAssignmentMergeApproved :execrows
 UPDATE plan_assignments SET merge_approved_at = ? WHERE id = ?;

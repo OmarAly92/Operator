@@ -199,10 +199,7 @@ func (s *Service) loadWithSessions(ctx context.Context, project domain.ProjectID
 	if !validSlug(slug) {
 		return p, domain.TicketRecord{}, domain.Ticket{}, nil, apierr.NotFound("TICKET_NOT_FOUND", "Unknown ticket")
 	}
-	sc, ok, err := scanTicket(ticketsRoot(p), slug)
-	if err != nil {
-		return p, domain.TicketRecord{}, domain.Ticket{}, nil, err
-	}
+	sc, ok := scanTicket(ticketsRoot(p), slug)
 	if !ok {
 		return p, domain.TicketRecord{}, domain.Ticket{}, nil, apierr.NotFound("TICKET_NOT_FOUND", "Unknown ticket")
 	}
@@ -246,6 +243,10 @@ func resolveTicketPath(dir, rel string) (string, error) {
 	realDir, err := filepath.EvalSymlinks(dir)
 	if err != nil {
 		return "", apierr.NotFound("TICKET_NOT_FOUND", "Unknown ticket")
+	}
+	realRoot, err := filepath.EvalSymlinks(filepath.Dir(dir))
+	if err != nil || realDir == realRoot || !withinRoot(realDir, realRoot) {
+		return "", errPathOutside
 	}
 	if resolved, err := filepath.EvalSymlinks(abs); err == nil {
 		if !withinRoot(resolved, realDir) {
@@ -405,13 +406,7 @@ func (s *Service) WatchRoot(ctx context.Context, project domain.ProjectID) (stri
 }
 
 func yamlScalar(s string) string {
-	if s == "" {
-		return `""`
-	}
-	if strings.ContainsAny(s, ":#\"'\n[]{}&*!|>%@`") || strings.TrimSpace(s) != s {
-		return fmt.Sprintf("%q", s)
-	}
-	return s
+	return fmt.Sprintf("%q", s)
 }
 
 func truncateRunes(s string) string {
@@ -467,7 +462,15 @@ func (s *Service) ensureRecord(ctx context.Context, rec domain.TicketRecord) err
 
 func planningLive(sessions map[domain.SessionID]*domain.Session, id domain.SessionID) bool {
 	sess := sessions[id]
-	return sess != nil && sess.Status != domain.StatusTerminated && sess.Status != domain.StatusMerged
+	if sess == nil {
+		return false
+	}
+	switch sess.Status {
+	case domain.StatusTerminated, domain.StatusMerged, domain.StatusExited:
+		return false
+	default:
+		return true
+	}
 }
 
 func (s *Service) Plan(ctx context.Context, project domain.ProjectID, slug string, in SpawnInput) (domain.Session, error) {
@@ -502,7 +505,14 @@ func (s *Service) spawnPlanner(ctx context.Context, p domain.ProjectRecord, t do
 	if err := s.store.SetTicketPlanningSession(ctx, domain.ProjectID(p.ID), t.Slug, sess.ID); err != nil {
 		return domain.Session{}, err
 	}
-	return sess, nil
+	return s.refresh(ctx, sess), nil
+}
+
+func (s *Service) refresh(ctx context.Context, sess domain.Session) domain.Session {
+	if fresh, err := s.sessions.Get(ctx, sess.ID); err == nil {
+		return fresh
+	}
+	return sess
 }
 
 func findPlan(t domain.Ticket, planName string) (int, bool) {
@@ -564,7 +574,7 @@ func (s *Service) Assign(ctx context.Context, project domain.ProjectID, slug, pl
 	}
 	warnings := s.assignWarnings(ctx, p, rec, t, idx, sessions)
 	if in.DryRun {
-		return AssignResult{Warnings: warnings, Session: sessions[t.Plans[idx].SessionID]}, nil
+		return AssignResult{Warnings: warnings}, nil
 	}
 	if len(warnings) > 0 && !in.Force {
 		return AssignResult{}, apierr.Conflict("TICKET_ASSIGN_BLOCKED", "Assignment needs confirmation", map[string]any{"warnings": warnings})
@@ -609,6 +619,7 @@ func (s *Service) Assign(ctx context.Context, project domain.ProjectID, slug, pl
 	if err := s.store.InsertPlanAssignment(ctx, domain.PlanAssignmentRecord{ProjectID: project, Slug: slug, PlanFile: plan.File, SessionID: sess.ID, AssignedAt: s.now()}); err != nil {
 		return AssignResult{}, err
 	}
+	sess = s.refresh(ctx, sess)
 	return AssignResult{Warnings: warnings, Session: &sess}, nil
 }
 
@@ -751,7 +762,7 @@ func (s *Service) Review(ctx context.Context, project domain.ProjectID, slug, pl
 	if err := s.store.MarkPlanReviewRequested(ctx, a.ID, reviewer.ID, s.now()); err != nil {
 		return ReviewResult{}, err
 	}
-	return ReviewResult{Session: reviewer, Spawned: spawned}, nil
+	return ReviewResult{Session: s.refresh(ctx, reviewer), Spawned: spawned}, nil
 }
 
 func (s *Service) MergeReady(ctx context.Context, project domain.ProjectID, slug, planName, summary string) (domain.Ticket, error) {
@@ -769,6 +780,9 @@ func (s *Service) MergeReady(ctx context.Context, project domain.ProjectID, slug
 	}
 	if !ok || a.ReviewRequestedAt.IsZero() {
 		return domain.Ticket{}, apierr.Conflict("TICKET_NOT_REVIEWING", "No review is in progress for this plan", nil)
+	}
+	if !a.MergeApprovedAt.IsZero() {
+		return domain.Ticket{}, apierr.Conflict("TICKET_MERGE_APPROVED", "The user already approved this merge; finish merging instead", nil)
 	}
 	if err := s.store.MarkPlanMergeReady(ctx, a.ID, s.now(), strings.TrimSpace(summary)); err != nil {
 		return domain.Ticket{}, err
@@ -792,6 +806,9 @@ func (s *Service) ApproveMerge(ctx context.Context, project domain.ProjectID, sl
 	}
 	if !ok || a.MergeReadyAt.IsZero() || !a.MergeApprovedAt.IsZero() {
 		return domain.Ticket{}, apierr.Conflict("TICKET_NOT_MERGE_READY", "The reviewer has not reported this plan as ready to merge", nil)
+	}
+	if a.SessionID == "" {
+		return domain.Ticket{}, apierr.Conflict("TICKET_PLAN_UNASSIGNED", "The implementing session no longer exists", nil)
 	}
 	impl, err := s.sessions.Get(ctx, a.SessionID)
 	if err != nil {

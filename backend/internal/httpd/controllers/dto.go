@@ -1523,7 +1523,7 @@ type PlanView struct {
 	File              string            `json:"file"`
 	Order             int               `json:"order"`
 	Title             string            `json:"title"`
-	Status            domain.PlanStatus `json:"status" enum:"todo,idle,working,needs_you,in_review,reviewing,awaiting_merge,merged,done,terminated"`
+	Status            domain.PlanStatus `json:"status" enum:"todo,idle,working,needs_you,in_review,reviewing,awaiting_merge,merging,merged,done,terminated"`
 	SessionID         domain.SessionID  `json:"sessionId,omitempty"`
 	ReviewerSessionID domain.SessionID  `json:"reviewerSessionId,omitempty"`
 	MergeSummary      string            `json:"mergeSummary,omitempty"`

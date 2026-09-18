@@ -26,6 +26,7 @@ const (
 	PlanStatusInReview   PlanStatus = "in_review"
 	PlanStatusReviewing  PlanStatus = "reviewing"
 	PlanStatusAwaitMerge PlanStatus = "awaiting_merge"
+	PlanStatusMerging    PlanStatus = "merging"
 	PlanStatusMerged     PlanStatus = "merged"
 	PlanStatusDone       PlanStatus = "done"
 	PlanStatusTerminated PlanStatus = "terminated"
