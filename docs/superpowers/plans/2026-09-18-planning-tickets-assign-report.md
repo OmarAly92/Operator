@@ -3,7 +3,8 @@
 **Branch:** `feat/planning-tickets-assign` (cut from `origin/development` at `6b028dc15`)
 **Worktree:** `/Users/omaraly/development/AI/Operator-planning-tickets-assign`
 **HEAD before this report commit:** `166c5cda0af5790af92582ce67e99e3f59fd6dac`
-**Status:** all 12 tasks complete, gates green, real-renderer verification run against an isolated daemon. Not merged, not pushed — a separate review session reviews, verifies on a real daemon, and merges.
+**HEAD after the post-verification fix (below):** `684ed084f`
+**Status:** all 12 tasks complete, gates green, real-renderer verification run against an isolated daemon, and the one bug that verification found is fixed and re-verified live. Pushed to `origin/feat/planning-tickets-assign`, not merged — a separate review session reviews, verifies on a real daemon, and merges.
 
 ## Commit list
 
@@ -20,6 +21,7 @@ c113a42b0 feat(tickets): ticket file editor with edit, preview, split, save and 
 3b716df5b feat(tickets): editable ticket page with back crumb and unsaved-changes guard
 228c6ed87 feat(settings): ticket role defaults section in project settings
 166c5cda0 fix(settings): remove stray comment from tickets section
+684ed084f fix(tickets): resolve the live session id fresh before terminating it
 ```
 
 (Task 2's implementer used the wrong co-author trailer on its first commit; that commit was amended in place — since nothing else builds on that exact SHA and nothing had been pushed — to correct the trailer with no content change, so no separate entry appears above for it.)
@@ -91,7 +93,9 @@ To isolate the `plan_assigned`-only path per the brief's intent, I created a sec
 
 **Finding (real, independently reproduced twice, not a false alarm from my test setup):** in this exact race — the only reachable path the plan's own brief describes for demonstrating this UI state — `AssignPlanSheet`'s `terminateSessionId: terminating ? plan.sessionId : undefined` reads the `plan` prop as it was **when the sheet was opened**, before the out-of-band session existed. For a plan that was `todo` (never assigned) at that moment, `plan.sessionId` is `undefined`, so the mutation's kill branch (`if (input.terminateSessionId)` in `useTicketMutations.assignPlan`) never fires — confirmed directly: no `POST /sessions/{id}/kill` request was ever issued for the correct session in either reproduction. The button reads "Terminate and start" and a **new** session is spawned via `force: true` (confirmed: second assign attempt returned `201`, new branch `opr/race-check-01-2`), but the actual blocking session (`repo-10`) is left running, orphaned, never terminated by the UI. In my first (contaminated) reproduction, the same shape of bug fired against a *different*, already-dead stale session id (`repo-7`, from an earlier attempt), which is a harmless no-op kill, but the same root cause: the kill target is never the live session that caused the 409, because the sheet has no way to learn a session id that didn't exist when it opened.
 
-This is a real gap in Task 4/5's design, not a backend defect — `plan.sessionId` would need to come from the 409 response itself (if the daemon's error body carries one) or from a fresh dry-run/refetch immediately before the kill, rather than from the sheet's original props. It does not block merge on its own (the user still ends up with a working new session; the orphaned old one is a resource leak, not data loss — it will show a stale/duplicate row on the board that a manual `kill` can clean up), but it should be fixed before this ships, since the whole point of "Terminate and start" is not doing exactly this. Flagging for the review session's judgment.
+This is a real gap in Task 4/5's design, not a backend defect — `plan.sessionId` would need to come from the 409 response itself (if the daemon's error body carries one) or from a fresh dry-run/refetch immediately before the kill, rather than from the sheet's original props. It does not block merge on its own (the user still ends up with a working new session; the orphaned old one is a resource leak, not data loss — it will show a stale/duplicate row on the board that a manual `kill` can clean up), but it should be fixed before this ships, since the whole point of "Terminate and start" is not doing exactly this.
+
+**Fixed post-verification, commit `684ed084f`.** `AssignPlanSheet.submit` now calls a new `resolveTerminateSessionId()` helper before building the assign payload whenever `terminating` is true: it fetches the ticket fresh via `queryClient.fetchQuery` (a new export, `fetchTicket`, from `useTicketsQuery.ts`), looks up the current session id for this exact plan file, and falls back to the original `plan.sessionId` prop only if that fetch fails. Covered by three new tests in `AssignPlanSheet.test.tsx`: the existing "kills that session first" case now also asserts the fresh-fetch call happened; a new test asserts the fix picks the freshly-fetched session id over a stale prop when they differ (the exact race this finding describes); a new test asserts the prop is still used as a fallback if the fetch itself fails. Re-verified live against a fresh isolated daemon (port 39313) with the identical race reproduction as above: `POST /sessions/{id}/kill` now targets the actual live session (`repo-12`, confirmed via `curl … | jq` before and after — `status: "terminated"`, not left `working`), and the daemon shows no orphaned session afterward. Full gates re-run clean (typecheck, lint 0 errors/170 warnings — unchanged from baseline, no new warnings — 141 files/1551 tests).
 
 Aside from that finding, the branch-suffix behavior worked exactly as specified: repeat assignments of the same plan produced `opr/search-page-02-2`, `-3`, `-4` in sequence as I iterated, and `Reassign` on a `terminated` plan opened a clean sheet (`Start`, no warnings) that correctly did nothing on Escape.
 
@@ -113,11 +117,11 @@ Aside from that finding, the branch-suffix behavior worked exactly as specified:
 
 ## Anything left undone, and why
 
-- The `plan_assigned`/"Terminate and start" stale-`sessionId` finding above (Step 6) is real and unfixed. It is a design gap in `AssignPlanSheet`/`TicketDndProvider`'s prop flow (Tasks 4/5), not something Task 12 is scoped to fix (verification and report only). Flagged prominently for the review session.
+- The `plan_assigned`/"Terminate and start" stale-`sessionId` finding above (Step 6) was fixed and re-verified live after the initial verification pass (commit `684ed084f`) — see the note inline in Step 6. Nothing left undone on it.
 - Step 8 item 3's exact curl assertion (`model: "claude-haiku-4-5-20251001"` on the spawned planning session) could not be reproduced because this daemon build's session read model does not expose a `model` field at all — a backend question outside this plan's `no backend changes` constraint, not a plan-3 defect.
 - The literal "type a dirty edit, then race an out-of-band disk write against `Cmd+S` before the SSE refetch lands, to force a `409` from the save call itself" sub-case of Step 7 was not reproduced live (the SSE adoption path won the race under real-clock browser automation); it is deterministically covered by Task 9's unit test suite instead.
 - The Split-view heading-follow `scrollIntoView` call was not visually confirmed live (the test document was too short to produce a scrollable difference); it is deterministically covered by Task 9's unit test (`scrolls the split preview to the heading nearest the editor's top line`).
 
 ## Do not merge
 
-This branch (`feat/planning-tickets-assign`, HEAD `166c5cda0` plus this report commit) is **not merged and not pushed**. A separate review session reviews the whole branch, verifies against a real daemon, and merges.
+This branch (`feat/planning-tickets-assign`, HEAD `684ed084f` plus this report commit) is pushed to `origin` but **not merged**. A separate review session reviews the whole branch, verifies against a real daemon, and merges.
