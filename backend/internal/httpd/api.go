@@ -72,6 +72,7 @@ type APIDeps struct {
 	SessionCapabilities controllers.SessionCapabilityValidator
 	Inbox               controllers.InboxEventStore
 	InboxSessions       controllers.InboxSessionReader
+	Tickets             controllers.TicketService
 }
 
 // API owns one controller per resource and is the single Register call the
@@ -94,6 +95,7 @@ type API struct {
 	desktop        *controllers.DesktopController
 	events         *EventsController
 	inbox          *controllers.InboxController
+	tickets        *controllers.TicketsController
 }
 
 // NewAPI constructs the API surface from its dependencies. cfg carries the
@@ -133,6 +135,7 @@ func NewAPI(cfg config.Config, deps APIDeps) *API {
 		desktop:        &controllers.DesktopController{},
 		events:         &EventsController{Source: deps.CDC, Live: deps.Events},
 		inbox:          &controllers.InboxController{Events: deps.Inbox, Sessions: deps.InboxSessions},
+		tickets:        &controllers.TicketsController{Svc: deps.Tickets},
 	}
 }
 
@@ -168,6 +171,7 @@ func (a *API) Register(root chi.Router) {
 			a.dev.Register(r)
 			a.browser.Register(r)
 			a.inbox.Register(r)
+			a.tickets.Register(r)
 			a.desktop.Register(r)
 			// Sibling REST controllers plug in here.
 		})

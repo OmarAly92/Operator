@@ -47,6 +47,7 @@ import (
 	slashcommandssvc "github.com/OmarAly92/operator/backend/internal/service/slashcommands"
 	terminalblocksvc "github.com/OmarAly92/operator/backend/internal/service/terminalblock"
 	capturesvc "github.com/OmarAly92/operator/backend/internal/service/terminalcapture"
+	ticketsvc "github.com/OmarAly92/operator/backend/internal/service/ticket"
 	usagesvc "github.com/OmarAly92/operator/backend/internal/service/usage"
 	"github.com/OmarAly92/operator/backend/internal/skillassets"
 	"github.com/OmarAly92/operator/backend/internal/storage/sqlite"
@@ -392,6 +393,9 @@ func Run() error {
 		go dispatcher.Run(ctx)
 	}
 
+	ticketSvc := ticketsvc.New(ticketsvc.Deps{Store: store, Sessions: sessionSvc, BaseURL: fmt.Sprintf("http://127.0.0.1:%d", cfg.Port)})
+	ticketsvc.NewAutoReviewer(ticketSvc, log).Subscribe(ctx, cdcPipe.Broadcaster)
+
 	srv, err := httpd.NewWithDeps(cfg, log, termMgr, httpd.APIDeps{
 		Projects:            projectSvc,
 		Agents:              agentSvc,
@@ -432,6 +436,7 @@ func Run() error {
 		DesktopPreview:      sessionSvc,
 		Inbox:               lcStack.LCM,
 		InboxSessions:       sessionSvc,
+		Tickets:             ticketSvc,
 	})
 	if err != nil {
 		stop()
