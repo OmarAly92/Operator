@@ -128,3 +128,52 @@ None of the above block merge; they're recorded here so plan 2/3 (or a dedicated
 4. Left the residual TOCTOU gap in the same function unfixed — cost if wrong: a local, same-user, concurrent-write race with low practical exploitability on a loopback daemon; documented above for follow-up.
 5. Deferred the `npm run lint` findings discovered at Task 10 to the final whole-branch review rather than reopening earlier tasks individually — cost if wrong: none, they were all fixed in one bundled pass at the final review stage as planned.
 6. Stopped short of forcing a real agent spawn against the live daemon for the assign/review/merge-ready/merge curl steps, substituting the equivalent coverage already proven by Task 10's Go integration test — cost if wrong: the live-daemon HTTP-to-real-agent-spawn path itself is unverified by curl (though every layer under it — the service, the store, the session manager, the HTTP controller in isolation — is verified by tests); if this turns out to matter, a future verification pass should either extend `buildAgentResolver` to optionally register the fake adapter behind an explicit opt-in env var, or accept the cost of a real agent spawn with the user's explicit authorization.
+
+## Planner review (2026-09-18, Opus 5 session that wrote the plan)
+
+Reviewed the whole branch against the spec and plan, ran an independent
+adversarial review, ran every gate, and verified the full lifecycle on a live
+daemon built from the branch (isolated port 39311, scrubbed environment,
+throwaway repo). Fixes landed in `d29a76add`.
+
+**Live daemon verification, beyond the implementer's run.** Assigned the plan
+to a real `claude-code` session: 201 with branch `opr/smoke-ticket-01`,
+workspace mode `worktree`, the worktree cut from the committed default branch,
+`GET /sessions` carrying `{slug, planFile, role: implementing}`, ticket
+`in_progress` with the plan `working`. Review with `reviewer: new` spawned an
+in-place session with role `reviewing` and the plan read `reviewing`.
+`merge-ready` moved the ticket to `awaiting_merge` with the summary on the
+plan; `merge` sent the approval prompt into the reviewer session (seen in its
+transcript blocks) and the plan read `merging`; a second `merge` was refused
+with `TICKET_NOT_MERGE_READY`; `done`, `archive`, `unarchive` behaved; ten
+`ticket_updated` events reached `/events`. Both sessions were killed and the
+daemon stopped; the two production daemons on 3001/3002 were untouched. The
+spawned agent itself reported "Not logged in" because the sandbox used
+`env -i`, which is a sandbox artefact, not a feature defect.
+
+**Fixed in review.**
+
+- Dry run returned the plan's existing session, so the controller answered
+  201 for a dry run. Now `warnings` only, 200.
+- After the user approves a merge the plan went back to `reviewing`; the
+  board could not show that the approval happened. Added `merging`.
+- The session returned by assign, plan and review lacked its `ticket` link
+  because it was read before the row was written. Now re-read after linking.
+- `merge-ready` after approval reset the approval and allowed a second
+  "Approved" prompt. Now refused with `TICKET_MERGE_APPROVED`.
+- An unreadable ticket or plan file failed the whole project list with a 500.
+  Now listed with a warning, per spec §4.
+- A ticket folder that is itself a symlink passed containment. Rejected.
+- An `exited` planner counted as live, so `plan` refused to replace it.
+- `ticket.md` scalars are now always quoted, so titles like `- x` or `null`
+  round-trip.
+- `approve` guards a nulled implementing session id.
+- Removed the three comments added to `projectconfig.go`.
+
+**Accepted as follow-ups** (unchanged from the implementer's list, plus):
+the write-side TOCTOU on symlinks (fix is `O_NOFOLLOW`, needs a Windows
+build-tag decision), two near-simultaneous `pr_created` events for one
+session can trigger two reviews, attempt numbering ignores rows whose session
+was nulled by a seed deletion, `WatchRoot` creates the tickets directory on a
+GET, and the config key is `disableAutoReview` where the spec said
+`autoReview`; the spec now records the shipped name.

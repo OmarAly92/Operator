@@ -303,12 +303,13 @@ loopback URL is embedded) with a one-line summary. The assignment records
 
 **Auto-review.** A daemon observer subscribed to the CDC broadcaster reacts to
 `pr_created` events: when the PR's session is an implementer and
-`ProjectConfig.Tickets.autoReview` is not false, it triggers the same review
-once per assignment (`review_requested_at` already set means skip).
+`ProjectConfig.Tickets.disableAutoReview` is not set, it triggers the same
+review once per assignment (`review_requested_at` already set means skip).
 
 **Merge confirmation.** `POST /tickets/{slug}/plans/{plan}/merge-ready`
 (body: `summary`) is called by the reviewer agent and records
-`merge_ready_at` and `merge_summary`. The plan then reads `awaiting_merge` and
+`merge_ready_at` and `merge_summary`; once the user has approved it is refused
+with `TICKET_MERGE_APPROVED`, so an approval is never undone by a retry. The plan then reads `awaiting_merge` and
 the ticket `awaiting_merge`; the board card shows "Waiting for your
 confirmation" with the summary and a `Merge` button. `POST
 /tickets/{slug}/plans/{plan}/merge` is the user's confirmation: it records
