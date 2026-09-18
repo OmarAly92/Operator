@@ -14,6 +14,7 @@ const {
 	usageQueryMock,
 	boardActionsInPanelMock,
 	claudeAccountsQueryMock,
+	setArchivedMock,
 } = vi.hoisted(() => ({
 	navigateMock: vi.fn(),
 	notificationShowMock: vi.fn(),
@@ -26,6 +27,11 @@ const {
 		isError: false,
 		isLoading: false,
 	})),
+	setArchivedMock: vi.fn(),
+}));
+
+const { ticketsQueryMock } = vi.hoisted(() => ({
+	ticketsQueryMock: vi.fn(() => ({ tickets: [] as unknown[], isError: false, isSuccess: true })),
 }));
 
 vi.mock("@tanstack/react-router", () => ({
@@ -36,6 +42,26 @@ vi.mock("../hooks/useWorkspaceQuery", () => ({
 	workspaceQueryKey: ["workspaces"],
 	useWorkspaceQuery: workspaceQueryMock,
 }));
+
+vi.mock("../hooks/useTicketsQuery", () => ({
+	ticketsQueryRoot: ["tickets"],
+	useTicketsQuery: () => ticketsQueryMock(),
+}));
+
+vi.mock("../hooks/useTicketMutations", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("../hooks/useTicketMutations")>();
+	return {
+		...actual,
+		useTicketMutations: () => ({
+			setArchived: { mutateAsync: setArchivedMock, isPending: false },
+			createTicket: { mutateAsync: vi.fn(), isPending: false },
+			planTicket: { mutateAsync: vi.fn(), isPending: false },
+			reviewPlan: { mutateAsync: vi.fn(), isPending: false },
+			approveMerge: { mutateAsync: vi.fn(), isPending: false },
+			markPlanDone: { mutateAsync: vi.fn(), isPending: false },
+		}),
+	};
+});
 
 vi.mock("../hooks/useClaudeAccounts", async (importOriginal) => {
 	const actual = await importOriginal<typeof import("../hooks/useClaudeAccounts")>();
@@ -97,6 +123,8 @@ beforeEach(() => {
 	postMock.mockReset().mockResolvedValue({ data: {} });
 	workspaceQueryMock.mockReset().mockReturnValue({ data: [], isError: false });
 	usageQueryMock.mockReset().mockReturnValue({ data: new Map() });
+	ticketsQueryMock.mockReset().mockReturnValue({ tickets: [], isError: false, isSuccess: true });
+	setArchivedMock.mockReset();
 	window.localStorage.removeItem("opr.board.archive.layout");
 	boardActionsInPanelMock.mockReset().mockReturnValue(false);
 	resetPaneGridForTests();
@@ -1271,10 +1299,77 @@ describe("SessionsBoard", () => {
 		const laneScrollers = screen
 			.getAllByTestId("board-column")
 			.flatMap((column) => Array.from(column.querySelectorAll<HTMLElement>(".overflow-y-auto")));
-		expect(laneScrollers).toHaveLength(4);
+		expect(laneScrollers).toHaveLength(5);
 		for (const scroller of laneScrollers) {
 			expect(scroller).toHaveClass("board-scrollbar", "overflow-y-auto");
 		}
+	});
+
+	it("renders the planned column first with its create control", () => {
+		workspaceQueryMock.mockReturnValue({
+			data: [{ ...workspaceWithSessions([boardSession({ id: "s-1", title: "worker", status: "working" })]), kind: "single_repo" }],
+			isError: false,
+			isSuccess: true,
+		});
+
+		renderBoard("p1");
+
+		const columns = screen.getAllByTestId("board-column");
+		expect(columns[0]).toHaveAttribute("data-column", "planned");
+		expect(within(columns[0]).getByText("Planned")).toBeInTheDocument();
+		expect(within(columns[0]).getByRole("button", { name: "New ticket" })).toBeEnabled();
+		expect(within(columns[0]).getByText("No tickets yet")).toBeInTheDocument();
+	});
+
+	it("tells scratch projects that tickets need a repository", () => {
+		workspaceQueryMock.mockReturnValue({
+			data: [{ ...workspaceWithSessions([boardSession({ id: "s-1", title: "worker", status: "working" })]), kind: "scratch" }],
+			isError: false,
+			isSuccess: true,
+		});
+
+		renderBoard("p1");
+
+		const planned = screen.getAllByTestId("board-column")[0];
+		expect(within(planned).getByText("Tickets need a single-repository project.")).toBeInTheDocument();
+		expect(within(planned).getByRole("button", { name: "New ticket" })).toBeDisabled();
+	});
+
+	it("lists done and archived tickets in the archive bar and reopens them", async () => {
+		setArchivedMock.mockResolvedValue({});
+		workspaceQueryMock.mockReturnValue({
+			data: [{ ...workspaceWithSessions([boardSession({ id: "s-1", title: "worker", status: "working" })]), kind: "single_repo" }],
+			isError: false,
+			isSuccess: true,
+		});
+		ticketsQueryMock.mockReturnValue({
+			tickets: [
+				{ projectId: "p1", projectName: "radic", slug: "open-one", title: "Open one", status: "ready", plans: [], files: [] },
+				{ projectId: "p1", projectName: "radic", slug: "shipped", title: "Shipped", status: "done", plans: [], files: [] },
+				{ projectId: "p1", projectName: "radic", slug: "dropped", title: "Dropped", status: "archived", plans: [], files: [] },
+			],
+			isError: false,
+			isSuccess: true,
+		});
+
+		renderBoard("p1");
+
+		const planned = screen.getAllByTestId("board-column")[0];
+		expect(within(planned).getByText("Open one")).toBeInTheDocument();
+		expect(within(planned).queryByText("Shipped")).not.toBeInTheDocument();
+
+		await userEvent.click(screen.getByRole("button", { name: /archive/i }));
+		const archive = screen.getByRole("list", { name: "Archived sessions" });
+		expect(within(archive).getByText("Shipped")).toBeInTheDocument();
+		expect(within(archive).getByText("Dropped")).toBeInTheDocument();
+
+		await userEvent.click(within(archive).getByRole("button", { name: "Reopen ticket Dropped" }));
+		await waitFor(() => expect(setArchivedMock).toHaveBeenCalledWith({ projectId: "p1", slug: "dropped", archived: false }));
+		expect(navigateMock).toHaveBeenCalledWith({
+			to: "/projects/$projectId/tickets/$slug",
+			params: { projectId: "p1", slug: "dropped" },
+			search: {},
+		});
 	});
 
 	it("archives a terminated merged runtime without duplicating it in the merged lane", async () => {
@@ -1400,6 +1495,37 @@ describe("SessionsBoard", () => {
 		expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
 		expect(await screen.findByRole("alert")).toHaveTextContent("Failed to terminate session (500)");
 		expect(screen.getByRole("button", { name: "Terminate merged worker" })).toBeEnabled();
+	});
+
+	it("shows the ticket badge on a linked session card and opens the ticket page from it", async () => {
+		workspaceQueryMock.mockReturnValue({
+			data: [
+				workspaceWithSessions([
+					boardSession({
+						id: "s-impl",
+						title: "implement ui",
+						status: "working",
+						ticket: { slug: "search-page", role: "implementing", planFile: "plans/02-ui.md" },
+					}),
+				]),
+			],
+			isError: false,
+			isSuccess: true,
+		});
+
+		renderBoard("p1");
+
+		const badge = screen.getByRole("button", { name: "Open ticket search-page · 02" });
+		expect(badge).toHaveTextContent("search-page · 02");
+		await userEvent.click(badge);
+		expect(navigateMock).toHaveBeenCalledWith({
+			to: "/projects/$projectId/tickets/$slug",
+			params: { projectId: "p1", slug: "search-page" },
+			search: { file: "plans/02-ui.md" },
+		});
+		expect(navigateMock).not.toHaveBeenCalledWith(
+			expect.objectContaining({ to: "/projects/$projectId/sessions/$sessionId" }),
+		);
 	});
 });
 

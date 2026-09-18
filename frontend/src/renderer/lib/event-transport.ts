@@ -5,6 +5,7 @@ import { setEventsConnectionState } from "./events-connection";
 import { workspaceQueryKey } from "../hooks/useWorkspaceQuery";
 import { sessionScmSummaryQueryKey } from "../hooks/useSessionScmSummary";
 import { sessionUsageQueryRoot } from "../hooks/useSessionUsageSummaries";
+import { ticketsQueryRoot } from "../hooks/useTicketsQuery";
 
 export type EventTransport = {
 	connect: () => () => void;
@@ -55,6 +56,7 @@ export function createEventTransport(queryClient: QueryClient): EventTransport {
 					void queryClient.invalidateQueries({ queryKey: workspaceQueryKey });
 					void queryClient.invalidateQueries({ queryKey: sessionScmSummaryQueryKey() });
 					void queryClient.invalidateQueries({ queryKey: sessionUsageQueryRoot });
+					void queryClient.invalidateQueries({ queryKey: ticketsQueryRoot });
 				}, INVALIDATE_DEBOUNCE_MS);
 			};
 

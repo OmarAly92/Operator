@@ -155,7 +155,8 @@ test("renderer: board state rehydrates after a renderer relaunch @T0 @DMN", asyn
 test("renderer: board renders all status columns @T0 @BRD", async ({ page }) => {
 	await page.goto("/");
 	const columns = page.getByTestId("board-column");
-	await expect(columns).toHaveCount(4);
+	await expect(columns).toHaveCount(5);
+	await expect(page.locator('[data-testid="board-column"][data-column="planned"]')).toContainText("Planned");
 	// Left→right flow: work → needs-you → review → merge.
 	await expect(page.locator('[data-testid="board-column"][data-column="working"]')).toContainText("Working");
 	await expect(page.locator('[data-testid="board-column"][data-column="action"]')).toContainText("Needs you");
