@@ -82,19 +82,34 @@ export function AssignPlanSheet({
 		}
 	};
 
+	const recheckWarnings = async (known: string[]): Promise<string[]> => {
+		try {
+			const result = await assign({ projectId: ticket.projectId, slug: ticket.slug, plan: plan.file, dryRun: true });
+			return result.warnings;
+		} catch {
+			return known;
+		}
+	};
+
 	const submit = async (event: FormEvent<HTMLFormElement>) => {
 		event.preventDefault();
 		if (busy || warnings === null) return;
 		setBusy(true);
 		setError(null);
 		try {
-			const terminateSessionId = terminating ? await resolveTerminateSessionId() : undefined;
+			const current = await recheckWarnings(warnings);
+			if (current.some((code) => !warnings.includes(code))) {
+				setWarnings(current);
+				setError(t("tickets.error.TICKET_ASSIGN_BLOCKED"));
+				return;
+			}
+			const terminateSessionId = current.includes("plan_assigned") ? await resolveTerminateSessionId() : undefined;
 			const result = await assign({
 				projectId: ticket.projectId,
 				slug: ticket.slug,
 				plan: plan.file,
 				...values,
-				force: needsForce(warnings) || undefined,
+				force: needsForce(current) || undefined,
 				terminateSessionId,
 			});
 			onOpenChange(false);
@@ -155,20 +170,22 @@ export function AssignPlanSheet({
 						</dl>
 						<p className="text-caption leading-4 text-settings-muted">{t("tickets.assignBranchHint")}</p>
 						<TicketRoleFields projectId={ticket.projectId} value={values} onChange={setValues} disabled={busy} />
-						<div className="flex flex-col gap-1.5" role="status">
-							<span className="settings-field-label">{t("tickets.assignWarnings")}</span>
-							{checking ? (
-								<p className="text-caption leading-4 text-settings-muted">{t("tickets.assignChecking")}</p>
-							) : warnings.length === 0 ? null : (
-								<ul className="flex flex-col gap-1">
-									{warnings.map((code) => (
-										<li key={code} className="text-caption leading-4 text-warning" data-warning={code}>
-											{assignWarningLabel(code, t)}
-										</li>
-									))}
-								</ul>
-							)}
-						</div>
+						{checking || warnings.length > 0 ? (
+							<div className="flex flex-col gap-1.5" role="status">
+								<span className="settings-field-label">{t("tickets.assignWarnings")}</span>
+								{checking ? (
+									<p className="text-caption leading-4 text-settings-muted">{t("tickets.assignChecking")}</p>
+								) : (
+									<ul className="flex flex-col gap-1">
+										{warnings.map((code) => (
+											<li key={code} className="text-caption leading-4 text-warning" data-warning={code}>
+												{assignWarningLabel(code, t)}
+											</li>
+										))}
+									</ul>
+								)}
+							</div>
+						) : null}
 						{error ? (
 							<p role="alert" className="text-caption leading-4 text-error">
 								{error}

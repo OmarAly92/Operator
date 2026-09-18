@@ -24,7 +24,7 @@ describe("CodeMirrorField", () => {
 		expect(viewOf().state.doc.toString()).toBe("# Hello");
 	});
 
-	it("reports edits and adopts external value changes", () => {
+	it("reports edits and adopts external value changes without echoing them", () => {
 		const onChange = vi.fn();
 		const { rerender } = render(<CodeMirrorField value="one" onChange={onChange} onSave={vi.fn()} ariaLabel="Edit" />);
 		act(() => {
@@ -34,6 +34,7 @@ describe("CodeMirrorField", () => {
 
 		rerender(<CodeMirrorField value="three" onChange={onChange} onSave={vi.fn()} ariaLabel="Edit" />);
 		expect(viewOf().state.doc.toString()).toBe("three");
+		expect(onChange).toHaveBeenCalledTimes(1);
 	});
 
 	it("runs onSave for Mod-s and swallows the browser default", () => {

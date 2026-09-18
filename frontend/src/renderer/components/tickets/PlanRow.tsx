@@ -135,7 +135,7 @@ export function PlanRow({
 				</span>
 			</div>
 			{sessionId || showAssign || showReview || showMerge || showDone ? (
-				<div className="flex items-center gap-1 pl-7">
+				<div className="flex flex-wrap items-center gap-1 pl-7">
 					{sessionId ? (
 						<button
 							type="button"

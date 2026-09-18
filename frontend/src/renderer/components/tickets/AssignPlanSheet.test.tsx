@@ -150,8 +150,8 @@ describe("AssignPlanSheet", () => {
 		await userEvent.click(screen.getByRole("button", { name: "Start" }));
 		const button = await screen.findByRole("button", { name: "Terminate and start" });
 		assignMutateAsync.mockImplementation(async (input: { dryRun?: boolean }) => {
-			if (input.dryRun) return { warnings: [] };
-			return { warnings: [], session: { id: "s-new", projectId: "p1" } };
+			if (input.dryRun) return { warnings: ["plan_assigned"] };
+			return { warnings: ["plan_assigned"], session: { id: "s-new", projectId: "p1" } };
 		});
 		await userEvent.click(button);
 
@@ -187,8 +187,30 @@ describe("AssignPlanSheet", () => {
 
 		await userEvent.click(screen.getByLabelText("Model"));
 		await userEvent.keyboard("{Enter}");
-		await waitFor(() => expect(assignMutateAsync).toHaveBeenCalledTimes(2));
-		expect(assignMutateAsync.mock.calls[1]?.[0]).not.toHaveProperty("dryRun");
+		await waitFor(() => expect(assignMutateAsync).toHaveBeenCalledTimes(3));
+		expect(assignMutateAsync.mock.calls[1]?.[0]).toMatchObject({ dryRun: true });
+		expect(assignMutateAsync.mock.calls[2]?.[0]).not.toHaveProperty("dryRun");
+	});
+
+	it("re-checks the warnings on Start and stops when a new one appeared, instead of forcing past it", async () => {
+		let dryRuns = 0;
+		assignMutateAsync.mockImplementation(async (input: { dryRun?: boolean }) => {
+			if (input.dryRun) {
+				dryRuns += 1;
+				return { warnings: dryRuns === 1 ? ["ticket_repo_dirty"] : ["ticket_repo_dirty", "plan_assigned"] };
+			}
+			return { warnings: [], session: { id: "s-new", projectId: "p1" } };
+		});
+		renderSheet(todoPlan);
+		await screen.findByText("The ticket folder has uncommitted changes. The worktree is cut from the committed branch and will not see them.");
+
+		await userEvent.click(screen.getByRole("button", { name: "Start" }));
+
+		expect(await screen.findByRole("button", { name: "Terminate and start" })).toBeEnabled();
+		expect(screen.getByText("This plan already has a live session. Starting again terminates it first.")).toBeInTheDocument();
+		expect(screen.getByRole("alert")).toHaveTextContent("The assignment needs confirmation.");
+		expect(navigateMock).not.toHaveBeenCalled();
+		expect(assignMutateAsync.mock.calls.every((call) => (call[0] as { dryRun?: boolean }).dryRun)).toBe(true);
 	});
 
 	it("adopts the daemon's warnings when a submit comes back blocked", async () => {

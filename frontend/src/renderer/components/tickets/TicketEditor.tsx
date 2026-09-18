@@ -81,7 +81,7 @@ export function TicketEditor({
 	}, [savedAt]);
 
 	const save = async (keepMine = false) => {
-		if (!file || busy) return;
+		if (!file || busy || (!dirty && !keepMine)) return;
 		savingRef.current = true;
 		setBusy(true);
 		setSaveError(null);
@@ -195,7 +195,7 @@ export function TicketEditor({
 				<span className="min-w-0 flex-1" />
 				<RadioGroup.Root
 					aria-label={t("tickets.editor.mode")}
-					className="settings-segment"
+					className="settings-segment shrink-0"
 					value={mode}
 					onValueChange={(next) => setMode(next as EditorMode)}
 				>
@@ -205,7 +205,7 @@ export function TicketEditor({
 						</RadioGroup.Item>
 					))}
 				</RadioGroup.Root>
-				<span className="font-mono text-micro text-passive">
+				<span className="shrink-0 whitespace-nowrap font-mono text-micro text-passive">
 					{savedAt !== null
 						? t("tickets.editor.saved")
 						: file

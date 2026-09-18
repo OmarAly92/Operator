@@ -125,3 +125,28 @@ Aside from that finding, the branch-suffix behavior worked exactly as specified:
 ## Do not merge
 
 This branch (`feat/planning-tickets-assign`, HEAD `684ed084f` plus this report commit) is pushed to `origin` but **not merged**. A separate review session reviews the whole branch, verifies against a real daemon, and merges.
+
+## Planner review (2026-09-18, separate session)
+
+Whole-branch read of every new file and every diff, gates re-run (typecheck clean, lint 0 errors / 170 warnings, 141 files / 1551 → 1552 tests), then a live run of the real renderer against an isolated daemon built from this branch (port 39314, throwaway `single_repo` project `repo`, `vite --host --port 5181` with `OPERATOR_DEV_API_TARGET`, page at `http://127.0.0.1:5181`). The user's daemons on 3001/3002 answered `/readyz` unchanged before and after and never listed `repo`.
+
+### Live verification
+
+- Drag `01 Index` → WORKING column: dashed target, dimmed columns, overlay chip; the sheet opened with the dirty warning; Claude Code / Haiku / Start → `POST …/assign → 201` with `force: true`; session `repo-14` on `opr/search-page-01` with `ticket.role: implementing`; the card never navigated during the drag.
+- `plan_assigned` race on a clean ticket: sheet open → out-of-band assign (`repo-15`) → Start → `409` → warning adopted, button `Terminate and start` → click → `POST /sessions/repo-15/kill` then `201`; `repo-15` terminated, `repo-16` on `opr/race-check-01-2`. Escape on a sheet closes it without spawning and without opening the ticket page.
+- Editor: two external appends while clean adopted silently; typed line + Cmd+S → `PUT → 200`, on disk; dirty edit + concurrent `PUT` from another client + Cmd+S → `PUT → 409 TICKET_FILE_STALE` → stale bar with the draft kept → `Reload` showed the disk version; dirty edit + click another file → `Discard unsaved changes?` → Discard navigated; Split renders both panes.
+- Settings → Tickets: Planner = Claude Code / Haiku, Reviews run in = New session → `PUT /api/v1/projects/repo → 200`, `config.tickets = {planner:{agent:"claude-code",model:"haiku"},reviewerMode:"new"}`; `POST …/plan` with an empty body spawned `repo-18` whose `claude` process ran with `--model haiku` (checked with `ps`; the session read model's `model` field is the agent's self-reported value, which is why the report's Step 8 curl could not see it).
+
+### Fixes made during review
+
+1. **CodeMirror echoed programmatic replacements as edits.** `CodeMirrorField`'s `updateListener` called `onChange` for the dispatch that adopts an external `value`, so after one SSE reload in Edit mode the editor held a non-null `draft` equal to the old content; the next external change then showed a false "This file changed on disk" bar and stopped following the disk. Reproduced with a failing test on the original code; the replacement transaction now carries an `externalChange` annotation the listener skips.
+2. **Start forced past warnings that appeared after the dry run.** When the sheet already showed a warning (`plan_order`, `ticket_repo_dirty`), `needsForce` was true from the start, so a plan assigned out-of-band between the dry run and Start was silently forced past — two live sessions on the same plan, the first orphaned. Reproduced live (`repo-19` would have stayed running). `submit` now re-runs the dry run first; if a code not already shown appears, it adopts the new list, shows `The assignment needs confirmation.` and stops, so `plan_assigned` always relabels the button to `Terminate and start` before anything spawns. Verified live: the re-check surfaced the new warning, `Terminate and start` then killed `repo-19` and spawned `repo-20` on `opr/search-page-02-2`. `force` and the kill target are computed from the fresh list.
+3. `Cmd+S` on a clean editor no longer issues a no-op `PUT` (matches the disabled Save button).
+4. Toolbar: the `Modified …` / `Saved` label no longer wraps to two lines and the segmented control no longer shrinks; plan-row action rows wrap instead of clipping `Mark done` in the 288px ticket-page aside.
+5. The `Before you start` heading is hidden when the dry run returned nothing.
+
+### Left for later
+
+- `TicketRoleDefaults` has no `mode` field, so agents whose catalog uses `selectionMode: "mode"` cannot persist a mode as a ticket default (schema gap, noted by the implementer).
+- The dry run fires twice on sheet open in the Vite dev build (React StrictMode double effect); production runs it once.
+- The daemon serialises unset ticket roles as `{}` (Go `omitempty` on struct fields); cosmetic.

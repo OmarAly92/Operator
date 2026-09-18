@@ -1,6 +1,6 @@
 import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
 import { markdown } from "@codemirror/lang-markdown";
-import { EditorState } from "@codemirror/state";
+import { Annotation, EditorState } from "@codemirror/state";
 import { EditorView, highlightActiveLine, highlightActiveLineGutter, keymap, lineNumbers } from "@codemirror/view";
 import { useEffect, useRef } from "react";
 
@@ -30,6 +30,8 @@ const editorTheme = EditorView.theme(
 	},
 	{ dark: true },
 );
+
+const externalChange = Annotation.define<boolean>();
 
 type Callbacks = {
 	onChange: (next: string) => void;
@@ -82,7 +84,9 @@ export function CodeMirrorField({
 					...historyKeymap,
 				]),
 				EditorView.updateListener.of((update) => {
-					if (update.docChanged) callbacks.current.onChange(update.state.doc.toString());
+					if (!update.docChanged) return;
+					if (update.transactions.some((transaction) => transaction.annotation(externalChange))) return;
+					callbacks.current.onChange(update.state.doc.toString());
 				}),
 				EditorView.domEventHandlers({
 					scroll: (_event, view) => {
@@ -111,7 +115,7 @@ export function CodeMirrorField({
 		if (!view) return;
 		const current = view.state.doc.toString();
 		if (current === value) return;
-		view.dispatch({ changes: { from: 0, to: current.length, insert: value } });
+		view.dispatch({ changes: { from: 0, to: current.length, insert: value }, annotations: externalChange.of(true) });
 	}, [value]);
 
 	return <div ref={host} className="min-h-0 flex-1 overflow-hidden [&_.cm-editor]:h-full" data-testid="codemirror-field" />;
