@@ -34,6 +34,23 @@ const { ticketsQueryMock } = vi.hoisted(() => ({
 	ticketsQueryMock: vi.fn(() => ({ tickets: [] as unknown[], isError: false, isSuccess: true })),
 }));
 
+const { ticketDragMock, dropTargetMock } = vi.hoisted(() => ({
+	ticketDragMock: vi.fn(() => ({ active: null as unknown, requestAssign: vi.fn() })),
+	dropTargetMock: vi.fn((id: string) => ({ setNodeRef: () => undefined, isOver: false, accepts: false, dragging: false, id })),
+}));
+
+vi.mock("./tickets/TicketDndProvider", () => ({
+	useTicketDrag: () => ticketDragMock(),
+	useTicketDropTarget: (id: string) => dropTargetMock(id),
+	usePlanDraggable: () => ({
+		attributes: {},
+		listeners: {},
+		setNodeRef: () => undefined,
+		setActivatorNodeRef: () => undefined,
+		isDragging: false,
+	}),
+}));
+
 vi.mock("@tanstack/react-router", () => ({
 	useNavigate: () => navigateMock,
 }));
@@ -124,6 +141,8 @@ beforeEach(() => {
 	workspaceQueryMock.mockReset().mockReturnValue({ data: [], isError: false });
 	usageQueryMock.mockReset().mockReturnValue({ data: new Map() });
 	ticketsQueryMock.mockReset().mockReturnValue({ tickets: [], isError: false, isSuccess: true });
+	ticketDragMock.mockReset().mockReturnValue({ active: null, requestAssign: vi.fn() });
+	dropTargetMock.mockReset().mockImplementation((id: string) => ({ setNodeRef: () => undefined, isOver: false, accepts: false, dragging: false, id }));
 	setArchivedMock.mockReset();
 	window.localStorage.removeItem("opr.board.archive.layout");
 	boardActionsInPanelMock.mockReset().mockReturnValue(false);
@@ -1319,6 +1338,50 @@ describe("SessionsBoard", () => {
 		expect(within(columns[0]).getByText("Planned")).toBeInTheDocument();
 		expect(within(columns[0]).getByRole("button", { name: "New ticket" })).toBeEnabled();
 		expect(within(columns[0]).getByText("No tickets yet")).toBeInTheDocument();
+	});
+
+	it("registers the working column as the lane drop target and stays undimmed at rest", () => {
+		workspaceQueryMock.mockReturnValue({
+			data: [{ ...workspaceWithSessions([boardSession({ id: "s-1", title: "worker", status: "working" })]), kind: "single_repo" }],
+			isError: false,
+			isSuccess: true,
+		});
+		renderBoard("p1");
+
+		expect(dropTargetMock).toHaveBeenCalledWith("drop:lane:working");
+		expect(screen.getByTestId("board-grid")).toHaveAttribute("data-dragging", "false");
+		const working = screen.getAllByTestId("board-column").find((column) => column.getAttribute("data-column") === "working");
+		expect(working).toHaveAttribute("data-drop-accepts", "false");
+		expect(screen.queryByText("Drop to assign")).not.toBeInTheDocument();
+	});
+
+	it("dims the board and highlights the working column while a plan is dragged", () => {
+		workspaceQueryMock.mockReturnValue({
+			data: [{ ...workspaceWithSessions([boardSession({ id: "s-1", title: "worker", status: "working" })]), kind: "single_repo" }],
+			isError: false,
+			isSuccess: true,
+		});
+		ticketDragMock.mockReturnValue({ active: { ticket: { projectId: "p1" }, plan: { file: "plans/01-a.md" } }, requestAssign: vi.fn() });
+		dropTargetMock.mockImplementation((id: string) => ({ setNodeRef: () => undefined, isOver: id === "drop:lane:working", accepts: id === "drop:lane:working", dragging: true, id }));
+		renderBoard("p1");
+
+		expect(screen.getByTestId("board-grid")).toHaveAttribute("data-dragging", "true");
+		const working = screen.getAllByTestId("board-column").find((column) => column.getAttribute("data-column") === "working");
+		expect(working).toHaveAttribute("data-drop-accepts", "true");
+		expect(working).toHaveAttribute("data-drop-over", "true");
+		expect(within(working!).getByText("Drop to assign")).toBeInTheDocument();
+	});
+
+	it("renders the intake chip with a visible bordered look", () => {
+		workspaceQueryMock.mockReturnValue({
+			data: [workspaceWithSessions([boardSession({ id: "s-1", title: "worker", status: "working", issueId: "github:42" })])],
+			isError: false,
+			isSuccess: true,
+		});
+		renderBoard("p1");
+		const chip = screen.getByTitle("Intake issue: github:42");
+		expect(chip.className).not.toMatch(/text-accent|bg-accent/);
+		expect(chip.className).toMatch(/border-border/);
 	});
 
 	it("tells scratch projects that tickets need a repository", () => {

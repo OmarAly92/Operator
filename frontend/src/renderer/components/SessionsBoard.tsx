@@ -73,8 +73,10 @@ import { useShellMaybe } from "../lib/shell-context";
 import { dotGlow } from "../theme/effects";
 import { useTicketsQuery } from "../hooks/useTicketsQuery";
 import { isTicketInArchive } from "../lib/ticket-presentation";
+import { LANE_DROP_ID } from "../lib/ticket-assign";
 import { PlannedColumn } from "./tickets/PlannedColumn";
 import { CreateTicketSheet } from "./tickets/CreateTicketSheet";
+import { useTicketDrag, useTicketDropTarget } from "./tickets/TicketDndProvider";
 
 type SessionsBoardProps = {
 	/** When set, the board shows only this project's sessions. */
@@ -117,6 +119,7 @@ export function SessionsBoard({ projectId }: SessionsBoardProps) {
 	const openTickets = ticketsQuery.tickets.filter((ticket) => !isTicketInArchive(ticket));
 	const archivedTickets = ticketsQuery.tickets.filter(isTicketInArchive);
 	const supportsTickets = ticketProjects.length > 0;
+	const { active: draggingPlan } = useTicketDrag();
 	const sessionsById = new Map<string, WorkspaceSession>();
 	for (const w of workspaces) {
 		for (const s of w.sessions) sessionsById.set(s.id, s);
@@ -385,7 +388,12 @@ export function SessionsBoard({ projectId }: SessionsBoardProps) {
 						{/* Hairline column grid: vertical divide-x + one absolute header rule so
 						    the horizontal divider stays continuous and level across lanes.
 						    Keep `top-12` aligned with each column header's `h-12`. */}
-						<div className="relative grid h-full min-w-[80rem] grid-cols-5 divide-x divide-border-strong xl:min-w-0">
+						<div
+							className="relative grid h-full min-w-[80rem] grid-cols-5 divide-x divide-border-strong xl:min-w-0"
+							data-board-grid=""
+							data-dragging={draggingPlan !== null}
+							data-testid="board-grid"
+						>
 							<div
 								aria-hidden="true"
 								className="pointer-events-none absolute inset-x-0 top-12 z-10 border-t border-border-strong"
@@ -655,6 +663,7 @@ function WorkLaneColumn({
 	const tones = splitLaneTones(t);
 	const idleSessions = sessions.filter(isSessionIdle);
 	const workingSessions = sessions.filter((session) => !isSessionIdle(session));
+	const dropTarget = useTicketDropTarget(LANE_DROP_ID);
 
 	return (
 		<SplitLaneColumn
@@ -667,6 +676,7 @@ function WorkLaneColumn({
 			onOpen={onOpen}
 			onTerminate={onTerminate}
 			usageBySession={usageBySession}
+			dropTarget={dropTarget}
 		/>
 	);
 }
@@ -716,6 +726,7 @@ function SplitLaneColumn({
 	onOpen,
 	onTerminate,
 	usageBySession,
+	dropTarget,
 }: {
 	ariaLabel: string;
 	zone: Extract<AttentionZone, "working" | "merge">;
@@ -726,6 +737,7 @@ function SplitLaneColumn({
 	onOpen: (s: WorkspaceSession) => void;
 	onTerminate: (s: WorkspaceSession) => void;
 	usageBySession: UsageBySession;
+	dropTarget?: { setNodeRef: (node: HTMLElement | null) => void; isOver: boolean; accepts: boolean; dragging: boolean };
 }) {
 	const { t } = useTranslation();
 	const showPrimary = primarySessions.length > 0;
@@ -733,9 +745,12 @@ function SplitLaneColumn({
 
 	return (
 		<section
+			ref={dropTarget?.setNodeRef}
 			aria-label={ariaLabel}
 			className="flex min-w-0 flex-col overflow-hidden"
 			data-column={zone}
+			data-drop-accepts={dropTarget?.accepts ?? false}
+			data-drop-over={dropTarget?.isOver ?? false}
 			data-testid="board-column"
 		>
 			<div className="flex h-12 shrink-0 items-center gap-2 px-3">
@@ -757,7 +772,13 @@ function SplitLaneColumn({
 				</div>
 			</div>
 			<div className="board-scrollbar min-h-0 flex-1 overflow-y-auto px-3 pb-3 pt-3">
-				<div className="flex min-h-full flex-col">
+				<div
+					className={cn(
+						"flex min-h-full flex-col transition-[background-color,outline-color] duration-150",
+						dropTarget?.accepts && "rounded-lg outline-dashed outline-1 -outline-offset-4 outline-border-strong",
+						dropTarget?.isOver && "bg-interactive-hover/40",
+					)}
+				>
 					{showPrimary ? (
 						<div
 							aria-label={primaryTone.regionLabel}
@@ -786,6 +807,11 @@ function SplitLaneColumn({
 							onTerminate={onTerminate}
 							usageBySession={usageBySession}
 						/>
+					) : null}
+					{dropTarget?.accepts ? (
+						<p className="mt-auto pt-3 text-center text-2xs font-medium text-muted-foreground" role="status">
+							{t("tickets.dropToAssign")}
+						</p>
 					) : null}
 				</div>
 			</div>
@@ -1078,7 +1104,7 @@ function SessionCard({
 				)}
 				{issueId && (
 					<span
-						className="inline-flex max-w-branch-chip items-center self-start truncate rounded-sm bg-accent/12 px-1.5 py-0.5 font-mono text-micro text-accent"
+						className="inline-flex max-w-branch-chip items-center self-start truncate rounded-sm border border-border bg-surface px-1.5 py-0.5 font-mono text-micro text-muted-foreground"
 						title={t("shell.intakeIssue", { id: issueId })}
 					>
 						{issueId}

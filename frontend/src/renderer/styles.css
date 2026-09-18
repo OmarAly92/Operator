@@ -1359,6 +1359,11 @@ textarea,
 	}
 }
 
+[data-board-grid][data-dragging="true"] > [data-column]:not([data-drop-accepts="true"]) {
+	opacity: 0.4;
+	transition: opacity 150ms ease-out;
+}
+
 .session-files-diff-scrollbar {
 	scrollbar-width: thin;
 	scrollbar-color: var(--color-scrollbar) transparent;
