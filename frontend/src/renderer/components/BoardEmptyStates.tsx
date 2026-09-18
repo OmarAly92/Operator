@@ -35,6 +35,7 @@ export function ProjectBoardEmpty({
 	isProjectRestarting,
 	isSpawning,
 	onNewTask,
+	onNewTicket,
 	onOpenOrchestrator,
 	spawnError,
 }: {
@@ -42,6 +43,7 @@ export function ProjectBoardEmpty({
 	isProjectRestarting: boolean;
 	isSpawning: boolean;
 	onNewTask: () => void;
+	onNewTicket?: () => void;
 	onOpenOrchestrator: () => void;
 	spawnError?: string | null;
 }) {
@@ -72,6 +74,12 @@ export function ProjectBoardEmpty({
 						<Plus className="size-icon-md" aria-hidden="true" />
 						{t("shell.newTask")}
 					</TopbarButton>
+					{onNewTicket ? (
+						<TopbarButton aria-label={t("tickets.create")} disabled={isProjectRestarting} onClick={onNewTicket}>
+							<Plus className="size-icon-md" aria-hidden="true" />
+							{t("tickets.create")}
+						</TopbarButton>
+					) : null}
 				</div>
 				{spawnError && (
 					<div className="mt-3 flex flex-col items-center gap-2">

@@ -37,6 +37,11 @@ vi.mock("../hooks/useWorkspaceQuery", () => ({
 	useWorkspaceQuery: workspaceQueryMock,
 }));
 
+vi.mock("../hooks/useTicketsQuery", () => ({
+	ticketsQueryRoot: ["tickets"],
+	useTicketsQuery: () => ({ tickets: [], isError: false, isSuccess: true }),
+}));
+
 vi.mock("../hooks/useClaudeAccounts", async (importOriginal) => {
 	const actual = await importOriginal<typeof import("../hooks/useClaudeAccounts")>();
 	return { ...actual, useClaudeAccounts: () => claudeAccountsQueryMock() };
@@ -1271,10 +1276,40 @@ describe("SessionsBoard", () => {
 		const laneScrollers = screen
 			.getAllByTestId("board-column")
 			.flatMap((column) => Array.from(column.querySelectorAll<HTMLElement>(".overflow-y-auto")));
-		expect(laneScrollers).toHaveLength(4);
+		expect(laneScrollers).toHaveLength(5);
 		for (const scroller of laneScrollers) {
 			expect(scroller).toHaveClass("board-scrollbar", "overflow-y-auto");
 		}
+	});
+
+	it("renders the planned column first with its create control", () => {
+		workspaceQueryMock.mockReturnValue({
+			data: [{ ...workspaceWithSessions([boardSession({ id: "s-1", title: "worker", status: "working" })]), kind: "single_repo" }],
+			isError: false,
+			isSuccess: true,
+		});
+
+		renderBoard("p1");
+
+		const columns = screen.getAllByTestId("board-column");
+		expect(columns[0]).toHaveAttribute("data-column", "planned");
+		expect(within(columns[0]).getByText("Planned")).toBeInTheDocument();
+		expect(within(columns[0]).getByRole("button", { name: "New ticket" })).toBeEnabled();
+		expect(within(columns[0]).getByText("No tickets yet")).toBeInTheDocument();
+	});
+
+	it("tells scratch projects that tickets need a repository", () => {
+		workspaceQueryMock.mockReturnValue({
+			data: [{ ...workspaceWithSessions([boardSession({ id: "s-1", title: "worker", status: "working" })]), kind: "scratch" }],
+			isError: false,
+			isSuccess: true,
+		});
+
+		renderBoard("p1");
+
+		const planned = screen.getAllByTestId("board-column")[0];
+		expect(within(planned).getByText("Tickets need a single-repository project.")).toBeInTheDocument();
+		expect(within(planned).getByRole("button", { name: "New ticket" })).toBeDisabled();
 	});
 
 	it("archives a terminated merged runtime without duplicating it in the merged lane", async () => {
