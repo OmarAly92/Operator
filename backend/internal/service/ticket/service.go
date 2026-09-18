@@ -182,30 +182,35 @@ func (s *Service) List(ctx context.Context, project domain.ProjectID) ([]domain.
 }
 
 func (s *Service) load(ctx context.Context, project domain.ProjectID, slug string) (domain.ProjectRecord, domain.TicketRecord, domain.Ticket, error) {
+	p, rec, t, _, err := s.loadWithSessions(ctx, project, slug)
+	return p, rec, t, err
+}
+
+func (s *Service) loadWithSessions(ctx context.Context, project domain.ProjectID, slug string) (domain.ProjectRecord, domain.TicketRecord, domain.Ticket, map[domain.SessionID]*domain.Session, error) {
 	p, err := s.project(ctx, project)
 	if err != nil {
-		return p, domain.TicketRecord{}, domain.Ticket{}, err
+		return p, domain.TicketRecord{}, domain.Ticket{}, nil, err
 	}
 	sc, ok, err := scanTicket(ticketsRoot(p), slug)
 	if err != nil {
-		return p, domain.TicketRecord{}, domain.Ticket{}, err
+		return p, domain.TicketRecord{}, domain.Ticket{}, nil, err
 	}
 	if !ok {
-		return p, domain.TicketRecord{}, domain.Ticket{}, apierr.NotFound("TICKET_NOT_FOUND", "Unknown ticket")
+		return p, domain.TicketRecord{}, domain.Ticket{}, nil, apierr.NotFound("TICKET_NOT_FOUND", "Unknown ticket")
 	}
 	rec, found, err := s.store.GetTicket(ctx, project, slug)
 	if err != nil {
-		return p, rec, domain.Ticket{}, err
+		return p, rec, domain.Ticket{}, nil, err
 	}
 	if !found {
 		rec = domain.TicketRecord{ProjectID: project, Slug: slug}
 	}
 	sessions, err := s.sessionIndex(ctx, project)
 	if err != nil {
-		return p, rec, domain.Ticket{}, err
+		return p, rec, domain.Ticket{}, nil, err
 	}
 	t, err := s.build(ctx, rec, sc, sessions)
-	return p, rec, t, err
+	return p, rec, t, sessions, err
 }
 
 func (s *Service) Get(ctx context.Context, project domain.ProjectID, slug string) (domain.Ticket, error) {
@@ -449,11 +454,7 @@ func planningLive(sessions map[domain.SessionID]*domain.Session, id domain.Sessi
 }
 
 func (s *Service) Plan(ctx context.Context, project domain.ProjectID, slug string, in SpawnInput) (domain.Session, error) {
-	p, rec, t, err := s.load(ctx, project, slug)
-	if err != nil {
-		return domain.Session{}, err
-	}
-	sessions, err := s.sessionIndex(ctx, project)
+	p, rec, t, sessions, err := s.loadWithSessions(ctx, project, slug)
 	if err != nil {
 		return domain.Session{}, err
 	}
@@ -534,17 +535,13 @@ func (s *Service) assignWarnings(ctx context.Context, p domain.ProjectRecord, re
 }
 
 func (s *Service) Assign(ctx context.Context, project domain.ProjectID, slug, planName string, in AssignInput) (AssignResult, error) {
-	p, rec, t, err := s.load(ctx, project, slug)
+	p, rec, t, sessions, err := s.loadWithSessions(ctx, project, slug)
 	if err != nil {
 		return AssignResult{}, err
 	}
 	idx, ok := findPlan(t, planName)
 	if !ok {
 		return AssignResult{}, apierr.NotFound("TICKET_PLAN_NOT_FOUND", "No such plan in the ticket")
-	}
-	sessions, err := s.sessionIndex(ctx, project)
-	if err != nil {
-		return AssignResult{}, err
 	}
 	warnings := s.assignWarnings(ctx, p, rec, t, idx, sessions)
 	if in.DryRun {

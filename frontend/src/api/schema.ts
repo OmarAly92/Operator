@@ -2025,6 +2025,19 @@ export interface components {
         DomainReviewerConfig: {
             harness: string;
         };
+        DomainTicketDefaults: {
+            disableAutoReview?: boolean;
+            implementer?: components["schemas"]["DomainTicketRoleDefaults"];
+            planner?: components["schemas"]["DomainTicketRoleDefaults"];
+            reviewer?: components["schemas"]["DomainTicketRoleDefaults"];
+            /** @enum {string} */
+            reviewerMode?: "planner" | "new";
+        };
+        DomainTicketRoleDefaults: {
+            agent?: string;
+            claudeAccountId?: string;
+            model?: string;
+        };
         FeaturePin: {
             /** Format: int64 */
             pr: number;
@@ -2294,6 +2307,7 @@ export interface components {
             reviewers?: components["schemas"]["DomainReviewerConfig"][];
             sessionPrefix?: string;
             symlinks?: string[];
+            tickets?: components["schemas"]["DomainTicketDefaults"];
             trackerIntake?: components["schemas"]["TrackerIntakeConfig"];
             worker?: components["schemas"]["RoleOverride"];
         };
