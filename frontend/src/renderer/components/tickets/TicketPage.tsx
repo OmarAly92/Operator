@@ -184,9 +184,9 @@ export function TicketPage({ projectId, slug, file }: { projectId: string; slug:
 							{actionError}
 						</p>
 					) : null}
-					<div className="flex items-center gap-2">
+					<div className="flex flex-wrap items-center gap-2">
 						{planningLive && planningSession ? (
-							<TopbarButton variant="primary" onClick={() => openSession(planningSession.id)}>
+							<TopbarButton className="whitespace-nowrap" variant="primary" onClick={() => openSession(planningSession.id)}>
 								{t("tickets.openPlanningSession")}
 							</TopbarButton>
 						) : (

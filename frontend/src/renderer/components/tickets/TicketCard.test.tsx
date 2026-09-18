@@ -160,6 +160,7 @@ describe("TicketCard", () => {
 		await waitFor(() =>
 			expect(approveMutateAsync).toHaveBeenCalledWith({ projectId: "p1", slug: "search-page", plan: "plans/01-index.md" }),
 		);
+		expect(navigateMock).not.toHaveBeenCalled();
 	});
 
 	it("flags an unreadable ticket", () => {

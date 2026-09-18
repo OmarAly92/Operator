@@ -104,6 +104,7 @@ export function PlanRow({
 							type="button"
 							aria-label={t("tickets.openSessionAria", { plan: plan.title })}
 							className={cn(rowActionClass, "text-passive hover:text-foreground")}
+							disabled={!session}
 							onClick={openSession}
 							title={session ? session.title : t("tickets.sessionMissing")}
 						>

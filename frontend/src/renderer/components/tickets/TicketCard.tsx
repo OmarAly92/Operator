@@ -15,7 +15,7 @@ import { ReviewPlanSheet } from "./ReviewPlanSheet";
 const liveSessionStatuses = new Set<WorkspaceSession["status"]>(["working", "idle", "needs_input", "no_signal"]);
 
 const footerButtonClass =
-	"inline-flex h-control-md items-center rounded-sm px-2 text-2xs font-medium transition-colors hover:bg-interactive-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60";
+	"inline-flex h-control-md items-center whitespace-nowrap rounded-sm px-2 text-2xs font-medium transition-colors hover:bg-interactive-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60";
 
 export function TicketCard({
 	ticket,
@@ -70,10 +70,10 @@ export function TicketCard({
 				<div className="line-clamp-2 text-base font-semibold leading-tight tracking-tight text-foreground" title={ticket.title}>
 					{ticket.title}
 				</div>
-				<div className="flex min-w-0 items-center gap-2 font-mono text-micro text-passive">
-					<span className="truncate rounded-sm border border-border bg-surface px-1 py-px">{ticket.projectName}</span>
+				<div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 font-mono text-micro text-passive">
+					<span className="max-w-[45%] shrink-0 truncate rounded-sm border border-border bg-surface px-1 py-px">{ticket.projectName}</span>
 					<span
-						className={cn("inline-flex min-w-0 items-center gap-1.5 truncate font-sans text-2xs font-medium", status.className)}
+						className={cn("inline-flex min-w-0 items-center gap-1.5 font-sans text-2xs font-medium", status.className)}
 						style={showPlanningDot && planningActivity ? { color: planningActivity.tone } : undefined}
 					>
 						<span
@@ -134,7 +134,7 @@ export function TicketCard({
 				</div>
 			))}
 			<div aria-hidden="true" className="mx-3.5 my-px h-px bg-border" />
-			<div className="flex items-center gap-1 px-2 py-1.5">
+			<div className="flex flex-wrap items-center gap-1 px-2 py-1.5">
 				{planningLive && planningSession ? (
 					<button
 						type="button"
@@ -150,7 +150,7 @@ export function TicketCard({
 				) : (
 					<button
 						type="button"
-						className={cn(footerButtonClass, "text-accent")}
+						className={cn(footerButtonClass, "text-foreground")}
 						onClick={(event) => {
 							stop(event);
 							setPlanOpen(true);
@@ -171,13 +171,15 @@ export function TicketCard({
 					{t("tickets.open")}
 				</button>
 			</div>
-			<PlanWithAgentSheet open={planOpen} onOpenChange={setPlanOpen} ticket={ticket} />
-			{reviewPlan ? (
-				<ReviewPlanSheet open onOpenChange={(open) => !open && setReviewPlan(null)} ticket={ticket} plan={reviewPlan} />
-			) : null}
-			{mergePlan ? (
-				<MergeConfirmDialog open onOpenChange={(open) => !open && setMergePlan(null)} ticket={ticket} plan={mergePlan} />
-			) : null}
+			<div onClick={(event) => event.stopPropagation()} onKeyDown={(event) => event.stopPropagation()}>
+				<PlanWithAgentSheet open={planOpen} onOpenChange={setPlanOpen} ticket={ticket} />
+				{reviewPlan ? (
+					<ReviewPlanSheet open onOpenChange={(open) => !open && setReviewPlan(null)} ticket={ticket} plan={reviewPlan} />
+				) : null}
+				{mergePlan ? (
+					<MergeConfirmDialog open onOpenChange={(open) => !open && setMergePlan(null)} ticket={ticket} plan={mergePlan} />
+				) : null}
+			</div>
 		</div>
 	);
 }

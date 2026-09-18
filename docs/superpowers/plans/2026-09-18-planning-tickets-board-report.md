@@ -77,3 +77,41 @@ None of the above were judged load-bearing for later work; none blocked a task's
 ## Not merged
 
 This branch has not been merged and **has not yet been pushed** to `origin` either — the user interrupted before Step 8's `git push`. A separate review session should review, verify against a real (current-build) daemon, and merge, per this plan's own instructions.
+
+## Planner review (2026-09-18, separate session)
+
+Whole-branch read of every new file plus the diffs into `SessionsBoard.tsx`, `ShellTopbar.tsx`, `useWorkspaceQuery.ts`, `event-transport.ts` and `api-client.ts`, then a live verification of the real renderer against a real daemon.
+
+### Live verification
+
+The dev port `3002` belongs to the user's running daemon, so the review used an isolated daemon: `opr` built from this branch's `backend/` (unchanged from `development`), started with `env -i HOME PATH` plus `OPERATOR_DATA_DIR`/`OPERATOR_RUN_FILE`/`OPERATOR_PORT=39311`, and a throwaway `single_repo` project `repo`. The renderer was served from this worktree with `vite --host --port 5180` and `OPERATOR_DEV_API_TARGET=http://127.0.0.1:39311`, and driven in a browser at `http://127.0.0.1:5180` (the origin must be `127.0.0.1`, not `localhost`: the daemon's CORS allow-origin is `tauri://localhost`, so a `localhost` page origin fails; a same-origin page proxies through Vite and works). This is the recipe for future renderer verification without the Tauri window.
+
+Verified end to end in that renderer, all against the real daemon:
+- Five columns; PLANNED first; `No tickets yet` empty state; `+` opens the create dialog; creating `Search page` navigated to the ticket page with `spec.md` previewed.
+- `ticket.md` preview shows the frontmatter table (`title`, `brief`, `created`); a plan file renders GFM (task list, table).
+- `PUT …/file` for two plans and a kickoff file: the ticket page updated live over `tickets_changed` (status `Draft` → `Ready`, rows `01 Index`, `02 UI`, nested `Kickoff prompt`).
+- `Mark done` on `02 UI` → `POST …/plans/02-ui.md/done` 200 → row `Done` (after the fix below).
+- `Plan with agent` → agent picker, model picker (Haiku), extra → `POST …/plan` 201 → navigated to the planning session; the board card read `Planning` with the live dot and `Open planning session`; the session card carried the badge `search-page · plan`; the daemon record had `ticket: {slug, role: planning}`.
+- `assign` via curl (haiku, `force: true`) → the card updated live over the CDC path to `1/2 merged`, `01 Index · Working`, session link, `Review`.
+- `Review` → sheet with `Planning session | New session`, submit → `POST …/review` 200 → navigated to the planner.
+- `merge-ready` via curl → card status `Waiting for your confirmation`, block `01 Index · Awaiting your merge` with the markdown summary and `Merge` → confirm dialog with the summary → `POST …/merge` 200 → row `Merging`, board stayed on the board (see fix 2).
+- Ticket page cold load at `#/projects/repo/tickets/search-page?file=plans%2F01-index.kickoff.md` opened the kickoff file; `Archive` → `Archived`; board archive bar listed `Board smoke · Done` and `Search page · Archived` alongside sessions; `Reopen` → unarchived and navigated to the ticket page.
+- Both smoke sessions were killed, the isolated daemon stopped; the user's daemons on `3001` and `3002` answered `/readyz` unchanged throughout.
+
+### Fixes made during review
+
+1. **Every plan action was broken against the real daemon.** The UI sent `plan.file` (`plans/01-index.md`) as the `{plan}` path segment; openapi-fetch encodes it as `plans%2F01-index.md`, chi hands the handler the still-escaped segment, and `findPlan` answered `TICKET_PLAN_NOT_FOUND` (reproduced with curl). `useTicketMutations` now sends `planParam(file)`, the bare file name the route documents (`dto.go` `TicketPlanParam`), for review, merge and done; unit test added.
+2. **Clicks inside the card's dialogs navigated to the ticket page.** React synthetic events bubble through portals, so `PlanWithAgentSheet`, `ReviewPlanSheet` and `MergeConfirmDialog` inside the `role="button"` card fired the card's `onClick`. Reproduced by adding `expect(navigateMock).not.toHaveBeenCalled()` to the merge test (failed on the original code); the dialogs now sit in a wrapper that stops click and key propagation.
+3. **Invisible accent text.** `text-accent`/`bg-accent/12` resolve to `rgba(255,255,255,0.06)` in this theme, so the `TicketBadge` and the card's `Plan with agent` action were unreadable. The badge now uses the bordered chip look of the Claude-account chip; the action uses `text-foreground`. (The pre-existing intake-issue chip at `SessionsBoard.tsx:1081` has the same problem and is left as is.)
+4. `CreateTicketSheet` reset its project selection whenever the board re-rendered because the effect depended on the `projects` array identity; it now depends on the first project id.
+5. `PlanRow` disables the session link when the session no longer exists instead of navigating to a dead route.
+6. `supportsTickets` on the root board is `ticketProjects.length > 0`, so a workspace with only scratch projects gets the repo hint instead of an enabled `+` that opens an empty dialog.
+7. Layout: card footer and status row wrap instead of clipping (`Open planning session` / `Open`, `Waiting for your confirmation` next to the project chip); ticket page footer wraps.
+
+Gates after the fixes: `npm run typecheck` clean, `npm run frontend:lint` 0 errors (150 pre-existing warnings), vitest 134 files / 1499 tests.
+
+### Left for later
+
+- On macOS the shell topbar is hidden on session routes, so the topbar badge (Task 7) only shows on Windows/Linux, like the branch and status pill it sits beside. The board card badge and the sidebar cover macOS.
+- The ticket page has no breadcrumb back to the board on macOS (the same platform gap); the sidebar project row gets there.
+- The stale `board-smoke-repo` project the implementing session registered on the user's daemon at `3002` is still there (no delete route).

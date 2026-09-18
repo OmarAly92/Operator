@@ -35,7 +35,8 @@ export function CreateTicketSheet({
 	const projectSelectId = useId();
 	const titleId = useId();
 	const briefId = useId();
-	const [projectId, setProjectId] = useState(defaultProjectId ?? projects[0]?.id ?? "");
+	const firstProjectId = projects[0]?.id ?? "";
+	const [projectId, setProjectId] = useState(defaultProjectId ?? firstProjectId);
 	const [title, setTitle] = useState("");
 	const [brief, setBrief] = useState("");
 	const [error, setError] = useState<string | null>(null);
@@ -50,8 +51,8 @@ export function CreateTicketSheet({
 			setError(null);
 			return;
 		}
-		setProjectId(defaultProjectId ?? projects[0]?.id ?? "");
-	}, [defaultProjectId, open, projects]);
+		setProjectId(defaultProjectId ?? firstProjectId);
+	}, [defaultProjectId, firstProjectId, open]);
 
 	const submit = async (event: FormEvent<HTMLFormElement>) => {
 		event.preventDefault();

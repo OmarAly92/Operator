@@ -11,7 +11,7 @@ vi.mock("../lib/api-client", async (importOriginal) => {
 	return { ...actual, apiClient: { POST: (...args: unknown[]) => postMock(...args), GET: vi.fn() } };
 });
 
-import { ticketErrorMessage, useTicketMutations } from "./useTicketMutations";
+import { planParam, ticketErrorMessage, useTicketMutations } from "./useTicketMutations";
 
 function wrapper(queryClient: QueryClient) {
 	return ({ children }: { children: ReactNode }) => (
@@ -64,7 +64,7 @@ describe("useTicketMutations", () => {
 		);
 
 		expect(postMock).toHaveBeenCalledWith("/api/v1/projects/{id}/tickets/{slug}/plans/{plan}/review", {
-			params: { path: { id: "p1", slug: "t", plan: "plans/01-daemon.md" } },
+			params: { path: { id: "p1", slug: "t", plan: "01-daemon.md" } },
 			body: { reviewer: "new", harness: "claude-code", model: "claude-opus-5", claudeAccountId: undefined, extra: undefined },
 		});
 	});
@@ -103,5 +103,12 @@ describe("ticketErrorMessage", () => {
 
 	it("uses the fallback copy when there is no envelope", () => {
 		expect(ticketErrorMessage(undefined, appI18n.t, "tickets.mergeFailed")).toBe("Could not approve the merge");
+	});
+});
+
+describe("planParam", () => {
+	it("sends the bare plan file name the daemon route expects", () => {
+		expect(planParam("plans/01-daemon.md")).toBe("01-daemon.md");
+		expect(planParam("01-daemon.md")).toBe("01-daemon.md");
 	});
 });

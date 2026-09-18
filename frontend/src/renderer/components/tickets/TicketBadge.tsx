@@ -30,7 +30,7 @@ export function TicketBadge({
 			type="button"
 			aria-label={t("tickets.badgeAria", { label })}
 			className={cn(
-				"inline-flex max-w-branch-chip shrink-0 items-center gap-1 truncate rounded-sm bg-accent/12 px-1.5 py-0.5 font-mono text-micro text-accent transition-colors hover:bg-accent/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
+				"inline-flex max-w-branch-chip shrink-0 items-center gap-1 truncate rounded-sm border border-border bg-surface px-1.5 py-0.5 font-mono text-micro text-muted-foreground transition-colors hover:border-border-strong hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
 				className,
 			)}
 			data-testid="session-ticket-badge"

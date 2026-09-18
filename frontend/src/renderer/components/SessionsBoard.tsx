@@ -116,7 +116,7 @@ export function SessionsBoard({ projectId }: SessionsBoardProps) {
 	const ticketsQuery = useTicketsQuery(ticketProjects);
 	const openTickets = ticketsQuery.tickets.filter((ticket) => !isTicketInArchive(ticket));
 	const archivedTickets = ticketsQuery.tickets.filter(isTicketInArchive);
-	const supportsTickets = projectId ? ticketProjects.length > 0 : true;
+	const supportsTickets = ticketProjects.length > 0;
 	const sessionsById = new Map<string, WorkspaceSession>();
 	for (const w of workspaces) {
 		for (const s of w.sessions) sessionsById.set(s.id, s);

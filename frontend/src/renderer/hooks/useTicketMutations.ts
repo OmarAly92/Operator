@@ -39,6 +39,10 @@ export function ticketErrorMessage(error: unknown, t: TFunction, fallbackKey: Me
 	return requestId ? `${message} · ${t("tickets.requestId", { requestId })}` : message;
 }
 
+export function planParam(file: string): string {
+	return file.startsWith("plans/") ? file.slice("plans/".length) : file;
+}
+
 function roleBody(input: TicketRoleInput) {
 	return {
 		harness: input.harness || undefined,
@@ -89,7 +93,7 @@ export function useTicketMutations() {
 		mutationFn: async (input: ReviewPlanInput): Promise<ReviewPlanResponse> =>
 			unwrap(
 				await apiClient.POST("/api/v1/projects/{id}/tickets/{slug}/plans/{plan}/review", {
-					params: { path: { id: input.projectId, slug: input.slug, plan: input.plan } },
+					params: { path: { id: input.projectId, slug: input.slug, plan: planParam(input.plan) } },
 					body: { reviewer: input.reviewer, ...roleBody(input) },
 				}),
 			),
@@ -100,7 +104,7 @@ export function useTicketMutations() {
 		mutationFn: async (input: PlanRef): Promise<TicketView> =>
 			unwrap(
 				await apiClient.POST("/api/v1/projects/{id}/tickets/{slug}/plans/{plan}/merge", {
-					params: { path: { id: input.projectId, slug: input.slug, plan: input.plan } },
+					params: { path: { id: input.projectId, slug: input.slug, plan: planParam(input.plan) } },
 				}),
 			).ticket,
 		onSettled,
@@ -110,7 +114,7 @@ export function useTicketMutations() {
 		mutationFn: async (input: PlanRef): Promise<TicketView> =>
 			unwrap(
 				await apiClient.POST("/api/v1/projects/{id}/tickets/{slug}/plans/{plan}/done", {
-					params: { path: { id: input.projectId, slug: input.slug, plan: input.plan } },
+					params: { path: { id: input.projectId, slug: input.slug, plan: planParam(input.plan) } },
 				}),
 			).ticket,
 		onSettled,
