@@ -14,6 +14,7 @@ const {
 	usageQueryMock,
 	boardActionsInPanelMock,
 	claudeAccountsQueryMock,
+	setArchivedMock,
 } = vi.hoisted(() => ({
 	navigateMock: vi.fn(),
 	notificationShowMock: vi.fn(),
@@ -26,6 +27,11 @@ const {
 		isError: false,
 		isLoading: false,
 	})),
+	setArchivedMock: vi.fn(),
+}));
+
+const { ticketsQueryMock } = vi.hoisted(() => ({
+	ticketsQueryMock: vi.fn(() => ({ tickets: [] as unknown[], isError: false, isSuccess: true })),
 }));
 
 vi.mock("@tanstack/react-router", () => ({
@@ -39,8 +45,23 @@ vi.mock("../hooks/useWorkspaceQuery", () => ({
 
 vi.mock("../hooks/useTicketsQuery", () => ({
 	ticketsQueryRoot: ["tickets"],
-	useTicketsQuery: () => ({ tickets: [], isError: false, isSuccess: true }),
+	useTicketsQuery: () => ticketsQueryMock(),
 }));
+
+vi.mock("../hooks/useTicketMutations", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("../hooks/useTicketMutations")>();
+	return {
+		...actual,
+		useTicketMutations: () => ({
+			setArchived: { mutateAsync: setArchivedMock, isPending: false },
+			createTicket: { mutateAsync: vi.fn(), isPending: false },
+			planTicket: { mutateAsync: vi.fn(), isPending: false },
+			reviewPlan: { mutateAsync: vi.fn(), isPending: false },
+			approveMerge: { mutateAsync: vi.fn(), isPending: false },
+			markPlanDone: { mutateAsync: vi.fn(), isPending: false },
+		}),
+	};
+});
 
 vi.mock("../hooks/useClaudeAccounts", async (importOriginal) => {
 	const actual = await importOriginal<typeof import("../hooks/useClaudeAccounts")>();
@@ -102,6 +123,8 @@ beforeEach(() => {
 	postMock.mockReset().mockResolvedValue({ data: {} });
 	workspaceQueryMock.mockReset().mockReturnValue({ data: [], isError: false });
 	usageQueryMock.mockReset().mockReturnValue({ data: new Map() });
+	ticketsQueryMock.mockReset().mockReturnValue({ tickets: [], isError: false, isSuccess: true });
+	setArchivedMock.mockReset();
 	window.localStorage.removeItem("opr.board.archive.layout");
 	boardActionsInPanelMock.mockReset().mockReturnValue(false);
 	resetPaneGridForTests();
@@ -1310,6 +1333,43 @@ describe("SessionsBoard", () => {
 		const planned = screen.getAllByTestId("board-column")[0];
 		expect(within(planned).getByText("Tickets need a single-repository project.")).toBeInTheDocument();
 		expect(within(planned).getByRole("button", { name: "New ticket" })).toBeDisabled();
+	});
+
+	it("lists done and archived tickets in the archive bar and reopens them", async () => {
+		setArchivedMock.mockResolvedValue({});
+		workspaceQueryMock.mockReturnValue({
+			data: [{ ...workspaceWithSessions([boardSession({ id: "s-1", title: "worker", status: "working" })]), kind: "single_repo" }],
+			isError: false,
+			isSuccess: true,
+		});
+		ticketsQueryMock.mockReturnValue({
+			tickets: [
+				{ projectId: "p1", projectName: "radic", slug: "open-one", title: "Open one", status: "ready", plans: [], files: [] },
+				{ projectId: "p1", projectName: "radic", slug: "shipped", title: "Shipped", status: "done", plans: [], files: [] },
+				{ projectId: "p1", projectName: "radic", slug: "dropped", title: "Dropped", status: "archived", plans: [], files: [] },
+			],
+			isError: false,
+			isSuccess: true,
+		});
+
+		renderBoard("p1");
+
+		const planned = screen.getAllByTestId("board-column")[0];
+		expect(within(planned).getByText("Open one")).toBeInTheDocument();
+		expect(within(planned).queryByText("Shipped")).not.toBeInTheDocument();
+
+		await userEvent.click(screen.getByRole("button", { name: /archive/i }));
+		const archive = screen.getByRole("list", { name: "Archived sessions" });
+		expect(within(archive).getByText("Shipped")).toBeInTheDocument();
+		expect(within(archive).getByText("Dropped")).toBeInTheDocument();
+
+		await userEvent.click(within(archive).getByRole("button", { name: "Reopen ticket Dropped" }));
+		await waitFor(() => expect(setArchivedMock).toHaveBeenCalledWith({ projectId: "p1", slug: "dropped", archived: false }));
+		expect(navigateMock).toHaveBeenCalledWith({
+			to: "/projects/$projectId/tickets/$slug",
+			params: { projectId: "p1", slug: "dropped" },
+			search: {},
+		});
 	});
 
 	it("archives a terminated merged runtime without duplicating it in the merged lane", async () => {

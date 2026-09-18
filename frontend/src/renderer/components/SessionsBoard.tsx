@@ -68,6 +68,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 import { SessionTerminationPopover } from "./SessionTerminationPopover";
 import { DaemonStartupLoader } from "./DaemonStartupLoader";
 import { TicketBadge } from "./tickets/TicketBadge";
+import { ArchiveTicketItem } from "./tickets/ArchiveTicketItem";
 import { useShellMaybe } from "../lib/shell-context";
 import { dotGlow } from "../theme/effects";
 import { useTicketsQuery } from "../hooks/useTicketsQuery";
@@ -114,6 +115,7 @@ export function SessionsBoard({ projectId }: SessionsBoardProps) {
 		.map((w) => ({ id: w.id, name: w.name }));
 	const ticketsQuery = useTicketsQuery(ticketProjects);
 	const openTickets = ticketsQuery.tickets.filter((ticket) => !isTicketInArchive(ticket));
+	const archivedTickets = ticketsQuery.tickets.filter(isTicketInArchive);
 	const supportsTickets = projectId ? ticketProjects.length > 0 : true;
 	const sessionsById = new Map<string, WorkspaceSession>();
 	for (const w of workspaces) {
@@ -158,6 +160,7 @@ export function SessionsBoard({ projectId }: SessionsBoardProps) {
 	const archived = sessions
 		.filter(isArchivedSession)
 		.sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
+	const archivedCount = archived.length + archivedTickets.length;
 	const byZone = new Map<AttentionZone, WorkspaceSession[]>();
 	for (const session of sessions.filter((candidate) => !isArchivedSession(candidate))) {
 		const zone = attentionZone(session);
@@ -411,14 +414,14 @@ export function SessionsBoard({ projectId }: SessionsBoardProps) {
 				)}
 			</div>
 
-			{archived.length > 0 && (
+			{archivedCount > 0 && (
 				<div className="shrink-0 border-t border-border-strong px-3">
 					{/* The 46px control gives the compact archive bar a slightly taller
 					    target while preserving the bar's surrounding row height. */}
 					<div className={cn("flex items-center gap-2", archiveExpanded ? "min-h-11" : "min-h-row-md")}>
 						<button
 							aria-expanded={archiveExpanded}
-							aria-label={t("shell.archiveSessionsAria", { count: archived.length })}
+							aria-label={t("shell.archiveSessionsAria", { count: archivedCount })}
 							className="group flex h-[46px] min-w-0 items-center gap-2 py-0 text-muted-foreground transition-colors hover:text-foreground"
 							onClick={() => setArchiveExpanded((v) => !v)}
 							type="button"
@@ -437,7 +440,7 @@ export function SessionsBoard({ projectId }: SessionsBoardProps) {
 								<path d="m9 18 6-6-6-6" />
 							</svg>
 							<span className="font-mono text-2xs font-medium uppercase tracking-wide-sm">{t("shell.archive")}</span>
-							<span className="ml-1.5 font-mono text-micro text-passive">{archived.length}</span>
+							<span className="ml-1.5 font-mono text-micro text-passive">{archivedCount}</span>
 						</button>
 					</div>
 					{archiveExpanded && (
@@ -456,6 +459,9 @@ export function SessionsBoard({ projectId }: SessionsBoardProps) {
 									isRestoreDisabled={restoringSessionId !== undefined}
 									usage={usageBySession.get(s.id)}
 								/>
+							))}
+							{archivedTickets.map((ticket) => (
+								<ArchiveTicketItem key={`${ticket.projectId}:${ticket.slug}`} ticket={ticket} />
 							))}
 						</div>
 					)}
