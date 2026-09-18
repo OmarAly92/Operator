@@ -400,3 +400,236 @@ func truncateRunes(s string, n int) string {
 	r := []rune(s)
 	return strings.TrimSpace(string(r[:n]))
 }
+
+type SpawnInput struct {
+	Harness         domain.AgentHarness
+	Model           string
+	ClaudeAccountID domain.ClaudeAccountID
+	Extra           string
+}
+
+func (in SpawnInput) withDefaults(d domain.TicketRoleDefaults) SpawnInput {
+	if in.Harness == "" {
+		in.Harness = d.Harness
+	}
+	if strings.TrimSpace(in.Model) == "" {
+		in.Model = d.Model
+	}
+	if in.ClaudeAccountID == "" {
+		in.ClaudeAccountID = d.ClaudeAccountID
+	}
+	return in
+}
+
+type AssignInput struct {
+	SpawnInput
+	Force  bool
+	DryRun bool
+}
+
+type AssignResult struct {
+	Warnings []string
+	Session  *domain.Session
+}
+
+func (s *Service) ensureRecord(ctx context.Context, rec domain.TicketRecord) (domain.TicketRecord, error) {
+	if !rec.CreatedAt.IsZero() {
+		return rec, nil
+	}
+	rec.CreatedAt = s.now()
+	if err := s.store.InsertTicket(ctx, rec); err != nil {
+		return rec, err
+	}
+	return rec, nil
+}
+
+func planningLive(sessions map[domain.SessionID]*domain.Session, id domain.SessionID) bool {
+	sess := sessions[id]
+	return sess != nil && sess.Status != domain.StatusTerminated && sess.Status != domain.StatusMerged
+}
+
+func (s *Service) Plan(ctx context.Context, project domain.ProjectID, slug string, in SpawnInput) (domain.Session, error) {
+	p, rec, t, err := s.load(ctx, project, slug)
+	if err != nil {
+		return domain.Session{}, err
+	}
+	sessions, err := s.sessionIndex(ctx, project)
+	if err != nil {
+		return domain.Session{}, err
+	}
+	if planningLive(sessions, rec.PlanningSessionID) {
+		return domain.Session{}, apierr.Conflict("TICKET_PLANNING_ACTIVE", "This ticket already has a running planning session", map[string]any{"sessionId": rec.PlanningSessionID})
+	}
+	rec, err = s.ensureRecord(ctx, rec)
+	if err != nil {
+		return domain.Session{}, err
+	}
+	return s.spawnPlanner(ctx, p, t, in, planningPrompt(t, in.Extra))
+}
+
+func (s *Service) spawnPlanner(ctx context.Context, p domain.ProjectRecord, t domain.Ticket, in SpawnInput, prompt string) (domain.Session, error) {
+	in = in.withDefaults(p.Config.Tickets.Planner)
+	sess, _, _, err := s.sessions.Spawn(ctx, ports.SpawnConfig{
+		ProjectID:       domain.ProjectID(p.ID),
+		Kind:            domain.KindWorker,
+		Harness:         in.Harness,
+		WorkspaceMode:   domain.WorkspaceModeInPlace,
+		Prompt:          prompt,
+		AgentConfig:     ports.AgentConfig{Model: strings.TrimSpace(in.Model)},
+		DisplayName:     truncateRunes(t.Title, maxDisplayName),
+		ClaudeAccountID: in.ClaudeAccountID,
+	})
+	if err != nil {
+		return domain.Session{}, err
+	}
+	if err := s.store.SetTicketPlanningSession(ctx, domain.ProjectID(p.ID), t.Slug, sess.ID); err != nil {
+		return domain.Session{}, err
+	}
+	return sess, nil
+}
+
+func findPlan(t domain.Ticket, planName string) (int, bool) {
+	file := "plans/" + strings.TrimPrefix(strings.TrimSpace(planName), "plans/")
+	for i, p := range t.Plans {
+		if p.File == file {
+			return i, true
+		}
+	}
+	return 0, false
+}
+
+func planBranch(slug string, plan domain.Plan, attempt int) string {
+	stem := strings.TrimSuffix(path.Base(plan.File), ".md")
+	if !plan.Unordered {
+		stem = fmt.Sprintf("%02d", plan.Order)
+	}
+	b := "opr/" + slug + "-" + stem
+	if attempt > 1 {
+		b += fmt.Sprintf("-%d", attempt)
+	}
+	return b
+}
+
+func (s *Service) assignWarnings(ctx context.Context, p domain.ProjectRecord, rec domain.TicketRecord, t domain.Ticket, idx int, sessions map[domain.SessionID]*domain.Session) []string {
+	var w []string
+	for _, earlier := range t.Plans[:idx] {
+		if earlier.Status != domain.PlanStatusMerged && earlier.Status != domain.PlanStatusDone {
+			w = append(w, "plan_order")
+			break
+		}
+	}
+	if dirty, err := gitPathDirty(ctx, p.Path, ticketFolder(t.Slug)); err == nil && dirty {
+		w = append(w, "ticket_repo_dirty")
+	}
+	if branch, err := gitCurrentBranch(ctx, p.Path); err == nil && branch != p.Config.WithDefaults().DefaultBranch {
+		w = append(w, "ticket_not_on_default_branch")
+	}
+	if planningLive(sessions, rec.PlanningSessionID) {
+		w = append(w, "planning_active")
+	}
+	if planLive(t.Plans[idx].Status) {
+		w = append(w, "plan_assigned")
+	}
+	return w
+}
+
+func (s *Service) Assign(ctx context.Context, project domain.ProjectID, slug, planName string, in AssignInput) (AssignResult, error) {
+	p, rec, t, err := s.load(ctx, project, slug)
+	if err != nil {
+		return AssignResult{}, err
+	}
+	idx, ok := findPlan(t, planName)
+	if !ok {
+		return AssignResult{}, apierr.NotFound("TICKET_PLAN_NOT_FOUND", "No such plan in the ticket")
+	}
+	sessions, err := s.sessionIndex(ctx, project)
+	if err != nil {
+		return AssignResult{}, err
+	}
+	warnings := s.assignWarnings(ctx, p, rec, t, idx, sessions)
+	if in.DryRun {
+		return AssignResult{Warnings: warnings, Session: sessions[t.Plans[idx].SessionID]}, nil
+	}
+	if len(warnings) > 0 && !in.Force {
+		return AssignResult{}, apierr.Conflict("TICKET_ASSIGN_BLOCKED", "Assignment needs confirmation", map[string]any{"warnings": warnings})
+	}
+	rec, err = s.ensureRecord(ctx, rec)
+	if err != nil {
+		return AssignResult{}, err
+	}
+	rows, err := s.store.ListPlanAssignments(ctx, project, slug)
+	if err != nil {
+		return AssignResult{}, err
+	}
+	attempt := 1
+	for _, r := range rows {
+		if r.PlanFile == t.Plans[idx].File && r.SessionID != "" {
+			attempt++
+		}
+	}
+	plan := t.Plans[idx]
+	kickoff := ""
+	if plan.KickoffFile != "" {
+		raw, err := os.ReadFile(filepath.Join(ticketsRoot(p), slug, filepath.FromSlash(plan.KickoffFile)))
+		if err != nil {
+			return AssignResult{}, fmt.Errorf("read kickoff %s: %w", plan.KickoffFile, err)
+		}
+		kickoff = string(raw)
+	}
+	role := in.SpawnInput.withDefaults(p.Config.Tickets.Implementer)
+	sess, _, _, err := s.sessions.Spawn(ctx, ports.SpawnConfig{
+		ProjectID:       project,
+		Kind:            domain.KindWorker,
+		Harness:         role.Harness,
+		WorkspaceMode:   domain.WorkspaceModeWorktree,
+		Branch:          planBranch(slug, plan, attempt),
+		Prompt:          implementPrompt(t, plan, kickoff, in.Extra),
+		AgentConfig:     ports.AgentConfig{Model: strings.TrimSpace(role.Model)},
+		DisplayName:     truncateRunes(fmt.Sprintf("%s · %s", slug, strings.TrimPrefix(planBranch(slug, plan, 1), "opr/"+slug+"-")), maxDisplayName),
+		ClaudeAccountID: role.ClaudeAccountID,
+	})
+	if err != nil {
+		return AssignResult{}, err
+	}
+	if err := s.store.InsertPlanAssignment(ctx, domain.PlanAssignmentRecord{ProjectID: project, Slug: slug, PlanFile: plan.File, SessionID: sess.ID, AssignedAt: s.now()}); err != nil {
+		return AssignResult{}, err
+	}
+	return AssignResult{Warnings: warnings, Session: &sess}, nil
+}
+
+func (s *Service) MarkDone(ctx context.Context, project domain.ProjectID, slug, planName string) (domain.Ticket, error) {
+	_, rec, t, err := s.load(ctx, project, slug)
+	if err != nil {
+		return domain.Ticket{}, err
+	}
+	idx, ok := findPlan(t, planName)
+	if !ok {
+		return domain.Ticket{}, apierr.NotFound("TICKET_PLAN_NOT_FOUND", "No such plan in the ticket")
+	}
+	if _, err := s.ensureRecord(ctx, rec); err != nil {
+		return domain.Ticket{}, err
+	}
+	now := s.now()
+	if err := s.store.InsertPlanAssignment(ctx, domain.PlanAssignmentRecord{ProjectID: project, Slug: slug, PlanFile: t.Plans[idx].File, AssignedAt: now, DoneAt: now}); err != nil {
+		return domain.Ticket{}, err
+	}
+	return s.Get(ctx, project, slug)
+}
+
+func (s *Service) SetArchived(ctx context.Context, project domain.ProjectID, slug string, archived bool) (domain.Ticket, error) {
+	_, rec, _, err := s.load(ctx, project, slug)
+	if err != nil {
+		return domain.Ticket{}, err
+	}
+	if _, err := s.ensureRecord(ctx, rec); err != nil {
+		return domain.Ticket{}, err
+	}
+	at := time.Time{}
+	if archived {
+		at = s.now()
+	}
+	if err := s.store.SetTicketArchivedAt(ctx, project, slug, at); err != nil {
+		return domain.Ticket{}, err
+	}
+	return s.Get(ctx, project, slug)
+}
