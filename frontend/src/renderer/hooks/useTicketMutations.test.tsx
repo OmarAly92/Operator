@@ -4,14 +4,17 @@ import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { appI18n } from "../i18n";
 
-const { postMock } = vi.hoisted(() => ({ postMock: vi.fn() }));
+const { postMock, putMock } = vi.hoisted(() => ({ postMock: vi.fn(), putMock: vi.fn() }));
 
 vi.mock("../lib/api-client", async (importOriginal) => {
 	const actual = await importOriginal<typeof import("../lib/api-client")>();
-	return { ...actual, apiClient: { POST: (...args: unknown[]) => postMock(...args), GET: vi.fn() } };
+	return {
+		...actual,
+		apiClient: { POST: (...args: unknown[]) => postMock(...args), PUT: (...args: unknown[]) => putMock(...args), GET: vi.fn() },
+	};
 });
 
-import { planParam, ticketErrorMessage, useTicketMutations } from "./useTicketMutations";
+import { assignBlockedWarnings, planParam, staleModifiedAt, ticketErrorMessage, useTicketMutations } from "./useTicketMutations";
 
 function wrapper(queryClient: QueryClient) {
 	return ({ children }: { children: ReactNode }) => (
@@ -21,6 +24,7 @@ function wrapper(queryClient: QueryClient) {
 
 beforeEach(() => {
 	postMock.mockReset();
+	putMock.mockReset();
 });
 
 describe("useTicketMutations", () => {
@@ -80,6 +84,70 @@ describe("useTicketMutations", () => {
 			act(() => result.current.approveMerge.mutateAsync({ projectId: "p1", slug: "t", plan: "plans/01-daemon.md" })),
 		).rejects.toMatchObject({ code: "TICKET_NOT_MERGE_READY" });
 	});
+
+	it("sends a dry run to the bare plan route and returns the warnings", async () => {
+		const queryClient = new QueryClient();
+		postMock.mockResolvedValue({ data: { warnings: ["ticket_repo_dirty"] } });
+		const { result } = renderHook(() => useTicketMutations(), { wrapper: wrapper(queryClient) });
+
+		const response = await act(() =>
+			result.current.assignPlan.mutateAsync({ projectId: "p1", slug: "t", plan: "plans/01-daemon.md", dryRun: true }),
+		);
+
+		expect(response.warnings).toEqual(["ticket_repo_dirty"]);
+		expect(postMock).toHaveBeenCalledWith("/api/v1/projects/{id}/tickets/{slug}/plans/{plan}/assign", {
+			params: { path: { id: "p1", slug: "t", plan: "01-daemon.md" }, query: { dryRun: true } },
+			body: { harness: undefined, model: undefined, claudeAccountId: undefined, extra: undefined, force: undefined },
+		});
+	});
+
+	it("kills the live session before a forced assign when asked to", async () => {
+		const queryClient = new QueryClient();
+		postMock.mockResolvedValueOnce({ data: {} }).mockResolvedValueOnce({ data: { warnings: ["plan_assigned"], session: { id: "s-2", projectId: "p1" } } });
+		const { result } = renderHook(() => useTicketMutations(), { wrapper: wrapper(queryClient) });
+
+		const response = await act(() =>
+			result.current.assignPlan.mutateAsync({
+				projectId: "p1",
+				slug: "t",
+				plan: "plans/01-daemon.md",
+				force: true,
+				terminateSessionId: "s-1",
+				harness: "claude-code",
+				model: "claude-haiku-4-5-20251001",
+			}),
+		);
+
+		expect(response.session?.id).toBe("s-2");
+		expect(postMock).toHaveBeenNthCalledWith(1, "/api/v1/sessions/{sessionId}/kill", { params: { path: { sessionId: "s-1" } } });
+		expect(postMock).toHaveBeenNthCalledWith(2, "/api/v1/projects/{id}/tickets/{slug}/plans/{plan}/assign", {
+			params: { path: { id: "p1", slug: "t", plan: "01-daemon.md" }, query: {} },
+			body: { harness: "claude-code", model: "claude-haiku-4-5-20251001", claudeAccountId: undefined, extra: undefined, force: true },
+		});
+	});
+
+	it("saves a file with ifUnmodifiedSince and primes the file query", async () => {
+		const queryClient = new QueryClient();
+		const saved = { path: "spec.md", content: "# Spec", modifiedAt: "2026-09-18T11:00:00Z" };
+		putMock.mockResolvedValue({ data: saved });
+		const { result } = renderHook(() => useTicketMutations(), { wrapper: wrapper(queryClient) });
+
+		await act(() =>
+			result.current.saveTicketFile.mutateAsync({
+				projectId: "p1",
+				slug: "t",
+				path: "spec.md",
+				content: "# Spec",
+				ifUnmodifiedSince: "2026-09-18T10:00:00Z",
+			}),
+		);
+
+		expect(putMock).toHaveBeenCalledWith("/api/v1/projects/{id}/tickets/{slug}/file", {
+			params: { path: { id: "p1", slug: "t" }, query: { path: "spec.md" } },
+			body: { content: "# Spec", ifUnmodifiedSince: "2026-09-18T10:00:00Z" },
+		});
+		expect(queryClient.getQueryData(["tickets", "p1", "t", "file", "spec.md"])).toEqual(saved);
+	});
 });
 
 describe("ticketErrorMessage", () => {
@@ -110,5 +178,18 @@ describe("planParam", () => {
 	it("sends the bare plan file name the daemon route expects", () => {
 		expect(planParam("plans/01-daemon.md")).toBe("01-daemon.md");
 		expect(planParam("01-daemon.md")).toBe("01-daemon.md");
+	});
+});
+
+describe("error details", () => {
+	it("reads the blocked warnings and the stale timestamp from the envelope", () => {
+		expect(
+			assignBlockedWarnings({ error: "conflict", code: "TICKET_ASSIGN_BLOCKED", message: "x", details: { warnings: ["plan_assigned"] } }),
+		).toEqual(["plan_assigned"]);
+		expect(assignBlockedWarnings({ error: "conflict", code: "TICKET_NOT_FOUND", message: "x" })).toEqual([]);
+		expect(
+			staleModifiedAt({ error: "conflict", code: "TICKET_FILE_STALE", message: "x", details: { modifiedAt: "2026-09-18T11:00:00Z" } }),
+		).toBe("2026-09-18T11:00:00Z");
+		expect(staleModifiedAt({ error: "conflict", code: "TICKET_FILE_NOT_FOUND", message: "x" })).toBeUndefined();
 	});
 });
