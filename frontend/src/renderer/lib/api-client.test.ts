@@ -222,6 +222,22 @@ describe("normalizeApiOperation", () => {
 		);
 	});
 
+	it("normalizes ticket slugs and plan files, which are user-chosen strings", () => {
+		expect(normalizeApiOperation("GET", "/api/v1/projects/my-app/tickets")).toBe("GET /api/v1/projects/:id/tickets");
+		expect(normalizeApiOperation("GET", "/api/v1/projects/my-app/tickets/planning-tickets")).toBe(
+			"GET /api/v1/projects/:id/tickets/:id",
+		);
+		expect(normalizeApiOperation("GET", "/api/v1/projects/my-app/tickets/events")).toBe(
+			"GET /api/v1/projects/:id/tickets/events",
+		);
+		expect(normalizeApiOperation("GET", "/api/v1/projects/my-app/tickets/planning-tickets/file")).toBe(
+			"GET /api/v1/projects/:id/tickets/:id/file",
+		);
+		expect(normalizeApiOperation("POST", "/api/v1/projects/my-app/tickets/planning-tickets/plans/01-daemon.md/merge")).toBe(
+			"POST /api/v1/projects/:id/tickets/:id/plans/:id/merge",
+		);
+	});
+
 	it("normalizes ids for resources a collection heuristic would miss", () => {
 		expect(normalizeApiOperation("GET", "/api/v1/orchestrators/orch-abc")).toBe("GET /api/v1/orchestrators/:id");
 		expect(normalizeApiOperation("POST", "/api/v1/prs/pr-1/merge")).toBe("POST /api/v1/prs/:id/merge");
