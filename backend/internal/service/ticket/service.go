@@ -196,6 +196,9 @@ func (s *Service) loadWithSessions(ctx context.Context, project domain.ProjectID
 	if err != nil {
 		return p, domain.TicketRecord{}, domain.Ticket{}, nil, err
 	}
+	if !validSlug(slug) {
+		return p, domain.TicketRecord{}, domain.Ticket{}, nil, apierr.NotFound("TICKET_NOT_FOUND", "Unknown ticket")
+	}
 	sc, ok, err := scanTicket(ticketsRoot(p), slug)
 	if err != nil {
 		return p, domain.TicketRecord{}, domain.Ticket{}, nil, err
@@ -244,16 +247,16 @@ func resolveTicketPath(dir, rel string) (string, error) {
 	if err != nil {
 		return "", apierr.NotFound("TICKET_NOT_FOUND", "Unknown ticket")
 	}
-	if real, err := filepath.EvalSymlinks(abs); err == nil {
-		if !withinRoot(real, realDir) {
+	if resolved, err := filepath.EvalSymlinks(abs); err == nil {
+		if !withinRoot(resolved, realDir) {
 			return "", errPathOutside
 		}
 	} else {
 		anc := filepath.Dir(abs)
 		for {
-			real, err := filepath.EvalSymlinks(anc)
+			resolved, err := filepath.EvalSymlinks(anc)
 			if err == nil {
-				if !withinRoot(real, realDir) {
+				if !withinRoot(resolved, realDir) {
 					return "", errPathOutside
 				}
 				break
@@ -268,14 +271,17 @@ func resolveTicketPath(dir, rel string) (string, error) {
 	return abs, nil
 }
 
-func withinRoot(real, realDir string) bool {
-	return real == realDir || strings.HasPrefix(real, realDir+string(filepath.Separator))
+func withinRoot(resolved, realDir string) bool {
+	return resolved == realDir || strings.HasPrefix(resolved, realDir+string(filepath.Separator))
 }
 
 func (s *Service) ReadFile(ctx context.Context, project domain.ProjectID, slug, rel string) (File, error) {
 	p, err := s.project(ctx, project)
 	if err != nil {
 		return File{}, err
+	}
+	if !validSlug(slug) {
+		return File{}, apierr.NotFound("TICKET_NOT_FOUND", "Unknown ticket")
 	}
 	abs, err := resolveTicketPath(filepath.Join(ticketsRoot(p), slug), rel)
 	if err != nil {
@@ -300,6 +306,9 @@ func (s *Service) WriteFile(ctx context.Context, project domain.ProjectID, slug,
 	if err != nil {
 		return File{}, err
 	}
+	if !validSlug(slug) {
+		return File{}, apierr.NotFound("TICKET_NOT_FOUND", "Unknown ticket")
+	}
 	abs, err := resolveTicketPath(filepath.Join(ticketsRoot(p), slug), rel)
 	if err != nil {
 		return File{}, err
@@ -309,10 +318,10 @@ func (s *Service) WriteFile(ctx context.Context, project domain.ProjectID, slug,
 			return File{}, apierr.Conflict("TICKET_FILE_STALE", "The file changed on disk since it was loaded", map[string]any{"modifiedAt": info.ModTime().UTC()})
 		}
 	}
-	if err := os.MkdirAll(filepath.Dir(abs), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(abs), 0o750); err != nil {
 		return File{}, fmt.Errorf("create plans dir: %w", err)
 	}
-	if err := os.WriteFile(abs, []byte(content), 0o644); err != nil {
+	if err := os.WriteFile(abs, []byte(content), 0o600); err != nil {
 		return File{}, fmt.Errorf("write ticket file: %w", err)
 	}
 	return s.ReadFile(ctx, project, slug, rel)
@@ -323,6 +332,9 @@ func (s *Service) uniqueSlug(ctx context.Context, project domain.ProjectID, root
 		slug := base
 		if i > 1 {
 			slug = fmt.Sprintf("%s-%d", base, i)
+		}
+		if slug == "events" {
+			continue
 		}
 		if _, err := os.Stat(filepath.Join(root, slug)); err == nil {
 			continue
@@ -353,14 +365,14 @@ func (s *Service) Create(ctx context.Context, project domain.ProjectID, in Creat
 	}
 	now := s.now()
 	dir := filepath.Join(root, slug)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := os.MkdirAll(dir, 0o750); err != nil {
 		return CreateResult{}, fmt.Errorf("create ticket dir: %w", err)
 	}
 	ticketMD := fmt.Sprintf("---\ntitle: %s\nbrief: %s\ncreated: %s\n---\n", yamlScalar(title), yamlScalar(brief), now.Format("2006-01-02"))
-	if err := os.WriteFile(filepath.Join(dir, "ticket.md"), []byte(ticketMD), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "ticket.md"), []byte(ticketMD), 0o600); err != nil {
 		return CreateResult{}, fmt.Errorf("write ticket.md: %w", err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, "spec.md"), []byte("# "+title+"\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "spec.md"), []byte("# "+title+"\n"), 0o600); err != nil {
 		return CreateResult{}, fmt.Errorf("write spec.md: %w", err)
 	}
 	if err := s.store.InsertTicket(ctx, domain.TicketRecord{ProjectID: project, Slug: slug, CreatedAt: now}); err != nil {
@@ -386,7 +398,7 @@ func (s *Service) WatchRoot(ctx context.Context, project domain.ProjectID) (stri
 		return "", err
 	}
 	root := ticketsRoot(p)
-	if err := os.MkdirAll(root, 0o755); err != nil {
+	if err := os.MkdirAll(root, 0o750); err != nil {
 		return "", fmt.Errorf("create tickets dir: %w", err)
 	}
 	return root, nil
@@ -402,13 +414,13 @@ func yamlScalar(s string) string {
 	return s
 }
 
-func truncateRunes(s string, n int) string {
+func truncateRunes(s string) string {
 	s = strings.TrimSpace(s)
-	if utf8.RuneCountInString(s) <= n {
+	if utf8.RuneCountInString(s) <= maxDisplayName {
 		return s
 	}
 	r := []rune(s)
-	return strings.TrimSpace(string(r[:n]))
+	return strings.TrimSpace(string(r[:maxDisplayName]))
 }
 
 type SpawnInput struct {
@@ -442,15 +454,15 @@ type AssignResult struct {
 	Session  *domain.Session
 }
 
-func (s *Service) ensureRecord(ctx context.Context, rec domain.TicketRecord) (domain.TicketRecord, error) {
+func (s *Service) ensureRecord(ctx context.Context, rec domain.TicketRecord) error {
 	if !rec.CreatedAt.IsZero() {
-		return rec, nil
+		return nil
 	}
 	rec.CreatedAt = s.now()
 	if err := s.store.InsertTicket(ctx, rec); err != nil {
-		return rec, err
+		return err
 	}
-	return rec, nil
+	return nil
 }
 
 func planningLive(sessions map[domain.SessionID]*domain.Session, id domain.SessionID) bool {
@@ -466,8 +478,7 @@ func (s *Service) Plan(ctx context.Context, project domain.ProjectID, slug strin
 	if planningLive(sessions, rec.PlanningSessionID) {
 		return domain.Session{}, apierr.Conflict("TICKET_PLANNING_ACTIVE", "This ticket already has a running planning session", map[string]any{"sessionId": rec.PlanningSessionID})
 	}
-	rec, err = s.ensureRecord(ctx, rec)
-	if err != nil {
+	if err := s.ensureRecord(ctx, rec); err != nil {
 		return domain.Session{}, err
 	}
 	return s.spawnPlanner(ctx, p, t, in, planningPrompt(t, in.Extra))
@@ -482,7 +493,7 @@ func (s *Service) spawnPlanner(ctx context.Context, p domain.ProjectRecord, t do
 		WorkspaceMode:   domain.WorkspaceModeInPlace,
 		Prompt:          prompt,
 		AgentConfig:     ports.AgentConfig{Model: strings.TrimSpace(in.Model)},
-		DisplayName:     truncateRunes(t.Title, maxDisplayName),
+		DisplayName:     truncateRunes(t.Title),
 		ClaudeAccountID: in.ClaudeAccountID,
 	})
 	if err != nil {
@@ -504,12 +515,15 @@ func findPlan(t domain.Ticket, planName string) (int, bool) {
 	return 0, false
 }
 
-func planBranch(slug string, plan domain.Plan, attempt int) string {
-	stem := strings.TrimSuffix(path.Base(plan.File), ".md")
+func planStem(plan domain.Plan) string {
 	if !plan.Unordered {
-		stem = fmt.Sprintf("%02d", plan.Order)
+		return fmt.Sprintf("%02d", plan.Order)
 	}
-	b := "opr/" + slug + "-" + stem
+	return strings.TrimSuffix(path.Base(plan.File), ".md")
+}
+
+func planBranch(slug string, plan domain.Plan, attempt int) string {
+	b := "opr/" + slug + "-" + planStem(plan)
 	if attempt > 1 {
 		b += fmt.Sprintf("-%d", attempt)
 	}
@@ -555,8 +569,7 @@ func (s *Service) Assign(ctx context.Context, project domain.ProjectID, slug, pl
 	if len(warnings) > 0 && !in.Force {
 		return AssignResult{}, apierr.Conflict("TICKET_ASSIGN_BLOCKED", "Assignment needs confirmation", map[string]any{"warnings": warnings})
 	}
-	rec, err = s.ensureRecord(ctx, rec)
-	if err != nil {
+	if err := s.ensureRecord(ctx, rec); err != nil {
 		return AssignResult{}, err
 	}
 	rows, err := s.store.ListPlanAssignments(ctx, project, slug)
@@ -578,7 +591,7 @@ func (s *Service) Assign(ctx context.Context, project domain.ProjectID, slug, pl
 		}
 		kickoff = string(raw)
 	}
-	role := in.SpawnInput.withDefaults(p.Config.Tickets.Implementer)
+	role := in.withDefaults(p.Config.Tickets.Implementer)
 	sess, _, _, err := s.sessions.Spawn(ctx, ports.SpawnConfig{
 		ProjectID:       project,
 		Kind:            domain.KindWorker,
@@ -587,7 +600,7 @@ func (s *Service) Assign(ctx context.Context, project domain.ProjectID, slug, pl
 		Branch:          planBranch(slug, plan, attempt),
 		Prompt:          implementPrompt(t, plan, kickoff, in.Extra),
 		AgentConfig:     ports.AgentConfig{Model: strings.TrimSpace(role.Model)},
-		DisplayName:     truncateRunes(fmt.Sprintf("%s · %s", slug, strings.TrimPrefix(planBranch(slug, plan, 1), "opr/"+slug+"-")), maxDisplayName),
+		DisplayName:     truncateRunes(fmt.Sprintf("%s · %s", slug, planStem(plan))),
 		ClaudeAccountID: role.ClaudeAccountID,
 	})
 	if err != nil {
@@ -608,7 +621,7 @@ func (s *Service) MarkDone(ctx context.Context, project domain.ProjectID, slug, 
 	if !ok {
 		return domain.Ticket{}, apierr.NotFound("TICKET_PLAN_NOT_FOUND", "No such plan in the ticket")
 	}
-	if _, err := s.ensureRecord(ctx, rec); err != nil {
+	if err := s.ensureRecord(ctx, rec); err != nil {
 		return domain.Ticket{}, err
 	}
 	now := s.now()
@@ -623,7 +636,7 @@ func (s *Service) SetArchived(ctx context.Context, project domain.ProjectID, slu
 	if err != nil {
 		return domain.Ticket{}, err
 	}
-	if _, err := s.ensureRecord(ctx, rec); err != nil {
+	if err := s.ensureRecord(ctx, rec); err != nil {
 		return domain.Ticket{}, err
 	}
 	at := time.Time{}
@@ -719,7 +732,7 @@ func (s *Service) Review(ctx context.Context, project domain.ProjectID, slug, pl
 		if defaults == (domain.TicketRoleDefaults{}) {
 			defaults = p.Config.Tickets.Planner
 		}
-		role := in.SpawnInput.withDefaults(defaults)
+		role := in.withDefaults(defaults)
 		reviewer, _, _, err = s.sessions.Spawn(ctx, ports.SpawnConfig{
 			ProjectID:       project,
 			Kind:            domain.KindWorker,
@@ -727,7 +740,7 @@ func (s *Service) Review(ctx context.Context, project domain.ProjectID, slug, pl
 			WorkspaceMode:   domain.WorkspaceModeInPlace,
 			Prompt:          prompt,
 			AgentConfig:     ports.AgentConfig{Model: strings.TrimSpace(role.Model)},
-			DisplayName:     truncateRunes(slug+" review", maxDisplayName),
+			DisplayName:     truncateRunes(slug + " review"),
 			ClaudeAccountID: role.ClaudeAccountID,
 		})
 		if err != nil {
@@ -802,7 +815,7 @@ func (s *Service) ApproveMerge(ctx context.Context, project domain.ProjectID, sl
 			WorkspaceMode:   domain.WorkspaceModeInPlace,
 			Prompt:          prompt,
 			AgentConfig:     ports.AgentConfig{Model: strings.TrimSpace(role.Model)},
-			DisplayName:     truncateRunes(slug+" merge", maxDisplayName),
+			DisplayName:     truncateRunes(slug + " merge"),
 			ClaudeAccountID: role.ClaudeAccountID,
 		})
 		if err != nil {
@@ -829,7 +842,11 @@ func (s *Service) AutoReview(ctx context.Context, sessionID domain.SessionID) er
 	}
 	p, err := s.project(ctx, impl.ProjectID)
 	if err != nil {
-		return nil
+		var apiErr *apierr.Error
+		if errors.As(err, &apiErr) && (apiErr.Code == "TICKET_UNSUPPORTED_PROJECT" || apiErr.Code == "PROJECT_NOT_FOUND") {
+			return nil
+		}
+		return err
 	}
 	if p.Config.Tickets.DisableAutoReview {
 		return nil

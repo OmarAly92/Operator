@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -66,7 +67,7 @@ func TestGitHelpers(t *testing.T) {
 		t.Fatalf("nothing to commit must not error: %v", err)
 	}
 	log, err := gitOutput(ctx, repo, "log", "--oneline")
-	if err != nil || len(splitLines(log)) != 2 {
+	if err != nil || len(strings.Split(strings.TrimSpace(log), "\n")) != 2 {
 		t.Fatalf("log=%q err=%v", log, err)
 	}
 	if _, err := gitCurrentBranch(ctx, t.TempDir()); err == nil {

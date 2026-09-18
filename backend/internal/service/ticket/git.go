@@ -47,11 +47,3 @@ func gitCommitPath(ctx context.Context, repo, rel, message string) error {
 	_, err = gitOutput(ctx, repo, "commit", "-q", "-m", message, "--", rel)
 	return err
 }
-
-func splitLines(s string) []string {
-	s = strings.TrimSpace(s)
-	if s == "" {
-		return nil
-	}
-	return strings.Split(s, "\n")
-}

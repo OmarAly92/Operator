@@ -23,7 +23,7 @@ type fakeStore struct {
 }
 
 func newFakeStore(p domain.ProjectRecord) *fakeStore {
-	return &fakeStore{projects: map[string]domain.ProjectRecord{string(p.ID): p}, tickets: map[string]domain.TicketRecord{}}
+	return &fakeStore{projects: map[string]domain.ProjectRecord{p.ID: p}, tickets: map[string]domain.TicketRecord{}}
 }
 
 func key(p domain.ProjectID, slug string) string { return string(p) + "/" + slug }
@@ -278,6 +278,11 @@ func TestReadWriteFileAndTraversal(t *testing.T) {
 	if _, err := h.svc.ReadFile(ctx, "tk", "editor", "plans/09-missing.md"); codeOf(err) != "TICKET_FILE_NOT_FOUND" {
 		t.Fatalf("err = %v", err)
 	}
+	for _, bad := range []string{"..", "a/../../etc", "../etc/passwd"} {
+		if _, err := h.svc.ReadFile(ctx, "tk", bad, "spec.md"); codeOf(err) != "TICKET_NOT_FOUND" {
+			t.Errorf("slug %q: err = %v", bad, err)
+		}
+	}
 	if err := os.Symlink(filepath.Join(h.repo, "README.md"), filepath.Join(h.root, "editor", "link.md")); err == nil {
 		if _, err := h.svc.ReadFile(ctx, "tk", "editor", "link.md"); codeOf(err) != "TICKET_PATH_OUTSIDE" {
 			t.Fatalf("symlink escape err = %v", err)
@@ -525,7 +530,7 @@ func TestAssignUsesKickoffFileAndProjectDefaults(t *testing.T) {
 	if !strings.Contains(impl.Prompt, "Execute plan 01 with subagents.") || strings.Contains(impl.Prompt, "Implement only this phase") {
 		t.Fatalf("kickoff body not used:\n%s", impl.Prompt)
 	}
-	res, err = h.svc.Assign(ctx, "tk", "editor", "01-daemon.md", AssignInput{Force: true, SpawnInput: SpawnInput{Model: "haiku"}})
+	_, err = h.svc.Assign(ctx, "tk", "editor", "01-daemon.md", AssignInput{Force: true, SpawnInput: SpawnInput{Model: "haiku"}})
 	if err != nil || h.sessions.spawned[2].AgentConfig.Model != "haiku" {
 		t.Fatalf("override = %+v err=%v", h.sessions.spawned[2], err)
 	}

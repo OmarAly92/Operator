@@ -191,6 +191,10 @@ func TestTicketsCreatePlanAssignDoneArchive(t *testing.T) {
 	if status != http.StatusOK || ar.Session != nil || len(ar.Warnings) != 1 || !svc.assigned.DryRun || svc.assignName != "01-core.md" {
 		t.Fatalf("dry run status %d ar=%+v assigned=%+v", status, ar, svc.assigned)
 	}
+	_, status, _ = doRequest(t, srv, "POST", "/api/v1/projects/p/tickets/editor/plans/01-core.md/assign?dryRun=yes", `{}`)
+	if status != http.StatusBadRequest {
+		t.Fatalf("malformed dryRun status %d", status)
+	}
 	body, status, _ = doRequest(t, srv, "POST", "/api/v1/projects/p/tickets/editor/plans/01-core.md/assign", `{"force":true,"harness":"codex"}`)
 	mustJSON(t, body, &ar)
 	if status != http.StatusCreated || ar.Session == nil || ar.Session.ID != "tk-2" || !svc.assigned.Force || svc.assigned.Harness != domain.HarnessCodex {

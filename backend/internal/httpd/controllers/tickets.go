@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -39,7 +40,6 @@ type TicketsController struct {
 func (c *TicketsController) Register(r chi.Router) {
 	r.Get("/projects/{id}/tickets", c.list)
 	r.Post("/projects/{id}/tickets", c.create)
-	r.Get("/projects/{id}/tickets/events", c.events)
 	r.Get("/projects/{id}/tickets/{slug}", c.get)
 	r.Get("/projects/{id}/tickets/{slug}/file", c.readFile)
 	r.Put("/projects/{id}/tickets/{slug}/file", c.writeFile)
@@ -51,6 +51,10 @@ func (c *TicketsController) Register(r chi.Router) {
 	r.Post("/projects/{id}/tickets/{slug}/plans/{plan}/review", c.review)
 	r.Post("/projects/{id}/tickets/{slug}/plans/{plan}/merge-ready", c.mergeReady)
 	r.Post("/projects/{id}/tickets/{slug}/plans/{plan}/merge", c.merge)
+}
+
+func (c *TicketsController) RegisterStreams(r chi.Router) {
+	r.Get("/projects/{id}/tickets/events", c.events)
 }
 
 func ticketSlug(r *http.Request) string { return strings.TrimSpace(chi.URLParam(r, "slug")) }
@@ -217,10 +221,19 @@ func (c *TicketsController) assign(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	dry := r.URL.Query().Get("dryRun")
+	dryRun := false
+	if dry != "" {
+		parsed, err := strconv.ParseBool(dry)
+		if err != nil {
+			envelope.WriteAPIError(w, r, http.StatusBadRequest, "bad_request", "INVALID_QUERY", "dryRun must be a boolean", nil)
+			return
+		}
+		dryRun = parsed
+	}
 	in := ticketsvc.AssignInput{
 		SpawnInput: ticketsvc.SpawnInput{Harness: req.Harness, Model: req.Model, ClaudeAccountID: req.ClaudeAccountID, Extra: req.Extra},
 		Force:      req.Force,
-		DryRun:     dry == "1" || dry == "true",
+		DryRun:     dryRun,
 	}
 	res, err := c.Svc.Assign(r.Context(), projectID(r), ticketSlug(r), ticketPlan(r), in)
 	if err != nil {

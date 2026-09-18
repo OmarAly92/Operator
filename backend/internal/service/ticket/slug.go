@@ -1,11 +1,18 @@
 package ticket
 
 import (
+	"regexp"
 	"strings"
 	"unicode"
 )
 
 const maxSlugLen = 48
+
+var slugPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,47}$`)
+
+func validSlug(s string) bool {
+	return slugPattern.MatchString(s)
+}
 
 func slugify(title string) string {
 	var b strings.Builder

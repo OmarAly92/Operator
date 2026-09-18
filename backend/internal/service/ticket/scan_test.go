@@ -3,6 +3,7 @@ package ticket
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -96,5 +97,22 @@ func TestScanTicketMalformedFrontmatterWarns(t *testing.T) {
 	}
 	if _, ok, err := scanTicket(root, "missing"); ok || err != nil {
 		t.Fatalf("missing ok=%v err=%v", ok, err)
+	}
+}
+
+func TestScanTicketCombinesUnorderedAndFrontmatterWarnings(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, filepath.Join(root, "editor", "ticket.md"), "---\ntitle: Editor\n---\n")
+	writeFile(t, filepath.Join(root, "editor", "plans", "notes.md"), "---\ntitle: [oops\n---\n")
+	got, ok, err := scanTicket(root, "editor")
+	if err != nil || !ok {
+		t.Fatalf("ok=%v err=%v", ok, err)
+	}
+	if len(got.Plans) != 1 {
+		t.Fatalf("plans = %+v", got.Plans)
+	}
+	p := got.Plans[0]
+	if !p.Unordered || !strings.Contains(p.Warning, "no numeric prefix") || !strings.Contains(p.Warning, "; ") {
+		t.Fatalf("plan warning = %q", p.Warning)
 	}
 }

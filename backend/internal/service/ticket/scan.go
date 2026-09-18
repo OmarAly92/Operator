@@ -120,7 +120,11 @@ func scanTicket(root, slug string) (scannedTicket, bool, error) {
 		}
 		fm, body, err := parseFrontmatter(raw)
 		if err != nil {
-			p.Warning = err.Error()
+			if p.Warning != "" {
+				p.Warning += "; " + err.Error()
+			} else {
+				p.Warning = err.Error()
+			}
 		}
 		p.Title = titleOf(fm, body, strings.TrimSuffix(e.Name(), ".md"))
 		t.Plans = append(t.Plans, p)
