@@ -167,12 +167,12 @@ regenerate from a scratch project.
 
 | Metric | How | Today |
 |---|---|---|
-| `feed()` cost at 1k / 5k / 50k rows | `performance.now()` around `core.feed` for a 4 KiB chunk after the transcript reaches N rows | not known |
+| `feed()` cost at 1k / 5k / 50k rows | `performance.now()` around `core.feed` for a 4 KiB chunk after the transcript reaches N rows | `claude-long-50k` (60,137 rows), 20 samples each: 0.40ms @ 1k (reached row 1,361) / 0.70ms @ 5k (reached row 5,610) / 5.60ms @ 50k (reached row 50,252) |
 | paints/s and DOM nodes created per paint under the spinner | `onPaint` count + `MutationObserver` `addedNodes` over 10 s of `claude-spinner-10s` | 100/10 s → 10 paints/s, 28.69 nodes/paint |
-| main-thread block when a 2 MB tool result arrives in one mux message | `PerformanceObserver({ entryTypes: ['longtask'] })` | not known |
-| scroll bottom → row 0 at 50k rows | Playwright: `wheel` steps, count frames > 50 ms, assert every `data-terminal-row` index range is contiguous | not known |
-| reopen at 1k / 5k / 50k rows: time to first paint, rows recovered | daemon API + `/mux` (memory: verify via daemon API), `vt_replay` size | 1,000-row cap known; times not known |
-| memory of renderer core and mirror at 50k rows | `wasm memory.buffer.byteLength`; Go `runtime.MemStats` of the pty-host | not known |
+| main-thread block when a 2 MB tool result arrives in one mux message | `PerformanceObserver({ entryTypes: ['longtask'] })` | `claude-long-50k`: a 2 MiB feed cost 28.9ms of `core.feed`; `PerformanceObserver` reported 0 long tasks (`longestTaskMs`: none observed) |
+| scroll bottom → row 0 at 50k rows | Playwright: `wheel` steps, count frames > 50 ms, assert every `data-terminal-row` index range is contiguous | `claude-long-50k` (60,137 rows): 60,134/60,137 rows covered over 2,245 scroll steps, 0 frames > 50ms, worst frame 0ms |
+| reopen at 1k / 5k / 50k rows: time to first paint, rows recovered | daemon API + `/mux` (memory: verify via daemon API), `vt_replay` size | measured at the mirror's 1,000-row cap (`vtwasm.New(..., 1000)`) on `claude-long-50k`: replay 1,000 rows / 17,257 bytes, Go-side `Replay()` cost 0.306ms, renderer `firstPaintMs` 13ms |
+| memory of renderer core and mirror at 50k rows | `wasm memory.buffer.byteLength`; Go `runtime.MemStats` of the pty-host | `claude-long-50k`, all 60,137 rows fed: renderer core wasm `memory.buffer.byteLength` 26,083,328 bytes (~24.9 MiB); Go mirror wasm memory 4,128,768 bytes (~3.94 MiB) at the reopen probe's 1,000-row cap (not the full 60k — the harness's mirror probe is capped, see the row above) |
 | rendered-transcript pixel diff vs the pre-change screenshot | `bench/agent-session/feel-gate.mjs` screenshots the same fixture at the same scroll offsets before and after; diff must be zero unless the task declares a scoped change | — |
 | torn frames in `claude-spinner-10s` | `run.mjs` `tearing`: model states that became visible inside a sync block (fed byte by byte), paints showing a partial frame and frames painted more than once (fed in thirds, one frame per third) | 7470 states / 25 paints / 18 multi-paint of 120 frames |
 

@@ -1,4 +1,5 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { spawnSync } from "node:child_process";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium } from "playwright";
@@ -118,6 +119,31 @@ async function longTask2MiB(page) {
 	return { feedMs, longestTaskMs: tasks.length ? Math.max(...tasks) : null, longTasks: tasks.length };
 }
 
+async function reopenReport(page, fixtureName) {
+	const fixtureDir = path.join(benchDir, "agent-session", "fixtures", fixtureName);
+	const replayOut = path.join(resultsDir, `${fixtureName}-replay.bin`);
+	await mkdir(resultsDir, { recursive: true });
+	const backend = path.resolve(benchDir, "../../../backend");
+	const run = spawnSync("go", ["test", "./internal/adapters/runtime/ptyhost/vtwasm/", "-run", "TestAgentSessionReplayReport", "-v", "-count=1"], {
+		cwd: backend,
+		env: { ...process.env, OPERATOR_AGENT_FIXTURE: fixtureDir, OPERATOR_AGENT_REPLAY_OUT: replayOut },
+		encoding: "utf8",
+	});
+	const line = run.stdout.split("\n").find((entry) => entry.includes("REPORT "));
+	if (!line) throw new Error(`reopen report missing:\n${run.stdout}\n${run.stderr}`);
+	const report = JSON.parse(line.slice(line.indexOf("REPORT ") + 7));
+	const replay = new Uint8Array(await readFile(replayOut));
+	const firstPaintMs = await page.evaluate(async (bytes) => {
+		const session = window.__agentSession;
+		const start = performance.now();
+		session.resetCounters();
+		session.core().feed(new Uint8Array(bytes));
+		while (session.paintCount() === 0) await new Promise((resolve) => requestAnimationFrame(resolve));
+		return performance.now() - start;
+	}, Array.from(replay));
+	return { ...report, firstPaintMs };
+}
+
 async function main() {
 	const args = parseArgs(process.argv.slice(2));
 	const fixtures = args.fixture ? [args.fixture] : listFixtures();
@@ -150,6 +176,9 @@ async function main() {
 				rows.rows = await page.evaluate(() => window.__agentSession.rowCount());
 				rows.rendererMemoryBytes = await page.evaluate(() => window.__agentSession.memoryBytes());
 				await page.close();
+				const reopenPage = await openPage(browser, port, name);
+				rows.reopen = await reopenReport(reopenPage, name);
+				await reopenPage.close();
 			}
 			report.fixtures[name] = rows;
 			process.stdout.write(`${JSON.stringify({ fixture: name, ...rows })}\n`);
