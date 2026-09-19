@@ -2,6 +2,7 @@ package tunnel
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -457,7 +458,21 @@ func (r *lineRing) Lines() []string {
 	return out
 }
 
+func isNgrokAccessLogNoise(line string) bool {
+	var rec struct {
+		Pg  string `json:"pg"`
+		Msg string `json:"msg"`
+	}
+	if json.Unmarshal([]byte(line), &rec) != nil {
+		return false
+	}
+	return rec.Pg != "" && (rec.Msg == "start" || rec.Msg == "end")
+}
+
 func (r *lineRing) appendLocked(line string) {
+	if isNgrokAccessLogNoise(line) {
+		return
+	}
 	r.lines = append(r.lines, line)
 	if len(r.lines) > r.max {
 		r.lines = append([]string{}, r.lines[len(r.lines)-r.max:]...)
