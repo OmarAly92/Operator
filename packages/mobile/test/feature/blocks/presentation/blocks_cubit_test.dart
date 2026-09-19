@@ -539,4 +539,41 @@ void main() {
     expect(cubit.subagentSummaries['a1']!.stopped, isTrue);
     await cubit.close();
   });
+
+  test(
+    'an agent_stop on the main cubit both summarises and completes the matching Agent block',
+    () async {
+      final cubit = build();
+      await Future<void>.delayed(Duration.zero);
+
+      events.add(BlockEventEnvelope('s-1', {
+        ..._wire(1, 'tool_start', sourceId: 'toolu_a', toolName: 'Agent'),
+        'toolUseId': 'toolu_a',
+        'toolInput':
+            '{"description":"Implement Task 1","prompt":"You are implementing Task 1","model":"haiku","run_in_background":true}',
+        'source': 'transcript',
+      }));
+      events.add(BlockEventEnvelope('s-1', {
+        ..._wire(2, 'tool_result', sourceId: 'toolu_a', text: 'Async agent launched'),
+        'toolUseId': 'toolu_a',
+        'source': 'transcript',
+        'detail': '{"agentId":"a1","agentType":"general-purpose","status":"running"}',
+      }));
+      await Future<void>.delayed(Duration.zero);
+
+      expect(cubit.blocks, hasLength(1));
+
+      events.add(BlockEventEnvelope('s-1', {
+        ..._wire(3, 'agent_stop', sourceId: 'a1', text: 'finished'),
+        'agentId': 'a1',
+        'source': 'hook',
+      }));
+      await Future<void>.delayed(Duration.zero);
+
+      expect(cubit.subagentSummaries['a1']!.stopped, isTrue);
+      final detail = cubit.blocks.single.detail as AgentBlockDetail;
+      expect(detail.status, 'completed');
+      await cubit.close();
+    },
+  );
 }

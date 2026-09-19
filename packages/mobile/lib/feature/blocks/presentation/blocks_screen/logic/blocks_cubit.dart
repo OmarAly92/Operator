@@ -151,7 +151,13 @@ class BlocksCubit extends Cubit<BlocksState> {
       _rebuild();
       return;
     }
-    if (agentId == null && scopeId.isNotEmpty) _summarise(scopeId, record);
+    if (agentId == null && scopeId.isNotEmpty) {
+      _summarise(scopeId, record);
+      if (record.kind == 'agent_stop') {
+        _merge(record);
+        _rebuild();
+      }
+    }
   }
 
   final Map<String, SubagentSummary> _summaries = {};
