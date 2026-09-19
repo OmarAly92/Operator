@@ -21,7 +21,8 @@ interface MobileConnectionSectionProps {
 
 export function MobileConnectionSection({ bridge, children }: MobileConnectionSectionProps) {
 	const { t } = useTranslation();
-	const { query, status, enabled, busy, tunnel, tunnelLive, address, actionError, toggleBridge, regenerate, setTokenOpen } = bridge;
+	const { query, status, enabled, busy, regenerating, tunnel, tunnelLive, address, actionError, toggleBridge, regenerate, setTokenOpen } =
+		bridge;
 	const [copied, setCopied] = useState<"address" | "password" | null>(null);
 	const copiedTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -173,7 +174,7 @@ export function MobileConnectionSection({ bridge, children }: MobileConnectionSe
 									disabled={busy || !enabled}
 									tabIndex={enabled ? 0 : -1}
 								>
-									{busy && <Loader2 className="mr-2 size-4 animate-spin" aria-hidden="true" />}
+									{regenerating && <Loader2 className="mr-2 size-4 animate-spin" aria-hidden="true" />}
 									{t("mobile.regenerate")}
 								</Button>
 							</div>

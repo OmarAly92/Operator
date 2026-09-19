@@ -18,6 +18,7 @@ export interface MobileBridge {
 	status: MobileStatus | undefined;
 	enabled: boolean;
 	busy: boolean;
+	regenerating: boolean;
 	tunnel: MobileTunnelStatus | undefined;
 	tunnelLive: boolean;
 	tunnelOn: boolean;
@@ -186,6 +187,7 @@ export function useMobileBridge(active: boolean): MobileBridge {
 		status,
 		enabled,
 		busy,
+		regenerating: regenerateMutation.isPending,
 		tunnel,
 		tunnelLive: Boolean(tunnelLive),
 		tunnelOn,
