@@ -58,7 +58,7 @@ type Manager struct {
 	enabled             bool
 	stickyFrom          map[string]bool
 	lastFailureProvider string
-	hadFirstFailure     bool
+	inRecoveryAttempt   bool
 	cmd                 *exec.Cmd
 	cancel              context.CancelFunc
 	done                chan struct{}
@@ -137,6 +137,7 @@ func (m *Manager) Enable(ctx context.Context) error {
 	}
 	m.enabled = true
 	m.status = Status{State: StateStarting}
+	m.stickyFrom = map[string]bool{}
 	m.mu.Unlock()
 
 	if err := m.startFirstWorkingProvider(ctx); err != nil {
@@ -153,6 +154,7 @@ func (m *Manager) retryableLocked() {
 	m.enabled = false
 	m.stickyFrom = map[string]bool{}
 	m.lastFailureProvider = ""
+	m.inRecoveryAttempt = true
 }
 
 func (m *Manager) failTerminally(message string) {
@@ -351,6 +353,11 @@ func (m *Manager) publishURL(provider Provider, url string) {
 	m.status.State = StateLive
 	m.status.Provider = provider.Name()
 	m.status.URL = url
+	if m.inRecoveryAttempt {
+		m.status.LastProvider = ""
+		m.status.FallbackReason = ""
+		m.inRecoveryAttempt = false
+	}
 	if provider.Name() == m.lastFailureProvider {
 		m.status.Error = ""
 	}
@@ -672,10 +679,9 @@ func (m *Manager) handleProviderRefusal(ctx context.Context, provider Provider, 
 			remaining++
 		}
 	}
-	if remaining > 0 && !m.hadFirstFailure {
+	if remaining > 0 {
 		m.status.LastProvider = provider.Name()
 		m.status.FallbackReason = failure.Message
-		m.hadFirstFailure = true
 	}
 	m.mu.Unlock()
 	m.notifyProvider("")
