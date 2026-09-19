@@ -166,8 +166,7 @@ class TerminalHarness {
     blocksCubit = BlocksCubit(
       mux,
       blocksRepository,
-      cubit.args.sessionId,
-      harness: harness,
+      BlocksScope(sessionId: cubit.args.sessionId, harness: harness),
     );
     final controlRepository = MockSessionControlRepository();
     when(() => controlRepository.getInteractions(any())).thenAnswer(

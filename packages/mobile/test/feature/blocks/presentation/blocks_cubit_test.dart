@@ -71,8 +71,8 @@ void main() {
     await patches.close();
   });
 
-  BlocksCubit build({String? harness = 'claude-code'}) =>
-      BlocksCubit(mux, repository, 's-1', harness: harness);
+  BlocksCubit build({String? harness = 'claude-code', String? agentId}) =>
+      BlocksCubit(mux, repository, BlocksScope(sessionId: 's-1', harness: harness, agentId: agentId));
 
   test('complete initial history does not offer older blocks', () async {
     when(() => repository.getSessionBlocks(any(), any())).thenAnswer(
@@ -502,6 +502,41 @@ void main() {
     await Future<void>.delayed(Duration.zero);
     expect(cubit.active, isFalse);
 
+    await cubit.close();
+  });
+
+  test('an agent-scoped cubit keeps only its agent and asks history for it', () async {
+    final cubit = build(agentId: 'a1');
+    await Future<void>.delayed(Duration.zero);
+    final captured = verify(() => repository.getSessionBlocks('s-1', captureAny())).captured.single as GetSessionBlocksParams;
+    expect(captured.agentId, 'a1');
+
+    events.add(BlockEventEnvelope('s-1', {..._wire(1, 'prompt_submit', text: 'main'), 'agentId': ''}));
+    events.add(BlockEventEnvelope('s-1', {..._wire(2, 'prompt_submit', text: 'agent'), 'agentId': 'a1'}));
+    await Future<void>.delayed(Duration.zero);
+
+    expect(cubit.blocks.single.body, 'agent');
+    await cubit.close();
+  });
+
+  test('the main cubit ignores agent events but summarises them', () async {
+    final cubit = build();
+    await Future<void>.delayed(Duration.zero);
+
+    events.add(BlockEventEnvelope('s-1', {..._wire(1, 'prompt_submit', text: 'Implement task 1'), 'agentId': 'a1', 'createdAt': '2026-09-19T10:00:00Z'}));
+    events.add(BlockEventEnvelope('s-1', {..._wire(2, 'assistant_text', text: 'working'), 'agentId': 'a1', 'createdAt': '2026-09-19T10:00:05Z'}));
+    await Future<void>.delayed(Duration.zero);
+
+    expect(cubit.blocks, isEmpty);
+    final summary = cubit.subagentSummaries['a1']!;
+    expect(summary.prompt, 'Implement task 1');
+    expect(summary.startedAt, '2026-09-19T10:00:00Z');
+    expect(summary.lastSeenAt, '2026-09-19T10:00:05Z');
+    expect(summary.stopped, isFalse);
+
+    events.add(BlockEventEnvelope('s-1', {..._wire(3, 'agent_stop'), 'agentId': 'a1'}));
+    await Future<void>.delayed(Duration.zero);
+    expect(cubit.subagentSummaries['a1']!.stopped, isTrue);
     await cubit.close();
   });
 }

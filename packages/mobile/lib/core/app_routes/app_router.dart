@@ -117,8 +117,7 @@ sealed class AppRouter {
               if (!terminalArgs.shellOnly)
                 BlocProvider<BlocksCubit>(
                   create: (_) => sl<BlocksCubit>(
-                    param1: terminalArgs.sessionId,
-                    param2: terminalArgs.harness,
+                    param1: BlocksScope(sessionId: terminalArgs.sessionId, harness: terminalArgs.harness),
                   ),
                 ),
               if (!terminalArgs.shellOnly)
