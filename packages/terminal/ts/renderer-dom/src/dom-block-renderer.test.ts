@@ -120,6 +120,19 @@ describe("DomBlockRenderer", () => {
 		expect(new TextDecoder().decode(core.snapshot().content).endsWith("line 19999")).toBe(true);
 	});
 
+	it("keeps draining enqueued bytes on the alternate screen until the backlog is empty", async () => {
+		const { core, host } = mountWith("[?1049halpha");
+		expect(host.querySelector("[data-terminal-alt-surface]")).not.toBeNull();
+		let text = "";
+		for (let index = 0; index < 400000; index += 1) text += `\r\nline ${index}`;
+		core.enqueue(new TextEncoder().encode(text));
+		expect(core.hasBacklog()).toBe(true);
+		await flushRepaint();
+		expect(core.hasBacklog()).toBe(true);
+		for (let frames = 0; frames < 60 && core.hasBacklog(); frames += 1) await flushRepaint();
+		expect(core.hasBacklog()).toBe(false);
+	});
+
 	it("writes the theme as CSS variables on the host without remounting", () => {
 		const { host, renderer } = mountWith("alpha");
 		const beforeBlock = host.querySelector('[data-terminal-block-id="0:0"]');

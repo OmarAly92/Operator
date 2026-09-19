@@ -413,6 +413,7 @@ export class DomBlockRenderer implements BlockRenderer {
 			this.paintSelectionFill();
 			if (paintedAt !== undefined) this.lastPaintAt = paintedAt;
 			this.notifyPainted();
+			this.rescheduleIfPending(core);
 			return;
 		}
 		if (this.altRoot) {
@@ -511,6 +512,10 @@ export class DomBlockRenderer implements BlockRenderer {
 		this.paintSelectionFill();
 		if (paintedAt !== undefined) this.lastPaintAt = paintedAt;
 		this.notifyPainted();
+		this.rescheduleIfPending(core);
+	}
+
+	private rescheduleIfPending(core: TerminalCore): void {
 		if (core.hasBacklog() || core.synchronizedOutput()) this.scheduleRepaint();
 	}
 
