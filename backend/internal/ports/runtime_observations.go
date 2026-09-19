@@ -49,6 +49,7 @@ type ActivitySignal struct {
 	ToolName          string
 	ToolUseID         string
 	AgentSessionID    string
+	AgentID           string
 	// LatestUserPrompt and LatestAssistantUpdate are provider hook facts used
 	// to build a deterministic handoff. They are never promoted to system
 	// instructions and internal <opr-...> coordination turns are filtered by

@@ -42,6 +42,8 @@ func (s *Store) InsertBlockEvent(ctx context.Context, rec blockeventsvc.Record) 
 		TruncatedLines: int64(rec.TruncatedLines),
 		Source:         string(rec.Source),
 		InteractionID:  rec.InteractionID,
+		AgentID:        rec.AgentID,
+		Detail:         rec.Detail,
 		CreatedAt:      rec.CreatedAt,
 	})
 	if err != nil {
@@ -67,9 +69,10 @@ func (s *Store) SelectLatestTurnModels(ctx context.Context) (map[string]string, 
 }
 
 // SelectBlockEventsBySession returns events after afterSeq in ascending order.
-func (s *Store) SelectBlockEventsBySession(ctx context.Context, sessionID string, afterSeq int64, limit int) ([]blockeventsvc.Record, error) {
+func (s *Store) SelectBlockEventsBySession(ctx context.Context, sessionID, agentID string, afterSeq int64, limit int) ([]blockeventsvc.Record, error) {
 	rows, err := s.qr.SelectBlockEventsBySession(ctx, gen.SelectBlockEventsBySessionParams{
 		SessionID: sessionID,
+		AgentID:   agentID,
 		Seq:       afterSeq,
 		Limit:     int64(limit),
 	})
@@ -95,6 +98,8 @@ func (s *Store) SelectBlockEventsBySession(ctx context.Context, sessionID string
 			TruncatedLines: row.TruncatedLines,
 			Source:         row.Source,
 			InteractionID:  row.InteractionID,
+			AgentID:        row.AgentID,
+			Detail:         row.Detail,
 			CreatedAt:      row.CreatedAt,
 		}))
 	}
@@ -104,9 +109,10 @@ func (s *Store) SelectBlockEventsBySession(ctx context.Context, sessionID string
 // SelectBlockEventsBeforeSeq returns the events immediately older than
 // beforeSeq in ascending order so a client whose window has slid forward can
 // page backwards into what it dropped instead of losing it.
-func (s *Store) SelectBlockEventsBeforeSeq(ctx context.Context, sessionID string, beforeSeq int64, limit int) ([]blockeventsvc.Record, error) {
+func (s *Store) SelectBlockEventsBeforeSeq(ctx context.Context, sessionID, agentID string, beforeSeq int64, limit int) ([]blockeventsvc.Record, error) {
 	rows, err := s.qr.SelectBlockEventsBeforeSeq(ctx, gen.SelectBlockEventsBeforeSeqParams{
 		SessionID: sessionID,
+		AgentID:   agentID,
 		Seq:       beforeSeq,
 		Limit:     int64(limit),
 	})
@@ -132,6 +138,8 @@ func (s *Store) SelectBlockEventsBeforeSeq(ctx context.Context, sessionID string
 			TruncatedLines: row.TruncatedLines,
 			Source:         row.Source,
 			InteractionID:  row.InteractionID,
+			AgentID:        row.AgentID,
+			Detail:         row.Detail,
 			CreatedAt:      row.CreatedAt,
 		}))
 	}
@@ -158,6 +166,8 @@ type blockEventRowFields struct {
 	TruncatedLines int64
 	Source         string
 	InteractionID  string
+	AgentID        string
+	Detail         string
 	CreatedAt      time.Time
 }
 
@@ -178,6 +188,8 @@ func blockEventRecordFromRow(f blockEventRowFields) blockeventsvc.Record {
 		TruncatedLines: int(f.TruncatedLines),
 		Source:         domain.BlockEventSource(f.Source),
 		InteractionID:  f.InteractionID,
+		AgentID:        f.AgentID,
+		Detail:         f.Detail,
 		CreatedAt:      f.CreatedAt,
 	}
 	if f.RedactedSpans != "" {
@@ -189,18 +201,21 @@ func blockEventRecordFromRow(f blockEventRowFields) blockeventsvc.Record {
 	return rec
 }
 
-// TrimBlockEvents drops all but the newest keep rows for one session. Trimming
-// is per session so a busy session cannot evict a quiet one's history.
-func (s *Store) TrimBlockEvents(ctx context.Context, sessionID string, keep int) (int64, error) {
+// TrimBlockEvents drops all but the newest keep rows for one (session, agent)
+// scope. Trimming is per (session, agent) so a busy session or a chatty
+// subagent cannot evict a quiet session's, or another agent's, history.
+func (s *Store) TrimBlockEvents(ctx context.Context, sessionID, agentID string, keep int) (int64, error) {
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
 	n, err := s.qw.TrimBlockEventsForSession(ctx, gen.TrimBlockEventsForSessionParams{
 		SessionID:   sessionID,
+		AgentID:     agentID,
 		SessionID_2: sessionID,
+		AgentID_2:   agentID,
 		Offset:      int64(keep - 1),
 	})
 	if err != nil {
-		return 0, fmt.Errorf("trim block events for %s: %w", sessionID, err)
+		return 0, fmt.Errorf("trim block events for %s/%s: %w", sessionID, agentID, err)
 	}
 	return n, nil
 }

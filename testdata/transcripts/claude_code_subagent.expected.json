@@ -1,0 +1,43 @@
+{
+  "harness": "claude-code",
+  "lines": [
+    { "known": true, "events": [
+      { "kind": "prompt_submit", "sourceId": "u1", "text": "Implement task 1" }
+    ] },
+    { "known": true, "events": [] },
+    { "known": true, "events": [] },
+    { "known": true, "events": [
+      { "kind": "turn_model", "sourceId": "u4", "text": "claude-sonnet-5" },
+      { "kind": "reasoning", "sourceId": "u4", "text": "Invoking the plan-handoff skill." }
+    ] },
+    { "known": true, "events": [
+      { "kind": "turn_model", "sourceId": "u5", "text": "claude-sonnet-5" },
+      { "kind": "tool_start", "sourceId": "toolu_1", "toolUseId": "toolu_1", "toolName": "Skill", "toolInput": "{\"skill\":\"plan-handoff\",\"args\":\"/repo/docs/plans/task.md\"}" }
+    ] },
+    { "known": true, "events": [
+      { "kind": "tool_result", "sourceId": "toolu_1", "toolUseId": "toolu_1", "text": "Launching skill: plan-handoff" }
+    ] },
+    { "known": true, "events": [
+      { "kind": "prompt_submit", "sourceId": "u7", "text": "Base directory for this skill: /repo/skills/plan-handoff" }
+    ] },
+    { "known": true, "events": [
+      { "kind": "turn_model", "sourceId": "u8", "text": "claude-sonnet-5" },
+      { "kind": "reasoning", "sourceId": "u8", "text": "Exploring the repo layout." }
+    ] },
+    { "known": true, "events": [
+      { "kind": "turn_model", "sourceId": "u9", "text": "claude-sonnet-5" },
+      { "kind": "tool_start", "sourceId": "toolu_2", "toolUseId": "toolu_2", "toolName": "Bash", "toolInput": "{\"command\":\"ls -la /repo/docs/plans\"}" }
+    ] },
+    { "known": true, "events": [
+      { "kind": "tool_result", "sourceId": "toolu_2", "toolUseId": "toolu_2", "text": "2026-09-19-task.md" }
+    ] },
+    { "known": true, "events": [
+      { "kind": "turn_model", "sourceId": "u11", "text": "claude-sonnet-5" },
+      { "kind": "assistant_text", "sourceId": "u11", "text": "This is a small repo. Let me read the plan." }
+    ] },
+    { "known": true, "events": [
+      { "kind": "turn_model", "sourceId": "u12", "text": "claude-sonnet-5" },
+      { "kind": "tool_start", "sourceId": "toolu_3", "toolUseId": "toolu_3", "toolName": "Read", "toolInput": "{\"file_path\":\"/repo/docs/plans/2026-09-19-task.md\"}" }
+    ] }
+  ]
+}

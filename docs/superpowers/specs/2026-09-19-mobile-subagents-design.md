@@ -115,32 +115,43 @@ kinds.
 
 ### 3.3 Agent identity on the parent stream
 
-The Agent tool's `tool_use` maps to `tool_start` as today. Its `tool_result`
-additionally sets `Detail` to the JSON object
-`{agentId, agentType, status, resolvedModel, totalDurationMs,
-totalToolUseCount, totalTokens}` lifted from the record's `toolUseResult`
-when `toolUseResult.agentId` is non-empty. `claudeTranscriptRecord` gains a
-`ToolUseResult json.RawMessage` field for this. The text body of the result
-stays what it is today, so existing rendering is unchanged.
+Claude Code writes `subagents/agent-<id>.meta.json` beside each agent
+transcript with `agentType`, `description`, `toolUseId`, `model` and
+`requestShape` (verified on this machine, 2026-09-19). When the supervisor
+first sees an agent file (stored cursor at 0) it reads that meta file and
+emits one main-scope `agent_start` event: `SourceID` = agent id, `ToolUseID`
+from the meta file, `ToolName` = `Agent`, `Detail` = the meta fields plus
+`agentId`. Because it carries the tool use id, the phone correlates it onto
+the same block as the Agent tool's `tool_start`, so the card knows its agent
+id from the first tick, live or on a cold open. A missing meta file just
+means no `agent_start`; the card then falls back to the prompt match below.
 
-The `subagent-stop` hook stops being dropped and maps to a new kind
-`agent_stop` with `AgentID` from the payload's `agent_id` (already decoded in
-`backend/internal/cli/hooks.go:157-163` for usage) and `Text` from
-`last_assistant_message` when present. It is published on the parent
-session with `agentId` set, so the phone can mark an agent finished even if
-the parent transcript has not yet written the tool result.
+The Agent tool's `tool_result` additionally sets `Detail` to the JSON lifted
+from the record's `toolUseResult` when `toolUseResult.agentId` is non-empty:
+`agentId` always, `agentType`, `status`, `resolvedModel` when non-empty, and
+`totalDurationMs`, `totalToolUseCount`, `totalTokens` only when non-zero. A
+background agent's result arrives immediately with `status: "async_launched"`
+and zero totals; the phone treats that status as still running.
+
+Two records mark an agent finished, both published on the MAIN scope (empty
+`agentId`) with the agent id in `sourceId`, so they are part of the parent's
+history and a cold open sees them:
+
+- The `subagent-stop` hook maps to `agent_stop` with `agent_id` from the
+  payload (`backend/internal/cli/hooks.go:157-163`).
+- The parent transcript's hand-back record, a `user` text starting with
+  `<agent-message from="<id>">`, maps to `agent_stop` as well. This covers
+  agents that finished while the daemon was not running.
 
 ### 3.4 Linking a live tail to its Agent card
 
-A subagent file appears when the agent starts, long before the parent's
-`tool_result` names the `agentId`. The phone links them by prompt. Subagent
-files have no `prompt_submit` hook event, so the sidechain mapper emits a `prompt_submit` transcript event for the first `user` record
-of the agent file whose content is text (not a `tool_result`), with the
-prompt as `Text`. The phone matches it against running Agent blocks whose
-`toolInput.prompt` equals that text. An agent whose prompt matches nothing
-still appears in the strip under its `agentType` (or "Agent") so it is never
-hidden; when the parent's `tool_result` later arrives the `agentId` in its
-detail links the card definitively and wins over the prompt match.
+The `agent_start` event above is the primary link. As a fallback for agents
+without a meta file, the sidechain mapper emits a `prompt_submit` transcript
+event for a `user` record of the agent file whose content is text (not a
+`tool_result`), with the prompt as `Text`; the phone matches the first such
+prompt against Agent blocks whose `toolInput.prompt` equals it. An agent
+whose prompt matches nothing still appears in the strip under its
+`agentType` (or "Agent") so it is never hidden.
 
 ## 4. Mobile
 
@@ -156,11 +167,11 @@ test still holds.
 `SessionBlock` gains `agentId`. A new `AgentBlockDetail` in
 `session_block.dart` holds `description, prompt, model, runInBackground`
 (from `toolInput`) and `agentId, agentType, status, resolvedModel,
-durationMs, toolUseCount, totalTokens` (from the result detail). The
-assembly (`block_assembly.dart`) builds it when `toolName == 'Agent'` and
-merges the result detail onto it on `tool_result`. `agent_stop` events with
-an `agentId` mark the matching detail `status: completed` when no result has
-arrived yet.
+durationMs, toolUseCount, totalTokens` (from the `agent_start` and result
+details). The assembly (`block_assembly.dart`) builds it when `toolName ==
+'Agent'`, merges `agent_start` and `tool_result` details onto it, and marks
+the detail `status: completed` on an `agent_stop` naming its agent id. An
+agent whose status is `async_launched` counts as running until then.
 
 A new pure function `subagentsOf(List<SessionBlock> mainBlocks,
 Map<String, SubagentSummary> tails)` in `lib/feature/blocks/logic/

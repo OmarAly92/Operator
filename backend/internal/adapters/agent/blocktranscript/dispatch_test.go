@@ -32,3 +32,17 @@ func TestMapRoutesToTheHarnessMapper(t *testing.T) {
 		t.Fatalf("Map(codex) = %+v,%v", events, known)
 	}
 }
+
+func TestMapSidechainIsClaudeCodeOnly(t *testing.T) {
+	if !SupportsSidechain("claude-code") || SupportsSidechain("codex") {
+		t.Fatal("sidechain projection is claude-code only")
+	}
+	line := []byte(`{"type":"user","isSidechain":true,"agentId":"a1","uuid":"u1","message":{"content":"go"}}`)
+	events, ok := MapSidechain("claude-code", "a1", line)
+	if !ok || len(events) != 1 || events[0].AgentID != "a1" {
+		t.Fatalf("MapSidechain = %+v, %v", events, ok)
+	}
+	if events, ok := MapSidechain("codex", "a1", line); ok || len(events) != 0 {
+		t.Fatal("codex has no sidechain mapper")
+	}
+}

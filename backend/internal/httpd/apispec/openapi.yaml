@@ -3200,6 +3200,14 @@ paths:
         schema:
           description: Session identifier, e.g. project-1.
           type: string
+      - description: Return only this subagent's events; empty means the main conversation.
+        in: query
+        name: agentId
+        schema:
+          description: Return only this subagent's events; empty means the main conversation.
+          type:
+          - "null"
+          - string
       - description: Return events with seq greater than this cursor. Omit to read
           from the start of the retained log.
         in: query
@@ -5766,8 +5774,12 @@ components:
       type: object
     BlockEventView:
       properties:
+        agentId:
+          type: string
         createdAt:
           format: date-time
+          type: string
+        detail:
           type: string
         errorType:
           type: string

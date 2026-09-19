@@ -26,6 +26,8 @@ const (
 	BlockEventTodo              BlockEventKind = "todo"
 	BlockEventTurnModel         BlockEventKind = "turn_model"
 	BlockEventCompaction        BlockEventKind = "compaction"
+	BlockEventAgentStart        BlockEventKind = "agent_start"
+	BlockEventAgentStop         BlockEventKind = "agent_stop"
 	BlockEventUnknown           BlockEventKind = "unknown"
 )
 
@@ -37,7 +39,8 @@ func ParseBlockEventKind(s string) (BlockEventKind, bool) {
 		BlockEventStop, BlockEventStopFailure, BlockEventPermissionRequest,
 		BlockEventPermissionReplied, BlockEventQuestionAsked, BlockEventIdlePrompt,
 		BlockEventAssistantText, BlockEventReasoning, BlockEventToolStart,
-		BlockEventToolResult, BlockEventTodo, BlockEventTurnModel, BlockEventCompaction:
+		BlockEventToolResult, BlockEventTodo, BlockEventTurnModel, BlockEventCompaction,
+		BlockEventAgentStart, BlockEventAgentStop:
 		return BlockEventKind(s), true
 	default:
 		return BlockEventUnknown, false
@@ -67,4 +70,6 @@ type BlockTranscriptEvent struct {
 	Text      string
 	ErrorType string
 	RawEvent  string
+	AgentID   string
+	Detail    string
 }

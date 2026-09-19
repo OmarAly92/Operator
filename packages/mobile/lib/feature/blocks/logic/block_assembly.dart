@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:operator_mobile/feature/blocks/data/model/block_event_model.dart';
 import 'package:operator_mobile/feature/blocks/logic/block_question.dart';
 import 'package:operator_mobile/feature/blocks/logic/session_block.dart';
@@ -86,6 +88,10 @@ List<SessionBlock> assembleBlocks(Iterable<BlockEventModel> events) {
             body: body,
             lastSeq: seq,
             status: statusFromHook.contains(id) ? null : BlockStatus.running,
+            detail: switch (blocks[at].detail) {
+              AgentBlockDetail(:final withInput) => withInput(body),
+              _ => event.toolName == 'Agent' ? AgentBlockDetail.fromToolInput(body) : null,
+            },
           );
         } else {
           _upsert(
@@ -102,12 +108,16 @@ List<SessionBlock> assembleBlocks(Iterable<BlockEventModel> events) {
         if (at != null) {
           final target = blocks[at];
           final answered = target.kind == BlockKind.permission && target.status == BlockStatus.blocked;
+          final agentDetail = target.detail is AgentBlockDetail && (event.detail ?? '').isNotEmpty
+              ? (target.detail! as AgentBlockDetail).merge(_decodeMap(event.detail!))
+              : null;
           blocks[at] = _answered(
             target.copyWith(
               result: target.kind == BlockKind.todo ? null : text,
               lastSeq: seq,
               errorType: event.errorType,
               status: statusFromHook.contains(id) && !answered ? null : resolved,
+              detail: agentDetail,
             ),
           );
         } else {
@@ -241,6 +251,42 @@ List<SessionBlock> assembleBlocks(Iterable<BlockEventModel> events) {
           hookAssistantIndex = indexById[id];
         }
 
+      case 'agent_start':
+        final started = _decodeMap(event.detail ?? '');
+        final at = indexById[id];
+        if (at != null) {
+          final current = blocks[at].detail;
+          final base = current is AgentBlockDetail
+              ? current
+              : AgentBlockDetail.fromToolInput(blocks[at].body) ?? const AgentBlockDetail(status: 'running');
+          blocks[at] = blocks[at].copyWith(detail: base.merge(started), lastSeq: seq);
+        } else {
+          _upsert(
+            blocks,
+            indexById,
+            _create(
+              event,
+              id,
+              BlockKind.tool,
+              BlockStatus.running,
+              'Agent',
+              '',
+              model,
+              detail: const AgentBlockDetail(status: 'running').merge(started),
+            ),
+          );
+        }
+
+      case 'agent_stop':
+        final stopped = (event.agentId ?? '').isNotEmpty ? event.agentId! : (event.sourceId ?? '');
+        if (stopped.isEmpty) continue;
+        for (var i = 0; i < blocks.length; i++) {
+          final detail = blocks[i].detail;
+          if (detail is AgentBlockDetail && detail.agentId == stopped && !detail.finished) {
+            blocks[i] = blocks[i].copyWith(detail: detail.merge(const {'status': 'completed'}), lastSeq: seq);
+          }
+        }
+
       case 'unknown':
         break;
 
@@ -338,6 +384,8 @@ const _correlatingKinds = {
   'todo',
   'assistant_text',
   'reasoning',
+  'agent_start',
+  'agent_stop',
 };
 
 bool _correlates(String? kind) => _correlatingKinds.contains(kind);
@@ -368,8 +416,9 @@ SessionBlock _create(
   redacted: _isRedacted(event),
   createdAt: event.createdAt,
   turnId: null,
-  detail: detail ?? UnknownBlockDetail(raw: event.toolInput ?? event.text ?? ''),
+  detail: detail ?? (event.toolName == 'Agent' ? AgentBlockDetail.fromToolInput(event.toolInput) : null) ?? UnknownBlockDetail(raw: event.toolInput ?? event.text ?? ''),
   interactionId: event.interactionId,
+  agentId: (event.agentId ?? '').isEmpty ? null : event.agentId,
 );
 
 void _upsert(List<SessionBlock> blocks, Map<String, int> indexById, SessionBlock block) {
@@ -380,6 +429,15 @@ void _upsert(List<SessionBlock> blocks, Map<String, int> indexById, SessionBlock
   }
   indexById[block.id] = blocks.length;
   blocks.add(block);
+}
+
+Map<String, dynamic> _decodeMap(String raw) {
+  try {
+    final decoded = jsonDecode(raw);
+    return decoded is Map<String, dynamic> ? decoded : const {};
+  } on FormatException {
+    return const {};
+  }
 }
 
 int? _lastRunningPrompt(List<SessionBlock> blocks) {

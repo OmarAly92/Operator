@@ -71,8 +71,8 @@ void main() {
     await patches.close();
   });
 
-  BlocksCubit build({String? harness = 'claude-code'}) =>
-      BlocksCubit(mux, repository, 's-1', harness: harness);
+  BlocksCubit build({String? harness = 'claude-code', String? agentId}) =>
+      BlocksCubit(mux, repository, BlocksScope(sessionId: 's-1', harness: harness, agentId: agentId));
 
   test('complete initial history does not offer older blocks', () async {
     when(() => repository.getSessionBlocks(any(), any())).thenAnswer(
@@ -504,4 +504,94 @@ void main() {
 
     await cubit.close();
   });
+
+  test('an agent-scoped cubit keeps only its agent and asks history for it', () async {
+    final cubit = build(agentId: 'a1');
+    await Future<void>.delayed(Duration.zero);
+    final captured = verify(() => repository.getSessionBlocks('s-1', captureAny())).captured.single as GetSessionBlocksParams;
+    expect(captured.agentId, 'a1');
+
+    events.add(BlockEventEnvelope('s-1', {..._wire(1, 'prompt_submit', text: 'main'), 'agentId': ''}));
+    events.add(BlockEventEnvelope('s-1', {..._wire(2, 'prompt_submit', text: 'agent'), 'agentId': 'a1'}));
+    await Future<void>.delayed(Duration.zero);
+
+    expect(cubit.blocks.single.body, 'agent');
+    await cubit.close();
+  });
+
+  test('the main cubit ignores agent events but summarises them', () async {
+    final cubit = build();
+    await Future<void>.delayed(Duration.zero);
+
+    events.add(BlockEventEnvelope('s-1', {..._wire(1, 'prompt_submit', text: 'Implement task 1'), 'agentId': 'a1', 'createdAt': '2026-09-19T10:00:00Z'}));
+    events.add(BlockEventEnvelope('s-1', {..._wire(2, 'assistant_text', text: 'working'), 'agentId': 'a1', 'createdAt': '2026-09-19T10:00:05Z'}));
+    await Future<void>.delayed(Duration.zero);
+
+    expect(cubit.blocks, isEmpty);
+    final summary = cubit.subagentSummaries['a1']!;
+    expect(summary.prompt, 'Implement task 1');
+    expect(summary.startedAt, '2026-09-19T10:00:00Z');
+    expect(summary.lastSeenAt, '2026-09-19T10:00:05Z');
+    expect(summary.stopped, isFalse);
+
+    events.add(BlockEventEnvelope('s-1', {..._wire(3, 'agent_stop'), 'agentId': 'a1'}));
+    await Future<void>.delayed(Duration.zero);
+    expect(cubit.subagentSummaries['a1']!.stopped, isTrue);
+    await cubit.close();
+  });
+
+  test('a main-scope agent_start is merged into the timeline, not summarised as an agent', () async {
+    final cubit = build();
+    await Future<void>.delayed(Duration.zero);
+
+    events.add(BlockEventEnvelope('s-1', {
+      ..._wire(1, 'agent_start', sourceId: 'a1', toolName: 'Agent'),
+      'toolUseId': 'toolu_a',
+      'source': 'transcript',
+      'detail': '{"agentId":"a1","agentType":"general-purpose","description":"Review Task 2","model":"sonnet","requestShape":"background"}',
+    }));
+    await Future<void>.delayed(Duration.zero);
+
+    expect(cubit.subagentSummaries, isEmpty);
+    final detail = cubit.blocks.single.detail as AgentBlockDetail;
+    expect(detail.agentId, 'a1');
+    expect(detail.description, 'Review Task 2');
+    await cubit.close();
+  });
+
+  test(
+    'an agent_stop on the main cubit both summarises and completes the matching Agent block',
+    () async {
+      final cubit = build();
+      await Future<void>.delayed(Duration.zero);
+
+      events.add(BlockEventEnvelope('s-1', {
+        ..._wire(1, 'tool_start', sourceId: 'toolu_a', toolName: 'Agent'),
+        'toolUseId': 'toolu_a',
+        'toolInput':
+            '{"description":"Implement Task 1","prompt":"You are implementing Task 1","model":"haiku","run_in_background":true}',
+        'source': 'transcript',
+      }));
+      events.add(BlockEventEnvelope('s-1', {
+        ..._wire(2, 'tool_result', sourceId: 'toolu_a', text: 'Async agent launched'),
+        'toolUseId': 'toolu_a',
+        'source': 'transcript',
+        'detail': '{"agentId":"a1","agentType":"general-purpose","status":"running"}',
+      }));
+      await Future<void>.delayed(Duration.zero);
+
+      expect(cubit.blocks, hasLength(1));
+
+      events.add(BlockEventEnvelope('s-1', {
+        ..._wire(3, 'agent_stop', sourceId: 'a1', text: 'finished'),
+        'source': 'hook',
+      }));
+      await Future<void>.delayed(Duration.zero);
+
+      expect(cubit.subagentSummaries['a1']!.stopped, isTrue);
+      final detail = cubit.blocks.single.detail as AgentBlockDetail;
+      expect(detail.status, 'completed');
+      await cubit.close();
+    },
+  );
 }

@@ -145,9 +145,8 @@ void main() {
     when(
       () => blocksRepository.getSessionBlocks(any(), any()),
     ).thenAnswer((_) async => Result.success(const []));
-    sl.registerFactoryParam<BlocksCubit, String, String?>(
-      (sessionId, harness) =>
-          BlocksCubit(mux, blocksRepository, sessionId, harness: harness),
+    sl.registerFactoryParam<BlocksCubit, BlocksScope, void>(
+      (scope, _) => BlocksCubit(mux, blocksRepository, scope),
     );
     final sessionControlRepository = _MockSessionControlRepository();
     when(() => sessionControlRepository.getInteractions(any())).thenAnswer(

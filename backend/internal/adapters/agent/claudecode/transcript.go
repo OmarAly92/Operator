@@ -2,6 +2,7 @@ package claudecode
 
 import (
 	"encoding/json"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -13,7 +14,9 @@ type claudeTranscriptRecord struct {
 	Subtype         string          `json:"subtype"`
 	UUID            string          `json:"uuid"`
 	IsSidechain     bool            `json:"isSidechain"`
+	AgentID         string          `json:"agentId"`
 	Content         json.RawMessage `json:"content"`
+	ToolUseResult   json.RawMessage `json:"toolUseResult"`
 	CompactMetadata struct {
 		Trigger string `json:"trigger"`
 	} `json:"compactMetadata"`
@@ -64,11 +67,47 @@ func MapTranscriptRecord(line []byte) ([]domain.BlockTranscriptEvent, bool) {
 	if rec.IsSidechain {
 		return nil, true
 	}
+	return mapClaudeRecord(rec, false)
+}
+
+func MapSidechainRecord(agentID string, line []byte) ([]domain.BlockTranscriptEvent, bool) {
+	var rec claudeTranscriptRecord
+	if err := json.Unmarshal(line, &rec); err != nil {
+		return nil, false
+	}
+	events, ok := mapClaudeRecord(rec, true)
+	for i := range events {
+		events[i].AgentID = agentID
+	}
+	return events, ok
+}
+
+func mapClaudeRecord(rec claudeTranscriptRecord, sidechain bool) ([]domain.BlockTranscriptEvent, bool) {
 	switch rec.Type {
 	case "assistant":
 		return claudeAssistantEvents(rec), true
 	case "user":
-		return claudeUserEvents(rec), true
+		events := claudeUserEvents(rec)
+		if len(events) == 0 {
+			text := strings.TrimSpace(claudeFlattenText(rec.Message.Content))
+			switch {
+			case sidechain && text != "":
+				events = append(events, domain.BlockTranscriptEvent{
+					Kind:     domain.BlockEventPromptSubmit,
+					SourceID: rec.UUID,
+					Text:     text,
+				})
+			case !sidechain:
+				if agentID := claudeHandBackAgent(text); agentID != "" {
+					events = append(events, domain.BlockTranscriptEvent{
+						Kind:     domain.BlockEventAgentStop,
+						SourceID: agentID,
+						Text:     text,
+					})
+				}
+			}
+		}
+		return events, true
 	case "system":
 		if rec.Subtype != "compact_boundary" {
 			return nil, true
@@ -181,9 +220,64 @@ func claudeUserEvents(rec claudeTranscriptRecord) []domain.BlockTranscriptEvent 
 		if block.IsError {
 			event.ErrorType = "tool_failed"
 		}
+		if detail := claudeAgentResultDetail(rec.ToolUseResult); detail != "" {
+			event.Detail = detail
+		}
 		events = append(events, event)
 	}
 	return events
+}
+
+var claudeHandBack = regexp.MustCompile(`<agent-message from="([^"]+)">`)
+
+func claudeHandBackAgent(text string) string {
+	match := claudeHandBack.FindStringSubmatch(text)
+	if match == nil {
+		return ""
+	}
+	return match[1]
+}
+
+func claudeAgentResultDetail(raw json.RawMessage) string {
+	if len(raw) == 0 {
+		return ""
+	}
+	var result struct {
+		AgentID           string `json:"agentId"`
+		AgentType         string `json:"agentType"`
+		Status            string `json:"status"`
+		ResolvedModel     string `json:"resolvedModel"`
+		TotalDurationMs   int64  `json:"totalDurationMs"`
+		TotalToolUseCount int    `json:"totalToolUseCount"`
+		TotalTokens       int64  `json:"totalTokens"`
+	}
+	if err := json.Unmarshal(raw, &result); err != nil || result.AgentID == "" {
+		return ""
+	}
+	detail := map[string]any{"agentId": result.AgentID}
+	for key, value := range map[string]string{
+		"agentType":     result.AgentType,
+		"status":        result.Status,
+		"resolvedModel": result.ResolvedModel,
+	} {
+		if value != "" {
+			detail[key] = value
+		}
+	}
+	if result.TotalDurationMs > 0 {
+		detail["totalDurationMs"] = result.TotalDurationMs
+	}
+	if result.TotalToolUseCount > 0 {
+		detail["totalToolUseCount"] = result.TotalToolUseCount
+	}
+	if result.TotalTokens > 0 {
+		detail["totalTokens"] = result.TotalTokens
+	}
+	encoded, err := json.Marshal(detail)
+	if err != nil {
+		return ""
+	}
+	return string(encoded)
 }
 
 func claudeContentBlocks(raw json.RawMessage) []claudeContentBlock {

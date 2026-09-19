@@ -137,6 +137,10 @@ the same socket for session patches, so nesting it under a feature would make th
 board's liveness depend on a feature it has no business knowing about. Cubits subscribe
 to its broadcast streams; nothing else touches the socket.
 
+Block events carry an optional `agentId`. `BlocksCubit` is scoped by `BlocksScope`; the
+main scope also collects `SubagentSummary` per agent from the events it discards, and
+`subagentsOf` joins those to Agent cards for the strip and the `/session/agent` screen.
+
 **Response envelope.** The daemon does not use `GlobalResponse`'s `data` key —
 `/projects` returns `{projects: [...]}` directly — so every parse is
 `GlobalResponse.fromJson(response.data, withDataKey: false)`. Errors are a locked

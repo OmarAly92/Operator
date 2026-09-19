@@ -100,12 +100,10 @@ func TestPreToolUseOpensTheToolBlock(t *testing.T) {
 	}
 }
 
-func TestSubagentTrafficIsDropped(t *testing.T) {
-	// Recorded decision: subagent records are dropped, and nesting them under
-	// their Task block is deferred. The transcript side already drops
-	// isSidechain records and codex sub_agent_activity; this is the hook side.
-	if got := Map("claude-code", "subagent-stop"); !got.Drop {
-		t.Fatalf("subagent-stop must be dropped, got kind %q", got.Kind)
+func TestSubagentStopIsAnAgentStopEvent(t *testing.T) {
+	got := Map("claude-code", "subagent-stop")
+	if got.Drop || got.Kind != domain.BlockEventAgentStop {
+		t.Fatalf("subagent-stop = %+v; want agent_stop, not dropped", got)
 	}
 }
 

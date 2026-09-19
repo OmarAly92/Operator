@@ -142,8 +142,8 @@ type BlockEventRecorder interface {
 // from BlockEventRecorder so a build that records without serving history — or a
 // test fake that only needs one half — stays valid.
 type BlockEventHistory interface {
-	History(ctx context.Context, sessionID domain.SessionID, afterSeq int64, limit int) ([]blockeventsvc.Record, error)
-	HistoryBefore(ctx context.Context, sessionID domain.SessionID, beforeSeq int64, limit int) ([]blockeventsvc.Record, error)
+	History(ctx context.Context, sessionID domain.SessionID, agentID string, afterSeq int64, limit int) ([]blockeventsvc.Record, error)
+	HistoryBefore(ctx context.Context, sessionID domain.SessionID, agentID string, beforeSeq int64, limit int) ([]blockeventsvc.Record, error)
 }
 
 // SessionModelReader names the model each session last ran a turn on, from
@@ -1264,11 +1264,12 @@ func (c *SessionsController) listBlockEvents(w http.ResponseWriter, r *http.Requ
 		envelope.WriteAPIError(w, r, http.StatusBadRequest, "bad_request", "INVALID_QUERY", "limit must be between 1 and 500", nil)
 		return
 	}
+	agentID := capActivityMeta(domain.SanitizeControlChars(strings.TrimSpace(r.URL.Query().Get("agentId"))))
 	var recs []blockeventsvc.Record
 	if hasBefore {
-		recs, err = c.BlockHistory.HistoryBefore(r.Context(), sessionID(r), beforeSeq, int(limit))
+		recs, err = c.BlockHistory.HistoryBefore(r.Context(), sessionID(r), agentID, beforeSeq, int(limit))
 	} else {
-		recs, err = c.BlockHistory.History(r.Context(), sessionID(r), afterSeq, int(limit))
+		recs, err = c.BlockHistory.History(r.Context(), sessionID(r), agentID, afterSeq, int(limit))
 	}
 	if err != nil {
 		envelope.WriteError(w, r, err)
@@ -1780,6 +1781,9 @@ func (c *SessionsController) activity(w http.ResponseWriter, r *http.Request) {
 		LatestAssistantUpdate: capActivityText(domain.SanitizeControlChars(strings.TrimSpace(in.LatestAssistantUpdate)), 16<<10),
 		TranscriptPath:        capActivityText(domain.SanitizeControlChars(strings.TrimSpace(in.TranscriptPath)), 4096),
 		LaunchID:              capActivityMeta(domain.SanitizeControlChars(strings.TrimSpace(in.LaunchID))),
+	}
+	if in.Usage != nil && strings.TrimSpace(in.Event) == "subagent-stop" {
+		sig.AgentID = capActivityMeta(domain.SanitizeControlChars(strings.TrimSpace(in.Usage.SubagentID)))
 	}
 	if state == domain.ActivityBlocked && (sig.ToolUseID != "" || sig.ToolName != "") {
 		sig.InteractionID = uuid.NewString()

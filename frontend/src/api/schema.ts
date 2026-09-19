@@ -1961,8 +1961,10 @@ export interface components {
             mimeType?: string;
         };
         BlockEventView: {
+            agentId?: string;
             /** Format: date-time */
             createdAt: string;
+            detail?: string;
             errorType?: string;
             harness?: string;
             hookVersion?: string;
@@ -7191,6 +7193,8 @@ export interface operations {
     listSessionBlockEvents: {
         parameters: {
             query?: {
+                /** @description Return only this subagent's events; empty means the main conversation. */
+                agentId?: null | string;
                 /** @description Return events with seq greater than this cursor. Omit to read from the start of the retained log. */
                 afterSeq?: null | number;
                 /** @description Return the events immediately older than this sequence, ascending. Mutually exclusive with afterSeq. */

@@ -40,3 +40,22 @@ func Map(harness string, line []byte) ([]domain.BlockTranscriptEvent, bool) {
 	}
 	return mapper(line)
 }
+
+type SidechainMapFunc func(agentID string, line []byte) ([]domain.BlockTranscriptEvent, bool)
+
+var SidechainMappers = map[string]SidechainMapFunc{
+	"claude-code": claudecode.MapSidechainRecord,
+}
+
+func SupportsSidechain(harness string) bool {
+	_, found := SidechainMappers[harness]
+	return found
+}
+
+func MapSidechain(harness, agentID string, line []byte) ([]domain.BlockTranscriptEvent, bool) {
+	mapper, found := SidechainMappers[harness]
+	if !found {
+		return nil, false
+	}
+	return mapper(agentID, line)
+}
