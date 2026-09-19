@@ -50,13 +50,26 @@ SessionBlock _questionBlock({
       ),
     );
 
+SessionBlock _agentBlock({String status = 'running', BlockStatus blockStatus = BlockStatus.running}) => SessionBlock(
+  id: 'src-toolu_a',
+  firstSeq: 1,
+  lastSeq: 1,
+  kind: BlockKind.tool,
+  status: blockStatus,
+  title: 'Agent',
+  body: '',
+  toolName: 'Agent',
+  createdAt: DateTime.now().toUtc().subtract(const Duration(seconds: 75)).toIso8601String(),
+  detail: AgentBlockDetail(description: 'Implement Task 1', prompt: 'p', model: 'haiku', agentType: 'general-purpose', agentId: 'a1', status: status, toolUseCount: 7, durationMs: 362000),
+);
+
 void _stubBloc(MockSessionCommandCubit cubit) {
   when(() => cubit.stream).thenAnswer((_) => const Stream.empty());
   when(() => cubit.state).thenReturn(const SessionCommandState());
   when(() => cubit.close()).thenAnswer((_) async {});
 }
 
-Widget _card(SessionBlock block, {MockSessionCommandCubit? cubit}) {
+Widget _card(SessionBlock block, {MockSessionCommandCubit? cubit, void Function(SessionBlock block)? onOpenAgent}) {
   final commandCubit = cubit ?? MockSessionCommandCubit();
   _stubBloc(commandCubit);
   return SkinScope(
@@ -67,7 +80,7 @@ Widget _card(SessionBlock block, {MockSessionCommandCubit? cubit}) {
         home: Scaffold(
           body: BlocProvider<SessionCommandCubit>.value(
             value: commandCubit,
-            child: BlockCard(block: block),
+            child: BlockCard(block: block, onOpenAgent: onOpenAgent),
           ),
         ),
       ),
@@ -196,5 +209,26 @@ void main() {
 
     final chosen = find.ancestor(of: find.text('second'), matching: find.byType(AnimatedContainer)).first;
     expect(find.descendant(of: chosen, matching: find.byIcon(Icons.check_rounded)), findsOneWidget);
+  });
+
+  testWidgets('a running agent card shows its description, type, model and live elapsed time', (tester) async {
+    await tester.pumpWidget(_card(_agentBlock()));
+    expect(find.text('Implement Task 1'), findsOneWidget);
+    expect(find.textContaining('general-purpose'), findsOneWidget);
+    expect(find.textContaining('haiku'), findsOneWidget);
+    expect(find.textContaining(RegExp(r'1m1[3-6]s')), findsOneWidget);
+  });
+
+  testWidgets('a finished agent card shows duration and tool count and no timer', (tester) async {
+    await tester.pumpWidget(_card(_agentBlock(status: 'completed', blockStatus: BlockStatus.ok)));
+    expect(find.textContaining('6m02s'), findsOneWidget);
+    expect(find.textContaining('7 tools'), findsOneWidget);
+  });
+
+  testWidgets('tapping an agent card reports the block to open', (tester) async {
+    SessionBlock? opened;
+    await tester.pumpWidget(_card(_agentBlock(), onOpenAgent: (block) => opened = block));
+    await tester.tap(find.text('Implement Task 1'));
+    expect(opened?.id, 'src-toolu_a');
   });
 }
