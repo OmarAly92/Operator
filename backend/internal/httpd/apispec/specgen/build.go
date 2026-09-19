@@ -1849,6 +1849,16 @@ func sessionOperations() []operation {
 			},
 		},
 		{
+			method: http.MethodGet, path: "/api/v1/sessions/{sessionId}/suggestion", id: "getSessionSuggestion", tag: "sessions",
+			summary:    "Read the prompt a session's harness suggests in its empty composer",
+			pathParams: []any{controllers.SessionIDParam{}},
+			resps: []respUnit{
+				{http.StatusOK, controllers.SessionSuggestionResponse{}},
+				{http.StatusInternalServerError, envelope.APIError{}},
+				{http.StatusNotImplemented, envelope.APIError{}},
+			},
+		},
+		{
 			method: http.MethodPost, path: "/api/v1/sessions/{sessionId}/activity", id: "setSessionActivity", tag: "sessions",
 			summary:    "Report an agent activity-state signal for a session",
 			pathParams: []any{controllers.SessionIDParam{}},

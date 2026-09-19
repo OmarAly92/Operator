@@ -202,3 +202,37 @@ func TestMenuKeysAreNonEmpty(t *testing.T) {
 		t.Fatalf("MenuKeys = %+v, want %+v", keys, want)
 	}
 }
+
+func TestReadComposerSuggestionReturnsTheDimPredictedPrompt(t *testing.T) {
+	p := &Plugin{}
+	suggestion, ok := p.ReadComposerSuggestion(readStyledPane(t, "claudecode_suggestion_styled.txt"))
+	if !ok {
+		t.Fatal("expected the suggestion to be read")
+	}
+	if suggestion != "what's new in iOS 27 specifically" {
+		t.Fatalf("suggestion = %q", suggestion)
+	}
+}
+
+func TestReadComposerSuggestionRejectsATypedDraft(t *testing.T) {
+	p := &Plugin{}
+	if got, ok := p.ReadComposerSuggestion(readStyledPane(t, "claudecode_idle_styled.txt")); ok {
+		t.Fatalf("a typed draft must not read as a suggestion, got %q", got)
+	}
+}
+
+func TestReadComposerSuggestionRejectsAnEmptyComposer(t *testing.T) {
+	p := &Plugin{}
+	if got, ok := p.ReadComposerSuggestion(readStyledPane(t, "claudecode_placeholder_styled.txt")); ok {
+		t.Fatalf("an empty composer must not read as a suggestion, got %q", got)
+	}
+}
+
+func TestReadComposerSuggestionRejectsTheStartupTip(t *testing.T) {
+	p := &Plugin{}
+	rule := "\x1b[38;5;244m" + strings.Repeat("─", 40) + "\x1b[39m"
+	pane := rule + "\n❯ \x1b[2mTry \"fix lint errors\"\x1b[0m\n" + rule + "\n\x1b[38;5;246m0 tokens\x1b[0m\n"
+	if got, ok := p.ReadComposerSuggestion(pane); ok {
+		t.Fatalf("a startup tip must not read as a suggestion, got %q", got)
+	}
+}

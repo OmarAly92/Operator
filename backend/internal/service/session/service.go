@@ -71,6 +71,7 @@ type commander interface {
 	Command(ctx context.Context, id domain.SessionID, command domain.SessionCommand, model string) (sessionmanager.CommandResult, error)
 	Models(ctx context.Context, id domain.SessionID) ([]sessionmanager.ModelOption, error)
 	Draft(ctx context.Context, id domain.SessionID) (string, error)
+	Suggestion(ctx context.Context, id domain.SessionID) (string, error)
 	SlashOutput(ctx context.Context, id domain.SessionID, message string) (string, error)
 	Decide(ctx context.Context, id domain.SessionID, interactionID, behavior string) error
 	Answer(ctx context.Context, id domain.SessionID, interactionID string, selections [][]string) error
@@ -623,6 +624,12 @@ func (s *Service) Command(ctx context.Context, id domain.SessionID, command doma
 // Draft reads the session's unsent composer draft, or "" when there is none.
 func (s *Service) Draft(ctx context.Context, id domain.SessionID) (string, error) {
 	return s.manager.Draft(ctx, id)
+}
+
+// Suggestion reads the prompt the harness proposes in its empty composer, or
+// "" when there is none.
+func (s *Service) Suggestion(ctx context.Context, id domain.SessionID) (string, error) {
+	return s.manager.Suggestion(ctx, id)
 }
 
 func (s *Service) Models(ctx context.Context, id domain.SessionID) ([]sessionmanager.ModelOption, error) {

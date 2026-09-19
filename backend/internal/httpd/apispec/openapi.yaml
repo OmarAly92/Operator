@@ -4748,6 +4748,39 @@ paths:
       summary: List the slash commands, skills and plugin skills available to a session
       tags:
       - sessions
+  /api/v1/sessions/{sessionId}/suggestion:
+    get:
+      operationId: getSessionSuggestion
+      parameters:
+      - description: Session identifier, e.g. project-1.
+        in: path
+        name: sessionId
+        required: true
+        schema:
+          description: Session identifier, e.g. project-1.
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ControllersSessionSuggestionResponse'
+          description: OK
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: Read the prompt a session's harness suggests in its empty composer
+      tags:
+      - sessions
   /api/v1/sessions/{sessionId}/switch-agent:
     post:
       operationId: switchSessionAgent
@@ -6142,6 +6175,13 @@ components:
           type: array
       required:
       - commands
+      type: object
+    ControllersSessionSuggestionResponse:
+      properties:
+        suggestion:
+          type: string
+      required:
+      - suggestion
       type: object
     ControllersSessionView:
       properties:

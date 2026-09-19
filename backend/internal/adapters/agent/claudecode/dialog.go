@@ -60,6 +60,14 @@ func (p *Plugin) ReadComposerDraft(styledPane string) (string, bool) {
 	return terminalui.LastBorderedPromptDraft(styledPane, "❯")
 }
 
+func (p *Plugin) ReadComposerSuggestion(styledPane string) (string, bool) {
+	suggestion, ok := terminalui.LastBorderedPromptPlaceholder(styledPane, "❯")
+	if !ok || strings.HasPrefix(suggestion, `Try "`) {
+		return "", false
+	}
+	return suggestion, true
+}
+
 func plainAnswerRow(menu ports.Menu, answer string) (int, bool) {
 	found := -1
 	for i, row := range menu.Rows {

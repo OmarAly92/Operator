@@ -264,7 +264,8 @@ type Manager struct {
 	// composerReader overrides composerReaderFor's resolution against m.agents.
 	// It is nil in production; tests set it directly since their fakeAgents do
 	// not implement ports.TerminalComposerReader.
-	composerReader ports.TerminalComposerReader
+	composerReader   ports.TerminalComposerReader
+	suggestionReader ports.TerminalComposerSuggestionReader
 	// emptyComposerDetector overrides emptyComposerDetectorFor's resolution
 	// against m.agents. It is nil in production; tests set it directly since
 	// their fakeAgents do not implement ports.EmptyComposerDetector.
@@ -3977,6 +3978,18 @@ func (m *Manager) emptyComposerDetectorFor(harness domain.AgentHarness) (ports.E
 	}
 	detector, ok := agent.(ports.EmptyComposerDetector)
 	return detector, ok
+}
+
+func (m *Manager) suggestionReaderFor(harness domain.AgentHarness) (ports.TerminalComposerSuggestionReader, bool) {
+	if m.suggestionReader != nil {
+		return m.suggestionReader, true
+	}
+	agent, found := m.agents.Agent(harness)
+	if !found {
+		return nil, false
+	}
+	reader, ok := agent.(ports.TerminalComposerSuggestionReader)
+	return reader, ok
 }
 
 func (m *Manager) composerReaderFor(harness domain.AgentHarness) (ports.TerminalComposerReader, bool) {

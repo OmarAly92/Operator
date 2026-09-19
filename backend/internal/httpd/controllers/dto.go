@@ -384,6 +384,12 @@ type SessionDraftResponse struct {
 	Draft string `json:"draft"`
 }
 
+// SessionSuggestionResponse is the body of GET /api/v1/sessions/{sessionId}/suggestion:
+// the prompt the harness proposes in its empty composer, or "" when it shows none.
+type SessionSuggestionResponse struct {
+	Suggestion string `json:"suggestion"`
+}
+
 func sessionInteractionViews(interactions []domain.PendingInteraction) []SessionInteraction {
 	views := make([]SessionInteraction, 0, len(interactions))
 	for _, in := range interactions {

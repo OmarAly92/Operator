@@ -81,6 +81,7 @@ var _ adapters.Adapter = (*Plugin)(nil)
 var _ ports.Agent = (*Plugin)(nil)
 var _ ports.AgentAuthChecker = (*Plugin)(nil)
 var _ ports.EmptyComposerDetector = (*Plugin)(nil)
+var _ ports.TerminalComposerSuggestionReader = (*Plugin)(nil)
 
 // ComposerIsEmpty recognizes Claude Code's blank composer or its dim
 // placeholder. Claude renders normal, non-dim status chrome below a bordered

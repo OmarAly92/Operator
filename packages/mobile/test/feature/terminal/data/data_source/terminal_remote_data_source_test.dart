@@ -91,4 +91,14 @@ void main() {
 
     expect(draft, '');
   });
+
+  test('reads the harness suggestion from its own route', () async {
+    when(() => apiConsumer.get(any()))
+        .thenAnswer((_) async => _response({'suggestion': 'what is new in iOS 27'}));
+
+    final suggestion = (await dataSource.getSuggestion('s-1')).data;
+
+    expect(suggestion, 'what is new in iOS 27');
+    verify(() => apiConsumer.get(EndPoints.sessionSuggestion('s-1'))).called(1);
+  });
 }

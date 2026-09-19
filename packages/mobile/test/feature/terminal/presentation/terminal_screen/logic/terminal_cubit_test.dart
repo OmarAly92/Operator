@@ -6,6 +6,7 @@ import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:operator_mobile/core/mux/mux_client.dart';
+import 'package:operator_mobile/core/mux/session_patch.dart';
 import 'package:operator_mobile/feature/sessions/data/repository/sessions_repository.dart';
 import 'package:operator_mobile/feature/terminal/data/repository/terminal_repository.dart';
 import 'package:operator_mobile/feature/terminal/logic/terminal_fit.dart';
@@ -36,6 +37,7 @@ void main() {
     events = StreamController<TerminalEvent>.broadcast();
     when(() => mux.status).thenAnswer((_) => statuses.stream);
     when(() => mux.terminalEvents).thenAnswer((_) => events.stream);
+    when(() => mux.sessionPatches).thenAnswer((_) => const Stream<List<SessionPatch>>.empty());
     when(() => mux.currentStatus).thenReturn(MuxStatus.open);
     when(() => mux.openTerminal(any(), projectId: any(named: 'projectId'))).thenReturn(null);
     when(() => mux.closeTerminal(any(), projectId: any(named: 'projectId'))).thenReturn(null);
