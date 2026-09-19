@@ -25,6 +25,8 @@ pub(crate) struct Parser {
     focus_reporting: bool,
     mouse_tracking: u8,
     rewrap_pending: bool,
+    #[cfg(feature = "trace")]
+    pub(crate) trace: crate::trace::Trace,
 }
 
 impl Parser {
@@ -47,6 +49,8 @@ impl Parser {
             focus_reporting: false,
             mouse_tracking: 0,
             rewrap_pending: false,
+            #[cfg(feature = "trace")]
+            trace: Default::default(),
         }
     }
 
@@ -449,11 +453,15 @@ fn narrow(value: u16) -> u8 {
 
 impl Perform for Parser {
     fn print(&mut self, c: char) {
+        #[cfg(feature = "trace")]
+        self.trace.record(crate::trace::TraceAction::Print(c));
         let style = self.pending_style.resolved();
         self.active_screen_mut().print(c, style);
     }
 
     fn execute(&mut self, byte: u8) {
+        #[cfg(feature = "trace")]
+        self.trace.record(crate::trace::TraceAction::Execute(byte));
         let screen = self.active_screen_mut();
         match byte {
             0x08 => screen.move_by(0, -1),
@@ -465,6 +473,12 @@ impl Perform for Parser {
     }
 
     fn csi_dispatch(&mut self, params: &Params, intermediates: &[u8], _ignore: bool, c: char) {
+        #[cfg(feature = "trace")]
+        self.trace.record(crate::trace::TraceAction::Csi {
+            params: params.iter().map(|group| group.to_vec()).collect(),
+            intermediates: intermediates.to_vec(),
+            action: c,
+        });
         if c == 'm' {
             self.apply_sgr(params);
             return;
@@ -482,8 +496,24 @@ impl Perform for Parser {
         self.active_screen_mut().csi(params, intermediates, c);
     }
 
-    fn esc_dispatch(&mut self, _intermediates: &[u8], _ignore: bool, byte: u8) {
+    fn esc_dispatch(&mut self, intermediates: &[u8], _ignore: bool, byte: u8) {
+        #[cfg(feature = "trace")]
+        self.trace.record(crate::trace::TraceAction::Esc {
+            intermediates: intermediates.to_vec(),
+            byte,
+        });
+        #[cfg(not(feature = "trace"))]
+        let _ = intermediates;
         self.active_screen_mut().esc(byte);
+    }
+
+    fn osc_dispatch(&mut self, params: &[&[u8]], _bell_terminated: bool) {
+        #[cfg(feature = "trace")]
+        self.trace.record(crate::trace::TraceAction::Osc(
+            params.iter().map(|p| p.to_vec()).collect(),
+        ));
+        #[cfg(not(feature = "trace"))]
+        let _ = params;
     }
 }
 

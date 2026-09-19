@@ -16,6 +16,8 @@ pub mod row_index;
 mod screen;
 mod scrollback;
 pub mod style;
+#[cfg(feature = "trace")]
+pub mod trace;
 
 pub mod testing {
     pub use crate::screen::{Cell, ScreenGrid};
@@ -54,6 +56,7 @@ pub struct TerminalCore {
     line_editor: line_editor::LineEditorTracker,
     scrollback_rows: usize,
     rows: usize,
+    fed_total: u64,
 }
 
 impl TerminalCore {
@@ -72,6 +75,7 @@ impl TerminalCore {
             line_editor: line_editor::LineEditorTracker::default(),
             scrollback_rows,
             rows: DEFAULT_ROWS,
+            fed_total: 0,
         })
     }
 
@@ -88,7 +92,7 @@ impl TerminalCore {
         for (offset, event) in events {
             let upto = offset.min(bytes.len());
             if upto > parsed {
-                self.vte.advance(&mut self.parser, &bytes[parsed..upto]);
+                self.advance_vte(&bytes[parsed..upto]);
                 parsed = upto;
             }
             // Re-read the alt-screen state after every event so an
@@ -112,11 +116,38 @@ impl TerminalCore {
             }
         }
         if parsed < bytes.len() {
-            self.vte.advance(&mut self.parser, &bytes[parsed..]);
+            self.advance_vte(&bytes[parsed..]);
         }
         self.parser.commit_evicted();
         self.parser.trim_to(self.scrollback_rows);
         self.debug_check();
+    }
+
+    fn advance_vte(&mut self, bytes: &[u8]) {
+        #[cfg(feature = "trace")]
+        {
+            for byte in bytes {
+                self.parser.trace.offset = self.fed_total;
+                self.vte
+                    .advance(&mut self.parser, std::slice::from_ref(byte));
+                self.fed_total += 1;
+            }
+        }
+        #[cfg(not(feature = "trace"))]
+        {
+            self.vte.advance(&mut self.parser, bytes);
+            self.fed_total += bytes.len() as u64;
+        }
+    }
+
+    #[cfg(feature = "trace")]
+    pub fn trace(&mut self) -> &[trace::TraceEntry] {
+        self.parser.trace.entries()
+    }
+
+    #[cfg(feature = "trace")]
+    pub fn clear_trace(&mut self) {
+        self.parser.trace.clear();
     }
 
     pub fn verify_integrity(&self) -> Result<(), IntegrityError> {

@@ -99,6 +99,43 @@ fn a_boundary_closed_empty_block_survives_a_shrinking_resize() {
     common::check(&core);
 }
 
+#[cfg(feature = "trace")]
+#[test]
+fn trace_records_every_dispatched_action_with_its_stream_offset() {
+    use vt_core::trace::TraceAction;
+    let mut core = TerminalCore::new(20, 100).unwrap();
+    core.feed(b"ab\x1b[31m\r\n");
+    core.feed(b"\x1b]133;A\x07c");
+    let entries = core.trace();
+    let summary: Vec<(u64, String)> = entries
+        .iter()
+        .map(|entry| {
+            let action = match &entry.action {
+                TraceAction::Print(c) => format!("print {c}"),
+                TraceAction::Execute(b) => format!("execute {b:#04x}"),
+                TraceAction::Csi { action, params, .. } => format!("csi {action} {params:?}"),
+                TraceAction::Esc { byte, .. } => format!("esc {byte:#04x}"),
+                TraceAction::Osc(params) => format!("osc {}", params.len()),
+            };
+            (entry.offset, action)
+        })
+        .collect();
+    assert_eq!(
+        summary,
+        vec![
+            (0, "print a".to_string()),
+            (1, "print b".to_string()),
+            (6, "csi m [[31]]".to_string()),
+            (7, "execute 0x0d".to_string()),
+            (8, "execute 0x0a".to_string()),
+            (16, "osc 2".to_string()),
+            (17, "print c".to_string()),
+        ]
+    );
+    core.clear_trace();
+    assert!(core.trace().is_empty());
+}
+
 #[test]
 fn a_fresh_core_is_consistent() {
     let core = TerminalCore::new(80, 100).unwrap();
