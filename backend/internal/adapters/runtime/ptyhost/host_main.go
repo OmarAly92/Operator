@@ -80,8 +80,6 @@ func parseGrid(spec string) (int, int, error) {
 	return cols, rows, nil
 }
 
-// recorderFromEnv opens a recorder rooted at OPERATOR_PTY_RECORD when set, or
-// returns nil (a no-op recorder) otherwise.
 func recorderFromEnv(sessionID string, cols, rows int) *recorder {
 	dir := os.Getenv(recordEnv)
 	if dir == "" {
