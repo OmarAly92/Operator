@@ -109,6 +109,17 @@ describe("DomBlockRenderer", () => {
 		expect(host.textContent).toBe("alphabeta");
 	});
 
+	it("drains enqueued bytes on the next frame and keeps going until the backlog is empty", async () => {
+		const { core, host } = mountWith("alpha");
+		let text = "";
+		for (let index = 0; index < 20000; index += 1) text += `\r\nline ${index}`;
+		core.enqueue(new TextEncoder().encode(text));
+		expect(host.textContent).toBe("alpha");
+		for (let frames = 0; frames < 200 && core.hasBacklog(); frames += 1) await flushRepaint();
+		expect(core.hasBacklog()).toBe(false);
+		expect(new TextDecoder().decode(core.snapshot().content).endsWith("line 19999")).toBe(true);
+	});
+
 	it("writes the theme as CSS variables on the host without remounting", () => {
 		const { host, renderer } = mountWith("alpha");
 		const beforeBlock = host.querySelector('[data-terminal-block-id="0:0"]');

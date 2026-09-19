@@ -30,6 +30,10 @@ export const FIND_MATCH_WORDS = 5;
 
 export const FIND_STEP_BUDGET = 1000;
 
+export const FEED_BUDGET_MS = 12;
+
+export const FEED_SLICE_BYTES = 64 * 1024;
+
 const NOOP_HOST: HostCapabilities = {
 	writeClipboard: async () => undefined,
 	readClipboard: async () => "",
@@ -42,6 +46,9 @@ export class TerminalCore {
 	private readonly completions: CompletionDispatcher;
 	private disposed = false;
 	private lastNotifiedGeneration = 0;
+	private backlog: Uint8Array[] = [];
+	private backlogBytes = 0;
+	private readonly feedParsedListeners = new Set<(bytes: number) => void>();
 
 	constructor(inner: WasmTerminalCore, host: HostCapabilities) {
 		this.inner = inner;
@@ -71,6 +78,54 @@ export class TerminalCore {
 		if (!this.notifyIfChanged() && this.inner.synchronized_output()) {
 			this.notifyAll();
 		}
+	}
+
+	enqueue(bytes: Uint8Array): void {
+		if (this.disposed || bytes.length === 0) {
+			return;
+		}
+		const wasEmpty = this.backlogBytes === 0;
+		this.backlog.push(bytes);
+		this.backlogBytes += bytes.length;
+		if (wasEmpty) {
+			this.notifyAll();
+		}
+	}
+
+	drain(deadlineMs: number = FEED_BUDGET_MS): { remaining: number } {
+		if (this.disposed) {
+			return { remaining: 0 };
+		}
+		const start = nowMs();
+		while (this.backlog.length > 0) {
+			const head = this.backlog[0]!;
+			let slice: Uint8Array;
+			if (head.length <= FEED_SLICE_BYTES) {
+				slice = head;
+				this.backlog.shift();
+			} else {
+				slice = head.subarray(0, FEED_SLICE_BYTES);
+				this.backlog[0] = head.subarray(FEED_SLICE_BYTES);
+			}
+			this.backlogBytes -= slice.length;
+			this.feed(slice);
+			for (const listener of [...this.feedParsedListeners]) listener(slice.length);
+			if (nowMs() - start >= deadlineMs) {
+				break;
+			}
+		}
+		return { remaining: this.backlogBytes };
+	}
+
+	hasBacklog(): boolean {
+		return this.backlogBytes > 0;
+	}
+
+	onFeedParsed(listener: (bytes: number) => void): () => void {
+		this.feedParsedListeners.add(listener);
+		return () => {
+			this.feedParsedListeners.delete(listener);
+		};
 	}
 
 	tick(nowMs: number): boolean {
@@ -309,6 +364,9 @@ export class TerminalCore {
 		this.disposed = true;
 		this.completions.dispose();
 		this.listeners.clear();
+		this.backlog = [];
+		this.backlogBytes = 0;
+		this.feedParsedListeners.clear();
 		this.inner.free();
 	}
 }

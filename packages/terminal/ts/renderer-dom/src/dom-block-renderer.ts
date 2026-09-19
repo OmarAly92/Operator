@@ -320,6 +320,7 @@ export class DomBlockRenderer implements BlockRenderer {
 			);
 			return;
 		}
+		this.core?.drain();
 		this.core?.tick(performance.now());
 		this.rafHandle = null;
 		this.repaint(timestamp);
@@ -486,7 +487,7 @@ export class DomBlockRenderer implements BlockRenderer {
 		this.paintSelectionFill();
 		if (paintedAt !== undefined) this.lastPaintAt = paintedAt;
 		this.notifyPainted();
-		if (core.synchronizedOutput()) this.scheduleRepaint();
+		if (core.hasBacklog() || core.synchronizedOutput()) this.scheduleRepaint();
 	}
 
 	private paintSelectionFill(): void {

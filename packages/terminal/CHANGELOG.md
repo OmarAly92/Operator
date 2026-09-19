@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+Bytes are parsed under a per-frame budget.
+
+- `TerminalCore.enqueue(bytes)` queues output and `drain(deadlineMs = 12)`
+  parses it in 64 KiB slices from the renderer's animation-frame loop until
+  the budget is spent (xterm.js `WriteBuffer.ts` `WRITE_TIMEOUT_MS`), so a
+  multi-megabyte tool result no longer blocks the main thread for the whole
+  parse. `hasBacklog()` and `onFeedParsed(listener)` expose progress; `feed`
+  stays synchronous for callers that need it.
+
 Synchronized output (DEC private mode 2026) is buffered in the parser.
 
 - `vt-core` holds every byte between `ESC[?2026h` and `ESC[?2026l` back from
