@@ -1,6 +1,6 @@
 [package]
 name = "operator"
-version = "0.14.9"
+version = "0.14.11"
 description = "Operator desktop application"
 authors = ["Operator"]
 edition = "2021"
