@@ -9,7 +9,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 function useTunnelIndicator() {
 	const { t } = useTranslation();
 	const tunnel = useMobileTunnelStatus();
-	const openConnectMobile = useUiStore((state) => state.openConnectMobile);
+	const openMobileSettings = useUiStore((state) => state.openMobileSettings);
 
 	let statusLine: string | null = null;
 	if (tunnel && isTunnelExposed(tunnel.state)) {
@@ -19,17 +19,17 @@ function useTunnelIndicator() {
 		else statusLine = t("mobile.tunnel.live", { provider: tunnel.provider });
 	}
 
-	return { label: t("mobile.tunnel.enable"), statusLine, openConnectMobile };
+	return { label: t("mobile.tunnel.enable"), statusLine, openMobileSettings };
 }
 
 export function TunnelLiveRow({ tabIndex }: { tabIndex: number }) {
-	const { label, statusLine, openConnectMobile } = useTunnelIndicator();
+	const { label, statusLine, openMobileSettings } = useTunnelIndicator();
 	if (!statusLine) return null;
 	return (
 		<button
 			aria-label={label}
 			className="flex w-full items-center gap-2.5 rounded-lg border border-working/35 bg-working/12 p-2.5 text-left text-control font-medium text-working transition-colors hover:bg-working/18 [&_svg]:text-working"
-			onClick={openConnectMobile}
+			onClick={openMobileSettings}
 			tabIndex={tabIndex}
 			type="button"
 		>
@@ -44,7 +44,7 @@ export function TunnelLiveRow({ tabIndex }: { tabIndex: number }) {
 }
 
 export function TunnelLiveRailButton({ tabIndex }: { tabIndex: number }) {
-	const { label, statusLine, openConnectMobile } = useTunnelIndicator();
+	const { label, statusLine, openMobileSettings } = useTunnelIndicator();
 	if (!statusLine) return null;
 	return (
 		<Tooltip>
@@ -52,7 +52,7 @@ export function TunnelLiveRailButton({ tabIndex }: { tabIndex: number }) {
 				<button
 					aria-label={label}
 					className="grid size-9 place-items-center rounded-lg border border-working/35 bg-working/12 text-working transition-colors hover:bg-working/18 [&_svg]:size-4"
-					onClick={openConnectMobile}
+					onClick={openMobileSettings}
 					tabIndex={tabIndex}
 					type="button"
 				>

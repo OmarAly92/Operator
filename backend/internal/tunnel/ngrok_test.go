@@ -122,6 +122,31 @@ func TestNgrokClassifyFailureUnknownWithoutAnyError(t *testing.T) {
 	}
 }
 
+func TestNgrokClassifyFailureCRLIsNetwork(t *testing.T) {
+	lines := []string{
+		`{"err":"<nil>","lvl":"info","msg":"open config file"}`,
+		`{"err":"failed to send authentication request: failed to fetch CRL. errors encountered: asn1: structure error: length too large","lvl":"eror","msg":"failed to reconnect session"}`,
+	}
+	got := NgrokProvider(NgrokConfig{}).ClassifyFailure(lines)
+	if got.Class != FailureNetwork {
+		t.Fatalf("class = %v, want FailureNetwork", got.Class)
+	}
+	if got.Message != NgrokCRLMessage {
+		t.Errorf("message = %q", got.Message)
+	}
+}
+
+func TestNgrokClassifyFailureAuthRequestIsNetwork(t *testing.T) {
+	lines := []string{`{"err":"failed to send authentication request: dial tcp: i/o timeout","lvl":"eror","msg":"failed to reconnect session"}`}
+	got := NgrokProvider(NgrokConfig{}).ClassifyFailure(lines)
+	if got.Class != FailureNetwork {
+		t.Fatalf("class = %v, want FailureNetwork", got.Class)
+	}
+	if got.Message != "failed to send authentication request: dial tcp: i/o timeout" {
+		t.Errorf("message = %q, want the tidied error verbatim", got.Message)
+	}
+}
+
 func TestNgrokArgsPointAtLocalPortAndOurConfigs(t *testing.T) {
 	dir := t.TempDir()
 	userPath := filepath.Join(dir, "user-ngrok.yml")
@@ -227,6 +252,93 @@ func TestNgrokPrepareRewritesTheWebAddrOnEveryLaunch(t *testing.T) {
 		if want := fmt.Sprintf("web_addr: 127.0.0.1:%d", port); !strings.Contains(string(body), want) {
 			t.Fatalf("after Prepare(%d) config = %q, want %q", port, body, want)
 		}
+	}
+}
+
+func TestRemoveNgrokAuthtokenKeepsWebAddrAndVersion(t *testing.T) {
+	in := "version: \"3\"\nagent:\n    authtoken: abc123\n    web_addr: 127.0.0.1:4040\n"
+	got := removeNgrokAuthtoken(in)
+	want := "version: \"3\"\nagent:\n    web_addr: 127.0.0.1:4040\n"
+	if got != want {
+		t.Fatalf("got %q, want %q", got, want)
+	}
+}
+
+func TestWriteNgrokAuthtokenOnAnEmptyFile(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "ngrok.yml")
+	if err := writeNgrokAuthtoken(path, "T"); err != nil {
+		t.Fatalf("writeNgrokAuthtoken: %v", err)
+	}
+	body, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read: %v", err)
+	}
+	want := "version: \"3\"\nagent:\n    authtoken: T\n"
+	if string(body) != want {
+		t.Fatalf("got %q, want %q", body, want)
+	}
+}
+
+func TestWriteNgrokAuthtokenKeepsWebAddr(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "ngrok.yml")
+	seeded := "version: \"3\"\nagent:\n    web_addr: 127.0.0.1:4040\n"
+	if err := os.WriteFile(path, []byte(seeded), 0o600); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+	if err := writeNgrokAuthtoken(path, "T"); err != nil {
+		t.Fatalf("writeNgrokAuthtoken: %v", err)
+	}
+	body, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read: %v", err)
+	}
+	got := string(body)
+	if !strings.Contains(got, "agent:\n    authtoken: T\n") {
+		t.Errorf("config = %q, want the authtoken line directly under agent:", got)
+	}
+	if !strings.Contains(got, "web_addr: 127.0.0.1:4040") {
+		t.Errorf("config = %q, want web_addr kept", got)
+	}
+}
+
+func TestWriteNgrokAuthtokenReplacesAnExistingOne(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "ngrok.yml")
+	seeded := "version: \"3\"\nagent:\n    authtoken: old\n    web_addr: 127.0.0.1:4040\n"
+	if err := os.WriteFile(path, []byte(seeded), 0o600); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+	if err := writeNgrokAuthtoken(path, "new"); err != nil {
+		t.Fatalf("writeNgrokAuthtoken: %v", err)
+	}
+	body, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read: %v", err)
+	}
+	got := string(body)
+	if strings.Contains(got, "authtoken: old") {
+		t.Errorf("config = %q, want the old authtoken gone", got)
+	}
+	if strings.Count(got, "authtoken:") != 1 {
+		t.Errorf("config = %q, want exactly one authtoken line", got)
+	}
+	if !strings.Contains(got, "authtoken: new") {
+		t.Errorf("config = %q, want the new authtoken", got)
+	}
+}
+
+func TestNgrokArgsAppendTheStableDomain(t *testing.T) {
+	p := NgrokProvider(NgrokConfig{Domain: func() string { return "phone.example.ngrok.app" }})
+	args := p.Args(3011, 4040)
+	joined := strings.Join(args, " ")
+	if !strings.Contains(joined, "--url=https://phone.example.ngrok.app") {
+		t.Fatalf("args = %v, want --url with the domain", args)
+	}
+}
+
+func TestNgrokArgsOmitTheURLFlagWithoutADomain(t *testing.T) {
+	args := NgrokProvider(NgrokConfig{}).Args(3011, 4040)
+	if strings.Contains(strings.Join(args, " "), "--url") {
+		t.Fatalf("args = %v, want no --url", args)
 	}
 }
 

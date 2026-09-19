@@ -1,6 +1,7 @@
 package httpd
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -40,6 +41,42 @@ func (fakeMobileBridge) TunnelDisable() (controllers.MobileStatusResponse, error
 
 func (fakeMobileBridge) SetAuthtoken(token string) (controllers.MobileStatusResponse, error) {
 	return controllers.MobileStatusResponse{}, nil
+}
+
+func (fakeMobileBridge) RemoveAuthtoken() (controllers.MobileStatusResponse, error) {
+	return controllers.MobileStatusResponse{}, nil
+}
+
+func (fakeMobileBridge) NgrokStatus(context.Context) controllers.MobileNgrokStatus {
+	return controllers.MobileNgrokStatus{Logs: []controllers.MobileNgrokLogLine{}}
+}
+
+func (fakeMobileBridge) SetAPIKey(context.Context, string) (controllers.MobileNgrokAccount, error) {
+	return controllers.MobileNgrokAccount{}, nil
+}
+
+func (fakeMobileBridge) RemoveAPIKey() (controllers.MobileNgrokStatus, error) {
+	return controllers.MobileNgrokStatus{}, nil
+}
+
+func (fakeMobileBridge) NgrokAccount(context.Context) controllers.MobileNgrokAccount {
+	return controllers.MobileNgrokAccount{}
+}
+
+func (fakeMobileBridge) MintCredential(context.Context) (controllers.MobileNgrokStatus, error) {
+	return controllers.MobileNgrokStatus{}, nil
+}
+
+func (fakeMobileBridge) RevokeCredential(context.Context, string) (controllers.MobileNgrokAccount, error) {
+	return controllers.MobileNgrokAccount{}, nil
+}
+
+func (fakeMobileBridge) SetDomain(context.Context, string) (controllers.MobileNgrokStatus, error) {
+	return controllers.MobileNgrokStatus{}, nil
+}
+
+func (fakeMobileBridge) Diagnose(context.Context) controllers.MobileNgrokDiagnosis {
+	return controllers.MobileNgrokDiagnosis{}
 }
 
 // newTestRouterWithMobile builds a bare router with only the mobile control

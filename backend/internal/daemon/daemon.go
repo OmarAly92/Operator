@@ -259,13 +259,15 @@ func Run() error {
 	// the bridge service. Break the cycle with late binding: build bs with LAN
 	// left nil, hand its controller into NewWithDeps, then once srv exists,
 	// build the LAN listener over srv.Handler() and assign it onto bs.LAN.
-	tunnelMgr := tunnel.New(tunnel.Deps{
+	var tunnelMgr *tunnel.Manager
+	tunnelMgr = tunnel.New(tunnel.Deps{
 		Log: log,
 		Dir: filepath.Join(cfg.DataDir, "mobile"),
 		Providers: []tunnel.Provider{
 			tunnel.NgrokProvider(tunnel.NgrokConfig{
 				UserConfigPath: tunnel.DefaultNgrokConfigPath(),
 				OwnConfigPath:  filepath.Join(cfg.DataDir, "mobile", "ngrok.yml"),
+				Domain:         func() string { return tunnelMgr.NgrokDomain() },
 			}),
 			tunnel.CloudflaredProvider(),
 		},
@@ -460,6 +462,10 @@ func Run() error {
 	// enabled, re-arm the listener on its last port with the same password
 	// hash so an already-paired phone keeps working with no new password.
 	// Best-effort: never blocks boot.
+	if st, err := mobilebridge.Load(mobilebridge.Path(cfg.DataDir)); err == nil && st.NgrokDomain != "" {
+		tunnelMgr.SetNgrokDomain(st.NgrokDomain)
+	}
+
 	if err := restoreMobileOnBoot(mobilebridge.Path(cfg.DataDir), lan, tunnelMgr); err != nil {
 		log.Warn("restore mobile bridge on boot failed", "err", err)
 	}

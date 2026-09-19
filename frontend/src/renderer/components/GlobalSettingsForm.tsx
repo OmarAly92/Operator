@@ -1,22 +1,22 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useUiStore } from "../stores/ui-store";
 import { ClaudeAccountsSection } from "./settings/ClaudeAccountsSection";
 import { GeneralSettingsSection } from "./settings/GeneralSettingsSection";
+import { MobileSettingsSection } from "./settings/mobile/MobileSettingsSection";
 import { ReportProblemDialog } from "./settings/ReportProblemDialog";
 import { SettingsLinkRow } from "./settings/SettingsRow";
 import { SettingsSection } from "./settings/SettingsSection";
 import { UpdatesSection } from "./settings/UpdatesSection";
 
-export type GlobalSettingsSection = "general" | "claudeAccounts" | "updates" | "help" | "all";
+export type GlobalSettingsSection = "general" | "claudeAccounts" | "mobile" | "updates" | "help" | "all";
 
 export function GlobalSettingsForm({
 	section = "all",
 	onOpenKeyboardShortcuts,
-	onOpenConnectMobile,
 }: {
 	section?: GlobalSettingsSection;
 	onOpenKeyboardShortcuts?: () => void;
-	onOpenConnectMobile?: () => void;
 }) {
 	const { t } = useTranslation();
 	const [reportProblemOpen, setReportProblemOpen] = useState(false);
@@ -35,7 +35,7 @@ export function GlobalSettingsForm({
 				{(section === "all" || section === "general") && (
 					<>
 						<GeneralSettingsSection
-							onConnectMobile={() => onOpenConnectMobile?.()}
+							onConnectMobile={() => useUiStore.getState().openMobileSettings()}
 							titleHidden={leadingTitleHidden}
 						/>
 						<SettingsSection title={t("settings.preferences")} grouped>
@@ -47,6 +47,7 @@ export function GlobalSettingsForm({
 					</>
 				)}
 				{(section === "all" || section === "claudeAccounts") && <ClaudeAccountsSection titleHidden={leadingTitleHidden} />}
+				{(section === "all" || section === "mobile") && <MobileSettingsSection titleHidden={leadingTitleHidden} />}
 				{(section === "all" || section === "updates") && <UpdatesSection titleHidden={leadingTitleHidden} />}
 				{(section === "all" || section === "help") && (
 					<SettingsSection title={t("settings.getHelp")} titleHidden={leadingTitleHidden} grouped>
