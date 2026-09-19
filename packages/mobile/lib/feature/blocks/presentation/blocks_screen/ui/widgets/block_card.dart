@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:operator_mobile/core/app_routes/routes_strings.dart';
 import 'package:operator_mobile/core/app_themes/colors/app_skin.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/app_themes/text_style/app_text_style.dart';
@@ -11,7 +14,10 @@ import 'package:operator_mobile/core/widgets/main_widgets/typing_dots.dart';
 import 'package:operator_mobile/feature/blocks/logic/block_actions.dart';
 import 'package:operator_mobile/feature/blocks/logic/block_find.dart';
 import 'package:operator_mobile/feature/blocks/logic/block_question.dart';
+import 'package:operator_mobile/feature/blocks/logic/command_confirmation.dart';
 import 'package:operator_mobile/feature/blocks/logic/session_block.dart';
+import 'package:operator_mobile/feature/blocks/logic/subagents.dart';
+import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/blocks_cubit.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/session_command_cubit.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/block_action_sheet.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/block_markdown.dart';
@@ -26,7 +32,7 @@ import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/wid
 /// (e.g. every non-diff [BlockKind.tool] is [RailKind.group]), and a
 /// [BlockDetail] payload can retarget one further (a [FileChangeBlockDetail]
 /// moves a tool/assistant block to [RailKind.diff]).
-enum RailKind { user, notice, text, think, group, mcpGroup, diff, plan, permission, question }
+enum RailKind { user, notice, text, think, group, mcpGroup, diff, plan, permission, question, agent }
 
 /// True for kinds a natural header row exists for (title/meta + optional
 /// chevron) — the only kinds [StickyBlockHeader] pins a summary for.
@@ -57,6 +63,7 @@ RailKind railKindOf(SessionBlock block) {
       return RailKind.permission;
     case BlockKind.tool:
       if (block.detail is FileChangeBlockDetail) return RailKind.diff;
+      if (block.detail is AgentBlockDetail) return RailKind.agent;
       if (block.detail is McpToolBlockDetail || _looksLikeMcpTool(block.toolName)) {
         return RailKind.mcpGroup;
       }
@@ -82,6 +89,7 @@ Color railNodeColor(AppSkin skin, SessionBlock block) => switch (railKindOf(bloc
   RailKind.plan => skin.blue,
   RailKind.permission || RailKind.question => skin.amber,
   RailKind.mcpGroup => skin.purple,
+  RailKind.agent => blockStatusColor(skin, block.status),
   RailKind.group || RailKind.text => blockStatusColor(skin, block.status),
   RailKind.user || RailKind.notice => skin.textFaint,
 };
@@ -104,6 +112,7 @@ class BlockCard extends StatelessWidget {
     this.selectionMode = false,
     this.onLongPressHeader,
     this.hasFollowingRailItem = false,
+    this.onOpenAgent,
   });
 
   final SessionBlock block;
@@ -125,6 +134,8 @@ class BlockCard extends StatelessWidget {
   /// connecting line should be drawn down to it. See `railLine` in
   /// `docs/design/session_detail/session_detail.md`.
   final bool hasFollowingRailItem;
+
+  final void Function(SessionBlock block)? onOpenAgent;
 
   void _showActionSheet(BuildContext context) {
     if (onAction == null || actions.isEmpty) return;
@@ -163,6 +174,7 @@ class BlockCard extends StatelessWidget {
       nameHighlight: nameHighlight,
       summaryHighlight: summaryHighlight,
       actionsBuilder: actionsBuilder,
+      onOpenAgent: onOpenAgent,
     );
 
     final Widget core = switch (kind) {
@@ -177,7 +189,7 @@ class BlockCard extends StatelessWidget {
         padding: const EdgeInsets.only(bottom: 22, top: 4),
         child: railBody,
       ),
-      RailKind.group || RailKind.mcpGroup => Padding(
+      RailKind.group || RailKind.mcpGroup || RailKind.agent => Padding(
         padding: EdgeInsets.only(bottom: collapsed ? 0 : 6),
         child: railBody,
       ),
@@ -299,6 +311,7 @@ class _RailBody extends StatelessWidget {
     required this.nameHighlight,
     required this.summaryHighlight,
     required this.actionsBuilder,
+    required this.onOpenAgent,
   });
 
   final RailKind kind;
@@ -311,6 +324,28 @@ class _RailBody extends StatelessWidget {
   final BlockMatch? nameHighlight;
   final BlockMatch? summaryHighlight;
   final Widget? Function(SessionBlock block)? actionsBuilder;
+  final void Function(SessionBlock block)? onOpenAgent;
+
+  void _openAgent(BuildContext context) {
+    if (onOpenAgent != null) {
+      onOpenAgent!(block);
+      return;
+    }
+    final detail = block.detail! as AgentBlockDetail;
+    final cubit = context.read<BlocksCubit>();
+    final entry = subagentsOf(cubit.blocks, cubit.subagentSummaries)
+        .where((candidate) => candidate.card?.id == block.id)
+        .firstOrNull;
+    Navigator.of(context).pushNamed(
+      RoutesStrings.subagent,
+      arguments: {
+        'sessionId': cubit.sessionId,
+        'agentId': entry?.agentId ?? detail.agentId,
+        'detail': entry?.detail ?? detail,
+        'harness': cubit.harness,
+      },
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -356,6 +391,13 @@ class _RailBody extends StatelessWidget {
           nameHighlight: nameHighlight,
           summaryHighlight: summaryHighlight,
           actionsBuilder: actionsBuilder,
+        );
+      case RailKind.agent:
+        return _AgentBody(
+          block: block,
+          collapsed: collapsed,
+          onLongPress: onLongPressHeader ?? onLongPressBody,
+          onOpen: () => _openAgent(context),
         );
       case RailKind.diff:
         return _DiffBody(block: block, onLongPress: onLongPressHeader ?? onLongPressBody);
@@ -703,6 +745,97 @@ class _GroupBody extends StatelessWidget {
   }
 }
 
+class _AgentBody extends StatefulWidget {
+  const _AgentBody({required this.block, required this.collapsed, required this.onLongPress, required this.onOpen});
+
+  final SessionBlock block;
+  final bool collapsed;
+  final VoidCallback onLongPress;
+  final VoidCallback onOpen;
+
+  @override
+  State<_AgentBody> createState() => _AgentBodyState();
+}
+
+class _AgentBodyState extends State<_AgentBody> {
+  Timer? _timer;
+
+  AgentBlockDetail get _detail => widget.block.detail! as AgentBlockDetail;
+
+  bool get _running => !_detail.finished && (_detail.launchedInBackground || widget.block.status == BlockStatus.running);
+
+  BlockStatus get _status => _running ? BlockStatus.running : widget.block.status;
+
+  @override
+  void initState() {
+    super.initState();
+    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted && _running) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  String get _meta {
+    if (_running) {
+      final start = DateTime.tryParse(widget.block.createdAt ?? '');
+      final elapsed = start == null ? '' : formatDuration(DateTime.now().toUtc().difference(start.toUtc()));
+      final tools = _detail.toolUseCount;
+      return ['running', if (elapsed.isNotEmpty) elapsed, if (tools != null) '$tools tools'].join(' · ');
+    }
+    final duration = _detail.durationMs == null ? null : formatDuration(Duration(milliseconds: _detail.durationMs!));
+    final tools = _detail.toolUseCount;
+    final state = (widget.block.status == BlockStatus.failed && !_detail.launchedInBackground) || _detail.status == 'failed' ? 'failed' : 'done';
+    return [state, ?duration, if (tools != null) '$tools tools'].join(' · ');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final skin = context.skin;
+    final subtitle = [_detail.agentType, _detail.resolvedModel ?? _detail.model].whereType<String>().where((s) => s.isNotEmpty).join(' · ');
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: widget.onOpen,
+      onLongPress: widget.onLongPress,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 44),
+        child: Row(
+          children: [
+            BlockStatusDot(status: _status),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  AppText(_detail.description ?? _detail.agentType ?? 'Agent', style: AppTextStyle.style12Medium.copyWith(color: skin.textPrimary)),
+                  if (subtitle.isNotEmpty) AppText(subtitle, style: AppTextStyle.mono11Regular.copyWith(color: skin.textTertiary)),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            AppText(_meta, style: AppTextStyle.mono11Regular.copyWith(color: widget.block.status == BlockStatus.failed ? skin.red : skin.textTertiary)),
+            const SizedBox(width: 6),
+            Icon(Icons.chevron_right, size: 16, color: skin.textTertiary),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+String formatDuration(Duration d) {
+  final seconds = d.inSeconds.clamp(0, 1 << 31);
+  if (seconds < 60) return '${seconds}s';
+  final minutes = seconds ~/ 60;
+  final rest = seconds % 60;
+  if (minutes < 60) return '${minutes}m${rest.toString().padLeft(2, '0')}s';
+  return '${minutes ~/ 60}h${(minutes % 60).toString().padLeft(2, '0')}m';
+}
+
 class _DiffBody extends StatelessWidget {
   const _DiffBody({required this.block, required this.onLongPress});
 
@@ -835,37 +968,15 @@ class _PermissionBody extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 8),
-          if (block.interactionId != null)
-            Row(
-              children: [
-                Expanded(
-                  child: BlockActionButton(
-                    label: 'Deny',
-                    primary: false,
-                    onTap: () => context.read<SessionCommandCubit>().decide(block.interactionId!, 'deny'),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  flex: 14,
-                  child: BlockActionButton(
-                    label: 'Allow once',
-                    primary: true,
-                    onTap: () => context.read<SessionCommandCubit>().decide(block.interactionId!, 'allow'),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  // Visual parity with the mockup's third button only: the
-                  // daemon's decision contract (backend/internal/session_manager/
-                  // decision.go) accepts only "allow"/"deny" — there is no
-                  // "always allow" behavior to send, so this button is
-                  // deliberately non-functional rather than sending a
-                  // behavior string the daemon would reject.
-                  child: BlockActionButton(label: 'Always', primary: false, onTap: () {}, disabled: true),
-                ),
-              ],
+          if (block.status != BlockStatus.blocked)
+            AppText('Answered', style: AppTextStyle.style10Regular.copyWith(color: skin.textTertiary))
+          else if (block.agentId != null)
+            AppText(
+              'Answer in the parent session',
+              style: AppTextStyle.style10Regular.copyWith(color: skin.textTertiary),
             )
+          else if (block.interactionId case final interactionId?)
+            _PermissionChoices(interactionId: interactionId)
           else
             AppText(
               'Answer in the terminal',
@@ -875,6 +986,61 @@ class _PermissionBody extends StatelessWidget {
       ),
     );
   }
+}
+
+class _PermissionChoices extends StatelessWidget {
+  const _PermissionChoices({required this.interactionId});
+
+  final String interactionId;
+
+  @override
+  Widget build(BuildContext context) => BlocBuilder<SessionCommandCubit, SessionCommandState>(
+    builder: (context, state) {
+      final cubit = context.read<SessionCommandCubit>();
+      final pending = state.pendingInteraction;
+      final options = pending?.id == interactionId ? pending?.options ?? const <String>[] : const <String>[];
+      final busy = state.phases['decision'] == CommandPhase.sending;
+      if (options.isEmpty) {
+        return Row(
+          children: [
+            Expanded(
+              child: BlockActionButton(
+                label: 'Deny',
+                primary: false,
+                disabled: busy,
+                onTap: () => cubit.decide(interactionId, 'deny'),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              flex: 2,
+              child: BlockActionButton(
+                label: 'Allow once',
+                primary: true,
+                disabled: busy,
+                onTap: () => cubit.decide(interactionId, 'allow'),
+              ),
+            ),
+          ],
+        );
+      }
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (var i = 0; i < options.length; i++) ...[
+            if (i > 0) const SizedBox(height: 6),
+            BlockActionButton(
+              label: options[i],
+              primary: i == 0,
+              disabled: busy,
+              maxLines: 3,
+              onTap: () => cubit.decideOption(interactionId, options[i]),
+            ),
+          ],
+        ],
+      );
+    },
+  );
 }
 
 /// A "waiting on you" question block (`question_asked`,
@@ -897,12 +1063,18 @@ class _QuestionBody extends StatelessWidget {
       children: [
         AppText(display.displayName, style: AppTextStyle.style13SemiBold.copyWith(color: skin.textPrimary)),
         const SizedBox(height: 6),
-        BlockQuestionOptions(
-          questions: questions,
-          interactionId: block.interactionId,
-          answered: block.status != BlockStatus.blocked,
-          answers: parseQuestionAnswers(block.result ?? '', questions),
-        ),
+        if (block.agentId != null && block.status == BlockStatus.blocked)
+          AppText(
+            'Answer in the parent session',
+            style: AppTextStyle.style10Regular.copyWith(color: skin.textTertiary),
+          )
+        else
+          BlockQuestionOptions(
+            questions: questions,
+            interactionId: block.interactionId,
+            answered: block.status != BlockStatus.blocked,
+            answers: parseQuestionAnswers(block.result ?? '', questions),
+          ),
       ],
     );
   }
@@ -1100,12 +1272,14 @@ class BlockActionButton extends StatelessWidget {
     required this.onTap,
     required this.primary,
     this.disabled = false,
+    this.maxLines = 1,
   });
 
   final String label;
   final VoidCallback onTap;
   final bool primary;
   final bool disabled;
+  final int maxLines;
 
   @override
   Widget build(BuildContext context) {
@@ -1122,13 +1296,18 @@ class BlockActionButton extends StatelessWidget {
         borderRadius: BorderRadius.circular(AppConstants.radiusMd),
         onTap: disabled ? null : onTap,
         child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 9),
+          padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 10),
           alignment: Alignment.center,
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(AppConstants.radiusMd),
             border: primary && !disabled ? null : Border.all(color: skin.borderSubtle),
           ),
-          child: AppText(label, style: AppTextStyle.style12SemiBold.copyWith(color: foreground)),
+          child: AppText(
+            label,
+            maxLines: maxLines,
+            textAlign: TextAlign.center,
+            style: AppTextStyle.style12SemiBold.copyWith(color: foreground),
+          ),
         ),
       ),
     );

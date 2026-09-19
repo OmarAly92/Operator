@@ -238,13 +238,8 @@ class ServiceLocator {
         initialActivity: activity,
       ),
     );
-    sl.registerFactoryParam<BlocksCubit, String, String?>(
-      (sessionId, harness) => BlocksCubit(
-        sl<MuxClient>(),
-        sl<BlocksRepository>(),
-        sessionId,
-        harness: harness,
-      ),
+    sl.registerFactoryParam<BlocksCubit, BlocksScope, void>(
+      (scope, _) => BlocksCubit(sl<MuxClient>(), sl<BlocksRepository>(), scope),
     );
     sl.registerFactoryParam<SessionViewCubit, TerminalArgs, void>(
       (args, _) => SessionViewCubit(

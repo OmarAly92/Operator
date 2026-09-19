@@ -119,7 +119,9 @@ class _SessionRouteScreenState extends State<SessionRouteScreen> {
                 create: (_) => sl<SessionViewCubit>(param1: args),
               ),
               BlocProvider<BlocksCubit>(
-                create: (_) => sl<BlocksCubit>(param1: args.sessionId, param2: args.harness),
+                create: (_) => sl<BlocksCubit>(
+                  param1: BlocksScope(sessionId: args.sessionId, harness: args.harness),
+                ),
               ),
               BlocProvider<SessionCommandCubit>(
                 create: (_) =>

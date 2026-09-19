@@ -193,9 +193,11 @@ void main() {
       block(1, kind: BlockKind.tool),
       block(2, kind: BlockKind.tool, status: BlockStatus.failed),
     ]);
-    await tester.tap(find.text('Used 2 tools · failed'));
+    expect(find.text('1 failed'), findsOneWidget);
+    await tester.tap(find.text('Used 2 tools'));
     await tester.pumpAndSettle();
-    expect(find.text('Used 2 tools · failed'), findsOneWidget);
+    expect(find.text('Used 2 tools'), findsOneWidget);
+    expect(find.text('1 failed'), findsOneWidget);
     expect(find.text('Bash 2'), findsNothing);
   });
 

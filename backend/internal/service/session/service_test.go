@@ -1339,6 +1339,10 @@ func (*fakeCommander) Models(context.Context, domain.SessionID) ([]sessionmanage
 func (*fakeCommander) SlashOutput(context.Context, domain.SessionID, string) (string, error) {
 	return "", nil
 }
+func (*fakeCommander) DecideOption(context.Context, domain.SessionID, string, string) error {
+	return nil
+}
+
 func (*fakeCommander) Decide(context.Context, domain.SessionID, string, string) error {
 	return nil
 }

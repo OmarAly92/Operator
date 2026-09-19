@@ -249,6 +249,93 @@ class UnknownBlockDetail extends BlockDetail {
   List<Object?> get props => [raw];
 }
 
+class AgentBlockDetail extends BlockDetail {
+  const AgentBlockDetail({
+    this.description,
+    this.prompt,
+    this.model,
+    this.runInBackground,
+    this.agentId,
+    this.agentType,
+    this.status,
+    this.resolvedModel,
+    this.durationMs,
+    this.toolUseCount,
+    this.totalTokens,
+  });
+
+  final String? description;
+  final String? prompt;
+  final String? model;
+  final bool? runInBackground;
+  final String? agentId;
+  final String? agentType;
+  final String? status;
+  final String? resolvedModel;
+  final int? durationMs;
+  final int? toolUseCount;
+  final int? totalTokens;
+
+  bool get finished => status == 'completed' || status == 'failed' || status == 'stopped';
+
+  bool get launchedInBackground => status == 'async_launched';
+
+  AgentBlockDetail merge(Map<String, dynamic> result) => AgentBlockDetail(
+    description: description ?? result['description'] as String?,
+    prompt: prompt,
+    model: model ?? result['model'] as String?,
+    runInBackground: runInBackground ?? (result['requestShape'] == null ? null : result['requestShape'] == 'background'),
+    agentId: result['agentId'] as String? ?? agentId,
+    agentType: _nonEmpty(result['agentType'] as String?) ?? agentType,
+    status: result['status'] as String? ?? status,
+    resolvedModel: result['resolvedModel'] as String? ?? resolvedModel,
+    durationMs: (result['totalDurationMs'] as num?)?.toInt() ?? durationMs,
+    toolUseCount: (result['totalToolUseCount'] as num?)?.toInt() ?? toolUseCount,
+    totalTokens: (result['totalTokens'] as num?)?.toInt() ?? totalTokens,
+  );
+
+  static String? _nonEmpty(String? value) => value == null || value.isEmpty ? null : value;
+
+  AgentBlockDetail withInput(String? toolInput) {
+    final input = fromToolInput(toolInput);
+    if (input == null) return this;
+    return AgentBlockDetail(
+      description: description ?? input.description,
+      prompt: prompt ?? input.prompt,
+      model: model ?? input.model,
+      runInBackground: runInBackground ?? input.runInBackground,
+      agentId: agentId,
+      agentType: agentType,
+      status: status,
+      resolvedModel: resolvedModel,
+      durationMs: durationMs,
+      toolUseCount: toolUseCount,
+      totalTokens: totalTokens,
+    );
+  }
+
+  static AgentBlockDetail? fromToolInput(String? toolInput) {
+    if (toolInput == null || toolInput.isEmpty) return null;
+    final Object? decoded;
+    try {
+      decoded = jsonDecode(toolInput);
+    } on FormatException {
+      return null;
+    }
+    if (decoded is! Map<String, dynamic>) return null;
+    return AgentBlockDetail(
+      description: decoded['description'] as String?,
+      prompt: decoded['prompt'] as String?,
+      model: decoded['model'] as String?,
+      runInBackground: decoded['run_in_background'] as bool?,
+      status: 'running',
+    );
+  }
+
+  @override
+  List<Object?> get props => [description, prompt, model, runInBackground, agentId, agentType, status, resolvedModel, durationMs, toolUseCount, totalTokens];
+}
+
 class BlockDisplay extends Equatable {
   const BlockDisplay({required this.displayName, required this.summary, this.errorText});
 
@@ -280,6 +367,7 @@ class SessionBlock extends Equatable {
     this.createdAt,
     this.children,
     this.interactionId,
+    this.agentId,
   });
 
   final String id;
@@ -300,6 +388,7 @@ class SessionBlock extends Equatable {
   final String? createdAt;
   final List<SessionBlock>? children;
   final String? interactionId;
+  final String? agentId;
 
   SessionBlock copyWith({
     BlockKind? kind,
@@ -336,6 +425,7 @@ class SessionBlock extends Equatable {
     createdAt: createdAt ?? this.createdAt,
     children: children ?? this.children,
     interactionId: interactionId ?? this.interactionId,
+    agentId: agentId,
   );
 
   @override
@@ -358,6 +448,7 @@ class SessionBlock extends Equatable {
     createdAt,
     children,
     interactionId,
+    agentId,
   ];
 }
 
@@ -395,6 +486,10 @@ BlockDisplay blockDisplay(SessionBlock block) {
     ),
     QuestionBlockDetail() => BlockDisplay(
       displayName: block.title,
+      summary: block.body,
+    ),
+    AgentBlockDetail(:final description, :final agentType) => BlockDisplay(
+      displayName: description ?? agentType ?? 'Agent',
       summary: block.body,
     ),
     UnknownBlockDetail(:final raw) => BlockDisplay(

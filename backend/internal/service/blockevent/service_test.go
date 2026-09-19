@@ -29,15 +29,15 @@ func (f *fakeStore) SelectLatestTurnModels(context.Context) (map[string]string, 
 	return nil, nil
 }
 
-func (f *fakeStore) SelectBlockEventsBySession(context.Context, string, int64, int) ([]Record, error) {
+func (f *fakeStore) SelectBlockEventsBySession(context.Context, string, string, int64, int) ([]Record, error) {
 	return f.inserted, nil
 }
 
-func (f *fakeStore) SelectBlockEventsBeforeSeq(context.Context, string, int64, int) ([]Record, error) {
+func (f *fakeStore) SelectBlockEventsBeforeSeq(context.Context, string, string, int64, int) ([]Record, error) {
 	return nil, nil
 }
 
-func (f *fakeStore) TrimBlockEvents(_ context.Context, sessionID string, _ int) (int64, error) {
+func (f *fakeStore) TrimBlockEvents(_ context.Context, sessionID, _ string, _ int) (int64, error) {
 	f.trimmed = append(f.trimmed, sessionID)
 	return 0, nil
 }
@@ -142,15 +142,15 @@ func (s *concurrentStore) SelectLatestTurnModels(context.Context) (map[string]st
 	return nil, nil
 }
 
-func (s *concurrentStore) SelectBlockEventsBySession(context.Context, string, int64, int) ([]Record, error) {
+func (s *concurrentStore) SelectBlockEventsBySession(context.Context, string, string, int64, int) ([]Record, error) {
 	return nil, nil
 }
 
-func (s *concurrentStore) SelectBlockEventsBeforeSeq(context.Context, string, int64, int) ([]Record, error) {
+func (s *concurrentStore) SelectBlockEventsBeforeSeq(context.Context, string, string, int64, int) ([]Record, error) {
 	return nil, nil
 }
 
-func (s *concurrentStore) TrimBlockEvents(context.Context, string, int) (int64, error) {
+func (s *concurrentStore) TrimBlockEvents(context.Context, string, string, int) (int64, error) {
 	return 0, nil
 }
 
@@ -346,6 +346,19 @@ func TestRecordTranscriptCapsAndMarksTruncation(t *testing.T) {
 	}
 	if !utf8.ValidString(rec.Text) {
 		t.Fatal("cap split a rune")
+	}
+}
+
+func TestRecordStampsTheAgentIDOnAnAgentStop(t *testing.T) {
+	store := &fakeStore{}
+	svc := NewService(store, nil, 500)
+	sig := ports.ActivitySignal{Valid: true, Event: "subagent-stop", AgentID: "a1", LatestAssistantUpdate: "done"}
+	if err := svc.Record(context.Background(), "s1", "claude-code", sig); err != nil {
+		t.Fatal(err)
+	}
+	rec := store.inserted[len(store.inserted)-1]
+	if rec.Kind != domain.BlockEventAgentStop || rec.AgentID != "" || rec.SourceID != "a1" || rec.Text != "done" {
+		t.Fatalf("record = %+v", rec)
 	}
 }
 

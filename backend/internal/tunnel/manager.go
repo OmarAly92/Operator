@@ -2,6 +2,7 @@ package tunnel
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -24,6 +25,12 @@ const (
 )
 
 func itoa(value int) string { return strconv.Itoa(value) }
+
+type startTimeoutError struct{ provider string }
+
+func (e *startTimeoutError) Error() string {
+	return fmt.Sprintf("tunnel: %s published no url within %s", e.provider, startTimeout)
+}
 
 type Deps struct {
 	Log         *slog.Logger
@@ -57,6 +64,11 @@ type Manager struct {
 	done                chan struct{}
 	awaitDone           chan struct{}
 	logs                *lineRing
+	controlPort         int
+	currentProvider     string
+	providerLogs        map[string]*lineRing
+	agentVersions       map[string]string
+	ngrokDomain         string
 }
 
 func New(deps Deps) *Manager {
@@ -81,16 +93,18 @@ func New(deps Deps) *Manager {
 		onProvider = func(string) {}
 	}
 	return &Manager{
-		log:         log,
-		dir:         deps.Dir,
-		providers:   deps.Providers,
-		binaries:    deps.Binaries,
-		now:         now,
-		sleep:       sleep,
-		reservePort: reserve,
-		onProvider:  onProvider,
-		status:      Status{State: StateOff},
-		stickyFrom:  map[string]bool{},
+		log:           log,
+		dir:           deps.Dir,
+		providers:     deps.Providers,
+		binaries:      deps.Binaries,
+		now:           now,
+		sleep:         sleep,
+		reservePort:   reserve,
+		onProvider:    onProvider,
+		status:        Status{State: StateOff},
+		stickyFrom:    map[string]bool{},
+		providerLogs:  map[string]*lineRing{},
+		agentVersions: map[string]string{},
 	}
 }
 
@@ -122,6 +136,41 @@ func (m *Manager) Status() Status {
 	return m.status
 }
 
+func (m *Manager) ControlPort() int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.controlPort
+}
+
+func (m *Manager) ProviderControlPort(name string) int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.currentProvider != name {
+		return 0
+	}
+	return m.controlPort
+}
+
+func (m *Manager) ProviderLogs(name string) []string {
+	m.mu.Lock()
+	logs := m.providerLogs[name]
+	m.mu.Unlock()
+	if logs == nil {
+		return []string{}
+	}
+	return logs.Lines()
+}
+
+func (m *Manager) Logs() []string {
+	m.mu.Lock()
+	logs := m.logs
+	m.mu.Unlock()
+	if logs == nil {
+		return []string{}
+	}
+	return logs.Lines()
+}
+
 func (m *Manager) Enable(ctx context.Context) error {
 	m.mu.Lock()
 	if m.enabled {
@@ -130,6 +179,7 @@ func (m *Manager) Enable(ctx context.Context) error {
 	}
 	m.enabled = true
 	m.status = Status{State: StateStarting}
+	m.stickyFrom = map[string]bool{}
 	m.mu.Unlock()
 
 	if err := m.startFirstWorkingProvider(ctx); err != nil {
@@ -169,6 +219,8 @@ func (m *Manager) Disable(ctx context.Context) error {
 	m.cancel, m.done, m.awaitDone = nil, nil, nil
 	m.stickyFrom = map[string]bool{}
 	m.lastFailureProvider = ""
+	m.controlPort = 0
+	m.currentProvider = ""
 	m.mu.Unlock()
 
 	if cancel != nil {
@@ -260,12 +312,17 @@ func (m *Manager) launch(ctx context.Context, provider Provider) error {
 	firstAwaitCtx, firstAwaitCancel := context.WithCancel(runCtx)
 	m.mu.Lock()
 	m.cmd, m.cancel, m.done, m.awaitDone, m.logs = cmd, cancel, done, awaitDone, logs
+	m.controlPort = controlPort
+	m.currentProvider = provider.Name()
+	m.providerLogs[provider.Name()] = logs
 	m.status = Status{
 		State:          StateStarting,
 		Provider:       provider.Name(),
 		Error:          m.status.Error,
 		NeedsAuthtoken: m.status.NeedsAuthtoken,
 		Since:          m.status.Since,
+		LastProvider:   m.status.LastProvider,
+		FallbackReason: m.status.FallbackReason,
 	}
 	m.mu.Unlock()
 
@@ -273,17 +330,23 @@ func (m *Manager) launch(ctx context.Context, provider Provider) error {
 	m.setState(StateStarting, provider.Name())
 
 	go m.supervise(runCtx, provider, cmd, controlPort, logs, done, liveConfirmed, firstAwaitCancel)
-	go m.runAwaitURL(firstAwaitCtx, provider, controlPort, cancel, done, awaitDone, liveConfirmed)
+	go m.runAwaitURL(firstAwaitCtx, provider, controlPort, cancel, done, awaitDone, liveConfirmed) //nolint:gosec // G118: runAwaitURL calls handleProviderRefusal with context.Background() because firstAwaitCtx is already cancelled by then; refusal handling must survive the attempt's own context
 
 	return nil
 }
 
 func (m *Manager) runAwaitURL(ctx context.Context, provider Provider, controlPort int, cancel context.CancelFunc, done, awaitDone, liveConfirmed chan struct{}) {
 	defer close(awaitDone)
-	if err := m.awaitURL(ctx, provider, controlPort); err != nil {
-		if ctx.Err() != nil {
-			return
-		}
+	err := m.awaitURL(ctx, provider, controlPort)
+	if err == nil {
+		close(liveConfirmed)
+		return
+	}
+	if ctx.Err() != nil {
+		return
+	}
+	var timeout *startTimeoutError
+	if !errors.As(err, &timeout) {
 		m.mu.Lock()
 		m.status = Status{State: StateFailed, Error: err.Error(), NeedsAuthtoken: m.status.NeedsAuthtoken}
 		m.retryableLocked()
@@ -292,7 +355,20 @@ func (m *Manager) runAwaitURL(ctx context.Context, provider Provider, controlPor
 		<-done
 		return
 	}
-	close(liveConfirmed)
+	cancel()
+	<-done
+	m.mu.Lock()
+	logs := m.logs
+	m.mu.Unlock()
+	failure := provider.ClassifyFailure(logs.Lines())
+	if failure.Message == "" {
+		failure.Message = err.Error()
+	}
+	class := failure.Class
+	if class == FailureUnknown || class == FailureNetwork {
+		class = FailureRefused
+	}
+	m.handleProviderRefusal(context.Background(), provider, failure, class)
 }
 
 func (m *Manager) awaitURL(ctx context.Context, provider Provider, controlPort int) error {
@@ -315,7 +391,7 @@ func (m *Manager) awaitURL(ctx context.Context, provider Provider, controlPort i
 			return err
 		}
 	}
-	return fmt.Errorf("tunnel: %s published no url within %s", provider.Name(), startTimeout)
+	return &startTimeoutError{provider: provider.Name()}
 }
 
 func (m *Manager) publishURL(provider Provider, url string) {
@@ -402,7 +478,21 @@ func (r *lineRing) Lines() []string {
 	return out
 }
 
+func isNgrokAccessLogNoise(line string) bool {
+	var rec struct {
+		Pg  string `json:"pg"`
+		Msg string `json:"msg"`
+	}
+	if json.Unmarshal([]byte(line), &rec) != nil {
+		return false
+	}
+	return rec.Pg != "" && (rec.Msg == "start" || rec.Msg == "end")
+}
+
 func (r *lineRing) appendLocked(line string) {
+	if isNgrokAccessLogNoise(line) {
+		return
+	}
 	r.lines = append(r.lines, line)
 	if len(r.lines) > r.max {
 		r.lines = append([]string{}, r.lines[len(r.lines)-r.max:]...)
@@ -545,6 +635,8 @@ func (m *Manager) supervise(ctx context.Context, provider Provider, cmd *exec.Cm
 		m.mu.Lock()
 		m.cmd = current
 		m.logs = currentLogs
+		m.controlPort = currentPort
+		m.providerLogs[provider.Name()] = currentLogs
 		m.mu.Unlock()
 		m.recordPID(provider.Name(), current)
 	}
@@ -643,6 +735,10 @@ func (m *Manager) handleProviderRefusal(ctx context.Context, provider Provider, 
 		if !m.stickyFrom[candidate.Name()] {
 			remaining++
 		}
+	}
+	if remaining > 0 {
+		m.status.LastProvider = provider.Name()
+		m.status.FallbackReason = failure.Message
 	}
 	m.mu.Unlock()
 	m.notifyProvider("")

@@ -912,6 +912,30 @@ paths:
       tags:
       - mobile
   /api/v1/mobile/tunnel/authtoken:
+    delete:
+      operationId: removeMobileTunnelAuthtoken
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MobileStatusResponse'
+          description: OK
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Forbidden
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+      summary: Remove the stored ngrok authtoken
+      tags:
+      - mobile
     post:
       operationId: setMobileTunnelAuthtoken
       requestBody:
@@ -990,6 +1014,232 @@ paths:
                 $ref: '#/components/schemas/APIError'
           description: Internal Server Error
       summary: Make the Connect Mobile bridge reachable from the internet
+      tags:
+      - mobile
+  /api/v1/mobile/tunnel/ngrok:
+    get:
+      operationId: getMobileNgrok
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MobileNgrokStatus'
+          description: OK
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Forbidden
+      summary: Get the current ngrok tunnel status
+      tags:
+      - mobile
+  /api/v1/mobile/tunnel/ngrok/account:
+    get:
+      operationId: getMobileNgrokAccount
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MobileNgrokAccount'
+          description: OK
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Forbidden
+      summary: Get the ngrok account's credentials, sessions, endpoints and reserved
+        domains
+      tags:
+      - mobile
+  /api/v1/mobile/tunnel/ngrok/account/credential:
+    post:
+      operationId: mintMobileNgrokCredential
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MobileNgrokStatus'
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Forbidden
+        "502":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Bad Gateway
+      summary: Mint a fresh operator-owned ngrok API credential
+      tags:
+      - mobile
+  /api/v1/mobile/tunnel/ngrok/account/credential/{id}:
+    delete:
+      operationId: revokeMobileNgrokCredential
+      parameters:
+      - description: ngrok credential identifier.
+        in: path
+        name: id
+        required: true
+        schema:
+          description: ngrok credential identifier.
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MobileNgrokAccount'
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Forbidden
+        "502":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Bad Gateway
+      summary: Revoke an ngrok API credential
+      tags:
+      - mobile
+  /api/v1/mobile/tunnel/ngrok/api-key:
+    delete:
+      operationId: removeMobileNgrokAPIKey
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MobileNgrokStatus'
+          description: OK
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Forbidden
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+      summary: Remove the stored ngrok API key
+      tags:
+      - mobile
+    put:
+      operationId: setMobileNgrokAPIKey
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MobileNgrokAPIKeyRequest'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MobileNgrokAccount'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Bad Request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Forbidden
+        "502":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Bad Gateway
+      summary: Store an ngrok API key
+      tags:
+      - mobile
+  /api/v1/mobile/tunnel/ngrok/diagnose:
+    post:
+      operationId: diagnoseMobileNgrok
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MobileNgrokDiagnosis'
+          description: OK
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Forbidden
+      summary: Run ngrok tunnel diagnostics
+      tags:
+      - mobile
+  /api/v1/mobile/tunnel/ngrok/domain:
+    put:
+      operationId: setMobileNgrokDomain
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MobileNgrokDomainRequest'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MobileNgrokStatus'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Bad Request
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Forbidden
+      summary: Set the reserved ngrok domain the tunnel uses
       tags:
       - mobile
   /api/v1/notifications:
@@ -3200,6 +3450,14 @@ paths:
         schema:
           description: Session identifier, e.g. project-1.
           type: string
+      - description: Return only this subagent's events; empty means the main conversation.
+        in: query
+        name: agentId
+        schema:
+          description: Return only this subagent's events; empty means the main conversation.
+          type:
+          - "null"
+          - string
       - description: Return events with seq greater than this cursor. Omit to read
           from the start of the retained log.
         in: query
@@ -5766,8 +6024,12 @@ components:
       type: object
     BlockEventView:
       properties:
+        agentId:
+          type: string
         createdAt:
           format: date-time
+          type: string
+        detail:
           type: string
         errorType:
           type: string
@@ -6094,11 +6356,12 @@ components:
       properties:
         behavior:
           type: string
+        option:
+          type: string
         requestId:
           type: string
       required:
       - requestId
-      - behavior
       type: object
     ControllersSessionDecisionResponse:
       properties:
@@ -6123,7 +6386,7 @@ components:
           type: string
         kind:
           type: string
-        lines:
+        options:
           items:
             type: string
           type: array
@@ -7003,6 +7266,287 @@ components:
       required:
       - token
       type: object
+    MobileNgrokAPIKey:
+      properties:
+        present:
+          description: Whether an ngrok API key is stored.
+          type: boolean
+      required:
+      - present
+      type: object
+    MobileNgrokAPIKeyRequest:
+      properties:
+        key:
+          description: ngrok API key. Stored on disk; never echoed back.
+          type: string
+      required:
+      - key
+      type: object
+    MobileNgrokAccount:
+      properties:
+        credentials:
+          items:
+            $ref: '#/components/schemas/MobileNgrokAccountCredential'
+          type: array
+        endpoints:
+          items:
+            $ref: '#/components/schemas/MobileNgrokAccountEndpoint'
+          type: array
+        error:
+          description: API error message when valid is false.
+          type: string
+        reservedDomains:
+          items:
+            $ref: '#/components/schemas/MobileNgrokReservedDomain'
+          type: array
+        sessions:
+          items:
+            $ref: '#/components/schemas/MobileNgrokAccountSession'
+          type: array
+        valid:
+          description: Whether the stored API key authenticated successfully.
+          type: boolean
+      required:
+      - valid
+      - error
+      - credentials
+      - sessions
+      - endpoints
+      - reservedDomains
+      type: object
+    MobileNgrokAccountCredential:
+      properties:
+        createdAt:
+          description: Creation timestamp reported by the ngrok API.
+          type: string
+        description:
+          description: Credential label as set on the ngrok dashboard.
+          type: string
+        id:
+          description: ngrok credential id.
+          type: string
+        isOperator:
+          description: Whether this credential was minted by this Operator install.
+          type: boolean
+      required:
+      - id
+      - description
+      - createdAt
+      - isOperator
+      type: object
+    MobileNgrokAccountEndpoint:
+      properties:
+        createdAt:
+          description: Creation timestamp reported by the ngrok API.
+          type: string
+        id:
+          description: ngrok endpoint id.
+          type: string
+        proto:
+          description: Endpoint protocol, e.g. https.
+          type: string
+        publicUrl:
+          description: Public URL for this endpoint.
+          type: string
+      required:
+      - id
+      - publicUrl
+      - proto
+      - createdAt
+      type: object
+    MobileNgrokAccountSession:
+      properties:
+        agentVersion:
+          description: ngrok agent version reported by the session.
+          type: string
+        id:
+          description: ngrok tunnel session id.
+          type: string
+        ip:
+          description: Client IP address reported by the ngrok API.
+          type: string
+        isThisMachine:
+          description: Whether this session is the one running on this machine.
+          type: boolean
+        os:
+          description: Operating system reported by the session.
+          type: string
+        region:
+          description: Region the session connected through.
+          type: string
+        startedAt:
+          description: Session start timestamp reported by the ngrok API.
+          type: string
+      required:
+      - id
+      - region
+      - ip
+      - agentVersion
+      - os
+      - startedAt
+      - isThisMachine
+      type: object
+    MobileNgrokAgent:
+      properties:
+        binaryPath:
+          description: Resolved path to the ngrok binary; empty if not installed.
+          type: string
+        source:
+          description: Where the binary came from.
+          type: string
+        updateAvailable:
+          description: Whether ngrok's own logs reported an available update.
+          type: boolean
+        version:
+          description: ngrok version string, if resolvable.
+          type: string
+      required:
+      - binaryPath
+      - source
+      - version
+      - updateAvailable
+      type: object
+    MobileNgrokCheck:
+      properties:
+        detail:
+          description: Human-readable detail about the check's result.
+          type: string
+        name:
+          description: Diagnostic check name.
+          type: string
+        ok:
+          description: Whether the check passed.
+          type: boolean
+      required:
+      - name
+      - ok
+      - detail
+      type: object
+    MobileNgrokCredential:
+      properties:
+        present:
+          description: Whether an ngrok authtoken is currently in effect.
+          type: boolean
+        source:
+          description: operator or system; empty when no credential is present.
+          type: string
+        suffix:
+          description: Last few characters of the token, for display only.
+          type: string
+        systemConfigPath:
+          description: Path to the system ngrok config, if one exists.
+          type: string
+      required:
+      - present
+      - source
+      - systemConfigPath
+      - suffix
+      type: object
+    MobileNgrokDiagnosis:
+      properties:
+        checks:
+          items:
+            $ref: '#/components/schemas/MobileNgrokCheck'
+          type: array
+        summary:
+          description: One-line overall diagnosis.
+          type: string
+      required:
+      - checks
+      - summary
+      type: object
+    MobileNgrokDomainRequest:
+      properties:
+        domain:
+          description: Reserved ngrok domain to use for the tunnel; empty reverts
+            to a random URL.
+          type: string
+      required:
+      - domain
+      type: object
+    MobileNgrokLogLine:
+      properties:
+        level:
+          description: Log level as reported by the ngrok agent.
+          type: string
+        message:
+          description: Log message, secrets redacted.
+          type: string
+        time:
+          description: Timestamp as reported by the ngrok agent.
+          type: string
+      required:
+      - time
+      - level
+      - message
+      type: object
+    MobileNgrokReservedDomain:
+      properties:
+        domain:
+          description: The reserved domain name.
+          type: string
+        id:
+          description: ngrok reserved domain id.
+          type: string
+      required:
+      - id
+      - domain
+      type: object
+    MobileNgrokSession:
+      properties:
+        connections:
+          description: Live connection count reported by the local ngrok agent.
+          type: integer
+        httpRequests:
+          description: HTTP request count reported by the local ngrok agent.
+          type: integer
+        latency:
+          description: Round-trip latency to the ngrok edge, formatted for display.
+          type: string
+        publicUrl:
+          description: Public HTTPS URL of the current ngrok tunnel.
+          type: string
+        region:
+          description: ngrok point-of-presence region.
+          type: string
+        status:
+          description: ngrok agent session status, e.g. online.
+          type: string
+      required:
+      - status
+      - region
+      - latency
+      - publicUrl
+      - connections
+      - httpRequests
+      type: object
+    MobileNgrokStatus:
+      properties:
+        agent:
+          $ref: '#/components/schemas/MobileNgrokAgent'
+        apiKey:
+          $ref: '#/components/schemas/MobileNgrokAPIKey'
+        credential:
+          $ref: '#/components/schemas/MobileNgrokCredential'
+        domain:
+          description: Reserved domain the agent is told to use; empty for a random
+            URL.
+          type: string
+        logs:
+          description: Last 200 agent log lines, secrets redacted.
+          items:
+            $ref: '#/components/schemas/MobileNgrokLogLine'
+          type: array
+        session:
+          $ref: '#/components/schemas/MobileNgrokSession'
+      required:
+      - credential
+      - agent
+      - session
+      - domain
+      - apiKey
+      - logs
+      type: object
     MobileStatusResponse:
       properties:
         enabled:
@@ -7029,10 +7573,18 @@ components:
         error:
           description: The provider's own message when something went wrong.
           type: string
+        fallbackReason:
+          description: Why the last provider was abandoned; empty when there was no
+            fallback.
+          type: string
         hasAuthtoken:
           description: Whether an ngrok authtoken is stored. Never carries the token
             itself.
           type: boolean
+        lastProvider:
+          description: Provider that was live before the current one took over, e.g.
+            after a fallback.
+          type: string
         needsAuthtoken:
           description: True when ngrok rejected the credential and the dialog should
             open.
@@ -7060,6 +7612,8 @@ components:
       - restarts
       - needsAuthtoken
       - hasAuthtoken
+      - lastProvider
+      - fallbackReason
       type: object
     NotificationEnvelope:
       properties:

@@ -33,6 +33,8 @@ class BlockEventModel extends Equatable {
   final int? truncatedLines;
   final String? createdAt;
   final String? interactionId;
+  final String? agentId;
+  final String? detail;
 
   const BlockEventModel({
     this.seq,
@@ -52,6 +54,8 @@ class BlockEventModel extends Equatable {
     this.truncatedLines,
     this.createdAt,
     this.interactionId,
+    this.agentId,
+    this.detail,
   });
 
   factory BlockEventModel.fromJson(Map<String, dynamic> json) {
@@ -76,6 +80,8 @@ class BlockEventModel extends Equatable {
       truncatedLines: (json['truncatedLines'] as num?)?.toInt(),
       createdAt: json['createdAt'] as String?,
       interactionId: json['interactionId'] as String?,
+      agentId: json['agentId'] as String?,
+      detail: json['detail'] as String?,
     );
   }
 
@@ -103,5 +109,7 @@ class BlockEventModel extends Equatable {
     truncatedLines,
     createdAt,
     interactionId,
+    agentId,
+    detail,
   ];
 }

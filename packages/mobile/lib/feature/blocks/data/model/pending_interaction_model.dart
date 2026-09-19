@@ -5,16 +5,16 @@ class PendingInteractionModel extends Equatable {
   final String? kind;
   final String? toolName;
   final String? toolInput;
-  final List<String>? lines;
+  final List<String>? options;
 
-  const PendingInteractionModel({this.id, this.kind, this.toolName, this.toolInput, this.lines});
+  const PendingInteractionModel({this.id, this.kind, this.toolName, this.toolInput, this.options});
 
   factory PendingInteractionModel.fromJson(Map<String, dynamic> json) => PendingInteractionModel(
     id: json['id'] as String?,
     kind: json['kind'] as String?,
     toolName: json['toolName'] as String?,
     toolInput: json['toolInput'] as String?,
-    lines: (json['lines'] as List?)?.map((e) => e as String).toList(),
+    options: (json['options'] as List?)?.map((e) => e as String).toList(),
   );
 
   static List<PendingInteractionModel> listFromJson(Map<String, dynamic> json) =>
@@ -23,5 +23,5 @@ class PendingInteractionModel extends Equatable {
           .toList();
 
   @override
-  List<Object?> get props => [id, kind, toolName, toolInput, lines];
+  List<Object?> get props => [id, kind, toolName, toolInput, options];
 }

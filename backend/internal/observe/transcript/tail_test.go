@@ -50,18 +50,20 @@ func (s *fakeSink) setFailOn(n int) {
 }
 
 type fakeOffsets struct {
-	path   string
-	offset int64
-	found  bool
-	writes int
+	path    string
+	offset  int64
+	found   bool
+	writes  int
+	lastKey string
 }
 
 func (o *fakeOffsets) GetTranscriptOffset(context.Context, string) (string, int64, bool, error) {
 	return o.path, o.offset, o.found, nil
 }
 
-func (o *fakeOffsets) UpsertTranscriptOffset(_ context.Context, _, path string, offset int64, _ time.Time) error {
+func (o *fakeOffsets) UpsertTranscriptOffset(_ context.Context, key, path string, offset int64, _ time.Time) error {
 	o.writes++
+	o.lastKey = key
 	o.path, o.offset, o.found = path, offset, true
 	return nil
 }

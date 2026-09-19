@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/OmarAly92/operator/backend/internal/domain"
 	"github.com/OmarAly92/operator/backend/internal/ports"
@@ -26,6 +27,33 @@ var ErrAnswerInvalid = errors.New("session: answer selection is invalid")
 // answerable an hour later. The interaction id is checked first so that two
 // clients racing one dialog cannot have the loser answer the NEXT dialog.
 func (m *Manager) Decide(ctx context.Context, id domain.SessionID, interactionID, behavior string) error {
+	if behavior != "allow" && behavior != "deny" {
+		return fmt.Errorf("decide %s: unknown behavior %q", id, behavior)
+	}
+	return m.drivePermission(ctx, id, interactionID, func(reader ports.TerminalDialogReader, menu ports.Menu) (int, bool) {
+		if behavior == "deny" {
+			return reader.DenyRow(menu)
+		}
+		return reader.AllowRow(menu)
+	})
+}
+
+func (m *Manager) DecideOption(ctx context.Context, id domain.SessionID, interactionID, label string) error {
+	if strings.TrimSpace(label) == "" {
+		return fmt.Errorf("decide %s: empty option: %w", id, ErrAnswerInvalid)
+	}
+	return m.drivePermission(ctx, id, interactionID, func(_ ports.TerminalDialogReader, menu ports.Menu) (int, bool) {
+		row := indexOfRow(menu.Rows, label)
+		return row, row >= 0
+	})
+}
+
+func (m *Manager) drivePermission(
+	ctx context.Context,
+	id domain.SessionID,
+	interactionID string,
+	pickRow func(reader ports.TerminalDialogReader, menu ports.Menu) (int, bool),
+) error {
 	rec, ok, err := m.store.GetSession(ctx, id)
 	if err != nil {
 		return fmt.Errorf("decide %s: %w", id, err)
@@ -53,9 +81,6 @@ func (m *Manager) Decide(ctx context.Context, id domain.SessionID, interactionID
 	if !ok {
 		return ErrDialogAbsent
 	}
-	if behavior != "allow" && behavior != "deny" {
-		return fmt.Errorf("decide %s: unknown behavior %q", id, behavior)
-	}
 
 	handle := runtimeHandle(rec.Metadata)
 	driver := m.driverFor(handle)
@@ -74,10 +99,7 @@ func (m *Manager) Decide(ctx context.Context, id domain.SessionID, interactionID
 	if dlg.Kind != ports.DialogPermission {
 		return ErrDialogAbsent
 	}
-	row, found := reader.AllowRow(dlg.Menu)
-	if behavior == "deny" {
-		row, found = reader.DenyRow(dlg.Menu)
-	}
+	row, found := pickRow(reader, dlg.Menu)
 	if !found {
 		return ErrDialogAbsent
 	}
@@ -90,7 +112,7 @@ func (m *Manager) Decide(ctx context.Context, id domain.SessionID, interactionID
 		return m.answerFailure(ctx, rec, err)
 	}
 	// The row, not just the dialog. NavigateTo confirmed the highlight was on
-	// the allow/deny row, but the person at the desktop can move it before the
+	// the chosen row, but the person at the desktop can move it before the
 	// Select lands, and Select takes whatever is under the highlight then --
 	// which on a Write dialog is "Yes, and switch to accept edits", widening
 	// permissions for the rest of the session.

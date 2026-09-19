@@ -55,10 +55,7 @@ var claudeCodeEvents = map[string]rule{
 	"permission-request":    {kind: domain.BlockEventPermissionRequest},
 	"stop":                  {kind: domain.BlockEventStop},
 	"notification":          {kind: domain.BlockEventQuestionAsked},
-	// Subagent traffic is deliberately excluded from the conversation, matching
-	// the transcript side, which drops isSidechain records and codex
-	// sub_agent_activity. Nesting it under its Task block is deferred.
-	"subagent-stop": {drop: true},
+	"subagent-stop":         {kind: domain.BlockEventAgentStop},
 	// session-end drives the activity state (exited) and carries nothing a
 	// reader of the conversation needs.
 	"session-end": {drop: true},

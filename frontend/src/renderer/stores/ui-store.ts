@@ -27,7 +27,7 @@ export { readStoredTerminalBackground } from "../lib/terminal-background";
 export { readStoredThemePreference, readStoredThemeStyle, resolveTheme } from "../lib/theme";
 
 export type SettingsModal =
-	| { scope: "global" }
+	| { scope: "global"; section?: "general" | "claudeAccounts" | "mobile" | "updates" | "help" }
 	| {
 			scope: "project";
 			projectId: string;
@@ -52,7 +52,6 @@ type UiState = {
 	inspectorSessions: Record<string, InspectorSessionState>;
 	isCommandPaletteOpen: boolean;
 	settingsModal: SettingsModal | null;
-	connectMobileOpen: boolean;
 	themePreference: ThemePreference;
 	/** Resolved light/dark for React consumers; may track OS while preference is system. */
 	resolvedTheme: Theme;
@@ -93,10 +92,9 @@ type UiState = {
 	setTerminalBackground: (background: TerminalBackground) => void;
 	setTerminalFontSize: (size: TerminalFontSize) => void;
 	openGlobalSettings: () => void;
+	openMobileSettings: () => void;
 	openProjectSettings: (projectId: string) => void;
 	closeSettings: () => void;
-	openConnectMobile: () => void;
-	setConnectMobileOpen: (open: boolean) => void;
 	/** Refresh resolvedTheme from OS without writing light/dark to storage. */
 	syncSystemTheme: () => void;
 	toggleSidebar: () => void;
@@ -160,7 +158,6 @@ export const useUiStore = create<UiState>((set, get) => ({
 	inspectorSessions: {},
 	isCommandPaletteOpen: false,
 	settingsModal: null,
-	connectMobileOpen: false,
 	themePreference: initialThemePreference,
 	resolvedTheme: resolveTheme(initialThemePreference),
 	themeStyle: initialThemeStyle,
@@ -204,10 +201,9 @@ export const useUiStore = create<UiState>((set, get) => ({
 		set({ terminalFontSize });
 	},
 	openGlobalSettings: () => set({ settingsModal: { scope: "global" } }),
+	openMobileSettings: () => set({ settingsModal: { scope: "global", section: "mobile" } }),
 	openProjectSettings: (projectId) => set({ settingsModal: { scope: "project", projectId } }),
 	closeSettings: () => set({ settingsModal: null }),
-	openConnectMobile: () => set({ connectMobileOpen: true }),
-	setConnectMobileOpen: (connectMobileOpen) => set({ connectMobileOpen }),
 	syncSystemTheme: () => {
 		const { themePreference, resolvedTheme } = get();
 		if (themePreference !== "system") return;

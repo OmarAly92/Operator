@@ -6,8 +6,11 @@ import 'package:operator_mobile/core/utils/service_locator.dart';
 import 'package:operator_mobile/core/widgets/failure_widgets/app_error_widget.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_scaffold.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/global_appbar.dart';
+import 'package:operator_mobile/feature/blocks/logic/session_block.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/blocks_cubit.dart';
+import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/session_command_cubit.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/session_view_cubit.dart';
+import 'package:operator_mobile/feature/blocks/presentation/subagent_screen/ui/subagent_screen.dart';
 import 'package:operator_mobile/feature/notification/presentation/notifications_screen/logic/notifications_cubit.dart';
 import 'package:operator_mobile/feature/notification/presentation/notifications_screen/ui/notifications_screen.dart';
 import 'package:operator_mobile/feature/onboarding/presentation/onboarding_screen/ui/onboarding_screen.dart';
@@ -117,8 +120,7 @@ sealed class AppRouter {
               if (!terminalArgs.shellOnly)
                 BlocProvider<BlocksCubit>(
                   create: (_) => sl<BlocksCubit>(
-                    param1: terminalArgs.sessionId,
-                    param2: terminalArgs.harness,
+                    param1: BlocksScope(sessionId: terminalArgs.sessionId, harness: terminalArgs.harness),
                   ),
                 ),
               if (!terminalArgs.shellOnly)
@@ -137,6 +139,25 @@ sealed class AppRouter {
                 ),
             ],
             child: const TerminalScreen(),
+          ),
+          settings: settings,
+        );
+
+      case RoutesStrings.subagent:
+        final args = settings.arguments as Map<String, dynamic>? ?? const {};
+        final sessionId = args['sessionId'] as String? ?? '';
+        final agentId = args['agentId'] as String?;
+        final detail = args['detail'] as AgentBlockDetail?;
+        final harness = args['harness'] as String? ?? 'claude-code';
+        return MaterialPageRoute(
+          builder: (context) => MultiBlocProvider(
+            providers: [
+              BlocProvider<BlocksCubit>(
+                create: (_) => sl<BlocksCubit>(param1: BlocksScope(sessionId: sessionId, harness: harness, agentId: agentId)),
+              ),
+              BlocProvider<SessionCommandCubit>(create: (_) => sl<SessionCommandCubit>(param1: sessionId, param2: null)),
+            ],
+            child: SubagentScreen(sessionId: sessionId, agentId: agentId, detail: detail, parentTitle: args['parentTitle'] as String?),
           ),
           settings: settings,
         );

@@ -394,6 +394,22 @@ void main() {
     },
   );
 
+  test('a compaction event from a subagent does not confirm a parent compact command', () async {
+    when(() => repo.sendCommand(any(), any())).thenAnswer(
+      (_) async => Result.success(
+        GlobalResponse(data: const SessionCommandResultModel(state: 'sent')),
+      ),
+    );
+    cubit.onActivity('idle');
+    await cubit.run('compact');
+    expect(cubit.phases['compact'], CommandPhase.sent);
+
+    events.add(const BlockEventEnvelope('s1', {'kind': 'compaction', 'agentId': 'a1'}));
+    await Future<void>.delayed(Duration.zero);
+
+    expect(cubit.phases['compact'], CommandPhase.sent);
+  });
+
   test('a block event for another session is ignored', () async {
     when(() => repo.sendCommand(any(), any())).thenAnswer(
       (_) async => Result.success(
@@ -449,6 +465,51 @@ void main() {
       await reconciled.close();
     },
   );
+
+  test('a live permission request refetches the dialog with its options', () async {
+    when(() => repo.getInteractions('s1')).thenAnswer(
+      (_) async => Result.success(
+        GlobalResponse<List<PendingInteractionModel>>(
+          data: const [
+            PendingInteractionModel(
+              id: 'int-1',
+              kind: 'permission',
+              toolName: 'Bash',
+              options: ['Yes', "Yes, and don't ask again for this session", 'No'],
+            ),
+          ],
+        ),
+      ),
+    );
+    expect(cubit.state.pendingInteraction, isNull);
+
+    events.add(
+      const BlockEventEnvelope('s1', {
+        'kind': 'permission_request',
+        'interactionId': 'int-1',
+        'toolName': 'Bash',
+      }),
+    );
+    await Future<void>.delayed(Duration.zero);
+
+    expect(cubit.state.pendingInteraction?.id, 'int-1');
+    expect(cubit.state.pendingInteraction?.options, hasLength(3));
+  });
+
+  test('a decision by option label sends the label, not a behavior', () async {
+    when(() => repo.decide(any(), any())).thenAnswer(
+      (_) async => Result.success(GlobalResponse(data: const SessionCommandResultModel(state: 'sent'))),
+    );
+    cubit.onActivity('blocked');
+
+    await cubit.decideOption('i1', "Yes, and don't ask again for this session");
+
+    final params = verify(() => repo.decide('s1', captureAny())).captured.single as SessionDecisionParams;
+    expect(params.option, "Yes, and don't ask again for this session");
+    expect(params.behavior, isNull);
+    expect(params.toJson().containsKey('behavior'), isFalse);
+    expect(cubit.phases['decision'], CommandPhase.sent);
+  });
 
   test('a failing interactions fetch leaves the row usable', () async {
     when(() => repo.getInteractions('s1')).thenAnswer(
@@ -541,6 +602,22 @@ void main() {
     });
 
     test('a turn_model event names the model the turn ran on', () async {
+      events.add(const BlockEventEnvelope('s1', {'kind': 'turn_model', 'text': 'claude-opus-5[1m]'}));
+      await Future<void>.delayed(Duration.zero);
+
+      expect(cubit.currentModel, 'Opus 5 (1M)');
+    });
+
+    test('a turn_model event from a subagent does not change the parent model', () async {
+      events.add(const BlockEventEnvelope('s1', {
+        'kind': 'turn_model',
+        'text': 'claude-haiku-4',
+        'agentId': 'a1',
+      }));
+      await Future<void>.delayed(Duration.zero);
+
+      expect(cubit.currentModel, isNull);
+
       events.add(const BlockEventEnvelope('s1', {'kind': 'turn_model', 'text': 'claude-opus-5[1m]'}));
       await Future<void>.delayed(Duration.zero);
 

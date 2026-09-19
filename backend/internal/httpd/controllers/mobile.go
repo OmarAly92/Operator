@@ -24,6 +24,15 @@ type mobileBridge interface {
 	TunnelEnable() (MobileStatusResponse, error)
 	TunnelDisable() (MobileStatusResponse, error)
 	SetAuthtoken(token string) (MobileStatusResponse, error)
+	RemoveAuthtoken() (MobileStatusResponse, error)
+	NgrokStatus(ctx context.Context) MobileNgrokStatus
+	SetAPIKey(ctx context.Context, key string) (MobileNgrokAccount, error)
+	RemoveAPIKey() (MobileNgrokStatus, error)
+	NgrokAccount(ctx context.Context) MobileNgrokAccount
+	MintCredential(ctx context.Context) (MobileNgrokStatus, error)
+	RevokeCredential(ctx context.Context, id string) (MobileNgrokAccount, error)
+	SetDomain(ctx context.Context, domain string) (MobileNgrokStatus, error)
+	Diagnose(ctx context.Context) MobileNgrokDiagnosis
 }
 
 type TunnelController interface {
@@ -33,6 +42,15 @@ type TunnelController interface {
 	SetAuthtoken(ctx context.Context, token string) error
 	HasAuthtoken() bool
 	SetLocalPort(port int)
+	RemoveAuthtoken() error
+	NgrokInfo(ctx context.Context) tunnel.NgrokInfo
+	SetAPIKey(ctx context.Context, key string) error
+	RemoveAPIKey() error
+	NgrokAccount(ctx context.Context) tunnel.NgrokAccount
+	MintOperatorCredential(ctx context.Context) error
+	RevokeCredential(ctx context.Context, id string) error
+	SetStableDomain(ctx context.Context, domain string) error
+	NgrokDiagnose(ctx context.Context) tunnel.NgrokDiagnosis
 }
 
 var _ TunnelController = (*tunnel.Manager)(nil)
@@ -179,6 +197,8 @@ func (b *BridgeService) tunnelStatus() *MobileTunnelStatus {
 		Restarts:       st.Restarts,
 		NeedsAuthtoken: st.NeedsAuthtoken,
 		HasAuthtoken:   b.Tunnel.HasAuthtoken(),
+		LastProvider:   st.LastProvider,
+		FallbackReason: st.FallbackReason,
 	}
 	if !st.Since.IsZero() {
 		out.Since = st.Since.UTC().Format(time.RFC3339)
@@ -333,4 +353,127 @@ func (b *BridgeService) setTunnelIntent(on bool) error {
 	}
 	st.TunnelEnabled = on
 	return mobilebridge.Save(b.ConfigPath, st)
+}
+
+func ngrokStatusFrom(info tunnel.NgrokInfo) MobileNgrokStatus {
+	logs := make([]MobileNgrokLogLine, 0, len(info.Logs))
+	for _, l := range info.Logs {
+		logs = append(logs, MobileNgrokLogLine{Time: l.Time, Level: l.Level, Message: l.Message})
+	}
+	return MobileNgrokStatus{
+		Credential: MobileNgrokCredential{Present: info.Credential.Present, Source: info.Credential.Source, SystemConfigPath: info.Credential.SystemConfigPath, Suffix: info.Credential.Suffix},
+		Agent:      MobileNgrokAgent{BinaryPath: info.Agent.BinaryPath, Source: info.Agent.Source, Version: info.Agent.Version, UpdateAvailable: info.Agent.UpdateAvailable},
+		Session:    MobileNgrokSession{Status: info.Session.Status, Region: info.Session.Region, Latency: info.Session.Latency, PublicURL: info.Session.PublicURL, Connections: info.Session.Connections, HTTPRequests: info.Session.HTTPRequests},
+		Domain:     info.Domain,
+		APIKey:     MobileNgrokAPIKey{Present: info.APIKey},
+		Logs:       logs,
+	}
+}
+
+func ngrokAccountFrom(acc tunnel.NgrokAccount) MobileNgrokAccount {
+	credentials := make([]MobileNgrokAccountCredential, 0, len(acc.Credentials))
+	for _, c := range acc.Credentials {
+		credentials = append(credentials, MobileNgrokAccountCredential{ID: c.ID, Description: c.Description, CreatedAt: c.CreatedAt, IsOperator: c.IsOperator})
+	}
+	sessions := make([]MobileNgrokAccountSession, 0, len(acc.Sessions))
+	for _, s := range acc.Sessions {
+		sessions = append(sessions, MobileNgrokAccountSession{ID: s.ID, Region: s.Region, IP: s.IP, AgentVersion: s.AgentVersion, OS: s.OS, StartedAt: s.StartedAt, IsThisMachine: s.IsThisMachine})
+	}
+	endpoints := make([]MobileNgrokAccountEndpoint, 0, len(acc.Endpoints))
+	for _, e := range acc.Endpoints {
+		endpoints = append(endpoints, MobileNgrokAccountEndpoint{ID: e.ID, PublicURL: e.PublicURL, Proto: e.Proto, CreatedAt: e.CreatedAt})
+	}
+	domains := make([]MobileNgrokReservedDomain, 0, len(acc.ReservedDomains))
+	for _, d := range acc.ReservedDomains {
+		domains = append(domains, MobileNgrokReservedDomain{ID: d.ID, Domain: d.Domain})
+	}
+	return MobileNgrokAccount{
+		Valid:           acc.Valid,
+		Error:           acc.Error,
+		Credentials:     credentials,
+		Sessions:        sessions,
+		Endpoints:       endpoints,
+		ReservedDomains: domains,
+	}
+}
+
+func ngrokDiagnosisFrom(d tunnel.NgrokDiagnosis) MobileNgrokDiagnosis {
+	checks := make([]MobileNgrokCheck, 0, len(d.Checks))
+	for _, c := range d.Checks {
+		checks = append(checks, MobileNgrokCheck{Name: c.Name, OK: c.OK, Detail: c.Detail})
+	}
+	return MobileNgrokDiagnosis{Checks: checks, Summary: d.Summary}
+}
+
+func (b *BridgeService) NgrokStatus(ctx context.Context) MobileNgrokStatus {
+	if b.Tunnel == nil {
+		return ngrokStatusFrom(tunnel.NgrokInfo{})
+	}
+	return ngrokStatusFrom(b.Tunnel.NgrokInfo(ctx))
+}
+
+func (b *BridgeService) RemoveAuthtoken() (MobileStatusResponse, error) {
+	if err := b.Tunnel.RemoveAuthtoken(); err != nil {
+		return MobileStatusResponse{}, err
+	}
+	return b.Status(), nil
+}
+
+func (b *BridgeService) SetAPIKey(ctx context.Context, key string) (MobileNgrokAccount, error) {
+	if err := b.Tunnel.SetAPIKey(ctx, key); err != nil {
+		return MobileNgrokAccount{}, err
+	}
+	return ngrokAccountFrom(b.Tunnel.NgrokAccount(ctx)), nil
+}
+
+func (b *BridgeService) RemoveAPIKey() (MobileNgrokStatus, error) {
+	if err := b.Tunnel.RemoveAPIKey(); err != nil {
+		return MobileNgrokStatus{}, err
+	}
+	return b.NgrokStatus(context.Background()), nil
+}
+
+func (b *BridgeService) NgrokAccount(ctx context.Context) MobileNgrokAccount {
+	return ngrokAccountFrom(b.Tunnel.NgrokAccount(ctx))
+}
+
+func (b *BridgeService) MintCredential(ctx context.Context) (MobileNgrokStatus, error) {
+	if err := b.Tunnel.MintOperatorCredential(ctx); err != nil {
+		return MobileNgrokStatus{}, err
+	}
+	return b.NgrokStatus(ctx), nil
+}
+
+func (b *BridgeService) RevokeCredential(ctx context.Context, id string) (MobileNgrokAccount, error) {
+	if err := b.Tunnel.RevokeCredential(ctx, id); err != nil {
+		return MobileNgrokAccount{}, err
+	}
+	return b.NgrokAccount(ctx), nil
+}
+
+func (b *BridgeService) SetDomain(ctx context.Context, domain string) (MobileNgrokStatus, error) {
+	if err := b.Tunnel.SetStableDomain(ctx, domain); err != nil {
+		return MobileNgrokStatus{}, err
+	}
+	st, err := mobilebridge.Load(b.ConfigPath)
+	if err != nil {
+		return MobileNgrokStatus{}, err
+	}
+	st.NgrokDomain = strings.TrimSpace(domain)
+	if err := mobilebridge.Save(b.ConfigPath, st); err != nil {
+		return MobileNgrokStatus{}, err
+	}
+	if live := b.Tunnel.Status(); live.State == tunnel.StateLive && live.Provider == "ngrok" {
+		if err := b.Tunnel.Disable(ctx); err != nil {
+			return MobileNgrokStatus{}, err
+		}
+		if err := b.Tunnel.Enable(ctx); err != nil {
+			return MobileNgrokStatus{}, err
+		}
+	}
+	return b.NgrokStatus(ctx), nil
+}
+
+func (b *BridgeService) Diagnose(ctx context.Context) MobileNgrokDiagnosis {
+	return ngrokDiagnosisFrom(b.Tunnel.NgrokDiagnose(ctx))
 }

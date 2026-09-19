@@ -3,6 +3,7 @@ package tunnel
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 )
@@ -269,5 +270,43 @@ func TestManagerDisableDoesNotResurrectTrustedHeaderAfterInFlightPublicURL(t *te
 	case got := <-headers:
 		t.Errorf("unexpected OnProvider call after Disable returned: %q", got)
 	case <-time.After(500 * time.Millisecond):
+	}
+}
+
+func TestManagerExposesControlPortAndLogsWhileRunning(t *testing.T) {
+	provider := newFakeProvider(t, "ngrok", "#!/bin/sh\necho '{\"lvl\":\"info\",\"msg\":\"hello\"}'\nwhile true; do sleep 1; done\n")
+	m := New(Deps{
+		Dir:         t.TempDir(),
+		Providers:   []Provider{provider},
+		Binaries:    fakeStore{path: provider.binary},
+		Now:         time.Now,
+		Sleep:       func(context.Context, time.Duration) error { return nil },
+		ReservePort: func() (int, error) { return 46301, nil },
+	})
+	m.SetLocalPort(3011)
+	defer m.Close()
+	if m.ControlPort() != 0 || len(m.Logs()) != 0 {
+		t.Fatal("no child yet: control port must be 0 and logs empty")
+	}
+	if err := m.Enable(context.Background()); err != nil {
+		t.Fatalf("Enable: %v", err)
+	}
+	waitForState(t, m, StateLive)
+	if got := m.ControlPort(); got != 46301 {
+		t.Errorf("ControlPort = %d, want 46301", got)
+	}
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) && len(m.Logs()) == 0 {
+		time.Sleep(5 * time.Millisecond)
+	}
+	if lines := m.Logs(); len(lines) != 1 || !strings.Contains(lines[0], "hello") {
+		t.Errorf("Logs = %q, want the child's stdout line", lines)
+	}
+	_ = m.Disable(context.Background())
+	if m.ControlPort() != 0 {
+		t.Error("ControlPort must reset to 0 after Disable")
+	}
+	if len(m.Logs()) != 1 {
+		t.Error("Logs must survive Disable until the next Enable")
 	}
 }

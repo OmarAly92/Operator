@@ -104,4 +104,10 @@ void main() {
 
     expect(model.source, isNull);
   });
+
+  test('reads agentId and detail off the wire', () {
+    final model = BlockEventModel.fromJson({'seq': 1, 'kind': 'tool_result', 'agentId': 'a1', 'detail': '{"agentId":"a1"}'});
+    expect(model.agentId, 'a1');
+    expect(model.detail, '{"agentId":"a1"}');
+  });
 }

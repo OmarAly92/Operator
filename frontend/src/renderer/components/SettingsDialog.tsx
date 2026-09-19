@@ -1,4 +1,4 @@
-import { Bot, CircleHelp, ClipboardList, GitBranch, Inbox, KeyRound, MonitorCog, RefreshCw, Settings2, TriangleAlert, X } from "lucide-react";
+import { Bot, CircleHelp, ClipboardList, GitBranch, Inbox, KeyRound, MonitorCog, RefreshCw, Settings2, Smartphone, TriangleAlert, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { GlobalSettingsForm, type GlobalSettingsSection } from "./GlobalSettingsForm";
@@ -7,7 +7,6 @@ import {
 	type ProjectSettingsSaveState,
 	type ProjectSettingsSection,
 } from "./ProjectSettingsForm";
-import { ConnectMobileModal } from "./ConnectMobileModal";
 import { KeyboardShortcutsSettingsDialog } from "./settings/KeyboardShortcutsSettingsDialog";
 import {
 	Dialog,
@@ -31,10 +30,7 @@ export function SettingsDialog() {
 	const openGlobalSettings = useUiStore((state) => state.openGlobalSettings);
 	const openProjectSettings = useUiStore((state) => state.openProjectSettings);
 	const [keyboardShortcutsOpen, setKeyboardShortcutsOpen] = useState(false);
-	const connectMobileOpen = useUiStore((state) => state.connectMobileOpen);
-	const setConnectMobileOpen = useUiStore((state) => state.setConnectMobileOpen);
 	const keyboardShortcutsRestoreRef = useRef<SettingsModal | null>(null);
-	const connectMobileRestoreRef = useRef<SettingsModal | null>(null);
 
 	// Keep the last non-null settings so the content stays rendered during the
 	// exit animation (when settingsModal is already null but the dialog hasn't
@@ -49,6 +45,7 @@ export function SettingsDialog() {
 	const globalSections: Array<{ id: Exclude<GlobalSettingsSection, "all">; label: string; icon: typeof Settings2 }> = [
 		{ id: "general", label: t("settings.general"), icon: Settings2 },
 		{ id: "claudeAccounts", label: t("settings.claudeAccounts.title"), icon: KeyRound },
+		{ id: "mobile", label: t("settings.mobile"), icon: Smartphone },
 		{ id: "updates", label: t("settings.updates"), icon: RefreshCw },
 		{ id: "help", label: t("settings.help"), icon: CircleHelp },
 	];
@@ -92,23 +89,8 @@ export function SettingsDialog() {
 		else openProjectSettings(previousSettings.projectId);
 	};
 
-	const openConnectMobile = () => {
-		if (!settingsModal) return;
-		connectMobileRestoreRef.current = settingsModal;
-		setConnectMobileOpen(true);
-		closeSettings();
-	};
-
-	const restoreConnectMobileSettings = () => {
-		const previousSettings = connectMobileRestoreRef.current;
-		connectMobileRestoreRef.current = null;
-		if (!previousSettings) return;
-		if (previousSettings.scope === "global") openGlobalSettings();
-		else openProjectSettings(previousSettings.projectId);
-	};
-
 	useEffect(() => {
-		if (settingsModal?.scope === "global") setActiveSection("general");
+		if (settingsModal?.scope === "global") setActiveSection(settingsModal.section ?? "general");
 		if (settingsModal?.scope === "project") {
 			setActiveProjectSection("general");
 			setProjectSaveState({
@@ -224,7 +206,6 @@ export function SettingsDialog() {
 								<GlobalSettingsForm
 									section={activeSection}
 									onOpenKeyboardShortcuts={openKeyboardShortcuts}
-									onOpenConnectMobile={openConnectMobile}
 								/>
 							)}
 						</div>
@@ -238,13 +219,6 @@ export function SettingsDialog() {
 				onOpenChange={(open) => {
 					setKeyboardShortcutsOpen(open);
 					if (!open) restoreSettings();
-				}}
-			/>
-			<ConnectMobileModal
-				open={connectMobileOpen}
-				onOpenChange={(open) => {
-					setConnectMobileOpen(open);
-					if (!open) restoreConnectMobileSettings();
 				}}
 			/>
 		</>

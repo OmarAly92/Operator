@@ -15,7 +15,11 @@ import (
 	"github.com/OmarAly92/operator/backend/internal/tunnel"
 )
 
-type fakeBridge struct{ enabled bool }
+type fakeBridge struct {
+	enabled   bool
+	apiKeyErr error
+	revoked   string
+}
 
 func (f *fakeBridge) Status() MobileStatusResponse {
 	return MobileStatusResponse{Enabled: f.enabled, Host: "192.168.1.42", Port: 3011}
@@ -37,6 +41,29 @@ func (f *fakeBridge) TunnelDisable() (MobileStatusResponse, error) { return f.St
 func (f *fakeBridge) SetAuthtoken(token string) (MobileStatusResponse, error) {
 	return f.Status(), nil
 }
+func (f *fakeBridge) RemoveAuthtoken() (MobileStatusResponse, error) { return f.Status(), nil }
+func (f *fakeBridge) NgrokStatus(context.Context) MobileNgrokStatus {
+	return MobileNgrokStatus{Logs: []MobileNgrokLogLine{}}
+}
+func (f *fakeBridge) SetAPIKey(context.Context, string) (MobileNgrokAccount, error) {
+	if f.apiKeyErr != nil {
+		return MobileNgrokAccount{}, f.apiKeyErr
+	}
+	return MobileNgrokAccount{}, nil
+}
+func (f *fakeBridge) RemoveAPIKey() (MobileNgrokStatus, error)        { return MobileNgrokStatus{}, nil }
+func (f *fakeBridge) NgrokAccount(context.Context) MobileNgrokAccount { return MobileNgrokAccount{} }
+func (f *fakeBridge) MintCredential(context.Context) (MobileNgrokStatus, error) {
+	return MobileNgrokStatus{}, nil
+}
+func (f *fakeBridge) RevokeCredential(_ context.Context, id string) (MobileNgrokAccount, error) {
+	f.revoked = id
+	return MobileNgrokAccount{}, nil
+}
+func (f *fakeBridge) SetDomain(context.Context, string) (MobileNgrokStatus, error) {
+	return MobileNgrokStatus{}, nil
+}
+func (f *fakeBridge) Diagnose(context.Context) MobileNgrokDiagnosis { return MobileNgrokDiagnosis{} }
 
 // fakeLAN is a minimal LANController for exercising BridgeService directly.
 type fakeLAN struct {
@@ -74,11 +101,16 @@ type fakeTunnel struct {
 	enableErr      error
 	enabled        bool
 	enableCalls    int
+	disableCalls   int
 	localPort      int
 	disabled       bool
 	savedToken     string
 	saveTokenErr   error
 	hasAuthtokenOn bool
+	ngrokInfo      tunnel.NgrokInfo
+	ngrokAccount   tunnel.NgrokAccount
+	ngrokDiagnosis tunnel.NgrokDiagnosis
+	setDomainErr   error
 }
 
 func (f *fakeTunnel) SetLocalPort(port int) { f.localPort = port }
@@ -94,6 +126,7 @@ func (f *fakeTunnel) Enable(context.Context) error {
 }
 
 func (f *fakeTunnel) Disable(context.Context) error {
+	f.disableCalls++
 	f.disabled = true
 	f.status = tunnel.Status{State: tunnel.StateOff}
 	return nil
@@ -111,6 +144,27 @@ func (f *fakeTunnel) SetAuthtoken(_ context.Context, token string) error {
 }
 
 func (f *fakeTunnel) HasAuthtoken() bool { return f.hasAuthtokenOn }
+
+func (f *fakeTunnel) RemoveAuthtoken() error {
+	f.hasAuthtokenOn = false
+	return nil
+}
+
+func (f *fakeTunnel) NgrokInfo(context.Context) tunnel.NgrokInfo { return f.ngrokInfo }
+
+func (f *fakeTunnel) SetAPIKey(_ context.Context, key string) error { return nil }
+
+func (f *fakeTunnel) RemoveAPIKey() error { return nil }
+
+func (f *fakeTunnel) NgrokAccount(context.Context) tunnel.NgrokAccount { return f.ngrokAccount }
+
+func (f *fakeTunnel) MintOperatorCredential(context.Context) error { return nil }
+
+func (f *fakeTunnel) RevokeCredential(_ context.Context, id string) error { return nil }
+
+func (f *fakeTunnel) SetStableDomain(_ context.Context, domain string) error { return f.setDomainErr }
+
+func (f *fakeTunnel) NgrokDiagnose(context.Context) tunnel.NgrokDiagnosis { return f.ngrokDiagnosis }
 
 // When Save fails during a fresh enable, the listener that Start already opened
 // must be torn back down and the armed hash rolled back — otherwise a LAN
@@ -462,5 +516,37 @@ func TestMobileEnableRollsBackPasswordStrengthWhenSaveFails(t *testing.T) {
 	}
 	if !lan.strong {
 		t.Fatal("a failed enable must roll password strength back with the hash")
+	}
+}
+
+func TestBridgeNgrokStatusMapsTheSnapshotAndTunnelStatusCarriesFallback(t *testing.T) {
+	ft := &fakeTunnel{status: tunnel.Status{State: tunnel.StateLive, Provider: "cloudflared", URL: "https://x.trycloudflare.com", LastProvider: "ngrok", FallbackReason: tunnel.NgrokCRLMessage}}
+	ft.ngrokInfo = tunnel.NgrokInfo{Credential: tunnel.NgrokCredential{Present: true, Source: "operator", Suffix: "abcd"}}
+	b := &BridgeService{LAN: &fakeLAN{}, ConfigPath: filepath.Join(t.TempDir(), "config.json"), DefaultPort: 3011, Tunnel: ft}
+	st := b.Status()
+	if st.Tunnel.LastProvider != "ngrok" || st.Tunnel.FallbackReason != tunnel.NgrokCRLMessage {
+		t.Fatalf("tunnel = %+v", st.Tunnel)
+	}
+	ng := b.NgrokStatus(context.Background())
+	if !ng.Credential.Present || ng.Credential.Source != "operator" || ng.Credential.Suffix != "abcd" {
+		t.Fatalf("ngrok status = %+v", ng)
+	}
+	if ng.Logs == nil {
+		t.Fatal("logs must serialise as [] not null")
+	}
+}
+
+func TestBridgeSetDomainRestartsALiveNgrokTunnel(t *testing.T) {
+	ft := &fakeTunnel{status: tunnel.Status{State: tunnel.StateLive, Provider: "ngrok", URL: "https://a.ngrok.app"}}
+	b := &BridgeService{LAN: &fakeLAN{running: true}, ConfigPath: filepath.Join(t.TempDir(), "config.json"), DefaultPort: 3011, Tunnel: ft}
+	if _, err := b.SetDomain(context.Background(), "phone.example.ngrok.app"); err != nil {
+		t.Fatal(err)
+	}
+	if ft.disableCalls != 1 || ft.enableCalls != 1 {
+		t.Fatalf("disable=%d enable=%d, want one restart", ft.disableCalls, ft.enableCalls)
+	}
+	cfg, _ := mobilebridge.Load(b.ConfigPath)
+	if cfg.NgrokDomain != "phone.example.ngrok.app" {
+		t.Errorf("domain not persisted: %+v", cfg)
 	}
 }

@@ -21,6 +21,8 @@ type Status struct {
 	Since          time.Time
 	Restarts       int
 	NeedsAuthtoken bool
+	LastProvider   string
+	FallbackReason string
 }
 
 type FailureClass int

@@ -391,7 +391,8 @@ export interface paths {
         put?: never;
         /** Store an ngrok authtoken for a stable tunnel address */
         post: operations["setMobileTunnelAuthtoken"];
-        delete?: never;
+        /** Remove the stored ngrok authtoken */
+        delete: operations["removeMobileTunnelAuthtoken"];
         options?: never;
         head?: never;
         patch?: never;
@@ -425,6 +426,126 @@ export interface paths {
         put?: never;
         /** Make the Connect Mobile bridge reachable from the internet */
         post: operations["enableMobileTunnel"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/mobile/tunnel/ngrok": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get the current ngrok tunnel status */
+        get: operations["getMobileNgrok"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/mobile/tunnel/ngrok/account": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get the ngrok account's credentials, sessions, endpoints and reserved domains */
+        get: operations["getMobileNgrokAccount"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/mobile/tunnel/ngrok/account/credential": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Mint a fresh operator-owned ngrok API credential */
+        post: operations["mintMobileNgrokCredential"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/mobile/tunnel/ngrok/account/credential/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Revoke an ngrok API credential */
+        delete: operations["revokeMobileNgrokCredential"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/mobile/tunnel/ngrok/api-key": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Store an ngrok API key */
+        put: operations["setMobileNgrokAPIKey"];
+        post?: never;
+        /** Remove the stored ngrok API key */
+        delete: operations["removeMobileNgrokAPIKey"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/mobile/tunnel/ngrok/diagnose": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Run ngrok tunnel diagnostics */
+        post: operations["diagnoseMobileNgrok"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/mobile/tunnel/ngrok/domain": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Set the reserved ngrok domain the tunnel uses */
+        put: operations["setMobileNgrokDomain"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1961,8 +2082,10 @@ export interface components {
             mimeType?: string;
         };
         BlockEventView: {
+            agentId?: string;
             /** Format: date-time */
             createdAt: string;
+            detail?: string;
             errorType?: string;
             harness?: string;
             hookVersion?: string;
@@ -2089,7 +2212,8 @@ export interface components {
             state: string;
         };
         ControllersSessionDecisionRequest: {
-            behavior: string;
+            behavior?: string;
+            option?: string;
             requestId: string;
         };
         ControllersSessionDecisionResponse: {
@@ -2103,7 +2227,7 @@ export interface components {
             createdAt: string;
             id: string;
             kind: string;
-            lines?: string[];
+            options?: string[];
             toolInput?: string;
             toolName?: string;
         };
@@ -2415,6 +2539,135 @@ export interface components {
             /** @description ngrok authtoken. Stored via ngrok's own config tooling; never echoed back. */
             token: string;
         };
+        MobileNgrokAPIKey: {
+            /** @description Whether an ngrok API key is stored. */
+            present: boolean;
+        };
+        MobileNgrokAPIKeyRequest: {
+            /** @description ngrok API key. Stored on disk; never echoed back. */
+            key: string;
+        };
+        MobileNgrokAccount: {
+            credentials: components["schemas"]["MobileNgrokAccountCredential"][];
+            endpoints: components["schemas"]["MobileNgrokAccountEndpoint"][];
+            /** @description API error message when valid is false. */
+            error: string;
+            reservedDomains: components["schemas"]["MobileNgrokReservedDomain"][];
+            sessions: components["schemas"]["MobileNgrokAccountSession"][];
+            /** @description Whether the stored API key authenticated successfully. */
+            valid: boolean;
+        };
+        MobileNgrokAccountCredential: {
+            /** @description Creation timestamp reported by the ngrok API. */
+            createdAt: string;
+            /** @description Credential label as set on the ngrok dashboard. */
+            description: string;
+            /** @description ngrok credential id. */
+            id: string;
+            /** @description Whether this credential was minted by this Operator install. */
+            isOperator: boolean;
+        };
+        MobileNgrokAccountEndpoint: {
+            /** @description Creation timestamp reported by the ngrok API. */
+            createdAt: string;
+            /** @description ngrok endpoint id. */
+            id: string;
+            /** @description Endpoint protocol, e.g. https. */
+            proto: string;
+            /** @description Public URL for this endpoint. */
+            publicUrl: string;
+        };
+        MobileNgrokAccountSession: {
+            /** @description ngrok agent version reported by the session. */
+            agentVersion: string;
+            /** @description ngrok tunnel session id. */
+            id: string;
+            /** @description Client IP address reported by the ngrok API. */
+            ip: string;
+            /** @description Whether this session is the one running on this machine. */
+            isThisMachine: boolean;
+            /** @description Operating system reported by the session. */
+            os: string;
+            /** @description Region the session connected through. */
+            region: string;
+            /** @description Session start timestamp reported by the ngrok API. */
+            startedAt: string;
+        };
+        MobileNgrokAgent: {
+            /** @description Resolved path to the ngrok binary; empty if not installed. */
+            binaryPath: string;
+            /** @description Where the binary came from. */
+            source: string;
+            /** @description Whether ngrok's own logs reported an available update. */
+            updateAvailable: boolean;
+            /** @description ngrok version string, if resolvable. */
+            version: string;
+        };
+        MobileNgrokCheck: {
+            /** @description Human-readable detail about the check's result. */
+            detail: string;
+            /** @description Diagnostic check name. */
+            name: string;
+            /** @description Whether the check passed. */
+            ok: boolean;
+        };
+        MobileNgrokCredential: {
+            /** @description Whether an ngrok authtoken is currently in effect. */
+            present: boolean;
+            /** @description operator or system; empty when no credential is present. */
+            source: string;
+            /** @description Last few characters of the token, for display only. */
+            suffix: string;
+            /** @description Path to the system ngrok config, if one exists. */
+            systemConfigPath: string;
+        };
+        MobileNgrokDiagnosis: {
+            checks: components["schemas"]["MobileNgrokCheck"][];
+            /** @description One-line overall diagnosis. */
+            summary: string;
+        };
+        MobileNgrokDomainRequest: {
+            /** @description Reserved ngrok domain to use for the tunnel; empty reverts to a random URL. */
+            domain: string;
+        };
+        MobileNgrokLogLine: {
+            /** @description Log level as reported by the ngrok agent. */
+            level: string;
+            /** @description Log message, secrets redacted. */
+            message: string;
+            /** @description Timestamp as reported by the ngrok agent. */
+            time: string;
+        };
+        MobileNgrokReservedDomain: {
+            /** @description The reserved domain name. */
+            domain: string;
+            /** @description ngrok reserved domain id. */
+            id: string;
+        };
+        MobileNgrokSession: {
+            /** @description Live connection count reported by the local ngrok agent. */
+            connections: number;
+            /** @description HTTP request count reported by the local ngrok agent. */
+            httpRequests: number;
+            /** @description Round-trip latency to the ngrok edge, formatted for display. */
+            latency: string;
+            /** @description Public HTTPS URL of the current ngrok tunnel. */
+            publicUrl: string;
+            /** @description ngrok point-of-presence region. */
+            region: string;
+            /** @description ngrok agent session status, e.g. online. */
+            status: string;
+        };
+        MobileNgrokStatus: {
+            agent: components["schemas"]["MobileNgrokAgent"];
+            apiKey: components["schemas"]["MobileNgrokAPIKey"];
+            credential: components["schemas"]["MobileNgrokCredential"];
+            /** @description Reserved domain the agent is told to use; empty for a random URL. */
+            domain: string;
+            /** @description Last 200 agent log lines, secrets redacted. */
+            logs: components["schemas"]["MobileNgrokLogLine"][];
+            session: components["schemas"]["MobileNgrokSession"];
+        };
         MobileStatusResponse: {
             enabled: boolean;
             host: string;
@@ -2426,8 +2679,12 @@ export interface components {
         MobileTunnelStatus: {
             /** @description The provider's own message when something went wrong. */
             error: string;
+            /** @description Why the last provider was abandoned; empty when there was no fallback. */
+            fallbackReason: string;
             /** @description Whether an ngrok authtoken is stored. Never carries the token itself. */
             hasAuthtoken: boolean;
+            /** @description Provider that was live before the current one took over, e.g. after a fallback. */
+            lastProvider: string;
             /** @description True when ngrok rejected the credential and the dialog should open. */
             needsAuthtoken: boolean;
             /** @description ngrok or cloudflared; empty while off. */
@@ -4460,6 +4717,44 @@ export interface operations {
             };
         };
     };
+    removeMobileTunnelAuthtoken: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MobileStatusResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
     disableMobileTunnel: {
         parameters: {
             query?: never;
@@ -4527,6 +4822,330 @@ export interface operations {
             };
             /** @description Internal Server Error */
             500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    getMobileNgrok: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MobileNgrokStatus"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    getMobileNgrokAccount: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MobileNgrokAccount"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    mintMobileNgrokCredential: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MobileNgrokStatus"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Bad Gateway */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    revokeMobileNgrokCredential: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description ngrok credential identifier. */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MobileNgrokAccount"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Bad Gateway */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    setMobileNgrokAPIKey: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MobileNgrokAPIKeyRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MobileNgrokAccount"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Bad Gateway */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    removeMobileNgrokAPIKey: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MobileNgrokStatus"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    diagnoseMobileNgrok: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MobileNgrokDiagnosis"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    setMobileNgrokDomain: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MobileNgrokDomainRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MobileNgrokStatus"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -7190,6 +7809,8 @@ export interface operations {
     listSessionBlockEvents: {
         parameters: {
             query?: {
+                /** @description Return only this subagent's events; empty means the main conversation. */
+                agentId?: null | string;
                 /** @description Return events with seq greater than this cursor. Omit to read from the start of the retained log. */
                 afterSeq?: null | number;
                 /** @description Return the events immediately older than this sequence, ascending. Mutually exclusive with afterSeq. */
@@ -7883,47 +8504,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["APIError"];
-                };
-            };
-            /** @description Internal Server Error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["APIError"];
-                };
-            };
-            /** @description Not Implemented */
-            501: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["APIError"];
-                };
-            };
-        };
-    };
-    getSessionSuggestion: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Session identifier, e.g. project-1. */
-                sessionId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ControllersSessionSuggestionResponse"];
                 };
             };
             /** @description Internal Server Error */
@@ -9140,6 +9720,47 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    getSessionSuggestion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Session identifier, e.g. project-1. */
+                sessionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ControllersSessionSuggestionResponse"];
                 };
             };
             /** @description Internal Server Error */

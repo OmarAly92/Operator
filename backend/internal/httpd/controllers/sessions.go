@@ -108,6 +108,7 @@ type SessionService interface {
 	Suggestion(ctx context.Context, id domain.SessionID) (string, error)
 	SlashOutput(ctx context.Context, id domain.SessionID, message string) (string, error)
 	Decide(ctx context.Context, id domain.SessionID, interactionID, behavior string) error
+	DecideOption(ctx context.Context, id domain.SessionID, interactionID, label string) error
 	Answer(ctx context.Context, id domain.SessionID, interactionID string, selections [][]string) error
 	DelegateTask(ctx context.Context, in sessionsvc.DelegateTaskInput) (sessionsvc.DelegateTaskOutcome, error)
 	ListPRSummaries(ctx context.Context, id domain.SessionID) ([]sessionsvc.PRSummary, error)
@@ -141,8 +142,8 @@ type BlockEventRecorder interface {
 // from BlockEventRecorder so a build that records without serving history — or a
 // test fake that only needs one half — stays valid.
 type BlockEventHistory interface {
-	History(ctx context.Context, sessionID domain.SessionID, afterSeq int64, limit int) ([]blockeventsvc.Record, error)
-	HistoryBefore(ctx context.Context, sessionID domain.SessionID, beforeSeq int64, limit int) ([]blockeventsvc.Record, error)
+	History(ctx context.Context, sessionID domain.SessionID, agentID string, afterSeq int64, limit int) ([]blockeventsvc.Record, error)
+	HistoryBefore(ctx context.Context, sessionID domain.SessionID, agentID string, beforeSeq int64, limit int) ([]blockeventsvc.Record, error)
 }
 
 // SessionModelReader names the model each session last ran a turn on, from
@@ -1263,11 +1264,12 @@ func (c *SessionsController) listBlockEvents(w http.ResponseWriter, r *http.Requ
 		envelope.WriteAPIError(w, r, http.StatusBadRequest, "bad_request", "INVALID_QUERY", "limit must be between 1 and 500", nil)
 		return
 	}
+	agentID := capActivityMeta(domain.SanitizeControlChars(strings.TrimSpace(r.URL.Query().Get("agentId"))))
 	var recs []blockeventsvc.Record
 	if hasBefore {
-		recs, err = c.BlockHistory.HistoryBefore(r.Context(), sessionID(r), beforeSeq, int(limit))
+		recs, err = c.BlockHistory.HistoryBefore(r.Context(), sessionID(r), agentID, beforeSeq, int(limit))
 	} else {
-		recs, err = c.BlockHistory.History(r.Context(), sessionID(r), afterSeq, int(limit))
+		recs, err = c.BlockHistory.History(r.Context(), sessionID(r), agentID, afterSeq, int(limit))
 	}
 	if err != nil {
 		envelope.WriteError(w, r, err)
@@ -1494,13 +1496,19 @@ func (c *SessionsController) decision(w http.ResponseWriter, r *http.Request) {
 		envelope.WriteAPIError(w, r, http.StatusBadRequest, "bad_request", "INVALID_JSON", "Invalid JSON body", nil)
 		return
 	}
-	if in.Behavior != "allow" && in.Behavior != "deny" {
+	option := strings.TrimSpace(in.Option)
+	if option == "" && in.Behavior != "allow" && in.Behavior != "deny" {
 		envelope.WriteAPIError(w, r, http.StatusBadRequest, "validation", "SESSION_DECISION_INVALID",
-			"unknown behavior; expected allow or deny", nil)
+			"unknown behavior; expected allow, deny, or an option label", nil)
 		return
 	}
 
-	err := c.Svc.Decide(r.Context(), sessionID(r), in.RequestID, in.Behavior)
+	var err error
+	if option != "" {
+		err = c.Svc.DecideOption(r.Context(), sessionID(r), in.RequestID, option)
+	} else {
+		err = c.Svc.Decide(r.Context(), sessionID(r), in.RequestID, in.Behavior)
+	}
 	switch {
 	case err == nil:
 		envelope.WriteJSON(w, http.StatusOK, SessionDecisionResponse{State: "sent"})
@@ -1516,6 +1524,8 @@ func (c *SessionsController) decision(w http.ResponseWriter, r *http.Request) {
 		envelope.WriteAPIError(w, r, http.StatusNotFound, "not_found", "SESSION_NOT_FOUND", "session not found", nil)
 	case errors.Is(err, sessionmanager.ErrTerminated), errors.Is(err, sessionmanager.ErrAgentExited):
 		envelope.WriteAPIError(w, r, http.StatusConflict, "conflict", "SESSION_NOT_RUNNING", "the session is not running", nil)
+	case errors.Is(err, sessionmanager.ErrAnswerInvalid):
+		envelope.WriteAPIError(w, r, http.StatusBadRequest, "validation", "SESSION_DECISION_INVALID", err.Error(), nil)
 	default:
 		envelope.WriteError(w, r, err)
 	}
@@ -1771,6 +1781,9 @@ func (c *SessionsController) activity(w http.ResponseWriter, r *http.Request) {
 		LatestAssistantUpdate: capActivityText(domain.SanitizeControlChars(strings.TrimSpace(in.LatestAssistantUpdate)), 16<<10),
 		TranscriptPath:        capActivityText(domain.SanitizeControlChars(strings.TrimSpace(in.TranscriptPath)), 4096),
 		LaunchID:              capActivityMeta(domain.SanitizeControlChars(strings.TrimSpace(in.LaunchID))),
+	}
+	if in.Usage != nil && strings.TrimSpace(in.Event) == "subagent-stop" {
+		sig.AgentID = capActivityMeta(domain.SanitizeControlChars(strings.TrimSpace(in.Usage.SubagentID)))
 	}
 	if state == domain.ActivityBlocked && (sig.ToolUseID != "" || sig.ToolName != "") {
 		sig.InteractionID = uuid.NewString()

@@ -88,6 +88,8 @@ type BlockEvent struct {
 	ToolInput      string
 	Source         string
 	InteractionID  string
+	AgentID        string
+	Detail         string
 }
 
 type ChangeLog struct {

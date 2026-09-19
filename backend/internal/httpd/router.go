@@ -147,6 +147,15 @@ func mountMobile(r chi.Router, c *controllers.MobileController) {
 	r.Post("/api/v1/mobile/tunnel/enable", c.TunnelEnable)
 	r.Post("/api/v1/mobile/tunnel/disable", c.TunnelDisable)
 	r.Post("/api/v1/mobile/tunnel/authtoken", c.SetAuthtoken)
+	r.Delete("/api/v1/mobile/tunnel/authtoken", c.RemoveAuthtoken)
+	r.Get("/api/v1/mobile/tunnel/ngrok", c.NgrokStatus)
+	r.Put("/api/v1/mobile/tunnel/ngrok/api-key", c.SetNgrokAPIKey)
+	r.Delete("/api/v1/mobile/tunnel/ngrok/api-key", c.RemoveNgrokAPIKey)
+	r.Get("/api/v1/mobile/tunnel/ngrok/account", c.NgrokAccount)
+	r.Post("/api/v1/mobile/tunnel/ngrok/account/credential", c.MintNgrokCredential)
+	r.Delete("/api/v1/mobile/tunnel/ngrok/account/credential/{id}", c.RevokeNgrokCredential)
+	r.Put("/api/v1/mobile/tunnel/ngrok/domain", c.SetNgrokDomain)
+	r.Post("/api/v1/mobile/tunnel/ngrok/diagnose", c.DiagnoseNgrok)
 }
 
 type cliInvokedRequest struct {

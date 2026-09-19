@@ -12,6 +12,7 @@ import 'package:operator_mobile/feature/blocks/data/repository/blocks_repository
 import 'package:operator_mobile/feature/blocks/logic/block_assembly.dart';
 import 'package:operator_mobile/feature/blocks/logic/block_harnesses.dart';
 import 'package:operator_mobile/feature/blocks/logic/session_block.dart';
+import 'package:operator_mobile/feature/blocks/logic/subagents.dart';
 import 'package:operator_mobile/core/helpers/result/result.dart';
 
 part 'blocks_state.dart';
@@ -24,9 +25,20 @@ const int kBlockMaxWindow = 1200;
 
 const String kSessionEndedReason = 'Session ended before this finished';
 
+class BlocksScope extends Equatable {
+  const BlocksScope({required this.sessionId, this.harness, this.agentId});
+
+  final String sessionId;
+  final String? harness;
+  final String? agentId;
+
+  @override
+  List<Object?> get props => [sessionId, harness, agentId];
+}
+
 class BlocksCubit extends Cubit<BlocksState> {
-  BlocksCubit(this._mux, this._repository, this.sessionId, {this.harness})
-    : supported = BlockHarnesses.covers(harness),
+  BlocksCubit(this._mux, this._repository, this.scope)
+    : supported = BlockHarnesses.covers(scope.harness),
       super(const BlocksInitialState()) {
     if (!supported) {
       emit(BlocksUnsupportedState(harness));
@@ -41,8 +53,10 @@ class BlocksCubit extends Cubit<BlocksState> {
 
   final MuxClient _mux;
   final BlocksRepository _repository;
-  final String sessionId;
-  final String? harness;
+  final BlocksScope scope;
+  String get sessionId => scope.sessionId;
+  String? get agentId => scope.agentId;
+  String? get harness => scope.harness;
   final bool supported;
 
   List<SessionBlock> blocks = const [];
@@ -54,6 +68,8 @@ class BlocksCubit extends Cubit<BlocksState> {
 
   final SplayTreeMap<int, BlockEventModel> _events = SplayTreeMap<int, BlockEventModel>();
   bool _ended = false;
+  bool _blocked = false;
+  int _answeredThroughSeq = 0;
   int _revision = 0;
   int _capacity = kBlockWindow;
 
@@ -70,7 +86,7 @@ class BlocksCubit extends Cubit<BlocksState> {
     _emit();
     final result = await _repository.getSessionBlocks(
       sessionId,
-      GetSessionBlocksParams(afterSeq: _highestSeq),
+      GetSessionBlocksParams(afterSeq: _highestSeq, agentId: agentId),
     );
     result.when(
       onSuccess: (records) {
@@ -104,7 +120,7 @@ class BlocksCubit extends Cubit<BlocksState> {
     final limit = min(kBlockPage, headroom);
     final result = await _repository.getSessionBlocks(
       sessionId,
-      GetSessionBlocksParams(beforeSeq: before, limit: limit),
+      GetSessionBlocksParams(beforeSeq: before, limit: limit, agentId: agentId),
     );
     result.when(
       onSuccess: (records) {
@@ -128,8 +144,30 @@ class BlocksCubit extends Cubit<BlocksState> {
   }
 
   void _onLive(BlockEventEnvelope envelope) {
-    _merge(BlockEventModel.fromJson(envelope.block));
-    _rebuild();
+    final record = BlockEventModel.fromJson(envelope.block);
+    final scopeId = record.agentId ?? '';
+    if (scopeId == (agentId ?? '')) {
+      if (agentId == null && record.kind == 'agent_stop' && (record.sourceId ?? '').isNotEmpty) {
+        _summarise(record.sourceId!, record);
+      }
+      _merge(record);
+      _rebuild();
+      return;
+    }
+    if (agentId == null && scopeId.isNotEmpty) _summarise(scopeId, record);
+  }
+
+  final Map<String, SubagentSummary> _summaries = {};
+  Map<String, SubagentSummary> get subagentSummaries => Map.unmodifiable(_summaries);
+
+  void _summarise(String scopeId, BlockEventModel record) {
+    final current = _summaries[scopeId] ?? SubagentSummary(agentId: scopeId);
+    _summaries[scopeId] = current.absorb(
+      prompt: record.kind == 'prompt_submit' ? record.text : null,
+      at: record.createdAt,
+      stopped: record.kind == 'agent_stop',
+    );
+    _emit();
   }
 
   void _onStatus(MuxStatus status) {
@@ -143,7 +181,14 @@ class BlocksCubit extends Cubit<BlocksState> {
       if (patch.id != sessionId) continue;
       final ended = patch.activity == 'exited' || patch.status == 'terminated';
       final busy = patch.activity == 'active';
-      if (ended != _ended || busy != active) {
+      final blocked = patch.activity == 'blocked';
+      var changed = ended != _ended || busy != active;
+      if (_blocked && !blocked) {
+        _answeredThroughSeq = _highestSeq ?? 0;
+        changed = true;
+      }
+      _blocked = blocked;
+      if (changed) {
         _ended = ended;
         active = busy;
         _rebuild();
@@ -163,7 +208,7 @@ class BlocksCubit extends Cubit<BlocksState> {
   }
 
   void _rebuild() {
-    final assembled = assembleBlocks(_events.values);
+    final assembled = resolveAnswered(assembleBlocks(_events.values), _answeredThroughSeq);
     blocks = _ended ? resolveStranded(assembled, kSessionEndedReason) : assembled;
     _emit();
   }
