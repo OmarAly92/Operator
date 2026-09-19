@@ -42,6 +42,8 @@ func (s *Store) InsertBlockEvent(ctx context.Context, rec blockeventsvc.Record) 
 		TruncatedLines: int64(rec.TruncatedLines),
 		Source:         string(rec.Source),
 		InteractionID:  rec.InteractionID,
+		AgentID:        rec.AgentID,
+		Detail:         rec.Detail,
 		CreatedAt:      rec.CreatedAt,
 	})
 	if err != nil {
@@ -67,9 +69,10 @@ func (s *Store) SelectLatestTurnModels(ctx context.Context) (map[string]string, 
 }
 
 // SelectBlockEventsBySession returns events after afterSeq in ascending order.
-func (s *Store) SelectBlockEventsBySession(ctx context.Context, sessionID string, afterSeq int64, limit int) ([]blockeventsvc.Record, error) {
+func (s *Store) SelectBlockEventsBySession(ctx context.Context, sessionID, agentID string, afterSeq int64, limit int) ([]blockeventsvc.Record, error) {
 	rows, err := s.qr.SelectBlockEventsBySession(ctx, gen.SelectBlockEventsBySessionParams{
 		SessionID: sessionID,
+		AgentID:   agentID,
 		Seq:       afterSeq,
 		Limit:     int64(limit),
 	})
@@ -95,6 +98,8 @@ func (s *Store) SelectBlockEventsBySession(ctx context.Context, sessionID string
 			TruncatedLines: row.TruncatedLines,
 			Source:         row.Source,
 			InteractionID:  row.InteractionID,
+			AgentID:        row.AgentID,
+			Detail:         row.Detail,
 			CreatedAt:      row.CreatedAt,
 		}))
 	}
@@ -104,9 +109,10 @@ func (s *Store) SelectBlockEventsBySession(ctx context.Context, sessionID string
 // SelectBlockEventsBeforeSeq returns the events immediately older than
 // beforeSeq in ascending order so a client whose window has slid forward can
 // page backwards into what it dropped instead of losing it.
-func (s *Store) SelectBlockEventsBeforeSeq(ctx context.Context, sessionID string, beforeSeq int64, limit int) ([]blockeventsvc.Record, error) {
+func (s *Store) SelectBlockEventsBeforeSeq(ctx context.Context, sessionID, agentID string, beforeSeq int64, limit int) ([]blockeventsvc.Record, error) {
 	rows, err := s.qr.SelectBlockEventsBeforeSeq(ctx, gen.SelectBlockEventsBeforeSeqParams{
 		SessionID: sessionID,
+		AgentID:   agentID,
 		Seq:       beforeSeq,
 		Limit:     int64(limit),
 	})
@@ -132,6 +138,8 @@ func (s *Store) SelectBlockEventsBeforeSeq(ctx context.Context, sessionID string
 			TruncatedLines: row.TruncatedLines,
 			Source:         row.Source,
 			InteractionID:  row.InteractionID,
+			AgentID:        row.AgentID,
+			Detail:         row.Detail,
 			CreatedAt:      row.CreatedAt,
 		}))
 	}
@@ -158,6 +166,8 @@ type blockEventRowFields struct {
 	TruncatedLines int64
 	Source         string
 	InteractionID  string
+	AgentID        string
+	Detail         string
 	CreatedAt      time.Time
 }
 
@@ -178,6 +188,8 @@ func blockEventRecordFromRow(f blockEventRowFields) blockeventsvc.Record {
 		TruncatedLines: int(f.TruncatedLines),
 		Source:         domain.BlockEventSource(f.Source),
 		InteractionID:  f.InteractionID,
+		AgentID:        f.AgentID,
+		Detail:         f.Detail,
 		CreatedAt:      f.CreatedAt,
 	}
 	if f.RedactedSpans != "" {

@@ -183,20 +183,23 @@ type fakeBlockEventHistory struct {
 	recs       []blockeventsvc.Record
 	err        error
 	gotSession domain.SessionID
+	gotAgentID string
 	gotAfter   int64
 	gotBefore  int64
 	gotLimit   int
 }
 
-func (f *fakeBlockEventHistory) History(_ context.Context, id domain.SessionID, afterSeq int64, limit int) ([]blockeventsvc.Record, error) {
+func (f *fakeBlockEventHistory) History(_ context.Context, id domain.SessionID, agentID string, afterSeq int64, limit int) ([]blockeventsvc.Record, error) {
 	f.gotSession = id
+	f.gotAgentID = agentID
 	f.gotAfter = afterSeq
 	f.gotLimit = limit
 	return f.recs, f.err
 }
 
-func (f *fakeBlockEventHistory) HistoryBefore(_ context.Context, id domain.SessionID, beforeSeq int64, limit int) ([]blockeventsvc.Record, error) {
+func (f *fakeBlockEventHistory) HistoryBefore(_ context.Context, id domain.SessionID, agentID string, beforeSeq int64, limit int) ([]blockeventsvc.Record, error) {
 	f.gotSession = id
+	f.gotAgentID = agentID
 	f.gotBefore = beforeSeq
 	f.gotLimit = limit
 	return f.recs, f.err

@@ -142,8 +142,8 @@ type BlockEventRecorder interface {
 // from BlockEventRecorder so a build that records without serving history — or a
 // test fake that only needs one half — stays valid.
 type BlockEventHistory interface {
-	History(ctx context.Context, sessionID domain.SessionID, afterSeq int64, limit int) ([]blockeventsvc.Record, error)
-	HistoryBefore(ctx context.Context, sessionID domain.SessionID, beforeSeq int64, limit int) ([]blockeventsvc.Record, error)
+	History(ctx context.Context, sessionID domain.SessionID, agentID string, afterSeq int64, limit int) ([]blockeventsvc.Record, error)
+	HistoryBefore(ctx context.Context, sessionID domain.SessionID, agentID string, beforeSeq int64, limit int) ([]blockeventsvc.Record, error)
 }
 
 // SessionModelReader names the model each session last ran a turn on, from
@@ -1266,9 +1266,9 @@ func (c *SessionsController) listBlockEvents(w http.ResponseWriter, r *http.Requ
 	}
 	var recs []blockeventsvc.Record
 	if hasBefore {
-		recs, err = c.BlockHistory.HistoryBefore(r.Context(), sessionID(r), beforeSeq, int(limit))
+		recs, err = c.BlockHistory.HistoryBefore(r.Context(), sessionID(r), "", beforeSeq, int(limit))
 	} else {
-		recs, err = c.BlockHistory.History(r.Context(), sessionID(r), afterSeq, int(limit))
+		recs, err = c.BlockHistory.History(r.Context(), sessionID(r), "", afterSeq, int(limit))
 	}
 	if err != nil {
 		envelope.WriteError(w, r, err)

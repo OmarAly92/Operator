@@ -2,14 +2,14 @@
 INSERT INTO block_events (
     session_id, source_id, kind, raw_event, harness, tool_name, tool_use_id,
     tool_input, text, redacted_spans, error_type, hook_version, truncated_lines,
-    source, interaction_id, created_at
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    source, interaction_id, agent_id, detail, created_at
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 RETURNING *;
 
 -- name: SelectBlockEventsBySession :many
 SELECT *
 FROM block_events
-WHERE session_id = ? AND seq > ?
+WHERE session_id = ? AND agent_id = ? AND seq > ?
 ORDER BY seq
 LIMIT ?;
 
@@ -17,9 +17,9 @@ LIMIT ?;
 SELECT * FROM (
   SELECT seq, session_id, source_id, kind, raw_event, harness, tool_name, tool_use_id,
          text, redacted_spans, tool_input, error_type, hook_version, truncated_lines,
-         source, interaction_id, created_at
+         source, interaction_id, agent_id, detail, created_at
   FROM block_events
-  WHERE session_id = ? AND seq < ?
+  WHERE session_id = ? AND agent_id = ? AND seq < ?
   ORDER BY seq DESC
   LIMIT ?
 ) ORDER BY seq ASC;

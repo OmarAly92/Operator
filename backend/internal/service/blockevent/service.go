@@ -131,6 +131,8 @@ func (s *Service) RecordTranscript(
 		RedactedSpans:  redacted.Spans,
 		ErrorType:      ev.ErrorType,
 		TruncatedLines: textTruncated + inputTruncated,
+		AgentID:        ev.AgentID,
+		Detail:         ev.Detail,
 		CreatedAt:      time.Now().UTC(),
 	})
 }
@@ -151,21 +153,21 @@ func (s *Service) LatestModels(ctx context.Context) (map[domain.SessionID]string
 
 // History returns persisted events after afterSeq so a reconnecting client can
 // replay what it missed instead of only seeing what arrives next.
-func (s *Service) History(ctx context.Context, sessionID domain.SessionID, afterSeq int64, limit int) ([]Record, error) {
+func (s *Service) History(ctx context.Context, sessionID domain.SessionID, agentID string, afterSeq int64, limit int) ([]Record, error) {
 	if limit <= 0 || limit > s.retain {
 		limit = s.retain
 	}
-	return s.store.SelectBlockEventsBySession(ctx, string(sessionID), afterSeq, limit)
+	return s.store.SelectBlockEventsBySession(ctx, string(sessionID), agentID, afterSeq, limit)
 }
 
 // HistoryBefore returns the events immediately older than beforeSeq, ascending,
 // so a client whose window has slid forward can page backwards into what it
 // dropped instead of losing it.
-func (s *Service) HistoryBefore(ctx context.Context, sessionID domain.SessionID, beforeSeq int64, limit int) ([]Record, error) {
+func (s *Service) HistoryBefore(ctx context.Context, sessionID domain.SessionID, agentID string, beforeSeq int64, limit int) ([]Record, error) {
 	if limit <= 0 || limit > s.retain {
 		limit = s.retain
 	}
-	return s.store.SelectBlockEventsBeforeSeq(ctx, string(sessionID), beforeSeq, limit)
+	return s.store.SelectBlockEventsBeforeSeq(ctx, string(sessionID), agentID, beforeSeq, limit)
 }
 
 func capText(s string, limit int) (string, int) {

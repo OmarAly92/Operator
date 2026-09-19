@@ -14,9 +14,9 @@ const insertBlockEvent = `-- name: InsertBlockEvent :one
 INSERT INTO block_events (
     session_id, source_id, kind, raw_event, harness, tool_name, tool_use_id,
     tool_input, text, redacted_spans, error_type, hook_version, truncated_lines,
-    source, interaction_id, created_at
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-RETURNING seq, session_id, source_id, kind, raw_event, harness, tool_name, tool_use_id, text, redacted_spans, error_type, hook_version, truncated_lines, created_at, tool_input, source, interaction_id
+    source, interaction_id, agent_id, detail, created_at
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+RETURNING seq, session_id, source_id, kind, raw_event, harness, tool_name, tool_use_id, text, redacted_spans, error_type, hook_version, truncated_lines, created_at, tool_input, source, interaction_id, agent_id, detail
 `
 
 type InsertBlockEventParams struct {
@@ -35,6 +35,8 @@ type InsertBlockEventParams struct {
 	TruncatedLines int64
 	Source         string
 	InteractionID  string
+	AgentID        string
+	Detail         string
 	CreatedAt      time.Time
 }
 
@@ -55,6 +57,8 @@ func (q *Queries) InsertBlockEvent(ctx context.Context, arg InsertBlockEventPara
 		arg.TruncatedLines,
 		arg.Source,
 		arg.InteractionID,
+		arg.AgentID,
+		arg.Detail,
 		arg.CreatedAt,
 	)
 	var i BlockEvent
@@ -76,17 +80,19 @@ func (q *Queries) InsertBlockEvent(ctx context.Context, arg InsertBlockEventPara
 		&i.ToolInput,
 		&i.Source,
 		&i.InteractionID,
+		&i.AgentID,
+		&i.Detail,
 	)
 	return i, err
 }
 
 const selectBlockEventsBeforeSeq = `-- name: SelectBlockEventsBeforeSeq :many
-SELECT seq, session_id, source_id, kind, raw_event, harness, tool_name, tool_use_id, text, redacted_spans, tool_input, error_type, hook_version, truncated_lines, source, interaction_id, created_at FROM (
+SELECT seq, session_id, source_id, kind, raw_event, harness, tool_name, tool_use_id, text, redacted_spans, tool_input, error_type, hook_version, truncated_lines, source, interaction_id, agent_id, detail, created_at FROM (
   SELECT seq, session_id, source_id, kind, raw_event, harness, tool_name, tool_use_id,
          text, redacted_spans, tool_input, error_type, hook_version, truncated_lines,
-         source, interaction_id, created_at
+         source, interaction_id, agent_id, detail, created_at
   FROM block_events
-  WHERE session_id = ? AND seq < ?
+  WHERE session_id = ? AND agent_id = ? AND seq < ?
   ORDER BY seq DESC
   LIMIT ?
 ) ORDER BY seq ASC
@@ -94,6 +100,7 @@ SELECT seq, session_id, source_id, kind, raw_event, harness, tool_name, tool_use
 
 type SelectBlockEventsBeforeSeqParams struct {
 	SessionID string
+	AgentID   string
 	Seq       int64
 	Limit     int64
 }
@@ -115,11 +122,18 @@ type SelectBlockEventsBeforeSeqRow struct {
 	TruncatedLines int64
 	Source         string
 	InteractionID  string
+	AgentID        string
+	Detail         string
 	CreatedAt      time.Time
 }
 
 func (q *Queries) SelectBlockEventsBeforeSeq(ctx context.Context, arg SelectBlockEventsBeforeSeqParams) ([]SelectBlockEventsBeforeSeqRow, error) {
-	rows, err := q.db.QueryContext(ctx, selectBlockEventsBeforeSeq, arg.SessionID, arg.Seq, arg.Limit)
+	rows, err := q.db.QueryContext(ctx, selectBlockEventsBeforeSeq,
+		arg.SessionID,
+		arg.AgentID,
+		arg.Seq,
+		arg.Limit,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -144,6 +158,8 @@ func (q *Queries) SelectBlockEventsBeforeSeq(ctx context.Context, arg SelectBloc
 			&i.TruncatedLines,
 			&i.Source,
 			&i.InteractionID,
+			&i.AgentID,
+			&i.Detail,
 			&i.CreatedAt,
 		); err != nil {
 			return nil, err
@@ -160,21 +176,27 @@ func (q *Queries) SelectBlockEventsBeforeSeq(ctx context.Context, arg SelectBloc
 }
 
 const selectBlockEventsBySession = `-- name: SelectBlockEventsBySession :many
-SELECT seq, session_id, source_id, kind, raw_event, harness, tool_name, tool_use_id, text, redacted_spans, error_type, hook_version, truncated_lines, created_at, tool_input, source, interaction_id
+SELECT seq, session_id, source_id, kind, raw_event, harness, tool_name, tool_use_id, text, redacted_spans, error_type, hook_version, truncated_lines, created_at, tool_input, source, interaction_id, agent_id, detail
 FROM block_events
-WHERE session_id = ? AND seq > ?
+WHERE session_id = ? AND agent_id = ? AND seq > ?
 ORDER BY seq
 LIMIT ?
 `
 
 type SelectBlockEventsBySessionParams struct {
 	SessionID string
+	AgentID   string
 	Seq       int64
 	Limit     int64
 }
 
 func (q *Queries) SelectBlockEventsBySession(ctx context.Context, arg SelectBlockEventsBySessionParams) ([]BlockEvent, error) {
-	rows, err := q.db.QueryContext(ctx, selectBlockEventsBySession, arg.SessionID, arg.Seq, arg.Limit)
+	rows, err := q.db.QueryContext(ctx, selectBlockEventsBySession,
+		arg.SessionID,
+		arg.AgentID,
+		arg.Seq,
+		arg.Limit,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -200,6 +222,8 @@ func (q *Queries) SelectBlockEventsBySession(ctx context.Context, arg SelectBloc
 			&i.ToolInput,
 			&i.Source,
 			&i.InteractionID,
+			&i.AgentID,
+			&i.Detail,
 		); err != nil {
 			return nil, err
 		}

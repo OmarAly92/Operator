@@ -29,11 +29,11 @@ func (f *fakeStore) SelectLatestTurnModels(context.Context) (map[string]string, 
 	return nil, nil
 }
 
-func (f *fakeStore) SelectBlockEventsBySession(context.Context, string, int64, int) ([]Record, error) {
+func (f *fakeStore) SelectBlockEventsBySession(context.Context, string, string, int64, int) ([]Record, error) {
 	return f.inserted, nil
 }
 
-func (f *fakeStore) SelectBlockEventsBeforeSeq(context.Context, string, int64, int) ([]Record, error) {
+func (f *fakeStore) SelectBlockEventsBeforeSeq(context.Context, string, string, int64, int) ([]Record, error) {
 	return nil, nil
 }
 
@@ -142,11 +142,11 @@ func (s *concurrentStore) SelectLatestTurnModels(context.Context) (map[string]st
 	return nil, nil
 }
 
-func (s *concurrentStore) SelectBlockEventsBySession(context.Context, string, int64, int) ([]Record, error) {
+func (s *concurrentStore) SelectBlockEventsBySession(context.Context, string, string, int64, int) ([]Record, error) {
 	return nil, nil
 }
 
-func (s *concurrentStore) SelectBlockEventsBeforeSeq(context.Context, string, int64, int) ([]Record, error) {
+func (s *concurrentStore) SelectBlockEventsBeforeSeq(context.Context, string, string, int64, int) ([]Record, error) {
 	return nil, nil
 }
 

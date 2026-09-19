@@ -32,14 +32,16 @@ type Record struct {
 	HookVersion    string                  `json:"hookVersion,omitempty"`
 	TruncatedLines int                     `json:"truncatedLines,omitempty"`
 	InteractionID  string                  `json:"interactionId,omitempty"`
+	AgentID        string                  `json:"agentId,omitempty"`
+	Detail         string                  `json:"detail,omitempty"`
 	CreatedAt      time.Time               `json:"createdAt"`
 }
 
 // Store is the persistence slice the service needs.
 type Store interface {
 	InsertBlockEvent(ctx context.Context, rec Record) (int64, error)
-	SelectBlockEventsBySession(ctx context.Context, sessionID string, afterSeq int64, limit int) ([]Record, error)
-	SelectBlockEventsBeforeSeq(ctx context.Context, sessionID string, beforeSeq int64, limit int) ([]Record, error)
+	SelectBlockEventsBySession(ctx context.Context, sessionID, agentID string, afterSeq int64, limit int) ([]Record, error)
+	SelectBlockEventsBeforeSeq(ctx context.Context, sessionID, agentID string, beforeSeq int64, limit int) ([]Record, error)
 	TrimBlockEvents(ctx context.Context, sessionID string, keep int) (int64, error)
 	SelectLatestTurnModels(ctx context.Context) (map[string]string, error)
 }
