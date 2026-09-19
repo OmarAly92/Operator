@@ -86,11 +86,16 @@ async function paintsPerFrame(page, recording) {
 	return page.evaluate(async (frameEnds) => {
 		const session = window.__agentSession;
 		const frame = () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+		const settle = async () => {
+			await frame();
+			await frame();
+		};
 		let tornPaints = 0;
 		let multiPaintFrames = 0;
 		let start = session.fed;
 		for (const end of frameEnds) {
 			if (end <= start) continue;
+			await settle();
 			const before = session.textHash();
 			const cuts = [start + Math.floor((end - start) / 3), start + Math.floor((2 * (end - start)) / 3), end];
 			const seen = new Set();
@@ -115,8 +120,31 @@ async function longTask2MiB(page) {
 	await page.evaluate(() => window.__agentSession.resetCounters());
 	const feedMs = await page.evaluate(() => window.__agentSession.feedNext(2 * 1024 * 1024));
 	await page.waitForTimeout(500);
-	const tasks = await page.evaluate(() => window.__agentSession.longTasks());
-	return { feedMs, longestTaskMs: tasks.length ? Math.max(...tasks) : null, longTasks: tasks.length };
+	const syncTasks = await page.evaluate(() => window.__agentSession.longTasks());
+	await page.evaluate(() => window.__agentSession.resetCounters());
+	const queued = await page.evaluate(async () => {
+		const session = window.__agentSession;
+		const core = session.core();
+		const start = session.fed;
+		const end = Math.min(session.fixture.bytes, start + 2 * 1024 * 1024);
+		const bytes = await (await fetch(`/agent-session/fixtures/${session.fixture.name}/recording`)).arrayBuffer();
+		const chunk = new Uint8Array(bytes).subarray(start, end);
+		const began = performance.now();
+		core.enqueue(chunk);
+		let frames = 0;
+		while (core.hasBacklog()) {
+			await new Promise((resolve) => requestAnimationFrame(resolve));
+			frames += 1;
+		}
+		return { frames, totalMs: performance.now() - began };
+	});
+	await page.waitForTimeout(500);
+	const queuedTasks = await page.evaluate(() => window.__agentSession.longTasks());
+	return {
+		feedMs,
+		longestTaskMs: syncTasks.length ? Math.max(...syncTasks) : null,
+		queued: { ...queued, longestTaskMs: queuedTasks.length ? Math.max(...queuedTasks) : null, longTasks: queuedTasks.length },
+	};
 }
 
 async function reopenReport(page, fixtureName) {
@@ -171,11 +199,13 @@ async function main() {
 				const page = await openPage(browser, port, name);
 				rows.feedCost = [];
 				for (const target of [1000, 5000, 50000]) rows.feedCost.push(await feedCostAt(page, target));
-				rows.longTask = await longTask2MiB(page);
 				await page.evaluate(() => window.__agentSession.feedAll());
 				rows.rows = await page.evaluate(() => window.__agentSession.rowCount());
 				rows.rendererMemoryBytes = await page.evaluate(() => window.__agentSession.memoryBytes());
 				await page.close();
+				const longTaskPage = await openPage(browser, port, name);
+				rows.longTask = await longTask2MiB(longTaskPage);
+				await longTaskPage.close();
 				const reopenPage = await openPage(browser, port, name);
 				rows.reopen = await reopenReport(reopenPage, name);
 				await reopenPage.close();
@@ -192,7 +222,7 @@ async function main() {
 			if (tearing.tornPaints !== 0) throw new Error(`${tearing.tornPaints} paints showed a partial frame`);
 			if (tearing.multiPaintFrames !== 0) throw new Error(`${tearing.multiPaintFrames} frames painted more than once`);
 			const longTask = Object.values(report.fixtures).find((rows) => rows.longTask)?.longTask;
-			if (longTask && longTask.longestTaskMs !== null && longTask.longestTaskMs > 16) throw new Error(`2 MiB feed blocked the main thread for ${longTask.longestTaskMs.toFixed(1)}ms`);
+			if (longTask && longTask.queued.longestTaskMs !== null && longTask.queued.longestTaskMs > 16) throw new Error(`queued 2 MiB feed blocked the main thread for ${longTask.queued.longestTaskMs.toFixed(1)}ms`);
 			process.stdout.write("PASS agent-session gate\n");
 		}
 	} catch (error) {

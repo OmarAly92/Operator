@@ -448,6 +448,8 @@ cd /Users/omaraly/development/AI/Operator/packages/terminal
 npm run build:wasm -- --force && npm run build:ts
 for p in core renderer-dom react; do (cd ts/$p && npx vitest run); done
 npm run bench:selection      # Playwright: a selection must survive 20 repaints
+npm run bench:feel           # Playwright: zero pixel diff vs bench/agent-session/baselines (record with -- --record)
+npm run bench:agent:gate     # Playwright: no torn paint under the spinner, queued 2 MiB never blocks > 16 ms
 
 # Frontend + daemon
 cd /Users/omaraly/development/AI/Operator/frontend && npx tsc --noEmit -p .
@@ -501,3 +503,5 @@ behaviour change. Commits go straight to `development`, message ends with the
   the upstream issue if it is upstream (§4.8). Do not chase it again.
 - If a Go test in `ptyhost` fails, check whether it is the pre-existing
   `TestProcessEnvironmentLetsOverridesWin` before assuming your change broke it.
+- A visual change must re-record the feel baselines (`npm run bench:feel -- --record`)
+  in the same commit and say why in the CHANGELOG.

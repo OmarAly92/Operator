@@ -20,6 +20,7 @@
 		"bench:gate": "node ./bench/gate.mjs",
 		"bench:agent": "node ./bench/agent-session/run.mjs",
 		"bench:agent:scroll": "node ./bench/agent-session/scroll-gate.mjs",
+		"bench:agent:gate": "node ./bench/agent-session/run.mjs --gate",
 		"bench:feel": "node ./bench/agent-session/feel-gate.mjs"
 	},
 	"devDependencies": {
