@@ -89,9 +89,11 @@ live** and then dropped keeps today's reconnect-in-place behaviour.
   (not `firstAwaitCtx`, which is cancelled the moment the attempt ends). This is the
   path `supervise` already uses, so stickiness, `NeedsAuthtoken`, the "both
   refused" terminal state and the `OnProvider` notification all stay in one place.
-  `supervise` must not also run its post-exit classification for this case: the
-  first-attempt `select` gains a case for a new `startFailed` channel closed by
-  `runAwaitURL`, on which `supervise` returns after the child is reaped.
+  `supervise` must not also run its post-exit classification for this case:
+  `runAwaitURL` calls `cancel()` (the run context) and waits on `<-done` before
+  classifying, exactly as the existing failed path does, so `supervise`'s
+  first-attempt `select` takes its `ctx.Done()` case, stops the child and returns
+  without classifying. No new channel is needed.
 - `combineFailure` is untouched. `runAwaitURL` itself maps `FailureUnknown` and
   `FailureNetwork` to `FailureRefused` before calling `handleProviderRefusal`, so
   a never-published attempt always falls back. `FailureNetwork` still means
