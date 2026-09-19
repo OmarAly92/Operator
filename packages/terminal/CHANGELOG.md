@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+Cell metrics are measured once per font change.
+
+- `DomBlockRenderer.measure()` caches the cell width and height and
+  invalidates on `setFont`, `setTheme`, a `devicePixelRatio` change
+  (`matchMedia` resolution query, xterm.js `DomRenderer.ts`
+  `handleDevicePixelRatioChange`), instead
+  of forcing a layout read on every paint, every selection update and every
+  jump-to-bottom check (xterm.js `CharSizeService.ts`).
+
 Bytes are parsed under a per-frame budget.
 
 - `TerminalCore.enqueue(bytes)` queues output and `drain(deadlineMs = 12)`

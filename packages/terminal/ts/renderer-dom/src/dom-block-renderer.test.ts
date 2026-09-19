@@ -467,4 +467,22 @@ describe("measure", () => {
 		expect(node.style.lineHeight).toBe(`${font.lineHeight * font.sizePx}px`);
 		renderer.dispose();
 	});
+
+	it("measure() reads layout once until the font changes", () => {
+		const { renderer } = mountWith("alpha");
+		const spy = vi.spyOn(HTMLElement.prototype, "getBoundingClientRect");
+		renderer.measure();
+		renderer.measure();
+		renderer.blockContentInset();
+		const measureNode = document.getElementById("terminal-m-measure")!;
+		const measureCalls = () => spy.mock.contexts.filter((context) => context === measureNode).length;
+		expect(measureCalls()).toBe(1);
+		renderer.setFont({ ...font, sizePx: 16 });
+		renderer.measure();
+		renderer.measure();
+		expect(measureCalls()).toBe(2);
+		renderer.setTheme({ ...theme, foreground: "#ffffff" });
+		renderer.measure();
+		expect(measureCalls()).toBe(3);
+	});
 });

@@ -78,6 +78,9 @@ export class DomBlockRenderer implements BlockRenderer {
 	private filledRows: HTMLElement[] = [];
 	private selection: SelectionState | null = null;
 	private readonly selectionListeners = new Set<() => void>();
+	private metricsCache: { cellWidth: number; cellHeight: number } | null = null;
+	private dprQuery: MediaQueryList | null = null;
+	private readonly onDprChange = () => this.invalidateMetrics();
 
 	mount(container: HTMLElement, core: TerminalCore): void {
 		this.dispose();
@@ -120,11 +123,13 @@ export class DomBlockRenderer implements BlockRenderer {
 	setTheme(theme: TerminalTheme): void {
 		this.theme = theme;
 		this.applyStyleVars();
+		this.invalidateMetrics();
 	}
 
 	setFont(font: FontConfig): void {
 		this.font = font;
 		this.applyStyleVars();
+		this.invalidateMetrics();
 	}
 
 	setFilter(filter: BlockFilter | null): void {
@@ -137,6 +142,7 @@ export class DomBlockRenderer implements BlockRenderer {
 	}
 
 	measure(): { cellWidth: number; cellHeight: number } {
+		if (this.metricsCache) return this.metricsCache;
 		const host = this.measureHost ?? ensureMeasureHost();
 		const node = this.measureNode ?? host.querySelector<HTMLElement>(`#${HIDDEN_MEASURE_ID}`);
 		if (!node) {
@@ -147,7 +153,22 @@ export class DomBlockRenderer implements BlockRenderer {
 		const cellWidth = rect.width > 0 ? rect.width : this.font.sizePx * 0.6;
 		const cellHeight =
 			rect.height > 0 ? rect.height : this.font.lineHeight * this.font.sizePx;
-		return { cellWidth, cellHeight };
+		this.metricsCache = { cellWidth, cellHeight };
+		this.watchDevicePixelRatio();
+		return this.metricsCache;
+	}
+
+	private invalidateMetrics(): void {
+		this.metricsCache = null;
+		this.scheduleRepaint();
+	}
+
+	// xterm.js src/browser/renderer/dom/DomRenderer.ts:330-334 (handleDevicePixelRatioChange)
+	private watchDevicePixelRatio(): void {
+		if (typeof matchMedia !== "function") return;
+		this.dprQuery?.removeEventListener("change", this.onDprChange);
+		this.dprQuery = matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`);
+		this.dprQuery.addEventListener("change", this.onDprChange);
 	}
 
 	// The space a block reserves around its rows. A grid sized to the host rather
@@ -281,6 +302,9 @@ export class DomBlockRenderer implements BlockRenderer {
 		this.lastPaintAt = null;
 		this.wasAltActive = false;
 		this.selection = null;
+		this.dprQuery?.removeEventListener("change", this.onDprChange);
+		this.dprQuery = null;
+		this.metricsCache = null;
 	}
 
 	/// Notifies when a repaint has actually landed in the DOM.
