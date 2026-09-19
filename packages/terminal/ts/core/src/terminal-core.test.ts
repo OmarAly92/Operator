@@ -151,3 +151,38 @@ describe("TerminalCore alternate screen", () => {
 		core.dispose();
 	});
 });
+
+describe("TerminalCore synchronized output", () => {
+	const BSU = "\x1b[?2026h";
+	const ESU = "\x1b[?2026l";
+
+	it("notifies a pending sync block without exposing it, and flushes on the terminator", () => {
+		const core = createTerminalCore({ columns: 16, scrollback: 100 });
+		const listener = vi.fn();
+		core.onChange(listener);
+		const generationBefore = core.snapshot().generation;
+		core.feed(new TextEncoder().encode(`${BSU}hidden`));
+		expect(listener).toHaveBeenCalledTimes(1);
+		expect(core.snapshot().generation).toBe(generationBefore);
+		expect(core.synchronizedOutput()).toBe(true);
+		expect(new TextDecoder().decode(core.snapshot().content)).toBe("");
+		core.feed(new TextEncoder().encode(ESU));
+		expect(listener).toHaveBeenCalledTimes(2);
+		expect(core.synchronizedOutput()).toBe(false);
+		expect(new TextDecoder().decode(core.snapshot().content)).toBe("hidden");
+	});
+
+	it("tick past the deadline flushes and notifies", () => {
+		const core = createTerminalCore({ columns: 16, scrollback: 100 });
+		const listener = vi.fn();
+		core.onChange(listener);
+		const start = performance.now();
+		core.feed(new TextEncoder().encode(`${BSU}late`));
+		expect(listener).toHaveBeenCalledTimes(1);
+		expect(core.tick(start + 100)).toBe(false);
+		expect(listener).toHaveBeenCalledTimes(1);
+		expect(core.tick(start + 200)).toBe(true);
+		expect(listener).toHaveBeenCalledTimes(2);
+		expect(new TextDecoder().decode(core.snapshot().content)).toBe("late");
+	});
+});

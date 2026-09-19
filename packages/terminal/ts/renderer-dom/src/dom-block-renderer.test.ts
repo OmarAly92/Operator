@@ -353,6 +353,28 @@ describe("DomBlockRenderer", () => {
 		expect(reserved).toBeGreaterThan(4_000 * 16);
 		renderer.dispose();
 	});
+
+	it("does not paint a half frame", async () => {
+		const { core, host } = mountWith("alpha");
+		feed(core, "\x1b[?2026h\r\nbeta");
+		await flushRepaint();
+		expect(host.querySelectorAll("[data-terminal-row]")).toHaveLength(1);
+		expect(host.textContent).toBe("alpha");
+		feed(core, "\x1b[?2026l");
+		await flushRepaint();
+		expect(host.querySelectorAll("[data-terminal-row]")).toHaveLength(2);
+		expect(host.textContent).toBe("alphabeta");
+	});
+
+	it("paints a buffered frame once the deadline passes without more bytes", async () => {
+		const { core, host } = mountWith("alpha");
+		feed(core, "\x1b[?2026h\r\nbeta");
+		await flushRepaint();
+		expect(host.textContent).toBe("alpha");
+		await new Promise((resolve) => setTimeout(resolve, 180));
+		await flushRepaint();
+		expect(host.textContent).toBe("alphabeta");
+	});
 });
 
 describe("extended colour", () => {

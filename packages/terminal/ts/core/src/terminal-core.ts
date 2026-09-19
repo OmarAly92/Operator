@@ -41,6 +41,7 @@ export class TerminalCore {
 	private readonly listeners: Set<ChangeListener> = new Set();
 	private readonly completions: CompletionDispatcher;
 	private disposed = false;
+	private lastNotifiedGeneration = 0;
 
 	constructor(inner: WasmTerminalCore, host: HostCapabilities) {
 		this.inner = inner;
@@ -66,7 +67,41 @@ export class TerminalCore {
 		if (this.disposed) {
 			return;
 		}
-		this.inner.feed(bytes);
+		this.inner.feed(bytes, nowMs());
+		if (!this.notifyIfChanged() && this.inner.synchronized_output()) {
+			this.notifyAll();
+		}
+	}
+
+	tick(nowMs: number): boolean {
+		if (this.disposed) {
+			return false;
+		}
+		if (!this.inner.tick(nowMs)) {
+			return false;
+		}
+		this.notifyIfChanged();
+		return true;
+	}
+
+	synchronizedOutput(): boolean {
+		if (this.disposed) {
+			return false;
+		}
+		return this.inner.synchronized_output();
+	}
+
+	private notifyIfChanged(): boolean {
+		const generation = this.inner.generation();
+		if (generation === this.lastNotifiedGeneration) {
+			return false;
+		}
+		this.lastNotifiedGeneration = generation;
+		this.notifyAll();
+		return true;
+	}
+
+	private notifyAll(): void {
 		const generation = this.inner.generation();
 		// Every listener runs even when one throws: the core has already
 		// consumed the bytes, so skipping the rest would leave subscribers
@@ -155,9 +190,7 @@ export class TerminalCore {
 			return;
 		}
 		this.inner.resize(columns, rows);
-		for (const listener of this.listeners) {
-			listener(this.inner.generation());
-		}
+		this.notifyIfChanged();
 	}
 
 	findOpen(query: string, isRegex: boolean): number {
@@ -278,6 +311,10 @@ export class TerminalCore {
 		this.listeners.clear();
 		this.inner.free();
 	}
+}
+
+function nowMs(): number {
+	return typeof performance !== "undefined" ? performance.now() : Date.now();
 }
 
 function validateEvenLength(name: string, length: number): void {
