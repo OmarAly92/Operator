@@ -28,6 +28,7 @@ Every task inherits these; they are the spec's "Global constraints" plus `TERMIN
 ## Deviations from the spec, decided here
 
 - **§2.3 TextMetrics.** The spec prefers `measureText('W')` + `fontBoundingBoxAscent/Descent` with the DOM span as fallback. Task 7 caches the DOM-span measurement and adds no `TextMetrics` path: once cached, the measurement runs once per font/DPR change so the strategy no longer affects cost, and the feel gate requires the exact numbers the span produced today (a `TextMetrics` height is the font box, not the span's rect, and would move every row). If the user wants `TextMetrics` anyway it is a one-function change behind the same cache.
+- **§2.3 `ResizeObserver` on the measure host.** Not added. `#terminal-measure-host` is a document-wide singleton (`host-dom.ts:3-19`) whose span every renderer restyles in `measure()`; `observe()` fires an initial notification (one spurious invalidate per renderer) and two renderers with different fonts would invalidate each other forever. `setFont`/`setTheme` and the DPR query cover every way the cell size changes.
 - **§2.4 "export prefix counters ≤ actual lengths".** Those counters (`history_exported_rows/bytes`) are Plan B's; the checker gains that clause when they exist.
 - **§2.4 "`wrapped` rows are followed by a row".** Pinned as "a `wrapped` row is never empty" plus contiguity: the continuation of the last scrollback row can legitimately sit on the screen, and an in-place clear may have blanked it, so "followed by a row" is not a true invariant of the model.
 - **§2.4 "blocks tile the flat row space in order without overlap".** Not an invariant of this model: `Parser::open_block` starts a block at the cursor row (`block_start_row`, `parser.rs:283-286`), so a prompt mark after a cursor-up legitimately opens a block above the previous block's end, and the random CUP + OSC 133 sequences of the property test hit that at once. The checker pins what does hold — every block lies inside the flat row space and `next_row` does not run past it — and the spec's overlap clause is dropped rather than encoded as a known-failing test.
@@ -2504,12 +2505,18 @@ fn core() -> TerminalCore {
 
 fn screen(core: &TerminalCore) -> Vec<String> {
     let snapshot = core.snapshot().unwrap();
-    (0..snapshot.row_count()).map(|i| snapshot.row_text(i).to_string()).collect()
+    let mut rows: Vec<String> = (0..snapshot.row_count()).map(|i| snapshot.row_text(i).to_string()).collect();
+    while rows.last().is_some_and(|row| row.is_empty()) {
+        rows.pop();
+    }
+    rows
 }
 
 fn cat(parts: &[&[u8]]) -> Vec<u8> {
     parts.concat()
 }
+
+(`screen` drops trailing empty rows because the export always includes the cursor row — `content_rows = max_cursor_row + 1`, `screen.rs:199-201` — so `"one\r\n"` exports `["one", ""]` and a fresh core `[""]`.)
 
 #[test]
 fn bytes_inside_a_sync_block_are_invisible_until_esu() {
@@ -2570,6 +2577,20 @@ fn overflow_flushes() {
         fed += row.len();
     }
     assert!(!screen(&core).is_empty(), "the cap must force a flush without an ESU");
+    common::check(&core);
+}
+
+#[test]
+fn an_oversized_chunk_starting_with_bsu_is_parsed_plainly() {
+    let mut core = core();
+    let row = [b"x".repeat(38).as_slice(), b"\r\n"].concat();
+    let mut chunk = BSU.to_vec();
+    while chunk.len() < SYNC_BUFFER_CAP {
+        chunk.extend_from_slice(&row);
+    }
+    assert!(core.feed_at(&chunk, 0));
+    assert!(!core.synchronized_output());
+    assert!(!screen(&core).is_empty());
     common::check(&core);
 }
 
@@ -2810,6 +2831,9 @@ impl SyncBuffer {
             if self.sync.is_active() {
                 if self.sync.would_overflow(rest.len()) {
                     parsed |= self.flush_sync(None);
+                    self.feed_raw(rest);
+                    parsed = true;
+                    rest = &[];
                     continue;
                 }
                 match self.sync.append(rest, now_ms) {
@@ -2907,12 +2931,12 @@ impl SyncBuffer {
 The two existing comment blocks inside today's `feed` ("Marks are decoded separately…" and "Re-read the alt-screen state…") move with the body unchanged.
 ```
 
-`resize`: add `self.flush_sync(None);` as its first statement. A `FlushBefore(keep_from)` keeps the deadline `append` just extended (the newer BSU's), exactly as `stop_sync_internal(Some(bsu_offset))` does at `ansi.rs:340-348`.
+`resize`: add `self.flush_sync(None);` as its first statement. A `FlushBefore(keep_from)` keeps the deadline `append` just extended (the newer BSU's), exactly as `stop_sync_internal(Some(bsu_offset))` does at `ansi.rs:340-348`. A chunk that would overflow the cap is flushed *and then parsed plainly* (`ansi.rs:375-381`): flushing alone and looping would find the same BSU again and spin when the buffer is empty and the chunk itself is over the cap.
 
 - [ ] **Step 5: Run the tests**
 
 Run: `cd /Users/omaraly/development/AI/Operator/packages/terminal && cargo test -p vt-core --test synchronized_output && cargo test`
-Expected: all 13 new tests pass and the whole workspace still passes (every existing test calls `feed`, which now routes through `feed_at` with clock 0; none of them contain `?2026`).
+Expected: all 14 new tests pass and the whole workspace still passes (every existing test calls `feed`, which now routes through `feed_at` with clock 0; none of them contain `?2026`).
 
 - [ ] **Step 6: CHANGELOG and commit**
 
@@ -2947,16 +2971,18 @@ describe("TerminalCore synchronized output", () => {
 	const BSU = "\x1b[?2026h";
 	const ESU = "\x1b[?2026l";
 
-	it("does not notify while a frame is buffered and flushes on the terminator", () => {
+	it("notifies a pending sync block without exposing it, and flushes on the terminator", () => {
 		const core = createTerminalCore({ columns: 16, scrollback: 100 });
 		const listener = vi.fn();
 		core.onChange(listener);
+		const generationBefore = core.snapshot().generation;
 		core.feed(new TextEncoder().encode(`${BSU}hidden`));
-		expect(listener).not.toHaveBeenCalled();
+		expect(listener).toHaveBeenCalledTimes(1);
+		expect(core.snapshot().generation).toBe(generationBefore);
 		expect(core.synchronizedOutput()).toBe(true);
 		expect(new TextDecoder().decode(core.snapshot().content)).toBe("");
 		core.feed(new TextEncoder().encode(ESU));
-		expect(listener).toHaveBeenCalledTimes(1);
+		expect(listener).toHaveBeenCalledTimes(2);
 		expect(core.synchronizedOutput()).toBe(false);
 		expect(new TextDecoder().decode(core.snapshot().content)).toBe("hidden");
 	});
@@ -2967,10 +2993,11 @@ describe("TerminalCore synchronized output", () => {
 		core.onChange(listener);
 		const start = performance.now();
 		core.feed(new TextEncoder().encode(`${BSU}late`));
-		expect(core.tick(start + 100)).toBe(false);
-		expect(listener).not.toHaveBeenCalled();
-		expect(core.tick(start + 200)).toBe(true);
 		expect(listener).toHaveBeenCalledTimes(1);
+		expect(core.tick(start + 100)).toBe(false);
+		expect(listener).toHaveBeenCalledTimes(1);
+		expect(core.tick(start + 200)).toBe(true);
+		expect(listener).toHaveBeenCalledTimes(2);
 		expect(new TextDecoder().decode(core.snapshot().content)).toBe("late");
 	});
 });
@@ -3062,7 +3089,9 @@ Replace `feed`:
 			return;
 		}
 		this.inner.feed(bytes, nowMs());
-		this.notifyIfChanged();
+		if (!this.notifyIfChanged() && this.inner.synchronized_output()) {
+			this.notifyAll();
+		}
 	}
 
 	tick(nowMs: number): boolean {
@@ -3083,12 +3112,18 @@ Replace `feed`:
 		return this.inner.synchronized_output();
 	}
 
-	private notifyIfChanged(): void {
+	private notifyIfChanged(): boolean {
 		const generation = this.inner.generation();
 		if (generation === this.lastNotifiedGeneration) {
-			return;
+			return false;
 		}
 		this.lastNotifiedGeneration = generation;
+		this.notifyAll();
+		return true;
+	}
+
+	private notifyAll(): void {
+		const generation = this.inner.generation();
 		let failures: unknown[] | null = null;
 		for (const listener of this.listeners) {
 			try {
@@ -3103,7 +3138,7 @@ Replace `feed`:
 	}
 ```
 
-The existing comment block inside `feed` ("Every listener runs even when one throws…") moves with the loop into `notifyIfChanged` unchanged. `resize` becomes `this.inner.resize(columns, rows); this.notifyIfChanged();`.
+The existing comment block inside `feed` ("Every listener runs even when one throws…") moves with the loop into `notifyAll` unchanged. `resize` becomes `this.inner.resize(columns, rows); this.notifyIfChanged();`. A feed that only buffered still notifies (generation unchanged, so subscribers re-read the same model): the renderer schedules frames from `onChange` alone (`dom-block-renderer.ts:112`), and that frame's `tick` is what paints a stalled block after the deadline — without the notification a `BSU` with no terminator would sit unpainted until the next byte.
 
 - [ ] **Step 10: Renderer tick**
 
@@ -3527,6 +3562,9 @@ func (h *host) tickParser() {
 				}
 				timerArmed = false
 				flush()
+				if !holdUntil.IsZero() {
+					arm(time.Until(holdUntil))
+				}
 			} else if !timerArmed {
 				arm(flushInterval - time.Since(lastFlush))
 			}
@@ -3539,8 +3577,32 @@ func (h *host) tickParser() {
 			holdUntil = time.Time{}
 			h.tickParser()
 			flush()
+			if !holdUntil.IsZero() {
+				arm(time.Until(holdUntil))
+			}
 		}
 	}
+```
+
+A flush that leaves the mirror inside a sync block always arms the timer for the hold deadline, even when nothing else arrives: the deadline tick is what flushes a stalled child's half frame into the mirror, so `GetOutput` and an attach replay see it after 150 ms rather than at the next byte. Add to `host_test.go`:
+
+```go
+func TestAStalledSyncBlockReachesTheMirrorAtTheDeadline(t *testing.T) {
+	f, c := newTestHostWithParser(t)
+	defer f.cancel()
+	defer c.close()
+	syncClientRegistered(t, c)
+
+	f.feedPTY(t, "\x1b[?2026h\x1b[2K\rstalled")
+	c.readFrame(t)
+	if text := c.getOutput(t, 5); strings.Contains(text, "stalled") {
+		t.Fatalf("mirror exposed an open sync block: %q", text)
+	}
+	time.Sleep(syncHoldTimeout + 50*time.Millisecond)
+	if text := c.getOutput(t, 5); !strings.Contains(text, "stalled") {
+		t.Fatalf("mirror after the deadline = %q, want the stalled frame", text)
+	}
+}
 ```
 
 The mirror is ticked *before* the deadline flush so its own expired buffer is parsed first and `deliver` then sees `InSync() == false` — otherwise a stalled child would re-arm the hold every 150 ms. `replayFrameLocked`: before `rendered, err := h.parser.Replay(MaxOutputLines)` add
@@ -3587,11 +3649,12 @@ Add to `TERMINAL.md` after §4.15:
   `overflow_flushes`, `tick_past_deadline_flushes`, `bsu_inside_a_block_extends_the_deadline`,
   `resize_flushes`, `unknown_private_modes_still_ignored`, `a_bsu_split_byte_by_byte_still_buffers`,
   `a_boundary_mark_inside_a_sync_block_flushes`); `ts/core/src/terminal-core.test.ts`
-  "does not notify while a frame is buffered…", "tick past the deadline flushes and notifies";
+  "notifies a pending sync block without exposing it…", "tick past the deadline flushes and notifies";
   `dom-block-renderer.test.ts` "does not paint a half frame", "paints a buffered frame once the
   deadline passes…"; Go `vtwasm_test.go::TestFeedAtBuffersASyncBlockUntilItsTerminator`,
   `TestTickPastTheDeadlineFlushesTheSyncBlock`, `replay_test.go::TestReplayNeverStartsInsideASyncBlock`,
-  `host_test.go::TestDeliverHoldsAcrossASyncBlock`, `TestSyncHoldEndsAtTheDeadlineAndTicksTheMirror`;
+  `host_test.go::TestDeliverHoldsAcrossASyncBlock`, `TestSyncHoldEndsAtTheDeadlineAndTicksTheMirror`,
+  `TestAStalledSyncBlockReachesTheMirrorAtTheDeadline`;
   `bench/agent-session/run.mjs --gate` (zero torn paints, Task 8).
 ```
 
@@ -3601,7 +3664,8 @@ Add to the CHANGELOG entry from Step 6 two bullets:
 - The renderer ticks the core's sync deadline at the top of every animation
   frame and keeps painting frames while a block is open, so a stalled
   application is shown after 150 ms at the latest; `TerminalCore.feed` and
-  `resize` notify `onChange` only when the model changed.
+  `resize` notify `onChange` when the model changed or a sync block is
+  pending, never for a feed that changed nothing.
 - The host mirror (`vt-host`) takes the clock on `vt_feed`, exposes `vt_tick`
   and `vt_in_sync`, and `vt_replay` appends the bytes of an open sync block
   after the last complete frame so an attach never paints half a frame and
@@ -3783,24 +3847,9 @@ Add methods after `feed`:
 			this.feedParsedListeners.delete(listener);
 		};
 	}
-
-	private notifyAll(): void {
-		const generation = this.inner.generation();
-		let failures: unknown[] | null = null;
-		for (const listener of this.listeners) {
-			try {
-				listener(generation);
-			} catch (error) {
-				(failures ??= []).push(error);
-			}
-		}
-		if (failures) {
-			throw new AggregateError(failures, "terminal core change listener failed");
-		}
-	}
 ```
 
-and make Task 5's `notifyIfChanged` call `notifyAll()` after updating `lastNotifiedGeneration` (one loop, two entry points). In `dispose`, add `this.backlog = []; this.backlogBytes = 0; this.feedParsedListeners.clear();` before `this.inner.free()`. Export the two constants from `index-browser.ts` next to `FIND_STEP_BUDGET`:
+(`notifyAll` and `notifyIfChanged` exist since Task 5; `enqueue` reuses them.) In `dispose`, add `this.backlog = []; this.backlogBytes = 0; this.feedParsedListeners.clear();` before `this.inner.free()`. Export the two constants from `index-browser.ts` next to `FIND_STEP_BUDGET`:
 
 ```ts
 export { FEED_BUDGET_MS, FEED_SLICE_BYTES, FIND_STEP_BUDGET } from "./terminal-core.js";
@@ -3970,7 +4019,7 @@ Reference: xterm.js `src/browser/services/CharSizeService.ts:11-40` (measure on 
 
 **Interfaces:**
 - Consumes: `measure()`, `applyFontToMeasureNode`, `setFont`, `setTheme`, `dispose`, `ensureMeasureHost`.
-- Produces: the same `measure(): { cellWidth, cellHeight }` signature; a private `invalidateMetrics()`; private `metricsCache: { cellWidth: number; cellHeight: number } | null`, `dprQuery: MediaQueryList | null`, `measureObserver: ResizeObserver | null`.
+- Produces: the same `measure(): { cellWidth, cellHeight }` signature; a private `invalidateMetrics()`; private `metricsCache: { cellWidth: number; cellHeight: number } | null`, `dprQuery: MediaQueryList | null`.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -4009,7 +4058,6 @@ Expected: FAIL — `expected 3 to be 1` (every call reads layout today).
 	private metricsCache: { cellWidth: number; cellHeight: number } | null = null;
 	private dprQuery: MediaQueryList | null = null;
 	private readonly onDprChange = () => this.invalidateMetrics();
-	private measureObserver: ResizeObserver | null = null;
 ```
 
 Replace `measure()`:
@@ -4028,7 +4076,7 @@ Replace `measure()`:
 		const cellHeight =
 			rect.height > 0 ? rect.height : this.font.lineHeight * this.font.sizePx;
 		this.metricsCache = { cellWidth, cellHeight };
-		this.watchMetrics(host);
+		this.watchDevicePixelRatio();
 		return this.metricsCache;
 	}
 
@@ -4037,16 +4085,11 @@ Replace `measure()`:
 		this.scheduleRepaint();
 	}
 
-	private watchMetrics(host: HTMLElement): void {
-		if (typeof matchMedia === "function") {
-			this.dprQuery?.removeEventListener("change", this.onDprChange);
-			this.dprQuery = matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`);
-			this.dprQuery.addEventListener("change", this.onDprChange);
-		}
-		if (!this.measureObserver && typeof ResizeObserver === "function") {
-			this.measureObserver = new ResizeObserver(() => this.invalidateMetrics());
-			this.measureObserver.observe(host);
-		}
+	private watchDevicePixelRatio(): void {
+		if (typeof matchMedia !== "function") return;
+		this.dprQuery?.removeEventListener("change", this.onDprChange);
+		this.dprQuery = matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`);
+		this.dprQuery.addEventListener("change", this.onDprChange);
 	}
 ```
 
@@ -4055,8 +4098,6 @@ In `setTheme` and `setFont`, call `this.invalidateMetrics();` after `this.applyS
 ```ts
 		this.dprQuery?.removeEventListener("change", this.onDprChange);
 		this.dprQuery = null;
-		this.measureObserver?.disconnect();
-		this.measureObserver = null;
 		this.metricsCache = null;
 ```
 
@@ -4075,7 +4116,7 @@ Cell metrics are measured once per font change.
 - `DomBlockRenderer.measure()` caches the cell width and height and
   invalidates on `setFont`, `setTheme`, a `devicePixelRatio` change
   (`matchMedia` resolution query, xterm.js `DomRenderer.ts`
-  `handleDevicePixelRatioChange`) and a resize of the measure host, instead
+  `handleDevicePixelRatioChange`), instead
   of forcing a layout read on every paint, every selection update and every
   jump-to-bottom check (xterm.js `CharSizeService.ts`).
 ```
