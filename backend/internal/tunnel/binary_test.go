@@ -237,6 +237,30 @@ func TestStoreRejectsChecksumMismatch(t *testing.T) {
 	}
 }
 
+func TestResolvePrefersPathThenManagedCacheWithoutDownloading(t *testing.T) {
+	dir := t.TempDir()
+	spec := BinarySpec{Name: "ngrok", Version: "stable", MinVersion: "3.0.0"}
+	s := NewStore(StoreDeps{
+		Dir:      dir,
+		LookPath: func(string) (string, error) { return "/opt/homebrew/bin/ngrok", nil },
+		Version:  func(string) (string, error) { return "3.39.6", nil },
+	})
+	if path, source, ok := s.Resolve(spec); !ok || source != "path" || path != "/opt/homebrew/bin/ngrok" {
+		t.Fatalf("Resolve = %q %q %v", path, source, ok)
+	}
+	s = NewStore(StoreDeps{Dir: dir, LookPath: func(string) (string, error) { return "", errors.New("nope") }})
+	if _, _, ok := s.Resolve(spec); ok {
+		t.Fatal("nothing cached: must report not resolved, never download")
+	}
+	cached := filepath.Join(dir, "ngrok-stable")
+	if err := os.WriteFile(cached, []byte("#!/bin/sh\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if path, source, ok := s.Resolve(spec); !ok || source != "managed" || path != cached {
+		t.Fatalf("Resolve = %q %q %v", path, source, ok)
+	}
+}
+
 func TestStoreReusesCachedBinaryWithoutDownloading(t *testing.T) {
 	payload := []byte("fake-ngrok")
 	var hits int

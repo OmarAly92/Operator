@@ -73,6 +73,17 @@ func (s *Store) Ensure(ctx context.Context, spec BinarySpec) (string, error) {
 	return s.download(ctx, spec, cached)
 }
 
+func (s *Store) Resolve(spec BinarySpec) (string, string, bool) {
+	if path, ok := s.fromPath(spec); ok {
+		return path, "path", true
+	}
+	cached := s.cachedPath(spec)
+	if _, err := os.Stat(cached); err == nil {
+		return cached, "managed", true
+	}
+	return "", "", false
+}
+
 func (s *Store) fromPath(spec BinarySpec) (string, bool) {
 	path, err := s.lookPath(spec.Name)
 	if err != nil || path == "" {
