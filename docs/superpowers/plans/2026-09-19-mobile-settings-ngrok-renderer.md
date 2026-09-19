@@ -302,13 +302,13 @@ The original placed the tunnel row *between* the enable row and the pairing deta
 ```tsx
 test("renders connection and public access inside the Mobile tab", async () => {
 	render(<QueryClientProvider client={client}><MobileSettingsSection /></QueryClientProvider>);
-	expect(await screen.findByRole("switch", { name: "Allow mobile pairing" })).toBeInTheDocument();
+	expect(await screen.findByRole("switch", { name: "Enable mobile" })).toBeInTheDocument();
 	expect(screen.getByRole("switch", { name: "Reachable outside my network" })).toBeInTheDocument();
 	expect(screen.getByText("ngrok")).toBeInTheDocument();
 });
 ```
 
-(Check `en.json` for the exact `mobile.enable` string and use it in the `name`.)
+(`mobile.enable` is "Enable mobile" in `en.json:303`.)
 
 - [ ] **Step 2: Run** → FAIL.
 
