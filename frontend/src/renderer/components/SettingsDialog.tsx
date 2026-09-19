@@ -93,13 +93,6 @@ export function SettingsDialog() {
 		else openProjectSettings(previousSettings.projectId);
 	};
 
-	const openConnectMobile = () => {
-		if (!settingsModal) return;
-		connectMobileRestoreRef.current = settingsModal;
-		setConnectMobileOpen(true);
-		closeSettings();
-	};
-
 	const restoreConnectMobileSettings = () => {
 		const previousSettings = connectMobileRestoreRef.current;
 		connectMobileRestoreRef.current = null;
@@ -225,7 +218,6 @@ export function SettingsDialog() {
 								<GlobalSettingsForm
 									section={activeSection}
 									onOpenKeyboardShortcuts={openKeyboardShortcuts}
-									onOpenConnectMobile={openConnectMobile}
 								/>
 							)}
 						</div>

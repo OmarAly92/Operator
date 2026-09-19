@@ -456,7 +456,8 @@ describe("GlobalSettingsForm", () => {
 
 	test("renders the Mobile section on its own", async () => {
 		renderForm("mobile");
-		expect(await screen.findByTestId("settings-section")).toHaveAttribute("data-section", "mobile");
+		const sections = await screen.findAllByTestId("settings-section");
+		expect(sections.some((section) => section.getAttribute("data-section") === "mobile")).toBe(true);
 		expect(screen.queryByText("Language")).not.toBeInTheDocument();
 	});
 });

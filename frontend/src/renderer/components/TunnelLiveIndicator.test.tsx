@@ -21,7 +21,7 @@ function tunnel(state: string, provider = "ngrok") {
 describe("TunnelLiveIndicator", () => {
 	beforeEach(() => {
 		tunnelStatus.current = undefined;
-		useUiStore.setState({ connectMobileOpen: false });
+		useUiStore.setState({ connectMobileOpen: false, settingsModal: null });
 	});
 
 	test("renders nothing while there is no tunnel status", () => {
@@ -57,7 +57,8 @@ describe("TunnelLiveIndicator", () => {
 
 		await userEvent.click(screen.getByRole("button", { name: "Reachable outside my network" }));
 
-		expect(useUiStore.getState().connectMobileOpen).toBe(true);
+		expect(useUiStore.getState().settingsModal).toEqual({ scope: "global", section: "mobile" });
+		expect(useUiStore.getState().connectMobileOpen).toBe(false);
 	});
 
 	test("the collapsed rail button opens Connect Mobile too", async () => {
@@ -70,6 +71,7 @@ describe("TunnelLiveIndicator", () => {
 
 		await userEvent.click(screen.getByRole("button", { name: "Reachable outside my network" }));
 
-		expect(useUiStore.getState().connectMobileOpen).toBe(true);
+		expect(useUiStore.getState().settingsModal).toEqual({ scope: "global", section: "mobile" });
+		expect(useUiStore.getState().connectMobileOpen).toBe(false);
 	});
 });

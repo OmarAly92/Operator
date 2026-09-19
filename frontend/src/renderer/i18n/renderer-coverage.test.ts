@@ -34,6 +34,7 @@ const approvedLiterals: Record<string, readonly string[]> = {
 	],
 	"components/settings/ConnectMobileSetup.tsx": ["tailscale ip -4"],
 	"components/settings/UpdatesSection.tsx": ["PR #"],
+	"components/settings/mobile/MobileSettingsSection.tsx": ["ngrok"],
 };
 
 const deferredLocalizationFiles = new Set<string>([]);

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useUiStore } from "../stores/ui-store";
 import { ClaudeAccountsSection } from "./settings/ClaudeAccountsSection";
 import { GeneralSettingsSection } from "./settings/GeneralSettingsSection";
 import { MobileSettingsSection } from "./settings/mobile/MobileSettingsSection";
@@ -13,11 +14,9 @@ export type GlobalSettingsSection = "general" | "claudeAccounts" | "mobile" | "u
 export function GlobalSettingsForm({
 	section = "all",
 	onOpenKeyboardShortcuts,
-	onOpenConnectMobile,
 }: {
 	section?: GlobalSettingsSection;
 	onOpenKeyboardShortcuts?: () => void;
-	onOpenConnectMobile?: () => void;
 }) {
 	const { t } = useTranslation();
 	const [reportProblemOpen, setReportProblemOpen] = useState(false);
@@ -36,7 +35,7 @@ export function GlobalSettingsForm({
 				{(section === "all" || section === "general") && (
 					<>
 						<GeneralSettingsSection
-							onConnectMobile={() => onOpenConnectMobile?.()}
+							onConnectMobile={() => useUiStore.getState().openMobileSettings()}
 							titleHidden={leadingTitleHidden}
 						/>
 						<SettingsSection title={t("settings.preferences")} grouped>
