@@ -255,6 +255,31 @@ func TestNgrokPrepareRewritesTheWebAddrOnEveryLaunch(t *testing.T) {
 	}
 }
 
+func TestRemoveNgrokAuthtokenKeepsWebAddrAndVersion(t *testing.T) {
+	in := "version: \"3\"\nagent:\n    authtoken: abc123\n    web_addr: 127.0.0.1:4040\n"
+	got := removeNgrokAuthtoken(in)
+	want := "version: \"3\"\nagent:\n    web_addr: 127.0.0.1:4040\n"
+	if got != want {
+		t.Fatalf("got %q, want %q", got, want)
+	}
+}
+
+func TestNgrokArgsAppendTheStableDomain(t *testing.T) {
+	p := NgrokProvider(NgrokConfig{Domain: func() string { return "phone.example.ngrok.app" }})
+	args := p.Args(3011, 4040)
+	joined := strings.Join(args, " ")
+	if !strings.Contains(joined, "--url=https://phone.example.ngrok.app") {
+		t.Fatalf("args = %v, want --url with the domain", args)
+	}
+}
+
+func TestNgrokArgsOmitTheURLFlagWithoutADomain(t *testing.T) {
+	args := NgrokProvider(NgrokConfig{}).Args(3011, 4040)
+	if strings.Contains(strings.Join(args, " "), "--url") {
+		t.Fatalf("args = %v, want no --url", args)
+	}
+}
+
 func configPathFromArgs(t *testing.T, args []string) string {
 	t.Helper()
 	path := ""

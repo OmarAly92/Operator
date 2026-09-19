@@ -65,6 +65,7 @@ type Manager struct {
 	awaitDone           chan struct{}
 	logs                *lineRing
 	controlPort         int
+	ngrokDomain         string
 }
 
 func New(deps Deps) *Manager {

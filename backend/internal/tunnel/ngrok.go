@@ -13,6 +13,7 @@ const NgrokCRLMessage = "ngrok could not fetch its certificate revocation list (
 type NgrokConfig struct {
 	UserConfigPath string
 	OwnConfigPath  string
+	Domain         func() string
 }
 
 type ngrokProvider struct{ cfg NgrokConfig }
@@ -68,6 +69,11 @@ func (p ngrokProvider) Args(localPort, controlPort int) []string {
 	args := []string{"http", fmt.Sprint(localPort)}
 	for _, path := range p.configPaths() {
 		args = append(args, "--config", path)
+	}
+	if p.cfg.Domain != nil {
+		if domain := p.cfg.Domain(); domain != "" {
+			args = append(args, "--url=https://"+domain)
+		}
 	}
 	return append(args, "--log=stdout", "--log-format=json", "--inspect=false")
 }

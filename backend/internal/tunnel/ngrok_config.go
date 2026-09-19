@@ -34,6 +34,17 @@ func writeNgrokWebAddr(path string, controlPort int) error {
 	return os.WriteFile(path, []byte(mergeNgrokWebAddr(string(existing), controlPort)), 0o600)
 }
 
+func removeNgrokAuthtoken(existing string) string {
+	var out []string
+	for _, raw := range strings.Split(existing, "\n") {
+		if strings.HasPrefix(strings.TrimSpace(raw), "authtoken:") {
+			continue
+		}
+		out = append(out, raw)
+	}
+	return strings.Join(out, "\n")
+}
+
 func mergeNgrokWebAddr(existing string, controlPort int) string {
 	webAddr := fmt.Sprintf("%sweb_addr: 127.0.0.1:%d", ngrokConfigIndent, controlPort)
 

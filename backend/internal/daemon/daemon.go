@@ -259,13 +259,15 @@ func Run() error {
 	// the bridge service. Break the cycle with late binding: build bs with LAN
 	// left nil, hand its controller into NewWithDeps, then once srv exists,
 	// build the LAN listener over srv.Handler() and assign it onto bs.LAN.
-	tunnelMgr := tunnel.New(tunnel.Deps{
+	var tunnelMgr *tunnel.Manager
+	tunnelMgr = tunnel.New(tunnel.Deps{
 		Log: log,
 		Dir: filepath.Join(cfg.DataDir, "mobile"),
 		Providers: []tunnel.Provider{
 			tunnel.NgrokProvider(tunnel.NgrokConfig{
 				UserConfigPath: tunnel.DefaultNgrokConfigPath(),
 				OwnConfigPath:  filepath.Join(cfg.DataDir, "mobile", "ngrok.yml"),
+				Domain:         func() string { return tunnelMgr.NgrokDomain() },
 			}),
 			tunnel.CloudflaredProvider(),
 		},

@@ -70,6 +70,36 @@ func (m *Manager) SetAuthtoken(ctx context.Context, token string) error {
 	return nil
 }
 
+func (m *Manager) RemoveAuthtoken() error {
+	path := ngrokConfigPath(m.dir)
+	body, err := os.ReadFile(path)
+	if os.IsNotExist(err) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if err := os.WriteFile(path, []byte(removeNgrokAuthtoken(string(body))), 0o600); err != nil {
+		return err
+	}
+	m.mu.Lock()
+	m.status.NeedsAuthtoken = false
+	m.mu.Unlock()
+	return nil
+}
+
+func (m *Manager) SetNgrokDomain(domain string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.ngrokDomain = strings.TrimSpace(domain)
+}
+
+func (m *Manager) NgrokDomain() string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.ngrokDomain
+}
+
 func (m *Manager) providerNamed(name string) Provider {
 	for _, candidate := range m.providers {
 		if candidate.Name() == name {

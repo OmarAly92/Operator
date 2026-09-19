@@ -175,6 +175,36 @@ func TestHasAuthtokenFalseWhenNeitherConfigCarriesOne(t *testing.T) {
 	}
 }
 
+func TestRemoveAuthtokenDropsOnlyOperatorsToken(t *testing.T) {
+	dir := t.TempDir()
+	own := filepath.Join(dir, "ngrok.yml")
+	if err := os.WriteFile(own, []byte("version: \"3\"\nagent:\n    authtoken: secret\n    web_addr: 127.0.0.1:1\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	m := New(Deps{Dir: dir, Providers: []Provider{NgrokProvider(NgrokConfig{OwnConfigPath: own})}, Binaries: fakeStore{}, Now: time.Now})
+	if !m.HasAuthtoken() {
+		t.Fatal("precondition: token present")
+	}
+	if err := m.RemoveAuthtoken(); err != nil {
+		t.Fatalf("RemoveAuthtoken: %v", err)
+	}
+	if m.HasAuthtoken() {
+		t.Error("token must be gone")
+	}
+	body, _ := os.ReadFile(own)
+	if !strings.Contains(string(body), "web_addr: 127.0.0.1:1") {
+		t.Errorf("web_addr must survive, got %q", body)
+	}
+}
+
+func TestSetNgrokDomainIsReadBack(t *testing.T) {
+	m := New(Deps{Dir: t.TempDir(), Binaries: fakeStore{}, Now: time.Now})
+	m.SetNgrokDomain("a.ngrok.app")
+	if m.NgrokDomain() != "a.ngrok.app" {
+		t.Fatal("domain not stored")
+	}
+}
+
 func TestHasAuthtokenToleratesAMissingUserConfig(t *testing.T) {
 	dir := t.TempDir()
 	m := New(Deps{
