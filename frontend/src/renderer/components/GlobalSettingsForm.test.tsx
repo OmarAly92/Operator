@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, test, vi } from "vitest";
 import { appI18n } from "../i18n";
 import { GlobalSettingsForm, type GlobalSettingsSection } from "./GlobalSettingsForm";
 import { useLocaleStore } from "../stores/locale-store";
@@ -452,5 +452,11 @@ describe("GlobalSettingsForm", () => {
 		act(() => emit({ state: "downloaded", version: "1.3.0", requestId }));
 		expect(await screen.findByRole("button", { name: "Restart & install" })).toBeInTheDocument();
 		expect(updInstall).not.toHaveBeenCalled();
+	});
+
+	test("renders the Mobile section on its own", async () => {
+		renderForm("mobile");
+		expect(await screen.findByTestId("settings-section")).toHaveAttribute("data-section", "mobile");
+		expect(screen.queryByText("Language")).not.toBeInTheDocument();
 	});
 });

@@ -27,7 +27,7 @@ export { readStoredTerminalBackground } from "../lib/terminal-background";
 export { readStoredThemePreference, readStoredThemeStyle, resolveTheme } from "../lib/theme";
 
 export type SettingsModal =
-	| { scope: "global" }
+	| { scope: "global"; section?: "general" | "claudeAccounts" | "mobile" | "updates" | "help" }
 	| {
 			scope: "project";
 			projectId: string;
@@ -93,6 +93,7 @@ type UiState = {
 	setTerminalBackground: (background: TerminalBackground) => void;
 	setTerminalFontSize: (size: TerminalFontSize) => void;
 	openGlobalSettings: () => void;
+	openMobileSettings: () => void;
 	openProjectSettings: (projectId: string) => void;
 	closeSettings: () => void;
 	openConnectMobile: () => void;
@@ -204,6 +205,7 @@ export const useUiStore = create<UiState>((set, get) => ({
 		set({ terminalFontSize });
 	},
 	openGlobalSettings: () => set({ settingsModal: { scope: "global" } }),
+	openMobileSettings: () => set({ settingsModal: { scope: "global", section: "mobile" } }),
 	openProjectSettings: (projectId) => set({ settingsModal: { scope: "project", projectId } }),
 	closeSettings: () => set({ settingsModal: null }),
 	openConnectMobile: () => set({ connectMobileOpen: true }),

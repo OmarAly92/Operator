@@ -1,4 +1,4 @@
-import { Bot, CircleHelp, ClipboardList, GitBranch, Inbox, KeyRound, MonitorCog, RefreshCw, Settings2, TriangleAlert, X } from "lucide-react";
+import { Bot, CircleHelp, ClipboardList, GitBranch, Inbox, KeyRound, MonitorCog, RefreshCw, Settings2, Smartphone, TriangleAlert, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { GlobalSettingsForm, type GlobalSettingsSection } from "./GlobalSettingsForm";
@@ -49,6 +49,7 @@ export function SettingsDialog() {
 	const globalSections: Array<{ id: Exclude<GlobalSettingsSection, "all">; label: string; icon: typeof Settings2 }> = [
 		{ id: "general", label: t("settings.general"), icon: Settings2 },
 		{ id: "claudeAccounts", label: t("settings.claudeAccounts.title"), icon: KeyRound },
+		{ id: "mobile", label: t("settings.mobile"), icon: Smartphone },
 		{ id: "updates", label: t("settings.updates"), icon: RefreshCw },
 		{ id: "help", label: t("settings.help"), icon: CircleHelp },
 	];
@@ -108,7 +109,7 @@ export function SettingsDialog() {
 	};
 
 	useEffect(() => {
-		if (settingsModal?.scope === "global") setActiveSection("general");
+		if (settingsModal?.scope === "global") setActiveSection(settingsModal.section ?? "general");
 		if (settingsModal?.scope === "project") {
 			setActiveProjectSection("general");
 			setProjectSaveState({
