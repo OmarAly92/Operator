@@ -325,6 +325,40 @@ history of `master`.
   `respawn_test.go::TestRestartResetsRingAndKeepsClientAttached` (the mark
   must precede the new child's output on a pre-restart connection).
 
+### 4.16 Half-painted Ink frames
+- Symptom: under Claude Code's 100 ms spinner the pane tore — a paint could
+  show the top of one frame and the bottom of the previous one, and a pane
+  reopened mid-frame replayed half a frame.
+- Cause: Claude Code brackets every Ink frame with DEC 2026
+  (`ESC[?2026h` … `ESC[?2026l`); `note_private_mode` ignored the mode, so the
+  renderer painted whatever had been parsed when its animation frame fired,
+  and the pty-host mirror rendered the attach replay from the same half-parsed
+  state.
+- Now: `vt-core` buffers the bytes of an open sync block in front of the
+  parser (`sync.rs`, the port of `vte-0.15.0/src/ansi.rs` `advance_sync`) and
+  parses the whole frame on the terminator, a 2 MiB cap, a 150 ms deadline
+  (`TerminalCore::tick(now_ms)`), a resize or a process-boundary mark. The
+  renderer ticks the core at the top of every animation frame
+  (`DomBlockRenderer.repaintOnFrame`) and keeps scheduling frames while a
+  block is open; the Go mirror is fed with the wall clock and ticked from the
+  pump timer and before every attach replay; `vt_replay` paints the last
+  complete frame and appends the still-buffered bytes so the client completes
+  the frame from the live stream. The pump holds the flush after a batch that
+  ended inside a block until the terminator or the deadline, so a frame is
+  split across two mux messages at most once.
+- Guards: `vt-core/tests/synchronized_output.rs` (`bytes_inside_a_sync_block_are_invisible_until_esu`,
+  `a_frame_split_across_three_feeds_snapshots_once`, `a_mark_inside_a_sync_block_lands_after_the_rows_before_it`,
+  `overflow_flushes`, `tick_past_deadline_flushes`, `bsu_inside_a_block_extends_the_deadline`,
+  `resize_flushes`, `unknown_private_modes_still_ignored`, `a_bsu_split_byte_by_byte_still_buffers`,
+  `a_boundary_mark_inside_a_sync_block_flushes`); `ts/core/src/terminal-core.test.ts`
+  "notifies a pending sync block without exposing it…", "tick past the deadline flushes and notifies";
+  `dom-block-renderer.test.ts` "does not paint a half frame", "paints a buffered frame once the
+  deadline passes…"; Go `vtwasm_test.go::TestFeedAtBuffersASyncBlockUntilItsTerminator`,
+  `TestTickPastTheDeadlineFlushesTheSyncBlock`, `replay_test.go::TestReplayNeverStartsInsideASyncBlock`,
+  `host_test.go::TestDeliverHoldsAcrossASyncBlock`, `TestSyncHoldEndsAtTheDeadlineAndTicksTheMirror`,
+  `TestAStalledSyncBlockReachesTheMirrorAtTheDeadline`;
+  `bench/agent-session/run.mjs --gate` (zero torn paints, Task 8).
+
 ## 5. Known gaps (not bugs, decisions pending)
 
 - Copying a rewrapped block (`readBlockOutput`, `vt_render`) joins rows with

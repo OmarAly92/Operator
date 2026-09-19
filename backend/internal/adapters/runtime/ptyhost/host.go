@@ -8,6 +8,7 @@
 package ptyhost
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -366,15 +367,21 @@ func (h *host) shutdown() {
 }
 
 const (
-	readBufferSize = 0x4_0000
-	flushInterval  = time.Second / 60
+	readBufferSize  = 0x4_0000
+	flushInterval   = time.Second / 60
+	syncHoldTimeout = 150 * time.Millisecond
 )
+
+var esuCSI = []byte("\x1b[?2026l")
 
 // pumpPTY turns the PTY stream into coalesced client frames. A reader
 // goroutine blocks on PTY.Read; this loop drains everything already available
 // before deciding to flush. Idle traffic flushes immediately — the timer only
 // arms when a flush already happened inside the current interval — so
-// sustained load batches at 60Hz while a lone keystroke echo never waits.
+// sustained load batches at 60Hz while a lone keystroke echo never waits. When
+// the mirror reports that a batch ended inside a DEC 2026 synchronized block,
+// the next flush waits for the terminator or syncHoldTimeout, so a frame is not
+// split across two client messages more than once.
 func (h *host) pumpPTY() {
 	h.mu.Lock()
 	pty := h.pty
@@ -386,6 +393,7 @@ func (h *host) pumpPTY() {
 
 	var pending []byte
 	var lastFlush time.Time
+	var holdUntil time.Time
 	timer := time.NewTimer(time.Hour)
 	if !timer.Stop() {
 		<-timer.C
@@ -396,9 +404,24 @@ func (h *host) pumpPTY() {
 		if len(pending) == 0 {
 			return
 		}
-		h.deliver(pending)
+		if h.deliver(pending) {
+			holdUntil = time.Now().Add(syncHoldTimeout)
+		} else {
+			holdUntil = time.Time{}
+		}
 		pending = nil
 		lastFlush = time.Now()
+	}
+	holding := func() bool {
+		return !holdUntil.IsZero() && time.Now().Before(holdUntil) &&
+			len(pending) < readBufferSize && !bytes.Contains(pending, esuCSI)
+	}
+	arm := func(d time.Duration) {
+		if timerArmed && !timer.Stop() {
+			<-timer.C
+		}
+		timer.Reset(d)
+		timerArmed = true
 	}
 
 	for {
@@ -424,19 +447,32 @@ func (h *host) pumpPTY() {
 					break drain
 				}
 			}
-			if len(pending) >= readBufferSize || time.Since(lastFlush) >= flushInterval {
+			if holding() {
+				arm(time.Until(holdUntil))
+			} else if len(pending) >= readBufferSize || time.Since(lastFlush) >= flushInterval {
 				if timerArmed && !timer.Stop() {
 					<-timer.C
 				}
 				timerArmed = false
 				flush()
+				if !holdUntil.IsZero() {
+					arm(time.Until(holdUntil))
+				}
 			} else if !timerArmed {
-				timer.Reset(flushInterval - time.Since(lastFlush))
-				timerArmed = true
+				arm(flushInterval - time.Since(lastFlush))
 			}
 		case <-timer.C:
 			timerArmed = false
+			if holding() {
+				arm(time.Until(holdUntil))
+				continue
+			}
+			holdUntil = time.Time{}
+			h.tickParser()
 			flush()
+			if !holdUntil.IsZero() {
+				arm(time.Until(holdUntil))
+			}
 		}
 	}
 }
@@ -459,7 +495,7 @@ func (h *host) readPTY(pty ptyConn, chunks chan<- []byte) {
 
 // deliver is the single choke point later tasks extend: Task 7 appends the
 // parser feed and Task 10 the capture tee — both strictly after the broadcast.
-func (h *host) deliver(batch []byte) {
+func (h *host) deliver(batch []byte) bool {
 	// The ring append and the broadcast are one critical section, for the same
 	// reason handleConn's snapshot and registration are: they are the two halves
 	// of what a connecting client sees. Appending under a separate lock lets a
@@ -482,6 +518,7 @@ func (h *host) deliver(batch []byte) {
 	// This costs the screen nothing: the batch is already queued to every
 	// client, and runWriter drains those queues without h.mu.
 	h.feedParserLocked(batch)
+	inSync := h.parserInSyncLocked()
 	h.mu.Unlock()
 
 	// Back-pressure, off the lock. Queueing above cannot block, so a batch can
@@ -494,6 +531,21 @@ func (h *host) deliver(batch []byte) {
 
 	h.capture.write(batch)
 	h.recorder.write(batch)
+	return inSync
+}
+
+func (h *host) parserInSyncLocked() bool {
+	if h.parser == nil {
+		return false
+	}
+	in, err := h.parser.InSync()
+	return err == nil && in
+}
+
+func (h *host) tickParser() {
+	if parser := h.currentParser(); parser != nil {
+		_, _ = parser.Tick(time.Now().UnixMilli())
+	}
 }
 
 const maxParserSliceBytes = 0x1_0000 // Warp's MAX_LOCKED_READ
@@ -700,6 +752,7 @@ func (h *host) handleConn(conn net.Conn) {
 func (h *host) replayFrameLocked() []byte {
 	var payload []byte
 	if h.parser != nil {
+		_, _ = h.parser.Tick(time.Now().UnixMilli())
 		rendered, err := h.parser.Replay(MaxOutputLines)
 		if err != nil {
 			h.logf("render attach replay: %v", err)

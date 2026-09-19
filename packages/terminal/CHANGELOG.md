@@ -11,6 +11,15 @@ Synchronized output (DEC private mode 2026) is buffered in the parser.
   mechanism (`vte-0.15.0/src/ansi.rs`, `advance_sync`), so neither the
   renderer core nor the pty-host mirror ever contains half of an Ink frame.
   `feed_at(bytes, now_ms)` carries the clock; `feed` keeps the last one.
+- The renderer ticks the core's sync deadline at the top of every animation
+  frame and keeps painting frames while a block is open, so a stalled
+  application is shown after 150 ms at the latest; `TerminalCore.feed` and
+  `resize` notify `onChange` when the model changed or a sync block is
+  pending, never for a feed that changed nothing.
+- The host mirror (`vt-host`) takes the clock on `vt_feed`, exposes `vt_tick`
+  and `vt_in_sync`, and `vt_replay` appends the bytes of an open sync block
+  after the last complete frame so an attach never paints half a frame and
+  never loses the half either.
 
 A process boundary mark ends the current block and starts a fresh one.
 

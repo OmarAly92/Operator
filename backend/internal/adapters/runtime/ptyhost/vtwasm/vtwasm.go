@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/tetratelabs/wazero"
 	"github.com/tetratelabs/wazero/api"
@@ -40,6 +41,10 @@ func New(ctx context.Context, wasmModule []byte, cols, rows, scrollback uint32) 
 }
 
 func (p *Parser) Feed(bytes []byte) error {
+	return p.FeedAt(bytes, time.Now().UnixMilli())
+}
+
+func (p *Parser) FeedAt(bytes []byte, nowMs int64) error {
 	if len(bytes) == 0 {
 		return nil
 	}
@@ -55,8 +60,28 @@ func (p *Parser) Feed(bytes []byte) error {
 	if !p.module.Memory().Write(ptr, bytes) {
 		return fmt.Errorf("vtwasm: write %d bytes at %d out of range", len(bytes), ptr)
 	}
-	_, err = p.module.ExportedFunction("vt_feed").Call(p.ctx, uint64(p.handle), uint64(ptr), uint64(len(bytes)))
+	_, err = p.module.ExportedFunction("vt_feed").Call(p.ctx, uint64(p.handle), uint64(ptr), uint64(len(bytes)), uint64(nowMs))
 	return err
+}
+
+func (p *Parser) Tick(nowMs int64) (bool, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	res, err := p.module.ExportedFunction("vt_tick").Call(p.ctx, uint64(p.handle), uint64(nowMs))
+	if err != nil {
+		return false, fmt.Errorf("vtwasm: tick: %w", err)
+	}
+	return res[0] == 1, nil
+}
+
+func (p *Parser) InSync() (bool, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	res, err := p.module.ExportedFunction("vt_in_sync").Call(p.ctx, uint64(p.handle))
+	if err != nil {
+		return false, fmt.Errorf("vtwasm: in_sync: %w", err)
+	}
+	return res[0] == 1, nil
 }
 
 func (p *Parser) Close() error { return p.runtime.Close(p.ctx) }
