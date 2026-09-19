@@ -55,16 +55,15 @@ impl SyncBuffer {
     }
 
     pub(crate) fn find_bsu(&self, bytes: &[u8]) -> Option<usize> {
-        if let Some(index) = memmem::find(bytes, BSU) {
-            return Some(index);
-        }
         let mut probe = Vec::with_capacity(self.carry.len() + bytes.len().min(ESCAPE_LEN));
         probe.extend_from_slice(&self.carry);
         probe.extend_from_slice(&bytes[..bytes.len().min(ESCAPE_LEN)]);
-        match memmem::find(&probe, BSU) {
-            Some(index) if index < self.carry.len() => Some(0),
-            _ => None,
+        if let Some(index) = memmem::find(&probe, BSU) {
+            if index < self.carry.len() {
+                return Some(0);
+            }
         }
+        memmem::find(bytes, BSU)
     }
 
     pub(crate) fn would_overflow(&self, additional: usize) -> bool {

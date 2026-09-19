@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+Blocks can no longer point past the end of the row space.
+
+- A block opened after a cursor move below the frame and closed by a process
+  boundary kept a start row above its own end, and trimming scrollback past a
+  block that started above the cut underflowed its start row. Both were found
+  by the new integrity proptest; `BlockGrid` now clamps a block to its end on
+  close, clamps every block to the row space after a resize, and trims with a
+  saturating shift (`TERMINAL.md` §4.17).
+- A `?2026h` that straddles two feeds is preferred over a later one in the
+  same chunk, so the frame it opens is buffered too.
+
 Cell metrics are measured once per font change.
 
 - `DomBlockRenderer.measure()` caches the cell width and height and

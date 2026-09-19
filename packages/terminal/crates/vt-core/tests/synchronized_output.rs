@@ -213,3 +213,15 @@ fn feed_at_reports_whether_anything_was_parsed() {
     assert!(core.feed_at(ESU, 0));
     assert!(!core.feed_at(BSU, 0), "a bare BSU parses nothing");
 }
+
+#[test]
+fn a_bsu_straddling_two_feeds_wins_over_a_later_one_in_the_same_chunk() {
+    let mut core = core();
+    core.feed_at(&BSU[..3], 0);
+    let rest = cat(&[&BSU[3..], b"first", BSU, b"second"]);
+    core.feed_at(&rest, 1);
+    assert!(core.synchronized_output());
+    assert!(screen(&core).is_empty());
+    core.feed_at(ESU, 2);
+    assert_eq!(screen(&core), vec!["firstsecond"]);
+}

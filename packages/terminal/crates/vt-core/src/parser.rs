@@ -270,6 +270,8 @@ impl Parser {
         if let Some(alt) = self.alt.as_mut() {
             alt.resize(rows, columns);
         }
+        self.grid
+            .clamp_to_rows(self.rows.completed().len() + self.screen.rows());
     }
 
     pub(crate) fn commit_evicted(&mut self) {

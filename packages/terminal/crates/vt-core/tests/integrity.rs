@@ -63,7 +63,6 @@ proptest! {
     #![proptest_config(ProptestConfig { cases: 256, ..ProptestConfig::default() })]
 
     #[test]
-    #[ignore = "TERMINAL.md 5: a boundary-closed empty block can be left pointing at a row a later resize drops"]
     fn every_operation_leaves_the_model_consistent(
         agent_tui in any::<bool>(),
         ops in prop::collection::vec(op(), 1..80),
@@ -80,7 +79,6 @@ proptest! {
 }
 
 #[test]
-#[ignore = "TERMINAL.md 5: a boundary-closed empty block can be left pointing at a row a later resize drops"]
 fn a_boundary_closed_empty_block_survives_a_shrinking_resize() {
     let mut core = TerminalCore::new(40, 32).unwrap();
     core.resize(40, 8);
@@ -153,6 +151,59 @@ fn a_rewrapped_core_is_consistent() {
     core.feed(b"- a bullet line that is long enough to need wrapping when narrow\r\nplain\r\n");
     for cols in [12usize, 8, 30, 60] {
         core.resize(cols, 3);
+        common::check(&core);
+    }
+}
+
+#[test]
+fn a_block_opened_on_the_screen_survives_a_rewrap_and_a_trim() {
+    let ops = vec![
+        Op::Print("a0a  0AAaAA AaA".into()),
+        Op::Cup(6, 1),
+        Op::Print("0".into()),
+        Op::Resize(4, 2),
+        Op::Cup(1, 4),
+        Op::Print("A a0a AAa0aAA aaaa a".into()),
+        Op::Boundary,
+        Op::Print("AA ".into()),
+        Op::Print("A0Aaa".into()),
+        Op::PromptStart,
+        Op::Print("A A a 0".into()),
+        Op::Print("AA a0a aaa Aa AaAA 0AA 00".into()),
+        Op::Print(" 0aAAa A0A AaAA0AAAa0Aa a 0aaa".into()),
+        Op::Resize(7, 2),
+    ];
+    let mut core = TerminalCore::new(40, 32).unwrap();
+    core.resize(40, 8);
+    for op in &ops {
+        apply(&mut core, op);
+        common::check(&core);
+    }
+}
+
+#[test]
+fn a_trim_past_a_block_that_starts_above_the_cut_does_not_underflow() {
+    let ops = vec![
+        Op::Cup(3, 1),
+        Op::PromptStart,
+        Op::CommandEnd(0),
+        Op::Boundary,
+        Op::PromptStart,
+        Op::Cup(8, 27),
+        Op::Print("a a0A".into()),
+        Op::Newline,
+        Op::Newline,
+        Op::Print("A".into()),
+        Op::Resize(15, 20),
+        Op::PromptStart,
+        Op::Cup(20, 1),
+        Op::Print("AA0 A aaa0Aaa0 !".into()),
+        Op::Boundary,
+    ];
+    let mut core = TerminalCore::new(40, 32).unwrap();
+    core.resize(40, 8);
+    for op in &ops {
+        apply(&mut core, op);
         common::check(&core);
     }
 }

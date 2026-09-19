@@ -35,8 +35,13 @@ impl Parser {
             return Err(IntegrityError::OpenRowDetached);
         }
         let total_rows = completed.len() + self.screen().rows();
+        let closed = self.grid().len() - usize::from(self.grid().has_open_block());
         for (index, block) in self.grid().blocks().enumerate() {
-            let end = block.first_row + block.row_count;
+            let end = if index < closed {
+                block.first_row + block.row_count
+            } else {
+                block.first_row
+            };
             if end > total_rows || block.first_row > total_rows {
                 return Err(IntegrityError::BlockPastEnd { block: index });
             }
