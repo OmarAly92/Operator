@@ -33,38 +33,38 @@ func newFakeNgrokAPI(t *testing.T, key string) *fakeNgrokAPI {
 
 func (f *fakeNgrokAPI) handle(w http.ResponseWriter, r *http.Request) {
 	if r.Header.Get("Ngrok-Version") != "2" {
-		w.WriteHeader(400)
+		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 	if r.Header.Get("Authorization") != "Bearer "+f.key {
-		w.WriteHeader(401)
+		w.WriteHeader(http.StatusUnauthorized)
 		_, _ = w.Write([]byte(`{"error_code":"ERR_NGROK_10005","msg":"Invalid API key"}`))
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
 	switch {
-	case r.Method == "GET" && r.URL.Path == "/api_keys":
+	case r.Method == http.MethodGet && r.URL.Path == "/api_keys":
 		_, _ = w.Write([]byte(`{"keys":[{"id":"ak_1","created_at":"2026-09-01T00:00:00Z"}]}`))
-	case r.Method == "GET" && r.URL.Path == "/credentials":
+	case r.Method == http.MethodGet && r.URL.Path == "/credentials":
 		_, _ = w.Write([]byte(`{"credentials":[{"id":"cr_old","description":"` + operatorCredentialDescription() + `","created_at":"2026-08-01T00:00:00Z"},{"id":"cr_other","description":"laptop","created_at":"2026-07-01T00:00:00Z"}]}`))
-	case r.Method == "POST" && r.URL.Path == "/credentials":
+	case r.Method == http.MethodPost && r.URL.Path == "/credentials":
 		var body struct {
 			Description string `json:"description"`
 		}
 		_ = json.NewDecoder(r.Body).Decode(&body)
 		f.created = append(f.created, body.Description)
 		_, _ = w.Write([]byte(`{"id":"cr_new","token":"2mintedtoken_zz99","description":"` + body.Description + `"}`))
-	case r.Method == "DELETE" && strings.HasPrefix(r.URL.Path, "/credentials/"):
+	case r.Method == http.MethodDelete && strings.HasPrefix(r.URL.Path, "/credentials/"):
 		f.deleted = append(f.deleted, strings.TrimPrefix(r.URL.Path, "/credentials/"))
-		w.WriteHeader(204)
-	case r.Method == "GET" && r.URL.Path == "/tunnel_sessions":
+		w.WriteHeader(http.StatusNoContent)
+	case r.Method == http.MethodGet && r.URL.Path == "/tunnel_sessions":
 		_, _ = w.Write([]byte(`{"tunnel_sessions":[{"id":"ts_1","region":"eu","ip":"1.2.3.4","agent_version":"3.39.6","os":"darwin","started_at":"2026-09-19T17:00:00Z"}]}`))
-	case r.Method == "GET" && r.URL.Path == "/endpoints":
+	case r.Method == http.MethodGet && r.URL.Path == "/endpoints":
 		_, _ = w.Write([]byte(`{"endpoints":[{"id":"ep_1","public_url":"https://a.ngrok.app","proto":"https","created_at":"2026-09-19T17:00:01Z"}]}`))
-	case r.Method == "GET" && r.URL.Path == "/reserved_domains":
+	case r.Method == http.MethodGet && r.URL.Path == "/reserved_domains":
 		_, _ = w.Write([]byte(`{"reserved_domains":[{"id":"rd_1","domain":"phone.example.ngrok.app"}]}`))
 	default:
-		w.WriteHeader(404)
+		w.WriteHeader(http.StatusNotFound)
 	}
 }
 

@@ -64,7 +64,7 @@ func TestNgrokInfoReadsTheControlAPI(t *testing.T) {
 		case "/api/tunnels":
 			_, _ = w.Write([]byte(`{"tunnels":[{"public_url":"https://x.ngrok.app","metrics":{"conns":{"count":4},"http":{"count":9}}}]}`))
 		default:
-			w.WriteHeader(404)
+			w.WriteHeader(http.StatusNotFound)
 		}
 	}))
 	defer srv.Close()

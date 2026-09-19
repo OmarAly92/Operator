@@ -305,7 +305,7 @@ func (m *Manager) launch(ctx context.Context, provider Provider) error {
 	m.setState(StateStarting, provider.Name())
 
 	go m.supervise(runCtx, provider, cmd, controlPort, logs, done, liveConfirmed, firstAwaitCancel)
-	go m.runAwaitURL(firstAwaitCtx, provider, controlPort, cancel, done, awaitDone, liveConfirmed)
+	go m.runAwaitURL(firstAwaitCtx, provider, controlPort, cancel, done, awaitDone, liveConfirmed) //nolint:gosec // G118: runAwaitURL calls handleProviderRefusal with context.Background() because firstAwaitCtx is already cancelled by then; refusal handling must survive the attempt's own context
 
 	return nil
 }

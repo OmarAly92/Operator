@@ -84,7 +84,7 @@ type ngrokAPI struct {
 	client *http.Client
 }
 
-func (a ngrokAPI) do(ctx context.Context, method, path string, body any, out any) error {
+func (a ngrokAPI) do(ctx context.Context, method, path string, body, out any) error {
 	var reader io.Reader
 	if body != nil {
 		encoded, err := json.Marshal(body)

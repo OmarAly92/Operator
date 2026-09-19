@@ -153,7 +153,7 @@ func (m *Manager) NgrokDiagnose(ctx context.Context) NgrokDiagnosis {
 
 	binary := NgrokCheck{Name: "Binary"}
 	var path string
-	if provider := m.providerNamed("ngrok"); provider != nil {
+	if provider := m.ngrokProvider(); provider != nil {
 		if resolver, ok := m.binaries.(binaryResolver); ok {
 			if p, source, ok := resolver.Resolve(provider.Binary()); ok {
 				path = p
@@ -169,13 +169,11 @@ func (m *Manager) NgrokDiagnose(ctx context.Context) NgrokDiagnosis {
 			}
 		}
 	}
-	checks = append(checks, binary)
-	checks = append(checks, probeCRL(ctx, ngrokCRLURL))
-	checks = append(checks, probeControlPlane(ctx, ngrokConnectAddr))
+	checks = append(checks, binary, probeCRL(ctx, ngrokCRLURL), probeControlPlane(ctx, ngrokConnectAddr))
 
 	if path != "" {
 		args := []string{"diagnose"}
-		if p, ok := m.providerNamed("ngrok").(ngrokProvider); ok {
+		if p, ok := m.ngrokProvider().(ngrokProvider); ok {
 			for _, cfg := range p.configPaths() {
 				args = append(args, "--config", cfg)
 			}

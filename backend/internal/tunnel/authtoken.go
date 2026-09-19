@@ -43,7 +43,7 @@ func (m *Manager) SetAuthtoken(ctx context.Context, token string) error {
 	if trimmed == "" {
 		return errors.New("tunnel: authtoken must not be empty")
 	}
-	provider := m.providerNamed("ngrok")
+	provider := m.ngrokProvider()
 	if provider == nil {
 		return errors.New("tunnel: ngrok provider is not configured")
 	}
@@ -100,9 +100,9 @@ func (m *Manager) NgrokDomain() string {
 	return m.ngrokDomain
 }
 
-func (m *Manager) providerNamed(name string) Provider {
+func (m *Manager) ngrokProvider() Provider {
 	for _, candidate := range m.providers {
-		if candidate.Name() == name {
+		if candidate.Name() == "ngrok" {
 			return candidate
 		}
 	}

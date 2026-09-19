@@ -66,7 +66,7 @@ func TestProbeCRL(t *testing.T) {
 		{"middlebox", func(w http.ResponseWriter, _ *http.Request) {
 			w.Header().Set("Via", "1.0 middlebox")
 			w.Header().Set("Location", "http://megaplusredirection.tedata.net/VDSL-Redirection_100.html")
-			w.WriteHeader(307)
+			w.WriteHeader(http.StatusTemporaryRedirect)
 		}, false, "intercepted on this network (redirected to megaplusredirection.tedata.net)"},
 		{"pem", func(w http.ResponseWriter, _ *http.Request) {
 			_, _ = w.Write([]byte("-----BEGIN X509 CRL-----\nMIIB\n"))
@@ -87,7 +87,7 @@ func TestProbeCRL(t *testing.T) {
 func TestNgrokDiagnoseSummaryIsTheFirstFailure(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Via", "1.0 middlebox")
-		w.WriteHeader(307)
+		w.WriteHeader(http.StatusTemporaryRedirect)
 	}))
 	defer srv.Close()
 	prevURL, prevAddr := ngrokCRLURL, ngrokConnectAddr

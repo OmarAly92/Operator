@@ -78,7 +78,7 @@ func tokenSuffix(token string) string {
 }
 
 func (m *Manager) ngrokConfig() (NgrokConfig, bool) {
-	p, ok := m.providerNamed("ngrok").(ngrokProvider)
+	p, ok := m.ngrokProvider().(ngrokProvider)
 	if !ok {
 		return NgrokConfig{}, false
 	}
@@ -101,7 +101,7 @@ func (m *Manager) ngrokCredential() (NgrokCredential, string) {
 
 func (m *Manager) ngrokAgent(lines []string) NgrokAgent {
 	agent := NgrokAgent{}
-	provider := m.providerNamed("ngrok")
+	provider := m.ngrokProvider()
 	if provider == nil {
 		return agent
 	}
