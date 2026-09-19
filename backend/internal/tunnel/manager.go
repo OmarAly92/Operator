@@ -64,6 +64,7 @@ type Manager struct {
 	done                chan struct{}
 	awaitDone           chan struct{}
 	logs                *lineRing
+	controlPort         int
 }
 
 func New(deps Deps) *Manager {
@@ -129,6 +130,22 @@ func (m *Manager) Status() Status {
 	return m.status
 }
 
+func (m *Manager) ControlPort() int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.controlPort
+}
+
+func (m *Manager) Logs() []string {
+	m.mu.Lock()
+	logs := m.logs
+	m.mu.Unlock()
+	if logs == nil {
+		return []string{}
+	}
+	return logs.Lines()
+}
+
 func (m *Manager) Enable(ctx context.Context) error {
 	m.mu.Lock()
 	if m.enabled {
@@ -178,6 +195,7 @@ func (m *Manager) Disable(ctx context.Context) error {
 	m.cancel, m.done, m.awaitDone = nil, nil, nil
 	m.stickyFrom = map[string]bool{}
 	m.lastFailureProvider = ""
+	m.controlPort = 0
 	m.mu.Unlock()
 
 	if cancel != nil {
@@ -269,6 +287,7 @@ func (m *Manager) launch(ctx context.Context, provider Provider) error {
 	firstAwaitCtx, firstAwaitCancel := context.WithCancel(runCtx)
 	m.mu.Lock()
 	m.cmd, m.cancel, m.done, m.awaitDone, m.logs = cmd, cancel, done, awaitDone, logs
+	m.controlPort = controlPort
 	m.status = Status{
 		State:          StateStarting,
 		Provider:       provider.Name(),
@@ -580,6 +599,7 @@ func (m *Manager) supervise(ctx context.Context, provider Provider, cmd *exec.Cm
 		m.mu.Lock()
 		m.cmd = current
 		m.logs = currentLogs
+		m.controlPort = currentPort
 		m.mu.Unlock()
 		m.recordPID(provider.Name(), current)
 	}
