@@ -394,6 +394,22 @@ void main() {
     },
   );
 
+  test('a compaction event from a subagent does not confirm a parent compact command', () async {
+    when(() => repo.sendCommand(any(), any())).thenAnswer(
+      (_) async => Result.success(
+        GlobalResponse(data: const SessionCommandResultModel(state: 'sent')),
+      ),
+    );
+    cubit.onActivity('idle');
+    await cubit.run('compact');
+    expect(cubit.phases['compact'], CommandPhase.sent);
+
+    events.add(const BlockEventEnvelope('s1', {'kind': 'compaction', 'agentId': 'a1'}));
+    await Future<void>.delayed(Duration.zero);
+
+    expect(cubit.phases['compact'], CommandPhase.sent);
+  });
+
   test('a block event for another session is ignored', () async {
     when(() => repo.sendCommand(any(), any())).thenAnswer(
       (_) async => Result.success(
@@ -586,6 +602,22 @@ void main() {
     });
 
     test('a turn_model event names the model the turn ran on', () async {
+      events.add(const BlockEventEnvelope('s1', {'kind': 'turn_model', 'text': 'claude-opus-5[1m]'}));
+      await Future<void>.delayed(Duration.zero);
+
+      expect(cubit.currentModel, 'Opus 5 (1M)');
+    });
+
+    test('a turn_model event from a subagent does not change the parent model', () async {
+      events.add(const BlockEventEnvelope('s1', {
+        'kind': 'turn_model',
+        'text': 'claude-haiku-4',
+        'agentId': 'a1',
+      }));
+      await Future<void>.delayed(Duration.zero);
+
+      expect(cubit.currentModel, isNull);
+
       events.add(const BlockEventEnvelope('s1', {'kind': 'turn_model', 'text': 'claude-opus-5[1m]'}));
       await Future<void>.delayed(Duration.zero);
 

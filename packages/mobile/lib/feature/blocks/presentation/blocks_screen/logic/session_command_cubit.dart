@@ -68,6 +68,7 @@ class SessionCommandCubit extends Cubit<SessionCommandState> {
 
   void _onLive(BlockEventEnvelope envelope) {
     final event = BlockEventModel.fromJson(envelope.block);
+    if ((event.agentId ?? '').isNotEmpty) return;
     if ((event.interactionId ?? '').isNotEmpty) {
       emit(state.withPendingInteraction(null));
       if (event.kind == 'permission_request') unawaited(_reconcileInteractions());
