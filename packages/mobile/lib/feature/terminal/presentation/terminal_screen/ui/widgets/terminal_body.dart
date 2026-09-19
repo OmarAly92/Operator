@@ -7,6 +7,7 @@ import 'package:operator_mobile/core/widgets/dialog/app_dialog.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_text.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/session_view_cubit.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/blocks_body.dart';
+import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/subagent_strip.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/ui/widgets/terminal_chat_header.dart';
 import 'package:operator_mobile/core/utils/keyboard_inset.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/logic/terminal_cubit.dart';
@@ -116,6 +117,8 @@ class _TerminalBodyState extends State<TerminalBody> {
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
+                          if (blocksMode && !cubit.args.shellOnly)
+                            SubagentStrip(parentTitle: cubit.args.title),
                           if (!blocksMode) const TerminalKeyRow(),
                           const TerminalComposer(),
                         ],
