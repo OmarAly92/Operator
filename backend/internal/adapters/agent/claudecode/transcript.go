@@ -2,6 +2,7 @@ package claudecode
 
 import (
 	"encoding/json"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -87,13 +88,23 @@ func mapClaudeRecord(rec claudeTranscriptRecord, sidechain bool) ([]domain.Block
 		return claudeAssistantEvents(rec), true
 	case "user":
 		events := claudeUserEvents(rec)
-		if sidechain && len(events) == 0 {
-			if prompt := strings.TrimSpace(claudeFlattenText(rec.Message.Content)); prompt != "" {
+		if len(events) == 0 {
+			text := strings.TrimSpace(claudeFlattenText(rec.Message.Content))
+			switch {
+			case sidechain && text != "":
 				events = append(events, domain.BlockTranscriptEvent{
 					Kind:     domain.BlockEventPromptSubmit,
 					SourceID: rec.UUID,
-					Text:     prompt,
+					Text:     text,
 				})
+			case !sidechain:
+				if agentID := claudeHandBackAgent(text); agentID != "" {
+					events = append(events, domain.BlockTranscriptEvent{
+						Kind:     domain.BlockEventAgentStop,
+						SourceID: agentID,
+						Text:     text,
+					})
+				}
 			}
 		}
 		return events, true
@@ -217,6 +228,16 @@ func claudeUserEvents(rec claudeTranscriptRecord) []domain.BlockTranscriptEvent 
 	return events
 }
 
+var claudeHandBack = regexp.MustCompile(`<agent-message from="([^"]+)">`)
+
+func claudeHandBackAgent(text string) string {
+	match := claudeHandBack.FindStringSubmatch(text)
+	if match == nil {
+		return ""
+	}
+	return match[1]
+}
+
 func claudeAgentResultDetail(raw json.RawMessage) string {
 	if len(raw) == 0 {
 		return ""
@@ -233,15 +254,26 @@ func claudeAgentResultDetail(raw json.RawMessage) string {
 	if err := json.Unmarshal(raw, &result); err != nil || result.AgentID == "" {
 		return ""
 	}
-	encoded, err := json.Marshal(map[string]any{
-		"agentId":           result.AgentID,
-		"agentType":         result.AgentType,
-		"status":            result.Status,
-		"resolvedModel":     result.ResolvedModel,
-		"totalDurationMs":   result.TotalDurationMs,
-		"totalToolUseCount": result.TotalToolUseCount,
-		"totalTokens":       result.TotalTokens,
-	})
+	detail := map[string]any{"agentId": result.AgentID}
+	for key, value := range map[string]string{
+		"agentType":     result.AgentType,
+		"status":        result.Status,
+		"resolvedModel": result.ResolvedModel,
+	} {
+		if value != "" {
+			detail[key] = value
+		}
+	}
+	if result.TotalDurationMs > 0 {
+		detail["totalDurationMs"] = result.TotalDurationMs
+	}
+	if result.TotalToolUseCount > 0 {
+		detail["totalToolUseCount"] = result.TotalToolUseCount
+	}
+	if result.TotalTokens > 0 {
+		detail["totalTokens"] = result.TotalTokens
+	}
+	encoded, err := json.Marshal(detail)
 	if err != nil {
 		return ""
 	}

@@ -88,9 +88,10 @@ List<SessionBlock> assembleBlocks(Iterable<BlockEventModel> events) {
             body: body,
             lastSeq: seq,
             status: statusFromHook.contains(id) ? null : BlockStatus.running,
-            detail: blocks[at].detail is! AgentBlockDetail && event.toolName == 'Agent'
-                ? AgentBlockDetail.fromToolInput(body)
-                : null,
+            detail: switch (blocks[at].detail) {
+              AgentBlockDetail(:final withInput) => withInput(body),
+              _ => event.toolName == 'Agent' ? AgentBlockDetail.fromToolInput(body) : null,
+            },
           );
         } else {
           _upsert(
@@ -250,8 +251,34 @@ List<SessionBlock> assembleBlocks(Iterable<BlockEventModel> events) {
           hookAssistantIndex = indexById[id];
         }
 
+      case 'agent_start':
+        final started = _decodeMap(event.detail ?? '');
+        final at = indexById[id];
+        if (at != null) {
+          final current = blocks[at].detail;
+          final base = current is AgentBlockDetail
+              ? current
+              : AgentBlockDetail.fromToolInput(blocks[at].body) ?? const AgentBlockDetail(status: 'running');
+          blocks[at] = blocks[at].copyWith(detail: base.merge(started), lastSeq: seq);
+        } else {
+          _upsert(
+            blocks,
+            indexById,
+            _create(
+              event,
+              id,
+              BlockKind.tool,
+              BlockStatus.running,
+              'Agent',
+              '',
+              model,
+              detail: const AgentBlockDetail(status: 'running').merge(started),
+            ),
+          );
+        }
+
       case 'agent_stop':
-        final stopped = event.agentId ?? '';
+        final stopped = (event.agentId ?? '').isNotEmpty ? event.agentId! : (event.sourceId ?? '');
         if (stopped.isEmpty) continue;
         for (var i = 0; i < blocks.length; i++) {
           final detail = blocks[i].detail;
@@ -357,6 +384,7 @@ const _correlatingKinds = {
   'todo',
   'assistant_text',
   'reasoning',
+  'agent_start',
   'agent_stop',
 };
 

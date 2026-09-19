@@ -540,6 +540,25 @@ void main() {
     await cubit.close();
   });
 
+  test('a main-scope agent_start is merged into the timeline, not summarised as an agent', () async {
+    final cubit = build();
+    await Future<void>.delayed(Duration.zero);
+
+    events.add(BlockEventEnvelope('s-1', {
+      ..._wire(1, 'agent_start', sourceId: 'a1', toolName: 'Agent'),
+      'toolUseId': 'toolu_a',
+      'source': 'transcript',
+      'detail': '{"agentId":"a1","agentType":"general-purpose","description":"Review Task 2","model":"sonnet","requestShape":"background"}',
+    }));
+    await Future<void>.delayed(Duration.zero);
+
+    expect(cubit.subagentSummaries, isEmpty);
+    final detail = cubit.blocks.single.detail as AgentBlockDetail;
+    expect(detail.agentId, 'a1');
+    expect(detail.description, 'Review Task 2');
+    await cubit.close();
+  });
+
   test(
     'an agent_stop on the main cubit both summarises and completes the matching Agent block',
     () async {
@@ -565,7 +584,6 @@ void main() {
 
       events.add(BlockEventEnvelope('s-1', {
         ..._wire(3, 'agent_stop', sourceId: 'a1', text: 'finished'),
-        'agentId': 'a1',
         'source': 'hook',
       }));
       await Future<void>.delayed(Duration.zero);

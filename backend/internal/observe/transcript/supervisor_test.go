@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -486,5 +487,77 @@ func TestStartProjectsWithoutAWatcher(t *testing.T) {
 	case <-done:
 	case <-time.After(2 * time.Second):
 		t.Fatal("a watcherless supervisor did not stop with its context")
+	}
+}
+
+func TestANewAgentTailAnnouncesTheAgentFromItsMetaFile(t *testing.T) {
+	root := t.TempDir()
+	configDir := filepath.Join(root, "config")
+	sessionDir := filepath.Join(configDir, "projects", "p")
+	path := writeTranscript(t, sessionDir, "sess-1.jsonl")
+	appendLines(t, path, assistantLine)
+	agentDir := filepath.Join(sessionDir, "sess-1", "subagents")
+	if err := os.MkdirAll(agentDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	appendLines(t, filepath.Join(agentDir, "agent-x1.jsonl"), sidechainPrompt)
+	meta := `{"agentType":"general-purpose","description":"Review Task 2","toolUseId":"toolu_A","spawnDepth":1,"requestShape":"background","model":"sonnet"}`
+	if err := os.WriteFile(filepath.Join(agentDir, "agent-x1.meta.json"), []byte(meta), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	appendLines(t, filepath.Join(agentDir, "agent-x2.jsonl"), sidechainPrompt)
+
+	sessions := &fakeSessions{sessions: []domain.SessionRecord{session("s-1", "claude-code", path, false)}}
+	sink := &fakeSink{}
+	sup := newSupervisor(t, sessions, sink, &fakeOffsets{}, newFakeWatcher(), configDir)
+	sup.reconcile(context.Background())
+	sup.reconcile(context.Background())
+
+	var starts []domain.BlockTranscriptEvent
+	for _, ev := range sink.recorded() {
+		if ev.event.Kind == domain.BlockEventAgentStart {
+			starts = append(starts, ev.event)
+		}
+	}
+	if len(starts) != 1 {
+		t.Fatalf("expected exactly one agent_start (x1 has a meta file, x2 has none, and a second reconcile must not repeat it), got %+v", starts)
+	}
+	start := starts[0]
+	if start.AgentID != "" || start.SourceID != "x1" || start.ToolUseID != "toolu_A" || start.ToolName != "Agent" {
+		t.Fatalf("agent_start = %+v; want a main-scope event correlated to the Agent tool use", start)
+	}
+	for _, want := range []string{`"agentId":"x1"`, `"agentType":"general-purpose"`, `"description":"Review Task 2"`, `"model":"sonnet"`, `"requestShape":"background"`} {
+		if !strings.Contains(start.Detail, want) {
+			t.Fatalf("detail %s lacks %s", start.Detail, want)
+		}
+	}
+}
+
+func TestAResumedAgentTailDoesNotAnnounceAgain(t *testing.T) {
+	root := t.TempDir()
+	configDir := filepath.Join(root, "config")
+	sessionDir := filepath.Join(configDir, "projects", "p")
+	path := writeTranscript(t, sessionDir, "sess-1.jsonl")
+	agentDir := filepath.Join(sessionDir, "sess-1", "subagents")
+	if err := os.MkdirAll(agentDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	agentPath := filepath.Join(agentDir, "agent-x1.jsonl")
+	appendLines(t, agentPath, sidechainPrompt)
+	if err := os.WriteFile(filepath.Join(agentDir, "agent-x1.meta.json"), []byte(`{"toolUseId":"toolu_A"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	realAgentPath, err := filepath.EvalSymlinks(agentPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sessions := &fakeSessions{sessions: []domain.SessionRecord{session("s-1", "claude-code", path, false)}}
+	sink := &fakeSink{}
+	sup := newSupervisor(t, sessions, sink, &fakeOffsets{path: realAgentPath, offset: 10, found: true}, newFakeWatcher(), configDir)
+	sup.reconcile(context.Background())
+	for _, ev := range sink.recorded() {
+		if ev.event.Kind == domain.BlockEventAgentStart {
+			t.Fatalf("a tail resumed from a stored cursor must not re-announce, got %+v", ev.event)
+		}
 	}
 }

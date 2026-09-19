@@ -147,17 +147,14 @@ class BlocksCubit extends Cubit<BlocksState> {
     final record = BlockEventModel.fromJson(envelope.block);
     final scopeId = record.agentId ?? '';
     if (scopeId == (agentId ?? '')) {
+      if (agentId == null && record.kind == 'agent_stop' && (record.sourceId ?? '').isNotEmpty) {
+        _summarise(record.sourceId!, record);
+      }
       _merge(record);
       _rebuild();
       return;
     }
-    if (agentId == null && scopeId.isNotEmpty) {
-      _summarise(scopeId, record);
-      if (record.kind == 'agent_stop') {
-        _merge(record);
-        _rebuild();
-      }
-    }
+    if (agentId == null && scopeId.isNotEmpty) _summarise(scopeId, record);
   }
 
   final Map<String, SubagentSummary> _summaries = {};

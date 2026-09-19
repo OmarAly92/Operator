@@ -93,7 +93,6 @@ func (s *Service) Record(ctx context.Context, sessionID domain.SessionID, harnes
 		HookVersion:    sig.HookVersion,
 		TruncatedLines: truncated,
 		InteractionID:  sig.InteractionID,
-		AgentID:        sig.AgentID,
 		CreatedAt:      time.Now().UTC(),
 	}
 	if !decision.Known {

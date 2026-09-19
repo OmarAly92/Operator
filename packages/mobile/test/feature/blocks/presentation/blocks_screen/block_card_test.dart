@@ -233,6 +233,12 @@ void main() {
     expect(find.textContaining(RegExp(r'1m1[3-6]s')), findsOneWidget);
   });
 
+  testWidgets('a background agent whose launch result arrived still reads as running', (tester) async {
+    await tester.pumpWidget(_card(_agentBlock(status: 'async_launched', blockStatus: BlockStatus.ok)));
+    expect(find.textContaining('running'), findsOneWidget);
+    expect(find.textContaining('done'), findsNothing);
+  });
+
   testWidgets('a finished agent card shows duration and tool count and no timer', (tester) async {
     await tester.pumpWidget(_card(_agentBlock(status: 'completed', blockStatus: BlockStatus.ok)));
     expect(find.textContaining('6m02s'), findsOneWidget);

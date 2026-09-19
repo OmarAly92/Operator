@@ -278,19 +278,41 @@ class AgentBlockDetail extends BlockDetail {
 
   bool get finished => status == 'completed' || status == 'failed' || status == 'stopped';
 
+  bool get launchedInBackground => status == 'async_launched';
+
   AgentBlockDetail merge(Map<String, dynamic> result) => AgentBlockDetail(
-    description: description,
+    description: description ?? result['description'] as String?,
     prompt: prompt,
-    model: model,
-    runInBackground: runInBackground,
+    model: model ?? result['model'] as String?,
+    runInBackground: runInBackground ?? (result['requestShape'] == null ? null : result['requestShape'] == 'background'),
     agentId: result['agentId'] as String? ?? agentId,
-    agentType: result['agentType'] as String? ?? agentType,
+    agentType: _nonEmpty(result['agentType'] as String?) ?? agentType,
     status: result['status'] as String? ?? status,
     resolvedModel: result['resolvedModel'] as String? ?? resolvedModel,
     durationMs: (result['totalDurationMs'] as num?)?.toInt() ?? durationMs,
     toolUseCount: (result['totalToolUseCount'] as num?)?.toInt() ?? toolUseCount,
     totalTokens: (result['totalTokens'] as num?)?.toInt() ?? totalTokens,
   );
+
+  static String? _nonEmpty(String? value) => value == null || value.isEmpty ? null : value;
+
+  AgentBlockDetail withInput(String? toolInput) {
+    final input = fromToolInput(toolInput);
+    if (input == null) return this;
+    return AgentBlockDetail(
+      description: description ?? input.description,
+      prompt: prompt ?? input.prompt,
+      model: model ?? input.model,
+      runInBackground: runInBackground ?? input.runInBackground,
+      agentId: agentId,
+      agentType: agentType,
+      status: status,
+      resolvedModel: resolvedModel,
+      durationMs: durationMs,
+      toolUseCount: toolUseCount,
+      totalTokens: totalTokens,
+    );
+  }
 
   static AgentBlockDetail? fromToolInput(String? toolInput) {
     if (toolInput == null || toolInput.isEmpty) return null;

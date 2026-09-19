@@ -2,6 +2,7 @@ package transcript
 
 import (
 	"context"
+	"encoding/json"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -214,7 +215,11 @@ func (s *Supervisor) reconcile(ctx context.Context) []*tail {
 				if _, tracked := s.tails[key]; tracked {
 					continue
 				}
-				s.tails[key] = s.newAgentTail(ctx, rec, agentID, agentPath)
+				created := s.newAgentTail(ctx, rec, agentID, agentPath)
+				s.tails[key] = created
+				if created.offset == 0 {
+					s.announceAgent(ctx, rec, agentID, agentPath)
+				}
 			}
 		}
 	}
@@ -297,6 +302,61 @@ func subagentPaths(mainPath string) []string {
 	}
 	sort.Strings(matches)
 	return matches
+}
+
+type agentMeta struct {
+	AgentType    string `json:"agentType"`
+	Description  string `json:"description"`
+	ToolUseID    string `json:"toolUseId"`
+	Model        string `json:"model"`
+	RequestShape string `json:"requestShape"`
+}
+
+func readAgentMeta(agentPath string) (agentMeta, bool) {
+	raw, err := os.ReadFile(strings.TrimSuffix(agentPath, ".jsonl") + ".meta.json")
+	if err != nil {
+		return agentMeta{}, false
+	}
+	var meta agentMeta
+	if err := json.Unmarshal(raw, &meta); err != nil {
+		return agentMeta{}, false
+	}
+	return meta, true
+}
+
+func (s *Supervisor) announceAgent(ctx context.Context, rec domain.SessionRecord, agentID, agentPath string) {
+	if s.deps.Sink == nil {
+		return
+	}
+	meta, ok := readAgentMeta(agentPath)
+	if !ok {
+		return
+	}
+	detail := map[string]string{"agentId": agentID}
+	for key, value := range map[string]string{
+		"agentType":    meta.AgentType,
+		"description":  meta.Description,
+		"model":        meta.Model,
+		"requestShape": meta.RequestShape,
+	} {
+		if value != "" {
+			detail[key] = value
+		}
+	}
+	encoded, err := json.Marshal(detail)
+	if err != nil {
+		return
+	}
+	event := domain.BlockTranscriptEvent{
+		Kind:      domain.BlockEventAgentStart,
+		SourceID:  agentID,
+		ToolUseID: meta.ToolUseID,
+		ToolName:  "Agent",
+		Detail:    string(encoded),
+	}
+	if err := s.deps.Sink.RecordTranscript(ctx, rec.ID, string(rec.Harness), event); err != nil && ctx.Err() == nil {
+		s.deps.Logger.Warn("agent start projection", "session", rec.ID, "agent", agentID, "err", err)
+	}
 }
 
 func (s *Supervisor) newAgentTail(ctx context.Context, rec domain.SessionRecord, agentID, path string) *tail {

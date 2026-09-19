@@ -762,7 +762,9 @@ class _AgentBodyState extends State<_AgentBody> {
 
   AgentBlockDetail get _detail => widget.block.detail! as AgentBlockDetail;
 
-  bool get _running => !_detail.finished && widget.block.status == BlockStatus.running;
+  bool get _running => !_detail.finished && (_detail.launchedInBackground || widget.block.status == BlockStatus.running);
+
+  BlockStatus get _status => _running ? BlockStatus.running : widget.block.status;
 
   @override
   void initState() {
@@ -787,7 +789,7 @@ class _AgentBodyState extends State<_AgentBody> {
     }
     final duration = _detail.durationMs == null ? null : formatDuration(Duration(milliseconds: _detail.durationMs!));
     final tools = _detail.toolUseCount;
-    final state = widget.block.status == BlockStatus.failed || _detail.status == 'failed' ? 'failed' : 'done';
+    final state = (widget.block.status == BlockStatus.failed && !_detail.launchedInBackground) || _detail.status == 'failed' ? 'failed' : 'done';
     return [state, ?duration, if (tools != null) '$tools tools'].join(' · ');
   }
 
@@ -803,7 +805,7 @@ class _AgentBodyState extends State<_AgentBody> {
         constraints: const BoxConstraints(minHeight: 44),
         child: Row(
           children: [
-            BlockStatusDot(status: widget.block.status),
+            BlockStatusDot(status: _status),
             const SizedBox(width: 8),
             Expanded(
               child: Column(

@@ -165,3 +165,36 @@ func TestAgentToolResultCarriesTheAgentDetail(t *testing.T) {
 		t.Fatalf("non-agent result must carry no detail, got %q", events[0].Detail)
 	}
 }
+
+func TestAnAsyncLaunchDetailOmitsUnknownTotalsAndEmptyType(t *testing.T) {
+	line := `{"type":"user","uuid":"u11","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"toolu_C","content":"Async agent launched"}]},"toolUseResult":{"agentId":"af9f","status":"async_launched","resolvedModel":"claude-sonnet-5","totalDurationMs":0,"totalToolUseCount":0,"totalTokens":0}}`
+	events, _ := MapTranscriptRecord([]byte(line))
+	var detail map[string]any
+	if err := json.Unmarshal([]byte(events[0].Detail), &detail); err != nil {
+		t.Fatal(err)
+	}
+	for _, absent := range []string{"agentType", "totalDurationMs", "totalToolUseCount", "totalTokens"} {
+		if _, present := detail[absent]; present {
+			t.Fatalf("%s must be omitted when unknown, detail = %v", absent, detail)
+		}
+	}
+	if detail["status"] != "async_launched" || detail["agentId"] != "af9f" {
+		t.Fatalf("detail = %v", detail)
+	}
+}
+
+func TestASubagentHandBackInTheMainTranscriptStopsTheAgent(t *testing.T) {
+	line := `{"type":"user","uuid":"u12","message":{"role":"user","content":[{"type":"text","text":"Another Claude session sent a message:\n<agent-message from=\"a3da2ef9b48210e44\">\n[Subagent hand-back] The text below is the final report."}]}}`
+	events, ok := MapTranscriptRecord([]byte(line))
+	if !ok || len(events) != 1 || events[0].Kind != domain.BlockEventAgentStop || events[0].SourceID != "a3da2ef9b48210e44" || events[0].AgentID != "" {
+		t.Fatalf("events = %+v, %v", events, ok)
+	}
+	plain := `{"type":"user","uuid":"u13","message":{"role":"user","content":"just a human prompt"}}`
+	if events, _ := MapTranscriptRecord([]byte(plain)); len(events) != 0 {
+		t.Fatalf("an ordinary user record must still produce nothing, got %+v", events)
+	}
+	sidechain := `{"type":"user","isSidechain":true,"agentId":"a1","uuid":"u14","message":{"role":"user","content":"<agent-message from=\"zz\">hi"}}`
+	if events, _ := MapSidechainRecord("a1", []byte(sidechain)); len(events) != 1 || events[0].Kind != domain.BlockEventPromptSubmit {
+		t.Fatalf("inside an agent transcript a text record is its prompt, got %+v", events)
+	}
+}

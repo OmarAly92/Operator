@@ -612,10 +612,46 @@ void main() {
         _event(1, 'tool_start', sourceId: 'toolu_a', toolUseId: 'toolu_a', toolName: 'Agent', source: 'transcript', toolInput: input),
         _event(2, 'tool_result', sourceId: 'toolu_a', toolUseId: 'toolu_a', source: 'transcript', text: 'Async agent launched',
             detail: '{"agentId":"a1","agentType":"general-purpose","status":"running"}'),
-        _event(3, 'agent_stop', sourceId: 'a1', agentId: 'a1', source: 'hook', text: 'finished'),
+        _event(3, 'agent_stop', sourceId: 'a1', source: 'hook', text: 'finished'),
       ]);
       final detail = blocks.single.detail as AgentBlockDetail;
       expect(detail.status, 'completed');
+    });
+
+    test('an agent_start links the agent identity onto the Agent block through its tool use id', () {
+      final blocks = assembleBlocks([
+        _event(1, 'tool_start', sourceId: 'toolu_a', toolUseId: 'toolu_a', toolName: 'Agent', source: 'hook', toolInput: input),
+        _event(2, 'agent_start', sourceId: 'a9', toolUseId: 'toolu_a', toolName: 'Agent', source: 'transcript',
+            detail: '{"agentId":"a9","agentType":"general-purpose","description":"Implement Task 1","model":"haiku","requestShape":"background"}'),
+        _event(3, 'tool_start', sourceId: 'toolu_a', toolUseId: 'toolu_a', toolName: 'Agent', source: 'transcript', toolInput: input),
+        _event(4, 'tool_result', sourceId: 'toolu_a', toolUseId: 'toolu_a', source: 'transcript', text: 'Async agent launched',
+            detail: '{"agentId":"a9","status":"async_launched","resolvedModel":"claude-haiku-4-5"}'),
+      ]);
+
+      expect(blocks, hasLength(1));
+      final detail = blocks.single.detail as AgentBlockDetail;
+      expect(detail.agentId, 'a9');
+      expect(detail.agentType, 'general-purpose');
+      expect(detail.prompt, 'You are implementing Task 1');
+      expect(detail.status, 'async_launched');
+      expect(detail.launchedInBackground, isTrue);
+      expect(detail.toolUseCount, isNull);
+      expect(blocks.single.status, BlockStatus.ok);
+    });
+
+    test('an agent_start that arrives before any tool event creates the Agent block', () {
+      final blocks = assembleBlocks([
+        _event(1, 'agent_start', sourceId: 'a9', toolUseId: 'toolu_a', toolName: 'Agent', source: 'transcript',
+            detail: '{"agentId":"a9","agentType":"general-purpose","description":"Implement Task 1"}'),
+        _event(2, 'tool_start', sourceId: 'toolu_a', toolUseId: 'toolu_a', toolName: 'Agent', source: 'transcript', toolInput: input),
+      ]);
+
+      expect(blocks, hasLength(1));
+      expect(blocks.single.id, 'src-toolu_a');
+      final detail = blocks.single.detail as AgentBlockDetail;
+      expect(detail.agentId, 'a9');
+      expect(detail.model, 'haiku');
+      expect(blocks.single.body, input);
     });
 
     test('agent-scoped events carry the agent id onto their blocks', () {

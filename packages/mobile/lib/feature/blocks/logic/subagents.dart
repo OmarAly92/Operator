@@ -31,7 +31,17 @@ class SubagentEntry extends Equatable {
 
   AgentBlockDetail? get detail => card?.detail is AgentBlockDetail ? card!.detail! as AgentBlockDetail : null;
   String get title => detail?.description ?? detail?.agentType ?? 'Agent';
-  bool get running => !(summary?.stopped ?? false) && !(detail?.finished ?? false) && card?.status != BlockStatus.ok && card?.status != BlockStatus.failed;
+  bool get running {
+    if (summary?.stopped ?? false) return false;
+    final agent = detail;
+    if (agent != null) {
+      if (agent.finished) return false;
+      if (agent.launchedInBackground) return true;
+    }
+    final card = this.card;
+    if (card == null) return true;
+    return card.status == BlockStatus.running || card.status == BlockStatus.blocked;
+  }
   String? get startedAt => card?.createdAt ?? summary?.startedAt;
   String? get lastSeenAt => summary?.lastSeenAt ?? card?.createdAt;
 

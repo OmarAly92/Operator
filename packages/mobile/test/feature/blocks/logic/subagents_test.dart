@@ -27,6 +27,15 @@ void main() {
     expect(entries.map((e) => (e.card?.id, e.agentId)), [('c1', 'a1'), ('c2', 'a2')]);
   });
 
+  test('a background agent stays running after its launch result until it stops', () {
+    final launched = _agent('c1', agentId: 'a1', status: 'async_launched', blockStatus: BlockStatus.ok);
+    expect(subagentsOf([launched], const {}).single.running, isTrue);
+    expect(
+      subagentsOf([launched], {'a1': const SubagentSummary(agentId: 'a1', stopped: true)}).single.running,
+      isFalse,
+    );
+  });
+
   test('a tail matching nothing is still listed under its agent id', () {
     final entries = subagentsOf(const [], {'zz': const SubagentSummary(agentId: 'zz', prompt: 'x')});
     expect(entries.single.agentId, 'zz');

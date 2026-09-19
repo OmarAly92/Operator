@@ -357,7 +357,7 @@ func TestRecordStampsTheAgentIDOnAnAgentStop(t *testing.T) {
 		t.Fatal(err)
 	}
 	rec := store.inserted[len(store.inserted)-1]
-	if rec.Kind != domain.BlockEventAgentStop || rec.AgentID != "a1" || rec.SourceID != "a1" || rec.Text != "done" {
+	if rec.Kind != domain.BlockEventAgentStop || rec.AgentID != "" || rec.SourceID != "a1" || rec.Text != "done" {
 		t.Fatalf("record = %+v", rec)
 	}
 }
