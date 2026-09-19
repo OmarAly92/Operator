@@ -6,3 +6,4 @@ frontend/src/renderer/routeTree.gen.ts text eol=lf
 # Raw pty byte streams the ref-test harness replays verbatim; CRLF
 # normalization would corrupt the recorded bytes.
 packages/terminal/crates/vt-core/tests/ref/*/recording -text -diff
+packages/terminal/bench/agent-session/fixtures/*/recording -text -diff
