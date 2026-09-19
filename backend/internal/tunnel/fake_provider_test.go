@@ -149,6 +149,13 @@ type fakeStore struct{ path string }
 
 func (s fakeStore) Ensure(context.Context, BinarySpec) (string, error) { return s.path, nil }
 
+func (s fakeStore) Resolve(BinarySpec) (string, string, bool) {
+	if s.path == "" {
+		return "", "", false
+	}
+	return s.path, "path", true
+}
+
 const sleepForeverScript = "#!/bin/sh\nwhile true; do sleep 1; done\n"
 
 const exitImmediatelyScript = "#!/bin/sh\necho 'boom' >&2\nexit 1\n"

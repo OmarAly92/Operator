@@ -154,23 +154,18 @@ func (m *Manager) NgrokDiagnose(ctx context.Context) NgrokDiagnosis {
 	binary := NgrokCheck{Name: "Binary"}
 	var path string
 	if provider := m.providerNamed("ngrok"); provider != nil {
-		p, err := m.binaries.Ensure(ctx, provider.Binary())
-		if err != nil {
-			binary.Detail = "ngrok is not installed and has not been downloaded yet; enabling the tunnel downloads it"
-		} else {
-			path = p
-			source := "path"
-			if resolver, ok := m.binaries.(binaryResolver); ok {
-				if _, resolvedSource, ok := resolver.Resolve(provider.Binary()); ok {
-					source = resolvedSource
+		if resolver, ok := m.binaries.(binaryResolver); ok {
+			if p, source, ok := resolver.Resolve(provider.Binary()); ok {
+				path = p
+				out, err := exec.CommandContext(ctx, p, "version").Output()
+				if err == nil {
+					binary.OK = true
+					binary.Detail = fmt.Sprintf("%s (%s): %s", p, source, strings.TrimSpace(strings.SplitN(string(out), "\n", 2)[0]))
+				} else {
+					binary.Detail = fmt.Sprintf("%s failed to run: %v", p, err)
 				}
-			}
-			out, err := exec.CommandContext(ctx, p, "version").Output()
-			if err == nil {
-				binary.OK = true
-				binary.Detail = fmt.Sprintf("%s (%s): %s", p, source, strings.TrimSpace(strings.SplitN(string(out), "\n", 2)[0]))
 			} else {
-				binary.Detail = fmt.Sprintf("%s failed to run: %v", p, err)
+				binary.Detail = "ngrok is not installed and has not been downloaded yet; enabling the tunnel downloads it"
 			}
 		}
 	}
