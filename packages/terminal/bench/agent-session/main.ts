@@ -19,6 +19,7 @@ type AgentSession = {
 	feedChunk(start: number, end: number): number;
 	feedFrames(count: number, intervalMs: number): Promise<void>;
 	rowCount(): number;
+	renderableRowCount(): number;
 	paintCount(): number;
 	addedNodes(): number;
 	resetCounters(): void;
@@ -94,6 +95,23 @@ function feedNext(limit: number): number {
 	const end = Math.min(recording.length, fed + limit);
 	if (end <= fed) return 0;
 	return feedChunk(fed, end);
+}
+
+function renderableRowCount(): number {
+	const snapshot = core.snapshot();
+	const blank = (row: number): boolean => {
+		const start = snapshot.rows[row * 2] ?? 0;
+		const end = snapshot.rows[row * 2 + 1] ?? 0;
+		for (let index = start; index < end; index += 1) if (snapshot.content[index] !== 0x20) return false;
+		return true;
+	};
+	let total = 0;
+	for (const block of decodeBlocks(snapshot)) {
+		let count = block.rowCount;
+		while (count > 1 && blank(block.firstRow + count - 1)) count -= 1;
+		total += count;
+	}
+	return total;
 }
 
 function rowCount(): number {
@@ -198,6 +216,7 @@ window.__agentSession = {
 	feedChunk,
 	feedFrames,
 	rowCount,
+	renderableRowCount,
 	paintCount: () => paints,
 	addedNodes: () => addedNodes,
 	resetCounters: () => {

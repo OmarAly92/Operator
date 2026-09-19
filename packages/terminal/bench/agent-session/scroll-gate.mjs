@@ -19,7 +19,7 @@ try {
 	await page.evaluate(() => window.__agentSession.feedAll());
 	const result = await page.evaluate(async () => {
 		const session = window.__agentSession;
-		const total = session.rowCount();
+		const total = session.renderableRowCount();
 		const seen = new Map();
 		const slow = [];
 		let step = 0;

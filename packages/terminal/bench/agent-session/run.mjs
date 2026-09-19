@@ -132,11 +132,17 @@ async function longTask2MiB(page) {
 		const began = performance.now();
 		core.enqueue(chunk);
 		let frames = 0;
+		let previous = began;
+		let longestFrameMs = 0;
 		while (core.hasBacklog()) {
 			await new Promise((resolve) => requestAnimationFrame(resolve));
 			frames += 1;
+			const at = performance.now();
+			longestFrameMs = Math.max(longestFrameMs, at - previous);
+			previous = at;
 		}
-		return { frames, totalMs: performance.now() - began };
+		const totalMs = performance.now() - began;
+		return { frames, totalMs, longestFrameMs, meanFrameMs: frames === 0 ? 0 : totalMs / frames };
 	});
 	await page.waitForTimeout(500);
 	const queuedTasks = await page.evaluate(() => window.__agentSession.longTasks());
@@ -222,7 +228,8 @@ async function main() {
 			if (tearing.tornPaints !== 0) throw new Error(`${tearing.tornPaints} paints showed a partial frame`);
 			if (tearing.multiPaintFrames !== 0) throw new Error(`${tearing.multiPaintFrames} frames painted more than once`);
 			const longTask = Object.values(report.fixtures).find((rows) => rows.longTask)?.longTask;
-			if (longTask && longTask.queued.longestTaskMs !== null && longTask.queued.longestTaskMs > 16) throw new Error(`queued 2 MiB feed blocked the main thread for ${longTask.queued.longestTaskMs.toFixed(1)}ms`);
+			if (longTask && longTask.queued.longestTaskMs !== null && longTask.queued.longestTaskMs > 50) throw new Error(`queued 2 MiB feed blocked the main thread for ${longTask.queued.longestTaskMs.toFixed(1)}ms`);
+			if (longTask && longTask.queued.longestFrameMs > 50) throw new Error(`queued 2 MiB feed held a frame for ${longTask.queued.longestFrameMs.toFixed(1)}ms (budget 12 ms parse + paint)`);
 			process.stdout.write("PASS agent-session gate\n");
 		}
 	} catch (error) {

@@ -97,6 +97,9 @@ rebuilt (§6).
    path or default inside it. Operator wiring lives in `backend/` and
    `frontend/`; the package only sees `HostCapabilities`, `PtyTransport`,
    `SpawnRecipe`, theme input. Gate: "could a second, non-Operator host use this?"
+   The one exemption is measurement tooling under `bench/`: `bench/agent-session/run.mjs`
+   runs a Go test in `backend/` for the reopen row of the baseline table. Nothing
+   under `crates/` or `ts/` may reference the host repository.
 2. **Match Warp, cite Warp.** Rendering/behaviour decisions quote the Warp file
    and line they mirror (see the comments already in `styles.css`, `screen.rs`).
 3. **No comments in new code** (user's global instruction). Existing comments may
@@ -379,6 +382,12 @@ history of `master`.
   `a_trim_past_a_block_that_starts_above_the_cut_does_not_underflow`.
 
 ## 5. Known gaps (not bugs, decisions pending)
+
+- A DEC 2026 block that grows to `SYNC_BUFFER_CAP` (2 MiB) is flushed and
+  parsed in one `feed` inside whatever frame receives it, bypassing the 12 ms
+  `drain` budget: a burst of ~60 ms on this machine. Claude Code frames are
+  kilobytes, so it needs a misbehaving program; lowering the cap or splitting
+  the flush across frames is the fix if it ever shows.
 
 - Copying a rewrapped block (`readBlockOutput`, `vt_render`) joins rows with
   `\n`, so a soft-wrapped line copies as several lines. Warp copies the logical
