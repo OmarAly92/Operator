@@ -264,6 +264,68 @@ func TestRemoveNgrokAuthtokenKeepsWebAddrAndVersion(t *testing.T) {
 	}
 }
 
+func TestWriteNgrokAuthtokenOnAnEmptyFile(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "ngrok.yml")
+	if err := writeNgrokAuthtoken(path, "T"); err != nil {
+		t.Fatalf("writeNgrokAuthtoken: %v", err)
+	}
+	body, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read: %v", err)
+	}
+	want := "version: \"3\"\nagent:\n    authtoken: T\n"
+	if string(body) != want {
+		t.Fatalf("got %q, want %q", body, want)
+	}
+}
+
+func TestWriteNgrokAuthtokenKeepsWebAddr(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "ngrok.yml")
+	seeded := "version: \"3\"\nagent:\n    web_addr: 127.0.0.1:4040\n"
+	if err := os.WriteFile(path, []byte(seeded), 0o600); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+	if err := writeNgrokAuthtoken(path, "T"); err != nil {
+		t.Fatalf("writeNgrokAuthtoken: %v", err)
+	}
+	body, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read: %v", err)
+	}
+	got := string(body)
+	if !strings.Contains(got, "agent:\n    authtoken: T\n") {
+		t.Errorf("config = %q, want the authtoken line directly under agent:", got)
+	}
+	if !strings.Contains(got, "web_addr: 127.0.0.1:4040") {
+		t.Errorf("config = %q, want web_addr kept", got)
+	}
+}
+
+func TestWriteNgrokAuthtokenReplacesAnExistingOne(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "ngrok.yml")
+	seeded := "version: \"3\"\nagent:\n    authtoken: old\n    web_addr: 127.0.0.1:4040\n"
+	if err := os.WriteFile(path, []byte(seeded), 0o600); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+	if err := writeNgrokAuthtoken(path, "new"); err != nil {
+		t.Fatalf("writeNgrokAuthtoken: %v", err)
+	}
+	body, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read: %v", err)
+	}
+	got := string(body)
+	if strings.Contains(got, "authtoken: old") {
+		t.Errorf("config = %q, want the old authtoken gone", got)
+	}
+	if strings.Count(got, "authtoken:") != 1 {
+		t.Errorf("config = %q, want exactly one authtoken line", got)
+	}
+	if !strings.Contains(got, "authtoken: new") {
+		t.Errorf("config = %q, want the new authtoken", got)
+	}
+}
+
 func TestNgrokArgsAppendTheStableDomain(t *testing.T) {
 	p := NgrokProvider(NgrokConfig{Domain: func() string { return "phone.example.ngrok.app" }})
 	args := p.Args(3011, 4040)

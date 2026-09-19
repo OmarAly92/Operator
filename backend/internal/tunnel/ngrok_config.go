@@ -45,6 +45,23 @@ func removeNgrokAuthtoken(existing string) string {
 	return strings.Join(out, "\n")
 }
 
+func writeNgrokAuthtoken(path, token string) error {
+	existing, err := os.ReadFile(path)
+	if err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		return err
+	}
+	body := removeNgrokAuthtoken(string(existing))
+	if !strings.Contains(body, "\nagent:") && !strings.HasPrefix(body, "agent:") {
+		body = mergeNgrokWebAddr(body, 0)
+		body = strings.Replace(body, ngrokConfigIndent+"web_addr: 127.0.0.1:0\n", "", 1)
+	}
+	body = strings.Replace(body, "agent:\n", "agent:\n"+ngrokConfigIndent+"authtoken: "+token+"\n", 1)
+	return os.WriteFile(path, []byte(body), 0o600)
+}
+
 func mergeNgrokWebAddr(existing string, controlPort int) string {
 	webAddr := fmt.Sprintf("%sweb_addr: 127.0.0.1:%d", ngrokConfigIndent, controlPort)
 
