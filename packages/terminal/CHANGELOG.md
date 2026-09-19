@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+Synchronized output (DEC private mode 2026) is buffered in the parser.
+
+- `vt-core` holds every byte between `ESC[?2026h` and `ESC[?2026l` back from
+  the model and parses the whole frame at once when the terminator, a 2 MiB
+  cap, a 150 ms deadline (`TerminalCore::tick(now_ms)`, the host's clock), a
+  resize or a process-boundary mark arrives — the `vte::ansi::Processor`
+  mechanism (`vte-0.15.0/src/ansi.rs`, `advance_sync`), so neither the
+  renderer core nor the pty-host mirror ever contains half of an Ink frame.
+  `feed_at(bytes, now_ms)` carries the clock; `feed` keeps the last one.
+
 A process boundary mark ends the current block and starts a fresh one.
 
 - `OSC 7000 ; v=1 ; boundary=<exit>` tells `vt-core` the process that owned
