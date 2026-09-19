@@ -337,6 +337,7 @@ class _RailBody extends StatelessWidget {
         'sessionId': context.read<BlocksCubit>().sessionId,
         'agentId': detail.agentId,
         'detail': detail,
+        'harness': context.read<BlocksCubit>().harness,
       },
     );
   }
@@ -962,6 +963,11 @@ class _PermissionBody extends StatelessWidget {
           const SizedBox(height: 8),
           if (block.status != BlockStatus.blocked)
             AppText('Answered', style: AppTextStyle.style10Regular.copyWith(color: skin.textTertiary))
+          else if (block.agentId != null)
+            AppText(
+              'Answer in the parent session',
+              style: AppTextStyle.style10Regular.copyWith(color: skin.textTertiary),
+            )
           else if (block.interactionId case final interactionId?)
             _PermissionChoices(interactionId: interactionId)
           else
@@ -1050,12 +1056,18 @@ class _QuestionBody extends StatelessWidget {
       children: [
         AppText(display.displayName, style: AppTextStyle.style13SemiBold.copyWith(color: skin.textPrimary)),
         const SizedBox(height: 6),
-        BlockQuestionOptions(
-          questions: questions,
-          interactionId: block.interactionId,
-          answered: block.status != BlockStatus.blocked,
-          answers: parseQuestionAnswers(block.result ?? '', questions),
-        ),
+        if (block.agentId != null && block.status == BlockStatus.blocked)
+          AppText(
+            'Answer in the parent session',
+            style: AppTextStyle.style10Regular.copyWith(color: skin.textTertiary),
+          )
+        else
+          BlockQuestionOptions(
+            questions: questions,
+            interactionId: block.interactionId,
+            answered: block.status != BlockStatus.blocked,
+            answers: parseQuestionAnswers(block.result ?? '', questions),
+          ),
       ],
     );
   }
