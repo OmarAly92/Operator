@@ -13,7 +13,9 @@ type claudeTranscriptRecord struct {
 	Subtype         string          `json:"subtype"`
 	UUID            string          `json:"uuid"`
 	IsSidechain     bool            `json:"isSidechain"`
+	AgentID         string          `json:"agentId"`
 	Content         json.RawMessage `json:"content"`
+	ToolUseResult   json.RawMessage `json:"toolUseResult"`
 	CompactMetadata struct {
 		Trigger string `json:"trigger"`
 	} `json:"compactMetadata"`
@@ -64,11 +66,37 @@ func MapTranscriptRecord(line []byte) ([]domain.BlockTranscriptEvent, bool) {
 	if rec.IsSidechain {
 		return nil, true
 	}
+	return mapClaudeRecord(rec, false)
+}
+
+func MapSidechainRecord(agentID string, line []byte) ([]domain.BlockTranscriptEvent, bool) {
+	var rec claudeTranscriptRecord
+	if err := json.Unmarshal(line, &rec); err != nil {
+		return nil, false
+	}
+	events, ok := mapClaudeRecord(rec, true)
+	for i := range events {
+		events[i].AgentID = agentID
+	}
+	return events, ok
+}
+
+func mapClaudeRecord(rec claudeTranscriptRecord, sidechain bool) ([]domain.BlockTranscriptEvent, bool) {
 	switch rec.Type {
 	case "assistant":
 		return claudeAssistantEvents(rec), true
 	case "user":
-		return claudeUserEvents(rec), true
+		events := claudeUserEvents(rec)
+		if sidechain && len(events) == 0 {
+			if prompt := strings.TrimSpace(claudeFlattenText(rec.Message.Content)); prompt != "" {
+				events = append(events, domain.BlockTranscriptEvent{
+					Kind:     domain.BlockEventPromptSubmit,
+					SourceID: rec.UUID,
+					Text:     prompt,
+				})
+			}
+		}
+		return events, true
 	case "system":
 		if rec.Subtype != "compact_boundary" {
 			return nil, true
@@ -181,9 +209,43 @@ func claudeUserEvents(rec claudeTranscriptRecord) []domain.BlockTranscriptEvent 
 		if block.IsError {
 			event.ErrorType = "tool_failed"
 		}
+		if detail := claudeAgentResultDetail(rec.ToolUseResult); detail != "" {
+			event.Detail = detail
+		}
 		events = append(events, event)
 	}
 	return events
+}
+
+func claudeAgentResultDetail(raw json.RawMessage) string {
+	if len(raw) == 0 {
+		return ""
+	}
+	var result struct {
+		AgentID           string `json:"agentId"`
+		AgentType         string `json:"agentType"`
+		Status            string `json:"status"`
+		ResolvedModel     string `json:"resolvedModel"`
+		TotalDurationMs   int64  `json:"totalDurationMs"`
+		TotalToolUseCount int    `json:"totalToolUseCount"`
+		TotalTokens       int64  `json:"totalTokens"`
+	}
+	if err := json.Unmarshal(raw, &result); err != nil || result.AgentID == "" {
+		return ""
+	}
+	encoded, err := json.Marshal(map[string]any{
+		"agentId":           result.AgentID,
+		"agentType":         result.AgentType,
+		"status":            result.Status,
+		"resolvedModel":     result.ResolvedModel,
+		"totalDurationMs":   result.TotalDurationMs,
+		"totalToolUseCount": result.TotalToolUseCount,
+		"totalTokens":       result.TotalTokens,
+	})
+	if err != nil {
+		return ""
+	}
+	return string(encoded)
 }
 
 func claudeContentBlocks(raw json.RawMessage) []claudeContentBlock {

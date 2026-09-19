@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/OmarAly92/operator/backend/internal/domain"
 )
 
 type transcriptFixture struct {
@@ -86,5 +88,80 @@ func TestMapTranscriptRecordFixtures(t *testing.T) {
 				t.Fatalf("consumed %d lines, expectations cover %d", index, len(fixture.Lines))
 			}
 		})
+	}
+}
+
+func TestMapSidechainRecordFixture(t *testing.T) {
+	dir := filepath.Join("..", "..", "..", "..", "..", "testdata", "transcripts")
+	raw, err := os.ReadFile(filepath.Join(dir, "claude_code_subagent.expected.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var fixture transcriptFixture
+	if err := json.Unmarshal(raw, &fixture); err != nil {
+		t.Fatal(err)
+	}
+	file, err := os.Open(filepath.Join(dir, "claude_code_subagent.jsonl"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = file.Close() }()
+	scanner := bufio.NewScanner(file)
+	scanner.Buffer(make([]byte, 0, 1<<20), 1<<20)
+	index := 0
+	for scanner.Scan() {
+		want := fixture.Lines[index]
+		got, known := MapSidechainRecord("a17c0aebd85b89c55", scanner.Bytes())
+		if known != want.Known || len(got) != len(want.Events) {
+			t.Fatalf("line %d: known=%v events=%+v; want known=%v %d events", index+1, known, got, want.Known, len(want.Events))
+		}
+		for i, expected := range want.Events {
+			if string(got[i].Kind) != expected.Kind || got[i].Text != expected.Text || got[i].ToolName != expected.ToolName {
+				t.Fatalf("line %d event %d = %+v want %+v", index+1, i, got[i], expected)
+			}
+			if got[i].AgentID != "a17c0aebd85b89c55" {
+				t.Fatalf("line %d event %d has agent id %q", index+1, i, got[i].AgentID)
+			}
+		}
+		if mainEvents, _ := MapTranscriptRecord(scanner.Bytes()); len(mainEvents) != 0 {
+			t.Fatalf("line %d: the main mapper must still drop sidechain records, got %+v", index+1, mainEvents)
+		}
+		index++
+	}
+}
+
+func TestSidechainMapperEmitsPromptSubmitOnlyForTheFirstUserText(t *testing.T) {
+	first := `{"type":"user","isSidechain":true,"agentId":"a1","uuid":"u1","message":{"role":"user","content":"Implement task 1"}}`
+	events, ok := MapSidechainRecord("a1", []byte(first))
+	if !ok || len(events) != 1 || events[0].Kind != domain.BlockEventPromptSubmit || events[0].Text != "Implement task 1" {
+		t.Fatalf("first user record = %+v, %v", events, ok)
+	}
+	result := `{"type":"user","isSidechain":true,"agentId":"a1","uuid":"u2","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"toolu_1","content":"ok"}]}}`
+	events, _ = MapSidechainRecord("a1", []byte(result))
+	if len(events) != 1 || events[0].Kind != domain.BlockEventToolResult {
+		t.Fatalf("tool result record = %+v", events)
+	}
+}
+
+func TestAgentToolResultCarriesTheAgentDetail(t *testing.T) {
+	line := `{"type":"user","uuid":"u9","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"toolu_A","content":"done"}]},"toolUseResult":{"agentId":"a17c","agentType":"general-purpose","status":"completed","resolvedModel":"claude-sonnet-5","totalDurationMs":61234,"totalToolUseCount":7,"totalTokens":12345,"usage":{"input_tokens":1}}}`
+	events, ok := MapTranscriptRecord([]byte(line))
+	if !ok || len(events) != 1 {
+		t.Fatalf("events = %+v, %v", events, ok)
+	}
+	var detail map[string]any
+	if err := json.Unmarshal([]byte(events[0].Detail), &detail); err != nil {
+		t.Fatalf("detail %q: %v", events[0].Detail, err)
+	}
+	if detail["agentId"] != "a17c" || detail["agentType"] != "general-purpose" || detail["status"] != "completed" || detail["totalToolUseCount"] != float64(7) {
+		t.Fatalf("detail = %v", detail)
+	}
+	if _, present := detail["usage"]; present {
+		t.Fatal("usage must not be forwarded")
+	}
+	plain := `{"type":"user","uuid":"u10","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"toolu_B","content":"x"}]},"toolUseResult":{"stdout":"x"}}`
+	events, _ = MapTranscriptRecord([]byte(plain))
+	if events[0].Detail != "" {
+		t.Fatalf("non-agent result must carry no detail, got %q", events[0].Detail)
 	}
 }
