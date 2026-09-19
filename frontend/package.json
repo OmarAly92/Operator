@@ -1,7 +1,7 @@
 {
   "name": "operator",
   "productName": "Operator",
-  "version": "0.14.6",
+  "version": "0.14.7",
   "private": true,
   "description": "Tauri + TypeScript frontend for the operator rewrite",
   "author": "Operator",
