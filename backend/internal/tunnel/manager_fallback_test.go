@@ -190,3 +190,97 @@ func TestNoFallbackWhenBothProvidersAreRefused(t *testing.T) {
 	}
 	t.Fatalf("state = %q, want failed", m.Status().State)
 }
+
+func newTimeoutFallbackManager(t *testing.T, first, second *fakeProvider, clock *fakeClock) (*Manager, *perProviderStore) {
+	t.Helper()
+	store := &perProviderStore{paths: map[string]string{
+		first.name:  first.binary,
+		second.name: second.binary,
+	}, launches: map[string]int{}}
+	m := New(Deps{
+		Dir:       t.TempDir(),
+		Providers: []Provider{first, second},
+		Binaries:  store,
+		Now:       clock.Now,
+		Sleep: func(ctx context.Context, _ time.Duration) error {
+			clock.advance(startTimeout / 4)
+			return yieldSleep(ctx)
+		},
+		ReservePort: func() (int, error) { return 45998, nil },
+	})
+	m.SetLocalPort(3011)
+	t.Cleanup(m.Close)
+	return m, store
+}
+
+const crlLoggingScript = "#!/bin/sh\necho '{\"err\":\"failed to send authentication request: failed to fetch CRL. errors encountered: asn1: structure error: length too large\",\"lvl\":\"eror\",\"msg\":\"failed to reconnect session\"}'\nwhile true; do sleep 1; done\n"
+
+func TestStartTimeoutSurfacesTheProviderLogAndFallsBack(t *testing.T) {
+	ngrok := newFakeProvider(t, "ngrok", crlLoggingScript)
+	ngrok.setURLErr(ErrNoURLYet)
+	ngrok.setFailure(Failure{Class: FailureNetwork, Message: "ngrok could not fetch its certificate revocation list"})
+	cloudflared := newFakeProvider(t, "cloudflared", sleepForeverScript)
+	cloudflared.setURL("https://fallback.trycloudflare.com")
+
+	m, store := newTimeoutFallbackManager(t, ngrok, cloudflared, newFakeClock())
+	if err := m.Enable(context.Background()); err != nil {
+		t.Fatalf("Enable: %v", err)
+	}
+
+	status := waitForState(t, m, StateLive)
+	if status.Provider != "cloudflared" {
+		t.Fatalf("provider = %q, want cloudflared after ngrok never published", status.Provider)
+	}
+	if status.LastProvider != "ngrok" {
+		t.Errorf("LastProvider = %q, want ngrok", status.LastProvider)
+	}
+	if status.FallbackReason != "ngrok could not fetch its certificate revocation list" {
+		t.Errorf("FallbackReason = %q, want the classified log message", status.FallbackReason)
+	}
+	if status.NeedsAuthtoken {
+		t.Error("a network failure is not an authtoken problem")
+	}
+	if store.launchCount("ngrok") != 1 {
+		t.Errorf("ngrok launched %d times, want exactly one attempt before fallback", store.launchCount("ngrok"))
+	}
+}
+
+func TestStartTimeoutWithoutAnyLogStillFallsBack(t *testing.T) {
+	ngrok := newFakeProvider(t, "ngrok", sleepForeverScript)
+	ngrok.setURLErr(ErrNoURLYet)
+	cloudflared := newFakeProvider(t, "cloudflared", sleepForeverScript)
+
+	m, _ := newTimeoutFallbackManager(t, ngrok, cloudflared, newFakeClock())
+	_ = m.Enable(context.Background())
+
+	status := waitForState(t, m, StateLive)
+	if status.Provider != "cloudflared" {
+		t.Fatalf("provider = %q, want cloudflared", status.Provider)
+	}
+	want := "tunnel: ngrok published no url within 1m0s"
+	if status.FallbackReason != want {
+		t.Errorf("FallbackReason = %q, want %q", status.FallbackReason, want)
+	}
+}
+
+func TestStartTimeoutOnTheLastProviderFailsTerminally(t *testing.T) {
+	ngrok := newFakeProvider(t, "ngrok", sleepForeverScript)
+	ngrok.setURLErr(ErrNoURLYet)
+	cloudflared := newFakeProvider(t, "cloudflared", sleepForeverScript)
+	cloudflared.setURLErr(ErrNoURLYet)
+
+	m, _ := newTimeoutFallbackManager(t, ngrok, cloudflared, newFakeClock())
+	_ = m.Enable(context.Background())
+
+	status := waitForState(t, m, StateFailed)
+	if status.Error != "tunnel: cloudflared published no url within 1m0s" {
+		t.Errorf("Error = %q, want the last provider's timeout", status.Error)
+	}
+	cloudflared.setURLErr(nil)
+	if err := m.Enable(context.Background()); err != nil {
+		t.Fatalf("Enable after terminal failure: %v", err)
+	}
+	if got := waitForState(t, m, StateLive); got.LastProvider != "" || got.FallbackReason != "" {
+		t.Errorf("a fresh Enable must clear LastProvider/FallbackReason, got %q / %q", got.LastProvider, got.FallbackReason)
+	}
+}

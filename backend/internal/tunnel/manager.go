@@ -25,6 +25,12 @@ const (
 
 func itoa(value int) string { return strconv.Itoa(value) }
 
+type startTimeoutError struct{ provider string }
+
+func (e *startTimeoutError) Error() string {
+	return fmt.Sprintf("tunnel: %s published no url within %s", e.provider, startTimeout)
+}
+
 type Deps struct {
 	Log         *slog.Logger
 	Dir         string
@@ -52,6 +58,7 @@ type Manager struct {
 	enabled             bool
 	stickyFrom          map[string]bool
 	lastFailureProvider string
+	hadFirstFailure     bool
 	cmd                 *exec.Cmd
 	cancel              context.CancelFunc
 	done                chan struct{}
@@ -266,6 +273,8 @@ func (m *Manager) launch(ctx context.Context, provider Provider) error {
 		Error:          m.status.Error,
 		NeedsAuthtoken: m.status.NeedsAuthtoken,
 		Since:          m.status.Since,
+		LastProvider:   m.status.LastProvider,
+		FallbackReason: m.status.FallbackReason,
 	}
 	m.mu.Unlock()
 
@@ -280,10 +289,16 @@ func (m *Manager) launch(ctx context.Context, provider Provider) error {
 
 func (m *Manager) runAwaitURL(ctx context.Context, provider Provider, controlPort int, cancel context.CancelFunc, done, awaitDone, liveConfirmed chan struct{}) {
 	defer close(awaitDone)
-	if err := m.awaitURL(ctx, provider, controlPort); err != nil {
-		if ctx.Err() != nil {
-			return
-		}
+	err := m.awaitURL(ctx, provider, controlPort)
+	if err == nil {
+		close(liveConfirmed)
+		return
+	}
+	if ctx.Err() != nil {
+		return
+	}
+	var timeout *startTimeoutError
+	if !errors.As(err, &timeout) {
 		m.mu.Lock()
 		m.status = Status{State: StateFailed, Error: err.Error(), NeedsAuthtoken: m.status.NeedsAuthtoken}
 		m.retryableLocked()
@@ -292,7 +307,20 @@ func (m *Manager) runAwaitURL(ctx context.Context, provider Provider, controlPor
 		<-done
 		return
 	}
-	close(liveConfirmed)
+	cancel()
+	<-done
+	m.mu.Lock()
+	logs := m.logs
+	m.mu.Unlock()
+	failure := provider.ClassifyFailure(logs.Lines())
+	if failure.Message == "" {
+		failure.Message = err.Error()
+	}
+	class := failure.Class
+	if class == FailureUnknown || class == FailureNetwork {
+		class = FailureRefused
+	}
+	m.handleProviderRefusal(context.Background(), provider, failure, class)
 }
 
 func (m *Manager) awaitURL(ctx context.Context, provider Provider, controlPort int) error {
@@ -315,7 +343,7 @@ func (m *Manager) awaitURL(ctx context.Context, provider Provider, controlPort i
 			return err
 		}
 	}
-	return fmt.Errorf("tunnel: %s published no url within %s", provider.Name(), startTimeout)
+	return &startTimeoutError{provider: provider.Name()}
 }
 
 func (m *Manager) publishURL(provider Provider, url string) {
@@ -643,6 +671,11 @@ func (m *Manager) handleProviderRefusal(ctx context.Context, provider Provider, 
 		if !m.stickyFrom[candidate.Name()] {
 			remaining++
 		}
+	}
+	if remaining > 0 && !m.hadFirstFailure {
+		m.status.LastProvider = provider.Name()
+		m.status.FallbackReason = failure.Message
+		m.hadFirstFailure = true
 	}
 	m.mu.Unlock()
 	m.notifyProvider("")
