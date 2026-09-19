@@ -122,6 +122,31 @@ func TestNgrokClassifyFailureUnknownWithoutAnyError(t *testing.T) {
 	}
 }
 
+func TestNgrokClassifyFailureCRLIsNetwork(t *testing.T) {
+	lines := []string{
+		`{"err":"<nil>","lvl":"info","msg":"open config file"}`,
+		`{"err":"failed to send authentication request: failed to fetch CRL. errors encountered: asn1: structure error: length too large","lvl":"eror","msg":"failed to reconnect session"}`,
+	}
+	got := NgrokProvider(NgrokConfig{}).ClassifyFailure(lines)
+	if got.Class != FailureNetwork {
+		t.Fatalf("class = %v, want FailureNetwork", got.Class)
+	}
+	if got.Message != NgrokCRLMessage {
+		t.Errorf("message = %q", got.Message)
+	}
+}
+
+func TestNgrokClassifyFailureAuthRequestIsNetwork(t *testing.T) {
+	lines := []string{`{"err":"failed to send authentication request: dial tcp: i/o timeout","lvl":"eror","msg":"failed to reconnect session"}`}
+	got := NgrokProvider(NgrokConfig{}).ClassifyFailure(lines)
+	if got.Class != FailureNetwork {
+		t.Fatalf("class = %v, want FailureNetwork", got.Class)
+	}
+	if got.Message != "failed to send authentication request: dial tcp: i/o timeout" {
+		t.Errorf("message = %q, want the tidied error verbatim", got.Message)
+	}
+}
+
 func TestNgrokArgsPointAtLocalPortAndOurConfigs(t *testing.T) {
 	dir := t.TempDir()
 	userPath := filepath.Join(dir, "user-ngrok.yml")
