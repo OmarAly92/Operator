@@ -7,7 +7,6 @@ import {
 	type ProjectSettingsSaveState,
 	type ProjectSettingsSection,
 } from "./ProjectSettingsForm";
-import { ConnectMobileModal } from "./ConnectMobileModal";
 import { KeyboardShortcutsSettingsDialog } from "./settings/KeyboardShortcutsSettingsDialog";
 import {
 	Dialog,
@@ -31,10 +30,7 @@ export function SettingsDialog() {
 	const openGlobalSettings = useUiStore((state) => state.openGlobalSettings);
 	const openProjectSettings = useUiStore((state) => state.openProjectSettings);
 	const [keyboardShortcutsOpen, setKeyboardShortcutsOpen] = useState(false);
-	const connectMobileOpen = useUiStore((state) => state.connectMobileOpen);
-	const setConnectMobileOpen = useUiStore((state) => state.setConnectMobileOpen);
 	const keyboardShortcutsRestoreRef = useRef<SettingsModal | null>(null);
-	const connectMobileRestoreRef = useRef<SettingsModal | null>(null);
 
 	// Keep the last non-null settings so the content stays rendered during the
 	// exit animation (when settingsModal is already null but the dialog hasn't
@@ -88,14 +84,6 @@ export function SettingsDialog() {
 	const restoreSettings = () => {
 		const previousSettings = keyboardShortcutsRestoreRef.current;
 		keyboardShortcutsRestoreRef.current = null;
-		if (!previousSettings) return;
-		if (previousSettings.scope === "global") openGlobalSettings();
-		else openProjectSettings(previousSettings.projectId);
-	};
-
-	const restoreConnectMobileSettings = () => {
-		const previousSettings = connectMobileRestoreRef.current;
-		connectMobileRestoreRef.current = null;
 		if (!previousSettings) return;
 		if (previousSettings.scope === "global") openGlobalSettings();
 		else openProjectSettings(previousSettings.projectId);
@@ -231,13 +219,6 @@ export function SettingsDialog() {
 				onOpenChange={(open) => {
 					setKeyboardShortcutsOpen(open);
 					if (!open) restoreSettings();
-				}}
-			/>
-			<ConnectMobileModal
-				open={connectMobileOpen}
-				onOpenChange={(open) => {
-					setConnectMobileOpen(open);
-					if (!open) restoreConnectMobileSettings();
 				}}
 			/>
 		</>
