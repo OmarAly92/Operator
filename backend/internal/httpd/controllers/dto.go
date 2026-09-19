@@ -1416,10 +1416,115 @@ type MobileTunnelStatus struct {
 	Restarts       int    `json:"restarts" description:"Reconnect count for the current enable."`
 	NeedsAuthtoken bool   `json:"needsAuthtoken" description:"True when ngrok rejected the credential and the dialog should open."`
 	HasAuthtoken   bool   `json:"hasAuthtoken" description:"Whether an ngrok authtoken is stored. Never carries the token itself."`
+	LastProvider   string `json:"lastProvider" description:"Provider that was live before the current one took over, e.g. after a fallback."`
+	FallbackReason string `json:"fallbackReason" description:"Why the last provider was abandoned; empty when there was no fallback."`
 }
 
 type MobileAuthtokenRequest struct {
 	Token string `json:"token" description:"ngrok authtoken. Stored via ngrok's own config tooling; never echoed back."`
+}
+
+type MobileNgrokCredential struct {
+	Present          bool   `json:"present" description:"Whether an ngrok authtoken is currently in effect."`
+	Source           string `json:"source" description:"operator or system; empty when no credential is present."`
+	SystemConfigPath string `json:"systemConfigPath" description:"Path to the system ngrok config, if one exists."`
+	Suffix           string `json:"suffix" description:"Last few characters of the token, for display only."`
+}
+
+type MobileNgrokAgent struct {
+	BinaryPath      string `json:"binaryPath" description:"Resolved path to the ngrok binary; empty if not installed."`
+	Source          string `json:"source" description:"Where the binary came from."`
+	Version         string `json:"version" description:"ngrok version string, if resolvable."`
+	UpdateAvailable bool   `json:"updateAvailable" description:"Whether ngrok's own logs reported an available update."`
+}
+
+type MobileNgrokSession struct {
+	Status       string `json:"status" description:"ngrok agent session status, e.g. online."`
+	Region       string `json:"region" description:"ngrok point-of-presence region."`
+	Latency      string `json:"latency" description:"Round-trip latency to the ngrok edge, formatted for display."`
+	PublicURL    string `json:"publicUrl" description:"Public HTTPS URL of the current ngrok tunnel."`
+	Connections  int    `json:"connections" description:"Live connection count reported by the local ngrok agent."`
+	HTTPRequests int    `json:"httpRequests" description:"HTTP request count reported by the local ngrok agent."`
+}
+
+type MobileNgrokLogLine struct {
+	Time    string `json:"time" description:"Timestamp as reported by the ngrok agent."`
+	Level   string `json:"level" description:"Log level as reported by the ngrok agent."`
+	Message string `json:"message" description:"Log message, secrets redacted."`
+}
+
+type MobileNgrokAPIKey struct {
+	Present bool `json:"present" description:"Whether an ngrok API key is stored."`
+}
+
+type MobileNgrokStatus struct {
+	Credential MobileNgrokCredential `json:"credential"`
+	Agent      MobileNgrokAgent      `json:"agent"`
+	Session    MobileNgrokSession    `json:"session"`
+	Domain     string                `json:"domain" description:"Reserved domain the agent is told to use; empty for a random URL."`
+	APIKey     MobileNgrokAPIKey     `json:"apiKey"`
+	Logs       []MobileNgrokLogLine  `json:"logs" description:"Last 200 agent log lines, secrets redacted."`
+}
+
+type MobileNgrokAPIKeyRequest struct {
+	Key string `json:"key" description:"ngrok API key. Stored on disk; never echoed back."`
+}
+
+type MobileNgrokAccountCredential struct {
+	ID          string `json:"id" description:"ngrok credential id."`
+	Description string `json:"description" description:"Credential label as set on the ngrok dashboard."`
+	CreatedAt   string `json:"createdAt" description:"Creation timestamp reported by the ngrok API."`
+	IsOperator  bool   `json:"isOperator" description:"Whether this credential was minted by this Operator install."`
+}
+
+type MobileNgrokAccountSession struct {
+	ID            string `json:"id" description:"ngrok tunnel session id."`
+	Region        string `json:"region" description:"Region the session connected through."`
+	IP            string `json:"ip" description:"Client IP address reported by the ngrok API."`
+	AgentVersion  string `json:"agentVersion" description:"ngrok agent version reported by the session."`
+	OS            string `json:"os" description:"Operating system reported by the session."`
+	StartedAt     string `json:"startedAt" description:"Session start timestamp reported by the ngrok API."`
+	IsThisMachine bool   `json:"isThisMachine" description:"Whether this session is the one running on this machine."`
+}
+
+type MobileNgrokAccountEndpoint struct {
+	ID        string `json:"id" description:"ngrok endpoint id."`
+	PublicURL string `json:"publicUrl" description:"Public URL for this endpoint."`
+	Proto     string `json:"proto" description:"Endpoint protocol, e.g. https."`
+	CreatedAt string `json:"createdAt" description:"Creation timestamp reported by the ngrok API."`
+}
+
+type MobileNgrokReservedDomain struct {
+	ID     string `json:"id" description:"ngrok reserved domain id."`
+	Domain string `json:"domain" description:"The reserved domain name."`
+}
+
+type MobileNgrokAccount struct {
+	Valid           bool                           `json:"valid" description:"Whether the stored API key authenticated successfully."`
+	Error           string                         `json:"error" description:"API error message when valid is false."`
+	Credentials     []MobileNgrokAccountCredential `json:"credentials"`
+	Sessions        []MobileNgrokAccountSession    `json:"sessions"`
+	Endpoints       []MobileNgrokAccountEndpoint   `json:"endpoints"`
+	ReservedDomains []MobileNgrokReservedDomain    `json:"reservedDomains"`
+}
+
+type MobileNgrokDomainRequest struct {
+	Domain string `json:"domain" description:"Reserved ngrok domain to use for the tunnel; empty reverts to a random URL."`
+}
+
+type MobileNgrokCredentialIDParam struct {
+	ID string `path:"id" description:"ngrok credential identifier."`
+}
+
+type MobileNgrokCheck struct {
+	Name   string `json:"name" description:"Diagnostic check name."`
+	OK     bool   `json:"ok" description:"Whether the check passed."`
+	Detail string `json:"detail" description:"Human-readable detail about the check's result."`
+}
+
+type MobileNgrokDiagnosis struct {
+	Checks  []MobileNgrokCheck `json:"checks"`
+	Summary string             `json:"summary" description:"One-line overall diagnosis."`
 }
 
 // PushDeviceTokenParam is the {token} path parameter for push-device routes.

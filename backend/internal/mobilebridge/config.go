@@ -30,6 +30,7 @@ type State struct {
 	Password      string `json:"password"`
 	LastPort      int    `json:"lastPort"`
 	TunnelEnabled bool   `json:"tunnelEnabled"`
+	NgrokDomain   string `json:"ngrokDomain,omitempty"`
 }
 
 // Path returns the Connect Mobile config file location under the data dir
