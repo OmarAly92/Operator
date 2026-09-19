@@ -16,6 +16,7 @@ import 'package:operator_mobile/feature/blocks/logic/block_find.dart';
 import 'package:operator_mobile/feature/blocks/logic/block_question.dart';
 import 'package:operator_mobile/feature/blocks/logic/command_confirmation.dart';
 import 'package:operator_mobile/feature/blocks/logic/session_block.dart';
+import 'package:operator_mobile/feature/blocks/logic/subagents.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/blocks_cubit.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/session_command_cubit.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/block_action_sheet.dart';
@@ -331,13 +332,17 @@ class _RailBody extends StatelessWidget {
       return;
     }
     final detail = block.detail! as AgentBlockDetail;
+    final cubit = context.read<BlocksCubit>();
+    final entry = subagentsOf(cubit.blocks, cubit.subagentSummaries)
+        .where((candidate) => candidate.card?.id == block.id)
+        .firstOrNull;
     Navigator.of(context).pushNamed(
       RoutesStrings.subagent,
       arguments: {
-        'sessionId': context.read<BlocksCubit>().sessionId,
-        'agentId': detail.agentId,
-        'detail': detail,
-        'harness': context.read<BlocksCubit>().harness,
+        'sessionId': cubit.sessionId,
+        'agentId': entry?.agentId ?? detail.agentId,
+        'detail': entry?.detail ?? detail,
+        'harness': cubit.harness,
       },
     );
   }
