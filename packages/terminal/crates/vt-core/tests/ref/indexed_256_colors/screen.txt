@@ -1,0 +1,15 @@
+jwilm@kurast.local ➜  ~/code/alacritty  ./colors.pl
+System colors:
+                
+                
+
+Color cube, 6x6x6:
+                                                                             
+                                                                             
+                                                                             
+                                                                             
+                                                                             
+                                                                             
+Grayscale ramp:
+                                                
+jwilm@kurast.local ➜  ~/code/alacritty 

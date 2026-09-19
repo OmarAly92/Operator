@@ -1,0 +1,5 @@
+[kchibisov@NightLord alacritty]$ printf "\e[31;1;41;1;4;9mTEST asd\n"
+TEST asd
+[kchibisov@NightLord alacritty]$ echo -e "\033#8"                                                         
+
+[kchibisov@NightLord alacritty]$ 

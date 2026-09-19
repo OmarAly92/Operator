@@ -1,0 +1,3 @@
+jwilm@kurast.local ➜  ~/code/alacritty  git log
+jwilm@kurast.local ➜  ~/code/alacritty  tmux
+

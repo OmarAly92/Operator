@@ -342,6 +342,27 @@ history of `master`.
   because a `Uint8Array` view into wasm memory goes stale when the core
   reallocates between repaints. One decode per mouse move is fine at thousands
   of blocks; memoise per snapshot generation if a perf pass ever needs to.
+- Found triaging the Alacritty reference corpus (`crates/vt-core/tests/ref/TRIAGE.md`),
+  not fixed there:
+  - `ESC # 8` (DECALN, fill screen with `E`) is never dispatched —
+    `Parser::esc_dispatch` (`crates/vt-core/src/parser.rs:475`) discards
+    `intermediates`, and `ScreenGrid::esc` (`crates/vt-core/src/screen/dispatch.rs:73`)
+    has no `#`/`8` arm. Corpus: `decaln_reset`, `vttest_cursor_movement_1`.
+  - `ESC ( 0` / `ESC ( B` (G0 charset designation, DEC Special Graphics line
+    drawing) is never dispatched, for the same reason — intermediates are
+    discarded before `esc()` sees them. Corpus: `saved_cursor`, `saved_cursor_alt`.
+  - `CSI ?3h`/`?3l` (DECCOLM, 80/132-column switch) is not in
+    `Parser::note_private_mode` (`crates/vt-core/src/parser.rs:199`), so the
+    screen clear real terminals perform on a column-mode switch never happens
+    and stale content bleeds through. Corpus: `deccolm_reset`, `vttest_insert`,
+    `vttest_origin_mode_1`, `vttest_origin_mode_2`, `vttest_tab_clear_set`.
+  - `CSI ?6h`/`?6l` (DECOM, origin mode) is not in `note_private_mode` either —
+    no case in the corpus currently depends on it, but it is a silent no-op.
+    Corpus: `origin_goto` (sets it, no visible effect there).
+  - `EL 0` does not model the deferred-autowrap "pending wrap" cursor state:
+    a character printed in the last column keeps the cursor logically past
+    the column until the next printable character, so `EL 0` immediately
+    after should not erase it. vt-core erases it. Corpus: `erase_in_line`.
 
 ---
 

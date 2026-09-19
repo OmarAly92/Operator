@@ -1,0 +1,2 @@
+jwilm@kurast.local ➜  ~/code/alacritty  vim src/renderer/mod.rs
+

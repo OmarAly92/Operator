@@ -1,0 +1,191 @@
+jwilm@jwilm-desk ➜  ~/code/alacritty  vttest
+
+
+         VT100 test program, version 2.7 (20140305)
+         Line speed 38400bd
+         Choose test type:
+
+          0. Exit
+          1. Test of cursor movements
+          2. Test of screen features
+          3. Test of character sets
+          4. Test of double-sized characters
+          5. Test of keyboard
+          6. Test of terminal reports
+          7. Test of VT52 mode
+          8. Test of VT102 features (Insert/Delete Char/Line)
+          9. Test of known bugs
+          10. Test of reset and self-test
+          11. Test non-VT100 (e.g., VT220, XTERM) terminals
+          12. Modify test-parameters
+
+          Enter choice number (0 - 12): 1
+*********************************************************************************************************
+*+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++*
+*+                                                                                                     +*
+*+                                                                                                     +*
+*+                                                                                                     +*
+*+                                                                                                     +*
+*+                                                                                                     +*
+*+                                                                                                     +*
+*+                                                                            +*                       +*
+*+                                                                                                     +*
+*+                                  a The screen should be cleared,  and have an unbroken bor-         +*
+*+                                  d der of *'s and +'s around the edge,   and exactly in the         +*
+*+                                  a middle  there should be a frame of E's around this  text         +*
+*+                                  i with  one (1) free position around it.    Push <RETURN>Test of auto
+wrap, mixing control and print characters.                                                             +*
+The left/right margins should have letters in order:                          +*                       +*
+*+                                                                                                     +*
+X+                                                                             yZ                      +y
+Z+                                                                              z       w               z
+*+                                                                                                     +*
+*+                                                                                                     +*
+Push <RETURN>Test of autowrap, mixing control and print characters.                                    +*
+The left/right margins should have letters in order:+++++++++++++++++++++++++++++++++++++++++++++++++++ *
+*********************************************************************************************************
+Test of cursor-control characters inside ESC sequences.
+Below should be four identical lines:
+
+A B C D E F G H I
+A B C D E F G H I
+A B C D E F G H I
+A B C D E F G H I
+
+Push <RETURN>
+Test of leading zeros in ESC sequences.
+Two lines below you should see the sentence "This is a correct sentence".
+
+This is a correct sentence
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Push <RETURN>
+
+
+         VT100 test program, version 2.7 (20140305)
+         Line speed 38400bd
+         Choose test type:
+
+          0. Exit
+          1. Test of cursor movements
+          2. Test of screen features
+          3. Test of character sets
+          4. Test of double-sized characters
+          5. Test of keyboard
+          6. Test of terminal reports
+          7. Test of VT52 mode
+          8. Test of VT102 features (Insert/Delete Char/Line)
+          9. Test of known bugs
+          10. Test of reset and self-test
+          11. Test non-VT100 (e.g., VT220, XTERM) terminals
+          12. Modify test-parameters
+
+          Enter choice number (0 - 12): 2
+*********************************************************************************************************
+*******************************************************
+*********************************************************************************************************
+*******************************************************
+This should be three identical lines of *'s completely filling
+the top of the screen without any empty lines between.
+(Test of WRAP AROUND mode setting.)
+Push <RETURN>
+        *       *       *       *       *       *       *       *       *       *       *       *       *
+      *     *     *     *     *     *     *     *     *     *     *     *     *
+
+Test of TAB setting/resetting. These two lines
+should look the same. Push <RETURN>
+123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345
+67890123456789012345678901
+  This is 132 column mode, light background.
+   This is 132 column mode, light background.
+    This is 132 column mode, light background.
+     This is 132 column mode, light background.
+      This is 132 column mode, light background.
+       This is 132 column mode, light background.
+        This is 132 column mode, light background.
+         This is 132 column mode, light background.
+          This is 132 column mode, light background.
+           This is 132 column mode, light background.
+            This is 132 column mode, light background.
+             This is 132 column mode, light background.
+              This is 132 column mode, light background.
+               This is 132 column mode, light background.
+                This is 132 column mode, light background.
+                 This is 132 column mode, light background.
+                  This is 132 column mode, light background.
+                   This is 132 column mode, light background.Push <RETURN>
+1234567890123456789012345678901234567890123456789012345678901234567890123456789
+
+  This is 80 column mode, light background.
+   This is 80 column mode, light background.
+    This is 80 column mode, light background.
+     This is 80 column mode, light background.
+      This is 80 column mode, light background.
+       This is 80 column mode, light background.
+        This is 80 column mode, light background.
+         This is 80 column mode, light background.
+          This is 80 column mode, light background.
+           This is 80 column mode, light background.
+            This is 80 column mode, light background.
+             This is 80 column mode, light background.
+              This is 80 column mode, light background.
+               This is 80 column mode, light background.
+                This is 80 column mode, light background.
+                 This is 80 column mode, light background.
+                  This is 80 column mode, light background.
+                   This is 80 column mode, light background.Push <RETURN>
+123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345
+67890123456789012345678901
+  This is 132 column mode, dark background.
+   This is 132 column mode, dark background.
+    This is 132 column mode, dark background.
+     This is 132 column mode, dark background.
+      This is 132 column mode, dark background.
+       This is 132 column mode, dark background.
+        This is 132 column mode, dark background.
+         This is 132 column mode, dark background.
+          This is 132 column mode, dark background.
+           This is 132 column mode, dark background.
+            This is 132 column mode, dark background.
+             This is 132 column mode, dark background.
+              This is 132 column mode, dark background.
+               This is 132 column mode, dark background.
+                This is 132 column mode, dark background.
+                 This is 132 column mode, dark background.
+                  This is 132 column mode, dark background.
+                   This is 132 column mode, dark background.Push <RETURN>
+1234567890123456789012345678901234567890123456789012345678901234567890123456789
+
+  This is 80 column mode, dark background.
+   This is 80 column mode, dark background.
+    This is 80 column mode, dark background.
+     This is 80 column mode, dark background.
+      This is 80 column mode, dark background.
+       This is 80 column mode, dark background.
+        This is 80 column mode, dark background.
+         This is 80 column mode, dark background.
+          This is 80 column mode, dark background.
+           This is 80 column mode, dark background.
+            This is 80 column mode, dark background.
+             This is 80 column mode, dark background.
+              This is 80 column mode, dark background.
+               This is 80 column mode, dark background.
+                This is 80 column mode, dark background.
+                 This is 80 column mode, dark background.
+                  This is 80 column mode, dark background.
+                   This is 80 column mode, dark background.Push <RETURN>
+This line should be the one above the bottom of the screen. Push <RETURN>
+Origin mode test. This line should be at the bottom of the screen.
