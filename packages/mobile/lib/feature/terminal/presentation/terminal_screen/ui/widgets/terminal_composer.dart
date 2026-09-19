@@ -19,6 +19,7 @@ import 'package:operator_mobile/feature/terminal/logic/model_command.dart';
 import 'package:operator_mobile/feature/terminal/logic/send_route.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/logic/terminal_cubit.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/ui/widgets/slash_command_menu.dart';
+import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/ui/widgets/suggested_prompt_bubble.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/ui/widgets/terminal_composer_draft_hint.dart';
 
 class TerminalComposer extends StatefulWidget {
@@ -144,6 +145,7 @@ class _TerminalComposerState extends State<TerminalComposer> {
         children: [
           const VoiceStrip(),
           if (!cubit.args.shellOnly) const SlashCommandMenu(),
+          if (!cubit.args.shellOnly) const SuggestedPromptBubble(),
           BlocBuilder<TerminalCubit, TerminalState>(
             buildWhen: (previous, current) => current is TerminalReadyState,
             builder: (context, state) {

@@ -33,6 +33,7 @@ type Store interface {
 	SetSessionReviewerHarness(ctx context.Context, id domain.SessionID, harness domain.ReviewerHarness, updatedAt time.Time) (bool, error)
 	GetDisplayPRFactsForSession(ctx context.Context, id domain.SessionID) (domain.PRFacts, bool, error)
 	ListPRFactsForSession(ctx context.Context, id domain.SessionID) ([]domain.PRFacts, error)
+	SessionTicketRef(ctx context.Context, id domain.SessionID) (domain.SessionTicketRef, bool, error)
 	ListPRsBySession(ctx context.Context, sessionID domain.SessionID) ([]domain.PullRequest, error)
 	ListSessionWorktrees(ctx context.Context, id domain.SessionID) ([]domain.SessionWorktreeRecord, error)
 	ListChecks(ctx context.Context, prURL string) ([]domain.PullRequestCheck, error)
@@ -70,6 +71,7 @@ type commander interface {
 	Command(ctx context.Context, id domain.SessionID, command domain.SessionCommand, model string) (sessionmanager.CommandResult, error)
 	Models(ctx context.Context, id domain.SessionID) ([]sessionmanager.ModelOption, error)
 	Draft(ctx context.Context, id domain.SessionID) (string, error)
+	Suggestion(ctx context.Context, id domain.SessionID) (string, error)
 	SlashOutput(ctx context.Context, id domain.SessionID, message string) (string, error)
 	Decide(ctx context.Context, id domain.SessionID, interactionID, behavior string) error
 	Answer(ctx context.Context, id domain.SessionID, interactionID string, selections [][]string) error
@@ -624,6 +626,12 @@ func (s *Service) Draft(ctx context.Context, id domain.SessionID) (string, error
 	return s.manager.Draft(ctx, id)
 }
 
+// Suggestion reads the prompt the harness proposes in its empty composer, or
+// "" when there is none.
+func (s *Service) Suggestion(ctx context.Context, id domain.SessionID) (string, error) {
+	return s.manager.Suggestion(ctx, id)
+}
+
 func (s *Service) Models(ctx context.Context, id domain.SessionID) ([]sessionmanager.ModelOption, error) {
 	return s.manager.Models(ctx, id)
 }
@@ -977,13 +985,21 @@ func (s *Service) toSession(ctx context.Context, rec domain.SessionRecord) (doma
 		return domain.Session{}, fmt.Errorf("pr facts %s: %w", rec.ID, err)
 	}
 	prs = deduplicatePRFacts(prs)
-	return domain.Session{
+	sess := domain.Session{
 		SessionRecord:    rec,
 		Status:           deriveStatus(rec, prs, s.now(), s.harnessSignals(rec.Harness)),
 		SCMStatus:        deriveSCMStatus(prs),
 		TerminalHandleID: rec.Metadata.RuntimeHandleID,
 		PRs:              prs,
-	}, nil
+	}
+	ref, ok, err := s.store.SessionTicketRef(ctx, rec.ID)
+	if err != nil {
+		return domain.Session{}, fmt.Errorf("ticket ref %s: %w", rec.ID, err)
+	}
+	if ok {
+		sess.Ticket = &ref
+	}
+	return sess, nil
 }
 
 // now tolerates a zero-value Service (tests construct the struct literally

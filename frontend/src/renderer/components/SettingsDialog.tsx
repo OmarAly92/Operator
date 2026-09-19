@@ -1,4 +1,4 @@
-import { Bot, CircleHelp, GitBranch, Inbox, KeyRound, MonitorCog, RefreshCw, Settings2, TriangleAlert, X } from "lucide-react";
+import { Bot, CircleHelp, ClipboardList, GitBranch, Inbox, KeyRound, MonitorCog, RefreshCw, Settings2, TriangleAlert, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { GlobalSettingsForm, type GlobalSettingsSection } from "./GlobalSettingsForm";
@@ -58,6 +58,7 @@ export function SettingsDialog() {
 		{ id: "agents", label: t("settings.project.agents"), icon: Bot },
 		{ id: "workflow", label: t("settings.project.workflow"), icon: GitBranch },
 		{ id: "intake", label: t("settings.project.intake"), icon: Inbox },
+		{ id: "tickets", label: t("settings.project.tickets"), icon: ClipboardList },
 	];
 
 	const isProjectSettings = displaySettings?.scope === "project";

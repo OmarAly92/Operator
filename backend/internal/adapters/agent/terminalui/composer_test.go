@@ -157,3 +157,69 @@ func TestBorderedComposerIsFoundBeneathTrailingBlankRows(t *testing.T) {
 		t.Fatalf("draft = %q, %v; want the typed text beneath the blank rows", draft, ok)
 	}
 }
+
+func TestLastBorderedPromptPlaceholder(t *testing.T) {
+	rule := "\x1b[38;5;244m" + strings.Repeat("─", 48) + "\x1b[39m"
+	footer := "\x1b[38;5;220mUpdate available!\x1b[39m\n\x1b[38;5;211m⏵⏵ bypass permissions on\x1b[39m"
+	tests := []struct {
+		name     string
+		output   string
+		wantText string
+		wantOK   bool
+	}{
+		{
+			name:     "dim suggestion as claude renders it",
+			output:   rule + "\n\x1b[0m❯ \x1b[0m\x1b[2mwhat's new in iOS 27 specifically\x1b[0m\n" + rule + "\n" + footer,
+			wantText: "what's new in iOS 27 specifically",
+			wantOK:   true,
+		},
+		{
+			name:     "cursor cell over the first rune is still a placeholder",
+			output:   rule + "\n❯ \x1b[7mw\x1b[0m\x1b[2mhat's new\x1b[0m\n" + rule + "\n" + footer,
+			wantText: "what's new",
+			wantOK:   true,
+		},
+		{
+			name:     "wrapped suggestion joins its continuation row",
+			output:   rule + "\n❯ \x1b[2mrewrite the release notes so that\x1b[0m\n  \x1b[2mthey mention the feed\x1b[0m\n" + rule + "\n" + footer,
+			wantText: "rewrite the release notes so that they mention the feed",
+			wantOK:   true,
+		},
+		{
+			name:   "typed draft is not a placeholder",
+			output: rule + "\n❯ do not submit this\n" + rule + "\n" + footer,
+			wantOK: false,
+		},
+		{
+			name:   "empty composer",
+			output: rule + "\n\x1b[39m❯ \x1b[7m \x1b[0m\n" + rule + "\n" + footer,
+			wantOK: false,
+		},
+		{
+			name:   "draft with a dim tail is ambiguous",
+			output: rule + "\n❯ fix the bug \x1b[2mnow\x1b[0m\n" + rule + "\n" + footer,
+			wantOK: false,
+		},
+		{
+			name:   "unstyled capture fails closed",
+			output: strings.Repeat("─", 48) + "\n❯ what's new\n" + strings.Repeat("─", 48),
+			wantOK: false,
+		},
+		{
+			name:   "missing lower rule fails closed",
+			output: rule + "\n❯ \x1b[2mwhat's new\x1b[0m\n" + footer,
+			wantOK: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			text, ok := LastBorderedPromptPlaceholder(tt.output, "❯")
+			if ok != tt.wantOK {
+				t.Fatalf("LastBorderedPromptPlaceholder() ok = %v, want %v (text=%q)", ok, tt.wantOK, text)
+			}
+			if ok && text != tt.wantText {
+				t.Fatalf("LastBorderedPromptPlaceholder() = %q, want %q", text, tt.wantText)
+			}
+		})
+	}
+}

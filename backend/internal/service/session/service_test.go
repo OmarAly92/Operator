@@ -243,6 +243,10 @@ func (f *fakeStore) ListPRFactsForSession(_ context.Context, id domain.SessionID
 	return []domain.PRFacts{pr}, nil
 }
 
+func (f *fakeStore) SessionTicketRef(context.Context, domain.SessionID) (domain.SessionTicketRef, bool, error) {
+	return domain.SessionTicketRef{}, false, nil
+}
+
 func (f *fakeStore) ListChecks(_ context.Context, prURL string) ([]domain.PullRequestCheck, error) {
 	return append([]domain.PullRequestCheck(nil), f.checks[prURL]...), nil
 }
@@ -1322,6 +1326,10 @@ func (*fakeCommander) Command(context.Context, domain.SessionID, domain.SessionC
 	return sessionmanager.CommandResult{}, nil
 }
 func (*fakeCommander) Draft(context.Context, domain.SessionID) (string, error) {
+	return "", nil
+}
+
+func (*fakeCommander) Suggestion(context.Context, domain.SessionID) (string, error) {
 	return "", nil
 }
 func (*fakeCommander) Models(context.Context, domain.SessionID) ([]sessionmanager.ModelOption, error) {

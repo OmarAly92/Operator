@@ -22,7 +22,7 @@ class SlashCommandMenu extends StatelessWidget {
       final skin = context.skin;
       final rows = cubit.matches;
       return Padding(
-        padding: const EdgeInsets.fromLTRB(12, 0, 12, 6),
+        padding: const EdgeInsets.fromLTRB(12, 8, 12, 6),
         child: Container(
           decoration: BoxDecoration(
             color: skin.bgElevated,

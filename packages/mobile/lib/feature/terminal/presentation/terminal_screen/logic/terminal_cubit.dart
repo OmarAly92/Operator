@@ -7,6 +7,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:operator_mobile/core/helpers/result/result.dart';
 import 'package:operator_mobile/core/utils/haptics.dart';
 import 'package:operator_mobile/core/mux/mux_client.dart';
+import 'package:operator_mobile/core/mux/session_patch.dart';
 import 'package:operator_mobile/feature/sessions/data/repository/sessions_repository.dart';
 import 'package:operator_mobile/feature/terminal/data/model/params/send_session_message_params.dart';
 import 'package:operator_mobile/feature/terminal/data/repository/terminal_repository.dart';
@@ -20,6 +21,12 @@ part 'terminal_state.dart';
 const double kTerminalMinFontSize = 7;
 const double kTerminalMaxFontSize = 20;
 const double kTerminalFontSize = 12;
+
+const List<Duration> kSuggestionRetryDelays = [
+  Duration(milliseconds: 600),
+  Duration(milliseconds: 1400),
+  Duration(milliseconds: 3000),
+];
 
 class TerminalArgs extends Equatable {
   const TerminalArgs({
@@ -69,7 +76,15 @@ class TerminalCubit extends Cubit<TerminalState> {
     SessionsRepository sessions,
     TerminalArgs args, {
     Duration restoreDelay = const Duration(milliseconds: 1200),
-  }) => TerminalCubit._(mux, repository, sessions, args, restoreDelay: restoreDelay);
+    List<Duration> suggestionRetryDelays = kSuggestionRetryDelays,
+  }) => TerminalCubit._(
+    mux,
+    repository,
+    sessions,
+    args,
+    restoreDelay: restoreDelay,
+    suggestionRetryDelays: suggestionRetryDelays,
+  );
 
   TerminalCubit._(
     this._mux,
@@ -77,6 +92,7 @@ class TerminalCubit extends Cubit<TerminalState> {
     this._sessions,
     this.args, {
     required this._restoreDelay,
+    required this._suggestionRetryDelays,
   }) : sendTarget = args.shellOnly ? SendTarget.terminal : SendTarget.agent,
        super(const TerminalInitialState()) {
     status = _mux.currentStatus;
@@ -84,6 +100,10 @@ class TerminalCubit extends Cubit<TerminalState> {
     terminal.mouseHandler = TerminalScrollRouter(terminal, harness: args.harness);
     _statusSub = _mux.status.listen(_onStatus);
     _eventsSub = _mux.terminalEvents.where((event) => event.id == args.id).listen(_onEvent);
+    if (!args.shellOnly) {
+      _patchesSub = _mux.sessionPatches.listen(_onPatches);
+      unawaited(refreshSuggestion());
+    }
     _emit();
   }
 
@@ -92,6 +112,7 @@ class TerminalCubit extends Cubit<TerminalState> {
   final SessionsRepository _sessions;
   final TerminalArgs args;
   final Duration _restoreDelay;
+  final List<Duration> _suggestionRetryDelays;
 
   final Terminal terminal = Terminal(maxLines: 5000);
   final TextEditingController composer = TextEditingController();
@@ -105,6 +126,7 @@ class TerminalCubit extends Cubit<TerminalState> {
   bool sending = false;
   String? banner;
   String? draft;
+  String? suggestion;
   SendTarget sendTarget;
   double fontSize = kTerminalFontSize;
 
@@ -113,6 +135,9 @@ class TerminalCubit extends Cubit<TerminalState> {
 
   StreamSubscription<MuxStatus>? _statusSub;
   StreamSubscription<TerminalEvent>? _eventsSub;
+  StreamSubscription<List<SessionPatch>>? _patchesSub;
+  String? _activity;
+  int _suggestionRound = 0;
   Timer? _reopenTimer;
   TerminalGrid? _lastFit;
   int _revision = 0;
@@ -159,6 +184,62 @@ class TerminalCubit extends Cubit<TerminalState> {
     final fit = _lastFit;
     if (fit != null) _mux.resize(args.id, fit.cols, fit.rows, projectId: args.projectId);
     unawaited(fetchDraft());
+    if (!args.shellOnly) unawaited(refreshSuggestion());
+    _emit();
+  }
+
+  Future<void> refreshSuggestion() => _fetchSuggestion(++_suggestionRound, const [Duration.zero]);
+
+  void _onPatches(List<SessionPatch> patches) {
+    for (final patch in patches) {
+      if (patch.id != args.sessionId) continue;
+      final previous = _activity;
+      _activity = patch.activity;
+      if (patch.activity == 'idle') {
+        if (previous != null && previous != 'idle') {
+          unawaited(_fetchSuggestion(++_suggestionRound, _suggestionRetryDelays));
+        }
+      } else {
+        dismissSuggestion();
+      }
+    }
+  }
+
+  Future<void> _fetchSuggestion(int round, List<Duration> delays) async {
+    for (final delay in delays) {
+      if (delay > Duration.zero) await Future<void>.delayed(delay);
+      if (isClosed || round != _suggestionRound) return;
+      String? found;
+      try {
+        final result = await _repository.getSuggestion(args.sessionId);
+        result.when(onSuccess: (value) => found = value, onFailure: (_) {});
+      } catch (_) {}
+      if (isClosed || round != _suggestionRound) return;
+      final text = found;
+      if (text != null && text.isNotEmpty) {
+        suggestion = text;
+        _emit();
+        return;
+      }
+    }
+    if (suggestion != null) {
+      suggestion = null;
+      _emit();
+    }
+  }
+
+  void acceptSuggestion() {
+    final text = suggestion;
+    if (text == null) return;
+    composer.text = text;
+    composer.selection = TextSelection.collapsed(offset: text.length);
+    dismissSuggestion();
+  }
+
+  void dismissSuggestion() {
+    if (suggestion == null) return;
+    _suggestionRound++;
+    suggestion = null;
     _emit();
   }
 
@@ -231,6 +312,7 @@ class TerminalCubit extends Cubit<TerminalState> {
       Haptics.success();
       banner = kTerminalModeNotice;
       composer.clear();
+      dismissSuggestion();
       _emit();
       unawaited(fetchDraft());
       return;
@@ -246,6 +328,7 @@ class TerminalCubit extends Cubit<TerminalState> {
       onSuccess: (_) {
         Haptics.success();
         composer.clear();
+        dismissSuggestion();
         unawaited(fetchDraft());
       },
       onFailure: (failure) {
@@ -256,6 +339,7 @@ class TerminalCubit extends Cubit<TerminalState> {
           sendTarget = SendTarget.terminal;
           banner = kReroutedNotice;
           composer.clear();
+          dismissSuggestion();
           unawaited(fetchDraft());
           return;
         }
@@ -325,6 +409,8 @@ class TerminalCubit extends Cubit<TerminalState> {
     _reopenTimer?.cancel();
     unawaited(_statusSub?.cancel());
     unawaited(_eventsSub?.cancel());
+    unawaited(_patchesSub?.cancel());
+    _suggestionRound++;
     if (attached) _mux.closeTerminal(args.id, projectId: args.projectId);
     composer.dispose();
     return super.close();

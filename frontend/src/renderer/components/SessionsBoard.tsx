@@ -67,8 +67,16 @@ import { RestoreUnavailableDialog } from "./RestoreUnavailableDialog";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 import { SessionTerminationPopover } from "./SessionTerminationPopover";
 import { DaemonStartupLoader } from "./DaemonStartupLoader";
+import { TicketBadge } from "./tickets/TicketBadge";
+import { ArchiveTicketItem } from "./tickets/ArchiveTicketItem";
 import { useShellMaybe } from "../lib/shell-context";
 import { dotGlow } from "../theme/effects";
+import { useTicketsQuery } from "../hooks/useTicketsQuery";
+import { isTicketInArchive } from "../lib/ticket-presentation";
+import { LANE_DROP_ID } from "../lib/ticket-assign";
+import { PlannedColumn } from "./tickets/PlannedColumn";
+import { CreateTicketSheet } from "./tickets/CreateTicketSheet";
+import { useTicketDrag, useTicketDropTarget } from "./tickets/TicketDndProvider";
 
 type SessionsBoardProps = {
 	/** When set, the board shows only this project's sessions. */
@@ -104,10 +112,23 @@ export function SessionsBoard({ projectId }: SessionsBoardProps) {
 	// Same crumb as ShellTopbar: project name in scope, else root-board "Board".
 	const boardLabel = workspace?.name ?? (projectId ? "" : t("shell.board"));
 	const sessions = workspaces.flatMap((w) => workerSessions(w.sessions));
+	const ticketProjects = workspaces
+		.filter((w) => w.kind === "single_repo")
+		.map((w) => ({ id: w.id, name: w.name }));
+	const ticketsQuery = useTicketsQuery(ticketProjects);
+	const openTickets = ticketsQuery.tickets.filter((ticket) => !isTicketInArchive(ticket));
+	const archivedTickets = ticketsQuery.tickets.filter(isTicketInArchive);
+	const supportsTickets = ticketProjects.length > 0;
+	const { active: draggingPlan } = useTicketDrag();
+	const sessionsById = new Map<string, WorkspaceSession>();
+	for (const w of workspaces) {
+		for (const s of w.sessions) sessionsById.set(s.id, s);
+	}
 	const orchestrator = projectId ? newestActiveOrchestrator(workspaces[0]?.sessions ?? []) : undefined;
 	const orchestratorActivityLabel = orchestrator ? getAgentActivityView(orchestrator.activity, t).label : undefined;
 	const [isSpawning, setIsSpawning] = useState(false);
 	const [spawnError, setSpawnError] = useState<string | null>(null);
+	const [createTicketOpen, setCreateTicketOpen] = useState(false);
 	const restartingProjectIds = useUiStore((state) => state.restartingProjectIds);
 	const orchestratorStartupError = useUiStore((state) =>
 		projectId ? (state.orchestratorStartupErrors[projectId] ?? null) : null,
@@ -142,6 +163,7 @@ export function SessionsBoard({ projectId }: SessionsBoardProps) {
 	const archived = sessions
 		.filter(isArchivedSession)
 		.sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
+	const archivedCount = archived.length + archivedTickets.length;
 	const byZone = new Map<AttentionZone, WorkspaceSession[]>();
 	for (const session of sessions.filter((candidate) => !isArchivedSession(candidate))) {
 		const zone = attentionZone(session);
@@ -160,7 +182,8 @@ export function SessionsBoard({ projectId }: SessionsBoardProps) {
 		!daemonHasFailed &&
 		(!isDaemonReady || workspaceStartupState === "loading" || (!workspaceQuery.isSuccess && !workspaceQuery.isError));
 	const showWelcome = !projectId && isLoaded && all.length === 0;
-	const showProjectEmpty = projectId !== undefined && isLoaded && workspaces.length > 0 && sessions.length === 0;
+	const showProjectEmpty =
+		projectId !== undefined && isLoaded && workspaces.length > 0 && sessions.length === 0 && openTickets.length === 0;
 	// Archived sessions cost one quiet line under the board until expanded.
 	const [archiveExpanded, setArchiveExpanded] = useState(false);
 	const [restoringSessionId, setRestoringSessionId] = useState<string | undefined>();
@@ -356,6 +379,7 @@ export function SessionsBoard({ projectId }: SessionsBoardProps) {
 						isSpawning={isSpawning}
 						isProjectRestarting={isProjectRestarting}
 						onNewTask={() => projectId && requestNewTask(projectId)}
+						onNewTicket={supportsTickets ? () => setCreateTicketOpen(true) : undefined}
 						onOpenOrchestrator={() => void openOrchestrator()}
 						spawnError={visibleSpawnError}
 					/>
@@ -364,10 +388,24 @@ export function SessionsBoard({ projectId }: SessionsBoardProps) {
 						{/* Hairline column grid: vertical divide-x + one absolute header rule so
 						    the horizontal divider stays continuous and level across lanes.
 						    Keep `top-12` aligned with each column header's `h-12`. */}
-						<div className="relative grid h-full min-w-[64rem] grid-cols-4 divide-x divide-border-strong xl:min-w-0">
+						<div
+							className="relative grid h-full min-w-[80rem] grid-cols-5 divide-x divide-border-strong xl:min-w-0"
+							data-board-grid=""
+							data-dragging={draggingPlan !== null}
+							data-testid="board-grid"
+						>
 							<div
 								aria-hidden="true"
 								className="pointer-events-none absolute inset-x-0 top-12 z-10 border-t border-border-strong"
+							/>
+							<PlannedColumn
+								key={`${projectId ?? "all"}:planned`}
+								tickets={openTickets}
+								projects={ticketProjects}
+								sessionsById={sessionsById}
+								isError={ticketsQuery.isError}
+								supportsTickets={supportsTickets}
+								defaultProjectId={projectId}
 							/>
 							{COLUMNS.map((col) => (
 								<BoardColumn
@@ -384,14 +422,14 @@ export function SessionsBoard({ projectId }: SessionsBoardProps) {
 				)}
 			</div>
 
-			{archived.length > 0 && (
+			{archivedCount > 0 && (
 				<div className="shrink-0 border-t border-border-strong px-3">
 					{/* The 46px control gives the compact archive bar a slightly taller
 					    target while preserving the bar's surrounding row height. */}
 					<div className={cn("flex items-center gap-2", archiveExpanded ? "min-h-11" : "min-h-row-md")}>
 						<button
 							aria-expanded={archiveExpanded}
-							aria-label={t("shell.archiveSessionsAria", { count: archived.length })}
+							aria-label={t("shell.archiveSessionsAria", { count: archivedCount })}
 							className="group flex h-[46px] min-w-0 items-center gap-2 py-0 text-muted-foreground transition-colors hover:text-foreground"
 							onClick={() => setArchiveExpanded((v) => !v)}
 							type="button"
@@ -410,7 +448,7 @@ export function SessionsBoard({ projectId }: SessionsBoardProps) {
 								<path d="m9 18 6-6-6-6" />
 							</svg>
 							<span className="font-mono text-2xs font-medium uppercase tracking-wide-sm">{t("shell.archive")}</span>
-							<span className="ml-1.5 font-mono text-micro text-passive">{archived.length}</span>
+							<span className="ml-1.5 font-mono text-micro text-passive">{archivedCount}</span>
 						</button>
 					</div>
 					{archiveExpanded && (
@@ -430,10 +468,19 @@ export function SessionsBoard({ projectId }: SessionsBoardProps) {
 									usage={usageBySession.get(s.id)}
 								/>
 							))}
+							{archivedTickets.map((ticket) => (
+								<ArchiveTicketItem key={`${ticket.projectId}:${ticket.slug}`} ticket={ticket} />
+							))}
 						</div>
 					)}
 				</div>
 			)}
+			<CreateTicketSheet
+				open={createTicketOpen}
+				onOpenChange={setCreateTicketOpen}
+				projects={ticketProjects}
+				defaultProjectId={projectId}
+			/>
 			{restoreUnavailableSession && (
 				<RestoreUnavailableDialog
 					open={true}
@@ -616,6 +663,7 @@ function WorkLaneColumn({
 	const tones = splitLaneTones(t);
 	const idleSessions = sessions.filter(isSessionIdle);
 	const workingSessions = sessions.filter((session) => !isSessionIdle(session));
+	const dropTarget = useTicketDropTarget(LANE_DROP_ID);
 
 	return (
 		<SplitLaneColumn
@@ -628,6 +676,7 @@ function WorkLaneColumn({
 			onOpen={onOpen}
 			onTerminate={onTerminate}
 			usageBySession={usageBySession}
+			dropTarget={dropTarget}
 		/>
 	);
 }
@@ -677,6 +726,7 @@ function SplitLaneColumn({
 	onOpen,
 	onTerminate,
 	usageBySession,
+	dropTarget,
 }: {
 	ariaLabel: string;
 	zone: Extract<AttentionZone, "working" | "merge">;
@@ -687,6 +737,7 @@ function SplitLaneColumn({
 	onOpen: (s: WorkspaceSession) => void;
 	onTerminate: (s: WorkspaceSession) => void;
 	usageBySession: UsageBySession;
+	dropTarget?: { setNodeRef: (node: HTMLElement | null) => void; isOver: boolean; accepts: boolean; dragging: boolean };
 }) {
 	const { t } = useTranslation();
 	const showPrimary = primarySessions.length > 0;
@@ -694,9 +745,12 @@ function SplitLaneColumn({
 
 	return (
 		<section
+			ref={dropTarget?.setNodeRef}
 			aria-label={ariaLabel}
 			className="flex min-w-0 flex-col overflow-hidden"
 			data-column={zone}
+			data-drop-accepts={dropTarget?.accepts ?? false}
+			data-drop-over={dropTarget?.isOver ?? false}
 			data-testid="board-column"
 		>
 			<div className="flex h-12 shrink-0 items-center gap-2 px-3">
@@ -718,7 +772,13 @@ function SplitLaneColumn({
 				</div>
 			</div>
 			<div className="board-scrollbar min-h-0 flex-1 overflow-y-auto px-3 pb-3 pt-3">
-				<div className="flex min-h-full flex-col">
+				<div
+					className={cn(
+						"flex min-h-full flex-col transition-[background-color,outline-color] duration-150",
+						dropTarget?.accepts && "rounded-lg outline-dashed outline-1 -outline-offset-4 outline-border-strong",
+						dropTarget?.isOver && "bg-interactive-hover/40",
+					)}
+				>
 					{showPrimary ? (
 						<div
 							aria-label={primaryTone.regionLabel}
@@ -747,6 +807,11 @@ function SplitLaneColumn({
 							onTerminate={onTerminate}
 							usageBySession={usageBySession}
 						/>
+					) : null}
+					{dropTarget?.accepts ? (
+						<p className="mt-auto pt-3 text-center text-2xs font-medium text-muted-foreground" role="status">
+							{t("tickets.dropToAssign")}
+						</p>
 					) : null}
 				</div>
 			</div>
@@ -1039,12 +1104,15 @@ function SessionCard({
 				)}
 				{issueId && (
 					<span
-						className="inline-flex max-w-branch-chip items-center self-start truncate rounded-sm bg-accent/12 px-1.5 py-0.5 font-mono text-micro text-accent"
+						className="inline-flex max-w-branch-chip items-center self-start truncate rounded-sm border border-border bg-surface px-1.5 py-0.5 font-mono text-micro text-muted-foreground"
 						title={t("shell.intakeIssue", { id: issueId })}
 					>
 						{issueId}
 					</span>
 				)}
+				{session.ticket ? (
+					<TicketBadge className="self-start" projectId={session.workspaceId} ticket={session.ticket} />
+				) : null}
 			</div>
 			{termination.error ? (
 				<div className="border-t border-border px-3.5 py-1.5 text-2xs text-destructive" role="alert">

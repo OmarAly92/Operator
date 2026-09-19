@@ -193,7 +193,7 @@ describe("global board first launch", () => {
 
 		expect(await screen.findByText("fix the bug")).toBeInTheDocument();
 		expect(screen.queryByText("Import to Operator")).not.toBeInTheDocument();
-		expect(columnCount()).toBe(4);
+		expect(columnCount()).toBe(5);
 	});
 
 	it("keeps populated columns visible after the daemon reports a startup failure", async () => {
@@ -215,7 +215,7 @@ describe("global board first launch", () => {
 
 		expect(await screen.findByText("fix the bug")).toBeInTheDocument();
 		expect(screen.queryByTestId("daemon-startup-loader")).not.toBeInTheDocument();
-		expect(columnCount()).toBe(4);
+		expect(columnCount()).toBe(5);
 	});
 });
 
@@ -361,6 +361,6 @@ describe("project board with no sessions", () => {
 
 		expect(await screen.findByText("fix the bug")).toBeInTheDocument();
 		expect(screen.queryByText("No worker sessions yet")).not.toBeInTheDocument();
-		expect(columnCount()).toBe(4);
+		expect(columnCount()).toBe(5);
 	});
 });

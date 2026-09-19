@@ -230,6 +230,15 @@ type TerminalComposerReader interface {
 	ReadComposerDraft(styledPane string) (string, bool)
 }
 
+// TerminalComposerSuggestionReader is an optional adapter capability for
+// reading the prompt a harness proposes in its empty composer (Claude Code's
+// predicted next prompt). Like TerminalComposerReader it takes STYLED pane
+// text and MUST fail closed: it reports true only when the composer holds
+// nothing but the harness's own dim suggestion, never human-authored text.
+type TerminalComposerSuggestionReader interface {
+	ReadComposerSuggestion(styledPane string) (string, bool)
+}
+
 // EmptyComposerDetector is an opt-in safety capability for unsolicited
 // coordination sent to an already-running interactive agent. It must return
 // true only when current terminal evidence positively proves that the active

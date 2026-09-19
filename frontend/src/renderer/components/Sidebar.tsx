@@ -38,6 +38,8 @@ import { useOpenShellTerminal } from "../hooks/useShellTerminals";
 import { useResizable } from "../hooks/useResizable";
 import { useShellMaybe } from "../lib/shell-context";
 import { useUpdateStatus } from "../hooks/useUpdateStatus";
+import { projectDropId } from "../lib/ticket-assign";
+import { useTicketDropTarget } from "./tickets/TicketDndProvider";
 import {
 	ContextMenu,
 	ContextMenuContent,
@@ -469,6 +471,7 @@ function ProjectItem({
 	const orchestrator = newestActiveOrchestrator(workspace.sessions);
 	const { mutate: openShellTerminal, isPending: isOpeningShell } = useOpenShellTerminal();
 	const setActiveShellTerminal = useUiStore((state) => state.setActiveShellTerminal);
+	const drop = useTicketDropTarget(projectDropId(workspace.id));
 
 	// A terminal for the project, scoped to the orchestrator when there is one:
 	// the orchestrator is a session like any other, so the daemon resolves its
@@ -577,10 +580,16 @@ function ProjectItem({
 		{/* The whole visual row scales when its navigation surface is pressed.
 		    Action-button presses stop before reaching this boundary. */}
 		<div
+			ref={drop.setNodeRef}
+			aria-label={drop.accepts ? t("tickets.dropOnProjectAria", { name: workspace.name }) : undefined}
 			className={cn(
-				"relative transition-[transform] duration-[100ms] ease-out",
+				"relative rounded-md transition-[transform,background-color] duration-[100ms] ease-out",
 				projectPressed && "scale-[0.98]",
+				drop.accepts && "outline-dashed outline-1 -outline-offset-2 outline-border-strong",
+				drop.isOver && "bg-interactive-hover",
 			)}
+			data-drop-accepts={drop.accepts}
+			data-drop-over={drop.isOver}
 			data-project-press=""
 			onPointerCancel={() => setProjectPressed(false)}
 			onPointerDown={() => setProjectPressed(true)}

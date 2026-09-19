@@ -167,12 +167,34 @@ func LastPromptDraft(output, marker string) (string, bool) {
 // horizontal rules instead of only reporting emptiness. See LastPromptDraft
 // for the fail-closed rules.
 func LastBorderedPromptDraft(output, marker string) (string, bool) {
-	if !hasSGRStyling(output) {
+	content, ok := borderedComposerContent(output, marker)
+	if !ok {
 		return "", false
+	}
+	return draftTextFromStyledRunes(content)
+}
+
+// LastBorderedPromptPlaceholder extracts the dim placeholder a bordered
+// composer shows while it holds no draft: Claude Code's predicted next
+// prompt. It is the complement of LastBorderedPromptDraft — every visible rune
+// must be dim, except that the terminal's cursor cell may render the first
+// one in inverse video without dim — and fails closed on an unstyled capture,
+// an empty composer, or any human-authored (non-dim) text.
+func LastBorderedPromptPlaceholder(output, marker string) (string, bool) {
+	content, ok := borderedComposerContent(output, marker)
+	if !ok {
+		return "", false
+	}
+	return placeholderTextFromStyledRunes(content)
+}
+
+func borderedComposerContent(output, marker string) ([]styledRune, bool) {
+	if !hasSGRStyling(output) {
+		return nil, false
 	}
 	marker = strings.TrimSpace(marker)
 	if marker == "" {
-		return "", false
+		return nil, false
 	}
 	lines := trimTrailingBlankLines(styledTerminalLines(output))
 	markerRunes := []rune(marker)
@@ -197,15 +219,37 @@ func LastBorderedPromptDraft(output, marker string) (string, bool) {
 			}
 		}
 		if upperWidth == 0 || lowerIndex < 0 || upperWidth != lowerWidth {
-			return "", false
+			return nil, false
 		}
 		content := append([]styledRune{}, line[len(markerRunes):]...)
 		for _, continuation := range lines[i+1 : lowerIndex] {
 			content = append(content, continuation...)
 		}
-		return draftTextFromStyledRunes(content)
+		return content, true
 	}
-	return "", false
+	return nil, false
+}
+
+func placeholderTextFromStyledRunes(runes []styledRune) (string, bool) {
+	var b strings.Builder
+	dimCount, seenVisible := 0, false
+	for _, r := range runes {
+		if unicode.IsSpace(r.value) {
+			b.WriteRune(' ')
+			continue
+		}
+		if r.dim {
+			dimCount++
+		} else if seenVisible {
+			return "", false
+		}
+		seenVisible = true
+		b.WriteRune(r.value)
+	}
+	if dimCount == 0 {
+		return "", false
+	}
+	return strings.Join(strings.Fields(b.String()), " "), true
 }
 
 // draftTextFromStyledRunes fails closed (ok=false) unless every visible rune

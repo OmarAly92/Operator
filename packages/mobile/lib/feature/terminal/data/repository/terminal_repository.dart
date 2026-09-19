@@ -13,6 +13,7 @@ abstract class TerminalRepository {
   FutureResult<bool> closeShellTerminal(String handleId);
   FutureResult<bool> sendSessionMessage(String sessionId, SendSessionMessageParams params);
   FutureResult<String?> getDraft(String sessionId);
+  FutureResult<String?> getSuggestion(String sessionId);
   FutureResult<GlobalResponse<List<SlashCommandModel>>> getSlashCommands(String sessionId);
 }
 
@@ -56,6 +57,10 @@ class TerminalRepositoryImp implements TerminalRepository {
   @override
   FutureResult<String?> getDraft(String sessionId) =>
       _guard(() async => (await _remoteDataSource.getDraft(sessionId)).data);
+
+  @override
+  FutureResult<String?> getSuggestion(String sessionId) =>
+      _guard(() async => (await _remoteDataSource.getSuggestion(sessionId)).data);
 
   @override
   FutureResult<GlobalResponse<List<SlashCommandModel>>> getSlashCommands(String sessionId) =>

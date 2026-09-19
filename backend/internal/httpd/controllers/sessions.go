@@ -105,6 +105,7 @@ type SessionService interface {
 	Command(ctx context.Context, id domain.SessionID, command domain.SessionCommand, model string) (sessionmanager.CommandResult, error)
 	Models(ctx context.Context, id domain.SessionID) ([]sessionmanager.ModelOption, error)
 	Draft(ctx context.Context, id domain.SessionID) (string, error)
+	Suggestion(ctx context.Context, id domain.SessionID) (string, error)
 	SlashOutput(ctx context.Context, id domain.SessionID, message string) (string, error)
 	Decide(ctx context.Context, id domain.SessionID, interactionID, behavior string) error
 	Answer(ctx context.Context, id domain.SessionID, interactionID string, selections [][]string) error
@@ -236,6 +237,7 @@ func (c *SessionsController) Register(r chi.Router) {
 	r.Get("/sessions/{sessionId}/slash-commands", c.listSlashCommands)
 	r.Get("/sessions/{sessionId}/models", c.listModels)
 	r.Get("/sessions/{sessionId}/draft", c.draft)
+	r.Get("/sessions/{sessionId}/suggestion", c.suggestion)
 	r.Post("/sessions/{sessionId}/activity", c.activity)
 	r.Post("/sessions/{sessionId}/pin", c.pin)
 	r.Delete("/sessions/{sessionId}/pin", c.unpin)
@@ -1642,6 +1644,19 @@ func (c *SessionsController) draft(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	envelope.WriteJSON(w, http.StatusOK, SessionDraftResponse{Draft: draft})
+}
+
+func (c *SessionsController) suggestion(w http.ResponseWriter, r *http.Request) {
+	if c.Svc == nil {
+		apispec.NotImplemented(w, r, "GET", "/api/v1/sessions/{sessionId}/suggestion")
+		return
+	}
+	suggestion, err := c.Svc.Suggestion(r.Context(), sessionID(r))
+	if err != nil {
+		envelope.WriteError(w, r, err)
+		return
+	}
+	envelope.WriteJSON(w, http.StatusOK, SessionSuggestionResponse{Suggestion: suggestion})
 }
 
 func (c *SessionsController) delegateTask(w http.ResponseWriter, r *http.Request) {

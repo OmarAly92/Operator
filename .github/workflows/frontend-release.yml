@@ -226,7 +226,7 @@ jobs:
           find dist -type f \( -name '*.zip' -o -name '*.dmg' -o -name '*.exe' -o -name '*.AppImage' -o -name '*.deb' -o -name '*.rpm' -o -name '*.app.tar.gz' -o -name '*.sig' \) -print0 |
             while IFS= read -r -d '' f; do
               echo "uploading: $f"
-              gh release upload "$TAG" "$f" --clobber
+              ./scripts/gh-retry.sh gh release upload "$TAG" "$f" --clobber
             done
 
       # Stable, version-free asset aliases so `opr start`'s constant
@@ -249,7 +249,7 @@ jobs:
           VERSION="$(node -p "require('./package.json').version")"
           cp "dist/operator-darwin-${ARCH/x86_64/x64}-${VERSION}.zip" "$alias_zip"
           cp "dist/operator-darwin-${ARCH/x86_64/x64}.dmg" "$alias_dmg"
-          gh release upload "$TAG" "$alias_zip" "$alias_dmg" --clobber
+          ./scripts/gh-retry.sh gh release upload "$TAG" "$alias_zip" "$alias_dmg" --clobber
 
       - name: Upload stable asset aliases (Windows)
         if: matrix.os == 'windows-latest'
@@ -261,7 +261,7 @@ jobs:
           TAG="v$(node -p "require('./package.json').version")"
           src="$(ls dist/*-setup.exe | head -n1)"
           cp "$src" operator-win32-x64.exe
-          gh release upload "$TAG" operator-win32-x64.exe --clobber
+          ./scripts/gh-retry.sh gh release upload "$TAG" operator-win32-x64.exe --clobber
 
       - name: Upload stable asset aliases (Linux)
         if: matrix.os == 'ubuntu-latest'
@@ -273,7 +273,7 @@ jobs:
           TAG="v$(node -p "require('./package.json').version")"
           src="$(ls dist/*.AppImage | head -n1)"
           cp "$src" operator-linux-x64.AppImage
-          gh release upload "$TAG" operator-linux-x64.AppImage --clobber
+          ./scripts/gh-retry.sh gh release upload "$TAG" operator-linux-x64.AppImage --clobber
 
   # Dedicated Intel (darwin-x64) build leg. Kept a separate job (not in the
   # release matrix) because only a macOS host can build the x64 installer, but
@@ -392,10 +392,10 @@ jobs:
             --platform darwin --arch x64 \
             --expect-version "$VERSION" --emit-gates artifact-gates.json
           find dist -maxdepth 1 -type f \( -name '*.zip' -o -name '*.dmg' -o -name '*.app.tar.gz' -o -name '*.sig' \) -print0 |
-            xargs -0 gh release upload "$TAG" --clobber
+            xargs -0 ./scripts/gh-retry.sh gh release upload "$TAG" --clobber
           cp "dist/operator-darwin-x64-${VERSION}.zip" operator-darwin-x64.zip
           cp "dist/operator-darwin-x64.dmg" operator-darwin-x64.dmg
-          gh release upload "$TAG" operator-darwin-x64.zip operator-darwin-x64.dmg --clobber
+          ./scripts/gh-retry.sh gh release upload "$TAG" operator-darwin-x64.zip operator-darwin-x64.dmg --clobber
 
   # After every platform has built and uploaded its installers, generate latest.json
   # from the versioned assets and upload it to the same release. Runs once, on
@@ -425,12 +425,12 @@ jobs:
           set -euo pipefail
           TAG="v$(node -p "require('./package.json').version")"
           mkdir -p dist
-          gh release download "$TAG" --dir dist --clobber
+          ./scripts/gh-retry.sh gh release download "$TAG" --dir dist --clobber
           node scripts/tauri-feed.mjs dist "${TAG#v}" latest --release-date "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --notes "Operator desktop release ${TAG}." --base-url "https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/"
           shopt -s nullglob
           assets=(dist/latest.json)
           if [ ${#assets[@]} -eq 0 ]; then echo "no feed assets generated" >&2; exit 1; fi
-          gh release upload "$TAG" "${assets[@]}" --clobber
+          ./scripts/gh-retry.sh gh release upload "$TAG" "${assets[@]}" --clobber
           # Only now does the release become /releases/latest: the feed and
           # every installer it points at are already in place.
           gh release edit "$TAG" --draft=false --latest

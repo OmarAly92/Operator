@@ -251,6 +251,50 @@ describe("useWorkspaceQuery", () => {
 		expect(sessions[1].prs).toEqual([]);
 	});
 
+	it("carries the session's ticket link through unchanged", async () => {
+		respondWith({
+			projects: { data: { projects: [{ id: "proj-1", name: "my-app", path: "/home/me/my-app" }] }, error: undefined },
+			sessions: {
+				data: {
+					sessions: [
+						{
+							id: "sess-1",
+							projectId: "proj-1",
+							harness: "claude-code",
+							status: "working",
+							isTerminated: false,
+							terminateOnPrMerge: false,
+							createdAt: "2026-01-01T00:00:00Z",
+							updatedAt: "2026-01-01T00:00:00Z",
+							ticket: { slug: "search-page", role: "implementing", planFile: "plans/02-ui.md" },
+						},
+						{
+							id: "sess-2",
+							projectId: "proj-1",
+							harness: "claude-code",
+							status: "idle",
+							isTerminated: false,
+							terminateOnPrMerge: false,
+							createdAt: "2026-01-01T00:00:00Z",
+							updatedAt: "2026-01-01T00:00:00Z",
+						},
+					],
+				},
+				error: undefined,
+			},
+		});
+
+		const { result } = renderHook(() => useWorkspaceQuery(), { wrapper });
+		await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+		expect(result.current.data?.[0].sessions[0].ticket).toEqual({
+			slug: "search-page",
+			role: "implementing",
+			planFile: "plans/02-ui.md",
+		});
+		expect(result.current.data?.[0].sessions[1].ticket).toBeUndefined();
+	});
+
 	it("preserves backend merged status for terminated merged sessions", async () => {
 		respondWith({
 			projects: { data: { projects: [{ id: "proj-1", name: "my-app", path: "/p" }] }, error: undefined },

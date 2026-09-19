@@ -137,6 +137,7 @@ describe("createEventTransport", () => {
 			expect(queryClient.invalidateQueries).toHaveBeenCalledWith({ queryKey: ["workspaces"] });
 			expect(queryClient.invalidateQueries).toHaveBeenCalledWith({ queryKey: ["session-scm-summary"] });
 			expect(queryClient.invalidateQueries).toHaveBeenCalledWith({ queryKey: ["session-usage"] });
+			expect(queryClient.invalidateQueries).toHaveBeenCalledWith({ queryKey: ["tickets"] });
 		} finally {
 			vi.useRealTimers();
 		}

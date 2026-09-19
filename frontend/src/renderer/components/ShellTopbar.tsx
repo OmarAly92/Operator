@@ -23,6 +23,7 @@ import { cn } from "../lib/utils";
 import { SessionClaudeAccountMenu } from "./SessionClaudeAccountMenu";
 import { StatusPill } from "./StatusPill";
 import { BoardDiff, TopbarButton, TopbarKillError, topbarHeaderClass, topbarProjectLabelClass } from "./TopbarButton";
+import { TicketBadge } from "./tickets/TicketBadge";
 
 const isMac = isMacPlatform();
 const boardActionsInPanel = usesBoardActionsInPanel();
@@ -164,6 +165,7 @@ export function ShellTopbar({ embedded = false }: { embedded?: boolean } = {}) {
 									<span className="truncate">{session.branch}</span>
 								</div>
 							) : null}
+							{session?.ticket ? <TicketBadge projectId={session.workspaceId} ticket={session.ticket} /> : null}
 							{session ? <SessionStatusPill session={session} /> : null}
 						</div>
 					) : (isProjectBoardRoute && boardActionsInPanel) ||

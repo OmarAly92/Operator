@@ -1,4 +1,5 @@
 import { attentionZone as presentationAttentionZone } from "../lib/session-presentation";
+import type { SessionTicketRef } from "../lib/ticket-presentation";
 
 import type { ReviewerHarnessId } from "../lib/reviewer-harnesses";
 
@@ -183,6 +184,7 @@ export type WorkspaceSession = {
 	 * done server-side, so {@link status} already reflects all of these.
 	 */
 	prs: PullRequestFacts[];
+	ticket?: SessionTicketRef;
 };
 
 // Tracker providers whose ids the intake daemon stamps sessions with, in
@@ -295,6 +297,7 @@ export function sessionNeedsAttention(session: WorkspaceSession): boolean {
 
 export { attentionZone, attentionZoneLabel, attentionZoneOrder } from "../lib/session-presentation";
 export type { AttentionZone } from "../lib/session-presentation";
+export type { SessionTicketRef } from "../lib/ticket-presentation";
 
 export type WorkspaceSummary = {
 	id: string;

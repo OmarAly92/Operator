@@ -12,6 +12,7 @@ abstract class TerminalRemoteDataSource {
   Future<void> closeShellTerminal(String handleId);
   Future<void> sendSessionMessage(String sessionId, SendSessionMessageParams params);
   Future<GlobalResponse<String?>> getDraft(String sessionId);
+  Future<GlobalResponse<String?>> getSuggestion(String sessionId);
   Future<GlobalResponse<List<SlashCommandModel>>> getSlashCommands(String sessionId);
 }
 
@@ -60,6 +61,16 @@ class TerminalRemoteDataSourceImp implements TerminalRemoteDataSource {
       response.data as Map<String, dynamic>,
       withDataKey: false,
       fromJsonT: (json) => json['draft'] as String?,
+    );
+  }
+
+  @override
+  Future<GlobalResponse<String?>> getSuggestion(String sessionId) async {
+    final response = await _apiConsumer.get(EndPoints.sessionSuggestion(sessionId));
+    return GlobalResponse<String?>.fromJson(
+      response.data as Map<String, dynamic>,
+      withDataKey: false,
+      fromJsonT: (json) => json['suggestion'] as String?,
     );
   }
 

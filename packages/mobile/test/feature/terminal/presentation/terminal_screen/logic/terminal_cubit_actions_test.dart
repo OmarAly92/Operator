@@ -5,6 +5,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:operator_mobile/core/error_handling/failures/failure.dart';
 import 'package:operator_mobile/core/helpers/result/result.dart';
 import 'package:operator_mobile/core/mux/mux_client.dart';
+import 'package:operator_mobile/core/mux/session_patch.dart';
 import 'package:operator_mobile/feature/sessions/data/repository/sessions_repository.dart';
 import 'package:operator_mobile/feature/terminal/data/model/params/send_session_message_params.dart';
 import 'package:operator_mobile/feature/terminal/data/repository/terminal_repository.dart';
@@ -24,6 +25,7 @@ void main() {
   late _MockSessionsRepository sessionsRepository;
   late StreamController<MuxStatus> statuses;
   late StreamController<TerminalEvent> events;
+  late StreamController<List<SessionPatch>> patches;
 
   const sessionArgs = TerminalArgs(
     id: 's-1',
@@ -45,6 +47,7 @@ void main() {
     sessionsRepository,
     args,
     restoreDelay: const Duration(milliseconds: 10),
+    suggestionRetryDelays: const [Duration.zero, Duration.zero, Duration.zero],
   );
 
   Failure awaitingDecision() => ServerFailure(
@@ -62,8 +65,12 @@ void main() {
     sessionsRepository = _MockSessionsRepository();
     statuses = StreamController<MuxStatus>.broadcast();
     events = StreamController<TerminalEvent>.broadcast();
+    patches = StreamController<List<SessionPatch>>.broadcast();
     when(() => mux.status).thenAnswer((_) => statuses.stream);
     when(() => mux.terminalEvents).thenAnswer((_) => events.stream);
+    when(() => mux.sessionPatches).thenAnswer((_) => patches.stream);
+    when(() => terminalRepository.getSuggestion(any()))
+        .thenAnswer((_) async => Result.success(null));
     when(() => mux.currentStatus).thenReturn(MuxStatus.open);
     when(() => mux.openTerminal(any(), projectId: any(named: 'projectId'))).thenReturn(null);
     when(() => mux.closeTerminal(any(), projectId: any(named: 'projectId'))).thenReturn(null);
@@ -74,6 +81,7 @@ void main() {
   tearDown(() async {
     await statuses.close();
     await events.close();
+    await patches.close();
   });
 
   group('draft', () {
@@ -317,6 +325,179 @@ void main() {
         cubit.zoom(-1);
       }
       expect(cubit.fontSize, kTerminalMinFontSize);
+      await cubit.close();
+    });
+  });
+
+  group('suggestion', () {
+    Future<void> settle() async {
+      for (var i = 0; i < 12; i++) {
+        await Future<void>.delayed(Duration.zero);
+      }
+    }
+
+    test('fetches the harness suggestion as soon as the session opens, before any attach', () async {
+      when(
+        () => terminalRepository.getSuggestion(any()),
+      ).thenAnswer((_) async => Result.success('what is new in iOS 27'));
+      final cubit = build();
+      await settle();
+
+      expect(cubit.suggestion, 'what is new in iOS 27');
+      verify(() => terminalRepository.getSuggestion('s-1')).called(1);
+      await cubit.close();
+    });
+
+    test('attaching the terminal refreshes the suggestion', () async {
+      when(
+        () => terminalRepository.getSuggestion(any()),
+      ).thenAnswer((_) async => Result.success('what is new in iOS 27'));
+      final cubit = build();
+      await settle();
+
+      cubit.attach();
+      await settle();
+
+      verify(() => terminalRepository.getSuggestion('s-1')).called(2);
+      await cubit.close();
+    });
+
+    test('a shell-only pane never asks for a suggestion', () async {
+      final cubit = build(shellArgs);
+
+      cubit.attach();
+      patches.add(const [SessionPatch(id: 's-1', activity: 'active')]);
+      patches.add(const [SessionPatch(id: 's-1', activity: 'idle')]);
+      await settle();
+
+      expect(cubit.suggestion, isNull);
+      verifyNever(() => terminalRepository.getSuggestion(any()));
+      await cubit.close();
+    });
+
+    test('retries after the turn ends until the suggestion lands', () async {
+      final cubit = build();
+      await settle();
+      final replies = <String?>[null, null, 'add tests for the parser'];
+      when(
+        () => terminalRepository.getSuggestion(any()),
+      ).thenAnswer((_) async => Result.success(replies.removeAt(0)));
+
+      patches.add(const [SessionPatch(id: 's-1', activity: 'active')]);
+      patches.add(const [SessionPatch(id: 's-1', activity: 'idle')]);
+      await settle();
+
+      expect(cubit.suggestion, 'add tests for the parser');
+      verify(() => terminalRepository.getSuggestion('s-1')).called(4);
+      await cubit.close();
+    });
+
+    test('stops retrying as soon as a suggestion lands', () async {
+      final cubit = build();
+      await settle();
+      final replies = <String?>['first', 'second'];
+      when(
+        () => terminalRepository.getSuggestion(any()),
+      ).thenAnswer((_) async => Result.success(replies.removeAt(0)));
+
+      patches.add(const [SessionPatch(id: 's-1', activity: 'active')]);
+      patches.add(const [SessionPatch(id: 's-1', activity: 'idle')]);
+      await settle();
+
+      expect(cubit.suggestion, 'first');
+      verify(() => terminalRepository.getSuggestion('s-1')).called(2);
+      await cubit.close();
+    });
+
+    test('clears the suggestion when the agent starts working again', () async {
+      when(
+        () => terminalRepository.getSuggestion(any()),
+      ).thenAnswer((_) async => Result.success('what is new in iOS 27'));
+      final cubit = build();
+      cubit.attach();
+      await settle();
+      expect(cubit.suggestion, isNotNull);
+
+      patches.add(const [SessionPatch(id: 's-1', activity: 'active')]);
+      await settle();
+
+      expect(cubit.suggestion, isNull);
+      await cubit.close();
+    });
+
+    test('ignores patches for other sessions', () async {
+      when(
+        () => terminalRepository.getSuggestion(any()),
+      ).thenAnswer((_) async => Result.success('what is new in iOS 27'));
+      final cubit = build();
+      cubit.attach();
+      await settle();
+
+      patches.add(const [SessionPatch(id: 's-2', activity: 'active')]);
+      await settle();
+
+      expect(cubit.suggestion, 'what is new in iOS 27');
+      await cubit.close();
+    });
+
+    test(
+      'accepting the suggestion fills the composer and dismisses it',
+      () async {
+        when(
+          () => terminalRepository.getSuggestion(any()),
+        ).thenAnswer((_) async => Result.success('what is new in iOS 27'));
+        final cubit = build();
+        cubit.attach();
+        await settle();
+
+        cubit.acceptSuggestion();
+
+        expect(cubit.composer.text, 'what is new in iOS 27');
+        expect(
+          cubit.composer.selection.baseOffset,
+          'what is new in iOS 27'.length,
+        );
+        expect(cubit.suggestion, isNull);
+        await cubit.close();
+      },
+    );
+
+    test(
+      'dismissing the suggestion hides it without touching the composer',
+      () async {
+        when(
+          () => terminalRepository.getSuggestion(any()),
+        ).thenAnswer((_) async => Result.success('what is new in iOS 27'));
+        final cubit = build();
+        cubit.attach();
+        await settle();
+
+        cubit.dismissSuggestion();
+
+        expect(cubit.composer.text, isEmpty);
+        expect(cubit.suggestion, isNull);
+        await cubit.close();
+      },
+    );
+
+    test('a successful send drops the suggestion', () async {
+      when(
+        () => terminalRepository.getSuggestion(any()),
+      ).thenAnswer((_) async => Result.success('what is new in iOS 27'));
+      when(
+        () => terminalRepository.getDraft(any()),
+      ).thenAnswer((_) async => Result.success(null));
+      when(
+        () => terminalRepository.sendSessionMessage(any(), any()),
+      ).thenAnswer((_) async => Result.success(true));
+      final cubit = build();
+      cubit.attach();
+      await settle();
+      cubit.composer.text = 'something else';
+
+      await cubit.send();
+
+      expect(cubit.suggestion, isNull);
       await cubit.close();
     });
   });

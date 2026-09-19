@@ -43,6 +43,8 @@ type fakeSessionService struct {
 	commandResult           sessionmanager.CommandResult
 	commandErr              error
 	commandCalls            int
+	suggestionResult        string
+	suggestionErr           error
 	draftResult             string
 	draftErr                error
 	slashOutput             string
@@ -421,6 +423,10 @@ func (f *fakeSessionService) Command(_ context.Context, _ domain.SessionID, _ do
 
 func (f *fakeSessionService) Draft(_ context.Context, _ domain.SessionID) (string, error) {
 	return f.draftResult, f.draftErr
+}
+
+func (f *fakeSessionService) Suggestion(_ context.Context, _ domain.SessionID) (string, error) {
+	return f.suggestionResult, f.suggestionErr
 }
 
 func (f *fakeSessionService) Models(_ context.Context, _ domain.SessionID) ([]sessionmanager.ModelOption, error) {
@@ -2740,4 +2746,39 @@ func TestRelaunchAgent(t *testing.T) {
 			t.Fatalf("malformed relaunch = %d body=%s", status, body)
 		}
 	})
+}
+
+func TestSessionsAPI_GetSuggestionReturnsTheSuggestion(t *testing.T) {
+	svc := newFakeSessionService()
+	svc.suggestionResult = "what's new in iOS 27 specifically"
+	srv := newSessionTestServer(t, svc)
+
+	body, status, _ := doRequest(t, srv, "GET", "/api/v1/sessions/opr-1/suggestion", "")
+	if status != http.StatusOK {
+		t.Fatalf("GET suggestion = %d, want 200; body=%s", status, body)
+	}
+	var resp struct {
+		Suggestion string `json:"suggestion"`
+	}
+	mustJSON(t, body, &resp)
+	if resp.Suggestion != "what's new in iOS 27 specifically" {
+		t.Fatalf("suggestion = %q", resp.Suggestion)
+	}
+}
+
+func TestSessionsAPI_GetSuggestionReturnsEmptyStringNotAnErrorWhenThereIsNone(t *testing.T) {
+	svc := newFakeSessionService()
+	srv := newSessionTestServer(t, svc)
+
+	body, status, _ := doRequest(t, srv, "GET", "/api/v1/sessions/opr-1/suggestion", "")
+	if status != http.StatusOK {
+		t.Fatalf("GET suggestion = %d, want 200; body=%s", status, body)
+	}
+	var resp struct {
+		Suggestion string `json:"suggestion"`
+	}
+	mustJSON(t, body, &resp)
+	if resp.Suggestion != "" {
+		t.Fatalf("suggestion = %q, want empty", resp.Suggestion)
+	}
 }
