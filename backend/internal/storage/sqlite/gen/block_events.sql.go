@@ -242,8 +242,9 @@ const selectLatestTurnModels = `-- name: SelectLatestTurnModels :many
 SELECT session_id, text
 FROM block_events
 WHERE kind = 'turn_model'
+  AND agent_id = ''
   AND seq IN (
-    SELECT MAX(seq) FROM block_events WHERE kind = 'turn_model' GROUP BY session_id
+    SELECT MAX(seq) FROM block_events WHERE kind = 'turn_model' AND agent_id = '' GROUP BY session_id
   )
 `
 
@@ -278,9 +279,11 @@ func (q *Queries) SelectLatestTurnModels(ctx context.Context) ([]SelectLatestTur
 const trimBlockEventsForSession = `-- name: TrimBlockEventsForSession :execrows
 DELETE FROM block_events AS outer_be
 WHERE outer_be.session_id = ?
+  AND outer_be.agent_id = ?
   AND outer_be.seq < (
     SELECT be.seq FROM block_events AS be
     WHERE be.session_id = ?
+      AND be.agent_id = ?
     ORDER BY be.seq DESC
     LIMIT 1 OFFSET ?
   )
@@ -288,12 +291,20 @@ WHERE outer_be.session_id = ?
 
 type TrimBlockEventsForSessionParams struct {
 	SessionID   string
+	AgentID     string
 	SessionID_2 string
+	AgentID_2   string
 	Offset      int64
 }
 
 func (q *Queries) TrimBlockEventsForSession(ctx context.Context, arg TrimBlockEventsForSessionParams) (int64, error) {
-	result, err := q.db.ExecContext(ctx, trimBlockEventsForSession, arg.SessionID, arg.SessionID_2, arg.Offset)
+	result, err := q.db.ExecContext(ctx, trimBlockEventsForSession,
+		arg.SessionID,
+		arg.AgentID,
+		arg.SessionID_2,
+		arg.AgentID_2,
+		arg.Offset,
+	)
 	if err != nil {
 		return 0, err
 	}

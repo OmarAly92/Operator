@@ -27,9 +27,11 @@ SELECT * FROM (
 -- name: TrimBlockEventsForSession :execrows
 DELETE FROM block_events AS outer_be
 WHERE outer_be.session_id = ?
+  AND outer_be.agent_id = ?
   AND outer_be.seq < (
     SELECT be.seq FROM block_events AS be
     WHERE be.session_id = ?
+      AND be.agent_id = ?
     ORDER BY be.seq DESC
     LIMIT 1 OFFSET ?
   );
@@ -38,6 +40,7 @@ WHERE outer_be.session_id = ?
 SELECT session_id, text
 FROM block_events
 WHERE kind = 'turn_model'
+  AND agent_id = ''
   AND seq IN (
-    SELECT MAX(seq) FROM block_events WHERE kind = 'turn_model' GROUP BY session_id
+    SELECT MAX(seq) FROM block_events WHERE kind = 'turn_model' AND agent_id = '' GROUP BY session_id
   );

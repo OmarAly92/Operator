@@ -193,7 +193,7 @@ func (s *Service) persist(ctx context.Context, rec Record) error {
 	rec.Seq = seq
 
 	if s.writes.Add(1)%trimEvery == 0 {
-		_, _ = s.store.TrimBlockEvents(ctx, rec.SessionID, s.retain)
+		_, _ = s.store.TrimBlockEvents(ctx, rec.SessionID, rec.AgentID, s.retain)
 	}
 
 	if s.pub != nil {

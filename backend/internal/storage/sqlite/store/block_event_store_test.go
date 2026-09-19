@@ -46,7 +46,7 @@ func TestBlockEventRoundTripAndTrim(t *testing.T) {
 		t.Fatalf("resume len = %d, want 4", len(afterFirst))
 	}
 
-	if _, err := s.TrimBlockEvents(ctx, "s-1", 2); err != nil {
+	if _, err := s.TrimBlockEvents(ctx, "s-1", "", 2); err != nil {
 		t.Fatalf("trim: %v", err)
 	}
 	kept, err := s.SelectBlockEventsBySession(ctx, "s-1", "", 0, 100)
@@ -68,7 +68,7 @@ func TestBlockEventTrimIsPerSession(t *testing.T) {
 			t.Fatalf("insert: %v", err)
 		}
 	}
-	if _, err := s.TrimBlockEvents(ctx, "s-1", 1); err != nil {
+	if _, err := s.TrimBlockEvents(ctx, "s-1", "", 1); err != nil {
 		t.Fatalf("trim: %v", err)
 	}
 	other, err := s.SelectBlockEventsBySession(ctx, "s-2", "", 0, 100)
@@ -240,5 +240,81 @@ func TestSelectBlockEventsBeforeSeqIsScopedToOneSession(t *testing.T) {
 		if rec.SessionID != "s-1" {
 			t.Fatalf("row from %q leaked into s-1's page", rec.SessionID)
 		}
+	}
+}
+
+func TestSelectLatestTurnModelsIgnoresSubagentRows(t *testing.T) {
+	ctx := context.Background()
+	s := newTestStore(t)
+
+	if _, err := s.InsertBlockEvent(ctx, blockeventsvc.Record{
+		SessionID: "s1",
+		Kind:      domain.BlockEventTurnModel,
+		Text:      "claude-opus-4",
+		CreatedAt: time.Now().UTC(),
+	}); err != nil {
+		t.Fatalf("insert main turn_model: %v", err)
+	}
+	if _, err := s.InsertBlockEvent(ctx, blockeventsvc.Record{
+		SessionID: "s1",
+		AgentID:   "a1",
+		Kind:      domain.BlockEventTurnModel,
+		Text:      "claude-haiku-4",
+		CreatedAt: time.Now().UTC(),
+	}); err != nil {
+		t.Fatalf("insert subagent turn_model: %v", err)
+	}
+
+	models, err := s.SelectLatestTurnModels(ctx)
+	if err != nil {
+		t.Fatalf("select latest turn models: %v", err)
+	}
+	if got := models["s1"]; got != "claude-opus-4" {
+		t.Fatalf("models[s1] = %q, want the main session's model, not the subagent's", got)
+	}
+}
+
+func TestBlockEventTrimIsScopedPerAgent(t *testing.T) {
+	ctx := context.Background()
+	s := newTestStore(t)
+
+	for range 3 {
+		if _, err := s.InsertBlockEvent(ctx, blockeventsvc.Record{
+			SessionID: "s1",
+			Kind:      domain.BlockEventStop,
+			CreatedAt: time.Now().UTC(),
+		}); err != nil {
+			t.Fatalf("insert main: %v", err)
+		}
+	}
+	for range 2 {
+		if _, err := s.InsertBlockEvent(ctx, blockeventsvc.Record{
+			SessionID: "s1",
+			AgentID:   "a1",
+			Kind:      domain.BlockEventStop,
+			CreatedAt: time.Now().UTC(),
+		}); err != nil {
+			t.Fatalf("insert agent: %v", err)
+		}
+	}
+
+	if _, err := s.TrimBlockEvents(ctx, "s1", "", 2); err != nil {
+		t.Fatalf("trim main: %v", err)
+	}
+
+	main, err := s.SelectBlockEventsBySession(ctx, "s1", "", 0, 100)
+	if err != nil {
+		t.Fatalf("select main: %v", err)
+	}
+	if len(main) != 2 {
+		t.Fatalf("main rows = %d, want 2 (oldest evicted)", len(main))
+	}
+
+	agent, err := s.SelectBlockEventsBySession(ctx, "s1", "a1", 0, 100)
+	if err != nil {
+		t.Fatalf("select agent: %v", err)
+	}
+	if len(agent) != 2 {
+		t.Fatalf("agent a1 rows = %d, want 2 untouched by the main scope's trim", len(agent))
 	}
 }

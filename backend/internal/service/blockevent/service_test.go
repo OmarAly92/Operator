@@ -37,7 +37,7 @@ func (f *fakeStore) SelectBlockEventsBeforeSeq(context.Context, string, string, 
 	return nil, nil
 }
 
-func (f *fakeStore) TrimBlockEvents(_ context.Context, sessionID string, _ int) (int64, error) {
+func (f *fakeStore) TrimBlockEvents(_ context.Context, sessionID, _ string, _ int) (int64, error) {
 	f.trimmed = append(f.trimmed, sessionID)
 	return 0, nil
 }
@@ -150,7 +150,7 @@ func (s *concurrentStore) SelectBlockEventsBeforeSeq(context.Context, string, st
 	return nil, nil
 }
 
-func (s *concurrentStore) TrimBlockEvents(context.Context, string, int) (int64, error) {
+func (s *concurrentStore) TrimBlockEvents(context.Context, string, string, int) (int64, error) {
 	return 0, nil
 }
 

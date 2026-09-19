@@ -201,18 +201,21 @@ func blockEventRecordFromRow(f blockEventRowFields) blockeventsvc.Record {
 	return rec
 }
 
-// TrimBlockEvents drops all but the newest keep rows for one session. Trimming
-// is per session so a busy session cannot evict a quiet one's history.
-func (s *Store) TrimBlockEvents(ctx context.Context, sessionID string, keep int) (int64, error) {
+// TrimBlockEvents drops all but the newest keep rows for one (session, agent)
+// scope. Trimming is per (session, agent) so a busy session or a chatty
+// subagent cannot evict a quiet session's, or another agent's, history.
+func (s *Store) TrimBlockEvents(ctx context.Context, sessionID, agentID string, keep int) (int64, error) {
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
 	n, err := s.qw.TrimBlockEventsForSession(ctx, gen.TrimBlockEventsForSessionParams{
 		SessionID:   sessionID,
+		AgentID:     agentID,
 		SessionID_2: sessionID,
+		AgentID_2:   agentID,
 		Offset:      int64(keep - 1),
 	})
 	if err != nil {
-		return 0, fmt.Errorf("trim block events for %s: %w", sessionID, err)
+		return 0, fmt.Errorf("trim block events for %s/%s: %w", sessionID, agentID, err)
 	}
 	return n, nil
 }
