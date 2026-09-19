@@ -1,0 +1,28 @@
+Testing ngrok connectivity...
+
+Internet Connectivity
+  Name Resolution                           [ OK ]
+  TCP                                       [ OK ]
+  TLS                                       [ OK ]
+Localhost Connectivity
+  Name Resolution                           [ OK ]
+Ngrok Connectivity - Region: Auto (lowest latency)
+  Name Resolution                           [ OK ]
+  TCP                                       [ OK ]
+  TLS                                    [ ERROR ]
+
+Errors and warnings encountered during diagnostics:
+
+* Diagnostics
+  * Connectivity
+    - Err: No tunnel servers could establish a TLS connection.
+           (ERR_NGROK_8008)
+    * connect.ngrok-agent.com (3.122.29.226:443)
+      - Warn: Failed to establish TLS connection to connect.ngrok-agent.com
+              with error: failed to fetch CRL. errors encountered: asn1:
+              structure error: length too large. Possible Man-in-the Middle.
+              (ERR_NGROK_8003)
+      - Err: Failed to establish TLS connection to 3.122.29.226 with error:
+             failed to fetch CRL. errors encountered: asn1: structure error:
+             length too large. Possible Man-in-the Middle.
+             (ERR_NGROK_8003)
