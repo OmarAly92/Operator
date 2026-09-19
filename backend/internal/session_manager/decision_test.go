@@ -179,6 +179,74 @@ func TestDecideDenyDrivesTheDenyKey(t *testing.T) {
 	}
 }
 
+func TestDecideOptionNavigatesToTheLabelledRow(t *testing.T) {
+	m, rt := newCommandTestManager(t, domain.ActivityBlocked)
+	rt.panes = []string{"DIALOG SEL:0", "DIALOG SEL:0", "DIALOG SEL:1", "DIALOG SEL:1", "moved on"}
+	m.dialogReader = fakeDialogReader{present: true}
+	m.RegisterInteraction("s1", domain.PendingInteraction{ID: "i1", Kind: domain.InteractionPermission})
+
+	if err := m.DecideOption(context.Background(), "s1", "i1", "No"); err != nil {
+		t.Fatalf("DecideOption: %v", err)
+	}
+	if len(rt.inputs) != 2 || rt.inputs[0] != "down" || rt.inputs[1] != "enter" {
+		t.Fatalf("expected Down then Select, got %q", rt.inputs)
+	}
+	if _, ok := m.Interaction("s1", "i1"); ok {
+		t.Fatal("expected the interaction to be cleared after the answer")
+	}
+}
+
+func TestDecideOptionRefusesALabelThatIsNotOnScreen(t *testing.T) {
+	m, rt := newCommandTestManager(t, domain.ActivityBlocked)
+	rt.panes = []string{"DIALOG SEL:0"}
+	m.dialogReader = fakeDialogReader{present: true}
+	m.RegisterInteraction("s1", domain.PendingInteraction{ID: "i1", Kind: domain.InteractionPermission})
+
+	err := m.DecideOption(context.Background(), "s1", "i1", "Maybe later")
+	if !errors.Is(err, ErrDialogAbsent) {
+		t.Fatalf("expected ErrDialogAbsent, got %v", err)
+	}
+	if len(rt.inputs) != 0 {
+		t.Fatalf("expected no writes, got %q", rt.inputs)
+	}
+	if err := m.DecideOption(context.Background(), "s1", "i1", "  "); !errors.Is(err, ErrAnswerInvalid) {
+		t.Fatalf("expected ErrAnswerInvalid for an empty label, got %v", err)
+	}
+}
+
+func TestInteractionsListsThePermissionDialogOptions(t *testing.T) {
+	m, rt := newCommandTestManager(t, domain.ActivityBlocked)
+	rt.panes = []string{"DIALOG SEL:0"}
+	m.dialogReader = fakeDialogReader{present: true}
+	m.RegisterInteraction("s1", domain.PendingInteraction{ID: "i1", Kind: domain.InteractionPermission, ToolName: "Bash"})
+
+	pending, err := m.Interactions(context.Background(), "s1")
+	if err != nil || len(pending) != 1 {
+		t.Fatalf("Interactions = %v, %v", pending, err)
+	}
+	if got := pending[0].Options; len(got) != 2 || got[0] != "Yes" || got[1] != "No" {
+		t.Fatalf("Options = %q; want the dialog's row labels", got)
+	}
+	if len(rt.inputs) != 0 {
+		t.Fatalf("listing must not write to the pane, got %q", rt.inputs)
+	}
+}
+
+func TestInteractionsOmitsOptionsWhenTheDialogIsGone(t *testing.T) {
+	m, rt := newCommandTestManager(t, domain.ActivityBlocked)
+	rt.panes = []string{"idle prompt"}
+	m.dialogReader = fakeDialogReader{present: false}
+	m.RegisterInteraction("s1", domain.PendingInteraction{ID: "i1", Kind: domain.InteractionPermission})
+
+	pending, err := m.Interactions(context.Background(), "s1")
+	if err != nil || len(pending) != 1 {
+		t.Fatalf("Interactions = %v, %v", pending, err)
+	}
+	if pending[0].Options != nil {
+		t.Fatalf("Options = %q; want none", pending[0].Options)
+	}
+}
+
 func TestAnswerNavigatesToTheVerifiedRowBeforeEnter(t *testing.T) {
 	m, rt := newCommandTestManager(t, domain.ActivityBlocked)
 	rt.panes = []string{"MENU:0", "MENU:0", "MENU:1", "MENU:1", "moved on"}

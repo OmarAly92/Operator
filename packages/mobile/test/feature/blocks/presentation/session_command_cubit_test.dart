@@ -450,6 +450,51 @@ void main() {
     },
   );
 
+  test('a live permission request refetches the dialog with its options', () async {
+    when(() => repo.getInteractions('s1')).thenAnswer(
+      (_) async => Result.success(
+        GlobalResponse<List<PendingInteractionModel>>(
+          data: const [
+            PendingInteractionModel(
+              id: 'int-1',
+              kind: 'permission',
+              toolName: 'Bash',
+              options: ['Yes', "Yes, and don't ask again for this session", 'No'],
+            ),
+          ],
+        ),
+      ),
+    );
+    expect(cubit.state.pendingInteraction, isNull);
+
+    events.add(
+      const BlockEventEnvelope('s1', {
+        'kind': 'permission_request',
+        'interactionId': 'int-1',
+        'toolName': 'Bash',
+      }),
+    );
+    await Future<void>.delayed(Duration.zero);
+
+    expect(cubit.state.pendingInteraction?.id, 'int-1');
+    expect(cubit.state.pendingInteraction?.options, hasLength(3));
+  });
+
+  test('a decision by option label sends the label, not a behavior', () async {
+    when(() => repo.decide(any(), any())).thenAnswer(
+      (_) async => Result.success(GlobalResponse(data: const SessionCommandResultModel(state: 'sent'))),
+    );
+    cubit.onActivity('blocked');
+
+    await cubit.decideOption('i1', "Yes, and don't ask again for this session");
+
+    final params = verify(() => repo.decide('s1', captureAny())).captured.single as SessionDecisionParams;
+    expect(params.option, "Yes, and don't ask again for this session");
+    expect(params.behavior, isNull);
+    expect(params.toJson().containsKey('behavior'), isFalse);
+    expect(cubit.phases['decision'], CommandPhase.sent);
+  });
+
   test('a failing interactions fetch leaves the row usable', () async {
     when(() => repo.getInteractions('s1')).thenAnswer(
       (_) async =>

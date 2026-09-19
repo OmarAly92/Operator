@@ -11,7 +11,7 @@ type PendingInteraction struct {
 	Kind      string
 	ToolName  string
 	ToolInput string
-	Lines     []string
+	Options   []string
 	CreatedAt time.Time
 }
 

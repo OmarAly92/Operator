@@ -453,6 +453,101 @@ void main() {
     });
   });
 
+  group('answered permissions', () {
+    test('a hook permission without a tool use id adopts the running tool of the same name', () {
+      final blocks = assembleBlocks([
+        _event(1, 'prompt_submit', text: 'go'),
+        _event(2, 'tool_start', sourceId: 'toolu_r', toolUseId: 'toolu_r', toolName: 'Read', source: 'hook', toolInput: '{"file_path":"a"}'),
+        _event(3, 'permission_request', sourceId: 'agent-1', toolName: 'Read', source: 'hook', interactionId: 'i1'),
+        _event(4, 'tool_start', sourceId: 'toolu_r', toolUseId: 'toolu_r', toolName: 'Read', source: 'transcript', toolInput: '{"file_path":"a"}'),
+      ]);
+
+      expect(blocks, hasLength(2));
+      expect(blocks.last.id, 'src-toolu_r');
+      expect(blocks.last.kind, BlockKind.permission);
+      expect(blocks.last.status, BlockStatus.blocked);
+      expect(blocks.last.interactionId, 'i1');
+      expect(blocks.last.body, '{"file_path":"a"}');
+    });
+
+    test('the completion of the adopted tool answers the permission', () {
+      final blocks = assembleBlocks([
+        _event(1, 'prompt_submit', text: 'go'),
+        _event(2, 'tool_start', sourceId: 'toolu_r', toolUseId: 'toolu_r', toolName: 'Read', source: 'hook'),
+        _event(3, 'permission_request', sourceId: 'agent-1', toolName: 'Read', source: 'hook', interactionId: 'i1'),
+        _event(4, 'tool_complete', sourceId: 'toolu_r', toolUseId: 'toolu_r', toolName: 'Read', source: 'hook'),
+      ]);
+
+      expect(blocks, hasLength(2));
+      expect(blocks.last.kind, BlockKind.tool);
+      expect(blocks.last.status, BlockStatus.ok);
+      expect(blocks.last.title, 'Read');
+    });
+
+    test('a denied permission is answered by the tool result that reports the refusal', () {
+      final blocks = assembleBlocks([
+        _event(1, 'prompt_submit', text: 'go'),
+        _event(2, 'tool_start', sourceId: 'toolu_r', toolUseId: 'toolu_r', toolName: 'Bash', source: 'hook'),
+        _event(3, 'permission_request', sourceId: 'agent-1', toolName: 'Bash', source: 'hook', interactionId: 'i1'),
+        _event(4, 'tool_result', sourceId: 'toolu_r', toolUseId: 'toolu_r', source: 'transcript', text: 'User denied', errorType: 'tool_failed'),
+      ]);
+
+      expect(blocks.last.kind, BlockKind.tool);
+      expect(blocks.last.status, BlockStatus.failed);
+    });
+
+    test('an ambiguous tool name leaves the permission uncorrelated', () {
+      final blocks = assembleBlocks([
+        _event(1, 'prompt_submit', text: 'go'),
+        _event(2, 'tool_start', sourceId: 'toolu_a', toolUseId: 'toolu_a', toolName: 'Read', source: 'hook'),
+        _event(3, 'tool_start', sourceId: 'toolu_b', toolUseId: 'toolu_b', toolName: 'Read', source: 'hook'),
+        _event(4, 'permission_request', sourceId: 'agent-1', toolName: 'Read', source: 'hook', interactionId: 'i1'),
+      ]);
+
+      expect(blocks.map((block) => block.id), ['seq-1', 'src-toolu_a', 'src-toolu_b', 'seq-4']);
+      expect(blocks.last.status, BlockStatus.blocked);
+    });
+
+    test('a turn boundary answers every permission still blocked', () {
+      final blocks = assembleBlocks([
+        _event(1, 'prompt_submit', text: 'go'),
+        _event(2, 'permission_request', sourceId: 'agent-1', toolName: 'Read', source: 'hook', interactionId: 'i1'),
+        _event(3, 'stop', sourceId: 'agent-1', source: 'hook'),
+      ]);
+
+      expect(blocks[1].kind, BlockKind.tool);
+      expect(blocks[1].status, BlockStatus.ok);
+      expect(blocks[1].title, 'Read');
+    });
+
+    test('a new prompt answers a permission left over from the previous turn', () {
+      final blocks = assembleBlocks([
+        _event(1, 'prompt_submit', text: 'go'),
+        _event(2, 'permission_request', sourceId: 'agent-1', toolName: 'Read', source: 'hook', interactionId: 'i1'),
+        _event(3, 'prompt_submit', text: 'again'),
+      ]);
+
+      expect(blocks[1].status, BlockStatus.ok);
+      expect(blocks[1].kind, BlockKind.tool);
+    });
+
+    test('resolveAnswered answers blocked permissions up to a sequence and no further', () {
+      final blocks = assembleBlocks([
+        _event(1, 'prompt_submit', text: 'go'),
+        _event(2, 'permission_request', sourceId: 'agent-1', toolName: 'Read', source: 'hook', interactionId: 'i1'),
+        _event(3, 'permission_request', sourceId: 'agent-1', toolName: 'Bash', source: 'hook', interactionId: 'i2'),
+      ]);
+
+      final resolved = resolveAnswered(blocks, 2);
+
+      expect(resolved[0].status, BlockStatus.running);
+      expect(resolved[1].kind, BlockKind.tool);
+      expect(resolved[1].status, BlockStatus.ok);
+      expect(resolved[2].kind, BlockKind.permission);
+      expect(resolved[2].status, BlockStatus.blocked);
+    });
+  });
+
   group('resolveStranded', () {
     test('running and blocked become failed with the stated reason', () {
       final blocks = assembleBlocks([

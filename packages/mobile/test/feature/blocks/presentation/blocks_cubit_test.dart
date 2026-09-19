@@ -16,13 +16,23 @@ class _MockMux extends Mock implements MuxClient {}
 
 class _MockRepository extends Mock implements BlocksRepository {}
 
-Map<String, dynamic> _wire(int seq, String kind, {String? text, String? sourceId, String? toolName}) => {
+Map<String, dynamic> _wire(
+  int seq,
+  String kind, {
+  String? text,
+  String? sourceId,
+  String? toolName,
+  String? source,
+  String? interactionId,
+}) => {
   'seq': seq,
   'sessionId': 's-1',
   'kind': kind,
   'text': ?text,
   'sourceId': ?sourceId,
   'toolName': ?toolName,
+  'source': ?source,
+  'interactionId': ?interactionId,
 };
 
 List<BlockEventModel> _historyWindow(int first) => [
@@ -366,6 +376,50 @@ void main() {
 
     expect(cubit.blocks.single.status, BlockStatus.failed);
     expect(cubit.blocks.single.body, isNotEmpty);
+    await cubit.close();
+  });
+
+  test('the activity leaving blocked answers the permission on screen', () async {
+    final cubit = build();
+    await Future<void>.delayed(Duration.zero);
+
+    events.add(BlockEventEnvelope('s-1', _wire(1, 'prompt_submit', text: 'go')));
+    patches.add(const [SessionPatch(id: 's-1', activity: 'blocked')]);
+    events.add(
+      BlockEventEnvelope(
+        's-1',
+        _wire(2, 'permission_request', sourceId: 'agent', toolName: 'Read', source: 'hook', interactionId: 'i1'),
+      ),
+    );
+    await Future<void>.delayed(Duration.zero);
+    expect(cubit.blocks.last.kind, BlockKind.permission);
+    expect(cubit.blocks.last.status, BlockStatus.blocked);
+
+    patches.add(const [SessionPatch(id: 's-1', activity: 'active')]);
+    await Future<void>.delayed(Duration.zero);
+    expect(cubit.blocks.last.kind, BlockKind.tool);
+    expect(cubit.blocks.last.status, BlockStatus.ok);
+
+    events.add(
+      BlockEventEnvelope(
+        's-1',
+        _wire(3, 'permission_request', sourceId: 'agent', toolName: 'Bash', source: 'hook', interactionId: 'i2'),
+      ),
+    );
+    await Future<void>.delayed(Duration.zero);
+    expect(cubit.blocks.last.status, BlockStatus.blocked, reason: 'a later dialog is not answered by an earlier patch');
+    await cubit.close();
+  });
+
+  test('a patch that is not blocked leaves an already answered turn alone', () async {
+    final cubit = build();
+    await Future<void>.delayed(Duration.zero);
+
+    events.add(BlockEventEnvelope('s-1', _wire(1, 'prompt_submit', text: 'go')));
+    patches.add(const [SessionPatch(id: 's-1', activity: 'idle')]);
+    await Future<void>.delayed(Duration.zero);
+
+    expect(cubit.blocks.single.status, BlockStatus.running);
     await cubit.close();
   });
 

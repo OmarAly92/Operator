@@ -108,6 +108,7 @@ type SessionService interface {
 	Suggestion(ctx context.Context, id domain.SessionID) (string, error)
 	SlashOutput(ctx context.Context, id domain.SessionID, message string) (string, error)
 	Decide(ctx context.Context, id domain.SessionID, interactionID, behavior string) error
+	DecideOption(ctx context.Context, id domain.SessionID, interactionID, label string) error
 	Answer(ctx context.Context, id domain.SessionID, interactionID string, selections [][]string) error
 	DelegateTask(ctx context.Context, in sessionsvc.DelegateTaskInput) (sessionsvc.DelegateTaskOutcome, error)
 	ListPRSummaries(ctx context.Context, id domain.SessionID) ([]sessionsvc.PRSummary, error)
@@ -1494,13 +1495,19 @@ func (c *SessionsController) decision(w http.ResponseWriter, r *http.Request) {
 		envelope.WriteAPIError(w, r, http.StatusBadRequest, "bad_request", "INVALID_JSON", "Invalid JSON body", nil)
 		return
 	}
-	if in.Behavior != "allow" && in.Behavior != "deny" {
+	option := strings.TrimSpace(in.Option)
+	if option == "" && in.Behavior != "allow" && in.Behavior != "deny" {
 		envelope.WriteAPIError(w, r, http.StatusBadRequest, "validation", "SESSION_DECISION_INVALID",
-			"unknown behavior; expected allow or deny", nil)
+			"unknown behavior; expected allow, deny, or an option label", nil)
 		return
 	}
 
-	err := c.Svc.Decide(r.Context(), sessionID(r), in.RequestID, in.Behavior)
+	var err error
+	if option != "" {
+		err = c.Svc.DecideOption(r.Context(), sessionID(r), in.RequestID, option)
+	} else {
+		err = c.Svc.Decide(r.Context(), sessionID(r), in.RequestID, in.Behavior)
+	}
 	switch {
 	case err == nil:
 		envelope.WriteJSON(w, http.StatusOK, SessionDecisionResponse{State: "sent"})
@@ -1516,6 +1523,8 @@ func (c *SessionsController) decision(w http.ResponseWriter, r *http.Request) {
 		envelope.WriteAPIError(w, r, http.StatusNotFound, "not_found", "SESSION_NOT_FOUND", "session not found", nil)
 	case errors.Is(err, sessionmanager.ErrTerminated), errors.Is(err, sessionmanager.ErrAgentExited):
 		envelope.WriteAPIError(w, r, http.StatusConflict, "conflict", "SESSION_NOT_RUNNING", "the session is not running", nil)
+	case errors.Is(err, sessionmanager.ErrAnswerInvalid):
+		envelope.WriteAPIError(w, r, http.StatusBadRequest, "validation", "SESSION_DECISION_INVALID", err.Error(), nil)
 	default:
 		envelope.WriteError(w, r, err)
 	}

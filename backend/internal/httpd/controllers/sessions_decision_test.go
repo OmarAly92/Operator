@@ -90,3 +90,27 @@ func TestSessionDecisionDialogKindMismatchIsConflict(t *testing.T) {
 	body, status, _ := doRequest(t, srv, http.MethodPost, "/api/v1/sessions/s1/decision", `{"requestId":"q1","behavior":"allow"}`)
 	assertErrorCode(t, body, status, http.StatusConflict, "SESSION_DIALOG_KIND_MISMATCH")
 }
+
+func TestSessionDecisionOptionAnswersByLabel(t *testing.T) {
+	svc := newFakeSessionService()
+	srv := newSessionTestServer(t, svc)
+
+	body, status, _ := doRequest(t, srv, http.MethodPost, "/api/v1/sessions/s1/decision", `{"requestId":"i1","option":"Yes, and don't ask again for this session"}`)
+	if status != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", status, body)
+	}
+	if svc.decideCalls != 0 || len(svc.decideOptions) != 1 || svc.decideOptions[0] != "Yes, and don't ask again for this session" {
+		t.Fatalf("expected the label to reach DecideOption once, got calls=%d options=%q", svc.decideCalls, svc.decideOptions)
+	}
+}
+
+func TestSessionDecisionOptionNotOnScreenIsValidation(t *testing.T) {
+	svc := newFakeSessionService()
+	svc.decideErr = sessionmanager.ErrAnswerInvalid
+	srv := newSessionTestServer(t, svc)
+
+	body, status, _ := doRequest(t, srv, http.MethodPost, "/api/v1/sessions/s1/decision", `{"requestId":"i1","option":"Maybe"}`)
+	if status != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400; body=%s", status, body)
+	}
+}

@@ -86,12 +86,12 @@ void main() {
     expect(bubbleText.right, closeTo(screen.width - 16 - 14, 1));
   });
 
-  testWidgets('a permission block offers deny, allow once, and a visual-only always', (tester) async {
+  testWidgets('a permission block without dialog options offers deny and allow once only', (tester) async {
     await tester.pumpWidget(_card(_permissionBlock(interactionId: 'i1')));
 
     expect(find.text('Deny'), findsOneWidget);
     expect(find.text('Allow once'), findsOneWidget);
-    expect(find.text('Always'), findsOneWidget);
+    expect(find.byType(BlockActionButton), findsNWidgets(2));
   });
 
   testWidgets('allow once calls decide with the block interaction id', (tester) async {
@@ -103,17 +103,6 @@ void main() {
     await tester.pump();
 
     verify(() => cubit.decide('i1', 'allow')).called(1);
-  });
-
-  testWidgets('always is visually present but does not call decide', (tester) async {
-    final cubit = MockSessionCommandCubit();
-    when(() => cubit.decide(any(), any())).thenAnswer((_) async {});
-
-    await tester.pumpWidget(_card(_permissionBlock(interactionId: 'i1'), cubit: cubit));
-    await tester.tap(find.text('Always'));
-    await tester.pump();
-
-    verifyNever(() => cubit.decide(any(), any()));
   });
 
   testWidgets('deny calls decide with deny', (tester) async {

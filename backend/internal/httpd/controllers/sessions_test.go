@@ -58,6 +58,7 @@ type fakeSessionService struct {
 	sendErr                 error
 	decideErr               error
 	decideCalls             int
+	decideOptions           []string
 	answerErr               error
 	answerCalls             int
 	answerSelections        [][]string
@@ -446,6 +447,11 @@ func (f *fakeSessionService) slashOutputSeen() (int, string) {
 	f.slashMu.Lock()
 	defer f.slashMu.Unlock()
 	return f.slashOutputCalls, f.slashOutputMessage
+}
+
+func (f *fakeSessionService) DecideOption(_ context.Context, _ domain.SessionID, _, label string) error {
+	f.decideOptions = append(f.decideOptions, label)
+	return f.decideErr
 }
 
 func (f *fakeSessionService) Decide(_ context.Context, _ domain.SessionID, _, _ string) error {

@@ -15,6 +15,7 @@ class SessionCommandState extends Equatable {
   /// cubit, because enablement is derived from it: holding it privately meant
   /// a change emitted nothing and every listener kept its stale enablement.
   final String? activity;
+  final PendingInteractionModel? pendingInteraction;
 
   const SessionCommandState({
     this.phases = const {},
@@ -24,6 +25,7 @@ class SessionCommandState extends Equatable {
     this.currentModel,
     this.activity,
     this.contextReadout,
+    this.pendingInteraction,
   });
 
   SessionCommandState copyWith({
@@ -40,6 +42,7 @@ class SessionCommandState extends Equatable {
     currentModel: currentModel ?? this.currentModel,
     activity: activity,
     contextReadout: contextReadout,
+    pendingInteraction: pendingInteraction,
   );
 
   SessionCommandState withActivity(String? next) => SessionCommandState(
@@ -50,6 +53,7 @@ class SessionCommandState extends Equatable {
     currentModel: currentModel,
     activity: next,
     contextReadout: contextReadout,
+    pendingInteraction: pendingInteraction,
   );
 
   SessionCommandState withContextReadout(ContextReadoutData? next) =>
@@ -61,8 +65,30 @@ class SessionCommandState extends Equatable {
         currentModel: currentModel,
         activity: activity,
         contextReadout: next,
+        pendingInteraction: pendingInteraction,
+      );
+
+  SessionCommandState withPendingInteraction(PendingInteractionModel? next) =>
+      SessionCommandState(
+        phases: phases,
+        models: models,
+        modelOptions: modelOptions,
+        modelsLoading: modelsLoading,
+        currentModel: currentModel,
+        activity: activity,
+        contextReadout: contextReadout,
+        pendingInteraction: next,
       );
 
   @override
-  List<Object?> get props => [phases, models, modelOptions, modelsLoading, currentModel, activity, contextReadout];
+  List<Object?> get props => [
+    phases,
+    models,
+    modelOptions,
+    modelsLoading,
+    currentModel,
+    activity,
+    contextReadout,
+    pendingInteraction,
+  ];
 }

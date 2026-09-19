@@ -92,10 +92,10 @@ live** and then dropped keeps today's reconnect-in-place behaviour.
   `supervise` must not also run its post-exit classification for this case: the
   first-attempt `select` gains a case for a new `startFailed` channel closed by
   `runAwaitURL`, on which `supervise` returns after the child is reaped.
-- `combineFailure` keeps its signature; the new call site passes
-  `published=false`, so `FailureNetwork` on a never-published attempt is
-  reclassified as `FailureRefused` and falls back. `FailureNetwork` still means
-  "reconnect" for a provider that was live.
+- `combineFailure` is untouched. `runAwaitURL` itself maps `FailureUnknown` and
+  `FailureNetwork` to `FailureRefused` before calling `handleProviderRefusal`, so
+  a never-published attempt always falls back. `FailureNetwork` still means
+  "reconnect" for a provider that was live (the `supervise` path).
 - `ngrokProvider.ClassifyFailure` recognises, in addition to `ERR_NGROK_4018`:
   - `failed to fetch CRL` → `FailureNetwork`, message
     `ngrok could not fetch its certificate revocation list (plain HTTP is being
@@ -103,12 +103,13 @@ live** and then dropped keeps today's reconnect-in-place behaviour.
   - `failed to send authentication request` (without the CRL text) →
     `FailureNetwork`, tidied verbatim message;
   - any other `"err"` → `FailureRefused` as today.
-- `Status` gains `LastProvider string` and `FallbackReason string`: after a
-  fallback, `Provider` is the live provider (`cloudflared`), `LastProvider` is the
-  one skipped (`ngrok`) and `FallbackReason` is its message. `Error` is cleared once
-  the fallback provider is live, so the UI can show "Using cloudflared because
-  ngrok: …" without treating it as a failure. `publishURL` sets these; `Disable`
-  and a fresh `Enable` clear them.
+- `Status` gains `LastProvider string` and `FallbackReason string`, set by
+  `handleProviderRefusal` (`LastProvider` = the skipped provider, `FallbackReason`
+  = its message). `Error` keeps its current semantics untouched
+  (`TestFallbackOnLimitAfterServingSwitchesAndKeepsTheMessage` asserts the skipped
+  provider's message survives while cloudflared is live). The UI shows "Using
+  cloudflared — ngrok: <fallbackReason>" when `state == live && lastProvider != ""
+  && lastProvider != provider`. `Disable` and a fresh `Enable` clear both.
 
 ### 4.3 Tests (`manager_fallback_test.go`, `ngrok_test.go`)
 
@@ -246,8 +247,13 @@ Checks, in order:
    unaffected."`
 3. **Control plane** — TLS connect to `connect.ngrok-agent.com:443`.
 4. **`ngrok diagnose`** — run the agent's own command with the same `--config`
-   flags; each of its result lines becomes a sub-check (`Internet Connectivity`,
-   `Name Resolution`, `TCP`, `TLS`, `Tunnel Protocol`).
+   flags. Its output is `<Group>` header lines followed by two-space-indented
+   `<Name>   [ OK ]` / `[ ERROR ]` rows, then an optional "Errors and warnings"
+   block; each row becomes a check named `<Group>: <Name>`, and the first
+   `- Err:` paragraph (joined, whitespace-collapsed) becomes the detail of the
+   failing row. Captured 2026-09-19 on the incident network: `Ngrok Connectivity
+   - Region: Auto (lowest latency)` / `TLS [ ERROR ]` with `ERR_NGROK_8003 …
+   Possible Man-in-the Middle`.
 5. **Credential** — present / source, and if an API key exists, whether the
    Operator credential still exists on the account.
 

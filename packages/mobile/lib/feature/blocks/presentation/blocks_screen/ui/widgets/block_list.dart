@@ -398,6 +398,7 @@ class BlockListState extends State<BlockList> {
         if (block.id == groupId)
           ToolGroupHeader(
             count: tools.length,
+            failedCount: tools.where((tool) => tool.status == BlockStatus.failed).length,
             status: status,
             expanded: expanded,
             onLongPress: widget.onLongPressHeader == null ? null : () => widget.onLongPressHeader!(groupId),

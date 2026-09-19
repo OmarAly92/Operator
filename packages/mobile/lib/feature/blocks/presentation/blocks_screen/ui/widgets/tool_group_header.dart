@@ -12,10 +12,12 @@ class ToolGroupHeader extends StatelessWidget {
     required this.status,
     required this.expanded,
     required this.onTap,
+    this.failedCount = 0,
     this.onLongPress,
   });
 
   final int count;
+  final int failedCount;
   final BlockStatus status;
   final bool expanded;
   final VoidCallback onTap;
@@ -24,11 +26,7 @@ class ToolGroupHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final skin = context.skin;
-    final label = switch (status) {
-      BlockStatus.running => 'Using $count tools',
-      BlockStatus.failed => 'Used $count tools · failed',
-      _ => 'Used $count tools',
-    };
+    final label = status == BlockStatus.running ? 'Using $count tools' : 'Used $count tools';
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       child: Semantics(
@@ -50,13 +48,23 @@ class ToolGroupHeader extends StatelessWidget {
                   child: AppText(
                     label,
                     maxLines: 2,
-                    style: AppTextStyle.style12Medium.copyWith(
-                      color: status == BlockStatus.failed
-                          ? skin.red
-                          : skin.textSecondary,
-                    ),
+                    style: AppTextStyle.style12Medium.copyWith(color: skin.textSecondary),
                   ),
                 ),
+                if (failedCount > 0) ...[
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: skin.tintRed,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: AppText(
+                      '$failedCount failed',
+                      style: AppTextStyle.style11SemiBold.copyWith(color: skin.red),
+                    ),
+                  ),
+                ],
                 const SizedBox(width: 6),
                 Icon(
                   expanded ? Icons.expand_more : Icons.chevron_right,

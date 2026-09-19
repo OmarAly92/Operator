@@ -17,6 +17,7 @@ import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/wid
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/context_readout_chip.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/sticky_block_header.dart';
 import 'package:operator_mobile/feature/usage/data/model/session_context_model.dart';
+import 'package:operator_mobile/feature/blocks/data/model/pending_interaction_model.dart';
 import 'package:operator_mobile/feature/usage/logic/context_readout.dart';
 
 class _MockBlocksCubit extends MockCubit<BlocksState> implements BlocksCubit {}
@@ -34,6 +35,7 @@ SessionBlock _block({
   String? errorType,
   int truncatedLines = 0,
   bool redacted = false,
+  String? interactionId,
 }) => SessionBlock(
   id: id,
   turnId: id,
@@ -46,6 +48,7 @@ SessionBlock _block({
   errorType: errorType,
   truncatedLines: truncatedLines,
   redacted: redacted,
+  interactionId: interactionId,
 );
 
 Future<void> _pump(
@@ -55,7 +58,7 @@ Future<void> _pump(
   _MockSessionCommandCubit? commandCubit,
 }) {
   final commands = commandCubit ?? _MockSessionCommandCubit();
-  when(() => commands.state).thenReturn(const SessionCommandState());
+  if (commandCubit == null) when(() => commands.state).thenReturn(const SessionCommandState());
   when(() => commands.stream).thenAnswer((_) => const Stream.empty());
   when(() => commands.close()).thenAnswer((_) async {});
   return tester.pumpWidget(
@@ -220,6 +223,103 @@ void main() {
 
     expect(find.text('Agent wants to run a command'), findsOneWidget);
     expect(find.textContaining('git branch -D feat/x'), findsOneWidget);
+  });
+
+  testWidgets('a blocked permission with no dialog options offers allow and deny', (tester) async {
+    when(() => cubit.blocks).thenReturn([
+      _block(
+        id: 'seq-2',
+        kind: BlockKind.permission,
+        status: BlockStatus.blocked,
+        title: 'Permission requested',
+        body: 'Bash\nls',
+        interactionId: 'i1',
+      ),
+    ]);
+    final commands = _MockSessionCommandCubit();
+    when(() => commands.state).thenReturn(const SessionCommandState());
+    when(() => commands.decide(any(), any())).thenAnswer((_) async {});
+
+    await _pump(tester, cubit, commandCubit: commands);
+
+    expect(find.text('Allow once'), findsOneWidget);
+    expect(find.text('Deny'), findsOneWidget);
+    expect(find.byType(BlockActionButton), findsNWidgets(2));
+    await tester.tap(find.text('Deny'));
+    verify(() => commands.decide('i1', 'deny')).called(1);
+  });
+
+  testWidgets('a blocked permission shows every option the dialog offers, in full', (tester) async {
+    const long = "Yes, and don't ask again for similar commands in this project";
+    when(() => cubit.blocks).thenReturn([
+      _block(
+        id: 'seq-2',
+        kind: BlockKind.permission,
+        status: BlockStatus.blocked,
+        title: 'Permission requested',
+        body: 'Bash\nls',
+        interactionId: 'i1',
+      ),
+    ]);
+    final commands = _MockSessionCommandCubit();
+    when(() => commands.state).thenReturn(
+      const SessionCommandState(
+        pendingInteraction: PendingInteractionModel(id: 'i1', kind: 'permission', options: ['Yes', long, 'No']),
+      ),
+    );
+    when(() => commands.decideOption(any(), any())).thenAnswer((_) async {});
+
+    await _pump(tester, cubit, commandCubit: commands);
+
+    expect(find.byType(BlockActionButton), findsNWidgets(3));
+    expect(find.text('Yes'), findsOneWidget);
+    expect(find.text(long), findsOneWidget);
+    expect(find.text('No'), findsOneWidget);
+    expect(tester.getSize(find.text(long)).width, lessThanOrEqualTo(400));
+    await tester.tap(find.text(long));
+    verify(() => commands.decideOption('i1', long)).called(1);
+  });
+
+  testWidgets('options for a different dialog are not offered on this one', (tester) async {
+    when(() => cubit.blocks).thenReturn([
+      _block(
+        id: 'seq-2',
+        kind: BlockKind.permission,
+        status: BlockStatus.blocked,
+        title: 'Permission requested',
+        body: 'Bash\nls',
+        interactionId: 'i1',
+      ),
+    ]);
+    final commands = _MockSessionCommandCubit();
+    when(() => commands.state).thenReturn(
+      const SessionCommandState(
+        pendingInteraction: PendingInteractionModel(id: 'i-old', kind: 'permission', options: ['Yes', 'No']),
+      ),
+    );
+
+    await _pump(tester, cubit, commandCubit: commands);
+
+    expect(find.text('Allow once'), findsOneWidget);
+    expect(find.text('Yes'), findsNothing);
+  });
+
+  testWidgets('an answered permission offers no buttons', (tester) async {
+    when(() => cubit.blocks).thenReturn([
+      _block(
+        id: 'seq-2',
+        kind: BlockKind.permission,
+        status: BlockStatus.ok,
+        title: 'Permission requested',
+        body: 'Bash\nls',
+        interactionId: 'i1',
+      ),
+    ]);
+
+    await _pump(tester, cubit);
+
+    expect(find.byType(BlockActionButton), findsNothing);
+    expect(find.text('Answered'), findsOneWidget);
   });
 
   testWidgets('says blocks are unavailable for an uncovered harness', (

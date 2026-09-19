@@ -11,6 +11,7 @@ import 'package:operator_mobile/core/widgets/main_widgets/typing_dots.dart';
 import 'package:operator_mobile/feature/blocks/logic/block_actions.dart';
 import 'package:operator_mobile/feature/blocks/logic/block_find.dart';
 import 'package:operator_mobile/feature/blocks/logic/block_question.dart';
+import 'package:operator_mobile/feature/blocks/logic/command_confirmation.dart';
 import 'package:operator_mobile/feature/blocks/logic/session_block.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/session_command_cubit.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/block_action_sheet.dart';
@@ -835,37 +836,10 @@ class _PermissionBody extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 8),
-          if (block.interactionId != null)
-            Row(
-              children: [
-                Expanded(
-                  child: BlockActionButton(
-                    label: 'Deny',
-                    primary: false,
-                    onTap: () => context.read<SessionCommandCubit>().decide(block.interactionId!, 'deny'),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  flex: 14,
-                  child: BlockActionButton(
-                    label: 'Allow once',
-                    primary: true,
-                    onTap: () => context.read<SessionCommandCubit>().decide(block.interactionId!, 'allow'),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  // Visual parity with the mockup's third button only: the
-                  // daemon's decision contract (backend/internal/session_manager/
-                  // decision.go) accepts only "allow"/"deny" — there is no
-                  // "always allow" behavior to send, so this button is
-                  // deliberately non-functional rather than sending a
-                  // behavior string the daemon would reject.
-                  child: BlockActionButton(label: 'Always', primary: false, onTap: () {}, disabled: true),
-                ),
-              ],
-            )
+          if (block.status != BlockStatus.blocked)
+            AppText('Answered', style: AppTextStyle.style10Regular.copyWith(color: skin.textTertiary))
+          else if (block.interactionId case final interactionId?)
+            _PermissionChoices(interactionId: interactionId)
           else
             AppText(
               'Answer in the terminal',
@@ -875,6 +849,61 @@ class _PermissionBody extends StatelessWidget {
       ),
     );
   }
+}
+
+class _PermissionChoices extends StatelessWidget {
+  const _PermissionChoices({required this.interactionId});
+
+  final String interactionId;
+
+  @override
+  Widget build(BuildContext context) => BlocBuilder<SessionCommandCubit, SessionCommandState>(
+    builder: (context, state) {
+      final cubit = context.read<SessionCommandCubit>();
+      final pending = state.pendingInteraction;
+      final options = pending?.id == interactionId ? pending?.options ?? const <String>[] : const <String>[];
+      final busy = state.phases['decision'] == CommandPhase.sending;
+      if (options.isEmpty) {
+        return Row(
+          children: [
+            Expanded(
+              child: BlockActionButton(
+                label: 'Deny',
+                primary: false,
+                disabled: busy,
+                onTap: () => cubit.decide(interactionId, 'deny'),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              flex: 2,
+              child: BlockActionButton(
+                label: 'Allow once',
+                primary: true,
+                disabled: busy,
+                onTap: () => cubit.decide(interactionId, 'allow'),
+              ),
+            ),
+          ],
+        );
+      }
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (var i = 0; i < options.length; i++) ...[
+            if (i > 0) const SizedBox(height: 6),
+            BlockActionButton(
+              label: options[i],
+              primary: i == 0,
+              disabled: busy,
+              maxLines: 3,
+              onTap: () => cubit.decideOption(interactionId, options[i]),
+            ),
+          ],
+        ],
+      );
+    },
+  );
 }
 
 /// A "waiting on you" question block (`question_asked`,
@@ -1100,12 +1129,14 @@ class BlockActionButton extends StatelessWidget {
     required this.onTap,
     required this.primary,
     this.disabled = false,
+    this.maxLines = 1,
   });
 
   final String label;
   final VoidCallback onTap;
   final bool primary;
   final bool disabled;
+  final int maxLines;
 
   @override
   Widget build(BuildContext context) {
@@ -1122,13 +1153,18 @@ class BlockActionButton extends StatelessWidget {
         borderRadius: BorderRadius.circular(AppConstants.radiusMd),
         onTap: disabled ? null : onTap,
         child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 9),
+          padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 10),
           alignment: Alignment.center,
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(AppConstants.radiusMd),
             border: primary && !disabled ? null : Border.all(color: skin.borderSubtle),
           ),
-          child: AppText(label, style: AppTextStyle.style12SemiBold.copyWith(color: foreground)),
+          child: AppText(
+            label,
+            maxLines: maxLines,
+            textAlign: TextAlign.center,
+            style: AppTextStyle.style12SemiBold.copyWith(color: foreground),
+          ),
         ),
       ),
     );

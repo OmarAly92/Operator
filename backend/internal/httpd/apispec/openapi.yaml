@@ -6094,11 +6094,12 @@ components:
       properties:
         behavior:
           type: string
+        option:
+          type: string
         requestId:
           type: string
       required:
       - requestId
-      - behavior
       type: object
     ControllersSessionDecisionResponse:
       properties:
@@ -6123,7 +6124,7 @@ components:
           type: string
         kind:
           type: string
-        lines:
+        options:
           items:
             type: string
           type: array

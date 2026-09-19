@@ -54,6 +54,8 @@ class BlocksCubit extends Cubit<BlocksState> {
 
   final SplayTreeMap<int, BlockEventModel> _events = SplayTreeMap<int, BlockEventModel>();
   bool _ended = false;
+  bool _blocked = false;
+  int _answeredThroughSeq = 0;
   int _revision = 0;
   int _capacity = kBlockWindow;
 
@@ -143,7 +145,14 @@ class BlocksCubit extends Cubit<BlocksState> {
       if (patch.id != sessionId) continue;
       final ended = patch.activity == 'exited' || patch.status == 'terminated';
       final busy = patch.activity == 'active';
-      if (ended != _ended || busy != active) {
+      final blocked = patch.activity == 'blocked';
+      var changed = ended != _ended || busy != active;
+      if (_blocked && !blocked) {
+        _answeredThroughSeq = _highestSeq ?? 0;
+        changed = true;
+      }
+      _blocked = blocked;
+      if (changed) {
         _ended = ended;
         active = busy;
         _rebuild();
@@ -163,7 +172,7 @@ class BlocksCubit extends Cubit<BlocksState> {
   }
 
   void _rebuild() {
-    final assembled = assembleBlocks(_events.values);
+    final assembled = resolveAnswered(assembleBlocks(_events.values), _answeredThroughSeq);
     blocks = _ended ? resolveStranded(assembled, kSessionEndedReason) : assembled;
     _emit();
   }

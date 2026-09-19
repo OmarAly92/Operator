@@ -54,10 +54,7 @@ class SessionCommandCubit extends Cubit<SessionCommandState> {
   StreamSubscription<List<SessionPatch>>? _patchesSub;
   StreamSubscription<BlockEventEnvelope>? _eventsSub;
 
-  /// The dialog the daemon says is pending, learned from the reconnect
-  /// reconciliation endpoint rather than from a block event. A phone that was
-  /// backgrounded when the dialog appeared never saw that event.
-  PendingInteractionModel? pendingInteraction;
+  PendingInteractionModel? get pendingInteraction => state.pendingInteraction;
 
   String? get activity => _activity;
 
@@ -71,7 +68,10 @@ class SessionCommandCubit extends Cubit<SessionCommandState> {
 
   void _onLive(BlockEventEnvelope envelope) {
     final event = BlockEventModel.fromJson(envelope.block);
-    if ((event.interactionId ?? '').isNotEmpty) pendingInteraction = null;
+    if ((event.interactionId ?? '').isNotEmpty) {
+      emit(state.withPendingInteraction(null));
+      if (event.kind == 'permission_request') unawaited(_reconcileInteractions());
+    }
     onEvent(event);
   }
 
@@ -85,8 +85,7 @@ class SessionCommandCubit extends Cubit<SessionCommandState> {
       onSuccess: (response) {
         final pending = response.data;
         if (pending == null || pending.isEmpty) return;
-        pendingInteraction = pending.first;
-        _emitPhases(Map<String, CommandPhase>.of(state.phases));
+        emit(state.withPendingInteraction(pending.first));
       },
       onFailure: (_) {},
     );
@@ -233,12 +232,15 @@ class SessionCommandCubit extends Cubit<SessionCommandState> {
     }
   }
 
-  Future<void> decide(String requestId, String behavior) async {
+  Future<void> decide(String requestId, String behavior) =>
+      _decide(SessionDecisionParams(requestId: requestId, behavior: behavior));
+
+  Future<void> decideOption(String requestId, String option) =>
+      _decide(SessionDecisionParams(requestId: requestId, option: option));
+
+  Future<void> _decide(SessionDecisionParams params) async {
     _setPhase('decision', CommandPhase.sending);
-    final result = await _repo.decide(
-      sessionId,
-      SessionDecisionParams(requestId: requestId, behavior: behavior),
-    );
+    final result = await _repo.decide(sessionId, params);
     if (isClosed) return;
     result.when(
       onSuccess: (response) {

@@ -369,7 +369,7 @@ type SessionInteraction struct {
 	Kind      string    `json:"kind"`
 	ToolName  string    `json:"toolName,omitempty"`
 	ToolInput string    `json:"toolInput,omitempty"`
-	Lines     []string  `json:"lines,omitempty"`
+	Options   []string  `json:"options,omitempty"`
 	CreatedAt time.Time `json:"createdAt"`
 }
 
@@ -398,7 +398,7 @@ func sessionInteractionViews(interactions []domain.PendingInteraction) []Session
 			Kind:      in.Kind,
 			ToolName:  in.ToolName,
 			ToolInput: in.ToolInput,
-			Lines:     in.Lines,
+			Options:   in.Options,
 			CreatedAt: in.CreatedAt,
 		})
 	}
@@ -692,7 +692,8 @@ type SessionCommandResponse struct {
 // SessionDecisionRequest is the body of POST /api/v1/sessions/{sessionId}/decision.
 type SessionDecisionRequest struct {
 	RequestID string `json:"requestId"`
-	Behavior  string `json:"behavior"`
+	Behavior  string `json:"behavior,omitempty"`
+	Option    string `json:"option,omitempty"`
 }
 
 // SessionDecisionResponse is the body of POST /api/v1/sessions/{sessionId}/decision.

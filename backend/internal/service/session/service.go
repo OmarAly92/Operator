@@ -74,6 +74,7 @@ type commander interface {
 	Suggestion(ctx context.Context, id domain.SessionID) (string, error)
 	SlashOutput(ctx context.Context, id domain.SessionID, message string) (string, error)
 	Decide(ctx context.Context, id domain.SessionID, interactionID, behavior string) error
+	DecideOption(ctx context.Context, id domain.SessionID, interactionID, label string) error
 	Answer(ctx context.Context, id domain.SessionID, interactionID string, selections [][]string) error
 	Cleanup(ctx context.Context, project domain.ProjectID) (sessionmanager.CleanupResult, error)
 	RollbackSpawn(ctx context.Context, id domain.SessionID) (deleted, killed bool, err error)
@@ -642,6 +643,10 @@ func (s *Service) SlashOutput(ctx context.Context, id domain.SessionID, message 
 
 func (s *Service) Decide(ctx context.Context, id domain.SessionID, interactionID, behavior string) error {
 	return s.manager.Decide(ctx, id, interactionID, behavior)
+}
+
+func (s *Service) DecideOption(ctx context.Context, id domain.SessionID, interactionID, label string) error {
+	return s.manager.DecideOption(ctx, id, interactionID, label)
 }
 
 func (s *Service) Answer(ctx context.Context, id domain.SessionID, interactionID string, selections [][]string) error {
