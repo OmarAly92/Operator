@@ -1264,11 +1264,12 @@ func (c *SessionsController) listBlockEvents(w http.ResponseWriter, r *http.Requ
 		envelope.WriteAPIError(w, r, http.StatusBadRequest, "bad_request", "INVALID_QUERY", "limit must be between 1 and 500", nil)
 		return
 	}
+	agentID := capActivityMeta(domain.SanitizeControlChars(strings.TrimSpace(r.URL.Query().Get("agentId"))))
 	var recs []blockeventsvc.Record
 	if hasBefore {
-		recs, err = c.BlockHistory.HistoryBefore(r.Context(), sessionID(r), "", beforeSeq, int(limit))
+		recs, err = c.BlockHistory.HistoryBefore(r.Context(), sessionID(r), agentID, beforeSeq, int(limit))
 	} else {
-		recs, err = c.BlockHistory.History(r.Context(), sessionID(r), "", afterSeq, int(limit))
+		recs, err = c.BlockHistory.History(r.Context(), sessionID(r), agentID, afterSeq, int(limit))
 	}
 	if err != nil {
 		envelope.WriteError(w, r, err)

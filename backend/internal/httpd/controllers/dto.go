@@ -320,6 +320,8 @@ type BlockEventView struct {
 	HookVersion    string                  `json:"hookVersion,omitempty"`
 	TruncatedLines int                     `json:"truncatedLines,omitempty"`
 	InteractionID  string                  `json:"interactionId,omitempty"`
+	AgentID        string                  `json:"agentId,omitempty"`
+	Detail         string                  `json:"detail,omitempty"`
 	CreatedAt      time.Time               `json:"createdAt"`
 }
 
@@ -356,6 +358,8 @@ func blockEventViews(recs []blockeventsvc.Record) []BlockEventView {
 			HookVersion:    rec.HookVersion,
 			TruncatedLines: rec.TruncatedLines,
 			InteractionID:  rec.InteractionID,
+			AgentID:        rec.AgentID,
+			Detail:         rec.Detail,
 			CreatedAt:      rec.CreatedAt,
 		})
 	}

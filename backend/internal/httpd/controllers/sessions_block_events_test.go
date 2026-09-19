@@ -369,6 +369,32 @@ func TestListBlockEventsRejectsBothCursors(t *testing.T) {
 	}
 }
 
+func TestListBlockEventsScopesByAgentAndServesTheView(t *testing.T) {
+	hist := &fakeBlockEventHistory{recs: []blockeventsvc.Record{{
+		Seq: 7, SessionID: "s1", Kind: domain.BlockEventToolResult, AgentID: "a1", Detail: `{"agentId":"a1"}`,
+	}}}
+	srv := newBlockHistoryTestServer(t, hist)
+	body, status, _ := doRequest(t, srv, http.MethodGet, "/api/v1/sessions/s1/blocks?agentId=a1&afterSeq=0", "")
+	if status != http.StatusOK {
+		t.Fatalf("status = %d body = %s", status, body)
+	}
+	if hist.gotAgentID != "a1" {
+		t.Fatalf("agent filter not passed: %q", hist.gotAgentID)
+	}
+	var got struct {
+		Blocks []map[string]any `json:"blocks"`
+	}
+	mustJSON(t, body, &got)
+	if got.Blocks[0]["agentId"] != "a1" || got.Blocks[0]["detail"] != `{"agentId":"a1"}` {
+		t.Fatalf("view = %v", got.Blocks[0])
+	}
+
+	hist.gotAgentID = "unset"
+	if _, status, _ = doRequest(t, srv, http.MethodGet, "/api/v1/sessions/s1/blocks", ""); status != http.StatusOK || hist.gotAgentID != "" {
+		t.Fatalf("default must be main-only: status=%d agent=%q", status, hist.gotAgentID)
+	}
+}
+
 func TestListBlockEventsRejectsABadBeforeCursor(t *testing.T) {
 	srv := newBlockHistoryTestServer(t, &fakeBlockEventHistory{})
 
