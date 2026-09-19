@@ -108,10 +108,7 @@ func (m *Manager) ngrokAgent(lines []string) NgrokAgent {
 	if resolver, ok := m.binaries.(binaryResolver); ok {
 		if path, source, ok := resolver.Resolve(provider.Binary()); ok {
 			agent.BinaryPath, agent.Source = path, source
-			out, err := exec.Command(path, "version").Output()
-			if err == nil {
-				agent.Version = strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(string(out)), "ngrok version "))
-			}
+			agent.Version = m.ngrokVersion(path)
 		}
 	}
 	for _, line := range lines {
@@ -121,6 +118,23 @@ func (m *Manager) ngrokAgent(lines []string) NgrokAgent {
 		}
 	}
 	return agent
+}
+
+func (m *Manager) ngrokVersion(path string) string {
+	m.mu.Lock()
+	cached, ok := m.agentVersions[path]
+	m.mu.Unlock()
+	if ok {
+		return cached
+	}
+	version := ""
+	if out, err := exec.Command(path, "version").Output(); err == nil {
+		version = strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(string(out)), "ngrok version "))
+	}
+	m.mu.Lock()
+	m.agentVersions[path] = version
+	m.mu.Unlock()
+	return version
 }
 
 func readNgrokSession(ctx context.Context, controlPort int) NgrokSession {
@@ -204,13 +218,13 @@ func parseNgrokLogLines(lines []string, secrets ...string) []NgrokLogLine {
 }
 
 func (m *Manager) NgrokInfo(ctx context.Context) NgrokInfo {
-	lines := m.Logs()
+	lines := m.ProviderLogs("ngrok")
 	cred, token := m.ngrokCredential()
 	apiKey, _ := m.readAPIKey()
 	return NgrokInfo{
 		Credential: cred,
 		Agent:      m.ngrokAgent(lines),
-		Session:    readNgrokSession(ctx, m.ControlPort()),
+		Session:    readNgrokSession(ctx, m.ProviderControlPort("ngrok")),
 		Domain:     m.NgrokDomain(),
 		APIKey:     apiKey != "",
 		Logs:       parseNgrokLogLines(lines, token, apiKey),

@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -107,5 +108,42 @@ func TestNgrokDiagnoseSummaryIsTheFirstFailure(t *testing.T) {
 	}
 	if !strings.Contains(d.Summary, "intercepted") {
 		t.Errorf("summary = %q, want the CRL interception to lead", d.Summary)
+	}
+}
+
+func TestProbeControlPlaneAcceptsAPrivateCA(t *testing.T) {
+	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) }))
+	defer srv.Close()
+	addr := strings.TrimPrefix(srv.URL, "https://")
+	got := probeControlPlane(context.Background(), addr)
+	if !got.OK {
+		t.Fatalf("a reachable control plane with an untrusted CA must pass the reachability probe: %+v", got)
+	}
+	if got := probeControlPlane(context.Background(), "127.0.0.1:1"); got.OK {
+		t.Fatal("a closed port must fail")
+	}
+}
+
+func TestNgrokDiagnoseOnlyPassesConfigFilesThatExist(t *testing.T) {
+	dir := t.TempDir()
+	argsFile := filepath.Join(dir, "args")
+	fake := newFakeProvider(t, "ngrok", "#!/bin/sh\nif [ \"$1\" = diagnose ]; then echo \"$@\" > \""+argsFile+"\"; fi\necho ngrok version 3.39.6\n")
+	user := filepath.Join(dir, "user.yml")
+	if err := os.WriteFile(user, []byte("version: \"3\"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	prevURL, prevAddr := ngrokCRLURL, ngrokConnectAddr
+	ngrokCRLURL, ngrokConnectAddr = "http://127.0.0.1:1/ngrok.crl", "127.0.0.1:1"
+	defer func() { ngrokCRLURL, ngrokConnectAddr = prevURL, prevAddr }()
+	m := New(Deps{Dir: dir, Binaries: fakeStore{path: fake.binary}, Now: time.Now, Providers: []Provider{
+		NgrokProvider(NgrokConfig{UserConfigPath: user, OwnConfigPath: filepath.Join(dir, "missing", "ngrok.yml")}),
+	}})
+	_ = m.NgrokDiagnose(context.Background())
+	args, err := os.ReadFile(argsFile)
+	if err != nil {
+		t.Fatalf("ngrok diagnose was not invoked: %v", err)
+	}
+	if !strings.Contains(string(args), user) || strings.Contains(string(args), "missing") {
+		t.Fatalf("args = %q, want only the existing user config", args)
 	}
 }

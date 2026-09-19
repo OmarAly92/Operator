@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -267,7 +268,7 @@ func (m *Manager) MintOperatorCredential(ctx context.Context) error {
 	}
 	for _, c := range existing.Credentials {
 		if c.Description == description && c.ID != minted.ID {
-			_ = api.do(ctx, http.MethodDelete, "/credentials/"+c.ID, nil, nil)
+			_ = api.do(ctx, http.MethodDelete, "/credentials/"+url.PathEscape(c.ID), nil, nil)
 		}
 	}
 	m.mu.Lock()
@@ -282,10 +283,28 @@ func (m *Manager) RevokeCredential(ctx context.Context, id string) error {
 	if err != nil {
 		return err
 	}
-	if strings.TrimSpace(id) == "" {
+	trimmed := strings.TrimSpace(id)
+	if trimmed == "" {
 		return errors.New("tunnel: credential id must not be empty")
 	}
-	return api.do(ctx, http.MethodDelete, "/credentials/"+id, nil, nil)
+	var existing struct {
+		Credentials []struct {
+			ID          string `json:"id"`
+			Description string `json:"description"`
+		} `json:"credentials"`
+	}
+	if err := api.do(ctx, http.MethodGet, "/credentials", nil, &existing); err != nil {
+		return err
+	}
+	if err := api.do(ctx, http.MethodDelete, "/credentials/"+url.PathEscape(trimmed), nil, nil); err != nil {
+		return err
+	}
+	for _, c := range existing.Credentials {
+		if c.ID == trimmed && c.Description == operatorCredentialDescription() {
+			return m.RemoveAuthtoken()
+		}
+	}
+	return nil
 }
 
 func (m *Manager) SetStableDomain(ctx context.Context, domain string) error {
@@ -296,7 +315,7 @@ func (m *Manager) SetStableDomain(ctx context.Context, domain string) error {
 	}
 	acc := m.NgrokAccount(ctx)
 	if !acc.Valid {
-		return errors.New("tunnel: " + acc.Error)
+		return errors.New(acc.Error)
 	}
 	for _, d := range acc.ReservedDomains {
 		if d.Domain == trimmed {

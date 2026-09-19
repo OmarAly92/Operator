@@ -168,3 +168,27 @@ func TestSetStableDomainRequiresAReservedDomain(t *testing.T) {
 		t.Errorf("clearing: err=%v domain=%q", err, m.NgrokDomain())
 	}
 }
+
+func TestRevokeCredentialDropsTheStoredTokenWhenItIsOperators(t *testing.T) {
+	api := newFakeNgrokAPI(t, "good")
+	m, dir := newAPIKeyManager(t)
+	_ = m.SetAPIKey(context.Background(), "good")
+	if err := writeNgrokAuthtoken(filepath.Join(dir, "ngrok.yml"), "tok_operator"); err != nil {
+		t.Fatal(err)
+	}
+	if err := m.RevokeCredential(context.Background(), "cr_other"); err != nil {
+		t.Fatalf("revoke other: %v", err)
+	}
+	if !m.HasAuthtoken() {
+		t.Fatal("revoking someone else's credential must keep Operator's token")
+	}
+	if err := m.RevokeCredential(context.Background(), "cr_old"); err != nil {
+		t.Fatalf("revoke operator: %v", err)
+	}
+	if m.HasAuthtoken() {
+		t.Fatal("revoking the Operator credential must drop the stored token")
+	}
+	if len(api.deleted) != 2 || api.deleted[1] != "cr_old" {
+		t.Errorf("deleted = %v", api.deleted)
+	}
+}

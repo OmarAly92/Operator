@@ -59,13 +59,15 @@ type Manager struct {
 	enabled             bool
 	stickyFrom          map[string]bool
 	lastFailureProvider string
-	inRecoveryAttempt   bool
 	cmd                 *exec.Cmd
 	cancel              context.CancelFunc
 	done                chan struct{}
 	awaitDone           chan struct{}
 	logs                *lineRing
 	controlPort         int
+	currentProvider     string
+	providerLogs        map[string]*lineRing
+	agentVersions       map[string]string
 	ngrokDomain         string
 }
 
@@ -91,16 +93,18 @@ func New(deps Deps) *Manager {
 		onProvider = func(string) {}
 	}
 	return &Manager{
-		log:         log,
-		dir:         deps.Dir,
-		providers:   deps.Providers,
-		binaries:    deps.Binaries,
-		now:         now,
-		sleep:       sleep,
-		reservePort: reserve,
-		onProvider:  onProvider,
-		status:      Status{State: StateOff},
-		stickyFrom:  map[string]bool{},
+		log:           log,
+		dir:           deps.Dir,
+		providers:     deps.Providers,
+		binaries:      deps.Binaries,
+		now:           now,
+		sleep:         sleep,
+		reservePort:   reserve,
+		onProvider:    onProvider,
+		status:        Status{State: StateOff},
+		stickyFrom:    map[string]bool{},
+		providerLogs:  map[string]*lineRing{},
+		agentVersions: map[string]string{},
 	}
 }
 
@@ -138,6 +142,25 @@ func (m *Manager) ControlPort() int {
 	return m.controlPort
 }
 
+func (m *Manager) ProviderControlPort(name string) int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.currentProvider != name {
+		return 0
+	}
+	return m.controlPort
+}
+
+func (m *Manager) ProviderLogs(name string) []string {
+	m.mu.Lock()
+	logs := m.providerLogs[name]
+	m.mu.Unlock()
+	if logs == nil {
+		return []string{}
+	}
+	return logs.Lines()
+}
+
 func (m *Manager) Logs() []string {
 	m.mu.Lock()
 	logs := m.logs
@@ -173,7 +196,6 @@ func (m *Manager) retryableLocked() {
 	m.enabled = false
 	m.stickyFrom = map[string]bool{}
 	m.lastFailureProvider = ""
-	m.inRecoveryAttempt = true
 }
 
 func (m *Manager) failTerminally(message string) {
@@ -198,6 +220,7 @@ func (m *Manager) Disable(ctx context.Context) error {
 	m.stickyFrom = map[string]bool{}
 	m.lastFailureProvider = ""
 	m.controlPort = 0
+	m.currentProvider = ""
 	m.mu.Unlock()
 
 	if cancel != nil {
@@ -290,6 +313,8 @@ func (m *Manager) launch(ctx context.Context, provider Provider) error {
 	m.mu.Lock()
 	m.cmd, m.cancel, m.done, m.awaitDone, m.logs = cmd, cancel, done, awaitDone, logs
 	m.controlPort = controlPort
+	m.currentProvider = provider.Name()
+	m.providerLogs[provider.Name()] = logs
 	m.status = Status{
 		State:          StateStarting,
 		Provider:       provider.Name(),
@@ -374,11 +399,6 @@ func (m *Manager) publishURL(provider Provider, url string) {
 	m.status.State = StateLive
 	m.status.Provider = provider.Name()
 	m.status.URL = url
-	if m.inRecoveryAttempt {
-		m.status.LastProvider = ""
-		m.status.FallbackReason = ""
-		m.inRecoveryAttempt = false
-	}
 	if provider.Name() == m.lastFailureProvider {
 		m.status.Error = ""
 	}
@@ -616,6 +636,7 @@ func (m *Manager) supervise(ctx context.Context, provider Provider, cmd *exec.Cm
 		m.cmd = current
 		m.logs = currentLogs
 		m.controlPort = currentPort
+		m.providerLogs[provider.Name()] = currentLogs
 		m.mu.Unlock()
 		m.recordPID(provider.Name(), current)
 	}

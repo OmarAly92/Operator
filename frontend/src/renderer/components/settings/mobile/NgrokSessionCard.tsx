@@ -47,7 +47,8 @@ export function NgrokSessionCard({ bridge, ngrok }: NgrokSessionCardProps) {
 	const status = session?.status ?? "";
 	const labelKey = statusLabelKey(status);
 	const dotClass = labelKey === "online" ? "bg-working" : labelKey === "reconnecting" ? "bg-warning" : "bg-settings-muted";
-	const since = bridge.tunnel?.since;
+	const ngrokIsLive = bridge.tunnel?.provider === "ngrok" && bridge.tunnel.state === "live";
+	const since = ngrokIsLive ? bridge.tunnel?.since : undefined;
 
 	return (
 		<>
@@ -75,10 +76,12 @@ export function NgrokSessionCard({ bridge, ngrok }: NgrokSessionCardProps) {
 							</button>
 						</div>
 					)}
-					<span className="text-caption text-settings-muted">
-						{t("mobile.ngrok.connections", { count: session?.connections ?? 0 })},{" "}
-						{t("mobile.ngrok.requests", { count: session?.httpRequests ?? 0 })}
-					</span>
+					{labelKey !== "off" && (
+						<span className="text-caption text-settings-muted">
+							{t("mobile.ngrok.connections", { count: session?.connections ?? 0 })},{" "}
+							{t("mobile.ngrok.requests", { count: session?.httpRequests ?? 0 })}
+						</span>
+					)}
 					{since && <span className="text-caption text-settings-muted">{t("mobile.ngrok.since", { time: new Date(since).toLocaleTimeString() })}</span>}
 					<Button
 						type="button"

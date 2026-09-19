@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -72,5 +73,23 @@ func TestNgrokInfoReadsTheControlAPI(t *testing.T) {
 	got := readNgrokSession(context.Background(), port)
 	if got.Status != "online" || got.Region != "eu" || got.Latency != "62ms" || got.PublicURL != "https://x.ngrok.app" || got.Connections != 4 || got.HTTPRequests != 9 {
 		t.Fatalf("session = %+v", got)
+	}
+}
+
+func TestNgrokInfoCachesTheAgentVersionPerBinary(t *testing.T) {
+	dir := t.TempDir()
+	counter := filepath.Join(dir, "count")
+	fake := newFakeProvider(t, "ngrok", "#!/bin/sh\necho x >> \""+counter+"\"\necho ngrok version 3.39.6\n")
+	m := New(Deps{Dir: dir, Binaries: fakeStore{path: fake.binary}, Now: time.Now, Providers: []Provider{
+		NgrokProvider(NgrokConfig{OwnConfigPath: filepath.Join(dir, "ngrok.yml")}),
+	}})
+	for i := 0; i < 3; i++ {
+		if got := m.NgrokInfo(context.Background()).Agent.Version; got != "3.39.6" {
+			t.Fatalf("version = %q", got)
+		}
+	}
+	body, _ := os.ReadFile(counter)
+	if runs := strings.Count(string(body), "x"); runs != 1 {
+		t.Fatalf("ngrok version ran %d times across 3 polls, want 1", runs)
 	}
 }

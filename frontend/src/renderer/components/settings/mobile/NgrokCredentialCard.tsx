@@ -56,8 +56,8 @@ export function NgrokCredentialCard({ bridge, ngrok }: NgrokCredentialCardProps)
 		<>
 			<SettingsRow label={t("mobile.ngrok.credential")}>
 				<div className="flex min-w-0 flex-1 flex-col items-end gap-2">
-					<div className="flex items-center gap-2">
-						<span className="text-sm text-settings-muted">{value}</span>
+					<span className="max-w-full break-words text-right text-sm text-settings-muted">{value}</span>
+					<div className="flex flex-wrap items-center justify-end gap-2">
 						{!present && (
 							<Button type="button" variant="footer" size="sm" onClick={logIn}>
 								{t("mobile.ngrok.logIn")}

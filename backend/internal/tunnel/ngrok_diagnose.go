@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"os/exec"
 	"regexp"
 	"strings"
@@ -74,7 +75,10 @@ func probeCRL(ctx context.Context, target string) NgrokCheck {
 
 func probeControlPlane(ctx context.Context, addr string) NgrokCheck {
 	check := NgrokCheck{Name: "Control plane TLS"}
-	dialer := &tls.Dialer{NetDialer: &net.Dialer{Timeout: 8 * time.Second}}
+	dialer := &tls.Dialer{
+		NetDialer: &net.Dialer{Timeout: 8 * time.Second},
+		Config:    &tls.Config{InsecureSkipVerify: true}, //nolint:gosec // reachability probe only; ngrok's control plane presents its own private CA that the agent pins itself
+	}
 	conn, err := dialer.DialContext(ctx, "tcp", addr)
 	if err != nil {
 		check.Detail = "TLS to " + addr + " failed: " + err.Error()
@@ -82,7 +86,7 @@ func probeControlPlane(ctx context.Context, addr string) NgrokCheck {
 	}
 	_ = conn.Close()
 	check.OK = true
-	check.Detail = "TLS handshake with " + addr + " succeeded"
+	check.Detail = "reached " + addr + " over TLS"
 	return check
 }
 
@@ -175,7 +179,9 @@ func (m *Manager) NgrokDiagnose(ctx context.Context) NgrokDiagnosis {
 		args := []string{"diagnose"}
 		if p, ok := m.ngrokProvider().(ngrokProvider); ok {
 			for _, cfg := range p.configPaths() {
-				args = append(args, "--config", cfg)
+				if _, err := os.Stat(cfg); err == nil {
+					args = append(args, "--config", cfg)
+				}
 			}
 		}
 		out, _ := exec.CommandContext(ctx, path, args...).CombinedOutput()
