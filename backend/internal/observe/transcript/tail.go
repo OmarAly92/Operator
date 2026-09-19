@@ -33,10 +33,21 @@ type tail struct {
 	sessionID domain.SessionID
 	harness   string
 	path      string
+	agentID   string
 	offset    int64
 	lastModel string
 	unknown   int
 	logged    int
+}
+
+// offsetKey is the OffsetStore key for one tail: the plain session id for the
+// main transcript, or "<id>#<agentID>" for a subagent tail, so the two never
+// collide in the store.
+func offsetKey(sessionID domain.SessionID, agentID string) string {
+	if agentID == "" {
+		return string(sessionID)
+	}
+	return string(sessionID) + "#" + agentID
 }
 
 func (t *tail) pump(ctx context.Context, sink Sink, offsets OffsetStore, now func() time.Time) error {
@@ -85,7 +96,13 @@ func (t *tail) pump(ctx context.Context, sink Sink, offsets OffsetStore, now fun
 			committed = consumed
 			continue
 		}
-		events, known := blocktranscript.Map(t.harness, record)
+		var events []domain.BlockTranscriptEvent
+		var known bool
+		if t.agentID == "" {
+			events, known = blocktranscript.Map(t.harness, record)
+		} else {
+			events, known = blocktranscript.MapSidechain(t.harness, t.agentID, record)
+		}
 		if !known {
 			t.unknown++
 		}
@@ -98,7 +115,7 @@ func (t *tail) pump(ctx context.Context, sink Sink, offsets OffsetStore, now fun
 			}
 			if err := sink.RecordTranscript(ctx, t.sessionID, t.harness, event); err != nil {
 				t.offset = committed
-				_ = offsets.UpsertTranscriptOffset(ctx, string(t.sessionID), t.path, t.offset, now())
+				_ = offsets.UpsertTranscriptOffset(ctx, offsetKey(t.sessionID, t.agentID), t.path, t.offset, now())
 				return err
 			}
 		}
@@ -108,5 +125,5 @@ func (t *tail) pump(ctx context.Context, sink Sink, offsets OffsetStore, now fun
 		return nil
 	}
 	t.offset = committed
-	return offsets.UpsertTranscriptOffset(ctx, string(t.sessionID), t.path, t.offset, now())
+	return offsets.UpsertTranscriptOffset(ctx, offsetKey(t.sessionID, t.agentID), t.path, t.offset, now())
 }

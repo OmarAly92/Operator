@@ -399,6 +399,60 @@ func TestReconcileForgetsTheBackoffForASessionThatIsGone(t *testing.T) {
 	}
 }
 
+const sidechainPrompt = `{"type":"user","isSidechain":true,"agentId":"x1","uuid":"su-1","message":{"role":"user","content":"Implement task 1"}}`
+
+func TestReconcileTailsSubagentFilesBesideTheMainTranscript(t *testing.T) {
+	root := t.TempDir()
+	configDir := filepath.Join(root, "config")
+	sessionDir := filepath.Join(configDir, "projects", "p")
+	path := writeTranscript(t, sessionDir, "sess-1.jsonl")
+	appendLines(t, path, assistantLine)
+
+	sessions := &fakeSessions{sessions: []domain.SessionRecord{session("s-1", "claude-code", path, false)}}
+	sink := &fakeSink{}
+	offsets := &fakeOffsets{}
+	sup := newSupervisor(t, sessions, sink, offsets, newFakeWatcher(), configDir)
+
+	sup.reconcile(context.Background())
+	if len(sup.tails) != 1 {
+		t.Fatalf("expected one tail before the agent file exists, got %d", len(sup.tails))
+	}
+
+	agentDir := filepath.Join(sessionDir, "sess-1", "subagents")
+	if err := os.MkdirAll(agentDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	agentPath := filepath.Join(agentDir, "agent-x1.jsonl")
+	appendLines(t, agentPath, sidechainPrompt, assistantLine)
+
+	sup.reconcile(context.Background())
+	sup.pumpAll(context.Background())
+
+	var agentEvents, mainEvents int
+	for _, ev := range sink.recorded() {
+		switch ev.event.AgentID {
+		case "x1":
+			agentEvents++
+		case "":
+			mainEvents++
+		default:
+			t.Fatalf("unexpected agent id %q", ev.event.AgentID)
+		}
+	}
+	if agentEvents < 2 || mainEvents < 1 {
+		t.Fatalf("agent events = %d, main events = %d", agentEvents, mainEvents)
+	}
+	if offsets.lastKey != "s-1#x1" && offsets.lastKey != "s-1" {
+		t.Fatalf("offset key = %q", offsets.lastKey)
+	}
+
+	sessions.sessions[0].IsTerminated = true
+	ended := sup.reconcile(context.Background())
+	if len(ended) != 2 {
+		t.Fatalf("expected both tails retired with the session, got %d", len(ended))
+	}
+}
+
 func TestStartProjectsWithoutAWatcher(t *testing.T) {
 	root := t.TempDir()
 	configDir := filepath.Join(root, "config")

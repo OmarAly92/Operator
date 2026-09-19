@@ -4,7 +4,9 @@ import (
 	"context"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/OmarAly92/operator/backend/internal/adapters/agent/blocktranscript"
@@ -64,7 +66,7 @@ type Deps struct {
 // mapper.
 type Supervisor struct {
 	deps    Deps
-	tails   map[domain.SessionID]*tail
+	tails   map[string]*tail
 	backoff map[domain.SessionID]*resolveBackoff
 }
 
@@ -88,7 +90,7 @@ func NewSupervisor(deps Deps) *Supervisor {
 	}
 	return &Supervisor{
 		deps:    deps,
-		tails:   map[domain.SessionID]*tail{},
+		tails:   map[string]*tail{},
 		backoff: map[domain.SessionID]*resolveBackoff{},
 	}
 }
@@ -160,8 +162,9 @@ func (s *Supervisor) reconcile(ctx context.Context) []*tail {
 		return nil
 	}
 	now := s.deps.Clock()
-	seen := make(map[domain.SessionID]struct{}, len(sessions))
+	seenKeys := make(map[string]struct{}, len(sessions))
 	alive := make(map[domain.SessionID]struct{}, len(sessions))
+	terminated := make(map[domain.SessionID]bool, len(sessions))
 	paths := make([]string, 0, len(sessions))
 	var ended []*tail
 	for _, rec := range sessions {
@@ -169,11 +172,12 @@ func (s *Supervisor) reconcile(ctx context.Context) []*tail {
 			return nil
 		}
 		alive[rec.ID] = struct{}{}
-		existing, tracked := s.tails[rec.ID]
+		if rec.IsTerminated {
+			terminated[rec.ID] = true
+		}
+		mainKey := string(rec.ID)
+		existing, tracked := s.tails[mainKey]
 		if rec.IsTerminated || !blocktranscript.Supports(string(rec.Harness)) {
-			if tracked && rec.IsTerminated {
-				ended = append(ended, existing)
-			}
 			continue
 		}
 		var path string
@@ -192,22 +196,34 @@ func (s *Supervisor) reconcile(ctx context.Context) []*tail {
 			continue
 		}
 		delete(s.backoff, rec.ID)
-		seen[rec.ID] = struct{}{}
+		seenKeys[mainKey] = struct{}{}
 		paths = append(paths, path)
-		if tracked && existing.path == path {
-			continue
-		}
-		if tracked {
+		if !tracked {
+			s.tails[mainKey] = s.newTail(ctx, rec, path)
+		} else if existing.path != path {
 			existing.path = path
 			existing.offset = 0
 			existing.lastModel = ""
-			continue
 		}
-		s.tails[rec.ID] = s.newTail(ctx, rec, path)
+		if blocktranscript.SupportsSidechain(string(rec.Harness)) {
+			for _, agentPath := range subagentPaths(path) {
+				agentID := strings.TrimSuffix(strings.TrimPrefix(filepath.Base(agentPath), "agent-"), ".jsonl")
+				key := offsetKey(rec.ID, agentID)
+				seenKeys[key] = struct{}{}
+				paths = append(paths, agentPath)
+				if _, tracked := s.tails[key]; tracked {
+					continue
+				}
+				s.tails[key] = s.newAgentTail(ctx, rec, agentID, agentPath)
+			}
+		}
 	}
-	for id := range s.tails {
-		if _, live := seen[id]; !live {
-			delete(s.tails, id)
+	for key, tracked := range s.tails {
+		if _, live := seenKeys[key]; !live {
+			if _, sessionAlive := alive[tracked.sessionID]; !sessionAlive || terminated[tracked.sessionID] {
+				ended = append(ended, tracked)
+			}
+			delete(s.tails, key)
 		}
 	}
 	for id := range s.backoff {
@@ -265,6 +281,34 @@ func (s *Supervisor) newTail(ctx context.Context, rec domain.SessionRecord, path
 	storedPath, offset, found, err := s.deps.Offsets.GetTranscriptOffset(ctx, string(rec.ID))
 	if err != nil {
 		s.deps.Logger.Warn("transcript cursor read", "session", rec.ID, "err", err)
+		return created
+	}
+	if found && storedPath == path {
+		created.offset = offset
+	}
+	return created
+}
+
+// subagentPaths lists a Claude Code session's sidechain transcripts beside its
+// main transcript, at <session-dir>/<session-basename>/subagents/agent-*.jsonl.
+func subagentPaths(mainPath string) []string {
+	dir := filepath.Join(filepath.Dir(mainPath), strings.TrimSuffix(filepath.Base(mainPath), ".jsonl"), "subagents")
+	matches, err := filepath.Glob(filepath.Join(dir, "agent-*.jsonl"))
+	if err != nil {
+		return nil
+	}
+	sort.Strings(matches)
+	return matches
+}
+
+func (s *Supervisor) newAgentTail(ctx context.Context, rec domain.SessionRecord, agentID, path string) *tail {
+	created := &tail{sessionID: rec.ID, harness: string(rec.Harness), path: path, agentID: agentID}
+	if s.deps.Offsets == nil {
+		return created
+	}
+	storedPath, offset, found, err := s.deps.Offsets.GetTranscriptOffset(ctx, offsetKey(rec.ID, agentID))
+	if err != nil {
+		s.deps.Logger.Warn("transcript cursor read", "session", rec.ID, "agent", agentID, "err", err)
 		return created
 	}
 	if found && storedPath == path {
