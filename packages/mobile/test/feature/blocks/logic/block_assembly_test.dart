@@ -18,6 +18,8 @@ BlockEventModel _event(
   List<BlockRedactedSpanModel>? spans,
   String? source,
   String? interactionId,
+  String? detail,
+  String? agentId,
 }) => BlockEventModel(
   seq: seq,
   sessionId: 's-1',
@@ -33,6 +35,8 @@ BlockEventModel _event(
   redactedSpans: spans,
   source: source,
   interactionId: interactionId,
+  detail: detail,
+  agentId: agentId,
 );
 
 String _question(String question) =>
@@ -569,6 +573,54 @@ void main() {
       final blocks = assembleBlocks([_event(1, 'stop', text: 'done')]);
 
       expect(resolveStranded(blocks, 'Session exited'), blocks);
+    });
+  });
+
+  group('agents', () {
+    const input = '{"description":"Implement Task 1","prompt":"You are implementing Task 1","model":"haiku","run_in_background":true}';
+
+    test('an Agent tool block carries its description, prompt and model', () {
+      final blocks = assembleBlocks([
+        _event(1, 'tool_start', sourceId: 'toolu_a', toolUseId: 'toolu_a', toolName: 'Agent', source: 'transcript', toolInput: input),
+      ]);
+      final detail = blocks.single.detail as AgentBlockDetail;
+      expect(detail.description, 'Implement Task 1');
+      expect(detail.prompt, 'You are implementing Task 1');
+      expect(detail.model, 'haiku');
+      expect(detail.status, 'running');
+      expect(blocks.single.status, BlockStatus.running);
+    });
+
+    test('the Agent result merges the agent identity and totals', () {
+      final blocks = assembleBlocks([
+        _event(1, 'tool_start', sourceId: 'toolu_a', toolUseId: 'toolu_a', toolName: 'Agent', source: 'transcript', toolInput: input),
+        _event(2, 'tool_result', sourceId: 'toolu_a', toolUseId: 'toolu_a', source: 'transcript', text: 'done',
+            detail: '{"agentId":"a1","agentType":"general-purpose","status":"completed","resolvedModel":"claude-haiku-4-5","totalDurationMs":61000,"totalToolUseCount":7,"totalTokens":9000}'),
+      ]);
+      final detail = blocks.single.detail as AgentBlockDetail;
+      expect(detail.agentId, 'a1');
+      expect(detail.agentType, 'general-purpose');
+      expect(detail.status, 'completed');
+      expect(detail.durationMs, 61000);
+      expect(detail.toolUseCount, 7);
+      expect(detail.description, 'Implement Task 1');
+      expect(blocks.single.status, BlockStatus.ok);
+    });
+
+    test('an agent_stop completes the Agent block it names', () {
+      final blocks = assembleBlocks([
+        _event(1, 'tool_start', sourceId: 'toolu_a', toolUseId: 'toolu_a', toolName: 'Agent', source: 'transcript', toolInput: input),
+        _event(2, 'tool_result', sourceId: 'toolu_a', toolUseId: 'toolu_a', source: 'transcript', text: 'Async agent launched',
+            detail: '{"agentId":"a1","agentType":"general-purpose","status":"running"}'),
+        _event(3, 'agent_stop', sourceId: 'a1', agentId: 'a1', source: 'hook', text: 'finished'),
+      ]);
+      final detail = blocks.single.detail as AgentBlockDetail;
+      expect(detail.status, 'completed');
+    });
+
+    test('agent-scoped events carry the agent id onto their blocks', () {
+      final blocks = assembleBlocks([_event(1, 'prompt_submit', text: 'go', agentId: 'a1')]);
+      expect(blocks.single.agentId, 'a1');
     });
   });
 
