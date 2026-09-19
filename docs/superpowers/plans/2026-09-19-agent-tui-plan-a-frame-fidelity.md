@@ -30,6 +30,8 @@ Every task inherits these; they are the spec's "Global constraints" plus `TERMIN
 - **§2.3 TextMetrics.** The spec prefers `measureText('W')` + `fontBoundingBoxAscent/Descent` with the DOM span as fallback. Task 7 caches the DOM-span measurement and adds no `TextMetrics` path: once cached, the measurement runs once per font/DPR change so the strategy no longer affects cost, and the feel gate requires the exact numbers the span produced today (a `TextMetrics` height is the font box, not the span's rect, and would move every row). If the user wants `TextMetrics` anyway it is a one-function change behind the same cache.
 - **§2.4 "export prefix counters ≤ actual lengths".** Those counters (`history_exported_rows/bytes`) are Plan B's; the checker gains that clause when they exist.
 - **§2.4 "`wrapped` rows are followed by a row".** Pinned as "a `wrapped` row is never empty" plus contiguity: the continuation of the last scrollback row can legitimately sit on the screen, and an in-place clear may have blanked it, so "followed by a row" is not a true invariant of the model.
+- **§2.4 "blocks tile the flat row space in order without overlap".** Not an invariant of this model: `Parser::open_block` starts a block at the cursor row (`block_start_row`, `parser.rs:283-286`), so a prompt mark after a cursor-up legitimately opens a block above the previous block's end, and the random CUP + OSC 133 sequences of the property test hit that at once. The checker pins what does hold — every block lies inside the flat row space and `next_row` does not run past it — and the spec's overlap clause is dropped rather than encoded as a known-failing test.
+- **§2.4 "one failing fixture per invariant" in `tests/integrity.rs`.** Corrupting the model to trip one invariant needs crate-private access, so those seven fixtures are unit tests in `src/integrity.rs`; the property test and the public-API regressions are in `tests/integrity.rs` as the spec says.
 - **§2.5 `Limits::DEFAULT`.** `Limits` is Plan B's. The ref harness uses `REF_SCROLLBACK_ROWS = 200_000` (the spec's row cap); Plan B switches it to `Limits::DEFAULT`.
 - **Baseline table.** `claude-spinner-10s` has too few rows for the 1k/5k/50k rows, scroll, memory and reopen rows. Task 1 measures what the spinner fixture supports (paints/s, DOM nodes per paint, torn paints); Task 2 records `claude-long-50k` and fills the rest. Numbers are measured, never invented.
 - **Replay inside a sync block (§2.1 Go test).** `vt_replay` renders the mirror's last complete frame and then appends the mirror's still-buffered sync bytes verbatim. The attaching client therefore paints the previous frame (no half frame) *and* buffers the partial frame in its own core, so the live bytes that follow complete it correctly. Rendering the partial would tear; dropping it would corrupt the client until the next full repaint.
@@ -47,7 +49,7 @@ New or modified, by task:
 | 5 | `crates/vt-core/src/{sync.rs,lib.rs,parser.rs}`, `crates/vt-core/tests/synchronized_output.rs`, `crates/vt-wasm/src/lib.rs`, `ts/core/src/{terminal-core.ts,terminal-core.test.ts}`, `ts/renderer-dom/src/{dom-block-renderer.ts,dom-block-renderer.test.ts}`, `crates/vt-host/src/lib.rs`, `backend/.../ptyhost/vtwasm/{vtwasm.go,vtwasm_test.go,replay_test.go,assets/vt_host.wasm}`, `backend/.../ptyhost/{host.go,host_test.go,pump_test.go}`, `TERMINAL.md` (§4.16), `CHANGELOG.md` |
 | 6 | `ts/core/src/{terminal-core.ts,terminal-core.test.ts}`, `ts/renderer-dom/src/dom-block-renderer.ts`, `frontend/src/renderer/components/{BlockTerminal.tsx,BlockTerminal.test.tsx}`, `bench/agent-session/run.mjs`, `CHANGELOG.md` |
 | 7 | `ts/renderer-dom/src/{dom-block-renderer.ts,dom-block-renderer.test.ts}`, `CHANGELOG.md` |
-| 8 | `bench/agent-session/{run.mjs,tearing-gate.mjs}`, `packages/terminal/package.json`, spec baseline table (After column), `TERMINAL.md` §6 |
+| 8 | `bench/agent-session/run.mjs`, `packages/terminal/package.json`, spec baseline table (After column), `TERMINAL.md` §6 |
 
 Fixture and corpus layout, shared by Tasks 1–3:
 
@@ -356,6 +358,7 @@ type AgentSession = {
 	setScrollTop(top: number): Promise<void>;
 	visibleRows(): Array<{ block: string; row: number }>;
 	textHash(): string;
+	modelHash(): string;
 	core(): TerminalCore;
 };
 
@@ -487,14 +490,28 @@ function visibleRows(): Array<{ block: string; row: number }> {
 	return out;
 }
 
-function textHash(): string {
-	const rows = [...host!.querySelectorAll<HTMLElement>("[data-terminal-row]")].map((row) => row.textContent ?? "");
+function fnv(text: string): string {
 	let hash = 2166136261;
-	for (const ch of rows.join("\n")) {
+	for (const ch of text) {
 		hash ^= ch.codePointAt(0)!;
 		hash = Math.imul(hash, 16777619) >>> 0;
 	}
 	return hash.toString(16);
+}
+
+function textHash(): string {
+	const rows = [...host!.querySelectorAll<HTMLElement>("[data-terminal-row]")].map((row) => row.textContent ?? "");
+	return fnv(rows.join("\n"));
+}
+
+function modelHash(): string {
+	const snapshot = core.snapshot();
+	const decoder = new TextDecoder();
+	let text = `${snapshot.cursorRow}:${snapshot.cursorColumn}\n`;
+	for (let index = 0; index < snapshot.rows.length; index += 2) {
+		text += `${decoder.decode(snapshot.content.subarray(snapshot.rows[index]!, snapshot.rows[index + 1]!))}\n`;
+	}
+	return fnv(text);
 }
 
 const scroller = host.querySelector<HTMLElement>(".terminal-host") ?? host;
@@ -529,6 +546,7 @@ window.__agentSession = {
 	},
 	visibleRows,
 	textHash,
+	modelHash,
 	core: () => core,
 	blocks: () => decodeBlocks(core.snapshot()).length,
 } as AgentSession & { blocks(): number };
@@ -602,31 +620,56 @@ async function spinnerPaints(page) {
 
 async function tornPaints(page, recording) {
 	const ends = frameBoundaries(recording);
-	const result = await page.evaluate(async (frameEnds) => {
+	const states = await page.evaluate((frameEnds) => {
 		const session = window.__agentSession;
-		const complete = new Set();
-		let torn = 0;
-		let distinctPaints = 0;
+		let tornStates = 0;
 		let start = session.fed;
 		for (const end of frameEnds) {
 			if (end <= start) continue;
-			let lastHash = session.textHash();
+			let last = session.modelHash();
 			for (let at = start; at < end; at += 1) {
 				session.feedChunk(at, at + 1);
-				await new Promise((resolve) => requestAnimationFrame(resolve));
-				const hash = session.textHash();
-				if (hash !== lastHash) {
-					distinctPaints += 1;
-					if (at + 1 < end) torn += 1;
-					lastHash = hash;
+				const hash = session.modelHash();
+				if (hash !== last) {
+					if (at + 1 < end) tornStates += 1;
+					last = hash;
 				}
 			}
-			complete.add(session.textHash());
 			start = end;
 		}
-		return { frames: frameEnds.length, distinctPaints, torn, completeFrames: complete.size };
+		return { frames: frameEnds.length, tornStates };
 	}, ends);
-	return result;
+	return states;
+}
+
+async function paintsPerFrame(page, recording) {
+	const ends = frameBoundaries(recording);
+	return page.evaluate(async (frameEnds) => {
+		const session = window.__agentSession;
+		const frame = () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+		let tornPaints = 0;
+		let multiPaintFrames = 0;
+		let start = session.fed;
+		for (const end of frameEnds) {
+			if (end <= start) continue;
+			const before = session.textHash();
+			const cuts = [start + Math.floor((end - start) / 3), start + Math.floor((2 * (end - start)) / 3), end];
+			const seen = new Set();
+			let from = start;
+			for (const cut of cuts) {
+				if (cut > from) session.feedChunk(from, cut);
+				from = cut;
+				await frame();
+				seen.add(session.textHash());
+			}
+			const after = session.textHash();
+			for (const hash of seen) if (hash !== before && hash !== after) tornPaints += 1;
+			const distinct = [...seen].filter((hash) => hash !== before).length;
+			if (distinct > 1) multiPaintFrames += 1;
+			start = end;
+		}
+		return { tornPaints, multiPaintFrames };
+	}, ends);
 }
 
 async function longTask2MiB(page) {
@@ -655,8 +698,11 @@ async function main() {
 				rows.spinner = await spinnerPaints(page);
 				await page.close();
 				const tearPage = await openPage(browser, port, name);
-				rows.tearing = await tornPaints(tearPage, fixture.recording);
+				const states = await tornPaints(tearPage, fixture.recording);
 				await tearPage.close();
+				const paintPage = await openPage(browser, port, name);
+				rows.tearing = { ...states, ...(await paintsPerFrame(paintPage, fixture.recording)) };
+				await paintPage.close();
 			} else {
 				const page = await openPage(browser, port, name);
 				rows.feedCost = [];
@@ -675,8 +721,9 @@ async function main() {
 		if (args.gate) {
 			const tearing = report.fixtures["claude-spinner-10s"]?.tearing;
 			if (!tearing) throw new Error("gate needs the claude-spinner-10s fixture");
-			if (tearing.torn !== 0) throw new Error(`${tearing.torn} paints showed a partial frame`);
-			if (tearing.distinctPaints !== tearing.frames) throw new Error(`${tearing.distinctPaints} distinct paints for ${tearing.frames} frames`);
+			if (tearing.tornStates !== 0) throw new Error(`${tearing.tornStates} model states inside a sync block became visible`);
+			if (tearing.tornPaints !== 0) throw new Error(`${tearing.tornPaints} paints showed a partial frame`);
+			if (tearing.multiPaintFrames !== 0) throw new Error(`${tearing.multiPaintFrames} frames painted more than once`);
 			const longTask = Object.values(report.fixtures).find((rows) => rows.longTask)?.longTask;
 			if (longTask && longTask.longestTaskMs !== null && longTask.longestTaskMs > 16) throw new Error(`2 MiB feed blocked the main thread for ${longTask.longestTaskMs.toFixed(1)}ms`);
 			process.stdout.write("PASS agent-session gate\n");
@@ -866,14 +913,14 @@ cd /Users/omaraly/development/AI/Operator/packages/terminal && npm run bench:fee
 cd /Users/omaraly/development/AI/Operator/packages/terminal && npm run bench:feel -- --fixture claude-spinner-10s
 ```
 
-Expected: `bench:agent` prints one JSON line with `spinner: { paints, addedNodes }` and `tearing: { frames, distinctPaints, torn, completeFrames }`; the second `bench:feel` prints `PASS feel gate: zero pixel diff`. If it does not pass twice in a row on an unchanged tree, the page is nondeterministic — find the cause (a timer-driven repaint, a font not yet loaded at the first screenshot) before continuing; add a `await page.evaluate(() => document.fonts.ready)` after `feedAll` if fonts are the cause.
+Expected: `bench:agent` prints one JSON line with `spinner: { paints, addedNodes }` and `tearing: { frames, tornStates, tornPaints, multiPaintFrames }`; the second `bench:feel` prints `PASS feel gate: zero pixel diff`. If it does not pass twice in a row on an unchanged tree, the page is nondeterministic — find the cause (a timer-driven repaint, a font not yet loaded at the first screenshot) before continuing; add a `await page.evaluate(() => document.fonts.ready)` after `feedAll` if fonts are the cause.
 
 - [ ] **Step 12: Fill the baseline table (spinner rows only)**
 
 In the spec's "The table" (`docs/superpowers/specs/2026-09-19-agent-tui-experience-design.md`), replace "not known" in the row *paints/s and DOM nodes created per paint under the spinner* with the measured values as `<paints>/10 s → <paints/10> paints/s, <addedNodes/paints> nodes/paint` and add a row:
 
 ```
-| torn paints in `claude-spinner-10s` fed byte by byte | `bench/agent-session/run.mjs` `tearing` | <torn> of <frames> frames |
+| torn frames in `claude-spinner-10s` | `run.mjs` `tearing`: model states that became visible inside a sync block (fed byte by byte), paints showing a partial frame and frames painted more than once (fed in thirds, one frame per third) | <tornStates> states / <tornPaints> paints / <multiPaintFrames> multi-paint of <frames> frames |
 ```
 
 Leave every other "not known" for Task 2. Do not round to a nicer number; copy what the run printed.
@@ -1130,6 +1177,10 @@ func TestRecordEnvTeesOutputAndSizes(t *testing.T) {
 		t.Fatalf("write: %v", err)
 	}
 	c.readFrame(t)
+	waitFor(t, 2*time.Second, func() bool {
+		info, err := os.Stat(filepath.Join(dir, "sess-rec.recording"))
+		return err == nil && info.Size() == 7
+	})
 	payload, _ := json.Marshal(ResizePayload{Cols: 100, Rows: 30})
 	if err := c.send(MsgResize, payload); err != nil {
 		t.Fatalf("resize: %v", err)
@@ -1172,7 +1223,7 @@ func TestRecorderFromEnvIsNilWhenUnset(t *testing.T) {
 }
 ```
 
-Add `"context"`, `"encoding/json"`, `"net"`, `"os"`, `"time"` to that file's imports.
+Add `"context"`, `"encoding/json"`, `"net"`, `"os"`, `"time"` to that file's imports. `waitFor` is `pump_test.go`'s helper (same package); the recorder writes after `deliver` releases the lock, so the test waits for the bytes to land before it resizes.
 
 - [ ] **Step 6: Run to see it fail**
 
@@ -1807,7 +1858,7 @@ cd /Users/omaraly/development/AI/Operator/packages/terminal && npm run bench:fee
 
 **Interfaces:**
 - Consumes: `Parser` internals (`content`, `rows`, `styles`, `grid`, `screen`), `BlockGrid::blocks()/next_row()`, `RowIndex::completed()`.
-- Produces: `pub enum IntegrityError { RowOutsideContent { row: usize }, RowsNotContiguous { row: usize }, OpenRowDetached, WrappedRowEmpty { row: usize }, BlocksOverlap { block: usize }, BlockPastEnd { block: usize }, NextRowPastEnd, StyleKeyOutsideContent { offset: u64 } }`; `Parser::verify_integrity(&self) -> Result<(), IntegrityError>` (`pub(crate)`); `TerminalCore::verify_integrity(&self) -> Result<(), IntegrityError>`; under `feature = "trace"`: `pub struct TraceEntry { pub offset: u64, pub action: TraceAction }`, `pub enum TraceAction { Print(char), Execute(u8), Csi { params: Vec<Vec<u16>>, intermediates: Vec<u8>, action: char }, Esc { intermediates: Vec<u8>, byte: u8 }, Osc(Vec<Vec<u8>>) }`, `TerminalCore::trace(&self) -> &[TraceEntry]`, `TerminalCore::clear_trace(&mut self)`; `tests/common/mod.rs::check(&TerminalCore)`; a private `TerminalCore::advance_vte(&mut self, bytes: &[u8])` that Task 5 reuses.
+- Produces: `pub enum IntegrityError { RowOutsideContent { row: usize }, RowsNotContiguous { row: usize }, OpenRowDetached, WrappedRowEmpty { row: usize }, BlockPastEnd { block: usize }, NextRowPastEnd, StyleKeyOutsideContent { offset: u64 } }`; `Parser::verify_integrity(&self) -> Result<(), IntegrityError>` (`pub(crate)`); `TerminalCore::verify_integrity(&self) -> Result<(), IntegrityError>`; under `feature = "trace"`: `pub struct TraceEntry { pub offset: u64, pub action: TraceAction }`, `pub enum TraceAction { Print(char), Execute(u8), Csi { params: Vec<Vec<u16>>, intermediates: Vec<u8>, action: char }, Esc { intermediates: Vec<u8>, byte: u8 }, Osc(Vec<Vec<u8>>) }`, `TerminalCore::trace(&self) -> &[TraceEntry]`, `TerminalCore::clear_trace(&mut self)`; `tests/common/mod.rs::check(&TerminalCore)`; a private `TerminalCore::advance_vte(&mut self, bytes: &[u8])` that Task 5 reuses.
 
 Reference: Ghostty `src/terminal/PageList.zig:796-930` (`verifyIntegrity` after every mutation in debug builds); Kitty `vt-parser.c` `REPORT_COMMAND` (survey §5.10) for the trace.
 
@@ -1997,11 +2048,11 @@ mod tests {
     }
 
     #[test]
-    fn overlapping_blocks_are_reported() {
+    fn a_block_that_starts_above_the_previous_one_is_not_an_error() {
         let mut parser = parser_with(b"one\r\ntwo\r\nthree\r\n");
         parser.grid_mut().push_synthetic(0, 2, BlockState::Finished, Some(0));
         parser.grid_mut().push_synthetic(1, 3, BlockState::Finished, Some(0));
-        assert_eq!(parser.verify_integrity(), Err(IntegrityError::BlocksOverlap { block: 1 }));
+        assert_eq!(parser.verify_integrity(), Ok(()));
     }
 
     #[test]
@@ -2031,7 +2082,6 @@ pub enum IntegrityError {
     RowsNotContiguous { row: usize },
     OpenRowDetached,
     WrappedRowEmpty { row: usize },
-    BlocksOverlap { block: usize },
     BlockPastEnd { block: usize },
     NextRowPastEnd,
     StyleKeyOutsideContent { offset: u64 },
@@ -2061,16 +2111,11 @@ impl Parser {
             return Err(IntegrityError::OpenRowDetached);
         }
         let total_rows = completed.len() + self.screen().rows();
-        let mut covered_end = 0usize;
         for (index, block) in self.grid().blocks().enumerate() {
-            if block.first_row < covered_end {
-                return Err(IntegrityError::BlocksOverlap { block: index });
-            }
             let end = block.first_row + block.row_count;
             if end > total_rows || block.first_row > total_rows {
                 return Err(IntegrityError::BlockPastEnd { block: index });
             }
-            covered_end = end;
         }
         if self.grid().next_row() > total_rows {
             return Err(IntegrityError::NextRowPastEnd);
@@ -2273,7 +2318,7 @@ impl Trace {
 }
 ```
 
-`lib.rs`: `#[cfg(feature = "trace")] pub mod trace;`. In `Parser` (`parser.rs`) add the field `#[cfg(feature = "trace")] pub(crate) trace: crate::trace::Trace,` initialised with `Default::default()` in `Parser::new`. In the `Perform` impl:
+`lib.rs`: `#[cfg(feature = "trace")] pub mod trace;`. In `Parser` (`parser.rs`) add the field `#[cfg(feature = "trace")] pub(crate) trace: crate::trace::Trace,` and the line `#[cfg(feature = "trace")] trace: Default::default(),` in the `Self { … }` literal of `Parser::new`. In the `Perform` impl:
 
 ```rust
     fn print(&mut self, c: char) {
@@ -2286,7 +2331,14 @@ impl Trace {
     fn execute(&mut self, byte: u8) {
         #[cfg(feature = "trace")]
         self.trace.record(crate::trace::TraceAction::Execute(byte));
-        …existing body…
+        let screen = self.active_screen_mut();
+        match byte {
+            0x08 => screen.move_by(0, -1),
+            0x09 => screen.tab(),
+            0x0A..=0x0C => screen.line_feed(),
+            0x0D => screen.carriage_return(),
+            _ => {}
+        }
     }
 
     fn csi_dispatch(&mut self, params: &Params, intermediates: &[u8], _ignore: bool, c: char) {
@@ -2296,7 +2348,21 @@ impl Trace {
             intermediates: intermediates.to_vec(),
             action: c,
         });
-        …existing body…
+        if c == 'm' {
+            self.apply_sgr(params);
+            return;
+        }
+        if intermediates.first() == Some(&b'?') && matches!(c, 'h' | 'l') {
+            let set = c == 'h';
+            for group in params.iter() {
+                match group.first().copied() {
+                    Some(1) => self.app_cursor = set,
+                    Some(mode) => self.note_private_mode(mode, set),
+                    None => {}
+                }
+            }
+        }
+        self.active_screen_mut().csi(params, intermediates, c);
     }
 
     fn esc_dispatch(&mut self, intermediates: &[u8], _ignore: bool, byte: u8) {
@@ -2597,10 +2663,10 @@ fn feed_without_a_clock_keeps_the_last_one() {
 #[test]
 fn feed_at_reports_whether_anything_was_parsed() {
     let mut core = core();
-    assert!(core.feed_at(b"a", 0));
-    assert!(core.feed_at(BSU, 0), "the bytes before a BSU are parsed");
+    assert!(core.feed_at(&cat(&[b"a", BSU]), 0), "the bytes before a BSU are parsed");
     assert!(!core.feed_at(b"b", 0));
     assert!(core.feed_at(ESU, 0));
+    assert!(!core.feed_at(BSU, 0), "a bare BSU parses nothing");
 }
 ```
 
@@ -2805,8 +2871,40 @@ impl SyncBuffer {
 
     fn feed_raw(&mut self, bytes: &[u8]) {
         self.sync.note_parsed(bytes);
-        …the previous body of `feed`, unchanged (marks by offset, `advance_vte`, `commit_evicted`, `trim_to`, `debug_check`)…
+        let events = self.mark_decoder.feed_with_offsets(bytes);
+        let mut parsed = 0usize;
+        for (offset, event) in events {
+            let upto = offset.min(bytes.len());
+            if upto > parsed {
+                self.advance_vte(&bytes[parsed..upto]);
+                parsed = upto;
+            }
+            if self.alt_screen.is_active() && !matches!(event, MarkEvent::AltScreenLeave) {
+                continue;
+            }
+            match event {
+                MarkEvent::InputReady => self.line_editor.on_input_ready(),
+                MarkEvent::InputReleased => self.line_editor.on_input_released(),
+                MarkEvent::AltScreenEnter => self.line_editor.on_alt_screen_enter(),
+                _ => {}
+            }
+            let switch = event.clone();
+            apply_event(&mut self.parser, &mut self.alt_screen, event);
+            match switch {
+                MarkEvent::AltScreenEnter => self.parser.enter_alt(self.rows),
+                MarkEvent::AltScreenLeave => self.parser.leave_alt(),
+                _ => {}
+            }
+        }
+        if parsed < bytes.len() {
+            self.advance_vte(&bytes[parsed..]);
+        }
+        self.parser.commit_evicted();
+        self.parser.trim_to(self.scrollback_rows);
+        self.debug_check();
     }
+
+The two existing comment blocks inside today's `feed` ("Marks are decoded separately…" and "Re-read the alt-screen state…") move with the body unchanged.
 ```
 
 `resize`: add `self.flush_sync(None);` as its first statement. A `FlushBefore(keep_from)` keeps the deadline `append` just extended (the newer BSU's), exactly as `stop_sync_internal(Some(bsu_offset))` does at `ansi.rs:340-348`.
@@ -3022,13 +3120,13 @@ The existing comment block inside `feed` ("Every listener runs even when one thr
 			);
 			return;
 		}
-		this.core?.tick(timestamp);
+		this.core?.tick(performance.now());
 		this.rafHandle = null;
 		this.repaint(timestamp);
 	}
 ```
 
-(`tick` runs while `rafHandle` is still set so the listener it fires cannot schedule a second frame.) At the end of `repaint`, after `this.notifyPainted();`:
+(`tick` runs while `rafHandle` is still set so the listener it fires cannot schedule a second frame. It passes `performance.now()`, the clock `TerminalCore.feed` stamps bytes with, rather than the frame's `timestamp`: in a browser they are the same clock, in jsdom they are not.) At the end of `repaint`, after `this.notifyPainted();`:
 
 ```ts
 		if (core.synchronizedOutput()) this.scheduleRepaint();
@@ -3533,7 +3631,7 @@ cd /Users/omaraly/development/AI/Operator/frontend && npx tsc --noEmit -p .
 cd /Users/omaraly/development/AI/Operator && npm --prefix frontend run build:daemon
 ```
 
-`bench:agent` must now print `tearing.torn === 0` and `distinctPaints === frames` for the spinner fixture; if it does not, the renderer path is wrong, not the fixture. The feel gate stays at zero diff: the fixture's last frame is complete, so the final pixels are the same. Commit the rebuilt `vt_host.wasm` with the task. **Restart the daemon and the app.**
+`bench:agent` must now print `tearing.tornStates === 0`, `tornPaints === 0` and `multiPaintFrames === 0` for the spinner fixture; if it does not, the renderer path is wrong, not the fixture. The feel gate stays at zero diff: the fixture's last frame is complete, so the final pixels are the same. Commit the rebuilt `vt_host.wasm` with the task. **Restart the daemon and the app.**
 
 ---
 
@@ -3565,7 +3663,7 @@ describe("TerminalCore feed budget", () => {
 
 	it("a 1 MiB enqueue drains over several frames in order", () => {
 		const core = createTerminalCore({ columns: 80, scrollback: 200000 });
-		const bytes = rows(80000);
+		const bytes = rows(100000);
 		expect(bytes.length).toBeGreaterThan(1024 * 1024);
 		core.enqueue(bytes);
 		expect(core.hasBacklog()).toBe(true);
@@ -3576,15 +3674,16 @@ describe("TerminalCore feed budget", () => {
 		const snapshot = core.snapshot();
 		const text = new TextDecoder().decode(snapshot.content);
 		expect(text.startsWith("row 000000row 000001")).toBe(true);
-		expect(text.endsWith("row 079999")).toBe(true);
+		expect(text.endsWith("row 099999")).toBe(true);
 	});
 
 	it("drain stops at the deadline", () => {
 		const core = createTerminalCore({ columns: 80, scrollback: 200000 });
-		core.enqueue(rows(80000));
+		core.enqueue(rows(100000));
 		let tick = 0;
-		vi.spyOn(performance, "now").mockImplementation(() => (tick += 20));
+		const spy = vi.spyOn(performance, "now").mockImplementation(() => (tick += 20));
 		const { remaining } = core.drain(12);
+		spy.mockRestore();
 		expect(remaining).toBeGreaterThan(0);
 		expect(new TextDecoder().decode(core.snapshot().content).length).toBeLessThanOrEqual(64 * 1024);
 	});
@@ -3718,7 +3817,7 @@ Expected: PASS.
 
 ```ts
 		this.core?.drain();
-		this.core?.tick(timestamp);
+		this.core?.tick(performance.now());
 		this.rafHandle = null;
 		this.repaint(timestamp);
 ```
@@ -3885,7 +3984,7 @@ Add to `dom-block-renderer.test.ts`:
 		renderer.measure();
 		renderer.blockContentInset();
 		const measureNode = document.getElementById("terminal-m-measure")!;
-		const measureCalls = () => spy.mock.instances.filter((instance) => instance === measureNode).length;
+		const measureCalls = () => spy.mock.contexts.filter((context) => context === measureNode).length;
 		expect(measureCalls()).toBe(1);
 		renderer.setFont({ ...font, sizePx: 16 });
 		renderer.measure();
@@ -4064,7 +4163,7 @@ and change the gate's long-task check to read the queued path:
 			if (longTask && longTask.queued.longestTaskMs !== null && longTask.queued.longestTaskMs > 16) throw new Error(`queued 2 MiB feed blocked the main thread for ${longTask.queued.longestTaskMs.toFixed(1)}ms`);
 ```
 
-The `feedFrames`-based spinner row and the byte-by-byte tearing row stay as Task 1 wrote them. (The page reads the recording again for the queued chunk because `main.ts` keeps `recording` private; `session.fed` marks where the synchronous 2 MiB feed stopped, so the queued feed parses the next 2 MiB, not the same bytes twice.)
+The `feedFrames`-based spinner row and the two tearing measurements stay as Task 1 wrote them. (The page reads the recording again for the queued chunk because `main.ts` keeps `recording` private; `session.fed` marks where the synchronous 2 MiB feed stopped, so the queued feed parses the next 2 MiB, not the same bytes twice.)
 
 - [ ] **Step 2: Run the gate**
 
@@ -4073,7 +4172,7 @@ cd /Users/omaraly/development/AI/Operator/packages/terminal && npm run build:was
 cd /Users/omaraly/development/AI/Operator/packages/terminal && npm run bench:agent:gate
 ```
 
-Expected: `PASS agent-session gate` — `torn === 0`, `distinctPaints === frames`, queued 2 MiB longest task ≤ 16 ms. A failure is a defect in Task 5 or 6, not in the gate: read the JSON line above the FAIL, reproduce in the vitest suites, fix there with its own commit, re-run.
+Expected: `PASS agent-session gate` — `tornStates === 0`, `tornPaints === 0`, `multiPaintFrames === 0`, queued 2 MiB longest task ≤ 16 ms. A failure is a defect in Task 5 or 6, not in the gate: read the JSON line above the FAIL, reproduce in the vitest suites, fix there with its own commit, re-run.
 
 - [ ] **Step 3: Re-run the feel gate and the scroll gate**
 
@@ -4089,7 +4188,7 @@ Expected: `PASS feel gate: zero pixel diff` for both fixtures; the scroll gate r
 Add a column `After Plan A` to the spec's baseline table and copy the numbers `bench:agent` prints for both fixtures (feed cost, paints/s and nodes/paint, sync and queued 2 MiB numbers, scroll, reopen, memory, torn paints). Where a metric is unchanged by design (feed cost, scroll, reopen, memory — Plan B's targets), write the number anyway; it is the confirmation that Plan A did not move them. Add under the table:
 
 ```markdown
-Plan A landed 2026-09-XX: torn paints 0 (was <n>), queued 2 MiB longest task
+Plan A landed 2026-09-XX: torn states/paints 0/0 (was <n>/<m>), queued 2 MiB longest task
 <x> ms (was <y> ms synchronous); every other row is Plan B's target and is
 unchanged within run-to-run noise.
 ```
