@@ -401,6 +401,62 @@ fn restore_host_environment(process_env: &mut HashMap<String, String>) -> bool {
     true
 }
 
+fn discard_inherited_override(
+    process_env: &mut HashMap<String, String>,
+    account_home: &Path,
+) -> bool {
+    let Some(home) = process_env.get("HOME").map(PathBuf::from) else {
+        return false;
+    };
+    if !home.starts_with(account_home.join(".operator")) {
+        return false;
+    }
+    for name in state_environment_names() {
+        if name == "HOME" {
+            continue;
+        }
+        let stale = process_env
+            .get(name)
+            .is_some_and(|value| Path::new(value).starts_with(&home));
+        if stale {
+            process_env.remove(name);
+        }
+    }
+    process_env.insert(
+        "HOME".to_string(),
+        account_home.to_string_lossy().into_owned(),
+    );
+    true
+}
+
+#[cfg(unix)]
+fn account_home_dir() -> Option<PathBuf> {
+    use std::ffi::CStr;
+    let mut buf = vec![0u8; 4096];
+    let mut pwd: libc::passwd = unsafe { std::mem::zeroed() };
+    let mut result: *mut libc::passwd = std::ptr::null_mut();
+    let status = unsafe {
+        libc::getpwuid_r(
+            libc::getuid(),
+            &mut pwd,
+            buf.as_mut_ptr() as *mut libc::c_char,
+            buf.len(),
+            &mut result,
+        )
+    };
+    if status != 0 || result.is_null() || pwd.pw_dir.is_null() {
+        return None;
+    }
+    let dir = unsafe { CStr::from_ptr(pwd.pw_dir) }.to_str().ok()?;
+    let path = PathBuf::from(dir);
+    path.is_absolute().then_some(path)
+}
+
+#[cfg(not(unix))]
+fn account_home_dir() -> Option<PathBuf> {
+    None
+}
+
 fn resolved_state_root() -> Result<PathBuf, Box<dyn Error>> {
     let operator_data_dir = absolute_environment_path("OPERATOR_DATA_DIR")?;
     let operator_run_file = absolute_environment_path("OPERATOR_RUN_FILE")?;
@@ -967,7 +1023,10 @@ fn shell_focus() {}
 pub fn run() -> Result<(), Box<dyn Error>> {
     let context = tauri::generate_context!();
     let mut process_env: HashMap<String, String> = env::vars().collect();
-    if restore_host_environment(&mut process_env) {
+    let restored = restore_host_environment(&mut process_env);
+    let discarded = account_home_dir()
+        .is_some_and(|account_home| discard_inherited_override(&mut process_env, &account_home));
+    if restored || discarded {
         env::remove_var(HOST_ENVIRONMENT_MARKER);
         for name in state_environment_names() {
             match process_env.get(name) {
@@ -1316,6 +1375,7 @@ mod tests {
     use std::collections::HashMap;
     use std::{env, fs, path::Path, path::PathBuf, process, process::Command};
 
+    use super::discard_inherited_override;
     use super::host_environment_marker;
     use super::install_panic_reporter;
     use super::native_runtime_identity;
@@ -1513,6 +1573,42 @@ mod tests {
 
         assert!(restore_host_environment(&mut relaunched));
         assert_eq!(relaunched, host);
+    }
+
+    #[test]
+    fn a_home_outside_operator_state_is_kept() {
+        let mut env: HashMap<String, String> = [("HOME", "/Users/host"), ("TMPDIR", "/var/t")]
+            .into_iter()
+            .map(|(k, v)| (k.to_string(), v.to_string()))
+            .collect();
+        let before = env.clone();
+
+        assert!(!discard_inherited_override(
+            &mut env,
+            Path::new("/Users/host")
+        ));
+        assert_eq!(env, before);
+    }
+
+    #[test]
+    fn a_home_inherited_from_an_older_instance_is_replaced_by_the_account_home() {
+        let root = Path::new("/Users/host/.operator/tauri");
+        let mut env: HashMap<String, String> =
+            HashMap::from([("PATH".to_string(), "/bin".to_string())]);
+        for (name, path) in state_environment(root) {
+            env.insert(name.to_string(), path.to_string_lossy().into_owned());
+        }
+
+        assert!(discard_inherited_override(
+            &mut env,
+            Path::new("/Users/host")
+        ));
+
+        let expected: HashMap<String, String> = HashMap::from([
+            ("PATH".to_string(), "/bin".to_string()),
+            ("HOME".to_string(), "/Users/host".to_string()),
+        ]);
+        assert_eq!(env, expected);
     }
 
     #[test]
