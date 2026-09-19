@@ -1,6 +1,6 @@
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, Columns2, Eye, Pencil, type LucideIcon } from "lucide-react";
 import { RadioGroup } from "radix-ui";
-import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { staleModifiedAt, ticketErrorMessage, useTicketMutations } from "../../hooks/useTicketMutations";
 import type { TicketFile } from "../../hooks/useTicketsQuery";
@@ -10,11 +10,13 @@ import { splitFrontmatter } from "../../lib/ticket-presentation";
 import { cn } from "../../lib/utils";
 import { MarkdownBody } from "../MarkdownBody";
 import { TopbarButton } from "../TopbarButton";
+import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 import { CodeMirrorField } from "./CodeMirrorField";
 
 export type EditorMode = "edit" | "preview" | "split";
 
 const SAVED_FLASH_MS = 1800;
+const AUTOSAVE_DELAY_MS = 600;
 
 export function TicketEditor({
 	projectId,
@@ -24,9 +26,7 @@ export function TicketEditor({
 	isError,
 	error,
 	warning,
-	leading,
 	reload,
-	onDirtyChange,
 }: {
 	projectId: string;
 	slug: string;
@@ -35,9 +35,7 @@ export function TicketEditor({
 	isError: boolean;
 	error?: unknown;
 	warning?: string;
-	leading?: ReactNode;
 	reload: () => Promise<unknown>;
-	onDirtyChange?: (dirty: boolean) => void;
 }) {
 	const { t } = useTranslation();
 	const { saveTicketFile } = useTicketMutations();
@@ -49,14 +47,12 @@ export function TicketEditor({
 	const [savedAt, setSavedAt] = useState<number | null>(null);
 	const [busy, setBusy] = useState(false);
 	const savingRef = useRef(false);
+	const saveRef = useRef<(keepMine?: boolean) => Promise<void>>(async () => undefined);
+	const pendingRef = useRef(false);
 	const previewRef = useRef<HTMLDivElement>(null);
 	const followFrame = useRef<number | null>(null);
 	const content = draft ?? file?.content ?? "";
 	const dirty = draft !== null && draft !== (file?.content ?? "");
-
-	useEffect(() => {
-		onDirtyChange?.(dirty);
-	}, [dirty, onDirtyChange]);
 
 	useEffect(() => {
 		if (!file || savingRef.current) return;
@@ -81,7 +77,7 @@ export function TicketEditor({
 	}, [savedAt]);
 
 	const save = async (keepMine = false) => {
-		if (!file || busy || (!dirty && !keepMine)) return;
+		if (!file || savingRef.current || (!dirty && !keepMine)) return;
 		savingRef.current = true;
 		setBusy(true);
 		setSaveError(null);
@@ -93,7 +89,7 @@ export function TicketEditor({
 				content,
 				ifUnmodifiedSince: keepMine ? undefined : loadedAt,
 			});
-			setDraft(null);
+			setDraft((current) => (current === content ? null : current));
 			setLoadedAt(saved.modifiedAt);
 			setStale(null);
 			setSavedAt(Date.now());
@@ -106,6 +102,24 @@ export function TicketEditor({
 			setBusy(false);
 		}
 	};
+
+	useEffect(() => {
+		saveRef.current = save;
+		pendingRef.current = dirty && stale === null;
+	});
+
+	useEffect(() => {
+		if (!dirty || stale !== null || busy) return;
+		const timeout = window.setTimeout(() => void saveRef.current(), AUTOSAVE_DELAY_MS);
+		return () => window.clearTimeout(timeout);
+	}, [busy, content, dirty, stale]);
+
+	useEffect(
+		() => () => {
+			if (pendingRef.current) void saveRef.current();
+		},
+		[],
+	);
 
 	const reloadFromDisk = () => {
 		setDraft(null);
@@ -146,16 +160,16 @@ export function TicketEditor({
 	);
 
 	const parsed = splitFrontmatter(content);
-	const modes: Array<{ value: EditorMode; label: string }> = [
-		{ value: "edit", label: t("tickets.editor.edit") },
-		{ value: "preview", label: t("tickets.editor.preview") },
-		{ value: "split", label: t("tickets.editor.split") },
+	const modes: Array<{ value: EditorMode; label: string; icon: LucideIcon }> = [
+		{ value: "edit", label: t("tickets.editor.edit"), icon: Pencil },
+		{ value: "preview", label: t("tickets.editor.preview"), icon: Eye },
+		{ value: "split", label: t("tickets.editor.split"), icon: Columns2 },
 	];
 	const showEditor = mode !== "preview";
 	const showPreview = mode !== "edit";
 
 	const preview = (
-		<div ref={previewRef} className="board-scrollbar min-h-0 flex-1 overflow-y-auto px-6 py-5" data-testid="ticket-file-preview">
+		<div ref={previewRef} className="board-scrollbar min-h-0 flex-1 overflow-y-auto px-4 py-4 @md/editor:px-6" data-testid="ticket-file-preview">
 			{warning ? (
 				<p className="mb-4 flex items-start gap-1.5 rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-2xs text-warning" role="status">
 					<AlertTriangle aria-hidden="true" className="mt-px size-icon-2xs shrink-0" />
@@ -185,36 +199,48 @@ export function TicketEditor({
 	);
 
 	return (
-		<section className="flex min-w-0 flex-1 flex-col" onKeyDown={onKeyDown}>
-			<div className="flex h-toolbar shrink-0 items-center gap-2 border-b border-border-strong px-4" data-testid="ticket-editor-toolbar">
-				{leading}
-				<span className="min-w-0 truncate font-mono text-2xs text-foreground">{path}</span>
+		<section className="@container/editor flex min-w-0 flex-1 flex-col" onKeyDown={onKeyDown}>
+			<div
+				className="flex h-toolbar shrink-0 items-center gap-2 overflow-hidden border-b border-border-strong px-3"
+				data-testid="ticket-editor-toolbar"
+			>
+				<span className="min-w-0 flex-1 truncate font-mono text-2xs text-foreground" title={path}>
+					{path}
+				</span>
 				{dirty ? (
 					<span aria-label={t("tickets.editor.unsaved")} className="size-dot-sm shrink-0 rounded-full bg-status-working" role="status" />
 				) : null}
-				<span className="min-w-0 flex-1" />
+				<span className="shrink-0 whitespace-nowrap font-mono text-micro text-passive">
+					{busy ? (
+						t("tickets.editor.saving")
+					) : savedAt !== null ? (
+						t("tickets.editor.saved")
+					) : file ? (
+						<span className="hidden @sm/editor:inline">{t("tickets.fileModified", { time: formatTimeCompact(file.modifiedAt) })}</span>
+					) : null}
+				</span>
 				<RadioGroup.Root
 					aria-label={t("tickets.editor.mode")}
-					className="settings-segment shrink-0"
+					className="settings-segment shrink-0 rounded-md p-px"
 					value={mode}
 					onValueChange={(next) => setMode(next as EditorMode)}
 				>
 					{modes.map((option) => (
-						<RadioGroup.Item key={option.value} value={option.value} className="settings-segment-item">
-							{option.label}
-						</RadioGroup.Item>
+						<Tooltip key={option.value}>
+							<TooltipTrigger asChild>
+								<RadioGroup.Item
+									value={option.value}
+									aria-label={option.label}
+									className="settings-segment-item h-control-xs gap-1 rounded-sm px-1.5 text-2xs @md/editor:px-2"
+								>
+									<option.icon aria-hidden="true" className="size-icon-2xs shrink-0" />
+									<span className="hidden @md/editor:inline">{option.label}</span>
+								</RadioGroup.Item>
+							</TooltipTrigger>
+							<TooltipContent side="bottom">{option.label}</TooltipContent>
+						</Tooltip>
 					))}
 				</RadioGroup.Root>
-				<span className="shrink-0 whitespace-nowrap font-mono text-micro text-passive">
-					{savedAt !== null
-						? t("tickets.editor.saved")
-						: file
-							? t("tickets.fileModified", { time: formatTimeCompact(file.modifiedAt) })
-							: ""}
-				</span>
-				<TopbarButton variant="primary" disabled={!file || busy || !dirty} onClick={() => void save()}>
-					{busy ? t("tickets.editor.saving") : t("tickets.editor.save")}
-				</TopbarButton>
 			</div>
 			{stale ? (
 				<div

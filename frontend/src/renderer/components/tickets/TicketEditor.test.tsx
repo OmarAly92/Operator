@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import type { ComponentProps } from "react";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { TicketFile } from "../../hooks/useTicketsQuery";
+import { TooltipProvider } from "../ui/tooltip";
 
 const { saveMock } = vi.hoisted(() => ({ saveMock: vi.fn() }));
 
@@ -52,19 +53,22 @@ const file: TicketFile = { path: "spec.md", content: body, modifiedAt: "2026-09-
 
 function renderEditor(current: TicketFile | undefined = file, props: Partial<ComponentProps<typeof TicketEditor>> = {}) {
 	const reload = vi.fn().mockResolvedValue(undefined);
-	const onDirtyChange = vi.fn();
 	const view = render(
 		<QueryClientProvider client={new QueryClient()}>
-			<TicketEditor projectId="p1" slug="search-page" path="spec.md" file={current} isError={false} reload={reload} onDirtyChange={onDirtyChange} {...props} />
+			<TooltipProvider>
+				<TicketEditor projectId="p1" slug="search-page" path="spec.md" file={current} isError={false} reload={reload} {...props} />
+			</TooltipProvider>
 		</QueryClientProvider>,
 	);
 	const rerenderWith = (next: TicketFile) =>
 		view.rerender(
 			<QueryClientProvider client={new QueryClient()}>
-				<TicketEditor projectId="p1" slug="search-page" path="spec.md" file={next} isError={false} reload={reload} onDirtyChange={onDirtyChange} {...props} />
+				<TooltipProvider>
+					<TicketEditor projectId="p1" slug="search-page" path="spec.md" file={next} isError={false} reload={reload} {...props} />
+				</TooltipProvider>
 			</QueryClientProvider>,
 		);
-	return { reload, onDirtyChange, rerenderWith };
+	return { reload, rerenderWith, unmount: view.unmount };
 }
 
 async function switchTo(mode: "Edit" | "Preview" | "Split") {
@@ -80,9 +84,11 @@ beforeEach(() => {
 });
 
 describe("TicketEditor", () => {
-	it("previews by default and tracks dirty state in edit mode", async () => {
-		const { onDirtyChange } = renderEditor();
+	it("previews by default, has no Save button and shows the pending dot while typing", async () => {
+		saveMock.mockReturnValue(new Promise(() => undefined));
+		renderEditor();
 		expect(screen.getByTestId("ticket-file-preview")).toHaveTextContent("Intro.");
+		expect(screen.queryByRole("button", { name: "Save" })).not.toBeInTheDocument();
 		expect(screen.queryByRole("status", { name: "Unsaved changes" })).not.toBeInTheDocument();
 
 		await switchTo("Edit");
@@ -91,29 +97,52 @@ describe("TicketEditor", () => {
 		await userEvent.type(editor, "!");
 
 		expect(screen.getByRole("status", { name: "Unsaved changes" })).toBeInTheDocument();
-		expect(onDirtyChange).toHaveBeenLastCalledWith(true);
 	});
 
-	it("saves with ifUnmodifiedSince on Cmd+S and clears the dirty state", async () => {
-		saveMock.mockResolvedValue({ ...file, content: `${body}!`, modifiedAt: "2026-09-18T10:05:00Z" });
-		const { onDirtyChange } = renderEditor();
+	it("auto-saves the draft with ifUnmodifiedSince shortly after typing stops", async () => {
+		saveMock.mockResolvedValue({ ...file, content: `${body}!!`, modifiedAt: "2026-09-18T10:05:00Z" });
+		renderEditor();
 		await switchTo("Edit");
-		const editor = screen.getByLabelText("Edit spec.md");
-		await userEvent.type(editor, "!");
-		await userEvent.keyboard("{Meta>}s{/Meta}");
+		await userEvent.type(screen.getByLabelText("Edit spec.md"), "!!");
+		expect(saveMock).not.toHaveBeenCalled();
 
 		await waitFor(() =>
 			expect(saveMock).toHaveBeenCalledWith({
 				projectId: "p1",
 				slug: "search-page",
 				path: "spec.md",
-				content: `${body}!`,
+				content: `${body}!!`,
 				ifUnmodifiedSince: "2026-09-18T10:00:00Z",
 			}),
 		);
+		expect(saveMock).toHaveBeenCalledTimes(1);
 		expect(await screen.findByText("Saved")).toBeInTheDocument();
 		expect(screen.queryByRole("status", { name: "Unsaved changes" })).not.toBeInTheDocument();
-		expect(onDirtyChange).toHaveBeenLastCalledWith(false);
+	});
+
+	it("saves immediately on Cmd+S", async () => {
+		saveMock.mockResolvedValue({ ...file, content: `${body}!`, modifiedAt: "2026-09-18T10:05:00Z" });
+		renderEditor();
+		await switchTo("Edit");
+		await userEvent.type(screen.getByLabelText("Edit spec.md"), "!");
+		await userEvent.keyboard("{Meta>}s{/Meta}");
+
+		expect(saveMock).toHaveBeenCalledTimes(1);
+		expect(saveMock.mock.calls[0][0]).toMatchObject({ content: `${body}!` });
+		expect(await screen.findByText("Saved")).toBeInTheDocument();
+	});
+
+	it("flushes a pending draft when unmounted", async () => {
+		saveMock.mockResolvedValue({ ...file, content: `${body}!`, modifiedAt: "2026-09-18T10:05:00Z" });
+		const { unmount } = renderEditor();
+		await switchTo("Edit");
+		await userEvent.type(screen.getByLabelText("Edit spec.md"), "!");
+		expect(saveMock).not.toHaveBeenCalled();
+
+		unmount();
+
+		expect(saveMock).toHaveBeenCalledTimes(1);
+		expect(saveMock.mock.calls[0][0]).toMatchObject({ content: `${body}!` });
 	});
 
 	it("shows the stale bar on 409 and Keep mine saves without ifUnmodifiedSince", async () => {
@@ -123,7 +152,6 @@ describe("TicketEditor", () => {
 		renderEditor();
 		await switchTo("Edit");
 		await userEvent.type(screen.getByLabelText("Edit spec.md"), "!");
-		await userEvent.click(screen.getByRole("button", { name: "Save" }));
 
 		const bar = await screen.findByTestId("ticket-file-stale");
 		expect(bar).toHaveTextContent("This file changed on disk");
@@ -139,8 +167,8 @@ describe("TicketEditor", () => {
 		const { reload } = renderEditor();
 		await switchTo("Edit");
 		await userEvent.type(screen.getByLabelText("Edit spec.md"), "!");
-		await userEvent.click(screen.getByRole("button", { name: "Save" }));
 		const bar = await screen.findByTestId("ticket-file-stale");
+		expect(saveMock).toHaveBeenCalledTimes(1);
 
 		await userEvent.click(within(bar).getByRole("button", { name: "Reload" }));
 
@@ -161,6 +189,8 @@ describe("TicketEditor", () => {
 
 		expect(await screen.findByTestId("ticket-file-stale")).toBeInTheDocument();
 		expect(screen.getByLabelText("Edit spec.md")).toHaveValue(`${body}\n\nFrom disk.!`);
+		await new Promise((resolve) => setTimeout(resolve, 700));
+		expect(saveMock).not.toHaveBeenCalled();
 	});
 
 	it("scrolls the split preview to the heading nearest the editor's top line", async () => {

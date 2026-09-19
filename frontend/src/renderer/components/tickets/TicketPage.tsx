@@ -1,4 +1,4 @@
-import { useBlocker, useNavigate } from "@tanstack/react-router";
+import { useNavigate } from "@tanstack/react-router";
 import { AlertTriangle, Archive, ArchiveRestore, ChevronLeft, FileText } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -16,7 +16,6 @@ import {
 } from "../../lib/ticket-presentation";
 import { cn } from "../../lib/utils";
 import type { WorkspaceSession } from "../../types/workspace";
-import { ConfirmDialog } from "../ConfirmDialog";
 import { StatusPill } from "../StatusPill";
 import { TopbarButton } from "../TopbarButton";
 import { MergeConfirmDialog } from "./MergeConfirmDialog";
@@ -53,13 +52,6 @@ export function TicketPage({ projectId, slug, file }: { projectId: string; slug:
 	const [reviewPlan, setReviewPlan] = useState<PlanView | null>(null);
 	const [mergePlan, setMergePlan] = useState<PlanView | null>(null);
 	const [actionError, setActionError] = useState<string | null>(null);
-	const [dirty, setDirty] = useState(false);
-	const blocker = useBlocker({
-		shouldBlockFn: () => dirty,
-		withResolver: true,
-		disabled: !dirty,
-		enableBeforeUnload: false,
-	});
 	const openBoard = () => void navigate({ to: "/projects/$projectId", params: { projectId } });
 
 	const openFile = (next: string) =>
@@ -109,8 +101,17 @@ export function TicketPage({ projectId, slug, file }: { projectId: string; slug:
 
 	return (
 		<div className="flex h-full min-h-0 bg-background text-foreground" data-testid="ticket-page">
-			<aside className="flex w-72 shrink-0 flex-col border-r border-border-strong">
-				<div className="flex flex-col gap-2 border-b border-border-strong px-4 py-3">
+			<aside className="flex w-64 shrink-0 flex-col border-r border-border-strong">
+				<div className="flex flex-col gap-1.5 border-b border-border-strong px-3 py-2.5">
+					<button
+						type="button"
+						aria-label={t("tickets.backToBoard", { name: projectName || t("shell.board") })}
+						className="-ml-1 inline-flex h-control-xs w-fit max-w-full items-center gap-0.5 rounded-sm pr-1.5 pl-0.5 text-2xs text-muted-foreground transition-colors hover:bg-interactive-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+						onClick={openBoard}
+					>
+						<ChevronLeft aria-hidden="true" className="size-icon-2xs shrink-0" />
+						<span className="truncate">{projectName || t("shell.board")}</span>
+					</button>
 					<div className="flex items-start justify-between gap-2">
 						<h1 className="min-w-0 text-base font-semibold leading-tight tracking-tight" title={ticket.title}>
 							{ticket.title}
@@ -127,18 +128,20 @@ export function TicketPage({ projectId, slug, file }: { projectId: string; slug:
 				</div>
 				<nav aria-label={t("tickets.filesAria")} className="board-scrollbar min-h-0 flex-1 overflow-y-auto px-2 py-2">
 					<p className="px-2 pb-1 font-mono text-micro uppercase tracking-wide-sm text-passive">{t("tickets.files")}</p>
-					{groups.docs.map((doc) => (
-						<button
-							key={doc}
-							type="button"
-							aria-current={selectedFile === doc ? "true" : undefined}
-							className={fileButtonClass(selectedFile === doc)}
-							onClick={() => openFile(doc)}
-						>
-							<FileText aria-hidden="true" className="size-icon-2xs shrink-0 text-passive" />
-							<span className="truncate">{doc}</span>
-						</button>
-					))}
+					<div className="flex flex-col gap-0.5">
+						{groups.docs.map((doc) => (
+							<button
+								key={doc}
+								type="button"
+								aria-current={selectedFile === doc ? "true" : undefined}
+								className={fileButtonClass(selectedFile === doc)}
+								onClick={() => openFile(doc)}
+							>
+								<FileText aria-hidden="true" className="size-icon-2xs shrink-0 text-passive" />
+								<span className="truncate">{doc}</span>
+							</button>
+						))}
+					</div>
 					<p className="px-2 pb-1 pt-3 font-mono text-micro uppercase tracking-wide-sm text-passive">{t("tickets.plans")}</p>
 					<div aria-label={t("tickets.plansAria", { title: ticket.title })} className="flex flex-col gap-0.5" role="list">
 						{groups.plans.map(({ plan, kickoff }) => (
@@ -238,18 +241,6 @@ export function TicketPage({ projectId, slug, file }: { projectId: string; slug:
 					error={fileQuery.error}
 					warning={fileWarning}
 					reload={() => fileQuery.refetch()}
-					onDirtyChange={setDirty}
-					leading={
-						<button
-							type="button"
-							aria-label={t("tickets.backToBoard", { name: projectName || t("shell.board") })}
-							className="inline-flex h-control-md shrink-0 items-center gap-1 rounded-sm pr-2 pl-1 text-2xs text-muted-foreground transition-colors hover:bg-interactive-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
-							onClick={openBoard}
-						>
-							<ChevronLeft aria-hidden="true" className="size-icon-sm" />
-							<span className="max-w-40 truncate">{projectName || t("shell.board")}</span>
-						</button>
-					}
 				/>
 			) : (
 				<section className="flex min-w-0 flex-1 flex-col" />
@@ -261,17 +252,6 @@ export function TicketPage({ projectId, slug, file }: { projectId: string; slug:
 			{mergePlan ? (
 				<MergeConfirmDialog open onOpenChange={(open) => !open && setMergePlan(null)} ticket={ticket} plan={mergePlan} />
 			) : null}
-			<ConfirmDialog
-				open={blocker.status === "blocked"}
-				title={t("tickets.editor.discardTitle")}
-				description={t("tickets.editor.discardBody", { file: selectedFile ?? "" })}
-				confirmLabel={t("tickets.editor.discard")}
-				destructive
-				onConfirm={() => blocker.proceed?.()}
-				onOpenChange={(open) => {
-					if (!open) blocker.reset?.();
-				}}
-			/>
 		</div>
 	);
 }

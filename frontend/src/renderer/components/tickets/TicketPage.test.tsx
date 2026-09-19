@@ -4,19 +4,17 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { TooltipProvider } from "../ui/tooltip";
 
-const { navigateMock, ticketQueryMock, ticketFileQueryMock, workspaceQueryMock, mutationsMock, requestAssignMock, blockerMock } = vi.hoisted(() => ({
+const { navigateMock, ticketQueryMock, ticketFileQueryMock, workspaceQueryMock, mutationsMock, requestAssignMock } = vi.hoisted(() => ({
 	navigateMock: vi.fn(),
 	ticketQueryMock: vi.fn(),
 	ticketFileQueryMock: vi.fn(),
 	workspaceQueryMock: vi.fn(),
 	mutationsMock: vi.fn(),
 	requestAssignMock: vi.fn(),
-	blockerMock: vi.fn(),
 }));
 
 vi.mock("@tanstack/react-router", () => ({
 	useNavigate: () => navigateMock,
-	useBlocker: (options: unknown) => blockerMock(options),
 }));
 vi.mock("../../hooks/useTicketsQuery", () => ({
 	useTicketQuery: ticketQueryMock,
@@ -105,7 +103,6 @@ beforeEach(() => {
 		setArchived: { mutateAsync: vi.fn(), isPending: false },
 	});
 	requestAssignMock.mockReset();
-	blockerMock.mockReset().mockReturnValue({ status: "idle" });
 });
 
 describe("TicketPage", () => {
@@ -183,22 +180,5 @@ describe("TicketPage", () => {
 		renderPage("spec.md");
 		await userEvent.click(screen.getByRole("button", { name: "Back to app" }));
 		expect(navigateMock).toHaveBeenCalledWith({ to: "/projects/$projectId", params: { projectId: "p1" } });
-	});
-
-	it("asks before leaving with unsaved edits and proceeds on Discard", async () => {
-		const proceed = vi.fn();
-		const reset = vi.fn();
-		blockerMock.mockReturnValue({ status: "blocked", proceed, reset });
-		renderPage("spec.md");
-
-		expect(screen.getByRole("dialog")).toHaveTextContent("Discard unsaved changes?");
-		expect(screen.getByRole("dialog")).toHaveTextContent("spec.md has edits that were not saved.");
-		await userEvent.click(screen.getByRole("button", { name: "Discard" }));
-		expect(proceed).toHaveBeenCalled();
-	});
-
-	it("registers the blocker disabled while the editor is clean", () => {
-		renderPage("spec.md");
-		expect(blockerMock).toHaveBeenCalledWith(expect.objectContaining({ withResolver: true, disabled: true }));
 	});
 });
