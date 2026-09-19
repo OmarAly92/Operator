@@ -168,12 +168,13 @@ regenerate from a scratch project.
 | Metric | How | Today |
 |---|---|---|
 | `feed()` cost at 1k / 5k / 50k rows | `performance.now()` around `core.feed` for a 4 KiB chunk after the transcript reaches N rows | not known |
-| paints/s and DOM nodes created per paint under the spinner | `onPaint` count + `MutationObserver` `addedNodes` over 10 s of `claude-spinner-10s` | not known |
+| paints/s and DOM nodes created per paint under the spinner | `onPaint` count + `MutationObserver` `addedNodes` over 10 s of `claude-spinner-10s` | 100/10 s → 10 paints/s, 28.69 nodes/paint |
 | main-thread block when a 2 MB tool result arrives in one mux message | `PerformanceObserver({ entryTypes: ['longtask'] })` | not known |
 | scroll bottom → row 0 at 50k rows | Playwright: `wheel` steps, count frames > 50 ms, assert every `data-terminal-row` index range is contiguous | not known |
 | reopen at 1k / 5k / 50k rows: time to first paint, rows recovered | daemon API + `/mux` (memory: verify via daemon API), `vt_replay` size | 1,000-row cap known; times not known |
 | memory of renderer core and mirror at 50k rows | `wasm memory.buffer.byteLength`; Go `runtime.MemStats` of the pty-host | not known |
 | rendered-transcript pixel diff vs the pre-change screenshot | `bench/agent-session/feel-gate.mjs` screenshots the same fixture at the same scroll offsets before and after; diff must be zero unless the task declares a scoped change | — |
+| torn frames in `claude-spinner-10s` | `run.mjs` `tearing`: model states that became visible inside a sync block (fed byte by byte), paints showing a partial frame and frames painted more than once (fed in thirds, one frame per third) | 7470 states / 25 paints / 18 multi-paint of 120 frames |
 
 The last row is the **feel gate**. Every task in every plan runs it; a task
 that changes pixels must name the item that allows it (Part 4 flags).
