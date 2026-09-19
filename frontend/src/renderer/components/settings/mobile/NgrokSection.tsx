@@ -1,3 +1,4 @@
+import { NgrokApiKeyCard } from "./NgrokApiKeyCard";
 import { NgrokCredentialCard } from "./NgrokCredentialCard";
 import { NgrokSessionCard } from "./NgrokSessionCard";
 import type { MobileBridge } from "./useMobileBridge";
@@ -12,6 +13,7 @@ export function NgrokSection({ bridge, ngrok }: NgrokSectionProps) {
 	return (
 		<>
 			<NgrokCredentialCard bridge={bridge} ngrok={ngrok} />
+			<NgrokApiKeyCard bridge={bridge} ngrok={ngrok} />
 			<NgrokSessionCard bridge={bridge} ngrok={ngrok} />
 		</>
 	);
