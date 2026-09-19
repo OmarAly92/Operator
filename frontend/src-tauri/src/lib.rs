@@ -362,6 +362,45 @@ fn state_environment(state_root: &Path) -> Vec<(&'static str, PathBuf)> {
     }
 }
 
+const HOST_ENVIRONMENT_MARKER: &str = "OPERATOR_TAURI_HOST_ENV";
+
+fn state_environment_names() -> Vec<&'static str> {
+    state_environment(Path::new("/"))
+        .into_iter()
+        .map(|(name, _)| name)
+        .collect()
+}
+
+fn host_environment_marker(process_env: &HashMap<String, String>) -> String {
+    let snapshot: serde_json::Map<String, serde_json::Value> = state_environment_names()
+        .into_iter()
+        .filter_map(|name| {
+            process_env
+                .get(name)
+                .map(|value| (name.to_string(), serde_json::Value::String(value.clone())))
+        })
+        .collect();
+    serde_json::Value::Object(snapshot).to_string()
+}
+
+fn restore_host_environment(process_env: &mut HashMap<String, String>) -> bool {
+    let Some(marker) = process_env.remove(HOST_ENVIRONMENT_MARKER) else {
+        return false;
+    };
+    let snapshot: HashMap<String, String> = serde_json::from_str(&marker).unwrap_or_default();
+    for name in state_environment_names() {
+        match snapshot.get(name) {
+            Some(value) => {
+                process_env.insert(name.to_string(), value.clone());
+            }
+            None => {
+                process_env.remove(name);
+            }
+        }
+    }
+    true
+}
+
 fn resolved_state_root() -> Result<PathBuf, Box<dyn Error>> {
     let operator_data_dir = absolute_environment_path("OPERATOR_DATA_DIR")?;
     let operator_run_file = absolute_environment_path("OPERATOR_RUN_FILE")?;
@@ -927,7 +966,17 @@ fn shell_focus() {}
 
 pub fn run() -> Result<(), Box<dyn Error>> {
     let context = tauri::generate_context!();
-    let process_env: HashMap<String, String> = env::vars().collect();
+    let mut process_env: HashMap<String, String> = env::vars().collect();
+    if restore_host_environment(&mut process_env) {
+        env::remove_var(HOST_ENVIRONMENT_MARKER);
+        for name in state_environment_names() {
+            match process_env.get(name) {
+                Some(value) => env::set_var(name, value),
+                None => env::remove_var(name),
+            }
+        }
+    }
+    let process_env = process_env;
     let original_home = daemon::home_dir()
         .ok_or_else(|| std::io::Error::other("Operator home directory could not be resolved"))?;
     let original_app_path = env::current_dir()?;
@@ -949,6 +998,10 @@ pub fn run() -> Result<(), Box<dyn Error>> {
         is_packaged,
         &app_version,
         &state_root,
+    );
+    env::set_var(
+        HOST_ENVIRONMENT_MARKER,
+        host_environment_marker(&process_env),
     );
     for (name, path) in state_environment(&state_root) {
         env::set_var(name, path);
@@ -1260,16 +1313,20 @@ void (async () => {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
     use std::{env, fs, path::Path, path::PathBuf, process, process::Command};
 
+    use super::host_environment_marker;
     use super::install_panic_reporter;
     use super::native_runtime_identity;
     use super::resolve_state_root;
+    use super::restore_host_environment;
     use super::state_environment;
     use super::terminal_benchmark_context;
     use super::terminal_benchmark_window_url;
     use super::updater_temp_dir;
     use super::StateProfile;
+    use super::HOST_ENVIRONMENT_MARKER;
 
     // The benchmark window runs under its own capability, so a command being
     // registered in the terminal-benchmark builder branch is not enough — it
@@ -1406,6 +1463,56 @@ mod tests {
         let error = resolve_state_root(None, None, None, StateProfile::Production).unwrap_err();
 
         assert_eq!(error, "Operator state root could not be resolved");
+    }
+
+    #[test]
+    fn first_launch_has_no_host_environment_to_restore() {
+        let mut env: HashMap<String, String> = [("HOME", "/Users/host"), ("TMPDIR", "/var/t")]
+            .into_iter()
+            .map(|(k, v)| (k.to_string(), v.to_string()))
+            .collect();
+        let before = env.clone();
+
+        assert!(!restore_host_environment(&mut env));
+        assert_eq!(env, before);
+    }
+
+    #[test]
+    fn relaunch_restores_the_host_environment_the_first_instance_recorded() {
+        let host: HashMap<String, String> = [("HOME", "/Users/host"), ("TMPDIR", "/var/t")]
+            .into_iter()
+            .map(|(k, v)| (k.to_string(), v.to_string()))
+            .collect();
+        let root = Path::new("/Users/host/.operator/tauri");
+        let mut relaunched = host.clone();
+        relaunched.insert(
+            HOST_ENVIRONMENT_MARKER.to_string(),
+            host_environment_marker(&host),
+        );
+        for (name, path) in state_environment(root) {
+            relaunched.insert(name.to_string(), path.to_string_lossy().into_owned());
+        }
+
+        assert!(restore_host_environment(&mut relaunched));
+        assert_eq!(relaunched, host);
+    }
+
+    #[test]
+    fn relaunch_unsets_overrides_the_host_never_had() {
+        let host: HashMap<String, String> =
+            HashMap::from([("PATH".to_string(), "/bin".to_string())]);
+        let root = Path::new("/Users/host/.operator/tauri");
+        let mut relaunched = host.clone();
+        relaunched.insert(
+            HOST_ENVIRONMENT_MARKER.to_string(),
+            host_environment_marker(&host),
+        );
+        for (name, path) in state_environment(root) {
+            relaunched.insert(name.to_string(), path.to_string_lossy().into_owned());
+        }
+
+        assert!(restore_host_environment(&mut relaunched));
+        assert_eq!(relaunched, host);
     }
 
     #[test]
