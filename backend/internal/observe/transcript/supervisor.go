@@ -289,8 +289,6 @@ func (s *Supervisor) newTail(ctx context.Context, rec domain.SessionRecord, path
 	return created
 }
 
-// subagentPaths lists a Claude Code session's sidechain transcripts beside its
-// main transcript, at <session-dir>/<session-basename>/subagents/agent-*.jsonl.
 func subagentPaths(mainPath string) []string {
 	dir := filepath.Join(filepath.Dir(mainPath), strings.TrimSuffix(filepath.Base(mainPath), ".jsonl"), "subagents")
 	matches, err := filepath.Glob(filepath.Join(dir, "agent-*.jsonl"))

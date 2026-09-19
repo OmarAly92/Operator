@@ -40,9 +40,6 @@ type tail struct {
 	logged    int
 }
 
-// offsetKey is the OffsetStore key for one tail: the plain session id for the
-// main transcript, or "<id>#<agentID>" for a subagent tail, so the two never
-// collide in the store.
 func offsetKey(sessionID domain.SessionID, agentID string) string {
 	if agentID == "" {
 		return string(sessionID)
