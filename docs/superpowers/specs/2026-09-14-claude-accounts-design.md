@@ -125,8 +125,8 @@ Error envelope as today (`{error, code, message, requestId}`).
 - **`PATCH /claude-accounts/{id} {label}`** renames the label only.
 - **`POST /claude-accounts/{id}/login`** repairs shared links (§7), then opens a
   shell terminal whose environment carries `CLAUDE_CONFIG_DIR` (unset for the
-  default) and which runs `claude`. It returns the shell terminal. The user runs
-  `/login` there.
+  default) and which runs `claude auth login`, so the sign-in flow starts at once
+  even when the folder already holds a login. It returns the shell terminal.
 - **`POST /claude-accounts/{id}/relink`** backs up each `replaced` item as
   `<name>.bak-<unix>` and then links it.
 - **`DELETE /claude-accounts/{id}`** unregisters the account; the folder stays on
@@ -421,7 +421,7 @@ Mobile does not manage accounts or switch a session's account.
 
 **Real app** (`npm run tauri:dev`, manual, recorded in the PR):
 
-1. Add `Personal` → login terminal → `/login` → the row shows the plan.
+1. Add `Personal` → login terminal runs `claude auth login` → the row shows the plan.
 2. Spawn on Personal → confirm with `/status` in the session.
 3. Switch the session to Default and back → it resumes.
 4. Restart the daemon → the session restores on its account.

@@ -250,7 +250,7 @@ func (s *Service) Login(ctx context.Context, id domain.ClaudeAccountID) (LoginLa
 	s.mu.Lock()
 	delete(s.cache, account.ID)
 	s.mu.Unlock()
-	return LoginLaunch{Account: account, Argv: []string{binary}, Env: env, Title: "Claude login · " + account.Label}, nil
+	return LoginLaunch{Account: account, Argv: []string{binary, "auth", "login"}, Env: env, Title: "Claude login · " + account.Label}, nil
 }
 
 func (s *Service) EnvFor(ctx context.Context, id domain.ClaudeAccountID) (map[string]string, error) {

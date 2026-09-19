@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -345,7 +346,7 @@ func TestLoginBuildsLaunch(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(launch.Argv) != 1 || launch.Argv[0] != "/usr/local/bin/claude" {
+	if strings.Join(launch.Argv, " ") != "/usr/local/bin/claude auth login" {
 		t.Fatalf("argv = %v", launch.Argv)
 	}
 	if launch.Env[domain.ClaudeConfigDirEnv] != filepath.Join(home, ".claude-personal") || launch.Title != "Claude login · Personal" {
