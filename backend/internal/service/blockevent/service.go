@@ -74,6 +74,9 @@ func (s *Service) Record(ctx context.Context, sessionID domain.SessionID, harnes
 	if sourceID == "" {
 		sourceID = sig.AgentSessionID
 	}
+	if sig.AgentID != "" {
+		sourceID = sig.AgentID
+	}
 
 	rec := Record{
 		SessionID:      string(sessionID),
@@ -90,6 +93,7 @@ func (s *Service) Record(ctx context.Context, sessionID domain.SessionID, harnes
 		HookVersion:    sig.HookVersion,
 		TruncatedLines: truncated,
 		InteractionID:  sig.InteractionID,
+		AgentID:        sig.AgentID,
 		CreatedAt:      time.Now().UTC(),
 	}
 	if !decision.Known {

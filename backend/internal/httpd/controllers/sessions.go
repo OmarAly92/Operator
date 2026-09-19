@@ -1781,6 +1781,9 @@ func (c *SessionsController) activity(w http.ResponseWriter, r *http.Request) {
 		TranscriptPath:        capActivityText(domain.SanitizeControlChars(strings.TrimSpace(in.TranscriptPath)), 4096),
 		LaunchID:              capActivityMeta(domain.SanitizeControlChars(strings.TrimSpace(in.LaunchID))),
 	}
+	if in.Usage != nil && strings.TrimSpace(in.Event) == "subagent-stop" {
+		sig.AgentID = capActivityMeta(domain.SanitizeControlChars(strings.TrimSpace(in.Usage.SubagentID)))
+	}
 	if state == domain.ActivityBlocked && (sig.ToolUseID != "" || sig.ToolName != "") {
 		sig.InteractionID = uuid.NewString()
 	}

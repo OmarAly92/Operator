@@ -349,6 +349,19 @@ func TestRecordTranscriptCapsAndMarksTruncation(t *testing.T) {
 	}
 }
 
+func TestRecordStampsTheAgentIDOnAnAgentStop(t *testing.T) {
+	store := &fakeStore{}
+	svc := NewService(store, nil, 500)
+	sig := ports.ActivitySignal{Valid: true, Event: "subagent-stop", AgentID: "a1", LatestAssistantUpdate: "done"}
+	if err := svc.Record(context.Background(), "s1", "claude-code", sig); err != nil {
+		t.Fatal(err)
+	}
+	rec := store.inserted[len(store.inserted)-1]
+	if rec.Kind != domain.BlockEventAgentStop || rec.AgentID != "a1" || rec.SourceID != "a1" || rec.Text != "done" {
+		t.Fatalf("record = %+v", rec)
+	}
+}
+
 func TestRecordTranscriptIgnoresEmptyKind(t *testing.T) {
 	store := &fakeStore{}
 	svc := NewService(store, nil, 500)
