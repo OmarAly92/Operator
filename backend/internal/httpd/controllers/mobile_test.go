@@ -15,7 +15,11 @@ import (
 	"github.com/OmarAly92/operator/backend/internal/tunnel"
 )
 
-type fakeBridge struct{ enabled bool }
+type fakeBridge struct {
+	enabled   bool
+	apiKeyErr error
+	revoked   string
+}
 
 func (f *fakeBridge) Status() MobileStatusResponse {
 	return MobileStatusResponse{Enabled: f.enabled, Host: "192.168.1.42", Port: 3011}
@@ -38,8 +42,13 @@ func (f *fakeBridge) SetAuthtoken(token string) (MobileStatusResponse, error) {
 	return f.Status(), nil
 }
 func (f *fakeBridge) RemoveAuthtoken() (MobileStatusResponse, error) { return f.Status(), nil }
-func (f *fakeBridge) NgrokStatus(context.Context) MobileNgrokStatus  { return MobileNgrokStatus{} }
+func (f *fakeBridge) NgrokStatus(context.Context) MobileNgrokStatus {
+	return MobileNgrokStatus{Logs: []MobileNgrokLogLine{}}
+}
 func (f *fakeBridge) SetAPIKey(context.Context, string) (MobileNgrokAccount, error) {
+	if f.apiKeyErr != nil {
+		return MobileNgrokAccount{}, f.apiKeyErr
+	}
 	return MobileNgrokAccount{}, nil
 }
 func (f *fakeBridge) RemoveAPIKey() (MobileNgrokStatus, error)        { return MobileNgrokStatus{}, nil }
@@ -47,7 +56,8 @@ func (f *fakeBridge) NgrokAccount(context.Context) MobileNgrokAccount { return M
 func (f *fakeBridge) MintCredential(context.Context) (MobileNgrokStatus, error) {
 	return MobileNgrokStatus{}, nil
 }
-func (f *fakeBridge) RevokeCredential(context.Context, string) (MobileNgrokAccount, error) {
+func (f *fakeBridge) RevokeCredential(_ context.Context, id string) (MobileNgrokAccount, error) {
+	f.revoked = id
 	return MobileNgrokAccount{}, nil
 }
 func (f *fakeBridge) SetDomain(context.Context, string) (MobileNgrokStatus, error) {

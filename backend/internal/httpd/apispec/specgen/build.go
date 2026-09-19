@@ -338,9 +338,25 @@ var schemaNames = map[string]string{
 	"ProjectscanRepo":   "ImportFolderScanRepo",
 	"ProjectscanResult": "ImportFolderScanResult",
 	// httpd/controllers: mobile wire envelopes
-	"ControllersMobileStatusResponse":   "MobileStatusResponse",
-	"ControllersMobileTunnelStatus":     "MobileTunnelStatus",
-	"ControllersMobileAuthtokenRequest": "MobileAuthtokenRequest",
+	"ControllersMobileStatusResponse":         "MobileStatusResponse",
+	"ControllersMobileTunnelStatus":           "MobileTunnelStatus",
+	"ControllersMobileAuthtokenRequest":       "MobileAuthtokenRequest",
+	"ControllersMobileNgrokStatus":            "MobileNgrokStatus",
+	"ControllersMobileNgrokCredential":        "MobileNgrokCredential",
+	"ControllersMobileNgrokAgent":             "MobileNgrokAgent",
+	"ControllersMobileNgrokSession":           "MobileNgrokSession",
+	"ControllersMobileNgrokLogLine":           "MobileNgrokLogLine",
+	"ControllersMobileNgrokAPIKey":            "MobileNgrokAPIKey",
+	"ControllersMobileNgrokAPIKeyRequest":     "MobileNgrokAPIKeyRequest",
+	"ControllersMobileNgrokAccount":           "MobileNgrokAccount",
+	"ControllersMobileNgrokAccountCredential": "MobileNgrokAccountCredential",
+	"ControllersMobileNgrokAccountSession":    "MobileNgrokAccountSession",
+	"ControllersMobileNgrokAccountEndpoint":   "MobileNgrokAccountEndpoint",
+	"ControllersMobileNgrokReservedDomain":    "MobileNgrokReservedDomain",
+	"ControllersMobileNgrokDomainRequest":     "MobileNgrokDomainRequest",
+	"ControllersMobileNgrokCredentialIDParam": "MobileNgrokCredentialIDParam",
+	"ControllersMobileNgrokCheck":             "MobileNgrokCheck",
+	"ControllersMobileNgrokDiagnosis":         "MobileNgrokDiagnosis",
 	// httpd/controllers: desktop wire envelope
 	"ControllersDesktopResponse": "DesktopResponse",
 	// devimport report
@@ -1011,6 +1027,91 @@ func mobileOperations() []operation {
 			resps: []respUnit{
 				{http.StatusOK, controllers.MobileStatusResponse{}},
 				{http.StatusBadRequest, envelope.APIError{}},
+				{http.StatusForbidden, envelope.APIError{}},
+			},
+		},
+		{
+			method: http.MethodDelete, path: "/api/v1/mobile/tunnel/authtoken", id: "removeMobileTunnelAuthtoken", tag: "mobile",
+			summary: "Remove the stored ngrok authtoken",
+			resps: []respUnit{
+				{http.StatusOK, controllers.MobileStatusResponse{}},
+				{http.StatusForbidden, envelope.APIError{}},
+				{http.StatusInternalServerError, envelope.APIError{}},
+			},
+		},
+		{
+			method: http.MethodGet, path: "/api/v1/mobile/tunnel/ngrok", id: "getMobileNgrok", tag: "mobile",
+			summary: "Get the current ngrok tunnel status",
+			resps: []respUnit{
+				{http.StatusOK, controllers.MobileNgrokStatus{}},
+				{http.StatusForbidden, envelope.APIError{}},
+			},
+		},
+		{
+			method: http.MethodPut, path: "/api/v1/mobile/tunnel/ngrok/api-key", id: "setMobileNgrokAPIKey", tag: "mobile",
+			summary: "Store an ngrok API key",
+			reqBody: controllers.MobileNgrokAPIKeyRequest{},
+			resps: []respUnit{
+				{http.StatusOK, controllers.MobileNgrokAccount{}},
+				{http.StatusBadRequest, envelope.APIError{}},
+				{http.StatusUnauthorized, envelope.APIError{}},
+				{http.StatusBadGateway, envelope.APIError{}},
+				{http.StatusForbidden, envelope.APIError{}},
+			},
+		},
+		{
+			method: http.MethodDelete, path: "/api/v1/mobile/tunnel/ngrok/api-key", id: "removeMobileNgrokAPIKey", tag: "mobile",
+			summary: "Remove the stored ngrok API key",
+			resps: []respUnit{
+				{http.StatusOK, controllers.MobileNgrokStatus{}},
+				{http.StatusForbidden, envelope.APIError{}},
+				{http.StatusInternalServerError, envelope.APIError{}},
+			},
+		},
+		{
+			method: http.MethodGet, path: "/api/v1/mobile/tunnel/ngrok/account", id: "getMobileNgrokAccount", tag: "mobile",
+			summary: "Get the ngrok account's credentials, sessions, endpoints and reserved domains",
+			resps: []respUnit{
+				{http.StatusOK, controllers.MobileNgrokAccount{}},
+				{http.StatusForbidden, envelope.APIError{}},
+			},
+		},
+		{
+			method: http.MethodPost, path: "/api/v1/mobile/tunnel/ngrok/account/credential", id: "mintMobileNgrokCredential", tag: "mobile",
+			summary: "Mint a fresh operator-owned ngrok API credential",
+			resps: []respUnit{
+				{http.StatusOK, controllers.MobileNgrokStatus{}},
+				{http.StatusUnauthorized, envelope.APIError{}},
+				{http.StatusBadGateway, envelope.APIError{}},
+				{http.StatusForbidden, envelope.APIError{}},
+			},
+		},
+		{
+			method: http.MethodDelete, path: "/api/v1/mobile/tunnel/ngrok/account/credential/{id}", id: "revokeMobileNgrokCredential", tag: "mobile",
+			summary:    "Revoke an ngrok API credential",
+			pathParams: []any{controllers.MobileNgrokCredentialIDParam{}},
+			resps: []respUnit{
+				{http.StatusOK, controllers.MobileNgrokAccount{}},
+				{http.StatusUnauthorized, envelope.APIError{}},
+				{http.StatusBadGateway, envelope.APIError{}},
+				{http.StatusForbidden, envelope.APIError{}},
+			},
+		},
+		{
+			method: http.MethodPut, path: "/api/v1/mobile/tunnel/ngrok/domain", id: "setMobileNgrokDomain", tag: "mobile",
+			summary: "Set the reserved ngrok domain the tunnel uses",
+			reqBody: controllers.MobileNgrokDomainRequest{},
+			resps: []respUnit{
+				{http.StatusOK, controllers.MobileNgrokStatus{}},
+				{http.StatusBadRequest, envelope.APIError{}},
+				{http.StatusForbidden, envelope.APIError{}},
+			},
+		},
+		{
+			method: http.MethodPost, path: "/api/v1/mobile/tunnel/ngrok/diagnose", id: "diagnoseMobileNgrok", tag: "mobile",
+			summary: "Run ngrok tunnel diagnostics",
+			resps: []respUnit{
+				{http.StatusOK, controllers.MobileNgrokDiagnosis{}},
 				{http.StatusForbidden, envelope.APIError{}},
 			},
 		},
