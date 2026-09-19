@@ -11,6 +11,8 @@ export interface MobileTunnelStatus {
 	restarts: number;
 	needsAuthtoken: boolean;
 	hasAuthtoken: boolean;
+	lastProvider: string;
+	fallbackReason: string;
 }
 
 export interface MobileStatus {
