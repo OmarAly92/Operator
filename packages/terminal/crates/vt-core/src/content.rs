@@ -34,6 +34,12 @@ impl Content {
         self.next_offset
     }
 
+    pub fn start_offset(&self) -> u64 {
+        self.chunks
+            .front()
+            .map_or(self.next_offset, |chunk| chunk.start)
+    }
+
     pub fn push_char(&mut self, scalar: &str) {
         let bytes = scalar.as_bytes();
         let bytes_len = bytes.len();

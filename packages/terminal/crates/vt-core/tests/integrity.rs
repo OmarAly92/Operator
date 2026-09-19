@@ -1,0 +1,127 @@
+mod common;
+
+use proptest::prelude::*;
+use vt_core::TerminalCore;
+
+#[derive(Debug, Clone)]
+enum Op {
+    Print(String),
+    Newline,
+    Sgr(u8),
+    Cup(u8, u8),
+    Ed(u8),
+    El(u8),
+    Il(u8),
+    Dl(u8),
+    Resize(u8, u8),
+    PromptStart,
+    CommandStart,
+    OutputStart,
+    CommandEnd(u8),
+    Boundary,
+}
+
+fn op() -> impl Strategy<Value = Op> {
+    prop_oneof![
+        4 => "[ -~]{0,40}".prop_map(Op::Print),
+        3 => Just(Op::Newline),
+        1 => (0u8..=107).prop_map(Op::Sgr),
+        1 => ((1u8..=30), (1u8..=100)).prop_map(|(r, c)| Op::Cup(r, c)),
+        1 => (0u8..=2).prop_map(Op::Ed),
+        1 => (0u8..=2).prop_map(Op::El),
+        1 => (1u8..=5).prop_map(Op::Il),
+        1 => (1u8..=5).prop_map(Op::Dl),
+        1 => ((4u8..=60), (2u8..=20)).prop_map(|(c, r)| Op::Resize(c, r)),
+        1 => Just(Op::PromptStart),
+        1 => Just(Op::CommandStart),
+        1 => Just(Op::OutputStart),
+        1 => (0u8..=2).prop_map(Op::CommandEnd),
+        1 => Just(Op::Boundary),
+    ]
+}
+
+fn apply(core: &mut TerminalCore, op: &Op) {
+    match op {
+        Op::Print(text) => core.feed(text.as_bytes()),
+        Op::Newline => core.feed(b"\r\n"),
+        Op::Sgr(n) => core.feed(format!("\x1b[{n}m").as_bytes()),
+        Op::Cup(r, c) => core.feed(format!("\x1b[{r};{c}H").as_bytes()),
+        Op::Ed(n) => core.feed(format!("\x1b[{n}J").as_bytes()),
+        Op::El(n) => core.feed(format!("\x1b[{n}K").as_bytes()),
+        Op::Il(n) => core.feed(format!("\x1b[{n}L").as_bytes()),
+        Op::Dl(n) => core.feed(format!("\x1b[{n}M").as_bytes()),
+        Op::Resize(c, r) => core.resize(usize::from(*c), usize::from(*r)),
+        Op::PromptStart => core.feed(b"\x1b]133;A\x07"),
+        Op::CommandStart => core.feed(b"\x1b]133;B\x07"),
+        Op::OutputStart => core.feed(b"\x1b]133;C\x07"),
+        Op::CommandEnd(n) => core.feed(format!("\x1b]133;D;{n}\x07").as_bytes()),
+        Op::Boundary => core.feed(b"\x1b]7000;v=1;boundary=0\x07"),
+    }
+}
+
+proptest! {
+    #![proptest_config(ProptestConfig { cases: 256, ..ProptestConfig::default() })]
+
+    // Ignored: reliably rediscovers the open finding pinned by
+    // `a_boundary_closed_empty_block_survives_a_shrinking_resize` below
+    // (TERMINAL.md 5) -- a CUP past the content, an OSC 133;A, an OSC 7000
+    // boundary and a shrinking resize leave a zero-row block pointing at a
+    // row that no longer exists anywhere in the flat row space. Re-enable
+    // once that is resolved.
+    #[test]
+    #[ignore = "TERMINAL.md 5: a boundary-closed empty block can be left pointing at a row a later resize drops"]
+    fn every_operation_leaves_the_model_consistent(
+        agent_tui in any::<bool>(),
+        ops in prop::collection::vec(op(), 1..80),
+    ) {
+        let mut core = TerminalCore::new(40, 32).unwrap();
+        core.resize(40, 8);
+        core.set_agent_tui_mode(agent_tui);
+        common::check(&core);
+        for op in &ops {
+            apply(&mut core, op);
+            common::check(&core);
+        }
+    }
+}
+
+#[test]
+#[ignore = "TERMINAL.md 5: a boundary-closed empty block can be left pointing at a row a later resize drops"]
+fn a_boundary_closed_empty_block_survives_a_shrinking_resize() {
+    let mut core = TerminalCore::new(40, 32).unwrap();
+    core.resize(40, 8);
+    core.set_agent_tui_mode(false);
+    core.resize(4, 16);
+    core.feed(b"\x1b[16;1H");
+    core.feed(b"\x1b]133;A\x07");
+    core.feed(b"\x1b]7000;v=1;boundary=0\x07");
+    core.resize(4, 2);
+    common::check(&core);
+}
+
+#[test]
+fn a_fresh_core_is_consistent() {
+    let core = TerminalCore::new(80, 100).unwrap();
+    common::check(&core);
+}
+
+#[test]
+fn a_trimmed_core_is_consistent() {
+    let mut core = TerminalCore::new(20, 4).unwrap();
+    core.resize(20, 2);
+    for index in 0..50 {
+        core.feed(format!("row {index}\r\n").as_bytes());
+        common::check(&core);
+    }
+}
+
+#[test]
+fn a_rewrapped_core_is_consistent() {
+    let mut core = TerminalCore::new(40, 100).unwrap();
+    core.resize(40, 3);
+    core.feed(b"- a bullet line that is long enough to need wrapping when narrow\r\nplain\r\n");
+    for cols in [12usize, 8, 30, 60] {
+        core.resize(cols, 3);
+        common::check(&core);
+    }
+}

@@ -70,6 +70,16 @@ impl Parser {
         &mut self.grid
     }
 
+    #[cfg(test)]
+    pub(crate) fn rows_mut(&mut self) -> &mut RowIndex {
+        &mut self.rows
+    }
+
+    #[cfg(test)]
+    pub(crate) fn styles_mut(&mut self) -> &mut AttributeMap<CellStyle> {
+        &mut self.styles
+    }
+
     pub(crate) fn open_block(&mut self, source: BlockSource) {
         self.commit_evicted();
         let first_row = self.block_start_row();

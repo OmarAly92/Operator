@@ -9,6 +9,7 @@ pub mod content;
 pub mod event_bridge;
 pub mod find;
 pub mod grid;
+pub mod integrity;
 mod line_editor;
 pub mod parser;
 pub mod row_index;
@@ -26,6 +27,7 @@ pub use block_grid::BlockGrid;
 pub use block_selection::{BlockSelection, SelectionPoint};
 pub use block_tree::{BlockSummary, BlockTree};
 pub use find::{FindCursor, FindMatch, FindQuery};
+pub use integrity::IntegrityError;
 pub use line_editor::LineEditorState;
 pub use style::{CellStyle, StyleCode};
 
@@ -114,7 +116,22 @@ impl TerminalCore {
         }
         self.parser.commit_evicted();
         self.parser.trim_to(self.scrollback_rows);
+        self.debug_check();
     }
+
+    pub fn verify_integrity(&self) -> Result<(), IntegrityError> {
+        self.parser.verify_integrity()
+    }
+
+    #[cfg(debug_assertions)]
+    fn debug_check(&self) {
+        if let Err(error) = self.parser.verify_integrity() {
+            panic!("vt-core integrity violated: {error:?}");
+        }
+    }
+
+    #[cfg(not(debug_assertions))]
+    fn debug_check(&self) {}
 
     pub fn snapshot(&self) -> Result<grid::GridSnapshot, CoreError> {
         grid::build_snapshot(
@@ -173,6 +190,7 @@ impl TerminalCore {
         self.rows = rows;
         self.parser.resize(columns, rows);
         self.parser.trim_to(self.scrollback_rows);
+        self.debug_check();
     }
 
     // The renderer's resize model evicts the screen into the block stream and
@@ -180,14 +198,17 @@ impl TerminalCore {
     // (resize preserves the visible screen in place) turns reflow off.
     pub fn set_reflow_on_resize(&mut self, on: bool) {
         self.parser.set_reflow_on_resize(on);
+        self.debug_check();
     }
 
     pub fn set_agent_tui_mode(&mut self, on: bool) {
         self.parser.set_agent_tui_mode(on);
+        self.debug_check();
     }
 
     pub fn set_block_bookmarked(&mut self, id: crate::block::BlockId, bookmarked: bool) {
         self.parser.grid_mut().set_block_bookmarked(id, bookmarked);
+        self.debug_check();
     }
 
     pub fn block_bookmarked(&self, id: crate::block::BlockId) -> bool {

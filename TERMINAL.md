@@ -363,6 +363,30 @@ history of `master`.
     a character printed in the last column keeps the cursor logically past
     the column until the next printable character, so `EL 0` immediately
     after should not erase it. vt-core erases it. Corpus: `erase_in_line`.
+- Found by the `vt-core` integrity proptest
+  (`crates/vt-core/tests/integrity.rs`, `every_operation_leaves_the_model_consistent`,
+  currently `#[ignore]`d, regression fixture
+  `a_boundary_closed_empty_block_survives_a_shrinking_resize`): `CUP` to a row
+  past the current content, then `OSC 133;A` (opens a block at that row) then
+  `OSC 7000` process boundary (closes it immediately, `row_count` computed as
+  `0` since nothing was ever printed there) leaves a zero-height closed block
+  pinned to a row index taken from the screen's height *before* the boundary.
+  A later resize that shrinks the screen (`ScreenGrid::resize_cells`'s
+  `shrink_from_top`, `crates/vt-core/src/screen.rs:480-511`) truncates rows
+  below the cursor without recording an eviction when there is no content to
+  preserve — that is correct for the screen's own cells, but nothing renumbers
+  or evicts the block index that was pinned to one of those now-gone rows, so
+  `BlockGrid::blocks()` ends up pointing past `completed.len() + screen.rows()`.
+  Not fixed here: it is not an isolated off-by-one — `close_block`/`open_block`'s
+  abandon path could simply drop zero-`row_count` blocks (matching
+  `push_synthetic`'s existing `end_row <= first_row` guard and the
+  `blocks_survive_scrollback_trimming` test's `row_count > 0` expectation), but
+  doing so is also a product decision (a command that legitimately printed no
+  output would silently lose its block/card), and the more general problem —
+  a screen-height shrink can drop rows a block still references without any
+  renumbering, unlike the scrollback-trim path's `grid.trim_to_first_row` — is
+  a resize/block-index design question, not a local bookkeeping fix. Needs a
+  decision before either the guard or a proper renumbering is implemented.
 
 ---
 
