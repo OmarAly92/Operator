@@ -149,7 +149,7 @@ function feedHistory(
 	for (const block of blocks) {
 		if (historyIds.has(block.sourceId)) continue;
 		historyIds.add(block.sourceId);
-		core.feed(block.rawOutput);
+		core.enqueue(block.rawOutput);
 	}
 }
 
