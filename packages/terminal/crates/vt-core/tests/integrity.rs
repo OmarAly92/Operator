@@ -62,12 +62,6 @@ fn apply(core: &mut TerminalCore, op: &Op) {
 proptest! {
     #![proptest_config(ProptestConfig { cases: 256, ..ProptestConfig::default() })]
 
-    // Ignored: reliably rediscovers the open finding pinned by
-    // `a_boundary_closed_empty_block_survives_a_shrinking_resize` below
-    // (TERMINAL.md 5) -- a CUP past the content, an OSC 133;A, an OSC 7000
-    // boundary and a shrinking resize leave a zero-row block pointing at a
-    // row that no longer exists anywhere in the flat row space. Re-enable
-    // once that is resolved.
     #[test]
     #[ignore = "TERMINAL.md 5: a boundary-closed empty block can be left pointing at a row a later resize drops"]
     fn every_operation_leaves_the_model_consistent(
