@@ -45,6 +45,7 @@ type ServeConfig struct {
 	Parser      *vtwasm.Parser
 	InitialCols int
 	InitialRows int
+	Recorder    *recorder
 }
 
 // Serve runs the host event loop until the listener closes or Shutdown is
@@ -63,6 +64,7 @@ func Serve(ctx context.Context, cfg ServeConfig) error {
 		pty:       cfg.PTY,
 		parser:    cfg.Parser,
 		pumpDone:  make(chan struct{}),
+		recorder:  cfg.Recorder,
 	}
 	return h.run(ctx)
 }
@@ -185,6 +187,8 @@ type host struct {
 	respawnMu sync.Mutex
 
 	capture *captureSink
+
+	recorder *recorder
 }
 
 // runWriter drains one client's outbound queue, blocking on each conn.Write
@@ -290,6 +294,7 @@ func (h *host) applyLargestLocked() {
 	if h.parser != nil {
 		_ = h.parser.Resize(uint32(bestCols), uint32(bestRows))
 	}
+	h.recorder.resize(bestCols, bestRows)
 }
 
 // run is the main event loop.
@@ -355,6 +360,7 @@ func (h *host) shutdown() {
 		}
 
 		// 4. Close the listener to unblock Accept.
+		_ = h.recorder.close()
 		_ = h.cfg.Listener.Close()
 	})
 }
@@ -487,6 +493,7 @@ func (h *host) deliver(batch []byte) {
 	}
 
 	h.capture.write(batch)
+	h.recorder.write(batch)
 }
 
 const maxParserSliceBytes = 0x1_0000 // Warp's MAX_LOCKED_READ

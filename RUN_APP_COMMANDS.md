@@ -64,6 +64,13 @@ For CLI-only usage, in two terminals.
 cd backend && go run .
 ```
 
+To record every session's raw pty bytes (for `packages/terminal/bench/agent-session`
+fixtures and `crates/vt-core/tests/ref`), start the daemon with
+`OPERATOR_PTY_RECORD=<dir>`; each pty-host writes `<dir>/<session-id>.recording` and
+`<dir>/<session-id>.size.json` (`[{offset, cols, rows}, …]`, one entry per grid change).
+The variable reaches the pty-host through the daemon's environment, so it works for
+`npm run tauri:dev` too.
+
 **Terminal 2 — talk to it while it runs:**
 
 ```bash
