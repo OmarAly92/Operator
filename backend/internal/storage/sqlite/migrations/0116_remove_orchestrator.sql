@@ -15,6 +15,8 @@
 
 -- +goose NO TRANSACTION
 -- +goose Up
+-- change_log.session_id references sessions(id) with no ON DELETE CASCADE, so rows
+-- for orchestrator sessions must be deleted first to avoid a foreign-key violation.
 DELETE FROM change_log WHERE session_id IN (SELECT id FROM sessions WHERE kind = 'orchestrator');
 DELETE FROM sessions WHERE kind = 'orchestrator';
 
