@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+The model can answer terminal queries.
+
+- `TerminalCore::set_answers_queries(true)` plus `set_terminal_identity(name)`
+  make the parser queue replies for XTVERSION (`CSI > 0 q` → `DCS > | name ST`),
+  DA1 (`CSI c` → `CSI ? 62 ; 22 c`) and DECRQM (`CSI ? Pm $ p` → DECRPM with the
+  tracked mode state; 2026 reports supported), read back with
+  `take_query_replies`. `vt-host` enables it and exports `vt_take_query_replies`
+  / `vt_set_terminal_identity`; the renderer core stays silent. Programs that
+  probe before using synchronized output (Claude Code) now get the answer they
+  need from the host mirror.
+
 Blocks can no longer point past the end of the row space.
 
 - A block opened after a cursor move below the frame and closed by a process

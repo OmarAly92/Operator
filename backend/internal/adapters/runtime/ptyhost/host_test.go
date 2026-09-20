@@ -1097,3 +1097,39 @@ func TestAStalledSyncBlockReachesTheMirrorAtTheDeadline(t *testing.T) {
 		t.Fatalf("mirror after the deadline = %q, want the stalled frame", text)
 	}
 }
+
+func TestDeliverAnswersADecrqmProbeOnThePty(t *testing.T) {
+	f, c := newTestHostWithParser(t)
+	defer f.cancel()
+	defer c.close()
+	syncClientRegistered(t, c)
+
+	f.feedPTY(t, "\x1b[?2026$p")
+	c.readFrame(t)
+	buf := make([]byte, 64)
+	n, err := f.pty.ReadInput(buf)
+	if err != nil {
+		t.Fatalf("read pty input: %v", err)
+	}
+	if got := string(buf[:n]); got != "\x1b[?2026;2$y" {
+		t.Fatalf("pty received %q, want the DECRPM reply", got)
+	}
+}
+
+func TestDeliverAnswersXtversionWithTheHostIdentity(t *testing.T) {
+	f, c := newTestHostWithParser(t)
+	defer f.cancel()
+	defer c.close()
+	syncClientRegistered(t, c)
+
+	f.feedPTY(t, "\x1b[>0q")
+	c.readFrame(t)
+	buf := make([]byte, 64)
+	n, err := f.pty.ReadInput(buf)
+	if err != nil {
+		t.Fatalf("read pty input: %v", err)
+	}
+	if got := string(buf[:n]); got != "\x1bP>|Operator\x1b\\" {
+		t.Fatalf("pty received %q, want the XTVERSION reply", got)
+	}
+}

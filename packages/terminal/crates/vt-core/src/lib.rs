@@ -319,6 +319,18 @@ impl TerminalCore {
         self.debug_check();
     }
 
+    pub fn set_answers_queries(&mut self, on: bool) {
+        self.parser.set_answers_queries(on);
+    }
+
+    pub fn take_query_replies(&mut self) -> Vec<u8> {
+        self.parser.take_query_replies()
+    }
+
+    pub fn set_terminal_identity(&mut self, name: &str) {
+        self.parser.set_terminal_identity(name);
+    }
+
     pub fn set_agent_tui_mode(&mut self, on: bool) {
         self.parser.set_agent_tui_mode(on);
         self.debug_check();

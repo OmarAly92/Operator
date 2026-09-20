@@ -25,6 +25,10 @@ type Parser struct {
 	mu      sync.Mutex
 }
 
+// TerminalIdentity is what the mirror answers to XTVERSION (`CSI > 0 q`); it
+// matches the TERM_PROGRAM the pty-host sets for the child.
+const TerminalIdentity = "Operator"
+
 func New(ctx context.Context, wasmModule []byte, cols, rows, scrollback uint32) (*Parser, error) {
 	rt := wazero.NewRuntime(ctx)
 	mod, err := rt.Instantiate(ctx, wasmModule)
@@ -37,7 +41,27 @@ func New(ctx context.Context, wasmModule []byte, cols, rows, scrollback uint32) 
 		_ = rt.Close(ctx)
 		return nil, fmt.Errorf("vtwasm: vt_new failed: %w", err)
 	}
-	return &Parser{runtime: rt, module: mod, handle: uint32(res[0]), ctx: ctx}, nil
+	p := &Parser{runtime: rt, module: mod, handle: uint32(res[0]), ctx: ctx}
+	if err := p.setTerminalIdentity(TerminalIdentity); err != nil {
+		_ = rt.Close(ctx)
+		return nil, err
+	}
+	return p, nil
+}
+
+func (p *Parser) setTerminalIdentity(name string) error {
+	bytes := []byte(name)
+	res, err := p.module.ExportedFunction("vt_alloc").Call(p.ctx, uint64(len(bytes)))
+	if err != nil {
+		return fmt.Errorf("vtwasm: alloc: %w", err)
+	}
+	ptr := uint32(res[0])
+	defer func() { _, _ = p.module.ExportedFunction("vt_free").Call(p.ctx, uint64(ptr), uint64(len(bytes))) }()
+	if !p.module.Memory().Write(ptr, bytes) {
+		return fmt.Errorf("vtwasm: write identity out of range")
+	}
+	_, err = p.module.ExportedFunction("vt_set_terminal_identity").Call(p.ctx, uint64(p.handle), uint64(ptr), uint64(len(bytes)))
+	return err
 }
 
 func (p *Parser) Feed(bytes []byte) error {
@@ -72,6 +96,39 @@ func (p *Parser) Tick(nowMs int64) (bool, error) {
 		return false, fmt.Errorf("vtwasm: tick: %w", err)
 	}
 	return res[0] == 1, nil
+}
+
+const queryReplyBufferBytes = 4096
+
+// TakeQueryReplies drains the terminal-query answers the mirror owes the child
+// (DECRPM for a `CSI ? Pm $ p` request). The mirror is the only party present
+// from the child's first byte, so it is the one that answers; the renderer core
+// never does, or the child would hear every reply once per attached client.
+func (p *Parser) TakeQueryReplies() ([]byte, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	res, err := p.module.ExportedFunction("vt_alloc").Call(p.ctx, queryReplyBufferBytes)
+	if err != nil {
+		return nil, fmt.Errorf("vtwasm: alloc reply buffer: %w", err)
+	}
+	out := uint32(res[0])
+	defer func() { _, _ = p.module.ExportedFunction("vt_free").Call(p.ctx, uint64(out), queryReplyBufferBytes) }()
+	res, err = p.module.ExportedFunction("vt_take_query_replies").Call(p.ctx, uint64(p.handle), uint64(out), queryReplyBufferBytes)
+	if err != nil {
+		return nil, fmt.Errorf("vtwasm: take_query_replies: %w", err)
+	}
+	switch written := uint32(res[0]); written {
+	case 0:
+		return nil, nil
+	case renderErr, renderTooBig:
+		return nil, fmt.Errorf("vtwasm: take_query_replies failed for handle %d", p.handle)
+	default:
+		bytes, ok := p.module.Memory().Read(out, written)
+		if !ok {
+			return nil, fmt.Errorf("vtwasm: read %d bytes at %d out of range", written, out)
+		}
+		return append([]byte(nil), bytes...), nil
+	}
 }
 
 func (p *Parser) InSync() (bool, error) {

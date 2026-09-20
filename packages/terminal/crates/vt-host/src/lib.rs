@@ -26,6 +26,7 @@ pub extern "C" fn vt_new(cols: u32, rows: u32, scrollback: u32) -> u32 {
         return 0;
     };
     core.set_reflow_on_resize(false);
+    core.set_answers_queries(true);
     core.resize(cols as usize, rows as usize);
     NEXT_ID.with(|n| {
         let mut n = n.borrow_mut();
@@ -60,6 +61,35 @@ pub extern "C" fn vt_tick(handle: u32, now_ms: u64) -> u32 {
     CORES.with(|c| match c.borrow_mut().get_mut(&handle) {
         Some(core) => u32::from(core.tick(now_ms)),
         None => 0,
+    })
+}
+
+#[no_mangle]
+pub extern "C" fn vt_set_terminal_identity(handle: u32, ptr: u32, len: u32) {
+    let bytes = unsafe { std::slice::from_raw_parts(ptr as *const u8, len as usize) };
+    let name = String::from_utf8_lossy(bytes);
+    CORES.with(|c| {
+        if let Some(core) = c.borrow_mut().get_mut(&handle) {
+            core.set_terminal_identity(&name);
+        }
+    });
+}
+
+#[no_mangle]
+pub extern "C" fn vt_take_query_replies(handle: u32, out_ptr: u32, out_cap: u32) -> u32 {
+    CORES.with(|c| {
+        let mut cores = c.borrow_mut();
+        let Some(core) = cores.get_mut(&handle) else {
+            return RENDER_ERR;
+        };
+        let replies = core.take_query_replies();
+        if replies.len() > out_cap as usize {
+            return RENDER_TOO_BIG;
+        }
+        unsafe {
+            std::ptr::copy_nonoverlapping(replies.as_ptr(), out_ptr as *mut u8, replies.len());
+        }
+        replies.len() as u32
     })
 }
 

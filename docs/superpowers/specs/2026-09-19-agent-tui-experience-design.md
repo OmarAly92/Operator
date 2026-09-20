@@ -86,8 +86,12 @@ User requirements, in intent:
   is truncated in place on resize, `ESC[2J` clears in place, scrollback still
   rewraps on a width change (`TERMINAL.md` §2, §4.2, §4.10).
 - The installed binary (`/opt/homebrew/Caskroom/claude-code@latest/2.1.273/claude`)
-  emits DEC 2026 around every Ink frame, SGR mouse (`?1000`/`?1006`), `?1049`
-  for some views; no Kitty keyboard, no mode 2048 (survey Appendix B).
+  emits DEC 2026 around every Ink frame **once the terminal has answered its
+  XTVERSION query and reported DECRQM 2026 as supported** (with an unknown
+  `TERM_PROGRAM` it probes instead of assuming; Plan A made the pty-host mirror
+  answer XTVERSION, DA1 and DECRQM — `TERMINAL.md` §4.16), SGR mouse
+  (`?1000`/`?1006`), `?1049` for some views; no Kitty keyboard, no mode 2048
+  (survey Appendix B).
 - Repaints on a ~100 ms timer while thinking (`TERMINAL.md` §4.13 measured
   a repaint every 100 ms from its spinner).
 - Prints box drawing (`│ ⎿ ├ ─ ╭ ╮ ╰ ╯`), braille spinners, emoji status

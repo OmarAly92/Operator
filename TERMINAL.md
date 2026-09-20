@@ -349,6 +349,22 @@ history of `master`.
   the frame from the live stream. The pump holds the flush after a batch that
   ended inside a block until the terminator or the deadline, so a frame is
   split across two mux messages at most once.
+- The part the fixtures hid: Claude Code only uses DEC 2026 when it *knows*
+  the terminal supports it. With an unknown `TERM_PROGRAM` (ours is
+  `Operator`) it sends `CSI > 0 q` (XTVERSION), `CSI ? u` and `CSI c` (DA1),
+  and only if XTVERSION was answered does it probe `CSI ? 2026 $ p` and accept
+  a DECRPM status of 1/2/3; DA1 is the terminator that ends each probe round.
+  Under Warp (which answers) the recordings had 2026; under Operator nothing
+  answered and Claude never emitted it, so the first real-app run showed zero
+  sync frames. The mirror now answers, because it is the only party present
+  from the child's first byte (a renderer would answer once per attached
+  client): `Parser::set_answers_queries(true)` + `set_terminal_identity`
+  (`vt_new` enables it, Go passes `vtwasm.TerminalIdentity` = `Operator`),
+  replies queued by `take_query_replies` and written to the pty by `deliver`
+  after it releases `h.mu`. Answers: XTVERSION → `DCS > | Operator ST`, DA1 →
+  `CSI ? 62 ; 22 c`, DECRQM → `CSI ? Pm ; {1|2|0} $ y` from the tracked mode
+  state (2026 reports 2). `CSI ? u` is deliberately unanswered (kitty keyboard
+  is not implemented). The renderer core never answers.
 - Guards: `vt-core/tests/synchronized_output.rs` (`bytes_inside_a_sync_block_are_invisible_until_esu`,
   `a_frame_split_across_three_feeds_snapshots_once`, `a_mark_inside_a_sync_block_lands_after_the_rows_before_it`,
   `overflow_flushes`, `tick_past_deadline_flushes`, `bsu_inside_a_block_extends_the_deadline`,
@@ -359,8 +375,12 @@ history of `master`.
   deadline passes…"; Go `vtwasm_test.go::TestFeedAtBuffersASyncBlockUntilItsTerminator`,
   `TestTickPastTheDeadlineFlushesTheSyncBlock`, `replay_test.go::TestReplayNeverStartsInsideASyncBlock`,
   `host_test.go::TestDeliverHoldsAcrossASyncBlock`, `TestSyncHoldEndsAtTheDeadlineAndTicksTheMirror`,
-  `TestAStalledSyncBlockReachesTheMirrorAtTheDeadline`;
-  `bench/agent-session/run.mjs --gate` (zero torn paints, Task 8).
+  `TestAStalledSyncBlockReachesTheMirrorAtTheDeadline`,
+  `TestDeliverAnswersADecrqmProbeOnThePty`, `TestDeliverAnswersXtversionWithTheHostIdentity`;
+  `vt-core/tests/query_replies.rs`; `bench/agent-session/run.mjs --gate` (zero torn paints, Task 8).
+  Real-app evidence (2026-09-20, dev daemon + `/mux`): 41 sync frames in a
+  30 s window, the `?2026$p` probe answered, 2 of 56 mux messages ending
+  inside a block, 12 mid-output reattaches with a clean replay each.
 
 ### 4.17 Blocks pinned past the end of the row space — found by the integrity proptest
 - Symptom: none visible yet; found by `tests/integrity.rs::every_operation_leaves_the_model_consistent`

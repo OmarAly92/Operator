@@ -519,7 +519,13 @@ func (h *host) deliver(batch []byte) bool {
 	// client, and runWriter drains those queues without h.mu.
 	h.feedParserLocked(batch)
 	inSync := h.parserInSyncLocked()
+	replies := h.takeQueryRepliesLocked()
+	pty := h.pty
 	h.mu.Unlock()
+
+	if len(replies) > 0 {
+		_, _ = pty.Write(replies)
+	}
 
 	// Back-pressure, off the lock. Queueing above cannot block, so a batch can
 	// overshoot the cap by at most itself; parking here before the next batch
@@ -532,6 +538,17 @@ func (h *host) deliver(batch []byte) bool {
 	h.capture.write(batch)
 	h.recorder.write(batch)
 	return inSync
+}
+
+func (h *host) takeQueryRepliesLocked() []byte {
+	if h.parser == nil {
+		return nil
+	}
+	replies, err := h.parser.TakeQueryReplies()
+	if err != nil {
+		return nil
+	}
+	return replies
 }
 
 func (h *host) parserInSyncLocked() bool {
