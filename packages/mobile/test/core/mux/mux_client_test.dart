@@ -654,6 +654,76 @@ void main() {
       });
     });
 
+    test('acks the terminal every 5,000 bytes consumed', () async {
+      late _FakeMuxSocket socket;
+      final client = MuxClient(_source, connect: (_, _) => socket = _FakeMuxSocket());
+      client.connect();
+      await Future<void>.delayed(Duration.zero);
+      client.openTerminal('pane-1');
+
+      String payload(int bytes) => base64Encode(List<int>.filled(bytes, 0x78));
+      socket.pushMessage({'ch': 'terminal', 'id': 'pane-1', 'type': 'data', 'data': payload(2000)});
+      socket.pushMessage({'ch': 'terminal', 'id': 'pane-1', 'type': 'data', 'data': payload(2000)});
+      await Future<void>.delayed(Duration.zero);
+      expect(socket.sent.where((raw) => raw.contains('"type":"ack"')), isEmpty);
+
+      socket.pushMessage({'ch': 'terminal', 'id': 'pane-1', 'type': 'data', 'data': payload(2000)});
+      await Future<void>.delayed(Duration.zero);
+      final acks = socket.sent
+          .map((raw) => jsonDecode(raw) as Map<String, dynamic>)
+          .where((msg) => msg['type'] == 'ack')
+          .toList();
+      expect(acks, hasLength(1));
+      expect(acks.single['id'], 'pane-1');
+      expect(acks.single['bytes'], 6000);
+
+      await client.disconnect();
+    });
+
+    test('does not ask the daemon for session history', () async {
+      late _FakeMuxSocket socket;
+      final client = MuxClient(_source, connect: (_, _) => socket = _FakeMuxSocket());
+      client.connect();
+      await Future<void>.delayed(Duration.zero);
+      client.openTerminal('pane-1');
+
+      final opens = socket.sent
+          .map((raw) => jsonDecode(raw) as Map<String, dynamic>)
+          .where((msg) => msg['ch'] == 'terminal' && msg['type'] == 'open')
+          .toList();
+      expect(opens, isNotEmpty);
+      for (final open in opens) {
+        expect(open['history'], isNot(true), reason: 'the xterm fork would print the history rows as text');
+      }
+
+      await client.disconnect();
+    });
+
+    test('a closed terminal restarts its ack count', () async {
+      late _FakeMuxSocket socket;
+      final client = MuxClient(_source, connect: (_, _) => socket = _FakeMuxSocket());
+      client.connect();
+      await Future<void>.delayed(Duration.zero);
+      client.openTerminal('pane-1');
+
+      String payload(int bytes) => base64Encode(List<int>.filled(bytes, 0x78));
+      socket.pushMessage({'ch': 'terminal', 'id': 'pane-1', 'type': 'data', 'data': payload(6000)});
+      await Future<void>.delayed(Duration.zero);
+      client.closeTerminal('pane-1');
+      client.openTerminal('pane-1');
+      socket.pushMessage({'ch': 'terminal', 'id': 'pane-1', 'type': 'data', 'data': payload(6000)});
+      await Future<void>.delayed(Duration.zero);
+
+      final acks = socket.sent
+          .map((raw) => jsonDecode(raw) as Map<String, dynamic>)
+          .where((msg) => msg['type'] == 'ack')
+          .map((msg) => msg['bytes'] as int)
+          .toList();
+      expect(acks, [6000, 6000]);
+
+      await client.disconnect();
+    });
+
     test('ignores a blocks frame with no payload', () {
       fakeAsync((async) {
         late _FakeMuxSocket socket;
