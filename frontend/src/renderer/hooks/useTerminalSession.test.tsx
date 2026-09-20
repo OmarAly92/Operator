@@ -26,9 +26,11 @@ type FakeMux = {
 	resizes: Array<[string, number, number]>;
 	inputs: Array<[string, string]>;
 	closes: string[];
+	acks: number[];
 	events: string[];
 	disposed: boolean;
 	emitData(id: string, text: string): void;
+	emitBytes(id: string, bytes: Uint8Array): void;
 	emitOpened(id: string): void;
 	emitExit(id: string): void;
 	emitError(id: string, message: string): void;
@@ -54,6 +56,7 @@ function createFakeMux(): FakeMux {
 		resizes: [],
 		inputs: [],
 		closes: [],
+		acks: [],
 		events: [],
 		disposed: false,
 		mux: {
@@ -64,6 +67,7 @@ function createFakeMux(): FakeMux {
 				fake.closes.push(id);
 				fake.events.push(`close:${id}`);
 			},
+			ack: (_id, bytes) => fake.acks.push(bytes),
 			onData: (id, listener) => subscribe(data, id, listener),
 			onExit: (id, listener) => subscribe(exit, id, listener),
 			onOpened: (id, listener) => subscribe(opened, id, listener),
@@ -81,6 +85,7 @@ function createFakeMux(): FakeMux {
 			},
 		},
 		emitData: (id, text) => data.get(id)?.forEach((listener) => listener(new TextEncoder().encode(text))),
+		emitBytes: (id, bytes) => data.get(id)?.forEach((listener) => listener(bytes)),
 		emitOpened: (id) => opened.get(id)?.forEach((listener) => listener()),
 		emitExit: (id) => exit.get(id)?.forEach((listener) => listener()),
 		emitError: (id, message) => error.get(id)?.forEach((listener) => listener(message)),
@@ -230,6 +235,20 @@ describe("useTerminalSession", () => {
 		expect(muxes[0].opens).toEqual([["handle-1", 80, 24]]);
 		act(() => muxes[0].emitOpened("handle-1"));
 		expect(view.result.current.state).toBe("attached");
+	});
+
+	it("acks the transport every 5,000 bytes", () => {
+		const { muxes } = setup();
+		act(() => muxes[0].emitOpened("handle-1"));
+		const chunk = new Uint8Array(2_000);
+		act(() => muxes[0].emitBytes("handle-1", chunk));
+		expect(muxes[0].acks).toEqual([]);
+		act(() => muxes[0].emitBytes("handle-1", chunk));
+		act(() => muxes[0].emitBytes("handle-1", chunk));
+		expect(muxes[0].acks).toEqual([6_000]);
+		act(() => muxes[0].emitBytes("handle-1", chunk));
+		act(() => muxes[0].emitBytes("handle-1", chunk));
+		expect(muxes[0].acks).toEqual([6_000, 10_000]);
 	});
 
 	it("stays idle when the session has no terminal handle", () => {

@@ -106,6 +106,10 @@ const OPEN_TIMEOUT_MS = 3_000;
 // whole drag into the one SIGWINCH that matters, the one at the size the user
 // let go at.
 const RESIZE_DEBOUNCE_MS = 100;
+// Flow control. The renderer confirms the bytes it has consumed so the
+// pty-host can throttle the child rather than queue the session
+// (vscode/src/vs/platform/terminal/common/terminal.ts).
+const ACK_EVERY_BYTES = 5_000;
 // Initial-replay gate. On attach the runtime replays the pane's state, and the
 // daemon pumps it in 32KB reads (attachment.go copyOut) — so the renderer gets
 // N WebSocket frames, N `write()` calls, and N separate event-loop turns. xterm
@@ -212,6 +216,8 @@ export function useTerminalSession(session: WorkspaceSession | undefined, option
 		needsVisibleSizeSync: false,
 		// Initial-replay gate, reset per connect (see REPLAY_QUIET_MS).
 		replayBuffering: false,
+		consumedBytes: 0,
+		ackedBytes: 0,
 		replayReadySeen: false,
 		replayChunks: [] as Uint8Array[],
 		replayBytes: 0,
@@ -333,6 +339,8 @@ export function useTerminalSession(session: WorkspaceSession | undefined, option
 		r.flushReplay = null;
 		clearReplayTimers();
 		r.replayBuffering = false;
+		r.consumedBytes = 0;
+		r.ackedBytes = 0;
 		r.replayChunks = [];
 		r.replayBytes = 0;
 		r.replayTailPending = false;
@@ -578,6 +586,14 @@ export function useTerminalSession(session: WorkspaceSession | undefined, option
 					});
 				}
 				for (const listener of [...r.byteListeners]) listener(bytes);
+				r.consumedBytes += bytes.length;
+				if (
+					Math.floor(r.consumedBytes / ACK_EVERY_BYTES) >
+					Math.floor(r.ackedBytes / ACK_EVERY_BYTES)
+				) {
+					r.ackedBytes = r.consumedBytes;
+					mux.ack(handle, r.ackedBytes);
+				}
 				if (r.replayBuffering) {
 					r.replayChunks.push(bytes);
 					r.replayBytes += bytes.length;
@@ -749,7 +765,7 @@ export function useTerminalSession(session: WorkspaceSession | undefined, option
 		const surface = r.surfaceGeometry;
 		const openCols = visible ? (surface?.cols ?? terminal.cols) : 0;
 		const openRows = visible ? (surface?.rows ?? terminal.rows) : 0;
-		mux.open(handle, openCols, openRows);
+		mux.open(handle, openCols, openRows, true);
 		r.lastPublishedGrid =
 			openCols > 0 && openRows > 0 ? { cols: openCols, rows: openRows } : null;
 		r.gridPublished = false;

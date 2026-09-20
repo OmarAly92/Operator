@@ -200,6 +200,13 @@ type PaneCapturer interface {
 	StopCapture(context.Context, RuntimeHandle) error
 }
 
+// FlowControlled is an optional Stream capability: a client that reports the
+// bytes it has consumed lets the runtime throttle the child. Asserted at the
+// call site, so a Stream without it simply has no flow control.
+type FlowControlled interface {
+	Ack(bytes uint64) error
+}
+
 // Attacher opens a fresh attach Stream for a session handle, sized rows x cols from
 // birth (0 means size not yet known). ctx cancellation must terminate the stream.
 type Attacher interface {

@@ -20,9 +20,15 @@ type fakeSource struct {
 	alive     bool
 	aliveErr  error
 	attachErr error
+
+	plainAttachCalls   int
+	historyAttachCalls int
 }
 
 func (f *fakeSource) Attach(ctx context.Context, _ ports.RuntimeHandle, rows, cols uint16) (ports.Stream, error) {
+	f.mu.Lock()
+	f.plainAttachCalls++
+	f.mu.Unlock()
 	if f.attachErr != nil {
 		return nil, f.attachErr
 	}
@@ -33,6 +39,36 @@ func (f *fakeSource) Attach(ctx context.Context, _ ports.RuntimeHandle, rows, co
 		f.spawner = &fakeSpawner{}
 	}
 	return f.spawner.spawn(rows, cols)
+}
+
+// AttachWithHistory satisfies ports.HistoryAttacher so fakeSource can back
+// TestTerminalOpenForwardsTheHistoryOptIn / TestTerminalOpenWithoutHistoryAttachesPlainly.
+func (f *fakeSource) AttachWithHistory(ctx context.Context, handle ports.RuntimeHandle, rows, cols uint16, history bool) (ports.Stream, error) {
+	f.mu.Lock()
+	f.historyAttachCalls++
+	f.mu.Unlock()
+	if f.attachErr != nil {
+		return nil, f.attachErr
+	}
+	if f.attachFn != nil {
+		return f.attachFn(ctx, rows, cols)
+	}
+	if f.spawner == nil {
+		f.spawner = &fakeSpawner{}
+	}
+	return f.spawner.spawn(rows, cols)
+}
+
+func (f *fakeSource) plainAttaches() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.plainAttachCalls
+}
+
+func (f *fakeSource) historyAttaches() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.historyAttachCalls
 }
 
 func (f *fakeSource) IsAlive(context.Context, ports.RuntimeHandle) (bool, error) {
@@ -120,6 +156,32 @@ func (p *fakePTY) resizeCalls() [][2]uint16 {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	return append([][2]uint16(nil), p.resizes...)
+}
+
+// flowControlledFakePTY wraps a fakePTY with the optional ports.FlowControlled
+// capability, so tests can exercise attachment.ack against a Stream that
+// implements it while the plain fakePTY (used elsewhere) deliberately does not.
+type flowControlledFakePTY struct {
+	*fakePTY
+	mu    sync.Mutex
+	acked uint64
+}
+
+func newFlowControlledFakePTY() *flowControlledFakePTY {
+	return &flowControlledFakePTY{fakePTY: newFakePTY()}
+}
+
+func (p *flowControlledFakePTY) Ack(bytes uint64) error {
+	p.mu.Lock()
+	p.acked = bytes
+	p.mu.Unlock()
+	return nil
+}
+
+func (p *flowControlledFakePTY) ackedBytes() uint64 {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.acked
 }
 
 // fakeSpawner hands out pre-built fakePTYs in order; once exhausted it returns

@@ -49,8 +49,15 @@ export function base64ToBytes(b64: string): Uint8Array {
 	return bytes;
 }
 
-export function openFrame(id: string, cols: number, rows: number): string {
-	return JSON.stringify({ ch: "terminal", type: "open", id, cols, rows });
+export function openFrame(id: string, cols: number, rows: number, history = false): string {
+	return JSON.stringify({
+		ch: "terminal",
+		type: "open",
+		id,
+		cols,
+		rows,
+		...(history ? { history: true } : {}),
+	});
 }
 
 export function dataFrame(id: string, bytes: Uint8Array): string {
@@ -70,6 +77,10 @@ export function resizeFrame(id: string, cols: number, rows: number, force = fals
 
 export function closeFrame(id: string): string {
 	return JSON.stringify({ ch: "terminal", type: "close", id });
+}
+
+export function ackFrame(id: string, bytes: number): string {
+	return JSON.stringify({ ch: "terminal", type: "ack", id, bytes });
 }
 
 export function blocksSubscribeFrame(sessionId: string): string {
@@ -109,13 +120,19 @@ export type MuxConnectionState = "open" | "closed";
 type ConnectionListener = (state: MuxConnectionState) => void;
 
 export type TerminalMux = {
-	/** Open a PTY pane for the given runtime/session id at an initial size. */
-	open: (id: string, cols: number, rows: number) => void;
+	/**
+	 * Open a PTY pane for the given runtime/session id at an initial size.
+	 * `history` declares that this client understands the runtime's history
+	 * marks and wants the session's scrollback streamed behind the replay.
+	 */
+	open: (id: string, cols: number, rows: number, history?: boolean) => void;
 	/** Forward user-originated keyboard/paste data to the pane. */
 	sendInput: (id: string, input: string) => void;
 	/** Resize normally, or explicitly re-signal an unchanged grid for recovery. */
 	resize: (id: string, cols: number, rows: number, force?: boolean) => void;
 	close: (id: string) => void;
+	/** Cumulative consumed-byte count, letting the pty-host throttle the child. */
+	ack: (id: string, bytes: number) => void;
 	onData: (id: string, listener: DataListener) => () => void;
 	onExit: (id: string, listener: ExitListener) => () => void;
 	/** Server ack that the pane is attached; the output replay follows it. */
@@ -268,8 +285,8 @@ export function createTerminalMux(url: string, WebSocketImpl: typeof WebSocket =
 	};
 
 	return {
-		open: (id, cols, rows) => {
-			send(openFrame(id, cols, rows));
+		open: (id, cols, rows, history) => {
+			send(openFrame(id, cols, rows, history));
 		},
 		sendInput: (id, input) => {
 			const bytes = encoder.encode(input);
@@ -280,6 +297,9 @@ export function createTerminalMux(url: string, WebSocketImpl: typeof WebSocket =
 		},
 		close: (id) => {
 			send(closeFrame(id));
+		},
+		ack: (id, bytes) => {
+			send(ackFrame(id, bytes));
 		},
 		onData: (id, listener) => subscribeById(dataListeners, id, listener),
 		onExit: (id, listener) => subscribeById(exitListeners, id, listener),
@@ -380,8 +400,8 @@ export function createTerminalMuxPool(createMux: () => TerminalMux): TerminalMux
 		};
 
 		return {
-			open: (id, cols, rows) => {
-				if (!released && !connection.closed && !connection.disposed) connection.mux.open(id, cols, rows);
+			open: (id, cols, rows, history) => {
+				if (!released && !connection.closed && !connection.disposed) connection.mux.open(id, cols, rows, history);
 			},
 			sendInput: (id, input) => {
 				if (!released && !connection.closed && !connection.disposed) connection.mux.sendInput(id, input);
@@ -393,6 +413,9 @@ export function createTerminalMuxPool(createMux: () => TerminalMux): TerminalMux
 			},
 			close: (id) => {
 				if (!released && !connection.closed && !connection.disposed) connection.mux.close(id);
+			},
+			ack: (id, bytes) => {
+				if (!released && !connection.closed && !connection.disposed) connection.mux.ack(id, bytes);
 			},
 			onData: (id, listener) => subscribe(() => connection.mux.onData(id, listener)),
 			onExit: (id, listener) => subscribe(() => connection.mux.onExit(id, listener)),
