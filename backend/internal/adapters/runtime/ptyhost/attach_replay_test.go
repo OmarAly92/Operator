@@ -32,19 +32,20 @@ func startServeParsed(t *testing.T, pid, cols, rows int) *serveFixture {
 	pty := newFakePTY(pid)
 	ring := NewRing()
 	ctx, cancel := context.WithCancel(context.Background())
+	h := newHost(ctx, ServeConfig{
+		SessionID:   fmt.Sprintf("test-%d", pid),
+		Listener:    ln,
+		PTY:         pty,
+		Ring:        ring,
+		Parser:      parser,
+		InitialCols: cols,
+		InitialRows: rows,
+	})
 	done := make(chan error, 1)
 	go func() {
-		done <- Serve(ctx, ServeConfig{
-			SessionID:   fmt.Sprintf("test-%d", pid),
-			Listener:    ln,
-			PTY:         pty,
-			Ring:        ring,
-			Parser:      parser,
-			InitialCols: cols,
-			InitialRows: rows,
-		})
+		done <- h.run(ctx)
 	}()
-	return &serveFixture{pty: pty, ring: ring, ln: ln, addr: ln.Addr().String(), cancel: cancel, done: done}
+	return &serveFixture{pty: pty, ring: ring, ln: ln, addr: ln.Addr().String(), cancel: cancel, done: done, host: h}
 }
 
 // writeOutput pushes PTY output and waits for the host to have parsed it.

@@ -196,6 +196,19 @@ func (s *loopbackStream) Resize(rows, cols uint16) error {
 	return writeResize(s.conn, rows, cols)
 }
 
+func (s *loopbackStream) Ack(bytes uint64) error {
+	payload, err := json.Marshal(AckPayload{Bytes: int(bytes)})
+	if err != nil {
+		return err
+	}
+	frame, err := EncodeMessage(MsgAck, payload)
+	if err != nil {
+		return err
+	}
+	_, err = s.conn.Write(frame)
+	return err
+}
+
 // writeResize encodes and sends one MsgResize frame.
 func writeResize(w io.Writer, rows, cols uint16) error {
 	return writeResizeWithHistory(w, rows, cols, false)

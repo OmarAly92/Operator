@@ -3,6 +3,7 @@ package ptyhost
 import (
 	"bytes"
 	"encoding/binary"
+	"encoding/json"
 	"testing"
 )
 
@@ -196,5 +197,26 @@ func TestParserZeroLengthFrame(t *testing.T) {
 	}
 	if len(got[0].payload) != 0 {
 		t.Errorf("payload len = %d, want 0", len(got[0].payload))
+	}
+}
+
+func TestAckFrameRoundTrips(t *testing.T) {
+	payload, err := json.Marshal(AckPayload{Bytes: 5000})
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	frame, err := EncodeMessage(MsgAck, payload)
+	if err != nil {
+		t.Fatalf("encode: %v", err)
+	}
+	var got AckPayload
+	var typ byte
+	p := NewMessageParser(func(msgType byte, body []byte) {
+		typ = msgType
+		_ = json.Unmarshal(body, &got)
+	})
+	p.Feed(frame)
+	if typ != MsgAck || got.Bytes != 5000 {
+		t.Fatalf("round trip = %#x %+v", typ, got)
 	}
 }

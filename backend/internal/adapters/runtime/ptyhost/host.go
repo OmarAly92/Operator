@@ -56,6 +56,11 @@ type ServeConfig struct {
 // but stays alive (keep-alive), so a client can still read the final screen.
 // Returns when shut down.
 func Serve(ctx context.Context, cfg ServeConfig) error {
+	h := newHost(ctx, cfg)
+	return h.run(ctx)
+}
+
+func newHost(ctx context.Context, cfg ServeConfig) *host {
 	h := &host{
 		cfg:       cfg,
 		ctx:       ctx,
@@ -67,7 +72,8 @@ func Serve(ctx context.Context, cfg ServeConfig) error {
 		pumpDone:  make(chan struct{}),
 		recorder:  cfg.Recorder,
 	}
-	return h.run(ctx)
+	h.readCond = sync.NewCond(&h.mu)
+	return h
 }
 
 // clientState is the host's per-connection bookkeeping. cols/rows record the
@@ -105,6 +111,16 @@ type clientState struct {
 	out      [][]byte
 	outBytes int
 	outDone  bool
+
+	// Flow control. delivered counts every MsgTerminalData payload byte
+	// enqueued for this client since it registered -- the replay frame and
+	// the history chunks as well as the live batches, because the client acks
+	// every byte it consumes. acked is what it has confirmed. A client that
+	// has never acked is unlimited (everAcked false) so a client build that
+	// predates acks keeps working.
+	acked     int
+	delivered int
+	everAcked bool
 }
 
 func newClientState() *clientState {
@@ -191,6 +207,9 @@ type host struct {
 	capture *captureSink
 
 	recorder *recorder
+
+	readCond   *sync.Cond
+	readParked bool
 }
 
 // runWriter drains one client's outbound queue, blocking on each conn.Write
@@ -230,6 +249,7 @@ func (h *host) dropClient(conn net.Conn) {
 	// A dropped client may have been the largest viewer; recompute the shared
 	// grid so it follows the remaining clients.
 	h.applyLargestLocked()
+	h.readCond.Broadcast()
 	h.mu.Unlock()
 	if cs != nil {
 		cs.closeOut()
@@ -339,6 +359,9 @@ func (h *host) runAcceptLoop() {
 func (h *host) shutdown() {
 	h.shutdownOnce.Do(func() {
 		close(h.shutdownC)
+		h.mu.Lock()
+		h.readCond.Broadcast()
+		h.mu.Unlock()
 
 		// 1. Dispose the ConPTY first (critical ordering).
 		_ = h.currentPTY().Close()
@@ -371,6 +394,11 @@ const (
 	readBufferSize  = 0x4_0000
 	flushInterval   = time.Second / 60
 	syncHoldTimeout = 150 * time.Millisecond
+
+	// Flow-control watermarks, from VS Code's
+	// vscode/src/vs/platform/terminal/common/terminal.ts.
+	readHighWatermark = 100_000
+	readLowWatermark  = 5_000
 )
 
 var esuCSI = []byte("\x1b[?2026l")
@@ -478,10 +506,47 @@ func (h *host) pumpPTY() {
 	}
 }
 
+// awaitReadCapacity parks the PTY reader while the slowest acking client is
+// more than readHighWatermark bytes behind, and resumes it once that falls
+// under readLowWatermark. A client that has never acked is not counted, so a
+// client build without acks never throttles the child.
+func (h *host) awaitReadCapacity() {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.unackedLocked() <= readHighWatermark {
+		return
+	}
+	h.readParked = true
+	for h.unackedLocked() > readLowWatermark && !h.stopping() {
+		h.readCond.Wait()
+	}
+	h.readParked = false
+}
+
+func (h *host) unackedLocked() int {
+	worst := 0
+	for _, cs := range h.clients {
+		if !cs.everAcked {
+			continue
+		}
+		if behind := cs.delivered - cs.acked; behind > worst {
+			worst = behind
+		}
+	}
+	return worst
+}
+
+func (h *host) readPaused() bool {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return h.readParked
+}
+
 func (h *host) readPTY(pty ptyConn, chunks chan<- []byte) {
 	defer close(chunks)
 	buf := make([]byte, readBufferSize)
 	for {
+		h.awaitReadCapacity()
 		n, err := pty.Read(buf)
 		if n > 0 {
 			chunk := make([]byte, n)
@@ -508,6 +573,9 @@ func (h *host) deliver(batch []byte) bool {
 	var states []*clientState
 	if frame, err := EncodeMessage(MsgTerminalData, batch); err == nil {
 		states = h.broadcastLocked(frame)
+	}
+	for _, cs := range states {
+		cs.delivered += len(batch)
 	}
 	// The parser feed joins that critical section, strictly AFTER the
 	// broadcast. It has to: the parser's grid is what handleConn replays to a
@@ -719,6 +787,7 @@ func (h *host) handleConn(conn net.Conn) {
 	h.applyLargestLocked()
 	if frame := h.replayFrameLocked(); frame != nil {
 		cs.enqueue(frame)
+		cs.delivered += len(frame) - frameHeaderBytes
 	}
 	h.mu.Unlock()
 	registered = true
@@ -735,6 +804,7 @@ func (h *host) handleConn(conn net.Conn) {
 		// This client is gone; if it was the largest, let the grid shrink back to
 		// the remaining largest client.
 		h.applyLargestLocked()
+		h.readCond.Broadcast()
 		h.mu.Unlock()
 		cs.closeOut()
 		_ = conn.Close()
@@ -838,9 +908,22 @@ func (h *host) streamHistory(cs *clientState) {
 		}
 		h.mu.Lock()
 		cs.enqueue(frame)
+		cs.delivered += len(chunk)
 		h.mu.Unlock()
 		cs.awaitCapacity()
+		h.awaitAckedHistory(cs)
 		before = next
+	}
+}
+
+// awaitAckedHistory parks the history stream while this client is more than
+// readLowWatermark bytes behind its own acks. A client that never acks is
+// paced by awaitCapacity alone, exactly as it is today.
+func (h *host) awaitAckedHistory(cs *clientState) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	for cs.everAcked && cs.delivered-cs.acked > readLowWatermark && !h.stopping() {
+		h.readCond.Wait()
 	}
 }
 
@@ -956,6 +1039,24 @@ func (h *host) handleClientMsg(conn net.Conn, msgType byte, payload []byte) {
 
 	case MsgRespawnReq:
 		h.handleRespawn(conn, payload)
+
+	case MsgAck:
+		var ack AckPayload
+		if err := json.Unmarshal(payload, &ack); err != nil || ack.Bytes < 0 {
+			return
+		}
+		h.mu.Lock()
+		if cs := h.clients[conn]; cs != nil {
+			cs.everAcked = true
+			if ack.Bytes > cs.acked {
+				cs.acked = ack.Bytes
+			}
+			if cs.acked > cs.delivered {
+				cs.acked = cs.delivered
+			}
+		}
+		h.readCond.Broadcast()
+		h.mu.Unlock()
 	}
 }
 

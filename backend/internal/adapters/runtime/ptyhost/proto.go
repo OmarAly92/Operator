@@ -29,6 +29,7 @@ const (
 	MsgCaptureStateRes byte = 0x0E
 	MsgRespawnReq      byte = 0x0F // client -> host: JSON {cwd, shell, launchCmd, launchId}
 	MsgRespawnRes      byte = 0x10 // host -> client: JSON {ok, pid?, error?}
+	MsgAck             byte = 0x11 // client -> host: JSON {bytes}
 )
 
 // JSON payload structs shared with later tasks (kept minimal).
@@ -77,6 +78,14 @@ type RespawnResPayload struct {
 	PID   int    `json:"pid,omitempty"`
 	Error string `json:"error,omitempty"`
 }
+
+// AckPayload is the JSON body for MsgAck. Bytes is the cumulative count of
+// terminal bytes this client has consumed since it attached.
+type AckPayload struct {
+	Bytes int `json:"bytes"`
+}
+
+const frameHeaderBytes = 5
 
 // EncodeMessage encodes a single frame into the binary protocol format.
 // It allocates a fresh slice of exactly 5+len(payload) bytes.
