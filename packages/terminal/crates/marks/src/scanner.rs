@@ -169,10 +169,16 @@ fn extension_events(fields: ExtensionFields) -> Vec<MarkEvent> {
     let mut ready = false;
     let mut released = false;
     let mut has_extension_field = false;
+    let mut replay_ready = false;
+    let mut origin: Option<u64> = None;
+    let mut history: Option<(u64, usize)> = None;
     for (key, value) in fields.pairs {
         match key.as_str() {
             "input-ready" => ready = true,
             "input-released" => released = true,
+            "ready" => replay_ready = value == "1",
+            "origin" => origin = value.parse::<u64>().ok(),
+            "history" => history = parse_history(&value),
             _ => {
                 if key != "v" {
                     has_extension_field = true;
@@ -181,7 +187,7 @@ fn extension_events(fields: ExtensionFields) -> Vec<MarkEvent> {
             }
         }
     }
-    if !remaining.pairs.is_empty() && (!ready && !released || has_extension_field) {
+    if has_extension_field {
         out.push(MarkEvent::Extension(remaining));
     }
     if released {
@@ -189,7 +195,29 @@ fn extension_events(fields: ExtensionFields) -> Vec<MarkEvent> {
     } else if ready {
         out.push(MarkEvent::InputReady);
     }
+    if let Some(origin) = origin {
+        out.push(MarkEvent::ReplayOrigin(origin));
+    }
+    if replay_ready {
+        out.push(MarkEvent::ReplayReady);
+    }
+    if let Some((first_stable_row, rows)) = history {
+        out.push(MarkEvent::HistoryChunk {
+            first_stable_row,
+            rows,
+        });
+    }
     out
+}
+
+fn parse_history(value: &str) -> Option<(u64, usize)> {
+    let (first, count) = value.split_once(',')?;
+    let first = first.parse::<u64>().ok()?;
+    let count = count.parse::<usize>().ok()?;
+    if count == 0 {
+        return None;
+    }
+    Some((first, count))
 }
 
 impl Default for Scanner {
@@ -240,5 +268,91 @@ mod tests {
         // `?25h` (show cursor) is not in our vocabulary; the scanner must
         // consume it without emitting anything.
         assert_eq!(events_only(s.feed(b"\x1b[?25h")), vec![]);
+    }
+
+    #[test]
+    fn an_origin_mark_decodes_to_replay_origin() {
+        let mut s = Scanner::new();
+        let events = events_only(s.feed(b"\x1b]7000;v=1;origin=5000\x1b\\"));
+        assert_eq!(events, vec![MarkEvent::ReplayOrigin(5000)]);
+    }
+
+    #[test]
+    fn a_malformed_origin_mark_emits_nothing() {
+        let mut s = Scanner::new();
+        assert_eq!(
+            events_only(s.feed(b"\x1b]7000;v=1;origin=nope\x1b\\")),
+            vec![]
+        );
+    }
+
+    #[test]
+    fn an_origin_mark_is_not_block_metadata() {
+        let mut s = Scanner::new();
+        let events = events_only(s.feed(b"\x1b]7000;v=1;origin=12\x1b\\"));
+        assert!(
+            !events
+                .iter()
+                .any(|event| matches!(event, MarkEvent::Extension(_))),
+            "origin must not reach the block grid as a meta field: {events:?}"
+        );
+    }
+
+    #[test]
+    fn a_ready_mark_decodes_to_replay_ready() {
+        let mut s = Scanner::new();
+        let events = events_only(s.feed(b"\x1b]7000;v=1;ready=1\x1b\\"));
+        assert_eq!(events, vec![MarkEvent::ReplayReady]);
+    }
+
+    #[test]
+    fn a_history_mark_carries_its_first_stable_row_and_count() {
+        let mut s = Scanner::new();
+        let events = events_only(s.feed(b"\x1b]7000;v=1;history=4096,512\x1b\\"));
+        assert_eq!(
+            events,
+            vec![MarkEvent::HistoryChunk {
+                first_stable_row: 4096,
+                rows: 512
+            }]
+        );
+    }
+
+    #[test]
+    fn a_malformed_history_mark_emits_nothing() {
+        let mut s = Scanner::new();
+        assert_eq!(
+            events_only(s.feed(b"\x1b]7000;v=1;history=nope\x1b\\")),
+            vec![]
+        );
+        assert_eq!(
+            events_only(s.feed(b"\x1b]7000;v=1;history=1\x1b\\")),
+            vec![]
+        );
+    }
+
+    #[test]
+    fn a_history_mark_is_not_block_metadata() {
+        let mut s = Scanner::new();
+        let events = events_only(s.feed(b"\x1b]7000;v=1;history=0,8\x1b\\"));
+        assert!(
+            !events
+                .iter()
+                .any(|event| matches!(event, MarkEvent::Extension(_))),
+            "history must not reach the block grid as a meta field: {events:?}"
+        );
+    }
+
+    #[test]
+    fn a_history_mark_split_across_two_feeds_still_decodes() {
+        let mut s = Scanner::new();
+        assert_eq!(events_only(s.feed(b"\x1b]7000;v=1;hist")), vec![]);
+        assert_eq!(
+            events_only(s.feed(b"ory=7,3\x1b\\")),
+            vec![MarkEvent::HistoryChunk {
+                first_stable_row: 7,
+                rows: 3
+            }]
+        );
     }
 }
