@@ -888,7 +888,7 @@ function AttachedTerminal({
 	const shellTerminalHandleId = terminalTarget?.kind === "shell" ? terminalTarget.handleId : undefined;
 	const isShellTarget = terminalTarget?.kind === "shell";
 	const shellBlocks = useShellTerminalBlocks(terminalTarget);
-	const { attach, state, error, replaySettled, transport } = useTerminalSession(attachSession, {
+	const { attach, state, error, replaySettled, transport, onReplayReady } = useTerminalSession(attachSession, {
 		coverInitialReplay: terminalTarget?.kind !== "reviewer",
 		createMux,
 		daemonReady,
@@ -1047,6 +1047,7 @@ function AttachedTerminal({
 					ariaLabel={terminalTarget?.kind === "shell" ? t("terminal.shellAria") : t("terminal.sessionAria")}
 					fontSize={fontSize}
 					onReplayPainted={handleReplayPainted}
+					onReplayReady={onReplayReady}
 				/>
 				<TerminalAttachment onReady={handleReady} />
 				{showEmptyState && (

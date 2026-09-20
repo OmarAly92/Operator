@@ -60,8 +60,7 @@ export type BlockTerminalProps = {
 	 * to the attachment's own first-byte grace.
 	 */
 	onReplayPainted?: () => void;
-	/** Fired once, on the first change where the core's replay READY mark has been parsed. */
-	onReplayReady?: () => void;
+	onReplayReady?: () => void; // fired once, on the first change where replayReady() is true
 };
 
 const DEFAULT_COLUMNS = 120;
