@@ -626,4 +626,86 @@ mod tests {
         assert_eq!(r.stale_runs()[0].len, total - HOT_ROWS);
         assert_eq!(r.stale_runs()[0].cols, 80);
     }
+
+    #[test]
+    fn rows_for_clips_the_touch_and_leaves_the_remainders_at_the_old_width() {
+        let old_cols = 10usize;
+        let new_cols = 4usize;
+        let lines = 300usize;
+        let text = "abcdefghij".repeat(lines);
+        let content = content_of(&text);
+
+        let mut r = RowIndex::new(0);
+        for index in 0..lines {
+            r.complete_row((index as u64 + 1) * old_cols as u64, false);
+        }
+        r.stale.push(StaleRun {
+            start: 0,
+            len: lines,
+            cols: old_cols,
+        });
+
+        let touch = 100..105;
+        let (map, lowest) = r
+            .rows_for(&content, new_cols, touch.clone())
+            .expect("the touch overlaps the stale run");
+        assert_eq!(lowest, 100);
+
+        // The touched-and-snapped window is now rewrapped at the new width:
+        // each 10-char line breaks into 4, 4, 2.
+        let touched_start = map[touch.start];
+        assert_eq!(
+            ranges(&r)[touched_start],
+            (1000, 1004, true),
+            "row 100 was not rewrapped to the new width"
+        );
+        assert_eq!(ranges(&r)[touched_start + 1], (1004, 1008, true));
+        assert_eq!(ranges(&r)[touched_start + 2], (1008, 1010, false));
+
+        // A row still inside the original stale run but outside the
+        // touched-and-snapped window — the head remainder — stays cut at
+        // the OLD width.
+        let head_row = map[99];
+        assert_eq!(
+            ranges(&r)[head_row],
+            (990, 1000, false),
+            "a row in the untouched head remainder was rewrapped"
+        );
+
+        // Likewise the tail remainder, just past the touched window.
+        let tail_row = map[105];
+        assert_eq!(
+            ranges(&r)[tail_row],
+            (1050, 1060, false),
+            "a row in the untouched tail remainder was rewrapped"
+        );
+
+        // Five touched lines (5 rows) became 15 rows (3 each): +10 rows.
+        assert_eq!(r.completed().len(), lines + 10);
+        assert_eq!(*map.last().unwrap(), r.completed().len());
+
+        // The single stale run split into a head and a tail remainder, both
+        // still at the old width, whose lengths plus the touched-and-snapped
+        // portion account for the whole original run.
+        assert_eq!(r.stale_runs().len(), 2);
+        assert_eq!(
+            r.stale_runs()[0],
+            StaleRun {
+                start: 0,
+                len: 100,
+                cols: old_cols,
+            }
+        );
+        assert_eq!(
+            r.stale_runs()[1],
+            StaleRun {
+                start: 115,
+                len: 195,
+                cols: old_cols,
+            }
+        );
+        let touched_len = touch.end - touch.start;
+        let remainder_len: usize = r.stale_runs().iter().map(|run| run.len).sum();
+        assert_eq!(remainder_len + touched_len, lines);
+    }
 }
