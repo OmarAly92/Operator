@@ -926,9 +926,104 @@ Expected: `go test ./...` green and golangci-lint clean. The backend is now comp
 
 ---
 
-# Phase 6 — Renderer
+# Phase 6 — Single locale
 
-### Task 10: Remove orchestrator helpers and unfilter the board
+### Task 10: Delete every locale but English
+
+**Files:**
+- Delete: `frontend/src/renderer/i18n/{de,es,fr,ja,ko,pt-BR,zh-CN}.json`
+- Delete: `frontend/src/renderer/i18n/renderer-coverage.test.ts`
+- Modify: `frontend/src/shared/ui-locale.ts`, `frontend/src/renderer/i18n/{index.ts,instance.ts,locales.ts,messages.ts,i18next.d.ts,instance.test.ts}`
+- Modify: `frontend/src/renderer/components/settings/GeneralSettingsSection.tsx`
+
+**Interfaces:**
+- Consumes: nothing.
+- Produces: an i18next instance with exactly one resource bundle, `en`. Every `t("key")` call site is **unchanged** — 1238 of them across 93 files stay exactly as they are.
+
+This runs before the settings and i18n task so that task only ever edits `en.json`.
+
+- [ ] **Step 1: Write the failing test**
+
+Add to `frontend/src/renderer/i18n/instance.test.ts`:
+
+```ts
+it("ships exactly one locale", () => {
+	expect(Object.keys(i18n.options.resources ?? {})).toEqual(["en"]);
+});
+
+it("resolves a key through the English bundle", () => {
+	expect(i18n.t("zone.working")).not.toEqual("zone.working");
+});
+```
+
+Use whatever the file already imports as the instance; if `zone.working` is not a real key, pick any key present in `en.json` and assert it resolves to something other than itself.
+
+- [ ] **Step 2: Run it to verify it fails**
+
+```bash
+cd frontend && npm test -- i18n/instance
+```
+
+Expected: FAIL — eight resource bundles are registered.
+
+- [ ] **Step 3: Delete the locale files**
+
+```bash
+cd frontend/src/renderer/i18n
+git rm de.json es.json fr.json ja.json ko.json pt-BR.json zh-CN.json renderer-coverage.test.ts
+```
+
+`renderer-coverage.test.ts` exists to enforce key parity across locales; with one locale there is nothing to compare.
+
+- [ ] **Step 4: Collapse the locale plumbing**
+
+In `frontend/src/shared/ui-locale.ts`, reduce `APP_LOCALES` to `["en"] as const`, make `DEFAULT_LOCALE` `"en"`, and make `coerceLocale` always return `"en"`. Then simplify the consumers:
+
+- `i18n/instance.ts`: register only the `en` bundle; drop the other imports.
+- `i18n/index.ts`, `messages.ts`, `i18next.d.ts`: drop references to the removed bundles.
+- `i18n/locales.ts`: `documentLang` now always returns `"en"`; delete the file if nothing else imports it and set `document.documentElement.lang = "en"` at its single call site.
+
+Prefer deleting the abstraction over keeping a one-element list where a type or function exists only to choose between locales.
+
+- [ ] **Step 5: Remove the language selector**
+
+In `frontend/src/renderer/components/settings/GeneralSettingsSection.tsx`, delete the language `<Select>` and its label, the `changeLanguage` handler and any persisted locale preference it writes. Remove the corresponding key from `en.json` and the setting from the settings type if it is not read elsewhere.
+
+```bash
+grep -rn "changeLanguage\|coerceLocale\|APP_LOCALES\|DEFAULT_LOCALE" frontend/src --include="*.ts" --include="*.tsx"
+```
+
+Clear every remaining hit.
+
+- [ ] **Step 6: Typecheck, test and lint**
+
+```bash
+npm run frontend:typecheck && cd frontend && npm test && npm run lint
+```
+
+Expected: all green. `GlobalSettingsForm.test.tsx` and other settings tests that assert a language control must lose those assertions.
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add -A frontend/
+git commit -m "$(cat <<'EOF'
+feat(i18n)!: ship English only
+
+Deletes the seven non-English bundles, the key-parity coverage test, the
+language selector and the locale plumbing. The i18next instance and all
+1238 t() call sites are unchanged.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+EOF
+)"
+```
+
+---
+
+# Phase 7 — Renderer
+
+### Task 11: Remove orchestrator helpers and unfilter the board
 
 **Files:**
 - Modify: `frontend/src/renderer/types/workspace.ts:286-288`
@@ -1015,14 +1110,14 @@ EOF
 
 ---
 
-### Task 11: Clean the shell chrome
+### Task 12: Clean the shell chrome
 
 **Files:**
 - Modify: `frontend/src/renderer/components/Sidebar.tsx`, `ShellTopbar.tsx`, `CommandPalette.tsx`, `KeyboardShortcutsDialog.tsx`, `BoardEmptyStates.tsx`, `DashboardSubhead.tsx`, `CreateProjectAgentSheet.tsx`
 - Modify: `frontend/src/renderer/routes/_shell.tsx`, `stores/ui-store.ts`
 
 **Interfaces:**
-- Consumes: Task 10's `workspace.ts`.
+- Consumes: Task 11's `workspace.ts`.
 - Produces: no orchestrator state in `ui-store` (`orchestratorStartupErrors`, `orchestratorReplacementError` and their setters are gone).
 
 - [ ] **Step 1: Delete the store slice**
@@ -1069,16 +1164,16 @@ EOF
 
 ---
 
-### Task 12: Project settings, the New Task delegate path, and i18n
+### Task 13: Project settings, the New Task delegate path, and i18n
 
 **Files:**
 - Modify: `frontend/src/renderer/components/ProjectSettingsForm.tsx:11,13,107-225,332`
 - Modify: `frontend/src/renderer/components/TaskComposer.tsx:95`
-- Modify: all eight locales in `frontend/src/renderer/i18n/`
+- Modify: `frontend/src/renderer/i18n/en.json`
 - Test: `frontend/src/renderer/components/ProjectSettingsForm.test.tsx`, `TaskComposer.test.tsx`
 
 **Interfaces:**
-- Consumes: Task 6's `ProjectConfig.Harness`, Task 8's `/sessions/delegate`.
+- Consumes: Task 6's `ProjectConfig.Harness`, Task 8's `/sessions/delegate`, Task 10's single locale.
 - Produces: a settings form with one agent selector writing `config.agent`.
 
 - [ ] **Step 1: Point the composer at the new route**
@@ -1097,13 +1192,13 @@ Replace `orchestratorAgent` / `orchestratorModel` / `orchestratorMode` form stat
 	const missingRequiredAgent = form.agent === "";
 ```
 
-- [ ] **Step 3: Remove the i18n keys from all eight locales**
+- [ ] **Step 3: Remove the orchestrator i18n keys**
 
 ```bash
-grep -rln "orchestrator" frontend/src/renderer/i18n/*.json
+grep -n "orchestrator" frontend/src/renderer/i18n/en.json
 ```
 
-Delete every orchestrator key — including `settings.project.replaceOrchestratorFailed` — from `de, en, es, fr, ja, ko, pt-BR, zh-CN`. `i18n/renderer-coverage.test.ts` enforces key parity, so a key left in one locale fails the suite.
+Delete every orchestrator key, including `settings.project.replaceOrchestratorFailed`. Task 10 removed the other locales, so `en.json` is the only file to edit.
 
 - [ ] **Step 4: Typecheck and test**
 
@@ -1135,7 +1230,7 @@ EOF
 
 ---
 
-### Task 13: Renderer hooks and the Playwright fake bridge
+### Task 14: Renderer hooks and the Playwright fake bridge
 
 **Files:**
 - Modify: `frontend/src/renderer/hooks/useWorkspaceQuery.ts:73,94`
@@ -1144,7 +1239,7 @@ EOF
 - Modify: `frontend/e2e/workbench.spec.ts`, `frontend/e2e/terminal-viewport-retention.spec.ts`
 
 **Interfaces:**
-- Consumes: Task 12's renderer.
+- Consumes: Task 13's renderer.
 - Produces: a workspace query that maps no `kind` and no `orchestratorAgent`; an e2e fake bridge that serves only ordinary sessions.
 
 `useWorkspaceQuery` is the renderer's read model. It still maps `session.kind` and `project.orchestratorAgent`, both of which no longer exist on the wire after Task 8, so it must be updated or every session arrives with a stale field.
@@ -1203,9 +1298,9 @@ EOF
 
 ---
 
-# Phase 7 — Mobile
+# Phase 8 — Mobile
 
-### Task 14: Delete the mobile orchestrator feature
+### Task 15: Delete the mobile orchestrator feature
 
 **Files:**
 - Delete: `packages/mobile/lib/feature/orchestrator/**` (9 files), `packages/mobile/test/feature/orchestrator/**` (6 files), `packages/mobile/lib/feature/sessions/data/model/orchestrator_model.dart`
@@ -1243,7 +1338,7 @@ In `lib/feature/sessions/data/model/board_snapshot.dart`, delete the `orchestrat
 flutter analyze 2>&1 | tail -30
 ```
 
-Expected: errors only at the remaining call sites, which Task 15 fixes.
+Expected: errors only at the remaining call sites, which Task 16 fixes.
 
 - [ ] **Step 5: Commit**
 
@@ -1261,7 +1356,7 @@ EOF
 
 ---
 
-### Task 15: Four-tab nav, three-call fan-out, and session routing
+### Task 16: Four-tab nav, three-call fan-out, and session routing
 
 **Files:**
 - Modify: `packages/mobile/lib/core/app_routes/home_shell.dart:5,20,50,87-90`
@@ -1271,7 +1366,7 @@ EOF
 - Test: `packages/mobile/test/feature/sessions/data/data_source/sessions_remote_data_source_test.dart`
 
 **Interfaces:**
-- Consumes: Task 14's deletions.
+- Consumes: Task 15's deletions.
 - Produces: a 4-item `BottomNavigationBar`; `SessionsRemoteDataSource.fetchBoard` issuing three parallel calls after the `/sessions` await.
 
 > **Preserve the sequential auth probe.** `sessions_remote_data_source.dart:22` awaits `/sessions` **alone** before fanning out. The daemon locks a device out for a minute after 5 failed auths, so a stale password under `Future.wait` burns 4 failures per poll tick and arms the lockout before the user can re-pair. A test pins the call order. Removing one future must **not** collapse the rest into the first await.
@@ -1342,9 +1437,9 @@ EOF
 
 ---
 
-# Phase 8 — Verification
+# Phase 9 — Verification
 
-### Task 16: Pin the protected behaviours and verify in the real app
+### Task 17: Pin the protected behaviours and verify in the real app
 
 **Files:**
 - Create/Modify: `backend/internal/service/session/status_test.go`
@@ -1472,9 +1567,9 @@ EOF
 
 ---
 
-# Phase 9 — Documentation
+# Phase 10 — Documentation
 
-### Task 17: Remove orchestrator references from project documentation
+### Task 18: Remove orchestrator references from project documentation
 
 **Files:**
 - Modify: `AGENTS.md`, `CLAUDE.md`, `README.md`, `DESIGN.md`, `TERMINAL.md`
@@ -1527,7 +1622,7 @@ EOF
 
 ## Deferred cleanup
 
-After Task 17 lands, delete the superseded spec:
+After Task 18 lands, delete the superseded spec:
 
 ```bash
 git rm docs/superpowers/specs/2026-09-20-operator-instructions-toggle-design.md

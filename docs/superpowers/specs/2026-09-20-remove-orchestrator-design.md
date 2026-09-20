@@ -227,9 +227,8 @@ has no way to name its harness.
 orchestrator header strip (the 44 references at `SessionsBoard.tsx:22-56,127-161,240-256`);
 none of it participates in column assignment. `ProjectSettingsForm` drops the
 orchestrator agent/model/mode fields and the agent-rules input, keeping one agent
-selector. Remove the orchestrator i18n keys from all eight locales
-(`de, en, es, fr, ja, ko, pt-BR, zh-CN`); `i18n/renderer-coverage.test.ts`
-enforces key parity across them. The Kanban keeps
+selector. Remove the orchestrator i18n keys from `en.json` — see §8.1, which reduces the
+renderer to a single locale. The Kanban keeps
 its plan lanes (D5).
 
 **Mobile.** Delete the orchestrator feature and tests; bottom nav 5 → 4 tabs with
@@ -244,6 +243,24 @@ future so the fan-out is 4 calls → 3.
 
 Remove the orchestrator fallback in `session_route_screen.dart:76-84`; normal
 sessions resolve in the loop above it (`:63-72`), so the change is subtractive.
+
+### 8.1 Single locale
+
+Decided in chat on 2026-09-20, alongside this work: the renderer ships **English
+only**. Delete `i18n/{de,es,fr,ja,ko,pt-BR,zh-CN}.json` (~470KB), the key-parity
+guard `i18n/renderer-coverage.test.ts`, the language selector in
+`components/settings/GeneralSettingsSection.tsx`, and the locale plumbing in
+`shared/ui-locale.ts` (`APP_LOCALES`, `DEFAULT_LOCALE`, `coerceLocale`) and
+`i18n/locales.ts` (`documentLang`).
+
+**i18next stays, and every `t("key")` call site is untouched** — 1238 of them
+across 93 files. Only the resource bundles and the machinery for choosing between
+them are removed. Inlining the English strings and dropping i18next entirely is a
+separate change, deliberately not bundled here: a 93-file mechanical rewrite would
+make this branch unreviewable.
+
+`packages/mobile` is unaffected — it already uses inline English with no key
+catalogue.
 
 ## 9. Verification
 
