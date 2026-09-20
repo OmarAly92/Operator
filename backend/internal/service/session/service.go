@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
-	"sync"
 	"time"
 
 	"golang.org/x/sync/singleflight"
@@ -61,8 +60,6 @@ type commander interface {
 	ResumeAgentWithMode(ctx context.Context, id domain.SessionID) (sessionmanager.RestoreResult, error)
 	RelaunchAgentFresh(ctx context.Context, id domain.SessionID, cfg sessionmanager.RelaunchAgentConfig) (sessionmanager.RestoreResult, error)
 	Kill(ctx context.Context, id domain.SessionID) (bool, error)
-	RetireForReplacement(ctx context.Context, id domain.SessionID) error
-	WaitForMessageDeliveryReady(ctx context.Context, id domain.SessionID) error
 	Send(ctx context.Context, id domain.SessionID, message string, attachment *ports.SpawnAttachment) error
 	Command(ctx context.Context, id domain.SessionID, command domain.SessionCommand, model string) (sessionmanager.CommandResult, error)
 	Models(ctx context.Context, id domain.SessionID) ([]sessionmanager.ModelOption, error)
@@ -132,20 +129,16 @@ type scmProvider interface {
 // session operations to the internal sessionmanager.Manager and owns read-model
 // assembly, including user-facing display status derivation.
 type Service struct {
-	manager             commander
-	store               Store
-	prClaimer           ports.PRClaimer
-	scm                 scmProvider
-	tracker             ports.Tracker
-	clock               func() time.Time
-	dataDir             string
-	telemetry           ports.EventSink
-	logger              *slog.Logger
-	backgroundContext   context.Context
-	runBackground       func(func())
-	orchestratorLocksMu sync.Mutex
-	orchestratorLocks   map[domain.ProjectID]*sync.Mutex
-	workspaceCache      *workspaceCache
+	manager        commander
+	store          Store
+	prClaimer      ports.PRClaimer
+	scm            scmProvider
+	tracker        ports.Tracker
+	clock          func() time.Time
+	dataDir        string
+	telemetry      ports.EventSink
+	logger         *slog.Logger
+	workspaceCache *workspaceCache
 	// workspaceGroup coalesces concurrent cache-miss compare/status lookups
 	// for the same (session, root): "Expand All" on many files fires that
 	// many GetWorkspaceFile calls at once, and without this each one would
@@ -188,11 +181,7 @@ type Deps struct {
 
 // NewWithDeps wires a session service with optional PR-claim dependencies.
 func NewWithDeps(d Deps) *Service {
-	backgroundContext := d.BackgroundContext
-	if backgroundContext == nil {
-		backgroundContext = context.Background()
-	}
-	s := &Service{manager: d.Manager, store: d.Store, prClaimer: d.PRClaimer, scm: d.SCM, tracker: d.Tracker, clock: d.Clock, dataDir: d.DataDir, signalCapable: d.SignalCapable, telemetry: d.Telemetry, logger: d.Logger, backgroundContext: backgroundContext}
+	s := &Service{manager: d.Manager, store: d.Store, prClaimer: d.PRClaimer, scm: d.SCM, tracker: d.Tracker, clock: d.Clock, dataDir: d.DataDir, signalCapable: d.SignalCapable, telemetry: d.Telemetry, logger: d.Logger}
 	if s.prClaimer == nil {
 		if w, ok := d.Store.(ports.PRClaimer); ok {
 			s.prClaimer = w
@@ -338,42 +327,6 @@ func (s *Service) emitSpawnFailed(cfg ports.SpawnConfig, err error, durationMs i
 		ProjectID:  &projectID,
 		Payload:    payload,
 	})
-}
-
-func newestSession(sessions []domain.Session) domain.Session {
-	newest := sessions[0]
-	for _, sess := range sessions[1:] {
-		if sessionNewer(sess.SessionRecord, newest.SessionRecord) {
-			newest = sess
-		}
-	}
-	return newest
-}
-
-func sessionNewer(a, b domain.SessionRecord) bool {
-	if !a.CreatedAt.Equal(b.CreatedAt) {
-		return a.CreatedAt.After(b.CreatedAt)
-	}
-	if !a.UpdatedAt.Equal(b.UpdatedAt) {
-		return a.UpdatedAt.After(b.UpdatedAt)
-	}
-	return string(a.ID) > string(b.ID)
-}
-
-func (s *Service) lockOrchestratorProject(projectID domain.ProjectID) func() {
-	s.orchestratorLocksMu.Lock()
-	if s.orchestratorLocks == nil {
-		s.orchestratorLocks = make(map[domain.ProjectID]*sync.Mutex)
-	}
-	mu := s.orchestratorLocks[projectID]
-	if mu == nil {
-		mu = &sync.Mutex{}
-		s.orchestratorLocks[projectID] = mu
-	}
-	s.orchestratorLocksMu.Unlock()
-
-	mu.Lock()
-	return mu.Unlock
 }
 
 // Restore relaunches a terminated session and returns the API-facing read model.
@@ -767,9 +720,6 @@ func toAPIError(err error) error {
 	case errors.Is(err, sessionmanager.ErrTargetAgentUnauthorized):
 		return apierr.Invalid("TARGET_AGENT_UNAUTHORIZED",
 			"The target agent is not authenticated; authenticate it before switching", nil)
-	case errors.Is(err, sessionmanager.ErrUnsupportedSwitchKind):
-		return apierr.Invalid("WORKER_SESSION_REQUIRED",
-			"Only worker sessions support agent switching", nil)
 	case errors.Is(err, sessionmanager.ErrUnsupportedSwitchHarness):
 		return apierr.Invalid("UNSUPPORTED_SWITCH_HARNESS",
 			"Agent switching is not supported for the requested harness", nil)
