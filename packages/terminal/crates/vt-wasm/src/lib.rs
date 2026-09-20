@@ -86,6 +86,10 @@ impl WasmTerminalCore {
         self.core.synchronized_output()
     }
 
+    pub fn replay_ready(&self) -> bool {
+        self.core.replay_ready()
+    }
+
     pub fn resize(&mut self, columns: usize, rows: usize) -> Result<(), JsError> {
         self.core.resize(columns, rows);
         Ok(())

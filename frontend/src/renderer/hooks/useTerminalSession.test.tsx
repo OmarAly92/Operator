@@ -909,6 +909,36 @@ describe("useTerminalSession", () => {
 			expect(transportBytes.join("")).toBe("fresh");
 			expect(view.result.current.replaySettled).toBe(true);
 		});
+
+		it("paints at READY", () => {
+			const { view, muxes } = setup();
+			act(() => muxes[0].emitOpened("handle-1"));
+			act(() => muxes[0].emitData("handle-1", "frame row\r\n"));
+			act(() => void vi.advanceTimersByTime(30));
+			expect(view.result.current.replaySettled).toBe(false);
+			act(() => view.result.current.onReplayReady());
+			expect(view.result.current.replaySettled).toBe(true);
+		});
+
+		it("keeps feeding the core while history streams behind the lifted cover", () => {
+			const { view, transportBytes, muxes } = setup();
+			act(() => muxes[0].emitOpened("handle-1"));
+			act(() => muxes[0].emitData("handle-1", "frame\r\n"));
+			act(() => view.result.current.onReplayReady());
+			expect(view.result.current.replaySettled).toBe(true);
+			const before = transportBytes.length;
+			act(() => muxes[0].emitData("handle-1", "old\r\n"));
+			expect(transportBytes.length).toBeGreaterThan(before);
+			expect(view.result.current.replaySettled).toBe(true);
+		});
+
+		it("still lifts the cover for a host that never sends READY", () => {
+			const { view, muxes } = setup();
+			act(() => muxes[0].emitOpened("handle-1"));
+			act(() => muxes[0].emitData("handle-1", "frame row\r\n"));
+			act(() => void vi.advanceTimersByTime(60 + 180));
+			expect(view.result.current.replaySettled).toBe(true);
+		});
 	});
 
 	describe("history-before-live barrier", () => {

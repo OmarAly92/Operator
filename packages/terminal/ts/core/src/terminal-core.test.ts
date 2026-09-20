@@ -188,6 +188,27 @@ describe("createTerminalCore invalid options", () => {
 	});
 });
 
+describe("TerminalCore replay ready", () => {
+	it("reports the replay as ready only once the mark is parsed", () => {
+		const core = createTerminalCore({ columns: 20, scrollback: 100 });
+		expect(core.replayReady()).toBe(false);
+		core.enqueue(new TextEncoder().encode("frame\r\n\x1b]7000;v=1;ready=1\x1b\\"));
+		expect(core.replayReady()).toBe(false);
+		core.drain();
+		expect(core.replayReady()).toBe(true);
+	});
+
+	it("notifies a change on the feed that parses the ready mark", () => {
+		const core = createTerminalCore({ columns: 20, scrollback: 100 });
+		let ready = false;
+		core.onChange(() => {
+			ready = ready || core.replayReady();
+		});
+		core.feed(new TextEncoder().encode("frame\r\n\x1b]7000;v=1;ready=1\x1b\\"));
+		expect(ready).toBe(true);
+	});
+});
+
 describe("TerminalCore alternate screen", () => {
 	it("exposes the alternate grid with a cursor, and nothing when inactive", () => {
 		const core = createTerminalCore({ columns: 20, scrollback: 100 });

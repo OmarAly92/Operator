@@ -174,6 +174,14 @@ export class TerminalCore {
 		return this.inner.synchronized_output();
 	}
 
+	/** True once a replay READY mark has been parsed on this core. */
+	replayReady(): boolean {
+		if (this.disposed) {
+			return false;
+		}
+		return this.inner.replay_ready();
+	}
+
 	private notifyIfChanged(): boolean {
 		const generation = this.inner.generation();
 		if (generation === this.lastNotifiedGeneration) {

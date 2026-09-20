@@ -212,6 +212,7 @@ export function useTerminalSession(session: WorkspaceSession | undefined, option
 		needsVisibleSizeSync: false,
 		// Initial-replay gate, reset per connect (see REPLAY_QUIET_MS).
 		replayBuffering: false,
+		replayReadySeen: false,
 		replayChunks: [] as Uint8Array[],
 		replayBytes: 0,
 		replayQuietTimer: null as ReturnType<typeof setTimeout> | null,
@@ -724,6 +725,7 @@ export function useTerminalSession(session: WorkspaceSession | undefined, option
 		// replay byte and would uncover a pane that has not drawn yet.
 		const coverInitialReplay = optionsRef.current.coverInitialReplay !== false;
 		r.replayBuffering = coverInitialReplay;
+		r.replayReadySeen = false;
 		r.replayChunks = [];
 		r.replayBytes = 0;
 		setReplaySettled(!coverInitialReplay);
@@ -967,5 +969,12 @@ export function useTerminalSession(session: WorkspaceSession | undefined, option
 		[],
 	);
 
-	return { attach, state, error, replaySettled, syncVisibleSize, transport };
+	const onReplayReady = useCallback(() => {
+		const r = runtime.current;
+		if (r.replayReadySeen) return;
+		r.replayReadySeen = true;
+		r.flushReplay?.();
+	}, []);
+
+	return { attach, state, error, replaySettled, syncVisibleSize, transport, onReplayReady };
 }
