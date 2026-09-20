@@ -272,6 +272,18 @@ async function main() {
 			const longTask = Object.values(report.fixtures).find((rows) => rows.longTask)?.longTask;
 			if (longTask && longTask.queued.longestTaskMs !== null && longTask.queued.longestTaskMs > 50) throw new Error(`queued 2 MiB feed blocked the main thread for ${longTask.queued.longestTaskMs.toFixed(1)}ms`);
 			if (longTask && longTask.queued.longestFrameMs > 50) throw new Error(`queued 2 MiB feed held a frame for ${longTask.queued.longestFrameMs.toFixed(1)}ms (budget 12 ms parse + paint)`);
+			const long = report.fixtures["claude-long-50k"];
+			if (long?.feedSyncCost) {
+				const at1k = long.feedSyncCost.find((row) => row.rows === 1000)?.medianMs;
+				const at50k = long.feedSyncCost.find((row) => row.rows === 50000)?.medianMs;
+				if (at1k !== null && at50k !== null && at50k > at1k * 1.2 + 0.2) throw new Error(`feed+sync at 50k rows costs ${at50k.toFixed(2)}ms vs ${at1k.toFixed(2)}ms at 1k (limit 20 % + 0.2 ms)`);
+			}
+			const spinner = report.fixtures["claude-spinner-10s"]?.spinner;
+			if (spinner && spinner.paints > 0) {
+				const rowsPerPaint = spinner.rowNodesAdded / spinner.paints;
+				const nodesPerPaint = spinner.addedNodes / spinner.paints;
+				process.stdout.write(`spinner: ${rowsPerPaint.toFixed(2)} row nodes and ${nodesPerPaint.toFixed(2)} DOM nodes per paint\n`);
+			}
 			process.stdout.write("PASS agent-session gate\n");
 		}
 	} catch (error) {

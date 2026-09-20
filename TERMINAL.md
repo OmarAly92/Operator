@@ -87,7 +87,47 @@ rebuilt (§6).
   `stylePairs` (stride `STYLE_RUN_WORDS`), `blocks` (stride `BLOCK_RECORD_WORDS`),
   cursor, alt screen. Adding a per-row field means: `GridSnapshot` + `append_row`/
   `append_screen_row` + `ExportBuffers` + `*_ptr/_len` + `terminal-core.ts` +
-  `types.ts` + the Rust test fixture `vt-wasm/tests/exit_encoding.rs`.
+  `types.ts` + the Rust test fixture `vt-wasm/tests/exit_encoding.rs` — and now,
+  if the field is per-section, `ExportedRow`/`push_row` in `export.rs` and
+  `history_rows`.
+- **Limits** (`Limits { rows, bytes }`, `crates/vt-core/src/limits.rs`) caps
+  both cores from the product, not a hardcoded scrollback count:
+  `TerminalCore::memory_stats()` (`lib.rs:102`) reports `MemoryStats` against
+  the same cap. The renderer core takes its limit from `BlockTerminal.tsx`
+  `DEFAULT_LIMITS` (`frontend/src/renderer/components/BlockTerminal.tsx:66`,
+  `{ rows: 200_000, bytes: 128 * 1024 * 1024 }`); the Go mirror takes its from
+  `mirrorLimits` (`backend/internal/adapters/runtime/ptyhost/mirror_limits.go:5`,
+  the same 200k rows / 128 MiB). The two are set independently and must be
+  kept in sync by hand — there is no shared source of truth across the
+  Rust/Go boundary.
+- **Stable rows** give a row an identity that survives it migrating from the
+  live screen into scrollback and back out again under trim. `trimmed_total`
+  (`parser.rs:34,95`) counts rows evicted off the front since the session
+  began; `stable_row(flat)` / `flat_row(stable)` (`lib.rs:340,344`) convert
+  between a row's position in the current flat (scrollback + screen) space
+  and this permanent counter. `BlockGrid::origin` (`block_grid.rs:45`) is the
+  flat-space offset blocks are numbered from, renumbered on every trim.
+  `first_stable_row` is exported per snapshot (`vt-wasm/src/export.rs:370`,
+  wired through `first_stable_row_lo`/`_hi`, `lib.rs:288-293`) so the
+  renderer can convert without asking the core. The DOM's
+  `data-terminal-row` attribute (`ts/renderer-dom/src/row-builder.ts:37`) is
+  this stable row number, not a flat index — it is stable across a trim even
+  though the row's screen position moves.
+- **Delta / incremental export** avoid re-decoding scrollback that has not
+  changed. `generation()` (`lib.rs:291`) bumps on every mutation;
+  `take_delta()` (`lib.rs:295`) drains a `Delta` of the rows the `ScreenGrid`
+  marked dirty since the last call (dirty bits set by the same code paths as
+  eviction and cursor movement — see the Task 10 note on `move_to` below).
+  `ExportBuffers::apply` (`vt-wasm/src/export.rs:141`) applies a `Delta`
+  against the exporter's own buffers rather than rebuilding them, dropping a
+  dead prefix and compacting when it grows past the live content. TS
+  `TerminalCore.sync()` (`terminal-core.ts:209`, calling `inner.sync()` at
+  `vt-wasm/src/lib.rs:119`) reconciles the wasm side; `snapshot()`
+  (`terminal-core.ts:178-221`) only rebuilds `TerminalSnapshot` when
+  `generation()` has moved past `lastNotifiedGeneration`, otherwise it
+  returns the cached one. `takeDirty()` (`terminal-core.ts:297`) and
+  `onRowEvents()` (`terminal-core.ts:308`) are how `DomBlockRenderer` learns
+  which rows to repaint without diffing the whole snapshot.
 
 ---
 
@@ -401,6 +441,32 @@ history of `master`.
   `a_block_opened_on_the_screen_survives_a_rewrap_and_a_trim`,
   `a_trim_past_a_block_that_starts_above_the_cut_does_not_underflow`.
 
+### 4.18 Viewport jump when scrollback trims — `2dd61c47b`
+- Symptom: scrolled up into history, then the fixture kept streaming past the
+  scrollback cap. On every trim, the text sitting under the viewport's top
+  edge shifted down by roughly the trimmed height, as if the pane had jumped
+  — the same rows were still rendered, but not where the eye left them.
+- Cause: `repaint()` restored a pixel `scrollTop` saved before the trim. A
+  trim shrinks scrollback from the front (`Parser::trim_to`, §1.2) and
+  renumbers every block and row below the cut, so the same pixel offset now
+  points at different content — the save/restore pair assumed row positions
+  were stable across a repaint, which stopped being true once trimming a
+  200k-row session became routine instead of a one-time edge case.
+- Now: the viewport anchors to a **stable row** (§2) instead of a pixel
+  offset. `DomBlockRenderer.scrollAnchor()` (`dom-block-renderer.ts:230`)
+  captures the stable row under the top edge and its sub-row pixel offset
+  before a repaint; `rowTop()`/`anchorAt()` (`viewport.ts:53,75`) convert
+  between a stable row and a pixel position using the current block layout,
+  so the anchor is re-resolved against post-trim geometry instead of being
+  replayed verbatim. The same anchor is re-resolved on a rewrap (§4.2), not
+  only a trim, since a width change also renumbers rows.
+- Guards: `viewport.test.ts` describe block `"rowTop and anchorAt"`
+  (round-trip conversion, including "round-trips through rowTop for every
+  row"); `dom-block-renderer.test.ts` describe block `"scroll anchor"`
+  (survives a trim, survives a rewrap); `bench:agent:scroll`'s trim phase
+  (`bench/agent-session/scroll-gate.mjs`) feeds past the cap mid-scroll and
+  asserts the row under the top edge is identical before and after.
+
 ## 5. Known gaps (not bugs, decisions pending)
 
 - A DEC 2026 block that grows to `SYNC_BUFFER_CAP` (2 MiB) is flushed and
@@ -415,15 +481,10 @@ history of `master`.
 - The screen's `wrapped` flag is cleared on any width change (`resize_cells`)
   because truncated cells can no longer be rejoined faithfully.
 - Rewrap walks all scrollback rows on every width change (one `copy_range`
-  per row). Fine at 1k–10k rows with the debounce; revisit if scrollback caps grow.
+  per row). Fine at 1k–10k rows with the debounce; caps are 200k since Plan B;
+  lazy rewrap is Plan C 1.3.F.
 - `TestProcessEnvironmentLetsOverridesWin` in `ptyhost` fails on master before
   any of this work (TERM override appended twice). Pre-existing, unrelated.
-- Every selection operation (`hasSelection`, `selectedText`, a fill repaint)
-  takes one fresh `core.snapshot()` and one `decodeBlocks()`
-  (`DomBlockRenderer.selectionView`) rather than reusing `latestSnapshot`,
-  because a `Uint8Array` view into wasm memory goes stale when the core
-  reallocates between repaints. One decode per mouse move is fine at thousands
-  of blocks; memoise per snapshot generation if a perf pass ever needs to.
 - Found triaging the Alacritty reference corpus (`crates/vt-core/tests/ref/TRIAGE.md`),
   not fixed there:
   - `ESC # 8` (DECALN, fill screen with `E`) is never dispatched —

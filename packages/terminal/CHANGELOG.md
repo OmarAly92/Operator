@@ -327,6 +327,16 @@ Shell terminals no longer inherit the launcher's `NO_COLOR`.
   header turned into chrome, where a pointer press is ignored by design, and
   reported a live regression in a selection that was working.
 
+- Plan B measured (see the spec's baseline table, "After Plan B"): feed+sync
+  at row 50k is 0.20ms vs 0.20ms at row 1k (well inside the 20% + 0.2ms
+  budget); a spinner paint adds 1.0 DOM node per changed row (was 1.16,
+  target ≤ 2); ten idle panes cost 1.678s of main-thread task time over 10s
+  (16.8%, was 17.6%); a one-row selection extend repaints 1 row (was 2). All
+  five Part 1.4 rows Plan B owns pass; `bench:agent:scroll` now reports full
+  coverage (60,134/60,134) where the pre-existing 3-row gap used to be. Adds
+  a `--gate` check to `bench:agent:gate` for `feedSyncCost` staying flat from
+  1k to 50k rows.
+
 ## 0.3.0 - 2026-08-30
 
 Phase 2 replaces shell line editing with the package-owned editor and prompt row.
