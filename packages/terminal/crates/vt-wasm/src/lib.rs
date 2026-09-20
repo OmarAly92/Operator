@@ -6,18 +6,34 @@ use vt_core::{FindCursor, FindMatch, FindQuery, TerminalCore};
 use wasm_bindgen::prelude::*;
 
 pub use export::{
-    checked_u32_from_u64, ExportBuffers, ExportError, BLOCK_RECORD_WORDS, FIND_MATCH_WORDS,
+    checked_u32_from_u64, ExportBuffers, ExportError, BLOCK_RECORD_WORDS, COMPACTION_DIVISOR,
+    FIND_MATCH_WORDS,
 };
+
+pub const DIRTY_ROWS_CAP: usize = 4096;
 
 pub fn version() -> &'static str {
     env!("CARGO_PKG_VERSION")
+}
+
+pub fn memory_stats_words(stats: &vt_core::MemoryStats) -> [u32; 4] {
+    [
+        stats.content_bytes as u32,
+        stats.style_entries as u32,
+        stats.rows as u32,
+        stats.blocks as u32,
+    ]
 }
 
 #[wasm_bindgen]
 pub struct WasmTerminalCore {
     core: TerminalCore,
     export: ExportBuffers,
-    generation: u32,
+    synced_generation: Option<u64>,
+    dirty_rows: Vec<u32>,
+    dirty_full: bool,
+    row_events_trimmed: u32,
+    remap: Vec<u32>,
     find_sessions: HashMap<u32, FindSession>,
     find_free_ids: Vec<u32>,
     find_next_id: u32,
@@ -27,35 +43,43 @@ pub struct WasmTerminalCore {
 #[wasm_bindgen]
 impl WasmTerminalCore {
     #[wasm_bindgen(constructor)]
-    pub fn new(columns: usize, scrollback_rows: usize) -> Result<WasmTerminalCore, JsError> {
-        let core = TerminalCore::new(columns, scrollback_rows).map_err(js_error_from_core)?;
-        let mut export = ExportBuffers::default();
-        let snapshot = core.snapshot().map_err(js_error_from_core)?;
-        export.refresh(&snapshot)?;
-        Ok(WasmTerminalCore {
+    pub fn new(
+        columns: usize,
+        rows_limit: usize,
+        bytes_limit: usize,
+    ) -> Result<WasmTerminalCore, JsError> {
+        let core = TerminalCore::with_limits(
+            columns,
+            vt_core::Limits {
+                rows: rows_limit,
+                bytes: bytes_limit,
+            },
+        )
+        .map_err(js_error_from_core)?;
+        let mut this = WasmTerminalCore {
             core,
-            export,
-            generation: 0,
+            export: ExportBuffers::default(),
+            synced_generation: None,
+            dirty_rows: Vec::new(),
+            dirty_full: true,
+            row_events_trimmed: 0,
+            remap: Vec::new(),
             find_sessions: HashMap::new(),
             find_free_ids: Vec::new(),
             find_next_id: 1,
             find_results: Vec::new(),
-        })
+        };
+        this.sync()?;
+        Ok(this)
     }
 
     pub fn feed(&mut self, bytes: &[u8], now_ms: f64) -> Result<(), JsError> {
-        if self.core.feed_at(bytes, clock(now_ms)) {
-            self.refresh_after_mutation()?;
-        }
+        self.core.feed_at(bytes, clock(now_ms));
         Ok(())
     }
 
     pub fn tick(&mut self, now_ms: f64) -> Result<bool, JsError> {
-        if !self.core.tick(clock(now_ms)) {
-            return Ok(false);
-        }
-        self.refresh_after_mutation()?;
-        Ok(true)
+        Ok(self.core.tick(clock(now_ms)))
     }
 
     pub fn synchronized_output(&self) -> bool {
@@ -64,9 +88,6 @@ impl WasmTerminalCore {
 
     pub fn resize(&mut self, columns: usize, rows: usize) -> Result<(), JsError> {
         self.core.resize(columns, rows);
-        let snapshot = self.core.snapshot().map_err(js_error_from_core)?;
-        self.export.refresh(&snapshot)?;
-        self.generation = self.generation.wrapping_add(1);
         Ok(())
     }
 
@@ -83,7 +104,7 @@ impl WasmTerminalCore {
     ) -> Result<(), JsError> {
         let id = ((id_hi as u64) << 32) | (id_lo as u64);
         self.core.set_block_bookmarked(id, bookmarked);
-        self.refresh_after_mutation()
+        Ok(())
     }
 
     pub fn block_bookmarked(&self, id_lo: u32, id_hi: u32) -> bool {
@@ -91,15 +112,105 @@ impl WasmTerminalCore {
         self.core.block_bookmarked(id)
     }
 
-    fn refresh_after_mutation(&mut self) -> Result<(), JsError> {
-        let snapshot = self.core.snapshot().map_err(js_error_from_core)?;
-        self.export.refresh(&snapshot)?;
-        self.generation = self.generation.wrapping_add(1);
+    pub fn memory_stats(&self) -> Vec<u32> {
+        memory_stats_words(&self.core.memory_stats()).to_vec()
+    }
+
+    pub fn sync(&mut self) -> Result<u32, JsError> {
+        let generation = self.core.generation();
+        if self.synced_generation == Some(generation) {
+            return Ok(generation as u32);
+        }
+        let delta = self.core.take_delta();
+        self.export.apply(&self.core, &delta)?;
+        self.synced_generation = Some(generation);
+        let first_stable = self.export.first_stable_row();
+        let history_rows = self.export.history_rows();
+        let first_screen = first_stable + history_rows as u64;
+        let screen_rows = self.export.rows().len() / 2 - history_rows;
+        match delta.kind {
+            vt_core::DeltaKind::Full => {
+                self.dirty_full = true;
+                self.dirty_rows.clear();
+            }
+            vt_core::DeltaKind::Partial => {
+                for row in delta.appended_history.clone() {
+                    self.push_dirty(first_stable + row as u64)?;
+                }
+                for row in &delta.screen_rows {
+                    if *row >= screen_rows {
+                        continue;
+                    }
+                    self.push_dirty(first_screen + *row as u64)?;
+                }
+            }
+        }
+        self.row_events_trimmed = self
+            .row_events_trimmed
+            .saturating_add(delta.trimmed_rows as u32);
+        if let Some(pairs) = delta.remap {
+            self.remap.clear();
+            for (old, new) in pairs {
+                self.remap.push(checked_u32_from_u64(old)?);
+                self.remap.push(checked_u32_from_u64(new)?);
+            }
+        }
+        Ok(generation as u32)
+    }
+
+    fn push_dirty(&mut self, stable_row: u64) -> Result<(), JsError> {
+        if self.dirty_full {
+            return Ok(());
+        }
+        if self.dirty_rows.len() >= DIRTY_ROWS_CAP {
+            self.dirty_full = true;
+            self.dirty_rows.clear();
+            return Ok(());
+        }
+        self.dirty_rows.push(checked_u32_from_u64(stable_row)?);
         Ok(())
     }
 
     pub fn generation(&self) -> u32 {
-        self.generation
+        self.core.generation() as u32
+    }
+
+    pub fn history_rows(&self) -> u32 {
+        self.export.history_rows() as u32
+    }
+
+    pub fn dirty_full(&self) -> bool {
+        self.dirty_full
+    }
+
+    pub fn dirty_rows_ptr(&self) -> *const u32 {
+        self.dirty_rows.as_ptr()
+    }
+
+    pub fn dirty_rows_len(&self) -> usize {
+        self.dirty_rows.len()
+    }
+
+    pub fn ack_dirty(&mut self) {
+        self.dirty_full = false;
+        self.dirty_rows.clear();
+    }
+
+    pub fn row_events_trimmed(&self) -> u32 {
+        self.row_events_trimmed
+    }
+
+    pub fn remap_ptr(&self) -> *const u32 {
+        self.remap.as_ptr()
+    }
+
+    pub fn remap_len(&self) -> usize {
+        self.remap.len()
+    }
+
+    pub fn clear_row_events(&mut self) {
+        self.row_events_trimmed = 0;
+        self.remap.clear();
     }
 
     pub fn content_ptr(&self) -> *const u8 {
@@ -172,6 +283,14 @@ impl WasmTerminalCore {
 
     pub fn cursor_visible(&self) -> bool {
         self.export.cursor_visible()
+    }
+
+    pub fn first_stable_row_lo(&self) -> u32 {
+        self.export.first_stable_row() as u32
+    }
+
+    pub fn first_stable_row_hi(&self) -> u32 {
+        (self.export.first_stable_row() >> 32) as u32
     }
 
     pub fn application_cursor_keys(&self) -> bool {
@@ -309,7 +428,8 @@ impl WasmTerminalCore {
                 .map_err(|_| ExportError::FindOffsetOverflow)?;
             flattened.push(hit.block as u32);
             flattened.push((hit.block >> 32) as u32);
-            flattened.push(hit.row as u32);
+            flattened
+                .push(checked_u32_from_u64(hit.row).map_err(|_| ExportError::FindOffsetOverflow)?);
             flattened.push(hit.byte_range.start as u32);
             flattened.push(hit.byte_range.end as u32);
         }

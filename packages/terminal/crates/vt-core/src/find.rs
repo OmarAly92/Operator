@@ -39,7 +39,7 @@ impl FindQuery {
 #[derive(Clone)]
 pub struct FindMatch {
     pub block: BlockId,
-    pub row: usize,
+    pub row: u64,
     pub byte_range: Range<usize>,
 }
 
@@ -144,7 +144,7 @@ impl<'a> FindCursor<'a> {
     }
 
     fn search_block(&mut self, block: &Block) {
-        let byte_range = match block_byte_range(self.rows, block) {
+        let byte_range = match block_byte_range(self.rows, self.grid, block) {
             Some(range) => range,
             None => return,
         };
@@ -161,7 +161,7 @@ impl<'a> FindCursor<'a> {
                     let needle_len = finder.needle().len();
                     self.results.push(FindMatch {
                         block: block.id,
-                        row: row_for_offset(absolute, self.rows),
+                        row: row_for_offset(absolute, self.rows) as u64 + self.grid.origin() as u64,
                         byte_range: block_offset..block_offset + needle_len,
                     });
                     cursor = block_offset + needle_len;
@@ -177,7 +177,7 @@ impl<'a> FindCursor<'a> {
                     let absolute = byte_range.start + range.start as u64;
                     self.results.push(FindMatch {
                         block: block.id,
-                        row: row_for_offset(absolute, self.rows),
+                        row: row_for_offset(absolute, self.rows) as u64 + self.grid.origin() as u64,
                         byte_range: range,
                     });
                 }
@@ -191,13 +191,13 @@ impl<'a> FindCursor<'a> {
 /// Every block owns the rows its command produced, so this is a plain lookup:
 /// there is no fallback for a zero-row block, because a closed block with no
 /// rows is a bug in mark/parse ordering rather than a case to paper over.
-fn block_byte_range(rows: &RowIndex, block: &Block) -> Option<Range<u64>> {
-    if block.row_count == 0 {
+fn block_byte_range(rows: &RowIndex, grid: &BlockGrid, block: &Block) -> Option<Range<u64>> {
+    let (first, count) = grid.flat_extent(block);
+    if count == 0 {
         return None;
     }
     let completed = rows.completed();
-    let first = block.first_row;
-    let last = block.first_row + block.row_count - 1;
+    let last = first + count - 1;
     let first_row = completed.get(first)?;
     let last_row = completed.get(last)?;
     Some(first_row.start..last_row.end)

@@ -1,5 +1,6 @@
 import { decodeBlocks, type TerminalCore } from "@operator/terminal-core";
 import { DomBenchmarkRenderer } from "../adapters/dom";
+import type { DomBlockRenderer } from "@operator/terminal-renderer-dom";
 
 type SizeEntry = { offset: number; cols: number; rows: number };
 
@@ -18,10 +19,12 @@ type AgentSession = {
 	feedNext(limit: number): number;
 	feedChunk(start: number, end: number): number;
 	feedFrames(count: number, intervalMs: number): Promise<void>;
+	feedNextSynced(limit: number): number;
 	rowCount(): number;
 	renderableRowCount(): number;
 	paintCount(): number;
 	addedNodes(): number;
+	rowNodesAdded(): number;
 	resetCounters(): void;
 	longTasks(): number[];
 	memoryBytes(): number;
@@ -32,6 +35,8 @@ type AgentSession = {
 	textHash(): string;
 	modelHash(): string;
 	core(): TerminalCore;
+	extendSelectionByOneRow(): Promise<number>;
+	mountPanes(count: number): Promise<void>;
 };
 
 const host = document.getElementById("terminal");
@@ -58,12 +63,25 @@ let addedNodes = 0;
 let fed = 0;
 let nextResize = 1;
 const longTasks: number[] = [];
-const domRenderer = (renderer as unknown as { renderer: { onPaint(listener: () => void): () => void } }).renderer;
+const domRenderer = (renderer as unknown as { renderer: DomBlockRenderer }).renderer;
 domRenderer.onPaint(() => {
 	paints += 1;
 });
 new MutationObserver((records) => {
-	for (const record of records) addedNodes += record.addedNodes.length;
+	for (const record of records) {
+		for (const node of record.addedNodes) {
+			addedNodes += node instanceof Element ? 1 + node.querySelectorAll("*").length : 1;
+		}
+	}
+}).observe(host, { childList: true, subtree: true });
+
+let rowNodesAdded = 0;
+new MutationObserver((records) => {
+	for (const record of records) {
+		for (const node of record.addedNodes) {
+			if (node instanceof HTMLElement && node.classList.contains("terminal-row")) rowNodesAdded += 1;
+		}
+	}
 }).observe(host, { childList: true, subtree: true });
 if (typeof PerformanceObserver === "function") {
 	try {
@@ -158,10 +176,72 @@ function frameEnds(): number[] {
 	return ends;
 }
 
+function feedNextSynced(limit: number): number {
+	const end = Math.min(recording.length, fed + limit);
+	if (end <= fed) return 0;
+	applyResizesUpTo(fed);
+	const chunk = recording.subarray(fed, end);
+	const before = performance.now();
+	core.feed(chunk);
+	core.snapshot();
+	const cost = performance.now() - before;
+	fed = end;
+	return cost;
+}
+
+const extraPanes: DomBenchmarkRenderer[] = [];
+
+async function mountPanes(count: number): Promise<void> {
+	for (let index = 0; index < count; index += 1) {
+		const paneHost = document.createElement("div");
+		paneHost.style.width = "800px";
+		paneHost.style.height = "300px";
+		document.body.append(paneHost);
+		const pane = new DomBenchmarkRenderer();
+		await pane.mount(paneHost, { columns: sizes[0].cols, rows: sizes[0].rows, scrollback });
+		(pane.getCoreForBench() as TerminalCore).setAgentTuiMode(true);
+		extraPanes.push(pane);
+	}
+}
+
+async function extendSelectionByOneRow(): Promise<number> {
+	const rows = [...host!.querySelectorAll<HTMLElement>("[data-terminal-row]")];
+	if (rows.length < 4) throw new Error("need at least four rendered rows");
+	const at = (row: HTMLElement) => {
+		const rect = row.getBoundingClientRect();
+		return { x: rect.left + 4, y: rect.top + rect.height / 2 };
+	};
+	const first = domRenderer.pointAt(at(rows[0]!).x, at(rows[0]!).y);
+	const second = domRenderer.pointAt(at(rows[1]!).x, at(rows[1]!).y);
+	const third = domRenderer.pointAt(at(rows[2]!).x, at(rows[2]!).y);
+	if (!first || !second || !third) throw new Error("rows have no selection point");
+	domRenderer.selectionBegin(first, "simple");
+	domRenderer.selectionUpdate(second);
+	await nextFrame();
+	const mutated = new Set<Node>();
+	const observer = new MutationObserver((records) => {
+		for (const record of records) {
+			const target = record.target;
+			if (target instanceof HTMLElement && target.classList.contains("terminal-row")) mutated.add(target);
+		}
+	});
+	observer.observe(host!, { attributes: true, attributeFilter: ["style"], subtree: true });
+	domRenderer.selectionUpdate(third);
+	await nextFrame();
+	for (const record of observer.takeRecords()) {
+		if (record.target instanceof HTMLElement && record.target.classList.contains("terminal-row")) mutated.add(record.target);
+	}
+	observer.disconnect();
+	domRenderer.selectionClear();
+	return mutated.size;
+}
+
 async function feedFrames(count: number, intervalMs: number): Promise<void> {
 	const ends = frameEnds().filter((end) => end > fed).slice(0, count);
 	for (const end of ends) {
-		feedChunk(fed, end);
+		const start = fed;
+		feedChunk(start, end);
+		for (const pane of extraPanes) (pane.getCoreForBench() as TerminalCore).feed(recording.subarray(start, end));
 		await new Promise((resolve) => setTimeout(resolve, intervalMs));
 	}
 }
@@ -215,13 +295,16 @@ window.__agentSession = {
 	feedNext,
 	feedChunk,
 	feedFrames,
+	feedNextSynced,
 	rowCount,
 	renderableRowCount,
 	paintCount: () => paints,
 	addedNodes: () => addedNodes,
+	rowNodesAdded: () => rowNodesAdded,
 	resetCounters: () => {
 		paints = 0;
 		addedNodes = 0;
+		rowNodesAdded = 0;
 		longTasks.length = 0;
 	},
 	longTasks: () => [...longTasks],
@@ -238,6 +321,8 @@ window.__agentSession = {
 	textHash,
 	modelHash,
 	core: () => core,
+	extendSelectionByOneRow,
+	mountPanes,
 	blocks: () => decodeBlocks(core.snapshot()).length,
 } as AgentSession & { blocks(): number };
 window.__agentSessionReady = true;

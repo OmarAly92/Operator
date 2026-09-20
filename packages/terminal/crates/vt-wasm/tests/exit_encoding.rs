@@ -30,6 +30,8 @@ fn encode(exit: Option<i32>) -> Vec<u32> {
         cursor_row: 0,
         cursor_col: 0,
         cursor_visible: true,
+        history_rows: 0,
+        first_stable_row: 0,
         alt: None,
     };
     let mut buffers = ExportBuffers::default();

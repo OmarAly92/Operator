@@ -2,9 +2,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use serde::Deserialize;
-use vt_core::TerminalCore;
-
-const REF_SCROLLBACK_ROWS: usize = 200_000;
+use vt_core::{Limits, TerminalCore};
 
 #[derive(Deserialize, Clone, Copy)]
 struct SizeEntry {
@@ -88,7 +86,7 @@ fn replay(dir: &Path) -> TerminalCore {
             .expect("size.json is a JSON array of {offset, cols, rows}");
     let first = sizes.first().expect("size.json has at least one entry");
     assert_eq!(first.offset, 0, "the first size entry starts at offset 0");
-    let mut core = TerminalCore::new(first.cols, REF_SCROLLBACK_ROWS).expect("core");
+    let mut core = TerminalCore::with_limits(first.cols, Limits::DEFAULT).expect("core");
     core.resize(first.cols, first.rows);
     let mut fed = 0usize;
     for size in sizes.iter().skip(1) {

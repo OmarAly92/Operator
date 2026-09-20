@@ -36,6 +36,14 @@ describe("block export contract", () => {
 		expect(decodeBlocks(core.snapshot())[0].id).toBe(first);
 		expect(typeof first).toBe("string");
 	});
+
+	it("decodes the same snapshot once", () => {
+		const core = createTerminalCore({ columns: 20, scrollback: 100 });
+		core.feed(new TextEncoder().encode("alpha\nbravo"));
+		const snapshot = core.snapshot();
+		expect(decodeBlocks(snapshot)).toBe(decodeBlocks(snapshot));
+		expect(decodeBlocks({ blocks: snapshot.blocks, blockText: snapshot.blockText })).toEqual(decodeBlocks(snapshot));
+	});
 });
 
 describe("exit code decoding", () => {

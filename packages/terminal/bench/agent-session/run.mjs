@@ -10,6 +10,10 @@ const benchDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".."
 const configFile = path.join(benchDir, "vite.config.ts");
 const resultsDir = path.join(benchDir, "results");
 
+const DOM_NODES_PER_CHANGED_ROW_CEILING = 2;
+const IDLE_PANES_BASELINE_S = 1.759;
+const SELECTION_ROWS_REPAINTED = 1;
+
 function parseArgs(argv) {
 	const out = { fixture: undefined, gate: false };
 	for (let index = 0; index < argv.length; index += 1) {
@@ -55,6 +59,37 @@ async function spinnerPaints(page) {
 		paints: window.__agentSession.paintCount(),
 		addedNodes: window.__agentSession.addedNodes(),
 	}));
+}
+
+async function feedSyncCostAt(page, rows) {
+	const reached = await page.evaluate((target) => window.__agentSession.feedUntilRows(target), rows);
+	if (reached < rows) return { rows, reached, medianMs: null };
+	const samples = await page.evaluate(() => {
+		const out = [];
+		for (let index = 0; index < 20; index += 1) {
+			const cost = window.__agentSession.feedNextSynced(4096);
+			if (cost === 0) break;
+			out.push(cost);
+		}
+		return out;
+	});
+	return { rows, reached, medianMs: median(samples), samples: samples.length };
+}
+
+async function idlePanes(page) {
+	const session = await page.context().newCDPSession(page);
+	await session.send("Performance.enable");
+	await page.evaluate(() => window.__agentSession.mountPanes(9));
+	const before = (await session.send("Performance.getMetrics")).metrics.find((m) => m.name === "TaskDuration").value;
+	await page.evaluate(() => window.__agentSession.feedFrames(100, 100));
+	const after = (await session.send("Performance.getMetrics")).metrics.find((m) => m.name === "TaskDuration").value;
+	return { panes: 10, seconds: 10, taskDurationS: after - before };
+}
+
+async function selectionRepaint(page) {
+	await page.evaluate(() => window.__agentSession.feedFrames(5, 20));
+	const rowsRepainted = await page.evaluate(() => window.__agentSession.extendSelectionByOneRow());
+	return { rowsRepainted };
 }
 
 async function tornPaints(page, recording) {
@@ -194,6 +229,7 @@ async function main() {
 			if (name === "claude-spinner-10s") {
 				const page = await openPage(browser, port, name);
 				rows.spinner = await spinnerPaints(page);
+				rows.spinner.rowNodesAdded = await page.evaluate(() => window.__agentSession.rowNodesAdded());
 				await page.close();
 				const tearPage = await openPage(browser, port, name);
 				const states = await tornPaints(tearPage, fixture.recording);
@@ -201,6 +237,12 @@ async function main() {
 				const paintPage = await openPage(browser, port, name);
 				rows.tearing = { ...states, ...(await paintsPerFrame(paintPage, fixture.recording)) };
 				await paintPage.close();
+				const idlePage = await openPage(browser, port, name);
+				rows.idlePanes = await idlePanes(idlePage);
+				await idlePage.close();
+				const selectionPage = await openPage(browser, port, name);
+				rows.selectionRepaint = await selectionRepaint(selectionPage);
+				await selectionPage.close();
 			} else {
 				const page = await openPage(browser, port, name);
 				rows.feedCost = [];
@@ -209,6 +251,10 @@ async function main() {
 				rows.rows = await page.evaluate(() => window.__agentSession.rowCount());
 				rows.rendererMemoryBytes = await page.evaluate(() => window.__agentSession.memoryBytes());
 				await page.close();
+				const feedSyncPage = await openPage(browser, port, name);
+				rows.feedSyncCost = [];
+				for (const target of [1000, 5000, 50000]) rows.feedSyncCost.push(await feedSyncCostAt(feedSyncPage, target));
+				await feedSyncPage.close();
 				const longTaskPage = await openPage(browser, port, name);
 				rows.longTask = await longTask2MiB(longTaskPage);
 				await longTaskPage.close();
@@ -230,6 +276,33 @@ async function main() {
 			const longTask = Object.values(report.fixtures).find((rows) => rows.longTask)?.longTask;
 			if (longTask && longTask.queued.longestTaskMs !== null && longTask.queued.longestTaskMs > 50) throw new Error(`queued 2 MiB feed blocked the main thread for ${longTask.queued.longestTaskMs.toFixed(1)}ms`);
 			if (longTask && longTask.queued.longestFrameMs > 50) throw new Error(`queued 2 MiB feed held a frame for ${longTask.queued.longestFrameMs.toFixed(1)}ms (budget 12 ms parse + paint)`);
+			const long = report.fixtures["claude-long-50k"];
+			if (long?.feedSyncCost) {
+				const medianAt = (target) => {
+					const row = long.feedSyncCost.find((entry) => entry.rows === target);
+					if (!row) throw new Error(`feed+sync has no ${target}-row sample`);
+					return row.medianMs;
+				};
+				const at1k = medianAt(1000);
+				const at50k = medianAt(50000);
+				if (at1k != null && at50k != null && at50k > at1k * 1.2 + 0.2) throw new Error(`feed+sync at 50k rows costs ${at50k.toFixed(2)}ms vs ${at1k.toFixed(2)}ms at 1k (limit 20 % + 0.2 ms)`);
+			}
+			const spinner = report.fixtures["claude-spinner-10s"]?.spinner;
+			if (spinner && spinner.paints > 0) {
+				const rowsPerPaint = spinner.rowNodesAdded / spinner.paints;
+				const nodesPerPaint = spinner.addedNodes / spinner.paints;
+				process.stdout.write(`spinner: ${rowsPerPaint.toFixed(2)} row nodes and ${nodesPerPaint.toFixed(2)} DOM nodes per paint\n`);
+				const nodesPerChangedRow = spinner.rowNodesAdded > 0 ? spinner.addedNodes / spinner.rowNodesAdded : 0;
+				process.stdout.write(`spinner: ${nodesPerChangedRow.toFixed(2)} DOM nodes per changed row (spec target ${DOM_NODES_PER_CHANGED_ROW_CEILING}; reported, not gated)\n`);
+			}
+			const idle = report.fixtures["claude-spinner-10s"]?.idlePanes;
+			if (idle) {
+				process.stdout.write(`idle panes: ${idle.taskDurationS.toFixed(3)}s main-thread task time over ${idle.seconds}s (spec target 25 % of the pre-Plan-B ${IDLE_PANES_BASELINE_S}s = ${(IDLE_PANES_BASELINE_S * 0.25).toFixed(2)}s; reported, not gated)\n`);
+			}
+			const selection = report.fixtures["claude-spinner-10s"]?.selectionRepaint;
+			if (selection && selection.rowsRepainted !== SELECTION_ROWS_REPAINTED) {
+				throw new Error(`a mouse move during streaming repainted ${selection.rowsRepainted} rows (target ${SELECTION_ROWS_REPAINTED})`);
+			}
 			process.stdout.write("PASS agent-session gate\n");
 		}
 	} catch (error) {

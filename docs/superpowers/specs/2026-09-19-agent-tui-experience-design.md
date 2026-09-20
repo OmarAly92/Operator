@@ -169,16 +169,20 @@ regenerate from a scratch project.
 
 ### The table
 
-| Metric | How | Today | After Plan A |
-|---|---|---|---|
-| `feed()` cost at 1k / 5k / 50k rows | `performance.now()` around `core.feed` for a 4 KiB chunk after the transcript reaches N rows | `claude-long-50k` (60,137 rows), 20 samples each: 0.40ms @ 1k (reached row 1,361) / 0.70ms @ 5k (reached row 5,610) / 5.60ms @ 50k (reached row 50,252) | `claude-long-50k`, 20 samples each: 0.40ms @ 1k (reached row 1,361) / 0.70ms @ 5k (reached row 5,610) / 5.20ms @ 50k (reached row 50,252) — unchanged within run-to-run noise (Plan B's target) |
-| paints/s and DOM nodes created per paint under the spinner | `onPaint` count + `MutationObserver` `addedNodes` over 10 s of `claude-spinner-10s` | 100/10 s → 10 paints/s, 28.69 nodes/paint | 100/10 s → 10 paints/s, 28.69 nodes/paint — unchanged (Plan B's target) |
-| main-thread block when a 2 MB tool result arrives in one mux message | `PerformanceObserver({ entryTypes: ['longtask'] })`, and the longest gap between two `requestAnimationFrame`s while the queue drains | `claude-long-50k`: a 2 MiB synchronous `core.feed` cost 57 ms in one task (the earlier 28.9 ms figure measured a ≤1.3 MiB end-of-fixture tail — harness bug fixed in Task 8). Headless Chromium reports no `longtask` entries at all (`longestTaskMs: null`), so the long-task count is not evidence either way | the queued path (`core.enqueue` + rAF `core.drain`, Task 6) parses the same 2 MiB over 18 frames, 165 ms total, mean 9.2 ms/frame, longest frame 24 ms (12 ms parse budget + the paint). `bench:agent:gate` fails on a frame > 50 ms or an observed long task > 50 ms |
-| scroll bottom → row 0 at 50k rows | Playwright: `wheel` steps, count frames > 50 ms, assert every `data-terminal-row` index range is contiguous | `claude-long-50k` (60,137 rows): 60,134/60,137 rows covered over 2,245 scroll steps, 0 frames > 50ms, worst frame 0ms | `claude-long-50k`: 60,134/60,137 rows covered over 2,245 scroll steps, 0 frames > 50ms, worst frame 0ms — unchanged (Plan B's target; `bench:agent:scroll` still exits non-zero on the 3-row gap, pre-existing since Task 1, not in scope for Plan A) |
-| reopen at 1k / 5k / 50k rows: time to first paint, rows recovered | daemon API + `/mux` (memory: verify via daemon API), `vt_replay` size | measured at the mirror's 1,000-row cap (`vtwasm.New(..., 1000)`) on `claude-long-50k`: replay 1,000 rows / 17,257 bytes, Go-side `Replay()` cost 0.306ms, renderer `firstPaintMs` 13ms | measured the same way: replay 1,000 rows / 17,257 bytes, Go-side `Replay()` cost 0.315ms, renderer `firstPaintMs` 12.5ms — unchanged within run-to-run noise (Plan B's target) |
-| memory of renderer core and mirror at 50k rows | `wasm memory.buffer.byteLength`; Go `runtime.MemStats` of the pty-host | `claude-long-50k`, all 60,137 rows fed: renderer core wasm `memory.buffer.byteLength` 26,083,328 bytes (~24.9 MiB); Go mirror wasm memory 4,128,768 bytes (~3.94 MiB) at the reopen probe's 1,000-row cap (not the full 60k — the harness's mirror probe is capped, see the row above) | `claude-long-50k`, all 60,137 rows fed: renderer core wasm `memory.buffer.byteLength` 11,272,192 bytes (~10.75 MiB); Go mirror wasm memory unchanged at 4,128,768 bytes (~3.94 MiB). The drop from the Today figure is a harness fix, not a renderer change: Today's number was sampled on a page where the old (Task 1) `longTask2MiB` ran immediately before the memory sample and injected one extra ~1.3 MiB single-chunk `core.feed` call, growing the wasm heap past its steady-state size; Task 8 moved `longTask2MiB` to its own page, so the sample now reflects `feedAll`'s normal 64 KiB-chunk feed pattern only |
-| rendered-transcript pixel diff vs the pre-change screenshot | `bench/agent-session/feel-gate.mjs` screenshots the same fixture at the same scroll offsets before and after; diff must be zero unless the task declares a scoped change | — | `npm run bench:feel` → `PASS feel gate: zero pixel diff` (both fixtures) |
-| torn frames in `claude-spinner-10s` | `run.mjs` `tearing`: model states that became visible inside a sync block (fed byte by byte), paints showing a partial frame and frames painted more than once (fed in thirds, one frame per third) | 7470 states / 25 paints / 18 multi-paint of 120 frames | 0 states / 0 paints / 0 multi-paint of 120 frames. `tornStates` 7470→0 is Task 5's synchronized-output buffering. `tornPaints`/`multiPaintFrames` 25/18→0/0 is a Task 8 fix to the harness itself, not the renderer: `paintsPerFrame` sampled the "before" text hash with no settle delay, racing ahead of the renderer's ~60Hz-throttled `repaintOnFrame`, so it sometimes read a still-painting-the-previous-frame state as "torn". Adding two awaited `requestAnimationFrame` waits before the "before" sample (confirmed independently by the Task 5 implementer and reviewer) drives both to 0; `tornStates` (the byte-level, load-bearing check) was already 0 before this fix |
+| Metric | How | Today | After Plan A | After Plan B |
+|---|---|---|---|---|
+| `feed()` cost at 1k / 5k / 50k rows | `performance.now()` around `core.feed` for a 4 KiB chunk after the transcript reaches N rows | `claude-long-50k` (60,137 rows), 20 samples each: 0.40ms @ 1k (reached row 1,361) / 0.70ms @ 5k (reached row 5,610) / 5.60ms @ 50k (reached row 50,252) | `claude-long-50k`, 20 samples each: 0.40ms @ 1k (reached row 1,361) / 0.70ms @ 5k (reached row 5,610) / 5.20ms @ 50k (reached row 50,252) — unchanged within run-to-run noise (Plan B's target) | `claude-long-50k`, 20 samples @ 1k / 20 @ 5k / 11 @ 50k (the fixture ran out of remaining bytes for a full 20 at 50k): 0.20ms @ 1k (reached row 1,361) / 0.10ms @ 5k (reached row 5,610) / 0.10ms @ 50k (reached row 50,252) — unchanged within run-to-run noise |
+| paints/s and DOM nodes created per paint under the spinner | `onPaint` count + `MutationObserver` `addedNodes` over 10 s of `claude-spinner-10s` | 100/10 s → 10 paints/s, 28.69 nodes/paint | 100/10 s → 10 paints/s, 28.69 nodes/paint — unchanged (Plan B's target) | 100/10 s → 10 paints/s (unchanged), 73.5 DOM nodes/paint over 10.19 rebuilt rows/paint — **not comparable to the 28.69**: that counter recorded only the inserted subtree roots (a re-inserted block section counted as one node); the review fixed it to count every node in each inserted subtree (`main.ts` counts `1 + node.querySelectorAll("*").length`). The pre-Plan-B value under the corrected counter was not re-measured |
+| main-thread block when a 2 MB tool result arrives in one mux message | `PerformanceObserver({ entryTypes: ['longtask'] })`, and the longest gap between two `requestAnimationFrame`s while the queue drains | `claude-long-50k`: a 2 MiB synchronous `core.feed` cost 57 ms in one task (the earlier 28.9 ms figure measured a ≤1.3 MiB end-of-fixture tail — harness bug fixed in Task 8). Headless Chromium reports no `longtask` entries at all (`longestTaskMs: null`), so the long-task count is not evidence either way | the queued path (`core.enqueue` + rAF `core.drain`, Task 6) parses the same 2 MiB over 18 frames, 165 ms total, mean 9.2 ms/frame, longest frame 24 ms (12 ms parse budget + the paint). `bench:agent:gate` fails on a frame > 50 ms or an observed long task > 50 ms | the same queued path now drains over 7 frames, 52.4 ms total, mean 7.49 ms/frame, longest frame 16.7 ms. `bench:agent:gate` still passes (no frame > 50 ms, no observed long task). The drop in frame count from Plan A's 18 is consistent with Task 8's per-generation `snapshot()`/`decodeBlocks()` memoisation making each drained frame cheaper to paint, not a change to the drain loop itself |
+| scroll bottom → row 0 at 50k rows | Playwright: `wheel` steps, count frames > 50 ms, assert every `data-terminal-row` index range is contiguous | `claude-long-50k` (60,137 rows): 60,134/60,137 rows covered over 2,245 scroll steps, 0 frames > 50ms, worst frame 0ms | `claude-long-50k`: 60,134/60,137 rows covered over 2,245 scroll steps, 0 frames > 50ms, worst frame 0ms — unchanged (Plan B's target; `bench:agent:scroll` still exits non-zero on the 3-row gap, pre-existing since Task 1, not in scope for Plan A) | `claude-long-50k`: 60,134/60,134 rows covered over 2,245 scroll steps, 0 frames > 50ms, worst frame 0ms — **full coverage**; the pre-existing 3-row gap no longer reproduces (`renderableRowCount()` itself now reports 60,134, matching `covered`), confirmed on 5 of 6 local runs. Trim phase (new in Plan B): top-edge row unchanged across a trim (row 25031 before and after, `first_stable_row` 0 → 5098) — `bench:agent:scroll` exits 0. One of six runs hit a harness-level flake (an undefined top-edge row mid-trim, coverage 59,908/60,134) that did not reproduce on retry; see the landed paragraph below |
+| reopen at 1k / 5k / 50k rows: time to first paint, rows recovered | daemon API + `/mux` (memory: verify via daemon API), `vt_replay` size | measured at the mirror's 1,000-row cap (`vtwasm.New(..., 1000)`) on `claude-long-50k`: replay 1,000 rows / 17,257 bytes, Go-side `Replay()` cost 0.306ms, renderer `firstPaintMs` 13ms | measured the same way: replay 1,000 rows / 17,257 bytes, Go-side `Replay()` cost 0.315ms, renderer `firstPaintMs` 12.5ms — unchanged within run-to-run noise (Plan B's target) | measured the same way: replay 1,000 rows / 17,257 bytes, Go-side `Replay()` cost 0.296ms, renderer `firstPaintMs` 13.1ms — unchanged within run-to-run noise |
+| memory of renderer core and mirror at 50k rows | `wasm memory.buffer.byteLength`; Go `runtime.MemStats` of the pty-host | `claude-long-50k`, all 60,137 rows fed: renderer core wasm `memory.buffer.byteLength` 26,083,328 bytes (~24.9 MiB); Go mirror wasm memory 4,128,768 bytes (~3.94 MiB) at the reopen probe's 1,000-row cap (not the full 60k — the harness's mirror probe is capped, see the row above) | `claude-long-50k`, all 60,137 rows fed: renderer core wasm `memory.buffer.byteLength` 11,272,192 bytes (~10.75 MiB); Go mirror wasm memory unchanged at 4,128,768 bytes (~3.94 MiB). The drop from the Today figure is a harness fix, not a renderer change: Today's number was sampled on a page where the old (Task 1) `longTask2MiB` ran immediately before the memory sample and injected one extra ~1.3 MiB single-chunk `core.feed` call, growing the wasm heap past its steady-state size; Task 8 moved `longTask2MiB` to its own page, so the sample now reflects `feedAll`'s normal 64 KiB-chunk feed pattern only | `claude-long-50k`, all 60,137 rows fed: renderer core wasm `memory.buffer.byteLength` 8,192,000 bytes (~7.81 MiB, down further from Plan A's ~10.75 MiB); Go mirror wasm memory at the product's own `mirrorLimits` (200,000 rows / 128 MiB), the whole fixture fed: 4,980,736 bytes (~4.75 MiB) holding 60,097 rows and 343,551 bytes of content. `TestAgentSessionReplayReport` now builds a second mirror at `mirrorLimits` for the memory measurement and fails if its wasm memory passes 128 MiB; the 4,128,768-byte (~3.94 MiB) figure this row carried in the Today and Plan A columns stays alongside it as the reopen-replay probe's number, measured at that probe's own 1,000-row cap (the replay cap is real product behaviour, `Ring`/`Replay(MaxOutputLines)`, and is unchanged). Both figures are far under the Part 1.4 target of < 128 MiB each |
+| rendered-transcript pixel diff vs the pre-change screenshot | `bench/agent-session/feel-gate.mjs` screenshots the same fixture at the same scroll offsets before and after; diff must be zero unless the task declares a scoped change | — | `npm run bench:feel` → `PASS feel gate: zero pixel diff` (both fixtures) | `npm run bench:feel` → `PASS feel gate: zero pixel diff` (both fixtures) — unchanged |
+| torn frames in `claude-spinner-10s` | `run.mjs` `tearing`: model states that became visible inside a sync block (fed byte by byte), paints showing a partial frame and frames painted more than once (fed in thirds, one frame per third) | 7470 states / 25 paints / 18 multi-paint of 120 frames | 0 states / 0 paints / 0 multi-paint of 120 frames. `tornStates` 7470→0 is Task 5's synchronized-output buffering. `tornPaints`/`multiPaintFrames` 25/18→0/0 is a Task 8 fix to the harness itself, not the renderer: `paintsPerFrame` sampled the "before" text hash with no settle delay, racing ahead of the renderer's ~60Hz-throttled `repaintOnFrame`, so it sometimes read a still-painting-the-previous-frame state as "torn". Adding two awaited `requestAnimationFrame` waits before the "before" sample (confirmed independently by the Task 5 implementer and reviewer) drives both to 0; `tornStates` (the byte-level, load-bearing check) was already 0 before this fix | 0 states / 0 paints / 0 multi-paint of 120 frames — unchanged |
+| `feed()` + `snapshot()` cost at 1k / 5k / 50k rows | `performance.now()` around `core.feed` then `core.snapshot()` for a 4 KiB chunk | — | `claude-long-50k` (60,137 rows), 20 samples each: 0.40ms @ 1k (reached row 1,361) / 0.70ms @ 5k (reached row 5,610) / 5.30ms @ 50k (reached row 50,252) | `claude-long-50k`, 20 samples @ 1k / 7 @ 5k / 15 @ 50k: 0.20ms @ 1k (reached row 1,361) / 0.10ms @ 5k (reached row 5,610) / 0.20ms @ 50k (reached row 50,341) — this is `feedSyncCost`, the row `bench:agent:gate` checks against the 20 % + 0.2 ms budget (50k's 0.20ms is well inside 1k's 0.20ms × 1.2 + 0.2ms); Part 1.4's 200k-row target is measured here at the fixture's 50k |
+| row nodes created per paint under the spinner | `MutationObserver` `addedNodes` filtered to `.terminal-row` over 100 spinner frames | — | `claude-spinner-10s`, 100 frames: 2,469 nodes (24.69 nodes/paint) | `claude-spinner-10s`, 100 frames: 1,019 nodes (10.19 nodes/paint) — Task 10's row pool; see the paints/nodes row above (`addedNodes`/`rowNodesAdded` both 1,019, a 1.0 ratio) |
+| main-thread task time of ten idle spinner panes over 10 s | CDP `Performance.getMetrics` `TaskDuration` delta, 10 renderers fed the same 100 frames at 100 ms | — | `claude-spinner-10s`, 10 panes: 1.759 s taskDuration (17.6% of 10 s) | `claude-spinner-10s`, 10 panes: 1.30 s taskDuration in the review's run (16.8 % of 10 s; the executor's runs read 1.01–1.68 s). Spec target is ≤ 25 % of the 1.759 s baseline = 0.44 s — **missed** (74 % of baseline). Not gated |
+| rows repainted when a mouse move extends the selection by one row | `MutationObserver` on `style` of `.terminal-row` around one `selectionUpdate` during streaming | — | `claude-spinner-10s`: 2 rows repainted | `claude-spinner-10s`: 1 row repainted — Task 11's selection-fill diff against the previous paint; meets the target of 1 exactly |
 
 The last row is the **feel gate**. Every task in every plan runs it; a task
 that changes pixels must name the item that allows it (Part 4 flags).
@@ -193,6 +197,65 @@ task). Known residue: a single DEC 2026 block that reaches the 2 MiB
 `SYNC_BUFFER_CAP` is flushed and parsed in one go inside the frame that
 receives it (`TERMINAL.md` §5). Every other row is Plan B's target and is
 unchanged within run-to-run noise.
+
+Plan B landed 2026-09-20, measured on `feat/agent-tui-plan-b` HEAD, per Part
+1.4's five acceptance rows:
+
+- **`feed()`+`sync()` at row 50k within 20 % of row 1k** — PASS. `feedSyncCost`
+  (the row `bench:agent:gate` now checks): 0.20ms @ 1k vs 0.20ms @ 50k, both
+  sub-millisecond and well inside the 20 % + 0.2 ms budget. Measured at the
+  fixture's 50k rows; the spec's target is 200k.
+- **A paint under the spinner creates ≤ 2 DOM nodes per changed row, 0 for
+  unchanged rows** — **MISS on the ≤ 2, PASS on the 0**. With the corrected
+  counter (every node of each inserted subtree) the spinner creates 73.5 DOM
+  nodes per paint over 10.19 rebuilt rows = 7.21 nodes per changed row: a
+  rebuilt row is one `div` plus one `span` and one text node per style run,
+  and the spinner's rows carry about three runs each. The ≤ 2 target is
+  unreachable for any styled row with this DOM shape; the per-row cost is
+  bounded by the row's run count, not by the session length. Unchanged rows
+  create nothing (`dom-block-renderer.test.ts` "an unchanged row is not
+  rebuilt when another row changed" pins it). The executor's earlier
+  "1.0 node per changed row" was an artifact of the old counter recording
+  only subtree roots. Reported by `bench:agent:gate`, not gated.
+- **Scroll bottom → row 0: every stable row in order, no frame > 50 ms, the
+  top-edge row unchanged across a trim** — PASS. `bench:agent:scroll` reports
+  full coverage (60,134/60,134) and 0 frames > 50 ms on the current branch —
+  the 3-row gap this row's Plan A entry reported as pre-existing and
+  out-of-scope no longer reproduces here. The trim phase (new since Task 9)
+  also passes: the row under the top edge is identical before and after a
+  trim past the cap. One of six local runs of this bench hit a harness-level
+  flake (the page's own `visibleRows()[0]` read `undefined` mid-trim, and
+  coverage came back 226 rows short); it did not reproduce on five retries
+  and is reported here for completeness, not as a renderer defect — no code
+  was changed to make it disappear.
+- **Renderer core and mirror memory at the fixture's 60k rows, each
+  < 128 MiB** — PASS. Renderer core wasm heap: 8,192,000 bytes (~7.81 MiB).
+  Go mirror wasm memory at the product's real `mirrorLimits` (200,000 rows /
+  128 MiB) with the whole fixture fed: 4,980,736 bytes (~4.75 MiB) at 60,097
+  rows — 3.7 % of the 128 MiB budget. `TestAgentSessionReplayReport` builds
+  that mirror itself and fails if its wasm memory passes 128 MiB, so the
+  number is now measured at the configured cap rather than at the
+  reopen-replay probe's 1,000-row one; the probe's own 4,128,768-byte
+  (~3.94 MiB) figure is still reported beside it for the replay path.
+- **Part 3: ten idle panes at ≤ 25 % of the baseline's CPU, and
+  `selectionRepaint.rowsRepainted` = 1** — **MISS on the panes, PASS on the
+  selection**. Ten panes: 1.30 s main-thread task time over 10 s in the
+  review's run (executor runs: 1.01–1.68 s) against a pre-Plan-B baseline of
+  1.759 s measured once — 57–95 % of baseline, target ≤ 0.44 s. The executor
+  had read the target as 25 % of the 10 s window (2.5 s), which is not what
+  Part 3 says; that reading was removed from the gate. Where the remaining
+  time goes was not profiled in Plan B (candidates: `renderedRows()` layout
+  reads, the per-paint `trimTrailingBlankRows`, the harness's own
+  `MutationObserver` on ten hosts). `selectionRepaint.rowsRepainted`: 1
+  (was 2 pre-Plan-B).
+
+Three of the five rows Plan B owns pass (feed+sync flat, scroll, memory);
+the DOM-nodes-per-changed-row and idle-pane rows miss as described.
+`bench:agent:gate` asserts feed+sync flatness and the one-row selection
+repaint and prints the two missed rows; the scroll row is asserted by
+`bench:agent:scroll` and the mirror-memory row by the Go test itself. No code
+was changed to make any number above hit its target — the numbers here are exactly what the commands in
+this section printed on this branch's HEAD.
 
 ## Part 1 — Long sessions: every message stays, scrolling never breaks
 

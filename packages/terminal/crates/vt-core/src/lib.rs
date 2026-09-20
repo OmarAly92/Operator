@@ -6,10 +6,12 @@ pub mod block_grid;
 pub mod block_selection;
 pub mod block_tree;
 pub mod content;
+pub mod delta;
 pub mod event_bridge;
 pub mod find;
 pub mod grid;
 pub mod integrity;
+pub mod limits;
 mod line_editor;
 pub mod parser;
 pub mod row_index;
@@ -29,10 +31,15 @@ pub use block::{Block, BlockId, BlockMeta, BlockRecord, BlockSource, BlockState,
 pub use block_grid::BlockGrid;
 pub use block_selection::{BlockSelection, SelectionPoint};
 pub use block_tree::{BlockSummary, BlockTree};
+pub use delta::{Delta, DeltaKind};
 pub use find::{FindCursor, FindMatch, FindQuery};
+pub use grid::ExportedRow;
 pub use integrity::IntegrityError;
+pub use limits::{Limits, MemoryStats};
 pub use line_editor::LineEditorState;
 pub use style::{CellStyle, StyleCode};
+
+use std::ops::Range;
 
 use terminal_marks::{MarkDecoder, MarkEvent};
 use vte::Parser as VteParser;
@@ -55,7 +62,7 @@ pub struct TerminalCore {
     mark_decoder: MarkDecoder,
     alt_screen: alt_screen::AltScreen,
     line_editor: line_editor::LineEditorTracker,
-    scrollback_rows: usize,
+    limits: Limits,
     rows: usize,
     fed_total: u64,
     sync: sync::SyncBuffer,
@@ -64,24 +71,41 @@ pub struct TerminalCore {
 
 impl TerminalCore {
     pub fn new(columns: usize, scrollback_rows: usize) -> Result<Self, CoreError> {
+        Self::with_limits(columns, Limits::rows_only(scrollback_rows))
+    }
+
+    pub fn with_limits(columns: usize, limits: Limits) -> Result<Self, CoreError> {
         if columns == 0 {
             return Err(CoreError::ZeroColumns);
         }
-        if scrollback_rows == 0 {
+        if limits.rows == 0 {
             return Err(CoreError::ZeroScrollback);
         }
         Ok(Self {
-            parser: parser::Parser::new(columns, scrollback_rows),
+            parser: parser::Parser::new(columns),
             vte: VteParser::new(),
             mark_decoder: MarkDecoder::new(),
             alt_screen: alt_screen::AltScreen::new(),
             line_editor: line_editor::LineEditorTracker::default(),
-            scrollback_rows,
+            limits,
             rows: DEFAULT_ROWS,
             fed_total: 0,
             sync: sync::SyncBuffer::default(),
             now_ms: 0,
         })
+    }
+
+    pub fn limits(&self) -> Limits {
+        self.limits
+    }
+
+    pub fn memory_stats(&self) -> MemoryStats {
+        MemoryStats {
+            content_bytes: self.parser.content().resident_bytes(),
+            style_entries: self.parser.styles().len(),
+            rows: self.parser.rows().completed().len(),
+            blocks: self.parser.grid().len(),
+        }
     }
 
     pub fn feed(&mut self, bytes: &[u8]) {
@@ -205,7 +229,8 @@ impl TerminalCore {
             self.advance_vte(&bytes[parsed..]);
         }
         self.parser.commit_evicted();
-        self.parser.trim_to(self.scrollback_rows);
+        self.parser.trim_to(self.limits);
+        self.parser.note_mutation();
         self.debug_check();
     }
 
@@ -259,7 +284,65 @@ impl TerminalCore {
             self.parser.screen(),
             self.line_editor.state(),
             self.parser.alt(),
+            self.parser.first_stable_row(),
         )
+    }
+
+    pub fn generation(&self) -> u64 {
+        self.parser.generation()
+    }
+
+    pub fn take_delta(&mut self) -> Delta {
+        self.parser.take_delta()
+    }
+
+    pub fn history_rows(&self) -> usize {
+        self.parser.rows().completed().len()
+    }
+
+    pub fn export_history_rows(&self, range: Range<usize>) -> Vec<ExportedRow> {
+        let completed = self.parser.rows().completed();
+        range
+            .filter_map(|index| completed.get(index))
+            .map(|row| grid::export_history_row(self.parser.content(), self.parser.styles(), row))
+            .collect()
+    }
+
+    pub fn export_screen_rows(&self) -> Vec<ExportedRow> {
+        let screen = self.parser.screen();
+        (0..screen.content_rows())
+            .map(|row| grid::export_screen_row(screen, row))
+            .collect()
+    }
+
+    pub fn export_blocks(
+        &self,
+        total_rows: usize,
+        row_has_bytes: impl Fn(usize) -> bool,
+    ) -> Result<(Vec<BlockRecord>, Vec<u8>), CoreError> {
+        grid::export_blocks(self.parser.grid(), total_rows, row_has_bytes)
+    }
+
+    pub fn export_cursor(&self) -> (usize, usize, bool) {
+        let screen = self.parser.screen();
+        let (row, col) = screen.cursor();
+        (self.history_rows() + row, col, screen.cursor_visible())
+    }
+
+    pub fn alt_snapshot(&self) -> Option<alt::AltSnapshot> {
+        self.parser.alt().map(|grid| grid.snapshot())
+    }
+
+    pub fn first_stable_row(&self) -> u64 {
+        self.parser.first_stable_row()
+    }
+
+    pub fn stable_row(&self, flat: usize) -> u64 {
+        self.parser.stable_row(flat)
+    }
+
+    pub fn flat_row(&self, stable: u64) -> Option<usize> {
+        self.parser.flat_row(stable)
     }
 
     pub fn find(&self, query: find::FindQuery) -> find::FindCursor<'_> {
@@ -307,7 +390,8 @@ impl TerminalCore {
         let rows = rows.clamp(1, alt::MAX_DIMENSION);
         self.rows = rows;
         self.parser.resize(columns, rows);
-        self.parser.trim_to(self.scrollback_rows);
+        self.parser.trim_to(self.limits);
+        self.parser.note_mutation();
         self.debug_check();
     }
 
@@ -338,6 +422,7 @@ impl TerminalCore {
 
     pub fn set_block_bookmarked(&mut self, id: crate::block::BlockId, bookmarked: bool) {
         self.parser.grid_mut().set_block_bookmarked(id, bookmarked);
+        self.parser.note_mutation();
         self.debug_check();
     }
 

@@ -30,7 +30,7 @@ func BenchmarkFeed16MB(b *testing.B) {
 
 	b.ResetTimer()
 	for range b.N {
-		parser, err := New(context.Background(), module, 120, 40, 1000)
+		parser, err := New(context.Background(), module, 120, 40, Limits{Rows: 1000, Bytes: 0xffffffff})
 		if err != nil {
 			b.Fatalf("new parser: %v", err)
 		}

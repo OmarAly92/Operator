@@ -3,6 +3,7 @@ import { ROW_END, type SelectionRange } from "./selection-model.js";
 
 export type TextRows = Readonly<{
 	rowText(blockId: string, row: number): string;
+	firstRow(blockId: string): number;
 	rowCount(blockId: string): number;
 	blockIds: readonly string[];
 }>;
@@ -19,8 +20,8 @@ export function selectedText(range: SelectionRange, rows: TextRows): string {
 	const lines: string[] = [];
 	for (let index = first; index <= last; index += 1) {
 		const blockId = rows.blockIds[index]!;
-		const fromRow = index === first ? range.start.row : 0;
-		let toRow = index === last ? range.end.row : rows.rowCount(blockId) - 1;
+		const fromRow = Math.max(index === first ? range.start.row : rows.firstRow(blockId), rows.firstRow(blockId));
+		let toRow = index === last ? range.end.row : rows.firstRow(blockId) + rows.rowCount(blockId) - 1;
 		if (index === last && range.end.cell === 0 && toRow > fromRow) toRow -= 1;
 		for (let row = fromRow; row <= toRow; row += 1) {
 			const from = index === first && row === range.start.row ? range.start.cell : 0;

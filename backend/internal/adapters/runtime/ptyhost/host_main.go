@@ -162,7 +162,7 @@ func RunHost(args []string, stdout io.Writer) int {
 	}()
 
 	ring := NewRing()
-	parser, err := vtwasm.New(ctx, vtwasm.Module, uint32(parsed.cols), uint32(parsed.rows), MaxOutputLines)
+	parser, err := vtwasm.New(ctx, vtwasm.Module, uint32(parsed.cols), uint32(parsed.rows), mirrorLimits)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "pty-host [%s]: vtwasm.New: %v\n", sessionID, err)
 		parser = nil

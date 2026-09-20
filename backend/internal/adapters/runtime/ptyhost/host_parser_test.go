@@ -9,7 +9,7 @@ import (
 )
 
 func TestParserRendersCursorAddressedOutput(t *testing.T) {
-	parser, err := vtwasm.New(context.Background(), vtwasm.Module, 80, 24, 100)
+	parser, err := vtwasm.New(context.Background(), vtwasm.Module, 80, 24, vtwasm.Limits{Rows: 100, Bytes: 0xffffffff})
 	if err != nil {
 		t.Fatalf("new parser: %v", err)
 	}
@@ -34,7 +34,7 @@ func TestParserRendersCursorAddressedOutput(t *testing.T) {
 }
 
 func TestParserResizeMirrorsPTYGrid(t *testing.T) {
-	parser, err := vtwasm.New(context.Background(), vtwasm.Module, 80, 24, 100)
+	parser, err := vtwasm.New(context.Background(), vtwasm.Module, 80, 24, vtwasm.Limits{Rows: 100, Bytes: 0xffffffff})
 	if err != nil {
 		t.Fatalf("new parser: %v", err)
 	}

@@ -12,3 +12,6 @@ crate-type = ["cdylib", "rlib"]
 [dependencies]
 vt-core = { path = "../vt-core" }
 wasm-bindgen = { workspace = true }
+
+[dev-dependencies]
+proptest = "1"

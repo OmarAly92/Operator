@@ -51,8 +51,27 @@ try {
 		for (const rows of seen.values()) covered += rows.size;
 		return { total, covered, steps: step, framesOver50ms: slow.length, worstFrameMs: slow.length ? Math.max(...slow) : 0 };
 	});
-	if (result.covered < result.total) throw new Error(`scrolling reached ${result.covered} of ${result.total} rows`);
 	process.stdout.write(`${JSON.stringify({ fixture, ...result })}\n`);
+	const trimPage = await browser.newPage({ viewport: { width: 1600, height: 900 } });
+	await trimPage.goto(`http://127.0.0.1:${port}/agent-session/index.html?fixture=${fixture}&scrollback=55000`);
+	await trimPage.waitForFunction(() => window.__agentSessionReady === true, undefined, { timeout: 30000 });
+	const trim = await trimPage.evaluate(async () => {
+		const session = window.__agentSession;
+		await session.feedUntilRows(50000);
+		await session.setScrollTop(Math.floor(session.scrollHeight() / 2));
+		const before = session.visibleRows()[0];
+		const firstBefore = session.core().snapshot().firstStableRow;
+		for (let i = 0; i < 40 && session.fed < session.fixture.bytes; i += 1) session.feedNext(256 * 1024);
+		await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+		const after = session.visibleRows()[0];
+		const firstAfter = session.core().snapshot().firstStableRow;
+		return { before, after, firstBefore, firstAfter };
+	});
+	await trimPage.close();
+	if (trim.firstAfter <= trim.firstBefore) throw new Error(`no trim happened (first stable row ${trim.firstBefore} → ${trim.firstAfter})`);
+	if (!trim.before || !trim.after || trim.before.row !== trim.after.row) throw new Error(`top-edge row moved across a trim: ${JSON.stringify(trim.before)} → ${JSON.stringify(trim.after)}`);
+	process.stdout.write(`${JSON.stringify({ fixture, trim })}\n`);
+	if (result.covered < result.total) throw new Error(`scrolling reached ${result.covered} of ${result.total} rows`);
 } catch (error) {
 	process.stderr.write(`FAIL ${error instanceof Error ? error.message : String(error)}\n`);
 	process.exitCode = 1;

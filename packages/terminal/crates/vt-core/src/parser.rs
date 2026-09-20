@@ -5,6 +5,8 @@ use crate::attribute_map::AttributeMap;
 use crate::block::{BlockSource, BlockState};
 use crate::block_grid::BlockGrid;
 use crate::content::Content;
+use crate::delta::{Delta, DeltaKind};
+use crate::limits::Limits;
 use crate::row_index::RowIndex;
 use crate::screen::{ClearPolicy, ScreenGrid};
 use crate::style::{CellStyle, StyleCode};
@@ -29,12 +31,18 @@ pub(crate) struct Parser {
     rewrap_pending: bool,
     query_replies: Option<Vec<u8>>,
     terminal_identity: String,
+    trimmed_total: u64,
+    generation: u64,
+    history_exported_rows: usize,
+    pending_full: bool,
+    pending_trimmed: usize,
+    pending_remap: Option<Vec<(u64, u64)>>,
     #[cfg(feature = "trace")]
     pub(crate) trace: crate::trace::Trace,
 }
 
 impl Parser {
-    pub fn new(width: usize, _scrollback_rows: usize) -> Self {
+    pub fn new(width: usize) -> Self {
         let mut screen = ScreenGrid::new(24, width);
         screen.set_records_eviction(true);
         Self {
@@ -55,6 +63,12 @@ impl Parser {
             rewrap_pending: false,
             query_replies: None,
             terminal_identity: String::new(),
+            trimmed_total: 0,
+            generation: 0,
+            history_exported_rows: 0,
+            pending_full: true,
+            pending_trimmed: 0,
+            pending_remap: None,
             #[cfg(feature = "trace")]
             trace: Default::default(),
         }
@@ -70,6 +84,94 @@ impl Parser {
 
     pub fn styles(&self) -> &AttributeMap<CellStyle> {
         &self.styles
+    }
+
+    /// The stable id of flat row 0 — the number of rows trimmed off the
+    /// front so far (wezterm/term/src/screen.rs:30 `stable_row_index_offset`).
+    pub fn first_stable_row(&self) -> u64 {
+        self.trimmed_total
+    }
+
+    pub(crate) fn trimmed_total(&self) -> u64 {
+        self.trimmed_total
+    }
+
+    pub(crate) fn note_mutation(&mut self) {
+        self.generation = self.generation.wrapping_add(1);
+    }
+
+    pub fn generation(&self) -> u64 {
+        self.generation
+    }
+
+    pub(crate) fn history_exported_rows(&self) -> usize {
+        self.history_exported_rows
+    }
+
+    fn mark_full(&mut self) {
+        self.pending_full = true;
+    }
+
+    fn note_remap(&mut self, map: &[usize]) {
+        let Some((_, old_rows)) = map.split_last() else {
+            return;
+        };
+        let origin = self.trimmed_total;
+        let pairs: Vec<(u64, u64)> = old_rows
+            .iter()
+            .enumerate()
+            .map(|(old, &new)| (old as u64 + origin, new as u64 + origin))
+            .collect();
+        self.pending_remap = Some(match self.pending_remap.take() {
+            None => pairs,
+            Some(previous) => previous
+                .into_iter()
+                .map(|(first, mid)| {
+                    let last = mid
+                        .checked_sub(origin)
+                        .and_then(|index| old_rows.get(index as usize))
+                        .map_or(mid, |&new| new as u64 + origin);
+                    (first, last)
+                })
+                .collect(),
+        });
+    }
+
+    pub fn take_delta(&mut self) -> Delta {
+        let completed = self.rows.completed().len();
+        let full = std::mem::take(&mut self.pending_full) || self.alt.is_some();
+        let screen_rows = if full {
+            self.screen.take_dirty();
+            (0..self.screen.content_rows()).collect()
+        } else {
+            self.screen.take_dirty()
+        };
+        let delta = Delta {
+            generation: self.generation,
+            kind: if full {
+                DeltaKind::Full
+            } else {
+                DeltaKind::Partial
+            },
+            trimmed_rows: std::mem::take(&mut self.pending_trimmed),
+            appended_history: self.history_exported_rows.min(completed)..completed,
+            screen_rows,
+            remap: self.pending_remap.take(),
+        };
+        self.history_exported_rows = completed;
+        delta
+    }
+
+    pub fn stable_row(&self, flat: usize) -> u64 {
+        flat as u64 + self.trimmed_total
+    }
+
+    /// The flat index of a stable row, or `None` once that row has been
+    /// trimmed away (wezterm/term/src/screen.rs:523-535).
+    pub fn flat_row(&self, stable: u64) -> Option<usize> {
+        stable
+            .checked_sub(self.trimmed_total)
+            .map(|flat| flat as usize)
     }
 
     pub fn grid(&self) -> &BlockGrid {
@@ -99,6 +201,7 @@ impl Parser {
     }
 
     pub(crate) fn process_boundary(&mut self, exit_code: Option<i32>) {
+        self.mark_full();
         if self.alt.is_some() {
             self.leave_alt();
         }
@@ -168,6 +271,7 @@ impl Parser {
         if self.alt.is_some() {
             return;
         }
+        self.mark_full();
         self.commit_evicted();
         let mut alt = ScreenGrid::new(rows, self.width);
         alt.set_records_eviction(false);
@@ -179,6 +283,7 @@ impl Parser {
     }
 
     pub fn leave_alt(&mut self) {
+        self.mark_full();
         self.alt = None;
         self.pending_style = self.saved_style;
         self.sync_erase_background();
@@ -329,6 +434,7 @@ impl Parser {
     }
 
     pub fn resize(&mut self, columns: usize, rows: usize) {
+        self.mark_full();
         if columns != self.width {
             self.rewrap_pending = true;
         }
@@ -363,6 +469,10 @@ impl Parser {
         if std::mem::take(&mut self.rewrap_pending) {
             let map = self.rows.rewrap(&self.content, self.width);
             self.grid.remap_rows(&map);
+            self.note_remap(&map);
+            self.history_exported_rows =
+                self.history_exported_rows.min(self.rows.completed().len());
+            self.mark_full();
         }
         self.grid
             .sync_next_row(self.rows.completed().len() + self.screen.content_rows());
@@ -381,17 +491,31 @@ impl Parser {
         self.rows.completed().len() + (cursor_row + visible_cursor_row).min(screen_rows)
     }
 
-    pub fn trim_to(&mut self, max_total: usize) {
+    pub fn trim_to(&mut self, limits: Limits) -> usize {
         let before = self.rows.completed().len();
-        if let Some(new_start) = self.rows.trim_to(max_total) {
+        loop {
+            let completed = self.rows.completed().len();
+            let over_rows = completed + 1 > limits.rows;
+            let over_bytes = self.content.resident_bytes() + self.styles.byte_len() > limits.bytes;
+            if completed == 0 || !(over_rows || over_bytes) {
+                break;
+            }
+            let keep = if over_rows { limits.rows } else { completed };
+            let Some(new_start) = self.rows.trim_to(keep) else {
+                break;
+            };
             self.content.drop_before(new_start);
             self.styles.drop_before(new_start);
-            // Every row the row-index dropped off the front shifts the
-            // grid's `first_row` by one. Pass the delta so the block
-            // indices and the byte release can never disagree.
-            let dropped = before - self.rows.completed().len();
-            self.grid.trim_to_first_row(dropped);
         }
+        let dropped = before - self.rows.completed().len();
+        if dropped > 0 {
+            let exported_dropped = dropped.min(self.history_exported_rows);
+            self.history_exported_rows -= exported_dropped;
+            self.pending_trimmed += exported_dropped;
+            self.trimmed_total += dropped as u64;
+            self.grid.advance_origin(dropped);
+        }
+        dropped
     }
 
     fn apply_sgr(&mut self, params: &Params) {
@@ -626,7 +750,7 @@ mod tests {
 
     #[test]
     fn mouse_tracking_level_distinguishes_the_three_modes() {
-        let mut p = Parser::new(80, 100);
+        let mut p = Parser::new(80);
         let mut vte = VteParser::new();
         assert_eq!(p.mouse_tracking_level(), 0);
         vte.advance(&mut p, b"\x1b[?1000h");
@@ -646,7 +770,7 @@ mod tests {
 
     #[test]
     fn focus_reporting_mode_is_tracked() {
-        let mut p = Parser::new(80, 100);
+        let mut p = Parser::new(80);
         let mut vte = VteParser::new();
         assert!(!p.focus_reporting());
         vte.advance(&mut p, b"\x1b[?1004h");

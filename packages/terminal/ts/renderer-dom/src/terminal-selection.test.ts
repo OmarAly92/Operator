@@ -113,6 +113,30 @@ describe("the terminal selection", () => {
 		}
 	});
 
+	it("extending the selection by one row repaints one row", async () => {
+		const { host, renderer } = mountWith("one\r\ntwo\r\nthree\r\nfour");
+		await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+		const restore = layoutLive(host);
+		renderer.selectionBegin(renderer.pointAt(0, CELL_H * 0.5)!, "simple");
+		renderer.selectionUpdate(renderer.pointAt(620, CELL_H * 1.5)!);
+		expect([...host.querySelectorAll<HTMLElement>("[data-terminal-row]")].filter((row) => row.style.backgroundImage !== "")).toHaveLength(2);
+		const observer = new MutationObserver(() => undefined);
+		observer.observe(host, { attributes: true, attributeFilter: ["style"], subtree: true });
+		observer.takeRecords();
+		renderer.selectionUpdate(renderer.pointAt(620, CELL_H * 2.5)!);
+		const touched = new Set(
+			observer
+				.takeRecords()
+				.map((record) => record.target)
+				.filter((target): target is HTMLElement => target instanceof HTMLElement && target.classList.contains("terminal-row")),
+		);
+		observer.disconnect();
+		restore();
+		expect([...touched].map((row) => row.dataset.terminalRow)).toEqual(["2"]);
+		renderer.selectionClear();
+		expect([...host.querySelectorAll<HTMLElement>("[data-terminal-row]")].filter((row) => row.style.backgroundImage !== "")).toHaveLength(0);
+	});
+
 	it("tints a painted run's background instead of hiding under it", () => {
 		const band = "\x1b[48;5;237m\x1b[38;5;231m> hi\x1b[0m";
 		const { host, renderer } = mountWith(`alpha\r\n${band}\r\ngamma`);
@@ -196,6 +220,28 @@ describe("the terminal selection", () => {
 		renderer.selectionBegin(renderer.pointAt(0, CELL_H * 0.5)!, "simple");
 		renderer.selectionUpdate(renderer.pointAt(CELL_W * 8, CELL_H * 1.5)!);
 		expect(renderer.selectedText()).toBe("keep one\nkeep two");
+	});
+
+	it("resolves a point against the rows of the last paint after a trim it has not painted", async () => {
+		const core = createTerminalCore({ columns: 40, limits: { rows: 60, bytes: 0xffff_ffff }, rows: 2 });
+		for (let i = 0; i < 40; i += 1) feed(core, `line ${i}\r\n`);
+		const host = document.createElement("div");
+		Object.defineProperty(host, "clientHeight", { value: 800, configurable: true });
+		const renderer = new DomBlockRenderer();
+		renderer.measure = () => ({ cellWidth: CELL_W, cellHeight: CELL_H });
+		renderer.mount(host, core);
+		renderer.setTheme(warpDarkTheme);
+		renderer.setFont(font);
+		await nextPaint(renderer);
+		const rows = layoutRows(host);
+		const index = Math.floor(rows.length / 2);
+		const painted = Number(rows[index]!.dataset.terminalRow);
+		const paintedFirst = core.snapshot().firstStableRow;
+		for (let i = 40; i < 160; i += 1) feed(core, `line ${i}\r\n`);
+		expect(core.snapshot().firstStableRow).toBeGreaterThan(paintedFirst);
+		expect(renderer.pointAt(CELL_W + 1, CELL_H * (index + 0.5))!.row).toBe(painted);
+		expect(renderer.rowOrigin(painted)).not.toBeNull();
+		renderer.dispose();
 	});
 
 	it("notifies listeners when the selection changes", () => {

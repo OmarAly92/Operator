@@ -60,7 +60,7 @@ func (h *host) handleRespawn(conn net.Conn, payload []byte) {
 	if cols == 0 || rows == 0 {
 		cols, rows = h.cfg.InitialCols, h.cfg.InitialRows
 	}
-	newParser, err := vtwasm.New(h.ctx, vtwasm.Module, uint32(cols), uint32(rows), MaxOutputLines)
+	newParser, err := vtwasm.New(h.ctx, vtwasm.Module, uint32(cols), uint32(rows), mirrorLimits)
 	if err != nil {
 		newParser = nil
 	}

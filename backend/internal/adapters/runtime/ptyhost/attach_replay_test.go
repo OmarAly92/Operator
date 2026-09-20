@@ -21,7 +21,7 @@ func startServeParsed(t *testing.T, pid, cols, rows int) *serveFixture {
 	if err != nil {
 		t.Fatalf("listen: %v", err)
 	}
-	parser, err := vtwasm.New(context.Background(), vtwasm.Module, uint32(cols), uint32(rows), MaxOutputLines)
+	parser, err := vtwasm.New(context.Background(), vtwasm.Module, uint32(cols), uint32(rows), vtwasm.Limits{Rows: MaxOutputLines, Bytes: 0xffffffff})
 	if err != nil {
 		t.Fatalf("new parser: %v", err)
 	}

@@ -1,5 +1,27 @@
 import { describe, expect, it } from "vitest";
-import { computeWindow, findNeighbourBlock } from "./viewport";
+import type { BlockSource, BlockView } from "@operator/terminal-core";
+import { anchorAt, computeWindow, findNeighbourBlock, rowTop } from "./viewport";
+
+function block(
+	id: string,
+	firstRow: number,
+	rowCount: number,
+	source: BlockSource = "synthetic",
+): BlockView {
+	return {
+		id,
+		firstRow,
+		rowCount,
+		state: "finished",
+		source,
+		exitCode: 0,
+		durationMs: null,
+		command: "",
+		cwd: "",
+		gitBranch: "",
+		bookmarked: false,
+	};
+}
 
 function blocks(counts: number[]) {
 	let firstRow = 0;
@@ -135,5 +157,45 @@ describe("findNeighbourBlock", () => {
 	it("moves by exactly delta in the middle of the list", () => {
 		expect(findNeighbourBlock(blocks([2, 2, 2, 2, 2]), 2, 1)).toBe(3);
 		expect(findNeighbourBlock(blocks([2, 2, 2, 2, 2]), 2, -1)).toBe(1);
+	});
+});
+
+describe("rowTop and anchorAt", () => {
+	const rowHeight = 10;
+	const headerHeight = 25;
+	const paddingY = 21;
+	const paddingTop = paddingY * (1.1 / 2.1);
+	const blocks = [block("a", 0, 5, "osc133"), block("b", 5, 100, "synthetic")];
+
+	it("places a row below its block's header and top padding", () => {
+		expect(rowTop(blocks, 0, rowHeight, headerHeight, paddingY)).toBe(headerHeight + paddingTop);
+		expect(rowTop(blocks, 3, rowHeight, headerHeight, paddingY)).toBe(headerHeight + paddingTop + 30);
+		const blockAHeight = 5 * rowHeight + headerHeight + paddingY;
+		expect(rowTop(blocks, 5, rowHeight, headerHeight, paddingY)).toBe(blockAHeight + paddingTop);
+		expect(rowTop(blocks, 105, rowHeight, headerHeight, paddingY)).toBeNull();
+	});
+
+	it("anchors to the row under the top edge with its pixel offset", () => {
+		const top = rowTop(blocks, 7, rowHeight, headerHeight, paddingY)!;
+		const anchor = anchorAt(blocks, top + 4, rowHeight, headerHeight, paddingY)!;
+		expect(anchor.flatRow).toBe(7);
+		expect(anchor.offsetPx).toBeCloseTo(4, 9);
+	});
+
+	it("anchors to a block's first row while the edge is inside its header", () => {
+		const anchor = anchorAt(blocks, 3, rowHeight, headerHeight, paddingY)!;
+		expect(anchor.flatRow).toBe(0);
+		expect(anchor.offsetPx).toBeLessThan(0);
+	});
+
+	it("round-trips through rowTop for every row", () => {
+		for (let row = 0; row < 105; row += 1) {
+			for (const offset of [0, 3, 9.5]) {
+				const top = rowTop(blocks, row, rowHeight, headerHeight, paddingY)!;
+				const anchor = anchorAt(blocks, top + offset, rowHeight, headerHeight, paddingY)!;
+				expect(anchor.flatRow).toBe(row);
+				expect(anchor.offsetPx).toBeCloseTo(offset, 9);
+			}
+		}
 	});
 });

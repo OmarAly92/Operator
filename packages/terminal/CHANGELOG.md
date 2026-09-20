@@ -2,6 +2,87 @@
 
 ## Unreleased
 
+Rows are patched, not rebuilt.
+
+- `populateBlock` keeps row nodes keyed by stable row on the block element,
+  rebuilds only rows the core reports dirty or new, reuses the block header
+  until its fields change, and moves one cursor element instead of creating
+  one per paint (xterm.js `DomRenderer.ts` row pool and `renderRows`). Block
+  elements that leave the window wait in an LRU pool (3× the window) and come
+  back with their nodes.
+
+- The selection fill is diffed against the previous paint: extending a
+  selection by one row writes one row's background (Alacritty
+  `display/damage.rs` `damage_selection`).
+
+- `pointAt`/`rowOrigin` interpret the painted rows against the stable-row
+  origin of the paint that built them, not the core's current one, so a
+  mouse press between a trim and the repaint that follows it resolves to the
+  row under the pointer instead of one shifted by the trimmed count.
+
+Scrolling stays put when scrollback is trimmed or rewrapped.
+
+- While not stuck to the bottom, `DomBlockRenderer` anchors the viewport to
+  the stable row under its top edge plus a pixel offset and recomputes
+  `scrollTop` from it after every paint (`scrollAnchor()`), following a rewrap
+  through the remap row event. A trimmed anchor clamps to the first row.
+
+- `TerminalCore.feed` only parses; `snapshot()` syncs the export lazily and
+  returns the same object while the generation is unchanged, so a paint, a
+  mouse move and a find share one export per frame; `decodeBlocks` is memoised
+  per snapshot. `takeDirty()` and `onRowEvents()` expose the delta to the renderer.
+
+The export is incremental.
+
+- `WasmTerminalCore::feed`/`tick`/`resize` no longer rebuild the export;
+  `sync()` applies the pending delta (appended history rows, the rewritten
+  screen section, trimmed rows as a dead prefix compacted past 25 %) and
+  returns the generation it reflects. A rewrap, a resize, the alternate
+  screen and a process boundary rebuild in full. A property test pins that
+  the incremental buffers equal a full rebuild after any chunking, resize
+  and trim. Dirty stable rows accumulate until `ack_dirty`; row events
+  (`row_events_trimmed`, `remap`) until `clear_row_events`. A partial delta's
+  screen row count can shrink without every removed row appearing in the dirty
+  set (a full reset is one), so a consumer must re-derive the current screen row
+  count from `history_rows()` and the exported row count on every sync and drop
+  the rows past it, rather than relying on the dirty list alone to know what to
+  remove.
+
+The model reports what changed.
+
+- `TerminalCore::generation()` counts mutations; `take_delta()` returns the
+  history rows appended, the screen rows written, the exported rows trimmed
+  and the rewrap remap since the last call (Ghostty
+  `src/terminal/render.zig` `Dirty`; WezTerm line `seqno`). Every
+  `ScreenGrid` write marks its row. `export_history_rows` /
+  `export_screen_rows` / `export_blocks` / `export_cursor` are the pieces
+  `build_snapshot` is made of. A cursor move marks the row it left and the row
+  it reached, and a visibility toggle marks the cursor's row, so everything a
+  consumer must repaint is in `screen_rows`.
+
+Rows have stable ids.
+
+- `TerminalCore::stable_row(flat)` / `flat_row(stable)` / `first_stable_row()`
+  (WezTerm `term/src/screen.rs` `stable_row_index_offset`): a row keeps its id
+  when older rows are trimmed. `BlockGrid` stores stable rows and is no longer
+  renumbered by a trim; the snapshot exports `first_stable_row`; find hits
+  report stable rows.
+- `data-terminal-row` carries the stable row; selection points, find hits and
+  `paintedRowOrigin` address rows by stable id, so a selection no longer drifts
+  when scrollback is trimmed above it.
+
+Scrollback is capped by bytes as well as rows.
+
+- `TerminalCore::with_limits(columns, Limits { rows, bytes })` trims whole rows
+  from the front while either budget is exceeded (Ghostty
+  `src/terminal/PageList.zig` `Limits`, `setMaxBytes`); `new(columns, rows)`
+  stays as `Limits::rows_only(rows)`. `memory_stats()` reports resident content
+  bytes, style entries, scrollback rows and blocks.
+- `TerminalCoreOptions.limits { rows, bytes }` replaces `scrollback` (kept as
+  an alias for one release: `scrollback: n` is `{ rows: n, bytes: unbounded }`);
+  `TerminalCore.memoryStats()`. `vt_new` takes a byte budget and
+  `vt_memory_stats` reports it; the Go mirror takes `vtwasm.Limits`.
+
 The model can answer terminal queries.
 
 - `TerminalCore::set_answers_queries(true)` plus `set_terminal_identity(name)`
@@ -250,6 +331,21 @@ Shell terminals no longer inherit the launcher's `NO_COLOR`.
   screen rather than a fixed pixel. It hard-coded a point that a taller block
   header turned into chrome, where a pointer press is ignored by design, and
   reported a live regression in a selection that was working.
+
+- Plan B measured (see the spec's baseline table, "After Plan B"): feed+sync
+  at row 50k is 0.20ms vs 0.20ms at row 1k (inside the 20% + 0.2ms budget);
+  a one-row selection extend repaints 1 row (was 2); `bench:agent:scroll`
+  reports full coverage (60,134/60,134) and the top-edge row unchanged across
+  a 5,098-row trim. Two Part 1.4 targets are missed and reported: a spinner
+  paint creates 7.21 DOM nodes per changed row (a `div` plus a `span` and a
+  text node per style run; target ≤ 2) and ten idle panes cost 1.30s of
+  main-thread task time over 10s against a 0.44s target (25 % of the 1.759s
+  pre-Plan-B baseline). The harness's `addedNodes` counter now counts every
+  node of an inserted subtree, not only its root, so nodes-per-paint figures
+  before this entry are not comparable. `bench:agent:gate` asserts
+  `feedSyncCost` flatness from 1k to 50k rows and the one-row selection
+  repaint, prints the two missed rows, and fails when a `feedSyncCost`
+  sample was not collected.
 
 ## 0.3.0 - 2026-08-30
 
