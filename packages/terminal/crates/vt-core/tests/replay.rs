@@ -1,4 +1,4 @@
-use vt_core::TerminalCore;
+use vt_core::{BlockState, TerminalCore};
 
 fn rows_of(core: &TerminalCore) -> Vec<String> {
     let snapshot = core.snapshot().expect("snapshot");
@@ -88,5 +88,77 @@ fn two_history_chunks_prepend_oldest_last() {
         ]
     );
     assert_eq!(core.first_stable_row(), 998);
+    assert_eq!(core.verify_integrity(), Ok(()));
+}
+
+#[test]
+fn modes_are_replayed() {
+    let mut core = TerminalCore::new(20, 10_000).expect("core");
+    core.feed(b"\x1b[?1049h\x1b[?1006h\x1b[?1002h\x1b[?2004h\x1b[?1004h\x1b[?1h\x1b[?25l");
+    assert!(core.alt_screen_active());
+    assert!(core.sgr_mouse());
+    assert_eq!(core.mouse_tracking_level(), 2);
+    assert!(core.bracketed_paste());
+    assert!(core.focus_reporting());
+    assert!(core.application_cursor_keys());
+}
+
+#[test]
+fn blocks_survive_reopen() {
+    let mut core = TerminalCore::new(20, 10_000).expect("core");
+    attach(&mut core, 1000, "live\r\n");
+    core.feed(b"\x1b]7000;v=1;history=998,2\x1b\\");
+    core.feed(b"\x1b]7000;v=1;id=b1;cmd=ls\x1b\\old one\r\nold two\x1b]7000;v=1;exit=0\x1b\\\r\n");
+
+    let snapshot = core.snapshot().expect("snapshot");
+    assert!(
+        snapshot.blocks.iter().any(|block| block.row_count == 2),
+        "the prepended block did not span both of its rows: {:?}",
+        snapshot.blocks
+    );
+    assert_eq!(snapshot.block_command(0), "ls");
+    assert_eq!(core.verify_integrity(), Ok(()));
+}
+
+// The chunk's closing `exit=` mark must never reach the live grid: in a real
+// Claude session there IS an open block, and closing it is a visible defect
+// (BlockGrid::close_block, crates/vt-core/src/block_grid.rs:118-127).
+#[test]
+fn a_history_chunks_marks_never_touch_the_live_block_grid() {
+    let mut core = TerminalCore::new(20, 10_000).expect("core");
+    attach(&mut core, 1000, "");
+    core.feed(b"\x1b]7000;v=1;id=live;cmd=claude\x1b\\");
+    core.feed(b"live\r\n");
+    let before = core.snapshot().expect("snapshot");
+    let before_blocks = before.blocks.len();
+    let open_before = before
+        .blocks
+        .iter()
+        .filter(|block| block.state == BlockState::Running)
+        .count();
+    assert_eq!(
+        open_before, 1,
+        "the fixture did not leave a live block open"
+    );
+
+    core.feed(b"\x1b]7000;v=1;history=999,1\x1b\\");
+    core.feed(b"\x1b]7000;v=1;id=b9;cmd=pwd\x1b\\old\x1b]7000;v=1;exit=3\x1b\\\r\n");
+    core.feed(b"after\r\n");
+
+    let after = core.snapshot().expect("snapshot");
+    assert_eq!(
+        after.blocks.len(),
+        before_blocks + 1,
+        "the chunk's marks changed the live block count"
+    );
+    assert_eq!(
+        after
+            .blocks
+            .iter()
+            .filter(|block| block.state == BlockState::Running)
+            .count(),
+        1,
+        "the chunk's exit mark closed the live block"
+    );
     assert_eq!(core.verify_integrity(), Ok(()));
 }

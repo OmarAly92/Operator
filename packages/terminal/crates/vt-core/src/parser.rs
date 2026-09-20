@@ -506,7 +506,10 @@ impl Parser {
     }
 
     pub fn adopt_origin(&mut self, origin: u64) -> bool {
-        if self.trimmed_total != 0 || !self.rows.completed().is_empty() {
+        if self.trimmed_total != 0
+            || !self.rows.completed().is_empty()
+            || self.screen.frame_rows() != 0
+        {
             return false;
         }
         self.trimmed_total = origin;
@@ -515,7 +518,6 @@ impl Parser {
         true
     }
 
-    #[allow(dead_code)]
     pub fn apply_history_chunk(
         &mut self,
         first_stable_row: u64,
