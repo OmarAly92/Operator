@@ -68,3 +68,23 @@ fn memory_stats_are_exported_as_four_words() {
     );
     assert_eq!(words[2], 2);
 }
+
+#[test]
+fn apply_matches_refresh_for_a_partial_delta() {
+    let mut core = TerminalCore::new(16, 10).unwrap();
+    core.resize(16, 2);
+    let mut incremental = ExportBuffers::default();
+    let initial = core.take_delta();
+    incremental.apply(&core, &initial).unwrap();
+    core.feed(b"first row\r\nsecond\r\n");
+    let delta = core.take_delta();
+    assert_eq!(delta.kind, vt_core::DeltaKind::Partial);
+    incremental.apply(&core, &delta).unwrap();
+    let mut full = ExportBuffers::default();
+    full.refresh(&core.snapshot().unwrap()).unwrap();
+    assert_eq!(incremental.content(), full.content());
+    assert_eq!(incremental.rows(), full.rows());
+    assert_eq!(incremental.run_ranges(), full.run_ranges());
+    assert_eq!(incremental.style_pairs(), full.style_pairs());
+    assert_eq!(incremental.blocks(), full.blocks());
+}

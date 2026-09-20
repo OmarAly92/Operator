@@ -49,9 +49,17 @@ describe("large-output fidelity", () => {
 
 		// Every retained row must be a full wrapped line of the workload byte,
 		// which is what proves the parse ran rather than the bytes vanishing.
-		const text = new TextDecoder().decode(snapshot.content);
-		expect(text.length).toBe(rowCount * columns - columns + (total % columns || columns));
-		expect(/^x+$/.test(text)).toBe(true);
+		// The rows are projected out of the content buffer rather than the
+		// buffer being read whole: the export keeps trimmed rows as a dead
+		// prefix until it compacts, so only the rows are the contract.
+		let retained = "";
+		for (let row = 0; row < rowCount; row += 1) {
+			retained += new TextDecoder().decode(
+				snapshot.content.subarray(snapshot.rows[row * 2], snapshot.rows[row * 2 + 1]),
+			);
+		}
+		expect(retained.length).toBe(rowCount * columns - columns + (total % columns || columns));
+		expect(/^x+$/.test(retained)).toBe(true);
 	});
 
 	it("paints the visible window and reports the paint", async () => {

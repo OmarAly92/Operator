@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+The export is incremental.
+
+- `WasmTerminalCore::feed`/`tick`/`resize` no longer rebuild the export;
+  `sync()` applies the pending delta (appended history rows, the rewritten
+  screen section, trimmed rows as a dead prefix compacted past 25 %) and
+  returns the generation it reflects. A rewrap, a resize, the alternate
+  screen and a process boundary rebuild in full. A property test pins that
+  the incremental buffers equal a full rebuild after any chunking, resize
+  and trim. Dirty stable rows accumulate until `ack_dirty`; row events
+  (`row_events_trimmed`, `remap`) until `clear_row_events`.
+
 The model reports what changed.
 
 - `TerminalCore::generation()` counts mutations; `take_delta()` returns the
