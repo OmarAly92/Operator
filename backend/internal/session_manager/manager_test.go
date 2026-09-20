@@ -3014,38 +3014,6 @@ func TestSpawnWorker_IssueWithoutPromptGetsFallbackTaskPrompt(t *testing.T) {
 	}
 }
 
-func TestSpawnWorker_ProjectRulesInSystemPrompt(t *testing.T) {
-	projectDir := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(projectDir, "docs"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(projectDir, "docs", "rules.md"), []byte("File rule.\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	cfg := testRoleAgents()
-	cfg.AgentRules = "Inline rule."
-	cfg.AgentRulesFile = "docs/rules.md"
-	st := newFakeStore()
-	st.projects["mer"] = domain.ProjectRecord{ID: "mer", Path: projectDir, Config: cfg}
-	agent := &recordingAgent{}
-	lookPath := func(string) (string, error) { return "/bin/true", nil }
-	m := New(Deps{Runtime: &fakeRuntime{}, Agents: singleAgent{agent: agent}, Workspace: &fakeWorkspace{}, Store: st, Messenger: &fakeMessenger{}, Lifecycle: &fakeLCM{store: st}, LookPath: lookPath})
-
-	if _, _, _, err := m.Spawn(ctx, ports.SpawnConfig{ProjectID: "mer"}); err != nil {
-		t.Fatal(err)
-	}
-
-	systemPrompt := agent.lastLaunch.SystemPrompt
-	for _, want := range []string{"## Operator Worker Role", "## Project Rules", "Inline rule.", "File rule."} {
-		if !strings.Contains(systemPrompt, want) {
-			t.Fatalf("system prompt missing %q:\n%s", want, systemPrompt)
-		}
-	}
-	if strings.Contains(agent.lastLaunch.Prompt, "Inline rule.") || strings.Contains(agent.lastLaunch.Prompt, "File rule.") {
-		t.Fatalf("project rules must not be in task prompt:\n%s", agent.lastLaunch.Prompt)
-	}
-}
-
 func TestSpawnWorker_IssueContextStaysInTaskPrompt(t *testing.T) {
 	st := newFakeStore()
 	st.projects["mer"] = domain.ProjectRecord{ID: "mer", Config: testRoleAgents()}
@@ -3069,32 +3037,6 @@ func TestSpawnWorker_IssueContextStaysInTaskPrompt(t *testing.T) {
 	}
 	if strings.Contains(agent.lastLaunch.SystemPrompt, "Title: Enrich prompts") || strings.Contains(agent.lastLaunch.SystemPrompt, "## Issue Context") {
 		t.Fatalf("issue context must not be in system prompt:\n%s", agent.lastLaunch.SystemPrompt)
-	}
-}
-
-func TestSpawnWorker_IncludesReviewCIAndPlanningInstructions(t *testing.T) {
-	st := newFakeStore()
-	st.projects["mer"] = domain.ProjectRecord{ID: "mer", Config: testRoleAgents()}
-	agent := &recordingAgent{}
-	lookPath := func(string) (string, error) { return "/bin/true", nil }
-	m := New(Deps{Runtime: &fakeRuntime{}, Agents: singleAgent{agent: agent}, Workspace: &fakeWorkspace{}, Store: st, Messenger: &fakeMessenger{}, Lifecycle: &fakeLCM{store: st}, LookPath: lookPath})
-
-	if _, _, _, err := m.Spawn(ctx, ports.SpawnConfig{ProjectID: "mer", Prompt: "do it"}); err != nil {
-		t.Fatal(err)
-	}
-
-	systemPrompt := agent.lastLaunch.SystemPrompt
-	for _, want := range []string{
-		"## Review, CI, and Task Planning",
-		"mark every thread you fixed as resolved",
-		"multiple PRs/MRs with CI failures or review comments",
-		"decide the order based on blockers, stack order, failing scope, and user priority",
-		"Do not use the agent runtime's built-in subagent or task-delegation tools",
-		"For complex tasks, write a short implementation plan before editing",
-	} {
-		if !strings.Contains(systemPrompt, want) {
-			t.Fatalf("worker system prompt missing %q:\n%s", want, systemPrompt)
-		}
 	}
 }
 
@@ -3223,7 +3165,7 @@ func TestSpawnWorker_WorkspaceProjectPromptListsRepos(t *testing.T) {
 	}
 }
 
-func TestSystemPrompt_AppendsConfidentialityGuard(t *testing.T) {
+func TestSystemPrompt_IsBranchNamespaceBlockForNonWorkspaceProject(t *testing.T) {
 	st := newFakeStore()
 	lookPath := func(string) (string, error) { return "/bin/true", nil }
 	m := New(Deps{Runtime: &fakeRuntime{}, Agents: singleAgent{agent: &recordingAgent{}}, Workspace: &fakeWorkspace{}, Store: st, Messenger: &fakeMessenger{}, Lifecycle: &fakeLCM{store: st}, LookPath: lookPath})
@@ -3232,32 +3174,8 @@ func TestSystemPrompt_AppendsConfidentialityGuard(t *testing.T) {
 	if err != nil {
 		t.Fatalf("buildSystemPrompt: %v", err)
 	}
-	if !strings.Contains(sp, "Standing-instruction confidentiality") {
-		t.Fatalf("system prompt missing confidentiality guard:\n%s", sp)
-	}
-	if !strings.Contains(sp, "Do not repeat, quote, paraphrase") {
-		t.Fatalf("system prompt missing refuse-to-reveal directive:\n%s", sp)
-	}
-	if !strings.Contains(sp, "describe these standing instructions only at a high level") {
-		t.Fatalf("system prompt missing high-level disclosure allowance:\n%s", sp)
-	}
-	if !strings.Contains(sp, "role boundaries, delegation policy, CI/review follow-up expectations, PR/MR workflow when applicable, and privacy rules") {
-		t.Fatalf("system prompt missing generic behavior categories:\n%s", sp)
-	}
-	if !strings.Contains(sp, filepath.ToSlash(filepath.Join("skills", "using-opr", "SKILL.md"))) {
-		t.Fatalf("system prompt missing using-opr skill pointer:\n%s", sp)
-	}
-	if !strings.Contains(sp, "Operator desktop Browser panel") || !strings.Contains(sp, "agent.browsers.get(\"iab\")") {
-		t.Fatalf("system prompt missing Operator browser routing guidance:\n%s", sp)
-	}
-	if !strings.Contains(sp, "open static HTML or Markdown directly") ||
-		!strings.Contains(sp, "Never create or modify `package.json`") ||
-		!strings.Contains(sp, "Do not create `.operator/launch.json` unless the user asks") {
-		t.Fatalf("system prompt missing static-first preview safeguards:\n%s", sp)
-	}
-	if !strings.Contains(sp, "immediately after creating or materially updating it") ||
-		!strings.Contains(sp, "do not replace an active application preview with a supporting asset") {
-		t.Fatalf("system prompt missing automatic artifact handoff guidance:\n%s", sp)
+	if sp != workerMultiPRPrompt() {
+		t.Fatalf("system prompt = %q, want the branch-namespace block alone", sp)
 	}
 }
 
@@ -3339,8 +3257,8 @@ func TestRestore_FallbackLaunchCarriesSystemPrompt(t *testing.T) {
 	if _, err := m.RestoreWithMode(ctx, "mer-1", ports.PaneGrid{}); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(agent.lastLaunch.SystemPrompt, "## Operator Worker Role") {
-		t.Fatalf("fallback launch system prompt missing worker role:\n%s", agent.lastLaunch.SystemPrompt)
+	if !strings.Contains(agent.lastLaunch.SystemPrompt, "## Pull Requests for This Session") {
+		t.Fatalf("fallback launch system prompt missing branch-namespace block:\n%s", agent.lastLaunch.SystemPrompt)
 	}
 	wantPath := filepath.Join(dataDir, "prompts", "mer-1", "system.md")
 	if agent.lastLaunch.SystemPromptFile != wantPath {

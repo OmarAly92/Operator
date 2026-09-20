@@ -24,7 +24,6 @@ import (
 	aoprocess "github.com/OmarAly92/operator/backend/internal/process"
 	"github.com/OmarAly92/operator/backend/internal/service/dialogdriver"
 	"github.com/OmarAly92/operator/backend/internal/sessionguard"
-	"github.com/OmarAly92/operator/backend/internal/skillassets"
 	"github.com/OmarAly92/operator/backend/internal/slashcommands"
 )
 
@@ -2736,29 +2735,10 @@ func isDefaultDevDataDir(dataDir string) bool {
 
 func buildPrompt(cfg ports.SpawnConfig) string {
 	return buildTaskPrompt(taskPromptConfig{
-		Role:         sessionPromptRoleWorker,
 		Prompt:       cfg.Prompt,
 		IssueID:      string(cfg.IssueID),
 		IssueContext: cfg.IssueContext,
 	})
-}
-
-func promptProjectContext(projectID domain.ProjectID, project domain.ProjectRecord) promptProject {
-	cfg := project.Config.WithDefaults()
-	if project.Kind.WithDefault() == domain.ProjectKindScratch {
-		cfg.DefaultBranch = ""
-	}
-	id := project.ID
-	if strings.TrimSpace(id) == "" {
-		id = string(projectID)
-	}
-	return promptProject{
-		ID:            id,
-		Name:          project.DisplayName,
-		Repo:          project.RepoOriginURL,
-		DefaultBranch: cfg.DefaultBranch,
-		Path:          project.Path,
-	}
 }
 
 // attachmentsDir is the worktree-relative directory where spawn file
@@ -2828,24 +2808,7 @@ func (m *Manager) buildSpawnTexts(ctx context.Context, cfg ports.SpawnConfig) (p
 // current store state. Restore recomputes them through here rather than
 // persisting them.
 func (m *Manager) buildSystemPrompt(ctx context.Context, projectID domain.ProjectID) (string, error) {
-	project, err := m.loadProject(ctx, projectID)
-	if err != nil {
-		return "", err
-	}
-	cfg := systemPromptConfig{
-		Role:    sessionPromptRoleWorker,
-		Project: promptProjectContext(projectID, project),
-	}
-
-	rules, err := buildProjectRules(projectRulesConfig{
-		ProjectPath:    project.Path,
-		AgentRules:     project.Config.AgentRules,
-		AgentRulesFile: project.Config.AgentRulesFile,
-	})
-	if err != nil {
-		return "", err
-	}
-	cfg.ProjectRules = rules
+	cfg := systemPromptConfig{}
 
 	workspacePrompt, err := m.workspaceProjectPrompt(ctx, projectID)
 	if err != nil {
@@ -2854,31 +2817,7 @@ func (m *Manager) buildSystemPrompt(ctx context.Context, projectID domain.Projec
 	if workspacePrompt != "" {
 		cfg.AdditionalSections = append(cfg.AdditionalSections, workspacePrompt)
 	}
-	if pointer := strings.TrimSpace(m.operatorSkillPointer()); pointer != "" {
-		cfg.AdditionalSections = append(cfg.AdditionalSections, pointer)
-	}
 	return buildSystemPromptText(cfg), nil
-}
-
-// operatorSkillPointer is appended to every agent system prompt. It points the agent
-// at the using-opr skill the daemon installs under the data dir, rather than
-// inlining the whole CLI catalog. The path is absolute so it resolves from any
-// project's worktree, not just the Operator repo (the only place a repo-relative
-// skills/ path would exist). The skill file carries exact flags and examples,
-// so the standing prompt stays a short pointer rather than a command dump.
-func (m *Manager) operatorSkillPointer() string {
-	dir := skillassets.Dir(m.dataDir)
-	skillFile := filepath.ToSlash(filepath.Join(dir, "SKILL.md"))
-	commandsGlob := filepath.ToSlash(filepath.Join(dir, "commands", "*.md"))
-	browserFile := filepath.ToSlash(filepath.Join(dir, "commands", "browser.md"))
-	previewFile := filepath.ToSlash(filepath.Join(dir, "commands", "preview.md"))
-	return "\n\n" + "## Using the opr CLI\n\n" +
-		"When using `opr`, read `" + skillFile + "` and only the relevant file under `" + commandsGlob + "`; do not load unrelated command guides.\n\n" +
-		"## Operator desktop Browser panel\n\n" +
-		"For frontend work, read `" + previewFile + "` before previewing or starting an app: open static HTML or Markdown directly; Never create or modify `package.json` or install dependencies solely to display static files. Do not create `.operator/launch.json` unless the user asks. Automatically open the primary requested browser-displayable artifact immediately after creating or materially updating it, but do not replace an active application preview with a supporting asset. " +
-		"For page inspection or interaction, read `" + browserFile + "` and use `opr browser` from this Operator session. Browser network capture is optional and off by default; follow that guide and never enable it for routine browser actions. " +
-		"Do not use Codex/host in-app browser connectors, `agent.browsers.get(\"iab\")`, or a browser MCP for the Operator Browser panel: those are separate browser runtimes and cannot see or control Operator's session-owned page. " +
-		"`opr browser` operates the same live page the user sees in that panel."
 }
 
 func (m *Manager) workspaceProjectPrompt(ctx context.Context, projectID domain.ProjectID) (string, error) {
@@ -2952,17 +2891,6 @@ func (m *Manager) cleanupSystemPromptDir(id domain.SessionID) {
 	if err := os.RemoveAll(dir); err != nil {
 		m.logger.Warn("system prompt cleanup failed", "session", id, "path", dir, "err", err)
 	}
-}
-
-func workspaceOrchestratorPrompt(repos []domain.WorkspaceRepoRecord) string {
-	return fmt.Sprintf(`## Workspace project
-
-This project is a multi-repository workspace. Sessions start at the workspace root. The root repository is %s at path `+"`.`"+`; child repositories are nested below it.
-
-Repositories:
-%s
-
-When spawning workers, name the repository path or paths they should work in. Work can span multiple repositories, so track deliverables, pull requests, and checks by repository.`, domain.RootWorkspaceRepoName, workspaceRepoList(repos))
 }
 
 func workspaceWorkerPrompt(repos []domain.WorkspaceRepoRecord) string {

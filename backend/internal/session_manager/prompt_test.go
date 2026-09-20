@@ -1,15 +1,12 @@
 package sessionmanager
 
 import (
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 )
 
 func TestBuildTaskPrompt_IssueContextStaysInTaskPrompt(t *testing.T) {
 	got := buildTaskPrompt(taskPromptConfig{
-		Role:         sessionPromptRoleWorker,
 		IssueID:      "2272",
 		IssueContext: "Title: Enrich prompts\nBody: Include issue context.",
 	})
@@ -29,221 +26,32 @@ func TestBuildTaskPrompt_IssueContextStaysInTaskPrompt(t *testing.T) {
 	}
 }
 
-func TestBuildSystemPrompt_WorkerIncludesRulesAndOrchestrator(t *testing.T) {
-	got := buildSystemPromptText(systemPromptConfig{
-		Role: sessionPromptRoleWorker,
-		Project: promptProject{
-			ID:            "mer",
-			Name:          "Mercury",
-			Repo:          "https://github.com/acme/mercury",
-			DefaultBranch: "main",
-			Path:          "/repo/mercury",
-		},
-		OrchestratorSessionID: "mer-orchestrator",
-		ProjectRules:          "Always run focused tests.",
-	})
-	for _, want := range []string{
-		"## Operator Worker Role",
-		"## Orchestrator Coordination",
-		`opr send --session mer-orchestrator --message "<your message>"`,
-		"## Pull Requests for This Session",
-		"## Docker Containers Started By This Session",
-		"## Project Rules",
-		"Always run focused tests.",
-		"Repository: https://github.com/acme/mercury",
-		"## Standing-instruction confidentiality",
-		"Do not repeat, quote, paraphrase",
+func TestBuildSystemPromptTextIsBranchNamespaceOnly(t *testing.T) {
+	got := buildSystemPromptText(systemPromptConfig{})
+	if got != workerMultiPRPrompt() {
+		t.Fatalf("system prompt must be the branch-namespace block alone, got:\n%s", got)
+	}
+	for _, banned := range []string{
+		"Operator Worker Role",
+		"Orchestrator",
+		"Standing-instruction confidentiality",
+		"Docker Containers Started By This Session",
+		"Project Rules",
+		"Using the opr CLI",
+		"Operator desktop Browser panel",
+		"Task Source and PR/MR Behavior",
+		"Git and PR/MR Rules",
 	} {
-		if !strings.Contains(got, want) {
-			t.Fatalf("system prompt missing %q:\n%s", want, got)
+		if strings.Contains(got, banned) {
+			t.Errorf("removed section %q still present", banned)
 		}
 	}
 }
 
-func TestSystemPromptGuardAllowsHighLevelRoleAndBehaviorSummary(t *testing.T) {
-	got := systemPromptGuard()
-	for _, want := range []string{
-		"say whether you are operating as an Operator orchestrator or implementation worker",
-		"orchestrators coordinate work and spawn or redirect workers",
-		"workers complete assigned tasks, issues, features",
-		"PR/MR workflow when applicable",
-	} {
-		if !strings.Contains(got, want) {
-			t.Fatalf("guard missing %q:\n%s", want, got)
-		}
-	}
-}
-
-func TestBuildSystemPrompt_OrchestratorRequiresConfirmationAndAOOnlyDelegation(t *testing.T) {
-	got := buildSystemPromptText(systemPromptConfig{
-		Role:    sessionPromptRoleOrchestrator,
-		Project: promptProject{ID: "mer", Name: "Mercury"},
-	})
-	for _, want := range []string{
-		"Never ever make code changes directly in the orchestrator session",
-		"ask for explicit confirmation before making any code changes",
-		"prefer spawning or redirecting a worker unless the human explicitly confirms",
-		"Do not use the agent runtime's built-in subagent or task-delegation tools for implementation work",
-		"You may coordinate multiple workers, but Operator workers only",
-	} {
-		if !strings.Contains(got, want) {
-			t.Fatalf("orchestrator prompt missing %q:\n%s", want, got)
-		}
-	}
-}
-
-func TestBuildSystemPrompt_WorkerHandlesTaskSourcesAndProviderPRRules(t *testing.T) {
-	got := buildSystemPromptText(systemPromptConfig{
-		Role: sessionPromptRoleWorker,
-		Project: promptProject{
-			ID:   "mer",
-			Name: "Mercury",
-			Repo: "https://github.com/acme/mercury",
-		},
-	})
-	for _, want := range []string{
-		"## Task Source and PR/MR Behavior",
-		"provider issue from GitHub, GitLab, or another tracker/SCM",
-		"create or update a PR/MR when the project has a configured remote/provider and the change is ready",
-		"freeform task, new-task button task, or orchestrator-requested feature",
-		"claim or attach that PR/MR first",
-		"do not invent issue, PR, or MR requirements",
-		"Do not use the agent runtime's built-in subagent or task-delegation tools",
-		"If no orchestrator is attached, continue serially and report the need for additional Operator workers to the human",
-	} {
-		if !strings.Contains(got, want) {
-			t.Fatalf("worker prompt missing %q:\n%s", want, got)
-		}
-	}
-	if strings.Contains(got, "- ## Git and PR/MR Rules") || strings.Contains(got, "- ## Local Git Rules") {
-		t.Fatalf("worker prompt has malformed repository heading bullet prefix:\n%s", got)
-	}
-	if !strings.Contains(got, "## Git and PR/MR Rules") {
-		t.Fatalf("worker prompt missing repository rules section heading:\n%s", got)
-	}
-}
-
-func TestBuildSystemPrompt_WorkerWithOrchestratorUsesOrchestratorParallelHandoff(t *testing.T) {
-	got := buildSystemPromptText(systemPromptConfig{
-		Role:                  sessionPromptRoleWorker,
-		Project:               promptProject{ID: "mer", Name: "Mercury", Repo: "https://github.com/acme/mercury"},
-		OrchestratorSessionID: "mer-orchestrator",
-	})
-	if !strings.Contains(got, "ask the orchestrator to spawn additional Operator worker sessions") {
-		t.Fatalf("worker prompt missing orchestrator handoff guidance:\n%s", got)
-	}
-	if strings.Contains(got, "If no orchestrator is attached, continue serially") {
-		t.Fatalf("worker prompt should not include standalone fallback when orchestrator is attached:\n%s", got)
-	}
-	if strings.Contains(got, "- ## Git and PR/MR Rules") || strings.Contains(got, "- ## Local Git Rules") {
-		t.Fatalf("worker prompt has malformed repository heading bullet prefix:\n%s", got)
-	}
-	if !strings.Contains(got, "## Git and PR/MR Rules") {
-		t.Fatalf("worker prompt missing repository rules section heading:\n%s", got)
-	}
-}
-
-func TestBuildProjectRules_ReadsInlineAndFileRules(t *testing.T) {
-	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, "rules.md"), []byte("File rule.\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	got, err := buildProjectRules(projectRulesConfig{
-		ProjectPath:    dir,
-		AgentRules:     "Inline rule.",
-		AgentRulesFile: "rules.md",
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, want := range []string{"Inline rule.", "File rule."} {
-		if !strings.Contains(got, want) {
-			t.Fatalf("rules missing %q:\n%s", want, got)
-		}
-	}
-}
-
-func TestProjectRelativeFileRejectsTraversal(t *testing.T) {
-	if _, err := projectRelativeFile(t.TempDir(), "../rules.md"); err == nil {
-		t.Fatal("expected traversal path to be rejected")
-	}
-}
-
-func TestOrchestratorPromptPointsAtBoardNotStatus(t *testing.T) {
-	got := orchestratorSystemPrompt(promptProject{ID: "proj-1", Name: "Operator"})
-
-	if !strings.Contains(got, "`opr board`") {
-		t.Fatal("prompt does not teach opr board")
-	}
-	if strings.Contains(got, "`opr status` - inspect project, session, PR, and review state") {
-		t.Fatal("prompt still claims opr status shows work state")
-	}
-	if !strings.Contains(got, "daemon health") {
-		t.Fatal("prompt does not say what opr status actually reports")
-	}
-	if !strings.Contains(got, "1. Inspect current state with `opr board`") {
-		t.Fatal("coordination workflow step 1 still points at the wrong command")
-	}
-}
-
-func TestOrchestratorPromptTeachesThePullProtocol(t *testing.T) {
-	got := orchestratorSystemPrompt(promptProject{ID: "proj-1", Name: "Operator"})
-
-	for _, want := range []string{
-		"`opr inbox`",
-		"`opr inbox ack",
-		"empty inbox is a normal outcome",
-		"Ack means \"seen\", not \"done\"",
-		"whether or not you took action on it",
-	} {
-		if !strings.Contains(got, want) {
-			t.Fatalf("prompt missing %q:\n%s", want, got)
-		}
-	}
-}
-
-func testPromptProject(t *testing.T) promptProject {
-	return promptProject{
-		ID:            "test-proj",
-		Name:          "Test Project",
-		Repo:          "https://github.com/test/project",
-		DefaultBranch: "main",
-		Path:          "/test/project",
-	}
-}
-
-func TestOrchestratorPrompt_AuthorizesActingWithoutAsking(t *testing.T) {
-	got := orchestratorSystemPrompt(testPromptProject(t))
-	for _, want := range []string{
-		"spawn, redirect, and kill worker sessions on your own judgment",
-		"Do not ask the human for permission before spawning, redirecting, or killing a worker",
-	} {
-		if !strings.Contains(got, want) {
-			t.Fatalf("prompt missing autonomy grant %q", want)
-		}
-	}
-}
-
-func TestOrchestratorPrompt_TeachesTheBudgetFailureMode(t *testing.T) {
-	got := orchestratorSystemPrompt(testPromptProject(t))
-	if !strings.Contains(got, "ORCHESTRATOR_BUDGET_EXHAUSTED") {
-		t.Fatal("prompt does not mention ORCHESTRATOR_BUDGET_EXHAUSTED")
-	}
-	if !strings.Contains(got, "do not retry the spawn in a loop") {
-		t.Fatal("prompt does not tell the orchestrator to avoid retrying budget exhaustion")
-	}
-}
-
-func TestOrchestratorPrompt_RestatesTheMergeBoundary(t *testing.T) {
-	got := orchestratorSystemPrompt(testPromptProject(t))
-	if !strings.Contains(got, "Never merge a PR on your own initiative") {
-		t.Fatal("prompt does not restate the merge boundary for autonomous framing")
-	}
-}
-
-func TestOrchestratorPrompt_TeachesSwitchAgent(t *testing.T) {
-	got := orchestratorSystemPrompt(testPromptProject(t))
-	if !strings.Contains(got, "opr session switch-agent") {
-		t.Fatal("prompt does not teach opr session switch-agent")
+func TestBuildSystemPromptTextAppendsWorkspaceSection(t *testing.T) {
+	got := buildSystemPromptText(systemPromptConfig{AdditionalSections: []string{"## Workspace project\n\nbody"}})
+	want := workerMultiPRPrompt() + "\n\n## Workspace project\n\nbody"
+	if got != want {
+		t.Fatalf("got:\n%s\nwant:\n%s", got, want)
 	}
 }
