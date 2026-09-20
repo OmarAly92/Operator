@@ -41,8 +41,6 @@ func (f *fakeSource) Attach(ctx context.Context, _ ports.RuntimeHandle, rows, co
 	return f.spawner.spawn(rows, cols)
 }
 
-// AttachWithHistory satisfies ports.HistoryAttacher so fakeSource can back
-// TestTerminalOpenForwardsTheHistoryOptIn / TestTerminalOpenWithoutHistoryAttachesPlainly.
 func (f *fakeSource) AttachWithHistory(ctx context.Context, handle ports.RuntimeHandle, rows, cols uint16, history bool) (ports.Stream, error) {
 	f.mu.Lock()
 	f.historyAttachCalls++
@@ -158,9 +156,6 @@ func (p *fakePTY) resizeCalls() [][2]uint16 {
 	return append([][2]uint16(nil), p.resizes...)
 }
 
-// flowControlledFakePTY wraps a fakePTY with the optional ports.FlowControlled
-// capability, so tests can exercise attachment.ack against a Stream that
-// implements it while the plain fakePTY (used elsewhere) deliberately does not.
 type flowControlledFakePTY struct {
 	*fakePTY
 	mu    sync.Mutex

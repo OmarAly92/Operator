@@ -279,9 +279,6 @@ func (a *attachment) resize(rows, cols uint16) error {
 	return pty.Resize(rows, cols)
 }
 
-// ack forwards the client's cumulative consumed-byte count to the live PTY,
-// when it implements the optional FlowControlled capability. A Stream that
-// does not implement it silently ignores the ack rather than erroring.
 func (a *attachment) ack(bytes uint64) error {
 	a.mu.Lock()
 	pty := a.pty

@@ -120,18 +120,13 @@ export type MuxConnectionState = "open" | "closed";
 type ConnectionListener = (state: MuxConnectionState) => void;
 
 export type TerminalMux = {
-	/**
-	 * Open a PTY pane for the given runtime/session id at an initial size.
-	 * `history` declares that this client understands the runtime's history
-	 * marks and wants the session's scrollback streamed behind the replay.
-	 */
+	/** Open a PTY pane for the given runtime/session id at an initial size. */
 	open: (id: string, cols: number, rows: number, history?: boolean) => void;
 	/** Forward user-originated keyboard/paste data to the pane. */
 	sendInput: (id: string, input: string) => void;
 	/** Resize normally, or explicitly re-signal an unchanged grid for recovery. */
 	resize: (id: string, cols: number, rows: number, force?: boolean) => void;
 	close: (id: string) => void;
-	/** Cumulative consumed-byte count, letting the pty-host throttle the child. */
 	ack: (id: string, bytes: number) => void;
 	onData: (id: string, listener: DataListener) => () => void;
 	onExit: (id: string, listener: ExitListener) => () => void;
