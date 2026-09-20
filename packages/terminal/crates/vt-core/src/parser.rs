@@ -5,6 +5,7 @@ use crate::attribute_map::AttributeMap;
 use crate::block::{BlockSource, BlockState};
 use crate::block_grid::BlockGrid;
 use crate::content::Content;
+use crate::limits::Limits;
 use crate::row_index::RowIndex;
 use crate::screen::{ClearPolicy, ScreenGrid};
 use crate::style::{CellStyle, StyleCode};
@@ -34,7 +35,7 @@ pub(crate) struct Parser {
 }
 
 impl Parser {
-    pub fn new(width: usize, _scrollback_rows: usize) -> Self {
+    pub fn new(width: usize) -> Self {
         let mut screen = ScreenGrid::new(24, width);
         screen.set_records_eviction(true);
         Self {
@@ -381,17 +382,27 @@ impl Parser {
         self.rows.completed().len() + (cursor_row + visible_cursor_row).min(screen_rows)
     }
 
-    pub fn trim_to(&mut self, max_total: usize) {
+    pub fn trim_to(&mut self, limits: Limits) -> usize {
         let before = self.rows.completed().len();
-        if let Some(new_start) = self.rows.trim_to(max_total) {
+        loop {
+            let completed = self.rows.completed().len();
+            let over_rows = completed + 1 > limits.rows;
+            let over_bytes = self.content.resident_bytes() + self.styles.byte_len() > limits.bytes;
+            if completed == 0 || !(over_rows || over_bytes) {
+                break;
+            }
+            let keep = if over_rows { limits.rows } else { completed };
+            let Some(new_start) = self.rows.trim_to(keep) else {
+                break;
+            };
             self.content.drop_before(new_start);
             self.styles.drop_before(new_start);
-            // Every row the row-index dropped off the front shifts the
-            // grid's `first_row` by one. Pass the delta so the block
-            // indices and the byte release can never disagree.
-            let dropped = before - self.rows.completed().len();
+        }
+        let dropped = before - self.rows.completed().len();
+        if dropped > 0 {
             self.grid.trim_to_first_row(dropped);
         }
+        dropped
     }
 
     fn apply_sgr(&mut self, params: &Params) {
@@ -626,7 +637,7 @@ mod tests {
 
     #[test]
     fn mouse_tracking_level_distinguishes_the_three_modes() {
-        let mut p = Parser::new(80, 100);
+        let mut p = Parser::new(80);
         let mut vte = VteParser::new();
         assert_eq!(p.mouse_tracking_level(), 0);
         vte.advance(&mut p, b"\x1b[?1000h");
@@ -646,7 +657,7 @@ mod tests {
 
     #[test]
     fn focus_reporting_mode_is_tracked() {
-        let mut p = Parser::new(80, 100);
+        let mut p = Parser::new(80);
         let mut vte = VteParser::new();
         assert!(!p.focus_reporting());
         vte.advance(&mut p, b"\x1b[?1004h");

@@ -62,6 +62,14 @@ impl<A: Copy + Eq> AttributeMap<A> {
         self.ends.keys().copied()
     }
 
+    pub fn len(&self) -> usize {
+        self.ends.len()
+    }
+
+    pub fn byte_len(&self) -> usize {
+        self.ends.len() * (std::mem::size_of::<u64>() + std::mem::size_of::<A>())
+    }
+
     #[cfg(test)]
     pub(crate) fn insert_key_for_test(&mut self, offset: u64) {
         self.ends.insert(offset, self.tail);

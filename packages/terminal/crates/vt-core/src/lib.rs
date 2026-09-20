@@ -10,6 +10,7 @@ pub mod event_bridge;
 pub mod find;
 pub mod grid;
 pub mod integrity;
+pub mod limits;
 mod line_editor;
 pub mod parser;
 pub mod row_index;
@@ -31,6 +32,7 @@ pub use block_selection::{BlockSelection, SelectionPoint};
 pub use block_tree::{BlockSummary, BlockTree};
 pub use find::{FindCursor, FindMatch, FindQuery};
 pub use integrity::IntegrityError;
+pub use limits::{Limits, MemoryStats};
 pub use line_editor::LineEditorState;
 pub use style::{CellStyle, StyleCode};
 
@@ -55,7 +57,7 @@ pub struct TerminalCore {
     mark_decoder: MarkDecoder,
     alt_screen: alt_screen::AltScreen,
     line_editor: line_editor::LineEditorTracker,
-    scrollback_rows: usize,
+    limits: Limits,
     rows: usize,
     fed_total: u64,
     sync: sync::SyncBuffer,
@@ -64,24 +66,41 @@ pub struct TerminalCore {
 
 impl TerminalCore {
     pub fn new(columns: usize, scrollback_rows: usize) -> Result<Self, CoreError> {
+        Self::with_limits(columns, Limits::rows_only(scrollback_rows))
+    }
+
+    pub fn with_limits(columns: usize, limits: Limits) -> Result<Self, CoreError> {
         if columns == 0 {
             return Err(CoreError::ZeroColumns);
         }
-        if scrollback_rows == 0 {
+        if limits.rows == 0 {
             return Err(CoreError::ZeroScrollback);
         }
         Ok(Self {
-            parser: parser::Parser::new(columns, scrollback_rows),
+            parser: parser::Parser::new(columns),
             vte: VteParser::new(),
             mark_decoder: MarkDecoder::new(),
             alt_screen: alt_screen::AltScreen::new(),
             line_editor: line_editor::LineEditorTracker::default(),
-            scrollback_rows,
+            limits,
             rows: DEFAULT_ROWS,
             fed_total: 0,
             sync: sync::SyncBuffer::default(),
             now_ms: 0,
         })
+    }
+
+    pub fn limits(&self) -> Limits {
+        self.limits
+    }
+
+    pub fn memory_stats(&self) -> MemoryStats {
+        MemoryStats {
+            content_bytes: self.parser.content().resident_bytes(),
+            style_entries: self.parser.styles().len(),
+            rows: self.parser.rows().completed().len(),
+            blocks: self.parser.grid().len(),
+        }
     }
 
     pub fn feed(&mut self, bytes: &[u8]) {
@@ -205,7 +224,7 @@ impl TerminalCore {
             self.advance_vte(&bytes[parsed..]);
         }
         self.parser.commit_evicted();
-        self.parser.trim_to(self.scrollback_rows);
+        self.parser.trim_to(self.limits);
         self.debug_check();
     }
 
@@ -307,7 +326,7 @@ impl TerminalCore {
         let rows = rows.clamp(1, alt::MAX_DIMENSION);
         self.rows = rows;
         self.parser.resize(columns, rows);
-        self.parser.trim_to(self.scrollback_rows);
+        self.parser.trim_to(self.limits);
         self.debug_check();
     }
 

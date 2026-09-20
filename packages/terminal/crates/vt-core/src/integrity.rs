@@ -67,7 +67,7 @@ mod tests {
     use vte::Parser as VteParser;
 
     fn parser_with(text: &[u8]) -> Parser {
-        let mut parser = Parser::new(20, 100);
+        let mut parser = Parser::new(20);
         parser.resize(20, 1);
         let mut vte = VteParser::new();
         vte.advance(&mut parser, text);

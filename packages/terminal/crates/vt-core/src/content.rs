@@ -93,6 +93,10 @@ impl Content {
             }
         }
     }
+
+    pub fn resident_bytes(&self) -> usize {
+        self.chunks.iter().map(|chunk| chunk.bytes.len()).sum()
+    }
 }
 
 #[cfg(test)]

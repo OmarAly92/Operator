@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+Scrollback is capped by bytes as well as rows.
+
+- `TerminalCore::with_limits(columns, Limits { rows, bytes })` trims whole rows
+  from the front while either budget is exceeded (Ghostty
+  `src/terminal/PageList.zig` `Limits`, `setMaxBytes`); `new(columns, rows)`
+  stays as `Limits::rows_only(rows)`. `memory_stats()` reports resident content
+  bytes, style entries, scrollback rows and blocks.
+
 The model can answer terminal queries.
 
 - `TerminalCore::set_answers_queries(true)` plus `set_terminal_identity(name)`
