@@ -597,6 +597,28 @@ describe("scroll anchor", () => {
 		expect(rowElement!.textContent!.length).toBeLessThanOrEqual(20);
 		renderer.dispose();
 	});
+
+	it("keeps the anchor stable across a repeated repaint of an already-rewrapped cold range", async () => {
+		const container = scrollable();
+		const core = createTerminalCore({ columns: 60, limits: { rows: 200_000, bytes: 128 * 1024 * 1024 }, rows: 24 });
+		for (let i = 0; i < 3000; i += 1) feed(core, `the quick brown fox jumps over the lazy dog ${i}\r\n`);
+		core.resize(20, 24);
+		const renderer = new DomBlockRenderer();
+		renderer.mount(container, core);
+		renderer.setFont(font);
+		await flushRepaint();
+		const rowHeight = renderer.measure().cellHeight;
+		container.scrollTop = Math.round(rowHeight * 10);
+		container.dispatchEvent(new Event("scroll"));
+		await flushRepaint();
+		const before = renderer.scrollAnchor()!;
+		expect(before).not.toBeNull();
+		container.dispatchEvent(new Event("scroll"));
+		await flushRepaint();
+		const after = renderer.scrollAnchor()!;
+		expect(after.stableRow).toBe(before.stableRow);
+		renderer.dispose();
+	});
 });
 
 describe("row pool", () => {
