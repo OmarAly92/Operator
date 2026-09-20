@@ -9,6 +9,7 @@ pub enum IntegrityError {
     BlockPastEnd { block: usize },
     NextRowPastEnd,
     StyleKeyOutsideContent { offset: u64 },
+    OriginMismatch { origin: usize, trimmed_total: u64 },
 }
 
 impl Parser {
@@ -37,17 +38,20 @@ impl Parser {
         let total_rows = completed.len() + self.screen().rows();
         let closed = self.grid().len() - usize::from(self.grid().has_open_block());
         for (index, block) in self.grid().blocks().enumerate() {
-            let end = if index < closed {
-                block.first_row + block.row_count
-            } else {
-                block.first_row
-            };
-            if end > total_rows || block.first_row > total_rows {
+            let (first, count) = self.grid().flat_extent(block);
+            let end = if index < closed { first + count } else { first };
+            if end > total_rows || first > total_rows {
                 return Err(IntegrityError::BlockPastEnd { block: index });
             }
         }
         if self.grid().next_row() > total_rows {
             return Err(IntegrityError::NextRowPastEnd);
+        }
+        if self.grid().origin() as u64 != self.trimmed_total() {
+            return Err(IntegrityError::OriginMismatch {
+                origin: self.grid().origin(),
+                trimmed_total: self.trimmed_total(),
+            });
         }
         for offset in self.styles().keys() {
             if offset < content_start || offset > content_end {

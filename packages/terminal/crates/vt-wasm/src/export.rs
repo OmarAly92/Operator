@@ -36,6 +36,7 @@ pub struct ExportBuffers {
     cursor_row: u32,
     cursor_col: u32,
     cursor_visible: bool,
+    first_stable_row: u64,
     alt_active: bool,
     alt_rows: u32,
     alt_cols: u32,
@@ -61,6 +62,7 @@ impl ExportBuffers {
         self.cursor_row = snapshot.cursor_row;
         self.cursor_col = snapshot.cursor_col;
         self.cursor_visible = snapshot.cursor_visible;
+        self.first_stable_row = snapshot.first_stable_row;
         self.alt_active = false;
         self.alt_rows = 0;
         self.alt_cols = 0;
@@ -201,6 +203,10 @@ impl ExportBuffers {
 
     pub fn cursor_visible(&self) -> bool {
         self.cursor_visible
+    }
+
+    pub fn first_stable_row(&self) -> u64 {
+        self.first_stable_row
     }
 
     pub fn alt_active(&self) -> bool {

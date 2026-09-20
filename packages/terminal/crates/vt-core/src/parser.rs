@@ -30,6 +30,7 @@ pub(crate) struct Parser {
     rewrap_pending: bool,
     query_replies: Option<Vec<u8>>,
     terminal_identity: String,
+    trimmed_total: u64,
     #[cfg(feature = "trace")]
     pub(crate) trace: crate::trace::Trace,
 }
@@ -56,6 +57,7 @@ impl Parser {
             rewrap_pending: false,
             query_replies: None,
             terminal_identity: String::new(),
+            trimmed_total: 0,
             #[cfg(feature = "trace")]
             trace: Default::default(),
         }
@@ -71,6 +73,28 @@ impl Parser {
 
     pub fn styles(&self) -> &AttributeMap<CellStyle> {
         &self.styles
+    }
+
+    /// The stable id of flat row 0 — the number of rows trimmed off the
+    /// front so far (wezterm/term/src/screen.rs:30 `stable_row_index_offset`).
+    pub fn first_stable_row(&self) -> u64 {
+        self.trimmed_total
+    }
+
+    pub(crate) fn trimmed_total(&self) -> u64 {
+        self.trimmed_total
+    }
+
+    pub fn stable_row(&self, flat: usize) -> u64 {
+        flat as u64 + self.trimmed_total
+    }
+
+    /// The flat index of a stable row, or `None` once that row has been
+    /// trimmed away (wezterm/term/src/screen.rs:523-535).
+    pub fn flat_row(&self, stable: u64) -> Option<usize> {
+        stable
+            .checked_sub(self.trimmed_total)
+            .map(|flat| flat as usize)
     }
 
     pub fn grid(&self) -> &BlockGrid {
@@ -400,7 +424,8 @@ impl Parser {
         }
         let dropped = before - self.rows.completed().len();
         if dropped > 0 {
-            self.grid.trim_to_first_row(dropped);
+            self.trimmed_total += dropped as u64;
+            self.grid.advance_origin(dropped);
         }
         dropped
     }

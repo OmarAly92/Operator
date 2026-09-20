@@ -198,6 +198,14 @@ impl WasmTerminalCore {
         self.export.cursor_visible()
     }
 
+    pub fn first_stable_row_lo(&self) -> u32 {
+        self.export.first_stable_row() as u32
+    }
+
+    pub fn first_stable_row_hi(&self) -> u32 {
+        (self.export.first_stable_row() >> 32) as u32
+    }
+
     pub fn application_cursor_keys(&self) -> bool {
         self.core.application_cursor_keys()
     }
@@ -333,7 +341,8 @@ impl WasmTerminalCore {
                 .map_err(|_| ExportError::FindOffsetOverflow)?;
             flattened.push(hit.block as u32);
             flattened.push((hit.block >> 32) as u32);
-            flattened.push(hit.row as u32);
+            flattened
+                .push(checked_u32_from_u64(hit.row).map_err(|_| ExportError::FindOffsetOverflow)?);
             flattened.push(hit.byte_range.start as u32);
             flattened.push(hit.byte_range.end as u32);
         }

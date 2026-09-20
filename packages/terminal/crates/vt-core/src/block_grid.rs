@@ -3,19 +3,23 @@ use crate::block_tree::BlockTree;
 
 /// The state machine that turns a stream of mark events into a list of
 /// blocks. It owns a [`BlockTree`] of finished/abandoned blocks, an
-/// optional open block, and a monotonic id source; row indices are kept
-/// relative to the oldest retained row, which is what makes `trim_to_first_row`
-/// a renumber rather than an offset.
+/// optional open block, and a monotonic id source; row indices are stored
+/// as stable rows, so a trim advances `origin` instead of renumbering
+/// every survivor (wezterm/term/src/screen.rs:30 `stable_row_index_offset`).
+/// The public API still speaks flat rows — the conversion happens here.
 pub struct BlockGrid {
     closed: BlockTree,
     open: Option<Block>,
     next_id: BlockId,
     pending_meta: BlockMeta,
     pending_extension: bool,
-    /// Index of the next row to be completed, relative to the oldest
-    /// retained row. It is where the next opened block starts, and it is
-    /// what stops every block from claiming row 0.
+    /// Stable index of the next row to be completed. It is where the next
+    /// opened block starts, and it is what stops every block from claiming
+    /// the first row.
     next_row: usize,
+    /// Stable row of flat row 0: the number of rows trimmed off the front
+    /// so far (wezterm/term/src/screen.rs:734).
+    origin: usize,
 }
 
 impl BlockGrid {
@@ -27,7 +31,47 @@ impl BlockGrid {
             pending_meta: BlockMeta::default(),
             pending_extension: false,
             next_row: 0,
+            origin: 0,
         }
+    }
+
+    pub fn origin(&self) -> usize {
+        self.origin
+    }
+
+    /// Drop `dropped` rows off the front. Only closed blocks whose rows are
+    /// wholly gone are popped; the open block always survives, however far
+    /// the cut reached into it (wezterm/term/src/screen.rs:523-535).
+    pub fn advance_origin(&mut self, dropped: usize) {
+        self.origin += dropped;
+        while let Some(front) = self.closed.iter().next() {
+            if front.first_row + front.row_count <= self.origin {
+                self.closed.pop_front();
+            } else {
+                break;
+            }
+        }
+        self.next_row = self.next_row.max(self.origin);
+    }
+
+    /// The block's `(first_row, row_count)` in flat rows, clamped to the
+    /// origin, so a block that predates a trim reports only its surviving
+    /// rows (wezterm/term/src/screen.rs:523-535 `stable_row_to_phys`). An
+    /// open block carries no `row_count` until it closes, so its end is
+    /// `next_row` — the same end [`BlockGrid::close_block`] will give it.
+    pub fn flat_extent(&self, block: &Block) -> (usize, usize) {
+        let stable_end = if self.is_open(block) {
+            self.next_row.max(block.first_row)
+        } else {
+            block.first_row + block.row_count
+        };
+        let first = block.first_row.max(self.origin) - self.origin;
+        let end = stable_end.max(self.origin) - self.origin;
+        (first, end - first)
+    }
+
+    fn is_open(&self, block: &Block) -> bool {
+        self.open.as_ref().is_some_and(|open| open.id == block.id)
     }
 
     /// Start a new block. If a block was already open, the old one is
@@ -78,24 +122,25 @@ impl BlockGrid {
     pub(crate) fn start_output(&mut self, first_row: usize) {
         if let Some(block) = self.open.as_mut() {
             if !block.meta.command.is_empty() {
-                block.first_row = first_row;
+                block.first_row = self.origin + first_row;
             }
         }
     }
 
     pub fn covered_end(&self) -> usize {
-        match (&self.open, self.closed.len()) {
+        let stable = match (&self.open, self.closed.len()) {
             (Some(block), _) => block.first_row,
-            (None, 0) => 0,
+            (None, 0) => self.origin,
             (None, len) => self
                 .closed
                 .get(len - 1)
-                .map_or(0, |block| block.first_row + block.row_count),
-        }
+                .map_or(self.origin, |block| block.first_row + block.row_count),
+        };
+        stable.max(self.origin) - self.origin
     }
 
     pub fn next_row(&self) -> usize {
-        self.next_row
+        self.next_row - self.origin
     }
 
     pub fn has_open_block(&self) -> bool {
@@ -118,7 +163,7 @@ impl BlockGrid {
         }
         self.closed.push(Block {
             id: self.next_id,
-            first_row,
+            first_row: self.origin + first_row,
             row_count: end_row - first_row,
             state,
             source: BlockSource::Synthetic,
@@ -135,7 +180,7 @@ impl BlockGrid {
     }
 
     pub fn sync_next_row(&mut self, next_row: usize) {
-        self.next_row = next_row;
+        self.next_row = self.origin + next_row;
     }
 
     /// Apply a tier-2 extension field to the open block. Unknown keys are
@@ -233,78 +278,16 @@ impl BlockGrid {
             .unwrap_or(false)
     }
 
-    /// Drop everything before `first_row` and renumber so the oldest
-    /// surviving block starts at row 0. Renumbering every survivor is
-    /// O(n); a root-level offset would make it O(log n), but that is a
-    /// future perf-gate optimisation and is not justified yet (trimming
-    /// runs once per feed, only past the row cap). The deliberate-O(n)
-    /// decision is recorded for the CHANGELOG in Task 11.
-    pub fn trim_to_first_row(&mut self, first_row: usize) {
-        let open_row_count_pre_trim = self
-            .open
-            .as_ref()
-            .map(|block| self.next_row.saturating_sub(block.first_row));
-        // The row cursor is relative to the oldest retained row, so it
-        // rebases with everything else.
-        self.next_row = self.next_row.saturating_sub(first_row);
-
-        let open_first_row_pre_trim = self.open.as_ref().map(|block| block.first_row);
-
-        // Phase 1: pop whole blocks off the front whose row range ends at or
-        // before `first_row`. They have no surviving rows, so no
-        // renumbering work is owed on them.
-        while let Some(front) = self.closed.iter().next() {
-            if front.first_row + front.row_count <= first_row {
-                self.closed.pop_front();
-            } else {
-                break;
-            }
-        }
-
-        // Phase 2: drain the remaining tree, renumber every survivor, and
-        // push them back. The cut can land inside the front block; that
-        // block is the rebasing reference and lands at `first_row = 0`
-        // with its surviving rows only, while every later closed block
-        // shifts down by `first_row` to track the new row 0. Special-
-        // casing the front block avoids subtracting from its `first_row`
-        // when the cut has already moved the row-0 anchor into the
-        // middle of it.
-        let shift = first_row;
-        let mut drained: Vec<Block> = Vec::new();
-        while let Some(block) = self.closed.pop_front() {
-            drained.push(block);
-        }
-        let mut first = true;
-        for mut block in drained {
-            let drop_within = first_row.saturating_sub(block.first_row);
-            if first {
-                first = false;
-                block.first_row = 0;
-            } else {
-                block.first_row = block.first_row.saturating_sub(shift);
-            }
-            block.row_count = block.row_count.saturating_sub(drop_within);
-            self.closed.push(block);
-        }
-        if let Some(block) = self.open.as_mut() {
-            let open_first_row_pre_trim = open_first_row_pre_trim.unwrap_or_default();
-            let drop_within = first_row.saturating_sub(open_first_row_pre_trim);
-            block.first_row = open_first_row_pre_trim.saturating_sub(first_row);
-            block.row_count = open_row_count_pre_trim
-                .unwrap_or_default()
-                .saturating_sub(drop_within);
-        }
-    }
-
     pub fn clamp_to_rows(&mut self, total_rows: usize) {
-        self.next_row = self.next_row.min(total_rows);
+        let limit = self.origin + total_rows;
+        self.next_row = self.next_row.min(limit);
         if let Some(block) = self.open.as_mut() {
-            block.first_row = block.first_row.min(total_rows);
+            block.first_row = block.first_row.min(limit);
         }
         let needs_clamp = self
             .closed
             .iter()
-            .any(|block| block.first_row + block.row_count > total_rows);
+            .any(|block| block.first_row + block.row_count > limit);
         if !needs_clamp {
             return;
         }
@@ -313,8 +296,8 @@ impl BlockGrid {
             drained.push(block);
         }
         for mut block in drained {
-            block.first_row = block.first_row.min(total_rows);
-            block.row_count = block.row_count.min(total_rows - block.first_row);
+            block.first_row = block.first_row.min(limit);
+            block.row_count = block.row_count.min(limit - block.first_row);
             self.closed.push(block);
         }
     }
@@ -324,11 +307,17 @@ impl BlockGrid {
             return;
         };
         let old_len = old_rows.len();
-        let remap = |row: usize| -> usize {
-            match map.get(row) {
+        let origin = self.origin;
+        let remap = |stable: usize| -> usize {
+            if stable < origin {
+                return stable;
+            }
+            let row = stable - origin;
+            let new_row = match map.get(row) {
                 Some(&new_row) => new_row,
                 None => row - old_len + new_len,
-            }
+            };
+            origin + new_row
         };
         let mut drained: Vec<Block> = Vec::new();
         while let Some(block) = self.closed.pop_front() {
@@ -422,11 +411,16 @@ mod tests {
         grid.open_block(BlockSource::Osc133);
         grid.note_row_completed();
 
-        grid.trim_to_first_row(2);
+        grid.advance_origin(2);
 
         let blocks: Vec<_> = grid.blocks().collect();
         assert_eq!(blocks.len(), 1);
-        assert_eq!(blocks[0].first_row, 0, "surviving rows renumber from zero");
+        assert_eq!(
+            blocks[0].first_row, 2,
+            "the open block keeps its stable row"
+        );
+        assert_eq!(grid.flat_extent(blocks[0]), (0, 1));
+        assert_eq!(grid.origin(), 2);
     }
 
     #[test]
@@ -436,12 +430,12 @@ mod tests {
         for _ in 0..5 {
             grid.note_row_completed();
         }
-        grid.trim_to_first_row(2);
+        grid.advance_origin(2);
 
         let blocks: Vec<_> = grid.blocks().collect();
         assert_eq!(blocks.len(), 1);
         assert_eq!(blocks[0].first_row, 0);
-        assert_eq!(blocks[0].row_count, 3);
+        assert_eq!(grid.flat_extent(blocks[0]), (0, 3));
     }
 
     #[test]
@@ -464,14 +458,12 @@ mod tests {
         grid.close_block(Some(0));
         grid.open_block(BlockSource::Osc133);
         grid.note_row_completed();
-        grid.trim_to_first_row(2);
+        grid.advance_origin(2);
 
         let blocks: Vec<_> = grid.blocks().collect();
         assert_eq!(blocks.len(), 2);
-        assert_eq!(blocks[0].first_row, 0);
-        assert_eq!(blocks[0].row_count, 3);
-        assert_eq!(blocks[1].first_row, 3);
-        assert_eq!(blocks[1].row_count, 1);
+        assert_eq!(grid.flat_extent(blocks[0]), (0, 3));
+        assert_eq!(grid.flat_extent(blocks[1]), (3, 1));
     }
 
     #[test]
@@ -485,16 +477,13 @@ mod tests {
         for _ in 0..6 {
             grid.note_row_completed();
         }
-        grid.trim_to_first_row(5);
+        grid.advance_origin(5);
 
         let blocks: Vec<_> = grid.blocks().collect();
         assert_eq!(blocks.len(), 1);
         assert_eq!(
-            blocks[0].first_row, 0,
-            "open block rebases to row 0 after phase 1 empties closed"
-        );
-        assert_eq!(
-            blocks[0].row_count, 3,
+            grid.flat_extent(blocks[0]),
+            (0, 3),
             "rows 5..8 of the open block survive (pre-trim pos 2, 6 rows)"
         );
     }
@@ -508,12 +497,11 @@ mod tests {
             grid.note_row_completed();
         }
 
-        grid.trim_to_first_row(5);
+        grid.advance_origin(5);
 
         let blocks: Vec<_> = grid.blocks().collect();
         assert_eq!(blocks.len(), 1);
-        assert_eq!(blocks[0].first_row, 0);
-        assert_eq!(blocks[0].row_count, 3);
+        assert_eq!(grid.flat_extent(blocks[0]), (0, 3));
     }
 
     #[test]

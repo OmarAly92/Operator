@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+Rows have stable ids.
+
+- `TerminalCore::stable_row(flat)` / `flat_row(stable)` / `first_stable_row()`
+  (WezTerm `term/src/screen.rs` `stable_row_index_offset`): a row keeps its id
+  when older rows are trimmed. `BlockGrid` stores stable rows and is no longer
+  renumbered by a trim; the snapshot exports `first_stable_row`; find hits
+  report stable rows.
+
 Scrollback is capped by bytes as well as rows.
 
 - `TerminalCore::with_limits(columns, Limits { rows, bytes })` trims whole rows

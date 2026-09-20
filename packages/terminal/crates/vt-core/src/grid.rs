@@ -29,6 +29,7 @@ pub struct GridSnapshot {
     pub cursor_row: u32,
     pub cursor_col: u32,
     pub cursor_visible: bool,
+    pub first_stable_row: u64,
     pub alt: Option<crate::alt::AltSnapshot>,
 }
 
@@ -70,6 +71,7 @@ impl GridSnapshot {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn build_snapshot(
     content: &Content,
     rows: &RowIndex,
@@ -78,6 +80,7 @@ pub(crate) fn build_snapshot(
     screen: &ScreenGrid,
     line_editor_state: LineEditorState,
     alt: Option<&AltGrid>,
+    first_stable_row: u64,
 ) -> Result<GridSnapshot, CoreError> {
     let mut all_content = Vec::new();
     let mut row_ranges: Vec<(u32, u32)> = Vec::new();
@@ -129,14 +132,15 @@ pub(crate) fn build_snapshot(
     } else {
         let mut records = Vec::with_capacity(grid.blocks().count() + 1);
         for block in grid.blocks() {
+            let (flat_first, flat_count) = grid.flat_extent(block);
             let command = append_block_text(&mut block_text, &block.meta.command)?;
             let cwd = append_block_text(&mut block_text, &block.meta.cwd)?;
             let git_branch = append_block_text(&mut block_text, &block.meta.git_branch)?;
-            let first_row = checked_u32(block.first_row)?;
+            let first_row = checked_u32(flat_first)?;
             let row_count = if block.state == BlockState::Running {
-                checked_u32(row_ranges.len().saturating_sub(block.first_row))?
+                checked_u32(row_ranges.len().saturating_sub(flat_first))?
             } else {
-                checked_u32(block.row_count)?
+                checked_u32(flat_count)?
             };
             let started = block.meta.started_at_ms;
             let finished = block.meta.finished_at_ms;
@@ -191,6 +195,7 @@ pub(crate) fn build_snapshot(
         cursor_row,
         cursor_col,
         cursor_visible,
+        first_stable_row,
         alt: alt.map(|grid| grid.snapshot()),
     })
 }

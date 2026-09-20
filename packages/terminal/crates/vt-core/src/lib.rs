@@ -278,7 +278,20 @@ impl TerminalCore {
             self.parser.screen(),
             self.line_editor.state(),
             self.parser.alt(),
+            self.parser.first_stable_row(),
         )
+    }
+
+    pub fn first_stable_row(&self) -> u64 {
+        self.parser.first_stable_row()
+    }
+
+    pub fn stable_row(&self, flat: usize) -> u64 {
+        self.parser.stable_row(flat)
+    }
+
+    pub fn flat_row(&self, stable: u64) -> Option<usize> {
+        self.parser.flat_row(stable)
     }
 
     pub fn find(&self, query: find::FindQuery) -> find::FindCursor<'_> {
