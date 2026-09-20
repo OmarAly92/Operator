@@ -242,4 +242,18 @@ describe("TerminalCore feed budget", () => {
 		core.drain();
 		expect(new TextDecoder().decode(core.snapshot().content)).toBe("ab");
 	});
+
+	it("takes limits or the scrollback alias and reports memory stats", () => {
+		const limited = createTerminalCore({ columns: 40, limits: { rows: 100_000, bytes: 8192 } });
+		const encoder = new TextEncoder();
+		for (let i = 0; i < 600; i += 1) limited.feed(encoder.encode(`row ${String(i).padStart(5, "0")} xxxxxxxxxx\r\n`));
+		const stats = limited.memoryStats();
+		expect(stats.contentBytes + stats.styleEntries * 16).toBeLessThanOrEqual(8192);
+		expect(stats.rows).toBeGreaterThan(100);
+		expect(stats.rows).toBeLessThan(600);
+		const alias = createTerminalCore({ columns: 40, scrollback: 50 });
+		for (let i = 0; i < 100; i += 1) alias.feed(encoder.encode(`row ${i}\r\n`));
+		expect(alias.memoryStats().rows).toBe(49);
+		expect(() => createTerminalCore({ columns: 40 } as never)).toThrow(/limits/);
+	});
 });

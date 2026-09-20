@@ -42,3 +42,29 @@ fn refresh_clears_previous_buffers() {
     assert_ne!(first_content.len(), buffers.content().len());
     assert_ne!(first_rows, buffers.rows());
 }
+
+#[test]
+fn memory_stats_are_exported_as_four_words() {
+    let mut core = TerminalCore::with_limits(
+        16,
+        vt_core::Limits {
+            rows: 10,
+            bytes: usize::MAX,
+        },
+    )
+    .unwrap();
+    core.resize(16, 1);
+    core.feed(b"\x1b[31mred\x1b[0m ok\r\nplain\r\n");
+    let stats = core.memory_stats();
+    let words = vt_wasm::memory_stats_words(&stats);
+    assert_eq!(
+        words,
+        [
+            stats.content_bytes as u32,
+            stats.style_entries as u32,
+            stats.rows as u32,
+            stats.blocks as u32
+        ]
+    );
+    assert_eq!(words[2], 2);
+}

@@ -8,7 +8,7 @@ import (
 
 func newTestParser(t *testing.T, cols, rows uint32) *Parser {
 	t.Helper()
-	p, err := New(context.Background(), Module, cols, rows, 1000)
+	p, err := New(context.Background(), Module, cols, rows, Limits{Rows: 1000, Bytes: 0xffffffff})
 	if err != nil {
 		t.Fatalf("new parser: %v", err)
 	}

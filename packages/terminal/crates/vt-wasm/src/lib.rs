@@ -13,6 +13,15 @@ pub fn version() -> &'static str {
     env!("CARGO_PKG_VERSION")
 }
 
+pub fn memory_stats_words(stats: &vt_core::MemoryStats) -> [u32; 4] {
+    [
+        stats.content_bytes as u32,
+        stats.style_entries as u32,
+        stats.rows as u32,
+        stats.blocks as u32,
+    ]
+}
+
 #[wasm_bindgen]
 pub struct WasmTerminalCore {
     core: TerminalCore,
@@ -27,8 +36,19 @@ pub struct WasmTerminalCore {
 #[wasm_bindgen]
 impl WasmTerminalCore {
     #[wasm_bindgen(constructor)]
-    pub fn new(columns: usize, scrollback_rows: usize) -> Result<WasmTerminalCore, JsError> {
-        let core = TerminalCore::new(columns, scrollback_rows).map_err(js_error_from_core)?;
+    pub fn new(
+        columns: usize,
+        rows_limit: usize,
+        bytes_limit: usize,
+    ) -> Result<WasmTerminalCore, JsError> {
+        let core = TerminalCore::with_limits(
+            columns,
+            vt_core::Limits {
+                rows: rows_limit,
+                bytes: bytes_limit,
+            },
+        )
+        .map_err(js_error_from_core)?;
         let mut export = ExportBuffers::default();
         let snapshot = core.snapshot().map_err(js_error_from_core)?;
         export.refresh(&snapshot)?;
@@ -89,6 +109,10 @@ impl WasmTerminalCore {
     pub fn block_bookmarked(&self, id_lo: u32, id_hi: u32) -> bool {
         let id = ((id_hi as u64) << 32) | (id_lo as u64);
         self.core.block_bookmarked(id)
+    }
+
+    pub fn memory_stats(&self) -> Vec<u32> {
+        memory_stats_words(&self.core.memory_stats()).to_vec()
     }
 
     fn refresh_after_mutation(&mut self) -> Result<(), JsError> {

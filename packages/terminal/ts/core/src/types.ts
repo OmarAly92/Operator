@@ -100,11 +100,21 @@ export type AltScreenView = Readonly<{
 	cursorVisible: boolean;
 }>;
 
+export type TerminalLimits = Readonly<{ rows: number; bytes: number }>;
+
+export type MemoryStats = Readonly<{
+	contentBytes: number;
+	styleEntries: number;
+	rows: number;
+	blocks: number;
+}>;
+
 export type TerminalCoreOptions = Readonly<{
 	columns: number;
-	scrollback: number;
 	rows?: number;
 	host?: HostCapabilities;
+	scrollback?: number;
+	limits?: TerminalLimits;
 }>;
 
 export type ChangeListener = (generation: number) => void;

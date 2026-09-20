@@ -63,7 +63,7 @@ export type BlockTerminalProps = {
 };
 
 const DEFAULT_COLUMNS = 120;
-const DEFAULT_SCROLLBACK = 5000;
+const DEFAULT_LIMITS = { rows: 200_000, bytes: 128 * 1024 * 1024 } as const;
 const SOURCE_ID_MARKER = new TextEncoder().encode("\x1b]7000;v=1;id=");
 const BEL = 0x07;
 
@@ -287,7 +287,7 @@ export function BlockTerminal({
 				}
 				created = createTerminalCore({
 					columns: DEFAULT_COLUMNS,
-					scrollback: DEFAULT_SCROLLBACK,
+					limits: DEFAULT_LIMITS,
 				});
 				created.setAgentTuiMode(agentTuiRef.current);
 				coreRef.current = created;

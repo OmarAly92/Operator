@@ -32,7 +32,7 @@ func TestAgentSessionReplayReport(t *testing.T) {
 	if err := json.Unmarshal(raw, &sizes); err != nil {
 		t.Fatalf("size.json: %v", err)
 	}
-	p, err := New(context.Background(), Module, sizes[0].Cols, sizes[0].Rows, 1000)
+	p, err := New(context.Background(), Module, sizes[0].Cols, sizes[0].Rows, Limits{Rows: 1000, Bytes: 0xffffffff})
 	if err != nil {
 		t.Fatalf("new parser: %v", err)
 	}

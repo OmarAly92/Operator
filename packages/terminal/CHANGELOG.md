@@ -9,6 +9,10 @@ Scrollback is capped by bytes as well as rows.
   `src/terminal/PageList.zig` `Limits`, `setMaxBytes`); `new(columns, rows)`
   stays as `Limits::rows_only(rows)`. `memory_stats()` reports resident content
   bytes, style entries, scrollback rows and blocks.
+- `TerminalCoreOptions.limits { rows, bytes }` replaces `scrollback` (kept as
+  an alias for one release: `scrollback: n` is `{ rows: n, bytes: unbounded }`);
+  `TerminalCore.memoryStats()`. `vt_new` takes a byte budget and
+  `vt_memory_stats` reports it; the Go mirror takes `vtwasm.Limits`.
 
 The model can answer terminal queries.
 

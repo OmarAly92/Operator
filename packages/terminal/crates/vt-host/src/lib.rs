@@ -21,8 +21,12 @@ pub extern "C" fn vt_free(ptr: u32, len: u32) {
 }
 
 #[no_mangle]
-pub extern "C" fn vt_new(cols: u32, rows: u32, scrollback: u32) -> u32 {
-    let Ok(mut core) = TerminalCore::new(cols as usize, scrollback as usize) else {
+pub extern "C" fn vt_new(cols: u32, rows: u32, scrollback_rows: u32, scrollback_bytes: u32) -> u32 {
+    let limits = vt_core::Limits {
+        rows: scrollback_rows as usize,
+        bytes: scrollback_bytes as usize,
+    };
+    let Ok(mut core) = TerminalCore::with_limits(cols as usize, limits) else {
         return 0;
     };
     core.set_reflow_on_resize(false);
@@ -34,6 +38,30 @@ pub extern "C" fn vt_new(cols: u32, rows: u32, scrollback: u32) -> u32 {
         *n += 1;
         CORES.with(|c| c.borrow_mut().insert(id, core));
         id
+    })
+}
+
+#[no_mangle]
+pub extern "C" fn vt_memory_stats(handle: u32, out_ptr: u32) -> u32 {
+    CORES.with(|c| match c.borrow().get(&handle) {
+        Some(core) => {
+            let stats = core.memory_stats();
+            let words = [
+                stats.content_bytes as u32,
+                stats.style_entries as u32,
+                stats.rows as u32,
+                stats.blocks as u32,
+            ];
+            let out = out_ptr as *mut u8;
+            for (index, word) in words.iter().enumerate() {
+                let bytes = word.to_le_bytes();
+                unsafe {
+                    std::ptr::copy_nonoverlapping(bytes.as_ptr(), out.add(index * 4), 4);
+                }
+            }
+            1
+        }
+        None => 0,
     })
 }
 

@@ -5,6 +5,7 @@ package vtwasm
 
 import (
 	"context"
+	"encoding/binary"
 	"fmt"
 	"sync"
 	"time"
@@ -29,14 +30,26 @@ type Parser struct {
 // matches the TERM_PROGRAM the pty-host sets for the child.
 const TerminalIdentity = "Operator"
 
-func New(ctx context.Context, wasmModule []byte, cols, rows, scrollback uint32) (*Parser, error) {
+type Limits struct {
+	Rows  uint32
+	Bytes uint32
+}
+
+type MemoryStats struct {
+	ContentBytes uint32
+	StyleEntries uint32
+	Rows         uint32
+	Blocks       uint32
+}
+
+func New(ctx context.Context, wasmModule []byte, cols, rows uint32, limits Limits) (*Parser, error) {
 	rt := wazero.NewRuntime(ctx)
 	mod, err := rt.Instantiate(ctx, wasmModule)
 	if err != nil {
 		_ = rt.Close(ctx)
 		return nil, fmt.Errorf("vtwasm: instantiate: %w", err)
 	}
-	res, err := mod.ExportedFunction("vt_new").Call(ctx, uint64(cols), uint64(rows), uint64(scrollback))
+	res, err := mod.ExportedFunction("vt_new").Call(ctx, uint64(cols), uint64(rows), uint64(limits.Rows), uint64(limits.Bytes))
 	if err != nil || len(res) == 0 || res[0] == 0 {
 		_ = rt.Close(ctx)
 		return nil, fmt.Errorf("vtwasm: vt_new failed: %w", err)
@@ -47,6 +60,36 @@ func New(ctx context.Context, wasmModule []byte, cols, rows, scrollback uint32) 
 		return nil, err
 	}
 	return p, nil
+}
+
+const memoryStatsBytes = 16
+
+func (p *Parser) MemoryStats() (MemoryStats, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	res, err := p.module.ExportedFunction("vt_alloc").Call(p.ctx, memoryStatsBytes)
+	if err != nil {
+		return MemoryStats{}, fmt.Errorf("vtwasm: alloc stats: %w", err)
+	}
+	out := uint32(res[0])
+	defer func() { _, _ = p.module.ExportedFunction("vt_free").Call(p.ctx, uint64(out), memoryStatsBytes) }()
+	res, err = p.module.ExportedFunction("vt_memory_stats").Call(p.ctx, uint64(p.handle), uint64(out))
+	if err != nil {
+		return MemoryStats{}, fmt.Errorf("vtwasm: memory_stats: %w", err)
+	}
+	if res[0] != 1 {
+		return MemoryStats{}, fmt.Errorf("vtwasm: memory_stats failed for handle %d", p.handle)
+	}
+	raw, ok := p.module.Memory().Read(out, memoryStatsBytes)
+	if !ok {
+		return MemoryStats{}, fmt.Errorf("vtwasm: read stats out of range")
+	}
+	return MemoryStats{
+		ContentBytes: binary.LittleEndian.Uint32(raw[0:4]),
+		StyleEntries: binary.LittleEndian.Uint32(raw[4:8]),
+		Rows:         binary.LittleEndian.Uint32(raw[8:12]),
+		Blocks:       binary.LittleEndian.Uint32(raw[12:16]),
+	}, nil
 }
 
 func (p *Parser) setTerminalIdentity(name string) error {

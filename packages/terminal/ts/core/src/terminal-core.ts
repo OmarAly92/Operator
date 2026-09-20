@@ -15,7 +15,9 @@ import type {
 	FindMatch,
 	HostCapabilities,
 	LineEditorState,
+	MemoryStats,
 	TerminalCoreOptions,
+	TerminalLimits,
 	TerminalSnapshot,
 } from "./types.js";
 import type {
@@ -33,6 +35,18 @@ export const FIND_STEP_BUDGET = 1000;
 export const FEED_BUDGET_MS = 12;
 
 export const FEED_SLICE_BYTES = 64 * 1024;
+
+export const UNBOUNDED_BYTES = 0xffff_ffff;
+
+function limitsOf(options: TerminalCoreOptions): TerminalLimits {
+	if (options.limits) {
+		return options.limits;
+	}
+	if (options.scrollback !== undefined) {
+		return { rows: options.scrollback, bytes: UNBOUNDED_BYTES };
+	}
+	throw new Error("terminal core needs limits or scrollback");
+}
 
 const NOOP_HOST: HostCapabilities = {
 	writeClipboard: async () => undefined,
@@ -62,12 +76,21 @@ export class TerminalCore {
 		if (!isInitialized()) {
 			throw new Error("terminal core WASM is not initialized");
 		}
-		const inner = new WasmTerminalCore(options.columns, options.scrollback);
+		const limits = limitsOf(options);
+		const inner = new WasmTerminalCore(options.columns, limits.rows, limits.bytes);
 		const core = new TerminalCore(inner, options.host ?? NOOP_HOST);
 		if (options.rows !== undefined) {
 			core.resize(options.columns, options.rows);
 		}
 		return core;
+	}
+
+	memoryStats(): MemoryStats {
+		if (this.disposed) {
+			throw new Error("terminal core is disposed");
+		}
+		const words = this.inner.memory_stats();
+		return { contentBytes: words[0]!, styleEntries: words[1]!, rows: words[2]!, blocks: words[3]! };
 	}
 
 	feed(bytes: Uint8Array): void {
