@@ -2,9 +2,12 @@ package vtwasm
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 )
+
+const readyMark = "\x1b]7000;v=1;ready=1\x1b\\"
 
 func newTestParser(t *testing.T, cols, rows uint32) *Parser {
 	t.Helper()
@@ -67,7 +70,7 @@ func TestReplayRestoresCursorColumn(t *testing.T) {
 	if err != nil {
 		t.Fatalf("replay: %v", err)
 	}
-	if !strings.HasSuffix(out, "\r\x1b[4C") {
+	if !strings.HasSuffix(strings.TrimSuffix(out, readyMark), "\r\x1b[4C") {
 		t.Fatalf("want the cursor parked at column 4, got:\n%q", out)
 	}
 }
@@ -82,7 +85,10 @@ func TestReplayEntersAlternateScreen(t *testing.T) {
 	if err != nil {
 		t.Fatalf("replay: %v", err)
 	}
-	if !strings.HasPrefix(out, "\x1b[?1049h\x1b[H") {
+	if !strings.HasPrefix(out, "\x1b]7000;v=1;origin=") {
+		t.Fatalf("want an origin mark before the alt-screen entry, got:\n%q", out)
+	}
+	if !strings.Contains(out, "\x1b[?1049h\x1b[H") {
 		t.Fatalf("want an alt-screen entry, got:\n%q", out)
 	}
 	if !strings.Contains(out, "\x1b[1;4H") {
@@ -161,7 +167,86 @@ func TestReplayNeverStartsInsideASyncBlock(t *testing.T) {
 	if strings.Contains(painted, "half") {
 		t.Fatalf("replay painted bytes from an open sync block:\n%q", out)
 	}
-	if !strings.HasSuffix(out, partial) {
+	if !strings.HasSuffix(strings.TrimSuffix(out, readyMark), partial) {
 		t.Fatalf("replay must end with the buffered sync bytes so the client can complete the frame:\n%q", out)
+	}
+}
+
+// The replay states the stable row its first row sits at, so the receiving
+// core can adopt the host's row space. Without it the two stable spaces never
+// meet and every history chunk is dropped as out of order.
+func TestReplayOpensWithTheOriginMark(t *testing.T) {
+	p := newTestParser(t, 20, 4)
+	for i := 0; i < 40; i++ {
+		feed(t, p, fmt.Sprintf("row %02d\r\n", i))
+	}
+
+	out, err := p.Replay(4)
+	if err != nil {
+		t.Fatalf("replay: %v", err)
+	}
+	if !strings.HasPrefix(out, "\x1b]7000;v=1;origin=") {
+		t.Fatalf("the replay does not open with an origin mark:\n%q", out)
+	}
+	origin := out[len("\x1b]7000;v=1;origin="):strings.Index(out, "\x1b\\")]
+	if origin != "36" {
+		t.Fatalf("origin = %q, want 36 (40 rows of history and screen, a 4-row frame)", origin)
+	}
+}
+
+// The replay opens with the modes the child had set, so a reattached client
+// encodes the mouse and paste the same way the child expects. xterm.js's
+// SerializeAddon writes its mode list first for the same reason
+// (xterm.js/src/common/addons/SerializeAddon.ts).
+func TestReplayEmitsTheModesTheChildSet(t *testing.T) {
+	p := newTestParser(t, 80, 24)
+	feed(t, p, "\x1b[?1000h\x1b[?1002h\x1b[?1003h\x1b[?1006h\x1b[?2004h\x1b[?1004h\x1b[?1h")
+	feed(t, p, "hello\r\n")
+
+	out, err := p.Replay(1000)
+	if err != nil {
+		t.Fatalf("replay: %v", err)
+	}
+	// mouse_tracking_level is a bitmask: all three tracking modes are set, so
+	// all three must be replayed (crates/vt-core/src/parser.rs:341-350).
+	for _, mode := range []string{"\x1b[?1000h", "\x1b[?1002h", "\x1b[?1003h", "\x1b[?1006h", "\x1b[?2004h", "\x1b[?1004h", "\x1b[?1h"} {
+		if !strings.Contains(out, mode) {
+			t.Fatalf("replay is missing %q:\n%q", mode, out)
+		}
+		if strings.Index(out, mode) > strings.Index(out, "hello") {
+			t.Fatalf("mode %q came after the frame:\n%q", mode, out)
+		}
+	}
+}
+
+// The client paints at READY, so READY must be the last byte of the frame —
+// everything before it is one complete screen (Ghostty's READY-first snapshot,
+// ghostty/src/termio/Termio.zig).
+func TestReplayEndsWithTheReadyMark(t *testing.T) {
+	p := newTestParser(t, 80, 24)
+	feed(t, p, "done\r\n> hi")
+
+	out, err := p.Replay(1000)
+	if err != nil {
+		t.Fatalf("replay: %v", err)
+	}
+	if !strings.HasSuffix(out, readyMark) {
+		t.Fatalf("replay does not end at READY:\n%q", out)
+	}
+	if !strings.HasSuffix(strings.TrimSuffix(out, readyMark), "\r\x1b[4C") {
+		t.Fatalf("the cursor placement must still be the last thing before READY:\n%q", out)
+	}
+}
+
+// A terminal that has drawn nothing replays nothing — a READY mark alone is a
+// mark with no frame, and the host reads an empty replay as "send nothing".
+func TestAnEmptyTerminalStillReplaysNothing(t *testing.T) {
+	p := newTestParser(t, 80, 24)
+	out, err := p.Replay(1000)
+	if err != nil {
+		t.Fatalf("replay: %v", err)
+	}
+	if out != "" {
+		t.Fatalf("an untouched terminal replayed %q", out)
 	}
 }

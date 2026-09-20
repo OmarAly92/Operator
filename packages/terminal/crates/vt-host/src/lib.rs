@@ -140,6 +140,42 @@ pub extern "C" fn vt_alt_active(handle: u32) -> u32 {
 pub const RENDER_ERR: u32 = u32::MAX;
 pub const RENDER_TOO_BIG: u32 = u32::MAX - 1;
 
+const READY_MARK: &str = "\x1b]7000;v=1;ready=1\x1b\\";
+
+fn frame_first_stable(snapshot: &vt_core::GridSnapshot, lines: u32) -> u64 {
+    snapshot.first_stable_row + snapshot.row_count().saturating_sub(lines as usize) as u64
+}
+
+fn write_modes(text: &mut String, core: &TerminalCore, alt: bool) {
+    if alt {
+        text.push_str("\x1b[?1049h");
+    }
+    // mouse_tracking_level is a bitmask, not an enum
+    // (crates/vt-core/src/parser.rs:341-350).
+    let tracking = core.mouse_tracking_level();
+    if tracking & 0b001 != 0 {
+        text.push_str("\x1b[?1000h");
+    }
+    if tracking & 0b010 != 0 {
+        text.push_str("\x1b[?1002h");
+    }
+    if tracking & 0b100 != 0 {
+        text.push_str("\x1b[?1003h");
+    }
+    if core.sgr_mouse() {
+        text.push_str("\x1b[?1006h");
+    }
+    if core.bracketed_paste() {
+        text.push_str("\x1b[?2004h");
+    }
+    if core.focus_reporting() {
+        text.push_str("\x1b[?1004h");
+    }
+    if core.application_cursor_keys() {
+        text.push_str("\x1b[?1h");
+    }
+}
+
 // Writes the last `lines` rendered rows as UTF-8 into out_ptr, returning the
 // byte count written. 0 means a genuinely empty screen; RENDER_ERR means a bad
 // handle or snapshot failure; RENDER_TOO_BIG means out_cap is too small. The
@@ -261,7 +297,12 @@ pub extern "C" fn vt_replay(handle: u32, lines: u32, out_ptr: u32, out_cap: u32)
             // A full-screen child owns every cell of the alt grid, so the
             // replay is absolute: enter the alternate screen, paint all rows
             // from home, then place the cursor by absolute address.
-            text.push_str("\x1b[?1049h\x1b[H");
+            text.push_str(&format!(
+                "\x1b]7000;v=1;origin={}\x1b\\",
+                frame_first_stable(&snapshot, lines)
+            ));
+            write_modes(&mut text, core, true);
+            text.push_str("\x1b[H");
             for (i, (start, end)) in alt.row_ranges.iter().enumerate() {
                 let row_bytes = &alt.content[*start as usize..*end as usize];
                 let (pair_start, pair_end) = alt.run_ranges[i];
@@ -299,6 +340,11 @@ pub extern "C" fn vt_replay(handle: u32, lines: u32, out_ptr: u32, out_cap: u32)
                 }
                 return pending.len() as u32;
             }
+            text.push_str(&format!(
+                "\x1b]7000;v=1;origin={}\x1b\\",
+                frame_first_stable(&snapshot, lines)
+            ));
+            write_modes(&mut text, core, false);
             // Rows are clipped to the grid. vt-core rewraps scrollback to the
             // pane width on resize, so a row wider than the grid should not
             // exist; the clip guards the replay anyway, because a row wider
@@ -347,6 +393,7 @@ pub extern "C" fn vt_replay(handle: u32, lines: u32, out_ptr: u32, out_cap: u32)
         if out.is_empty() {
             return 0;
         }
+        out.extend_from_slice(READY_MARK.as_bytes());
         if out.len() > out_cap as usize {
             return RENDER_TOO_BIG;
         }
