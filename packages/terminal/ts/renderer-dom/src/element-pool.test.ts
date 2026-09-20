@@ -29,6 +29,16 @@ describe("ElementPool", () => {
 		expect(pool.take("a")).toBe(a);
 		expect(a.childNodes.length).toBe(1);
 	});
+	it("reports which ids it holds", () => {
+		const pool = new ElementPool();
+		pool.put("a", section("a"), 1);
+		expect(pool.has("a")).toBe(true);
+		pool.put("b", section("b"), 1);
+		expect(pool.has("a")).toBe(false);
+		expect(pool.has("b")).toBe(true);
+		pool.take("b");
+		expect(pool.has("b")).toBe(false);
+	});
 	it("clear empties every element", () => {
 		const pool = new ElementPool();
 		const a = section("a");

@@ -18,6 +18,10 @@ export class ElementPool {
 		}
 	}
 
+	has(id: string): boolean {
+		return this.entries.has(id);
+	}
+
 	clear(): void {
 		for (const element of this.entries.values()) element.replaceChildren();
 		this.entries.clear();

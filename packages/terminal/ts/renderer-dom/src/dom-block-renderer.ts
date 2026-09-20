@@ -47,6 +47,7 @@ const OVERSCAN_ROWS = 6;
 const STICK_THRESHOLD_PX = 4;
 const PAINT_INTERVAL_MS = 1000 / 60;
 const POOL_CAPACITY_FACTOR = 3;
+const POOL_DIRTY_CAP = 4096;
 const FRAME_EPSILON_MS = 0.25;
 export { ALT_BLOCK_ID } from "./selection-view.js";
 
@@ -89,6 +90,7 @@ export class DomBlockRenderer implements BlockRenderer {
 	private paintedFirstStableRow = 0;
 	private rowEventsUnsubscribe: (() => void) | null = null;
 	private readonly pool = new ElementPool();
+	private readonly pooledDirty = new Map<BlockId, Set<number> | null>();
 	private cursorElement: HTMLElement | null = null;
 	private fullSince = 0;
 	private rebuildAll = false;
@@ -365,6 +367,7 @@ export class DomBlockRenderer implements BlockRenderer {
 		this.pinnedHeader = null;
 		this.blockElements.clear();
 		this.pool.clear();
+		this.pooledDirty.clear();
 		this.cursorElement?.remove();
 		this.cursorElement = null;
 		this.fullSince = 0;
@@ -514,17 +517,28 @@ export class DomBlockRenderer implements BlockRenderer {
 		if (dirty.full || this.rebuildAll) {
 			this.fullSince = snapshot.generation;
 			this.pool.clear();
+			this.pooledDirty.clear();
 			if (this.rebuildAll) this.blockElements.clear();
 			this.rebuildAll = false;
 		}
+		for (const [id, away] of this.pooledDirty) {
+			if (away === null) continue;
+			if (away.size + dirty.rows.size > POOL_DIRTY_CAP) {
+				this.pooledDirty.set(id, null);
+				continue;
+			}
+			for (const stableRow of dirty.rows) away.add(stableRow);
+		}
 		const firstScreenStable = snapshot.firstStableRow + snapshot.historyRows;
-		const pooledThisPaint = new Set<BlockId>();
+		const pooledThisPaint = new Map<BlockId, Set<number> | null>();
 		const freshFor = (blockId: BlockId) => (stableRow: number, node: HTMLElement): boolean => {
 			const built = Number(node.getAttribute(ROW_GENERATION_ATTR));
 			if (!Number.isFinite(built) || built < this.fullSince) return false;
 			if (dirty.rows.has(stableRow)) return false;
-			if (stableRow < firstScreenStable) return true;
-			return !pooledThisPaint.has(blockId);
+			if (!pooledThisPaint.has(blockId)) return true;
+			const away = pooledThisPaint.get(blockId);
+			if (!away || away.has(stableRow)) return false;
+			return stableRow < firstScreenStable;
 		};
 		const cursorElement = this.cursorElement ?? (this.cursorElement = createCursorElement(0, 0));
 		let cursorPlaced = false;
@@ -567,8 +581,8 @@ export class DomBlockRenderer implements BlockRenderer {
 			for (let i = windowResult.firstBlock; i <= windowResult.lastBlock; i += 1) {
 				const block = this.filteredBlocks[i]!;
 				visibleIds.add(block.id);
-				const { element, pooled } = this.ensureBlockElement(block);
-				if (pooled) pooledThisPaint.add(block.id);
+				const { element, pooled, away } = this.ensureBlockElement(block);
+				if (pooled) pooledThisPaint.set(block.id, away);
 				const rowWindow = windowResult.rowWindows.get(i) ?? null;
 				const placed = populateBlock(element, {
 					block,
@@ -605,8 +619,12 @@ export class DomBlockRenderer implements BlockRenderer {
 		for (const [id, element] of this.blockElements) {
 			if (!visibleIds.has(id)) {
 				this.pool.put(id, element, capacity);
+				this.pooledDirty.set(id, dirty.rows.size > POOL_DIRTY_CAP ? null : new Set(dirty.rows));
 				this.blockElements.delete(id);
 			}
+		}
+		for (const id of [...this.pooledDirty.keys()]) {
+			if (!this.pool.has(id)) this.pooledDirty.delete(id);
 		}
 		if (this.stickToBottom) {
 			this.applyStickiness();
@@ -664,21 +682,23 @@ export class DomBlockRenderer implements BlockRenderer {
 		}
 	}
 
-	private ensureBlockElement(block: BlockView): { element: HTMLElement; pooled: boolean } {
+	private ensureBlockElement(block: BlockView): { element: HTMLElement; pooled: boolean; away: Set<number> | null } {
 		const existing = this.blockElements.get(block.id);
-		if (existing) return { element: existing, pooled: false };
+		if (existing) return { element: existing, pooled: false, away: null };
 		const pooled = this.pool.take(block.id);
 		if (pooled) {
+			const away = this.pooledDirty.get(block.id) ?? null;
+			this.pooledDirty.delete(block.id);
 			pooled.setAttribute("style", styleVarsString(this.theme, this.font));
 			this.blockElements.set(block.id, pooled);
-			return { element: pooled, pooled: true };
+			return { element: pooled, pooled: true, away };
 		}
 		const section = document.createElement("section");
 		section.className = CLASS_BLOCK;
 		section.dataset.terminalBlockId = block.id;
 		section.setAttribute("style", styleVarsString(this.theme, this.font));
 		this.blockElements.set(block.id, section);
-		return { element: section, pooled: false };
+		return { element: section, pooled: false, away: null };
 	}
 
 	private cellMetrics(): { cellWidth: number; cellHeight: number } {

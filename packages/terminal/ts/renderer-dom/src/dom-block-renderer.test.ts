@@ -681,4 +681,41 @@ describe("row pool", () => {
 		await flushRepaint();
 		expect(rowNode(host, 0)).not.toBe(first);
 	});
+	it("rebuilds a row dirtied while its block was pooled", async () => {
+		const container = document.createElement("div");
+		Object.defineProperty(container, "clientHeight", { value: 100, configurable: true });
+		Object.defineProperty(container, "scrollHeight", { value: 100_000, configurable: true });
+		Object.defineProperty(container, "scrollTop", { value: 0, configurable: true, writable: true });
+		const core = createTerminalCore({ columns: 16, scrollback: 1000, rows: 2 });
+		for (const name of ["a", "b"]) {
+			feed(core, "\x1b]133;A\x07\x1b]133;C\x07");
+			for (let i = 0; i < 40; i += 1) feed(core, `${name}${i}\r\n`);
+			feed(core, "\x1b]133;D;0\x07");
+		}
+		feed(core, "\x1b]133;A\x07\x1b]133;C\x07");
+		for (let i = 0; i < 40; i += 1) feed(core, `c${i}\r\n`);
+		feed(core, "progress 50%");
+		const renderer = new DomBlockRenderer();
+		renderer.mount(container, core);
+		renderer.setFont(font);
+		await flushRepaint();
+		container.scrollTop = 99_900;
+		container.dispatchEvent(new Event("scroll"));
+		await flushRepaint();
+		const progress = [...container.querySelectorAll<HTMLElement>("[data-terminal-row]")].find((node) => node.textContent === "progress 50%")!;
+		expect(progress).toBeTruthy();
+		const stable = Number(progress.dataset.terminalRow);
+		const blockId = progress.closest<HTMLElement>("[data-terminal-block-id]")!.dataset.terminalBlockId!;
+		container.scrollTop = 0;
+		container.dispatchEvent(new Event("scroll"));
+		await flushRepaint();
+		expect(container.querySelector(`[data-terminal-block-id="${blockId}"]`)).toBeNull();
+		feed(core, "\rdone\x1b[K\r\ntail1\r\ntail2");
+		await flushRepaint();
+		container.scrollTop = 99_900;
+		container.dispatchEvent(new Event("scroll"));
+		await flushRepaint();
+		expect(rowNode(container, stable).textContent).toBe("done");
+		renderer.dispose();
+	});
 });
