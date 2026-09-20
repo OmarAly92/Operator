@@ -42,7 +42,10 @@ fn xtversion_is_answered_with_the_host_identity() {
     let mut core = TerminalCore::new(80, 100).unwrap();
     core.set_answers_queries(true);
     core.feed(b"\x1b[>0q");
-    assert!(core.take_query_replies().is_empty(), "no identity, no answer");
+    assert!(
+        core.take_query_replies().is_empty(),
+        "no identity, no answer"
+    );
     core.set_terminal_identity("Example 1.2");
     core.feed(b"\x1b[>0q");
     assert_eq!(core.take_query_replies(), b"\x1bP>|Example 1.2\x1b\\");
@@ -62,5 +65,8 @@ fn a_claude_code_probe_round_is_answered_in_order() {
     core.set_answers_queries(true);
     core.set_terminal_identity("Example");
     core.feed(b"\x1b[>0q\x1b[?u\x1b[c");
-    assert_eq!(core.take_query_replies(), b"\x1bP>|Example\x1b\\\x1b[?62;22c");
+    assert_eq!(
+        core.take_query_replies(),
+        b"\x1bP>|Example\x1b\\\x1b[?62;22c"
+    );
 }

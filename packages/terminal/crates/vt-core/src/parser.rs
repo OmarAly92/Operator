@@ -254,10 +254,7 @@ impl Parser {
     }
 
     pub fn set_terminal_identity(&mut self, name: &str) {
-        self.terminal_identity = name
-            .chars()
-            .filter(|ch| !ch.is_control())
-            .collect();
+        self.terminal_identity = name.chars().filter(|ch| !ch.is_control()).collect();
     }
 
     fn push_reply(&mut self, reply: &[u8]) {
@@ -564,11 +561,27 @@ impl Perform for Parser {
             self.answer_decrqm(params);
             return;
         }
-        if intermediates.is_empty() && c == 'c' && params.iter().next().and_then(|g| g.first().copied()).unwrap_or(0) == 0 {
+        if intermediates.is_empty()
+            && c == 'c'
+            && params
+                .iter()
+                .next()
+                .and_then(|g| g.first().copied())
+                .unwrap_or(0)
+                == 0
+        {
             self.push_reply(b"\x1b[?62;22c");
             return;
         }
-        if intermediates == b">" && c == 'q' && params.iter().next().and_then(|g| g.first().copied()).unwrap_or(0) == 0 {
+        if intermediates == b">"
+            && c == 'q'
+            && params
+                .iter()
+                .next()
+                .and_then(|g| g.first().copied())
+                .unwrap_or(0)
+                == 0
+        {
             self.answer_xtversion();
             return;
         }
