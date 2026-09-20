@@ -12,7 +12,6 @@ import (
 
 	"github.com/OmarAly92/operator/backend/internal/adapters"
 	"github.com/OmarAly92/operator/backend/internal/adapters/agent/authprobe"
-	"github.com/OmarAly92/operator/backend/internal/domain"
 	"github.com/OmarAly92/operator/backend/internal/ports"
 )
 
@@ -34,7 +33,6 @@ func TestGetLaunchCommandBuildsInteractiveArgv(t *testing.T) {
 
 	cmd, err := plugin.GetLaunchCommand(context.Background(), ports.LaunchConfig{
 		Permissions: ports.PermissionModeBypassPermissions,
-		Kind:        domain.KindWorker,
 		Prompt:      "-fix this",
 	})
 	if err != nil {
@@ -45,26 +43,6 @@ func TestGetLaunchCommandBuildsInteractiveArgv(t *testing.T) {
 		"kiro-cli", "chat",
 		"--agent", "opr",
 		"--trust-all-tools",
-	}
-	if !reflect.DeepEqual(cmd, want) {
-		t.Fatalf("unexpected command\nwant: %#v\n got: %#v", want, cmd)
-	}
-}
-
-func TestGetLaunchCommandOrchestratorUsesInteractiveAgent(t *testing.T) {
-	plugin := &Plugin{resolvedBinary: "kiro-cli"}
-
-	cmd, err := plugin.GetLaunchCommand(context.Background(), ports.LaunchConfig{
-		Kind:         domain.KindOrchestrator,
-		SystemPrompt: "You are the human-facing coordinator.",
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	want := []string{
-		"kiro-cli", "chat",
-		"--agent", "opr",
 	}
 	if !reflect.DeepEqual(cmd, want) {
 		t.Fatalf("unexpected command\nwant: %#v\n got: %#v", want, cmd)
@@ -92,7 +70,6 @@ func TestGetLaunchCommandPromptedWorkerKeepsPromptOutOfArgv(t *testing.T) {
 	plugin := &Plugin{resolvedBinary: "kiro-cli"}
 
 	cmd, err := plugin.GetLaunchCommand(context.Background(), ports.LaunchConfig{
-		Kind:         domain.KindWorker,
 		Prompt:       "fix the failing test",
 		SystemPrompt: "standing role instructions",
 	})
@@ -103,27 +80,6 @@ func TestGetLaunchCommandPromptedWorkerKeepsPromptOutOfArgv(t *testing.T) {
 	want := []string{
 		"kiro-cli", "chat",
 		"--agent", "opr",
-	}
-	if !reflect.DeepEqual(cmd, want) {
-		t.Fatalf("unexpected command\nwant: %#v\n got: %#v", want, cmd)
-	}
-}
-
-func TestGetLaunchCommandPromptedOrchestratorCarriesPrompt(t *testing.T) {
-	plugin := &Plugin{resolvedBinary: "kiro-cli"}
-
-	cmd, err := plugin.GetLaunchCommand(context.Background(), ports.LaunchConfig{
-		Kind:   domain.KindOrchestrator,
-		Prompt: "do the explicit task",
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	want := []string{
-		"kiro-cli", "chat",
-		"--agent", "opr",
-		"--", "do the explicit task",
 	}
 	if !reflect.DeepEqual(cmd, want) {
 		t.Fatalf("unexpected command\nwant: %#v\n got: %#v", want, cmd)
@@ -289,40 +245,12 @@ func TestGetPromptDeliveryStrategyPromptedWorkerIsAfterStart(t *testing.T) {
 	plugin := &Plugin{}
 
 	got, err := plugin.GetPromptDeliveryStrategy(context.Background(), ports.LaunchConfig{
-		Kind:   domain.KindWorker,
 		Prompt: "do this task",
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if got != ports.PromptDeliveryAfterStart {
-		t.Fatalf("unexpected strategy: %q", got)
-	}
-}
-
-func TestGetPromptDeliveryStrategyOrchestratorUsesCustomAgent(t *testing.T) {
-	plugin := &Plugin{resolvedBinary: "kiro-cli"}
-
-	got, err := plugin.GetPromptDeliveryStrategy(context.Background(), ports.LaunchConfig{Kind: domain.KindOrchestrator})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got != ports.PromptDeliveryCustomAgent {
-		t.Fatalf("unexpected strategy: %q", got)
-	}
-}
-
-func TestGetPromptDeliveryStrategyPromptedOrchestratorUsesCommand(t *testing.T) {
-	plugin := &Plugin{resolvedBinary: "kiro-cli"}
-
-	got, err := plugin.GetPromptDeliveryStrategy(context.Background(), ports.LaunchConfig{
-		Kind:   domain.KindOrchestrator,
-		Prompt: "do this explicit task",
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got != ports.PromptDeliveryInCommand {
 		t.Fatalf("unexpected strategy: %q", got)
 	}
 }
@@ -812,11 +740,10 @@ func TestGetRestoreCommandReappliesSystemPromptAgent(t *testing.T) {
 	}
 }
 
-func TestGetRestoreCommandOrchestratorUsesInteractiveAgent(t *testing.T) {
+func TestGetRestoreCommandUsesInteractiveAgent(t *testing.T) {
 	plugin := &Plugin{resolvedBinary: "kiro-cli"}
 
 	cmd, ok, err := plugin.GetRestoreCommand(context.Background(), ports.RestoreConfig{
-		Kind:        domain.KindOrchestrator,
 		Permissions: ports.PermissionModeDefault,
 		Session: ports.SessionRef{
 			Metadata: map[string]string{ports.MetadataKeyAgentSessionID: "uuid-123"},

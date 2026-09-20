@@ -176,9 +176,6 @@ func (m *Manager) SwitchAgent(ctx context.Context, id domain.SessionID, cfg Swit
 	if rec.IsTerminated {
 		return domain.AgentSwitch{}, fmt.Errorf("switch agent %s: %w", id, ErrTerminated)
 	}
-	if rec.Kind != domain.KindWorker {
-		return domain.AgentSwitch{}, fmt.Errorf("switch agent %s: %w", id, ErrUnsupportedSwitchKind)
-	}
 	if rec.Metadata.WorkspacePath == "" || rec.Metadata.RuntimeHandleID == "" {
 		return domain.AgentSwitch{}, fmt.Errorf("switch agent %s: %w", id, ErrIncompleteHandle)
 	}
@@ -744,7 +741,7 @@ func (m *Manager) prepareTargetActivation(ctx context.Context, store ports.Agent
 			return preparedTargetActivation{}, ErrTargetAgentUnauthorized
 		}
 	}
-	systemPrompt, err := m.buildSystemPrompt(ctx, rec.Kind, rec.ProjectID)
+	systemPrompt, err := m.buildSystemPrompt(ctx, rec.ProjectID)
 	if err != nil {
 		return preparedTargetActivation{}, fmt.Errorf("system prompt: %w", err)
 	}
@@ -753,7 +750,7 @@ func (m *Manager) prepareTargetActivation(ctx context.Context, store ports.Agent
 	if err != nil {
 		return preparedTargetActivation{}, fmt.Errorf("system prompt file: %w", err)
 	}
-	config := effectiveAgentConfig(rec.Kind, project.Config)
+	config := effectiveAgentConfig(project.Config)
 	if err := m.prepareClaudeAccountLaunch(ctx, harness, sw.TargetClaudeAccountID); err != nil {
 		return preparedTargetActivation{}, fmt.Errorf("target env: %w", err)
 	}
@@ -772,7 +769,7 @@ func (m *Manager) prepareTargetActivation(ctx context.Context, store ports.Agent
 	}
 	launch := ports.LaunchConfig{
 		DataDir: m.dataDir, SessionID: string(rec.ID), WorkspacePath: rec.Metadata.WorkspacePath,
-		Kind: rec.Kind, SystemPrompt: systemPrompt, SystemPromptFile: systemFile,
+		SystemPrompt: systemPrompt, SystemPromptFile: systemFile,
 		Config: config, Permissions: config.Permissions,
 	}
 	promptDelivery, err := agent.GetPromptDeliveryStrategy(ctx, launch)
@@ -787,7 +784,7 @@ func (m *Manager) prepareTargetActivation(ctx context.Context, store ports.Agent
 	if resumable {
 		cmd, ok, restoreErr := agent.GetRestoreCommand(ctx, ports.RestoreConfig{
 			Session: ports.SessionRef{ID: string(rec.ID), WorkspacePath: rec.Metadata.WorkspacePath, Metadata: map[string]string{ports.MetadataKeyAgentSessionID: candidate.NativeSessionID}},
-			Kind:    rec.Kind, DataDir: m.dataDir, SystemPrompt: systemPrompt, SystemPromptFile: systemFile,
+			DataDir: m.dataDir, SystemPrompt: systemPrompt, SystemPromptFile: systemFile,
 			Config: config, Permissions: config.Permissions,
 		})
 		if restoreErr != nil {
@@ -866,7 +863,7 @@ func appendAgentContinuationProtocol(systemPrompt string) string {
 // for exactly the native conversation being resumed. Older switches without a
 // finalized artifact used a visible provider turn and need no hidden replay.
 func (m *Manager) systemPromptForNativeRestore(ctx context.Context, rec domain.SessionRecord, base string) (string, error) {
-	if rec.Kind != domain.KindWorker || !switchHarnessSupported(rec.Harness) {
+	if !switchHarnessSupported(rec.Harness) {
 		return base, nil
 	}
 	store, ok := m.store.(ports.AgentSwitchStore)
@@ -928,7 +925,7 @@ func (m *Manager) prepareTargetLaunchPrompt(ctx context.Context, rec domain.Sess
 				WorkspacePath: rec.Metadata.WorkspacePath,
 				Metadata:      map[string]string{ports.MetadataKeyAgentSessionID: target.native.NativeSessionID},
 			},
-			Kind: rec.Kind, DataDir: m.dataDir, Prompt: prompt,
+			DataDir: m.dataDir, Prompt: prompt,
 			SystemPrompt: launch.SystemPrompt, SystemPromptFile: launch.SystemPromptFile,
 			Config: launch.Config, Permissions: launch.Config.Permissions,
 		})

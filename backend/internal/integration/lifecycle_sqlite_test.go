@@ -162,7 +162,7 @@ func newStack(t *testing.T) *stack {
 func TestMergedPRUsesSessionManagerOnlyWhenOptedIn(t *testing.T) {
 	ctx := context.Background()
 	st := newStack(t)
-	sess, _, _, err := st.sm.Spawn(ctx, ports.SpawnConfig{ProjectID: "mer", Kind: domain.KindWorker, Branch: "b", Prompt: "do it"})
+	sess, _, _, err := st.sm.Spawn(ctx, ports.SpawnConfig{ProjectID: "mer", Branch: "b", Prompt: "do it"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -178,7 +178,7 @@ func TestMergedPRUsesSessionManagerOnlyWhenOptedIn(t *testing.T) {
 		t.Fatalf("default policy terminated merged session: %+v", rec)
 	}
 
-	sess2, _, _, err := st.sm.Spawn(ctx, ports.SpawnConfig{ProjectID: "mer", Kind: domain.KindWorker, Branch: "c", Prompt: "do more"})
+	sess2, _, _, err := st.sm.Spawn(ctx, ports.SpawnConfig{ProjectID: "mer", Branch: "c", Prompt: "do more"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -200,7 +200,7 @@ func TestMergedPRUsesSessionManagerOnlyWhenOptedIn(t *testing.T) {
 func TestSpawnPRKillRoundTrip(t *testing.T) {
 	ctx := context.Background()
 	st := newStack(t)
-	sess, _, _, err := st.sm.Spawn(ctx, ports.SpawnConfig{ProjectID: "mer", Kind: domain.KindWorker, Branch: "b", Prompt: "do it"})
+	sess, _, _, err := st.sm.Spawn(ctx, ports.SpawnConfig{ProjectID: "mer", Branch: "b", Prompt: "do it"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -234,7 +234,7 @@ func TestSpawnPRKillRoundTrip(t *testing.T) {
 func TestRestoreRoundTripPreservesMetadata(t *testing.T) {
 	ctx := context.Background()
 	st := newStack(t)
-	sess, _, _, err := st.sm.Spawn(ctx, ports.SpawnConfig{ProjectID: "mer", Kind: domain.KindWorker, Branch: "b", Prompt: "prompt"})
+	sess, _, _, err := st.sm.Spawn(ctx, ports.SpawnConfig{ProjectID: "mer", Branch: "b", Prompt: "prompt"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -281,7 +281,6 @@ func TestReconcile_TerminatesDeadLiveSessionAndReapsLeakedHandle(t *testing.T) {
 	// IsAlive (it short-circuits on missing path/branch).
 	recA := domain.SessionRecord{
 		ProjectID:    "mer",
-		Kind:         domain.KindWorker,
 		Harness:      domain.HarnessClaudeCode,
 		IsTerminated: false,
 		Metadata: domain.SessionMetadata{
@@ -302,7 +301,6 @@ func TestReconcile_TerminatesDeadLiveSessionAndReapsLeakedHandle(t *testing.T) {
 	// Seed session B: terminated in the DB (is_terminated=1) but runtime leaked.
 	recB := domain.SessionRecord{
 		ProjectID:    "mer",
-		Kind:         domain.KindWorker,
 		Harness:      domain.HarnessClaudeCode,
 		IsTerminated: true,
 		Metadata: domain.SessionMetadata{
@@ -360,7 +358,7 @@ func TestCDCPollerReceivesSessionAndPREvents(t *testing.T) {
 	var got []cdc.Event
 	b.Subscribe(func(e cdc.Event) { got = append(got, e) })
 	poller := cdc.NewPoller(st.store, b, cdc.PollerConfig{})
-	sess, _, _, err := st.sm.Spawn(ctx, ports.SpawnConfig{ProjectID: "mer", Kind: domain.KindWorker})
+	sess, _, _, err := st.sm.Spawn(ctx, ports.SpawnConfig{ProjectID: "mer"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -378,7 +376,7 @@ func TestCDCPollerReceivesSessionAndPREvents(t *testing.T) {
 func TestGetCarriesTicketRef(t *testing.T) {
 	ctx := context.Background()
 	st := newStack(t)
-	sess, _, _, err := st.sm.Spawn(ctx, ports.SpawnConfig{ProjectID: "mer", Kind: domain.KindWorker, Branch: "b", Prompt: "do it"})
+	sess, _, _, err := st.sm.Spawn(ctx, ports.SpawnConfig{ProjectID: "mer", Branch: "b", Prompt: "do it"})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -472,7 +472,6 @@ func TestWorkspaceIntegrationWorkspaceProjectInfersChildDefaultBranches(t *testi
 	info, err := ws.CreateWorkspaceProject(context.Background(), ports.WorkspaceProjectConfig{
 		ProjectID:    "proj",
 		SessionID:    "sess",
-		Kind:         "worker",
 		Branch:       "opr/proj-1",
 		RootRepoPath: rootRepo,
 		BaseBranch:   "main",

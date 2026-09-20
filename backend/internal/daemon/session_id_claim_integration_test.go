@@ -54,7 +54,6 @@ func TestSessionIDAllocationSkipsIDsHeldByALivePtyHost(t *testing.T) {
 
 	rec, err := store.CreateSession(ctx, domain.SessionRecord{
 		ProjectID: project,
-		Kind:      domain.KindWorker,
 		Harness:   domain.HarnessClaudeCode,
 		Metadata:  domain.SessionMetadata{WorkspaceMode: domain.WorkspaceModeWorktree},
 		CreatedAt: time.Now().UTC(),
@@ -109,7 +108,6 @@ func TestSessionIDAllocationSkipsNumbersHeldByAScratchWorkspace(t *testing.T) {
 
 	rec, err := store.CreateSession(ctx, domain.SessionRecord{
 		ProjectID: project,
-		Kind:      domain.KindWorker,
 		Harness:   domain.HarnessClaudeCode,
 		Metadata:  domain.SessionMetadata{WorkspaceMode: domain.WorkspaceModeWorktree},
 		CreatedAt: time.Now().UTC(),
@@ -126,7 +124,6 @@ func TestSessionIDAllocationSkipsNumbersHeldByAScratchWorkspace(t *testing.T) {
 	if _, err := ws.Create(ctx, ports.WorkspaceConfig{
 		ProjectID: domain.ProjectID(project),
 		SessionID: rec.ID,
-		Kind:      domain.KindWorker,
 	}); err != nil {
 		t.Fatalf("workspace Create for the allocated id failed: %v", err)
 	}

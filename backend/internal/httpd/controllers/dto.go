@@ -116,10 +116,9 @@ type AgentSwitchIDParam struct {
 
 // ListSessionsQuery is the query string accepted by GET /api/v1/sessions.
 type ListSessionsQuery struct {
-	Project          string `query:"project,omitempty" description:"Project id filter."`
-	Active           *bool  `query:"active,omitempty" description:"When true, return non-terminated sessions; when false, return terminated sessions."`
-	OrchestratorOnly *bool  `query:"orchestratorOnly,omitempty" description:"When true, return only orchestrator sessions."`
-	Fresh            *bool  `query:"fresh,omitempty" description:"When true, return only fresh non-terminated sessions."`
+	Project string `query:"project,omitempty" description:"Project id filter."`
+	Active  *bool  `query:"active,omitempty" description:"When true, return non-terminated sessions; when false, return terminated sessions."`
+	Fresh   *bool  `query:"fresh,omitempty" description:"When true, return only fresh non-terminated sessions."`
 }
 
 // CleanupSessionsQuery is the query string accepted by POST /api/v1/sessions/cleanup.
@@ -179,7 +178,6 @@ type ListSessionsResponse struct {
 type SpawnSessionRequest struct {
 	ProjectID     domain.ProjectID    `json:"projectId"`
 	IssueID       domain.IssueID      `json:"issueId,omitempty"`
-	Kind          domain.SessionKind  `json:"kind,omitempty" enum:"worker,orchestrator"`
 	Harness       domain.AgentHarness `json:"harness,omitempty" enum:"claude-code,codex,aider,opencode,grok,droid,amp,agy,crush,cursor,qwen,copilot,goose,auggie,continue,devin,cline,kimi,muse,kiro,kilocode,vibe,pi,kimchi,prime-agent,autohand"`
 	Branch        string              `json:"branch,omitempty"`
 	Prompt        string              `json:"prompt,omitempty" maxLength:"65536"`
@@ -191,15 +189,10 @@ type SpawnSessionRequest struct {
 	// Attachments are files pasted or dropped into the task brief. Each carries
 	// its bytes as standard base64 (no data: URL prefix). The daemon writes them
 	// into the session worktree and appends path references to the prompt.
-	Attachments []AttachmentInput `json:"attachments,omitempty"`
-	Cols        int               `json:"cols,omitempty" description:"Columns of the terminal pane that will show the session, so the pty is born at that width instead of being resized on first attach. Omit when unknown." minimum:"1" maximum:"1000"`
-	Rows        int               `json:"rows,omitempty" description:"Rows of the terminal pane that will show the session; see cols." minimum:"1" maximum:"1000"`
-	// RequestedBy is the orchestrator session id that asked for this spawn.
-	// The CLI fills it from OPERATOR_SESSION_ID when set; empty means a human
-	// spawn. The daemon rejects a value that does not resolve to a live
-	// orchestrator in the same project.
-	RequestedBy     domain.SessionID       `json:"requestedBy,omitempty"`
-	ClaudeAccountID domain.ClaudeAccountID `json:"claudeAccountId,omitempty" maxLength:"64" description:"Claude account for a claude-code session. Omit for the default account, or for a worker to inherit its orchestrator's account."`
+	Attachments     []AttachmentInput      `json:"attachments,omitempty"`
+	Cols            int                    `json:"cols,omitempty" description:"Columns of the terminal pane that will show the session, so the pty is born at that width instead of being resized on first attach. Omit when unknown." minimum:"1" maximum:"1000"`
+	Rows            int                    `json:"rows,omitempty" description:"Rows of the terminal pane that will show the session; see cols." minimum:"1" maximum:"1000"`
+	ClaudeAccountID domain.ClaudeAccountID `json:"claudeAccountId,omitempty" maxLength:"64" description:"Claude account for a claude-code session. Omit for the default account."`
 }
 
 // AttachmentInput is one file attached to a spawn, delegate, stage, or send
@@ -980,33 +973,9 @@ type SetReviewActivityResponse struct {
 	ReviewSessionID string `json:"reviewSessionId"`
 }
 
-// OrchestratorIDParam is the {id} path parameter for orchestrator routes.
-type OrchestratorIDParam struct {
-	ID string `path:"id" description:"Orchestrator session identifier, e.g. project-orchestrator."`
-}
-
 // ReviewSessionIDParam is the {reviewSessionID} path parameter for reviewer-owned routes.
 type ReviewSessionIDParam struct {
 	ID string `path:"reviewSessionID" description:"Reviewer session identifier, currently the per-harness review row id."`
-}
-
-// SpawnOrchestratorRequest is the body of POST /api/v1/orchestrators.
-type SpawnOrchestratorRequest struct {
-	ProjectID       domain.ProjectID       `json:"projectId"`
-	Clean           bool                   `json:"clean,omitempty"`
-	ClaudeAccountID domain.ClaudeAccountID `json:"claudeAccountId,omitempty" maxLength:"64"`
-}
-
-// SpawnOrchestratorResponse is the body of POST /api/v1/orchestrators.
-type SpawnOrchestratorResponse struct {
-	Orchestrator OrchestratorResponse `json:"orchestrator"`
-}
-
-// OrchestratorResponse is the minimal orchestrator read model returned after spawn.
-type OrchestratorResponse struct {
-	ID          domain.SessionID `json:"id"`
-	ProjectID   domain.ProjectID `json:"projectId"`
-	ProjectName string           `json:"projectName,omitempty"`
 }
 
 // ListAgentsResponse is the body of GET /api/v1/agents.

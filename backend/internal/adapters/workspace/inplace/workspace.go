@@ -43,7 +43,7 @@ func (w *Workspace) Create(ctx context.Context, cfg ports.WorkspaceConfig) (port
 }
 
 func (w *Workspace) Restore(ctx context.Context, cfg ports.WorkspaceConfig) (ports.WorkspaceInfo, error) {
-	return w.resolve(ctx, ports.WorkspaceConfig{ProjectID: cfg.ProjectID, SessionID: cfg.SessionID, Kind: cfg.Kind})
+	return w.resolve(ctx, ports.WorkspaceConfig{ProjectID: cfg.ProjectID, SessionID: cfg.SessionID})
 }
 
 func (w *Workspace) resolve(ctx context.Context, cfg ports.WorkspaceConfig) (ports.WorkspaceInfo, error) {

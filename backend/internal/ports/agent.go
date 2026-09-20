@@ -383,7 +383,6 @@ type LaunchConfig struct {
 	Config      AgentConfig
 	DataDir     string
 	IssueID     string
-	Kind        domain.SessionKind
 	Permissions PermissionMode
 	Prompt      string
 	SessionID   string
@@ -422,7 +421,6 @@ type WorkspaceHookConfig struct {
 type RestoreConfig struct {
 	Config          AgentConfig
 	DataDir         string
-	Kind            domain.SessionKind
 	Permissions     PermissionMode
 	AllowedTools    []string
 	DisallowedTools []string

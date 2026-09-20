@@ -31,7 +31,7 @@ func seedSession(t *testing.T, s *sqlite.Store) domain.SessionRecord {
 		t.Fatal(err)
 	}
 	r, err := s.CreateSession(ctx, domain.SessionRecord{
-		ProjectID: "mer", Kind: domain.KindWorker,
+		ProjectID: "mer",
 		Activity:  domain.Activity{State: domain.ActivityActive, LastActivityAt: now},
 		Metadata:  domain.SessionMetadata{WorkspaceMode: domain.WorkspaceModeWorktree},
 		CreatedAt: now, UpdatedAt: now,

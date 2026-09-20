@@ -199,7 +199,6 @@ func newSCMFixture(t *testing.T, branch string) *scmFixture {
 	}
 	sess, err := store.CreateSession(ctx, domain.SessionRecord{
 		ProjectID: "octo",
-		Kind:      domain.KindWorker,
 		Metadata:  domain.SessionMetadata{Branch: branch, WorkspacePath: "/ws/octo", WorkspaceMode: domain.WorkspaceModeWorktree},
 		CreatedAt: now,
 		UpdatedAt: now,

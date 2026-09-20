@@ -310,7 +310,6 @@ func testCollectorCodexBudgetFinalizationWaitsThenPersistsPartialAcrossRestart(t
 	}
 	session, err := store.CreateSession(ctx, domain.SessionRecord{
 		ProjectID: "budget-restart",
-		Kind:      domain.KindWorker,
 		Harness:   domain.HarnessCodex,
 		Activity:  domain.Activity{State: domain.ActivityIdle, LastActivityAt: now},
 		Metadata:  domain.SessionMetadata{AgentSessionID: testCodexRootID, WorkspaceMode: domain.WorkspaceModeWorktree},

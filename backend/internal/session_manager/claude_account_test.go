@@ -119,8 +119,6 @@ func TestResolveSpawnClaudeAccount(t *testing.T) {
 		{name: "claude unknown", cfg: ports.SpawnConfig{Harness: domain.HarnessClaudeCode, ClaudeAccountID: "missing"}, err: domain.ErrInvalidClaudeAccount},
 		{name: "codex explicit", cfg: ports.SpawnConfig{Harness: domain.HarnessCodex, ClaudeAccountID: "personal"}, err: domain.ErrInvalidClaudeAccount},
 		{name: "codex omitted", cfg: ports.SpawnConfig{Harness: domain.HarnessCodex}, want: domain.DefaultClaudeAccountID},
-		{name: "worker inherits orchestrator", cfg: ports.SpawnConfig{Harness: domain.HarnessClaudeCode, RequestedBy: "orch-1"}, want: "personal"},
-		{name: "explicit beats orchestrator", cfg: ports.SpawnConfig{Harness: domain.HarnessClaudeCode, RequestedBy: "orch-1", ClaudeAccountID: "default"}, want: domain.DefaultClaudeAccountID},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -155,7 +153,6 @@ func TestResolveSpawnClaudeAccountUsesPreferred(t *testing.T) {
 	}{
 		{name: "omitted uses preferred", cfg: ports.SpawnConfig{Harness: domain.HarnessClaudeCode}, want: "personal"},
 		{name: "explicit beats preferred", cfg: ports.SpawnConfig{Harness: domain.HarnessClaudeCode, ClaudeAccountID: "default"}, want: domain.DefaultClaudeAccountID},
-		{name: "orchestrator beats preferred", cfg: ports.SpawnConfig{Harness: domain.HarnessClaudeCode, RequestedBy: "orch-1"}, want: domain.DefaultClaudeAccountID},
 		{name: "codex ignores preferred", cfg: ports.SpawnConfig{Harness: domain.HarnessCodex}, want: domain.DefaultClaudeAccountID},
 	}
 	for _, tc := range cases {

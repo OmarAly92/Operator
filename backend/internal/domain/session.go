@@ -13,15 +13,6 @@ type (
 	IssueID string
 )
 
-// SessionKind distinguishes a worker session from an orchestrator session.
-type SessionKind string
-
-// Session kinds.
-const (
-	KindWorker       SessionKind = "worker"
-	KindOrchestrator SessionKind = "orchestrator"
-)
-
 // SessionMetadata is the typed, off-status metadata for a session: operational
 // handles and seed inputs used by Session Manager and reaper.
 type SessionMetadata struct {
@@ -85,7 +76,6 @@ type SessionRecord struct {
 	ID        SessionID    `json:"id"`
 	ProjectID ProjectID    `json:"projectId"`
 	IssueID   IssueID      `json:"issueId,omitempty"`
-	Kind      SessionKind  `json:"kind"`
 	Harness   AgentHarness `json:"harness,omitempty"`
 	// ReviewerHarness is this session's preferred reviewer. Empty delegates to
 	// the project configuration.
@@ -104,10 +94,7 @@ type SessionRecord struct {
 	TerminateOnPRMerge bool            `json:"terminateOnPrMerge"`
 	AutoInjectReview   bool            `json:"autoInjectReview"`
 	Metadata           SessionMetadata `json:"-"`
-	// SpawnedBy is the orchestrator session id that requested this spawn, or
-	// empty for a human or system spawn. Client-asserted: see spec section 5.4.
-	SpawnedBy       SessionID       `json:"spawnedBy,omitempty"`
-	ClaudeAccountID ClaudeAccountID `json:"claudeAccountId"`
+	ClaudeAccountID    ClaudeAccountID `json:"claudeAccountId"`
 	// CleanupGeneration is a monotonic counter bumped each time the session is
 	// un-terminated (spawn/restore). The terminal-resource reconciler stamps its
 	// durable cleanup facts with the generation they were written for so a

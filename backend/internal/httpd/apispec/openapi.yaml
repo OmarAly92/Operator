@@ -1422,112 +1422,6 @@ paths:
       summary: Stream created notifications
       tags:
       - notifications
-  /api/v1/orchestrators:
-    get:
-      operationId: listOrchestrators
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ListSessionsResponse'
-          description: OK
-        "500":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/APIError'
-          description: Internal Server Error
-        "501":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/APIError'
-          description: Not Implemented
-      summary: List orchestrator sessions across projects
-      tags:
-      - sessions
-    post:
-      operationId: spawnOrchestrator
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/SpawnOrchestratorRequest'
-        required: true
-      responses:
-        "201":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SpawnOrchestratorResponse'
-          description: Created
-        "400":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/APIError'
-          description: Bad Request
-        "404":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/APIError'
-          description: Not Found
-        "500":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/APIError'
-          description: Internal Server Error
-        "501":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/APIError'
-          description: Not Implemented
-      summary: Spawn an orchestrator session
-      tags:
-      - sessions
-  /api/v1/orchestrators/{id}:
-    get:
-      operationId: getOrchestrator
-      parameters:
-      - description: Orchestrator session identifier, e.g. project-orchestrator.
-        in: path
-        name: id
-        required: true
-        schema:
-          description: Orchestrator session identifier, e.g. project-orchestrator.
-          type: string
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SessionResponse'
-          description: OK
-        "404":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/APIError'
-          description: Not Found
-        "500":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/APIError'
-          description: Internal Server Error
-        "501":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/APIError'
-          description: Not Implemented
-      summary: Fetch one orchestrator session
-      tags:
-      - sessions
   /api/v1/orchestrators/delegate:
     post:
       operationId: delegateTask
@@ -2900,14 +2794,6 @@ paths:
         schema:
           description: When true, return non-terminated sessions; when false, return
             terminated sessions.
-          type:
-          - "null"
-          - boolean
-      - description: When true, return only orchestrator sessions.
-        in: query
-        name: orchestratorOnly
-        schema:
-          description: When true, return only orchestrator sessions.
           type:
           - "null"
           - boolean
@@ -6382,8 +6268,6 @@ components:
           type: boolean
         issueId:
           type: string
-        kind:
-          type: string
         latestAssistantUpdate:
           maxLength: 2048
           type: string
@@ -6450,8 +6334,6 @@ components:
           - mergeable
           - merged
           type: string
-        spawnedBy:
-          type: string
         status:
           enum:
           - working
@@ -6488,7 +6370,6 @@ components:
       required:
       - id
       - projectId
-      - kind
       - activity
       - isTerminated
       - terminateOnPrMerge
@@ -7593,18 +7474,6 @@ components:
           type: integer
         maxSpawnsPerHour:
           type: integer
-      type: object
-    OrchestratorResponse:
-      properties:
-        id:
-          type: string
-        projectId:
-          type: string
-        projectName:
-          type: string
-      required:
-      - id
-      - projectId
       type: object
     PRReviewState:
       properties:
@@ -8816,25 +8685,6 @@ components:
       - shift
       - alt
       type: object
-    SpawnOrchestratorRequest:
-      properties:
-        claudeAccountId:
-          maxLength: 64
-          type: string
-        clean:
-          type: boolean
-        projectId:
-          type: string
-      required:
-      - projectId
-      type: object
-    SpawnOrchestratorResponse:
-      properties:
-        orchestrator:
-          $ref: '#/components/schemas/OrchestratorResponse'
-      required:
-      - orchestrator
-      type: object
     SpawnSessionRequest:
       properties:
         attachments:
@@ -8845,7 +8695,7 @@ components:
           type: string
         claudeAccountId:
           description: Claude account for a claude-code session. Omit for the default
-            account, or for a worker to inherit its orchestrator's account.
+            account.
           maxLength: 64
           type: string
         cols:
@@ -8889,17 +8739,10 @@ components:
           type: string
         issueId:
           type: string
-        kind:
-          enum:
-          - worker
-          - orchestrator
-          type: string
         projectId:
           type: string
         prompt:
           maxLength: 65536
-          type: string
-        requestedBy:
           type: string
         rows:
           description: Rows of the terminal pane that will show the session; see cols.

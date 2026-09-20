@@ -23,7 +23,6 @@ func TestWaitForMessageDeliveryReadyWaitsForTerminalIdleMarker(t *testing.T) {
 	st.sessions["orch"] = domain.SessionRecord{
 		ID:        "orch",
 		ProjectID: "opr",
-		Kind:      domain.KindOrchestrator,
 		Harness:   domain.HarnessCodex,
 		Activity:  domain.Activity{State: domain.ActivityIdle},
 		Metadata:  domain.SessionMetadata{RuntimeHandleID: "orch"},
@@ -44,7 +43,6 @@ func TestWaitForMessageDeliveryReadyHonorsContextWhileTerminalStarts(t *testing.
 	st.sessions["orch"] = domain.SessionRecord{
 		ID:        "orch",
 		ProjectID: "opr",
-		Kind:      domain.KindOrchestrator,
 		Harness:   domain.HarnessCodex,
 		Activity:  domain.Activity{State: domain.ActivityIdle},
 		Metadata:  domain.SessionMetadata{RuntimeHandleID: "orch"},

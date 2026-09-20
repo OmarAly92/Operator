@@ -33,7 +33,6 @@ func sampleRecord(project string) domain.SessionRecord {
 	now := time.Now().UTC().Truncate(time.Second)
 	return domain.SessionRecord{
 		ProjectID:        domain.ProjectID(project),
-		Kind:             domain.KindWorker,
 		Harness:          domain.HarnessClaudeCode,
 		Activity:         domain.Activity{State: domain.ActivityActive, LastActivityAt: now},
 		Metadata:         domain.SessionMetadata{Branch: "feat/x", WorkspacePath: "/ws", WorkspaceMode: domain.WorkspaceModeWorktree},
@@ -493,7 +492,6 @@ func TestDeleteSessionOnlyRemovesSeedRows(t *testing.T) {
 	now := time.Now().UTC().Truncate(time.Second)
 	seed := domain.SessionRecord{
 		ProjectID: "mer",
-		Kind:      domain.KindWorker,
 		Harness:   domain.HarnessClaudeCode,
 		Activity:  domain.Activity{State: domain.ActivityIdle, LastActivityAt: now},
 		Metadata:  domain.SessionMetadata{WorkspaceMode: domain.WorkspaceModeWorktree},
@@ -1444,7 +1442,6 @@ func TestSessionStoreRoundTripsWorkspaceMode(t *testing.T) {
 	seedProject(t, s, "p-1")
 	rec, err := s.CreateSession(ctx, domain.SessionRecord{
 		ProjectID: "p-1",
-		Kind:      domain.KindWorker,
 		Metadata:  domain.SessionMetadata{WorkspaceMode: domain.WorkspaceModeInPlace},
 	})
 	if err != nil {

@@ -10,7 +10,6 @@ import (
 	"testing"
 
 	"github.com/OmarAly92/operator/backend/internal/adapters/agent/hookutil"
-	"github.com/OmarAly92/operator/backend/internal/domain"
 	"github.com/OmarAly92/operator/backend/internal/ports"
 )
 
@@ -19,7 +18,6 @@ func TestGetLaunchCommandBuildsCrossPlatformArgv(t *testing.T) {
 
 	cmd, err := plugin.GetLaunchCommand(context.Background(), ports.LaunchConfig{
 		Permissions:   ports.PermissionModeBypassPermissions,
-		Kind:          domain.KindWorker,
 		Prompt:        "fix this",
 		WorkspacePath: "/tmp/workspace",
 		SessionID:     "test-session-id",
@@ -109,30 +107,17 @@ func TestGetPromptDeliveryStrategyIsInCommand(t *testing.T) {
 }
 
 func TestGetPromptDeliveryStrategyPromptedSessionsAreAfterStart(t *testing.T) {
-	tests := []struct {
-		name string
-		kind domain.SessionKind
-	}{
-		{name: "worker", kind: domain.KindWorker},
-		{name: "orchestrator", kind: domain.KindOrchestrator},
+	plugin := &Plugin{}
+
+	got, err := plugin.GetPromptDeliveryStrategy(context.Background(), ports.LaunchConfig{
+		Prompt: "fix this",
+	})
+	if err != nil {
+		t.Fatal(err)
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			plugin := &Plugin{}
-
-			got, err := plugin.GetPromptDeliveryStrategy(context.Background(), ports.LaunchConfig{
-				Kind:   tt.kind,
-				Prompt: "fix this",
-			})
-			if err != nil {
-				t.Fatal(err)
-			}
-
-			if got != ports.PromptDeliveryAfterStart {
-				t.Fatalf("unexpected prompt delivery strategy: got %v, want %v", got, ports.PromptDeliveryAfterStart)
-			}
-		})
+	if got != ports.PromptDeliveryAfterStart {
+		t.Fatalf("unexpected prompt delivery strategy: got %v, want %v", got, ports.PromptDeliveryAfterStart)
 	}
 }
 

@@ -145,7 +145,7 @@ func (f *fakeManagedPreviewServer) Status(sessionID domain.SessionID) previewser
 
 func newFakeSessionService() *fakeSessionService {
 	now := time.Now().UTC()
-	s := domain.Session{SessionRecord: domain.SessionRecord{ID: "opr-1", ProjectID: "opr", Kind: domain.KindWorker, Activity: domain.Activity{State: domain.ActivityIdle, LastActivityAt: now}, AutoInjectReview: true, CreatedAt: now, UpdatedAt: now}, Status: domain.StatusIdle, TerminalHandleID: "opr-1/terminal_0"}
+	s := domain.Session{SessionRecord: domain.SessionRecord{ID: "opr-1", ProjectID: "opr", Activity: domain.Activity{State: domain.ActivityIdle, LastActivityAt: now}, AutoInjectReview: true, CreatedAt: now, UpdatedAt: now}, Status: domain.StatusIdle, TerminalHandleID: "opr-1/terminal_0"}
 	return &fakeSessionService{
 		sessions:      map[domain.SessionID]domain.Session{s.ID: s},
 		agentSwitches: map[domain.AgentSwitchID]domain.AgentSwitch{},
@@ -161,9 +161,6 @@ func (f *fakeSessionService) List(_ context.Context, filter sessionsvc.ListFilte
 		if filter.Active != nil && s.IsTerminated == *filter.Active {
 			continue
 		}
-		if filter.OrchestratorOnly && s.Kind != domain.KindOrchestrator {
-			continue
-		}
 		out = append(out, s)
 	}
 	return out, nil
@@ -175,26 +172,9 @@ func (f *fakeSessionService) Spawn(_ context.Context, cfg ports.SpawnConfig) (do
 		return domain.Session{}, 0, 0, f.spawnErr
 	}
 	now := time.Now().UTC()
-	s := domain.Session{SessionRecord: domain.SessionRecord{ID: domain.SessionID(string(cfg.ProjectID) + "-2"), ProjectID: cfg.ProjectID, IssueID: cfg.IssueID, Kind: cfg.Kind, Harness: cfg.Harness, DisplayName: cfg.DisplayName, Activity: domain.Activity{State: domain.ActivityIdle, LastActivityAt: now}, AutoInjectReview: true, CreatedAt: now, UpdatedAt: now}, Status: domain.StatusIdle}
+	s := domain.Session{SessionRecord: domain.SessionRecord{ID: domain.SessionID(string(cfg.ProjectID) + "-2"), ProjectID: cfg.ProjectID, IssueID: cfg.IssueID, Harness: cfg.Harness, DisplayName: cfg.DisplayName, Activity: domain.Activity{State: domain.ActivityIdle, LastActivityAt: now}, AutoInjectReview: true, CreatedAt: now, UpdatedAt: now}, Status: domain.StatusIdle}
 	f.sessions[s.ID] = s
 	return s, len(cfg.Prompt), 0, nil
-}
-
-func (f *fakeSessionService) SpawnOrchestrator(ctx context.Context, projectID domain.ProjectID, clean bool, account domain.ClaudeAccountID) (domain.Session, error) {
-	if clean {
-		active := true
-		existing, err := f.List(ctx, sessionsvc.ListFilter{ProjectID: projectID, Active: &active, OrchestratorOnly: true})
-		if err != nil {
-			return domain.Session{}, err
-		}
-		for _, o := range existing {
-			if _, err := f.Kill(ctx, o.ID); err != nil {
-				return domain.Session{}, err
-			}
-		}
-	}
-	s, _, _, err := f.Spawn(ctx, ports.SpawnConfig{ProjectID: projectID, Kind: domain.KindOrchestrator, ClaudeAccountID: account})
-	return s, err
 }
 
 func (f *fakeSessionService) Get(_ context.Context, id domain.SessionID) (domain.Session, error) {
@@ -1089,11 +1069,6 @@ func TestSessionsAPI_ListSpawnGetAndActions(t *testing.T) {
 	if status != http.StatusNotFound {
 		t.Fatalf("unpin unknown = %d, want 404", status)
 	}
-
-	body, status, _ = doRequest(t, srv, "POST", "/api/v1/orchestrators", `{"projectId":"opr"}`)
-	if status != http.StatusCreated {
-		t.Fatalf("orchestrator = %d, want 201; body=%s", status, body)
-	}
 }
 
 func TestSessionsAPI_SpawnRejectsOversizedBody(t *testing.T) {
@@ -1126,15 +1101,6 @@ func TestSessionsAPI_SpawnRejectsRemovedMode(t *testing.T) {
 	if len(svc.sessions) != 1 {
 		t.Fatalf("a removed-mode request created a session: %#v", svc.sessions)
 	}
-}
-
-func TestSessionsAPI_OrchestratorRejectsRemovedMode(t *testing.T) {
-	svc := newFakeSessionService()
-	srv := newSessionTestServer(t, svc)
-
-	body, status, _ := doRequest(t, srv, "POST", "/api/v1/orchestrators",
-		`{"projectId":"opr","mode":"tui"}`)
-	assertErrorCode(t, body, status, http.StatusBadRequest, "SESSION_MODE_REMOVED")
 }
 
 func TestSessionsAPI_PreviewDiscoversAndServesStaticIndex(t *testing.T) {
@@ -1193,7 +1159,7 @@ func TestSessionsAPI_PreviewRejectsSessionIDTooLongForHostname(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(workspace, "index.html"), []byte("preview"), 0o644); err != nil {
 		t.Fatalf("write index: %v", err)
 	}
-	svc.sessions[id] = domain.Session{SessionRecord: domain.SessionRecord{ID: id, Kind: domain.KindWorker, Metadata: domain.SessionMetadata{WorkspacePath: workspace}}}
+	svc.sessions[id] = domain.Session{SessionRecord: domain.SessionRecord{ID: id, Metadata: domain.SessionMetadata{WorkspacePath: workspace}}}
 	srv := newSessionTestServer(t, svc)
 
 	body, status, _ := doRequest(t, srv, http.MethodGet, "/api/v1/sessions/"+string(id)+"/preview", "")
@@ -1604,7 +1570,7 @@ func TestSessionsAPI_PreviewOriginsIsolateConcurrentSessionsAndSurviveRouterRest
 		if err := os.WriteFile(filepath.Join(workspace, "theme.css"), []byte(tc.content), 0o644); err != nil {
 			t.Fatalf("write theme: %v", err)
 		}
-		s := domain.Session{SessionRecord: domain.SessionRecord{ID: tc.id, Kind: domain.KindWorker}}
+		s := domain.Session{SessionRecord: domain.SessionRecord{ID: tc.id}}
 		s.Metadata = domain.SessionMetadata{WorkspacePath: workspace}
 		svc.sessions[tc.id] = s
 	}
@@ -2111,19 +2077,6 @@ func TestSessionsAPI_SetPreviewNotFound(t *testing.T) {
 	assertErrorCode(t, body, status, http.StatusNotFound, "SESSION_NOT_FOUND")
 }
 
-func TestSessionsAPI_SpawnPassesRequestedByThrough(t *testing.T) {
-	svc := newFakeSessionService()
-	srv := newSessionTestServer(t, svc)
-
-	body, status, _ := doRequest(t, srv, "POST", "/api/v1/sessions", `{"projectId":"opr","kind":"worker","prompt":"fix","requestedBy":"opr-1"}`)
-	if status != http.StatusCreated {
-		t.Fatalf("spawn = %d, want 201; body=%s", status, body)
-	}
-	if svc.lastSpawnConfig.RequestedBy != "opr-1" {
-		t.Fatalf("lastSpawnConfig.RequestedBy = %q, want opr-1", svc.lastSpawnConfig.RequestedBy)
-	}
-}
-
 func TestSessionsAPI_SpawnPassesClaudeAccountThrough(t *testing.T) {
 	svc := newFakeSessionService()
 	srv := newSessionTestServer(t, svc)
@@ -2191,56 +2144,6 @@ func TestSessionsAPI_RenameValidation(t *testing.T) {
 
 	body, status, _ = doRequest(t, srv, "PATCH", "/api/v1/sessions/opr-1", `{`)
 	assertErrorCode(t, body, status, http.StatusBadRequest, "INVALID_JSON")
-}
-
-func TestSessionsAPI_ListOrchestratorsOnly(t *testing.T) {
-	svc := newFakeSessionService()
-	now := time.Now().UTC()
-	svc.sessions["opr-orch"] = domain.Session{
-		SessionRecord: domain.SessionRecord{
-			ID:        "opr-orch",
-			ProjectID: "opr",
-			Kind:      domain.KindOrchestrator,
-			Activity:  domain.Activity{State: domain.ActivityIdle, LastActivityAt: now},
-			CreatedAt: now,
-			UpdatedAt: now,
-		},
-		Status: domain.StatusIdle,
-	}
-	svc.sessions["other-orch"] = domain.Session{
-		SessionRecord: domain.SessionRecord{
-			ID:        "other-orch",
-			ProjectID: "other",
-			Kind:      domain.KindOrchestrator,
-			Activity:  domain.Activity{State: domain.ActivityIdle, LastActivityAt: now},
-			CreatedAt: now,
-			UpdatedAt: now,
-		},
-		Status: domain.StatusIdle,
-	}
-	srv := newSessionTestServer(t, svc)
-
-	body, status, _ := doRequest(t, srv, "GET", "/api/v1/orchestrators", "")
-	if status != http.StatusOK {
-		t.Fatalf("GET orchestrators = %d, want 200; body=%s", status, body)
-	}
-	var list struct {
-		Sessions []sessionBody `json:"sessions"`
-	}
-	mustJSON(t, body, &list)
-	if len(list.Sessions) != 2 {
-		t.Fatalf("len(orchestrators) = %d, want 2; body=%s", len(list.Sessions), body)
-	}
-	got := map[string]string{}
-	for _, sess := range list.Sessions {
-		got[sess.ID] = sess.Kind
-	}
-	if got["opr-orch"] != string(domain.KindOrchestrator) || got["other-orch"] != string(domain.KindOrchestrator) {
-		t.Fatalf("missing orchestrators: %#v", got)
-	}
-	if _, ok := got["opr-1"]; ok {
-		t.Fatalf("worker session leaked into orchestrator list: %#v", got)
-	}
 }
 
 func TestSessionsAPI_SendValidation(t *testing.T) {

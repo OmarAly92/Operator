@@ -228,7 +228,6 @@ INSERT INTO projects (
 	}
 	rec := domain.SessionRecord{
 		ProjectID: "mer",
-		Kind:      domain.KindWorker,
 		Harness:   domain.HarnessClaudeCode,
 		Activity:  domain.Activity{State: domain.ActivityActive},
 		Metadata: domain.SessionMetadata{

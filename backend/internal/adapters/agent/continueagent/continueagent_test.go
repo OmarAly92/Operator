@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/OmarAly92/operator/backend/internal/adapters"
-	"github.com/OmarAly92/operator/backend/internal/domain"
 	"github.com/OmarAly92/operator/backend/internal/ports"
 )
 
@@ -77,7 +76,6 @@ func TestGetPromptDeliveryStrategyContextCanceled(t *testing.T) {
 func TestGetLaunchCommandWorkerBypassIsInteractive(t *testing.T) {
 	plugin := &Plugin{resolvedBinary: "cn"}
 	cmd, err := plugin.GetLaunchCommand(context.Background(), ports.LaunchConfig{
-		Kind:        domain.KindWorker,
 		Prompt:      "do the thing",
 		Permissions: ports.PermissionModeBypassPermissions,
 	})
@@ -108,7 +106,6 @@ func TestGetLaunchCommandForwardsModel(t *testing.T) {
 func TestGetLaunchCommandWorkerAutoIsInteractive(t *testing.T) {
 	plugin := &Plugin{resolvedBinary: "cn"}
 	cmd, err := plugin.GetLaunchCommand(context.Background(), ports.LaunchConfig{
-		Kind:        domain.KindWorker,
 		Prompt:      "refactor auth",
 		Permissions: ports.PermissionModeAuto,
 	})
@@ -124,7 +121,6 @@ func TestGetLaunchCommandWorkerAutoIsInteractive(t *testing.T) {
 func TestGetLaunchCommandWorkerDefaultPermsIsInteractive(t *testing.T) {
 	plugin := &Plugin{resolvedBinary: "cn"}
 	cmd, err := plugin.GetLaunchCommand(context.Background(), ports.LaunchConfig{
-		Kind:   domain.KindWorker,
 		Prompt: "fix it",
 	})
 	if err != nil {

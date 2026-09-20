@@ -111,9 +111,6 @@ func (p *Poller) Poll(ctx context.Context) error {
 			continue
 		}
 		activeIDs[sess.ID] = struct{}{}
-		if sess.Kind != domain.KindWorker {
-			continue
-		}
 		storedEntry, workspaceOwned := StoredWorkspaceEntry(sess.Metadata.PreviewURL, sess.ID)
 		previous, seenBefore := p.seen[sess.ID]
 		restoringCleared := false

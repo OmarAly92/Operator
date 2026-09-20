@@ -32,7 +32,6 @@ import (
 	"github.com/OmarAly92/operator/backend/internal/adapters"
 	"github.com/OmarAly92/operator/backend/internal/adapters/agent/agentbase"
 	"github.com/OmarAly92/operator/backend/internal/adapters/agent/binaryutil"
-	"github.com/OmarAly92/operator/backend/internal/domain"
 	"github.com/OmarAly92/operator/backend/internal/ports"
 )
 
@@ -106,13 +105,11 @@ func (p *Plugin) GetLaunchCommand(ctx context.Context, cfg ports.LaunchConfig) (
 		cmd = append(cmd, "--append-system-prompt", systemPrompt)
 	}
 
-	if cfg.Prompt != "" && cfg.Kind == domain.KindWorker {
+	if cfg.Prompt != "" {
 		if runtime.GOOS != "windows" {
 			return qwenWorkerRemoteInputCommand(cmd, cfg)
 		}
 		cmd = append(cmd, "-i", cfg.Prompt)
-	} else if cfg.Prompt != "" {
-		cmd = append(cmd, "-p", cfg.Prompt)
 	}
 
 	return cmd, nil

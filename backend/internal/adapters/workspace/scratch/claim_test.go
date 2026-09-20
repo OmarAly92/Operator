@@ -84,7 +84,7 @@ func TestClaimProbeAgreesWithCreate(t *testing.T) {
 		t.Fatal(err)
 	}
 	ctx := context.Background()
-	cfg := ports.WorkspaceConfig{ProjectID: "scratch", SessionID: "scratch-5", Kind: domain.KindWorker}
+	cfg := ports.WorkspaceConfig{ProjectID: "scratch", SessionID: "scratch-5"}
 
 	claimed, err := w.IsSessionIDClaimed(ctx, cfg.SessionID)
 	if err != nil || !claimed {

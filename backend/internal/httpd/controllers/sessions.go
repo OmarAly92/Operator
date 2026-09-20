@@ -85,7 +85,6 @@ var (
 type SessionService interface {
 	List(ctx context.Context, filter sessionsvc.ListFilter) ([]domain.Session, error)
 	Spawn(ctx context.Context, cfg ports.SpawnConfig) (domain.Session, int, int, error)
-	SpawnOrchestrator(ctx context.Context, projectID domain.ProjectID, clean bool, account domain.ClaudeAccountID) (domain.Session, error)
 	Get(ctx context.Context, id domain.SessionID) (domain.Session, error)
 	Restore(ctx context.Context, id domain.SessionID, grid ports.PaneGrid) (sessionsvc.RestoreOutcome, error)
 	ResumeAgent(ctx context.Context, id domain.SessionID) (sessionsvc.ResumeAgentOutcome, error)
@@ -242,10 +241,7 @@ func (c *SessionsController) Register(r chi.Router) {
 	r.Post("/sessions/{sessionId}/activity", c.activity)
 	r.Post("/sessions/{sessionId}/pin", c.pin)
 	r.Delete("/sessions/{sessionId}/pin", c.unpin)
-	r.Get("/orchestrators", c.listOrchestrators)
-	r.Post("/orchestrators", c.spawnOrchestrator)
 	r.Post("/orchestrators/delegate", c.delegateTask)
-	r.Get("/orchestrators/{id}", c.getOrchestrator)
 }
 
 // RegisterSwitchAgent mounts the synchronous switch workflow separately so
@@ -334,9 +330,6 @@ func (c *SessionsController) spawn(w http.ResponseWriter, r *http.Request) {
 		envelope.WriteAPIError(w, r, http.StatusBadRequest, "bad_request", "DISPLAY_NAME_TOO_LONG", "displayName must be 20 characters or fewer", nil)
 		return
 	}
-	if in.Kind == "" {
-		in.Kind = domain.KindWorker
-	}
 	attachments, attachErr := decodeSpawnAttachments(in.Attachments)
 	if attachErr != nil {
 		envelope.WriteAPIError(w, r, http.StatusBadRequest, "bad_request", attachErr.code, attachErr.message, nil)
@@ -351,7 +344,7 @@ func (c *SessionsController) spawn(w http.ResponseWriter, r *http.Request) {
 		}
 		workspaceMode = parsed
 	}
-	sess, promptBytes, systemPromptBytes, err := c.Svc.Spawn(r.Context(), ports.SpawnConfig{ProjectID: in.ProjectID, IssueID: in.IssueID, Kind: in.Kind, Harness: in.Harness, Branch: in.Branch, Prompt: in.Prompt, DisplayName: displayName, Attachments: attachments, WorkspaceMode: workspaceMode, Cols: in.Cols, Rows: in.Rows, RequestedBy: in.RequestedBy, ClaudeAccountID: in.ClaudeAccountID})
+	sess, promptBytes, systemPromptBytes, err := c.Svc.Spawn(r.Context(), ports.SpawnConfig{ProjectID: in.ProjectID, IssueID: in.IssueID, Harness: in.Harness, Branch: in.Branch, Prompt: in.Prompt, DisplayName: displayName, Attachments: attachments, WorkspaceMode: workspaceMode, Cols: in.Cols, Rows: in.Rows, ClaudeAccountID: in.ClaudeAccountID})
 	if err != nil {
 		envelope.WriteError(w, r, err)
 		return
@@ -1873,79 +1866,12 @@ func capActivityText(v string, maxLen int) string {
 	return strings.ToValidUTF8(string([]byte(v)[:head])+marker+string([]byte(v)[len(v)-tail:]), "?")
 }
 
-func (c *SessionsController) spawnOrchestrator(w http.ResponseWriter, r *http.Request) {
-	if c.Svc == nil {
-		apispec.NotImplemented(w, r, "POST", "/api/v1/orchestrators")
-		return
-	}
-	body, err := io.ReadAll(r.Body)
-	if err != nil {
-		envelope.WriteAPIError(w, r, http.StatusBadRequest, "bad_request", "INVALID_JSON", "Invalid JSON body", nil)
-		return
-	}
-	var in SpawnOrchestratorRequest
-	if err := json.Unmarshal(body, &in); err != nil {
-		envelope.WriteAPIError(w, r, http.StatusBadRequest, "bad_request", "INVALID_JSON", "Invalid JSON body", nil)
-		return
-	}
-	if sessionModeRequested(body) {
-		writeSessionModeRemoved(w, r)
-		return
-	}
-	if in.ProjectID == "" {
-		envelope.WriteAPIError(w, r, http.StatusBadRequest, "bad_request", "PROJECT_ID_REQUIRED", "projectId is required", nil)
-		return
-	}
-	sess, err := c.Svc.SpawnOrchestrator(r.Context(), in.ProjectID, in.Clean, in.ClaudeAccountID)
-	if err != nil {
-		envelope.WriteError(w, r, err)
-		return
-	}
-	envelope.WriteJSON(w, http.StatusCreated, SpawnOrchestratorResponse{
-		Orchestrator: OrchestratorResponse{ID: sess.ID, ProjectID: sess.ProjectID},
-	})
-}
-
-func (c *SessionsController) listOrchestrators(w http.ResponseWriter, r *http.Request) {
-	if c.Svc == nil {
-		apispec.NotImplemented(w, r, "GET", "/api/v1/orchestrators")
-		return
-	}
-	sessions, err := c.Svc.List(r.Context(), sessionsvc.ListFilter{OrchestratorOnly: true})
-	if err != nil {
-		envelope.WriteError(w, r, err)
-		return
-	}
-	envelope.WriteJSON(w, http.StatusOK, ListSessionsResponse{Sessions: sessionViews(sessions)})
-}
-
-func (c *SessionsController) getOrchestrator(w http.ResponseWriter, r *http.Request) {
-	if c.Svc == nil {
-		apispec.NotImplemented(w, r, "GET", "/api/v1/orchestrators/{id}")
-		return
-	}
-	sess, err := c.Svc.Get(r.Context(), orchestratorID(r))
-	if err != nil {
-		envelope.WriteError(w, r, err)
-		return
-	}
-	if sess.Kind != domain.KindOrchestrator {
-		envelope.WriteAPIError(w, r, http.StatusNotFound, "not_found", "SESSION_NOT_FOUND", "Unknown session", nil)
-		return
-	}
-	envelope.WriteJSON(w, http.StatusOK, SessionResponse{Session: sessionView(sess)})
-}
-
 func sessionID(r *http.Request) domain.SessionID {
 	return domain.SessionID(chi.URLParam(r, "sessionId"))
 }
 
 func agentSwitchID(r *http.Request) domain.AgentSwitchID {
 	return domain.AgentSwitchID(chi.URLParam(r, "switchId"))
-}
-
-func orchestratorID(r *http.Request) domain.SessionID {
-	return domain.SessionID(chi.URLParam(r, "id"))
 }
 
 func parseSessionListFilter(r *http.Request) (sessionsvc.ListFilter, error) {
@@ -1957,13 +1883,6 @@ func parseSessionListFilter(r *http.Request) (sessionsvc.ListFilter, error) {
 			return sessionsvc.ListFilter{}, errors.New("active must be a boolean")
 		}
 		filter.Active = &active
-	}
-	if raw := q.Get("orchestratorOnly"); raw != "" {
-		orchestratorOnly, err := strconv.ParseBool(raw)
-		if err != nil {
-			return sessionsvc.ListFilter{}, errors.New("orchestratorOnly must be a boolean")
-		}
-		filter.OrchestratorOnly = orchestratorOnly
 	}
 	if raw := q.Get("fresh"); raw != "" {
 		fresh, err := strconv.ParseBool(raw)

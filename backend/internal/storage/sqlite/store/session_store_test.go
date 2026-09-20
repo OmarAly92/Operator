@@ -143,18 +143,14 @@ func TestMarkSessionPreviewOpenedAdvancesOnlyToCurrentRevision(t *testing.T) {
 	}
 }
 
-// budgetTestRecord builds a minimally valid session row for tests that need a
-// session with a specific kind/spawned_by/created_at combination: CreateSession
+// minimalSessionRecord builds a minimally valid session row: CreateSession
 // enforces a workspace_mode CHECK constraint that illustrative literals omit,
 // so every fixture here sets it.
-func budgetTestRecord(proj domain.ProjectID, kind domain.SessionKind, spawnedBy domain.SessionID, at time.Time) domain.SessionRecord {
+func minimalSessionRecord(proj domain.ProjectID, at time.Time) domain.SessionRecord {
 	return domain.SessionRecord{
 		ProjectID: proj,
-		Kind:      kind,
-		SpawnedBy: spawnedBy,
 		Metadata:  domain.SessionMetadata{WorkspaceMode: domain.WorkspaceModeWorktree},
 		CreatedAt: at,
 		UpdatedAt: at,
 	}
 }
-

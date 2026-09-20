@@ -52,8 +52,7 @@ func TestWiring_WriteFlowsToBroadcaster(t *testing.T) {
 		t.Fatal(err)
 	}
 	rec, err := store.CreateSession(ctx, domain.SessionRecord{
-		ProjectID: "mer", Kind: domain.KindWorker,
-		Activity: domain.Activity{State: domain.ActivityIdle, LastActivityAt: time.Now()},
+		ProjectID: "mer", Activity: domain.Activity{State: domain.ActivityIdle, LastActivityAt: time.Now()},
 		Metadata: domain.SessionMetadata{WorkspaceMode: domain.WorkspaceModeWorktree},
 	})
 	if err != nil {
@@ -256,7 +255,7 @@ func TestWiring_StartSessionSpawnsScratchWithoutGitRepo(t *testing.T) {
 		t.Fatalf("startSession: %v", err)
 	}
 
-	session, _, _, err := svc.Spawn(ctx, ports.SpawnConfig{ProjectID: "scratch", Kind: domain.KindWorker, Prompt: "try scratch"})
+	session, _, _, err := svc.Spawn(ctx, ports.SpawnConfig{ProjectID: "scratch", Prompt: "try scratch"})
 	if err != nil {
 		t.Fatalf("Spawn scratch: %v", err)
 	}
@@ -314,7 +313,7 @@ func TestStartSession_SpawnDoesNotPanicWhenNoTrackerToken(t *testing.T) {
 	// Spawn reaches withIssueContext (and the tracker guard) before the manager
 	// tries to materialize a workspace. The manager may return an error from the
 	// no-op runtime, but it must not panic — that is the regression.
-	_, _, _, _ = svc.Spawn(ctx, ports.SpawnConfig{ProjectID: "mer", Kind: domain.KindWorker, IssueID: "107"})
+	_, _, _, _ = svc.Spawn(ctx, ports.SpawnConfig{ProjectID: "mer", IssueID: "107"})
 }
 
 func TestWiring_SeedScratchProjectOnBootUsesDataDir(t *testing.T) {
@@ -427,8 +426,7 @@ func TestWiring_SessionMessengerSendsToRuntimePane(t *testing.T) {
 		t.Fatal(err)
 	}
 	rec, err := store.CreateSession(ctx, domain.SessionRecord{
-		ProjectID: "p", Kind: domain.KindWorker,
-		Activity: domain.Activity{State: domain.ActivityIdle, LastActivityAt: time.Now()},
+		ProjectID: "p", Activity: domain.Activity{State: domain.ActivityIdle, LastActivityAt: time.Now()},
 		Metadata: domain.SessionMetadata{RuntimeHandleID: "opr-1/terminal_0", WorkspaceMode: domain.WorkspaceModeWorktree},
 	})
 	if err != nil {
@@ -471,8 +469,7 @@ func TestWiring_SessionMessengerRequiresRuntimeHandle(t *testing.T) {
 		t.Fatal(err)
 	}
 	rec, err := store.CreateSession(ctx, domain.SessionRecord{
-		ProjectID: "p", Kind: domain.KindWorker,
-		Activity: domain.Activity{State: domain.ActivityIdle, LastActivityAt: time.Now()},
+		ProjectID: "p", Activity: domain.Activity{State: domain.ActivityIdle, LastActivityAt: time.Now()},
 		Metadata: domain.SessionMetadata{WorkspaceMode: domain.WorkspaceModeWorktree},
 	})
 	if err != nil {
@@ -497,10 +494,9 @@ func TestWiring_SessionMessengerRejectsTerminatedSession(t *testing.T) {
 		t.Fatal(err)
 	}
 	rec, err := store.CreateSession(ctx, domain.SessionRecord{
-		ProjectID: "p", Kind: domain.KindWorker,
-		IsTerminated: true,
-		Activity:     domain.Activity{State: domain.ActivityIdle, LastActivityAt: time.Now()},
-		Metadata:     domain.SessionMetadata{RuntimeHandleID: "opr-1/terminal_0", WorkspaceMode: domain.WorkspaceModeWorktree},
+		ProjectID: "p", IsTerminated: true,
+		Activity: domain.Activity{State: domain.ActivityIdle, LastActivityAt: time.Now()},
+		Metadata: domain.SessionMetadata{RuntimeHandleID: "opr-1/terminal_0", WorkspaceMode: domain.WorkspaceModeWorktree},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -548,8 +544,7 @@ func TestWiring_StartLifecycleThreadsMessengerIntoLCM(t *testing.T) {
 		t.Fatal(err)
 	}
 	rec, err := store.CreateSession(ctx, domain.SessionRecord{
-		ProjectID: "p", Kind: domain.KindWorker,
-		Activity: domain.Activity{State: domain.ActivityIdle, LastActivityAt: time.Now()},
+		ProjectID: "p", Activity: domain.Activity{State: domain.ActivityIdle, LastActivityAt: time.Now()},
 		Metadata: domain.SessionMetadata{WorkspaceMode: domain.WorkspaceModeWorktree},
 	})
 	if err != nil {
