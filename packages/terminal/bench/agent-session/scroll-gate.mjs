@@ -71,6 +71,29 @@ try {
 	if (trim.firstAfter <= trim.firstBefore) throw new Error(`no trim happened (first stable row ${trim.firstBefore} → ${trim.firstAfter})`);
 	if (!trim.before || !trim.after || trim.before.row !== trim.after.row) throw new Error(`top-edge row moved across a trim: ${JSON.stringify(trim.before)} → ${JSON.stringify(trim.after)}`);
 	process.stdout.write(`${JSON.stringify({ fixture, trim })}\n`);
+
+	const widthPage = await browser.newPage({ viewport: { width: 1600, height: 900 } });
+	await widthPage.goto(`http://127.0.0.1:${port}/agent-session/index.html?fixture=${fixture}`);
+	await widthPage.waitForFunction(() => window.__agentSessionReady === true, undefined, { timeout: 30000 });
+	const width = await widthPage.evaluate(async () => {
+		const session = window.__agentSession;
+		await session.feedAll();
+		await session.setScrollTop(Math.floor(session.scrollHeight() / 2));
+		const result = await session.widthChange(40);
+		const rows = [];
+		let top = session.scrollTop();
+		for (let step = 0; step < 40 && top > 0; step += 1) {
+			top = Math.max(0, top - 450);
+			await session.setScrollTop(top);
+			rows.push(session.visibleRows()[0]?.row ?? null);
+		}
+		return { ...result, scrolledRows: rows.filter((row) => row !== null).length };
+	});
+	await widthPage.close();
+	if (width.before !== width.after) throw new Error(`top-edge row moved across a width change: ${width.before} -> ${width.after}`);
+	if (width.staleRows === 0) throw new Error("the width change rewrapped every row eagerly; lazy rewrap is not engaged");
+	process.stdout.write(`${JSON.stringify({ fixture, width })}\n`);
+
 	if (result.covered < result.total) throw new Error(`scrolling reached ${result.covered} of ${result.total} rows`);
 } catch (error) {
 	process.stderr.write(`FAIL ${error instanceof Error ? error.message : String(error)}\n`);

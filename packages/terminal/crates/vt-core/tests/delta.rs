@@ -132,6 +132,7 @@ fn take_delta_clears() {
             appended_history: 2..2,
             screen_rows: Vec::new(),
             remap: None,
+            history_rewritten_from: None,
         }
     );
     common::check(&core);

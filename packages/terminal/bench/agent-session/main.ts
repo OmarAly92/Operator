@@ -37,6 +37,9 @@ type AgentSession = {
 	core(): TerminalCore;
 	extendSelectionByOneRow(): Promise<number>;
 	mountPanes(count: number): Promise<void>;
+	reopenFromReplay(frame: Uint8Array, chunks: Uint8Array[]): Promise<{ firstPaintMs: number; allRowsMs: number; rows: number }>;
+	widthChange(cols: number): Promise<{ settleMs: number; before: number; after: number; staleRows: number }>;
+	staleRowCount(): number;
 };
 
 const host = document.getElementById("terminal");
@@ -204,6 +207,40 @@ async function mountPanes(count: number): Promise<void> {
 	}
 }
 
+async function reopenFromReplay(frame: Uint8Array, chunks: Uint8Array[]): Promise<{ firstPaintMs: number; allRowsMs: number; rows: number }> {
+	paints = 0;
+	addedNodes = 0;
+	rowNodesAdded = 0;
+	longTasks.length = 0;
+	const start = performance.now();
+	core.feed(frame);
+	while (paints === 0) await nextFrame();
+	const firstPaintMs = performance.now() - start;
+	const allStart = performance.now();
+	const paintsBeforeHistory = paints;
+	for (const chunk of chunks) core.feed(chunk);
+	while (paints === paintsBeforeHistory) await nextFrame();
+	const allRowsMs = performance.now() - allStart;
+	return { firstPaintMs, allRowsMs, rows: rowCount() };
+}
+
+async function widthChange(cols: number): Promise<{ settleMs: number; before: number; after: number; staleRows: number }> {
+	const before = visibleRows()[0]?.row ?? -1;
+	const currentRows = nextResize > 0 ? sizes[nextResize - 1]!.rows : sizes[0]!.rows;
+	const start = performance.now();
+	core.resize(cols, currentRows);
+	await nextFrame();
+	await nextFrame();
+	const settleMs = performance.now() - start;
+	const after = visibleRows()[0]?.row ?? -1;
+	const staleRows = core.staleRowCount();
+	return { settleMs, before, after, staleRows };
+}
+
+function staleRowCount(): number {
+	return core.staleRowCount();
+}
+
 async function extendSelectionByOneRow(): Promise<number> {
 	const rows = [...host!.querySelectorAll<HTMLElement>("[data-terminal-row]")];
 	if (rows.length < 4) throw new Error("need at least four rendered rows");
@@ -323,6 +360,9 @@ window.__agentSession = {
 	core: () => core,
 	extendSelectionByOneRow,
 	mountPanes,
+	reopenFromReplay,
+	widthChange,
+	staleRowCount,
 	blocks: () => decodeBlocks(core.snapshot()).length,
 } as AgentSession & { blocks(): number };
 window.__agentSessionReady = true;

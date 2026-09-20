@@ -9,6 +9,8 @@ import 'package:operator_mobile/core/mux/mux_backoff.dart';
 import 'package:operator_mobile/core/mux/mux_socket.dart';
 import 'package:operator_mobile/core/mux/session_patch.dart';
 
+const int _ackEveryBytes = 5000;
+
 enum MuxStatus { connecting, open, closed, error }
 
 sealed class TerminalEvent extends Equatable {
@@ -98,6 +100,8 @@ class MuxClient {
   Timer? _pingTimer;
   int _backoffMs = MuxBackoff.initialMs;
   final Map<String, String?> _openTerminals = {};
+  final Map<String, int> _consumedBytes = {};
+  final Map<String, int> _ackedBytes = {};
   final Set<String> _blockSessions = {};
   bool _subscribed = false;
 
@@ -164,6 +168,8 @@ class MuxClient {
     _setStatus(MuxStatus.open);
 
     if (_subscribed) subscribeSessions();
+    _consumedBytes.clear();
+    _ackedBytes.clear();
     for (final entry in _openTerminals.entries) {
       _send({'ch': 'terminal', 'id': entry.key, 'type': 'open', 'projectId': entry.value, 'role': 'secondary'});
     }
@@ -214,7 +220,9 @@ class MuxClient {
       final id = msg['id'] as String? ?? '';
       switch (type) {
         case 'data':
-          _terminalEventsController.add(TerminalDataEvent(id, base64Decode(msg['data'] as String? ?? '')));
+          final bytes = base64Decode(msg['data'] as String? ?? '');
+          _terminalEventsController.add(TerminalDataEvent(id, bytes));
+          _noteConsumed(id, bytes.length);
         case 'opened':
           _terminalEventsController.add(TerminalOpenedEvent(id));
         case 'exited':
@@ -303,8 +311,23 @@ class MuxClient {
     _send({'ch': 'terminal', 'id': id, 'type': 'resize', 'cols': cols, 'rows': rows, 'projectId': projectId});
   }
 
+  void _noteConsumed(String id, int bytes) {
+    if (id.isEmpty || bytes <= 0) return;
+    final consumed = (_consumedBytes[id] ?? 0) + bytes;
+    _consumedBytes[id] = consumed;
+    if (consumed - (_ackedBytes[id] ?? 0) < _ackEveryBytes) return;
+    _ackedBytes[id] = consumed;
+    ackTerminal(id, consumed, projectId: _openTerminals[id]);
+  }
+
+  void ackTerminal(String id, int bytes, {String? projectId}) {
+    _send({'ch': 'terminal', 'id': id, 'type': 'ack', 'bytes': bytes, 'projectId': projectId});
+  }
+
   void closeTerminal(String id, {String? projectId}) {
     _openTerminals.remove(id);
+    _consumedBytes.remove(id);
+    _ackedBytes.remove(id);
     _send({'ch': 'terminal', 'id': id, 'type': 'close', 'projectId': projectId});
   }
 

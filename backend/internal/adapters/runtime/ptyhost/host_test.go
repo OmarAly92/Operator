@@ -1,6 +1,7 @@
 package ptyhost
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -194,6 +195,7 @@ type serveFixture struct {
 	addr   string
 	cancel context.CancelFunc
 	done   chan error
+	host   *host
 }
 
 func startServe(t *testing.T, pid int) *serveFixture {
@@ -205,14 +207,15 @@ func startServe(t *testing.T, pid int) *serveFixture {
 	pty := newFakePTY(pid)
 	ring := NewRing()
 	ctx, cancel := context.WithCancel(context.Background())
+	h := newHost(ctx, ServeConfig{
+		SessionID: fmt.Sprintf("test-%d", pid),
+		Listener:  ln,
+		PTY:       pty,
+		Ring:      ring,
+	})
 	done := make(chan error, 1)
 	go func() {
-		done <- Serve(ctx, ServeConfig{
-			SessionID: fmt.Sprintf("test-%d", pid),
-			Listener:  ln,
-			PTY:       pty,
-			Ring:      ring,
-		})
+		done <- h.run(ctx)
 	}()
 	return &serveFixture{
 		pty:    pty,
@@ -221,7 +224,14 @@ func startServe(t *testing.T, pid int) *serveFixture {
 		addr:   ln.Addr().String(),
 		cancel: cancel,
 		done:   done,
+		host:   h,
 	}
+}
+
+// readsPaused reports whether the host has parked readPTY behind the flow-
+// control gate.
+func (f *serveFixture) readsPaused() bool {
+	return f.host.readPaused()
 }
 
 // waitDone waits for Serve to return (up to 2s).
@@ -969,6 +979,7 @@ func TestClientQueueIsBounded(t *testing.T) {
 	defer clientConn.Close()
 
 	h := &host{clients: make(map[net.Conn]*clientState)}
+	h.readCond = sync.NewCond(&h.mu)
 	cs := newClientState()
 	h.clients[serverConn] = cs
 	go h.runWriter(serverConn, cs)
@@ -1132,4 +1143,152 @@ func TestDeliverAnswersXtversionWithTheHostIdentity(t *testing.T) {
 	if got := string(buf[:n]); got != "\x1bP>|Operator\x1b\\" {
 		t.Fatalf("pty received %q, want the XTVERSION reply", got)
 	}
+}
+
+// The child is throttled by the slowest client that actually acks: past
+// 100,000 unacknowledged bytes the host stops reading the PTY, and an ack
+// that brings the backlog under 5,000 starts it again (VS Code's
+// vscode/src/vs/platform/terminal/common/terminal.ts flow-control constants).
+func TestReadPausesPastHighWatermarkAndResumesOnAck(t *testing.T) {
+	f := startServeParsed(t, 720, 80, 24)
+	defer f.cancel()
+
+	// Attach to a session that HAS a replay frame. A client acks every byte
+	// it consumes, replay included; if the host counted only live batches,
+	// its acked count would run permanently ahead of delivered and the
+	// watermark would never fire again for this pane.
+	writeOutput(t, f, "existing screen\r\n")
+	waitForParsedOutput(t, f, "existing screen")
+
+	c := newTestClient(t, f.addr)
+	defer c.close()
+	sendResize(t, c, 80, 24)
+	replay := readReplay(t, c)
+	sendAck(t, c, len(replay))
+	waitForAckingClient(t, f)
+
+	// Written from a background goroutine, spaced out, so pumpPTY's own
+	// goroutine actually gets to run and flush the accumulating batches --
+	// each flush registers as delivered bytes for this client -- before the
+	// burst finishes. Without that spacing, an in-memory io.Pipe pairs every
+	// Write with its Read fast enough that the reader can race through all 8
+	// blobs before pumpPTY is ever scheduled, coalescing them into a single
+	// flush that lands after the reader has already moved on to its next,
+	// forever-blocking Read; nothing then wakes it back up to notice the
+	// watermark. The write loop must not block the test goroutine while that
+	// plays out: once the watermark trips mid-burst, readPTY stops being read
+	// and a later WriteOutput call blocks for good, so the writes run on their
+	// own goroutine and the test observes the pause independently of whether
+	// the burst has finished.
+	blob := bytes.Repeat([]byte("x"), 32*1024)
+	writeDone := make(chan error, 1)
+	go func() {
+		for i := 0; i < 8; i++ {
+			if _, err := f.pty.WriteOutput(blob); err != nil {
+				writeDone <- err
+				return
+			}
+			time.Sleep(5 * time.Millisecond)
+		}
+		writeDone <- nil
+	}()
+
+	waitFor(t, 3*time.Second, func() bool { return f.readsPaused() })
+
+	sendAck(t, c, len(replay)+8*32*1024)
+	waitFor(t, 3*time.Second, func() bool { return !f.readsPaused() })
+
+	select {
+	case err := <-writeDone:
+		if err != nil {
+			t.Fatalf("write pty output: %v", err)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("blob writer did not finish after the watermark cleared")
+	}
+}
+
+// Streaming a long history to one client must never pause the child for the
+// other panes: streamHistory paces on the same ack watermark deliver does.
+func TestHistoryStreamingNeverPausesTheChild(t *testing.T) {
+	f := startServeParsed(t, 722, 20, 4)
+	defer f.cancel()
+
+	for i := 0; i < 5000; i++ {
+		writeOutput(t, f, fmt.Sprintf("row %04d\r\n", i))
+	}
+	waitForParsedOutput(t, f, "row 4999")
+
+	c := newTestClient(t, f.addr)
+	defer c.close()
+	sendResizeWithHistory(t, c, 20, 4, true)
+
+	paused := false
+	consumed := 0
+	deadline := time.Now().Add(10 * time.Second)
+	for time.Now().Before(deadline) {
+		typ, payload := c.readFrame(t)
+		if typ != MsgTerminalData {
+			continue
+		}
+		consumed += len(payload)
+		sendAck(t, c, consumed)
+		if f.readsPaused() {
+			paused = true
+			break
+		}
+		if strings.Contains(string(payload), "row 0000") {
+			break
+		}
+	}
+	if paused {
+		t.Fatal("streaming history to one client paused the child")
+	}
+}
+
+// A client that has never acked is unlimited: the pre-Plan-C mobile build
+// sends no ack and must keep working.
+func TestAClientThatNeverAcksNeverPausesTheChild(t *testing.T) {
+	f := startServeParsed(t, 721, 80, 24)
+	defer f.cancel()
+
+	c := newTestClient(t, f.addr)
+	defer c.close()
+	sendResize(t, c, 80, 24)
+
+	blob := bytes.Repeat([]byte("y"), 32*1024)
+	for i := 0; i < 16; i++ {
+		if _, err := f.pty.WriteOutput(blob); err != nil {
+			t.Fatalf("write pty output: %v", err)
+		}
+	}
+	time.Sleep(300 * time.Millisecond)
+	if f.readsPaused() {
+		t.Fatal("a client that never acked paused the child")
+	}
+}
+
+func sendAck(t *testing.T, c *testClient, bytesAcked int) {
+	t.Helper()
+	payload, err := json.Marshal(AckPayload{Bytes: bytesAcked})
+	if err != nil {
+		t.Fatalf("marshal ack: %v", err)
+	}
+	if err := c.send(MsgAck, payload); err != nil {
+		t.Fatalf("send ack: %v", err)
+	}
+}
+
+func waitForAckingClient(t *testing.T, f *serveFixture) {
+	t.Helper()
+	waitFor(t, 2*time.Second, func() bool {
+		f.host.mu.Lock()
+		defer f.host.mu.Unlock()
+		for _, cs := range f.host.clients {
+			if cs.everAcked {
+				return true
+			}
+		}
+		return false
+	})
 }

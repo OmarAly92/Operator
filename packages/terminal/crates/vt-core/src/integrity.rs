@@ -11,6 +11,8 @@ pub enum IntegrityError {
     StyleKeyOutsideContent { offset: u64 },
     OriginMismatch { origin: usize, trimmed_total: u64 },
     ExportPrefixPastRows { exported: usize, completed: usize },
+    StaleRunOutsideRows { start: usize, len: usize },
+    StaleRunsOverlap { first: usize },
 }
 
 impl Parser {
@@ -64,6 +66,20 @@ impl Parser {
             if offset < content_start || offset > content_end {
                 return Err(IntegrityError::StyleKeyOutsideContent { offset });
             }
+        }
+        let completed_len = completed.len();
+        let mut previous_end = 0usize;
+        for run in self.rows().stale_runs() {
+            if run.len == 0 || run.start + run.len > completed_len {
+                return Err(IntegrityError::StaleRunOutsideRows {
+                    start: run.start,
+                    len: run.len,
+                });
+            }
+            if run.start < previous_end {
+                return Err(IntegrityError::StaleRunsOverlap { first: run.start });
+            }
+            previous_end = run.start + run.len;
         }
         Ok(())
     }

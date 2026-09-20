@@ -121,6 +121,26 @@ pub extern "C" fn vt_take_query_replies(handle: u32, out_ptr: u32, out_cap: u32)
     })
 }
 
+/// Rewraps every history row vt-core left cut at an older width, so the rows
+/// a replay or a history chunk is about to serialise are all at the current
+/// grid width. The renderer does this a window at a time off its own export
+/// (`WasmTerminalCore::sync`); the mirror has no export, and the replay and
+/// the chunks would otherwise clip a stale row's tail off (TERMINAL.md §4.20).
+///
+/// It runs ONCE, before the frame's origin is rendered: rewrapping changes how
+/// many rows history holds, and the client's chunks are numbered downward from
+/// that origin. Rewrapping between chunks would move the numbering out from
+/// under the origin the client already adopted and the receiver would reject
+/// every chunk.
+#[no_mangle]
+pub extern "C" fn vt_touch_history(handle: u32) {
+    CORES.with(|c| {
+        if let Some(core) = c.borrow_mut().get_mut(&handle) {
+            core.touch_rows(0..usize::MAX);
+        }
+    });
+}
+
 #[no_mangle]
 pub extern "C" fn vt_in_sync(handle: u32) -> u32 {
     CORES.with(|c| match c.borrow().get(&handle) {
@@ -139,6 +159,42 @@ pub extern "C" fn vt_alt_active(handle: u32) -> u32 {
 
 pub const RENDER_ERR: u32 = u32::MAX;
 pub const RENDER_TOO_BIG: u32 = u32::MAX - 1;
+
+const READY_MARK: &str = "\x1b]7000;v=1;ready=1\x1b\\";
+
+fn frame_first_stable(snapshot: &vt_core::GridSnapshot, lines: u32) -> u64 {
+    snapshot.first_stable_row + snapshot.row_count().saturating_sub(lines as usize) as u64
+}
+
+fn write_modes(text: &mut String, core: &TerminalCore, alt: bool) {
+    if alt {
+        text.push_str("\x1b[?1049h");
+    }
+    // mouse_tracking_level is a bitmask, not an enum
+    // (crates/vt-core/src/parser.rs:341-350).
+    let tracking = core.mouse_tracking_level();
+    if tracking & 0b001 != 0 {
+        text.push_str("\x1b[?1000h");
+    }
+    if tracking & 0b010 != 0 {
+        text.push_str("\x1b[?1002h");
+    }
+    if tracking & 0b100 != 0 {
+        text.push_str("\x1b[?1003h");
+    }
+    if core.sgr_mouse() {
+        text.push_str("\x1b[?1006h");
+    }
+    if core.bracketed_paste() {
+        text.push_str("\x1b[?2004h");
+    }
+    if core.focus_reporting() {
+        text.push_str("\x1b[?1004h");
+    }
+    if core.application_cursor_keys() {
+        text.push_str("\x1b[?1h");
+    }
+}
 
 // Writes the last `lines` rendered rows as UTF-8 into out_ptr, returning the
 // byte count written. 0 means a genuinely empty screen; RENDER_ERR means a bad
@@ -261,7 +317,12 @@ pub extern "C" fn vt_replay(handle: u32, lines: u32, out_ptr: u32, out_cap: u32)
             // A full-screen child owns every cell of the alt grid, so the
             // replay is absolute: enter the alternate screen, paint all rows
             // from home, then place the cursor by absolute address.
-            text.push_str("\x1b[?1049h\x1b[H");
+            text.push_str(&format!(
+                "\x1b]7000;v=1;origin={}\x1b\\",
+                frame_first_stable(&snapshot, lines)
+            ));
+            write_modes(&mut text, core, true);
+            text.push_str("\x1b[H");
             for (i, (start, end)) in alt.row_ranges.iter().enumerate() {
                 let row_bytes = &alt.content[*start as usize..*end as usize];
                 let (pair_start, pair_end) = alt.run_ranges[i];
@@ -299,8 +360,14 @@ pub extern "C" fn vt_replay(handle: u32, lines: u32, out_ptr: u32, out_cap: u32)
                 }
                 return pending.len() as u32;
             }
-            // Rows are clipped to the grid. vt-core rewraps scrollback to the
-            // pane width on resize, so a row wider than the grid should not
+            text.push_str(&format!(
+                "\x1b]7000;v=1;origin={}\x1b\\",
+                frame_first_stable(&snapshot, lines)
+            ));
+            write_modes(&mut text, core, false);
+            // Rows are clipped to the grid. vt-core rewraps the hot window on
+            // resize and `vt_touch_history` rewraps the cold rest before the
+            // host renders this frame, so a row wider than the grid should not
             // exist; the clip guards the replay anyway, because a row wider
             // than the receiving grid wraps, lands as two rows and pushes every
             // row below it down by one -- the client's grid no longer agrees
@@ -347,6 +414,7 @@ pub extern "C" fn vt_replay(handle: u32, lines: u32, out_ptr: u32, out_cap: u32)
         if out.is_empty() {
             return 0;
         }
+        out.extend_from_slice(READY_MARK.as_bytes());
         if out.len() > out_cap as usize {
             return RENDER_TOO_BIG;
         }
@@ -355,6 +423,127 @@ pub extern "C" fn vt_replay(handle: u32, lines: u32, out_ptr: u32, out_cap: u32)
         }
         out.len() as u32
     })
+}
+
+/// `before == u64::MAX` means "start just above the frame of `lines` rows".
+/// Rows are clipped to the grid exactly as `vt_replay` clips them, and for the
+/// same reason; `vt_touch_history` is what keeps a lazily-rewrapped row from
+/// reaching the clip still cut at an older, wider grid.
+/// Writes one chunk and stores the chunk's own first stable row at
+/// `next_ptr` as 8 little-endian bytes. Returns the byte count written,
+/// 0 when no history remains, or RENDER_ERR / RENDER_TOO_BIG.
+#[no_mangle]
+pub extern "C" fn vt_history_chunk(
+    handle: u32,
+    before: u64,
+    lines: u32,
+    max_rows: u32,
+    out_ptr: u32,
+    out_cap: u32,
+    next_ptr: u32,
+) -> u32 {
+    CORES.with(|c| {
+        let cores = c.borrow();
+        let Some(core) = cores.get(&handle) else {
+            return RENDER_ERR;
+        };
+        let Ok(snapshot) = core.snapshot() else {
+            return RENDER_ERR;
+        };
+        let first_stable = snapshot.first_stable_row;
+        let bound_stable = if before == u64::MAX {
+            frame_first_stable(&snapshot, lines)
+        } else {
+            before
+        };
+        if bound_stable <= first_stable {
+            return 0;
+        }
+        let bound = (bound_stable - first_stable) as usize;
+        let count = bound.min(max_rows.max(1) as usize);
+        let start = bound - count;
+        let chunk_first_stable = first_stable + start as u64;
+
+        let mut text = format!(
+            "\x1b]7000;v=1;history={},{}\x1b\\",
+            chunk_first_stable, count
+        );
+        let cols = core.columns();
+        for row in start..bound {
+            write_block_open(&mut text, &snapshot, row);
+            let indent = snapshot.row_indent(row).min(cols.saturating_sub(1));
+            let (row_bytes, pairs) = clip_row(
+                snapshot.row_text(row).as_bytes(),
+                snapshot.row_style_pairs(row),
+                cols - indent,
+            );
+            write_indent(&mut text, indent);
+            // The closing mark is the row's terminator, not a separate line:
+            // a byte after the chunk's final CR-LF falls through to the live
+            // parser (Task 3's receiver ends the chunk at the count-th LF).
+            let mut terminator = String::new();
+            write_block_close(&mut terminator, &snapshot, row);
+            terminator.push_str("\r\n");
+            write_styled_row_with(&mut text, row_bytes, &pairs, &terminator);
+        }
+
+        let out = text.into_bytes();
+        if out.len() > out_cap as usize {
+            return RENDER_TOO_BIG;
+        }
+        unsafe {
+            std::ptr::copy_nonoverlapping(out.as_ptr(), out_ptr as *mut u8, out.len());
+            std::ptr::copy_nonoverlapping(
+                chunk_first_stable.to_le_bytes().as_ptr(),
+                next_ptr as *mut u8,
+                8,
+            );
+        }
+        out.len() as u32
+    })
+}
+
+fn write_block_open(text: &mut String, snapshot: &vt_core::GridSnapshot, row: usize) {
+    for (index, block) in snapshot.blocks.iter().enumerate() {
+        if block.source == vt_core::BlockSource::Synthetic {
+            continue;
+        }
+        if block.first_row as usize == row {
+            text.push_str("\x1b]7000;v=1;id=");
+            text.push_str(&index.to_string());
+            text.push_str(";cmd=");
+            percent_encode_into(text, snapshot.block_command(index));
+            text.push_str("\x1b\\");
+            return;
+        }
+    }
+}
+
+fn write_block_close(text: &mut String, snapshot: &vt_core::GridSnapshot, row: usize) {
+    for block in snapshot.blocks.iter() {
+        if block.source == vt_core::BlockSource::Synthetic {
+            continue;
+        }
+        let last_row = block.first_row as usize + block.row_count as usize - 1;
+        if last_row == row {
+            if let Some(exit_code) = block.exit_code {
+                text.push_str("\x1b]7000;v=1;exit=");
+                text.push_str(&exit_code.to_string());
+                text.push_str("\x1b\\");
+            }
+            return;
+        }
+    }
+}
+
+fn percent_encode_into(text: &mut String, value: &str) {
+    for ch in value.chars() {
+        if ch.is_ascii() && matches!(ch as u8, b';' | b'=' | b'%' | 0x00..=0x1f) {
+            text.push_str(&format!("%{:02X}", ch as u8));
+        } else {
+            text.push(ch);
+        }
+    }
 }
 
 fn clip_row<'a>(

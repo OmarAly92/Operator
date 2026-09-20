@@ -98,6 +98,13 @@ export class TerminalCore {
 		return { contentBytes: words[0]!, styleEntries: words[1]!, rows: words[2]!, blocks: words[3]! };
 	}
 
+	staleRowCount(): number {
+		if (this.disposed) {
+			throw new Error("terminal core is disposed");
+		}
+		return this.inner.stale_row_count();
+	}
+
 	feed(bytes: Uint8Array): void {
 		if (this.disposed) {
 			return;
@@ -174,6 +181,14 @@ export class TerminalCore {
 		return this.inner.synchronized_output();
 	}
 
+	/** True once a replay READY mark has been parsed on this core. */
+	replayReady(): boolean {
+		if (this.disposed) {
+			return false;
+		}
+		return this.inner.replay_ready();
+	}
+
 	private notifyIfChanged(): boolean {
 		const generation = this.inner.generation();
 		if (generation === this.lastNotifiedGeneration) {
@@ -200,6 +215,14 @@ export class TerminalCore {
 		if (failures) {
 			throw new AggregateError(failures, "terminal core change listener failed");
 		}
+	}
+
+	/** Declares the history rows the next snapshot must have rewrapped. */
+	setExportWindow(firstRow: number, lastRow: number): void {
+		if (this.disposed) {
+			return;
+		}
+		this.inner.set_export_window(Math.max(0, firstRow), Math.max(0, lastRow));
 	}
 
 	snapshot(): TerminalSnapshot {

@@ -66,6 +66,48 @@ func feedAgentFixture(t *testing.T, recording []byte, sizes []fixtureSize, limit
 	return p
 }
 
+const blockMarkOSCPrefix = "\x1b]7000;v=1;"
+const blockMarkST = "\x1b\\"
+
+func blockMarks(p *Parser) ([]string, error) {
+	var out []byte
+	before := HistoryBefore
+	for {
+		chunk, next, ok, err := p.HistoryChunk(before, 1000, HistoryChunkRows)
+		if err != nil {
+			return nil, err
+		}
+		if !ok {
+			break
+		}
+		out = append(out, chunk...)
+		before = next
+	}
+	text := string(out)
+	var marks []string
+	for {
+		start := strings.Index(text, blockMarkOSCPrefix)
+		if start < 0 {
+			break
+		}
+		rest := text[start+len(blockMarkOSCPrefix):]
+		end := strings.Index(rest, blockMarkST)
+		if end < 0 {
+			break
+		}
+		body := rest[:end]
+		switch {
+		case strings.HasPrefix(body, "history="):
+		case strings.Contains(body, ";cmd="):
+			marks = append(marks, "cmd:"+body[strings.Index(body, ";cmd=")+len(";cmd="):])
+		case strings.HasPrefix(body, "exit="):
+			marks = append(marks, "exit:"+body[len("exit="):])
+		}
+		text = rest[end+len(blockMarkST):]
+	}
+	return marks, nil
+}
+
 func TestAgentSessionReplayReport(t *testing.T) {
 	fixture := os.Getenv("OPERATOR_AGENT_FIXTURE")
 	if fixture == "" {
@@ -86,6 +128,58 @@ func TestAgentSessionReplayReport(t *testing.T) {
 		t.Fatalf("replay: %v", err)
 	}
 	elapsed := time.Since(start)
+
+	historyStart := time.Now()
+	var historyBytes, historyRows, historyChunks int
+	var historyOut []byte
+	before := HistoryBefore
+	for {
+		chunk, next, ok, err := capped.HistoryChunk(before, 1000, HistoryChunkRows)
+		if err != nil {
+			t.Fatalf("history chunk: %v", err)
+		}
+		if !ok {
+			break
+		}
+		historyChunks++
+		historyBytes += len(chunk)
+		historyRows += strings.Count(chunk, "\r\n")
+		historyOut = append(historyOut, chunk...)
+		before = next
+	}
+	historyMs := float64(time.Since(historyStart).Microseconds()) / 1000
+
+	reconstructFrame, err := capped.Replay(1000)
+	if err != nil {
+		t.Fatalf("replay for reconstruction: %v", err)
+	}
+	reconstructed, err := New(context.Background(), Module, sizes[0].Cols, sizes[0].Rows, productMirrorLimits)
+	if err != nil {
+		t.Fatalf("new reconstruction parser: %v", err)
+	}
+	defer reconstructed.Close()
+	if err := reconstructed.Feed([]byte(reconstructFrame)); err != nil {
+		t.Fatalf("feed reconstruction frame: %v", err)
+	}
+	if err := reconstructed.Feed(historyOut); err != nil {
+		t.Fatalf("feed reconstruction history: %v", err)
+	}
+	sourceBlocks, err := blockMarks(capped)
+	if err != nil {
+		t.Fatalf("source block marks: %v", err)
+	}
+	reconstructedBlocks, err := blockMarks(reconstructed)
+	if err != nil {
+		t.Fatalf("reconstructed block marks: %v", err)
+	}
+	sourceKey := strings.Join(sourceBlocks, "|")
+	reconstructedKey := strings.Join(reconstructedBlocks, "|")
+	if sourceKey != reconstructedKey {
+		t.Errorf("reconstructed block list differs from the source mirror's:\nsource (%d):        %v\nreconstructed (%d): %v", len(sourceBlocks), sourceBlocks, len(reconstructedBlocks), reconstructedBlocks)
+	} else {
+		t.Logf("BLOCKCHECK matched %d blocks between the source mirror and the frame+history reconstruction", len(sourceBlocks))
+	}
+
 	var stats runtime.MemStats
 	runtime.ReadMemStats(&stats)
 	report := map[string]any{
@@ -99,6 +193,10 @@ func TestAgentSessionReplayReport(t *testing.T) {
 		"mirrorCapRows":         cappedStats.Rows,
 		"mirrorCapWasmBytes":    capped.module.Memory().Size(),
 		"mirrorCapContentBytes": cappedStats.ContentBytes,
+		"historyChunks":         historyChunks,
+		"historyBytes":          historyBytes,
+		"historyRows":           historyRows,
+		"historyRenderMs":       historyMs,
 	}
 	if capped.module.Memory().Size() > productMirrorLimits.Bytes {
 		t.Errorf("mirror wasm memory %d bytes exceeds the %d-byte limit at %d rows", capped.module.Memory().Size(), productMirrorLimits.Bytes, cappedStats.Rows)
@@ -106,6 +204,9 @@ func TestAgentSessionReplayReport(t *testing.T) {
 	if out := os.Getenv("OPERATOR_AGENT_REPLAY_OUT"); out != "" {
 		if err := os.WriteFile(out, []byte(replay), 0o600); err != nil {
 			t.Fatalf("write replay: %v", err)
+		}
+		if err := os.WriteFile(out+".history", historyOut, 0o600); err != nil {
+			t.Fatalf("write history: %v", err)
 		}
 	}
 	encoded, _ := json.Marshal(report)

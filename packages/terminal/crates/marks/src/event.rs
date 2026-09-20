@@ -34,6 +34,12 @@ pub enum MarkEvent {
     InputReleased,
     AltScreenEnter,
     AltScreenLeave,
+    ReplayOrigin(u64),
+    ReplayReady,
+    HistoryChunk {
+        first_stable_row: u64,
+        rows: usize,
+    },
 }
 
 /// Stateful byte-level decoder. It survives across `feed` calls so a mark

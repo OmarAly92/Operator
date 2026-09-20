@@ -14,4 +14,5 @@ pub struct Delta {
     pub appended_history: Range<usize>,
     pub screen_rows: Vec<usize>,
     pub remap: Option<Vec<(u64, u64)>>,
+    pub history_rewritten_from: Option<usize>,
 }

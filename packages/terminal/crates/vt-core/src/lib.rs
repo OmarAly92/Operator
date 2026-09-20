@@ -10,6 +10,7 @@ pub mod delta;
 pub mod event_bridge;
 pub mod find;
 pub mod grid;
+mod history;
 pub mod integrity;
 pub mod limits;
 mod line_editor;
@@ -37,6 +38,7 @@ pub use grid::ExportedRow;
 pub use integrity::IntegrityError;
 pub use limits::{Limits, MemoryStats};
 pub use line_editor::LineEditorState;
+pub use parser::{HistoryBlock, HistoryRow};
 pub use style::{CellStyle, StyleCode};
 
 use std::ops::Range;
@@ -67,6 +69,8 @@ pub struct TerminalCore {
     fed_total: u64,
     sync: sync::SyncBuffer,
     now_ms: u64,
+    history: history::HistoryReceiver,
+    replay_ready: bool,
 }
 
 impl TerminalCore {
@@ -92,6 +96,8 @@ impl TerminalCore {
             fed_total: 0,
             sync: sync::SyncBuffer::default(),
             now_ms: 0,
+            history: history::HistoryReceiver::new(),
+            replay_ready: false,
         })
     }
 
@@ -170,6 +176,10 @@ impl TerminalCore {
         self.sync.is_active()
     }
 
+    pub fn replay_ready(&self) -> bool {
+        self.replay_ready
+    }
+
     pub fn pending_sync_bytes(&self) -> &[u8] {
         &self.sync.bytes
     }
@@ -189,6 +199,15 @@ impl TerminalCore {
     }
 
     fn feed_raw(&mut self, bytes: &[u8]) {
+        let mut bytes = bytes;
+        if self.history.is_active() {
+            let consumed = self.history.consume(bytes);
+            self.drain_history();
+            bytes = &bytes[consumed..];
+            if bytes.is_empty() {
+                return;
+            }
+        }
         self.sync.note_parsed(bytes);
         // Marks are decoded separately from `vte` so the block state machine
         // never depends on the parser's callback shape and a split read still
@@ -201,9 +220,37 @@ impl TerminalCore {
         let mut parsed = 0usize;
         for (offset, event) in events {
             let upto = offset.min(bytes.len());
+            if offset < parsed {
+                continue;
+            }
             if upto > parsed {
                 self.advance_vte(&bytes[parsed..upto]);
                 parsed = upto;
+            }
+            match event {
+                MarkEvent::ReplayOrigin(origin) => {
+                    self.parser.adopt_origin(origin);
+                    parsed = upto;
+                    continue;
+                }
+                MarkEvent::ReplayReady => {
+                    self.replay_ready = true;
+                    parsed = upto;
+                    continue;
+                }
+                MarkEvent::HistoryChunk {
+                    first_stable_row,
+                    rows,
+                } => {
+                    let cols = self.parser.columns();
+                    self.history.begin(first_stable_row, rows, cols);
+                    let rest = &bytes[upto..];
+                    let consumed = self.history.consume(rest);
+                    self.drain_history();
+                    parsed = upto + consumed;
+                    continue;
+                }
+                _ => {}
             }
             // Re-read the alt-screen state after every event so an
             // `AltScreenEnter` freezes the rest of this chunk's events and a
@@ -232,6 +279,14 @@ impl TerminalCore {
         self.parser.trim_to(self.limits);
         self.parser.note_mutation();
         self.debug_check();
+    }
+
+    fn drain_history(&mut self) {
+        if let Some((first_stable_row, rows, blocks)) = self.history.take() {
+            self.parser
+                .apply_history_chunk(first_stable_row, rows, blocks);
+            self.debug_check();
+        }
     }
 
     fn advance_vte(&mut self, bytes: &[u8]) {
@@ -300,6 +355,15 @@ impl TerminalCore {
         self.parser.rows().completed().len()
     }
 
+    pub fn touch_rows(&mut self, range: Range<usize>) {
+        self.parser.touch_rows(range);
+        self.debug_check();
+    }
+
+    pub fn stale_row_count(&self) -> usize {
+        self.parser.stale_row_count()
+    }
+
     pub fn export_history_rows(&self, range: Range<usize>) -> Vec<ExportedRow> {
         let completed = self.parser.rows().completed();
         range
@@ -335,6 +399,12 @@ impl TerminalCore {
 
     pub fn first_stable_row(&self) -> u64 {
         self.parser.first_stable_row()
+    }
+
+    pub fn adopt_origin(&mut self, origin: u64) -> bool {
+        let adopted = self.parser.adopt_origin(origin);
+        self.debug_check();
+        adopted
     }
 
     pub fn stable_row(&self, flat: usize) -> u64 {

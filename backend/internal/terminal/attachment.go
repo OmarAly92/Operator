@@ -55,6 +55,8 @@ type attachment struct {
 	maxReattach int
 	resetGrace  time.Duration
 
+	wantsHistory bool
+
 	mu           sync.Mutex
 	pty          ports.Stream
 	cancel       context.CancelFunc
@@ -140,7 +142,16 @@ func (a *attachment) run(ctx context.Context) {
 		if a.shouldStop(ctx) {
 			return
 		}
-		p, err := a.src.Attach(ctx, a.handle, rows, cols)
+		var p ports.Stream
+		if a.wantsHistory {
+			if src, ok := a.src.(ports.HistoryAttacher); ok {
+				p, err = src.AttachWithHistory(ctx, a.handle, rows, cols, true)
+			} else {
+				p, err = a.src.Attach(ctx, a.handle, rows, cols)
+			}
+		} else {
+			p, err = a.src.Attach(ctx, a.handle, rows, cols)
+		}
 		if a.shouldStop(ctx) {
 			if p != nil {
 				_ = p.Close()
@@ -266,6 +277,20 @@ func (a *attachment) resize(rows, cols uint16) error {
 		return nil
 	}
 	return pty.Resize(rows, cols)
+}
+
+func (a *attachment) ack(bytes uint64) error {
+	a.mu.Lock()
+	pty := a.pty
+	a.mu.Unlock()
+	if pty == nil {
+		return nil
+	}
+	flow, ok := pty.(ports.FlowControlled)
+	if !ok {
+		return nil
+	}
+	return flow.Ack(bytes)
 }
 
 // size returns the client's last requested grid (zero before the first

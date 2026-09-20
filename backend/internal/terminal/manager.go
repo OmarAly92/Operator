@@ -401,7 +401,7 @@ func (c *connState) handle(msg clientMsg) {
 func (c *connState) handleTerminal(msg clientMsg) {
 	switch msg.Type {
 	case msgOpen:
-		c.openTerminal(msg.ID, msg.Rows, msg.Cols, msg.Role)
+		c.openTerminal(msg.ID, msg.Rows, msg.Cols, msg.Role, msg.History)
 	case msgData:
 		raw, err := base64.StdEncoding.DecodeString(msg.Data)
 		if err != nil {
@@ -424,6 +424,13 @@ func (c *connState) handleTerminal(msg clientMsg) {
 		c.mgr.updateTerminalSize(msg.ID, c, msg.Cols, msg.Rows, msg.Force)
 	case msgClose:
 		c.closeTerminal(msg.ID)
+	case msgAck:
+		if msg.Bytes <= 0 {
+			return
+		}
+		if a := c.lookup(msg.ID); a != nil {
+			_ = a.ack(uint64(msg.Bytes))
+		}
 	}
 }
 
@@ -431,7 +438,7 @@ func (c *connState) handleTerminal(msg clientMsg) {
 // are the client's grid from the open frame; the manager arbitrates the shared
 // PTY size from it (see joinTerminal) and applies it to the Stream. role marks
 // the client primary/secondary for that arbitration (empty = primary).
-func (c *connState) openTerminal(id string, rows, cols uint16, role string) {
+func (c *connState) openTerminal(id string, rows, cols uint16, role string, history bool) {
 	if id == "" {
 		c.enqueue(serverMsg{Ch: chTerminal, Type: msgError, Error: "missing terminal id"})
 		return
@@ -473,6 +480,7 @@ func (c *connState) openTerminal(id string, rows, cols uint16, role string) {
 			c.enqueue(serverMsg{Ch: chTerminal, ID: id, Type: msgExited})
 		},
 		c.mgr.log)
+	a.wantsHistory = history
 	if err := c.mgr.track(a); err != nil {
 		c.enqueue(serverMsg{Ch: chTerminal, ID: id, Type: msgError, Error: err.Error()})
 		return

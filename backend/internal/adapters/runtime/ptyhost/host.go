@@ -16,6 +16,7 @@ import (
 	"io"
 	"net"
 	"os"
+	"strconv"
 	"sync"
 	"time"
 
@@ -56,6 +57,11 @@ type ServeConfig struct {
 // but stays alive (keep-alive), so a client can still read the final screen.
 // Returns when shut down.
 func Serve(ctx context.Context, cfg ServeConfig) error {
+	h := newHost(ctx, cfg)
+	return h.run(ctx)
+}
+
+func newHost(ctx context.Context, cfg ServeConfig) *host {
 	h := &host{
 		cfg:       cfg,
 		ctx:       ctx,
@@ -67,7 +73,8 @@ func Serve(ctx context.Context, cfg ServeConfig) error {
 		pumpDone:  make(chan struct{}),
 		recorder:  cfg.Recorder,
 	}
-	return h.run(ctx)
+	h.readCond = sync.NewCond(&h.mu)
+	return h
 }
 
 // clientState is the host's per-connection bookkeeping. cols/rows record the
@@ -76,8 +83,9 @@ func Serve(ctx context.Context, cfg ServeConfig) error {
 // applyLargestLocked). A connection that never sends a resize stays sized=false
 // and never influences the shared grid.
 type clientState struct {
-	cols, rows int
-	sized      bool
+	cols, rows   int
+	sized        bool
+	wantsHistory bool
 
 	// out is this client's outbound queue, drained by a dedicated writer
 	// goroutine (runWriter). Every frame the host sends a client -- the
@@ -104,6 +112,16 @@ type clientState struct {
 	out      [][]byte
 	outBytes int
 	outDone  bool
+
+	// Flow control. delivered counts every MsgTerminalData payload byte
+	// enqueued for this client since it registered -- the replay frame and
+	// the history chunks as well as the live batches, because the client acks
+	// every byte it consumes. acked is what it has confirmed. A client that
+	// has never acked is unlimited (everAcked false) so a client build that
+	// predates acks keeps working.
+	acked     int
+	delivered int
+	everAcked bool
 }
 
 func newClientState() *clientState {
@@ -136,6 +154,15 @@ func (cs *clientState) awaitCapacity() {
 		cs.outCond.Wait()
 	}
 	cs.outMu.Unlock()
+}
+
+// gone reports that this client's queue is finished, which is how every wait
+// that outlives the connection -- awaitCapacity on outCond, awaitAckedHistory
+// on readCond -- learns that its client left.
+func (cs *clientState) gone() bool {
+	cs.outMu.Lock()
+	defer cs.outMu.Unlock()
+	return cs.outDone
 }
 
 // closeOut marks the queue finished and wakes runWriter plus anyone parked in
@@ -190,6 +217,9 @@ type host struct {
 	capture *captureSink
 
 	recorder *recorder
+
+	readCond   *sync.Cond
+	readParked bool
 }
 
 // runWriter drains one client's outbound queue, blocking on each conn.Write
@@ -228,11 +258,17 @@ func (h *host) dropClient(conn net.Conn) {
 	delete(h.clients, conn)
 	// A dropped client may have been the largest viewer; recompute the shared
 	// grid so it follows the remaining clients.
-	h.applyLargestLocked()
+	h.applyLargestLocked(nil)
 	h.mu.Unlock()
 	if cs != nil {
 		cs.closeOut()
 	}
+	// The broadcast comes AFTER closeOut: awaitAckedHistory parks on readCond
+	// and leaves on cs.gone(), so a wake that precedes the flag never reaches
+	// it and the history stream parks for the life of the process.
+	h.mu.Lock()
+	h.readCond.Broadcast()
+	h.mu.Unlock()
 	_ = conn.Close()
 }
 
@@ -272,7 +308,12 @@ func (h *host) currentParser() *vtwasm.Parser {
 // Called on every client resize and on every disconnect, so the grid follows a
 // newly-attached larger client and falls back to the remaining largest one when
 // it leaves. Callers must hold h.mu.
-func (h *host) applyLargestLocked() {
+//
+// pending, when non-nil, is a connection that is not in h.clients yet and is
+// counted as if it were. An attach has to settle the grid BEFORE it rewraps
+// history and renders the replay, and it cannot register the connection that
+// early without letting live output reach it ahead of its own replay frame.
+func (h *host) applyLargestLocked(pending *clientState) {
 	bestCols, bestRows, bestArea := 0, 0, 0
 	for _, cs := range h.clients {
 		if !cs.sized {
@@ -280,6 +321,11 @@ func (h *host) applyLargestLocked() {
 		}
 		if area := cs.cols * cs.rows; area > bestArea {
 			bestArea, bestCols, bestRows = area, cs.cols, cs.rows
+		}
+	}
+	if pending != nil && pending.sized {
+		if area := pending.cols * pending.rows; area > bestArea {
+			bestArea, bestCols, bestRows = area, pending.cols, pending.rows
 		}
 	}
 	// No client has reported a size yet: leave the PTY at its current grid (the
@@ -338,6 +384,9 @@ func (h *host) runAcceptLoop() {
 func (h *host) shutdown() {
 	h.shutdownOnce.Do(func() {
 		close(h.shutdownC)
+		h.mu.Lock()
+		h.readCond.Broadcast()
+		h.mu.Unlock()
 
 		// 1. Dispose the ConPTY first (critical ordering).
 		_ = h.currentPTY().Close()
@@ -370,6 +419,11 @@ const (
 	readBufferSize  = 0x4_0000
 	flushInterval   = time.Second / 60
 	syncHoldTimeout = 150 * time.Millisecond
+
+	// Flow-control watermarks, from VS Code's
+	// vscode/src/vs/platform/terminal/common/terminal.ts.
+	readHighWatermark = 100_000
+	readLowWatermark  = 5_000
 )
 
 var esuCSI = []byte("\x1b[?2026l")
@@ -477,10 +531,51 @@ func (h *host) pumpPTY() {
 	}
 }
 
+// awaitReadCapacity parks the PTY reader while the slowest acking CONNECTION
+// is more than readHighWatermark bytes behind, and resumes it once that falls
+// under readLowWatermark. A client that has never acked is not counted, so a
+// client build without acks never throttles the child.
+//
+// A connection, not a client: the daemon may fan one pty-host attachment out
+// to several mux clients, whose acks all land on the same counter
+// (TERMINAL.md §5).
+func (h *host) awaitReadCapacity() {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.unackedLocked() <= readHighWatermark {
+		return
+	}
+	h.readParked = true
+	for h.unackedLocked() > readLowWatermark && !h.stopping() {
+		h.readCond.Wait()
+	}
+	h.readParked = false
+}
+
+func (h *host) unackedLocked() int {
+	worst := 0
+	for _, cs := range h.clients {
+		if !cs.everAcked {
+			continue
+		}
+		if behind := cs.delivered - cs.acked; behind > worst {
+			worst = behind
+		}
+	}
+	return worst
+}
+
+func (h *host) readPaused() bool {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return h.readParked
+}
+
 func (h *host) readPTY(pty ptyConn, chunks chan<- []byte) {
 	defer close(chunks)
 	buf := make([]byte, readBufferSize)
 	for {
+		h.awaitReadCapacity()
 		n, err := pty.Read(buf)
 		if n > 0 {
 			chunk := make([]byte, n)
@@ -507,6 +602,9 @@ func (h *host) deliver(batch []byte) bool {
 	var states []*clientState
 	if frame, err := EncodeMessage(MsgTerminalData, batch); err == nil {
 		states = h.broadcastLocked(frame)
+	}
+	for _, cs := range states {
+		cs.delivered += len(batch)
 	}
 	// The parser feed joins that critical section, strictly AFTER the
 	// broadcast. It has to: the parser's grid is what handleConn replays to a
@@ -709,28 +807,72 @@ func (h *host) handleConn(conn net.Conn) {
 	// for the whole session and starved this connection's own read loop,
 	// silently dropping the input of any client that writes without reading.
 	// See clientState's out fields.
-	h.mu.Lock()
 	if opening != nil {
 		cs.cols, cs.rows, cs.sized = opening.Cols, opening.Rows, true
+		cs.wantsHistory = opening.History
 	}
-	h.clients[conn] = cs
-	h.applyLargestLocked()
-	if frame := h.replayFrameLocked(); frame != nil {
-		cs.enqueue(frame)
+
+	// The rewrap runs off the lock (it can walk 200k rows) and before the frame
+	// is rendered: the mirror rewraps only its hot window on resize, and a chunk
+	// built off a row still cut at the old width loses its tail to clip_row. It
+	// has to happen BEFORE the origin is rendered, because rewrapping changes
+	// how many rows history holds (TERMINAL.md §4.20).
+	//
+	// The grid is settled first, with this connection counted before it is
+	// registered: applying it afterwards resizes the parser, and every resize
+	// re-marks the rows below the hot window stale at the old width, undoing
+	// the rewrap. The loop re-runs both if another client moved the grid while
+	// the rewrap was off the lock, so that by the time the replay is rendered
+	// the rewrap it is numbered against is still valid.
+	var origin uint64
+	for {
+		h.mu.Lock()
+		h.applyLargestLocked(cs)
+		gridCols, gridRows := h.curCols, h.curRows
+		h.mu.Unlock()
+
+		if cs.wantsHistory {
+			if parser := h.currentParser(); parser != nil {
+				if err := parser.TouchHistory(); err != nil {
+					h.logf("rewrap attach history: %v", err)
+				}
+			}
+		}
+
+		h.mu.Lock()
+		h.clients[conn] = cs
+		h.applyLargestLocked(nil)
+		if h.curCols != gridCols || h.curRows != gridRows {
+			delete(h.clients, conn)
+			h.mu.Unlock()
+			continue
+		}
+		var frame []byte
+		frame, origin = h.replayFrameLocked()
+		if frame != nil {
+			cs.enqueue(frame)
+			cs.delivered += len(frame) - frameHeaderBytes
+		}
+		h.mu.Unlock()
+		break
 	}
-	h.mu.Unlock()
 	registered = true
 
 	go h.runWriter(conn, cs)
 
+	if cs.wantsHistory {
+		go h.streamHistory(cs, origin)
+	}
+
 	defer func() {
+		cs.closeOut()
 		h.mu.Lock()
 		delete(h.clients, conn)
 		// This client is gone; if it was the largest, let the grid shrink back to
 		// the remaining largest client.
-		h.applyLargestLocked()
+		h.applyLargestLocked(nil)
+		h.readCond.Broadcast()
 		h.mu.Unlock()
-		cs.closeOut()
 		_ = conn.Close()
 	}()
 
@@ -766,28 +908,115 @@ func (h *host) handleConn(conn net.Conn) {
 // back would reintroduce, through the side door, the exact divergence the
 // parser exists to remove. The ring stays the replay source only for a host
 // whose parser never started at all. Callers must hold h.mu.
-func (h *host) replayFrameLocked() []byte {
+func (h *host) replayFrameLocked() ([]byte, uint64) {
 	var payload []byte
 	if h.parser != nil {
 		_, _ = h.parser.Tick(time.Now().UnixMilli())
 		rendered, err := h.parser.Replay(MaxOutputLines)
 		if err != nil {
 			h.logf("render attach replay: %v", err)
-			return nil
+			return nil, vtwasm.HistoryBefore
 		}
 		payload = []byte(rendered)
 	} else {
 		payload = h.cfg.Ring.Snapshot()
 	}
 	if len(payload) == 0 {
-		return nil
+		return nil, vtwasm.HistoryBefore
 	}
 	frame, err := EncodeMessage(MsgTerminalData, payload)
 	if err != nil {
 		h.logf("encode attach replay: %v", err)
-		return nil
+		return nil, vtwasm.HistoryBefore
 	}
-	return frame
+	return frame, replayOrigin(payload)
+}
+
+const originMarkPrefix = "\x1b]7000;v=1;origin="
+
+// replayOrigin reads back the stable row the frame just declared. It is the
+// only number a history stream for this client may start from; see
+// streamHistory. A ring fallback carries no origin mark, and its client is not
+// running a core that could adopt one.
+func replayOrigin(payload []byte) uint64 {
+	if !bytes.HasPrefix(payload, []byte(originMarkPrefix)) {
+		return vtwasm.HistoryBefore
+	}
+	end := bytes.Index(payload, []byte("\x1b\\"))
+	if end < len(originMarkPrefix) {
+		return vtwasm.HistoryBefore
+	}
+	origin, err := strconv.ParseUint(string(payload[len(originMarkPrefix):end]), 10, 64)
+	if err != nil {
+		return vtwasm.HistoryBefore
+	}
+	return origin
+}
+
+func (h *host) stopping() bool {
+	select {
+	case <-h.shutdownC:
+		return true
+	default:
+		return false
+	}
+}
+
+// streamHistory queues the session's scrollback newest→oldest, behind the
+// replay frame the client was already queued. It runs off h.mu: these rows
+// are older than every byte in that frame, so nothing can race into the gap
+// the way a live chunk could between the replay and registration.
+//
+// It paces on the SAME ack watermark deliver uses, so a 200k-row history sent
+// to one client can never push that client past readHighWatermark and pause
+// the child for every other attached pane (Task 10).
+//
+// `before` is the origin the replay frame already told THIS client, captured
+// from the same render under the same h.mu hold. Letting the mirror re-derive
+// it from a later snapshot would miss any row the child completed in between,
+// and the receiver rejects a chunk whose bound is off by even one row -- every
+// chunk after it too, silently (TERMINAL.md §4.21).
+func (h *host) streamHistory(cs *clientState, before uint64) {
+	parser := h.currentParser()
+	if parser == nil {
+		return
+	}
+	for {
+		if h.stopping() || cs.gone() {
+			return
+		}
+		chunk, next, ok, err := parser.HistoryChunk(before, MaxOutputLines, vtwasm.HistoryChunkRows)
+		if err != nil {
+			h.logf("stream attach history: %v", err)
+			return
+		}
+		if !ok {
+			return
+		}
+		frame, err := EncodeMessage(MsgTerminalData, []byte(chunk))
+		if err != nil {
+			h.logf("encode attach history: %v", err)
+			return
+		}
+		h.mu.Lock()
+		cs.enqueue(frame)
+		cs.delivered += len(chunk)
+		h.mu.Unlock()
+		cs.awaitCapacity()
+		h.awaitAckedHistory(cs)
+		before = next
+	}
+}
+
+// awaitAckedHistory parks the history stream while this client is more than
+// readLowWatermark bytes behind its own acks. A client that never acks is
+// paced by awaitCapacity alone, exactly as it is today.
+func (h *host) awaitAckedHistory(cs *clientState) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	for cs.everAcked && cs.delivered-cs.acked > readLowWatermark && !h.stopping() && !cs.gone() {
+		h.readCond.Wait()
+	}
 }
 
 // handleClientMsg dispatches a decoded client message. Mirrors handleClientMessage
@@ -811,7 +1040,7 @@ func (h *host) handleClientMsg(conn net.Conn, msgType byte, payload []byte) {
 				if cs := h.clients[conn]; cs != nil {
 					cs.cols, cs.rows, cs.sized = rp.Cols, rp.Rows, true
 				}
-				h.applyLargestLocked()
+				h.applyLargestLocked(nil)
 				h.mu.Unlock()
 			}
 			// Malformed resize: ignore (matches TS behavior).
@@ -902,6 +1131,24 @@ func (h *host) handleClientMsg(conn net.Conn, msgType byte, payload []byte) {
 
 	case MsgRespawnReq:
 		h.handleRespawn(conn, payload)
+
+	case MsgAck:
+		var ack AckPayload
+		if err := json.Unmarshal(payload, &ack); err != nil || ack.Bytes < 0 {
+			return
+		}
+		h.mu.Lock()
+		if cs := h.clients[conn]; cs != nil {
+			cs.everAcked = true
+			if ack.Bytes > cs.acked {
+				cs.acked = ack.Bytes
+			}
+			if cs.acked > cs.delivered {
+				cs.acked = cs.delivered
+			}
+		}
+		h.readCond.Broadcast()
+		h.mu.Unlock()
 	}
 }
 
