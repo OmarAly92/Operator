@@ -52,9 +52,19 @@ fn marker_width(rest: &str) -> (usize, usize) {
     (0, 0)
 }
 
+pub(crate) const HOT_ROWS: usize = 2_000;
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct StaleRun {
+    pub start: usize,
+    pub len: usize,
+    pub cols: usize,
+}
+
 pub(crate) struct RowIndex {
     completed: VecDeque<RowRange>,
     open_start: u64,
+    stale: Vec<StaleRun>,
 }
 
 impl Clone for RowIndex {
@@ -62,6 +72,7 @@ impl Clone for RowIndex {
         Self {
             completed: self.completed.clone(),
             open_start: self.open_start,
+            stale: self.stale.clone(),
         }
     }
 }
@@ -71,6 +82,7 @@ impl RowIndex {
         Self {
             completed: VecDeque::new(),
             open_start: first_offset,
+            stale: Vec::new(),
         }
     }
 
@@ -99,9 +111,162 @@ impl RowIndex {
 
     #[allow(dead_code)]
     pub fn prepend(&mut self, rows: Vec<RowRange>) {
+        let count = rows.len();
         for row in rows.into_iter().rev() {
             self.completed.push_front(row);
         }
+        for run in self.stale.iter_mut() {
+            run.start += count;
+        }
+    }
+
+    pub fn stale_runs(&self) -> &[StaleRun] {
+        &self.stale
+    }
+
+    pub fn rewrap_hot(&mut self, content: &Content, cols: usize, cut_at: usize) -> Vec<usize> {
+        let total = self.completed.len();
+        let hot_start = self.line_start_at_or_below(total.saturating_sub(HOT_ROWS));
+        if hot_start > 0 {
+            self.mark_stale(0, hot_start, cut_at);
+        }
+        let mut hot = RowIndex {
+            completed: self.completed.drain(hot_start..).collect(),
+            open_start: self.open_start,
+            stale: Vec::new(),
+        };
+        let hot_map = hot.rewrap(content, cols);
+        self.completed.extend(hot.completed);
+        let mut map: Vec<usize> = (0..hot_start).collect();
+        map.extend(hot_map.iter().map(|new| hot_start + new));
+        map
+    }
+
+    // Marks only the part of [start, end) that no run already covers — the
+    // band between the last existing run's end and `end`. Returning early on
+    // any overlap would leave the rows that were hot at the PREVIOUS width,
+    // and have since been pushed out of the hot region by new output, cut at
+    // that previous width forever.
+    fn mark_stale(&mut self, start: usize, end: usize, cols: usize) {
+        let covered_end = self
+            .stale
+            .last()
+            .map_or(start, |run| run.start + run.len)
+            .max(start);
+        if end <= covered_end {
+            return;
+        }
+        let len = end - covered_end;
+        if let Some(last) = self.stale.last_mut() {
+            if last.start + last.len == covered_end && last.cols == cols {
+                last.len += len;
+                return;
+            }
+        }
+        self.stale.push(StaleRun {
+            start: covered_end,
+            len,
+            cols,
+        });
+    }
+
+    // The nearest row at or below `row` that starts a logical line. A cut
+    // taken mid-line hands `push_line` a fragment, which then computes a
+    // hanging indent from the middle of a sentence (TERMINAL.md §4.4).
+    fn line_start_at_or_below(&self, row: usize) -> usize {
+        let mut index = row.min(self.completed.len());
+        while index > 0 && self.completed[index - 1].wrapped {
+            index -= 1;
+        }
+        index
+    }
+
+    fn line_start_at_or_above(&self, row: usize) -> usize {
+        let mut index = row.min(self.completed.len());
+        while index > 0 && index < self.completed.len() && self.completed[index - 1].wrapped {
+            index += 1;
+        }
+        index
+    }
+
+    pub fn rows_for(
+        &mut self,
+        content: &Content,
+        cols: usize,
+        range: std::ops::Range<usize>,
+    ) -> Option<(Vec<usize>, usize)> {
+        let touched: Vec<usize> = self
+            .stale
+            .iter()
+            .enumerate()
+            .filter(|(_, run)| run.start < range.end && range.start < run.start + run.len)
+            .map(|(index, _)| index)
+            .collect();
+        if touched.is_empty() {
+            return None;
+        }
+        let before = self.completed.len();
+        let mut map: Vec<usize> = (0..before).collect();
+        map.push(before);
+        let mut lowest = usize::MAX;
+        for index in touched.into_iter().rev() {
+            let run = self.stale.remove(index);
+            let clip_lo = run.start.max(range.start);
+            let clip_hi = (run.start + run.len).min(range.end);
+            let lo = self.line_start_at_or_below(clip_lo);
+            let hi = self.line_start_at_or_above(clip_hi);
+            // split_off / extend, never a per-row insert: inserting into a
+            // VecDeque is O(len) per row, which at 200k rows and a 2,000-row
+            // run is ~4x10^8 element moves — the cost this task exists to
+            // remove.
+            let mut tail = self.completed.split_off(hi);
+            let slice: VecDeque<RowRange> = self.completed.split_off(lo);
+            let mut piece = RowIndex {
+                completed: slice,
+                open_start: self.open_start,
+                stale: Vec::new(),
+            };
+            let piece_map = piece.rewrap(content, cols);
+            let added = piece.completed.len();
+            self.completed.append(&mut piece.completed);
+            self.completed.append(&mut tail);
+            let delta = added as isize - (hi - lo) as isize;
+            for entry in map.iter_mut() {
+                if *entry >= hi {
+                    *entry = (*entry as isize + delta) as usize;
+                } else if *entry >= lo {
+                    let local = *entry - lo;
+                    *entry = lo + piece_map.get(local).copied().unwrap_or(0);
+                }
+            }
+            for later in self.stale.iter_mut() {
+                if later.start >= hi {
+                    later.start = (later.start as isize + delta) as usize;
+                }
+            }
+            if hi < run.start + run.len {
+                self.stale.insert(
+                    index,
+                    StaleRun {
+                        start: lo + added,
+                        len: (run.start + run.len) - hi,
+                        cols: run.cols,
+                    },
+                );
+            }
+            if lo > run.start {
+                self.stale.insert(
+                    index,
+                    StaleRun {
+                        start: run.start,
+                        len: lo - run.start,
+                        cols: run.cols,
+                    },
+                );
+            }
+            lowest = lowest.min(lo);
+        }
+        Some((map, lowest))
     }
 
     pub fn rewrap(&mut self, content: &Content, cols: usize) -> Vec<usize> {
@@ -194,16 +359,28 @@ impl RowIndex {
     /// retained row's start, never the open row's start: rows between them are
     /// still rendered, and releasing their bytes blanks the scrollback.
     pub fn trim_to(&mut self, max_total: usize) -> Option<u64> {
-        let mut dropped = false;
+        let mut dropped = 0usize;
         while self.completed.len() + 1 > max_total {
             if self.completed.pop_front().is_none() {
                 break;
             }
-            dropped = true;
+            dropped += 1;
         }
-        if !dropped {
+        if dropped == 0 {
             return None;
         }
+        self.stale.retain_mut(|run| {
+            if run.start + run.len <= dropped {
+                false
+            } else if run.start < dropped {
+                run.len = run.start + run.len - dropped;
+                run.start = 0;
+                true
+            } else {
+                run.start -= dropped;
+                true
+            }
+        });
         Some(self.earliest_retained_start())
     }
 
@@ -427,5 +604,26 @@ mod tests {
         r.complete_row(6, false);
         r.rewrap(&content, 2);
         assert_eq!(r.open_start(), 6);
+    }
+
+    #[test]
+    fn rewrap_hot_maps_every_row_and_reports_the_new_total() {
+        let total = HOT_ROWS + 500;
+        let text: String = "a".repeat(total);
+        let content = content_of(&text);
+        let mut r = RowIndex::new(0);
+        for index in 0..total {
+            r.complete_row(index as u64 + 1, false);
+        }
+        let map = r.rewrap_hot(&content, 80, 80);
+        assert_eq!(map.len(), total + 1);
+        assert_eq!(*map.last().unwrap(), r.completed().len());
+        for &new in &map[..total] {
+            assert!(new < r.completed().len());
+        }
+        assert_eq!(r.stale_runs().len(), 1);
+        assert_eq!(r.stale_runs()[0].start, 0);
+        assert_eq!(r.stale_runs()[0].len, total - HOT_ROWS);
+        assert_eq!(r.stale_runs()[0].cols, 80);
     }
 }

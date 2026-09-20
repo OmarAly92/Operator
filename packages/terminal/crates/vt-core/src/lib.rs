@@ -355,6 +355,15 @@ impl TerminalCore {
         self.parser.rows().completed().len()
     }
 
+    pub fn touch_rows(&mut self, range: Range<usize>) {
+        self.parser.touch_rows(range);
+        self.debug_check();
+    }
+
+    pub fn stale_row_count(&self) -> usize {
+        self.parser.stale_row_count()
+    }
+
     pub fn export_history_rows(&self, range: Range<usize>) -> Vec<ExportedRow> {
         let completed = self.parser.rows().completed();
         range

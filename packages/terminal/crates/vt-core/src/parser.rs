@@ -51,6 +51,8 @@ pub(crate) struct Parser {
     pending_full: bool,
     pending_trimmed: usize,
     pending_remap: Option<Vec<(u64, u64)>>,
+    pending_rewritten_from: Option<usize>,
+    last_width: usize,
     #[cfg(feature = "trace")]
     pub(crate) trace: crate::trace::Trace,
 }
@@ -83,6 +85,8 @@ impl Parser {
             pending_full: true,
             pending_trimmed: 0,
             pending_remap: None,
+            pending_rewritten_from: None,
+            last_width: width,
             #[cfg(feature = "trace")]
             trace: Default::default(),
         }
@@ -171,6 +175,7 @@ impl Parser {
             appended_history: self.history_exported_rows.min(completed)..completed,
             screen_rows,
             remap: self.pending_remap.take(),
+            history_rewritten_from: self.pending_rewritten_from.take(),
         };
         self.history_exported_rows = completed;
         delta
@@ -452,6 +457,7 @@ impl Parser {
         if columns != self.width {
             self.rewrap_pending = true;
         }
+        self.last_width = self.width;
         self.width = columns;
         if self.alt.is_some() {
             self.screen.resize_without_reflow(rows, columns);
@@ -481,11 +487,27 @@ impl Parser {
             self.grid.note_row_completed();
         }
         if std::mem::take(&mut self.rewrap_pending) {
-            let map = self.rows.rewrap(&self.content, self.width);
+            let cut_at = std::mem::replace(&mut self.last_width, self.width);
+            let map = self.rows.rewrap_hot(&self.content, self.width, cut_at);
             self.grid.remap_rows(&map);
             self.note_remap(&map);
-            self.history_exported_rows =
-                self.history_exported_rows.min(self.rows.completed().len());
+            self.history_exported_rows = self
+                .history_exported_rows
+                .min(self.rows.completed().len())
+                .min(
+                    self.rows
+                        .completed()
+                        .len()
+                        .saturating_sub(crate::row_index::HOT_ROWS),
+                );
+            self.pending_rewritten_from = Some(
+                self.pending_rewritten_from.unwrap_or(usize::MAX).min(
+                    self.rows
+                        .completed()
+                        .len()
+                        .saturating_sub(crate::row_index::HOT_ROWS),
+                ),
+            );
             self.mark_full();
         }
         self.grid
@@ -607,6 +629,25 @@ impl Parser {
             self.grid.advance_origin(dropped);
         }
         dropped
+    }
+
+    pub fn touch_rows(&mut self, range: std::ops::Range<usize>) {
+        let Some((map, lowest)) = self.rows.rows_for(&self.content, self.width, range) else {
+            return;
+        };
+        self.grid.remap_rows(&map);
+        self.note_remap(&map);
+        self.history_exported_rows = self.history_exported_rows.min(lowest);
+        self.pending_rewritten_from = Some(
+            self.pending_rewritten_from
+                .unwrap_or(usize::MAX)
+                .min(lowest),
+        );
+        self.note_mutation();
+    }
+
+    pub fn stale_row_count(&self) -> usize {
+        self.rows.stale_runs().iter().map(|run| run.len).sum()
     }
 
     fn apply_sgr(&mut self, params: &Params) {
