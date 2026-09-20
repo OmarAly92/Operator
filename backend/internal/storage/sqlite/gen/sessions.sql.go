@@ -13,41 +13,8 @@ import (
 	"github.com/OmarAly92/operator/backend/internal/domain"
 )
 
-const countLiveSessionsByProjectAndKind = `-- name: CountLiveSessionsByProjectAndKind :one
-SELECT COUNT(*) FROM sessions WHERE project_id = ? AND kind = ? AND is_terminated = 0
-`
-
-type CountLiveSessionsByProjectAndKindParams struct {
-	ProjectID domain.ProjectID
-	Kind      domain.SessionKind
-}
-
-func (q *Queries) CountLiveSessionsByProjectAndKind(ctx context.Context, arg CountLiveSessionsByProjectAndKindParams) (int64, error) {
-	row := q.db.QueryRowContext(ctx, countLiveSessionsByProjectAndKind, arg.ProjectID, arg.Kind)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
-}
-
-const countSessionsSpawnedBySince = `-- name: CountSessionsSpawnedBySince :one
-SELECT COUNT(*) FROM sessions WHERE project_id = ? AND spawned_by = ? AND created_at >= ?
-`
-
-type CountSessionsSpawnedBySinceParams struct {
-	ProjectID domain.ProjectID
-	SpawnedBy domain.SessionID
-	CreatedAt time.Time
-}
-
-func (q *Queries) CountSessionsSpawnedBySince(ctx context.Context, arg CountSessionsSpawnedBySinceParams) (int64, error) {
-	row := q.db.QueryRowContext(ctx, countSessionsSpawnedBySince, arg.ProjectID, arg.SpawnedBy, arg.CreatedAt)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
-}
-
 const getSession = `-- name: GetSession :one
-SELECT id, project_id, num, issue_id, kind, harness,
+SELECT id, project_id, num, issue_id, harness,
     activity_state, activity_last_at, is_terminated, branch, workspace_path, workspace_mode,
     runtime_handle_id, agent_session_id, prompt,
     created_at, updated_at, display_name, first_signal_at, preview_url,
@@ -55,7 +22,7 @@ SELECT id, project_id, num, issue_id, kind, harness,
     workspace_repo_path, terminate_on_pr_merge, diff_base_sha, diff_base_ref,
     reviewer_harness, is_pinned, pinned_at,
     provider_conversation_id, controller_generation, browser_capability_verifier,
-    latest_user_prompt, latest_assistant_update, native_transcript_path, auto_inject_review, spawned_by, claude_account_id
+    latest_user_prompt, latest_assistant_update, native_transcript_path, auto_inject_review, claude_account_id
 FROM sessions WHERE id = ?
 `
 
@@ -64,7 +31,6 @@ type GetSessionRow struct {
 	ProjectID                 domain.ProjectID
 	Num                       int64
 	IssueID                   domain.IssueID
-	Kind                      domain.SessionKind
 	Harness                   domain.AgentHarness
 	ActivityState             domain.ActivityState
 	ActivityLastAt            time.Time
@@ -98,7 +64,6 @@ type GetSessionRow struct {
 	LatestAssistantUpdate     string
 	NativeTranscriptPath      string
 	AutoInjectReview          bool
-	SpawnedBy                 domain.SessionID
 	ClaudeAccountID           domain.ClaudeAccountID
 }
 
@@ -110,7 +75,6 @@ func (q *Queries) GetSession(ctx context.Context, id domain.SessionID) (GetSessi
 		&i.ProjectID,
 		&i.Num,
 		&i.IssueID,
-		&i.Kind,
 		&i.Harness,
 		&i.ActivityState,
 		&i.ActivityLastAt,
@@ -144,7 +108,6 @@ func (q *Queries) GetSession(ctx context.Context, id domain.SessionID) (GetSessi
 		&i.LatestAssistantUpdate,
 		&i.NativeTranscriptPath,
 		&i.AutoInjectReview,
-		&i.SpawnedBy,
 		&i.ClaudeAccountID,
 	)
 	return i, err
@@ -152,19 +115,19 @@ func (q *Queries) GetSession(ctx context.Context, id domain.SessionID) (GetSessi
 
 const insertSession = `-- name: InsertSession :exec
 INSERT INTO sessions (
-    id, project_id, num, issue_id, kind, harness, reviewer_harness, display_name,
+    id, project_id, num, issue_id, harness, reviewer_harness, display_name,
     activity_state, activity_last_at, first_signal_at, is_terminated,
     branch, workspace_path, workspace_mode, workspace_repo_path, diff_base_sha, diff_base_ref, runtime_handle_id,
     runtime_launch_id, agent_session_id, prompt,
     latest_user_prompt, latest_assistant_update, native_transcript_path,
     preview_url, preview_revision, preview_opened_revision, terminate_on_pr_merge, cleanup_generation, browser_capability_verifier,
-    provider_conversation_id, controller_generation, spawned_by,
+    provider_conversation_id, controller_generation,
     created_at, updated_at, is_pinned, pinned_at, auto_inject_review, claude_account_id
 ) VALUES (
     ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
     ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
     ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-    ?, ?, ?, ?,
+    ?, ?,
     ?, ?, ?, ?, ?, ?
 )
 `
@@ -174,7 +137,6 @@ type InsertSessionParams struct {
 	ProjectID                 domain.ProjectID
 	Num                       int64
 	IssueID                   domain.IssueID
-	Kind                      domain.SessionKind
 	Harness                   domain.AgentHarness
 	ReviewerHarness           domain.ReviewerHarness
 	DisplayName               string
@@ -203,7 +165,6 @@ type InsertSessionParams struct {
 	BrowserCapabilityVerifier string
 	ProviderConversationID    string
 	ControllerGeneration      string
-	SpawnedBy                 domain.SessionID
 	CreatedAt                 time.Time
 	UpdatedAt                 time.Time
 	IsPinned                  bool
@@ -218,7 +179,6 @@ func (q *Queries) InsertSession(ctx context.Context, arg InsertSessionParams) er
 		arg.ProjectID,
 		arg.Num,
 		arg.IssueID,
-		arg.Kind,
 		arg.Harness,
 		arg.ReviewerHarness,
 		arg.DisplayName,
@@ -247,7 +207,6 @@ func (q *Queries) InsertSession(ctx context.Context, arg InsertSessionParams) er
 		arg.BrowserCapabilityVerifier,
 		arg.ProviderConversationID,
 		arg.ControllerGeneration,
-		arg.SpawnedBy,
 		arg.CreatedAt,
 		arg.UpdatedAt,
 		arg.IsPinned,
@@ -259,7 +218,7 @@ func (q *Queries) InsertSession(ctx context.Context, arg InsertSessionParams) er
 }
 
 const listAllSessions = `-- name: ListAllSessions :many
-SELECT id, project_id, num, issue_id, kind, harness,
+SELECT id, project_id, num, issue_id, harness,
     activity_state, activity_last_at, is_terminated, branch, workspace_path, workspace_mode,
     runtime_handle_id, agent_session_id, prompt,
     created_at, updated_at, display_name, first_signal_at, preview_url,
@@ -267,7 +226,7 @@ SELECT id, project_id, num, issue_id, kind, harness,
     workspace_repo_path, terminate_on_pr_merge, diff_base_sha, diff_base_ref,
     reviewer_harness, is_pinned, pinned_at,
     provider_conversation_id, controller_generation, browser_capability_verifier,
-    latest_user_prompt, latest_assistant_update, native_transcript_path, auto_inject_review, spawned_by, claude_account_id
+    latest_user_prompt, latest_assistant_update, native_transcript_path, auto_inject_review, claude_account_id
 FROM sessions ORDER BY project_id, num
 `
 
@@ -276,7 +235,6 @@ type ListAllSessionsRow struct {
 	ProjectID                 domain.ProjectID
 	Num                       int64
 	IssueID                   domain.IssueID
-	Kind                      domain.SessionKind
 	Harness                   domain.AgentHarness
 	ActivityState             domain.ActivityState
 	ActivityLastAt            time.Time
@@ -310,7 +268,6 @@ type ListAllSessionsRow struct {
 	LatestAssistantUpdate     string
 	NativeTranscriptPath      string
 	AutoInjectReview          bool
-	SpawnedBy                 domain.SessionID
 	ClaudeAccountID           domain.ClaudeAccountID
 }
 
@@ -328,7 +285,6 @@ func (q *Queries) ListAllSessions(ctx context.Context) ([]ListAllSessionsRow, er
 			&i.ProjectID,
 			&i.Num,
 			&i.IssueID,
-			&i.Kind,
 			&i.Harness,
 			&i.ActivityState,
 			&i.ActivityLastAt,
@@ -362,7 +318,6 @@ func (q *Queries) ListAllSessions(ctx context.Context) ([]ListAllSessionsRow, er
 			&i.LatestAssistantUpdate,
 			&i.NativeTranscriptPath,
 			&i.AutoInjectReview,
-			&i.SpawnedBy,
 			&i.ClaudeAccountID,
 		); err != nil {
 			return nil, err
@@ -379,7 +334,7 @@ func (q *Queries) ListAllSessions(ctx context.Context) ([]ListAllSessionsRow, er
 }
 
 const listSessionsByProject = `-- name: ListSessionsByProject :many
-SELECT id, project_id, num, issue_id, kind, harness,
+SELECT id, project_id, num, issue_id, harness,
     activity_state, activity_last_at, is_terminated, branch, workspace_path, workspace_mode,
     runtime_handle_id, agent_session_id, prompt,
     created_at, updated_at, display_name, first_signal_at, preview_url,
@@ -387,7 +342,7 @@ SELECT id, project_id, num, issue_id, kind, harness,
     workspace_repo_path, terminate_on_pr_merge, diff_base_sha, diff_base_ref,
     reviewer_harness, is_pinned, pinned_at,
     provider_conversation_id, controller_generation, browser_capability_verifier,
-    latest_user_prompt, latest_assistant_update, native_transcript_path, auto_inject_review, spawned_by, claude_account_id
+    latest_user_prompt, latest_assistant_update, native_transcript_path, auto_inject_review, claude_account_id
 FROM sessions WHERE project_id = ? ORDER BY num
 `
 
@@ -396,7 +351,6 @@ type ListSessionsByProjectRow struct {
 	ProjectID                 domain.ProjectID
 	Num                       int64
 	IssueID                   domain.IssueID
-	Kind                      domain.SessionKind
 	Harness                   domain.AgentHarness
 	ActivityState             domain.ActivityState
 	ActivityLastAt            time.Time
@@ -430,7 +384,6 @@ type ListSessionsByProjectRow struct {
 	LatestAssistantUpdate     string
 	NativeTranscriptPath      string
 	AutoInjectReview          bool
-	SpawnedBy                 domain.SessionID
 	ClaudeAccountID           domain.ClaudeAccountID
 }
 
@@ -448,7 +401,6 @@ func (q *Queries) ListSessionsByProject(ctx context.Context, projectID domain.Pr
 			&i.ProjectID,
 			&i.Num,
 			&i.IssueID,
-			&i.Kind,
 			&i.Harness,
 			&i.ActivityState,
 			&i.ActivityLastAt,
@@ -482,7 +434,6 @@ func (q *Queries) ListSessionsByProject(ctx context.Context, projectID domain.Pr
 			&i.LatestAssistantUpdate,
 			&i.NativeTranscriptPath,
 			&i.AutoInjectReview,
-			&i.SpawnedBy,
 			&i.ClaudeAccountID,
 		); err != nil {
 			return nil, err
@@ -538,25 +489,6 @@ func (q *Queries) NextSessionNum(ctx context.Context, projectID domain.ProjectID
 	var next int64
 	err := row.Scan(&next)
 	return next, err
-}
-
-const oldestSessionSpawnedBySince = `-- name: OldestSessionSpawnedBySince :one
-SELECT created_at FROM sessions
-WHERE project_id = ? AND spawned_by = ? AND created_at >= ?
-ORDER BY created_at ASC LIMIT 1
-`
-
-type OldestSessionSpawnedBySinceParams struct {
-	ProjectID domain.ProjectID
-	SpawnedBy domain.SessionID
-	CreatedAt time.Time
-}
-
-func (q *Queries) OldestSessionSpawnedBySince(ctx context.Context, arg OldestSessionSpawnedBySinceParams) (time.Time, error) {
-	row := q.db.QueryRowContext(ctx, oldestSessionSpawnedBySince, arg.ProjectID, arg.SpawnedBy, arg.CreatedAt)
-	var created_at time.Time
-	err := row.Scan(&created_at)
-	return created_at, err
 }
 
 const recordSessionLatestUserPrompt = `-- name: RecordSessionLatestUserPrompt :execrows
@@ -746,7 +678,7 @@ func (q *Queries) SetSessionTerminateOnPRMerge(ctx context.Context, arg SetSessi
 
 const updateSession = `-- name: UpdateSession :exec
 UPDATE sessions SET
-    issue_id = ?, kind = ?, harness = ?, reviewer_harness = ?, display_name = ?,
+    issue_id = ?, harness = ?, reviewer_harness = ?, display_name = ?,
     activity_state = ?, activity_last_at = ?, first_signal_at = ?, is_terminated = ?,
     branch = ?, workspace_path = ?, workspace_mode = ?, workspace_repo_path = ?, diff_base_sha = ?, diff_base_ref = ?, runtime_handle_id = ?,
     runtime_launch_id = ?, agent_session_id = ?, prompt = ?,
@@ -760,7 +692,6 @@ WHERE id = ?
 
 type UpdateSessionParams struct {
 	IssueID                   domain.IssueID
-	Kind                      domain.SessionKind
 	Harness                   domain.AgentHarness
 	ReviewerHarness           domain.ReviewerHarness
 	DisplayName               string
@@ -799,7 +730,6 @@ type UpdateSessionParams struct {
 func (q *Queries) UpdateSession(ctx context.Context, arg UpdateSessionParams) error {
 	_, err := q.db.ExecContext(ctx, updateSession,
 		arg.IssueID,
-		arg.Kind,
 		arg.Harness,
 		arg.ReviewerHarness,
 		arg.DisplayName,

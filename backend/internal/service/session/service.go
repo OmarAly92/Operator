@@ -41,9 +41,6 @@ type Store interface {
 	ListPRReviewThreads(ctx context.Context, prURL string) ([]domain.PullRequestReviewThread, error)
 	ListPRComments(ctx context.Context, prURL string) ([]domain.PullRequestComment, error)
 	GetProject(ctx context.Context, id string) (domain.ProjectRecord, bool, error)
-	CountLiveSessionsByProjectAndKind(ctx context.Context, project domain.ProjectID, kind domain.SessionKind) (int, error)
-	CountSessionsSpawnedBySince(ctx context.Context, project domain.ProjectID, spawnedBy domain.SessionID, since time.Time) (int, error)
-	OldestSessionSpawnedBySince(ctx context.Context, project domain.ProjectID, spawnedBy domain.SessionID, since time.Time) (time.Time, bool, error)
 }
 
 // ListFilter captures API-facing session list query filters.
@@ -251,34 +248,6 @@ func (s *Service) spawn(ctx context.Context, cfg ports.SpawnConfig) (domain.Sess
 		// so it would read zero rows and grant a fresh budget.
 		if !ok || requester.Kind != domain.KindOrchestrator || requester.IsTerminated || requester.ProjectID != cfg.ProjectID {
 			cfg.RequestedBy = ""
-		}
-	}
-	if cfg.RequestedBy != "" {
-		policy := project.Config.OrchestratorPolicy.WithDefaults()
-
-		liveWorkers, err := s.store.CountLiveSessionsByProjectAndKind(ctx, cfg.ProjectID, domain.KindWorker)
-		if err != nil {
-			return domain.Session{}, 0, 0, fmt.Errorf("count live workers for %s: %w", cfg.ProjectID, err)
-		}
-		if liveWorkers >= policy.MaxLiveWorkers {
-			return domain.Session{}, 0, 0, apierr.Invalid("ORCHESTRATOR_BUDGET_EXHAUSTED",
-				fmt.Sprintf("project %s is at its live-worker cap (%d); free a worker before spawning another", cfg.ProjectID, policy.MaxLiveWorkers),
-				map[string]any{"limit": "maxLiveWorkers", "current": liveWorkers, "cap": policy.MaxLiveWorkers})
-		}
-
-		windowStart := s.now().Add(-time.Hour)
-		spawnedThisHour, err := s.store.CountSessionsSpawnedBySince(ctx, cfg.ProjectID, cfg.RequestedBy, windowStart)
-		if err != nil {
-			return domain.Session{}, 0, 0, fmt.Errorf("count hourly spawns for %s: %w", cfg.RequestedBy, err)
-		}
-		if spawnedThisHour >= policy.MaxSpawnsPerHour {
-			details := map[string]any{"limit": "maxSpawnsPerHour", "current": spawnedThisHour, "cap": policy.MaxSpawnsPerHour}
-			if oldest, ok, err := s.store.OldestSessionSpawnedBySince(ctx, cfg.ProjectID, cfg.RequestedBy, windowStart); err == nil && ok {
-				details["resetsAt"] = oldest.Add(time.Hour).UTC().Format(time.RFC3339)
-			}
-			return domain.Session{}, 0, 0, apierr.Invalid("ORCHESTRATOR_BUDGET_EXHAUSTED",
-				fmt.Sprintf("orchestrator %s has hit its spawn-rate cap (%d/hour)", cfg.RequestedBy, policy.MaxSpawnsPerHour),
-				details)
 		}
 	}
 	start := s.now()
