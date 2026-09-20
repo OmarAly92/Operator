@@ -23,8 +23,11 @@ opr pty-host  (backend/internal/adapters/runtime/ptyhost, one subprocess per ses
    ├─ vtwasm/            PASSIVE MIRROR: vt-core compiled to wasm (vt_host.wasm),
    │                     run by wazero. Feeds every byte, answers GetOutput /
    │                     text extraction, and produces the attach REPLAY.
-   ├─ attach.go          handshake: client states its grid, host replays the
-   │                     mirror's screen (vt_replay), then streams live bytes
+   ├─ attach.go          handshake: client states its grid (and whether it can
+   │                     read history), host replays origin + modes + the
+   │                     mirror's screen + READY, returns, then — for a client
+   │                     that asked — streams history newest→oldest in 512-row
+   │                     chunks, then live bytes
    └─ host.go            openingGridWait (250ms): a new connection must state its
                          grid before the replay is sent
    │  loopback TCP protocol (proto.go)
@@ -117,6 +120,22 @@ rebuilt (§6).
   `data-terminal-row` attribute (`ts/renderer-dom/src/row-builder.ts:37`) is
   this stable row number, not a flat index — it is stable across a trim even
   though the row's screen position moves.
+- **Prepended history.** `Content` allocates downward from `CONTENT_BASE`
+  (`content.rs`) so prepended bytes never move already-committed offsets;
+  rows stay offset-ordered, which is what every trim, style lookup and
+  integrity check rests on. `Parser::adopt_origin` (`parser.rs:529`) is what
+  puts a fresh core into the replaying host's stable row space before any
+  history lands — it only succeeds on a core that has trimmed nothing and
+  drawn nothing yet, and without it the two cores' stable-row spaces never
+  meet and every history chunk is silently dropped
+  (`Parser::apply_history_chunk` requires `first_stable_row + rows.len() ==
+  trimmed_total`).
+- **Stale runs.** `HOT_ROWS = 2_000`: a width change rewraps the screen and
+  the newest 2,000 completed rows eagerly; everything older is marked stale.
+  `rows_for(range)` rewraps a stale range on first access and corrects the
+  row-count estimate above the viewport as ranges are touched. A run
+  boundary — where eager rewrap stops and stale begins — is always a line
+  start, never mid-row, so a partially-rewrapped logical line can't exist.
 - **Delta / incremental export** avoid re-decoding scrollback that has not
   changed. `generation()` (`lib.rs:291`) bumps on every mutation;
   `take_delta()` (`lib.rs:295`) drains a `Delta` of the rows the `ScreenGrid`
@@ -478,6 +497,42 @@ history of `master`.
   (`bench/agent-session/scroll-gate.mjs`) feeds past the cap mid-scroll and
   asserts the row under the top edge is identical before and after.
 
+### 4.19 Reopening a long session recovered only the mirror's last screen
+- Symptom: a pane reopened (app restart, reattach) after producing more than
+  the mirror's `Replay(MaxOutputLines)` cap (1,000 lines) lost everything
+  older than that — the whole point of Plan C's byte-budget caps (§2 Limits)
+  was defeated the moment a client reattached, because `Replay(MaxOutputLines)`
+  was the entire attach path.
+- Cause: two traps, both live defects in the first draft of this plan, not
+  hypothetical:
+  (a) the mirror and the reopened core number rows in different stable
+  spaces (§2 Stable rows). Sending history chunks without first telling the
+  receiving core what stable row its own fresh, empty state should be
+  planted at means `Parser::apply_history_chunk`'s row-space check
+  (`first_stable_row + rows.len() == trimmed_total`) never lines up, so
+  every chunk is dropped. The fix states the origin **first**, before any
+  row exists on the receiving core, because `Parser::adopt_origin` refuses
+  to act once a row has already been drawn or trimmed (`parser.rs:529`) —
+  reordering the replay after a row exists silently reintroduces the bug.
+  (b) a chunk's closing `exit=` mark must sit **inside** its last row,
+  before that row's CR-LF terminator, not as a separate line after it — a
+  byte written after the chunk's own final CR-LF falls through to the live
+  parser and closes whatever block the *live* agent currently has open,
+  corrupting the live pane's block state for an unrelated reason (reopening
+  a different, unrelated session).
+- Now: `attach.go` streams four parts in order — origin mark, modes, the live
+  frame, `OSC 7000;v=1;ready=1` (the client paints here) — then, for a client
+  that opted in, history chunks newest→oldest, each framed by
+  `OSC 7000;v=1;history=<first_stable_row>,<count>` with `id=`/`cmd=`/`exit=`
+  marks re-emitted so the reopened pane has the same blocks, not re-derived
+  ones. `Parser::apply_history_chunk` (`parser.rs:542`) prepends the rows,
+  retreats the block grid's origin, and rejects a chunk whose row space
+  doesn't land exactly at the receiver's current `trimmed_total`.
+- Guards: `TestReplayOpensWithTheOriginMark`, `TestReplayOrderIsModesFrameReadyHistory`,
+  `TestAHistoryChunkEndsAtARowTerminator`, `TestClientPaintsAtReadyBeforeHistory`,
+  `TestAClientWithoutHistoryOptInGetsNoChunks`, `TestAFreshSessionAttachIsUnchanged`,
+  `vt-core/tests/replay.rs`, the useTerminalSession "paints at READY" test.
+
 ## 5. Known gaps (not bugs, decisions pending)
 
 - A DEC 2026 block that grows to `SYNC_BUFFER_CAP` (2 MiB) is flushed and
@@ -491,9 +546,47 @@ history of `master`.
   line. Fix would export `wrapped` per row and join on copy.
 - The screen's `wrapped` flag is cleared on any width change (`resize_cells`)
   because truncated cells can no longer be rejoined faithfully.
-- Rewrap walks all scrollback rows on every width change (one `copy_range`
-  per row). Fine at 1k–10k rows with the debounce; caps are 200k since Plan B;
-  lazy rewrap is Plan C 1.3.F.
+- The hot region (the screen plus the newest `HOT_ROWS = 2_000` completed
+  rows, §2) is still walked eagerly on every width change. A cold run below
+  that is walked once, lazily, on first access (a scroll into it), not on
+  the resize itself; the row count above the viewport is an estimate until
+  a stale range is touched and corrects. This replaces the old "rewrap walks
+  all scrollback on every width change" entry — that was true before Plan C
+  1.3.F, it no longer is.
+- **A reopened pane's prepended rows lose their `wrapped` flag.**
+  `vt_history_chunk` emits every history row CR-LF terminated and
+  `Parser::apply_history_chunk` prepends them with `wrapped: false`
+  (`parser.rs:568`), so a later width change cannot rejoin a logical line the
+  mirror had soft-wrapped — those rows rewrap as independent lines. Rows the
+  pane produces *after* the reopen are unaffected. Carrying the flag would
+  mean emitting wrapped rows without `\r\n` and sizing the receiver's scratch
+  screen to the mirror's width (a `cols=<n>` field on the chunk mark), which
+  would make the chunk's row count depend on the receiver's own wrapping
+  instead of on the mark's `count` — the invariant `HistoryReceiver::consume`
+  ends a chunk on. Revisit with a second anchor for that invariant; do not
+  "fix" it by loosening the row count.
+- **`widthChange`'s top-edge row reads differently depending on prior scroll
+  state.** Measured by Task 13: `scroll-gate.mjs`'s width phase (scrolls to
+  the vertical midpoint, then resizes) reports the top-edge row identical
+  before and after a width change, as expected. `run.mjs`'s own `widthChange`
+  row — which resizes right after `feedAll()`, with no prior scroll — reads
+  the top-edge row as 5 rows apart before vs. after, reproduced identically
+  across two runs. Not investigated further; flagged here rather than
+  silently reconciled, since the two probes disagree and only one of them
+  (the scrolled one) is the gated measurement.
+- **`bench:agent:scroll`'s width phase itself is flaky, in the same family as
+  the pre-existing trim-phase flake below.** Eight consecutive runs of
+  `npm run bench:agent:scroll` on this HEAD: 3 clean passes (trim and width
+  both matched), 3 hit the pre-existing trim flake (`visibleRows()[0]` reads
+  `undefined` right after the trim), and 2 hit a new width-phase flake —
+  `width.before` reads `-1` (no row under the top edge) while `width.after`
+  correctly reads the resolved row, i.e. the same class of race (a
+  `visibleRows()` read landing before the renderer has painted the current
+  scroll position) now shows up around the width-change resize too, not only
+  around a trim. No code was changed to chase either flake down or to make a
+  run "count" as clean; both are reported here as observed, not patched
+  around by adding more `requestAnimationFrame` waits, which would be tuning
+  the gate to pass rather than fixing a diagnosed cause.
 - `TestProcessEnvironmentLetsOverridesWin` in `ptyhost` fails on master before
   any of this work (TERM override appended twice). Pre-existing, unrelated.
 - Found triaging the Alacritty reference corpus (`crates/vt-core/tests/ref/TRIAGE.md`),
@@ -546,6 +639,7 @@ for p in core renderer-dom react; do (cd ts/$p && npx vitest run); done
 npm run bench:selection      # Playwright: a selection must survive 20 repaints
 npm run bench:feel           # Playwright: zero pixel diff vs bench/agent-session/baselines (record with -- --record)
 npm run bench:agent:gate     # Playwright: no torn paint under the spinner, queued 2 MiB never blocks > 16 ms
+npm run bench:agent:scroll   # Playwright: full scroll coverage, trim anchor holds, width-change gate (top-edge row and lazy rewrap)
 
 # Frontend + daemon
 cd /Users/omaraly/development/AI/Operator/frontend && npx tsc --noEmit -p .

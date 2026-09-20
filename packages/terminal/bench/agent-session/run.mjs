@@ -202,15 +202,12 @@ async function reopenReport(page, fixtureName) {
 	if (!line) throw new Error(`reopen report missing:\n${run.stdout}\n${run.stderr}`);
 	const report = JSON.parse(line.slice(line.indexOf("REPORT ") + 7));
 	const replay = new Uint8Array(await readFile(replayOut));
-	const firstPaintMs = await page.evaluate(async (bytes) => {
-		const session = window.__agentSession;
-		const start = performance.now();
-		session.resetCounters();
-		session.core().feed(new Uint8Array(bytes));
-		while (session.paintCount() === 0) await new Promise((resolve) => requestAnimationFrame(resolve));
-		return performance.now() - start;
-	}, Array.from(replay));
-	return { ...report, firstPaintMs };
+	const history = new Uint8Array(await readFile(`${replayOut}.history`));
+	const fromReplay = await page.evaluate(
+		async ({ frame, chunk }) => window.__agentSession.reopenFromReplay(new Uint8Array(frame), [new Uint8Array(chunk)]),
+		{ frame: Array.from(replay), chunk: Array.from(history) },
+	);
+	return { ...report, ...fromReplay };
 }
 
 async function main() {
@@ -261,6 +258,12 @@ async function main() {
 				const reopenPage = await openPage(browser, port, name);
 				rows.reopen = await reopenReport(reopenPage, name);
 				await reopenPage.close();
+				if (name === "claude-long-50k") {
+					const widthPage = await openPage(browser, port, name);
+					await widthPage.evaluate(() => window.__agentSession.feedAll());
+					rows.widthChange = await widthPage.evaluate(() => window.__agentSession.widthChange(40));
+					await widthPage.close();
+				}
 			}
 			report.fixtures[name] = rows;
 			process.stdout.write(`${JSON.stringify({ fixture: name, ...rows })}\n`);

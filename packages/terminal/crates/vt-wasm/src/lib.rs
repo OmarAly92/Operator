@@ -196,6 +196,10 @@ impl WasmTerminalCore {
         self.export.history_rows() as u32
     }
 
+    pub fn stale_row_count(&self) -> usize {
+        self.core.stale_row_count()
+    }
+
     pub fn dirty_full(&self) -> bool {
         self.dirty_full
     }

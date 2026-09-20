@@ -98,6 +98,13 @@ export class TerminalCore {
 		return { contentBytes: words[0]!, styleEntries: words[1]!, rows: words[2]!, blocks: words[3]! };
 	}
 
+	staleRowCount(): number {
+		if (this.disposed) {
+			throw new Error("terminal core is disposed");
+		}
+		return this.inner.stale_row_count();
+	}
+
 	feed(bytes: Uint8Array): void {
 		if (this.disposed) {
 			return;
