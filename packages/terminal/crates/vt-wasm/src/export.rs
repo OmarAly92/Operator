@@ -145,9 +145,14 @@ impl ExportBuffers {
         }
         self.drop_front(delta.trimmed_rows);
         self.truncate_screen();
-        for row in core.export_history_rows(delta.appended_history.clone()) {
-            self.push_row(&row)?;
-            self.history_rows += 1;
+        match delta.history_rewritten_from {
+            Some(from) => self.rewrite_history_from(core, from)?,
+            None => {
+                for row in core.export_history_rows(delta.appended_history.clone()) {
+                    self.push_row(&row)?;
+                    self.history_rows += 1;
+                }
+            }
         }
         self.history_end = self.content.len();
         self.history_pairs = self.style_pairs.len() / 3;
@@ -191,6 +196,38 @@ impl ExportBuffers {
         } else {
             self.history_pairs
         };
+    }
+
+    fn rewrite_history_from(
+        &mut self,
+        core: &TerminalCore,
+        from: usize,
+    ) -> Result<(), ExportError> {
+        let from = from.min(self.history_rows);
+        let cut_row = self.dead_rows + from;
+        let cut_bytes = if cut_row == 0 {
+            0
+        } else {
+            self.rows[cut_row * 2 - 1] as usize
+        };
+        let cut_pairs = if cut_row == 0 {
+            0
+        } else {
+            self.run_ranges[cut_row * 2 - 1] as usize
+        };
+        self.content.truncate(cut_bytes);
+        self.rows.truncate(cut_row * 2);
+        self.row_indents.truncate(cut_row);
+        self.run_ranges.truncate(cut_row * 2);
+        self.style_pairs.truncate(cut_pairs * 3);
+        self.history_rows = cut_row - self.dead_rows;
+        let core_history_rows = core.history_rows();
+        let from = from.min(core_history_rows);
+        for row in core.export_history_rows(from..core_history_rows) {
+            self.push_row(&row)?;
+            self.history_rows += 1;
+        }
+        Ok(())
     }
 
     fn truncate_screen(&mut self) {

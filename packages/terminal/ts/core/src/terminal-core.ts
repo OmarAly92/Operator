@@ -210,6 +210,14 @@ export class TerminalCore {
 		}
 	}
 
+	/** Declares the history rows the next snapshot must have rewrapped. */
+	setExportWindow(firstRow: number, lastRow: number): void {
+		if (this.disposed) {
+			return;
+		}
+		this.inner.set_export_window(Math.max(0, firstRow), Math.max(0, lastRow));
+	}
+
 	snapshot(): TerminalSnapshot {
 		if (this.disposed) {
 			throw new Error("terminal core is disposed");

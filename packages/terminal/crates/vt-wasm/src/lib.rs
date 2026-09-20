@@ -29,6 +29,7 @@ pub fn memory_stats_words(stats: &vt_core::MemoryStats) -> [u32; 4] {
 pub struct WasmTerminalCore {
     core: TerminalCore,
     export: ExportBuffers,
+    export_window: Option<(usize, usize)>,
     synced_generation: Option<u64>,
     dirty_rows: Vec<u32>,
     dirty_full: bool,
@@ -59,6 +60,7 @@ impl WasmTerminalCore {
         let mut this = WasmTerminalCore {
             core,
             export: ExportBuffers::default(),
+            export_window: None,
             synced_generation: None,
             dirty_rows: Vec::new(),
             dirty_full: true,
@@ -120,7 +122,18 @@ impl WasmTerminalCore {
         memory_stats_words(&self.core.memory_stats()).to_vec()
     }
 
+    /// The flat history rows the next sync() must have rewrapped. Cleared
+    /// by sync(); a window that is never set leaves every cold row cold.
+    pub fn set_export_window(&mut self, first_row: u32, last_row: u32) {
+        self.export_window = Some((first_row as usize, last_row as usize));
+    }
+
     pub fn sync(&mut self) -> Result<u32, JsError> {
+        if let Some((first, last)) = self.export_window.take() {
+            if last > first {
+                self.core.touch_rows(first..last);
+            }
+        }
         let generation = self.core.generation();
         if self.synced_generation == Some(generation) {
             return Ok(generation as u32);

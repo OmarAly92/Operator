@@ -508,7 +508,6 @@ impl Parser {
                         .saturating_sub(crate::row_index::HOT_ROWS),
                 ),
             );
-            self.mark_full();
         }
         self.grid
             .sync_next_row(self.rows.completed().len() + self.screen.content_rows());

@@ -241,6 +241,18 @@ export class DomBlockRenderer implements BlockRenderer {
 		};
 	}
 
+	private flatRowFor(anchor: ScrollAnchor | null): number {
+		if (!anchor) return 0;
+		return Math.max(0, anchor.stableRow - this.paintedFirstStableRow);
+	}
+
+	private visibleRowCapacity(): number {
+		const container = this.container;
+		const { rowHeight } = this.layout();
+		if (!container || rowHeight <= 0) return 0;
+		return Math.ceil(container.clientHeight / rowHeight);
+	}
+
 	private captureAnchor(): void {
 		const container = this.container;
 		if (!container) return;
@@ -473,6 +485,9 @@ export class DomBlockRenderer implements BlockRenderer {
 		if (!core || !container || !list || !leading || !trailing) {
 			return;
 		}
+		const anchor = this.scrollAnchor();
+		const firstRow = Math.max(0, this.flatRowFor(anchor) - OVERSCAN_ROWS);
+		core.setExportWindow(firstRow, firstRow + this.visibleRowCapacity() + 2 * OVERSCAN_ROWS);
 		const snapshot = core.snapshot();
 
 		const alt = snapshot.altScreen;

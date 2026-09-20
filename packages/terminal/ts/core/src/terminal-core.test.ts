@@ -362,4 +362,32 @@ describe("TerminalCore feed budget", () => {
 		expect(alias.memoryStats().rows).toBe(49);
 		expect(() => createTerminalCore({ columns: 40 } as never)).toThrow(/limits/);
 	});
+
+	it("rewraps the declared window before the snapshot it hands back", () => {
+		const core = createTerminalCore({ columns: 60, limits: { rows: 200_000, bytes: 128 * 1024 * 1024 } });
+		for (let index = 0; index < 3000; index += 1) {
+			core.feed(new TextEncoder().encode(`the quick brown fox jumps over the lazy dog ${index}\r\n`));
+		}
+		core.resize(20, 24);
+		const cold = core.snapshot();
+		const decodeRow = (snapshot: typeof cold, index: number) =>
+			new TextDecoder().decode(snapshot.content.subarray(snapshot.rows[2 * index]!, snapshot.rows[2 * index + 1]!));
+		expect(decodeRow(cold, 0).length).toBeGreaterThan(20);
+
+		core.setExportWindow(0, 40);
+		const warm = core.snapshot();
+		expect(decodeRow(warm, 0).length).toBeLessThanOrEqual(20);
+	});
+
+	it("does not re-rewrap a window it has already served", () => {
+		const core = createTerminalCore({ columns: 60, limits: { rows: 200_000, bytes: 128 * 1024 * 1024 } });
+		for (let index = 0; index < 3000; index += 1) {
+			core.feed(new TextEncoder().encode(`the quick brown fox jumps over the lazy dog ${index}\r\n`));
+		}
+		core.resize(20, 24);
+		core.setExportWindow(0, 40);
+		const first = core.snapshot().generation;
+		core.setExportWindow(0, 40);
+		expect(core.snapshot().generation).toBe(first);
+	});
 });
