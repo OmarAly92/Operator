@@ -42,3 +42,49 @@ fn refresh_clears_previous_buffers() {
     assert_ne!(first_content.len(), buffers.content().len());
     assert_ne!(first_rows, buffers.rows());
 }
+
+#[test]
+fn memory_stats_are_exported_as_four_words() {
+    let mut core = TerminalCore::with_limits(
+        16,
+        vt_core::Limits {
+            rows: 10,
+            bytes: usize::MAX,
+        },
+    )
+    .unwrap();
+    core.resize(16, 1);
+    core.feed(b"\x1b[31mred\x1b[0m ok\r\nplain\r\n");
+    let stats = core.memory_stats();
+    let words = vt_wasm::memory_stats_words(&stats);
+    assert_eq!(
+        words,
+        [
+            stats.content_bytes as u32,
+            stats.style_entries as u32,
+            stats.rows as u32,
+            stats.blocks as u32
+        ]
+    );
+    assert_eq!(words[2], 2);
+}
+
+#[test]
+fn apply_matches_refresh_for_a_partial_delta() {
+    let mut core = TerminalCore::new(16, 10).unwrap();
+    core.resize(16, 2);
+    let mut incremental = ExportBuffers::default();
+    let initial = core.take_delta();
+    incremental.apply(&core, &initial).unwrap();
+    core.feed(b"first row\r\nsecond\r\n");
+    let delta = core.take_delta();
+    assert_eq!(delta.kind, vt_core::DeltaKind::Partial);
+    incremental.apply(&core, &delta).unwrap();
+    let mut full = ExportBuffers::default();
+    full.refresh(&core.snapshot().unwrap()).unwrap();
+    assert_eq!(incremental.content(), full.content());
+    assert_eq!(incremental.rows(), full.rows());
+    assert_eq!(incremental.run_ranges(), full.run_ranges());
+    assert_eq!(incremental.style_pairs(), full.style_pairs());
+    assert_eq!(incremental.blocks(), full.blocks());
+}

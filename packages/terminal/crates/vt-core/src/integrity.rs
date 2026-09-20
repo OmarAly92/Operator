@@ -9,6 +9,10 @@ pub enum IntegrityError {
     BlockPastEnd { block: usize },
     NextRowPastEnd,
     StyleKeyOutsideContent { offset: u64 },
+    OriginMismatch { origin: usize, trimmed_total: u64 },
+    ExportPrefixPastRows { exported: usize, completed: usize },
+    StaleRunOutsideRows { start: usize, len: usize },
+    StaleRunsOverlap { first: usize },
 }
 
 impl Parser {
@@ -34,25 +38,48 @@ impl Parser {
         if self.rows().open_start() != content_end {
             return Err(IntegrityError::OpenRowDetached);
         }
+        if self.history_exported_rows() > completed.len() {
+            return Err(IntegrityError::ExportPrefixPastRows {
+                exported: self.history_exported_rows(),
+                completed: completed.len(),
+            });
+        }
         let total_rows = completed.len() + self.screen().rows();
         let closed = self.grid().len() - usize::from(self.grid().has_open_block());
         for (index, block) in self.grid().blocks().enumerate() {
-            let end = if index < closed {
-                block.first_row + block.row_count
-            } else {
-                block.first_row
-            };
-            if end > total_rows || block.first_row > total_rows {
+            let (first, count) = self.grid().flat_extent(block);
+            let end = if index < closed { first + count } else { first };
+            if end > total_rows || first > total_rows {
                 return Err(IntegrityError::BlockPastEnd { block: index });
             }
         }
         if self.grid().next_row() > total_rows {
             return Err(IntegrityError::NextRowPastEnd);
         }
+        if self.grid().origin() as u64 != self.trimmed_total() {
+            return Err(IntegrityError::OriginMismatch {
+                origin: self.grid().origin(),
+                trimmed_total: self.trimmed_total(),
+            });
+        }
         for offset in self.styles().keys() {
             if offset < content_start || offset > content_end {
                 return Err(IntegrityError::StyleKeyOutsideContent { offset });
             }
+        }
+        let completed_len = completed.len();
+        let mut previous_end = 0usize;
+        for run in self.rows().stale_runs() {
+            if run.len == 0 || run.start + run.len > completed_len {
+                return Err(IntegrityError::StaleRunOutsideRows {
+                    start: run.start,
+                    len: run.len,
+                });
+            }
+            if run.start < previous_end {
+                return Err(IntegrityError::StaleRunsOverlap { first: run.start });
+            }
+            previous_end = run.start + run.len;
         }
         Ok(())
     }
@@ -67,7 +94,7 @@ mod tests {
     use vte::Parser as VteParser;
 
     fn parser_with(text: &[u8]) -> Parser {
-        let mut parser = Parser::new(20, 100);
+        let mut parser = Parser::new(20);
         parser.resize(20, 1);
         let mut vte = VteParser::new();
         vte.advance(&mut parser, text);

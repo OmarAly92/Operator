@@ -66,8 +66,16 @@ export type TerminalTheme = Readonly<{
 	blockHeaderForeground: string;
 }>;
 
+export type DirtyRows = Readonly<{ full: boolean; rows: ReadonlySet<number> }>;
+
+export type RowEvent = Readonly<{ trimmed: number; remap: ReadonlyArray<readonly [number, number]> | null }>;
+
+export type RowEventListener = (event: RowEvent) => void;
+
 export type TerminalSnapshot = Readonly<{
 	generation: number;
+	firstStableRow: number;
+	historyRows: number;
 	content: Uint8Array;
 	rows: Uint32Array;
 	rowIndents: Uint16Array;
@@ -100,11 +108,21 @@ export type AltScreenView = Readonly<{
 	cursorVisible: boolean;
 }>;
 
+export type TerminalLimits = Readonly<{ rows: number; bytes: number }>;
+
+export type MemoryStats = Readonly<{
+	contentBytes: number;
+	styleEntries: number;
+	rows: number;
+	blocks: number;
+}>;
+
 export type TerminalCoreOptions = Readonly<{
 	columns: number;
-	scrollback: number;
 	rows?: number;
 	host?: HostCapabilities;
+	scrollback?: number;
+	limits?: TerminalLimits;
 }>;
 
 export type ChangeListener = (generation: number) => void;

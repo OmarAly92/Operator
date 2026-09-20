@@ -32,6 +32,7 @@ const (
 	msgData        = "data"
 	msgResize      = "resize"
 	msgClose       = "close"
+	msgAck         = "ack"         // ch "terminal", client -> server
 	msgSubscribe   = "subscribe"   // ch "subscribe"
 	msgUnsubscribe = "unsubscribe" // ch "blocks"
 	msgPing        = "ping"        // ch "system"
@@ -80,6 +81,12 @@ type clientMsg struct {
 	Role string `json:"role,omitempty"`
 
 	BlockType string `json:"blockType,omitempty"`
+
+	// Bytes is the client's cumulative consumed-byte count for ch "terminal"
+	// / type "ack". History is the client's declaration, on type "open", that
+	// it understands the runtime's history marks.
+	Bytes   int  `json:"bytes,omitempty"`
+	History bool `json:"history,omitempty"`
 }
 
 // serverMsg is one outbound frame.

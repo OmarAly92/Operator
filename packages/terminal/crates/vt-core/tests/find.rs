@@ -63,3 +63,30 @@ fn a_valid_regex_matches_across_blocks() {
     }
     assert_eq!(cursor.results().len(), 5);
 }
+
+#[test]
+fn find_hits_carry_stable_rows_across_a_trim() {
+    let mut core = TerminalCore::with_limits(40, vt_core::Limits::rows_only(6)).unwrap();
+    core.resize(40, 2);
+    for line in ["1", "2", "needle", "4"] {
+        core.feed(format!("\x1b]133;A\x07\x1b]133;C\x07{line}\x1b]133;D;0\x07\r\n").as_bytes());
+    }
+    let mut cursor = core.find(FindQuery::literal("needle"));
+    while !cursor.is_complete() {
+        cursor.step(4);
+    }
+    assert_eq!(cursor.results()[0].row, 2);
+    for line in ["5", "6", "7"] {
+        core.feed(format!("\x1b]133;A\x07\x1b]133;C\x07{line}\x1b]133;D;0\x07\r\n").as_bytes());
+    }
+    let mut cursor = core.find(FindQuery::literal("needle"));
+    while !cursor.is_complete() {
+        cursor.step(4);
+    }
+    assert_eq!(core.first_stable_row(), 1);
+    assert_eq!(cursor.results()[0].row, 2);
+    assert_eq!(
+        core.snapshot().unwrap().row_text(core.flat_row(2).unwrap()),
+        "needle"
+    );
+}

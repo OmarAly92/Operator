@@ -1,4 +1,8 @@
-use vt_core::GridSnapshot;
+use vt_core::{BlockRecord, Delta, DeltaKind, ExportedRow, GridSnapshot, TerminalCore};
+
+/// The buffers are kept between frames and patched rather than rebuilt, after
+/// Ghostty's `RenderState` (`src/terminal/render.zig:72`).
+pub const COMPACTION_DIVISOR: usize = 4;
 
 /// Words each `BlockRecord` flattens to in the `blocks` buffer.
 ///
@@ -36,6 +40,7 @@ pub struct ExportBuffers {
     cursor_row: u32,
     cursor_col: u32,
     cursor_visible: bool,
+    first_stable_row: u64,
     alt_active: bool,
     alt_rows: u32,
     alt_cols: u32,
@@ -46,6 +51,12 @@ pub struct ExportBuffers {
     alt_row_ranges: Vec<u32>,
     alt_run_ranges: Vec<u32>,
     alt_style_pairs: Vec<u32>,
+    dead_rows: usize,
+    dead_bytes: usize,
+    dead_pairs: usize,
+    history_rows: usize,
+    history_end: usize,
+    history_pairs: usize,
 }
 
 impl ExportBuffers {
@@ -61,16 +72,8 @@ impl ExportBuffers {
         self.cursor_row = snapshot.cursor_row;
         self.cursor_col = snapshot.cursor_col;
         self.cursor_visible = snapshot.cursor_visible;
-        self.alt_active = false;
-        self.alt_rows = 0;
-        self.alt_cols = 0;
-        self.alt_cursor_row = 0;
-        self.alt_cursor_col = 0;
-        self.alt_cursor_visible = false;
-        self.alt_content.clear();
-        self.alt_row_ranges.clear();
-        self.alt_run_ranges.clear();
-        self.alt_style_pairs.clear();
+        self.first_stable_row = snapshot.first_stable_row;
+        self.clear_alt();
 
         checked_u32_from_u64(snapshot.content.len() as u64)?;
         self.content.extend_from_slice(snapshot.content.as_slice());
@@ -115,7 +118,206 @@ impl ExportBuffers {
             }
         }
 
-        for record in &snapshot.blocks {
+        self.write_blocks(&snapshot.blocks, &snapshot.block_text)?;
+
+        self.dead_rows = 0;
+        self.dead_bytes = 0;
+        self.dead_pairs = 0;
+        self.history_rows = snapshot.history_rows as usize;
+        self.history_end = if self.history_rows == 0 {
+            0
+        } else {
+            self.rows[self.history_rows * 2 - 1] as usize
+        };
+        self.history_pairs = if self.history_rows == 0 {
+            0
+        } else {
+            self.run_ranges[self.history_rows * 2 - 1] as usize
+        };
+
+        Ok(())
+    }
+
+    pub fn apply(&mut self, core: &TerminalCore, delta: &Delta) -> Result<(), ExportError> {
+        if delta.kind == DeltaKind::Full {
+            let snapshot = core.snapshot().map_err(|_| ExportError::OffsetOverflow)?;
+            return self.refresh(&snapshot);
+        }
+        self.drop_front(delta.trimmed_rows);
+        self.truncate_screen();
+        match delta.history_rewritten_from {
+            Some(from) => self.rewrite_history_from(core, from)?,
+            None => {
+                for row in core.export_history_rows(delta.appended_history.clone()) {
+                    self.push_row(&row)?;
+                    self.history_rows += 1;
+                }
+            }
+        }
+        self.history_end = self.content.len();
+        self.history_pairs = self.style_pairs.len() / 3;
+        for row in core.export_screen_rows() {
+            self.push_row(&row)?;
+        }
+        let total_rows = self.rows.len() / 2 - self.dead_rows;
+        let live_rows = &self.rows[self.dead_rows * 2..];
+        let (records, text) = core
+            .export_blocks(total_rows, |row| {
+                live_rows[row * 2 + 1] > live_rows[row * 2]
+            })
+            .map_err(|_| ExportError::OffsetOverflow)?;
+        self.write_blocks(&records, &text)?;
+        let (cursor_row, cursor_col, cursor_visible) = core.export_cursor();
+        self.cursor_row = checked_u32_from_u64(cursor_row as u64)?;
+        self.cursor_col = checked_u32_from_u64(cursor_col as u64)?;
+        self.cursor_visible = cursor_visible;
+        self.line_editor_state = core.line_editor_state().wire();
+        self.first_stable_row = core.first_stable_row();
+        self.clear_alt();
+        self.maybe_compact();
+        Ok(())
+    }
+
+    fn drop_front(&mut self, trimmed: usize) {
+        if trimmed == 0 {
+            return;
+        }
+        let trimmed = trimmed.min(self.history_rows);
+        self.dead_rows += trimmed;
+        self.history_rows -= trimmed;
+        let first_live = self.dead_rows * 2;
+        self.dead_bytes = if self.history_rows > 0 {
+            self.rows[first_live] as usize
+        } else {
+            self.history_end
+        };
+        self.dead_pairs = if self.history_rows > 0 {
+            self.run_ranges[first_live] as usize
+        } else {
+            self.history_pairs
+        };
+    }
+
+    fn rewrite_history_from(
+        &mut self,
+        core: &TerminalCore,
+        from: usize,
+    ) -> Result<(), ExportError> {
+        let from = from.min(self.history_rows);
+        let cut_row = self.dead_rows + from;
+        let cut_bytes = if cut_row == 0 {
+            0
+        } else {
+            self.rows[cut_row * 2 - 1] as usize
+        };
+        let cut_pairs = if cut_row == 0 {
+            0
+        } else {
+            self.run_ranges[cut_row * 2 - 1] as usize
+        };
+        self.content.truncate(cut_bytes);
+        self.rows.truncate(cut_row * 2);
+        self.row_indents.truncate(cut_row);
+        self.run_ranges.truncate(cut_row * 2);
+        self.style_pairs.truncate(cut_pairs * 3);
+        self.history_rows = cut_row - self.dead_rows;
+        let core_history_rows = core.history_rows();
+        let from = from.min(core_history_rows);
+        for row in core.export_history_rows(from..core_history_rows) {
+            self.push_row(&row)?;
+            self.history_rows += 1;
+        }
+        Ok(())
+    }
+
+    fn truncate_screen(&mut self) {
+        let keep_rows = self.dead_rows + self.history_rows;
+        self.content.truncate(self.history_end);
+        self.rows.truncate(keep_rows * 2);
+        self.row_indents.truncate(keep_rows);
+        self.run_ranges.truncate(keep_rows * 2);
+        self.style_pairs.truncate(self.history_pairs * 3);
+    }
+
+    fn push_row(&mut self, row: &ExportedRow) -> Result<(), ExportError> {
+        let content_base = checked_u32_from_u64(self.content.len() as u64)?;
+        let content_end = checked_u32_from_u64((self.content.len() + row.bytes.len()) as u64)?;
+        self.content.extend_from_slice(&row.bytes);
+        self.rows.push(content_base);
+        self.rows.push(content_end);
+        self.row_indents.push(row.indent);
+        let pair_start = checked_u32_from_u64((self.style_pairs.len() / 3) as u64)?;
+        for &(end, style) in &row.styles {
+            self.style_pairs.push(end);
+            self.style_pairs.push(style.fg.value());
+            self.style_pairs.push(style.bg.value());
+        }
+        let pair_end = checked_u32_from_u64((self.style_pairs.len() / 3) as u64)?;
+        self.run_ranges.push(pair_start);
+        self.run_ranges.push(pair_end);
+        Ok(())
+    }
+
+    fn clear_alt(&mut self) {
+        self.alt_active = false;
+        self.alt_rows = 0;
+        self.alt_cols = 0;
+        self.alt_cursor_row = 0;
+        self.alt_cursor_col = 0;
+        self.alt_cursor_visible = false;
+        self.alt_content.clear();
+        self.alt_row_ranges.clear();
+        self.alt_run_ranges.clear();
+        self.alt_style_pairs.clear();
+    }
+
+    fn maybe_compact(&mut self) {
+        let live_rows = self.rows.len() / 2 - self.dead_rows;
+        let live_bytes = self.content.len() - self.dead_bytes;
+        if self.dead_rows * COMPACTION_DIVISOR > live_rows.max(1)
+            || self.dead_bytes * COMPACTION_DIVISOR > live_bytes.max(1)
+        {
+            self.compact();
+        }
+    }
+
+    pub fn compact(&mut self) {
+        if self.dead_rows == 0 && self.dead_bytes == 0 {
+            return;
+        }
+        let dead_bytes = self.dead_bytes as u32;
+        let dead_pairs = self.dead_pairs as u32;
+        self.content.drain(..self.dead_bytes);
+        self.rows.drain(..self.dead_rows * 2);
+        for offset in &mut self.rows {
+            *offset -= dead_bytes;
+        }
+        self.row_indents.drain(..self.dead_rows);
+        self.run_ranges.drain(..self.dead_rows * 2);
+        for index in &mut self.run_ranges {
+            *index -= dead_pairs;
+        }
+        self.style_pairs.drain(..self.dead_pairs * 3);
+        self.history_end -= self.dead_bytes;
+        self.history_pairs -= self.dead_pairs;
+        self.dead_rows = 0;
+        self.dead_bytes = 0;
+        self.dead_pairs = 0;
+    }
+
+    pub fn dead_rows(&self) -> usize {
+        self.dead_rows
+    }
+
+    pub fn history_rows(&self) -> usize {
+        self.history_rows
+    }
+
+    fn write_blocks(&mut self, records: &[BlockRecord], text: &[u8]) -> Result<(), ExportError> {
+        self.blocks.clear();
+        self.block_text.clear();
+
+        for record in records {
             let before = self.blocks.len();
 
             self.blocks.push(record.id as u32);
@@ -152,9 +354,8 @@ impl ExportBuffers {
             debug_assert_eq!(self.blocks.len() - before, BLOCK_RECORD_WORDS);
         }
 
-        checked_u32_from_u64(snapshot.block_text.len() as u64)?;
-        self.block_text
-            .extend_from_slice(snapshot.block_text.as_slice());
+        checked_u32_from_u64(text.len() as u64)?;
+        self.block_text.extend_from_slice(text);
 
         Ok(())
     }
@@ -164,15 +365,15 @@ impl ExportBuffers {
     }
 
     pub fn rows(&self) -> &[u32] {
-        &self.rows
+        &self.rows[self.dead_rows * 2..]
     }
 
     pub fn row_indents(&self) -> &[u16] {
-        &self.row_indents
+        &self.row_indents[self.dead_rows..]
     }
 
     pub fn run_ranges(&self) -> &[u32] {
-        &self.run_ranges
+        &self.run_ranges[self.dead_rows * 2..]
     }
 
     pub fn style_pairs(&self) -> &[u32] {
@@ -201,6 +402,10 @@ impl ExportBuffers {
 
     pub fn cursor_visible(&self) -> bool {
         self.cursor_visible
+    }
+
+    pub fn first_stable_row(&self) -> u64 {
+        self.first_stable_row
     }
 
     pub fn alt_active(&self) -> bool {

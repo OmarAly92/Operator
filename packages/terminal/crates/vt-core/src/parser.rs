@@ -2,12 +2,28 @@ use vte::{Params, Perform};
 
 use crate::alt::AltGrid;
 use crate::attribute_map::AttributeMap;
-use crate::block::{BlockSource, BlockState};
+use crate::block::{Block, BlockMeta, BlockSource, BlockState};
 use crate::block_grid::BlockGrid;
 use crate::content::Content;
-use crate::row_index::RowIndex;
+use crate::delta::{Delta, DeltaKind};
+use crate::limits::Limits;
+use crate::row_index::{RowIndex, RowRange};
 use crate::screen::{ClearPolicy, ScreenGrid};
 use crate::style::{CellStyle, StyleCode};
+
+pub struct HistoryRow {
+    pub bytes: Vec<u8>,
+    pub wrapped: bool,
+    pub indent: u16,
+    pub styles: Vec<(u32, CellStyle)>,
+}
+
+pub struct HistoryBlock {
+    pub first_row: usize,
+    pub row_count: usize,
+    pub command: String,
+    pub exit_code: Option<i32>,
+}
 
 const MAX_QUERY_REPLY_BYTES: usize = 4096;
 
@@ -29,19 +45,27 @@ pub(crate) struct Parser {
     rewrap_pending: bool,
     query_replies: Option<Vec<u8>>,
     terminal_identity: String,
+    trimmed_total: u64,
+    generation: u64,
+    history_exported_rows: usize,
+    pending_full: bool,
+    pending_trimmed: usize,
+    pending_remap: Option<Vec<(u64, u64)>>,
+    pending_rewritten_from: Option<usize>,
+    last_width: usize,
     #[cfg(feature = "trace")]
     pub(crate) trace: crate::trace::Trace,
 }
 
 impl Parser {
-    pub fn new(width: usize, _scrollback_rows: usize) -> Self {
+    pub fn new(width: usize) -> Self {
         let mut screen = ScreenGrid::new(24, width);
         screen.set_records_eviction(true);
         Self {
             width,
-            content: Content::new(),
-            rows: RowIndex::new(0),
-            styles: AttributeMap::new(CellStyle::DEFAULT),
+            content: Content::with_base(crate::content::CONTENT_BASE),
+            rows: RowIndex::new(crate::content::CONTENT_BASE),
+            styles: AttributeMap::with_base(CellStyle::DEFAULT, crate::content::CONTENT_BASE),
             pending_style: CellStyle::DEFAULT,
             grid: BlockGrid::new(),
             screen,
@@ -55,6 +79,14 @@ impl Parser {
             rewrap_pending: false,
             query_replies: None,
             terminal_identity: String::new(),
+            trimmed_total: 0,
+            generation: 0,
+            history_exported_rows: 0,
+            pending_full: true,
+            pending_trimmed: 0,
+            pending_remap: None,
+            pending_rewritten_from: None,
+            last_width: width,
             #[cfg(feature = "trace")]
             trace: Default::default(),
         }
@@ -70,6 +102,95 @@ impl Parser {
 
     pub fn styles(&self) -> &AttributeMap<CellStyle> {
         &self.styles
+    }
+
+    /// The stable id of flat row 0 — the number of rows trimmed off the
+    /// front so far (wezterm/term/src/screen.rs:30 `stable_row_index_offset`).
+    pub fn first_stable_row(&self) -> u64 {
+        self.trimmed_total
+    }
+
+    pub(crate) fn trimmed_total(&self) -> u64 {
+        self.trimmed_total
+    }
+
+    pub(crate) fn note_mutation(&mut self) {
+        self.generation = self.generation.wrapping_add(1);
+    }
+
+    pub fn generation(&self) -> u64 {
+        self.generation
+    }
+
+    pub(crate) fn history_exported_rows(&self) -> usize {
+        self.history_exported_rows
+    }
+
+    fn mark_full(&mut self) {
+        self.pending_full = true;
+    }
+
+    fn note_remap(&mut self, map: &[usize]) {
+        let Some((_, old_rows)) = map.split_last() else {
+            return;
+        };
+        let origin = self.trimmed_total;
+        let pairs: Vec<(u64, u64)> = old_rows
+            .iter()
+            .enumerate()
+            .map(|(old, &new)| (old as u64 + origin, new as u64 + origin))
+            .collect();
+        self.pending_remap = Some(match self.pending_remap.take() {
+            None => pairs,
+            Some(previous) => previous
+                .into_iter()
+                .map(|(first, mid)| {
+                    let last = mid
+                        .checked_sub(origin)
+                        .and_then(|index| old_rows.get(index as usize))
+                        .map_or(mid, |&new| new as u64 + origin);
+                    (first, last)
+                })
+                .collect(),
+        });
+    }
+
+    pub fn take_delta(&mut self) -> Delta {
+        let completed = self.rows.completed().len();
+        let full = std::mem::take(&mut self.pending_full) || self.alt.is_some();
+        let screen_rows = if full {
+            self.screen.take_dirty();
+            (0..self.screen.content_rows()).collect()
+        } else {
+            self.screen.take_dirty()
+        };
+        let delta = Delta {
+            generation: self.generation,
+            kind: if full {
+                DeltaKind::Full
+            } else {
+                DeltaKind::Partial
+            },
+            trimmed_rows: std::mem::take(&mut self.pending_trimmed),
+            appended_history: self.history_exported_rows.min(completed)..completed,
+            screen_rows,
+            remap: self.pending_remap.take(),
+            history_rewritten_from: self.pending_rewritten_from.take(),
+        };
+        self.history_exported_rows = completed;
+        delta
+    }
+
+    pub fn stable_row(&self, flat: usize) -> u64 {
+        flat as u64 + self.trimmed_total
+    }
+
+    /// The flat index of a stable row, or `None` once that row has been
+    /// trimmed away (wezterm/term/src/screen.rs:523-535).
+    pub fn flat_row(&self, stable: u64) -> Option<usize> {
+        stable
+            .checked_sub(self.trimmed_total)
+            .map(|flat| flat as usize)
     }
 
     pub fn grid(&self) -> &BlockGrid {
@@ -99,6 +220,7 @@ impl Parser {
     }
 
     pub(crate) fn process_boundary(&mut self, exit_code: Option<i32>) {
+        self.mark_full();
         if self.alt.is_some() {
             self.leave_alt();
         }
@@ -168,6 +290,7 @@ impl Parser {
         if self.alt.is_some() {
             return;
         }
+        self.mark_full();
         self.commit_evicted();
         let mut alt = ScreenGrid::new(rows, self.width);
         alt.set_records_eviction(false);
@@ -179,6 +302,7 @@ impl Parser {
     }
 
     pub fn leave_alt(&mut self) {
+        self.mark_full();
         self.alt = None;
         self.pending_style = self.saved_style;
         self.sync_erase_background();
@@ -329,9 +453,11 @@ impl Parser {
     }
 
     pub fn resize(&mut self, columns: usize, rows: usize) {
+        self.mark_full();
         if columns != self.width {
             self.rewrap_pending = true;
         }
+        self.last_width = self.width;
         self.width = columns;
         if self.alt.is_some() {
             self.screen.resize_without_reflow(rows, columns);
@@ -361,8 +487,27 @@ impl Parser {
             self.grid.note_row_completed();
         }
         if std::mem::take(&mut self.rewrap_pending) {
-            let map = self.rows.rewrap(&self.content, self.width);
+            let cut_at = std::mem::replace(&mut self.last_width, self.width);
+            let map = self.rows.rewrap_hot(&self.content, self.width, cut_at);
             self.grid.remap_rows(&map);
+            self.note_remap(&map);
+            self.history_exported_rows = self
+                .history_exported_rows
+                .min(self.rows.completed().len())
+                .min(
+                    self.rows
+                        .completed()
+                        .len()
+                        .saturating_sub(crate::row_index::HOT_ROWS),
+                );
+            self.pending_rewritten_from = Some(
+                self.pending_rewritten_from.unwrap_or(usize::MAX).min(
+                    self.rows
+                        .completed()
+                        .len()
+                        .saturating_sub(crate::row_index::HOT_ROWS),
+                ),
+            );
         }
         self.grid
             .sync_next_row(self.rows.completed().len() + self.screen.content_rows());
@@ -381,17 +526,127 @@ impl Parser {
         self.rows.completed().len() + (cursor_row + visible_cursor_row).min(screen_rows)
     }
 
-    pub fn trim_to(&mut self, max_total: usize) {
+    pub fn adopt_origin(&mut self, origin: u64) -> bool {
+        if self.trimmed_total != 0
+            || !self.rows.completed().is_empty()
+            || self.screen.frame_rows() != 0
+        {
+            return false;
+        }
+        self.trimmed_total = origin;
+        self.grid.advance_origin(origin as usize);
+        self.note_mutation();
+        true
+    }
+
+    pub fn apply_history_chunk(
+        &mut self,
+        first_stable_row: u64,
+        rows: Vec<HistoryRow>,
+        blocks: Vec<HistoryBlock>,
+    ) -> bool {
+        if rows.is_empty() || first_stable_row + rows.len() as u64 != self.trimmed_total {
+            return false;
+        }
+        let mut bytes = Vec::new();
+        let mut lengths = Vec::with_capacity(rows.len());
+        for row in &rows {
+            bytes.extend_from_slice(&row.bytes);
+            lengths.push(row.bytes.len() as u64);
+        }
+        let base = self.content.prepend(&bytes);
+        let mut runs: Vec<(u64, CellStyle)> = Vec::new();
+        let mut ranges = Vec::with_capacity(rows.len());
+        let mut cursor = base;
+        for (row, length) in rows.iter().zip(lengths) {
+            for (end, style) in &row.styles {
+                runs.push((cursor + u64::from(*end), *style));
+            }
+            ranges.push(RowRange {
+                start: cursor,
+                end: cursor + length,
+                wrapped: row.wrapped && length > 0,
+                indent: row.indent,
+            });
+            cursor += length;
+        }
+        self.styles.prepend_runs(&runs);
+        let count = ranges.len();
+        self.rows.prepend(ranges);
+        self.trimmed_total = first_stable_row;
+        self.grid.retreat_origin(count);
+        let history_blocks: Vec<Block> = blocks
+            .into_iter()
+            .map(|block| self.history_block(first_stable_row, block))
+            .collect();
+        self.grid.prepend_blocks(history_blocks);
+        self.history_exported_rows = 0;
+        self.mark_full();
+        self.note_mutation();
+        true
+    }
+
+    fn history_block(&mut self, first_stable_row: u64, block: HistoryBlock) -> Block {
+        let id = self.grid.next_id();
+        self.grid.reserve_id();
+        let meta = BlockMeta {
+            command: block.command,
+            ..BlockMeta::default()
+        };
+        Block {
+            id,
+            first_row: (first_stable_row as usize) + block.first_row,
+            row_count: block.row_count,
+            state: BlockState::Finished,
+            source: BlockSource::Extension,
+            meta,
+        }
+    }
+
+    pub fn trim_to(&mut self, limits: Limits) -> usize {
         let before = self.rows.completed().len();
-        if let Some(new_start) = self.rows.trim_to(max_total) {
+        loop {
+            let completed = self.rows.completed().len();
+            let over_rows = completed + 1 > limits.rows;
+            let over_bytes = self.content.resident_bytes() + self.styles.byte_len() > limits.bytes;
+            if completed == 0 || !(over_rows || over_bytes) {
+                break;
+            }
+            let keep = if over_rows { limits.rows } else { completed };
+            let Some(new_start) = self.rows.trim_to(keep) else {
+                break;
+            };
             self.content.drop_before(new_start);
             self.styles.drop_before(new_start);
-            // Every row the row-index dropped off the front shifts the
-            // grid's `first_row` by one. Pass the delta so the block
-            // indices and the byte release can never disagree.
-            let dropped = before - self.rows.completed().len();
-            self.grid.trim_to_first_row(dropped);
         }
+        let dropped = before - self.rows.completed().len();
+        if dropped > 0 {
+            let exported_dropped = dropped.min(self.history_exported_rows);
+            self.history_exported_rows -= exported_dropped;
+            self.pending_trimmed += exported_dropped;
+            self.trimmed_total += dropped as u64;
+            self.grid.advance_origin(dropped);
+        }
+        dropped
+    }
+
+    pub fn touch_rows(&mut self, range: std::ops::Range<usize>) {
+        let Some((map, lowest)) = self.rows.rows_for(&self.content, self.width, range) else {
+            return;
+        };
+        self.grid.remap_rows(&map);
+        self.note_remap(&map);
+        self.history_exported_rows = self.history_exported_rows.min(lowest);
+        self.pending_rewritten_from = Some(
+            self.pending_rewritten_from
+                .unwrap_or(usize::MAX)
+                .min(lowest),
+        );
+        self.note_mutation();
+    }
+
+    pub fn stale_row_count(&self) -> usize {
+        self.rows.stale_runs().iter().map(|run| run.len).sum()
     }
 
     fn apply_sgr(&mut self, params: &Params) {
@@ -471,7 +726,10 @@ impl Parser {
 /// follow, and consuming them is what stops `48;5;31` from being read as SGR 31
 /// and repainting the foreground. A truncated or unrecognised selector consumes
 /// only the introducer, so parsing always advances.
-fn read_extended_colour(groups: &[Vec<u16>], index: usize) -> (Option<StyleCode>, usize) {
+pub(crate) fn read_extended_colour(
+    groups: &[Vec<u16>],
+    index: usize,
+) -> (Option<StyleCode>, usize) {
     let group = &groups[index];
     if group.len() > 1 {
         return (colour_from_subparameters(group), 1);
@@ -626,7 +884,7 @@ mod tests {
 
     #[test]
     fn mouse_tracking_level_distinguishes_the_three_modes() {
-        let mut p = Parser::new(80, 100);
+        let mut p = Parser::new(80);
         let mut vte = VteParser::new();
         assert_eq!(p.mouse_tracking_level(), 0);
         vte.advance(&mut p, b"\x1b[?1000h");
@@ -646,12 +904,35 @@ mod tests {
 
     #[test]
     fn focus_reporting_mode_is_tracked() {
-        let mut p = Parser::new(80, 100);
+        let mut p = Parser::new(80);
         let mut vte = VteParser::new();
         assert!(!p.focus_reporting());
         vte.advance(&mut p, b"\x1b[?1004h");
         assert!(p.focus_reporting());
         vte.advance(&mut p, b"\x1b[?1004l");
         assert!(!p.focus_reporting());
+    }
+
+    #[test]
+    fn apply_history_chunk_prepends_rows_below_the_adopted_origin() {
+        let mut p = Parser::new(20);
+        assert!(p.adopt_origin(2));
+        let rows = vec![
+            HistoryRow {
+                bytes: b"a\r\n".to_vec(),
+                wrapped: false,
+                indent: 0,
+                styles: Vec::new(),
+            },
+            HistoryRow {
+                bytes: b"b\r\n".to_vec(),
+                wrapped: false,
+                indent: 0,
+                styles: Vec::new(),
+            },
+        ];
+        assert!(p.apply_history_chunk(0, rows, Vec::new()));
+        assert_eq!(p.trimmed_total(), 0);
+        assert_eq!(p.rows().completed().len(), 2);
     }
 }

@@ -874,3 +874,90 @@ func TestGridIgnoresAPrimaryThatHasReportedNoSize(t *testing.T) {
 		t.Fatalf("grid = %dx%d, want 100x40 — a sizeless primary cannot claim the grid", cols, rows)
 	}
 }
+
+// An ack from the client reaches the attach Stream, which is what lets the
+// pty-host throttle the child (xterm.js write(data, cb) flow control,
+// xterm.js/src/common/services/CoreService.ts).
+func TestTerminalAckReachesTheStream(t *testing.T) {
+	pty := newFlowControlledFakePTY()
+	src := &fakeSource{alive: true, attachFn: func(ctx context.Context, rows, cols uint16) (ports.Stream, error) {
+		return pty, nil
+	}}
+	mgr := NewManager(src, nil, testLogger(), WithHeartbeat(0))
+	defer mgr.Close()
+
+	conn := newFakeConn()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go mgr.Serve(ctx, conn)
+
+	conn.in <- clientMsg{Ch: chTerminal, ID: "pane-1", Type: msgOpen}
+	recv(t, conn, chTerminal, msgOpened, time.Second)
+
+	conn.in <- clientMsg{Ch: chTerminal, ID: "pane-1", Type: msgAck, Bytes: 5000}
+
+	eventually(t, time.Second, func() bool { return pty.ackedBytes() == 5000 })
+}
+
+// The desktop declares that it can read history chunks; the daemon forwards
+// that to the runtime, which is what makes the pty-host stream scrollback.
+func TestTerminalOpenForwardsTheHistoryOptIn(t *testing.T) {
+	src := &fakeSource{alive: true, spawner: &fakeSpawner{}}
+	mgr := NewManager(src, nil, testLogger(), WithHeartbeat(0))
+	defer mgr.Close()
+
+	conn := newFakeConn()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go mgr.Serve(ctx, conn)
+
+	conn.in <- clientMsg{Ch: chTerminal, ID: "pane-3", Type: msgOpen, Rows: 24, Cols: 80, History: true}
+	recv(t, conn, chTerminal, msgOpened, time.Second)
+
+	eventually(t, time.Second, func() bool { return src.historyAttaches() == 1 })
+	if src.plainAttaches() != 0 {
+		t.Fatalf("expected plain Attach not to be called, got %d", src.plainAttaches())
+	}
+}
+
+// A client that omits the flag gets today's attach.
+func TestTerminalOpenWithoutHistoryAttachesPlainly(t *testing.T) {
+	src := &fakeSource{alive: true, spawner: &fakeSpawner{}}
+	mgr := NewManager(src, nil, testLogger(), WithHeartbeat(0))
+	defer mgr.Close()
+
+	conn := newFakeConn()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go mgr.Serve(ctx, conn)
+
+	conn.in <- clientMsg{Ch: chTerminal, ID: "pane-4", Type: msgOpen, Rows: 24, Cols: 80}
+	recv(t, conn, chTerminal, msgOpened, time.Second)
+
+	eventually(t, time.Second, func() bool { return src.plainAttaches() == 1 })
+	if src.historyAttaches() != 0 {
+		t.Fatalf("expected AttachWithHistory not to be called, got %d", src.historyAttaches())
+	}
+}
+
+// A Stream that does not implement FlowControlled must not break: the ack is
+// dropped, not an error.
+func TestTerminalAckOnAStreamWithoutFlowControlIsIgnored(t *testing.T) {
+	pty := newFakePTY()
+	src := &fakeSource{alive: true, spawner: &fakeSpawner{ptys: []*fakePTY{pty}}}
+	mgr := NewManager(src, nil, testLogger(), WithHeartbeat(0))
+	defer mgr.Close()
+
+	conn := newFakeConn()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go mgr.Serve(ctx, conn)
+
+	conn.in <- clientMsg{Ch: chTerminal, ID: "pane-2", Type: msgOpen}
+	recv(t, conn, chTerminal, msgOpened, time.Second)
+
+	conn.in <- clientMsg{Ch: chTerminal, ID: "pane-2", Type: msgAck, Bytes: 5000}
+	conn.in <- clientMsg{Ch: chTerminal, ID: "pane-2", Type: msgData, Data: base64.StdEncoding.EncodeToString([]byte("x"))}
+
+	eventually(t, time.Second, func() bool { return string(pty.writtenBytes()) == "x" })
+}

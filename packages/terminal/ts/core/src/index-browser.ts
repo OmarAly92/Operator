@@ -12,16 +12,21 @@ export type {
 	BootstrapOptions,
 	ChangeListener,
 	DirEntry,
+	DirtyRows,
 	FindMatch,
 	FontConfig,
 	HostCapabilities,
 	HistoryStore,
 	LineEditorState,
+	MemoryStats,
 	PaletteCommand,
+	RowEvent,
+	RowEventListener,
 	RowRange,
 	ShellKind,
 	SpawnRecipe,
 	TerminalCoreOptions,
+	TerminalLimits,
 	TerminalSnapshot,
 	TerminalStrings,
 	TerminalTheme,
@@ -42,7 +47,12 @@ export {
 	STYLE_DEFAULT_FOREGROUND,
 	STYLE_RUN_WORDS,
 } from "./style-runs.js";
-export { FEED_BUDGET_MS, FEED_SLICE_BYTES, FIND_STEP_BUDGET } from "./terminal-core.js";
+export {
+	FEED_BUDGET_MS,
+	FEED_SLICE_BYTES,
+	FIND_STEP_BUDGET,
+	UNBOUNDED_BYTES,
+} from "./terminal-core.js";
 export { TerminalCore };
 
 export async function initTerminalCore(wasmBytes: WasmInput): Promise<void> {

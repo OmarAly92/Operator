@@ -23,12 +23,15 @@ const session: WorkspaceSession = {
 type FakeMux = {
 	mux: TerminalMux;
 	opens: Array<[string, number, number]>;
+	historyOpens: boolean[];
 	resizes: Array<[string, number, number]>;
 	inputs: Array<[string, string]>;
 	closes: string[];
+	acks: number[];
 	events: string[];
 	disposed: boolean;
 	emitData(id: string, text: string): void;
+	emitBytes(id: string, bytes: Uint8Array): void;
 	emitOpened(id: string): void;
 	emitExit(id: string): void;
 	emitError(id: string, message: string): void;
@@ -51,19 +54,25 @@ function createFakeMux(): FakeMux {
 
 	const fake: FakeMux = {
 		opens: [],
+		historyOpens: [],
 		resizes: [],
 		inputs: [],
 		closes: [],
+		acks: [],
 		events: [],
 		disposed: false,
 		mux: {
-			open: (id, cols, rows) => fake.opens.push([id, cols, rows]),
+			open: (id, cols, rows, history) => {
+				fake.opens.push([id, cols, rows]);
+				fake.historyOpens.push(history === true);
+			},
 			sendInput: (id, input) => fake.inputs.push([id, input]),
 			resize: (id, cols, rows) => fake.resizes.push([id, cols, rows]),
 			close: (id) => {
 				fake.closes.push(id);
 				fake.events.push(`close:${id}`);
 			},
+			ack: (_id, bytes) => fake.acks.push(bytes),
 			onData: (id, listener) => subscribe(data, id, listener),
 			onExit: (id, listener) => subscribe(exit, id, listener),
 			onOpened: (id, listener) => subscribe(opened, id, listener),
@@ -81,6 +90,7 @@ function createFakeMux(): FakeMux {
 			},
 		},
 		emitData: (id, text) => data.get(id)?.forEach((listener) => listener(new TextEncoder().encode(text))),
+		emitBytes: (id, bytes) => data.get(id)?.forEach((listener) => listener(bytes)),
 		emitOpened: (id) => opened.get(id)?.forEach((listener) => listener()),
 		emitExit: (id) => exit.get(id)?.forEach((listener) => listener()),
 		emitError: (id, message) => error.get(id)?.forEach((listener) => listener(message)),
@@ -230,6 +240,20 @@ describe("useTerminalSession", () => {
 		expect(muxes[0].opens).toEqual([["handle-1", 80, 24]]);
 		act(() => muxes[0].emitOpened("handle-1"));
 		expect(view.result.current.state).toBe("attached");
+	});
+
+	it("acks the transport every 5,000 bytes", () => {
+		const { muxes } = setup();
+		act(() => muxes[0].emitOpened("handle-1"));
+		const chunk = new Uint8Array(2_000);
+		act(() => muxes[0].emitBytes("handle-1", chunk));
+		expect(muxes[0].acks).toEqual([]);
+		act(() => muxes[0].emitBytes("handle-1", chunk));
+		act(() => muxes[0].emitBytes("handle-1", chunk));
+		expect(muxes[0].acks).toEqual([6_000]);
+		act(() => muxes[0].emitBytes("handle-1", chunk));
+		act(() => muxes[0].emitBytes("handle-1", chunk));
+		expect(muxes[0].acks).toEqual([6_000, 10_000]);
 	});
 
 	it("stays idle when the session has no terminal handle", () => {
@@ -909,6 +933,36 @@ describe("useTerminalSession", () => {
 			expect(transportBytes.join("")).toBe("fresh");
 			expect(view.result.current.replaySettled).toBe(true);
 		});
+
+		it("paints at READY", () => {
+			const { view, muxes } = setup();
+			act(() => muxes[0].emitOpened("handle-1"));
+			act(() => muxes[0].emitData("handle-1", "frame row\r\n"));
+			act(() => void vi.advanceTimersByTime(30));
+			expect(view.result.current.replaySettled).toBe(false);
+			act(() => view.result.current.onReplayReady());
+			expect(view.result.current.replaySettled).toBe(true);
+		});
+
+		it("keeps feeding the core while history streams behind the lifted cover", () => {
+			const { view, transportBytes, muxes } = setup();
+			act(() => muxes[0].emitOpened("handle-1"));
+			act(() => muxes[0].emitData("handle-1", "frame\r\n"));
+			act(() => view.result.current.onReplayReady());
+			expect(view.result.current.replaySettled).toBe(true);
+			const before = transportBytes.length;
+			act(() => muxes[0].emitData("handle-1", "old\r\n"));
+			expect(transportBytes.length).toBeGreaterThan(before);
+			expect(view.result.current.replaySettled).toBe(true);
+		});
+
+		it("still lifts the cover for a host that never sends READY", () => {
+			const { view, muxes } = setup();
+			act(() => muxes[0].emitOpened("handle-1"));
+			act(() => muxes[0].emitData("handle-1", "frame row\r\n"));
+			act(() => void vi.advanceTimersByTime(60 + 180));
+			expect(view.result.current.replaySettled).toBe(true);
+		});
 	});
 
 	describe("history-before-live barrier", () => {
@@ -1085,6 +1139,17 @@ describe("useTerminalSession", () => {
 		expect(muxes[1].opens).toEqual([["handle-1", 80, 24]]);
 		act(() => muxes[1].emitOpened("handle-1"));
 		expect(view.result.current.state).toBe("attached");
+	});
+
+	it("asks for history on the first open of a core and never on a reconnect", () => {
+		const { muxes } = setup();
+		act(() => muxes[0].emitOpened("handle-1"));
+		expect(muxes[0].historyOpens).toEqual([true]);
+
+		act(() => muxes[0].emitConnection("closed"));
+		act(() => void vi.advanceTimersByTime(500));
+		expect(muxes).toHaveLength(2);
+		expect(muxes[1].historyOpens).toEqual([false]);
 	});
 
 	it("opens at the surface geometry rather than the unfitted xterm default", () => {

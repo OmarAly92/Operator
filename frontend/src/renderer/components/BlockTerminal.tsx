@@ -60,10 +60,11 @@ export type BlockTerminalProps = {
 	 * to the attachment's own first-byte grace.
 	 */
 	onReplayPainted?: () => void;
+	onReplayReady?: () => void; // fired once, on the first change where replayReady() is true
 };
 
 const DEFAULT_COLUMNS = 120;
-const DEFAULT_SCROLLBACK = 5000;
+const DEFAULT_LIMITS = { rows: 200_000, bytes: 128 * 1024 * 1024 } as const;
 const SOURCE_ID_MARKER = new TextEncoder().encode("\x1b]7000;v=1;id=");
 const BEL = 0x07;
 
@@ -164,6 +165,7 @@ export function BlockTerminal({
 	refitToken,
 	focusToken,
 	onReplayPainted,
+	onReplayReady,
 }: BlockTerminalProps) {
 	const { t } = useTranslation();
 	const coreRef = useRef<TerminalCore | null>(null);
@@ -196,6 +198,9 @@ export function BlockTerminal({
 	const onReplayPaintedRef = useRef(onReplayPainted);
 	onReplayPaintedRef.current = onReplayPainted;
 	const replayPaintedReportedRef = useRef(false);
+	const onReplayReadyRef = useRef(onReplayReady);
+	onReplayReadyRef.current = onReplayReady;
+	const replayReadyFiredRef = useRef(false);
 	// Announced from a frame callback, not inline: the flush above only feeds
 	// the core. TerminalSurface renders from its own subscription to that core,
 	// so the frame carrying those rows is the next one, and reporting before it
@@ -287,7 +292,7 @@ export function BlockTerminal({
 				}
 				created = createTerminalCore({
 					columns: DEFAULT_COLUMNS,
-					scrollback: DEFAULT_SCROLLBACK,
+					limits: DEFAULT_LIMITS,
 				});
 				created.setAgentTuiMode(agentTuiRef.current);
 				coreRef.current = created;
@@ -321,6 +326,7 @@ export function BlockTerminal({
 			pendingBytesRef.current = [];
 			gridSizedRef.current = false;
 			replayPaintedReportedRef.current = false;
+			replayReadyFiredRef.current = false;
 			historyIdsRef.current = new Set();
 			setCore(null);
 		};
@@ -340,6 +346,15 @@ export function BlockTerminal({
 		const read = () => setAltScreenActive(core.snapshot().altScreen !== null);
 		read();
 		return core.onChange(read);
+	}, [core]);
+
+	useEffect(() => {
+		if (!core) return;
+		return core.onChange(() => {
+			if (replayReadyFiredRef.current || !core.replayReady()) return;
+			replayReadyFiredRef.current = true;
+			onReplayReadyRef.current?.();
+		});
 	}, [core]);
 
 	useEffect(() => {

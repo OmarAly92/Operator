@@ -60,7 +60,7 @@ func (h *host) handleRespawn(conn net.Conn, payload []byte) {
 	if cols == 0 || rows == 0 {
 		cols, rows = h.cfg.InitialCols, h.cfg.InitialRows
 	}
-	newParser, err := vtwasm.New(h.ctx, vtwasm.Module, uint32(cols), uint32(rows), MaxOutputLines)
+	newParser, err := vtwasm.New(h.ctx, vtwasm.Module, uint32(cols), uint32(rows), mirrorLimits)
 	if err != nil {
 		newParser = nil
 	}
@@ -81,7 +81,7 @@ func (h *host) handleRespawn(conn net.Conn, payload []byte) {
 	h.pty = pty
 	h.parser = newParser
 	h.curCols, h.curRows = 0, 0
-	h.applyLargestLocked()
+	h.applyLargestLocked(nil)
 	h.pumpDone = make(chan struct{})
 	h.mu.Unlock()
 

@@ -19,6 +19,7 @@ import {
 
 const {
 	attachMock,
+	onReplayReadyMock,
 	getMock,
 	postMock,
 	prepareForActivationMock,
@@ -31,6 +32,7 @@ const {
 } = vi.hoisted(
 	() => ({
 		attachMock: vi.fn(() => vi.fn()),
+		onReplayReadyMock: vi.fn(),
 		getMock: vi.fn(
 			async (_path: string, _options?: unknown): Promise<{ data?: unknown; error?: unknown }> => ({
 				data: undefined,
@@ -58,10 +60,17 @@ vi.mock("../lib/api-client", () => ({
 }));
 
 const blockReplayPainted: { value: (() => void) | undefined } = { value: undefined };
+const blockReplayReady: { value: (() => void) | undefined } = { value: undefined };
 
 vi.mock("./BlockTerminal", () => ({
-	BlockTerminal: (props: { ariaLabel?: string; onReplayPainted?: () => void; focusToken?: number }) => {
+	BlockTerminal: (props: {
+		ariaLabel?: string;
+		onReplayPainted?: () => void;
+		onReplayReady?: () => void;
+		focusToken?: number;
+	}) => {
 		blockReplayPainted.value = props.onReplayPainted;
+		blockReplayReady.value = props.onReplayReady;
 		return (
 			<div
 				aria-label={props.ariaLabel}
@@ -119,6 +128,7 @@ vi.mock("../hooks/useTerminalSession", () => ({
 				resize: vi.fn(),
 				dispose: vi.fn(),
 			},
+			onReplayReady: onReplayReadyMock,
 		};
 	},
 }));
@@ -153,6 +163,7 @@ beforeEach(() => {
 	replaySettled.value = true;
 	terminalSessionOptions.length = 0;
 	attachMock.mockClear();
+	onReplayReadyMock.mockClear();
 	prepareForActivationMock.mockReset();
 	prepareForActivationMock.mockResolvedValue(undefined);
 	attachmentMounts.value = 0;
@@ -410,6 +421,23 @@ describe("TerminalPane replay cover", () => {
 				blockReplayPainted.value?.();
 			});
 			expect(screen.queryByTestId("terminal-replay-cover")).not.toBeInTheDocument();
+		} finally {
+			view.restore();
+		}
+	});
+
+	// Regression guard for the wiring gap where useTerminalSession's onReplayReady
+	// was never threaded through to BlockTerminal, leaving the core's parsed-READY
+	// signal unreachable from the real component tree.
+	it("wires the hook's onReplayReady through to BlockTerminal", () => {
+		replaySettled.value = false;
+		const view = renderPane({ ...worker, terminalHandleId: "term-1" });
+		try {
+			expect(onReplayReadyMock).not.toHaveBeenCalled();
+			act(() => {
+				blockReplayReady.value?.();
+			});
+			expect(onReplayReadyMock).toHaveBeenCalledTimes(1);
 		} finally {
 			view.restore();
 		}

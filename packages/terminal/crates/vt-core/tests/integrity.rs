@@ -19,6 +19,10 @@ enum Op {
     OutputStart,
     CommandEnd(u8),
     Boundary,
+    TakeDelta,
+    Narrow,
+    Widen,
+    Touch(u8),
 }
 
 fn op() -> impl Strategy<Value = Op> {
@@ -37,6 +41,10 @@ fn op() -> impl Strategy<Value = Op> {
         1 => Just(Op::OutputStart),
         1 => (0u8..=2).prop_map(Op::CommandEnd),
         1 => Just(Op::Boundary),
+        1 => Just(Op::TakeDelta),
+        1 => Just(Op::Narrow),
+        1 => Just(Op::Widen),
+        1 => (0u8..=200).prop_map(Op::Touch),
     ]
 }
 
@@ -56,6 +64,15 @@ fn apply(core: &mut TerminalCore, op: &Op) {
         Op::OutputStart => core.feed(b"\x1b]133;C\x07"),
         Op::CommandEnd(n) => core.feed(format!("\x1b]133;D;{n}\x07").as_bytes()),
         Op::Boundary => core.feed(b"\x1b]7000;v=1;boundary=0\x07"),
+        Op::TakeDelta => {
+            core.take_delta();
+        }
+        Op::Narrow => core.resize(12, 8),
+        Op::Widen => core.resize(96, 24),
+        Op::Touch(start) => {
+            let start = usize::from(*start);
+            core.touch_rows(start..start + 32);
+        }
     }
 }
 

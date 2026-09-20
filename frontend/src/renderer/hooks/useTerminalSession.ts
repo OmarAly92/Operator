@@ -106,6 +106,10 @@ const OPEN_TIMEOUT_MS = 3_000;
 // whole drag into the one SIGWINCH that matters, the one at the size the user
 // let go at.
 const RESIZE_DEBOUNCE_MS = 100;
+// Flow control. The renderer confirms the bytes it has consumed so the
+// pty-host can throttle the child rather than queue the session
+// (vscode/src/vs/platform/terminal/common/terminal.ts).
+const ACK_EVERY_BYTES = 5_000;
 // Initial-replay gate. On attach the runtime replays the pane's state, and the
 // daemon pumps it in 32KB reads (attachment.go copyOut) — so the renderer gets
 // N WebSocket frames, N `write()` calls, and N separate event-loop turns. xterm
@@ -212,6 +216,11 @@ export function useTerminalSession(session: WorkspaceSession | undefined, option
 		needsVisibleSizeSync: false,
 		// Initial-replay gate, reset per connect (see REPLAY_QUIET_MS).
 		replayBuffering: false,
+		consumedBytes: 0,
+		ackedBytes: 0,
+		replayReadySeen: false,
+		// The core instance this attachment last asked history for.
+		historyCore: null as AttachableTerminal | null,
 		replayChunks: [] as Uint8Array[],
 		replayBytes: 0,
 		replayQuietTimer: null as ReturnType<typeof setTimeout> | null,
@@ -332,6 +341,8 @@ export function useTerminalSession(session: WorkspaceSession | undefined, option
 		r.flushReplay = null;
 		clearReplayTimers();
 		r.replayBuffering = false;
+		r.consumedBytes = 0;
+		r.ackedBytes = 0;
 		r.replayChunks = [];
 		r.replayBytes = 0;
 		r.replayTailPending = false;
@@ -577,6 +588,14 @@ export function useTerminalSession(session: WorkspaceSession | undefined, option
 					});
 				}
 				for (const listener of [...r.byteListeners]) listener(bytes);
+				r.consumedBytes += bytes.length;
+				if (
+					Math.floor(r.consumedBytes / ACK_EVERY_BYTES) >
+					Math.floor(r.ackedBytes / ACK_EVERY_BYTES)
+				) {
+					r.ackedBytes = r.consumedBytes;
+					mux.ack(handle, r.ackedBytes);
+				}
 				if (r.replayBuffering) {
 					r.replayChunks.push(bytes);
 					r.replayBytes += bytes.length;
@@ -724,6 +743,7 @@ export function useTerminalSession(session: WorkspaceSession | undefined, option
 		// replay byte and would uncover a pane that has not drawn yet.
 		const coverInitialReplay = optionsRef.current.coverInitialReplay !== false;
 		r.replayBuffering = coverInitialReplay;
+		r.replayReadySeen = false;
 		r.replayChunks = [];
 		r.replayBytes = 0;
 		setReplaySettled(!coverInitialReplay);
@@ -747,7 +767,18 @@ export function useTerminalSession(session: WorkspaceSession | undefined, option
 		const surface = r.surfaceGeometry;
 		const openCols = visible ? (surface?.cols ?? terminal.cols) : 0;
 		const openRows = visible ? (surface?.rows ?? terminal.rows) : 0;
-		mux.open(handle, openCols, openRows);
+		// History is asked for once per core instance. A core that has already
+		// painted a live session refuses a replay's origin (Parser::adopt_origin
+		// acts only on an empty core), and with the origin refused every chunk
+		// behind it is rejected too — so a reconnect would stream the whole
+		// session's scrollback, ack-paced, only to throw it away.
+		// A 0×0 open carries no grid, and the host drops the history flag with
+		// it, so latching here would burn the one request a parked pane never
+		// made.
+		const sizedOpen = openCols > 0 && openRows > 0;
+		const wantsHistory = sizedOpen && r.historyCore !== terminal;
+		if (sizedOpen) r.historyCore = terminal;
+		mux.open(handle, openCols, openRows, wantsHistory);
 		r.lastPublishedGrid =
 			openCols > 0 && openRows > 0 ? { cols: openCols, rows: openRows } : null;
 		r.gridPublished = false;
@@ -967,5 +998,12 @@ export function useTerminalSession(session: WorkspaceSession | undefined, option
 		[],
 	);
 
-	return { attach, state, error, replaySettled, syncVisibleSize, transport };
+	const onReplayReady = useCallback(() => {
+		const r = runtime.current;
+		if (r.replayReadySeen) return;
+		r.replayReadySeen = true;
+		r.flushReplay?.();
+	}, []);
+
+	return { attach, state, error, replaySettled, syncVisibleSize, transport, onReplayReady };
 }

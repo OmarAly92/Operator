@@ -10,6 +10,7 @@ type MockCore = {
 	snapshot: () => { altScreen: unknown; [k: string]: unknown };
 	onChange: (listener: (generation: number) => void) => () => void;
 	setAgentTuiMode: (on: boolean) => void;
+	replayReady: () => boolean;
 	dispose: () => void;
 };
 
@@ -200,6 +201,7 @@ vi.mock("@operator/terminal-react", () => {
 					};
 				},
 				setAgentTuiMode: vi.fn(),
+				replayReady: () => false,
 				dispose: () => undefined,
 				...mockState.coreOverrides,
 			};

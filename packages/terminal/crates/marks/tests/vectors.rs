@@ -69,6 +69,9 @@ fn event_kind_tier(ev: &MarkEvent) -> (String, MarkTier) {
         MarkEvent::InputReleased => ("input_released".to_string(), MarkTier::Extension),
         MarkEvent::AltScreenEnter => ("alt_screen_enter".to_string(), MarkTier::Osc133),
         MarkEvent::AltScreenLeave => ("alt_screen_leave".to_string(), MarkTier::Osc133),
+        MarkEvent::ReplayOrigin(_) => ("replay_origin".to_string(), MarkTier::Extension),
+        MarkEvent::ReplayReady => ("replay_ready".to_string(), MarkTier::Extension),
+        MarkEvent::HistoryChunk { .. } => ("history_chunk".to_string(), MarkTier::Extension),
     }
 }
 

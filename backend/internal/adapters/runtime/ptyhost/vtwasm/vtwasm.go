@@ -5,6 +5,7 @@ package vtwasm
 
 import (
 	"context"
+	"encoding/binary"
 	"fmt"
 	"sync"
 	"time"
@@ -29,14 +30,26 @@ type Parser struct {
 // matches the TERM_PROGRAM the pty-host sets for the child.
 const TerminalIdentity = "Operator"
 
-func New(ctx context.Context, wasmModule []byte, cols, rows, scrollback uint32) (*Parser, error) {
+type Limits struct {
+	Rows  uint32
+	Bytes uint32
+}
+
+type MemoryStats struct {
+	ContentBytes uint32
+	StyleEntries uint32
+	Rows         uint32
+	Blocks       uint32
+}
+
+func New(ctx context.Context, wasmModule []byte, cols, rows uint32, limits Limits) (*Parser, error) {
 	rt := wazero.NewRuntime(ctx)
 	mod, err := rt.Instantiate(ctx, wasmModule)
 	if err != nil {
 		_ = rt.Close(ctx)
 		return nil, fmt.Errorf("vtwasm: instantiate: %w", err)
 	}
-	res, err := mod.ExportedFunction("vt_new").Call(ctx, uint64(cols), uint64(rows), uint64(scrollback))
+	res, err := mod.ExportedFunction("vt_new").Call(ctx, uint64(cols), uint64(rows), uint64(limits.Rows), uint64(limits.Bytes))
 	if err != nil || len(res) == 0 || res[0] == 0 {
 		_ = rt.Close(ctx)
 		return nil, fmt.Errorf("vtwasm: vt_new failed: %w", err)
@@ -47,6 +60,36 @@ func New(ctx context.Context, wasmModule []byte, cols, rows, scrollback uint32) 
 		return nil, err
 	}
 	return p, nil
+}
+
+const memoryStatsBytes = 16
+
+func (p *Parser) MemoryStats() (MemoryStats, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	res, err := p.module.ExportedFunction("vt_alloc").Call(p.ctx, memoryStatsBytes)
+	if err != nil {
+		return MemoryStats{}, fmt.Errorf("vtwasm: alloc stats: %w", err)
+	}
+	out := uint32(res[0])
+	defer func() { _, _ = p.module.ExportedFunction("vt_free").Call(p.ctx, uint64(out), memoryStatsBytes) }()
+	res, err = p.module.ExportedFunction("vt_memory_stats").Call(p.ctx, uint64(p.handle), uint64(out))
+	if err != nil {
+		return MemoryStats{}, fmt.Errorf("vtwasm: memory_stats: %w", err)
+	}
+	if res[0] != 1 {
+		return MemoryStats{}, fmt.Errorf("vtwasm: memory_stats failed for handle %d", p.handle)
+	}
+	raw, ok := p.module.Memory().Read(out, memoryStatsBytes)
+	if !ok {
+		return MemoryStats{}, fmt.Errorf("vtwasm: read stats out of range")
+	}
+	return MemoryStats{
+		ContentBytes: binary.LittleEndian.Uint32(raw[0:4]),
+		StyleEntries: binary.LittleEndian.Uint32(raw[4:8]),
+		Rows:         binary.LittleEndian.Uint32(raw[8:12]),
+		Blocks:       binary.LittleEndian.Uint32(raw[12:16]),
+	}, nil
 }
 
 func (p *Parser) setTerminalIdentity(name string) error {
@@ -203,6 +246,70 @@ func (p *Parser) RenderStyledTail(lines int) (string, error) {
 // produced it; a grid repaint is geometry-independent by construction.
 func (p *Parser) Replay(lines int) (string, error) {
 	return p.renderWith("vt_replay", "replay", lines)
+}
+
+const (
+	HistoryChunkRows = 512
+	HistoryBefore    = ^uint64(0)
+)
+
+const historyNextBytes = 8
+
+// TouchHistory rewraps every history row the mirror left cut at an older
+// width. It must run before Replay renders the frame whose origin the client
+// adopts: rewrapping changes how many rows history holds, and the chunks are
+// numbered downward from that origin.
+func (p *Parser) TouchHistory() error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if _, err := p.module.ExportedFunction("vt_touch_history").Call(p.ctx, uint64(p.handle)); err != nil {
+		return fmt.Errorf("vtwasm: touch_history: %w", err)
+	}
+	return nil
+}
+
+// HistoryChunk returns one chunk of replay history and the stable row it
+// starts at, which is the `before` for the next call. ok is false once no
+// history remains above `before`.
+func (p *Parser) HistoryChunk(before uint64, lines, maxRows int) (string, uint64, bool, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	res, err := p.module.ExportedFunction("vt_alloc").Call(p.ctx, renderBufferBytes)
+	if err != nil {
+		return "", 0, false, fmt.Errorf("vtwasm: alloc history buffer: %w", err)
+	}
+	out := uint32(res[0])
+	defer func() { _, _ = p.module.ExportedFunction("vt_free").Call(p.ctx, uint64(out), renderBufferBytes) }()
+	res, err = p.module.ExportedFunction("vt_alloc").Call(p.ctx, historyNextBytes)
+	if err != nil {
+		return "", 0, false, fmt.Errorf("vtwasm: alloc history cursor: %w", err)
+	}
+	next := uint32(res[0])
+	defer func() { _, _ = p.module.ExportedFunction("vt_free").Call(p.ctx, uint64(next), historyNextBytes) }()
+
+	res, err = p.module.ExportedFunction("vt_history_chunk").
+		Call(p.ctx, uint64(p.handle), before, uint64(lines), uint64(maxRows), uint64(out), renderBufferBytes, uint64(next))
+	if err != nil {
+		return "", 0, false, fmt.Errorf("vtwasm: history_chunk: %w", err)
+	}
+	switch written := uint32(res[0]); written {
+	case 0:
+		return "", 0, false, nil
+	case renderErr:
+		return "", 0, false, fmt.Errorf("vtwasm: history_chunk failed for handle %d", p.handle)
+	case renderTooBig:
+		return "", 0, false, fmt.Errorf("vtwasm: history_chunk exceeds %d bytes", renderBufferBytes)
+	default:
+		body, ok := p.module.Memory().Read(out, written)
+		if !ok {
+			return "", 0, false, fmt.Errorf("vtwasm: read %d bytes at %d out of range", written, out)
+		}
+		cursor, ok := p.module.Memory().Read(next, historyNextBytes)
+		if !ok {
+			return "", 0, false, fmt.Errorf("vtwasm: read history cursor out of range")
+		}
+		return string(body), binary.LittleEndian.Uint64(cursor), true, nil
+	}
 }
 
 func (p *Parser) Resize(cols, rows uint32) error {

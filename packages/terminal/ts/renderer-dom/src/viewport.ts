@@ -44,6 +44,57 @@ function blockHeight(
 	return block.rowCount * rowHeight + headerHeightFor(block, headerHeight) + paddingY;
 }
 
+export type RowAnchor = Readonly<{ flatRow: number; offsetPx: number }>;
+
+function paddingTopOf(paddingY: number): number {
+	return paddingY * (BLOCK_PADDING_TOP_LINES / (BLOCK_PADDING_TOP_LINES + BLOCK_PADDING_BOTTOM_LINES));
+}
+
+export function rowTop(
+	blocks: readonly BlockView[],
+	flatRow: number,
+	rowHeight: number,
+	headerHeight: number,
+	paddingY: number,
+): number | null {
+	let accumulated = 0;
+	for (const block of blocks) {
+		if (flatRow >= block.firstRow && flatRow < block.firstRow + block.rowCount) {
+			return (
+				accumulated +
+				headerHeightFor(block, headerHeight) +
+				paddingTopOf(paddingY) +
+				(flatRow - block.firstRow) * rowHeight
+			);
+		}
+		accumulated += blockHeight(block, rowHeight, headerHeight, paddingY);
+	}
+	return null;
+}
+
+export function anchorAt(
+	blocks: readonly BlockView[],
+	scrollTop: number,
+	rowHeight: number,
+	headerHeight: number,
+	paddingY: number,
+): RowAnchor | null {
+	let accumulated = 0;
+	for (const block of blocks) {
+		const rowsTop = accumulated + headerHeightFor(block, headerHeight) + paddingTopOf(paddingY);
+		const rowsBottom = rowsTop + block.rowCount * rowHeight;
+		if (block.rowCount > 0 && scrollTop < rowsBottom) {
+			const index = Math.min(
+				Math.max(0, Math.floor((scrollTop - rowsTop) / rowHeight)),
+				block.rowCount - 1,
+			);
+			return { flatRow: block.firstRow + index, offsetPx: scrollTop - (rowsTop + index * rowHeight) };
+		}
+		accumulated += blockHeight(block, rowHeight, headerHeight, paddingY);
+	}
+	return null;
+}
+
 function clampScrollTop(scrollTop: number, total: number, viewport: number): number {
 	if (!Number.isFinite(scrollTop) || scrollTop < 0) return 0;
 	const max = Math.max(0, total - viewport);
@@ -53,8 +104,7 @@ function clampScrollTop(scrollTop: number, total: number, viewport: number): num
 export function computeWindow(input: WindowInput): WindowResult {
 	const { blocks, rowHeight, headerHeight, viewportHeight, overscanRows } = input;
 	const paddingY = input.blockPaddingY ?? 0;
-	const paddingTop =
-		paddingY * (BLOCK_PADDING_TOP_LINES / (BLOCK_PADDING_TOP_LINES + BLOCK_PADDING_BOTTOM_LINES));
+	const paddingTop = paddingTopOf(paddingY);
 	if (blocks.length === 0) return EMPTY_WINDOW;
 
 	let total = 0;
