@@ -1167,16 +1167,45 @@ func TestReadPausesPastHighWatermarkAndResumesOnAck(t *testing.T) {
 	sendAck(t, c, len(replay))
 	waitForAckingClient(t, f)
 
+	// Written from a background goroutine, spaced out, so pumpPTY's own
+	// goroutine actually gets to run and flush the accumulating batches --
+	// each flush registers as delivered bytes for this client -- before the
+	// burst finishes. Without that spacing, an in-memory io.Pipe pairs every
+	// Write with its Read fast enough that the reader can race through all 8
+	// blobs before pumpPTY is ever scheduled, coalescing them into a single
+	// flush that lands after the reader has already moved on to its next,
+	// forever-blocking Read; nothing then wakes it back up to notice the
+	// watermark. The write loop must not block the test goroutine while that
+	// plays out: once the watermark trips mid-burst, readPTY stops being read
+	// and a later WriteOutput call blocks for good, so the writes run on their
+	// own goroutine and the test observes the pause independently of whether
+	// the burst has finished.
 	blob := bytes.Repeat([]byte("x"), 32*1024)
-	for i := 0; i < 8; i++ {
-		if _, err := f.pty.WriteOutput(blob); err != nil {
-			t.Fatalf("write pty output: %v", err)
+	writeDone := make(chan error, 1)
+	go func() {
+		for i := 0; i < 8; i++ {
+			if _, err := f.pty.WriteOutput(blob); err != nil {
+				writeDone <- err
+				return
+			}
+			time.Sleep(5 * time.Millisecond)
 		}
-	}
+		writeDone <- nil
+	}()
+
 	waitFor(t, 3*time.Second, func() bool { return f.readsPaused() })
 
 	sendAck(t, c, len(replay)+8*32*1024)
 	waitFor(t, 3*time.Second, func() bool { return !f.readsPaused() })
+
+	select {
+	case err := <-writeDone:
+		if err != nil {
+			t.Fatalf("write pty output: %v", err)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("blob writer did not finish after the watermark cleared")
+	}
 }
 
 // Streaming a long history to one client must never pause the child for the
