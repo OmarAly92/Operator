@@ -1,7 +1,7 @@
 use vt_core::{BlockRecord, Delta, DeltaKind, ExportedRow, GridSnapshot, TerminalCore};
 
 /// The buffers are kept between frames and patched rather than rebuilt, after
-/// Ghostty's `RenderState` (`src/renderer/State.zig`).
+/// Ghostty's `RenderState` (`src/terminal/render.zig:72`).
 pub const COMPACTION_DIVISOR: usize = 4;
 
 /// Words each `BlockRecord` flattens to in the `blocks` buffer.

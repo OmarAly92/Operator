@@ -11,7 +11,12 @@ The export is incremental.
   screen and a process boundary rebuild in full. A property test pins that
   the incremental buffers equal a full rebuild after any chunking, resize
   and trim. Dirty stable rows accumulate until `ack_dirty`; row events
-  (`row_events_trimmed`, `remap`) until `clear_row_events`.
+  (`row_events_trimmed`, `remap`) until `clear_row_events`. A partial delta's
+  screen row count can shrink without every removed row appearing in the dirty
+  set (a full reset is one), so a consumer must re-derive the current screen row
+  count from `history_rows()` and the exported row count on every sync and drop
+  the rows past it, rather than relying on the dirty list alone to know what to
+  remove.
 
 The model reports what changed.
 
