@@ -28,9 +28,9 @@ import { pointAtFromRows } from "./selection-geometry.js";
 import { type SelectionKind, type SelectionPoint, type SelectionState } from "./selection-model.js";
 import { selectedText } from "./selection-text.js";
 import {
-	paintSelectionFill,
 	renderedRows,
 	resolveSelectionView,
+	selectionFills,
 	snapshotTextRows,
 	type RenderedRow,
 	type SelectionView,
@@ -80,7 +80,7 @@ export class DomBlockRenderer implements BlockRenderer {
 	private pinnedHeader: HTMLElement | null = null;
 	private blockNav: BlockNavHandle | null = null;
 	private jumpToBottom: JumpToBottom | null = null;
-	private filledRows: HTMLElement[] = [];
+	private filled: Map<HTMLElement, string> = new Map();
 	private selection: SelectionState | null = null;
 	private readonly selectionListeners = new Set<() => void>();
 	private metricsCache: { cellWidth: number; cellHeight: number } | null = null;
@@ -363,7 +363,7 @@ export class DomBlockRenderer implements BlockRenderer {
 		this.altRoot = null;
 		this.leadingSpacer = null;
 		this.trailingSpacer = null;
-		this.filledRows = [];
+		this.filled = new Map();
 		this.pinnedHeader = null;
 		this.blockElements.clear();
 		this.pool.clear();
@@ -642,11 +642,15 @@ export class DomBlockRenderer implements BlockRenderer {
 	}
 
 	private paintSelectionFill(): void {
-		for (const node of this.filledRows) node.style.backgroundImage = "";
-		this.filledRows = [];
 		const view = this.selectionView();
-		if (!view) return;
-		this.filledRows = paintSelectionFill(view, this.renderedRows(), this.cellMetrics().cellWidth);
+		const next = view ? selectionFills(view, this.renderedRows(), this.cellMetrics().cellWidth) : new Map<HTMLElement, string>();
+		for (const element of this.filled.keys()) {
+			if (!next.has(element)) element.style.backgroundImage = "";
+		}
+		for (const [element, image] of next) {
+			if (this.filled.get(element) !== image) element.style.backgroundImage = image;
+		}
+		this.filled = next;
 	}
 
 	private renderedRows(): RenderedRow[] {

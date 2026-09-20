@@ -113,6 +113,30 @@ describe("the terminal selection", () => {
 		}
 	});
 
+	it("extending the selection by one row repaints one row", async () => {
+		const { host, renderer } = mountWith("one\r\ntwo\r\nthree\r\nfour");
+		await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+		const restore = layoutLive(host);
+		renderer.selectionBegin(renderer.pointAt(0, CELL_H * 0.5)!, "simple");
+		renderer.selectionUpdate(renderer.pointAt(620, CELL_H * 1.5)!);
+		expect([...host.querySelectorAll<HTMLElement>("[data-terminal-row]")].filter((row) => row.style.backgroundImage !== "")).toHaveLength(2);
+		const observer = new MutationObserver(() => undefined);
+		observer.observe(host, { attributes: true, attributeFilter: ["style"], subtree: true });
+		observer.takeRecords();
+		renderer.selectionUpdate(renderer.pointAt(620, CELL_H * 2.5)!);
+		const touched = new Set(
+			observer
+				.takeRecords()
+				.map((record) => record.target)
+				.filter((target): target is HTMLElement => target instanceof HTMLElement && target.classList.contains("terminal-row")),
+		);
+		observer.disconnect();
+		restore();
+		expect([...touched].map((row) => row.dataset.terminalRow)).toEqual(["2"]);
+		renderer.selectionClear();
+		expect([...host.querySelectorAll<HTMLElement>("[data-terminal-row]")].filter((row) => row.style.backgroundImage !== "")).toHaveLength(0);
+	});
+
 	it("tints a painted run's background instead of hiding under it", () => {
 		const band = "\x1b[48;5;237m\x1b[38;5;231m> hi\x1b[0m";
 		const { host, renderer } = mountWith(`alpha\r\n${band}\r\ngamma`);

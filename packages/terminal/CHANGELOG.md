@@ -11,6 +11,10 @@ Rows are patched, not rebuilt.
   elements that leave the window wait in an LRU pool (3× the window) and come
   back with their nodes.
 
+- The selection fill is diffed against the previous paint: extending a
+  selection by one row writes one row's background (Alacritty
+  `display/damage.rs` `damage_selection`).
+
 Scrolling stays put when scrollback is trimmed or rewrapped.
 
 - While not stuck to the bottom, `DomBlockRenderer` anchors the viewport to

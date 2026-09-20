@@ -82,21 +82,19 @@ export function renderedRows(
 	return out;
 }
 
-export function paintSelectionFill(view: SelectionView, rows: readonly RenderedRow[], cellWidth: number): HTMLElement[] {
-	const filled: HTMLElement[] = [];
+export function selectionFills(view: SelectionView, rows: readonly RenderedRow[], cellWidth: number): Map<HTMLElement, string> {
+	const fills = new Map<HTMLElement, string>();
 	const colour = "var(--terminal-selection)";
 	for (const { box, element } of rows) {
 		const span = rowFillSpan(view.range, box, view.order, cellWidth);
 		if (!span) continue;
-		element.style.backgroundImage = fillGradient(span, colour);
-		filled.push(element);
+		fills.set(element, fillGradient(span, colour));
 		for (const run of element.querySelectorAll<HTMLElement>("[data-terminal-run]")) {
 			if (run.style.backgroundColor === "") continue;
 			const runSpan = runFill(run.getBoundingClientRect(), box.left, span);
 			if (!runSpan) continue;
-			run.style.backgroundImage = fillGradient(runSpan, colour);
-			filled.push(run);
+			fills.set(run, fillGradient(runSpan, colour));
 		}
 	}
-	return filled;
+	return fills;
 }
