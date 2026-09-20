@@ -333,17 +333,19 @@ Shell terminals no longer inherit the launcher's `NO_COLOR`.
   reported a live regression in a selection that was working.
 
 - Plan B measured (see the spec's baseline table, "After Plan B"): feed+sync
-  at row 50k is 0.20ms vs 0.20ms at row 1k (well inside the 20% + 0.2ms
-  budget); a spinner paint adds 1.0 DOM node per changed row (was 1.16,
-  target ≤ 2); ten idle panes cost 1.678s of main-thread task time over 10s
-  (16.8%, was 17.6%); a one-row selection extend repaints 1 row (was 2). All
-  five Part 1.4 rows Plan B owns pass; `bench:agent:scroll` now reports full
-  coverage (60,134/60,134) where the pre-existing 3-row gap used to be. Adds
-  a `--gate` check to `bench:agent:gate` for `feedSyncCost` staying flat from
-  1k to 50k rows, for DOM nodes per changed row (≤ 2), for ten idle panes'
-  main-thread task time (≤ 25 % of the measured window) and for a mouse move
-  repainting exactly one row; a `feedSyncCost` sample the harness failed to
-  collect at all now fails the gate instead of passing it silently.
+  at row 50k is 0.20ms vs 0.20ms at row 1k (inside the 20% + 0.2ms budget);
+  a one-row selection extend repaints 1 row (was 2); `bench:agent:scroll`
+  reports full coverage (60,134/60,134) and the top-edge row unchanged across
+  a 5,098-row trim. Two Part 1.4 targets are missed and reported: a spinner
+  paint creates 7.21 DOM nodes per changed row (a `div` plus a `span` and a
+  text node per style run; target ≤ 2) and ten idle panes cost 1.30s of
+  main-thread task time over 10s against a 0.44s target (25 % of the 1.759s
+  pre-Plan-B baseline). The harness's `addedNodes` counter now counts every
+  node of an inserted subtree, not only its root, so nodes-per-paint figures
+  before this entry are not comparable. `bench:agent:gate` asserts
+  `feedSyncCost` flatness from 1k to 50k rows and the one-row selection
+  repaint, prints the two missed rows, and fails when a `feedSyncCost`
+  sample was not collected.
 
 ## 0.3.0 - 2026-08-30
 

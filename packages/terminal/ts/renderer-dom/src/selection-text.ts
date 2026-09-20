@@ -20,7 +20,7 @@ export function selectedText(range: SelectionRange, rows: TextRows): string {
 	const lines: string[] = [];
 	for (let index = first; index <= last; index += 1) {
 		const blockId = rows.blockIds[index]!;
-		const fromRow = index === first ? range.start.row : rows.firstRow(blockId);
+		const fromRow = Math.max(index === first ? range.start.row : rows.firstRow(blockId), rows.firstRow(blockId));
 		let toRow = index === last ? range.end.row : rows.firstRow(blockId) + rows.rowCount(blockId) - 1;
 		if (index === last && range.end.cell === 0 && toRow > fromRow) toRow -= 1;
 		for (let row = fromRow; row <= toRow; row += 1) {

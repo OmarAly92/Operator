@@ -68,7 +68,11 @@ domRenderer.onPaint(() => {
 	paints += 1;
 });
 new MutationObserver((records) => {
-	for (const record of records) addedNodes += record.addedNodes.length;
+	for (const record of records) {
+		for (const node of record.addedNodes) {
+			addedNodes += node instanceof Element ? 1 + node.querySelectorAll("*").length : 1;
+		}
+	}
 }).observe(host, { childList: true, subtree: true });
 
 let rowNodesAdded = 0;

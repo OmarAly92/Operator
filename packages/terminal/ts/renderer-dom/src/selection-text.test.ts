@@ -26,6 +26,10 @@ describe("selectedText", () => {
 	it("excludes a last row the range ends at the start of", () => {
 		expect(selectedText({ start: { blockId: "a", row: 0, cell: 0 }, end: { blockId: "a", row: 1, cell: 0 } }, rows)).toBe("alpha beta");
 	});
+	it("starts at the block's first retained row when the range begins above it", () => {
+		const trimmed: TextRows = { blockIds: ["a"], firstRow: () => 1, rowCount: () => 2, rowText: (_id, row) => blocks.a![row] ?? "" };
+		expect(selectedText({ start: { blockId: "a", row: 0, cell: 3 }, end: { blockId: "a", row: 2, cell: 5 } }, trimmed)).toBe("\ngamma");
+	});
 	it("cuts a wide character by cell", () => {
 		expect(selectedText({ start: { blockId: "a", row: 2, cell: 6 }, end: { blockId: "a", row: 2, cell: 8 } }, rows)).toBe("漢");
 	});

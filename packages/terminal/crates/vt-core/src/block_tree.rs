@@ -6,11 +6,6 @@ use node::{summary_of_blocks, BlockIter, Node};
 const TREE_BASE: usize = 6;
 const LEAF_CAPACITY: usize = 2 * TREE_BASE;
 
-/// Rolled-up extent of a subtree. `start_row` and `end_row` are **stable**
-/// rows, not flat ones: they are read straight off [`Block::first_row`],
-/// which a trim no longer renumbers (wezterm/term/src/screen.rs:30
-/// `stable_row_index_offset`). Convert with `BlockGrid::origin` before
-/// comparing either against an index into a snapshot's row list.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct BlockSummary {
     pub blocks: usize,
@@ -125,11 +120,6 @@ impl BlockTree {
         Some(removed)
     }
 
-    /// The block owning `row`, where `row` is a **stable** row — the same
-    /// coordinate [`Block::first_row`] is in, not an index into a snapshot's
-    /// row list. A flat row must be offset by `BlockGrid::origin` first, or
-    /// this silently answers with the wrong block once anything has been
-    /// trimmed (wezterm/term/src/screen.rs:523-535 `stable_row_to_phys`).
     pub fn find_by_row(&self, row: usize) -> Option<&Block> {
         let root = self.root?;
         let root_summary = self.nodes[root].summary();
