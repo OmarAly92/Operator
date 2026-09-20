@@ -10,7 +10,9 @@ The model reports what changed.
   `src/terminal/render.zig` `Dirty`; WezTerm line `seqno`). Every
   `ScreenGrid` write marks its row. `export_history_rows` /
   `export_screen_rows` / `export_blocks` / `export_cursor` are the pieces
-  `build_snapshot` is made of.
+  `build_snapshot` is made of. A cursor move marks the row it left and the row
+  it reached, and a visibility toggle marks the cursor's row, so everything a
+  consumer must repaint is in `screen_rows`.
 
 Rows have stable ids.
 

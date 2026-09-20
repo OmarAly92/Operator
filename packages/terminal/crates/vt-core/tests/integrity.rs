@@ -19,6 +19,7 @@ enum Op {
     OutputStart,
     CommandEnd(u8),
     Boundary,
+    TakeDelta,
 }
 
 fn op() -> impl Strategy<Value = Op> {
@@ -37,6 +38,7 @@ fn op() -> impl Strategy<Value = Op> {
         1 => Just(Op::OutputStart),
         1 => (0u8..=2).prop_map(Op::CommandEnd),
         1 => Just(Op::Boundary),
+        1 => Just(Op::TakeDelta),
     ]
 }
 
@@ -56,6 +58,9 @@ fn apply(core: &mut TerminalCore, op: &Op) {
         Op::OutputStart => core.feed(b"\x1b]133;C\x07"),
         Op::CommandEnd(n) => core.feed(format!("\x1b]133;D;{n}\x07").as_bytes()),
         Op::Boundary => core.feed(b"\x1b]7000;v=1;boundary=0\x07"),
+        Op::TakeDelta => {
+            core.take_delta();
+        }
     }
 }
 

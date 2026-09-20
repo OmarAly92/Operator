@@ -26,12 +26,38 @@ fn printing_marks_one_screen_row_dirty() {
     assert_eq!(core.generation(), before + 1);
     let delta = core.take_delta();
     assert_eq!(delta.kind, DeltaKind::Partial);
-    assert_eq!(delta.screen_rows, vec![1]);
+    assert_eq!(delta.screen_rows, vec![1, 2]);
     assert_eq!(delta.appended_history, 0..0);
     assert_eq!(delta.trimmed_rows, 0);
     assert_eq!(delta.remap, None);
     assert_eq!(core.snapshot().unwrap().row_text(1), "X");
     common::check(&core);
+}
+
+#[test]
+fn a_cursor_move_marks_the_row_it_left_and_the_row_it_reached() {
+    let mut core = core();
+    feed_lines(&mut core, &["a", "b"]);
+    core.take_delta();
+    core.feed(b"\x1b[1;1H");
+    let delta = core.take_delta();
+    assert_eq!(delta.kind, DeltaKind::Partial);
+    assert_eq!(delta.screen_rows, vec![0, 2]);
+}
+
+#[test]
+fn toggling_cursor_visibility_marks_the_cursor_row() {
+    let mut core = core();
+    feed_lines(&mut core, &["a", "b"]);
+    core.take_delta();
+    core.feed(b"\x1b[?25l");
+    let delta = core.take_delta();
+    assert_eq!(delta.kind, DeltaKind::Partial);
+    assert_eq!(delta.screen_rows, vec![2]);
+    core.feed(b"\x1b[?25l");
+    assert_eq!(core.take_delta().screen_rows, Vec::<usize>::new());
+    core.feed(b"\x1b[?25h");
+    assert_eq!(core.take_delta().screen_rows, vec![2]);
 }
 
 #[test]

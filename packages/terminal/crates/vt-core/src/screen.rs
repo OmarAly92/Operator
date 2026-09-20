@@ -222,7 +222,12 @@ impl ScreenGrid {
     }
 
     pub fn set_cursor_visible(&mut self, visible: bool) {
+        if self.cursor_visible == visible {
+            return;
+        }
         self.cursor_visible = visible;
+        let row = self.row;
+        self.mark_dirty(row);
     }
 
     fn mark_dirty(&mut self, row: usize) {
@@ -364,7 +369,12 @@ impl ScreenGrid {
     }
 
     pub fn move_to(&mut self, row: usize, col: usize) {
+        let previous = self.row;
         self.row = row.min(self.rows - 1);
+        if self.row != previous {
+            self.mark_dirty(previous);
+            self.mark_dirty(self.row);
+        }
         self.raise_max_cursor_row(self.row);
         self.col = col.min(self.cols - 1);
         self.pending_wrap = false;
