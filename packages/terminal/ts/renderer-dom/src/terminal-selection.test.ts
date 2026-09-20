@@ -222,6 +222,28 @@ describe("the terminal selection", () => {
 		expect(renderer.selectedText()).toBe("keep one\nkeep two");
 	});
 
+	it("resolves a point against the rows of the last paint after a trim it has not painted", async () => {
+		const core = createTerminalCore({ columns: 40, limits: { rows: 60, bytes: 0xffff_ffff }, rows: 2 });
+		for (let i = 0; i < 40; i += 1) feed(core, `line ${i}\r\n`);
+		const host = document.createElement("div");
+		Object.defineProperty(host, "clientHeight", { value: 800, configurable: true });
+		const renderer = new DomBlockRenderer();
+		renderer.measure = () => ({ cellWidth: CELL_W, cellHeight: CELL_H });
+		renderer.mount(host, core);
+		renderer.setTheme(warpDarkTheme);
+		renderer.setFont(font);
+		await nextPaint(renderer);
+		const rows = layoutRows(host);
+		const index = Math.floor(rows.length / 2);
+		const painted = Number(rows[index]!.dataset.terminalRow);
+		const paintedFirst = core.snapshot().firstStableRow;
+		for (let i = 40; i < 160; i += 1) feed(core, `line ${i}\r\n`);
+		expect(core.snapshot().firstStableRow).toBeGreaterThan(paintedFirst);
+		expect(renderer.pointAt(CELL_W + 1, CELL_H * (index + 0.5))!.row).toBe(painted);
+		expect(renderer.rowOrigin(painted)).not.toBeNull();
+		renderer.dispose();
+	});
+
 	it("notifies listeners when the selection changes", () => {
 		const { host, renderer } = mountWith("alpha");
 		layoutRows(host);

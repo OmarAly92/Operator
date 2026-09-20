@@ -15,6 +15,11 @@ Rows are patched, not rebuilt.
   selection by one row writes one row's background (Alacritty
   `display/damage.rs` `damage_selection`).
 
+- `pointAt`/`rowOrigin` interpret the painted rows against the stable-row
+  origin of the paint that built them, not the core's current one, so a
+  mouse press between a trim and the repaint that follows it resolves to the
+  row under the pointer instead of one shifted by the trimmed count.
+
 Scrolling stays put when scrollback is trimmed or rewrapped.
 
 - While not stuck to the bottom, `DomBlockRenderer` anchors the viewport to

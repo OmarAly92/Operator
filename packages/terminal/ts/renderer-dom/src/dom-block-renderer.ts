@@ -202,7 +202,7 @@ export class DomBlockRenderer implements BlockRenderer {
 			this.blockElements,
 			row,
 			this.cellMetrics().cellHeight,
-			this.core?.snapshot().firstStableRow ?? 0,
+			this.paintedFirstStableRow,
 		);
 	}
 
@@ -654,7 +654,7 @@ export class DomBlockRenderer implements BlockRenderer {
 	}
 
 	private renderedRows(): RenderedRow[] {
-		return renderedRows(this.altRoot, this.filteredBlocks, this.blockElements, this.core?.snapshot().firstStableRow ?? 0);
+		return renderedRows(this.altRoot, this.filteredBlocks, this.blockElements, this.paintedFirstStableRow);
 	}
 
 	private updateStickiness(): void {
