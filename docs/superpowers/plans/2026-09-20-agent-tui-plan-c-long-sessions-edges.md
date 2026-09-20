@@ -4,11 +4,15 @@
 
 **Goal:** Reopening a Claude Code pane recovers the whole session (not the mirror's last screen), a width change at 200,000 rows costs the debounce plus one frame instead of a walk over every row, and a slow client throttles the child instead of queueing the session in memory.
 
-**Architecture:** Three independent edges of the long-session work, over the model Plan B built. **G (reopen):** `vt_replay` becomes a four-part stream — modes, the live frame, an `OSC 7000;v=1;ready=1` READY mark the client paints at, then history newest→oldest in 512-row chunks each framed by `OSC 7000;v=1;history=<first_stable_row>,<count>`. The receiving `vt-core` recognises those marks and *prepends* the rows below everything it already holds, which is why `Content` grows a downward allocation region: rows must stay offset-ordered or every trim, style lookup and integrity check breaks. **F (lazy rewrap):** a width change rewraps the screen and the newest `HOT_ROWS = 2_000` completed rows eagerly and marks the rest stale with the width it is cut at; a stale run is rewrapped once, on first access, through `RowIndex::rows_for`, which emits the same stable-row remap pairs an eager rewrap does, so the scroll anchor, blocks and find hits follow it. **H (flow control):** the mux client acks every 5,000 bytes and the pty-host stops reading the pty at 100,000 unacknowledged bytes for its slowest acking client.
+**Architecture:** Three independent edges of the long-session work, over the model Plan B built. **G (reopen):** `vt_replay` becomes a five-part stream — an `OSC 7000;v=1;origin=` mark naming the stable row its first row sits at, the child's modes, the live frame, an `OSC 7000;v=1;ready=1` READY mark the client paints at, then history newest→oldest in 512-row chunks each framed by `OSC 7000;v=1;history=<first_stable_row>,<count>`. The receiving `vt-core` adopts that origin, recognises the chunk marks and *prepends* the rows below everything it already holds, which is why `Content` grows a downward allocation region: rows must stay offset-ordered or every trim, style lookup and integrity check breaks. History is opt-in per client, so a client that cannot read the chunks (the mobile xterm fork) still gets exactly today's attach. **F (lazy rewrap):** a width change rewraps the screen and the newest `HOT_ROWS = 2_000` completed rows eagerly and marks the rest stale with the width it is cut at; a stale run is rewrapped once, on first access, through `RowIndex::rows_for`, which emits the same stable-row remap pairs an eager rewrap does, so the scroll anchor, blocks and find hits follow it. **H (flow control):** the mux client acks every 5,000 bytes and the pty-host stops reading the pty at 100,000 unacknowledged bytes for its slowest acking client.
 
 **Tech Stack:** Rust (`vt-core`, `crates/marks`, `vt-wasm` via wasm-bindgen, `vt-host` C-ABI wasm run by wazero), Go (`backend/internal/adapters/runtime/ptyhost`, `backend/internal/terminal`, `backend/internal/httpd`), TypeScript (`ts/core`, `ts/renderer-dom`, `frontend/`), Dart (`packages/mobile`), Vite + Playwright benches (`bench/agent-session`).
 
 **Spec:** `docs/superpowers/specs/2026-09-19-agent-tui-experience-design.md` — Plan C is Part 1.3 items **F**, **G** and **H**, and nothing else. Survey entries cited: `docs/superpowers/specs/2026-09-19-terminal-reference-survey.md` §1.9 (Ghostty READY-first snapshot), §3.11 (xterm.js `SerializeAddon`), §3.13 (xterm.js `write(data, cb)` flow control), §4.2 (WezTerm, the shape of "rows by stable id" only), §5.8 (Kitty lazy pagerhist rewrap), §6.3 (VS Code flow-control constants and replay with command state). Read `TERMINAL.md` end to end before starting.
+
+**Review applied.** This plan was reviewed at commit `05881c5b9` against the tree at `ba6dd6d35` (`docs/superpowers/plans/2026-09-20-agent-tui-plan-c-review-fixes.md`). Every **Required** item (R1–R6) and every **Recommended** item is applied here, with one deliberate exception:
+
+- **Recommended: carry the `wrapped` flag across a reopen.** *Not applied — the loss is documented instead* (Task 13 Step 6 writes it into `TERMINAL.md` §5). Carrying it means emitting wrapped rows without `\r\n` and sizing the receiver's scratch screen to the mirror's width, which would make the chunk mark carry `cols=<n>` and make the receiver's row count depend on its own wrapping rather than on the mark's `count` — the one invariant the whole chunk protocol rests on (`HistoryReceiver::consume` ends a chunk at the `count`-th `\n`). The cost of not carrying it is bounded and visible: a reopened pane's *prepended* rows do not rejoin into logical lines on a later widening, while every row the pane produces after the reopen does. Revisit it with a `cols=` chunk field once the row-count invariant has a second anchor.
 
 **Gate — Plan B must be executed first.** Plan C consumes Plan B's interfaces: `Limits` in both cores (B Tasks 2–3), stable rows and `BlockGrid::origin` (B Tasks 4–5), `Delta`/`take_delta`/`remap` and the incremental export (B Tasks 6–8), and the stable-row scroll anchor with remap handling (B Task 9). As of writing, Plan B has landed on `development` in `ba6dd6d35` (merge, 2026-09-20) and every line number below was verified against that tree. If you are reading this on a tree where `git log --oneline | grep -i "Plan B"` finds no such merge, **stop and execute Plan B first** — every task here fails without it.
 
@@ -41,10 +45,15 @@ Every task inherits these. They are the spec's "Global constraints" plus `TERMIN
 | `HOT_ROWS` | `usize = 2_000` | `crates/vt-core/src/row_index.rs` |
 | `HISTORY_CHUNK_ROWS` | `u32 = 512` | `crates/vt-host/src/lib.rs` |
 | `CONTENT_BASE` | `u64 = 1 << 48` | `crates/vt-core/src/content.rs` |
+| origin mark bytes | `\x1b]7000;v=1;origin=<first_stable_row>\x1b\\` | emitted by `vt_replay` as **part 0**, decoded by `crates/marks` |
 | READY mark bytes | `\x1b]7000;v=1;ready=1\x1b\\` | emitted by `vt_replay`, decoded by `crates/marks` |
 | history mark bytes | `\x1b]7000;v=1;history=<first_stable_row>,<count>\x1b\\` | emitted by `vt_history_chunk`, decoded by `crates/marks` |
+| history chunk row shape | `<block open mark?><row bytes><exit mark?>\r\n`, **the exit mark inside the row, before its CR-LF** | `crates/vt-host/src/lib.rs` |
+| `MarkEvent::ReplayOrigin` | `(u64)` newtype variant | `crates/marks/src/event.rs` |
 | `MarkEvent::ReplayReady` | unit variant | `crates/marks/src/event.rs` |
 | `MarkEvent::HistoryChunk` | `{ first_stable_row: u64, rows: usize }` | `crates/marks/src/event.rs` |
+| history opt-in | `ResizePayload.History bool` (`json:"history,omitempty"`) on the **opening** `MsgResize`; `{ch:'terminal', type:'open', history:true}` on the mux | `backend/.../ptyhost/proto.go`, `backend/internal/terminal/protocol.go` |
+| `ports.HistoryAttacher` | `AttachWithHistory(ctx, handle, rows, cols uint16, history bool) (Stream, error)` | `backend/internal/ports/outbound.go` |
 | remap pair | `(u64, u64)` stable rows | `crates/vt-core/src/delta.rs` |
 | `Delta.history_rewritten_from` | `Option<usize>` (completed-row index) | `crates/vt-core/src/delta.rs` |
 | `MsgAck` | `byte = 0x11` | `backend/internal/adapters/runtime/ptyhost/proto.go` |
@@ -60,12 +69,12 @@ Every task inherits these. They are the spec's "Global constraints" plus `TERMIN
 | Task | Files |
 |---|---|
 | 1 | `crates/marks/src/{event.rs,scanner.rs}`, `crates/marks/tests/vectors.rs` |
-| 2 | `crates/vt-core/src/{content.rs,attribute_map.rs,row_index.rs,block_grid.rs,parser.rs,integrity.rs}`, `crates/vt-core/tests/replay.rs`, `CHANGELOG.md` |
+| 2 | `crates/vt-core/src/{content.rs,attribute_map.rs,row_index.rs,block_grid.rs,parser.rs,integrity.rs,lib.rs}`, `crates/vt-core/tests/replay.rs`, `CHANGELOG.md` |
 | 3 | `crates/vt-core/src/{history.rs,lib.rs,event_bridge.rs}`, `crates/vt-core/tests/replay.rs`, `CHANGELOG.md` |
 | 4 | `crates/vt-host/src/lib.rs`, `backend/.../ptyhost/vtwasm/{replay_test.go,assets/vt_host.wasm}`, `CHANGELOG.md` |
 | 5 | `crates/vt-host/src/lib.rs`, `backend/.../ptyhost/vtwasm/{vtwasm.go,replay_test.go,assets/vt_host.wasm}`, `CHANGELOG.md` |
-| 6 | `backend/.../ptyhost/{host.go,attach.go,attach_replay_test.go}`, `CHANGELOG.md` |
-| 7 | `frontend/src/renderer/lib/{replay-ready.ts,replay-ready.test.ts}`, `frontend/src/renderer/hooks/{useTerminalSession.ts,useTerminalSession.test.tsx}`, `CHANGELOG.md` |
+| 6 | `backend/.../ptyhost/{proto.go,host.go,attach.go,attach_replay_test.go}`, `backend/internal/ports/outbound.go`, `CHANGELOG.md` |
+| 7 | `packages/terminal/ts/core/src/{terminal-core.ts,terminal-core.test.ts}`, `frontend/src/renderer/hooks/{useTerminalSession.ts,useTerminalSession.test.tsx}`, `frontend/src/renderer/components/BlockTerminal.tsx`, `CHANGELOG.md` |
 | 8 | `crates/vt-core/src/{row_index.rs,parser.rs,delta.rs,integrity.rs,lib.rs}`, `crates/vt-core/tests/{lazy_rewrap.rs,integrity.rs}`, `CHANGELOG.md` |
 | 9 | `crates/vt-wasm/src/{lib.rs,export.rs}`, `ts/core/src/{terminal-core.ts,terminal-core.test.ts,types.ts}`, `ts/renderer-dom/src/{dom-block-renderer.ts,dom-block-renderer.test.ts}`, `CHANGELOG.md` |
 | 10 | `backend/.../ptyhost/{proto.go,host.go,attach.go,host_test.go,proto_test.go}`, `CHANGELOG.md` |
@@ -73,11 +82,13 @@ Every task inherits these. They are the spec's "Global constraints" plus `TERMIN
 | 12 | `packages/mobile/lib/core/mux/mux_client.dart`, `packages/mobile/test/core/mux/mux_client_test.dart` |
 | 13 | `bench/agent-session/{main.ts,run.mjs,scroll-gate.mjs}`, `backend/.../ptyhost/vtwasm/agent_session_test.go`, the spec's baseline table ("After Plan C" column, the Part 1.4 rows Plan C owns), `TERMINAL.md`, `CHANGELOG.md` |
 
-**Task order and why.** G's vt-core half first (Tasks 1–3): the receiving model has the largest blast radius — it changes the offset space every other subsystem rests on — and nothing else can be tested end to end until a prepended row exists. Then G's vt-host/Go half (4–6), then G's client half (7), so each layer is exercised by the one below it. F (8–9) follows because its remap reuses the stable-pair plumbing Task 2 leaves in `Delta` and its export window is the same `sync()` seam. H (10–12) is last before measurement because it touches no model at all — proto, watermarks, two clients — and would otherwise sit under every other task's Go test runs. Task 13 measures.
+**Task order and why.** G's vt-core half first (Tasks 1–3): the receiving model has the largest blast radius — it changes the offset space every other subsystem rests on — and nothing else can be tested end to end until a prepended row exists. Then G's vt-host/Go half (4–6), then G's client half (7), so each layer is exercised by the one below it. F (8–9) follows because its remap reuses the stable-pair plumbing Task 2 leaves in `Delta` and its export window is the same `sync()` seam. H (10–12) is last before measurement because it touches no model at all — proto, watermarks, two clients — and would otherwise sit under every other task's Go test runs. Task 11 also carries G's history opt-in across the mux, because it is the same `clientMsg`/`protocol.go`/`terminal-mux.ts` edit and splitting it would mean touching those three files twice.
+
+**Two forward references, both deliberate and both named at the point they occur.** Task 6's `streamHistory` wants `cs.delivered`, `h.readCond` and `readLowWatermark`, which Task 10 creates; Task 6 says to omit those two lines and Task 10 Step 4 says to add them, so every commit in between still compiles and passes. Task 6's daemon-side opt-in has no caller until Task 11 wires the desktop's `open` frame, which is why `TestAClientWithoutHistoryOptInGetsNoChunks` (Task 6) is the test that runs in the gap — it asserts the default, which is the state the tree is in until Task 11. Task 13 measures.
 
 ---
 
-### Task 1: `ready` and `history` marks in `crates/marks`
+### Task 1: `origin`, `ready` and `history` marks in `crates/marks`
 
 **Files:**
 - Modify: `packages/terminal/crates/marks/src/event.rs:14-37` (the `MarkEvent` enum)
@@ -90,17 +101,41 @@ Every task inherits these. They are the spec's "Global constraints" plus `TERMIN
   ```rust
   pub enum MarkEvent {
       // the existing variants, unchanged
+      ReplayOrigin(u64),
       ReplayReady,
       HistoryChunk { first_stable_row: u64, rows: usize },
   }
   ```
-  `ready=1` yields `MarkEvent::ReplayReady`. `history=<first_stable_row>,<count>` yields `MarkEvent::HistoryChunk`. Both are consumed by the key-matching loop in `scanner.rs::extension_events`, exactly like `input-ready`, so neither key reaches `BlockGrid::set_meta_field` as block metadata.
+  `origin=<u64>` yields `MarkEvent::ReplayOrigin`, `ready=1` yields `MarkEvent::ReplayReady`, `history=<first_stable_row>,<count>` yields `MarkEvent::HistoryChunk`. All three are consumed by the key-matching loop in `scanner.rs::extension_events`, exactly like `input-ready`, so none of the keys reaches `BlockGrid::set_meta_field` as block metadata.
 
 - [ ] **Step 1: Write the failing test**
 
 Append to the `tests` module at the end of `packages/terminal/crates/marks/src/scanner.rs`:
 
 ```rust
+    #[test]
+    fn an_origin_mark_decodes_to_replay_origin() {
+        let mut s = Scanner::new();
+        let events = events_only(s.feed(b"\x1b]7000;v=1;origin=5000\x1b\\"));
+        assert_eq!(events, vec![MarkEvent::ReplayOrigin(5000)]);
+    }
+
+    #[test]
+    fn a_malformed_origin_mark_emits_nothing() {
+        let mut s = Scanner::new();
+        assert_eq!(events_only(s.feed(b"\x1b]7000;v=1;origin=nope\x1b\\")), vec![]);
+    }
+
+    #[test]
+    fn an_origin_mark_is_not_block_metadata() {
+        let mut s = Scanner::new();
+        let events = events_only(s.feed(b"\x1b]7000;v=1;origin=12\x1b\\"));
+        assert!(
+            !events.iter().any(|event| matches!(event, MarkEvent::Extension(_))),
+            "origin must not reach the block grid as a meta field: {events:?}"
+        );
+    }
+
     #[test]
     fn a_ready_mark_decodes_to_replay_ready() {
         let mut s = Scanner::new();
@@ -155,15 +190,16 @@ Append to the `tests` module at the end of `packages/terminal/crates/marks/src/s
 - [ ] **Step 2: Run the test to verify it fails**
 
 ```bash
-cd /Users/omaraly/development/AI/Operator/packages/terminal && cargo test -p terminal-marks a_ready_mark_decodes_to_replay_ready
+cd /Users/omaraly/development/AI/Operator/packages/terminal && cargo test -p terminal-marks an_origin_mark_decodes_to_replay_origin
 ```
-Expected: FAIL — `no variant named ReplayReady found for enum MarkEvent`.
+Expected: FAIL — `no variant named ReplayOrigin found for enum MarkEvent`.
 
-- [ ] **Step 3: Add the two variants**
+- [ ] **Step 3: Add the three variants**
 
 In `packages/terminal/crates/marks/src/event.rs`, inside `pub enum MarkEvent`, after `AltScreenLeave`:
 
 ```rust
+    ReplayOrigin(u64),
     ReplayReady,
     HistoryChunk { first_stable_row: u64, rows: usize },
 ```
@@ -180,12 +216,14 @@ fn extension_events(fields: ExtensionFields) -> Vec<MarkEvent> {
     let mut released = false;
     let mut has_extension_field = false;
     let mut replay_ready = false;
+    let mut origin: Option<u64> = None;
     let mut history: Option<(u64, usize)> = None;
     for (key, value) in fields.pairs {
         match key.as_str() {
             "input-ready" => ready = true,
             "input-released" => released = true,
             "ready" => replay_ready = value == "1",
+            "origin" => origin = value.parse::<u64>().ok(),
             "history" => history = parse_history(&value),
             _ => {
                 if key != "v" {
@@ -202,6 +240,9 @@ fn extension_events(fields: ExtensionFields) -> Vec<MarkEvent> {
         out.push(MarkEvent::InputReleased);
     } else if ready {
         out.push(MarkEvent::InputReady);
+    }
+    if let Some(origin) = origin {
+        out.push(MarkEvent::ReplayOrigin(origin));
     }
     if replay_ready {
         out.push(MarkEvent::ReplayReady);
@@ -238,7 +279,7 @@ Expected: PASS, including the existing `vectors.rs` suite (no vector uses `ready
 `crates/vt-core/src/event_bridge.rs:14` matches `MarkEvent` exhaustively. Add the two new variants to its arm list as no-ops for now (Task 3 gives them bodies):
 
 ```rust
-        MarkEvent::ReplayReady | MarkEvent::HistoryChunk { .. } => {}
+        MarkEvent::ReplayOrigin(_) | MarkEvent::ReplayReady | MarkEvent::HistoryChunk { .. } => {}
 ```
 directly before the `MarkEvent::AltScreenEnter` arm.
 
@@ -253,7 +294,7 @@ Expected: PASS.
 
 ```bash
 cd /Users/omaraly/development/AI/Operator && git add packages/terminal/crates/marks packages/terminal/crates/vt-core/src/event_bridge.rs && git commit -m "$(cat <<'MSG'
-marks: decode the replay ready and history-chunk marks
+marks: decode the replay origin, ready and history-chunk marks
 
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
 MSG
@@ -262,16 +303,18 @@ MSG
 
 ---
 
-### Task 2: Prepend primitives — `Content`, `AttributeMap`, `RowIndex`, `BlockGrid`, `Parser::apply_history_chunk`
+### Task 2: Prepend primitives — `Content`, `AttributeMap`, `RowIndex`, `BlockGrid`, `Parser::adopt_origin`, `Parser::apply_history_chunk`
+
+**Why the origin mark exists.** Chunks are numbered in the **mirror's** stable row space, but a reopened renderer core is fresh: `Parser::trimmed_total` starts at 0 (`crates/vt-core/src/parser.rs:66`) and the replayed frame's rows land at stable `0..lines`. Without a shared origin, `apply_history_chunk`'s abutment test compares the mirror's `first_stable + lines` against 0 and drops every chunk. So `vt_replay` states the frame's own first stable row as **part 0** of the stream and `Parser::adopt_origin` moves `trimmed_total` and `BlockGrid::origin` there together — once, before any row exists.
 
 **Why this shape.** `verify_integrity` (`crates/vt-core/src/integrity.rs:17-69`) requires that completed rows tile the content **contiguously and in ascending offset order** (`RowsNotContiguous`), that every row lies inside `[content.start_offset(), content.end_offset()]` (`RowOutsideContent`), and that `rows.open_start() == content.end_offset()` (`OpenRowDetached`). `Parser::trim_to` (`parser.rs:494-519`) releases bytes with `content.drop_before(new_start)` where `new_start` is the **front** row's start. Every one of those breaks if prepended rows point at bytes appended past the live frame. So prepended bytes are allocated **downward**, below `Content::start_offset()`, and a fresh `Parser` bases its content at `CONTENT_BASE = 1 << 48` to leave room — 281 TB of offset space under a 128 MiB cap, so the base can never be reached.
 
 **Files:**
-- Modify: `packages/terminal/crates/vt-core/src/content.rs:25-41` (add `with_base`, `prepend`), `attribute_map.rs:9-20` (add `with_base`, `prepend_runs`), `row_index.rs:69-98` (add `prepend`), `block_grid.rs:45-62` (add `retreat_origin`, `prepend_blocks`), `parser.rs:45-75` (base the content) and `parser.rs` (add `apply_history_chunk`)
+- Modify: `packages/terminal/crates/vt-core/src/content.rs:25-41` (add `with_base`, `prepend`), `attribute_map.rs:9-20` (add `with_base`, `prepend_runs`), `row_index.rs:69-98` (add `prepend`), `block_grid.rs:45-62` (add `retreat_origin`, `prepend_blocks`), `parser.rs:45-75` (base the content), `parser.rs:494` (add `adopt_origin` and `apply_history_chunk`), `lib.rs:336` (expose `adopt_origin`)
 - Test: `packages/terminal/crates/vt-core/src/content.rs` (tests module), `packages/terminal/crates/vt-core/tests/replay.rs` (new)
 
 **Interfaces:**
-- Consumes: `BlockGrid::origin()`/`advance_origin(dropped)` (`block_grid.rs:45,52`), `Parser::trimmed_total()` (`parser.rs:95`), `Parser::mark_full()` (`parser.rs:111`), `RowRange { start, end, wrapped, indent }` (`row_index.rs:8`), `Block { id, first_row, row_count, state, source, meta }` (`block.rs`).
+- Consumes: `BlockGrid::origin()`/`advance_origin(dropped)` (`block_grid.rs:45,52` — `advance_origin` also lifts `next_row` to the new origin, `:61`), `Parser::trimmed_total()` (`parser.rs:95`), `Parser::mark_full()` (`parser.rs:111`), `RowRange { start, end, wrapped, indent }` (`row_index.rs:8`), `Block { id, first_row, row_count, state, source, meta }` (`block.rs`).
 - Produces:
   ```rust
   // content.rs
@@ -311,6 +354,10 @@ MSG
       pub exit_code: Option<i32>,
   }
   impl Parser {
+      /// Adopts the replaying host's stable row space. Ignored unless this
+      /// parser is untouched (`trimmed_total == 0` and no completed rows), so
+      /// a stray origin mark mid-session can never renumber a live pane.
+      pub fn adopt_origin(&mut self, origin: u64) -> bool;
       /// Prepends a chunk of history below flat row 0. Ignored unless
       /// `first_stable_row + rows.len() == trimmed_total`.
       pub fn apply_history_chunk(
@@ -341,18 +388,44 @@ fn rows_of(core: &TerminalCore) -> Vec<String> {
     rows
 }
 
+/// The shape of a real attach: origin, then the frame's rows, then history
+/// newest→oldest. `origin` is what makes the mirror's and the renderer's
+/// stable row spaces the same space.
+fn attach(core: &mut TerminalCore, origin: u64, frame: &str) {
+    core.feed(format!("\x1b]7000;v=1;origin={origin}\x1b\\").as_bytes());
+    core.feed(frame.as_bytes());
+}
+
+#[test]
+fn an_origin_mark_adopts_the_replaying_hosts_row_space() {
+    let mut core = TerminalCore::new(20, 10_000).expect("core");
+    assert_eq!(core.first_stable_row(), 0);
+    attach(&mut core, 1000, "live\r\n");
+    assert_eq!(core.first_stable_row(), 1000);
+    assert_eq!(core.verify_integrity(), Ok(()));
+}
+
+#[test]
+fn an_origin_mark_after_rows_exist_is_ignored() {
+    let mut core = TerminalCore::new(20, 10_000).expect("core");
+    core.feed(b"live\r\n");
+    core.feed(b"\x1b]7000;v=1;origin=9999\x1b\\");
+    assert_eq!(core.first_stable_row(), 0);
+    assert_eq!(core.verify_integrity(), Ok(()));
+}
+
 #[test]
 fn replay_prepends_history_without_moving_the_frame() {
     let mut core = TerminalCore::new(20, 10_000).expect("core");
-    core.feed(b"live one\r\nlive two\r\n");
+    attach(&mut core, 1000, "live one\r\nlive two\r\n");
     let before = rows_of(&core);
-    let first_before = core.first_stable_row();
+    assert_eq!(core.first_stable_row(), 1000);
 
     core.feed(b"\x1b]7000;v=1;history=");
-    core.feed(format!("{},2\x1b\\", first_before - 2).as_bytes());
+    core.feed(b"998,2\x1b\\");
     core.feed(b"older one\r\nolder two\r\n");
 
-    assert_eq!(core.first_stable_row(), first_before - 2);
+    assert_eq!(core.first_stable_row(), 998);
     let after = rows_of(&core);
     assert_eq!(&after[..2], &["older one".to_string(), "older two".to_string()]);
     assert_eq!(&after[2..], &before[..]);
@@ -362,14 +435,13 @@ fn replay_prepends_history_without_moving_the_frame() {
 #[test]
 fn a_history_chunk_that_does_not_abut_the_front_is_ignored() {
     let mut core = TerminalCore::new(20, 10_000).expect("core");
-    core.feed(b"live\r\n");
+    attach(&mut core, 1000, "live\r\n");
     let before = rows_of(&core);
-    let first = core.first_stable_row();
 
-    core.feed(format!("\x1b]7000;v=1;history={},2\x1b\\", first + 50).as_bytes());
+    core.feed(b"\x1b]7000;v=1;history=1050,2\x1b\\");
     core.feed(b"bogus one\r\nbogus two\r\n");
 
-    assert_eq!(core.first_stable_row(), first);
+    assert_eq!(core.first_stable_row(), 1000);
     assert_eq!(rows_of(&core), before);
     assert_eq!(core.verify_integrity(), Ok(()));
 }
@@ -377,12 +449,11 @@ fn a_history_chunk_that_does_not_abut_the_front_is_ignored() {
 #[test]
 fn two_history_chunks_prepend_oldest_last() {
     let mut core = TerminalCore::new(20, 10_000).expect("core");
-    core.feed(b"live\r\n");
-    let first = core.first_stable_row();
+    attach(&mut core, 1000, "live\r\n");
 
-    core.feed(format!("\x1b]7000;v=1;history={},1\x1b\\", first - 1).as_bytes());
+    core.feed(b"\x1b]7000;v=1;history=999,1\x1b\\");
     core.feed(b"middle\r\n");
-    core.feed(format!("\x1b]7000;v=1;history={},1\x1b\\", first - 2).as_bytes());
+    core.feed(b"\x1b]7000;v=1;history=998,1\x1b\\");
     core.feed(b"oldest\r\n");
 
     assert_eq!(
@@ -393,10 +464,12 @@ fn two_history_chunks_prepend_oldest_last() {
             "live".to_string()
         ]
     );
-    assert_eq!(core.first_stable_row(), first - 2);
+    assert_eq!(core.first_stable_row(), 998);
     assert_eq!(core.verify_integrity(), Ok(()));
 }
 ```
+
+`attach`'s `origin` is `1000` in every test so the underflow that a fresh core's `first_stable_row() == 0` would produce cannot hide a bug: a chunk numbered below the origin is a real out-of-order chunk and must be dropped, which `a_history_chunk_that_does_not_abut_the_front_is_ignored` pins from the other side.
 
 The first three tests need Task 3's receiver to pass; this task makes the **primitives** they rest on, and pins those directly. Add, to the `tests` module at the end of `packages/terminal/crates/vt-core/src/content.rs`:
 
@@ -585,7 +658,33 @@ In `packages/terminal/crates/vt-core/src/parser.rs`, in `Parser::new` (`:48-74`)
             styles: AttributeMap::with_base(CellStyle::DEFAULT, crate::content::CONTENT_BASE),
 ```
 
-- [ ] **Step 8: `Parser::apply_history_chunk`**
+- [ ] **Step 8: `Parser::adopt_origin`**
+
+Add to `packages/terminal/crates/vt-core/src/parser.rs`, next to `trim_to`:
+
+```rust
+    pub fn adopt_origin(&mut self, origin: u64) -> bool {
+        if self.trimmed_total != 0 || !self.rows.completed().is_empty() {
+            return false;
+        }
+        self.trimmed_total = origin;
+        self.grid.advance_origin(origin as usize);
+        self.note_mutation();
+        true
+    }
+```
+
+`advance_origin` (`block_grid.rs:52`) both moves `origin` and pushes `next_row` up to it, which is what keeps `verify_integrity`'s `OriginMismatch` (`integrity.rs:57-62`) and `NextRowPastEnd` satisfied — the two counters move together by construction. Expose it on `TerminalCore` in `lib.rs` next to `first_stable_row` (`:336`):
+
+```rust
+    pub fn adopt_origin(&mut self, origin: u64) -> bool {
+        let adopted = self.parser.adopt_origin(origin);
+        self.debug_check();
+        adopted
+    }
+```
+
+- [ ] **Step 9: `Parser::apply_history_chunk`**
 
 Add to `packages/terminal/crates/vt-core/src/parser.rs`, and the two structs above `impl Parser` (they are public API, so re-export them from `lib.rs` next to `pub use grid::ExportedRow;` as `pub use parser::{HistoryBlock, HistoryRow};`):
 
@@ -674,37 +773,37 @@ pub struct HistoryBlock {
 
 `history_exported_rows = 0` is the honest consequence of a prepend: every exported history row index shifted, so the whole history section must be re-exported. That is what `mark_full` says too; the pair is what makes `verify_integrity`'s `ExportPrefixPastRows` stay true.
 
-- [ ] **Step 9: Extend the integrity checker**
+- [ ] **Step 10: Extend the integrity checker**
 
 In `packages/terminal/crates/vt-core/src/integrity.rs`, the existing `OriginMismatch` check (`:57-62`) already pins `grid.origin() as u64 == trimmed_total`, which a prepend must preserve — `retreat_origin(count)` and `trimmed_total = first_stable_row` move both by the same `count`. Add no new variant here; Task 8 adds the stale-width one.
 
-- [ ] **Step 10: Run the unit tests to verify they pass**
+- [ ] **Step 11: Run the unit tests to verify they pass**
 
 ```bash
 cd /Users/omaraly/development/AI/Operator/packages/terminal && cargo test -p vt-core prepend && cargo test -p vt-core retreat_origin
 ```
 Expected: PASS. `tests/replay.rs` still fails — Task 3 wires the receiver.
 
-- [ ] **Step 11: Run the full Rust gate**
+- [ ] **Step 12: Run the full Rust gate**
 
 ```bash
 cd /Users/omaraly/development/AI/Operator/packages/terminal && cargo fmt && cargo clippy --all-targets -- -D warnings && cargo test -- --skip replay
 ```
 Expected: PASS. Every existing test must survive the content rebase: nothing outside `content.rs`'s own unit tests asserts an absolute parser-level offset (verified on `ba6dd6d35`), and `build_snapshot` (`grid.rs:93-124`) builds row ranges relative to a fresh buffer. If a test does fail on an absolute offset, fix the test to read `content.start_offset()` rather than reverting the base.
 
-- [ ] **Step 12: CHANGELOG**
+- [ ] **Step 13: CHANGELOG**
 
 Add under `## Unreleased` in `packages/terminal/CHANGELOG.md`:
 
 ```markdown
-- vt-core: scrollback content is allocated from a base offset so a reopened pane can prepend history rows below the rows it already holds; `Parser::apply_history_chunk` prepends rows, styles and blocks and moves `trimmed_total`/`BlockGrid::origin` together.
+- vt-core: scrollback content is allocated from a base offset so a reopened pane can prepend history rows below the rows it already holds; `Parser::adopt_origin` puts a fresh core into the replaying host's stable row space and `Parser::apply_history_chunk` prepends rows, styles and blocks, moving `trimmed_total`/`BlockGrid::origin` together.
 ```
 
-- [ ] **Step 13: Commit**
+- [ ] **Step 14: Commit**
 
 ```bash
 cd /Users/omaraly/development/AI/Operator && git add packages/terminal/crates/vt-core packages/terminal/CHANGELOG.md && git commit -m "$(cat <<'MSG'
-vt-core: prepend history rows below flat row 0
+vt-core: adopt a replay origin and prepend history rows below flat row 0
 
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
 MSG
@@ -715,7 +814,9 @@ MSG
 
 ### Task 3: `HistoryReceiver` — chunk bytes become prepended rows
 
-**Why a second parser.** The chunk's bytes are a styled repaint of rows that are *not* the live screen, and they carry re-emitted `id=`/`cmd=`/`exit=` marks. Feeding them through `TerminalCore::feed_raw` would print them at the cursor and open blocks in the live grid. The receiver therefore owns its own `vte::Parser`, its own `ScreenGrid` sized to the chunk, and its own `MarkDecoder`, and hands the finished rows to `Parser::apply_history_chunk`.
+**Why a second parser.** The chunk's bytes are a styled repaint of rows that are *not* the live screen, and they carry re-emitted `id=`/`cmd=`/`exit=` marks. Feeding them through `TerminalCore::feed_raw` would print them at the cursor and open blocks in the live grid — worse, a trailing `exit=` would reach `BlockGrid::close_block` (`crates/vt-core/src/block_grid.rs:118-127`) and close whatever block the live agent has open. The receiver therefore owns its own `vte::Parser`, its own `ScreenGrid` sized to the chunk, and its own `MarkDecoder`, and hands the finished rows to `Parser::apply_history_chunk`.
+
+**Why the chunk's last byte is a row terminator.** The receiver ends a chunk at the `count`-th `\n` and hands everything after it back to the live path. Task 5 therefore writes a block's closing `exit=` mark **inside** the row it closes — `<row bytes><exit mark>\r\n` — so no chunk byte can ever fall through. A mark written after the final `\r\n` is exactly the leak this ordering exists to prevent.
 
 **Files:**
 - Create: `packages/terminal/crates/vt-core/src/history.rs`
@@ -724,7 +825,7 @@ MSG
 - Test: `packages/terminal/crates/vt-core/tests/replay.rs`
 
 **Interfaces:**
-- Consumes: Task 1's `MarkEvent::{ReplayReady, HistoryChunk}`; Task 2's `Parser::apply_history_chunk`, `HistoryRow`, `HistoryBlock`; `ScreenGrid::new(rows, cols)`, `ScreenGrid::row_cells(row)` and `ScreenGrid::content_rows()` (`screen.rs`; if `row_cells` is named differently, use whatever `grid::export_screen_row` reads at `grid.rs`).
+- Consumes: Task 1's `MarkEvent::{ReplayOrigin, ReplayReady, HistoryChunk}`; Task 2's `Parser::adopt_origin`, `Parser::apply_history_chunk`, `HistoryRow`, `HistoryBlock`; `ScreenGrid::new(rows, cols)`, `ScreenGrid::row_cells(row)` and `ScreenGrid::content_rows()` (`screen.rs`; if `row_cells` is named differently, use whatever `grid::export_screen_row` reads at `grid.rs`).
 - Produces:
   ```rust
   pub(crate) struct HistoryReceiver { /* private */ }
@@ -763,40 +864,62 @@ fn modes_are_replayed() {
 #[test]
 fn blocks_survive_reopen() {
     let mut core = TerminalCore::new(20, 10_000).expect("core");
-    core.feed(b"live\r\n");
-    let first = core.first_stable_row();
-    core.feed(format!("\x1b]7000;v=1;history={},2\x1b\\", first - 2).as_bytes());
-    core.feed(b"\x1b]7000;v=1;id=b1;cmd=ls\x1b\\old one\r\nold two\r\n\x1b]7000;v=1;exit=0\x1b\\");
+    attach(&mut core, 1000, "live\r\n");
+    core.feed(b"\x1b]7000;v=1;history=998,2\x1b\\");
+    core.feed(b"\x1b]7000;v=1;id=b1;cmd=ls\x1b\\old one\r\nold two\x1b]7000;v=1;exit=0\x1b\\\r\n");
 
     let snapshot = core.snapshot().expect("snapshot");
     assert!(
         snapshot.blocks.iter().any(|block| block.row_count == 2),
-        "the prepended block did not survive: {:?}",
+        "the prepended block did not span both of its rows: {:?}",
         snapshot.blocks
     );
     assert_eq!(snapshot.block_command(0), "ls");
     assert_eq!(core.verify_integrity(), Ok(()));
 }
 
+// The chunk's closing `exit=` mark must never reach the live grid: in a real
+// Claude session there IS an open block, and closing it is a visible defect
+// (BlockGrid::close_block, crates/vt-core/src/block_grid.rs:118-127).
 #[test]
 fn a_history_chunks_marks_never_touch_the_live_block_grid() {
     let mut core = TerminalCore::new(20, 10_000).expect("core");
+    attach(&mut core, 1000, "");
+    core.feed(b"\x1b]7000;v=1;id=live;cmd=claude\x1b\\");
     core.feed(b"live\r\n");
-    let before = core.snapshot().expect("snapshot").blocks.len();
-    let first = core.first_stable_row();
-    core.feed(format!("\x1b]7000;v=1;history={},1\x1b\\", first - 1).as_bytes());
-    core.feed(b"\x1b]7000;v=1;id=b9;cmd=pwd\x1b\\old\r\n\x1b]7000;v=1;exit=3\x1b\\");
+    let before = core.snapshot().expect("snapshot");
+    let before_blocks = before.blocks.len();
+    let open_before = before
+        .blocks
+        .iter()
+        .filter(|block| block.state == BlockState::Running)
+        .count();
+    assert_eq!(open_before, 1, "the fixture did not leave a live block open");
+
+    core.feed(b"\x1b]7000;v=1;history=999,1\x1b\\");
+    core.feed(b"\x1b]7000;v=1;id=b9;cmd=pwd\x1b\\old\x1b]7000;v=1;exit=3\x1b\\\r\n");
     core.feed(b"after\r\n");
 
     let after = core.snapshot().expect("snapshot");
     assert_eq!(
         after.blocks.len(),
-        before + 1,
-        "the chunk's marks opened a block in the live grid"
+        before_blocks + 1,
+        "the chunk's marks changed the live block count"
+    );
+    assert_eq!(
+        after
+            .blocks
+            .iter()
+            .filter(|block| block.state == BlockState::Running)
+            .count(),
+        1,
+        "the chunk's exit mark closed the live block"
     );
     assert_eq!(core.verify_integrity(), Ok(()));
 }
 ```
+
+`BlockRecord.state` is the `BlockState` enum itself, not a wire word (`crates/vt-core/src/block.rs:72-84`; `as_u32` at `:21-29` is only used by the wasm export), so the comparison above is direct. Add `use vt_core::BlockState;` to the test file's imports. `assert_eq!(open_before, 1, …)` runs before the interesting assertion on purpose: if the fixture ever stops leaving a block open, this test would otherwise pass for the wrong reason — which is exactly how the pre-review version of it passed.
 
 `modes_are_replayed` is the spec's name for the vt-core half of G's part 1; it pins that the core tracks every mode `vt_replay` will emit in Task 4, so Task 4 has something to read. `?1002h` reports `mouse_tracking_level() == 2` only if `note_private_mode` maps it that way — run the test first and record the level the tree actually reports for 1000/1002/1003, then assert that.
 
@@ -916,6 +1039,9 @@ impl HistoryReceiver {
     }
 }
 
+// `row` is `seen_rows`: the index of the row the mark sits in, because Task 5
+// writes a block's closing mark before that row's CR-LF. The block therefore
+// spans `first_row..=row`, which is `row + 1 - first_row` rows.
 fn note_mark(
     open: &mut Option<OpenBlock>,
     blocks: &mut Vec<HistoryBlock>,
@@ -947,7 +1073,7 @@ fn note_mark(
         if let Some(started) = open.take() {
             blocks.push(HistoryBlock {
                 first_row: started.first_row,
-                row_count: row.saturating_sub(started.first_row).max(1),
+                row_count: (row + 1).saturating_sub(started.first_row).max(1),
                 command: started.command,
                 exit_code,
             });
@@ -1008,7 +1134,16 @@ Then, at the very top of `feed_raw` (`:191`), before `self.sync.note_parsed(byte
 The `MarkEvent` loop inside `feed_raw` (`:202-227`) is where a `HistoryChunk` arms the receiver. Because the loop applies each event only after the bytes *before* it have been parsed (the stream-order rule `TERMINAL.md` §4.15 depends on), arming there is exactly right: the rest of the chunk is what follows the mark. Add, in the `match event` block next to `MarkEvent::InputReady`:
 
 ```rust
-                MarkEvent::ReplayReady => self.replay_ready = true,
+                MarkEvent::ReplayOrigin(origin) => {
+                    self.parser.adopt_origin(origin);
+                    parsed = upto;
+                    continue;
+                }
+                MarkEvent::ReplayReady => {
+                    self.replay_ready = true;
+                    parsed = upto;
+                    continue;
+                }
                 MarkEvent::HistoryChunk {
                     first_stable_row,
                     rows,
@@ -1023,7 +1158,7 @@ The `MarkEvent` loop inside `feed_raw` (`:202-227`) is where a `HistoryChunk` ar
                 }
 ```
 
-`continue` skips `apply_event` for these two variants, so neither ever reaches the block grid. The `MarkEvent::ReplayReady | MarkEvent::HistoryChunk { .. } => {}` arm added to `event_bridge.rs` in Task 1 stays as the belt-and-braces no-op.
+`continue` skips `apply_event` for all three variants, so none of them ever reaches the block grid. `ReplayOrigin` is applied at exactly the point in the stream where the mark sat, which matters: the bytes before it have been parsed (there are none on a fresh attach) and `adopt_origin` refuses to act once any row exists, so the only stream position where it can succeed is the one `vt_replay` puts it in. The `MarkEvent::ReplayOrigin(_) | MarkEvent::ReplayReady | MarkEvent::HistoryChunk { .. } => {}` arm added to `event_bridge.rs` in Task 1 stays as the belt-and-braces no-op.
 
 Finally add the accessor next to `synchronized_output` (`:169`):
 
@@ -1072,7 +1207,7 @@ Expected: every command PASS; `npm run bench:feel` prints `PASS feel gate: zero 
 Add under `## Unreleased`:
 
 ```markdown
-- vt-core: a `history=` mark routes the bytes that follow it into a chunk receiver that prepends them as scrollback rows and blocks instead of printing them at the cursor; a `ready=1` mark is recorded as `TerminalCore::replay_ready()`.
+- vt-core: an `origin=` mark puts a fresh core into the replaying host's stable row space; a `history=` mark routes the bytes that follow it into a chunk receiver that prepends them as scrollback rows and blocks instead of printing them at the cursor, and no chunk byte — including a block's closing `exit=` — reaches the live block grid; a `ready=1` mark is recorded as `TerminalCore::replay_ready()`.
 ```
 
 ```bash
@@ -1088,7 +1223,7 @@ Tell the user: **restart the daemon and the app.**
 
 ---
 
-### Task 4: `vt_replay` emits modes, then the frame, then READY
+### Task 4: `vt_replay` emits the origin, the modes, the frame, then READY
 
 **Files:**
 - Modify: `packages/terminal/crates/vt-host/src/lib.rs:248-358` (`vt_replay`)
@@ -1096,37 +1231,64 @@ Tell the user: **restart the daemon and the app.**
 - Test: `backend/internal/adapters/runtime/ptyhost/vtwasm/replay_test.go`
 
 **Interfaces:**
-- Consumes: `TerminalCore::{alt_screen_active, sgr_mouse, mouse_tracking_level, bracketed_paste, focus_reporting, application_cursor_keys}` (`vt-core/src/lib.rs:375,445-463`), `GridSnapshot::cursor_visible`, Task 3's `modes_are_replayed` pinning that those accessors track the modes.
+- Consumes: `TerminalCore::{alt_screen_active, sgr_mouse, mouse_tracking_level, bracketed_paste, focus_reporting, application_cursor_keys}` (`vt-core/src/lib.rs:375,441-463`), `GridSnapshot::{cursor_visible, first_stable_row, row_count}`, Task 3's `modes_are_replayed` pinning that those accessors track the modes.
 - Produces: the replay byte stream, in this order and no other:
+  0. `\x1b]7000;v=1;origin=<frame_first_stable>\x1b\\`, where `frame_first_stable = snapshot.first_stable_row + total.saturating_sub(lines)` — the stable row of the **first row this replay emits**, and the same value `vt_history_chunk` resolves `HistoryBefore` to in Task 5;
   1. `\x1b[?1049h` when the alternate screen is active;
-  2. `\x1b[?1000h` / `\x1b[?1002h` / `\x1b[?1003h` for the current `mouse_tracking_level`, and `\x1b[?1006h` when `sgr_mouse`;
+  2. one mode per **bit** of `mouse_tracking_level()`: `& 1 → \x1b[?1000h`, `& 2 → \x1b[?1002h`, `& 4 → \x1b[?1003h`; then `\x1b[?1006h` when `sgr_mouse`;
   3. `\x1b[?2004h` when `bracketed_paste`, `\x1b[?1004h` when `focus_reporting`, `\x1b[?1h` when `application_cursor_keys`;
   4. the clipped frame exactly as today (`TERMINAL.md` §4.7);
   5. `\x1b[?25l` when the cursor is hidden — unchanged, still after the cursor placement;
   6. the still-buffered sync bytes — unchanged (Plan A);
   7. `\x1b]7000;v=1;ready=1\x1b\\`.
 
-  READY is **last** so a client that paints at it has the whole frame, including the pending sync tail. An empty terminal still returns 0 bytes: a replay of nothing plus a READY mark is a mark with nothing to be ready for, and the host reads 0 as "no replay frame to send".
+  The origin mark is **first** because `Parser::adopt_origin` refuses to act once any row exists, so it must precede the frame's first row. READY is **last** so a client that paints at it has the whole frame, including the pending sync tail. An empty terminal still returns 0 bytes: a replay of nothing plus an origin and a READY mark is two marks with no frame, and the host reads 0 as "no replay frame to send".
+
+  **`mouse_tracking_level()` is a bitmask, not an enum** (`crates/vt-core/src/parser.rs:341-343`: `1000 => 0b001`, `1002 => 0b010`, `1003 => 0b100`, OR-ed at `:346-350`). Matching it as `1 | 2 | 3` would never replay `?1003h` and would replay a child holding 1000+1002 as `?1003h`.
 
 - [ ] **Step 1: Write the failing test**
 
 Append to `backend/internal/adapters/runtime/ptyhost/vtwasm/replay_test.go`:
 
 ```go
+// The replay states the stable row its first row sits at, so the receiving
+// core can adopt the host's row space. Without it the two stable spaces never
+// meet and every history chunk is dropped as out of order.
+func TestReplayOpensWithTheOriginMark(t *testing.T) {
+	p := newTestParser(t, 20, 4)
+	for i := 0; i < 40; i++ {
+		feed(t, p, fmt.Sprintf("row %02d\r\n", i))
+	}
+
+	out, err := p.Replay(4)
+	if err != nil {
+		t.Fatalf("replay: %v", err)
+	}
+	if !strings.HasPrefix(out, "\x1b]7000;v=1;origin=") {
+		t.Fatalf("the replay does not open with an origin mark:\n%q", out)
+	}
+	origin := out[len("\x1b]7000;v=1;origin="):strings.Index(out, "\x1b\\")]
+	if origin != "37" {
+		t.Fatalf("origin = %q, want 37 (40 rows of history and screen, a 4-row frame)", origin)
+	}
+}
+
 // The replay opens with the modes the child had set, so a reattached client
 // encodes the mouse and paste the same way the child expects. xterm.js's
 // SerializeAddon writes its mode list first for the same reason
 // (xterm.js/src/common/addons/SerializeAddon.ts).
 func TestReplayEmitsTheModesTheChildSet(t *testing.T) {
 	p := newTestParser(t, 80, 24)
-	feed(t, p, "\x1b[?1002h\x1b[?1006h\x1b[?2004h\x1b[?1004h\x1b[?1h")
+	feed(t, p, "\x1b[?1000h\x1b[?1002h\x1b[?1003h\x1b[?1006h\x1b[?2004h\x1b[?1004h\x1b[?1h")
 	feed(t, p, "hello\r\n")
 
 	out, err := p.Replay(1000)
 	if err != nil {
 		t.Fatalf("replay: %v", err)
 	}
-	for _, mode := range []string{"\x1b[?1002h", "\x1b[?1006h", "\x1b[?2004h", "\x1b[?1004h", "\x1b[?1h"} {
+	// mouse_tracking_level is a bitmask: all three tracking modes are set, so
+	// all three must be replayed (crates/vt-core/src/parser.rs:341-350).
+	for _, mode := range []string{"\x1b[?1000h", "\x1b[?1002h", "\x1b[?1003h", "\x1b[?1006h", "\x1b[?2004h", "\x1b[?1004h", "\x1b[?1h"} {
 		if !strings.Contains(out, mode) {
 			t.Fatalf("replay is missing %q:\n%q", mode, out)
 		}
@@ -1169,11 +1331,13 @@ func TestAnEmptyTerminalStillReplaysNothing(t *testing.T) {
 }
 ```
 
-Add at the top of the file, under the imports:
+Add at the top of the file, under the imports, and add `"fmt"` to them:
 
 ```go
 const readyMark = "\x1b]7000;v=1;ready=1\x1b\\"
 ```
+
+`origin != "37"` above is the value for *this* fixture: 40 rows written on a 4-row grid leaves 40 completed-plus-screen rows in a mirror that has trimmed nothing, and a 4-row frame starts at row 36 — run the test once and use the number it reports, then assert that number, so the test pins the arithmetic rather than restating it.
 
 - [ ] **Step 2: Update the guard that pins the old tail**
 
@@ -1202,6 +1366,14 @@ In `packages/terminal/crates/vt-host/src/lib.rs`, add the constant next to `REND
 const READY_MARK: &str = "\x1b]7000;v=1;ready=1\x1b\\";
 ```
 
+and a helper that resolves the frame's first stable row — **the one function Task 5 also calls**, so the origin mark and `HistoryBefore` can never disagree:
+
+```rust
+fn frame_first_stable(snapshot: &vt_core::GridSnapshot, lines: u32) -> u64 {
+    snapshot.first_stable_row + snapshot.row_count().saturating_sub(lines as usize) as u64
+}
+```
+
 and a helper above `vt_replay`:
 
 ```rust
@@ -1209,11 +1381,17 @@ fn write_modes(text: &mut String, core: &TerminalCore, alt: bool) {
     if alt {
         text.push_str("\x1b[?1049h");
     }
-    match core.mouse_tracking_level() {
-        1 => text.push_str("\x1b[?1000h"),
-        2 => text.push_str("\x1b[?1002h"),
-        3 => text.push_str("\x1b[?1003h"),
-        _ => {}
+    // mouse_tracking_level is a bitmask, not an enum
+    // (crates/vt-core/src/parser.rs:341-350).
+    let tracking = core.mouse_tracking_level();
+    if tracking & 0b001 != 0 {
+        text.push_str("\x1b[?1000h");
+    }
+    if tracking & 0b010 != 0 {
+        text.push_str("\x1b[?1002h");
+    }
+    if tracking & 0b100 != 0 {
+        text.push_str("\x1b[?1003h");
     }
     if core.sgr_mouse() {
         text.push_str("\x1b[?1006h");
@@ -1230,16 +1408,30 @@ fn write_modes(text: &mut String, core: &TerminalCore, alt: bool) {
 }
 ```
 
-Check the level values `note_private_mode` assigns for 1000/1002/1003 (`crates/vt-core/src/parser.rs:324-360`) and use those, not the 1/2/3 above, if they differ.
+The bit values are `note_private_mode`'s own (`crates/vt-core/src/parser.rs:341-343`); verify them before typing the helper, and if the tree assigns different bits use those.
 
 In `vt_replay`, replace the alt branch's opening `text.push_str("\x1b[?1049h\x1b[H");` with:
 
 ```rust
+            text.push_str(&format!(
+                "\x1b]7000;v=1;origin={}\x1b\\",
+                frame_first_stable(&snapshot, lines)
+            ));
             write_modes(&mut text, core, true);
             text.push_str("\x1b[H");
 ```
 
-and, in the normal branch, insert `write_modes(&mut text, core, false);` immediately after the `blank`/`total == 0` early return and before the `let cols = core.columns();` line — so an empty terminal still returns 0 or the bare pending-sync bytes, unchanged.
+and, in the normal branch, insert the same two statements immediately after the `blank`/`total == 0` early return and before the `let cols = core.columns();` line:
+
+```rust
+            text.push_str(&format!(
+                "\x1b]7000;v=1;origin={}\x1b\\",
+                frame_first_stable(&snapshot, lines)
+            ));
+            write_modes(&mut text, core, false);
+```
+
+Both go **after** the early return, so an empty terminal still returns 0 or the bare pending-sync bytes, unchanged.
 
 Finally, at the end of `vt_replay`, after `out.extend_from_slice(core.pending_sync_bytes());` and the `if out.is_empty() { return 0; }` guard:
 
@@ -1272,12 +1464,12 @@ Expected: all PASS; `bench:feel` reports zero pixel diff.
 - [ ] **Step 7: CHANGELOG and commit**
 
 ```markdown
-- vt-host: the attach replay opens with the DEC modes the child set (`?1049`, `?1000/1002/1003`, `?1006`, `?2004`, `?1004`, `?1`) and closes with an `OSC 7000;v=1;ready=1` mark, so a reattaching client paints the complete frame at a known point.
+- vt-host: the attach replay opens with an `OSC 7000;v=1;origin=` mark naming the stable row of its first row, then the DEC modes the child set (`?1049`, each bit of the mouse-tracking mask as `?1000/1002/1003`, `?1006`, `?2004`, `?1004`, `?1`), and closes with an `OSC 7000;v=1;ready=1` mark, so a reattaching client shares the host's row space and paints the complete frame at a known point.
 ```
 
 ```bash
 cd /Users/omaraly/development/AI/Operator && git add packages/terminal backend/internal/adapters/runtime/ptyhost && git commit -m "$(cat <<'MSG'
-vt-host: replay the child's modes and mark the frame ready
+vt-host: replay the origin and the child's modes, and mark the frame ready
 
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
 MSG
@@ -1325,7 +1517,9 @@ Tell the user: **restart the daemon and the app.**
   // HistoryBefore is the sentinel that starts at the row just above the frame.
   const HistoryBefore = ^uint64(0)
   ```
-  Each chunk is `\x1b]7000;v=1;history=<first>,<count>\x1b\\` followed by exactly `count` rows, **every one CR-LF terminated including the last** — the receiver in Task 3 consumes exactly `count` LFs and hands the remainder back to the normal path, so an unterminated last row would swallow the next chunk's mark.
+  Each chunk is `\x1b]7000;v=1;history=<first>,<count>\x1b\\` followed by exactly `count` rows. A row is `<block open mark?><row bytes><exit mark?>\r\n`: **every row is CR-LF terminated including the last, and a block's closing `exit=` mark goes inside the row it closes, before that row's CR-LF.** The receiver in Task 3 consumes exactly `count` LFs and hands the remainder back to the live path, so any byte written after the final `\r\n` — a trailing `exit=` above all — falls through to the live parser and closes the live agent's open block (`BlockGrid::close_block`, `crates/vt-core/src/block_grid.rs:118-127`). That is R2; the ordering is the fix.
+
+  `HistoryBefore` resolves through Task 4's `frame_first_stable(&snapshot, lines)` — **the same function that wrote the origin mark** — so the first chunk abuts the frame's first row exactly and `apply_history_chunk`'s abutment test passes on the first try.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -1348,9 +1542,13 @@ func TestReplayOrderIsModesFrameReadyHistory(t *testing.T) {
 	if !strings.HasSuffix(frame, readyMark) {
 		t.Fatalf("the frame does not end at READY:\n%q", frame)
 	}
+	if !strings.HasPrefix(frame, "\x1b]7000;v=1;origin=") {
+		t.Fatalf("the origin mark is not the first bytes of the frame:\n%q", frame)
+	}
 	if strings.Index(frame, "\x1b[?1006h") > strings.Index(frame, "row 3") {
 		t.Fatalf("the modes did not come first:\n%q", frame)
 	}
+	origin := frame[len("\x1b]7000;v=1;origin="):strings.Index(frame, "\x1b\\")]
 
 	var chunks []string
 	before := HistoryBefore
@@ -1380,6 +1578,68 @@ func TestReplayOrderIsModesFrameReadyHistory(t *testing.T) {
 	if !strings.Contains(chunks[len(chunks)-1], "row 00") {
 		t.Fatalf("the last chunk is not the oldest history:\n%q", chunks[len(chunks)-1])
 	}
+	// The first chunk must abut the frame: its history mark's first stable row
+	// plus its count is the origin the frame declared.
+	first, count := parseHistoryMark(t, chunks[0])
+	if got := strconv.FormatUint(first+uint64(count), 10); got != origin {
+		t.Fatalf("the first chunk ends at stable row %s, but the frame starts at %s", got, origin)
+	}
+}
+
+// A block's closing mark belongs inside its last row. Anything written after a
+// chunk's final CR-LF falls through to the live parser, where an exit mark
+// closes the live agent's block (BlockGrid::close_block,
+// crates/vt-core/src/block_grid.rs:118-127).
+func TestAHistoryChunkEndsAtARowTerminator(t *testing.T) {
+	p := newTestParser(t, 20, 2)
+	feed(t, p, "\x1b]133;A\x07\x1b]7000;v=1;cmd=ls\x1b\\")
+	for i := 0; i < 8; i++ {
+		feed(t, p, fmt.Sprintf("out %02d\r\n", i))
+	}
+	feed(t, p, "\x1b]133;D;0\x07")
+	for i := 0; i < 20; i++ {
+		feed(t, p, fmt.Sprintf("tail %02d\r\n", i))
+	}
+
+	before := HistoryBefore
+	for {
+		chunk, next, ok, err := p.HistoryChunk(before, 2, HistoryChunkRows)
+		if err != nil {
+			t.Fatalf("history chunk: %v", err)
+		}
+		if !ok {
+			break
+		}
+		if !strings.HasSuffix(chunk, "\r\n") {
+			t.Fatalf("a chunk ends past its last row terminator:\n%q", chunk)
+		}
+		if strings.Contains(chunk, "\x1b\\\r\n\x1b]7000;v=1;exit=") {
+			t.Fatalf("an exit mark was written after a row terminator:\n%q", chunk)
+		}
+		before = next
+	}
+}
+
+func parseHistoryMark(t *testing.T, chunk string) (uint64, int) {
+	t.Helper()
+	const prefix = "\x1b]7000;v=1;history="
+	end := strings.Index(chunk, "\x1b\\")
+	if !strings.HasPrefix(chunk, prefix) || end < 0 {
+		t.Fatalf("not a history chunk: %q", chunk)
+	}
+	parts := strings.Split(chunk[len(prefix):end], ",")
+	if len(parts) != 2 {
+		t.Fatalf("malformed history mark: %q", chunk[:end])
+	}
+	first, err := strconv.ParseUint(parts[0], 10, 64)
+	if err != nil {
+		t.Fatalf("history mark first row: %v", err)
+	}
+	count, err := strconv.Atoi(parts[1])
+	if err != nil {
+		t.Fatalf("history mark count: %v", err)
+	}
+	return first, count
 }
 
 // The common case: a fresh session whose mirror holds less than the frame.
@@ -1418,7 +1678,7 @@ func TestHistoryChunkRowsAreClippedToTheGrid(t *testing.T) {
 }
 ```
 
-`stripSGR` is a three-line helper (`regexp.MustCompile("\x1b\\[[0-9;]*m")` with `ReplaceAllString`); add it next to `feed` if the file has no equivalent. Add `"fmt"` and `"regexp"` to the imports.
+`stripSGR` is a three-line helper (`regexp.MustCompile("\x1b\\[[0-9;]*m")` with `ReplaceAllString`); add it next to `feed` if the file has no equivalent. Add `"fmt"`, `"regexp"` and `"strconv"` to the imports.
 
 - [ ] **Step 2: Run the tests to verify they fail**
 
@@ -1452,11 +1712,9 @@ pub extern "C" fn vt_history_chunk(
         let Ok(snapshot) = core.snapshot() else {
             return RENDER_ERR;
         };
-        let total = snapshot.row_count();
         let first_stable = snapshot.first_stable_row;
-        let frame_first = total.saturating_sub(lines as usize);
         let bound_stable = if before == u64::MAX {
-            first_stable + frame_first as u64
+            frame_first_stable(&snapshot, lines)
         } else {
             before
         };
@@ -1473,7 +1731,6 @@ pub extern "C" fn vt_history_chunk(
             chunk_first_stable, count
         );
         let cols = core.columns();
-        let mut pending_exit: Option<(usize, Option<i32>)> = None;
         for row in start..bound {
             write_block_open(&mut text, &snapshot, row);
             let indent = snapshot.row_indent(row).min(cols.saturating_sub(1));
@@ -1483,8 +1740,13 @@ pub extern "C" fn vt_history_chunk(
                 cols - indent,
             );
             write_indent(&mut text, indent);
-            write_styled_row_with(&mut text, row_bytes, &pairs, "\r\n");
-            write_block_close(&mut text, &snapshot, row, &mut pending_exit);
+            // The closing mark is the row's terminator, not a separate line:
+            // a byte after the chunk's final CR-LF falls through to the live
+            // parser (Task 3's receiver ends the chunk at the count-th LF).
+            let mut terminator = String::new();
+            write_block_close(&mut terminator, &snapshot, row);
+            terminator.push_str("\r\n");
+            write_styled_row_with(&mut text, row_bytes, &pairs, &terminator);
         }
 
         let out = text.into_bytes();
@@ -1504,7 +1766,9 @@ pub extern "C" fn vt_history_chunk(
 }
 ```
 
-`write_block_open`/`write_block_close` walk `snapshot.blocks` and emit, before a row that is some block's `first_row`, `\x1b]7000;v=1;id=<index>;cmd=<percent-encoded command>\x1b\\`, and after that block's last row, `\x1b]7000;v=1;exit=<code>\x1b\\` (only when the block has one). Percent-encode `;`, `=`, `%` and every byte below 0x20 in the command — `crates/marks/src/extension.rs:74-98` is the decoder those escapes must survive. Write them as two small private helpers in the same file; a linear scan of `snapshot.blocks` per row is fine at 512 rows, but if the block count makes it quadratic, build one `Vec<Option<&BlockRecord>>` indexed by row before the loop.
+`write_block_open(text, snapshot, row)` emits, before a row that is some block's flat `first_row`, `\x1b]7000;v=1;id=<index>;cmd=<percent-encoded command>\x1b\\`. `write_block_close(text, snapshot, row)` emits `\x1b]7000;v=1;exit=<code>\x1b\\` when `row` is the **last** row of a block that has an exit code (`first_row + row_count - 1`), and nothing otherwise — no `pending_exit` state is needed, because the mark now belongs to a row rather than to the gap after it. Percent-encode `;`, `=`, `%` and every byte below 0x20 in the command — `crates/marks/src/extension.rs:74-98` is the decoder those escapes must survive. Write both as small private helpers in the same file; a linear scan of `snapshot.blocks` per row is fine at 512 rows, but if the block count makes it quadratic, build one `Vec<Option<&BlockRecord>>` indexed by row before the loop.
+
+`write_styled_row_with` (`crates/vt-host/src/lib.rs:392`) writes `\x1b[0m` then the terminator, so passing `<exit mark>\r\n` as the terminator puts the mark after the row's SGR reset and before its CR-LF — exactly where Task 3's `note_mark` expects it, at `seen_rows == row`.
 
 - [ ] **Step 4: Wire the Go side**
 
@@ -1578,20 +1842,19 @@ Add to `packages/terminal/crates/vt-core/tests/replay.rs` — the one test that 
 #[test]
 fn a_chunk_shaped_like_the_hosts_prepends_cleanly() {
     let mut core = TerminalCore::new(12, 10_000).expect("core");
-    core.feed(b"live\r\n");
-    let first = core.first_stable_row();
-    let chunk = format!(
-        "\x1b]7000;v=1;history={},2\x1b\\\x1b[0mold one\x1b[0m\r\n\x1b[0mold two\x1b[0m\r\n",
-        first - 2
+    attach(&mut core, 1000, "live\r\n");
+    core.feed(
+        b"\x1b]7000;v=1;history=998,2\x1b\\\x1b[0mold one\x1b[0m\r\n\x1b[0mold two\x1b[0m\x1b]7000;v=1;exit=0\x1b\\\r\n",
     );
-    core.feed(chunk.as_bytes());
     core.feed(b"next\r\n");
 
-    assert_eq!(core.first_stable_row(), first - 2);
+    assert_eq!(core.first_stable_row(), 998);
     assert_eq!(rows_of(&core), vec!["old one", "old two", "live", "next"]);
     assert_eq!(core.verify_integrity(), Ok(()));
 }
 ```
+
+The chunk above is byte-for-byte the shape Task 5 emits, closing mark included: an `exit=` inside the last row, before its CR-LF. If the receiver ever regresses to ending a chunk early, `next` lands in the wrong place and this test says so.
 
 ```bash
 cd /Users/omaraly/development/AI/Operator/packages/terminal && cargo test -p vt-core --test replay
@@ -1613,7 +1876,7 @@ Expected: all PASS; `bench:feel` zero pixel diff.
 - [ ] **Step 8: CHANGELOG and commit**
 
 ```markdown
-- vt-host: `vt_history_chunk` serialises scrollback newest→oldest in 512-row chunks, each framed by an `OSC 7000;v=1;history=<first_stable_row>,<count>` mark with its blocks re-emitted as `id=`/`cmd=`/`exit=`, so a reattaching client recovers the whole session instead of the mirror's last screen.
+- vt-host: `vt_history_chunk` serialises scrollback newest→oldest in 512-row chunks, each framed by an `OSC 7000;v=1;history=<first_stable_row>,<count>` mark with its blocks re-emitted as `id=`/`cmd=`/`exit=` inside the rows they span, so a reattaching client recovers the whole session instead of the mirror's last screen and no chunk byte reaches its live block grid.
 ```
 
 ```bash
@@ -1629,26 +1892,46 @@ Tell the user: **restart the daemon and the app.**
 
 ---
 
-### Task 6: `attach.go` streams the four parts; the handshake returns after READY
+### Task 6: `attach.go` streams the five parts to clients that ask; the handshake returns after READY
 
 **Files:**
-- Modify: `backend/internal/adapters/runtime/ptyhost/host.go:712-721` (the registration hold), `:769-791` (`replayFrameLocked`)
-- Modify: `backend/internal/adapters/runtime/ptyhost/attach.go:83-126` (`attachHandshake`)
+- Modify: `backend/internal/adapters/runtime/ptyhost/proto.go:36-40` (`ResizePayload.History`)
+- Modify: `backend/internal/adapters/runtime/ptyhost/host.go:78-107` (`clientState.wantsHistory`), `:712-721` (the registration hold), `:769-791` (`replayFrameLocked`)
+- Modify: `backend/internal/adapters/runtime/ptyhost/attach.go:25-74` (`Attach`/`AttachWithHistory`), `:83-126` (`attachHandshake`), `:185-193` (`writeResize`)
+- Modify: `backend/internal/ports/outbound.go:185-206` (`HistoryAttacher`)
 - Test: `backend/internal/adapters/runtime/ptyhost/attach_replay_test.go`
 
 **Interfaces:**
-- Consumes: Task 4's READY-terminated frame from `Parser.Replay(MaxOutputLines)`; Task 5's `Parser.HistoryChunk(before, lines, maxRows)`, `HistoryBefore`, `HistoryChunkRows`.
+- Consumes: Task 4's origin mark and READY-terminated frame from `Parser.Replay(MaxOutputLines)`; Task 5's `Parser.HistoryChunk(before, lines, maxRows)`, `HistoryBefore`, `HistoryChunkRows`.
 - Produces:
   ```go
+  // proto.go — the opening MsgResize, which is already the registration
+  // message, carries the opt-in. No new message type.
+  type ResizePayload struct {
+      Cols    int  `json:"cols"`
+      Rows    int  `json:"rows"`
+      History bool `json:"history,omitempty"`
+  }
+  // ports/outbound.go — optional, asserted at the call site like PaneCapturer,
+  // so every other Attacher implementation stays untouched.
+  type HistoryAttacher interface {
+      AttachWithHistory(ctx context.Context, handle RuntimeHandle, rows, cols uint16, history bool) (Stream, error)
+  }
+  // attach.go — Attach keeps its signature and means "no history".
+  func (r *Runtime) Attach(ctx context.Context, handle ports.RuntimeHandle, rows, cols uint16) (ports.Stream, error)
+  func (r *Runtime) AttachWithHistory(ctx context.Context, handle ports.RuntimeHandle, rows, cols uint16, history bool) (ports.Stream, error)
+  func attachHandshake(conn net.Conn, rows, cols uint16, history bool) ([][]byte, error)
   // host.go — replayFrameLocked keeps its signature and its meaning: the ONE
   // frame a newly registered client is queued under h.mu. History is queued
-  // after the lock is released.
+  // after the lock is released, and only for a client that asked.
   func (h *host) replayFrameLocked() []byte
-  // history is streamed off the lock, one frame per chunk, into the client's
-  // own queue, so a long history never holds h.mu and never blocks deliver.
   func (h *host) streamHistory(cs *clientState)
   ```
-  `attachHandshake` returns as soon as it has seen the READY mark *or* the status reply, whichever comes first — a session with no replay never sends READY, and the status reply is still the backstop it is today.
+  On `clientState`: `wantsHistory bool`, set from the opening resize. `attachHandshake` returns as soon as it has seen the READY mark *or* the status reply, whichever comes first — a session with no replay never sends READY, and the status reply is still the backstop it is today.
+
+**Why history is opt-in.** The desktop renderer's core understands OSC 7000 history marks after Tasks 1–3. **The mobile client does not**: it renders with the vendored xterm fork (`packages/mobile/packages/xterm`), whose OSC dispatch sends anything it does not recognise to `unknownOSC` → `onPrivateOSC` (`lib/src/core/escape/parser.dart:1079`, `lib/src/terminal.dart:902-905`). So the origin, READY and history **marks** are harmless there — verified, they are not printed — but the history **rows** between them are ordinary text and would print up to 200k rows of session, newest→oldest, after the live frame. The prompt's rule that an old client keeps working applies to G exactly as it does to H, so a client gets history only when it asks. Task 12 (mobile) deliberately does not ask.
+
+**The capture stream is not a client.** `CaptureWorker` (`backend/internal/terminal/capture.go:39-56`) reads a journal on disk through `terminalcapture.Reader`; the journal is fed inside the pty-host by `h.capture.write(batch)` in `deliver` (`host.go:538`), which sees only live PTY batches. It is not an attach client, receives no replay frame and no history chunk, so the re-emitted `id=`/`cmd=`/`exit=` marks can never reach Operator's block store through it. Nothing to opt out of — recorded here because the question is worth not re-asking.
 
 **Why history is queued off the lock.** `handleConn` (`host.go:712-721`) queues the replay under a single `h.mu` hold precisely so no PTY chunk can slip between the replay and the client joining the broadcast set. History is *older* than every byte in that frame, so it has no such race: it can be queued afterwards, from the same goroutine, while `deliver` runs freely. Doing it under the lock would hold `h.mu` for the whole 200k-row serialisation.
 
@@ -1671,9 +1954,12 @@ func TestClientPaintsAtReadyBeforeHistory(t *testing.T) {
 
 	c := newTestClient(t, f.addr)
 	defer c.close()
-	sendResize(t, c, 20, 4)
+	sendResizeWithHistory(t, c, 20, 4, true)
 
 	first := readReplay(t, c)
+	if !strings.HasPrefix(first, "\x1b]7000;v=1;origin=") {
+		t.Fatalf("the first terminal frame does not open with the origin mark:\n%q", first)
+	}
 	if !strings.HasSuffix(first, readyMark) {
 		t.Fatalf("the first terminal frame is not a READY-terminated replay:\n%q", first)
 	}
@@ -1681,20 +1967,76 @@ func TestClientPaintsAtReadyBeforeHistory(t *testing.T) {
 		t.Fatalf("history was packed into the frame the client paints:\n%q", first)
 	}
 
-	var history strings.Builder
+	stream := first
 	deadline := time.Now().Add(5 * time.Second)
-	for time.Now().Before(deadline) && !strings.Contains(history.String(), "row 00") {
+	for time.Now().Before(deadline) && !strings.Contains(stream, "row 00") {
 		typ, payload := c.readFrame(t)
 		if typ == MsgTerminalData {
-			history.WriteString(string(payload))
+			stream += string(payload)
 		}
 	}
-	if !strings.Contains(history.String(), "\x1b]7000;v=1;history=") {
-		t.Fatalf("no history chunk followed the replay:\n%q", history.String())
+	if !strings.Contains(stream, "\x1b]7000;v=1;history=") {
+		t.Fatalf("no history chunk followed the replay:\n%q", stream)
 	}
-	if !strings.Contains(history.String(), "row 00") {
-		t.Fatalf("history did not reach the oldest row:\n%q", history.String())
+
+	// End to end: the whole stream, fed to a fresh core, must reconstruct the
+	// session with row 00 at the top. "A chunk arrived" is not the property
+	// under test — "the chunks were prepended" is.
+	mirror, err := vtwasm.New(context.Background(), vtwasm.Module, 20, 4, vtwasm.Limits{Rows: 200_000, Bytes: 0xffffffff})
+	if err != nil {
+		t.Fatalf("new mirror: %v", err)
 	}
+	defer mirror.Close()
+	if err := mirror.Feed([]byte(stream)); err != nil {
+		t.Fatalf("feed the replay stream: %v", err)
+	}
+	rendered, err := mirror.RenderTail(200_000)
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	rows := strings.Split(strings.TrimRight(rendered, "\n"), "\n")
+	if len(rows) == 0 || !strings.Contains(rows[0], "row 00") {
+		t.Fatalf("the replayed history was not prepended; first row = %q", rows[0])
+	}
+	if !strings.Contains(rows[len(rows)-1], "row 59") {
+		t.Fatalf("the live frame did not stay at the bottom; last row = %q", rows[len(rows)-1])
+	}
+}
+
+// A client that does not ask for history gets exactly today's attach. The
+// mobile build renders with an xterm fork that would print the rows.
+func TestAClientWithoutHistoryOptInGetsNoChunks(t *testing.T) {
+	f := startServeParsed(t, 712, 20, 4)
+	defer f.cancel()
+
+	for i := 0; i < 60; i++ {
+		writeOutput(t, f, fmt.Sprintf("row %02d\r\n", i))
+	}
+	waitForParsedOutput(t, f, "row 59")
+
+	c := newTestClient(t, f.addr)
+	defer c.close()
+	sendResize(t, c, 20, 4)
+
+	replay := readReplay(t, c)
+	if strings.Contains(replay, "history=") {
+		t.Fatalf("a client that did not opt in was sent history:\n%q", replay)
+	}
+	writeOutput(t, f, "live after attach\r\n")
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		typ, payload := c.readFrame(t)
+		if typ != MsgTerminalData {
+			continue
+		}
+		if strings.Contains(string(payload), "history=") {
+			t.Fatalf("a history chunk reached a client that did not opt in:\n%q", payload)
+		}
+		if strings.Contains(string(payload), "live after attach") {
+			return
+		}
+	}
+	t.Fatal("the live byte that proves nothing else was queued first never arrived")
 }
 
 // A fresh session whose mirror holds less than one replayed frame must attach
@@ -1720,7 +2062,22 @@ func TestAFreshSessionAttachIsUnchanged(t *testing.T) {
 }
 ```
 
-Add `readyMark` to this package too (a second `const readyMark = "\x1b]7000;v=1;ready=1\x1b\\"` in `attach_replay_test.go`; the constant in `vtwasm` is in a different package), and `"fmt"` to the imports.
+Add `readyMark` to this package too (a second `const readyMark = "\x1b]7000;v=1;ready=1\x1b\\"` in `attach_replay_test.go`; the constant in `vtwasm` is in a different package), `"fmt"` to the imports, and the resize helper that carries the opt-in:
+
+```go
+func sendResizeWithHistory(t *testing.T, c *testClient, cols, rows int, history bool) {
+	t.Helper()
+	payload, err := json.Marshal(ResizePayload{Cols: cols, Rows: rows, History: history})
+	if err != nil {
+		t.Fatalf("marshal resize: %v", err)
+	}
+	if err := c.send(MsgResize, payload); err != nil {
+		t.Fatalf("send resize: %v", err)
+	}
+}
+```
+
+`sendResize` (`attach_replay_test.go:140-149`) stays as it is and now means "no history", which is what `TestAClientWithoutHistoryOptInGetsNoChunks` and every pre-existing attach test rely on.
 
 - [ ] **Step 2: Run the tests to verify they fail**
 
@@ -1729,12 +2086,83 @@ cd /Users/omaraly/development/AI/Operator/backend && go test ./internal/adapters
 ```
 Expected: FAIL — no history chunk ever arrives.
 
-- [ ] **Step 3: Stream history after registration**
+- [ ] **Step 3: Carry the opt-in on the opening resize**
 
-In `backend/internal/adapters/runtime/ptyhost/host.go`, in `handleConn`, immediately after `go h.runWriter(conn, cs)` (`:724`):
+In `backend/internal/adapters/runtime/ptyhost/proto.go`, extend `ResizePayload` (`:36-40`):
 
 ```go
-	go h.streamHistory(cs)
+// ResizePayload is the JSON body for MsgResize. History is read only from a
+// connection's OPENING resize, which is its registration message: a client
+// that understands OSC 7000 history chunks asks for scrollback there.
+type ResizePayload struct {
+	Cols    int  `json:"cols"`
+	Rows    int  `json:"rows"`
+	History bool `json:"history,omitempty"`
+}
+```
+
+`handleClientMsg`'s later `MsgResize` case (`host.go:803-818`) keeps ignoring the field: history is streamed once, at registration, and a mid-session resize is not a second attach.
+
+In `host.go`, add `wantsHistory bool` to `clientState` and set it in the registration hold (`:712-715`):
+
+```go
+	if opening != nil {
+		cs.cols, cs.rows, cs.sized = opening.Cols, opening.Rows, true
+		cs.wantsHistory = opening.History
+	}
+```
+
+In `attach.go`, add the capability and make `Attach` the no-history form:
+
+```go
+func (r *Runtime) Attach(ctx context.Context, handle ports.RuntimeHandle, rows, cols uint16) (ports.Stream, error) {
+	return r.AttachWithHistory(ctx, handle, rows, cols, false)
+}
+
+func (r *Runtime) AttachWithHistory(ctx context.Context, handle ports.RuntimeHandle, rows, cols uint16, history bool) (ports.Stream, error) {
+	// the existing body of Attach, with the handshake call becoming
+	// attachHandshake(conn, rows, cols, history)
+}
+```
+
+and thread the flag through `writeResize`:
+
+```go
+func writeResize(w io.Writer, rows, cols uint16) error {
+	return writeResizeWithHistory(w, rows, cols, false)
+}
+
+func writeResizeWithHistory(w io.Writer, rows, cols uint16, history bool) error {
+	payload, _ := json.Marshal(ResizePayload{Cols: int(cols), Rows: int(rows), History: history})
+	frame, err := EncodeMessage(MsgResize, payload)
+	if err != nil {
+		return err
+	}
+	_, err = w.Write(frame)
+	return err
+}
+```
+
+`loopbackStream.Resize` keeps calling `writeResize`, so a mid-session resize never re-asks for history. Add the assertion `var _ ports.HistoryAttacher = (*Runtime)(nil)` next to the existing `var _ ports.Attacher = (*Runtime)(nil)` (`attach.go:20`), and the interface itself to `backend/internal/ports/outbound.go` next to `PaneCapturer`:
+
+```go
+// HistoryAttacher is an optional Attacher capability: a client that
+// understands the runtime's history marks can ask for the session's
+// scrollback behind its replay frame. Asserted at the call site, so an
+// Attacher without it simply never streams history.
+type HistoryAttacher interface {
+	AttachWithHistory(ctx context.Context, handle RuntimeHandle, rows, cols uint16, history bool) (Stream, error)
+}
+```
+
+- [ ] **Step 4: Stream history after registration, only to a client that asked**
+
+In `host.go`, in `handleConn`, immediately after `go h.runWriter(conn, cs)` (`:724`):
+
+```go
+	if cs.wantsHistory {
+		go h.streamHistory(cs)
+	}
 ```
 
 and add the method next to `replayFrameLocked`:
@@ -1744,6 +2172,10 @@ and add the method next to `replayFrameLocked`:
 // replay frame the client was already queued. It runs off h.mu: these rows
 // are older than every byte in that frame, so nothing can race into the gap
 // the way a live chunk could between the replay and registration.
+//
+// It paces on the SAME ack watermark deliver uses, so a 200k-row history sent
+// to one client can never push that client past readHighWatermark and pause
+// the child for every other attached pane (Task 10).
 func (h *host) streamHistory(cs *clientState) {
 	parser := h.currentParser()
 	if parser == nil {
@@ -1751,6 +2183,9 @@ func (h *host) streamHistory(cs *clientState) {
 	}
 	before := vtwasm.HistoryBefore
 	for {
+		if h.stopping() {
+			return
+		}
 		chunk, next, ok, err := parser.HistoryChunk(before, MaxOutputLines, vtwasm.HistoryChunkRows)
 		if err != nil {
 			h.logf("stream attach history: %v", err)
@@ -1764,23 +2199,35 @@ func (h *host) streamHistory(cs *clientState) {
 			h.logf("encode attach history: %v", err)
 			return
 		}
+		h.mu.Lock()
 		cs.enqueue(frame)
+		cs.delivered += len(chunk)
+		h.mu.Unlock()
 		cs.awaitCapacity()
+		h.awaitAckedHistory(cs)
 		before = next
-		select {
-		case <-h.shutdownC:
-			return
-		default:
-		}
+	}
+}
+
+// awaitAckedHistory parks the history stream while this client is more than
+// readLowWatermark bytes behind its own acks. A client that never acks is
+// paced by awaitCapacity alone, exactly as it is today.
+func (h *host) awaitAckedHistory(cs *clientState) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	for cs.everAcked && cs.delivered-cs.acked > readLowWatermark && !h.stopping() {
+		h.readCond.Wait()
 	}
 }
 ```
 
+`cs.delivered += len(chunk)` is R4: the client acks every byte `mux.onData` hands it, replay and history included, so the host must count the same stream or `acked` runs permanently ahead of `delivered` and the watermark never fires again for that pane. `h.stopping()`, `h.readCond`, `cs.delivered`/`cs.acked`/`cs.everAcked` and `readLowWatermark` all land in Task 10; **until Task 10 is executed, write `streamHistory` without the two lines that touch them** (`cs.delivered += …` and the `h.awaitAckedHistory(cs)` call) and add them in Task 10 Step 4, which is where this plan's Step-by-step ordering puts them. Task 10's steps say so explicitly.
+
 `cs.awaitCapacity()` between chunks is what keeps a 200k-row history from materialising in the client's queue: it parks this goroutine exactly as `deliver` parks the pump.
 
-- [ ] **Step 4: Return the handshake at READY**
+- [ ] **Step 5: Return the handshake at READY**
 
-In `backend/internal/adapters/runtime/ptyhost/attach.go`, inside `attachHandshake`, change the parser callback and the loop condition:
+In `backend/internal/adapters/runtime/ptyhost/attach.go`, change `attachHandshake`'s signature to `attachHandshake(conn net.Conn, rows, cols uint16, history bool)`, make its first line `writeResizeWithHistory(conn, rows, cols, history)`, and change the parser callback and the loop condition:
 
 ```go
 	var (
@@ -1815,14 +2262,14 @@ var readyMarkBytes = []byte("\x1b]7000;v=1;ready=1\x1b\\")
 
 Add `"bytes"` to the imports. `applied` stays as the backstop: a session with nothing to replay sends no READY and the status reply is what ends the wait, exactly as today.
 
-- [ ] **Step 5: Run the tests to verify they pass**
+- [ ] **Step 6: Run the tests to verify they pass**
 
 ```bash
 cd /Users/omaraly/development/AI/Operator/backend && go test ./internal/adapters/runtime/ptyhost/ -count=1
 ```
 Expected: PASS. `TestAttachReplayDoesNotDuplicateRedrawnFrames`, `TestAttachAppliesOpeningGridBeforeReplaying`, `TestAttachReplaysAClientThatNeverResizes` and `TestAttachReplaySurvivesAWidthChangeUnderWrappedRedraws` must all still pass unchanged — `readReplay` returns the first `MsgTerminalData`, which is still the frame.
 
-- [ ] **Step 6: Full gate and daemon rebuild**
+- [ ] **Step 7: Full gate and daemon rebuild**
 
 ```bash
 cd /Users/omaraly/development/AI/Operator/backend && go test ./internal/adapters/runtime/ptyhost/... ./internal/terminal/... -count=1
@@ -1832,15 +2279,15 @@ cd /Users/omaraly/development/AI/Operator && npm --prefix frontend run build:dae
 ```
 Expected: all PASS; `bench:feel` zero pixel diff.
 
-- [ ] **Step 7: CHANGELOG and commit**
+- [ ] **Step 8: CHANGELOG and commit**
 
 ```markdown
-- pty-host: an attach now streams four parts — the child's modes, the live frame, the READY mark, then scrollback newest→oldest — and the attach handshake returns at READY so the pane paints while history is still arriving.
+- pty-host: an attach now streams five parts — the origin mark, the child's modes, the live frame, the READY mark, then scrollback newest→oldest — and the handshake returns at READY so the pane paints while history is still arriving. History is sent only to a client that asks for it on its opening resize, so a client that cannot read history chunks is unaffected.
 ```
 
 ```bash
 cd /Users/omaraly/development/AI/Operator && git add backend/internal/adapters/runtime/ptyhost packages/terminal/CHANGELOG.md && git commit -m "$(cat <<'MSG'
-ptyhost: stream attach history behind the replayed frame
+ptyhost: stream attach history behind the replayed frame, on request
 
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
 MSG
@@ -1851,76 +2298,74 @@ Tell the user: **restart the daemon and the app.**
 
 ---
 
-### Task 7: The renderer lifts its cover at READY, not after the last history chunk
+### Task 7: The renderer lifts its cover when the core reports the frame parsed
 
 **Files:**
-- Create: `frontend/src/renderer/lib/replay-ready.ts`, `frontend/src/renderer/lib/replay-ready.test.ts`
+- Modify: `packages/terminal/ts/core/src/terminal-core.ts:169-205` (`replayReady`, the change notification), `types.ts`
+- Modify: `packages/terminal/crates/vt-wasm/src/lib.rs` (the `replay_ready` getter)
+- Modify: `frontend/src/renderer/components/BlockTerminal.tsx:138-142` (surface the flag to the host)
 - Modify: `frontend/src/renderer/hooks/useTerminalSession.ts:109-155` (the gate's constants), `:213-228` (the gate's runtime fields), `:564-604` (`mux.onData`)
-- Test: `frontend/src/renderer/hooks/useTerminalSession.test.tsx`
+- Test: `packages/terminal/ts/core/src/terminal-core.test.ts`, `frontend/src/renderer/hooks/useTerminalSession.test.tsx`
 
-**Why so little changes.** The block renderer's core is fed from `r.byteListeners` unconditionally (`useTerminalSession.ts:579`), *before* the replay gate is consulted — the gate has only ever controlled the cover and the (now no-op) xterm writes. So "paint at READY" is exactly: end the gate when the READY mark passes, instead of at `REPLAY_QUIET_MS` / `REPLAY_CAP_MS` after the last history chunk. `TERMINAL.md` §4.6's first-grid leading edge (`publishGrid`, `gridPublished`) is untouched: the pty-host still holds the replay until a grid arrives.
+**Why the core's flag and not a byte scan.** Task 3 already records the READY mark as `TerminalCore::replay_ready()`. Scanning the mux bytes for the mark instead would lift the cover when the bytes *arrive*, not when they are *parsed* — and since Plan A the renderer feeds through `enqueue` with a 12 ms `drain` budget per animation frame, a 1 MiB replay can arrive several frames before its last row is parsed. The cover would come off an unpainted pane. The core's flag flips inside `feed`, on the same byte, and is therefore the honest signal. No `replay-ready.ts` byte scanner is built.
+
+**Why so little else changes.** The block renderer's core is fed from `r.byteListeners` unconditionally (`useTerminalSession.ts:579`), *before* the replay gate is consulted — the gate has only ever controlled the cover and the (now no-op) xterm writes. So "paint at READY" is exactly: end the gate when the core says the frame is parsed, instead of at `REPLAY_QUIET_MS` / `REPLAY_CAP_MS` after the last history chunk. `TERMINAL.md` §4.6's first-grid leading edge (`publishGrid`, `gridPublished`) is untouched: the pty-host still holds the replay until a grid arrives.
 
 **Interfaces:**
-- Consumes: Task 4's READY mark bytes.
+- Consumes: Task 3's `TerminalCore::replay_ready()`; Plan A's `enqueue`/`drain`; `TerminalCore.onChange(listener)` (`terminal-core.ts:405`), which already fires once per generation change.
 - Produces:
+  ```rust
+  // vt-wasm/src/lib.rs
+  #[wasm_bindgen]
+  impl WasmTerminalCore {
+      pub fn replay_ready(&self) -> bool;
+  }
+  ```
   ```ts
-  // frontend/src/renderer/lib/replay-ready.ts
-  export const READY_MARK = new Uint8Array([
-      0x1b, 0x5d, 0x37, 0x30, 0x30, 0x30, 0x3b, 0x76, 0x3d, 0x31, 0x3b,
-      0x72, 0x65, 0x61, 0x64, 0x79, 0x3d, 0x31, 0x1b, 0x5c,
-  ]); // ESC ] 7 0 0 0 ; v = 1 ; r e a d y = 1 ESC \
-  /** Carries the last READY_MARK.length-1 bytes between calls so a mark split
-   *  across two mux messages is still found. */
-  export function createReadyScanner(): (bytes: Uint8Array) => boolean;
+  // ts/core/src/terminal-core.ts
+  /** True once a replay READY mark has been parsed on this core. */
+  replayReady(): boolean;
+  ```
+  ```ts
+  // frontend/src/renderer/components/BlockTerminal.tsx — a new optional prop
+  onReplayReady?: () => void; // fired once, on the first change where replayReady() is true
   ```
 
 - [ ] **Step 1: Write the failing test**
 
-Create `frontend/src/renderer/lib/replay-ready.test.ts`:
+Append to `packages/terminal/ts/core/src/terminal-core.test.ts`:
 
 ```ts
-import { describe, expect, it } from "vitest";
-import { createReadyScanner, READY_MARK } from "./replay-ready";
-
-const encode = (text: string) => new TextEncoder().encode(text);
-
-describe("createReadyScanner", () => {
-	it("finds the mark inside one chunk", () => {
-		const scan = createReadyScanner();
-		expect(scan(encode(`rows\r\n\x1b]7000;v=1;ready=1\x1b\\`))).toBe(true);
+	it("reports the replay as ready only once the mark is parsed", () => {
+		const core = makeCore({ columns: 20 });
+		expect(core.replayReady()).toBe(false);
+		core.enqueue(new TextEncoder().encode("frame\r\n\x1b]7000;v=1;ready=1\x1b\\"));
+		expect(core.replayReady()).toBe(false);
+		core.drain();
+		expect(core.replayReady()).toBe(true);
 	});
 
-	it("finds a mark split across two chunks", () => {
-		const scan = createReadyScanner();
-		const whole = encode(`\x1b]7000;v=1;ready=1\x1b\\`);
-		expect(scan(whole.subarray(0, 9))).toBe(false);
-		expect(scan(whole.subarray(9))).toBe(true);
+	it("notifies a change on the feed that parses the ready mark", () => {
+		const core = makeCore({ columns: 20 });
+		let ready = false;
+		core.onChange(() => {
+			ready = ready || core.replayReady();
+		});
+		core.feed(new TextEncoder().encode("frame\r\n\x1b]7000;v=1;ready=1\x1b\\"));
+		expect(ready).toBe(true);
 	});
-
-	it("does not fire on a history mark", () => {
-		const scan = createReadyScanner();
-		expect(scan(encode(`\x1b]7000;v=1;history=0,512\x1b\\`))).toBe(false);
-	});
-
-	it("keeps reporting false after the mark has passed", () => {
-		const scan = createReadyScanner();
-		expect(scan(encode(`\x1b]7000;v=1;ready=1\x1b\\`))).toBe(true);
-		expect(scan(encode("more output"))).toBe(false);
-	});
-
-	it("is 20 bytes long", () => {
-		expect(READY_MARK.length).toBe(20);
-	});
-});
 ```
 
-And, in `frontend/src/renderer/hooks/useTerminalSession.test.tsx`, add to the existing describe block:
+`makeCore` is the file's existing helper — read it and use its options shape. The second test is the load-bearing one: the hook learns about READY through `onChange`, so a READY-only feed must notify. Plan A already made a sync-only feed notify (`terminal-core.ts:74-80`); this pins the same property for a mark-only feed.
+
+Append to `frontend/src/renderer/hooks/useTerminalSession.test.tsx`:
 
 ```tsx
 	it("paints at READY", async () => {
 		const harness = mountSession();
 		await harness.opened();
 		harness.deliver(new TextEncoder().encode("frame row\r\n"));
+		await harness.frame();
 		expect(harness.replaySettled()).toBe(false);
 		harness.deliver(new TextEncoder().encode("\x1b]7000;v=1;ready=1\x1b\\"));
 		await harness.frame();
@@ -1937,107 +2382,114 @@ And, in `frontend/src/renderer/hooks/useTerminalSession.test.tsx`, add to the ex
 		expect(harness.fedBytes()).toBeGreaterThan(before);
 		expect(harness.replaySettled()).toBe(true);
 	});
+
+	it("still lifts the cover for a host that never sends READY", async () => {
+		const harness = mountSession();
+		await harness.opened();
+		harness.deliver(new TextEncoder().encode("frame row\r\n"));
+		await harness.advanceTimers(REPLAY_QUIET_MS + 1);
+		expect(harness.replaySettled()).toBe(true);
+	});
 ```
 
-`mountSession`, `opened`, `deliver`, `replaySettled`, `frame` and `fedBytes` are whatever the existing file's harness calls them — read `frontend/src/renderer/hooks/useTerminalSession.test.tsx` first and use its names verbatim. If the file has no harness, build the two tests on the same fake mux the neighbouring tests use; `replaySettled` is the hook's returned `replaySettled` flag and `fedBytes` is a counter on the fake terminal's `onData` listener.
+`mountSession`, `opened`, `deliver`, `replaySettled`, `frame`, `fedBytes` and `advanceTimers` are whatever the existing file's harness calls them — read `frontend/src/renderer/hooks/useTerminalSession.test.tsx` first and use its names verbatim. If the file has no harness, build these on the same fake mux the neighbouring tests use; `replaySettled` is the hook's returned `replaySettled` flag, `fedBytes` is a counter on the fake terminal's byte listener, and the third test's fake terminal must report `replayReady()` as `false` forever. The third test is the guard that an older pty-host — or the `Ring` fallback in `replayFrameLocked` — still uncovers its pane.
 
 - [ ] **Step 2: Run the tests to verify they fail**
 
 ```bash
-cd /Users/omaraly/development/AI/Operator/frontend && npx vitest run src/renderer/lib/replay-ready.test.ts src/renderer/hooks/useTerminalSession.test.tsx
+cd /Users/omaraly/development/AI/Operator/packages/terminal/ts/core && npx vitest run src/terminal-core.test.ts
 ```
-Expected: FAIL — `Cannot find module './replay-ready'`.
+Expected: FAIL — `core.replayReady is not a function`.
 
-- [ ] **Step 3: Write the scanner**
+- [ ] **Step 3: Export the flag from wasm and `ts/core`**
 
-Create `frontend/src/renderer/lib/replay-ready.ts`:
+In `packages/terminal/crates/vt-wasm/src/lib.rs`, next to the other `&self` getters:
+
+```rust
+    pub fn replay_ready(&self) -> bool {
+        self.core.replay_ready()
+    }
+```
+
+In `packages/terminal/ts/core/src/terminal-core.ts`, next to `synchronizedOutput()` (`:170`):
 
 ```ts
-export const READY_MARK = new TextEncoder().encode("\x1b]7000;v=1;ready=1\x1b\\");
-
-export function createReadyScanner(): (bytes: Uint8Array) => boolean {
-	let carry = new Uint8Array(0);
-	let fired = false;
-	return (bytes: Uint8Array) => {
-		if (fired) return false;
-		const window = new Uint8Array(carry.length + bytes.length);
-		window.set(carry, 0);
-		window.set(bytes, carry.length);
-		outer: for (let start = 0; start + READY_MARK.length <= window.length; start += 1) {
-			for (let index = 0; index < READY_MARK.length; index += 1) {
-				if (window[start + index] !== READY_MARK[index]) continue outer;
-			}
-			fired = true;
-			carry = new Uint8Array(0);
-			return true;
-		}
-		const keep = Math.min(READY_MARK.length - 1, window.length);
-		carry = window.slice(window.length - keep);
-		return false;
-	};
-}
+	replayReady(): boolean {
+		return this.inner.replay_ready();
+	}
 ```
 
-- [ ] **Step 4: End the gate at READY**
+No change is needed to the notification path: `Parser::note_mutation` runs on every `feed_raw` that reached the parser (Plan B's rule), a READY mark is such a feed, and `TerminalCore.feed` already notifies on a generation change.
 
-In `frontend/src/renderer/hooks/useTerminalSession.ts`, import the scanner, add a runtime field next to `replayBuffering` (`:214`):
+- [ ] **Step 4: Surface it to the host**
+
+In `frontend/src/renderer/components/BlockTerminal.tsx`, add an optional `onReplayReady?: () => void` prop and fire it once, from the core's existing change subscription, the first time `core.replayReady()` is true:
+
+```tsx
+	const replayReadyFired = useRef(false);
+	useEffect(() => core.onChange(() => {
+		if (replayReadyFired.current || !core.replayReady()) return;
+		replayReadyFired.current = true;
+		onReplayReady?.();
+	}), [core, onReplayReady]);
+```
+
+Match the file's existing subscription idiom rather than this sketch — `BlockTerminal` already subscribes to the core; add the check there if so, and keep the one-shot ref either way.
+
+- [ ] **Step 5: End the gate on the flag**
+
+In `frontend/src/renderer/hooks/useTerminalSession.ts`, add one runtime field next to `replayBuffering` (`:214`):
 
 ```ts
-			readyScan: null as ((bytes: Uint8Array) => boolean) | null,
+			replayReadySeen: false,
 ```
 
-reset it where `r.replayBuffering = coverInitialReplay;` is set (`:726`):
+reset it where `r.replayBuffering = coverInitialReplay;` is set (`:726`), and add a callback the pane hands to `BlockTerminal` as `onReplayReady`:
 
 ```ts
-		r.readyScan = coverInitialReplay ? createReadyScanner() : null;
+	const onReplayReady = useCallback(() => {
+		const r = runtime.current;
+		if (r.replayReadySeen) return;
+		r.replayReadySeen = true;
+		r.flushReplay?.();
+	}, []);
 ```
 
-and, in `mux.onData` (`:580`), before the `REPLAY_MAX_BYTES` check:
+`r.flushReplay` is the published flush (`:560`), which calls `flushReplay(false, false)` — `holdTail = false` is deliberate: `holdTail = true` keeps the cover up for another `REPLAY_TAIL_QUIET_MS` of stream, which is precisely the history that must now stream *behind* a painted pane. The quiet, cap and first-byte timers stay exactly as they are, so a host that sends no READY uncovers on them as it does today.
 
-```ts
-					if (r.readyScan?.(bytes)) {
-						r.replayChunks.push(bytes);
-						r.replayBytes += bytes.length;
-						r.readyScan = null;
-						flushReplay(false);
-						return;
-					}
-```
-
-`flushReplay(false)` — not `flushReplay(true)` — is deliberate: `holdTail = true` keeps the cover up for another `REPLAY_TAIL_QUIET_MS` of stream, which is precisely the history that must now stream *behind* a painted pane. The quiet, cap and first-byte timers stay exactly as they are for a host that sends no READY (an older pty-host, or the `Ring` fallback path in `replayFrameLocked`).
-
-- [ ] **Step 5: Run the tests to verify they pass**
+- [ ] **Step 6: Run the tests to verify they pass**
 
 ```bash
-cd /Users/omaraly/development/AI/Operator/frontend && npx vitest run src/renderer/lib/replay-ready.test.ts src/renderer/hooks/useTerminalSession.test.tsx
+cd /Users/omaraly/development/AI/Operator/packages/terminal && npm run build:wasm -- --force && npm run build:ts
+cd /Users/omaraly/development/AI/Operator/packages/terminal/ts/core && npx vitest run
+cd /Users/omaraly/development/AI/Operator/frontend && npx vitest run src/renderer/hooks/useTerminalSession.test.tsx
 ```
 Expected: PASS.
 
-- [ ] **Step 6: Full frontend gate**
+- [ ] **Step 7: Full frontend gate**
 
 ```bash
+cd /Users/omaraly/development/AI/Operator/packages/terminal && for p in core renderer-dom react; do (cd /Users/omaraly/development/AI/Operator/packages/terminal/ts/$p && npx vitest run); done
 cd /Users/omaraly/development/AI/Operator/frontend && npx vitest run && npx tsc --noEmit -p .
 cd /Users/omaraly/development/AI/Operator/packages/terminal && npm run bench:feel && npm run bench:selection
 cd /Users/omaraly/development/AI/Operator && npm --prefix frontend run build:daemon
 ```
 Expected: all PASS; `bench:feel` zero pixel diff.
 
-- [ ] **Step 7: CHANGELOG and commit**
+- [ ] **Step 8: CHANGELOG and commit**
 
 ```markdown
-- renderer: the initial-replay cover lifts at the pty-host's READY mark instead of after the whole replay goes quiet, so a reopened pane paints its live frame while its scrollback is still streaming in behind it.
+- renderer: the initial-replay cover lifts when the core reports the replay's READY mark parsed, instead of after the whole replay goes quiet, so a reopened pane paints its live frame while its scrollback is still streaming in behind it. A host that sends no READY mark still uncovers on the existing quiet and cap timers.
 ```
 
 ```bash
-cd /Users/omaraly/development/AI/Operator && git add frontend/src/renderer packages/terminal/CHANGELOG.md && git commit -m "$(cat <<'MSG'
-renderer: lift the replay cover at the READY mark
+cd /Users/omaraly/development/AI/Operator && git add packages/terminal frontend/src/renderer && git commit -m "$(cat <<'MSG'
+renderer: lift the replay cover when the core parses the READY mark
 
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
 MSG
 )"
 ```
-
----
 
 ### Task 8: Lazy rewrap in `vt-core` — hot rows eagerly, cold runs on first access
 
@@ -2068,6 +2520,9 @@ MSG
       pub fn rows_for(&mut self, content: &Content, cols: usize, range: Range<usize>)
           -> Option<(Vec<usize>, usize)>;
       pub fn stale_runs(&self) -> &[StaleRun];
+      /// Task 2's `prepend`, extended here: prepended rows shift every stale
+      /// run's `start` by the count prepended.
+      pub fn prepend(&mut self, rows: Vec<RowRange>);
   }
   // delta.rs
   pub struct Delta {
@@ -2147,6 +2602,9 @@ fn two_width_changes_before_access_rewrap_once() {
     let mut core = TerminalCore::new(60, 200_000).expect("core");
     fill(&mut core, 3_000);
     core.resize(30, 24);
+    // Rows written between the two changes were hot at 30 columns and are
+    // pushed out of the hot region by this fill. They must still be marked.
+    fill(&mut core, 3_000);
     core.resize(20, 24);
 
     let before = core.generation();
@@ -2161,7 +2619,40 @@ fn two_width_changes_before_access_rewrap_once() {
         "the range was rewrapped a second time"
     );
     assert!(row_text(&core, 0).chars().count() <= 20);
+
+    // The band that was hot at 30 columns and cold at 20 must rewrap too.
+    let middle = core.history_rows() / 2;
+    core.touch_rows(middle..middle + 50);
+    assert!(
+        row_text(&core, middle).chars().count() <= 20,
+        "a row hot at the first width and cold at the second stayed cut at 30: {:?}",
+        row_text(&core, middle)
+    );
     assert_eq!(core.verify_integrity(), Ok(()));
+}
+
+#[test]
+fn stale_runs_follow_a_prepend() {
+    let mut core = TerminalCore::new(60, 200_000).expect("core");
+    core.feed(b"\x1b]7000;v=1;origin=100000\x1b\\");
+    fill(&mut core, 3_000);
+    core.resize(20, 24);
+    let stale_before = core.stale_row_count();
+    assert!(stale_before > 0);
+
+    let first = core.first_stable_row();
+    core.feed(format!("\x1b]7000;v=1;history={},2\x1b\\", first - 2).as_bytes());
+    core.feed(b"\x1b[0mprepended one\x1b[0m\r\n\x1b[0mprepended two\x1b[0m\r\n");
+
+    assert_eq!(core.first_stable_row(), first - 2);
+    assert_eq!(core.stale_row_count(), stale_before);
+    assert_eq!(core.verify_integrity(), Ok(()));
+
+    // The prepended rows are not stale; the cold band still is, two rows
+    // further down than it was.
+    core.touch_rows(0..4);
+    assert_eq!(row_text(&core, 0), "prepended one");
+    assert!(core.stale_row_count() > 0, "touching the prepended rows rewrapped the cold band");
 }
 
 #[test]
@@ -2245,7 +2736,7 @@ pub(crate) struct StaleRun {
 
     pub fn rewrap_hot(&mut self, content: &Content, cols: usize, cut_at: usize) -> Vec<usize> {
         let total = self.completed.len();
-        let hot_start = total.saturating_sub(HOT_ROWS);
+        let hot_start = self.line_start_at_or_below(total.saturating_sub(HOT_ROWS));
         if hot_start > 0 {
             self.mark_stale(0, hot_start, cut_at);
         }
@@ -2261,21 +2752,43 @@ pub(crate) struct StaleRun {
         map
     }
 
-    fn mark_stale(&mut self, start: usize, len: usize, cols: usize) {
-        if len == 0 {
+    // Marks only the part of [start, end) that no run already covers — the
+    // band between the last existing run's end and `end`. Returning early on
+    // any overlap would leave the rows that were hot at the PREVIOUS width,
+    // and have since been pushed out of the hot region by new output, cut at
+    // that previous width forever.
+    fn mark_stale(&mut self, start: usize, end: usize, cols: usize) {
+        let covered_end = self
+            .stale
+            .last()
+            .map_or(start, |run| run.start + run.len)
+            .max(start);
+        if end <= covered_end {
             return;
         }
+        let len = end - covered_end;
         if let Some(last) = self.stale.last_mut() {
-            if last.start + last.len == start && last.cols == cols {
+            if last.start + last.len == covered_end && last.cols == cols {
                 last.len += len;
                 return;
             }
         }
-        if self.stale.iter().any(|run| run.start < start + len && start < run.start + run.len) {
-            return;
+        self.stale.push(StaleRun {
+            start: covered_end,
+            len,
+            cols,
+        });
+    }
+
+    // The nearest row at or below `row` that starts a logical line. A cut
+    // taken mid-line hands `push_line` a fragment, which then computes a
+    // hanging indent from the middle of a sentence (TERMINAL.md §4.4).
+    fn line_start_at_or_below(&self, row: usize) -> usize {
+        let mut index = row.min(self.completed.len());
+        while index > 0 && self.completed[index - 1].wrapped {
+            index -= 1;
         }
-        self.stale.push(StaleRun { start, len, cols });
-        self.stale.sort_by_key(|run| run.start);
+        index
     }
 
     pub fn rows_for(
@@ -2300,8 +2813,12 @@ pub(crate) struct StaleRun {
         let mut lowest = usize::MAX;
         for index in touched.into_iter().rev() {
             let run = self.stale.remove(index);
-            let slice: VecDeque<RowRange> =
-                self.completed.drain(run.start..run.start + run.len).collect();
+            // split_off / extend, never a per-row insert: inserting into a
+            // VecDeque is O(len) per row, which at 200k rows and a 2,000-row
+            // run is ~4x10^8 element moves — the cost this task exists to
+            // remove.
+            let mut tail = self.completed.split_off(run.start + run.len);
+            let slice: VecDeque<RowRange> = self.completed.split_off(run.start);
             let mut piece = RowIndex {
                 completed: slice,
                 open_start: self.open_start,
@@ -2309,9 +2826,8 @@ pub(crate) struct StaleRun {
             };
             let piece_map = piece.rewrap(content, cols);
             let added = piece.completed.len();
-            for (offset, row) in piece.completed.into_iter().enumerate() {
-                self.completed.insert(run.start + offset, row);
-            }
+            self.completed.append(&mut piece.completed);
+            self.completed.append(&mut tail);
             let delta = added as isize - run.len as isize;
             for entry in map.iter_mut() {
                 if *entry >= run.start + run.len {
@@ -2334,7 +2850,27 @@ pub(crate) struct StaleRun {
 
 `hot_map`'s last element is the hot region's new length, so offsetting every element by `hot_start` turns it into the whole index's map *and* its correct trailing total in one pass. The contract the rest of the tree reads is `map[old] == new` for every old row and `map.last() == Some(&completed.len())` — that is what `Parser::note_remap` (`parser.rs:115-138`) and `BlockGrid::remap_rows` (`block_grid.rs:312`) both consume, and `row_index.rs`'s existing `rewrap_*` unit tests pin it. Add a unit test in `row_index.rs` asserting exactly that after a `rewrap_hot` on a list longer than `HOT_ROWS`.
 
-Also extend `RowIndex::trim_to` (`row_index.rs:189`) to drop the trimmed rows from the stale runs: after the pop loop, subtract the dropped count from every run's `start`, shorten or remove a run the cut reached into, and clamp `start` to 0. A stale run that outlives the rows it describes is the bug the integrity check in Step 6 catches.
+**Both ends of the row space move stale runs, and both must be handled.**
+
+`RowIndex::trim_to` (`row_index.rs:189`) drops rows off the front: after the pop loop, subtract the dropped count from every run's `start`, shorten or remove a run the cut reached into, and clamp `start` to 0.
+
+`RowIndex::prepend` (Task 2 Step 5) adds rows to the front, which shifts every existing row's index up by the same count. Without the matching shift, a resize while history chunks are still arriving leaves every run pointing at the wrong rows — silently rewrapping live text and leaving the real cold rows cold. Extend it:
+
+```rust
+    pub fn prepend(&mut self, rows: Vec<RowRange>) {
+        let count = rows.len();
+        for row in rows.into_iter().rev() {
+            self.completed.push_front(row);
+        }
+        for run in self.stale.iter_mut() {
+            run.start += count;
+        }
+    }
+```
+
+Prepended rows are never themselves stale: they arrive already cut at the width the replaying host rendered them for, and the receiving core's width is the grid it asked for. A stale run therefore always starts at or after `count`.
+
+**Run boundaries are line starts by construction.** `rewrap_hot` cuts at `line_start_at_or_below(...)` and `mark_stale` only ever extends a run up to that same cut, so a run's start and end both fall on rows whose predecessor is not `wrapped`. `rows_for` inherits the property and does not re-derive it; `trim_to`'s front cut is the one place that can violate it, and a trim that lands mid-line drops a fragment whose logical line is already partly gone — which is the pre-existing behaviour of `trim_to`, not something lazy rewrap changes.
 
 - [ ] **Step 4: Route `commit_evicted` through `rewrap_hot`, and add `touch_rows`**
 
@@ -2425,7 +2961,7 @@ In `packages/terminal/crates/vt-core/src/integrity.rs`, add the two variants and
         }
 ```
 
-That is the stale-width bookkeeping invariant the plan owes Plan A's checker: **stale runs are non-overlapping, ascending, non-empty, and entirely inside the completed rows.** The proptest in `tests/integrity.rs` runs `verify_integrity` after every operation, so a resize followed by a trim now exercises it for free — add a resize with a *narrower* width to the proptest's operation set if it has none, so cold runs actually appear:
+That is the stale-width bookkeeping invariant the plan owes Plan A's checker: **stale runs are non-overlapping, ascending, non-empty, and entirely inside the completed rows.** It is also what catches a `prepend` that forgets to shift them: prepending rows without the shift leaves the last run's `start + len` past `completed.len()` as soon as the trim cap bites, and `StaleRunOutsideRows` fires. The proptest in `tests/integrity.rs` runs `verify_integrity` after every operation, so a resize followed by a trim now exercises it for free — add a resize with a *narrower* width to the proptest's operation set if it has none, so cold runs actually appear:
 
 ```rust
         // in the operation enum used by every_operation_leaves_the_model_consistent
@@ -2671,6 +3207,8 @@ Tell the user: **restart the daemon and the app.**
 
 **Safety with a client that never acks.** The pre-Plan-C mobile build sends no ack, ever. A client is therefore **unlimited until its first ack**: `clientState.everAcked` starts false and such a client is excluded from the slowest-client computation entirely. Only clients that have proved they ack are allowed to pause the pty. This is the whole reason the watermark is computed over "clients that have acked at least once" rather than over all of them.
 
+**Both sides must count the same byte stream.** The client acks a cumulative count of every byte `mux.onData` hands it — replay frame and history chunks included. If `cs.delivered` counted only `deliver` batches, then after any reopen the client's count would be permanently ahead of the host's, `acked` would clamp to `delivered` on every ack, unacked would sit at ≈ 0, and that pane could never pause the child again. Every pane opens with a replay, so H would be defeated in practice while every test that attaches to an empty session still passed. So **every `MsgTerminalData` payload enqueued for a client is counted**: the replay frame in the registration hold, each history chunk in `streamHistory`, and each `deliver` batch.
+
 **Interfaces:**
 - Consumes: `clientState.enqueue/awaitCapacity` (`host.go:118,133`) — the per-client socket queue stays exactly as it is; this adds end-to-end back-pressure to the *child*, which `awaitCapacity` cannot reach.
 - Produces:
@@ -2688,7 +3226,7 @@ Tell the user: **restart the daemon and the app.**
   // attach.go
   func (s *loopbackStream) Ack(bytes uint64) error
   ```
-  On `clientState`: `acked int` (bytes this client has confirmed), `delivered int` (bytes broadcast to it since it registered), `everAcked bool`. Unacked = `delivered - acked`. `readPTY` parks before each `pty.Read` while the **maximum** unacked across acking clients exceeds `readHighWatermark`, and resumes once it falls below `readLowWatermark`.
+  On `clientState`: `acked int` (bytes this client has confirmed), `delivered int` (every `MsgTerminalData` payload byte enqueued for it since it registered), `everAcked bool`. Unacked = `delivered - acked`. `readPTY` parks before each `pty.Read` while the **maximum** unacked across acking clients exceeds `readHighWatermark`, and resumes once it falls below `readLowWatermark`. Task 6's `streamHistory`/`awaitAckedHistory` pace on the same `h.readCond` and the same `readLowWatermark`, so a long history never pushes its own client past the high watermark and pauses the child for every other pane.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -2700,13 +3238,21 @@ Append to `backend/internal/adapters/runtime/ptyhost/host_test.go`:
 // that brings the backlog under 5,000 starts it again (VS Code's
 // vscode/src/vs/platform/terminal/common/terminal.ts flow-control constants).
 func TestReadPausesPastHighWatermarkAndResumesOnAck(t *testing.T) {
-	f := startServe(t, 720, 80, 24)
+	f := startServeParsed(t, 720, 80, 24)
 	defer f.cancel()
+
+	// Attach to a session that HAS a replay frame. A client acks every byte
+	// it consumes, replay included; if the host counted only live batches,
+	// its acked count would run permanently ahead of delivered and the
+	// watermark would never fire again for this pane.
+	writeOutput(t, f, "existing screen\r\n")
+	waitForParsedOutput(t, f, "existing screen")
 
 	c := newTestClient(t, f.addr)
 	defer c.close()
 	sendResize(t, c, 80, 24)
-	sendAck(t, c, 0)
+	replay := readReplay(t, c)
+	sendAck(t, c, len(replay))
 	waitForAckingClient(t, f)
 
 	blob := bytes.Repeat([]byte("x"), 32*1024)
@@ -2715,10 +3261,48 @@ func TestReadPausesPastHighWatermarkAndResumesOnAck(t *testing.T) {
 			t.Fatalf("write pty output: %v", err)
 		}
 	}
-	waitFor(t, 3*time.Second, func() bool { return f.pty.readsPaused() })
+	waitFor(t, 3*time.Second, func() bool { return f.readsPaused() })
 
-	sendAck(t, c, 8*32*1024)
-	waitFor(t, 3*time.Second, func() bool { return !f.pty.readsPaused() })
+	sendAck(t, c, len(replay)+8*32*1024)
+	waitFor(t, 3*time.Second, func() bool { return !f.readsPaused() })
+}
+
+// Streaming a long history to one client must never pause the child for the
+// other panes: streamHistory paces on the same ack watermark deliver does.
+func TestHistoryStreamingNeverPausesTheChild(t *testing.T) {
+	f := startServeParsed(t, 722, 20, 4)
+	defer f.cancel()
+
+	for i := 0; i < 5000; i++ {
+		writeOutput(t, f, fmt.Sprintf("row %04d\r\n", i))
+	}
+	waitForParsedOutput(t, f, "row 4999")
+
+	c := newTestClient(t, f.addr)
+	defer c.close()
+	sendResizeWithHistory(t, c, 20, 4, true)
+
+	paused := false
+	consumed := 0
+	deadline := time.Now().Add(10 * time.Second)
+	for time.Now().Before(deadline) {
+		typ, payload := c.readFrame(t)
+		if typ != MsgTerminalData {
+			continue
+		}
+		consumed += len(payload)
+		sendAck(t, c, consumed)
+		if f.readsPaused() {
+			paused = true
+			break
+		}
+		if strings.Contains(string(payload), "row 0000") {
+			break
+		}
+	}
+	if paused {
+		t.Fatal("streaming history to one client paused the child")
+	}
 }
 
 // A client that has never acked is unlimited: the pre-Plan-C mobile build
@@ -2738,7 +3322,7 @@ func TestAClientThatNeverAcksNeverPausesTheChild(t *testing.T) {
 		}
 	}
 	time.Sleep(300 * time.Millisecond)
-	if f.pty.readsPaused() {
+	if f.readsPaused() {
 		t.Fatal("a client that never acked paused the child")
 	}
 }
@@ -2755,7 +3339,7 @@ func sendAck(t *testing.T, c *testClient, bytesAcked int) {
 }
 ```
 
-Add `waitFor(t, d, cond)` (poll every 2 ms until `cond()` or the deadline, then `t.Fatal`) and `waitForAckingClient(t, f)` (poll until the host has recorded the ack) next to the file's other helpers, and give the fake PTY a `readsPaused() bool` that reports whether a `Read` is currently parked — a mutex-guarded counter incremented before the host's `awaitReadCapacity` returns and decremented after, or, more simply, a flag the host sets. The cleanest version: give `host` an exported-for-test `readPaused() bool` and have `f.pty.readsPaused()` be `f.host.readPaused()`; use whichever seam `host_test.go`'s existing fixture already gives you. Add `"bytes"` and `"encoding/json"` to the imports if absent.
+Add `waitFor(t, d, cond)` (poll every 2 ms until `cond()` or the deadline, then `t.Fatal`) and `waitForAckingClient(t, f)` (poll until the host has recorded the ack) next to the file's other helpers. `f.readsPaused()` reads the host's own gate: `serveFixture` must keep the `*host` `Serve` built (add a field and set it from `Serve`, or expose `host.readPaused()` through a small test-only accessor in the same package) and `f.readsPaused()` forwards to `h.readPaused()` from Step 4. Do **not** put the flag on the fake PTY: the gate lives in `readPTY`, above the PTY, and asserting on the PTY would pass while the gate did nothing. Add `"bytes"`, `"encoding/json"`, `"fmt"` and `"strings"` to the imports if absent; `startServeParsed`, `writeOutput`, `waitForParsedOutput`, `readReplay`, `sendResize` and `sendResizeWithHistory` come from `attach_replay_test.go` in the same package.
 
 Also append to `proto_test.go`:
 
@@ -2814,10 +3398,12 @@ type AckPayload struct {
 In `backend/internal/adapters/runtime/ptyhost/host.go`, add to `clientState`:
 
 ```go
-	// Flow control. delivered counts bytes broadcast to this client since it
-	// registered; acked is what it has confirmed. A client that has never
-	// acked is unlimited (everAcked false) so a client build that predates
-	// acks keeps working.
+	// Flow control. delivered counts every MsgTerminalData payload byte
+	// enqueued for this client since it registered -- the replay frame and
+	// the history chunks as well as the live batches, because the client acks
+	// every byte it consumes. acked is what it has confirmed. A client that
+	// has never acked is unlimited (everAcked false) so a client build that
+	// predates acks keeps working.
 	acked     int
 	delivered int
 	everAcked bool
@@ -2897,6 +3483,19 @@ Count the bytes in `deliver`, inside the existing `h.mu` hold, right after `broa
 		}
 ```
 
+Count the replay frame too, in the registration hold (`:718-720`), which is the same `h.mu` hold:
+
+```go
+	if frame := h.replayFrameLocked(); frame != nil {
+		cs.enqueue(frame)
+		cs.delivered += len(frame) - frameHeaderBytes
+	}
+```
+
+with `const frameHeaderBytes = 5` next to `EncodeMessage` in `proto.go` (`[1-byte type][4-byte length]`, `proto.go:5`) — the client acks *payload* bytes, not framing, so the host must subtract the header. Use the same subtraction nowhere else: `deliver` counts `len(batch)`, which is already the payload, and `streamHistory` counts `len(chunk)`, likewise.
+
+Finally, add the two lines Task 6 Step 4 deferred to this task, now that `delivered`, `everAcked`, `readLowWatermark`, `h.readCond` and `h.stopping()` all exist: `cs.delivered += len(chunk)` inside `streamHistory`'s `h.mu` hold, and the `h.awaitAckedHistory(cs)` call after `cs.awaitCapacity()`, with `awaitAckedHistory` itself as Task 6 Step 4 writes it.
+
 Record the ack in `handleClientMsg` (`:795`):
 
 ```go
@@ -2947,7 +3546,7 @@ func (s *loopbackStream) Ack(bytes uint64) error {
 ```bash
 cd /Users/omaraly/development/AI/Operator/backend && go test ./internal/adapters/runtime/ptyhost/ -count=1 -race
 ```
-Expected: PASS, with no race reports. `-race` matters here: `readCond` is the first condition variable on `h.mu` and the lock-order rule (`h.mu` → `outMu`, never the reverse — `host.go:100-101`) must hold, so never call `enqueue`/`awaitCapacity` while parked in `awaitReadCapacity`.
+Expected: PASS, with no race reports. `-race` matters here: `readCond` is the first condition variable on `h.mu` and the lock-order rule (`h.mu` → `outMu`, never the reverse — `host.go:100-101`) must hold, so never call `enqueue`/`awaitCapacity` while parked in `awaitReadCapacity` or `awaitAckedHistory`. `streamHistory` obeys it: it enqueues under `h.mu`, releases, then parks.
 
 - [ ] **Step 7: Full gate and daemon rebuild**
 
@@ -2961,7 +3560,7 @@ Expected: PASS; zero pixel diff.
 - [ ] **Step 8: CHANGELOG and commit**
 
 ```markdown
-- pty-host: a client may acknowledge the terminal bytes it has consumed (`MsgAck`); the host stops reading the pty once its slowest acking client is 100,000 bytes behind and resumes at 5,000, so a slow link throttles the child instead of queueing the session. A client that never acks is unlimited.
+- pty-host: a client may acknowledge the terminal bytes it has consumed (`MsgAck`); the host counts every payload it sends that client — replay frame, history chunks and live batches alike — stops reading the pty once its slowest acking client is 100,000 bytes behind, and resumes at 5,000, so a slow link throttles the child instead of queueing the session. Streaming history paces on the same watermark, and a client that never acks is unlimited.
 ```
 
 ```bash
@@ -2977,7 +3576,7 @@ Tell the user: **restart the daemon and the app.**
 
 ---
 
-### Task 11: The ack crosses the mux, and the desktop client sends it
+### Task 11: The ack and the history opt-in cross the mux, and the desktop client sends both
 
 **Files:**
 - Modify: `backend/internal/ports/outbound.go:185-195` (a new optional interface next to `PaneCapturer`)
@@ -2986,7 +3585,7 @@ Tell the user: **restart the daemon and the app.**
 - Test: `backend/internal/terminal/manager_test.go`, `frontend/src/renderer/hooks/useTerminalSession.test.tsx`
 
 **Interfaces:**
-- Consumes: Task 10's `loopbackStream.Ack(bytes uint64) error`.
+- Consumes: Task 10's `loopbackStream.Ack(bytes uint64) error`; Task 6's `ports.HistoryAttacher` and `Runtime.AttachWithHistory`.
 - Produces:
   ```go
   // ports/outbound.go — optional, asserted at the call site exactly like
@@ -2998,14 +3597,17 @@ Tell the user: **restart the daemon and the app.**
   const msgAck = "ack" // ch "terminal", client -> server
   type clientMsg struct {
       // the existing fields
-      Bytes int `json:"bytes,omitempty"`
+      Bytes   int  `json:"bytes,omitempty"`
+      History bool `json:"history,omitempty"` // ch "terminal", type "open"
   }
   // terminal/attachment.go
   func (a *attachment) ack(bytes uint64) error
   ```
+  The `history` flag rides the terminal **open** message, is stored on the attachment, and is what `attachment.run` passes to Task 6's `ports.HistoryAttacher`. A client that omits it gets today's attach.
   ```ts
   // frontend/src/renderer/lib/terminal-mux.ts
-  ack(handle: string, bytes: number): void; // {ch:'terminal', id, type:'ack', bytes}
+  ack(handle: string, bytes: number): void;                              // {ch:'terminal', id, type:'ack', bytes}
+  open(handle: string, rows: number, cols: number, history: boolean): void; // adds history:true to the existing open frame
   // frontend/src/renderer/hooks/useTerminalSession.ts
   const ACK_EVERY_BYTES = 5_000;
   ```
@@ -3029,6 +3631,30 @@ func TestTerminalAckReachesTheStream(t *testing.T) {
 	waitFor(t, time.Second, func() bool { return h.stream("pane-1").ackedBytes() == 5000 })
 }
 
+// The desktop declares that it can read history chunks; the daemon forwards
+// that to the runtime, which is what makes the pty-host stream scrollback.
+func TestTerminalOpenForwardsTheHistoryOptIn(t *testing.T) {
+	h := newManagerHarness(t)
+	defer h.close()
+
+	h.send(clientMsg{Ch: chTerminal, ID: "pane-3", Type: msgOpen, Rows: 24, Cols: 80, History: true})
+
+	waitFor(t, time.Second, func() bool { return h.attachedWithHistory("pane-3") })
+}
+
+// A client that omits the flag gets today's attach.
+func TestTerminalOpenWithoutHistoryAttachesPlainly(t *testing.T) {
+	h := newManagerHarness(t)
+	defer h.close()
+
+	h.send(clientMsg{Ch: chTerminal, ID: "pane-4", Type: msgOpen, Rows: 24, Cols: 80})
+
+	waitFor(t, time.Second, func() bool { return h.attached("pane-4") })
+	if h.attachedWithHistory("pane-4") {
+		t.Fatal("a client that did not ask was attached with history")
+	}
+}
+
 // A Stream that does not implement FlowControlled must not break: the ack is
 // dropped, not an error.
 func TestTerminalAckOnAStreamWithoutFlowControlIsIgnored(t *testing.T) {
@@ -3043,7 +3669,7 @@ func TestTerminalAckOnAStreamWithoutFlowControlIsIgnored(t *testing.T) {
 }
 ```
 
-`newManagerHarness`, `open`, `send`, `stream` and `close` are `manager_test.go`'s existing fixture names — read the file and use them verbatim; `ackedBytes()` is a counter added to the fake stream in `fakes_test.go`, and `openPlainStream` mounts a fake that deliberately does **not** implement `Ack`.
+`newManagerHarness`, `open`, `send`, `stream` and `close` are `manager_test.go`'s existing fixture names — read the file and use them verbatim; `ackedBytes()` is a counter added to the fake stream in `fakes_test.go`, `openPlainStream` mounts a fake that deliberately does **not** implement `Ack`, and `attached(id)`/`attachedWithHistory(id)` record which of the fake runtime's two attach methods was called (the fake implements both `ports.Attacher` and `ports.HistoryAttacher`).
 
 Append to `frontend/src/renderer/hooks/useTerminalSession.test.tsx`:
 
@@ -3086,7 +3712,15 @@ type FlowControlled interface {
 }
 ```
 
-In `backend/internal/terminal/protocol.go`, add `msgAck = "ack"` to the client-message const block and `Bytes int \`json:"bytes,omitempty"\`` to `clientMsg`.
+In `backend/internal/terminal/protocol.go`, add `msgAck = "ack"` to the client-message const block and two fields to `clientMsg`:
+
+```go
+	// Bytes is the client's cumulative consumed-byte count for ch "terminal"
+	// / type "ack". History is the client's declaration, on type "open", that
+	// it understands the runtime's history marks.
+	Bytes   int  `json:"bytes,omitempty"`
+	History bool `json:"history,omitempty"`
+```
 
 In `backend/internal/terminal/attachment.go`, next to `resize` (`:260`):
 
@@ -3108,7 +3742,23 @@ func (a *attachment) ack(bytes uint64) error {
 
 Mirror whatever locking `resize` (`:260-268`) uses rather than inventing new locking.
 
-In `backend/internal/terminal/manager.go`, in `handleTerminal` (`:401`):
+In `backend/internal/terminal/manager.go`, carry the flag from `open` to the attachment: `handleTerminal`'s `msgOpen` case (`:403-404`) passes `msg.History` into `c.openTerminal`, which stores it on the attachment; `attachment.run` (`:143`) then prefers the capability when it is set:
+
+```go
+	if a.wantsHistory {
+		if src, ok := a.src.(ports.HistoryAttacher); ok {
+			p, err = src.AttachWithHistory(ctx, a.handle, rows, cols, true)
+		} else {
+			p, err = a.src.Attach(ctx, a.handle, rows, cols)
+		}
+	} else {
+		p, err = a.src.Attach(ctx, a.handle, rows, cols)
+	}
+```
+
+Match `attachment.run`'s existing error handling and retry shape rather than this sketch; the only new thing is which method is called.
+
+Then, in `handleTerminal` (`:401`):
 
 ```go
 	case msgAck:
@@ -3122,7 +3772,7 @@ In `backend/internal/terminal/manager.go`, in `handleTerminal` (`:401`):
 
 - [ ] **Step 4: The renderer's ack**
 
-In `frontend/src/renderer/lib/terminal-mux.ts`, add an `ack` sender next to `resize` — the same frame shape, `{ ch: "terminal", id, type: "ack", bytes }` — and add it to the `TerminalMux` type.
+In `frontend/src/renderer/lib/terminal-mux.ts`, add an `ack` sender next to `resize` — the same frame shape, `{ ch: "terminal", id, type: "ack", bytes }` — and add it to the `TerminalMux` type. In the same file, add `history: true` to the `open` frame the desktop sends: the renderer's core understands history chunks after Tasks 1–3, so it is the one client that asks. Update the `TerminalMux` type's `open` signature and every call site; there is one, in `useTerminalSession`'s connect path.
 
 In `frontend/src/renderer/hooks/useTerminalSession.ts`, add the constant next to `RESIZE_DEBOUNCE_MS`:
 
@@ -3173,12 +3823,12 @@ Expected: all PASS; zero pixel diff. No API schema regeneration is needed: the m
 - [ ] **Step 7: CHANGELOG and commit**
 
 ```markdown
-- terminal mux: a client may send `{ch:'terminal', type:'ack', bytes}` and the daemon forwards it to the attach stream; the desktop renderer acks every 5,000 bytes it consumes.
+- terminal mux: a client may send `{ch:'terminal', type:'ack', bytes}` and the daemon forwards it to the attach stream, and may declare `history: true` when it opens a pane to receive the session's scrollback behind its replay; the desktop renderer does both and acks every 5,000 bytes it consumes.
 ```
 
 ```bash
 cd /Users/omaraly/development/AI/Operator && git add backend/internal frontend/src/renderer packages/terminal/CHANGELOG.md && git commit -m "$(cat <<'MSG'
-terminal: carry consumption acks from the client to the pty-host
+terminal: carry consumption acks and the history opt-in to the pty-host
 
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
 MSG
@@ -3195,8 +3845,10 @@ Tell the user: **restart the daemon and the app.**
 - Modify: `packages/mobile/lib/core/mux/mux_client.dart:213-233` (the terminal `data` case), `:297-308` (the senders)
 - Test: `packages/mobile/test/core/mux/mux_client_test.dart`
 
+**The mobile client deliberately does not ask for history.** It renders with the vendored xterm fork, which routes OSC 7000 to `unknownOSC` → `onPrivateOSC` (`packages/mobile/packages/xterm/lib/src/core/escape/parser.dart:1079`, `lib/src/terminal.dart:902-905`) — so the origin, READY and history *marks* are ignored, but the history *rows* between them would print as ordinary text, newest→oldest, after the live frame. `openTerminal` therefore stays exactly as it is: no `history` key. The second test below is the guard that keeps it that way.
+
 **Interfaces:**
-- Consumes: Task 11's `{ch:'terminal', id, type:'ack', bytes}` frame.
+- Consumes: Task 11's `{ch:'terminal', id, type:'ack', bytes}` frame and its `history` opt-in, which this client does **not** send.
 - Produces:
   ```dart
   /// Bytes between acks. The daemon throttles the child once a client is
@@ -3233,6 +3885,24 @@ Append to `packages/mobile/test/core/mux/mux_client_test.dart`, inside the exist
     expect(acks, hasLength(1));
     expect(acks.single['id'], 'pane-1');
     expect(acks.single['bytes'], 6000);
+
+    await client.disconnect();
+  });
+
+  test('does not ask the daemon for session history', () async {
+    final socket = _FakeMuxSocket();
+    final client = MuxClient(serverConfigStore, socket: (_) => socket);
+    await client.connect();
+    client.openTerminal('pane-1');
+
+    final opens = socket.sent
+        .map((raw) => jsonDecode(raw) as Map<String, dynamic>)
+        .where((msg) => msg['ch'] == 'terminal' && msg['type'] == 'open')
+        .toList();
+    expect(opens, isNotEmpty);
+    for (final open in opens) {
+      expect(open['history'], isNot(true), reason: 'the xterm fork would print the history rows as text');
+    }
 
     await client.disconnect();
   });
@@ -3454,16 +4124,19 @@ Then add a "Plan C landed" paragraph after the Plan B one, answering the **four 
 1. **Width change at 200k rows: the viewport is correct within the debounce plus one frame; older rows rewrap on scroll without a jump.** Evidence: `bench:agent:scroll`'s width phase (`settleMs`, `before === after`, `staleRows > 0`, `scrolledRows`), measured at the fixture's 60k rows — say so, the spec's target is 200k.
 2. **Reopen after 200k rows: first paint < 200 ms on localhost; all rows reachable; blocks identical (ids, exit codes, commands) to the live pane.** Evidence: `reopen.firstPaintMs`, `reopen.allRowsMs`, `reopen.rows` against the mirror's `mirrorCapRows`, and a block comparison. For the block half, add one assertion to `TestAgentSessionReplayReport`: feed the frame and every history chunk into a *second* `vtwasm` parser and compare its rendered block list to the source mirror's. If the two differ, report the difference rather than relaxing the check.
 3. **Renderer core and mirror each < 128 MiB at 200k rows.** Evidence: `rendererMemoryBytes` and the Go report's `mirrorCapWasmBytes`, which `TestAgentSessionReplayReport` already fails on above 128 MiB.
-4. **A slow-link burst (H).** Evidence: a new short paragraph from `TestReadPausesPastHighWatermarkAndResumesOnAck` plus one real-app observation if you can get it — how long the child stayed paused and that output resumed intact. If you cannot get a real-app number, say so; do not manufacture one.
+4. **A slow-link burst (H).** Evidence: a short paragraph from `TestReadPausesPastHighWatermarkAndResumesOnAck` and `TestHistoryStreamingNeverPausesTheChild`, plus one real-app observation if you can get it — how long the child stayed paused and that output resumed intact. If you cannot get a real-app number, say so; do not manufacture one. State explicitly that the pause test attaches to a session **with** a replay frame, since a test that attached to an empty one would pass while flow control was dead for every real pane.
 
 Note explicitly which measurements were taken at the fixture's ~60k rows rather than the spec's 200k, and that the `claude-long-50k` fixture is the only long recording in the tree.
 
 - [ ] **Step 6: Update `TERMINAL.md`**
 
-- **§1** (the pipeline): the attach line becomes "handshake: client states its grid, host replays modes + the mirror's screen + READY, returns, then streams history newest→oldest in 512-row chunks, then live bytes".
-- **§2** (vt-core model in one page): one bullet for prepended history (`Content` allocates downward from `CONTENT_BASE`; rows stay offset-ordered, which is what every trim, style lookup and integrity check rests on) and one for stale runs (`HOT_ROWS = 2_000`, `rows_for`, the estimate that corrects on touch).
-- **§4**: a new entry **§4.19 Reopening a long session recovered only the mirror's last screen** — symptom, cause (`Replay(MaxOutputLines)` was the whole attach), what guards it now (`TestReplayOrderIsModesFrameReadyHistory`, `TestClientPaintsAtReadyBeforeHistory`, `TestAFreshSessionAttachIsUnchanged`, `vt-core/tests/replay.rs`, the useTerminalSession "paints at READY" test).
-- **§5** (known gaps): **delete** the "Rewrap walks all scrollback rows on every width change … lazy rewrap is Plan C 1.3.F" bullet and replace it with what is true now — the hot region is still walked eagerly on every width change, a cold run is walked once on first access, and the row count above the viewport is an estimate until touched. Add any gap Step 4 exposed.
+- **§1** (the pipeline): the attach line becomes "handshake: client states its grid (and whether it can read history), host replays origin + modes + the mirror's screen + READY, returns, then — for a client that asked — streams history newest→oldest in 512-row chunks, then live bytes".
+- **§2** (vt-core model in one page): one bullet for prepended history (`Content` allocates downward from `CONTENT_BASE`; rows stay offset-ordered, which is what every trim, style lookup and integrity check rests on; `adopt_origin` is what puts a fresh core into the replaying host's stable row space, and without it the two spaces never meet and every chunk is dropped) and one for stale runs (`HOT_ROWS = 2_000`, `rows_for`, the estimate that corrects on touch, and the rule that a run boundary is always a line start).
+- **§4**: a new entry **§4.19 Reopening a long session recovered only the mirror's last screen** — symptom, cause (`Replay(MaxOutputLines)` was the whole attach), and the two traps the fix has to keep clear, because both were live defects in the first draft of the plan: (a) the mirror and the reopened core number rows in different stable spaces, so the replay states its origin **first** and `Parser::adopt_origin` refuses to act once a row exists; (b) a chunk's closing `exit=` mark must sit **inside** its last row, before the CR-LF, or it falls through to the live parser and closes the live agent's open block. Guards: `TestReplayOpensWithTheOriginMark`, `TestReplayOrderIsModesFrameReadyHistory`, `TestAHistoryChunkEndsAtARowTerminator`, `TestClientPaintsAtReadyBeforeHistory`, `TestAClientWithoutHistoryOptInGetsNoChunks`, `TestAFreshSessionAttachIsUnchanged`, `vt-core/tests/replay.rs`, the useTerminalSession "paints at READY" test.
+- **§5** (known gaps): **delete** the "Rewrap walks all scrollback rows on every width change … lazy rewrap is Plan C 1.3.F" bullet and replace it with what is true now — the hot region is still walked eagerly on every width change, a cold run is walked once on first access, and the row count above the viewport is an estimate until touched. Add two new gaps:
+
+  - **A reopened pane's prepended rows lose their `wrapped` flag.** `vt_history_chunk` emits every history row CR-LF terminated and `Parser::apply_history_chunk` prepends them with `wrapped: false`, so a later width change cannot rejoin a logical line the mirror had soft-wrapped — those rows rewrap as independent lines. Rows the pane produces *after* the reopen are unaffected. Carrying the flag means emitting wrapped rows without `\r\n` and sizing the receiver's scratch screen to the mirror's width (a `cols=<n>` field on the chunk mark), which would make the chunk's row count depend on the receiver's own wrapping instead of on the mark's `count` — the invariant `HistoryReceiver::consume` ends a chunk on. Revisit with a second anchor for that invariant; do not "fix" it by loosening the row count.
+  - Any gap Step 4's measurements exposed.
 - **§6**: add `npm run bench:agent:scroll` to the recipe if it is not there, since its width phase is now a gate.
 
 - [ ] **Step 7: Run the complete §6 recipe one last time**
