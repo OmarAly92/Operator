@@ -219,6 +219,8 @@ export function useTerminalSession(session: WorkspaceSession | undefined, option
 		consumedBytes: 0,
 		ackedBytes: 0,
 		replayReadySeen: false,
+		// The core instance this attachment last asked history for.
+		historyCore: null as AttachableTerminal | null,
 		replayChunks: [] as Uint8Array[],
 		replayBytes: 0,
 		replayQuietTimer: null as ReturnType<typeof setTimeout> | null,
@@ -765,7 +767,14 @@ export function useTerminalSession(session: WorkspaceSession | undefined, option
 		const surface = r.surfaceGeometry;
 		const openCols = visible ? (surface?.cols ?? terminal.cols) : 0;
 		const openRows = visible ? (surface?.rows ?? terminal.rows) : 0;
-		mux.open(handle, openCols, openRows, true);
+		// History is asked for once per core instance. A core that has already
+		// painted a live session refuses a replay's origin (Parser::adopt_origin
+		// acts only on an empty core), and with the origin refused every chunk
+		// behind it is rejected too — so a reconnect would stream the whole
+		// session's scrollback, ack-paced, only to throw it away.
+		const wantsHistory = r.historyCore !== terminal;
+		r.historyCore = terminal;
+		mux.open(handle, openCols, openRows, wantsHistory);
 		r.lastPublishedGrid =
 			openCols > 0 && openRows > 0 ? { cols: openCols, rows: openRows } : null;
 		r.gridPublished = false;

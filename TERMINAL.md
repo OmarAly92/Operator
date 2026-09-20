@@ -520,9 +520,9 @@ history of `master`.
   parser and closes whatever block the *live* agent currently has open,
   corrupting the live pane's block state for an unrelated reason (reopening
   a different, unrelated session).
-- Now: `attach.go` streams four parts in order — origin mark, modes, the live
-  frame, `OSC 7000;v=1;ready=1` (the client paints here) — then, for a client
-  that opted in, history chunks newest→oldest, each framed by
+- Now: `attach.go` streams five parts in order — origin mark, modes, the live
+  frame, `OSC 7000;v=1;ready=1` (the client paints here), and then, for a
+  client that opted in, history chunks newest→oldest, each framed by
   `OSC 7000;v=1;history=<first_stable_row>,<count>` with `id=`/`cmd=`/`exit=`
   marks re-emitted so the reopened pane has the same blocks, not re-derived
   ones. `Parser::apply_history_chunk` (`parser.rs:542`) prepends the rows,
@@ -532,6 +532,56 @@ history of `master`.
   `TestAHistoryChunkEndsAtARowTerminator`, `TestClientPaintsAtReadyBeforeHistory`,
   `TestAClientWithoutHistoryOptInGetsNoChunks`, `TestAFreshSessionAttachIsUnchanged`,
   `vt-core/tests/replay.rs`, the useTerminalSession "paints at READY" test.
+
+### 4.20 Lazy rewrap silently truncated a reopened session's history
+- Symptom: after a width change on a session with more than `HOT_ROWS`
+  (2,000) completed rows, closing and reopening the pane delivered every cold
+  row with its tail cut off at the CURRENT grid width. Silent: no error, no
+  log, just missing text — in the one feature (§4.19) that exists to recover
+  the whole session.
+- Cause: a seam between two independently built pieces. Lazy rewrap
+  (`RowIndex::rewrap_hot`) leaves everything below the hot window cut at the
+  OLD, wider width and waits for someone to call `touch_rows`. The renderer
+  does that from its own export (`WasmTerminalCore::sync`,
+  `crates/vt-wasm/src/lib.rs:134`); the mirror in `vt-host` has no export and
+  called it from nowhere. `vt_history_chunk` then handed those still-wide rows
+  to `clip_row`, whose job is to truncate anything wider than the grid. Before
+  lazy rewrap every row was rewrapped eagerly, so `clip_row` was a guard that
+  could never fire — and its comment said so. Lazy rewrap made that comment
+  false without touching the file.
+- Why the obvious fix is wrong: touching the chunk's own row range inside
+  `vt_history_chunk` does NOT work, and fails silently in the same way.
+  Rewrapping a range changes how many rows it holds, while `before`/`bound`
+  address rows by a stable number the client has already anchored to the
+  frame's `origin=`. Rewrapping mid-stream moves the rows out from under that
+  anchor: the counts still abut, so nothing is rejected, and the rows the
+  rewrap created past the chunk's bound are simply never sent. Verified by
+  experiment during the fix — the test below still failed, on a different row.
+- Now: `vt_touch_history` rewraps ALL stale history in one pass, and
+  `handleConn` calls it for a history-opted-in client BEFORE
+  `replayFrameLocked` renders the origin the client adopts. One rewrap, then a
+  fixed row space for the whole stream. It costs a full-history rewrap on a
+  reopen after a resize — a one-shot cost on a path that is already streaming
+  the whole session — and it runs off `h.mu` so it does not stall other panes.
+- Guards: `TestHistoryChunksRewrapColdRowsAfterANarrowingResize` (vtwasm),
+  which also asserts every chunk abuts the frame's origin.
+
+### 4.21 The replay origin and the first history chunk were snapshotted apart
+- Symptom: a reopened pane occasionally got NO history at all, falling back to
+  pre-Plan-C behaviour, with nothing logged.
+- Cause: `replayFrameLocked` computed the origin from a `TerminalCore`
+  snapshot under `h.mu`; `streamHistory` then started from the
+  `vtwasm.HistoryBefore` sentinel and let the mirror re-derive the bound from
+  a FRESH snapshot, off the lock, moments later. Any row the child completed
+  in between put the two apart. `Parser::apply_history_chunk` requires the
+  chunk to abut EXACTLY, and chunks step down in units of 512, so a drift of
+  even one row rejects the first chunk and every chunk after it — returning
+  `false`, with no error and no log.
+- Now: the origin is read back out of the frame that was just rendered
+  (`replayOrigin`) and passed to `streamHistory` as its starting bound. One
+  render, one number, used both to tell the client where it stands and to cut
+  the first chunk.
+- Guards: `TestHistoryStartsAtTheOriginTheFrameDeclared` (ptyhost).
 
 ## 5. Known gaps (not bugs, decisions pending)
 
@@ -589,6 +639,36 @@ history of `master`.
   the gate to pass rather than fixing a diagnosed cause. Open follow-up: a
   principled fix needs an explicit paint-completion signal the gate can wait
   on instead of a frame-count guess — not designed or implemented here.
+- **Ack accounting is per pty-host CONNECTION, not per mux client.** `MsgAck`
+  folds every ack into one `clientState`, and `unackedLocked` reports the
+  worst connection. The daemon may fan a single attachment out to several mux
+  clients (desktop and mobile on the same session) through
+  `connState.handleTerminal`, which forwards each client's ack onto that one
+  connection: a fast client's ack races ahead of a slow one, `acked` follows
+  the fast one, and the slow client throttles nothing — flow control (Plan C
+  1.3.H) is effectively off in exactly the multi-client case it was meant to
+  help. Separately, `attachment.run`'s reattach loop opens a FRESH pty-host
+  connection with `delivered` reset to 0 while the renderer's
+  `r.consumedBytes` keeps counting from before the reconnect, so post-reconnect
+  acks clamp `acked` to the new connection's `delivered` and the watermark
+  gate stays open for that pane from then on. Both fail OPEN — no stall, no
+  corruption, just no back-pressure — which is why this ships documented
+  rather than fixed; a real fix needs per-mux-client accounting at the
+  pty-host connection layer, which does not exist today.
+- **A block that straddles a 512-row chunk boundary loses its tail.**
+  `write_block_open`/`write_block_close` (`crates/vt-host/src/lib.rs`) emit a
+  block's `id=`/`cmd=` mark on its first row and its `exit=` mark on its last.
+  When those rows fall in different chunks, the receiver sees an opening mark
+  with no close (or a close with no open) and the block ends at the chunk
+  boundary instead of at its real last row. Low severity — the rows
+  themselves all arrive, only the block grouping around them is approximate —
+  and it sits next to the `wrapped`-flag loss above for the same reason: a
+  real fix means carrying block state across chunk boundaries in the mark,
+  which changes the chunk's self-contained invariant.
+- **`vt_touch_history` runs off `h.mu`, just before the frame is rendered.** A
+  resize landing in that window re-marks rows stale and §4.20's truncation
+  returns for that one attach. The window is microseconds and the alternative
+  is a full-history rewrap under the host's global lock, stalling every pane.
 - `TestProcessEnvironmentLetsOverridesWin` in `ptyhost` fails on master before
   any of this work (TERM override appended twice). Pre-existing, unrelated.
 - Found triaging the Alacritty reference corpus (`crates/vt-core/tests/ref/TRIAGE.md`),

@@ -23,6 +23,7 @@ const session: WorkspaceSession = {
 type FakeMux = {
 	mux: TerminalMux;
 	opens: Array<[string, number, number]>;
+	historyOpens: boolean[];
 	resizes: Array<[string, number, number]>;
 	inputs: Array<[string, string]>;
 	closes: string[];
@@ -53,6 +54,7 @@ function createFakeMux(): FakeMux {
 
 	const fake: FakeMux = {
 		opens: [],
+		historyOpens: [],
 		resizes: [],
 		inputs: [],
 		closes: [],
@@ -60,7 +62,10 @@ function createFakeMux(): FakeMux {
 		events: [],
 		disposed: false,
 		mux: {
-			open: (id, cols, rows) => fake.opens.push([id, cols, rows]),
+			open: (id, cols, rows, history) => {
+				fake.opens.push([id, cols, rows]);
+				fake.historyOpens.push(history === true);
+			},
 			sendInput: (id, input) => fake.inputs.push([id, input]),
 			resize: (id, cols, rows) => fake.resizes.push([id, cols, rows]),
 			close: (id) => {
@@ -1134,6 +1139,17 @@ describe("useTerminalSession", () => {
 		expect(muxes[1].opens).toEqual([["handle-1", 80, 24]]);
 		act(() => muxes[1].emitOpened("handle-1"));
 		expect(view.result.current.state).toBe("attached");
+	});
+
+	it("asks for history on the first open of a core and never on a reconnect", () => {
+		const { muxes } = setup();
+		act(() => muxes[0].emitOpened("handle-1"));
+		expect(muxes[0].historyOpens).toEqual([true]);
+
+		act(() => muxes[0].emitConnection("closed"));
+		act(() => void vi.advanceTimersByTime(500));
+		expect(muxes).toHaveLength(2);
+		expect(muxes[1].historyOpens).toEqual([false]);
 	});
 
 	it("opens at the surface geometry rather than the unfitted xterm default", () => {
