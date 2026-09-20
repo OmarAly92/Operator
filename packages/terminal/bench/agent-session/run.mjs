@@ -57,6 +57,37 @@ async function spinnerPaints(page) {
 	}));
 }
 
+async function feedSyncCostAt(page, rows) {
+	const reached = await page.evaluate((target) => window.__agentSession.feedUntilRows(target), rows);
+	if (reached < rows) return { rows, reached, medianMs: null };
+	const samples = await page.evaluate(() => {
+		const out = [];
+		for (let index = 0; index < 20; index += 1) {
+			const cost = window.__agentSession.feedNextSynced(4096);
+			if (cost === 0) break;
+			out.push(cost);
+		}
+		return out;
+	});
+	return { rows, reached, medianMs: median(samples), samples: samples.length };
+}
+
+async function idlePanes(page) {
+	const session = await page.context().newCDPSession(page);
+	await session.send("Performance.enable");
+	await page.evaluate(() => window.__agentSession.mountPanes(9));
+	const before = (await session.send("Performance.getMetrics")).metrics.find((m) => m.name === "TaskDuration").value;
+	await page.evaluate(() => window.__agentSession.feedFrames(100, 100));
+	const after = (await session.send("Performance.getMetrics")).metrics.find((m) => m.name === "TaskDuration").value;
+	return { panes: 10, seconds: 10, taskDurationS: after - before };
+}
+
+async function selectionRepaint(page) {
+	await page.evaluate(() => window.__agentSession.feedFrames(5, 20));
+	const rowsRepainted = await page.evaluate(() => window.__agentSession.extendSelectionByOneRow());
+	return { rowsRepainted };
+}
+
 async function tornPaints(page, recording) {
 	const ends = frameBoundaries(recording);
 	const states = await page.evaluate((frameEnds) => {
@@ -194,6 +225,7 @@ async function main() {
 			if (name === "claude-spinner-10s") {
 				const page = await openPage(browser, port, name);
 				rows.spinner = await spinnerPaints(page);
+				rows.spinner.rowNodesAdded = await page.evaluate(() => window.__agentSession.rowNodesAdded());
 				await page.close();
 				const tearPage = await openPage(browser, port, name);
 				const states = await tornPaints(tearPage, fixture.recording);
@@ -201,6 +233,12 @@ async function main() {
 				const paintPage = await openPage(browser, port, name);
 				rows.tearing = { ...states, ...(await paintsPerFrame(paintPage, fixture.recording)) };
 				await paintPage.close();
+				const idlePage = await openPage(browser, port, name);
+				rows.idlePanes = await idlePanes(idlePage);
+				await idlePage.close();
+				const selectionPage = await openPage(browser, port, name);
+				rows.selectionRepaint = await selectionRepaint(selectionPage);
+				await selectionPage.close();
 			} else {
 				const page = await openPage(browser, port, name);
 				rows.feedCost = [];
@@ -209,6 +247,10 @@ async function main() {
 				rows.rows = await page.evaluate(() => window.__agentSession.rowCount());
 				rows.rendererMemoryBytes = await page.evaluate(() => window.__agentSession.memoryBytes());
 				await page.close();
+				const feedSyncPage = await openPage(browser, port, name);
+				rows.feedSyncCost = [];
+				for (const target of [1000, 5000, 50000]) rows.feedSyncCost.push(await feedSyncCostAt(feedSyncPage, target));
+				await feedSyncPage.close();
 				const longTaskPage = await openPage(browser, port, name);
 				rows.longTask = await longTask2MiB(longTaskPage);
 				await longTaskPage.close();
