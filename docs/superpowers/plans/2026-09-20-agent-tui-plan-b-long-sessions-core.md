@@ -10,7 +10,7 @@
 
 **Spec:** `docs/superpowers/specs/2026-09-19-agent-tui-experience-design.md` — Plan B is Part 1.3 items A, B, C, D, E and Part 3. Survey entries cited: `docs/superpowers/specs/2026-09-19-terminal-reference-survey.md` §1.2, §1.13, §2.3, §3.1, §3.5, §4.1, §4.2 (sequence numbers only). Read `TERMINAL.md` end to end before starting.
 
-**Gate:** Plan A (`docs/superpowers/plans/2026-09-19-agent-tui-plan-a-frame-fidelity.md`) landed on `development` in `9a71794e9` (merge, 2026-09-20): the `bench/agent-session` harness and feel gate, the `claude-long-50k` fixture, the `tests/ref` corpus, `verify_integrity`/`debug_check`/`advance_vte`, `feed_at`/`tick`/`sync` with the "notify only when the generation changed" rule, and `enqueue`/`drain` are all in the tree and this plan builds on them. Plan A's review left three required fixes in its Task 5 open at the time of writing: the trailing blank row in the `screen()` helper of `crates/vt-core/tests/synchronized_output.rs`, the renderer never ticking a BSU-only block (`ts/core/src/terminal-core.ts:78-80`), and the overflow branch of `TerminalCore::feed_at` (`crates/vt-core/src/lib.rs:100-107`). No task below depends on the behaviour of those three spots; every test helper in this plan trims trailing empty rows itself.
+**Gate:** Plan A (`docs/superpowers/plans/2026-09-19-agent-tui-plan-a-frame-fidelity.md`) landed on `development` in `9a71794e9` (merge, 2026-09-20): the `bench/agent-session` harness and feel gate, the `claude-long-50k` fixture, the `tests/ref` corpus, `verify_integrity`/`debug_check`/`advance_vte`, `feed_at`/`tick`/`sync` with the "notify only when the generation changed" rule, and `enqueue`/`drain` are all in the tree and this plan builds on them. Plan A's review asked for three fixes in its Task 5 and all three are in that merge: the `screen()` helper of `crates/vt-core/tests/synchronized_output.rs:15-21` trims trailing empty rows, `ts/core/src/terminal-core.ts:74-80` notifies on a sync-only feed so the renderer ticks a BSU-only block, and `TerminalCore::feed_at` (`crates/vt-core/src/lib.rs:100-107`) feeds an oversized chunk raw instead of looping. No task below depends on those three spots either way; every test helper in this plan trims trailing empty rows itself.
 
 ## Global Constraints
 
@@ -27,6 +27,7 @@ Every task inherits these; they are the spec's "Global constraints" plus `TERMIN
 - Do not change behaviour the spec does not ask for: no resize-debounce change (`TERMINAL.md` §4.6), no rewrap change (lazy rewrap is Plan C, spec Decision 5), no replay change (Plan C 1.3.G), no mux protocol change (Plan C 1.3.H), no §4.8 de-dup heuristic (spec Decision 3), no persistence across app restarts (spec Decision 2).
 - Decisions taken from the spec's "Decisions needed": caps `Limits { rows: 200_000, bytes: 128 * 1024 * 1024 }` per core (Decision 1).
 - Code blocks in this plan contain `//` lines that point at existing code ("the existing body of …"); they are instructions to the reader and are never typed into the tree.
+- `generation` increments on every `feed_raw` that reached the parser, including bytes with no visible effect (a DA1 or DECRQM reply), so such a feed schedules a paint with an empty dirty set. Cheap once Task 10 lands, today's cost before it; the task order is not to be changed for this.
 - Stable rows are `u64` in Rust (`trimmed_total`, `first_stable_row`, `Delta.remap`, `FindMatch.row`), two `u32` words in the wasm export, `number` in TS. Flat rows (indices into the current snapshot) stay `usize`/`u32`/`number`.
 
 ## Deviations from the spec, decided here
@@ -2544,6 +2545,8 @@ pub struct WasmTerminalCore {
 
 The appended history rows are pushed as dirty because the renderer treats "new" and "changed" alike (it has no node for a new row yet). `first_stable_row_lo/hi` (Task 4) keep reading `self.export`. Delete `refresh_after_mutation`.
 
+Compatibility shim for this commit only: `ts/core` still reads the pointer getters right after `feed`/`tick`/`resize`/`set_block_bookmarked` without calling `sync()` (Task 8 switches it). So, in this task, each of those four methods ends with `self.sync()?;` (for `tick`, `let flushed = self.core.tick(clock(now_ms)); self.sync()?; Ok(flushed)`). Task 8 removes those four lines. The shim keeps every commit between Task 7 and Task 8 green and bisectable; it does not change what `sync()` does.
+
 - [ ] **Step 4: Run the tests**
 
 Run: `cd /Users/omaraly/development/AI/Operator/packages/terminal && cargo test -p vt-wasm && cargo test -p vt-core`
@@ -2567,7 +2570,12 @@ The export is incremental.
 - [ ] **Step 6: Verify and commit**
 
 Run: `cd /Users/omaraly/development/AI/Operator/packages/terminal && cargo fmt && cargo clippy --all-targets -- -D warnings && cargo test && npm run build:wasm -- --force`
-Expected: green. The TS side is not switched yet (Task 8): `ts/core` still calls `feed` then reads pointers without `sync()`, so **do not run the vitest suites or the feel gate at this commit** — they would read a stale export. Task 8 is the other half of this change and lands next; commit this half on its own so the Rust review is separable.
+Expected: green. With the compatibility shim from Step 3 the TS side keeps working unchanged, so run the TS suites and the gates too:
+
+```bash
+cd /Users/omaraly/development/AI/Operator/packages/terminal && npm run build:ts && for p in core renderer-dom react; do (cd ts/$p && npx vitest run); done && npm run bench:selection && npm run bench:feel && npm run bench:agent:gate
+```
+Expected: green; `PASS feel gate: zero pixel diff`. Task 8 removes the shim and moves the sync into `snapshot()`.
 
 ```bash
 cd /Users/omaraly/development/AI/Operator && git add packages/terminal/crates packages/terminal/CHANGELOG.md && git commit -m "vt-wasm: incremental ExportBuffers applied from take_delta; sync() replaces the per-feed rebuild" -m "Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
@@ -2697,8 +2705,8 @@ Import `decodeBlocks` and `type RowEvent` from `./index`. `block-contract.test.t
 
 - [ ] **Step 2: Run to see them fail**
 
-Run: `cd /Users/omaraly/development/AI/Operator/packages/terminal && npm run build:wasm -- --force && cd ts/core && npx vitest run`
-Expected: the new tests fail (`takeDirty`/`onRowEvents` missing, `historyRows` undefined, snapshots not cached); the existing ones break too because `snapshot()` does not call `sync()` yet — that is the state Task 7 left and this task fixes.
+Run: `cd /Users/omaraly/development/AI/Operator/packages/terminal/ts/core && npx vitest run`
+Expected: the new tests fail (`takeDirty`/`onRowEvents` missing, `historyRows` undefined, snapshots not cached, "feed alone does not export" sees `sync` called by Task 7's shim); the existing ones still pass.
 
 - [ ] **Step 3: Implement**
 
@@ -2711,6 +2719,8 @@ export type RowEvent = Readonly<{ trimmed: number; remap: ReadonlyArray<readonly
 
 export type RowEventListener = (event: RowEvent) => void;
 ```
+
+`vt-wasm/src/lib.rs`: remove the four `self.sync()?;` shim lines Task 7 put at the end of `feed`, `tick`, `resize` and `set_block_bookmarked` (then `npm run build:wasm -- --force`).
 
 `terminal-core.ts`:
 
