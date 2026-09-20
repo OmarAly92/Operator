@@ -340,7 +340,10 @@ Shell terminals no longer inherit the launcher's `NO_COLOR`.
   five Part 1.4 rows Plan B owns pass; `bench:agent:scroll` now reports full
   coverage (60,134/60,134) where the pre-existing 3-row gap used to be. Adds
   a `--gate` check to `bench:agent:gate` for `feedSyncCost` staying flat from
-  1k to 50k rows.
+  1k to 50k rows, for DOM nodes per changed row (≤ 2), for ten idle panes'
+  main-thread task time (≤ 25 % of the measured window) and for a mouse move
+  repainting exactly one row; a `feedSyncCost` sample the harness failed to
+  collect at all now fails the gate instead of passing it silently.
 
 ## 0.3.0 - 2026-08-30
 

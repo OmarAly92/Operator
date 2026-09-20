@@ -97,16 +97,20 @@ rebuilt (§6).
   `DEFAULT_LIMITS` (`frontend/src/renderer/components/BlockTerminal.tsx:66`,
   `{ rows: 200_000, bytes: 128 * 1024 * 1024 }`); the Go mirror takes its from
   `mirrorLimits` (`backend/internal/adapters/runtime/ptyhost/mirror_limits.go:5`,
-  the same 200k rows / 128 MiB). The two are set independently and must be
-  kept in sync by hand — there is no shared source of truth across the
-  Rust/Go boundary.
+  the same 200k rows / 128 MiB), which `vtwasm/agent_session_test.go`'s
+  `productMirrorLimits` repeats so its memory report measures the real cap
+  (the package that owns `mirrorLimits` imports `vtwasm`, so the test
+  cannot read it). These are set independently and must be kept in sync by
+  hand — there is no shared source of truth across the Rust/Go boundary.
 - **Stable rows** give a row an identity that survives it migrating from the
   live screen into scrollback and back out again under trim. `trimmed_total`
   (`parser.rs:34,95`) counts rows evicted off the front since the session
   began; `stable_row(flat)` / `flat_row(stable)` (`lib.rs:340,344`) convert
   between a row's position in the current flat (scrollback + screen) space
-  and this permanent counter. `BlockGrid::origin` (`block_grid.rs:45`) is the
-  flat-space offset blocks are numbered from, renumbered on every trim.
+  and this permanent counter. `BlockGrid::origin` (`block_grid.rs:27,45`) is
+  the stable row of flat row 0 — equal to `Parser::trimmed_total`, advanced
+  on every trim. Blocks hold **stable** rows in `Block.first_row` and
+  convert down to flat rows at the grid's public boundary (`flat_extent`).
   `first_stable_row` is exported per snapshot (`vt-wasm/src/export.rs:370`,
   wired through `first_stable_row_lo`/`_hi`, `lib.rs:288-293`) so the
   renderer can convert without asking the core. The DOM's
@@ -116,16 +120,23 @@ rebuilt (§6).
 - **Delta / incremental export** avoid re-decoding scrollback that has not
   changed. `generation()` (`lib.rs:291`) bumps on every mutation;
   `take_delta()` (`lib.rs:295`) drains a `Delta` of the rows the `ScreenGrid`
-  marked dirty since the last call (dirty bits set by the same code paths as
-  eviction and cursor movement — see the Task 10 note on `move_to` below).
+  marked dirty since the last call. The dirty bits are set by the cell
+  writers in `ScreenGrid` and by cursor movement: `ScreenGrid::move_to`
+  (`screen.rs:371`) marks both the row the cursor left and the row it
+  arrived on, so a bare cursor move repaints those two rows and nothing else.
   `ExportBuffers::apply` (`vt-wasm/src/export.rs:141`) applies a `Delta`
   against the exporter's own buffers rather than rebuilding them, dropping a
   dead prefix and compacting when it grows past the live content. TS
   `TerminalCore.sync()` (`terminal-core.ts:209`, calling `inner.sync()` at
   `vt-wasm/src/lib.rs:119`) reconciles the wasm side; `snapshot()`
-  (`terminal-core.ts:178-221`) only rebuilds `TerminalSnapshot` when
-  `generation()` has moved past `lastNotifiedGeneration`, otherwise it
-  returns the cached one. `takeDirty()` (`terminal-core.ts:297`) and
+  (`terminal-core.ts:205`) caches one `TerminalSnapshot` keyed on
+  `{ generation, memory.buffer }` and rebuilds only when either has
+  changed. The `buffer` term is load-bearing: a snapshot's typed arrays are
+  views into wasm memory, and growing that memory reallocates it and
+  detaches every view, so comparing buffer identity is what makes a stale
+  view impossible instead of something each caller has to remember. This
+  cache has nothing to do with `lastNotifiedGeneration`
+  (`terminal-core.ts:65,179`), which only dedupes `onChange` notifications. `takeDirty()` (`terminal-core.ts:297`) and
   `onRowEvents()` (`terminal-core.ts:308`) are how `DomBlockRenderer` learns
   which rows to repaint without diffing the whole snapshot.
 

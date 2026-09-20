@@ -10,6 +10,10 @@ const benchDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".."
 const configFile = path.join(benchDir, "vite.config.ts");
 const resultsDir = path.join(benchDir, "results");
 
+const DOM_NODES_PER_CHANGED_ROW_CEILING = 2;
+const IDLE_PANES_TASK_DURATION_CEILING_S = 2.5;
+const SELECTION_ROWS_REPAINTED = 1;
+
 function parseArgs(argv) {
 	const out = { fixture: undefined, gate: false };
 	for (let index = 0; index < argv.length; index += 1) {
@@ -274,15 +278,34 @@ async function main() {
 			if (longTask && longTask.queued.longestFrameMs > 50) throw new Error(`queued 2 MiB feed held a frame for ${longTask.queued.longestFrameMs.toFixed(1)}ms (budget 12 ms parse + paint)`);
 			const long = report.fixtures["claude-long-50k"];
 			if (long?.feedSyncCost) {
-				const at1k = long.feedSyncCost.find((row) => row.rows === 1000)?.medianMs;
-				const at50k = long.feedSyncCost.find((row) => row.rows === 50000)?.medianMs;
-				if (at1k !== null && at50k !== null && at50k > at1k * 1.2 + 0.2) throw new Error(`feed+sync at 50k rows costs ${at50k.toFixed(2)}ms vs ${at1k.toFixed(2)}ms at 1k (limit 20 % + 0.2 ms)`);
+				const medianAt = (target) => {
+					const row = long.feedSyncCost.find((entry) => entry.rows === target);
+					if (!row) throw new Error(`feed+sync has no ${target}-row sample`);
+					return row.medianMs;
+				};
+				const at1k = medianAt(1000);
+				const at50k = medianAt(50000);
+				if (at1k != null && at50k != null && at50k > at1k * 1.2 + 0.2) throw new Error(`feed+sync at 50k rows costs ${at50k.toFixed(2)}ms vs ${at1k.toFixed(2)}ms at 1k (limit 20 % + 0.2 ms)`);
 			}
 			const spinner = report.fixtures["claude-spinner-10s"]?.spinner;
 			if (spinner && spinner.paints > 0) {
 				const rowsPerPaint = spinner.rowNodesAdded / spinner.paints;
 				const nodesPerPaint = spinner.addedNodes / spinner.paints;
 				process.stdout.write(`spinner: ${rowsPerPaint.toFixed(2)} row nodes and ${nodesPerPaint.toFixed(2)} DOM nodes per paint\n`);
+				const nodesPerChangedRow = spinner.addedNodes / spinner.rowNodesAdded;
+				if (!(nodesPerChangedRow <= DOM_NODES_PER_CHANGED_ROW_CEILING)) {
+					throw new Error(`a paint under the spinner creates ${nodesPerChangedRow.toFixed(2)} DOM nodes per changed row (limit ${DOM_NODES_PER_CHANGED_ROW_CEILING})`);
+				}
+			}
+			const idle = report.fixtures["claude-spinner-10s"]?.idlePanes;
+			if (idle) {
+				if (!(idle.taskDurationS <= IDLE_PANES_TASK_DURATION_CEILING_S)) {
+					throw new Error(`ten idle panes spent ${idle.taskDurationS.toFixed(3)}s on the main thread over ${idle.seconds}s (limit ${IDLE_PANES_TASK_DURATION_CEILING_S}s, 25 % of the window)`);
+				}
+			}
+			const selection = report.fixtures["claude-spinner-10s"]?.selectionRepaint;
+			if (selection && selection.rowsRepainted !== SELECTION_ROWS_REPAINTED) {
+				throw new Error(`a mouse move during streaming repainted ${selection.rowsRepainted} rows (target ${SELECTION_ROWS_REPAINTED})`);
 			}
 			process.stdout.write("PASS agent-session gate\n");
 		}
