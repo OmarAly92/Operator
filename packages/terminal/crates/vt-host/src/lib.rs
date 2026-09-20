@@ -404,6 +404,126 @@ pub extern "C" fn vt_replay(handle: u32, lines: u32, out_ptr: u32, out_cap: u32)
     })
 }
 
+pub const HISTORY_CHUNK_ROWS: u32 = 512;
+
+/// `before == u64::MAX` means "start just above the frame of `lines` rows".
+/// Writes one chunk and stores the chunk's own first stable row at
+/// `next_ptr` as 8 little-endian bytes. Returns the byte count written,
+/// 0 when no history remains, or RENDER_ERR / RENDER_TOO_BIG.
+#[no_mangle]
+pub extern "C" fn vt_history_chunk(
+    handle: u32,
+    before: u64,
+    lines: u32,
+    max_rows: u32,
+    out_ptr: u32,
+    out_cap: u32,
+    next_ptr: u32,
+) -> u32 {
+    CORES.with(|c| {
+        let cores = c.borrow();
+        let Some(core) = cores.get(&handle) else {
+            return RENDER_ERR;
+        };
+        let Ok(snapshot) = core.snapshot() else {
+            return RENDER_ERR;
+        };
+        let first_stable = snapshot.first_stable_row;
+        let bound_stable = if before == u64::MAX {
+            frame_first_stable(&snapshot, lines)
+        } else {
+            before
+        };
+        if bound_stable <= first_stable {
+            return 0;
+        }
+        let bound = (bound_stable - first_stable) as usize;
+        let count = bound.min(max_rows.max(1) as usize);
+        let start = bound - count;
+        let chunk_first_stable = first_stable + start as u64;
+
+        let mut text = format!(
+            "\x1b]7000;v=1;history={},{}\x1b\\",
+            chunk_first_stable, count
+        );
+        let cols = core.columns();
+        for row in start..bound {
+            write_block_open(&mut text, &snapshot, row);
+            let indent = snapshot.row_indent(row).min(cols.saturating_sub(1));
+            let (row_bytes, pairs) = clip_row(
+                snapshot.row_text(row).as_bytes(),
+                snapshot.row_style_pairs(row),
+                cols - indent,
+            );
+            write_indent(&mut text, indent);
+            // The closing mark is the row's terminator, not a separate line:
+            // a byte after the chunk's final CR-LF falls through to the live
+            // parser (Task 3's receiver ends the chunk at the count-th LF).
+            let mut terminator = String::new();
+            write_block_close(&mut terminator, &snapshot, row);
+            terminator.push_str("\r\n");
+            write_styled_row_with(&mut text, row_bytes, &pairs, &terminator);
+        }
+
+        let out = text.into_bytes();
+        if out.len() > out_cap as usize {
+            return RENDER_TOO_BIG;
+        }
+        unsafe {
+            std::ptr::copy_nonoverlapping(out.as_ptr(), out_ptr as *mut u8, out.len());
+            std::ptr::copy_nonoverlapping(
+                chunk_first_stable.to_le_bytes().as_ptr(),
+                next_ptr as *mut u8,
+                8,
+            );
+        }
+        out.len() as u32
+    })
+}
+
+fn write_block_open(text: &mut String, snapshot: &vt_core::GridSnapshot, row: usize) {
+    for (index, block) in snapshot.blocks.iter().enumerate() {
+        if block.source == vt_core::BlockSource::Synthetic {
+            continue;
+        }
+        if block.first_row as usize == row {
+            text.push_str("\x1b]7000;v=1;id=");
+            text.push_str(&index.to_string());
+            text.push_str(";cmd=");
+            percent_encode_into(text, snapshot.block_command(index));
+            text.push_str("\x1b\\");
+            return;
+        }
+    }
+}
+
+fn write_block_close(text: &mut String, snapshot: &vt_core::GridSnapshot, row: usize) {
+    for block in snapshot.blocks.iter() {
+        if block.source == vt_core::BlockSource::Synthetic {
+            continue;
+        }
+        let last_row = block.first_row as usize + block.row_count as usize - 1;
+        if last_row == row {
+            if let Some(exit_code) = block.exit_code {
+                text.push_str("\x1b]7000;v=1;exit=");
+                text.push_str(&exit_code.to_string());
+                text.push_str("\x1b\\");
+            }
+            return;
+        }
+    }
+}
+
+fn percent_encode_into(text: &mut String, value: &str) {
+    for ch in value.chars() {
+        if ch.is_ascii() && matches!(ch as u8, b';' | b'=' | b'%' | 0x00..=0x1f) {
+            text.push_str(&format!("%{:02X}", ch as u8));
+        } else {
+            text.push(ch);
+        }
+    }
+}
+
 fn clip_row<'a>(
     row_bytes: &'a [u8],
     pairs: &[(u32, CellStyle)],

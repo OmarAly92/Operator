@@ -248,6 +248,57 @@ func (p *Parser) Replay(lines int) (string, error) {
 	return p.renderWith("vt_replay", "replay", lines)
 }
 
+const (
+	HistoryChunkRows = 512
+	HistoryBefore    = ^uint64(0)
+)
+
+const historyNextBytes = 8
+
+// HistoryChunk returns one chunk of replay history and the stable row it
+// starts at, which is the `before` for the next call. ok is false once no
+// history remains above `before`.
+func (p *Parser) HistoryChunk(before uint64, lines, maxRows int) (string, uint64, bool, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	res, err := p.module.ExportedFunction("vt_alloc").Call(p.ctx, renderBufferBytes)
+	if err != nil {
+		return "", 0, false, fmt.Errorf("vtwasm: alloc history buffer: %w", err)
+	}
+	out := uint32(res[0])
+	defer func() { _, _ = p.module.ExportedFunction("vt_free").Call(p.ctx, uint64(out), renderBufferBytes) }()
+	res, err = p.module.ExportedFunction("vt_alloc").Call(p.ctx, historyNextBytes)
+	if err != nil {
+		return "", 0, false, fmt.Errorf("vtwasm: alloc history cursor: %w", err)
+	}
+	next := uint32(res[0])
+	defer func() { _, _ = p.module.ExportedFunction("vt_free").Call(p.ctx, uint64(next), historyNextBytes) }()
+
+	res, err = p.module.ExportedFunction("vt_history_chunk").
+		Call(p.ctx, uint64(p.handle), before, uint64(lines), uint64(maxRows), uint64(out), renderBufferBytes, uint64(next))
+	if err != nil {
+		return "", 0, false, fmt.Errorf("vtwasm: history_chunk: %w", err)
+	}
+	switch written := uint32(res[0]); written {
+	case 0:
+		return "", 0, false, nil
+	case renderErr:
+		return "", 0, false, fmt.Errorf("vtwasm: history_chunk failed for handle %d", p.handle)
+	case renderTooBig:
+		return "", 0, false, fmt.Errorf("vtwasm: history_chunk exceeds %d bytes", renderBufferBytes)
+	default:
+		body, ok := p.module.Memory().Read(out, written)
+		if !ok {
+			return "", 0, false, fmt.Errorf("vtwasm: read %d bytes at %d out of range", written, out)
+		}
+		cursor, ok := p.module.Memory().Read(next, historyNextBytes)
+		if !ok {
+			return "", 0, false, fmt.Errorf("vtwasm: read history cursor out of range")
+		}
+		return string(body), binary.LittleEndian.Uint64(cursor), true, nil
+	}
+}
+
 func (p *Parser) Resize(cols, rows uint32) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
