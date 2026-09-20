@@ -27,9 +27,6 @@ pub struct BlockGrid {
     /// Stable row of flat row 0: the number of rows trimmed off the front
     /// so far (wezterm/term/src/screen.rs:734).
     origin: usize,
-    /// Flat rows a `retreat_origin` could not subtract from `origin` because
-    /// it was already at zero. Only `flat_extent` reads it, and only a
-    /// `retreat_origin` call past zero ever makes it nonzero.
     retreat_slack: usize,
 }
 
