@@ -665,10 +665,17 @@ history of `master`.
   and it sits next to the `wrapped`-flag loss above for the same reason: a
   real fix means carrying block state across chunk boundaries in the mark,
   which changes the chunk's self-contained invariant.
-- **`vt_touch_history` runs off `h.mu`, just before the frame is rendered.** A
-  resize landing in that window re-marks rows stale and §4.20's truncation
-  returns for that one attach. The window is microseconds and the alternative
-  is a full-history rewrap under the host's global lock, stalling every pane.
+- **`vt_touch_history` runs off `h.mu`, just before the frame is rendered** — a
+  full-history rewrap under the host's global lock would stall every pane. A
+  resize landing between the rewrap and the render re-marks rows stale and
+  §4.20's truncation returns, so `handleConn` settles the grid FIRST
+  (`applyLargestLocked` counts the attaching connection before it is
+  registered) and then re-checks the grid under the same lock that renders the
+  replay, redoing both if another client moved it meanwhile
+  (`TestAttachWithHistoryRewrapsAfterTheAttachResize`). The attach's own resize
+  used to land in that window on every reopen at a new width, which was not a
+  race but a certainty; nothing now resizes the parser between the rewrap and
+  the frame it is numbered against.
 - `TestProcessEnvironmentLetsOverridesWin` in `ptyhost` fails on master before
   any of this work (TERM override appended twice). Pre-existing, unrelated.
 - Found triaging the Alacritty reference corpus (`crates/vt-core/tests/ref/TRIAGE.md`),

@@ -772,8 +772,12 @@ export function useTerminalSession(session: WorkspaceSession | undefined, option
 		// acts only on an empty core), and with the origin refused every chunk
 		// behind it is rejected too — so a reconnect would stream the whole
 		// session's scrollback, ack-paced, only to throw it away.
-		const wantsHistory = r.historyCore !== terminal;
-		r.historyCore = terminal;
+		// A 0×0 open carries no grid, and the host drops the history flag with
+		// it, so latching here would burn the one request a parked pane never
+		// made.
+		const sizedOpen = openCols > 0 && openRows > 0;
+		const wantsHistory = sizedOpen && r.historyCore !== terminal;
+		if (sizedOpen) r.historyCore = terminal;
 		mux.open(handle, openCols, openRows, wantsHistory);
 		r.lastPublishedGrid =
 			openCols > 0 && openRows > 0 ? { cols: openCols, rows: openRows } : null;

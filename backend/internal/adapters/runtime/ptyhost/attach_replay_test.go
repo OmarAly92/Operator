@@ -440,3 +440,57 @@ func TestAckPacedHistoryStopsWhenItsClientLeaves(t *testing.T) {
 		t.Fatal("awaitAckedHistory never returned for a client that disconnected")
 	}
 }
+
+// The rewrap has to see the grid the attach itself settles on. applyLargestLocked
+// resizes the shared parser to the attaching client's grid, and every resize
+// re-marks the rows below vt-core's hot window stale at the OLD width; a rewrap
+// that ran before that resize is undone by it, and the chunks are clipped back
+// to the new width with their tails gone (TERMINAL.md §5).
+func TestAttachWithHistoryRewrapsAfterTheAttachResize(t *testing.T) {
+	f := startServeParsed(t, 718, 120, 4)
+	defer f.cancel()
+
+	const lines = 2600
+	var input strings.Builder
+	for i := 0; i < lines; i++ {
+		fmt.Fprintf(&input, "H%05d%sT%05d\r\n", i, strings.Repeat("x", 93), i)
+	}
+	writeOutput(t, f, input.String())
+	waitForParsedOutput(t, f, fmt.Sprintf("T%05d", lines-1))
+
+	c := newTestClient(t, f.addr)
+	defer c.close()
+	// Narrower than the host's current grid: the resize fires as a consequence
+	// of this attach, not before it.
+	sendResizeWithHistory(t, c, 40, 4, true)
+
+	stream := readReplay(t, c)
+	deadline := time.Now().Add(20 * time.Second)
+	for time.Now().Before(deadline) && !strings.Contains(stream, "H00000") {
+		typ, payload := c.readFrame(t)
+		if typ == MsgTerminalData {
+			stream += string(payload)
+		}
+	}
+	if !strings.Contains(stream, "H00000") {
+		t.Fatal("the oldest history row never arrived")
+	}
+
+	mirror, err := vtwasm.New(context.Background(), vtwasm.Module, 40, 4, vtwasm.Limits{Rows: 200_000, Bytes: 0xffffffff})
+	if err != nil {
+		t.Fatalf("new mirror: %v", err)
+	}
+	defer mirror.Close()
+	if err := mirror.Feed([]byte(stream)); err != nil {
+		t.Fatalf("feed the replay stream: %v", err)
+	}
+	rendered, err := mirror.RenderTail(200_000)
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	for _, i := range []int{0, 1, 300, 599} {
+		if want := fmt.Sprintf("T%05d", i); !strings.Contains(rendered, want) {
+			t.Fatalf("history row %d arrived truncated: its tail %q is missing", i, want)
+		}
+	}
+}

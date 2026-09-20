@@ -258,7 +258,7 @@ func (h *host) dropClient(conn net.Conn) {
 	delete(h.clients, conn)
 	// A dropped client may have been the largest viewer; recompute the shared
 	// grid so it follows the remaining clients.
-	h.applyLargestLocked()
+	h.applyLargestLocked(nil)
 	h.mu.Unlock()
 	if cs != nil {
 		cs.closeOut()
@@ -308,7 +308,12 @@ func (h *host) currentParser() *vtwasm.Parser {
 // Called on every client resize and on every disconnect, so the grid follows a
 // newly-attached larger client and falls back to the remaining largest one when
 // it leaves. Callers must hold h.mu.
-func (h *host) applyLargestLocked() {
+//
+// pending, when non-nil, is a connection that is not in h.clients yet and is
+// counted as if it were. An attach has to settle the grid BEFORE it rewraps
+// history and renders the replay, and it cannot register the connection that
+// early without letting live output reach it ahead of its own replay frame.
+func (h *host) applyLargestLocked(pending *clientState) {
 	bestCols, bestRows, bestArea := 0, 0, 0
 	for _, cs := range h.clients {
 		if !cs.sized {
@@ -316,6 +321,11 @@ func (h *host) applyLargestLocked() {
 		}
 		if area := cs.cols * cs.rows; area > bestArea {
 			bestArea, bestCols, bestRows = area, cs.cols, cs.rows
+		}
+	}
+	if pending != nil && pending.sized {
+		if area := pending.cols * pending.rows; area > bestArea {
+			bestArea, bestCols, bestRows = area, pending.cols, pending.rows
 		}
 	}
 	// No client has reported a size yet: leave the PTY at its current grid (the
@@ -797,32 +807,55 @@ func (h *host) handleConn(conn net.Conn) {
 	// for the whole session and starved this connection's own read loop,
 	// silently dropping the input of any client that writes without reading.
 	// See clientState's out fields.
-	// Off the lock, and before the frame is rendered: the mirror rewraps only
-	// its hot window on resize, and a chunk built off a row still cut at the
-	// old width loses its tail to clip_row. It has to happen BEFORE the origin
-	// is rendered, because rewrapping changes how many rows history holds
-	// (TERMINAL.md §4.20).
-	if opening != nil && opening.History {
-		if parser := h.currentParser(); parser != nil {
-			if err := parser.TouchHistory(); err != nil {
-				h.logf("rewrap attach history: %v", err)
-			}
-		}
-	}
-
-	h.mu.Lock()
 	if opening != nil {
 		cs.cols, cs.rows, cs.sized = opening.Cols, opening.Rows, true
 		cs.wantsHistory = opening.History
 	}
-	h.clients[conn] = cs
-	h.applyLargestLocked()
-	frame, origin := h.replayFrameLocked()
-	if frame != nil {
-		cs.enqueue(frame)
-		cs.delivered += len(frame) - frameHeaderBytes
+
+	// The rewrap runs off the lock (it can walk 200k rows) and before the frame
+	// is rendered: the mirror rewraps only its hot window on resize, and a chunk
+	// built off a row still cut at the old width loses its tail to clip_row. It
+	// has to happen BEFORE the origin is rendered, because rewrapping changes
+	// how many rows history holds (TERMINAL.md §4.20).
+	//
+	// The grid is settled first, with this connection counted before it is
+	// registered: applying it afterwards resizes the parser, and every resize
+	// re-marks the rows below the hot window stale at the old width, undoing
+	// the rewrap. The loop re-runs both if another client moved the grid while
+	// the rewrap was off the lock, so that by the time the replay is rendered
+	// the rewrap it is numbered against is still valid.
+	var origin uint64
+	for {
+		h.mu.Lock()
+		h.applyLargestLocked(cs)
+		gridCols, gridRows := h.curCols, h.curRows
+		h.mu.Unlock()
+
+		if cs.wantsHistory {
+			if parser := h.currentParser(); parser != nil {
+				if err := parser.TouchHistory(); err != nil {
+					h.logf("rewrap attach history: %v", err)
+				}
+			}
+		}
+
+		h.mu.Lock()
+		h.clients[conn] = cs
+		h.applyLargestLocked(nil)
+		if h.curCols != gridCols || h.curRows != gridRows {
+			delete(h.clients, conn)
+			h.mu.Unlock()
+			continue
+		}
+		var frame []byte
+		frame, origin = h.replayFrameLocked()
+		if frame != nil {
+			cs.enqueue(frame)
+			cs.delivered += len(frame) - frameHeaderBytes
+		}
+		h.mu.Unlock()
+		break
 	}
-	h.mu.Unlock()
 	registered = true
 
 	go h.runWriter(conn, cs)
@@ -837,7 +870,7 @@ func (h *host) handleConn(conn net.Conn) {
 		delete(h.clients, conn)
 		// This client is gone; if it was the largest, let the grid shrink back to
 		// the remaining largest client.
-		h.applyLargestLocked()
+		h.applyLargestLocked(nil)
 		h.readCond.Broadcast()
 		h.mu.Unlock()
 		_ = conn.Close()
@@ -1007,7 +1040,7 @@ func (h *host) handleClientMsg(conn net.Conn, msgType byte, payload []byte) {
 				if cs := h.clients[conn]; cs != nil {
 					cs.cols, cs.rows, cs.sized = rp.Cols, rp.Rows, true
 				}
-				h.applyLargestLocked()
+				h.applyLargestLocked(nil)
 				h.mu.Unlock()
 			}
 			// Malformed resize: ignore (matches TS behavior).
