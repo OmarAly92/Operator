@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -325,5 +326,117 @@ func TestAttachReplaySurvivesAWidthChangeUnderWrappedRedraws(t *testing.T) {
 	}
 	if n := strings.Count(replay, "FRESH"); n != 1 {
 		t.Fatalf("want one copy of the live frame, got %d:\n%q", n, replay)
+	}
+}
+
+// The origin the client adopts and the bound the first history chunk is cut
+// at must come from the SAME render. Letting the mirror re-derive the bound
+// from a later snapshot puts every row the child completed in between between
+// them, and the receiver rejects a chunk that does not abut exactly -- every
+// chunk after it too, silently.
+func TestHistoryStartsAtTheOriginTheFrameDeclared(t *testing.T) {
+	f := startServeParsed(t, 716, 20, 4)
+	defer f.cancel()
+
+	for i := 0; i < 1010; i++ {
+		writeOutput(t, f, fmt.Sprintf("row %04d\r\n", i))
+	}
+	waitForParsedOutput(t, f, "row 1009")
+
+	f.host.mu.Lock()
+	frame, origin := f.host.replayFrameLocked()
+	f.host.mu.Unlock()
+	if frame == nil || origin == vtwasm.HistoryBefore {
+		t.Fatalf("no replay origin was rendered")
+	}
+
+	// The race: the child completes more rows between the frame and the first
+	// chunk.
+	for i := 1010; i < 1030; i++ {
+		writeOutput(t, f, fmt.Sprintf("row %04d\r\n", i))
+	}
+	waitForParsedOutput(t, f, "row 1029")
+
+	cs := newClientState()
+	done := make(chan struct{})
+	go func() {
+		f.host.streamHistory(cs, origin)
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(10 * time.Second):
+		t.Fatal("streamHistory never finished")
+	}
+
+	cs.outMu.Lock()
+	frames := append([][]byte(nil), cs.out...)
+	cs.outMu.Unlock()
+	if len(frames) == 0 {
+		t.Fatal("no history chunk was queued")
+	}
+	first, count := parseHostHistoryMark(t, string(frames[0][frameHeaderBytes:]))
+	if first+uint64(count) != origin {
+		t.Fatalf("the first chunk ends at stable row %d, but the frame declared origin %d", first+uint64(count), origin)
+	}
+}
+
+func parseHostHistoryMark(t *testing.T, chunk string) (uint64, int) {
+	t.Helper()
+	const prefix = "\x1b]7000;v=1;history="
+	end := strings.Index(chunk, "\x1b\\")
+	if !strings.HasPrefix(chunk, prefix) || end < 0 {
+		t.Fatalf("not a history chunk: %q", chunk)
+	}
+	parts := strings.Split(chunk[len(prefix):end], ",")
+	if len(parts) != 2 {
+		t.Fatalf("malformed history mark: %q", chunk[:end])
+	}
+	first, err := strconv.ParseUint(parts[0], 10, 64)
+	if err != nil {
+		t.Fatalf("history mark first row: %v", err)
+	}
+	count, err := strconv.Atoi(parts[1])
+	if err != nil {
+		t.Fatalf("history mark count: %v", err)
+	}
+	return first, count
+}
+
+// A client that closes its pane mid-history leaves its stream parked on the
+// ack watermark. Without a departure check it parks for the life of the
+// process: every later broadcast wakes it onto the same frozen counters.
+func TestAckPacedHistoryStopsWhenItsClientLeaves(t *testing.T) {
+	f := startServeParsed(t, 717, 20, 4)
+	defer f.cancel()
+
+	cs := newClientState()
+	f.host.mu.Lock()
+	cs.everAcked = true
+	cs.delivered = 64 * readBufferSize
+	cs.acked = 0
+	f.host.mu.Unlock()
+
+	parked := make(chan struct{})
+	go func() {
+		f.host.awaitAckedHistory(cs)
+		close(parked)
+	}()
+
+	select {
+	case <-parked:
+		t.Fatal("the history stream did not park behind the ack watermark")
+	case <-time.After(100 * time.Millisecond):
+	}
+
+	cs.closeOut()
+	f.host.mu.Lock()
+	f.host.readCond.Broadcast()
+	f.host.mu.Unlock()
+
+	select {
+	case <-parked:
+	case <-time.After(5 * time.Second):
+		t.Fatal("awaitAckedHistory never returned for a client that disconnected")
 	}
 }

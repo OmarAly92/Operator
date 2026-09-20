@@ -255,6 +255,19 @@ const (
 
 const historyNextBytes = 8
 
+// TouchHistory rewraps every history row the mirror left cut at an older
+// width. It must run before Replay renders the frame whose origin the client
+// adopts: rewrapping changes how many rows history holds, and the chunks are
+// numbered downward from that origin.
+func (p *Parser) TouchHistory() error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if _, err := p.module.ExportedFunction("vt_touch_history").Call(p.ctx, uint64(p.handle)); err != nil {
+		return fmt.Errorf("vtwasm: touch_history: %w", err)
+	}
+	return nil
+}
+
 // HistoryChunk returns one chunk of replay history and the stable row it
 // starts at, which is the `before` for the next call. ok is false once no
 // history remains above `before`.

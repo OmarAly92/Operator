@@ -16,6 +16,7 @@ import (
 	"io"
 	"net"
 	"os"
+	"strconv"
 	"sync"
 	"time"
 
@@ -155,6 +156,15 @@ func (cs *clientState) awaitCapacity() {
 	cs.outMu.Unlock()
 }
 
+// gone reports that this client's queue is finished, which is how every wait
+// that outlives the connection -- awaitCapacity on outCond, awaitAckedHistory
+// on readCond -- learns that its client left.
+func (cs *clientState) gone() bool {
+	cs.outMu.Lock()
+	defer cs.outMu.Unlock()
+	return cs.outDone
+}
+
 // closeOut marks the queue finished and wakes runWriter plus anyone parked in
 // awaitCapacity. Idempotent: both the read loop's defer and shutdown call it.
 func (cs *clientState) closeOut() {
@@ -249,11 +259,16 @@ func (h *host) dropClient(conn net.Conn) {
 	// A dropped client may have been the largest viewer; recompute the shared
 	// grid so it follows the remaining clients.
 	h.applyLargestLocked()
-	h.readCond.Broadcast()
 	h.mu.Unlock()
 	if cs != nil {
 		cs.closeOut()
 	}
+	// The broadcast comes AFTER closeOut: awaitAckedHistory parks on readCond
+	// and leaves on cs.gone(), so a wake that precedes the flag never reaches
+	// it and the history stream parks for the life of the process.
+	h.mu.Lock()
+	h.readCond.Broadcast()
+	h.mu.Unlock()
 	_ = conn.Close()
 }
 
@@ -506,10 +521,14 @@ func (h *host) pumpPTY() {
 	}
 }
 
-// awaitReadCapacity parks the PTY reader while the slowest acking client is
-// more than readHighWatermark bytes behind, and resumes it once that falls
+// awaitReadCapacity parks the PTY reader while the slowest acking CONNECTION
+// is more than readHighWatermark bytes behind, and resumes it once that falls
 // under readLowWatermark. A client that has never acked is not counted, so a
 // client build without acks never throttles the child.
+//
+// A connection, not a client: the daemon may fan one pty-host attachment out
+// to several mux clients, whose acks all land on the same counter
+// (TERMINAL.md §5).
 func (h *host) awaitReadCapacity() {
 	h.mu.Lock()
 	defer h.mu.Unlock()
@@ -778,6 +797,19 @@ func (h *host) handleConn(conn net.Conn) {
 	// for the whole session and starved this connection's own read loop,
 	// silently dropping the input of any client that writes without reading.
 	// See clientState's out fields.
+	// Off the lock, and before the frame is rendered: the mirror rewraps only
+	// its hot window on resize, and a chunk built off a row still cut at the
+	// old width loses its tail to clip_row. It has to happen BEFORE the origin
+	// is rendered, because rewrapping changes how many rows history holds
+	// (TERMINAL.md §4.20).
+	if opening != nil && opening.History {
+		if parser := h.currentParser(); parser != nil {
+			if err := parser.TouchHistory(); err != nil {
+				h.logf("rewrap attach history: %v", err)
+			}
+		}
+	}
+
 	h.mu.Lock()
 	if opening != nil {
 		cs.cols, cs.rows, cs.sized = opening.Cols, opening.Rows, true
@@ -785,7 +817,8 @@ func (h *host) handleConn(conn net.Conn) {
 	}
 	h.clients[conn] = cs
 	h.applyLargestLocked()
-	if frame := h.replayFrameLocked(); frame != nil {
+	frame, origin := h.replayFrameLocked()
+	if frame != nil {
 		cs.enqueue(frame)
 		cs.delivered += len(frame) - frameHeaderBytes
 	}
@@ -795,10 +828,11 @@ func (h *host) handleConn(conn net.Conn) {
 	go h.runWriter(conn, cs)
 
 	if cs.wantsHistory {
-		go h.streamHistory(cs)
+		go h.streamHistory(cs, origin)
 	}
 
 	defer func() {
+		cs.closeOut()
 		h.mu.Lock()
 		delete(h.clients, conn)
 		// This client is gone; if it was the largest, let the grid shrink back to
@@ -806,7 +840,6 @@ func (h *host) handleConn(conn net.Conn) {
 		h.applyLargestLocked()
 		h.readCond.Broadcast()
 		h.mu.Unlock()
-		cs.closeOut()
 		_ = conn.Close()
 	}()
 
@@ -842,28 +875,49 @@ func (h *host) handleConn(conn net.Conn) {
 // back would reintroduce, through the side door, the exact divergence the
 // parser exists to remove. The ring stays the replay source only for a host
 // whose parser never started at all. Callers must hold h.mu.
-func (h *host) replayFrameLocked() []byte {
+func (h *host) replayFrameLocked() ([]byte, uint64) {
 	var payload []byte
 	if h.parser != nil {
 		_, _ = h.parser.Tick(time.Now().UnixMilli())
 		rendered, err := h.parser.Replay(MaxOutputLines)
 		if err != nil {
 			h.logf("render attach replay: %v", err)
-			return nil
+			return nil, vtwasm.HistoryBefore
 		}
 		payload = []byte(rendered)
 	} else {
 		payload = h.cfg.Ring.Snapshot()
 	}
 	if len(payload) == 0 {
-		return nil
+		return nil, vtwasm.HistoryBefore
 	}
 	frame, err := EncodeMessage(MsgTerminalData, payload)
 	if err != nil {
 		h.logf("encode attach replay: %v", err)
-		return nil
+		return nil, vtwasm.HistoryBefore
 	}
-	return frame
+	return frame, replayOrigin(payload)
+}
+
+const originMarkPrefix = "\x1b]7000;v=1;origin="
+
+// replayOrigin reads back the stable row the frame just declared. It is the
+// only number a history stream for this client may start from; see
+// streamHistory. A ring fallback carries no origin mark, and its client is not
+// running a core that could adopt one.
+func replayOrigin(payload []byte) uint64 {
+	if !bytes.HasPrefix(payload, []byte(originMarkPrefix)) {
+		return vtwasm.HistoryBefore
+	}
+	end := bytes.Index(payload, []byte("\x1b\\"))
+	if end < len(originMarkPrefix) {
+		return vtwasm.HistoryBefore
+	}
+	origin, err := strconv.ParseUint(string(payload[len(originMarkPrefix):end]), 10, 64)
+	if err != nil {
+		return vtwasm.HistoryBefore
+	}
+	return origin
 }
 
 func (h *host) stopping() bool {
@@ -883,14 +937,19 @@ func (h *host) stopping() bool {
 // It paces on the SAME ack watermark deliver uses, so a 200k-row history sent
 // to one client can never push that client past readHighWatermark and pause
 // the child for every other attached pane (Task 10).
-func (h *host) streamHistory(cs *clientState) {
+//
+// `before` is the origin the replay frame already told THIS client, captured
+// from the same render under the same h.mu hold. Letting the mirror re-derive
+// it from a later snapshot would miss any row the child completed in between,
+// and the receiver rejects a chunk whose bound is off by even one row -- every
+// chunk after it too, silently (TERMINAL.md §4.21).
+func (h *host) streamHistory(cs *clientState, before uint64) {
 	parser := h.currentParser()
 	if parser == nil {
 		return
 	}
-	before := vtwasm.HistoryBefore
 	for {
-		if h.stopping() {
+		if h.stopping() || cs.gone() {
 			return
 		}
 		chunk, next, ok, err := parser.HistoryChunk(before, MaxOutputLines, vtwasm.HistoryChunkRows)
@@ -922,7 +981,7 @@ func (h *host) streamHistory(cs *clientState) {
 func (h *host) awaitAckedHistory(cs *clientState) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	for cs.everAcked && cs.delivered-cs.acked > readLowWatermark && !h.stopping() {
+	for cs.everAcked && cs.delivered-cs.acked > readLowWatermark && !h.stopping() && !cs.gone() {
 		h.readCond.Wait()
 	}
 }

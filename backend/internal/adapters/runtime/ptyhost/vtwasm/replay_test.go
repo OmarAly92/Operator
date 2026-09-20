@@ -409,3 +409,71 @@ func TestHistoryChunkRowsAreClippedToTheGrid(t *testing.T) {
 		}
 	}
 }
+
+// Lazy rewrap (vt-core's HOT_ROWS window) leaves every history row below the
+// hot region cut at the width it had before the resize. clip_row truncates
+// anything wider than the current grid, so a chunk built straight off those
+// rows silently loses their tails. The mirror must rewrap its history before
+// it serialises it.
+func TestHistoryChunksRewrapColdRowsAfterANarrowingResize(t *testing.T) {
+	p, err := New(context.Background(), Module, 120, 4, Limits{Rows: 20000, Bytes: 0xffffffff})
+	if err != nil {
+		t.Fatalf("new parser: %v", err)
+	}
+	t.Cleanup(func() { _ = p.Close() })
+
+	const lines = 2600
+	var input strings.Builder
+	for i := 0; i < lines; i++ {
+		fmt.Fprintf(&input, "%s%05d\r\n", strings.Repeat("x", 100), i)
+	}
+	feed(t, p, input.String())
+	if err := p.Resize(40, 4); err != nil {
+		t.Fatalf("resize: %v", err)
+	}
+	if err := p.TouchHistory(); err != nil {
+		t.Fatalf("touch history: %v", err)
+	}
+
+	frame, err := p.Replay(4)
+	if err != nil {
+		t.Fatalf("replay: %v", err)
+	}
+	abut, err := strconv.ParseUint(frame[len("\x1b]7000;v=1;origin="):strings.Index(frame, "\x1b\\")], 10, 64)
+	if err != nil {
+		t.Fatalf("frame origin: %v", err)
+	}
+
+	var body []string
+	before := HistoryBefore
+	for i := 0; i < 5000; i++ {
+		chunk, next, ok, err := p.HistoryChunk(before, 4, HistoryChunkRows)
+		if err != nil {
+			t.Fatalf("history chunk: %v", err)
+		}
+		if !ok {
+			break
+		}
+		first, count := parseHistoryMark(t, chunk)
+		if first+uint64(count) != abut {
+			t.Fatalf("chunk %d ends at stable row %d, but the rows above it start at %d", i, first+uint64(count), abut)
+		}
+		abut = first
+		body = append([]string{chunk[strings.Index(chunk, "\x1b\\")+2:]}, body...)
+		before = next
+	}
+	plain := strings.ReplaceAll(stripSGR(strings.Join(body, "")), "\r\n", "")
+	plain = stripOSC(plain)
+	for _, i := range []int{0, 1, 300, 599} {
+		want := fmt.Sprintf("%s%05d", strings.Repeat("x", 100), i)
+		if !strings.Contains(plain, want) {
+			t.Fatalf("history row %d arrived truncated: its tail %q is missing", i, want[95:])
+		}
+	}
+}
+
+var oscRE = regexp.MustCompile("\x1b\\]7000;v=1;[^\x1b]*\x1b\\\\")
+
+func stripOSC(s string) string {
+	return oscRE.ReplaceAllString(s, "")
+}

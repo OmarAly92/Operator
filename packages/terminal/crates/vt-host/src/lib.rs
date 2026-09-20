@@ -121,6 +121,26 @@ pub extern "C" fn vt_take_query_replies(handle: u32, out_ptr: u32, out_cap: u32)
     })
 }
 
+/// Rewraps every history row vt-core left cut at an older width, so the rows
+/// a replay or a history chunk is about to serialise are all at the current
+/// grid width. The renderer does this a window at a time off its own export
+/// (`WasmTerminalCore::sync`); the mirror has no export, and the replay and
+/// the chunks would otherwise clip a stale row's tail off (TERMINAL.md §4.20).
+///
+/// It runs ONCE, before the frame's origin is rendered: rewrapping changes how
+/// many rows history holds, and the client's chunks are numbered downward from
+/// that origin. Rewrapping between chunks would move the numbering out from
+/// under the origin the client already adopted and the receiver would reject
+/// every chunk.
+#[no_mangle]
+pub extern "C" fn vt_touch_history(handle: u32) {
+    CORES.with(|c| {
+        if let Some(core) = c.borrow_mut().get_mut(&handle) {
+            core.touch_rows(0..usize::MAX);
+        }
+    });
+}
+
 #[no_mangle]
 pub extern "C" fn vt_in_sync(handle: u32) -> u32 {
     CORES.with(|c| match c.borrow().get(&handle) {
@@ -345,8 +365,9 @@ pub extern "C" fn vt_replay(handle: u32, lines: u32, out_ptr: u32, out_cap: u32)
                 frame_first_stable(&snapshot, lines)
             ));
             write_modes(&mut text, core, false);
-            // Rows are clipped to the grid. vt-core rewraps scrollback to the
-            // pane width on resize, so a row wider than the grid should not
+            // Rows are clipped to the grid. vt-core rewraps the hot window on
+            // resize and `vt_touch_history` rewraps the cold rest before the
+            // host renders this frame, so a row wider than the grid should not
             // exist; the clip guards the replay anyway, because a row wider
             // than the receiving grid wraps, lands as two rows and pushes every
             // row below it down by one -- the client's grid no longer agrees
@@ -404,9 +425,10 @@ pub extern "C" fn vt_replay(handle: u32, lines: u32, out_ptr: u32, out_cap: u32)
     })
 }
 
-pub const HISTORY_CHUNK_ROWS: u32 = 512;
-
 /// `before == u64::MAX` means "start just above the frame of `lines` rows".
+/// Rows are clipped to the grid exactly as `vt_replay` clips them, and for the
+/// same reason; `vt_touch_history` is what keeps a lazily-rewrapped row from
+/// reaching the clip still cut at an older, wider grid.
 /// Writes one chunk and stores the chunk's own first stable row at
 /// `next_ptr` as 8 little-endian bytes. Returns the byte count written,
 /// 0 when no history remains, or RENDER_ERR / RENDER_TOO_BIG.
