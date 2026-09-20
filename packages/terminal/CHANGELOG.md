@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+The model reports what changed.
+
+- `TerminalCore::generation()` counts mutations; `take_delta()` returns the
+  history rows appended, the screen rows written, the exported rows trimmed
+  and the rewrap remap since the last call (Ghostty
+  `src/terminal/render.zig` `Dirty`; WezTerm line `seqno`). Every
+  `ScreenGrid` write marks its row. `export_history_rows` /
+  `export_screen_rows` / `export_blocks` / `export_cursor` are the pieces
+  `build_snapshot` is made of.
+
 Rows have stable ids.
 
 - `TerminalCore::stable_row(flat)` / `flat_row(stable)` / `first_stable_row()`

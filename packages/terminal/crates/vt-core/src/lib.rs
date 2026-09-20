@@ -6,6 +6,7 @@ pub mod block_grid;
 pub mod block_selection;
 pub mod block_tree;
 pub mod content;
+pub mod delta;
 pub mod event_bridge;
 pub mod find;
 pub mod grid;
@@ -30,11 +31,15 @@ pub use block::{Block, BlockId, BlockMeta, BlockRecord, BlockSource, BlockState,
 pub use block_grid::BlockGrid;
 pub use block_selection::{BlockSelection, SelectionPoint};
 pub use block_tree::{BlockSummary, BlockTree};
+pub use delta::{Delta, DeltaKind};
 pub use find::{FindCursor, FindMatch, FindQuery};
+pub use grid::ExportedRow;
 pub use integrity::IntegrityError;
 pub use limits::{Limits, MemoryStats};
 pub use line_editor::LineEditorState;
 pub use style::{CellStyle, StyleCode};
+
+use std::ops::Range;
 
 use terminal_marks::{MarkDecoder, MarkEvent};
 use vte::Parser as VteParser;
@@ -225,6 +230,7 @@ impl TerminalCore {
         }
         self.parser.commit_evicted();
         self.parser.trim_to(self.limits);
+        self.parser.note_mutation();
         self.debug_check();
     }
 
@@ -280,6 +286,51 @@ impl TerminalCore {
             self.parser.alt(),
             self.parser.first_stable_row(),
         )
+    }
+
+    pub fn generation(&self) -> u64 {
+        self.parser.generation()
+    }
+
+    pub fn take_delta(&mut self) -> Delta {
+        self.parser.take_delta()
+    }
+
+    pub fn history_rows(&self) -> usize {
+        self.parser.rows().completed().len()
+    }
+
+    pub fn export_history_rows(&self, range: Range<usize>) -> Vec<ExportedRow> {
+        let completed = self.parser.rows().completed();
+        range
+            .filter_map(|index| completed.get(index))
+            .map(|row| grid::export_history_row(self.parser.content(), self.parser.styles(), row))
+            .collect()
+    }
+
+    pub fn export_screen_rows(&self) -> Vec<ExportedRow> {
+        let screen = self.parser.screen();
+        (0..screen.content_rows())
+            .map(|row| grid::export_screen_row(screen, row))
+            .collect()
+    }
+
+    pub fn export_blocks(
+        &self,
+        total_rows: usize,
+        row_has_bytes: impl Fn(usize) -> bool,
+    ) -> Result<(Vec<BlockRecord>, Vec<u8>), CoreError> {
+        grid::export_blocks(self.parser.grid(), total_rows, row_has_bytes)
+    }
+
+    pub fn export_cursor(&self) -> (usize, usize, bool) {
+        let screen = self.parser.screen();
+        let (row, col) = screen.cursor();
+        (self.history_rows() + row, col, screen.cursor_visible())
+    }
+
+    pub fn alt_snapshot(&self) -> Option<alt::AltSnapshot> {
+        self.parser.alt().map(|grid| grid.snapshot())
     }
 
     pub fn first_stable_row(&self) -> u64 {
@@ -340,6 +391,7 @@ impl TerminalCore {
         self.rows = rows;
         self.parser.resize(columns, rows);
         self.parser.trim_to(self.limits);
+        self.parser.note_mutation();
         self.debug_check();
     }
 
@@ -370,6 +422,7 @@ impl TerminalCore {
 
     pub fn set_block_bookmarked(&mut self, id: crate::block::BlockId, bookmarked: bool) {
         self.parser.grid_mut().set_block_bookmarked(id, bookmarked);
+        self.parser.note_mutation();
         self.debug_check();
     }
 

@@ -10,6 +10,7 @@ pub enum IntegrityError {
     NextRowPastEnd,
     StyleKeyOutsideContent { offset: u64 },
     OriginMismatch { origin: usize, trimmed_total: u64 },
+    ExportPrefixPastRows { exported: usize, completed: usize },
 }
 
 impl Parser {
@@ -34,6 +35,12 @@ impl Parser {
         }
         if self.rows().open_start() != content_end {
             return Err(IntegrityError::OpenRowDetached);
+        }
+        if self.history_exported_rows() > completed.len() {
+            return Err(IntegrityError::ExportPrefixPastRows {
+                exported: self.history_exported_rows(),
+                completed: completed.len(),
+            });
         }
         let total_rows = completed.len() + self.screen().rows();
         let closed = self.grid().len() - usize::from(self.grid().has_open_block());

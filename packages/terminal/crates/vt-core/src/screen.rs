@@ -105,6 +105,7 @@ pub struct ScreenGrid {
     clear_policy: ClearPolicy,
     erase_background: StyleCode,
     evicted: Vec<EvictedRow>,
+    dirty: Vec<bool>,
 }
 
 fn clamp_dimension(value: usize) -> usize {
@@ -134,6 +135,7 @@ impl ScreenGrid {
             clear_policy: ClearPolicy::Scroll,
             erase_background: StyleCode::DEFAULT_BACKGROUND,
             evicted: Vec::new(),
+            dirty: vec![false; rows],
         }
     }
 
@@ -223,6 +225,37 @@ impl ScreenGrid {
         self.cursor_visible = visible;
     }
 
+    fn mark_dirty(&mut self, row: usize) {
+        if let Some(flag) = self.dirty.get_mut(row) {
+            *flag = true;
+        }
+    }
+
+    fn mark_all_dirty(&mut self) {
+        self.dirty.fill(true);
+    }
+
+    pub fn take_dirty(&mut self) -> Vec<usize> {
+        let exported = self.rows;
+        let mut rows = Vec::new();
+        for row in 0..exported {
+            if self.dirty[row] {
+                self.dirty[row] = false;
+                rows.push(row);
+            }
+        }
+        rows
+    }
+
+    fn raise_max_cursor_row(&mut self, row: usize) {
+        if row > self.max_cursor_row {
+            for new_row in self.max_cursor_row + 1..=row {
+                self.mark_dirty(new_row);
+            }
+            self.max_cursor_row = row;
+        }
+    }
+
     pub fn cell(&self, row: usize, col: usize) -> Cell {
         if row >= self.rows || col >= self.cols {
             return Cell::BLANK;
@@ -246,6 +279,7 @@ impl ScreenGrid {
         if col + 1 == self.cols {
             self.set_row_wrapped(row, false);
         }
+        self.mark_dirty(row);
     }
 
     pub(crate) fn blank_row(&mut self, row: usize) {
@@ -256,6 +290,7 @@ impl ScreenGrid {
         let blank = self.erased_cell();
         self.cells[start..start + self.cols].fill(blank);
         self.set_row_wrapped(row, false);
+        self.mark_dirty(row);
     }
 
     #[inline]
@@ -287,6 +322,7 @@ impl ScreenGrid {
     }
 
     pub(crate) fn rotate_region_up(&mut self, count: usize) {
+        self.mark_all_dirty();
         if self.region_is_full() {
             self.first = (self.first + count) % self.rows;
             return;
@@ -299,6 +335,7 @@ impl ScreenGrid {
     }
 
     pub(crate) fn rotate_region_down(&mut self, count: usize) {
+        self.mark_all_dirty();
         if self.region_is_full() {
             self.first = (self.first + self.rows - count) % self.rows;
             return;
@@ -328,7 +365,7 @@ impl ScreenGrid {
 
     pub fn move_to(&mut self, row: usize, col: usize) {
         self.row = row.min(self.rows - 1);
-        self.max_cursor_row = self.max_cursor_row.max(self.row);
+        self.raise_max_cursor_row(self.row);
         self.col = col.min(self.cols - 1);
         self.pending_wrap = false;
     }
@@ -370,7 +407,7 @@ impl ScreenGrid {
             self.carriage_return();
             self.line_feed();
         }
-        self.max_cursor_row = self.max_cursor_row.max(self.row);
+        self.raise_max_cursor_row(self.row);
         self.set(self.row, self.col, Cell::new(ch, style));
         for offset in 1..width {
             self.set(self.row, self.col + offset, Cell::new('\0', style));
@@ -398,12 +435,13 @@ impl ScreenGrid {
             col = col.saturating_sub(1);
         }
         let row = self.row;
-        self.max_cursor_row = self.max_cursor_row.max(row);
+        self.raise_max_cursor_row(row);
         if row >= self.rows || col >= self.cols {
             return;
         }
         let index = self.phys_start(row) + col;
         self.cells[index].push_zerowidth(ch);
+        self.mark_dirty(row);
     }
 
     pub fn row_text(&self, row: usize) -> String {
@@ -422,6 +460,7 @@ impl ScreenGrid {
     }
 
     pub fn reset(&mut self) {
+        self.mark_all_dirty();
         self.cells.fill(Cell::BLANK);
         self.wrapped.fill(false);
         self.row = 0;
@@ -455,6 +494,7 @@ impl ScreenGrid {
     fn reset_cells(&mut self, rows: usize, cols: usize) {
         self.cells = vec![Cell::BLANK; rows * cols];
         self.wrapped = vec![false; rows];
+        self.dirty = vec![true; rows];
         self.first = 0;
         self.rows = rows;
         self.cols = cols;
@@ -498,6 +538,7 @@ impl ScreenGrid {
         }
         self.cells = next;
         self.wrapped = wrapped;
+        self.dirty = vec![true; rows];
         self.first = 0;
         self.rows = rows;
         self.cols = cols;

@@ -3,7 +3,7 @@ use crate::attribute_map::AttributeMap;
 use crate::block::{BlockRecord, BlockSource, BlockState, TextSpan};
 use crate::block_grid::BlockGrid;
 use crate::content::Content;
-use crate::row_index::RowIndex;
+use crate::row_index::{RowIndex, RowRange};
 use crate::screen::ScreenGrid;
 use crate::style::CellStyle;
 use crate::{CoreError, LineEditorState};
@@ -15,6 +15,13 @@ use crate::{CoreError, LineEditorState};
 /// point at the wrong bytes. The failure surfaces instead.
 pub(crate) fn checked_u32(value: usize) -> Result<u32, CoreError> {
     u32::try_from(value).map_err(|_| CoreError::OffsetOverflow)
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ExportedRow {
+    pub bytes: Vec<u8>,
+    pub indent: u16,
+    pub styles: Vec<(u32, CellStyle)>,
 }
 
 pub struct GridSnapshot {
@@ -29,6 +36,7 @@ pub struct GridSnapshot {
     pub cursor_row: u32,
     pub cursor_col: u32,
     pub cursor_visible: bool,
+    pub history_rows: u32,
     pub first_stable_row: u64,
     pub alt: Option<crate::alt::AltSnapshot>,
 }
@@ -96,21 +104,48 @@ pub(crate) fn build_snapshot(
     };
 
     for row in rows.completed() {
-        append_row(&mut ctx, content, styles, row.start, row.end, row.indent)?;
+        ctx.push(export_history_row(content, styles, row))?;
     }
 
-    let first_screen_row = ctx.row_ranges.len();
+    let history_rows = ctx.row_ranges.len();
     for row in 0..screen.content_rows() {
-        append_screen_row(&mut ctx, screen, row)?;
+        ctx.push(export_screen_row(screen, row))?;
     }
 
     // The screen's own cursor row is relative to the top of the screen; the
     // renderer indexes the flat row list, which starts in the scrollback.
     let (screen_cursor_row, screen_cursor_col) = screen.cursor();
-    let cursor_row = checked_u32(first_screen_row + screen_cursor_row)?;
+    let cursor_row = checked_u32(history_rows + screen_cursor_row)?;
     let cursor_col = checked_u32(screen_cursor_col)?;
     let cursor_visible = screen.cursor_visible();
 
+    let (blocks, block_text) = export_blocks(grid, row_ranges.len(), |row| {
+        row_ranges[row].1 > row_ranges[row].0
+    })?;
+
+    Ok(GridSnapshot {
+        content: all_content,
+        rows: row_ranges,
+        row_indents,
+        run_ranges,
+        style_pairs,
+        blocks,
+        block_text,
+        line_editor_state: line_editor_state.wire(),
+        cursor_row,
+        cursor_col,
+        cursor_visible,
+        history_rows: checked_u32(history_rows)?,
+        first_stable_row,
+        alt: alt.map(|grid| grid.snapshot()),
+    })
+}
+
+pub(crate) fn export_blocks(
+    grid: &BlockGrid,
+    total_rows: usize,
+    row_has_bytes: impl Fn(usize) -> bool,
+) -> Result<(Vec<BlockRecord>, Vec<u8>), CoreError> {
     let mut block_text: Vec<u8> = Vec::new();
     let blocks: Vec<BlockRecord> = if grid.is_empty() {
         // A core that has seen no marks has one block by definition: the
@@ -119,7 +154,7 @@ pub(crate) fn build_snapshot(
         vec![BlockRecord {
             id: 0,
             first_row: 0,
-            row_count: checked_u32(row_ranges.len())?,
+            row_count: checked_u32(total_rows)?,
             state: BlockState::Running,
             source: BlockSource::Synthetic,
             exit_code: None,
@@ -138,7 +173,7 @@ pub(crate) fn build_snapshot(
             let git_branch = append_block_text(&mut block_text, &block.meta.git_branch)?;
             let first_row = checked_u32(flat_first)?;
             let row_count = if block.state == BlockState::Running {
-                checked_u32(row_ranges.len().saturating_sub(flat_first))?
+                checked_u32(total_rows.saturating_sub(flat_first))?
             } else {
                 checked_u32(flat_count)?
             };
@@ -163,13 +198,13 @@ pub(crate) fn build_snapshot(
             });
         }
         let covered_end = grid.covered_end();
-        let trailing_has_content = !grid.has_open_block()
-            && (covered_end..row_ranges.len()).any(|row| row_ranges[row].1 > row_ranges[row].0);
+        let trailing_has_content =
+            !grid.has_open_block() && (covered_end..total_rows).any(&row_has_bytes);
         if trailing_has_content {
             records.push(BlockRecord {
                 id: grid.next_id(),
                 first_row: checked_u32(covered_end)?,
-                row_count: checked_u32(row_ranges.len() - covered_end)?,
+                row_count: checked_u32(total_rows - covered_end)?,
                 state: BlockState::Running,
                 source: BlockSource::Synthetic,
                 exit_code: None,
@@ -182,22 +217,7 @@ pub(crate) fn build_snapshot(
         }
         records
     };
-
-    Ok(GridSnapshot {
-        content: all_content,
-        rows: row_ranges,
-        row_indents,
-        run_ranges,
-        style_pairs,
-        blocks,
-        block_text,
-        line_editor_state: line_editor_state.wire(),
-        cursor_row,
-        cursor_col,
-        cursor_visible,
-        first_stable_row,
-        alt: alt.map(|grid| grid.snapshot()),
-    })
+    Ok((blocks, block_text))
 }
 
 fn append_block_text(buffer: &mut Vec<u8>, text: &str) -> Result<TextSpan, CoreError> {
@@ -215,45 +235,48 @@ struct SnapshotCtx<'a> {
     run_ranges: &'a mut Vec<(u32, u32)>,
 }
 
-fn append_row(
-    ctx: &mut SnapshotCtx,
-    content: &Content,
-    styles: &AttributeMap<CellStyle>,
-    row_start: u64,
-    row_end: u64,
-    indent: u16,
-) -> Result<(), CoreError> {
-    let bytes = content.copy_range(row_start, row_end);
-    let content_base = checked_u32(ctx.all_content.len())?;
-    let content_end = checked_u32(ctx.all_content.len() + bytes.len())?;
-    ctx.row_ranges.push((content_base, content_end));
-    ctx.row_indents.push(indent);
-    ctx.all_content.extend_from_slice(&bytes);
+impl SnapshotCtx<'_> {
+    fn push(&mut self, row: ExportedRow) -> Result<(), CoreError> {
+        let content_base = checked_u32(self.all_content.len())?;
+        let content_end = checked_u32(self.all_content.len() + row.bytes.len())?;
+        self.row_ranges.push((content_base, content_end));
+        self.row_indents.push(row.indent);
+        self.all_content.extend_from_slice(&row.bytes);
 
-    let pair_start = checked_u32(ctx.style_pairs.len())?;
-    if !bytes.is_empty() {
-        // Style runs are keyed by the row's own byte span. `copy_range` returns
-        // exactly that span, so the pair offsets and `bytes` always agree.
-        let pairs = styles.runs(row_start, row_end);
-        for (end, code) in pairs {
-            ctx.style_pairs.push((end, code));
-        }
+        let pair_start = checked_u32(self.style_pairs.len())?;
+        self.style_pairs.extend(row.styles);
+        let pair_end = checked_u32(self.style_pairs.len())?;
+        self.run_ranges.push((pair_start, pair_end));
+        Ok(())
     }
-    let pair_end = checked_u32(ctx.style_pairs.len())?;
-    ctx.run_ranges.push((pair_start, pair_end));
-    Ok(())
 }
 
-fn append_screen_row(
-    ctx: &mut SnapshotCtx,
-    screen: &ScreenGrid,
-    row: usize,
-) -> Result<(), CoreError> {
+pub(crate) fn export_history_row(
+    content: &Content,
+    styles: &AttributeMap<CellStyle>,
+    row: &RowRange,
+) -> ExportedRow {
+    let bytes = content.copy_range(row.start, row.end);
+    // Style runs are keyed by the row's own byte span. `copy_range` returns
+    // exactly that span, so the pair offsets and `bytes` always agree.
+    let pairs = if bytes.is_empty() {
+        Vec::new()
+    } else {
+        styles.runs(row.start, row.end)
+    };
+    ExportedRow {
+        bytes,
+        indent: row.indent,
+        styles: pairs,
+    }
+}
+
+pub(crate) fn export_screen_row(screen: &ScreenGrid, row: usize) -> ExportedRow {
     let width = (0..screen.cols())
         .rposition(|col| !screen.cell(row, col).is_blank())
         .map_or(0, |col| col + 1);
-    let content_base = checked_u32(ctx.all_content.len())?;
-    let pair_start = checked_u32(ctx.style_pairs.len())?;
+    let mut bytes: Vec<u8> = Vec::new();
+    let mut pairs: Vec<(u32, CellStyle)> = Vec::new();
     let mut run_style = None;
     let mut buffer = [0u8; 4];
 
@@ -264,22 +287,19 @@ fn append_screen_row(
         }
         if run_style != Some(cell.style) {
             if let Some(previous) = run_style {
-                ctx.style_pairs
-                    .push((checked_u32(ctx.all_content.len())? - content_base, previous));
+                pairs.push((bytes.len() as u32, previous));
             }
             run_style = Some(cell.style);
         }
-        ctx.all_content
-            .extend_from_slice(cell.text(&mut buffer).as_bytes());
+        bytes.extend_from_slice(cell.text(&mut buffer).as_bytes());
+    }
+    if let Some(style) = run_style {
+        pairs.push((bytes.len() as u32, style));
     }
 
-    let content_end = checked_u32(ctx.all_content.len())?;
-    if let Some(style) = run_style {
-        ctx.style_pairs.push((content_end - content_base, style));
+    ExportedRow {
+        bytes,
+        indent: 0,
+        styles: pairs,
     }
-    let pair_end = checked_u32(ctx.style_pairs.len())?;
-    ctx.row_ranges.push((content_base, content_end));
-    ctx.row_indents.push(0);
-    ctx.run_ranges.push((pair_start, pair_end));
-    Ok(())
 }
