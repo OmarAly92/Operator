@@ -2,6 +2,65 @@
 
 ## Unreleased
 
+The model can answer terminal queries.
+
+- `TerminalCore::set_answers_queries(true)` plus `set_terminal_identity(name)`
+  make the parser queue replies for XTVERSION (`CSI > 0 q` → `DCS > | name ST`),
+  DA1 (`CSI c` → `CSI ? 62 ; 22 c`) and DECRQM (`CSI ? Pm $ p` → DECRPM with the
+  tracked mode state; 2026 reports supported), read back with
+  `take_query_replies`. `vt-host` enables it and exports `vt_take_query_replies`
+  / `vt_set_terminal_identity`; the renderer core stays silent. Programs that
+  probe before using synchronized output (Claude Code) now get the answer they
+  need from the host mirror.
+
+Blocks can no longer point past the end of the row space.
+
+- A block opened after a cursor move below the frame and closed by a process
+  boundary kept a start row above its own end, and trimming scrollback past a
+  block that started above the cut underflowed its start row. Both were found
+  by the new integrity proptest; `BlockGrid` now clamps a block to its end on
+  close, clamps every block to the row space after a resize, and trims with a
+  saturating shift (`TERMINAL.md` §4.17).
+- A `?2026h` that straddles two feeds is preferred over a later one in the
+  same chunk, so the frame it opens is buffered too.
+
+Cell metrics are measured once per font change.
+
+- `DomBlockRenderer.measure()` caches the cell width and height and
+  invalidates on `setFont`, `setTheme`, a `devicePixelRatio` change
+  (`matchMedia` resolution query, xterm.js `DomRenderer.ts`
+  `handleDevicePixelRatioChange`), instead
+  of forcing a layout read on every paint, every selection update and every
+  jump-to-bottom check (xterm.js `CharSizeService.ts`).
+
+Bytes are parsed under a per-frame budget.
+
+- `TerminalCore.enqueue(bytes)` queues output and `drain(deadlineMs = 12)`
+  parses it in 64 KiB slices from the renderer's animation-frame loop until
+  the budget is spent (xterm.js `WriteBuffer.ts` `WRITE_TIMEOUT_MS`), so a
+  multi-megabyte tool result no longer blocks the main thread for the whole
+  parse. `hasBacklog()` and `onFeedParsed(listener)` expose progress; `feed`
+  stays synchronous for callers that need it.
+
+Synchronized output (DEC private mode 2026) is buffered in the parser.
+
+- `vt-core` holds every byte between `ESC[?2026h` and `ESC[?2026l` back from
+  the model and parses the whole frame at once when the terminator, a 2 MiB
+  cap, a 150 ms deadline (`TerminalCore::tick(now_ms)`, the host's clock), a
+  resize or a process-boundary mark arrives — the `vte::ansi::Processor`
+  mechanism (`vte-0.15.0/src/ansi.rs`, `advance_sync`), so neither the
+  renderer core nor the pty-host mirror ever contains half of an Ink frame.
+  `feed_at(bytes, now_ms)` carries the clock; `feed` keeps the last one.
+- The renderer ticks the core's sync deadline at the top of every animation
+  frame and keeps painting frames while a block is open, so a stalled
+  application is shown after 150 ms at the latest; `TerminalCore.feed` and
+  `resize` notify `onChange` when the model changed or a sync block is
+  pending, never for a feed that changed nothing.
+- The host mirror (`vt-host`) takes the clock on `vt_feed`, exposes `vt_tick`
+  and `vt_in_sync`, and `vt_replay` appends the bytes of an open sync block
+  after the last complete frame so an attach never paints half a frame and
+  never loses the half either.
+
 A process boundary mark ends the current block and starts a fresh one.
 
 - `OSC 7000 ; v=1 ; boundary=<exit>` tells `vt-core` the process that owned

@@ -109,6 +109,30 @@ describe("DomBlockRenderer", () => {
 		expect(host.textContent).toBe("alphabeta");
 	});
 
+	it("drains enqueued bytes on the next frame and keeps going until the backlog is empty", async () => {
+		const { core, host } = mountWith("alpha");
+		let text = "";
+		for (let index = 0; index < 20000; index += 1) text += `\r\nline ${index}`;
+		core.enqueue(new TextEncoder().encode(text));
+		expect(host.textContent).toBe("alpha");
+		for (let frames = 0; frames < 200 && core.hasBacklog(); frames += 1) await flushRepaint();
+		expect(core.hasBacklog()).toBe(false);
+		expect(new TextDecoder().decode(core.snapshot().content).endsWith("line 19999")).toBe(true);
+	});
+
+	it("keeps draining enqueued bytes on the alternate screen until the backlog is empty", async () => {
+		const { core, host } = mountWith("[?1049halpha");
+		expect(host.querySelector("[data-terminal-alt-surface]")).not.toBeNull();
+		let text = "";
+		for (let index = 0; index < 400000; index += 1) text += `\r\nline ${index}`;
+		core.enqueue(new TextEncoder().encode(text));
+		expect(core.hasBacklog()).toBe(true);
+		await flushRepaint();
+		expect(core.hasBacklog()).toBe(true);
+		for (let frames = 0; frames < 60 && core.hasBacklog(); frames += 1) await flushRepaint();
+		expect(core.hasBacklog()).toBe(false);
+	});
+
 	it("writes the theme as CSS variables on the host without remounting", () => {
 		const { host, renderer } = mountWith("alpha");
 		const beforeBlock = host.querySelector('[data-terminal-block-id="0:0"]');
@@ -353,6 +377,28 @@ describe("DomBlockRenderer", () => {
 		expect(reserved).toBeGreaterThan(4_000 * 16);
 		renderer.dispose();
 	});
+
+	it("does not paint a half frame", async () => {
+		const { core, host } = mountWith("alpha");
+		feed(core, "\x1b[?2026h\r\nbeta");
+		await flushRepaint();
+		expect(host.querySelectorAll("[data-terminal-row]")).toHaveLength(1);
+		expect(host.textContent).toBe("alpha");
+		feed(core, "\x1b[?2026l");
+		await flushRepaint();
+		expect(host.querySelectorAll("[data-terminal-row]")).toHaveLength(2);
+		expect(host.textContent).toBe("alphabeta");
+	});
+
+	it("paints a buffered frame once the deadline passes without more bytes", async () => {
+		const { core, host } = mountWith("alpha");
+		feed(core, "\x1b[?2026h\r\nbeta");
+		await flushRepaint();
+		expect(host.textContent).toBe("alpha");
+		await new Promise((resolve) => setTimeout(resolve, 180));
+		await flushRepaint();
+		expect(host.textContent).toBe("alphabeta");
+	});
 });
 
 describe("extended colour", () => {
@@ -433,5 +479,23 @@ describe("measure", () => {
 		expect(node.style.display).toBe("inline-block");
 		expect(node.style.lineHeight).toBe(`${font.lineHeight * font.sizePx}px`);
 		renderer.dispose();
+	});
+
+	it("measure() reads layout once until the font changes", () => {
+		const { renderer } = mountWith("alpha");
+		const spy = vi.spyOn(HTMLElement.prototype, "getBoundingClientRect");
+		renderer.measure();
+		renderer.measure();
+		renderer.blockContentInset();
+		const measureNode = document.getElementById("terminal-m-measure")!;
+		const measureCalls = () => spy.mock.contexts.filter((context) => context === measureNode).length;
+		expect(measureCalls()).toBe(1);
+		renderer.setFont({ ...font, sizePx: 16 });
+		renderer.measure();
+		renderer.measure();
+		expect(measureCalls()).toBe(2);
+		renderer.setTheme({ ...theme, foreground: "#ffffff" });
+		renderer.measure();
+		expect(measureCalls()).toBe(3);
 	});
 });

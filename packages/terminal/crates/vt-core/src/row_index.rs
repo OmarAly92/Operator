@@ -74,9 +74,13 @@ impl RowIndex {
         }
     }
 
-    #[cfg(test)]
     pub fn open_start(&self) -> u64 {
         self.open_start
+    }
+
+    #[cfg(test)]
+    pub(crate) fn completed_mut(&mut self) -> &mut VecDeque<RowRange> {
+        &mut self.completed
     }
 
     pub fn complete_row(&mut self, end_offset: u64, wrapped: bool) {

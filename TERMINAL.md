@@ -97,6 +97,9 @@ rebuilt (§6).
    path or default inside it. Operator wiring lives in `backend/` and
    `frontend/`; the package only sees `HostCapabilities`, `PtyTransport`,
    `SpawnRecipe`, theme input. Gate: "could a second, non-Operator host use this?"
+   The one exemption is measurement tooling under `bench/`: `bench/agent-session/run.mjs`
+   runs a Go test in `backend/` for the reopen row of the baseline table. Nothing
+   under `crates/` or `ts/` may reference the host repository.
 2. **Match Warp, cite Warp.** Rendering/behaviour decisions quote the Warp file
    and line they mirror (see the comments already in `styles.css`, `screen.rs`).
 3. **No comments in new code** (user's global instruction). Existing comments may
@@ -325,7 +328,86 @@ history of `master`.
   `respawn_test.go::TestRestartResetsRingAndKeepsClientAttached` (the mark
   must precede the new child's output on a pre-restart connection).
 
+### 4.16 Half-painted Ink frames
+- Symptom: under Claude Code's 100 ms spinner the pane tore — a paint could
+  show the top of one frame and the bottom of the previous one, and a pane
+  reopened mid-frame replayed half a frame.
+- Cause: Claude Code brackets every Ink frame with DEC 2026
+  (`ESC[?2026h` … `ESC[?2026l`); `note_private_mode` ignored the mode, so the
+  renderer painted whatever had been parsed when its animation frame fired,
+  and the pty-host mirror rendered the attach replay from the same half-parsed
+  state.
+- Now: `vt-core` buffers the bytes of an open sync block in front of the
+  parser (`sync.rs`, the port of `vte-0.15.0/src/ansi.rs` `advance_sync`) and
+  parses the whole frame on the terminator, a 2 MiB cap, a 150 ms deadline
+  (`TerminalCore::tick(now_ms)`), a resize or a process-boundary mark. The
+  renderer ticks the core at the top of every animation frame
+  (`DomBlockRenderer.repaintOnFrame`) and keeps scheduling frames while a
+  block is open; the Go mirror is fed with the wall clock and ticked from the
+  pump timer and before every attach replay; `vt_replay` paints the last
+  complete frame and appends the still-buffered bytes so the client completes
+  the frame from the live stream. The pump holds the flush after a batch that
+  ended inside a block until the terminator or the deadline, so a frame is
+  split across two mux messages at most once.
+- The part the fixtures hid: Claude Code only uses DEC 2026 when it *knows*
+  the terminal supports it. With an unknown `TERM_PROGRAM` (ours is
+  `Operator`) it sends `CSI > 0 q` (XTVERSION), `CSI ? u` and `CSI c` (DA1),
+  and only if XTVERSION was answered does it probe `CSI ? 2026 $ p` and accept
+  a DECRPM status of 1/2/3; DA1 is the terminator that ends each probe round.
+  Under Warp (which answers) the recordings had 2026; under Operator nothing
+  answered and Claude never emitted it, so the first real-app run showed zero
+  sync frames. The mirror now answers, because it is the only party present
+  from the child's first byte (a renderer would answer once per attached
+  client): `Parser::set_answers_queries(true)` + `set_terminal_identity`
+  (`vt_new` enables it, Go passes `vtwasm.TerminalIdentity` = `Operator`),
+  replies queued by `take_query_replies` and written to the pty by `deliver`
+  after it releases `h.mu`. Answers: XTVERSION → `DCS > | Operator ST`, DA1 →
+  `CSI ? 62 ; 22 c`, DECRQM → `CSI ? Pm ; {1|2|0} $ y` from the tracked mode
+  state (2026 reports 2). `CSI ? u` is deliberately unanswered (kitty keyboard
+  is not implemented). The renderer core never answers.
+- Guards: `vt-core/tests/synchronized_output.rs` (`bytes_inside_a_sync_block_are_invisible_until_esu`,
+  `a_frame_split_across_three_feeds_snapshots_once`, `a_mark_inside_a_sync_block_lands_after_the_rows_before_it`,
+  `overflow_flushes`, `tick_past_deadline_flushes`, `bsu_inside_a_block_extends_the_deadline`,
+  `resize_flushes`, `unknown_private_modes_still_ignored`, `a_bsu_split_byte_by_byte_still_buffers`,
+  `a_boundary_mark_inside_a_sync_block_flushes`); `ts/core/src/terminal-core.test.ts`
+  "notifies a pending sync block without exposing it…", "tick past the deadline flushes and notifies";
+  `dom-block-renderer.test.ts` "does not paint a half frame", "paints a buffered frame once the
+  deadline passes…"; Go `vtwasm_test.go::TestFeedAtBuffersASyncBlockUntilItsTerminator`,
+  `TestTickPastTheDeadlineFlushesTheSyncBlock`, `replay_test.go::TestReplayNeverStartsInsideASyncBlock`,
+  `host_test.go::TestDeliverHoldsAcrossASyncBlock`, `TestSyncHoldEndsAtTheDeadlineAndTicksTheMirror`,
+  `TestAStalledSyncBlockReachesTheMirrorAtTheDeadline`,
+  `TestDeliverAnswersADecrqmProbeOnThePty`, `TestDeliverAnswersXtversionWithTheHostIdentity`;
+  `vt-core/tests/query_replies.rs`; `bench/agent-session/run.mjs --gate` (zero torn paints, Task 8).
+  Real-app evidence (2026-09-20, dev daemon + `/mux`): 41 sync frames in a
+  30 s window, the `?2026$p` probe answered, 2 of 56 mux messages ending
+  inside a block, 12 mid-output reattaches with a clean replay each.
+
+### 4.17 Blocks pinned past the end of the row space — found by the integrity proptest
+- Symptom: none visible yet; found by `tests/integrity.rs::every_operation_leaves_the_model_consistent`
+  (Plan A). Two bookkeeping gaps in `BlockGrid`:
+  a block opened by `OSC 133;A` after a cursor move below the frame and closed
+  by a process boundary kept a `first_row` above its own end (a zero-row block
+  pinned to a screen row a later shrink drops); and `trim_to_first_row` did
+  `block.first_row -= shift` for every block after the front one, which
+  underflows when a block starts above the cut (a prompt mark after a
+  cursor-up) — a wrapping subtraction in release wasm, so the snapshot's
+  `checked_u32` would have failed and the renderer thrown on the next paint.
+- Now: `close_block` / the abandon path clamp `first_row` to `next_row`;
+  `Parser::resize` ends with `BlockGrid::clamp_to_rows(completed + screen rows)`;
+  the trim shift is saturating. `verify_integrity` reads the open block's
+  extent as `first_row` alone (its `row_count` is only meaningful once closed).
+- Guards: `tests/integrity.rs` — the proptest (256 cases per run, 12,000 run
+  clean when it landed), `a_boundary_closed_empty_block_survives_a_shrinking_resize`,
+  `a_block_opened_on_the_screen_survives_a_rewrap_and_a_trim`,
+  `a_trim_past_a_block_that_starts_above_the_cut_does_not_underflow`.
+
 ## 5. Known gaps (not bugs, decisions pending)
+
+- A DEC 2026 block that grows to `SYNC_BUFFER_CAP` (2 MiB) is flushed and
+  parsed in one `feed` inside whatever frame receives it, bypassing the 12 ms
+  `drain` budget: a burst of ~60 ms on this machine. Claude Code frames are
+  kilobytes, so it needs a misbehaving program; lowering the cap or splitting
+  the flush across frames is the fix if it ever shows.
 
 - Copying a rewrapped block (`readBlockOutput`, `vt_render`) joins rows with
   `\n`, so a soft-wrapped line copies as several lines. Warp copies the logical
@@ -342,6 +424,27 @@ history of `master`.
   because a `Uint8Array` view into wasm memory goes stale when the core
   reallocates between repaints. One decode per mouse move is fine at thousands
   of blocks; memoise per snapshot generation if a perf pass ever needs to.
+- Found triaging the Alacritty reference corpus (`crates/vt-core/tests/ref/TRIAGE.md`),
+  not fixed there:
+  - `ESC # 8` (DECALN, fill screen with `E`) is never dispatched —
+    `Parser::esc_dispatch` (`crates/vt-core/src/parser.rs:475`) discards
+    `intermediates`, and `ScreenGrid::esc` (`crates/vt-core/src/screen/dispatch.rs:73`)
+    has no `#`/`8` arm. Corpus: `decaln_reset`, `vttest_cursor_movement_1`.
+  - `ESC ( 0` / `ESC ( B` (G0 charset designation, DEC Special Graphics line
+    drawing) is never dispatched, for the same reason — intermediates are
+    discarded before `esc()` sees them. Corpus: `saved_cursor`, `saved_cursor_alt`.
+  - `CSI ?3h`/`?3l` (DECCOLM, 80/132-column switch) is not in
+    `Parser::note_private_mode` (`crates/vt-core/src/parser.rs:199`), so the
+    screen clear real terminals perform on a column-mode switch never happens
+    and stale content bleeds through. Corpus: `deccolm_reset`, `vttest_insert`,
+    `vttest_origin_mode_1`, `vttest_origin_mode_2`, `vttest_tab_clear_set`.
+  - `CSI ?6h`/`?6l` (DECOM, origin mode) is not in `note_private_mode` either —
+    no case in the corpus currently depends on it, but it is a silent no-op.
+    Corpus: `origin_goto` (sets it, no visible effect there).
+  - `EL 0` does not model the deferred-autowrap "pending wrap" cursor state:
+    a character printed in the last column keeps the cursor logically past
+    the column until the next printable character, so `EL 0` immediately
+    after should not erase it. vt-core erases it. Corpus: `erase_in_line`.
 
 ---
 
@@ -369,6 +472,8 @@ cd /Users/omaraly/development/AI/Operator/packages/terminal
 npm run build:wasm -- --force && npm run build:ts
 for p in core renderer-dom react; do (cd ts/$p && npx vitest run); done
 npm run bench:selection      # Playwright: a selection must survive 20 repaints
+npm run bench:feel           # Playwright: zero pixel diff vs bench/agent-session/baselines (record with -- --record)
+npm run bench:agent:gate     # Playwright: no torn paint under the spinner, queued 2 MiB never blocks > 16 ms
 
 # Frontend + daemon
 cd /Users/omaraly/development/AI/Operator/frontend && npx tsc --noEmit -p .
@@ -422,3 +527,5 @@ behaviour change. Commits go straight to `development`, message ends with the
   the upstream issue if it is upstream (§4.8). Do not chase it again.
 - If a Go test in `ptyhost` fails, check whether it is the pre-existing
   `TestProcessEnvironmentLetsOverridesWin` before assuming your change broke it.
+- A visual change must re-record the feel baselines (`npm run bench:feel -- --record`)
+  in the same commit and say why in the CHANGELOG.

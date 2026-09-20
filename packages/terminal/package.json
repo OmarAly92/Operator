@@ -9,7 +9,7 @@
 		"build:wasm": "node ./scripts/build-wasm.mjs",
 		"build:ts": "node ./ts/core/scripts/prepare-spawn-assets.mjs && tsc -b ts/core ts/renderer-dom ts/editor ts/completions ts/react",
 		"build": "npm run build:wasm && npm run build:ts",
-		"test": "npm run build && npm run test --workspaces --if-present && node --test ./scripts/browser-types.test.mjs ./scripts/spawn-recipe-package.test.mjs",
+		"test": "npm run build && npm run test --workspaces --if-present && node --test ./scripts/browser-types.test.mjs ./scripts/spawn-recipe-package.test.mjs ./bench/agent-session/fixtures.test.mjs",
 		"check:boundaries": "node ./scripts/check-boundaries.mjs && node ./scripts/check-no-ownership-timer.mjs",
 		"smoke:vite": "npm run build && node ./scripts/smoke-vite.mjs",
 		"smoke:tauri": "npm run build && node ./scripts/smoke-tauri.mjs",
@@ -17,7 +17,11 @@
 		"bench:scroll": "node ./bench/scroll-gate.mjs",
 		"bench:selection": "node ./bench/selection-gate.mjs",
 		"bench:baseline": "node ./bench/runner.mjs",
-		"bench:gate": "node ./bench/gate.mjs"
+		"bench:gate": "node ./bench/gate.mjs",
+		"bench:agent": "node ./bench/agent-session/run.mjs",
+		"bench:agent:scroll": "node ./bench/agent-session/scroll-gate.mjs",
+		"bench:agent:gate": "node ./bench/agent-session/run.mjs --gate",
+		"bench:feel": "node ./bench/agent-session/feel-gate.mjs"
 	},
 	"devDependencies": {
 		"@playwright/test": "1.60.0",

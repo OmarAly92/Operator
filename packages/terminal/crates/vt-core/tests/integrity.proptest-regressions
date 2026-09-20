@@ -1,0 +1,8 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 5c5712c5562fe1756e5add63261d28e48b996c0d9f90011eac85ac3044e15c08 # shrinks to agent_tui = false, ops = [Print("a0a  0AAaAA AaA"), Print(""), Cup(6, 1), Print("0"), Print(""), Print(""), Resize(4, 2), Cup(1, 4), Print("A a0a AAa0aAA aaaa  a"), Boundary, Print("AA "), Print("A0Aaa"), Print(""), Print(""), Print(""), Print(""), Print(""), PromptStart, Print("A A  a 0"), Print("AA a0a aaa Aa AaAA  0AA 00"), Print("  0aAAa A0A AaAA0AAAa0Aa a 0aaa"), Resize(7, 2)]
+cc 81c666fa6e5adfcf9f7ca1ed934177b7f2490fb2d279d5787faa6900a4f61a27 # shrinks to agent_tui = false, ops = [Cup(3, 1), PromptStart, CommandEnd(0), Boundary, PromptStart, Cup(8, 27), Print("a a0A"), Newline, Newline, Print("A"), Resize(15, 20), PromptStart, Cup(20, 1), Print("AA0 A aaa0Aaa0 !"), Boundary]

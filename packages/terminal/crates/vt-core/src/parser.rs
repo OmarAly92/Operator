@@ -9,6 +9,8 @@ use crate::row_index::RowIndex;
 use crate::screen::{ClearPolicy, ScreenGrid};
 use crate::style::{CellStyle, StyleCode};
 
+const MAX_QUERY_REPLY_BYTES: usize = 4096;
+
 pub(crate) struct Parser {
     width: usize,
     content: Content,
@@ -25,6 +27,10 @@ pub(crate) struct Parser {
     focus_reporting: bool,
     mouse_tracking: u8,
     rewrap_pending: bool,
+    query_replies: Option<Vec<u8>>,
+    terminal_identity: String,
+    #[cfg(feature = "trace")]
+    pub(crate) trace: crate::trace::Trace,
 }
 
 impl Parser {
@@ -47,6 +53,10 @@ impl Parser {
             focus_reporting: false,
             mouse_tracking: 0,
             rewrap_pending: false,
+            query_replies: None,
+            terminal_identity: String::new(),
+            #[cfg(feature = "trace")]
+            trace: Default::default(),
         }
     }
 
@@ -68,6 +78,16 @@ impl Parser {
 
     pub fn grid_mut(&mut self) -> &mut BlockGrid {
         &mut self.grid
+    }
+
+    #[cfg(test)]
+    pub(crate) fn rows_mut(&mut self) -> &mut RowIndex {
+        &mut self.rows
+    }
+
+    #[cfg(test)]
+    pub(crate) fn styles_mut(&mut self) -> &mut AttributeMap<CellStyle> {
+        &mut self.styles
     }
 
     pub(crate) fn open_block(&mut self, source: BlockSource) {
@@ -229,6 +249,72 @@ impl Parser {
         self.screen.set_reflow_on_resize(on);
     }
 
+    pub fn set_answers_queries(&mut self, on: bool) {
+        self.query_replies = if on { Some(Vec::new()) } else { None };
+    }
+
+    pub fn set_terminal_identity(&mut self, name: &str) {
+        self.terminal_identity = name.chars().filter(|ch| !ch.is_control()).collect();
+    }
+
+    fn push_reply(&mut self, reply: &[u8]) {
+        if let Some(replies) = self.query_replies.as_mut() {
+            replies.extend_from_slice(reply);
+            if replies.len() > MAX_QUERY_REPLY_BYTES {
+                replies.drain(..replies.len() - MAX_QUERY_REPLY_BYTES);
+            }
+        }
+    }
+
+    fn answer_xtversion(&mut self) {
+        if self.query_replies.is_none() || self.terminal_identity.is_empty() {
+            return;
+        }
+        let reply = format!("\x1bP>|{}\x1b\\", self.terminal_identity);
+        self.push_reply(reply.as_bytes());
+    }
+
+    pub fn take_query_replies(&mut self) -> Vec<u8> {
+        self.query_replies
+            .as_mut()
+            .map(std::mem::take)
+            .unwrap_or_default()
+    }
+
+    fn private_mode_status(&self, mode: u16) -> u8 {
+        let set = match mode {
+            1 => self.app_cursor,
+            25 => self.screen.cursor_visible(),
+            1000 => self.mouse_tracking & 0b001 != 0,
+            1002 => self.mouse_tracking & 0b010 != 0,
+            1003 => self.mouse_tracking & 0b100 != 0,
+            1004 => self.focus_reporting,
+            1006 => self.sgr_mouse,
+            1049 => self.alt.is_some(),
+            2004 => self.bracketed_paste,
+            2026 => false,
+            _ => return 0,
+        };
+        if set {
+            1
+        } else {
+            2
+        }
+    }
+
+    fn answer_decrqm(&mut self, params: &Params) {
+        if self.query_replies.is_none() {
+            return;
+        }
+        for group in params.iter() {
+            let Some(mode) = group.first().copied() else {
+                continue;
+            };
+            let status = self.private_mode_status(mode);
+            self.push_reply(format!("\x1b[?{mode};{status}$y").as_bytes());
+        }
+    }
+
     pub fn set_agent_tui_mode(&mut self, on: bool) {
         self.screen.set_reflow_on_resize(!on);
         self.screen.set_clear_policy(if on {
@@ -256,6 +342,8 @@ impl Parser {
         if let Some(alt) = self.alt.as_mut() {
             alt.resize(rows, columns);
         }
+        self.grid
+            .clamp_to_rows(self.rows.completed().len() + self.screen.rows());
     }
 
     pub(crate) fn commit_evicted(&mut self) {
@@ -439,11 +527,15 @@ fn narrow(value: u16) -> u8 {
 
 impl Perform for Parser {
     fn print(&mut self, c: char) {
+        #[cfg(feature = "trace")]
+        self.trace.record(crate::trace::TraceAction::Print(c));
         let style = self.pending_style.resolved();
         self.active_screen_mut().print(c, style);
     }
 
     fn execute(&mut self, byte: u8) {
+        #[cfg(feature = "trace")]
+        self.trace.record(crate::trace::TraceAction::Execute(byte));
         let screen = self.active_screen_mut();
         match byte {
             0x08 => screen.move_by(0, -1),
@@ -455,8 +547,42 @@ impl Perform for Parser {
     }
 
     fn csi_dispatch(&mut self, params: &Params, intermediates: &[u8], _ignore: bool, c: char) {
+        #[cfg(feature = "trace")]
+        self.trace.record(crate::trace::TraceAction::Csi {
+            params: params.iter().map(|group| group.to_vec()).collect(),
+            intermediates: intermediates.to_vec(),
+            action: c,
+        });
         if c == 'm' {
             self.apply_sgr(params);
+            return;
+        }
+        if intermediates == b"?$" && c == 'p' {
+            self.answer_decrqm(params);
+            return;
+        }
+        if intermediates.is_empty()
+            && c == 'c'
+            && params
+                .iter()
+                .next()
+                .and_then(|g| g.first().copied())
+                .unwrap_or(0)
+                == 0
+        {
+            self.push_reply(b"\x1b[?62;22c");
+            return;
+        }
+        if intermediates == b">"
+            && c == 'q'
+            && params
+                .iter()
+                .next()
+                .and_then(|g| g.first().copied())
+                .unwrap_or(0)
+                == 0
+        {
+            self.answer_xtversion();
             return;
         }
         if intermediates.first() == Some(&b'?') && matches!(c, 'h' | 'l') {
@@ -472,8 +598,24 @@ impl Perform for Parser {
         self.active_screen_mut().csi(params, intermediates, c);
     }
 
-    fn esc_dispatch(&mut self, _intermediates: &[u8], _ignore: bool, byte: u8) {
+    fn esc_dispatch(&mut self, intermediates: &[u8], _ignore: bool, byte: u8) {
+        #[cfg(feature = "trace")]
+        self.trace.record(crate::trace::TraceAction::Esc {
+            intermediates: intermediates.to_vec(),
+            byte,
+        });
+        #[cfg(not(feature = "trace"))]
+        let _ = intermediates;
         self.active_screen_mut().esc(byte);
+    }
+
+    fn osc_dispatch(&mut self, params: &[&[u8]], _bell_terminated: bool) {
+        #[cfg(feature = "trace")]
+        self.trace.record(crate::trace::TraceAction::Osc(
+            params.iter().map(|p| p.to_vec()).collect(),
+        ));
+        #[cfg(not(feature = "trace"))]
+        let _ = params;
     }
 }
 

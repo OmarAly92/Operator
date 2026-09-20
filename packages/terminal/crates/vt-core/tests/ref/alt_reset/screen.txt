@@ -1,0 +1,10 @@
+[kchibisov@NightLord alacritty]$ cat ../alacritty.recording
+[kchibisov@NightLord forks]$ printf "\e[31;1;7;4;9mTEST asd\n"
+TEST asd
+[kchibisov@NightLord forks]$ 
+[kchibisov@NightLord forks]$ htop
+[kchibisov@NightLord forks]$ htop
+[kchibisov@NightLord forks]$ htop
+[kchibisov@NightLord forks]$ htop
+[kchibisov@NightLord forks]$ htop
+

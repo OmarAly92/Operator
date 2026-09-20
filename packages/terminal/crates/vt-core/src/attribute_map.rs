@@ -57,6 +57,15 @@ impl<A: Copy + Eq> AttributeMap<A> {
             self.ends.remove(&k);
         }
     }
+
+    pub fn keys(&self) -> impl Iterator<Item = u64> + '_ {
+        self.ends.keys().copied()
+    }
+
+    #[cfg(test)]
+    pub(crate) fn insert_key_for_test(&mut self, offset: u64) {
+        self.ends.insert(offset, self.tail);
+    }
 }
 
 #[cfg(test)]

@@ -138,7 +138,7 @@ function withoutRanges(bytes: Uint8Array, ranges: readonly SourceIdMark[]): Uint
 function feedToCore(core: TerminalCore, bytes: Uint8Array, historyIds: Set<string>): void {
 	const marks = scanSourceIdMarks(bytes);
 	const reconnectsHistoryBlock = marks.some((mark) => historyIds.has(mark.id));
-	core.feed(reconnectsHistoryBlock ? withoutRanges(bytes, marks) : bytes);
+	core.enqueue(reconnectsHistoryBlock ? withoutRanges(bytes, marks) : bytes);
 }
 
 function feedHistory(
@@ -149,7 +149,7 @@ function feedHistory(
 	for (const block of blocks) {
 		if (historyIds.has(block.sourceId)) continue;
 		historyIds.add(block.sourceId);
-		core.feed(block.rawOutput);
+		core.enqueue(block.rawOutput);
 	}
 }
 
@@ -200,12 +200,23 @@ export function BlockTerminal({
 	// the core. TerminalSurface renders from its own subscription to that core,
 	// so the frame carrying those rows is the next one, and reporting before it
 	// would uncover the pane one frame early -- the flash the cover exists to
-	// prevent.
+	// prevent. With a queued feed the frame that carries the rows is the first
+	// one after the backlog drains, so the announcement waits for
+	// `hasBacklog()` to clear.
 	const reportReplayPainted = useCallback(() => {
 		if (replayPaintedReportedRef.current) return;
 		replayPaintedReportedRef.current = true;
 		terminalDebug("block-terminal", "replay painted");
-		requestAnimationFrame(() => onReplayPaintedRef.current?.());
+		const announce = () => {
+			requestAnimationFrame(() => {
+				if (coreRef.current?.hasBacklog()) {
+					announce();
+					return;
+				}
+				onReplayPaintedRef.current?.();
+			});
+		};
+		announce();
 	}, []);
 	const onSend = useCallback((text: string) => {
 		transportRef.current.write(new TextEncoder().encode(`${text}\n`));

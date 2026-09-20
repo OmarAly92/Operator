@@ -36,7 +36,8 @@ impl BlockGrid {
     /// renderer should not pretend otherwise.
     pub fn open_block(&mut self, source: BlockSource) {
         if let Some(mut prev) = self.open.take() {
-            prev.row_count = self.next_row.saturating_sub(prev.first_row);
+            prev.first_row = prev.first_row.min(self.next_row);
+            prev.row_count = self.next_row - prev.first_row;
             let abandoned = Block {
                 state: BlockState::Abandoned,
                 ..prev
@@ -67,7 +68,8 @@ impl BlockGrid {
         let Some(mut block) = self.open.take() else {
             return;
         };
-        block.row_count = self.next_row.saturating_sub(block.first_row);
+        block.first_row = block.first_row.min(self.next_row);
+        block.row_count = self.next_row - block.first_row;
         block.state = BlockState::Finished;
         block.meta.exit_code = exit_code;
         self.closed.push(block);
@@ -279,7 +281,7 @@ impl BlockGrid {
                 first = false;
                 block.first_row = 0;
             } else {
-                block.first_row -= shift;
+                block.first_row = block.first_row.saturating_sub(shift);
             }
             block.row_count = block.row_count.saturating_sub(drop_within);
             self.closed.push(block);
@@ -291,6 +293,29 @@ impl BlockGrid {
             block.row_count = open_row_count_pre_trim
                 .unwrap_or_default()
                 .saturating_sub(drop_within);
+        }
+    }
+
+    pub fn clamp_to_rows(&mut self, total_rows: usize) {
+        self.next_row = self.next_row.min(total_rows);
+        if let Some(block) = self.open.as_mut() {
+            block.first_row = block.first_row.min(total_rows);
+        }
+        let needs_clamp = self
+            .closed
+            .iter()
+            .any(|block| block.first_row + block.row_count > total_rows);
+        if !needs_clamp {
+            return;
+        }
+        let mut drained: Vec<Block> = Vec::new();
+        while let Some(block) = self.closed.pop_front() {
+            drained.push(block);
+        }
+        for mut block in drained {
+            block.first_row = block.first_row.min(total_rows);
+            block.row_count = block.row_count.min(total_rows - block.first_row);
+            self.closed.push(block);
         }
     }
 

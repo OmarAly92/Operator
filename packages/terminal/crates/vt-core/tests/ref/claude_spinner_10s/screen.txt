@@ -1,0 +1,27 @@
+ ▐▛███▛█   Claude Code v2.1.273
+▝▜██████▀  Sonnet 5 with high effort · Claude Max
+  ▝▝ ▝▝    /…/0ded63eb-1caf-5d59-8019-15ee943acbc5/scratchpad/agent-fixture-scratch
+
+⚠ Your login expires in 3 days · run /login to renew
+
+❯ /effort high                                                                                                          
+  ⎿  Set effort level to high (saved as your default for new sessions): Comprehensive implementation with extensive
+     testing and documentation
+
+❯ Do all of the following entirely in your head, without any tools: multiply 8763541 by 9236741, then multiply 5647213  
+  by 3298471, then multiply 9081726 by 4456127. For each one, compute it two different ways (standard long              
+  multiplication and the lattice method) and confirm both ways agree before moving to the next one. Take as long as you 
+  need. When all three are fully verified, reply with only the three final products, one per line, nothing else.        
+
+✽ Flambéing… (13s · still thinking with high effort)
+  ⎿  Tip: Ask Claude to create a todo list when working on complex tasks to track progress and remain on track
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  ⏵⏵ auto mode on (shift+tab to cycle) · esc to interrupt · ← for agents
+                                                                                                              0 tokens
+                                                                                               currentVersion: 2.1.273
+                                                                Update available! Run: brew upgrade claude-code@latest
+
+

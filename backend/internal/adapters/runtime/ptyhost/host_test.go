@@ -1034,3 +1034,102 @@ func TestClientQueueIsBounded(t *testing.T) {
 		t.Fatal("producer did not wake when the client was retired")
 	}
 }
+
+func TestDeliverHoldsAcrossASyncBlock(t *testing.T) {
+	f, c := newTestHostWithParser(t)
+	defer f.cancel()
+	defer c.close()
+	syncClientRegistered(t, c)
+
+	f.feedPTY(t, "\x1b[?2026h\x1b[2K\rframe")
+	typ, payload := c.readFrame(t)
+	if typ != MsgTerminalData || !strings.HasPrefix(string(payload), "\x1b[?2026h") {
+		t.Fatalf("first frame = 0x%02x %q", typ, payload)
+	}
+	f.feedPTY(t, " one")
+	select {
+	case fr := <-c.frameC:
+		t.Fatalf("host flushed %q while the mirror was inside a sync block", fr.payload)
+	case <-time.After(3 * flushInterval):
+	}
+	f.feedPTY(t, "\x1b[?2026l")
+	_, payload = c.readFrame(t)
+	if string(payload) != " one\x1b[?2026l" {
+		t.Fatalf("held batch = %q, want the rest of the frame in one message", payload)
+	}
+}
+
+func TestSyncHoldEndsAtTheDeadlineAndTicksTheMirror(t *testing.T) {
+	f, c := newTestHostWithParser(t)
+	defer f.cancel()
+	defer c.close()
+	syncClientRegistered(t, c)
+
+	f.feedPTY(t, "\x1b[?2026h\x1b[2K\rstuck")
+	c.readFrame(t)
+	f.feedPTY(t, " tail")
+	start := time.Now()
+	_, payload := c.readFrame(t)
+	if string(payload) != " tail" {
+		t.Fatalf("deadline batch = %q", payload)
+	}
+	if since := time.Since(start); since < 100*time.Millisecond {
+		t.Fatalf("flushed after %v, want the %v hold", since, syncHoldTimeout)
+	}
+	if text := c.getOutput(t, 5); !strings.Contains(text, "stuck tail") {
+		t.Fatalf("mirror after the deadline = %q, want the flushed frame", text)
+	}
+}
+
+func TestAStalledSyncBlockReachesTheMirrorAtTheDeadline(t *testing.T) {
+	f, c := newTestHostWithParser(t)
+	defer f.cancel()
+	defer c.close()
+	syncClientRegistered(t, c)
+
+	f.feedPTY(t, "\x1b[?2026h\x1b[2K\rstalled")
+	c.readFrame(t)
+	if text := c.getOutput(t, 5); strings.Contains(text, "stalled") {
+		t.Fatalf("mirror exposed an open sync block: %q", text)
+	}
+	time.Sleep(syncHoldTimeout + 50*time.Millisecond)
+	if text := c.getOutput(t, 5); !strings.Contains(text, "stalled") {
+		t.Fatalf("mirror after the deadline = %q, want the stalled frame", text)
+	}
+}
+
+func TestDeliverAnswersADecrqmProbeOnThePty(t *testing.T) {
+	f, c := newTestHostWithParser(t)
+	defer f.cancel()
+	defer c.close()
+	syncClientRegistered(t, c)
+
+	f.feedPTY(t, "\x1b[?2026$p")
+	c.readFrame(t)
+	buf := make([]byte, 64)
+	n, err := f.pty.ReadInput(buf)
+	if err != nil {
+		t.Fatalf("read pty input: %v", err)
+	}
+	if got := string(buf[:n]); got != "\x1b[?2026;2$y" {
+		t.Fatalf("pty received %q, want the DECRPM reply", got)
+	}
+}
+
+func TestDeliverAnswersXtversionWithTheHostIdentity(t *testing.T) {
+	f, c := newTestHostWithParser(t)
+	defer f.cancel()
+	defer c.close()
+	syncClientRegistered(t, c)
+
+	f.feedPTY(t, "\x1b[>0q")
+	c.readFrame(t)
+	buf := make([]byte, 64)
+	n, err := f.pty.ReadInput(buf)
+	if err != nil {
+		t.Fatalf("read pty input: %v", err)
+	}
+	if got := string(buf[:n]); got != "\x1bP>|Operator\x1b\\" {
+		t.Fatalf("pty received %q, want the XTVERSION reply", got)
+	}
+}
