@@ -6,6 +6,7 @@
 package ptyhost
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -18,11 +19,16 @@ import (
 )
 
 var _ ports.Attacher = (*Runtime)(nil)
+var _ ports.HistoryAttacher = (*Runtime)(nil)
 
 // Attach opens a fresh attach Stream for the session by dialing its loopback
 // pty-host. rows/cols size the host's PTY from birth when known (a MsgResize is
 // sent right after connect). ctx cancellation closes the Stream.
 func (r *Runtime) Attach(ctx context.Context, handle ports.RuntimeHandle, rows, cols uint16) (ports.Stream, error) {
+	return r.AttachWithHistory(ctx, handle, rows, cols, false)
+}
+
+func (r *Runtime) AttachWithHistory(ctx context.Context, handle ports.RuntimeHandle, rows, cols uint16, history bool) (ports.Stream, error) {
 	sess := r.resolve(handle.ID)
 	if sess == nil {
 		return nil, fmt.Errorf("ptyhost: session %q not found", handle.ID)
@@ -46,7 +52,7 @@ func (r *Runtime) Attach(ctx context.Context, handle ports.RuntimeHandle, rows, 
 	// for the one loopback round-trip the status reply takes.
 	var replay [][]byte
 	if rows > 0 && cols > 0 {
-		if replay, err = attachHandshake(conn, rows, cols); err != nil {
+		if replay, err = attachHandshake(conn, rows, cols, history); err != nil {
 			_ = conn.Close()
 			return nil, err
 		}
@@ -75,13 +81,18 @@ func (r *Runtime) Attach(ctx context.Context, handle ports.RuntimeHandle, rows, 
 
 const attachResizeAckTimeout = 5 * time.Second
 
+// readyMarkBytes ends the replay frame a client can paint (vt-host's
+// OSC 7000 ready mark). The handshake returns here so history streams behind
+// a pane that is already drawing.
+var readyMarkBytes = []byte("\x1b]7000;v=1;ready=1\x1b\\")
+
 // attachHandshake sends the birth resize and a status request, then reads the
 // conn directly until the host answers. The host dispatches one connection's
 // messages in order, so the reply proves the resize landed. Terminal data seen
 // while waiting (the grid repaint, and anything the child emitted in the same
 // window) is returned for the pump to replay ahead of live output.
-func attachHandshake(conn net.Conn, rows, cols uint16) ([][]byte, error) {
-	if err := writeResize(conn, rows, cols); err != nil {
+func attachHandshake(conn net.Conn, rows, cols uint16, history bool) ([][]byte, error) {
+	if err := writeResizeWithHistory(conn, rows, cols, history); err != nil {
 		return nil, err
 	}
 	statusReq, err := EncodeMessage(MsgStatusReq, nil)
@@ -102,18 +113,22 @@ func attachHandshake(conn net.Conn, rows, cols uint16) ([][]byte, error) {
 	var (
 		replay  [][]byte
 		applied bool
+		ready   bool
 	)
 	parser := NewMessageParser(func(msgType byte, payload []byte) {
 		switch msgType {
 		case MsgTerminalData:
 			// payload aliases buf, which the next Read overwrites.
 			replay = append(replay, append([]byte(nil), payload...))
+			if bytes.Contains(payload, readyMarkBytes) {
+				ready = true
+			}
 		case MsgStatusRes:
 			applied = true
 		}
 	})
 	buf := make([]byte, 4096)
-	for !applied {
+	for !applied && !ready {
 		n, err := conn.Read(buf)
 		if n > 0 {
 			parser.Feed(buf[:n])
@@ -183,7 +198,11 @@ func (s *loopbackStream) Resize(rows, cols uint16) error {
 
 // writeResize encodes and sends one MsgResize frame.
 func writeResize(w io.Writer, rows, cols uint16) error {
-	payload, _ := json.Marshal(ResizePayload{Cols: int(cols), Rows: int(rows)})
+	return writeResizeWithHistory(w, rows, cols, false)
+}
+
+func writeResizeWithHistory(w io.Writer, rows, cols uint16, history bool) error {
+	payload, _ := json.Marshal(ResizePayload{Cols: int(cols), Rows: int(rows), History: history})
 	frame, err := EncodeMessage(MsgResize, payload) // small JSON payload, never overflows uint32
 	if err != nil {
 		return err

@@ -206,6 +206,14 @@ type Attacher interface {
 	Attach(ctx context.Context, handle RuntimeHandle, rows, cols uint16) (Stream, error)
 }
 
+// HistoryAttacher is an optional Attacher capability: a client that
+// understands the runtime's history marks can ask for the session's
+// scrollback behind its replay frame. Asserted at the call site, so an
+// Attacher without it simply never streams history.
+type HistoryAttacher interface {
+	AttachWithHistory(ctx context.Context, handle RuntimeHandle, rows, cols uint16, history bool) (Stream, error)
+}
+
 // The Agent port and its supporting types live in agent.go.
 
 // Workspace is the isolated checkout an agent works in (a git worktree or clone).

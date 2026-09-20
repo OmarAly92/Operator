@@ -33,10 +33,13 @@ const (
 
 // JSON payload structs shared with later tasks (kept minimal).
 
-// ResizePayload is the JSON body for MsgResize.
+// ResizePayload is the JSON body for MsgResize. History is read only from a
+// connection's OPENING resize, which is its registration message: a client
+// that understands OSC 7000 history chunks asks for scrollback there.
 type ResizePayload struct {
-	Cols int `json:"cols"`
-	Rows int `json:"rows"`
+	Cols    int  `json:"cols"`
+	Rows    int  `json:"rows"`
+	History bool `json:"history,omitempty"`
 }
 
 // StatusPayload is the JSON body for MsgStatusRes.

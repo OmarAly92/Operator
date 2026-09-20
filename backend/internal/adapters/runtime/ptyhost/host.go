@@ -76,8 +76,9 @@ func Serve(ctx context.Context, cfg ServeConfig) error {
 // applyLargestLocked). A connection that never sends a resize stays sized=false
 // and never influences the shared grid.
 type clientState struct {
-	cols, rows int
-	sized      bool
+	cols, rows   int
+	sized        bool
+	wantsHistory bool
 
 	// out is this client's outbound queue, drained by a dedicated writer
 	// goroutine (runWriter). Every frame the host sends a client -- the
@@ -712,6 +713,7 @@ func (h *host) handleConn(conn net.Conn) {
 	h.mu.Lock()
 	if opening != nil {
 		cs.cols, cs.rows, cs.sized = opening.Cols, opening.Rows, true
+		cs.wantsHistory = opening.History
 	}
 	h.clients[conn] = cs
 	h.applyLargestLocked()
@@ -722,6 +724,10 @@ func (h *host) handleConn(conn net.Conn) {
 	registered = true
 
 	go h.runWriter(conn, cs)
+
+	if cs.wantsHistory {
+		go h.streamHistory(cs)
+	}
 
 	defer func() {
 		h.mu.Lock()
@@ -788,6 +794,54 @@ func (h *host) replayFrameLocked() []byte {
 		return nil
 	}
 	return frame
+}
+
+func (h *host) stopping() bool {
+	select {
+	case <-h.shutdownC:
+		return true
+	default:
+		return false
+	}
+}
+
+// streamHistory queues the session's scrollback newest→oldest, behind the
+// replay frame the client was already queued. It runs off h.mu: these rows
+// are older than every byte in that frame, so nothing can race into the gap
+// the way a live chunk could between the replay and registration.
+//
+// It paces on the SAME ack watermark deliver uses, so a 200k-row history sent
+// to one client can never push that client past readHighWatermark and pause
+// the child for every other attached pane (Task 10).
+func (h *host) streamHistory(cs *clientState) {
+	parser := h.currentParser()
+	if parser == nil {
+		return
+	}
+	before := vtwasm.HistoryBefore
+	for {
+		if h.stopping() {
+			return
+		}
+		chunk, next, ok, err := parser.HistoryChunk(before, MaxOutputLines, vtwasm.HistoryChunkRows)
+		if err != nil {
+			h.logf("stream attach history: %v", err)
+			return
+		}
+		if !ok {
+			return
+		}
+		frame, err := EncodeMessage(MsgTerminalData, []byte(chunk))
+		if err != nil {
+			h.logf("encode attach history: %v", err)
+			return
+		}
+		h.mu.Lock()
+		cs.enqueue(frame)
+		h.mu.Unlock()
+		cs.awaitCapacity()
+		before = next
+	}
 }
 
 // handleClientMsg dispatches a decoded client message. Mirrors handleClientMessage
