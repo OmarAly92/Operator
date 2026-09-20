@@ -244,3 +244,17 @@ fn a_history_rows_extended_colour_sgr_round_trips_through_a_chunk() {
     );
     assert_eq!(core.verify_integrity(), Ok(()));
 }
+
+#[test]
+fn a_chunk_shaped_like_the_hosts_prepends_cleanly() {
+    let mut core = TerminalCore::new(12, 10_000).expect("core");
+    attach(&mut core, 1000, "live\r\n");
+    core.feed(
+        b"\x1b]7000;v=1;history=998,2\x1b\\\x1b[0mold one\x1b[0m\r\n\x1b[0mold two\x1b[0m\x1b]7000;v=1;exit=0\x1b\\\r\n",
+    );
+    core.feed(b"next\r\n");
+
+    assert_eq!(core.first_stable_row(), 998);
+    assert_eq!(rows_of(&core), vec!["old one", "old two", "live", "next"]);
+    assert_eq!(core.verify_integrity(), Ok(()));
+}
