@@ -145,10 +145,27 @@ impl Perform for ScreenPerform<'_> {
 }
 
 fn apply_sgr(style: &mut CellStyle, params: &Params) {
-    let mut saw_code = false;
-    for group in params.iter() {
+    let groups: Vec<Vec<u16>> = params.iter().map(|sub| sub.to_vec()).collect();
+    if groups.is_empty() {
+        *style = CellStyle::DEFAULT;
+        return;
+    }
+    let mut index = 0;
+    while index < groups.len() {
+        let group = &groups[index];
         let code = group.first().copied().unwrap_or(0);
-        saw_code = true;
+        if matches!(code, 38 | 48 | 58) {
+            let (colour, consumed) = crate::parser::read_extended_colour(&groups, index);
+            if let Some(colour) = colour {
+                match code {
+                    38 => style.fg = style.fg.with_colour(colour),
+                    48 => style.bg = colour,
+                    _ => {}
+                }
+            }
+            index += consumed;
+            continue;
+        }
         match code {
             0 => *style = CellStyle::DEFAULT,
             1 => style.fg = style.fg.with_bold(true),
@@ -164,9 +181,7 @@ fn apply_sgr(style: &mut CellStyle, params: &Params) {
             100..=107 => style.bg = StyleCode::ansi((code - 100 + 8) as u8),
             _ => {}
         }
-    }
-    if !saw_code {
-        *style = CellStyle::DEFAULT;
+        index += 1;
     }
 }
 

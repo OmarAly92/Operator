@@ -1,4 +1,4 @@
-use vt_core::{BlockState, TerminalCore};
+use vt_core::{BlockState, StyleCode, TerminalCore};
 
 fn rows_of(core: &TerminalCore) -> Vec<String> {
     let snapshot = core.snapshot().expect("snapshot");
@@ -159,6 +159,88 @@ fn a_history_chunks_marks_never_touch_the_live_block_grid() {
             .count(),
         1,
         "the chunk's exit mark closed the live block"
+    );
+    assert_eq!(core.verify_integrity(), Ok(()));
+}
+
+// Same defect as above, but through the realistic single-`feed` shape: the
+// history marker, the chunk's row bytes, and a mark embedded inside the
+// chunk's row bytes all arrive in ONE `core.feed()` call, so `mark_decoder`
+// decodes them all up front -- before `history.consume` ever runs -- and the
+// chunk's own mark events sit in the same `events` vector as everything
+// else. The live block here is opened with a real OSC 133;A `PromptStart`
+// (not just `id=`/`cmd=` extension fields, which `BlockGrid::set_meta_field`
+// silently drops when there is no block open yet, so a chunk carrying only
+// those fields cannot actually demonstrate a live-grid mutation). The
+// chunk's row bytes carry an embedded `boundary=` mark -- routed through
+// `Parser::process_boundary`, which closes whatever block is currently open
+// -- so a leak is unmistakable: the live block flips from `Running` to
+// `Finished`/gone instead of staying open.
+#[test]
+fn a_history_chunks_marks_never_touch_the_live_block_grid_in_one_feed_call() {
+    let mut core = TerminalCore::new(20, 10_000).expect("core");
+    attach(&mut core, 1000, "");
+    core.feed(b"\x1b]133;A\x07");
+    core.feed(b"live\r\n");
+    let before = core.snapshot().expect("snapshot");
+    let before_blocks = before.blocks.len();
+    let open_before = before
+        .blocks
+        .iter()
+        .filter(|block| block.state == BlockState::Running)
+        .count();
+    assert_eq!(
+        open_before, 1,
+        "the fixture did not leave a live block open"
+    );
+
+    core.feed(b"\x1b]7000;v=1;history=999,1\x1b\\old\x1b]7000;v=1;boundary=0\x1b\\\r\nafter\r\n");
+
+    let after = core.snapshot().expect("snapshot");
+    assert_eq!(
+        after.blocks.len(),
+        before_blocks,
+        "the chunk's embedded boundary mark changed the live block count: {:?}",
+        after.blocks
+    );
+    assert_eq!(
+        after
+            .blocks
+            .iter()
+            .filter(|block| block.state == BlockState::Running)
+            .count(),
+        1,
+        "the chunk's embedded boundary mark closed the live block: {:?}",
+        after.blocks
+    );
+    assert_eq!(core.verify_integrity(), Ok(()));
+}
+
+// `history.rs`'s local `apply_sgr` used to have no handling for the extended
+// colour SGR codes (38/48/58), unlike the live parsing path's `apply_sgr` in
+// `parser.rs`. A history row styled with 256-colour or truecolour SGR would
+// silently drop to default instead of round-tripping through a reopened
+// session's chunk.
+#[test]
+fn a_history_rows_extended_colour_sgr_round_trips_through_a_chunk() {
+    let mut core = TerminalCore::new(20, 10_000).expect("core");
+    attach(&mut core, 1000, "live\r\n");
+
+    core.feed(b"\x1b]7000;v=1;history=999,1\x1b\\");
+    core.feed(b"\x1b[38;5;196mred\x1b[0m\r\n");
+
+    let snapshot = core.snapshot().expect("snapshot");
+    assert_eq!(snapshot.row_text(0), "red");
+    let pairs = snapshot.row_style_pairs(0);
+    assert!(
+        !pairs.is_empty(),
+        "no style runs recorded for the history row"
+    );
+    assert_eq!(
+        pairs[0].1.fg,
+        StyleCode::indexed(196),
+        "the 256-colour SGR did not survive the history chunk round trip: {:?}",
+        pairs
     );
     assert_eq!(core.verify_integrity(), Ok(()));
 }

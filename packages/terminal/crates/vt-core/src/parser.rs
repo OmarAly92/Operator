@@ -686,7 +686,10 @@ impl Parser {
 /// follow, and consuming them is what stops `48;5;31` from being read as SGR 31
 /// and repainting the foreground. A truncated or unrecognised selector consumes
 /// only the introducer, so parsing always advances.
-fn read_extended_colour(groups: &[Vec<u16>], index: usize) -> (Option<StyleCode>, usize) {
+pub(crate) fn read_extended_colour(
+    groups: &[Vec<u16>],
+    index: usize,
+) -> (Option<StyleCode>, usize) {
     let group = &groups[index];
     if group.len() > 1 {
         return (colour_from_subparameters(group), 1);

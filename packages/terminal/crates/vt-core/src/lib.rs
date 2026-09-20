@@ -220,6 +220,9 @@ impl TerminalCore {
         let mut parsed = 0usize;
         for (offset, event) in events {
             let upto = offset.min(bytes.len());
+            if offset < parsed {
+                continue;
+            }
             if upto > parsed {
                 self.advance_vte(&bytes[parsed..upto]);
                 parsed = upto;
