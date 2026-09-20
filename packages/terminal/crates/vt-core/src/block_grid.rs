@@ -6,7 +6,14 @@ use crate::block_tree::BlockTree;
 /// optional open block, and a monotonic id source; row indices are stored
 /// as stable rows, so a trim advances `origin` instead of renumbering
 /// every survivor (wezterm/term/src/screen.rs:30 `stable_row_index_offset`).
-/// The public API still speaks flat rows — the conversion happens here.
+///
+/// The two surfaces differ. The methods that take or return a bare row —
+/// `start_output`, `covered_end`, `next_row`, `sync_next_row`,
+/// `push_synthetic`, `clamp_to_rows`, `remap_rows`, `flat_extent` — speak
+/// **flat** rows and convert against `origin` here. [`Block::first_row`]
+/// itself is **stable**, so everything that reads it straight off a block —
+/// `blocks()`, `get()`, and the [`BlockTree`]/`BlockSummary` indexes built
+/// from it — is stable too. Use `flat_extent` to cross the seam.
 pub struct BlockGrid {
     closed: BlockTree,
     open: Option<Block>,
