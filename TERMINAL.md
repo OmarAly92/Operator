@@ -586,7 +586,9 @@ history of `master`.
   around a trim. No code was changed to chase either flake down or to make a
   run "count" as clean; both are reported here as observed, not patched
   around by adding more `requestAnimationFrame` waits, which would be tuning
-  the gate to pass rather than fixing a diagnosed cause.
+  the gate to pass rather than fixing a diagnosed cause. Open follow-up: a
+  principled fix needs an explicit paint-completion signal the gate can wait
+  on instead of a frame-count guess — not designed or implemented here.
 - `TestProcessEnvironmentLetsOverridesWin` in `ptyhost` fails on master before
   any of this work (TERM override appended twice). Pre-existing, unrelated.
 - Found triaging the Alacritty reference corpus (`crates/vt-core/tests/ref/TRIAGE.md`),
