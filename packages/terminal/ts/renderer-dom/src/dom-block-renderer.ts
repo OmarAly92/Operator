@@ -11,8 +11,9 @@ import {
 	type TerminalTheme,
 } from "@operator/terminal-core";
 import { renderAltSurface } from "./alt-surface.js";
-import { populateBlock } from "./block-body.js";
-import { primaryCursorPlacement, type CursorPlacement } from "./cursor.js";
+import { populateBlock, reconcileChildren, ROW_GENERATION_ATTR } from "./block-body.js";
+import { createCursorElement, primaryCursorPlacement, type CursorPlacement } from "./cursor.js";
+import { ElementPool } from "./element-pool.js";
 import { bindActionEvents } from "./action-events.js";
 import { applyFilter, type BlockFilter } from "./block-filter.js";
 import { mountBlockNavFromRenderer, type BlockNavHandle } from "./block-nav.js";
@@ -45,6 +46,7 @@ const CLASS_TRAILING_SPACER = "terminal-spacer";
 const OVERSCAN_ROWS = 6;
 const STICK_THRESHOLD_PX = 4;
 const PAINT_INTERVAL_MS = 1000 / 60;
+const POOL_CAPACITY_FACTOR = 3;
 const FRAME_EPSILON_MS = 0.25;
 export { ALT_BLOCK_ID } from "./selection-view.js";
 
@@ -86,6 +88,10 @@ export class DomBlockRenderer implements BlockRenderer {
 	private anchor: ScrollAnchor | null = null;
 	private paintedFirstStableRow = 0;
 	private rowEventsUnsubscribe: (() => void) | null = null;
+	private readonly pool = new ElementPool();
+	private cursorElement: HTMLElement | null = null;
+	private fullSince = 0;
+	private rebuildAll = false;
 
 	mount(container: HTMLElement, core: TerminalCore): void {
 		this.dispose();
@@ -136,6 +142,7 @@ export class DomBlockRenderer implements BlockRenderer {
 	setFont(font: FontConfig): void {
 		this.font = font;
 		this.applyStyleVars();
+		this.rebuildAll = true;
 		this.invalidateMetrics();
 	}
 
@@ -357,6 +364,11 @@ export class DomBlockRenderer implements BlockRenderer {
 		this.filledRows = [];
 		this.pinnedHeader = null;
 		this.blockElements.clear();
+		this.pool.clear();
+		this.cursorElement?.remove();
+		this.cursorElement = null;
+		this.fullSince = 0;
+		this.rebuildAll = false;
 		this.measureNode = null;
 		this.knownBlockId = null;
 		this.stickToBottom = true;
@@ -498,6 +510,24 @@ export class DomBlockRenderer implements BlockRenderer {
 			if (!ids.has(this.selection.head.blockId) || !ids.has(this.selection.tail.blockId)) this.dropSelection();
 		}
 		const cursor: CursorPlacement | null = primaryCursorPlacement(snapshot);
+		const dirty = core.takeDirty();
+		if (dirty.full || this.rebuildAll) {
+			this.fullSince = snapshot.generation;
+			this.pool.clear();
+			if (this.rebuildAll) this.blockElements.clear();
+			this.rebuildAll = false;
+		}
+		const firstScreenStable = snapshot.firstStableRow + snapshot.historyRows;
+		const pooledThisPaint = new Set<BlockId>();
+		const freshFor = (blockId: BlockId) => (stableRow: number, node: HTMLElement): boolean => {
+			const built = Number(node.getAttribute(ROW_GENERATION_ATTR));
+			if (!Number.isFinite(built) || built < this.fullSince) return false;
+			if (dirty.rows.has(stableRow)) return false;
+			if (stableRow < firstScreenStable) return true;
+			return !pooledThisPaint.has(blockId);
+		};
+		const cursorElement = this.cursorElement ?? (this.cursorElement = createCursorElement(0, 0));
+		let cursorPlaced = false;
 		this.filteredBlocks = applyFilter(blocks, this.currentFilter)
 			.filter((block) => !(
 				snapshot.lineEditorState === 1 &&
@@ -537,20 +567,26 @@ export class DomBlockRenderer implements BlockRenderer {
 			for (let i = windowResult.firstBlock; i <= windowResult.lastBlock; i += 1) {
 				const block = this.filteredBlocks[i]!;
 				visibleIds.add(block.id);
-				const element = this.ensureBlockElement(block);
+				const { element, pooled } = this.ensureBlockElement(block);
+				if (pooled) pooledThisPaint.add(block.id);
 				const rowWindow = windowResult.rowWindows.get(i) ?? null;
-				populateBlock(element, {
+				const placed = populateBlock(element, {
 					block,
 					snapshot,
 					rowWindow,
 					rowHeight,
 					cellWidth,
 					cursor,
+					cursorElement,
 					decoder: this.decoder,
 					firstStableRow: snapshot.firstStableRow,
+					generation: snapshot.generation,
+					rowIsFresh: freshFor(block.id),
 				});
+				if (placed.cursorPlaced) cursorPlaced = true;
 			}
 		}
+		if (!cursorPlaced) cursorElement.remove();
 
 		const orderedVisible: HTMLElement[] = [];
 		for (let i = windowResult.firstBlock; i <= windowResult.lastBlock; i += 1) {
@@ -558,18 +594,17 @@ export class DomBlockRenderer implements BlockRenderer {
 			const element = this.blockElements.get(block.id);
 			if (element) orderedVisible.push(element);
 		}
-		const fragment = document.createDocumentFragment();
-		fragment.append(leading, ...orderedVisible, trailing);
-		list.replaceChildren(fragment);
+		reconcileChildren(list, [leading, ...orderedVisible, trailing]);
 		if (this.pinnedHeader) {
 			const first = orderedVisible[0];
 			const scrolledPastHeader = first && first.getBoundingClientRect().top + rowHeight * (BLOCK_PADDING_TOP_LINES + 2) + 1 < container.getBoundingClientRect().top;
 			updatePinnedHeader(this.pinnedHeader, this.filteredBlocks, scrolledPastHeader ? windowResult.firstBlock : -1, defaultStrings);
 		}
 
+		const capacity = POOL_CAPACITY_FACTOR * Math.max(1, orderedVisible.length);
 		for (const [id, element] of this.blockElements) {
 			if (!visibleIds.has(id)) {
-				element.replaceChildren();
+				this.pool.put(id, element, capacity);
 				this.blockElements.delete(id);
 			}
 		}
@@ -581,7 +616,6 @@ export class DomBlockRenderer implements BlockRenderer {
 		this.paintSelectionFill();
 		if (paintedAt !== undefined) this.lastPaintAt = paintedAt;
 		this.notifyPainted();
-		core.takeDirty();
 		this.rescheduleIfPending(core);
 	}
 
@@ -630,15 +664,21 @@ export class DomBlockRenderer implements BlockRenderer {
 		}
 	}
 
-	private ensureBlockElement(block: BlockView): HTMLElement {
+	private ensureBlockElement(block: BlockView): { element: HTMLElement; pooled: boolean } {
 		const existing = this.blockElements.get(block.id);
-		if (existing) return existing;
+		if (existing) return { element: existing, pooled: false };
+		const pooled = this.pool.take(block.id);
+		if (pooled) {
+			pooled.setAttribute("style", styleVarsString(this.theme, this.font));
+			this.blockElements.set(block.id, pooled);
+			return { element: pooled, pooled: true };
+		}
 		const section = document.createElement("section");
 		section.className = CLASS_BLOCK;
 		section.dataset.terminalBlockId = block.id;
 		section.setAttribute("style", styleVarsString(this.theme, this.font));
 		this.blockElements.set(block.id, section);
-		return section;
+		return { element: section, pooled: false };
 	}
 
 	private cellMetrics(): { cellWidth: number; cellHeight: number } {

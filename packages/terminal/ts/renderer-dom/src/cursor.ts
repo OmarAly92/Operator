@@ -27,6 +27,13 @@ export function primaryCursorPlacement(snapshot: CursorSnapshot): CursorPlacemen
 	return { row: snapshot.cursorRow, column: snapshot.cursorColumn };
 }
 
+export function placeCursor(row: HTMLElement, cursor: HTMLElement, column: number, cellWidth: number): void {
+	cursor.dataset.column = String(column);
+	cursor.style.width = `${cellWidth}px`;
+	cursor.style.transform = `translateX(${column * cellWidth}px)`;
+	if (cursor.parentElement !== row) row.append(cursor);
+}
+
 export function createCursorElement(column: number, cellWidth: number): HTMLElement {
 	const cursor = document.createElement("span");
 	cursor.className = CLASS_CURSOR;

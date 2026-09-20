@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+Rows are patched, not rebuilt.
+
+- `populateBlock` keeps row nodes keyed by stable row on the block element,
+  rebuilds only rows the core reports dirty or new, reuses the block header
+  until its fields change, and moves one cursor element instead of creating
+  one per paint (xterm.js `DomRenderer.ts` row pool and `renderRows`). Block
+  elements that leave the window wait in an LRU pool (3× the window) and come
+  back with their nodes.
+
 Scrolling stays put when scrollback is trimmed or rewrapped.
 
 - While not stuck to the bottom, `DomBlockRenderer` anchors the viewport to
