@@ -24,7 +24,6 @@ impl<A: Copy + Eq> AttributeMap<A> {
         }
     }
 
-    #[allow(dead_code)]
     pub fn prepend_runs(&mut self, runs: &[(u64, A)]) {
         for (end, value) in runs {
             self.ends.insert(*end, *value);

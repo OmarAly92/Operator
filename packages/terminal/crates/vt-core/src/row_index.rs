@@ -109,7 +109,6 @@ impl RowIndex {
         &self.completed
     }
 
-    #[allow(dead_code)]
     pub fn prepend(&mut self, rows: Vec<RowRange>) {
         let count = rows.len();
         for row in rows.into_iter().rev() {
@@ -142,32 +141,66 @@ impl RowIndex {
         map
     }
 
-    // Marks only the part of [start, end) that no run already covers — the
-    // band between the last existing run's end and `end`. Returning early on
-    // any overlap would leave the rows that were hot at the PREVIOUS width,
-    // and have since been pushed out of the hot region by new output, cut at
-    // that previous width forever.
+    // Marks EVERY part of [start, end) that no run already covers, not just
+    // the band past the last run. A touch splits a run into a head and a tail
+    // and leaves the rewrapped middle hot between them; that middle is cut at
+    // the width the touch used, so a later width change has to re-mark it.
+    // Extending from the last run alone reaches the tail and skips the middle,
+    // which then stays cut at that intermediate width forever.
     fn mark_stale(&mut self, start: usize, end: usize, cols: usize) {
-        let covered_end = self
-            .stale
-            .last()
-            .map_or(start, |run| run.start + run.len)
-            .max(start);
-        if end <= covered_end {
+        if end <= start {
             return;
         }
-        let len = end - covered_end;
-        if let Some(last) = self.stale.last_mut() {
-            if last.start + last.len == covered_end && last.cols == cols {
-                last.len += len;
-                return;
+        let mut gaps: Vec<(usize, usize)> = Vec::new();
+        let mut cursor = start;
+        for run in self.stale.iter() {
+            if run.start >= end {
+                break;
+            }
+            let run_end = run.start + run.len;
+            if run_end <= cursor {
+                continue;
+            }
+            if run.start > cursor {
+                gaps.push((cursor, run.start));
+            }
+            cursor = run_end;
+            if cursor >= end {
+                break;
             }
         }
-        self.stale.push(StaleRun {
-            start: covered_end,
-            len,
-            cols,
-        });
+        if cursor < end {
+            gaps.push((cursor, end));
+        }
+        for (lo, hi) in gaps {
+            self.insert_stale(lo, hi - lo, cols);
+        }
+    }
+
+    fn insert_stale(&mut self, start: usize, len: usize, cols: usize) {
+        if len == 0 {
+            return;
+        }
+        let mut start = start;
+        let mut len = len;
+        let mut at = self.stale.partition_point(|run| run.start < start);
+        if at > 0 {
+            let prev = &self.stale[at - 1];
+            if prev.cols == cols && prev.start + prev.len == start {
+                at -= 1;
+                start = prev.start;
+                len += prev.len;
+                self.stale.remove(at);
+            }
+        }
+        if at < self.stale.len() {
+            let next = &self.stale[at];
+            if next.cols == cols && start + len == next.start {
+                len += next.len;
+                self.stale.remove(at);
+            }
+        }
+        self.stale.insert(at, StaleRun { start, len, cols });
     }
 
     // The nearest row at or below `row` that starts a logical line. A cut

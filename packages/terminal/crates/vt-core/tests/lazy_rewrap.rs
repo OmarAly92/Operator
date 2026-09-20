@@ -157,3 +157,33 @@ fn a_lazy_pass_reports_the_row_the_export_must_re_read_from() {
         "a lazy pass produced no remap"
     );
 }
+
+fn fill_fixed(core: &mut TerminalCore, rows: usize) {
+    for index in 0..rows {
+        core.feed(format!("{}{index:05}\r\n", "x".repeat(50)).as_bytes());
+    }
+}
+
+#[test]
+fn a_band_left_hot_by_a_touch_is_re_marked_by_the_next_width_change() {
+    let mut core = TerminalCore::new(60, 200_000).expect("core");
+    fill_fixed(&mut core, 3_000);
+    core.resize(30, 24);
+    assert!(core.stale_row_count() > 0);
+
+    core.touch_rows(400..450);
+    assert!(
+        row_text(&core, 400).chars().count() <= 30,
+        "the touched band was not rewrapped to 30: {:?}",
+        row_text(&core, 400)
+    );
+
+    core.resize(15, 24);
+    core.touch_rows(400..500);
+    assert!(
+        row_text(&core, 400).chars().count() <= 15,
+        "a band that was hot at 30 and cold at 15 stayed cut at 30: {:?}",
+        row_text(&core, 400)
+    );
+    assert_eq!(core.verify_integrity(), Ok(()));
+}

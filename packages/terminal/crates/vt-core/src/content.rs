@@ -39,7 +39,6 @@ impl Content {
         }
     }
 
-    #[allow(dead_code)]
     pub fn prepend(&mut self, bytes: &[u8]) -> u64 {
         if bytes.is_empty() {
             return self.start_offset();
