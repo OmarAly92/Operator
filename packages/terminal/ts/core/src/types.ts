@@ -68,6 +68,7 @@ export type TerminalTheme = Readonly<{
 
 export type TerminalSnapshot = Readonly<{
 	generation: number;
+	firstStableRow: number;
 	content: Uint8Array;
 	rows: Uint32Array;
 	rowIndents: Uint16Array;

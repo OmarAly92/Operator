@@ -9,6 +9,9 @@ Rows have stable ids.
   when older rows are trimmed. `BlockGrid` stores stable rows and is no longer
   renumbered by a trim; the snapshot exports `first_stable_row`; find hits
   report stable rows.
+- `data-terminal-row` carries the stable row; selection points, find hits and
+  `paintedRowOrigin` address rows by stable id, so a selection no longer drifts
+  when scrollback is trimmed above it.
 
 Scrollback is capped by bytes as well as rows.
 

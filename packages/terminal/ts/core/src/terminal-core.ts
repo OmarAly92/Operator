@@ -242,6 +242,7 @@ export class TerminalCore {
 			: null;
 		return {
 			generation: this.inner.generation(),
+			firstStableRow: this.inner.first_stable_row_hi() * 2 ** 32 + this.inner.first_stable_row_lo(),
 			content: u8View(memory, contentPtr, contentLen),
 			rows: u32View(memory, rowsPtr, rowsLen),
 			rowIndents: u16View(memory, rowIndentsPtr, rowIndentsLen),

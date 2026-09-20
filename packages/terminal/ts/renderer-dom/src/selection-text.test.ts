@@ -8,6 +8,7 @@ const blocks: Record<string, string[]> = {
 };
 const rows: TextRows = {
 	blockIds: ["a", "b"],
+	firstRow: () => 0,
 	rowCount: (id) => blocks[id]!.length,
 	rowText: (id, row) => blocks[id]![row] ?? "",
 };
@@ -27,5 +28,9 @@ describe("selectedText", () => {
 	});
 	it("cuts a wide character by cell", () => {
 		expect(selectedText({ start: { blockId: "a", row: 2, cell: 6 }, end: { blockId: "a", row: 2, cell: 8 } }, rows)).toBe("漢");
+	});
+	it("walks whole rows from the block's first stable row", () => {
+		const shifted: TextRows = { blockIds: ["a"], firstRow: () => 100, rowCount: () => 3, rowText: (_id, row) => blocks.a![row - 100] ?? "" };
+		expect(selectedText({ start: { blockId: "a", row: 100, cell: 6 }, end: { blockId: "a", row: 102, cell: 5 } }, shifted)).toBe("beta\n\ngamma");
 	});
 });

@@ -30,18 +30,24 @@ export function snapshotTextRows(snapshot: TerminalSnapshot, filter: BlockFilter
 	if (alt) {
 		return {
 			blockIds: [ALT_BLOCK_ID],
+			firstRow: () => 0,
 			rowCount: () => alt.rows,
 			rowText: (_id, row) => rowString(alt.content, alt.rowRanges, row),
 		};
 	}
 	const blocks = applyFilter(decodeBlocks(snapshot), filter).map((block) => trimTrailingBlankRows(snapshot, block));
 	const byId = new Map(blocks.map((block) => [block.id, block] as const));
+	const base = snapshot.firstStableRow;
 	return {
 		blockIds: blocks.map((block) => block.id),
+		firstRow: (id) => base + (byId.get(id)?.firstRow ?? 0),
 		rowCount: (id) => byId.get(id)?.rowCount ?? 0,
 		rowText: (id, row) => {
 			const block = byId.get(id);
-			return block ? rowString(snapshot.content, snapshot.rows, block.firstRow + row) : "";
+			if (!block) return "";
+			const flat = row - base;
+			if (flat < block.firstRow || flat >= block.firstRow + block.rowCount) return "";
+			return rowString(snapshot.content, snapshot.rows, flat);
 		},
 	};
 }
@@ -50,25 +56,27 @@ export function renderedRows(
 	altRoot: HTMLElement | null,
 	filteredBlocks: readonly BlockView[],
 	blockElements: ReadonlyMap<BlockId, HTMLElement>,
+	firstStableRow: number,
 ): RenderedRow[] {
 	const out: RenderedRow[] = [];
-	const push = (blockId: string, rowCount: number, element: HTMLElement) => {
+	const push = (blockId: string, firstRow: number, rowCount: number, element: HTMLElement) => {
 		const rect = element.getBoundingClientRect();
 		out.push({
 			element,
-			box: { blockId, row: Number(element.dataset.terminalRow), rowCount, left: rect.left, top: rect.top, bottom: rect.bottom, width: rect.width },
+			box: { blockId, row: Number(element.dataset.terminalRow), firstRow, rowCount, left: rect.left, top: rect.top, bottom: rect.bottom, width: rect.width },
 		});
 	};
 	const alt = altRoot && !altRoot.hidden ? altRoot : null;
 	if (alt) {
 		const rows = alt.querySelectorAll<HTMLElement>("[data-terminal-row]");
-		for (const row of rows) push(ALT_BLOCK_ID, rows.length, row);
+		for (const row of rows) push(ALT_BLOCK_ID, 0, rows.length, row);
 		return out;
 	}
-	const rowCounts = new Map(filteredBlocks.map((block) => [block.id, block.rowCount] as const));
+	const byId = new Map(filteredBlocks.map((block) => [block.id, block] as const));
 	for (const [id, section] of blockElements) {
+		const block = byId.get(id);
 		for (const row of section.querySelectorAll<HTMLElement>("[data-terminal-row]")) {
-			push(id, rowCounts.get(id) ?? 0, row);
+			push(id, firstStableRow + (block?.firstRow ?? 0), block?.rowCount ?? 0, row);
 		}
 	}
 	return out;

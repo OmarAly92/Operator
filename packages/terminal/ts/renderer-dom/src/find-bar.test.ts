@@ -164,11 +164,46 @@ describe("find-bar", () => {
 			'[data-terminal-block-id="0:1"]',
 		);
 		const unmatchedRow = blockOne?.querySelector<HTMLElement>(
-			'[data-terminal-row="0"]',
+			'[data-terminal-row="1"]',
 		);
 		expect(unmatchedRow?.classList.contains("terminal-find-row-match")).toBe(
 			false,
 		);
+
+		bar.dispose();
+	});
+
+	it("labels a match from a non-zero stable base after a trim", async () => {
+		const { core, host, renderer } = makeMountedCore(3);
+		unmount = () => renderer.dispose();
+		expect(core.snapshot().firstStableRow).toBe(3);
+
+		const bar = createFindBar({
+			core,
+			renderer: renderer as unknown as BlockRenderer,
+			host: makeBarHost(renderer),
+			strings: defaultStrings,
+		});
+		bar.mount(host);
+		bar.open();
+
+		const input = host.querySelector<HTMLInputElement>(
+			'input[data-terminal-find-input]',
+		);
+		expect(input).not.toBeNull();
+		input!.focus();
+		input!.value = "line 4";
+		input!.dispatchEvent(new Event("input", { bubbles: true }));
+
+		await flushFrames(8);
+
+		const blockFour = host.querySelector<HTMLElement>(
+			'[data-terminal-block-id="0:4"]',
+		);
+		const matchedRow = blockFour?.querySelector<HTMLElement>(
+			'[data-terminal-row="4"]',
+		);
+		expect(matchedRow?.classList.contains("terminal-find-row-match")).toBe(true);
 
 		bar.dispose();
 	});

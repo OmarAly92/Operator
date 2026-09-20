@@ -4,6 +4,7 @@ import { compareBoundary, type BlockOrder, type SelectionPoint, type SelectionRa
 export type RowBox = Readonly<{
 	blockId: string;
 	row: number;
+	firstRow: number;
 	rowCount: number;
 	left: number;
 	top: number;
@@ -35,7 +36,8 @@ export function pointAtFromRows(
 	const anchor = nearestRow(rows, y);
 	if (!anchor || cellWidth <= 0 || cellHeight <= 0) return null;
 	const rowDelta = Math.floor((y - anchor.top) / cellHeight);
-	const row = Math.min(Math.max(anchor.row + rowDelta, 0), Math.max(anchor.rowCount - 1, 0));
+	const last = anchor.firstRow + Math.max(anchor.rowCount - 1, 0);
+	const row = Math.min(Math.max(anchor.row + rowDelta, anchor.firstRow), last);
 	const offset = Math.max(x - anchor.left, 0);
 	const column = Math.floor(offset / cellWidth);
 	const side = offset - column * cellWidth > cellWidth / 2 ? "right" : "left";

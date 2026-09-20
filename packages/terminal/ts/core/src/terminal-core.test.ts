@@ -49,6 +49,18 @@ describe("TerminalCore", () => {
 		expect(core.snapshot().mouseTrackingLevel).toBe(0b010);
 		expect(core.snapshot().mouseTracking).toBe(true);
 	});
+
+	it("exports the first stable row and keeps it across a trim", () => {
+		const core = createTerminalCore({ columns: 40, limits: { rows: 6, bytes: 0xffff_ffff }, rows: 2 });
+		const encoder = new TextEncoder();
+		for (const line of ["1", "2", "3", "4"]) core.feed(encoder.encode(`${line}\r\n`));
+		expect(core.snapshot().firstStableRow).toBe(0);
+		for (const line of ["5", "6", "7"]) core.feed(encoder.encode(`${line}\r\n`));
+		const snapshot = core.snapshot();
+		expect(snapshot.firstStableRow).toBe(1);
+		const flat = 2 - snapshot.firstStableRow;
+		expect(new TextDecoder().decode(snapshot.content.subarray(snapshot.rows[flat * 2]!, snapshot.rows[flat * 2 + 1]!))).toBe("3");
+	});
 });
 
 describe("TerminalCore.onChange failure isolation", () => {

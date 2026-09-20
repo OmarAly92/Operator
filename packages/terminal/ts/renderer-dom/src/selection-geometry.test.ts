@@ -4,7 +4,7 @@ import { ROW_END } from "./selection-model";
 
 const cw = 8;
 const ch = 16;
-const box = (blockId: string, row: number, top: number, rowCount = 4): RowBox => ({ blockId, row, rowCount, left: 100, top, bottom: top + ch, width: 400 });
+const box = (blockId: string, row: number, top: number, rowCount = 4, firstRow = 0): RowBox => ({ blockId, row, firstRow, rowCount, left: 100, top, bottom: top + ch, width: 400 });
 const rows = [box("a", 0, 0), box("a", 1, 16), box("b", 0, 60), box("b", 1, 76)];
 const order = (id: string) => (id === "a" ? 0 : 1);
 
@@ -24,6 +24,11 @@ describe("pointAtFromRows", () => {
 	});
 	it("gives nothing with no rows", () => {
 		expect(pointAtFromRows([], 1, 1, cw, ch)).toBeNull();
+	});
+	it("clamps to the block's stable rows", () => {
+		const rows = [box("a", 10, 0, 4, 10)];
+		expect(pointAtFromRows(rows, 100, 1000, cw, ch)!.row).toBe(13);
+		expect(pointAtFromRows(rows, 100, -1000, cw, ch)!.row).toBe(10);
 	});
 });
 

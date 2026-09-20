@@ -7,6 +7,7 @@ export function paintedRowOrigin(
 	elements: ReadonlyMap<BlockId, HTMLElement>,
 	row: number,
 	cellHeight: number,
+	firstStableRow: number,
 ): RowOrigin | null {
 	if (blocks.length === 0 || cellHeight <= 0) return null;
 	const block =
@@ -14,7 +15,7 @@ export function paintedRowOrigin(
 		blocks[blocks.length - 1]!;
 	const section = elements.get(block.id);
 	if (!section) return null;
-	const target = row - block.firstRow;
+	const target = firstStableRow + row;
 	let anchor: HTMLElement | null = null;
 	let anchorLabel = 0;
 	let anchorDistance = Number.POSITIVE_INFINITY;
