@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- vt-core: scrollback content is allocated from a base offset so a reopened pane can prepend history rows below the rows it already holds; `Parser::adopt_origin` puts a fresh core into the replaying host's stable row space and `Parser::apply_history_chunk` prepends rows, styles and blocks, moving `trimmed_total`/`BlockGrid::origin` together.
+
 Rows are patched, not rebuilt.
 
 - `populateBlock` keeps row nodes keyed by stable row on the block element,

@@ -1,6 +1,7 @@
 use std::collections::VecDeque;
 
 const CHUNK_SIZE: usize = 4096;
+pub(crate) const CONTENT_BASE: u64 = 1 << 48;
 
 #[derive(Clone)]
 pub(crate) struct Chunk {
@@ -23,11 +24,32 @@ impl Clone for Content {
 }
 
 impl Content {
+    #[cfg(test)]
     pub fn new() -> Self {
         Self {
             chunks: VecDeque::new(),
             next_offset: 0,
         }
+    }
+
+    pub fn with_base(base: u64) -> Self {
+        Self {
+            chunks: VecDeque::new(),
+            next_offset: base,
+        }
+    }
+
+    #[allow(dead_code)]
+    pub fn prepend(&mut self, bytes: &[u8]) -> u64 {
+        if bytes.is_empty() {
+            return self.start_offset();
+        }
+        let start = self.start_offset() - bytes.len() as u64;
+        self.chunks.push_front(Chunk {
+            start,
+            bytes: bytes.to_vec(),
+        });
+        start
     }
 
     pub fn end_offset(&self) -> u64 {
@@ -142,5 +164,35 @@ mod tests {
         }
         c.push_char("界");
         assert_eq!(c.end_offset(), 4095 + 3);
+    }
+
+    #[test]
+    fn prepend_allocates_below_the_current_start() {
+        let mut c = Content::with_base(1024);
+        c.push_char("b");
+        let start = c.prepend(b"aa");
+        assert_eq!(start, 1022);
+        assert_eq!(c.start_offset(), 1022);
+        assert_eq!(c.copy_range(1022, 1025), b"aab");
+    }
+
+    #[test]
+    fn two_prepends_stay_offset_ordered() {
+        let mut c = Content::with_base(1024);
+        c.push_char("c");
+        let second = c.prepend(b"b");
+        let first = c.prepend(b"a");
+        assert!(first < second);
+        assert_eq!(c.copy_range(first, c.end_offset()), b"abc");
+    }
+
+    #[test]
+    fn drop_before_still_releases_only_whole_chunks_after_a_prepend() {
+        let mut c = Content::with_base(1024);
+        c.push_char("z");
+        let start = c.prepend(b"yy");
+        c.drop_before(start + 2);
+        assert_eq!(c.start_offset(), 1024);
+        assert_eq!(c.copy_range(1024, 1025), b"z");
     }
 }

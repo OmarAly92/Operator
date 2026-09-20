@@ -7,11 +7,27 @@ pub(crate) struct AttributeMap<A: Copy> {
 }
 
 impl<A: Copy + Eq> AttributeMap<A> {
+    #[cfg(test)]
     pub fn new(initial: A) -> Self {
         Self {
             ends: BTreeMap::new(),
             tail: initial,
             run_start: 0,
+        }
+    }
+
+    pub fn with_base(initial: A, base: u64) -> Self {
+        Self {
+            ends: BTreeMap::new(),
+            tail: initial,
+            run_start: base,
+        }
+    }
+
+    #[allow(dead_code)]
+    pub fn prepend_runs(&mut self, runs: &[(u64, A)]) {
+        for (end, value) in runs {
+            self.ends.insert(*end, *value);
         }
     }
 
@@ -144,5 +160,15 @@ mod tests {
         assert_eq!(m.tail(), 1);
         m.set_from(5, 0);
         assert_eq!(runs(&m, 0, 9), vec![(5, 1), (9, 0)]);
+    }
+
+    #[test]
+    fn prepended_runs_read_back_in_their_own_region() {
+        let mut map = AttributeMap::with_base(0u8, 100);
+        map.set_from(100, 7);
+        map.set_from(102, 9);
+        map.prepend_runs(&[(98, 3u8), (100, 4u8)]);
+        assert_eq!(map.runs(96, 100), vec![(2, 3u8), (4, 4u8)]);
+        assert_eq!(map.runs(100, 102), vec![(2, 7u8)]);
     }
 }

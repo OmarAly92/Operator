@@ -97,6 +97,13 @@ impl RowIndex {
         &self.completed
     }
 
+    #[allow(dead_code)]
+    pub fn prepend(&mut self, rows: Vec<RowRange>) {
+        for row in rows.into_iter().rev() {
+            self.completed.push_front(row);
+        }
+    }
+
     pub fn rewrap(&mut self, content: &Content, cols: usize) -> Vec<usize> {
         let old = std::mem::take(&mut self.completed);
         let mut map = Vec::with_capacity(old.len() + 1);

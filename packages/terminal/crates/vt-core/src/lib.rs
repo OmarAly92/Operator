@@ -37,6 +37,7 @@ pub use grid::ExportedRow;
 pub use integrity::IntegrityError;
 pub use limits::{Limits, MemoryStats};
 pub use line_editor::LineEditorState;
+pub use parser::{HistoryBlock, HistoryRow};
 pub use style::{CellStyle, StyleCode};
 
 use std::ops::Range;
@@ -335,6 +336,12 @@ impl TerminalCore {
 
     pub fn first_stable_row(&self) -> u64 {
         self.parser.first_stable_row()
+    }
+
+    pub fn adopt_origin(&mut self, origin: u64) -> bool {
+        let adopted = self.parser.adopt_origin(origin);
+        self.debug_check();
+        adopted
     }
 
     pub fn stable_row(&self, flat: usize) -> u64 {

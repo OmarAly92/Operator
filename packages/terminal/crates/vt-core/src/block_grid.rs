@@ -27,6 +27,10 @@ pub struct BlockGrid {
     /// Stable row of flat row 0: the number of rows trimmed off the front
     /// so far (wezterm/term/src/screen.rs:734).
     origin: usize,
+    /// Flat rows a `retreat_origin` could not subtract from `origin` because
+    /// it was already at zero. Only `flat_extent` reads it, and only a
+    /// `retreat_origin` call past zero ever makes it nonzero.
+    retreat_slack: usize,
 }
 
 impl BlockGrid {
@@ -39,6 +43,7 @@ impl BlockGrid {
             pending_extension: false,
             next_row: 0,
             origin: 0,
+            retreat_slack: 0,
         }
     }
 
@@ -61,6 +66,23 @@ impl BlockGrid {
         self.next_row = self.next_row.max(self.origin);
     }
 
+    pub fn retreat_origin(&mut self, prepended: usize) {
+        let underflow = prepended.saturating_sub(self.origin);
+        self.origin = self.origin.saturating_sub(prepended);
+        self.retreat_slack += underflow;
+    }
+
+    pub fn prepend_blocks(&mut self, blocks: Vec<Block>) {
+        if blocks.is_empty() {
+            return;
+        }
+        let existing: Vec<Block> = self.closed.iter().cloned().collect();
+        self.closed = BlockTree::new();
+        for block in blocks.into_iter().chain(existing) {
+            self.closed.push(block);
+        }
+    }
+
     /// The block's `(first_row, row_count)` in flat rows, clamped to the
     /// origin, so a block that predates a trim reports only its surviving
     /// rows (wezterm/term/src/screen.rs:523-535 `stable_row_to_phys`). An
@@ -72,8 +94,8 @@ impl BlockGrid {
         } else {
             block.first_row + block.row_count
         };
-        let first = block.first_row.max(self.origin) - self.origin;
-        let end = stable_end.max(self.origin) - self.origin;
+        let first = block.first_row.max(self.origin) - self.origin + self.retreat_slack;
+        let end = stable_end.max(self.origin) - self.origin + self.retreat_slack;
         (first, end - first)
     }
 
@@ -156,6 +178,10 @@ impl BlockGrid {
 
     pub fn next_id(&self) -> BlockId {
         self.next_id
+    }
+
+    pub fn reserve_id(&mut self) {
+        self.next_id += 1;
     }
 
     pub fn push_synthetic(
@@ -569,5 +595,35 @@ mod tests {
         let mut grid = BlockGrid::new();
         grid.set_block_bookmarked(99, true);
         assert!(!grid.block_bookmarked(99));
+    }
+
+    #[test]
+    fn retreat_origin_keeps_existing_blocks_at_their_stable_rows() {
+        let mut grid = BlockGrid::new();
+        grid.sync_next_row(4);
+        grid.push_synthetic(0, 4, BlockState::Finished, Some(0));
+        let stable_before = grid.get(0).expect("block").first_row;
+        grid.retreat_origin(3);
+        assert_eq!(grid.origin(), 0);
+        assert_eq!(grid.get(0).expect("block").first_row, stable_before);
+        assert_eq!(grid.flat_extent(grid.get(0).expect("block")), (3, 4));
+    }
+
+    #[test]
+    fn prepended_blocks_sort_before_the_existing_ones() {
+        let mut grid = BlockGrid::new();
+        grid.sync_next_row(2);
+        grid.push_synthetic(0, 2, BlockState::Finished, Some(0));
+        grid.retreat_origin(2);
+        grid.prepend_blocks(vec![Block {
+            id: 900,
+            first_row: 0,
+            row_count: 2,
+            state: BlockState::Finished,
+            source: BlockSource::Synthetic,
+            meta: BlockMeta::default(),
+        }]);
+        let ids: Vec<_> = grid.blocks().map(|block| block.id).collect();
+        assert_eq!(ids, vec![900, 0]);
     }
 }
