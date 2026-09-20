@@ -80,7 +80,9 @@ branches in `Sidebar`, `ShellTopbar`, `routes/_shell.tsx`, `stores/ui-store.ts`,
 `CommandPalette`, `KeyboardShortcutsDialog`, `SessionsBoard`, `BoardEmptyStates`,
 `DashboardSubhead`, `CreateProjectAgentSheet`, `ProjectSettingsForm`, plus
 `isOrchestratorSession`, `workerSessions`, `newestActiveOrchestrator`,
-`orchestratorHealth`, `hasConfiguredOrchestratorAgent` (`types/workspace.ts`).
+`orchestratorHealth`, `hasConfiguredOrchestratorAgent` (`types/workspace.ts`),
+the `kind` and `orchestratorAgent` mapping in `hooks/useWorkspaceQuery.ts:73,94`,
+and the synthetic orchestrator session in `e2e/support/fake-bridge.ts:259-268`.
 
 **Mobile**
 
@@ -166,27 +168,46 @@ Migration **0116**, the first free number (`0115_block_events_agent.sql` is the
 highest today).
 
 `sessions.kind` carries `CHECK (kind IN ('worker','orchestrator'))`
-(`migrations/0001_init.sql:26-27`). **SQLite refuses `ALTER TABLE ... DROP COLUMN`
-on a column named in a CHECK constraint**, so this migration is a table rebuild:
-create `sessions_new` without `kind`/`spawned_by`, copy, drop, rename.
+(`migrations/0001_init.sql:26-27`), and SQLite refuses `ALTER TABLE ... DROP
+COLUMN` on a column named in a CHECK constraint.
+
+**No table rebuild is needed.** The repo already has a sanctioned pattern for
+editing a CHECK constraint in place — `PRAGMA writable_schema = ON` plus
+`UPDATE sqlite_master SET sql = replace(...)`, used for the harness constraint in
+`0053`, `0054`, `0082` and `0083`. Dropping only the CHECK clause leaves a plain
+`kind TEXT NOT NULL DEFAULT 'worker'` column that a real `ALTER TABLE ... DROP
+COLUMN` then removes, rewriting rows properly.
+
+This was verified safe: **no trigger or index on `sessions` references `kind` or
+`spawned_by`.** The `OLD.kind IS NOT NEW.kind` at `0108_board_cdc.sql:26` belongs
+to `projects_cdc_update` and refers to `projects.kind` — the project kind, not the
+session kind. `spawned_by` was added without a CHECK
+(`0107_sessions_spawned_by.sql:2`), so it drops directly.
 
 ```sql
+-- +goose NO TRANSACTION
 -- +goose Up
 DELETE FROM sessions WHERE kind = 'orchestrator';
--- rebuild sessions without kind/spawned_by, then RECREATE every trigger
+PRAGMA writable_schema = ON;
+UPDATE sqlite_master
+SET sql = replace(sql, 'CHECK (kind IN (''worker'', ''orchestrator''))', '')
+WHERE type = 'table' AND name = 'sessions';
+PRAGMA writable_schema = RESET;
+ALTER TABLE sessions DROP COLUMN kind;
+ALTER TABLE sessions DROP COLUMN spawned_by;
 DROP TABLE orchestrator_inbox;
 ```
 
-> **Hazard — this is the one way this change can break mobile chat and both
-> Kanbans.** Dropping a table drops every trigger attached to it. Three live on
-> `sessions`: `sessions_cdc_insert`, `sessions_cdc_update`, `sessions_cdc_delete`.
-> `sessions_cdc_update` is what writes `session_updated` rows into `change_log`
-> carrying `activity` and `isTerminated` (`db.go:739-767`). Lose it and sessions
-> freeze in "Working" forever in both UIs — never "Needs you", never terminated —
-> while everything else looks healthy. There is **no safety net**:
-> `reconcileSchema` (`db.go:780`) inspects `pragma_table_info` for missing
-> *columns* and will never notice a missing *trigger*. The rebuild must recreate
-> all three verbatim, and §9's first test exists solely to catch this.
+> **Why this matters.** The obvious alternative — rebuilding the table — would
+> drop every trigger attached to it, including `sessions_cdc_update`, which writes
+> the `session_updated` rows carrying `activity` and `isTerminated` into
+> `change_log` (`db.go:739-767`). That is the one way this change could freeze
+> both Kanban boards and mobile liveness: sessions stuck in "Working" forever,
+> never "Needs you", never terminated, with everything else looking healthy. There
+> is no safety net — `reconcileSchema` (`db.go:780`) inspects `pragma_table_info`
+> for missing *columns* and never notices a missing *trigger*. The in-place
+> approach above never drops a trigger, and §9's first test asserts all three
+> still fire after migrating.
 
 Then thread the removal through `queries/sessions.sql`, regenerate `gen/` with
 sqlc (`backend/sqlc.yaml`), and drop the mapping in `session_store.go` both ways.
@@ -206,7 +227,9 @@ has no way to name its harness.
 orchestrator header strip (the 44 references at `SessionsBoard.tsx:22-56,127-161,240-256`);
 none of it participates in column assignment. `ProjectSettingsForm` drops the
 orchestrator agent/model/mode fields and the agent-rules input, keeping one agent
-selector. Remove the orchestrator i18n keys from all five locales. The Kanban keeps
+selector. Remove the orchestrator i18n keys from all eight locales
+(`de, en, es, fr, ja, ko, pt-BR, zh-CN`); `i18n/renderer-coverage.test.ts`
+enforces key parity across them. The Kanban keeps
 its plan lanes (D5).
 
 **Mobile.** Delete the orchestrator feature and tests; bottom nav 5 → 4 tabs with
@@ -311,3 +334,8 @@ through the CDC triggers of §7.
 - Any per-project default for harness selection beyond replacing the removed pair.
 - Re-pointing agents at the Browser panel by another mechanism (§10.1).
 - Backfilling or migrating deleted orchestrator sessions.
+
+Project documentation (`AGENTS.md`, `CLAUDE.md`, `README.md`, `docs/architecture.md`,
+`docs/STATUS.md`, `docs/mobile-parity-ledger.md` and the rest) is **in** scope: a
+breaking-change budget buys complete removals, not stale prose. The implementation
+plan carries it as its final task.
