@@ -1569,50 +1569,116 @@ EOF
 
 # Phase 10 — Documentation
 
-### Task 18: Remove orchestrator references from project documentation
+### Task 18: Sweep every Markdown file
 
 **Files:**
-- Modify: `AGENTS.md`, `CLAUDE.md`, `README.md`, `DESIGN.md`, `TERMINAL.md`
-- Modify: `docs/architecture.md`, `docs/STATUS.md`, `docs/mobile-parity-ledger.md`, `docs/posthog-cost-controls.md`, `docs/opr-start-bootstrapper-and-npm-deprecation.md`
+- Rewrite: `AGENTS.md`, `CLAUDE.md`, `README.md`, `DESIGN.md`, `TERMINAL.md`
+- Rewrite: `docs/architecture.md`, `docs/backend-code-structure.md`, `docs/cli/README.md`, `docs/telemetry.md`, `docs/STATUS.md`, `docs/posthog-cost-controls.md`, `docs/opr-start-bootstrapper-and-npm-deprecation.md`
+- Rewrite: `docs/mobile-parity-ledger.md`, `packages/mobile/README.md`, `packages/mobile/docs/design/README.md`, `packages/mobile/docs/design/{pull_requests/pull_requests,session_detail/session_detail,settings/settings}.md`
+- Rewrite: `backend/internal/skillassets/using-opr/{SKILL,references}.md`, `commands/{project,session}.md`
+- Delete: `packages/mobile/docs/design/orchestrator/` (the `.md` and both `.png` files)
+- Delete: `translations/README.{de,es,fr,ja,ko,pt-BR,zh-CN}.md`
+- Leave as historical: `docs/plans/session-lifecycle-persistence.md`, `docs/todo/operator-approach-3-direct-spawn-spec.md`, `docs/terminal/2026-09-19-terminal-reference-survey.md`, everything under `docs/superpowers/`
 
 **Interfaces:**
 - Consumes: every prior task.
-- Produces: documentation with no reference to a subsystem that no longer exists.
+- Produces: no Markdown file outside the historical set describes a subsystem that no longer exists, and the repository ships English documentation only.
 
 Dangling references are the failure mode this project explicitly rejects: a breaking-change budget buys *complete* removals, not stale prose.
 
-- [ ] **Step 1: Find every reference**
+- [ ] **Step 1: Get the authoritative list**
 
 ```bash
-grep -rn "rchestrat" *.md docs/*.md | grep -v "\.worktrees/"
+git ls-files '*.md' | grep -v "^docs/superpowers/" | xargs grep -ln "rchestrat"
 ```
 
-- [ ] **Step 2: Edit each file**
+Expected at the start of this task: the 28 files enumerated above. If the list differs, work from the live output, not from this plan — earlier tasks may have already cleared some.
 
-Rewrite, do not merely delete lines — a sentence that read "workers are spawned by an orchestrator" must become an accurate statement about how sessions are created now (from the New Task dialog, the tickets/plans subsystem, auto-review, or tracker intake). Specifically:
+- [ ] **Step 2: Rewrite the live documentation**
 
-- `AGENTS.md`: remove the orchestrator from the repository-layout and session-model sections; update any `opr` command list that names `orchestrator`, `board`, `inbox`, `send` or `spawn`.
+Rewrite, do not merely delete lines. A sentence that read "workers are spawned by an orchestrator" must become an accurate statement of how sessions are created now: from the New Task dialog, the tickets/plans subsystem, auto-review, or tracker intake. Specifically:
+
+- `AGENTS.md`: drop the orchestrator from the repository-layout and session-model sections; update any `opr` command list naming `orchestrator`, `board`, `inbox`, `send` or `spawn`.
 - `CLAUDE.md`: remove orchestrator guidance.
-- `README.md` and `docs/architecture.md`: update the session model to a single session kind.
+- `README.md` and `docs/architecture.md`: describe a single session kind.
+- `docs/backend-code-structure.md`: remove the orchestrator packages; reflect the deleted `adapters/container/dockerreap`.
+- `docs/cli/README.md`: remove the five deleted commands.
+- `docs/telemetry.md` and `docs/posthog-cost-controls.md`: remove the deleted CLI command events.
 - `docs/STATUS.md`: record the removal.
-- `docs/mobile-parity-ledger.md`: mark the orchestrator feature's rows as removed rather than ported — that file is the answer to "was this ever ported?", so it must say the feature was deleted, not go silent.
+- `backend/internal/skillassets/using-opr/{SKILL,references}.md` and `commands/{project,session}.md`: remove every mention of the deleted commands and of orchestrator sessions.
+- `packages/mobile/README.md` and `docs/design/README.md`: drop the orchestrator screen from the feature and screen lists; renumber the tab list to four.
+- `packages/mobile/docs/design/{pull_requests,session_detail,settings}/*.md`: remove orchestrator cross-references.
 
-Leave historical documents that describe past milestones alone where they are explicitly historical; the ledger entry above is the pattern — state the outcome rather than erasing the record.
+- [ ] **Step 3: Update the parity ledger honestly**
 
-- [ ] **Step 3: Verify nothing live still references it**
+`docs/mobile-parity-ledger.md` is the answer to "was this ever ported?". Mark the orchestrator rows **removed**, with this change as the reason. Do not delete the rows and do not go silent — a missing row reads as "never investigated".
+
+- [ ] **Step 4: Delete the orchestrator design doc and its screenshots**
 
 ```bash
-grep -rn "rchestrat" *.md docs/*.md backend/ frontend/src/ packages/mobile/lib/ packages/mobile/test/   --include="*.md" --include="*.go" --include="*.ts" --include="*.tsx" --include="*.dart"   | grep -v "docs/superpowers/" | grep -v "\.worktrees/"
+git rm -r "packages/mobile/docs/design/orchestrator"
 ```
 
-Expected: no hits outside `docs/superpowers/` (specs and plans are historical records and keep their text).
+Remove the entry that links to it from `packages/mobile/docs/design/README.md`.
 
-- [ ] **Step 4: Commit**
+- [ ] **Step 5: Delete the translated READMEs**
+
+The repository ships English only (spec §8.1), and these are locale variants of `README.md`.
+
+```bash
+git rm translations/README.*.md
+rmdir translations 2>/dev/null || true
+```
+
+Then delete the language switcher line at `README.md:12` — the row of links reading `**English** · [简体中文](...) · …`. Leave no orphaned link.
+
+- [ ] **Step 6: Verify nothing live still references any of it**
+
+```bash
+git ls-files '*.md' | grep -v "^docs/superpowers/"   | grep -v "^docs/plans/" | grep -v "^docs/todo/" | grep -v "^docs/terminal/"   | xargs grep -ln "rchestrat"
+```
+
+Expected: no output.
+
+```bash
+grep -rn "translations/" README.md
+git ls-files translations/
+```
+
+Expected: no output from either.
+
+- [ ] **Step 7: Verify the whole repository is clean**
+
+```bash
+grep -rn "rchestrat" backend/ frontend/src/ packages/mobile/lib/ packages/mobile/test/ \
+  --include="*.go" --include="*.ts" --include="*.tsx" --include="*.dart" \
+  | grep -v "\.worktrees/"
+```
+
+Expected: no output. Any hit here is a dangling reference an earlier task missed — fix it in this task rather than leaving it.
+
+- [ ] **Step 8: Run every gate one last time**
+
+```bash
+npm run lint
+npm run frontend:typecheck
+cd frontend && npm test && npm run lint
+cd ../packages/mobile && flutter analyze && flutter test
+```
+
+Expected: all green.
+
+- [ ] **Step 9: Commit**
 
 ```bash
 git add -A
 git commit -m "$(cat <<'EOF'
-docs: remove orchestrator references from project documentation
+docs: sweep every Markdown file for the orchestrator removal
+
+Rewrites the live documentation, deletes the mobile orchestrator design
+doc and screenshots, records the removal in the mobile parity ledger
+rather than going silent, and drops the seven translated READMEs now that
+the app ships English only.
 
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
 EOF

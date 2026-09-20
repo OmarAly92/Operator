@@ -259,8 +259,12 @@ them are removed. Inlining the English strings and dropping i18next entirely is 
 separate change, deliberately not bundled here: a 93-file mechanical rewrite would
 make this branch unreviewable.
 
-`packages/mobile` is unaffected — it already uses inline English with no key
-catalogue.
+The seven translated READMEs under `translations/` go too, along with the language
+switcher row at `README.md:12`. The repository ships English documentation only.
+
+`packages/mobile` is unaffected by the locale change — it already uses inline
+English with no key catalogue — but its orchestrator design doc and screenshots
+(`packages/mobile/docs/design/orchestrator/`) are deleted with the feature.
 
 ## 9. Verification
 
@@ -355,4 +359,6 @@ through the CDC triggers of §7.
 Project documentation (`AGENTS.md`, `CLAUDE.md`, `README.md`, `docs/architecture.md`,
 `docs/STATUS.md`, `docs/mobile-parity-ledger.md` and the rest) is **in** scope: a
 breaking-change budget buys complete removals, not stale prose. The implementation
-plan carries it as its final task.
+plan carries it as its final task, working from `git ls-files '*.md'` rather than a
+fixed list, and leaving `docs/plans/`, `docs/todo/`, `docs/terminal/` and
+`docs/superpowers/` as historical records.
