@@ -75,14 +75,11 @@ impl WasmTerminalCore {
 
     pub fn feed(&mut self, bytes: &[u8], now_ms: f64) -> Result<(), JsError> {
         self.core.feed_at(bytes, clock(now_ms));
-        self.sync()?;
         Ok(())
     }
 
     pub fn tick(&mut self, now_ms: f64) -> Result<bool, JsError> {
-        let flushed = self.core.tick(clock(now_ms));
-        self.sync()?;
-        Ok(flushed)
+        Ok(self.core.tick(clock(now_ms)))
     }
 
     pub fn synchronized_output(&self) -> bool {
@@ -91,7 +88,6 @@ impl WasmTerminalCore {
 
     pub fn resize(&mut self, columns: usize, rows: usize) -> Result<(), JsError> {
         self.core.resize(columns, rows);
-        self.sync()?;
         Ok(())
     }
 
@@ -108,7 +104,6 @@ impl WasmTerminalCore {
     ) -> Result<(), JsError> {
         let id = ((id_hi as u64) << 32) | (id_lo as u64);
         self.core.set_block_bookmarked(id, bookmarked);
-        self.sync()?;
         Ok(())
     }
 

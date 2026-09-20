@@ -1,7 +1,8 @@
 import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { beforeAll, describe, expect, it, vi } from "vitest";
-import { createTerminalCore, initTerminalCore } from "./index";
+import { createTerminalCore, decodeBlocks, initTerminalCore, type RowEvent } from "./index";
+import { WasmTerminalCore } from "../wasm/vt_core.js";
 
 beforeAll(async () => {
 	const bytes = await readFile(fileURLToPath(new URL("../wasm/vt_core_bg.wasm", import.meta.url)));
@@ -60,6 +61,78 @@ describe("TerminalCore", () => {
 		expect(snapshot.firstStableRow).toBe(1);
 		const flat = 2 - snapshot.firstStableRow;
 		expect(new TextDecoder().decode(snapshot.content.subarray(snapshot.rows[flat * 2]!, snapshot.rows[flat * 2 + 1]!))).toBe("3");
+	});
+
+	it("snapshot is cached per generation", () => {
+		const core = createTerminalCore({ columns: 16, scrollback: 100, rows: 1 });
+		core.feed(new TextEncoder().encode("one\r\n"));
+		const first = core.snapshot();
+		expect(core.snapshot()).toBe(first);
+		expect(decodeBlocks(first)).toBe(decodeBlocks(first));
+		core.feed(new TextEncoder().encode("two\r\n"));
+		const second = core.snapshot();
+		expect(second).not.toBe(first);
+		expect(second.generation).not.toBe(first.generation);
+		expect(second.historyRows).toBe(2);
+		expect(second.rows.length / 2).toBeGreaterThan(second.historyRows);
+	});
+
+	it("feed alone does not export", () => {
+		const sync = vi.spyOn(WasmTerminalCore.prototype, "sync");
+		const core = createTerminalCore({ columns: 16, scrollback: 100 });
+		sync.mockClear();
+		core.feed(new TextEncoder().encode("alpha\r\n"));
+		core.feed(new TextEncoder().encode("beta\r\n"));
+		expect(sync).not.toHaveBeenCalled();
+		core.snapshot();
+		expect(sync).toHaveBeenCalledTimes(1);
+		core.snapshot();
+		expect(sync).toHaveBeenCalledTimes(2);
+	});
+
+	it("still notifies onChange per parsed feed without exporting", () => {
+		const core = createTerminalCore({ columns: 16, scrollback: 100 });
+		const generations: number[] = [];
+		core.onChange((generation) => generations.push(generation));
+		core.feed(new TextEncoder().encode("a"));
+		core.feed(new TextEncoder().encode("b"));
+		expect(generations).toHaveLength(2);
+		expect(generations[0]).not.toBe(generations[1]);
+	});
+
+	it("accumulates dirty stable rows until they are taken", () => {
+		const core = createTerminalCore({ columns: 16, scrollback: 100, rows: 3 });
+		core.snapshot();
+		expect(core.takeDirty().full).toBe(true);
+		core.feed(new TextEncoder().encode("a\r\nb"));
+		core.snapshot();
+		core.feed(new TextEncoder().encode("\x1b[1;1HX"));
+		core.snapshot();
+		const dirty = core.takeDirty();
+		expect(dirty.full).toBe(false);
+		expect([...dirty.rows].sort((x, y) => x - y)).toEqual([0, 1]);
+		expect(core.takeDirty()).toEqual({ full: false, rows: new Set() });
+	});
+
+	it("emits row events for a trim and a rewrap", () => {
+		const core = createTerminalCore({ columns: 20, limits: { rows: 6, bytes: 0xffff_ffff }, rows: 2 });
+		const events: RowEvent[] = [];
+		core.onRowEvents((event) => events.push(event));
+		const encoder = new TextEncoder();
+		core.snapshot();
+		for (const line of ["1", "2", "3", "4"]) core.feed(encoder.encode(`${line}\r\n`));
+		core.snapshot();
+		for (const line of ["5", "6", "7"]) core.feed(encoder.encode(`${line}\r\n`));
+		core.snapshot();
+		expect(events).toEqual([{ trimmed: 1, remap: null }]);
+		core.feed(encoder.encode("aaaaaaaaaabbbbbbbbbbcccccccccc\r\n"));
+		core.snapshot();
+		core.resize(40, 2);
+		core.snapshot();
+		const remap = events.at(-1)!.remap!;
+		expect(remap.length).toBeGreaterThan(0);
+		expect(remap.every(([from, to]) => to <= from)).toBe(true);
+		expect(core.snapshot().firstStableRow).toBeGreaterThan(0);
 	});
 });
 

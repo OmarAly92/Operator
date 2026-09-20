@@ -414,6 +414,7 @@ export class DomBlockRenderer implements BlockRenderer {
 			this.paintSelectionFill();
 			if (paintedAt !== undefined) this.lastPaintAt = paintedAt;
 			this.notifyPainted();
+			core.takeDirty();
 			this.rescheduleIfPending(core);
 			return;
 		}
@@ -514,6 +515,7 @@ export class DomBlockRenderer implements BlockRenderer {
 		this.paintSelectionFill();
 		if (paintedAt !== undefined) this.lastPaintAt = paintedAt;
 		this.notifyPainted();
+		core.takeDirty();
 		this.rescheduleIfPending(core);
 	}
 

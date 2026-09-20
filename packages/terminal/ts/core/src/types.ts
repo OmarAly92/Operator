@@ -66,9 +66,16 @@ export type TerminalTheme = Readonly<{
 	blockHeaderForeground: string;
 }>;
 
+export type DirtyRows = Readonly<{ full: boolean; rows: ReadonlySet<number> }>;
+
+export type RowEvent = Readonly<{ trimmed: number; remap: ReadonlyArray<readonly [number, number]> | null }>;
+
+export type RowEventListener = (event: RowEvent) => void;
+
 export type TerminalSnapshot = Readonly<{
 	generation: number;
 	firstStableRow: number;
+	historyRows: number;
 	content: Uint8Array;
 	rows: Uint32Array;
 	rowIndents: Uint16Array;

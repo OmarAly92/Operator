@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- `TerminalCore.feed` only parses; `snapshot()` syncs the export lazily and
+  returns the same object while the generation is unchanged, so a paint, a
+  mouse move and a find share one export per frame; `decodeBlocks` is memoised
+  per snapshot. `takeDirty()` and `onRowEvents()` expose the delta to the renderer.
+
 The export is incremental.
 
 - `WasmTerminalCore::feed`/`tick`/`resize` no longer rebuild the export;

@@ -7,7 +7,19 @@ const SOURCES: readonly BlockSource[] = ["osc133", "extension", "synthetic"];
 
 const textDecoder = new TextDecoder();
 
+const decoded = new WeakMap<object, BlockView[]>();
+
 export function decodeBlocks(
+	snapshot: Pick<TerminalSnapshot, "blocks" | "blockText">,
+): BlockView[] {
+	const hit = decoded.get(snapshot);
+	if (hit) return hit;
+	const views = decodeBlockRecords(snapshot);
+	decoded.set(snapshot, views);
+	return views;
+}
+
+function decodeBlockRecords(
 	snapshot: Pick<TerminalSnapshot, "blocks" | "blockText">,
 ): BlockView[] {
 	const { blocks, blockText } = snapshot;

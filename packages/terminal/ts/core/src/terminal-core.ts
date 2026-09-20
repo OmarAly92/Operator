@@ -12,10 +12,13 @@ import {
 import type {
 	BlockId,
 	ChangeListener,
+	DirtyRows,
 	FindMatch,
 	HostCapabilities,
 	LineEditorState,
 	MemoryStats,
+	RowEvent,
+	RowEventListener,
 	TerminalCoreOptions,
 	TerminalLimits,
 	TerminalSnapshot,
@@ -63,6 +66,8 @@ export class TerminalCore {
 	private backlog: Uint8Array[] = [];
 	private backlogBytes = 0;
 	private readonly feedParsedListeners = new Set<(bytes: number) => void>();
+	private cached: { generation: number; buffer: ArrayBufferLike; snapshot: TerminalSnapshot } | null = null;
+	private readonly rowEventListeners = new Set<RowEventListener>();
 
 	constructor(inner: WasmTerminalCore, host: HostCapabilities) {
 		this.inner = inner;
@@ -201,7 +206,19 @@ export class TerminalCore {
 		if (this.disposed) {
 			throw new Error("terminal core is disposed");
 		}
+		const generation = this.inner.sync();
 		const memory = getMemory();
+		const cached = this.cached;
+		if (cached && cached.generation === generation && cached.buffer === memory.buffer) {
+			return cached.snapshot;
+		}
+		const snapshot = this.buildSnapshot(memory, generation);
+		this.cached = { generation, buffer: memory.buffer, snapshot };
+		this.emitRowEvents();
+		return snapshot;
+	}
+
+	private buildSnapshot(memory: WebAssembly.Memory, generation: number): TerminalSnapshot {
 		const contentPtr = this.inner.content_ptr();
 		const contentLen = this.inner.content_len();
 		const rowsPtr = this.inner.rows_ptr();
@@ -241,8 +258,9 @@ export class TerminalCore {
 				}
 			: null;
 		return {
-			generation: this.inner.generation(),
+			generation,
 			firstStableRow: this.inner.first_stable_row_hi() * 2 ** 32 + this.inner.first_stable_row_lo(),
+			historyRows: this.inner.history_rows(),
 			content: u8View(memory, contentPtr, contentLen),
 			rows: u32View(memory, rowsPtr, rowsLen),
 			rowIndents: u16View(memory, rowIndentsPtr, rowIndentsLen),
@@ -261,6 +279,36 @@ export class TerminalCore {
 			focusReporting: this.inner.focus_reporting(),
 			mouseTracking: this.inner.mouse_tracking(),
 			mouseTrackingLevel: this.inner.mouse_tracking_level(),
+		};
+	}
+
+	private emitRowEvents(): void {
+		const trimmed = this.inner.row_events_trimmed();
+		const remapLen = this.inner.remap_len();
+		if (trimmed === 0 && remapLen === 0) return;
+		const words = u32View(getMemory(), this.inner.remap_ptr(), remapLen);
+		const remap: Array<readonly [number, number]> = [];
+		for (let index = 0; index + 1 < words.length; index += 2) remap.push([words[index]!, words[index + 1]!]);
+		this.inner.clear_row_events();
+		const event: RowEvent = { trimmed, remap: remap.length > 0 ? remap : null };
+		for (const listener of [...this.rowEventListeners]) listener(event);
+	}
+
+	takeDirty(): DirtyRows {
+		if (this.disposed) {
+			return { full: false, rows: new Set() };
+		}
+		this.inner.sync();
+		const full = this.inner.dirty_full();
+		const rows = new Set<number>(u32View(getMemory(), this.inner.dirty_rows_ptr(), this.inner.dirty_rows_len()));
+		this.inner.ack_dirty();
+		return { full, rows: full ? new Set() : rows };
+	}
+
+	onRowEvents(listener: RowEventListener): () => void {
+		this.rowEventListeners.add(listener);
+		return () => {
+			this.rowEventListeners.delete(listener);
 		};
 	}
 
@@ -391,6 +439,8 @@ export class TerminalCore {
 		this.backlog = [];
 		this.backlogBytes = 0;
 		this.feedParsedListeners.clear();
+		this.cached = null;
+		this.rowEventListeners.clear();
 		this.inner.free();
 	}
 }
