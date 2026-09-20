@@ -5,6 +5,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 type RenderedBlock = { id: string; command: string; output: string; exitCode: number | null };
 type MockCore = {
 	feed: (bytes: Uint8Array) => void;
+	enqueue: (bytes: Uint8Array) => void;
+	hasBacklog: () => boolean;
 	snapshot: () => { altScreen: unknown; [k: string]: unknown };
 	onChange: (listener: (generation: number) => void) => () => void;
 	setAgentTuiMode: (on: boolean) => void;
@@ -179,6 +181,8 @@ vi.mock("@operator/terminal-react", () => {
 					notify();
 					notifyCore(generation);
 				},
+				enqueue: (bytes: Uint8Array) => core.feed(bytes),
+				hasBacklog: () => false,
 				snapshot: () => ({
 					generation,
 					content: new Uint8Array(0),
@@ -360,6 +364,23 @@ describe("BlockTerminal", () => {
 
 		emit(encode("live"));
 		expect(mockState.feeds).toHaveLength(1);
+	});
+
+	it("queues transport bytes on the core instead of parsing them inline", async () => {
+		const enqueued: Uint8Array[] = [];
+		renderTerminal({
+			agentTui: true,
+			coreOverrides: {
+				enqueue: (bytes: Uint8Array) => {
+					enqueued.push(bytes);
+					mockState.feeds.push(bytes);
+				},
+			},
+		});
+		await waitFor(() => expect(mockState.core).toBeDefined());
+		emit(encode("hello"));
+		expect(enqueued).toHaveLength(1);
+		expect(new TextDecoder().decode(enqueued[0]!)).toBe("hello");
 	});
 
 	it("puts the core in agent-tui mode when the pane runs an agent", async () => {

@@ -1,0 +1,30 @@
+[kchibisov@NightLord alacritty]$ printf "\e[31;1;7;4;9mTEST asd\n"
+TEST asd
+[kchibisov@NightLord alacritty]$ 
+[kchibisov@NightLord alacritty]$ 
+[kchibisov@NightLord alacritty]$ 
+[kchibisov@NightLord alacritty]$ 
+[kchibisov@NightLord alacritty]$ 
+[kchibisov@NightLord alacritty]$ 
+[kchibisov@NightLord alacritty]$ 
+[kchibisov@NightLord alacritty]$ 
+[kchibisov@NightLord alacritty]$ 
+[kchibisov@NightLord alacritty]$ 
+[kchibisov@NightLord alacritty]$ 
+[kchibisov@NightLord alacritty]$ 
+[kchibisov@NightLord alacritty]$ 
+[kchibisov@NightLord alacritty]$ 
+[kchibisov@NightLord alacritty]$ 
+[kchibisov@NightLord alacritty]$ 
+[kchibisov@NightLord alacritty]$ 
+[kchibisov@NightLord alacritty]$ 
+[kchibisov@NightLord alacritty]$ 
+[kchibisov@NightLord alacritty]$ 
+[kchibisov@NightLord alacritty]$ 
+[kchibisov@NightLord alacritty]$ 
+[kchibisov@NightLord alacritty]$ 
+[kchibisov@NightLord alacritty]$ 
+[kchibisov@NightLord alacritty]$ 
+[kchibisov@NightLord alacritty]$ echo -e "\033[?3h"
+
+[kchibisov@NightLord alacritty]$ 

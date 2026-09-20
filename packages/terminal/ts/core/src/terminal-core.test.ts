@@ -151,3 +151,95 @@ describe("TerminalCore alternate screen", () => {
 		core.dispose();
 	});
 });
+
+describe("TerminalCore synchronized output", () => {
+	const BSU = "\x1b[?2026h";
+	const ESU = "\x1b[?2026l";
+
+	it("notifies a pending sync block without exposing it, and flushes on the terminator", () => {
+		const core = createTerminalCore({ columns: 16, scrollback: 100 });
+		const listener = vi.fn();
+		core.onChange(listener);
+		const generationBefore = core.snapshot().generation;
+		core.feed(new TextEncoder().encode(`${BSU}hidden`));
+		expect(listener).toHaveBeenCalledTimes(1);
+		expect(core.snapshot().generation).toBe(generationBefore);
+		expect(core.synchronizedOutput()).toBe(true);
+		expect(new TextDecoder().decode(core.snapshot().content)).toBe("");
+		core.feed(new TextEncoder().encode(ESU));
+		expect(listener).toHaveBeenCalledTimes(2);
+		expect(core.synchronizedOutput()).toBe(false);
+		expect(new TextDecoder().decode(core.snapshot().content)).toBe("hidden");
+	});
+
+	it("tick past the deadline flushes and notifies", () => {
+		const core = createTerminalCore({ columns: 16, scrollback: 100 });
+		const listener = vi.fn();
+		core.onChange(listener);
+		const start = performance.now();
+		core.feed(new TextEncoder().encode(`${BSU}late`));
+		expect(listener).toHaveBeenCalledTimes(1);
+		expect(core.tick(start + 100)).toBe(false);
+		expect(listener).toHaveBeenCalledTimes(1);
+		expect(core.tick(start + 200)).toBe(true);
+		expect(listener).toHaveBeenCalledTimes(2);
+		expect(new TextDecoder().decode(core.snapshot().content)).toBe("late");
+	});
+});
+
+describe("TerminalCore feed budget", () => {
+	function rows(count: number): Uint8Array {
+		let text = "";
+		for (let index = 0; index < count; index += 1) text += `row ${String(index).padStart(6, "0")}\r\n`;
+		return new TextEncoder().encode(text);
+	}
+
+	it("a 1 MiB enqueue drains over several frames in order", () => {
+		const core = createTerminalCore({ columns: 80, scrollback: 200000 });
+		const bytes = rows(100000);
+		expect(bytes.length).toBeGreaterThan(1024 * 1024);
+		core.enqueue(bytes);
+		expect(core.hasBacklog()).toBe(true);
+		let calls = 0;
+		while (core.drain(0).remaining > 0) calls += 1;
+		expect(calls).toBeGreaterThan(10);
+		expect(core.hasBacklog()).toBe(false);
+		const snapshot = core.snapshot();
+		const text = new TextDecoder().decode(snapshot.content);
+		expect(text.startsWith("row 000000row 000001")).toBe(true);
+		expect(text.endsWith("row 099999")).toBe(true);
+	});
+
+	it("drain stops at the deadline", () => {
+		const core = createTerminalCore({ columns: 80, scrollback: 200000 });
+		core.enqueue(rows(100000));
+		let tick = 0;
+		const spy = vi.spyOn(performance, "now").mockImplementation(() => (tick += 20));
+		const { remaining } = core.drain(12);
+		spy.mockRestore();
+		expect(remaining).toBeGreaterThan(0);
+		expect(new TextDecoder().decode(core.snapshot().content).length).toBeLessThanOrEqual(64 * 1024);
+	});
+
+	it("onFeedParsed fires per slice", () => {
+		const core = createTerminalCore({ columns: 80, scrollback: 200000 });
+		const parsed = vi.fn();
+		core.onFeedParsed(parsed);
+		core.enqueue(rows(20000));
+		while (core.drain(0).remaining > 0) {}
+		expect(parsed.mock.calls.length).toBeGreaterThan(2);
+		const total = parsed.mock.calls.reduce((sum, [bytes]) => sum + (bytes as number), 0);
+		expect(total).toBe(rows(20000).length);
+	});
+
+	it("enqueue notifies onChange once when the backlog becomes non-empty", () => {
+		const core = createTerminalCore({ columns: 80, scrollback: 100 });
+		const listener = vi.fn();
+		core.onChange(listener);
+		core.enqueue(new TextEncoder().encode("a"));
+		core.enqueue(new TextEncoder().encode("b"));
+		expect(listener).toHaveBeenCalledTimes(1);
+		core.drain();
+		expect(new TextDecoder().decode(core.snapshot().content)).toBe("ab");
+	});
+});

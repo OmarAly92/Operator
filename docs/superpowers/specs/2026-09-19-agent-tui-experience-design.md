@@ -86,8 +86,12 @@ User requirements, in intent:
   is truncated in place on resize, `ESC[2J` clears in place, scrollback still
   rewraps on a width change (`TERMINAL.md` §2, §4.2, §4.10).
 - The installed binary (`/opt/homebrew/Caskroom/claude-code@latest/2.1.273/claude`)
-  emits DEC 2026 around every Ink frame, SGR mouse (`?1000`/`?1006`), `?1049`
-  for some views; no Kitty keyboard, no mode 2048 (survey Appendix B).
+  emits DEC 2026 around every Ink frame **once the terminal has answered its
+  XTVERSION query and reported DECRQM 2026 as supported** (with an unknown
+  `TERM_PROGRAM` it probes instead of assuming; Plan A made the pty-host mirror
+  answer XTVERSION, DA1 and DECRQM — `TERMINAL.md` §4.16), SGR mouse
+  (`?1000`/`?1006`), `?1049` for some views; no Kitty keyboard, no mode 2048
+  (survey Appendix B).
 - Repaints on a ~100 ms timer while thinking (`TERMINAL.md` §4.13 measured
   a repaint every 100 ms from its spinner).
 - Prints box drawing (`│ ⎿ ├ ─ ╭ ╮ ╰ ╯`), braille spinners, emoji status
@@ -165,21 +169,30 @@ regenerate from a scratch project.
 
 ### The table
 
-| Metric | How | Today |
-|---|---|---|
-| `feed()` cost at 1k / 5k / 50k rows | `performance.now()` around `core.feed` for a 4 KiB chunk after the transcript reaches N rows | not known |
-| paints/s and DOM nodes created per paint under the spinner | `onPaint` count + `MutationObserver` `addedNodes` over 10 s of `claude-spinner-10s` | not known |
-| main-thread block when a 2 MB tool result arrives in one mux message | `PerformanceObserver({ entryTypes: ['longtask'] })` | not known |
-| scroll bottom → row 0 at 50k rows | Playwright: `wheel` steps, count frames > 50 ms, assert every `data-terminal-row` index range is contiguous | not known |
-| reopen at 1k / 5k / 50k rows: time to first paint, rows recovered | daemon API + `/mux` (memory: verify via daemon API), `vt_replay` size | 1,000-row cap known; times not known |
-| memory of renderer core and mirror at 50k rows | `wasm memory.buffer.byteLength`; Go `runtime.MemStats` of the pty-host | not known |
-| rendered-transcript pixel diff vs the pre-change screenshot | `bench/agent-session/feel-gate.mjs` screenshots the same fixture at the same scroll offsets before and after; diff must be zero unless the task declares a scoped change | — |
+| Metric | How | Today | After Plan A |
+|---|---|---|---|
+| `feed()` cost at 1k / 5k / 50k rows | `performance.now()` around `core.feed` for a 4 KiB chunk after the transcript reaches N rows | `claude-long-50k` (60,137 rows), 20 samples each: 0.40ms @ 1k (reached row 1,361) / 0.70ms @ 5k (reached row 5,610) / 5.60ms @ 50k (reached row 50,252) | `claude-long-50k`, 20 samples each: 0.40ms @ 1k (reached row 1,361) / 0.70ms @ 5k (reached row 5,610) / 5.20ms @ 50k (reached row 50,252) — unchanged within run-to-run noise (Plan B's target) |
+| paints/s and DOM nodes created per paint under the spinner | `onPaint` count + `MutationObserver` `addedNodes` over 10 s of `claude-spinner-10s` | 100/10 s → 10 paints/s, 28.69 nodes/paint | 100/10 s → 10 paints/s, 28.69 nodes/paint — unchanged (Plan B's target) |
+| main-thread block when a 2 MB tool result arrives in one mux message | `PerformanceObserver({ entryTypes: ['longtask'] })`, and the longest gap between two `requestAnimationFrame`s while the queue drains | `claude-long-50k`: a 2 MiB synchronous `core.feed` cost 57 ms in one task (the earlier 28.9 ms figure measured a ≤1.3 MiB end-of-fixture tail — harness bug fixed in Task 8). Headless Chromium reports no `longtask` entries at all (`longestTaskMs: null`), so the long-task count is not evidence either way | the queued path (`core.enqueue` + rAF `core.drain`, Task 6) parses the same 2 MiB over 18 frames, 165 ms total, mean 9.2 ms/frame, longest frame 24 ms (12 ms parse budget + the paint). `bench:agent:gate` fails on a frame > 50 ms or an observed long task > 50 ms |
+| scroll bottom → row 0 at 50k rows | Playwright: `wheel` steps, count frames > 50 ms, assert every `data-terminal-row` index range is contiguous | `claude-long-50k` (60,137 rows): 60,134/60,137 rows covered over 2,245 scroll steps, 0 frames > 50ms, worst frame 0ms | `claude-long-50k`: 60,134/60,137 rows covered over 2,245 scroll steps, 0 frames > 50ms, worst frame 0ms — unchanged (Plan B's target; `bench:agent:scroll` still exits non-zero on the 3-row gap, pre-existing since Task 1, not in scope for Plan A) |
+| reopen at 1k / 5k / 50k rows: time to first paint, rows recovered | daemon API + `/mux` (memory: verify via daemon API), `vt_replay` size | measured at the mirror's 1,000-row cap (`vtwasm.New(..., 1000)`) on `claude-long-50k`: replay 1,000 rows / 17,257 bytes, Go-side `Replay()` cost 0.306ms, renderer `firstPaintMs` 13ms | measured the same way: replay 1,000 rows / 17,257 bytes, Go-side `Replay()` cost 0.315ms, renderer `firstPaintMs` 12.5ms — unchanged within run-to-run noise (Plan B's target) |
+| memory of renderer core and mirror at 50k rows | `wasm memory.buffer.byteLength`; Go `runtime.MemStats` of the pty-host | `claude-long-50k`, all 60,137 rows fed: renderer core wasm `memory.buffer.byteLength` 26,083,328 bytes (~24.9 MiB); Go mirror wasm memory 4,128,768 bytes (~3.94 MiB) at the reopen probe's 1,000-row cap (not the full 60k — the harness's mirror probe is capped, see the row above) | `claude-long-50k`, all 60,137 rows fed: renderer core wasm `memory.buffer.byteLength` 11,272,192 bytes (~10.75 MiB); Go mirror wasm memory unchanged at 4,128,768 bytes (~3.94 MiB). The drop from the Today figure is a harness fix, not a renderer change: Today's number was sampled on a page where the old (Task 1) `longTask2MiB` ran immediately before the memory sample and injected one extra ~1.3 MiB single-chunk `core.feed` call, growing the wasm heap past its steady-state size; Task 8 moved `longTask2MiB` to its own page, so the sample now reflects `feedAll`'s normal 64 KiB-chunk feed pattern only |
+| rendered-transcript pixel diff vs the pre-change screenshot | `bench/agent-session/feel-gate.mjs` screenshots the same fixture at the same scroll offsets before and after; diff must be zero unless the task declares a scoped change | — | `npm run bench:feel` → `PASS feel gate: zero pixel diff` (both fixtures) |
+| torn frames in `claude-spinner-10s` | `run.mjs` `tearing`: model states that became visible inside a sync block (fed byte by byte), paints showing a partial frame and frames painted more than once (fed in thirds, one frame per third) | 7470 states / 25 paints / 18 multi-paint of 120 frames | 0 states / 0 paints / 0 multi-paint of 120 frames. `tornStates` 7470→0 is Task 5's synchronized-output buffering. `tornPaints`/`multiPaintFrames` 25/18→0/0 is a Task 8 fix to the harness itself, not the renderer: `paintsPerFrame` sampled the "before" text hash with no settle delay, racing ahead of the renderer's ~60Hz-throttled `repaintOnFrame`, so it sometimes read a still-painting-the-previous-frame state as "torn". Adding two awaited `requestAnimationFrame` waits before the "before" sample (confirmed independently by the Task 5 implementer and reviewer) drives both to 0; `tornStates` (the byte-level, load-bearing check) was already 0 before this fix |
 
 The last row is the **feel gate**. Every task in every plan runs it; a task
 that changes pixels must name the item that allows it (Part 4 flags).
 
 Plan A's first task builds this harness and fills the "Today" column; the
 numbers become the targets below.
+
+Plan A landed 2026-09-20: torn states/paints 0/0 (was 7470/25, plus 18
+multi-paint frames of 120, also now 0); a 2 MiB tool result no longer parses
+in one task — queued over 18 frames, longest frame 24 ms (was one 57 ms
+task). Known residue: a single DEC 2026 block that reaches the 2 MiB
+`SYNC_BUFFER_CAP` is flushed and parsed in one go inside the frame that
+receives it (`TERMINAL.md` §5). Every other row is Plan B's target and is
+unchanged within run-to-run noise.
 
 ## Part 1 — Long sessions: every message stays, scrolling never breaks
 

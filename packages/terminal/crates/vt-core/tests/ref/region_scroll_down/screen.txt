@@ -1,0 +1,46 @@
+ UL  ~/…/tests/ref/region_scroll_…  scroll_down  echo "test"
+test
+ UL  ~/…/tests/ref/region_scroll_…  scroll_down  ls -lah
+total 12K
+drwxr-xr-x  2 undeadleech undeadleech 4.0K Jun 24 23:58 .
+drwxr-xr-x 37 undeadleech undeadleech 4.0K Jun 24 23:57 ..
+-rw-r--r--  1 undeadleech undeadleech 1.3K Jun 24 23:58 alacritty.recording
+ UL  ~/…/tests/ref/region_scroll_…  scroll_down  ls -lah
+total 12K
+drwxr-xr-x  2 undeadleech undeadleech 4.0K Jun 24 23:58 .
+drwxr-xr-x 37 undeadleech undeadleech 4.0K Jun 24 23:57 ..
+-rw-r--r--  1 undeadleech undeadleech 1.9K Jun 24 23:58 alacritty.recording
+ UL  ~/…/tests/ref/region_scroll_…  scroll_down  ls -lah ../../../..
+total 300K
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+^C
+ UL  ~/…/tests/ref/region_scroll_…  scroll_down  exit

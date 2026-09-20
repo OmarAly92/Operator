@@ -43,12 +43,23 @@ impl WasmTerminalCore {
         })
     }
 
-    pub fn feed(&mut self, bytes: &[u8]) -> Result<(), JsError> {
-        self.core.feed(bytes);
-        let snapshot = self.core.snapshot().map_err(js_error_from_core)?;
-        self.export.refresh(&snapshot)?;
-        self.generation = self.generation.wrapping_add(1);
+    pub fn feed(&mut self, bytes: &[u8], now_ms: f64) -> Result<(), JsError> {
+        if self.core.feed_at(bytes, clock(now_ms)) {
+            self.refresh_after_mutation()?;
+        }
         Ok(())
+    }
+
+    pub fn tick(&mut self, now_ms: f64) -> Result<bool, JsError> {
+        if !self.core.tick(clock(now_ms)) {
+            return Ok(false);
+        }
+        self.refresh_after_mutation()?;
+        Ok(true)
+    }
+
+    pub fn synchronized_output(&self) -> bool {
+        self.core.synchronized_output()
     }
 
     pub fn resize(&mut self, columns: usize, rows: usize) -> Result<(), JsError> {
@@ -331,6 +342,14 @@ impl WasmTerminalCore {
         session.complete = true;
         self.find_free_ids.push(id);
         Ok(())
+    }
+}
+
+fn clock(now_ms: f64) -> u64 {
+    if now_ms.is_finite() && now_ms > 0.0 {
+        now_ms as u64
+    } else {
+        0
     }
 }
 

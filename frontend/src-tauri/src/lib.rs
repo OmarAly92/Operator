@@ -457,6 +457,15 @@ fn account_home_dir() -> Option<PathBuf> {
     None
 }
 
+fn recover_host_environment(
+    process_env: &mut HashMap<String, String>,
+    account_home: Option<&Path>,
+) -> bool {
+    let restored = restore_host_environment(process_env);
+    let discarded = account_home.is_some_and(|home| discard_inherited_override(process_env, home));
+    restored || discarded
+}
+
 fn resolved_state_root() -> Result<PathBuf, Box<dyn Error>> {
     let operator_data_dir = absolute_environment_path("OPERATOR_DATA_DIR")?;
     let operator_run_file = absolute_environment_path("OPERATOR_RUN_FILE")?;
@@ -1023,10 +1032,7 @@ fn shell_focus() {}
 pub fn run() -> Result<(), Box<dyn Error>> {
     let context = tauri::generate_context!();
     let mut process_env: HashMap<String, String> = env::vars().collect();
-    let restored = restore_host_environment(&mut process_env);
-    let discarded = account_home_dir()
-        .is_some_and(|account_home| discard_inherited_override(&mut process_env, &account_home));
-    if restored || discarded {
+    if recover_host_environment(&mut process_env, account_home_dir().as_deref()) {
         env::remove_var(HOST_ENVIRONMENT_MARKER);
         for name in state_environment_names() {
             match process_env.get(name) {
@@ -1379,6 +1385,7 @@ mod tests {
     use super::host_environment_marker;
     use super::install_panic_reporter;
     use super::native_runtime_identity;
+    use super::recover_host_environment;
     use super::resolve_state_root;
     use super::restore_host_environment;
     use super::state_environment;
@@ -1609,6 +1616,82 @@ mod tests {
             ("HOME".to_string(), "/Users/host".to_string()),
         ]);
         assert_eq!(env, expected);
+    }
+
+    fn env_of(pairs: &[(&str, &str)]) -> HashMap<String, String> {
+        pairs
+            .iter()
+            .map(|(k, v)| (k.to_string(), v.to_string()))
+            .collect()
+    }
+
+    fn override_for(env: &mut HashMap<String, String>, root: &Path, with_marker: bool) {
+        if with_marker {
+            env.insert(
+                HOST_ENVIRONMENT_MARKER.to_string(),
+                host_environment_marker(env),
+            );
+        }
+        for (name, path) in state_environment(root) {
+            env.insert(name.to_string(), path.to_string_lossy().into_owned());
+        }
+    }
+
+    fn state_root_of(env: &HashMap<String, String>) -> PathBuf {
+        resolve_state_root(
+            None,
+            None,
+            env.get("HOME").map(Path::new),
+            StateProfile::Production,
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn in_place_updates_from_a_build_without_the_marker_never_nest_the_home() {
+        let account_home = Path::new("/Users/host");
+        let host = env_of(&[
+            ("HOME", "/Users/host"),
+            ("TMPDIR", "/var/t"),
+            ("PATH", "/bin"),
+        ]);
+        let real_root = state_root_of(&host);
+
+        let mut env = host.clone();
+        override_for(&mut env, &real_root, false);
+        assert_ne!(env.get("HOME").map(String::as_str), Some("/Users/host"));
+
+        for restart in 1..=3 {
+            recover_host_environment(&mut env, Some(account_home));
+            assert_eq!(
+                env.get("HOME").map(String::as_str),
+                Some("/Users/host"),
+                "restart {restart} handed the daemon a nested HOME"
+            );
+            assert_eq!(state_root_of(&env), real_root, "restart {restart}");
+            let root = state_root_of(&env);
+            override_for(&mut env, &root, true);
+        }
+    }
+
+    #[test]
+    fn in_place_updates_between_fixed_builds_restore_the_full_host_environment() {
+        let account_home = Path::new("/Users/host");
+        let host = env_of(&[
+            ("HOME", "/Users/host"),
+            ("TMPDIR", "/var/t"),
+            ("PATH", "/bin"),
+        ]);
+        let real_root = state_root_of(&host);
+
+        let mut env = host.clone();
+        for _ in 1..=3 {
+            let root = state_root_of(&env);
+            override_for(&mut env, &root, true);
+            recover_host_environment(&mut env, Some(account_home));
+            assert_eq!(env, host);
+            assert_eq!(state_root_of(&env), real_root);
+        }
     }
 
     #[test]

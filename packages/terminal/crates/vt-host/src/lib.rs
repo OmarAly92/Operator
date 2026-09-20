@@ -26,6 +26,7 @@ pub extern "C" fn vt_new(cols: u32, rows: u32, scrollback: u32) -> u32 {
         return 0;
     };
     core.set_reflow_on_resize(false);
+    core.set_answers_queries(true);
     core.resize(cols as usize, rows as usize);
     NEXT_ID.with(|n| {
         let mut n = n.borrow_mut();
@@ -46,13 +47,58 @@ pub extern "C" fn vt_resize(handle: u32, cols: u32, rows: u32) {
 }
 
 #[no_mangle]
-pub extern "C" fn vt_feed(handle: u32, ptr: u32, len: u32) {
+pub extern "C" fn vt_feed(handle: u32, ptr: u32, len: u32, now_ms: u64) {
     let bytes = unsafe { std::slice::from_raw_parts(ptr as *const u8, len as usize) };
     CORES.with(|c| {
         if let Some(core) = c.borrow_mut().get_mut(&handle) {
-            core.feed(bytes);
+            core.feed_at(bytes, now_ms);
         }
     });
+}
+
+#[no_mangle]
+pub extern "C" fn vt_tick(handle: u32, now_ms: u64) -> u32 {
+    CORES.with(|c| match c.borrow_mut().get_mut(&handle) {
+        Some(core) => u32::from(core.tick(now_ms)),
+        None => 0,
+    })
+}
+
+#[no_mangle]
+pub extern "C" fn vt_set_terminal_identity(handle: u32, ptr: u32, len: u32) {
+    let bytes = unsafe { std::slice::from_raw_parts(ptr as *const u8, len as usize) };
+    let name = String::from_utf8_lossy(bytes);
+    CORES.with(|c| {
+        if let Some(core) = c.borrow_mut().get_mut(&handle) {
+            core.set_terminal_identity(&name);
+        }
+    });
+}
+
+#[no_mangle]
+pub extern "C" fn vt_take_query_replies(handle: u32, out_ptr: u32, out_cap: u32) -> u32 {
+    CORES.with(|c| {
+        let mut cores = c.borrow_mut();
+        let Some(core) = cores.get_mut(&handle) else {
+            return RENDER_ERR;
+        };
+        let replies = core.take_query_replies();
+        if replies.len() > out_cap as usize {
+            return RENDER_TOO_BIG;
+        }
+        unsafe {
+            std::ptr::copy_nonoverlapping(replies.as_ptr(), out_ptr as *mut u8, replies.len());
+        }
+        replies.len() as u32
+    })
+}
+
+#[no_mangle]
+pub extern "C" fn vt_in_sync(handle: u32) -> u32 {
+    CORES.with(|c| match c.borrow().get(&handle) {
+        Some(core) if core.synchronized_output() => 1,
+        _ => 0,
+    })
 }
 
 #[no_mangle]
@@ -209,7 +255,21 @@ pub extern "C" fn vt_replay(handle: u32, lines: u32, out_ptr: u32, out_cap: u32)
                 && snapshot.cursor_col == 0
                 && (first..total).all(|i| snapshot.row_text(i).is_empty());
             if total == 0 || blank {
-                return 0;
+                let pending = core.pending_sync_bytes();
+                if pending.is_empty() {
+                    return 0;
+                }
+                if pending.len() > out_cap as usize {
+                    return RENDER_TOO_BIG;
+                }
+                unsafe {
+                    std::ptr::copy_nonoverlapping(
+                        pending.as_ptr(),
+                        out_ptr as *mut u8,
+                        pending.len(),
+                    );
+                }
+                return pending.len() as u32;
             }
             // Rows are clipped to the grid. vt-core rewraps scrollback to the
             // pane width on resize, so a row wider than the grid should not
@@ -254,17 +314,18 @@ pub extern "C" fn vt_replay(handle: u32, lines: u32, out_ptr: u32, out_cap: u32)
             }
         }
 
-        if text.is_empty() {
+        let mut out = text.into_bytes();
+        out.extend_from_slice(core.pending_sync_bytes());
+        if out.is_empty() {
             return 0;
         }
-        let bytes = text.as_bytes();
-        if bytes.len() > out_cap as usize {
+        if out.len() > out_cap as usize {
             return RENDER_TOO_BIG;
         }
         unsafe {
-            std::ptr::copy_nonoverlapping(bytes.as_ptr(), out_ptr as *mut u8, bytes.len());
+            std::ptr::copy_nonoverlapping(out.as_ptr(), out_ptr as *mut u8, out.len());
         }
-        bytes.len() as u32
+        out.len() as u32
     })
 }
 

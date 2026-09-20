@@ -1,9 +1,14 @@
 package ptyhost
 
 import (
+	"context"
+	"encoding/json"
 	"io"
+	"net"
+	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 func TestRunHostRejectsMissingWorkingDirectory(t *testing.T) {
@@ -38,6 +43,74 @@ func TestHostArgsWithoutAGridKeepTheDefault(t *testing.T) {
 	}
 	if parsed.cols != initialCols || parsed.rows != initialRows {
 		t.Fatalf("grid = %dx%d, want %dx%d", parsed.cols, parsed.rows, initialCols, initialRows)
+	}
+}
+
+func TestRecordEnvTeesOutputAndSizes(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv(recordEnv, dir)
+	rec := recorderFromEnv("sess-rec", 80, 24)
+	if rec == nil {
+		t.Fatal("recorderFromEnv returned nil with the env set")
+	}
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	pty := newFakePTY(300)
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() {
+		done <- Serve(ctx, ServeConfig{SessionID: "sess-rec", Listener: ln, PTY: pty, Ring: NewRing(), Recorder: rec})
+	}()
+	c := newTestClient(t, ln.Addr().String())
+	syncClientRegistered(t, c)
+	if _, err := pty.WriteOutput([]byte("first\r\n")); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	c.readFrame(t)
+	waitFor(t, 2*time.Second, func() bool {
+		info, err := os.Stat(filepath.Join(dir, "sess-rec.recording"))
+		return err == nil && info.Size() == 7
+	})
+	payload, _ := json.Marshal(ResizePayload{Cols: 100, Rows: 30})
+	if err := c.send(MsgResize, payload); err != nil {
+		t.Fatalf("resize: %v", err)
+	}
+	pty.waitResizes(t, 1)
+	if _, err := pty.WriteOutput([]byte("second\r\n")); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	c.readFrame(t)
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("Serve did not return")
+	}
+	c.close()
+
+	got, err := os.ReadFile(filepath.Join(dir, "sess-rec.recording"))
+	if err != nil {
+		t.Fatalf("read recording: %v", err)
+	}
+	if string(got) != "first\r\nsecond\r\n" {
+		t.Fatalf("recording = %q", got)
+	}
+	raw, _ := os.ReadFile(filepath.Join(dir, "sess-rec.size.json"))
+	var sizes []recordSize
+	if err := json.Unmarshal(raw, &sizes); err != nil {
+		t.Fatalf("size.json: %v", err)
+	}
+	if len(sizes) != 2 || sizes[1] != (recordSize{Offset: 7, Cols: 100, Rows: 30}) {
+		t.Fatalf("sizes = %+v", sizes)
+	}
+}
+
+func TestRecorderFromEnvIsNilWhenUnset(t *testing.T) {
+	t.Setenv(recordEnv, "")
+	if rec := recorderFromEnv("sess-none", 80, 24); rec != nil {
+		t.Fatal("expected no recorder without the env")
 	}
 }
 

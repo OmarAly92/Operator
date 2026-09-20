@@ -143,3 +143,25 @@ func TestReplayAfterAShrinkFitsTheGridAndKeepsEveryCell(t *testing.T) {
 		t.Fatalf("want %d continuation rows of %d cells, got %d:\n%s", scrolledOff, wide-narrow, continuations, rendered)
 	}
 }
+
+func TestReplayNeverStartsInsideASyncBlock(t *testing.T) {
+	p := newTestParser(t, 80, 24)
+	feed(t, p, "frame one\r\n")
+	partial := "\x1b[?2026h\x1b[1A\rhalf"
+	feed(t, p, partial)
+
+	out, err := p.Replay(1000)
+	if err != nil {
+		t.Fatalf("replay: %v", err)
+	}
+	painted := out[:strings.Index(out, "\x1b[?2026h")]
+	if !strings.Contains(painted, "frame one") {
+		t.Fatalf("replay must paint the last complete frame, got:\n%q", out)
+	}
+	if strings.Contains(painted, "half") {
+		t.Fatalf("replay painted bytes from an open sync block:\n%q", out)
+	}
+	if !strings.HasSuffix(out, partial) {
+		t.Fatalf("replay must end with the buffered sync bytes so the client can complete the frame:\n%q", out)
+	}
+}

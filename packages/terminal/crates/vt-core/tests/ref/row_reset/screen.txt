@@ -1,0 +1,616 @@
+[undeadleech@archhq row_reset]$ cat ~/downloads/dmesg.txt
+[228741.085647] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[228741.091432] wlp3s0: authenticate with 00:00:00:00:00:00
+[228741.097335] wlp3s0: send auth to 00:00:00:00:00:00 (try 1/3)
+[228741.135972] wlp3s0: authenticated
+[228741.141525] wlp3s0: associate with 00:00:00:00:00:00 (try 1/3)
+[228741.142955] wlp3s0: RX ReassocResp from 00:00:00:00:00:00 (capab=0x1411 status=0 aid=1)
+[228741.144318] wlp3s0: associated
+[228741.154942] wlp3s0: Limiting TX power to 23 (23 - 0) dBm as advertised by 00:00:00:00:00:00
+[228918.086333] wlp3s0: deauthenticated from 00:00:00:00:00:00 (Reason: 6=CLASS2_FRAME_FROM_NONAUTH_STA)
+[229303.946685] wlp3s0: authenticated
+[229303.947705] wlp3s0: associate with 00:00:00:00:00:00 (try 1/3)
+[229303.948917] wlp3s0: RX ReassocResp from 00:00:00:00:00:00 (capab=0x1411 status=0 aid=1)
+[229303.949916] wlp3s0: associated
+[229304.048604] wlp3s0: Limiting TX power to 23 (23 - 0) dBm as advertised by 00:00:00:00:00:00
+[229396.541447] wlp3s0: deauthenticated from 00:00:00:00:00:00 (Reason: 6=CLASS2_FRAME_FROM_NONAUTH_STA)
+[229398.267553] wlp3s0: authenticate with 00:00:00:00:00:00
+[229398.273829] wlp3s0: send auth to 00:00:00:00:00:00 (try 1/3)
+[229398.314512] wlp3s0: authenticated
+[229398.315473] wlp3s0: associate with 00:00:00:00:00:00 (try 1/3)
+[229398.316742] wlp3s0: RX AssocResp from 00:00:00:00:00:00 (capab=0x1411 status=0 aid=3)
+[229398.318551] wlp3s0: associated
+[229398.373686] wlp3s0: Limiting TX power to 30 (30 - 0) dBm as advertised by 00:00:00:00:00:00
+[229430.169385] wlp3s0: disconnect from AP 00:00:00:00:00:00 for new auth to 00:00:00:00:00:00
+[229430.209398] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.209406] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.209409] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.209411] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.209414] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.209417] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.209419] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.209421] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.209424] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.209426] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.209429] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.209431] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.209433] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.209435] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.209441] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.209444] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.209446] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.209447] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.209449] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.209451] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.209453] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.209455] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.209457] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.209458] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.209462] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.209464] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.209466] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.209468] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.209470] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.209472] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.209474] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.209476] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.209478] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.209480] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.209481] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.209483] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.209485] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.209487] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.209490] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.209493] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.209495] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.209500] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.209503] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.209506] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.213606] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.213610] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.213612] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.213614] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.213616] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.213617] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.213619] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.213621] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.213623] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.213624] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.213626] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.213628] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.213630] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.213632] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.213634] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.213635] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.213639] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.213641] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.213642] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.213644] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.213646] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.213649] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.213651] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.213654] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.213656] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.213658] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.213661] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.213663] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.213666] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.213668] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.213670] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.213673] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.213674] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.213676] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.213678] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.213680] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.213681] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.213683] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.213685] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.213689] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.213691] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.213693] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.213694] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.213696] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.213698] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.213700] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.213701] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.213704] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.213706] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.213708] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.213711] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.213713] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.213716] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.218481] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.218509] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.218521] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.218528] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.218546] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.218551] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.218561] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.218566] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.218590] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.218597] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.218609] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.218614] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.218622] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.218626] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.218635] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.218639] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.218647] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.218650] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.218660] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.218663] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.218673] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.218677] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.218681] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.218685] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.218697] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.218700] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.218707] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.218710] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.218716] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.218723] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.218726] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.218733] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.218736] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.218743] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.218747] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.219801] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.219834] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.219853] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.219858] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.219866] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.219870] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.219878] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229430.221124] wlp3s0: authenticate with 00:00:00:00:00:00
+[229430.222243] wlp3s0: send auth to 00:00:00:00:00:00 (try 1/3)
+[229430.262505] wlp3s0: authenticated
+[229430.263310] wlp3s0: associate with 00:00:00:00:00:00 (try 1/3)
+[229430.264564] wlp3s0: RX ReassocResp from 00:00:00:00:00:00 (capab=0x1411 status=0 aid=1)
+[229430.266358] wlp3s0: associated
+[229430.307441] wlp3s0: Limiting TX power to 23 (23 - 0) dBm as advertised by 00:00:00:00:00:00
+[229517.132398] wlp3s0: deauthenticated from 00:00:00:00:00:00 (Reason: 6=CLASS2_FRAME_FROM_NONAUTH_STA)
+[229518.888561] wlp3s0: authenticate with 00:00:00:00:00:00
+[229518.894662] wlp3s0: send auth to 00:00:00:00:00:00 (try 1/3)
+[229518.937199] wlp3s0: authenticated
+[229518.939160] wlp3s0: associate with 00:00:00:00:00:00 (try 1/3)
+[229518.940460] wlp3s0: RX AssocResp from 00:00:00:00:00:00 (capab=0x1411 status=0 aid=3)
+[229518.942378] wlp3s0: associated
+[229519.001616] wlp3s0: Limiting TX power to 30 (30 - 0) dBm as advertised by 00:00:00:00:00:00
+[229824.281089] wlp3s0: disconnect from AP 00:00:00:00:00:00 for new auth to 00:00:00:00:00:00
+[229824.291293] wlp3s0: authenticate with 00:00:00:00:00:00
+[229824.297136] wlp3s0: send auth to 00:00:00:00:00:00 (try 1/3)
+[229824.336092] wlp3s0: authenticated
+[229824.338750] wlp3s0: associate with 00:00:00:00:00:00 (try 1/3)
+[229824.340205] wlp3s0: RX ReassocResp from 00:00:00:00:00:00 (capab=0x1411 status=0 aid=1)
+[229824.341469] wlp3s0: associated
+[229824.343528] wlp3s0: Limiting TX power to 23 (23 - 0) dBm as advertised by 00:00:00:00:00:00
+[229879.108005] wlp3s0: deauthenticated from 00:00:00:00:00:00 (Reason: 6=CLASS2_FRAME_FROM_NONAUTH_STA)
+[229880.382542] wlp3s0: authenticate with 00:00:00:00:00:00
+[229880.389268] wlp3s0: send auth to 00:00:00:00:00:00 (try 1/3)
+[229880.429992] wlp3s0: authenticated
+[229880.433634] wlp3s0: associate with 00:00:00:00:00:00 (try 1/3)
+[229880.434832] wlp3s0: RX AssocResp from 00:00:00:00:00:00 (capab=0x1411 status=0 aid=3)
+[229880.436867] wlp3s0: associated
+[229880.475867] wlp3s0: Limiting TX power to 30 (30 - 0) dBm as advertised by 00:00:00:00:00:00
+[229893.920859] wlp3s0: disconnect from AP 00:00:00:00:00:00 for new auth to 00:00:00:00:00:00
+[229893.927177] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229893.927189] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229893.927191] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229893.927194] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229893.927196] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229893.927198] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229893.927201] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[229893.930495] iwlwifi 0000:03:00.0: Unhandled alg: 0x703
+[229893.930531] iwlwifi 0000:03:00.0: Unhandled alg: 0x703
+[229893.930536] iwlwifi 0000:03:00.0: Unhandled alg: 0x703
+[229893.930541] iwlwifi 0000:03:00.0: Unhandled alg: 0x703
+[229893.930548] iwlwifi 0000:03:00.0: Unhandled alg: 0x703
+[229893.930552] iwlwifi 0000:03:00.0: Unhandled alg: 0x703
+[229893.930557] iwlwifi 0000:03:00.0: Unhandled alg: 0x703
+[229893.935133] wlp3s0: authenticate with 00:00:00:00:00:00
+[229893.940801] wlp3s0: send auth to 00:00:00:00:00:00 (try 1/3)
+[229893.981689] wlp3s0: authenticated
+[229893.986136] wlp3s0: associate with 00:00:00:00:00:00 (try 1/3)
+[229893.989747] wlp3s0: RX ReassocResp from 00:00:00:00:00:00 (capab=0x1411 status=0 aid=1)
+[229893.992245] wlp3s0: associated
+[229894.077777] wlp3s0: Limiting TX power to 23 (23 - 0) dBm as advertised by 00:00:00:00:00:00
+[230231.830965] CPU9: Core temperature above threshold, cpu clock throttled (total events = 15794)
+[230231.830966] CPU8: Package temperature above threshold, cpu clock throttled (total events = 23046)
+[230231.830967] CPU3: Core temperature above threshold, cpu clock throttled (total events = 15794)
+[230231.830968] CPU2: Package temperature above threshold, cpu clock throttled (total events = 23046)
+[230231.830969] CPU3: Package temperature above threshold, cpu clock throttled (total events = 23046)
+[230231.830972] CPU9: Package temperature above threshold, cpu clock throttled (total events = 23046)
+[230231.831043] CPU0: Package temperature above threshold, cpu clock throttled (total events = 23046)
+[230231.831044] CPU1: Package temperature above threshold, cpu clock throttled (total events = 23046)
+[230231.831045] CPU7: Package temperature above threshold, cpu clock throttled (total events = 23046)
+[230231.831047] CPU10: Package temperature above threshold, cpu clock throttled (total events = 23046)
+[230231.831047] CPU6: Package temperature above threshold, cpu clock throttled (total events = 23046)
+[230231.831049] CPU4: Package temperature above threshold, cpu clock throttled (total events = 23046)
+[230231.831051] CPU11: Package temperature above threshold, cpu clock throttled (total events = 23046)
+[230231.831052] CPU5: Package temperature above threshold, cpu clock throttled (total events = 23046)
+[230231.837979] CPU3: Core temperature/speed normal
+[230231.837980] CPU9: Core temperature/speed normal
+[230231.837981] CPU2: Package temperature/speed normal
+[230231.837982] CPU8: Package temperature/speed normal
+[230231.837983] CPU6: Package temperature/speed normal
+[230231.837984] CPU0: Package temperature/speed normal
+[230231.837985] CPU5: Package temperature/speed normal
+[230231.837987] CPU10: Package temperature/speed normal
+[230231.837988] CPU1: Package temperature/speed normal
+[230231.837989] CPU11: Package temperature/speed normal
+[230231.837991] CPU7: Package temperature/speed normal
+[230231.837992] CPU4: Package temperature/speed normal
+[230231.837994] CPU9: Package temperature/speed normal
+[230231.838001] CPU3: Package temperature/speed normal
+[230236.392394] wlp3s0: deauthenticated from 00:00:00:00:00:00 (Reason: 3=DEAUTH_LEAVING)
+[230237.780651] wlp3s0: authenticate with 00:00:00:00:00:00
+[230237.787938] wlp3s0: send auth to 00:00:00:00:00:00 (try 1/3)
+[230237.828603] wlp3s0: authenticated
+[230237.832087] wlp3s0: associate with 00:00:00:00:00:00 (try 1/3)
+[230237.833363] wlp3s0: RX AssocResp from 00:00:00:00:00:00 (capab=0x1411 status=0 aid=3)
+[230237.834675] wlp3s0: associated
+[230237.854441] wlp3s0: Limiting TX power to 30 (30 - 0) dBm as advertised by 00:00:00:00:00:00
+[230257.232908] wlp3s0: disconnect from AP 00:00:00:00:00:00 for new auth to 00:00:00:00:00:00
+[230257.238433] iwlwifi 0000:03:00.0: expected hw-decrypted unicast frame for station
+[230257.238455] iwlwifi 0000:03:00.0: expected hw-decrypted unicast frame for station
+[230257.238511] iwlwifi 0000:03:00.0: expected hw-decrypted unicast frame for station
+[230257.238519] iwlwifi 0000:03:00.0: expected hw-decrypted unicast frame for station
+[230257.238530] iwlwifi 0000:03:00.0: expected hw-decrypted unicast frame for station
+[230257.238537] iwlwifi 0000:03:00.0: expected hw-decrypted unicast frame for station
+[230257.238562] iwlwifi 0000:03:00.0: expected hw-decrypted unicast frame for station
+[230257.238572] iwlwifi 0000:03:00.0: expected hw-decrypted unicast frame for station
+[230257.238586] iwlwifi 0000:03:00.0: expected hw-decrypted unicast frame for station
+[230257.238595] iwlwifi 0000:03:00.0: expected hw-decrypted unicast frame for station
+[230257.240338] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.240418] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.240471] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.240489] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.240506] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.240525] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.240557] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.240571] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.240606] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.240618] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.240635] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.240653] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.240688] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.240714] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.240741] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.240755] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.240774] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.243219] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.243261] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.243279] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.243291] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.243304] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.243318] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.243334] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.243346] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.243362] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.243374] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.243388] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.243400] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.243422] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.243435] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.243448] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.243458] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.243491] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.243504] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.243533] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.243544] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.243558] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.243568] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.243581] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.243590] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.243600] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.243611] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.243641] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.243650] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.243671] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.243680] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.243691] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.243700] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.243719] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.243728] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.247443] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.247471] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.247484] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.247492] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.247501] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.247509] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.247517] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.247525] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.247550] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.247559] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.247567] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.247575] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.247596] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.247604] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.247612] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.247620] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.247629] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.247637] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.247648] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.247655] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.247663] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.247671] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.247680] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.247688] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.247698] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.247707] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.247716] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.247723] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.247733] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.247741] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.247749] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.247756] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.247765] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.247773] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.247781] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.247788] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.247809] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.247817] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.251792] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.251818] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.251832] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.251842] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.251851] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.251860] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.251897] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.251908] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.251919] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.251928] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.251939] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.251949] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.251960] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.251970] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.251982] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.252017] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.252032] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.252042] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.252054] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.252065] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.252076] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.252086] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.252101] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.252111] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.252123] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.252133] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.252140] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.252147] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.252157] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.252167] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.252178] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.252187] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.252197] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.252207] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.252220] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.252230] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.252240] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.252250] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.252265] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.252276] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.252287] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.252294] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.252302] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.256114] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.256136] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.256148] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.256158] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.256168] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.256176] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.256185] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.256192] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.256210] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.256220] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.256230] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.256240] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.256251] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.256259] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.256266] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.256273] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.256281] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.256288] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.256295] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.256302] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.256310] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.256317] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.256325] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.256332] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.256343] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.256353] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.256376] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.256384] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.256392] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.256407] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.256419] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.256426] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.256433] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.256441] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.256448] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.256456] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.256465] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.256472] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.256480] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.256488] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.256499] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.256510] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.256520] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.256527] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.256535] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.256542] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.256549] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.256556] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.256564] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.256571] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.256579] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.260414] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.260471] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.260502] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.260515] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.260559] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.260574] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.260590] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.260606] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.260622] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.260632] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.260646] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.260671] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.260685] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.260696] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.260710] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.260722] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.260742] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.260768] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.260782] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.260792] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.260815] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.260827] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.260843] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.260855] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.260869] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.260880] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.260891] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.260903] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.260916] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.260928] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.260947] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.260962] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.260975] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.260986] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.264813] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.264838] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.264851] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.264862] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.264873] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.264883] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.264892] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.264899] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.264907] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.264914] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.264921] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.264933] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.264946] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.264953] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.264961] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.264968] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.264984] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.264992] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.264999] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.265006] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.265014] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.265021] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.265028] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.265036] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.265044] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.265051] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.265062] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.265069] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.265078] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.265087] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.265103] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.265110] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.265120] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.265127] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.265135] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.265142] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.265151] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.265158] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.269374] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.269404] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.269418] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.269429] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.269439] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.269448] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.269458] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.269467] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.269476] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.269485] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.269502] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.269511] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.269520] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.269529] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.269539] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.269550] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.269561] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.269570] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.269582] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.269592] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.269603] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.269613] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.269627] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.269637] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.269650] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.269659] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.269677] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.269686] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.269697] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.269708] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.269740] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.269749] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.269762] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.269771] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.269783] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.269793] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.269807] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.269817] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.269829] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.269839] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.269851] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.269860] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.269874] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[230257.275363] wlp3s0: authenticate with 00:00:00:00:00:00
+[230257.281231] wlp3s0: send auth to 00:00:00:00:00:00 (try 1/3)
+[230257.326172] wlp3s0: authenticated
+[230257.332040] wlp3s0: associate with 00:00:00:00:00:00 (try 1/3)
+[230257.333311] wlp3s0: RX ReassocResp from 00:00:00:00:00:00 (capab=0x1411 status=0 aid=1)
+[230257.334472] wlp3s0: associated
+[230257.393437] wlp3s0: Limiting TX power to 23 (23 - 0) dBm as advertised by 00:00:00:00:00:00
+[230356.680918] wlp3s0: deauthenticated from 00:00:00:00:00:00 (Reason: 3=DEAUTH_LEAVING)
+[230359.780467] wlp3s0: authenticate with 00:00:00:00:00:00
+[230359.786813] wlp3s0: send auth to 00:00:00:00:00:00 (try 1/3)
+[230359.827649] wlp3s0: authenticated
+[230359.831632] wlp3s0: associate with 00:00:00:00:00:00 (try 1/3)
+[230359.832798] wlp3s0: RX AssocResp from 00:00:00:00:00:00 (capab=0x1411 status=0 aid=3)
+[230359.834228] wlp3s0: associated
+[230359.915722] wlp3s0: Limiting TX power to 30 (30 - 0) dBm as advertised by 00:00:00:00:00:00
+[230391.707400] wlp3s0: disconnect from AP 00:00:00:00:00:00 for new auth to 00:00:00:00:00:00
+[230391.710358] wlp3s0: authenticate with 00:00:00:00:00:00
+[230391.716647] wlp3s0: send auth to 00:00:00:00:00:00 (try 1/3)
+[230391.756364] wlp3s0: authenticated
+[230391.759536] wlp3s0: associate with 00:00:00:00:00:00 (try 1/3)
+[230391.760897] wlp3s0: RX ReassocResp from 00:00:00:00:00:00 (capab=0x1411 status=0 aid=1)
+[230391.762833] wlp3s0: associated
+[230391.844511] wlp3s0: Limiting TX power to 23 (23 - 0) dBm as advertised by 00:00:00:00:00:00
+[231412.503669] wlp3s0: disconnect from AP 00:00:00:00:00:00 for new auth to 00:00:00:00:00:00
+[231412.513884] iwlwifi 0000:03:00.0: expected hw-decrypted unicast frame for station
+[231412.513892] iwlwifi 0000:03:00.0: expected hw-decrypted unicast frame for station
+[231412.515316] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[231412.515352] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[231412.515359] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[231412.515363] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[231412.515368] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[231412.515373] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[231412.516316] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[231412.516327] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[231412.516333] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[231412.516338] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[231412.516343] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[231412.516347] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[231412.517875] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[231412.517893] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[231412.517909] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[231412.517921] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[231412.517940] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[231412.517951] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[231412.518917] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[231412.518942] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[231412.518961] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[231412.518975] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[231412.519007] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[231412.519022] iwlwifi 0000:03:00.0: Unhandled alg: 0x707
+[231412.523892] wlp3s0: authenticate with 00:00:00:00:00:00
+[231412.529652] wlp3s0: send auth to 00:00:00:00:00:00 (try 1/3)
+[231412.575449] wlp3s0: authenticated
+[undeadleech@archhq row_reset]$ exit
+exit

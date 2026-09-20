@@ -80,6 +80,19 @@ func parseGrid(spec string) (int, int, error) {
 	return cols, rows, nil
 }
 
+func recorderFromEnv(sessionID string, cols, rows int) *recorder {
+	dir := os.Getenv(recordEnv)
+	if dir == "" {
+		return nil
+	}
+	rec, err := openRecorder(dir, sessionID, cols, rows)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "pty-host [%s]: %s: %v\n", sessionID, recordEnv, err)
+		return nil
+	}
+	return rec
+}
+
 // RunHost is the "opr pty-host" entrypoint. argv is everything after the
 // subcommand name: [--grid COLSxROWS] <sessionId> <cwd> <shellCmd> [shellArg...]
 //
@@ -162,6 +175,7 @@ func RunHost(args []string, stdout io.Writer) int {
 		Parser:      parser,
 		InitialCols: parsed.cols,
 		InitialRows: parsed.rows,
+		Recorder:    recorderFromEnv(sessionID, parsed.cols, parsed.rows),
 	}
 
 	if err := Serve(ctx, cfg); err != nil {

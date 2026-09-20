@@ -9,12 +9,16 @@ pub mod content;
 pub mod event_bridge;
 pub mod find;
 pub mod grid;
+pub mod integrity;
 mod line_editor;
 pub mod parser;
 pub mod row_index;
 mod screen;
 mod scrollback;
 pub mod style;
+pub mod sync;
+#[cfg(feature = "trace")]
+pub mod trace;
 
 pub mod testing {
     pub use crate::screen::{Cell, ScreenGrid};
@@ -26,6 +30,7 @@ pub use block_grid::BlockGrid;
 pub use block_selection::{BlockSelection, SelectionPoint};
 pub use block_tree::{BlockSummary, BlockTree};
 pub use find::{FindCursor, FindMatch, FindQuery};
+pub use integrity::IntegrityError;
 pub use line_editor::LineEditorState;
 pub use style::{CellStyle, StyleCode};
 
@@ -52,6 +57,9 @@ pub struct TerminalCore {
     line_editor: line_editor::LineEditorTracker,
     scrollback_rows: usize,
     rows: usize,
+    fed_total: u64,
+    sync: sync::SyncBuffer,
+    now_ms: u64,
 }
 
 impl TerminalCore {
@@ -70,10 +78,94 @@ impl TerminalCore {
             line_editor: line_editor::LineEditorTracker::default(),
             scrollback_rows,
             rows: DEFAULT_ROWS,
+            fed_total: 0,
+            sync: sync::SyncBuffer::default(),
+            now_ms: 0,
         })
     }
 
     pub fn feed(&mut self, bytes: &[u8]) {
+        let now_ms = self.now_ms;
+        self.feed_at(bytes, now_ms);
+    }
+
+    pub fn feed_at(&mut self, bytes: &[u8], now_ms: u64) -> bool {
+        self.now_ms = now_ms;
+        let mut parsed = false;
+        if self.sync.is_active() && self.sync.deadline().is_some_and(|d| now_ms >= d) {
+            parsed |= self.flush_sync(None);
+        }
+        let mut rest = bytes;
+        while !rest.is_empty() {
+            if self.sync.is_active() {
+                if self.sync.would_overflow(rest.len()) {
+                    self.flush_sync(None);
+                    self.feed_raw(rest);
+                    parsed = true;
+                    rest = &[];
+                    continue;
+                }
+                match self.sync.append(rest, now_ms) {
+                    sync::TailScan::Keep => {}
+                    sync::TailScan::FlushAll => parsed |= self.flush_sync(None),
+                    sync::TailScan::FlushBefore(keep_from) => {
+                        parsed |= self.flush_sync(Some(keep_from))
+                    }
+                }
+                rest = &[];
+            } else {
+                match self.sync.find_bsu(rest) {
+                    Some(split) => {
+                        if split > 0 {
+                            self.feed_raw(&rest[..split]);
+                            parsed = true;
+                        }
+                        self.sync.begin(now_ms);
+                        rest = &rest[split..];
+                    }
+                    None => {
+                        self.feed_raw(rest);
+                        parsed = true;
+                        rest = &[];
+                    }
+                }
+            }
+        }
+        parsed
+    }
+
+    pub fn tick(&mut self, now_ms: u64) -> bool {
+        self.now_ms = now_ms;
+        if self.sync.is_active() && self.sync.deadline().is_some_and(|d| now_ms >= d) {
+            return self.flush_sync(None);
+        }
+        false
+    }
+
+    pub fn synchronized_output(&self) -> bool {
+        self.sync.is_active()
+    }
+
+    pub fn pending_sync_bytes(&self) -> &[u8] {
+        &self.sync.bytes
+    }
+
+    fn flush_sync(&mut self, keep_from: Option<usize>) -> bool {
+        let buffer = self.sync.take();
+        let upto = keep_from.unwrap_or(buffer.len());
+        let parsed = upto > 0;
+        if parsed {
+            self.feed_raw(&buffer[..upto]);
+        }
+        match keep_from {
+            Some(from) => self.sync.bytes = buffer[from..].to_vec(),
+            None => self.sync.end(),
+        }
+        parsed
+    }
+
+    fn feed_raw(&mut self, bytes: &[u8]) {
+        self.sync.note_parsed(bytes);
         // Marks are decoded separately from `vte` so the block state machine
         // never depends on the parser's callback shape and a split read still
         // produces a complete event list. But the two must be applied in
@@ -86,7 +178,7 @@ impl TerminalCore {
         for (offset, event) in events {
             let upto = offset.min(bytes.len());
             if upto > parsed {
-                self.vte.advance(&mut self.parser, &bytes[parsed..upto]);
+                self.advance_vte(&bytes[parsed..upto]);
                 parsed = upto;
             }
             // Re-read the alt-screen state after every event so an
@@ -110,11 +202,53 @@ impl TerminalCore {
             }
         }
         if parsed < bytes.len() {
-            self.vte.advance(&mut self.parser, &bytes[parsed..]);
+            self.advance_vte(&bytes[parsed..]);
         }
         self.parser.commit_evicted();
         self.parser.trim_to(self.scrollback_rows);
+        self.debug_check();
     }
+
+    fn advance_vte(&mut self, bytes: &[u8]) {
+        #[cfg(feature = "trace")]
+        {
+            for byte in bytes {
+                self.parser.trace.offset = self.fed_total;
+                self.vte
+                    .advance(&mut self.parser, std::slice::from_ref(byte));
+                self.fed_total += 1;
+            }
+        }
+        #[cfg(not(feature = "trace"))]
+        {
+            self.vte.advance(&mut self.parser, bytes);
+            self.fed_total += bytes.len() as u64;
+        }
+    }
+
+    #[cfg(feature = "trace")]
+    pub fn trace(&mut self) -> &[trace::TraceEntry] {
+        self.parser.trace.entries()
+    }
+
+    #[cfg(feature = "trace")]
+    pub fn clear_trace(&mut self) {
+        self.parser.trace.clear();
+    }
+
+    pub fn verify_integrity(&self) -> Result<(), IntegrityError> {
+        self.parser.verify_integrity()
+    }
+
+    #[cfg(debug_assertions)]
+    fn debug_check(&self) {
+        if let Err(error) = self.parser.verify_integrity() {
+            panic!("vt-core integrity violated: {error:?}");
+        }
+    }
+
+    #[cfg(not(debug_assertions))]
+    fn debug_check(&self) {}
 
     pub fn snapshot(&self) -> Result<grid::GridSnapshot, CoreError> {
         grid::build_snapshot(
@@ -168,11 +302,13 @@ impl TerminalCore {
     }
 
     pub fn resize(&mut self, columns: usize, rows: usize) {
+        self.flush_sync(None);
         let columns = columns.clamp(1, alt::MAX_DIMENSION);
         let rows = rows.clamp(1, alt::MAX_DIMENSION);
         self.rows = rows;
         self.parser.resize(columns, rows);
         self.parser.trim_to(self.scrollback_rows);
+        self.debug_check();
     }
 
     // The renderer's resize model evicts the screen into the block stream and
@@ -180,14 +316,29 @@ impl TerminalCore {
     // (resize preserves the visible screen in place) turns reflow off.
     pub fn set_reflow_on_resize(&mut self, on: bool) {
         self.parser.set_reflow_on_resize(on);
+        self.debug_check();
+    }
+
+    pub fn set_answers_queries(&mut self, on: bool) {
+        self.parser.set_answers_queries(on);
+    }
+
+    pub fn take_query_replies(&mut self) -> Vec<u8> {
+        self.parser.take_query_replies()
+    }
+
+    pub fn set_terminal_identity(&mut self, name: &str) {
+        self.parser.set_terminal_identity(name);
     }
 
     pub fn set_agent_tui_mode(&mut self, on: bool) {
         self.parser.set_agent_tui_mode(on);
+        self.debug_check();
     }
 
     pub fn set_block_bookmarked(&mut self, id: crate::block::BlockId, bookmarked: bool) {
         self.parser.grid_mut().set_block_bookmarked(id, bookmarked);
+        self.debug_check();
     }
 
     pub fn block_bookmarked(&self, id: crate::block::BlockId) -> bool {
