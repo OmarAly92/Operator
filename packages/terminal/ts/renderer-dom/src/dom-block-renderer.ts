@@ -37,7 +37,7 @@ import {
 import { styleVarEntries, styleVarsString } from "./style-vars.js";
 import { terminalStylesForDocument } from "./styles.js";
 import { warpDarkTheme } from "./theme-warp.js";
-import { computeWindow } from "./viewport.js";
+import { anchorAt, computeWindow, rowTop } from "./viewport.js";
 
 const CLASS_BLOCK = "terminal-block";
 const CLASS_LEADING_SPACER = "terminal-spacer";
@@ -47,6 +47,8 @@ const STICK_THRESHOLD_PX = 4;
 const PAINT_INTERVAL_MS = 1000 / 60;
 const FRAME_EPSILON_MS = 0.25;
 export { ALT_BLOCK_ID } from "./selection-view.js";
+
+export type ScrollAnchor = Readonly<{ stableRow: number; offsetPx: number }>;
 
 export class DomBlockRenderer implements BlockRenderer {
 	private container: HTMLElement | null = null;
@@ -81,6 +83,9 @@ export class DomBlockRenderer implements BlockRenderer {
 	private metricsCache: { cellWidth: number; cellHeight: number } | null = null;
 	private dprQuery: MediaQueryList | null = null;
 	private readonly onDprChange = () => this.invalidateMetrics();
+	private anchor: ScrollAnchor | null = null;
+	private paintedFirstStableRow = 0;
+	private rowEventsUnsubscribe: (() => void) | null = null;
 
 	mount(container: HTMLElement, core: TerminalCore): void {
 		this.dispose();
@@ -110,8 +115,10 @@ export class DomBlockRenderer implements BlockRenderer {
 		this.measureNode = this.measureHost.querySelector<HTMLElement>(`#${HIDDEN_MEASURE_ID}`);
 		this.scrollUnsubscribe = listenScroll(container, () => {
 			this.updateStickiness();
+			if (!this.stickToBottom) this.captureAnchor();
 			this.scheduleRepaint();
 		});
+		this.rowEventsUnsubscribe = core.onRowEvents((event) => this.remapAnchor(event.remap));
 		this.unsubscribe = core.onChange(() => this.scheduleRepaint());
 		this.blockNav = mountBlockNavFromRenderer({ container, getBlocks: () => this.filteredBlocks, scrollToBlock: (id, align) => this.scrollToBlock(id, align), isAltScreenActive: () => core.snapshot().altScreen !== null });
 		bindActionEvents(container, { setBlockBookmarked: (id, b) => core.setBlockBookmarked(id, b), getBlockBookmarked: (id) => core.blockBookmarked(id), setFilter: (f) => this.setFilter(f), scrollToBlock: (id, a) => this.scrollToBlock(id, a), scheduleRepaint: () => this.scheduleRepaint() });
@@ -205,9 +212,62 @@ export class DomBlockRenderer implements BlockRenderer {
 		const c = this.container;
 		if (!c) return;
 		this.stickToBottom = true;
+		this.anchor = null;
 		const target = c.scrollHeight - c.clientHeight;
 		if (target > 0) c.scrollTop = target;
 		this.scheduleRepaint();
+	}
+
+	scrollAnchor(): ScrollAnchor | null {
+		return this.stickToBottom ? null : this.anchor;
+	}
+
+	private layout(): { rowHeight: number; headerHeight: number; paddingY: number } {
+		const { cellHeight } = this.measure();
+		const rowHeight = cellHeight > 0 ? cellHeight : this.font.lineHeight * this.font.sizePx;
+		return {
+			rowHeight,
+			headerHeight: rowHeight * (2 + BLOCK_COMMAND_GAP_LINES),
+			paddingY: blockPaddingY(rowHeight) + 1,
+		};
+	}
+
+	private captureAnchor(): void {
+		const container = this.container;
+		if (!container) return;
+		const { rowHeight, headerHeight, paddingY } = this.layout();
+		const anchor = anchorAt(this.filteredBlocks, container.scrollTop, rowHeight, headerHeight, paddingY);
+		this.anchor = anchor
+			? { stableRow: this.paintedFirstStableRow + anchor.flatRow, offsetPx: anchor.offsetPx }
+			: null;
+	}
+
+	private remapAnchor(remap: ReadonlyArray<readonly [number, number]> | null): void {
+		if (!remap || !this.anchor) return;
+		let low = 0;
+		let high = remap.length - 1;
+		while (low <= high) {
+			const mid = (low + high) >> 1;
+			const [from, to] = remap[mid]!;
+			if (from === this.anchor.stableRow) {
+				this.anchor = { stableRow: to, offsetPx: this.anchor.offsetPx };
+				return;
+			}
+			if (from < this.anchor.stableRow) low = mid + 1;
+			else high = mid - 1;
+		}
+	}
+
+	private anchoredScrollTop(firstStableRow: number, fallback: number): number {
+		const anchor = this.anchor;
+		if (!anchor) return fallback;
+		const { rowHeight, headerHeight, paddingY } = this.layout();
+		const flat = Math.max(0, anchor.stableRow - firstStableRow);
+		if (flat === 0 && anchor.stableRow < firstStableRow) {
+			this.anchor = { stableRow: firstStableRow, offsetPx: anchor.offsetPx };
+		}
+		const top = rowTop(this.filteredBlocks, flat, rowHeight, headerHeight, paddingY);
+		return top === null ? fallback : Math.max(0, top + anchor.offsetPx);
 	}
 
 	pointAt(x: number, y: number): SelectionPoint | null {
@@ -276,6 +336,7 @@ export class DomBlockRenderer implements BlockRenderer {
 		this.blockNav?.dispose(), (this.blockNav = null);
 		if (this.unsubscribe) this.unsubscribe(), (this.unsubscribe = null);
 		if (this.scrollUnsubscribe) this.scrollUnsubscribe(), (this.scrollUnsubscribe = null);
+		if (this.rowEventsUnsubscribe) this.rowEventsUnsubscribe(), (this.rowEventsUnsubscribe = null);
 		if (this.rafHandle !== null && typeof cancelAnimationFrame === "function") cancelAnimationFrame(this.rafHandle);
 		this.rafHandle = null;
 		this.paintListeners.clear();
@@ -299,6 +360,8 @@ export class DomBlockRenderer implements BlockRenderer {
 		this.measureNode = null;
 		this.knownBlockId = null;
 		this.stickToBottom = true;
+		this.anchor = null;
+		this.paintedFirstStableRow = 0;
 		this.lastClientHeight = 0;
 		this.lastPaintAt = null;
 		this.wasAltActive = false;
@@ -445,10 +508,13 @@ export class DomBlockRenderer implements BlockRenderer {
 				blockIsBlank(snapshot, block)
 			))
 			.map((block) => trimTrailingBlankRows(snapshot, block));
-		const { cellWidth, cellHeight } = this.measure();
-		const rowHeight = cellHeight > 0 ? cellHeight : this.font.lineHeight * this.font.sizePx;
-		const anchorScrollTop = container.scrollTop;
-		const scrollTop = this.stickToBottom ? Number.MAX_SAFE_INTEGER : anchorScrollTop;
+		const { cellWidth } = this.measure();
+		this.paintedFirstStableRow = snapshot.firstStableRow;
+		const { rowHeight, headerHeight, paddingY } = this.layout();
+		const previousScrollTop = container.scrollTop;
+		const scrollTop = this.stickToBottom
+			? Number.MAX_SAFE_INTEGER
+			: this.anchoredScrollTop(snapshot.firstStableRow, previousScrollTop);
 		const viewportHeight = container.clientHeight || 1;
 		this.lastClientHeight = container.clientHeight;
 		const windowResult = computeWindow({
@@ -456,9 +522,9 @@ export class DomBlockRenderer implements BlockRenderer {
 			scrollTop,
 			viewportHeight,
 			rowHeight,
-			headerHeight: rowHeight * (2 + BLOCK_COMMAND_GAP_LINES),
+			headerHeight,
 			overscanRows: OVERSCAN_ROWS,
-			blockPaddingY: blockPaddingY(rowHeight) + 1,
+			blockPaddingY: paddingY,
 		});
 
 		leading.style.height = `${windowResult.leadingSpacer}px`;
@@ -509,8 +575,8 @@ export class DomBlockRenderer implements BlockRenderer {
 		}
 		if (this.stickToBottom) {
 			this.applyStickiness();
-		} else if (Math.abs(container.scrollTop - anchorScrollTop) > 0.5) {
-			container.scrollTop = anchorScrollTop;
+		} else if (Math.abs(container.scrollTop - scrollTop) > 0.5) {
+			container.scrollTop = scrollTop;
 		}
 		this.paintSelectionFill();
 		if (paintedAt !== undefined) this.lastPaintAt = paintedAt;
@@ -551,6 +617,7 @@ export class DomBlockRenderer implements BlockRenderer {
 		}
 		const distance = container.scrollHeight - container.scrollTop - container.clientHeight;
 		this.stickToBottom = distance <= STICK_THRESHOLD_PX;
+		if (this.stickToBottom) this.anchor = null;
 	}
 
 	private applyStickiness(): void {

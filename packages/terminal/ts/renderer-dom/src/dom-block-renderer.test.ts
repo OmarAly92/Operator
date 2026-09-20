@@ -499,3 +499,80 @@ describe("measure", () => {
 		expect(measureCalls()).toBe(3);
 	});
 });
+
+function scrollable(): HTMLElement {
+	const container = document.createElement("div");
+	Object.defineProperty(container, "clientHeight", { value: 100, configurable: true });
+	Object.defineProperty(container, "scrollHeight", { value: 100_000, configurable: true });
+	Object.defineProperty(container, "scrollTop", { value: 0, configurable: true, writable: true });
+	return container;
+}
+
+describe("scroll anchor", () => {
+	it("keeps the text under the top edge when rows are trimmed above the viewport", async () => {
+		const container = scrollable();
+		const core = createTerminalCore({ columns: 20, limits: { rows: 150, bytes: 0xffff_ffff }, rows: 2 });
+		for (let i = 0; i < 100; i += 1) feed(core, `line ${i}\r\n`);
+		const renderer = new DomBlockRenderer();
+		renderer.mount(container, core);
+		renderer.setFont(font);
+		const rowHeight = renderer.measure().cellHeight;
+		expect(renderer.scrollAnchor()).toBeNull();
+		container.scrollTop = Math.round(rowHeight * 80);
+		container.dispatchEvent(new Event("scroll"));
+		await flushRepaint();
+		const anchor = renderer.scrollAnchor()!;
+		expect(anchor.stableRow).toBeGreaterThan(70);
+		expect(container.querySelector(`[data-terminal-row="${anchor.stableRow}"]`)?.textContent).toBe(`line ${anchor.stableRow}`);
+		const before = container.scrollTop;
+		for (let i = 100; i < 200; i += 1) feed(core, `line ${i}\r\n`);
+		await flushRepaint();
+		const trimmed = core.snapshot().firstStableRow;
+		expect(trimmed).toBeGreaterThan(0);
+		expect(renderer.scrollAnchor()).toEqual(anchor);
+		expect(container.scrollTop).toBeCloseTo(before - trimmed * rowHeight, 3);
+		expect(container.querySelector(`[data-terminal-row="${anchor.stableRow}"]`)?.textContent).toBe(`line ${anchor.stableRow}`);
+		renderer.dispose();
+	});
+
+	it("keeps it across a rewrap", async () => {
+		const container = scrollable();
+		const core = createTerminalCore({ columns: 20, limits: { rows: 1000, bytes: 0xffff_ffff }, rows: 2 });
+		for (let i = 0; i < 100; i += 1) feed(core, `${"x".repeat(25)} ${i}\r\n`);
+		const renderer = new DomBlockRenderer();
+		renderer.mount(container, core);
+		renderer.setFont(font);
+		const rowHeight = renderer.measure().cellHeight;
+		container.scrollTop = Math.round(rowHeight * 60);
+		container.dispatchEvent(new Event("scroll"));
+		await flushRepaint();
+		const anchor = renderer.scrollAnchor()!;
+		const textBefore = container.querySelector(`[data-terminal-row="${anchor.stableRow}"]`)!.textContent!.trim();
+		core.resize(40, 2);
+		await flushRepaint();
+		const after = renderer.scrollAnchor()!;
+		expect(after.stableRow).toBeLessThanOrEqual(anchor.stableRow);
+		const textAfter = container.querySelector(`[data-terminal-row="${after.stableRow}"]`)!.textContent!;
+		expect(textAfter).toContain(textBefore);
+		renderer.dispose();
+	});
+
+	it("clamps a trimmed anchor to the first row", async () => {
+		const container = scrollable();
+		const core = createTerminalCore({ columns: 20, limits: { rows: 60, bytes: 0xffff_ffff }, rows: 2 });
+		for (let i = 0; i < 50; i += 1) feed(core, `line ${i}\r\n`);
+		const renderer = new DomBlockRenderer();
+		renderer.mount(container, core);
+		renderer.setFont(font);
+		container.scrollTop = Math.round(renderer.measure().cellHeight * 5);
+		container.dispatchEvent(new Event("scroll"));
+		await flushRepaint();
+		const anchor = renderer.scrollAnchor()!;
+		for (let i = 50; i < 200; i += 1) feed(core, `line ${i}\r\n`);
+		await flushRepaint();
+		const first = core.snapshot().firstStableRow;
+		expect(first).toBeGreaterThan(anchor.stableRow);
+		expect(renderer.scrollAnchor()!.stableRow).toBe(first);
+		renderer.dispose();
+	});
+});
