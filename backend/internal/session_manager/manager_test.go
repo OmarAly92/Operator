@@ -998,8 +998,7 @@ func newManager() (*Manager, *fakeStore, *fakeRuntime, *fakeWorkspace) {
 }
 func testRoleAgents() domain.ProjectConfig {
 	return domain.ProjectConfig{
-		Worker:       domain.RoleOverride{Harness: domain.HarnessClaudeCode},
-		Orchestrator: domain.RoleOverride{Harness: domain.HarnessClaudeCode},
+		Harness: domain.HarnessClaudeCode,
 	}
 }
 
@@ -1188,7 +1187,7 @@ func TestSaveAndTeardownAllNeverForceDestroysAnInPlaceSession(t *testing.T) {
 func TestSpawnAlwaysRecordsTUIMode(t *testing.T) {
 	st := newFakeStore()
 	st.projects["mer"] = domain.ProjectRecord{ID: "mer", Config: domain.ProjectConfig{
-		Worker: domain.RoleOverride{Harness: domain.HarnessCodex},
+		Harness: domain.HarnessCodex,
 	}}
 	agent := &recordingAgent{}
 	rt := &fakeRuntime{}
@@ -1210,9 +1209,8 @@ func TestSpawn_ResolvesProjectConfig(t *testing.T) {
 	st.projects["mer"] = domain.ProjectRecord{ID: "mer", Config: domain.ProjectConfig{
 		DefaultBranch: "develop",
 		Env:           map[string]string{"FOO": "bar"},
-		AgentConfig:   domain.AgentConfig{Model: "base-model"},
-		// A worker role override wins over the base agent config for workers.
-		Worker: domain.RoleOverride{Harness: domain.HarnessCodex, AgentConfig: domain.AgentConfig{Model: "worker-model"}},
+		AgentConfig:   domain.AgentConfig{Model: "worker-model"},
+		Harness:       domain.HarnessCodex,
 	}}
 	agent := &recordingAgent{}
 	rt := &fakeRuntime{}
@@ -1225,10 +1223,10 @@ func TestSpawn_ResolvesProjectConfig(t *testing.T) {
 		t.Fatal(err)
 	}
 	if agent.lastConfig.Model != "worker-model" {
-		t.Fatalf("launch model = %q, want role override worker-model", agent.lastConfig.Model)
+		t.Fatalf("launch model = %q, want project agent config worker-model", agent.lastConfig.Model)
 	}
 	if rec.Harness != domain.HarnessCodex {
-		t.Fatalf("harness = %q, want codex from role override", rec.Harness)
+		t.Fatalf("harness = %q, want codex from project config", rec.Harness)
 	}
 	if ws.lastCfg.BaseBranch != "develop" {
 		t.Fatalf("workspace base branch = %q, want develop", ws.lastCfg.BaseBranch)
@@ -2943,11 +2941,8 @@ func TestSpawn_ExplicitBranchBypassesDevNamespace(t *testing.T) {
 func TestSpawn_ForwardsResolvedAgentConfigPermissions(t *testing.T) {
 	st := newFakeStore()
 	st.projects["mer"] = domain.ProjectRecord{ID: "mer", Config: domain.ProjectConfig{
-		AgentConfig: domain.AgentConfig{Permissions: domain.PermissionModeAuto},
-		Worker: domain.RoleOverride{
-			Harness:     domain.HarnessClaudeCode,
-			AgentConfig: domain.AgentConfig{Permissions: domain.PermissionModeBypassPermissions},
-		},
+		AgentConfig: domain.AgentConfig{Permissions: domain.PermissionModeBypassPermissions},
+		Harness:     domain.HarnessClaudeCode,
 	}}
 	agent := &recordingAgent{}
 	lookPath := func(string) (string, error) { return "/bin/true", nil }
@@ -4128,8 +4123,8 @@ func TestSpawn_ProjectPATHIsPinBase(t *testing.T) {
 	daemonExe := filepath.Join(t.TempDir(), "opr")
 	m, st, rt, _ := pathPinManager(func() (string, error) { return daemonExe, nil })
 	st.projects["mer"] = domain.ProjectRecord{ID: "mer", Config: domain.ProjectConfig{
-		Env:    map[string]string{"PATH": "/proj/bin"},
-		Worker: domain.RoleOverride{Harness: domain.HarnessClaudeCode},
+		Env:     map[string]string{"PATH": "/proj/bin"},
+		Harness: domain.HarnessClaudeCode,
 	}}
 	if _, _, _, err := m.Spawn(ctx, ports.SpawnConfig{ProjectID: "mer"}); err != nil {
 		t.Fatal(err)

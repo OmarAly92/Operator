@@ -164,8 +164,6 @@ var schemaNames = map[string]string{
 	"ControllersTriggerReviewRequest":  "TriggerReviewRequest",
 	"DomainContainerReapConfig":        "ContainerReapConfig",
 	"DomainAgentConfig":                "AgentConfig",
-	"DomainRoleOverride":               "RoleOverride",
-	"DomainOrchestratorPolicy":         "OrchestratorPolicy",
 	"ControllersTicketView":            "TicketView",
 	"ControllersPlanView":              "PlanView",
 	"ControllersListTicketsResponse":   "ListTicketsResponse",

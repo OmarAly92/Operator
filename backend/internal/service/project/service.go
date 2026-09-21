@@ -121,7 +121,7 @@ func (m *Service) List(ctx context.Context) ([]Summary, error) {
 			Path:              row.Path,
 			Kind:              row.Kind.WithDefault(),
 			SessionPrefix:     resolveSessionPrefix(row),
-			OrchestratorAgent: row.Config.Orchestrator.Harness,
+			OrchestratorAgent: row.Config.Harness,
 		})
 	}
 	return out, nil
@@ -575,8 +575,7 @@ func (m *Service) EnsureDefaultScratchProject(ctx context.Context, scratchPath s
 	}
 
 	cfg := domain.ProjectConfig{
-		Worker:       domain.RoleOverride{Harness: m.defaultHarness},
-		Orchestrator: domain.RoleOverride{Harness: m.defaultHarness},
+		Harness: m.defaultHarness,
 	}
 	if err := cfg.Validate(); err != nil {
 		return Project{}, apierr.Internal("SCRATCH_PROJECT_SEED_FAILED", "Default scratch project config is invalid")

@@ -45,7 +45,7 @@ func TestTicketCreatePlanAssignRoundTrip(t *testing.T) {
 	repo := gitRepo(t)
 	if err := st.store.UpsertProject(ctx, domain.ProjectRecord{
 		ID: "tk", Path: repo, Kind: domain.ProjectKindSingleRepo, RegisteredAt: time.Now(),
-		Config: domain.ProjectConfig{DefaultBranch: "main", Worker: domain.RoleOverride{Harness: domain.HarnessClaudeCode}},
+		Config: domain.ProjectConfig{DefaultBranch: "main", Harness: domain.HarnessClaudeCode},
 	}); err != nil {
 		t.Fatal(err)
 	}

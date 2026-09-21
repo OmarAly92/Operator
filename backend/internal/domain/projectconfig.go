@@ -13,8 +13,8 @@ import (
 // validated; there is no free-form map.
 //
 // Only fields with a live consumer are modeled: DefaultBranch, Env, Symlinks,
-// PostCreate, AgentConfig, prompt rules, and the role overrides are consumed at
-// spawn; SessionPrefix feeds the display prefix. Settings whose consumers do not
+// PostCreate, AgentConfig, prompt rules, and Harness are consumed at spawn;
+// SessionPrefix feeds the display prefix. Settings whose consumers do not
 // yet exist (tracker/SCM per-project config) are intentionally absent and land in
 // focused follow-up PRs alongside the code that reads them.
 type ProjectConfig struct {
@@ -31,26 +31,17 @@ type ProjectConfig struct {
 	// PostCreate are shell commands run in the workspace after it is created.
 	PostCreate []string `json:"postCreate,omitempty"`
 
-	// AgentRules are project-specific standing instructions for worker sessions.
-	AgentRules string `json:"agentRules,omitempty"`
-	// AgentRulesFile is a repo-relative Markdown/text file whose contents are
-	// appended to AgentRules for worker sessions.
-	AgentRulesFile string `json:"agentRulesFile,omitempty"`
 	// OrchestratorRules are project-specific standing instructions for
 	// orchestrator sessions.
 	OrchestratorRules string `json:"orchestratorRules,omitempty"`
 
 	// AgentConfig is the default agent config for the project.
 	AgentConfig AgentConfig `json:"agentConfig,omitempty"`
-	// Worker and Orchestrator are role-specific harness/agent-config overrides.
-	Worker       RoleOverride `json:"worker,omitempty"`
-	Orchestrator RoleOverride `json:"orchestrator,omitempty"`
-	// OrchestratorPolicy bounds the project's orchestrator spawn authority
-	// (live-worker cap and hourly spawn rate).
-	OrchestratorPolicy OrchestratorPolicy `json:"orchestratorPolicy,omitempty"`
+	// Harness selects the project's agent harness.
+	Harness AgentHarness `json:"agent,omitempty"`
 
 	// Reviewers names the agent(s) that review a worker's PR when a review is
-	// triggered. It is configured independently of the Worker override; an empty
+	// triggered. It is configured independently of Harness; an empty
 	// list falls back to claude-code (see ResolveReviewerHarness).
 	Reviewers []ReviewerConfig `json:"reviewers,omitempty"`
 
@@ -126,43 +117,12 @@ func (c ProjectConfig) ResolveReviewerHarness(worker AgentHarness) ReviewerHarne
 	return FallbackReviewerHarness
 }
 
-// RoleOverride overrides the harness and/or agent config for a session role.
-type RoleOverride struct {
-	Harness     AgentHarness `json:"agent,omitempty"`
-	AgentConfig AgentConfig  `json:"agentConfig,omitempty"`
-}
-
 // DefaultBranchName is the base branch used when a project configures none.
 const DefaultBranchName = "main"
 
-const (
-	DefaultMaxLiveWorkers   = 8
-	DefaultMaxSpawnsPerHour = 20
-)
-
-// OrchestratorPolicy bounds an orchestrator's spawn authority for a project.
-// Enforced daemon-side in the spawn service (spec section 5.4); this struct
-// only carries the configured limits, never a live count.
-type OrchestratorPolicy struct {
-	MaxLiveWorkers   int `json:"maxLiveWorkers,omitempty"`
-	MaxSpawnsPerHour int `json:"maxSpawnsPerHour,omitempty"`
-}
-
-// WithDefaults fills only fields left unset (non-positive). A set field is
-// always preserved.
-func (p OrchestratorPolicy) WithDefaults() OrchestratorPolicy {
-	if p.MaxLiveWorkers <= 0 {
-		p.MaxLiveWorkers = DefaultMaxLiveWorkers
-	}
-	if p.MaxSpawnsPerHour <= 0 {
-		p.MaxSpawnsPerHour = DefaultMaxSpawnsPerHour
-	}
-	return p
-}
-
 // DefaultProjectConfig returns the config a project has when it sets nothing:
 // branch "main". Every other field defaults to its zero value (no
-// env/symlinks/post-create, agent + role defaults).
+// env/symlinks/post-create, no harness override).
 func DefaultProjectConfig() ProjectConfig {
 	return ProjectConfig{
 		DefaultBranch: DefaultBranchName,
@@ -176,7 +136,6 @@ func (c ProjectConfig) WithDefaults() ProjectConfig {
 	if c.DefaultBranch == "" {
 		c.DefaultBranch = def.DefaultBranch
 	}
-	c.OrchestratorPolicy = c.OrchestratorPolicy.WithDefaults()
 	c.TrackerIntake = c.TrackerIntake.WithDefaults()
 	return c
 }
@@ -196,21 +155,13 @@ func (c ProjectConfig) Validate() error {
 	if err := validateNameComponent("sessionPrefix", c.SessionPrefix); err != nil {
 		return err
 	}
-	for role, ro := range map[string]RoleOverride{"worker": c.Worker, "orchestrator": c.Orchestrator} {
-		if ro.Harness != "" && !ro.Harness.IsKnown() {
-			return fmt.Errorf("%s.agent: unknown harness %q", role, ro.Harness)
-		}
-		if err := ro.AgentConfig.Validate(); err != nil {
-			return fmt.Errorf("%s.%w", role, err)
-		}
+	if c.Harness != "" && !c.Harness.IsKnown() {
+		return fmt.Errorf("agent: unknown harness %q", c.Harness)
 	}
 	for _, s := range c.Symlinks {
 		if err := validateRepoRelative(s); err != nil {
 			return fmt.Errorf("symlink %q: %w", s, err)
 		}
-	}
-	if err := validateRepoRelative(c.AgentRulesFile); err != nil {
-		return fmt.Errorf("agentRulesFile %q: %w", c.AgentRulesFile, err)
 	}
 	for i, rv := range c.Reviewers {
 		if !rv.Harness.IsKnown() {

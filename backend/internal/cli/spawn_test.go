@@ -49,7 +49,7 @@ func TestSpawnCommand_MissingProjectContext(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected an error when project context is missing")
 	}
-	if !strings.Contains(err.Error(), "opr project add --path <repo-path> --worker-agent <agent>") {
+	if !strings.Contains(err.Error(), "opr project add --path <repo-path> --agent <agent>") {
 		t.Fatalf("error = %v, want project add hint", err)
 	}
 	if want := []string{"GET /api/v1/projects"}; !reflect.DeepEqual(requests, want) {
@@ -270,7 +270,7 @@ func TestSpawnResolvesProjectFromEnvAndDefaultAgent(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		switch {
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/projects/demo":
-			_, _ = io.WriteString(w, `{"status":"ok","project":{"id":"demo","name":"Demo","path":"/repo/demo","config":{"worker":{"agent":"codex"}}}}`)
+			_, _ = io.WriteString(w, `{"status":"ok","project":{"id":"demo","name":"Demo","path":"/repo/demo","config":{"agent":"codex"}}}`)
 		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/agents/refresh":
 			_, _ = io.WriteString(w, authorizedAgentsJSON("codex"))
 		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/sessions":
@@ -316,7 +316,7 @@ func TestSpawnResolvesProjectFromOperatorSessionID(t *testing.T) {
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/sessions/demo-1":
 			_, _ = io.WriteString(w, `{"session":`+sessionJSON("demo-1", "demo", "worker", "idle", false)+`}`)
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/projects/demo":
-			_, _ = io.WriteString(w, `{"status":"ok","project":{"id":"demo","name":"Demo","path":"/repo/demo","config":{"worker":{"agent":"codex"}}}}`)
+			_, _ = io.WriteString(w, `{"status":"ok","project":{"id":"demo","name":"Demo","path":"/repo/demo","config":{"agent":"codex"}}}`)
 		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/agents/refresh":
 			_, _ = io.WriteString(w, authorizedAgentsJSON("codex"))
 		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/sessions":
@@ -396,7 +396,7 @@ func TestSpawnResolvesProjectFromCWD(t *testing.T) {
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/projects":
 			_, _ = io.WriteString(w, `{"projects":[{"id":"demo","name":"Demo"}]}`)
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/projects/demo":
-			_, _ = io.WriteString(w, `{"status":"ok","project":{"id":"demo","name":"Demo","path":`+jsonQuote(repo)+`,"config":{"worker":{"agent":"codex"}}}}`)
+			_, _ = io.WriteString(w, `{"status":"ok","project":{"id":"demo","name":"Demo","path":`+jsonQuote(repo)+`,"config":{"agent":"codex"}}}`)
 		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/agents/refresh":
 			_, _ = io.WriteString(w, authorizedAgentsJSON("codex"))
 		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/sessions":
@@ -431,7 +431,7 @@ func TestSpawnDefaultsToScratchWhenOnlyActiveProject(t *testing.T) {
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/projects":
 			_, _ = io.WriteString(w, `{"projects":[{"id":"scratch","name":"Scratch","kind":"scratch"}]}`)
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/projects/scratch":
-			_, _ = io.WriteString(w, `{"status":"ok","project":{"id":"scratch","name":"Scratch","kind":"scratch","path":"/opr/scratch","config":{"worker":{"agent":"codex"}}}}`)
+			_, _ = io.WriteString(w, `{"status":"ok","project":{"id":"scratch","name":"Scratch","kind":"scratch","path":"/opr/scratch","config":{"agent":"codex"}}}`)
 		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/agents/refresh":
 			_, _ = io.WriteString(w, authorizedAgentsJSON("codex"))
 		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/sessions":
@@ -479,7 +479,7 @@ func TestSpawnScratchRejectsGitOnlyFlags(t *testing.T) {
 				w.Header().Set("Content-Type", "application/json")
 				switch {
 				case r.Method == http.MethodGet && r.URL.Path == "/api/v1/projects/scratch":
-					_, _ = io.WriteString(w, `{"status":"ok","project":{"id":"scratch","name":"Scratch","kind":"scratch","path":"/opr/scratch","config":{"worker":{"agent":"codex"}}}}`)
+					_, _ = io.WriteString(w, `{"status":"ok","project":{"id":"scratch","name":"Scratch","kind":"scratch","path":"/opr/scratch","config":{"agent":"codex"}}}`)
 				default:
 					http.NotFound(w, r)
 				}
@@ -881,19 +881,16 @@ func TestSpawnCommand_RejectsInvalidKind(t *testing.T) {
 	}
 }
 
-// TestResolveSpawnHarness_OrchestratorDefault asserts the orchestrator role falls
-// back to the project's orchestrator agent (and worker to the worker agent), while
-// an explicit --agent always wins.
+// TestResolveSpawnHarness_OrchestratorDefault asserts both the worker and
+// orchestrator kinds fall back to the project's single configured agent,
+// while an explicit --agent always wins.
 func TestResolveSpawnHarness_OrchestratorDefault(t *testing.T) {
 	project := projectDetails{
-		ID: "demo",
-		Config: &projectConfig{
-			Worker:       roleOverride{Agent: "codex"},
-			Orchestrator: roleOverride{Agent: "claude-code"},
-		},
+		ID:     "demo",
+		Config: &projectConfig{Agent: "codex"},
 	}
-	if got, err := resolveSpawnHarness("", "orchestrator", project); err != nil || got != "claude-code" {
-		t.Fatalf("orchestrator default: got %q err %v, want claude-code", got, err)
+	if got, err := resolveSpawnHarness("", "orchestrator", project); err != nil || got != "codex" {
+		t.Fatalf("orchestrator default: got %q err %v, want codex", got, err)
 	}
 	if got, err := resolveSpawnHarness("", "worker", project); err != nil || got != "codex" {
 		t.Fatalf("worker default: got %q err %v, want codex", got, err)
@@ -901,14 +898,14 @@ func TestResolveSpawnHarness_OrchestratorDefault(t *testing.T) {
 	if got, err := resolveSpawnHarness("aider", "orchestrator", project); err != nil || got != "aider" {
 		t.Fatalf("explicit agent: got %q err %v, want aider", got, err)
 	}
-	// Unset kind is the default `opr spawn` path and must resolve to worker.agent.
+	// Unset kind is the default `opr spawn` path and must resolve to the
+	// project's configured agent.
 	if got, err := resolveSpawnHarness("", "", project); err != nil || got != "codex" {
 		t.Fatalf("unset kind: got %q err %v, want codex", got, err)
 	}
-	// Orchestrator spawn with no orchestrator.agent configured surfaces the
-	// --orchestrator-agent hint (the error branch this PR adds).
-	noOrch := projectDetails{ID: "demo", Config: &projectConfig{Worker: roleOverride{Agent: "codex"}}}
-	if _, err := resolveSpawnHarness("", "orchestrator", noOrch); err == nil || !strings.Contains(err.Error(), "--orchestrator-agent") {
-		t.Fatalf("missing orchestrator agent: err=%v, want --orchestrator-agent hint", err)
+	// No agent configured surfaces the --agent hint.
+	noAgent := projectDetails{ID: "demo", Config: &projectConfig{}}
+	if _, err := resolveSpawnHarness("", "orchestrator", noAgent); err == nil || !strings.Contains(err.Error(), "--agent") {
+		t.Fatalf("missing agent: err=%v, want --agent hint", err)
 	}
 }

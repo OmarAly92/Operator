@@ -7468,13 +7468,6 @@ components:
             projectId, and attributes the shell to that session.
           type: string
       type: object
-    OrchestratorPolicy:
-      properties:
-        maxLiveWorkers:
-          type: integer
-        maxSpawnsPerHour:
-          type: integer
-      type: object
     PRReviewState:
       properties:
         latestRun:
@@ -7644,12 +7637,10 @@ components:
       type: object
     ProjectConfig:
       properties:
+        agent:
+          type: string
         agentConfig:
           $ref: '#/components/schemas/AgentConfig'
-        agentRules:
-          type: string
-        agentRulesFile:
-          type: string
         containerReap:
           $ref: '#/components/schemas/ContainerReapConfig'
         defaultBranch:
@@ -7658,10 +7649,6 @@ components:
           additionalProperties:
             type: string
           type: object
-        orchestrator:
-          $ref: '#/components/schemas/RoleOverride'
-        orchestratorPolicy:
-          $ref: '#/components/schemas/OrchestratorPolicy'
         orchestratorRules:
           type: string
         postCreate:
@@ -7682,8 +7669,6 @@ components:
           $ref: '#/components/schemas/TicketDefaults'
         trackerIntake:
           $ref: '#/components/schemas/TrackerIntakeConfig'
-        worker:
-          $ref: '#/components/schemas/RoleOverride'
       type: object
     ProjectGetResponse:
       properties:
@@ -7980,13 +7965,6 @@ components:
       - review
       - reviews
       - reviewerHandleId
-      type: object
-    RoleOverride:
-      properties:
-        agent:
-          type: string
-        agentConfig:
-          $ref: '#/components/schemas/AgentConfig'
       type: object
     RollbackSessionResponse:
       properties:

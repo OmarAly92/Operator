@@ -142,8 +142,7 @@ func newStack(t *testing.T) *stack {
 		Path:         "/repo/mer",
 		RegisteredAt: time.Now(),
 		Config: domain.ProjectConfig{
-			Worker:       domain.RoleOverride{Harness: domain.HarnessClaudeCode},
-			Orchestrator: domain.RoleOverride{Harness: domain.HarnessClaudeCode},
+			Harness: domain.HarnessClaudeCode,
 		},
 	}); err != nil {
 		t.Fatal(err)

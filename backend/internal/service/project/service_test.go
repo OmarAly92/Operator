@@ -249,9 +249,8 @@ func TestManager_EnsureDefaultScratchProjectSeedsFreshRegistry(t *testing.T) {
 		t.Fatalf("scratch repo/default branch = %q/%q, want empty", proj.Repo, proj.DefaultBranch)
 	}
 	if proj.Agent != string(domain.HarnessCodex) || proj.Config == nil ||
-		proj.Config.Worker.Harness != domain.HarnessCodex ||
-		proj.Config.Orchestrator.Harness != domain.HarnessCodex {
-		t.Fatalf("scratch agents/config = agent:%q config:%#v, want codex role overrides", proj.Agent, proj.Config)
+		proj.Config.Harness != domain.HarnessCodex {
+		t.Fatalf("scratch agents/config = agent:%q config:%#v, want codex harness", proj.Agent, proj.Config)
 	}
 
 	list, err := m.List(ctx)
@@ -361,7 +360,7 @@ func TestManager_SetConfigRejectsScratchGitOnlyFields(t *testing.T) {
 
 	proj, err := m.SetConfig(ctx, "scratch", project.SetConfigInput{Config: domain.ProjectConfig{
 		AgentConfig: domain.AgentConfig{Model: "gpt-5"},
-		Worker:      domain.RoleOverride{Harness: domain.HarnessCodex},
+		Harness:     domain.HarnessCodex,
 	}})
 	if err != nil {
 		t.Fatalf("allowed SetConfig: %v", err)
@@ -565,7 +564,6 @@ func TestManager_UpdateSettings(t *testing.T) {
 	cfg := domain.ProjectConfig{
 		DefaultBranch:     "develop",
 		Env:               map[string]string{"FOO": "bar"},
-		AgentRules:        "Run focused tests.",
 		OrchestratorRules: "Delegate implementation.",
 		AgentConfig:       domain.AgentConfig{Model: "claude-opus-4-5"},
 	}
@@ -591,7 +589,7 @@ func TestManager_UpdateSettings(t *testing.T) {
 	if got.Project == nil || got.Project.Name != "Operator Project" || got.Project.Config == nil || got.Project.Config.Env["FOO"] != "bar" {
 		t.Fatalf("Get project = %#v", got.Project)
 	}
-	if got.Project.Config.AgentRules != "Run focused tests." || got.Project.Config.OrchestratorRules != "Delegate implementation." {
+	if got.Project.Config.OrchestratorRules != "Delegate implementation." {
 		t.Fatalf("Get rules config = %#v", got.Project.Config)
 	}
 
@@ -629,7 +627,7 @@ func TestManager_ListIncludesOnlySummarySafeProjectConfig(t *testing.T) {
 	cfg := domain.ProjectConfig{
 		DefaultBranch: "develop",
 		Env:           map[string]string{"GITHUB_TOKEN": "secret"},
-		Orchestrator:  domain.RoleOverride{Harness: domain.HarnessCodex},
+		Harness:       domain.HarnessCodex,
 	}
 	if _, err := m.Add(ctx, project.AddInput{Path: repo, ProjectID: ptr("opr"), Config: &cfg}); err != nil {
 		t.Fatalf("Add: %v", err)

@@ -550,7 +550,7 @@ func (m *Manager) Spawn(ctx context.Context, cfg ports.SpawnConfig) (domain.Sess
 	// A per-project role override picks the harness when the spawn names none.
 	cfg.Harness = effectiveHarness(cfg.Harness, project.Config)
 	if cfg.Harness == "" {
-		return domain.SessionRecord{}, 0, 0, fmt.Errorf("spawn: %w: configure project worker.agent or pass --harness", ErrMissingHarness)
+		return domain.SessionRecord{}, 0, 0, fmt.Errorf("spawn: %w: configure project agent or pass --harness", ErrMissingHarness)
 	}
 
 	// Reject an unknown harness before any durable state is created. Doing this
@@ -926,33 +926,18 @@ func (m *Manager) preserveFailedSpawnWorkspace(ctx context.Context, id domain.Se
 }
 
 // effectiveHarness resolves the harness for a spawn: an explicit harness wins;
-// otherwise the project's worker role override applies. Empty is invalid for
-// a new launch and is rejected by Spawn.
+// otherwise the project's configured harness applies. Empty is invalid for a
+// new launch and is rejected by Spawn.
 func effectiveHarness(explicit domain.AgentHarness, cfg domain.ProjectConfig) domain.AgentHarness {
 	if explicit != "" {
 		return explicit
 	}
-	if role := cfg.Worker.Harness; role != "" {
-		return role
-	}
-	return ""
+	return cfg.Harness
 }
 
-// effectiveAgentConfig merges the worker role override's agent config over the
-// project's base agent config; set override fields win.
+// effectiveAgentConfig returns the project's base agent config.
 func effectiveAgentConfig(cfg domain.ProjectConfig) ports.AgentConfig {
-	merged := cfg.AgentConfig
-	override := cfg.Worker.AgentConfig
-	if override.Model != "" {
-		merged.Model = override.Model
-	}
-	if override.Mode != "" {
-		merged.Mode = override.Mode
-	}
-	if override.Permissions != "" {
-		merged.Permissions = override.Permissions
-	}
-	return merged
+	return cfg.AgentConfig
 }
 
 func applySpawnAgentConfig(base, override ports.AgentConfig) ports.AgentConfig {

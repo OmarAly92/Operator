@@ -216,7 +216,7 @@ func (c *commandContext) resolveSpawnProject(ctx context.Context, explicit strin
 	if ok {
 		return project, nil
 	}
-	return projectDetails{}, usageError{fmt.Errorf("project could not be resolved; pass --project or run `opr project add --path <repo-path> --worker-agent <agent>`")}
+	return projectDetails{}, usageError{fmt.Errorf("project could not be resolved; pass --project or run `opr project add --path <repo-path> --agent <agent>`")}
 }
 
 func (c *commandContext) resolveProjectFromSession(ctx context.Context, sessionID string) (projectDetails, error) {
@@ -332,20 +332,11 @@ func resolveSpawnHarness(explicit, kind string, project projectDetails) (string,
 		return harness, nil
 	}
 	if project.Config != nil {
-		if kind == "orchestrator" {
-			if harness := strings.TrimSpace(project.Config.Orchestrator.Agent); harness != "" {
-				return harness, nil
-			}
-		} else {
-			if harness := strings.TrimSpace(project.Config.Worker.Agent); harness != "" {
-				return harness, nil
-			}
+		if harness := strings.TrimSpace(project.Config.Agent); harness != "" {
+			return harness, nil
 		}
 	}
-	if kind == "orchestrator" {
-		return "", usageError{fmt.Errorf("agent could not be resolved; pass --agent or configure `opr project set-config %s --orchestrator-agent <agent>`", project.ID)}
-	}
-	return "", usageError{fmt.Errorf("agent could not be resolved; pass --agent or configure `opr project set-config %s --worker-agent <agent>`", project.ID)}
+	return "", usageError{fmt.Errorf("agent could not be resolved; pass --agent or configure `opr project set-config %s --agent <agent>`", project.ID)}
 }
 
 func (c *commandContext) preflightSpawnAgentAuth(ctx context.Context, cmd *cobra.Command, agentID string) error {
