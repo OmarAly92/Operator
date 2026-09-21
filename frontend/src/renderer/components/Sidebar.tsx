@@ -552,9 +552,9 @@ function ProjectItem({
 		onKeyDown={onProjectKeyDown}
 		className={cn(
 			NAV_ROW_CLASS,
-			// gap-2 matches SectionDisclosure so project icons/labels share the
-			// Projects header's left edge (NAV_ROW defaults to gap-2.5).
-			"gap-2 pr-sidebar-project-actions [&_svg]:size-icon-sm",
+			// gap-1.5 matches SectionDisclosure so project icons/labels share the
+			// Projects header's left edge (NAV_ROW defaults to gap-2).
+			"gap-1.5 pr-sidebar-project-actions [&_svg]:size-icon-sm",
 			"group-data-[collapsible=icon]:size-control-board! group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:rounded-lg group-data-[collapsible=icon]:p-0! group-data-[collapsible=icon]:font-semibold",
 		)}
 	>
@@ -841,7 +841,7 @@ function SessionRow({
 	if (isEditing) {
 		return (
 			<SidebarMenuSubItem>
-				<div className="relative flex h-7 w-full items-center gap-2 rounded-lg px-2.5 py-0">
+				<div className="relative flex h-7 w-full items-center gap-1.5 rounded-lg px-2.5 py-0">
 					<span aria-hidden="true" className="inline-flex size-icon-md shrink-0 items-center justify-center">
 						<SessionStatusDot session={session} />
 					</span>
@@ -895,7 +895,7 @@ function SessionRow({
 							<button
 								aria-current={active ? "page" : undefined}
 								aria-label={t("shell.openSession", { title: session.title })}
-								className="flex h-7 min-w-0 flex-1 items-center gap-2 rounded-lg pl-2.5 pr-1 py-0 text-left text-control outline-hidden focus-visible:ring-2 focus-visible:ring-sidebar-ring"
+								className="flex h-7 min-w-0 flex-1 items-center gap-1.5 rounded-lg pl-2.5 pr-1 py-0 text-left text-control outline-hidden focus-visible:ring-2 focus-visible:ring-sidebar-ring"
 								onClick={onOpen}
 								type="button"
 							>
