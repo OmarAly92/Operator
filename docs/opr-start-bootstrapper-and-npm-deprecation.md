@@ -103,9 +103,9 @@ app present? if not, fetch it; then open it."
 
 `backend/cmd/opr/main.go` → `backend/internal/cli`. Cobra root (`root.go:183-202`)
 registers **all** of: `daemon` (hidden), **`start`**, `stop`, `status`, `doctor`,
-`agent`, `preview`, `browser`, `hooks`, `launch`, `ptyhost`, `attach`,
-`pane-capture`, `dev`, `project`, `session`, `pr`, `review`, `completion`,
-`version`. These are real (`doctor.go` is 20KB of health checks).
+`agent`, `preview`, `browser`, `hooks`, `agent-process` (hidden), `launch`,
+`ptyhost`, `attach`, `pane-capture`, `dev`, `project`, `session`, `pr`, `review`,
+`completion`, `version`. These are real (`doctor.go` is 20KB of health checks).
 The CLI is a thin client: commands "discover the local daemon, call its loopback
 HTTP API, and format output" (`root.go:1-3`).
 

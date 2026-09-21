@@ -35,7 +35,7 @@ either removed outright or moved again to `dictation`/`core` before the removal.
 | `lib/ThemeProvider.tsx` | `lib/core/app_themes/colors/skin_scope.dart` | `SkinScope` `InheritedWidget` plus the `context.skin` extension. |
 | `lib/appInfo.ts` | `lib/core/utils/app_info.dart` | Adapted — `package_info_plus`. |
 | `lib/haptics.ts` | `lib/core/utils/haptics.dart` | The same five verbs. `tap` and `select` reach Flutter's `HapticFeedback`; `success`, `warning` and `error` reach a first-party `operator/haptics` channel, because Flutter exposes no notification-feedback API. |
-| `lib/useTabScrollToTop.ts` | `lib/core/app_routes/home_shell.dart` | The shell owns the four controllers and animates the active tab's list to zero when its tab is re-tapped. |
+| `lib/useTabScrollToTop.ts` | `lib/core/app_routes/home_shell.dart` | The shell owned four controllers at the time (one per tab); **now three** (2026-09-20, the orchestrator tab was removed) — it still animates the active tab's list to zero when its tab is re-tapped. |
 | `lib/sheetResult.ts` | OMITTED | Structurally unnecessary. It exists only because an Expo Router route cannot be handed an `onSelect` callback, so the opener parks the closure in a module-level map and passes a key as a route param. Flutter's `Navigator.push<T>` returns a `Future<T>`, so the sheet's result comes back to the caller directly. The three route builders (`projectSheetRoute`, `agentSheetRoute`, `connectSheetRoute`) are the three `showModalBottomSheet` call sites in `core/widgets/pickers/`. |
 | `lib/ui.tsx` | `lib/core/widgets` | `Pill`→`app_pill.dart`, `Card`→`app_container.dart`, `Button`→`primary_button.dart`, `EmptyState`→`app_empty_state.dart`, `SettingsGroup`→`settings_group.dart`, `ScreenHeader`/`HeaderIconButton`→`global_appbar.dart`, `SheetScreen`/`SheetHeader`→`app_dialog.dart`. `Dot`, `StatusBadge`, `Chip`, `SectionHeader`, `SettingsRow`, `SettingsToggle`, `NumberedStep` and `IconButton` live with their single consumer rather than in `core/`. |
 | `lib/telemetry/config.ts` | `lib/core/telemetry/runtime.dart` | `TelemetryConfig`, reading `String.fromEnvironment` instead of `process.env`. |
@@ -76,7 +76,7 @@ either removed outright or moved again to `dictation`/`core` before the removal.
 | `app/sheets/project.tsx` | `lib/core/widgets/pickers/project_picker_sheet.dart` | The route wrapper collapses into the sheet — `showModalBottomSheet` returns the choice. |
 | `app/(tabs)/prs.tsx` | `lib/feature/pull_request/presentation/pull_requests_screen/ui/widgets/pull_requests_body.dart` | Including the open/merged/all filter and its counts. |
 | `lib/orchestratorView.ts` | `lib/feature/orchestrator/logic/orchestrator_view.dart` | 1:1 at the time. **Removed** (2026-09-20): the daemon's orchestrator/worker session split was deleted, and the mobile `orchestrator` feature went with it. |
-| `app/(tabs)/orchestrator.tsx` | `lib/feature/orchestrator/presentation/orchestrator_screen/ui/widgets/orchestrator_body.dart` | With `orchestrator_card.dart` at the time. **Removed** (2026-09-20), same reason: the orchestrator tab and its session kind no longer exist; the mobile shell moved to four tabs. |
+| `app/(tabs)/orchestrator.tsx` | `lib/feature/orchestrator/presentation/orchestrator_screen/ui/widgets/orchestrator_body.dart` | With `orchestrator_card.dart` at the time. **Removed** (2026-09-20), same reason: the orchestrator tab and its session kind no longer exist; the mobile shell moved from four tabs to three. |
 | `lib/agentPicker.ts` | `lib/feature/spawn/logic/agent_picker.dart` | 1:1. |
 | `lib/AgentPickerSheet.tsx` | `lib/core/widgets/pickers/agent_picker_sheet.dart` | In `core/` — spawn and the chat settings sheet both open it. |
 | `app/sheets/agent.tsx` | `lib/core/widgets/pickers/agent_picker_sheet.dart` | Route wrapper collapsed, as above. |
@@ -122,7 +122,7 @@ either removed outright or moved again to `dictation`/`core` before the removal.
 | `lib/PushManager.tsx` | `lib/feature/notification/logic/push_registrar.dart` | |
 | `app/notifications.tsx` | `lib/feature/notification/presentation/notifications_screen/ui/widgets/notifications_body.dart` | With `notification_row.dart` and `notification_bell.dart`. |
 | `app/_layout.tsx` | `lib/main.dart` | Providers, the deep-link listener and the navigator key. |
-| `app/(tabs)/_layout.tsx` | `lib/core/app_routes/home_shell.dart` | The four-tab bar, its `tabPress` selection haptic, and the re-tap-to-scroll-to-top gesture. |
+| `app/(tabs)/_layout.tsx` | `lib/core/app_routes/home_shell.dart` | The tab bar (four tabs at the time; **three** since 2026-09-20's orchestrator-tab removal), its `tabPress` selection haptic, and the re-tap-to-scroll-to-top gesture. |
 
 ## Test files
 
@@ -179,7 +179,7 @@ is deleted.
 | Gap | RN source | Status |
 |---|---|---|
 | Haptic feedback | `lib/haptics.ts` and 65 call sites | Closed — M6 Tasks 7–10 |
-| Re-tapping the active tab scrolls it to the top | `lib/useTabScrollToTop.ts`, all four tabs | Closed — M6 Task 11 |
+| Re-tapping the active tab scrolls it to the top | `lib/useTabScrollToTop.ts`, all tabs (four at the time; three since 2026-09-20) | Closed — M6 Task 11 |
 | `build_mode` can never report `simulator` | `lib/telemetry/context.ts` vs `lib/main.dart:33` | Closed — M6 Task 12 |
 | Coding-vocabulary bias, the two iOS audio sessions, the Android silence extras | `lib/voice/deviceProvider.ts` | Closed — M6 Tasks 13–17 |
 

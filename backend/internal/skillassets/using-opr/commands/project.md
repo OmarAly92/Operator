@@ -164,8 +164,8 @@ opr project set-config operator --env "NODE_ENV=development" --post-create "npm 
 ```
 
 ```bash
-# Set worker and orchestrator standing rules
-opr project set-config operator --agent-rules "Run focused tests before reporting done." --orchestrator-rules "Delegate implementation work to worker sessions."
+# Set worker standing rules
+opr project set-config operator --agent-rules "Run focused tests before reporting done."
 ```
 
 ```bash
