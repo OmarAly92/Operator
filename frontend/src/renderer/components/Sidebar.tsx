@@ -79,7 +79,7 @@ const isMac = isMacPlatform();
 // a 20px square icon button that tints on hover, matching the old
 // SidebarMenuAction footprint.
 const HOVER_ACTION_CLASS =
-	"grid size-5 shrink-0 place-items-center rounded-md text-passive transition-colors hover:text-foreground disabled:pointer-events-none disabled:opacity-50 data-[state=open]:text-foreground [&_svg]:size-icon-lg";
+	"grid size-5 shrink-0 place-items-center rounded-md text-passive transition-colors hover:text-foreground disabled:pointer-events-none disabled:opacity-50 data-[state=open]:text-foreground [&_svg]:size-icon-sm";
 
 // Shared nav-row chrome (Codex-style): inset pill hover/selected, 13px type, no accent bar.
 const NAV_ROW_CLASS =
@@ -554,7 +554,7 @@ function ProjectItem({
 			NAV_ROW_CLASS,
 			// gap-2 matches SectionDisclosure so project icons/labels share the
 			// Projects header's left edge (NAV_ROW defaults to gap-2.5).
-			"gap-2 pr-sidebar-project-actions [&_svg]:size-icon-md",
+			"gap-2 pr-sidebar-project-actions [&_svg]:size-icon-sm",
 			"group-data-[collapsible=icon]:size-control-board! group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:rounded-lg group-data-[collapsible=icon]:p-0! group-data-[collapsible=icon]:font-semibold",
 		)}
 	>
