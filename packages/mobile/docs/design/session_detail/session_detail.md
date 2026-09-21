@@ -1,4 +1,4 @@
-# Session detail (screen 7 — `isChat` in the prototype)
+# Session detail (screen 6 — `isChat` in the prototype)
 
 Screenshots (this dir): `00-source-agents-list-light.png` (entry point), `01-blocks-dark.png`,
 `02-raw-view-dark.png`, `03-find-bar-dark.png`, `04-cmd-menu-dark.png` (shown with the find
@@ -6,14 +6,14 @@ bar still open above it — both were captured in one pass; treat the sheet cont
 subject), `05-longpress-sheet-dark.png`.
 
 Shared docs: `../colors.md`, `../typography.md`, `../motion.md`, `../components.md`,
-`../README.md` (**read README's "Screen 7 — corrected assessment" section before this
+`../README.md` (**read README's "Screen 6 — corrected assessment" section before this
 file** — it has the real code cross-references this doc leans on throughout).
 
 ## Purpose / context
 
-Opened by tapping a session card on the Agents board (or an Orchestrator project card) —
+Opened by tapping a session card on the Agents board (or a PR card's forum icon) —
 `lib/feature/sessions/presentation/session_route/ui/session_route_screen.dart` resolves
-the session/orchestrator id and hands off to the real `TerminalScreen`. This is **not** a
+the session id and hands off to the real `TerminalScreen`. This is **not** a
 new screen to build from scratch: it is a restyle of already-working functionality split
 across two features:
 
@@ -347,7 +347,7 @@ design tokens. This is **retint/respace, not rebuild** — nearly every piece al
 and works; see the per-widget notes above for exactly what stays as-is vs. gets a token
 swap vs. needs a real decision from the user (the stopped-banner question).
 
-**Do this FIRST**: read `docs/design/README.md` in full (especially the corrected Screen 7
+**Do this FIRST**: read `docs/design/README.md` in full (especially the corrected Screen 6
 section) and invoke `/flutter-knowledge` before touching any file. Then re-read this file's
 "Block kinds," "Sheets & dialogs," and "Flutter mapping" sections alongside the actual
 files in `lib/feature/blocks/` and `lib/feature/terminal/` side by side.

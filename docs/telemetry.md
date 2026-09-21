@@ -127,7 +127,7 @@ sanitized `localStorage` keys independently of PostHog SDK persistence.
 `opr.cli.invoked` is capped at once per actor type and command path per UTC day
 per install. Routine successful internal/read-only commands (`opr status`,
 `opr session ls`, `opr session get`, `opr project ls`, `opr project get`,
-`opr orchestrator ls`, `opr hooks`, and `opr pty-host`) are excluded outright.
+`opr hooks`, and `opr pty-host`) are excluded outright.
 Commands that never reflect product activity — the supervisor-driven
 `opr daemon`/`opr start`, the self-documenting `opr completion`/`opr help`, and
 the internal `opr agent-process` runtime process — are also excluded outright.
@@ -151,7 +151,7 @@ not re-emit every polling command for the same day.
 Routine successful internal/read-only commands are not reliability signal by
 themselves and should not be reintroduced as success telemetry. For commands
 such as `opr status`, `opr session ls`, `opr session get`, `opr project ls`,
-`opr project get`, `opr orchestrator ls`, `opr hooks`, and `opr pty-host`, track
+`opr project get`, `opr hooks`, and `opr pty-host`, track
 only meaningful user-impacting failures through a separate, rate-limited event
 such as `opr.v2.cli.failed`. That event should carry safe enum-like fields such
 as `command_path`, `actor_type`, `error_category`, and stable `error_code`; it

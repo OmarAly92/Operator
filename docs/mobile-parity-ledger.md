@@ -75,8 +75,8 @@ either removed outright or moved again to `dictation`/`core` before the removal.
 | `lib/ProjectPickerSheet.tsx` | `lib/core/widgets/pickers/project_picker_sheet.dart` | In `core/` because the PR tab, the spawn screen and settings all open it. |
 | `app/sheets/project.tsx` | `lib/core/widgets/pickers/project_picker_sheet.dart` | The route wrapper collapses into the sheet — `showModalBottomSheet` returns the choice. |
 | `app/(tabs)/prs.tsx` | `lib/feature/pull_request/presentation/pull_requests_screen/ui/widgets/pull_requests_body.dart` | Including the open/merged/all filter and its counts. |
-| `lib/orchestratorView.ts` | `lib/feature/orchestrator/logic/orchestrator_view.dart` | 1:1. |
-| `app/(tabs)/orchestrator.tsx` | `lib/feature/orchestrator/presentation/orchestrator_screen/ui/widgets/orchestrator_body.dart` | With `orchestrator_card.dart`. |
+| `lib/orchestratorView.ts` | `lib/feature/orchestrator/logic/orchestrator_view.dart` | 1:1 at the time. **Removed** (2026-09-20): the daemon's orchestrator/worker session split was deleted, and the mobile `orchestrator` feature went with it. |
+| `app/(tabs)/orchestrator.tsx` | `lib/feature/orchestrator/presentation/orchestrator_screen/ui/widgets/orchestrator_body.dart` | With `orchestrator_card.dart` at the time. **Removed** (2026-09-20), same reason: the orchestrator tab and its session kind no longer exist; the mobile shell moved to four tabs. |
 | `lib/agentPicker.ts` | `lib/feature/spawn/logic/agent_picker.dart` | 1:1. |
 | `lib/AgentPickerSheet.tsx` | `lib/core/widgets/pickers/agent_picker_sheet.dart` | In `core/` — spawn and the chat settings sheet both open it. |
 | `app/sheets/agent.tsx` | `lib/core/widgets/pickers/agent_picker_sheet.dart` | Route wrapper collapsed, as above. |
@@ -145,7 +145,7 @@ column below is where they actually are, and the note says why it moved.
 | `lib/chat/sse.test.ts` | `test/feature/chat/data/sse_test.dart` | 1:1 — CRLF frames, the `id:` fallback and dropping malformed `data`. Removed in Phase 4 (the ACP/chat subsystem). |
 | `lib/chat/syntaxHighlight.test.ts` | `test/feature/chat/logic/syntax_highlight_test.dart` | 1:1. Removed in Phase 4 (the ACP/chat subsystem). |
 | `lib/chat/timelineModel.test.ts` | `test/feature/chat/logic/timeline_model_test.dart` | 1:1. Removed in Phase 4 (the ACP/chat subsystem). |
-| `lib/chatError.test.ts` | `test/core/error_handling/chat_preflight_test.dart` | **Moved.** The spec predicted `feature/chat/logic/chat_error_test.dart`; the module is a `Failure` classifier used by spawn and orchestrator as well as chat, so it is core. Removed in Phase 4 (the ACP/chat subsystem). |
+| `lib/chatError.test.ts` | `test/core/error_handling/chat_preflight_test.dart` | **Moved.** The spec predicted `feature/chat/logic/chat_error_test.dart`; the module is a `Failure` classifier also used by spawn, so it is core. Its other two consumers at the time, chat and the orchestrator feature, were each later removed in turn (Phase 4; then 2026-09-20). |
 | `lib/chatModeApi.test.ts` | `test/feature/chat/data/data_source/chat_remote_data_source_test.dart` | **Moved.** The spec predicted `feature/chat/data/chat_mode_api_test.dart`; there is no separate mode API in Dart — the calls are methods on the chat data source, and `test/feature/chat/presentation/chat_screen/ui/chat_sheets_test.dart` covers the picker that drives them. Removed in Phase 4 (the ACP/chat subsystem). |
 | `lib/connectionError.test.ts` | `test/core/error_handling/connection_error_test.dart` | 1:1. |
 | `lib/disconnect.test.ts` | `test/feature/pairing/logic/disconnect_test.dart` | 1:1. |
@@ -153,7 +153,7 @@ column below is where they actually are, and the note says why it moved.
 | `lib/harnessLogo.test.ts` | `test/feature/sessions/logic/harness_logo_test.dart` | **Moved.** The spec predicted `core/utils/`; the board is the only consumer, so it lives with it. |
 | `lib/notificationView.test.ts` | `test/feature/notification/logic/notification_view_test.dart` | 1:1. |
 | `lib/onboarding.test.ts` | `test/feature/onboarding/logic/onboarding_test.dart` | 1:1. |
-| `lib/orchestratorView.test.ts` | `test/feature/orchestrator/logic/orchestrator_view_test.dart` | 1:1. |
+| `lib/orchestratorView.test.ts` | `test/feature/orchestrator/logic/orchestrator_view_test.dart` | 1:1 at the time. **Removed** (2026-09-20) with the mobile `orchestrator` feature. |
 | `lib/prView.test.ts` | `test/feature/pull_request/logic/pr_view_test.dart` | 1:1. |
 | `lib/pushStatus.test.ts` | `test/feature/notification/logic/push_status_test.dart` | 1:1, two enum names changed. |
 | `lib/session/keyboardInset.test.ts` | `test/feature/chat/logic/keyboard_inset_test.dart` | Adapted — `MediaQuery.viewInsets`. Moved again in Phase 4 to `test/core/utils/keyboard_inset_test.dart` when the chat feature was removed. |

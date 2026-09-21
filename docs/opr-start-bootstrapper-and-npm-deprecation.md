@@ -101,11 +101,11 @@ app present? if not, fetch it; then open it."
 
 ### 1.7 The Go `opr` CLI surface (already wired)
 
-`backend/cmd/opr/main.go` → `backend/internal/cli`. Cobra root (`root.go:154-202`)
+`backend/cmd/opr/main.go` → `backend/internal/cli`. Cobra root (`root.go:183-202`)
 registers **all** of: `daemon` (hidden), **`start`**, `stop`, `status`, `doctor`,
-`spawn`, `send`, `preview`, `hooks`, `launch`, `ptyhost`, `project`,
-`session`, `orchestrator`, `review`, `completion`, `version`. These are real
-(`doctor.go` is 20KB of health checks).
+`agent`, `preview`, `browser`, `hooks`, `launch`, `ptyhost`, `attach`,
+`pane-capture`, `dev`, `project`, `session`, `pr`, `review`, `completion`,
+`version`. These are real (`doctor.go` is 20KB of health checks).
 The CLI is a thin client: commands "discover the local daemon, call its loopback
 HTTP API, and format output" (`root.go:1-3`).
 

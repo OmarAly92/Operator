@@ -107,8 +107,8 @@ flutter build ios --release --no-codesign
 `lib/core/` holds what every feature needs; `lib/feature/<feature>/` is split
 `data/` (data sources, models, `model/params/`, repositories), `logic/` (pure
 functions), `presentation/<screen>_screen/{logic,ui}` (cubit + widgets).
-Thirteen features: `pairing`, `onboarding`, `sessions`, `pull_request`,
-`orchestrator`, `spawn`, `terminal`, `preview`, `notification`, `settings`,
+Twelve features: `pairing`, `onboarding`, `sessions`, `pull_request`,
+`spawn`, `terminal`, `preview`, `notification`, `settings`,
 `blocks`, `dictation`, `usage`. There is no `chat` feature — every session runs
 the agent's own terminal UI; the ACP/chat subsystem was removed in Phase 4.
 
@@ -127,7 +127,7 @@ table; each one's password lives in `flutter_secure_storage` keyed by desktop id
   sleeping host otherwise hangs for the OS TCP timeout of 75–120s, freezing Kill, send,
   and the poll loop.
 - **Sequential auth probing.** `sessions_remote_data_source.dart` awaits `/sessions`
-  *alone* before fanning out to orchestrators and projects. The daemon locks a device
+  *alone* before fanning out to projects and account labels. The daemon locks a device
   out for a minute after 5 failed auths, so a stale password under `Future.wait` burns
   4 failures per poll tick and arms the lockout before the user can re-pair. A test
   pins the call order.

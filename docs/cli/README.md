@@ -7,7 +7,7 @@ call runtime, workspace, tracker, or agent adapters in-process.
 
 When using the CLI directly from a shell, make sure the daemon is running first
 with `opr start` or by opening the desktop app. Product commands such as
-`opr agent ls` and `opr spawn` call the loopback daemon and will fail with a
+`opr agent ls` and `opr session ls` call the loopback daemon and will fail with a
 "daemon is not running" error if no `running.json` points at a live process. From
 a source checkout, build and run the local binary explicitly, for example:
 
@@ -45,7 +45,6 @@ Every product command resolves to a daemon HTTP route. Run `opr <command>
 | `opr project rm <id>`                | `DELETE /api/v1/projects/{id}`                 |
 | `opr agent ls`                       | `GET /api/v1/agents`                           |
 | `opr agent ls --refresh`             | `POST /api/v1/agents/refresh`                  |
-| `opr spawn`                          | `POST /api/v1/sessions`                        |
 | `opr session ls`                     | `GET /api/v1/sessions`                         |
 | `opr session get <id>`               | `GET /api/v1/sessions/{id}`                    |
 | `opr session kill <id>`              | `POST /api/v1/sessions/{id}/kill`              |
@@ -56,8 +55,6 @@ Every product command resolves to a daemon HTTP route. Run `opr <command>
 | `opr session rename <id> <name>`     | `PATCH /api/v1/sessions/{id}`                  |
 | `opr session cleanup`                | `POST /api/v1/sessions/cleanup`                |
 | `opr session claim-pr <id> <pr-ref>` | `POST /api/v1/sessions/{id}/pr/claim`          |
-| `opr orchestrator ls`                | `GET /api/v1/orchestrators`                    |
-| `opr send`                           | `POST /api/v1/sessions/{id}/send`              |
 | `opr preview [url]`                  | `POST /api/v1/sessions/{id}/preview`           |
 | `opr preview start/status/stop`      | `POST/GET/DELETE /api/v1/sessions/{id}/preview/server` |
 | `opr browser ...`                    | `GET /api/v1/browser/status`, `POST /api/v1/browser/commands` |
@@ -67,11 +64,10 @@ Every product command resolves to a daemon HTTP route. Run `opr <command>
 readiness. Use `--refresh` to rerun the bounded local probes and `--json` to
 print the raw inventory response.
 
-`opr spawn` resolves project context in this order: explicit `--project`,
-`OPERATOR_PROJECT_ID`, `OPERATOR_SESSION_ID` (by fetching the current session from the
-daemon), then the current working directory matched against registered project
-paths. If `OPERATOR_SESSION_ID` is set but the session cannot be fetched, pass
-`--project` explicitly.
+There is no CLI command to start a session. `POST /api/v1/sessions` (a session
+spawn) is called by the desktop New Task dialog and the mobile spawn screen;
+a session sends a follow-up message the same way, through the daemon HTTP/SSE
+surface those clients already hold open, not through the CLI.
 
 Agent switching is initially available only for worker sessions whose source
 and target harnesses are Claude Code or Codex. The main command
@@ -106,13 +102,6 @@ OPERATOR_SESSION_ID=opr-7 opr session handoff submit \
 Switching preserves the Operator worker session and worktree. It does not translate,
 clip, or rewrite provider transcript files; providers continue to own their
 native history and compaction.
-
-If `--agent` / `--harness` is omitted, `opr spawn` uses the resolved project's
-`worker.agent` config. Before spawning, the CLI refreshes the advisory agent
-catalog and fails early when the selected agent is unsupported, not installed,
-or unauthorized. It warns-but-continues when auth remains unknown because daemon
-spawn remains the authoritative runtime validation point. Use
-`--skip-agent-check` to bypass only this CLI-side preflight.
 
 `opr preview` resolves its session from the `OPERATOR_SESSION_ID` environment variable
 (it is meant to run inside a session), not a flag. With no argument it

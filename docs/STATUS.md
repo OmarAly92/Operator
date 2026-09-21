@@ -2,7 +2,7 @@
 
 Operator ships a working single-user local loop: the Go daemon and the Tauri +
 React desktop shell drive a live daemon over HTTP/SSE/WebSocket. The core GitHub
-flow works end-to-end: add project → spawn session/orchestrator → attach terminal
+flow works end-to-end: add project → spawn session → attach terminal
 → observe PR → merge.
 
 `master` is what users have (desktop releases are cut from it, latest v0.14.3 on
@@ -40,9 +40,10 @@ surface (`npm run sqlc`, `npm run api`).
 - CDC poller + broadcaster feeding in-process subscribers and the SSE stream
   at `GET /api/v1/events` (with `Last-Event-ID` replay).
 - Full session lifecycle over HTTP: list, get, spawn, kill, restore, rename,
-  rollback, cleanup, send, activity, PR claim/list. Orchestrator routes
-  (list/spawn/get) are wired too.
-- One session kind. Every session runs the agent's own terminal UI in the
+  rollback, cleanup, send, activity, PR claim/list.
+- One session kind: the delegator/worker split was removed on 2026-09-20;
+  every session is a worker, spawned from the New Task dialog, a ticket/plan,
+  auto-review, or tracker intake. Every session runs the agent's own terminal UI in the
   pty-host runtime; there is no chat controller to choose and no interface
   handoff. The ACP/chat subsystem was removed in Phase 4 of
   `docs/superpowers/specs/2026-09-04-single-session-interface-design.md`
@@ -124,7 +125,7 @@ surface (`npm run sqlc`, `npm run api`).
   (`src/api/schema.ts`); mock data only in `VITE_RENDERER_PREVIEW` web-preview mode.
 - Shell: sidebar (projects + sessions, add/remove project), sessions board,
   session view + inspector, project settings, pull-requests page,
-  spawn-orchestrator flow.
+  New Task spawn flow.
 - SessionView always renders the agent's live terminal. There is no other
   session interface to pick or switch to — the desktop has no blocks view.
 - Desktop status and SCM summary V1: session status comes from
@@ -209,6 +210,6 @@ surface (`npm run sqlc`, `npm run api`).
   desktop consumes concise PR summaries, but the full raw `pr_*` /
   `tracker_*` CDC events are not exposed to live consumers or `opr session get`.
 - **Deferred designs** live in [`docs/todo/`](todo/): the embedded browser panel
-  (`browser-panel-webview.md`), direct-spawn orchestration
+  (`browser-panel-webview.md`), direct-spawn coordination
   (`operator-approach-3-direct-spawn-spec.md`) and worktree isolation state
   (`worktree-isolation-state.md`).

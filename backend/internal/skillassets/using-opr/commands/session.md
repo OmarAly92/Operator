@@ -25,7 +25,7 @@ opr session ls [flags]
 
 | Flag | Meaning | Default / Required |
 |---|---|---|
-| `-a, --all` | Include orchestrator sessions | - |
+| `-a, --all` | No-op; kept so existing scripts don't break | - |
 | `--include-terminated` | Include terminated sessions | - |
 | `--json` | Output as JSON | - |
 | `-p, --project string` | Filter by project ID | - |

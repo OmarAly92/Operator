@@ -253,9 +253,9 @@ history of `master`.
   The renderer remembers the last grid a pane reported (`lib/pane-grid.ts`,
   fed by `BlockTerminal.onGeometry`) and spreads `paneGridBody()` into spawn,
   delegate, shell-terminal and restore bodies. Empty body → old default.
-- Still at the default grid (known, deliberate): `POST /api/v1/orchestrators`
-  (`SpawnOrchestrator`), `ResumeAgent`, `RestoreAll` on daemon start, the CLI,
-  and the mobile client (it may send the same fields later).
+- Still at the default grid (known, deliberate): `ResumeAgent`, `RestoreAll`
+  on daemon start, the CLI, and the mobile client (it may send the same
+  fields later).
 - Guards: `ptyhost/host_main_test.go`, `host_pty_unix_test.go::TestNewPTYIsBornAtTheRequestedGrid`,
   `runtime_test.go::TestCreate_ForwardsThePaneGridToTheSpawner`,
   `controllers/sessions_test.go::TestCreateSessionForwardsThePaneGrid / TestRestoreSessionForwardsThePaneGrid / TestRestoreSessionAcceptsAnEmptyBody`,

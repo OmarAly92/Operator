@@ -3,13 +3,11 @@
 
 # Operator
 
-**The orchestration layer for parallel AI coding agents**
+**The control layer for parallel AI coding agents**
 
 [![Stars](https://img.shields.io/github/stars/OmarAly92/operator)](https://github.com/OmarAly92/operator/stargazers)
 [![Contributors](https://img.shields.io/github/contributors/OmarAly92/operator)](https://github.com/OmarAly92/operator/graphs/contributors)
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache--2.0-blue.svg)](LICENSE)
-
-**English** · [简体中文](translations/README.zh-CN.md) · [日本語](translations/README.ja.md) · [한국어](translations/README.ko.md) · [Español](translations/README.es.md) · [Français](translations/README.fr.md) · [Deutsch](translations/README.de.md) · [Português (Brasil)](translations/README.pt-BR.md)
 
 An Agentic IDE that supervises parallel AI coding agents in isolated workspaces, with complete control and automatic feedback loops from CI failures, review comments, and merge conflicts.
 
