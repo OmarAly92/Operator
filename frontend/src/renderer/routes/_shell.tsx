@@ -13,7 +13,6 @@ import { KeyboardShortcutsDialog } from "../components/KeyboardShortcutsDialog";
 import { KeyboardShortcutsSettingsDialog } from "../components/settings/KeyboardShortcutsSettingsDialog";
 import { ShellTopbar } from "../components/ShellTopbar";
 import { SessionTopbarHost, SessionTopbarProvider } from "../components/SessionTopbarPortal";
-import { OrchestratorReplacementDialog } from "../components/OrchestratorReplacementDialog";
 import { Sidebar } from "../components/Sidebar";
 import { TicketDndProvider } from "../components/tickets/TicketDndProvider";
 import { SidebarProvider } from "../components/ui/sidebar";
@@ -28,14 +27,11 @@ import { useOpenShellTerminal } from "../hooks/useShellTerminals";
 import { useWindowFullScreen } from "../hooks/useWindowFullScreen";
 import { useWorkspaceQuery, workspaceQueryKey, workspaceQueryOptions } from "../hooks/useWorkspaceQuery";
 import { apiClient, apiErrorCode, apiErrorMessage, hasTrustedApiBaseUrl } from "../lib/api-client";
-import { paneGridBody } from "../lib/pane-grid";
 import { refreshDaemonStatus } from "../lib/daemon-status";
 import { activeTerminalInput } from "../lib/dom-selectors";
 import { usesPreviewWorkspaceData } from "../lib/preview-mode";
 import { addRendererExceptionStep, captureRendererEvent, captureRendererException } from "../lib/telemetry";
 import { ShellProvider } from "../lib/shell-context";
-import { restartProjectOrchestrator } from "../lib/restart-orchestrator";
-import { captureOrchestratorReplacementFailure } from "../lib/orchestrator-replacement-telemetry";
 import { applyDocumentTheme, applyDocumentThemeStyle } from "../lib/theme";
 import { operatorBridge } from "../lib/bridge";
 import { handleModifierLinkClick } from "../lib/external-link-policy";
@@ -71,14 +67,12 @@ function errorMessage(error: unknown) {
 
 type CreateProjectConfigInput = {
 	workerAgent: string;
-	orchestratorAgent: string;
 	trackerIntake?: components["schemas"]["TrackerIntakeConfig"];
 };
 
 export function createProjectConfig(input: CreateProjectConfigInput): components["schemas"]["ProjectConfig"] {
 	return {
-		worker: { agent: input.workerAgent as components["schemas"]["RoleOverride"]["agent"] },
-		orchestrator: { agent: input.orchestratorAgent as components["schemas"]["RoleOverride"]["agent"] },
+		agent: input.workerAgent,
 		...(input.trackerIntake ? { trackerIntake: input.trackerIntake } : {}),
 	};
 }
@@ -163,7 +157,7 @@ function ShellLayout() {
 			})
 			.then(() => {
 				const project = queryClient.getQueryData<components["schemas"]["Project"]>(projectQueryKey);
-				const defaultWorkerAgent = project?.config?.worker?.agent || project?.agent || "";
+				const defaultWorkerAgent = project?.config?.agent || project?.agent || "";
 				if (defaultWorkerAgent) {
 					void queryClient.prefetchQuery(agentModelsQueryOptions(defaultWorkerAgent, scopedProjectId));
 				}
@@ -183,11 +177,6 @@ function ShellLayout() {
 	// inside SessionView.
 	const selfFramedCenterPanel = isWelcomeBoard || isSettingsRoute;
 	const hideShellTopbar = selfFramedCenterPanel || shellTopbarHiddenByPlatform;
-	const setProjectRestarting = useUiStore((state) => state.setProjectRestarting);
-	const orchestratorReplacementErrors = useUiStore((state) => state.orchestratorReplacementErrors);
-	const setOrchestratorReplacementError = useUiStore((state) => state.setOrchestratorReplacementError);
-	const setOrchestratorStartupError = useUiStore((state) => state.setOrchestratorStartupError);
-	const replacementErrorProjectId = Object.keys(orchestratorReplacementErrors)[0] ?? null;
 	const isStartupLoading =
 		!usesPreviewWorkspaceData &&
 		!daemonStatus.code &&
@@ -248,7 +237,6 @@ function ShellLayout() {
 		async (input: {
 			path: string;
 			workerAgent: string;
-			orchestratorAgent: string;
 			trackerIntake?: components["schemas"]["TrackerIntakeConfig"];
 			asWorkspace?: boolean;
 		}) => {
@@ -288,57 +276,13 @@ function ShellLayout() {
 				path: data.project.path,
 				workspaceRepos: data.project.workspaceRepos,
 				type: "main",
-				orchestratorAgent: input.orchestratorAgent as WorkspaceSummary["orchestratorAgent"],
 				sessions: [],
 			};
 			void captureRendererEvent("opr.renderer.project_add_succeeded", { project_id: workspace.id });
 			updateWorkspaces((current) => [workspace, ...current.filter((item) => item.id !== workspace.id)]);
-			setOrchestratorStartupError(workspace.id, null);
-			try {
-				void captureRendererEvent("opr.renderer.orchestrator_spawn_requested", {
-					project_id: workspace.id,
-					source: "project_add",
-				});
-				const {
-					data: spawnData,
-					error: spawnError,
-					response: spawnResponse,
-				} = await apiClient.POST("/api/v1/sessions", {
-					body: {
-						projectId: workspace.id,
-						kind: "orchestrator",
-						harness: input.orchestratorAgent as components["schemas"]["SpawnSessionRequest"]["harness"],
-						...paneGridBody(),
-					},
-				});
-				if (spawnError || !spawnData?.session?.id) {
-					const message = spawnError
-						? apiErrorMessage(spawnError, `Failed to spawn orchestrator (${spawnResponse.status})`)
-						: `Failed to spawn orchestrator (${spawnResponse.status})`;
-					throw new Error(message);
-				}
-				void captureRendererEvent("opr.renderer.orchestrator_spawn_succeeded", {
-					project_id: workspace.id,
-					source: "project_add",
-				});
-				const sessionId = spawnData.session.id;
-				await queryClient.invalidateQueries({ queryKey: workspaceQueryKey });
-				void navigate({
-					to: "/projects/$projectId/sessions/$sessionId",
-					params: { projectId: workspace.id, sessionId },
-				});
-			} catch (spawnError) {
-				void captureRendererEvent("opr.renderer.orchestrator_spawn_failed", {
-					project_id: workspace.id,
-					source: "project_add",
-				});
-				void navigate({ to: "/projects/$projectId", params: { projectId: workspace.id } });
-				const message = spawnError instanceof Error ? spawnError.message : "Could not start orchestrator";
-				const startupMessage = `Project added, but orchestrator did not start: ${message}`;
-				setOrchestratorStartupError(workspace.id, startupMessage);
-			}
+			void navigate({ to: "/projects/$projectId", params: { projectId: workspace.id } });
 		},
-		[navigate, queryClient, setOrchestratorStartupError, updateWorkspaces],
+		[navigate, updateWorkspaces],
 	);
 
 	const initializeProjectRepository = useCallback(async (path: string) => {
@@ -378,22 +322,6 @@ function ShellLayout() {
 			updateWorkspaces((current) => current.filter((item) => item.id !== projectId));
 		},
 		[updateWorkspaces],
-	);
-
-	const restartOrchestrator = useCallback(
-		async (projectId: string) => {
-			await restartProjectOrchestrator({
-				projectId,
-				queryClient,
-				navigate,
-				setProjectRestarting,
-				setOrchestratorReplacementError,
-				onError: (error) => {
-					captureOrchestratorReplacementFailure(error, projectId);
-				},
-			});
-		},
-		[navigate, queryClient, setOrchestratorReplacementError, setProjectRestarting],
 	);
 
 	useEffect(() => {
@@ -756,15 +684,6 @@ function ShellLayout() {
 					<DaemonFailureBanner status={daemonStatus} />
 				</SidebarProvider>
 				</TicketDndProvider>
-				<OrchestratorReplacementDialog
-					error={replacementErrorProjectId ? orchestratorReplacementErrors[replacementErrorProjectId] : undefined}
-					onOpenChange={(open) => {
-						if (!open && replacementErrorProjectId) setOrchestratorReplacementError(replacementErrorProjectId, null);
-					}}
-					onRetry={(projectId) => void restartOrchestrator(projectId)}
-					projectId={replacementErrorProjectId}
-					workspaces={workspaces}
-				/>
 					<CommandPalette />
 				</div>
 				</TerminalCacheProvider>

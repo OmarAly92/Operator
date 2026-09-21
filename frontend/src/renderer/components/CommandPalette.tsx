@@ -19,9 +19,7 @@ import {
 import { iconForCommand } from "../lib/command-palette-icons";
 import { isDialogOrMenuOpen, terminalHasFocus } from "../lib/dom-selectors";
 import { isMacPlatform } from "../lib/platform";
-import { spawnOrchestrator } from "../lib/spawn-orchestrator";
 import { useShell } from "../lib/shell-context";
-import { findProjectOrchestrator, hasConfiguredOrchestratorAgent } from "../types/workspace";
 import { useUiStore } from "../stores/ui-store";
 import { matchesRendererShortcut } from "../stores/keybindings-store";
 import { Button } from "./ui/button";
@@ -203,34 +201,6 @@ export function CommandPalette() {
 		return true;
 	}, [t]);
 
-	const openOrchestrator = useCallback(
-		async (projectId: string) => {
-			if (blockedByRestart(projectId)) return;
-			const orchestrator = findProjectOrchestrator(workspaces, projectId);
-			if (orchestrator) {
-				navigateToTarget({
-					to: "/projects/$projectId/sessions/$sessionId",
-					params: { projectId, sessionId: orchestrator.id },
-				});
-				closePalette();
-				return;
-			}
-			const workspace = workspaces.find((candidate) => candidate.id === projectId);
-			if (!hasConfiguredOrchestratorAgent(workspace)) {
-				if (workspace) {
-					navigateToTarget({ to: "/projects/$projectId/settings", params: { projectId } });
-					closePalette();
-				}
-				return;
-			}
-			const sessionId = await spawnOrchestrator(projectId, "command_palette");
-			await queryClient.invalidateQueries({ queryKey: workspaceQueryKey });
-			navigateToTarget({ to: "/projects/$projectId/sessions/$sessionId", params: { projectId, sessionId } });
-			closePalette();
-		},
-		[workspaces, navigateToTarget, queryClient, closePalette, blockedByRestart],
-	);
-
 	const resumeSession = useCallback(
 		async (sessionId: string) => {
 			const result = await restoreSessionById(sessionId);
@@ -289,9 +259,6 @@ export function CommandPalette() {
 						closePalette();
 						choosePathRef.current?.();
 						break;
-					case "open-orchestrator":
-							await openOrchestrator(action.projectId);
-							break;
 				}
 			} catch (err) {
 				if (isCurrentRun()) setError(err instanceof Error ? err.message : t("command.failed"));
@@ -300,7 +267,7 @@ export function CommandPalette() {
 				setPendingId(null);
 			}
 		},
-		[navigateToTarget, closePalette, toggleTheme, openOrchestrator, resumeSession, pushView, blockedByRestart, t],
+		[navigateToTarget, closePalette, toggleTheme, resumeSession, pushView, blockedByRestart, t],
 	);
 
 	const onSelectItem = useCallback(

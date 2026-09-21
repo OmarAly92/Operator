@@ -2,11 +2,9 @@ import type { TFunction } from "i18next";
 import {
 	attentionZone,
 	attentionZoneOrder,
-	isOrchestratorSession,
 	openPRs,
 	sessionIsActive,
 	sessionNeedsAttention,
-	workerSessions,
 	type AttentionZone,
 	type WorkspaceSession,
 	type WorkspaceSummary,
@@ -25,7 +23,6 @@ export type CommandAction =
 	| { kind: "navigate"; target: NavigateTarget }
 	| { kind: "open-new-task"; projectId: string }
 	| { kind: "open-new-project" }
-	| { kind: "open-orchestrator"; projectId: string }
 	| { kind: "open-session-actions"; sessionId: string }
 	| { kind: "resume-session"; projectId: string; sessionId: string }
 	| { kind: "copy-branch"; branch: string }
@@ -135,7 +132,7 @@ export function buildSessionActions(
 		action: { kind: "navigate", target: jumpTarget(workspace, session) },
 	});
 
-	if (!sessionIsActive(session) && !isOrchestratorSession(session)) {
+	if (!sessionIsActive(session)) {
 		items.push({
 			id: `session-action:resume:${session.id}`,
 			group: "current",
@@ -146,7 +143,7 @@ export function buildSessionActions(
 		});
 	}
 
-	if (session.branch && !isOrchestratorSession(session) && !isSyntheticBranch(session)) {
+	if (session.branch && !isSyntheticBranch(session)) {
 		items.push({
 			id: `session-action:copy-branch:${session.id}`,
 			group: "current",
@@ -195,16 +192,6 @@ export function buildCommands(ctx: CommandPaletteContext, t: TFunction = appI18n
 
 	if (currentProject) {
 		items.push({
-			id: "current-open-orchestrator",
-			group: "current",
-			title: t("command.openOrchestrator"),
-			subtitle: currentProject.name,
-			keywords: ["orchestrator", "spawn", currentProject.name],
-			disabled: isProjectRestarting,
-			disabledReason: isProjectRestarting ? t("command.orchestratorRestarting") : undefined,
-			action: { kind: "open-orchestrator", projectId: currentProject.id },
-		});
-		items.push({
 			id: "current-project-settings",
 			group: "current",
 			title: t("command.projectSettings"),
@@ -218,7 +205,7 @@ export function buildCommands(ctx: CommandPaletteContext, t: TFunction = appI18n
 	}
 
 	const currentBranch = currentSession?.branch;
-	if (currentSession && currentBranch && !isOrchestratorSession(currentSession) && !isSyntheticBranch(currentSession)) {
+	if (currentSession && currentBranch && !isSyntheticBranch(currentSession)) {
 		items.push({
 			id: "current-copy-branch",
 			group: "current",
@@ -230,7 +217,7 @@ export function buildCommands(ctx: CommandPaletteContext, t: TFunction = appI18n
 	}
 
 	const attentionSessions = workspaces
-		.flatMap((workspace) => workerSessions(workspace.sessions).map((session) => ({ workspace, session })))
+		.flatMap((workspace) => workspace.sessions.map((session) => ({ workspace, session })))
 		.filter(
 			({ session }) =>
 				session.id !== currentSessionId && (attentionZone(session) === "merge" || sessionNeedsAttention(session)),
@@ -257,7 +244,7 @@ export function buildCommands(ctx: CommandPaletteContext, t: TFunction = appI18n
 	}
 
 	for (const workspace of workspaces) {
-		for (const session of workerSessions(workspace.sessions).filter(
+		for (const session of workspace.sessions.filter(
 			(session) => !attentionIds.has(session.id) && session.id !== currentSessionId,
 		)) {
 			items.push({ ...sessionCommand(workspace, session, "sessions"), searchOnly: !sessionIsActive(session) });
@@ -265,7 +252,7 @@ export function buildCommands(ctx: CommandPaletteContext, t: TFunction = appI18n
 	}
 
 	for (const workspace of workspaces) {
-		for (const session of workerSessions(workspace.sessions)) {
+		for (const session of workspace.sessions) {
 			for (const pr of openPRs(session)) {
 				items.push({
 					id: `pr:${session.id}:${pr.number}`,

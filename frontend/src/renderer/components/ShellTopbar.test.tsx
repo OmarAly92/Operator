@@ -6,11 +6,10 @@ import { useUiStore } from "../stores/ui-store";
 import type { SessionActivityState, WorkspaceSession, WorkspaceSummary } from "../types/workspace";
 import { ShellTopbar } from "./ShellTopbar";
 
-const { navigateMock, paramsMock, postMock, spawnMock, useClaudeAccountsMock, useWorkspaceQueryMock } = vi.hoisted(() => ({
+const { navigateMock, paramsMock, postMock, useClaudeAccountsMock, useWorkspaceQueryMock } = vi.hoisted(() => ({
 	navigateMock: vi.fn(),
 	paramsMock: { projectId: undefined as string | undefined, sessionId: undefined as string | undefined },
 	postMock: vi.fn(),
-	spawnMock: vi.fn(),
 	useClaudeAccountsMock: vi.fn(),
 	useWorkspaceQueryMock: vi.fn(),
 }));
@@ -42,7 +41,6 @@ vi.mock("../lib/api-client", () => ({
 	},
 }));
 
-vi.mock("../lib/spawn-orchestrator", () => ({ spawnOrchestrator: spawnMock }));
 vi.mock("../lib/telemetry", () => ({
 	addRendererExceptionStep: vi.fn(),
 	captureRendererEvent: vi.fn(),
@@ -75,19 +73,6 @@ const secondWorker: WorkspaceSession = {
 	branch: "opr/sess-2",
 };
 
-const orchestrator: WorkspaceSession = {
-	id: "orch-1",
-	workspaceId: "proj-1",
-	workspaceName: "my-app",
-	title: "orchestrator",
-	provider: "claude-code",
-	kind: "orchestrator",
-	branch: "main",
-	status: "working",
-	updatedAt: "2026-06-10T00:00:00Z",
-	prs: [],
-};
-
 function sessionWith(overrides: Partial<WorkspaceSession> = {}): WorkspaceSession {
 	return {
 		...worker,
@@ -106,7 +91,6 @@ function renderTopbarSessions(sessions: WorkspaceSession[], sessionId: string, e
 			id: sessions[0].workspaceId,
 			name: sessions[0].workspaceName,
 			path: "/repo/my-app",
-			orchestratorAgent: "claude-code",
 			sessions,
 		},
 	];
@@ -144,7 +128,6 @@ describe("ShellTopbar status pill", () => {
 		expect(screen.queryByText("opr/sess-1")).not.toBeInTheDocument();
 		expect(screen.queryByText("Working")).not.toBeInTheDocument();
 		expect(screen.queryByRole("button", { name: "Kill session" })).not.toBeInTheDocument();
-		expect(screen.queryByRole("button", { name: "Open orchestrator" })).not.toBeInTheDocument();
 		expect(screen.getByRole("button", { name: "Close inspector panel" })).toBeInTheDocument();
 	});
 
@@ -203,77 +186,6 @@ describe("ShellTopbar status pill", () => {
 			params: { projectId: "proj-1", slug: "search-page" },
 			search: { file: undefined },
 		});
-	});
-});
-
-describe("ShellTopbar orchestrator actions", () => {
-	it.each([
-		["active", "Working", "bg-status-working", true],
-		["waiting_input", "Input Needed", "bg-status-needs-you", false],
-	] as const)("shows %s orchestrator activity on the project board", (state, label, tone, pulses) => {
-		renderTopbarSessions(
-			[
-				{
-					...orchestrator,
-					activity: { state, lastActivityAt: "2026-06-10T00:00:00Z" },
-				},
-			],
-			"",
-		);
-
-		const button = screen.getByRole("button", { name: `Orchestrator, ${label}` });
-		const indicator = button.querySelector("span.size-dot-sm") as HTMLElement;
-		expect(indicator).toHaveAttribute("aria-hidden", "true");
-		expect(indicator).toHaveClass(tone);
-		expect(indicator).toHaveClass(pulses ? "animate-status-pulse" : "size-dot-sm");
-		if (!pulses) expect(indicator).not.toHaveClass("animate-status-pulse");
-	});
-
-	it("renders no project name or New task action on the embedded orchestrator topbar", () => {
-		renderTopbar(orchestrator, true);
-
-		expect(screen.queryByText("Kanban")).not.toBeInTheDocument();
-		expect(screen.queryByRole("button", { name: "Open Kanban" })).not.toBeInTheDocument();
-		expect(screen.queryByRole("button", { name: "New task" })).not.toBeInTheDocument();
-	});
-
-	it("opens the board from the project-name crumb on the full orchestrator topbar", async () => {
-		renderTopbar(orchestrator);
-
-		expect(screen.queryByRole("button", { name: "New task" })).not.toBeInTheDocument();
-		await userEvent.click(screen.getByRole("button", { name: "Open Kanban" }));
-		expect(navigateMock).toHaveBeenCalledWith({
-			to: "/projects/$projectId",
-			params: { projectId: "proj-1" },
-		});
-	});
-
-	it("opens project settings instead of spawning when no orchestrator agent is configured", async () => {
-		useWorkspaceQueryMock.mockReturnValue({
-			data: [
-				{
-					id: "proj-1",
-					name: "my-app",
-					path: "/repo/my-app",
-					sessions: [worker],
-				},
-			],
-			isError: false,
-			isLoading: false,
-		});
-		paramsMock.projectId = "proj-1";
-		paramsMock.sessionId = undefined;
-		render(
-			<QueryClientProvider client={new QueryClient()}>
-				<ShellTopbar />
-			</QueryClientProvider>,
-		);
-
-		await userEvent.click(screen.getByRole("button", { name: "Spawn Orchestrator" }));
-
-		expect(useUiStore.getState().settingsModal).toEqual({ scope: "project", projectId: "proj-1" });
-		expect(navigateMock).not.toHaveBeenCalled();
-		expect(spawnMock).not.toHaveBeenCalled();
 	});
 });
 

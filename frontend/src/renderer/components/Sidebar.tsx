@@ -20,18 +20,11 @@ import {
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import type { UpdateStatus } from "../../shared/update-settings";
-import {
-	hasConfiguredOrchestratorAgent,
-	newestActiveOrchestrator,
-	type WorkspaceSession,
-	type WorkspaceSummary,
-	workerSessions,
-} from "../types/workspace";
+import { type WorkspaceSession, type WorkspaceSummary } from "../types/workspace";
 import { getAgentActivityView } from "../lib/session-presentation";
 import { operatorBridge } from "../lib/bridge";
 import { workspaceQueryKey } from "../hooks/useWorkspaceQuery";
 import { usePinSession, useUnpinSession } from "../hooks/usePinSession";
-import { spawnOrchestrator } from "../lib/spawn-orchestrator";
 import { renameSession } from "../lib/rename-session";
 import { useTerminateSession } from "../hooks/useTerminateSession";
 import { useOpenShellTerminal } from "../hooks/useShellTerminals";
@@ -69,7 +62,6 @@ import {
 	useSidebar,
 } from "./ui/sidebar";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
-import { OrchestratorIcon } from "./icons";
 import { cn } from "../lib/utils";
 import { useUiStore } from "../stores/ui-store"
 import { ConfirmDialog } from "./ConfirmDialog";
@@ -83,7 +75,7 @@ import { isMacPlatform } from "../lib/platform";
 // under its custom titlebar.
 const isMac = isMacPlatform();
 
-// Shared styling for the per-project hover action buttons (orchestrator, kebab):
+// Shared styling for the per-project hover action buttons (new task, terminal, kebab):
 // a 20px square icon button that tints on hover, matching the old
 // SidebarMenuAction footprint.
 const HOVER_ACTION_CLASS =
@@ -187,7 +179,7 @@ export function Sidebar({
 	const daemonStatus = useShellMaybe()?.daemonStatus ?? null;
 	const [sidebarFilter, setSidebarFilter] = useState("");
 	const searchQuery = sidebarFilter.trim().toLocaleLowerCase();
-	const visibleWorkspaces = workspaces.filter((workspace) => workspace.name.toLocaleLowerCase().includes(searchQuery) || workerSessions(workspace.sessions).some((session) => !session.isTerminated && session.title.toLocaleLowerCase().includes(searchQuery)));
+	const visibleWorkspaces = workspaces.filter((workspace) => workspace.name.toLocaleLowerCase().includes(searchQuery) || workspace.sessions.some((session) => !session.isTerminated && session.title.toLocaleLowerCase().includes(searchQuery)));
 
 	useLayoutEffect(() => {
 		// Offcanvas: the panel slides off-screen on collapse — no need to hide content.
@@ -230,7 +222,7 @@ export function Sidebar({
 	});
 
 	const pinnedSessions = workspaces
-		.flatMap((w) => workerSessions(w.sessions))
+		.flatMap((w) => w.sessions)
 		.filter((s) => s.isPinned && s.isTerminated !== true && (s.title.toLocaleLowerCase().includes(searchQuery) || s.workspaceName.toLocaleLowerCase().includes(searchQuery)))
 		.sort((a, b) => {
 			const aTime = a.pinnedAt ? new Date(a.pinnedAt).getTime() : 0;
@@ -438,17 +430,9 @@ function ProjectItem({
 	const prefersReducedMotion = useReducedMotion();
 	const activeProjectMatches = selection.activeProjectId === workspace.id;
 	const dashboardActive = activeProjectMatches && !selection.activeSessionId;
-	const orchestratorActive =
-		activeProjectMatches &&
-		workspace.sessions.some(
-			(session) => session.id === selection.activeSessionId && session.kind === "orchestrator",
-		);
-	const projectActive = dashboardActive || orchestratorActive;
-	const queryClient = useQueryClient();
 	const [removeError, setRemoveError] = useState<string | null>(null);
 	const [isRemoving, setIsRemoving] = useState(false);
 	const [confirmOpen, setConfirmOpen] = useState(false);
-	const [isSpawning, setIsSpawning] = useState(false);
 	const [projectPressed, setProjectPressed] = useState(false);
 	const [rowHovered, setRowHovered] = useState(false);
 	// Skip enter animation on first mount — sessions arrive async and we don't
@@ -465,63 +449,27 @@ function ProjectItem({
 	// Keep completed PR sessions reachable while their runtime still exists.
 	// Only termination removes a worker from the sidebar; archived sessions stay
 	// reachable through SessionsBoard.
-	const sessions = workerSessions(workspace.sessions).filter((session) => session.isTerminated !== true && (workspace.name.toLocaleLowerCase().includes(searchQuery) || session.title.toLocaleLowerCase().includes(searchQuery)));
-	// The project's live orchestrator (if any) backs the hover Orchestrator
-	// button: navigate to it when present, otherwise spawn one first.
-	const orchestrator = newestActiveOrchestrator(workspace.sessions);
+	const sessions = workspace.sessions.filter((session) => session.isTerminated !== true && (workspace.name.toLocaleLowerCase().includes(searchQuery) || session.title.toLocaleLowerCase().includes(searchQuery)));
 	const { mutate: openShellTerminal, isPending: isOpeningShell } = useOpenShellTerminal();
 	const setActiveShellTerminal = useUiStore((state) => state.setActiveShellTerminal);
 	const drop = useTicketDropTarget(projectDropId(workspace.id));
 
-	// A terminal for the project, scoped to the orchestrator when there is one:
-	// the orchestrator is a session like any other, so the daemon resolves its
-	// directory, and the shell lands as a tab beside the orchestrator's own
-	// terminal. With no orchestrator there is no session view to host a tab, so
-	// the shell opens against the project root and lives on /terminals.
+	// A terminal for the project: the shell opens against the project root and
+	// lives on /terminals.
 	const openProjectTerminal = () => {
 		openShellTerminal(
-			orchestrator ? { sessionId: orchestrator.id } : { projectId: workspace.id },
+			{ projectId: workspace.id },
 			{
 				onSuccess: (shell) => {
 					setActiveShellTerminal(shell.handleId);
-					if (orchestrator) selection.goSession(workspace.id, orchestrator.id);
-					else void navigate({ to: "/terminals" });
+					void navigate({ to: "/terminals" });
 				},
 			},
 		);
 	};
 
-	// Mirrors ShellTopbar's launcher: attach to the running orchestrator, or
-	// spawn one via the daemon and follow it once the workspace refetches.
-	// Expand a collapsed project so opening the orchestrator also reveals its
-	// session list — otherwise the tree stays shut while you're inside it.
-	const openOrchestrator = async () => {
-		if (isProjectRestarting) return;
-		if (!expanded) onToggle();
-		if (orchestrator) {
-			selection.goSession(workspace.id, orchestrator.id);
-			return;
-		}
-		if (!hasConfiguredOrchestratorAgent(workspace)) {
-			selection.goSettings(workspace.id);
-			return;
-		}
-		setIsSpawning(true);
-		try {
-			const sessionId = await spawnOrchestrator(workspace.id, "sidebar");
-			await queryClient.invalidateQueries({ queryKey: workspaceQueryKey });
-			selection.goSession(workspace.id, sessionId);
-		} catch (err) {
-			console.error("Failed to spawn orchestrator:", err);
-		} finally {
-			setIsSpawning(false);
-		}
-	};
-
 	// Expanded + already on the project board → collapse. Expanded + on a
-	// session (orchestrator or worker) → board. Collapsed → expand + board.
-	// Do not treat orchestratorActive like the board: the project row is the
-	// one-click path back from the orchestrator button.
+	// session → board. Collapsed → expand + board.
 	const onProjectClick = () => {
 		if (!expanded) {
 			onToggle();
@@ -601,7 +549,7 @@ function ProjectItem({
 	<SidebarMenuButton
 		aria-current={dashboardActive ? "page" : undefined}
 		aria-expanded={expanded}
-		isActive={projectActive}
+		isActive={dashboardActive}
 		tooltip={workspace.name}
 		onClick={onProjectClick}
 		onKeyDown={onProjectKeyDown}
@@ -665,9 +613,10 @@ function ProjectItem({
 		type="button"
 	/>
 		</div>
-		{/* Per-project actions: orchestrator and kebab menu. Inside the scaled visual
-		row, but outside its navigation surface so their own presses stay independent.
-		Always visible (not hover-gated) to avoid CSS :hover group propagation in Chromium. */}
+		{/* Per-project actions: new task, terminal, and kebab menu. Inside the scaled
+		visual row, but outside its navigation surface so their own presses stay
+		independent. Always visible (not hover-gated) to avoid CSS :hover group
+		propagation in Chromium. */}
 		<div
 			className={cn(
 				"sidebar-expanded-chrome absolute top-0 right-0.5 z-chrome flex h-control-form items-center gap-px",
@@ -704,33 +653,6 @@ function ProjectItem({
 					</button>
 				</TooltipTrigger>
 				<TooltipContent>{t("shell.openSessionTerminalAction")}</TooltipContent>
-			</Tooltip>
-			<Tooltip>
-				<TooltipTrigger asChild>
-					<button
-						aria-current={orchestratorActive ? "page" : undefined}
-						aria-label={
-							orchestrator
-								? t("shell.openProjectOrchestrator", { name: workspace.name })
-								: t("shell.spawnProjectOrchestrator", { name: workspace.name })
-						}
-						className={cn(HOVER_ACTION_CLASS, orchestratorActive && "text-foreground")}
-						disabled={isSpawning || isProjectRestarting}
-						onClick={() => void openOrchestrator()}
-						type="button"
-					>
-						<OrchestratorIcon aria-hidden="true" strokeWidth={orchestratorActive ? 2.5 : 2} />
-					</button>
-				</TooltipTrigger>
-				<TooltipContent>
-					{isProjectRestarting
-						? t("shell.restarting")
-						: isSpawning
-							? t("shell.spawning")
-							: orchestrator
-								? t("shell.orchestrator")
-								: t("shell.spawnOrchestratorLower")}
-				</TooltipContent>
 			</Tooltip>
 			<DropdownMenu>
 				<DropdownMenuTrigger asChild>

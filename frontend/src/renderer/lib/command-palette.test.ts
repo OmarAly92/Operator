@@ -54,7 +54,6 @@ function workspaces(): WorkspaceSummary[] {
 				session({ id: "w-action", title: "fix flake", status: "needs_input" }),
 				session({ id: "w-pr", title: "add cache", status: "pr_open", prs: [pr(42)] }),
 				session({ id: "w-synthetic", title: "scratch", branch: "session/w-synthetic" }),
-				session({ id: "orch", title: "orchestrate", kind: "orchestrator" }),
 			],
 		},
 	];
@@ -84,7 +83,6 @@ describe("buildCommands grouping", () => {
 		const items = buildCommands({ workspaces: workspaces(), currentProjectId: "proj-1", currentSessionId: "w-pr" });
 		const map = byId(items);
 		expect(map.get("current-new-task")?.group).toBe("current");
-		expect(map.get("current-open-orchestrator")?.group).toBe("current");
 		expect(map.get("current-project-settings")?.group).toBe("current");
 		expect(map.get("current-copy-branch")?.group).toBe("current");
 		expect(map.get("current-copy-branch")?.action).toEqual({ kind: "copy-branch", branch: "feature/w-pr" });
@@ -96,11 +94,10 @@ describe("buildCommands grouping", () => {
 		expect(newTask?.disabled).toBe(true);
 		expect(newTask?.disabledReason).toBe("No current project");
 		expect(newTask?.action).toBeUndefined();
-		expect(byId(items).has("current-open-orchestrator")).toBe(false);
 		expect(byId(items).has("current-project-settings")).toBe(false);
 	});
 
-	it("disables New task and Open orchestrator while the project orchestrator is restarting", () => {
+	it("disables New task while the project is restarting", () => {
 		const items = buildCommands({
 			workspaces: workspaces(),
 			currentProjectId: "proj-1",
@@ -109,23 +106,12 @@ describe("buildCommands grouping", () => {
 		const map = byId(items);
 		expect(map.get("current-new-task")?.disabled).toBe(true);
 		expect(map.get("current-new-task")?.disabledReason).toBe("Orchestrator restarting");
-		expect(map.get("current-open-orchestrator")?.disabled).toBe(true);
-		expect(map.get("current-open-orchestrator")?.disabledReason).toBe("Orchestrator restarting");
 		expect(map.get("current-project-settings")?.disabled).toBeFalsy();
 	});
 
-	it("omits Copy branch for a synthetic (session/<id>) branch and for orchestrators", () => {
+	it("omits Copy branch for a synthetic (session/<id>) branch", () => {
 		const synthetic = buildCommands({ workspaces: workspaces(), currentSessionId: "w-synthetic" });
 		expect(byId(synthetic).has("current-copy-branch")).toBe(false);
-		const orch = buildCommands({ workspaces: workspaces(), currentSessionId: "orch" });
-		expect(byId(orch).has("current-copy-branch")).toBe(false);
-	});
-
-	it("recognises an orchestrator by its id suffix, not just its kind", () => {
-		const rows = workspaces();
-		rows[0].sessions.push(session({ id: "proj-1-orchestrator", title: "legacy orch", branch: "main" }));
-		const items = buildCommands({ workspaces: rows, currentSessionId: "proj-1-orchestrator" });
-		expect(byId(items).has("current-copy-branch")).toBe(false);
 	});
 });
 
@@ -423,7 +409,6 @@ describe("session rows open the actions panel", () => {
 });
 
 const workspace: WorkspaceSummary = { id: "proj-1", name: "app", path: "/repos/app", type: "main", sessions: [] };
-const actionKinds = (items: CommandItem[]) => items.map((item) => item.action?.kind ?? "none");
 
 describe("buildSessionActions", () => {
 	it("offers Jump then Copy branch for a live worker", () => {
@@ -454,14 +439,6 @@ describe("buildSessionActions", () => {
 			session({ id: "archived-merged", status: "merged", isTerminated: true }),
 		);
 		expect(items.some((i) => i.action?.kind === "resume-session")).toBe(true);
-	});
-
-	it("never offers Resume or Copy branch for an orchestrator", () => {
-		const items = buildSessionActions(
-			workspace,
-			session({ id: "proj-1-orchestrator", kind: "orchestrator", status: "terminated", branch: "main" }),
-		);
-		expect(actionKinds(items)).toEqual(["navigate"]);
 	});
 
 	it("omits Copy branch for a synthetic branch", () => {
