@@ -74,11 +74,10 @@ describe("findSession", () => {
 
 describe("buildCommands grouping", () => {
 	it("uses the translator supplied by the reactive caller", () => {
-		const items = buildCommands(
-			{ workspaces: workspaces(), currentProjectId: "proj-1" },
-			appI18n.getFixedT("zh-CN"),
-		);
-		expect(byId(items).get("current-new-task")?.title).toBe("新建任务");
+		const customT = ((key: string) =>
+			key === "command.newTask" ? "Custom new task" : key) as typeof appI18n.t;
+		const items = buildCommands({ workspaces: workspaces(), currentProjectId: "proj-1" }, customT);
+		expect(byId(items).get("current-new-task")?.title).toBe("Custom new task");
 	});
 
 	it("puts current-scoped actions in the Current group when the project is valid", () => {

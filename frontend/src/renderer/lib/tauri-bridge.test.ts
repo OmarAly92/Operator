@@ -256,28 +256,28 @@ describe("tauri-bridge native integrations", () => {
 	});
 
 	it("keeps the tray locale in sync from ui settings reads and writes", async () => {
-		getStub.mockReset().mockResolvedValue({ data: { ui: { locale: "de" } } });
-		patchStub.mockReset().mockResolvedValue({ data: { ui: { locale: "fr" } } });
+		getStub.mockReset().mockResolvedValue({ data: { ui: { locale: "en" } } });
+		patchStub.mockReset().mockResolvedValue({ data: { ui: { locale: "en" } } });
 		const invoke = vi.fn(async () => null);
 		const tauri = createTauriBridge({ invoke, listen: vi.fn() });
 
-		await expect(tauri.uiSettings.get()).resolves.toEqual({ locale: "de" });
-		await expect(tauri.uiSettings.set({ locale: "fr" })).resolves.toEqual({ locale: "fr" });
+		await expect(tauri.uiSettings.get()).resolves.toEqual({ locale: "en" });
+		await expect(tauri.uiSettings.set({ locale: "en" })).resolves.toEqual({ locale: "en" });
 		await vi.waitFor(() => {
-			expect(invoke).toHaveBeenNthCalledWith(1, "tray_set_locale", { locale: "de" });
-			expect(invoke).toHaveBeenNthCalledWith(2, "tray_set_locale", { locale: "fr" });
+			expect(invoke).toHaveBeenNthCalledWith(1, "tray_set_locale", { locale: "en" });
+			expect(invoke).toHaveBeenNthCalledWith(2, "tray_set_locale", { locale: "en" });
 		});
 	});
 
 	it("never fails a settings read when the tray locale push is rejected", async () => {
-		getStub.mockReset().mockResolvedValue({ data: { ui: { locale: "ja" } } });
+		getStub.mockReset().mockResolvedValue({ data: { ui: { locale: "en" } } });
 		const invoke = vi.fn(async (command: string) => {
 			if (command === "tray_set_locale") throw new Error("tray unavailable");
 			return null;
 		});
 		const tauri = createTauriBridge({ invoke, listen: vi.fn() });
 
-		await expect(tauri.uiSettings.get()).resolves.toEqual({ locale: "ja" });
+		await expect(tauri.uiSettings.get()).resolves.toEqual({ locale: "en" });
 	});
 
 	it("routes notifications through the shell commands with exact channels", async () => {
