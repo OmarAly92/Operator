@@ -1,10 +1,9 @@
 package cli
 
-// dto_drift_e2e_test.go is the DTO-drift guard for the `opr spawn` and
-// `opr project add` commands. The CLI defines its OWN request structs
-// (spawnRequest in spawn.go, addProjectRequest in project.go) that are separate
-// copies of the daemon's canonical request DTOs (controllers.SpawnSessionRequest
-// and project.AddInput). Nothing else verifies the two sides agree on JSON field
+// dto_drift_e2e_test.go is the DTO-drift guard for the `opr project add`
+// command. The CLI defines its OWN request struct (addProjectRequest in
+// project.go) that is a separate copy of the daemon's canonical request DTO
+// (project.AddInput). Nothing else verifies the two sides agree on JSON field
 // names — a renamed `json:"..."` tag on either side compiles fine but silently
 // breaks at runtime.
 //
@@ -167,55 +166,7 @@ func startDriftTestDaemon(t *testing.T, sessions controllers.SessionService, pro
 	}
 }
 
-func TestE2E_SpawnAndProjectAddDTORoundTrip(t *testing.T) {
-	t.Run("spawn", func(t *testing.T) {
-		sessions := &fakeSessionService{}
-		startDriftTestDaemon(t, sessions, &fakeProjectManager{})
-
-		var out bytes.Buffer
-		root := NewRootCommand(Deps{
-			Out:          &out,
-			Err:          &out,
-			HTTPClient:   &http.Client{},
-			ProcessAlive: func(int) bool { return true },
-		})
-		root.SetArgs([]string{
-			"spawn",
-			"--project", "mer",
-			"--harness", "codex",
-			"--branch", "feat/x",
-			"--prompt", "hi",
-			"--issue", "ISS-1",
-			"--name", "my worker",
-		})
-		if err := root.Execute(); err != nil {
-			t.Fatalf("spawn execute: %v\noutput: %s", err, out.String())
-		}
-
-		got := sessions.spawned
-		if got.ProjectID != "mer" {
-			t.Errorf("ProjectID = %q, want %q (CLI json:\"projectId\" vs SpawnSessionRequest)", got.ProjectID, "mer")
-		}
-		if got.Harness != "codex" {
-			t.Errorf("Harness = %q, want %q", got.Harness, "codex")
-		}
-		if got.Branch != "feat/x" {
-			t.Errorf("Branch = %q, want %q", got.Branch, "feat/x")
-		}
-		if got.Prompt != "hi" {
-			t.Errorf("Prompt = %q, want %q", got.Prompt, "hi")
-		}
-		if got.IssueID != "ISS-1" {
-			t.Errorf("IssueID = %q, want %q", got.IssueID, "ISS-1")
-		}
-		if got.DisplayName != "my worker" {
-			t.Errorf("DisplayName = %q, want %q (CLI json:\"displayName\" vs SpawnSessionRequest)", got.DisplayName, "my worker")
-		}
-		if !bytes.Contains(out.Bytes(), []byte("spawned session")) {
-			t.Errorf("output missing %q; got: %s", "spawned session", out.String())
-		}
-	})
-
+func TestE2E_ProjectAddDTORoundTrip(t *testing.T) {
 	t.Run("project add", func(t *testing.T) {
 		projects := &fakeProjectManager{}
 		startDriftTestDaemon(t, &fakeSessionService{}, projects)
