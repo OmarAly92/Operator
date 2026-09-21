@@ -61,7 +61,6 @@ function workspaces(): WorkspaceSummary[] {
 				worker({ id: "s-work", title: "working", status: "working" }),
 				worker({ id: "s-merge", title: "merge me", status: "mergeable" }),
 				worker({ id: "s-merged", title: "already merged", status: "merged" }),
-				worker({ id: "orch", title: "orchestrator", kind: "orchestrator", status: "needs_input" }),
 			],
 		},
 	];
@@ -74,7 +73,7 @@ afterEach(() => {
 });
 
 describe("TrayRuntime", () => {
-	it("pushes only attention-worthy worker sessions to the tray", () => {
+	it("pushes only attention-worthy sessions to the tray", () => {
 		h.workspaces = workspaces();
 		render(<TrayRuntime />);
 		expect(h.setAttentionState).toHaveBeenLastCalledWith({

@@ -23,7 +23,7 @@ import { nativeShellBridgePresent } from "../lib/bridge";
 import { hidesShellTopbar } from "../lib/platform";
 import { useShell } from "../lib/shell-context";
 import { cn } from "../lib/utils";
-import { isOrchestratorSession, sessionIsActive } from "../types/workspace";
+import { sessionIsActive } from "../types/workspace";
 import { terminalTargetBelongsToSession, type TerminalTarget } from "../types/terminal";
 import { matchesRendererShortcut } from "../stores/keybindings-store";
 import { inspectorState, useResolvedTheme, useUiStore, type InspectorView } from "../stores/ui-store";
@@ -102,7 +102,7 @@ export function SessionView({ sessionId }: SessionViewProps) {
 	const reviewerQuery = useQuery({
 		queryKey: ["session-reviews", sessionId],
 		enabled: Boolean(
-			nativeShellBridgePresent() && session && sessionIsActive(session) && !isOrchestratorSession(session) && session.prs.length > 0,
+			nativeShellBridgePresent() && session && sessionIsActive(session) && session.prs.length > 0,
 		),
 		refetchInterval: (query) => {
 			const data = query.state.data as ReviewsResponse | undefined;
@@ -172,9 +172,7 @@ export function SessionView({ sessionId }: SessionViewProps) {
 				: current,
 		);
 	}, [availableReviewerTerminal]);
-	const isOrchestrator = session ? isOrchestratorSession(session) : false;
-	// Orchestrators get the full workspace width; only workers need the inspector rail.
-	const hasInspector = Boolean(session && !isOrchestrator);
+	const hasInspector = Boolean(session);
 	const sessionHeaderActions = <ShellTopbar embedded />;
 	const previewUrl = session?.previewUrl?.trim() || undefined;
 	const previewRevision = session?.previewRevision;

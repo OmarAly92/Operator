@@ -774,12 +774,12 @@ describe("SessionView", () => {
 
 	// Regression: rrp only derives a panel's constraints one commit after it
 	// registers into a live group. Driving the imperative API in the commit
-	// where the inspector mounts (orchestrator → worker navigation; SessionView
-	// itself stays mounted) threw "Panel constraints not found for Panel
-	// inspector" and unwound the route to the error boundary. The panel must
-	// mount already in sync via defaultSize instead.
-	it("mounts the inspector in sync when navigating from an orchestrator session, without the imperative API", () => {
-		const { rerender } = render(<SessionView sessionId="sess-orch" />);
+	// where the inspector mounts (no session found → worker navigation;
+	// SessionView itself stays mounted) threw "Panel constraints not found for
+	// Panel inspector" and unwound the route to the error boundary. The panel
+	// must mount already in sync via defaultSize instead.
+	it("mounts the inspector in sync when navigating from a session with no data yet, without the imperative API", () => {
+		const { rerender } = render(<SessionView sessionId="sess-missing" />);
 		expect(screen.queryByTestId("panel-inspector")).not.toBeInTheDocument();
 
 		// Already-open worker state — the panel that mounts later must pick this
@@ -800,7 +800,7 @@ describe("SessionView", () => {
 		const handle = panels.get("inspector")!.handle;
 
 		act(() => useUiStore.getState().setInspectorOpen("sess-2", false));
-		rerender(<SessionView sessionId="sess-orch" />);
+		rerender(<SessionView sessionId="sess-missing" />);
 		expect(screen.queryByTestId("panel-inspector")).not.toBeInTheDocument();
 
 		act(() => useUiStore.getState().setInspectorOpen("sess-2", false));
@@ -814,15 +814,15 @@ describe("SessionView", () => {
 		expect(handle.resize).toHaveBeenCalledWith("30%");
 	});
 
-	it("renders no inspector panel or handle for orchestrator sessions", () => {
-		render(<SessionView sessionId="sess-orch" />);
+	it("renders no inspector panel or handle when the session isn't found", () => {
+		render(<SessionView sessionId="sess-missing" />);
 
 		expect(screen.queryByTestId("panel-inspector")).not.toBeInTheDocument();
 		expect(screen.queryByTestId("resize-handle")).not.toBeInTheDocument();
 
 		// The shortcut is inactive without an inspector.
 		fireEvent.keyDown(window, { key: "B", metaKey: true, shiftKey: true });
-		expect(useUiStore.getState().inspectorSessions["sess-orch"]).toBeUndefined();
+		expect(useUiStore.getState().inspectorSessions["sess-missing"]).toBeUndefined();
 	});
 
 	it("opens the files view in the inspector rail first", () => {
