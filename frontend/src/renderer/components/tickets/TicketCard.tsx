@@ -68,8 +68,8 @@ export function TicketCard({
 			role="button"
 			tabIndex={0}
 		>
-			<div className="flex flex-col gap-1.5 px-3.5 pb-2.5 pt-3">
-				<div className="line-clamp-2 text-base font-semibold leading-tight tracking-tight text-foreground" title={ticket.title}>
+			<div className="flex flex-col gap-1 px-3 pb-2 pt-2.5">
+				<div className="line-clamp-2 text-control font-semibold leading-tight tracking-tight text-foreground" title={ticket.title}>
 					{ticket.title}
 				</div>
 				<div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 font-mono text-micro text-passive">
@@ -98,7 +98,7 @@ export function TicketCard({
 			</div>
 			{plans.length > 0 ? (
 				<>
-					<div aria-hidden="true" className="mx-3.5 my-px h-px bg-border" />
+					<div aria-hidden="true" className="mx-3 my-px h-px bg-border" />
 					<div aria-label={t("tickets.plansAria", { title: ticket.title })} className="flex flex-col gap-0.5 px-2 py-1.5" role="list">
 						{plans.map((plan) => (
 							<div key={plan.file} role="listitem">
@@ -119,7 +119,7 @@ export function TicketCard({
 			{awaiting.map((plan) => (
 				<div
 					key={plan.file}
-					className="mx-3.5 mb-2.5 flex flex-col gap-1.5 rounded-md border border-status-ready/40 bg-status-ready/10 px-3 py-2"
+					className="mx-3 mb-2 flex flex-col gap-1.5 rounded-md border border-status-ready/40 bg-status-ready/10 px-3 py-2"
 					data-testid="ticket-awaiting-merge"
 				>
 					<span className="text-2xs font-medium text-status-ready">
@@ -138,8 +138,8 @@ export function TicketCard({
 					</button>
 				</div>
 			))}
-			<div aria-hidden="true" className="mx-3.5 my-px h-px bg-border" />
-			<div className="flex flex-wrap items-center gap-1 px-2 py-1.5">
+			<div aria-hidden="true" className="mx-3 my-px h-px bg-border" />
+			<div className="flex flex-wrap items-center gap-1 px-1.5 py-1">
 				{planningLive && planningSession ? (
 					<button
 						type="button"

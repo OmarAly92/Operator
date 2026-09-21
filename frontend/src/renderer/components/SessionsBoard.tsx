@@ -847,12 +847,12 @@ function SessionCard({
 				</div>
 			) : null}
 			{action ? <div className="absolute right-2 top-1.5 z-10">{action}</div> : null}
-			<div className="flex items-start gap-2.5 px-3.5 pb-2.5 pt-3">
-				<AgentAvatar className="mt-0.5" provider={session.provider} />
+			<div className="flex items-start gap-2 px-3 pb-2 pt-2.5">
+				<AgentAvatar className="mt-px size-icon-base" provider={session.provider} />
 				<div className="min-w-0 flex-1">
 					<div
 						className={cn(
-							"line-clamp-2 overflow-hidden text-base font-semibold leading-tight tracking-tight text-foreground",
+							"line-clamp-2 overflow-hidden text-control font-semibold leading-tight tracking-tight text-foreground",
 							cornerControlPadding,
 						)}
 						title={session.title}
@@ -860,7 +860,7 @@ function SessionCard({
 						{session.title}
 					</div>
 					{showLocation && (
-						<div className="mt-1.5 flex min-w-0 items-center gap-1 font-mono text-micro leading-normal text-passive">
+						<div className="mt-1 flex min-w-0 items-center gap-1 font-mono text-micro leading-normal text-passive">
 							{showBranch && (
 								<span className="flex min-w-0 items-center gap-1" title={branch}>
 									<GitBranch aria-hidden="true" className="size-icon-2xs shrink-0 opacity-60" />
@@ -889,8 +889,8 @@ function SessionCard({
 					/>
 				</div>
 			</div>
-			<div aria-hidden="true" className="mx-3.5 my-px h-px bg-border" />
-			<div className="flex flex-col gap-1.5 px-3.5 py-2">
+			<div aria-hidden="true" className="mx-3 my-px h-px bg-border" />
+			<div className="flex flex-col gap-1 px-3 py-1.5">
 				<div className="flex items-center justify-between gap-2">
 					<span
 						className={cn("inline-flex min-w-0 items-center gap-1.5 truncate text-2xs font-medium", badge.className)}

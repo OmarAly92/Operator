@@ -53,12 +53,17 @@ const spacingTokens = [
 	"window-titlebar",
 ];
 
+const sizeTokens = ["icon-2xs", "icon-xs", "icon-sm", "icon-md", "icon-base", "icon-lg", "icon-xl"];
+
 const twMerge = extendTailwindMerge({
 	extend: {
 		theme: {
 			spacing: spacingTokens,
 		},
 		classGroups: {
+			size: [{ size: sizeTokens }],
+			w: [{ w: sizeTokens }],
+			h: [{ h: sizeTokens }],
 			"font-size": [
 				"text-micro",
 				"text-2xs",
