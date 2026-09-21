@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { useParams } from "@tanstack/react-router";
-import { GitBranch, PanelRightClose, PanelRightOpen, Plus, SquareTerminal } from "lucide-react";
+import { GitBranch, PanelRightClose, PanelRightOpen } from "lucide-react";
 import { LayoutGroup, motion } from "motion/react";
 import type { WorkspaceSession } from "../types/workspace";
 import { useWorkspaceQuery } from "../hooks/useWorkspaceQuery";
@@ -31,8 +31,6 @@ export function ShellTopbar({ embedded = false }: { embedded?: boolean } = {}) {
 		currentSessionId ? inspectorState(state.inspectorSessions, currentSessionId).isOpen : false,
 	);
 	const toggleInspector = useUiStore((state) => state.toggleInspector);
-	const requestNewTask = useUiStore((state) => state.requestNewTask);
-	const requestNewShellTerminal = useUiStore((state) => state.requestNewShellTerminal);
 	const all = useWorkspaceQuery().data ?? [];
 
 	const session = params.sessionId
@@ -49,11 +47,6 @@ export function ShellTopbar({ embedded = false }: { embedded?: boolean } = {}) {
 	const isRootBoardRoute = !isSessionRoute && !isProjectBoardRoute;
 	const project = projectId ? all.find((workspace) => workspace.id === projectId) : undefined;
 	const projectLabel = project?.name ?? session?.workspaceName ?? (projectId ? "" : t("shell.board"));
-
-	const openNewTask = () => {
-		if (!projectId) return;
-		requestNewTask(projectId);
-	};
 
 	const handleToggleInspector = () => {
 		if (!currentSessionId) return;
@@ -100,25 +93,6 @@ export function ShellTopbar({ embedded = false }: { embedded?: boolean } = {}) {
 
 			<div className="flex shrink-0 items-center gap-1.5">
 				{!isSessionRoute && <BoardDiff workspaces={project ? [project] : all} />}
-				{!boardActionsInPanel && isProjectBoardRoute ? (
-					<>
-						<TopbarButton
-							aria-label={t("shortcut.new-shell-terminal")}
-							onClick={requestNewShellTerminal}
-						>
-							<SquareTerminal className="size-icon-lg" aria-hidden="true" />
-							{t("shortcut.new-shell-terminal")}
-						</TopbarButton>
-						<TopbarButton
-							aria-label={t("shell.newTask")}
-							onClick={openNewTask}
-							variant="accent"
-						>
-							<Plus className="size-icon-lg" aria-hidden="true" />
-							{t("shell.newTask")}
-						</TopbarButton>
-					</>
-				) : null}
 				{isSessionRoute ? (
 					<>
 						{session ? (

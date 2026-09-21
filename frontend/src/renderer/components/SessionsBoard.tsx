@@ -9,7 +9,6 @@ import {
 	FolderOpen,
 	GitBranch,
 	LoaderCircle,
-	Plus,
 	RotateCcw,
 	SquareTerminal,
 	Trash2,
@@ -40,7 +39,7 @@ import {
 import { useWorkspaceQuery, workspaceQueryKey } from "../hooks/useWorkspaceQuery";
 import { BoardWelcome, ProjectBoardEmpty } from "./BoardEmptyStates";
 import { AgentAvatar } from "./AgentAvatar";
-import { BoardDiff, TopbarButton, topbarProjectLabelClass } from "./TopbarButton";
+import { BoardDiff, topbarProjectLabelClass } from "./TopbarButton";
 import { prBrowserUrl, sessionPRDisplaySummaries } from "../lib/pr-display";
 import { formatTimeCompact } from "../lib/format-time";
 import { formatTokenCount } from "../lib/format-token-count";
@@ -113,7 +112,6 @@ export function SessionsBoard({ projectId }: SessionsBoardProps) {
 	}
 	const [createTicketOpen, setCreateTicketOpen] = useState(false);
 	const requestNewTask = useUiStore((state) => state.requestNewTask);
-	const requestNewShellTerminal = useUiStore((state) => state.requestNewShellTerminal);
 
 	const archived = sessions
 		.filter(isArchivedSession)
@@ -192,23 +190,6 @@ export function SessionsBoard({ projectId }: SessionsBoardProps) {
 		}
 	};
 
-	const actions = projectId ? (
-		<>
-			<TopbarButton aria-label={t("shortcut.new-shell-terminal")} onClick={requestNewShellTerminal}>
-				<SquareTerminal className="size-icon-md" aria-hidden="true" />
-				{t("shortcut.new-shell-terminal")}
-			</TopbarButton>
-			<TopbarButton
-				aria-label={t("shell.newTask")}
-				onClick={() => projectId && requestNewTask(projectId)}
-				variant="accent"
-			>
-				<Plus className="size-icon-md" aria-hidden="true" />
-				{t("shell.newTask")}
-			</TopbarButton>
-		</>
-	) : undefined;
-
 	return (
 		<div
 			className="flex h-full min-h-0 flex-col bg-background text-foreground"
@@ -216,11 +197,12 @@ export function SessionsBoard({ projectId }: SessionsBoardProps) {
 			data-testid="board"
 		>
 			{/* macOS: shell topbar is hidden on board routes, so the project/"Board"
-			    crumb + New task / bell live in this in-panel row.
-			    Win/Linux keep the crumb and actions in the framed ShellTopbar.
+			    crumb lives in this in-panel row. Win/Linux keep the crumb in the
+			    framed ShellTopbar. New task and New terminal are the sidebar's
+			    project-row actions, not the board's.
 			    Welcome skips the row — a dangling "Board" above the import
 			    chooser was review feedback on #2432. */}
-			{!showWelcome && !showStartup && boardActionsInPanel && (boardLabel || actions) ? (
+			{!showWelcome && !showStartup && boardActionsInPanel && boardLabel ? (
 				<div
 					className="center-panel-titlebar flex h-toolbar shrink-0 items-center gap-2 border-b border-border-strong pr-4"
 					data-tauri-drag-region={dragRegion}
@@ -228,11 +210,6 @@ export function SessionsBoard({ projectId }: SessionsBoardProps) {
 					{boardLabel ? <span className={topbarProjectLabelClass}>{boardLabel}</span> : null}
 					<div className="min-w-0 flex-1" />
 					<BoardDiff workspaces={workspaces} />
-					{actions ? (
-						<div className="flex shrink-0 items-center gap-2">
-							{actions}
-						</div>
-					) : null}
 				</div>
 			) : null}
 
