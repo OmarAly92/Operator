@@ -61,8 +61,9 @@ try {
 		await session.setScrollTop(Math.floor(session.scrollHeight() / 2));
 		const before = session.visibleRows()[0];
 		const firstBefore = session.core().snapshot().firstStableRow;
-		for (let i = 0; i < 40 && session.fed < session.fixture.bytes; i += 1) session.feedNext(256 * 1024);
-		await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+		await session.paintAfter(() => {
+			for (let i = 0; i < 40 && session.fed < session.fixture.bytes; i += 1) session.feedNext(256 * 1024);
+		});
 		const after = session.visibleRows()[0];
 		const firstAfter = session.core().snapshot().firstStableRow;
 		return { before, after, firstBefore, firstAfter };

@@ -295,10 +295,16 @@ explicitly, not an extrapolation or a renamed fixture.
   resolves correctly — the same "read landed before the repaint" race, now
   also around a width-change resize. Not chased down or patched around with
   more `requestAnimationFrame` waits, which would be tuning the gate to pass
-  rather than fixing a diagnosed cause; see `TERMINAL.md` §5. Open
-  follow-up: a principled fix needs an explicit paint-completion signal the
-  gate can wait on instead of a frame-count guess — not designed or
-  implemented here.
+  rather than fixing a diagnosed cause; see `TERMINAL.md` §5.
+  **Resolved 2026-09-22:** the cause was the harness counting animation
+  frames while `repaintOnFrame` paces paints by `PAINT_INTERVAL_MS`; a probe
+  showed 0 paints inside the two frames `setScrollTop` waited and 1 within
+  the next 200 ms. `main.ts` gained `paintAfter(action)` (level-triggered on
+  the `onPaint` counter) and `setScrollTop`, `widthChange` and the trim phase
+  use it; 6/6 clean `bench:agent:scroll` runs afterwards against 1/4 before.
+  The unscrolled `run.mjs` `widthChange` reading (60081 → 60086) is the
+  sticky-bottom contract, not a defect: a pane pinned to the bottom keeps its
+  newest row visible when a rewrap adds rows below the old top edge.
 - **Reopen after 200k rows: first paint < 200 ms on localhost; all rows
   reachable; blocks identical (ids, exit codes, commands) to the live
   pane.** Measured at the fixture's 60k rows. `reopen.firstPaintMs` 36.4ms

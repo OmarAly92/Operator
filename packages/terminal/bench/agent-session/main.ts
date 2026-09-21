@@ -31,6 +31,7 @@ type AgentSession = {
 	scrollHeight(): number;
 	scrollTop(): number;
 	setScrollTop(top: number): Promise<void>;
+	paintAfter(action: () => void): Promise<void>;
 	visibleRows(): Array<{ block: string; row: number }>;
 	textHash(): string;
 	modelHash(): string;
@@ -143,6 +144,17 @@ async function nextFrame(): Promise<void> {
 	await new Promise((resolve) => requestAnimationFrame(() => resolve(undefined)));
 }
 
+const PAINT_WAIT_FRAMES = 600;
+
+async function paintAfter(action: () => void): Promise<void> {
+	const before = paints;
+	action();
+	for (let frame = 0; paints === before; frame += 1) {
+		if (frame >= PAINT_WAIT_FRAMES) throw new Error(`no paint landed within ${PAINT_WAIT_FRAMES} frames of the action`);
+		await nextFrame();
+	}
+}
+
 async function feedAll(): Promise<void> {
 	while (fed < recording.length) {
 		feedNext(64 * 1024);
@@ -228,9 +240,7 @@ async function widthChange(cols: number): Promise<{ settleMs: number; before: nu
 	const before = visibleRows()[0]?.row ?? -1;
 	const currentRows = nextResize > 0 ? sizes[nextResize - 1]!.rows : sizes[0]!.rows;
 	const start = performance.now();
-	core.resize(cols, currentRows);
-	await nextFrame();
-	await nextFrame();
+	await paintAfter(() => core.resize(cols, currentRows));
 	const settleMs = performance.now() - start;
 	const after = visibleRows()[0]?.row ?? -1;
 	const staleRows = core.staleRowCount();
@@ -349,11 +359,12 @@ window.__agentSession = {
 	scrollHeight: () => scroller.scrollHeight,
 	scrollTop: () => scroller.scrollTop,
 	setScrollTop: async (top: number) => {
-		scroller.scrollTop = top;
-		scroller.dispatchEvent(new Event("scroll"));
-		await nextFrame();
-		await nextFrame();
+		await paintAfter(() => {
+			scroller.scrollTop = top;
+			scroller.dispatchEvent(new Event("scroll"));
+		});
 	},
+	paintAfter,
 	visibleRows,
 	textHash,
 	modelHash,

@@ -615,30 +615,26 @@ history of `master`.
   instead of on the mark's `count` — the invariant `HistoryReceiver::consume`
   ends a chunk on. Revisit with a second anchor for that invariant; do not
   "fix" it by loosening the row count.
-- **`widthChange`'s top-edge row reads differently depending on prior scroll
-  state.** Measured by Task 13: `scroll-gate.mjs`'s width phase (scrolls to
-  the vertical midpoint, then resizes) reports the top-edge row identical
-  before and after a width change, as expected. `run.mjs`'s own `widthChange`
-  row — which resizes right after `feedAll()`, with no prior scroll — reads
-  the top-edge row as 5 rows apart before vs. after, reproduced identically
-  across two runs. Not investigated further; flagged here rather than
-  silently reconciled, since the two probes disagree and only one of them
-  (the scrolled one) is the gated measurement.
-- **`bench:agent:scroll`'s width phase itself is flaky, in the same family as
-  the pre-existing trim-phase flake below.** Eight consecutive runs of
-  `npm run bench:agent:scroll` on this HEAD: 3 clean passes (trim and width
-  both matched), 3 hit the pre-existing trim flake (`visibleRows()[0]` reads
-  `undefined` right after the trim), and 2 hit a new width-phase flake —
-  `width.before` reads `-1` (no row under the top edge) while `width.after`
-  correctly reads the resolved row, i.e. the same class of race (a
-  `visibleRows()` read landing before the renderer has painted the current
-  scroll position) now shows up around the width-change resize too, not only
-  around a trim. No code was changed to chase either flake down or to make a
-  run "count" as clean; both are reported here as observed, not patched
-  around by adding more `requestAnimationFrame` waits, which would be tuning
-  the gate to pass rather than fixing a diagnosed cause. Open follow-up: a
-  principled fix needs an explicit paint-completion signal the gate can wait
-  on instead of a frame-count guess — not designed or implemented here.
+- **The `bench:agent:scroll` flake was the harness counting frames while the
+  renderer paces paints by time — fixed 2026-09-22.** `repaintOnFrame` defers
+  a paint that would land within `PAINT_INTERVAL_MS` of the previous one, so a
+  `setScrollTop` that waited two animation frames (~15 ms after a feed's
+  paint) could read `visibleRows()` before the scroll had painted: `[0]`
+  `undefined` after the trim, `-1` before the width change, and a scroll walk
+  that missed rows (`covered < total`). Probe evidence: in the failing run 0
+  paints landed inside the two frames and 1 landed within the next 200 ms.
+  `bench/agent-session/main.ts` now has `paintAfter(action)` — level-triggered
+  on the `onPaint` counter, bounded at 600 frames — and `setScrollTop`,
+  `widthChange` and the gate's trim phase use it. 6/6 clean runs after the
+  fix against 1/4 before. Do not reintroduce a frame-count wait in the
+  harness; wait for the paint the action causes.
+- **`run.mjs`'s `widthChange` row reads the top-edge row 5 rows apart before
+  and after (60081 → 60086) — that is the sticky-bottom contract, not a
+  bug.** That probe resizes with no prior scroll, so the pane is pinned to
+  the bottom; a 40-column rewrap of the hot region adds rows, and a pane
+  pinned to the bottom is *meant* to keep the newest row visible, moving its
+  top edge. The gated measurement (`scroll-gate.mjs`'s width phase) scrolls
+  to a stable position first and reads the same row before and after.
 - **Ack accounting is per pty-host CONNECTION, not per mux client.** `MsgAck`
   folds every ack into one `clientState`, and `unackedLocked` reports the
   worst connection. The daemon may fan a single attachment out to several mux
