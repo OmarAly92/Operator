@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { blockGlyph, isBlockGlyph, isFullBlock } from "./block-glyphs.js";
-import { buildRowNode, CLASS_GLYPH, type RowSource } from "./row-builder.js";
+import { buildRowNode, CLASS_GLYPH, CLASS_RUN, type RowSource } from "./row-builder.js";
 
 const DEFAULT_FOREGROUND = 255;
 const DEFAULT_BACKGROUND = 254;
@@ -95,5 +95,42 @@ describe("block glyph rendering", () => {
 		const row = rowOf("a█b▀c");
 		expect(glyphs(row).length).toBe(2);
 		expect(row.textContent).toBe("a█b▀c");
+	});
+});
+
+describe("row run merging", () => {
+	it("merges adjacent runs sharing styleCode and backgroundCode into one span, even when attrs or underline differ", () => {
+		const content = new TextEncoder().encode("ab");
+		const source: RowSource = {
+			content,
+			rows: Uint32Array.from([0, content.byteLength]),
+			runRanges: Uint32Array.from([0, 2]),
+			stylePairs: Uint32Array.from([
+				1, DEFAULT_FOREGROUND, DEFAULT_BACKGROUND, 1, DEFAULT_FOREGROUND,
+				2, DEFAULT_FOREGROUND, DEFAULT_BACKGROUND, 0, 3,
+			]),
+		};
+		const row = buildRowNode(source, 0, 0, new TextDecoder("utf-8", { fatal: true }));
+		const runs = [...row.querySelectorAll<HTMLElement>(`.${CLASS_RUN}`)];
+		expect(runs.length).toBe(1);
+		expect(runs[0]?.textContent).toBe("ab");
+	});
+
+	it("keeps a new span once styleCode or backgroundCode actually changes", () => {
+		const content = new TextEncoder().encode("ab");
+		const source: RowSource = {
+			content,
+			rows: Uint32Array.from([0, content.byteLength]),
+			runRanges: Uint32Array.from([0, 2]),
+			stylePairs: Uint32Array.from([
+				1, 1, DEFAULT_BACKGROUND, 0, DEFAULT_FOREGROUND,
+				2, DEFAULT_FOREGROUND, DEFAULT_BACKGROUND, 0, DEFAULT_FOREGROUND,
+			]),
+		};
+		const row = buildRowNode(source, 0, 0, new TextDecoder("utf-8", { fatal: true }));
+		const runs = [...row.querySelectorAll<HTMLElement>(`.${CLASS_RUN}`)];
+		expect(runs.length).toBe(2);
+		expect(runs[0]?.textContent).toBe("a");
+		expect(runs[1]?.textContent).toBe("b");
 	});
 });
