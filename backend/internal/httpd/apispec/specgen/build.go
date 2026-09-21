@@ -1945,7 +1945,7 @@ func sessionOperations() []operation {
 			},
 		},
 		{
-			method: http.MethodPost, path: "/api/v1/orchestrators/delegate", id: "delegateTask", tag: "sessions",
+			method: http.MethodPost, path: "/api/v1/sessions/delegate", id: "delegateTask", tag: "sessions",
 			summary: "Start a worker task and ask the orchestrator to title it",
 			reqBody: controllers.DelegateTaskRequest{},
 			resps: []respUnit{

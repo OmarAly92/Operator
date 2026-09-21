@@ -241,7 +241,7 @@ func (c *SessionsController) Register(r chi.Router) {
 	r.Post("/sessions/{sessionId}/activity", c.activity)
 	r.Post("/sessions/{sessionId}/pin", c.pin)
 	r.Delete("/sessions/{sessionId}/pin", c.unpin)
-	r.Post("/orchestrators/delegate", c.delegateTask)
+	r.Post("/sessions/delegate", c.delegateTask)
 }
 
 // RegisterSwitchAgent mounts the synchronous switch workflow separately so
@@ -1664,7 +1664,7 @@ func (c *SessionsController) suggestion(w http.ResponseWriter, r *http.Request) 
 
 func (c *SessionsController) delegateTask(w http.ResponseWriter, r *http.Request) {
 	if c.Svc == nil {
-		apispec.NotImplemented(w, r, "POST", "/api/v1/orchestrators/delegate")
+		apispec.NotImplemented(w, r, "POST", "/api/v1/sessions/delegate")
 		return
 	}
 	r.Body = http.MaxBytesReader(w, r.Body, maxSpawnBodyBytes)

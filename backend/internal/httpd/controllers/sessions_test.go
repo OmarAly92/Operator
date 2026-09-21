@@ -2157,7 +2157,7 @@ func TestSessionsAPI_DelegateTask(t *testing.T) {
 	svc := newFakeSessionService()
 	srv := newSessionTestServer(t, svc)
 
-	body, status, _ := doRequest(t, srv, "POST", "/api/v1/orchestrators/delegate", `{"projectId":"opr","brief":"Fix\u0000 it","agent":"cursor","model":" sonnet-custom ","attachments":[{"mimeType":"image/png","data":"AQID"}]}`)
+	body, status, _ := doRequest(t, srv, "POST", "/api/v1/sessions/delegate", `{"projectId":"opr","brief":"Fix\u0000 it","agent":"cursor","model":" sonnet-custom ","attachments":[{"mimeType":"image/png","data":"AQID"}]}`)
 	if status != http.StatusAccepted {
 		t.Fatalf("delegate = %d, want 202; body=%s", status, body)
 	}
@@ -2185,7 +2185,7 @@ func TestSessionsAPI_DelegateTaskPassesClaudeAccountThrough(t *testing.T) {
 	svc := newFakeSessionService()
 	srv := newSessionTestServer(t, svc)
 
-	body, status, _ := doRequest(t, srv, "POST", "/api/v1/orchestrators/delegate", `{"projectId":"p","brief":"x","agent":"claude-code","claudeAccountId":"personal"}`)
+	body, status, _ := doRequest(t, srv, "POST", "/api/v1/sessions/delegate", `{"projectId":"p","brief":"x","agent":"claude-code","claudeAccountId":"personal"}`)
 	if status != http.StatusAccepted {
 		t.Fatalf("delegate = %d, want 202; body=%s", status, body)
 	}
@@ -2194,11 +2194,32 @@ func TestSessionsAPI_DelegateTaskPassesClaudeAccountThrough(t *testing.T) {
 	}
 }
 
+func TestDelegateRouteMovedOffOrchestratorPrefix(t *testing.T) {
+	svc := newFakeSessionService()
+	srv := newSessionTestServer(t, svc)
+
+	_, status, _ := doRequest(t, srv, "POST", "/api/v1/sessions/delegate", `{"projectId":"opr","brief":"Fix it"}`)
+	if status != http.StatusAccepted {
+		t.Errorf("POST /api/v1/sessions/delegate = %d, want 202 (route must exist)", status)
+	}
+
+	for _, route := range []struct{ method, path string }{
+		{"POST", "/api/v1/orchestrators/delegate"},
+		{"GET", "/api/v1/orchestrators"},
+		{"POST", "/api/v1/orchestrators"},
+	} {
+		_, status, _ := doRequest(t, srv, route.method, route.path, `{}`)
+		if status != http.StatusNotFound {
+			t.Errorf("%s %s = %d, want 404 (route must be removed)", route.method, route.path, status)
+		}
+	}
+}
+
 func TestSessionsAPI_DelegateTaskValidationAndServiceError(t *testing.T) {
 	svc := newFakeSessionService()
 	srv := newSessionTestServer(t, svc)
 
-	body, status, _ := doRequest(t, srv, "POST", "/api/v1/orchestrators/delegate", `{"projectId":"opr","brief":""}`)
+	body, status, _ := doRequest(t, srv, "POST", "/api/v1/sessions/delegate", `{"projectId":"opr","brief":""}`)
 	if status != http.StatusAccepted {
 		t.Fatalf("promptless delegate = %d, want 202; body=%s", status, body)
 	}
@@ -2207,18 +2228,18 @@ func TestSessionsAPI_DelegateTaskValidationAndServiceError(t *testing.T) {
 	}
 
 	svc.delegationErr = apierr.Invalid("UNKNOWN_HARNESS", "Unknown requested agent", nil)
-	body, status, _ = doRequest(t, srv, "POST", "/api/v1/orchestrators/delegate", `{"projectId":"opr","brief":"Fix it"}`)
+	body, status, _ = doRequest(t, srv, "POST", "/api/v1/sessions/delegate", `{"projectId":"opr","brief":"Fix it"}`)
 	assertErrorCode(t, body, status, http.StatusBadRequest, "UNKNOWN_HARNESS")
 
 	svc.delegationErr = nil
-	body, status, _ = doRequest(t, srv, "POST", "/api/v1/orchestrators/delegate", `{"projectId":"opr","brief":"Fix it","mode":"tui"}`)
+	body, status, _ = doRequest(t, srv, "POST", "/api/v1/sessions/delegate", `{"projectId":"opr","brief":"Fix it","mode":"tui"}`)
 	assertErrorCode(t, body, status, http.StatusBadRequest, "SESSION_MODE_REMOVED")
 }
 
 func TestDelegateTaskAcceptsInPlaceWorkspaceMode(t *testing.T) {
 	svc := newFakeSessionService()
 	srv := newSessionTestServer(t, svc)
-	body, status, _ := doRequest(t, srv, http.MethodPost, "/api/v1/orchestrators/delegate",
+	body, status, _ := doRequest(t, srv, http.MethodPost, "/api/v1/sessions/delegate",
 		`{"projectId":"opr","brief":"Fix it","workspaceMode":"in_place"}`)
 	if status != http.StatusAccepted {
 		t.Fatalf("status %d: %s", status, body)
@@ -2231,7 +2252,7 @@ func TestDelegateTaskAcceptsInPlaceWorkspaceMode(t *testing.T) {
 func TestDelegateTaskDefaultsToWorktreeWhenOmitted(t *testing.T) {
 	svc := newFakeSessionService()
 	srv := newSessionTestServer(t, svc)
-	body, status, _ := doRequest(t, srv, http.MethodPost, "/api/v1/orchestrators/delegate",
+	body, status, _ := doRequest(t, srv, http.MethodPost, "/api/v1/sessions/delegate",
 		`{"projectId":"opr","brief":"Fix it"}`)
 	if status != http.StatusAccepted {
 		t.Fatalf("status %d: %s", status, body)
@@ -2244,7 +2265,7 @@ func TestDelegateTaskDefaultsToWorktreeWhenOmitted(t *testing.T) {
 func TestDelegateTaskRejectsAnUnknownWorkspaceMode(t *testing.T) {
 	svc := newFakeSessionService()
 	srv := newSessionTestServer(t, svc)
-	_, status, _ := doRequest(t, srv, http.MethodPost, "/api/v1/orchestrators/delegate",
+	_, status, _ := doRequest(t, srv, http.MethodPost, "/api/v1/sessions/delegate",
 		`{"projectId":"opr","brief":"Fix it","workspaceMode":"nonsense"}`)
 	if status != http.StatusBadRequest {
 		t.Fatalf("want 400 for an unknown mode, got %d", status)
@@ -2283,7 +2304,7 @@ func TestSessionsAPI_DelegateTaskRejectsInvalidAttachments(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			svc := newFakeSessionService()
 			srv := newSessionTestServer(t, svc)
-			body, status, _ := doRequest(t, srv, "POST", "/api/v1/orchestrators/delegate", tc.body)
+			body, status, _ := doRequest(t, srv, "POST", "/api/v1/sessions/delegate", tc.body)
 			assertErrorCode(t, body, status, http.StatusBadRequest, tc.code)
 		})
 	}
@@ -2298,7 +2319,7 @@ func TestSessionsAPI_DelegateTaskRejectsOversizedBody(t *testing.T) {
 	// materializing the whole body.
 	oversized := `{"projectId":"opr","brief":"Fix it","attachments":[{"mimeType":"image/png","data":"` +
 		strings.Repeat("A", 40<<20) + `"}]}`
-	body, status, _ := doRequest(t, srv, "POST", "/api/v1/orchestrators/delegate", oversized)
+	body, status, _ := doRequest(t, srv, "POST", "/api/v1/sessions/delegate", oversized)
 	assertErrorCode(t, body, status, http.StatusBadRequest, "INVALID_JSON")
 	if svc.delegationInput.ProjectID != "" {
 		t.Fatalf("delegate service called with oversized body: %#v", svc.delegationInput)
