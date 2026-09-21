@@ -4,7 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium } from "playwright";
 import { createServer } from "vite";
-import { listFixtures } from "./fixtures.mjs";
+import { listFixtures, listProbes } from "./fixtures.mjs";
 
 const agentDir = path.dirname(fileURLToPath(import.meta.url));
 const benchDir = path.resolve(agentDir, "..");
@@ -16,7 +16,10 @@ const OFFSETS = [0, 0.25, 0.5, 0.75, 1];
 const argv = process.argv.slice(2);
 const record = argv.includes("--record");
 const only = argv.includes("--fixture") ? argv[argv.indexOf("--fixture") + 1] : undefined;
-const fixtures = only ? [only] : listFixtures();
+const targets = [
+	...listFixtures().map((name) => ({ name, dir: "fixtures" })),
+	...listProbes().map((name) => ({ name, dir: "probes" })),
+].filter((target) => !only || target.name === only);
 
 const server = await createServer({ configFile, logLevel: "error" });
 let browser;
@@ -25,9 +28,9 @@ try {
 	await server.listen(0);
 	const port = server.httpServer.address().port;
 	browser = await chromium.launch({ headless: true });
-	for (const fixture of fixtures) {
+	for (const { name: fixture, dir: fixtureDir } of targets) {
 		const page = await browser.newPage({ viewport: { width: 1600, height: 900 }, deviceScaleFactor: 1 });
-		await page.goto(`http://127.0.0.1:${port}/agent-session/index.html?fixture=${fixture}`);
+		await page.goto(`http://127.0.0.1:${port}/agent-session/index.html?fixture=${fixture}&dir=${fixtureDir}`);
 		await page.waitForFunction(() => window.__agentSessionReady === true, undefined, { timeout: 30000 });
 		await page.evaluate(() => window.__agentSession.feedAll());
 		await page.waitForTimeout(300);

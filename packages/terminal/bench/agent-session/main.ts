@@ -41,6 +41,7 @@ type AgentSession = {
 	reopenFromReplay(frame: Uint8Array, chunks: Uint8Array[]): Promise<{ firstPaintMs: number; allRowsMs: number; rows: number }>;
 	widthChange(cols: number): Promise<{ settleMs: number; before: number; after: number; staleRows: number }>;
 	staleRowCount(): number;
+	cellMetrics(): { cellWidth: number; cellHeight: number };
 };
 
 const host = document.getElementById("terminal");
@@ -49,9 +50,10 @@ const params = new URLSearchParams(location.search);
 const fixtureName = params.get("fixture") ?? "claude-spinner-10s";
 const scrollback = Number(params.get("scrollback") ?? "200000");
 
+const fixtureDir = params.get("dir") === "probes" ? "probes" : "fixtures";
 const [recordingResponse, sizesResponse] = await Promise.all([
-	fetch(`/agent-session/fixtures/${fixtureName}/recording`),
-	fetch(`/agent-session/fixtures/${fixtureName}/size.json`),
+	fetch(`/agent-session/${fixtureDir}/${fixtureName}/recording`),
+	fetch(`/agent-session/${fixtureDir}/${fixtureName}/size.json`),
 ]);
 if (!recordingResponse.ok || !sizesResponse.ok) throw new Error(`fixture ${fixtureName} is missing`);
 const recording = new Uint8Array(await recordingResponse.arrayBuffer());
@@ -374,6 +376,7 @@ window.__agentSession = {
 	reopenFromReplay,
 	widthChange,
 	staleRowCount,
+	cellMetrics: () => domRenderer.measure(),
 	blocks: () => decodeBlocks(core.snapshot()).length,
 } as AgentSession & { blocks(): number };
 window.__agentSessionReady = true;
