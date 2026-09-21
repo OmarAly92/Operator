@@ -142,10 +142,16 @@ function useSelection(workspaces: WorkspaceSummary[]) {
 // state is presented on cards and board lanes instead of repainting this dot.
 function SessionStatusDot({ session }: { session: WorkspaceSession }) {
 	const activity = getAgentActivityView(session.activity);
+	// An idle or unknown session is a hollow ring, Claude Code style; a live
+	// state fills the dot with its status colour.
+	const quiet = activity.state === "idle" || activity.state === "unknown";
 	return (
 		<span
 			aria-hidden="true"
-			className={cn("size-2 shrink-0 rounded-full", activity.indicatorClassName)}
+			className={cn(
+				"size-2 shrink-0 rounded-full",
+				quiet ? "border border-passive bg-transparent" : activity.indicatorClassName,
+			)}
 			data-session-status=""
 		/>
 	);
@@ -558,15 +564,17 @@ function ProjectItem({
 			"group-data-[collapsible=icon]:size-control-board! group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:rounded-lg group-data-[collapsible=icon]:p-0! group-data-[collapsible=icon]:font-semibold",
 		)}
 	>
-		{/* Expanded sidebar: visual folder/chevron icon (decorative — toggle button is a sibling).
-		    size-icon-md matches the Projects section row; an 18px centered box was
-		    optically indenting these icons relative to the header. */}
+		{/* Expanded sidebar: the project reads as a group label, Claude Code
+		    style — no folder icon, just a disclosure chevron in the icon column
+		    that shows on hover or while the group is collapsed (decorative —
+		    the toggle button is a sibling). The column stays reserved so the
+		    label lines up with the session titles beneath it. */}
 		<span
 			aria-hidden="true"
-			className="relative inline-flex size-icon-md shrink-0 translate-y-px items-center justify-center text-muted-foreground group-data-[collapsible=icon]:hidden"
+			className="relative inline-flex size-icon-md shrink-0 translate-y-px items-center justify-center text-passive group-data-[collapsible=icon]:hidden"
 			data-project-folder-visual=""
 		>
-			{rowHovered ? (
+			{rowHovered || !expanded ? (
 				<motion.span
 					animate={{ rotate: expanded ? 90 : 0 }}
 					initial={false}
@@ -575,11 +583,7 @@ function ProjectItem({
 				>
 					<ChevronRight strokeWidth={1.75} />
 				</motion.span>
-			) : expanded ? (
-				<FolderOpen strokeWidth={1.75} />
-			) : (
-				<Folder strokeWidth={1.75} />
-			)}
+			) : null}
 		</span>
 		{/* Collapsed icon rail: folder icon */}
 		<span
@@ -593,7 +597,10 @@ function ProjectItem({
 			)}
 		</span>
 		<span
-			className="sidebar-expanded-chrome min-w-0 flex-1 translate-y-px truncate group-data-[collapsible=icon]:hidden"
+			className={cn(
+				"sidebar-expanded-chrome min-w-0 flex-1 translate-y-px truncate font-normal transition-colors group-data-[collapsible=icon]:hidden",
+				dashboardActive ? "text-foreground" : "text-passive group-hover/menu-item:text-foreground",
+			)}
 			data-project-label=""
 		>
 			{workspace.name}
@@ -906,7 +913,7 @@ function SessionRow({
 									<span
 										className={cn(
 											"block truncate transition-colors",
-											active ? "text-foreground" : "text-muted-foreground group-hover/session-row:text-foreground",
+											active ? "text-foreground" : "text-foreground/80 group-hover/session-row:text-foreground",
 										)}
 									>
 										{session.title}

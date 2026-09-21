@@ -1281,7 +1281,7 @@ describe("Sidebar", () => {
 		const sessionDot = (title: string) =>
 			screen.getByLabelText(`Open ${title}`).querySelector<HTMLElement>("[data-session-status]");
 
-		expect(sessionDot("idle task")).toHaveClass("bg-status-idle");
+		expect(sessionDot("idle task")).toHaveClass("border-passive", "bg-transparent");
 		expect(sessionDot("idle task")).not.toHaveClass("animate-status-pulse");
 
 		const workingDot = sessionDot("working task");
@@ -1297,7 +1297,7 @@ describe("Sidebar", () => {
 		expect(sessionDot("merged task")).toHaveClass("bg-status-working", "animate-status-pulse");
 	});
 
-	it("renders a static gray dot for idle activity across session statuses", async () => {
+	it("renders a static hollow ring for idle activity across session statuses", async () => {
 		renderSidebar({
 			workspaces: [
 				{
@@ -1328,8 +1328,8 @@ describe("Sidebar", () => {
 			.querySelector<HTMLElement>("span.rounded-full");
 		const idleDraftDot = screen.getByLabelText("Open idle draft task").querySelector<HTMLElement>("span.rounded-full");
 
-		expect(idleActivityDot).toHaveClass("bg-status-idle");
-		expect(idleDraftDot).toHaveClass("bg-status-idle");
+		expect(idleActivityDot).toHaveClass("border-passive", "bg-transparent");
+		expect(idleDraftDot).toHaveClass("border-passive", "bg-transparent");
 		expect(idleActivityDot).not.toHaveClass("animate-status-pulse");
 		expect(idleDraftDot).not.toHaveClass("animate-status-pulse");
 	});
