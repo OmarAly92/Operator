@@ -343,7 +343,7 @@ export function Sidebar({
 			    the sidebar is already height-clamped beside the inset center surface. */}
 			<SidebarFooter
 				className={cn(
-					"relative mt-auto gap-0 overflow-hidden border-t border-border-strong px-2 !py-2 transition-[padding] duration-200 ease-linear group-data-[collapsible=icon]:min-h-16 group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:border-t-0 group-data-[collapsible=icon]:px-1.5 group-data-[collapsible=icon]:!pb-0 group-data-[collapsible=icon]:!pt-1.5",
+					"relative mt-auto gap-0 overflow-hidden border-t border-border-strong px-2 !py-1.5 transition-[padding] duration-200 ease-linear group-data-[collapsible=icon]:min-h-16 group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:border-t-0 group-data-[collapsible=icon]:px-1.5 group-data-[collapsible=icon]:!pb-0 group-data-[collapsible=icon]:!pt-1.5",
 					isMac ? "mb-px" : "mb-[calc(var(--size-center-panel-bottom-inset)+1px)]",
 				)}
 			>
@@ -364,7 +364,7 @@ export function Sidebar({
 						aria-label={t("shell.settings")}
 						className={cn(
 							NAV_ROW_CLASS,
-							"flex h-[42px] w-full items-center text-left [&_svg]:size-icon-md [&_svg]:shrink-0",
+							"flex h-7 w-full items-center text-left [&_svg]:size-icon-sm [&_svg]:shrink-0",
 						)}
 						onClick={() => selection.goGlobalSettings()}
 						tabIndex={isCollapsed ? -1 : 0}
