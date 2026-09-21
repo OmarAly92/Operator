@@ -189,16 +189,22 @@ export function Sidebar({
 		}
 	}, [isCollapsed]);
 
-	// Disclosure state: projects are expanded by default; a project id present in
-	// this set is collapsed (sessions hidden).
-	const [collapsedIds, setCollapsedIds] = useState<ReadonlySet<string>>(() => new Set());
-	const toggleCollapsed = (id: string) =>
-		setCollapsedIds((prev) => {
+	// Disclosure state: projects start collapsed; a project id in this set shows
+	// its sessions. Opening a project's board or one of its sessions expands it,
+	// so the tree follows the user rather than opening everything at launch.
+	const [expandedIds, setExpandedIds] = useState<ReadonlySet<string>>(() => new Set());
+	const toggleExpanded = (id: string) =>
+		setExpandedIds((prev) => {
 			const next = new Set(prev);
 			if (next.has(id)) next.delete(id);
 			else next.add(id);
 			return next;
 		});
+	const activeProjectId = selection.activeProjectId;
+	useEffect(() => {
+		if (!activeProjectId) return;
+		setExpandedIds((prev) => (prev.has(activeProjectId) ? prev : new Set(prev).add(activeProjectId)));
+	}, [activeProjectId]);
 	// Section disclosure: Pinned header collapses its body. Projects stays open.
 	const [pinnedOpen, setPinnedOpen] = useState(true);
 
@@ -318,10 +324,10 @@ export function Sidebar({
 									<ProjectItem
 										key={workspace.id}
 										workspace={workspace}
-										expanded={Boolean(searchQuery) || !collapsedIds.has(workspace.id)}
+										expanded={Boolean(searchQuery) || expandedIds.has(workspace.id)}
 										searchQuery={searchQuery}
 										selection={selection}
-										onToggle={() => toggleCollapsed(workspace.id)}
+										onToggle={() => toggleExpanded(workspace.id)}
 										onRemoveProject={onRemoveProject}
 									/>
 								))}

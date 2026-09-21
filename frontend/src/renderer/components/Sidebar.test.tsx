@@ -459,15 +459,15 @@ describe("Sidebar", () => {
 			workspaces: [{ ...workspace, sessions: [session] }, other],
 		});
 
-		expect(screen.getByText("fix login")).toBeInTheDocument();
-		expect(screen.getByText("other task")).toBeInTheDocument();
+		expect(screen.queryByText("fix login")).not.toBeInTheDocument();
+		expect(screen.queryByText("other task")).not.toBeInTheDocument();
 
 		const folder = screen.getByRole("button", { name: "Toggle Project Two sessions" });
 		expect(folder).toBeTruthy();
 		await user.click(folder);
 
-		expect(screen.queryByText("other task")).not.toBeInTheDocument();
-		expect(screen.getByText("fix login")).toBeInTheDocument();
+		expect(screen.getByText("other task")).toBeInTheDocument();
+		expect(screen.queryByText("fix login")).not.toBeInTheDocument();
 		expect(navigateMock).not.toHaveBeenCalled();
 	});
 
@@ -505,6 +505,7 @@ describe("Sidebar", () => {
 	});
 
 	it("shows only the terminal button on the row and puts every action in the context menu", async () => {
+		mockParams.projectId = "proj-1";
 		renderSidebar({ workspaces: [{ ...workspace, sessions: [session] }] });
 
 		// Two buttons and no more: open the session, then open a terminal in it.
@@ -529,6 +530,7 @@ describe("Sidebar", () => {
 	});
 
 	it("opens a shell in the session's own workspace and selects it", async () => {
+		mockParams.projectId = "proj-1";
 		postMock.mockResolvedValue({
 			data: {
 				shellTerminal: {
@@ -1064,6 +1066,7 @@ describe("Sidebar", () => {
 	});
 
 	it("filters project sessions and restores them when the query is cleared", () => {
+		mockParams.projectId = "proj-1";
 		renderSidebar({ workspaces: [{ ...workspace, sessions: [session, { ...session, id: "other", title: "Update docs" }] }] });
 		const search = screen.getByRole("textbox", { name: "Search tabs…" });
 		fireEvent.change(search, { target: { value: "login" } });
@@ -1087,6 +1090,7 @@ describe("Sidebar", () => {
 	});
 
 	it("renames a session inline and persists via the daemon", async () => {
+		mockParams.projectId = "proj-1";
 		const user = userEvent.setup();
 		const workspaceWithSession = { ...workspace, sessions: [session] };
 		renderSidebar({ workspaces: [workspaceWithSession] });
@@ -1100,6 +1104,7 @@ describe("Sidebar", () => {
 	});
 
 	it("caps the inline rename input at 20 characters", async () => {
+		mockParams.projectId = "proj-1";
 		const workspaceWithSession = { ...workspace, sessions: [session] };
 		renderSidebar({ workspaces: [workspaceWithSession] });
 
@@ -1108,6 +1113,7 @@ describe("Sidebar", () => {
 	});
 
 	it("cancels the inline rename on Escape without calling the daemon", async () => {
+		mockParams.projectId = "proj-1";
 		const user = userEvent.setup();
 		const workspaceWithSession = { ...workspace, sessions: [session] };
 		renderSidebar({ workspaces: [workspaceWithSession] });
@@ -1219,6 +1225,7 @@ describe("Sidebar", () => {
 	});
 
 	it("renders active activity as pulsing blue regardless of PR context", () => {
+		mockParams.projectId = "proj-1";
 		renderSidebar({
 			workspaces: [
 				{
@@ -1298,6 +1305,7 @@ describe("Sidebar", () => {
 	});
 
 	it("renders a static gray dot for idle activity across session statuses", async () => {
+		mockParams.projectId = "proj-1";
 		renderSidebar({
 			workspaces: [
 				{
@@ -1334,7 +1342,7 @@ describe("Sidebar", () => {
 		expect(idleDraftDot).not.toHaveClass("animate-status-pulse");
 	});
 
-	it("shows sessions on load and hides them once collapsed", async () => {
+	it("starts every project collapsed and shows its sessions once expanded", async () => {
 		const user = userEvent.setup();
 		const workspaceWithSessions = {
 			...workspace,
@@ -1342,16 +1350,29 @@ describe("Sidebar", () => {
 		};
 		renderSidebar({ workspaces: [workspaceWithSessions] });
 
-		expect(screen.getByLabelText("Open fix login")).toBeInTheDocument();
-		expect(screen.getByLabelText("Open second task")).toBeInTheDocument();
+		expect(screen.queryByLabelText("Open fix login")).not.toBeInTheDocument();
+		expect(screen.queryByLabelText("Open second task")).not.toBeInTheDocument();
 
-		// Collapse via folder icon
 		const folder = screen.getByRole("button", { name: "Toggle Project One sessions" });
 		expect(folder).toBeTruthy();
 		await user.click(folder);
 
-		expect(screen.queryByLabelText("Open fix login")).not.toBeInTheDocument();
-		expect(screen.queryByLabelText("Open second task")).not.toBeInTheDocument();
+		expect(screen.getByLabelText("Open fix login")).toBeInTheDocument();
+		expect(screen.getByLabelText("Open second task")).toBeInTheDocument();
+	});
+
+	it("expands the project whose board or session is open", () => {
+		mockParams.projectId = "proj-1";
+		const other: WorkspaceSummary = {
+			id: "proj-2",
+			name: "Project Two",
+			path: "/repo/project-two",
+			sessions: [{ ...session, id: "proj-2-1", workspaceId: "proj-2", workspaceName: "Project Two", title: "other task" }],
+		};
+		renderSidebar({ workspaces: [{ ...workspace, sessions: [session] }, other] });
+
+		expect(screen.getByLabelText("Open fix login")).toBeInTheDocument();
+		expect(screen.queryByText("other task")).not.toBeInTheDocument();
 	});
 
 	it("hides all sessions when project is collapsed via folder icon", async () => {
@@ -1384,6 +1405,7 @@ describe("Sidebar", () => {
 	});
 
 	it("keeps merged sessions in the list until they are terminated", async () => {
+		mockParams.projectId = "proj-1";
 		renderSidebar({
 			workspaces: [
 				{
