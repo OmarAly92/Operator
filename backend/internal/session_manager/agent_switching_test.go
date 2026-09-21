@@ -513,7 +513,7 @@ func newSwitchTestManager(t *testing.T, runtime runtimeController) (*Manager, *s
 	store := newSwitchTestStore()
 	store.projects["proj"] = domain.ProjectRecord{ID: "proj", Path: root}
 	store.sessions["proj-1"] = domain.SessionRecord{
-		ID: "proj-1", ProjectID: "proj", Kind: domain.KindWorker, Harness: domain.HarnessClaudeCode,
+		ID: "proj-1", ProjectID: "proj", Harness: domain.HarnessClaudeCode,
 		Activity: domain.Activity{State: domain.ActivityExited, LastActivityAt: time.Now().UTC()},
 		Metadata: domain.SessionMetadata{
 			Branch: "codex/feature", WorkspacePath: workspacePath, RuntimeHandleID: "proj-1",
@@ -1440,22 +1440,6 @@ func TestSwitchAgentRejectsDefinitelyUnauthenticatedTargetBeforeStoppingSource(t
 	}
 	if got := store.sessions["proj-1"].Harness; got != domain.HarnessClaudeCode {
 		t.Fatalf("session harness = %q, want source harness", got)
-	}
-}
-
-func TestSwitchAgentRejectsOrchestratorBeforeCreatingSaga(t *testing.T) {
-	runtime := &fakeRestartRuntime{fakeRuntime: &fakeRuntime{}}
-	manager, store, _ := newSwitchTestManager(t, runtime)
-	rec := store.sessions["proj-1"]
-	rec.Kind = domain.KindOrchestrator
-	store.sessions[rec.ID] = rec
-
-	_, err := manager.SwitchAgent(context.Background(), rec.ID, SwitchAgentConfig{TargetHarness: domain.HarnessCodex, IdempotencyKey: "orchestrator"})
-	if !errors.Is(err, ErrUnsupportedSwitchKind) {
-		t.Fatalf("switch error = %v, want ErrUnsupportedSwitchKind", err)
-	}
-	if len(store.switches) != 0 || runtime.restarted != 0 || runtime.destroyed != 0 {
-		t.Fatalf("orchestrator rejection had side effects: switches=%d restarts=%d destroys=%d", len(store.switches), runtime.restarted, runtime.destroyed)
 	}
 }
 

@@ -402,7 +402,7 @@ func TestPlanSpawnsInPlaceAndRefusesWhileActive(t *testing.T) {
 		t.Fatalf("spawned = %+v", h.sessions.spawned)
 	}
 	cfg := h.sessions.spawned[0]
-	if cfg.ProjectID != "tk" || cfg.Kind != domain.KindWorker || cfg.WorkspaceMode != domain.WorkspaceModeInPlace || cfg.Branch != "" ||
+	if cfg.ProjectID != "tk" || cfg.WorkspaceMode != domain.WorkspaceModeInPlace || cfg.Branch != "" ||
 		cfg.Harness != domain.HarnessClaudeCode || cfg.ClaudeAccountID != "personal" || cfg.DisplayName != "Markdown Editor For" {
 		t.Fatalf("cfg = %+v", cfg)
 	}

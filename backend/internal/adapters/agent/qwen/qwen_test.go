@@ -17,8 +17,11 @@ import (
 
 func TestGetLaunchCommandBuildsArgv(t *testing.T) {
 	plugin := &Plugin{resolvedBinary: "qwen"}
+	dataDir := t.TempDir()
 
 	cmd, err := plugin.GetLaunchCommand(context.Background(), ports.LaunchConfig{
+		DataDir:      dataDir,
+		SessionID:    "sess-argv",
 		Permissions:  ports.PermissionModeBypassPermissions,
 		Prompt:       "-fix this",
 		SystemPrompt: "be terse",
@@ -27,14 +30,26 @@ func TestGetLaunchCommandBuildsArgv(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	want := []string{
-		"qwen",
-		"--approval-mode", "yolo",
-		"--append-system-prompt", "be terse",
-		"-p", "-fix this",
+	if runtime.GOOS == "windows" {
+		want := []string{
+			"qwen",
+			"--approval-mode", "yolo",
+			"--append-system-prompt", "be terse",
+			"-i", "-fix this",
+		}
+		if !reflect.DeepEqual(cmd, want) {
+			t.Fatalf("unexpected command\nwant: %#v\n got: %#v", want, cmd)
+		}
+		return
 	}
-	if !reflect.DeepEqual(cmd, want) {
-		t.Fatalf("unexpected command\nwant: %#v\n got: %#v", want, cmd)
+	if len(cmd) != 3 || cmd[0] != "sh" || cmd[1] != "-lc" {
+		t.Fatalf("unexpected command prefix: %#v", cmd)
+	}
+	script := cmd[2]
+	for _, part := range []string{"'--approval-mode' 'yolo'", "'--append-system-prompt' 'be terse'", `"text":"-fix this"`} {
+		if !strings.Contains(script, part) {
+			t.Fatalf("script missing %q: %s", part, script)
+		}
 	}
 }
 
@@ -47,6 +62,8 @@ func TestGetLaunchCommandReadsSystemPromptFile(t *testing.T) {
 	}
 
 	cmd, err := plugin.GetLaunchCommand(context.Background(), ports.LaunchConfig{
+		DataDir:          dir,
+		SessionID:        "sess-file",
 		SystemPromptFile: file,
 		Prompt:           "do it",
 	})
@@ -54,13 +71,25 @@ func TestGetLaunchCommandReadsSystemPromptFile(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	want := []string{
-		"qwen",
-		"--append-system-prompt", "file instructions\n",
-		"-p", "do it",
+	if runtime.GOOS == "windows" {
+		want := []string{
+			"qwen",
+			"--append-system-prompt", "file instructions\n",
+			"-i", "do it",
+		}
+		if !reflect.DeepEqual(cmd, want) {
+			t.Fatalf("unexpected command\nwant: %#v\n got: %#v", want, cmd)
+		}
+		return
 	}
-	if !reflect.DeepEqual(cmd, want) {
-		t.Fatalf("unexpected command\nwant: %#v\n got: %#v", want, cmd)
+	if len(cmd) != 3 || cmd[0] != "sh" || cmd[1] != "-lc" {
+		t.Fatalf("unexpected command prefix: %#v", cmd)
+	}
+	script := cmd[2]
+	for _, part := range []string{"'--append-system-prompt' 'file instructions\n'", `"text":"do it"`} {
+		if !strings.Contains(script, part) {
+			t.Fatalf("script missing %q: %s", part, script)
+		}
 	}
 }
 
@@ -134,7 +163,6 @@ func TestGetLaunchCommandWorkerStartsInteractive(t *testing.T) {
 	dataDir := t.TempDir()
 
 	cmd, err := plugin.GetLaunchCommand(context.Background(), ports.LaunchConfig{
-		Kind:          domain.KindWorker,
 		DataDir:       dataDir,
 		WorkspacePath: workspace,
 		Permissions:   ports.PermissionModeDefault,
@@ -212,7 +240,6 @@ func TestGetLaunchCommandWorkerRequiresDataDirForRemoteInput(t *testing.T) {
 	plugin := &Plugin{resolvedBinary: "qwen"}
 
 	_, err := plugin.GetLaunchCommand(context.Background(), ports.LaunchConfig{
-		Kind:      domain.KindWorker,
 		Prompt:    "fix it",
 		SessionID: "repo-1",
 	})
@@ -228,7 +255,6 @@ func TestGetLaunchCommandWorkerAppendsTrimmedConfiguredModel(t *testing.T) {
 	plugin := &Plugin{resolvedBinary: "qwen"}
 
 	cmd, err := plugin.GetLaunchCommand(context.Background(), ports.LaunchConfig{
-		Kind:        domain.KindWorker,
 		DataDir:     t.TempDir(),
 		SessionID:   "sess-123",
 		Config:      domain.AgentConfig{Model: "  qwen-plus  "},
@@ -253,6 +279,8 @@ func TestGetLaunchCommandOmitsBlankConfiguredModel(t *testing.T) {
 	plugin := &Plugin{resolvedBinary: "qwen"}
 
 	cmd, err := plugin.GetLaunchCommand(context.Background(), ports.LaunchConfig{
+		DataDir:     t.TempDir(),
+		SessionID:   "sess-blank-model",
 		Config:      domain.AgentConfig{Model: "  "},
 		Permissions: ports.PermissionModeBypassPermissions,
 		Prompt:      "fix it",
@@ -260,7 +288,13 @@ func TestGetLaunchCommandOmitsBlankConfiguredModel(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if contains(cmd, "--model") {
+	if runtime.GOOS == "windows" {
+		if contains(cmd, "--model") {
+			t.Fatalf("command %#v contains unexpected --model flag", cmd)
+		}
+		return
+	}
+	if len(cmd) != 3 || strings.Contains(cmd[2], "'--model'") {
 		t.Fatalf("command %#v contains unexpected --model flag", cmd)
 	}
 }
@@ -289,7 +323,7 @@ func TestGetRestoreCommandAppendsConfiguredModel(t *testing.T) {
 func TestGetPromptDeliveryStrategy(t *testing.T) {
 	plugin := &Plugin{}
 
-	got, err := plugin.GetPromptDeliveryStrategy(context.Background(), ports.LaunchConfig{Kind: domain.KindWorker, Prompt: "fix it"})
+	got, err := plugin.GetPromptDeliveryStrategy(context.Background(), ports.LaunchConfig{Prompt: "fix it"})
 	if err != nil {
 		t.Fatal(err)
 	}

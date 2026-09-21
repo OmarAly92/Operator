@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 	"sort"
 	"text/tabwriter"
@@ -57,6 +58,20 @@ func newAgentListCommand(ctx *commandContext) *cobra.Command {
 	cmd.Flags().BoolVar(&opts.refresh, "refresh", false, "Refresh local install/auth probes before listing")
 	cmd.Flags().BoolVar(&opts.json, "json", false, "Output raw agent catalog JSON")
 	return cmd
+}
+
+func (c *commandContext) fetchAgentInventory(ctx context.Context, refresh bool) (agentInventory, error) {
+	var inv agentInventory
+	if refresh {
+		if err := c.postJSON(ctx, "agents/refresh", struct{}{}, &inv); err != nil {
+			return agentInventory{}, err
+		}
+		return inv, nil
+	}
+	if err := c.getJSON(ctx, "agents", &inv); err != nil {
+		return agentInventory{}, err
+	}
+	return inv, nil
 }
 
 func writeAgentList(cmd *cobra.Command, inv agentInventory) error {

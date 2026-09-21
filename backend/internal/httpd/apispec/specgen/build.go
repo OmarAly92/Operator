@@ -81,8 +81,6 @@ func Build() ([]byte, error) {
 			"Connect Mobile LAN bridge control (loopback/desktop only)"),
 		*(&openapi31.Tag{Name: "browser"}).WithDescription(
 			"Target-isolated desktop browser runtime (loopback only)"),
-		*(&openapi31.Tag{Name: "inbox"}).WithDescription(
-			"Per-project orchestrator inbox of pending worker/CI/review events"),
 		*(&openapi31.Tag{Name: "tickets"}).WithDescription(
 			"Planning tickets: spec and plan documents in the repo, assigned to sessions"),
 		*(&openapi31.Tag{Name: "claudeAccounts"}).WithDescription(
@@ -164,10 +162,7 @@ var schemaNames = map[string]string{
 	"DomainProjectConfig":              "ProjectConfig",
 	"DomainTrackerIntakeConfig":        "TrackerIntakeConfig",
 	"ControllersTriggerReviewRequest":  "TriggerReviewRequest",
-	"DomainContainerReapConfig":        "ContainerReapConfig",
 	"DomainAgentConfig":                "AgentConfig",
-	"DomainRoleOverride":               "RoleOverride",
-	"DomainOrchestratorPolicy":         "OrchestratorPolicy",
 	"ControllersTicketView":            "TicketView",
 	"ControllersPlanView":              "PlanView",
 	"ControllersListTicketsResponse":   "ListTicketsResponse",
@@ -195,10 +190,6 @@ var schemaNames = map[string]string{
 	"ControllersListSessionsQuery":                  "ListSessionsQuery",
 	"ControllersCleanupSessionsQuery":               "CleanupSessionsQuery",
 	"ControllersListSessionsResponse":               "ListSessionsResponse",
-	"ControllersInboxEntryView":                     "InboxEntryView",
-	"ControllersInboxResponse":                      "InboxResponse",
-	"ControllersAckInboxEventsRequest":              "AckInboxEventsRequest",
-	"ControllersAckInboxEventsResponse":             "AckInboxEventsResponse",
 	"ControllersSpawnSessionRequest":                "SpawnSessionRequest",
 	"ControllersSpawnSessionResponse":               "SpawnSessionResponse",
 	"ControllersSessionResponse":                    "SessionResponse",
@@ -261,9 +252,6 @@ var schemaNames = map[string]string{
 	"ControllersSetActivityResponse":                "SetActivityResponse",
 	"ControllersSetReviewActivityRequest":           "SetReviewActivityRequest",
 	"ControllersSetReviewActivityResponse":          "SetReviewActivityResponse",
-	"ControllersSpawnOrchestratorRequest":           "SpawnOrchestratorRequest",
-	"ControllersSpawnOrchestratorResponse":          "SpawnOrchestratorResponse",
-	"ControllersOrchestratorResponse":               "OrchestratorResponse",
 	"AgentInventory":                                "ListAgentsResponse",
 	"AgentInfo":                                     "AgentInfo",
 	"AgentProbeResult":                              "ProbeAgentResponse",
@@ -469,7 +457,6 @@ func operations() []operation {
 	ops = append(ops, desktopOperations()...)
 	ops = append(ops, browserOperations()...)
 	ops = append(ops, shellTerminalOperations()...)
-	ops = append(ops, inboxOperations()...)
 	ops = append(ops, ticketOperations()...)
 	return ops
 }
@@ -589,36 +576,6 @@ func ticketOperations() []operation {
 			summary:    "User confirmation: tell the reviewer to merge the branch now",
 			pathParams: []any{controllers.ProjectIDParam{}, controllers.TicketSlugParam{}, controllers.TicketPlanParam{}},
 			resps:      ticketOK(http.StatusOK, controllers.TicketResponse{}, http.StatusBadRequest, http.StatusNotFound, http.StatusConflict, http.StatusInternalServerError),
-		},
-	}
-}
-
-// inboxOperations declares the canonical /projects/{id}/inbox operations. The
-// set must stay 1:1 with the routes InboxController.Register mounts —
-// TestRouteSpecParity fails the build otherwise.
-func inboxOperations() []operation {
-	return []operation{
-		{
-			method: http.MethodGet, path: "/api/v1/projects/{id}/inbox", id: "listInboxEvents", tag: "inbox",
-			summary:    "List a project's pending orchestrator inbox events",
-			pathParams: []any{controllers.ProjectIDParam{}},
-			resps: []respUnit{
-				{http.StatusOK, controllers.InboxResponse{}},
-				{http.StatusInternalServerError, envelope.APIError{}},
-				{http.StatusNotImplemented, envelope.APIError{}},
-			},
-		},
-		{
-			method: http.MethodPost, path: "/api/v1/projects/{id}/inbox/ack", id: "ackInboxEvents", tag: "inbox",
-			summary:    "Acknowledge pending orchestrator inbox events by id",
-			pathParams: []any{controllers.ProjectIDParam{}},
-			reqBody:    controllers.AckInboxEventsRequest{},
-			resps: []respUnit{
-				{http.StatusOK, controllers.AckInboxEventsResponse{}},
-				{http.StatusBadRequest, envelope.APIError{}},
-				{http.StatusInternalServerError, envelope.APIError{}},
-				{http.StatusNotImplemented, envelope.APIError{}},
-			},
 		},
 	}
 }
@@ -1987,46 +1944,14 @@ func sessionOperations() []operation {
 			},
 		},
 		{
-			method: http.MethodGet, path: "/api/v1/orchestrators", id: "listOrchestrators", tag: "sessions",
-			summary: "List orchestrator sessions across projects",
-			resps: []respUnit{
-				{http.StatusOK, controllers.ListSessionsResponse{}},
-				{http.StatusInternalServerError, envelope.APIError{}},
-				{http.StatusNotImplemented, envelope.APIError{}},
-			},
-		},
-		{
-			method: http.MethodPost, path: "/api/v1/orchestrators", id: "spawnOrchestrator", tag: "sessions",
-			summary: "Spawn an orchestrator session",
-			reqBody: controllers.SpawnOrchestratorRequest{},
-			resps: []respUnit{
-				{http.StatusCreated, controllers.SpawnOrchestratorResponse{}},
-				{http.StatusBadRequest, envelope.APIError{}},
-				{http.StatusNotFound, envelope.APIError{}},
-				{http.StatusInternalServerError, envelope.APIError{}},
-				{http.StatusNotImplemented, envelope.APIError{}},
-			},
-		},
-		{
-			method: http.MethodPost, path: "/api/v1/orchestrators/delegate", id: "delegateTask", tag: "sessions",
-			summary: "Start a worker task and ask the orchestrator to title it",
+			method: http.MethodPost, path: "/api/v1/sessions/delegate", id: "delegateTask", tag: "sessions",
+			summary: "Spawn a worker session for a task",
 			reqBody: controllers.DelegateTaskRequest{},
 			resps: []respUnit{
 				{http.StatusAccepted, controllers.DelegateTaskResponse{}},
 				{http.StatusBadRequest, envelope.APIError{}},
 				{http.StatusNotFound, envelope.APIError{}},
 				{http.StatusConflict, envelope.APIError{}},
-				{http.StatusInternalServerError, envelope.APIError{}},
-				{http.StatusNotImplemented, envelope.APIError{}},
-			},
-		},
-		{
-			method: http.MethodGet, path: "/api/v1/orchestrators/{id}", id: "getOrchestrator", tag: "sessions",
-			summary:    "Fetch one orchestrator session",
-			pathParams: []any{controllers.OrchestratorIDParam{}},
-			resps: []respUnit{
-				{http.StatusOK, controllers.SessionResponse{}},
-				{http.StatusNotFound, envelope.APIError{}},
 				{http.StatusInternalServerError, envelope.APIError{}},
 				{http.StatusNotImplemented, envelope.APIError{}},
 			},

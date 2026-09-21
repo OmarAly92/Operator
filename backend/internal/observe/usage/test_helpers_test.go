@@ -45,7 +45,6 @@ func seedUsageTestSession(
 	mustNoError(t, store.UpsertProject(ctx, domain.ProjectRecord{ID: string(projectID), Path: t.TempDir(), RegisteredAt: now}))
 	session, err := store.CreateSession(ctx, domain.SessionRecord{
 		ProjectID: projectID,
-		Kind:      domain.KindWorker,
 		Harness:   harness,
 		Activity:  domain.Activity{State: activity, LastActivityAt: now},
 		Metadata:  domain.SessionMetadata{AgentSessionID: nativeID, WorkspaceMode: domain.WorkspaceModeWorktree},

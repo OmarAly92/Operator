@@ -24,7 +24,6 @@ import (
 	aoprocess "github.com/OmarAly92/operator/backend/internal/process"
 	"github.com/OmarAly92/operator/backend/internal/service/dialogdriver"
 	"github.com/OmarAly92/operator/backend/internal/sessionguard"
-	"github.com/OmarAly92/operator/backend/internal/skillassets"
 	"github.com/OmarAly92/operator/backend/internal/slashcommands"
 )
 
@@ -78,10 +77,6 @@ var (
 	// to providers whose standing-instruction and native-resume behavior Operator has
 	// verified end to end.
 	ErrUnsupportedSwitchHarness = errors.New("session: harness does not support agent switching")
-	// ErrUnsupportedSwitchKind keeps the first implementation scoped to worker
-	// sessions. Orchestrators own additional delegation and board semantics and
-	// need an explicit product contract before their process can be replaced.
-	ErrUnsupportedSwitchKind = errors.New("session: only worker sessions support agent switching")
 	// ErrTargetAgentUnauthorized is returned only when the target adapter's
 	// local auth probe conclusively reports missing or invalid credentials.
 	// Unknown/probe failures remain advisory and are allowed to reach launch.
@@ -126,12 +121,7 @@ var (
 	ErrInteractiveSlashCommand = errors.New("session: slash command opens a dialog on the desktop")
 )
 
-// Env vars a spawned process reads to learn who it is. A worker that starts
-// its own Docker containers (a database, a queue, any ad-hoc service) should
-// label them `--label opr.session=$OPERATOR_SESSION_ID` so Operator's container reaper
-// (dockerreap) removes them on session kill/terminal state — see #2652. Add
-// `--label opr.spare=true` to a deliberately shared container that must
-// survive past this session.
+// Env vars a spawned process reads to learn who it is.
 const (
 	EnvSessionID = "OPERATOR_SESSION_ID"
 	EnvProjectID = "OPERATOR_PROJECT_ID"
@@ -552,11 +542,10 @@ func (m *Manager) Spawn(ctx context.Context, cfg ports.SpawnConfig) (domain.Sess
 			return domain.SessionRecord{}, 0, 0, fmt.Errorf("spawn: %w: an in-place session cannot take a branch", ErrInPlaceUnsupported)
 		}
 	}
-	// A per-project role override picks the harness when the spawn names none,
-	// so a project can default workers to one agent and orchestrators to another.
-	cfg.Harness = effectiveHarness(cfg.Harness, cfg.Kind, project.Config)
+	// A per-project role override picks the harness when the spawn names none.
+	cfg.Harness = effectiveHarness(cfg.Harness, project.Config)
 	if cfg.Harness == "" {
-		return domain.SessionRecord{}, 0, 0, fmt.Errorf("spawn: %w: configure project %s.agent or pass --harness", ErrMissingHarness, roleConfigName(cfg.Kind))
+		return domain.SessionRecord{}, 0, 0, fmt.Errorf("spawn: %w: configure project agent or pass --harness", ErrMissingHarness)
 	}
 
 	// Reject an unknown harness before any durable state is created. Doing this
@@ -596,7 +585,7 @@ func (m *Manager) Spawn(ctx context.Context, cfg ports.SpawnConfig) (domain.Sess
 
 	branch := cfg.Branch
 	if branch == "" && cfg.WorkspaceMode != domain.WorkspaceModeInPlace {
-		branch = DefaultSpawnBranch(id, cfg.Kind, sessionPrefix(project), projectKind, m.dataDir)
+		branch = DefaultSpawnBranch(id, projectKind, m.dataDir)
 	}
 	ws, workspaceProject, err := m.createSessionWorkspace(ctx, project, cfg, id, branch)
 	if err != nil {
@@ -638,7 +627,7 @@ func (m *Manager) Spawn(ctx context.Context, cfg ports.SpawnConfig) (domain.Sess
 		m.rollbackSeedSpawnWorkspace(ctx, rec, ws, workspaceProject, false)
 		return domain.SessionRecord{}, 0, 0, fmt.Errorf("spawn %s: no agent adapter for harness %q", id, cfg.Harness)
 	}
-	agentConfig := applySpawnAgentConfig(effectiveAgentConfig(cfg.Kind, project.Config), cfg.AgentConfig)
+	agentConfig := applySpawnAgentConfig(effectiveAgentConfig(project.Config), cfg.AgentConfig)
 	env, browserCapabilityVerifier, err := m.launchRuntimeEnv(ctx, rec, rec.ClaudeAccountID, project.Config.Env)
 	if err != nil {
 		m.rollbackSeedSpawnWorkspace(ctx, rec, ws, workspaceProject, true)
@@ -658,7 +647,6 @@ func (m *Manager) Spawn(ctx context.Context, cfg ports.SpawnConfig) (domain.Sess
 		DataDir:          m.dataDir,
 		SessionID:        string(id),
 		WorkspacePath:    ws.Path,
-		Kind:             cfg.Kind,
 		Prompt:           prompt,
 		SystemPrompt:     systemPrompt,
 		SystemPromptFile: systemPromptFile,
@@ -776,7 +764,6 @@ func (m *Manager) createSessionWorkspace(ctx context.Context, project domain.Pro
 		ws, err := m.workspace.Create(ctx, ports.WorkspaceConfig{
 			ProjectID:     cfg.ProjectID,
 			SessionID:     id,
-			Kind:          cfg.Kind,
 			SessionPrefix: sessionPrefix(project),
 			Branch:        branch,
 			BaseBranch:    baseBranch,
@@ -804,7 +791,6 @@ func (m *Manager) createSessionWorkspace(ctx context.Context, project domain.Pro
 	info, err := workspaceProject.CreateWorkspaceProject(ctx, ports.WorkspaceProjectConfig{
 		ProjectID:     cfg.ProjectID,
 		SessionID:     id,
-		Kind:          cfg.Kind,
 		SessionPrefix: sessionPrefix(project),
 		Branch:        branch,
 		RootRepoPath:  project.Path,
@@ -935,40 +921,18 @@ func (m *Manager) preserveFailedSpawnWorkspace(ctx context.Context, id domain.Se
 }
 
 // effectiveHarness resolves the harness for a spawn: an explicit harness wins;
-// otherwise the project's role override for the session kind applies. Empty is
-// invalid for new worker/orchestrator launches and is rejected by Spawn.
-func effectiveHarness(explicit domain.AgentHarness, kind domain.SessionKind, cfg domain.ProjectConfig) domain.AgentHarness {
+// otherwise the project's configured harness applies. Empty is invalid for a
+// new launch and is rejected by Spawn.
+func effectiveHarness(explicit domain.AgentHarness, cfg domain.ProjectConfig) domain.AgentHarness {
 	if explicit != "" {
 		return explicit
 	}
-	if role := roleOverride(kind, cfg).Harness; role != "" {
-		return role
-	}
-	return ""
+	return cfg.Harness
 }
 
-func roleConfigName(kind domain.SessionKind) string {
-	if kind == domain.KindOrchestrator {
-		return "orchestrator"
-	}
-	return "worker"
-}
-
-// effectiveAgentConfig merges the role override's agent config over the
-// project's base agent config; set override fields win.
-func effectiveAgentConfig(kind domain.SessionKind, cfg domain.ProjectConfig) ports.AgentConfig {
-	merged := cfg.AgentConfig
-	override := roleOverride(kind, cfg).AgentConfig
-	if override.Model != "" {
-		merged.Model = override.Model
-	}
-	if override.Mode != "" {
-		merged.Mode = override.Mode
-	}
-	if override.Permissions != "" {
-		merged.Permissions = override.Permissions
-	}
-	return merged
+// effectiveAgentConfig returns the project's base agent config.
+func effectiveAgentConfig(cfg domain.ProjectConfig) ports.AgentConfig {
+	return cfg.AgentConfig
 }
 
 func applySpawnAgentConfig(base, override ports.AgentConfig) ports.AgentConfig {
@@ -982,13 +946,6 @@ func applySpawnAgentConfig(base, override ports.AgentConfig) ports.AgentConfig {
 		base.Permissions = override.Permissions
 	}
 	return base
-}
-
-func roleOverride(kind domain.SessionKind, cfg domain.ProjectConfig) domain.RoleOverride {
-	if kind == domain.KindOrchestrator {
-		return cfg.Orchestrator
-	}
-	return cfg.Worker
 }
 
 // sessionPrefix returns the display prefix for a project: the explicit
@@ -1170,83 +1127,6 @@ func (m *Manager) Kill(ctx context.Context, id domain.SessionID) (bool, error) {
 	return freed, nil
 }
 
-// RetireForReplacement terminates a live orchestrator and releases its branch
-// for a replacement session. Unlike Kill, this captures uncommitted work before
-// force-removing the worktree, so a dirty canonical orchestrator worktree does
-// not block the replacement from claiming the canonical branch.
-//
-// This deliberately does not write a session_worktrees row: those rows are
-// boot-restore markers, and a replaced orchestrator must stay terminated.
-func (m *Manager) RetireForReplacement(ctx context.Context, id domain.SessionID) error {
-	if err := m.beginAgentOperation(ctx, id, agentOperationRetire); err != nil {
-		if errors.Is(err, errAgentOperationInProgress) {
-			err = ErrSwitchInProgress
-		}
-		return fmt.Errorf("retire replacement %s: %w", id, err)
-	}
-	defer m.endAgentOperation(id, agentOperationRetire)
-
-	rec, ok, err := m.store.GetSession(ctx, id)
-	if err != nil {
-		return fmt.Errorf("retire replacement %s: %w", id, err)
-	}
-	if !ok || rec.IsTerminated {
-		return nil
-	}
-	m.stopPreviewBestEffort(ctx, id)
-	m.destroyBrowserBestEffort(ctx, id)
-	if rec.Metadata.WorkspacePath == "" || rec.Metadata.Branch == "" {
-		if err := m.store.DeleteSessionWorktrees(ctx, rec.ID); err != nil {
-			return fmt.Errorf("retire replacement %s: clear restore markers: %w", id, err)
-		}
-		handle := runtimeHandle(rec.Metadata)
-		if handle.ID != "" {
-			if err := m.runtime.Destroy(ctx, handle); err != nil {
-				return fmt.Errorf("retire replacement %s: runtime: %w", id, err)
-			}
-		}
-		if err := m.lcm.MarkTerminated(ctx, id); err != nil {
-			return fmt.Errorf("retire replacement %s: mark terminated: %w", id, err)
-		}
-		return nil
-	}
-	if rows, ok, rowErr := m.workspaceProjectRows(ctx, rec); rowErr != nil {
-		return fmt.Errorf("retire replacement %s: workspace rows: %w", id, rowErr)
-	} else if ok {
-		return m.retireWorkspaceProjectForReplacement(ctx, rec, rows)
-	}
-
-	ws := workspaceInfo(rec)
-	staleWorkspace := false
-	if _, err := m.workspace.StashUncommitted(ctx, ws); err != nil {
-		if !errors.Is(err, ports.ErrWorkspaceStale) {
-			return fmt.Errorf("retire replacement %s: stash: %w", id, err)
-		}
-		staleWorkspace = true
-		m.logger.Warn("retire replacement: stale workspace; skipping preserve", "sessionID", id, "path", ws.Path, "error", err)
-	}
-	handle := runtimeHandle(rec.Metadata)
-	if handle.ID != "" {
-		if err := m.runtime.Destroy(ctx, handle); err != nil {
-			return fmt.Errorf("retire replacement %s: runtime: %w", id, err)
-		}
-	}
-	if err := m.workspace.ForceDestroy(ctx, ws); err != nil {
-		if staleWorkspace {
-			m.logger.Warn("retire replacement: stale workspace cleanup failed", "sessionID", id, "path", ws.Path, "error", err)
-		}
-		return fmt.Errorf("retire replacement %s: force destroy: %w", id, err)
-	}
-	m.cleanupAgentWorkspace(ctx, rec, ws.Path)
-	if err := m.store.DeleteSessionWorktrees(ctx, rec.ID); err != nil {
-		return fmt.Errorf("retire replacement %s: clear restore markers: %w", id, err)
-	}
-	if err := m.lcm.MarkTerminated(ctx, rec.ID); err != nil {
-		return fmt.Errorf("retire replacement %s: mark terminated: %w", id, err)
-	}
-	return nil
-}
-
 func (m *Manager) stopPreviewBestEffort(ctx context.Context, id domain.SessionID) {
 	if m.preview == nil {
 		return
@@ -1265,41 +1145,6 @@ func (m *Manager) destroyBrowserBestEffort(ctx context.Context, id domain.Sessio
 	if err := m.browser.DestroySession(cleanupCtx, id); err != nil {
 		m.logger.Warn("session browser cleanup failed", "sessionID", id, "error", err)
 	}
-}
-
-func (m *Manager) retireWorkspaceProjectForReplacement(ctx context.Context, rec domain.SessionRecord, rows []ports.WorkspaceRepoInfo) error {
-	staleRepos := make(map[string]bool)
-	for _, row := range rows {
-		if _, err := m.workspace.StashUncommitted(ctx, workspaceInfoFromRepoInfo(row)); err != nil {
-			if !errors.Is(err, ports.ErrWorkspaceStale) {
-				return fmt.Errorf("retire replacement %s repo %s: stash: %w", rec.ID, row.RepoName, err)
-			}
-			staleRepos[row.RepoName] = true
-			m.logger.Warn("retire replacement: stale workspace repo; skipping preserve", "sessionID", rec.ID, "repo", row.RepoName, "path", row.Path, "error", err)
-		}
-	}
-	handle := runtimeHandle(rec.Metadata)
-	if handle.ID != "" {
-		if err := m.runtime.Destroy(ctx, handle); err != nil {
-			return fmt.Errorf("retire replacement %s: runtime: %w", rec.ID, err)
-		}
-	}
-	for i := len(rows) - 1; i >= 0; i-- {
-		if err := m.workspace.ForceDestroy(ctx, workspaceInfoFromRepoInfo(rows[i])); err != nil {
-			if staleRepos[rows[i].RepoName] {
-				m.logger.Warn("retire replacement: stale workspace repo cleanup failed", "sessionID", rec.ID, "repo", rows[i].RepoName, "path", rows[i].Path, "error", err)
-			}
-			return fmt.Errorf("retire replacement %s repo %s: force destroy: %w", rec.ID, rows[i].RepoName, err)
-		}
-	}
-	m.cleanupAgentWorkspace(ctx, rec, rec.Metadata.WorkspacePath)
-	if err := m.store.DeleteSessionWorktrees(ctx, rec.ID); err != nil {
-		return fmt.Errorf("retire replacement %s: clear restore markers: %w", rec.ID, err)
-	}
-	if err := m.lcm.MarkTerminated(ctx, rec.ID); err != nil {
-		return fmt.Errorf("retire replacement %s: mark terminated: %w", rec.ID, err)
-	}
-	return nil
 }
 
 // RestoreWithMode relaunches a torn-down session and reports whether Operator used
@@ -1340,8 +1185,7 @@ func (m *Manager) RestoreWithMode(ctx context.Context, id domain.SessionID, grid
 	// Resumability is decided inside restoreArgv, not here. A promptless session
 	// can still be fully resumable when the harness pins a deterministic session id
 	// (Claude Code). restoreArgv returns ErrNotResumable only for a promptless,
-	// unresumable non-orchestrator (a worker with no task and no native id to resume).
-	// Orchestrators always relaunch fresh with the system prompt only.
+	// unresumable worker: one with no task and no native id to resume.
 
 	ws, err := m.restoreSessionWorkspace(ctx, project, rec)
 	if err != nil {
@@ -1355,10 +1199,8 @@ func (m *Manager) relaunchRestoredSession(ctx context.Context, rec domain.Sessio
 	if err != nil {
 		return RestoreResult{}, err
 	}
-	if rec.Kind == domain.KindWorker {
-		if err := m.restoreReviewer(ctx, rec.ID); err != nil {
-			m.logger.Warn("restore: reviewer terminal restore failed; worker remains restored", "sessionID", rec.ID, "error", err)
-		}
+	if err := m.restoreReviewer(ctx, rec.ID); err != nil {
+		m.logger.Warn("restore: reviewer terminal restore failed; worker remains restored", "sessionID", rec.ID, "error", err)
 	}
 	return result, nil
 }
@@ -1505,7 +1347,7 @@ func (m *Manager) relaunchSessionWithPolicy(ctx context.Context, operation strin
 	// handoff for this exact native conversation when one exists. A blanked
 	// native id makes this a no-op, which is correct: the handoff describes the
 	// conversation being abandoned.
-	systemPrompt, err := m.buildSystemPrompt(ctx, rec.Kind, rec.ProjectID)
+	systemPrompt, err := m.buildSystemPrompt(ctx, rec.ProjectID)
 	if err != nil {
 		return RestoreResult{}, fmt.Errorf("%s %s: system prompt: %w", operation, rec.ID, err)
 	}
@@ -1521,7 +1363,7 @@ func (m *Manager) relaunchSessionWithPolicy(ctx context.Context, operation strin
 
 	// Restore re-applies the project's resolved agent config so a configured
 	// model/permissions carry across a restore, matching fresh spawn.
-	agentConfig := effectiveAgentConfig(rec.Kind, project.Config)
+	agentConfig := effectiveAgentConfig(project.Config)
 	env, browserCapabilityVerifier, err := m.launchRuntimeEnv(ctx, rec, rec.ClaudeAccountID, project.Config.Env)
 	if err != nil {
 		return RestoreResult{}, fmt.Errorf("%s %s: launch env: %w", operation, rec.ID, err)
@@ -1547,10 +1389,10 @@ func (m *Manager) relaunchSessionWithPolicy(ctx context.Context, operation strin
 			return RestoreResult{}, fmt.Errorf("%s %s: fresh native session id: %w", operation, rec.ID, err)
 		}
 		argv, delivery, mode, err = freshLaunchArgv(ctx, agent, rec.ID, ws.Path, launchMeta,
-			systemPrompt, systemPromptFile, agentConfig, rec.Kind, m.dataDir, true, nativeSessionID)
+			systemPrompt, systemPromptFile, agentConfig, m.dataDir, true, nativeSessionID)
 	} else {
 		argv, delivery, mode, err = restoreArgv(ctx, agent, rec.ID, ws.Path, launchMeta,
-			systemPrompt, systemPromptFile, agentConfig, rec.Kind, rec.Harness, m.dataDir)
+			systemPrompt, systemPromptFile, agentConfig, rec.Harness, m.dataDir)
 	}
 	if err != nil {
 		m.cleanupSystemPromptDir(rec.ID)
@@ -1609,7 +1451,6 @@ func (m *Manager) relaunchSessionWithPolicy(ctx context.Context, operation strin
 			DataDir:          m.dataDir,
 			SessionID:        string(rec.ID),
 			WorkspacePath:    ws.Path,
-			Kind:             rec.Kind,
 			Prompt:           rec.Metadata.Prompt,
 			SystemPrompt:     systemPrompt,
 			SystemPromptFile: systemPromptFile,
@@ -1957,7 +1798,6 @@ func (m *Manager) RestoreAll(ctx context.Context) error {
 			ws, restoreErr = m.workspace.Restore(ctx, ports.WorkspaceConfig{
 				ProjectID:     rec.ProjectID,
 				SessionID:     rec.ID,
-				Kind:          rec.Kind,
 				SessionPrefix: sessionPrefix(project),
 				Branch:        rec.Metadata.Branch,
 				Path:          rec.Metadata.WorkspacePath,
@@ -2064,7 +1904,6 @@ func (m *Manager) restoreSessionWorkspace(ctx context.Context, project domain.Pr
 		return m.workspace.Restore(ctx, ports.WorkspaceConfig{
 			ProjectID:     rec.ProjectID,
 			SessionID:     rec.ID,
-			Kind:          rec.Kind,
 			SessionPrefix: sessionPrefix(project),
 			Branch:        rec.Metadata.Branch,
 			Path:          rec.Metadata.WorkspacePath,
@@ -2353,10 +2192,6 @@ func (m *Manager) Send(ctx context.Context, id domain.SessionID, message string,
 }
 
 func (m *Manager) send(ctx context.Context, id domain.SessionID, message string) error {
-	message, err := m.prepareOutboundMessage(ctx, id, message)
-	if err != nil {
-		return err
-	}
 	builtin, isBuiltin := slashcommands.Lookup(message)
 	if isBuiltin && builtin.Interactive {
 		return fmt.Errorf("send %s: %w", id, ErrInteractiveSlashCommand)
@@ -2418,39 +2253,6 @@ func (m *Manager) send(ctx context.Context, id domain.SessionID, message string)
 		}
 	}
 	return nil
-}
-
-func (m *Manager) prepareOutboundMessage(ctx context.Context, id domain.SessionID, message string) (string, error) {
-	rec, ok, err := m.store.GetSession(ctx, id)
-	if err != nil {
-		return "", fmt.Errorf("send %s: session: %w", id, err)
-	}
-	if !ok {
-		return message, nil
-	}
-	if rec.Harness != domain.HarnessCopilot || rec.Kind != domain.KindOrchestrator {
-		return message, nil
-	}
-	return copilotOrchestratorMessage(rec.ProjectID, message), nil
-}
-
-func copilotOrchestratorMessage(projectID domain.ProjectID, message string) string {
-	project := strings.TrimSpace(string(projectID))
-	if project == "" {
-		project = "<project>"
-	}
-	return fmt.Sprintf(`Operator ORCHESTRATOR DIRECTIVE
-
-You are acting as the Operator orchestrator for project %s. Do not implement code changes, edit files, run implementation tests, or complete the user's task yourself.
-
-Your next action for any implementation, fix, UI change, test, PR, or code-review task must be to spawn or redirect a worker session. Use:
-
-opr spawn --project %s --name "<label, max 20 chars>" --prompt "<clear worker task>"
-
-If a suitable worker already exists, use opr send to redirect that worker instead. After spawning or redirecting, report the worker session id and stop. Do not do the worker's task in this orchestrator session.
-
-USER MESSAGE:
-%s`, project, project, message)
 }
 
 // harnessNudgeSafe reports whether the session's harness is safe to nudge with
@@ -2732,7 +2534,6 @@ func seedRecord(cfg ports.SpawnConfig, now time.Time) domain.SessionRecord {
 	return domain.SessionRecord{
 		ProjectID:        cfg.ProjectID,
 		IssueID:          cfg.IssueID,
-		Kind:             cfg.Kind,
 		CreatedAt:        now,
 		UpdatedAt:        now,
 		Harness:          cfg.Harness,
@@ -2740,15 +2541,11 @@ func seedRecord(cfg ports.SpawnConfig, now time.Time) domain.SessionRecord {
 		Activity:         domain.Activity{State: domain.ActivityIdle, LastActivityAt: now},
 		AutoInjectReview: true,
 		Metadata:         domain.SessionMetadata{WorkspaceMode: cfg.WorkspaceMode},
-		SpawnedBy:        cfg.RequestedBy,
 		ClaudeAccountID:  domain.NormalizeClaudeAccountID(cfg.ClaudeAccountID),
 	}
 }
 
-func defaultSessionBranch(id domain.SessionID, kind domain.SessionKind, prefix, branchNamespace string) string {
-	if kind == domain.KindOrchestrator {
-		return operatorBranch(branchNamespace, prefix+"-orchestrator")
-	}
+func defaultSessionBranch(id domain.SessionID, branchNamespace string) string {
 	// A fresh, unique branch per worker session: gitworktree can't add a worktree
 	// on a branch already checked out elsewhere (e.g. main). Put the root work
 	// branch under a session namespace so sibling PR branches such as
@@ -2758,7 +2555,7 @@ func defaultSessionBranch(id domain.SessionID, kind domain.SessionKind, prefix, 
 
 // DefaultSpawnBranch returns Operator's generated work branch for a spawn. Explicit
 // user-provided branches bypass this helper.
-func DefaultSpawnBranch(id domain.SessionID, kind domain.SessionKind, prefix string, projectKind domain.ProjectKind, dataDir string) string {
+func DefaultSpawnBranch(id domain.SessionID, projectKind domain.ProjectKind, dataDir string) string {
 	if projectKind == domain.ProjectKindScratch {
 		return ""
 	}
@@ -2766,13 +2563,7 @@ func DefaultSpawnBranch(id domain.SessionID, kind domain.SessionKind, prefix str
 	if projectKind == domain.ProjectKindWorkspace {
 		return operatorBranch(branchNamespace, string(id))
 	}
-	return defaultSessionBranch(id, kind, prefix, branchNamespace)
-}
-
-// DefaultOrchestratorBranch returns the generated canonical orchestrator branch
-// for a project in the current data-dir namespace.
-func DefaultOrchestratorBranch(prefix, dataDir string) string {
-	return defaultSessionBranch("", domain.KindOrchestrator, prefix, generatedBranchNamespace(dataDir))
+	return defaultSessionBranch(id, branchNamespace)
 }
 
 func operatorBranch(namespace string, parts ...string) string {
@@ -2812,40 +2603,10 @@ func isDefaultDevDataDir(dataDir string) bool {
 
 func buildPrompt(cfg ports.SpawnConfig) string {
 	return buildTaskPrompt(taskPromptConfig{
-		Role:         promptRoleForKind(cfg.Kind),
 		Prompt:       cfg.Prompt,
 		IssueID:      string(cfg.IssueID),
 		IssueContext: cfg.IssueContext,
 	})
-}
-
-func promptRoleForKind(kind domain.SessionKind) sessionPromptRole {
-	switch kind {
-	case domain.KindOrchestrator:
-		return sessionPromptRoleOrchestrator
-	case domain.KindWorker:
-		return sessionPromptRoleWorker
-	default:
-		return ""
-	}
-}
-
-func promptProjectContext(projectID domain.ProjectID, project domain.ProjectRecord) promptProject {
-	cfg := project.Config.WithDefaults()
-	if project.Kind.WithDefault() == domain.ProjectKindScratch {
-		cfg.DefaultBranch = ""
-	}
-	id := project.ID
-	if strings.TrimSpace(id) == "" {
-		id = string(projectID)
-	}
-	return promptProject{
-		ID:            id,
-		Name:          project.DisplayName,
-		Repo:          project.RepoOriginURL,
-		DefaultBranch: cfg.DefaultBranch,
-		Path:          project.Path,
-	}
 }
 
 // attachmentsDir is the worktree-relative directory where spawn file
@@ -2904,86 +2665,30 @@ func appendAttachmentReferences(prompt string, refs []string) string {
 // empty input box rather than receiving an auto-generated kickoff turn.
 func (m *Manager) buildSpawnTexts(ctx context.Context, cfg ports.SpawnConfig) (prompt, systemPrompt string, err error) {
 	prompt = buildPrompt(cfg)
-	systemPrompt, err = m.buildSystemPrompt(ctx, cfg.Kind, cfg.ProjectID)
+	systemPrompt, err = m.buildSystemPrompt(ctx, cfg.ProjectID)
 	if err != nil {
 		return "", "", err
 	}
 	return prompt, systemPrompt, nil
 }
 
-// buildSystemPrompt derives the standing instructions for a session of the
-// given kind from current store state. Restore recomputes them through here
-// rather than persisting them, so a restored worker points at the orchestrator
-// that is active now, not the one from its original spawn.
-func (m *Manager) buildSystemPrompt(ctx context.Context, kind domain.SessionKind, projectID domain.ProjectID) (string, error) {
-	project, err := m.loadProject(ctx, projectID)
-	if err != nil {
-		return "", err
-	}
-	cfg := systemPromptConfig{
-		Role:    promptRoleForKind(kind),
-		Project: promptProjectContext(projectID, project),
-	}
+// buildSystemPrompt derives the standing instructions for a session from
+// current store state. Restore recomputes them through here rather than
+// persisting them.
+func (m *Manager) buildSystemPrompt(ctx context.Context, projectID domain.ProjectID) (string, error) {
+	cfg := systemPromptConfig{}
 
-	switch kind {
-	case domain.KindOrchestrator:
-		cfg.OrchestratorRules = project.Config.OrchestratorRules
-	case domain.KindWorker:
-		orchestratorID, ok, err := m.activeOrchestratorSessionID(ctx, projectID)
-		if err != nil {
-			return "", err
-		}
-		if ok {
-			cfg.OrchestratorSessionID = string(orchestratorID)
-		}
-		rules, err := buildProjectRules(projectRulesConfig{
-			ProjectPath:    project.Path,
-			AgentRules:     project.Config.AgentRules,
-			AgentRulesFile: project.Config.AgentRulesFile,
-		})
-		if err != nil {
-			return "", err
-		}
-		cfg.ProjectRules = rules
-	default:
-		return "", nil
-	}
-
-	workspacePrompt, err := m.workspaceProjectPrompt(ctx, kind, projectID)
+	workspacePrompt, err := m.workspaceProjectPrompt(ctx, projectID)
 	if err != nil {
 		return "", err
 	}
 	if workspacePrompt != "" {
 		cfg.AdditionalSections = append(cfg.AdditionalSections, workspacePrompt)
 	}
-	if pointer := strings.TrimSpace(m.operatorSkillPointer()); pointer != "" {
-		cfg.AdditionalSections = append(cfg.AdditionalSections, pointer)
-	}
 	return buildSystemPromptText(cfg), nil
 }
 
-// operatorSkillPointer is appended to every agent system prompt. It points the agent
-// at the using-opr skill the daemon installs under the data dir, rather than
-// inlining the whole CLI catalog. The path is absolute so it resolves from any
-// project's worktree, not just the Operator repo (the only place a repo-relative
-// skills/ path would exist). The skill file carries exact flags and examples,
-// so the standing prompt stays a short pointer rather than a command dump.
-func (m *Manager) operatorSkillPointer() string {
-	dir := skillassets.Dir(m.dataDir)
-	skillFile := filepath.ToSlash(filepath.Join(dir, "SKILL.md"))
-	commandsGlob := filepath.ToSlash(filepath.Join(dir, "commands", "*.md"))
-	browserFile := filepath.ToSlash(filepath.Join(dir, "commands", "browser.md"))
-	previewFile := filepath.ToSlash(filepath.Join(dir, "commands", "preview.md"))
-	return "\n\n" + "## Using the opr CLI\n\n" +
-		"When using `opr`, read `" + skillFile + "` and only the relevant file under `" + commandsGlob + "`; do not load unrelated command guides.\n\n" +
-		"## Operator desktop Browser panel\n\n" +
-		"For frontend work, read `" + previewFile + "` before previewing or starting an app: open static HTML or Markdown directly; Never create or modify `package.json` or install dependencies solely to display static files. Do not create `.operator/launch.json` unless the user asks. Automatically open the primary requested browser-displayable artifact immediately after creating or materially updating it, but do not replace an active application preview with a supporting asset. " +
-		"For page inspection or interaction, read `" + browserFile + "` and use `opr browser` from this Operator session. Browser network capture is optional and off by default; follow that guide and never enable it for routine browser actions. " +
-		"Do not use Codex/host in-app browser connectors, `agent.browsers.get(\"iab\")`, or a browser MCP for the Operator Browser panel: those are separate browser runtimes and cannot see or control Operator's session-owned page. " +
-		"`opr browser` operates the same live page the user sees in that panel."
-}
-
-func (m *Manager) workspaceProjectPrompt(ctx context.Context, kind domain.SessionKind, projectID domain.ProjectID) (string, error) {
+func (m *Manager) workspaceProjectPrompt(ctx context.Context, projectID domain.ProjectID) (string, error) {
 	project, err := m.loadProject(ctx, projectID)
 	if err != nil {
 		return "", err
@@ -2995,27 +2700,7 @@ func (m *Manager) workspaceProjectPrompt(ctx context.Context, kind domain.Sessio
 	if err != nil {
 		return "", fmt.Errorf("list workspace repos for prompt: %w", err)
 	}
-	switch kind {
-	case domain.KindOrchestrator:
-		return workspaceOrchestratorPrompt(repos), nil
-	case domain.KindWorker:
-		return workspaceWorkerPrompt(repos), nil
-	default:
-		return "", nil
-	}
-}
-
-func (m *Manager) activeOrchestratorSessionID(ctx context.Context, project domain.ProjectID) (domain.SessionID, bool, error) {
-	recs, err := m.store.ListSessions(ctx, project)
-	if err != nil {
-		return "", false, fmt.Errorf("list sessions for %s: %w", project, err)
-	}
-	for _, rec := range recs {
-		if rec.Kind == domain.KindOrchestrator && !rec.IsTerminated {
-			return rec.ID, true, nil
-		}
-	}
-	return "", false, nil
+	return workspaceWorkerPrompt(repos), nil
 }
 
 func (m *Manager) writeSystemPromptFile(id domain.SessionID, systemPrompt string) (string, error) {
@@ -3074,17 +2759,6 @@ func (m *Manager) cleanupSystemPromptDir(id domain.SessionID) {
 	if err := os.RemoveAll(dir); err != nil {
 		m.logger.Warn("system prompt cleanup failed", "session", id, "path", dir, "err", err)
 	}
-}
-
-func workspaceOrchestratorPrompt(repos []domain.WorkspaceRepoRecord) string {
-	return fmt.Sprintf(`## Workspace project
-
-This project is a multi-repository workspace. Sessions start at the workspace root. The root repository is %s at path `+"`.`"+`; child repositories are nested below it.
-
-Repositories:
-%s
-
-When spawning workers, name the repository path or paths they should work in. Work can span multiple repositories, so track deliverables, pull requests, and checks by repository.`, domain.RootWorkspaceRepoName, workspaceRepoList(repos))
 }
 
 func workspaceWorkerPrompt(repos []domain.WorkspaceRepoRecord) string {
@@ -3488,7 +3162,6 @@ func (m *Manager) waitForPromptReadiness(ctx context.Context, agent ports.Agent,
 			// to delivering the prompt and make the degraded path observable.
 			m.logger.Warn("prompt readiness timed out; falling back to after-start prompt delivery",
 				"sessionID", cfg.SessionID,
-				"kind", string(cfg.Kind),
 				"timeout", hints.Timeout.String(),
 				"pollInterval", poll.String(),
 				"lines", lines,
@@ -3565,13 +3238,13 @@ func freshNativeSessionID(agent ports.Agent) (string, error) {
 // signals via ok=false (e.g. no native session id captured yet). Returns
 // ErrNotResumable when transcript-preserving restore is required but unavailable,
 // or when a promptless, unresumable worker has nothing to restore from.
-func restoreArgv(ctx context.Context, agent ports.Agent, id domain.SessionID, workspacePath string, meta domain.SessionMetadata, systemPrompt, systemPromptFile string, agentConfig ports.AgentConfig, kind domain.SessionKind, _ domain.AgentHarness, dataDir string) ([]string, ports.PromptDeliveryStrategy, RestoreMode, error) {
+func restoreArgv(ctx context.Context, agent ports.Agent, id domain.SessionID, workspacePath string, meta domain.SessionMetadata, systemPrompt, systemPromptFile string, agentConfig ports.AgentConfig, _ domain.AgentHarness, dataDir string) ([]string, ports.PromptDeliveryStrategy, RestoreMode, error) {
 	ref := ports.SessionRef{
 		ID:            string(id),
 		WorkspacePath: workspacePath,
 		Metadata:      map[string]string{ports.MetadataKeyAgentSessionID: meta.AgentSessionID},
 	}
-	cmd, ok, err := agent.GetRestoreCommand(ctx, ports.RestoreConfig{Session: ref, Kind: kind, DataDir: dataDir, SystemPrompt: systemPrompt, SystemPromptFile: systemPromptFile, Config: agentConfig, Permissions: agentConfig.Permissions})
+	cmd, ok, err := agent.GetRestoreCommand(ctx, ports.RestoreConfig{Session: ref, DataDir: dataDir, SystemPrompt: systemPrompt, SystemPromptFile: systemPromptFile, Config: agentConfig, Permissions: agentConfig.Permissions})
 	if err != nil {
 		return nil, "", "", fmt.Errorf("restore command: %w", err)
 	}
@@ -3579,17 +3252,16 @@ func restoreArgv(ctx context.Context, agent ports.Agent, id domain.SessionID, wo
 		return cmd, ports.PromptDeliveryInCommand, RestoreModeNative, nil
 	}
 	return freshLaunchArgv(ctx, agent, id, workspacePath, meta, systemPrompt,
-		systemPromptFile, agentConfig, kind, dataDir, false, "")
+		systemPromptFile, agentConfig, dataDir, false, "")
 }
 
 // freshLaunchArgv builds the non-resume half of restoreArgv. Interface
 // transitions also use it when an adapter proves its reserved id has no
 // persisted history, both for preflight and for the actual target launch.
-func freshLaunchArgv(ctx context.Context, agent ports.Agent, id domain.SessionID, workspacePath string, meta domain.SessionMetadata, systemPrompt, systemPromptFile string, agentConfig ports.AgentConfig, kind domain.SessionKind, dataDir string, allowPromptless bool, nativeSessionID string) ([]string, ports.PromptDeliveryStrategy, RestoreMode, error) {
-	// A saved prompt is replayed fresh. An orchestrator is promptless by design
-	// and relaunches with the system prompt only. A promptless WORKER has no task
-	// and no session id to restore from: do not blank-relaunch it.
-	if meta.Prompt == "" && kind != domain.KindOrchestrator && !allowPromptless {
+func freshLaunchArgv(ctx context.Context, agent ports.Agent, id domain.SessionID, workspacePath string, meta domain.SessionMetadata, systemPrompt, systemPromptFile string, agentConfig ports.AgentConfig, dataDir string, allowPromptless bool, nativeSessionID string) ([]string, ports.PromptDeliveryStrategy, RestoreMode, error) {
+	// A saved prompt is replayed fresh. A promptless worker has no task and no
+	// session id to restore from: do not blank-relaunch it.
+	if meta.Prompt == "" && !allowPromptless {
 		return nil, "", "", ErrNotResumable
 	}
 	// Fall through to a fresh launch. Command-delivered agents receive
@@ -3599,7 +3271,6 @@ func freshLaunchArgv(ctx context.Context, agent ports.Agent, id domain.SessionID
 		DataDir:          dataDir,
 		SessionID:        string(id),
 		WorkspacePath:    workspacePath,
-		Kind:             kind,
 		Prompt:           meta.Prompt,
 		SystemPrompt:     systemPrompt,
 		SystemPromptFile: systemPromptFile,

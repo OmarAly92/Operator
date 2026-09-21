@@ -82,7 +82,7 @@ void main() {
     source.controller.add(Uri.parse('aomobile://prs'));
     await tester.pumpAndSettle();
 
-    expect(HomeShell.selectedTab.value, 2);
+    expect(HomeShell.selectedTab.value, 1);
     expect(observer.pushed, isEmpty);
   });
 

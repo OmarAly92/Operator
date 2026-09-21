@@ -17,8 +17,6 @@ Natural-language-to-command mappings for common Operator tasks.
 | Open the user's real Chromium debugging surface | `opr browser devtools open` |
 | Close the shared DevTools window when explicitly requested | `opr browser devtools close` |
 | Capture the page | `opr browser screenshot [path]` |
-| Spawn a worker on issue N | `opr spawn --project <p> --issue N --name "<=20 chars>" --prompt "..."` |
-| Message a running agent | `opr send --session <id> --message "..."` |
 | Kill a session | `opr session kill <id>` |
 | List sessions | `opr session ls` |
 | Register a repo as a project | `opr project add --path <abs-path> --name <name>` |
@@ -32,7 +30,6 @@ Natural-language-to-command mappings for common Operator tasks.
 | Check the daemon is up | `opr status` |
 | Run health checks | `opr doctor` |
 | Clear the preview panel | `opr preview clear` |
-| List orchestrator sessions | `opr orchestrator ls` |
 | Claim an existing PR for a session | `opr session claim-pr <id> <pr-ref>` |
 | Submit a code review verdict | `opr review submit <session-id> --run <run-id> --verdict approved` |
 | Configure a project's default branch or model | `opr project set-config <id> --default-branch <branch> --model <model>` |

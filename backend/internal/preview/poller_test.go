@@ -286,31 +286,9 @@ func TestPollerKeepsMarkdownPreviewFreshOnceExplicitlySet(t *testing.T) {
 	})
 }
 
-func TestPollerSkipsNonWorkerSessions(t *testing.T) {
-	workspace := t.TempDir()
-	writeFile(t, filepath.Join(workspace, "index.html"), "<main>hello</main>")
-	svc := &fakePreviewSessions{sessions: []domain.SessionRecord{{
-		ID:   "opr-orch",
-		Kind: domain.KindOrchestrator,
-		Metadata: domain.SessionMetadata{
-			WorkspacePath: workspace,
-		},
-	}}}
-	poller := NewPoller(svc, svc, "http://127.0.0.1:3001", PollerConfig{Logger: discardLogger()})
-
-	if err := poller.Poll(context.Background()); err != nil {
-		t.Fatalf("Poll: %v", err)
-	}
-
-	if len(svc.sets) != 0 {
-		t.Fatalf("sets = %#v, want no preview updates for orchestrator sessions", svc.sets)
-	}
-}
-
 func workerSession(id domain.SessionID, workspace, previewURL string) domain.SessionRecord {
 	return domain.SessionRecord{
-		ID:   id,
-		Kind: domain.KindWorker,
+		ID: id,
 		Metadata: domain.SessionMetadata{
 			WorkspacePath: workspace,
 			PreviewURL:    previewURL,

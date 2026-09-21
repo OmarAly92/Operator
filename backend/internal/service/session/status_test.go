@@ -189,6 +189,29 @@ func TestAggregateStackedChildSignals(t *testing.T) {
 
 // Without an injected capability predicate the service must never claim
 // no_signal; with one, capability follows the predicate per harness.
+// TestDeriveStatusCoversProtectedStates pins the three activity states the
+// removal plan (spec §1.1) must not regress: active work, and both flavors
+// of "needs you" (explicit wait vs a blocked hook).
+func TestDeriveStatusCoversProtectedStates(t *testing.T) {
+	cases := []struct {
+		name  string
+		state domain.ActivityState
+		want  domain.SessionStatus
+	}{
+		{"active is working", domain.ActivityActive, domain.StatusWorking},
+		{"waiting input needs you", domain.ActivityWaitingInput, domain.StatusNeedsInput},
+		{"blocked needs you", domain.ActivityBlocked, domain.StatusNeedsInput},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			rec := statusRec(tc.state, false)
+			if got := deriveStatus(rec, nil, statusNow, true); got != tc.want {
+				t.Fatalf("deriveStatus = %s, want %s", got, tc.want)
+			}
+		})
+	}
+}
+
 func TestHarnessSignalsCapabilityGate(t *testing.T) {
 	if (&Service{}).harnessSignals(domain.HarnessCodex) {
 		t.Fatal("zero-value Service reports signal-capable; want incapable (never no_signal)")

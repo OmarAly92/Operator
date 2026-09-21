@@ -4,7 +4,6 @@ import { useShell } from "../lib/shell-context";
 import { CreateProjectFlow } from "./CreateProjectFlow";
 import { TopbarButton } from "./TopbarButton";
 import { WelcomePanel } from "./WelcomePanel";
-import { OrchestratorIcon } from "./icons";
 
 // Board empty states: first-launch welcome (`BoardWelcome`) and project board
 // with no worker sessions yet (`ProjectBoardEmpty`).
@@ -28,32 +27,15 @@ export function BoardWelcome() {
 }
 
 // Project board with a registered project but no worker sessions yet: a quiet
-// invitation instead of four empty columns. Actions mirror the board header
-// (Orchestrator stays the primary, like the topbar) so the vocabulary holds.
+// invitation instead of four empty columns.
 export function ProjectBoardEmpty({
-	hasOrchestrator,
-	isProjectRestarting,
-	isSpawning,
 	onNewTask,
 	onNewTicket,
-	onOpenOrchestrator,
-	spawnError,
 }: {
-	hasOrchestrator: boolean;
-	isProjectRestarting: boolean;
-	isSpawning: boolean;
 	onNewTask: () => void;
 	onNewTicket?: () => void;
-	onOpenOrchestrator: () => void;
-	spawnError?: string | null;
 }) {
 	const { t } = useTranslation();
-	const orchestratorLabel = hasOrchestrator ? t("shell.orchestrator") : t("shell.spawnOrchestrator");
-	const busyLabel = isProjectRestarting
-		? t("shell.restartingDots")
-		: isSpawning
-			? t("shell.spawningDots")
-			: orchestratorLabel;
 
 	return (
 		<div className="flex h-full min-h-0 items-center justify-center overflow-y-auto">
@@ -61,33 +43,17 @@ export function ProjectBoardEmpty({
 				<h2 className="text-subtitle font-semibold tracking-tight text-foreground">{t("board.empty.title")}</h2>
 				<p className="mt-2 text-md-sm leading-relaxed text-muted-foreground">{t("board.empty.body")}</p>
 				<div className="mt-5 flex items-center gap-2">
-					<TopbarButton
-						aria-label={orchestratorLabel}
-						disabled={isSpawning || isProjectRestarting}
-						onClick={onOpenOrchestrator}
-						variant="primary"
-					>
-						<OrchestratorIcon className="size-icon-md" aria-hidden="true" />
-						{busyLabel}
-					</TopbarButton>
-					<TopbarButton aria-label={t("shell.newTask")} disabled={isProjectRestarting} onClick={onNewTask} variant="accent">
+					<TopbarButton aria-label={t("shell.newTask")} onClick={onNewTask} variant="accent">
 						<Plus className="size-icon-md" aria-hidden="true" />
 						{t("shell.newTask")}
 					</TopbarButton>
 					{onNewTicket ? (
-						<TopbarButton aria-label={t("tickets.create")} disabled={isProjectRestarting} onClick={onNewTicket}>
+						<TopbarButton aria-label={t("tickets.create")} onClick={onNewTicket}>
 							<Plus className="size-icon-md" aria-hidden="true" />
 							{t("tickets.create")}
 						</TopbarButton>
 					) : null}
 				</div>
-				{spawnError && (
-					<div className="mt-3 flex flex-col items-center gap-2">
-						<p className="text-caption leading-body text-error" role="status">
-							{spawnError}
-						</p>
-					</div>
-				)}
 			</div>
 		</div>
 	);

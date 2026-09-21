@@ -1,8 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import type { SessionPRSummary } from "../hooks/useSessionScmSummary";
-import { appI18n } from "../i18n";
-import { useLocaleStore } from "../stores/locale-store";
 import { PRCardStatusSummary, PRSummaryMeta, PRSummaryParts } from "./PRSummaryDisplay";
 
 const summary = (overrides: Partial<SessionPRSummary> = {}): SessionPRSummary => ({
@@ -106,13 +104,9 @@ describe("PRSummaryParts", () => {
 		expect(screen.getByRole("link", { name: "renderer-smoke" })).toHaveClass("text-error");
 	});
 
-	it("localizes changed-file plurals instead of rebuilding English nouns", async () => {
-		await appI18n.changeLanguage("zh-CN");
-		useLocaleStore.setState({ locale: "zh-CN" });
+	it("localizes changed-file plurals instead of rebuilding English nouns", () => {
 		render(<PRSummaryMeta pr={summary({ changedFiles: 2 })} />);
-		expect(screen.getByText(/2 个文件/)).toBeInTheDocument();
-		await appI18n.changeLanguage("en");
-		useLocaleStore.setState({ locale: "en" });
+		expect(screen.getByText(/2 files/)).toBeInTheDocument();
 	});
 
 	it("counts overflow from the rendered maxLinks limit", () => {

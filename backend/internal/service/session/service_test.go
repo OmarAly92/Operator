@@ -11,7 +11,6 @@ import (
 	"runtime"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -274,56 +273,6 @@ func (f *fakeStore) ListSessionWorktrees(_ context.Context, id domain.SessionID)
 	return append([]domain.SessionWorktreeRecord(nil), f.worktrees[id]...), nil
 }
 
-func (f *fakeStore) CountLiveSessionsByProjectAndKind(_ context.Context, project domain.ProjectID, kind domain.SessionKind) (int, error) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	n := 0
-	for _, r := range f.sessions {
-		if r.ProjectID == project && r.Kind == kind && !r.IsTerminated {
-			n++
-		}
-	}
-	return n, nil
-}
-
-func (f *fakeStore) CountSessionsSpawnedBySince(_ context.Context, project domain.ProjectID, spawnedBy domain.SessionID, since time.Time) (int, error) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	n := 0
-	for _, r := range f.sessions {
-		if r.ProjectID == project && r.SpawnedBy == spawnedBy && !r.CreatedAt.Before(since) {
-			n++
-		}
-	}
-	return n, nil
-}
-
-func (f *fakeStore) OldestSessionSpawnedBySince(_ context.Context, project domain.ProjectID, spawnedBy domain.SessionID, since time.Time) (time.Time, bool, error) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	var oldest time.Time
-	found := false
-	for _, r := range f.sessions {
-		if r.ProjectID != project || r.SpawnedBy != spawnedBy || r.CreatedAt.Before(since) {
-			continue
-		}
-		if !found || r.CreatedAt.Before(oldest) {
-			oldest = r.CreatedAt
-			found = true
-		}
-	}
-	return oldest, found, nil
-}
-
-// putSession is a concurrency-safe way for tests to simulate a session being
-// created mid-flight, mirroring what fakeCommander.spawnFunc does when it
-// mutates f.sessions from a goroutine racing other fakeStore readers.
-func (f *fakeStore) putSession(rec domain.SessionRecord) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	f.sessions[rec.ID] = rec
-}
-
 func TestSessionListAppliesActivityBeforePRFacts(t *testing.T) {
 	for _, tt := range []struct {
 		name     string
@@ -426,7 +375,7 @@ func TestSessionSetPreviewUnknownSession(t *testing.T) {
 
 func TestSessionSetTerminateOnPRMergePersistsPolicy(t *testing.T) {
 	st := newFakeStore()
-	st.sessions["mer-1"] = domain.SessionRecord{ID: "mer-1", ProjectID: "mer", Kind: domain.KindWorker}
+	st.sessions["mer-1"] = domain.SessionRecord{ID: "mer-1", ProjectID: "mer"}
 
 	sess, err := (&Service{store: st}).SetTerminateOnPRMerge(context.Background(), "mer-1", true)
 	if err != nil {
@@ -445,7 +394,7 @@ func TestSessionSetTerminateOnPRMergeUnknownSession(t *testing.T) {
 
 func TestSessionSetAutoInjectReviewPersistsPolicy(t *testing.T) {
 	st := newFakeStore()
-	st.sessions["mer-1"] = domain.SessionRecord{ID: "mer-1", ProjectID: "mer", Kind: domain.KindWorker, AutoInjectReview: true}
+	st.sessions["mer-1"] = domain.SessionRecord{ID: "mer-1", ProjectID: "mer", AutoInjectReview: true}
 
 	sess, err := (&Service{store: st}).SetAutoInjectReview(context.Background(), "mer-1", false)
 	if err != nil {
@@ -464,8 +413,8 @@ func TestSessionSetAutoInjectReviewUnknownSession(t *testing.T) {
 
 func TestSessionSetReviewerHarnessPersistsPerSession(t *testing.T) {
 	st := newFakeStore()
-	st.sessions["mer-1"] = domain.SessionRecord{ID: "mer-1", ProjectID: "mer", Kind: domain.KindWorker}
-	st.sessions["mer-2"] = domain.SessionRecord{ID: "mer-2", ProjectID: "mer", Kind: domain.KindWorker}
+	st.sessions["mer-1"] = domain.SessionRecord{ID: "mer-1", ProjectID: "mer"}
+	st.sessions["mer-2"] = domain.SessionRecord{ID: "mer-2", ProjectID: "mer"}
 
 	sess, err := (&Service{store: st}).SetReviewerHarness(context.Background(), "mer-1", domain.ReviewerOpenCode)
 	if err != nil {
@@ -1231,7 +1180,6 @@ type fakeCommander struct {
 	sentMessages       []string
 	cleanupProjects    []domain.ProjectID
 	killErr            error
-	retireErr          error
 	sendErr            error
 	sendFunc           func(domain.SessionID, string) error
 	cleanupErr         error
@@ -1244,7 +1192,6 @@ type fakeCommander struct {
 	killsAtSpawn       int
 	restoreErr         error
 	restoreResult      sessionmanager.RestoreResult
-	readyErr           error
 }
 
 func (f *fakeCommander) Spawn(_ context.Context, cfg ports.SpawnConfig) (domain.SessionRecord, int, int, error) {
@@ -1261,7 +1208,7 @@ func (f *fakeCommander) Spawn(_ context.Context, cfg ports.SpawnConfig) (domain.
 	if f.spawnRecord.ID != "" {
 		return f.spawnRecord, len(cfg.Prompt), 0, nil
 	}
-	return domain.SessionRecord{ID: "mer-9", ProjectID: cfg.ProjectID, Kind: cfg.Kind, Harness: cfg.Harness}, len(cfg.Prompt), 0, nil
+	return domain.SessionRecord{ID: "mer-9", ProjectID: cfg.ProjectID, Harness: cfg.Harness}, len(cfg.Prompt), 0, nil
 }
 func (*fakeCommander) SwitchAgent(context.Context, domain.SessionID, sessionmanager.SwitchAgentConfig) (domain.AgentSwitch, error) {
 	return domain.AgentSwitch{}, nil
@@ -1299,17 +1246,6 @@ func (f *fakeCommander) Kill(_ context.Context, id domain.SessionID) (bool, erro
 	}
 	f.killed = append(f.killed, id)
 	return true, nil
-}
-func (f *fakeCommander) RetireForReplacement(_ context.Context, id domain.SessionID) error {
-	if f.retireErr != nil {
-		return f.retireErr
-	}
-	f.retired = append(f.retired, id)
-	return nil
-}
-func (f *fakeCommander) WaitForMessageDeliveryReady(_ context.Context, id domain.SessionID) error {
-	f.ready = append(f.ready, id)
-	return f.readyErr
 }
 func (f *fakeCommander) Send(_ context.Context, id domain.SessionID, message string, _ *ports.SpawnAttachment) error {
 	if f.sendFunc != nil {
@@ -1422,73 +1358,6 @@ func TestTeardownProjectStopsOnKillError(t *testing.T) {
 	}
 }
 
-func TestSpawnOrchestratorCleanRetiresActiveOrchestratorsBeforeSpawn(t *testing.T) {
-	st := newFakeStore()
-	st.projects["mer"] = domain.ProjectRecord{ID: "mer"}
-	// Two active orchestrators plus an unrelated worker and a terminated
-	// orchestrator that must be left alone.
-	st.sessions["mer-1"] = domain.SessionRecord{ID: "mer-1", ProjectID: "mer", Kind: domain.KindOrchestrator}
-	st.sessions["mer-2"] = domain.SessionRecord{ID: "mer-2", ProjectID: "mer", Kind: domain.KindOrchestrator}
-	st.sessions["mer-3"] = domain.SessionRecord{ID: "mer-3", ProjectID: "mer", Kind: domain.KindWorker}
-	st.sessions["mer-4"] = domain.SessionRecord{ID: "mer-4", ProjectID: "mer", Kind: domain.KindOrchestrator, IsTerminated: true}
-
-	fc := &fakeCommander{}
-	svc := &Service{manager: fc, store: st}
-
-	if _, err := svc.SpawnOrchestrator(context.Background(), "mer", true, ""); err != nil {
-		t.Fatalf("SpawnOrchestrator: %v", err)
-	}
-
-	if len(fc.retired) != 2 {
-		t.Fatalf("retired = %v, want the two active orchestrators", fc.retired)
-	}
-	if len(fc.sent) != 2 {
-		t.Fatalf("retire notices = %v, want the two active orchestrators", fc.sent)
-	}
-	if !fc.spawned || fc.killsAtSpawn != 2 {
-		t.Fatalf("spawn must run after both retirements: spawned=%v retirementsAtSpawn=%d", fc.spawned, fc.killsAtSpawn)
-	}
-	if len(fc.killed) != 0 {
-		t.Fatalf("interactive Kill must not be used for replacement: killed=%v", fc.killed)
-	}
-}
-
-func TestSpawnOrchestratorCleanContinuesWhenRetireNoticeFails(t *testing.T) {
-	st := newFakeStore()
-	st.projects["mer"] = domain.ProjectRecord{ID: "mer"}
-	st.sessions["mer-1"] = domain.SessionRecord{ID: "mer-1", ProjectID: "mer", Kind: domain.KindOrchestrator}
-	fc := &fakeCommander{sendErr: errors.New("pane closed")}
-	svc := &Service{manager: fc, store: st}
-
-	if _, err := svc.SpawnOrchestrator(context.Background(), "mer", true, ""); err != nil {
-		t.Fatalf("SpawnOrchestrator: %v", err)
-	}
-	if len(fc.retired) != 1 || fc.retired[0] != "mer-1" {
-		t.Fatalf("retired = %v, want mer-1 despite retire notice failure", fc.retired)
-	}
-	if !fc.spawned {
-		t.Fatal("replacement should still spawn when retire notice delivery fails")
-	}
-}
-
-func TestSpawnOrchestratorCleanRetireNoticeIsBranchNeutral(t *testing.T) {
-	st := newFakeStore()
-	st.projects["scratch"] = domain.ProjectRecord{ID: "scratch", Kind: domain.ProjectKindScratch}
-	st.sessions["scratch-1"] = domain.SessionRecord{ID: "scratch-1", ProjectID: "scratch", Kind: domain.KindOrchestrator}
-	fc := &fakeCommander{}
-	svc := &Service{manager: fc, store: st}
-
-	if _, err := svc.SpawnOrchestrator(context.Background(), "scratch", true, ""); err != nil {
-		t.Fatalf("SpawnOrchestrator: %v", err)
-	}
-	if len(fc.sentMessages) != 1 {
-		t.Fatalf("retire messages = %d, want 1", len(fc.sentMessages))
-	}
-	if strings.Contains(strings.ToLower(fc.sentMessages[0]), "branch") {
-		t.Fatalf("retire notice must be branch-neutral, got %q", fc.sentMessages[0])
-	}
-}
-
 // TestSpawnUnknownProjectReturns404 covers Bug 1: an HTTP spawn for an
 // unregistered projectId must surface PROJECT_NOT_FOUND (apierr.NotFound)
 // BEFORE any session row is created, so no orphan terminated row is left
@@ -1498,289 +1367,13 @@ func TestSpawnUnknownProjectReturns404(t *testing.T) {
 	fc := &fakeCommander{}
 	svc := &Service{manager: fc, store: st}
 
-	_, _, _, err := svc.Spawn(context.Background(), ports.SpawnConfig{ProjectID: "ghost", Kind: domain.KindWorker})
+	_, _, _, err := svc.Spawn(context.Background(), ports.SpawnConfig{ProjectID: "ghost"})
 	var e *apierr.Error
 	if !errors.As(err, &e) || e.Kind != apierr.KindNotFound || e.Code != "PROJECT_NOT_FOUND" {
 		t.Fatalf("err = %v, want apierr.NotFound PROJECT_NOT_FOUND", err)
 	}
 	if fc.spawned {
 		t.Fatal("manager.Spawn must NOT be invoked for an unknown project")
-	}
-}
-
-func TestSpawn_RequestedByNamingAWorkerIsIgnoredNotRejected(t *testing.T) {
-	st := newFakeStore()
-	st.projects["proj-1"] = domain.ProjectRecord{ID: "proj-1"}
-	st.sessions["proj-1-1"] = domain.SessionRecord{ID: "proj-1-1", ProjectID: "proj-1", Kind: domain.KindWorker}
-	fc := &fakeCommander{spawnRecord: domain.SessionRecord{ID: "proj-1-2", ProjectID: "proj-1", Kind: domain.KindWorker}}
-	svc := &Service{manager: fc, store: st}
-
-	_, _, _, err := svc.Spawn(context.Background(), ports.SpawnConfig{
-		ProjectID: "proj-1", Kind: domain.KindWorker, RequestedBy: "proj-1-1",
-	})
-	if err != nil {
-		t.Fatalf("a human running opr spawn in a worker pane must not be refused: %v", err)
-	}
-	if fc.spawnedCfg.RequestedBy != "" {
-		t.Fatalf("requestedBy = %q, want it cleared so spawned_by records no false attribution", fc.spawnedCfg.RequestedBy)
-	}
-}
-
-func TestSpawn_RequestedByUnknownSessionIsIgnoredNotRejected(t *testing.T) {
-	st := newFakeStore()
-	st.projects["proj-1"] = domain.ProjectRecord{ID: "proj-1"}
-	fc := &fakeCommander{spawnRecord: domain.SessionRecord{ID: "proj-1-1", ProjectID: "proj-1", Kind: domain.KindWorker}}
-	svc := &Service{manager: fc, store: st}
-
-	_, _, _, err := svc.Spawn(context.Background(), ports.SpawnConfig{
-		ProjectID: "proj-1", Kind: domain.KindWorker, RequestedBy: "does-not-exist",
-	})
-	if err != nil {
-		t.Fatalf("a stale OPERATOR_SESSION_ID must not refuse the spawn: %v", err)
-	}
-	if fc.spawnedCfg.RequestedBy != "" {
-		t.Fatalf("requestedBy = %q, want cleared", fc.spawnedCfg.RequestedBy)
-	}
-}
-
-func TestSpawn_RequestedByTerminatedOrchestratorIsIgnoredNotRejected(t *testing.T) {
-	st := newFakeStore()
-	st.projects["proj-1"] = domain.ProjectRecord{ID: "proj-1"}
-	st.sessions["proj-1-o"] = domain.SessionRecord{ID: "proj-1-o", ProjectID: "proj-1", Kind: domain.KindOrchestrator, IsTerminated: true}
-	fc := &fakeCommander{spawnRecord: domain.SessionRecord{ID: "proj-1-1", ProjectID: "proj-1", Kind: domain.KindWorker}}
-	svc := &Service{manager: fc, store: st}
-
-	_, _, _, err := svc.Spawn(context.Background(), ports.SpawnConfig{
-		ProjectID: "proj-1", Kind: domain.KindWorker, RequestedBy: "proj-1-o",
-	})
-	if err != nil {
-		t.Fatalf("a killed orchestrator's pane must still spawn: %v", err)
-	}
-	if fc.spawnedCfg.RequestedBy != "" {
-		t.Fatalf("requestedBy = %q, want cleared", fc.spawnedCfg.RequestedBy)
-	}
-}
-
-// A cross-project orchestrator must never be HONORED: its hourly count is keyed
-// on (project, spawned_by), so honoring it would read zero rows and hand the
-// caller a fresh rate budget. Ignoring it is exactly as permissive as omitting
-// requestedBy, which is already unbudgeted, so nothing is lost by not rejecting.
-func TestSpawn_RequestedByOrchestratorInAnotherProjectIsNeverHonored(t *testing.T) {
-	st := newFakeStore()
-	st.projects["proj-1"] = domain.ProjectRecord{ID: "proj-1"}
-	st.sessions["proj-2-1"] = domain.SessionRecord{ID: "proj-2-1", ProjectID: "proj-2", Kind: domain.KindOrchestrator}
-	fc := &fakeCommander{spawnRecord: domain.SessionRecord{ID: "proj-1-1", ProjectID: "proj-1", Kind: domain.KindWorker}}
-	svc := &Service{manager: fc, store: st}
-
-	_, _, _, err := svc.Spawn(context.Background(), ports.SpawnConfig{
-		ProjectID: "proj-1", Kind: domain.KindWorker, RequestedBy: "proj-2-1",
-	})
-	if err != nil {
-		t.Fatalf("spawn = %v, want success with the foreign attribution dropped", err)
-	}
-	if fc.spawnedCfg.RequestedBy != "" {
-		t.Fatalf("requestedBy = %q, want cleared so a foreign orchestrator gets no budget", fc.spawnedCfg.RequestedBy)
-	}
-}
-
-// An ignored requestedBy must be unbudgeted, the same as omitting it. If it were
-// still budget-checked, a human in a worker pane would be refused at the cap.
-func TestSpawn_IgnoredRequestedByIsNotBudgetChecked(t *testing.T) {
-	st := newFakeStore()
-	st.projects["proj-1"] = domain.ProjectRecord{ID: "proj-1", Config: domain.ProjectConfig{OrchestratorPolicy: domain.OrchestratorPolicy{MaxLiveWorkers: 1, MaxSpawnsPerHour: 1}}}
-	st.sessions["proj-1-1"] = domain.SessionRecord{ID: "proj-1-1", ProjectID: "proj-1", Kind: domain.KindWorker}
-	fc := &fakeCommander{spawnRecord: domain.SessionRecord{ID: "proj-1-2", ProjectID: "proj-1", Kind: domain.KindWorker}}
-	svc := &Service{manager: fc, store: st}
-
-	_, _, _, err := svc.Spawn(context.Background(), ports.SpawnConfig{
-		ProjectID: "proj-1", Kind: domain.KindWorker, RequestedBy: "proj-1-1",
-	})
-	if err != nil {
-		t.Fatalf("an ignored requestedBy must be unbudgeted like a human spawn: %v", err)
-	}
-}
-
-func TestSpawn_EmptyRequestedByIsAlwaysAHumanSpawnAndSucceeds(t *testing.T) {
-	st := newFakeStore()
-	st.projects["proj-1"] = domain.ProjectRecord{ID: "proj-1"}
-	fc := &fakeCommander{spawnRecord: domain.SessionRecord{ID: "proj-1-1", ProjectID: "proj-1", Kind: domain.KindWorker}}
-	svc := &Service{manager: fc, store: st}
-
-	_, _, _, err := svc.Spawn(context.Background(), ports.SpawnConfig{ProjectID: "proj-1", Kind: domain.KindWorker})
-	if err != nil {
-		t.Fatalf("empty requestedBy must never be rejected: %v", err)
-	}
-}
-
-func TestSpawn_RefusesAtLiveWorkerCapForOrchestratorAttributedSpawn(t *testing.T) {
-	st := newFakeStore()
-	fc := &fakeCommander{}
-	svc := &Service{manager: fc, store: st}
-	st.projects["proj-1"] = domain.ProjectRecord{ID: "proj-1", Config: domain.ProjectConfig{OrchestratorPolicy: domain.OrchestratorPolicy{MaxLiveWorkers: 1, MaxSpawnsPerHour: 100}}}
-	st.sessions["proj-1-orch"] = domain.SessionRecord{ID: "proj-1-orch", ProjectID: "proj-1", Kind: domain.KindOrchestrator}
-	st.sessions["proj-1-1"] = domain.SessionRecord{ID: "proj-1-1", ProjectID: "proj-1", Kind: domain.KindWorker}
-
-	_, _, _, err := svc.Spawn(context.Background(), ports.SpawnConfig{ProjectID: "proj-1", Kind: domain.KindWorker, RequestedBy: "proj-1-orch"})
-	var apiErr *apierr.Error
-	if !errors.As(err, &apiErr) || apiErr.Code != "ORCHESTRATOR_BUDGET_EXHAUSTED" || apiErr.Details["limit"] != "maxLiveWorkers" {
-		t.Fatalf("err = %v, want ORCHESTRATOR_BUDGET_EXHAUSTED naming maxLiveWorkers", err)
-	}
-}
-
-func TestSpawn_HumanSpawnSucceedsAtTheSameCapThatBlocksTheOrchestrator(t *testing.T) {
-	st := newFakeStore()
-	fc := &fakeCommander{spawnRecord: domain.SessionRecord{ID: "proj-1-2", ProjectID: "proj-1", Kind: domain.KindWorker}}
-	svc := &Service{manager: fc, store: st}
-	st.projects["proj-1"] = domain.ProjectRecord{ID: "proj-1", Config: domain.ProjectConfig{OrchestratorPolicy: domain.OrchestratorPolicy{MaxLiveWorkers: 1, MaxSpawnsPerHour: 100}}}
-	st.sessions["proj-1-1"] = domain.SessionRecord{ID: "proj-1-1", ProjectID: "proj-1", Kind: domain.KindWorker}
-
-	_, _, _, err := svc.Spawn(context.Background(), ports.SpawnConfig{ProjectID: "proj-1", Kind: domain.KindWorker})
-	if err != nil {
-		t.Fatalf("a human spawn (empty RequestedBy) must be unaffected by the orchestrator's budget: %v", err)
-	}
-}
-
-func TestSpawn_OrchestratorAttributedSpawnSucceedsWhenUnderBothCaps(t *testing.T) {
-	st := newFakeStore()
-	fc := &fakeCommander{spawnRecord: domain.SessionRecord{ID: "proj-1-2", ProjectID: "proj-1", Kind: domain.KindWorker}}
-	svc := &Service{manager: fc, store: st}
-	st.projects["proj-1"] = domain.ProjectRecord{ID: "proj-1", Config: domain.ProjectConfig{OrchestratorPolicy: domain.OrchestratorPolicy{MaxLiveWorkers: 10, MaxSpawnsPerHour: 10}}}
-	st.sessions["proj-1-orch"] = domain.SessionRecord{ID: "proj-1-orch", ProjectID: "proj-1", Kind: domain.KindOrchestrator}
-
-	sess, _, _, err := svc.Spawn(context.Background(), ports.SpawnConfig{ProjectID: "proj-1", Kind: domain.KindWorker, RequestedBy: "proj-1-orch"})
-	if err != nil {
-		t.Fatalf("an orchestrator-attributed spawn under both caps must succeed: %v", err)
-	}
-	if sess.ID != "proj-1-2" {
-		t.Fatalf("session = %+v, want the fake commander's spawnRecord (proj-1-2) to have reached and passed through the manager", sess)
-	}
-	if !fc.spawned {
-		t.Fatal("manager.Spawn was not invoked; the budget checks must not short-circuit a spawn that is under both caps")
-	}
-}
-
-func TestSpawn_RefusesAtHourlySpawnRateWithResetTime(t *testing.T) {
-	st := newFakeStore()
-	fc := &fakeCommander{}
-	svc := &Service{manager: fc, store: st}
-	now := time.Now().UTC()
-	oldest := now.Add(-10 * time.Minute)
-	st.projects["proj-1"] = domain.ProjectRecord{ID: "proj-1", Config: domain.ProjectConfig{OrchestratorPolicy: domain.OrchestratorPolicy{MaxLiveWorkers: 100, MaxSpawnsPerHour: 1}}}
-	st.sessions["proj-1-orch"] = domain.SessionRecord{ID: "proj-1-orch", ProjectID: "proj-1", Kind: domain.KindOrchestrator}
-	st.sessions["proj-1-1"] = domain.SessionRecord{ID: "proj-1-1", ProjectID: "proj-1", Kind: domain.KindWorker, SpawnedBy: "proj-1-orch", CreatedAt: oldest}
-
-	_, _, _, err := svc.Spawn(context.Background(), ports.SpawnConfig{ProjectID: "proj-1", Kind: domain.KindWorker, RequestedBy: "proj-1-orch"})
-	var apiErr *apierr.Error
-	if !errors.As(err, &apiErr) || apiErr.Code != "ORCHESTRATOR_BUDGET_EXHAUSTED" || apiErr.Details["limit"] != "maxSpawnsPerHour" {
-		t.Fatalf("err = %v, want ORCHESTRATOR_BUDGET_EXHAUSTED naming maxSpawnsPerHour", err)
-	}
-	resetsAt, ok := apiErr.Details["resetsAt"].(string)
-	if !ok || resetsAt == "" {
-		t.Fatalf("Details[\"resetsAt\"] = %v, want a non-empty timestamp naming when the oldest counted spawn ages out", apiErr.Details["resetsAt"])
-	}
-}
-
-// TestSpawn_ConcurrentOrchestratorAttributedSpawnsSerializeBudgetCheck proves
-// the fix for the budget-check race: two concurrent worker spawns attributed
-// to the same orchestrator, against a project capped at MaxLiveWorkers: 1,
-// must not both pass the live-worker check. Before the fix, spawn() only
-// locked per-project for cfg.Kind == KindOrchestrator, so two concurrent
-// RequestedBy-attributed worker spawns both read the pre-spawn live-worker
-// count (0), both passed the cap of 1, and both reached manager.Spawn. The
-// fake commander's spawnFunc sleeps before recording the new session, which
-// widens the window in which an unlocked second request can observe the same
-// stale count; fakeStore's own mutex only prevents a concurrent-map crash, it
-// does not serialize the check-then-act sequence — that guarantee has to come
-// from the per-project lock under test.
-// TestSpawn_OrchestratorKindRequestedBySpawnDoesNotDeadlock is the regression
-// test for a self-deadlock introduced by the fix above: Spawn already holds
-// s.lockOrchestratorProject for the whole call into spawn() when
-// cfg.Kind == domain.KindOrchestrator, so spawn()'s own RequestedBy-triggered
-// lock acquisition must not fire for that same request — sync.Mutex.Lock is
-// not reentrant and ignores context, so relocking the same project's mutex
-// from the same goroutine hangs forever. This is reachable via
-// `opr spawn --kind orchestrator` from a session with OPERATOR_SESSION_ID set
-// (RequestedBy non-empty) when the project has no live orchestrator yet.
-func TestSpawn_OrchestratorKindRequestedBySpawnDoesNotDeadlock(t *testing.T) {
-	st := newFakeStore()
-	st.projects["proj-1"] = domain.ProjectRecord{ID: "proj-1"}
-	fc := &fakeCommander{spawnRecord: domain.SessionRecord{ID: "proj-1-orch", ProjectID: "proj-1", Kind: domain.KindOrchestrator}}
-	svc := &Service{manager: fc, store: st}
-
-	done := make(chan struct{})
-	go func() {
-		defer close(done)
-		_, _, _, _ = svc.Spawn(context.Background(), ports.SpawnConfig{
-			ProjectID:   "proj-1",
-			Kind:        domain.KindOrchestrator,
-			RequestedBy: "some-caller-id",
-		})
-	}()
-
-	select {
-	case <-done:
-	case <-time.After(3 * time.Second):
-		t.Fatal("Spawn with Kind=orchestrator and non-empty RequestedBy deadlocked: spawn() re-locked the per-project mutex Spawn() already holds")
-	}
-}
-
-func TestSpawn_ConcurrentOrchestratorAttributedSpawnsSerializeBudgetCheck(t *testing.T) {
-	st := newFakeStore()
-	st.projects["proj-1"] = domain.ProjectRecord{ID: "proj-1", Config: domain.ProjectConfig{OrchestratorPolicy: domain.OrchestratorPolicy{MaxLiveWorkers: 1, MaxSpawnsPerHour: 100}}}
-	st.sessions["proj-1-orch"] = domain.SessionRecord{ID: "proj-1-orch", ProjectID: "proj-1", Kind: domain.KindOrchestrator}
-
-	var seq int32
-	fc := &fakeCommander{}
-	fc.spawnFunc = func(cfg ports.SpawnConfig) domain.SessionRecord {
-		time.Sleep(30 * time.Millisecond)
-		n := atomic.AddInt32(&seq, 1)
-		rec := domain.SessionRecord{
-			ID:        domain.SessionID(fmt.Sprintf("proj-1-w%d", n)),
-			ProjectID: cfg.ProjectID,
-			Kind:      cfg.Kind,
-			SpawnedBy: cfg.RequestedBy,
-			CreatedAt: time.Now(),
-		}
-		st.putSession(rec)
-		return rec
-	}
-	svc := &Service{manager: fc, store: st}
-	cfg := ports.SpawnConfig{ProjectID: "proj-1", Kind: domain.KindWorker, RequestedBy: "proj-1-orch"}
-
-	start := make(chan struct{})
-	errs := make(chan error, 2)
-	var wg sync.WaitGroup
-	for i := 0; i < 2; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			<-start
-			_, _, _, err := svc.Spawn(context.Background(), cfg)
-			errs <- err
-		}()
-	}
-	close(start)
-	wg.Wait()
-	close(errs)
-
-	successes, budgetRejections := 0, 0
-	for err := range errs {
-		if err == nil {
-			successes++
-			continue
-		}
-		var apiErr *apierr.Error
-		if errors.As(err, &apiErr) && apiErr.Code == "ORCHESTRATOR_BUDGET_EXHAUSTED" {
-			budgetRejections++
-			continue
-		}
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if successes != 1 || budgetRejections != 1 {
-		t.Fatalf("successes=%d budgetRejections=%d, want exactly one success and one budget rejection (MaxLiveWorkers=1 must not be oversold by concurrent orchestrator-attributed spawns)", successes, budgetRejections)
-	}
-	if fc.spawnCalls != 1 {
-		t.Fatalf("manager.Spawn calls = %d, want exactly 1: the second concurrent request must be rejected by the budget check before it ever reaches the manager", fc.spawnCalls)
 	}
 }
 
@@ -1848,7 +1441,7 @@ func TestSpawnEnrichesIssueContextFromTracker(t *testing.T) {
 	}}
 	svc := NewWithDeps(Deps{Manager: fc, Store: st, Tracker: tracker})
 
-	if _, _, _, err := svc.Spawn(context.Background(), ports.SpawnConfig{ProjectID: "mer", Kind: domain.KindWorker, IssueID: "42"}); err != nil {
+	if _, _, _, err := svc.Spawn(context.Background(), ports.SpawnConfig{ProjectID: "mer", IssueID: "42"}); err != nil {
 		t.Fatalf("Spawn: %v", err)
 	}
 	if len(tracker.ids) != 1 || tracker.ids[0].Provider != domain.TrackerProviderGitHub || tracker.ids[0].Native != "acme/repo#42" {
@@ -1877,7 +1470,7 @@ func TestSpawnIssueContextFetchFailureFallsBack(t *testing.T) {
 	tracker := &fakeTracker{err: errors.New("tracker unavailable")}
 	svc := NewWithDeps(Deps{Manager: fc, Store: st, Tracker: tracker})
 
-	if _, _, _, err := svc.Spawn(context.Background(), ports.SpawnConfig{ProjectID: "mer", Kind: domain.KindWorker, IssueID: "42"}); err != nil {
+	if _, _, _, err := svc.Spawn(context.Background(), ports.SpawnConfig{ProjectID: "mer", IssueID: "42"}); err != nil {
 		t.Fatalf("Spawn: %v", err)
 	}
 	if len(tracker.ids) != 1 {
@@ -1899,7 +1492,7 @@ func TestSpawnPreservesIssueIDWhenTrackerIsNil(t *testing.T) {
 	fc := &fakeCommander{}
 	svc := NewWithDeps(Deps{Manager: fc, Store: st, Tracker: nil})
 
-	if _, _, _, err := svc.Spawn(context.Background(), ports.SpawnConfig{ProjectID: "mer", Kind: domain.KindWorker, IssueID: "107"}); err != nil {
+	if _, _, _, err := svc.Spawn(context.Background(), ports.SpawnConfig{ProjectID: "mer", IssueID: "107"}); err != nil {
 		t.Fatalf("Spawn: %v", err)
 	}
 	if fc.spawnedCfg.IssueID != "107" {
@@ -1917,7 +1510,7 @@ func TestSpawnIssueContextSkipsUnresolvableIssueRef(t *testing.T) {
 	tracker := &fakeTracker{}
 	svc := NewWithDeps(Deps{Manager: fc, Store: st, Tracker: tracker})
 
-	if _, _, _, err := svc.Spawn(context.Background(), ports.SpawnConfig{ProjectID: "mer", Kind: domain.KindWorker, IssueID: "not-an-issue"}); err != nil {
+	if _, _, _, err := svc.Spawn(context.Background(), ports.SpawnConfig{ProjectID: "mer", IssueID: "not-an-issue"}); err != nil {
 		t.Fatalf("Spawn: %v", err)
 	}
 	if len(tracker.ids) != 0 {
@@ -1978,7 +1571,6 @@ func TestSpawnEmitsTelemetryOnSuccess(t *testing.T) {
 
 	_, _, _, err := svc.Spawn(context.Background(), ports.SpawnConfig{
 		ProjectID: "mer",
-		Kind:      domain.KindWorker,
 		Harness:   domain.HarnessCodex,
 	})
 	if err != nil {
@@ -2005,7 +1597,6 @@ func TestSpawnEmitsTelemetryOnFailure(t *testing.T) {
 
 	_, _, _, err := svc.Spawn(context.Background(), ports.SpawnConfig{
 		ProjectID: "mer",
-		Kind:      domain.KindWorker,
 		Harness:   domain.HarnessCodex,
 	})
 	if err == nil {
@@ -2047,7 +1638,6 @@ func TestSpawnEmitsTypedErrorCodeOnFailure(t *testing.T) {
 
 	_, _, _, err := svc.Spawn(context.Background(), ports.SpawnConfig{
 		ProjectID: "mer",
-		Kind:      domain.KindWorker,
 		Harness:   domain.HarnessCodex,
 	})
 	if err == nil {
@@ -2062,23 +1652,6 @@ func TestSpawnEmitsTypedErrorCodeOnFailure(t *testing.T) {
 	}
 	if got := ev.Payload["error_code"]; got != "UNKNOWN_HARNESS" {
 		t.Fatalf("event payload error_code = %#v, want UNKNOWN_HARNESS", got)
-	}
-}
-
-// TestSpawnOrchestratorUnknownProjectReturns404 is the orchestrator-side guard
-// for Bug 1: same pre-validation, same typed envelope.
-func TestSpawnOrchestratorUnknownProjectReturns404(t *testing.T) {
-	st := newFakeStore()
-	fc := &fakeCommander{}
-	svc := &Service{manager: fc, store: st}
-
-	_, err := svc.SpawnOrchestrator(context.Background(), "ghost", false, "")
-	var e *apierr.Error
-	if !errors.As(err, &e) || e.Kind != apierr.KindNotFound || e.Code != "PROJECT_NOT_FOUND" {
-		t.Fatalf("err = %v, want apierr.NotFound PROJECT_NOT_FOUND", err)
-	}
-	if fc.spawned {
-		t.Fatal("manager.Spawn must NOT be invoked for an unknown project")
 	}
 }
 
@@ -2108,7 +1681,6 @@ func TestToAPIErrorMapsWorkspaceBranchSentinels(t *testing.T) {
 		{"agent not exited", fmt.Errorf("resume agent mer-1: %w", sessionmanager.ErrAgentNotExited), apierr.KindConflict, "AGENT_NOT_EXITED"},
 		{"resume in progress", fmt.Errorf("resume agent mer-1: %w", sessionmanager.ErrResumeInProgress), apierr.KindConflict, "AGENT_RESUME_IN_PROGRESS"},
 		{"target agent unauthorized", fmt.Errorf("switch agent mer-1: %w", sessionmanager.ErrTargetAgentUnauthorized), apierr.KindInvalid, "TARGET_AGENT_UNAUTHORIZED"},
-		{"worker session required", fmt.Errorf("switch agent mer-orchestrator: %w", sessionmanager.ErrUnsupportedSwitchKind), apierr.KindInvalid, "WORKER_SESSION_REQUIRED"},
 		{"unsupported switch harness", fmt.Errorf("switch agent mer-1: %w", sessionmanager.ErrUnsupportedSwitchHarness), apierr.KindInvalid, "UNSUPPORTED_SWITCH_HARNESS"},
 		{"already using harness", fmt.Errorf("switch agent mer-1: %w", sessionmanager.ErrAlreadyUsingHarness), apierr.KindConflict, "ALREADY_USING_HARNESS"},
 		{"switch not found", fmt.Errorf("get switch: %w", sessionmanager.ErrSwitchNotFound), apierr.KindNotFound, "AGENT_SWITCH_NOT_FOUND"},
@@ -2166,7 +1738,6 @@ func TestRestoreMapsManagerModeToServiceView(t *testing.T) {
 	rec := domain.SessionRecord{
 		ID:        "mer-1",
 		ProjectID: "mer",
-		Kind:      domain.KindWorker,
 		Harness:   domain.HarnessCodex,
 		Activity:  domain.Activity{State: domain.ActivityIdle},
 	}
@@ -2195,7 +1766,6 @@ func TestResumeAgentMapsManagerModeToServiceView(t *testing.T) {
 	rec := domain.SessionRecord{
 		ID:        "mer-1",
 		ProjectID: "mer",
-		Kind:      domain.KindWorker,
 		Harness:   domain.HarnessCodex,
 		Activity:  domain.Activity{State: domain.ActivityIdle},
 	}
@@ -2216,253 +1786,11 @@ func TestResumeAgentMapsManagerModeToServiceView(t *testing.T) {
 	}
 }
 
-func TestSpawnGenericOrchestratorReturnsExistingActiveSession(t *testing.T) {
-	st := newFakeStore()
-	st.projects["mer"] = domain.ProjectRecord{ID: "mer"}
-	st.sessions["mer-orch"] = domain.SessionRecord{
-		ID:        "mer-orch",
-		ProjectID: "mer",
-		Kind:      domain.KindOrchestrator,
-		Harness:   domain.HarnessCodex,
-	}
-	fc := &fakeCommander{}
-	svc := &Service{manager: fc, store: st}
-
-	got, promptBytes, systemPromptBytes, err := svc.Spawn(context.Background(), ports.SpawnConfig{
-		ProjectID:   "mer",
-		Kind:        domain.KindOrchestrator,
-		Harness:     domain.HarnessClaudeCode,
-		Prompt:      "start another orchestrator",
-		DisplayName: "duplicate",
-	})
-	if err != nil {
-		t.Fatalf("Spawn: %v", err)
-	}
-	if got.ID != "mer-orch" {
-		t.Fatalf("returned id = %q, want existing orchestrator mer-orch", got.ID)
-	}
-	if promptBytes != 0 || systemPromptBytes != 0 {
-		t.Fatalf("prompt sizes = (%d, %d), want zero for reused session", promptBytes, systemPromptBytes)
-	}
-	if fc.spawned {
-		t.Fatal("manager.Spawn must not be called when an active orchestrator already exists")
-	}
-}
-
-func TestSpawnGenericOrchestratorAllowsReplacementAfterTermination(t *testing.T) {
-	st := newFakeStore()
-	st.projects["mer"] = domain.ProjectRecord{ID: "mer"}
-	st.sessions["mer-old"] = domain.SessionRecord{
-		ID:           "mer-old",
-		ProjectID:    "mer",
-		Kind:         domain.KindOrchestrator,
-		IsTerminated: true,
-	}
-	fc := &fakeCommander{spawnRecord: domain.SessionRecord{
-		ID:        "mer-new",
-		ProjectID: "mer",
-		Kind:      domain.KindOrchestrator,
-		Harness:   domain.HarnessClaudeCode,
-	}}
-	svc := &Service{manager: fc, store: st}
-	cfg := ports.SpawnConfig{
-		ProjectID:   "mer",
-		Kind:        domain.KindOrchestrator,
-		Harness:     domain.HarnessClaudeCode,
-		Branch:      "feature/orchestrator",
-		Prompt:      "coordinate this project",
-		DisplayName: "coordinator",
-	}
-
-	got, _, _, err := svc.Spawn(context.Background(), cfg)
-	if err != nil {
-		t.Fatalf("Spawn: %v", err)
-	}
-	if got.ID != "mer-new" {
-		t.Fatalf("returned id = %q, want replacement mer-new", got.ID)
-	}
-	if fc.spawnCalls != 1 {
-		t.Fatalf("manager.Spawn calls = %d, want 1", fc.spawnCalls)
-	}
-	if fc.spawnedCfg.ProjectID != cfg.ProjectID ||
-		fc.spawnedCfg.Kind != cfg.Kind ||
-		fc.spawnedCfg.Harness != cfg.Harness ||
-		fc.spawnedCfg.Branch != cfg.Branch ||
-		fc.spawnedCfg.Prompt != cfg.Prompt ||
-		fc.spawnedCfg.DisplayName != cfg.DisplayName {
-		t.Fatalf("spawn config = %#v, want request config %#v", fc.spawnedCfg, cfg)
-	}
-}
-
-func TestSpawnGenericWorkerUnaffectedByActiveOrchestrator(t *testing.T) {
-	st := newFakeStore()
-	st.projects["mer"] = domain.ProjectRecord{ID: "mer"}
-	st.sessions["mer-orch"] = domain.SessionRecord{
-		ID:        "mer-orch",
-		ProjectID: "mer",
-		Kind:      domain.KindOrchestrator,
-	}
-	fc := &fakeCommander{spawnRecord: domain.SessionRecord{
-		ID:        "mer-worker",
-		ProjectID: "mer",
-		Kind:      domain.KindWorker,
-	}}
-	svc := &Service{manager: fc, store: st}
-
-	got, _, _, err := svc.Spawn(context.Background(), ports.SpawnConfig{ProjectID: "mer", Kind: domain.KindWorker})
-	if err != nil {
-		t.Fatalf("Spawn: %v", err)
-	}
-	if got.ID != "mer-worker" || fc.spawnCalls != 1 {
-		t.Fatalf("worker spawn = %#v, manager.Spawn calls = %d", got, fc.spawnCalls)
-	}
-}
-
-func TestSpawnGenericOrchestratorSerializesConcurrentRequests(t *testing.T) {
-	st := newFakeStore()
-	st.projects["mer"] = domain.ProjectRecord{ID: "mer"}
-	fc := &fakeCommander{}
-	fc.spawnFunc = func(cfg ports.SpawnConfig) domain.SessionRecord {
-		rec := domain.SessionRecord{
-			ID:        "mer-orch",
-			ProjectID: cfg.ProjectID,
-			Kind:      domain.KindOrchestrator,
-			Harness:   cfg.Harness,
-		}
-		st.sessions[rec.ID] = rec
-		return rec
-	}
-	svc := &Service{manager: fc, store: st}
-	cfg := ports.SpawnConfig{ProjectID: "mer", Kind: domain.KindOrchestrator, Harness: domain.HarnessCodex}
-
-	start := make(chan struct{})
-	results := make(chan domain.Session, 2)
-	errs := make(chan error, 2)
-	var wg sync.WaitGroup
-	for i := 0; i < 2; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			<-start
-			session, _, _, err := svc.Spawn(context.Background(), cfg)
-			results <- session
-			errs <- err
-		}()
-	}
-	close(start)
-	wg.Wait()
-	close(results)
-	close(errs)
-
-	for err := range errs {
-		if err != nil {
-			t.Fatalf("concurrent Spawn: %v", err)
-		}
-	}
-	for session := range results {
-		if session.ID != "mer-orch" {
-			t.Fatalf("returned id = %q, want mer-orch", session.ID)
-		}
-	}
-	if fc.spawnCalls != 1 {
-		t.Fatalf("manager.Spawn calls = %d, want 1", fc.spawnCalls)
-	}
-	if len(st.sessions) != 1 {
-		t.Fatalf("session count = %d, want 1", len(st.sessions))
-	}
-}
-
-// TestSpawnOrchestratorNoCleanReturnsExistingWhenActiveExists is the RED test
-// for the idempotency fix: when an active orchestrator already exists and
-// clean=false, SpawnOrchestrator must return that orchestrator without minting
-// a second one. Before the fix this test fails because a duplicate is spawned.
-func TestSpawnOrchestratorNoCleanReturnsExistingWhenActiveExists(t *testing.T) {
-	st := newFakeStore()
-	st.projects["mer"] = domain.ProjectRecord{ID: "mer"}
-	// Pre-load an active orchestrator.
-	st.sessions["mer-1"] = domain.SessionRecord{ID: "mer-1", ProjectID: "mer", Kind: domain.KindOrchestrator}
-
-	fc := &fakeCommander{}
-	svc := &Service{manager: fc, store: st}
-
-	got, err := svc.SpawnOrchestrator(context.Background(), "mer", false, "")
-	if err != nil {
-		t.Fatalf("SpawnOrchestrator: %v", err)
-	}
-	// Must return the existing orchestrator, not a newly minted one.
-	if got.ID != "mer-1" {
-		t.Fatalf("returned id = %q, want existing orchestrator mer-1", got.ID)
-	}
-	// Must NOT have called manager.Spawn (no duplicate created).
-	if fc.spawned {
-		t.Fatal("manager.Spawn must NOT be called when an active orchestrator already exists")
-	}
-	// Must NOT have killed anything.
-	if len(fc.killed) != 0 {
-		t.Fatalf("no kills expected with clean=false, got %v", fc.killed)
-	}
-	// Exactly one session in the store (no duplicate).
-	if len(st.sessions) != 1 {
-		t.Fatalf("session count = %d, want 1 (no duplicate)", len(st.sessions))
-	}
-}
-
-// TestSpawnOrchestratorNoCleanSpawnsWhenNoneExists: clean=false spawns a new
-// orchestrator when no active one exists for the project.
-func TestSpawnOrchestratorNoCleanSpawnsWhenNoneExists(t *testing.T) {
-	st := newFakeStore()
-	st.projects["mer"] = domain.ProjectRecord{ID: "mer"}
-	// No active orchestrator present.
-
-	fc := &fakeCommander{}
-	svc := &Service{manager: fc, store: st}
-
-	got, err := svc.SpawnOrchestrator(context.Background(), "mer", false, "")
-	if err != nil {
-		t.Fatalf("SpawnOrchestrator: %v", err)
-	}
-	if !fc.spawned {
-		t.Fatal("manager.Spawn must be called when no active orchestrator exists")
-	}
-	if len(fc.killed) != 0 {
-		t.Fatalf("no kills expected with clean=false, got %v", fc.killed)
-	}
-	if got.ID == "" {
-		t.Fatal("returned session must have an id")
-	}
-}
-
-func TestSpawnOrchestratorVerifiesReplacementHarness(t *testing.T) {
-	st := newFakeStore()
-	st.projects["mer"] = domain.ProjectRecord{
-		ID:     "mer",
-		Config: domain.ProjectConfig{Orchestrator: domain.RoleOverride{Harness: domain.HarnessCodex}},
-	}
-	fc := &fakeCommander{
-		spawnRecord: domain.SessionRecord{
-			ID:        "mer-9",
-			ProjectID: "mer",
-			Kind:      domain.KindOrchestrator,
-			Harness:   domain.HarnessClaudeCode,
-			Metadata:  domain.SessionMetadata{Branch: "opr/mer-orchestrator"},
-		},
-	}
-	svc := &Service{manager: fc, store: st}
-
-	_, err := svc.SpawnOrchestrator(context.Background(), "mer", false, "")
-	if err == nil || !strings.Contains(err.Error(), `uses harness "claude-code", want "codex"`) {
-		t.Fatalf("SpawnOrchestrator err = %v, want harness verification failure", err)
-	}
-}
-
 func TestDelegateTaskPassesAttachmentsToSpawnConfig(t *testing.T) {
 	st := newFakeStore()
 	st.projects["mer"] = domain.ProjectRecord{ID: "mer"}
 	fc := &fakeCommander{}
 	svc := NewWithDeps(Deps{Manager: fc, Store: st})
-	// This test only inspects the worker spawn. Keep asynchronous title
-	// refinement from issuing a second Spawn against the recording fake.
-	svc.runBackground = func(func()) {}
 
 	_, err := svc.DelegateTask(context.Background(), DelegateTaskInput{
 		ProjectID:      "mer",
@@ -2478,7 +1806,7 @@ func TestDelegateTaskPassesAttachmentsToSpawnConfig(t *testing.T) {
 	if !fc.spawned {
 		t.Fatal("DelegateTask did not call Spawn")
 	}
-	if fc.spawnedCfg.ProjectID != "mer" || fc.spawnedCfg.Kind != domain.KindWorker {
+	if fc.spawnedCfg.ProjectID != "mer" {
 		t.Fatalf("spawned cfg identity = %#v", fc.spawnedCfg)
 	}
 	if fc.spawnedCfg.Harness != domain.HarnessCodex || fc.spawnedCfg.Prompt != "Use the attached image." {
@@ -2561,7 +1889,6 @@ func TestClaimPRRejectsScratchProject(t *testing.T) {
 	st.sessions["scratch-1"] = domain.SessionRecord{
 		ID:        "scratch-1",
 		ProjectID: "scratch",
-		Kind:      domain.KindWorker,
 		Metadata:  domain.SessionMetadata{WorkspacePath: "/ws/scratch-1"},
 	}
 	st.projects["scratch"] = domain.ProjectRecord{ID: "scratch", Kind: domain.ProjectKindScratch}
@@ -2592,7 +1919,7 @@ func TestClaimPRRejectsScratchProject(t *testing.T) {
 func TestClaimPRMapsObserverAndStoreErrors(t *testing.T) {
 	st := newFakeStore()
 	now := time.Date(2026, 6, 4, 12, 0, 0, 0, time.UTC)
-	st.sessions["mer-1"] = domain.SessionRecord{ID: "mer-1", ProjectID: "mer", Kind: domain.KindWorker, Metadata: domain.SessionMetadata{WorkspacePath: "/ws"}}
+	st.sessions["mer-1"] = domain.SessionRecord{ID: "mer-1", ProjectID: "mer", Metadata: domain.SessionMetadata{WorkspacePath: "/ws"}}
 	st.projects["mer"] = domain.ProjectRecord{ID: "mer", RepoOriginURL: "https://github.com/acme/repo"}
 
 	cases := []struct {
@@ -2627,7 +1954,7 @@ func TestClaimPRMapsObserverAndStoreErrors(t *testing.T) {
 
 func TestListPRsOrdersActiveBeforeClosedThenUpdatedDesc(t *testing.T) {
 	st := newFakeStore()
-	st.sessions["mer-1"] = domain.SessionRecord{ID: "mer-1", ProjectID: "mer", Kind: domain.KindWorker}
+	st.sessions["mer-1"] = domain.SessionRecord{ID: "mer-1", ProjectID: "mer"}
 	now := time.Date(2026, 6, 4, 12, 0, 0, 0, time.UTC)
 	st.pr = map[domain.SessionID]domain.PRFacts{}
 	stList := &multiPRFakeStore{fakeStore: st, prs: []domain.PullRequest{
@@ -2647,7 +1974,7 @@ func TestListPRsOrdersActiveBeforeClosedThenUpdatedDesc(t *testing.T) {
 func TestListPRSummariesExposesReviewSummariesButKeepsRawLogsAndCommentBodiesPrivate(t *testing.T) {
 	st := newFakeStore()
 	now := time.Date(2026, 6, 4, 12, 0, 0, 0, time.UTC)
-	st.sessions["mer-1"] = domain.SessionRecord{ID: "mer-1", ProjectID: "mer", Kind: domain.KindWorker}
+	st.sessions["mer-1"] = domain.SessionRecord{ID: "mer-1", ProjectID: "mer"}
 	prURL := "https://github.com/acme/repo/pull/7"
 	stList := &multiPRFakeStore{fakeStore: st, prs: []domain.PullRequest{{
 		URL:                      prURL,
@@ -2756,7 +2083,7 @@ func TestSummarizeReviewSurfacesApprovedAndChangesRequestedSummaries(t *testing.
 
 func TestListPRSummariesExposesPRLifecycleTimes(t *testing.T) {
 	st := newFakeStore()
-	st.sessions["mer-1"] = domain.SessionRecord{ID: "mer-1", ProjectID: "mer", Kind: domain.KindWorker}
+	st.sessions["mer-1"] = domain.SessionRecord{ID: "mer-1", ProjectID: "mer"}
 	createdAt := time.Date(2026, 6, 4, 9, 0, 0, 0, time.UTC)
 	readyAt := time.Date(2026, 6, 4, 10, 30, 0, 0, time.UTC)
 	mergedAt := time.Date(2026, 6, 4, 11, 0, 0, 0, time.UTC)
@@ -2793,7 +2120,7 @@ func TestListPRSummariesExposesPRLifecycleTimes(t *testing.T) {
 
 func TestListPRSummariesSuppressesFailingChecksUnlessCIFailing(t *testing.T) {
 	st := newFakeStore()
-	st.sessions["mer-1"] = domain.SessionRecord{ID: "mer-1", ProjectID: "mer", Kind: domain.KindWorker}
+	st.sessions["mer-1"] = domain.SessionRecord{ID: "mer-1", ProjectID: "mer"}
 	prURL := "https://github.com/acme/repo/pull/8"
 	stList := &multiPRFakeStore{fakeStore: st, prs: []domain.PullRequest{{
 		URL:       prURL,
@@ -2818,7 +2145,7 @@ func TestListPRSummariesSuppressesFailingChecksUnlessCIFailing(t *testing.T) {
 
 func TestListPRSummariesFiltersFailedChecksToCurrentHead(t *testing.T) {
 	st := newFakeStore()
-	st.sessions["mer-1"] = domain.SessionRecord{ID: "mer-1", ProjectID: "mer", Kind: domain.KindWorker}
+	st.sessions["mer-1"] = domain.SessionRecord{ID: "mer-1", ProjectID: "mer"}
 	prURL := "https://github.com/acme/repo/pull/9"
 	stList := &multiPRFakeStore{fakeStore: st, prs: []domain.PullRequest{{
 		URL:       prURL,
@@ -2845,7 +2172,7 @@ func TestListPRSummariesFiltersFailedChecksToCurrentHead(t *testing.T) {
 
 func TestListPRSummariesSuppressesActiveDetailsForClosedOrMergedPRs(t *testing.T) {
 	st := newFakeStore()
-	st.sessions["mer-1"] = domain.SessionRecord{ID: "mer-1", ProjectID: "mer", Kind: domain.KindWorker}
+	st.sessions["mer-1"] = domain.SessionRecord{ID: "mer-1", ProjectID: "mer"}
 	prURL := "https://github.com/acme/repo/pull/10"
 	stList := &multiPRFakeStore{fakeStore: st, prs: []domain.PullRequest{{
 		URL:                      prURL,
@@ -2876,7 +2203,7 @@ func TestListPRSummariesSuppressesActiveDetailsForClosedOrMergedPRs(t *testing.T
 
 func TestListPRSummariesOnlyEmitsMergeReasonsForBlockedStates(t *testing.T) {
 	st := newFakeStore()
-	st.sessions["mer-1"] = domain.SessionRecord{ID: "mer-1", ProjectID: "mer", Kind: domain.KindWorker}
+	st.sessions["mer-1"] = domain.SessionRecord{ID: "mer-1", ProjectID: "mer"}
 	now := time.Date(2026, 6, 4, 12, 0, 0, 0, time.UTC)
 	stList := &multiPRFakeStore{fakeStore: st, prs: []domain.PullRequest{
 		{
@@ -2918,7 +2245,7 @@ func TestListPRSummariesOnlyEmitsMergeReasonsForBlockedStates(t *testing.T) {
 
 func TestListPRSummariesCollapsesTransferredRepoAliases(t *testing.T) {
 	st := newFakeStore()
-	st.sessions["mer-1"] = domain.SessionRecord{ID: "mer-1", ProjectID: "mer", Kind: domain.KindWorker}
+	st.sessions["mer-1"] = domain.SessionRecord{ID: "mer-1", ProjectID: "mer"}
 	now := time.Date(2026, 7, 31, 10, 0, 0, 0, time.UTC)
 	oldURL := "https://github.com/previous-owner/operator/pull/3193"
 	newURL := "https://github.com/OmarAly92/operator/pull/3193"

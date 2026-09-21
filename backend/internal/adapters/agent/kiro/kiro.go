@@ -27,7 +27,6 @@ import (
 	"github.com/OmarAly92/operator/backend/internal/adapters"
 	"github.com/OmarAly92/operator/backend/internal/adapters/agent/agentbase"
 	"github.com/OmarAly92/operator/backend/internal/adapters/agent/binaryutil"
-	"github.com/OmarAly92/operator/backend/internal/domain"
 	"github.com/OmarAly92/operator/backend/internal/ports"
 )
 
@@ -81,15 +80,13 @@ func (p *Plugin) GetConfigSpec(ctx context.Context) (ports.ConfigSpec, error) {
 }
 
 // GetLaunchCommand builds the argv to start a new Kiro session:
-// `kiro-cli chat [--agent opr] --agent opr [trust flags] [-- <prompt>]`.
+// `kiro-cli chat --agent opr [trust flags]`.
 //
-// The prompt is passed as a positional argument after `--` so a leading "-" is
-// not read as a flag for non-worker launches. Worker prompts are sent after
-// startup so Operator keeps the interactive TUI and avoids Kiro's current positional
-// input submission gap. Kiro runs interactively for both workers and
-// orchestrators; standing instructions come from the generated custom agent.
-// Operator standing instructions are installed during workspace preparation through
-// the Operator-managed workspace-local agent config, then selected here with --agent.
+// Worker prompts are sent after startup so Operator keeps the interactive TUI
+// and avoids Kiro's current positional input submission gap. Standing
+// instructions come from the generated custom agent, installed during
+// workspace preparation through the Operator-managed workspace-local agent
+// config, then selected here with --agent.
 func (p *Plugin) GetLaunchCommand(ctx context.Context, cfg ports.LaunchConfig) (cmd []string, err error) {
 	binary, err := p.kiroBinary(ctx)
 	if err != nil {
@@ -100,30 +97,16 @@ func (p *Plugin) GetLaunchCommand(ctx context.Context, cfg ports.LaunchConfig) (
 	cmd = append(cmd, "--agent", kiroAgentName)
 	appendApprovalFlags(&cmd, cfg.Permissions)
 
-	prompt := cfg.Prompt
-	if prompt != "" && cfg.Kind == domain.KindOrchestrator {
-		cmd = append(cmd, "--", prompt)
-	}
-
 	return cmd, nil
 }
 
 // GetPromptDeliveryStrategy reports how Kiro receives the initial task prompt.
-// Orchestrator standing instructions are delivered through the generated
-// custom-agent prompt, so no command or post-start prompt injection is needed
-// there.
 func (p *Plugin) GetPromptDeliveryStrategy(ctx context.Context, cfg ports.LaunchConfig) (ports.PromptDeliveryStrategy, error) {
 	if err := ctx.Err(); err != nil {
 		return "", err
 	}
-	if cfg.Prompt != "" && cfg.Kind == domain.KindOrchestrator {
-		return ports.PromptDeliveryInCommand, nil
-	}
-	if cfg.Prompt != "" && cfg.Kind != domain.KindOrchestrator {
+	if cfg.Prompt != "" {
 		return ports.PromptDeliveryAfterStart, nil
-	}
-	if cfg.Kind == domain.KindOrchestrator {
-		return ports.PromptDeliveryCustomAgent, nil
 	}
 	return ports.PromptDeliveryInCommand, nil
 }

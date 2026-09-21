@@ -166,31 +166,23 @@ func TestHookPATH(t *testing.T) {
 
 func TestEffectiveHarnessAndAgentConfig(t *testing.T) {
 	cfg := domain.ProjectConfig{
-		AgentConfig:  domain.AgentConfig{Model: "base", Mode: "low", Permissions: domain.PermissionModeAuto},
-		Worker:       domain.RoleOverride{Harness: domain.HarnessCodex, AgentConfig: domain.AgentConfig{Model: "worker", Mode: "high"}},
-		Orchestrator: domain.RoleOverride{Harness: domain.HarnessClaudeCode},
+		AgentConfig: domain.AgentConfig{Model: "base", Mode: "low", Permissions: domain.PermissionModeAuto},
+		Harness:     domain.HarnessCodex,
 	}
 
 	// Explicit harness always wins.
-	if h := effectiveHarness(domain.HarnessAider, domain.KindWorker, cfg); h != domain.HarnessAider {
+	if h := effectiveHarness(domain.HarnessAider, cfg); h != domain.HarnessAider {
 		t.Fatalf("explicit harness = %q, want aider", h)
 	}
-	// Empty harness falls back to the role override per kind.
-	if h := effectiveHarness("", domain.KindWorker, cfg); h != domain.HarnessCodex {
-		t.Fatalf("worker harness = %q, want codex", h)
-	}
-	if h := effectiveHarness("", domain.KindOrchestrator, cfg); h != domain.HarnessClaudeCode {
-		t.Fatalf("orchestrator harness = %q, want claude-code", h)
+	// Empty harness falls back to the project's configured harness.
+	if h := effectiveHarness("", cfg); h != domain.HarnessCodex {
+		t.Fatalf("project harness = %q, want codex", h)
 	}
 
-	// Role override merges over the base agent config (set fields win; unset keep base).
-	got := effectiveAgentConfig(domain.KindWorker, cfg)
-	if got.Model != "worker" || got.Mode != "high" || got.Permissions != domain.PermissionModeAuto {
-		t.Fatalf("merged worker config = %#v, want model=worker mode=high permissions=auto", got)
-	}
-	// Orchestrator has no agent-config override, so the base config is used as-is.
-	if got := effectiveAgentConfig(domain.KindOrchestrator, cfg); got.Model != "base" {
-		t.Fatalf("orchestrator config = %#v, want base", got)
+	// The project's base agent config is returned unmodified.
+	got := effectiveAgentConfig(cfg)
+	if got.Model != "base" || got.Mode != "low" || got.Permissions != domain.PermissionModeAuto {
+		t.Fatalf("agent config = %#v, want model=base mode=low permissions=auto", got)
 	}
 }
 

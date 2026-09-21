@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/OmarAly92/operator/backend/internal/adapters/workspace/scratch"
-	"github.com/OmarAly92/operator/backend/internal/domain"
 	"github.com/OmarAly92/operator/backend/internal/ports"
 )
 
@@ -26,7 +25,6 @@ func TestWorkspaceCreatesBranchlessPerSessionDirectories(t *testing.T) {
 	worker, err := ws.Create(context.Background(), ports.WorkspaceConfig{
 		ProjectID: "scratch",
 		SessionID: "scratch-1",
-		Kind:      domain.KindWorker,
 	})
 	if err != nil {
 		t.Fatalf("Create worker: %v", err)
@@ -40,21 +38,6 @@ func TestWorkspaceCreatesBranchlessPerSessionDirectories(t *testing.T) {
 	if info, err := os.Stat(worker.Path); err != nil || !info.IsDir() {
 		t.Fatalf("worker dir stat = %#v, %v; want directory", info, err)
 	}
-
-	orchestrator, err := ws.Create(context.Background(), ports.WorkspaceConfig{
-		ProjectID: "scratch",
-		SessionID: "scratch-2",
-		Kind:      domain.KindOrchestrator,
-	})
-	if err != nil {
-		t.Fatalf("Create orchestrator: %v", err)
-	}
-	if want := filepath.Join(physicalRoot, "scratch", "orchestrators", "scratch-2"); orchestrator.Path != want {
-		t.Fatalf("orchestrator path = %q, want %q", orchestrator.Path, want)
-	}
-	if orchestrator.Branch != "" {
-		t.Fatalf("orchestrator branch = %q, want empty", orchestrator.Branch)
-	}
 }
 
 func TestWorkspaceDestroyPreservesNonEmptyDirectory(t *testing.T) {
@@ -65,7 +48,6 @@ func TestWorkspaceDestroyPreservesNonEmptyDirectory(t *testing.T) {
 	info, err := ws.Create(context.Background(), ports.WorkspaceConfig{
 		ProjectID: "scratch",
 		SessionID: "scratch-1",
-		Kind:      domain.KindWorker,
 	})
 	if err != nil {
 		t.Fatalf("Create: %v", err)
@@ -101,7 +83,6 @@ func TestWorkspaceRejectsUnsafeSessionIDs(t *testing.T) {
 	_, err = ws.Create(context.Background(), ports.WorkspaceConfig{
 		ProjectID: "scratch",
 		SessionID: "../outside",
-		Kind:      domain.KindWorker,
 	})
 	if err == nil {
 		t.Fatal("Create unsafe session id succeeded, want error")

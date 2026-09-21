@@ -1,7 +1,5 @@
 import { useTranslation } from "react-i18next";
 import type { ThemePreference, ThemeStyle } from "../../lib/theme";
-import type { AppLocale } from "../../i18n";
-import { useLocaleStore } from "../../stores/locale-store";
 import { useUiStore } from "../../stores/ui-store";
 import { TERMINAL_BACKGROUNDS, type TerminalBackground } from "../../lib/terminal-background";
 import { TERMINAL_FONT_SIZES, clampTerminalFontSize } from "../../lib/terminal-font-size";
@@ -48,10 +46,6 @@ export function GeneralSettingsSection({
 	const setTerminalBackground = useUiStore((state) => state.setTerminalBackground);
 	const terminalFontSize = useUiStore((state) => state.terminalFontSize);
 	const setTerminalFontSize = useUiStore((state) => state.setTerminalFontSize);
-	const locale = useLocaleStore((state) => state.locale);
-	const setLocale = useLocaleStore((state) => state.setLocale);
-	const localeSaving = useLocaleStore((state) => state.saving);
-	const localeSaveError = useLocaleStore((state) => state.saveError);
 
 	const themeOptions = [
 		{ value: "light", label: t("settings.theme.light") },
@@ -72,17 +66,6 @@ export function GeneralSettingsSection({
 		value: String(size),
 		label: t("settings.terminalFontSize.value", { size }),
 	})) satisfies SettingsOption<string>[];
-
-	const languageOptions = [
-		{ value: "en", label: t("settings.language.en") },
-		{ value: "zh-CN", label: t("settings.language.zhCN") },
-		{ value: "ja", label: t("settings.language.ja") },
-		{ value: "ko", label: t("settings.language.ko") },
-		{ value: "es", label: t("settings.language.es") },
-		{ value: "fr", label: t("settings.language.fr") },
-		{ value: "de", label: t("settings.language.de") },
-		{ value: "pt-BR", label: t("settings.language.ptBR") },
-	] satisfies SettingsOption<AppLocale>[];
 
 	return (
 		<SettingsSection title={t("settings.general")} titleHidden={titleHidden} grouped>
@@ -118,22 +101,6 @@ export function GeneralSettingsSection({
 					onChange={(next) => setTerminalFontSize(clampTerminalFontSize(Number(next)))}
 				/>
 			</SettingsRow>
-			<SettingsRow label={t("settings.language")}>
-				<SettingsOptionMenu
-					aria-label={t("settings.language")}
-					disabled={localeSaving}
-					value={locale}
-					options={languageOptions}
-					onChange={(next) => {
-						void setLocale(next);
-					}}
-				/>
-			</SettingsRow>
-			{localeSaveError ? (
-				<p role="alert" className="px-3 text-caption leading-4 text-error">
-					{t("settings.language.saveFailed")}
-				</p>
-			) : null}
 			<SettingsLinkRow label={t("settings.connectMobile")} onClick={onConnectMobile} />
 		</SettingsSection>
 	);

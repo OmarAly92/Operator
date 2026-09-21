@@ -1422,161 +1422,6 @@ paths:
       summary: Stream created notifications
       tags:
       - notifications
-  /api/v1/orchestrators:
-    get:
-      operationId: listOrchestrators
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ListSessionsResponse'
-          description: OK
-        "500":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/APIError'
-          description: Internal Server Error
-        "501":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/APIError'
-          description: Not Implemented
-      summary: List orchestrator sessions across projects
-      tags:
-      - sessions
-    post:
-      operationId: spawnOrchestrator
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/SpawnOrchestratorRequest'
-        required: true
-      responses:
-        "201":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SpawnOrchestratorResponse'
-          description: Created
-        "400":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/APIError'
-          description: Bad Request
-        "404":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/APIError'
-          description: Not Found
-        "500":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/APIError'
-          description: Internal Server Error
-        "501":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/APIError'
-          description: Not Implemented
-      summary: Spawn an orchestrator session
-      tags:
-      - sessions
-  /api/v1/orchestrators/{id}:
-    get:
-      operationId: getOrchestrator
-      parameters:
-      - description: Orchestrator session identifier, e.g. project-orchestrator.
-        in: path
-        name: id
-        required: true
-        schema:
-          description: Orchestrator session identifier, e.g. project-orchestrator.
-          type: string
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SessionResponse'
-          description: OK
-        "404":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/APIError'
-          description: Not Found
-        "500":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/APIError'
-          description: Internal Server Error
-        "501":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/APIError'
-          description: Not Implemented
-      summary: Fetch one orchestrator session
-      tags:
-      - sessions
-  /api/v1/orchestrators/delegate:
-    post:
-      operationId: delegateTask
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/DelegateTaskRequest'
-        required: true
-      responses:
-        "202":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/DelegateTaskResponse'
-          description: Accepted
-        "400":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/APIError'
-          description: Bad Request
-        "404":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/APIError'
-          description: Not Found
-        "409":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/APIError'
-          description: Conflict
-        "500":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/APIError'
-          description: Internal Server Error
-        "501":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/APIError'
-          description: Not Implemented
-      summary: Start a worker task and ask the orchestrator to title it
-      tags:
-      - sessions
   /api/v1/projects:
     get:
       operationId: listProjects
@@ -1792,84 +1637,6 @@ paths:
       summary: Replace a project's per-project config
       tags:
       - projects
-  /api/v1/projects/{id}/inbox:
-    get:
-      operationId: listInboxEvents
-      parameters:
-      - description: Project identifier (registry key).
-        in: path
-        name: id
-        required: true
-        schema:
-          description: Project identifier (registry key).
-          type: string
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/InboxResponse'
-          description: OK
-        "500":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/APIError'
-          description: Internal Server Error
-        "501":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/APIError'
-          description: Not Implemented
-      summary: List a project's pending orchestrator inbox events
-      tags:
-      - inbox
-  /api/v1/projects/{id}/inbox/ack:
-    post:
-      operationId: ackInboxEvents
-      parameters:
-      - description: Project identifier (registry key).
-        in: path
-        name: id
-        required: true
-        schema:
-          description: Project identifier (registry key).
-          type: string
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/AckInboxEventsRequest'
-        required: true
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AckInboxEventsResponse'
-          description: OK
-        "400":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/APIError'
-          description: Bad Request
-        "500":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/APIError'
-          description: Internal Server Error
-        "501":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/APIError'
-          description: Not Implemented
-      summary: Acknowledge pending orchestrator inbox events by id
-      tags:
-      - inbox
   /api/v1/projects/{id}/tickets:
     get:
       operationId: listTickets
@@ -2978,14 +2745,6 @@ paths:
         schema:
           description: When true, return non-terminated sessions; when false, return
             terminated sessions.
-          type:
-          - "null"
-          - boolean
-      - description: When true, return only orchestrator sessions.
-        in: query
-        name: orchestratorOnly
-        schema:
-          description: When true, return only orchestrator sessions.
           type:
           - "null"
           - boolean
@@ -5259,6 +5018,55 @@ paths:
       summary: Clean up terminated session workspaces
       tags:
       - sessions
+  /api/v1/sessions/delegate:
+    post:
+      operationId: delegateTask
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DelegateTaskRequest'
+        required: true
+      responses:
+        "202":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DelegateTaskResponse'
+          description: Accepted
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Conflict
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: Spawn a worker session for a task
+      tags:
+      - sessions
   /api/v1/settings:
     get:
       operationId: getSettings
@@ -5777,22 +5585,6 @@ components:
       - code
       - message
       type: object
-    AckInboxEventsRequest:
-      properties:
-        ids:
-          items:
-            type: string
-          type: array
-      required:
-      - ids
-      type: object
-    AckInboxEventsResponse:
-      properties:
-        acked:
-          type: integer
-      required:
-      - acked
-      type: object
     AddProjectInput:
       properties:
         asWorkspace:
@@ -6282,11 +6074,6 @@ components:
       - totalTokens
       - incomplete
       type: object
-    ContainerReapConfig:
-      properties:
-        disabled:
-          type: boolean
-      type: object
     ControllersRelaunchAgentRequest:
       properties:
         claudeAccountId:
@@ -6476,8 +6263,6 @@ components:
           type: boolean
         issueId:
           type: string
-        kind:
-          type: string
         latestAssistantUpdate:
           maxLength: 2048
           type: string
@@ -6544,8 +6329,6 @@ components:
           - mergeable
           - merged
           type: string
-        spawnedBy:
-          type: string
         status:
           enum:
           - working
@@ -6582,7 +6365,6 @@ components:
       required:
       - id
       - projectId
-      - kind
       - activity
       - isTerminated
       - terminateOnPrMerge
@@ -6738,8 +6520,6 @@ components:
       properties:
         ok:
           type: boolean
-        orchestratorId:
-          type: string
         workerId:
           type: string
       required:
@@ -6939,36 +6719,6 @@ components:
       required:
       - path
       - repos
-      type: object
-    InboxEntryView:
-      properties:
-        id:
-          type: string
-        kind:
-          enum:
-          - worker_idle
-          - ci_failed
-          - review_changes_requested
-          type: string
-        occurredAt:
-          format: date-time
-          type: string
-        worker:
-          $ref: '#/components/schemas/ControllersSessionView'
-      required:
-      - id
-      - kind
-      - occurredAt
-      - worker
-      type: object
-    InboxResponse:
-      properties:
-        entries:
-          items:
-            $ref: '#/components/schemas/InboxEntryView'
-          type: array
-      required:
-      - entries
       type: object
     InitializeRepositoryInput:
       properties:
@@ -7711,25 +7461,6 @@ components:
             projectId, and attributes the shell to that session.
           type: string
       type: object
-    OrchestratorPolicy:
-      properties:
-        maxLiveWorkers:
-          type: integer
-        maxSpawnsPerHour:
-          type: integer
-      type: object
-    OrchestratorResponse:
-      properties:
-        id:
-          type: string
-        projectId:
-          type: string
-        projectName:
-          type: string
-      required:
-      - id
-      - projectId
-      type: object
     PRReviewState:
       properties:
         latestRun:
@@ -7899,26 +7630,16 @@ components:
       type: object
     ProjectConfig:
       properties:
+        agent:
+          type: string
         agentConfig:
           $ref: '#/components/schemas/AgentConfig'
-        agentRules:
-          type: string
-        agentRulesFile:
-          type: string
-        containerReap:
-          $ref: '#/components/schemas/ContainerReapConfig'
         defaultBranch:
           type: string
         env:
           additionalProperties:
             type: string
           type: object
-        orchestrator:
-          $ref: '#/components/schemas/RoleOverride'
-        orchestratorPolicy:
-          $ref: '#/components/schemas/OrchestratorPolicy'
-        orchestratorRules:
-          type: string
         postCreate:
           items:
             type: string
@@ -7937,8 +7658,6 @@ components:
           $ref: '#/components/schemas/TicketDefaults'
         trackerIntake:
           $ref: '#/components/schemas/TrackerIntakeConfig'
-        worker:
-          $ref: '#/components/schemas/RoleOverride'
       type: object
     ProjectGetResponse:
       properties:
@@ -7976,8 +7695,6 @@ components:
           - scratch
           type: string
         name:
-          type: string
-        orchestratorAgent:
           type: string
         path:
           type: string
@@ -8235,13 +7952,6 @@ components:
       - review
       - reviews
       - reviewerHandleId
-      type: object
-    RoleOverride:
-      properties:
-        agent:
-          type: string
-        agentConfig:
-          $ref: '#/components/schemas/AgentConfig'
       type: object
     RollbackSessionResponse:
       properties:
@@ -8940,25 +8650,6 @@ components:
       - shift
       - alt
       type: object
-    SpawnOrchestratorRequest:
-      properties:
-        claudeAccountId:
-          maxLength: 64
-          type: string
-        clean:
-          type: boolean
-        projectId:
-          type: string
-      required:
-      - projectId
-      type: object
-    SpawnOrchestratorResponse:
-      properties:
-        orchestrator:
-          $ref: '#/components/schemas/OrchestratorResponse'
-      required:
-      - orchestrator
-      type: object
     SpawnSessionRequest:
       properties:
         attachments:
@@ -8969,7 +8660,7 @@ components:
           type: string
         claudeAccountId:
           description: Claude account for a claude-code session. Omit for the default
-            account, or for a worker to inherit its orchestrator's account.
+            account.
           maxLength: 64
           type: string
         cols:
@@ -9013,17 +8704,10 @@ components:
           type: string
         issueId:
           type: string
-        kind:
-          enum:
-          - worker
-          - orchestrator
-          type: string
         projectId:
           type: string
         prompt:
           maxLength: 65536
-          type: string
-        requestedBy:
           type: string
         rows:
           description: Rows of the terminal pane that will show the session; see cols.
@@ -9717,8 +9401,6 @@ tags:
   name: mobile
 - description: Target-isolated desktop browser runtime (loopback only)
   name: browser
-- description: Per-project orchestrator inbox of pending worker/CI/review events
-  name: inbox
 - description: 'Planning tickets: spec and plan documents in the repo, assigned to
     sessions'
   name: tickets

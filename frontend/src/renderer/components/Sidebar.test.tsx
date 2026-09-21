@@ -22,21 +22,19 @@ import type { WorkspaceSession, WorkspaceSummary } from "../types/workspace";
 import { agentsQueryKey } from "../hooks/useAgentsQuery";
 import { useUiStore } from "../stores/ui-store";
 
-const { getMock, postMock, navigateMock, mockParams, renameSessionMock, spawnMock, updateStatusMock, commandPaletteEnabled } = vi.hoisted(
+const { getMock, postMock, navigateMock, mockParams, renameSessionMock, updateStatusMock, commandPaletteEnabled } = vi.hoisted(
 	() => ({
 		getMock: vi.fn(),
 		postMock: vi.fn(),
 		navigateMock: vi.fn(),
 		mockParams: { projectId: undefined as string | undefined, sessionId: undefined as string | undefined },
 		renameSessionMock: vi.fn().mockResolvedValue(undefined),
-		spawnMock: vi.fn(),
 		updateStatusMock: vi.fn(),
 		commandPaletteEnabled: { current: true },
 	}),
 );
 
 vi.mock("../lib/rename-session", () => ({ renameSession: renameSessionMock }));
-vi.mock("../lib/spawn-orchestrator", () => ({ spawnOrchestrator: spawnMock }));
 
 vi.mock("../hooks/useMobileTunnelStatus", () => ({ useMobileTunnelStatus: () => undefined }));
 
@@ -89,7 +87,6 @@ const workspace: WorkspaceSummary = {
 	id: "proj-1",
 	name: "Project One",
 	path: "/repo/project-one",
-	orchestratorAgent: "claude-code",
 	sessions: [],
 };
 
@@ -99,7 +96,6 @@ const session: WorkspaceSession = {
 	workspaceName: "Project One",
 	title: "fix login",
 	provider: "claude-code",
-	kind: "worker",
 	branch: "session/proj-1-1",
 	status: "working",
 	updatedAt: "2026-06-30T00:00:00Z",
@@ -123,7 +119,6 @@ function sidebarPR(overrides: Partial<WorkspaceSession["prs"][number]> = {}): Wo
 type CreateProjectInput = {
 	path: string;
 	workerAgent: string;
-	orchestratorAgent: string;
 	trackerIntake?: unknown;
 	asWorkspace?: boolean;
 };
@@ -230,7 +225,6 @@ async function openCreateProjectDialog(
 	await user.click(screen.getByRole("button", { name: /^Project/i }));
 	await screen.findByText(path);
 	await chooseOption(screen.getByRole("combobox", { name: "Worker agent" }), "Codex");
-	await chooseOption(screen.getByRole("combobox", { name: "Orchestrator agent" }), "Claude Code");
 	return user;
 }
 
@@ -259,7 +253,6 @@ beforeEach(() => {
 	});
 	navigateMock.mockReset();
 	renameSessionMock.mockReset().mockResolvedValue(undefined);
-	spawnMock.mockReset();
 	updateStatusMock.mockReset().mockResolvedValue({ state: "idle" });
 	mockParams.projectId = undefined;
 	mockParams.sessionId = undefined;
@@ -321,17 +314,6 @@ describe("Sidebar", () => {
 		expect(content).toHaveClass("overflow-y-auto");
 		expect(content).not.toHaveClass("scrollbar-none");
 		expect(content).not.toContainElement(screen.getByText("Projects"));
-	});
-
-	it("opens project settings instead of spawning when no orchestrator agent is configured", async () => {
-		const user = userEvent.setup();
-		renderSidebar({ workspaces: [{ ...workspace, orchestratorAgent: undefined }] });
-
-		await user.click(screen.getByRole("button", { name: "Spawn Project One orchestrator" }));
-
-		expect(useUiStore.getState().settingsModal).toEqual({ scope: "project", projectId: "proj-1" });
-		expect(navigateMock).not.toHaveBeenCalled();
-		expect(spawnMock).not.toHaveBeenCalled();
 	});
 
 	it("shows a ConfirmDialog and calls onRemoveProject when confirmed", async () => {
@@ -439,11 +421,10 @@ describe("Sidebar", () => {
 		expect(await screen.findByRole("dialog", { name: "Import to Operator" })).toBeInTheDocument();
 	});
 
-	it("reveals orchestrator and kebab buttons on the project row (no dashboard button)", () => {
+	it("reveals the kebab button on the project row (no dashboard button)", () => {
 		renderSidebar();
 
 		expect(screen.queryByLabelText("Open Project One dashboard")).not.toBeInTheDocument();
-		expect(screen.getByLabelText("Spawn Project One orchestrator")).toBeInTheDocument();
 		expect(screen.getByLabelText("Project actions for Project One")).toBeInTheDocument();
 	});
 
@@ -472,7 +453,6 @@ describe("Sidebar", () => {
 			id: "proj-2",
 			name: "Project Two",
 			path: "/repo/project-two",
-			orchestratorAgent: "claude-code",
 			sessions: [{ ...session, id: "proj-2-1", workspaceId: "proj-2", workspaceName: "Project Two", title: "other task" }],
 		};
 		renderSidebar({
@@ -507,34 +487,10 @@ describe("Sidebar", () => {
 		expect(within(contextMenu).getByRole("menuitem", { name: "Open terminal" })).toBeInTheDocument();
 	});
 
-	// The orchestrator is a session like any other, so the daemon resolves its
-	// directory from the id — the sidebar never sends a path.
-	it("opens the project terminal in the orchestrator's workspace when one is running", async () => {
-		const orchestrator: WorkspaceSession = {
-			...session,
-			id: "proj-1-orc",
-			title: "Orchestrator",
-			kind: "orchestrator",
-		};
-		postMock.mockResolvedValue({
-			data: { shellTerminal: { handleId: "shellterm-1", sessionId: "proj-1-orc", createdAt: "2026-06-30T00:00:00Z" } },
-		});
-		renderSidebar({ workspaces: [{ ...workspace, sessions: [orchestrator] }] });
-
-		await userEvent.click(screen.getByRole("button", { name: "Open a terminal in Project One" }));
-
-		await waitFor(() =>
-			expect(postMock).toHaveBeenCalledWith("/api/v1/shell-terminals", { body: { sessionId: "proj-1-orc" } }),
-		);
-		expect(navigateMock).toHaveBeenCalledWith({
-			to: "/projects/$projectId/sessions/$sessionId",
-			params: { projectId: "proj-1", sessionId: "proj-1-orc" },
-		});
-	});
-
-	// No orchestrator means no session view to host a tab, so the shell is
-	// project-scoped and lives on the standalone terminals screen instead.
-	it("falls back to the project root when no orchestrator is running", async () => {
+	// The project terminal is always scoped to the project root and lives on
+	// the standalone terminals screen — there is no per-project hub session to
+	// host a tab beside.
+	it("opens the project terminal against the project root", async () => {
 		postMock.mockResolvedValue({
 			data: { shellTerminal: { handleId: "shellterm-1", projectId: "proj-1", createdAt: "2026-06-30T00:00:00Z" } },
 		});
@@ -610,18 +566,17 @@ describe("Sidebar", () => {
 		expect(navigateMock).toHaveBeenCalledWith({ to: "/projects/$projectId", params: { projectId: "proj-1" } });
 	});
 
-	it("returns to the project board from an orchestrator session without collapsing", async () => {
+	it("returns to the project board from a session without collapsing", async () => {
 		const user = userEvent.setup();
-		const orchestrator: WorkspaceSession = {
+		const otherSession: WorkspaceSession = {
 			...session,
-			id: "proj-1-orc",
-			title: "Orchestrator",
-			kind: "orchestrator",
+			id: "proj-1-other",
+			title: "second task",
 		};
 		mockParams.projectId = "proj-1";
-		mockParams.sessionId = "proj-1-orc";
+		mockParams.sessionId = "proj-1-other";
 		renderSidebar({
-			workspaces: [{ ...workspace, sessions: [orchestrator, session] }],
+			workspaces: [{ ...workspace, sessions: [otherSession, session] }],
 		});
 
 		expect(screen.getByLabelText("Open fix login")).toBeInTheDocument();
@@ -650,33 +605,7 @@ describe("Sidebar", () => {
 		expect(screen.getByText("Project One").closest("button")).toHaveAttribute("aria-expanded", "false");
 	});
 
-	it("expands a collapsed project when opening its orchestrator", async () => {
-		const user = userEvent.setup();
-		const orchestrator: WorkspaceSession = {
-			...session,
-			id: "proj-1-orc",
-			title: "Orchestrator",
-			kind: "orchestrator",
-		};
-		renderSidebar({
-			workspaces: [{ ...workspace, sessions: [orchestrator, session] }],
-		});
-
-		await user.click(screen.getByRole("button", { name: "Toggle Project One sessions" }));
-		expect(screen.queryByLabelText("Open fix login")).not.toBeInTheDocument();
-		expect(screen.getByText("Project One").closest("button")).toHaveAttribute("aria-expanded", "false");
-
-		await user.click(screen.getByRole("button", { name: "Open Project One orchestrator" }));
-
-		expect(navigateMock).toHaveBeenCalledWith({
-			to: "/projects/$projectId/sessions/$sessionId",
-			params: { projectId: "proj-1", sessionId: "proj-1-orc" },
-		});
-		expect(screen.getByLabelText("Open fix login")).toBeInTheDocument();
-		expect(screen.getByText("Project One").closest("button")).toHaveAttribute("aria-expanded", "true");
-	});
-
-	it("defaults worker and orchestrator agents when creating a project", async () => {
+	it("defaults the worker agent when creating a project", async () => {
 		const user = userEvent.setup();
 		const onCreateProject = vi.fn().mockResolvedValue(undefined) as CreateProjectHandler;
 		window.operator!.app.chooseDirectory = vi.fn().mockResolvedValue("/repo/new-project");
@@ -698,7 +627,6 @@ describe("Sidebar", () => {
 				expect.objectContaining({
 					path: "/repo/new-project",
 					workerAgent: "claude-code",
-					orchestratorAgent: "claude-code",
 				}),
 			),
 		);
@@ -740,7 +668,6 @@ describe("Sidebar", () => {
 		await user.click(screen.getByRole("button", { name: /^Project/i }));
 		expect(await screen.findByText("/repo/new-project")).toBeInTheDocument();
 		expect(screen.getByRole("combobox", { name: "Worker agent" })).toHaveTextContent(/cursor/i);
-		expect(screen.getByRole("combobox", { name: "Orchestrator agent" })).toHaveTextContent(/cursor/i);
 
 		await user.click(screen.getByRole("combobox", { name: "Worker agent" }));
 		expect((await screen.findAllByRole("option")).map((option) => option.textContent)).toEqual([
@@ -757,7 +684,6 @@ describe("Sidebar", () => {
 			expect(onCreateProject).toHaveBeenCalledWith(
 				expect.objectContaining({
 					workerAgent: "cursor",
-					orchestratorAgent: "cursor",
 				}),
 			),
 		);
@@ -865,14 +791,12 @@ describe("Sidebar", () => {
 		expect(window.operator!.app.chooseDirectory).toHaveBeenCalledWith("Choose a workspace folder");
 		expect(screen.getByRole("dialog", { name: "Workspace agents" })).toBeInTheDocument();
 		await chooseOption(screen.getByRole("combobox", { name: "Worker agent" }), "Codex");
-		await chooseOption(screen.getByRole("combobox", { name: "Orchestrator agent" }), "Claude Code");
 		await user.click(screen.getByRole("button", { name: "Create workspace and start" }));
 
 		await waitFor(() =>
 			expect(onCreateProject).toHaveBeenCalledWith({
 				path: "/repo/workspace",
 				workerAgent: "codex",
-				orchestratorAgent: "claude-code",
 				asWorkspace: true,
 			}),
 		);
@@ -894,7 +818,6 @@ describe("Sidebar", () => {
 		await user.click(screen.getByLabelText("New project"));
 		await user.click(screen.getByRole("button", { name: /^Workspace/i }));
 		await screen.findByRole("dialog", { name: "Workspace agents" });
-		await chooseOption(screen.getByRole("combobox", { name: "Orchestrator agent" }), "Claude Code");
 		await user.click(screen.getByRole("button", { name: "Create workspace and start" }));
 
 		await waitFor(() => expect(onCreateProject).toHaveBeenCalledTimes(1));
@@ -942,7 +865,6 @@ describe("Sidebar", () => {
 		await user.click(screen.getByLabelText("New project"));
 		await user.click(screen.getByRole("button", { name: /^Workspace/i }));
 		await screen.findByRole("dialog", { name: "Workspace agents" });
-		await chooseOption(screen.getByRole("combobox", { name: "Orchestrator agent" }), "Claude Code");
 		await user.click(screen.getByRole("button", { name: "Create workspace and start" }));
 
 		expect(await screen.findByText(/Import failed · workspace not registered/i)).toBeInTheDocument();
@@ -970,7 +892,6 @@ describe("Sidebar", () => {
 		await user.click(screen.getByLabelText("New project"));
 		await user.click(screen.getByRole("button", { name: /^Workspace/i }));
 		await screen.findByRole("dialog", { name: "Workspace agents" });
-		await chooseOption(screen.getByRole("combobox", { name: "Orchestrator agent" }), "Claude Code");
 		await user.click(screen.getByRole("button", { name: "Create workspace and start" }));
 
 		expect(await screen.findByText("Operator daemon is not ready.")).toBeInTheDocument();
@@ -1008,7 +929,6 @@ describe("Sidebar", () => {
 				"If this folder needs Git setup, Operator will initialize it and create the first commit before starting.",
 			),
 		).toBeInTheDocument();
-		await chooseOption(screen.getByRole("combobox", { name: "Orchestrator agent" }), "Claude Code");
 		await user.click(screen.getByRole("button", { name: "Create workspace and start" }));
 
 		await waitFor(() => expect(onCreateProject).toHaveBeenCalledTimes(1));
@@ -1053,7 +973,7 @@ describe("Sidebar", () => {
 		await user.click(screen.getByRole("button", { name: /^Project/i }));
 		expect(await screen.findByText("/repo/new-project")).toBeInTheDocument();
 
-		await user.click(screen.getByRole("combobox", { name: "Orchestrator agent" }));
+		await user.click(screen.getByRole("combobox", { name: "Worker agent" }));
 		const options = await screen.findAllByRole("option");
 		expect(options.map((option) => option.textContent)).toEqual([
 			"Claude Code",
@@ -1067,7 +987,7 @@ describe("Sidebar", () => {
 		await user.click(screen.getByRole("button", { name: "Create and start" }));
 
 		await waitFor(() =>
-			expect(onCreateProject).toHaveBeenCalledWith(expect.objectContaining({ orchestratorAgent: "claude-code" })),
+			expect(onCreateProject).toHaveBeenCalledWith(expect.objectContaining({ workerAgent: "claude-code" })),
 		);
 	});
 
@@ -1113,14 +1033,12 @@ describe("Sidebar", () => {
 			error: undefined,
 		});
 
-		await chooseOption(screen.getByRole("combobox", { name: "Orchestrator agent" }), "Claude Code");
 		await user.click(screen.getByRole("button", { name: "Create and start" }));
 
 		await waitFor(() =>
 			expect(onCreateProject).toHaveBeenCalledWith({
 				path: "/repo/new-project",
 				workerAgent: "claude-code",
-				orchestratorAgent: "claude-code",
 				trackerIntake: undefined,
 				asWorkspace: false,
 			}),
@@ -1212,7 +1130,7 @@ describe("Sidebar", () => {
 		expect(projectRow).toHaveClass("pr-sidebar-project-actions");
 		expect(actionCluster).toHaveAttribute("data-project-actions");
 		expect(actionCluster).toHaveClass("right-0.5", "gap-px");
-		// New task, terminal, orchestrator, kebab — the row reserves width for all four.
+		// New task, terminal, kebab — the row reserves width for all three.
 		expect(
 			within(actionCluster as HTMLElement)
 				.getAllByRole("button")
@@ -1220,7 +1138,6 @@ describe("Sidebar", () => {
 		).toEqual([
 			"New task in Project One",
 			"Open a terminal in Project One",
-			"Spawn Project One orchestrator",
 			"Project actions for Project One",
 		]);
 		expect(screen.getByLabelText("Project actions for Project One")).not.toHaveClass("opacity-0");

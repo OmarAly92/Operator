@@ -51,7 +51,6 @@ const { workspaces, workspaceQueryState, panels } = vi.hoisted(() => {
 		workspaceName: "my-app",
 		title: "do the thing",
 		provider: "claude-code",
-		kind: "worker",
 		branch: "opr/sess-1",
 		status: "working",
 		updatedAt: "2026-06-10T00:00:00Z",
@@ -63,11 +62,11 @@ const { workspaces, workspaceQueryState, panels } = vi.hoisted(() => {
 		title: "do the other thing",
 		branch: "opr/sess-2",
 	} satisfies WorkspaceSession;
-	const orchestrator = {
+	const thirdWorker = {
 		...worker,
-		id: "sess-orch",
-		kind: "orchestrator",
-		title: "orchestrate",
+		id: "sess-3",
+		title: "do the third thing",
+		branch: "opr/sess-3",
 	} satisfies WorkspaceSession;
 	const crossProjectWorker = {
 		...worker,
@@ -78,7 +77,7 @@ const { workspaces, workspaceQueryState, panels } = vi.hoisted(() => {
 		branch: "opr/cross-project",
 	} satisfies WorkspaceSession;
 	const workspaces: WorkspaceSummary[] = [
-		{ id: "proj-1", name: "my-app", path: "/p", type: "main", sessions: [worker, secondWorker, orchestrator] },
+		{ id: "proj-1", name: "my-app", path: "/p", type: "main", sessions: [worker, secondWorker, thirdWorker] },
 		{ id: "proj-2", name: "other-app", path: "/q", type: "main", sessions: [crossProjectWorker] },
 	];
 	const workspaceQueryState: { data: WorkspaceSummary[] | undefined; isLoading: boolean } = {
@@ -774,12 +773,12 @@ describe("SessionView", () => {
 
 	// Regression: rrp only derives a panel's constraints one commit after it
 	// registers into a live group. Driving the imperative API in the commit
-	// where the inspector mounts (orchestrator → worker navigation; SessionView
-	// itself stays mounted) threw "Panel constraints not found for Panel
-	// inspector" and unwound the route to the error boundary. The panel must
-	// mount already in sync via defaultSize instead.
-	it("mounts the inspector in sync when navigating from an orchestrator session, without the imperative API", () => {
-		const { rerender } = render(<SessionView sessionId="sess-orch" />);
+	// where the inspector mounts (no session found → worker navigation;
+	// SessionView itself stays mounted) threw "Panel constraints not found for
+	// Panel inspector" and unwound the route to the error boundary. The panel
+	// must mount already in sync via defaultSize instead.
+	it("mounts the inspector in sync when navigating from a session with no data yet, without the imperative API", () => {
+		const { rerender } = render(<SessionView sessionId="sess-missing" />);
 		expect(screen.queryByTestId("panel-inspector")).not.toBeInTheDocument();
 
 		// Already-open worker state — the panel that mounts later must pick this
@@ -800,7 +799,7 @@ describe("SessionView", () => {
 		const handle = panels.get("inspector")!.handle;
 
 		act(() => useUiStore.getState().setInspectorOpen("sess-2", false));
-		rerender(<SessionView sessionId="sess-orch" />);
+		rerender(<SessionView sessionId="sess-missing" />);
 		expect(screen.queryByTestId("panel-inspector")).not.toBeInTheDocument();
 
 		act(() => useUiStore.getState().setInspectorOpen("sess-2", false));
@@ -814,15 +813,15 @@ describe("SessionView", () => {
 		expect(handle.resize).toHaveBeenCalledWith("30%");
 	});
 
-	it("renders no inspector panel or handle for orchestrator sessions", () => {
-		render(<SessionView sessionId="sess-orch" />);
+	it("renders no inspector panel or handle when the session isn't found", () => {
+		render(<SessionView sessionId="sess-missing" />);
 
 		expect(screen.queryByTestId("panel-inspector")).not.toBeInTheDocument();
 		expect(screen.queryByTestId("resize-handle")).not.toBeInTheDocument();
 
 		// The shortcut is inactive without an inspector.
 		fireEvent.keyDown(window, { key: "B", metaKey: true, shiftKey: true });
-		expect(useUiStore.getState().inspectorSessions["sess-orch"]).toBeUndefined();
+		expect(useUiStore.getState().inspectorSessions["sess-missing"]).toBeUndefined();
 	});
 
 	it("opens the files view in the inspector rail first", () => {

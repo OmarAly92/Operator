@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
-	"sync"
 	"time"
 
 	"golang.org/x/sync/singleflight"
@@ -41,17 +40,13 @@ type Store interface {
 	ListPRReviewThreads(ctx context.Context, prURL string) ([]domain.PullRequestReviewThread, error)
 	ListPRComments(ctx context.Context, prURL string) ([]domain.PullRequestComment, error)
 	GetProject(ctx context.Context, id string) (domain.ProjectRecord, bool, error)
-	CountLiveSessionsByProjectAndKind(ctx context.Context, project domain.ProjectID, kind domain.SessionKind) (int, error)
-	CountSessionsSpawnedBySince(ctx context.Context, project domain.ProjectID, spawnedBy domain.SessionID, since time.Time) (int, error)
-	OldestSessionSpawnedBySince(ctx context.Context, project domain.ProjectID, spawnedBy domain.SessionID, since time.Time) (time.Time, bool, error)
 }
 
 // ListFilter captures API-facing session list query filters.
 type ListFilter struct {
-	ProjectID        domain.ProjectID
-	Active           *bool
-	OrchestratorOnly bool
-	Fresh            bool
+	ProjectID domain.ProjectID
+	Active    *bool
+	Fresh     bool
 }
 
 // commander is the command-side surface Service delegates to: the
@@ -65,8 +60,6 @@ type commander interface {
 	ResumeAgentWithMode(ctx context.Context, id domain.SessionID) (sessionmanager.RestoreResult, error)
 	RelaunchAgentFresh(ctx context.Context, id domain.SessionID, cfg sessionmanager.RelaunchAgentConfig) (sessionmanager.RestoreResult, error)
 	Kill(ctx context.Context, id domain.SessionID) (bool, error)
-	RetireForReplacement(ctx context.Context, id domain.SessionID) error
-	WaitForMessageDeliveryReady(ctx context.Context, id domain.SessionID) error
 	Send(ctx context.Context, id domain.SessionID, message string, attachment *ports.SpawnAttachment) error
 	Command(ctx context.Context, id domain.SessionID, command domain.SessionCommand, model string) (sessionmanager.CommandResult, error)
 	Models(ctx context.Context, id domain.SessionID) ([]sessionmanager.ModelOption, error)
@@ -136,20 +129,16 @@ type scmProvider interface {
 // session operations to the internal sessionmanager.Manager and owns read-model
 // assembly, including user-facing display status derivation.
 type Service struct {
-	manager             commander
-	store               Store
-	prClaimer           ports.PRClaimer
-	scm                 scmProvider
-	tracker             ports.Tracker
-	clock               func() time.Time
-	dataDir             string
-	telemetry           ports.EventSink
-	logger              *slog.Logger
-	backgroundContext   context.Context
-	runBackground       func(func())
-	orchestratorLocksMu sync.Mutex
-	orchestratorLocks   map[domain.ProjectID]*sync.Mutex
-	workspaceCache      *workspaceCache
+	manager        commander
+	store          Store
+	prClaimer      ports.PRClaimer
+	scm            scmProvider
+	tracker        ports.Tracker
+	clock          func() time.Time
+	dataDir        string
+	telemetry      ports.EventSink
+	logger         *slog.Logger
+	workspaceCache *workspaceCache
 	// workspaceGroup coalesces concurrent cache-miss compare/status lookups
 	// for the same (session, root): "Expand All" on many files fires that
 	// many GetWorkspaceFile calls at once, and without this each one would
@@ -192,11 +181,7 @@ type Deps struct {
 
 // NewWithDeps wires a session service with optional PR-claim dependencies.
 func NewWithDeps(d Deps) *Service {
-	backgroundContext := d.BackgroundContext
-	if backgroundContext == nil {
-		backgroundContext = context.Background()
-	}
-	s := &Service{manager: d.Manager, store: d.Store, prClaimer: d.PRClaimer, scm: d.SCM, tracker: d.Tracker, clock: d.Clock, dataDir: d.DataDir, signalCapable: d.SignalCapable, telemetry: d.Telemetry, logger: d.Logger, backgroundContext: backgroundContext}
+	s := &Service{manager: d.Manager, store: d.Store, prClaimer: d.PRClaimer, scm: d.SCM, tracker: d.Tracker, clock: d.Clock, dataDir: d.DataDir, signalCapable: d.SignalCapable, telemetry: d.Telemetry, logger: d.Logger}
 	if s.prClaimer == nil {
 		if w, ok := d.Store.(ports.PRClaimer); ok {
 			s.prClaimer = w
@@ -212,18 +197,6 @@ func NewWithDeps(d Deps) *Service {
 // Spawn creates a session and returns the API-facing read model plus
 // ephemeral prompt size measurements.
 func (s *Service) Spawn(ctx context.Context, cfg ports.SpawnConfig) (domain.Session, int, int, error) {
-	if cfg.Kind == domain.KindOrchestrator {
-		unlock := s.lockOrchestratorProject(cfg.ProjectID)
-		defer unlock()
-
-		existing, err := s.activeOrchestrators(ctx, cfg.ProjectID)
-		if err != nil {
-			return domain.Session{}, 0, 0, err
-		}
-		if len(existing) > 0 {
-			return newestSession(existing), 0, 0, nil
-		}
-	}
 	return s.spawn(ctx, cfg)
 }
 
@@ -231,55 +204,6 @@ func (s *Service) spawn(ctx context.Context, cfg ports.SpawnConfig) (domain.Sess
 	project, err := s.requireProject(ctx, cfg.ProjectID)
 	if err != nil {
 		return domain.Session{}, 0, 0, err
-	}
-	if cfg.RequestedBy != "" && cfg.Kind != domain.KindOrchestrator {
-		unlock := s.lockOrchestratorProject(cfg.ProjectID)
-		defer unlock()
-	}
-	if cfg.RequestedBy != "" {
-		requester, ok, err := s.store.GetSession(ctx, cfg.RequestedBy)
-		if err != nil {
-			return domain.Session{}, 0, 0, fmt.Errorf("resolve requestedBy %s: %w", cfg.RequestedBy, err)
-		}
-		// requestedBy is an attribution claim, not a credential. It is honored
-		// only when it names a live orchestrator in this project; anything else
-		// is dropped and the spawn proceeds unattributed. Refusing instead would
-		// buy no enforcement -- omitting requestedBy is already unbudgeted -- and
-		// would break a human running `opr spawn` in a worker's pane, where
-		// OPERATOR_SESSION_ID names that worker. A foreign orchestrator must
-		// never be honored: the hourly count is keyed on (project, spawned_by),
-		// so it would read zero rows and grant a fresh budget.
-		if !ok || requester.Kind != domain.KindOrchestrator || requester.IsTerminated || requester.ProjectID != cfg.ProjectID {
-			cfg.RequestedBy = ""
-		}
-	}
-	if cfg.RequestedBy != "" {
-		policy := project.Config.OrchestratorPolicy.WithDefaults()
-
-		liveWorkers, err := s.store.CountLiveSessionsByProjectAndKind(ctx, cfg.ProjectID, domain.KindWorker)
-		if err != nil {
-			return domain.Session{}, 0, 0, fmt.Errorf("count live workers for %s: %w", cfg.ProjectID, err)
-		}
-		if liveWorkers >= policy.MaxLiveWorkers {
-			return domain.Session{}, 0, 0, apierr.Invalid("ORCHESTRATOR_BUDGET_EXHAUSTED",
-				fmt.Sprintf("project %s is at its live-worker cap (%d); free a worker before spawning another", cfg.ProjectID, policy.MaxLiveWorkers),
-				map[string]any{"limit": "maxLiveWorkers", "current": liveWorkers, "cap": policy.MaxLiveWorkers})
-		}
-
-		windowStart := s.now().Add(-time.Hour)
-		spawnedThisHour, err := s.store.CountSessionsSpawnedBySince(ctx, cfg.ProjectID, cfg.RequestedBy, windowStart)
-		if err != nil {
-			return domain.Session{}, 0, 0, fmt.Errorf("count hourly spawns for %s: %w", cfg.RequestedBy, err)
-		}
-		if spawnedThisHour >= policy.MaxSpawnsPerHour {
-			details := map[string]any{"limit": "maxSpawnsPerHour", "current": spawnedThisHour, "cap": policy.MaxSpawnsPerHour}
-			if oldest, ok, err := s.store.OldestSessionSpawnedBySince(ctx, cfg.ProjectID, cfg.RequestedBy, windowStart); err == nil && ok {
-				details["resetsAt"] = oldest.Add(time.Hour).UTC().Format(time.RFC3339)
-			}
-			return domain.Session{}, 0, 0, apierr.Invalid("ORCHESTRATOR_BUDGET_EXHAUSTED",
-				fmt.Sprintf("orchestrator %s has hit its spawn-rate cap (%d/hour)", cfg.RequestedBy, policy.MaxSpawnsPerHour),
-				details)
-		}
 	}
 	start := s.now()
 	firstSession, err := s.isFirstSession(ctx)
@@ -348,7 +272,6 @@ func (s *Service) emitSpawned(rec domain.SessionRecord, durationMs int64) {
 		ProjectID:  &projectID,
 		SessionID:  &sessionID,
 		Payload: map[string]any{
-			"kind":        string(rec.Kind),
 			"harness":     string(rec.Harness),
 			"duration_ms": durationMs,
 		},
@@ -362,7 +285,6 @@ func (s *Service) emitFirstSessionSpawned(rec domain.SessionRecord, project doma
 	projectID := rec.ProjectID
 	sessionID := rec.ID
 	payload := map[string]any{
-		"kind":    string(rec.Kind),
 		"harness": string(rec.Harness),
 	}
 	if !project.RegisteredAt.IsZero() {
@@ -389,11 +311,10 @@ func (s *Service) emitSpawnFailed(cfg ports.SpawnConfig, err error, durationMs i
 	payload := map[string]any{
 		"component":   "session_service",
 		"operation":   "spawn_session",
-		"kind":        string(cfg.Kind),
 		"harness":     string(cfg.Harness),
 		"duration_ms": durationMs,
 		"error_kind":  errorKind,
-		"fingerprint": telemetrymeta.Fingerprint("session_service", "spawn_session", string(cfg.Kind), string(cfg.Harness), errorKind, errorCode),
+		"fingerprint": telemetrymeta.Fingerprint("session_service", "spawn_session", string(cfg.Harness), errorKind, errorCode),
 	}
 	if errorCode != "" {
 		payload["error_code"] = errorCode
@@ -406,136 +327,6 @@ func (s *Service) emitSpawnFailed(cfg ports.SpawnConfig, err error, durationMs i
 		ProjectID:  &projectID,
 		Payload:    payload,
 	})
-}
-
-// SpawnOrchestrator spawns an orchestrator session for a project. When clean is
-// true it first tears down any active orchestrator(s) for that project so the new
-// one is the only live coordinator. When clean is false it is idempotent: if an
-// active orchestrator already exists it is returned as-is. A business rule that
-// belongs here, not in the HTTP controller.
-func (s *Service) SpawnOrchestrator(
-	ctx context.Context,
-	projectID domain.ProjectID,
-	clean bool,
-	account domain.ClaudeAccountID,
-) (domain.Session, error) {
-	unlock := s.lockOrchestratorProject(projectID)
-	defer unlock()
-
-	project, err := s.requireProject(ctx, projectID)
-	if err != nil {
-		return domain.Session{}, err
-	}
-	if clean {
-		existing, err := s.activeOrchestrators(ctx, projectID)
-		if err != nil {
-			return domain.Session{}, err
-		}
-		for _, orch := range existing {
-			_ = s.sendRetireNotice(ctx, orch.ID)
-			if err := s.manager.RetireForReplacement(ctx, orch.ID); err != nil {
-				return domain.Session{}, toAPIError(err)
-			}
-		}
-	} else {
-		existing, err := s.activeOrchestrators(ctx, projectID)
-		if err != nil {
-			return domain.Session{}, err
-		}
-		if len(existing) > 0 {
-			return newestSession(existing), nil
-		}
-	}
-	sess, _, _, err := s.spawn(ctx, ports.SpawnConfig{
-		ProjectID:       projectID,
-		Kind:            domain.KindOrchestrator,
-		ClaudeAccountID: account,
-	})
-	if err != nil {
-		return domain.Session{}, err
-	}
-	if err := s.verifyOrchestratorReplacement(project, sess); err != nil {
-		return domain.Session{}, err
-	}
-	return sess, nil
-}
-
-func (s *Service) activeOrchestrators(ctx context.Context, projectID domain.ProjectID) ([]domain.Session, error) {
-	active := true
-	return s.List(ctx, ListFilter{ProjectID: projectID, Active: &active, OrchestratorOnly: true})
-}
-
-const orchestratorRetireNotice = "Operator is replacing this project orchestrator. Stop coordinating new work now; a fresh orchestrator will take over in a new workspace."
-
-func (s *Service) sendRetireNotice(ctx context.Context, id domain.SessionID) error {
-	if err := s.manager.Send(ctx, id, orchestratorRetireNotice, nil); err != nil {
-		return fmt.Errorf("send retire notice to %s: %w", id, err)
-	}
-	return nil
-}
-
-func (s *Service) verifyOrchestratorReplacement(project domain.ProjectRecord, sess domain.Session) error {
-	if sess.IsTerminated {
-		return fmt.Errorf("orchestrator replacement verification failed: new session %s is terminated", sess.ID)
-	}
-	if sess.Kind != domain.KindOrchestrator {
-		return fmt.Errorf("orchestrator replacement verification failed: new session %s has kind %q", sess.ID, sess.Kind)
-	}
-	if expected := project.Config.Orchestrator.Harness; expected != "" && sess.Harness != expected {
-		return fmt.Errorf("orchestrator replacement verification failed: new session %s uses harness %q, want %q", sess.ID, sess.Harness, expected)
-	}
-	expectedBranch := sessionmanager.DefaultOrchestratorBranch(serviceSessionPrefix(project), s.dataDir)
-	if sess.Metadata.Branch != "" && sess.Metadata.Branch != expectedBranch {
-		return fmt.Errorf("orchestrator replacement verification failed: new session %s uses branch %q, want %q", sess.ID, sess.Metadata.Branch, expectedBranch)
-	}
-	return nil
-}
-
-func serviceSessionPrefix(project domain.ProjectRecord) string {
-	if p := strings.TrimSpace(project.Config.SessionPrefix); p != "" {
-		return p
-	}
-	id := project.ID
-	if len(id) <= 12 {
-		return id
-	}
-	return id[:12]
-}
-
-func newestSession(sessions []domain.Session) domain.Session {
-	newest := sessions[0]
-	for _, sess := range sessions[1:] {
-		if sessionNewer(sess.SessionRecord, newest.SessionRecord) {
-			newest = sess
-		}
-	}
-	return newest
-}
-
-func sessionNewer(a, b domain.SessionRecord) bool {
-	if !a.CreatedAt.Equal(b.CreatedAt) {
-		return a.CreatedAt.After(b.CreatedAt)
-	}
-	if !a.UpdatedAt.Equal(b.UpdatedAt) {
-		return a.UpdatedAt.After(b.UpdatedAt)
-	}
-	return string(a.ID) > string(b.ID)
-}
-
-func (s *Service) lockOrchestratorProject(projectID domain.ProjectID) func() {
-	s.orchestratorLocksMu.Lock()
-	if s.orchestratorLocks == nil {
-		s.orchestratorLocks = make(map[domain.ProjectID]*sync.Mutex)
-	}
-	mu := s.orchestratorLocks[projectID]
-	if mu == nil {
-		mu = &sync.Mutex{}
-		s.orchestratorLocks[projectID] = mu
-	}
-	s.orchestratorLocksMu.Unlock()
-
-	mu.Lock()
-	return mu.Unlock
 }
 
 // Restore relaunches a terminated session and returns the API-facing read model.
@@ -862,9 +653,6 @@ func matchesSessionFilter(rec domain.SessionRecord, filter ListFilter) bool {
 	if filter.Active != nil && rec.IsTerminated == *filter.Active {
 		return false
 	}
-	if filter.OrchestratorOnly && rec.Kind != domain.KindOrchestrator {
-		return false
-	}
 	if filter.Fresh && rec.IsTerminated {
 		return false
 	}
@@ -932,9 +720,6 @@ func toAPIError(err error) error {
 	case errors.Is(err, sessionmanager.ErrTargetAgentUnauthorized):
 		return apierr.Invalid("TARGET_AGENT_UNAUTHORIZED",
 			"The target agent is not authenticated; authenticate it before switching", nil)
-	case errors.Is(err, sessionmanager.ErrUnsupportedSwitchKind):
-		return apierr.Invalid("WORKER_SESSION_REQUIRED",
-			"Only worker sessions support agent switching", nil)
 	case errors.Is(err, sessionmanager.ErrUnsupportedSwitchHarness):
 		return apierr.Invalid("UNSUPPORTED_SWITCH_HARNESS",
 			"Agent switching is not supported for the requested harness", nil)

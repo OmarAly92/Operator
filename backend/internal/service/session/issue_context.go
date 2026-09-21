@@ -17,9 +17,6 @@ func (s *Service) withIssueContext(ctx context.Context, cfg ports.SpawnConfig, p
 	if cfg.IssueContext != "" || cfg.IssueID == "" || s.tracker == nil {
 		return cfg
 	}
-	if cfg.Kind != "" && cfg.Kind != domain.KindWorker {
-		return cfg
-	}
 	id, ok := s.trackerIDForIssue(project, cfg.IssueID)
 	if !ok {
 		return cfg

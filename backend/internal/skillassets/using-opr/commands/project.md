@@ -28,7 +28,6 @@ opr project add [flags]
 | `--as-workspace` | Register a parent folder as a workspace project (root-as-repo plus direct child repos) | - |
 | `--id string` | Project id | Derived by the daemon from the path |
 | `--name string` | Display name | - |
-| `--orchestrator-agent string` | Default orchestrator session agent | - |
 | `--path string` | Absolute path to the local git repo | Required |
 | `--worker-agent string` | Default worker session agent | - |
 
@@ -126,7 +125,7 @@ opr project rm operator -y
 
 ### opr project set-config
 
-Replace a project's per-project config (branch, session prefix, env, symlinks, post-create, agent model/permissions, role overrides, worker rules, and orchestrator rules). The config is resolved when a session spawns. Set fields via flags, pass the whole object with `--config-json`, or `--clear` to remove all config.
+Replace a project's per-project config (branch, session prefix, env, symlinks, post-create, rules, agent model/permissions, harness, tracker intake). The config is resolved when a session spawns. Set fields via flags, pass the whole object with `--config-json`, or `--clear` to remove all config.
 
 **Syntax:**
 ```
@@ -145,8 +144,6 @@ opr project set-config <id> [flags]
 | `--env stringArray` | Env var `KEY=VALUE` forwarded into sessions (repeatable) | - |
 | `--json` | Output the updated project as JSON | - |
 | `--model string` | Agent model override (e.g. `claude-opus-4-5`) | - |
-| `--orchestrator-agent string` | Harness override for orchestrator sessions | - |
-| `--orchestrator-rules string` | Project-specific standing instructions appended to orchestrator session prompts | - |
 | `--permission string` | Permission mode: `default`, `accept-edits`, `auto`, `bypass-permissions` | - |
 | `--post-create stringArray` | Command to run after workspace creation (repeatable) | - |
 | `--session-prefix string` | Displayed session-id prefix | - |
@@ -166,8 +163,8 @@ opr project set-config operator --env "NODE_ENV=development" --post-create "npm 
 ```
 
 ```bash
-# Set worker and orchestrator standing rules
-opr project set-config operator --agent-rules "Run focused tests before reporting done." --orchestrator-rules "Delegate implementation work to worker sessions."
+# Set worker standing rules
+opr project set-config operator --agent-rules "Run focused tests before reporting done."
 ```
 
 ```bash

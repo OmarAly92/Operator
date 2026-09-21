@@ -34,7 +34,7 @@ import { useSessionWorkspaceFilesChangedCount } from "../hooks/useSessionWorkspa
 import { clearTerminateSessionState, useTerminateSession } from "../hooks/useTerminateSession";
 import { prBrowserUrl, prCardPresentation, sessionPRDisplaySummaries } from "../lib/pr-display";
 import type { WorkspaceSession, WorkspaceSummary } from "../types/workspace";
-import { findProjectOrchestrator, sortedPRs } from "../types/workspace";
+import { sortedPRs } from "../types/workspace";
 import { getAgentActivityView, getSessionTimelinePillView } from "../lib/session-presentation";
 import { operatorBridge } from "../lib/bridge";
 import { Badge } from "./ui/badge";
@@ -281,7 +281,6 @@ function SummaryView({
 	const prSummaries = sessionPRDisplaySummaries(session, query.data);
 	const prSectionTitle = prSummaries.length > 1 ? t("inspector.pullRequests", { count: prSummaries.length }) : t("inspector.pullRequest");
 	const hasPRs = prSummaries.length > 0;
-	const showCompletion = session.kind !== "orchestrator";
 
 	return (
 		<div role="tabpanel">
@@ -307,7 +306,7 @@ function SummaryView({
 
 			{hasPRs ? <ReviewsSection onOpenReviewerTerminal={onOpenReviewerTerminal} session={session} /> : null}
 
-			{showCompletion ? <CompletionControls session={session} /> : null}
+			<CompletionControls session={session} />
 
 			<Section title={t("inspector.activity")}>
 				<ActivityTimeline prs={prSummaries} session={session} />
@@ -455,17 +454,8 @@ function CompletionControls({ session }: { session: WorkspaceSession }) {
 	const canTerminateNow = session.status === "merged";
 
 	const confirmTermination = () => {
-		const workspaces = queryClient.getQueryData<WorkspaceSummary[]>(workspaceQueryKey) ?? [];
-		const orchestrator = findProjectOrchestrator(workspaces, session.workspaceId);
 		setConfirmOpen(false);
 		terminate.mutate(session);
-		if (orchestrator) {
-			void navigate({
-				to: "/projects/$projectId/sessions/$sessionId",
-				params: { projectId: session.workspaceId, sessionId: orchestrator.id },
-			});
-			return;
-		}
 		void navigate({ to: "/projects/$projectId", params: { projectId: session.workspaceId } });
 	};
 
@@ -1272,8 +1262,7 @@ function projectConfig(project: components["schemas"]["ProjectOrDegraded"] | und
 
 function mockProjectConfig(): ProjectConfig {
 	return {
-		worker: { agent: "codex" },
-		orchestrator: { agent: "codex" },
+		agent: "codex",
 		reviewers: [{ harness: "codex" }],
 	};
 }

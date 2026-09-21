@@ -3,25 +3,25 @@ SELECT COALESCE(MAX(num), 0) + 1 AS next FROM sessions WHERE project_id = ?;
 
 -- name: InsertSession :exec
 INSERT INTO sessions (
-    id, project_id, num, issue_id, kind, harness, reviewer_harness, display_name,
+    id, project_id, num, issue_id, harness, reviewer_harness, display_name,
     activity_state, activity_last_at, first_signal_at, is_terminated,
     branch, workspace_path, workspace_mode, workspace_repo_path, diff_base_sha, diff_base_ref, runtime_handle_id,
     runtime_launch_id, agent_session_id, prompt,
     latest_user_prompt, latest_assistant_update, native_transcript_path,
     preview_url, preview_revision, preview_opened_revision, terminate_on_pr_merge, cleanup_generation, browser_capability_verifier,
-    provider_conversation_id, controller_generation, spawned_by,
+    provider_conversation_id, controller_generation,
     created_at, updated_at, is_pinned, pinned_at, auto_inject_review, claude_account_id
 ) VALUES (
     ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
     ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
     ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-    ?, ?, ?, ?,
+    ?, ?,
     ?, ?, ?, ?, ?, ?
 );
 
 -- name: UpdateSession :exec
 UPDATE sessions SET
-    issue_id = ?, kind = ?, harness = ?, reviewer_harness = ?, display_name = ?,
+    issue_id = ?, harness = ?, reviewer_harness = ?, display_name = ?,
     activity_state = ?, activity_last_at = ?, first_signal_at = ?, is_terminated = ?,
     branch = ?, workspace_path = ?, workspace_mode = ?, workspace_repo_path = ?, diff_base_sha = ?, diff_base_ref = ?, runtime_handle_id = ?,
     runtime_launch_id = ?, agent_session_id = ?, prompt = ?,
@@ -41,7 +41,7 @@ WHERE id = sqlc.arg(id)
   AND updated_at <= sqlc.arg(updated_at);
 
 -- name: GetSession :one
-SELECT id, project_id, num, issue_id, kind, harness,
+SELECT id, project_id, num, issue_id, harness,
     activity_state, activity_last_at, is_terminated, branch, workspace_path, workspace_mode,
     runtime_handle_id, agent_session_id, prompt,
     created_at, updated_at, display_name, first_signal_at, preview_url,
@@ -49,11 +49,11 @@ SELECT id, project_id, num, issue_id, kind, harness,
     workspace_repo_path, terminate_on_pr_merge, diff_base_sha, diff_base_ref,
     reviewer_harness, is_pinned, pinned_at,
     provider_conversation_id, controller_generation, browser_capability_verifier,
-    latest_user_prompt, latest_assistant_update, native_transcript_path, auto_inject_review, spawned_by, claude_account_id
+    latest_user_prompt, latest_assistant_update, native_transcript_path, auto_inject_review, claude_account_id
 FROM sessions WHERE id = ?;
 
 -- name: ListSessionsByProject :many
-SELECT id, project_id, num, issue_id, kind, harness,
+SELECT id, project_id, num, issue_id, harness,
     activity_state, activity_last_at, is_terminated, branch, workspace_path, workspace_mode,
     runtime_handle_id, agent_session_id, prompt,
     created_at, updated_at, display_name, first_signal_at, preview_url,
@@ -61,11 +61,11 @@ SELECT id, project_id, num, issue_id, kind, harness,
     workspace_repo_path, terminate_on_pr_merge, diff_base_sha, diff_base_ref,
     reviewer_harness, is_pinned, pinned_at,
     provider_conversation_id, controller_generation, browser_capability_verifier,
-    latest_user_prompt, latest_assistant_update, native_transcript_path, auto_inject_review, spawned_by, claude_account_id
+    latest_user_prompt, latest_assistant_update, native_transcript_path, auto_inject_review, claude_account_id
 FROM sessions WHERE project_id = ? ORDER BY num;
 
 -- name: ListAllSessions :many
-SELECT id, project_id, num, issue_id, kind, harness,
+SELECT id, project_id, num, issue_id, harness,
     activity_state, activity_last_at, is_terminated, branch, workspace_path, workspace_mode,
     runtime_handle_id, agent_session_id, prompt,
     created_at, updated_at, display_name, first_signal_at, preview_url,
@@ -73,7 +73,7 @@ SELECT id, project_id, num, issue_id, kind, harness,
     workspace_repo_path, terminate_on_pr_merge, diff_base_sha, diff_base_ref,
     reviewer_harness, is_pinned, pinned_at,
     provider_conversation_id, controller_generation, browser_capability_verifier,
-    latest_user_prompt, latest_assistant_update, native_transcript_path, auto_inject_review, spawned_by, claude_account_id
+    latest_user_prompt, latest_assistant_update, native_transcript_path, auto_inject_review, claude_account_id
 FROM sessions ORDER BY project_id, num;
 
 
@@ -127,17 +127,6 @@ SELECT EXISTS(
       AND latest_assistant_update = ''
       AND native_transcript_path = ''
 ) AS is_seed;
-
--- name: CountLiveSessionsByProjectAndKind :one
-SELECT COUNT(*) FROM sessions WHERE project_id = ? AND kind = ? AND is_terminated = 0;
-
--- name: CountSessionsSpawnedBySince :one
-SELECT COUNT(*) FROM sessions WHERE project_id = ? AND spawned_by = ? AND created_at >= ?;
-
--- name: OldestSessionSpawnedBySince :one
-SELECT created_at FROM sessions
-WHERE project_id = ? AND spawned_by = ? AND created_at >= ?
-ORDER BY created_at ASC LIMIT 1;
 
 -- NOTE: the `DELETE FROM sessions WHERE id = ? AND <seed-state predicates>`
 -- statement is intentionally NOT a sqlc query — same sqlc 1.31 SQLite-parser

@@ -44,7 +44,6 @@ type sessionDTO struct {
 	ID                    string          `json:"id"`
 	ProjectID             string          `json:"projectId"`
 	IssueID               string          `json:"issueId,omitempty"`
-	Kind                  string          `json:"kind"`
 	Harness               string          `json:"harness,omitempty"`
 	DisplayName           string          `json:"displayName,omitempty"`
 	Activity              sessionActivity `json:"activity"`
@@ -137,8 +136,7 @@ type sessionListEntry struct {
 type sessionListOutput struct {
 	Data []sessionListEntry `json:"data"`
 	Meta struct {
-		HiddenTerminatedCount   int `json:"hiddenTerminatedCount"`
-		HiddenOrchestratorCount int `json:"hiddenOrchestratorCount"`
+		HiddenTerminatedCount int `json:"hiddenTerminatedCount"`
 	} `json:"meta"`
 }
 
@@ -172,7 +170,7 @@ func newSessionListCommand(ctx *commandContext) *cobra.Command {
 	}
 	f := cmd.Flags()
 	addSessionProjectFlag(f, &opts.project, "Filter by project ID")
-	f.BoolVarP(&opts.all, "all", "a", false, "Include orchestrator sessions")
+	f.BoolVarP(&opts.all, "all", "a", false, "No longer changes output; kept so existing scripts don't break")
 	f.BoolVar(&opts.includeTerminated, "include-terminated", false, "Include terminated sessions")
 	f.BoolVar(&opts.json, "json", false, "Output as JSON")
 	return cmd
@@ -398,34 +396,24 @@ func (c *commandContext) listSessions(ctx context.Context, cmd *cobra.Command, o
 	if err := c.getJSON(ctx, apiPath("sessions", params), &res); err != nil {
 		return err
 	}
-	hiddenOrchestratorCount := 0
-	if !opts.all {
-		for _, sess := range res.Sessions {
-			if sess.Kind == "orchestrator" {
-				hiddenOrchestratorCount++
-			}
-		}
-	}
-	sessions := filterAndSortSessions(res.Sessions, opts.all)
+	sessions := filterAndSortSessions(res.Sessions)
 	hiddenTerminatedCount := 0
 	if !opts.includeTerminated {
-		terminatedCount, terminatedOrchestratorCount, err := c.countHiddenTerminated(ctx, opts.project, opts.all)
+		terminatedCount, err := c.countHiddenTerminated(ctx, opts.project)
 		if err != nil {
 			return err
 		}
 		hiddenTerminatedCount = terminatedCount
-		hiddenOrchestratorCount += terminatedOrchestratorCount
 	}
 	if opts.json {
 		out := sessionListOutput{Data: sessionListEntries(sessions)}
 		out.Meta.HiddenTerminatedCount = hiddenTerminatedCount
-		out.Meta.HiddenOrchestratorCount = hiddenOrchestratorCount
 		return writeJSON(cmd.OutOrStdout(), out)
 	}
-	return writeSessionList(cmd, sessions, hiddenTerminatedCount, hiddenOrchestratorCount)
+	return writeSessionList(cmd, sessions, hiddenTerminatedCount)
 }
 
-func (c *commandContext) countHiddenTerminated(ctx context.Context, project string, includeOrchestrators bool) (int, int, error) {
+func (c *commandContext) countHiddenTerminated(ctx context.Context, project string) (int, error) {
 	params := url.Values{}
 	if project != "" {
 		params.Set("project", project)
@@ -433,17 +421,9 @@ func (c *commandContext) countHiddenTerminated(ctx context.Context, project stri
 	params.Set("active", "false")
 	var res sessionListResponse
 	if err := c.getJSON(ctx, apiPath("sessions", params), &res); err != nil {
-		return 0, 0, err
+		return 0, err
 	}
-	hiddenOrchestratorCount := 0
-	if !includeOrchestrators {
-		for _, sess := range res.Sessions {
-			if sess.Kind == "orchestrator" {
-				hiddenOrchestratorCount++
-			}
-		}
-	}
-	return len(filterAndSortSessions(res.Sessions, includeOrchestrators)), hiddenOrchestratorCount, nil
+	return len(filterAndSortSessions(res.Sessions)), nil
 }
 
 func (c *commandContext) getSession(ctx context.Context, cmd *cobra.Command, id string, opts sessionOptions) error {
@@ -603,7 +583,7 @@ func (c *commandContext) previewCleanupSessions(ctx context.Context, project str
 	if err := c.getJSON(ctx, apiPath("sessions", params), &res); err != nil {
 		return nil, err
 	}
-	sessions := filterAndSortSessions(res.Sessions, true)
+	sessions := filterAndSortSessions(res.Sessions)
 	cleanable := make([]sessionDTO, 0, len(sessions))
 	for _, sess := range sessions {
 		if sess.WorkspaceMode == "in_place" {
@@ -625,14 +605,9 @@ func (c *commandContext) fetchScopedSession(ctx context.Context, id, project str
 	return res.Session, nil
 }
 
-func filterAndSortSessions(sessions []sessionDTO, includeOrchestrators bool) []sessionDTO {
+func filterAndSortSessions(sessions []sessionDTO) []sessionDTO {
 	out := make([]sessionDTO, 0, len(sessions))
-	for _, sess := range sessions {
-		if !includeOrchestrators && sess.Kind == "orchestrator" {
-			continue
-		}
-		out = append(out, sess)
-	}
+	out = append(out, sessions...)
 	sort.Slice(out, func(i, j int) bool {
 		if out[i].ProjectID != out[j].ProjectID {
 			return out[i].ProjectID < out[j].ProjectID
@@ -653,7 +628,7 @@ func sessionListEntries(sessions []sessionDTO) []sessionListEntry {
 		entries = append(entries, sessionListEntry{
 			ID:             sess.ID,
 			ProjectID:      sess.ProjectID,
-			Role:           sessionRole(sess),
+			Role:           "worker",
 			Status:         sess.Status,
 			IssueID:        sess.IssueID,
 			Harness:        sess.Harness,
@@ -689,7 +664,7 @@ func cleanupLabel(sess sessionDTO, scopedProject string) string {
 	return sess.ID
 }
 
-func writeSessionList(cmd *cobra.Command, sessions []sessionDTO, hiddenTerminatedCount, hiddenOrchestratorCount int) error {
+func writeSessionList(cmd *cobra.Command, sessions []sessionDTO, hiddenTerminatedCount int) error {
 	out := cmd.OutOrStdout()
 	if len(sessions) == 0 {
 		if _, err := fmt.Fprintln(out, "(no active sessions)"); err != nil {
@@ -728,10 +703,6 @@ func writeSessionList(cmd *cobra.Command, sessions []sessionDTO, hiddenTerminate
 			return err
 		}
 	}
-	if hiddenOrchestratorCount > 0 {
-		_, err := fmt.Fprintf(out, "%d orchestrator session%s hidden. Use --all or `opr orchestrator ls` to show.\n", hiddenOrchestratorCount, pluralS(hiddenOrchestratorCount))
-		return err
-	}
 	return nil
 }
 
@@ -742,9 +713,6 @@ func sessionLineParts(sess sessionDTO) []string {
 	}
 	if sess.Status != "" {
 		parts = append(parts, "["+sess.Status+"]")
-	}
-	if sess.Kind != "" {
-		parts = append(parts, sess.Kind)
 	}
 	if sess.IssueID != "" {
 		parts = append(parts, sess.IssueID)
@@ -758,7 +726,7 @@ func writeSessionDetails(cmd *cobra.Command, sess sessionDTO) error {
 		{"id", sess.ID},
 		{"project", sess.ProjectID},
 		{"name", sess.DisplayName},
-		{"role", sessionRole(sess)},
+		{"role", "worker"},
 		{"status", sess.Status},
 		{"activity", sess.Activity.State},
 		{"harness", sess.Harness},
@@ -792,13 +760,6 @@ func writeSessionDetails(cmd *cobra.Command, sess sessionDTO) error {
 		}
 	}
 	return nil
-}
-
-func sessionRole(sess sessionDTO) string {
-	if sess.Kind == "orchestrator" {
-		return "orchestrator"
-	}
-	return "worker"
 }
 
 func formatSessionAge(d time.Duration) string {

@@ -10,12 +10,9 @@ trigger: "Using the opr CLI in an Operator workspace: spawning workers, managing
 
 | Command | What it does | When to use | Details |
 |---|---|---|---|
-| `spawn` | Spawn a worker agent in a fresh git worktree | Starting a new task or issue | [commands/spawn.md](commands/spawn.md) |
 | `session` | Manage agent sessions (list, kill, rename, restore, etc.) | Inspecting or controlling running/terminated sessions | [commands/session.md](commands/session.md) |
 | `project` | Register, inspect, configure, or remove projects | Setting up or managing repos Operator knows about | [commands/project.md](commands/project.md) |
-| `orchestrator` | List orchestrator sessions | Viewing which sessions are orchestrators | [commands/orchestrator.md](commands/orchestrator.md) |
 | `review` | Submit a reviewer result for a worker's PR | Completing a code review loop | [commands/review.md](commands/review.md) |
-| `send` | Send a message to a running agent session | Correcting or directing a live agent | [commands/send.md](commands/send.md) |
 | `preview` | Start a session-owned app or open an exact URL/file | Running and showing the worker's relevant app, Markdown, HTML, PDF, or image | [commands/preview.md](commands/preview.md) |
 | `browser` | Inspect and control the session's shared live browser | Verifying a web app through snapshots, interactions, waits, screenshots, console, and errors | [commands/browser.md](commands/browser.md) |
 | `start` | Fetch (if needed) and open the Operator desktop app | Launching the app | [commands/start.md](commands/start.md) |
@@ -30,7 +27,6 @@ trigger: "Using the opr CLI in an Operator workspace: spawning workers, managing
 - Most read commands accept `--json` for machine-readable output.
 - `-p / --project` scopes session subcommand lookups to one project.
 - Session and project ids are shown by `opr session ls` and `opr project ls`.
-- `--agent` is an alias for `--harness` on `opr spawn`.
 - Every command accepts `-h / --help` for the full flag list.
 - For frontend launch, preview selection, or artifact handoff, read
   [commands/preview.md](commands/preview.md) before acting. Its static-file,

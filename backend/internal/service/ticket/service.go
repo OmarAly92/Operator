@@ -491,7 +491,6 @@ func (s *Service) spawnPlanner(ctx context.Context, p domain.ProjectRecord, t do
 	in = in.withDefaults(p.Config.Tickets.Planner)
 	sess, _, _, err := s.sessions.Spawn(ctx, ports.SpawnConfig{
 		ProjectID:       domain.ProjectID(p.ID),
-		Kind:            domain.KindWorker,
 		Harness:         in.Harness,
 		WorkspaceMode:   domain.WorkspaceModeInPlace,
 		Prompt:          prompt,
@@ -604,7 +603,6 @@ func (s *Service) Assign(ctx context.Context, project domain.ProjectID, slug, pl
 	role := in.withDefaults(p.Config.Tickets.Implementer)
 	sess, _, _, err := s.sessions.Spawn(ctx, ports.SpawnConfig{
 		ProjectID:       project,
-		Kind:            domain.KindWorker,
 		Harness:         role.Harness,
 		WorkspaceMode:   domain.WorkspaceModeWorktree,
 		Branch:          planBranch(slug, plan, attempt),
@@ -746,7 +744,6 @@ func (s *Service) Review(ctx context.Context, project domain.ProjectID, slug, pl
 		role := in.withDefaults(defaults)
 		reviewer, _, _, err = s.sessions.Spawn(ctx, ports.SpawnConfig{
 			ProjectID:       project,
-			Kind:            domain.KindWorker,
 			Harness:         role.Harness,
 			WorkspaceMode:   domain.WorkspaceModeInPlace,
 			Prompt:          prompt,
@@ -827,7 +824,6 @@ func (s *Service) ApproveMerge(ctx context.Context, project domain.ProjectID, sl
 		role := SpawnInput{}.withDefaults(defaults)
 		fresh, _, _, err := s.sessions.Spawn(ctx, ports.SpawnConfig{
 			ProjectID:       project,
-			Kind:            domain.KindWorker,
 			Harness:         role.Harness,
 			WorkspaceMode:   domain.WorkspaceModeInPlace,
 			Prompt:          prompt,

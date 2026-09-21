@@ -2,7 +2,7 @@
 
 A Flutter thin client for the Operator daemon. It talks to a paired daemon over
 HTTP/SSE the same way the desktop renderer does, rather than embedding any
-orchestration logic of its own.
+session-coordination logic of its own.
 
 This package is the Flutter port of the mobile app. The previous React Native
 implementation was frozen at `packages/mobile_rn` as the reference the port
@@ -12,7 +12,7 @@ This package has been the only mobile client since M6.
 
 ## Status: the port is complete (M0–M6)
 
-Eleven features over a shared `lib/core`:
+Ten features over a shared `lib/core`:
 
 - `pairing` / `onboarding` — QR scan (`mobile_scanner`) and manual
   host/port/password entry, both verifying against the daemon before saving,
@@ -20,8 +20,9 @@ Eleven features over a shared `lib/core`:
 - `sessions` — the Kanban board (`SessionsCubit`: an 8s REST poll layered with
   live `MuxClient` session patches), cards, stats that jump to their section,
   and a long-press sheet for kill/restore/resume.
-- `pull_request` / `orchestrator` / `spawn` / `settings` — the other three tabs
-  and the new-session flow.
+- `pull_request` / `spawn` / `settings` — the other two tabs and the
+  new-session flow. There is no delegator-style tab or session kind; every
+  session is a worker.
 - `chat` — timeline, SSE stream, composer, attachments and elicitation.
 - `terminal` — TUI and shell over the mux socket, rendered with a vendored
   `xterm.dart`.
@@ -70,8 +71,7 @@ kill/restore logic changes:
      not a generic error.
    - A correct password lands on the sessions Kanban board with the stats
      row, section headers, and cards reflecting the daemon's real sessions
-     (orchestrator-kind sessions filtered out; terminated sessions grouped
-     under Archive).
+     (terminated sessions grouped under Archive).
    - Pull-to-refresh works.
 5. **QR path** (needs a physical device — an iOS Simulator has no camera):
    `flutter run -d <physical-device-id>`, scan the QR Connect Mobile

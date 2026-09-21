@@ -13,7 +13,6 @@ import { initTelemetry } from "./lib/telemetry";
 import { startDaemonFailureTelemetry } from "./lib/daemon-telemetry";
 import { startUpdateTelemetry } from "./lib/update-telemetry";
 import { appI18n } from "./i18n";
-import { useLocaleStore } from "./stores/locale-store";
 import { SkinProvider } from "./theme/skin-context";
 
 const router = createAppRouter(queryClient);
@@ -70,9 +69,6 @@ declare module "@tanstack/react-router" {
 }
 
 async function renderApp(): Promise<void> {
-	// Resolve the persisted locale before mounting so translated text never
-	// flashes in English for users who selected another language.
-	await useLocaleStore.getState().load();
 	const container = document.getElementById("root") as HTMLElement;
 	container.setAttribute("data-testid", "app-shell-ready");
 	createRoot(container).render(

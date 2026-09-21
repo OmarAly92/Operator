@@ -47,12 +47,6 @@ func (m *Manager) resolveSpawnClaudeAccount(ctx context.Context, cfg ports.Spawn
 		}
 		return cfg.ClaudeAccountID, nil
 	}
-	if cfg.Harness == domain.HarnessClaudeCode && cfg.RequestedBy != "" && m.store != nil {
-		parent, ok, err := m.store.GetSession(ctx, cfg.RequestedBy)
-		if err == nil && ok && parent.ClaudeAccountID != "" {
-			return parent.ClaudeAccountID, nil
-		}
-	}
 	if cfg.Harness == domain.HarnessClaudeCode && m.claudeAccounts != nil {
 		if preferred, err := m.claudeAccounts.Preferred(ctx); err == nil && preferred.ID != "" {
 			return preferred.ID, nil

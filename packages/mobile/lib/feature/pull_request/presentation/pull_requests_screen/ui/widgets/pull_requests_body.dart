@@ -61,7 +61,7 @@ class PullRequestsBody extends StatelessWidget {
             return RefreshIndicator(
               onRefresh: onRefresh,
               child: ListView(
-                controller: HomeShell.controllerFor(2),
+                controller: HomeShell.controllerFor(1),
                 padding: const EdgeInsets.only(bottom: 40),
                 children: [
                   const ProjectSwitcher(),

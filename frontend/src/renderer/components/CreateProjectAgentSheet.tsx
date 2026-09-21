@@ -31,7 +31,6 @@ type AgentInfo = components["schemas"]["AgentInfo"];
 
 export type CreateProjectAgentSelection = {
 	workerAgent: string;
-	orchestratorAgent: string;
 	trackerIntake?: TrackerIntakeConfig;
 };
 
@@ -129,28 +128,23 @@ export function CreateProjectAgentSheet({
 			: t("createProject.couldNotRefreshAgents")
 		: agentsError;
 	const [workerAgent, setWorkerAgent] = useState("");
-	const [orchestratorAgent, setOrchestratorAgent] = useState("");
 	const [workerAgentTouched, setWorkerAgentTouched] = useState(false);
-	const [orchestratorAgentTouched, setOrchestratorAgentTouched] = useState(false);
 	const isBusy = isCreating || isInitializing;
 	const [intake, setIntake] = useState<IntakeForm>(EMPTY_INTAKE);
 	const intakeIncomplete = intakeNeedsRule(intake);
-	const canSubmit = workerAgent !== "" && orchestratorAgent !== "" && !intakeIncomplete && !isBusy && !isLoadingAgents;
+	const canSubmit = workerAgent !== "" && !intakeIncomplete && !isBusy && !isLoadingAgents;
 	const sheetError = error ? projectSheetError(error) : null;
 
 	useEffect(() => {
 		if (!open) return;
 		const defaultAgent = defaultAuthorizedAgent(agentOptions);
 		if (!workerAgentTouched) setWorkerAgent(defaultAgent);
-		if (!orchestratorAgentTouched) setOrchestratorAgent(defaultAgent);
-	}, [agentOptions, open, orchestratorAgentTouched, workerAgentTouched]);
+	}, [agentOptions, open, workerAgentTouched]);
 
 	useEffect(() => {
 		if (!open) {
 			setWorkerAgent("");
-			setOrchestratorAgent("");
 			setWorkerAgentTouched(false);
-			setOrchestratorAgentTouched(false);
 			setIntake(EMPTY_INTAKE);
 		}
 	}, [open, path]);
@@ -185,10 +179,10 @@ export function CreateProjectAgentSheet({
 						onSubmit={(event) => {
 							event.preventDefault();
 							if (!canSubmit) return;
-							void onSubmit({ workerAgent, orchestratorAgent, trackerIntake: buildIntake(intake) });
+							void onSubmit({ workerAgent, trackerIntake: buildIntake(intake) });
 						}}
 					>
-						<div className="grid gap-4 sm:grid-cols-2">
+						<div className="grid gap-4">
 							<RequiredAgentField
 								id="newProjectWorkerAgent"
 								label={t("createProject.workerAgent")}
@@ -204,23 +198,6 @@ export function CreateProjectAgentSheet({
 								onChange={(value) => {
 									setWorkerAgent(value);
 									setWorkerAgentTouched(true);
-								}}
-							/>
-							<RequiredAgentField
-								id="newProjectOrchestratorAgent"
-								label={t("createProject.orchestratorAgent")}
-								placeholder={t("createProject.selectOrchestrator")}
-								value={orchestratorAgent}
-								authorized={agentOptions}
-								installed={installedAgents}
-								supported={supportedAgents}
-								disabled={isLoadingAgents}
-								labelClassName="agents-sheet-label"
-								triggerClassName="agents-sheet-control"
-								contentClassName="agents-sheet-menu"
-								onChange={(value) => {
-									setOrchestratorAgent(value);
-									setOrchestratorAgentTouched(true);
 								}}
 							/>
 						</div>

@@ -59,9 +59,6 @@ type UiState = {
 	themeStyle: ThemeStyle;
 	terminalBackground: TerminalBackground;
 	terminalFontSize: TerminalFontSize;
-	restartingProjectIds: ReadonlySet<string>;
-	orchestratorReplacementErrors: Record<string, OrchestratorReplacementFailure>;
-	orchestratorStartupErrors: Record<string, string>;
 	// Transient "open the New Task dialog for this project" signal. The nonce
 	// bumps on every request so a repeat press (even for the same project) still
 	// re-fires; the always-mounted GlobalNewTaskDialog consumes it. Selection
@@ -102,21 +99,12 @@ type UiState = {
 	toggleInspector: (sessionId: string) => void;
 	setInspectorView: (sessionId: string, view: InspectorView) => void;
 	setCommandPaletteOpen: (open: boolean) => void;
-	setProjectRestarting: (projectId: string, restarting: boolean) => void;
-	setOrchestratorReplacementError: (projectId: string, failure: OrchestratorReplacementFailure | null) => void;
-	setOrchestratorStartupError: (projectId: string, message: string | null) => void;
 	requestNewTask: (projectId: string) => void;
 	requestCreateProject: () => void;
 	requestNewShellTerminal: () => void;
 	setActiveShellTerminal: (handleId: string | null) => void;
 	setVisibleTerminalKind: (sessionId: string, kind: TerminalTarget["kind"]) => void;
 	clearVisibleTerminalKind: (sessionId: string) => void;
-};
-
-export type OrchestratorReplacementFailure = {
-	message: string;
-	code?: string;
-	requestId?: string;
 };
 
 const sidebarStorageKey = "opr.sidebar.open";
@@ -163,9 +151,6 @@ export const useUiStore = create<UiState>((set, get) => ({
 	themeStyle: initialThemeStyle,
 	terminalBackground: initialTerminalBackground,
 	terminalFontSize: initialTerminalFontSize,
-	restartingProjectIds: new Set<string>(),
-	orchestratorReplacementErrors: {},
-	orchestratorStartupErrors: {},
 	newTaskRequest: null,
 	createProjectNonce: 0,
 	newShellTerminalNonce: 0,
@@ -255,36 +240,6 @@ export const useUiStore = create<UiState>((set, get) => ({
 			};
 		}),
 	setCommandPaletteOpen: (isCommandPaletteOpen) => set({ isCommandPaletteOpen }),
-	setProjectRestarting: (projectId, restarting) =>
-		set((state) => {
-			const restartingProjectIds = new Set(state.restartingProjectIds);
-			if (restarting) {
-				restartingProjectIds.add(projectId);
-			} else {
-				restartingProjectIds.delete(projectId);
-			}
-			return { restartingProjectIds };
-		}),
-	setOrchestratorReplacementError: (projectId, failure) =>
-		set((state) => {
-			const orchestratorReplacementErrors = { ...state.orchestratorReplacementErrors };
-			if (failure) {
-				orchestratorReplacementErrors[projectId] = failure;
-			} else {
-				delete orchestratorReplacementErrors[projectId];
-			}
-			return { orchestratorReplacementErrors };
-		}),
-	setOrchestratorStartupError: (projectId, message) =>
-		set((state) => {
-			const orchestratorStartupErrors = { ...state.orchestratorStartupErrors };
-			if (message) {
-				orchestratorStartupErrors[projectId] = message;
-			} else {
-				delete orchestratorStartupErrors[projectId];
-			}
-			return { orchestratorStartupErrors };
-		}),
 	requestNewTask: (projectId) =>
 		set((state) => ({ newTaskRequest: { projectId, nonce: (state.newTaskRequest?.nonce ?? 0) + 1 } })),
 	requestCreateProject: () => set((state) => ({ createProjectNonce: state.createProjectNonce + 1 })),

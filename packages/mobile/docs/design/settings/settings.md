@@ -10,7 +10,7 @@ Shared docs: [`../colors.md`](../colors.md) · [`../typography.md`](../typograph
 
 ### Purpose / context
 
-Fourth tab of the bottom-nav home shell. Surfaces the current daemon connection, active
+Third tab of the bottom-nav home shell. Surfaces the current daemon connection, active
 project scope, theme, notification prefs, and app/version info, plus the destructive
 "disconnect" action. No sheets or dialogs are opened directly from this screen in the
 prototype (verified — every row either navigates, toggles inline, or is inert placeholder
@@ -19,14 +19,14 @@ text; "Report a problem" has no `sc-camel-on-click` at all).
 ### Bottom nav bar (shared chrome — document once, here)
 
 This is `lib/core/app_routes/home_shell.dart` chrome, not owned by Settings or any single
-feature — Sessions/Orchestrator/Pull-Requests screens should reference this section rather
+feature — Sessions/Pull-Requests screens should reference this section rather
 than respeccing it.
 
 - Container: `S.bottomNav` — fixed at the bottom of the home shell, above the safe-area
   inset (use `SafeArea`, not a literal padding).
-- 4 items, icon above label, evenly spaced: `auto_awesome_motion` "Agents" (Material Symbols
+- 3 items, icon above label, evenly spaced: `auto_awesome_motion` "Agents" (Material Symbols
   ligature name → map to whatever icon set `components.md`'s icon reconciliation lands on),
-  `hub` "Orchestrator", `call_merge` "PRs", `settings` "Settings".
+  `call_merge` "PRs", `settings` "Settings".
 - Active tab: icon + label tinted `accent`. Inactive: `textTertiary`.
 - Tap navigates instantly — no page-transition per README's global convention.
 
