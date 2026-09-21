@@ -585,7 +585,7 @@ func (m *Manager) Spawn(ctx context.Context, cfg ports.SpawnConfig) (domain.Sess
 
 	branch := cfg.Branch
 	if branch == "" && cfg.WorkspaceMode != domain.WorkspaceModeInPlace {
-		branch = DefaultSpawnBranch(id, sessionPrefix(project), projectKind, m.dataDir)
+		branch = DefaultSpawnBranch(id, projectKind, m.dataDir)
 	}
 	ws, workspaceProject, err := m.createSessionWorkspace(ctx, project, cfg, id, branch)
 	if err != nil {
@@ -1127,83 +1127,6 @@ func (m *Manager) Kill(ctx context.Context, id domain.SessionID) (bool, error) {
 	return freed, nil
 }
 
-// RetireForReplacement terminates a live orchestrator and releases its branch
-// for a replacement session. Unlike Kill, this captures uncommitted work before
-// force-removing the worktree, so a dirty canonical orchestrator worktree does
-// not block the replacement from claiming the canonical branch.
-//
-// This deliberately does not write a session_worktrees row: those rows are
-// boot-restore markers, and a replaced orchestrator must stay terminated.
-func (m *Manager) RetireForReplacement(ctx context.Context, id domain.SessionID) error {
-	if err := m.beginAgentOperation(ctx, id, agentOperationRetire); err != nil {
-		if errors.Is(err, errAgentOperationInProgress) {
-			err = ErrSwitchInProgress
-		}
-		return fmt.Errorf("retire replacement %s: %w", id, err)
-	}
-	defer m.endAgentOperation(id, agentOperationRetire)
-
-	rec, ok, err := m.store.GetSession(ctx, id)
-	if err != nil {
-		return fmt.Errorf("retire replacement %s: %w", id, err)
-	}
-	if !ok || rec.IsTerminated {
-		return nil
-	}
-	m.stopPreviewBestEffort(ctx, id)
-	m.destroyBrowserBestEffort(ctx, id)
-	if rec.Metadata.WorkspacePath == "" || rec.Metadata.Branch == "" {
-		if err := m.store.DeleteSessionWorktrees(ctx, rec.ID); err != nil {
-			return fmt.Errorf("retire replacement %s: clear restore markers: %w", id, err)
-		}
-		handle := runtimeHandle(rec.Metadata)
-		if handle.ID != "" {
-			if err := m.runtime.Destroy(ctx, handle); err != nil {
-				return fmt.Errorf("retire replacement %s: runtime: %w", id, err)
-			}
-		}
-		if err := m.lcm.MarkTerminated(ctx, id); err != nil {
-			return fmt.Errorf("retire replacement %s: mark terminated: %w", id, err)
-		}
-		return nil
-	}
-	if rows, ok, rowErr := m.workspaceProjectRows(ctx, rec); rowErr != nil {
-		return fmt.Errorf("retire replacement %s: workspace rows: %w", id, rowErr)
-	} else if ok {
-		return m.retireWorkspaceProjectForReplacement(ctx, rec, rows)
-	}
-
-	ws := workspaceInfo(rec)
-	staleWorkspace := false
-	if _, err := m.workspace.StashUncommitted(ctx, ws); err != nil {
-		if !errors.Is(err, ports.ErrWorkspaceStale) {
-			return fmt.Errorf("retire replacement %s: stash: %w", id, err)
-		}
-		staleWorkspace = true
-		m.logger.Warn("retire replacement: stale workspace; skipping preserve", "sessionID", id, "path", ws.Path, "error", err)
-	}
-	handle := runtimeHandle(rec.Metadata)
-	if handle.ID != "" {
-		if err := m.runtime.Destroy(ctx, handle); err != nil {
-			return fmt.Errorf("retire replacement %s: runtime: %w", id, err)
-		}
-	}
-	if err := m.workspace.ForceDestroy(ctx, ws); err != nil {
-		if staleWorkspace {
-			m.logger.Warn("retire replacement: stale workspace cleanup failed", "sessionID", id, "path", ws.Path, "error", err)
-		}
-		return fmt.Errorf("retire replacement %s: force destroy: %w", id, err)
-	}
-	m.cleanupAgentWorkspace(ctx, rec, ws.Path)
-	if err := m.store.DeleteSessionWorktrees(ctx, rec.ID); err != nil {
-		return fmt.Errorf("retire replacement %s: clear restore markers: %w", id, err)
-	}
-	if err := m.lcm.MarkTerminated(ctx, rec.ID); err != nil {
-		return fmt.Errorf("retire replacement %s: mark terminated: %w", id, err)
-	}
-	return nil
-}
-
 func (m *Manager) stopPreviewBestEffort(ctx context.Context, id domain.SessionID) {
 	if m.preview == nil {
 		return
@@ -1222,41 +1145,6 @@ func (m *Manager) destroyBrowserBestEffort(ctx context.Context, id domain.Sessio
 	if err := m.browser.DestroySession(cleanupCtx, id); err != nil {
 		m.logger.Warn("session browser cleanup failed", "sessionID", id, "error", err)
 	}
-}
-
-func (m *Manager) retireWorkspaceProjectForReplacement(ctx context.Context, rec domain.SessionRecord, rows []ports.WorkspaceRepoInfo) error {
-	staleRepos := make(map[string]bool)
-	for _, row := range rows {
-		if _, err := m.workspace.StashUncommitted(ctx, workspaceInfoFromRepoInfo(row)); err != nil {
-			if !errors.Is(err, ports.ErrWorkspaceStale) {
-				return fmt.Errorf("retire replacement %s repo %s: stash: %w", rec.ID, row.RepoName, err)
-			}
-			staleRepos[row.RepoName] = true
-			m.logger.Warn("retire replacement: stale workspace repo; skipping preserve", "sessionID", rec.ID, "repo", row.RepoName, "path", row.Path, "error", err)
-		}
-	}
-	handle := runtimeHandle(rec.Metadata)
-	if handle.ID != "" {
-		if err := m.runtime.Destroy(ctx, handle); err != nil {
-			return fmt.Errorf("retire replacement %s: runtime: %w", rec.ID, err)
-		}
-	}
-	for i := len(rows) - 1; i >= 0; i-- {
-		if err := m.workspace.ForceDestroy(ctx, workspaceInfoFromRepoInfo(rows[i])); err != nil {
-			if staleRepos[rows[i].RepoName] {
-				m.logger.Warn("retire replacement: stale workspace repo cleanup failed", "sessionID", rec.ID, "repo", rows[i].RepoName, "path", rows[i].Path, "error", err)
-			}
-			return fmt.Errorf("retire replacement %s repo %s: force destroy: %w", rec.ID, rows[i].RepoName, err)
-		}
-	}
-	m.cleanupAgentWorkspace(ctx, rec, rec.Metadata.WorkspacePath)
-	if err := m.store.DeleteSessionWorktrees(ctx, rec.ID); err != nil {
-		return fmt.Errorf("retire replacement %s: clear restore markers: %w", rec.ID, err)
-	}
-	if err := m.lcm.MarkTerminated(ctx, rec.ID); err != nil {
-		return fmt.Errorf("retire replacement %s: mark terminated: %w", rec.ID, err)
-	}
-	return nil
 }
 
 // RestoreWithMode relaunches a torn-down session and reports whether Operator used
@@ -2657,7 +2545,7 @@ func seedRecord(cfg ports.SpawnConfig, now time.Time) domain.SessionRecord {
 	}
 }
 
-func defaultSessionBranch(id domain.SessionID, prefix, branchNamespace string) string {
+func defaultSessionBranch(id domain.SessionID, branchNamespace string) string {
 	// A fresh, unique branch per worker session: gitworktree can't add a worktree
 	// on a branch already checked out elsewhere (e.g. main). Put the root work
 	// branch under a session namespace so sibling PR branches such as
@@ -2667,7 +2555,7 @@ func defaultSessionBranch(id domain.SessionID, prefix, branchNamespace string) s
 
 // DefaultSpawnBranch returns Operator's generated work branch for a spawn. Explicit
 // user-provided branches bypass this helper.
-func DefaultSpawnBranch(id domain.SessionID, prefix string, projectKind domain.ProjectKind, dataDir string) string {
+func DefaultSpawnBranch(id domain.SessionID, projectKind domain.ProjectKind, dataDir string) string {
 	if projectKind == domain.ProjectKindScratch {
 		return ""
 	}
@@ -2675,7 +2563,7 @@ func DefaultSpawnBranch(id domain.SessionID, prefix string, projectKind domain.P
 	if projectKind == domain.ProjectKindWorkspace {
 		return operatorBranch(branchNamespace, string(id))
 	}
-	return defaultSessionBranch(id, prefix, branchNamespace)
+	return defaultSessionBranch(id, branchNamespace)
 }
 
 func operatorBranch(namespace string, parts ...string) string {

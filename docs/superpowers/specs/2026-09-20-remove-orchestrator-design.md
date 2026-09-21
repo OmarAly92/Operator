@@ -325,6 +325,14 @@ Raised in chat and accepted by the user. Recorded so they are not re-filed as bu
    generic "work on a feature branch" instruction is gone — which in practice makes
    agents *more* likely to stay on Operator's own branch, where attribution is
    exact.
+5. **Delegated tasks keep their provisional title.** `refineDelegatedTaskTitle`
+   worked by resolving a live orchestrator, waiting for it to be ready, and sending
+   it a message asking it to name the task. With no session able to be an
+   orchestrator there is no coordinator to ask, so the refinement is removed along
+   with `Service.SpawnOrchestrator`. A New Task session now keeps the truncated
+   20-character brief (`delegatedTaskTitleLimit`) as its display name instead of an
+   auto-refined one. Discovered during implementation, not planning; recorded here
+   after review confirmed the removal was forced rather than chosen.
 
 ## 11. Evidence: the three protected systems
 

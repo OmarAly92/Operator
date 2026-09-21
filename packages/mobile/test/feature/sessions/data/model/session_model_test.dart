@@ -7,7 +7,16 @@ void main() {
       final session = SessionModel.fromJson({'id': 'a', 'status': 'working'});
       expect(session.id, 'a');
       expect(session.status, 'working');
-      expect(session.kind, isNull);
+    });
+
+    test('ignores a stale kind key from an older daemon', () {
+      final session = SessionModel.fromJson({
+        'id': 'a',
+        'status': 'working',
+        'kind': 'worker',
+      });
+      expect(session.id, 'a');
+      expect(session.status, 'working');
     });
   });
 }

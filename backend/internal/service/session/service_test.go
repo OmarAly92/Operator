@@ -273,15 +273,6 @@ func (f *fakeStore) ListSessionWorktrees(_ context.Context, id domain.SessionID)
 	return append([]domain.SessionWorktreeRecord(nil), f.worktrees[id]...), nil
 }
 
-// putSession is a concurrency-safe way for tests to simulate a session being
-// created mid-flight, mirroring what fakeCommander.spawnFunc does when it
-// mutates f.sessions from a goroutine racing other fakeStore readers.
-func (f *fakeStore) putSession(rec domain.SessionRecord) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	f.sessions[rec.ID] = rec
-}
-
 func TestSessionListAppliesActivityBeforePRFacts(t *testing.T) {
 	for _, tt := range []struct {
 		name     string
@@ -1189,7 +1180,6 @@ type fakeCommander struct {
 	sentMessages       []string
 	cleanupProjects    []domain.ProjectID
 	killErr            error
-	retireErr          error
 	sendErr            error
 	sendFunc           func(domain.SessionID, string) error
 	cleanupErr         error
@@ -1202,7 +1192,6 @@ type fakeCommander struct {
 	killsAtSpawn       int
 	restoreErr         error
 	restoreResult      sessionmanager.RestoreResult
-	readyErr           error
 }
 
 func (f *fakeCommander) Spawn(_ context.Context, cfg ports.SpawnConfig) (domain.SessionRecord, int, int, error) {

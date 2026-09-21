@@ -6,7 +6,6 @@ class SessionModel extends Equatable {
   const SessionModel({
     this.id,
     this.projectId,
-    this.kind,
     this.status,
     this.activity,
     this.harness,
@@ -26,7 +25,6 @@ class SessionModel extends Equatable {
 
   final String? id;
   final String? projectId;
-  final String? kind;
   final String? status;
   final String? activity;
   final String? harness;
@@ -46,7 +44,6 @@ class SessionModel extends Equatable {
   factory SessionModel.fromJson(Map<String, dynamic> json) => SessionModel(
     id: json['id'] as String?,
     projectId: json['projectId'] as String?,
-    kind: json['kind'] as String?,
     status: json['status'] as String?,
     activity: activityString(json['activity']),
     harness: json['harness'] as String?,
@@ -68,7 +65,7 @@ class SessionModel extends Equatable {
 
   @override
   List<Object?> get props => [
-    id, projectId, kind, status, activity, harness, branch, issueId,
+    id, projectId, status, activity, harness, branch, issueId,
     displayName, createdAt, updatedAt, previewUrl, isTerminated, prs,
     workspaceMode, workspacePath, claudeAccountId, model,
   ];
