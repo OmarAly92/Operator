@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import * as Dialog from "@radix-ui/react-dialog";
-import { TriangleAlert, X, type LucideIcon } from "lucide-react";
+import { TriangleAlert, X } from "lucide-react";
 import { memo, useEffect, useState } from "react";
 import type { components } from "../../api/schema";
 import { agentsQueryKey, agentsQueryOptions, refreshAgents } from "../hooks/useAgentsQuery";
@@ -17,7 +17,6 @@ import { AgentAvatar } from "./AgentAvatar";
 import { FieldDefaultHint } from "./FieldDefaultHint";
 import { buildIntake, type IntakeForm, IntakeFields, intakeNeedsRule } from "./IntakeFields";
 import { AgentSelectMenuItem } from "./settings/AgentSelectMenuItem";
-import { SettingsRow } from "./settings/SettingsRow";
 import { SettingsOptionMenu } from "./settings/SettingsOptionMenu";
 import type { ProjectKind } from "../types/workspace";
 import { Button } from "./ui/button";
@@ -315,7 +314,6 @@ export const RequiredAgentField = memo(function RequiredAgentField({
 	authorized,
 	disabled = false,
 	hint,
-	icon,
 	id,
 	invalid = false,
 	installed,
@@ -333,7 +331,6 @@ export const RequiredAgentField = memo(function RequiredAgentField({
 	disabled?: boolean;
 	/** Caption beside the label, e.g. naming where a preselected default came from. */
 	hint?: string;
-	icon?: LucideIcon;
 	id: string;
 	invalid?: boolean;
 	installed?: AgentInfo[];
@@ -345,7 +342,7 @@ export const RequiredAgentField = memo(function RequiredAgentField({
 	labelClassName?: string;
 	contentClassName?: string;
 	value: string;
-	variant?: "stacked" | "settings-row" | "chip";
+	variant?: "stacked" | "chip";
 }) {
 	const fallbackAgents: AgentInfo[] = AGENT_OPTIONS.map((agent) => ({ id: agent, label: agent }));
 	const options = buildRankedAgentOptions({
@@ -356,57 +353,13 @@ export const RequiredAgentField = memo(function RequiredAgentField({
 		fallbackAgents,
 	});
 
-	if (variant === "settings-row") {
-		const menuOptions = options.map((agent) => ({
-			value: agent.id,
-			label: agent.label,
-			disabled: agent.disabled,
-		}));
-
-		return (
-			<SettingsRow icon={icon} label={label}>
-				<SettingsOptionMenu
-					aria-label={label}
-					value={value}
-					placeholder={placeholder}
-					options={menuOptions}
-					disabled={disabled}
-					onChange={onChange}
-					triggerClassName={invalid ? "text-error" : undefined}
-					menuClassName="settings-agent-menu-surface"
-					menuItemClassName="settings-agent-menu-item"
-					renderTrigger={(selected, triggerPlaceholder) => (
-						<>
-							{selected ? <AgentAvatar provider={selected.value} className="size-icon-lg" /> : null}
-							<span className="min-w-0 truncate">{selected?.label ?? triggerPlaceholder}</span>
-						</>
-					)}
-					renderMenuItem={(option, selected) => {
-						const agent = options.find((entry) => entry.id === option.value);
-						if (!agent) return option.label;
-						return (
-							<AgentSelectMenuItem
-								agentId={agent.id}
-								label={agent.label}
-								selected={selected}
-								status={agent.status}
-								statusTone={agent.statusTone}
-								disabled={agent.disabled}
-							/>
-						);
-					}}
-				/>
-			</SettingsRow>
-		);
-	}
-
 	const selectedOption = options.find((agent) => agent.id === value);
 
 	// Chip: the value reads as part of a sentence ("Runs with Codex") rather than
 	// as a form field, so the label is carried by that sentence, not by a <Label>.
-	// Built on the same SettingsOptionMenu as the settings-row variant (and the
-	// model chip beside it) so both halves of the pill share one dropdown
-	// component instead of a Select-based menu and a DropdownMenu-based one.
+	// Built on the same SettingsOptionMenu as the model chip beside it so both
+	// halves of the pill share one dropdown component instead of a Select-based
+	// menu and a DropdownMenu-based one.
 	if (variant === "chip") {
 		const menuOptions = options.map((agent) => ({
 			value: agent.id,

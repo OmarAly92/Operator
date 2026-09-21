@@ -106,28 +106,6 @@ export function SettingsInlineInput({
 	);
 }
 
-export function SettingsInputRow({
-	icon,
-	label,
-	id,
-	value,
-	onChange,
-	placeholder,
-}: {
-	icon?: LucideIcon;
-	label: string;
-	id: string;
-	value: string;
-	onChange: (value: string) => void;
-	placeholder?: string;
-}) {
-	return (
-		<SettingsRow icon={icon} label={label}>
-			<SettingsInlineInput id={id} label={label} value={value} onChange={onChange} placeholder={placeholder} />
-		</SettingsRow>
-	);
-}
-
 export function SettingsLinkRow({
 	icon,
 	label,
