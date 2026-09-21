@@ -12,7 +12,6 @@ import 'package:operator_mobile/core/mux/mux_client.dart';
 import 'package:operator_mobile/core/telemetry/events.dart';
 import 'package:operator_mobile/core/telemetry/runtime.dart';
 import 'package:operator_mobile/feature/sessions/data/model/board_snapshot.dart';
-import 'package:operator_mobile/feature/sessions/data/model/orchestrator_model.dart';
 import 'package:operator_mobile/feature/sessions/data/model/project_model.dart';
 import 'package:operator_mobile/feature/sessions/data/model/session_model.dart';
 import 'package:operator_mobile/feature/sessions/data/repository/sessions_repository.dart';
@@ -43,7 +42,6 @@ class SessionsCubit extends Cubit<SessionsState> {
   final ServerConfigSource _configSource;
 
   List<SessionModel> sessions = [];
-  List<OrchestratorModel> orchestrators = [];
   List<ProjectModel> projects = [];
   Map<String, String> accountLabels = const {};
   String activeProjectId = (CacheHelper.get(CacheKeys.activeProjectId) as String?) ?? kAllProjects;
@@ -102,7 +100,6 @@ class SessionsCubit extends Cubit<SessionsState> {
     _refreshTimer = null;
     _refreshQueued = false;
     sessions = [];
-    orchestrators = [];
     projects = [];
     _needsRetry = false;
     _connectionOpen = false;
@@ -127,7 +124,6 @@ class SessionsCubit extends Cubit<SessionsState> {
         _needsRetry = false;
         final board = response.data ?? const BoardSnapshot();
         sessions = board.sessions;
-        orchestrators = board.orchestrators;
         projects = board.projects;
         accountLabels = board.accountLabels;
         if (!_connectionOpen) {

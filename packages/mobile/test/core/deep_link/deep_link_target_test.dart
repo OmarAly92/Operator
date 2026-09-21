@@ -24,7 +24,7 @@ void main() {
     final target = resolveDeepLink(Uri.parse('aomobile://prs'));
 
     expect(target?.route, RoutesStrings.sessions);
-    expect(target?.tabIndex, 2);
+    expect(target?.tabIndex, 1);
   });
 
   test('opens the notification history', () {
@@ -56,7 +56,7 @@ void main() {
 
   test('resolves the internal paths notificationTarget produces', () {
     expect(resolveDeepLinkPath('/session/abc')?.arguments, {'sessionId': 'abc'});
-    expect(resolveDeepLinkPath('/prs')?.tabIndex, 2);
+    expect(resolveDeepLinkPath('/prs')?.tabIndex, 1);
     expect(resolveDeepLinkPath('nonsense'), isNull);
   });
 

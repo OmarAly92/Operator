@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/app_themes/text_style/app_text_style.dart';
 import 'package:operator_mobile/core/utils/haptics.dart';
-import 'package:operator_mobile/feature/orchestrator/presentation/orchestrator_screen/ui/orchestrator_screen.dart';
 import 'package:operator_mobile/feature/pull_request/presentation/pull_requests_screen/ui/pull_requests_screen.dart';
 import 'package:operator_mobile/feature/sessions/presentation/sessions_screen/ui/sessions_screen.dart';
 import 'package:operator_mobile/feature/settings/presentation/settings_screen/ui/settings_screen.dart';
@@ -13,7 +12,7 @@ class HomeShell extends StatefulWidget {
   static final ValueNotifier<int> selectedTab = ValueNotifier<int>(0);
 
   static final List<ScrollController> _controllers = List<ScrollController>.generate(
-    4,
+    3,
     (_) => ScrollController(),
   );
 
@@ -47,7 +46,6 @@ class _HomeShellState extends State<HomeShell> {
         index: HomeShell.selectedTab.value,
         children: [
           const SessionsScreen(),
-          OrchestratorScreen(onOpenBoard: () => HomeShell.selectedTab.value = 0),
           const PullRequestsScreen(),
           SettingsScreen(onOpenBoard: () => HomeShell.selectedTab.value = 0),
         ],
@@ -85,7 +83,6 @@ class _HomeShellState extends State<HomeShell> {
             unselectedLabelStyle: AppTextStyle.style11SemiBold,
             items: const [
               BottomNavigationBarItem(icon: Icon(Icons.auto_awesome_motion_outlined), label: 'Agents'),
-              BottomNavigationBarItem(icon: Icon(Icons.hub_outlined), label: 'Orchestrator'),
               BottomNavigationBarItem(icon: Icon(Icons.call_merge_outlined), label: 'PRs'),
               BottomNavigationBarItem(icon: Icon(Icons.settings_outlined), label: 'Settings'),
             ],

@@ -73,18 +73,6 @@ class _SessionRouteScreenState extends State<SessionRouteScreen> {
         );
       }
     }
-    for (final orchestrator in cubit.orchestrators) {
-      if (orchestrator.id == widget.sessionId) {
-        return (
-          id: orchestrator.id!,
-          title: orchestrator.projectName ?? orchestrator.id!,
-          projectId: orchestrator.projectId,
-          previewUrl: null,
-          harness: orchestrator.harness,
-          activity: orchestrator.activity,
-        );
-      }
-    }
     return null;
   }
 
