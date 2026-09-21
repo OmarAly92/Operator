@@ -239,54 +239,6 @@ export function primaryPR(session: WorkspaceSession): PullRequestFacts | undefin
 	return sortedPRs(session)[0];
 }
 
-export function isOrchestratorSession(session: WorkspaceSession): boolean {
-	return session.kind === "orchestrator" || session.id.endsWith("-orchestrator");
-}
-
-/**
- * The project's LIVE orchestrator, if any. Terminated orchestrator rows stay in
- * the session list (the daemon returns all sessions, ordered by spawn number),
- * so an earlier dead orchestrator must not shadow a live one — its zellij
- * session is deleted and attaching to it dead-ends in an instant
- * "[process exited]". No live orchestrator → undefined, so the topbar offers
- * Spawn instead of navigating to a dead session.
- */
-export function findProjectOrchestrator(
-	workspaces: WorkspaceSummary[],
-	projectId: string,
-): WorkspaceSession | undefined {
-	const workspace = workspaces.find((w) => w.id === projectId);
-	return newestActiveOrchestrator(workspace?.sessions ?? []);
-}
-
-export function newestActiveOrchestrator(sessions: WorkspaceSession[]): WorkspaceSession | undefined {
-	const active = sessions.filter((session) => isOrchestratorSession(session) && sessionIsActive(session));
-	return active.reduce<WorkspaceSession | undefined>(
-		(newest, session) => (!newest || sessionNewer(session, newest) ? session : newest),
-		undefined,
-	);
-}
-
-function sessionNewer(a: WorkspaceSession, b: WorkspaceSession): boolean {
-	const aCreated = timestamp(a.createdAt);
-	const bCreated = timestamp(b.createdAt);
-	if (aCreated !== bCreated) return aCreated > bCreated;
-	const aUpdated = timestamp(a.updatedAt);
-	const bUpdated = timestamp(b.updatedAt);
-	if (aUpdated !== bUpdated) return aUpdated > bUpdated;
-	return a.id > b.id;
-}
-
-function timestamp(value?: string): number {
-	if (!value) return 0;
-	const parsed = Date.parse(value);
-	return Number.isNaN(parsed) ? 0 : parsed;
-}
-
-export function workerSessions(sessions: WorkspaceSession[]): WorkspaceSession[] {
-	return sessions.filter((s) => !isOrchestratorSession(s));
-}
-
 export function sessionIsActive(session: WorkspaceSession): boolean {
 	return session.isTerminated !== true && session.status !== "terminated";
 }
@@ -314,52 +266,6 @@ export type WorkspaceSummary = {
 	};
 	sessions: WorkspaceSession[];
 };
-
-export function hasConfiguredOrchestratorAgent(
-	workspace: Pick<WorkspaceSummary, "orchestratorAgent"> | undefined,
-): boolean {
-	return Boolean(workspace?.orchestratorAgent);
-}
-
-export function orchestratorNeedsRestart(workspace: WorkspaceSummary, orchestrator?: WorkspaceSession): boolean {
-	if (!orchestrator || !workspace.orchestratorAgent) return false;
-	return orchestrator.provider !== workspace.orchestratorAgent;
-}
-
-export type OrchestratorHealth =
-	| { state: "ok" }
-	| { state: "restarting"; message: string }
-	| { state: "restart_needed"; message: string }
-	| { state: "missing"; message: string }
-	| { state: "duplicates"; message: string };
-
-export function orchestratorHealth(workspace: WorkspaceSummary, restarting = false): OrchestratorHealth {
-	if (restarting) {
-		return {
-			state: "restarting",
-			message: "Restarting orchestrator. New tasks wait until the replacement is ready.",
-		};
-	}
-	const active = workspace.sessions.filter((session) => isOrchestratorSession(session) && sessionIsActive(session));
-	if (active.length > 1) {
-		return {
-			state: "duplicates",
-			message:
-				"Multiple orchestrators are active. The newest one is used; stale ones will be cleaned up on daemon reconcile.",
-		};
-	}
-	const orchestrator = newestActiveOrchestrator(workspace.sessions);
-	if (!orchestrator) {
-		return { state: "missing", message: "No orchestrator is running for this project." };
-	}
-	if (orchestratorNeedsRestart(workspace, orchestrator)) {
-		return {
-			state: "restart_needed",
-			message: `Configured orchestrator agent is ${workspace.orchestratorAgent}; running agent is ${orchestrator.provider}.`,
-		};
-	}
-	return { state: "ok" };
-}
 
 export function toAgentProvider(provider?: string): AgentProvider {
 	switch (provider) {

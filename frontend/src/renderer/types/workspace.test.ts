@@ -2,9 +2,6 @@ import { describe, expect, it } from "vitest";
 import {
 	attentionZone,
 	canonicalTrackerIssueId,
-	findProjectOrchestrator,
-	newestActiveOrchestrator,
-	orchestratorHealth,
 	sessionIsActive,
 	sessionNeedsAttention,
 	toAgentProvider,
@@ -19,7 +16,6 @@ import {
 	type PullRequestFacts,
 	type SessionStatus,
 	type WorkspaceSession,
-	type WorkspaceSummary,
 } from "./workspace";
 
 describe("canonicalTrackerIssueId", () => {
@@ -111,87 +107,6 @@ describe("sessionIsActive", () => {
 	});
 });
 
-describe("findProjectOrchestrator", () => {
-	function workspaceWith(sessions: WorkspaceSession[]): WorkspaceSummary {
-		return { id: "skills", name: "skills", path: "/tmp/skills", sessions };
-	}
-
-	it("skips a terminated orchestrator that precedes the live one", () => {
-		// Regression: the daemon lists sessions by spawn number, so a dead
-		// orchestrator (zellij session deleted) sorts before its live successor.
-		// Picking it sent the Orchestrator button to an instant "[process exited]".
-		const dead = sessionWith({ id: "skills-4", kind: "orchestrator", status: "terminated" });
-		const live = sessionWith({ id: "skills-5", kind: "orchestrator", status: "needs_input" });
-		const worker = sessionWith({ id: "skills-6", kind: "worker", status: "working" });
-		expect(findProjectOrchestrator([workspaceWith([dead, live, worker])], "skills")).toBe(live);
-	});
-
-	it("prefers the newest live orchestrator when multiple replacements overlap", () => {
-		const older = sessionWith({ id: "skills-4", kind: "orchestrator", status: "idle", provider: "claude-code" });
-		const newer = sessionWith({ id: "skills-5", kind: "orchestrator", status: "working", provider: "codex" });
-		expect(findProjectOrchestrator([workspaceWith([older, newer])], "skills")).toBe(newer);
-	});
-
-	it("returns undefined when every orchestrator is terminated", () => {
-		const dead = sessionWith({ id: "skills-4", kind: "orchestrator", status: "terminated" });
-		expect(findProjectOrchestrator([workspaceWith([dead])], "skills")).toBeUndefined();
-	});
-
-	it("ignores live workers when looking for an orchestrator", () => {
-		const worker = sessionWith({ id: "skills-6", kind: "worker", status: "working" });
-		expect(findProjectOrchestrator([workspaceWith([worker])], "skills")).toBeUndefined();
-	});
-
-	it("returns undefined for an unknown project", () => {
-		const live = sessionWith({ id: "skills-5", kind: "orchestrator", status: "working" });
-		expect(findProjectOrchestrator([workspaceWith([live])], "other")).toBeUndefined();
-	});
-
-	it("selects the newest active orchestrator, not the first active one", () => {
-		const older = sessionWith({
-			id: "skills-1",
-			kind: "orchestrator",
-			status: "working",
-			createdAt: "2026-01-01T00:00:00Z",
-			updatedAt: "2026-01-01T00:00:00Z",
-		});
-		const newer = sessionWith({
-			id: "skills-2",
-			kind: "orchestrator",
-			status: "working",
-			createdAt: "2026-01-02T00:00:00Z",
-			updatedAt: "2026-01-02T00:00:00Z",
-		});
-		expect(findProjectOrchestrator([workspaceWith([older, newer])], "skills")).toBe(newer);
-	});
-
-	it("uses updatedAt and id as newest orchestrator tie breakers", () => {
-		const oldUpdate = sessionWith({
-			id: "skills-2",
-			kind: "orchestrator",
-			status: "working",
-			createdAt: "2026-01-01T00:00:00Z",
-			updatedAt: "2026-01-01T00:00:00Z",
-		});
-		const newUpdate = sessionWith({
-			id: "skills-1",
-			kind: "orchestrator",
-			status: "working",
-			createdAt: "2026-01-01T00:00:00Z",
-			updatedAt: "2026-01-02T00:00:00Z",
-		});
-		const sameTimesHigherID = sessionWith({
-			id: "skills-3",
-			kind: "orchestrator",
-			status: "working",
-			createdAt: "2026-01-01T00:00:00Z",
-			updatedAt: "2026-01-02T00:00:00Z",
-		});
-		expect(newestActiveOrchestrator([oldUpdate, newUpdate])).toBe(newUpdate);
-		expect(newestActiveOrchestrator([newUpdate, sameTimesHigherID])).toBe(sameTimesHigherID);
-	});
-});
-
 describe("sessionNeedsAttention", () => {
 	it.each(["needs_input", "exited", "no_signal", "changes_requested", "ci_failed", "unknown"] as const)(
 		"is true for %s",
@@ -208,51 +123,6 @@ describe("sessionNeedsAttention", () => {
 		expect(sessionNeedsAttention(sessionWith({ status: "working" }))).toBe(false);
 		expect(sessionNeedsAttention(sessionWith({ status: "mergeable" }))).toBe(false);
 		expect(sessionNeedsAttention(sessionWith({ status: "review_pending" }))).toBe(false);
-	});
-});
-
-describe("orchestratorHealth", () => {
-	it("reports restart_needed when the configured orchestrator agent differs from the newest active orchestrator", () => {
-		const older = sessionWith({
-			id: "skills-1",
-			kind: "orchestrator",
-			provider: "codex",
-			status: "working",
-			createdAt: "2026-01-01T00:00:00Z",
-			updatedAt: "2026-01-01T00:00:00Z",
-		});
-		const newest = sessionWith({
-			id: "skills-2",
-			kind: "orchestrator",
-			provider: "claude-code",
-			status: "working",
-			createdAt: "2026-01-02T00:00:00Z",
-			updatedAt: "2026-01-02T00:00:00Z",
-		});
-
-		expect(
-			orchestratorHealth({
-				id: "skills",
-				name: "skills",
-				path: "/tmp/skills",
-				orchestratorAgent: "codex",
-				sessions: [older, newest],
-			}),
-		).toEqual({
-			state: "duplicates",
-			message:
-				"Multiple orchestrators are active. The newest one is used; stale ones will be cleaned up on daemon reconcile.",
-		});
-
-		expect(
-			orchestratorHealth({
-				id: "skills",
-				name: "skills",
-				path: "/tmp/skills",
-				orchestratorAgent: "codex",
-				sessions: [newest],
-			}).state,
-		).toBe("restart_needed");
 	});
 });
 

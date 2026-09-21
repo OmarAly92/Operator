@@ -221,48 +221,6 @@ describe("SessionsBoard", () => {
 		expect(screen.getByRole("button", { name: "New task" })).toBeInTheDocument();
 	});
 
-	it.each([
-		["active", "Working", "bg-status-working", true],
-		["idle", "Idle", "bg-status-idle", false],
-	] as const)("shows %s orchestrator activity in the in-panel board toolbar", (state, label, tone, pulses) => {
-		boardActionsInPanelMock.mockReturnValue(true);
-		workspaceQueryMock.mockReturnValue({
-			data: [
-				{
-					id: "p1",
-					name: "solkit-ui",
-					path: "/tmp/solkit-ui",
-					sessions: [
-						{
-							id: "orch-1",
-							workspaceId: "p1",
-							workspaceName: "solkit-ui",
-							title: "orchestrator",
-							provider: "codex",
-							kind: "orchestrator",
-							branch: "main",
-							status: "working",
-							activity: { state, lastActivityAt: "2026-01-01T00:00:00Z" },
-							updatedAt: "2026-01-01T00:00:00Z",
-							prs: [],
-						},
-					],
-				},
-			],
-			isError: false,
-			isSuccess: true,
-		});
-
-		renderBoard("p1");
-
-		const button = screen.getByRole("button", { name: `Orchestrator, ${label}` });
-		const indicator = button.querySelector("span.size-dot-sm") as HTMLElement;
-		expect(indicator).toHaveAttribute("aria-hidden", "true");
-		expect(indicator).toHaveClass(tone);
-		expect(indicator).toHaveClass(pulses ? "animate-status-pulse" : "size-dot-sm");
-		if (!pulses) expect(indicator).not.toHaveClass("animate-status-pulse");
-	});
-
 	it("shows the Board crumb on the root board when actions live in the panel", () => {
 		boardActionsInPanelMock.mockReturnValue(true);
 		workspaceQueryMock.mockReturnValue({
@@ -1552,6 +1510,28 @@ describe("SessionsBoard", () => {
 		expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
 		expect(await screen.findByRole("alert")).toHaveTextContent("Failed to terminate session (500)");
 		expect(screen.getByRole("button", { name: "Terminate merged worker" })).toBeEnabled();
+	});
+
+	it("places a needs-input session in the action column and a review session in pending", () => {
+		workspaceQueryMock.mockReturnValue({
+			data: [
+				workspaceWithSessions([
+					boardSession({ id: "a", title: "session a", status: "needs_input" }),
+					boardSession({ id: "b", title: "session b", status: "review_pending" }),
+					boardSession({ id: "c", title: "session c", status: "working" }),
+				]),
+			],
+			isError: false,
+			isSuccess: true,
+		});
+
+		renderBoard("p1");
+
+		const columns = screen.getAllByTestId("board-column");
+		const columnByZone = (zone: string) => columns.find((column) => column.getAttribute("data-column") === zone);
+		expect(within(columnByZone("action")!).getByText("session a")).toBeInTheDocument();
+		expect(within(columnByZone("pending")!).getByText("session b")).toBeInTheDocument();
+		expect(within(columnByZone("working")!).getByText("session c")).toBeInTheDocument();
 	});
 
 	it("shows the ticket badge on a linked session card and opens the ticket page from it", async () => {
