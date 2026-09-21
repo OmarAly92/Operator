@@ -701,6 +701,30 @@ describe("row pool", () => {
 		expect(rowNode(container, stable)).toBe(row);
 		renderer.dispose();
 	});
+	it("does not fight an elastic overscroll past either edge", async () => {
+		const container = document.createElement("div");
+		Object.defineProperty(container, "clientHeight", { value: 100, configurable: true });
+		Object.defineProperty(container, "scrollHeight", { value: 100_000, configurable: true });
+		Object.defineProperty(container, "scrollTop", { value: 99_900, configurable: true, writable: true });
+		const core = createTerminalCore({ columns: 16, scrollback: 1000, rows: 2 });
+		for (let i = 0; i < 200; i += 1) feed(core, `row${i}\r\n`);
+		const renderer = new DomBlockRenderer();
+		renderer.mount(container, core);
+		renderer.setFont(font);
+		await flushRepaint();
+		container.scrollTop = 99_930;
+		container.dispatchEvent(new Event("scroll"));
+		await flushRepaint();
+		expect(container.scrollTop).toBe(99_930);
+		container.scrollTop = 99_900;
+		container.dispatchEvent(new Event("scroll"));
+		await flushRepaint();
+		container.scrollTop = -30;
+		container.dispatchEvent(new Event("scroll"));
+		await flushRepaint();
+		expect(container.scrollTop).toBe(-30);
+		renderer.dispose();
+	});
 	it("repaints a row that was rewritten and then scrolled into history", async () => {
 		const core = createTerminalCore({ columns: 16, scrollback: 100, rows: 2 });
 		const host = document.createElement("div");

@@ -45,6 +45,10 @@ const CLASS_LEADING_SPACER = "terminal-spacer";
 const CLASS_TRAILING_SPACER = "terminal-spacer";
 const OVERSCAN_ROWS = 6;
 const STICK_THRESHOLD_PX = 4;
+
+function overscrolled(container: HTMLElement): boolean {
+	return container.scrollTop < 0 || container.scrollTop > container.scrollHeight - container.clientHeight;
+}
 const PAINT_INTERVAL_MS = 1000 / 60;
 const POOL_CAPACITY_FACTOR = 3;
 const POOL_DIRTY_CAP = 4096;
@@ -643,7 +647,7 @@ export class DomBlockRenderer implements BlockRenderer {
 		}
 		if (this.stickToBottom) {
 			this.applyStickiness();
-		} else if (Math.abs(container.scrollTop - scrollTop) > 0.5) {
+		} else if (!overscrolled(container) && Math.abs(container.scrollTop - scrollTop) > 0.5) {
 			container.scrollTop = scrollTop;
 		}
 		this.paintSelectionFill();
@@ -696,7 +700,7 @@ export class DomBlockRenderer implements BlockRenderer {
 		if (!container || !this.stickToBottom) return;
 		const target = container.scrollHeight - container.clientHeight;
 		if (target <= 0) return;
-		if (Math.abs(container.scrollTop - target) > 0.5) {
+		if (container.scrollTop < target - 0.5) {
 			container.scrollTop = target;
 		}
 	}

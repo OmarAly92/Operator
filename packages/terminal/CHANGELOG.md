@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- renderer-dom: an elastic overscroll past the top or bottom edge (WebKit rubber-band, where `scrollTop` overshoots its range) no longer has the sticky-bottom and scroll-anchor writes snapping the position back every frame, which vibrated the pane at the end of the scroll.
+
 Rows are patched, not rebuilt.
 
 - `populateBlock` keeps row nodes keyed by stable row on the block element,
