@@ -91,15 +91,14 @@ type trackerIntakeConfig struct {
 // client. The CLI sets common fields via flags and the whole object via
 // --config-json.
 type projectConfig struct {
-	DefaultBranch     string              `json:"defaultBranch,omitempty"`
-	SessionPrefix     string              `json:"sessionPrefix,omitempty"`
-	Env               map[string]string   `json:"env,omitempty"`
-	Symlinks          []string            `json:"symlinks,omitempty"`
-	PostCreate        []string            `json:"postCreate,omitempty"`
-	OrchestratorRules string              `json:"orchestratorRules,omitempty"`
-	AgentConfig       agentConfig         `json:"agentConfig,omitempty"`
-	Agent             string              `json:"agent,omitempty"`
-	TrackerIntake     trackerIntakeConfig `json:"trackerIntake,omitempty"`
+	DefaultBranch string              `json:"defaultBranch,omitempty"`
+	SessionPrefix string              `json:"sessionPrefix,omitempty"`
+	Env           map[string]string   `json:"env,omitempty"`
+	Symlinks      []string            `json:"symlinks,omitempty"`
+	PostCreate    []string            `json:"postCreate,omitempty"`
+	AgentConfig   agentConfig         `json:"agentConfig,omitempty"`
+	Agent         string              `json:"agent,omitempty"`
+	TrackerIntake trackerIntakeConfig `json:"trackerIntake,omitempty"`
 }
 
 // setConfigRequest mirrors the daemon's SetConfigInput body for
@@ -109,21 +108,20 @@ type setConfigRequest struct {
 }
 
 type projectSetConfigOptions struct {
-	defaultBranch     string
-	sessionPrefix     string
-	model             string
-	permission        string
-	agent             string
-	orchestratorRules string
-	env               []string
-	symlink           []string
-	postCreate        []string
-	trackerIntake     bool
-	trackerRepo       string
-	trackerAssignee   string
-	configJSON        string
-	clear             bool
-	json              bool
+	defaultBranch   string
+	sessionPrefix   string
+	model           string
+	permission      string
+	agent           string
+	env             []string
+	symlink         []string
+	postCreate      []string
+	trackerIntake   bool
+	trackerRepo     string
+	trackerAssignee string
+	configJSON      string
+	clear           bool
+	json            bool
 }
 
 type projectListResult struct {
@@ -298,7 +296,6 @@ func newProjectSetConfigCommand(ctx *commandContext) *cobra.Command {
 	f.StringVar(&opts.model, "model", "", "Agent model override (e.g. claude-opus-4-5)")
 	f.StringVar(&opts.permission, "permission", "", "Permission mode: default, accept-edits, auto, bypass-permissions")
 	f.StringVar(&opts.agent, "agent", "", "Harness override for the project")
-	f.StringVar(&opts.orchestratorRules, "orchestrator-rules", "", "Project-specific standing instructions for orchestrator sessions")
 	f.StringArrayVar(&opts.env, "env", nil, "Env var KEY=VALUE forwarded into sessions (repeatable)")
 	f.StringArrayVar(&opts.symlink, "symlink", nil, "Repo-relative path to symlink into workspaces (repeatable)")
 	f.StringArrayVar(&opts.postCreate, "post-create", nil, "Command to run after workspace creation (repeatable)")
@@ -332,14 +329,13 @@ func buildProjectConfig(opts projectSetConfigOptions) (projectConfig, error) {
 		return projectConfig{}, err
 	}
 	cfg := projectConfig{
-		DefaultBranch:     opts.defaultBranch,
-		SessionPrefix:     opts.sessionPrefix,
-		Env:               env,
-		Symlinks:          opts.symlink,
-		PostCreate:        opts.postCreate,
-		OrchestratorRules: opts.orchestratorRules,
-		AgentConfig:       agentConfig{Model: opts.model, Permissions: opts.permission},
-		Agent:             opts.agent,
+		DefaultBranch: opts.defaultBranch,
+		SessionPrefix: opts.sessionPrefix,
+		Env:           env,
+		Symlinks:      opts.symlink,
+		PostCreate:    opts.postCreate,
+		AgentConfig:   agentConfig{Model: opts.model, Permissions: opts.permission},
+		Agent:         opts.agent,
 		TrackerIntake: trackerIntakeConfig{
 			Enabled:  opts.trackerIntake,
 			Provider: trackerProviderForFlags(opts),

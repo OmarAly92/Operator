@@ -96,18 +96,6 @@ describe("buildCommands grouping", () => {
 		expect(byId(items).has("current-project-settings")).toBe(false);
 	});
 
-	it("disables New task while the project is restarting", () => {
-		const items = buildCommands({
-			workspaces: workspaces(),
-			currentProjectId: "proj-1",
-			restartingProjectIds: new Set(["proj-1"]),
-		});
-		const map = byId(items);
-		expect(map.get("current-new-task")?.disabled).toBe(true);
-		expect(map.get("current-new-task")?.disabledReason).toBe("Orchestrator restarting");
-		expect(map.get("current-project-settings")?.disabled).toBeFalsy();
-	});
-
 	it("omits Copy branch for a synthetic (session/<id>) branch", () => {
 		const synthetic = buildCommands({ workspaces: workspaces(), currentSessionId: "w-synthetic" });
 		expect(byId(synthetic).has("current-copy-branch")).toBe(false);

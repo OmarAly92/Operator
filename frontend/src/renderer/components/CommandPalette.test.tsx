@@ -186,7 +186,6 @@ beforeEach(() => {
 			isCommandPaletteOpen: false,
 			themePreference: "dark",
 			resolvedTheme: "dark",
-			restartingProjectIds: new Set(),
 			settingsModal: null,
 		});
 	});

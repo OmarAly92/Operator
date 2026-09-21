@@ -31,7 +31,6 @@ export function ShellTopbar({ embedded = false }: { embedded?: boolean } = {}) {
 		currentSessionId ? inspectorState(state.inspectorSessions, currentSessionId).isOpen : false,
 	);
 	const toggleInspector = useUiStore((state) => state.toggleInspector);
-	const restartingProjectIds = useUiStore((state) => state.restartingProjectIds);
 	const requestNewTask = useUiStore((state) => state.requestNewTask);
 	const requestNewShellTerminal = useUiStore((state) => state.requestNewShellTerminal);
 	const all = useWorkspaceQuery().data ?? [];
@@ -50,10 +49,9 @@ export function ShellTopbar({ embedded = false }: { embedded?: boolean } = {}) {
 	const isRootBoardRoute = !isSessionRoute && !isProjectBoardRoute;
 	const project = projectId ? all.find((workspace) => workspace.id === projectId) : undefined;
 	const projectLabel = project?.name ?? session?.workspaceName ?? (projectId ? "" : t("shell.board"));
-	const isProjectRestarting = projectId ? restartingProjectIds.has(projectId) : false;
 
 	const openNewTask = () => {
-		if (!projectId || isProjectRestarting) return;
+		if (!projectId) return;
 		requestNewTask(projectId);
 	};
 
@@ -113,7 +111,6 @@ export function ShellTopbar({ embedded = false }: { embedded?: boolean } = {}) {
 						</TopbarButton>
 						<TopbarButton
 							aria-label={t("shell.newTask")}
-							disabled={isProjectRestarting}
 							onClick={openNewTask}
 							variant="accent"
 						>

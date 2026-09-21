@@ -443,8 +443,6 @@ function ProjectItem({
 		const id = requestAnimationFrame(() => setAnimReady(true));
 		return () => cancelAnimationFrame(id);
 	}, []);
-	const restartingProjectIds = useUiStore((state) => state.restartingProjectIds);
-	const isProjectRestarting = restartingProjectIds.has(workspace.id);
 	const requestNewTask = useUiStore((state) => state.requestNewTask);
 	// Keep completed PR sessions reachable while their runtime still exists.
 	// Only termination removes a worker from the sidebar; archived sessions stay
@@ -631,7 +629,6 @@ function ProjectItem({
 					<button
 						aria-label={t("shell.newTaskInProject", { name: workspace.name })}
 						className={HOVER_ACTION_CLASS}
-						disabled={isProjectRestarting}
 						onClick={() => requestNewTask(workspace.id)}
 						type="button"
 					>
@@ -661,7 +658,7 @@ function ProjectItem({
 					</button>
 				</DropdownMenuTrigger>
 				<DropdownMenuContent side="right" align="start" className="min-w-44">
-					<DropdownMenuItem disabled={isProjectRestarting} onSelect={() => requestNewTask(workspace.id)}>
+					<DropdownMenuItem onSelect={() => requestNewTask(workspace.id)}>
 						<Plus aria-hidden="true" />
 						{t("shell.newSession")}
 					</DropdownMenuItem>
@@ -748,7 +745,7 @@ function ProjectItem({
 		</SidebarMenuItem>
 		</ContextMenuTrigger>
 		<ContextMenuContent className="min-w-44">
-			<ContextMenuItem disabled={isProjectRestarting} onSelect={() => requestNewTask(workspace.id)}>
+			<ContextMenuItem onSelect={() => requestNewTask(workspace.id)}>
 				<Plus aria-hidden="true" />
 				{t("shell.newSession")}
 			</ContextMenuItem>

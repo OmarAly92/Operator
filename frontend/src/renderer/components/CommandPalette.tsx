@@ -46,7 +46,6 @@ export function CommandPalette() {
 	const setThemePreference = useUiStore((s) => s.setThemePreference);
 	const isOpen = useUiStore((s) => s.isCommandPaletteOpen);
 	const setOpen = useUiStore((s) => s.setCommandPaletteOpen);
-	const restartingProjectIds = useUiStore((s) => s.restartingProjectIds);
 
 	const [view, setView] = useState<PaletteView>({ mode: "root" });
 	const [query, setQuery] = useState("");
@@ -71,9 +70,8 @@ export function CommandPalette() {
 				workspaces,
 				currentProjectId,
 				currentSessionId: params.sessionId,
-				restartingProjectIds,
 			}, t),
-		[workspaces, currentProjectId, params.sessionId, restartingProjectIds, t, i18n.resolvedLanguage],
+		[workspaces, currentProjectId, params.sessionId, t, i18n.resolvedLanguage],
 	);
 	const scoped = useMemo(
 		() => (view.mode === "session-actions" ? findSession(workspaces, view.sessionId) : undefined),
@@ -195,12 +193,6 @@ export function CommandPalette() {
 		[navigate],
 	);
 
-	const blockedByRestart = useCallback((projectId: string) => {
-		if (!useUiStore.getState().restartingProjectIds.has(projectId)) return false;
-		setError(t("command.orchestratorRestarting"));
-		return true;
-	}, [t]);
-
 	const resumeSession = useCallback(
 		async (sessionId: string) => {
 			const result = await restoreSessionById(sessionId);
@@ -252,7 +244,6 @@ export function CommandPalette() {
 						break;
 					}
 					case "open-new-task":
-						if (blockedByRestart(action.projectId)) break;
 						pushView({ mode: "new-task", projectId: action.projectId });
 						break;
 					case "open-new-project":
@@ -267,7 +258,7 @@ export function CommandPalette() {
 				setPendingId(null);
 			}
 		},
-		[navigateToTarget, closePalette, toggleTheme, resumeSession, pushView, blockedByRestart, t],
+		[navigateToTarget, closePalette, toggleTheme, resumeSession, pushView, t],
 	);
 
 	const onSelectItem = useCallback(

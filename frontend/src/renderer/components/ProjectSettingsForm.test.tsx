@@ -64,7 +64,6 @@ function TestProjectSettings({
 		validationError: null,
 		mutationError: null,
 		saved: false,
-		replacementError: null,
 	});
 	return (
 		<>

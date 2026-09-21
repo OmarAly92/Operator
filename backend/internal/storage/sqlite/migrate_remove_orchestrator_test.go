@@ -119,4 +119,41 @@ func TestMigrate0116PreservesSessionCDCTriggers(t *testing.T) {
 	if eventType != "session_updated" {
 		t.Fatalf("termination event_type = %s, want session_updated", eventType)
 	}
+
+	// sessions_cdc_insert: inserting a new session row fires session_created
+	// with the id/activity/isTerminated payload the board and mobile expect.
+	if _, err := db.Exec(`DELETE FROM change_log`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(`INSERT INTO sessions (id, project_id, num, activity_last_at, created_at, updated_at, workspace_mode)
+		VALUES ('w2', 'p', 3, datetime('now'), datetime('now'), datetime('now'), 'worktree')`); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.QueryRow(`SELECT event_type, payload FROM change_log ORDER BY seq DESC LIMIT 1`).Scan(&eventType, &payload); err != nil {
+		t.Fatal("no change_log row after insert; sessions_cdc_insert is broken: " + err.Error())
+	}
+	if eventType != "session_created" {
+		t.Fatalf("insert event_type = %s, want session_created", eventType)
+	}
+	if !strings.Contains(payload, `"id":"w2"`) || !strings.Contains(payload, `"isTerminated"`) {
+		t.Fatalf("insert payload missing id/isTerminated: %s", payload)
+	}
+
+	// sessions_cdc_delete: deleting a session row fires session_deleted with
+	// the deleted id, so subscribers can drop it from their in-memory state.
+	if _, err := db.Exec(`DELETE FROM change_log`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(`DELETE FROM sessions WHERE id = 'w2'`); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.QueryRow(`SELECT event_type, payload FROM change_log ORDER BY seq DESC LIMIT 1`).Scan(&eventType, &payload); err != nil {
+		t.Fatal("no change_log row after delete; sessions_cdc_delete is broken: " + err.Error())
+	}
+	if eventType != "session_deleted" {
+		t.Fatalf("delete event_type = %s, want session_deleted", eventType)
+	}
+	if !strings.Contains(payload, `"id":"w2"`) {
+		t.Fatalf("delete payload missing id: %s", payload)
+	}
 }

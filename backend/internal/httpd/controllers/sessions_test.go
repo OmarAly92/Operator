@@ -450,7 +450,7 @@ func (f *fakeSessionService) DelegateTask(_ context.Context, in sessionsvc.Deleg
 	if f.delegationErr != nil {
 		return sessionsvc.DelegateTaskOutcome{}, f.delegationErr
 	}
-	return sessionsvc.DelegateTaskOutcome{WorkerID: "opr-worker", OrchestratorID: "opr-orch"}, nil
+	return sessionsvc.DelegateTaskOutcome{WorkerID: "opr-worker"}, nil
 }
 
 func (f *fakeSessionService) ListPRs(_ context.Context, id domain.SessionID) ([]domain.PRFacts, error) {
@@ -2162,12 +2162,11 @@ func TestSessionsAPI_DelegateTask(t *testing.T) {
 		t.Fatalf("delegate = %d, want 202; body=%s", status, body)
 	}
 	var got struct {
-		OK             bool   `json:"ok"`
-		WorkerID       string `json:"workerId"`
-		OrchestratorID string `json:"orchestratorId"`
+		OK       bool   `json:"ok"`
+		WorkerID string `json:"workerId"`
 	}
 	mustJSON(t, body, &got)
-	if !got.OK || got.WorkerID != "opr-worker" || got.OrchestratorID != "opr-orch" {
+	if !got.OK || got.WorkerID != "opr-worker" {
 		t.Fatalf("response = %#v", got)
 	}
 	if svc.delegationInput.ProjectID != "opr" || svc.delegationInput.Brief != "Fix it" || svc.delegationInput.RequestedAgent != domain.HarnessCursor || svc.delegationInput.Model != "sonnet-custom" {

@@ -580,7 +580,6 @@ func ticketOperations() []operation {
 	}
 }
 
-
 func browserOperations() []operation {
 	return []operation{
 		{
@@ -1946,7 +1945,7 @@ func sessionOperations() []operation {
 		},
 		{
 			method: http.MethodPost, path: "/api/v1/sessions/delegate", id: "delegateTask", tag: "sessions",
-			summary: "Start a worker task and ask the orchestrator to title it",
+			summary: "Spawn a worker session for a task",
 			reqBody: controllers.DelegateTaskRequest{},
 			resps: []respUnit{
 				{http.StatusAccepted, controllers.DelegateTaskResponse{}},

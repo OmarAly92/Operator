@@ -79,7 +79,7 @@ beforeEach(() => {
 	});
 	postMock.mockReset().mockImplementation(async (path: string) => {
 		if (path === "/api/v1/agents/refresh") return { data: agentInventory, error: undefined };
-		return { data: { ok: true, workerId: "worker-1", orchestratorId: "orch-1" }, error: undefined };
+		return { data: { ok: true, workerId: "worker-1" }, error: undefined };
 	});
 });
 

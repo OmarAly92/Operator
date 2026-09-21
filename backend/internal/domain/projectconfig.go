@@ -31,10 +31,6 @@ type ProjectConfig struct {
 	// PostCreate are shell commands run in the workspace after it is created.
 	PostCreate []string `json:"postCreate,omitempty"`
 
-	// OrchestratorRules are project-specific standing instructions for
-	// orchestrator sessions.
-	OrchestratorRules string `json:"orchestratorRules,omitempty"`
-
 	// AgentConfig is the default agent config for the project.
 	AgentConfig AgentConfig `json:"agentConfig,omitempty"`
 	// Harness selects the project's agent harness.

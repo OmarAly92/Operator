@@ -11,8 +11,7 @@ import (
 // TestDelegateTaskSpawnsWorkerDirectly covers the surviving behavior of
 // DelegateTask: it spawns the worker directly with a provisional display name
 // derived from the brief. There is no orchestrator to title-refine through
-// any more, so DelegateTaskOutcome.OrchestratorID always stays empty and no
-// background work is scheduled.
+// any more, so no background work is scheduled.
 func TestDelegateTaskSpawnsWorkerDirectly(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -38,8 +37,8 @@ func TestDelegateTaskSpawnsWorkerDirectly(t *testing.T) {
 			if err != nil {
 				t.Fatalf("DelegateTask: %v", err)
 			}
-			if out.WorkerID != "mer-9" || out.OrchestratorID != "" {
-				t.Fatalf("out = %#v, want worker mer-9 with no orchestrator", out)
+			if out.WorkerID != "mer-9" {
+				t.Fatalf("out = %#v, want worker mer-9", out)
 			}
 			if !cmd.spawned || cmd.spawnedCfg.ProjectID != "opr" || cmd.spawnedCfg.Harness != tt.wantAgent || cmd.spawnedCfg.Prompt != brief || cmd.spawnedCfg.DisplayName != "Fix the renderer wit" {
 				t.Fatalf("spawn cfg = %#v", cmd.spawnedCfg)
@@ -69,7 +68,7 @@ func TestDelegateTaskStartsPromptlessWorker(t *testing.T) {
 	if err != nil {
 		t.Fatalf("DelegateTask: %v", err)
 	}
-	if out.WorkerID != "mer-9" || out.OrchestratorID != "" {
+	if out.WorkerID != "mer-9" {
 		t.Fatalf("out = %#v, want promptless worker mer-9", out)
 	}
 	if !cmd.spawned || cmd.spawnedCfg.Prompt != "" || cmd.spawnedCfg.DisplayName != "Untitled task" {

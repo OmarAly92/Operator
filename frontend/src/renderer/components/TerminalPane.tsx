@@ -723,40 +723,6 @@ export function TerminalPane({
 }
 
 function workerPreviewLines(session: WorkspaceSession | undefined, provider: string): string[] {
-	if (session?.id === "opr-demo-orchestrator") {
-		return [
-			"> Go through my Linear backlog and let's plan which tasks to spawn off",
-			"",
-			"Ran 3 shell commands",
-			"",
-			"Here's the backlog triage. Half of it is already in flight — don't spawn those.",
-			"",
-			"Already covered — don't spawn (session → PR):",
-			"— terminal polish → PR #318, changes requested",
-			"— browser preview stack → PRs #319/#320, in review",
-			"— README screenshot assets → PR #323, approved and mergeable",
-			"",
-			"Plan: 3 sessions worth spawning",
-			"",
-			"┌───┬────────────────────┬──────────────────────────────────────────┬──────────────────────────────────┐",
-			"│ # │ Session            │ Scope                                    │ Why now                          │",
-			"├───┼────────────────────┼──────────────────────────────────────────┼──────────────────────────────────┤",
-			"│ 1 │ new-task-flake     │ NewTaskDialog smoke test flakes on Enter │ Failing PR #324's e2e; small fix │",
-			"│ 2 │ checkout-retries   │ e2e retries leak state between runs      │ Flakes 1-in-5 on CI; well scoped │",
-			"│ 3 │ session-pr-surface │ PR checks missing on board cards         │ Additive; touches board only     │",
-			"└───┴────────────────────┴──────────────────────────────────────────┴──────────────────────────────────┘",
-			"",
-			"Want me to spawn all three? I'd put #1–2 on codex and #3 on claude-code.",
-			"",
-			"> yes, spawn all three",
-			"",
-			"Running 3 shell commands…",
-			'└ $ opr spawn --project opr-demo --name "new-task-flake" --agent codex --prompt',
-			'  "Fix the flaky NewTaskDialog smoke test: submit is debounced 300ms while the',
-			'  e2e check asserts synchronously. Reproduce, fix, and push to update PR #324."',
-			"PASS 3 sessions spawned — board updated",
-		];
-	}
 	if (session?.id === "demo-review-stack") {
 		return [
 			'$ rg "previewUrl|previewRevision" frontend/src/renderer',

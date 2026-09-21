@@ -45,7 +45,6 @@ export type CommandPaletteContext = {
 	workspaces: WorkspaceSummary[];
 	currentProjectId?: string;
 	currentSessionId?: string;
-	restartingProjectIds?: ReadonlySet<string>;
 };
 
 export const commandGroupOrder: CommandGroupId[] = ["current", "attention", "projects", "sessions", "prs", "global"];
@@ -166,14 +165,13 @@ export function findSession(workspaces: WorkspaceSummary[], sessionId: string): 
 }
 
 export function buildCommands(ctx: CommandPaletteContext, t: TFunction = appI18n.t): CommandItem[] {
-	const { workspaces, currentProjectId, currentSessionId, restartingProjectIds } = ctx;
+	const { workspaces, currentProjectId, currentSessionId } = ctx;
 	const items: CommandItem[] = [];
 
 	const currentProject = currentProjectId
 		? workspaces.find((workspace) => workspace.id === currentProjectId)
 		: undefined;
 	const currentSession = currentSessionId ? findSession(workspaces, currentSessionId)?.session : undefined;
-	const isProjectRestarting = Boolean(currentProject && restartingProjectIds?.has(currentProject.id));
 
 	items.push({
 		id: "current-new-task",
@@ -181,12 +179,8 @@ export function buildCommands(ctx: CommandPaletteContext, t: TFunction = appI18n
 		title: t("command.newTask"),
 		subtitle: currentProject?.name,
 		keywords: ["worker", "chat", "start"],
-		disabled: !currentProject || isProjectRestarting,
-		disabledReason: !currentProject
-			? t("command.noCurrentProject")
-			: isProjectRestarting
-				? t("command.orchestratorRestarting")
-				: undefined,
+		disabled: !currentProject,
+		disabledReason: !currentProject ? t("command.noCurrentProject") : undefined,
 		...(currentProject ? { action: { kind: "open-new-task" as const, projectId: currentProject.id } } : {}),
 	});
 

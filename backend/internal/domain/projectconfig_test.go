@@ -27,7 +27,6 @@ func TestProjectConfigValidate(t *testing.T) {
 		{"symlink parent escape", ProjectConfig{Symlinks: []string{"../escape"}}, true},
 		{"symlink embedded parent", ProjectConfig{Symlinks: []string{"a/../../b"}}, true},
 		{"symlink bare ..", ProjectConfig{Symlinks: []string{".."}}, true},
-		{"good prompt rules", ProjectConfig{OrchestratorRules: "Delegate work."}, false},
 		{"good reviewers", ProjectConfig{Reviewers: []ReviewerConfig{{Harness: ReviewerClaudeCode}}}, false},
 		{"good codex reviewer", ProjectConfig{Reviewers: []ReviewerConfig{{Harness: ReviewerCodex}}}, false},
 		{"good copilot reviewer", ProjectConfig{Reviewers: []ReviewerConfig{{Harness: ReviewerCopilot}}}, false},

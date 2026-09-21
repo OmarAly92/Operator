@@ -1712,7 +1712,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Start a worker task and ask the orchestrator to title it */
+        /** Spawn a worker session for a task */
         post: operations["delegateTask"];
         delete?: never;
         options?: never;
@@ -2255,7 +2255,6 @@ export interface components {
         };
         DelegateTaskResponse: {
             ok: boolean;
-            orchestratorId?: string;
             workerId: string;
         };
         DesktopResponse: {
@@ -2713,7 +2712,6 @@ export interface components {
             env?: {
                 [key: string]: string;
             };
-            orchestratorRules?: string;
             postCreate?: string[];
             reviewers?: components["schemas"]["DomainReviewerConfig"][];
             sessionPrefix?: string;
@@ -2735,7 +2733,6 @@ export interface components {
             /** @enum {string} */
             kind: "single_repo" | "workspace" | "scratch";
             name: string;
-            orchestratorAgent?: string;
             path: string;
             resolveError?: string;
             sessionPrefix: string;

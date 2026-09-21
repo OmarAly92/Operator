@@ -92,7 +92,6 @@ beforeEach(() => {
 	createProjectMock.mockResolvedValue(undefined);
 	initializeProjectRepositoryMock.mockResolvedValue(undefined);
 	useUiStore.setState({
-		restartingProjectIds: new Set(),
 		settingsModal: null,
 	});
 });

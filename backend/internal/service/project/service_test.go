@@ -260,9 +260,6 @@ func TestManager_EnsureDefaultScratchProjectSeedsFreshRegistry(t *testing.T) {
 	if len(list) != 1 || list[0].ID != "scratch" || list[0].Kind != domain.ProjectKindScratch {
 		t.Fatalf("List = %#v, want one scratch project", list)
 	}
-	if list[0].OrchestratorAgent != domain.HarnessCodex {
-		t.Fatalf("summary orchestrator agent = %q, want codex", list[0].OrchestratorAgent)
-	}
 }
 
 func TestManager_EnsureDefaultScratchProjectDoesNotReseedWithActiveProject(t *testing.T) {
@@ -562,10 +559,9 @@ func TestManager_UpdateSettings(t *testing.T) {
 	}
 
 	cfg := domain.ProjectConfig{
-		DefaultBranch:     "develop",
-		Env:               map[string]string{"FOO": "bar"},
-		OrchestratorRules: "Delegate implementation.",
-		AgentConfig:       domain.AgentConfig{Model: "claude-opus-4-5"},
+		DefaultBranch: "develop",
+		Env:           map[string]string{"FOO": "bar"},
+		AgentConfig:   domain.AgentConfig{Model: "claude-opus-4-5"},
 	}
 	proj, err := m.UpdateSettings(ctx, "opr", project.UpdateSettingsInput{
 		DisplayName: "  Operator Project  ",
@@ -589,10 +585,6 @@ func TestManager_UpdateSettings(t *testing.T) {
 	if got.Project == nil || got.Project.Name != "Operator Project" || got.Project.Config == nil || got.Project.Config.Env["FOO"] != "bar" {
 		t.Fatalf("Get project = %#v", got.Project)
 	}
-	if got.Project.Config.OrchestratorRules != "Delegate implementation." {
-		t.Fatalf("Get rules config = %#v", got.Project.Config)
-	}
-
 	// Invalid fields are rejected before either value is persisted.
 	_, err = m.UpdateSettings(ctx, "opr", project.UpdateSettingsInput{
 		DisplayName: "Should Not Persist",
@@ -637,11 +629,8 @@ func TestManager_ListIncludesOnlySummarySafeProjectConfig(t *testing.T) {
 	if err != nil {
 		t.Fatalf("List: %v", err)
 	}
-	if len(list) != 1 {
-		t.Fatalf("List len = %d, want 1", len(list))
-	}
-	if list[0].OrchestratorAgent != domain.HarnessCodex {
-		t.Fatalf("summary orchestrator agent = %q, want codex", list[0].OrchestratorAgent)
+	if len(list) != 1 || list[0].ID != "opr" {
+		t.Fatalf("List = %#v, want one project with id opr", list)
 	}
 }
 

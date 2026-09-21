@@ -144,7 +144,6 @@ opr project set-config <id> [flags]
 | `--env stringArray` | Env var `KEY=VALUE` forwarded into sessions (repeatable) | - |
 | `--json` | Output the updated project as JSON | - |
 | `--model string` | Agent model override (e.g. `claude-opus-4-5`) | - |
-| `--orchestrator-rules string` | Project-specific standing instructions; currently unread by any session (kept for wire compatibility) | - |
 | `--permission string` | Permission mode: `default`, `accept-edits`, `auto`, `bypass-permissions` | - |
 | `--post-create stringArray` | Command to run after workspace creation (repeatable) | - |
 | `--session-prefix string` | Displayed session-id prefix | - |

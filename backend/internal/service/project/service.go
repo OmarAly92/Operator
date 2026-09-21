@@ -116,12 +116,11 @@ func (m *Service) List(ctx context.Context) ([]Summary, error) {
 	out := make([]Summary, 0, len(projects))
 	for _, row := range projects {
 		out = append(out, Summary{
-			ID:                domain.ProjectID(row.ID),
-			Name:              displayName(row),
-			Path:              row.Path,
-			Kind:              row.Kind.WithDefault(),
-			SessionPrefix:     resolveSessionPrefix(row),
-			OrchestratorAgent: row.Config.Harness,
+			ID:            domain.ProjectID(row.ID),
+			Name:          displayName(row),
+			Path:          row.Path,
+			Kind:          row.Kind.WithDefault(),
+			SessionPrefix: resolveSessionPrefix(row),
 		})
 	}
 	return out, nil

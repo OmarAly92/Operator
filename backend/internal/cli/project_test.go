@@ -236,34 +236,6 @@ func TestProjectGet_NotFound(t *testing.T) {
 	}
 }
 
-func TestProjectSetConfig_RulesFlags(t *testing.T) {
-	cfg := setConfigEnv(t)
-	srv, capture := projectServer(t, http.StatusOK, `{"status":"ok","project":{"id":"demo","config":{"orchestratorRules":"Delegate."}}}`)
-	writeRunFileFor(t, cfg, srv)
-
-	out, errOut, err := executeCLI(t, Deps{
-		ProcessAlive: func(int) bool { return true },
-	}, "project", "set-config", "demo",
-		"--orchestrator-rules", "Delegate.",
-	)
-	if err != nil {
-		t.Fatalf("unexpected error: %v\nstderr=%s", err, errOut)
-	}
-	if capture.method != http.MethodPut || capture.path != "/api/v1/projects/demo/config" {
-		t.Fatalf("request = %s %s, want PUT /api/v1/projects/demo/config", capture.method, capture.path)
-	}
-	var got setConfigRequest
-	if err := json.Unmarshal(capture.body, &got); err != nil {
-		t.Fatalf("decode request body: %v\nbody=%s", err, capture.body)
-	}
-	if got.Config.OrchestratorRules != "Delegate." {
-		t.Fatalf("rules config = %#v", got.Config)
-	}
-	if !strings.Contains(out, "updated config for project demo") {
-		t.Fatalf("output missing update message:\n%s", out)
-	}
-}
-
 func TestProjectRemove_RequiresID(t *testing.T) {
 	setConfigEnv(t)
 	_, _, err := executeCLI(t, Deps{}, "project", "rm")

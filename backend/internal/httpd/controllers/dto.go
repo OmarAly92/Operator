@@ -703,12 +703,10 @@ type DelegateTaskRequest struct {
 	ClaudeAccountID domain.ClaudeAccountID `json:"claudeAccountId,omitempty" maxLength:"64" description:"Claude account for a claude-code worker. Omit for the default account."`
 }
 
-// DelegateTaskResponse confirms which worker was spawned and, when available,
-// which orchestrator received the follow-up title request.
+// DelegateTaskResponse confirms which worker was spawned.
 type DelegateTaskResponse struct {
-	OK             bool             `json:"ok"`
-	WorkerID       domain.SessionID `json:"workerId"`
-	OrchestratorID domain.SessionID `json:"orchestratorId,omitempty"`
+	OK       bool             `json:"ok"`
+	WorkerID domain.SessionID `json:"workerId"`
 }
 
 // SessionPRFacts is the pull-request read shape returned under session PR routes.

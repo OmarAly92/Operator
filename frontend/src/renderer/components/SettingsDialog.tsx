@@ -67,7 +67,6 @@ export function SettingsDialog() {
 		validationError: null,
 		mutationError: null,
 		saved: false,
-		replacementError: null,
 	});
 
 	const activeLabel = isProjectSettings
@@ -99,7 +98,6 @@ export function SettingsDialog() {
 				validationError: null,
 				mutationError: null,
 				saved: false,
-				replacementError: null,
 			});
 		}
 	}, [settingsModal]);
@@ -152,13 +150,7 @@ export function SettingsDialog() {
 									)}
 									disabled={projectSaveState.isPending}
 									aria-live="polite"
-									title={
-										projectSaveState.validationError ??
-										projectSaveState.mutationError ??
-										(projectSaveState.replacementError
-											? t("settings.project.restartFailed", { error: projectSaveState.replacementError })
-											: undefined)
-									}
+									title={projectSaveState.validationError ?? projectSaveState.mutationError ?? undefined}
 								>
 									{projectSaveState.showSaving ? (
 										t("settings.project.saving")

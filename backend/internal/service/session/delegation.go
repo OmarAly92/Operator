@@ -32,11 +32,9 @@ type DelegateTaskInput struct {
 	ClaudeAccountID domain.ClaudeAccountID
 }
 
-// DelegateTaskOutcome identifies the spawned worker. OrchestratorID remains
-// for wire compatibility; nothing ever sets it.
+// DelegateTaskOutcome identifies the spawned worker.
 type DelegateTaskOutcome struct {
-	OrchestratorID domain.SessionID
-	WorkerID       domain.SessionID
+	WorkerID domain.SessionID
 }
 
 // DelegateTask spawns the worker directly, matching `opr spawn`, with a

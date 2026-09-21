@@ -34,7 +34,6 @@ export interface ProjectSettingsSaveState {
 	validationError: string | null;
 	mutationError: string | null;
 	saved: boolean;
-	replacementError: string | null;
 }
 
 export function ProjectSettingsForm({
@@ -196,7 +195,6 @@ function SettingsBody({
 			validationError,
 			mutationError: mutation.isError ? (mutation.error instanceof Error ? mutation.error.message : t("settings.project.saveFailed")) : null,
 			saved: savedAt !== null && !mutation.isPending && !mutation.isError,
-			replacementError: null,
 		});
 	}, [mutation.error, mutation.isError, mutation.isPending, onSaveState, savedAt, showSaving, t, validationError]);
 
