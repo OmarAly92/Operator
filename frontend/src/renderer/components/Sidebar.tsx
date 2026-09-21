@@ -841,7 +841,7 @@ function SessionRow({
 	if (isEditing) {
 		return (
 			<SidebarMenuSubItem>
-				<div className="relative flex h-8 w-full items-center gap-2 rounded-lg px-2.5 py-0">
+				<div className="relative flex h-7 w-full items-center gap-2 rounded-lg px-2.5 py-0">
 					<span aria-hidden="true" className="inline-flex size-icon-md shrink-0 items-center justify-center">
 						<SessionStatusDot session={session} />
 					</span>
@@ -885,7 +885,7 @@ function SessionRow({
 					    breaks keyboard traversal. */}
 					<div
 						className={cn(
-							"group/session-row flex h-8 w-full items-center gap-0.5 rounded-lg pr-1.5 transition-[background-color,color]",
+							"group/session-row flex h-7 w-full items-center gap-0.5 rounded-lg pr-1.5 transition-[background-color,color]",
 							"hover:bg-interactive-hover hover:text-foreground focus-within:bg-interactive-hover",
 							active && "bg-interactive-active text-foreground",
 						)}
@@ -895,7 +895,7 @@ function SessionRow({
 							<button
 								aria-current={active ? "page" : undefined}
 								aria-label={t("shell.openSession", { title: session.title })}
-								className="flex h-8 min-w-0 flex-1 items-center gap-2 rounded-lg pl-2.5 pr-1 py-0 text-left text-control outline-hidden focus-visible:ring-2 focus-visible:ring-sidebar-ring"
+								className="flex h-7 min-w-0 flex-1 items-center gap-2 rounded-lg pl-2.5 pr-1 py-0 text-left text-control outline-hidden focus-visible:ring-2 focus-visible:ring-sidebar-ring"
 								onClick={onOpen}
 								type="button"
 							>
