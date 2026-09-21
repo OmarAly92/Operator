@@ -242,13 +242,13 @@ export function SessionsBoard({ projectId }: SessionsBoardProps) {
 
 			{archivedCount > 0 && (
 				<div className="shrink-0 border-t border-border-strong px-3">
-					{/* The 46px control gives the compact archive bar a slightly taller
-					    target while preserving the bar's surrounding row height. */}
-					<div className={cn("flex items-center gap-2", archiveExpanded ? "min-h-11" : "min-h-row-md")}>
+					{/* 40px bar: its hairline sits level with the sidebar's Settings
+					    footer, which is a 28px row inside 6px of padding. */}
+					<div className="flex min-h-10 items-center gap-2">
 						<button
 							aria-expanded={archiveExpanded}
 							aria-label={t("shell.archiveSessionsAria", { count: archivedCount })}
-							className="group flex h-[46px] min-w-0 items-center gap-2 py-0 text-muted-foreground transition-colors hover:text-foreground"
+							className="group flex h-10 min-w-0 items-center gap-2 py-0 text-muted-foreground transition-colors hover:text-foreground"
 							onClick={() => setArchiveExpanded((v) => !v)}
 							type="button"
 						>

@@ -275,8 +275,8 @@ describe("Sidebar", () => {
 		renderSidebar();
 
 		const footer = document.querySelector('[data-sidebar="footer"]');
-		expect(footer).toHaveClass("border-t", "border-border-strong", "!py-2");
-		expect(screen.getAllByRole("button", { name: "Settings" })[0]).toHaveClass("h-[42px]");
+		expect(footer).toHaveClass("border-t", "border-border-strong", "!py-1.5");
+		expect(screen.getAllByRole("button", { name: "Settings" })[0]).toHaveClass("h-7");
 	});
 
 	it("keeps only the expanded Settings control keyboard-accessible while expanded", () => {
