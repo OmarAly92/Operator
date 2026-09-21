@@ -6074,11 +6074,6 @@ components:
       - totalTokens
       - incomplete
       type: object
-    ContainerReapConfig:
-      properties:
-        disabled:
-          type: boolean
-      type: object
     ControllersRelaunchAgentRequest:
       properties:
         claudeAccountId:
@@ -7641,8 +7636,6 @@ components:
           type: string
         agentConfig:
           $ref: '#/components/schemas/AgentConfig'
-        containerReap:
-          $ref: '#/components/schemas/ContainerReapConfig'
         defaultBranch:
           type: string
         env:

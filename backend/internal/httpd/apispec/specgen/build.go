@@ -162,7 +162,6 @@ var schemaNames = map[string]string{
 	"DomainProjectConfig":              "ProjectConfig",
 	"DomainTrackerIntakeConfig":        "TrackerIntakeConfig",
 	"ControllersTriggerReviewRequest":  "TriggerReviewRequest",
-	"DomainContainerReapConfig":        "ContainerReapConfig",
 	"DomainAgentConfig":                "AgentConfig",
 	"ControllersTicketView":            "TicketView",
 	"ControllersPlanView":              "PlanView",

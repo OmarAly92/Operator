@@ -50,11 +50,6 @@ type ProjectConfig struct {
 	// tracker is not commented on or transitioned.
 	TrackerIntake TrackerIntakeConfig `json:"trackerIntake,omitempty"`
 
-	// ContainerReap is retained for wire/config compatibility but has no
-	// consumer: Operator no longer reaps worker session containers (see #2652
-	// history for the removed adapter).
-	ContainerReap ContainerReapConfig `json:"containerReap,omitempty"`
-
 	Tickets TicketDefaults `json:"tickets,omitempty"`
 }
 
@@ -70,14 +65,6 @@ type TicketDefaults struct {
 	Reviewer          TicketRoleDefaults `json:"reviewer,omitempty"`
 	ReviewerMode      string             `json:"reviewerMode,omitempty" enum:"planner,new"`
 	DisableAutoReview bool               `json:"disableAutoReview,omitempty"`
-}
-
-// ContainerReapConfig is the project-level opt-out for #2652's Docker
-// container reaping on session terminal state.
-type ContainerReapConfig struct {
-	// Disabled turns off container reaping for every session in this project.
-	// Per-container sparing (opr.spare=true) is unaffected either way.
-	Disabled bool `json:"disabled,omitempty"`
 }
 
 // ReviewerConfig names one reviewer agent by harness. The harness is drawn from
