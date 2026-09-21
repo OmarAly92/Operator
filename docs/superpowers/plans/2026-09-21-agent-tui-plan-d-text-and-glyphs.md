@@ -1602,7 +1602,7 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 - Modify: `packages/terminal/Cargo.toml` (workspace dep `unicode-segmentation = "=1.13.3"`), `crates/vt-core/Cargo.toml`, `Cargo.lock`
 - Create: `packages/terminal/crates/vt-core/src/width.rs`
 - Modify: `packages/terminal/crates/vt-core/src/lib.rs` (`pub mod width`, re-exports, `set_grapheme_clusters`/`grapheme_clusters`, history `begin` gets the mode)
-- Modify: `packages/terminal/crates/vt-core/src/parser.rs` (`width_mode` field, `set_width_mode`, `enter_alt` at :295, `rewrap_hot` call at :491, `rows_for` call at :634)
+- Modify: `packages/terminal/crates/vt-core/src/parser.rs` (`width_mode` field, `set_width_mode`, `enter_alt` at :289-300, `rewrap_hot` call at :491, `rows_for` call at :634)
 - Modify: `packages/terminal/crates/vt-core/src/screen.rs` (`width_mode` field + setter, `print` at :409, `join_previous`, `cell_width_at`, `push_zerowidth` → `append_scalar`)
 - Modify: `packages/terminal/crates/vt-core/src/row_index.rs` (`rewrap_hot`, `rows_for`, `rewrap`, `push_line` take `WidthMode`; the loop at :344-368 walks clusters)
 - Modify: `packages/terminal/crates/vt-core/src/history.rs` (`begin(first_stable_row, rows, cols, mode)`)
@@ -1927,7 +1927,7 @@ pub(crate) fn joins_previous(previous: &str, ch: char) -> bool {
 
 and at `lib.rs:246` pass `self.parser.width_mode()` as a fourth argument to `self.history.begin(…)`.
 
-`parser.rs`: field `width_mode: WidthMode` (default in `new`), `pub fn width_mode(&self) -> WidthMode`, `pub fn set_width_mode(&mut self, mode: WidthMode)` that stores it, calls `self.screen.set_width_mode(mode)` and `alt.set_width_mode(mode)` on `self.alt` if present; `enter_alt` (`:295`) calls `alt.set_width_mode(self.width_mode)` after `set_clear_policy`; the `rewrap_hot` call (`:491`) and `rows_for` call (`:634`) pass `self.width_mode`.
+`parser.rs`: field `width_mode: WidthMode` (default in `new`), `pub fn width_mode(&self) -> WidthMode`, `pub fn set_width_mode(&mut self, mode: WidthMode)` that stores it, calls `self.screen.set_width_mode(mode)` and `alt.set_width_mode(mode)` on `self.alt` if present; `enter_alt` (`:289-300`) calls `alt.set_width_mode(self.width_mode)` after `set_clear_policy`; the `rewrap_hot` call (`:491`) and `rows_for` call (`:634`) pass `self.width_mode`.
 
 `screen.rs`: field `width_mode: WidthMode` (init `WidthMode::default()` in `new`), `pub fn set_width_mode(&mut self, mode: WidthMode)`; rename `Cell::push_zerowidth` to `Cell::append_scalar` (same body; update `attach_zerowidth`'s call); replace `print`:
 
