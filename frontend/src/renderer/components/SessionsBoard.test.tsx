@@ -187,7 +187,7 @@ describe("SessionsBoard", () => {
 		expect(screen.queryByText(/reload agents/i)).not.toBeInTheDocument();
 	});
 
-	it("shows the project name in the in-panel board chrome without task or terminal buttons", () => {
+	it("renders no title row above the columns on any platform", () => {
 		boardActionsInPanelMock.mockReturnValue(true);
 		workspaceQueryMock.mockReturnValue({
 			data: [
@@ -217,29 +217,10 @@ describe("SessionsBoard", () => {
 
 		renderBoard("p1");
 
-		expect(screen.getByText("solkit-ui")).toBeInTheDocument();
+		expect(screen.queryByText("solkit-ui")).not.toBeInTheDocument();
+		expect(screen.queryByText("Board")).not.toBeInTheDocument();
 		expect(screen.queryByRole("button", { name: "New task" })).not.toBeInTheDocument();
 		expect(screen.queryByRole("button", { name: "New terminal" })).not.toBeInTheDocument();
-	});
-
-	it("shows the Board crumb on the root board when actions live in the panel", () => {
-		boardActionsInPanelMock.mockReturnValue(true);
-		workspaceQueryMock.mockReturnValue({
-			data: [
-				{
-					id: "p1",
-					name: "solkit-ui",
-					path: "/tmp/solkit-ui",
-					sessions: [],
-				},
-			],
-			isError: false,
-			isSuccess: true,
-		});
-
-		renderBoard();
-
-		expect(screen.getByText("Board")).toBeInTheDocument();
 	});
 
 	it("labels an idle session as Idle, not Working", () => {

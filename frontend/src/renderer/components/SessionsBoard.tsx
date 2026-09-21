@@ -39,7 +39,6 @@ import {
 import { useWorkspaceQuery, workspaceQueryKey } from "../hooks/useWorkspaceQuery";
 import { BoardWelcome, ProjectBoardEmpty } from "./BoardEmptyStates";
 import { AgentAvatar } from "./AgentAvatar";
-import { BoardDiff, topbarProjectLabelClass } from "./TopbarButton";
 import { prBrowserUrl, sessionPRDisplaySummaries } from "../lib/pr-display";
 import { formatTimeCompact } from "../lib/format-time";
 import { formatTokenCount } from "../lib/format-token-count";
@@ -47,7 +46,7 @@ import { SessionClaudeAccountChip } from "./SessionClaudeAccountChip";
 import { operatorBridge } from "../lib/bridge";
 import { usesPreviewWorkspaceData } from "../lib/preview-mode";
 import { cn } from "../lib/utils";
-import { shellChromeDragRegion, usesBoardActionsInPanel, windowDragRegion } from "../lib/platform";
+import { shellChromeDragRegion } from "../lib/platform";
 import { useUiStore } from "../stores/ui-store";
 import { RestoreUnavailableDialog } from "./RestoreUnavailableDialog";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
@@ -79,8 +78,6 @@ function isArchivedSession(session: WorkspaceSession): boolean {
 	return session.isTerminated === true || session.status === "terminated";
 }
 
-const dragRegion = windowDragRegion();
-
 export function SessionsBoard({ projectId }: SessionsBoardProps) {
 	const { t } = useTranslation();
 	const navigate = useNavigate();
@@ -91,12 +88,8 @@ export function SessionsBoard({ projectId }: SessionsBoardProps) {
 	const shell = useShellMaybe();
 	const usageBySession = useSessionUsageSummaries(projectId).data ?? emptyUsageBySession;
 	// Evaluated at render so platform mocks in tests can flip the in-panel chrome.
-	const boardActionsInPanel = usesBoardActionsInPanel();
 	const all = workspaceQuery.data ?? [];
 	const workspaces = projectId ? all.filter((w) => w.id === projectId) : all;
-	const workspace = projectId ? workspaces[0] : undefined;
-	// Same crumb as ShellTopbar: project name in scope, else root-board "Board".
-	const boardLabel = workspace?.name ?? (projectId ? "" : t("shell.board"));
 	const sessions = workspaces.flatMap((w) => w.sessions);
 	const ticketProjects = workspaces
 		.filter((w) => w.kind === "single_repo")
@@ -196,23 +189,6 @@ export function SessionsBoard({ projectId }: SessionsBoardProps) {
 			data-tauri-drag-region={shellChromeDragRegion()}
 			data-testid="board"
 		>
-			{/* macOS: shell topbar is hidden on board routes, so the project/"Board"
-			    crumb lives in this in-panel row. Win/Linux keep the crumb in the
-			    framed ShellTopbar. New task and New terminal are the sidebar's
-			    project-row actions, not the board's.
-			    Welcome skips the row — a dangling "Board" above the import
-			    chooser was review feedback on #2432. */}
-			{!showWelcome && !showStartup && boardActionsInPanel && boardLabel ? (
-				<div
-					className="center-panel-titlebar flex h-toolbar shrink-0 items-center gap-2 border-b border-border-strong pr-4"
-					data-tauri-drag-region={dragRegion}
-				>
-					{boardLabel ? <span className={topbarProjectLabelClass}>{boardLabel}</span> : null}
-					<div className="min-w-0 flex-1" />
-					<BoardDiff workspaces={workspaces} />
-				</div>
-			) : null}
-
 			<div className="min-h-0 flex-1 overflow-hidden">
 				{showStartup ? (
 					<DaemonStartupLoader />
