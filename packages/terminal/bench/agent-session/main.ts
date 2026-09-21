@@ -1,6 +1,6 @@
 import { decodeBlocks, type TerminalCore } from "@operator/terminal-core";
 import { DomBenchmarkRenderer } from "../adapters/dom";
-import type { DomBlockRenderer } from "@operator/terminal-renderer-dom";
+import { parseFeatureList, type DomBlockRenderer, type RendererFeatures } from "@operator/terminal-renderer-dom";
 
 type SizeEntry = { offset: number; cols: number; rows: number };
 
@@ -42,6 +42,7 @@ type AgentSession = {
 	widthChange(cols: number): Promise<{ settleMs: number; before: number; after: number; staleRows: number }>;
 	staleRowCount(): number;
 	cellMetrics(): { cellWidth: number; cellHeight: number };
+	features(): RendererFeatures;
 };
 
 const host = document.getElementById("terminal");
@@ -70,6 +71,8 @@ let fed = 0;
 let nextResize = 1;
 const longTasks: number[] = [];
 const domRenderer = (renderer as unknown as { renderer: DomBlockRenderer }).renderer;
+const featureList = params.get("features") ?? "";
+if (featureList !== "") domRenderer.setFeatures(parseFeatureList(featureList));
 domRenderer.onPaint(() => {
 	paints += 1;
 });
@@ -377,6 +380,7 @@ window.__agentSession = {
 	widthChange,
 	staleRowCount,
 	cellMetrics: () => domRenderer.measure(),
+	features: () => domRenderer.features(),
 	blocks: () => decodeBlocks(core.snapshot()).length,
 } as AgentSession & { blocks(): number };
 window.__agentSessionReady = true;

@@ -16,6 +16,8 @@ const OFFSETS = [0, 0.25, 0.5, 0.75, 1];
 const argv = process.argv.slice(2);
 const record = argv.includes("--record");
 const only = argv.includes("--fixture") ? argv[argv.indexOf("--fixture") + 1] : undefined;
+const feature = argv.includes("--feature") ? argv[argv.indexOf("--feature") + 1] : undefined;
+const featureDirName = feature ? `feature-${feature.replace(/[^a-z0-9]+/gi, "_")}` : undefined;
 const targets = [
 	...listFixtures().map((name) => ({ name, dir: "fixtures" })),
 	...listProbes().map((name) => ({ name, dir: "probes" })),
@@ -59,6 +61,26 @@ try {
 			}
 		}
 		await page.close();
+		if (feature) {
+			const side = await browser.newPage({ viewport: { width: 1600, height: 900 }, deviceScaleFactor: 1 });
+			await side.goto(`http://127.0.0.1:${port}/agent-session/index.html?fixture=${fixture}&dir=${fixtureDir}&features=${encodeURIComponent(feature)}`);
+			await side.waitForFunction(() => window.__agentSessionReady === true, undefined, { timeout: 30000 });
+			await side.evaluate(() => window.__agentSession.feedAll());
+			await side.waitForTimeout(300);
+			const sideDir = path.join(baselinesDir, fixture, featureDirName);
+			await mkdir(sideDir, { recursive: true });
+			for (const fraction of OFFSETS) {
+				const name = `offset-${Math.round(fraction * 100)}.png`;
+				await side.evaluate(async (f) => {
+					const session = window.__agentSession;
+					await session.setScrollTop(Math.round(session.scrollHeight() * f));
+				}, fraction);
+				await side.waitForTimeout(100);
+				await writeFile(path.join(sideDir, name), await side.screenshot({ type: "png", animations: "disabled", caret: "hide" }));
+				process.stdout.write(`side-by-side ${fixture}/${featureDirName}/${name} (compare with ${fixture}/${name})\n`);
+			}
+			await side.close();
+		}
 	}
 	if (failures > 0) throw new Error(`${failures} screenshot(s) differ from the baseline`);
 	process.stdout.write(record ? "recorded feel baselines\n" : "PASS feel gate: zero pixel diff\n");

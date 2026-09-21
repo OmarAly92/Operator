@@ -19,6 +19,7 @@ import { applyFilter, type BlockFilter } from "./block-filter.js";
 import { mountBlockNavFromRenderer, type BlockNavHandle } from "./block-nav.js";
 import { mountJumpToBottom, type JumpToBottom } from "./jump-to-bottom.js";
 import { createPinnedHeaderElement, updatePinnedHeader } from "./pinned-header.js";
+import { DEFAULT_FEATURES, resolveFeatures, sameFeatures, type RendererFeatures } from "./features.js";
 import { defaultFont } from "./default-font.js";
 import { ensureMeasureHost, HIDDEN_MEASURE_ID, listenScroll } from "./host-dom.js";
 import { BLOCK_PADDING_X_PX, BLOCK_PADDING_TOP_LINES, BLOCK_COMMAND_GAP_LINES, blockPaddingY } from "./block-metrics.js";
@@ -98,6 +99,7 @@ export class DomBlockRenderer implements BlockRenderer {
 	private cursorElement: HTMLElement | null = null;
 	private fullSince = 0;
 	private rebuildAll = false;
+	private activeFeatures: RendererFeatures = DEFAULT_FEATURES;
 
 	mount(container: HTMLElement, core: TerminalCore): void {
 		this.dispose();
@@ -150,6 +152,18 @@ export class DomBlockRenderer implements BlockRenderer {
 		this.applyStyleVars();
 		this.rebuildAll = true;
 		this.invalidateMetrics();
+	}
+
+	setFeatures(partial: Partial<RendererFeatures>): void {
+		const next = resolveFeatures({ ...this.activeFeatures, ...partial });
+		if (sameFeatures(next, this.activeFeatures)) return;
+		this.activeFeatures = next;
+		this.rebuildAll = true;
+		this.scheduleRepaint();
+	}
+
+	features(): RendererFeatures {
+		return this.activeFeatures;
 	}
 
 	setFilter(filter: BlockFilter | null): void {

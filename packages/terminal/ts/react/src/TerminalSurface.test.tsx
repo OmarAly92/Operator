@@ -486,4 +486,18 @@ describe("TerminalSurface", () => {
 		textarea!.dispatchEvent(new CompositionEvent("compositionend", { data: "日本" }));
 		expect(onSendRaw).toHaveBeenCalledExactlyOnceWith("日本");
 	});
+
+	it("forwards the features prop to the renderer and defaults it to every flag off", () => {
+		const setFeatures = vi.spyOn(DomBlockRenderer.prototype, "setFeatures");
+		const core = createTerminalCore({ columns: 16, scrollback: 100 });
+		const { rerender } = render(
+			<TerminalSurface core={core} theme={theme} font={font} altScreenActive={false} onSend={() => undefined} onSendRaw={() => undefined} />,
+		);
+		expect(setFeatures).toHaveBeenLastCalledWith({});
+		rerender(
+			<TerminalSurface core={core} theme={theme} font={font} altScreenActive={false} onSend={() => undefined} onSendRaw={() => undefined} features={{ attributes: "warp" }} />,
+		);
+		expect(setFeatures).toHaveBeenLastCalledWith({ attributes: "warp" });
+		setFeatures.mockRestore();
+	});
 });

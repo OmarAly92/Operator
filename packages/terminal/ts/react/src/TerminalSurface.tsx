@@ -5,6 +5,7 @@ import {
 	DomBlockRenderer,
 	RERUN_EVENT,
 	type FindBar,
+	type RendererFeatures,
 	type SelectionKind,
 	type SelectionPoint,
 } from "@operator/terminal-renderer-dom";
@@ -61,6 +62,7 @@ export interface TerminalSurfaceProps {
 	 */
 	refitToken?: number;
 	focusToken?: number;
+	features?: Partial<RendererFeatures>;
 	onPaint?: () => void;
 }
 
@@ -79,6 +81,7 @@ export function TerminalSurface({
 	onPaint,
 	refitToken,
 	focusToken,
+	features,
 }: TerminalSurfaceProps): ReactElement {
 	const hostRef = useRef<HTMLDivElement | null>(null);
 	const editorHostRef = useRef<HTMLDivElement | null>(null);
@@ -153,6 +156,11 @@ export function TerminalSurface({
 		rendererRef.current?.setFont(font);
 		editorRef.current?.setFont(font);
 	}, [font]);
+
+	const featuresKey = JSON.stringify(features ?? {});
+	useLayoutEffect(() => {
+		rendererRef.current?.setFeatures(features ?? {});
+	}, [featuresKey]);
 
 	useLayoutEffect(() => {
 		editorRef.current?.setStrings(strings);
