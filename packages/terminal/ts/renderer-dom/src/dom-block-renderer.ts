@@ -371,6 +371,7 @@ export class DomBlockRenderer implements BlockRenderer {
 			this.container.style.removeProperty("overflow");
 			this.container.style.removeProperty("overflow-x");
 			this.container.style.removeProperty("overflow-y");
+			this.container.style.removeProperty("overscroll-behavior-y");
 			this.container.style.removeProperty("contain");
 		}
 		this.container = null;
@@ -744,6 +745,7 @@ export class DomBlockRenderer implements BlockRenderer {
 function applyScrollOverflow(container: HTMLElement): void {
 	container.style.overflowX = "hidden";
 	container.style.overflowY = "auto";
+	container.style.setProperty("overscroll-behavior-y", "none");
 }
 
 function ensurePackageStyleTag(): HTMLStyleElement {

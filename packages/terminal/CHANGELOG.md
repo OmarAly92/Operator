@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- renderer-dom: the transcript scroller sets `overscroll-behavior-y: none`, so it stops hard at both edges like Warp's block list (`app/src/terminal/block_list_viewport.rs`, `scroll_position_for_delta` clamps the new top to `[0, max_scroll_top]` and there is no elastic region) instead of rubber-banding past the bottom.
 - renderer-dom: an elastic overscroll past the top or bottom edge (WebKit rubber-band, where `scrollTop` overshoots its range) no longer has the sticky-bottom and scroll-anchor writes snapping the position back every frame, which vibrated the pane at the end of the scroll.
 
 Rows are patched, not rebuilt.

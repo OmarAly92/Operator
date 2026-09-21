@@ -701,6 +701,12 @@ describe("row pool", () => {
 		expect(rowNode(container, stable)).toBe(row);
 		renderer.dispose();
 	});
+	it("clamps the scroller at its edges the way Warp's block list does", async () => {
+		const { host, renderer } = mountWith("one\r\ntwo");
+		await flushRepaint();
+		expect(host.style.getPropertyValue("overscroll-behavior-y")).toBe("none");
+		renderer.dispose();
+	});
 	it("does not fight an elastic overscroll past either edge", async () => {
 		const container = document.createElement("div");
 		Object.defineProperty(container, "clientHeight", { value: 100, configurable: true });
