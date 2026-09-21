@@ -1,6 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:operator_mobile/feature/sessions/data/model/activity_string.dart';
-import 'package:operator_mobile/feature/sessions/data/model/orchestrator_model.dart';
 import 'package:operator_mobile/feature/sessions/data/model/project_model.dart';
 
 void main() {
@@ -44,33 +43,6 @@ void main() {
       for (final kind in ['single_repo', 'workspace', 'scratch']) {
         expect(ProjectModel.fromJson({'id': 'a', 'kind': kind}).kind, kind);
       }
-    });
-  });
-
-  group('OrchestratorModel', () {
-    test('derives both lifecycle flags from isTerminated', () {
-      final live = OrchestratorModel.fromJson({'id': 'o1', 'projectId': 'p'});
-      expect(live.hasRuntime, isTrue);
-      expect(live.isTerminal, isFalse);
-
-      final dead = OrchestratorModel.fromJson({'id': 'o1', 'projectId': 'p', 'isTerminated': true});
-      expect(dead.hasRuntime, isFalse);
-      expect(dead.isTerminal, isTrue);
-    });
-
-    test('takes the project name from the caller and falls back to the id', () {
-      expect(
-        OrchestratorModel.fromJson({'id': 'o1', 'projectId': 'p'}, projectName: 'My App').projectName,
-        'My App',
-      );
-      expect(OrchestratorModel.fromJson({'id': 'o1', 'projectId': 'p'}).projectName, 'p');
-    });
-
-    test('unwraps an object-shaped activity', () {
-      expect(
-        OrchestratorModel.fromJson({'id': 'o', 'activity': {'state': 'blocked'}}).activity,
-        'blocked',
-      );
     });
   });
 }

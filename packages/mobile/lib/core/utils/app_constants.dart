@@ -25,8 +25,7 @@ sealed class AppConstants {
   static const double radiusButton = 12;
 
   /// 14px — cards and card-like containers (session card, connection
-  /// group, dialog, stat card, orchestrator card, PR card, settings
-  /// group).
+  /// group, dialog, stat card, PR card, settings group).
   static const double radiusCard = 14;
 
   /// 18px — the nav/PR-filter segmented stepper pill (one-off, larger than

@@ -3,7 +3,6 @@ sealed class EndPoints {
   static const String desktop = '/api/v1/desktop';
   static const String projects = '/api/v1/projects';
   static const String sessions = '/api/v1/sessions';
-  static const String orchestrators = '/api/v1/orchestrators';
   static const String settings = '/api/v1/settings';
   static const String agents = '/api/v1/agents';
   static const String agentsRefresh = '/api/v1/agents/refresh';
