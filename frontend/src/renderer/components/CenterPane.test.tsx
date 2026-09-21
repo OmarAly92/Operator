@@ -102,7 +102,6 @@ const worker = {
 	workspaceName: "my-app",
 	title: "do the thing",
 	provider: "claude-code",
-	kind: "worker",
 	branch: "opr/sess-1",
 	status: "working",
 	updatedAt: "2026-06-10T00:00:00Z",

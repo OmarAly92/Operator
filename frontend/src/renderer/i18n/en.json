@@ -931,7 +931,6 @@
 	"terminal.error": "Terminal error: {{error}}",
 	"terminal.loadingOutput": "Loading latest output…",
 	"terminal.noSessionSelected": "No session selected. Pick a worker to attach its terminal.",
-	"terminal.preparingOrchestrator": "Preparing the orchestrator terminal. This can take a moment while Operator creates the workspace and starts the agent.",
 	"terminal.preparingWorker": "Preparing the worker terminal. This can take a moment while Operator creates the workspace and starts the agent.",
 	"terminal.reattaching": "Terminal disconnected — reattaching…",
 	"terminal.restoreSession": "Restore session",

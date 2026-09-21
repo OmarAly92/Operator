@@ -100,8 +100,6 @@ export type ChangedFile = {
 	staged?: boolean;
 };
 
-export type SessionKind = "worker" | "orchestrator";
-
 /** Lifecycle state of a single pull request, mirrors the daemon's enum. */
 export type PRState = "open" | "draft" | "merged" | "closed";
 
@@ -134,7 +132,6 @@ export type WorkspaceSession = {
 	claudeAccountId?: string;
 	/** Reviewer selected for this session; absent means use the project default. */
 	reviewerHarness?: ReviewerHarnessId;
-	kind?: SessionKind;
 	branch?: string;
 	workspaceMode?: "worktree" | "in_place";
 	workspacePath?: string;
@@ -258,7 +255,6 @@ export type WorkspaceSummary = {
 	path: string;
 	workspaceRepos?: WorkspaceRepoSummary[];
 	type?: "main" | "worktree";
-	orchestratorAgent?: AgentProvider;
 	accentColor?: string;
 	diff?: {
 		additions: number;

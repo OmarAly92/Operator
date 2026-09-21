@@ -238,7 +238,6 @@ export async function installFakeAgent(page: Page, opts: FakeAgentOptions = {}):
 				workspaceName: projectName,
 				title: w.title,
 				provider: w.provider ?? "codex",
-				kind: "worker",
 				mode: w.mode ?? "tui",
 				branch: w.branch ?? `session/${w.id}`,
 				status: w.status ?? "working",
@@ -256,25 +255,7 @@ export async function installFakeAgent(page: Page, opts: FakeAgentOptions = {}):
 				kind: "single_repo",
 				path: `/repos/${projectName}`,
 				type: "main",
-				orchestratorAgent: "codex",
-				sessions: [
-					{
-						id: `${projectId}-orchestrator`,
-						terminalHandleId: `${projectId}-orchestrator/terminal_0`,
-						workspaceId: projectId,
-						workspaceName: projectName,
-						title: "Project orchestrator",
-						provider: "codex",
-						kind: "orchestrator",
-						branch: "main",
-						status: "working",
-						createdAt: nowIso,
-						updatedAt: nowIso,
-						activity: { state: "active", lastActivityAt: nowIso },
-						prs: [],
-					},
-					...workers.map(makeWorker),
-				],
+				sessions: workers.map(makeWorker),
 			};
 
 			interface FakeEventSourceLike {

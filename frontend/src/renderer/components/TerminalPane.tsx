@@ -1010,11 +1010,7 @@ function AttachedTerminal({
 		(state === "connecting" || state === "attached");
 	const showEndedState = state === "exited" || canRestoreSession;
 	const emptyStateTitle = session ? t("terminal.startingSession") : "Operator";
-	const emptyStateMessage = session
-		? session.kind === "orchestrator"
-			? t("terminal.preparingOrchestrator")
-			: t("terminal.preparingWorker")
-		: t("terminal.noSessionSelected");
+	const emptyStateMessage = session ? t("terminal.preparingWorker") : t("terminal.noSessionSelected");
 
 	return (
 		<div className="terminal-pane-surface flex h-full min-h-0 flex-col" data-testid="session-terminal">

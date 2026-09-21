@@ -51,7 +51,6 @@ const { workspaces, workspaceQueryState, panels } = vi.hoisted(() => {
 		workspaceName: "my-app",
 		title: "do the thing",
 		provider: "claude-code",
-		kind: "worker",
 		branch: "opr/sess-1",
 		status: "working",
 		updatedAt: "2026-06-10T00:00:00Z",
@@ -63,11 +62,11 @@ const { workspaces, workspaceQueryState, panels } = vi.hoisted(() => {
 		title: "do the other thing",
 		branch: "opr/sess-2",
 	} satisfies WorkspaceSession;
-	const orchestrator = {
+	const thirdWorker = {
 		...worker,
-		id: "sess-orch",
-		kind: "orchestrator",
-		title: "orchestrate",
+		id: "sess-3",
+		title: "do the third thing",
+		branch: "opr/sess-3",
 	} satisfies WorkspaceSession;
 	const crossProjectWorker = {
 		...worker,
@@ -78,7 +77,7 @@ const { workspaces, workspaceQueryState, panels } = vi.hoisted(() => {
 		branch: "opr/cross-project",
 	} satisfies WorkspaceSession;
 	const workspaces: WorkspaceSummary[] = [
-		{ id: "proj-1", name: "my-app", path: "/p", type: "main", sessions: [worker, secondWorker, orchestrator] },
+		{ id: "proj-1", name: "my-app", path: "/p", type: "main", sessions: [worker, secondWorker, thirdWorker] },
 		{ id: "proj-2", name: "other-app", path: "/q", type: "main", sessions: [crossProjectWorker] },
 	];
 	const workspaceQueryState: { data: WorkspaceSummary[] | undefined; isLoading: boolean } = {

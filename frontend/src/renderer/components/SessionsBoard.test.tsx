@@ -1597,7 +1597,6 @@ function terminatedSession(overrides: Partial<WorkspaceSession> = {}): Workspace
 		title: "dead worker",
 		issueId: "github:INT-17",
 		provider: "claude-code",
-		kind: "worker",
 		branch: "opr/dead-worker",
 		status: "terminated",
 		isTerminated: true,

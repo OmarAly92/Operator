@@ -65,7 +65,6 @@ const session = (prs: PullRequestFacts[], overrides: Partial<WorkspaceSession> =
 	workspaceName: "my-app",
 	title: "do the thing",
 	provider: "claude-code",
-	kind: "worker",
 	branch: "feat/ns",
 	status: "review_pending",
 	updatedAt: "2026-06-15T00:00:00Z",

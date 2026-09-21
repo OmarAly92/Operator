@@ -42,24 +42,8 @@ export const mockWorkspaces: WorkspaceSummary[] = [
 		name: "opr-demo",
 		path: "/demo/opr-demo",
 		type: "main",
-		orchestratorAgent: "codex",
 		accentColor: "var(--color-project-accent-mint)",
 		sessions: [
-			{
-				id: "opr-demo-orchestrator",
-				terminalHandleId: "opr-demo-orchestrator/terminal_0",
-				workspaceId: "opr-demo",
-				workspaceName: "opr-demo",
-				title: "Project orchestrator",
-				provider: "codex",
-				kind: "orchestrator",
-				branch: "main",
-				status: "working",
-				createdAt: hoursAgo(6),
-				updatedAt: minutesAgo(3),
-				activity: { state: "active", lastActivityAt: minutesAgo(3) },
-				prs: [],
-			},
 			{
 				id: "demo-working",
 				terminalHandleId: "demo-working/terminal_0",
@@ -177,7 +161,6 @@ export const mockWorkspaces: WorkspaceSummary[] = [
 		name: "docs-site",
 		path: "/demo/docs-site",
 		type: "main",
-		orchestratorAgent: "claude-code",
 		accentColor: "var(--color-project-accent-sky)",
 		sessions: [
 			{

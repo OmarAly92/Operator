@@ -139,18 +139,10 @@ const worker = {
 	workspaceName: "my-app",
 	title: "do the thing",
 	provider: "claude-code",
-	kind: "worker",
 	branch: "opr/sess-1",
 	status: "working",
 	updatedAt: "2026-06-10T00:00:00Z",
 	prs: [],
-} satisfies WorkspaceSession;
-
-const orchestrator = {
-	...worker,
-	id: "sess-orch",
-	title: "orchestrate",
-	kind: "orchestrator",
 } satisfies WorkspaceSession;
 
 beforeEach(() => {
@@ -340,21 +332,6 @@ describe("TerminalPane empty states", () => {
 				),
 			).toBeInTheDocument();
 			expect(screen.queryByText("No session selected. Pick a worker to attach its terminal.")).not.toBeInTheDocument();
-		} finally {
-			view.restore();
-		}
-	});
-
-	it("shows orchestrator-specific startup copy for a pending orchestrator terminal", () => {
-		const view = renderPane(orchestrator);
-		try {
-			expect(screen.getByText("Starting session")).toBeInTheDocument();
-			expect(
-				screen.getByText(
-					"Preparing the orchestrator terminal. This can take a moment while Operator creates the workspace and starts the agent.",
-				),
-			).toBeInTheDocument();
-			expect(screen.queryByText(/worker terminal/i)).not.toBeInTheDocument();
 		} finally {
 			view.restore();
 		}

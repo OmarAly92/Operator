@@ -55,7 +55,6 @@ const workerSession: Session = {
 	projectId: "proj-1",
 	displayName: "fix the bug",
 	harness: "claude-code",
-	kind: "worker",
 	status: "working",
 	isTerminated: false,
 	updatedAt: "2026-07-04T10:00:00Z",

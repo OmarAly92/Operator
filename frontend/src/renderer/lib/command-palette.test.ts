@@ -21,7 +21,6 @@ function session(overrides: Partial<WorkspaceSession> & { id: string }): Workspa
 		workspaceName: "app",
 		title: overrides.id,
 		provider: "codex",
-		kind: "worker",
 		branch: `feature/${overrides.id}`,
 		status: "working",
 		updatedAt: "2026-06-10T00:00:00Z",

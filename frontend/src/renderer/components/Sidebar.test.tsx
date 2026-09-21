@@ -96,7 +96,6 @@ const session: WorkspaceSession = {
 	workspaceName: "Project One",
 	title: "fix login",
 	provider: "claude-code",
-	kind: "worker",
 	branch: "session/proj-1-1",
 	status: "working",
 	updatedAt: "2026-06-30T00:00:00Z",

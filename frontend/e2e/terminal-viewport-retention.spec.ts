@@ -42,7 +42,6 @@ const handleC = `${sessionC.id}/terminal_0`;
 const handleD = `${sessionD.id}/terminal_0`;
 const handleE = `${sessionE.id}/terminal_0`;
 const handleF = `${sessionF.id}/terminal_0`;
-const orchestratorHandle = "fake-proj-orchestrator/terminal_0";
 
 const longReplay = [
 	"\x1b[?25l",
@@ -189,7 +188,6 @@ async function installHarness(page: Page): Promise<void> {
 		[handleD]: "D short replay",
 		[handleE]: "E short replay",
 		[handleF]: "F short replay",
-		[orchestratorHandle]: "Orchestrator ready",
 	});
 	await page.goto(`/#/projects/fake-proj/sessions/${sessionA.id}`);
 	await expect(activeTerminal(page)).toBeVisible();
@@ -394,27 +392,25 @@ test.describe("retained terminal viewport", () => {
 		await expect(page.locator("[data-terminal-cache-key]:not([aria-hidden='true'])")).toHaveCount(1);
 	});
 
-	test("does not republish stable grids across warmed orchestrator-worker switches", async ({
-		page,
-	}) => {
+	test("does not republish stable grids across warmed worker-worker switches", async ({ page }) => {
 		await installHarness(page);
-		await openSession(page, "Project orchestrator");
+		await openSession(page, sessionB.title);
 		await openSession(page, sessionA.title);
 
 		const before = await muxStats(page);
 		const workerResizes = before.resizes[handleA]?.length ?? 0;
-		const orchestratorResizes = before.resizes[orchestratorHandle]?.length ?? 0;
+		const secondWorkerResizes = before.resizes[handleB]?.length ?? 0;
 
 		for (let index = 0; index < 3; index += 1) {
-			await openSession(page, "Project orchestrator");
+			await openSession(page, sessionB.title);
 			await openSession(page, sessionA.title);
 		}
 
 		const after = await muxStats(page);
 		expect(after.resizes[handleA]?.length ?? 0).toBe(workerResizes);
-		expect(after.resizes[orchestratorHandle]?.length ?? 0).toBe(orchestratorResizes);
+		expect(after.resizes[handleB]?.length ?? 0).toBe(secondWorkerResizes);
 		expect(after.opens[handleA]).toBe(1);
-		expect(after.opens[orchestratorHandle]).toBe(1);
+		expect(after.opens[handleB]).toBe(1);
 	});
 
 	test("handles empty and short replay, blocks hidden input, and retains xterm through reconnect", async ({ page }) => {
