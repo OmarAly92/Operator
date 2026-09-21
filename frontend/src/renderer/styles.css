@@ -1248,11 +1248,15 @@ body {
 	user-select: none;
 }
 
-button,
-input,
-textarea,
-select {
-	font: inherit;
+/* Layered so Tailwind text-* utilities can size a control; an unlayered
+   `font: inherit` would outrank every utility on buttons and inputs. */
+@layer base {
+	button,
+	input,
+	textarea,
+	select {
+		font: inherit;
+	}
 }
 
 input,
@@ -3597,6 +3601,3 @@ html[data-native-browser-composition="true"] .browser-popout-overlay {
 	font-size: 14px;
 }
 
-.desktop-design [data-session-row] button {
-	font-size: 13px;
-}

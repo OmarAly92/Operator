@@ -507,13 +507,14 @@ describe("Sidebar", () => {
 	it("shows only the terminal button on the row and puts every action in the context menu", async () => {
 		renderSidebar({ workspaces: [{ ...workspace, sessions: [session] }] });
 
-		// Two buttons and no more: open the session, and open a terminal in it.
-		// Nothing is revealed on hover, so nothing reserves width from the title.
+		// Two buttons and no more: open the session, then open a terminal in it.
+		// The title leads so it lines up under the project row; nothing is
+		// revealed on hover, so nothing reserves width from the title.
 		const row = screen.getByLabelText("Open fix login").closest("[data-session-row]");
 		const buttons = within(row as HTMLElement).getAllByRole("button");
 		expect(buttons.map((button) => button.getAttribute("aria-label"))).toEqual([
-			"Open a terminal in fix login",
 			"Open fix login",
+			"Open a terminal in fix login",
 		]);
 
 		fireEvent.contextMenu(screen.getByLabelText("Open fix login"));

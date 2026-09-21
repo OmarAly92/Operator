@@ -81,13 +81,13 @@ const isMac = isMacPlatform();
 const HOVER_ACTION_CLASS =
 	"grid size-5 shrink-0 place-items-center rounded-md text-passive transition-colors hover:text-foreground disabled:pointer-events-none disabled:opacity-50 data-[state=open]:text-foreground [&_svg]:size-icon-lg";
 
-// Shared nav-row chrome (Codex-style): inset pill hover/selected, 14px type, no accent bar.
+// Shared nav-row chrome (Codex-style): inset pill hover/selected, 13px type, no accent bar.
 const NAV_ROW_CLASS =
-	"h-[34px] gap-2 rounded-lg px-2.5 text-base font-medium text-muted-foreground transition-[background-color,color] hover:bg-interactive-hover hover:text-foreground active:bg-interactive-hover active:text-foreground data-[active=true]:bg-interactive-active data-[active=true]:font-medium data-[active=true]:text-foreground";
+	"h-[34px] gap-2 rounded-lg px-2.5 text-control font-medium text-muted-foreground transition-[background-color,color] hover:bg-interactive-hover hover:text-foreground active:bg-interactive-hover active:text-foreground data-[active=true]:bg-interactive-active data-[active=true]:font-medium data-[active=true]:text-foreground";
 
 // Search + Pinned/Projects section chrome: same type, icon, and row size.
 const SECTION_ROW_CLASS =
-	"flex h-7 w-full min-w-0 items-center gap-1.5 rounded-md px-1.5 text-base font-medium text-passive [&_svg]:size-icon-md [&_svg]:shrink-0";
+	"flex h-7 w-full min-w-0 items-center gap-1.5 rounded-md px-1.5 text-control font-medium text-passive [&_svg]:size-icon-md [&_svg]:shrink-0";
 // Hover fill only for collapsible section headers (Pinned). Projects is a static label.
 const SECTION_ROW_INTERACTIVE_CLASS = "transition-colors hover:bg-interactive-hover hover:text-foreground";
 
@@ -279,7 +279,6 @@ export function Sidebar({
 										key={session.id}
 										session={session}
 										active={selection.activeSessionId === session.id}
-										indented={false}
 										onOpen={() => selection.goSession(session.workspaceId, session.id)}
 									/>
 								))}
@@ -693,8 +692,9 @@ function ProjectItem({
 				{removeError}
 			</div>
 		) : null}
-		{/* project-sidebar__sessions: indented under the project parent so worker
-          sessions read as children without adding a persistent guide rail. */}
+		{/* project-sidebar__sessions: flush with the project row, the status dot
+          sitting in the folder icon's column so sessions read as a list under
+          the project rather than a nested tree. */}
 		<AnimatePresence initial={false}>
 			{expanded && sessions.length > 0 && (
 				<motion.div
@@ -712,7 +712,7 @@ function ProjectItem({
 						exit={{ y: -12, opacity: 0 }}
 						transition={prefersReducedMotion ? { duration: 0 } : { duration: 0.14, ease: [0.25, 0.46, 0.45, 0.94] }}
 					>
-						<SidebarMenuSub className="mx-0 ml-3.5 translate-x-0 gap-px border-l-0 px-0 py-1">
+						<SidebarMenuSub className="mx-0 ml-0 translate-x-0 gap-px border-l-0 px-0 py-1">
 							{sessions.map((session) => (
 								<SessionRow
 									key={session.id}
@@ -778,12 +778,10 @@ function ProjectItem({
 function SessionRow({
 	session,
 	active,
-	indented = true,
 	onOpen,
 }: {
 	session: WorkspaceSession;
 	active: boolean;
-	indented?: boolean;
 	onOpen: () => void;
 }) {
 	const { t } = useTranslation();
@@ -842,13 +840,15 @@ function SessionRow({
 
 	if (isEditing) {
 		return (
-			<SidebarMenuSubItem className={cn(indented && "pl-4.5")}>
-				<div className="relative flex h-8 w-full items-center gap-1.5 rounded-lg px-2.5 py-0">
-					<SessionStatusDot session={session} />
+			<SidebarMenuSubItem>
+				<div className="relative flex h-8 w-full items-center gap-2 rounded-lg px-2.5 py-0">
+					<span aria-hidden="true" className="inline-flex size-icon-md shrink-0 items-center justify-center">
+						<SessionStatusDot session={session} />
+					</span>
 					<input
 						aria-label={t("shell.renameSession", { title: session.title })}
 						autoFocus
-						className="min-w-0 flex-1 rounded-xs border border-accent bg-transparent px-1 py-px text-sm text-foreground outline-none focus-visible:ring-1 focus-visible:ring-accent"
+						className="min-w-0 flex-1 rounded-xs border border-accent bg-transparent px-1 py-px text-control text-foreground outline-none focus-visible:ring-1 focus-visible:ring-accent"
 						maxLength={MAX_DISPLAY_NAME_LEN}
 						onBlur={() => void commit()}
 						onChange={(e) => setDraft(e.target.value)}
@@ -873,21 +873,47 @@ function SessionRow({
 	return (
 		<ContextMenu>
 			<ContextMenuTrigger asChild>
-				<SidebarMenuSubItem className={cn(indented && "pl-4.5")}>
-					{/* Nothing is revealed on hover: every action lives in the context
-					    menu below. The terminal button leads the row instead, because
-					    opening a shell in the session's own tree is the one action worth
-					    a click rather than a right-click. It is a sibling of the open
-					    button, never nested inside it — nesting buttons is invalid HTML
-					    and breaks keyboard traversal. */}
+				<SidebarMenuSubItem>
+					{/* The row leads with the status dot in the project folder's icon
+					    column, so sessions line up under their project the way the
+					    project rows line up under the Projects header. Nothing is
+					    revealed on hover: every action lives in the context menu below.
+					    The terminal button trails the row instead, because opening a
+					    shell in the session's own tree is the one action worth a click
+					    rather than a right-click. It is a sibling of the open button,
+					    never nested inside it — nesting buttons is invalid HTML and
+					    breaks keyboard traversal. */}
 					<div
 						className={cn(
-							"group/session-row flex h-8 w-full items-center gap-0.5 rounded-lg pl-2 transition-[background-color,color]",
+							"group/session-row flex h-8 w-full items-center gap-0.5 rounded-lg pr-1.5 transition-[background-color,color]",
 							"hover:bg-interactive-hover hover:text-foreground focus-within:bg-interactive-hover",
 							active && "bg-interactive-active text-foreground",
 						)}
 						data-session-row=""
 					>
+						<div className="flex min-w-0 flex-1 transition-[transform] duration-[100ms] ease-out active:scale-[0.97]">
+							<button
+								aria-current={active ? "page" : undefined}
+								aria-label={t("shell.openSession", { title: session.title })}
+								className="flex h-8 min-w-0 flex-1 items-center gap-2 rounded-lg pl-2.5 pr-1 py-0 text-left text-control outline-hidden focus-visible:ring-2 focus-visible:ring-sidebar-ring"
+								onClick={onOpen}
+								type="button"
+							>
+								<span aria-hidden="true" className="inline-flex size-icon-md shrink-0 items-center justify-center">
+									<SessionStatusDot session={session} />
+								</span>
+								<span className="min-w-0 flex-1">
+									<span
+										className={cn(
+											"block truncate transition-colors",
+											active ? "text-foreground" : "text-muted-foreground group-hover/session-row:text-foreground",
+										)}
+									>
+										{session.title}
+									</span>
+								</span>
+							</button>
+						</div>
 						<button
 							aria-label={t("shell.openSessionTerminal", { title: session.title })}
 							className={cn(
@@ -901,27 +927,6 @@ function SessionRow({
 						>
 							<SquareTerminal aria-hidden="true" />
 						</button>
-						<div className="flex min-w-0 flex-1 transition-[transform] duration-[100ms] ease-out active:scale-[0.97]">
-							<button
-								aria-current={active ? "page" : undefined}
-								aria-label={t("shell.openSession", { title: session.title })}
-								className="flex h-8 min-w-0 flex-1 items-center gap-1.5 rounded-lg pr-2.5 pl-1.5 py-0 text-left text-sm outline-hidden focus-visible:ring-2 focus-visible:ring-sidebar-ring"
-								onClick={onOpen}
-								type="button"
-							>
-								<SessionStatusDot session={session} />
-								<span className="min-w-0 flex-1">
-									<span
-										className={cn(
-											"block truncate transition-colors",
-											active ? "text-foreground" : "text-muted-foreground group-hover/session-row:text-foreground",
-										)}
-									>
-										{session.title}
-									</span>
-								</span>
-							</button>
-						</div>
 					</div>
 				</SidebarMenuSubItem>
 			</ContextMenuTrigger>
