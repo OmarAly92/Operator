@@ -10,7 +10,6 @@ import (
 	"github.com/OmarAly92/operator/backend/internal/adapters"
 	"github.com/OmarAly92/operator/backend/internal/adapters/agent/activitydispatch"
 	agentregistry "github.com/OmarAly92/operator/backend/internal/adapters/agent/registry"
-	"github.com/OmarAly92/operator/backend/internal/adapters/container/dockerreap"
 	"github.com/OmarAly92/operator/backend/internal/adapters/reviewer"
 	"github.com/OmarAly92/operator/backend/internal/adapters/runtime/runtimeselect"
 	"github.com/OmarAly92/operator/backend/internal/adapters/workspace/gitworktree"
@@ -58,7 +57,6 @@ func startLifecycle(ctx context.Context, store *sqlite.Store, runtime ports.Runt
 	lcm := lifecycle.New(store, messenger,
 		lifecycle.WithNotificationSink(notifier),
 		lifecycle.WithTelemetry(telemetry),
-		lifecycle.WithContainerReaper(dockerreap.New(), store),
 		lifecycle.WithActiveSteering(activeTurnSteering(agents)),
 	)
 	rp := reaper.New(lcm, store, runtime, reaper.Config{Logger: logger})

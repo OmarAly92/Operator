@@ -164,21 +164,6 @@ type ExactSupervisedProcessInspector interface {
 	IsExactSupervisedProcessAlive(ctx context.Context, handle RuntimeHandle, ref SupervisedProcessRef) (bool, error)
 }
 
-// ContainerReaper removes Docker containers a worker session owns, identified
-// by the opr.session=<id> label convention (see EnvSessionID). It is an
-// optional capability: nil wiring means container reaping is a no-op, not an
-// error. Implementations MUST treat a container's opr.spare=true label as an
-// unconditional skip, and MUST bias toward sparing on any ambiguity (e.g. a
-// docker CLI probe failure reaps nothing rather than guessing) -- a wrongly
-// reaped container can cost a live worker its database.
-type ContainerReaper interface {
-	// ReapSessionContainers force-removes every non-spared container labeled
-	// for session id. removed is the count actually removed; err is non-nil
-	// only for a genuine adapter failure, never for "docker not installed" or
-	// "nothing found" (both return removed=0, err=nil).
-	ReapSessionContainers(ctx context.Context, id domain.SessionID) (removed int, err error)
-}
-
 // Stream is one live terminal attach: PTY-like bytes plus resize. Returned
 // already-open by a Runtime's Attach, which backs it with a loopback
 // connection to the session's pty-host.

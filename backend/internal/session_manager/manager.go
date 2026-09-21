@@ -121,12 +121,7 @@ var (
 	ErrInteractiveSlashCommand = errors.New("session: slash command opens a dialog on the desktop")
 )
 
-// Env vars a spawned process reads to learn who it is. A worker that starts
-// its own Docker containers (a database, a queue, any ad-hoc service) should
-// label them `--label opr.session=$OPERATOR_SESSION_ID` so Operator's container reaper
-// (dockerreap) removes them on session kill/terminal state — see #2652. Add
-// `--label opr.spare=true` to a deliberately shared container that must
-// survive past this session.
+// Env vars a spawned process reads to learn who it is.
 const (
 	EnvSessionID = "OPERATOR_SESSION_ID"
 	EnvProjectID = "OPERATOR_PROJECT_ID"

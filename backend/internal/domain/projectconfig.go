@@ -50,12 +50,9 @@ type ProjectConfig struct {
 	// tracker is not commented on or transitioned.
 	TrackerIntake TrackerIntakeConfig `json:"trackerIntake,omitempty"`
 
-	// ContainerReap controls whether Operator reaps a worker session's opr.session-
-	// labeled Docker containers on terminal state / kill. Enabled by default;
-	// set Disabled to opt a project out entirely. Per-container sparing uses
-	// the opr.spare=true label instead (see dockerreap.SpareLabel) so the
-	// opt-out travels with the container at `docker run` time rather than
-	// drifting out of sync with a project-config list.
+	// ContainerReap is retained for wire/config compatibility but has no
+	// consumer: Operator no longer reaps worker session containers (see #2652
+	// history for the removed adapter).
 	ContainerReap ContainerReapConfig `json:"containerReap,omitempty"`
 
 	Tickets TicketDefaults `json:"tickets,omitempty"`
