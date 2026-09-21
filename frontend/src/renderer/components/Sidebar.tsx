@@ -83,7 +83,7 @@ const HOVER_ACTION_CLASS =
 
 // Shared nav-row chrome (Codex-style): inset pill hover/selected, 13px type, no accent bar.
 const NAV_ROW_CLASS =
-	"h-[34px] gap-2 rounded-lg px-2.5 text-control font-medium text-muted-foreground transition-[background-color,color] hover:bg-interactive-hover hover:text-foreground active:bg-interactive-hover active:text-foreground data-[active=true]:bg-interactive-active data-[active=true]:font-medium data-[active=true]:text-foreground";
+	"h-7 gap-2 rounded-lg px-2.5 text-control font-medium text-muted-foreground transition-[background-color,color] hover:bg-interactive-hover hover:text-foreground active:bg-interactive-hover active:text-foreground data-[active=true]:bg-interactive-active data-[active=true]:font-medium data-[active=true]:text-foreground";
 
 // Search + Pinned/Projects section chrome: same type, icon, and row size.
 const SECTION_ROW_CLASS =
@@ -616,7 +616,7 @@ function ProjectItem({
 		propagation in Chromium. */}
 		<div
 			className={cn(
-				"sidebar-expanded-chrome absolute top-0 right-0.5 z-chrome flex h-control-form items-center gap-px",
+				"sidebar-expanded-chrome absolute top-0 right-0.5 z-chrome flex h-7 items-center gap-px",
 				"group-data-[collapsible=icon]:hidden",
 			)}
 			data-project-actions=""
