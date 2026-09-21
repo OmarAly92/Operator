@@ -72,7 +72,6 @@ function TestProjectSettings({
 			{saveState.validationError && <span>{saveState.validationError}</span>}
 			{saveState.mutationError && <span>{saveState.mutationError}</span>}
 			{saveState.saved && <span>{"Saved"}</span>}
-			{saveState.replacementError && <span>{`Orchestrator restart failed: ${saveState.replacementError}`}</span>}
 		</>
 	);
 }
@@ -177,7 +176,7 @@ beforeEach(() => {
 	navigateMock.mockReset();
 	putMock.mockResolvedValue({ data: { project: {} }, error: undefined });
 	postMock.mockResolvedValue({
-		data: { orchestrator: { id: "proj-1-orch-2" } },
+		data: {},
 		error: undefined,
 		response: { status: 200 },
 	});
@@ -193,8 +192,7 @@ describe("ProjectSettingsForm", () => {
 			repo: "",
 			defaultBranch: "main",
 			config: {
-				worker: { agent: "codex" },
-				orchestrator: { agent: "claude-code" },
+				agent: "codex",
 			},
 		});
 
@@ -215,8 +213,7 @@ describe("ProjectSettingsForm", () => {
 			repo: "",
 			defaultBranch: "main",
 			config: {
-				worker: { agent: "codex" },
-				orchestrator: { agent: "claude-code" },
+				agent: "codex",
 			},
 		});
 
@@ -243,8 +240,7 @@ describe("ProjectSettingsForm", () => {
 			repo: "",
 			defaultBranch: "main",
 			config: {
-				worker: { agent: "codex" },
-				orchestrator: { agent: "claude-code" },
+				agent: "codex",
 			},
 		});
 
@@ -266,8 +262,7 @@ describe("ProjectSettingsForm", () => {
 			repo: "",
 			defaultBranch: "main",
 			config: {
-				worker: { agent: "codex" },
-				orchestrator: { agent: "claude-code" },
+				agent: "codex",
 			},
 		});
 
@@ -295,8 +290,7 @@ describe("ProjectSettingsForm", () => {
 			repo: "git@github.com:acme/project-one.git",
 			defaultBranch: "main",
 			config: {
-				worker: { agent: "codex" },
-				orchestrator: { agent: "claude-code" },
+				agent: "codex",
 			},
 		});
 
@@ -315,8 +309,7 @@ describe("ProjectSettingsForm", () => {
 			repo: "ssh://git@github.com/acme/project-one.git",
 			defaultBranch: "main",
 			config: {
-				worker: { agent: "codex" },
-				orchestrator: { agent: "claude-code" },
+				agent: "codex",
 			},
 		});
 
@@ -326,7 +319,7 @@ describe("ProjectSettingsForm", () => {
 		expect(repoLink).toHaveAttribute("href", "https://github.com/acme/project-one");
 	});
 
-	it("loads agents fields and saves without dropping hidden workflow config", async () => {
+	it("loads the agent field and saves without dropping hidden workflow config", async () => {
 		mockProject({
 			id: "proj-1",
 			name: "Project One",
@@ -340,13 +333,9 @@ describe("ProjectSettingsForm", () => {
 				env: { FOO: "bar" },
 				symlinks: [".env"],
 				postCreate: ["npm install"],
-				worker: {
-					agent: "codex",
-					agentConfig: { model: "worker-model" },
-				},
-				orchestrator: { agent: "claude-code" },
+				agent: "codex",
 				agentConfig: {
-					model: "claude-opus-4-5",
+					model: "worker-model",
 					permissions: "auto",
 				},
 				reviewers: [{ harness: "claude-code" }],
@@ -357,19 +346,14 @@ describe("ProjectSettingsForm", () => {
 
 		expect(screen.queryByLabelText("Default branch")).not.toBeInTheDocument();
 		expect(await screen.findByLabelText("Worker model")).toHaveValue("worker-model");
-		expect(screen.getByLabelText("Orchestrator model")).toHaveValue("claude-opus-4-5");
 
-		const workerAgent = screen.getByRole("button", { name: "Default worker agent" });
-		const orchestratorAgent = screen.getByRole("button", { name: "Default orchestrator agent" });
+		const agentButton = screen.getByRole("button", { name: "Default worker agent" });
 		const permissionMode = screen.getByRole("button", { name: "Permission mode" });
-		expect(workerAgent).toHaveTextContent("codex");
-		expect(orchestratorAgent).toHaveTextContent("claude-code");
+		expect(agentButton).toHaveTextContent("codex");
 		expect(permissionMode).toHaveTextContent("Auto");
 
-		await chooseOption(workerAgent, "OpenCode");
-		await chooseOption(orchestratorAgent, "Goose");
+		await chooseOption(agentButton, "OpenCode");
 		await userEvent.type(screen.getByLabelText("Worker model"), "openai/gpt-5.4");
-		await userEvent.type(screen.getByLabelText("Orchestrator model"), "anthropic/claude-sonnet");
 		await userEvent.click(permissionMode);
 		await userEvent.click(await screen.findByRole("menuitem", { name: "Bypass permissions" }));
 
@@ -386,22 +370,16 @@ describe("ProjectSettingsForm", () => {
 					sessionPrefix: "po",
 					env: { FOO: "bar" },
 					reviewers: [{ harness: "claude-code" }],
-					// Agents changes applied
-					worker: {
-						agent: "opencode",
-						agentConfig: { model: "openai/gpt-5.4" },
-					},
-					orchestrator: {
-						agent: "goose",
-						agentConfig: { model: "anthropic/claude-sonnet" },
-					},
+					// Agent changes applied
+					agent: "opencode",
 					agentConfig: {
+						model: "openai/gpt-5.4",
 						permissions: "bypass-permissions",
 					},
 				}),
 			},
 		});
-		await waitFor(() => expect(postMock).toHaveBeenCalledTimes(1));
+		expect(postMock).not.toHaveBeenCalled();
 		expect(await screen.findByText("Saved")).toBeInTheDocument();
 	}, 20_000);
 
@@ -416,8 +394,7 @@ describe("ProjectSettingsForm", () => {
 			config: {
 				defaultBranch: "develop",
 				sessionPrefix: "po",
-				worker: { agent: "codex" },
-				orchestrator: { agent: "claude-code" },
+				agent: "codex",
 				reviewers: [{ harness: "claude-code" }],
 			},
 		});
@@ -463,8 +440,7 @@ describe("ProjectSettingsForm", () => {
 						repo: "",
 						defaultBranch: "main",
 						config: {
-							worker: { agent: "codex" },
-							orchestrator: { agent: "codex" },
+							agent: "codex",
 						},
 					},
 				},
@@ -523,8 +499,7 @@ describe("ProjectSettingsForm", () => {
 						repo: "",
 						defaultBranch: "main",
 						config: {
-							worker: { agent: "codex" },
-							orchestrator: { agent: "codex" },
+							agent: "codex",
 						},
 					},
 				},
@@ -566,8 +541,7 @@ describe("ProjectSettingsForm", () => {
 						repo: "",
 						defaultBranch: "main",
 						config: {
-							worker: { agent: "codex" },
-							orchestrator: { agent: "codex" },
+							agent: "codex",
 						},
 					},
 				},
@@ -600,8 +574,7 @@ describe("ProjectSettingsForm", () => {
 			repo: "",
 			defaultBranch: "main",
 			config: {
-				worker: { agent: "codex" },
-				orchestrator: { agent: "claude-code" },
+				agent: "codex",
 			},
 		});
 		putMock.mockResolvedValue({
@@ -630,8 +603,7 @@ describe("ProjectSettingsForm", () => {
 			repo: "",
 			defaultBranch: "main",
 			config: {
-				worker: { agent: "codex" },
-				orchestrator: { agent: "claude-code" },
+				agent: "codex",
 			},
 		});
 
@@ -646,7 +618,7 @@ describe("ProjectSettingsForm", () => {
 		expect(putMock).not.toHaveBeenCalled();
 	});
 
-	it("requires worker and orchestrator agents for existing projects missing role config", async () => {
+	it("requires an agent for existing projects missing agent config", async () => {
 		mockProject({
 			id: "proj-1",
 			name: "Project One",
@@ -659,15 +631,12 @@ describe("ProjectSettingsForm", () => {
 
 		renderSettings("proj-1", undefined, "agents");
 
-		expect(await screen.findByText("Worker and orchestrator agents are required.")).toBeInTheDocument();
+		expect(await screen.findByText("An agent is required.")).toBeInTheDocument();
 		expect(screen.getByRole("button", { name: "Default worker agent" })).toHaveTextContent("Select worker agent");
-		expect(screen.getByRole("button", { name: "Default orchestrator agent" })).toHaveTextContent(
-			"Select orchestrator agent",
-		);
 
 		submitSettings();
 
-		expect(await screen.findAllByText("Worker and orchestrator agents are required.")).toHaveLength(2);
+		expect(await screen.findAllByText("An agent is required.")).toHaveLength(2);
 		expect(putMock).not.toHaveBeenCalled();
 	});
 
@@ -680,8 +649,7 @@ describe("ProjectSettingsForm", () => {
 			repo: "",
 			defaultBranch: "main",
 			config: {
-				worker: { agent: "codex" },
-				orchestrator: { agent: "claude-code" },
+				agent: "codex",
 			},
 		});
 
@@ -694,7 +662,7 @@ describe("ProjectSettingsForm", () => {
 		expect(await screen.findByRole("menuitem", { name: "Project default" })).toBeInTheDocument();
 	});
 
-	it("disables agent selectors while the initial agent catalog is loading", async () => {
+	it("disables the agent selector while the initial agent catalog is loading", async () => {
 		getMock.mockImplementation(async (path: string) => {
 			if (path === "/api/v1/agents") {
 				return new Promise(() => {});
@@ -710,8 +678,7 @@ describe("ProjectSettingsForm", () => {
 						repo: "",
 						defaultBranch: "main",
 						config: {
-							worker: { agent: "codex" },
-							orchestrator: { agent: "claude-code" },
+							agent: "codex",
 						},
 					},
 				},
@@ -722,7 +689,6 @@ describe("ProjectSettingsForm", () => {
 		renderSettings("proj-1", undefined, "agents");
 
 		expect(await screen.findByRole("button", { name: "Default worker agent" })).toBeDisabled();
-		expect(screen.getByRole("button", { name: "Default orchestrator agent" })).toBeDisabled();
 	});
 
 	it("offers both interactive Kiro and Pi reviewers", async () => {
@@ -734,8 +700,7 @@ describe("ProjectSettingsForm", () => {
 			repo: "",
 			defaultBranch: "main",
 			config: {
-				worker: { agent: "codex" },
-				orchestrator: { agent: "claude-code" },
+				agent: "codex",
 			},
 		});
 
@@ -757,8 +722,7 @@ describe("ProjectSettingsForm", () => {
 			repo: "",
 			defaultBranch: "main",
 			config: {
-				worker: { agent: "muse" },
-				orchestrator: { agent: "claude-code" },
+				agent: "muse",
 			},
 		});
 		getMock.mockImplementation(async (path: string) => {
@@ -783,8 +747,7 @@ describe("ProjectSettingsForm", () => {
 						repo: "",
 						defaultBranch: "main",
 						config: {
-							worker: { agent: "muse" },
-							orchestrator: { agent: "claude-code" },
+							agent: "muse",
 						},
 					},
 				},
@@ -809,8 +772,7 @@ describe("ProjectSettingsForm", () => {
 			repo: "",
 			defaultBranch: "main",
 			config: {
-				worker: { agent: "codex" },
-				orchestrator: { agent: "claude-code" },
+				agent: "codex",
 			},
 		});
 
@@ -842,7 +804,7 @@ describe("ProjectSettingsForm", () => {
 			path: "/repo/project-one",
 			repo: "",
 			defaultBranch: "main",
-			config: { worker: { agent: "qwen" }, orchestrator: { agent: "claude-code" } },
+			config: { agent: "qwen" },
 		};
 		const qwen = { id: "qwen", label: "Qwen Code", authStatus: "authorized" };
 		const devin = { id: "devin", label: "Devin", authStatus: "authorized" };
@@ -920,7 +882,7 @@ describe("ProjectSettingsForm", () => {
 						path: "/repo/project-one",
 						repo: "",
 						defaultBranch: "main",
-						config: { worker: { agent: "codex" }, orchestrator: { agent: "claude-code" } },
+						config: { agent: "codex" },
 					},
 				},
 				error: undefined,
@@ -941,15 +903,14 @@ describe("ProjectSettingsForm", () => {
 			repo: "",
 			defaultBranch: "main",
 			config: {
-				worker: { agent: "codex" },
-				orchestrator: { agent: "claude-code" },
+				agent: "codex",
 			},
 		});
 
 		renderSettings("proj-1", undefined, "agents");
 
-		const workerAgent = await screen.findByRole("button", { name: "Default worker agent" });
-		await userEvent.click(workerAgent);
+		const agentButton = await screen.findByRole("button", { name: "Default worker agent" });
+		await userEvent.click(agentButton);
 		const options = await screen.findAllByRole("menuitem");
 		expect(options.map((option) => option.textContent)).toEqual([
 			"Claude Code",
@@ -974,8 +935,7 @@ describe("ProjectSettingsForm", () => {
 			repo: "",
 			defaultBranch: "main",
 			config: {
-				worker: { agent: "codex" },
-				orchestrator: { agent: "claude-code" },
+				agent: "codex",
 			},
 		});
 
@@ -1022,8 +982,7 @@ describe("ProjectSettingsForm", () => {
 						repo: "",
 						defaultBranch: "main",
 						config: {
-							worker: { agent: "codex" },
-							orchestrator: { agent: "claude-code" },
+							agent: "codex",
 						},
 					},
 				},
@@ -1064,8 +1023,7 @@ describe("ProjectSettingsForm", () => {
 						repo: "",
 						defaultBranch: "main",
 						config: {
-							worker: { agent: "codex" },
-							orchestrator: { agent: "claude-code" },
+							agent: "codex",
 						},
 					},
 				},
@@ -1092,8 +1050,7 @@ describe("ProjectSettingsForm", () => {
 			repo: "",
 			defaultBranch: "main",
 			config: {
-				worker: { agent: "codex" },
-				orchestrator: { agent: "claude-code" },
+				agent: "codex",
 			},
 		});
 
@@ -1112,7 +1069,7 @@ describe("ProjectSettingsForm", () => {
 			path: "/repo/project-one",
 			repo: "",
 			defaultBranch: "main",
-			config: { worker: { agent: "agy" }, orchestrator: { agent: "claude-code" } },
+			config: { agent: "agy" },
 		};
 		const agy = { id: "agy", label: "Agy", authStatus: "authorized" };
 		getMock.mockImplementation(async (path: string) => {
@@ -1152,8 +1109,7 @@ describe("ProjectSettingsForm", () => {
 				symlinks: [".env"],
 				postCreate: ["npm install"],
 				agentRules: "keep work small",
-				worker: { agent: "codex" },
-				orchestrator: { agent: "claude-code" },
+				agent: "codex",
 				agentConfig: {
 					model: "gpt-5-codex",
 					permissions: "auto",
@@ -1185,9 +1141,9 @@ describe("ProjectSettingsForm", () => {
 					symlinks: [".env"],
 					postCreate: ["npm install"],
 					agentRules: "keep work small",
-					worker: { agent: "codex", agentConfig: { model: "gpt-5-codex" } },
-					orchestrator: { agent: "claude-code", agentConfig: { model: "gpt-5-codex" } },
+					agent: "codex",
 					agentConfig: {
+						model: "gpt-5-codex",
 						permissions: "auto",
 					},
 				},
@@ -1208,8 +1164,7 @@ describe("ProjectSettingsForm", () => {
 					repo: "git@github.com:acme/project-one.git",
 					defaultBranch: "main",
 					config: {
-						worker: { agent: "codex" },
-						orchestrator: { agent: "claude-code" },
+						agent: "codex",
 					},
 				},
 			},
@@ -1251,8 +1206,7 @@ describe("ProjectSettingsForm", () => {
 					repo: "git@github.com:acme/project-one.git",
 					defaultBranch: "main",
 					config: {
-						worker: { agent: "codex" },
-						orchestrator: { agent: "claude-code" },
+						agent: "codex",
 					},
 				},
 			},
@@ -1268,103 +1222,6 @@ describe("ProjectSettingsForm", () => {
 		expect(putMock).not.toHaveBeenCalled();
 	});
 
-	it("restarts when the saved orchestrator agent already differs from the running orchestrator", async () => {
-		getMock.mockResolvedValue({
-			data: {
-				status: "ok",
-				project: {
-					id: "proj-1",
-					name: "Project One",
-					kind: "single_repo",
-					path: "/repo/project-one",
-					repo: "",
-					defaultBranch: "main",
-					config: {
-						worker: { agent: "codex" },
-						orchestrator: { agent: "goose" },
-					},
-				},
-			},
-			error: undefined,
-		});
-
-		renderSettings("proj-1", [
-			{
-				id: "proj-1",
-				name: "Project One",
-				path: "/repo/project-one",
-				orchestratorAgent: "goose",
-				sessions: [
-					{
-						id: "proj-1-orchestrator",
-						workspaceId: "proj-1",
-						workspaceName: "Project One",
-						title: "Orchestrator",
-						provider: "claude-code",
-						kind: "orchestrator",
-						branch: "opr/proj-1-orchestrator",
-						status: "working",
-						createdAt: "2026-07-03T00:00:00Z",
-						updatedAt: "2026-07-03T00:00:00Z",
-						prs: [],
-					},
-				],
-			},
-		], "agents");
-
-		const orchestratorAgent = await screen.findByRole("button", { name: "Default orchestrator agent" });
-		expect(orchestratorAgent).toHaveTextContent("goose");
-
-		submitSettings();
-
-		await waitFor(() => expect(putMock).toHaveBeenCalledTimes(1));
-		await waitFor(() => expect(postMock).toHaveBeenCalledTimes(1));
-		expect(postMock).toHaveBeenCalledWith("/api/v1/orchestrators", {
-			body: { projectId: "proj-1", clean: true },
-		});
-	});
-
-	it("keeps the config save successful when orchestrator replacement fails", async () => {
-		getMock.mockResolvedValue({
-			data: {
-				status: "ok",
-				project: {
-					id: "proj-1",
-					name: "Project One",
-					kind: "single_repo",
-					path: "/repo/project-one",
-					repo: "",
-					defaultBranch: "main",
-					config: {
-						worker: { agent: "codex" },
-						orchestrator: { agent: "claude-code" },
-					},
-				},
-			},
-			error: undefined,
-		});
-		postMock.mockResolvedValue({
-			data: undefined,
-			error: { message: "missing goose binary" },
-			response: { status: 500 },
-		});
-
-		const queryClient = renderSettings("proj-1", undefined, "agents");
-		const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
-
-		const orchestratorAgent = await screen.findByRole("button", { name: "Default orchestrator agent" });
-		await chooseOption(orchestratorAgent, "goose");
-		submitSettings();
-
-		await waitFor(() => expect(putMock).toHaveBeenCalledTimes(1));
-		await waitFor(() => expect(postMock).toHaveBeenCalledTimes(1));
-		expect(await screen.findByText("Saved")).toBeInTheDocument();
-		expect(await screen.findByText("Orchestrator restart failed: missing goose binary")).toBeInTheDocument();
-		expect(screen.queryByText("Save failed")).not.toBeInTheDocument();
-		expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["project", "proj-1"] });
-		expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: workspaceQueryKey });
-	});
-
 	it("loads and saves the ticket role defaults without touching other config", async () => {
 		mockProject({
 			id: "proj-1",
@@ -1375,8 +1232,7 @@ describe("ProjectSettingsForm", () => {
 			defaultBranch: "main",
 			config: {
 				defaultBranch: "develop",
-				worker: { agent: "claude-code" },
-				orchestrator: { agent: "claude-code" },
+				agent: "claude-code",
 				tickets: { planner: { agent: "claude-code", model: "claude-opus-5" } },
 			},
 		});
@@ -1415,7 +1271,7 @@ describe("ProjectSettingsForm", () => {
 			name: "Scratch",
 			kind: "scratch",
 			path: "/tmp/scratch",
-			config: { worker: { agent: "claude-code" }, orchestrator: { agent: "claude-code" } },
+			config: { agent: "claude-code" },
 		});
 		renderSettings("proj-2", undefined, "tickets");
 		expect(await screen.findByText("Tickets are not available for scratch projects.")).toBeInTheDocument();
