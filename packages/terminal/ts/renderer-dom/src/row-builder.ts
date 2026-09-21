@@ -40,31 +40,52 @@ export function buildRowNode(
 		rowNode.style.paddingLeft = `${indent * cellWidth}px`;
 	}
 	let rowCursor = 0;
+	let pendingIndex = -1;
+	let pendingStart = 0;
+	let pendingEnd = 0;
+	let pendingStyleCode = 255;
+	let pendingBackgroundCode = 254;
+	const flushPending = (): void => {
+		if (pendingIndex < 0) {
+			return;
+		}
+		const slice = content.subarray(rowContentStart + pendingStart, rowContentStart + pendingEnd);
+		const run = document.createElement("span");
+		run.dataset.terminalRun = String(pendingIndex);
+		run.className = CLASS_RUN;
+		const foreground = styleCodeToCssVar(pendingStyleCode);
+		run.style.color = foreground;
+		const background = styleCodeToBackgroundCss(pendingBackgroundCode);
+		if (background !== null) {
+			run.style.backgroundColor = background;
+		}
+		if (styleCodeIsBold(pendingStyleCode)) {
+			run.style.fontWeight = "700";
+		}
+		if (styleCodeIsDim(pendingStyleCode)) {
+			run.style.opacity = "0.55";
+		}
+		appendRunText(run, decoder.decode(slice), foreground);
+		rowNode.append(run);
+	};
 	for (let pairIndex = pairStart; pairIndex < pairEnd; pairIndex += 1) {
 		const elementIndex = pairIndex * STYLE_RUN_WORDS;
 		const pairRunEnd = stylePairs[elementIndex] ?? rowCursor;
 		const styleCode = stylePairs[elementIndex + 1] ?? 255;
 		const backgroundCode = stylePairs[elementIndex + 2] ?? 254;
-		const slice = content.subarray(rowContentStart + rowCursor, rowContentStart + pairRunEnd);
-		const run = document.createElement("span");
-		run.dataset.terminalRun = String(pairIndex);
-		run.className = CLASS_RUN;
-		const foreground = styleCodeToCssVar(styleCode);
-		run.style.color = foreground;
-		const background = styleCodeToBackgroundCss(backgroundCode);
-		if (background !== null) {
-			run.style.backgroundColor = background;
+		if (pendingIndex >= 0 && styleCode === pendingStyleCode && backgroundCode === pendingBackgroundCode) {
+			pendingEnd = pairRunEnd;
+		} else {
+			flushPending();
+			pendingIndex = pairIndex;
+			pendingStart = rowCursor;
+			pendingEnd = pairRunEnd;
+			pendingStyleCode = styleCode;
+			pendingBackgroundCode = backgroundCode;
 		}
-		if (styleCodeIsBold(styleCode)) {
-			run.style.fontWeight = "700";
-		}
-		if (styleCodeIsDim(styleCode)) {
-			run.style.opacity = "0.55";
-		}
-		appendRunText(run, decoder.decode(slice), foreground);
-		rowNode.append(run);
 		rowCursor = pairRunEnd;
 	}
+	flushPending();
 	if (rowCursor < rowLength) {
 		const tail = content.subarray(rowContentStart + rowCursor, rowContentStart + rowLength);
 		appendRunText(rowNode, decoder.decode(tail), "var(--terminal-foreground)");

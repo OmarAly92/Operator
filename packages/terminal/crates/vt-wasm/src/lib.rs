@@ -7,7 +7,7 @@ use wasm_bindgen::prelude::*;
 
 pub use export::{
     checked_u32_from_u64, ExportBuffers, ExportError, BLOCK_RECORD_WORDS, COMPACTION_DIVISOR,
-    FIND_MATCH_WORDS,
+    FIND_MATCH_WORDS, STYLE_RUN_WORDS,
 };
 
 pub const DIRTY_ROWS_CAP: usize = 4096;

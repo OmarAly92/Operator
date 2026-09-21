@@ -12,6 +12,8 @@ pub const BLOCK_RECORD_WORDS: usize = 14;
 
 pub const FIND_MATCH_WORDS: usize = 5;
 
+pub const STYLE_RUN_WORDS: usize = 5;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ExportError {
     OffsetOverflow,
@@ -93,6 +95,8 @@ impl ExportBuffers {
             self.style_pairs.push(end);
             self.style_pairs.push(style.fg.value());
             self.style_pairs.push(style.bg.value());
+            self.style_pairs.push(u32::from(style.attrs.bits()));
+            self.style_pairs.push(style.underline.value());
         }
 
         if let Some(alt) = snapshot.alt.as_ref() {
@@ -115,6 +119,8 @@ impl ExportBuffers {
                 self.alt_style_pairs.push(end);
                 self.alt_style_pairs.push(style.fg.value());
                 self.alt_style_pairs.push(style.bg.value());
+                self.alt_style_pairs.push(u32::from(style.attrs.bits()));
+                self.alt_style_pairs.push(style.underline.value());
             }
         }
 
@@ -155,7 +161,7 @@ impl ExportBuffers {
             }
         }
         self.history_end = self.content.len();
-        self.history_pairs = self.style_pairs.len() / 3;
+        self.history_pairs = self.style_pairs.len() / STYLE_RUN_WORDS;
         for row in core.export_screen_rows() {
             self.push_row(&row)?;
         }
@@ -219,7 +225,7 @@ impl ExportBuffers {
         self.rows.truncate(cut_row * 2);
         self.row_indents.truncate(cut_row);
         self.run_ranges.truncate(cut_row * 2);
-        self.style_pairs.truncate(cut_pairs * 3);
+        self.style_pairs.truncate(cut_pairs * STYLE_RUN_WORDS);
         self.history_rows = cut_row - self.dead_rows;
         let core_history_rows = core.history_rows();
         let from = from.min(core_history_rows);
@@ -236,7 +242,8 @@ impl ExportBuffers {
         self.rows.truncate(keep_rows * 2);
         self.row_indents.truncate(keep_rows);
         self.run_ranges.truncate(keep_rows * 2);
-        self.style_pairs.truncate(self.history_pairs * 3);
+        self.style_pairs
+            .truncate(self.history_pairs * STYLE_RUN_WORDS);
     }
 
     fn push_row(&mut self, row: &ExportedRow) -> Result<(), ExportError> {
@@ -246,13 +253,15 @@ impl ExportBuffers {
         self.rows.push(content_base);
         self.rows.push(content_end);
         self.row_indents.push(row.indent);
-        let pair_start = checked_u32_from_u64((self.style_pairs.len() / 3) as u64)?;
+        let pair_start = checked_u32_from_u64((self.style_pairs.len() / STYLE_RUN_WORDS) as u64)?;
         for &(end, style) in &row.styles {
             self.style_pairs.push(end);
             self.style_pairs.push(style.fg.value());
             self.style_pairs.push(style.bg.value());
+            self.style_pairs.push(u32::from(style.attrs.bits()));
+            self.style_pairs.push(style.underline.value());
         }
-        let pair_end = checked_u32_from_u64((self.style_pairs.len() / 3) as u64)?;
+        let pair_end = checked_u32_from_u64((self.style_pairs.len() / STYLE_RUN_WORDS) as u64)?;
         self.run_ranges.push(pair_start);
         self.run_ranges.push(pair_end);
         Ok(())
@@ -297,7 +306,7 @@ impl ExportBuffers {
         for index in &mut self.run_ranges {
             *index -= dead_pairs;
         }
-        self.style_pairs.drain(..self.dead_pairs * 3);
+        self.style_pairs.drain(..self.dead_pairs * STYLE_RUN_WORDS);
         self.history_end -= self.dead_bytes;
         self.history_pairs -= self.dead_pairs;
         self.dead_rows = 0;

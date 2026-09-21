@@ -28,10 +28,30 @@ func feed(t *testing.T, p *Parser, s string) {
 	}
 }
 
-var sgrRE = regexp.MustCompile("\x1b\\[[0-9;]*m")
+var sgrRE = regexp.MustCompile("\x1b\\[[0-9;:]*m")
 
 func stripSGR(s string) string {
 	return sgrRE.ReplaceAllString(s, "")
+}
+
+// Attributes the child set must come back on reopen, or an italic tool name,
+// an underlined link and a struck diff line turn plain after every reattach.
+func TestReplayKeepsSgrAttributesAndTheUnderlineColour(t *testing.T) {
+	p := newTestParser(t, 80, 24)
+	feed(t, p, "\x1b[3;4:3;9;58;5;196mstyled\x1b[0m plain\r\n")
+
+	out, err := p.Replay(1000)
+	if err != nil {
+		t.Fatalf("replay: %v", err)
+	}
+	for _, want := range []string{"[3;", "4:3", ";9", "58;5;196"} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("replay lost %q:\n%q", want, out)
+		}
+	}
+	if !strings.Contains(stripSGR(out), "styled plain") {
+		t.Fatalf("replay text changed:\n%q", stripSGR(out))
+	}
 }
 
 // A pane whose child redraws in place must replay as ONE copy of the final

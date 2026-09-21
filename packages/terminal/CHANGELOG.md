@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- vt-core: SGR 3, 4 and `4:0-5`, 5/6, 8, 9, 21, 23, 24, 25, 28, 29, 53, 55, 58 and 59 are parsed into `CellStyle.attrs` (`Attrs`, ten bits after `alacritty_terminal/src/term/cell.rs` `Flags`) and `CellStyle.underline`; the style run grows to five words `(end, fg, bg, attrs, underline)` — `STYLE_RUN_WORDS = 5` in `vt-wasm` and `@operator/terminal-core`. The renderer still paints words 0–2 only, so nothing is drawn differently until `RendererFeatures.attributes` is `"warp"`. The mirror re-emits the attributes in the attach replay, and the Alacritty `sgr`, `underline`, `colored_underline` and `clear_underline` recordings now assert a `styles.json` derived from Alacritty's own grid.
 - renderer-dom: the transcript scroller sets `overscroll-behavior-y: none`, so it stops hard at both edges like Warp's block list (`app/src/terminal/block_list_viewport.rs`, `scroll_position_for_delta` clamps the new top to `[0, max_scroll_top]` and there is no elastic region) instead of rubber-banding past the bottom.
 - renderer-dom: an elastic overscroll past the top or bottom edge (WebKit rubber-band, where `scrollTop` overshoots its range) no longer has the sticky-bottom and scroll-anchor writes snapping the position back every frame, which vibrated the pane at the end of the scroll.
 

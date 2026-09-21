@@ -78,27 +78,87 @@ impl StyleCode {
     }
 }
 
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub struct Attrs(u16);
+
+impl Attrs {
+    pub const NONE: Self = Self(0);
+    pub const ITALIC: u16 = 1 << 0;
+    pub const UNDERLINE: u16 = 1 << 1;
+    pub const DOUBLE_UNDERLINE: u16 = 1 << 2;
+    pub const CURLY_UNDERLINE: u16 = 1 << 3;
+    pub const DOTTED_UNDERLINE: u16 = 1 << 4;
+    pub const DASHED_UNDERLINE: u16 = 1 << 5;
+    pub const STRIKE: u16 = 1 << 6;
+    pub const BLINK: u16 = 1 << 7;
+    pub const HIDDEN: u16 = 1 << 8;
+    pub const OVERLINE: u16 = 1 << 9;
+    pub const ALL_UNDERLINES: u16 = Self::UNDERLINE
+        | Self::DOUBLE_UNDERLINE
+        | Self::CURLY_UNDERLINE
+        | Self::DOTTED_UNDERLINE
+        | Self::DASHED_UNDERLINE;
+
+    pub const fn from_bits(bits: u16) -> Self {
+        Self(bits)
+    }
+
+    pub const fn bits(self) -> u16 {
+        self.0
+    }
+
+    pub const fn is_empty(self) -> bool {
+        self.0 == 0
+    }
+
+    pub const fn contains(self, flag: u16) -> bool {
+        self.0 & flag == flag
+    }
+
+    pub const fn with(self, flag: u16, on: bool) -> Self {
+        if on {
+            Self(self.0 | flag)
+        } else {
+            Self(self.0 & !flag)
+        }
+    }
+
+    pub const fn without(self, mask: u16) -> Self {
+        Self(self.0 & !mask)
+    }
+
+    pub const fn with_underline(self, kind: u16) -> Self {
+        Self((self.0 & !Self::ALL_UNDERLINES) | kind)
+    }
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct CellStyle {
     pub fg: StyleCode,
     pub bg: StyleCode,
+    pub attrs: Attrs,
+    pub underline: StyleCode,
 }
 
 impl CellStyle {
     pub const DEFAULT: Self = Self {
         fg: StyleCode::DEFAULT,
         bg: StyleCode::DEFAULT_BACKGROUND,
+        attrs: Attrs::NONE,
+        underline: StyleCode::DEFAULT,
     };
 
     pub const fn new(fg: StyleCode, bg: StyleCode) -> Self {
-        Self { fg, bg }
+        Self {
+            fg,
+            bg,
+            attrs: Attrs::NONE,
+            underline: StyleCode::DEFAULT,
+        }
     }
 
     pub const fn from_fg(fg: StyleCode) -> Self {
-        Self {
-            fg,
-            bg: StyleCode::DEFAULT_BACKGROUND,
-        }
+        Self::new(fg, StyleCode::DEFAULT_BACKGROUND)
     }
 
     pub const fn resolved(self) -> Self {
@@ -108,6 +168,8 @@ impl CellStyle {
         Self {
             fg: self.fg.with_reverse(false).with_colour(self.bg.colour()),
             bg: self.fg.colour(),
+            attrs: self.attrs,
+            underline: self.underline,
         }
     }
 

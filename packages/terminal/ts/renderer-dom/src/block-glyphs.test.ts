@@ -11,7 +11,7 @@ function rowOf(text: string, styleCode = DEFAULT_FOREGROUND): HTMLElement {
 		content,
 		rows: Uint32Array.from([0, content.byteLength]),
 		runRanges: Uint32Array.from([0, 1]),
-		stylePairs: Uint32Array.from([content.byteLength, styleCode, DEFAULT_BACKGROUND]),
+		stylePairs: Uint32Array.from([content.byteLength, styleCode, DEFAULT_BACKGROUND, 0, DEFAULT_FOREGROUND]),
 	};
 	return buildRowNode(source, 0, 0, new TextDecoder("utf-8", { fatal: true }));
 }

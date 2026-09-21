@@ -650,63 +650,8 @@ impl Parser {
     }
 
     fn apply_sgr(&mut self, params: &Params) {
-        let groups: Vec<Vec<u16>> = params.iter().map(|sub| sub.to_vec()).collect();
-        if groups.is_empty() {
-            self.set_pending_style(CellStyle::DEFAULT);
-            return;
-        }
-        let mut index = 0;
-        while index < groups.len() {
-            let group = &groups[index];
-            let code = group.first().copied().unwrap_or(0);
-            if matches!(code, 38 | 48 | 58) {
-                let (colour, consumed) = read_extended_colour(&groups, index);
-                if let Some(style) = colour {
-                    match code {
-                        38 => self.pending_style.fg = self.pending_style.fg.with_colour(style),
-                        48 => self.pending_style.bg = style,
-                        _ => {}
-                    }
-                }
-                index += consumed;
-                continue;
-            }
-            match code {
-                0 => self.set_pending_style(CellStyle::DEFAULT),
-                1 => self.pending_style.fg = self.pending_style.fg.with_bold(true),
-                2 => self.pending_style.fg = self.pending_style.fg.with_dim(true),
-                7 => self.pending_style.fg = self.pending_style.fg.with_reverse(true),
-                22 => {
-                    self.pending_style.fg = self.pending_style.fg.with_bold(false).with_dim(false);
-                }
-                27 => self.pending_style.fg = self.pending_style.fg.with_reverse(false),
-                30..=37 => {
-                    self.pending_style.fg = self
-                        .pending_style
-                        .fg
-                        .with_colour(StyleCode::ansi((code - 30) as u8));
-                }
-                39 => {
-                    self.pending_style.fg = self.pending_style.fg.with_colour(StyleCode::DEFAULT);
-                }
-                40..=47 => self.pending_style.bg = StyleCode::ansi((code - 40) as u8),
-                49 => self.pending_style.bg = StyleCode::DEFAULT_BACKGROUND,
-                90..=97 => {
-                    self.pending_style.fg = self
-                        .pending_style
-                        .fg
-                        .with_colour(StyleCode::ansi((code - 90 + 8) as u8));
-                }
-                100..=107 => self.pending_style.bg = StyleCode::ansi((code - 100 + 8) as u8),
-                _ => {}
-            }
-            index += 1;
-        }
+        crate::sgr::apply(&mut self.pending_style, params);
         self.sync_erase_background();
-    }
-
-    fn set_pending_style(&mut self, style: CellStyle) {
-        self.pending_style = style;
     }
 
     fn sync_erase_background(&mut self) {

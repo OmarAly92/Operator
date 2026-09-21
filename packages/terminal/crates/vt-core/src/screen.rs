@@ -25,7 +25,7 @@ pub const MAX_GRAPHEME_BYTES: usize = 256;
 /// A grid cell. `extra` carries the base scalar followed by every zero-width
 /// scalar attached to it, held together so a read never has to join them --
 /// the shape of Warp's `CellExtra::cell_with_zero_width` (`grid/cell.rs:114`).
-/// It is boxed so the common cell stays two words.
+/// It is boxed so the common cell stays small.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Cell {
     pub ch: char,

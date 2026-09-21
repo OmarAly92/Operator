@@ -18,6 +18,7 @@ pub mod parser;
 pub mod row_index;
 mod screen;
 mod scrollback;
+mod sgr;
 pub mod style;
 pub mod sync;
 #[cfg(feature = "trace")]
@@ -39,7 +40,7 @@ pub use integrity::IntegrityError;
 pub use limits::{Limits, MemoryStats};
 pub use line_editor::LineEditorState;
 pub use parser::{HistoryBlock, HistoryRow};
-pub use style::{CellStyle, StyleCode};
+pub use style::{Attrs, CellStyle, StyleCode};
 
 use std::ops::Range;
 

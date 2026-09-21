@@ -29,6 +29,8 @@ function buildAltView(
 			bytes.byteLength,
 			rowStyleCodes[i] ?? DEFAULT_STYLE_CODE,
 			DEFAULT_BACKGROUND_CODE,
+			0,
+			DEFAULT_STYLE_CODE,
 		);
 		pairIndex += 1;
 		cursor += bytes.byteLength;
