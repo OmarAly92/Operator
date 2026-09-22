@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
@@ -19,11 +20,11 @@ import {
 import { useWorkspaceQuery } from "../hooks/useWorkspaceQuery";
 import { useWindowFullScreen } from "../hooks/useWindowFullScreen";
 import { apiClient, apiErrorMessage } from "../lib/api-client";
-import { nativeShellBridgePresent } from "../lib/bridge";
+import { nativeShellBridgePresent, operatorBridge } from "../lib/bridge";
 import { hidesShellTopbar } from "../lib/platform";
 import { useShell } from "../lib/shell-context";
 import { cn } from "../lib/utils";
-import { sessionIsActive } from "../types/workspace";
+import { sessionIsActive, type WorkspaceSession } from "../types/workspace";
 import { terminalTargetBelongsToSession, type TerminalTarget } from "../types/terminal";
 import { matchesRendererShortcut } from "../stores/keybindings-store";
 import { inspectorState, useResolvedTheme, useUiStore, type InspectorView } from "../stores/ui-store";
@@ -99,6 +100,58 @@ export function SessionView({ sessionId }: SessionViewProps) {
 	const isNativeFullScreen = useWindowFullScreen();
 
 	const session = workspaces.flatMap((workspace) => workspace.sessions).find((s) => s.id === sessionId);
+	const navigate = useNavigate();
+	const projectId = session?.workspaceId;
+	const openSessionTabIds = useUiStore((state) => (projectId ? state.openSessionTabsByProject[projectId] : undefined));
+	const openSessionTab = useUiStore((state) => state.openSessionTab);
+	const closeSessionTab = useUiStore((state) => state.closeSessionTab);
+	const previousSessionRef = useRef<{ id: string; projectId: string } | null>(null);
+
+	useEffect(() => {
+		if (!projectId) return;
+		const previous = previousSessionRef.current;
+		openSessionTab(projectId, sessionId, previous?.projectId === projectId ? previous.id : undefined);
+		previousSessionRef.current = { id: sessionId, projectId };
+	}, [openSessionTab, projectId, sessionId]);
+
+	const sessionTabs = useMemo(() => {
+		if (!session) return [];
+		const projectSessions =
+			workspaceQuery.data?.find((workspace) => workspace.id === session.workspaceId)?.sessions ?? [];
+		const ids = openSessionTabIds?.includes(session.id) ? openSessionTabIds : [...(openSessionTabIds ?? []), session.id];
+		return ids
+			.map((id) => projectSessions.find((candidate) => candidate.id === id))
+			.filter((candidate): candidate is WorkspaceSession => Boolean(candidate));
+	}, [openSessionTabIds, session, workspaceQuery.data]);
+
+	const selectSessionTab = useCallback(
+		(nextSessionId: string) => {
+			if (!projectId || nextSessionId === sessionId) return;
+			void navigate({ to: "/projects/$projectId/sessions/$sessionId", params: { projectId, sessionId: nextSessionId } });
+		},
+		[navigate, projectId, sessionId],
+	);
+
+	const closeSessionTabById = useCallback(
+		(closedSessionId: string) => {
+			if (!projectId) return;
+			const index = sessionTabs.findIndex((tab) => tab.id === closedSessionId);
+			closeSessionTab(projectId, closedSessionId);
+			if (closedSessionId !== sessionId) return;
+			const neighbour = sessionTabs[index + 1] ?? sessionTabs[index - 1];
+			previousSessionRef.current = null;
+			if (neighbour) {
+				void navigate({
+					to: "/projects/$projectId/sessions/$sessionId",
+					params: { projectId, sessionId: neighbour.id },
+					replace: true,
+				});
+			} else {
+				void navigate({ to: "/projects/$projectId", params: { projectId }, replace: true });
+			}
+		},
+		[closeSessionTab, navigate, projectId, sessionId, sessionTabs],
+	);
 	const reviewerQuery = useQuery({
 		queryKey: ["session-reviews", sessionId],
 		enabled: Boolean(
@@ -205,6 +258,71 @@ export function SessionView({ sessionId }: SessionViewProps) {
 		(terminalTarget.kind !== "shell" || sessionShells.some((shell) => shell.handleId === terminalTarget.handleId))
 			? terminalTarget
 			: ({ kind: "worker" } satisfies TerminalTarget);
+
+	const closeActiveTab = useCallback(() => {
+		if (routedTerminalTarget.kind === "shell") {
+			closeShellTerminal.mutate(routedTerminalTarget.handleId);
+			return;
+		}
+		closeSessionTabById(sessionId);
+	}, [closeSessionTabById, closeShellTerminal, routedTerminalTarget, sessionId]);
+
+	useEffect(() => operatorBridge.app.onCloseShellTerminalShortcut(closeActiveTab), [closeActiveTab]);
+
+	const selectAdjacentTab = useCallback(
+		(direction: -1 | 1) => {
+			const tabs: { select: () => void; active: boolean }[] = [];
+			for (const tab of sessionTabs) {
+				if (tab.id !== sessionId) {
+					tabs.push({ select: () => selectSessionTab(tab.id), active: false });
+					continue;
+				}
+				tabs.push({ select: selectSessionTerminal, active: routedTerminalTarget.kind === "worker" });
+				if (reviewerTerminal) {
+					tabs.push({
+						select: () => selectReviewerTerminal(reviewerTerminal),
+						active: routedTerminalTarget.kind === "reviewer",
+					});
+				}
+				for (const shell of sessionShells) {
+					tabs.push({
+						select: () => selectShellTerminal(shell),
+						active: routedTerminalTarget.kind === "shell" && routedTerminalTarget.handleId === shell.handleId,
+					});
+				}
+			}
+			const current = tabs.findIndex((tab) => tab.active);
+			if (tabs.length < 2 || current < 0) return;
+			tabs[(current + direction + tabs.length) % tabs.length].select();
+		},
+		[
+			reviewerTerminal,
+			routedTerminalTarget,
+			selectReviewerTerminal,
+			selectSessionTab,
+			selectSessionTerminal,
+			selectShellTerminal,
+			sessionId,
+			sessionShells,
+			sessionTabs,
+		],
+	);
+
+	useEffect(() => {
+		const disposePrevious = operatorBridge.app.onPreviousTabShortcut(() => selectAdjacentTab(-1));
+		const disposeNext = operatorBridge.app.onNextTabShortcut(() => selectAdjacentTab(1));
+		return () => {
+			disposePrevious();
+			disposeNext();
+		};
+	}, [selectAdjacentTab]);
+
+	const hasSession = Boolean(session);
+	useEffect(() => {
+		if (!hasSession) return;
+		operatorBridge.app.setCloseShellTerminalShortcutEnabled(true);
+		return () => operatorBridge.app.setCloseShellTerminalShortcutEnabled(false);
+	}, [hasSession]);
 
 	// The pane shows one terminal at a time, so selecting a shell or the reviewer
 	// takes the agent's terminal off screen while the route still points here.
@@ -340,14 +458,17 @@ export function SessionView({ sessionId }: SessionViewProps) {
 					<div className="relative h-full min-h-0">
 						<CenterPane
 							daemonReady={daemonStatus.state === "ready"}
+							onCloseSessionTab={closeSessionTabById}
 							onCloseShellTerminal={(handleId) => closeShellTerminal.mutate(handleId)}
 							onRenameShellTerminal={(handleId, title) => renameShellTerminal.mutate({ handleId, title })}
+							onSelectSessionTab={selectSessionTab}
 							onSelectSessionTerminal={selectSessionTerminal}
 							onSelectReviewerTerminal={selectReviewerTerminal}
 							onSelectShellTerminal={selectShellTerminal}
 							reviewerTerminal={reviewerTerminal}
 							shellTerminals={sessionShells}
 							session={session}
+							sessionTabs={sessionTabs}
 							terminalTarget={routedTerminalTarget}
 							theme={theme}
 							topbarActions={sessionHeaderActions}

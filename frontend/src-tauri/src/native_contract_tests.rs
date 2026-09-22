@@ -594,7 +594,7 @@ fn windows_and_linux_install_the_same_hidden_role_menu_template() {
         window_entries,
         [
             ("window.minimize", "CmdOrCtrl+M"),
-            ("window.close", "CmdOrCtrl+W")
+            ("window.close", "CmdOrCtrl+Shift+W")
         ]
     );
 }
@@ -630,7 +630,7 @@ fn macos_menu_covers_app_edit_view_window_roles_with_mac_accelerators() {
     assert_eq!(accelerators["view.zoomOut"], "CmdOrCtrl+-");
     assert_eq!(accelerators["view.fullscreen"], "Ctrl+Cmd+F");
     assert_eq!(accelerators["window.minimize"], "CmdOrCtrl+M");
-    assert_eq!(accelerators["window.close"], "CmdOrCtrl+W");
+    assert_eq!(accelerators["window.close"], "CmdOrCtrl+Shift+W");
 }
 
 #[test]
