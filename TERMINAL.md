@@ -850,8 +850,10 @@ history of `master`.
     a character printed in the last column keeps the cursor logically past
     the column until the next printable character, so `EL 0` immediately
     after should not erase it. vt-core erases it. Corpus: `erase_in_line`.
-- **The phone has no predictive local echo, and gets one only through survey
-  §4.2.** Part 6's predictive echo is a renderer-only dim overlay in
+- **The phone has no predictive local echo.** Survey §4.2's server-owned model
+  was the only route to one and is not being pursued (dropped 2026-09-22,
+  `docs/superpowers/specs/2026-09-22-server-owned-terminal-model-design.md`
+  "Why not pursued"). Part 6's predictive echo is a renderer-only dim overlay in
   `ts/renderer-dom`; the Flutter client draws with its own vendored fork
   (`packages/mobile/packages/xterm`) and never loads that renderer. It also
   would not help the case it was proposed for: the mobile composer is already

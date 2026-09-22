@@ -1035,8 +1035,14 @@ move during streaming repaints one row.
 - **Server-owned model** (survey §4.2): the mirror becomes the model of
   record and clients pull rows by `(stable row, generation)`; mobile drops
   its `xterm` fork. Its own design spec; Part 1.B/C/G are its prerequisites.
-  The design spec is Plan F's Task 1; the implementation is **Plan G**, which
-  is where the phone gains everything Parts 4 and 5 built for the desktop.
+  The design spec was written as Plan F's Task 1
+  (`2026-09-22-server-owned-terminal-model-design.md`) and is **not being
+  implemented** — dropped by the user on 2026-09-22. Claude Code lays out
+  every row itself with cursor motion rather than printing lines for the
+  terminal to wrap (`claude-long-50k`: rows advanced by `\r ESC[1B`, 10,252
+  rows filled to 110–120 of 120 columns), so the bytes carry no logical lines
+  a phone could rewrap; a row model would give the phone a better copy of the
+  desktop's picture, not a readable one.
 
 **What Plan F delivered (2026-09-22).** The measurement first
 (`2026-09-22-remote-typing-latency-measurement.md`): over the daemon's public
@@ -1088,58 +1094,8 @@ changes nothing on a local pane.
 | D. Text & glyphs | Part 4 | A; each item flag-gated |
 | E. Act on output | Part 5 | B (stable rows, logical lines) |
 | F. Remote typing | Part 6 predictive echo (desktop only); §4.2 design spec | C |
-| G. One model, one terminal | Implements the §4.2 design spec Plan F produces: the pty-host mirror becomes the model of record, clients pull rows by `(stable row, generation)`, `packages/mobile/packages/xterm` is deleted and the phone renders through `packages/terminal` | F Task 1 (the spec, reviewed and its decisions settled) |
 
-Order: A → B → C → D and E in parallel → F → G.
-
-**Plan G is where the phone stops being a second, weaker terminal.** Plans D
-and E built blocks, styles, grapheme clusters, logical-line copy, links, hints,
-redaction and block timestamps in `packages/terminal/ts/renderer-dom`, which the
-Flutter client never loads — it draws with its own vendored Dart `xterm`
-(`packages/mobile/lib/feature/terminal/presentation/terminal_screen/logic/terminal_cubit.dart:99`,
-`packages/mobile/packages/xterm`), so every one of those affordances stops at the
-desktop. Plan F deliberately ships the phone nothing runnable: its Task 1 writes
-the design spec and its remaining tasks are desktop predictive echo, with
-`packages/mobile` explicitly out of scope. Plan G is the implementation, and
-until it lands the mobile gap is a known gap, not an oversight
-(`TERMINAL.md` §5).
-
-Plan G cannot be written from this spec alone. Its input is the §4.2 design spec
-Plan F Task 1 produces
-(`docs/superpowers/specs/2026-09-22-server-owned-terminal-model-design.md`),
-whose `## Decisions needed` must be answered first — at minimum the mirror's
-width policy (one mirror at the largest attached grid with clients rewrapping
-logical lines locally, versus one mirror per grid, survey §4.5), what replaces
-the byte channel and what stays on it, and whether the row-delta protocol fixes
-or inherits the two ways ack accounting already fails open (`TERMINAL.md` §5,
-"Ack accounting is per pty-host CONNECTION, not per mux client"). Writing Plan G
-before those are settled would bake a guess into the protocol.
-
-What Plan G owns, at the altitude this spec can state without pre-empting the
-design spec:
-
-- The pty-host mirror as the model of record, addressed by `(stable row,
-  generation)` — Plan B's stable rows and `Delta`, Plan C's reopen/replay
-  ordering and flow-control acks, and Plan E's per-row `wrapped` and link
-  exports are its prerequisites and have all landed.
-- A row-delta transport on the mux beside today's byte channel, with the byte
-  channel kept for the shell/line-editor path and any non-daemon host, because
-  `packages/terminal` stays product-independent (`TERMINAL.md` §3.1).
-- `TerminalCore` gaining an apply-delta path beside `feed`, so the DOM renderer
-  above `snapshot()` is untouched and the local editor keeps `feed`.
-- The Flutter client rendering through `packages/terminal` and
-  `packages/mobile/packages/xterm` deleted, which is what carries Plans D and E
-  to the phone with no second implementation — and the only route by which
-  predictive echo could ever reach it.
-- Offline and reattach behaviour on the phone, which today degrades to "replay
-  the bytes again" and under a row model has to be stated deliberately.
-
-Acceptance belongs to the design spec, not here. The one number this spec
-already owns: §4.2 does **not** shorten the felt wait — the measurement
-(`docs/superpowers/specs/2026-09-22-remote-typing-latency-measurement.md`) put
-the network at ~8 % of the floor of a send→answer wait and under 1 % of a real
-one. Plan G changes *what the phone is*, not how fast it is; a plan that
-promises latency from it is mis-scoped.
+Order: A → B → C → D and E in parallel → F.
 
 ### Plan A task outline (for the plan author; each becomes TDD tasks)
 

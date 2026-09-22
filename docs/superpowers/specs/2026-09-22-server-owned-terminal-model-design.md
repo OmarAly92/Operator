@@ -2,7 +2,7 @@
 
 **Date:** 2026-09-22
 **Decision owner:** Omar Aly
-**Status:** design only — no implementation tasks in this document
+**Status:** not pursued — its implementation was dropped by the user on 2026-09-22. Kept as a record of the design and of why it was not taken forward; see "Why not pursued" below.
 **Derived from:** `docs/superpowers/specs/2026-09-19-terminal-reference-survey.md` §4.2
 (with §4.5 for width, §1.9 and §3.1 for what it subsumes), and
 `docs/superpowers/specs/2026-09-19-agent-tui-experience-design.md` Part 6.
@@ -12,8 +12,16 @@ export), Plan C `7412050f4` (attach/replay with history, flow control), Plan D
 `b4c3067b2` (text and glyphs), Plan E `7336d8150` (wrapped and link exports).
 Confirm with `git log --oneline | grep -i "merge: Plan"`.
 
-The implementation is **Plan G** (agent-TUI spec, "Plans this spec produces").
-Plan G cannot be written until `## Decisions needed` below is answered.
+**Why not pursued.** The phone's problem is that it shows a picture drawn for
+the desktop's width. This design would deliver that picture as rows instead of
+bytes, and §7 assumed a narrower client could rewrap scrollback from the
+exported `wrapped` flags. That does not hold for Claude Code: it lays out every
+row itself with cursor motion instead of printing lines for the terminal to
+wrap (`packages/terminal/bench/agent-session/fixtures/claude-long-50k/recording`:
+rows advanced by `\r ESC[1B`, 10,252 rows filled to 110–120 of 120 columns),
+so no row is flagged `wrapped` and there are no logical lines to rejoin. The
+live frame could never be rewrapped either (§7). The design is therefore
+recorded, not scheduled, and nothing below is an open commitment.
 
 A note on citations. Every `path:line` here is repo-relative (or absolute, for
 the WezTerm checkout at `/Users/omaraly/development/AI/wezterm`) and was opened
@@ -432,7 +440,7 @@ one mode for its life; it never mixes bytes and rows.
     (`backend/internal/terminal/manager.go:456`,
     `backend/internal/terminal/attachment.go:141-154`); the case §5 describes,
     several mux clients sharing one pty-host connection, is not confirmed from
-    that reading and should be re-checked before Plan G relies on either
+    that reading and should be re-checked before anything relies on either
     account.
   - **Byte clients inherit both modes unchanged.** This design does not fix
     byte-mode ack accounting.
@@ -547,5 +555,5 @@ is a task.
   itself).
 - **Fixing byte-mode ack accounting.** Row mode avoids the problem; byte mode
   keeps it.
-- **Implementation tasks.** They belong to Plan G, written after
-  `## Decisions needed` is answered.
+- **Implementation tasks.** None; the implementation was dropped (see "Why not
+  pursued").
