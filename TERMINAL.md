@@ -713,7 +713,7 @@ history of `master`.
   `graphemes: false` explicitly — never do that. On the Claude Code
   recordings the flip moves exactly two kinds of row: text after `⎿` 6 px
   left onto the grid, and the `⏵⏵ auto mode on` row 2 px right
-  (`baselines/*/feature-graphemes_widthCache/diff-offset-*.png`). The cost
+  (`baselines/*/feature-graphemes_false_widthCache_false/diff-offset-*.png`). The cost
   is one `[data-terminal-width]` span per corrected cluster: spinner DOM
   nodes per paint 73.11 → 75.98, row nodes per paint unchanged.
 - **The pty-host mirror stays in scalar width mode while the renderer runs

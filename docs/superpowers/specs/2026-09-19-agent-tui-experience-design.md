@@ -377,10 +377,10 @@ through `DomBlockRenderer.setFeatures` and the `features` prop of
 | Flag | Default | What it changes | Side-by-side |
 |---|---|---|---|
 | `attributes` | `"plain"` | `"warp"` paints italic/underline (5 styles, SGR 58 colour)/strike/overline/hidden, tags blink | `bench/agent-session/baselines/*/feature-attributes_warp/` (both Claude fixtures are byte-identical to their baselines: Claude Code uses none of these) |
-| `graphemes` | `true` since 2026-09-22 (was `false`; flipped together with `widthCache`) | core prints and rewraps by grapheme cluster; selection follows the exported spans | `…/feature-graphemes/`, `baselines/glyph-probe/EVIDENCE-graphemes.json` |
+| `graphemes` | `true` since 2026-09-22 (was `false`; flipped together with `widthCache`) | core prints and rewraps by grapheme cluster; selection follows the exported spans | `…/feature-graphemes_false_widthCache_false/` (the old default against the new baseline; its `diff-offset-*.png` crop each changed row, flags off on top, on in the middle, changed pixels in red), `…/feature-widthCache_false/` (graphemes without the width cache), `baselines/glyph-probe/EVIDENCE-graphemes.json` |
 | `cursorContrast` | `false` | inverted cursor below contrast 1.5 | `…/feature-cursorContrast/` |
 | `cursorHollowUnfocused` | `false` | hollow block while unfocused | `…/feature-cursorHollowUnfocused/` |
-| `widthCache` | `true` since 2026-09-22 (was `false`; flipped together with `graphemes`) | per-cluster letter-spacing toward the core's cell widths (Task 11: landed — `wideDriftPx`/`cjkDriftPx` in `EVIDENCE.json`); meaningful together with `graphemes`, see below | `…/feature-widthCache/`, `…/feature-graphemes_widthCache/` |
+| `widthCache` | `true` since 2026-09-22 (was `false`; flipped together with `graphemes`) | per-cluster letter-spacing toward the core's cell widths (Task 11: landed — `wideDriftPx`/`cjkDriftPx` in `EVIDENCE.json`); meaningful together with `graphemes`, see below | `…/feature-graphemes_false/` (the width cache alone — why the two flags move together), `…/feature-graphemes_false_widthCache_false/` |
 | `boxDrawing` | `false` | procedural box glyphs (Task 10: not needed — `boxGapPx` = 0, `EVIDENCE.json`) | n/a — never implemented; the flag name is accepted and read by nothing |
 
 Decision 4 stands: `attributes` defaults to `"plain"`. Flipping any default is a
