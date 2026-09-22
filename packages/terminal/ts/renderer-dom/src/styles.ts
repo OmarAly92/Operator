@@ -264,6 +264,17 @@ export const terminalStyles = `@font-face {
 	opacity: 0.85;
 }
 
+/* warp/crates/warp_terminal/src/model/grid/grid_renderer.rs draws provisional
+   text at reduced alpha so it reads as not-yet-confirmed. */
+.terminal-prediction {
+	position: absolute;
+	pointer-events: none;
+	opacity: 0.45;
+	font: inherit;
+	line-height: var(--terminal-line-height);
+	color: var(--terminal-foreground);
+}
+
 /* Chrome stays unselectable, so dragging across a block picks up its output and
    not the header metadata or the labels of the buttons floating over it. */
 .terminal-block-header,

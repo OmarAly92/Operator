@@ -15,7 +15,9 @@ import {
 import { renderAltSurface } from "./alt-surface.js";
 import { finishedBlocks, rendererVisible, type BlockFinishedEvent } from "./block-finished.js";
 import { populateBlock, reconcileChildren, ROW_GENERATION_ATTR } from "./block-body.js";
-import { createCursorElement, cursorPaintFor, primaryCursorPlacement, PLAIN_CURSOR_PAINT, type CursorPlacement } from "./cursor.js";
+import { createCursorElement, cursorPaintFor, primaryCursorPlacement, PLAIN_CURSOR_PAINT, CURSOR_ATTR, type CursorPlacement } from "./cursor.js";
+import { PredictionState, type CursorPoint, type KeyDescriptor } from "./prediction.js";
+import { RttMeter } from "./rtt.js";
 import { ElementPool } from "./element-pool.js";
 import { bindActionEvents } from "./action-events.js";
 import { applyFilter, type BlockFilter } from "./block-filter.js";
@@ -128,6 +130,9 @@ export class DomBlockRenderer implements BlockRenderer {
 	private secretRegexes: RegExp[] = [];
 	private revealedSecrets = new Set<string>();
 	private revealedAt = -1;
+	private readonly predictions = new PredictionState();
+	private readonly rtt = new RttMeter();
+	private echoThresholdMs: number | null = null;
 
 	mount(container: HTMLElement, core: TerminalCore): void {
 		this.dispose();
@@ -565,6 +570,77 @@ export class DomBlockRenderer implements BlockRenderer {
 		paintBoxes(layer, "terminal-link-underline", boxes);
 	}
 
+	setPredictiveEcho(config: { thresholdMs: number } | null): void {
+		this.echoThresholdMs = config?.thresholdMs ?? null;
+		if (this.echoThresholdMs === null) this.predictionsClear();
+	}
+
+	noteSend(nowMs: number): void {
+		this.rtt.sent(nowMs);
+	}
+
+	noteRoundTrip(sentMs: number, receivedMs: number): void {
+		this.rtt.sent(sentMs);
+		this.rtt.received(receivedMs);
+	}
+
+	predictKey(key: KeyDescriptor, nowMs: number): boolean {
+		if (this.echoThresholdMs === null || !this.rtt.shouldPredict(this.echoThresholdMs)) return false;
+		const cursor = this.cursorPoint();
+		if (cursor === null) return false;
+		if (!this.predictions.register(key, cursor, nowMs)) return false;
+		this.paintPredictions();
+		return true;
+	}
+
+	predictionsClear(): void {
+		this.predictions.clear();
+		this.paintPredictions();
+	}
+
+	predictionCount(): number {
+		return this.predictions.pending().length;
+	}
+
+	private cursorPoint(): CursorPoint | null {
+		if (!this.core) return null;
+		return primaryCursorPlacement(this.core.snapshot());
+	}
+
+	private rowTextAt(row: number): string {
+		const match = this.renderedRows().find(({ box }) => box.row === row);
+		if (!match) return "";
+		return this.textRows().rowText(match.box.blockId, row);
+	}
+
+	private reconcilePredictions(): void {
+		const cursor = this.cursorPoint();
+		if (cursor !== null) this.predictions.reconcile(cursor, this.rowTextAt(cursor.row), performance.now());
+		this.paintPredictions();
+	}
+
+	private paintPredictions(): void {
+		const layer = this.layer("predictions");
+		const container = this.container;
+		if (!layer || !container) return;
+		const pending = this.predictions.pending();
+		const anchor = container.querySelector<HTMLElement>(`[${CURSOR_ATTR}]`);
+		if (pending.length === 0 || !anchor) {
+			paintBoxes(layer, "terminal-prediction", []);
+			return;
+		}
+		const { cellWidth, cellHeight } = this.cellMetrics();
+		const origin = container.getBoundingClientRect();
+		const cell = anchor.getBoundingClientRect();
+		const boxes = pending.map((_, index) => ({
+			left: cell.left - origin.left + container.scrollLeft + index * cellWidth,
+			top: cell.top - origin.top + container.scrollTop,
+			width: cellWidth,
+			height: cellHeight,
+		}));
+		paintBoxes(layer, "terminal-prediction", boxes, pending.map((prediction) => prediction.text));
+	}
+
 	private paintRedactions(): void {
 		const layer = this.layer("redactions");
 		const container = this.container;
@@ -774,6 +850,7 @@ export class DomBlockRenderer implements BlockRenderer {
 			this.paintDecorations();
 			this.paintHints();
 			this.paintRedactions();
+			this.reconcilePredictions();
 			if (paintedAt !== undefined) this.lastPaintAt = paintedAt;
 			this.notifyPainted();
 			core.takeDirty();
@@ -936,6 +1013,7 @@ export class DomBlockRenderer implements BlockRenderer {
 		this.paintDecorations();
 		this.paintHints();
 		this.paintRedactions();
+		this.reconcilePredictions();
 		if (paintedAt !== undefined) this.lastPaintAt = paintedAt;
 		this.notifyPainted();
 		this.rescheduleIfPending(core);

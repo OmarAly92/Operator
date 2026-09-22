@@ -77,6 +77,30 @@ function mountWith(input: string): { core: TerminalCore; host: HTMLElement; rend
 	return { core, host, renderer };
 }
 
+// jsdom never fires a real animation frame on its own timeline in a way a
+// synchronous assertion can observe, so a test that needs a real echo to
+// reconcile a prediction awaits this the same way every other async repaint
+// in this file already does (see flushRepaint above).
+function mountRenderer(): {
+	core: TerminalCore;
+	host: HTMLElement;
+	renderer: DomBlockRenderer;
+	feed: (text: string) => Promise<void>;
+} {
+	stubRowLayout();
+	const core = createTerminalCore({ columns: 16, scrollback: 100 });
+	const host = document.createElement("div");
+	const renderer = new DomBlockRenderer();
+	renderer.mount(host, core);
+	renderer.setTheme(theme);
+	renderer.setFont(font);
+	const feedInto = async (text: string): Promise<void> => {
+		feed(core, text);
+		await flushRepaint();
+	};
+	return { core, host, renderer, feed: feedInto };
+}
+
 describe("DomBlockRenderer", () => {
 	it("keeps background output visible while the editor owns the prompt", () => {
 		const { host } = mountWith("\x1b]133;A\x07\x1b]7000;v=1;cwd=/tmp;input-ready=1\x07job finished\r\n");
@@ -574,6 +598,63 @@ describe("measure", () => {
 		renderer.setTheme({ ...theme, foreground: "#ffffff" });
 		renderer.measure();
 		expect(measureCalls()).toBe(3);
+	});
+});
+
+const printable = (text: string) => ({ text, ctrlKey: false, altKey: false, metaKey: false, isComposing: false });
+
+describe("predictive echo", () => {
+	it("paints nothing when the host set no threshold", () => {
+		const { renderer, host } = mountRenderer();
+		renderer.predictKey(printable("a"), 1000);
+		expect(host.querySelectorAll(".terminal-prediction")).toHaveLength(0);
+		expect(renderer.predictionCount()).toBe(0);
+	});
+
+	it("paints one dim glyph at the cursor once armed", () => {
+		const { renderer, host } = mountRenderer();
+		renderer.setPredictiveEcho({ thresholdMs: 30 });
+		renderer.noteRoundTrip(0, 107);
+		renderer.predictKey(printable("a"), 1000);
+		const painted = host.querySelectorAll(".terminal-prediction");
+		expect(painted).toHaveLength(1);
+		expect(painted[0]!.textContent).toBe("a");
+	});
+
+	it("paints nothing when the measured RTT is below the threshold", () => {
+		const { renderer, host } = mountRenderer();
+		renderer.setPredictiveEcho({ thresholdMs: 30 });
+		renderer.noteRoundTrip(0, 7);
+		renderer.predictKey(printable("a"), 1000);
+		expect(host.querySelectorAll(".terminal-prediction")).toHaveLength(0);
+	});
+
+	it("removes the glyph when real output confirms it", async () => {
+		const { renderer, host, feed } = mountRenderer();
+		renderer.setPredictiveEcho({ thresholdMs: 30 });
+		renderer.noteRoundTrip(0, 107);
+		renderer.predictKey(printable("a"), 1000);
+		await feed("a");
+		expect(host.querySelectorAll(".terminal-prediction")).toHaveLength(0);
+	});
+
+	it("predictionsClear removes every painted glyph", () => {
+		const { renderer, host } = mountRenderer();
+		renderer.setPredictiveEcho({ thresholdMs: 30 });
+		renderer.noteRoundTrip(0, 107);
+		renderer.predictKey(printable("a"), 1000);
+		renderer.predictionsClear();
+		expect(host.querySelectorAll(".terminal-prediction")).toHaveLength(0);
+	});
+
+	it("setPredictiveEcho(null) disarms and clears", () => {
+		const { renderer, host } = mountRenderer();
+		renderer.setPredictiveEcho({ thresholdMs: 30 });
+		renderer.noteRoundTrip(0, 107);
+		renderer.predictKey(printable("a"), 1000);
+		renderer.setPredictiveEcho(null);
+		expect(host.querySelectorAll(".terminal-prediction")).toHaveLength(0);
+		expect(renderer.predictKey(printable("b"), 1100)).toBe(false);
 	});
 });
 
