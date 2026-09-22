@@ -1,6 +1,7 @@
-import { STYLE_DEFAULT_UNDERLINE, STYLE_RUN_WORDS } from "@operator/terminal-core";
+import { ATTR_ITALIC, CELL_SPAN_WORDS, STYLE_DEFAULT_UNDERLINE, STYLE_RUN_WORDS } from "@operator/terminal-core";
 import { applyAttributes, underlinedText } from "./attributes.js";
 import { blockGlyph, type BlockGlyph, isFullBlock } from "./block-glyphs.js";
+import { rowClusters } from "./clusters.js";
 import { DEFAULT_FEATURES, type RendererFeatures } from "./features.js";
 import {
 	styleCodeIsBold,
@@ -8,6 +9,7 @@ import {
 	styleCodeToBackgroundCss,
 	styleCodeToCssVar,
 } from "./style-code.js";
+import type { WidthCache } from "./width-cache.js";
 
 export const CLASS_ROW = "terminal-row";
 export const CLASS_RUN = "terminal-run";
@@ -29,6 +31,7 @@ export function buildRowNode(
 	decoder: TextDecoder,
 	cellWidth = 0,
 	features: RendererFeatures = DEFAULT_FEATURES,
+	widths: WidthCache | null = null,
 ): HTMLElement {
 	const { content, rows, runRanges, stylePairs } = source;
 	const indent = source.rowIndents?.[snapshotRowIndex] ?? 0;
@@ -38,6 +41,9 @@ export function buildRowNode(
 	const rowLength = rowContentEnd - rowContentStart;
 	const pairStart = runRanges[rowsBase] ?? 0;
 	const pairEnd = runRanges[rowsBase + 1] ?? pairStart;
+	const spanStart = source.spanRanges?.[rowsBase] ?? 0;
+	const spanEnd = source.spanRanges?.[rowsBase + 1] ?? spanStart;
+	const rowSpans = source.cellSpans?.subarray(spanStart * CELL_SPAN_WORDS, spanEnd * CELL_SPAN_WORDS) ?? new Uint32Array(0);
 	const rowNode = document.createElement("div");
 	rowNode.dataset.terminalRow = String(label);
 	rowNode.className = CLASS_ROW;
@@ -76,7 +82,14 @@ export function buildRowNode(
 		if (features.attributes === "warp") {
 			if (applyAttributes(run, pendingAttrs, pendingUnderline)) text = underlinedText(text);
 		}
-		appendRunText(run, text, foreground);
+		if (features.widthCache && widths && cellWidth > 0 && hasNonAscii(text)) {
+			const bold = styleCodeIsBold(pendingStyleCode);
+			const italic = features.attributes === "warp" && (pendingAttrs & ATTR_ITALIC) !== 0;
+			const runSpans = spansForRun(rowSpans, pendingStart, pendingEnd);
+			appendMeasuredText(run, text, runSpans, cellWidth, bold, italic, widths, foreground);
+		} else {
+			appendRunText(run, text, foreground);
+		}
 		rowNode.append(run);
 	};
 	for (let pairIndex = pairStart; pairIndex < pairEnd; pairIndex += 1) {
@@ -107,6 +120,57 @@ export function buildRowNode(
 		appendRunText(rowNode, decoder.decode(tail), "var(--terminal-foreground)");
 	}
 	return rowNode;
+}
+
+function hasNonAscii(text: string): boolean {
+	for (let index = 0; index < text.length; index += 1) {
+		if (text.charCodeAt(index) >= 0x80) return true;
+	}
+	return false;
+}
+
+function spansForRun(rowSpans: ArrayLike<number>, runStart: number, runEnd: number): number[] {
+	const out: number[] = [];
+	const spanCount = Math.floor(rowSpans.length / CELL_SPAN_WORDS);
+	for (let index = 0; index < spanCount; index += 1) {
+		const start = rowSpans[index * CELL_SPAN_WORDS]!;
+		if (start < runStart || start >= runEnd) continue;
+		const end = rowSpans[index * CELL_SPAN_WORDS + 1]!;
+		const width = rowSpans[index * CELL_SPAN_WORDS + 2]!;
+		out.push(start - runStart, end - runStart, width);
+	}
+	return out;
+}
+
+function appendMeasuredText(
+	run: HTMLElement,
+	text: string,
+	spans: ArrayLike<number>,
+	cellWidth: number,
+	bold: boolean,
+	italic: boolean,
+	widths: WidthCache,
+	foreground: string,
+): void {
+	let plain = "";
+	for (const cluster of rowClusters(text, spans)) {
+		const ascii = cluster.text.codePointAt(0)! < 0x80 && cluster.text.length === 1;
+		const spacing = ascii ? 0 : Math.round((cluster.end - cluster.start) * cellWidth - widths.get(cluster.text, bold, italic));
+		if (spacing === 0) {
+			plain += cluster.text;
+			continue;
+		}
+		if (plain !== "") {
+			appendRunText(run, plain, foreground);
+			plain = "";
+		}
+		const node = document.createElement("span");
+		node.dataset.terminalWidth = "";
+		node.textContent = cluster.text;
+		node.style.letterSpacing = `${spacing}px`;
+		run.append(node);
+	}
+	if (plain !== "") appendRunText(run, plain, foreground);
 }
 
 export const CLASS_GLYPH = "terminal-block-glyph";

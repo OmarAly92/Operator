@@ -1,6 +1,7 @@
 import { type AltScreenView, STYLE_RUN_WORDS } from "@operator/terminal-core";
 import { DEFAULT_FEATURES, type RendererFeatures } from "./features.js";
 import { buildRowNode, type RowSource } from "./row-builder.js";
+import type { WidthCache } from "./width-cache.js";
 
 const SURFACE_ATTR = "data-terminal-alt-surface";
 const CURSOR_ATTR = "data-terminal-cursor";
@@ -23,6 +24,7 @@ export function renderAltSurface(
 	decoder: TextDecoder,
 	metrics: CellMetrics,
 	features: RendererFeatures = DEFAULT_FEATURES,
+	widths: WidthCache | null = null,
 ): void {
 	if (!into.hasAttribute(SURFACE_ATTR)) {
 		into.dataset.terminalAltSurface = "";
@@ -38,10 +40,10 @@ export function renderAltSurface(
 	if (existingRows.length === view.rows) {
 		rowFingerprints.set(
 			into,
-			repaintChangedRows(source, existingRows, rowFingerprints.get(into), decoder, features),
+			repaintChangedRows(source, existingRows, rowFingerprints.get(into), decoder, features, widths),
 		);
 	} else {
-		replaceRows(source, into, view.rows, decoder, features);
+		replaceRows(source, into, view.rows, decoder, features, widths);
 	}
 	applyCursor(into, view, metrics);
 }
@@ -52,11 +54,12 @@ function repaintChangedRows(
 	previousFingerprints: readonly RowFingerprint[] | undefined,
 	decoder: TextDecoder,
 	features: RendererFeatures,
+	widths: WidthCache | null,
 ): readonly RowFingerprint[] {
 	return rows.map((row, index) => {
 		const previous = previousFingerprints?.[index];
 		if (previous && rowMatches(source, index, previous, features)) return previous;
-		const fresh = buildRowNode(source, index, index, decoder, 0, features);
+		const fresh = buildRowNode(source, index, index, decoder, 0, features, widths);
 		row.replaceChildren(...Array.from(fresh.childNodes));
 		return fingerprintRow(source, index, features);
 	});
@@ -68,11 +71,12 @@ function replaceRows(
 	rowCount: number,
 	decoder: TextDecoder,
 	features: RendererFeatures,
+	widths: WidthCache | null,
 ): void {
 	const fragment = document.createDocumentFragment();
 	const fingerprints = new Array<RowFingerprint>(rowCount);
 	for (let row = 0; row < rowCount; row += 1) {
-		fragment.append(buildRowNode(source, row, row, decoder, 0, features));
+		fragment.append(buildRowNode(source, row, row, decoder, 0, features, widths));
 		fingerprints[row] = fingerprintRow(source, row, features);
 	}
 	const cursor = into.querySelector<HTMLElement>(`[${CURSOR_ATTR}]`);

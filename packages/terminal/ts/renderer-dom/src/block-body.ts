@@ -4,6 +4,7 @@ import { placeCursor, type CursorPaint, type CursorPlacement } from "./cursor.js
 import type { RendererFeatures } from "./features.js";
 import { buildRowNode, type RowSource } from "./row-builder.js";
 import type { RowWindow } from "./viewport.js";
+import type { WidthCache } from "./width-cache.js";
 
 const CLASS_SPACER = "terminal-spacer";
 const HEADER_KEY_SEPARATOR = "\u0000";
@@ -23,6 +24,7 @@ export type BlockBodyInput = Readonly<{
 	generation: number;
 	rowIsFresh: (stableRow: number, node: HTMLElement) => boolean;
 	features: RendererFeatures;
+	widths: WidthCache | null;
 }>;
 
 type BlockBody = {
@@ -71,7 +73,7 @@ export function populateBlock(section: HTMLElement, input: BlockBodyInput): { cu
 		keep.add(stableRow);
 		let node = body.rows.get(stableRow);
 		if (!node || !input.rowIsFresh(stableRow, node)) {
-			node = buildRowNode(snapshot, snapshotRow, stableRow, decoder, input.cellWidth, input.features);
+			node = buildRowNode(snapshot, snapshotRow, stableRow, decoder, input.cellWidth, input.features, input.widths);
 			node.setAttribute(ROW_GENERATION_ATTR, String(input.generation));
 			body.rows.set(stableRow, node);
 		}

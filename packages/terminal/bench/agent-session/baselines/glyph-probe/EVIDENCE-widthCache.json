@@ -1,0 +1,12 @@
+{
+	"measuredAt": "2026-09-22T02:07:54.116Z",
+	"features": "widthCache",
+	"cellWidth": 8.4375,
+	"cellHeight": 16.796875,
+	"boxGapPx": 0,
+	"wideDriftPx": -8.36,
+	"cjkDriftPx": -7.34,
+	"seqDriftPx": -59.33,
+	"boxDrawing": "not needed",
+	"widthCache": "needed"
+}
