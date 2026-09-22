@@ -99,3 +99,14 @@ fn apply_matches_refresh_for_a_partial_delta() {
     assert_eq!(incremental.style_pairs(), full.style_pairs());
     assert_eq!(incremental.blocks(), full.blocks());
 }
+
+#[test]
+fn exports_one_wrapped_byte_per_row() {
+    let mut core = TerminalCore::new(4, 10).unwrap();
+    core.feed(b"abc def\r\nx");
+    let mut buffers = ExportBuffers::default();
+    buffers.refresh(&core.snapshot().unwrap()).unwrap();
+
+    assert_eq!(buffers.row_wrapped().len(), buffers.rows().len() / 2);
+    assert_eq!(&buffers.row_wrapped()[..3], &[1, 0, 0]);
+}

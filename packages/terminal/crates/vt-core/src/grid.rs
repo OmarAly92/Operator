@@ -29,6 +29,7 @@ pub struct CellSpan {
 pub struct ExportedRow {
     pub bytes: Vec<u8>,
     pub indent: u16,
+    pub wrapped: bool,
     pub styles: Vec<(u32, CellStyle)>,
     pub spans: Vec<CellSpan>,
 }
@@ -37,6 +38,7 @@ pub struct GridSnapshot {
     pub content: Vec<u8>,
     pub rows: Vec<(u32, u32)>,
     pub row_indents: Vec<u16>,
+    pub row_wrapped: Vec<bool>,
     pub run_ranges: Vec<(u32, u32)>,
     pub style_pairs: Vec<(u32, CellStyle)>,
     pub span_ranges: Vec<(u32, u32)>,
@@ -78,6 +80,10 @@ impl GridSnapshot {
         usize::from(self.row_indents[index])
     }
 
+    pub fn row_wrapped(&self, index: usize) -> bool {
+        self.row_wrapped[index]
+    }
+
     pub fn row_text(&self, index: usize) -> &str {
         let (start, end) = self.rows[index];
         std::str::from_utf8(&self.content[start as usize..end as usize])
@@ -110,6 +116,7 @@ pub(crate) fn build_snapshot(
     let mut all_content = Vec::new();
     let mut row_ranges: Vec<(u32, u32)> = Vec::new();
     let mut row_indents: Vec<u16> = Vec::new();
+    let mut row_wrapped: Vec<bool> = Vec::new();
     let mut style_pairs: Vec<(u32, CellStyle)> = Vec::new();
     let mut run_ranges: Vec<(u32, u32)> = Vec::new();
     let mut span_ranges: Vec<(u32, u32)> = Vec::new();
@@ -118,6 +125,7 @@ pub(crate) fn build_snapshot(
         all_content: &mut all_content,
         row_ranges: &mut row_ranges,
         row_indents: &mut row_indents,
+        row_wrapped: &mut row_wrapped,
         style_pairs: &mut style_pairs,
         run_ranges: &mut run_ranges,
         span_ranges: &mut span_ranges,
@@ -148,6 +156,7 @@ pub(crate) fn build_snapshot(
         content: all_content,
         rows: row_ranges,
         row_indents,
+        row_wrapped,
         run_ranges,
         style_pairs,
         span_ranges,
@@ -254,6 +263,7 @@ struct SnapshotCtx<'a> {
     all_content: &'a mut Vec<u8>,
     row_ranges: &'a mut Vec<(u32, u32)>,
     row_indents: &'a mut Vec<u16>,
+    row_wrapped: &'a mut Vec<bool>,
     style_pairs: &'a mut Vec<(u32, CellStyle)>,
     run_ranges: &'a mut Vec<(u32, u32)>,
     span_ranges: &'a mut Vec<(u32, u32)>,
@@ -266,6 +276,7 @@ impl SnapshotCtx<'_> {
         let content_end = checked_u32(self.all_content.len() + row.bytes.len())?;
         self.row_ranges.push((content_base, content_end));
         self.row_indents.push(row.indent);
+        self.row_wrapped.push(row.wrapped);
         self.all_content.extend_from_slice(&row.bytes);
 
         let pair_start = checked_u32(self.style_pairs.len())?;
@@ -314,15 +325,21 @@ pub(crate) fn export_history_row(
     ExportedRow {
         bytes,
         indent: row.indent,
+        wrapped: row.wrapped,
         styles: pairs,
         spans,
     }
 }
 
 pub(crate) fn export_screen_row(screen: &ScreenGrid, row: usize) -> ExportedRow {
-    let width = (0..screen.cols())
-        .rposition(|col| !screen.cell(row, col).is_blank())
-        .map_or(0, |col| col + 1);
+    let wrapped = screen.row_wrapped(row);
+    let width = if wrapped {
+        screen.cols()
+    } else {
+        (0..screen.cols())
+            .rposition(|col| !screen.cell(row, col).is_blank())
+            .map_or(0, |col| col + 1)
+    };
     let mut bytes: Vec<u8> = Vec::new();
     let mut pairs: Vec<(u32, CellStyle)> = Vec::new();
     let mut spans: Vec<CellSpan> = Vec::new();
@@ -362,6 +379,7 @@ pub(crate) fn export_screen_row(screen: &ScreenGrid, row: usize) -> ExportedRow 
     ExportedRow {
         bytes,
         indent: 0,
+        wrapped,
         styles: pairs,
         spans,
     }

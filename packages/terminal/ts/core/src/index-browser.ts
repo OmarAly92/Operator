@@ -64,6 +64,7 @@ export {
 	STYLE_RUN_WORDS,
 } from "./style-runs.js";
 export { CELL_SPAN_WORDS } from "./cell-spans.js";
+export { joinLogicalLine, type LogicalLine } from "./logical-lines.js";
 export {
 	FEED_BUDGET_MS,
 	FEED_SLICE_BYTES,

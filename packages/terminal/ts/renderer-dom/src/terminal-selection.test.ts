@@ -264,4 +264,14 @@ describe("the terminal selection", () => {
 		renderer.selectionClear();
 		expect(calls).toBe(3);
 	});
+
+	it("copies a soft-wrapped line as one line", async () => {
+		const { core, renderer } = mountWith("");
+		core.resize(4, 3);
+		feed(core, "abc def\r\n");
+		await nextPaint(renderer);
+		renderer.selectionBegin({ blockId: "0:0", row: 0, column: 0, side: "left" }, "simple");
+		renderer.selectionUpdate({ blockId: "0:0", row: 1, column: 2, side: "right" });
+		expect(renderer.selectedText()).toBe("abc def");
+	});
 });

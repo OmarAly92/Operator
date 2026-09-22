@@ -40,6 +40,7 @@ export function snapshotTextRows(snapshot: TerminalSnapshot, filter: BlockFilter
 			rowCount: () => alt.rows,
 			rowText: (_id, row) => rowString(alt.content, alt.rowRanges, row),
 			rowSpans: (_id, row) => spanSlice(alt.spanRanges, alt.cellSpans, row),
+			rowWrapped: () => false,
 		};
 	}
 	const blocks = applyFilter(decodeBlocks(snapshot), filter).map((block) => trimTrailingBlankRows(snapshot, block));
@@ -62,6 +63,13 @@ export function snapshotTextRows(snapshot: TerminalSnapshot, filter: BlockFilter
 			const flat = row - base;
 			if (flat < block.firstRow || flat >= block.firstRow + block.rowCount) return [];
 			return spanSlice(snapshot.spanRanges, snapshot.cellSpans, flat);
+		},
+		rowWrapped: (id, row) => {
+			const block = byId.get(id);
+			if (!block) return false;
+			const flat = row - base;
+			if (flat < block.firstRow || flat + 1 >= block.firstRow + block.rowCount) return false;
+			return snapshot.rowWrapped[flat] === 1;
 		},
 	};
 }

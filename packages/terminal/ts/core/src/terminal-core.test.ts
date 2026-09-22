@@ -33,6 +33,22 @@ describe("TerminalCore", () => {
 		expect([...snapshot.cellSpans]).toEqual([2, 5, 2, 0, 3, 1]);
 	});
 
+	it("exports one wrapped byte per row and joins logical lines from it", () => {
+		const core = createTerminalCore({ columns: 4, scrollback: 100 });
+		core.resize(4, 3);
+		core.feed(new TextEncoder().encode("abc def\r\nxy"));
+		const snapshot = core.snapshot();
+		expect(snapshot.rowWrapped.length).toBe(snapshot.rows.length / 2);
+		expect([...snapshot.rowWrapped.subarray(0, 3)]).toEqual([1, 0, 0]);
+		expect(core.logicalLines({ start: 1, end: 2 })).toEqual([
+			{ firstRow: 0, rowCount: 2, text: "abc def", rowOffsets: [0, 4] },
+		]);
+		expect(core.logicalLines({ start: 0, end: 3 })).toEqual([
+			{ firstRow: 0, rowCount: 2, text: "abc def", rowOffsets: [0, 4] },
+			{ firstRow: 2, rowCount: 1, text: "xy", rowOffsets: [0] },
+		]);
+	});
+
 	it("creates independent instances that do not share state", () => {
 		const a = createTerminalCore({ columns: 16, scrollback: 100 });
 		const b = createTerminalCore({ columns: 16, scrollback: 100 });

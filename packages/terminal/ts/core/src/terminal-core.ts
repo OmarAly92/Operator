@@ -10,6 +10,7 @@ import {
 	u8View,
 	type WasmInput,
 } from "./wasm-runtime.js";
+import { snapshotLogicalLines, type LogicalLine } from "./logical-lines.js";
 import type {
 	BlockId,
 	ChangeListener,
@@ -20,10 +21,12 @@ import type {
 	MemoryStats,
 	RowEvent,
 	RowEventListener,
+	RowRange,
 	TerminalCoreOptions,
 	TerminalLimits,
 	TerminalSnapshot,
 } from "./types.js";
+import { validateRowRange } from "./types.js";
 import type {
 	CompletionListener,
 	CompletionProvider,
@@ -69,6 +72,7 @@ export class TerminalCore {
 	private readonly feedParsedListeners = new Set<(bytes: number) => void>();
 	private cached: { generation: number; buffer: ArrayBufferLike; snapshot: TerminalSnapshot } | null = null;
 	private readonly rowEventListeners = new Set<RowEventListener>();
+	private readonly decoder = new TextDecoder("utf-8", { fatal: true });
 
 	constructor(inner: WasmTerminalCore, host: HostCapabilities) {
 		this.inner = inner;
@@ -242,6 +246,11 @@ export class TerminalCore {
 		return snapshot;
 	}
 
+	logicalLines(range: RowRange): LogicalLine[] {
+		validateRowRange(range);
+		return snapshotLogicalLines(this.snapshot(), range, this.decoder);
+	}
+
 	private buildSnapshot(memory: WebAssembly.Memory, generation: number): TerminalSnapshot {
 		const contentPtr = this.inner.content_ptr();
 		const contentLen = this.inner.content_len();
@@ -261,10 +270,15 @@ export class TerminalCore {
 		const blockTextLen = this.inner.block_text_len();
 		const rowIndentsPtr = this.inner.row_indents_ptr();
 		const rowIndentsLen = this.inner.row_indents_len();
+		const rowWrappedPtr = this.inner.row_wrapped_ptr();
+		const rowWrappedLen = this.inner.row_wrapped_len();
 		validateEvenLength("rows", rowsLen);
 		validateEvenLength("runRanges", runRangesLen);
 		if (rowIndentsLen * 2 !== rowsLen) {
 			throw new Error(`rowIndents length ${rowIndentsLen} does not match ${rowsLen / 2} rows`);
+		}
+		if (rowWrappedLen * 2 !== rowsLen) {
+			throw new Error(`rowWrapped length ${rowWrappedLen} does not match ${rowsLen / 2} rows`);
 		}
 		validateMultipleOf("stylePairs", stylePairsLen, STYLE_RUN_WORDS);
 		validateEvenLength("spanRanges", spanRangesLen);
@@ -299,6 +313,7 @@ export class TerminalCore {
 			content: u8View(memory, contentPtr, contentLen),
 			rows: u32View(memory, rowsPtr, rowsLen),
 			rowIndents: u16View(memory, rowIndentsPtr, rowIndentsLen),
+			rowWrapped: u8View(memory, rowWrappedPtr, rowWrappedLen),
 			runRanges: u32View(memory, runRangesPtr, runRangesLen),
 			stylePairs: u32View(memory, stylePairsPtr, stylePairsLen),
 			spanRanges: u32View(memory, spanRangesPtr, spanRangesLen),

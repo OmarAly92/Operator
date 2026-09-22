@@ -36,6 +36,7 @@ pub struct ExportBuffers {
     content: Vec<u8>,
     rows: Vec<u32>,
     row_indents: Vec<u16>,
+    row_wrapped: Vec<u8>,
     run_ranges: Vec<u32>,
     style_pairs: Vec<u32>,
     span_ranges: Vec<u32>,
@@ -74,6 +75,7 @@ impl ExportBuffers {
         self.content.clear();
         self.rows.clear();
         self.row_indents.clear();
+        self.row_wrapped.clear();
         self.run_ranges.clear();
         self.style_pairs.clear();
         self.span_ranges.clear();
@@ -95,6 +97,8 @@ impl ExportBuffers {
             self.rows.push(end);
         }
         self.row_indents.extend_from_slice(&snapshot.row_indents);
+        self.row_wrapped
+            .extend(snapshot.row_wrapped.iter().map(|&w| u8::from(w)));
 
         for &(start, end) in &snapshot.run_ranges {
             self.run_ranges.push(start);
@@ -271,6 +275,7 @@ impl ExportBuffers {
         self.content.truncate(cut_bytes);
         self.rows.truncate(cut_row * 2);
         self.row_indents.truncate(cut_row);
+        self.row_wrapped.truncate(cut_row);
         self.run_ranges.truncate(cut_row * 2);
         self.style_pairs.truncate(cut_pairs * STYLE_RUN_WORDS);
         self.span_ranges.truncate(cut_row * 2);
@@ -290,6 +295,7 @@ impl ExportBuffers {
         self.content.truncate(self.history_end);
         self.rows.truncate(keep_rows * 2);
         self.row_indents.truncate(keep_rows);
+        self.row_wrapped.truncate(keep_rows);
         self.run_ranges.truncate(keep_rows * 2);
         self.style_pairs
             .truncate(self.history_pairs * STYLE_RUN_WORDS);
@@ -305,6 +311,7 @@ impl ExportBuffers {
         self.rows.push(content_base);
         self.rows.push(content_end);
         self.row_indents.push(row.indent);
+        self.row_wrapped.push(u8::from(row.wrapped));
         let pair_start = checked_u32_from_u64((self.style_pairs.len() / STYLE_RUN_WORDS) as u64)?;
         for &(end, style) in &row.styles {
             self.style_pairs.push(end);
@@ -367,6 +374,7 @@ impl ExportBuffers {
             *offset -= dead_bytes;
         }
         self.row_indents.drain(..self.dead_rows);
+        self.row_wrapped.drain(..self.dead_rows);
         self.run_ranges.drain(..self.dead_rows * 2);
         for index in &mut self.run_ranges {
             *index -= dead_pairs;
@@ -451,6 +459,10 @@ impl ExportBuffers {
 
     pub fn row_indents(&self) -> &[u16] {
         &self.row_indents[self.dead_rows..]
+    }
+
+    pub fn row_wrapped(&self) -> &[u8] {
+        &self.row_wrapped[self.dead_rows..]
     }
 
     pub fn run_ranges(&self) -> &[u32] {

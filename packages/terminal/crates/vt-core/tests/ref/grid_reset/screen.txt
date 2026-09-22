@@ -77,6 +77,6 @@
 73
 74
 75
-%
-
+%                                                                                                        
+                                                                                                         
  UL  ~/…/tests/ref/grid_reset  dynamic-alloc 

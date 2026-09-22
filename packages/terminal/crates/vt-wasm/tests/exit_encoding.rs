@@ -22,6 +22,7 @@ fn encode(exit: Option<i32>) -> Vec<u32> {
         content: Vec::new(),
         rows: Vec::new(),
         row_indents: Vec::new(),
+        row_wrapped: Vec::new(),
         run_ranges: Vec::new(),
         style_pairs: Vec::new(),
         span_ranges: Vec::new(),

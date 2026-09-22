@@ -15,9 +15,10 @@ fn full_export(core: &TerminalCore) -> ExportBuffers {
     buffers
 }
 
-fn projected_rows(buffers: &ExportBuffers) -> Vec<(Vec<u8>, u16, Vec<u32>)> {
+fn projected_rows(buffers: &ExportBuffers) -> Vec<(Vec<u8>, u16, bool, Vec<u32>)> {
     let rows = buffers.rows();
     let indents = buffers.row_indents();
+    let wrapped = buffers.row_wrapped();
     let runs = buffers.run_ranges();
     let pairs = buffers.style_pairs();
     let content = buffers.content();
@@ -28,6 +29,7 @@ fn projected_rows(buffers: &ExportBuffers) -> Vec<(Vec<u8>, u16, Vec<u32>)> {
             (
                 content[start..end].to_vec(),
                 indents[row],
+                wrapped[row] == 1,
                 pairs[pair_start * STYLE_RUN_WORDS..pair_end * STYLE_RUN_WORDS].to_vec(),
             )
         })
@@ -56,6 +58,7 @@ fn assert_bytes_equal(incremental: &ExportBuffers, full: &ExportBuffers) {
     assert_eq!(incremental.content(), full.content());
     assert_eq!(incremental.rows(), full.rows());
     assert_eq!(incremental.row_indents(), full.row_indents());
+    assert_eq!(incremental.row_wrapped(), full.row_wrapped());
     assert_eq!(incremental.run_ranges(), full.run_ranges());
     assert_eq!(incremental.style_pairs(), full.style_pairs());
     assert_eq!(incremental.span_ranges(), full.span_ranges());
@@ -85,6 +88,7 @@ fn op() -> impl Strategy<Value = Op> {
         1 => Just(Op::Bytes(b"\x1b[?1049h".to_vec())),
         1 => Just(Op::Bytes(b"\x1b[?1049l".to_vec())),
         2 => Just(Op::Bytes("w\u{6f22}e\u{301}\r\n".as_bytes().to_vec())),
+        2 => Just(Op::Bytes(b"abcd efgh ijkl".to_vec())),
         2 => (10usize..=60, 2usize..=8).prop_map(|(cols, rows)| Op::Resize(cols, rows)),
     ]
 }
