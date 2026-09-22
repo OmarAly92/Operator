@@ -11,7 +11,7 @@ import { MergeConfirmDialog } from "./MergeConfirmDialog";
 import { PlanRow } from "./PlanRow";
 import { PlanWithAgentSheet } from "./PlanWithAgentSheet";
 import { ReviewPlanSheet } from "./ReviewPlanSheet";
-import { useTicketDrag } from "./TicketDndProvider";
+import { useTicketDrag } from "../dnd/AppDndProvider";
 
 const liveSessionStatuses = new Set<WorkspaceSession["status"]>(["working", "idle", "needs_input", "no_signal"]);
 

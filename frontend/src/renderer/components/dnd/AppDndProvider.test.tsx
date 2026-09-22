@@ -4,7 +4,7 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { LANE_DROP_ID, projectDropId } from "../../lib/ticket-assign";
 import type { PlanView, TicketWithProject } from "../../lib/ticket-presentation";
 
-vi.mock("./AssignPlanSheet", () => ({
+vi.mock("../tickets/AssignPlanSheet", () => ({
 	AssignPlanSheet: ({ plan, ticket }: { plan: { file: string }; ticket: { slug: string } }) => (
 		<div data-testid="assign-sheet">
 			{ticket.slug}:{plan.file}
@@ -12,7 +12,7 @@ vi.mock("./AssignPlanSheet", () => ({
 	),
 }));
 
-import { TicketDndProvider, usePlanDraggable, useTicketDrag, useTicketDropTarget } from "./TicketDndProvider";
+import { AppDndProvider, usePlanDraggable, useTicketDrag, useTicketDropTarget } from "./AppDndProvider";
 
 const ticket: TicketWithProject = {
 	projectId: "p1",
@@ -58,12 +58,12 @@ beforeEach(() => {
 	vi.useRealTimers();
 });
 
-describe("TicketDndProvider", () => {
+describe("AppDndProvider", () => {
 	it("opens the assign sheet from requestAssign without any drag", async () => {
 		render(
-			<TicketDndProvider>
+			<AppDndProvider>
 				<AssignButton />
-			</TicketDndProvider>,
+			</AppDndProvider>,
 		);
 		await userEvent.click(screen.getByRole("button", { name: "assign" }));
 		expect(screen.getByTestId("assign-sheet")).toHaveTextContent("search-page:plans/01-index.md");
@@ -83,11 +83,11 @@ describe("TicketDndProvider", () => {
 
 	it("marks accepting targets during a keyboard drag and opens the sheet on drop", async () => {
 		render(
-			<TicketDndProvider>
+			<AppDndProvider>
 				<Handle />
 				<Target id={LANE_DROP_ID} />
 				<Target id={projectDropId("p2")} />
-			</TicketDndProvider>,
+			</AppDndProvider>,
 		);
 		const handle = screen.getByRole("button", { name: "handle" });
 		handle.focus();
@@ -110,10 +110,10 @@ describe("TicketDndProvider", () => {
 
 	it("does not start a drag from a disabled handle", async () => {
 		render(
-			<TicketDndProvider>
+			<AppDndProvider>
 				<Handle enabled={false} />
 				<Target id={LANE_DROP_ID} />
-			</TicketDndProvider>,
+			</AppDndProvider>,
 		);
 		const handle = screen.getByRole("button", { name: "handle" });
 		fireEvent.keyDown(handle, { code: "Space", key: " " });

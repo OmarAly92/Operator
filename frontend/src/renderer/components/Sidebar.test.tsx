@@ -42,7 +42,7 @@ const { sidebarDropMock } = vi.hoisted(() => ({
 	sidebarDropMock: vi.fn((id: string) => ({ setNodeRef: () => undefined, isOver: false, accepts: false, dragging: false, id })),
 }));
 
-vi.mock("./tickets/TicketDndProvider", () => ({
+vi.mock("./dnd/AppDndProvider", () => ({
 	useTicketDropTarget: (id: string) => sidebarDropMock(id),
 	useTicketDrag: () => ({ active: null, requestAssign: () => undefined }),
 }));

@@ -13,7 +13,7 @@ import { KeyboardShortcutsDialog } from "../components/KeyboardShortcutsDialog";
 import { KeyboardShortcutsSettingsDialog } from "../components/settings/KeyboardShortcutsSettingsDialog";
 import { ShellTopbar } from "../components/ShellTopbar";
 import { Sidebar } from "../components/Sidebar";
-import { TicketDndProvider } from "../components/tickets/TicketDndProvider";
+import { AppDndProvider } from "../components/dnd/AppDndProvider";
 import { SidebarProvider } from "../components/ui/sidebar";
 import { TitlebarNav } from "../components/TitlebarNav";
 import { UpdateOptInPrompt } from "../components/UpdateOptInPrompt";
@@ -595,7 +595,7 @@ function ShellLayout() {
 				{/* Controlled by the ui-store so TitlebarNav / Topbar toggles (which
             call the store directly) stay in sync. --sidebar-width chains to
             the drag-resizable --opr-sidebar-w set on :root by useResizable. */}
-				<TicketDndProvider>
+				<AppDndProvider>
 				<SidebarProvider
 					className="min-h-0 flex-1 flex-col overflow-x-hidden"
 					keyboardShortcut={false}
@@ -661,7 +661,7 @@ function ShellLayout() {
 					</div>
 					<DaemonFailureBanner status={daemonStatus} />
 				</SidebarProvider>
-				</TicketDndProvider>
+				</AppDndProvider>
 					<CommandPalette />
 				</div>
 				</TerminalCacheProvider>

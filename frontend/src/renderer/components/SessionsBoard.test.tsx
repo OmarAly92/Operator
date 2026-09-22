@@ -38,7 +38,7 @@ const { ticketDragMock, dropTargetMock } = vi.hoisted(() => ({
 	dropTargetMock: vi.fn((id: string) => ({ setNodeRef: () => undefined, isOver: false, accepts: false, dragging: false, id })),
 }));
 
-vi.mock("./tickets/TicketDndProvider", () => ({
+vi.mock("./dnd/AppDndProvider", () => ({
 	useTicketDrag: () => ticketDragMock(),
 	useTicketDropTarget: (id: string) => dropTargetMock(id),
 	usePlanDraggable: () => ({

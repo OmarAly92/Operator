@@ -30,7 +30,7 @@ vi.mock("./PlanWithAgentSheet", () => ({
 vi.mock("./ReviewPlanSheet", () => ({
 	ReviewPlanSheet: ({ open }: { open: boolean }) => (open ? <div data-testid="review-sheet" /> : null),
 }));
-vi.mock("./TicketDndProvider", () => ({
+vi.mock("../dnd/AppDndProvider", () => ({
 	useTicketDrag: () => ({ active: null, requestAssign: requestAssignMock }),
 	usePlanDraggable: () => ({
 		attributes: {},

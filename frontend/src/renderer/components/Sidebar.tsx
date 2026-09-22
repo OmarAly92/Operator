@@ -32,7 +32,8 @@ import { useResizable } from "../hooks/useResizable";
 import { useShellMaybe } from "../lib/shell-context";
 import { useUpdateStatus } from "../hooks/useUpdateStatus";
 import { projectDropId } from "../lib/ticket-assign";
-import { useTicketDropTarget } from "./tickets/TicketDndProvider";
+import { useTicketDropTarget } from "./dnd/AppDndProvider";
+import { useSplitTabDraggable } from "./split/useSplitTabDraggable";
 import {
 	ContextMenu,
 	ContextMenuContent,
@@ -797,6 +798,7 @@ function SessionRow({
 	// Escape must not be swallowed by the blur-to-save path: the keydown handler
 	// blurs the input, so it flags a cancel here for onBlur to honour.
 	const cancelledRef = useRef(false);
+	const drag = useSplitTabDraggable({ kind: "session", sessionId: session.id }, session.title, "sidebar");
 
 	const queryClient = useQueryClient();
 	const { mutate: pinSession } = usePinSession();
@@ -897,6 +899,8 @@ function SessionRow({
 							active && "bg-interactive-active text-foreground",
 						)}
 						data-session-row=""
+						ref={drag.setNodeRef}
+						{...drag.listeners}
 					>
 						<div className="flex min-w-0 flex-1 transition-[transform] duration-[100ms] ease-out active:scale-[0.97]">
 							<button
