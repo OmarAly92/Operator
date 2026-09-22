@@ -604,7 +604,13 @@ export class DomBlockRenderer implements BlockRenderer {
 
 	private cursorPoint(): CursorPoint | null {
 		if (!this.core) return null;
-		return primaryCursorPlacement(this.core.snapshot());
+		const snapshot = this.core.snapshot();
+		const alt = snapshot.altScreen;
+		if (alt) {
+			if (!alt.cursorVisible) return null;
+			return { row: alt.cursorRow, column: alt.cursorColumn };
+		}
+		return primaryCursorPlacement(snapshot);
 	}
 
 	private rowTextAt(row: number): string {
@@ -631,7 +637,9 @@ export class DomBlockRenderer implements BlockRenderer {
 			paintBoxes(layer, "terminal-prediction", []);
 			return;
 		}
-		const anchor = container.querySelector<HTMLElement>(`[${CURSOR_ATTR}]`);
+		const anchor =
+			container.querySelector<HTMLElement>("[data-terminal-cursor]") ??
+			container.querySelector<HTMLElement>(`[${CURSOR_ATTR}]`);
 		if (!anchor) {
 			paintBoxes(layer, "terminal-prediction", []);
 			return;

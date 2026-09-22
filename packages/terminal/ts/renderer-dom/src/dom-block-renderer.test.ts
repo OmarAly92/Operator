@@ -82,6 +82,8 @@ function mountRenderer(): {
 	host: HTMLElement;
 	renderer: DomBlockRenderer;
 	feed: (text: string) => Promise<void>;
+	enterAltScreen: () => Promise<void>;
+	leaveAltScreen: () => Promise<void>;
 } {
 	stubRowLayout();
 	const core = createTerminalCore({ columns: 16, scrollback: 100 });
@@ -94,7 +96,14 @@ function mountRenderer(): {
 		feed(core, text);
 		await flushRepaint();
 	};
-	return { core, host, renderer, feed: feedInto };
+	return {
+		core,
+		host,
+		renderer,
+		feed: feedInto,
+		enterAltScreen: () => feedInto("\u001b[?1049h"),
+		leaveAltScreen: () => feedInto("\u001b[?1049l"),
+	};
 }
 
 describe("DomBlockRenderer", () => {
@@ -651,6 +660,40 @@ describe("predictive echo", () => {
 		renderer.setPredictiveEcho(null);
 		expect(host.querySelectorAll(".terminal-prediction")).toHaveLength(0);
 		expect(renderer.predictKey(printable("b"), 1100)).toBe(false);
+	});
+});
+
+describe("predictive echo on the alternate screen", () => {
+	it("paints at the alt cursor when the alt surface is showing", async () => {
+		const { renderer, host, enterAltScreen } = mountRenderer();
+		await enterAltScreen();
+		renderer.setPredictiveEcho({ thresholdMs: 30 });
+		renderer.noteRoundTrip(0, 107);
+		renderer.predictKey(printable("a"), 1000);
+		expect(host.querySelectorAll(".terminal-prediction")).toHaveLength(1);
+	});
+
+	it("paints in whichever surface is showing, never both at once", async () => {
+		const { renderer, host, enterAltScreen, leaveAltScreen } = mountRenderer();
+		renderer.setPredictiveEcho({ thresholdMs: 30 });
+		renderer.noteRoundTrip(0, 107);
+		await enterAltScreen();
+		renderer.predictKey(printable("a"), 1000);
+		expect(host.querySelectorAll(".terminal-prediction")).toHaveLength(1);
+		await leaveAltScreen();
+		renderer.predictionsClear();
+		renderer.predictKey(printable("b"), 1100);
+		expect(host.querySelectorAll(".terminal-prediction")).toHaveLength(1);
+	});
+
+	it("drops predictions when the alt screen redraws the whole frame", async () => {
+		const { renderer, host, enterAltScreen, feed } = mountRenderer();
+		await enterAltScreen();
+		renderer.setPredictiveEcho({ thresholdMs: 30 });
+		renderer.noteRoundTrip(0, 107);
+		renderer.predictKey(printable("a"), 1000);
+		await feed("\u001b[H\u001b[2J\r\n\r\nprompt> ");
+		expect(host.querySelectorAll(".terminal-prediction")).toHaveLength(0);
 	});
 });
 
