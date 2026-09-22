@@ -3,6 +3,7 @@ use std::collections::VecDeque;
 use unicode_width::UnicodeWidthChar;
 
 use crate::content::Content;
+use crate::width::WidthMode;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct RowRange {
@@ -123,7 +124,13 @@ impl RowIndex {
         &self.stale
     }
 
-    pub fn rewrap_hot(&mut self, content: &Content, cols: usize, cut_at: usize) -> Vec<usize> {
+    pub fn rewrap_hot(
+        &mut self,
+        content: &Content,
+        cols: usize,
+        cut_at: usize,
+        mode: WidthMode,
+    ) -> Vec<usize> {
         let total = self.completed.len();
         let hot_start = self.line_start_at_or_below(total.saturating_sub(HOT_ROWS));
         if hot_start > 0 {
@@ -134,7 +141,7 @@ impl RowIndex {
             open_start: self.open_start,
             stale: Vec::new(),
         };
-        let hot_map = hot.rewrap(content, cols);
+        let hot_map = hot.rewrap(content, cols, mode);
         self.completed.extend(hot.completed);
         let mut map: Vec<usize> = (0..hot_start).collect();
         map.extend(hot_map.iter().map(|new| hot_start + new));
@@ -227,6 +234,7 @@ impl RowIndex {
         content: &Content,
         cols: usize,
         range: std::ops::Range<usize>,
+        mode: WidthMode,
     ) -> Option<(Vec<usize>, usize)> {
         let touched: Vec<usize> = self
             .stale
@@ -259,7 +267,7 @@ impl RowIndex {
                 open_start: self.open_start,
                 stale: Vec::new(),
             };
-            let piece_map = piece.rewrap(content, cols);
+            let piece_map = piece.rewrap(content, cols, mode);
             let added = piece.completed.len();
             self.completed.append(&mut piece.completed);
             self.completed.append(&mut tail);
@@ -302,7 +310,7 @@ impl RowIndex {
         Some((map, lowest))
     }
 
-    pub fn rewrap(&mut self, content: &Content, cols: usize) -> Vec<usize> {
+    pub fn rewrap(&mut self, content: &Content, cols: usize, mode: WidthMode) -> Vec<usize> {
         let old = std::mem::take(&mut self.completed);
         let mut map = Vec::with_capacity(old.len() + 1);
         let mut index = 0;
@@ -315,7 +323,7 @@ impl RowIndex {
             let line_end = old[index].end;
             index += 1;
             let first_new = self.completed.len();
-            self.push_line(content, line_start, line_end, cols);
+            self.push_line(content, line_start, line_end, cols, mode);
             for piece in old.range(first_piece..index) {
                 map.push(self.row_holding(piece.start, first_new));
             }
@@ -324,7 +332,7 @@ impl RowIndex {
         map
     }
 
-    fn push_line(&mut self, content: &Content, start: u64, end: u64, cols: usize) {
+    fn push_line(&mut self, content: &Content, start: u64, end: u64, cols: usize, mode: WidthMode) {
         let bytes = content.copy_range(start, end);
         let Ok(text) = std::str::from_utf8(&bytes) else {
             self.completed.push_back(RowRange {
@@ -341,15 +349,17 @@ impl RowIndex {
         let mut width = 0;
         let mut word_in_piece = false;
         let mut last_break: Option<(u64, usize)> = None;
-        for (offset, ch) in text.char_indices() {
-            if ch == ' ' {
+        for cluster in crate::width::clusters(text, mode) {
+            let piece = &text[cluster.start..cluster.end];
+            let offset = cluster.start;
+            if piece.starts_with(' ') && cluster.width == 1 {
                 width += 1;
                 if word_in_piece {
-                    last_break = Some((start + offset as u64 + 1, width));
+                    last_break = Some((start + cluster.end as u64, width));
                 }
                 continue;
             }
-            let ch_width = UnicodeWidthChar::width(ch).unwrap_or(0);
+            let ch_width = cluster.width;
             if ch_width > 0 && width > 0 && width + ch_width > limit {
                 let (cut, cut_width) = last_break.unwrap_or((start + offset as u64, width));
                 self.completed.push_back(RowRange {
@@ -494,7 +504,7 @@ mod tests {
         let content = content_of("abcdefghij");
         let mut r = RowIndex::new(0);
         r.complete_row(10, false);
-        let map = r.rewrap(&content, 4);
+        let map = r.rewrap(&content, 4, WidthMode::Scalar);
         assert_eq!(ranges(&r), vec![(0, 4, true), (4, 8, true), (8, 10, false)]);
         assert_eq!(map, vec![0, 3]);
     }
@@ -506,7 +516,7 @@ mod tests {
         r.complete_row(4, true);
         r.complete_row(8, true);
         r.complete_row(10, false);
-        let map = r.rewrap(&content, 20);
+        let map = r.rewrap(&content, 20, WidthMode::Scalar);
         assert_eq!(ranges(&r), vec![(0, 10, false)]);
         assert_eq!(map, vec![0, 0, 0, 1]);
     }
@@ -517,7 +527,7 @@ mod tests {
         let mut r = RowIndex::new(0);
         r.complete_row(8, true);
         r.complete_row(16, false);
-        let map = r.rewrap(&content, 6);
+        let map = r.rewrap(&content, 6, WidthMode::Scalar);
         assert_eq!(
             ranges(&r),
             vec![(0, 6, true), (6, 12, true), (12, 16, false)]
@@ -530,7 +540,7 @@ mod tests {
         let content = content_of("a\u{4e16}\u{754c}b");
         let mut r = RowIndex::new(0);
         r.complete_row(content.end_offset(), false);
-        r.rewrap(&content, 3);
+        r.rewrap(&content, 3, WidthMode::Scalar);
         assert_eq!(ranges(&r), vec![(0, 4, true), (4, 8, false)]);
     }
 
@@ -539,7 +549,7 @@ mod tests {
         let content = content_of("the quick brown fox jumps");
         let mut r = RowIndex::new(0);
         r.complete_row(content.end_offset(), false);
-        r.rewrap(&content, 9);
+        r.rewrap(&content, 9, WidthMode::Scalar);
         assert_eq!(
             ranges(&r),
             vec![(0, 10, true), (10, 20, true), (20, 25, false)]
@@ -551,7 +561,7 @@ mod tests {
         let content = content_of("ab cdefghijkl m");
         let mut r = RowIndex::new(0);
         r.complete_row(content.end_offset(), false);
-        r.rewrap(&content, 5);
+        r.rewrap(&content, 5, WidthMode::Scalar);
         assert_eq!(
             ranges(&r),
             vec![(0, 3, true), (3, 8, true), (8, 14, true), (14, 15, false)]
@@ -563,7 +573,7 @@ mod tests {
         let content = content_of(" abcdefgh");
         let mut r = RowIndex::new(0);
         r.complete_row(content.end_offset(), false);
-        r.rewrap(&content, 5);
+        r.rewrap(&content, 5, WidthMode::Scalar);
         assert_eq!(ranges(&r), vec![(0, 5, true), (5, 9, false)]);
     }
 
@@ -572,8 +582,8 @@ mod tests {
         let content = content_of("the quick brown fox jumps");
         let mut r = RowIndex::new(0);
         r.complete_row(content.end_offset(), false);
-        r.rewrap(&content, 9);
-        r.rewrap(&content, 80);
+        r.rewrap(&content, 9, WidthMode::Scalar);
+        r.rewrap(&content, 80, WidthMode::Scalar);
         assert_eq!(ranges(&r), vec![(0, 25, false)]);
     }
 
@@ -586,7 +596,7 @@ mod tests {
         let content = content_of("  - alpha beta gamma delta");
         let mut r = RowIndex::new(0);
         r.complete_row(content.end_offset(), false);
-        r.rewrap(&content, 14);
+        r.rewrap(&content, 14, WidthMode::Scalar);
         assert_eq!(
             ranges(&r),
             vec![(0, 15, true), (15, 21, true), (21, 26, false)]
@@ -599,7 +609,7 @@ mod tests {
         let content = content_of("    alpha beta gamma");
         let mut r = RowIndex::new(0);
         r.complete_row(content.end_offset(), false);
-        r.rewrap(&content, 12);
+        r.rewrap(&content, 12, WidthMode::Scalar);
         assert_eq!(
             ranges(&r),
             vec![(0, 10, true), (10, 15, true), (15, 20, false)]
@@ -625,7 +635,7 @@ mod tests {
         let mut r = RowIndex::new(0);
         r.complete_row(0, false);
         r.complete_row(2, false);
-        let map = r.rewrap(&content, 1);
+        let map = r.rewrap(&content, 1, WidthMode::Scalar);
         assert_eq!(ranges(&r), vec![(0, 0, false), (0, 1, true), (1, 2, false)]);
         assert_eq!(map, vec![0, 1, 3]);
     }
@@ -635,7 +645,7 @@ mod tests {
         let content = content_of("abcdef");
         let mut r = RowIndex::new(0);
         r.complete_row(6, false);
-        r.rewrap(&content, 2);
+        r.rewrap(&content, 2, WidthMode::Scalar);
         assert_eq!(r.open_start(), 6);
     }
 
@@ -648,7 +658,7 @@ mod tests {
         for index in 0..total {
             r.complete_row(index as u64 + 1, false);
         }
-        let map = r.rewrap_hot(&content, 80, 80);
+        let map = r.rewrap_hot(&content, 80, 80, WidthMode::Scalar);
         assert_eq!(map.len(), total + 1);
         assert_eq!(*map.last().unwrap(), r.completed().len());
         for &new in &map[..total] {
@@ -680,7 +690,7 @@ mod tests {
 
         let touch = 100..105;
         let (map, lowest) = r
-            .rows_for(&content, new_cols, touch.clone())
+            .rows_for(&content, new_cols, touch.clone(), WidthMode::Scalar)
             .expect("the touch overlaps the stale run");
         assert_eq!(lowest, 100);
 

@@ -405,6 +405,15 @@ export class TerminalCore {
 		this.inner.setAgentTuiMode(on);
 	}
 
+	setGraphemeClusters(on: boolean): void {
+		if (this.disposed) return;
+		this.inner.setGraphemeClusters(on);
+	}
+
+	graphemeClusters(): boolean {
+		return this.inner.graphemeClusters();
+	}
+
 	setBlockBookmarked(id: BlockId, bookmarked: boolean): void {
 		if (this.disposed) {
 			return;

@@ -134,6 +134,19 @@ describe("TerminalCore", () => {
 		expect(remap.every(([from, to]) => to <= from)).toBe(true);
 		expect(core.snapshot().firstStableRow).toBeGreaterThan(0);
 	});
+
+	it("lays a ZWJ family out over two cells once grapheme clusters are on", () => {
+		const family = "\u{1f468}\u{200d}\u{1f469}\u{200d}\u{1f467}";
+		const off = createTerminalCore({ columns: 20, scrollback: 10 });
+		off.feed(new TextEncoder().encode(family));
+		expect(off.graphemeClusters()).toBe(false);
+		expect(off.snapshot().cursorColumn).toBe(6);
+		const on = createTerminalCore({ columns: 20, scrollback: 10 });
+		on.setGraphemeClusters(true);
+		expect(on.graphemeClusters()).toBe(true);
+		on.feed(new TextEncoder().encode(family));
+		expect(on.snapshot().cursorColumn).toBe(2);
+	});
 });
 
 describe("TerminalCore.onChange failure isolation", () => {

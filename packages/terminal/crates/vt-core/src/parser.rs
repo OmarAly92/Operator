@@ -10,6 +10,7 @@ use crate::limits::Limits;
 use crate::row_index::{RowIndex, RowRange};
 use crate::screen::{ClearPolicy, ScreenGrid};
 use crate::style::{CellStyle, StyleCode};
+use crate::width::WidthMode;
 
 pub struct HistoryRow {
     pub bytes: Vec<u8>,
@@ -53,6 +54,7 @@ pub(crate) struct Parser {
     pending_remap: Option<Vec<(u64, u64)>>,
     pending_rewritten_from: Option<usize>,
     last_width: usize,
+    width_mode: WidthMode,
     #[cfg(feature = "trace")]
     pub(crate) trace: crate::trace::Trace,
 }
@@ -87,8 +89,21 @@ impl Parser {
             pending_remap: None,
             pending_rewritten_from: None,
             last_width: width,
+            width_mode: WidthMode::default(),
             #[cfg(feature = "trace")]
             trace: Default::default(),
+        }
+    }
+
+    pub fn width_mode(&self) -> WidthMode {
+        self.width_mode
+    }
+
+    pub fn set_width_mode(&mut self, mode: WidthMode) {
+        self.width_mode = mode;
+        self.screen.set_width_mode(mode);
+        if let Some(alt) = self.alt.as_mut() {
+            alt.set_width_mode(mode);
         }
     }
 
@@ -295,6 +310,7 @@ impl Parser {
         let mut alt = ScreenGrid::new(rows, self.width);
         alt.set_records_eviction(false);
         alt.set_clear_policy(ClearPolicy::ClearInPlace);
+        alt.set_width_mode(self.width_mode);
         self.alt = Some(alt);
         self.saved_style = self.pending_style;
         self.pending_style = CellStyle::DEFAULT;
@@ -488,7 +504,9 @@ impl Parser {
         }
         if std::mem::take(&mut self.rewrap_pending) {
             let cut_at = std::mem::replace(&mut self.last_width, self.width);
-            let map = self.rows.rewrap_hot(&self.content, self.width, cut_at);
+            let map = self
+                .rows
+                .rewrap_hot(&self.content, self.width, cut_at, self.width_mode);
             self.grid.remap_rows(&map);
             self.note_remap(&map);
             self.history_exported_rows = self
@@ -631,7 +649,10 @@ impl Parser {
     }
 
     pub fn touch_rows(&mut self, range: std::ops::Range<usize>) {
-        let Some((map, lowest)) = self.rows.rows_for(&self.content, self.width, range) else {
+        let Some((map, lowest)) =
+            self.rows
+                .rows_for(&self.content, self.width, range, self.width_mode)
+        else {
             return;
         };
         self.grid.remap_rows(&map);

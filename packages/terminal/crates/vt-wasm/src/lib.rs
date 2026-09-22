@@ -102,6 +102,16 @@ impl WasmTerminalCore {
         self.core.set_agent_tui_mode(on);
     }
 
+    #[wasm_bindgen(js_name = setGraphemeClusters)]
+    pub fn set_grapheme_clusters(&mut self, on: bool) {
+        self.core.set_grapheme_clusters(on);
+    }
+
+    #[wasm_bindgen(js_name = graphemeClusters)]
+    pub fn grapheme_clusters(&self) -> bool {
+        self.core.grapheme_clusters()
+    }
+
     pub fn set_block_bookmarked(
         &mut self,
         id_lo: u32,

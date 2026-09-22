@@ -23,6 +23,7 @@ pub mod style;
 pub mod sync;
 #[cfg(feature = "trace")]
 pub mod trace;
+pub mod width;
 
 pub mod testing {
     pub use crate::screen::{Cell, ScreenGrid};
@@ -41,6 +42,7 @@ pub use limits::{Limits, MemoryStats};
 pub use line_editor::LineEditorState;
 pub use parser::{HistoryBlock, HistoryRow};
 pub use style::{Attrs, CellStyle, StyleCode};
+pub use width::{clusters, Cluster, WidthMode};
 
 use std::ops::Range;
 
@@ -244,7 +246,8 @@ impl TerminalCore {
                     rows,
                 } => {
                     let cols = self.parser.columns();
-                    self.history.begin(first_stable_row, rows, cols);
+                    self.history
+                        .begin(first_stable_row, rows, cols, self.parser.width_mode());
                     let rest = &bytes[upto..];
                     let consumed = self.history.consume(rest);
                     self.drain_history();
@@ -489,6 +492,18 @@ impl TerminalCore {
     pub fn set_agent_tui_mode(&mut self, on: bool) {
         self.parser.set_agent_tui_mode(on);
         self.debug_check();
+    }
+
+    pub fn set_grapheme_clusters(&mut self, on: bool) {
+        self.parser.set_width_mode(if on {
+            WidthMode::Grapheme
+        } else {
+            WidthMode::Scalar
+        });
+    }
+
+    pub fn grapheme_clusters(&self) -> bool {
+        self.parser.width_mode() == WidthMode::Grapheme
     }
 
     pub fn set_block_bookmarked(&mut self, id: crate::block::BlockId, bookmarked: bool) {

@@ -72,7 +72,11 @@ let nextResize = 1;
 const longTasks: number[] = [];
 const domRenderer = (renderer as unknown as { renderer: DomBlockRenderer }).renderer;
 const featureList = params.get("features") ?? "";
-if (featureList !== "") domRenderer.setFeatures(parseFeatureList(featureList));
+if (featureList !== "") {
+	const parsed = parseFeatureList(featureList);
+	domRenderer.setFeatures(parsed);
+	if (parsed.graphemes) core.setGraphemeClusters(true);
+}
 domRenderer.onPaint(() => {
 	paints += 1;
 });

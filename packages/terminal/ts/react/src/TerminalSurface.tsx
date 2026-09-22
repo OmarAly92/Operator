@@ -4,6 +4,7 @@ import {
 	createFindBar,
 	DomBlockRenderer,
 	RERUN_EVENT,
+	resolveFeatures,
 	type FindBar,
 	type RendererFeatures,
 	type SelectionKind,
@@ -160,7 +161,8 @@ export function TerminalSurface({
 	const featuresKey = JSON.stringify(features ?? {});
 	useLayoutEffect(() => {
 		rendererRef.current?.setFeatures(features ?? {});
-	}, [featuresKey]);
+		core.setGraphemeClusters(resolveFeatures(features).graphemes);
+	}, [core, featuresKey]);
 
 	useLayoutEffect(() => {
 		editorRef.current?.setStrings(strings);

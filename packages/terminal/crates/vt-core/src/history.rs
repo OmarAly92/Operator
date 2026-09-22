@@ -5,6 +5,7 @@ use vte::{Params, Perform};
 use crate::parser::{HistoryBlock, HistoryRow};
 use crate::screen::ScreenGrid;
 use crate::style::CellStyle;
+use crate::width::WidthMode;
 
 #[derive(Default)]
 struct OpenBlock {
@@ -45,9 +46,10 @@ impl HistoryReceiver {
         self.screen.is_some()
     }
 
-    pub fn begin(&mut self, first_stable_row: u64, rows: usize, cols: usize) {
+    pub fn begin(&mut self, first_stable_row: u64, rows: usize, cols: usize, mode: WidthMode) {
         let mut screen = ScreenGrid::new(rows.max(1) + 1, cols.max(1));
         screen.set_records_eviction(false);
+        screen.set_width_mode(mode);
         self.first_stable_row = first_stable_row;
         self.wanted = rows;
         self.seen_rows = 0;

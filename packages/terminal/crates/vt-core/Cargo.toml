@@ -13,6 +13,7 @@ trace = []
 memchr = { workspace = true }
 regex-automata = { workspace = true }
 terminal-marks = { path = "../marks" }
+unicode-segmentation = { workspace = true }
 unicode-width = { workspace = true }
 vte = { workspace = true }
 
