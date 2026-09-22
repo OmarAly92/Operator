@@ -21,6 +21,9 @@ import {
 import type { WorkspaceSession, WorkspaceSummary } from "../types/workspace";
 import { agentsQueryKey } from "../hooks/useAgentsQuery";
 import { useUiStore } from "../stores/ui-store";
+import { useSplitLayoutStore } from "../stores/split-layout-store";
+import { EMPTY_LAYOUT, openTab, splitPane } from "../lib/split-layout";
+import type { TabRef } from "../lib/split-layout";
 
 const { getMock, postMock, navigateMock, mockParams, renameSessionMock, updateStatusMock, commandPaletteEnabled } = vi.hoisted(
 	() => ({
@@ -1449,5 +1452,77 @@ describe("Sidebar", () => {
 			expect(button).toHaveClass("text-working", "bg-working/12");
 		}
 		expect(screen.getByText("v9.9.9 ready")).toBeInTheDocument();
+	});
+
+	it("shows every session visible in a pane as active in the sidebar", () => {
+		const sessionA: WorkspaceSession = { ...session, id: "proj-1-a", title: "session a" };
+		const sessionB: WorkspaceSession = { ...session, id: "proj-1-b", title: "session b" };
+
+		const createLayout = (tab1: TabRef, tab2: TabRef) => {
+			const next = (() => {
+				let n = 0;
+				return () => `id${++n}`;
+			})();
+			let layout = openTab(EMPTY_LAYOUT, tab1, next);
+			const paneId = layout.focusedPaneId as string;
+			layout = splitPane(layout, tab2, paneId, "right", next);
+			return layout;
+		};
+
+		const twoPane = createLayout(
+			{ kind: "session", sessionId: "proj-1-a" },
+			{ kind: "session", sessionId: "proj-1-b" },
+		);
+
+		mockParams.projectId = "proj-1";
+		mockParams.sessionId = "proj-1-a";
+
+		useSplitLayoutStore.setState({ layout: twoPane });
+
+		renderSidebar({
+			workspaces: [{ ...workspace, sessions: [sessionA, sessionB] }],
+		});
+
+		const openA = screen.getByLabelText("Open session a");
+		const openB = screen.getByLabelText("Open session b");
+
+		expect(openA).toHaveAttribute("aria-current", "page");
+		expect(openB).toHaveAttribute("aria-current", "page");
+	});
+
+	it("does not mark sessions as active on the project board route", () => {
+		const sessionA: WorkspaceSession = { ...session, id: "proj-1-a", title: "session a" };
+		const sessionB: WorkspaceSession = { ...session, id: "proj-1-b", title: "session b" };
+
+		const createLayout = (tab1: TabRef, tab2: TabRef) => {
+			const next = (() => {
+				let n = 0;
+				return () => `id${++n}`;
+			})();
+			let layout = openTab(EMPTY_LAYOUT, tab1, next);
+			const paneId = layout.focusedPaneId as string;
+			layout = splitPane(layout, tab2, paneId, "right", next);
+			return layout;
+		};
+
+		const twoPane = createLayout(
+			{ kind: "session", sessionId: "proj-1-a" },
+			{ kind: "session", sessionId: "proj-1-b" },
+		);
+
+		mockParams.projectId = "proj-1";
+		mockParams.sessionId = undefined;
+
+		useSplitLayoutStore.setState({ layout: twoPane });
+
+		renderSidebar({
+			workspaces: [{ ...workspace, sessions: [sessionA, sessionB] }],
+		});
+
+		const openA = screen.getByLabelText("Open session a");
+		const openB = screen.getByLabelText("Open session b");
+
+		expect(openA).not.toHaveAttribute("aria-current");
+		expect(openB).not.toHaveAttribute("aria-current");
 	});
 });
