@@ -850,6 +850,27 @@ history of `master`.
     a character printed in the last column keeps the cursor logically past
     the column until the next printable character, so `EL 0` immediately
     after should not erase it. vt-core erases it. Corpus: `erase_in_line`.
+- **The phone has no predictive local echo, and gets one only through survey
+  §4.2.** Part 6's predictive echo is a renderer-only dim overlay in
+  `ts/renderer-dom`; the Flutter client draws with its own vendored fork
+  (`packages/mobile/packages/xterm`) and never loads that renderer. It also
+  would not help the case it was proposed for: the mobile composer is already
+  local echo (text sits in a Flutter field and goes as one payload on send,
+  `packages/mobile/lib/feature/terminal/logic/send_route.dart:20-21`), and the
+  wait after send is Claude's turn — measured 2026-09-22 at 1.07–1.57 s
+  (median 1.24 s) for the cheapest possible prompt against a 111.7 ms median
+  keystroke round trip (146.8 ms p95) over the daemon's public tunnel and
+  6.7 ms on loopback
+  (`docs/superpowers/specs/2026-09-22-remote-typing-latency-measurement.md`,
+  reproduce with `scripts/measure-remote-typing-latency.mjs`). Per-keystroke
+  lag on mobile is real only in the raw terminal pane and the key row
+  (`terminal_cubit.dart:99`, `:281-283`). The desktop renderer **does** have a
+  predictive echo as of Plan F (default off, armed only above a host RTT
+  threshold — the desktop-against-remote-daemon case the user confirmed they
+  use); the route to the same thing on the phone is the shared renderer that
+  `docs/superpowers/specs/2026-09-22-server-owned-terminal-model-design.md`
+  designs. **Do not build a second prediction implementation in the Dart
+  fork** — that is the fork §4.2 exists to delete.
 
 ---
 

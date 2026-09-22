@@ -1038,6 +1038,25 @@ move during streaming repaints one row.
   The design spec is Plan F's Task 1; the implementation is **Plan G**, which
   is where the phone gains everything Parts 4 and 5 built for the desktop.
 
+**What Plan F delivered (2026-09-22).** The measurement first
+(`2026-09-22-remote-typing-latency-measurement.md`): over the daemon's public
+tunnel a keystroke round trip is 106.7 ms median / 144.3 ms p95 (first byte),
+and the character is on screen at 111.7 ms median / 146.8 ms p95 (visible);
+on loopback the whole local pipeline is 6.7 ms median (visible). Claude's own
+turn for the cheapest prompt writable is 1071.8–1567.0 ms (median 1240.3 ms,
+p95 1494.0 ms), so network is ~8 % of the floor of a send→answer wait and
+under 1 % of a realistic one. So **predictive echo does nothing for the phone
+case** — it cannot even reach the phone (renderer-only overlay; the Flutter
+app draws with its own `xterm` fork), and the mobile composer is already
+local echo. The configuration it does help is the **desktop app against a
+remote daemon**, which pays the full ~107 ms per keystroke in Claude Code's
+prompt; the user confirmed on 2026-09-22 that they work that way often. Plan F
+therefore delivered both bullets: the §4.2 design spec
+(`2026-09-22-server-owned-terminal-model-design.md`) and predictive echo in
+the desktop renderer as an overlay in the Plan E decoration layer — default
+off, armed only above a host RTT threshold, painting in both surfaces,
+touching no row and no model.
+
 ## Decisions needed
 
 1. **Caps**: `Limits { rows: 200_000, bytes: 128 MiB }` per core, or other.
