@@ -1,6 +1,6 @@
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
-import { createTerminalCore } from "@operator/terminal-core";
+import { createTerminalCore, type HostCapabilities } from "@operator/terminal-core";
 import { DomBlockRenderer, terminalStyles } from "@operator/terminal-renderer-dom";
 import { TerminalSurface } from "./index";
 import {
@@ -532,6 +532,94 @@ describe("TerminalSurface", () => {
 		act(() => editor.blur());
 		expect(setFocused).toHaveBeenLastCalledWith(false);
 		setFocused.mockRestore();
+	});
+
+	async function mountAltSurface(extra: Partial<HostCapabilities>) {
+		const mount = vi.spyOn(DomBlockRenderer.prototype, "mount");
+		const host: HostCapabilities = { writeClipboard: async () => {}, readClipboard: async () => "", openLink: async () => {}, ...extra };
+		const result = renderSurface({ host });
+		const renderer = mount.mock.contexts[0] as DomBlockRenderer;
+		mount.mockRestore();
+		act(() => {
+			feed(result.core, "\x1b[?1049h");
+		});
+		await flushRepaint();
+		const surface = result.host;
+		const typeKey = (key: string, modifiers: KeyboardEventInit = {}) => {
+			act(() => {
+				surface.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true, ...modifiers }));
+			});
+		};
+		return { renderer, surface, typeKey, core: result.core, unmountSurface: result.unmount };
+	}
+
+	it("predicts a printable keystroke on the alternate screen when the host set a threshold", async () => {
+		const { renderer, surface, typeKey } = await mountAltSurface({ predictiveEcho: { thresholdMs: 30 } });
+		renderer.noteRoundTrip(0, 107);
+		typeKey("a");
+		expect(renderer.predictionCount()).toBe(1);
+		expect(surface.querySelectorAll(".terminal-prediction")).toHaveLength(1);
+	});
+
+	it("predicts nothing when the host set no threshold", async () => {
+		const { renderer, typeKey } = await mountAltSurface({});
+		renderer.noteRoundTrip(0, 107);
+		typeKey("a");
+		expect(renderer.predictionCount()).toBe(0);
+	});
+
+	it("does not predict the copy chord or a control key", async () => {
+		const { renderer, typeKey } = await mountAltSurface({ predictiveEcho: { thresholdMs: 30 } });
+		renderer.noteRoundTrip(0, 107);
+		typeKey("c", { metaKey: true });
+		typeKey("c", { ctrlKey: true, shiftKey: true });
+		typeKey("Enter");
+		expect(renderer.predictionCount()).toBe(0);
+	});
+
+	it("clears predictions when the pane tears down", async () => {
+		const { renderer, typeKey, unmountSurface } = await mountAltSurface({ predictiveEcho: { thresholdMs: 30 } });
+		renderer.noteRoundTrip(0, 107);
+		typeKey("a");
+		expect(renderer.predictionCount()).toBe(1);
+		unmountSurface();
+		expect(renderer.predictionCount()).toBe(0);
+	});
+
+	it("arms from the round trip between a keystroke and the output it produces", async () => {
+		const { renderer, typeKey, core } = await mountAltSurface({ predictiveEcho: { thresholdMs: 30 } });
+		const now = vi.spyOn(performance, "now").mockReturnValue(1000);
+		typeKey("a");
+		expect(renderer.predictionCount()).toBe(0);
+		now.mockReturnValue(1107);
+		act(() => {
+			feed(core, "a");
+		});
+		now.mockReturnValue(1120);
+		typeKey("b");
+		now.mockRestore();
+		expect(renderer.predictionCount()).toBe(1);
+	});
+
+	it("passes the host's predictive-echo threshold to the renderer and null when there is none", () => {
+		const setPredictiveEcho = vi.spyOn(DomBlockRenderer.prototype, "setPredictiveEcho");
+		const core = createTerminalCore({ columns: 16, scrollback: 100 });
+		const base = { writeClipboard: async () => {}, readClipboard: async () => "", openLink: async () => {} };
+		const { rerender } = render(<TerminalSurface core={core} theme={theme} font={font} altScreenActive={false} host={base} onSend={ignoreSend} onSendRaw={ignoreRaw} />);
+		expect(setPredictiveEcho).toHaveBeenLastCalledWith(null);
+		rerender(<TerminalSurface core={core} theme={theme} font={font} altScreenActive={false} host={{ ...base, predictiveEcho: { thresholdMs: 30 } }} onSend={ignoreSend} onSendRaw={ignoreRaw} />);
+		expect(setPredictiveEcho).toHaveBeenLastCalledWith({ thresholdMs: 30 });
+		setPredictiveEcho.mockRestore();
+	});
+
+	it("keeps the predictive-echo threshold on a renderer the surface rebuilds", () => {
+		const setPredictiveEcho = vi.spyOn(DomBlockRenderer.prototype, "setPredictiveEcho");
+		const host = { writeClipboard: async () => {}, readClipboard: async () => "", openLink: async () => {}, predictiveEcho: { thresholdMs: 30 } };
+		const { rebuild } = renderSurface({ host });
+		setPredictiveEcho.mockClear();
+		rebuild();
+		expect(setPredictiveEcho).toHaveBeenLastCalledWith({ thresholdMs: 30 });
+		setPredictiveEcho.mockRestore();
 	});
 
 	it("passes the host's secret patterns to the renderer and nothing when there are none", () => {

@@ -250,6 +250,7 @@ export type HostCapabilities = Readonly<{
 	resolvePath?(path: string, cwd: string): Promise<string | null>;
 	openPath?(path: string, line?: number, column?: number): Promise<void>;
 	secretPatterns?: readonly SecretPattern[];
+	predictiveEcho?: Readonly<{ thresholdMs: number }>;
 }>;
 
 export type HistoryStore = {

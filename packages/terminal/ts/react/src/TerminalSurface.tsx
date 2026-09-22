@@ -131,6 +131,13 @@ export function TerminalSurface({
 		]);
 	}, [core]);
 
+	const predictiveThresholdMs = host?.predictiveEcho?.thresholdMs;
+	const applyPredictiveEcho = useCallback(() => {
+		rendererRef.current?.setPredictiveEcho(predictiveThresholdMs === undefined ? null : { thresholdMs: predictiveThresholdMs });
+	}, [predictiveThresholdMs]);
+	const applyPredictiveEchoRef = useRef(applyPredictiveEcho);
+	applyPredictiveEchoRef.current = applyPredictiveEcho;
+
 	useLayoutEffect(() => {
 		const blockHost = hostRef.current;
 		const editorHost = editorHostRef.current;
@@ -176,12 +183,14 @@ export function TerminalSurface({
 		editorRef.current = editor;
 		findBarRef.current = findBar;
 		applyLinkProviders();
+		applyPredictiveEchoRef.current();
 		return () => {
 			blockHost.removeEventListener(RERUN_EVENT, onRerun);
 			offPaint();
 			offFinished();
 			findBar.dispose();
 			editor.dispose();
+			renderer.predictionsClear();
 			renderer.dispose();
 			editorRef.current = null;
 			rendererRef.current = null;
@@ -213,6 +222,10 @@ export function TerminalSurface({
 	useLayoutEffect(() => {
 		rendererRef.current?.setSecretPatterns(secretPatterns ?? []);
 	}, [secretPatterns]);
+
+	useLayoutEffect(() => {
+		applyPredictiveEcho();
+	}, [applyPredictiveEcho]);
 
 	useLayoutEffect(() => {
 		editorRef.current?.setStrings(strings);
@@ -293,6 +306,12 @@ export function TerminalSurface({
 			}
 			event.preventDefault();
 			rendererRef.current?.selectionClear();
+			const now = performance.now();
+			rendererRef.current?.noteSend(now);
+			rendererRef.current?.predictKey(
+				{ text: event.key, ctrlKey: event.ctrlKey, altKey: event.altKey, metaKey: event.metaKey, isComposing: event.isComposing },
+				now,
+			);
 			onSendRaw(data);
 		};
 		// The alt screen has no line editor to hold the line, so every paste

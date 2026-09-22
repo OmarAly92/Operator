@@ -652,6 +652,21 @@ describe("predictive echo", () => {
 		expect(host.querySelectorAll(".terminal-prediction")).toHaveLength(0);
 	});
 
+	it("measures the round trip from a noted send to the next output the core reports", async () => {
+		const { renderer, feed } = mountRenderer();
+		renderer.setPredictiveEcho({ thresholdMs: 30 });
+		renderer.noteSend(performance.now() - 200);
+		await feed("x");
+		expect(renderer.predictKey(printable("a"), performance.now())).toBe(true);
+	});
+
+	it("takes no sample from output that no send is waiting on", async () => {
+		const { renderer, feed } = mountRenderer();
+		renderer.setPredictiveEcho({ thresholdMs: 0 });
+		await feed("x");
+		expect(renderer.predictKey(printable("a"), performance.now())).toBe(false);
+	});
+
 	it("setPredictiveEcho(null) disarms and clears", () => {
 		const { renderer, host } = mountRenderer();
 		renderer.setPredictiveEcho({ thresholdMs: 30 });

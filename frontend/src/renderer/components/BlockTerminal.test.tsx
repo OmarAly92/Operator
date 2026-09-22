@@ -32,6 +32,7 @@ const mockState = vi.hoisted(() => {
 					resolvePath?: (path: string, cwd: string) => Promise<string | null>;
 					openPath?: (path: string) => Promise<void>;
 					secretPatterns?: readonly { source: string; flags?: string }[];
+					predictiveEcho?: Readonly<{ thresholdMs: number }>;
 				}
 			| undefined,
 		onHint: undefined as ((hint: { ruleId: string; text: string; path?: string; line?: number }) => void) | undefined,
@@ -150,6 +151,7 @@ vi.mock("@operator/terminal-react", () => {
 				resolvePath?: (path: string, cwd: string) => Promise<string | null>;
 				openPath?: (path: string) => Promise<void>;
 				secretPatterns?: readonly { source: string; flags?: string }[];
+				predictiveEcho?: Readonly<{ thresholdMs: number }>;
 			};
 			strings?: Record<string, string>;
 			onSend?: (text: string) => void;
@@ -325,6 +327,7 @@ function renderTerminal(
 		onReplayPainted?: () => void;
 		focusToken?: number;
 		workspacePath?: string;
+		predictiveEcho?: Readonly<{ thresholdMs: number }>;
 	} = {},
 ) {
 	const localListeners: Array<(bytes: Uint8Array) => void> = [];
@@ -349,6 +352,7 @@ function renderTerminal(
 				onReplayPainted={options.onReplayPainted}
 				focusToken={options.focusToken}
 				workspacePath={options.workspacePath}
+				predictiveEcho={options.predictiveEcho}
 			/>
 		</QueryClientProvider>,
 	);
@@ -456,6 +460,18 @@ describe("BlockTerminal", () => {
 			body: "after 12s",
 			type: "terminal",
 		});
+	});
+
+	it("leaves predictive echo off unless Operator passes a threshold", async () => {
+		renderTerminal();
+		await waitFor(() => expect(mockState.host).toBeDefined());
+		expect(mockState.host?.predictiveEcho).toBeUndefined();
+	});
+
+	it("hands a predictive-echo threshold straight through to the surface's host", async () => {
+		renderTerminal({ predictiveEcho: { thresholdMs: 30 } });
+		await waitFor(() => expect(mockState.host).toBeDefined());
+		expect(mockState.host?.predictiveEcho).toEqual({ thresholdMs: 30 });
 	});
 
 	it("hands the host's focus token to the surface", async () => {

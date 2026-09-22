@@ -65,6 +65,7 @@ export type BlockTerminalProps = {
 	 */
 	onReplayPainted?: () => void;
 	onReplayReady?: () => void; // fired once, on the first change where replayReady() is true
+	predictiveEcho?: HostCapabilities["predictiveEcho"];
 };
 
 const DEFAULT_COLUMNS = 120;
@@ -186,6 +187,7 @@ export function BlockTerminal({
 	focusToken,
 	onReplayPainted,
 	onReplayReady,
+	predictiveEcho,
 }: BlockTerminalProps) {
 	const { t } = useTranslation();
 	const coreRef = useRef<TerminalCore | null>(null);
@@ -429,6 +431,7 @@ export function BlockTerminal({
 	});
 	const secretPatterns = useMemo(() => (redactSecrets ? (patterns ?? []) : []), [redactSecrets, patterns]);
 
+	const predictiveThresholdMs = predictiveEcho?.thresholdMs;
 	const host = useMemo<HostCapabilities>(
 		() => ({
 			writeClipboard: async (text: string) => {
@@ -452,8 +455,9 @@ export function BlockTerminal({
 				await operatorBridge.app.openPath(path);
 			},
 			secretPatterns,
+			...(predictiveThresholdMs === undefined ? {} : { predictiveEcho: { thresholdMs: predictiveThresholdMs } }),
 		}),
-		[clipboard, workspacePath, secretPatterns],
+		[clipboard, workspacePath, secretPatterns, predictiveThresholdMs],
 	);
 
 	const strings = useMemo<TerminalStrings>(

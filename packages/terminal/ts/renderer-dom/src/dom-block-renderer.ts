@@ -171,7 +171,10 @@ export class DomBlockRenderer implements BlockRenderer {
 			this.scheduleRepaint();
 		});
 		this.rowEventsUnsubscribe = core.onRowEvents((event) => this.remapAnchor(event.remap));
-		this.unsubscribe = core.onChange(() => this.scheduleRepaint());
+		this.unsubscribe = core.onChange(() => {
+			this.rtt.received(performance.now());
+			this.scheduleRepaint();
+		});
 		this.blockNav = mountBlockNavFromRenderer({ container, getBlocks: () => this.filteredBlocks, scrollToBlock: (id, align) => this.scrollToBlock(id, align), isAltScreenActive: () => core.snapshot().altScreen !== null });
 		bindActionEvents(container, { setBlockBookmarked: (id, b) => core.setBlockBookmarked(id, b), getBlockBookmarked: (id) => core.blockBookmarked(id), setFilter: (f) => this.setFilter(f), scrollToBlock: (id, a) => this.scrollToBlock(id, a), scheduleRepaint: () => this.scheduleRepaint() });
 		this.jumpToBottom = mountJumpToBottom({ container, getBlocks: () => this.filteredBlocks, getCellHeight: () => this.measure().cellHeight, getStickToBottom: () => this.stickToBottom, scrollToLatest: () => this.scrollToLatest(), isAltScreenActive: () => core.snapshot().altScreen !== null, strings: defaultStrings });
