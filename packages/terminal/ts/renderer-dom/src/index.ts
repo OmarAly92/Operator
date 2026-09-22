@@ -4,6 +4,9 @@ export { DEFAULT_FEATURES, parseFeatureList, resolveFeatures, type RendererFeatu
 export { warpDarkTheme } from "./theme-warp.js";
 export { renderBlockActions, RERUN_EVENT, type BlockTextSource } from "./block-actions.js";
 export type { SelectionKind, SelectionPoint } from "./selection-model.js";
+export { DEFAULT_LINK_PROVIDERS, createPathProvider, type DetectedLink, type LinkProvider } from "./link-providers.js";
+export type { LinkOs } from "./link-parsing.js";
+export type { LinkRange } from "./logical-lines.js";
 export { styleCodeToCssVar } from "./style-code.js";
 export { terminalStyles } from "./styles.js";
 export { createFindBar, type FindBar, type FindBarHost, type FindBarOptions } from "./find-bar.js";

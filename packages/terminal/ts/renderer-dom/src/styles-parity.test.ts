@@ -113,6 +113,13 @@ describe("terminalStyles", () => {
 		expect(block).not.toContain("cursor: text");
 	});
 
+	it("shows the pointing hand only while a link is under the pointer", () => {
+		const hover = terminalStyles.indexOf(".terminal-link-hover .terminal-block");
+		expect(hover).toBeGreaterThan(-1);
+		const block = terminalStyles.slice(hover, terminalStyles.indexOf("}", hover));
+		expect(block).toContain("cursor: pointer");
+	});
+
 	it("resolves bundled font URLs before injecting the stylesheet", () => {
 		expect(terminalStylesForDocument()).not.toContain('url("./fonts/');
 	});

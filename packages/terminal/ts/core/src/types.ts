@@ -245,6 +245,8 @@ export type HostCapabilities = Readonly<{
 	openLink(url: string): Promise<void>;
 	notify?(title: string, body: string): void;
 	listDirectory?(path: string): Promise<readonly DirEntry[]>;
+	resolvePath?(path: string, cwd: string): Promise<string | null>;
+	openPath?(path: string, line?: number, column?: number): Promise<void>;
 }>;
 
 export type HistoryStore = {

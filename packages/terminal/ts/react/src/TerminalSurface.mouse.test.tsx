@@ -499,4 +499,37 @@ describe("TerminalSurface selection", () => {
 		expect(onSendRaw).toHaveBeenCalledWith("j");
 		expect(rows[0]!.style.backgroundImage).toBe("");
 	});
+
+	it("underlines the link under the pointer and opens it only with the platform modifier", async () => {
+		const originalPlatform = Object.getOwnPropertyDescriptor(navigator, "platform");
+		Object.defineProperty(navigator, "platform", { value: "MacIntel", configurable: true });
+		try {
+			const openLink = vi.fn(async () => {});
+			const host = { writeClipboard: async () => {}, readClipboard: async () => "", openLink };
+			const { container, core, host: blockHost, refit } = renderSurface({ host });
+			// Wide enough that the url is one unwrapped row, so the underline the
+			// pointer earns is a single box.
+			setHostSize(blockHost, 1000, 500);
+			refit(1);
+			act(() => { feed(core, "see https://x.y/doc now\r\n"); });
+			await flushRepaint();
+			const surface = container.querySelector(".terminal-host") as HTMLElement;
+			const rows = layoutRows(container);
+			mouse(rows[0]!, "mousemove", cellWidth * 6.5, cellHeight * 0.5);
+			await new Promise((resolve) => setTimeout(resolve, 0));
+			expect(surface.classList.contains("terminal-link-hover")).toBe(true);
+			expect(container.querySelectorAll(".terminal-link-underline")).toHaveLength(1);
+			mouse(rows[0]!, "mousedown", cellWidth * 6.5, cellHeight * 0.5, { detail: 1 });
+			mouse(window, "mouseup", cellWidth * 6.5, cellHeight * 0.5);
+			expect(openLink).not.toHaveBeenCalled();
+			mouse(rows[0]!, "mousedown", cellWidth * 6.5, cellHeight * 0.5, { detail: 1, metaKey: true });
+			mouse(window, "mouseup", cellWidth * 6.5, cellHeight * 0.5, { metaKey: true });
+			expect(openLink).toHaveBeenCalledWith("https://x.y/doc");
+			mouse(rows[0]!, "mousemove", cellWidth * 1.5, cellHeight * 0.5);
+			await new Promise((resolve) => setTimeout(resolve, 0));
+			expect(surface.classList.contains("terminal-link-hover")).toBe(false);
+		} finally {
+			if (originalPlatform) Object.defineProperty(navigator, "platform", originalPlatform);
+		}
+	});
 });

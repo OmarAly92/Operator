@@ -5,6 +5,8 @@ export type TextRows = Readonly<{
 	rowText(blockId: string, row: number): string;
 	rowSpans(blockId: string, row: number): ArrayLike<number>;
 	rowWrapped(blockId: string, row: number): boolean;
+	rowLinkRuns?(blockId: string, row: number): ArrayLike<number>;
+	linkUri?(id: number): string | null;
 	firstRow(blockId: string): number;
 	rowCount(blockId: string): number;
 	blockIds: readonly string[];

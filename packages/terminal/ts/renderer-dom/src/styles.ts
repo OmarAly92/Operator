@@ -204,6 +204,38 @@ export const terminalStyles = `@font-face {
 	cursor: default;
 }
 
+/* The hand appears only while a link is under the pointer, the way Warp swaps
+   the cursor shape per hovered link (app/src/terminal/view.rs set_cursor_shape
+   Cursor::PointingHand / reset_cursor; app/src/util/link_detection.rs). */
+.terminal-link-hover .terminal-block,
+.terminal-link-hover .terminal-alt-surface {
+	cursor: pointer;
+}
+
+.terminal-decorations,
+.terminal-decorations [data-terminal-layer] {
+	position: absolute;
+	top: 0;
+	left: 0;
+	width: 0;
+	height: 0;
+	overflow: visible;
+	pointer-events: none;
+}
+
+.terminal-decorations {
+	z-index: 2;
+}
+
+.terminal-decorations [data-terminal-layer] > div {
+	position: absolute;
+	box-sizing: border-box;
+}
+
+.terminal-link-underline {
+	border-bottom: 1px solid var(--terminal-foreground);
+}
+
 /* Chrome stays unselectable, so dragging across a block picks up its output and
    not the header metadata or the labels of the buttons floating over it. */
 .terminal-block-header,

@@ -54,6 +54,48 @@ export function cellCount(text: string, spans: ArrayLike<number>): number {
 	return clusters.length === 0 ? 0 : clusters[clusters.length - 1]!.end;
 }
 
+export type Coordinate = Readonly<{ cell: number; byte: number; offset: number }>;
+
+function utf8Bytes(text: string): number {
+	let total = 0;
+	for (const character of text) total += utf8Length(character.codePointAt(0) ?? 0);
+	return total;
+}
+
+export function rowCoordinates(text: string, spans: ArrayLike<number>): Coordinate[] {
+	const out: Coordinate[] = [];
+	let byte = 0;
+	let offset = 0;
+	let cell = 0;
+	for (const cluster of rowClusters(text, spans)) {
+		out.push({ cell: cluster.start, byte, offset });
+		byte += utf8Bytes(cluster.text);
+		offset += cluster.text.length;
+		cell = cluster.end;
+	}
+	out.push({ cell, byte, offset });
+	return out;
+}
+
+function coordinateAt(coords: readonly Coordinate[], key: "byte" | "offset", value: number): Coordinate {
+	for (let index = 0; index + 1 < coords.length; index += 1) {
+		if (value < coords[index + 1]![key]) return coords[index]!;
+	}
+	return coords[coords.length - 1]!;
+}
+
+export function cellAtOffset(text: string, spans: ArrayLike<number>, offset: number): number {
+	return coordinateAt(rowCoordinates(text, spans), "offset", offset).cell;
+}
+
+export function cellAtByte(text: string, spans: ArrayLike<number>, byte: number): number {
+	return coordinateAt(rowCoordinates(text, spans), "byte", byte).cell;
+}
+
+export function offsetAtByte(text: string, spans: ArrayLike<number>, byte: number): number {
+	return coordinateAt(rowCoordinates(text, spans), "byte", byte).offset;
+}
+
 export function cellSlice(text: string, spans: ArrayLike<number>, fromCell: number, toCell: number): string {
 	let out = "";
 	for (const cluster of rowClusters(text, spans)) {

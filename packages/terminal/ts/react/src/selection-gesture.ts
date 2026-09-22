@@ -33,3 +33,11 @@ export function isCopyChord(
 	if (mac) return event.metaKey && !event.ctrlKey && !event.shiftKey;
 	return event.ctrlKey && event.shiftKey && !event.metaKey;
 }
+
+export function linkModifierHeld(
+	event: { metaKey: boolean; ctrlKey: boolean; shiftKey: boolean; altKey: boolean },
+	mac: boolean,
+): boolean {
+	if (event.altKey || event.shiftKey) return false;
+	return mac ? event.metaKey && !event.ctrlKey : event.ctrlKey && !event.metaKey;
+}

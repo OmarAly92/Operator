@@ -34,6 +34,7 @@ test("the spinner fixture contains synchronized-output frames", async () => {
 test("every probe has a recording and a well-formed size.json and is not a fixture", async () => {
 	const probes = listProbes();
 	assert.ok(probes.includes("glyph-probe"), `probes: ${probes.join(", ")}`);
+	assert.ok(probes.includes("act-probe"), `probes: ${probes.join(", ")}`);
 	for (const name of probes) {
 		assert.ok(existsSync(join(PROBES_DIR, name, "recording")));
 		assert.ok(!listFixtures().includes(name), `${name} must not also be a fixture`);

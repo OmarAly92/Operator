@@ -30,7 +30,10 @@ import { blockIsBlank, trimTrailingBlankRows } from "./block-rows.js";
 import { paintedRowOrigin, type RowOrigin } from "./row-geometry.js";
 import { pointAtFromRows } from "./selection-geometry.js";
 import { type SelectionKind, type SelectionPoint, type SelectionState } from "./selection-model.js";
-import { selectedText } from "./selection-text.js";
+import { selectedText, type TextRows } from "./selection-text.js";
+import { Linkifier } from "./linkifier.js";
+import { DEFAULT_LINK_PROVIDERS, type DetectedLink, type LinkProvider } from "./link-providers.js";
+import { paintBoxes, rangeBoxes } from "./decorations.js";
 import {
 	renderedRows,
 	resolveSelectionView,
@@ -107,6 +110,15 @@ export class DomBlockRenderer implements BlockRenderer {
 	private focused = true;
 	private blockStates = new Map<BlockId, BlockState>();
 	private readonly blockFinishedListeners = new Set<(event: BlockFinishedEvent) => void>();
+	private linkProviders: readonly LinkProvider[] = DEFAULT_LINK_PROVIDERS;
+	private readonly linkifier = new Linkifier({
+		rows: () => this.textRows(),
+		generation: () => this.core?.snapshot().generation ?? Number.NaN,
+		providers: () => this.linkProviders,
+		onChange: () => this.linkChanged(),
+	});
+	private decorationLayer: HTMLElement | null = null;
+	private readonly linkHoverListeners = new Set<(link: DetectedLink | null) => void>();
 
 	mount(container: HTMLElement, core: TerminalCore): void {
 		this.dispose();
@@ -132,6 +144,15 @@ export class DomBlockRenderer implements BlockRenderer {
 		const pinned = createPinnedHeaderElement();
 		container.insertBefore(pinned, list);
 		this.pinnedHeader = pinned;
+		const decorations = document.createElement("div");
+		decorations.className = "terminal-decorations";
+		// Carries the theme vars itself, the way the blocks and the alt root do: a
+		// host that never calls setTheme leaves the scroll container without them,
+		// and an underline coloured from var(--terminal-foreground) would then
+		// resolve to nothing and paint no border at all.
+		decorations.setAttribute("style", styleVarsString(this.theme, this.font));
+		container.append(decorations);
+		this.decorationLayer = decorations;
 		this.measureHost = ensureMeasureHost();
 		this.measureNode = this.measureHost.querySelector<HTMLElement>(`#${HIDDEN_MEASURE_ID}`);
 		this.scrollUnsubscribe = listenScroll(container, () => {
@@ -380,11 +401,71 @@ export class DomBlockRenderer implements BlockRenderer {
 		this.notifySelectionListeners();
 	}
 
+	private textRows(): TextRows {
+		const core = this.core!;
+		return snapshotTextRows(core.snapshot(), this.currentFilter, this.decoder, (id) => core.linkUri(id));
+	}
+
 	private selectionView(): SelectionView | null {
 		const selection = this.selection;
 		const core = this.core;
 		if (!selection || !core) return null;
-		return resolveSelectionView(selection, snapshotTextRows(core.snapshot(), this.currentFilter, this.decoder));
+		return resolveSelectionView(selection, this.textRows());
+	}
+
+	hoverAt(x: number, y: number): void {
+		if (!this.core) return;
+		this.linkifier.hover(this.pointAt(x, y));
+	}
+
+	clearHover(): void {
+		this.linkifier.hover(null);
+	}
+
+	hoveredLink(): DetectedLink | null {
+		return this.linkifier.current();
+	}
+
+	onLinkHover(listener: (link: DetectedLink | null) => void): () => void {
+		this.linkHoverListeners.add(listener);
+		return () => {
+			this.linkHoverListeners.delete(listener);
+		};
+	}
+
+	setLinkProviders(providers: readonly LinkProvider[]): void {
+		this.linkProviders = providers;
+		this.linkifier.invalidate();
+	}
+
+	private linkChanged(): void {
+		const link = this.linkifier.current();
+		this.container?.classList.toggle("terminal-link-hover", link !== null);
+		this.paintDecorations();
+		for (const listener of [...this.linkHoverListeners]) listener(link);
+	}
+
+	// Named sub-layers keep each affordance's boxes apart, so one affordance's
+	// paint never has to know how many boxes another one left behind.
+	private layer(name: string): HTMLElement | null {
+		const parent = this.decorationLayer;
+		if (!parent) return null;
+		let layer = parent.querySelector<HTMLElement>(`[data-terminal-layer="${name}"]`);
+		if (!layer) {
+			layer = document.createElement("div");
+			layer.dataset.terminalLayer = name;
+			parent.append(layer);
+		}
+		return layer;
+	}
+
+	private paintDecorations(): void {
+		const layer = this.layer("links");
+		const container = this.container;
+		if (!layer || !container) return;
+		const link = this.linkifier.current();
+		const boxes = link ? rangeBoxes(link.range, this.renderedRows(), this.cellMetrics().cellWidth, container) : [];
+		paintBoxes(layer, "terminal-link-underline", boxes);
 	}
 
 	dispose(): void {
@@ -398,7 +479,11 @@ export class DomBlockRenderer implements BlockRenderer {
 		this.paintListeners.clear();
 		this.blockStates = new Map();
 		this.blockFinishedListeners.clear();
+		this.linkifier.dispose();
+		this.decorationLayer = null;
+		this.linkHoverListeners.clear();
 		if (this.container) {
+			this.container.classList.remove("terminal-link-hover");
 			this.container.replaceChildren();
 			this.container.style.removeProperty("position");
 			this.container.style.removeProperty("overflow");
@@ -510,6 +595,9 @@ export class DomBlockRenderer implements BlockRenderer {
 		if (this.altRoot) {
 			this.altRoot.setAttribute("style", style);
 		}
+		if (this.decorationLayer) {
+			this.decorationLayer.setAttribute("style", style);
+		}
 	}
 
 	private applyFontToMeasureNode(node: HTMLElement): void {
@@ -551,6 +639,8 @@ export class DomBlockRenderer implements BlockRenderer {
 			if (this.pinnedHeader) this.pinnedHeader.hidden = true;
 			renderAltSurface(alt, this.altRoot!, this.decoder, this.cellMetrics(), this.activeFeatures, this.widths);
 			this.paintSelectionFill();
+			this.linkifier.refresh();
+			this.paintDecorations();
 			if (paintedAt !== undefined) this.lastPaintAt = paintedAt;
 			this.notifyPainted();
 			core.takeDirty();
@@ -709,6 +799,8 @@ export class DomBlockRenderer implements BlockRenderer {
 			container.scrollTop = scrollTop;
 		}
 		this.paintSelectionFill();
+		this.linkifier.refresh();
+		this.paintDecorations();
 		if (paintedAt !== undefined) this.lastPaintAt = paintedAt;
 		this.notifyPainted();
 		this.rescheduleIfPending(core);

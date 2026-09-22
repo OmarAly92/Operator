@@ -2,16 +2,19 @@ import { useCallback, useLayoutEffect, useRef, useState, type ReactElement, type
 import { clipboardHasImage, encodeKey, LineEditor, planPaste } from "@operator/terminal-editor";
 import {
 	createFindBar,
+	createPathProvider,
+	DEFAULT_LINK_PROVIDERS,
 	DomBlockRenderer,
 	RERUN_EVENT,
 	resolveFeatures,
 	type BlockFinishedEvent,
+	type DetectedLink,
 	type FindBar,
 	type RendererFeatures,
 	type SelectionKind,
 	type SelectionPoint,
 } from "@operator/terminal-renderer-dom";
-import { autoScrollRows, exceedsDragThreshold, isCopyChord, kindForClickCount } from "./selection-gesture.js";
+import { autoScrollRows, exceedsDragThreshold, isCopyChord, kindForClickCount, linkModifierHeld } from "./selection-gesture.js";
 import {
 	anchorFromElement,
 	createCompositionTarget,
@@ -29,6 +32,7 @@ import {
 	accelerationGain,
 	GESTURE_IDLE_MS,
 	isMacPlatform,
+	isWindowsPlatform,
 	MIN_VELOCITY_SAMPLE_MS,
 	pointerCell,
 	SELECTION_CHROME,
@@ -176,6 +180,18 @@ export function TerminalSurface({
 		rendererRef.current?.setFeatures(features ?? {});
 		core.setGraphemeClusters(resolveFeatures(features).graphemes);
 	}, [core, featuresKey]);
+
+	const resolvePath = host?.resolvePath;
+	useLayoutEffect(() => {
+		const renderer = rendererRef.current;
+		if (!renderer) return;
+		if (!resolvePath) {
+			renderer.setLinkProviders(DEFAULT_LINK_PROVIDERS);
+			return;
+		}
+		const cwdOf = (blockId: string) => decodeBlocks(core.snapshot()).find((block) => block.id === blockId)?.cwd ?? "";
+		renderer.setLinkProviders([...DEFAULT_LINK_PROVIDERS, createPathProvider(resolvePath, cwdOf, isWindowsPlatform() ? "windows" : "posix")]);
+	}, [core, resolvePath]);
 
 	useLayoutEffect(() => {
 		editorRef.current?.setStrings(strings);
@@ -390,10 +406,37 @@ export function TerminalSurface({
 				altScreen: snapshot.altScreen !== null,
 			});
 		};
+		const activateLink = (link: DetectedLink) => {
+			const caps = hostCapsRef.current;
+			if (!caps) return;
+			if (link.kind === "path") {
+				if (link.path !== undefined) void caps.openPath?.(link.path, link.line, link.column);
+				return;
+			}
+			if (link.uri !== undefined) void caps.openLink(link.uri);
+		};
+		const onHoverMove = (event: MouseEvent) => {
+			if (pressOrigin) return;
+			renderer()?.hoverAt(event.clientX, event.clientY);
+		};
+		const onHoverLeave = () => renderer()?.clearHover();
 		const onMouseDown = (event: MouseEvent) => {
 			compositionRef.current?.focus();
 			const button = buttonOf(event);
 			if (button === null) return;
+			// Before the mouse-report branch on purpose: a modifier press on a link
+			// opens it even under a program that tracks the mouse, as Warp and VS
+			// Code do. hoverAt before hoveredLink makes the press see the cell it
+			// lands on rather than the last move.
+			if (button === 0 && linkModifierHeld(event, isMacPlatform())) {
+				renderer()?.hoverAt(event.clientX, event.clientY);
+				const link = renderer()?.hoveredLink();
+				if (link) {
+					event.preventDefault();
+					activateLink(link);
+					return;
+				}
+			}
 			const data = reportFor("press", button, event);
 			if (data !== null) {
 				event.preventDefault();
@@ -510,6 +553,8 @@ export function TerminalSurface({
 		const onSurfaceFocusOut = () => reportFocus();
 		blockHost.addEventListener("mousedown", onMouseDown);
 		blockHost.addEventListener("mousemove", onMouseMove);
+		blockHost.addEventListener("mousemove", onHoverMove);
+		blockHost.addEventListener("mouseleave", onHoverLeave);
 		window.addEventListener("mouseup", onMouseUp);
 		blockHost.addEventListener("wheel", onWheel, { passive: false });
 		blockHost.addEventListener("focusin", onFocusIn);
@@ -522,6 +567,8 @@ export function TerminalSurface({
 		return () => {
 			blockHost.removeEventListener("mousedown", onMouseDown);
 			blockHost.removeEventListener("mousemove", onMouseMove);
+			blockHost.removeEventListener("mousemove", onHoverMove);
+			blockHost.removeEventListener("mouseleave", onHoverLeave);
 			window.removeEventListener("mouseup", onMouseUp);
 			blockHost.removeEventListener("wheel", onWheel);
 			blockHost.removeEventListener("focusin", onFocusIn);
