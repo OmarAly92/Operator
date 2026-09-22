@@ -1,0 +1,65 @@
+import { CELL_SPAN_WORDS } from "@operator/terminal-core";
+
+export type Cluster = Readonly<{ text: string; start: number; end: number }>;
+
+function utf8Length(codePoint: number): number {
+	if (codePoint < 0x80) return 1;
+	if (codePoint < 0x800) return 2;
+	if (codePoint < 0x10000) return 3;
+	return 4;
+}
+
+export function rowClusters(text: string, spans: ArrayLike<number>): Cluster[] {
+	const out: Cluster[] = [];
+	const spanCount = Math.floor(spans.length / CELL_SPAN_WORDS);
+	let spanIndex = 0;
+	let byte = 0;
+	let cell = 0;
+	let pending: { text: string; end: number; width: number } | null = null;
+	for (const character of text) {
+		const length = utf8Length(character.codePointAt(0) ?? 0);
+		if (pending) {
+			pending.text += character;
+			byte += length;
+			if (byte >= pending.end) {
+				out.push({ text: pending.text, start: cell, end: cell + Math.max(pending.width, 1) });
+				cell += pending.width;
+				pending = null;
+			}
+			continue;
+		}
+		if (spanIndex < spanCount && spans[spanIndex * CELL_SPAN_WORDS] === byte) {
+			const end = spans[spanIndex * CELL_SPAN_WORDS + 1]!;
+			const width = spans[spanIndex * CELL_SPAN_WORDS + 2]!;
+			spanIndex += 1;
+			byte += length;
+			if (byte >= end) {
+				out.push({ text: character, start: cell, end: cell + Math.max(width, 1) });
+				cell += width;
+			} else {
+				pending = { text: character, end, width };
+			}
+			continue;
+		}
+		out.push({ text: character, start: cell, end: cell + 1 });
+		cell += 1;
+		byte += length;
+	}
+	if (pending) out.push({ text: pending.text, start: cell, end: cell + Math.max(pending.width, 1) });
+	return out;
+}
+
+export function cellCount(text: string, spans: ArrayLike<number>): number {
+	const clusters = rowClusters(text, spans);
+	return clusters.length === 0 ? 0 : clusters[clusters.length - 1]!.end;
+}
+
+export function cellSlice(text: string, spans: ArrayLike<number>, fromCell: number, toCell: number): string {
+	let out = "";
+	for (const cluster of rowClusters(text, spans)) {
+		if (cluster.start < fromCell) continue;
+		if (cluster.start >= toCell) break;
+		out += cluster.text;
+	}
+	return out;
+}

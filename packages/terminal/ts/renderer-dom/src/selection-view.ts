@@ -1,4 +1,4 @@
-import { decodeBlocks, type BlockId, type BlockView, type TerminalSnapshot } from "@operator/terminal-core";
+import { CELL_SPAN_WORDS, decodeBlocks, type BlockId, type BlockView, type TerminalSnapshot } from "@operator/terminal-core";
 import { applyFilter, type BlockFilter } from "./block-filter.js";
 import { trimTrailingBlankRows } from "./block-rows.js";
 import { fillGradient, runFill } from "./selection-fill.js";
@@ -15,8 +15,14 @@ export function resolveSelectionView(selection: SelectionState, rows: TextRows):
 	const index = new Map(rows.blockIds.map((id, position) => [id, position] as const));
 	const order: BlockOrder = (blockId) => index.get(blockId) ?? -1;
 	if (order(selection.head.blockId) < 0 || order(selection.tail.blockId) < 0) return null;
-	const range = resolveRange(selection, order, rows.rowText);
+	const range = resolveRange(selection, order, rows.rowText, rows.rowSpans);
 	return range ? { range, order, rows } : null;
+}
+
+function spanSlice(spanRanges: Uint32Array, cellSpans: Uint32Array, row: number): Uint32Array {
+	const start = spanRanges[row * 2] ?? 0;
+	const end = spanRanges[row * 2 + 1] ?? start;
+	return cellSpans.subarray(start * CELL_SPAN_WORDS, end * CELL_SPAN_WORDS);
 }
 
 export function snapshotTextRows(snapshot: TerminalSnapshot, filter: BlockFilter | null, decoder: TextDecoder): TextRows {
@@ -33,6 +39,7 @@ export function snapshotTextRows(snapshot: TerminalSnapshot, filter: BlockFilter
 			firstRow: () => 0,
 			rowCount: () => alt.rows,
 			rowText: (_id, row) => rowString(alt.content, alt.rowRanges, row),
+			rowSpans: (_id, row) => spanSlice(alt.spanRanges, alt.cellSpans, row),
 		};
 	}
 	const blocks = applyFilter(decodeBlocks(snapshot), filter).map((block) => trimTrailingBlankRows(snapshot, block));
@@ -48,6 +55,13 @@ export function snapshotTextRows(snapshot: TerminalSnapshot, filter: BlockFilter
 			const flat = row - base;
 			if (flat < block.firstRow || flat >= block.firstRow + block.rowCount) return "";
 			return rowString(snapshot.content, snapshot.rows, flat);
+		},
+		rowSpans: (id, row) => {
+			const block = byId.get(id);
+			if (!block) return [];
+			const flat = row - base;
+			if (flat < block.firstRow || flat >= block.firstRow + block.rowCount) return [];
+			return spanSlice(snapshot.spanRanges, snapshot.cellSpans, flat);
 		},
 	};
 }

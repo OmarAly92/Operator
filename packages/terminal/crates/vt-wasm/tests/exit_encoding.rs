@@ -24,6 +24,8 @@ fn encode(exit: Option<i32>) -> Vec<u32> {
         row_indents: Vec::new(),
         run_ranges: Vec::new(),
         style_pairs: Vec::new(),
+        span_ranges: Vec::new(),
+        cell_spans: Vec::new(),
         blocks: vec![record(exit)],
         block_text: Vec::new(),
         line_editor_state: 0,

@@ -36,6 +36,13 @@ describe("resolveRange", () => {
 		expect(range.start).toEqual({ blockId: "0", row: 0, cell: 0 });
 		expect(range.end).toEqual({ blockId: "0", row: 1, cell: 10 });
 	});
+	it("expands a word over a wide cluster using the row's spans", () => {
+		const wide = (id: string, row: number) => (id === "0" && row === 0 ? "go 漢字 now" : "");
+		const spans = (id: string, row: number) => (id === "0" && row === 0 ? [3, 6, 2, 6, 9, 2] : []);
+		const range = resolveRange({ head: at("0", 0, 4), tail: at("0", 0, 4), kind: "word" }, order, wide, spans)!;
+		expect(range.start.cell).toBe(3);
+		expect(range.end.cell).toBe(7);
+	});
 	it("expands a line selection to the whole rows", () => {
 		const range = resolveRange({ head: at("0", 1, 4), tail: at("0", 0, 4), kind: "line" }, order, rowText)!;
 		expect(range.start).toEqual({ blockId: "0", row: 0, cell: 0 });

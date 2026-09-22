@@ -10,6 +10,7 @@ use crate::limits::Limits;
 use crate::row_index::{RowIndex, RowRange};
 use crate::screen::{ClearPolicy, ScreenGrid};
 use crate::style::{CellStyle, StyleCode};
+use crate::width::WidthMode;
 
 pub struct HistoryRow {
     pub bytes: Vec<u8>,
@@ -53,6 +54,7 @@ pub(crate) struct Parser {
     pending_remap: Option<Vec<(u64, u64)>>,
     pending_rewritten_from: Option<usize>,
     last_width: usize,
+    width_mode: WidthMode,
     #[cfg(feature = "trace")]
     pub(crate) trace: crate::trace::Trace,
 }
@@ -87,8 +89,21 @@ impl Parser {
             pending_remap: None,
             pending_rewritten_from: None,
             last_width: width,
+            width_mode: WidthMode::default(),
             #[cfg(feature = "trace")]
             trace: Default::default(),
+        }
+    }
+
+    pub fn width_mode(&self) -> WidthMode {
+        self.width_mode
+    }
+
+    pub fn set_width_mode(&mut self, mode: WidthMode) {
+        self.width_mode = mode;
+        self.screen.set_width_mode(mode);
+        if let Some(alt) = self.alt.as_mut() {
+            alt.set_width_mode(mode);
         }
     }
 
@@ -295,6 +310,7 @@ impl Parser {
         let mut alt = ScreenGrid::new(rows, self.width);
         alt.set_records_eviction(false);
         alt.set_clear_policy(ClearPolicy::ClearInPlace);
+        alt.set_width_mode(self.width_mode);
         self.alt = Some(alt);
         self.saved_style = self.pending_style;
         self.pending_style = CellStyle::DEFAULT;
@@ -488,7 +504,9 @@ impl Parser {
         }
         if std::mem::take(&mut self.rewrap_pending) {
             let cut_at = std::mem::replace(&mut self.last_width, self.width);
-            let map = self.rows.rewrap_hot(&self.content, self.width, cut_at);
+            let map = self
+                .rows
+                .rewrap_hot(&self.content, self.width, cut_at, self.width_mode);
             self.grid.remap_rows(&map);
             self.note_remap(&map);
             self.history_exported_rows = self
@@ -631,7 +649,10 @@ impl Parser {
     }
 
     pub fn touch_rows(&mut self, range: std::ops::Range<usize>) {
-        let Some((map, lowest)) = self.rows.rows_for(&self.content, self.width, range) else {
+        let Some((map, lowest)) =
+            self.rows
+                .rows_for(&self.content, self.width, range, self.width_mode)
+        else {
             return;
         };
         self.grid.remap_rows(&map);
@@ -650,63 +671,8 @@ impl Parser {
     }
 
     fn apply_sgr(&mut self, params: &Params) {
-        let groups: Vec<Vec<u16>> = params.iter().map(|sub| sub.to_vec()).collect();
-        if groups.is_empty() {
-            self.set_pending_style(CellStyle::DEFAULT);
-            return;
-        }
-        let mut index = 0;
-        while index < groups.len() {
-            let group = &groups[index];
-            let code = group.first().copied().unwrap_or(0);
-            if matches!(code, 38 | 48 | 58) {
-                let (colour, consumed) = read_extended_colour(&groups, index);
-                if let Some(style) = colour {
-                    match code {
-                        38 => self.pending_style.fg = self.pending_style.fg.with_colour(style),
-                        48 => self.pending_style.bg = style,
-                        _ => {}
-                    }
-                }
-                index += consumed;
-                continue;
-            }
-            match code {
-                0 => self.set_pending_style(CellStyle::DEFAULT),
-                1 => self.pending_style.fg = self.pending_style.fg.with_bold(true),
-                2 => self.pending_style.fg = self.pending_style.fg.with_dim(true),
-                7 => self.pending_style.fg = self.pending_style.fg.with_reverse(true),
-                22 => {
-                    self.pending_style.fg = self.pending_style.fg.with_bold(false).with_dim(false);
-                }
-                27 => self.pending_style.fg = self.pending_style.fg.with_reverse(false),
-                30..=37 => {
-                    self.pending_style.fg = self
-                        .pending_style
-                        .fg
-                        .with_colour(StyleCode::ansi((code - 30) as u8));
-                }
-                39 => {
-                    self.pending_style.fg = self.pending_style.fg.with_colour(StyleCode::DEFAULT);
-                }
-                40..=47 => self.pending_style.bg = StyleCode::ansi((code - 40) as u8),
-                49 => self.pending_style.bg = StyleCode::DEFAULT_BACKGROUND,
-                90..=97 => {
-                    self.pending_style.fg = self
-                        .pending_style
-                        .fg
-                        .with_colour(StyleCode::ansi((code - 90 + 8) as u8));
-                }
-                100..=107 => self.pending_style.bg = StyleCode::ansi((code - 100 + 8) as u8),
-                _ => {}
-            }
-            index += 1;
-        }
+        crate::sgr::apply(&mut self.pending_style, params);
         self.sync_erase_background();
-    }
-
-    fn set_pending_style(&mut self, style: CellStyle) {
-        self.pending_style = style;
     }
 
     fn sync_erase_background(&mut self) {
@@ -811,7 +777,7 @@ impl Perform for Parser {
             intermediates: intermediates.to_vec(),
             action: c,
         });
-        if c == 'm' {
+        if c == 'm' && intermediates.is_empty() {
             self.apply_sgr(params);
             return;
         }

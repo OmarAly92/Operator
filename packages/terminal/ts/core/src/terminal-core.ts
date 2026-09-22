@@ -1,5 +1,6 @@
 import { WasmTerminalCore } from "../wasm/vt_core.js";
 import { BLOCK_RECORD_WORDS, decodeBlocks } from "./blocks.js";
+import { CELL_SPAN_WORDS } from "./cell-spans.js";
 import { STYLE_RUN_WORDS } from "./style-runs.js";
 import {
 	getMemory,
@@ -250,6 +251,10 @@ export class TerminalCore {
 		const runRangesLen = this.inner.run_ranges_len();
 		const stylePairsPtr = this.inner.style_pairs_ptr();
 		const stylePairsLen = this.inner.style_pairs_len();
+		const spanRangesPtr = this.inner.span_ranges_ptr();
+		const spanRangesLen = this.inner.span_ranges_len();
+		const cellSpansPtr = this.inner.cell_spans_ptr();
+		const cellSpansLen = this.inner.cell_spans_len();
 		const blocksPtr = this.inner.blocks_ptr();
 		const blocksLen = this.inner.blocks_len();
 		const blockTextPtr = this.inner.block_text_ptr();
@@ -262,6 +267,11 @@ export class TerminalCore {
 			throw new Error(`rowIndents length ${rowIndentsLen} does not match ${rowsLen / 2} rows`);
 		}
 		validateMultipleOf("stylePairs", stylePairsLen, STYLE_RUN_WORDS);
+		validateEvenLength("spanRanges", spanRangesLen);
+		if (spanRangesLen !== rowsLen) {
+			throw new Error(`spanRanges length ${spanRangesLen} does not match ${rowsLen} rows`);
+		}
+		validateMultipleOf("cellSpans", cellSpansLen, CELL_SPAN_WORDS);
 		if (blocksLen % BLOCK_RECORD_WORDS !== 0) {
 			throw new Error(
 				`blocks length ${blocksLen} is not a multiple of ${BLOCK_RECORD_WORDS}`,
@@ -275,6 +285,8 @@ export class TerminalCore {
 					rowRanges: u32View(memory, this.inner.alt_row_ranges_ptr(), this.inner.alt_row_ranges_len()),
 					runRanges: u32View(memory, this.inner.alt_run_ranges_ptr(), this.inner.alt_run_ranges_len()),
 					stylePairs: u32View(memory, this.inner.alt_style_pairs_ptr(), this.inner.alt_style_pairs_len()),
+					spanRanges: u32View(memory, this.inner.alt_span_ranges_ptr(), this.inner.alt_span_ranges_len()),
+					cellSpans: u32View(memory, this.inner.alt_cell_spans_ptr(), this.inner.alt_cell_spans_len()),
 					cursorRow: this.inner.alt_cursor_row(),
 					cursorColumn: this.inner.alt_cursor_col(),
 					cursorVisible: this.inner.alt_cursor_visible(),
@@ -289,6 +301,8 @@ export class TerminalCore {
 			rowIndents: u16View(memory, rowIndentsPtr, rowIndentsLen),
 			runRanges: u32View(memory, runRangesPtr, runRangesLen),
 			stylePairs: u32View(memory, stylePairsPtr, stylePairsLen),
+			spanRanges: u32View(memory, spanRangesPtr, spanRangesLen),
+			cellSpans: u32View(memory, cellSpansPtr, cellSpansLen),
 			blocks: u32View(memory, blocksPtr, blocksLen),
 			blockText: u8View(memory, blockTextPtr, blockTextLen),
 			lineEditorState: this.inner.line_editor_state(),
@@ -403,6 +417,15 @@ export class TerminalCore {
 			return;
 		}
 		this.inner.setAgentTuiMode(on);
+	}
+
+	setGraphemeClusters(on: boolean): void {
+		if (this.disposed) return;
+		this.inner.setGraphemeClusters(on);
+	}
+
+	graphemeClusters(): boolean {
+		return this.inner.graphemeClusters();
 	}
 
 	setBlockBookmarked(id: BlockId, bookmarked: boolean): void {

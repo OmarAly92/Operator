@@ -22,7 +22,15 @@ describe("TerminalCore", () => {
 		expect(snapshot.runRanges).toBeInstanceOf(Uint32Array);
 		expect(new TextDecoder().decode(snapshot.content)).toBe("red caféplain");
 		expect([...snapshot.rows]).toEqual([0, 9, 9, 14]);
-		expect([...snapshot.stylePairs]).toEqual([3, 1, 254, 9, 255, 254, 5, 255, 254]);
+		expect([...snapshot.stylePairs]).toEqual([3, 1, 254, 0, 255, 9, 255, 254, 0, 255, 5, 255, 254, 0, 255]);
+	});
+
+	it("exports cell spans for wide and joined clusters", () => {
+		const core = createTerminalCore({ columns: 16, scrollback: 10 });
+		core.feed(new TextEncoder().encode("ab漢c\r\né"));
+		const snapshot = core.snapshot();
+		expect([...snapshot.spanRanges]).toEqual([0, 1, 1, 2]);
+		expect([...snapshot.cellSpans]).toEqual([2, 5, 2, 0, 3, 1]);
 	});
 
 	it("creates independent instances that do not share state", () => {
@@ -133,6 +141,19 @@ describe("TerminalCore", () => {
 		expect(remap.length).toBeGreaterThan(0);
 		expect(remap.every(([from, to]) => to <= from)).toBe(true);
 		expect(core.snapshot().firstStableRow).toBeGreaterThan(0);
+	});
+
+	it("lays a ZWJ family out over two cells once grapheme clusters are on", () => {
+		const family = "\u{1f468}\u{200d}\u{1f469}\u{200d}\u{1f467}";
+		const off = createTerminalCore({ columns: 20, scrollback: 10 });
+		off.feed(new TextEncoder().encode(family));
+		expect(off.graphemeClusters()).toBe(false);
+		expect(off.snapshot().cursorColumn).toBe(6);
+		const on = createTerminalCore({ columns: 20, scrollback: 10 });
+		on.setGraphemeClusters(true);
+		expect(on.graphemeClusters()).toBe(true);
+		on.feed(new TextEncoder().encode(family));
+		expect(on.snapshot().cursorColumn).toBe(2);
 	});
 });
 

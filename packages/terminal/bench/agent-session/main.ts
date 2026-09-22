@@ -1,6 +1,6 @@
 import { decodeBlocks, type TerminalCore } from "@operator/terminal-core";
 import { DomBenchmarkRenderer } from "../adapters/dom";
-import type { DomBlockRenderer } from "@operator/terminal-renderer-dom";
+import { parseFeatureList, type DomBlockRenderer, type RendererFeatures } from "@operator/terminal-renderer-dom";
 
 type SizeEntry = { offset: number; cols: number; rows: number };
 
@@ -41,6 +41,8 @@ type AgentSession = {
 	reopenFromReplay(frame: Uint8Array, chunks: Uint8Array[]): Promise<{ firstPaintMs: number; allRowsMs: number; rows: number }>;
 	widthChange(cols: number): Promise<{ settleMs: number; before: number; after: number; staleRows: number }>;
 	staleRowCount(): number;
+	cellMetrics(): { cellWidth: number; cellHeight: number };
+	features(): RendererFeatures;
 };
 
 const host = document.getElementById("terminal");
@@ -49,9 +51,10 @@ const params = new URLSearchParams(location.search);
 const fixtureName = params.get("fixture") ?? "claude-spinner-10s";
 const scrollback = Number(params.get("scrollback") ?? "200000");
 
+const fixtureDir = params.get("dir") === "probes" ? "probes" : "fixtures";
 const [recordingResponse, sizesResponse] = await Promise.all([
-	fetch(`/agent-session/fixtures/${fixtureName}/recording`),
-	fetch(`/agent-session/fixtures/${fixtureName}/size.json`),
+	fetch(`/agent-session/${fixtureDir}/${fixtureName}/recording`),
+	fetch(`/agent-session/${fixtureDir}/${fixtureName}/size.json`),
 ]);
 if (!recordingResponse.ok || !sizesResponse.ok) throw new Error(`fixture ${fixtureName} is missing`);
 const recording = new Uint8Array(await recordingResponse.arrayBuffer());
@@ -68,6 +71,13 @@ let fed = 0;
 let nextResize = 1;
 const longTasks: number[] = [];
 const domRenderer = (renderer as unknown as { renderer: DomBlockRenderer }).renderer;
+const featureList = params.get("features") ?? "";
+if (featureList !== "") {
+	const parsed = parseFeatureList(featureList);
+	domRenderer.setFeatures(parsed);
+	if (parsed.graphemes) core.setGraphemeClusters(true);
+}
+domRenderer.setFocused(params.get("focused") !== "0");
 domRenderer.onPaint(() => {
 	paints += 1;
 });
@@ -374,6 +384,8 @@ window.__agentSession = {
 	reopenFromReplay,
 	widthChange,
 	staleRowCount,
+	cellMetrics: () => domRenderer.measure(),
+	features: () => domRenderer.features(),
 	blocks: () => decodeBlocks(core.snapshot()).length,
 } as AgentSession & { blocks(): number };
 window.__agentSessionReady = true;

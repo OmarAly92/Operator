@@ -1,15 +1,16 @@
-import { cellSlice } from "./cell-width.js";
+import { cellSlice } from "./clusters.js";
 import { ROW_END, type SelectionRange } from "./selection-model.js";
 
 export type TextRows = Readonly<{
 	rowText(blockId: string, row: number): string;
+	rowSpans(blockId: string, row: number): ArrayLike<number>;
 	firstRow(blockId: string): number;
 	rowCount(blockId: string): number;
 	blockIds: readonly string[];
 }>;
 
-function cut(text: string, from: number, to: number): string {
-	const sliced = to === ROW_END && from === 0 ? text : cellSlice(text, from, to === ROW_END ? Number.MAX_SAFE_INTEGER : to);
+function cut(text: string, spans: ArrayLike<number>, from: number, to: number): string {
+	const sliced = to === ROW_END && from === 0 ? text : cellSlice(text, spans, from, to === ROW_END ? Number.MAX_SAFE_INTEGER : to);
 	return sliced.replace(/ +$/u, "");
 }
 
@@ -26,7 +27,7 @@ export function selectedText(range: SelectionRange, rows: TextRows): string {
 		for (let row = fromRow; row <= toRow; row += 1) {
 			const from = index === first && row === range.start.row ? range.start.cell : 0;
 			const to = index === last && row === range.end.row ? range.end.cell : ROW_END;
-			lines.push(cut(rows.rowText(blockId, row), from, to));
+			lines.push(cut(rows.rowText(blockId, row), rows.rowSpans(blockId, row), from, to));
 		}
 	}
 	return lines.join("\n");

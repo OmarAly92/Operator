@@ -38,7 +38,7 @@ function flushRepaint(): Promise<void> {
 	});
 }
 
-function mountWith(input: string): { core: TerminalCore; host: HTMLElement } {
+function mountWith(input: string): { core: TerminalCore; host: HTMLElement; renderer: DomBlockRenderer } {
 	const core = createTerminalCore({ columns: 16, scrollback: 100 });
 	feed(core, input);
 	const host = document.createElement("div");
@@ -46,7 +46,7 @@ function mountWith(input: string): { core: TerminalCore; host: HTMLElement } {
 	renderer.mount(host, core);
 	renderer.setTheme(warpDarkTheme);
 	renderer.setFont(font);
-	return { core, host };
+	return { core, host, renderer };
 }
 
 describe("the terminal cursor", () => {
@@ -80,5 +80,28 @@ describe("the terminal cursor", () => {
 	it("waits for the row it sits on to have content", () => {
 		const { host } = mountWith("alpha\r\n");
 		expect(host.querySelector("[data-terminal-cursor-cell]")).toBeNull();
+	});
+
+	it("inverts over the cursor-coloured band only when cursorContrast is on", async () => {
+		const { host, renderer } = mountWith("\x1b[48;2;25;170;216m  band  \x1b[0m\x1b[4D");
+		expect(host.querySelector(".terminal-cursor-inverted")).toBeNull();
+		renderer.setFeatures({ cursorContrast: true });
+		await flushRepaint();
+		const cursor = host.querySelector<HTMLElement>("[data-terminal-cursor-cell]")!;
+		expect(cursor.classList.contains("terminal-cursor-inverted")).toBe(true);
+		expect(cursor.textContent).toBe("n");
+	});
+
+	it("hollows when the host reports blur, only with cursorHollowUnfocused", async () => {
+		const { host, renderer } = mountWith("> hi");
+		renderer.setFocused(false);
+		await flushRepaint();
+		expect(host.querySelector(".terminal-cursor-hollow")).toBeNull();
+		renderer.setFeatures({ cursorHollowUnfocused: true });
+		await flushRepaint();
+		expect(host.querySelector(".terminal-cursor-hollow")).not.toBeNull();
+		renderer.setFocused(true);
+		await flushRepaint();
+		expect(host.querySelector(".terminal-cursor-hollow")).toBeNull();
 	});
 });

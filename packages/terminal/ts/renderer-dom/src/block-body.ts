@@ -1,8 +1,10 @@
 import { defaultStrings, type BlockView } from "@operator/terminal-core";
 import { renderBlockHeader } from "./block-header.js";
-import { placeCursor, type CursorPlacement } from "./cursor.js";
+import { placeCursor, type CursorPaint, type CursorPlacement } from "./cursor.js";
+import type { RendererFeatures } from "./features.js";
 import { buildRowNode, type RowSource } from "./row-builder.js";
 import type { RowWindow } from "./viewport.js";
+import type { WidthCache } from "./width-cache.js";
 
 const CLASS_SPACER = "terminal-spacer";
 const HEADER_KEY_SEPARATOR = "\u0000";
@@ -16,10 +18,13 @@ export type BlockBodyInput = Readonly<{
 	cellWidth: number;
 	cursor: CursorPlacement | null;
 	cursorElement: HTMLElement;
+	cursorPaint: CursorPaint;
 	decoder: TextDecoder;
 	firstStableRow: number;
 	generation: number;
 	rowIsFresh: (stableRow: number, node: HTMLElement) => boolean;
+	features: RendererFeatures;
+	widths: WidthCache | null;
 }>;
 
 type BlockBody = {
@@ -68,12 +73,12 @@ export function populateBlock(section: HTMLElement, input: BlockBodyInput): { cu
 		keep.add(stableRow);
 		let node = body.rows.get(stableRow);
 		if (!node || !input.rowIsFresh(stableRow, node)) {
-			node = buildRowNode(snapshot, snapshotRow, stableRow, decoder, input.cellWidth);
+			node = buildRowNode(snapshot, snapshotRow, stableRow, decoder, input.cellWidth, input.features, input.widths);
 			node.setAttribute(ROW_GENERATION_ATTR, String(input.generation));
 			body.rows.set(stableRow, node);
 		}
 		if (input.cursor && input.cursor.row === snapshotRow) {
-			placeCursor(node, input.cursorElement, input.cursor.column, input.cellWidth);
+			placeCursor(node, input.cursorElement, input.cursor.column, input.cellWidth, input.cursorPaint);
 			cursorPlaced = true;
 		}
 		desired.push(node);

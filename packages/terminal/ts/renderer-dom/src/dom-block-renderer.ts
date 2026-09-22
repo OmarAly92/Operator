@@ -12,15 +12,17 @@ import {
 } from "@operator/terminal-core";
 import { renderAltSurface } from "./alt-surface.js";
 import { populateBlock, reconcileChildren, ROW_GENERATION_ATTR } from "./block-body.js";
-import { createCursorElement, primaryCursorPlacement, type CursorPlacement } from "./cursor.js";
+import { createCursorElement, cursorPaintFor, primaryCursorPlacement, PLAIN_CURSOR_PAINT, type CursorPlacement } from "./cursor.js";
 import { ElementPool } from "./element-pool.js";
 import { bindActionEvents } from "./action-events.js";
 import { applyFilter, type BlockFilter } from "./block-filter.js";
 import { mountBlockNavFromRenderer, type BlockNavHandle } from "./block-nav.js";
 import { mountJumpToBottom, type JumpToBottom } from "./jump-to-bottom.js";
 import { createPinnedHeaderElement, updatePinnedHeader } from "./pinned-header.js";
+import { DEFAULT_FEATURES, resolveFeatures, sameFeatures, type RendererFeatures } from "./features.js";
 import { defaultFont } from "./default-font.js";
 import { ensureMeasureHost, HIDDEN_MEASURE_ID, listenScroll } from "./host-dom.js";
+import { createDomMeasurer, WidthCache } from "./width-cache.js";
 import { BLOCK_PADDING_X_PX, BLOCK_PADDING_TOP_LINES, BLOCK_COMMAND_GAP_LINES, blockPaddingY } from "./block-metrics.js";
 import { blockIsBlank, trimTrailingBlankRows } from "./block-rows.js";
 import { paintedRowOrigin, type RowOrigin } from "./row-geometry.js";
@@ -88,6 +90,7 @@ export class DomBlockRenderer implements BlockRenderer {
 	private selection: SelectionState | null = null;
 	private readonly selectionListeners = new Set<() => void>();
 	private metricsCache: { cellWidth: number; cellHeight: number } | null = null;
+	private widths: WidthCache | null = null;
 	private dprQuery: MediaQueryList | null = null;
 	private readonly onDprChange = () => this.invalidateMetrics();
 	private anchor: ScrollAnchor | null = null;
@@ -98,6 +101,8 @@ export class DomBlockRenderer implements BlockRenderer {
 	private cursorElement: HTMLElement | null = null;
 	private fullSince = 0;
 	private rebuildAll = false;
+	private activeFeatures: RendererFeatures = DEFAULT_FEATURES;
+	private focused = true;
 
 	mount(container: HTMLElement, core: TerminalCore): void {
 		this.dispose();
@@ -152,6 +157,24 @@ export class DomBlockRenderer implements BlockRenderer {
 		this.invalidateMetrics();
 	}
 
+	setFeatures(partial: Partial<RendererFeatures>): void {
+		const next = resolveFeatures({ ...this.activeFeatures, ...partial });
+		if (sameFeatures(next, this.activeFeatures)) return;
+		this.activeFeatures = next;
+		this.rebuildAll = true;
+		this.scheduleRepaint();
+	}
+
+	features(): RendererFeatures {
+		return this.activeFeatures;
+	}
+
+	setFocused(focused: boolean): void {
+		if (this.focused === focused) return;
+		this.focused = focused;
+		if (this.activeFeatures.cursorHollowUnfocused) this.scheduleRepaint();
+	}
+
 	setFilter(filter: BlockFilter | null): void {
 		this.currentFilter = filter, this.scheduleRepaint();
 	}
@@ -174,12 +197,16 @@ export class DomBlockRenderer implements BlockRenderer {
 		const cellHeight =
 			rect.height > 0 ? rect.height : this.font.lineHeight * this.font.sizePx;
 		this.metricsCache = { cellWidth, cellHeight };
+		if (!this.widths) {
+			this.widths = new WidthCache(createDomMeasurer(node));
+		}
 		this.watchDevicePixelRatio();
 		return this.metricsCache;
 	}
 
 	private invalidateMetrics(): void {
 		this.metricsCache = null;
+		this.widths?.clear();
 		this.scheduleRepaint();
 	}
 
@@ -401,6 +428,7 @@ export class DomBlockRenderer implements BlockRenderer {
 		this.dprQuery?.removeEventListener("change", this.onDprChange);
 		this.dprQuery = null;
 		this.metricsCache = null;
+		this.widths = null;
 	}
 
 	/// Notifies when a repaint has actually landed in the DOM.
@@ -508,7 +536,7 @@ export class DomBlockRenderer implements BlockRenderer {
 			altRoot.hidden = false;
 			if (this.list) this.list.hidden = true;
 			if (this.pinnedHeader) this.pinnedHeader.hidden = true;
-			renderAltSurface(alt, this.altRoot!, this.decoder, this.cellMetrics());
+			renderAltSurface(alt, this.altRoot!, this.decoder, this.cellMetrics(), this.activeFeatures, this.widths);
 			this.paintSelectionFill();
 			if (paintedAt !== undefined) this.lastPaintAt = paintedAt;
 			this.notifyPainted();
@@ -533,6 +561,9 @@ export class DomBlockRenderer implements BlockRenderer {
 			if (!ids.has(this.selection.head.blockId) || !ids.has(this.selection.tail.blockId)) this.dropSelection();
 		}
 		const cursor: CursorPlacement | null = primaryCursorPlacement(snapshot);
+		const cursorPaint = cursor
+			? cursorPaintFor({ source: snapshot, row: cursor.row, column: cursor.column, theme: this.theme, features: this.activeFeatures, focused: this.focused, decoder: this.decoder })
+			: PLAIN_CURSOR_PAINT;
 		const dirty = core.takeDirty();
 		if (dirty.full || this.rebuildAll) {
 			this.fullSince = snapshot.generation;
@@ -612,10 +643,13 @@ export class DomBlockRenderer implements BlockRenderer {
 					cellWidth,
 					cursor,
 					cursorElement,
+					cursorPaint,
 					decoder: this.decoder,
 					firstStableRow: snapshot.firstStableRow,
 					generation: snapshot.generation,
 					rowIsFresh: freshFor(block.id),
+					features: this.activeFeatures,
+					widths: this.widths,
 				});
 				if (placed.cursorPlaced) cursorPlaced = true;
 			}

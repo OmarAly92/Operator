@@ -116,4 +116,31 @@ describe("terminalStyles", () => {
 	it("resolves bundled font URLs before injecting the stylesheet", () => {
 		expect(terminalStylesForDocument()).not.toContain('url("./fonts/');
 	});
+
+	it("paints the inverted cursor above its glyph and the unfocused cursor hollow", () => {
+		expect(terminalStyles).toContain(".terminal-cursor-inverted");
+		expect(terminalStyles).toContain(".terminal-cursor-hollow");
+		expect(terminalStyles).toContain("box-shadow: inset 0 0 0 1px var(--terminal-cursor)");
+	});
+
+	it("draws every SGR decoration from data attributes, with Warp's underline thickness", () => {
+		for (const rule of [
+			".terminal-run[data-italic]",
+			".terminal-run[data-hidden]",
+			'.terminal-run[data-underline="double"]',
+			'.terminal-run[data-underline="curly"]',
+			'.terminal-run[data-underline="dotted"]',
+			'.terminal-run[data-underline="dashed"]',
+			'.terminal-run[data-decor="uso"]',
+			"--terminal-underline",
+			"text-decoration-thickness: 0.09em",
+		]) {
+			expect(terminalStyles).toContain(rule);
+		}
+		expect(terminalStyles).not.toContain("@keyframes");
+	});
+
+	it("styles the IME composition view like Warp's marked text", () => {
+		expect(terminalStyles).toContain(".terminal-composition-view.active");
+	});
 });

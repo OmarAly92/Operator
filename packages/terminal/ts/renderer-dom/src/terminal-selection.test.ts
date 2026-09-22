@@ -151,6 +151,14 @@ describe("the terminal selection", () => {
 		expect(rows[1]!.style.backgroundImage).toBe("");
 	});
 
+	it("copies across a rocket by the core's cells, not a hand-written width table", () => {
+		const { host, renderer } = mountWith("\u{1f680}ab");
+		layoutRows(host);
+		renderer.selectionBegin(renderer.pointAt(0, CELL_H * 0.5)!, "simple");
+		renderer.selectionUpdate(renderer.pointAt(CELL_W * 3 - 1, CELL_H * 0.5)!);
+		expect(renderer.selectedText()).toBe("\u{1f680}a");
+	});
+
 	it("selects a word on a double click and a line on a triple click", () => {
 		const { host, renderer } = mountWith("see src/row-builder.ts now");
 		layoutRows(host);

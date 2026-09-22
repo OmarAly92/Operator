@@ -18,10 +18,12 @@ pub mod parser;
 pub mod row_index;
 mod screen;
 mod scrollback;
+mod sgr;
 pub mod style;
 pub mod sync;
 #[cfg(feature = "trace")]
 pub mod trace;
+pub mod width;
 
 pub mod testing {
     pub use crate::screen::{Cell, ScreenGrid};
@@ -34,12 +36,13 @@ pub use block_selection::{BlockSelection, SelectionPoint};
 pub use block_tree::{BlockSummary, BlockTree};
 pub use delta::{Delta, DeltaKind};
 pub use find::{FindCursor, FindMatch, FindQuery};
-pub use grid::ExportedRow;
+pub use grid::{CellSpan, ExportedRow};
 pub use integrity::IntegrityError;
 pub use limits::{Limits, MemoryStats};
 pub use line_editor::LineEditorState;
 pub use parser::{HistoryBlock, HistoryRow};
-pub use style::{CellStyle, StyleCode};
+pub use style::{Attrs, CellStyle, StyleCode};
+pub use width::{clusters, Cluster, WidthMode};
 
 use std::ops::Range;
 
@@ -243,7 +246,8 @@ impl TerminalCore {
                     rows,
                 } => {
                     let cols = self.parser.columns();
-                    self.history.begin(first_stable_row, rows, cols);
+                    self.history
+                        .begin(first_stable_row, rows, cols, self.parser.width_mode());
                     let rest = &bytes[upto..];
                     let consumed = self.history.consume(rest);
                     self.drain_history();
@@ -340,6 +344,7 @@ impl TerminalCore {
             self.line_editor.state(),
             self.parser.alt(),
             self.parser.first_stable_row(),
+            self.parser.width_mode(),
         )
     }
 
@@ -368,7 +373,14 @@ impl TerminalCore {
         let completed = self.parser.rows().completed();
         range
             .filter_map(|index| completed.get(index))
-            .map(|row| grid::export_history_row(self.parser.content(), self.parser.styles(), row))
+            .map(|row| {
+                grid::export_history_row(
+                    self.parser.content(),
+                    self.parser.styles(),
+                    row,
+                    self.parser.width_mode(),
+                )
+            })
             .collect()
     }
 
@@ -488,6 +500,18 @@ impl TerminalCore {
     pub fn set_agent_tui_mode(&mut self, on: bool) {
         self.parser.set_agent_tui_mode(on);
         self.debug_check();
+    }
+
+    pub fn set_grapheme_clusters(&mut self, on: bool) {
+        self.parser.set_width_mode(if on {
+            WidthMode::Grapheme
+        } else {
+            WidthMode::Scalar
+        });
+    }
+
+    pub fn grapheme_clusters(&self) -> bool {
+        self.parser.width_mode() == WidthMode::Grapheme
     }
 
     pub fn set_block_bookmarked(&mut self, id: crate::block::BlockId, bookmarked: bool) {

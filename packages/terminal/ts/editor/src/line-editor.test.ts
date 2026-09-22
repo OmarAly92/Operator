@@ -17,7 +17,7 @@ beforeAll(async () => {
 	await initTerminalCore(wasm);
 });
 
-function mount() {
+function mount(overrides: Partial<EditorHost> = {}) {
 	const sent: string[] = [];
 	const raw: string[] = [];
 	const host: EditorHost & { sent: string[]; raw: string[] } = {
@@ -25,6 +25,7 @@ function mount() {
 		sendRaw: (data) => raw.push(data),
 		sent,
 		raw,
+		...overrides,
 	};
 	const core = createTerminalCore({ columns: 80, scrollback: 100 });
 	const editor = new LineEditor();
@@ -91,6 +92,16 @@ describe("LineEditor ownership", () => {
 		editor.setText("git st");
 		editor.handleKey(key({ key: "Tab" }));
 		expect(requested).toEqual([{ line: "git st", cursor: 6 }]);
+	});
+
+	it("hands the host's composition anchor to its composition target", () => {
+		const { container } = mount({ compositionAnchor: () => ({ left: 8, top: 16, height: 20 }) });
+		const input = container.querySelector<HTMLTextAreaElement>("[data-terminal-input]")!;
+		input.dispatchEvent(new CompositionEvent("compositionstart"));
+		input.dispatchEvent(new CompositionEvent("compositionupdate", { data: "に" }));
+		const view = container.querySelector<HTMLElement>(".terminal-composition-view")!;
+		expect(view.classList.contains("active")).toBe(true);
+		expect(view.style.left).toBe("8px");
 	});
 
 	it("cancels completions when typing while the dropdown is open", () => {

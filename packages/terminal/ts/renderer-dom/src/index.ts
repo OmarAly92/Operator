@@ -1,4 +1,5 @@
 export { ALT_BLOCK_ID, DomBlockRenderer, type ScrollAnchor } from "./dom-block-renderer.js";
+export { DEFAULT_FEATURES, parseFeatureList, resolveFeatures, type RendererFeatures } from "./features.js";
 export { warpDarkTheme } from "./theme-warp.js";
 export { renderBlockActions, RERUN_EVENT, type BlockTextSource } from "./block-actions.js";
 export type { SelectionKind, SelectionPoint } from "./selection-model.js";

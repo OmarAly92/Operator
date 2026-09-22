@@ -1,6 +1,6 @@
 use std::cell::RefCell;
 use std::collections::HashMap;
-use vt_core::{CellStyle, StyleCode, TerminalCore};
+use vt_core::{Attrs, CellStyle, StyleCode, TerminalCore};
 
 thread_local! {
     static CORES: RefCell<HashMap<u32, TerminalCore>> = RefCell::new(HashMap::new());
@@ -626,6 +626,21 @@ fn colour_params(colour: StyleCode, base: u32, extended: u32) -> String {
     }
 }
 
+fn underline_colour_params(colour: StyleCode) -> String {
+    let value = colour.value();
+    if value & TAG_RGB != 0 {
+        let rgb = value & 0x00ff_ffff;
+        format!(
+            "58;2;{};{};{}",
+            (rgb >> 16) & 0xff,
+            (rgb >> 8) & 0xff,
+            rgb & 0xff
+        )
+    } else {
+        format!("58;5;{}", value & 0xff)
+    }
+}
+
 fn style_sgr_params(style: CellStyle) -> Option<String> {
     let mut params = Vec::new();
     if style.fg.is_bold() {
@@ -633,6 +648,37 @@ fn style_sgr_params(style: CellStyle) -> Option<String> {
     }
     if style.fg.is_dim() {
         params.push("2".to_string());
+    }
+    let attrs = style.attrs;
+    if attrs.contains(Attrs::ITALIC) {
+        params.push("3".to_string());
+    }
+    let underline = [
+        (Attrs::UNDERLINE, "4:1"),
+        (Attrs::DOUBLE_UNDERLINE, "4:2"),
+        (Attrs::CURLY_UNDERLINE, "4:3"),
+        (Attrs::DOTTED_UNDERLINE, "4:4"),
+        (Attrs::DASHED_UNDERLINE, "4:5"),
+    ]
+    .into_iter()
+    .find(|(flag, _)| attrs.contains(*flag));
+    if let Some((_, code)) = underline {
+        params.push(code.to_string());
+    }
+    if attrs.contains(Attrs::BLINK) {
+        params.push("5".to_string());
+    }
+    if attrs.contains(Attrs::HIDDEN) {
+        params.push("8".to_string());
+    }
+    if attrs.contains(Attrs::STRIKE) {
+        params.push("9".to_string());
+    }
+    if attrs.contains(Attrs::OVERLINE) {
+        params.push("53".to_string());
+    }
+    if style.underline != StyleCode::DEFAULT {
+        params.push(underline_colour_params(style.underline));
     }
     let foreground = style.fg.colour();
     if foreground != StyleCode::DEFAULT.colour() {

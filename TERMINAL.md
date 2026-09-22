@@ -87,12 +87,35 @@ rebuilt (§6).
   - In BOTH modes scrollback is **rewrapped** on a width change (§4.2).
 - **Snapshot** (`grid.rs` → vt-wasm `ExportBuffers` → TS `TerminalSnapshot`):
   `content`, `rows` (start,end pairs), `rowIndents` (u16 per row), `runRanges`,
-  `stylePairs` (stride `STYLE_RUN_WORDS`), `blocks` (stride `BLOCK_RECORD_WORDS`),
-  cursor, alt screen. Adding a per-row field means: `GridSnapshot` + `append_row`/
-  `append_screen_row` + `ExportBuffers` + `*_ptr/_len` + `terminal-core.ts` +
-  `types.ts` + the Rust test fixture `vt-wasm/tests/exit_encoding.rs` — and now,
-  if the field is per-section, `ExportedRow`/`push_row` in `export.rs` and
-  `history_rows`.
+  `stylePairs` (stride `STYLE_RUN_WORDS = 5`: `end, fg, bg, attrs, underline`),
+  `blocks` (stride `BLOCK_RECORD_WORDS`), cursor, alt screen — and
+  `spanRanges`/`cellSpans` (stride `CELL_SPAN_WORDS = 3`: `start, end, width`
+  per cluster that is not a single width-1 scalar). Adding a per-row field
+  means: `GridSnapshot` + `append_row`/`append_screen_row` + `ExportBuffers` +
+  `*_ptr/_len` + `terminal-core.ts` + `types.ts` + the Rust test fixture
+  `vt-wasm/tests/exit_encoding.rs` — and now, if the field is per-section,
+  `ExportedRow`/`push_row` in `export.rs` and `history_rows`, and, for a
+  per-cell field, `AltSnapshot` in `screen/snapshot.rs` and the dead-prefix
+  accounting in `ExportBuffers` (`dead_*`/`history_*` counters, `drop_front`,
+  `rewrite_history_from`, `truncate_screen`, `compact`).
+- **`RendererFeatures`** (`ts/renderer-dom/src/features.ts`, set through
+  `DomBlockRenderer.setFeatures` and the `features` prop of `TerminalSurface`)
+  is the gate every Plan D behavior sits behind — SGR attributes, grapheme
+  clusters, cursor contrast/hollow, and the width cache — all defaulting off
+  (see §5 for what each flag costs or leaves unresolved).
+- **Width mode.** `Parser::width_mode` (`WidthMode::Scalar` default,
+  `WidthMode::Grapheme` via `TerminalCore::set_grapheme_clusters`) chooses
+  whether a printed character occupies one cell per Unicode scalar or one
+  cell-span per extended grapheme cluster. `ScreenGrid::join_previous` is
+  where a soft-wrap join respects the active mode's cluster boundaries
+  instead of splitting mid-cluster; `RowIndex` measures rewrap width with the
+  same `clusters()` call the printer used, so a stale-run rewrap (§2's
+  "Stale runs" bullet) and a live-frame rewrap agree on where a row breaks.
+  The pty-host mirror is always `WidthMode::Scalar` — a deliberate Plan D
+  deviation, not an oversight, since the mirror only needs byte-identical
+  replay, not on-screen glyph placement (§5). The Unicode `GraphemeBreakTest`
+  corpus (`crates/vt-core/tests/grapheme/`) runs against the splitter in both
+  modes.
 - **Limits** (`Limits { rows, bytes }`, `crates/vt-core/src/limits.rs`) caps
   both cores from the product, not a hardcoded scrollback count:
   `TerminalCore::memory_stats()` (`lib.rs:102`) reports `MemoryStats` against
@@ -583,8 +606,63 @@ history of `master`.
   the first chunk.
 - Guards: `TestHistoryStartsAtTheOriginTheFrameDeclared` (ptyhost).
 
+### 4.22 Private `CSI … m` sequences reached the SGR path — Plan D review
+- Symptom: none visible on `development` beyond a subtle one — every Claude
+  Code banner and prompt band painted at 55 % opacity. On the Plan D branch,
+  before the fix: every coloured run underlined once `attributes: "warp"`
+  was on, the style map split into 87,023 entries (260 is right) and the
+  renderer heap at 60k rows read 14 MiB, which the executor recorded as the
+  cost of the new export.
+- Cause: `Parser::csi_dispatch` (and the history receiver's `ScreenPerform`)
+  handed every `m` to `apply_sgr`. Claude Code sends `CSI > 4;2 m`
+  (XTMODKEYS, `modifyOtherKeys=2`) at startup; read as SGR that is `4` then
+  `2` — underline (ignored before Plan D, recorded after it) and **dim**,
+  which Claude Code never clears because it uses `39`/`22`, not `0`. vte
+  itself dispatches by intermediates: `('m', [])` is SGR, `('m', [b'>'])`
+  XTMODKEYS, `('m', [b'?'])` XTQMODKEYS (`vte-0.15.0/src/ansi.rs:1678-1694`).
+- Now: SGR runs only when `intermediates.is_empty()` in both dispatchers.
+  The `claude-spinner-10s` feel baseline was re-recorded in the same commit:
+  its banner is now full colour, which is what Warp shows.
+- Guards: `tests/sgr_attributes.rs::a_private_m_sequence_is_not_sgr`,
+  `…::a_private_m_sequence_in_a_history_chunk_is_not_sgr_either`,
+  `…::the_claude_code_recording_carries_no_attribute_bits` (feeds the real
+  spinner recording and asserts no attribute bit on any run).
+
 ## 5. Known gaps (not bugs, decisions pending)
 
+- SGR attributes (italic, underline in 5 styles, SGR 58 colour, strike,
+  overline, hidden, blink) are parsed unconditionally but rendered only
+  behind `RendererFeatures.attributes = "warp"`; the default is `"plain"`,
+  which paints none of them. An underlined trailing blank is still trimmed
+  from the export. The pty-host mirror stays in scalar width mode (its
+  `clip_row` clips by `char`, not by grapheme cluster — see §2 "Width mode").
+  `styles.json` covers no blink/overline case because Alacritty's reference
+  cell flags have none to record. In both width modes a zero-width scalar
+  after a space now rewraps with the space instead of starting a new row
+  (Task 5).
+- **Renderer and mirror wasm memory grew with the five-word style run.** At
+  the 60k-row fixture the renderer core heap reads ~11.4 MiB against ~8.9 MiB
+  on the pre-Plan-D tree measured the same way (mirror at `mirrorLimits`
+  ~11.25 MiB against ~9.19 MiB). The style-run *count* is identical (260
+  `AttributeMap` entries); the cost is the 5/3 stride on 60k exported runs,
+  `Vec` growth, the 16-byte `CellStyle`, and the Unicode 17 segmentation
+  tables in `vt_host.wasm` (250 → 306 KB). Far under the 128 MiB budget. A
+  larger jump than this is a fragmentation bug — see §4.22 for the one that
+  put it at 14 MiB.
+- **`widthCache` corrects toward the core's cell widths, so it needs
+  `graphemes`.** With `graphemes` off the core lays an emoji sequence out in
+  scalar-mode cells (`❤️` one cell, a ZWJ family three two-cell clusters) and
+  `widthCache` faithfully squeezes the glyphs into those cells
+  (`letter-spacing: -10px` on the heart; the glyph probe's `seq:` row goes
+  from -37.92 to -50.89 px). With both on the row lands at +0.27 px
+  (`bench/agent-session/baselines/glyph-probe/EVIDENCE-graphemes_widthCache.json`).
+  Chromium shapes a ZWJ sequence across the per-cluster spans (the follow-on
+  spans measure 0 px), so the split is not the cause; the target widths are.
+  A host that turns on `widthCache` should turn on `graphemes`.
+- **The pending manual Japanese-IME check.** Task 9's IME composition work
+  (the underlined marked-text view, the settled-value single-send fix) has
+  not yet been manually verified with a real macOS Japanese IME by a human;
+  this must be done before the feature is considered fully verified.
 - A DEC 2026 block that grows to `SYNC_BUFFER_CAP` (2 MiB) is flushed and
   parsed in one `feed` inside whatever frame receives it, bypassing the 12 ms
   `drain` budget: a burst of ~60 ms on this machine. Claude Code frames are
@@ -723,6 +801,8 @@ npm run build:wasm -- --force && npm run build:ts
 for p in core renderer-dom react; do (cd ts/$p && npx vitest run); done
 npm run bench:selection      # Playwright: a selection must survive 20 repaints
 npm run bench:feel           # Playwright: zero pixel diff vs bench/agent-session/baselines (record with -- --record)
+npm run bench:glyphs         # Playwright: evidence for the glyph probe (box-drawing gap, width-cache drift), writes baselines/glyph-probe/EVIDENCE*.json
+npm run bench:feel -- --feature <list>  # Playwright: side-by-side screenshots for a flag, e.g. attributes=warp — never diffed, only recorded
 npm run bench:agent:gate     # Playwright: no torn paint under the spinner, queued 2 MiB never blocks > 16 ms
 npm run bench:agent:scroll   # Playwright: full scroll coverage, trim anchor holds, width-change gate (top-edge row and lazy rewrap)
 
