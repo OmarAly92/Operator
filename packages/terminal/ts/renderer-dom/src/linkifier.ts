@@ -70,11 +70,6 @@ export class Linkifier {
 		);
 	}
 
-	/// Drops the per-line cache and resolves the hovered line again.
-	///
-	/// refresh() alone reuses a line's cached answer until the buffer's
-	/// generation moves, so a caller that swaps the provider list would keep
-	/// serving links found by the providers it just replaced.
 	invalidate(): void {
 		this.cache.clear();
 		this.refresh();

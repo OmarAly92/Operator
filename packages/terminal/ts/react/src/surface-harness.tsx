@@ -64,7 +64,12 @@ export function renderSurface(
 	} = {},
 ) {
 	const core = createTerminalCore({ columns: 16, scrollback: 100 });
-	const surfaceWith = (onPaint?: () => void, refitToken?: number, focusToken = overrides.focusToken) => (
+	const surfaceWith = (
+		onPaint?: () => void,
+		refitToken?: number,
+		focusToken = overrides.focusToken,
+		onSendRaw: (data: string) => void = overrides.onSendRaw ?? ignoreRaw,
+	) => (
 		<TerminalSurface
 			core={core}
 			theme={theme}
@@ -72,7 +77,7 @@ export function renderSurface(
 			altScreenActive={false}
 			host={overrides.host}
 			onSend={overrides.onSend ?? ignoreSend}
-			onSendRaw={overrides.onSendRaw ?? ignoreRaw}
+			onSendRaw={onSendRaw}
 			onGeometry={overrides.onGeometry}
 			onPaint={onPaint ?? overrides.onPaint}
 			refitToken={refitToken}
@@ -85,7 +90,9 @@ export function renderSurface(
 	const rerenderWithPaint = (onPaint: () => void) => result.rerender(surfaceWith(onPaint));
 	const refit = (token: number) => result.rerender(surfaceWith(undefined, token));
 	const focus = (token: number) => result.rerender(surfaceWith(undefined, undefined, token));
-	return { core, host, surface, rerenderWithPaint, refit, focus, ...result };
+	const rebuild = () =>
+		result.rerender(surfaceWith(undefined, undefined, undefined, (data) => (overrides.onSendRaw ?? ignoreRaw)(data)));
+	return { core, host, surface, rerenderWithPaint, refit, focus, rebuild, ...result };
 }
 
 export function setHostSize(host: HTMLElement, width: number, height: number): void {

@@ -146,10 +146,6 @@ export class DomBlockRenderer implements BlockRenderer {
 		this.pinnedHeader = pinned;
 		const decorations = document.createElement("div");
 		decorations.className = "terminal-decorations";
-		// Carries the theme vars itself, the way the blocks and the alt root do: a
-		// host that never calls setTheme leaves the scroll container without them,
-		// and an underline coloured from var(--terminal-foreground) would then
-		// resolve to nothing and paint no border at all.
 		decorations.setAttribute("style", styleVarsString(this.theme, this.font));
 		container.append(decorations);
 		this.decorationLayer = decorations;
@@ -445,8 +441,6 @@ export class DomBlockRenderer implements BlockRenderer {
 		for (const listener of [...this.linkHoverListeners]) listener(link);
 	}
 
-	// Named sub-layers keep each affordance's boxes apart, so one affordance's
-	// paint never has to know how many boxes another one left behind.
 	private layer(name: string): HTMLElement | null {
 		const parent = this.decorationLayer;
 		if (!parent) return null;

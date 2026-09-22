@@ -507,8 +507,6 @@ describe("TerminalSurface selection", () => {
 			const openLink = vi.fn(async () => {});
 			const host = { writeClipboard: async () => {}, readClipboard: async () => "", openLink };
 			const { container, core, host: blockHost, refit } = renderSurface({ host });
-			// Wide enough that the url is one unwrapped row, so the underline the
-			// pointer earns is a single box.
 			setHostSize(blockHost, 1000, 500);
 			refit(1);
 			act(() => { feed(core, "see https://x.y/doc now\r\n"); });
@@ -528,6 +526,38 @@ describe("TerminalSurface selection", () => {
 			mouse(rows[0]!, "mousemove", cellWidth * 1.5, cellHeight * 0.5);
 			await new Promise((resolve) => setTimeout(resolve, 0));
 			expect(surface.classList.contains("terminal-link-hover")).toBe(false);
+		} finally {
+			if (originalPlatform) Object.defineProperty(navigator, "platform", originalPlatform);
+		}
+	});
+
+	it("keeps the host's path provider when the renderer is rebuilt under it", async () => {
+		const originalPlatform = Object.getOwnPropertyDescriptor(navigator, "platform");
+		Object.defineProperty(navigator, "platform", { value: "MacIntel", configurable: true });
+		try {
+			const openPath = vi.fn(async () => {});
+			const host = {
+				writeClipboard: async () => {},
+				readClipboard: async () => "",
+				openLink: async () => {},
+				resolvePath: async (path: string) => (path.endsWith(".ts") ? `/abs/${path}` : null),
+				openPath,
+			};
+			const { container, core, host: blockHost, refit, rebuild } = renderSurface({ host });
+			setHostSize(blockHost, 1000, 500);
+			refit(1);
+			act(() => { feed(core, "edit src/a.ts:42 now\r\n"); });
+			await flushRepaint();
+			act(() => { rebuild(); });
+			await flushRepaint();
+			const surface = container.querySelector(".terminal-host") as HTMLElement;
+			const rows = layoutRows(container);
+			mouse(rows[0]!, "mousemove", cellWidth * 8.5, cellHeight * 0.5);
+			await new Promise((resolve) => setTimeout(resolve, 0));
+			expect(surface.classList.contains("terminal-link-hover")).toBe(true);
+			mouse(rows[0]!, "mousedown", cellWidth * 8.5, cellHeight * 0.5, { detail: 1, metaKey: true });
+			mouse(window, "mouseup", cellWidth * 8.5, cellHeight * 0.5, { metaKey: true });
+			expect(openPath).toHaveBeenCalledWith("/abs/src/a.ts", 42, undefined);
 		} finally {
 			if (originalPlatform) Object.defineProperty(navigator, "platform", originalPlatform);
 		}

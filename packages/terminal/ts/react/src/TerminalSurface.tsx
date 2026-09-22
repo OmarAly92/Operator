@@ -107,6 +107,24 @@ export function TerminalSurface({
 	const compositionRef = useRef<CompositionTarget | null>(null);
 	const hostCapsRef = useRef(host);
 	hostCapsRef.current = host;
+	const resolvePath = host?.resolvePath;
+	const resolvePathRef = useRef(resolvePath);
+	resolvePathRef.current = resolvePath;
+
+	const applyLinkProviders = useCallback(() => {
+		const renderer = rendererRef.current;
+		if (!renderer) return;
+		const resolve = resolvePathRef.current;
+		if (!resolve) {
+			renderer.setLinkProviders(DEFAULT_LINK_PROVIDERS);
+			return;
+		}
+		const cwdOf = (blockId: string) => decodeBlocks(core.snapshot()).find((block) => block.id === blockId)?.cwd ?? "";
+		renderer.setLinkProviders([
+			...DEFAULT_LINK_PROVIDERS,
+			createPathProvider((path, cwd) => resolve(path, cwd), cwdOf, isWindowsPlatform() ? "windows" : "posix"),
+		]);
+	}, [core]);
 
 	useLayoutEffect(() => {
 		const blockHost = hostRef.current;
@@ -152,6 +170,7 @@ export function TerminalSurface({
 		rendererRef.current = renderer;
 		editorRef.current = editor;
 		findBarRef.current = findBar;
+		applyLinkProviders();
 		return () => {
 			blockHost.removeEventListener(RERUN_EVENT, onRerun);
 			offPaint();
@@ -163,7 +182,7 @@ export function TerminalSurface({
 			rendererRef.current = null;
 			findBarRef.current = null;
 		};
-	}, [core, onSend, onSendRaw]);
+	}, [applyLinkProviders, core, onSend, onSendRaw]);
 
 	useLayoutEffect(() => {
 		rendererRef.current?.setTheme(theme);
@@ -181,17 +200,9 @@ export function TerminalSurface({
 		core.setGraphemeClusters(resolveFeatures(features).graphemes);
 	}, [core, featuresKey]);
 
-	const resolvePath = host?.resolvePath;
 	useLayoutEffect(() => {
-		const renderer = rendererRef.current;
-		if (!renderer) return;
-		if (!resolvePath) {
-			renderer.setLinkProviders(DEFAULT_LINK_PROVIDERS);
-			return;
-		}
-		const cwdOf = (blockId: string) => decodeBlocks(core.snapshot()).find((block) => block.id === blockId)?.cwd ?? "";
-		renderer.setLinkProviders([...DEFAULT_LINK_PROVIDERS, createPathProvider(resolvePath, cwdOf, isWindowsPlatform() ? "windows" : "posix")]);
-	}, [core, resolvePath]);
+		applyLinkProviders();
+	}, [applyLinkProviders, resolvePath]);
 
 	useLayoutEffect(() => {
 		editorRef.current?.setStrings(strings);
@@ -424,10 +435,6 @@ export function TerminalSurface({
 			compositionRef.current?.focus();
 			const button = buttonOf(event);
 			if (button === null) return;
-			// Before the mouse-report branch on purpose: a modifier press on a link
-			// opens it even under a program that tracks the mouse, as Warp and VS
-			// Code do. hoverAt before hoveredLink makes the press see the cell it
-			// lands on rather than the last move.
 			if (button === 0 && linkModifierHeld(event, isMacPlatform())) {
 				renderer()?.hoverAt(event.clientX, event.clientY);
 				const link = renderer()?.hoveredLink();
