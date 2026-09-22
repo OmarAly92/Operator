@@ -135,8 +135,13 @@ rebuilt (§6).
 - **`RendererFeatures`** (`ts/renderer-dom/src/features.ts`, set through
   `DomBlockRenderer.setFeatures` and the `features` prop of `TerminalSurface`)
   is the gate every Plan D behavior sits behind — SGR attributes, grapheme
-  clusters, cursor contrast/hollow, and the width cache — all defaulting off
-  (see §5 for what each flag costs or leaves unresolved).
+  clusters, cursor contrast/hollow, and the width cache. `graphemes` and
+  `widthCache` default on (2026-09-22, together — see §5 for why never one
+  without the other); the rest default off (see §5 for what each flag costs
+  or leaves unresolved). `TerminalSurface` puts the core in the resolved
+  `graphemes` mode in a layout effect that runs before the geometry effect,
+  and hosts `enqueue` bytes, which parse on the renderer's frame drain — so no
+  byte reaches the parser before the mode is set.
 - **Width mode.** `Parser::width_mode` (`WidthMode::Scalar` default,
   `WidthMode::Grapheme` via `TerminalCore::set_grapheme_clusters`) chooses
   whether a printed character occupies one cell per Unicode scalar or one
@@ -147,7 +152,9 @@ rebuilt (§6).
   "Stale runs" bullet) and a live-frame rewrap agree on where a row breaks.
   The pty-host mirror is always `WidthMode::Scalar` — a deliberate Plan D
   deviation, not an oversight, since the mirror only needs byte-identical
-  replay, not on-screen glyph placement (§5). The Unicode `GraphemeBreakTest`
+  replay, not on-screen glyph placement. The renderer runs in grapheme mode
+  by default, so the two disagree on emoji sequences; what that does to a
+  reopen is measured in §5. The Unicode `GraphemeBreakTest`
   corpus (`crates/vt-core/tests/grapheme/`) runs against the splitter in both
   modes.
 - **Limits** (`Limits { rows, bytes }`, `crates/vt-core/src/limits.rs`) caps
@@ -678,8 +685,7 @@ history of `master`.
   overline, hidden, blink) are parsed unconditionally but rendered only
   behind `RendererFeatures.attributes = "warp"`; the default is `"plain"`,
   which paints none of them. An underlined trailing blank is still trimmed
-  from the export. The pty-host mirror stays in scalar width mode (its
-  `clip_row` clips by `char`, not by grapheme cluster — see §2 "Width mode").
+  from the export.
   `styles.json` covers no blink/overline case because Alacritty's reference
   cell flags have none to record. In both width modes a zero-width scalar
   after a space now rewraps with the space instead of starting a new row
@@ -694,15 +700,45 @@ history of `master`.
   larger jump than this is a fragmentation bug — see §4.22 for the one that
   put it at 14 MiB.
 - **`widthCache` corrects toward the core's cell widths, so it needs
-  `graphemes`.** With `graphemes` off the core lays an emoji sequence out in
-  scalar-mode cells (`❤️` one cell, a ZWJ family three two-cell clusters) and
-  `widthCache` faithfully squeezes the glyphs into those cells
-  (`letter-spacing: -10px` on the heart; the glyph probe's `seq:` row goes
-  from -37.92 to -50.89 px). With both on the row lands at +0.27 px
+  `graphemes`; both default on since 2026-09-22.** With `graphemes` off the
+  core lays an emoji sequence out in scalar-mode cells (`❤️` one cell, a ZWJ
+  family three two-cell clusters) and `widthCache` faithfully squeezes the
+  glyphs into those cells (`letter-spacing: -10px` on the heart; the glyph
+  probe's `seq:` row goes from -37.92 to -50.89 px). With both on the row
+  lands at +0.27 px
   (`bench/agent-session/baselines/glyph-probe/EVIDENCE-graphemes_widthCache.json`).
   Chromium shapes a ZWJ sequence across the per-cluster spans (the follow-on
   spans measure 0 px), so the split is not the cause; the target widths are.
-  A host that turns on `widthCache` should turn on `graphemes`.
+  The gap is now only a host that passes `widthCache: true` with
+  `graphemes: false` explicitly — never do that. On the Claude Code
+  recordings the flip moves exactly two kinds of row: text after `⎿` 6 px
+  left onto the grid, and the `⏵⏵ auto mode on` row 2 px right
+  (`baselines/*/feature-graphemes_widthCache/diff-offset-*.png`). The cost
+  is one `[data-terminal-width]` span per corrected cluster: spinner DOM
+  nodes per paint 73.11 → 75.98, row nodes per paint unchanged.
+- **The pty-host mirror stays in scalar width mode while the renderer runs
+  in grapheme mode.** Its `clip_row` clips by `char`, not by grapheme
+  cluster, and its cursor column is a scalar-mode column. The attach replay
+  (`vt_replay`) re-sends every row as text, so the receiving core re-lays the
+  text out in its own mode and the rows come out right; only two things
+  carry a scalar-mode column across: the cursor, placed with `\r` + `CSI n
+  C` from the mirror's column, and text a child placed with a cursor move
+  after a mode-dependent cluster (VS16, ZWJ, emoji modifier, flag pair —
+  single-scalar emoji like `🚀` and every CJK character are the same width
+  in both modes). Measured 2026-09-22 by feeding the Go mirror, replaying it
+  into a fresh grapheme-mode core and comparing with the same bytes fed
+  directly: `claude-spinner-10s` and `claude-long-50k` — 0 differing rows
+  (27 and 40 compared) and the same cursor, because Claude Code's output
+  carries no mode-dependent cluster; a prompt the child positions with
+  `CSI C` after `❤️` — identical; a line printed with `❤️`, a ZWJ family,
+  `👋🏽` and `🇪🇬` and the cursor left where printing put it — rows
+  identical, cursor 5 columns right of where it should be (46 vs 41);
+  `> ❤️ ab` then `\r CSI 7 C X` — the replay shows `> ❤️ ab X` where the
+  live pane showed `> ❤️ abX`. Both last until the child next rewrites that
+  line or moves the cursor, which Claude Code does on every Ink frame. So:
+  invisible for Claude Code as recorded; visible, one reopen at a time, for
+  a shell prompt that ends in an emoji sequence. The fix, if it ever
+  matters, is the mirror in grapheme mode, not a renderer-side correction.
 - **The pending manual Japanese-IME check.** Task 9's IME composition work
   (the underlined marked-text view, the settled-value single-send fix) has
   not yet been manually verified with a real macOS Japanese IME by a human;

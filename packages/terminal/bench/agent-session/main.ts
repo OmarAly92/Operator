@@ -87,11 +87,8 @@ let nextResize = 1;
 const longTasks: number[] = [];
 const domRenderer = (renderer as unknown as { renderer: DomBlockRenderer }).renderer;
 const featureList = params.get("features") ?? "";
-if (featureList !== "") {
-	const parsed = parseFeatureList(featureList);
-	domRenderer.setFeatures(parsed);
-	if (parsed.graphemes) core.setGraphemeClusters(true);
-}
+if (featureList !== "") domRenderer.setFeatures(parseFeatureList(featureList));
+core.setGraphemeClusters(domRenderer.features().graphemes);
 domRenderer.setFocused(params.get("focused") !== "0");
 domRenderer.onPaint(() => {
 	paints += 1;

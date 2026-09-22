@@ -372,15 +372,15 @@ from the review commit that follows `5ba24affc`, which fixed the parser bug
 described under "Flags-off rows". Every visible change is behind
 `RendererFeatures` (`packages/terminal/ts/renderer-dom/src/features.ts`), set
 through `DomBlockRenderer.setFeatures` and the `features` prop of
-`TerminalSurface`; Operator passes nothing, so every flag is at its default:
+`TerminalSurface`; Operator passes nothing, so every flag is at its default (`graphemes` and `widthCache` default on since 2026-09-22; the rest are off):
 
 | Flag | Default | What it changes | Side-by-side |
 |---|---|---|---|
 | `attributes` | `"plain"` | `"warp"` paints italic/underline (5 styles, SGR 58 colour)/strike/overline/hidden, tags blink | `bench/agent-session/baselines/*/feature-attributes_warp/` (both Claude fixtures are byte-identical to their baselines: Claude Code uses none of these) |
-| `graphemes` | `false` | core prints and rewraps by grapheme cluster; selection follows the exported spans | `…/feature-graphemes/`, `baselines/glyph-probe/EVIDENCE-graphemes.json` |
+| `graphemes` | `true` since 2026-09-22 (was `false`; flipped together with `widthCache`) | core prints and rewraps by grapheme cluster; selection follows the exported spans | `…/feature-graphemes/`, `baselines/glyph-probe/EVIDENCE-graphemes.json` |
 | `cursorContrast` | `false` | inverted cursor below contrast 1.5 | `…/feature-cursorContrast/` |
 | `cursorHollowUnfocused` | `false` | hollow block while unfocused | `…/feature-cursorHollowUnfocused/` |
-| `widthCache` | `false` | per-cluster letter-spacing toward the core's cell widths (Task 11: landed — `wideDriftPx`/`cjkDriftPx` in `EVIDENCE.json`); meaningful together with `graphemes`, see below | `…/feature-widthCache/`, `…/feature-graphemes_widthCache/` |
+| `widthCache` | `true` since 2026-09-22 (was `false`; flipped together with `graphemes`) | per-cluster letter-spacing toward the core's cell widths (Task 11: landed — `wideDriftPx`/`cjkDriftPx` in `EVIDENCE.json`); meaningful together with `graphemes`, see below | `…/feature-widthCache/`, `…/feature-graphemes_widthCache/` |
 | `boxDrawing` | `false` | procedural box glyphs (Task 10: not needed — `boxGapPx` = 0, `EVIDENCE.json`) | n/a — never implemented; the flag name is accepted and read by nothing |
 
 Decision 4 stands: `attributes` defaults to `"plain"`. Flipping any default is a
