@@ -201,7 +201,7 @@ plus `TERMINAL.md` §3.
 | `packages/terminal/ts/renderer-dom/src/alt-surface.ts` | **Modify.** The same overlay anchored to the alt cursor. | 6 |
 | `packages/terminal/ts/renderer-dom/src/styles.css` | **Modify.** `.terminal-prediction`, dim, non-interactive. | 5 |
 | `packages/terminal/ts/react/src/TerminalSurface.tsx` | **Modify.** Register a prediction where the keystroke leaves (`:296`), retire it on feed. | 7 |
-| `packages/terminal/ts/renderer-dom/src/types.ts` | **Modify.** `HostCapabilities.predictiveEcho?: { thresholdMs: number }` — host-side, not a `RendererFeatures` flag. | 7 |
+| `packages/terminal/ts/core/src/types.ts` | **Modify.** `HostCapabilities.predictiveEcho?: { thresholdMs: number }` — host-side, not a `RendererFeatures` flag. `HostCapabilities` lives in **`ts/core`** (`:244`), not in `renderer-dom`, which only imports it (`block-actions.ts:4`); there is no `renderer-dom/src/types.ts`. | 7 |
 | `frontend/src/renderer/components/BlockTerminal.tsx` | **Modify.** Pass Operator's threshold through; default absent (off). | 7 |
 | `packages/terminal/CHANGELOG.md` | **Modify.** One "Unreleased" entry, in Task 7 only. | 7 |
 
@@ -1394,10 +1394,10 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 
 **Files:**
 - Modify: `/Users/omaraly/development/AI/Operator/packages/terminal/ts/react/src/TerminalSurface.tsx` (the alt-screen `onKeyDown` whose send is at `:296`)
-- Modify: `/Users/omaraly/development/AI/Operator/packages/terminal/ts/renderer-dom/src/types.ts` (`HostCapabilities`)
+- Modify: `/Users/omaraly/development/AI/Operator/packages/terminal/ts/core/src/types.ts` (`HostCapabilities`, defined at `:244`)
 - Modify: `/Users/omaraly/development/AI/Operator/frontend/src/renderer/components/BlockTerminal.tsx`
 - Modify: `/Users/omaraly/development/AI/Operator/packages/terminal/CHANGELOG.md`
-- Test: `/Users/omaraly/development/AI/Operator/packages/terminal/ts/react/src/TerminalSurface.test.tsx`
+- Test: `/Users/omaraly/development/AI/Operator/packages/terminal/ts/react/src/TerminalSurface.test.tsx` — and because this task's type change lands in **`ts/core`**, Step 6's suite list must include `ts/core` as well as `ts/renderer-dom` and `ts/react`. It does; do not trim it.
 
 **Interfaces:**
 - Consumes from Tasks 3–6: `predictKey`, `noteSend`, `noteRoundTrip`,
@@ -1483,11 +1483,21 @@ an unencodable key has already returned and cannot register a prediction. The
 matching `received` is called from the renderer's feed path with
 `performance.now()`, never `Date.now()` — Task 4's clock rule.
 
-Add to `HostCapabilities` in `types.ts`:
+Add the field to `HostCapabilities` in
+`/Users/omaraly/development/AI/Operator/packages/terminal/ts/core/src/types.ts`,
+as the last member, beside the other optional host-supplied capabilities
+(`notify?`, `listDirectory?`, `resolvePath?`, `openPath?`, `secretPatterns?`):
 
 ```ts
 	predictiveEcho?: Readonly<{ thresholdMs: number }>;
 ```
+
+It is optional, so `NOOP_HOST` (`ts/core/src/terminal-core.ts:58`) and every
+existing host need no change, and `HostCapabilities` is re-exported wholesale
+from `ts/core/src/index-browser.ts:18`, so no export list changes either.
+**This edit is in `ts/core`, which `renderer-dom` and `react` both build
+against** — hence the `npm run build:ts` before the react tests in Steps 2 and
+4, and `ts/core` in the suite list in Step 6.
 
 Call `renderer.setPredictiveEcho(host.predictiveEcho ?? null)` where the other
 host capabilities are applied, and `renderer.predictionsClear()` in the same
@@ -1548,7 +1558,7 @@ appears. Record what you saw in the commit message.
 - [ ] **Step 8: Commit**
 
 ```bash
-cd /Users/omaraly/development/AI/Operator && git add packages/terminal/ts/react/src/TerminalSurface.tsx packages/terminal/ts/react/src/TerminalSurface.test.tsx packages/terminal/ts/renderer-dom/src/types.ts packages/terminal/CHANGELOG.md frontend/src/renderer/components/BlockTerminal.tsx && git commit -m "terminal: wire predictive echo to the keystroke, the round trip and a host threshold
+cd /Users/omaraly/development/AI/Operator && git add packages/terminal/ts/react/src/TerminalSurface.tsx packages/terminal/ts/react/src/TerminalSurface.test.tsx packages/terminal/ts/core/src/types.ts packages/terminal/CHANGELOG.md frontend/src/renderer/components/BlockTerminal.tsx && git commit -m "terminal: wire predictive echo to the keystroke, the round trip and a host threshold
 
 Off unless the host sets predictiveEcho.thresholdMs. Verified against a
 tunnelled daemon: dim glyph within a frame, solid when the real repaint lands
@@ -1618,7 +1628,9 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
   `noteSend`, `noteRoundTrip`, `predictKey`, `predictionsClear`,
   `predictionCount` — are spelled identically in Tasks 5, 6, 7 and the File
   Structure table. `HostCapabilities.predictiveEcho.thresholdMs` is spelled the
-  same in `types.ts`, `TerminalSurface`, `BlockTerminal` and the CHANGELOG.
+  same in `ts/core/src/types.ts` (where `HostCapabilities` actually lives —
+  `renderer-dom` has no `types.ts` and only imports the type),
+  `TerminalSurface`, `BlockTerminal` and the CHANGELOG.
   `.terminal-prediction` matches across `styles.css`, `paintBoxes` and every
   test query. The `printable()` helper is defined once in Task 5 and reused by
   Task 6, which is why Task 6's tests do not redefine it. The four merge hashes
