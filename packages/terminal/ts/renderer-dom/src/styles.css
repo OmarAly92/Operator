@@ -248,6 +248,68 @@
 	color: inherit;
 }
 
+/* SGR decorations, drawn only when RendererFeatures.attributes is "warp".
+   Thickness follows Warp's UNDERLINE_THICKNESS_SCALE_FACTOR = 0.15 of the
+   cell width (app/src/terminal/grid_renderer.rs:52,2352); Hack's advance is
+   0.6em, so 0.09em. Blink gets a class and no animation: Warp's
+   ansi_handler.rs terminal_attribute has no Blink arm. */
+.terminal-run[data-italic] {
+	font-style: italic;
+}
+
+.terminal-run[data-hidden] {
+	visibility: hidden;
+}
+
+.terminal-run[data-underline] {
+	text-decoration-thickness: 0.09em;
+	text-decoration-color: var(--terminal-underline, currentColor);
+}
+
+.terminal-run[data-underline="double"] {
+	text-decoration-style: double;
+}
+
+.terminal-run[data-underline="curly"] {
+	text-decoration-style: wavy;
+}
+
+.terminal-run[data-underline="dotted"] {
+	text-decoration-style: dotted;
+}
+
+.terminal-run[data-underline="dashed"] {
+	text-decoration-style: dashed;
+}
+
+.terminal-run[data-decor="u"] {
+	text-decoration-line: underline;
+}
+
+.terminal-run[data-decor="s"] {
+	text-decoration-line: line-through;
+}
+
+.terminal-run[data-decor="o"] {
+	text-decoration-line: overline;
+}
+
+.terminal-run[data-decor="us"] {
+	text-decoration-line: underline line-through;
+}
+
+.terminal-run[data-decor="uo"] {
+	text-decoration-line: underline overline;
+}
+
+.terminal-run[data-decor="so"] {
+	text-decoration-line: line-through overline;
+}
+
+.terminal-run[data-decor="uso"] {
+	text-decoration-line: underline line-through overline;
+}
+
 /* Block elements (U+2580..U+259F) are drawn as cell-filling rectangles rather
    than from the font. A font glyph fills one em, the row box is line-height,
    and CSS splits the difference as half-leading -- so stacked blocks show a

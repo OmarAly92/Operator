@@ -1,6 +1,7 @@
 import { defaultStrings, type BlockView } from "@operator/terminal-core";
 import { renderBlockHeader } from "./block-header.js";
 import { placeCursor, type CursorPlacement } from "./cursor.js";
+import type { RendererFeatures } from "./features.js";
 import { buildRowNode, type RowSource } from "./row-builder.js";
 import type { RowWindow } from "./viewport.js";
 
@@ -20,6 +21,7 @@ export type BlockBodyInput = Readonly<{
 	firstStableRow: number;
 	generation: number;
 	rowIsFresh: (stableRow: number, node: HTMLElement) => boolean;
+	features: RendererFeatures;
 }>;
 
 type BlockBody = {
@@ -68,7 +70,7 @@ export function populateBlock(section: HTMLElement, input: BlockBodyInput): { cu
 		keep.add(stableRow);
 		let node = body.rows.get(stableRow);
 		if (!node || !input.rowIsFresh(stableRow, node)) {
-			node = buildRowNode(snapshot, snapshotRow, stableRow, decoder, input.cellWidth);
+			node = buildRowNode(snapshot, snapshotRow, stableRow, decoder, input.cellWidth, input.features);
 			node.setAttribute(ROW_GENERATION_ATTR, String(input.generation));
 			body.rows.set(stableRow, node);
 		}

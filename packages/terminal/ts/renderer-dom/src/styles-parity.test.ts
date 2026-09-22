@@ -116,4 +116,21 @@ describe("terminalStyles", () => {
 	it("resolves bundled font URLs before injecting the stylesheet", () => {
 		expect(terminalStylesForDocument()).not.toContain('url("./fonts/');
 	});
+
+	it("draws every SGR decoration from data attributes, with Warp's underline thickness", () => {
+		for (const rule of [
+			".terminal-run[data-italic]",
+			".terminal-run[data-hidden]",
+			'.terminal-run[data-underline="double"]',
+			'.terminal-run[data-underline="curly"]',
+			'.terminal-run[data-underline="dotted"]',
+			'.terminal-run[data-underline="dashed"]',
+			'.terminal-run[data-decor="uso"]',
+			"--terminal-underline",
+			"text-decoration-thickness: 0.09em",
+		]) {
+			expect(terminalStyles).toContain(rule);
+		}
+		expect(terminalStyles).not.toContain("@keyframes");
+	});
 });

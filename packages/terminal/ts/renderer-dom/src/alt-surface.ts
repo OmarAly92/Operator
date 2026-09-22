@@ -1,4 +1,5 @@
 import { type AltScreenView, STYLE_RUN_WORDS } from "@operator/terminal-core";
+import { DEFAULT_FEATURES, type RendererFeatures } from "./features.js";
 import { buildRowNode, type RowSource } from "./row-builder.js";
 
 const SURFACE_ATTR = "data-terminal-alt-surface";
@@ -9,6 +10,7 @@ const CLASS_CURSOR = "terminal-alt-cursor";
 type RowFingerprint = Readonly<{
 	content: Uint8Array;
 	stylePairs: Uint32Array;
+	attributes: RendererFeatures["attributes"];
 }>;
 
 const rowFingerprints = new WeakMap<HTMLElement, readonly RowFingerprint[]>();
@@ -20,6 +22,7 @@ export function renderAltSurface(
 	into: HTMLElement,
 	decoder: TextDecoder,
 	metrics: CellMetrics,
+	features: RendererFeatures = DEFAULT_FEATURES,
 ): void {
 	if (!into.hasAttribute(SURFACE_ATTR)) {
 		into.dataset.terminalAltSurface = "";
@@ -35,10 +38,10 @@ export function renderAltSurface(
 	if (existingRows.length === view.rows) {
 		rowFingerprints.set(
 			into,
-			repaintChangedRows(source, existingRows, rowFingerprints.get(into), decoder),
+			repaintChangedRows(source, existingRows, rowFingerprints.get(into), decoder, features),
 		);
 	} else {
-		replaceRows(source, into, view.rows, decoder);
+		replaceRows(source, into, view.rows, decoder, features);
 	}
 	applyCursor(into, view, metrics);
 }
@@ -48,13 +51,14 @@ function repaintChangedRows(
 	rows: readonly HTMLElement[],
 	previousFingerprints: readonly RowFingerprint[] | undefined,
 	decoder: TextDecoder,
+	features: RendererFeatures,
 ): readonly RowFingerprint[] {
 	return rows.map((row, index) => {
 		const previous = previousFingerprints?.[index];
-		if (previous && rowMatches(source, index, previous)) return previous;
-		const fresh = buildRowNode(source, index, index, decoder);
+		if (previous && rowMatches(source, index, previous, features)) return previous;
+		const fresh = buildRowNode(source, index, index, decoder, 0, features);
 		row.replaceChildren(...Array.from(fresh.childNodes));
-		return fingerprintRow(source, index);
+		return fingerprintRow(source, index, features);
 	});
 }
 
@@ -63,12 +67,13 @@ function replaceRows(
 	into: HTMLElement,
 	rowCount: number,
 	decoder: TextDecoder,
+	features: RendererFeatures,
 ): void {
 	const fragment = document.createDocumentFragment();
 	const fingerprints = new Array<RowFingerprint>(rowCount);
 	for (let row = 0; row < rowCount; row += 1) {
-		fragment.append(buildRowNode(source, row, row, decoder));
-		fingerprints[row] = fingerprintRow(source, row);
+		fragment.append(buildRowNode(source, row, row, decoder, 0, features));
+		fingerprints[row] = fingerprintRow(source, row, features);
 	}
 	const cursor = into.querySelector<HTMLElement>(`[${CURSOR_ATTR}]`);
 	into.replaceChildren(fragment);
@@ -76,7 +81,7 @@ function replaceRows(
 	rowFingerprints.set(into, fingerprints);
 }
 
-function fingerprintRow(source: RowSource, row: number): RowFingerprint {
+function fingerprintRow(source: RowSource, row: number, features: RendererFeatures): RowFingerprint {
 	const rangeIndex = row * 2;
 	const contentStart = source.rows[rangeIndex] ?? 0;
 	const contentEnd = source.rows[rangeIndex + 1] ?? contentStart;
@@ -85,10 +90,12 @@ function fingerprintRow(source: RowSource, row: number): RowFingerprint {
 	return {
 		content: source.content.slice(contentStart, contentEnd),
 		stylePairs: source.stylePairs.slice(pairStart * STYLE_RUN_WORDS, pairEnd * STYLE_RUN_WORDS),
+		attributes: features.attributes,
 	};
 }
 
-function rowMatches(source: RowSource, row: number, fingerprint: RowFingerprint): boolean {
+function rowMatches(source: RowSource, row: number, fingerprint: RowFingerprint, features: RendererFeatures): boolean {
+	if (fingerprint.attributes !== features.attributes) return false;
 	const rangeIndex = row * 2;
 	const contentStart = source.rows[rangeIndex] ?? 0;
 	const contentEnd = source.rows[rangeIndex + 1] ?? contentStart;

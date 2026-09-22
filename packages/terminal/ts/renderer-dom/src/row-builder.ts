@@ -1,5 +1,7 @@
-import { STYLE_RUN_WORDS } from "@operator/terminal-core";
+import { STYLE_DEFAULT_UNDERLINE, STYLE_RUN_WORDS } from "@operator/terminal-core";
+import { applyAttributes, underlinedText } from "./attributes.js";
 import { blockGlyph, type BlockGlyph, isFullBlock } from "./block-glyphs.js";
+import { DEFAULT_FEATURES, type RendererFeatures } from "./features.js";
 import {
 	styleCodeIsBold,
 	styleCodeIsDim,
@@ -24,6 +26,7 @@ export function buildRowNode(
 	label: number,
 	decoder: TextDecoder,
 	cellWidth = 0,
+	features: RendererFeatures = DEFAULT_FEATURES,
 ): HTMLElement {
 	const { content, rows, runRanges, stylePairs } = source;
 	const indent = source.rowIndents?.[snapshotRowIndex] ?? 0;
@@ -45,6 +48,8 @@ export function buildRowNode(
 	let pendingEnd = 0;
 	let pendingStyleCode = 255;
 	let pendingBackgroundCode = 254;
+	let pendingAttrs = 0;
+	let pendingUnderline = STYLE_DEFAULT_UNDERLINE;
 	const flushPending = (): void => {
 		if (pendingIndex < 0) {
 			return;
@@ -65,7 +70,11 @@ export function buildRowNode(
 		if (styleCodeIsDim(pendingStyleCode)) {
 			run.style.opacity = "0.55";
 		}
-		appendRunText(run, decoder.decode(slice), foreground);
+		let text = decoder.decode(slice);
+		if (features.attributes === "warp") {
+			if (applyAttributes(run, pendingAttrs, pendingUnderline)) text = underlinedText(text);
+		}
+		appendRunText(run, text, foreground);
 		rowNode.append(run);
 	};
 	for (let pairIndex = pairStart; pairIndex < pairEnd; pairIndex += 1) {
@@ -73,7 +82,10 @@ export function buildRowNode(
 		const pairRunEnd = stylePairs[elementIndex] ?? rowCursor;
 		const styleCode = stylePairs[elementIndex + 1] ?? 255;
 		const backgroundCode = stylePairs[elementIndex + 2] ?? 254;
-		if (pendingIndex >= 0 && styleCode === pendingStyleCode && backgroundCode === pendingBackgroundCode) {
+		const attrs = stylePairs[elementIndex + 3] ?? 0;
+		const underlineCode = stylePairs[elementIndex + 4] ?? STYLE_DEFAULT_UNDERLINE;
+		const attrsMatch = features.attributes !== "warp" || (attrs === pendingAttrs && underlineCode === pendingUnderline);
+		if (pendingIndex >= 0 && styleCode === pendingStyleCode && backgroundCode === pendingBackgroundCode && attrsMatch) {
 			pendingEnd = pairRunEnd;
 		} else {
 			flushPending();
@@ -82,6 +94,8 @@ export function buildRowNode(
 			pendingEnd = pairRunEnd;
 			pendingStyleCode = styleCode;
 			pendingBackgroundCode = backgroundCode;
+			pendingAttrs = attrs;
+			pendingUnderline = underlineCode;
 		}
 		rowCursor = pairRunEnd;
 	}

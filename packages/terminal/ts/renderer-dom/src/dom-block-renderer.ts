@@ -522,7 +522,7 @@ export class DomBlockRenderer implements BlockRenderer {
 			altRoot.hidden = false;
 			if (this.list) this.list.hidden = true;
 			if (this.pinnedHeader) this.pinnedHeader.hidden = true;
-			renderAltSurface(alt, this.altRoot!, this.decoder, this.cellMetrics());
+			renderAltSurface(alt, this.altRoot!, this.decoder, this.cellMetrics(), this.activeFeatures);
 			this.paintSelectionFill();
 			if (paintedAt !== undefined) this.lastPaintAt = paintedAt;
 			this.notifyPainted();
@@ -630,6 +630,7 @@ export class DomBlockRenderer implements BlockRenderer {
 					firstStableRow: snapshot.firstStableRow,
 					generation: snapshot.generation,
 					rowIsFresh: freshFor(block.id),
+					features: this.activeFeatures,
 				});
 				if (placed.cursorPlaced) cursorPlaced = true;
 			}
