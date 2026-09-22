@@ -65,8 +65,12 @@ export function SplitWorkspace({ routeSessionId }: { routeSessionId: string }) {
 
 	useEffect(() => {
 		if (!workspaceQuery.isSuccess || !shellsQuery.isSuccess) return;
-		store().pruneTabs((tab) => (tab.kind === "shell" ? shells.has(tab.handleId) : sessions.has(tab.sessionId)));
-	}, [sessions, shells, shellsQuery.isSuccess, store, workspaceQuery.isSuccess]);
+		store().pruneTabs((tab) => {
+			if (tab.kind === "shell") return shells.has(tab.handleId);
+			if (tab.kind === "session" && tab.sessionId === routeSessionId) return true;
+			return sessions.has(tab.sessionId);
+		});
+	}, [routeSessionId, sessions, shells, shellsQuery.isSuccess, store, workspaceQuery.isSuccess]);
 
 	useEffect(() => {
 		const kinds = new Map<string, TerminalTarget["kind"]>();

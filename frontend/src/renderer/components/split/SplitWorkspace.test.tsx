@@ -48,8 +48,10 @@ const workspaces: WorkspaceSummary[] = [
 	} as unknown as WorkspaceSummary,
 ];
 
+const workspaceState = vi.hoisted(() => ({ value: undefined as unknown }));
+
 vi.mock("../../hooks/useWorkspaceQuery", () => ({
-	useWorkspaceQuery: () => ({ data: workspaces, isSuccess: true }),
+	useWorkspaceQuery: () => ({ data: workspaceState.value, isSuccess: true }),
 }));
 
 const { shellsState, reviewerState } = vi.hoisted(() => ({
@@ -155,6 +157,7 @@ describe("SplitWorkspace", () => {
 		closeShell.mockReset();
 		shellsState.value = [];
 		reviewerState.value = undefined;
+		workspaceState.value = workspaces;
 		vi.spyOn(operatorBridge.app, "setCloseShellTerminalShortcutEnabled").mockImplementation(() => undefined);
 	});
 
@@ -228,6 +231,26 @@ describe("SplitWorkspace", () => {
 
 		useSplitLayoutStore.setState((state) => ({ layout: { ...state.layout } }));
 		expect(listPanes(useSplitLayoutStore.getState().layout.root)[0].tabs.map(tabKey)).toEqual(["session:a"]);
+	});
+
+	it("keeps the routed session while the workspace list has not caught up with it", () => {
+		const { rerender } = render(<SplitWorkspace routeSessionId="fresh" />);
+		expect(activeKey()).toBe("session:fresh");
+		workspaceState.value = [
+			{ ...workspaces[0], sessions: [...workspaces[0].sessions, makeSession("fresh", "proj-1")] },
+			workspaces[1],
+		];
+		rerender(<SplitWorkspace routeSessionId="fresh" />);
+		expect(activeKey()).toBe("session:fresh");
+		expect(navigateMock).not.toHaveBeenCalled();
+	});
+
+	it("keeps the routed session beside a restored layout while the list catches up", () => {
+		useSplitLayoutStore.getState().openTab(s("a"));
+		render(<SplitWorkspace routeSessionId="fresh" />);
+		expect(listPanes(useSplitLayoutStore.getState().layout.root)[0].tabs.map(tabKey)).toEqual(["session:a", "session:fresh"]);
+		expect(activeKey()).toBe("session:fresh");
+		expect(navigateMock).not.toHaveBeenCalled();
 	});
 
 	it("prunes tabs whose session disappeared", () => {
