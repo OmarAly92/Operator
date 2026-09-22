@@ -82,9 +82,9 @@ describe("SplitPane", () => {
 		const { rerender } = renderPane({ onFocus, onClosePane, showFocusRing: false });
 		fireEvent.pointerDown(screen.getByTestId("pane-terminal"));
 		expect(onFocus).toHaveBeenCalled();
-		expect(document.querySelector(".border-accent\\/60")).toBeNull();
+		expect(document.querySelector(".border-ring\\/60")).toBeNull();
 		rerender(paneTree({ onFocus, onClosePane, showFocusRing: true }));
-		expect(document.querySelector(".border-accent\\/60")).not.toBeNull();
+		expect(document.querySelector(".border-ring\\/60")).not.toBeNull();
 		fireEvent.click(screen.getByRole("button", { name: "Close pane" }));
 		expect(onClosePane).toHaveBeenCalled();
 	});

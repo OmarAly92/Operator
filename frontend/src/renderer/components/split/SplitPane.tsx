@@ -116,7 +116,7 @@ export function SplitPane(props: SplitPaneProps) {
 				theme={props.theme}
 			/>
 			{props.showFocusRing ? (
-				<div aria-hidden="true" className="pointer-events-none absolute inset-0 z-10 rounded-lg border border-accent/60" />
+				<div aria-hidden="true" className="pointer-events-none absolute inset-0 z-10 rounded-lg border border-ring/60" />
 			) : null}
 		</section>
 	);

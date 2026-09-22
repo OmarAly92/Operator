@@ -25,13 +25,13 @@ export function SplitDropOverlay() {
 			{geometry && target ? (
 				<motion.div
 					animate={geometry}
-					className="absolute flex items-center justify-center overflow-hidden rounded-xl border-2 border-accent/80 bg-background/10 backdrop-blur-[6px]"
+					className="absolute flex items-center justify-center overflow-hidden rounded-xl border-2 border-ring/80 bg-background/10 backdrop-blur-[6px]"
 					data-testid="split-drop-box"
 					initial={false}
 					style={geometry}
 					transition={SLIDE}
 				>
-					<span className="rounded-full bg-accent px-3 py-1 text-control font-medium text-accent-foreground shadow-sm">
+					<span className="rounded-full bg-ring/50 px-3 py-1 text-control font-medium text-foreground shadow-sm">
 						{target.kind === "split" ? t("split.splitView") : t("split.openHere")}
 					</span>
 				</motion.div>
