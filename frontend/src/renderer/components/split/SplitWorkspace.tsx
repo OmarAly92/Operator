@@ -99,6 +99,7 @@ export function SplitWorkspace({ routeSessionId }: { routeSessionId: string }) {
 			const sessionId = tabSessionId(tab);
 			const projectId = sessionId ? sessions.get(sessionId)?.workspaceId : undefined;
 			if (tab.kind === "shell") closeShellTerminal.mutate(tab.handleId);
+			if (tab.kind === "reviewer") store().dismissReviewer(tab.handleId);
 			store().closeTab(tab);
 			leaveIfEmpty(projectId);
 		},
@@ -138,7 +139,14 @@ export function SplitWorkspace({ routeSessionId }: { routeSessionId: string }) {
 		};
 	}, [store]);
 
-	const sessionTabs = [...new Set(panes.flatMap((pane) => pane.tabs).filter((tab) => tab.kind === "session").map((tab) => tab.sessionId))];
+	const companionSessionIds = [
+		...new Set(
+			panes
+				.flatMap((pane) => pane.tabs)
+				.map(tabSessionId)
+				.filter((sessionId): sessionId is string => Boolean(sessionId)),
+		),
+	];
 
 	const renderNode = (node: LayoutNode): ReactNode => {
 		if (node.type === "pane") {
@@ -183,7 +191,7 @@ export function SplitWorkspace({ routeSessionId }: { routeSessionId: string }) {
 
 	return (
 		<div className="relative h-full min-h-0" data-testid="split-workspace">
-			{sessionTabs.map((sessionId) => {
+			{companionSessionIds.map((sessionId) => {
 				const session = sessions.get(sessionId);
 				return session ? <SessionCompanions key={sessionId} session={session} /> : null;
 			})}

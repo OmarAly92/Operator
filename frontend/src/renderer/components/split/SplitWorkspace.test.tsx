@@ -56,7 +56,10 @@ vi.mock("../../hooks/useWorkspaceQuery", () => ({
 
 const { shellsState, reviewerState } = vi.hoisted(() => ({
 	shellsState: { value: [] as { handleId: string; sessionId?: string; workingDir: string; title: string; createdAt: string }[] },
-	reviewerState: { value: undefined as { handleId: string; harness: string } | undefined },
+	reviewerState: {
+		value: undefined as { handleId: string; harness: string } | undefined,
+		settled: true,
+	},
 }));
 
 const closeShell = vi.hoisted(() => vi.fn());
@@ -68,7 +71,7 @@ vi.mock("../../hooks/useShellTerminals", () => ({
 }));
 
 vi.mock("../../hooks/useSessionReviewer", () => ({
-	useSessionReviewer: () => reviewerState.value,
+	useSessionReviewer: () => ({ reviewer: reviewerState.value, settled: reviewerState.settled }),
 }));
 
 vi.mock("./SplitPane", () => ({
@@ -151,12 +154,13 @@ function captureShortcut(name: "onCloseShellTerminalShortcut" | "onNextTabShortc
 
 describe("SplitWorkspace", () => {
 	beforeEach(() => {
-		useSplitLayoutStore.setState({ layout: EMPTY_LAYOUT });
+		useSplitLayoutStore.setState({ layout: EMPTY_LAYOUT, dismissedReviewers: [] });
 		window.localStorage.clear();
 		navigateMock.mockReset();
 		closeShell.mockReset();
 		shellsState.value = [];
 		reviewerState.value = undefined;
+		reviewerState.settled = true;
 		workspaceState.value = workspaces;
 		vi.spyOn(operatorBridge.app, "setCloseShellTerminalShortcutEnabled").mockImplementation(() => undefined);
 	});
@@ -251,6 +255,48 @@ describe("SplitWorkspace", () => {
 		expect(listPanes(useSplitLayoutStore.getState().layout.root)[0].tabs.map(tabKey)).toEqual(["session:a", "session:fresh"]);
 		expect(activeKey()).toBe("session:fresh");
 		expect(navigateMock).not.toHaveBeenCalled();
+	});
+
+	it("keeps a closed reviewer tab closed when the workspace mounts again", () => {
+		reviewerState.value = { handleId: "r1", harness: "codex" };
+		const first = render(<SplitWorkspace routeSessionId="a" />);
+		fireEvent.click(screen.getByRole("button", { name: "close reviewer:r1" }));
+		first.unmount();
+		render(<SplitWorkspace routeSessionId="a" />);
+		expect(listPanes(useSplitLayoutStore.getState().layout.root)[0].tabs.map(tabKey)).toEqual(["session:a"]);
+	});
+
+	it("still adopts a new reviewer run after an older one was closed", () => {
+		reviewerState.value = { handleId: "r1", harness: "codex" };
+		const { rerender } = render(<SplitWorkspace routeSessionId="a" />);
+		fireEvent.click(screen.getByRole("button", { name: "close reviewer:r1" }));
+		reviewerState.value = { handleId: "r2", harness: "codex" };
+		rerender(<SplitWorkspace routeSessionId="a" />);
+		expect(listPanes(useSplitLayoutStore.getState().layout.root)[0].tabs.map(tabKey)).toEqual(["session:a", "reviewer:r2"]);
+	});
+
+	it("leaves a restored reviewer tab where it is until the reviews have loaded", () => {
+		const reviewer: TabRef = { kind: "reviewer", sessionId: "a", handleId: "r1", harness: "codex" };
+		useSplitLayoutStore.getState().openTab(s("a"));
+		useSplitLayoutStore.getState().openTab(s("b"));
+		useSplitLayoutStore.getState().splitPane(reviewer, useSplitLayoutStore.getState().layout.focusedPaneId as string, "right");
+		useSplitLayoutStore.getState().focusTab(s("a"));
+		const before = useSplitLayoutStore.getState().layout;
+		reviewerState.settled = false;
+		const { rerender } = render(<SplitWorkspace routeSessionId="a" />);
+		expect(useSplitLayoutStore.getState().layout).toBe(before);
+		reviewerState.value = { handleId: "r1", harness: "codex" };
+		reviewerState.settled = true;
+		rerender(<SplitWorkspace routeSessionId="a" />);
+		expect(useSplitLayoutStore.getState().layout).toBe(before);
+	});
+
+	it("drops a stale reviewer tab that sits in a pane without its session tab", () => {
+		const stale: TabRef = { kind: "reviewer", sessionId: "b", handleId: "old", harness: "codex" };
+		useSplitLayoutStore.getState().openTab(s("a"));
+		useSplitLayoutStore.getState().openTab(stale);
+		render(<SplitWorkspace routeSessionId="a" />);
+		expect(listPanes(useSplitLayoutStore.getState().layout.root).flatMap((pane) => pane.tabs.map(tabKey))).toEqual(["session:a"]);
 	});
 
 	it("prunes tabs whose session disappeared", () => {

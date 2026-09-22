@@ -14,11 +14,11 @@ function reviewerTerminalFromReviews(data?: ReviewsResponse): ReviewerTerminalTa
 	return { handleId, harness: data?.reviewerHarness || latest?.harness || "codex" };
 }
 
-function useReviewsQuery(session?: WorkspaceSession) {
+function useReviewsQuery(session: WorkspaceSession | undefined, enabled: boolean) {
 	const sessionId = session?.id ?? "";
 	return useQuery({
 		queryKey: ["session-reviews", sessionId],
-		enabled: Boolean(nativeShellBridgePresent() && session && sessionIsActive(session) && session.prs.length > 0),
+		enabled,
 		refetchInterval: (current) => {
 			const data = current.state.data as ReviewsResponse | undefined;
 			return data?.reviews?.some((review) => review.status === "running") ? 2500 : false;
@@ -33,7 +33,12 @@ function useReviewsQuery(session?: WorkspaceSession) {
 	});
 }
 
-export function useSessionReviewer(session?: WorkspaceSession): { handleId: string; harness: string } | undefined {
-	const query = useReviewsQuery(session);
-	return session && sessionIsActive(session) ? reviewerTerminalFromReviews(query.data) : undefined;
+export function useSessionReviewer(session?: WorkspaceSession): {
+	reviewer: ReviewerTerminalTarget | undefined;
+	settled: boolean;
+} {
+	const enabled = Boolean(nativeShellBridgePresent() && session && sessionIsActive(session) && session.prs.length > 0);
+	const query = useReviewsQuery(session, enabled);
+	const reviewer = session && sessionIsActive(session) ? reviewerTerminalFromReviews(query.data) : undefined;
+	return { reviewer, settled: !enabled || query.isSuccess };
 }

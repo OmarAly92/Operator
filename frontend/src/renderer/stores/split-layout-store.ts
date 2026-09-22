@@ -41,6 +41,8 @@ function persist(layout: Layout): void {
 
 type SplitLayoutState = {
 	layout: Layout;
+	dismissedReviewers: string[];
+	dismissReviewer: (handleId: string) => void;
 	openTab: (tab: TabRef) => void;
 	focusTab: (tab: TabRef) => void;
 	focusPane: (paneId: string) => void;
@@ -63,6 +65,11 @@ export const useSplitLayoutStore = create<SplitLayoutState>((set, get) => {
 	};
 	return {
 		layout: loadStoredLayout(),
+		dismissedReviewers: [],
+		dismissReviewer: (handleId) => {
+			if (get().dismissedReviewers.includes(handleId)) return;
+			set({ dismissedReviewers: [...get().dismissedReviewers, handleId] });
+		},
 		openTab: (tab) => apply(openTab(get().layout, tab)),
 		focusTab: (tab) => apply(focusTab(get().layout, tab)),
 		focusPane: (paneId) => apply(focusPane(get().layout, paneId)),
