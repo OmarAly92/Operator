@@ -1,10 +1,8 @@
-import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 import type { PanelImperativeHandle, PanelSize } from "react-resizable-panels";
-import type { components } from "../../api/schema";
 import { CenterPane } from "./CenterPane";
 import { SessionFilesView } from "./SessionFilesView";
 import { SessionInspector } from "./SessionInspector";
@@ -17,10 +15,10 @@ import {
 	useShellTerminals,
 	type ShellTerminal,
 } from "../hooks/useShellTerminals";
+import { useAvailableSessionReviewer, useSessionReviewer } from "../hooks/useSessionReviewer";
 import { useWorkspaceQuery } from "../hooks/useWorkspaceQuery";
 import { useWindowFullScreen } from "../hooks/useWindowFullScreen";
-import { apiClient, apiErrorMessage } from "../lib/api-client";
-import { nativeShellBridgePresent, operatorBridge } from "../lib/bridge";
+import { operatorBridge } from "../lib/bridge";
 import { hidesShellTopbar } from "../lib/platform";
 import { useShell } from "../lib/shell-context";
 import { cn } from "../lib/utils";
@@ -34,7 +32,6 @@ const INSPECTOR_MAX_PERCENT = 45;
 const inspectorSplitStorageKey = "opr.inspector.split";
 const shellTopbarHiddenByPlatform = hidesShellTopbar();
 
-type ReviewsResponse = components["schemas"]["ListReviewsResponse"];
 type ReviewerTerminalTarget = { handleId: string; harness: string };
 
 function initialSplitPercent(): number {
@@ -42,13 +39,6 @@ function initialSplitPercent(): number {
 	const parsed = raw === null ? Number.NaN : Number(raw);
 	if (!Number.isFinite(parsed)) return INSPECTOR_MIN_PERCENT;
 	return Math.min(INSPECTOR_MAX_PERCENT, Math.max(INSPECTOR_MIN_PERCENT, parsed));
-}
-
-function reviewerTerminalFromReviews(data?: ReviewsResponse): ReviewerTerminalTarget | undefined {
-	const handleId = data?.reviewerHandleId?.trim();
-	if (!handleId) return undefined;
-	const latest = data?.reviews?.find((review) => review.latestRun)?.latestRun;
-	return { handleId, harness: data?.reviewerHarness || latest?.harness || "codex" };
 }
 
 type SessionViewProps = {
@@ -152,25 +142,8 @@ export function SessionView({ sessionId }: SessionViewProps) {
 		},
 		[closeSessionTab, navigate, projectId, sessionId, sessionTabs],
 	);
-	const reviewerQuery = useQuery({
-		queryKey: ["session-reviews", sessionId],
-		enabled: Boolean(
-			nativeShellBridgePresent() && session && sessionIsActive(session) && session.prs.length > 0,
-		),
-		refetchInterval: (query) => {
-			const data = query.state.data as ReviewsResponse | undefined;
-			return data?.reviews?.some((review) => review.status === "running") ? 2500 : false;
-		},
-		queryFn: async () => {
-			const { data, error } = await apiClient.GET("/api/v1/sessions/{sessionId}/reviews", {
-				params: { path: { sessionId } },
-			});
-			if (error) throw new Error(apiErrorMessage(error, "Unable to load reviews"));
-			return data ?? ({ reviewerHandleId: "", reviews: [], runs: [] } satisfies ReviewsResponse);
-		},
-	});
-	const availableReviewerTerminal = reviewerTerminalFromReviews(reviewerQuery.data);
-	const reviewerTerminal = session && sessionIsActive(session) ? availableReviewerTerminal : undefined;
+	const reviewerTerminal = useSessionReviewer(session);
+	const availableReviewerTerminal = useAvailableSessionReviewer(session);
 
 	const setVisibleTerminalKind = useUiStore((state) => state.setVisibleTerminalKind);
 	const clearVisibleTerminalKind = useUiStore((state) => state.clearVisibleTerminalKind);
