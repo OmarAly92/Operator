@@ -12,8 +12,6 @@ import type { UpdateOutcome } from "../../shared/update-telemetry";
 import type {
 	ExternalEditor,
 	ExternalPreviewOpenInput,
-	LinkPathMatch,
-	LinkPathQuery,
 	OpenPathOutcome,
 	OperatorBridge,
 } from "../../shared/operator-bridge";
@@ -160,8 +158,6 @@ export function createTauriBridge({ invoke, listen }: TauriBridgeTransports): Op
 			},
 			resolvePath: async (base: string | null, path: string) =>
 				(await invoke("resolve_path", { base, path })) as string | null,
-			resolveFirstPath: async (base: string | null, candidates: readonly LinkPathQuery[]) =>
-				((await invoke("resolve_first_path", { base, candidates })) as LinkPathMatch | null) ?? null,
 			openPath: async (path: string, line?: number, column?: number, editor?: ExternalEditor) => {
 				const outcome = (await invoke("open_path", { path, line, column, editor })) as OpenPathOutcome | null;
 				return outcome ?? { cliMissing: false };

@@ -1189,7 +1189,6 @@ void (async () => {
             native::choose_directory,
             native::open_external,
             native::resolve_path,
-            native::resolve_first_path,
             native::open_path,
             native::clipboard_write,
             native::clipboard_read,

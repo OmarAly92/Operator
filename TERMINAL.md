@@ -114,20 +114,6 @@ rebuilt (§6).
   `@operator/terminal-core` and derives its `text`/`rowOffsets` from that one
   function — it derives nothing of its own. A change to how pieces join
   belongs in the core's `joinLogicalLine` and lands in both by construction.
-- **File paths.** A path link is Warp's hover-time search, not a line
-  grammar. `ts/renderer-dom/src/file-links.ts` ports
-  `possible_file_paths_at_point` (`crates/warp_terminal/src/model/grid/grid_handler.rs:1315-1485`)
-  with its separator set and 32-fragment cap, `CleanPathResult::with_line_and_column_number`
-  (`crates/warp_util/src/path.rs:54-191`) and the try order of
-  `compute_valid_paths` (`app/src/terminal/view/link_detection.rs:628-754`).
-  Every fragment combination through the hovered cell goes to the host in one
-  `HostCapabilities.resolveFirstPath` call, longest first; the first that names
-  a file, or a directory when no line is attached (`app/src/util/file.rs:79-93`),
-  wins. The `Linkifier` asks only when no OSC 8 link or URL covers the cell
-  (Warp's order, `link_detection.rs:407-416`), once per word, and keys the
-  answer by the line's text, not the generation, so output repainting elsewhere
-  cannot discard it. It replaced a VS Code line grammar that linked only
-  path-shaped text.
 - **Hyperlinks.** `Parser::osc_dispatch` parses `OSC 8 ; params ; URI ST` and
   interns it in `HyperlinkRegistry` (`crates/vt-core/src/hyperlink.rs`) with
   Warp's caps (`MAX_DISTINCT_ENTRIES = 4096`, `MAX_URI_BYTES = 2083`) and no
@@ -782,6 +768,12 @@ history of `master`.
   a program printing 4096 distinct maximal URIs. Measured on
   `claude-long-50k` (no OSC 8): empty. Warp's own trade
   (`hyperlink_registry.rs:11-15`), not an oversight here.
+- **`openPath`'s `line`/`column` reach Operator and are dropped.**
+  `tauri-plugin-opener`'s `open_path` command takes no editor argument, so
+  the file opens at line 1 regardless of what a `path:line:col` hint or link
+  resolved. Fixing this needs a per-editor argument convention (VS Code's
+  `--goto path:line:col`, for example), which is a host decision, not a
+  package one.
 - **The hint rule set is the package's constant; a host cannot replace it
   yet.** `DomBlockRenderer.hintBegin(rules?)` accepts one rule list per call,
   but nothing plumbs a host-supplied list through `TerminalSurface` — Operator

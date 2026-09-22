@@ -13,8 +13,6 @@ export { initTerminalCoreFromUrl } from "@operator/terminal-core/browser";
 export type {
 	FontConfig,
 	HostCapabilities,
-	PathMatch,
-	PathQuery,
 	TerminalCore,
 	TerminalStrings,
 	TerminalTheme,

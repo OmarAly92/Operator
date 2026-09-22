@@ -8,7 +8,6 @@ import {
 	warpDarkTheme,
 	type FontConfig,
 	type HostCapabilities,
-	type PathQuery,
 	type TerminalCore,
 	type TerminalStrings,
 	type TerminalTheme,
@@ -475,8 +474,8 @@ export function BlockTerminal({
 				if (!isWebLink(url)) return;
 				await openLinkInSystemBrowser(url);
 			},
-			resolveFirstPath: async (candidates: readonly PathQuery[], cwd: string) =>
-				operatorBridge.app.resolveFirstPath(cwd || workspacePath || null, candidates),
+			resolvePath: async (path: string, cwd: string) =>
+				operatorBridge.app.resolvePath(cwd || workspacePath || null, path),
 			openPath: async (path: string, line?: number, column?: number) => {
 				await openFile(path, line, column);
 			},

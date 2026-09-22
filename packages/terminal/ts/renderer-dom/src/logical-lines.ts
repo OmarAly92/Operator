@@ -1,5 +1,5 @@
 import { joinLogicalLine } from "@operator/terminal-core";
-import { cellAtOffset, offsetAtByte, rowCoordinates } from "./clusters.js";
+import { cellAtOffset, offsetAtByte } from "./clusters.js";
 import type { TextRows } from "./selection-text.js";
 
 export type LinkRange = Readonly<{ blockId: string; startRow: number; startCell: number; endRow: number; endCell: number }>;
@@ -12,7 +12,6 @@ export type LogicalLineView = Readonly<{
 	rowOffsets: readonly number[];
 	linkRuns: readonly LinkRun[];
 	rangeOf(startOffset: number, endOffset: number): LinkRange;
-	offsetAt(row: number, cell: number): number | null;
 	linkUri(id: number): string | null;
 }>;
 
@@ -59,15 +58,6 @@ export function logicalLineAt(rows: TextRows, blockId: string, row: number): Log
 			endCell: cellAtOffset(texts[endIndex]!, spans[endIndex]!, endOffset - rowOffsets[endIndex]!),
 		};
 	};
-	const offsetAt = (row: number, cell: number): number | null => {
-		const index = row - start;
-		if (index < 0 || index >= texts.length) return null;
-		const coords = rowCoordinates(texts[index]!, spans[index]!);
-		for (let at = 0; at + 1 < coords.length; at += 1) {
-			if (cell < coords[at + 1]!.cell) return cell < coords[at]!.cell ? null : rowOffsets[index]! + coords[at]!.offset;
-		}
-		return null;
-	};
 	return {
 		blockId,
 		firstRow: start,
@@ -76,7 +66,6 @@ export function logicalLineAt(rows: TextRows, blockId: string, row: number): Log
 		rowOffsets,
 		linkRuns,
 		rangeOf,
-		offsetAt,
 		linkUri: (id) => rows.linkUri?.(id) ?? null,
 	};
 }

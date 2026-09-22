@@ -540,10 +540,7 @@ describe("TerminalSurface selection", () => {
 				writeClipboard: async () => {},
 				readClipboard: async () => "",
 				openLink: async () => {},
-				resolveFirstPath: async (queries: readonly { path: string }[]) => {
-					const index = queries.findIndex((query) => query.path === "src/a.ts");
-					return index < 0 ? null : { index, path: "/abs/src/a.ts" };
-				},
+				resolvePath: async (path: string) => (path.endsWith(".ts") ? `/abs/${path}` : null),
 				openPath,
 			};
 			const { container, core, host: blockHost, refit, rebuild } = renderSurface({ host });

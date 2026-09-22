@@ -192,62 +192,6 @@ pub async fn resolve_path(base: Option<String>, path: String) -> Result<Option<S
     .map_err(|error| error.to_string())
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, serde::Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct PathQuery {
-    pub path: String,
-    pub allow_directory: bool,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
-pub struct PathMatch {
-    pub index: usize,
-    pub path: String,
-}
-
-fn expand_home(path: &str) -> Option<PathBuf> {
-    if path == "~" {
-        return std::env::var_os("HOME").map(PathBuf::from);
-    }
-    match path.strip_prefix("~/") {
-        Some(rest) => std::env::var_os("HOME").map(|home| PathBuf::from(home).join(rest)),
-        None => Some(PathBuf::from(path)),
-    }
-}
-
-fn link_path_if_valid(base: Option<&str>, query: &PathQuery) -> Option<PathBuf> {
-    if query.path.contains('\0') {
-        return None;
-    }
-    let expanded = expand_home(&query.path)?;
-    let candidate = if expanded.is_absolute() {
-        expanded
-    } else {
-        PathBuf::from(base?).join(expanded)
-    };
-    let metadata = std::fs::metadata(&candidate).ok()?;
-    let valid = metadata.is_file() || (metadata.is_dir() && query.allow_directory);
-    valid.then(|| candidate.canonicalize().ok()).flatten()
-}
-
-pub fn first_link_path(base: Option<&str>, queries: &[PathQuery]) -> Option<(usize, String)> {
-    queries.iter().enumerate().find_map(|(index, query)| {
-        link_path_if_valid(base, query).map(|path| (index, path.to_string_lossy().to_string()))
-    })
-}
-
-#[tauri::command]
-pub async fn resolve_first_path(
-    base: Option<String>,
-    candidates: Vec<PathQuery>,
-) -> Result<Option<PathMatch>, String> {
-    tauri::async_runtime::spawn_blocking(move || {
-        first_link_path(base.as_deref(), &candidates).map(|(index, path)| PathMatch { index, path })
-    })
-    .await
-    .map_err(|error| error.to_string())
-}
-
 #[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum ExternalEditor {

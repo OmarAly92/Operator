@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { hyperlinkProvider, urlProvider } from "./link-providers";
+import { createPathProvider, hyperlinkProvider, urlProvider } from "./link-providers";
 import { logicalLineAt } from "./logical-lines";
 import type { TextRows } from "./selection-text";
 
@@ -37,5 +37,28 @@ describe("urlProvider", () => {
 	});
 	it("finds nothing in plain text", async () => {
 		expect(await urlProvider(lineOf("no links here"))).toEqual([]);
+	});
+});
+
+describe("createPathProvider", () => {
+	it("asks the host for each candidate and keeps only the ones that resolve, with row and column", async () => {
+		const asked: string[] = [];
+		const provider = createPathProvider(async (path, cwd) => {
+			asked.push(`${cwd}:${path}`);
+			return path.endsWith(".ts") ? `/abs/${path}` : null;
+		}, () => "/work", "posix");
+		const links = await provider(lineOf("edit src/a.ts:42:7 or lib/b.go:9"));
+		expect(asked).toEqual(["/work:src/a.ts", "/work:lib/b.go"]);
+		expect(links).toEqual([
+			{ kind: "path", text: "src/a.ts:42:7", path: "/abs/src/a.ts", line: 42, column: 7, range: { blockId: "b", startRow: 0, startCell: 5, endRow: 0, endCell: 18 } },
+		]);
+	});
+	it("does not hand a url to the host and caches an answer per path and cwd", async () => {
+		let calls = 0;
+		const provider = createPathProvider(async () => { calls += 1; return "/x"; }, () => "", "posix");
+		expect(await provider(lineOf("https://x.y/a"))).toEqual([]);
+		await provider(lineOf("./same"));
+		await provider(lineOf("./same"));
+		expect(calls).toBe(1);
 	});
 });
