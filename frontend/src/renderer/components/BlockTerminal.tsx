@@ -15,6 +15,7 @@ import {
 import { operatorBridge } from "../lib/bridge";
 import { rememberPaneGrid } from "../lib/pane-grid";
 import { terminalBackgroundColor, type TerminalBackground } from "../lib/terminal-background";
+import { terminalPredictiveEchoThresholdMs } from "../lib/terminal-predictive-echo";
 import { useUiStore } from "../stores/ui-store";
 import { previewBytes, terminalDebug } from "../lib/terminal-debug";
 import { isWebLink, openLinkInSystemBrowser } from "../lib/external-link-policy";
@@ -65,7 +66,6 @@ export type BlockTerminalProps = {
 	 */
 	onReplayPainted?: () => void;
 	onReplayReady?: () => void; // fired once, on the first change where replayReady() is true
-	predictiveEcho?: HostCapabilities["predictiveEcho"];
 };
 
 const DEFAULT_COLUMNS = 120;
@@ -187,7 +187,6 @@ export function BlockTerminal({
 	focusToken,
 	onReplayPainted,
 	onReplayReady,
-	predictiveEcho,
 }: BlockTerminalProps) {
 	const { t } = useTranslation();
 	const coreRef = useRef<TerminalCore | null>(null);
@@ -431,7 +430,8 @@ export function BlockTerminal({
 	});
 	const secretPatterns = useMemo(() => (redactSecrets ? (patterns ?? []) : []), [redactSecrets, patterns]);
 
-	const predictiveThresholdMs = predictiveEcho?.thresholdMs;
+	const predictiveEcho = useUiStore((state) => state.terminalPredictiveEcho);
+	const predictiveThresholdMs = predictiveEcho ? terminalPredictiveEchoThresholdMs : undefined;
 	const host = useMemo<HostCapabilities>(
 		() => ({
 			writeClipboard: async (text: string) => {

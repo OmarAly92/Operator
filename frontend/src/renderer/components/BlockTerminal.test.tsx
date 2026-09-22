@@ -271,6 +271,7 @@ vi.mock("../theme/skin-context", () => ({
 
 
 import { BlockTerminal, type BlockTerminalHistoryBlock } from "./BlockTerminal";
+import { terminalPredictiveEchoThresholdMs } from "../lib/terminal-predictive-echo";
 import { useUiStore } from "../stores/ui-store";
 import { operatorBridge } from "../lib/bridge";
 import { openLinkInSystemBrowser } from "../lib/external-link-policy";
@@ -327,7 +328,6 @@ function renderTerminal(
 		onReplayPainted?: () => void;
 		focusToken?: number;
 		workspacePath?: string;
-		predictiveEcho?: Readonly<{ thresholdMs: number }>;
 	} = {},
 ) {
 	const localListeners: Array<(bytes: Uint8Array) => void> = [];
@@ -352,7 +352,6 @@ function renderTerminal(
 				onReplayPainted={options.onReplayPainted}
 				focusToken={options.focusToken}
 				workspacePath={options.workspacePath}
-				predictiveEcho={options.predictiveEcho}
 			/>
 		</QueryClientProvider>,
 	);
@@ -462,16 +461,18 @@ describe("BlockTerminal", () => {
 		});
 	});
 
-	it("leaves predictive echo off unless Operator passes a threshold", async () => {
+	it("leaves predictive echo off while the setting is off", async () => {
+		useUiStore.setState({ terminalPredictiveEcho: false });
 		renderTerminal();
 		await waitFor(() => expect(mockState.host).toBeDefined());
 		expect(mockState.host?.predictiveEcho).toBeUndefined();
 	});
 
-	it("hands a predictive-echo threshold straight through to the surface's host", async () => {
-		renderTerminal({ predictiveEcho: { thresholdMs: 30 } });
-		await waitFor(() => expect(mockState.host).toBeDefined());
-		expect(mockState.host?.predictiveEcho).toEqual({ thresholdMs: 30 });
+	it("hands Operator's predictive-echo threshold to the surface's host when the setting is on", async () => {
+		useUiStore.setState({ terminalPredictiveEcho: true });
+		renderTerminal();
+		await waitFor(() => expect(mockState.host?.predictiveEcho).toEqual({ thresholdMs: terminalPredictiveEchoThresholdMs }));
+		useUiStore.setState({ terminalPredictiveEcho: false });
 	});
 
 	it("hands the host's focus token to the surface", async () => {

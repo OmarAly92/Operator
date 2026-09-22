@@ -49,6 +49,8 @@ export function GeneralSettingsSection({
 	const setTerminalFontSize = useUiStore((state) => state.setTerminalFontSize);
 	const terminalSecretRedaction = useUiStore((state) => state.terminalSecretRedaction);
 	const setTerminalSecretRedaction = useUiStore((state) => state.setTerminalSecretRedaction);
+	const terminalPredictiveEcho = useUiStore((state) => state.terminalPredictiveEcho);
+	const setTerminalPredictiveEcho = useUiStore((state) => state.setTerminalPredictiveEcho);
 
 	const themeOptions = [
 		{ value: "light", label: t("settings.theme.light") },
@@ -109,6 +111,13 @@ export function GeneralSettingsSection({
 					aria-label={t("settings.terminalSecretRedaction")}
 					checked={terminalSecretRedaction}
 					onCheckedChange={setTerminalSecretRedaction}
+				/>
+			</SettingsRow>
+			<SettingsRow label={t("settings.terminalPredictiveEcho")}>
+				<Switch
+					aria-label={t("settings.terminalPredictiveEcho")}
+					checked={terminalPredictiveEcho}
+					onCheckedChange={setTerminalPredictiveEcho}
 				/>
 			</SettingsRow>
 			<SettingsLinkRow label={t("settings.connectMobile")} onClick={onConnectMobile} />

@@ -867,9 +867,12 @@ history of `master`.
   (`terminal_cubit.dart:99`, `:281-283`). The desktop renderer **does** have a
   predictive echo as of Plan F (default off, armed only above a host RTT
   threshold — the desktop-against-remote-daemon case the user confirmed they
-  use), but **Operator does not turn it on yet**: nothing passes
-  `predictiveEcho` to `BlockTerminal`, pending a decision on who sets the
-  threshold. The route to the same thing on the phone is the shared renderer
+  use). Operator switches it on from Settings → General, "Show typing
+  instantly on slow connections" (`terminalPredictiveEcho` in `ui-store.ts`,
+  off by default, stored under `opr.terminal.predictiveEcho`), which makes
+  `BlockTerminal` pass a 30 ms threshold
+  (`frontend/src/renderer/lib/terminal-predictive-echo.ts`). Once on it
+  gates itself: a loopback daemon measures ~7 ms and never arms. The route to the same thing on the phone is the shared renderer
   that `docs/superpowers/specs/2026-09-22-server-owned-terminal-model-design.md`
   designs. **Do not build a second prediction implementation in the Dart
   fork** — that is the fork §4.2 exists to delete.

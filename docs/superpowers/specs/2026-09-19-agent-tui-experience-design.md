@@ -1059,8 +1059,9 @@ touching no row and no model. One correction the review made: Claude Code's
 prompt is on the **primary** screen (its recordings never switch to the
 alternate screen), where keys reach it through the line editor's passthrough;
 the first build hooked the echo only into the alternate screen's key handler.
-Operator does not yet pass a threshold, so the feature is unreachable in the
-app until that is decided.
+Operator turns it on from a Settings → General switch, off by default, that
+passes a 30 ms threshold; a loopback daemon measures ~7 ms, so the switch
+changes nothing on a local pane.
 
 ## Decisions needed
 
