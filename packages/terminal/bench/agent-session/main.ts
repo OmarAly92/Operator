@@ -44,7 +44,8 @@ type AgentSession = {
 	modelHash(): string;
 	core(): TerminalCore;
 	extendSelectionByOneRow(): Promise<number>;
-	mountPanes(count: number): Promise<void>;
+	mountPanes(count: number, mode?: "visible" | "parked"): Promise<void>;
+	parkedPaneState(): Array<{ backlog: boolean; generation: number; rows: number }>;
 	reopenFromReplay(frame: Uint8Array, chunks: Uint8Array[]): Promise<{ firstPaintMs: number; allRowsMs: number; rows: number }>;
 	widthChange(cols: number): Promise<{ settleMs: number; before: number; after: number; staleRows: number }>;
 	staleRowCount(): number;
@@ -87,11 +88,8 @@ let nextResize = 1;
 const longTasks: number[] = [];
 const domRenderer = (renderer as unknown as { renderer: DomBlockRenderer }).renderer;
 const featureList = params.get("features") ?? "";
-if (featureList !== "") {
-	const parsed = parseFeatureList(featureList);
-	domRenderer.setFeatures(parsed);
-	if (parsed.graphemes) core.setGraphemeClusters(true);
-}
+if (featureList !== "") domRenderer.setFeatures(parseFeatureList(featureList));
+core.setGraphemeClusters(domRenderer.features().graphemes);
 domRenderer.setFocused(params.get("focused") !== "0");
 domRenderer.onPaint(() => {
 	paints += 1;
@@ -229,18 +227,46 @@ function feedNextSynced(limit: number): number {
 	return cost;
 }
 
-const extraPanes: DomBenchmarkRenderer[] = [];
+type PaneMode = "visible" | "parked";
 
-async function mountPanes(count: number): Promise<void> {
+const extraPanes: Array<{ pane: DomBenchmarkRenderer; mode: PaneMode }> = [];
+let parkingLot: HTMLElement | null = null;
+
+function parking(): HTMLElement {
+	if (parkingLot) return parkingLot;
+	const lot = document.createElement("div");
+	lot.setAttribute("aria-hidden", "true");
+	lot.dataset.testid = "terminal-cache-parking";
+	Object.assign(lot.style, { position: "fixed", top: "0", left: "-100000px", visibility: "hidden", pointerEvents: "none" });
+	document.body.append(lot);
+	parkingLot = lot;
+	return lot;
+}
+
+// frontend/src/renderer/components/TerminalPane.tsx parkTerminal + setTerminalPhase("parked")
+function park(paneHost: HTMLElement): void {
+	const rect = paneHost.getBoundingClientRect();
+	if (rect.width > 0) paneHost.style.width = `${rect.width}px`;
+	if (rect.height > 0) paneHost.style.height = `${rect.height}px`;
+	paneHost.inert = true;
+	paneHost.setAttribute("aria-hidden", "true");
+	paneHost.style.pointerEvents = "none";
+	paneHost.style.visibility = "hidden";
+	parking().appendChild(paneHost);
+}
+
+async function mountPanes(count: number, mode: PaneMode = "visible"): Promise<void> {
+	const visibleBox = host!.getBoundingClientRect();
 	for (let index = 0; index < count; index += 1) {
 		const paneHost = document.createElement("div");
-		paneHost.style.width = "800px";
-		paneHost.style.height = "300px";
+		paneHost.style.width = mode === "parked" ? `${visibleBox.width}px` : "800px";
+		paneHost.style.height = mode === "parked" ? `${visibleBox.height}px` : "300px";
 		document.body.append(paneHost);
 		const pane = new DomBenchmarkRenderer();
 		await pane.mount(paneHost, { columns: sizes[0].cols, rows: sizes[0].rows, scrollback });
 		(pane.getCoreForBench() as TerminalCore).setAgentTuiMode(true);
-		extraPanes.push(pane);
+		if (mode === "parked") park(paneHost);
+		extraPanes.push({ pane, mode });
 	}
 }
 
@@ -313,7 +339,11 @@ async function feedFrames(count: number, intervalMs: number): Promise<void> {
 	for (const end of ends) {
 		const start = fed;
 		feedChunk(start, end);
-		for (const pane of extraPanes) (pane.getCoreForBench() as TerminalCore).feed(recording.subarray(start, end));
+		for (const { pane, mode } of extraPanes) {
+			const paneCore = pane.getCoreForBench() as TerminalCore;
+			if (mode === "parked") paneCore.enqueue(recording.subarray(start, end));
+			else paneCore.feed(recording.subarray(start, end));
+		}
 		await new Promise((resolve) => setTimeout(resolve, intervalMs));
 	}
 }
@@ -396,6 +426,14 @@ window.__agentSession = {
 	core: () => core,
 	extendSelectionByOneRow,
 	mountPanes,
+	parkedPaneState: () =>
+		extraPanes
+			.filter(({ mode }) => mode === "parked")
+			.map(({ pane }) => {
+				const paneCore = pane.getCoreForBench() as TerminalCore;
+				const snapshot = paneCore.snapshot();
+				return { backlog: paneCore.hasBacklog(), generation: snapshot.generation, rows: snapshot.rows.length / 2 };
+			}),
 	reopenFromReplay,
 	widthChange,
 	staleRowCount,
@@ -418,7 +456,10 @@ window.__agentSession = {
 	enablePathLinks: (suffixes) => {
 		domRenderer.setLinkProviders([
 			...DEFAULT_LINK_PROVIDERS,
-			createPathProvider(async (path) => (suffixes.some((suffix) => path.endsWith(suffix)) ? `/probe/${path}` : null), () => "", "posix"),
+			createPathProvider(async (candidates) => {
+				const index = candidates.findIndex((candidate) => !/\s/u.test(candidate.path) && suffixes.some((suffix) => candidate.path.endsWith(suffix)));
+				return index < 0 ? null : { index, path: `/probe/${candidates[index]!.path}` };
+			}, () => ""),
 		]);
 	},
 	hintBegin: () => domRenderer.hintBegin(),

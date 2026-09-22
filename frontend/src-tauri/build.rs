@@ -26,6 +26,7 @@ fn main() {
         "choose_directory",
         "open_external",
         "resolve_path",
+        "resolve_first_path",
         "open_path",
         "clipboard_write",
         "clipboard_read",

@@ -33,7 +33,6 @@ import {
 	accelerationGain,
 	GESTURE_IDLE_MS,
 	isMacPlatform,
-	isWindowsPlatform,
 	MIN_VELOCITY_SAMPLE_MS,
 	pointerCell,
 	SELECTION_CHROME,
@@ -76,6 +75,13 @@ export interface TerminalSurfaceProps {
 	onHint?: (hint: HintEvent) => void;
 }
 
+function predictKeystroke(renderer: DomBlockRenderer | null, event: KeyboardEvent): void {
+	if (!renderer) return;
+	const now = performance.now();
+	renderer.noteSend(now);
+	renderer.predictKey({ text: event.key, ctrlKey: event.ctrlKey, altKey: event.altKey, metaKey: event.metaKey, isComposing: event.isComposing }, now);
+}
+
 export function TerminalSurface({
 	core,
 	theme,
@@ -112,14 +118,14 @@ export function TerminalSurface({
 	const compositionRef = useRef<CompositionTarget | null>(null);
 	const hostCapsRef = useRef(host);
 	hostCapsRef.current = host;
-	const resolvePath = host?.resolvePath;
-	const resolvePathRef = useRef(resolvePath);
-	resolvePathRef.current = resolvePath;
+	const resolveFirstPath = host?.resolveFirstPath;
+	const resolveFirstPathRef = useRef(resolveFirstPath);
+	resolveFirstPathRef.current = resolveFirstPath;
 
 	const applyLinkProviders = useCallback(() => {
 		const renderer = rendererRef.current;
 		if (!renderer) return;
-		const resolve = resolvePathRef.current;
+		const resolve = resolveFirstPathRef.current;
 		if (!resolve) {
 			renderer.setLinkProviders(DEFAULT_LINK_PROVIDERS);
 			return;
@@ -127,9 +133,16 @@ export function TerminalSurface({
 		const cwdOf = (blockId: string) => decodeBlocks(core.snapshot()).find((block) => block.id === blockId)?.cwd ?? "";
 		renderer.setLinkProviders([
 			...DEFAULT_LINK_PROVIDERS,
-			createPathProvider((path, cwd) => resolve(path, cwd), cwdOf, isWindowsPlatform() ? "windows" : "posix"),
+			createPathProvider((candidates, cwd) => resolve(candidates, cwd), cwdOf),
 		]);
 	}, [core]);
+
+	const predictiveThresholdMs = host?.predictiveEcho?.thresholdMs;
+	const applyPredictiveEcho = useCallback(() => {
+		rendererRef.current?.setPredictiveEcho(predictiveThresholdMs === undefined ? null : { thresholdMs: predictiveThresholdMs });
+	}, [predictiveThresholdMs]);
+	const applyPredictiveEchoRef = useRef(applyPredictiveEcho);
+	applyPredictiveEchoRef.current = applyPredictiveEcho;
 
 	useLayoutEffect(() => {
 		const blockHost = hostRef.current;
@@ -145,6 +158,7 @@ export function TerminalSurface({
 		editor.mount(editorHost, core, {
 			send: onSend,
 			sendRaw: onSendRaw,
+			beforePassthrough: (event) => predictKeystroke(renderer, event),
 			compositionAnchor: (parent) => anchorFromElement(parent, blockHost.querySelector("[data-terminal-cursor-cell]")),
 		});
 		editor.setTheme(theme);
@@ -176,12 +190,14 @@ export function TerminalSurface({
 		editorRef.current = editor;
 		findBarRef.current = findBar;
 		applyLinkProviders();
+		applyPredictiveEchoRef.current();
 		return () => {
 			blockHost.removeEventListener(RERUN_EVENT, onRerun);
 			offPaint();
 			offFinished();
 			findBar.dispose();
 			editor.dispose();
+			renderer.predictionsClear();
 			renderer.dispose();
 			editorRef.current = null;
 			rendererRef.current = null;
@@ -207,12 +223,16 @@ export function TerminalSurface({
 
 	useLayoutEffect(() => {
 		applyLinkProviders();
-	}, [applyLinkProviders, resolvePath]);
+	}, [applyLinkProviders, resolveFirstPath]);
 
 	const secretPatterns = host?.secretPatterns;
 	useLayoutEffect(() => {
 		rendererRef.current?.setSecretPatterns(secretPatterns ?? []);
 	}, [secretPatterns]);
+
+	useLayoutEffect(() => {
+		applyPredictiveEcho();
+	}, [applyPredictiveEcho]);
 
 	useLayoutEffect(() => {
 		editorRef.current?.setStrings(strings);
@@ -293,6 +313,7 @@ export function TerminalSurface({
 			}
 			event.preventDefault();
 			rendererRef.current?.selectionClear();
+			predictKeystroke(rendererRef.current, event);
 			onSendRaw(data);
 		};
 		// The alt screen has no line editor to hold the line, so every paste

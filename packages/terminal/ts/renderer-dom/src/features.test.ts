@@ -2,17 +2,17 @@ import { describe, expect, it } from "vitest";
 import { DEFAULT_FEATURES, parseFeatureList, resolveFeatures } from "./features";
 
 describe("RendererFeatures", () => {
-	it("defaults every flag off and attributes to plain", () => {
+	it("defaults graphemes and widthCache on, every other flag off and attributes to plain", () => {
 		expect(DEFAULT_FEATURES).toEqual({
 			attributes: "plain",
-			graphemes: false,
+			graphemes: true,
 			cursorContrast: false,
 			cursorHollowUnfocused: false,
-			widthCache: false,
+			widthCache: true,
 			boxDrawing: false,
 		});
 		expect(resolveFeatures()).toEqual(DEFAULT_FEATURES);
-		expect(resolveFeatures({ graphemes: true })).toEqual({ ...DEFAULT_FEATURES, graphemes: true });
+		expect(resolveFeatures({ graphemes: false })).toEqual({ ...DEFAULT_FEATURES, graphemes: false });
 	});
 
 	it("parses the harness list grammar", () => {

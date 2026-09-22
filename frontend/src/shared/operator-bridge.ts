@@ -8,6 +8,10 @@ import type { UiSettings } from "./ui-locale";
 import type { FeatureBuild } from "./feature-builds";
 import type { ImportFolderMode, ImportFolderScan } from "./import-folder-scan";
 
+export type LinkPathCandidate = { path: string; allowDirectory: boolean };
+
+export type ResolvedLinkPath = { index: number; path: string };
+
 /** One automatic external-preview open the shell should acknowledge durably. */
 export type ExternalPreviewOpenInput = {
 	sessionId: string;
@@ -16,6 +20,10 @@ export type ExternalPreviewOpenInput = {
 };
 
 export type { ImportFolderMode, ImportFolderScan } from "./import-folder-scan";
+
+export type ExternalEditor = "vscode" | "cursor" | "zed";
+
+export type OpenPathOutcome = { cliMissing: boolean };
 
 export interface UpdateCheckOptions {
 	settings?: UpdateSettings;
@@ -32,7 +40,8 @@ export type OperatorBridge = {
 		chooseDirectory: (title?: string) => Promise<string | null>;
 		openExternal: (url: string) => Promise<void>;
 		resolvePath: (base: string | null, path: string) => Promise<string | null>;
-		openPath: (path: string) => Promise<void>;
+		resolveFirstPath: (base: string | null, candidates: readonly LinkPathCandidate[]) => Promise<ResolvedLinkPath | null>;
+		openPath: (path: string, line?: number, column?: number, editor?: ExternalEditor) => Promise<OpenPathOutcome>;
 		scanImportFolder: (input: { path: string; mode: ImportFolderMode }) => Promise<ImportFolderScan>;
 		checkAncestorRepo: (path: string) => Promise<string | undefined>;
 		onNewSessionShortcut: (listener: () => void) => () => void;

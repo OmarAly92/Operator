@@ -1,4 +1,6 @@
-use std::path::PathBuf;
+use std::ffi::{OsStr, OsString};
+use std::path::{Path, PathBuf};
+use std::process::{Child, Command, Stdio};
 use std::sync::Mutex;
 
 use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
@@ -41,12 +43,19 @@ fn http_s_authority(remainder: &str) -> bool {
 /// relative candidate without a base is unanswerable, which is what keeps a bare
 /// word in terminal output from resolving against the daemon's own cwd.
 pub fn resolved_link_path(base: Option<&str>, path: &str) -> Option<PathBuf> {
+    let home = std::env::var_os("HOME").map(PathBuf::from);
+    link_path_in(base, home.as_deref(), path)
+}
+
+fn link_path_in(base: Option<&str>, home: Option<&Path>, path: &str) -> Option<PathBuf> {
     let trimmed = path.trim();
     if trimmed.is_empty() || trimmed.contains('\0') {
         return None;
     }
-    let expanded = if let Some(rest) = trimmed.strip_prefix("~/") {
-        std::env::var_os("HOME").map(PathBuf::from)?.join(rest)
+    let expanded = if trimmed == "~" {
+        home?.to_path_buf()
+    } else if let Some(rest) = trimmed.strip_prefix("~/") {
+        home?.join(rest)
     } else {
         PathBuf::from(trimmed)
     };
@@ -57,6 +66,42 @@ pub fn resolved_link_path(base: Option<&str>, path: &str) -> Option<PathBuf> {
     };
     let resolved = candidate.canonicalize().ok()?;
     resolved.exists().then_some(resolved)
+}
+
+pub const MAX_PATH_CANDIDATES: usize = 20;
+
+#[derive(Clone, Debug, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PathCandidate {
+    pub path: String,
+    pub allow_directory: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
+pub struct ResolvedPath {
+    pub index: usize,
+    pub path: String,
+}
+
+pub fn first_existing_path(
+    base: Option<&str>,
+    home: Option<&Path>,
+    candidates: &[PathCandidate],
+) -> Option<ResolvedPath> {
+    candidates
+        .iter()
+        .take(MAX_PATH_CANDIDATES)
+        .enumerate()
+        .find_map(|(index, candidate)| {
+            let resolved = link_path_in(base, home, &candidate.path)?;
+            if resolved.is_dir() && !candidate.allow_directory {
+                return None;
+            }
+            Some(ResolvedPath {
+                index,
+                path: resolved.to_string_lossy().to_string(),
+            })
+        })
 }
 
 pub fn is_allowed_app_external_url(raw_url: &str) -> bool {
@@ -191,11 +236,152 @@ pub async fn resolve_path(base: Option<String>, path: String) -> Result<Option<S
 }
 
 #[tauri::command]
-pub async fn open_path(app: AppHandle, path: String) -> Result<(), String> {
+pub async fn resolve_first_path(
+    base: Option<String>,
+    candidates: Vec<PathCandidate>,
+) -> Result<Option<ResolvedPath>, String> {
+    let home = std::env::var_os("HOME").map(PathBuf::from);
+    tauri::async_runtime::spawn_blocking(move || {
+        first_existing_path(base.as_deref(), home.as_deref(), &candidates)
+    })
+    .await
+    .map_err(|error| error.to_string())
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ExternalEditor {
+    Vscode,
+    Cursor,
+    Zed,
+}
+
+impl ExternalEditor {
+    fn bundled_cli(self) -> &'static str {
+        match self {
+            Self::Vscode => "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code",
+            Self::Cursor => "/Applications/Cursor.app/Contents/Resources/app/bin/cursor",
+            Self::Zed => "/Applications/Zed.app/Contents/MacOS/cli",
+        }
+    }
+
+    fn cli_name(self) -> &'static str {
+        match self {
+            Self::Vscode => "code",
+            Self::Cursor => "cursor",
+            Self::Zed => "zed",
+        }
+    }
+}
+
+pub fn editor_args(
+    editor: ExternalEditor,
+    path: &Path,
+    line: Option<u32>,
+    column: Option<u32>,
+) -> Vec<OsString> {
+    let Some(line) = line else {
+        return vec![path.as_os_str().to_os_string()];
+    };
+    let mut target = path.as_os_str().to_os_string();
+    target.push(format!(":{line}"));
+    if let Some(column) = column {
+        target.push(format!(":{column}"));
+    }
+    match editor {
+        ExternalEditor::Zed => vec![target],
+        ExternalEditor::Vscode | ExternalEditor::Cursor => vec![OsString::from("-g"), target],
+    }
+}
+
+pub fn editor_cli(
+    editor: ExternalEditor,
+    path_var: Option<&OsStr>,
+    exists: impl Fn(&Path) -> bool,
+) -> Option<PathBuf> {
+    let bundled = PathBuf::from(editor.bundled_cli());
+    if exists(&bundled) {
+        return Some(bundled);
+    }
+    path_var
+        .into_iter()
+        .flat_map(std::env::split_paths)
+        .map(|dir| dir.join(editor.cli_name()))
+        .find(|candidate| exists(candidate))
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum OpenPlan {
+    Editor { cli: PathBuf, args: Vec<OsString> },
+    System { cli_missing: bool },
+}
+
+pub fn open_plan(
+    editor: Option<ExternalEditor>,
+    path: &Path,
+    line: Option<u32>,
+    column: Option<u32>,
+    path_var: Option<&OsStr>,
+    exists: impl Fn(&Path) -> bool,
+) -> OpenPlan {
+    let Some(editor) = editor else {
+        return OpenPlan::System { cli_missing: false };
+    };
+    match editor_cli(editor, path_var, exists) {
+        Some(cli) => OpenPlan::Editor {
+            cli,
+            args: editor_args(editor, path, line, column),
+        },
+        None => OpenPlan::System { cli_missing: true },
+    }
+}
+
+pub fn spawn_editor(cli: &Path, args: &[OsString]) -> std::io::Result<Child> {
+    Command::new(cli)
+        .args(args)
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OpenPathOutcome {
+    pub cli_missing: bool,
+}
+
+#[tauri::command]
+pub async fn open_path(
+    app: AppHandle,
+    path: String,
+    line: Option<u32>,
+    column: Option<u32>,
+    editor: Option<ExternalEditor>,
+) -> Result<OpenPathOutcome, String> {
     let resolved = resolved_link_path(None, &path).ok_or_else(|| "Unknown path".to_string())?;
+    let path_var = std::env::var_os("PATH");
+    let cli_missing = match open_plan(
+        editor,
+        &resolved,
+        line,
+        column,
+        path_var.as_deref(),
+        Path::is_file,
+    ) {
+        OpenPlan::Editor { cli, args } => match spawn_editor(&cli, &args) {
+            Ok(mut child) => {
+                std::thread::spawn(move || child.wait());
+                return Ok(OpenPathOutcome { cli_missing: false });
+            }
+            Err(_) => true,
+        },
+        OpenPlan::System { cli_missing } => cli_missing,
+    };
     app.opener()
         .open_path(resolved.to_string_lossy().to_string(), None::<&str>)
-        .map_err(|error| error.to_string())
+        .map_err(|error| error.to_string())?;
+    Ok(OpenPathOutcome { cli_missing })
 }
 
 #[tauri::command]
@@ -598,5 +784,129 @@ mod tests {
         let parsed = <Option<SessionEntry>>::from(&actionable).unwrap();
         assert_eq!(parsed.zone, Zone::Merge);
         assert_eq!(parsed.project_name, "Alpha");
+    }
+    fn scratch(name: &str) -> PathBuf {
+        let root =
+            std::env::temp_dir().join(format!("operator-first-path-{}-{name}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(root.join("src")).unwrap();
+        std::fs::create_dir_all(root.join("home/notes")).unwrap();
+        std::fs::write(root.join("src/a.ts"), "").unwrap();
+        std::fs::write(root.join("home/todo.md"), "").unwrap();
+        root.canonicalize().unwrap()
+    }
+
+    fn candidate(path: &str, allow_directory: bool) -> PathCandidate {
+        PathCandidate {
+            path: path.into(),
+            allow_directory,
+        }
+    }
+
+    #[test]
+    fn first_existing_path_answers_with_the_first_candidate_that_exists() {
+        let root = scratch("first");
+        let base = root.to_str();
+        let found = first_existing_path(
+            base,
+            None,
+            &[
+                candidate("see src/a.ts", false),
+                candidate("src/a.ts", false),
+                candidate("src", true),
+            ],
+        );
+        assert_eq!(
+            found,
+            Some(ResolvedPath {
+                index: 1,
+                path: root.join("src/a.ts").to_string_lossy().to_string(),
+            })
+        );
+        assert_eq!(
+            first_existing_path(base, None, &[candidate("gone.ts", false)]),
+            None
+        );
+        assert_eq!(
+            first_existing_path(None, None, &[candidate("src/a.ts", false)]),
+            None
+        );
+    }
+
+    #[test]
+    fn first_existing_path_expands_a_bare_tilde_and_a_tilde_slash_against_home() {
+        let root = scratch("home");
+        let home = root.join("home");
+        let found = |path: &str| {
+            first_existing_path(None, Some(&home), &[candidate(path, true)])
+                .map(|resolved| resolved.path)
+        };
+        assert_eq!(found("~"), Some(home.to_string_lossy().to_string()));
+        assert_eq!(
+            found("~/todo.md"),
+            Some(home.join("todo.md").to_string_lossy().to_string())
+        );
+        assert_eq!(
+            found("~/notes"),
+            Some(home.join("notes").to_string_lossy().to_string())
+        );
+        assert_eq!(
+            first_existing_path(None, None, &[candidate("~", true)]),
+            None
+        );
+    }
+
+    #[test]
+    fn first_existing_path_skips_a_directory_the_candidate_does_not_allow() {
+        let root = scratch("directories");
+        let base = root.to_str();
+        assert_eq!(
+            first_existing_path(base, None, &[candidate("src", false)]),
+            None
+        );
+        assert_eq!(
+            first_existing_path(
+                base,
+                None,
+                &[candidate("src", false), candidate("src/a.ts", false)]
+            )
+            .map(|resolved| resolved.index),
+            Some(1)
+        );
+        assert_eq!(
+            first_existing_path(base, None, &[candidate("src/", true)])
+                .map(|resolved| resolved.path),
+            Some(root.join("src").to_string_lossy().to_string())
+        );
+    }
+
+    #[test]
+    fn first_existing_path_never_looks_past_the_candidate_cap() {
+        let root = scratch("cap");
+        let base = root.to_str();
+        let mut candidates: Vec<PathCandidate> = (0..MAX_PATH_CANDIDATES)
+            .map(|index| candidate(&format!("missing-{index}"), false))
+            .collect();
+        candidates.push(candidate("src/a.ts", false));
+        assert_eq!(first_existing_path(base, None, &candidates), None);
+        candidates.remove(0);
+        assert_eq!(
+            first_existing_path(base, None, &candidates).map(|resolved| resolved.index),
+            Some(MAX_PATH_CANDIDATES - 1)
+        );
+    }
+
+    #[test]
+    fn path_candidates_arrive_in_the_renderer_s_camel_case() {
+        let parsed: Vec<PathCandidate> =
+            serde_json::from_str(r#"[{"path":"~/x","allowDirectory":true}]"#).unwrap();
+        assert_eq!(parsed[0].path, "~/x");
+        assert!(parsed[0].allow_directory);
+        let sent = serde_json::to_value(ResolvedPath {
+            index: 2,
+            path: "/a".into(),
+        })
+        .unwrap();
+        assert_eq!(sent, serde_json::json!({ "index": 2, "path": "/a" }));
     }
 }

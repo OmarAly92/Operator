@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import { useEffect, useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -29,9 +29,13 @@ const mockState = vi.hoisted(() => {
 			| {
 					writeClipboard: (text: string) => Promise<void>;
 					openLink: (url: string) => Promise<void>;
-					resolvePath?: (path: string, cwd: string) => Promise<string | null>;
-					openPath?: (path: string) => Promise<void>;
+					resolveFirstPath?: (
+						candidates: readonly { path: string; allowDirectory: boolean }[],
+						cwd: string,
+					) => Promise<{ index: number; path: string } | null>;
+					openPath?: (path: string, line?: number, column?: number) => Promise<void>;
 					secretPatterns?: readonly { source: string; flags?: string }[];
+					predictiveEcho?: Readonly<{ thresholdMs: number }>;
 				}
 			| undefined,
 		onHint: undefined as ((hint: { ruleId: string; text: string; path?: string; line?: number }) => void) | undefined,
@@ -147,9 +151,13 @@ vi.mock("@operator/terminal-react", () => {
 			host?: {
 				writeClipboard: (text: string) => Promise<void>;
 				openLink: (url: string) => Promise<void>;
-				resolvePath?: (path: string, cwd: string) => Promise<string | null>;
-				openPath?: (path: string) => Promise<void>;
+				resolveFirstPath?: (
+						candidates: readonly { path: string; allowDirectory: boolean }[],
+						cwd: string,
+					) => Promise<{ index: number; path: string } | null>;
+				openPath?: (path: string, line?: number, column?: number) => Promise<void>;
 				secretPatterns?: readonly { source: string; flags?: string }[];
+				predictiveEcho?: Readonly<{ thresholdMs: number }>;
 			};
 			strings?: Record<string, string>;
 			onSend?: (text: string) => void;
@@ -252,7 +260,8 @@ vi.mock("../lib/bridge", () => ({
 		},
 		app: {
 			resolvePath: vi.fn().mockResolvedValue(null),
-			openPath: vi.fn().mockResolvedValue(undefined),
+			resolveFirstPath: vi.fn().mockResolvedValue(null),
+			openPath: vi.fn().mockResolvedValue({ cliMissing: false }),
 		},
 		notifications: {
 			show: vi.fn().mockResolvedValue(undefined),
@@ -269,12 +278,14 @@ vi.mock("../theme/skin-context", () => ({
 
 
 import { BlockTerminal, type BlockTerminalHistoryBlock } from "./BlockTerminal";
+import { terminalPredictiveEchoThresholdMs } from "../lib/terminal-predictive-echo";
 import { useUiStore } from "../stores/ui-store";
 import { operatorBridge } from "../lib/bridge";
 import { openLinkInSystemBrowser } from "../lib/external-link-policy";
 
 const openPathMock = vi.mocked(operatorBridge.app.openPath);
 const resolvePathMock = vi.mocked(operatorBridge.app.resolvePath);
+const resolveFirstPathMock = vi.mocked(operatorBridge.app.resolveFirstPath);
 const showNotificationMock = vi.mocked(operatorBridge.notifications.show);
 const openLinkMock = vi.mocked(openLinkInSystemBrowser);
 
@@ -382,6 +393,7 @@ beforeEach(() => {
 	mockState.onBlockFinished = undefined;
 	openPathMock.mockClear();
 	resolvePathMock.mockReset().mockResolvedValue(null);
+	resolveFirstPathMock.mockReset().mockResolvedValue(null);
 	showNotificationMock.mockClear();
 	openLinkMock.mockClear();
 	mockState.revision = 0;
@@ -395,11 +407,24 @@ describe("BlockTerminal", () => {
 	it("gives the surface the path resolver, the editor opener, the host's patterns and the two callbacks", async () => {
 		renderTerminal({ workspacePath: "/work" });
 		await waitFor(() => expect(mockState.host).toBeDefined());
-		expect(typeof mockState.host?.resolvePath).toBe("function");
+		expect(typeof mockState.host?.resolveFirstPath).toBe("function");
 		expect(typeof mockState.host?.openPath).toBe("function");
 		expect(mockState.host?.secretPatterns).toEqual([]);
 		expect(typeof mockState.onHint).toBe("function");
 		expect(typeof mockState.onBlockFinished).toBe("function");
+	});
+
+	it("resolves hovered path candidates against the block's cwd, falling back to the session's workspace", async () => {
+		resolveFirstPathMock.mockResolvedValue({ index: 0, path: "/block/a.md" });
+		renderTerminal({ workspacePath: "/work" });
+		await waitFor(() => expect(mockState.host?.resolveFirstPath).toBeTypeOf("function"));
+		const candidates = [{ path: "a.md", allowDirectory: false }];
+
+		await expect(mockState.host!.resolveFirstPath!(candidates, "/block")).resolves.toEqual({ index: 0, path: "/block/a.md" });
+		expect(resolveFirstPathMock).toHaveBeenLastCalledWith("/block", candidates);
+		await mockState.host!.resolveFirstPath!(candidates, "");
+		expect(resolveFirstPathMock).toHaveBeenLastCalledWith("/work", candidates);
+		expect(resolveFirstPathMock).toHaveBeenCalledTimes(2);
 	});
 
 	it("resolves a hinted path against the workspace before opening it, and only then", async () => {
@@ -416,13 +441,65 @@ describe("BlockTerminal", () => {
 
 		mockState.onHint!({ ruleId: "file-line", text: "src/a.ts:42", path: "src/a.ts", line: 42 });
 		await waitFor(() => expect(resolvePathMock).toHaveBeenCalledWith("/work", "src/a.ts"));
-		await waitFor(() => expect(openPathMock).toHaveBeenCalledWith("/work/src/a.ts"));
+		await waitFor(() => expect(openPathMock).toHaveBeenCalledWith("/work/src/a.ts", 42, undefined, undefined));
 
 		resolvePathMock.mockResolvedValue(null);
 		openPathMock.mockClear();
 		mockState.onHint!({ ruleId: "file-line", text: "gone.ts:1", path: "gone.ts", line: 1 });
 		await waitFor(() => expect(resolvePathMock).toHaveBeenCalledWith("/work", "gone.ts"));
 		expect(openPathMock).not.toHaveBeenCalled();
+	});
+
+	it("opens a clicked path at its line and column in the chosen editor", async () => {
+		useUiStore.setState({ openFilesIn: "vscode" });
+		renderTerminal({ workspacePath: "/work" });
+		await waitFor(() => expect(mockState.host?.openPath).toBeTypeOf("function"));
+
+		await mockState.host!.openPath!("/work/src/a.ts", 42, 7);
+		expect(openPathMock).toHaveBeenLastCalledWith("/work/src/a.ts", 42, 7, "vscode");
+
+		useUiStore.setState({ openFilesIn: "system" });
+		await waitFor(() => expect(mockState.host?.openPath).toBeTypeOf("function"));
+		await mockState.host!.openPath!("/work/src/b.ts");
+		expect(openPathMock).toHaveBeenLastCalledWith("/work/src/b.ts", undefined, undefined, undefined);
+	});
+
+	it("opens a hinted path at the hint's line in the chosen editor", async () => {
+		useUiStore.setState({ openFilesIn: "zed" });
+		resolvePathMock.mockResolvedValue("/work/src/a.ts");
+		renderTerminal({ workspacePath: "/work" });
+		await waitFor(() => expect(mockState.onHint).toBeTypeOf("function"));
+
+		mockState.onHint!({ ruleId: "file-line", text: "src/a.ts:42", path: "src/a.ts", line: 42 });
+		await waitFor(() => expect(openPathMock).toHaveBeenCalledWith("/work/src/a.ts", 42, undefined, "zed"));
+		useUiStore.setState({ openFilesIn: "system" });
+	});
+
+	it("tells the user when the editor CLI was missing and the line was not applied", async () => {
+		useUiStore.setState({ openFilesIn: "cursor" });
+		openPathMock.mockResolvedValueOnce({ cliMissing: true });
+		renderTerminal({ workspacePath: "/work" });
+		await waitFor(() => expect(mockState.host?.openPath).toBeTypeOf("function"));
+
+		await act(async () => {
+			await mockState.host!.openPath!("/work/src/a.ts", 42);
+		});
+		expect(await screen.findByRole("status")).toHaveTextContent(
+			"Opened a.ts — Cursor CLI not found, line not applied",
+		);
+		useUiStore.setState({ openFilesIn: "system" });
+	});
+
+	it("shows no notice when the editor opened the file", async () => {
+		useUiStore.setState({ openFilesIn: "cursor" });
+		renderTerminal({ workspacePath: "/work" });
+		await waitFor(() => expect(mockState.host?.openPath).toBeTypeOf("function"));
+
+		await act(async () => {
+			await mockState.host!.openPath!("/work/src/a.ts", 42);
+		});
+		expect(screen.queryByRole("status")).toBeNull();
+		useUiStore.setState({ openFilesIn: "system" });
 	});
 
 	it("opens a hinted URL in the browser and copies anything else", async () => {
@@ -456,6 +533,20 @@ describe("BlockTerminal", () => {
 			body: "after 12s",
 			type: "terminal",
 		});
+	});
+
+	it("leaves predictive echo off while the setting is off", async () => {
+		useUiStore.setState({ terminalPredictiveEcho: false });
+		renderTerminal();
+		await waitFor(() => expect(mockState.host).toBeDefined());
+		expect(mockState.host?.predictiveEcho).toBeUndefined();
+	});
+
+	it("hands Operator's predictive-echo threshold to the surface's host when the setting is on", async () => {
+		useUiStore.setState({ terminalPredictiveEcho: true });
+		renderTerminal();
+		await waitFor(() => expect(mockState.host?.predictiveEcho).toEqual({ thresholdMs: terminalPredictiveEchoThresholdMs }));
+		useUiStore.setState({ terminalPredictiveEcho: false });
 	});
 
 	it("hands the host's focus token to the surface", async () => {

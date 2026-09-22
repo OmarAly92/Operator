@@ -511,11 +511,11 @@ describe("Sidebar", () => {
 		expect(navigateMock).toHaveBeenCalledWith({ to: "/terminals" });
 	});
 
-	it("shows only the terminal button on the row and puts every action in the context menu", async () => {
+	it("shows only the terminal and kill buttons on the row and puts every action in the context menu", async () => {
 		mockParams.projectId = "proj-1";
 		renderSidebar({ workspaces: [{ ...workspace, sessions: [session] }] });
 
-		// Two buttons and no more: open the session, then open a terminal in it.
+		// Three buttons and no more: open the session, open a terminal in it, kill it.
 		// The title leads so it lines up under the project row; nothing is
 		// revealed on hover, so nothing reserves width from the title.
 		const row = screen.getByLabelText("Open fix login").closest("[data-session-row]");
@@ -523,6 +523,7 @@ describe("Sidebar", () => {
 		expect(buttons.map((button) => button.getAttribute("aria-label"))).toEqual([
 			"Open fix login",
 			"Open a terminal in fix login",
+			"Kill fix login",
 		]);
 
 		fireEvent.contextMenu(screen.getByLabelText("Open fix login"));
@@ -549,6 +550,36 @@ describe("Sidebar", () => {
 			to: "/projects/$projectId/sessions/$sessionId",
 			params: { projectId: "proj-1", sessionId: "proj-1-1" },
 		});
+	});
+
+	it("does not kill the session when the confirmation is cancelled", async () => {
+		mockParams.projectId = "proj-1";
+		renderSidebar({ workspaces: [{ ...workspace, sessions: [session] }] });
+
+		await userEvent.click(screen.getByRole("button", { name: "Kill fix login" }));
+		const dialog = await screen.findByRole("dialog", { name: "Kill session" });
+		expect(within(dialog).getByText("This will kill fix login")).toBeInTheDocument();
+		await userEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+
+		await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+		expect(postMock).not.toHaveBeenCalledWith("/api/v1/sessions/{sessionId}/kill", expect.anything());
+	});
+
+	it("kills the session from its row button after confirming", async () => {
+		mockParams.projectId = "proj-1";
+		postMock.mockResolvedValue({ data: {} });
+		renderSidebar({ workspaces: [{ ...workspace, sessions: [session] }] });
+
+		await userEvent.click(screen.getByRole("button", { name: "Kill fix login" }));
+		expect(postMock).not.toHaveBeenCalledWith("/api/v1/sessions/{sessionId}/kill", expect.anything());
+		const dialog = await screen.findByRole("dialog", { name: "Kill session" });
+		await userEvent.click(within(dialog).getByRole("button", { name: "Kill" }));
+
+		await waitFor(() =>
+			expect(postMock).toHaveBeenCalledWith("/api/v1/sessions/{sessionId}/kill", {
+				params: { path: { sessionId: "proj-1-1" } },
+			}),
+		);
 	});
 
 	it("opens a shell in the session's own workspace and selects it", async () => {

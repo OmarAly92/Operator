@@ -816,6 +816,7 @@ function SessionRow({
 	// blurs the input, so it flags a cancel here for onBlur to honour.
 	const cancelledRef = useRef(false);
 	const drag = useSplitTabDraggable({ kind: "session", sessionId: session.id }, session.title, "sidebar");
+	const [killConfirmOpen, setKillConfirmOpen] = useState(false);
 
 	const queryClient = useQueryClient();
 	const { mutate: pinSession } = usePinSession();
@@ -904,10 +905,10 @@ function SessionRow({
 					    column, so sessions line up under their project the way the
 					    project rows line up under the Projects header. Nothing is
 					    revealed on hover: every action lives in the context menu below.
-					    The terminal button trails the row instead, because opening a
-					    shell in the session's own tree is the one action worth a click
-					    rather than a right-click. It is a sibling of the open button,
-					    never nested inside it — nesting buttons is invalid HTML and
+					    The terminal and kill buttons trail the row instead, because
+					    opening a shell in the session's tree and killing the session
+					    are worth a click rather than a right-click. They are siblings
+					    of the open button, never nested inside it — nesting buttons is invalid HTML and
 					    breaks keyboard traversal. */}
 					<div
 						className={cn(
@@ -955,6 +956,19 @@ function SessionRow({
 						>
 							<SquareTerminal aria-hidden="true" />
 						</button>
+						<button
+							aria-label={t("shell.killSessionNamed", { title: session.title })}
+							className={cn(
+								"grid h-5 w-5 shrink-0 place-items-center rounded-md text-passive transition-colors",
+								"hover:bg-interactive-hover hover:text-destructive focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent/50 [&_svg]:size-3!",
+							)}
+							disabled={isKilling}
+							onClick={() => setKillConfirmOpen(true)}
+							title={t("shell.killSession")}
+							type="button"
+						>
+							<Trash2 aria-hidden="true" />
+						</button>
 					</div>
 				</SidebarMenuSubItem>
 			</ContextMenuTrigger>
@@ -981,12 +995,31 @@ function SessionRow({
 				<ContextMenuItem
 					className="text-destructive focus:text-destructive [&_svg]:text-destructive"
 					disabled={isKilling}
-					onSelect={() => terminateSession(session)}
+					onSelect={() => setKillConfirmOpen(true)}
 				>
 					<Trash2 aria-hidden="true" />
 					{t("shell.killSession")}
 				</ContextMenuItem>
 			</ContextMenuContent>
+			<ConfirmDialog
+				open={killConfirmOpen}
+				onOpenChange={setKillConfirmOpen}
+				title={t("shell.killSession")}
+				description={
+					<>
+						<p className="text-sm font-medium text-foreground">
+							{t("shell.killSessionLead", { title: session.title })}
+						</p>
+						<p className="mt-1 text-xs text-muted-foreground">{t("shell.killSessionBody")}</p>
+					</>
+				}
+				confirmLabel={t("shell.kill")}
+				destructive
+				onConfirm={() => {
+					setKillConfirmOpen(false);
+					terminateSession(session);
+				}}
+			/>
 		</ContextMenu>
 	);
 }

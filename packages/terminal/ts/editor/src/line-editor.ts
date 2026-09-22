@@ -23,6 +23,7 @@ import { editorStyles } from "./styles.js";
 export type EditorHost = {
 	send(text: string): void;
 	sendRaw(data: string): void;
+	beforePassthrough?(event: KeyboardEvent): void;
 	compositionAnchor?: (parent: HTMLElement) => CompositionAnchor | null;
 };
 
@@ -220,6 +221,7 @@ export class LineEditor {
 		if (!core || core.lineEditorState() === "owned") return null;
 		const data = encodeKey(event, core.snapshot().applicationCursorKeys);
 		if (data === null) return "";
+		this.host?.beforePassthrough?.(event);
 		this.host?.sendRaw(data);
 		return data;
 	}

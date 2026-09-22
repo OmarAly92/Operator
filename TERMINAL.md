@@ -143,8 +143,13 @@ rebuilt (§6).
 - **`RendererFeatures`** (`ts/renderer-dom/src/features.ts`, set through
   `DomBlockRenderer.setFeatures` and the `features` prop of `TerminalSurface`)
   is the gate every Plan D behavior sits behind — SGR attributes, grapheme
-  clusters, cursor contrast/hollow, and the width cache — all defaulting off
-  (see §5 for what each flag costs or leaves unresolved).
+  clusters, cursor contrast/hollow, and the width cache. `graphemes` and
+  `widthCache` default on (2026-09-22, together — see §5 for why never one
+  without the other); the rest default off (see §5 for what each flag costs
+  or leaves unresolved). `TerminalSurface` puts the core in the resolved
+  `graphemes` mode in a layout effect that runs before the geometry effect,
+  and hosts `enqueue` bytes, which parse on the renderer's frame drain — so no
+  byte reaches the parser before the mode is set.
 - **Width mode.** `Parser::width_mode` (`WidthMode::Scalar` default,
   `WidthMode::Grapheme` via `TerminalCore::set_grapheme_clusters`) chooses
   whether a printed character occupies one cell per Unicode scalar or one
@@ -155,7 +160,9 @@ rebuilt (§6).
   "Stale runs" bullet) and a live-frame rewrap agree on where a row breaks.
   The pty-host mirror is always `WidthMode::Scalar` — a deliberate Plan D
   deviation, not an oversight, since the mirror only needs byte-identical
-  replay, not on-screen glyph placement (§5). The Unicode `GraphemeBreakTest`
+  replay, not on-screen glyph placement. The renderer runs in grapheme mode
+  by default, so the two disagree on emoji sequences; what that does to a
+  reopen is measured in §5. The Unicode `GraphemeBreakTest`
   corpus (`crates/vt-core/tests/grapheme/`) runs against the splitter in both
   modes.
 - **Limits** (`Limits { rows, bytes }`, `crates/vt-core/src/limits.rs`) caps
@@ -402,7 +409,8 @@ history of `master`.
 - Plan E: the arrow is still the default everywhere else in the transcript;
   the pointing hand appears only while the `Linkifier` reports a link under
   the pointer (`.terminal-link-hover`), Warp's own rule
-  (`app/src/terminal/view.rs` `set_cursor_shape`). Guard:
+  (`app/src/terminal/view.rs` `set_cursor_shape`). How a link is found is
+  §4.23. Guard:
   `styles-parity.test.ts` "shows the pointing hand only while a link is under
   the pointer".
 
@@ -688,14 +696,69 @@ history of `master`.
   `…::the_claude_code_recording_carries_no_attribute_bits` (feeds the real
   spinner recording and asserts no attribute bit on any run).
 
+### 4.23 Hover file paths — Operator's own rules, VS Code's suffix grammar
+- An exception to §3.2: this detector is written clean-room from the rules
+  below and our own Claude Code captures. Do not port another terminal's
+  file-path detector into it (licence), and cite only VS Code (MIT) here.
+- What it does: hovering a cell looks for a link through that cell. An OSC 8
+  hyperlink wins, then a URL (xterm.js's strict grammar), then a file path —
+  providers in that order, earlier wins on overlap (`mergeLinks`); the path
+  provider never asks the host about a cell inside a hyperlink or a URL.
+- Candidates (`ts/renderer-dom/src/path-candidates.ts`, `pathCandidatesAt`):
+  the hovered cell's segment runs between hard breaks — quotes, backtick,
+  `()[]{}<>`, `|`, `;`, `,`, `=` and `PATH_BREAK_GLYPHS`. The glyphs are every
+  non-letter, non-digit, non-space code point above ASCII in the two Claude
+  Code recordings (`bench/agent-session/fixtures/*/recording`), plus the
+  non-ASCII markers of vt-core's own `hanging_indent` table (`row_index.rs`,
+  which adds `│ ├ └`, absent from both recordings). Whitespace only bounds a
+  span: every span of up to `MAX_SPAN_WORDS = 4` whole words through the cell
+  is a candidate, longest first, so `My Docs/a.md` links when it exists and
+  `see a.md` never outranks `a.md` unless `see a.md` itself exists.
+- Each span: trailing `. , : ; ! ?` is dropped unless the last component is
+  `.` or `..`; a line/column suffix is stripped with VS Code's grammar
+  (`link-parsing.ts`, a port of
+  `vscode/src/vs/workbench/contrib/terminalContrib/links/browser/terminalLinkParsing.ts`):
+  `getLinkSuffix` inside the span (`file:12`, `file:12:3`, `file#12`,
+  `file 12`), `detectLinkSuffixes` right after it (`file(12,3)`,
+  `"file", line 12`), plus GitHub's `#L12` / `#L12C3`, which VS Code's
+  table does not have. A path starting `a/` or `b/` is also offered without
+  the prefix. A directory may match only when the span has no line suffix
+  and looks like a path (contains `/` or `\`, or starts with `~` or `.`),
+  so `docs`, `src` or `backend` in prose never links.
+- One batched host call: `HostCapabilities.resolveFirstPath(candidates, cwd)`
+  gets every candidate at once and answers the first that exists, as
+  `{ index, path }`. `MAX_PATH_CANDIDATES = 20` — 10 spans (the most four-word
+  windows that can contain one word: 4 + 3 + 2 + 1) times the two readings of
+  a diff path — is enforced by `pathCandidatesAt` and again by Operator's
+  `resolve_first_path` (`frontend/src-tauri/src/native.rs`,
+  `first_existing_path`), which also expands `~` and `~/…` and skips a
+  directory a candidate does not allow. Operator passes the block's cwd,
+  falling back to the session's workspace path.
+- Caching: only a found path is remembered, keyed by cwd and the logical
+  line's text (256 lines), so the spinner repainting other rows never drops
+  it; "not found" is never cached, so a path hovered before the file exists
+  links on the next hover once it does. The `Linkifier` reuses its answer
+  for the same cell while the line's text is unchanged.
+- Cost, measured 2026-09-23 on `claude-long-50k` (60,137 logical lines; the
+  longest is 120 chars / 24 words, a prompt row): at most 10 candidates on
+  any cell, mean 4.8 over the 109 cells that yield any; 0.01–0.02 ms to build
+  them per hover; `first_existing_path` 0.10 ms for 10 misses and 0.19 ms
+  for 20 (release build, this machine).
+- Guards: `path-candidates.test.ts`, `link-providers.test.ts`
+  ("createPathProvider", one test per rule), `linkifier.test.ts`,
+  `TerminalSurface.mouse.test.tsx` "underlines the ~/ working directory
+  Claude Code's startup banner prints beside its mascot" (real banner bytes
+  from a `claude` v2.1.280 launch in a pty, `ts/react/src/__fixtures__/claude-code-banner`
+  — the recorded fixtures print an elided `/…/` path instead), `native.rs`
+  `first_existing_path_*`, `tauri-bridge.test.ts`, `BlockTerminal.test.tsx`.
+
 ## 5. Known gaps (not bugs, decisions pending)
 
 - SGR attributes (italic, underline in 5 styles, SGR 58 colour, strike,
   overline, hidden, blink) are parsed unconditionally but rendered only
   behind `RendererFeatures.attributes = "warp"`; the default is `"plain"`,
   which paints none of them. An underlined trailing blank is still trimmed
-  from the export. The pty-host mirror stays in scalar width mode (its
-  `clip_row` clips by `char`, not by grapheme cluster — see §2 "Width mode").
+  from the export.
   `styles.json` covers no blink/overline case because Alacritty's reference
   cell flags have none to record. In both width modes a zero-width scalar
   after a space now rewraps with the space instead of starting a new row
@@ -710,15 +773,45 @@ history of `master`.
   larger jump than this is a fragmentation bug — see §4.22 for the one that
   put it at 14 MiB.
 - **`widthCache` corrects toward the core's cell widths, so it needs
-  `graphemes`.** With `graphemes` off the core lays an emoji sequence out in
-  scalar-mode cells (`❤️` one cell, a ZWJ family three two-cell clusters) and
-  `widthCache` faithfully squeezes the glyphs into those cells
-  (`letter-spacing: -10px` on the heart; the glyph probe's `seq:` row goes
-  from -37.92 to -50.89 px). With both on the row lands at +0.27 px
+  `graphemes`; both default on since 2026-09-22.** With `graphemes` off the
+  core lays an emoji sequence out in scalar-mode cells (`❤️` one cell, a ZWJ
+  family three two-cell clusters) and `widthCache` faithfully squeezes the
+  glyphs into those cells (`letter-spacing: -10px` on the heart; the glyph
+  probe's `seq:` row goes from -37.92 to -50.89 px). With both on the row
+  lands at +0.27 px
   (`bench/agent-session/baselines/glyph-probe/EVIDENCE-graphemes_widthCache.json`).
   Chromium shapes a ZWJ sequence across the per-cluster spans (the follow-on
   spans measure 0 px), so the split is not the cause; the target widths are.
-  A host that turns on `widthCache` should turn on `graphemes`.
+  The gap is now only a host that passes `widthCache: true` with
+  `graphemes: false` explicitly — never do that. On the Claude Code
+  recordings the flip moves exactly two kinds of row: text after `⎿` 6 px
+  left onto the grid, and the `⏵⏵ auto mode on` row 2 px right
+  (`baselines/*/feature-graphemes_false_widthCache_false/diff-offset-*.png`). The cost
+  is one `[data-terminal-width]` span per corrected cluster: spinner DOM
+  nodes per paint 73.11 → 75.98, row nodes per paint unchanged.
+- **The pty-host mirror stays in scalar width mode while the renderer runs
+  in grapheme mode.** Its `clip_row` clips by `char`, not by grapheme
+  cluster, and its cursor column is a scalar-mode column. The attach replay
+  (`vt_replay`) re-sends every row as text, so the receiving core re-lays the
+  text out in its own mode and the rows come out right; only two things
+  carry a scalar-mode column across: the cursor, placed with `\r` + `CSI n
+  C` from the mirror's column, and text a child placed with a cursor move
+  after a mode-dependent cluster (VS16, ZWJ, emoji modifier, flag pair —
+  single-scalar emoji like `🚀` and every CJK character are the same width
+  in both modes). Measured 2026-09-22 by feeding the Go mirror, replaying it
+  into a fresh grapheme-mode core and comparing with the same bytes fed
+  directly: `claude-spinner-10s` and `claude-long-50k` — 0 differing rows
+  (27 and 40 compared) and the same cursor, because Claude Code's output
+  carries no mode-dependent cluster; a prompt the child positions with
+  `CSI C` after `❤️` — identical; a line printed with `❤️`, a ZWJ family,
+  `👋🏽` and `🇪🇬` and the cursor left where printing put it — rows
+  identical, cursor 5 columns right of where it should be (46 vs 41);
+  `> ❤️ ab` then `\r CSI 7 C X` — the replay shows `> ❤️ ab X` where the
+  live pane showed `> ❤️ abX`. Both last until the child next rewrites that
+  line or moves the cursor, which Claude Code does on every Ink frame. So:
+  invisible for Claude Code as recorded; visible, one reopen at a time, for
+  a shell prompt that ends in an emoji sequence. The fix, if it ever
+  matters, is the mirror in grapheme mode, not a renderer-side correction.
 - **The pending manual Japanese-IME check.** Task 9's IME composition work
   (the underlined marked-text view, the settled-value single-send fix) has
   not yet been manually verified with a real macOS Japanese IME by a human;
@@ -748,12 +841,6 @@ history of `master`.
   a program printing 4096 distinct maximal URIs. Measured on
   `claude-long-50k` (no OSC 8): empty. Warp's own trade
   (`hyperlink_registry.rs:11-15`), not an oversight here.
-- **`openPath`'s `line`/`column` reach Operator and are dropped.**
-  `tauri-plugin-opener`'s `open_path` command takes no editor argument, so
-  the file opens at line 1 regardless of what a `path:line:col` hint or link
-  resolved. Fixing this needs a per-editor argument convention (VS Code's
-  `--goto path:line:col`, for example), which is a host decision, not a
-  package one.
 - **The hint rule set is the package's constant; a host cannot replace it
   yet.** `DomBlockRenderer.hintBegin(rules?)` accepts one rule list per call,
   but nothing plumbs a host-supplied list through `TerminalSurface` — Operator
@@ -866,6 +953,46 @@ history of `master`.
     a character printed in the last column keeps the cursor logically past
     the column until the next printable character, so `EL 0` immediately
     after should not erase it. vt-core erases it. Corpus: `erase_in_line`.
+- **The phone has no predictive local echo.** Survey §4.2's server-owned model
+  was the only route to one and is not being pursued (dropped 2026-09-22,
+  `docs/superpowers/specs/2026-09-22-server-owned-terminal-model-design.md`
+  "Why not pursued"). Part 6's predictive echo is a renderer-only dim overlay in
+  `ts/renderer-dom`; the Flutter client draws with its own vendored fork
+  (`packages/mobile/packages/xterm`) and never loads that renderer. It also
+  would not help the case it was proposed for: the mobile composer is already
+  local echo (text sits in a Flutter field and goes as one payload on send,
+  `packages/mobile/lib/feature/terminal/logic/send_route.dart:20-21`), and the
+  wait after send is Claude's turn — measured 2026-09-22 at 1.07–1.57 s
+  (median 1.24 s) for the cheapest possible prompt against a 111.7 ms median
+  keystroke round trip (146.8 ms p95) over the daemon's public tunnel and
+  6.7 ms on loopback
+  (`docs/superpowers/specs/2026-09-22-remote-typing-latency-measurement.md`,
+  reproduce with `scripts/measure-remote-typing-latency.mjs`). Per-keystroke
+  lag on mobile is real only in the raw terminal pane and the key row
+  (`terminal_cubit.dart:99`, `:281-283`). The desktop renderer **does** have a
+  predictive echo as of Plan F (default off, armed only above a host RTT
+  threshold — the desktop-against-remote-daemon case the user confirmed they
+  use). Operator switches it on from Settings → General, "Show typing
+  instantly on slow connections" (`terminalPredictiveEcho` in `ui-store.ts`,
+  off by default, stored under `opr.terminal.predictiveEcho`), which makes
+  `BlockTerminal` pass a 30 ms threshold
+  (`frontend/src/renderer/lib/terminal-predictive-echo.ts`). Once on it
+  gates itself: a loopback daemon measures ~7 ms and never arms. The route to the same thing on the phone is the shared renderer
+  that `docs/superpowers/specs/2026-09-22-server-owned-terminal-model-design.md`
+  designs. **Do not build a second prediction implementation in the Dart
+  fork** — that is the fork §4.2 exists to delete.
+- **Claude Code runs on the primary screen, not the alternate screen.** Both
+  real recordings (`bench/agent-session/fixtures/claude-spinner-10s`,
+  `claude-long-50k`) contain zero `ESC[?1049h`/`?47h`/`?1047h`; its prompt is
+  an inline Ink frame, which is also why §4.8 and §4.10 exist. Plan F was
+  specced on the opposite premise and its first build hooked predictive echo
+  only into the alternate screen's key handler, so it never fired for Claude
+  Code while every test (all of which mounted an alt surface) passed. Keys
+  for a child that owns the line on the primary screen go
+  `LineEditor.passthrough` → `EditorHost.sendRaw`; anything that must see a
+  Claude Code keystroke hooks there (`EditorHost.beforePassthrough`). Guard:
+  `TerminalSurface.test.tsx` "keeps Claude Code on the primary screen…" feeds
+  the recording and asserts `altScreen` stays null.
 
 ---
 

@@ -1188,3 +1188,23 @@ func TestHooks_SubagentStopDoesNotOverwriteConversationFacts(t *testing.T) {
 		t.Fatalf("transcript path = %q, want it preserved", req.TranscriptPath)
 	}
 }
+
+func TestHooks_AgySessionStartReportsMissingDataDir(t *testing.T) {
+	t.Setenv("OPERATOR_SESSION_ID", "opr-7")
+	setConfigEnv(t)
+	t.Setenv("OPERATOR_DATA_DIR", "")
+
+	out, errOut, err := executeCLI(t, Deps{
+		In:           strings.NewReader(`{"source":"startup"}`),
+		ProcessAlive: func(int) bool { return true },
+	}, "hooks", "agy", "session-start")
+	if err != nil {
+		t.Fatalf("hook must not fail the agent: %v", err)
+	}
+	if strings.Contains(out, "additionalContext") {
+		t.Fatalf("unexpected context output: %s", out)
+	}
+	if !strings.Contains(errOut, "OPERATOR_DATA_DIR is not set") {
+		t.Fatalf("stderr = %q, want missing data dir report", errOut)
+	}
+}

@@ -49,7 +49,6 @@ import (
 	capturesvc "github.com/OmarAly92/operator/backend/internal/service/terminalcapture"
 	ticketsvc "github.com/OmarAly92/operator/backend/internal/service/ticket"
 	usagesvc "github.com/OmarAly92/operator/backend/internal/service/usage"
-	"github.com/OmarAly92/operator/backend/internal/skillassets"
 	"github.com/OmarAly92/operator/backend/internal/storage/sqlite"
 	"github.com/OmarAly92/operator/backend/internal/terminal"
 	"github.com/OmarAly92/operator/backend/internal/tunnel"
@@ -111,13 +110,6 @@ func Run() error {
 		return fmt.Errorf("open store: %w", err)
 	}
 	defer func() { _ = store.Close() }()
-
-	// Refresh the embedded using-opr skill into the data dir so worker sessions
-	// in any project can read the opr CLI catalog from a stable absolute path.
-	// Non-fatal: the skill is an enhancement over `opr --help`, not required.
-	if err := skillassets.Install(cfg.DataDir); err != nil {
-		log.Warn("install using-opr skill", "err", err)
-	}
 
 	telemetrySink := newTelemetrySink(cfg, store, log)
 	defer func() { _ = telemetrySink.Close(context.Background()) }()

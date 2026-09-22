@@ -3,6 +3,7 @@ import type { ThemePreference, ThemeStyle } from "../../lib/theme";
 import { useUiStore } from "../../stores/ui-store";
 import { TERMINAL_BACKGROUNDS, type TerminalBackground } from "../../lib/terminal-background";
 import { TERMINAL_FONT_SIZES, clampTerminalFontSize } from "../../lib/terminal-font-size";
+import { EXTERNAL_EDITORS, type OpenFilesIn } from "../../lib/open-files-in";
 import { Switch } from "../ui/switch";
 import { SettingsOptionMenu, type SettingsOption } from "./SettingsOptionMenu";
 import { SettingsLinkRow, SettingsRow } from "./SettingsRow";
@@ -49,6 +50,10 @@ export function GeneralSettingsSection({
 	const setTerminalFontSize = useUiStore((state) => state.setTerminalFontSize);
 	const terminalSecretRedaction = useUiStore((state) => state.terminalSecretRedaction);
 	const setTerminalSecretRedaction = useUiStore((state) => state.setTerminalSecretRedaction);
+	const terminalPredictiveEcho = useUiStore((state) => state.terminalPredictiveEcho);
+	const setTerminalPredictiveEcho = useUiStore((state) => state.setTerminalPredictiveEcho);
+	const openFilesIn = useUiStore((state) => state.openFilesIn);
+	const setOpenFilesIn = useUiStore((state) => state.setOpenFilesIn);
 
 	const themeOptions = [
 		{ value: "light", label: t("settings.theme.light") },
@@ -64,6 +69,11 @@ export function GeneralSettingsSection({
 		label: t(option.labelKey),
 		icon: <ColorChip color={option.color} />,
 	})) satisfies SettingsOption<TerminalBackground>[];
+
+	const openFilesInOptions = [
+		{ value: "system", label: t("settings.openFilesIn.system") },
+		...EXTERNAL_EDITORS,
+	] satisfies SettingsOption<OpenFilesIn>[];
 
 	const terminalFontSizeOptions = TERMINAL_FONT_SIZES.map((size) => ({
 		value: String(size),
@@ -109,6 +119,21 @@ export function GeneralSettingsSection({
 					aria-label={t("settings.terminalSecretRedaction")}
 					checked={terminalSecretRedaction}
 					onCheckedChange={setTerminalSecretRedaction}
+				/>
+			</SettingsRow>
+			<SettingsRow label={t("settings.terminalPredictiveEcho")}>
+				<Switch
+					aria-label={t("settings.terminalPredictiveEcho")}
+					checked={terminalPredictiveEcho}
+					onCheckedChange={setTerminalPredictiveEcho}
+				/>
+			</SettingsRow>
+			<SettingsRow label={t("settings.openFilesIn")}>
+				<SettingsOptionMenu
+					aria-label={t("settings.openFilesIn")}
+					value={openFilesIn}
+					options={openFilesInOptions}
+					onChange={setOpenFilesIn}
 				/>
 			</SettingsRow>
 			<SettingsLinkRow label={t("settings.connectMobile")} onClick={onConnectMobile} />

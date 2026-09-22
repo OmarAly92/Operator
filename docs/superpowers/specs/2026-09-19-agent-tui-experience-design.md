@@ -372,15 +372,15 @@ from the review commit that follows `5ba24affc`, which fixed the parser bug
 described under "Flags-off rows". Every visible change is behind
 `RendererFeatures` (`packages/terminal/ts/renderer-dom/src/features.ts`), set
 through `DomBlockRenderer.setFeatures` and the `features` prop of
-`TerminalSurface`; Operator passes nothing, so every flag is at its default:
+`TerminalSurface`; Operator passes nothing, so every flag is at its default (`graphemes` and `widthCache` default on since 2026-09-22; the rest are off):
 
 | Flag | Default | What it changes | Side-by-side |
 |---|---|---|---|
 | `attributes` | `"plain"` | `"warp"` paints italic/underline (5 styles, SGR 58 colour)/strike/overline/hidden, tags blink | `bench/agent-session/baselines/*/feature-attributes_warp/` (both Claude fixtures are byte-identical to their baselines: Claude Code uses none of these) |
-| `graphemes` | `false` | core prints and rewraps by grapheme cluster; selection follows the exported spans | `…/feature-graphemes/`, `baselines/glyph-probe/EVIDENCE-graphemes.json` |
+| `graphemes` | `true` since 2026-09-22 (was `false`; flipped together with `widthCache`) | core prints and rewraps by grapheme cluster; selection follows the exported spans | `…/feature-graphemes_false_widthCache_false/` (the old default against the new baseline; its `diff-offset-*.png` crop each changed row, flags off on top, on in the middle, changed pixels in red), `…/feature-widthCache_false/` (graphemes without the width cache), `baselines/glyph-probe/EVIDENCE-graphemes.json` |
 | `cursorContrast` | `false` | inverted cursor below contrast 1.5 | `…/feature-cursorContrast/` |
 | `cursorHollowUnfocused` | `false` | hollow block while unfocused | `…/feature-cursorHollowUnfocused/` |
-| `widthCache` | `false` | per-cluster letter-spacing toward the core's cell widths (Task 11: landed — `wideDriftPx`/`cjkDriftPx` in `EVIDENCE.json`); meaningful together with `graphemes`, see below | `…/feature-widthCache/`, `…/feature-graphemes_widthCache/` |
+| `widthCache` | `true` since 2026-09-22 (was `false`; flipped together with `graphemes`) | per-cluster letter-spacing toward the core's cell widths (Task 11: landed — `wideDriftPx`/`cjkDriftPx` in `EVIDENCE.json`); meaningful together with `graphemes`, see below | `…/feature-graphemes_false/` (the width cache alone — why the two flags move together), `…/feature-graphemes_false_widthCache_false/` |
 | `boxDrawing` | `false` | procedural box glyphs (Task 10: not needed — `boxGapPx` = 0, `EVIDENCE.json`) | n/a — never implemented; the flag name is accepted and read by nothing |
 
 Decision 4 stands: `attributes` defaults to `"plain"`. Flipping any default is a
@@ -1010,7 +1010,10 @@ move during streaming repaints one row.
 - **Link grammar** (survey §6.4): port `vscode/src/vs/workbench/contrib/terminalContrib/links/browser/terminalLinkParsing.ts:44-214`
   (every `file:339`, `file:339:12`, `file(339,12)`, `"file", line 339`, …
   form, with its test table) to `ts/renderer-dom/src/link-parsing.ts`;
-  candidates validated by the host (`HostCapabilities.resolvePath?`).
+  used for its suffix functions only. Hover builds the candidate spans
+  through the hovered cell, longest first, and the host checks them in one
+  batched, capped call (`HostCapabilities.resolveFirstPath?`); see
+  `TERMINAL.md` §4.23.
 - **Linkifier** (survey §3.7): hover → per-logical-line providers (OSC 8,
   regex) → underline decoration → click with the platform modifier; pointer
   hand only over a link (`TERMINAL.md` §4.12).
@@ -1035,8 +1038,39 @@ move during streaming repaints one row.
 - **Server-owned model** (survey §4.2): the mirror becomes the model of
   record and clients pull rows by `(stable row, generation)`; mobile drops
   its `xterm` fork. Its own design spec; Part 1.B/C/G are its prerequisites.
-  The design spec is Plan F's Task 1; the implementation is **Plan G**, which
-  is where the phone gains everything Parts 4 and 5 built for the desktop.
+  The design spec was written as Plan F's Task 1
+  (`2026-09-22-server-owned-terminal-model-design.md`) and is **not being
+  implemented** — dropped by the user on 2026-09-22. Claude Code lays out
+  every row itself with cursor motion rather than printing lines for the
+  terminal to wrap (`claude-long-50k`: rows advanced by `\r ESC[1B`, 10,252
+  rows filled to 110–120 of 120 columns), so the bytes carry no logical lines
+  a phone could rewrap; a row model would give the phone a better copy of the
+  desktop's picture, not a readable one.
+
+**What Plan F delivered (2026-09-22).** The measurement first
+(`2026-09-22-remote-typing-latency-measurement.md`): over the daemon's public
+tunnel a keystroke round trip is 106.7 ms median / 144.3 ms p95 (first byte),
+and the character is on screen at 111.7 ms median / 146.8 ms p95 (visible);
+on loopback the whole local pipeline is 6.7 ms median (visible). Claude's own
+turn for the cheapest prompt writable is 1071.8–1567.0 ms (median 1240.3 ms,
+p95 1494.0 ms), so network is ~8 % of the floor of a send→answer wait and
+under 1 % of a realistic one. So **predictive echo does nothing for the phone
+case** — it cannot even reach the phone (renderer-only overlay; the Flutter
+app draws with its own `xterm` fork), and the mobile composer is already
+local echo. The configuration it does help is the **desktop app against a
+remote daemon**, which pays the full ~107 ms per keystroke in Claude Code's
+prompt; the user confirmed on 2026-09-22 that they work that way often. Plan F
+therefore delivered both bullets: the §4.2 design spec
+(`2026-09-22-server-owned-terminal-model-design.md`) and predictive echo in
+the desktop renderer as an overlay in the Plan E decoration layer — default
+off, armed only above a host RTT threshold, painting in both surfaces,
+touching no row and no model. One correction the review made: Claude Code's
+prompt is on the **primary** screen (its recordings never switch to the
+alternate screen), where keys reach it through the line editor's passthrough;
+the first build hooked the echo only into the alternate screen's key handler.
+Operator turns it on from a Settings → General switch, off by default, that
+passes a 30 ms threshold; a loopback daemon measures ~7 ms, so the switch
+changes nothing on a local pane.
 
 ## Decisions needed
 
@@ -1063,58 +1097,8 @@ move during streaming repaints one row.
 | D. Text & glyphs | Part 4 | A; each item flag-gated |
 | E. Act on output | Part 5 | B (stable rows, logical lines) |
 | F. Remote typing | Part 6 predictive echo (desktop only); §4.2 design spec | C |
-| G. One model, one terminal | Implements the §4.2 design spec Plan F produces: the pty-host mirror becomes the model of record, clients pull rows by `(stable row, generation)`, `packages/mobile/packages/xterm` is deleted and the phone renders through `packages/terminal` | F Task 1 (the spec, reviewed and its decisions settled) |
 
-Order: A → B → C → D and E in parallel → F → G.
-
-**Plan G is where the phone stops being a second, weaker terminal.** Plans D
-and E built blocks, styles, grapheme clusters, logical-line copy, links, hints,
-redaction and block timestamps in `packages/terminal/ts/renderer-dom`, which the
-Flutter client never loads — it draws with its own vendored Dart `xterm`
-(`packages/mobile/lib/feature/terminal/presentation/terminal_screen/logic/terminal_cubit.dart:99`,
-`packages/mobile/packages/xterm`), so every one of those affordances stops at the
-desktop. Plan F deliberately ships the phone nothing runnable: its Task 1 writes
-the design spec and its remaining tasks are desktop predictive echo, with
-`packages/mobile` explicitly out of scope. Plan G is the implementation, and
-until it lands the mobile gap is a known gap, not an oversight
-(`TERMINAL.md` §5).
-
-Plan G cannot be written from this spec alone. Its input is the §4.2 design spec
-Plan F Task 1 produces
-(`docs/superpowers/specs/2026-09-22-server-owned-terminal-model-design.md`),
-whose `## Decisions needed` must be answered first — at minimum the mirror's
-width policy (one mirror at the largest attached grid with clients rewrapping
-logical lines locally, versus one mirror per grid, survey §4.5), what replaces
-the byte channel and what stays on it, and whether the row-delta protocol fixes
-or inherits the two ways ack accounting already fails open (`TERMINAL.md` §5,
-"Ack accounting is per pty-host CONNECTION, not per mux client"). Writing Plan G
-before those are settled would bake a guess into the protocol.
-
-What Plan G owns, at the altitude this spec can state without pre-empting the
-design spec:
-
-- The pty-host mirror as the model of record, addressed by `(stable row,
-  generation)` — Plan B's stable rows and `Delta`, Plan C's reopen/replay
-  ordering and flow-control acks, and Plan E's per-row `wrapped` and link
-  exports are its prerequisites and have all landed.
-- A row-delta transport on the mux beside today's byte channel, with the byte
-  channel kept for the shell/line-editor path and any non-daemon host, because
-  `packages/terminal` stays product-independent (`TERMINAL.md` §3.1).
-- `TerminalCore` gaining an apply-delta path beside `feed`, so the DOM renderer
-  above `snapshot()` is untouched and the local editor keeps `feed`.
-- The Flutter client rendering through `packages/terminal` and
-  `packages/mobile/packages/xterm` deleted, which is what carries Plans D and E
-  to the phone with no second implementation — and the only route by which
-  predictive echo could ever reach it.
-- Offline and reattach behaviour on the phone, which today degrades to "replay
-  the bytes again" and under a row model has to be stated deliberately.
-
-Acceptance belongs to the design spec, not here. The one number this spec
-already owns: §4.2 does **not** shorten the felt wait — the measurement
-(`docs/superpowers/specs/2026-09-22-remote-typing-latency-measurement.md`) put
-the network at ~8 % of the floor of a send→answer wait and under 1 % of a real
-one. Plan G changes *what the phone is*, not how fast it is; a plan that
-promises latency from it is mis-scoped.
+Order: A → B → C → D and E in parallel → F.
 
 ### Plan A task outline (for the plan author; each becomes TDD tasks)
 

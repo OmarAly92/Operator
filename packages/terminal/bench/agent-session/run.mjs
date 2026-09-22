@@ -15,10 +15,12 @@ const IDLE_PANES_BASELINE_S = 1.759;
 const SELECTION_ROWS_REPAINTED = 1;
 
 function parseArgs(argv) {
-	const out = { fixture: undefined, gate: false, features: "" };
+	const out = { fixture: undefined, gate: false, features: "", panesOnly: false, profile: false };
 	for (let index = 0; index < argv.length; index += 1) {
 		if (argv[index] === "--fixture") out.fixture = argv[++index];
 		else if (argv[index] === "--gate") out.gate = true;
+		else if (argv[index] === "--panes-only") out.panesOnly = true;
+		else if (argv[index] === "--profile") out.profile = true;
 		else if (argv[index] === "--features") out.features = argv[++index];
 		else throw new Error(`unsupported argument ${argv[index]}`);
 	}
@@ -86,6 +88,72 @@ async function idlePanes(page) {
 	await page.evaluate(() => window.__agentSession.feedFrames(100, 100));
 	const after = (await session.send("Performance.getMetrics")).metrics.find((m) => m.name === "TaskDuration").value;
 	return { panes: 10, seconds: 10, taskDurationS: after - before };
+}
+
+const PANE_METRICS = ["TaskDuration", "ScriptDuration", "LayoutDuration", "RecalcStyleDuration", "LayoutCount", "RecalcStyleCount"];
+
+async function metricsNow(session) {
+	const { metrics } = await session.send("Performance.getMetrics");
+	return Object.fromEntries(PANE_METRICS.map((name) => [name, metrics.find((m) => m.name === name)?.value ?? null]));
+}
+
+function selfTimeTop(profile, count) {
+	const byId = new Map(profile.nodes.map((node) => [node.id, node]));
+	const self = new Map();
+	for (let index = 0; index < profile.samples.length; index += 1) {
+		const node = byId.get(profile.samples[index]);
+		const frame = node.callFrame;
+		const url = frame.url ? frame.url.replace(/^https?:\/\/[^/]+/, "").replace(/\?.*$/, "") : "";
+		const key = `${frame.functionName || "(anonymous)"} ${url}${url ? `:${frame.lineNumber + 1}` : ""}`;
+		self.set(key, (self.get(key) ?? 0) + (profile.timeDeltas[index] ?? 0) / 1000);
+	}
+	const totalMs = [...self.values()].reduce((sum, value) => sum + value, 0);
+	return {
+		totalMs,
+		top: [...self.entries()].sort((a, b) => b[1] - a[1]).slice(0, count).map(([fn, ms]) => ({ fn, selfMs: Number(ms.toFixed(1)) })),
+	};
+}
+
+async function paneLoad(page, { extra, mode, profileOut }) {
+	const session = await page.context().newCDPSession(page);
+	await session.send("Performance.enable");
+	if (extra > 0) await page.evaluate(({ count, paneMode }) => window.__agentSession.mountPanes(count, paneMode), { count: extra, paneMode: mode });
+	if (profileOut) {
+		await session.send("Profiler.enable");
+		await session.send("Profiler.setSamplingInterval", { interval: 100 });
+		await session.send("Profiler.start");
+	}
+	const before = await metricsNow(session);
+	await page.evaluate(() => window.__agentSession.feedFrames(100, 100));
+	const after = await metricsNow(session);
+	const out = { visiblePanes: mode === "visible" ? extra + 1 : 1, parkedPanes: mode === "parked" ? extra : 0, seconds: 10 };
+	for (const name of PANE_METRICS) out[name] = after[name] - before[name];
+	if (profileOut) {
+		const { profile } = await session.send("Profiler.stop");
+		await mkdir(path.dirname(profileOut), { recursive: true });
+		await writeFile(profileOut, JSON.stringify(profile));
+		out.profile = { file: profileOut, ...selfTimeTop(profile, 20) };
+	}
+	await page.waitForTimeout(300);
+	if (mode === "parked") out.parkedState = await page.evaluate(() => window.__agentSession.parkedPaneState());
+	return out;
+}
+
+async function paneRows(browser, port, name, features, profile) {
+	const rows = {};
+	const shapes = [
+		["solo", { extra: 0, mode: "visible" }],
+		["parked3", { extra: 3, mode: "parked" }],
+		["parked9", { extra: 9, mode: "parked" }],
+		["visible10", { extra: 9, mode: "visible" }],
+	];
+	for (const [key, shape] of shapes) {
+		const page = await openPage(browser, port, name, features);
+		const profileOut = profile && key === "parked9" ? path.join(resultsDir, `parked9-${Date.now()}.cpuprofile`) : undefined;
+		rows[key] = await paneLoad(page, { ...shape, profileOut });
+		await page.close();
+	}
+	return rows;
 }
 
 async function selectionRepaint(page) {
@@ -214,7 +282,7 @@ async function reopenReport(page, fixtureName) {
 
 async function main() {
 	const args = parseArgs(process.argv.slice(2));
-	const fixtures = args.fixture ? [args.fixture] : listFixtures();
+	const fixtures = args.panesOnly ? ["claude-spinner-10s"] : args.fixture ? [args.fixture] : listFixtures();
 	const server = await createServer({ configFile, logLevel: "error" });
 	let browser;
 	const report = { measuredAt: new Date().toISOString(), fixtures: {} };
@@ -225,7 +293,9 @@ async function main() {
 		for (const name of fixtures) {
 			const fixture = await loadFixture(name);
 			const rows = {};
-			if (name === "claude-spinner-10s") {
+			if (args.panesOnly) {
+				rows.panes = await paneRows(browser, port, name, args.features, args.profile);
+			} else if (name === "claude-spinner-10s") {
 				const page = await openPage(browser, port, name, args.features);
 				rows.spinner = await spinnerPaints(page);
 				rows.spinner.rowNodesAdded = await page.evaluate(() => window.__agentSession.rowNodesAdded());
@@ -239,6 +309,7 @@ async function main() {
 				const idlePage = await openPage(browser, port, name, args.features);
 				rows.idlePanes = await idlePanes(idlePage);
 				await idlePage.close();
+				rows.panes = await paneRows(browser, port, name, args.features, false);
 				const selectionPage = await openPage(browser, port, name, args.features);
 				rows.selectionRepaint = await selectionRepaint(selectionPage);
 				await selectionPage.close();

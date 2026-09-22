@@ -264,6 +264,21 @@
 	opacity: 0.85;
 }
 
+/* warp/app/src/terminal/grid_renderer.rs draws glyphs at variable alpha; reused
+   here at reduced opacity so predicted text reads as not-yet-confirmed. */
+.terminal-prediction {
+	position: absolute;
+	pointer-events: none;
+	opacity: 0.45;
+	white-space: pre;
+	font-family: var(--terminal-font-family);
+	font-size: var(--terminal-font-size);
+	font-weight: var(--terminal-font-weight);
+	letter-spacing: var(--terminal-letter-spacing);
+	line-height: var(--terminal-line-height);
+	color: var(--terminal-foreground);
+}
+
 /* Chrome stays unselectable, so dragging across a block picks up its output and
    not the header metadata or the labels of the buttons floating over it. */
 .terminal-block-header,

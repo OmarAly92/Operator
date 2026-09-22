@@ -27,6 +27,8 @@ import {
 	readStoredTerminalSecretRedaction,
 	terminalSecretRedactionStorageKey,
 } from "../lib/terminal-secret-redaction";
+import { readStoredTerminalPredictiveEcho, terminalPredictiveEchoStorageKey } from "../lib/terminal-predictive-echo";
+import { openFilesInStorageKey, readStoredOpenFilesIn, type OpenFilesIn } from "../lib/open-files-in";
 export { readStoredTerminalBackground } from "../lib/terminal-background";
 export { readStoredThemePreference, readStoredThemeStyle, resolveTheme } from "../lib/theme";
 
@@ -65,6 +67,9 @@ type UiState = {
 	terminalFontSize: TerminalFontSize;
 	/** Mask daemon-shaped secrets in the terminal. Off by default. */
 	terminalSecretRedaction: boolean;
+	/** Paint typed characters provisionally while the round trip is slow. Off by default. */
+	terminalPredictiveEcho: boolean;
+	openFilesIn: OpenFilesIn;
 	// Transient "open the New Task dialog for this project" signal. The nonce
 	// bumps on every request so a repeat press (even for the same project) still
 	// re-fires; the always-mounted GlobalNewTaskDialog consumes it. Selection
@@ -95,6 +100,8 @@ type UiState = {
 	setTerminalBackground: (background: TerminalBackground) => void;
 	setTerminalFontSize: (size: TerminalFontSize) => void;
 	setTerminalSecretRedaction: (enabled: boolean) => void;
+	setTerminalPredictiveEcho: (enabled: boolean) => void;
+	setOpenFilesIn: (openFilesIn: OpenFilesIn) => void;
 	openGlobalSettings: () => void;
 	openMobileSettings: () => void;
 	openProjectSettings: (projectId: string) => void;
@@ -147,6 +154,8 @@ const initialThemeStyle = readStoredThemeStyle();
 const initialTerminalBackground = readStoredTerminalBackground();
 const initialTerminalFontSize = readStoredTerminalFontSize();
 const initialTerminalSecretRedaction = readStoredTerminalSecretRedaction();
+const initialTerminalPredictiveEcho = readStoredTerminalPredictiveEcho();
+const initialOpenFilesIn = readStoredOpenFilesIn();
 
 export const useUiStore = create<UiState>((set, get) => ({
 	workbenchTab: "changes",
@@ -160,6 +169,8 @@ export const useUiStore = create<UiState>((set, get) => ({
 	terminalBackground: initialTerminalBackground,
 	terminalFontSize: initialTerminalFontSize,
 	terminalSecretRedaction: initialTerminalSecretRedaction,
+	terminalPredictiveEcho: initialTerminalPredictiveEcho,
+	openFilesIn: initialOpenFilesIn,
 	newTaskRequest: null,
 	createProjectNonce: 0,
 	newShellTerminalNonce: 0,
@@ -198,6 +209,16 @@ export const useUiStore = create<UiState>((set, get) => ({
 		if (get().terminalSecretRedaction === terminalSecretRedaction) return;
 		getLocalStorage()?.setItem(terminalSecretRedactionStorageKey, terminalSecretRedaction ? "1" : "0");
 		set({ terminalSecretRedaction });
+	},
+	setTerminalPredictiveEcho: (terminalPredictiveEcho) => {
+		if (get().terminalPredictiveEcho === terminalPredictiveEcho) return;
+		getLocalStorage()?.setItem(terminalPredictiveEchoStorageKey, terminalPredictiveEcho ? "1" : "0");
+		set({ terminalPredictiveEcho });
+	},
+	setOpenFilesIn: (openFilesIn) => {
+		if (get().openFilesIn === openFilesIn) return;
+		getLocalStorage()?.setItem(openFilesInStorageKey, openFilesIn);
+		set({ openFilesIn });
 	},
 	openGlobalSettings: () => set({ settingsModal: { scope: "global" } }),
 	openMobileSettings: () => set({ settingsModal: { scope: "global", section: "mobile" } }),

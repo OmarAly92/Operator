@@ -1,4 +1,5 @@
 import {
+	CELL_SPAN_WORDS,
 	decodeBlocks,
 	defaultStrings,
 	validateRowRange,
@@ -15,7 +16,10 @@ import {
 import { renderAltSurface } from "./alt-surface.js";
 import { finishedBlocks, rendererVisible, type BlockFinishedEvent } from "./block-finished.js";
 import { populateBlock, reconcileChildren, ROW_GENERATION_ATTR } from "./block-body.js";
-import { createCursorElement, cursorPaintFor, primaryCursorPlacement, PLAIN_CURSOR_PAINT, type CursorPlacement } from "./cursor.js";
+import { createCursorElement, cursorPaintFor, primaryCursorPlacement, PLAIN_CURSOR_PAINT, CURSOR_ATTR, type CursorPlacement } from "./cursor.js";
+import { PREDICTION_TTL_MS, PredictionState, type CursorPoint, type KeyDescriptor } from "./prediction.js";
+import { cellString } from "./clusters.js";
+import { RttMeter } from "./rtt.js";
 import { ElementPool } from "./element-pool.js";
 import { bindActionEvents } from "./action-events.js";
 import { applyFilter, type BlockFilter } from "./block-filter.js";
@@ -118,7 +122,6 @@ export class DomBlockRenderer implements BlockRenderer {
 	private linkProviders: readonly LinkProvider[] = DEFAULT_LINK_PROVIDERS;
 	private readonly linkifier = new Linkifier({
 		rows: () => this.textRows(),
-		generation: () => this.core?.snapshot().generation ?? Number.NaN,
 		providers: () => this.linkProviders,
 		onChange: () => this.linkChanged(),
 	});
@@ -128,6 +131,11 @@ export class DomBlockRenderer implements BlockRenderer {
 	private secretRegexes: RegExp[] = [];
 	private revealedSecrets = new Set<string>();
 	private revealedAt = -1;
+	private readonly predictions = new PredictionState();
+	private readonly rtt = new RttMeter();
+	private echoThresholdMs: number | null = null;
+	private predictionTimer: ReturnType<typeof setTimeout> | null = null;
+	private sentCursor: CursorPoint | null = null;
 
 	mount(container: HTMLElement, core: TerminalCore): void {
 		this.dispose();
@@ -166,7 +174,10 @@ export class DomBlockRenderer implements BlockRenderer {
 			this.scheduleRepaint();
 		});
 		this.rowEventsUnsubscribe = core.onRowEvents((event) => this.remapAnchor(event.remap));
-		this.unsubscribe = core.onChange(() => this.scheduleRepaint());
+		this.unsubscribe = core.onChange(() => {
+			this.noteReceived(performance.now());
+			this.scheduleRepaint();
+		});
 		this.blockNav = mountBlockNavFromRenderer({ container, getBlocks: () => this.filteredBlocks, scrollToBlock: (id, align) => this.scrollToBlock(id, align), isAltScreenActive: () => core.snapshot().altScreen !== null });
 		bindActionEvents(container, { setBlockBookmarked: (id, b) => core.setBlockBookmarked(id, b), getBlockBookmarked: (id) => core.blockBookmarked(id), setFilter: (f) => this.setFilter(f), scrollToBlock: (id, a) => this.scrollToBlock(id, a), scheduleRepaint: () => this.scheduleRepaint() });
 		this.jumpToBottom = mountJumpToBottom({ container, getBlocks: () => this.filteredBlocks, getCellHeight: () => this.measure().cellHeight, getStickToBottom: () => this.stickToBottom, scrollToLatest: () => this.scrollToLatest(), isAltScreenActive: () => core.snapshot().altScreen !== null, strings: defaultStrings });
@@ -565,6 +576,134 @@ export class DomBlockRenderer implements BlockRenderer {
 		paintBoxes(layer, "terminal-link-underline", boxes);
 	}
 
+	setPredictiveEcho(config: { thresholdMs: number } | null): void {
+		this.echoThresholdMs = config?.thresholdMs ?? null;
+		if (this.echoThresholdMs === null) this.predictionsClear();
+	}
+
+	noteSend(nowMs: number): void {
+		if (this.rtt.sent(nowMs)) this.sentCursor = this.cursorPoint() ?? { row: -1, column: -1 };
+	}
+
+	private noteReceived(nowMs: number): void {
+		const before = this.sentCursor;
+		if (before === null) return;
+		const after = this.cursorPoint();
+		if (after === null || (after.row === before.row && after.column === before.column)) return;
+		this.sentCursor = null;
+		this.rtt.received(nowMs);
+	}
+
+	noteRoundTrip(sentMs: number, receivedMs: number): void {
+		this.rtt.sent(sentMs);
+		this.rtt.received(receivedMs);
+	}
+
+	predictKey(key: KeyDescriptor, nowMs: number): boolean {
+		if (this.echoThresholdMs === null || !this.rtt.shouldPredict(this.echoThresholdMs)) return false;
+		this.reconcilePredictions();
+		const cursor = this.cursorPoint();
+		if (cursor === null) return false;
+		if (!this.predictions.register(key, cursor, nowMs)) return false;
+		this.armPredictionExpiry(performance.now());
+		this.paintPredictions();
+		return true;
+	}
+
+	predictionsClear(): void {
+		this.predictions.clear();
+		this.armPredictionExpiry(performance.now());
+		this.paintPredictions();
+	}
+
+	predictionCount(): number {
+		return this.predictions.pending().length;
+	}
+
+	private cursorPoint(): CursorPoint | null {
+		if (!this.core) return null;
+		const snapshot = this.core.snapshot();
+		const alt = snapshot.altScreen;
+		if (alt) {
+			if (!alt.cursorVisible) return null;
+			return { row: alt.cursorRow, column: alt.cursorColumn };
+		}
+		return primaryCursorPlacement(snapshot);
+	}
+
+	private rowCellsAt(row: number): string {
+		const snapshot = this.core!.snapshot();
+		const alt = snapshot.altScreen;
+		const content = alt ? alt.content : snapshot.content;
+		const rows = alt ? alt.rowRanges : snapshot.rows;
+		const spanRanges = alt ? alt.spanRanges : snapshot.spanRanges;
+		const cellSpans = alt ? alt.cellSpans : snapshot.cellSpans;
+		const start = rows[row * 2] ?? 0;
+		const end = rows[row * 2 + 1] ?? start;
+		const text = end > start ? this.decoder.decode(content.subarray(start, end)) : "";
+		const spanStart = spanRanges[row * 2] ?? 0;
+		const spanEnd = spanRanges[row * 2 + 1] ?? spanStart;
+		return cellString(text, cellSpans.subarray(spanStart * CELL_SPAN_WORDS, spanEnd * CELL_SPAN_WORDS));
+	}
+
+	private reconcilePredictions(): void {
+		const now = performance.now();
+		const cursor = this.cursorPoint();
+		if (cursor !== null) {
+			const cells = this.predictions.pending().length > 0 ? this.rowCellsAt(cursor.row) : "";
+			this.predictions.reconcile(cursor, cells, now, this.predictionTtlMs());
+		} else {
+			this.predictions.expire(now, this.predictionTtlMs());
+		}
+		this.armPredictionExpiry(now);
+		this.paintPredictions();
+	}
+
+	private predictionTtlMs(): number {
+		return Math.max(PREDICTION_TTL_MS, 2 * (this.rtt.median() ?? 0));
+	}
+
+	private armPredictionExpiry(nowMs: number): void {
+		if (this.predictionTimer !== null) clearTimeout(this.predictionTimer), (this.predictionTimer = null);
+		const oldest = this.predictions.pending()[0];
+		if (oldest === undefined) return;
+		const delay = Math.max(0, oldest.sentAtMs + this.predictionTtlMs() - nowMs) + 1;
+		this.predictionTimer = setTimeout(() => {
+			this.predictionTimer = null;
+			this.reconcilePredictions();
+		}, delay);
+	}
+
+	private paintPredictions(): void {
+		const layer = this.layer("predictions");
+		const container = this.container;
+		if (!layer || !container) return;
+		const pending = this.predictions.pending();
+		const cursor = pending.length === 0 ? null : this.cursorPoint();
+		if (cursor === null) {
+			paintBoxes(layer, "terminal-prediction", []);
+			return;
+		}
+		const altShowing = this.core?.snapshot().altScreen != null && this.altRoot != null && !this.altRoot.hidden;
+		const anchor = altShowing
+			? container.querySelector<HTMLElement>("[data-terminal-cursor]")
+			: container.querySelector<HTMLElement>(`[${CURSOR_ATTR}]`);
+		if (!anchor) {
+			paintBoxes(layer, "terminal-prediction", []);
+			return;
+		}
+		const { cellWidth, cellHeight } = this.cellMetrics();
+		const origin = container.getBoundingClientRect();
+		const cell = anchor.getBoundingClientRect();
+		const boxes = pending.map((prediction) => ({
+			left: cell.left - origin.left + container.scrollLeft + (prediction.at.column - cursor.column) * cellWidth,
+			top: cell.top - origin.top + container.scrollTop,
+			width: cellWidth,
+			height: cellHeight,
+		}));
+		paintBoxes(layer, "terminal-prediction", boxes, pending.map((prediction) => prediction.text));
+	}
+
 	private paintRedactions(): void {
 		const layer = this.layer("redactions");
 		const container = this.container;
@@ -593,6 +732,7 @@ export class DomBlockRenderer implements BlockRenderer {
 	}
 
 	dispose(): void {
+		if (this.predictionTimer !== null) clearTimeout(this.predictionTimer), (this.predictionTimer = null);
 		this.jumpToBottom?.dispose(), (this.jumpToBottom = null);
 		this.blockNav?.dispose(), (this.blockNav = null);
 		if (this.unsubscribe) this.unsubscribe(), (this.unsubscribe = null);
@@ -774,6 +914,7 @@ export class DomBlockRenderer implements BlockRenderer {
 			this.paintDecorations();
 			this.paintHints();
 			this.paintRedactions();
+			this.reconcilePredictions();
 			if (paintedAt !== undefined) this.lastPaintAt = paintedAt;
 			this.notifyPainted();
 			core.takeDirty();
@@ -936,6 +1077,7 @@ export class DomBlockRenderer implements BlockRenderer {
 		this.paintDecorations();
 		this.paintHints();
 		this.paintRedactions();
+		this.reconcilePredictions();
 		if (paintedAt !== undefined) this.lastPaintAt = paintedAt;
 		this.notifyPainted();
 		this.rescheduleIfPending(core);

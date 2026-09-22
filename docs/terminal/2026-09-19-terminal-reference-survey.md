@@ -45,6 +45,55 @@ Each approach has the same shape:
 
 Absent evidence is written as "not known", never guessed.
 
+## Implementation status (updated 2026-09-22)
+
+Entries the agent-TUI spec (`docs/superpowers/specs/2026-09-19-agent-tui-experience-design.md`, Plans A–F) took on: 28 done, 13 partial, 1 not pursued. Each such entry also carries a **Status** line under its heading. An entry with no Status line was not part of that spec and is as the survey describes it.
+
+| Entry | Status | What landed |
+|---|---|---|
+| §1.2 | Done | Plan B — per-row dirty tracking, `Delta`/`take_delta`, incremental `ExportBuffers`, snapshot memoised per generation. |
+| §1.9 | Done | Plan C — `vt_replay` sends origin, modes, the frame, `READY`, then history in 512-row chunks; the pane paints at `READY`. |
+| §1.13 | Partial | Plan B — `Limits { rows: 200_000, bytes: 128 MiB }` in both cores. Cold-history compression not done. |
+| §1.14 | Partial | Plan A — `verify_integrity`, the proptest generator and the `trace` feature. Failure injection not done. |
+| §1.15 | Partial | Plan E — OSC 8 hyperlinks only. Working directory, notifications, pointer shape, colours and title not done. |
+| §1.17 | Done | Plan D — cursor contrast/hollow behind flags; box drawing measured and ruled out (`boxGapPx` = 0). |
+| §2.1 | Done | Plan A — DEC 2026 buffered in `vt-core` (`SyncBuffer`, 150 ms / 2 MiB), pump holds across a block. |
+| §2.3 | Partial | Plan B — dirty rows and a selection damage diff (one row repainted per selection step). Row granularity only; no column bounds. |
+| §2.7 | Done | Plan E — hint mode on Ctrl+Shift+Space with labels and `onHint`. |
+| §2.8 | Done | Plan D — ten attribute bits and underline colour in the style word; painted only with `attributes: "warp"` (default `"plain"`). |
+| §2.9 | Done | Plan A — `tests/ref` with Alacritty's recordings plus our own. |
+| §2.10 | Done | Plan A — `enqueue`/`drain` with a 12 ms budget per animation frame. |
+| §2.12 | Done | Plan D — `cursorContrast` and `cursorHollowUnfocused` flags, default off. |
+| §3.1 | Done | Plan B — row-element pool with dirty-row patching. The ≤ 2 nodes per changed row target was missed (≈7 per styled row). |
+| §3.2 | Partial | Plan D — per-cluster letter-spacing behind `widthCache` (default off). Joined characters not verified. |
+| §3.3 | Done | Plan A — char metrics cached, invalidated on font, DPR and measure-host resize. |
+| §3.5 | Done | Plan B — done as stable row ids plus `onRowEvents` (trim and remap) rather than xterm.js markers. |
+| §3.7 | Done | Plan E — linkifier: OSC 8 provider first, URL and path providers second, per hovered logical line. |
+| §3.10 | Done | Plan D — composition view at the cursor and one send a tick after `compositionend`. Manual Japanese-IME check still pending. |
+| §3.11 | Done | Plan C — the replay re-emits the child's modes before the frame. |
+| §3.13 | Partial | Plan A (12 ms budget) and Plan C (ack every 5,000 bytes, pause at 100,000). No 50 MB discard watermark. |
+| §3.14 | Done | Plan D — grapheme-cluster widths behind `graphemes` (default off); renderer reads exported cell spans. |
+| §4.1 | Done | Plan B — stable rows (`trimmed_total`, `first_stable_row`, `BlockGrid::origin`). |
+| §4.2 | Not pursued | Design spec written in Plan F (`2026-09-22-server-owned-terminal-model-design.md`); implementation dropped 2026-09-22 — Claude Code lays out its own rows, so there are no logical lines a phone could rewrap. |
+| §4.3 | Done | Plan F — desktop-only overlay above a host RTT threshold, default off. The phone has none. |
+| §4.4 | Partial | Plan A — the pump holds across a DEC 2026 block. The 3 ms poll was not added: the pump already coalesces at 1/60 s. |
+| §4.5 | Done | Plan E — per-row `wrapped` export, `logicalLines`, copy joins a soft-wrapped line. History prepended on reopen stays single rows. |
+| §4.7 | Done | Plan E — hint rules are WezTerm's minus IPFS, with Kitty's `path:line` first; WezTerm's label algorithm. |
+| §5.3 | Done | Plan E — `onBlockFinished` with duration and visibility; Operator notifies for long commands finished out of sight. |
+| §5.5 | Done | Plan E — `path:line` hints and links open through the host. The editor opens the file but not at the line. |
+| §5.7 | Partial | Plan A — done as the per-frame drain budget, not as an input delay. |
+| §5.8 | Partial | Plan C — lazy rewrap for cold scrollback (`HOT_ROWS = 2_000`). Fixed segments and an ANSI ring beyond the cap not done. |
+| §5.9 | Done | Plan D — `unicode-width`/`unicode-segmentation` on Unicode 17, tested against `GraphemeBreakTest.json`. |
+| §5.10 | Partial | Replaced by Rust-side coverage (Plan A `tests/ref`, integrity proptest); no Python screen suite. |
+| §6.2 | Partial | Plan E — block start/finish timestamps from the feed clock. Confidence, invalidation and serialisation not done. |
+| §6.3 | Partial | Plan C — replay with block records and flow-control acks. Reconnect grace periods, heartbeat and persistence across restarts not done. |
+| §6.4 | Done | Hover tries the spans through the hovered cell, longest first, in one capped `resolveFirstPath` host call; VS Code's suffix grammar (ported with its test table) strips the line/column. |
+| §6.5 | Partial | Plan F — desktop overlay with the exclusion list; no prediction timeline, no phone. |
+| §7.3 | Done | Plan E — host patterns masked in copy, selection, links, hints and block text; default off. |
+| §7.4 | Done | Plan E — capped, never-reclaimed registry; the link id is the sixth style word. |
+| §7.5 | Done | Plan D — the cursor is placed over clusters from the exported cell spans. |
+| §7.6 | Done | Plan A — `OPERATOR_PTY_RECORD` plus the Alacritty-derived ref tests. |
+
 ## Our package in one paragraph (for the reader who has not opened it)
 
 `crates/vt-core` is the model: `ScreenGrid` (`screen.rs`) for the live
@@ -148,6 +197,8 @@ mode entirely.
 which supersedes the renderer-side skip and watchdog proposed here.
 
 ### 1.2 Dirty tracking and a stateful render view instead of a full rebuild per frame
+
+> **Status: Done.** Plan B — per-row dirty tracking, `Delta`/`take_delta`, incremental `ExportBuffers`, snapshot memoised per generation.
 
 **Reference**
 - Per-row dirty bit: `src/terminal/page.zig:2067-2078` (`Row.dirty`, "set to true
@@ -601,6 +652,8 @@ onto our `Content` (append-only) + `ScreenGrid` (mutable) split.
 
 ### 1.9 Attach snapshot: active screen first, `READY`, then history
 
+> **Status: Done.** Plan C — `vt_replay` sends origin, modes, the frame, `READY`, then history in 512-row chunks; the pane paints at `READY`.
+
 **Reference**
 - `src/terminal/snapshot/main.zig:1-17`: a documented binary snapshot of
   terminal state whose layout "prioritizes making a terminal functional as
@@ -779,6 +832,8 @@ flag is what lets those features cost nothing on plain rows.
 
 ### 1.13 Memory limits by bytes as well as rows; cold-history compression
 
+> **Status: Partial.** Plan B — `Limits { rows: 200_000, bytes: 128 MiB }` in both cores. Cold-history compression not done.
+
 **Reference**
 - `src/terminal/PageList.zig:6915` (`Limits`), `:611` (`max_lines`),
   `:625-626` ("the maximum number of physical rows retained as scrollback"),
@@ -819,6 +874,8 @@ session" question answerable.
 **Priority:** P3.
 
 ### 1.14 Testing techniques: integrity checks, failure injection, synthetic streams
+
+> **Status: Partial.** Plan A — `verify_integrity`, the proptest generator and the `trace` feature. Failure injection not done.
 
 **Reference**
 - `src/terminal/PageList.zig:796-930` (`assertIntegrity` / `verifyIntegrity`,
@@ -862,6 +919,8 @@ session" question answerable.
 **Priority:** P2 — cheapest insurance against the §4 class of regressions.
 
 ### 1.15 OSC coverage: hyperlinks, working directory, notifications, pointer shape, colours, title
+
+> **Status: Partial.** Plan E — OSC 8 hyperlinks only. Working directory, notifications, pointer shape, colours and title not done.
 
 **Reference** (`src/terminal/osc/parsers/`)
 - `hyperlink.zig:8` — OSC 8 with `id=` (tests `:59-86`); storage in
@@ -960,6 +1019,8 @@ size in cells) is what some scripts use to size output. Low value.
 **Priority:** P4 (only if a tool asks for it).
 
 ### 1.17 Renderer-side decisions that transfer to a DOM renderer
+
+> **Status: Done.** Plan D — cursor contrast/hollow behind flags; box drawing measured and ruled out (`boxGapPx` = 0).
 
 **Reference**
 - Scroll-to-bottom on output by comparing the bottom-right pin between
@@ -1093,6 +1154,8 @@ says so and points back to §1.
 
 ### 2.1 Synchronized updates buffered in the parser (`vte::ansi::Processor`)
 
+> **Status: Done.** Plan A — DEC 2026 buffered in `vt-core` (`SyncBuffer`, 150 ms / 2 MiB), pump holds across a block.
+
 **Reference**
 - `~/.cargo/registry/src/index.crates.io-*/vte-0.15.0/src/ansi.rs` (the
   crate Alacritty and we both compile):
@@ -1222,6 +1285,8 @@ come from `vte::ansi` either.
 **Priority:** P2 refactor; it is the cheapest route to §1.15, §1.16 and §2.8.
 
 ### 2.3 Line damage with column bounds, and diffing selection/cursor damage outside the model
+
+> **Status: Partial.** Plan B — dirty rows and a selection damage diff (one row repainted per selection step). Row granularity only; no column bounds.
 
 **Reference**
 - Model: `alacritty_terminal/src/term/mod.rs:137-146` `LineDamageBounds { line, left, right }`;
@@ -1429,6 +1494,8 @@ and smart case, which users expect.
 
 ### 2.7 Hints: regex/hyperlink matches with keyboard labels and actions
 
+> **Status: Done.** Plan E — hint mode on Ctrl+Shift+Space with labels and `onHint`.
+
 **Reference**
 - `alacritty/src/display/hint.rs:26-40` `HintState { hint, alphabet, matches, labels, keys }`;
   `start` `:61`, `update_matches` `:74` (visible matches only, bounded by
@@ -1490,6 +1557,8 @@ product-independent because the rules and actions come from the host.
 
 ### 2.8 Full SGR attribute set as a cell flag bitset, with rare data out of line
 
+> **Status: Done.** Plan D — ten attribute bits and underline colour in the style word; painted only with `attributes: "warp"` (default `"plain"`).
+
 **Reference**
 - `alacritty_terminal/src/term/cell.rs:22-40` `Flags: u16` —
   `INVERSE, BOLD, ITALIC, UNDERLINE, WRAPLINE, WIDE_CHAR, WIDE_CHAR_SPACER, DIM, HIDDEN, STRIKEOUT, LEADING_WIDE_CHAR_SPACER, DOUBLE_UNDERLINE, UNDERCURL, DOTTED_UNDERLINE, DASHED_UNDERLINE`
@@ -1541,6 +1610,8 @@ typed handler in §2.2 delivers the decoded attributes for free.
 **Priority:** P2 (visible fidelity loss today).
 
 ### 2.9 Reference recordings as the conformance corpus
+
+> **Status: Done.** Plan A — `tests/ref` with Alacritty's recordings plus our own.
 
 **Reference**
 - `alacritty_terminal/tests/ref.rs:1-130`: `ref_tests! { … }` macro
@@ -1594,6 +1665,8 @@ typed handler in §2.2 delivers the decoded attributes for free.
 **Priority:** P2 — cheapest way to raise confidence before §2.2's parser refactor.
 
 ### 2.10 Bounded parsing per turn so a burst cannot stall the renderer
+
+> **Status: Done.** Plan A — `enqueue`/`drain` with a 12 ms budget per animation frame.
 
 **Reference**
 - `alacritty_terminal/src/event_loop.rs:23-27` `READ_BUFFER_SIZE = 1 MiB`,
@@ -1661,6 +1734,8 @@ Alacritty's filter is stricter than ours and one line.
 **Priority:** with §1.10 (P2).
 
 ### 2.12 Cursor legibility: invert the cursor when it lacks contrast with the cell
+
+> **Status: Done.** Plan D — `cursorContrast` and `cursorHollowUnfocused` flags, default off.
 
 **Reference**
 - `alacritty/src/display/content.rs:21-22` `MIN_CURSOR_CONTRAST = 1.5`;
@@ -1785,6 +1860,8 @@ Paths below are relative to the repository root; `xterm.js/src/…` means
 
 ### 3.1 A fixed pool of row elements, repainted by dirty row range on one animation frame
 
+> **Status: Done.** Plan B — row-element pool with dirty-row patching. The ≤ 2 nodes per changed row target was missed (≈7 per styled row).
+
 **Reference**
 - `xterm.js/src/browser/renderer/dom/DomRenderer.ts:336-351`
   `_refreshRowElements`: exactly `rows` `<div>` row elements are created once
@@ -1846,6 +1923,8 @@ than via a separate `paintSelectionFill` pass.
 **Priority:** P2, the renderer half of §1.2.
 
 ### 3.2 Row factory: span merging by attribute, joined characters, per-cell letter-spacing from a width cache
+
+> **Status: Partial.** Plan D — per-cluster letter-spacing behind `widthCache` (default off). Joined characters not verified.
 
 **Reference**
 - `xterm.js/src/browser/renderer/dom/DomRendererRowFactory.ts:63-260`
@@ -1910,6 +1989,8 @@ drift; P3 otherwise. The plan takes the screenshot first.
 
 ### 3.3 Char size measured once per font change, with `TextMetrics` first and a DOM span as fallback
 
+> **Status: Done.** Plan A — char metrics cached, invalidated on font, DPR and measure-host resize.
+
 **Reference**
 - `xterm.js/src/browser/services/CharSizeService.ts:11-40`: `measure()`
   runs on construction and on font-related option changes only; results are
@@ -1972,6 +2053,8 @@ needs its own.
 **Priority:** covered.
 
 ### 3.5 Markers: line anchors kept valid by buffer events (trim / insert / delete)
+
+> **Status: Done.** Plan B — done as stable row ids plus `onRowEvents` (trim and remap) rather than xterm.js markers.
 
 **Reference**
 - `xterm.js/src/common/buffer/Marker.ts:1-40`: a `Marker` is `{ id, line }`
@@ -2074,6 +2157,8 @@ users expect.
 work may).
 
 ### 3.7 Link providers: OSC 8 first, regex second, resolved lazily per hovered line
+
+> **Status: Done.** Plan E — linkifier: OSC 8 provider first, URL and path providers second, per hovered logical line.
 
 **Reference**
 - `xterm.js/src/browser/Linkifier.ts:14-140`: on mouse move the linkifier
@@ -2229,6 +2314,8 @@ output as a `region`; a finished block can announce its exit status.
 
 ### 3.10 IME composition view over the cursor, with the send-on-end race handled
 
+> **Status: Done.** Plan D — composition view at the cursor and one send a tick after `compositionend`. Manual Japanese-IME check still pending.
+
 **Reference**
 - `xterm.js/src/browser/input/CompositionHelper.ts:20-200`: a
   `_compositionView` element is shown at the cursor during composition
@@ -2265,6 +2352,8 @@ alt-screen TUI, so our alt path is the one that matters.
 **Priority:** P2 for users typing CJK into Claude Code; P3 otherwise.
 
 ### 3.11 Serialize addon: state to VT bytes, including modes, for reconnection
+
+> **Status: Done.** Plan C — the replay re-emits the child's modes before the frame.
 
 **Reference**
 - `xterm.js/addons/addon-serialize/src/SerializeAddon.ts:34-60`
@@ -2338,6 +2427,8 @@ matches as highlight decorations (§1.8/§3.6), a result index/count event.
 
 ### 3.13 Write buffer: chunked parsing with a 12 ms budget and a 50 MB discard watermark
 
+> **Status: Partial.** Plan A (12 ms budget) and Plan C (ack every 5,000 bytes, pause at 100,000). No 50 MB discard watermark.
+
 **Reference**
 - `xterm.js/src/common/input/WriteBuffer.ts:20-33`:
   `WRITE_TIMEOUT_MS = 12` (parse at most ~12 ms, then yield with a 0 ms
@@ -2366,6 +2457,8 @@ queue for the §3.2 width-cache warm-up.
 **Priority:** with §2.10.
 
 ### 3.14 Unicode: grapheme-aware width provider, pluggable Unicode version
+
+> **Status: Done.** Plan D — grapheme-cluster widths behind `graphemes` (default off); renderer reads exported cell spans.
 
 **Reference**
 - `xterm.js/src/common/services/UnicodeService.ts` registers
@@ -2500,6 +2593,8 @@ Paths below are relative to the repository root; `wezterm/mux/src/…` means
 
 ### 4.1 Stable row indices: a row id that survives scrollback trimming
 
+> **Status: Done.** Plan B — stable rows (`trimmed_total`, `first_stable_row`, `BlockGrid::origin`).
+
 **Reference**
 - `wezterm/term/src/screen.rs:16-30`: `Screen.lines` is one `VecDeque<Line>`
   for scrollback + visible rows; `stable_row_index_offset` (`:30`) is the
@@ -2557,6 +2652,8 @@ API (§4.5) is the stable unit across a width change.
 **Priority:** P2; prerequisite for §4.2.
 
 ### 4.2 Server-owned model, clients pull changed lines by (stable row, sequence number)
+
+> **Status: Not pursued.** Design spec written in Plan F (`2026-09-22-server-owned-terminal-model-design.md`); implementation dropped 2026-09-22 — Claude Code lays out its own rows, so there are no logical lines a phone could rewrap.
 
 **Reference**
 - Change tracking in the model: every `Line` carries `last_change_seqno`
@@ -2659,6 +2756,8 @@ mobile and Tailscale users.
 
 ### 4.3 Predictive local echo when the round-trip is slow
 
+> **Status: Done.** Plan F — desktop-only overlay above a host RTT threshold, default off. The phone has none.
+
 **Reference**
 - `wezterm/wezterm-client/src/pane/renderable.rs:136-142` `should_predict`:
   only when the measured input RTT (`last_input_rtt`) exceeds
@@ -2703,6 +2802,8 @@ server confirms — is the safe version of it.
 
 ### 4.4 Output coalescing at the parser: hold a synchronized frame, else wait 3 ms for more bytes
 
+> **Status: Partial.** Plan A — the pump holds across a DEC 2026 block. The 3 ms poll was not added: the pump already coalesces at 1/60 s.
+
 **Reference**
 - `wezterm/mux/src/lib.rs:142-232` `parse_buffered_data`: the pty reader
   thread parses into a `Vec<Action>`; on `?2026h` it sets `hold` and flushes
@@ -2740,6 +2841,8 @@ different cut point.
 **Priority:** P3 (P2 with §4.2).
 
 ### 4.5 Logical lines as the unit for search, hyperlinks, copy and mouse mapping
+
+> **Status: Done.** Plan E — per-row `wrapped` export, `logicalLines`, copy joins a soft-wrapped line. History prepended on reopen stays single rows.
 
 **Reference**
 - `wezterm/mux/src/pane.rs:120-170` `LogicalLine { physical_lines, logical, first_row }`
@@ -2809,6 +2912,8 @@ input only" are one call.
 **Priority:** with §1.6.
 
 ### 4.7 Quick select: label every match of a pattern set, one keystroke to copy or paste
+
+> **Status: Done.** Plan E — hint rules are WezTerm's minus IPFS, with Kitty's `path:line` first; WezTerm's label algorithm.
 
 **Reference**
 - `wezterm/wezterm-gui/src/overlay/quickselect.rs:26-56` `PATTERNS`: markdown
@@ -3031,6 +3136,8 @@ users, asciinema) see the command too. Keep 7000.
 
 ### 5.3 Command-output extents and finish notifications on top of prompt marks
 
+> **Status: Done.** Plan E — `onBlockFinished` with duration and visibility; Operator notifies for long commands finished out of sight.
+
 **Reference**
 - `kitty/kitty/screen.c:5372-5395` `screen_select_cmd_output(y)`: from a
   clicked row, `find_cmd_output` walks up to the `OUTPUT_START` line and
@@ -3103,6 +3210,8 @@ unwrapped). Add to the §1.5 decision as option (c), with the same tests.
 
 ### 5.5 Hints: `path:line` as a first-class type with an editor action
 
+> **Status: Done.** Plan E — `path:line` hints and links open through the host. The editor opens the file but not at the line.
+
 **Reference**
 - `kitty/kittens/hints/main.py:108-146` `--type url|regex|path|line|hash|word|linenum|hyperlink|ip`;
   `linenum` uses a regex with named groups `path` and `line`
@@ -3155,6 +3264,8 @@ output on demand. Small once §1.8 exists.
 
 ### 5.7 Input delay before parsing, repaint delay after
 
+> **Status: Partial.** Plan A — done as the per-frame drain budget, not as an input delay.
+
 **Reference**
 - `kitty/kitty/options/definition.py:1440-1452` `input_delay = 3 ms`:
   "delay before input from the program is processed … decreasing it …
@@ -3175,6 +3286,8 @@ proposal.
 **Priority:** with §4.4.
 
 ### 5.8 Scrollback in fixed segments plus an ANSI ring beyond the row cap
+
+> **Status: Partial.** Plan C — lazy rewrap for cold scrollback (`HOT_ROWS = 2_000`). Fixed segments and an ANSI ring beyond the cap not done.
 
 **Reference**
 - `kitty/kitty/history.c:17-45`: history is allocated in segments of
@@ -3207,6 +3320,8 @@ wasm heaps. Only worth it if users hit the row cap; P4 until then.
 
 ### 5.9 Unicode tables generated from the current Unicode release, tested against the official grapheme corpus
 
+> **Status: Done.** Plan D — `unicode-width`/`unicode-segmentation` on Unicode 17, tested against `GraphemeBreakTest.json`.
+
 **Reference**
 - `kitty/gen/wcwidth.py` downloads the Unicode data files and generates
   `kitty/kitty/char-props-data.h` (width, emoji presentation, grapheme
@@ -3233,6 +3348,8 @@ test that every cluster the corpus defines lands in one cell.
 **Priority:** with §3.14.
 
 ### 5.10 Tests: a Python screen-level suite with byte-exact inputs
+
+> **Status: Partial.** Replaced by Rust-side coverage (Plan A `tests/ref`, integrity proptest); no Python screen suite.
 
 **Reference**
 - `kitty/kitty_tests/screen.py` (51 tests) and `parser.py` (22): each test
@@ -3371,6 +3488,8 @@ from multi-line commands), `IsWindows` (ConPTY heuristics), `PromptType`
 
 ### 6.2 The command model: markers, timestamps, confidence, output extraction, invalidation, serialisation
 
+> **Status: Partial.** Plan E — block start/finish timestamps from the feed clock. Confidence, invalidation and serialisation not done.
+
 **Reference**
 - `vscode/src/vs/platform/terminal/common/capabilities/capabilities.ts:214-250`
   `ICommandDetectionCapability`: `commands`, `executingCommand(Object)`,
@@ -3435,6 +3554,8 @@ from multi-line commands), `IsWindows` (ConPTY heuristics), `PromptType`
 **Priority:** P2 (`cwdForRow` unblocks correct file links; the rest is small).
 
 ### 6.3 Pty host persistence: reconnect with grace periods, replay with command state, flow control, heartbeat
+
+> **Status: Partial.** Plan C — replay with block records and flow-control acks. Reconnect grace periods, heartbeat and persistence across restarts not done.
 
 **Reference**
 - `vscode/src/vs/platform/terminal/node/ptyService.ts:687-810`
@@ -3506,6 +3627,8 @@ from multi-line commands), `IsWindows` (ConPTY heuristics), `PromptType`
 
 ### 6.4 Links: suffix grammar (`file:line:col` and friends), validation against the file system, per-line caps
 
+> **Status: Done.** Hover tries the spans through the hovered cell, longest first, and the host answers the first that exists in one batched `HostCapabilities.resolveFirstPath` call (at most 20 candidates, enforced in the package and in the native command). VS Code's suffix grammar, ported with its test table, strips `file:line:col` and friends and carries the line and column to `openPath`. `TERMINAL.md` §4.23 has the rules.
+
 **Reference**
 - `vscode/src/vs/workbench/contrib/terminalContrib/links/browser/terminalLinkParsing.ts:44-140`
   `generateLinkSuffixRegex`: one regex for every row/column suffix form
@@ -3548,6 +3671,8 @@ mobile client asks the daemon). Keep VS Code's caps per line.
 **Priority:** P2 with §2.7/§3.7.
 
 ### 6.5 Type-ahead: local echo with a prediction timeline, style, and exclusions
+
+> **Status: Partial.** Plan F — desktop overlay with the exclusion list; no prediction timeline, no phone.
 
 **Reference**
 - `vscode/src/vs/workbench/contrib/terminalContrib/typeAhead/browser/terminalTypeAheadAddon.ts`:
@@ -3883,6 +4008,8 @@ until Operator runs agents remotely.
 
 ### 7.3 Secret redaction in the grid
 
+> **Status: Done.** Plan E — host patterns masked in copy, selection, links, hints and block text; default off.
+
 **Reference**
 - `warp/crates/warp_terminal/src/model/secrets.rs:27-135`: regex patterns
   at two levels, `User` and `Enterprise` (`:94-100`, enterprise wins);
@@ -3919,6 +4046,8 @@ until Operator runs agents remotely.
 
 ### 7.4 OSC 8 hyperlinks interned per grid with hard caps
 
+> **Status: Done.** Plan E — capped, never-reclaimed registry; the link id is the sixth style word.
+
 **Reference**
 - `warp/crates/warp_terminal/src/model/grid/hyperlink_registry.rs:1-15`:
   URIs interned behind a 4-byte `HyperlinkId` per cell; **bounded**
@@ -3940,6 +4069,8 @@ anyway. Cite this file in the §1.15 plan.
 
 ### 7.5 Grapheme cursor over cells
 
+> **Status: Done.** Plan D — the cursor is placed over clusters from the exported cell spans.
+
 **Reference**
 - `warp/crates/warp_terminal/src/model/grid/grapheme_cursor.rs:10-30,241-260`:
   a cursor that iterates forward/backward over *graphemes* in a row,
@@ -3952,6 +4083,8 @@ point; §3.14 proposes cluster-aware widths in the model.
 **Priority:** with §3.14; Warp's is the reference for the iteration API.
 
 ### 7.6 Per-session pty recording and Alacritty-derived ref tests
+
+> **Status: Done.** Plan A — `OPERATOR_PTY_RECORD` plus the Alacritty-derived ref tests.
 
 **Reference**
 - `warp/app/src/terminal/recorder.rs:14-30`: a per-session `PtyRecorder`

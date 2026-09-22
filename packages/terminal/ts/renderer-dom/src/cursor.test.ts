@@ -119,9 +119,10 @@ describe("cursorPaintFor", () => {
 		};
 	}
 	const base = { row: 0, theme: warpDarkTheme, focused: true, decoder };
+	const flagsOff = { ...DEFAULT_FEATURES, graphemes: false, widthCache: false };
 
 	it("is plain with every flag off, whatever the band", () => {
-		expect(cursorPaintFor({ ...base, source: source("ab", RGB_CURSOR_BAND), column: 1, features: DEFAULT_FEATURES })).toEqual(PLAIN_CURSOR_PAINT);
+		expect(cursorPaintFor({ ...base, source: source("ab", RGB_CURSOR_BAND), column: 1, features: flagsOff })).toEqual(PLAIN_CURSOR_PAINT);
 	});
 	it("inverts over a band that matches the cursor colour and carries the cell's cluster", () => {
 		const features = { ...DEFAULT_FEATURES, cursorContrast: true };
