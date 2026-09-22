@@ -2,6 +2,7 @@ import {
 	createCompositionTarget,
 	decodeBlocks,
 	defaultStrings,
+	type CompositionAnchor,
 	type CompositionTarget,
 	type FontConfig,
 	type TerminalCore,
@@ -22,6 +23,7 @@ import { editorStyles } from "./styles.js";
 export type EditorHost = {
 	send(text: string): void;
 	sendRaw(data: string): void;
+	compositionAnchor?: (parent: HTMLElement) => CompositionAnchor | null;
 };
 
 export class LineEditor {
@@ -76,6 +78,7 @@ export class LineEditor {
 		this.composition = createCompositionTarget({
 			parent: root,
 			onCommit: (text) => this.commitComposedText(text),
+			anchor: host.compositionAnchor,
 		});
 		this.dropdown.mount(root);
 		this.unsubscribe = core.onChange(() => {

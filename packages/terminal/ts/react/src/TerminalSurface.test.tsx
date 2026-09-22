@@ -473,18 +473,23 @@ describe("TerminalSurface", () => {
 	});
 
 	it("sends composed text once and swallows the composing keydown", () => {
+		vi.useFakeTimers();
 		const onSendRaw = vi.fn();
 		const { container, core } = renderSurface({ onSendRaw });
 		act(() => {
 			feed(core, "\x1b[?1049h");
 		});
 		const host = container.querySelector(".terminal-host") as HTMLElement;
-		const textarea = host.querySelector("textarea");
+		const textarea = host.querySelector<HTMLTextAreaElement>("textarea");
 		expect(textarea).not.toBeNull();
 		host.dispatchEvent(new KeyboardEvent("keydown", { key: "Process", keyCode: 229, bubbles: true }));
 		expect(onSendRaw).not.toHaveBeenCalled();
+		textarea!.value = "日本";
 		textarea!.dispatchEvent(new CompositionEvent("compositionend", { data: "日本" }));
+		expect(onSendRaw).not.toHaveBeenCalled();
+		vi.runAllTimers();
 		expect(onSendRaw).toHaveBeenCalledExactlyOnceWith("日本");
+		vi.useRealTimers();
 	});
 
 	it("forwards the features prop to the renderer and defaults it to every flag off", () => {

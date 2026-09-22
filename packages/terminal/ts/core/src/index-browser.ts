@@ -40,7 +40,12 @@ export type {
 } from "./completions.js";
 
 export { defaultStrings, validateRowRange } from "./types.js";
-export { createCompositionTarget, type CompositionTarget } from "./composition-target.js";
+export {
+	anchorFromElement,
+	createCompositionTarget,
+	type CompositionAnchor,
+	type CompositionTarget,
+} from "./composition-target.js";
 export { BLOCK_RECORD_WORDS, decodeBlocks } from "./blocks.js";
 export {
 	ATTR_BLINK,

@@ -12,6 +12,7 @@ import {
 } from "@operator/terminal-renderer-dom";
 import { autoScrollRows, exceedsDragThreshold, isCopyChord, kindForClickCount } from "./selection-gesture.js";
 import {
+	anchorFromElement,
 	createCompositionTarget,
 	decodeBlocks,
 	defaultStrings,
@@ -109,7 +110,11 @@ export function TerminalSurface({
 		renderer.setTheme(theme);
 		renderer.setFont(font);
 		const editor = new LineEditor();
-		editor.mount(editorHost, core, { send: onSend, sendRaw: onSendRaw });
+		editor.mount(editorHost, core, {
+			send: onSend,
+			sendRaw: onSendRaw,
+			compositionAnchor: (parent) => anchorFromElement(parent, blockHost.querySelector("[data-terminal-cursor-cell]")),
+		});
 		editor.setTheme(theme);
 		editor.setFont(font);
 		editor.setStrings(strings);
@@ -229,6 +234,7 @@ export function TerminalSurface({
 		const composition = createCompositionTarget({
 			parent: blockHost,
 			onCommit: (text) => onSendRaw(text),
+			anchor: (parent) => anchorFromElement(parent, parent.querySelector("[data-terminal-cursor]")),
 		});
 		const onKeyDown = (event: KeyboardEvent) => {
 			if (composition.isComposing() || event.isComposing || event.keyCode === 229) {

@@ -264,6 +264,26 @@ export const terminalStyles = `@font-face {
 	box-shadow: inset 0 0 0 1px var(--terminal-foreground);
 }
 
+/* IME marked text over the cursor cell, underlined as Warp draws it
+   (app/src/terminal/grid_renderer.rs:657-675); positioned like xterm.js's
+   composition-view (css/xterm.css:79-91). */
+.terminal-composition-view {
+	position: absolute;
+	display: none;
+	z-index: 2;
+	pointer-events: none;
+	white-space: pre;
+	font: inherit;
+	color: var(--terminal-foreground);
+	background: var(--terminal-background);
+	text-decoration: underline;
+	text-decoration-thickness: 0.09em;
+}
+
+.terminal-composition-view.active {
+	display: inline-block;
+}
+
 .terminal-run {
 	display: inline-block;
 	vertical-align: top;

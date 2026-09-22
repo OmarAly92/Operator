@@ -139,4 +139,8 @@ describe("terminalStyles", () => {
 		}
 		expect(terminalStyles).not.toContain("@keyframes");
 	});
+
+	it("styles the IME composition view like Warp's marked text", () => {
+		expect(terminalStyles).toContain(".terminal-composition-view.active");
+	});
 });
