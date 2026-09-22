@@ -637,9 +637,10 @@ export class DomBlockRenderer implements BlockRenderer {
 			paintBoxes(layer, "terminal-prediction", []);
 			return;
 		}
-		const anchor =
-			container.querySelector<HTMLElement>("[data-terminal-cursor]") ??
-			container.querySelector<HTMLElement>(`[${CURSOR_ATTR}]`);
+		const altShowing = this.core?.snapshot().altScreen != null && this.altRoot != null && !this.altRoot.hidden;
+		const anchor = altShowing
+			? container.querySelector<HTMLElement>("[data-terminal-cursor]")
+			: container.querySelector<HTMLElement>(`[${CURSOR_ATTR}]`);
 		if (!anchor) {
 			paintBoxes(layer, "terminal-prediction", []);
 			return;

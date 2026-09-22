@@ -691,9 +691,48 @@ describe("predictive echo on the alternate screen", () => {
 		await enterAltScreen();
 		renderer.setPredictiveEcho({ thresholdMs: 30 });
 		renderer.noteRoundTrip(0, 107);
-		renderer.predictKey(printable("a"), 1000);
+		// Register with performance.now() -- the same clock reconcilePredictions()
+		// uses internally -- so the assertions below can't pass via TTL expiry
+		// racing the test runner instead of the row-jump check they exercise.
+		renderer.predictKey(printable("a"), performance.now());
+		// A same-row repaint must NOT drop the prediction. If this failed, the
+		// drop below could be TTL expiry rather than the row-jump detection this
+		// test exists to guard.
+		await feed("x");
+		expect(host.querySelectorAll(".terminal-prediction")).toHaveLength(1);
 		await feed("\u001b[H\u001b[2J\r\n\r\nprompt> ");
 		expect(host.querySelectorAll(".terminal-prediction")).toHaveLength(0);
+	});
+
+	it("anchors block-surface predictions at the block cursor after leaving the alt screen, not a stale hidden alt cursor", async () => {
+		const { renderer, host, enterAltScreen, leaveAltScreen } = mountRenderer();
+		renderer.setPredictiveEcho({ thresholdMs: 30 });
+		renderer.noteRoundTrip(0, 107);
+		await enterAltScreen();
+		await leaveAltScreen();
+
+		// The alt cursor element is never removed from the DOM on leaveAltScreen
+		// -- only altRoot.hidden is set -- so it must still be present here.
+		const staleAltCursor = host.querySelector("[data-terminal-cursor]");
+		expect(staleAltCursor).not.toBeNull();
+		expect(staleAltCursor?.closest("[hidden]")).not.toBeNull();
+
+		const zeroRect = { x: 0, y: 0, left: 0, top: 0, right: 0, bottom: 0, width: 0, height: 0, toJSON: () => ({}) } as DOMRect;
+		vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+			if (this.hasAttribute("data-terminal-cursor-cell")) {
+				return { x: 0, y: 0, left: 42, top: 24, right: 62, bottom: 44, width: 20, height: 20, toJSON: () => ({}) } as DOMRect;
+			}
+			if (this.hasAttribute("data-terminal-cursor")) {
+				return { x: 0, y: 0, left: 999, top: 999, right: 1019, bottom: 1019, width: 20, height: 20, toJSON: () => ({}) } as DOMRect;
+			}
+			return zeroRect;
+		});
+
+		renderer.predictKey(printable("b"), performance.now());
+		const painted = host.querySelector<HTMLElement>(".terminal-prediction");
+		expect(painted).not.toBeNull();
+		expect(painted!.style.left).toBe("42px");
+		expect(painted!.style.top).toBe("24px");
 	});
 });
 
