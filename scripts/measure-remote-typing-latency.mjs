@@ -21,6 +21,7 @@ const timeoutMs = Number(args.get("timeout") ?? 15000);
 const claudeTimeoutMs = Number(args.get("claude-timeout") ?? 180000);
 const settleMs = Number(args.get("settle") ?? 8000);
 const typeDelayMs = Number(args.get("type-delay") ?? 35);
+const alphabet = args.get("alphabet") ?? "zqjxkv";
 const marker = args.get("marker") ?? "BANANAS";
 const expect = args.get("expect") ?? "bananas";
 
@@ -122,25 +123,32 @@ function stats(values) {
 	};
 }
 
-const PRINTABLE = "abcdefghijklmnopqrstuvwxyz";
-
 async function measureEcho() {
 	const firstByte = [];
 	const visible = [];
 	const rows = [];
 	for (let i = 0; i < samples; i += 1) {
 		await waitQuiet(quietMs);
-		const ch = PRINTABLE[i % PRINTABLE.length];
+		const ch = alphabet[i % alphabet.length];
 		const needle = Buffer.from(ch, "utf8");
+		let index = -1;
+		let seenFrames = 0;
 		const sentAt = performance.now();
 		const firstBytePromise = waitFor(() => true, timeoutMs);
-		const visiblePromise = waitFor((frame) => frame.bytes.includes(needle), timeoutMs);
+		const visiblePromise = waitFor((frame) => {
+			const at = seenFrames;
+			seenFrames += 1;
+			if (!frame.bytes.includes(needle)) return false;
+			index = at;
+			return true;
+		}, timeoutMs);
 		sendKeys(ch);
 		const firstByteAt = await firstBytePromise;
 		const visibleAt = await visiblePromise;
 		const row = {
 			i,
 			char: ch,
+			visibleFrameIndex: index,
 			firstByteMs: firstByteAt === null ? null : firstByteAt - sentAt,
 			visibleMs: visibleAt === null ? null : visibleAt - sentAt,
 		};
