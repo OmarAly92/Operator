@@ -703,3 +703,160 @@ fn a_link_path_resolves_only_when_it_exists_and_needs_a_base_when_relative() {
     assert_eq!(resolved_link_path(Some(&base), "  "), None);
     std::fs::remove_dir_all(&dir).ok();
 }
+
+#[test]
+fn an_editor_cli_gets_the_file_and_its_position_as_single_argv_entries() {
+    use crate::native::{editor_args, ExternalEditor};
+    use std::ffi::OsString;
+    use std::path::Path;
+    let path = Path::new("/work/my dir/it's \"a\".ts");
+
+    assert_eq!(
+        editor_args(ExternalEditor::Vscode, path, Some(42), Some(7)),
+        vec![
+            OsString::from("-g"),
+            OsString::from("/work/my dir/it's \"a\".ts:42:7")
+        ]
+    );
+    assert_eq!(
+        editor_args(ExternalEditor::Cursor, path, Some(42), None),
+        vec![
+            OsString::from("-g"),
+            OsString::from("/work/my dir/it's \"a\".ts:42")
+        ]
+    );
+    assert_eq!(
+        editor_args(ExternalEditor::Zed, path, Some(42), Some(7)),
+        vec![OsString::from("/work/my dir/it's \"a\".ts:42:7")]
+    );
+    assert_eq!(
+        editor_args(ExternalEditor::Zed, path, Some(42), None),
+        vec![OsString::from("/work/my dir/it's \"a\".ts:42")]
+    );
+    for editor in [
+        ExternalEditor::Vscode,
+        ExternalEditor::Cursor,
+        ExternalEditor::Zed,
+    ] {
+        assert_eq!(
+            editor_args(editor, path, None, None),
+            vec![OsString::from("/work/my dir/it's \"a\".ts")]
+        );
+        assert_eq!(
+            editor_args(editor, path, None, Some(7)),
+            vec![OsString::from("/work/my dir/it's \"a\".ts")]
+        );
+    }
+}
+
+#[test]
+fn an_editor_cli_is_found_in_the_app_bundle_first_then_on_path() {
+    use crate::native::{editor_cli, ExternalEditor};
+    use std::ffi::OsString;
+    use std::path::{Path, PathBuf};
+    let path_var = OsString::from("/opt/bin:/usr/local/bin");
+    let bundled = [
+        (
+            ExternalEditor::Vscode,
+            "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code",
+            "code",
+        ),
+        (
+            ExternalEditor::Cursor,
+            "/Applications/Cursor.app/Contents/Resources/app/bin/cursor",
+            "cursor",
+        ),
+        (
+            ExternalEditor::Zed,
+            "/Applications/Zed.app/Contents/MacOS/cli",
+            "zed",
+        ),
+    ];
+    for (editor, bundle_cli, name) in bundled {
+        let on_path = format!("/usr/local/bin/{name}");
+        let everything = |candidate: &Path| {
+            candidate == Path::new(bundle_cli) || candidate == Path::new(&on_path)
+        };
+        assert_eq!(
+            editor_cli(editor, Some(&path_var), everything),
+            Some(PathBuf::from(bundle_cli))
+        );
+        let path_only = |candidate: &Path| candidate == Path::new(&on_path);
+        assert_eq!(
+            editor_cli(editor, Some(&path_var), path_only),
+            Some(PathBuf::from(&on_path))
+        );
+        assert_eq!(editor_cli(editor, None, path_only), None);
+        assert_eq!(editor_cli(editor, Some(&path_var), |_: &Path| false), None);
+    }
+}
+
+#[test]
+fn opening_a_path_falls_back_to_the_system_opener_and_says_so_when_the_cli_is_missing() {
+    use crate::native::{open_plan, ExternalEditor, OpenPlan};
+    use std::ffi::OsString;
+    use std::path::{Path, PathBuf};
+    let file = Path::new("/work/src/a.ts");
+    let path_var = OsString::from("/usr/local/bin");
+
+    assert_eq!(
+        open_plan(None, file, Some(3), None, Some(&path_var), |_: &Path| true),
+        OpenPlan::System { cli_missing: false }
+    );
+    assert_eq!(
+        open_plan(
+            Some(ExternalEditor::Zed),
+            file,
+            Some(3),
+            None,
+            Some(&path_var),
+            |candidate: &Path| candidate == Path::new("/usr/local/bin/zed")
+        ),
+        OpenPlan::Editor {
+            cli: PathBuf::from("/usr/local/bin/zed"),
+            args: vec![OsString::from("/work/src/a.ts:3")],
+        }
+    );
+    assert_eq!(
+        open_plan(
+            Some(ExternalEditor::Cursor),
+            file,
+            Some(3),
+            None,
+            Some(&path_var),
+            |_: &Path| false
+        ),
+        OpenPlan::System { cli_missing: true }
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn a_spawned_editor_cli_receives_a_path_with_spaces_and_quotes_intact() {
+    use crate::native::spawn_editor;
+    use std::ffi::OsString;
+    use std::os::unix::fs::PermissionsExt;
+    let dir = std::env::temp_dir().join(format!("operator-editor-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).expect("temp dir");
+    let out = dir.join("argv.txt");
+    let cli = dir.join("fake-editor");
+    std::fs::write(
+        &cli,
+        format!(
+            "#!/bin/sh\nfor arg in \"$@\"; do printf '%s\\n' \"$arg\"; done > '{}'\n",
+            out.display()
+        ),
+    )
+    .expect("write cli");
+    std::fs::set_permissions(&cli, std::fs::Permissions::from_mode(0o755)).expect("chmod");
+
+    let target = "/work/my dir/it's \"a\" $(x).ts:42";
+    let mut child =
+        spawn_editor(&cli, &[OsString::from("-g"), OsString::from(target)]).expect("spawn");
+    assert!(child.wait().expect("wait").success());
+    assert_eq!(
+        std::fs::read_to_string(&out).expect("read argv"),
+        format!("-g\n{target}\n")
+    );
+    std::fs::remove_dir_all(&dir).ok();
+}

@@ -1,4 +1,6 @@
-use std::path::PathBuf;
+use std::ffi::{OsStr, OsString};
+use std::path::{Path, PathBuf};
+use std::process::{Child, Command, Stdio};
 use std::sync::Mutex;
 
 use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
@@ -190,12 +192,140 @@ pub async fn resolve_path(base: Option<String>, path: String) -> Result<Option<S
     .map_err(|error| error.to_string())
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ExternalEditor {
+    Vscode,
+    Cursor,
+    Zed,
+}
+
+impl ExternalEditor {
+    fn bundled_cli(self) -> &'static str {
+        match self {
+            Self::Vscode => "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code",
+            Self::Cursor => "/Applications/Cursor.app/Contents/Resources/app/bin/cursor",
+            Self::Zed => "/Applications/Zed.app/Contents/MacOS/cli",
+        }
+    }
+
+    fn cli_name(self) -> &'static str {
+        match self {
+            Self::Vscode => "code",
+            Self::Cursor => "cursor",
+            Self::Zed => "zed",
+        }
+    }
+}
+
+pub fn editor_args(
+    editor: ExternalEditor,
+    path: &Path,
+    line: Option<u32>,
+    column: Option<u32>,
+) -> Vec<OsString> {
+    let Some(line) = line else {
+        return vec![path.as_os_str().to_os_string()];
+    };
+    let mut target = path.as_os_str().to_os_string();
+    target.push(format!(":{line}"));
+    if let Some(column) = column {
+        target.push(format!(":{column}"));
+    }
+    match editor {
+        ExternalEditor::Zed => vec![target],
+        ExternalEditor::Vscode | ExternalEditor::Cursor => vec![OsString::from("-g"), target],
+    }
+}
+
+pub fn editor_cli(
+    editor: ExternalEditor,
+    path_var: Option<&OsStr>,
+    exists: impl Fn(&Path) -> bool,
+) -> Option<PathBuf> {
+    let bundled = PathBuf::from(editor.bundled_cli());
+    if exists(&bundled) {
+        return Some(bundled);
+    }
+    path_var
+        .into_iter()
+        .flat_map(std::env::split_paths)
+        .map(|dir| dir.join(editor.cli_name()))
+        .find(|candidate| exists(candidate))
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum OpenPlan {
+    Editor { cli: PathBuf, args: Vec<OsString> },
+    System { cli_missing: bool },
+}
+
+pub fn open_plan(
+    editor: Option<ExternalEditor>,
+    path: &Path,
+    line: Option<u32>,
+    column: Option<u32>,
+    path_var: Option<&OsStr>,
+    exists: impl Fn(&Path) -> bool,
+) -> OpenPlan {
+    let Some(editor) = editor else {
+        return OpenPlan::System { cli_missing: false };
+    };
+    match editor_cli(editor, path_var, exists) {
+        Some(cli) => OpenPlan::Editor {
+            cli,
+            args: editor_args(editor, path, line, column),
+        },
+        None => OpenPlan::System { cli_missing: true },
+    }
+}
+
+pub fn spawn_editor(cli: &Path, args: &[OsString]) -> std::io::Result<Child> {
+    Command::new(cli)
+        .args(args)
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OpenPathOutcome {
+    pub cli_missing: bool,
+}
+
 #[tauri::command]
-pub async fn open_path(app: AppHandle, path: String) -> Result<(), String> {
+pub async fn open_path(
+    app: AppHandle,
+    path: String,
+    line: Option<u32>,
+    column: Option<u32>,
+    editor: Option<ExternalEditor>,
+) -> Result<OpenPathOutcome, String> {
     let resolved = resolved_link_path(None, &path).ok_or_else(|| "Unknown path".to_string())?;
+    let path_var = std::env::var_os("PATH");
+    let cli_missing = match open_plan(
+        editor,
+        &resolved,
+        line,
+        column,
+        path_var.as_deref(),
+        Path::is_file,
+    ) {
+        OpenPlan::Editor { cli, args } => match spawn_editor(&cli, &args) {
+            Ok(mut child) => {
+                std::thread::spawn(move || child.wait());
+                return Ok(OpenPathOutcome { cli_missing: false });
+            }
+            Err(_) => true,
+        },
+        OpenPlan::System { cli_missing } => cli_missing,
+    };
     app.opener()
         .open_path(resolved.to_string_lossy().to_string(), None::<&str>)
-        .map_err(|error| error.to_string())
+        .map_err(|error| error.to_string())?;
+    Ok(OpenPathOutcome { cli_missing })
 }
 
 #[tauri::command]

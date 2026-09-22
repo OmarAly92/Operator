@@ -21,7 +21,7 @@ function createBrowserPreviewBridge(): OperatorBridge {
 				window.open(url, "_blank", "noopener,noreferrer");
 			},
 			resolvePath: async () => null,
-			openPath: async () => undefined,
+			openPath: async () => ({ cliMissing: false }),
 			scanImportFolder: async ({ path }) => ({ path, repos: [] }),
 			checkAncestorRepo: async () => undefined,
 			onNewSessionShortcut: () => () => undefined,

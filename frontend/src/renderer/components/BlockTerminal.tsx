@@ -20,6 +20,7 @@ import { useUiStore } from "../stores/ui-store";
 import { previewBytes, terminalDebug } from "../lib/terminal-debug";
 import { isWebLink, openLinkInSystemBrowser } from "../lib/external-link-policy";
 import { fetchRedactionPatterns, redactionPatternsQueryKey } from "../lib/redaction-patterns";
+import { externalEditorLabel } from "../lib/open-files-in";
 
 export type BlockTerminalClipboard = {
 	writeText: (text: string) => Promise<void>;
@@ -430,6 +431,30 @@ export function BlockTerminal({
 	});
 	const secretPatterns = useMemo(() => (redactSecrets ? (patterns ?? []) : []), [redactSecrets, patterns]);
 
+	const openFilesIn = useUiStore((state) => state.openFilesIn);
+	const openFilesInRef = useRef(openFilesIn);
+	openFilesInRef.current = openFilesIn;
+	const [openPathNotice, setOpenPathNotice] = useState<string | null>(null);
+	const openPathNoticeTimerRef = useRef<number | undefined>(undefined);
+	useEffect(() => () => window.clearTimeout(openPathNoticeTimerRef.current), []);
+	const openFile = useCallback(
+		async (path: string, line?: number, column?: number) => {
+			const choice = openFilesInRef.current;
+			const editor = choice === "system" ? undefined : choice;
+			const outcome = await operatorBridge.app.openPath(path, line, column, editor);
+			if (!outcome.cliMissing || editor === undefined) return;
+			window.clearTimeout(openPathNoticeTimerRef.current);
+			setOpenPathNotice(
+				t("terminal.editorCliMissing", {
+					file: path.split("/").pop() ?? path,
+					editor: externalEditorLabel(editor),
+				}),
+			);
+			openPathNoticeTimerRef.current = window.setTimeout(() => setOpenPathNotice(null), 4000);
+		},
+		[t],
+	);
+
 	const predictiveEcho = useUiStore((state) => state.terminalPredictiveEcho);
 	const predictiveThresholdMs = predictiveEcho ? terminalPredictiveEchoThresholdMs : undefined;
 	const host = useMemo<HostCapabilities>(
@@ -451,13 +476,13 @@ export function BlockTerminal({
 			},
 			resolvePath: async (path: string, cwd: string) =>
 				operatorBridge.app.resolvePath(cwd || workspacePath || null, path),
-			openPath: async (path: string) => {
-				await operatorBridge.app.openPath(path);
+			openPath: async (path: string, line?: number, column?: number) => {
+				await openFile(path, line, column);
 			},
 			secretPatterns,
 			...(predictiveThresholdMs === undefined ? {} : { predictiveEcho: { thresholdMs: predictiveThresholdMs } }),
 		}),
-		[clipboard, workspacePath, secretPatterns, predictiveThresholdMs],
+		[clipboard, workspacePath, secretPatterns, predictiveThresholdMs, openFile],
 	);
 
 	const strings = useMemo<TerminalStrings>(
@@ -566,10 +591,11 @@ export function BlockTerminal({
 			// first is what makes a hinted `src/a.ts:42` open at all.
 			if (hint.path !== undefined) {
 				const candidate = hint.path;
+				const line = hint.line;
 				void reportTerminalActionFailure(
 					(async () => {
 						const resolved = await operatorBridge.app.resolvePath(workspacePath ?? null, candidate);
-						if (resolved) await operatorBridge.app.openPath(resolved);
+						if (resolved) await openFile(resolved, line);
 					})(),
 				);
 				return;
@@ -602,6 +628,16 @@ export function BlockTerminal({
 			ref={rootRef}
 		>
 			<TerminalSurface {...surfaceProps} />
+			{openPathNotice ? (
+				<div
+					className="pointer-events-none fixed bottom-4 right-4 z-overlay w-[min(24rem,calc(100%-2rem))] rounded-xl border border-(--color-border-settings-dialog) bg-settings-dialog px-4 py-3 shadow-[var(--shadow-settings-dialog)]"
+					role="status"
+					aria-live="polite"
+					aria-atomic="true"
+				>
+					<p className="text-sm font-medium text-settings-label">{openPathNotice}</p>
+				</div>
+			) : null}
 		</div>
 	);
 }
