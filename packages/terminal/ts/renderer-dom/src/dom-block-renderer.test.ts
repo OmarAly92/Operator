@@ -77,10 +77,6 @@ function mountWith(input: string): { core: TerminalCore; host: HTMLElement; rend
 	return { core, host, renderer };
 }
 
-// jsdom never fires a real animation frame on its own timeline in a way a
-// synchronous assertion can observe, so a test that needs a real echo to
-// reconcile a prediction awaits this the same way every other async repaint
-// in this file already does (see flushRepaint above).
 function mountRenderer(): {
 	core: TerminalCore;
 	host: HTMLElement;

@@ -610,12 +610,15 @@ export class DomBlockRenderer implements BlockRenderer {
 	private rowTextAt(row: number): string {
 		const match = this.renderedRows().find(({ box }) => box.row === row);
 		if (!match) return "";
-		return this.textRows().rowText(match.box.blockId, row);
+		return this.rawTextRows().rowText(match.box.blockId, row);
 	}
 
 	private reconcilePredictions(): void {
 		const cursor = this.cursorPoint();
-		if (cursor !== null) this.predictions.reconcile(cursor, this.rowTextAt(cursor.row), performance.now());
+		if (cursor !== null) {
+			const rowText = this.predictions.pending().length > 0 ? this.rowTextAt(cursor.row) : "";
+			this.predictions.reconcile(cursor, rowText, performance.now());
+		}
 		this.paintPredictions();
 	}
 
@@ -624,8 +627,12 @@ export class DomBlockRenderer implements BlockRenderer {
 		const container = this.container;
 		if (!layer || !container) return;
 		const pending = this.predictions.pending();
+		if (pending.length === 0) {
+			paintBoxes(layer, "terminal-prediction", []);
+			return;
+		}
 		const anchor = container.querySelector<HTMLElement>(`[${CURSOR_ATTR}]`);
-		if (pending.length === 0 || !anchor) {
+		if (!anchor) {
 			paintBoxes(layer, "terminal-prediction", []);
 			return;
 		}

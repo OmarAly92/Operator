@@ -264,8 +264,8 @@
 	opacity: 0.85;
 }
 
-/* warp/crates/warp_terminal/src/model/grid/grid_renderer.rs draws provisional
-   text at reduced alpha so it reads as not-yet-confirmed. */
+/* warp/app/src/terminal/grid_renderer.rs draws glyphs at variable alpha; reused
+   here at reduced opacity so predicted text reads as not-yet-confirmed. */
 .terminal-prediction {
 	position: absolute;
 	pointer-events: none;
