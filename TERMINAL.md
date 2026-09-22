@@ -98,6 +98,11 @@ rebuilt (§6).
   per-cell field, `AltSnapshot` in `screen/snapshot.rs` and the dead-prefix
   accounting in `ExportBuffers` (`dead_*`/`history_*` counters, `drop_front`,
   `rewrite_history_from`, `truncate_screen`, `compact`).
+- **`RendererFeatures`** (`ts/renderer-dom/src/features.ts`, set through
+  `DomBlockRenderer.setFeatures` and the `features` prop of `TerminalSurface`)
+  is the gate every Plan D behavior sits behind — SGR attributes, grapheme
+  clusters, cursor contrast/hollow, and the width cache — all defaulting off
+  (see §5 for what each flag costs or leaves unresolved).
 - **Width mode.** `Parser::width_mode` (`WidthMode::Scalar` default,
   `WidthMode::Grapheme` via `TerminalCore::set_grapheme_clusters`) chooses
   whether a printed character occupies one cell per Unicode scalar or one
@@ -619,6 +624,27 @@ history of `master`.
   `EVIDENCE*.json` this plan (Plan D) produced has a constant ~+1-cell bias
   in its drift numbers. Doesn't change any needed/not-needed verdict; not
   fixed because `glyph-probe.mjs` was outside every task's file list.
+- **The flags-off renderer/mirror wasm memory regression.** Flags off, the
+  renderer core wasm heap at the fixture's 60k rows reads 14,680,064 bytes
+  (~14.00 MiB), up from Plan C's 8,192,000–9,175,040 bytes (~7.81–8.75 MiB) —
+  a real, reproducible ~60–79% increase, still well under the 128 MiB budget.
+  This is Tasks 3 and 6's style-run (5-word) and cell-span export buffers,
+  which are now always computed and exported in every snapshot regardless of
+  which `RendererFeatures` flags are set (see the spec's Plan D table,
+  `docs/superpowers/specs/2026-09-19-agent-tui-experience-design.md`).
+- **The `widthCache` `seq:`-row regression with an unisolated cause.**
+  Turning on `RendererFeatures.widthCache` measurably worsens layout drift on
+  the glyph probe's `seq:` row (ZWJ/skin-tone-modifier/regional-indicator
+  emoji sequences). Direct Chromium testing ruled out per-code-point
+  `letter-spacing` splitting inside a multi-codepoint cluster as the
+  mechanism — a correction applied to a span wrapping a full ligated cluster
+  moves the whole glyph by exactly the requested amount, with no internal
+  splitting — so that theory is refuted; the true cause remains unknown (see
+  `packages/terminal/CHANGELOG.md`'s Task 11 entry).
+- **The pending manual Japanese-IME check.** Task 9's IME composition work
+  (the underlined marked-text view, the settled-value single-send fix) has
+  not yet been manually verified with a real macOS Japanese IME by a human;
+  this must be done before the feature is considered fully verified.
 - A DEC 2026 block that grows to `SYNC_BUFFER_CAP` (2 MiB) is flushed and
   parsed in one `feed` inside whatever frame receives it, bypassing the 12 ms
   `drain` budget: a burst of ~60 ms on this machine. Claude Code frames are

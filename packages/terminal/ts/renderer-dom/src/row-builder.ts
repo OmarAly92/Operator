@@ -78,17 +78,15 @@ export function buildRowNode(
 		if (styleCodeIsDim(pendingStyleCode)) {
 			run.style.opacity = "0.55";
 		}
-		let text = decoder.decode(slice);
-		if (features.attributes === "warp") {
-			if (applyAttributes(run, pendingAttrs, pendingUnderline)) text = underlinedText(text);
-		}
+		const text = decoder.decode(slice);
+		const underlined = features.attributes === "warp" && applyAttributes(run, pendingAttrs, pendingUnderline);
 		if (features.widthCache && widths && cellWidth > 0 && hasNonAscii(text)) {
 			const bold = styleCodeIsBold(pendingStyleCode);
 			const italic = features.attributes === "warp" && (pendingAttrs & ATTR_ITALIC) !== 0;
 			const runSpans = spansForRun(rowSpans, pendingStart, pendingEnd);
-			appendMeasuredText(run, text, runSpans, cellWidth, bold, italic, widths, foreground);
+			appendMeasuredText(run, text, runSpans, cellWidth, bold, italic, widths, foreground, underlined);
 		} else {
-			appendRunText(run, text, foreground);
+			appendRunText(run, underlined ? underlinedText(text) : text, foreground);
 		}
 		rowNode.append(run);
 	};
@@ -151,8 +149,14 @@ function appendMeasuredText(
 	italic: boolean,
 	widths: WidthCache,
 	foreground: string,
+	underlined: boolean,
 ): void {
 	let plain = "";
+	const flushPlain = (): void => {
+		if (plain === "") return;
+		appendRunText(run, underlined ? underlinedText(plain) : plain, foreground);
+		plain = "";
+	};
 	for (const cluster of rowClusters(text, spans)) {
 		const ascii = cluster.text.codePointAt(0)! < 0x80 && cluster.text.length === 1;
 		const spacing = ascii ? 0 : Math.round((cluster.end - cluster.start) * cellWidth - widths.get(cluster.text, bold, italic));
@@ -160,17 +164,14 @@ function appendMeasuredText(
 			plain += cluster.text;
 			continue;
 		}
-		if (plain !== "") {
-			appendRunText(run, plain, foreground);
-			plain = "";
-		}
+		flushPlain();
 		const node = document.createElement("span");
 		node.dataset.terminalWidth = "";
-		node.textContent = cluster.text;
+		node.textContent = underlined ? underlinedText(cluster.text) : cluster.text;
 		node.style.letterSpacing = `${spacing}px`;
 		run.append(node);
 	}
-	if (plain !== "") appendRunText(run, plain, foreground);
+	flushPlain();
 }
 
 export const CLASS_GLYPH = "terminal-block-glyph";

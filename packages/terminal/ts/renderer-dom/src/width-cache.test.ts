@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { ATTR_UNDERLINE, STYLE_DEFAULT_UNDERLINE } from "@operator/terminal-core";
 import { REPEAT, WidthCache } from "./width-cache";
 import { buildRowNode, type RowSource } from "./row-builder";
 import { DEFAULT_FEATURES } from "./features";
@@ -45,5 +46,47 @@ describe("letter-spacing correction in a row", () => {
 		expect(rowOf("abc", [], true, 8).querySelector("[data-terminal-width]")).toBeNull();
 		expect(rowOf("a漢b", [1, 4, 2], true, 16).querySelector("[data-terminal-width]")).toBeNull();
 		expect(rowOf("a漢b", [1, 4, 2], false, 17).querySelector("[data-terminal-width]")).toBeNull();
+	});
+});
+
+describe("letter-spacing correction alongside attributes: warp underline spaces", () => {
+	function rowOfUnderlined(text: string, spans: number[], measured: number): HTMLElement {
+		const content = new TextEncoder().encode(text);
+		const source: RowSource = {
+			content,
+			rows: Uint32Array.from([0, content.byteLength]),
+			runRanges: Uint32Array.from([0, 1]),
+			stylePairs: Uint32Array.from([content.byteLength, 255, 254, ATTR_UNDERLINE, STYLE_DEFAULT_UNDERLINE]),
+			spanRanges: Uint32Array.from([0, spans.length / 3]),
+			cellSpans: Uint32Array.from(spans),
+		};
+		const cache = new WidthCache(() => measured);
+		const features = { ...DEFAULT_FEATURES, attributes: "warp" as const, widthCache: true };
+		return buildRowNode(source, 0, 0, new TextDecoder(), 8, features, cache);
+	}
+
+	it("keeps the correct letter-spacing for a wide cluster after an underlined space", () => {
+		const withoutSpace = rowOfUnderlined("漢", [0, 3, 2], 17);
+		const expectedSpacing = withoutSpace.querySelector<HTMLElement>("[data-terminal-width]")!.style.letterSpacing;
+
+		const row = rowOfUnderlined(" 漢", [1, 4, 2], 17);
+		const corrected = row.querySelector<HTMLElement>("[data-terminal-width]")!;
+		expect(corrected.textContent).toBe("漢");
+		expect(corrected.style.letterSpacing).toBe(expectedSpacing);
+		expect(row.textContent).toBe(" 漢");
+	});
+
+	it("does not misalign a second wide cluster after two underlined spaces", () => {
+		const row = rowOfUnderlined("  漢", [2, 5, 2], 17);
+		const corrected = row.querySelector<HTMLElement>("[data-terminal-width]")!;
+		expect(corrected.textContent).toBe("漢");
+		expect(corrected.style.letterSpacing).toBe("-1px");
+		expect(row.textContent).toBe("  漢");
+	});
+
+	it("leaves a pure-ascii underlined run out of the width-cache measurement path", () => {
+		const row = rowOfUnderlined("a b", [], 8);
+		expect(row.querySelector("[data-terminal-width]")).toBeNull();
+		expect(row.textContent).toBe("a b");
 	});
 });
