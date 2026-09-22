@@ -87,7 +87,7 @@ Entries the agent-TUI spec (`docs/superpowers/specs/2026-09-19-agent-tui-experie
 | §5.10 | Partial | Replaced by Rust-side coverage (Plan A `tests/ref`, integrity proptest); no Python screen suite. |
 | §6.2 | Partial | Plan E — block start/finish timestamps from the feed clock. Confidence, invalidation and serialisation not done. |
 | §6.3 | Partial | Plan C — replay with block records and flow-control acks. Reconnect grace periods, heartbeat and persistence across restarts not done. |
-| §6.4 | Done | Plan E — VS Code's suffix grammar ported with its test table; paths validated by the host. |
+| §6.4 | Done | Hover tries the spans through the hovered cell, longest first, in one capped `resolveFirstPath` host call; VS Code's suffix grammar (ported with its test table) strips the line/column. |
 | §6.5 | Partial | Plan F — desktop overlay with the exclusion list; no prediction timeline, no phone. |
 | §7.3 | Done | Plan E — host patterns masked in copy, selection, links, hints and block text; default off. |
 | §7.4 | Done | Plan E — capped, never-reclaimed registry; the link id is the sixth style word. |
@@ -3627,7 +3627,7 @@ from multi-line commands), `IsWindows` (ConPTY heuristics), `PromptType`
 
 ### 6.4 Links: suffix grammar (`file:line:col` and friends), validation against the file system, per-line caps
 
-> **Status: Done.** Plan E — VS Code's suffix grammar ported with its test table; paths validated by the host.
+> **Status: Done.** Hover tries the spans through the hovered cell, longest first, and the host answers the first that exists in one batched `HostCapabilities.resolveFirstPath` call (at most 20 candidates, enforced in the package and in the native command). VS Code's suffix grammar, ported with its test table, strips `file:line:col` and friends and carries the line and column to `openPath`. `TERMINAL.md` §4.23 has the rules.
 
 **Reference**
 - `vscode/src/vs/workbench/contrib/terminalContrib/links/browser/terminalLinkParsing.ts:44-140`

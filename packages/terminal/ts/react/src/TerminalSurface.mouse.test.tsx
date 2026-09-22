@@ -1,4 +1,8 @@
+import { readFile } from "node:fs/promises";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { act, cleanup } from "@testing-library/react";
+import type { PathCandidate } from "@operator/terminal-core";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { feed, flushRepaint, font, loadWasm, renderSurface, setHostSize } from "./surface-harness";
 
@@ -531,6 +535,38 @@ describe("TerminalSurface selection", () => {
 		}
 	});
 
+	it("underlines the ~/ working directory Claude Code's startup banner prints beside its mascot", async () => {
+		const banner = await readFile(join(dirname(fileURLToPath(import.meta.url)), "__fixtures__", "claude-code-banner"));
+		const asked: string[][] = [];
+		const host = {
+			writeClipboard: async () => {},
+			readClipboard: async () => "",
+			openLink: async () => {},
+			resolveFirstPath: async (candidates: readonly PathCandidate[]) => {
+				asked.push(candidates.map((candidate) => candidate.path));
+				const index = candidates.findIndex((candidate) => candidate.allowDirectory && candidate.path === "~/development/AI");
+				return index < 0 ? null : { index, path: "/Users/me/development/AI" };
+			},
+			openPath: async () => {},
+		};
+		const { container, core, host: blockHost, refit } = renderSurface({ host });
+		setHostSize(blockHost, 1200, 800);
+		refit(1);
+		act(() => { core.feed(new Uint8Array(banner)); });
+		await flushRepaint();
+		const surface = container.querySelector(".terminal-host") as HTMLElement;
+		const rows = layoutRows(container);
+		const row = rows.findIndex((element) => element.textContent?.includes("~/development/AI"));
+		expect(row).toBeGreaterThanOrEqual(0);
+		expect(rows[row]!.textContent).toContain("▝▝");
+		mouse(rows[row]!, "mousemove", cellWidth * 14.5, cellHeight * (row + 0.5));
+		await new Promise((resolve) => setTimeout(resolve, 0));
+		expect(asked).toHaveLength(1);
+		expect(asked[0]![0]).toBe("~/development/AI");
+		expect(surface.classList.contains("terminal-link-hover")).toBe(true);
+		expect(container.querySelectorAll(".terminal-link-underline").length).toBeGreaterThan(0);
+	});
+
 	it("keeps the host's path provider when the renderer is rebuilt under it", async () => {
 		const originalPlatform = Object.getOwnPropertyDescriptor(navigator, "platform");
 		Object.defineProperty(navigator, "platform", { value: "MacIntel", configurable: true });
@@ -540,7 +576,10 @@ describe("TerminalSurface selection", () => {
 				writeClipboard: async () => {},
 				readClipboard: async () => "",
 				openLink: async () => {},
-				resolvePath: async (path: string) => (path.endsWith(".ts") ? `/abs/${path}` : null),
+				resolveFirstPath: async (candidates: readonly PathCandidate[]) => {
+					const index = candidates.findIndex((candidate) => candidate.path === "src/a.ts");
+					return index < 0 ? null : { index, path: `/abs/${candidates[index]!.path}` };
+				},
 				openPath,
 			};
 			const { container, core, host: blockHost, refit, rebuild } = renderSurface({ host });

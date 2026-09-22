@@ -415,7 +415,10 @@ window.__agentSession = {
 	enablePathLinks: (suffixes) => {
 		domRenderer.setLinkProviders([
 			...DEFAULT_LINK_PROVIDERS,
-			createPathProvider(async (path) => (suffixes.some((suffix) => path.endsWith(suffix)) ? `/probe/${path}` : null), () => "", "posix"),
+			createPathProvider(async (candidates) => {
+				const index = candidates.findIndex((candidate) => !/\s/u.test(candidate.path) && suffixes.some((suffix) => candidate.path.endsWith(suffix)));
+				return index < 0 ? null : { index, path: `/probe/${candidates[index]!.path}` };
+			}, () => ""),
 		]);
 	},
 	hintBegin: () => domRenderer.hintBegin(),

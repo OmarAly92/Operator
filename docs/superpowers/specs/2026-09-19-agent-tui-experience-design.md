@@ -1010,7 +1010,10 @@ move during streaming repaints one row.
 - **Link grammar** (survey §6.4): port `vscode/src/vs/workbench/contrib/terminalContrib/links/browser/terminalLinkParsing.ts:44-214`
   (every `file:339`, `file:339:12`, `file(339,12)`, `"file", line 339`, …
   form, with its test table) to `ts/renderer-dom/src/link-parsing.ts`;
-  candidates validated by the host (`HostCapabilities.resolvePath?`).
+  used for its suffix functions only. Hover builds the candidate spans
+  through the hovered cell, longest first, and the host checks them in one
+  batched, capped call (`HostCapabilities.resolveFirstPath?`); see
+  `TERMINAL.md` §4.23.
 - **Linkifier** (survey §3.7): hover → per-logical-line providers (OSC 8,
   regex) → underline decoration → click with the platform modifier; pointer
   hand only over a link (`TERMINAL.md` §4.12).

@@ -43,12 +43,19 @@ fn http_s_authority(remainder: &str) -> bool {
 /// relative candidate without a base is unanswerable, which is what keeps a bare
 /// word in terminal output from resolving against the daemon's own cwd.
 pub fn resolved_link_path(base: Option<&str>, path: &str) -> Option<PathBuf> {
+    let home = std::env::var_os("HOME").map(PathBuf::from);
+    link_path_in(base, home.as_deref(), path)
+}
+
+fn link_path_in(base: Option<&str>, home: Option<&Path>, path: &str) -> Option<PathBuf> {
     let trimmed = path.trim();
     if trimmed.is_empty() || trimmed.contains('\0') {
         return None;
     }
-    let expanded = if let Some(rest) = trimmed.strip_prefix("~/") {
-        std::env::var_os("HOME").map(PathBuf::from)?.join(rest)
+    let expanded = if trimmed == "~" {
+        home?.to_path_buf()
+    } else if let Some(rest) = trimmed.strip_prefix("~/") {
+        home?.join(rest)
     } else {
         PathBuf::from(trimmed)
     };
@@ -59,6 +66,42 @@ pub fn resolved_link_path(base: Option<&str>, path: &str) -> Option<PathBuf> {
     };
     let resolved = candidate.canonicalize().ok()?;
     resolved.exists().then_some(resolved)
+}
+
+pub const MAX_PATH_CANDIDATES: usize = 20;
+
+#[derive(Clone, Debug, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PathCandidate {
+    pub path: String,
+    pub allow_directory: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
+pub struct ResolvedPath {
+    pub index: usize,
+    pub path: String,
+}
+
+pub fn first_existing_path(
+    base: Option<&str>,
+    home: Option<&Path>,
+    candidates: &[PathCandidate],
+) -> Option<ResolvedPath> {
+    candidates
+        .iter()
+        .take(MAX_PATH_CANDIDATES)
+        .enumerate()
+        .find_map(|(index, candidate)| {
+            let resolved = link_path_in(base, home, &candidate.path)?;
+            if resolved.is_dir() && !candidate.allow_directory {
+                return None;
+            }
+            Some(ResolvedPath {
+                index,
+                path: resolved.to_string_lossy().to_string(),
+            })
+        })
 }
 
 pub fn is_allowed_app_external_url(raw_url: &str) -> bool {
@@ -187,6 +230,19 @@ pub async fn resolve_path(base: Option<String>, path: String) -> Result<Option<S
     tauri::async_runtime::spawn_blocking(move || {
         resolved_link_path(base.as_deref(), &path)
             .map(|resolved| resolved.to_string_lossy().to_string())
+    })
+    .await
+    .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub async fn resolve_first_path(
+    base: Option<String>,
+    candidates: Vec<PathCandidate>,
+) -> Result<Option<ResolvedPath>, String> {
+    let home = std::env::var_os("HOME").map(PathBuf::from);
+    tauri::async_runtime::spawn_blocking(move || {
+        first_existing_path(base.as_deref(), home.as_deref(), &candidates)
     })
     .await
     .map_err(|error| error.to_string())
@@ -728,5 +784,129 @@ mod tests {
         let parsed = <Option<SessionEntry>>::from(&actionable).unwrap();
         assert_eq!(parsed.zone, Zone::Merge);
         assert_eq!(parsed.project_name, "Alpha");
+    }
+    fn scratch(name: &str) -> PathBuf {
+        let root =
+            std::env::temp_dir().join(format!("operator-first-path-{}-{name}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(root.join("src")).unwrap();
+        std::fs::create_dir_all(root.join("home/notes")).unwrap();
+        std::fs::write(root.join("src/a.ts"), "").unwrap();
+        std::fs::write(root.join("home/todo.md"), "").unwrap();
+        root.canonicalize().unwrap()
+    }
+
+    fn candidate(path: &str, allow_directory: bool) -> PathCandidate {
+        PathCandidate {
+            path: path.into(),
+            allow_directory,
+        }
+    }
+
+    #[test]
+    fn first_existing_path_answers_with_the_first_candidate_that_exists() {
+        let root = scratch("first");
+        let base = root.to_str();
+        let found = first_existing_path(
+            base,
+            None,
+            &[
+                candidate("see src/a.ts", false),
+                candidate("src/a.ts", false),
+                candidate("src", true),
+            ],
+        );
+        assert_eq!(
+            found,
+            Some(ResolvedPath {
+                index: 1,
+                path: root.join("src/a.ts").to_string_lossy().to_string(),
+            })
+        );
+        assert_eq!(
+            first_existing_path(base, None, &[candidate("gone.ts", false)]),
+            None
+        );
+        assert_eq!(
+            first_existing_path(None, None, &[candidate("src/a.ts", false)]),
+            None
+        );
+    }
+
+    #[test]
+    fn first_existing_path_expands_a_bare_tilde_and_a_tilde_slash_against_home() {
+        let root = scratch("home");
+        let home = root.join("home");
+        let found = |path: &str| {
+            first_existing_path(None, Some(&home), &[candidate(path, true)])
+                .map(|resolved| resolved.path)
+        };
+        assert_eq!(found("~"), Some(home.to_string_lossy().to_string()));
+        assert_eq!(
+            found("~/todo.md"),
+            Some(home.join("todo.md").to_string_lossy().to_string())
+        );
+        assert_eq!(
+            found("~/notes"),
+            Some(home.join("notes").to_string_lossy().to_string())
+        );
+        assert_eq!(
+            first_existing_path(None, None, &[candidate("~", true)]),
+            None
+        );
+    }
+
+    #[test]
+    fn first_existing_path_skips_a_directory_the_candidate_does_not_allow() {
+        let root = scratch("directories");
+        let base = root.to_str();
+        assert_eq!(
+            first_existing_path(base, None, &[candidate("src", false)]),
+            None
+        );
+        assert_eq!(
+            first_existing_path(
+                base,
+                None,
+                &[candidate("src", false), candidate("src/a.ts", false)]
+            )
+            .map(|resolved| resolved.index),
+            Some(1)
+        );
+        assert_eq!(
+            first_existing_path(base, None, &[candidate("src/", true)])
+                .map(|resolved| resolved.path),
+            Some(root.join("src").to_string_lossy().to_string())
+        );
+    }
+
+    #[test]
+    fn first_existing_path_never_looks_past_the_candidate_cap() {
+        let root = scratch("cap");
+        let base = root.to_str();
+        let mut candidates: Vec<PathCandidate> = (0..MAX_PATH_CANDIDATES)
+            .map(|index| candidate(&format!("missing-{index}"), false))
+            .collect();
+        candidates.push(candidate("src/a.ts", false));
+        assert_eq!(first_existing_path(base, None, &candidates), None);
+        candidates.remove(0);
+        assert_eq!(
+            first_existing_path(base, None, &candidates).map(|resolved| resolved.index),
+            Some(MAX_PATH_CANDIDATES - 1)
+        );
+    }
+
+    #[test]
+    fn path_candidates_arrive_in_the_renderer_s_camel_case() {
+        let parsed: Vec<PathCandidate> =
+            serde_json::from_str(r#"[{"path":"~/x","allowDirectory":true}]"#).unwrap();
+        assert_eq!(parsed[0].path, "~/x");
+        assert!(parsed[0].allow_directory);
+        let sent = serde_json::to_value(ResolvedPath {
+            index: 2,
+            path: "/a".into(),
+        })
+        .unwrap();
+        assert_eq!(sent, serde_json::json!({ "index": 2, "path": "/a" }));
     }
 }

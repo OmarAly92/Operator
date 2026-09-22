@@ -122,7 +122,6 @@ export class DomBlockRenderer implements BlockRenderer {
 	private linkProviders: readonly LinkProvider[] = DEFAULT_LINK_PROVIDERS;
 	private readonly linkifier = new Linkifier({
 		rows: () => this.textRows(),
-		generation: () => this.core?.snapshot().generation ?? Number.NaN,
 		providers: () => this.linkProviders,
 		onChange: () => this.linkChanged(),
 	});

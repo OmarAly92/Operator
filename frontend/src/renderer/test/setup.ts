@@ -159,6 +159,7 @@ if (typeof window !== "undefined") {
 			chooseDirectory: async () => null,
 			openExternal: async () => undefined,
 			resolvePath: async () => null,
+			resolveFirstPath: async () => null,
 			openPath: async () => ({ cliMissing: false }),
 			scanImportFolder: async ({ path }: { path: string }) => ({ path, repos: [] }),
 			checkAncestorRepo: async () => undefined,

@@ -338,6 +338,24 @@ describe("tauri-bridge native integrations", () => {
 		);
 	});
 
+	it("sends every hover candidate to the native resolver in one call and returns the first that exists", async () => {
+		const invoke = vi.fn<Invoke>(async () => null);
+		const tauri = bridgeWith(invoke);
+		const candidates = [
+			{ path: "see a.md", allowDirectory: false },
+			{ path: "a.md", allowDirectory: false },
+		];
+
+		invoke.mockResolvedValueOnce({ index: 1, path: "/work/a.md" });
+		await expect(tauri.app.resolveFirstPath("/work", candidates)).resolves.toEqual({ index: 1, path: "/work/a.md" });
+		expect(invoke).toHaveBeenCalledTimes(1);
+		expect(invoke).toHaveBeenLastCalledWith("resolve_first_path", { base: "/work", candidates });
+
+		invoke.mockResolvedValueOnce(null);
+		await expect(tauri.app.resolveFirstPath(null, candidates)).resolves.toBeNull();
+		expect(invoke).toHaveBeenLastCalledWith("resolve_first_path", { base: null, candidates });
+	});
+
 	it("passes a link path and its base to the native resolver and opens a resolved path", async () => {
 		const invoke = vi.fn<Invoke>(async () => null);
 		const tauri = bridgeWith(invoke);

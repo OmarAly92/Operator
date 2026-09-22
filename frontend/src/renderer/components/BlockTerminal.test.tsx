@@ -29,7 +29,10 @@ const mockState = vi.hoisted(() => {
 			| {
 					writeClipboard: (text: string) => Promise<void>;
 					openLink: (url: string) => Promise<void>;
-					resolvePath?: (path: string, cwd: string) => Promise<string | null>;
+					resolveFirstPath?: (
+						candidates: readonly { path: string; allowDirectory: boolean }[],
+						cwd: string,
+					) => Promise<{ index: number; path: string } | null>;
 					openPath?: (path: string, line?: number, column?: number) => Promise<void>;
 					secretPatterns?: readonly { source: string; flags?: string }[];
 					predictiveEcho?: Readonly<{ thresholdMs: number }>;
@@ -148,7 +151,10 @@ vi.mock("@operator/terminal-react", () => {
 			host?: {
 				writeClipboard: (text: string) => Promise<void>;
 				openLink: (url: string) => Promise<void>;
-				resolvePath?: (path: string, cwd: string) => Promise<string | null>;
+				resolveFirstPath?: (
+						candidates: readonly { path: string; allowDirectory: boolean }[],
+						cwd: string,
+					) => Promise<{ index: number; path: string } | null>;
 				openPath?: (path: string, line?: number, column?: number) => Promise<void>;
 				secretPatterns?: readonly { source: string; flags?: string }[];
 				predictiveEcho?: Readonly<{ thresholdMs: number }>;
@@ -254,6 +260,7 @@ vi.mock("../lib/bridge", () => ({
 		},
 		app: {
 			resolvePath: vi.fn().mockResolvedValue(null),
+			resolveFirstPath: vi.fn().mockResolvedValue(null),
 			openPath: vi.fn().mockResolvedValue({ cliMissing: false }),
 		},
 		notifications: {
@@ -278,6 +285,7 @@ import { openLinkInSystemBrowser } from "../lib/external-link-policy";
 
 const openPathMock = vi.mocked(operatorBridge.app.openPath);
 const resolvePathMock = vi.mocked(operatorBridge.app.resolvePath);
+const resolveFirstPathMock = vi.mocked(operatorBridge.app.resolveFirstPath);
 const showNotificationMock = vi.mocked(operatorBridge.notifications.show);
 const openLinkMock = vi.mocked(openLinkInSystemBrowser);
 
@@ -385,6 +393,7 @@ beforeEach(() => {
 	mockState.onBlockFinished = undefined;
 	openPathMock.mockClear();
 	resolvePathMock.mockReset().mockResolvedValue(null);
+	resolveFirstPathMock.mockReset().mockResolvedValue(null);
 	showNotificationMock.mockClear();
 	openLinkMock.mockClear();
 	mockState.revision = 0;
@@ -398,11 +407,24 @@ describe("BlockTerminal", () => {
 	it("gives the surface the path resolver, the editor opener, the host's patterns and the two callbacks", async () => {
 		renderTerminal({ workspacePath: "/work" });
 		await waitFor(() => expect(mockState.host).toBeDefined());
-		expect(typeof mockState.host?.resolvePath).toBe("function");
+		expect(typeof mockState.host?.resolveFirstPath).toBe("function");
 		expect(typeof mockState.host?.openPath).toBe("function");
 		expect(mockState.host?.secretPatterns).toEqual([]);
 		expect(typeof mockState.onHint).toBe("function");
 		expect(typeof mockState.onBlockFinished).toBe("function");
+	});
+
+	it("resolves hovered path candidates against the block's cwd, falling back to the session's workspace", async () => {
+		resolveFirstPathMock.mockResolvedValue({ index: 0, path: "/block/a.md" });
+		renderTerminal({ workspacePath: "/work" });
+		await waitFor(() => expect(mockState.host?.resolveFirstPath).toBeTypeOf("function"));
+		const candidates = [{ path: "a.md", allowDirectory: false }];
+
+		await expect(mockState.host!.resolveFirstPath!(candidates, "/block")).resolves.toEqual({ index: 0, path: "/block/a.md" });
+		expect(resolveFirstPathMock).toHaveBeenLastCalledWith("/block", candidates);
+		await mockState.host!.resolveFirstPath!(candidates, "");
+		expect(resolveFirstPathMock).toHaveBeenLastCalledWith("/work", candidates);
+		expect(resolveFirstPathMock).toHaveBeenCalledTimes(2);
 	});
 
 	it("resolves a hinted path against the workspace before opening it, and only then", async () => {

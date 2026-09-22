@@ -386,14 +386,13 @@ history of `master`.
   to the full line height".
 
 ### 4.12 I-beam pointer over the transcript — `b687426fd`
-- Selectable text gets a browser I-beam by default. Warp keeps the platform arrow
-  over its grid and uses the pointing hand only for links (`app/src/util/link_detection.rs`).
+- Selectable text gets a browser I-beam by default. The transcript keeps the
+  platform arrow over its grid instead:
   `.terminal-block, .terminal-alt-surface { cursor: default }`. Guard:
   `styles-parity.test.ts` "keeps the arrow over the transcript".
 - Plan E: the arrow is still the default everywhere else in the transcript;
   the pointing hand appears only while the `Linkifier` reports a link under
-  the pointer (`.terminal-link-hover`), Warp's own rule
-  (`app/src/terminal/view.rs` `set_cursor_shape`). Guard:
+  the pointer (`.terminal-link-hover`). How a link is found is §4.23. Guard:
   `styles-parity.test.ts` "shows the pointing hand only while a link is under
   the pointer".
 
@@ -678,6 +677,62 @@ history of `master`.
   `…::a_private_m_sequence_in_a_history_chunk_is_not_sgr_either`,
   `…::the_claude_code_recording_carries_no_attribute_bits` (feeds the real
   spinner recording and asserts no attribute bit on any run).
+
+### 4.23 Hover file paths — Operator's own rules, VS Code's suffix grammar
+- An exception to §3.2: this detector is written clean-room from the rules
+  below and our own Claude Code captures. Do not port another terminal's
+  file-path detector into it (licence), and cite only VS Code (MIT) here.
+- What it does: hovering a cell looks for a link through that cell. An OSC 8
+  hyperlink wins, then a URL (xterm.js's strict grammar), then a file path —
+  providers in that order, earlier wins on overlap (`mergeLinks`); the path
+  provider never asks the host about a cell inside a hyperlink or a URL.
+- Candidates (`ts/renderer-dom/src/path-candidates.ts`, `pathCandidatesAt`):
+  the hovered cell's segment runs between hard breaks — quotes, backtick,
+  `()[]{}<>`, `|`, `;`, `,`, `=` and `PATH_BREAK_GLYPHS`. The glyphs are every
+  non-letter, non-digit, non-space code point above ASCII in the two Claude
+  Code recordings (`bench/agent-session/fixtures/*/recording`), plus the
+  non-ASCII markers of vt-core's own `hanging_indent` table (`row_index.rs`,
+  which adds `│ ├ └`, absent from both recordings). Whitespace only bounds a
+  span: every span of up to `MAX_SPAN_WORDS = 4` whole words through the cell
+  is a candidate, longest first, so `My Docs/a.md` links when it exists and
+  `see a.md` never outranks `a.md` unless `see a.md` itself exists.
+- Each span: trailing `. , : ; ! ?` is dropped unless the last component is
+  `.` or `..`; a line/column suffix is stripped with VS Code's grammar
+  (`link-parsing.ts`, a port of
+  `vscode/src/vs/workbench/contrib/terminalContrib/links/browser/terminalLinkParsing.ts`):
+  `getLinkSuffix` inside the span (`file:12`, `file:12:3`, `file#12`,
+  `file 12`), `detectLinkSuffixes` right after it (`file(12,3)`,
+  `"file", line 12`), plus GitHub's `#L12` / `#L12C3`, which VS Code's
+  table does not have. A path starting `a/` or `b/` is also offered without
+  the prefix. A directory may match only when the span has no line suffix
+  and looks like a path (contains `/` or `\`, or starts with `~` or `.`),
+  so `docs`, `src` or `backend` in prose never links.
+- One batched host call: `HostCapabilities.resolveFirstPath(candidates, cwd)`
+  gets every candidate at once and answers the first that exists, as
+  `{ index, path }`. `MAX_PATH_CANDIDATES = 20` — 10 spans (the most four-word
+  windows that can contain one word: 4 + 3 + 2 + 1) times the two readings of
+  a diff path — is enforced by `pathCandidatesAt` and again by Operator's
+  `resolve_first_path` (`frontend/src-tauri/src/native.rs`,
+  `first_existing_path`), which also expands `~` and `~/…` and skips a
+  directory a candidate does not allow. Operator passes the block's cwd,
+  falling back to the session's workspace path.
+- Caching: only a found path is remembered, keyed by cwd and the logical
+  line's text (256 lines), so the spinner repainting other rows never drops
+  it; "not found" is never cached, so a path hovered before the file exists
+  links on the next hover once it does. The `Linkifier` reuses its answer
+  for the same cell while the line's text is unchanged.
+- Cost, measured 2026-09-23 on `claude-long-50k` (60,137 logical lines; the
+  longest is 120 chars / 24 words, a prompt row): at most 10 candidates on
+  any cell, mean 4.8 over the 109 cells that yield any; 0.01–0.02 ms to build
+  them per hover; `first_existing_path` 0.10 ms for 10 misses and 0.19 ms
+  for 20 (release build, this machine).
+- Guards: `path-candidates.test.ts`, `link-providers.test.ts`
+  ("createPathProvider", one test per rule), `linkifier.test.ts`,
+  `TerminalSurface.mouse.test.tsx` "underlines the ~/ working directory
+  Claude Code's startup banner prints beside its mascot" (real banner bytes
+  from a `claude` v2.1.280 launch in a pty, `ts/react/src/__fixtures__/claude-code-banner`
+  — the recorded fixtures print an elided `/…/` path instead), `native.rs`
+  `first_existing_path_*`, `tauri-bridge.test.ts`, `BlockTerminal.test.tsx`.
 
 ## 5. Known gaps (not bugs, decisions pending)
 

@@ -26,10 +26,6 @@ export function isMacPlatform(): boolean {
 	return typeof navigator !== "undefined" && /Mac|iPhone|iPad/u.test(navigator.platform);
 }
 
-export function isWindowsPlatform(): boolean {
-	return typeof navigator !== "undefined" && /Win/u.test(navigator.platform);
-}
-
 export const SELECTION_CHROME =
 	".terminal-block-header, .terminal-block-actions, .terminal-pinned-header, .terminal-jump-to-bottom, .terminal-find-bar, .terminal-palette";
 

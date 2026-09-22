@@ -99,10 +99,8 @@ describe("terminalStyles", () => {
 		expect(rule).toContain("height: var(--terminal-line-height)");
 	});
 
-	// Warp shows the platform arrow over its grid and reserves the pointing hand
-	// for detected links (app/src/util/link_detection.rs); it never asks for an
-	// I-beam there. A browser turns selectable text into an I-beam by default,
-	// so the transcript must ask for the arrow explicitly.
+	// A browser turns selectable text into an I-beam by default, so the
+	// transcript must ask for the arrow explicitly.
 	it("keeps the arrow over the transcript, the way Warp's grid does", () => {
 		const block = terminalStyles.slice(
 			terminalStyles.indexOf(".terminal-block,"),
