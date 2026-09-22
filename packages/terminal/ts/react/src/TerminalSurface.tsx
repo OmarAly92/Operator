@@ -85,6 +85,7 @@ export function TerminalSurface({
 	features,
 }: TerminalSurfaceProps): ReactElement {
 	const hostRef = useRef<HTMLDivElement | null>(null);
+	const surfaceRef = useRef<HTMLDivElement | null>(null);
 	const editorHostRef = useRef<HTMLDivElement | null>(null);
 	const rendererRef = useRef<DomBlockRenderer | null>(null);
 	const editorRef = useRef<LineEditor | null>(null);
@@ -490,6 +491,10 @@ export function TerminalSurface({
 			if (isCopyChord(event, isMacPlatform())) return;
 			renderer()?.selectionClear();
 		};
+		const surface = surfaceRef.current;
+		const reportFocus = () => rendererRef.current?.setFocused(surface !== null && surface.contains(document.activeElement));
+		const onSurfaceFocusIn = () => reportFocus();
+		const onSurfaceFocusOut = () => reportFocus();
 		blockHost.addEventListener("mousedown", onMouseDown);
 		blockHost.addEventListener("mousemove", onMouseMove);
 		window.addEventListener("mouseup", onMouseUp);
@@ -499,6 +504,8 @@ export function TerminalSurface({
 		blockHost.addEventListener("keydown", onCopyKey);
 		editorHost.addEventListener("keydown", onCopyKey);
 		editorHost.addEventListener("keydown", onEditorTyping);
+		surface?.addEventListener("focusin", onSurfaceFocusIn);
+		surface?.addEventListener("focusout", onSurfaceFocusOut);
 		return () => {
 			blockHost.removeEventListener("mousedown", onMouseDown);
 			blockHost.removeEventListener("mousemove", onMouseMove);
@@ -509,6 +516,8 @@ export function TerminalSurface({
 			blockHost.removeEventListener("keydown", onCopyKey);
 			editorHost.removeEventListener("keydown", onCopyKey);
 			editorHost.removeEventListener("keydown", onEditorTyping);
+			surface?.removeEventListener("focusin", onSurfaceFocusIn);
+			surface?.removeEventListener("focusout", onSurfaceFocusOut);
 			window.removeEventListener("mousemove", onWindowMouseMove);
 			window.removeEventListener("mouseup", onWindowMouseUp);
 			stopAutoScroll();
@@ -549,7 +558,7 @@ export function TerminalSurface({
 
 	const hostClassName = className ? `terminal-host ${className}` : "terminal-host";
 	const blockList = (
-		<div className="terminal-surface">
+		<div className="terminal-surface" ref={surfaceRef}>
 			{/* tabindex only while the alt-screen handler below is bound. In the
 			    normal buffer the editor is the input surface, and a focusable host
 			    steals the click: nothing handles keys there, so typing is dropped,

@@ -77,6 +77,7 @@ if (featureList !== "") {
 	domRenderer.setFeatures(parsed);
 	if (parsed.graphemes) core.setGraphemeClusters(true);
 }
+domRenderer.setFocused(params.get("focused") !== "0");
 domRenderer.onPaint(() => {
 	paints += 1;
 });

@@ -1,6 +1,6 @@
 import { defaultStrings, type BlockView } from "@operator/terminal-core";
 import { renderBlockHeader } from "./block-header.js";
-import { placeCursor, type CursorPlacement } from "./cursor.js";
+import { placeCursor, type CursorPaint, type CursorPlacement } from "./cursor.js";
 import type { RendererFeatures } from "./features.js";
 import { buildRowNode, type RowSource } from "./row-builder.js";
 import type { RowWindow } from "./viewport.js";
@@ -17,6 +17,7 @@ export type BlockBodyInput = Readonly<{
 	cellWidth: number;
 	cursor: CursorPlacement | null;
 	cursorElement: HTMLElement;
+	cursorPaint: CursorPaint;
 	decoder: TextDecoder;
 	firstStableRow: number;
 	generation: number;
@@ -75,7 +76,7 @@ export function populateBlock(section: HTMLElement, input: BlockBodyInput): { cu
 			body.rows.set(stableRow, node);
 		}
 		if (input.cursor && input.cursor.row === snapshotRow) {
-			placeCursor(node, input.cursorElement, input.cursor.column, input.cellWidth);
+			placeCursor(node, input.cursorElement, input.cursor.column, input.cellWidth, input.cursorPaint);
 			cursorPlaced = true;
 		}
 		desired.push(node);

@@ -12,7 +12,7 @@ import {
 } from "@operator/terminal-core";
 import { renderAltSurface } from "./alt-surface.js";
 import { populateBlock, reconcileChildren, ROW_GENERATION_ATTR } from "./block-body.js";
-import { createCursorElement, primaryCursorPlacement, type CursorPlacement } from "./cursor.js";
+import { createCursorElement, cursorPaintFor, primaryCursorPlacement, PLAIN_CURSOR_PAINT, type CursorPlacement } from "./cursor.js";
 import { ElementPool } from "./element-pool.js";
 import { bindActionEvents } from "./action-events.js";
 import { applyFilter, type BlockFilter } from "./block-filter.js";
@@ -100,6 +100,7 @@ export class DomBlockRenderer implements BlockRenderer {
 	private fullSince = 0;
 	private rebuildAll = false;
 	private activeFeatures: RendererFeatures = DEFAULT_FEATURES;
+	private focused = true;
 
 	mount(container: HTMLElement, core: TerminalCore): void {
 		this.dispose();
@@ -164,6 +165,12 @@ export class DomBlockRenderer implements BlockRenderer {
 
 	features(): RendererFeatures {
 		return this.activeFeatures;
+	}
+
+	setFocused(focused: boolean): void {
+		if (this.focused === focused) return;
+		this.focused = focused;
+		if (this.activeFeatures.cursorHollowUnfocused) this.scheduleRepaint();
 	}
 
 	setFilter(filter: BlockFilter | null): void {
@@ -547,6 +554,9 @@ export class DomBlockRenderer implements BlockRenderer {
 			if (!ids.has(this.selection.head.blockId) || !ids.has(this.selection.tail.blockId)) this.dropSelection();
 		}
 		const cursor: CursorPlacement | null = primaryCursorPlacement(snapshot);
+		const cursorPaint = cursor
+			? cursorPaintFor({ source: snapshot, row: cursor.row, column: cursor.column, theme: this.theme, features: this.activeFeatures, focused: this.focused, decoder: this.decoder })
+			: PLAIN_CURSOR_PAINT;
 		const dirty = core.takeDirty();
 		if (dirty.full || this.rebuildAll) {
 			this.fullSince = snapshot.generation;
@@ -626,6 +636,7 @@ export class DomBlockRenderer implements BlockRenderer {
 					cellWidth,
 					cursor,
 					cursorElement,
+					cursorPaint,
 					decoder: this.decoder,
 					firstStableRow: snapshot.firstStableRow,
 					generation: snapshot.generation,

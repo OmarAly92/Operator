@@ -117,6 +117,12 @@ describe("terminalStyles", () => {
 		expect(terminalStylesForDocument()).not.toContain('url("./fonts/');
 	});
 
+	it("paints the inverted cursor above its glyph and the unfocused cursor hollow", () => {
+		expect(terminalStyles).toContain(".terminal-cursor-inverted");
+		expect(terminalStyles).toContain(".terminal-cursor-hollow");
+		expect(terminalStyles).toContain("box-shadow: inset 0 0 0 1px var(--terminal-cursor)");
+	});
+
 	it("draws every SGR decoration from data attributes, with Warp's underline thickness", () => {
 		for (const rule of [
 			".terminal-run[data-italic]",

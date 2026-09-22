@@ -45,15 +45,17 @@ function indexedToCss(index: number): string {
 	if (index < 16) {
 		return `var(--terminal-ansi-${index})`;
 	}
+	const [red, green, blue] = indexedRgb(index);
+	return `rgb(${red} ${green} ${blue})`;
+}
+
+export function indexedRgb(index: number): readonly [number, number, number] {
 	if (index < 232) {
 		const offset = index - 16;
-		const red = CUBE_LEVELS[Math.floor(offset / 36) % 6]!;
-		const green = CUBE_LEVELS[Math.floor(offset / 6) % 6]!;
-		const blue = CUBE_LEVELS[offset % 6]!;
-		return `rgb(${red} ${green} ${blue})`;
+		return [CUBE_LEVELS[Math.floor(offset / 36) % 6]!, CUBE_LEVELS[Math.floor(offset / 6) % 6]!, CUBE_LEVELS[offset % 6]!];
 	}
 	const level = 8 + (index - 232) * 10;
-	return `rgb(${level} ${level} ${level})`;
+	return [level, level, level];
 }
 
 export function styleCodeIsBold(code: number): boolean {

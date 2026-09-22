@@ -18,6 +18,8 @@ export type RowSource = Readonly<{
 	rowIndents?: Uint16Array;
 	runRanges: Uint32Array;
 	stylePairs: Uint32Array;
+	spanRanges?: Uint32Array;
+	cellSpans?: Uint32Array;
 }>;
 
 export function buildRowNode(

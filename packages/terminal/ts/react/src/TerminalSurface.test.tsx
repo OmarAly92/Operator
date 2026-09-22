@@ -500,4 +500,18 @@ describe("TerminalSurface", () => {
 		expect(setFeatures).toHaveBeenLastCalledWith({ attributes: "warp" });
 		setFeatures.mockRestore();
 	});
+
+	it("tells the renderer when focus enters and leaves the surface", () => {
+		const setFocused = vi.spyOn(DomBlockRenderer.prototype, "setFocused");
+		const core = createTerminalCore({ columns: 16, scrollback: 100 });
+		const { container } = render(
+			<TerminalSurface core={core} theme={theme} font={font} altScreenActive={false} onSend={() => undefined} onSendRaw={() => undefined} />,
+		);
+		const editor = container.querySelector<HTMLElement>(".terminal-editor")!;
+		act(() => editor.focus());
+		expect(setFocused).toHaveBeenLastCalledWith(true);
+		act(() => editor.blur());
+		expect(setFocused).toHaveBeenLastCalledWith(false);
+		setFocused.mockRestore();
+	});
 });

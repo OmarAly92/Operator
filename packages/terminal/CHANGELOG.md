@@ -9,6 +9,7 @@
 - renderer-dom: an elastic overscroll past the top or bottom edge (WebKit rubber-band, where `scrollTop` overshoots its range) no longer has the sticky-bottom and scroll-anchor writes snapping the position back every frame, which vibrated the pane at the end of the scroll.
 - vt-core/vt-wasm/core: the snapshot exports `spanRanges`/`cellSpans` (`CELL_SPAN_WORDS = 3`: row-relative byte `start`, `end`, cell `width`) for every cluster that is not a single width-1 scalar, on the primary and the alternate screen, through the incremental export like the style runs. Nothing reads them yet.
 - renderer-dom: selection and copy place cells from the snapshot's exported cell spans instead of a hand-written width table (`cell-width.ts`, deleted). Copying across a code point the table misclassified (`🚀` U+1F680 was one cell in the table and is two in the core) now yields the characters under the selection. With `graphemes` on, a ZWJ sequence or a flag is one two-cell cluster to the selection too.
+- renderer-dom: `RendererFeatures.cursorContrast` inverts the cursor (foreground box, background-coloured glyph) when the cell's background is within contrast 1.5 of the cursor colour (Alacritty `MIN_CURSOR_CONTRAST`); `cursorHollowUnfocused` draws a hollow block while the surface has no focus (Ghostty `cursor.zig`), reported by `TerminalSurface` through `DomBlockRenderer.setFocused`. Both default off. Side-by-side: `baselines/glyph-probe/feature-cursorContrast/`, `feature-cursorHollowUnfocused/`.
 
 Rows are patched, not rebuilt.
 

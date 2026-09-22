@@ -63,7 +63,8 @@ try {
 		await page.close();
 		if (feature) {
 			const side = await browser.newPage({ viewport: { width: 1600, height: 900 }, deviceScaleFactor: 1 });
-			await side.goto(`http://127.0.0.1:${port}/agent-session/index.html?fixture=${fixture}&dir=${fixtureDir}&features=${encodeURIComponent(feature)}`);
+			const focusParam = feature.split(",").includes("cursorHollowUnfocused") ? "&focused=0" : "";
+			await side.goto(`http://127.0.0.1:${port}/agent-session/index.html?fixture=${fixture}&dir=${fixtureDir}&features=${encodeURIComponent(feature)}${focusParam}`);
 			await side.waitForFunction(() => window.__agentSessionReady === true, undefined, { timeout: 30000 });
 			await side.evaluate(() => window.__agentSession.feedAll());
 			await side.waitForTimeout(300);

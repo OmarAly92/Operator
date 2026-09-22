@@ -241,6 +241,29 @@
 	pointer-events: none;
 }
 
+/* Below MIN_CURSOR_CONTRAST the cursor takes the foreground and its glyph the
+   background (alacritty/src/display/content.rs:124-134); it rises above the
+   run to carry that glyph, as xterm.js's DOM block cursor does
+   (src/browser/renderer/dom/DomRendererRowFactory.ts, xterm-cursor-block).
+   Unfocused, a hollow block (ghostty/src/renderer/cursor.zig:58-60; Warp
+   HollowBlock, app/src/terminal/grid_renderer.rs:2471). */
+.terminal-cursor-inverted {
+	z-index: 1;
+	background: var(--terminal-foreground);
+	color: var(--terminal-background);
+	white-space: pre;
+}
+
+.terminal-cursor-hollow {
+	background: transparent;
+	box-shadow: inset 0 0 0 1px var(--terminal-cursor);
+}
+
+.terminal-cursor-inverted.terminal-cursor-hollow {
+	color: inherit;
+	box-shadow: inset 0 0 0 1px var(--terminal-foreground);
+}
+
 .terminal-run {
 	display: inline-block;
 	vertical-align: top;
