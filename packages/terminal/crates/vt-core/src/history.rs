@@ -2,6 +2,7 @@ use terminal_marks::{MarkDecoder, MarkEvent};
 use vte::Parser as VteParser;
 use vte::{Params, Perform};
 
+use crate::hyperlink::HyperlinkRegistry;
 use crate::parser::{HistoryBlock, HistoryRow};
 use crate::screen::ScreenGrid;
 use crate::style::CellStyle;
@@ -62,7 +63,7 @@ impl HistoryReceiver {
         self.pending_style = CellStyle::DEFAULT;
     }
 
-    pub fn consume(&mut self, bytes: &[u8]) -> usize {
+    pub fn consume(&mut self, bytes: &[u8], links: &mut HyperlinkRegistry) -> usize {
         let Some(screen) = self.screen.as_mut() else {
             return 0;
         };
@@ -74,6 +75,7 @@ impl HistoryReceiver {
             let mut perform = ScreenPerform {
                 screen,
                 style: &mut self.pending_style,
+                links,
             };
             self.vte.advance(&mut perform, std::slice::from_ref(byte));
             consumed = index + 1;
@@ -116,6 +118,7 @@ impl HistoryReceiver {
 struct ScreenPerform<'a> {
     screen: &'a mut ScreenGrid,
     style: &'a mut CellStyle,
+    links: &'a mut HyperlinkRegistry,
 }
 
 impl Perform for ScreenPerform<'_> {
@@ -144,6 +147,14 @@ impl Perform for ScreenPerform<'_> {
 
     fn esc_dispatch(&mut self, _intermediates: &[u8], _ignore: bool, byte: u8) {
         self.screen.esc(byte);
+    }
+
+    fn osc_dispatch(&mut self, params: &[&[u8]], _bell_terminated: bool) {
+        if params.first().copied() == Some(b"8".as_slice()) {
+            let id =
+                crate::hyperlink::parse_osc8(&params[1..]).and_then(|link| self.links.intern(link));
+            self.style.link = id.unwrap_or(0);
+        }
     }
 }
 

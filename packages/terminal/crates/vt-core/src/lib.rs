@@ -206,7 +206,7 @@ impl TerminalCore {
     fn feed_raw(&mut self, bytes: &[u8]) {
         let mut bytes = bytes;
         if self.history.is_active() {
-            let consumed = self.history.consume(bytes);
+            let consumed = self.history.consume(bytes, self.parser.hyperlinks_mut());
             self.drain_history();
             bytes = &bytes[consumed..];
             if bytes.is_empty() {
@@ -251,7 +251,7 @@ impl TerminalCore {
                     self.history
                         .begin(first_stable_row, rows, cols, self.parser.width_mode());
                     let rest = &bytes[upto..];
-                    let consumed = self.history.consume(rest);
+                    let consumed = self.history.consume(rest, self.parser.hyperlinks_mut());
                     self.drain_history();
                     parsed = upto + consumed;
                     continue;

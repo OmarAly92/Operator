@@ -158,6 +158,20 @@ fn a_boundary_mark_drops_the_pen_link() {
 }
 
 #[test]
+fn a_history_chunk_carrying_osc8_interns_into_the_receiving_core() {
+    let mut core = TerminalCore::new(20, 10_000).expect("core");
+    core.feed(b"\x1b]7000;v=1;origin=1000\x1b\\live\r\n");
+    core.feed(b"\x1b]7000;v=1;history=999,1\x1b\\");
+    core.feed(b"\x1b]8;;https://old\x1b\\older\x1b]8;;\x1b\\\r\n");
+    let snapshot = core.snapshot().expect("snapshot");
+    common::check(&core);
+    assert_eq!(snapshot.row_text(0), "older");
+    let link = snapshot.row_style_pairs(0)[0].1.link;
+    assert_ne!(link, 0);
+    assert_eq!(snapshot.link_uri(link), Some("https://old"));
+}
+
+#[test]
 fn the_alternate_screen_carries_links_through_the_same_registry() {
     let mut core = TerminalCore::new(20, 100).expect("core");
     core.resize(20, 3);
