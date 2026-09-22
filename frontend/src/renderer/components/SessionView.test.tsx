@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, fireEvent, render as rtlRender, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi, type Mock } from "vitest";
 import { SessionView } from "./SessionView";
+import { operatorBridge } from "../lib/bridge";
 import { useUiStore } from "../stores/ui-store";
 import type { WorkspaceSession, WorkspaceSummary } from "../types/workspace";
 
@@ -102,7 +103,13 @@ vi.mock("./CenterPane", () => ({
 		shellTerminals,
 		onSelectShellTerminal,
 		onCloseShellTerminal,
+		sessionTabs,
+		onSelectSessionTab,
+		onCloseSessionTab,
 	}: {
+		sessionTabs?: WorkspaceSession[];
+		onSelectSessionTab?: (sessionId: string) => void;
+		onCloseSessionTab?: (sessionId: string) => void;
 		session?: WorkspaceSession;
 		onSelectSessionTerminal?: () => void;
 		onSelectReviewerTerminal?: (target: { handleId: string; harness: string }) => void;
@@ -129,6 +136,17 @@ vi.mock("./CenterPane", () => ({
 			<button type="button" onClick={() => onSelectSessionTerminal?.()}>
 				select agent tab
 			</button>
+			<div data-testid="session-tabs">{(sessionTabs ?? []).map((tab) => tab.id).join(",")}</div>
+			{(sessionTabs ?? []).map((tab) => (
+				<div key={tab.id}>
+					<button type="button" onClick={() => onSelectSessionTab?.(tab.id)}>
+						select session {tab.id}
+					</button>
+					<button type="button" onClick={() => onCloseSessionTab?.(tab.id)}>
+						close session {tab.id}
+					</button>
+				</div>
+			))}
 			<div data-testid="shell-tabs">{(shellTerminals ?? []).map((shell) => shell.handleId).join(",")}</div>
 			{(shellTerminals ?? []).map((shell) => (
 				<div key={shell.handleId}>
@@ -350,6 +368,7 @@ describe("SessionView", () => {
 			activeShellTerminalHandleId: null,
 			inspectorSessions: {},
 			visibleTerminalKindBySession: {},
+			openSessionTabsByProject: {},
 		});
 		panels.clear();
 		externalPreviewOptions.current = undefined;
@@ -368,6 +387,119 @@ describe("SessionView", () => {
 	navigateMock.mockReset();
 		reviewGetMock.mockReset();
 		reviewGetMock.mockResolvedValue({ data: { reviewerHandleId: "", reviews: [], runs: [] }, error: undefined });
+	});
+
+	it("opens another session of the project as a tab next to the current one", async () => {
+		useUiStore.setState({ openSessionTabsByProject: { "proj-1": ["sess-1", "sess-3"] } });
+		const { rerender } = render(<SessionView sessionId="sess-1" />);
+		expect(await screen.findByTestId("session-tabs")).toHaveTextContent("sess-1,sess-3");
+
+		rerender(<SessionView sessionId="sess-2" />);
+		await waitFor(() => expect(screen.getByTestId("session-tabs")).toHaveTextContent("sess-1,sess-2,sess-3"));
+
+		fireEvent.click(screen.getByRole("button", { name: "select session sess-3" }));
+		expect(navigateMock).toHaveBeenCalledWith({
+			to: "/projects/$projectId/sessions/$sessionId",
+			params: { projectId: "proj-1", sessionId: "sess-3" },
+		});
+	});
+
+	it("closing the current tab shows its neighbour without killing the session", async () => {
+		useUiStore.setState({ openSessionTabsByProject: { "proj-1": ["sess-1", "sess-2"] } });
+		render(<SessionView sessionId="sess-1" />);
+
+		fireEvent.click(await screen.findByRole("button", { name: "close session sess-1" }));
+
+		expect(useUiStore.getState().openSessionTabsByProject["proj-1"]).toEqual(["sess-2"]);
+		expect(navigateMock).toHaveBeenCalledWith({
+			to: "/projects/$projectId/sessions/$sessionId",
+			params: { projectId: "proj-1", sessionId: "sess-2" },
+			replace: true,
+		});
+	});
+
+	it("closing another tab stays on the current session", async () => {
+		useUiStore.setState({ openSessionTabsByProject: { "proj-1": ["sess-1", "sess-2"] } });
+		render(<SessionView sessionId="sess-1" />);
+
+		fireEvent.click(await screen.findByRole("button", { name: "close session sess-2" }));
+
+		expect(screen.getByTestId("session-tabs")).toHaveTextContent(/^sess-1$/);
+		expect(navigateMock).not.toHaveBeenCalled();
+	});
+
+	it("closes the active tab from the close-tab shortcut instead of the window", async () => {
+		let fireShortcut = () => {};
+		const onShortcut = vi.spyOn(operatorBridge.app, "onCloseShellTerminalShortcut").mockImplementation((listener) => {
+			fireShortcut = listener;
+			return () => undefined;
+		});
+		const setEnabled = vi.spyOn(operatorBridge.app, "setCloseShellTerminalShortcutEnabled");
+		useUiStore.setState({ openSessionTabsByProject: { "proj-1": ["sess-1", "sess-2"] } });
+		const { unmount } = render(<SessionView sessionId="sess-1" />);
+		expect(setEnabled).toHaveBeenLastCalledWith(true);
+
+		fireEvent.click(await screen.findByRole("button", { name: "select shell shell-in-session" }));
+		act(() => fireShortcut());
+		expect(shellTerminalState.close).toHaveBeenCalledWith("shell-in-session");
+		expect(navigateMock).not.toHaveBeenCalled();
+
+		fireEvent.click(screen.getByRole("button", { name: "select agent tab" }));
+		act(() => fireShortcut());
+		expect(navigateMock).toHaveBeenCalledWith({
+			to: "/projects/$projectId/sessions/$sessionId",
+			params: { projectId: "proj-1", sessionId: "sess-2" },
+			replace: true,
+		});
+
+		unmount();
+		expect(setEnabled).toHaveBeenLastCalledWith(false);
+		onShortcut.mockRestore();
+		setEnabled.mockRestore();
+	});
+
+	it("walks the agent, shell and neighbouring session tabs with the tab shortcuts", async () => {
+		const listeners: { previous: () => void; next: () => void } = { previous: () => {}, next: () => {} };
+		const onPrevious = vi.spyOn(operatorBridge.app, "onPreviousTabShortcut").mockImplementation((listener) => {
+			listeners.previous = listener;
+			return () => undefined;
+		});
+		const onNext = vi.spyOn(operatorBridge.app, "onNextTabShortcut").mockImplementation((listener) => {
+			listeners.next = listener;
+			return () => undefined;
+		});
+		useUiStore.setState({ openSessionTabsByProject: { "proj-1": ["sess-3", "sess-1", "sess-2"] } });
+		render(<SessionView sessionId="sess-1" />);
+		expect(await screen.findByTestId("terminal-target")).toHaveTextContent("worker");
+
+		act(() => listeners.next());
+		expect(screen.getByTestId("terminal-target")).toHaveTextContent("shell-in-session");
+
+		act(() => listeners.next());
+		expect(navigateMock).toHaveBeenLastCalledWith({
+			to: "/projects/$projectId/sessions/$sessionId",
+			params: { projectId: "proj-1", sessionId: "sess-2" },
+		});
+
+		act(() => listeners.previous());
+		expect(screen.getByTestId("terminal-target")).toHaveTextContent("worker");
+
+		act(() => listeners.previous());
+		expect(navigateMock).toHaveBeenLastCalledWith({
+			to: "/projects/$projectId/sessions/$sessionId",
+			params: { projectId: "proj-1", sessionId: "sess-3" },
+		});
+		onPrevious.mockRestore();
+		onNext.mockRestore();
+	});
+
+	it("closing the last tab goes back to the project kanban", async () => {
+		render(<SessionView sessionId="sess-1" />);
+
+		fireEvent.click(await screen.findByRole("button", { name: "close session sess-1" }));
+
+		expect(useUiStore.getState().openSessionTabsByProject["proj-1"]).toEqual([]);
+		expect(navigateMock).toHaveBeenCalledWith({ to: "/projects/$projectId", params: { projectId: "proj-1" }, replace: true });
 	});
 
 	it("gives the tab strip this session's shells and no other session's", async () => {

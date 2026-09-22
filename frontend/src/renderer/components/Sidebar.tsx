@@ -13,9 +13,9 @@ import {
 	RefreshCw,
 	Search,
 	Settings,
-	SlidersHorizontal,
 	SquareTerminal,
 	Trash2,
+	X,
 } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
@@ -262,8 +262,9 @@ export function Sidebar({
 				<div className="sidebar-tab-search group-data-[collapsible=icon]:hidden">
 					<Search aria-hidden="true" />
 					<input aria-label={t("shell.searchTabsPlaceholder")} placeholder={t("shell.searchTabsPlaceholder")} value={sidebarFilter} onChange={(event) => setSidebarFilter(event.target.value)} />
-					<button type="button" aria-label={t("shell.sidebarOptions")} onClick={selection.goGlobalSettings}><SlidersHorizontal aria-hidden="true" /></button>
-					<button type="button" aria-label={t("shell.newTask")} onClick={() => selection.activeProjectId ? useUiStore.getState().requestNewTask(selection.activeProjectId) : useUiStore.getState().requestCreateProject()}><Plus aria-hidden="true" /></button>
+					{sidebarFilter !== "" ? (
+						<button type="button" aria-label={t("shell.clearSearch")} onClick={() => setSidebarFilter("")}><X aria-hidden="true" /></button>
+					) : null}
 				</div>
 
 				{/* Pinned — collapsible; hidden when empty. */}

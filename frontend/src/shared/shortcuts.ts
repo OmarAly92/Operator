@@ -55,7 +55,7 @@ export const APP_SHORTCUTS: readonly ShortcutDefinition[] = [
 	},
 	{
 		id: "close-shell-terminal",
-		label: "Close terminal",
+		label: "Close tab",
 		category: "Session",
 	},
 	{
@@ -158,9 +158,13 @@ export function defaultShortcutBindings(id: AppShortcutId, isMac: boolean): read
 		case "next-session":
 			return [isMac ? binding("ArrowDown", { meta: true, alt: true }) : binding("PageDown", { ctrl: true })];
 		case "previous-tab":
-			return [binding("Tab", { ctrl: true, shift: true })];
+			return isMac
+				? [binding("Tab", { ctrl: true, shift: true }), binding("ArrowLeft", { meta: true, alt: true })]
+				: [binding("Tab", { ctrl: true, shift: true })];
 		case "next-tab":
-			return [binding("Tab", { ctrl: true })];
+			return isMac
+				? [binding("Tab", { ctrl: true }), binding("ArrowRight", { meta: true, alt: true })]
+				: [binding("Tab", { ctrl: true })];
 		case "focus-terminal":
 			return [isMac ? binding("t", { meta: true, shift: true }) : binding("t", { ctrl: true, shift: true })];
 		case "toggle-browser-devtools":

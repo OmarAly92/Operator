@@ -39,12 +39,15 @@ vi.mock("../hooks/useClaudeAccounts", async (importOriginal) => {
 	return { ...actual, useClaudeAccounts: () => ({ data: claudeAccountsMock.accounts }) };
 });
 
-vi.mock("./TerminalSwitchAgentButton", () => ({
-	TerminalSwitchAgentButton: ({ session }: { session: WorkspaceSession }) => (
-		<button aria-label="Switch agent" data-testid="terminal-switch-agent" type="button">
-			{session.provider}
-		</button>
-	),
+vi.mock("../hooks/useSwitchAgentAction", () => ({
+	useSwitchAgentAction: () => ({
+		available: true,
+		label: "Switch agent",
+		recovery: false,
+		switching: false,
+		open: vi.fn(),
+		dialog: null,
+	}),
 }));
 
 vi.mock("../lib/platform", async (importOriginal) => {
@@ -567,6 +570,31 @@ describe("CenterPane width measurement", () => {
 	});
 });
 
+describe("session tabs", () => {
+	const other: WorkspaceSession = { ...worker, id: "sess-2", title: "second task" };
+
+	it("renders every open session of the project and selects another by navigating", () => {
+		const onSelectSessionTab = vi.fn();
+		renderCenterPane({ session: worker, sessionTabs: [worker, other], onSelectSessionTab });
+
+		expect(screen.getByRole("tab", { name: /do the thing/ })).toHaveAttribute("aria-selected", "true");
+		fireEvent.click(screen.getByRole("tab", { name: /second task/ }));
+		expect(onSelectSessionTab).toHaveBeenCalledWith("sess-2");
+	});
+
+	it("closes a session tab from its close button", () => {
+		const onCloseSessionTab = vi.fn();
+		const onSelectSessionTab = vi.fn();
+		renderCenterPane({ session: worker, sessionTabs: [worker, other], onCloseSessionTab, onSelectSessionTab });
+
+		fireEvent.click(screen.getByRole("button", { name: "Close second task" }));
+		expect(onCloseSessionTab).toHaveBeenCalledWith("sess-2");
+		expect(onSelectSessionTab).not.toHaveBeenCalled();
+		fireEvent.click(screen.getByRole("button", { name: "Close do the thing" }));
+		expect(onCloseSessionTab).toHaveBeenCalledWith("sess-1");
+	});
+});
+
 describe("agent tab relaunch menu", () => {
 	const openTabMenu = (name: RegExp) => {
 		const tab = screen.getByRole("tab", { name });
@@ -580,6 +608,13 @@ describe("agent tab relaunch menu", () => {
 		fireEvent(tab.parentElement ?? tab, event);
 		expect(event.defaultPrevented).toBe(true);
 		expect(screen.getByRole("menuitem", { name: "Relaunch in a cleared session" })).toBeInTheDocument();
+	});
+
+	it("moves the agent switch off the tab and into the menu", () => {
+		renderCenterPane({ session: worker });
+		expect(screen.queryByRole("button", { name: "Switch agent" })).not.toBeInTheDocument();
+		openTabMenu(/do the thing/);
+		expect(screen.getByRole("menuitem", { name: "Switch agent" })).toBeInTheDocument();
 	});
 
 	it("hides the replay item for a session with no saved task", () => {

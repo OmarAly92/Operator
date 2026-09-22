@@ -1,5 +1,5 @@
-import { ArrowRight, ChevronLeft, ChevronRight, TriangleAlert } from "lucide-react";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { ArrowRight, ChevronLeft, ChevronRight, TriangleAlert, X } from "lucide-react";
+import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { useOverflowScroll } from "../hooks/useOverflowScroll";
 import {
@@ -23,7 +23,6 @@ import { TerminalPane } from "./TerminalPane";
 import { SessionAgentTabMenu } from "./SessionAgentTabMenu";
 import { SessionTopbarPortal } from "./SessionTopbarPortal";
 import { ShellTerminalTab } from "./ShellTerminalTab";
-import { TerminalSwitchAgentButton } from "./TerminalSwitchAgentButton";
 
 type CenterPaneProps = {
 	session?: WorkspaceSession;
@@ -40,6 +39,10 @@ type CenterPaneProps = {
 	onRenameShellTerminal?: (handleId: string, title: string) => void;
 	/** Session actions consolidated into the terminal bar by SessionView. */
 	topbarActions?: ReactNode;
+	/** Sessions of this project open as tabs, in strip order; includes `session`. */
+	sessionTabs?: WorkspaceSession[];
+	onSelectSessionTab?: (sessionId: string) => void;
+	onCloseSessionTab?: (sessionId: string) => void;
 };
 
 const isMac = isMacPlatform();
@@ -59,6 +62,9 @@ export function CenterPane({
 	onCloseShellTerminal,
 	onRenameShellTerminal,
 	topbarActions,
+	sessionTabs,
+	onSelectSessionTab,
+	onCloseSessionTab,
 }: CenterPaneProps) {
 	const { t } = useTranslation();
 	const paneRef = useRef<HTMLDivElement | null>(null);
@@ -69,7 +75,7 @@ export function CenterPane({
 	// Re-measure when a shell tab is added or removed, not only on a session
 	// change: opening a shell is exactly what pushes the strip into overflow.
 	const tabsOverflow = useOverflowScroll<HTMLDivElement>(
-		`${session?.id ?? ""}|${shells.map((shell) => shell.handleId).join(",")}`,
+		`${(sessionTabs ?? []).map((tab) => tab.id).join(",")}|${session?.id ?? ""}|${shells.map((shell) => shell.handleId).join(",")}`,
 	);
 	const agentSwitchesQuery = useAgentSwitches(session?.id ?? "");
 	const agentSwitches = agentSwitchesQuery.data ?? [];
@@ -167,38 +173,54 @@ export function CenterPane({
 							role="tablist"
 						>
 							{session ? (
-								<SessionPaneTab
-									isActive={target.kind === "worker"}
-									label={sessionTabLabel}
-									onSelect={onSelectSessionTerminal}
-									session={session}
-								/>
+								(sessionTabs?.length ? sessionTabs : [session]).map((tabSession) =>
+									tabSession.id === session.id ? (
+										<Fragment key={tabSession.id}>
+											<SessionPaneTab
+												isActive={target.kind === "worker"}
+												label={sessionTabLabel}
+												onClose={onCloseSessionTab ? () => onCloseSessionTab(tabSession.id) : undefined}
+												onSelect={onSelectSessionTerminal}
+												session={session}
+											/>
+											{reviewerTerminal ? (
+												<SessionPaneTab
+													icon={<AgentAvatar provider={reviewerTerminal.harness} className="size-icon-base" decorative />}
+													isActive={target.kind === "reviewer"}
+													label={t("terminal.reviewer")}
+													onSelect={() => onSelectReviewerTerminal?.(reviewerTerminal)}
+													title={reviewerTerminal.harness}
+												/>
+											) : null}
+											{/* Shells this session owns, right after the agent's own tab: the
+											    connected treatment continues into the pane below, so a shell
+											    reads as another surface of this session, not a separate screen. */}
+											{shells.map((shell) => (
+												<ShellTerminalTab
+													key={shell.handleId}
+													appearance="connected"
+													isActive={shell.handleId === activeShellHandleId}
+													onClose={() => onCloseShellTerminal?.(shell.handleId)}
+													onRename={(title) => onRenameShellTerminal?.(shell.handleId, title)}
+													onSelect={() => onSelectShellTerminal?.(shell)}
+													shell={shell}
+												/>
+											))}
+										</Fragment>
+									) : (
+										<SessionPaneTab
+											key={tabSession.id}
+											isActive={false}
+											label={tabSession.title}
+											onClose={onCloseSessionTab ? () => onCloseSessionTab(tabSession.id) : undefined}
+											onSelect={() => onSelectSessionTab?.(tabSession.id)}
+											session={tabSession}
+										/>
+									),
+								)
 							) : (
 								<SessionPaneTab isActive={target.kind === "worker"} label={sessionTabLabel} />
 							)}
-							{reviewerTerminal ? (
-								<SessionPaneTab
-									icon={<AgentAvatar provider={reviewerTerminal.harness} className="size-icon-base" decorative />}
-									isActive={target.kind === "reviewer"}
-									label={t("terminal.reviewer")}
-									onSelect={() => onSelectReviewerTerminal?.(reviewerTerminal)}
-									title={reviewerTerminal.harness}
-								/>
-							) : null}
-							{/* Shells this session owns, right after the agent's own tab: the
-							    connected treatment continues into the pane below, so a shell
-							    reads as another surface of this session, not a separate screen. */}
-							{shells.map((shell) => (
-								<ShellTerminalTab
-									key={shell.handleId}
-									appearance="connected"
-									isActive={shell.handleId === activeShellHandleId}
-									onClose={() => onCloseShellTerminal?.(shell.handleId)}
-									onRename={(title) => onRenameShellTerminal?.(shell.handleId, title)}
-									onSelect={() => onSelectShellTerminal?.(shell)}
-									shell={shell}
-								/>
-							))}
 						</div>
 						{tabsOverflow.canScrollRight ? (
 							<button
@@ -363,13 +385,14 @@ type SessionPaneTabProps = {
 	session?: WorkspaceSession;
 	icon?: ReactNode;
 	title?: string;
+	onClose?: () => void;
 };
 
 // Shared tab chrome: the open tab is highlighted with the same rounded
 // background as the inspector rail tabs (Summary · Reviews · Browser), and
 // the full label only becomes the hover tooltip when the tab strip is
 // crowded enough to truncate it.
-function SessionPaneTab({ label, isActive, onSelect, session, icon, title }: SessionPaneTabProps) {
+function SessionPaneTab({ label, isActive, onSelect, session, icon, title, onClose }: SessionPaneTabProps) {
 	const { t } = useTranslation();
 	const { ref, isTruncated } = useTruncatedText<HTMLButtonElement>(label);
 	const activity = session ? getAgentActivityView(session.activity, t) : undefined;
@@ -379,6 +402,7 @@ function SessionPaneTab({ label, isActive, onSelect, session, icon, title }: Ses
 			data-terminal-role="primary"
 			className={cn(
 				"group relative inline-flex min-w-shell-tab-min self-stretch items-center gap-1.5 border-r border-border bg-surface px-3 text-foreground transition-colors",
+				onClose && "pr-1.5",
 				isActive
 					? "bg-overlay text-foreground after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 after:bg-foreground/80"
 					: "text-muted-foreground hover:bg-raised hover:text-foreground",
@@ -415,7 +439,21 @@ function SessionPaneTab({ label, isActive, onSelect, session, icon, title }: Ses
 					</span>
 				) : null}
 			</button>
-			{session ? <TerminalSwitchAgentButton key={session.id} session={session} /> : null}
+			{onClose ? (
+				<button
+					aria-label={t("terminal.closeSessionTabNamed", { title: label })}
+					className="-ml-1 inline-flex size-control-sm shrink-0 items-center justify-center rounded-sm text-passive transition-colors hover:bg-interactive-hover hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent/50"
+					onClick={(event) => {
+						event.stopPropagation();
+						onClose();
+					}}
+					onContextMenu={(event) => event.stopPropagation()}
+					title={t("terminal.closeSessionTab")}
+					type="button"
+				>
+					<X aria-hidden="true" className="size-icon-sm" />
+				</button>
+			) : null}
 		</span>
 	);
 	if (!session) return tab;

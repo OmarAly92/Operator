@@ -1,5 +1,5 @@
 import type { ReactNode, PointerEventHandler } from "react";
-import { LayoutGrid, PanelLeft, Search, Wrench } from "lucide-react";
+import { PanelLeft, Search, Wrench } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { isMacPlatform, isWindowsPlatform, windowDragRegion } from "../lib/platform";
 import { useUiStore } from "../stores/ui-store";
@@ -8,13 +8,11 @@ import { cn } from "../lib/utils";
 export function TitlebarNav({
 	isFullScreen = false,
 	onSidebarPreviewEnter,
-	onGoHome,
 	notifications,
 	searchEnabled = true,
 }: {
 	isFullScreen?: boolean;
 	onSidebarPreviewEnter?: PointerEventHandler<HTMLButtonElement>;
-	onGoHome: () => void;
 	notifications?: ReactNode;
 	searchEnabled?: boolean;
 }) {
@@ -38,9 +36,6 @@ export function TitlebarNav({
 				<button type="button" className="desktop-titlebar__icon" aria-label={t("shell.settings")} onClick={openGlobalSettings}>
 					<Wrench aria-hidden="true" />
 				</button>
-				<button type="button" className="desktop-titlebar__icon" aria-label={t("shell.board")} onClick={onGoHome}>
-					<LayoutGrid aria-hidden="true" />
-				</button>
 			</div>
 			{searchEnabled && (
 				<button type="button" className="desktop-titlebar__search" aria-label={t("shell.search")} onClick={() => setCommandPaletteOpen(true)}>
@@ -50,7 +45,6 @@ export function TitlebarNav({
 			)}
 			<div className="desktop-titlebar__account">
 				{notifications}
-				<button type="button" className="desktop-titlebar__avatar" aria-label={t("shell.accountSettings")} onClick={openGlobalSettings}>O</button>
 			</div>
 		</header>
 	);

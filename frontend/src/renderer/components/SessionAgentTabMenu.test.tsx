@@ -1,12 +1,11 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { AgentSwitch } from "../hooks/useAgentSwitches";
 import { AGENT_OPTIONS } from "../lib/agent-options";
 import type { WorkspaceSession } from "../types/workspace";
-import { TerminalSwitchAgentButton } from "./TerminalSwitchAgentButton";
-import { TooltipProvider } from "./ui/tooltip";
+import { SessionAgentTabMenu } from "./SessionAgentTabMenu";
 
 const { getMock, postMock } = vi.hoisted(() => ({
 	getMock: vi.fn(),
@@ -27,6 +26,11 @@ vi.mock("../lib/api-client", () => ({
 	},
 	hasTrustedApiBaseUrl: () => true,
 }));
+
+vi.mock("../hooks/useClaudeAccounts", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("../hooks/useClaudeAccounts")>();
+	return { ...actual, useClaudeAccounts: () => ({ data: [] }) };
+});
 
 const worker: WorkspaceSession = {
 	activity: { state: "active", lastActivityAt: "2026-06-10T00:00:00Z" },
@@ -62,9 +66,9 @@ function renderControl(session: WorkspaceSession = worker) {
 	});
 	const control = (nextSession: WorkspaceSession) => (
 		<QueryClientProvider client={queryClient}>
-			<TooltipProvider>
-				<TerminalSwitchAgentButton key={nextSession.id} session={nextSession} />
-			</TooltipProvider>
+			<SessionAgentTabMenu key={nextSession.id} session={nextSession}>
+				<span data-testid="agent-tab">tab</span>
+			</SessionAgentTabMenu>
 		</QueryClientProvider>
 	);
 	const result = render(control(session));
@@ -75,21 +79,28 @@ function renderControl(session: WorkspaceSession = worker) {
 	};
 }
 
+async function openMenu() {
+	await waitFor(() => expect(getMock).toHaveBeenCalled());
+	fireEvent.contextMenu(screen.getByTestId("agent-tab"));
+}
+
+async function findMenuItem(name: string) {
+	await openMenu();
+	return screen.findByRole("menuitem", { name });
+}
+
 beforeEach(() => {
 	getMock.mockReset();
 	getMock.mockResolvedValue({ data: { switches: [] }, error: undefined, response: { status: 200 } });
 	postMock.mockReset();
 });
 
-describe("TerminalSwitchAgentButton", () => {
-	it("renders a compact circular button with opposing horizontal arrows", async () => {
+describe("SessionAgentTabMenu switch agent", () => {
+	it("offers the switch as the first menu item", async () => {
 		renderControl();
 
-		const button = await screen.findByRole("button", { name: "Switch agent" });
-		expect(button).toHaveClass("size-6", "rounded-full");
-		expect(button.querySelector(".lucide-repeat-2")).toBeInTheDocument();
-		expect(button.querySelector("img")).not.toBeInTheDocument();
-		expect(button).toHaveTextContent("");
+		await openMenu();
+		expect((await screen.findAllByRole("menuitem"))[0]).toHaveTextContent("Switch agent");
 	});
 
 	it.each([
@@ -97,8 +108,8 @@ describe("TerminalSwitchAgentButton", () => {
 		["terminated worker", { isTerminated: true, status: "terminated" }],
 	] as const)("does not render for an %s", async (_name, overrides) => {
 		renderControl({ ...worker, ...overrides } as WorkspaceSession);
-		await waitFor(() => expect(getMock).toHaveBeenCalled());
-		expect(screen.queryByRole("button", { name: "Switch agent" })).not.toBeInTheDocument();
+		await openMenu();
+		expect(screen.queryByRole("menuitem", { name: "Switch agent" })).not.toBeInTheDocument();
 	});
 
 	it("opens the existing dialog and submits the selected switch", async () => {
@@ -107,7 +118,7 @@ describe("TerminalSwitchAgentButton", () => {
 		const { queryClient } = renderControl();
 		const invalidateQueries = vi.spyOn(queryClient, "invalidateQueries");
 
-		await userEvent.click(await screen.findByRole("button", { name: "Switch agent" }));
+		await userEvent.click(await findMenuItem("Switch agent"));
 		const dialog = screen.getByRole("dialog", { name: "Switch agent" });
 		const targetAgent = within(dialog).getByRole("combobox", { name: "Target agent" });
 		expect(targetAgent).toHaveTextContent("Codex");
@@ -135,15 +146,12 @@ describe("TerminalSwitchAgentButton", () => {
 		postMock.mockReturnValue(new Promise(() => {}));
 		renderControl();
 
-		await userEvent.click(await screen.findByRole("button", { name: "Switch agent" }));
+		await userEvent.click(await findMenuItem("Switch agent"));
 		await userEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Switch" }));
 
 		await waitFor(() => expect(postMock).toHaveBeenCalledTimes(1));
 		expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-		expect(screen.getByRole("button", { name: "Switching to Codex…" })).toHaveAttribute(
-			"aria-busy",
-			"true",
-		);
+		expect(await findMenuItem("Switching to Codex…")).toBeInTheDocument();
 	});
 
 	it("restores durable progress and keeps it inspectable after the source exits", async () => {
@@ -158,8 +166,7 @@ describe("TerminalSwitchAgentButton", () => {
 			status: "exited",
 		});
 
-		const button = await screen.findByRole("button", { name: "Switching to Codex…" });
-		await userEvent.click(button);
+		await userEvent.click(await findMenuItem("Switching to Codex…"));
 		expect(within(screen.getByRole("dialog")).getByRole("status")).toHaveTextContent(
 			"Switching from Claude Code to CodexStarting target agent",
 		);
@@ -177,10 +184,9 @@ describe("TerminalSwitchAgentButton", () => {
 			status: "exited",
 		});
 
-		const button = await screen.findByRole("button", { name: "Agent switch needs recovery" });
-		expect(button).not.toHaveAttribute("aria-busy");
-		expect(button.querySelector(".lucide-triangle-alert")).toBeInTheDocument();
-		await userEvent.click(button);
+		const item = await findMenuItem("Agent switch needs recovery");
+		expect(item).toHaveClass("text-warning");
+		await userEvent.click(item);
 		expect(within(screen.getByRole("dialog")).getByRole("alert")).toHaveTextContent(
 			"Operator could not confirm whether the target agent started. Terminal input remains locked to prevent two agents from owning the session.",
 		);
@@ -202,7 +208,7 @@ describe("TerminalSwitchAgentButton", () => {
 		});
 		renderControl();
 
-		await userEvent.click(await screen.findByRole("button", { name: "Switch agent" }));
+		await userEvent.click(await findMenuItem("Switch agent"));
 		expect(within(screen.getByTestId("agent-switch-history")).getByText(label)).toBeInTheDocument();
 	});
 
@@ -226,7 +232,7 @@ describe("TerminalSwitchAgentButton", () => {
 		});
 		renderControl();
 
-		await userEvent.click(await screen.findByRole("button", { name: "Switch agent" }));
+		await userEvent.click(await findMenuItem("Switch agent"));
 		const fallbackLabel = within(screen.getByTestId("agent-switch-history")).queryByText("Fallback context used");
 		if (expected) expect(fallbackLabel).toBeInTheDocument();
 		else expect(fallbackLabel).not.toBeInTheDocument();
@@ -246,7 +252,7 @@ describe("TerminalSwitchAgentButton", () => {
 			});
 		renderControl();
 
-		await userEvent.click(await screen.findByRole("button", { name: "Switch agent" }));
+		await userEvent.click(await findMenuItem("Switch agent"));
 		await userEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Switch" }));
 
 		const reopenedDialog = await screen.findByRole("dialog", { name: "Switch agent" });
