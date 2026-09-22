@@ -311,8 +311,6 @@ describe("shell workspace startup", () => {
 		await renderShell();
 
 		const sidebar = screen.getByTestId("sidebar");
-		// SplitWorkspace panes paint their own topbar strip now — the shell no
-		// longer mounts a portal host for the session route.
 		expect(screen.queryByTestId("session-topbar-host")).not.toBeInTheDocument();
 		// Sidebar uses the same topbar offset as non-session routes (no longer "session").
 		expect(sidebar).not.toHaveAttribute("data-topbar-offset", "session");

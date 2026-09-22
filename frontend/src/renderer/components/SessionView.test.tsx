@@ -89,7 +89,7 @@ const { workspaces, workspaceQueryState, panels } = vi.hoisted(() => {
 });
 
 // The terminal and inspector body pull in xterm/SSE machinery irrelevant to
-// this split — SplitWorkspace has its own dedicated test suite.
+// this split.
 vi.mock("./ShellTopbar", () => ({ ShellTopbar: () => null }));
 vi.mock("./split/SplitWorkspace", () => ({
 	SplitWorkspace: ({ routeSessionId }: { routeSessionId: string }) => (
