@@ -23,7 +23,7 @@
 - `packages/terminal` stays product-independent (TERMINAL.md §3.1): no Operator phase names, paths or concepts inside it. The package only learns "visible: true/false/unset".
 - **No comments in new code** (the user's global rule), except reference citations naming a repository and path. Do not add explanatory comments.
 - Do not change what a **visible** pane paints: `npm run bench:feel` must show zero pixel diff after every task. No task re-records feel baselines.
-- Do not change the resize debounce (`RESIZE_DEBOUNCE_MS`), the feed budget (`FEED_BUDGET_MS = 12`, `terminal-core.ts:42`), `PAINT_INTERVAL_MS`, or any `RendererFeatures` default.
+- Do not change the resize debounce (`RESIZE_DEBOUNCE_MS`), the feed budget (`FEED_BUDGET_MS = 12`, `terminal-core.ts:42`), `PAINT_INTERVAL_MS`, or any `RendererFeatures` default. The one deliberate exception to the 12 ms budget is Task 7's hidden-document tick, which passes its own `HIDDEN_DRAIN_MS` to `drain(deadlineMs)` (`terminal-core.ts:136`); `FEED_BUDGET_MS` itself and every animation-frame drain stay at 12 ms.
 - One `packages/terminal/CHANGELOG.md` entry under "Unreleased" per behaviour change.
 - The checkout is shared with other sessions: **never `git stash`, never `git commit -a`**; commit with an explicit path list. Commits go to `development`, message ends with the `Co-Authored-By` trailer the harness gives you.
 - Every command uses absolute paths (TERMINAL.md §6).
@@ -1059,7 +1059,7 @@ git commit -m "feat(terminal): parked worker panes stop painting"
 
 Measured: WKWebView fires no animation frames while minimised or app-hidden and throttles timers to ~1/s. While `document.visibilityState === "hidden"`, `scheduleRepaint` arms a timer instead of `requestAnimationFrame`; the timer does exactly what a hidden frame does (`drain`, `tick`, `settleHidden`). On `visibilitychange` to visible the timer is cancelled and a normal frame is scheduled, which paints only if the host says visible. On `visibilitychange` to hidden a pending animation frame is cancelled and replaced by the timer, because a pending frame would otherwise block `scheduleRepaint`'s de-duplication forever.
 
-A 12 ms drain per ~1 s tick parses less than a fast build log produces, so a backlog can still grow while hidden (record in TERMINAL.md §5 in Task 8); it is bounded by how long the window stays hidden and far slower than today's growth, which has no drain at all.
+The hidden tick drains with its own, much larger budget: `core.drain(HIDDEN_DRAIN_MS)` with `HIDDEN_DRAIN_MS = 250`, not the default 12 ms. Nothing paints while the document is hidden, so there is no frame to protect, and WebKit throttles the tick to ~1/s: at 12 ms per second a busy session's closing mark would sit in the backlog until the window is restored, and the block would then be reported `visible: true` and its notification suppressed — the very bug this task fixes. `FEED_BUDGET_MS` is unchanged and animation-frame drains keep using it. A producer needing more than ~250 ms of parse per second can still grow the backlog while hidden (recorded in TERMINAL.md §5 in Task 8).
 
 **Files:**
 - Modify: `packages/terminal/ts/renderer-dom/src/dom-block-renderer.ts` — `scheduleRepaint` (`:817-824`), `mount`, `dispose`
@@ -1068,7 +1068,7 @@ A 12 ms drain per ~1 s tick parses less than a fast build log produces, so a bac
 
 **Interfaces:**
 - Consumes: `settleHidden`, `painting`, `documentHidden` (Tasks 3–4).
-- Produces: `const HIDDEN_TICK_MS = 100;` (module constant in `dom-block-renderer.ts`), `private hiddenTimer`, `private readonly onVisibilityChange`.
+- Produces: `export const HIDDEN_TICK_MS = 100;` and `export const HIDDEN_DRAIN_MS = 250;` (module constants in `dom-block-renderer.ts`, exported for the test, not added to the package index), `private hiddenTimer`, `private readonly onVisibilityChange`.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -1115,6 +1115,27 @@ describe("hidden document", () => {
 		parked.renderer.dispose();
 	});
 
+	it("drains ~2 MiB enqueued while hidden within a few ticks and reports the block closing at its end as not visible", async () => {
+		const { core, renderer, events } = mounted(80);
+		core.feed(text(OPEN_BLOCK));
+		await flushRepaint();
+		vi.stubGlobal("requestAnimationFrame", () => 0);
+		setDocumentVisibility("hidden");
+		const drain = vi.spyOn(core, "drain");
+		const line = text(`${"x".repeat(78)}\r\n`);
+		const burst = new Uint8Array(line.length * 26_000);
+		for (let at = 0; at < burst.length; at += line.length) burst.set(line, at);
+		for (let at = 0; at < burst.length; at += 64 * 1024) core.enqueue(burst.subarray(at, Math.min(burst.length, at + 64 * 1024)));
+		core.enqueue(text(CLOSE_BLOCK));
+		for (let waited = 0; events.length === 0 && waited < 5000; waited += 50) await sleep(50);
+		expect(core.hasBacklog()).toBe(false);
+		expect(drain).toHaveBeenCalledWith(HIDDEN_DRAIN_MS);
+		expect(drain.mock.calls.length).toBeLessThanOrEqual(3);
+		expect(events).toHaveLength(1);
+		expect(events[0]).toMatchObject({ visible: false });
+		renderer.dispose();
+	});
+
 	it("stops its timer when disposed while hidden", async () => {
 		const { core, renderer } = mounted();
 		vi.stubGlobal("requestAnimationFrame", () => 0);
@@ -1128,19 +1149,22 @@ describe("hidden document", () => {
 });
 ```
 
+Add `import { HIDDEN_DRAIN_MS } from "./dom-block-renderer";` to the file's imports. The burst is 26,000 × 80 bytes = 2,080,000 bytes (~2 MiB). The tick bound (≤ 3 drain calls) is what fails against a 12 ms budget: the spec measured a 2 MiB synchronous parse at 57 ms in Chromium, so 12 ms per tick needs ~5 or more ticks. If the bound is too tight for this machine's Node wasm, measure one 2 MiB `drain(HIDDEN_DRAIN_MS)` in the test and derive the bound from it, stating the measured time in the commit message — never loosen it to a bound a 12 ms budget would also pass.
+
 Then replace the Task 3 test "reports not visible while the document is hidden, whatever the host says" body's private call with the real path: stub `requestAnimationFrame` to `() => 0`, set hidden, `core.enqueue(text(CLOSE_BLOCK))`, `await sleep(400)`, expect `events.at(-1)` to match `{ visible: false }`.
 
 - [ ] **Step 2: Run and see them fail**
 
 Run: `cd /Users/omaraly/development/AI/Operator/packages/terminal/ts/renderer-dom && npx vitest run src/dom-block-renderer.visibility.test.ts -t "hidden"`
-Expected: FAIL — backlog still present and no event after 400 ms (nothing drains without animation frames).
+Expected: FAIL — backlog still present and no event after 400 ms (nothing drains without animation frames); the ~2 MiB test fails on the same missing path. After Step 3, if an intermediate version calls `core.drain()` with no argument, the ~2 MiB test must still fail on `toHaveBeenCalledWith(HIDDEN_DRAIN_MS)` and the tick bound — that is the failure this test exists for.
 
 - [ ] **Step 3: Implement**
 
 Module constant beside `PAINT_INTERVAL_MS` (`:68`):
 
 ```ts
-const HIDDEN_TICK_MS = 100;
+export const HIDDEN_TICK_MS = 100;
+export const HIDDEN_DRAIN_MS = 250;
 ```
 
 fields:
@@ -1175,7 +1199,7 @@ fields:
 		this.hiddenTimer = null;
 		const core = this.core;
 		if (!core) return;
-		core.drain();
+		core.drain(HIDDEN_DRAIN_MS);
 		core.tick(Date.now());
 		this.settleHidden();
 	}
@@ -1213,7 +1237,7 @@ Rebuild `dist` and restart `tauri:dev` (as Task 6 Step 5). In a shell session ru
 - [ ] **Step 6: CHANGELOG**
 
 ```md
-- renderer-dom: while `document.visibilityState` is `"hidden"` (a minimised or hidden window, where WebKit fires no animation frames) the renderer drains, ticks and reports finished blocks on a timer instead of animation frames, and paints the visible pane once the document is shown. Before, a hidden window parsed nothing and fired no `onBlockFinished` until it was shown again.
+- renderer-dom: while `document.visibilityState` is `"hidden"` (a minimised or hidden window, where WebKit fires no animation frames) the renderer drains (with a 250 ms budget per tick, `HIDDEN_DRAIN_MS`, since nothing paints and WebKit throttles the timer to ~1/s; animation-frame drains keep the 12 ms `FEED_BUDGET_MS`), ticks and reports finished blocks on a timer instead of animation frames, and paints the visible pane once the document is shown. Before, a hidden window parsed nothing and fired no `onBlockFinished` until it was shown again.
 ```
 
 - [ ] **Step 7: TERMINAL.md §6 verification** — Task 2 Step 5's block plus `npm run bench:agent:gate`. Expected: green, zero pixel diff.
@@ -1265,13 +1289,23 @@ and write the after-numbers into a new sentence at the end of each of these two 
 
 §4 — add "### 4.24 A hidden window drained nothing and notified nothing" (symptom; cause: `requestAnimationFrame` never fires in a hidden WKWebView, measured by `scripts/probe-wkwebview-hidden.swift`; now: Task 7's timer path and Task 4's paint gate; guards: `dom-block-renderer.visibility.test.ts` "hidden document" and "paint gate" describes, `TerminalPane.test.tsx` "paints a retained terminal on screen and stops painting it while parked").
 
-§5 — add a bullet "**What a parked pane still costs.**" with: the measured after-numbers from Step 1; that each change still builds one snapshot (block detection, `TerminalSurface`'s alt-screen read) and decodes blocks; that a hidden window drains at most 12 ms per ~1 s timer tick, so a fast producer grows the backlog while hidden; that `rendererVisible` remains the fallback only for `onBlockFinished` when a host sets nothing, and is never a paint gate; and that the forced layout at `dom-block-renderer.ts:1055` is still paid by every **visible** pane (measurement note, "Follow-ups").
+§5 — add a bullet "**What a parked pane still costs.**" with: the measured after-numbers from Step 1; that each change still builds one snapshot (block detection, `TerminalSurface`'s alt-screen read) and decodes blocks; that a hidden window drains up to `HIDDEN_DRAIN_MS` (250 ms) of parse per timer tick, which WebKit throttles to ~1/s, so only a producer needing more than ~250 ms of parse per second grows the backlog while hidden — and why the budget is larger than `FEED_BUDGET_MS` there (no paint to protect; a 12 ms budget left a busy session's closing mark in the backlog until restore, where the block was reported `visible: true` and its notification suppressed); that `rendererVisible` remains the fallback only for `onBlockFinished` when a host sets nothing, and is never a paint gate; and that the forced layout at `dom-block-renderer.ts:1055` is still paid by every **visible** pane (measurement note, "Follow-ups").
 
-- [ ] **Step 5: Measurement note "After" section**
+- [ ] **Step 5: Manual real-app checks**
 
-Append "## After (<date>)" to `2026-09-23-background-pane-cost-measurement.md` with the table from Step 1 in the same shape as "Numbers", the profile's top 10 self-time functions, and a one-line verdict per expectation from Step 2 (met / missed, with the number).
+The WKWebView probe was a plain WKWebView and the bench never mounts the React layer, so the two user-facing outcomes need the real app. Rebuild `dist` (`cd /Users/omaraly/development/AI/Operator/packages/terminal && npm run build:ts`) and restart `tauri:dev` with the scrubbed env (memory "Scrub CLAUDE* env before running Operator dev"), then:
 
-- [ ] **Step 6: Full verification**
+(a) **Notification while minimised.** In a Claude Code worker session, have Claude run a command that takes more than 10 s (e.g. ask it to run `sleep 15 && echo done`). While it runs, minimise Operator. Expected: the "command finished" notification arrives while the window is still minimised.
+
+(b) **Reveal shows the tail.** With a background session streaming (Claude Code working in session A), switch to session B's tab, wait ~30 s, switch back to A. Expected: A's first visible frame shows its current tail, stuck to the bottom — no frame of the old viewport. Evidence: `screencapture -l <window id>` immediately after switching back (memory "Verify Operator desktop via daemon API and /mux").
+
+Report each as **observed** (what was seen, with the evidence) or **not verified** (and why it could not be driven). Never report either as passing without having seen it.
+
+- [ ] **Step 6: Measurement note "After" section**
+
+Append "## After (<date>)" to `2026-09-23-background-pane-cost-measurement.md` with the table from Step 1 in the same shape as "Numbers", the profile's top 10 self-time functions, a one-line verdict per expectation from Step 2 (met / missed, with the number), and Step 5's two real-app results exactly as reported (observed / not verified).
+
+- [ ] **Step 7: Full verification**
 
 TERMINAL.md §6 block for every touched layer:
 
@@ -1284,7 +1318,7 @@ cd /Users/omaraly/development/AI/Operator/frontend && npx tsc --noEmit -p . && n
 
 Expected: all green; `PASS feel gate: zero pixel diff`.
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 8: Commit**
 
 ```bash
 cd /Users/omaraly/development/AI/Operator
