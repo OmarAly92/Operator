@@ -1,3 +1,5 @@
+use crate::hyperlink::LinkId;
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct StyleCode(u32);
 
@@ -131,8 +133,6 @@ impl Attrs {
         Self((self.0 & !Self::ALL_UNDERLINES) | kind)
     }
 }
-
-use crate::hyperlink::LinkId;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct CellStyle {
