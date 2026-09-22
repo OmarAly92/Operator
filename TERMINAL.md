@@ -87,12 +87,30 @@ rebuilt (§6).
   - In BOTH modes scrollback is **rewrapped** on a width change (§4.2).
 - **Snapshot** (`grid.rs` → vt-wasm `ExportBuffers` → TS `TerminalSnapshot`):
   `content`, `rows` (start,end pairs), `rowIndents` (u16 per row), `runRanges`,
-  `stylePairs` (stride `STYLE_RUN_WORDS`), `blocks` (stride `BLOCK_RECORD_WORDS`),
-  cursor, alt screen. Adding a per-row field means: `GridSnapshot` + `append_row`/
-  `append_screen_row` + `ExportBuffers` + `*_ptr/_len` + `terminal-core.ts` +
-  `types.ts` + the Rust test fixture `vt-wasm/tests/exit_encoding.rs` — and now,
-  if the field is per-section, `ExportedRow`/`push_row` in `export.rs` and
-  `history_rows`.
+  `stylePairs` (stride `STYLE_RUN_WORDS = 5`: `end, fg, bg, attrs, underline`),
+  `blocks` (stride `BLOCK_RECORD_WORDS`), cursor, alt screen — and
+  `spanRanges`/`cellSpans` (stride `CELL_SPAN_WORDS = 3`: `start, end, width`
+  per cluster that is not a single width-1 scalar). Adding a per-row field
+  means: `GridSnapshot` + `append_row`/`append_screen_row` + `ExportBuffers` +
+  `*_ptr/_len` + `terminal-core.ts` + `types.ts` + the Rust test fixture
+  `vt-wasm/tests/exit_encoding.rs` — and now, if the field is per-section,
+  `ExportedRow`/`push_row` in `export.rs` and `history_rows`, and, for a
+  per-cell field, `AltSnapshot` in `screen/snapshot.rs` and the dead-prefix
+  accounting in `ExportBuffers` (`dead_*`/`history_*` counters, `drop_front`,
+  `rewrite_history_from`, `truncate_screen`, `compact`).
+- **Width mode.** `Parser::width_mode` (`WidthMode::Scalar` default,
+  `WidthMode::Grapheme` via `TerminalCore::set_grapheme_clusters`) chooses
+  whether a printed character occupies one cell per Unicode scalar or one
+  cell-span per extended grapheme cluster. `ScreenGrid::join_previous` is
+  where a soft-wrap join respects the active mode's cluster boundaries
+  instead of splitting mid-cluster; `RowIndex` measures rewrap width with the
+  same `clusters()` call the printer used, so a stale-run rewrap (§2's
+  "Stale runs" bullet) and a live-frame rewrap agree on where a row breaks.
+  The pty-host mirror is always `WidthMode::Scalar` — a deliberate Plan D
+  deviation, not an oversight, since the mirror only needs byte-identical
+  replay, not on-screen glyph placement (§5). The Unicode `GraphemeBreakTest`
+  corpus (`crates/vt-core/tests/grapheme/`) runs against the splitter in both
+  modes.
 - **Limits** (`Limits { rows, bytes }`, `crates/vt-core/src/limits.rs`) caps
   both cores from the product, not a hardcoded scrollback count:
   `TerminalCore::memory_stats()` (`lib.rs:102`) reports `MemoryStats` against
@@ -585,6 +603,22 @@ history of `master`.
 
 ## 5. Known gaps (not bugs, decisions pending)
 
+- SGR attributes (italic, underline in 5 styles, SGR 58 colour, strike,
+  overline, hidden, blink) are parsed unconditionally but rendered only
+  behind `RendererFeatures.attributes = "warp"`; the default is `"plain"`,
+  which paints none of them. An underlined trailing blank is still trimmed
+  from the export. The pty-host mirror stays in scalar width mode (its
+  `clip_row` clips by `char`, not by grapheme cluster — see §2 "Width mode").
+  `styles.json` covers no blink/overline case because Alacritty's reference
+  cell flags have none to record. In both width modes a zero-width scalar
+  after a space now rewraps with the space instead of starting a new row
+  (Task 5).
+- `bench/agent-session/glyph-probe.mjs`'s `MARKER_COLUMN = 40` assumes a
+  0-based marker position, but the probe reaches it via `\x1b[40G` (1-based
+  CSI CHA), so the true marker sits at 0-based cell 39 — every
+  `EVIDENCE*.json` this plan (Plan D) produced has a constant ~+1-cell bias
+  in its drift numbers. Doesn't change any needed/not-needed verdict; not
+  fixed because `glyph-probe.mjs` was outside every task's file list.
 - A DEC 2026 block that grows to `SYNC_BUFFER_CAP` (2 MiB) is flushed and
   parsed in one `feed` inside whatever frame receives it, bypassing the 12 ms
   `drain` budget: a burst of ~60 ms on this machine. Claude Code frames are
@@ -723,6 +757,8 @@ npm run build:wasm -- --force && npm run build:ts
 for p in core renderer-dom react; do (cd ts/$p && npx vitest run); done
 npm run bench:selection      # Playwright: a selection must survive 20 repaints
 npm run bench:feel           # Playwright: zero pixel diff vs bench/agent-session/baselines (record with -- --record)
+npm run bench:glyphs         # Playwright: evidence for the glyph probe (box-drawing gap, width-cache drift), writes baselines/glyph-probe/EVIDENCE*.json
+npm run bench:feel -- --feature <list>  # Playwright: side-by-side screenshots for a flag, e.g. attributes=warp — never diffed, only recorded
 npm run bench:agent:gate     # Playwright: no torn paint under the spinner, queued 2 MiB never blocks > 16 ms
 npm run bench:agent:scroll   # Playwright: full scroll coverage, trim anchor holds, width-change gate (top-edge row and lazy rewrap)
 
