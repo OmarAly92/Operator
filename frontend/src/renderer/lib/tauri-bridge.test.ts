@@ -355,6 +355,21 @@ describe("tauri-bridge native integrations", () => {
 		expect(invoke).toHaveBeenLastCalledWith("open_path", { path: "/abs/src/a.ts" });
 	});
 
+	it("asks the native side for the first link path candidate that exists", async () => {
+		const invoke = vi.fn<Invoke>(async () => ({ index: 2, path: "/abs/src/a.ts" }));
+		const tauri = bridgeWith(invoke);
+		const candidates = [
+			{ path: "edit src/a.ts", allowDirectory: true },
+			{ path: " src/a.ts", allowDirectory: true },
+			{ path: "src/a.ts", allowDirectory: false },
+		];
+
+		await expect(tauri.app.resolveFirstPath("/work", candidates)).resolves.toEqual({ index: 2, path: "/abs/src/a.ts" });
+		expect(invoke).toHaveBeenLastCalledWith("resolve_first_path", { base: "/work", candidates });
+		invoke.mockResolvedValueOnce(null);
+		await expect(tauri.app.resolveFirstPath(null, candidates)).resolves.toBeNull();
+	});
+
 	it("passes the line, column and editor to the native opener and reports a missing editor CLI", async () => {
 		const invoke = vi.fn<Invoke>(async () => ({ cliMissing: true }));
 		const tauri = bridgeWith(invoke);

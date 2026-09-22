@@ -38,6 +38,7 @@ import { type SelectionKind, type SelectionPoint, type SelectionState } from "./
 import { selectedText, type TextRows } from "./selection-text.js";
 import { Linkifier } from "./linkifier.js";
 import { DEFAULT_LINK_PROVIDERS, type DetectedLink, type LinkProvider } from "./link-providers.js";
+import type { PathLookup } from "./file-links.js";
 import { paintBoxes, rangeBoxes, type DecorationBox } from "./decorations.js";
 import { collectHintMatches, HintSession, type HintEvent } from "./hint-mode.js";
 import { DEFAULT_HINT_RULES, type HintRule } from "./hint-rules.js";
@@ -120,10 +121,12 @@ export class DomBlockRenderer implements BlockRenderer {
 	private blockStates = new Map<BlockId, BlockState>();
 	private readonly blockFinishedListeners = new Set<(event: BlockFinishedEvent) => void>();
 	private linkProviders: readonly LinkProvider[] = DEFAULT_LINK_PROVIDERS;
+	private pathLookup: PathLookup | null = null;
 	private readonly linkifier = new Linkifier({
 		rows: () => this.textRows(),
 		generation: () => this.core?.snapshot().generation ?? Number.NaN,
 		providers: () => this.linkProviders,
+		pathLookup: () => this.pathLookup,
 		onChange: () => this.linkChanged(),
 	});
 	private decorationLayer: HTMLElement | null = null;
@@ -456,6 +459,11 @@ export class DomBlockRenderer implements BlockRenderer {
 
 	setLinkProviders(providers: readonly LinkProvider[]): void {
 		this.linkProviders = providers;
+		this.linkifier.invalidate();
+	}
+
+	setPathLookup(lookup: PathLookup | null): void {
+		this.pathLookup = lookup;
 		this.linkifier.invalidate();
 	}
 

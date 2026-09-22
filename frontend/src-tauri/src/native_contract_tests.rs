@@ -860,3 +860,81 @@ fn a_spawned_editor_cli_receives_a_path_with_spaces_and_quotes_intact() {
     );
     std::fs::remove_dir_all(&dir).ok();
 }
+
+#[test]
+fn the_first_candidate_that_names_a_file_or_an_allowed_directory_wins() {
+    use crate::native::{first_link_path, PathQuery};
+    let dir = std::env::temp_dir().join(format!("operator-first-link-{}", std::process::id()));
+    std::fs::create_dir_all(dir.join("src")).expect("temp dir");
+    std::fs::write(dir.join("src/a.ts"), b"x").expect("write");
+    let base = dir.to_string_lossy().to_string();
+    let query = |path: &str, allow_directory: bool| PathQuery {
+        path: path.to_string(),
+        allow_directory,
+    };
+    let canonical = |path: &str| {
+        dir.join(path)
+            .canonicalize()
+            .expect("canonicalize")
+            .to_string_lossy()
+            .to_string()
+    };
+
+    assert_eq!(
+        first_link_path(
+            Some(&base),
+            &[
+                query("edit src/a.ts", true),
+                query(" src/a.ts", true),
+                query("src", false),
+                query("src/a.ts", false),
+                query("src", true),
+            ]
+        ),
+        Some((3, canonical("src/a.ts")))
+    );
+    assert_eq!(
+        first_link_path(Some(&base), &[query("src", true)]),
+        Some((0, canonical("src")))
+    );
+    assert_eq!(first_link_path(None, &[query("src/a.ts", false)]), None);
+    assert_eq!(
+        first_link_path(
+            None,
+            &[query(dir.join("src/a.ts").to_str().expect("utf-8"), false)]
+        ),
+        Some((0, canonical("src/a.ts")))
+    );
+    assert_eq!(
+        first_link_path(Some(&base), &[query("src/a.ts\0", false)]),
+        None
+    );
+    std::fs::remove_dir_all(&dir).ok();
+}
+
+#[test]
+fn a_tilde_candidate_resolves_against_home() {
+    use crate::native::{first_link_path, PathQuery};
+    let home = std::env::var("HOME").expect("HOME");
+    let expected = std::path::PathBuf::from(&home)
+        .canonicalize()
+        .expect("canonicalize")
+        .to_string_lossy()
+        .to_string();
+    assert_eq!(
+        first_link_path(
+            None,
+            &[
+                PathQuery {
+                    path: "~".to_string(),
+                    allow_directory: true
+                },
+                PathQuery {
+                    path: "~/".to_string(),
+                    allow_directory: true
+                }
+            ]
+        ),
+        Some((0, expected))
+    );
+}

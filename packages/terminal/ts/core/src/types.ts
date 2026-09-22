@@ -241,13 +241,17 @@ export type DirEntry = Readonly<{
 
 export type SecretPattern = Readonly<{ source: string; flags?: string }>;
 
+export type PathQuery = Readonly<{ path: string; allowDirectory: boolean }>;
+
+export type PathMatch = Readonly<{ index: number; path: string }>;
+
 export type HostCapabilities = Readonly<{
 	writeClipboard(text: string): Promise<void>;
 	readClipboard(): Promise<string>;
 	openLink(url: string): Promise<void>;
 	notify?(title: string, body: string): void;
 	listDirectory?(path: string): Promise<readonly DirEntry[]>;
-	resolvePath?(path: string, cwd: string): Promise<string | null>;
+	resolveFirstPath?(candidates: readonly PathQuery[], cwd: string): Promise<PathMatch | null>;
 	openPath?(path: string, line?: number, column?: number): Promise<void>;
 	secretPatterns?: readonly SecretPattern[];
 	predictiveEcho?: Readonly<{ thresholdMs: number }>;

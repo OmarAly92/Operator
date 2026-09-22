@@ -21,6 +21,10 @@ export type ExternalEditor = "vscode" | "cursor" | "zed";
 
 export type OpenPathOutcome = { cliMissing: boolean };
 
+export type LinkPathQuery = { path: string; allowDirectory: boolean };
+
+export type LinkPathMatch = { index: number; path: string };
+
 export interface UpdateCheckOptions {
 	settings?: UpdateSettings;
 	requestId?: string;
@@ -36,6 +40,7 @@ export type OperatorBridge = {
 		chooseDirectory: (title?: string) => Promise<string | null>;
 		openExternal: (url: string) => Promise<void>;
 		resolvePath: (base: string | null, path: string) => Promise<string | null>;
+		resolveFirstPath: (base: string | null, candidates: readonly LinkPathQuery[]) => Promise<LinkPathMatch | null>;
 		openPath: (path: string, line?: number, column?: number, editor?: ExternalEditor) => Promise<OpenPathOutcome>;
 		scanImportFolder: (input: { path: string; mode: ImportFolderMode }) => Promise<ImportFolderScan>;
 		checkAncestorRepo: (path: string) => Promise<string | undefined>;

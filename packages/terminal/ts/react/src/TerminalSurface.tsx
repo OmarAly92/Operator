@@ -2,7 +2,7 @@ import { useCallback, useLayoutEffect, useRef, useState, type ReactElement, type
 import { clipboardHasImage, encodeKey, LineEditor, planPaste } from "@operator/terminal-editor";
 import {
 	createFindBar,
-	createPathProvider,
+	createPathLookup,
 	DEFAULT_LINK_PROVIDERS,
 	DomBlockRenderer,
 	RERUN_EVENT,
@@ -33,7 +33,6 @@ import {
 	accelerationGain,
 	GESTURE_IDLE_MS,
 	isMacPlatform,
-	isWindowsPlatform,
 	MIN_VELOCITY_SAMPLE_MS,
 	pointerCell,
 	SELECTION_CHROME,
@@ -119,23 +118,21 @@ export function TerminalSurface({
 	const compositionRef = useRef<CompositionTarget | null>(null);
 	const hostCapsRef = useRef(host);
 	hostCapsRef.current = host;
-	const resolvePath = host?.resolvePath;
-	const resolvePathRef = useRef(resolvePath);
-	resolvePathRef.current = resolvePath;
+	const resolveFirstPath = host?.resolveFirstPath;
+	const resolveFirstPathRef = useRef(resolveFirstPath);
+	resolveFirstPathRef.current = resolveFirstPath;
 
 	const applyLinkProviders = useCallback(() => {
 		const renderer = rendererRef.current;
 		if (!renderer) return;
-		const resolve = resolvePathRef.current;
+		const resolve = resolveFirstPathRef.current;
+		renderer.setLinkProviders(DEFAULT_LINK_PROVIDERS);
 		if (!resolve) {
-			renderer.setLinkProviders(DEFAULT_LINK_PROVIDERS);
+			renderer.setPathLookup(null);
 			return;
 		}
 		const cwdOf = (blockId: string) => decodeBlocks(core.snapshot()).find((block) => block.id === blockId)?.cwd ?? "";
-		renderer.setLinkProviders([
-			...DEFAULT_LINK_PROVIDERS,
-			createPathProvider((path, cwd) => resolve(path, cwd), cwdOf, isWindowsPlatform() ? "windows" : "posix"),
-		]);
+		renderer.setPathLookup(createPathLookup((candidates, cwd) => resolve(candidates, cwd), cwdOf));
 	}, [core]);
 
 	const predictiveThresholdMs = host?.predictiveEcho?.thresholdMs;
@@ -224,7 +221,7 @@ export function TerminalSurface({
 
 	useLayoutEffect(() => {
 		applyLinkProviders();
-	}, [applyLinkProviders, resolvePath]);
+	}, [applyLinkProviders, resolveFirstPath]);
 
 	const secretPatterns = host?.secretPatterns;
 	useLayoutEffect(() => {

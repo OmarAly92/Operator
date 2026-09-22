@@ -14,6 +14,15 @@ const rows: TextRows = {
 };
 
 describe("logicalLineAt", () => {
+	it("maps a cell back to its line offset across the wrap, wide cells included, and nothing past the text", () => {
+		const line = logicalLineAt(rows, "b", 10)!;
+		expect(line.offsetAt(10, 2)).toBe(2);
+		expect(line.offsetAt(11, 1)).toBe(5);
+		expect(line.offsetAt(11, 3)).toBeNull();
+		expect(line.offsetAt(12, 0)).toBeNull();
+		const wide = logicalLineAt({ ...rows, rowText: () => "漢a", rowSpans: () => [0, 3, 2], rowWrapped: () => false }, "b", 10)!;
+		expect([0, 1, 2, 3].map((cell) => wide.offsetAt(10, cell))).toEqual([0, 0, 1, null]);
+	});
 	it("joins the wrapped pair and leaves the others alone", () => {
 		const line = logicalLineAt(rows, "b", 11)!;
 		expect(line).toMatchObject({ blockId: "b", firstRow: 10, rowCount: 2, text: "one two", rowOffsets: [0, 4] });

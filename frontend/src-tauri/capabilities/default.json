@@ -28,6 +28,7 @@
 		"allow-choose-directory",
 		"allow-open-external",
 		"allow-resolve-path",
+		"allow-resolve-first-path",
 		"allow-open-path",
 		"allow-clipboard-write",
 		"allow-clipboard-read",

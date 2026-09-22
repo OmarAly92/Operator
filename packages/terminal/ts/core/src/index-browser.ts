@@ -20,6 +20,8 @@ export type {
 	LineEditorState,
 	MemoryStats,
 	PaletteCommand,
+	PathMatch,
+	PathQuery,
 	RowEvent,
 	RowEventListener,
 	RowRange,
