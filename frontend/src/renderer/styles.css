@@ -509,7 +509,7 @@
 
 .center-panel-shell.center-panel-shell--session {
 	/* No padding override: session pages use the same inset as other pages now
-	 * that SessionTopbarHost lives inside the surface. Class is kept for
+	 * that each split pane paints its own topbar strip. Class is kept for
 	 * identification (e.g. tests). */
 }
 

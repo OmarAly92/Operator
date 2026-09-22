@@ -12,7 +12,6 @@ import { SettingsDialog } from "../components/SettingsDialog";
 import { KeyboardShortcutsDialog } from "../components/KeyboardShortcutsDialog";
 import { KeyboardShortcutsSettingsDialog } from "../components/settings/KeyboardShortcutsSettingsDialog";
 import { ShellTopbar } from "../components/ShellTopbar";
-import { SessionTopbarHost, SessionTopbarProvider } from "../components/SessionTopbarPortal";
 import { Sidebar } from "../components/Sidebar";
 import { TicketDndProvider } from "../components/tickets/TicketDndProvider";
 import { SidebarProvider } from "../components/ui/sidebar";
@@ -546,8 +545,7 @@ function ShellLayout() {
 
 	return (
 		<ShellProvider value={{ daemonStatus, workspaceStartupState, createProject, initializeProjectRepository }}>
-			<SessionTopbarProvider>
-				{/* The first-run update opt-in lives at the shell level so the board's
+			{/* The first-run update opt-in lives at the shell level so the board's
 				    scratch-project redirect cannot unmount it mid-ask. It waits for a
 				    ready daemon because the answer is read from shared settings. */}
 				{daemonStatus.state === "ready" && <UpdateOptInPrompt />}
@@ -639,12 +637,6 @@ function ShellLayout() {
 								) : (
 							// Platform hides shell topbar: full-height panel; session mounts actions in-panel.
 							<CenterPanelShell className={routeParams.sessionId ? "center-panel-shell--session" : undefined}>
-								{routeParams.sessionId ? (
-									<SessionTopbarHost
-										className="relative z-chrome flex h-inspector-tabs w-full shrink-0 overflow-hidden"
-										data-testid="session-topbar-host"
-									/>
-								) : null}
 								<div className="flex min-h-0 flex-1 flex-col">
 									<Outlet />
 								</div>
@@ -652,26 +644,13 @@ function ShellLayout() {
 						)
 					) : framedAppTopbar ? (
 						<CenterPanelShell className={routeParams.sessionId ? "center-panel-shell--session" : undefined}>
-							{routeParams.sessionId ? (
-								<SessionTopbarHost
-									className="relative z-chrome flex h-inspector-tabs w-full shrink-0 overflow-hidden"
-									data-testid="session-topbar-host"
-								/>
-							) : (
-								<ShellTopbar />
-							)}
+							{routeParams.sessionId ? null : <ShellTopbar />}
 							<div className="flex min-h-0 flex-1 flex-col">
 								<Outlet />
 							</div>
 						</CenterPanelShell>
 					) : (
 						<CenterPanelShell className={routeParams.sessionId ? "center-panel-shell--session" : undefined}>
-							{routeParams.sessionId ? (
-								<SessionTopbarHost
-									className="relative z-chrome flex h-inspector-tabs w-full shrink-0 overflow-hidden"
-									data-testid="session-topbar-host"
-								/>
-							) : null}
 							<div className="flex min-h-0 flex-1 flex-col">
 								<Outlet />
 							</div>
@@ -686,7 +665,6 @@ function ShellLayout() {
 					<CommandPalette />
 				</div>
 				</TerminalCacheProvider>
-			</SessionTopbarProvider>
 		</ShellProvider>
 	);
 }
