@@ -525,6 +525,27 @@ describe("measure", () => {
 		expect(host.querySelectorAll(".terminal-hint-label")).toHaveLength(0);
 	});
 
+	it("masks a secret in the copy text and paints it, only once the host supplies patterns", async () => {
+		stubRowLayout();
+		const core = createTerminalCore({ columns: 80, scrollback: 100 });
+		feed(core, "token ghp_ABCDEFGHIJKLMNOPQRSTU end\r\n");
+		const host = document.createElement("div");
+		const renderer = new DomBlockRenderer();
+		renderer.mount(host, core);
+		renderer.setTheme(theme);
+		renderer.setFont(font);
+		await flushRepaint();
+		renderer.selectionBegin({ blockId: "0:0", row: 0, column: 0, side: "left" }, "line");
+		expect(renderer.selectedText()).toContain("ghp_ABCDEFGHIJKLMNOPQRSTU");
+		expect(host.querySelectorAll(".terminal-redaction")).toHaveLength(0);
+		renderer.setSecretPatterns([{ source: "\\bgh[pousr]_[A-Za-z0-9]{20,}\\b" }]);
+		await flushRepaint();
+		expect(renderer.selectedText()).not.toContain("ghp_");
+		expect(renderer.selectedText()).toContain("*".repeat(25));
+		expect(host.querySelectorAll(".terminal-redaction")).toHaveLength(1);
+		expect(host.textContent).toContain("ghp_ABCDEFGHIJKLMNOPQRSTU");
+	});
+
 	it("cancelling hint mode removes every label and paints nothing", async () => {
 		stubRowLayout();
 		const { host, renderer } = mountWith("go https://x.y/a\r\n");

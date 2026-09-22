@@ -45,6 +45,18 @@ const actions = {
 		await page.evaluate(() => window.__agentSession.hintCancel());
 		return [["hint-count", count, labels.slice(0, 8).join(",")]];
 	},
+	async redact(page, shoot) {
+		await shoot("redact-off");
+		await page.evaluate(() => window.__agentSession.setSecretPatterns([
+			{ source: "\\bgh[pousr]_[A-Za-z0-9]{20,}\\b" },
+			{ source: "\\bAKIA[0-9A-Z]{16}\\b" },
+		]));
+		await page.waitForTimeout(150);
+		await shoot("redact-on");
+		const painted = await page.evaluate(() => document.querySelectorAll(".terminal-redaction").length);
+		await page.evaluate(() => window.__agentSession.setSecretPatterns([]));
+		return [["redact-boxes", painted, null]];
+	},
 };
 
 const server = await createServer({ configFile, logLevel: "error" });

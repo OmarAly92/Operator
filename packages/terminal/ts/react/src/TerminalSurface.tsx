@@ -209,6 +209,11 @@ export function TerminalSurface({
 		applyLinkProviders();
 	}, [applyLinkProviders, resolvePath]);
 
+	const secretPatterns = host?.secretPatterns;
+	useLayoutEffect(() => {
+		rendererRef.current?.setSecretPatterns(secretPatterns ?? []);
+	}, [secretPatterns]);
+
 	useLayoutEffect(() => {
 		editorRef.current?.setStrings(strings);
 	}, [strings]);
@@ -449,6 +454,7 @@ export function TerminalSurface({
 					return;
 				}
 			}
+			if (button === 0 && !event.altKey) renderer()?.revealSecretAt(event.clientX, event.clientY);
 			const data = reportFor("press", button, event);
 			if (data !== null) {
 				event.preventDefault();

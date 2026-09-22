@@ -239,6 +239,8 @@ export type DirEntry = Readonly<{
 	isHidden: boolean;
 }>;
 
+export type SecretPattern = Readonly<{ source: string; flags?: string }>;
+
 export type HostCapabilities = Readonly<{
 	writeClipboard(text: string): Promise<void>;
 	readClipboard(): Promise<string>;
@@ -247,6 +249,7 @@ export type HostCapabilities = Readonly<{
 	listDirectory?(path: string): Promise<readonly DirEntry[]>;
 	resolvePath?(path: string, cwd: string): Promise<string | null>;
 	openPath?(path: string, line?: number, column?: number): Promise<void>;
+	secretPatterns?: readonly SecretPattern[];
 }>;
 
 export type HistoryStore = {

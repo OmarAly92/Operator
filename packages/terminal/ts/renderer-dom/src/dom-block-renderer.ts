@@ -8,6 +8,7 @@ import {
 	type BlockView,
 	type FontConfig,
 	type RowRange,
+	type SecretPattern,
 	type TerminalCore,
 	type TerminalTheme,
 } from "@operator/terminal-core";
@@ -36,7 +37,8 @@ import { DEFAULT_LINK_PROVIDERS, type DetectedLink, type LinkProvider } from "./
 import { paintBoxes, rangeBoxes, type DecorationBox } from "./decorations.js";
 import { collectHintMatches, HintSession, type HintEvent } from "./hint-mode.js";
 import { DEFAULT_HINT_RULES, type HintRule } from "./hint-rules.js";
-import { logicalLineAt, type LogicalLineView } from "./logical-lines.js";
+import { logicalLineAt, rangeContains, type LogicalLineView } from "./logical-lines.js";
+import { compileSecretPatterns, maskedTextRows, redactionMatches } from "./redaction.js";
 import {
 	renderedRows,
 	resolveSelectionView,
@@ -123,6 +125,9 @@ export class DomBlockRenderer implements BlockRenderer {
 	private decorationLayer: HTMLElement | null = null;
 	private readonly linkHoverListeners = new Set<(link: DetectedLink | null) => void>();
 	private hint: HintSession | null = null;
+	private secretRegexes: RegExp[] = [];
+	private revealedSecrets = new Set<string>();
+	private revealedAt = -1;
 
 	mount(container: HTMLElement, core: TerminalCore): void {
 		this.dispose();
@@ -401,9 +406,13 @@ export class DomBlockRenderer implements BlockRenderer {
 		this.notifySelectionListeners();
 	}
 
-	private textRows(): TextRows {
+	private rawTextRows(): TextRows {
 		const core = this.core!;
 		return snapshotTextRows(core.snapshot(), this.currentFilter, this.decoder, (id) => core.linkUri(id));
+	}
+
+	private textRows(): TextRows {
+		return maskedTextRows(this.rawTextRows(), this.secretRegexes, this.revealedSecrets);
 	}
 
 	private selectionView(): SelectionView | null {
@@ -490,6 +499,27 @@ export class DomBlockRenderer implements BlockRenderer {
 		return this.hint !== null;
 	}
 
+	setSecretPatterns(patterns: readonly SecretPattern[]): void {
+		this.secretRegexes = compileSecretPatterns(patterns);
+		this.revealedSecrets.clear();
+		this.scheduleRepaint();
+	}
+
+	revealSecretAt(x: number, y: number): void {
+		if (this.secretRegexes.length === 0) return;
+		const point = this.pointAt(x, y);
+		if (!point) return;
+		const line = logicalLineAt(this.rawTextRows(), point.blockId, point.row);
+		if (!line) return;
+		for (const match of redactionMatches(line, this.secretRegexes)) {
+			if (!rangeContains(match.range, point.row, point.column)) continue;
+			this.revealedSecrets.add(match.key);
+			this.revealedAt = this.core?.snapshot().generation ?? this.revealedAt;
+			this.scheduleRepaint();
+			return;
+		}
+	}
+
 	private paintHints(): void {
 		const matchLayer = this.layer("hints");
 		const labelLayer = this.layer("labels");
@@ -535,6 +565,33 @@ export class DomBlockRenderer implements BlockRenderer {
 		paintBoxes(layer, "terminal-link-underline", boxes);
 	}
 
+	private paintRedactions(): void {
+		const layer = this.layer("redactions");
+		const container = this.container;
+		if (!layer || !container) return;
+		if (this.secretRegexes.length === 0) {
+			paintBoxes(layer, "terminal-redaction", []);
+			return;
+		}
+		const rows = this.rawTextRows();
+		const seen = new Set<string>();
+		const boxes: DecorationBox[] = [];
+		const rendered = this.renderedRows();
+		const { cellWidth } = this.cellMetrics();
+		for (const { box } of rendered) {
+			const line = logicalLineAt(rows, box.blockId, box.row);
+			if (!line) continue;
+			const key = `${line.blockId}:${line.firstRow}`;
+			if (seen.has(key)) continue;
+			seen.add(key);
+			for (const match of redactionMatches(line, this.secretRegexes)) {
+				if (this.revealedSecrets.has(match.key)) continue;
+				boxes.push(...rangeBoxes(match.range, rendered, cellWidth, container));
+			}
+		}
+		paintBoxes(layer, "terminal-redaction", boxes);
+	}
+
 	dispose(): void {
 		this.jumpToBottom?.dispose(), (this.jumpToBottom = null);
 		this.blockNav?.dispose(), (this.blockNav = null);
@@ -548,6 +605,8 @@ export class DomBlockRenderer implements BlockRenderer {
 		this.blockFinishedListeners.clear();
 		this.linkifier.dispose();
 		this.hint = null;
+		this.secretRegexes = [];
+		this.revealedSecrets.clear();
 		this.decorationLayer = null;
 		this.linkHoverListeners.clear();
 		if (this.container) {
@@ -691,6 +750,10 @@ export class DomBlockRenderer implements BlockRenderer {
 		const firstRow = Math.max(0, this.flatRowFor(anchor) - OVERSCAN_ROWS);
 		core.setExportWindow(firstRow, firstRow + this.visibleRowCapacity() + 2 * OVERSCAN_ROWS);
 		const snapshot = core.snapshot();
+		if (this.revealedAt !== snapshot.generation) {
+			this.revealedSecrets.clear();
+			this.revealedAt = snapshot.generation;
+		}
 
 		const alt = snapshot.altScreen;
 		if (alt) {
@@ -710,6 +773,7 @@ export class DomBlockRenderer implements BlockRenderer {
 			this.linkifier.refresh();
 			this.paintDecorations();
 			this.paintHints();
+			this.paintRedactions();
 			if (paintedAt !== undefined) this.lastPaintAt = paintedAt;
 			this.notifyPainted();
 			core.takeDirty();
@@ -871,6 +935,7 @@ export class DomBlockRenderer implements BlockRenderer {
 		this.linkifier.refresh();
 		this.paintDecorations();
 		this.paintHints();
+		this.paintRedactions();
 		if (paintedAt !== undefined) this.lastPaintAt = paintedAt;
 		this.notifyPainted();
 		this.rescheduleIfPending(core);

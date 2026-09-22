@@ -693,6 +693,12 @@ history of `master`.
   instead of on the mark's `count` — the invariant `HistoryReceiver::consume`
   ends a chunk on. Revisit with a second anchor for that invariant; do not
   "fix" it by loosening the row count.
+- **A masked secret (Task 8) is unmasked to assistive tech.** `maskedTextRows`
+  only changes what `TextRows.rowText` returns to the copy path, the
+  linkifier, hint mode and the block-output source; the row DOM itself is
+  never rewritten, so a screen reader or the accessibility tree still reads
+  the original token. The mask is a paint (`.terminal-redaction`) plus a read
+  transform, not a redaction of the rendered cells.
 - **The `bench:agent:scroll` flake was the harness counting frames while the
   renderer paces paints by time — fixed 2026-09-22.** `repaintOnFrame` defers
   a paint that would land within `PAINT_INTERVAL_MS` of the previous one, so a

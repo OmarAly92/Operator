@@ -533,4 +533,13 @@ describe("TerminalSurface", () => {
 		expect(setFocused).toHaveBeenLastCalledWith(false);
 		setFocused.mockRestore();
 	});
+
+	it("passes the host's secret patterns to the renderer and nothing when there are none", () => {
+		const setSecretPatterns = vi.spyOn(DomBlockRenderer.prototype, "setSecretPatterns");
+		const core = createTerminalCore({ columns: 16, scrollback: 100 });
+		const host = { writeClipboard: async () => {}, readClipboard: async () => "", openLink: async () => {}, secretPatterns: [{ source: "x" }] };
+		render(<TerminalSurface core={core} theme={theme} font={font} altScreenActive={false} host={host} onSend={() => undefined} onSendRaw={() => undefined} />);
+		expect(setSecretPatterns).toHaveBeenLastCalledWith([{ source: "x" }]);
+		setSecretPatterns.mockRestore();
+	});
 });

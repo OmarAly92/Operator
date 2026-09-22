@@ -23,6 +23,7 @@ export type {
 	RowEvent,
 	RowEventListener,
 	RowRange,
+	SecretPattern,
 	ShellKind,
 	SpawnRecipe,
 	TerminalCoreOptions,

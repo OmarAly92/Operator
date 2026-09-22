@@ -256,6 +256,14 @@
 	background: var(--terminal-ansi-3);
 }
 
+/* A masked secret is painted over its cells rather than rewritten into the row,
+   so the model keeps the bytes and only what is READ is masked (Warp
+   crates/warp_terminal/src/model/secrets.rs, RespectObfuscatedSecrets). */
+.terminal-redaction {
+	background: var(--terminal-foreground);
+	opacity: 0.85;
+}
+
 /* Chrome stays unselectable, so dragging across a block picks up its output and
    not the header metadata or the labels of the buttons floating over it. */
 .terminal-block-header,

@@ -10,6 +10,7 @@ export type { LinkRange } from "./logical-lines.js";
 export { DEFAULT_HINT_RULES, type HintRule } from "./hint-rules.js";
 export { DEFAULT_HINT_ALPHABET } from "./hint-labels.js";
 export type { HintEvent, HintMatch } from "./hint-mode.js";
+export { REDACTION_MASK, compileSecretPatterns, secretRanges } from "./redaction.js";
 export { styleCodeToCssVar } from "./style-code.js";
 export { terminalStyles } from "./styles.js";
 export { createFindBar, type FindBar, type FindBarHost, type FindBarOptions } from "./find-bar.js";

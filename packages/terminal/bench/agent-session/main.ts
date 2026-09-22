@@ -57,6 +57,7 @@ type AgentSession = {
 	hintBegin(): number;
 	hintType(character: string): unknown;
 	hintCancel(): void;
+	setSecretPatterns(patterns: { source: string; flags?: string }[]): void;
 };
 
 const host = document.getElementById("terminal");
@@ -423,6 +424,7 @@ window.__agentSession = {
 	hintBegin: () => domRenderer.hintBegin(),
 	hintType: (character) => domRenderer.hintType(character),
 	hintCancel: () => domRenderer.hintCancel(),
+	setSecretPatterns: (patterns) => domRenderer.setSecretPatterns(patterns),
 	blocks: () => decodeBlocks(core.snapshot()).length,
 } as AgentSession & { blocks(): number };
 window.__agentSessionReady = true;
