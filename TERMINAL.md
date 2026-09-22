@@ -86,18 +86,52 @@ rebuilt (§6).
     place. Mirrors Warp's `FullGridClearBehavior::Clear` (`warp/crates/warp_terminal/src/model/grid/resize.rs:60`).
   - In BOTH modes scrollback is **rewrapped** on a width change (§4.2).
 - **Snapshot** (`grid.rs` → vt-wasm `ExportBuffers` → TS `TerminalSnapshot`):
-  `content`, `rows` (start,end pairs), `rowIndents` (u16 per row), `runRanges`,
-  `stylePairs` (stride `STYLE_RUN_WORDS = 5`: `end, fg, bg, attrs, underline`),
-  `blocks` (stride `BLOCK_RECORD_WORDS`), cursor, alt screen — and
-  `spanRanges`/`cellSpans` (stride `CELL_SPAN_WORDS = 3`: `start, end, width`
-  per cluster that is not a single width-1 scalar). Adding a per-row field
-  means: `GridSnapshot` + `append_row`/`append_screen_row` + `ExportBuffers` +
-  `*_ptr/_len` + `terminal-core.ts` + `types.ts` + the Rust test fixture
-  `vt-wasm/tests/exit_encoding.rs` — and now, if the field is per-section,
-  `ExportedRow`/`push_row` in `export.rs` and `history_rows`, and, for a
-  per-cell field, `AltSnapshot` in `screen/snapshot.rs` and the dead-prefix
-  accounting in `ExportBuffers` (`dead_*`/`history_*` counters, `drop_front`,
-  `rewrite_history_from`, `truncate_screen`, `compact`).
+  `content`, `rows` (start,end pairs), `rowIndents` (u16 per row), `rowWrapped`
+  (one byte per row, 1 when the next row continues this one — a printer
+  soft-wrap or a rewrap cut), `runRanges`, `stylePairs` (stride
+  `STYLE_RUN_WORDS = 6`: `end, fg, bg, attrs, underline, link`), `blocks`
+  (stride `BLOCK_RECORD_WORDS`), cursor, alt screen, `spanRanges`/`cellSpans`
+  (stride `CELL_SPAN_WORDS = 3`: `start, end, width` per cluster that is not a
+  single width-1 scalar) — and `linkRanges`/`linkText` (the OSC 8 URI table,
+  index `id - 1`: `linkRanges[(id-1)*2]`/`[(id-1)*2+1]` are the byte range
+  into `linkText`). Adding a per-row field means: `GridSnapshot` +
+  `append_row`/`append_screen_row` + `ExportBuffers` + `*_ptr/_len` +
+  `terminal-core.ts` + `types.ts` + the Rust test fixture
+  `vt-wasm/tests/exit_encoding.rs` — `row_wrapped` is the worked example
+  beside `row_indents`, the second per-row field the buffers carry — and now,
+  if the field is per-section, `ExportedRow`/`push_row` in `export.rs` and
+  `history_rows`, and, for a per-cell field, `AltSnapshot` in
+  `screen/snapshot.rs` and the dead-prefix accounting in `ExportBuffers`
+  (`dead_*`/`history_*` counters, `drop_front`, `rewrite_history_from`,
+  `truncate_screen`, `compact`).
+- **Logical lines.** Two files own the join and neither duplicates the other:
+  `ts/core/src/logical-lines.ts` joins flat snapshot rows behind
+  `TerminalCore.logicalLines(range)`, the API any host can call over a plain
+  snapshot; `ts/renderer-dom/src/logical-lines.ts` lifts that same join into
+  the renderer's stable-row, per-block space and attaches link runs, because
+  that is the space the linkifier, hint mode and redaction address. The
+  renderer's `logicalLineAt` imports `joinLogicalLine` from
+  `@operator/terminal-core` and derives its `text`/`rowOffsets` from that one
+  function — it derives nothing of its own. A change to how pieces join
+  belongs in the core's `joinLogicalLine` and lands in both by construction.
+- **Hyperlinks.** `Parser::osc_dispatch` parses `OSC 8 ; params ; URI ST` and
+  interns it in `HyperlinkRegistry` (`crates/vt-core/src/hyperlink.rs`) with
+  Warp's caps (`MAX_DISTINCT_ENTRIES = 4096`, `MAX_URI_BYTES = 2083`) and no
+  reclamation. The id rides in `CellStyle.link` (`u16`, 0 = none), so it
+  splits, merges, rewraps, evicts and trims with the styles for free — no
+  separate span buffer. The mirror re-emits the sequence per run in the
+  attach replay and in every history chunk, because ids are per core, not
+  shared across the two. **The table is not part of the byte budget:**
+  `Parser::trim_to` weighs `content.resident_bytes() + styles.byte_len()`
+  only (`parser.rs:629`), so the registry grows to its cap and stays —
+  deliberate and bounded, not an oversight, and listed in §5.
+- **BlockGrid clock.** A block missing the shell hook's `start_ms`/`end_ms` is
+  stamped from the clock of the feed that opened and closed it
+  (`BlockGrid::set_clock`/`note_output`, `BlockRecord.started_at_ms`/
+  `finished_at_ms`). The TS core feeds and the renderer ticks with
+  `Date.now()`, not `performance.now()`, so these stamps are epoch
+  milliseconds like the Go mirror's `time.Now().UnixMilli()` and the hook's
+  own `start_ms`/`end_ms`.
 - **`RendererFeatures`** (`ts/renderer-dom/src/features.ts`, set through
   `DomBlockRenderer.setFeatures` and the `features` prop of `TerminalSurface`)
   is the gate every Plan D behavior sits behind — SGR attributes, grapheme
@@ -349,6 +383,12 @@ history of `master`.
   over its grid and uses the pointing hand only for links (`app/src/util/link_detection.rs`).
   `.terminal-block, .terminal-alt-surface { cursor: default }`. Guard:
   `styles-parity.test.ts` "keeps the arrow over the transcript".
+- Plan E: the arrow is still the default everywhere else in the transcript;
+  the pointing hand appears only while the `Linkifier` reports a link under
+  the pointer (`.terminal-link-hover`), Warp's own rule
+  (`app/src/terminal/view.rs` `set_cursor_shape`). Guard:
+  `styles-parity.test.ts` "shows the pointing hand only while a link is under
+  the pointer".
 
 ### 4.13 Selection destroyed by repaints — model-owned selection
 - Symptom: a selection survived only while the terminal was idle. Measured in
@@ -371,6 +411,10 @@ history of `master`.
   `terminal-selection.test.ts`, `selection-gesture.test.ts`,
   `TerminalSurface.mouse.test.tsx`, and the `bench:selection` Playwright gate
   (`bench/selection-gate.mjs`).
+- Plan E: the link underline, the hint labels and the redaction masks are
+  overlays in `.terminal-decorations`, positioned from the same row geometry
+  the selection fill uses — never edits to pooled row elements, for the same
+  reason the selection isn't one.
 - A pointer press on chrome is ignored on purpose (`SELECTION_CHROME` in
   `TerminalSurface.tsx` covers the block header, the pinned header, the
   jump-to-bottom button, the find bar and the palette). The gate therefore
@@ -669,9 +713,36 @@ history of `master`.
   kilobytes, so it needs a misbehaving program; lowering the cap or splitting
   the flush across frames is the fix if it ever shows.
 
-- Copying a rewrapped block (`readBlockOutput`, `vt_render`) joins rows with
-  `\n`, so a soft-wrapped line copies as several lines. Warp copies the logical
-  line. Fix would export `wrapped` per row and join on copy.
+- **Closed by Plan E Task 1:** the renderer's copy path now joins a
+  soft-wrapped line into one line (`selectedText`, via `TextRows.rowWrapped`
+  and `logicalLineAt`). `readBlockOutput`/`vt_render` on the HOST side still
+  join with `\n` — that path reads the block-output buffer directly, not
+  through the renderer's stable-row `TextRows`, so Task 1's join does not
+  reach it; a soft-wrapped line in a slash-output or an agent-handoff tail
+  still shows as several lines.
+- **The OSC 8 registry sits outside `Limits { bytes }` and is never
+  reclaimed.** `Parser::trim_to` weighs `content.resident_bytes() +
+  styles.byte_len()` only (`parser.rs:629`) and `memory_stats` reports the
+  same two, so `HyperlinkRegistry` is neither counted nor trimmed.
+  `HyperlinkRegistry` stores each interned URI twice (the `by_link:
+  HashMap<Hyperlink, LinkId>` key and the `by_id: Vec<Hyperlink>` element), so
+  the caps (`MAX_DISTINCT_ENTRIES = 4096`, `MAX_URI_BYTES = 2083`) permit a
+  core to hold up to ~17 MB of interned URIs (2 × 4096 × 2083 B) above its 128
+  MiB budget for its lifetime, before `HashMap` overhead — reachable only by
+  a program printing 4096 distinct maximal URIs. Measured on
+  `claude-long-50k` (no OSC 8): empty. Warp's own trade
+  (`hyperlink_registry.rs:11-15`), not an oversight here.
+- **`openPath`'s `line`/`column` reach Operator and are dropped.**
+  `tauri-plugin-opener`'s `open_path` command takes no editor argument, so
+  the file opens at line 1 regardless of what a `path:line:col` hint or link
+  resolved. Fixing this needs a per-editor argument convention (VS Code's
+  `--goto path:line:col`, for example), which is a host decision, not a
+  package one.
+- **The hint rule set is the package's constant; a host cannot replace it
+  yet.** `DomBlockRenderer.hintBegin(rules?)` accepts one rule list per call,
+  but nothing plumbs a host-supplied list through `TerminalSurface` — Operator
+  always gets `DEFAULT_HINT_RULES`. Revisit if a host ever needs its own
+  patterns (a `HostCapabilities.hintRules?` seam, most likely).
 - The screen's `wrapped` flag is cleared on any width change (`resize_cells`)
   because truncated cells can no longer be rejoined faithfully.
 - The hot region (the screen plus the newest `HOT_ROWS = 2_000` completed
@@ -811,6 +882,7 @@ npm run bench:glyphs         # Playwright: evidence for the glyph probe (box-dra
 npm run bench:feel -- --feature <list>  # Playwright: side-by-side screenshots for a flag, e.g. attributes=warp — never diffed, only recorded
 npm run bench:agent:gate     # Playwright: no torn paint under the spinner, queued 2 MiB never blocks > 16 ms
 npm run bench:agent:scroll   # Playwright: full scroll coverage, trim anchor holds, width-change gate (top-edge row and lazy rewrap)
+npm run bench:affordances -- --action <hover|hint|redact>  # Playwright: side-by-side screenshots of one affordance on act-probe — never diffed
 
 # Frontend + daemon
 cd /Users/omaraly/development/AI/Operator/frontend && npx tsc --noEmit -p .
