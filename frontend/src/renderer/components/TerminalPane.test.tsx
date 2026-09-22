@@ -68,6 +68,7 @@ vi.mock("./BlockTerminal", () => ({
 		onReplayPainted?: () => void;
 		onReplayReady?: () => void;
 		focusToken?: number;
+		recordsSpawnGrid?: boolean;
 	}) => {
 		blockReplayPainted.value = props.onReplayPainted;
 		blockReplayReady.value = props.onReplayReady;
@@ -76,6 +77,7 @@ vi.mock("./BlockTerminal", () => ({
 				aria-label={props.ariaLabel}
 				data-testid="block-terminal"
 				data-focus-token={props.focusToken}
+				data-records-spawn-grid={String(props.recordsSpawnGrid ?? true)}
 				className="block-terminal-root h-full w-full"
 			/>
 		);
@@ -941,6 +943,107 @@ describe("terminal restore", () => {
 			expect(await screen.findByRole("button", { name: "Restore session" })).toBeInTheDocument();
 			expect(screen.getByTestId("terminal-attachment")).toBeInTheDocument();
 			expect(screen.getByText("Terminal error: terminal handle missing")).toBeInTheDocument();
+		} finally {
+			view.restore();
+		}
+	});
+});
+
+function renderSplitPanes(sessions: WorkspaceSession[]) {
+	const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+	queryClient.setQueryData(workspaceQueryKey, workspaceWithSessions(sessions));
+	queryClient.setQueryData(shellTerminalsQueryKey, []);
+	const previousAO = window.operator;
+	window.operator = {} as typeof window.operator;
+	const tree = (left: WorkspaceSession, right: WorkspaceSession, focusedRight = false) => (
+		<QueryClientProvider client={queryClient}>
+			<TerminalCacheProvider daemonReady theme="dark">
+				<div data-testid="pane-left">
+					<TerminalPane daemonReady fontSize={12} session={left} theme="dark" focused={!focusedRight} />
+				</div>
+				<div data-testid="pane-right">
+					<TerminalPane daemonReady fontSize={12} session={right} theme="dark" focused={focusedRight} />
+				</div>
+			</TerminalCacheProvider>
+		</QueryClientProvider>
+	);
+	const [first, second] = sessions;
+	const result = render(tree(first, second));
+	return {
+		show: (left: WorkspaceSession, right: WorkspaceSession, focusedRight = false) =>
+			result.rerender(tree(left, right, focusedRight)),
+		restore: () => {
+			window.operator = previousAO;
+		},
+	};
+}
+
+function attachmentIn(testId: string): HTMLElement | null {
+	return screen.getByTestId(testId).querySelector('[data-testid="terminal-attachment"]');
+}
+
+describe("TerminalCacheProvider with several panes", () => {
+	const a = { ...worker, id: "sess-a", title: "A", terminalHandleId: "handle-a" };
+	const b = { ...worker, id: "sess-b", title: "B", terminalHandleId: "handle-b" };
+	const c = { ...worker, id: "sess-c", title: "C", terminalHandleId: "handle-c" };
+
+	it("keeps two terminals live side by side", async () => {
+		const view = renderSplitPanes([a, b, c]);
+		try {
+			await waitFor(() => expect(attachmentIn("pane-left")).not.toBeNull());
+			await waitFor(() => expect(attachmentIn("pane-right")).not.toBeNull());
+			expect(screen.getByTestId("terminal-cache-parking").querySelector('[data-testid="terminal-attachment"]')).toBeNull();
+		} finally {
+			view.restore();
+		}
+	});
+
+	it("parks only the terminal its own slot replaced", async () => {
+		const view = renderSplitPanes([a, b, c]);
+		try {
+			const left = await waitFor(() => attachmentIn("pane-left") as HTMLElement);
+			view.show(a, c);
+			await waitFor(() =>
+				expect(
+					screen.getByTestId("pane-right").querySelector('[data-terminal-cache-key^="session:sess-c:worker|"]'),
+				).not.toBeNull(),
+			);
+			expect(attachmentIn("pane-left")).toBe(left);
+			expect(
+				screen.getByTestId("terminal-cache-parking").querySelector('[data-terminal-cache-key^="session:sess-b:worker|"]'),
+			).not.toBeNull();
+		} finally {
+			view.restore();
+		}
+	});
+
+	it("moves a terminal between panes without remounting it", async () => {
+		const view = renderSplitPanes([a, b, c]);
+		try {
+			const moving = await waitFor(() => attachmentIn("pane-right") as HTMLElement);
+			view.show(b, c);
+			await waitFor(() => expect(attachmentIn("pane-left")).toBe(moving));
+			expect(attachmentUnmounts.value).toBe(0);
+		} finally {
+			view.restore();
+		}
+	});
+
+	it("focuses only the focused pane and moves focus with it", async () => {
+		const view = renderSplitPanes([a, b]);
+		try {
+			const token = (testId: string) =>
+				screen.getByTestId(testId).querySelector("[data-testid=block-terminal]")?.getAttribute("data-focus-token");
+			const records = (testId: string) =>
+				screen.getByTestId(testId).querySelector("[data-testid=block-terminal]")?.getAttribute("data-records-spawn-grid");
+			await waitFor(() => expect(token("pane-left")).toBe("1"));
+			expect(token("pane-right")).toBeNull();
+			expect(records("pane-left")).toBe("true");
+			expect(records("pane-right")).toBe("false");
+			view.show(a, b, true);
+			await waitFor(() => expect(token("pane-right")).toBe("1"));
+			expect(token("pane-left")).toBe("1");
+			expect(records("pane-right")).toBe("true");
 		} finally {
 			view.restore();
 		}

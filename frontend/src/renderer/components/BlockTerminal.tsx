@@ -54,6 +54,7 @@ export type BlockTerminalProps = {
 	 */
 	refitToken?: number;
 	focusToken?: number;
+	recordsSpawnGrid?: boolean;
 	/**
 	 * Fired once, on the frame that first carries the pane's replay -- and only
 	 * when there was a held replay to carry. It is a proof, not a timer: the
@@ -184,6 +185,7 @@ export function BlockTerminal({
 	workspacePath,
 	refitToken,
 	focusToken,
+	recordsSpawnGrid = true,
 	onReplayPainted,
 	onReplayReady,
 }: BlockTerminalProps) {
@@ -195,6 +197,8 @@ export function BlockTerminal({
 	const historyIdsRef = useRef<Set<string>>(new Set());
 	const historyBlocksRef = useRef(historyBlocks);
 	historyBlocksRef.current = historyBlocks;
+	const recordsSpawnGridRef = useRef(recordsSpawnGrid);
+	recordsSpawnGridRef.current = recordsSpawnGrid;
 	// The WASM module loads asynchronously while the transport is already
 	// streaming. Bytes that arrive first are held here and replayed in order
 	// once the core exists, so early output is never dropped.
@@ -250,7 +254,7 @@ export function BlockTerminal({
 		transportRef.current.write(new TextEncoder().encode(data));
 	}, []);
 	const onGeometry = useCallback((columns: number, rows: number) => {
-		rememberPaneGrid(columns, rows);
+		if (recordsSpawnGridRef.current) rememberPaneGrid(columns, rows);
 		transportRef.current.resize?.(columns, rows);
 		// TerminalSurface resizes the core immediately before reporting, so the
 		// core is correctly sized by the time this runs and the held bytes can be
