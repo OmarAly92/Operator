@@ -37,8 +37,16 @@ daemon (session_manager → httpd mux channels)
    ▼
 renderer  frontend/src/renderer
    ├─ hooks/useTerminalSession.ts   transport, grid publisher, RESIZE_DEBOUNCE_MS
-   ├─ components/TerminalPane.tsx   picks the surface; agentTui={kind === "worker"}
-   ├─ components/BlockTerminal.tsx  mounts the package, setAgentTuiMode, onGeometry
+   ├─ components/TerminalPane.tsx   picks the surface; agentTui={kind === "worker"}; the
+   │                                 retained-terminal cache keeps one live terminal per
+   │                                 split-view pane slot (`activeSlotsRef`, a Map keyed by
+   │                                 pane slot), not one live terminal for the whole app —
+   │                                 every other cached terminal for a tab shown elsewhere is
+   │                                 parked, never torn down
+   ├─ components/BlockTerminal.tsx  mounts the package, setAgentTuiMode, onGeometry;
+   │                                 `recordsSpawnGrid` (default true) gates `onGeometry`'s
+   │                                 `rememberPaneGrid` call so an unfocused split pane never
+   │                                 overwrites the remembered spawn grid with its own size
    └─ lib/pane-grid.ts              last measured grid, spread into create/restore bodies
    │
    ▼
@@ -236,6 +244,14 @@ rebuilt (§6).
 5. **Rebuild both wasm artifacts and the daemon** after any vt-core change, then
    tell the user to restart the daemon and the app. Old pty-host processes keep the
    old wasm for the life of the session.
+6. **One place per terminal.** A split-view pane's retained terminal cache holds
+   at most one live slot per cache key; the split layout tree
+   (`frontend/src/renderer/lib/split-layout.ts`) separately guarantees a tab
+   exists in at most one pane (`assertLayout`'s duplicate-tab check). Together
+   these mean a session, shell or reviewer terminal is attached to exactly one
+   DOM slot at a time. `TerminalPane.tsx`'s `activate` asserts this in dev
+   builds (`console.error` when a cache key would activate in a second slot)
+   rather than silently letting two panes fight over the same live vt-core.
 
 ---
 
