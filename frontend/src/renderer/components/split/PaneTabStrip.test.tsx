@@ -88,4 +88,23 @@ describe("PaneTabStrip", () => {
 		renderStrip({ pane: { ...pane, tabs: [{ kind: "session", sessionId: "gone" }] } });
 		expect(screen.getByRole("tab", { name: "No session" })).toBeInTheDocument();
 	});
+
+	it("does not intercept Enter/Space bubbling up from a tab, so no phantom drag starts", () => {
+		renderStrip();
+		const tab = screen.getByRole("tab", { name: "zsh" });
+		expect(fireEvent.keyDown(tab, { key: "Enter", code: "Enter" })).toBe(true);
+		expect(fireEvent.keyDown(tab, { key: " ", code: "Space" })).toBe(true);
+		expect(tab.closest("[data-split-tab]")?.className).not.toContain("opacity-50");
+	});
+
+	it("lets a shell rename gain focus, accept a space, and commit with Enter without starting a drag", async () => {
+		renderStrip();
+		fireEvent.doubleClick(screen.getByRole("tab", { name: "zsh" }));
+		const input = await screen.findByLabelText("Rename terminal zsh");
+		fireEvent.change(input, { target: { value: "new zsh" } });
+		expect(input).toHaveValue("new zsh");
+		expect(input.closest("[data-split-tab]")?.className).not.toContain("opacity-50");
+		fireEvent.keyDown(input, { key: "Enter" });
+		expect(screen.queryByLabelText("Rename terminal zsh")).not.toBeInTheDocument();
+	});
 });

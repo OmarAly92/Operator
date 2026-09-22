@@ -1,5 +1,5 @@
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import type { ReactNode } from "react";
+import type { PointerEvent, ReactNode } from "react";
 import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
 import { useOverflowScroll } from "../../hooks/useOverflowScroll";
@@ -61,8 +61,17 @@ function ScrollChevron({
 
 function DraggableTab({ tab, label, children }: { tab: TabRef; label: string; children: ReactNode }) {
 	const { setNodeRef, listeners, isDragging } = useSplitTabDraggable(tab, label, "strip");
+	const onPointerDown = (event: PointerEvent<HTMLDivElement>) => {
+		if (event.target instanceof HTMLElement && event.target.closest("input, textarea")) return;
+		listeners?.onPointerDown?.(event);
+	};
 	return (
-		<div ref={setNodeRef} className={cn("flex self-stretch", isDragging && "opacity-50")} data-split-tab="" {...listeners}>
+		<div
+			ref={setNodeRef}
+			className={cn("flex self-stretch", isDragging && "opacity-50")}
+			data-split-tab=""
+			onPointerDown={onPointerDown}
+		>
 			{children}
 		</div>
 	);

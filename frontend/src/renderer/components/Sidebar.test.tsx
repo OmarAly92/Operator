@@ -1,4 +1,5 @@
 import { SidebarProvider } from "@/components/ui/sidebar";
+import { DndContext } from "@dnd-kit/core";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 // Disable motion animations so AnimatePresence unmounts children immediately
@@ -136,6 +137,7 @@ function renderSidebar({
 	seedAgents = true,
 	workspaces = [workspace],
 	initialOpen = true,
+	wrapWithDnd = false,
 }: {
 	onCreateProject?: CreateProjectHandler;
 	onInitializeProject?: InitializeProjectHandler;
@@ -143,6 +145,7 @@ function renderSidebar({
 	seedAgents?: boolean;
 	workspaces?: WorkspaceSummary[];
 	initialOpen?: boolean;
+	wrapWithDnd?: boolean;
 } = {}) {
 	const queryClient = new QueryClient({
 		defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
@@ -163,7 +166,7 @@ function renderSidebar({
 			],
 		});
 	}
-	render(
+	const tree = (
 		<QueryClientProvider client={queryClient}>
 			<SidebarProvider defaultOpen={initialOpen}>
 				<Sidebar
@@ -173,8 +176,9 @@ function renderSidebar({
 					workspaces={workspaces}
 				/>
 			</SidebarProvider>
-		</QueryClientProvider>,
+		</QueryClientProvider>
 	);
+	render(wrapWithDnd ? <DndContext>{tree}</DndContext> : tree);
 	return onRemoveProject;
 }
 
@@ -530,6 +534,21 @@ describe("Sidebar", () => {
 			"Rename session",
 			"Kill session",
 		]);
+	});
+
+	it("does not intercept Enter/Space bubbling up from the session row, so Open still fires and no phantom drag starts", () => {
+		mockParams.projectId = "proj-1";
+		renderSidebar({ workspaces: [{ ...workspace, sessions: [session] }], wrapWithDnd: true });
+
+		const openButton = screen.getByLabelText("Open fix login");
+		expect(fireEvent.keyDown(openButton, { key: "Enter", code: "Enter" })).toBe(true);
+		expect(fireEvent.keyDown(openButton, { key: " ", code: "Space" })).toBe(true);
+
+		fireEvent.click(openButton);
+		expect(navigateMock).toHaveBeenCalledWith({
+			to: "/projects/$projectId/sessions/$sessionId",
+			params: { projectId: "proj-1", sessionId: "proj-1-1" },
+		});
 	});
 
 	it("opens a shell in the session's own workspace and selects it", async () => {
