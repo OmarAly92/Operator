@@ -91,9 +91,9 @@ regeneration:
 
 - **`underline`, model (SGR 21 is a genuine spec disagreement, not a
   generator bug)**: the recording's fourth line is
-  `\e[4:3;21mUNDERLINED\e[21m` — SGR `4:3` (curly underline) followed by bare
-  SGR `21` in the same escape. This engine's `sgr.rs` treats bare `21` as
-  double-underline (`crates/vt-core/tests/sgr_attributes.rs`,
+  `echo -e "\e[4:3;21mUNDERLINED\e[0m"` — SGR `4:3` (curly underline) followed
+  by bare SGR `21` in the same escape. This engine's `sgr.rs` treats bare `21`
+  as double-underline (`crates/vt-core/tests/sgr_attributes.rs`,
   `every_underline_style_is_exclusive_and_24_clears_all_of_them`:
   `assert_eq!(attrs_of(b"\x1b[21mA").bits(), Attrs::DOUBLE_UNDERLINE)`),
   matching kitty/foot/wezterm/ghostty. Alacritty's own vendored `vte` crate
@@ -101,11 +101,11 @@ regeneration:
   `21` as "cancel bold" only and never touches underline state, so its grid
   keeps that row curly. Both are defensible readings of an ECMA-48-ambiguous
   code; this is a decision already encoded in `sgr_attributes.rs`, not
-  something introduced by the corpus import. Because of it, row 7 (0-indexed
-  6) of `underline/styles.json` was hand-edited from the generator's raw
-  output `[[0, 10, 8, 255]]` (Alacritty's curly) to `[[0, 10, 4, 255]]` (this
-  engine's double-underline) to match what vt-core is actually supposed to
-  produce for these bytes. **Re-running
+  something introduced by the corpus import. Because of it, index 7 (0-indexed)
+  of the `rows` array in `underline/styles.json` was hand-edited from the
+  generator's raw output `[[0, 10, 8, 255]]` (Alacritty's curly) to `[[0, 10,
+  4, 255]]` (this engine's double-underline) to match what vt-core is
+  actually supposed to produce for these bytes. **Re-running
   `import-alacritty-ref.py --styles underline` will silently regenerate
   Alacritty's disagreeing value and must not be done without re-applying this
   correction.**
