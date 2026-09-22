@@ -37,10 +37,3 @@ export function useSessionReviewer(session?: WorkspaceSession): { handleId: stri
 	const query = useReviewsQuery(session);
 	return session && sessionIsActive(session) ? reviewerTerminalFromReviews(query.data) : undefined;
 }
-
-export function useAvailableSessionReviewer(
-	session?: WorkspaceSession,
-): { handleId: string; harness: string } | undefined {
-	const query = useReviewsQuery(session);
-	return reviewerTerminalFromReviews(query.data);
-}
