@@ -12,7 +12,7 @@ pub const BLOCK_RECORD_WORDS: usize = 14;
 
 pub const FIND_MATCH_WORDS: usize = 5;
 
-pub const STYLE_RUN_WORDS: usize = 5;
+pub const STYLE_RUN_WORDS: usize = 6;
 
 pub const CELL_SPAN_WORDS: usize = 3;
 
@@ -43,6 +43,9 @@ pub struct ExportBuffers {
     cell_spans: Vec<u32>,
     blocks: Vec<u32>,
     block_text: Vec<u8>,
+    link_text: Vec<u8>,
+    link_ranges: Vec<u32>,
+    links_exported: usize,
     line_editor_state: u32,
     cursor_row: u32,
     cursor_col: u32,
@@ -82,6 +85,8 @@ impl ExportBuffers {
         self.cell_spans.clear();
         self.blocks.clear();
         self.block_text.clear();
+        self.link_text.clear();
+        self.link_ranges.clear();
         self.line_editor_state = snapshot.line_editor_state;
         self.cursor_row = snapshot.cursor_row;
         self.cursor_col = snapshot.cursor_col;
@@ -111,6 +116,7 @@ impl ExportBuffers {
             self.style_pairs.push(style.bg.value());
             self.style_pairs.push(u32::from(style.attrs.bits()));
             self.style_pairs.push(style.underline.value());
+            self.style_pairs.push(u32::from(style.link));
         }
 
         for &(start, end) in &snapshot.span_ranges {
@@ -146,6 +152,7 @@ impl ExportBuffers {
                 self.alt_style_pairs.push(style.bg.value());
                 self.alt_style_pairs.push(u32::from(style.attrs.bits()));
                 self.alt_style_pairs.push(style.underline.value());
+                self.alt_style_pairs.push(u32::from(style.link));
             }
             for &(start, end) in &alt.span_ranges {
                 self.alt_span_ranges.push(start);
@@ -159,6 +166,13 @@ impl ExportBuffers {
         }
 
         self.write_blocks(&snapshot.blocks, &snapshot.block_text)?;
+
+        for &(start, end) in &snapshot.link_ranges {
+            self.link_ranges.push(start);
+            self.link_ranges.push(end);
+        }
+        self.link_text.extend_from_slice(&snapshot.link_text);
+        self.links_exported = snapshot.link_ranges.len();
 
         self.dead_rows = 0;
         self.dead_bytes = 0;
@@ -214,6 +228,15 @@ impl ExportBuffers {
             })
             .map_err(|_| ExportError::OffsetOverflow)?;
         self.write_blocks(&records, &text)?;
+        for id in (self.links_exported + 1)..=core.hyperlink_count() {
+            let uri = core.hyperlink_uri(id as u16).unwrap_or("");
+            let start = checked_u32_from_u64(self.link_text.len() as u64)?;
+            self.link_text.extend_from_slice(uri.as_bytes());
+            self.link_ranges.push(start);
+            self.link_ranges
+                .push(checked_u32_from_u64(self.link_text.len() as u64)?);
+        }
+        self.links_exported = core.hyperlink_count();
         let (cursor_row, cursor_col, cursor_visible) = core.export_cursor();
         self.cursor_row = checked_u32_from_u64(cursor_row as u64)?;
         self.cursor_col = checked_u32_from_u64(cursor_col as u64)?;
@@ -319,6 +342,7 @@ impl ExportBuffers {
             self.style_pairs.push(style.bg.value());
             self.style_pairs.push(u32::from(style.attrs.bits()));
             self.style_pairs.push(style.underline.value());
+            self.style_pairs.push(u32::from(style.link));
         }
         let pair_end = checked_u32_from_u64((self.style_pairs.len() / STYLE_RUN_WORDS) as u64)?;
         self.run_ranges.push(pair_start);
@@ -487,6 +511,14 @@ impl ExportBuffers {
 
     pub fn block_text(&self) -> &[u8] {
         &self.block_text
+    }
+
+    pub fn link_text(&self) -> &[u8] {
+        &self.link_text
+    }
+
+    pub fn link_ranges(&self) -> &[u32] {
+        &self.link_ranges
     }
 
     pub fn line_editor_state(&self) -> u32 {

@@ -36,6 +36,8 @@ fn encode(exit: Option<i32>) -> Vec<u32> {
         history_rows: 0,
         first_stable_row: 0,
         alt: None,
+        link_text: Vec::new(),
+        link_ranges: Vec::new(),
     };
     let mut buffers = ExportBuffers::default();
     buffers.refresh(&snapshot).unwrap();

@@ -3,6 +3,7 @@ use crate::attribute_map::AttributeMap;
 use crate::block::{BlockRecord, BlockSource, BlockState, TextSpan};
 use crate::block_grid::BlockGrid;
 use crate::content::Content;
+use crate::hyperlink::HyperlinkRegistry;
 use crate::row_index::{RowIndex, RowRange};
 use crate::screen::ScreenGrid;
 use crate::style::CellStyle;
@@ -52,6 +53,8 @@ pub struct GridSnapshot {
     pub history_rows: u32,
     pub first_stable_row: u64,
     pub alt: Option<crate::alt::AltSnapshot>,
+    pub link_text: Vec<u8>,
+    pub link_ranges: Vec<(u32, u32)>,
 }
 
 impl GridSnapshot {
@@ -99,6 +102,11 @@ impl GridSnapshot {
         let (start, end) = self.span_ranges[index];
         &self.cell_spans[start as usize..end as usize]
     }
+
+    pub fn link_uri(&self, id: crate::hyperlink::LinkId) -> Option<&str> {
+        let (start, end) = *self.link_ranges.get(usize::from(id).checked_sub(1)?)?;
+        std::str::from_utf8(&self.link_text[start as usize..end as usize]).ok()
+    }
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -112,6 +120,7 @@ pub(crate) fn build_snapshot(
     alt: Option<&AltGrid>,
     first_stable_row: u64,
     width_mode: WidthMode,
+    links: &HyperlinkRegistry,
 ) -> Result<GridSnapshot, CoreError> {
     let mut all_content = Vec::new();
     let mut row_ranges: Vec<(u32, u32)> = Vec::new();
@@ -152,6 +161,15 @@ pub(crate) fn build_snapshot(
         row_ranges[row].1 > row_ranges[row].0
     })?;
 
+    let mut link_text: Vec<u8> = Vec::new();
+    let mut link_ranges: Vec<(u32, u32)> = Vec::with_capacity(links.len());
+    for id in 1..=links.len() {
+        let uri = links.uri(id as crate::hyperlink::LinkId).unwrap_or("");
+        let start = checked_u32(link_text.len())?;
+        link_text.extend_from_slice(uri.as_bytes());
+        link_ranges.push((start, checked_u32(link_text.len())?));
+    }
+
     Ok(GridSnapshot {
         content: all_content,
         rows: row_ranges,
@@ -170,6 +188,8 @@ pub(crate) fn build_snapshot(
         history_rows: checked_u32(history_rows)?,
         first_stable_row,
         alt: alt.map(|grid| grid.snapshot()),
+        link_text,
+        link_ranges,
     })
 }
 

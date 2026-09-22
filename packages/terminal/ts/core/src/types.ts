@@ -86,6 +86,8 @@ export type TerminalSnapshot = Readonly<{
 	cellSpans: Uint32Array;
 	blocks: Uint32Array;
 	blockText: Uint8Array;
+	linkRanges: Uint32Array;
+	linkText: Uint8Array;
 	lineEditorState: number;
 	cursorRow: number;
 	cursorColumn: number;

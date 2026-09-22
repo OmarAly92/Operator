@@ -1,7 +1,14 @@
 import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { beforeAll, describe, expect, it, vi } from "vitest";
-import { createTerminalCore, decodeBlocks, initTerminalCore, type RowEvent } from "./index";
+import {
+	createTerminalCore,
+	decodeBlocks,
+	initTerminalCore,
+	STYLE_RUN_WORDS,
+	STYLE_WORD_LINK,
+	type RowEvent,
+} from "./index";
 import { WasmTerminalCore } from "../wasm/vt_core.js";
 
 beforeAll(async () => {
@@ -22,7 +29,17 @@ describe("TerminalCore", () => {
 		expect(snapshot.runRanges).toBeInstanceOf(Uint32Array);
 		expect(new TextDecoder().decode(snapshot.content)).toBe("red caféplain");
 		expect([...snapshot.rows]).toEqual([0, 9, 9, 14]);
-		expect([...snapshot.stylePairs]).toEqual([3, 1, 254, 0, 255, 9, 255, 254, 0, 255, 5, 255, 254, 0, 255]);
+		expect([...snapshot.stylePairs]).toEqual([3, 1, 254, 0, 255, 0, 9, 255, 254, 0, 255, 0, 5, 255, 254, 0, 255, 0]);
+	});
+
+	it("exports the link id in the sixth style word and resolves the uri", () => {
+		const core = createTerminalCore({ columns: 16, scrollback: 10 });
+		core.feed(new TextEncoder().encode("a\x1b]8;;https://x.y\x1b\\b\x1b]8;;\x1b\\c"));
+		const snapshot = core.snapshot();
+		expect(snapshot.stylePairs[1 * STYLE_RUN_WORDS + STYLE_WORD_LINK]).toBe(1);
+		expect(core.linkUri(1)).toBe("https://x.y");
+		expect(core.linkUri(2)).toBeNull();
+		expect(core.linkUri(0)).toBeNull();
 	});
 
 	it("exports cell spans for wide and joined clusters", () => {

@@ -63,6 +63,8 @@ fn assert_bytes_equal(incremental: &ExportBuffers, full: &ExportBuffers) {
     assert_eq!(incremental.style_pairs(), full.style_pairs());
     assert_eq!(incremental.span_ranges(), full.span_ranges());
     assert_eq!(incremental.cell_spans(), full.cell_spans());
+    assert_eq!(incremental.link_text(), full.link_text());
+    assert_eq!(incremental.link_ranges(), full.link_ranges());
     assert_projection_equal(incremental, full);
 }
 
@@ -90,6 +92,7 @@ fn op() -> impl Strategy<Value = Op> {
         2 => Just(Op::Bytes("w\u{6f22}e\u{301}\r\n".as_bytes().to_vec())),
         2 => Just(Op::Bytes(b"abcd efgh ijkl".to_vec())),
         2 => (10usize..=60, 2usize..=8).prop_map(|(cols, rows)| Op::Resize(cols, rows)),
+        2 => "[a-z]{1,8}".prop_map(|host| Op::Bytes(format!("\x1b]8;;https://{host}\x1b\\lk\x1b]8;;\x1b\\").into_bytes())),
     ]
 }
 

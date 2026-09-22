@@ -6,6 +6,7 @@ use crate::block::{Block, BlockMeta, BlockSource, BlockState};
 use crate::block_grid::BlockGrid;
 use crate::content::Content;
 use crate::delta::{Delta, DeltaKind};
+use crate::hyperlink::HyperlinkRegistry;
 use crate::limits::Limits;
 use crate::row_index::{RowIndex, RowRange};
 use crate::screen::{ClearPolicy, ScreenGrid};
@@ -55,6 +56,7 @@ pub(crate) struct Parser {
     pending_rewritten_from: Option<usize>,
     last_width: usize,
     width_mode: WidthMode,
+    hyperlinks: HyperlinkRegistry,
     #[cfg(feature = "trace")]
     pub(crate) trace: crate::trace::Trace,
 }
@@ -90,9 +92,19 @@ impl Parser {
             pending_rewritten_from: None,
             last_width: width,
             width_mode: WidthMode::default(),
+            hyperlinks: HyperlinkRegistry::default(),
             #[cfg(feature = "trace")]
             trace: Default::default(),
         }
+    }
+
+    pub fn hyperlinks(&self) -> &HyperlinkRegistry {
+        &self.hyperlinks
+    }
+
+    #[allow(dead_code)]
+    pub(crate) fn hyperlinks_mut(&mut self) -> &mut HyperlinkRegistry {
+        &mut self.hyperlinks
     }
 
     pub fn width_mode(&self) -> WidthMode {
@@ -838,8 +850,11 @@ impl Perform for Parser {
         self.trace.record(crate::trace::TraceAction::Osc(
             params.iter().map(|p| p.to_vec()).collect(),
         ));
-        #[cfg(not(feature = "trace"))]
-        let _ = params;
+        if params.first().copied() == Some(b"8".as_slice()) {
+            let id = crate::hyperlink::parse_osc8(&params[1..])
+                .and_then(|link| self.hyperlinks.intern(link));
+            self.pending_style.link = id.unwrap_or(0);
+        }
     }
 }
 

@@ -324,6 +324,22 @@ impl WasmTerminalCore {
         self.export.block_text().len()
     }
 
+    pub fn link_text_ptr(&self) -> *const u8 {
+        self.export.link_text().as_ptr()
+    }
+
+    pub fn link_text_len(&self) -> usize {
+        self.export.link_text().len()
+    }
+
+    pub fn link_ranges_ptr(&self) -> *const u32 {
+        self.export.link_ranges().as_ptr()
+    }
+
+    pub fn link_ranges_len(&self) -> usize {
+        self.export.link_ranges().len()
+    }
+
     pub fn line_editor_state(&self) -> u32 {
         self.export.line_editor_state()
     }

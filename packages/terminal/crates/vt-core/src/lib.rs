@@ -11,6 +11,7 @@ pub mod event_bridge;
 pub mod find;
 pub mod grid;
 mod history;
+pub mod hyperlink;
 pub mod integrity;
 pub mod limits;
 mod line_editor;
@@ -37,6 +38,7 @@ pub use block_tree::{BlockSummary, BlockTree};
 pub use delta::{Delta, DeltaKind};
 pub use find::{FindCursor, FindMatch, FindQuery};
 pub use grid::{CellSpan, ExportedRow};
+pub use hyperlink::{Hyperlink, HyperlinkRegistry, LinkId};
 pub use integrity::IntegrityError;
 pub use limits::{Limits, MemoryStats};
 pub use line_editor::LineEditorState;
@@ -345,7 +347,16 @@ impl TerminalCore {
             self.parser.alt(),
             self.parser.first_stable_row(),
             self.parser.width_mode(),
+            self.parser.hyperlinks(),
         )
+    }
+
+    pub fn hyperlink_count(&self) -> usize {
+        self.parser.hyperlinks().len()
+    }
+
+    pub fn hyperlink_uri(&self, id: LinkId) -> Option<&str> {
+        self.parser.hyperlinks().uri(id)
     }
 
     pub fn generation(&self) -> u64 {

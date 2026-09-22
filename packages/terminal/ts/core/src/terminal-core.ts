@@ -73,6 +73,7 @@ export class TerminalCore {
 	private cached: { generation: number; buffer: ArrayBufferLike; snapshot: TerminalSnapshot } | null = null;
 	private readonly rowEventListeners = new Set<RowEventListener>();
 	private readonly decoder = new TextDecoder("utf-8", { fatal: true });
+	private readonly linkUris = new Map<number, string>();
 
 	constructor(inner: WasmTerminalCore, host: HostCapabilities) {
 		this.inner = inner;
@@ -268,6 +269,10 @@ export class TerminalCore {
 		const blocksLen = this.inner.blocks_len();
 		const blockTextPtr = this.inner.block_text_ptr();
 		const blockTextLen = this.inner.block_text_len();
+		const linkRangesPtr = this.inner.link_ranges_ptr();
+		const linkRangesLen = this.inner.link_ranges_len();
+		const linkTextPtr = this.inner.link_text_ptr();
+		const linkTextLen = this.inner.link_text_len();
 		const rowIndentsPtr = this.inner.row_indents_ptr();
 		const rowIndentsLen = this.inner.row_indents_len();
 		const rowWrappedPtr = this.inner.row_wrapped_ptr();
@@ -281,6 +286,7 @@ export class TerminalCore {
 			throw new Error(`rowWrapped length ${rowWrappedLen} does not match ${rowsLen / 2} rows`);
 		}
 		validateMultipleOf("stylePairs", stylePairsLen, STYLE_RUN_WORDS);
+		validateEvenLength("linkRanges", linkRangesLen);
 		validateEvenLength("spanRanges", spanRangesLen);
 		if (spanRangesLen !== rowsLen) {
 			throw new Error(`spanRanges length ${spanRangesLen} does not match ${rowsLen} rows`);
@@ -320,6 +326,8 @@ export class TerminalCore {
 			cellSpans: u32View(memory, cellSpansPtr, cellSpansLen),
 			blocks: u32View(memory, blocksPtr, blocksLen),
 			blockText: u8View(memory, blockTextPtr, blockTextLen),
+			linkRanges: u32View(memory, linkRangesPtr, linkRangesLen),
+			linkText: u8View(memory, linkTextPtr, linkTextLen),
 			lineEditorState: this.inner.line_editor_state(),
 			cursorRow: this.inner.cursor_row(),
 			cursorColumn: this.inner.cursor_col(),
@@ -490,6 +498,19 @@ export class TerminalCore {
 		return decodeBlocks(this.snapshot()).at(-1)?.cwd ?? "";
 	}
 
+	linkUri(id: number): string | null {
+		if (!Number.isInteger(id) || id <= 0) return null;
+		const hit = this.linkUris.get(id);
+		if (hit !== undefined) return hit;
+		const snapshot = this.snapshot();
+		const start = snapshot.linkRanges[(id - 1) * 2];
+		const end = snapshot.linkRanges[(id - 1) * 2 + 1];
+		if (start === undefined || end === undefined) return null;
+		const uri = this.decoder.decode(snapshot.linkText.subarray(start, end));
+		this.linkUris.set(id, uri);
+		return uri;
+	}
+
 	dispose(): void {
 		if (this.disposed) {
 			return;
@@ -502,6 +523,7 @@ export class TerminalCore {
 		this.feedParsedListeners.clear();
 		this.cached = null;
 		this.rowEventListeners.clear();
+		this.linkUris.clear();
 		this.inner.free();
 	}
 }

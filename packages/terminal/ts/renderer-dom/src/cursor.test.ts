@@ -113,7 +113,7 @@ describe("cursorPaintFor", () => {
 			content,
 			rows: Uint32Array.from([0, content.byteLength]),
 			runRanges: Uint32Array.from([0, 1]),
-			stylePairs: Uint32Array.from([content.byteLength, 255, background, 0, 255]),
+			stylePairs: Uint32Array.from([content.byteLength, 255, background, 0, 255, 0]),
 			spanRanges: Uint32Array.from([0, spans.length / 3]),
 			cellSpans: Uint32Array.from(spans),
 		};
