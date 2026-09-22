@@ -742,6 +742,21 @@ func TestBuildTargetContinuationMessageUsesTerminalFallbackWithoutTranscript(t *
 	}
 }
 
+func TestBuildTargetContinuationMessageRedactsASecretInTheFallbackTail(t *testing.T) {
+	tail := normalizeTerminalTail("run the job\ntoken ghp_ABCDEFGHIJKLMNOPQRSTU done\n")
+	message := buildTargetContinuationMessage(
+		domain.AgentSwitch{ID: "switch-1", SessionID: "proj-1", FromHarness: domain.HarnessClaudeCode, TargetHarness: domain.HarnessCodex},
+		deterministicSwitchContext{OriginalTask: "finish the task", TerminalTail: tail},
+		nil,
+	)
+	if strings.Contains(message, "ghp_") {
+		t.Fatalf("handoff terminal tail leaked a token:\n%s", message)
+	}
+	if !strings.Contains(message, "[redacted]") {
+		t.Fatalf("handoff terminal tail did not mark the redaction:\n%s", message)
+	}
+}
+
 func TestBuildTargetContinuationMessageHasCompleteDeliveryByteCeiling(t *testing.T) {
 	message := buildTargetContinuationMessage(
 		domain.AgentSwitch{ID: "switch-1", SessionID: "proj-1", FromHarness: domain.HarnessCodex, TargetHarness: domain.HarnessClaudeCode},

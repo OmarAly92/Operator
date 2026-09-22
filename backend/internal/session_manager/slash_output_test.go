@@ -99,6 +99,27 @@ func TestSlashOutputReturnsOnceTwoReadsAgree(t *testing.T) {
 	}
 }
 
+func TestSlashOutputRedactsASecretInThePane(t *testing.T) {
+	const pane = "" +
+		"❯ /context \n" +
+		"  ⎿  Context Usage\n" +
+		"     token ghp_ABCDEFGHIJKLMNOPQRSTU done\n" +
+		"────────────────────────────────────────────────────────────────────\n" +
+		"❯ \n"
+	m, _, _ := newSlashOutputTestManager(t, pane, pane)
+
+	got, err := m.SlashOutput(context.Background(), "s1", "/context")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(got, "ghp_") {
+		t.Fatalf("slash output leaked a token: %q", got)
+	}
+	if !strings.Contains(got, "[redacted]") {
+		t.Fatalf("slash output did not mark the redaction: %q", got)
+	}
+}
+
 func TestSlashOutputGivesUpOnAChangingSpinner(t *testing.T) {
 	m, _, _ := newSlashOutputTestManager(t,
 		strings.ReplaceAll(paneWhileCompacting, "(3s)", "(1s)"),

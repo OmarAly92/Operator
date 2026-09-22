@@ -20,6 +20,8 @@ function createBrowserPreviewBridge(): OperatorBridge {
 			openExternal: async (url: string) => {
 				window.open(url, "_blank", "noopener,noreferrer");
 			},
+			resolvePath: async () => null,
+			openPath: async () => undefined,
 			scanImportFolder: async ({ path }) => ({ path, repos: [] }),
 			checkAncestorRepo: async () => undefined,
 			onNewSessionShortcut: () => () => undefined,

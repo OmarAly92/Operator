@@ -18,6 +18,7 @@ import (
 
 	"github.com/OmarAly92/operator/backend/internal/domain"
 	"github.com/OmarAly92/operator/backend/internal/ports"
+	"github.com/OmarAly92/operator/backend/internal/redact"
 )
 
 const (
@@ -104,8 +105,13 @@ type finalizedAgentHandoff struct {
 	Continuation  string               `json:"continuation"`
 }
 
+// normalizeTerminalTail redacts before it bounds: the tail lands in a handoff
+// record that is written to disk and delivered to another agent, so it is a
+// re-transmission of terminal text and passes through redact.Text exactly as
+// the block-event log does. Redacting first keeps the byte ceiling below the
+// ceiling that is measured after it.
 func normalizeTerminalTail(output string) string {
-	lines := strings.Split(normalizeHistoricalContext([]byte(output)), "\n")
+	lines := strings.Split(normalizeHistoricalContext([]byte(redact.Text(output).Text)), "\n")
 	if len(lines) > handoffTerminalMaxLines {
 		lines = lines[len(lines)-handoffTerminalMaxLines:]
 	}

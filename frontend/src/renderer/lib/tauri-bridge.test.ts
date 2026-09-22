@@ -338,6 +338,23 @@ describe("tauri-bridge native integrations", () => {
 		);
 	});
 
+	it("passes a link path and its base to the native resolver and opens a resolved path", async () => {
+		const invoke = vi.fn<Invoke>(async () => null);
+		const tauri = bridgeWith(invoke);
+
+		invoke.mockResolvedValueOnce("/abs/src/a.ts");
+		await expect(tauri.app.resolvePath("/work", "src/a.ts")).resolves.toBe("/abs/src/a.ts");
+		expect(invoke).toHaveBeenLastCalledWith("resolve_path", { base: "/work", path: "src/a.ts" });
+
+		invoke.mockResolvedValueOnce(null);
+		await expect(tauri.app.resolvePath(null, "src/a.ts")).resolves.toBeNull();
+		expect(invoke).toHaveBeenLastCalledWith("resolve_path", { base: null, path: "src/a.ts" });
+
+		invoke.mockResolvedValueOnce(undefined);
+		await expect(tauri.app.openPath("/abs/src/a.ts")).resolves.toBeUndefined();
+		expect(invoke).toHaveBeenLastCalledWith("open_path", { path: "/abs/src/a.ts" });
+	});
+
 	it("passes the chooser title through and surfaces cancellation as null", async () => {
 		const invoke = vi.fn<Invoke>(async (_command, payload) =>
 			(payload as { title?: string })?.title ? "/repos/picked" : null,

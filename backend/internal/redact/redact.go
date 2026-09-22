@@ -27,9 +27,13 @@ type Result struct {
 	Spans []Span `json:"spans,omitempty"`
 }
 
-// patterns errs toward redacting too much. A false positive costs a reader one
-// masked token; a false negative ships a live credential to a phone.
-var patterns = []*regexp.Regexp{
+// builtinPatterns errs toward redacting too much. A false positive costs a
+// reader one masked token; a false negative ships a live credential to a phone.
+// It holds only the shapes shipped with the daemon: the user's own expressions
+// live in userPatterns, so that a client asking for the built-in set over
+// GET /api/v1/redaction/patterns cannot be handed a Go-only expression the
+// user wrote for this daemon.
+var builtinPatterns = []*regexp.Regexp{
 	regexp.MustCompile(`(?i)\bAKIA[0-9A-Z]{16}\b`),
 	regexp.MustCompile(`\bgh[pousr]_[A-Za-z0-9]{20,}\b`),
 	regexp.MustCompile(`\bsk-[A-Za-z0-9_\-]{20,}\b`),
@@ -37,6 +41,10 @@ var patterns = []*regexp.Regexp{
 	regexp.MustCompile(`(?i)((?:api[_\-]?key|secret|token|password)\s*[:=]\s*)[^\s"']{8,}`),
 	regexp.MustCompile(`([a-z][a-z0-9+.\-]*://[^\s:/@]+:)[^\s@]+(@)`),
 }
+
+// userPatterns holds the expressions LoadUserPatterns installed from
+// redact-patterns.txt. They run after the built-ins on every redaction.
+var userPatterns []*regexp.Regexp
 
 // Text redacts s. Patterns with a leading capture group keep that group and
 // mask only the tail, so "Bearer <token>" stays readable as "Bearer [redacted]".
@@ -46,17 +54,19 @@ func Text(s string) Result {
 	}
 	type hit struct{ start, end int }
 	var hits []hit
-	for _, re := range patterns {
-		for _, m := range re.FindAllStringSubmatchIndex(s, -1) {
-			start, end := m[0], m[1]
-			if len(m) >= 4 && m[2] == m[0] && m[3] > m[2] {
-				start = m[3]
-			}
-			if len(m) >= 6 && m[4] >= 0 && m[5] == m[1] {
-				end = m[4]
-			}
-			if end > start {
-				hits = append(hits, hit{start, end})
+	for _, set := range [][]*regexp.Regexp{builtinPatterns, userPatterns} {
+		for _, re := range set {
+			for _, m := range re.FindAllStringSubmatchIndex(s, -1) {
+				start, end := m[0], m[1]
+				if len(m) >= 4 && m[2] == m[0] && m[3] > m[2] {
+					start = m[3]
+				}
+				if len(m) >= 6 && m[4] >= 0 && m[5] == m[1] {
+					end = m[4]
+				}
+				if end > start {
+					hits = append(hits, hit{start, end})
+				}
 			}
 		}
 	}

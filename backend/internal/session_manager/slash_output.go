@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/OmarAly92/operator/backend/internal/domain"
+	"github.com/OmarAly92/operator/backend/internal/redact"
 	"github.com/OmarAly92/operator/backend/internal/slashcommands"
 )
 
@@ -46,7 +47,7 @@ func (m *Manager) SlashOutput(ctx context.Context, id domain.SessionID, message 
 		if err != nil {
 			return "", nil
 		}
-		current := extractSlashOutput(pane, message)
+		current := redact.Text(extractSlashOutput(pane, message)).Text
 		if seen && current != "" && current == previous {
 			return current, nil
 		}

@@ -680,3 +680,26 @@ fn system_theme_follows_the_os_scheme_change() {
         Some(NATIVE_WINDOW_BACKGROUND_DARK)
     );
 }
+
+#[test]
+fn a_link_path_resolves_only_when_it_exists_and_needs_a_base_when_relative() {
+    use crate::native::resolved_link_path;
+    let dir = std::env::temp_dir().join(format!("operator-link-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).expect("temp dir");
+    let file = dir.join("exists.ts");
+    std::fs::write(&file, b"x").expect("write");
+    let base = dir.to_string_lossy().to_string();
+
+    assert_eq!(
+        resolved_link_path(Some(&base), "exists.ts"),
+        Some(file.canonicalize().expect("canonicalize"))
+    );
+    assert_eq!(resolved_link_path(Some(&base), "missing.ts"), None);
+    assert_eq!(resolved_link_path(None, "exists.ts"), None);
+    assert_eq!(
+        resolved_link_path(None, file.to_str().expect("utf-8")),
+        Some(file.canonicalize().expect("canonicalize"))
+    );
+    assert_eq!(resolved_link_path(Some(&base), "  "), None);
+    std::fs::remove_dir_all(&dir).ok();
+}
