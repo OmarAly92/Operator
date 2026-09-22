@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { autoScrollRows, exceedsDragThreshold, isCopyChord, kindForClickCount, linkModifierHeld } from "./selection-gesture";
+import { autoScrollRows, exceedsDragThreshold, isCopyChord, isHintChord, kindForClickCount, linkModifierHeld } from "./selection-gesture";
 
 describe("exceedsDragThreshold", () => {
 	it("ignores jitter under half a pixel, Warp's MIN_DELTA_FOR_TEXT_SELECTION", () => {
@@ -45,5 +45,14 @@ describe("linkModifierHeld", () => {
 		expect(linkModifierHeld({ ...base, ctrlKey: true }, false)).toBe(true);
 		expect(linkModifierHeld({ ...base, metaKey: true }, false)).toBe(false);
 		expect(linkModifierHeld({ ...base, metaKey: true, shiftKey: true }, true)).toBe(false);
+	});
+});
+
+describe("isHintChord", () => {
+	it("is ctrl+shift+space and nothing else", () => {
+		expect(isHintChord({ key: " ", code: "Space", ctrlKey: true, shiftKey: true, metaKey: false, altKey: false })).toBe(true);
+		expect(isHintChord({ key: " ", code: "Space", ctrlKey: true, shiftKey: false, metaKey: false, altKey: false })).toBe(false);
+		expect(isHintChord({ key: "a", code: "KeyA", ctrlKey: true, shiftKey: true, metaKey: false, altKey: false })).toBe(false);
+		expect(isHintChord({ key: " ", code: "Space", ctrlKey: true, shiftKey: true, metaKey: true, altKey: false })).toBe(false);
 	});
 });

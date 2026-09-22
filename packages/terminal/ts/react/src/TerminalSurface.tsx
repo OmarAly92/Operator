@@ -10,11 +10,12 @@ import {
 	type BlockFinishedEvent,
 	type DetectedLink,
 	type FindBar,
+	type HintEvent,
 	type RendererFeatures,
 	type SelectionKind,
 	type SelectionPoint,
 } from "@operator/terminal-renderer-dom";
-import { autoScrollRows, exceedsDragThreshold, isCopyChord, kindForClickCount, linkModifierHeld } from "./selection-gesture.js";
+import { autoScrollRows, exceedsDragThreshold, isCopyChord, isHintChord, kindForClickCount, linkModifierHeld } from "./selection-gesture.js";
 import {
 	anchorFromElement,
 	createCompositionTarget,
@@ -72,6 +73,7 @@ export interface TerminalSurfaceProps {
 	features?: Partial<RendererFeatures>;
 	onPaint?: () => void;
 	onBlockFinished?: (event: BlockFinishedEvent) => void;
+	onHint?: (hint: HintEvent) => void;
 }
 
 export function TerminalSurface({
@@ -88,6 +90,7 @@ export function TerminalSurface({
 	onGeometry,
 	onPaint,
 	onBlockFinished,
+	onHint,
 	refitToken,
 	focusToken,
 	features,
@@ -101,6 +104,8 @@ export function TerminalSurface({
 	onPaintRef.current = onPaint;
 	const onBlockFinishedRef = useRef(onBlockFinished);
 	onBlockFinishedRef.current = onBlockFinished;
+	const onHintRef = useRef(onHint);
+	onHintRef.current = onHint;
 	const findBarRef = useRef<FindBar | null>(null);
 	const gridColumnsRef = useRef(0);
 	const gridRowsRef = useRef(0);
@@ -549,6 +554,33 @@ export function TerminalSurface({
 			event.stopPropagation();
 			void hostCapsRef.current?.writeClipboard(text);
 		};
+		const onHintKey = (event: KeyboardEvent) => {
+			const target = renderer();
+			if (!target) return;
+			if (!target.hintActive()) {
+				if (!isHintChord(event)) return;
+				event.preventDefault();
+				event.stopPropagation();
+				target.hintBegin();
+				return;
+			}
+			event.preventDefault();
+			event.stopPropagation();
+			if (event.key === "Escape") {
+				target.hintCancel();
+				return;
+			}
+			if (event.key === "Backspace") {
+				target.hintBackspace();
+				return;
+			}
+			if (event.key.length !== 1 || event.metaKey || event.ctrlKey || event.altKey) {
+				target.hintCancel();
+				return;
+			}
+			const hint = target.hintType(event.key);
+			if (hint) onHintRef.current?.(hint);
+		};
 		const onEditorTyping = (event: KeyboardEvent) => {
 			if (event.key === "Shift" || event.key === "Control" || event.key === "Alt" || event.key === "Meta") return;
 			if (isCopyChord(event, isMacPlatform())) return;
@@ -571,6 +603,7 @@ export function TerminalSurface({
 		editorHost.addEventListener("keydown", onEditorTyping);
 		surface?.addEventListener("focusin", onSurfaceFocusIn);
 		surface?.addEventListener("focusout", onSurfaceFocusOut);
+		surface?.addEventListener("keydown", onHintKey, true);
 		return () => {
 			blockHost.removeEventListener("mousedown", onMouseDown);
 			blockHost.removeEventListener("mousemove", onMouseMove);
@@ -585,6 +618,7 @@ export function TerminalSurface({
 			editorHost.removeEventListener("keydown", onEditorTyping);
 			surface?.removeEventListener("focusin", onSurfaceFocusIn);
 			surface?.removeEventListener("focusout", onSurfaceFocusOut);
+			surface?.removeEventListener("keydown", onHintKey, true);
 			window.removeEventListener("mousemove", onWindowMouseMove);
 			window.removeEventListener("mouseup", onWindowMouseUp);
 			stopAutoScroll();

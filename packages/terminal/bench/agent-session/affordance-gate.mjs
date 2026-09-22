@@ -34,6 +34,17 @@ const actions = {
 		}
 		return report;
 	},
+	async hint(page, shoot) {
+		const count = await page.evaluate(() => window.__agentSession.hintBegin());
+		await page.waitForTimeout(100);
+		await shoot("hint-all");
+		const labels = await page.evaluate(() => [...document.querySelectorAll(".terminal-hint-label")].map((node) => node.textContent));
+		await page.evaluate(() => window.__agentSession.hintType(document.querySelector(".terminal-hint-label")?.textContent?.[0] ?? "a"));
+		await page.waitForTimeout(100);
+		await shoot("hint-narrowed");
+		await page.evaluate(() => window.__agentSession.hintCancel());
+		return [["hint-count", count, labels.slice(0, 8).join(",")]];
+	},
 };
 
 const server = await createServer({ configFile, logLevel: "error" });

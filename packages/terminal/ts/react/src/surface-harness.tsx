@@ -10,6 +10,7 @@ import {
 	type TerminalCore,
 	type TerminalTheme,
 } from "@operator/terminal-core";
+import type { HintEvent } from "@operator/terminal-renderer-dom";
 import { TerminalSurface, warpDarkTheme } from "./index";
 
 const wasmPath = join(
@@ -60,6 +61,7 @@ export function renderSurface(
 		onSend?: (text: string) => void;
 		onSendRaw?: (data: string) => void;
 		host?: HostCapabilities;
+		onHint?: (hint: HintEvent) => void;
 		focusToken?: number;
 	} = {},
 ) {
@@ -80,6 +82,7 @@ export function renderSurface(
 			onSendRaw={onSendRaw}
 			onGeometry={overrides.onGeometry}
 			onPaint={onPaint ?? overrides.onPaint}
+			onHint={overrides.onHint}
 			refitToken={refitToken}
 			focusToken={focusToken}
 		/>

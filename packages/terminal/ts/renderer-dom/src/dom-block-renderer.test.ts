@@ -54,6 +54,18 @@ afterEach(() => {
 	vi.restoreAllMocks();
 });
 
+// jsdom lays nothing out, so a decoration box over a zero-width row collapses
+// to nothing. Only rows get a rect here; the measure node keeps jsdom's own.
+function stubRowLayout(): void {
+	const original = HTMLElement.prototype.getBoundingClientRect;
+	vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+		if (!this.hasAttribute("data-terminal-row")) return original.call(this);
+		const row = Number(this.dataset.terminalRow);
+		const top = row * 20;
+		return { x: 0, y: top, left: 0, top, right: 200, bottom: top + 20, width: 200, height: 20, toJSON: () => ({}) } as DOMRect;
+	});
+}
+
 function mountWith(input: string): { core: TerminalCore; host: HTMLElement; renderer: DomBlockRenderer } {
 	const core = createTerminalCore({ columns: 16, scrollback: 100 });
 	feed(core, input);
@@ -497,6 +509,32 @@ describe("measure", () => {
 		expect(node.style.display).toBe("inline-block");
 		expect(node.style.lineHeight).toBe(`${font.lineHeight * font.sizePx}px`);
 		renderer.dispose();
+	});
+
+	it("labels every visible match on the chord, narrows on a typed character, and emits the hint", async () => {
+		stubRowLayout();
+		const { host, renderer } = mountWith("go https://x.y/a then src/a.ts:42\r\n");
+		await flushRepaint();
+		expect(renderer.hintBegin()).toBe(2);
+		expect(renderer.hintActive()).toBe(true);
+		const labels = [...host.querySelectorAll(".terminal-hint-label")].map((node) => node.textContent);
+		expect(labels).toEqual(["s", "a"]);
+		expect(host.querySelectorAll(".terminal-hint-match")).toHaveLength(3);
+		expect(renderer.hintType("a")).toEqual({ ruleId: "file-line", text: "src/a.ts:42", path: "src/a.ts", line: 42 });
+		expect(renderer.hintActive()).toBe(false);
+		expect(host.querySelectorAll(".terminal-hint-label")).toHaveLength(0);
+	});
+
+	it("cancelling hint mode removes every label and paints nothing", async () => {
+		stubRowLayout();
+		const { host, renderer } = mountWith("go https://x.y/a\r\n");
+		await flushRepaint();
+		renderer.hintBegin();
+		expect(host.querySelectorAll(".terminal-hint-label").length).toBeGreaterThan(0);
+		renderer.hintCancel();
+		expect(host.querySelectorAll(".terminal-hint-label")).toHaveLength(0);
+		expect(host.querySelectorAll(".terminal-hint-match")).toHaveLength(0);
+		expect(renderer.hintActive()).toBe(false);
 	});
 
 	it("measure() reads layout once until the font changes", () => {

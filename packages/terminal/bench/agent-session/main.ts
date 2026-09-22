@@ -54,6 +54,9 @@ type AgentSession = {
 	clearHover(): void;
 	hoveredLink(): DetectedLink | null;
 	enablePathLinks(suffixes: string[]): void;
+	hintBegin(): number;
+	hintType(character: string): unknown;
+	hintCancel(): void;
 };
 
 const host = document.getElementById("terminal");
@@ -417,6 +420,9 @@ window.__agentSession = {
 			createPathProvider(async (path) => (suffixes.some((suffix) => path.endsWith(suffix)) ? `/probe/${path}` : null), () => "", "posix"),
 		]);
 	},
+	hintBegin: () => domRenderer.hintBegin(),
+	hintType: (character) => domRenderer.hintType(character),
+	hintCancel: () => domRenderer.hintCancel(),
 	blocks: () => decodeBlocks(core.snapshot()).length,
 } as AgentSession & { blocks(): number };
 window.__agentSessionReady = true;

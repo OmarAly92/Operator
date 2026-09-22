@@ -33,7 +33,10 @@ import { type SelectionKind, type SelectionPoint, type SelectionState } from "./
 import { selectedText, type TextRows } from "./selection-text.js";
 import { Linkifier } from "./linkifier.js";
 import { DEFAULT_LINK_PROVIDERS, type DetectedLink, type LinkProvider } from "./link-providers.js";
-import { paintBoxes, rangeBoxes } from "./decorations.js";
+import { paintBoxes, rangeBoxes, type DecorationBox } from "./decorations.js";
+import { collectHintMatches, HintSession, type HintEvent } from "./hint-mode.js";
+import { DEFAULT_HINT_RULES, type HintRule } from "./hint-rules.js";
+import { logicalLineAt, type LogicalLineView } from "./logical-lines.js";
 import {
 	renderedRows,
 	resolveSelectionView,
@@ -119,6 +122,7 @@ export class DomBlockRenderer implements BlockRenderer {
 	});
 	private decorationLayer: HTMLElement | null = null;
 	private readonly linkHoverListeners = new Set<(link: DetectedLink | null) => void>();
+	private hint: HintSession | null = null;
 
 	mount(container: HTMLElement, core: TerminalCore): void {
 		this.dispose();
@@ -441,6 +445,75 @@ export class DomBlockRenderer implements BlockRenderer {
 		for (const listener of [...this.linkHoverListeners]) listener(link);
 	}
 
+	hintBegin(rules: readonly HintRule[] = DEFAULT_HINT_RULES): number {
+		if (!this.core) return 0;
+		const rows = this.textRows();
+		const seen = new Set<string>();
+		const lines: LogicalLineView[] = [];
+		for (const { box } of this.renderedRows()) {
+			const line = logicalLineAt(rows, box.blockId, box.row);
+			if (!line) continue;
+			const key = `${line.blockId}:${line.firstRow}`;
+			if (seen.has(key)) continue;
+			seen.add(key);
+			lines.push(line);
+		}
+		const matches = collectHintMatches(lines, rules);
+		this.hint = matches.length > 0 ? new HintSession(matches) : null;
+		this.paintHints();
+		return matches.length;
+	}
+
+	hintType(character: string): HintEvent | null {
+		const session = this.hint;
+		if (!session) return null;
+		const match = session.type(character);
+		if (!match) {
+			this.paintHints();
+			return null;
+		}
+		this.hintCancel();
+		return { ruleId: match.ruleId, text: match.text, path: match.path, line: match.line };
+	}
+
+	hintBackspace(): void {
+		this.hint?.backspace();
+		this.paintHints();
+	}
+
+	hintCancel(): void {
+		this.hint = null;
+		this.paintHints();
+	}
+
+	hintActive(): boolean {
+		return this.hint !== null;
+	}
+
+	private paintHints(): void {
+		const matchLayer = this.layer("hints");
+		const labelLayer = this.layer("labels");
+		const container = this.container;
+		if (!matchLayer || !labelLayer || !container) return;
+		const entries = this.hint?.labelled() ?? [];
+		const matchBoxes: DecorationBox[] = [];
+		const labelBoxes: DecorationBox[] = [];
+		const labels: string[] = [];
+		if (entries.length > 0) {
+			const rows = this.renderedRows();
+			const { cellWidth, cellHeight } = this.cellMetrics();
+			for (const entry of entries) {
+				const boxes = rangeBoxes(entry.match.range, rows, cellWidth, container);
+				if (boxes.length === 0) continue;
+				matchBoxes.push(...boxes);
+				labelBoxes.push({ ...boxes[0]!, width: Math.max(entry.label.length, 1) * cellWidth, height: cellHeight });
+				labels.push(entry.label);
+			}
+		}
+		paintBoxes(matchLayer, "terminal-hint-match", matchBoxes);
+		paintBoxes(labelLayer, "terminal-hint-label", labelBoxes, labels);
+	}
+
 	private layer(name: string): HTMLElement | null {
 		const parent = this.decorationLayer;
 		if (!parent) return null;
@@ -474,6 +547,7 @@ export class DomBlockRenderer implements BlockRenderer {
 		this.blockStates = new Map();
 		this.blockFinishedListeners.clear();
 		this.linkifier.dispose();
+		this.hint = null;
 		this.decorationLayer = null;
 		this.linkHoverListeners.clear();
 		if (this.container) {
@@ -635,6 +709,7 @@ export class DomBlockRenderer implements BlockRenderer {
 			this.paintSelectionFill();
 			this.linkifier.refresh();
 			this.paintDecorations();
+			this.paintHints();
 			if (paintedAt !== undefined) this.lastPaintAt = paintedAt;
 			this.notifyPainted();
 			core.takeDirty();
@@ -795,6 +870,7 @@ export class DomBlockRenderer implements BlockRenderer {
 		this.paintSelectionFill();
 		this.linkifier.refresh();
 		this.paintDecorations();
+		this.paintHints();
 		if (paintedAt !== undefined) this.lastPaintAt = paintedAt;
 		this.notifyPainted();
 		this.rescheduleIfPending(core);
