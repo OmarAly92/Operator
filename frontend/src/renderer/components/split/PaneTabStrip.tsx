@@ -113,6 +113,7 @@ export function PaneTabStrip({ pane, sessions, shells, onSelect, onClose, onRena
 				icon={<AgentAvatar className="size-icon-base" decorative provider={tab.harness} />}
 				isActive={isActive}
 				label={t("terminal.reviewer")}
+				onClose={() => onClose(tab)}
 				onSelect={() => onSelect(tab)}
 				title={tab.harness}
 			/>

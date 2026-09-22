@@ -15,6 +15,8 @@ export function SessionCompanions({ session }: { session: WorkspaceSession }) {
 	const requestedShell = useUiStore((state) => state.activeShellTerminalHandleId);
 	const appliedShellRef = useRef<string | null>(null);
 	const anchor = useMemo<TabRef>(() => ({ kind: "session", sessionId: session.id }), [session.id]);
+	const reviewerHandleId = reviewer?.handleId;
+	const reviewerHarness = reviewer?.harness;
 
 	useEffect(() => {
 		for (const shell of shellsQuery.data ?? []) {
@@ -27,11 +29,13 @@ export function SessionCompanions({ session }: { session: WorkspaceSession }) {
 		const { layout } = useSplitLayoutStore.getState();
 		for (const pane of listPanes(layout.root)) {
 			for (const tab of pane.tabs) {
-				if (tab.kind === "reviewer" && tab.sessionId === session.id && tab.handleId !== reviewer?.handleId) closeTab(tab);
+				if (tab.kind === "reviewer" && tab.sessionId === session.id && tab.handleId !== reviewerHandleId) closeTab(tab);
 			}
 		}
-		if (reviewer) insertTabAfter({ kind: "reviewer", sessionId: session.id, ...reviewer }, anchor);
-	}, [anchor, closeTab, insertTabAfter, reviewer, session.id]);
+		if (reviewerHandleId && reviewerHarness) {
+			insertTabAfter({ kind: "reviewer", sessionId: session.id, handleId: reviewerHandleId, harness: reviewerHarness }, anchor);
+		}
+	}, [anchor, closeTab, insertTabAfter, reviewerHandleId, reviewerHarness, session.id]);
 
 	useEffect(() => {
 		if (!requestedShell || appliedShellRef.current === requestedShell) return;

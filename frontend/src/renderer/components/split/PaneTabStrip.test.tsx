@@ -2,7 +2,7 @@ import { DndContext } from "@dnd-kit/core";
 import { fireEvent, render, screen } from "@testing-library/react";
 import type { ComponentProps } from "react";
 import { describe, expect, it, vi } from "vitest";
-import type { Pane } from "../../lib/split-layout";
+import type { Pane, TabRef } from "../../lib/split-layout";
 import type { ShellTerminal } from "../../hooks/useShellTerminals";
 import type { WorkspaceSession } from "../../types/workspace";
 import { TooltipProvider } from "../ui/tooltip";
@@ -87,6 +87,14 @@ describe("PaneTabStrip", () => {
 	it("labels a tab whose session is gone as having no session", () => {
 		renderStrip({ pane: { ...pane, tabs: [{ kind: "session", sessionId: "gone" }] } });
 		expect(screen.getByRole("tab", { name: "No session" })).toBeInTheDocument();
+	});
+
+	it("gives a reviewer tab a close button that routes through onClose", () => {
+		const onClose = vi.fn();
+		const reviewerTab: TabRef = { kind: "reviewer", sessionId: "a", handleId: "r1", harness: "codex" };
+		renderStrip({ pane: { ...pane, tabs: [reviewerTab], activeTab: 0 }, onClose });
+		fireEvent.click(screen.getByRole("button", { name: "Close Reviewer" }));
+		expect(onClose).toHaveBeenCalledWith(reviewerTab);
 	});
 
 	it("does not intercept Enter/Space bubbling up from a tab, so no phantom drag starts", () => {

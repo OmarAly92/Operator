@@ -218,6 +218,18 @@ describe("SplitWorkspace", () => {
 		]);
 	});
 
+	it("keeps a closed reviewer tab closed across a re-render instead of reopening it", () => {
+		reviewerState.value = { handleId: "r1", harness: "codex" };
+		render(<SplitWorkspace routeSessionId="a" />);
+		expect(listPanes(useSplitLayoutStore.getState().layout.root)[0].tabs.map(tabKey)).toEqual(["session:a", "reviewer:r1"]);
+
+		fireEvent.click(screen.getByRole("button", { name: "close reviewer:r1" }));
+		expect(listPanes(useSplitLayoutStore.getState().layout.root)[0].tabs.map(tabKey)).toEqual(["session:a"]);
+
+		useSplitLayoutStore.setState((state) => ({ layout: { ...state.layout } }));
+		expect(listPanes(useSplitLayoutStore.getState().layout.root)[0].tabs.map(tabKey)).toEqual(["session:a"]);
+	});
+
 	it("prunes tabs whose session disappeared", () => {
 		useSplitLayoutStore.getState().openTab(s("gone"));
 		render(<SplitWorkspace routeSessionId="a" />);
