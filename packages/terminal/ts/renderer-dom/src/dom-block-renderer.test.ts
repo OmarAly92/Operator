@@ -676,6 +676,20 @@ describe("predictive echo", () => {
 		expect(host.querySelectorAll(".terminal-prediction")).toHaveLength(0);
 		expect(renderer.predictKey(printable("b"), 1100)).toBe(false);
 	});
+
+	it("reconciles a confirmed prediction before registering the next one, so a keystroke landing between real output and the next paint does not drift a column right", async () => {
+		const { renderer, host, core } = mountRenderer();
+		renderer.setPredictiveEcho({ thresholdMs: 30 });
+		renderer.noteRoundTrip(0, 107);
+		await flushRepaint();
+		renderer.predictKey(printable("a"), performance.now());
+		feed(core, "a");
+		renderer.predictKey(printable("b"), performance.now());
+		expect(renderer.predictionCount()).toBe(1);
+		const painted = host.querySelectorAll(".terminal-prediction");
+		expect(painted).toHaveLength(1);
+		expect(painted[0]!.textContent).toBe("b");
+	});
 });
 
 describe("predictive echo on the alternate screen", () => {
@@ -706,13 +720,7 @@ describe("predictive echo on the alternate screen", () => {
 		await enterAltScreen();
 		renderer.setPredictiveEcho({ thresholdMs: 30 });
 		renderer.noteRoundTrip(0, 107);
-		// Register with performance.now() -- the same clock reconcilePredictions()
-		// uses internally -- so the assertions below can't pass via TTL expiry
-		// racing the test runner instead of the row-jump check they exercise.
 		renderer.predictKey(printable("a"), performance.now());
-		// A same-row repaint must NOT drop the prediction. If this failed, the
-		// drop below could be TTL expiry rather than the row-jump detection this
-		// test exists to guard.
 		await feed("x");
 		expect(host.querySelectorAll(".terminal-prediction")).toHaveLength(1);
 		await feed("\u001b[H\u001b[2J\r\n\r\nprompt> ");
@@ -726,8 +734,6 @@ describe("predictive echo on the alternate screen", () => {
 		await enterAltScreen();
 		await leaveAltScreen();
 
-		// The alt cursor element is never removed from the DOM on leaveAltScreen
-		// -- only altRoot.hidden is set -- so it must still be present here.
 		const staleAltCursor = host.querySelector("[data-terminal-cursor]");
 		expect(staleAltCursor).not.toBeNull();
 		expect(staleAltCursor?.closest("[hidden]")).not.toBeNull();

@@ -589,6 +589,7 @@ export class DomBlockRenderer implements BlockRenderer {
 
 	predictKey(key: KeyDescriptor, nowMs: number): boolean {
 		if (this.echoThresholdMs === null || !this.rtt.shouldPredict(this.echoThresholdMs)) return false;
+		this.reconcilePredictions();
 		const cursor = this.cursorPoint();
 		if (cursor === null) return false;
 		if (!this.predictions.register(key, cursor, nowMs)) return false;
