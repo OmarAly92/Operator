@@ -121,3 +121,60 @@ fn an_underlined_trailing_blank_is_still_trimmed_from_the_export() {
     let snapshot = core.snapshot().expect("snapshot");
     assert_eq!(snapshot.row_text(0), "ab");
 }
+
+#[test]
+fn a_private_m_sequence_is_not_sgr() {
+    for bytes in [
+        &b"\x1b[>4mA"[..],
+        b"\x1b[?4mA",
+        b"\x1b[>4;2mA",
+        b"\x1b[>0m\x1b[38;2;1;2;3mA",
+    ] {
+        let style = style_of(bytes);
+        assert!(
+            style.attrs.is_empty(),
+            "{:?} set {:?}",
+            String::from_utf8_lossy(bytes),
+            style.attrs
+        );
+        assert_eq!(style.underline, StyleCode::DEFAULT);
+    }
+    assert_eq!(
+        style_of(b"\x1b[>0m\x1b[38;2;1;2;3mA").fg,
+        StyleCode::rgb(1, 2, 3)
+    );
+}
+
+#[test]
+fn a_private_m_sequence_in_a_history_chunk_is_not_sgr_either() {
+    let mut core = TerminalCore::new(20, 10_000).expect("core");
+    core.feed(b"\x1b]7000;v=1;origin=1000\x1b\\live\r\n");
+    core.feed(b"\x1b]7000;v=1;history=999,1\x1b\\");
+    core.feed(b"\x1b[>4mold\r\n");
+    let snapshot = core.snapshot().expect("snapshot");
+    assert_eq!(snapshot.row_text(0), "old");
+    assert!(snapshot.row_style_pairs(0)[0].1.attrs.is_empty());
+}
+
+#[test]
+fn the_claude_code_recording_carries_no_attribute_bits() {
+    let dir = std::path::Path::new(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/tests/ref/claude_spinner_10s"
+    ));
+    let recording = std::fs::read(dir.join("recording")).expect("recording");
+    let mut core = TerminalCore::new(120, 10_000).expect("core");
+    core.resize(120, 40);
+    core.set_agent_tui_mode(true);
+    core.feed(&recording);
+    let snapshot = core.snapshot().expect("snapshot");
+    for row in 0..snapshot.row_count() {
+        for (end, style) in snapshot.row_style_pairs(row) {
+            assert!(
+                style.attrs.is_empty() && style.underline == StyleCode::DEFAULT,
+                "row {row} run ending at {end} carries {:?}: XTMODKEYS (CSI > 4;2 m) must not reach the SGR path",
+                style.attrs
+            );
+        }
+    }
+}

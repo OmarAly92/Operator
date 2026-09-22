@@ -12,6 +12,7 @@ type RowFingerprint = Readonly<{
 	content: Uint8Array;
 	stylePairs: Uint32Array;
 	attributes: RendererFeatures["attributes"];
+	widthCache: boolean;
 }>;
 
 const rowFingerprints = new WeakMap<HTMLElement, readonly RowFingerprint[]>();
@@ -95,11 +96,12 @@ function fingerprintRow(source: RowSource, row: number, features: RendererFeatur
 		content: source.content.slice(contentStart, contentEnd),
 		stylePairs: source.stylePairs.slice(pairStart * STYLE_RUN_WORDS, pairEnd * STYLE_RUN_WORDS),
 		attributes: features.attributes,
+		widthCache: features.widthCache,
 	};
 }
 
 function rowMatches(source: RowSource, row: number, fingerprint: RowFingerprint, features: RendererFeatures): boolean {
-	if (fingerprint.attributes !== features.attributes) return false;
+	if (fingerprint.attributes !== features.attributes || fingerprint.widthCache !== features.widthCache) return false;
 	const rangeIndex = row * 2;
 	const contentStart = source.rows[rangeIndex] ?? 0;
 	const contentEnd = source.rows[rangeIndex + 1] ?? contentStart;

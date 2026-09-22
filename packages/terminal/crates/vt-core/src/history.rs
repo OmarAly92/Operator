@@ -134,7 +134,7 @@ impl Perform for ScreenPerform<'_> {
     }
 
     fn csi_dispatch(&mut self, params: &Params, intermediates: &[u8], _ignore: bool, c: char) {
-        if c == 'm' {
+        if c == 'm' && intermediates.is_empty() {
             crate::sgr::apply(self.style, params);
             self.screen.set_erase_background(self.style.bg);
             return;

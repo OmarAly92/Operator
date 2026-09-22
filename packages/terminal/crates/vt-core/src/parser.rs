@@ -777,7 +777,7 @@ impl Perform for Parser {
             intermediates: intermediates.to_vec(),
             action: c,
         });
-        if c == 'm' {
+        if c == 'm' && intermediates.is_empty() {
             self.apply_sgr(params);
             return;
         }

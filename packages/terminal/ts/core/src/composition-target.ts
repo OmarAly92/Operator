@@ -73,7 +73,7 @@ export function createCompositionTarget(opts: {
 		place();
 	};
 	const onUpdate = (event: CompositionEvent) => {
-		view.textContent = `‎${event.data ?? ""}‎`;
+		view.textContent = `\u200E${event.data ?? ""}\u200E`;
 		place();
 	};
 	// xterm.js src/browser/input/CompositionHelper.ts:120-200 (_finalizeComposition)

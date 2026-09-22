@@ -1,12 +1,12 @@
 {
-	"measuredAt": "2026-09-22T08:58:45.232Z",
-	"features": "widthCache",
+	"measuredAt": "2026-09-22T08:58:46.566Z",
+	"features": "graphemes,widthCache",
 	"cellWidth": 8.4375,
 	"cellHeight": 16.796875,
 	"boxGapPx": 0,
 	"wideDriftPx": 0.08,
 	"cjkDriftPx": 1.09,
-	"seqDriftPx": -50.89,
+	"seqDriftPx": 0.27,
 	"boxDrawing": "not needed",
 	"widthCache": "needed"
 }

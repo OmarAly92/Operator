@@ -606,6 +606,28 @@ history of `master`.
   the first chunk.
 - Guards: `TestHistoryStartsAtTheOriginTheFrameDeclared` (ptyhost).
 
+### 4.22 Private `CSI … m` sequences reached the SGR path — Plan D review
+- Symptom: none visible on `development` beyond a subtle one — every Claude
+  Code banner and prompt band painted at 55 % opacity. On the Plan D branch,
+  before the fix: every coloured run underlined once `attributes: "warp"`
+  was on, the style map split into 87,023 entries (260 is right) and the
+  renderer heap at 60k rows read 14 MiB, which the executor recorded as the
+  cost of the new export.
+- Cause: `Parser::csi_dispatch` (and the history receiver's `ScreenPerform`)
+  handed every `m` to `apply_sgr`. Claude Code sends `CSI > 4;2 m`
+  (XTMODKEYS, `modifyOtherKeys=2`) at startup; read as SGR that is `4` then
+  `2` — underline (ignored before Plan D, recorded after it) and **dim**,
+  which Claude Code never clears because it uses `39`/`22`, not `0`. vte
+  itself dispatches by intermediates: `('m', [])` is SGR, `('m', [b'>'])`
+  XTMODKEYS, `('m', [b'?'])` XTQMODKEYS (`vte-0.15.0/src/ansi.rs:1678-1694`).
+- Now: SGR runs only when `intermediates.is_empty()` in both dispatchers.
+  The `claude-spinner-10s` feel baseline was re-recorded in the same commit:
+  its banner is now full colour, which is what Warp shows.
+- Guards: `tests/sgr_attributes.rs::a_private_m_sequence_is_not_sgr`,
+  `…::a_private_m_sequence_in_a_history_chunk_is_not_sgr_either`,
+  `…::the_claude_code_recording_carries_no_attribute_bits` (feeds the real
+  spinner recording and asserts no attribute bit on any run).
+
 ## 5. Known gaps (not bugs, decisions pending)
 
 - SGR attributes (italic, underline in 5 styles, SGR 58 colour, strike,
@@ -618,29 +640,25 @@ history of `master`.
   cell flags have none to record. In both width modes a zero-width scalar
   after a space now rewraps with the space instead of starting a new row
   (Task 5).
-- `bench/agent-session/glyph-probe.mjs`'s `MARKER_COLUMN = 40` assumes a
-  0-based marker position, but the probe reaches it via `\x1b[40G` (1-based
-  CSI CHA), so the true marker sits at 0-based cell 39 — every
-  `EVIDENCE*.json` this plan (Plan D) produced has a constant ~+1-cell bias
-  in its drift numbers. Doesn't change any needed/not-needed verdict; not
-  fixed because `glyph-probe.mjs` was outside every task's file list.
-- **The flags-off renderer/mirror wasm memory regression.** Flags off, the
-  renderer core wasm heap at the fixture's 60k rows reads 14,680,064 bytes
-  (~14.00 MiB), up from Plan C's 8,192,000–9,175,040 bytes (~7.81–8.75 MiB) —
-  a real, reproducible ~60–79% increase, still well under the 128 MiB budget.
-  This is Tasks 3 and 6's style-run (5-word) and cell-span export buffers,
-  which are now always computed and exported in every snapshot regardless of
-  which `RendererFeatures` flags are set (see the spec's Plan D table,
-  `docs/superpowers/specs/2026-09-19-agent-tui-experience-design.md`).
-- **The `widthCache` `seq:`-row regression with an unisolated cause.**
-  Turning on `RendererFeatures.widthCache` measurably worsens layout drift on
-  the glyph probe's `seq:` row (ZWJ/skin-tone-modifier/regional-indicator
-  emoji sequences). Direct Chromium testing ruled out per-code-point
-  `letter-spacing` splitting inside a multi-codepoint cluster as the
-  mechanism — a correction applied to a span wrapping a full ligated cluster
-  moves the whole glyph by exactly the requested amount, with no internal
-  splitting — so that theory is refuted; the true cause remains unknown (see
-  `packages/terminal/CHANGELOG.md`'s Task 11 entry).
+- **Renderer and mirror wasm memory grew with the five-word style run.** At
+  the 60k-row fixture the renderer core heap reads ~11.4 MiB against ~8.9 MiB
+  on the pre-Plan-D tree measured the same way (mirror at `mirrorLimits`
+  ~11.25 MiB against ~9.19 MiB). The style-run *count* is identical (260
+  `AttributeMap` entries); the cost is the 5/3 stride on 60k exported runs,
+  `Vec` growth, the 16-byte `CellStyle`, and the Unicode 17 segmentation
+  tables in `vt_host.wasm` (250 → 306 KB). Far under the 128 MiB budget. A
+  larger jump than this is a fragmentation bug — see §4.22 for the one that
+  put it at 14 MiB.
+- **`widthCache` corrects toward the core's cell widths, so it needs
+  `graphemes`.** With `graphemes` off the core lays an emoji sequence out in
+  scalar-mode cells (`❤️` one cell, a ZWJ family three two-cell clusters) and
+  `widthCache` faithfully squeezes the glyphs into those cells
+  (`letter-spacing: -10px` on the heart; the glyph probe's `seq:` row goes
+  from -37.92 to -50.89 px). With both on the row lands at +0.27 px
+  (`bench/agent-session/baselines/glyph-probe/EVIDENCE-graphemes_widthCache.json`).
+  Chromium shapes a ZWJ sequence across the per-cluster spans (the follow-on
+  spans measure 0 px), so the split is not the cause; the target widths are.
+  A host that turns on `widthCache` should turn on `graphemes`.
 - **The pending manual Japanese-IME check.** Task 9's IME composition work
   (the underlined marked-text view, the settled-value single-send fix) has
   not yet been manually verified with a real macOS Japanese IME by a human;

@@ -8,7 +8,7 @@ const agentDir = path.dirname(fileURLToPath(import.meta.url));
 const benchDir = path.resolve(agentDir, "..");
 const configFile = path.join(benchDir, "vite.config.ts");
 const outDir = path.join(agentDir, "baselines", "glyph-probe");
-const MARKER_COLUMN = 40;
+const MARKER_COLUMN = 39;
 const NEEDED_PX = 1;
 
 function verdict(px) {
