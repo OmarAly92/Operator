@@ -867,10 +867,24 @@ history of `master`.
   (`terminal_cubit.dart:99`, `:281-283`). The desktop renderer **does** have a
   predictive echo as of Plan F (default off, armed only above a host RTT
   threshold — the desktop-against-remote-daemon case the user confirmed they
-  use); the route to the same thing on the phone is the shared renderer that
-  `docs/superpowers/specs/2026-09-22-server-owned-terminal-model-design.md`
+  use), but **Operator does not turn it on yet**: nothing passes
+  `predictiveEcho` to `BlockTerminal`, pending a decision on who sets the
+  threshold. The route to the same thing on the phone is the shared renderer
+  that `docs/superpowers/specs/2026-09-22-server-owned-terminal-model-design.md`
   designs. **Do not build a second prediction implementation in the Dart
   fork** — that is the fork §4.2 exists to delete.
+- **Claude Code runs on the primary screen, not the alternate screen.** Both
+  real recordings (`bench/agent-session/fixtures/claude-spinner-10s`,
+  `claude-long-50k`) contain zero `ESC[?1049h`/`?47h`/`?1047h`; its prompt is
+  an inline Ink frame, which is also why §4.8 and §4.10 exist. Plan F was
+  specced on the opposite premise and its first build hooked predictive echo
+  only into the alternate screen's key handler, so it never fired for Claude
+  Code while every test (all of which mounted an alt surface) passed. Keys
+  for a child that owns the line on the primary screen go
+  `LineEditor.passthrough` → `EditorHost.sendRaw`; anything that must see a
+  Claude Code keystroke hooks there (`EditorHost.beforePassthrough`). Guard:
+  `TerminalSurface.test.tsx` "keeps Claude Code on the primary screen…" feeds
+  the recording and asserts `altScreen` stays null.
 
 ---
 

@@ -76,6 +76,13 @@ export interface TerminalSurfaceProps {
 	onHint?: (hint: HintEvent) => void;
 }
 
+function predictKeystroke(renderer: DomBlockRenderer | null, event: KeyboardEvent): void {
+	if (!renderer) return;
+	const now = performance.now();
+	renderer.noteSend(now);
+	renderer.predictKey({ text: event.key, ctrlKey: event.ctrlKey, altKey: event.altKey, metaKey: event.metaKey, isComposing: event.isComposing }, now);
+}
+
 export function TerminalSurface({
 	core,
 	theme,
@@ -152,6 +159,7 @@ export function TerminalSurface({
 		editor.mount(editorHost, core, {
 			send: onSend,
 			sendRaw: onSendRaw,
+			beforePassthrough: (event) => predictKeystroke(renderer, event),
 			compositionAnchor: (parent) => anchorFromElement(parent, blockHost.querySelector("[data-terminal-cursor-cell]")),
 		});
 		editor.setTheme(theme);
@@ -306,12 +314,7 @@ export function TerminalSurface({
 			}
 			event.preventDefault();
 			rendererRef.current?.selectionClear();
-			const now = performance.now();
-			rendererRef.current?.noteSend(now);
-			rendererRef.current?.predictKey(
-				{ text: event.key, ctrlKey: event.ctrlKey, altKey: event.altKey, metaKey: event.metaKey, isComposing: event.isComposing },
-				now,
-			);
+			predictKeystroke(rendererRef.current, event);
 			onSendRaw(data);
 		};
 		// The alt screen has no line editor to hold the line, so every paste

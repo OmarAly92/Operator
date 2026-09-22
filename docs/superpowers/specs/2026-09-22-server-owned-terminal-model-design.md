@@ -499,7 +499,12 @@ is a task.
    Claude Code's alt-screen views are common enough on the phone to justify
    serving `AltSnapshot` as rows immediately, versus keeping `type: 'data'`
    for the alt screen only and leaving a VT engine on the phone until it moves.
-   Keeping bytes for it means the `xterm` fork cannot be deleted yet.
+   Keeping bytes for it means the `xterm` fork cannot be deleted yet. One fact
+   bears on it: Claude Code's main UI never enters the alternate screen — both
+   real recordings (`packages/terminal/bench/agent-session/fixtures/claude-spinner-10s/recording`,
+   `claude-long-50k/recording`) contain no `ESC[?1049h`, `?47h` or `?1047h` —
+   so rows for the primary screen alone already cover the Claude Code prompt
+   and transcript.
 3. **`generation` per row or per range.** Per row is WezTerm's shape and makes
    `changed_since` exact; per range (a stamp per run of rows, split on write)
    is smaller for 200k-row scrollback that never changes. Turns on: the memory

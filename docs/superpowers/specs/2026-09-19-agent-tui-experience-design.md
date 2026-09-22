@@ -1055,7 +1055,12 @@ therefore delivered both bullets: the §4.2 design spec
 (`2026-09-22-server-owned-terminal-model-design.md`) and predictive echo in
 the desktop renderer as an overlay in the Plan E decoration layer — default
 off, armed only above a host RTT threshold, painting in both surfaces,
-touching no row and no model.
+touching no row and no model. One correction the review made: Claude Code's
+prompt is on the **primary** screen (its recordings never switch to the
+alternate screen), where keys reach it through the line editor's passthrough;
+the first build hooked the echo only into the alternate screen's key handler.
+Operator does not yet pass a threshold, so the feature is unreachable in the
+app until that is decided.
 
 ## Decisions needed
 

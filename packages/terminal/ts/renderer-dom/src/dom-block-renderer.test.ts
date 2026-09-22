@@ -9,6 +9,7 @@ import {
 	validateRowRange,
 	type FontConfig,
 	type TerminalCore,
+	type TerminalLimits,
 	type TerminalTheme,
 } from "@operator/terminal-core";
 import { DomBlockRenderer, warpDarkTheme } from "./index";
@@ -77,7 +78,7 @@ function mountWith(input: string): { core: TerminalCore; host: HTMLElement; rend
 	return { core, host, renderer };
 }
 
-function mountRenderer(): {
+function mountRenderer(limits?: TerminalLimits): {
 	core: TerminalCore;
 	host: HTMLElement;
 	renderer: DomBlockRenderer;
@@ -86,7 +87,7 @@ function mountRenderer(): {
 	leaveAltScreen: () => Promise<void>;
 } {
 	stubRowLayout();
-	const core = createTerminalCore({ columns: 16, scrollback: 100 });
+	const core = createTerminalCore({ columns: 16, scrollback: 100, ...(limits ? { limits } : {}) });
 	const host = document.createElement("div");
 	const renderer = new DomBlockRenderer();
 	renderer.mount(host, core);
@@ -721,7 +722,7 @@ describe("predictive echo on the alternate screen", () => {
 		renderer.setPredictiveEcho({ thresholdMs: 30 });
 		renderer.noteRoundTrip(0, 107);
 		renderer.predictKey(printable("a"), performance.now());
-		await feed("x");
+		await feed("\u001b[?25h");
 		expect(host.querySelectorAll(".terminal-prediction")).toHaveLength(1);
 		await feed("\u001b[H\u001b[2J\r\n\r\nprompt> ");
 		expect(host.querySelectorAll(".terminal-prediction")).toHaveLength(0);
@@ -1046,5 +1047,67 @@ describe("row pool", () => {
 		await flushRepaint();
 		expect(rowNode(container, stable).textContent).toBe("done");
 		renderer.dispose();
+	});
+});
+
+describe("predictive echo against real output", () => {
+	const armed = (renderer: DomBlockRenderer) => {
+		renderer.setPredictiveEcho({ thresholdMs: 30 });
+		renderer.noteRoundTrip(0, 107);
+	};
+	const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+	it("expires an unconfirmed prediction on its own when no further output arrives", async () => {
+		const { renderer, host, feed } = mountRenderer();
+		await feed("> ");
+		armed(renderer);
+		renderer.predictKey(printable("a"), performance.now() - 490);
+		expect(host.querySelectorAll(".terminal-prediction")).toHaveLength(1);
+		await wait(60);
+		expect(host.querySelectorAll(".terminal-prediction")).toHaveLength(0);
+	});
+
+	it("confirms an echoed keystroke after scrollback has been trimmed", async () => {
+		const { renderer, core, feed } = mountRenderer({ rows: 20, bytes: 1 << 20 });
+		let lines = "";
+		for (let index = 0; index < 100; index += 1) lines += `line ${index}\r\n`;
+		await feed(`${lines}> `);
+		expect(core.snapshot().firstStableRow).toBeGreaterThan(0);
+		armed(renderer);
+		renderer.predictKey(printable("a"), performance.now());
+		await feed("a");
+		expect(renderer.predictionCount()).toBe(0);
+		expect(renderer.predictKey(printable("b"), performance.now())).toBe(true);
+	});
+
+	it("confirms a keystroke typed after a wide character on the same line", async () => {
+		const { renderer, feed } = mountRenderer();
+		await feed("> \u4e16");
+		armed(renderer);
+		renderer.predictKey(printable("a"), performance.now());
+		await feed("a");
+		expect(renderer.predictionCount()).toBe(0);
+		expect(renderer.predictKey(printable("b"), performance.now())).toBe(true);
+	});
+
+	it("drops a prediction the echo contradicts instead of leaving it beside the real text", async () => {
+		const { renderer, host, feed } = mountRenderer();
+		await feed("> ");
+		armed(renderer);
+		renderer.predictKey(printable("a"), performance.now());
+		await feed("*");
+		expect(host.querySelectorAll(".terminal-prediction")).toHaveLength(0);
+		expect(renderer.predictKey(printable("b"), performance.now())).toBe(false);
+	});
+
+	it("does not take a frame that returns the cursor to the prompt as the keystroke's echo", async () => {
+		const { renderer, feed } = mountRenderer();
+		await feed("> ");
+		renderer.setPredictiveEcho({ thresholdMs: 30 });
+		renderer.noteSend(performance.now());
+		await feed("\u001b7\u001b[1;10H*\u001b8");
+		await wait(50);
+		await feed("a");
+		expect(renderer.predictKey(printable("b"), performance.now())).toBe(true);
 	});
 });

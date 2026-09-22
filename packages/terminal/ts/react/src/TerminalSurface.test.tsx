@@ -1,4 +1,7 @@
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { readFile } from "node:fs/promises";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { createTerminalCore, type HostCapabilities } from "@operator/terminal-core";
 import { DomBlockRenderer, terminalStyles } from "@operator/terminal-renderer-dom";
@@ -599,6 +602,55 @@ describe("TerminalSurface", () => {
 		typeKey("b");
 		now.mockRestore();
 		expect(renderer.predictionCount()).toBe(1);
+	});
+
+	async function mountPrimarySurface(extra: Partial<HostCapabilities>) {
+		const mount = vi.spyOn(DomBlockRenderer.prototype, "mount");
+		const onSendRaw = vi.fn();
+		const host: HostCapabilities = { writeClipboard: async () => {}, readClipboard: async () => "", openLink: async () => {}, ...extra };
+		const result = renderSurface({ host, onSendRaw });
+		const renderer = mount.mock.contexts[0] as DomBlockRenderer;
+		mount.mockRestore();
+		act(() => {
+			feed(result.core, "> ");
+		});
+		await flushRepaint();
+		const editor = result.host.parentElement!.querySelector<HTMLElement>(".terminal-editor")!;
+		const typeKey = (key: string, modifiers: KeyboardEventInit = {}) => {
+			act(() => {
+				editor.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true, ...modifiers }));
+			});
+		};
+		return { renderer, surface: result.host, typeKey, core: result.core, onSendRaw };
+	}
+
+	it("predicts a keystroke the line editor passes through to a child on the primary screen", async () => {
+		const { renderer, surface, typeKey, core, onSendRaw } = await mountPrimarySurface({ predictiveEcho: { thresholdMs: 30 } });
+		expect(core.snapshot().altScreen).toBeNull();
+		renderer.noteRoundTrip(0, 107);
+		typeKey("a");
+		expect(onSendRaw).toHaveBeenCalledWith("a");
+		expect(renderer.predictionCount()).toBe(1);
+		expect(surface.querySelectorAll(".terminal-prediction")).toHaveLength(1);
+	});
+
+	it("does not predict on the primary screen while the line editor owns the line", async () => {
+		const { renderer, typeKey, core, onSendRaw } = await mountPrimarySurface({ predictiveEcho: { thresholdMs: 30 } });
+		act(() => {
+			feed(core, "\x1b]7000;v=1;input-ready=1\x07");
+		});
+		await flushRepaint();
+		renderer.noteRoundTrip(0, 107);
+		typeKey("a");
+		expect(onSendRaw).not.toHaveBeenCalled();
+		expect(renderer.predictionCount()).toBe(0);
+	});
+
+	it("keeps Claude Code on the primary screen, so the primary path is the one that must predict", async () => {
+		const recording = await readFile(join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "bench", "agent-session", "fixtures", "claude-spinner-10s", "recording"));
+		const core = createTerminalCore({ columns: 120, scrollback: 1000 });
+		core.feed(new Uint8Array(recording));
+		expect(core.snapshot().altScreen).toBeNull();
 	});
 
 	it("passes the host's predictive-echo threshold to the renderer and null when there is none", () => {

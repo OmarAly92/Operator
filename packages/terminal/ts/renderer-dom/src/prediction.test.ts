@@ -91,4 +91,53 @@ describe("PredictionState", () => {
 		expect(state.pending()).toEqual([]);
 		expect(state.suppressed()).toBe(false);
 	});
+
+	it("confirms a typed space the row export trimmed as a trailing blank", () => {
+		const state = new PredictionState();
+		state.register(key(" "), { row: 3, column: 5 }, 1000);
+		state.reconcile({ row: 3, column: 6 }, "hello", 1010);
+		expect(state.pending()).toEqual([]);
+		expect(state.suppressed()).toBe(false);
+	});
+
+	it("drops a prediction the moment the cursor passes it with a different character, and suppresses", () => {
+		const state = new PredictionState();
+		state.register(key("a"), { row: 3, column: 5 }, 1000);
+		state.register(key("b"), { row: 3, column: 5 }, 1001);
+		state.reconcile({ row: 3, column: 6 }, "xxxxx*", 1010);
+		expect(state.pending()).toEqual([]);
+		expect(state.suppressed()).toBe(true);
+	});
+
+	it("stays suppressed while the echo keeps disagreeing, and lifts once a keystroke is echoed as typed", () => {
+		const state = new PredictionState();
+		state.register(key("a"), { row: 3, column: 5 }, 1000);
+		state.reconcile({ row: 3, column: 6 }, "xxxxx*", 1010);
+		expect(state.register(key("b"), { row: 3, column: 6 }, 1100)).toBe(false);
+		state.reconcile({ row: 3, column: 7 }, "xxxxx**", 1110);
+		expect(state.suppressed()).toBe(true);
+		expect(state.register(key("c"), { row: 3, column: 7 }, 1200)).toBe(false);
+		state.reconcile({ row: 3, column: 8 }, "xxxxx**c", 1210);
+		expect(state.suppressed()).toBe(false);
+	});
+
+	it("expire() retires an aged prediction when no cursor is available to reconcile against", () => {
+		const state = new PredictionState();
+		state.register(key("a"), { row: 3, column: 5 }, 1000);
+		state.expire(1000 + PREDICTION_TTL_MS);
+		expect(state.pending()).toHaveLength(1);
+		state.expire(1000 + PREDICTION_TTL_MS + 1);
+		expect(state.pending()).toEqual([]);
+		expect(state.suppressed()).toBe(true);
+	});
+
+	it("waits as long as the caller's ttl before declaring a prediction dead", () => {
+		const state = new PredictionState();
+		state.register(key("a"), { row: 3, column: 5 }, 1000);
+		state.reconcile({ row: 3, column: 5 }, "xxxxx", 1000 + PREDICTION_TTL_MS + 100, 1200);
+		expect(state.pending()).toHaveLength(1);
+		state.reconcile({ row: 3, column: 6 }, "xxxxxa", 1000 + 700, 1200);
+		expect(state.pending()).toEqual([]);
+		expect(state.suppressed()).toBe(false);
+	});
 });

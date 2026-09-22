@@ -23,41 +23,63 @@ function isPredictable(key: KeyDescriptor): boolean {
 	return true;
 }
 
+function echoed(prediction: Prediction, cells: string): boolean {
+	const cell = cells[prediction.at.column];
+	if (cell === undefined) return prediction.text === " ";
+	return cell === prediction.text;
+}
+
 export class PredictionState {
 	private predictions: Prediction[] = [];
 	private suppress = false;
-	private lastCursor: CursorPoint | null = null;
+	private probe: Prediction | null = null;
+	private lastRow: number | null = null;
 
 	register(key: KeyDescriptor, cursor: CursorPoint, nowMs: number): boolean {
-		if (this.suppress || !isPredictable(key)) return false;
+		if (!isPredictable(key)) return false;
 		const column = cursor.column + this.predictions.length;
-		this.predictions.push({ text: key.text, at: { row: cursor.row, column }, sentAtMs: nowMs });
-		this.lastCursor = cursor;
+		const prediction = { text: key.text, at: { row: cursor.row, column }, sentAtMs: nowMs };
+		this.lastRow = cursor.row;
+		if (this.suppress) {
+			if (this.probe === null) this.probe = prediction;
+			return false;
+		}
+		this.predictions.push(prediction);
 		return true;
 	}
 
-	reconcile(cursor: CursorPoint, rowText: string, nowMs: number): void {
-		if (this.lastCursor !== null && cursor.row !== this.lastCursor.row) {
+	reconcile(cursor: CursorPoint, cells: string, nowMs: number, ttlMs: number = PREDICTION_TTL_MS): void {
+		if (this.lastRow !== null && cursor.row !== this.lastRow) {
 			this.predictions = [];
-			this.lastCursor = cursor;
+			this.probe = null;
+			this.lastRow = cursor.row;
 			return;
+		}
+		this.lastRow = cursor.row;
+		const probe = this.probe;
+		if (probe !== null && cursor.column > probe.at.column) {
+			if (echoed(probe, cells)) this.suppress = false;
+			this.probe = null;
 		}
 		const kept: Prediction[] = [];
 		for (const prediction of this.predictions) {
-			const landed = cursor.column > prediction.at.column && rowText[prediction.at.column] === prediction.text;
-			if (landed) {
-				this.suppress = false;
-				continue;
-			}
-			if (nowMs - prediction.sentAtMs > PREDICTION_TTL_MS) {
-				this.suppress = true;
-				continue;
+			const passed = cursor.column > prediction.at.column;
+			if (passed && echoed(prediction, cells)) continue;
+			if (passed || nowMs - prediction.sentAtMs > ttlMs) {
+				this.mispredicted(prediction);
+				this.predictions = [];
+				return;
 			}
 			kept.push(prediction);
 		}
 		this.predictions = kept;
-		if (this.lastCursor !== null && cursor.column > this.lastCursor.column) this.suppress = false;
-		this.lastCursor = cursor;
+	}
+
+	expire(nowMs: number, ttlMs: number = PREDICTION_TTL_MS): void {
+		const oldest = this.predictions[0];
+		if (oldest === undefined || nowMs - oldest.sentAtMs <= ttlMs) return;
+		this.mispredicted(oldest);
+		this.predictions = [];
 	}
 
 	pending(): readonly Prediction[] {
@@ -71,6 +93,12 @@ export class PredictionState {
 	clear(): void {
 		this.predictions = [];
 		this.suppress = false;
-		this.lastCursor = null;
+		this.probe = null;
+		this.lastRow = null;
+	}
+
+	private mispredicted(prediction: Prediction): void {
+		this.suppress = true;
+		this.probe = prediction;
 	}
 }

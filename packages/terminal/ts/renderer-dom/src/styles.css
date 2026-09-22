@@ -270,7 +270,11 @@
 	position: absolute;
 	pointer-events: none;
 	opacity: 0.45;
-	font: inherit;
+	white-space: pre;
+	font-family: var(--terminal-font-family);
+	font-size: var(--terminal-font-size);
+	font-weight: var(--terminal-font-weight);
+	letter-spacing: var(--terminal-letter-spacing);
 	line-height: var(--terminal-line-height);
 	color: var(--terminal-foreground);
 }

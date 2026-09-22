@@ -1,4 +1,5 @@
 import {
+	CELL_SPAN_WORDS,
 	decodeBlocks,
 	defaultStrings,
 	validateRowRange,
@@ -16,7 +17,8 @@ import { renderAltSurface } from "./alt-surface.js";
 import { finishedBlocks, rendererVisible, type BlockFinishedEvent } from "./block-finished.js";
 import { populateBlock, reconcileChildren, ROW_GENERATION_ATTR } from "./block-body.js";
 import { createCursorElement, cursorPaintFor, primaryCursorPlacement, PLAIN_CURSOR_PAINT, CURSOR_ATTR, type CursorPlacement } from "./cursor.js";
-import { PredictionState, type CursorPoint, type KeyDescriptor } from "./prediction.js";
+import { PREDICTION_TTL_MS, PredictionState, type CursorPoint, type KeyDescriptor } from "./prediction.js";
+import { cellString } from "./clusters.js";
 import { RttMeter } from "./rtt.js";
 import { ElementPool } from "./element-pool.js";
 import { bindActionEvents } from "./action-events.js";
@@ -133,6 +135,8 @@ export class DomBlockRenderer implements BlockRenderer {
 	private readonly predictions = new PredictionState();
 	private readonly rtt = new RttMeter();
 	private echoThresholdMs: number | null = null;
+	private predictionTimer: ReturnType<typeof setTimeout> | null = null;
+	private sentCursor: CursorPoint | null = null;
 
 	mount(container: HTMLElement, core: TerminalCore): void {
 		this.dispose();
@@ -172,7 +176,7 @@ export class DomBlockRenderer implements BlockRenderer {
 		});
 		this.rowEventsUnsubscribe = core.onRowEvents((event) => this.remapAnchor(event.remap));
 		this.unsubscribe = core.onChange(() => {
-			this.rtt.received(performance.now());
+			this.noteReceived(performance.now());
 			this.scheduleRepaint();
 		});
 		this.blockNav = mountBlockNavFromRenderer({ container, getBlocks: () => this.filteredBlocks, scrollToBlock: (id, align) => this.scrollToBlock(id, align), isAltScreenActive: () => core.snapshot().altScreen !== null });
@@ -579,7 +583,16 @@ export class DomBlockRenderer implements BlockRenderer {
 	}
 
 	noteSend(nowMs: number): void {
-		this.rtt.sent(nowMs);
+		if (this.rtt.sent(nowMs)) this.sentCursor = this.cursorPoint() ?? { row: -1, column: -1 };
+	}
+
+	private noteReceived(nowMs: number): void {
+		const before = this.sentCursor;
+		if (before === null) return;
+		const after = this.cursorPoint();
+		if (after === null || (after.row === before.row && after.column === before.column)) return;
+		this.sentCursor = null;
+		this.rtt.received(nowMs);
 	}
 
 	noteRoundTrip(sentMs: number, receivedMs: number): void {
@@ -593,12 +606,14 @@ export class DomBlockRenderer implements BlockRenderer {
 		const cursor = this.cursorPoint();
 		if (cursor === null) return false;
 		if (!this.predictions.register(key, cursor, nowMs)) return false;
+		this.armPredictionExpiry(performance.now());
 		this.paintPredictions();
 		return true;
 	}
 
 	predictionsClear(): void {
 		this.predictions.clear();
+		this.armPredictionExpiry(performance.now());
 		this.paintPredictions();
 	}
 
@@ -617,19 +632,47 @@ export class DomBlockRenderer implements BlockRenderer {
 		return primaryCursorPlacement(snapshot);
 	}
 
-	private rowTextAt(row: number): string {
-		const match = this.renderedRows().find(({ box }) => box.row === row);
-		if (!match) return "";
-		return this.rawTextRows().rowText(match.box.blockId, row);
+	private rowCellsAt(row: number): string {
+		const snapshot = this.core!.snapshot();
+		const alt = snapshot.altScreen;
+		const content = alt ? alt.content : snapshot.content;
+		const rows = alt ? alt.rowRanges : snapshot.rows;
+		const spanRanges = alt ? alt.spanRanges : snapshot.spanRanges;
+		const cellSpans = alt ? alt.cellSpans : snapshot.cellSpans;
+		const start = rows[row * 2] ?? 0;
+		const end = rows[row * 2 + 1] ?? start;
+		const text = end > start ? this.decoder.decode(content.subarray(start, end)) : "";
+		const spanStart = spanRanges[row * 2] ?? 0;
+		const spanEnd = spanRanges[row * 2 + 1] ?? spanStart;
+		return cellString(text, cellSpans.subarray(spanStart * CELL_SPAN_WORDS, spanEnd * CELL_SPAN_WORDS));
 	}
 
 	private reconcilePredictions(): void {
+		const now = performance.now();
 		const cursor = this.cursorPoint();
 		if (cursor !== null) {
-			const rowText = this.predictions.pending().length > 0 ? this.rowTextAt(cursor.row) : "";
-			this.predictions.reconcile(cursor, rowText, performance.now());
+			const cells = this.predictions.pending().length > 0 ? this.rowCellsAt(cursor.row) : "";
+			this.predictions.reconcile(cursor, cells, now, this.predictionTtlMs());
+		} else {
+			this.predictions.expire(now, this.predictionTtlMs());
 		}
+		this.armPredictionExpiry(now);
 		this.paintPredictions();
+	}
+
+	private predictionTtlMs(): number {
+		return Math.max(PREDICTION_TTL_MS, 2 * (this.rtt.median() ?? 0));
+	}
+
+	private armPredictionExpiry(nowMs: number): void {
+		if (this.predictionTimer !== null) clearTimeout(this.predictionTimer), (this.predictionTimer = null);
+		const oldest = this.predictions.pending()[0];
+		if (oldest === undefined) return;
+		const delay = Math.max(0, oldest.sentAtMs + this.predictionTtlMs() - nowMs) + 1;
+		this.predictionTimer = setTimeout(() => {
+			this.predictionTimer = null;
+			this.reconcilePredictions();
+		}, delay);
 	}
 
 	private paintPredictions(): void {
@@ -637,7 +680,8 @@ export class DomBlockRenderer implements BlockRenderer {
 		const container = this.container;
 		if (!layer || !container) return;
 		const pending = this.predictions.pending();
-		if (pending.length === 0) {
+		const cursor = pending.length === 0 ? null : this.cursorPoint();
+		if (cursor === null) {
 			paintBoxes(layer, "terminal-prediction", []);
 			return;
 		}
@@ -652,8 +696,8 @@ export class DomBlockRenderer implements BlockRenderer {
 		const { cellWidth, cellHeight } = this.cellMetrics();
 		const origin = container.getBoundingClientRect();
 		const cell = anchor.getBoundingClientRect();
-		const boxes = pending.map((_, index) => ({
-			left: cell.left - origin.left + container.scrollLeft + index * cellWidth,
+		const boxes = pending.map((prediction) => ({
+			left: cell.left - origin.left + container.scrollLeft + (prediction.at.column - cursor.column) * cellWidth,
 			top: cell.top - origin.top + container.scrollTop,
 			width: cellWidth,
 			height: cellHeight,
@@ -689,6 +733,7 @@ export class DomBlockRenderer implements BlockRenderer {
 	}
 
 	dispose(): void {
+		if (this.predictionTimer !== null) clearTimeout(this.predictionTimer), (this.predictionTimer = null);
 		this.jumpToBottom?.dispose(), (this.jumpToBottom = null);
 		this.blockNav?.dispose(), (this.blockNav = null);
 		if (this.unsubscribe) this.unsubscribe(), (this.unsubscribe = null);
