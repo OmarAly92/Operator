@@ -589,7 +589,6 @@ function ShellLayout() {
 				<TitlebarNav
 					isFullScreen={isFullScreen}
 					onSidebarPreviewEnter={previewSidebar}
-					onGoHome={() => void navigate({ to: "/" })}
 					notifications={<NotificationCenter />}
 					searchEnabled={commandPaletteEnabled}
 				/>

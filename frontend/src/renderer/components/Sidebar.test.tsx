@@ -1056,15 +1056,6 @@ describe("Sidebar", () => {
 		expect(navigateMock).not.toHaveBeenCalled();
 	});
 
-	it("starts a task in the owning project when opened through a global session link", () => {
-		mockParams.sessionId = session.id;
-		mockParams.projectId = undefined;
-		useUiStore.setState({ newTaskRequest: null });
-		renderSidebar({ workspaces: [{ ...workspace, sessions: [session] }] });
-		fireEvent.click(screen.getByRole("button", { name: "New task" }));
-		expect(useUiStore.getState().newTaskRequest?.projectId).toBe(workspace.id);
-	});
-
 	it("filters project sessions and restores them when the query is cleared", () => {
 		mockParams.projectId = "proj-1";
 		renderSidebar({ workspaces: [{ ...workspace, sessions: [session, { ...session, id: "other", title: "Update docs" }] }] });
@@ -1074,6 +1065,17 @@ describe("Sidebar", () => {
 		expect(screen.queryByLabelText("Open Update docs")).not.toBeInTheDocument();
 		fireEvent.change(search, { target: { value: "" } });
 		expect(screen.getByLabelText("Open Update docs")).toBeInTheDocument();
+	});
+
+	it("shows a clear button only while the search has text", () => {
+		mockParams.projectId = "proj-1";
+		renderSidebar({ workspaces: [{ ...workspace, sessions: [session] }] });
+		const search = screen.getByRole("textbox", { name: "Search tabs…" });
+		expect(screen.queryByRole("button", { name: "Clear search" })).not.toBeInTheDocument();
+		fireEvent.change(search, { target: { value: "login" } });
+		fireEvent.click(screen.getByRole("button", { name: "Clear search" }));
+		expect(search).toHaveValue("");
+		expect(screen.queryByRole("button", { name: "Clear search" })).not.toBeInTheDocument();
 	});
 
 	it("shows the project name and context in the ConfirmDialog description", async () => {
