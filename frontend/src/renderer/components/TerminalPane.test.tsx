@@ -1001,7 +1001,11 @@ describe("TerminalCacheProvider with several panes", () => {
 	it("parks only the terminal its own slot replaced", async () => {
 		const view = renderSplitPanes([a, b, c]);
 		try {
-			const left = await waitFor(() => attachmentIn("pane-left") as HTMLElement);
+			const left = await waitFor(() => {
+				const element = attachmentIn("pane-left");
+				expect(element).not.toBeNull();
+				return element as HTMLElement;
+			});
 			view.show(a, c);
 			await waitFor(() =>
 				expect(
@@ -1020,7 +1024,11 @@ describe("TerminalCacheProvider with several panes", () => {
 	it("moves a terminal between panes without remounting it", async () => {
 		const view = renderSplitPanes([a, b, c]);
 		try {
-			const moving = await waitFor(() => attachmentIn("pane-right") as HTMLElement);
+			const moving = await waitFor(() => {
+				const element = attachmentIn("pane-right");
+				expect(element).not.toBeNull();
+				return element as HTMLElement;
+			});
 			view.show(b, c);
 			await waitFor(() => expect(attachmentIn("pane-left")).toBe(moving));
 			expect(attachmentUnmounts.value).toBe(0);
