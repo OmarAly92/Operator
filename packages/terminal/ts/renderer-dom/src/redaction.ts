@@ -1,4 +1,4 @@
-import type { SecretPattern } from "@operator/terminal-core";
+import { CELL_SPAN_WORDS, type SecretPattern } from "@operator/terminal-core";
 import { cellAtOffset } from "./clusters.js";
 import { logicalLineAt, type LinkRange, type LogicalLineView } from "./logical-lines.js";
 import type { TextRows } from "./selection-text.js";
@@ -57,32 +57,80 @@ export function redactionMatches(line: LogicalLineView, regexes: readonly RegExp
 	}));
 }
 
+function utf16OffsetToByte(text: string, offset: number): number {
+	let bytes = 0;
+	for (const character of text.slice(0, offset)) {
+		const codePoint = character.codePointAt(0) ?? 0;
+		if (codePoint < 0x80) bytes += 1;
+		else if (codePoint < 0x800) bytes += 2;
+		else if (codePoint < 0x10000) bytes += 3;
+		else bytes += 4;
+	}
+	return bytes;
+}
+
+type MaskEdit = Readonly<{ fromByte: number; toByte: number; deltaByte: number }>;
+
+function maskedRowSpans(spans: ArrayLike<number>, edits: readonly MaskEdit[]): number[] {
+	if (edits.length === 0) return Array.from(spans);
+	const out: number[] = [];
+	const count = Math.floor(spans.length / CELL_SPAN_WORDS);
+	for (let index = 0; index < count; index += 1) {
+		const start = spans[index * CELL_SPAN_WORDS]!;
+		const end = spans[index * CELL_SPAN_WORDS + 1]!;
+		const width = spans[index * CELL_SPAN_WORDS + 2]!;
+		let dropped = false;
+		let shift = 0;
+		for (const edit of edits) {
+			if (start >= edit.fromByte && start < edit.toByte) {
+				dropped = true;
+				break;
+			}
+			if (start >= edit.toByte) shift += edit.deltaByte;
+		}
+		if (dropped) continue;
+		out.push(start + shift, end + shift, width);
+	}
+	return out;
+}
+
 export function maskedTextRows(rows: TextRows, regexes: readonly RegExp[], revealed: ReadonlySet<string>): TextRows {
 	if (regexes.length === 0) return rows;
-	const cache = new Map<string, string>();
-	const maskedRow = (blockId: string, row: number): string => {
+	const cache = new Map<string, { text: string; spans: number[] }>();
+	const maskedRow = (blockId: string, row: number): { text: string; spans: number[] } => {
 		const key = `${blockId}:${row}`;
 		const hit = cache.get(key);
 		if (hit !== undefined) return hit;
 		const text = rows.rowText(blockId, row);
+		const spans = rows.rowSpans(blockId, row);
 		const line = logicalLineAt(rows, blockId, row);
 		if (!line) {
-			cache.set(key, text);
-			return text;
+			const result = { text, spans: Array.from(spans) };
+			cache.set(key, result);
+			return result;
 		}
 		const offset = line.rowOffsets[row - line.firstRow] ?? 0;
+		const edits: MaskEdit[] = [];
 		let out = text;
 		for (const range of secretRanges(line.text, regexes)) {
 			if (revealed.has(`${line.blockId}:${line.firstRow}:${range.start}:${range.end}`)) continue;
 			const from = Math.max(range.start - offset, 0);
 			const to = Math.min(range.end - offset, text.length);
 			if (to <= from) continue;
+			const fromByte = utf16OffsetToByte(text, from);
+			const toByte = utf16OffsetToByte(text, to);
 			out = out.slice(0, from) + REDACTION_MASK.repeat(to - from) + out.slice(to);
+			edits.push({ fromByte, toByte, deltaByte: to - from - (toByte - fromByte) });
 		}
-		cache.set(key, out);
-		return out;
+		const result = { text: out, spans: maskedRowSpans(spans, edits) };
+		cache.set(key, result);
+		return result;
 	};
-	return { ...rows, rowText: maskedRow };
+	return {
+		...rows,
+		rowText: (blockId, row) => maskedRow(blockId, row).text,
+		rowSpans: (blockId, row) => maskedRow(blockId, row).spans,
+	};
 }
 
 export function maskedCellRange(text: string, spans: ArrayLike<number>, from: number, to: number): { startCell: number; endCell: number } {

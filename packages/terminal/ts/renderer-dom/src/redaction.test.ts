@@ -9,6 +9,8 @@ const patterns = compileSecretPatterns([
 	{ source: "bearer\\s+[A-Za-z0-9._-]{16,}", flags: "i" },
 ]);
 
+const HAN = "漢";
+
 function rowsOf(...texts: string[]): TextRows {
 	return {
 		blockIds: ["b"],
@@ -58,6 +60,26 @@ describe("maskedTextRows", () => {
 		const masked = maskedTextRows(wrapped, patterns, new Set());
 		expect(masked.rowText("b", 0)).toBe(`head ${REDACTION_MASK.repeat(14)}`);
 		expect(masked.rowText("b", 1)).toBe(`${REDACTION_MASK.repeat(11)} tail`);
+	});
+	it("shifts a wide cluster after a non-ascii secret by the byte delta the mask introduced", () => {
+		const passwordPattern = compileSecretPatterns([{ source: '(password:\\s*)[^\\s"\']{8,}' }]);
+		const text = `password: пароль12345 ${HAN}tail`;
+		const rows: TextRows = {
+			blockIds: ["b"],
+			firstRow: () => 0,
+			rowCount: () => 1,
+			rowText: () => text,
+			rowSpans: () => [28, 31, 2],
+			rowWrapped: () => false,
+		};
+		const masked = maskedTextRows(rows, passwordPattern, new Set());
+		expect(masked.rowText("b", 0)).toBe(`password: ${REDACTION_MASK.repeat(11)} ${HAN}tail`);
+		expect(Array.from(masked.rowSpans("b", 0))).toEqual([22, 25, 2]);
+		const copied = selectedText(
+			{ start: { blockId: "b", row: 0, cell: 0 }, end: { blockId: "b", row: 0, cell: ROW_END } },
+			masked,
+		);
+		expect(copied.endsWith(`${HAN}tail`)).toBe(true);
 	});
 	it("leaves a revealed match alone and passes every other member through", () => {
 		const rows = rowsOf("use ghp_ABCDEFGHIJKLMNOPQRSTU now");
