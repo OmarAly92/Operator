@@ -11,6 +11,7 @@ const rows: TextRows = {
 	firstRow: () => 0,
 	rowCount: (id) => blocks[id]!.length,
 	rowText: (id, row) => blocks[id]![row] ?? "",
+	rowSpans: (id, row) => (id === "a" && row === 2 ? [6, 9, 2, 9, 12, 2] : []),
 };
 
 describe("selectedText", () => {
@@ -27,14 +28,17 @@ describe("selectedText", () => {
 		expect(selectedText({ start: { blockId: "a", row: 0, cell: 0 }, end: { blockId: "a", row: 1, cell: 0 } }, rows)).toBe("alpha beta");
 	});
 	it("starts at the block's first retained row when the range begins above it", () => {
-		const trimmed: TextRows = { blockIds: ["a"], firstRow: () => 1, rowCount: () => 2, rowText: (_id, row) => blocks.a![row] ?? "" };
+		const trimmed: TextRows = { blockIds: ["a"], firstRow: () => 1, rowCount: () => 2, rowText: (_id, row) => blocks.a![row] ?? "", rowSpans: () => [] };
 		expect(selectedText({ start: { blockId: "a", row: 0, cell: 3 }, end: { blockId: "a", row: 2, cell: 5 } }, trimmed)).toBe("\ngamma");
 	});
 	it("cuts a wide character by cell", () => {
 		expect(selectedText({ start: { blockId: "a", row: 2, cell: 6 }, end: { blockId: "a", row: 2, cell: 8 } }, rows)).toBe("漢");
 	});
+	it("cuts by cells, not code points, across a wide cluster", () => {
+		expect(selectedText({ start: { blockId: "a", row: 2, cell: 6 }, end: { blockId: "a", row: 2, cell: 8 } }, rows)).toBe("漢");
+	});
 	it("walks whole rows from the block's first stable row", () => {
-		const shifted: TextRows = { blockIds: ["a"], firstRow: () => 100, rowCount: () => 3, rowText: (_id, row) => blocks.a![row - 100] ?? "" };
+		const shifted: TextRows = { blockIds: ["a"], firstRow: () => 100, rowCount: () => 3, rowText: (_id, row) => blocks.a![row - 100] ?? "", rowSpans: () => [] };
 		expect(selectedText({ start: { blockId: "a", row: 100, cell: 6 }, end: { blockId: "a", row: 102, cell: 5 } }, shifted)).toBe("beta\n\ngamma");
 	});
 });
