@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { RttMeter, RTT_WINDOW } from "./rtt.js";
+import { RttMeter, RTT_WINDOW, RTT_STALE_MS } from "./rtt.js";
 
 describe("RttMeter", () => {
 	it("has no median before any round trip completes", () => {
@@ -60,5 +60,15 @@ describe("RttMeter", () => {
 
 	it("does not arm before any measurement exists", () => {
 		expect(new RttMeter().shouldPredict(30)).toBe(false);
+	});
+
+	it("discards a response that arrives long after a stale send instead of recording a huge sample", () => {
+		const meter = new RttMeter();
+		meter.sent(0);
+		meter.received(RTT_STALE_MS + 1);
+		expect(meter.median()).toBe(null);
+		meter.sent(10_000);
+		meter.received(10_050);
+		expect(meter.median()).toBe(50);
 	});
 });

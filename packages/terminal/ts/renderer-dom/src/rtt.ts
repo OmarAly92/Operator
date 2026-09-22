@@ -1,4 +1,7 @@
+import { PREDICTION_TTL_MS } from "./prediction.js";
+
 export const RTT_WINDOW = 8;
+export const RTT_STALE_MS = PREDICTION_TTL_MS;
 
 // wezterm/wezterm-client/src/pane/renderable.rs should_predict
 export class RttMeter {
@@ -11,9 +14,11 @@ export class RttMeter {
 
 	received(nowMs: number): void {
 		if (this.sentAt === null) return;
-		this.samples.push(nowMs - this.sentAt);
-		if (this.samples.length > RTT_WINDOW) this.samples.shift();
+		const elapsed = nowMs - this.sentAt;
 		this.sentAt = null;
+		if (elapsed > RTT_STALE_MS) return;
+		this.samples.push(elapsed);
+		if (this.samples.length > RTT_WINDOW) this.samples.shift();
 	}
 
 	median(): number | null {
