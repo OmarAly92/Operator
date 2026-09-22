@@ -8,6 +8,7 @@ pub use snapshot::AltSnapshot;
 use unicode_width::UnicodeWidthChar;
 
 use crate::style::{CellStyle, StyleCode};
+use crate::width::{self, WidthMode};
 
 pub const MAX_DIMENSION: usize = 1000;
 
@@ -25,7 +26,7 @@ pub const MAX_GRAPHEME_BYTES: usize = 256;
 /// A grid cell. `extra` carries the base scalar followed by every zero-width
 /// scalar attached to it, held together so a read never has to join them --
 /// the shape of Warp's `CellExtra::cell_with_zero_width` (`grid/cell.rs:114`).
-/// It is boxed so the common cell stays two words.
+/// It is boxed so the common cell stays small.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Cell {
     pub ch: char,
@@ -68,7 +69,7 @@ impl Cell {
         matches!(self.ch, ' ' | '\0') && self.extra.is_none() && self.style.is_default_paint()
     }
 
-    pub(crate) fn push_zerowidth(&mut self, ch: char) {
+    pub(crate) fn append_scalar(&mut self, ch: char) {
         match self.extra.as_deref_mut() {
             Some(text) => {
                 if text.len() + ch.len_utf8() > MAX_GRAPHEME_BYTES {
@@ -106,6 +107,7 @@ pub struct ScreenGrid {
     erase_background: StyleCode,
     evicted: Vec<EvictedRow>,
     dirty: Vec<bool>,
+    width_mode: WidthMode,
 }
 
 fn clamp_dimension(value: usize) -> usize {
@@ -136,7 +138,12 @@ impl ScreenGrid {
             erase_background: StyleCode::DEFAULT_BACKGROUND,
             evicted: Vec::new(),
             dirty: vec![false; rows],
+            width_mode: WidthMode::default(),
         }
+    }
+
+    pub fn set_width_mode(&mut self, mode: WidthMode) {
+        self.width_mode = mode;
     }
 
     pub fn set_erase_background(&mut self, bg: StyleCode) {
@@ -407,6 +414,9 @@ impl ScreenGrid {
     }
 
     pub fn print(&mut self, ch: char, style: CellStyle) {
+        if self.width_mode == WidthMode::Grapheme && self.join_previous(ch, style) {
+            return;
+        }
         let width = UnicodeWidthChar::width(ch).unwrap_or(0);
         if width == 0 {
             self.attach_zerowidth(ch);
@@ -427,6 +437,57 @@ impl ScreenGrid {
             self.col = self.cols - 1;
             self.pending_wrap = true;
         }
+    }
+
+    fn previous_cell(&self) -> Option<(usize, usize)> {
+        let mut col = self.col;
+        if !self.pending_wrap {
+            col = col.checked_sub(1)?;
+        }
+        if self
+            .cell_ref(self.row, col)
+            .is_some_and(|cell| cell.ch == '\0')
+        {
+            col = col.checked_sub(1)?;
+        }
+        (self.row < self.rows && col < self.cols).then_some((self.row, col))
+    }
+
+    fn cell_width_at(&self, row: usize, col: usize) -> usize {
+        1 + (col + 1..self.cols)
+            .take_while(|next| {
+                self.cell_ref(row, *next)
+                    .is_some_and(|cell| cell.ch == '\0')
+            })
+            .count()
+    }
+
+    fn join_previous(&mut self, ch: char, style: CellStyle) -> bool {
+        let Some((row, col)) = self.previous_cell() else {
+            return false;
+        };
+        let index = self.phys_start(row) + col;
+        let mut buffer = [0u8; 4];
+        let previous = self.cells[index].text(&mut buffer).to_string();
+        if !width::joins_previous(&previous, ch) {
+            return false;
+        }
+        let old_width = self.cell_width_at(row, col);
+        self.cells[index].append_scalar(ch);
+        let new_width = width::cluster_width(self.cells[index].text(&mut buffer));
+        if new_width > old_width && col + 1 < self.cols {
+            self.set(row, col + 1, Cell::new('\0', style));
+            if self.row == row && self.col == col + 1 {
+                self.col += 1;
+                if self.col >= self.cols {
+                    self.col = self.cols - 1;
+                    self.pending_wrap = true;
+                }
+            }
+        }
+        self.raise_max_cursor_row(row);
+        self.mark_dirty(row);
+        true
     }
 
     /// Attaches a zero-width scalar to the cell that owns it. Warp resolves the
@@ -450,7 +511,7 @@ impl ScreenGrid {
             return;
         }
         let index = self.phys_start(row) + col;
-        self.cells[index].push_zerowidth(ch);
+        self.cells[index].append_scalar(ch);
         self.mark_dirty(row);
     }
 

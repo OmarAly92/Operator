@@ -1,7 +1,16 @@
 export { ALT_BLOCK_ID, DomBlockRenderer, type ScrollAnchor } from "./dom-block-renderer.js";
+export { type BlockFinishedEvent } from "./block-finished.js";
+export { DEFAULT_FEATURES, parseFeatureList, resolveFeatures, type RendererFeatures } from "./features.js";
 export { warpDarkTheme } from "./theme-warp.js";
 export { renderBlockActions, RERUN_EVENT, type BlockTextSource } from "./block-actions.js";
 export type { SelectionKind, SelectionPoint } from "./selection-model.js";
+export { DEFAULT_LINK_PROVIDERS, createPathProvider, type DetectedLink, type LinkProvider } from "./link-providers.js";
+export type { LinkOs } from "./link-parsing.js";
+export type { LinkRange } from "./logical-lines.js";
+export { DEFAULT_HINT_RULES, type HintRule } from "./hint-rules.js";
+export { DEFAULT_HINT_ALPHABET } from "./hint-labels.js";
+export type { HintEvent, HintMatch } from "./hint-mode.js";
+export { REDACTION_MASK, compileSecretPatterns, secretRanges } from "./redaction.js";
 export { styleCodeToCssVar } from "./style-code.js";
 export { terminalStyles } from "./styles.js";
 export { createFindBar, type FindBar, type FindBarHost, type FindBarOptions } from "./find-bar.js";

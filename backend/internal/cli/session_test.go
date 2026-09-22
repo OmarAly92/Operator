@@ -59,15 +59,15 @@ func sessionCommandServer(t *testing.T) (*httptest.Server, *sessionRequestLog) {
 			switch active {
 			case "false":
 				_, _ = io.WriteString(w, `{"sessions":[`+
-					sessionJSON("demo-old", "demo", "worker", "terminated", true)+`,`+
-					sessionJSON("demo-orch", "demo", "orchestrator", "terminated", true)+`]}`)
+					sessionJSON("demo-old", "demo", "terminated", true)+`,`+
+					sessionJSON("demo-orch", "demo", "terminated", true)+`]}`)
 			default:
 				_, _ = io.WriteString(w, `{"sessions":[`+
-					sessionJSON("demo-2", "demo", "orchestrator", "idle", false)+`,`+
-					sessionJSON("demo-1", "demo", "worker", "working", false)+`]}`)
+					sessionJSON("demo-2", "demo", "idle", false)+`,`+
+					sessionJSON("demo-1", "demo", "working", false)+`]}`)
 			}
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/sessions/demo-1":
-			_, _ = io.WriteString(w, `{"session":`+sessionJSON("demo-1", "demo", "worker", "working", false)+`}`)
+			_, _ = io.WriteString(w, `{"session":`+sessionJSON("demo-1", "demo", "working", false)+`}`)
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/projects/demo":
 			_, _ = io.WriteString(w, `{"status":"ok","project":{"id":"demo","name":"Demo","path":"/repo/demo","repo":"https://github.com/OmarAly92/operator","defaultBranch":"main"}}`)
 		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/sessions/demo-1/pr/claim":
@@ -87,7 +87,7 @@ func sessionCommandServer(t *testing.T) (*httptest.Server, *sessionRequestLog) {
 		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/sessions/demo-1/kill":
 			_, _ = io.WriteString(w, `{"ok":true,"sessionId":"demo-1","freed":true}`)
 		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/sessions/demo-1/restore":
-			_, _ = io.WriteString(w, `{"ok":true,"sessionId":"demo-1","session":`+sessionJSON("demo-1", "demo", "worker", "idle", false)+`}`)
+			_, _ = io.WriteString(w, `{"ok":true,"sessionId":"demo-1","session":`+sessionJSON("demo-1", "demo", "idle", false)+`}`)
 		case r.Method == http.MethodPatch && r.URL.Path == "/api/v1/sessions/demo-1":
 			var req sessionRenameRequest
 			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -103,15 +103,14 @@ func sessionCommandServer(t *testing.T) (*httptest.Server, *sessionRequestLog) {
 	return srv, log
 }
 
-func sessionJSON(id, project, kind, status string, terminated bool) string {
-	return sessionJSONWithMode(id, project, kind, status, terminated, "worktree")
+func sessionJSON(id, project, status string, terminated bool) string {
+	return sessionJSONWithMode(id, project, status, terminated, "worktree")
 }
 
-func sessionJSONWithMode(id, project, kind, status string, terminated bool, workspaceMode string) string {
+func sessionJSONWithMode(id, project, status string, terminated bool, workspaceMode string) string {
 	b, _ := json.Marshal(map[string]any{
 		"id":            id,
 		"projectId":     project,
-		"kind":          kind,
 		"harness":       "codex",
 		"displayName":   "Current Name",
 		"activity":      map[string]any{"state": "idle", "lastActivityAt": "2026-06-02T12:00:00Z"},
@@ -140,17 +139,11 @@ func TestSessionList_ProjectFilterAndDefaultFiltering(t *testing.T) {
 	if err != nil {
 		t.Fatalf("session ls failed: %v\nstderr=%s", err, errOut)
 	}
-	if !strings.Contains(out, "demo:") || !strings.Contains(out, "demo-1") {
-		t.Fatalf("output missing worker session:\n%s", out)
+	if !strings.Contains(out, "demo:") || !strings.Contains(out, "demo-1") || !strings.Contains(out, "demo-2") {
+		t.Fatalf("output missing active sessions:\n%s", out)
 	}
-	if strings.Contains(out, "demo-2") {
-		t.Fatalf("orchestrator session should be hidden without --all:\n%s", out)
-	}
-	if !strings.Contains(out, "1 terminated session hidden") {
+	if !strings.Contains(out, "2 terminated sessions hidden") {
 		t.Fatalf("hidden terminated hint missing:\n%s", out)
-	}
-	if !strings.Contains(out, "2 orchestrator sessions hidden. Use --all or `opr orchestrator ls` to show.") {
-		t.Fatalf("hidden orchestrator hint missing:\n%s", out)
 	}
 	want := []string{
 		"GET /api/v1/sessions?active=true&project=demo",
@@ -158,37 +151,6 @@ func TestSessionList_ProjectFilterAndDefaultFiltering(t *testing.T) {
 	}
 	if got := log.all(); !reflect.DeepEqual(got, want) {
 		t.Fatalf("requests = %#v, want %#v", got, want)
-	}
-}
-
-func TestSessionList_HintsWhenOnlyTerminatedOrchestratorIsHidden(t *testing.T) {
-	cfg := setConfigEnv(t)
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		if r.Method != http.MethodGet || r.URL.Path != "/api/v1/sessions" {
-			http.NotFound(w, r)
-			return
-		}
-		if r.URL.Query().Get("active") == "false" {
-			_, _ = io.WriteString(w, `{"sessions":[`+sessionJSON("demo-orch-old", "demo", "orchestrator", "terminated", true)+`]}`)
-			return
-		}
-		_, _ = io.WriteString(w, `{"sessions":[]}`)
-	}))
-	t.Cleanup(srv.Close)
-	writeRunFileFor(t, cfg, srv)
-
-	out, errOut, err := executeCLI(t, Deps{
-		ProcessAlive: func(int) bool { return true },
-	}, "session", "ls", "--project", "demo")
-	if err != nil {
-		t.Fatalf("session ls failed: %v\nstderr=%s", err, errOut)
-	}
-	if !strings.Contains(out, "1 orchestrator session hidden. Use --all or `opr orchestrator ls` to show.") {
-		t.Fatalf("terminated orchestrator hint missing:\n%s", out)
-	}
-	if strings.Contains(out, "terminated session hidden") {
-		t.Fatalf("terminated orchestrator should not be reported as visible via --include-terminated alone:\n%s", out)
 	}
 }
 
@@ -207,36 +169,17 @@ func TestSessionList_JSONOutputDecodes(t *testing.T) {
 	if err := json.Unmarshal([]byte(out), &got); err != nil {
 		t.Fatalf("session ls --json output is not decodable: %v\noutput=%s", err, out)
 	}
-	if got.Meta.HiddenTerminatedCount != 1 {
-		t.Fatalf("hiddenTerminatedCount = %d, want 1", got.Meta.HiddenTerminatedCount)
+	if got.Meta.HiddenTerminatedCount != 2 {
+		t.Fatalf("hiddenTerminatedCount = %d, want 2", got.Meta.HiddenTerminatedCount)
 	}
-	if got.Meta.HiddenOrchestratorCount != 2 {
-		t.Fatalf("hiddenOrchestratorCount = %d, want 2", got.Meta.HiddenOrchestratorCount)
-	}
-	if len(got.Data) != 1 {
-		t.Fatalf("len(data) = %d, want 1; data=%#v", len(got.Data), got.Data)
+	if len(got.Data) != 2 {
+		t.Fatalf("len(data) = %d, want 2; data=%#v", len(got.Data), got.Data)
 	}
 	if got.Data[0].ID != "demo-1" || got.Data[0].ProjectID != "demo" || got.Data[0].Role != "worker" {
 		t.Fatalf("unexpected JSON entry: %#v", got.Data[0])
 	}
-}
-
-func TestSessionList_AllIncludesOrchestratorsWithoutHiddenHint(t *testing.T) {
-	cfg := setConfigEnv(t)
-	srv, _ := sessionCommandServer(t)
-	writeRunFileFor(t, cfg, srv)
-
-	out, errOut, err := executeCLI(t, Deps{
-		ProcessAlive: func(int) bool { return true },
-	}, "session", "ls", "--project", "demo", "--all")
-	if err != nil {
-		t.Fatalf("session ls --all failed: %v\nstderr=%s", err, errOut)
-	}
-	if !strings.Contains(out, "demo-1") || !strings.Contains(out, "demo-2") {
-		t.Fatalf("output missing worker or orchestrator session:\n%s", out)
-	}
-	if strings.Contains(out, "orchestrator session hidden") {
-		t.Fatalf("output reports hidden orchestrators with --all:\n%s", out)
+	if got.Data[1].ID != "demo-2" || got.Data[1].Role != "worker" {
+		t.Fatalf("unexpected JSON entry: %#v", got.Data[1])
 	}
 }
 
@@ -490,8 +433,8 @@ func TestSessionCleanup_ReportsSkippedWorkspaces(t *testing.T) {
 		switch {
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/sessions":
 			_, _ = io.WriteString(w, `{"sessions":[`+
-				sessionJSON("demo-old", "demo", "worker", "terminated", true)+`,`+
-				sessionJSON("demo-orch", "demo", "orchestrator", "terminated", true)+`]}`)
+				sessionJSON("demo-old", "demo", "terminated", true)+`,`+
+				sessionJSON("demo-orch", "demo", "terminated", true)+`]}`)
 		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/sessions/cleanup":
 			_, _ = io.WriteString(w, `{"ok":true,"cleaned":["demo-old"],"skipped":[{"sessionId":"demo-orch","reason":"workspace has uncommitted changes"}]}`)
 		default:
@@ -529,8 +472,8 @@ func TestSessionCleanup_SkipsInPlaceSessionsInPreview(t *testing.T) {
 		switch {
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/sessions":
 			_, _ = io.WriteString(w, `{"sessions":[`+
-				sessionJSONWithMode("demo-old", "demo", "worker", "terminated", true, "worktree")+`,`+
-				sessionJSONWithMode("demo-inplace", "demo", "worker", "terminated", true, "in_place")+`]}`)
+				sessionJSONWithMode("demo-old", "demo", "terminated", true, "worktree")+`,`+
+				sessionJSONWithMode("demo-inplace", "demo", "terminated", true, "in_place")+`]}`)
 		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/sessions/cleanup":
 			_, _ = io.WriteString(w, `{"ok":true,"cleaned":["demo-old"],"skipped":[]}`)
 		default:
@@ -712,7 +655,7 @@ func TestSessionClaimPR_GHFallbackWhenProjectRepoMissing(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		switch {
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/sessions/demo-1":
-			_, _ = io.WriteString(w, `{"session":`+sessionJSON("demo-1", "demo", "worker", "working", false)+`}`)
+			_, _ = io.WriteString(w, `{"session":`+sessionJSON("demo-1", "demo", "working", false)+`}`)
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/projects/demo":
 			_, _ = io.WriteString(w, `{"status":"ok","project":{"id":"demo","name":"Demo","path":"/repo/demo","repo":"","defaultBranch":"main"}}`)
 		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/sessions/demo-1/pr/claim":

@@ -67,22 +67,16 @@ resizable`, react-resizable-panels v4 `collapsible` panel + imperative API,
 
 ### Product flow (what the UI must serve)
 
-ReverbCode is **orchestrator-led**, which is the one thing that differs from a flat
-list of independent sessions. Grounded in the daemon
+ReverbCode is a **flat list of independent sessions** — there is no coordinating
+session kind above them. Grounded in the daemon
 (`backend/internal/session_manager/manager.go`, `docs/architecture.md`):
 
 - A **Project** is a registered git repo.
-- Per project there is **one active Orchestrator** session plus **N Worker** sessions.
-  Both are the same underlying "session" (durable facts: `activity_state`,
-  `is_terminated`, PR facts); they differ only by `Kind` (`KindOrchestrator` vs the
-  default worker). A project may run the orchestrator on a different agent than its workers.
-- The **Orchestrator is the human-facing coordinator**: you talk to it; it spawns
-  workers (`opr spawn`), messages them (`opr send`), tracks progress, and synthesizes
-  results. It avoids implementing unless necessary.
-- A **Worker is a normal agent session** — nothing special-cased. It runs one focused
-  task in an isolated git worktree + branch, with the agent CLI in a terminal as the
-  conversation, producing a diff → commit/push → PR. It escalates to the orchestrator
-  only for true blockers or cross-session coordination.
+- Every session is a **Worker** — nothing special-cased by kind. A session is
+  started from the New Task dialog, a ticket or plan, auto-review, or tracker
+  intake, and runs one focused task in an isolated git worktree + branch, with
+  the agent CLI in a terminal as the conversation, producing a diff →
+  commit/push → PR.
 - The daemon **observes** runtime + PR/CI/review facts and **derives** display status
   at read time: `working`, `needs_input`, `ci_failed`, `changes_requested`,
   `mergeable`, `approved`, `review_pending`, `pr_open`, `idle`, `terminated`, `merged`.
@@ -177,7 +171,7 @@ Session status is a single ~14px glyph in one fixed slot, never a text pill/badg
 - **Otherwise** → a filled dot: `needs_input` amber (pulsing), idle/done muted gray.
 
 Precedence: **working spinner > PR icon > dot**. Implemented as `StatusGlyph` in
-`components/SideRail.tsx`; used in the orchestrator's Workers list. (Worker rows in the
+`components/SideRail.tsx`; used on the Kanban board's cards. (Worker rows in the
 left rail stay name-only — no glyph.)
 
 ## Spacing
@@ -192,25 +186,21 @@ left rail stay name-only — no glyph.)
 - **Approach:** fixed three-pane app shell, opens into the workbench (no marketing/dashboard home).
 - **Panes:** `[ rail 240px ] [ center 1fr ] [ side rail 316px ]`.
 - **Rail (240px), top → bottom:**
-  1. **Orchestrator anchor** — pinned, single, visually distinct (blue 2px left bar,
-     `--bg-2` fill, hub/`waypoints` icon, name "Orchestrator", a `5 agents · 2 need you`
-     mono summary). This is ReverbCode's one addition over the reference. Default landing view.
-  2. `PROJECTS` eyebrow label + a `+`.
-  3. Project rows (folder icon + name) with nested **worker rows beneath**. Each project
-     row has a hover-revealed **`+`** that opens the New-worker modal pre-scoped to that
+  1. `PROJECTS` eyebrow label + a `+`. The board (Kanban of every worker session) is the
+     default landing view — there is no separate anchor row above the project list.
+  2. Project rows (folder icon + name) with nested **worker rows beneath**. Each project
+     row has a hover-revealed **`+`** that opens the New Task dialog pre-scoped to that
      project (distinct from the `PROJECTS` header `+`, which registers a repo).
-  4. **Footer:** `Search ⌘K`, `Settings ⌘,`. (No Library.)
-  5. **Account** row pinned at the very bottom.
+  3. **Footer:** `Search ⌘K`, `Settings ⌘,`. (No Library.)
+  4. **Account** row pinned at the very bottom.
 - **Worker rows are name-only.** Just the session name, truncated. Status, branch, diff,
   and PR live in the panes and topbar, never in the row. Selection = `--bg-2` fill + a
   2px blue left bar. (the reference itself shows a faint trailing timestamp; we omit it by choice.)
-- **Center = the conversation.** Orchestrator → its coordination terminal (delegate here;
-  composer reads "tell the orchestrator what to build"). Worker → the agent CLI terminal
-  (tabbed per agent, e.g. `claude-code (1)`), with a composer (model selector, worktree
-  path, `Accept edits`). The terminal **is** the conversation; no separate chat surface.
-- **Side rail (316px):** orchestrator → a quiet **Workers** list (name + project + derived
-  status). Worker → the **Git review rail**: `Changed N` → All files / Discard all / Stage
-  all → file rows (`+adds −dels`, stage toggle) → `Commit message` + `Description` →
+- **Center = the conversation.** Every session shows the agent CLI terminal (tabbed per
+  agent, e.g. `claude-code (1)`), with a composer (model selector, worktree path,
+  `Accept edits`). The terminal **is** the conversation; no separate chat surface.
+- **Side rail (316px):** the **Git review rail**: `Changed N` → All files / Discard all /
+  Stage all → file rows (`+adds −dels`, stage toggle) → `Commit message` + `Description` →
   **Commit & Push** (primary blue) → branch + `Create PR`.
 - **Border radius:** `sm` 4px (scrollbar) · `md` 6px (buttons, inputs, toggles) ·
   `lg` 8px (rows, cards, panels) · `xl` 12px (modals) · `full` (badges/pills/dots).
@@ -218,29 +208,28 @@ left rail stay name-only — no glyph.)
 
 ### Topbar
 
-- **Left (both):** `project / session` breadcrumb + pin; for the orchestrator, a hub icon
-  - `Orchestrator`.
-- **Right — worker session:** a **PR/CI status pill** that is the action
+- **Left:** `project / session` breadcrumb + pin.
+- **Right:** a **PR/CI status pill** that is the action
   (`PR #156 · mergeable` green / `CI failed` red / `review requested` amber /
   `Open PR` when none) → **Changes / Files / Terminal** view toggles → **⋯ session menu**
   (rename, restart, kill, claim PR — the `opr session …` commands).
-- **Right — orchestrator:** **+ New worker** → Terminal toggle → **⋯ menu**. No diff toggles.
 
-### Spawn-worker modal (mirrors the reference's Create Task)
+### New Task dialog (mirrors the reference's Create Task)
 
-You mostly let the orchestrator spawn workers from its conversation; the manual paths
-(the topbar `+ New worker`, a project row's hover `+`, or `opr spawn`) open a modal that
-mirrors the reference exactly. Launching from a project row pre-fills the Project field:
+The manual paths (a topbar/board **+ New task** control, or a project row's hover `+`)
+open a modal that mirrors the reference exactly; a ticket/plan, auto-review, or tracker
+intake can also start a session without going through this dialog. Launching from a
+project row pre-fills the Project field:
 
 - Centered dialog, **12px radius**, `max-w` ~512px, `bg` canvas, `ring-1` at 10% fg,
   fade + zoom-95 enter.
-- **Header:** eyebrow mono-uppercase title `New worker` + `×` close.
+- **Header:** eyebrow mono-uppercase title `Create a new task` + `×` close.
 - **Body** (`gap` 15–16px): a **borderless large name field** (18px, auto-focus, slug
   rule "letters, numbers, hyphens") → **Project** selector → **Agent** selector
   (claude-code / codex / opencode / …) → a **"Based on"** bordered card with a segmented
   control `Branch · Issue · Pull Request` revealing a combobox → a **Prompt / Workspace**
-  tab where Prompt is the worker's initial task (textarea).
-- **Footer:** right-aligned single primary **`Spawn worker`** (blue) with a `⌘↵` keycap,
+  tab where Prompt is the session's initial task (textarea).
+- **Footer:** right-aligned single primary **`Start task`** (blue) with a `⌘↵` keycap,
   disabled until valid.
 
 ## Motion
@@ -269,8 +258,9 @@ mirrors the reference exactly. Launching from a project row pre-fills the Projec
 | 2026-06-09 | Match the reference's visual language exactly                          | User direction; the reference is the demonstrated model for this app's UI.                         |
 | 2026-06-09 | System font, not a custom typeface (e.g. Geist)                        | The reference uses the system stack; fidelity + native feel + zero font payload over brand type.   |
 | 2026-06-09 | Refined **blue** accent, not the reference's jade green                | User's explicit pick; blue for primary/active/focus, terminal stays green.                         |
-| 2026-06-09 | Single global **Orchestrator** anchor, orchestrator-first default view | The one real difference from the reference; orchestrator is the human-facing coordinator.          |
+| 2026-06-09 | Single global coordinator-session anchor, coordinator-first default view (**superseded 2026-09-20**, see below) | The one real difference from the reference; the daemon session kind that made this the human-facing coordinator was later removed. |
 | 2026-06-09 | **Name-only** worker rows                                              | User direction; status/branch/diff live in panes + topbar, not the row.                            |
 | 2026-06-09 | Removed **Library** from the rail footer                               | User direction; footer is Search + Settings only.                                                  |
 | 2026-06-09 | Topbar right = PR/CI pill + view toggles + ⋯ menu (worker)             | Surfaces the actionable PR/CI state from the daemon; desktop-tool precedent.                       |
-| 2026-06-09 | Spawn modal mirrors the reference's Create Task                        | Consistency with the reference; mapped to `opr spawn` params.                                       |
+| 2026-06-09 | New Task modal mirrors the reference's Create Task                     | Consistency with the reference; mapped to the daemon's session-spawn params.                       |
+| 2026-09-20 | Removed the coordinator-session anchor and session kind; the Kanban board is the default landing view | The daemon's delegator/worker session split was removed; every session is a worker, spawned from the New Task dialog, a ticket/plan, auto-review, or tracker intake. |

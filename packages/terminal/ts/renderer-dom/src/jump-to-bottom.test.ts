@@ -35,6 +35,8 @@ function makeBlock(id: string, command: string, rowCount: number): BlockView {
 		state: "finished",
 		exitCode: 0,
 		durationMs: 100,
+		startedAtMs: null,
+		finishedAtMs: null,
 		command,
 		cwd: "",
 		gitBranch: "",

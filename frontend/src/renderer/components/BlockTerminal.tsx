@@ -1,3 +1,4 @@
+import { useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -17,6 +18,7 @@ import { terminalBackgroundColor, type TerminalBackground } from "../lib/termina
 import { useUiStore } from "../stores/ui-store";
 import { previewBytes, terminalDebug } from "../lib/terminal-debug";
 import { isWebLink, openLinkInSystemBrowser } from "../lib/external-link-policy";
+import { fetchRedactionPatterns, redactionPatternsQueryKey } from "../lib/redaction-patterns";
 
 export type BlockTerminalClipboard = {
 	writeText: (text: string) => Promise<void>;
@@ -43,6 +45,8 @@ export type BlockTerminalProps = {
 	ariaLabel?: string;
 	fontSize?: number;
 	agentTui?: boolean;
+	/** The cwd a relative path in the terminal resolves against when its block carries none. */
+	workspacePath?: string;
 	/**
 	 * Bumped by the retained-terminal cache each time this pane is parked or
 	 * shown, so the surface re-derives its grid from the box it now occupies
@@ -65,6 +69,10 @@ export type BlockTerminalProps = {
 
 const DEFAULT_COLUMNS = 120;
 const DEFAULT_LIMITS = { rows: 200_000, bytes: 128 * 1024 * 1024 } as const;
+// Kitty's `notify_on_cmd_finish unfocused 10.0`
+// (kitty/kitty/options/definition.py): a command only earns a notification once
+// it has run long enough that the user has plausibly looked away.
+const BLOCK_NOTIFY_AFTER_MS = 10_000;
 const SOURCE_ID_MARKER = new TextEncoder().encode("\x1b]7000;v=1;id=");
 const BEL = 0x07;
 
@@ -136,6 +144,17 @@ function withoutRanges(bytes: Uint8Array, ranges: readonly SourceIdMark[]): Uint
 	return out;
 }
 
+// A hint action and a notification are both fire-and-forget: a rejected native
+// call must not become an unhandled rejection that reaches the error boundary.
+function reportTerminalActionFailure(work: Promise<unknown>): Promise<void> {
+	return work.then(
+		() => undefined,
+		(error: unknown) => {
+			terminalDebug("block-terminal", "action failed", { error: String(error) });
+		},
+	);
+}
+
 function feedToCore(core: TerminalCore, bytes: Uint8Array, historyIds: Set<string>): void {
 	const marks = scanSourceIdMarks(bytes);
 	const reconnectsHistoryBlock = marks.some((mark) => historyIds.has(mark.id));
@@ -162,6 +181,7 @@ export function BlockTerminal({
 	ariaLabel,
 	fontSize,
 	agentTui,
+	workspacePath,
 	refitToken,
 	focusToken,
 	onReplayPainted,
@@ -400,6 +420,15 @@ export function BlockTerminal({
 		document.documentElement.style.setProperty("--terminal-background", resolvedTheme.background);
 	}, [resolvedTheme.background]);
 
+	const redactSecrets = useUiStore((state) => state.terminalSecretRedaction);
+	const { data: patterns } = useQuery({
+		queryKey: redactionPatternsQueryKey,
+		queryFn: fetchRedactionPatterns,
+		enabled: redactSecrets,
+		staleTime: Infinity,
+	});
+	const secretPatterns = useMemo(() => (redactSecrets ? (patterns ?? []) : []), [redactSecrets, patterns]);
+
 	const host = useMemo<HostCapabilities>(
 		() => ({
 			writeClipboard: async (text: string) => {
@@ -417,8 +446,14 @@ export function BlockTerminal({
 				if (!isWebLink(url)) return;
 				await openLinkInSystemBrowser(url);
 			},
+			resolvePath: async (path: string, cwd: string) =>
+				operatorBridge.app.resolvePath(cwd || workspacePath || null, path),
+			openPath: async (path: string) => {
+				await operatorBridge.app.openPath(path);
+			},
+			secretPatterns,
 		}),
-		[clipboard],
+		[clipboard, workspacePath, secretPatterns],
 	);
 
 	const strings = useMemo<TerminalStrings>(
@@ -521,6 +556,37 @@ export function BlockTerminal({
 		onGeometry,
 		refitToken,
 		focusToken,
+		onHint: (hint) => {
+			// A hint's path is the text as it was printed, so it is relative as
+			// often as not; open_path only answers for an absolute file. Resolving
+			// first is what makes a hinted `src/a.ts:42` open at all.
+			if (hint.path !== undefined) {
+				const candidate = hint.path;
+				void reportTerminalActionFailure(
+					(async () => {
+						const resolved = await operatorBridge.app.resolvePath(workspacePath ?? null, candidate);
+						if (resolved) await operatorBridge.app.openPath(resolved);
+					})(),
+				);
+				return;
+			}
+			if (isWebLink(hint.text)) {
+				void openLinkInSystemBrowser(hint.text);
+				return;
+			}
+			void reportTerminalActionFailure(host.writeClipboard(hint.text));
+		},
+		onBlockFinished: ({ id, exitCode, durationMs, visible }) => {
+			if (visible || durationMs === null || durationMs < BLOCK_NOTIFY_AFTER_MS) return;
+			void reportTerminalActionFailure(
+				operatorBridge.notifications.show({
+					id: `block-finished:${sessionId}:${id}`,
+					title: exitCode === 0 || exitCode === null ? t("terminal.blockFinished") : t("terminal.blockFailed"),
+					body: t("terminal.blockFinishedBody", { seconds: Math.round(durationMs / 1000) }),
+					type: "terminal",
+				}),
+			);
+		},
 	};
 
 	return (

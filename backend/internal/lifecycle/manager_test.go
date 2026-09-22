@@ -17,12 +17,11 @@ import (
 var ctx = context.Background()
 
 type fakeStore struct {
-	sessions    map[domain.SessionID]domain.SessionRecord
-	prs         map[domain.SessionID][]domain.PullRequest
-	reviews     map[string][]domain.PullRequestReview
-	comments    map[string][]domain.PullRequestComment
-	signatures  map[string]string
-	inboxEvents map[string]domain.OrchestratorInboxEvent
+	sessions   map[domain.SessionID]domain.SessionRecord
+	prs        map[domain.SessionID][]domain.PullRequest
+	reviews    map[string][]domain.PullRequestReview
+	comments   map[string][]domain.PullRequestComment
+	signatures map[string]string
 
 	listPRsErr        error
 	signatureWriteErr error
@@ -31,12 +30,11 @@ type fakeStore struct {
 
 func newFakeStore() *fakeStore {
 	return &fakeStore{
-		sessions:    map[domain.SessionID]domain.SessionRecord{},
-		prs:         map[domain.SessionID][]domain.PullRequest{},
-		reviews:     map[string][]domain.PullRequestReview{},
-		comments:    map[string][]domain.PullRequestComment{},
-		signatures:  map[string]string{},
-		inboxEvents: map[string]domain.OrchestratorInboxEvent{},
+		sessions:   map[domain.SessionID]domain.SessionRecord{},
+		prs:        map[domain.SessionID][]domain.PullRequest{},
+		reviews:    map[string][]domain.PullRequestReview{},
+		comments:   map[string][]domain.PullRequestComment{},
+		signatures: map[string]string{},
 	}
 }
 
@@ -78,64 +76,6 @@ func (f *fakeStore) UpdateSession(_ context.Context, rec domain.SessionRecord) e
 func (f *fakeStore) UpdateSessionFromActivitySignal(_ context.Context, rec domain.SessionRecord) (bool, error) {
 	f.sessions[rec.ID] = rec
 	return true, nil
-}
-
-func (f *fakeStore) UpdateSessionFromActivitySignalAndEnqueueInboxEvent(_ context.Context, rec domain.SessionRecord, event domain.OrchestratorInboxEvent) (bool, error) {
-	f.sessions[rec.ID] = rec
-	for _, existing := range f.inboxEvents {
-		if existing.WorkerID == event.WorkerID && existing.Kind == event.Kind && existing.State == domain.InboxStatePending {
-			return true, nil
-		}
-	}
-	event.State = domain.InboxStatePending
-	f.inboxEvents[event.ID] = event
-	return true, nil
-}
-
-func (f *fakeStore) CountPendingInboxEvents(_ context.Context, project domain.ProjectID) (int, error) {
-	n := 0
-	for _, ev := range f.inboxEvents {
-		if ev.ProjectID == project && ev.State == domain.InboxStatePending {
-			n++
-		}
-	}
-	return n, nil
-}
-
-func (f *fakeStore) ListPendingInboxEvents(_ context.Context, project domain.ProjectID) ([]domain.OrchestratorInboxEvent, error) {
-	var out []domain.OrchestratorInboxEvent
-	for _, ev := range f.inboxEvents {
-		if ev.ProjectID == project && ev.State == domain.InboxStatePending {
-			out = append(out, ev)
-		}
-	}
-	return out, nil
-}
-
-func (f *fakeStore) ListProjectsWithPendingInboxEvents(_ context.Context) ([]domain.ProjectID, error) {
-	seen := map[domain.ProjectID]bool{}
-	var out []domain.ProjectID
-	for _, ev := range f.inboxEvents {
-		if ev.State == domain.InboxStatePending && !seen[ev.ProjectID] {
-			seen[ev.ProjectID] = true
-			out = append(out, ev.ProjectID)
-		}
-	}
-	return out, nil
-}
-
-func (f *fakeStore) AckInboxEvents(_ context.Context, project domain.ProjectID, ids []string) (int, error) {
-	acked := 0
-	for _, id := range ids {
-		ev, ok := f.inboxEvents[id]
-		if !ok || ev.ProjectID != project || ev.State != domain.InboxStatePending {
-			continue
-		}
-		ev.State = domain.InboxStateAcked
-		f.inboxEvents[id] = ev
-		acked++
-	}
-	return acked, nil
 }
 
 func (f *fakeStore) GetPRLastNudgeSignature(_ context.Context, prURL string) (string, error) {
@@ -775,7 +715,6 @@ func TestActivity_TerminalReconciliationRequiresUnchangedSnapshot(t *testing.T) 
 	m, st, _ := newManager()
 	updatedAt := time.Unix(100, 0).UTC()
 	rec := working("mer-1")
-	rec.Kind = domain.KindWorker
 	rec.FirstSignalAt = updatedAt
 	rec.UpdatedAt = updatedAt
 	st.sessions[rec.ID] = rec
@@ -3095,7 +3034,7 @@ func TestSCMObservation_ReadyToMergeSuppressedWhileWaitingInput(t *testing.T) {
 func TestActivity_OrchestratorIdleDoesNotNudge(t *testing.T) {
 	m, st, msg := newManager()
 	now := time.Now()
-	st.sessions["mer-orch"] = domain.SessionRecord{ID: "mer-orch", ProjectID: "mer", Kind: domain.KindOrchestrator, Activity: domain.Activity{State: domain.ActivityActive, LastActivityAt: now}, FirstSignalAt: now}
+	st.sessions["mer-orch"] = domain.SessionRecord{ID: "mer-orch", ProjectID: "mer", Activity: domain.Activity{State: domain.ActivityActive, LastActivityAt: now}, FirstSignalAt: now}
 
 	if err := m.ApplyActivitySignal(ctx, "mer-orch", ports.ActivitySignal{Valid: true, State: domain.ActivityIdle}); err != nil {
 		t.Fatal(err)
@@ -3111,8 +3050,8 @@ func TestActivity_OrchestratorIdleDoesNotNudge(t *testing.T) {
 func TestActivity_WorkerWaitingToIdleDoesNotNudge(t *testing.T) {
 	m, st, msg := newManager()
 	now := time.Now()
-	st.sessions["mer-orch"] = domain.SessionRecord{ID: "mer-orch", ProjectID: "mer", Kind: domain.KindOrchestrator, Activity: domain.Activity{State: domain.ActivityIdle, LastActivityAt: now}, FirstSignalAt: now}
-	st.sessions["mer-8"] = domain.SessionRecord{ID: "mer-8", ProjectID: "mer", Kind: domain.KindWorker, Activity: domain.Activity{State: domain.ActivityWaitingInput, LastActivityAt: now}, FirstSignalAt: now}
+	st.sessions["mer-orch"] = domain.SessionRecord{ID: "mer-orch", ProjectID: "mer", Activity: domain.Activity{State: domain.ActivityIdle, LastActivityAt: now}, FirstSignalAt: now}
+	st.sessions["mer-8"] = domain.SessionRecord{ID: "mer-8", ProjectID: "mer", Activity: domain.Activity{State: domain.ActivityWaitingInput, LastActivityAt: now}, FirstSignalAt: now}
 
 	if err := m.ApplyActivitySignal(ctx, "mer-8", ports.ActivitySignal{Valid: true, State: domain.ActivityIdle}); err != nil {
 		t.Fatal(err)
@@ -3125,8 +3064,8 @@ func TestActivity_WorkerWaitingToIdleDoesNotNudge(t *testing.T) {
 func TestActivity_WorkerIdleOrchestratorBlockedSuppressed(t *testing.T) {
 	m, st, msg := newManager()
 	now := time.Now()
-	st.sessions["mer-orch"] = domain.SessionRecord{ID: "mer-orch", ProjectID: "mer", Kind: domain.KindOrchestrator, Activity: domain.Activity{State: domain.ActivityBlocked, LastActivityAt: now}, FirstSignalAt: now}
-	st.sessions["mer-8"] = domain.SessionRecord{ID: "mer-8", ProjectID: "mer", Kind: domain.KindWorker, Activity: domain.Activity{State: domain.ActivityActive, LastActivityAt: now}, FirstSignalAt: now}
+	st.sessions["mer-orch"] = domain.SessionRecord{ID: "mer-orch", ProjectID: "mer", Activity: domain.Activity{State: domain.ActivityBlocked, LastActivityAt: now}, FirstSignalAt: now}
+	st.sessions["mer-8"] = domain.SessionRecord{ID: "mer-8", ProjectID: "mer", Activity: domain.Activity{State: domain.ActivityActive, LastActivityAt: now}, FirstSignalAt: now}
 
 	if err := m.ApplyActivitySignal(ctx, "mer-8", ports.ActivitySignal{Valid: true, State: domain.ActivityIdle}); err != nil {
 		t.Fatal(err)
@@ -3139,242 +3078,14 @@ func TestActivity_WorkerIdleOrchestratorBlockedSuppressed(t *testing.T) {
 func TestActivity_WorkerIdleOrchestratorActiveDefersNoNudge(t *testing.T) {
 	m, st, msg := newManager()
 	now := time.Now()
-	st.sessions["mer-orch"] = domain.SessionRecord{ID: "mer-orch", ProjectID: "mer", Kind: domain.KindOrchestrator, Activity: domain.Activity{State: domain.ActivityActive, LastActivityAt: now}, FirstSignalAt: now}
-	st.sessions["mer-8"] = domain.SessionRecord{ID: "mer-8", ProjectID: "mer", Kind: domain.KindWorker, Activity: domain.Activity{State: domain.ActivityActive, LastActivityAt: now}, FirstSignalAt: now}
+	st.sessions["mer-orch"] = domain.SessionRecord{ID: "mer-orch", ProjectID: "mer", Activity: domain.Activity{State: domain.ActivityActive, LastActivityAt: now}, FirstSignalAt: now}
+	st.sessions["mer-8"] = domain.SessionRecord{ID: "mer-8", ProjectID: "mer", Activity: domain.Activity{State: domain.ActivityActive, LastActivityAt: now}, FirstSignalAt: now}
 
 	if err := m.ApplyActivitySignal(ctx, "mer-8", ports.ActivitySignal{Valid: true, State: domain.ActivityIdle}); err != nil {
 		t.Fatal(err)
 	}
 	if len(msg.msgs) != 0 {
 		t.Fatalf("nudged a busy orchestrator: %d, want 0", len(msg.msgs))
-	}
-}
-
-// fakeLifecycleContainerReaper is a minimal ports.ContainerReaper test double.
-type fakeLifecycleContainerReaper struct {
-	sessions []domain.SessionID
-	removed  int
-	err      error
-}
-
-func (f *fakeLifecycleContainerReaper) ReapSessionContainers(_ context.Context, id domain.SessionID) (int, error) {
-	f.sessions = append(f.sessions, id)
-	return f.removed, f.err
-}
-
-// fakeProjectConfigLoader is a minimal projectConfigLoader test double.
-type fakeProjectConfigLoader struct {
-	projects map[string]domain.ProjectRecord
-	err      error
-}
-
-func (f *fakeProjectConfigLoader) GetProject(_ context.Context, id string) (domain.ProjectRecord, bool, error) {
-	if f.err != nil {
-		return domain.ProjectRecord{}, false, f.err
-	}
-	rec, ok := f.projects[id]
-	return rec, ok, nil
-}
-
-func newManagerWithContainerReaper(cr ports.ContainerReaper, pl projectConfigLoader) (*Manager, *fakeStore, *fakeMessenger) {
-	st := newFakeStore()
-	msg := &fakeMessenger{}
-	m := New(st, msg, WithContainerReaper(cr, pl))
-	return m, st, msg
-}
-
-// TestMarkTerminated_ReapsContainers is the #2652 regression for hooking the
-// shared teardown path: MarkTerminated must reap the terminated session's
-// containers, covering every terminal-state path (Kill, daemon shutdown,
-// Cleanup, RetireForReplacement, tracker-driven termination) through this one
-// choke point rather than only explicit opr session kill.
-func TestMarkTerminated_ReapsContainers(t *testing.T) {
-	cr := &fakeLifecycleContainerReaper{removed: 2}
-	pl := &fakeProjectConfigLoader{projects: map[string]domain.ProjectRecord{
-		"mer": {ID: "mer", Config: domain.ProjectConfig{}},
-	}}
-	m, st, _ := newManagerWithContainerReaper(cr, pl)
-	st.sessions["mer-1"] = working("mer-1")
-
-	if err := m.MarkTerminated(ctx, "mer-1"); err != nil {
-		t.Fatal(err)
-	}
-	if len(cr.sessions) != 1 || cr.sessions[0] != "mer-1" {
-		t.Fatalf("expected container reap for mer-1, got %v", cr.sessions)
-	}
-}
-
-func TestMarkTerminated_ReapsContainersAgainWhenAlreadyTerminated(t *testing.T) {
-	cr := &fakeLifecycleContainerReaper{}
-	pl := &fakeProjectConfigLoader{projects: map[string]domain.ProjectRecord{
-		"mer": {ID: "mer", Config: domain.ProjectConfig{}},
-	}}
-	m, st, _ := newManagerWithContainerReaper(cr, pl)
-	st.sessions["mer-1"] = working("mer-1")
-
-	if err := m.MarkTerminated(ctx, "mer-1"); err != nil {
-		t.Fatal(err)
-	}
-	if err := m.MarkTerminated(ctx, "mer-1"); err != nil {
-		t.Fatal(err)
-	}
-	if len(cr.sessions) != 2 {
-		t.Fatalf("container reap calls = %v, want retry on repeated termination", cr.sessions)
-	}
-}
-
-// TestMarkTerminated_ContainerReapFailureDoesNotFailTermination asserts the
-// best-effort contract: a container reaper error must never fail
-// MarkTerminated, matching every other best-effort teardown step in Operator.
-func TestMarkTerminated_ContainerReapFailureDoesNotFailTermination(t *testing.T) {
-	cr := &fakeLifecycleContainerReaper{err: errors.New("docker rm: permission denied")}
-	pl := &fakeProjectConfigLoader{projects: map[string]domain.ProjectRecord{
-		"mer": {ID: "mer", Config: domain.ProjectConfig{}},
-	}}
-	m, st, _ := newManagerWithContainerReaper(cr, pl)
-	st.sessions["mer-1"] = working("mer-1")
-
-	if err := m.MarkTerminated(ctx, "mer-1"); err != nil {
-		t.Fatalf("a container reap failure must not fail MarkTerminated: %v", err)
-	}
-	got := st.sessions["mer-1"]
-	if !got.IsTerminated {
-		t.Fatal("session must still be marked terminated despite the reap failure")
-	}
-	if len(cr.sessions) != 1 {
-		t.Fatalf("expected container reap to still be attempted, got %v", cr.sessions)
-	}
-}
-
-// TestMarkTerminated_SkipsReapWhenProjectDisables covers the project-level
-// opt-out: ContainerReap.Disabled must suppress the reap without affecting
-// termination.
-func TestMarkTerminated_SkipsReapWhenProjectDisables(t *testing.T) {
-	cr := &fakeLifecycleContainerReaper{}
-	pl := &fakeProjectConfigLoader{projects: map[string]domain.ProjectRecord{
-		"mer": {ID: "mer", Config: domain.ProjectConfig{ContainerReap: domain.ContainerReapConfig{Disabled: true}}},
-	}}
-	m, st, _ := newManagerWithContainerReaper(cr, pl)
-	st.sessions["mer-1"] = working("mer-1")
-
-	if err := m.MarkTerminated(ctx, "mer-1"); err != nil {
-		t.Fatal(err)
-	}
-	if len(cr.sessions) != 0 {
-		t.Fatalf("expected no reap call when project disables container reap, got %v", cr.sessions)
-	}
-	if !st.sessions["mer-1"].IsTerminated {
-		t.Fatal("session must still be marked terminated when reap is disabled")
-	}
-}
-
-// TestMarkTerminated_ProjectLoadErrorSkipsRatherThanReaps is the regression
-// for failing open: a project-config load error must skip reaping rather than
-// guess and reap anyway. This package's stated bias throughout is to spare on
-// ambiguity, never to reap on it.
-func TestMarkTerminated_ProjectLoadErrorSkipsRatherThanReaps(t *testing.T) {
-	cr := &fakeLifecycleContainerReaper{}
-	pl := &fakeProjectConfigLoader{err: errors.New("db unavailable")}
-	m, st, _ := newManagerWithContainerReaper(cr, pl)
-	st.sessions["mer-1"] = working("mer-1")
-
-	if err := m.MarkTerminated(ctx, "mer-1"); err != nil {
-		t.Fatal(err)
-	}
-	if len(cr.sessions) != 0 {
-		t.Fatalf("a project-load error must skip reaping (spare on ambiguity), got calls: %v", cr.sessions)
-	}
-	if !st.sessions["mer-1"].IsTerminated {
-		t.Fatal("session must still be marked terminated when the project lookup fails")
-	}
-}
-
-// TestMarkTerminated_NilReaperSkipsWithoutProjectLookup confirms nil wiring
-// (the common case — most Operator installs run without Docker) skips reaping
-// cleanly without even attempting a project lookup.
-func TestMarkTerminated_NilReaperSkipsWithoutProjectLookup(t *testing.T) {
-	m, st, _ := newManager() // newManager wires no container reaper at all
-	st.sessions["mer-1"] = working("mer-1")
-
-	if err := m.MarkTerminated(ctx, "mer-1"); err != nil {
-		t.Fatal(err)
-	}
-	if !st.sessions["mer-1"].IsTerminated {
-		t.Fatal("session must still be marked terminated with no reaper wired")
-	}
-}
-
-// TestMarkTerminated_MissingProjectSkipsRatherThanReaps is the regression for
-// failing open on a missing project record: GetProject returning ok=false,
-// err=nil is ambiguity (Operator cannot know whether ContainerReap.Disabled would
-// have applied), not a green light to reap. Must be treated the same as the
-// error path.
-func TestMarkTerminated_MissingProjectSkipsRatherThanReaps(t *testing.T) {
-	cr := &fakeLifecycleContainerReaper{}
-	pl := &fakeProjectConfigLoader{projects: map[string]domain.ProjectRecord{}} // no "mer" entry: ok=false, err=nil
-	m, st, _ := newManagerWithContainerReaper(cr, pl)
-	st.sessions["mer-1"] = working("mer-1")
-
-	if err := m.MarkTerminated(ctx, "mer-1"); err != nil {
-		t.Fatal(err)
-	}
-	if len(cr.sessions) != 0 {
-		t.Fatalf("a missing project record must skip reaping (spare on ambiguity), got calls: %v", cr.sessions)
-	}
-	if !st.sessions["mer-1"].IsTerminated {
-		t.Fatal("session must still be marked terminated when the project record is missing")
-	}
-}
-
-// TestRuntimeObservation_ConfirmedDeathReapsContainers is the regression for
-// the review finding that ApplyRuntimeObservation's reaper-driven terminal
-// transition (crash/SIGKILL detected by the runtime reaper) bypassed
-// MarkTerminated entirely and left containers unreaped. This confirms the
-// container leg of #2652 now fires on this path too, not just explicit kill.
-func TestRuntimeObservation_ConfirmedDeathReapsContainers(t *testing.T) {
-	cr := &fakeLifecycleContainerReaper{removed: 1}
-	pl := &fakeProjectConfigLoader{projects: map[string]domain.ProjectRecord{
-		"mer": {ID: "mer", Config: domain.ProjectConfig{}},
-	}}
-	m, st, _ := newManagerWithContainerReaper(cr, pl)
-	rec := working("mer-1")
-	rec.Activity.LastActivityAt = time.Now().Add(-2 * time.Minute)
-	st.sessions["mer-1"] = rec
-
-	if err := m.ApplyRuntimeObservation(ctx, "mer-1", ports.RuntimeFacts{Runtime: ports.ProbeDead, Workload: ports.ProbeFailed}); err != nil {
-		t.Fatal(err)
-	}
-	got := st.sessions["mer-1"]
-	if !got.IsTerminated || got.Activity.State != domain.ActivityExited {
-		t.Fatalf("want terminated/exited, got %+v", got)
-	}
-	if len(cr.sessions) != 1 || cr.sessions[0] != "mer-1" {
-		t.Fatalf("expected container reap for mer-1 on reaper-observed death, got %v", cr.sessions)
-	}
-}
-
-// TestRuntimeObservation_WorkloadDeathAloneDoesNotReap confirms the
-// non-terminal workload-dead branch (runtime alive, workload dead) does NOT
-// trigger a container reap — only a confirmed session termination should.
-func TestRuntimeObservation_WorkloadDeathAloneDoesNotReap(t *testing.T) {
-	cr := &fakeLifecycleContainerReaper{}
-	pl := &fakeProjectConfigLoader{projects: map[string]domain.ProjectRecord{
-		"mer": {ID: "mer", Config: domain.ProjectConfig{}},
-	}}
-	m, st, _ := newManagerWithContainerReaper(cr, pl)
-	rec := working("mer-1")
-	rec.Metadata.RuntimeLaunchID = "launch-1"
-	st.sessions["mer-1"] = rec
-
-	if err := m.ApplyRuntimeObservation(ctx, "mer-1", ports.RuntimeFacts{LaunchID: "launch-1", Runtime: ports.ProbeAlive, Workload: ports.ProbeDead}); err != nil {
-		t.Fatal(err)
-	}
-	got := st.sessions["mer-1"]
-	if got.IsTerminated {
-		t.Fatal("workload death alone must not terminate the session")
-	}
-	if len(cr.sessions) != 0 {
-		t.Fatalf("expected no reap call for a non-terminal transition, got %v", cr.sessions)
 	}
 }
 
@@ -3425,118 +3136,5 @@ func TestMarkSpawnedPersistsChatControllerFacts(t *testing.T) {
 	got, _, _ = st.GetSession(ctx, "mer-1")
 	if got.Metadata.ControllerGeneration != "gen-2" {
 		t.Fatalf("generation = %q after relaunch, want it rotated to gen-2", got.Metadata.ControllerGeneration)
-	}
-}
-
-func TestApplyActivitySignal_WorkerCrossingActiveToIdleEnqueuesExactlyOneInboxEvent(t *testing.T) {
-	m, st, _ := newManager()
-	rec := working("mer-1")
-	st.sessions["mer-1"] = rec
-
-	if err := m.ApplyActivitySignal(ctx, "mer-1", ports.ActivitySignal{Valid: true, State: domain.ActivityIdle, Event: "stop"}); err != nil {
-		t.Fatal(err)
-	}
-
-	pending, err := st.ListPendingInboxEvents(ctx, "mer")
-	if err != nil || len(pending) != 1 {
-		t.Fatalf("pending=%v err=%v, want exactly 1", pending, err)
-	}
-	if pending[0].WorkerID != "mer-1" || pending[0].Kind != domain.InboxEventWorkerIdle {
-		t.Fatalf("event=%+v", pending[0])
-	}
-}
-
-func TestApplyActivitySignal_IdleToIdleDoesNotEnqueue(t *testing.T) {
-	m, st, _ := newManager()
-	rec := working("mer-1")
-	rec.Activity.State = domain.ActivityIdle
-	rec.FirstSignalAt = time.Now()
-	st.sessions["mer-1"] = rec
-
-	if err := m.ApplyActivitySignal(ctx, "mer-1", ports.ActivitySignal{Valid: true, State: domain.ActivityIdle, Event: "stop"}); err != nil {
-		t.Fatal(err)
-	}
-
-	pending, err := st.ListPendingInboxEvents(ctx, "mer")
-	if err != nil || len(pending) != 0 {
-		t.Fatalf("pending=%v err=%v, want none: idle-to-idle is not a crossing", pending, err)
-	}
-}
-
-func TestApplyActivitySignal_WaitingInputToIdleDoesNotEnqueue(t *testing.T) {
-	m, st, _ := newManager()
-	rec := working("mer-1")
-	rec.Activity.State = domain.ActivityWaitingInput
-	st.sessions["mer-1"] = rec
-
-	if err := m.ApplyActivitySignal(ctx, "mer-1", ports.ActivitySignal{Valid: true, State: domain.ActivityIdle, Event: "stop"}); err != nil {
-		t.Fatal(err)
-	}
-
-	pending, err := st.ListPendingInboxEvents(ctx, "mer")
-	if err != nil || len(pending) != 0 {
-		t.Fatalf("pending=%v err=%v, want none: waiting_input->idle is a demotion, not a crossing", pending, err)
-	}
-}
-
-func TestApplyActivitySignal_OrchestratorCrossingToIdleDoesNotEnqueue(t *testing.T) {
-	m, st, _ := newManager()
-	rec := working("mer-1")
-	rec.Kind = domain.KindOrchestrator
-	st.sessions["mer-1"] = rec
-
-	if err := m.ApplyActivitySignal(ctx, "mer-1", ports.ActivitySignal{Valid: true, State: domain.ActivityIdle, Event: "stop"}); err != nil {
-		t.Fatal(err)
-	}
-
-	pending, err := st.ListPendingInboxEvents(ctx, "mer")
-	if err != nil || len(pending) != 0 {
-		t.Fatalf("pending=%v err=%v, want none: orchestrators never get worker_idle events for themselves", pending, err)
-	}
-}
-
-func TestApplyActivitySignal_RepeatedIdleCoalescesToOnePendingRow(t *testing.T) {
-	m, st, _ := newManager()
-	rec := working("mer-1")
-	st.sessions["mer-1"] = rec
-	if err := m.ApplyActivitySignal(ctx, "mer-1", ports.ActivitySignal{Valid: true, State: domain.ActivityIdle, Event: "stop"}); err != nil {
-		t.Fatal(err)
-	}
-
-	st.sessions["mer-1"] = working("mer-1")
-	if err := m.ApplyActivitySignal(ctx, "mer-1", ports.ActivitySignal{Valid: true, State: domain.ActivityIdle, Event: "stop"}); err != nil {
-		t.Fatal(err)
-	}
-
-	pending, err := st.ListPendingInboxEvents(ctx, "mer")
-	if err != nil || len(pending) != 1 {
-		t.Fatalf("pending=%v err=%v, want exactly 1 across two idle crossings for the same worker", pending, err)
-	}
-}
-
-func TestDispatchPendingInboxEventsOnStartup_AnnouncesEveryProjectWithPendingRows(t *testing.T) {
-	m, st, msg := newManager()
-	st.sessions["mer-2"] = orchestrator("mer-2", "mer")
-	st.inboxEvents["evt-1"] = domain.OrchestratorInboxEvent{
-		ID: "evt-1", ProjectID: "mer", WorkerID: "mer-1", Kind: domain.InboxEventWorkerIdle, State: domain.InboxStatePending,
-	}
-
-	if err := m.DispatchPendingInboxEventsOnStartup(ctx); err != nil {
-		t.Fatal(err)
-	}
-
-	if len(msg.msgs) != 1 || msg.ids[0] != "mer-2" {
-		t.Fatalf("messenger calls = %+v / %+v, want one startup nudge to mer-2", msg.msgs, msg.ids)
-	}
-}
-
-func TestDispatchPendingInboxEventsOnStartup_NoPendingRowsSendsNothing(t *testing.T) {
-	m, _, msg := newManager()
-
-	if err := m.DispatchPendingInboxEventsOnStartup(ctx); err != nil {
-		t.Fatal(err)
-	}
-	if len(msg.msgs) != 0 {
-		t.Fatalf("messenger calls = %v, want none", msg.msgs)
 	}
 }

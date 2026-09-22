@@ -32,7 +32,6 @@ const worker: WorkspaceSession = {
 	activity: { state: "active", lastActivityAt: "2026-06-10T00:00:00Z" },
 	branch: "opr/sess-1",
 	id: "sess-1",
-	kind: "worker",
 	provider: "claude-code",
 	prs: [],
 	status: "working",
@@ -96,7 +95,6 @@ describe("TerminalSwitchAgentButton", () => {
 	it.each([
 		["unsupported provider", { provider: "cursor" }],
 		["terminated worker", { isTerminated: true, status: "terminated" }],
-		["orchestrator", { id: "orch-1", kind: "orchestrator" }],
 	] as const)("does not render for an %s", async (_name, overrides) => {
 		renderControl({ ...worker, ...overrides } as WorkspaceSession);
 		await waitFor(() => expect(getMock).toHaveBeenCalled());

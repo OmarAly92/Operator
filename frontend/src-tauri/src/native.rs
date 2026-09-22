@@ -36,6 +36,29 @@ fn http_s_authority(remainder: &str) -> bool {
         .is_some_and(|host| !host.is_empty() && !host.contains('\\'))
 }
 
+/// Canonicalises a candidate terminal link against `base` -- the block's cwd or
+/// the session's workspace path -- and answers only for a path that exists. A
+/// relative candidate without a base is unanswerable, which is what keeps a bare
+/// word in terminal output from resolving against the daemon's own cwd.
+pub fn resolved_link_path(base: Option<&str>, path: &str) -> Option<PathBuf> {
+    let trimmed = path.trim();
+    if trimmed.is_empty() || trimmed.contains('\0') {
+        return None;
+    }
+    let expanded = if let Some(rest) = trimmed.strip_prefix("~/") {
+        std::env::var_os("HOME").map(PathBuf::from)?.join(rest)
+    } else {
+        PathBuf::from(trimmed)
+    };
+    let candidate = if expanded.is_absolute() {
+        expanded
+    } else {
+        PathBuf::from(base?).join(expanded)
+    };
+    let resolved = candidate.canonicalize().ok()?;
+    resolved.exists().then_some(resolved)
+}
+
 pub fn is_allowed_app_external_url(raw_url: &str) -> bool {
     let trimmed = raw_url.trim();
     if trimmed.is_empty() {
@@ -154,6 +177,24 @@ pub async fn open_external(app: AppHandle, url: String) -> Result<(), String> {
     }
     app.opener()
         .open_url(url, None::<&str>)
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub async fn resolve_path(base: Option<String>, path: String) -> Result<Option<String>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        resolved_link_path(base.as_deref(), &path)
+            .map(|resolved| resolved.to_string_lossy().to_string())
+    })
+    .await
+    .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub async fn open_path(app: AppHandle, path: String) -> Result<(), String> {
+    let resolved = resolved_link_path(None, &path).ok_or_else(|| "Unknown path".to_string())?;
+    app.opener()
+        .open_path(resolved.to_string_lossy().to_string(), None::<&str>)
         .map_err(|error| error.to_string())
 }
 

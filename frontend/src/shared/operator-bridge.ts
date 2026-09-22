@@ -31,6 +31,8 @@ export type OperatorBridge = {
 		getVersion: () => Promise<string>;
 		chooseDirectory: (title?: string) => Promise<string | null>;
 		openExternal: (url: string) => Promise<void>;
+		resolvePath: (base: string | null, path: string) => Promise<string | null>;
+		openPath: (path: string) => Promise<void>;
 		scanImportFolder: (input: { path: string; mode: ImportFolderMode }) => Promise<ImportFolderScan>;
 		checkAncestorRepo: (path: string) => Promise<string | undefined>;
 		onNewSessionShortcut: (listener: () => void) => () => void;

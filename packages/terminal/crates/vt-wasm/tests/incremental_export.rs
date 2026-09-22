@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use proptest::prelude::*;
 use vt_core::{Limits, TerminalCore};
-use vt_wasm::ExportBuffers;
+use vt_wasm::{ExportBuffers, STYLE_RUN_WORDS};
 
 fn sync(buffers: &mut ExportBuffers, core: &mut TerminalCore) {
     let delta = core.take_delta();
@@ -15,9 +15,10 @@ fn full_export(core: &TerminalCore) -> ExportBuffers {
     buffers
 }
 
-fn projected_rows(buffers: &ExportBuffers) -> Vec<(Vec<u8>, u16, Vec<u32>)> {
+fn projected_rows(buffers: &ExportBuffers) -> Vec<(Vec<u8>, u16, bool, Vec<u32>)> {
     let rows = buffers.rows();
     let indents = buffers.row_indents();
+    let wrapped = buffers.row_wrapped();
     let runs = buffers.run_ranges();
     let pairs = buffers.style_pairs();
     let content = buffers.content();
@@ -28,7 +29,8 @@ fn projected_rows(buffers: &ExportBuffers) -> Vec<(Vec<u8>, u16, Vec<u32>)> {
             (
                 content[start..end].to_vec(),
                 indents[row],
-                pairs[pair_start * 3..pair_end * 3].to_vec(),
+                wrapped[row] == 1,
+                pairs[pair_start * STYLE_RUN_WORDS..pair_end * STYLE_RUN_WORDS].to_vec(),
             )
         })
         .collect()
@@ -48,14 +50,21 @@ fn assert_projection_equal(incremental: &ExportBuffers, full: &ExportBuffers) {
     assert_eq!(incremental.alt_row_ranges(), full.alt_row_ranges());
     assert_eq!(incremental.alt_run_ranges(), full.alt_run_ranges());
     assert_eq!(incremental.alt_style_pairs(), full.alt_style_pairs());
+    assert_eq!(incremental.alt_span_ranges(), full.alt_span_ranges());
+    assert_eq!(incremental.alt_cell_spans(), full.alt_cell_spans());
 }
 
 fn assert_bytes_equal(incremental: &ExportBuffers, full: &ExportBuffers) {
     assert_eq!(incremental.content(), full.content());
     assert_eq!(incremental.rows(), full.rows());
     assert_eq!(incremental.row_indents(), full.row_indents());
+    assert_eq!(incremental.row_wrapped(), full.row_wrapped());
     assert_eq!(incremental.run_ranges(), full.run_ranges());
     assert_eq!(incremental.style_pairs(), full.style_pairs());
+    assert_eq!(incremental.span_ranges(), full.span_ranges());
+    assert_eq!(incremental.cell_spans(), full.cell_spans());
+    assert_eq!(incremental.link_text(), full.link_text());
+    assert_eq!(incremental.link_ranges(), full.link_ranges());
     assert_projection_equal(incremental, full);
 }
 
@@ -73,13 +82,17 @@ fn op() -> impl Strategy<Value = Op> {
         2 => (0u8..=2).prop_map(|mode| Op::Bytes(format!("\x1b[{mode}J").into_bytes())),
         2 => (0u8..=2).prop_map(|mode| Op::Bytes(format!("\x1b[{mode}K").into_bytes())),
         3 => (30u8..=37).prop_map(|colour| Op::Bytes(format!("\x1b[{colour}mst\x1b[0m").into_bytes())),
+        2 => (0u8..=5).prop_map(|k| Op::Bytes(format!("\x1b[3;4:{k};9;58;5;196mat\x1b[0m").into_bytes())),
         1 => Just(Op::Bytes(b"\x1b]133;A\x07".to_vec())),
         1 => Just(Op::Bytes(b"\x1b]133;C\x07".to_vec())),
         1 => Just(Op::Bytes(b"\x1b]133;D;0\x07".to_vec())),
         1 => Just(Op::Bytes(b"\x1b]7000;v=1;boundary=0\x07".to_vec())),
         1 => Just(Op::Bytes(b"\x1b[?1049h".to_vec())),
         1 => Just(Op::Bytes(b"\x1b[?1049l".to_vec())),
+        2 => Just(Op::Bytes("w\u{6f22}e\u{301}\r\n".as_bytes().to_vec())),
+        2 => Just(Op::Bytes(b"abcd efgh ijkl".to_vec())),
         2 => (10usize..=60, 2usize..=8).prop_map(|(cols, rows)| Op::Resize(cols, rows)),
+        2 => "[a-z]{1,8}".prop_map(|host| Op::Bytes(format!("\x1b]8;;https://{host}\x1b\\lk\x1b]8;;\x1b\\").into_bytes())),
     ]
 }
 

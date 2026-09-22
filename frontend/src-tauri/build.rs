@@ -25,6 +25,8 @@ fn main() {
         "updates_apply_settings",
         "choose_directory",
         "open_external",
+        "resolve_path",
+        "open_path",
         "clipboard_write",
         "clipboard_read",
         "notification_show",

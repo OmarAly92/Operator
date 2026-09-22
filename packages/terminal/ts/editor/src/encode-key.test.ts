@@ -42,6 +42,11 @@ describe("encodeKey", () => {
 		expect(encodeKey(key({ key: " ", ctrlKey: true }))).toBe("\x00");
 	});
 
+	it("keeps plain Ctrl+Space as NUL; only the shifted form is the hint chord", () => {
+		expect(encodeKey(key({ key: " ", ctrlKey: true }))).toBe("\x00");
+		expect(encodeKey(key({ key: " ", ctrlKey: true, shiftKey: true }))).toBe("\x00");
+	});
+
 	it("keeps Option+Left/Right as word motion the way macOS terminals do", () => {
 		expect(encodeKey(key({ key: "ArrowLeft", altKey: true }))).toBe("\x1bb");
 		expect(encodeKey(key({ key: "ArrowRight", altKey: true }))).toBe("\x1bf");

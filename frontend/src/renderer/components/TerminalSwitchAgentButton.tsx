@@ -34,7 +34,6 @@ export function TerminalSwitchAgentButton({ session }: TerminalSwitchAgentButton
 	}, [switchMutation.error]);
 
 	if (
-		session.kind !== "worker" ||
 		session.isTerminated ||
 		!canSwitchAgentHarness(session.provider) ||
 		(!recoverySwitch && !switching && !sessionIsActive(session))

@@ -59,7 +59,6 @@ func TestObserverIntegrationReconcilesRealPtyHostOutputIntoSQLite(t *testing.T) 
 			}
 			session, err := store.CreateSession(ctx, domain.SessionRecord{
 				ProjectID:     projectID,
-				Kind:          domain.KindWorker,
 				Harness:       domain.HarnessCodex,
 				Activity:      domain.Activity{State: domain.ActivityActive, LastActivityAt: staleAt},
 				Metadata:      domain.SessionMetadata{WorkspaceMode: domain.WorkspaceModeWorktree},

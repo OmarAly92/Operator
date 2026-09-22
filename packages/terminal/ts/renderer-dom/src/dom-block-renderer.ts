@@ -4,29 +4,41 @@ import {
 	validateRowRange,
 	type BlockId,
 	type BlockRenderer,
+	type BlockState,
 	type BlockView,
 	type FontConfig,
 	type RowRange,
+	type SecretPattern,
 	type TerminalCore,
 	type TerminalTheme,
 } from "@operator/terminal-core";
 import { renderAltSurface } from "./alt-surface.js";
+import { finishedBlocks, rendererVisible, type BlockFinishedEvent } from "./block-finished.js";
 import { populateBlock, reconcileChildren, ROW_GENERATION_ATTR } from "./block-body.js";
-import { createCursorElement, primaryCursorPlacement, type CursorPlacement } from "./cursor.js";
+import { createCursorElement, cursorPaintFor, primaryCursorPlacement, PLAIN_CURSOR_PAINT, type CursorPlacement } from "./cursor.js";
 import { ElementPool } from "./element-pool.js";
 import { bindActionEvents } from "./action-events.js";
 import { applyFilter, type BlockFilter } from "./block-filter.js";
 import { mountBlockNavFromRenderer, type BlockNavHandle } from "./block-nav.js";
 import { mountJumpToBottom, type JumpToBottom } from "./jump-to-bottom.js";
 import { createPinnedHeaderElement, updatePinnedHeader } from "./pinned-header.js";
+import { DEFAULT_FEATURES, resolveFeatures, sameFeatures, type RendererFeatures } from "./features.js";
 import { defaultFont } from "./default-font.js";
 import { ensureMeasureHost, HIDDEN_MEASURE_ID, listenScroll } from "./host-dom.js";
+import { createDomMeasurer, WidthCache } from "./width-cache.js";
 import { BLOCK_PADDING_X_PX, BLOCK_PADDING_TOP_LINES, BLOCK_COMMAND_GAP_LINES, blockPaddingY } from "./block-metrics.js";
 import { blockIsBlank, trimTrailingBlankRows } from "./block-rows.js";
 import { paintedRowOrigin, type RowOrigin } from "./row-geometry.js";
 import { pointAtFromRows } from "./selection-geometry.js";
 import { type SelectionKind, type SelectionPoint, type SelectionState } from "./selection-model.js";
-import { selectedText } from "./selection-text.js";
+import { selectedText, type TextRows } from "./selection-text.js";
+import { Linkifier } from "./linkifier.js";
+import { DEFAULT_LINK_PROVIDERS, type DetectedLink, type LinkProvider } from "./link-providers.js";
+import { paintBoxes, rangeBoxes, type DecorationBox } from "./decorations.js";
+import { collectHintMatches, HintSession, type HintEvent } from "./hint-mode.js";
+import { DEFAULT_HINT_RULES, type HintRule } from "./hint-rules.js";
+import { logicalLineAt, rangeContains, type LogicalLineView } from "./logical-lines.js";
+import { compileSecretPatterns, maskedTextRows, redactionMatches } from "./redaction.js";
 import {
 	renderedRows,
 	resolveSelectionView,
@@ -45,6 +57,10 @@ const CLASS_LEADING_SPACER = "terminal-spacer";
 const CLASS_TRAILING_SPACER = "terminal-spacer";
 const OVERSCAN_ROWS = 6;
 const STICK_THRESHOLD_PX = 4;
+
+function overscrolled(container: HTMLElement): boolean {
+	return container.scrollTop < 0 || container.scrollTop > container.scrollHeight - container.clientHeight;
+}
 const PAINT_INTERVAL_MS = 1000 / 60;
 const POOL_CAPACITY_FACTOR = 3;
 const POOL_DIRTY_CAP = 4096;
@@ -84,6 +100,7 @@ export class DomBlockRenderer implements BlockRenderer {
 	private selection: SelectionState | null = null;
 	private readonly selectionListeners = new Set<() => void>();
 	private metricsCache: { cellWidth: number; cellHeight: number } | null = null;
+	private widths: WidthCache | null = null;
 	private dprQuery: MediaQueryList | null = null;
 	private readonly onDprChange = () => this.invalidateMetrics();
 	private anchor: ScrollAnchor | null = null;
@@ -94,6 +111,23 @@ export class DomBlockRenderer implements BlockRenderer {
 	private cursorElement: HTMLElement | null = null;
 	private fullSince = 0;
 	private rebuildAll = false;
+	private activeFeatures: RendererFeatures = DEFAULT_FEATURES;
+	private focused = true;
+	private blockStates = new Map<BlockId, BlockState>();
+	private readonly blockFinishedListeners = new Set<(event: BlockFinishedEvent) => void>();
+	private linkProviders: readonly LinkProvider[] = DEFAULT_LINK_PROVIDERS;
+	private readonly linkifier = new Linkifier({
+		rows: () => this.textRows(),
+		generation: () => this.core?.snapshot().generation ?? Number.NaN,
+		providers: () => this.linkProviders,
+		onChange: () => this.linkChanged(),
+	});
+	private decorationLayer: HTMLElement | null = null;
+	private readonly linkHoverListeners = new Set<(link: DetectedLink | null) => void>();
+	private hint: HintSession | null = null;
+	private secretRegexes: RegExp[] = [];
+	private revealedSecrets = new Set<string>();
+	private revealedAt = -1;
 
 	mount(container: HTMLElement, core: TerminalCore): void {
 		this.dispose();
@@ -119,6 +153,11 @@ export class DomBlockRenderer implements BlockRenderer {
 		const pinned = createPinnedHeaderElement();
 		container.insertBefore(pinned, list);
 		this.pinnedHeader = pinned;
+		const decorations = document.createElement("div");
+		decorations.className = "terminal-decorations";
+		decorations.setAttribute("style", styleVarsString(this.theme, this.font));
+		container.append(decorations);
+		this.decorationLayer = decorations;
 		this.measureHost = ensureMeasureHost();
 		this.measureNode = this.measureHost.querySelector<HTMLElement>(`#${HIDDEN_MEASURE_ID}`);
 		this.scrollUnsubscribe = listenScroll(container, () => {
@@ -148,6 +187,24 @@ export class DomBlockRenderer implements BlockRenderer {
 		this.invalidateMetrics();
 	}
 
+	setFeatures(partial: Partial<RendererFeatures>): void {
+		const next = resolveFeatures({ ...this.activeFeatures, ...partial });
+		if (sameFeatures(next, this.activeFeatures)) return;
+		this.activeFeatures = next;
+		this.rebuildAll = true;
+		this.scheduleRepaint();
+	}
+
+	features(): RendererFeatures {
+		return this.activeFeatures;
+	}
+
+	setFocused(focused: boolean): void {
+		if (this.focused === focused) return;
+		this.focused = focused;
+		if (this.activeFeatures.cursorHollowUnfocused) this.scheduleRepaint();
+	}
+
 	setFilter(filter: BlockFilter | null): void {
 		this.currentFilter = filter, this.scheduleRepaint();
 	}
@@ -170,12 +227,16 @@ export class DomBlockRenderer implements BlockRenderer {
 		const cellHeight =
 			rect.height > 0 ? rect.height : this.font.lineHeight * this.font.sizePx;
 		this.metricsCache = { cellWidth, cellHeight };
+		if (!this.widths) {
+			this.widths = new WidthCache(createDomMeasurer(node));
+		}
 		this.watchDevicePixelRatio();
 		return this.metricsCache;
 	}
 
 	private invalidateMetrics(): void {
 		this.metricsCache = null;
+		this.widths?.clear();
 		this.scheduleRepaint();
 	}
 
@@ -345,11 +406,190 @@ export class DomBlockRenderer implements BlockRenderer {
 		this.notifySelectionListeners();
 	}
 
+	private rawTextRows(): TextRows {
+		const core = this.core!;
+		return snapshotTextRows(core.snapshot(), this.currentFilter, this.decoder, (id) => core.linkUri(id));
+	}
+
+	private textRows(): TextRows {
+		return maskedTextRows(this.rawTextRows(), this.secretRegexes, this.revealedSecrets);
+	}
+
 	private selectionView(): SelectionView | null {
 		const selection = this.selection;
 		const core = this.core;
 		if (!selection || !core) return null;
-		return resolveSelectionView(selection, snapshotTextRows(core.snapshot(), this.currentFilter, this.decoder));
+		return resolveSelectionView(selection, this.textRows());
+	}
+
+	hoverAt(x: number, y: number): void {
+		if (!this.core) return;
+		this.linkifier.hover(this.pointAt(x, y));
+	}
+
+	clearHover(): void {
+		this.linkifier.hover(null);
+	}
+
+	hoveredLink(): DetectedLink | null {
+		return this.linkifier.current();
+	}
+
+	onLinkHover(listener: (link: DetectedLink | null) => void): () => void {
+		this.linkHoverListeners.add(listener);
+		return () => {
+			this.linkHoverListeners.delete(listener);
+		};
+	}
+
+	setLinkProviders(providers: readonly LinkProvider[]): void {
+		this.linkProviders = providers;
+		this.linkifier.invalidate();
+	}
+
+	private linkChanged(): void {
+		const link = this.linkifier.current();
+		this.container?.classList.toggle("terminal-link-hover", link !== null);
+		this.paintDecorations();
+		for (const listener of [...this.linkHoverListeners]) listener(link);
+	}
+
+	hintBegin(rules: readonly HintRule[] = DEFAULT_HINT_RULES): number {
+		if (!this.core) return 0;
+		const rows = this.textRows();
+		const seen = new Set<string>();
+		const lines: LogicalLineView[] = [];
+		for (const { box } of this.renderedRows()) {
+			const line = logicalLineAt(rows, box.blockId, box.row);
+			if (!line) continue;
+			const key = `${line.blockId}:${line.firstRow}`;
+			if (seen.has(key)) continue;
+			seen.add(key);
+			lines.push(line);
+		}
+		const matches = collectHintMatches(lines, rules);
+		this.hint = matches.length > 0 ? new HintSession(matches) : null;
+		this.paintHints();
+		return matches.length;
+	}
+
+	hintType(character: string): HintEvent | null {
+		const session = this.hint;
+		if (!session) return null;
+		const match = session.type(character);
+		if (!match) {
+			this.paintHints();
+			return null;
+		}
+		this.hintCancel();
+		return { ruleId: match.ruleId, text: match.text, path: match.path, line: match.line };
+	}
+
+	hintBackspace(): void {
+		this.hint?.backspace();
+		this.paintHints();
+	}
+
+	hintCancel(): void {
+		this.hint = null;
+		this.paintHints();
+	}
+
+	hintActive(): boolean {
+		return this.hint !== null;
+	}
+
+	setSecretPatterns(patterns: readonly SecretPattern[]): void {
+		this.secretRegexes = compileSecretPatterns(patterns);
+		this.revealedSecrets.clear();
+		this.scheduleRepaint();
+	}
+
+	revealSecretAt(x: number, y: number): void {
+		if (this.secretRegexes.length === 0) return;
+		const point = this.pointAt(x, y);
+		if (!point) return;
+		const line = logicalLineAt(this.rawTextRows(), point.blockId, point.row);
+		if (!line) return;
+		for (const match of redactionMatches(line, this.secretRegexes)) {
+			if (!rangeContains(match.range, point.row, point.column)) continue;
+			this.revealedSecrets.add(match.key);
+			this.revealedAt = this.core?.snapshot().generation ?? this.revealedAt;
+			this.scheduleRepaint();
+			return;
+		}
+	}
+
+	private paintHints(): void {
+		const matchLayer = this.layer("hints");
+		const labelLayer = this.layer("labels");
+		const container = this.container;
+		if (!matchLayer || !labelLayer || !container) return;
+		const entries = this.hint?.labelled() ?? [];
+		const matchBoxes: DecorationBox[] = [];
+		const labelBoxes: DecorationBox[] = [];
+		const labels: string[] = [];
+		if (entries.length > 0) {
+			const rows = this.renderedRows();
+			const { cellWidth, cellHeight } = this.cellMetrics();
+			for (const entry of entries) {
+				const boxes = rangeBoxes(entry.match.range, rows, cellWidth, container);
+				if (boxes.length === 0) continue;
+				matchBoxes.push(...boxes);
+				labelBoxes.push({ ...boxes[0]!, width: Math.max(entry.label.length, 1) * cellWidth, height: cellHeight });
+				labels.push(entry.label);
+			}
+		}
+		paintBoxes(matchLayer, "terminal-hint-match", matchBoxes);
+		paintBoxes(labelLayer, "terminal-hint-label", labelBoxes, labels);
+	}
+
+	private layer(name: string): HTMLElement | null {
+		const parent = this.decorationLayer;
+		if (!parent) return null;
+		let layer = parent.querySelector<HTMLElement>(`[data-terminal-layer="${name}"]`);
+		if (!layer) {
+			layer = document.createElement("div");
+			layer.dataset.terminalLayer = name;
+			parent.append(layer);
+		}
+		return layer;
+	}
+
+	private paintDecorations(): void {
+		const layer = this.layer("links");
+		const container = this.container;
+		if (!layer || !container) return;
+		const link = this.linkifier.current();
+		const boxes = link ? rangeBoxes(link.range, this.renderedRows(), this.cellMetrics().cellWidth, container) : [];
+		paintBoxes(layer, "terminal-link-underline", boxes);
+	}
+
+	private paintRedactions(): void {
+		const layer = this.layer("redactions");
+		const container = this.container;
+		if (!layer || !container) return;
+		if (this.secretRegexes.length === 0) {
+			paintBoxes(layer, "terminal-redaction", []);
+			return;
+		}
+		const rows = this.rawTextRows();
+		const seen = new Set<string>();
+		const boxes: DecorationBox[] = [];
+		const rendered = this.renderedRows();
+		const { cellWidth } = this.cellMetrics();
+		for (const { box } of rendered) {
+			const line = logicalLineAt(rows, box.blockId, box.row);
+			if (!line) continue;
+			const key = `${line.blockId}:${line.firstRow}`;
+			if (seen.has(key)) continue;
+			seen.add(key);
+			for (const match of redactionMatches(line, this.secretRegexes)) {
+				if (this.revealedSecrets.has(match.key)) continue;
+				boxes.push(...rangeBoxes(match.range, rendered, cellWidth, container));
+			}
+		}
+		paintBoxes(layer, "terminal-redaction", boxes);
 	}
 
 	dispose(): void {
@@ -361,12 +601,22 @@ export class DomBlockRenderer implements BlockRenderer {
 		if (this.rafHandle !== null && typeof cancelAnimationFrame === "function") cancelAnimationFrame(this.rafHandle);
 		this.rafHandle = null;
 		this.paintListeners.clear();
+		this.blockStates = new Map();
+		this.blockFinishedListeners.clear();
+		this.linkifier.dispose();
+		this.hint = null;
+		this.secretRegexes = [];
+		this.revealedSecrets.clear();
+		this.decorationLayer = null;
+		this.linkHoverListeners.clear();
 		if (this.container) {
+			this.container.classList.remove("terminal-link-hover");
 			this.container.replaceChildren();
 			this.container.style.removeProperty("position");
 			this.container.style.removeProperty("overflow");
 			this.container.style.removeProperty("overflow-x");
 			this.container.style.removeProperty("overflow-y");
+			this.container.style.removeProperty("overscroll-behavior-y");
 			this.container.style.removeProperty("contain");
 		}
 		this.container = null;
@@ -396,6 +646,7 @@ export class DomBlockRenderer implements BlockRenderer {
 		this.dprQuery?.removeEventListener("change", this.onDprChange);
 		this.dprQuery = null;
 		this.metricsCache = null;
+		this.widths = null;
 	}
 
 	/// Notifies when a repaint has actually landed in the DOM.
@@ -407,6 +658,13 @@ export class DomBlockRenderer implements BlockRenderer {
 		this.paintListeners.add(listener);
 		return () => {
 			this.paintListeners.delete(listener);
+		};
+	}
+
+	onBlockFinished(listener: (event: BlockFinishedEvent) => void): () => void {
+		this.blockFinishedListeners.add(listener);
+		return () => {
+			this.blockFinishedListeners.delete(listener);
 		};
 	}
 
@@ -436,7 +694,7 @@ export class DomBlockRenderer implements BlockRenderer {
 			return;
 		}
 		this.core?.drain();
-		this.core?.tick(performance.now());
+		this.core?.tick(Date.now());
 		this.rafHandle = null;
 		this.repaint(timestamp);
 	}
@@ -464,6 +722,9 @@ export class DomBlockRenderer implements BlockRenderer {
 		if (this.altRoot) {
 			this.altRoot.setAttribute("style", style);
 		}
+		if (this.decorationLayer) {
+			this.decorationLayer.setAttribute("style", style);
+		}
 	}
 
 	private applyFontToMeasureNode(node: HTMLElement): void {
@@ -489,6 +750,10 @@ export class DomBlockRenderer implements BlockRenderer {
 		const firstRow = Math.max(0, this.flatRowFor(anchor) - OVERSCAN_ROWS);
 		core.setExportWindow(firstRow, firstRow + this.visibleRowCapacity() + 2 * OVERSCAN_ROWS);
 		const snapshot = core.snapshot();
+		if (this.revealedAt !== snapshot.generation) {
+			this.revealedSecrets.clear();
+			this.revealedAt = snapshot.generation;
+		}
 
 		const alt = snapshot.altScreen;
 		if (alt) {
@@ -503,8 +768,12 @@ export class DomBlockRenderer implements BlockRenderer {
 			altRoot.hidden = false;
 			if (this.list) this.list.hidden = true;
 			if (this.pinnedHeader) this.pinnedHeader.hidden = true;
-			renderAltSurface(alt, this.altRoot!, this.decoder, this.cellMetrics());
+			renderAltSurface(alt, this.altRoot!, this.decoder, this.cellMetrics(), this.activeFeatures, this.widths);
 			this.paintSelectionFill();
+			this.linkifier.refresh();
+			this.paintDecorations();
+			this.paintHints();
+			this.paintRedactions();
 			if (paintedAt !== undefined) this.lastPaintAt = paintedAt;
 			this.notifyPainted();
 			core.takeDirty();
@@ -520,6 +789,16 @@ export class DomBlockRenderer implements BlockRenderer {
 		this.wasAltActive = false;
 
 		const blocks = decodeBlocks(snapshot);
+		const finished = finishedBlocks(this.blockStates, blocks);
+		this.blockStates = new Map(blocks.map((block) => [block.id, block.state] as const));
+		if (finished.length > 0) {
+			const visible = rendererVisible(container);
+			for (const block of finished) {
+				for (const listener of [...this.blockFinishedListeners]) {
+					listener({ id: block.id, exitCode: block.exitCode, durationMs: block.durationMs, visible });
+				}
+			}
+		}
 		if (blocks.length > 0) {
 			this.knownBlockId = blocks[0]!.id;
 		}
@@ -528,6 +807,9 @@ export class DomBlockRenderer implements BlockRenderer {
 			if (!ids.has(this.selection.head.blockId) || !ids.has(this.selection.tail.blockId)) this.dropSelection();
 		}
 		const cursor: CursorPlacement | null = primaryCursorPlacement(snapshot);
+		const cursorPaint = cursor
+			? cursorPaintFor({ source: snapshot, row: cursor.row, column: cursor.column, theme: this.theme, features: this.activeFeatures, focused: this.focused, decoder: this.decoder })
+			: PLAIN_CURSOR_PAINT;
 		const dirty = core.takeDirty();
 		if (dirty.full || this.rebuildAll) {
 			this.fullSince = snapshot.generation;
@@ -607,10 +889,13 @@ export class DomBlockRenderer implements BlockRenderer {
 					cellWidth,
 					cursor,
 					cursorElement,
+					cursorPaint,
 					decoder: this.decoder,
 					firstStableRow: snapshot.firstStableRow,
 					generation: snapshot.generation,
 					rowIsFresh: freshFor(block.id),
+					features: this.activeFeatures,
+					widths: this.widths,
 				});
 				if (placed.cursorPlaced) cursorPlaced = true;
 			}
@@ -643,10 +928,14 @@ export class DomBlockRenderer implements BlockRenderer {
 		}
 		if (this.stickToBottom) {
 			this.applyStickiness();
-		} else if (Math.abs(container.scrollTop - scrollTop) > 0.5) {
+		} else if (!overscrolled(container) && Math.abs(container.scrollTop - scrollTop) > 0.5) {
 			container.scrollTop = scrollTop;
 		}
 		this.paintSelectionFill();
+		this.linkifier.refresh();
+		this.paintDecorations();
+		this.paintHints();
+		this.paintRedactions();
 		if (paintedAt !== undefined) this.lastPaintAt = paintedAt;
 		this.notifyPainted();
 		this.rescheduleIfPending(core);
@@ -696,7 +985,7 @@ export class DomBlockRenderer implements BlockRenderer {
 		if (!container || !this.stickToBottom) return;
 		const target = container.scrollHeight - container.clientHeight;
 		if (target <= 0) return;
-		if (Math.abs(container.scrollTop - target) > 0.5) {
+		if (container.scrollTop < target - 0.5) {
 			container.scrollTop = target;
 		}
 	}
@@ -740,6 +1029,7 @@ export class DomBlockRenderer implements BlockRenderer {
 function applyScrollOverflow(container: HTMLElement): void {
 	container.style.overflowX = "hidden";
 	container.style.overflowY = "auto";
+	container.style.setProperty("overscroll-behavior-y", "none");
 }
 
 function ensurePackageStyleTag(): HTMLStyleElement {

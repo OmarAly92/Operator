@@ -11,7 +11,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/OmarAly92/operator/backend/internal/domain"
 	"github.com/OmarAly92/operator/backend/internal/ports"
 )
 
@@ -123,63 +122,6 @@ func TestManagedPathSafety(t *testing.T) {
 	}
 }
 
-func TestOrchestratorManagedPath(t *testing.T) {
-	root := t.TempDir()
-	ws, err := New(Options{ManagedRoot: root, RepoResolver: StaticRepoResolver{"proj": root}})
-	if err != nil {
-		t.Fatalf("new: %v", err)
-	}
-
-	t.Run("explicit prefix", func(t *testing.T) {
-		cfg := ports.WorkspaceConfig{
-			ProjectID:     "proj",
-			SessionID:     "proj-1",
-			Kind:          domain.KindOrchestrator,
-			SessionPrefix: "opr-agents",
-		}
-		path, err := ws.managedPath(cfg)
-		if err != nil {
-			t.Fatalf("managed path: %v", err)
-		}
-		want := filepath.Join(ws.managedRoot, "proj", "orchestrator", "opr-agents-orchestrator")
-		if path != want {
-			t.Fatalf("path = %q, want %q", path, want)
-		}
-	})
-
-	t.Run("prefix derived from project id", func(t *testing.T) {
-		cfg := ports.WorkspaceConfig{
-			ProjectID: "longprojectid123",
-			SessionID: "longprojectid123-1",
-			Kind:      domain.KindOrchestrator,
-		}
-		path, err := ws.managedPath(cfg)
-		if err != nil {
-			t.Fatalf("managed path: %v", err)
-		}
-		want := filepath.Join(ws.managedRoot, "longprojectid123", "orchestrator", "longprojecti-orchestrator")
-		if path != want {
-			t.Fatalf("path = %q, want %q", path, want)
-		}
-	})
-
-	t.Run("short project id used as prefix", func(t *testing.T) {
-		cfg := ports.WorkspaceConfig{
-			ProjectID: "proj",
-			SessionID: "proj-1",
-			Kind:      domain.KindOrchestrator,
-		}
-		path, err := ws.managedPath(cfg)
-		if err != nil {
-			t.Fatalf("managed path: %v", err)
-		}
-		want := filepath.Join(ws.managedRoot, "proj", "orchestrator", "proj-orchestrator")
-		if path != want {
-			t.Fatalf("path = %q, want %q", path, want)
-		}
-	})
-}
-
 func TestCreateReusesRegisteredWorktreeAtExpectedPath(t *testing.T) {
 	root := t.TempDir()
 	repo := t.TempDir()
@@ -187,16 +129,14 @@ func TestCreateReusesRegisteredWorktreeAtExpectedPath(t *testing.T) {
 	if err != nil {
 		t.Fatalf("new: %v", err)
 	}
-	path := filepath.Join(ws.managedRoot, "proj", "orchestrator", "proj-orchestrator")
+	path := filepath.Join(ws.managedRoot, "proj", "proj-1")
 	if err := os.MkdirAll(path, 0o755); err != nil {
 		t.Fatalf("create registered worktree path: %v", err)
 	}
 	cfg := ports.WorkspaceConfig{
-		ProjectID:     "proj",
-		SessionID:     "proj-1",
-		Kind:          domain.KindOrchestrator,
-		SessionPrefix: "proj",
-		Branch:        "opr/proj-orchestrator",
+		ProjectID: "proj",
+		SessionID: "proj-1",
+		Branch:    "opr/proj-1/root",
 	}
 	ws.run = func(_ context.Context, _ string, args ...string) ([]byte, error) {
 		joined := strings.Join(args, " ")
@@ -204,7 +144,7 @@ func TestCreateReusesRegisteredWorktreeAtExpectedPath(t *testing.T) {
 		case strings.Contains(joined, "check-ref-format"):
 			return nil, nil
 		case strings.Contains(joined, "worktree list --porcelain"):
-			return []byte("worktree " + path + "\nbranch refs/heads/opr/proj-orchestrator\n"), nil
+			return []byte("worktree " + path + "\nbranch refs/heads/opr/proj-1/root\n"), nil
 		default:
 			t.Fatalf("unexpected git invocation: %v", args)
 			return nil, nil
@@ -215,8 +155,8 @@ func TestCreateReusesRegisteredWorktreeAtExpectedPath(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Create: %v", err)
 	}
-	if info.Path != path || info.Branch != "opr/proj-orchestrator" {
-		t.Fatalf("info = %#v, want path %q branch opr/proj-orchestrator", info, path)
+	if info.Path != path || info.Branch != "opr/proj-1/root" {
+		t.Fatalf("info = %#v, want path %q branch opr/proj-1/root", info, path)
 	}
 }
 
@@ -234,13 +174,11 @@ func TestCreateRecreatesMissingRegisteredWorktreeWithForce(t *testing.T) {
 		t.Fatalf("new: %v", err)
 	}
 	// Deliberately not created on disk: the registration is stale.
-	path := filepath.Join(ws.managedRoot, "proj", "orchestrator", "proj-orchestrator")
+	path := filepath.Join(ws.managedRoot, "proj", "proj-1")
 	cfg := ports.WorkspaceConfig{
-		ProjectID:     "proj",
-		SessionID:     "proj-1",
-		Kind:          domain.KindOrchestrator,
-		SessionPrefix: "proj",
-		Branch:        "opr/proj-orchestrator",
+		ProjectID: "proj",
+		SessionID: "proj-1",
+		Branch:    "opr/proj-1/root",
 	}
 
 	// The stale registration is never cleared, so it stays in every listing:
@@ -253,10 +191,10 @@ func TestCreateRecreatesMissingRegisteredWorktreeWithForce(t *testing.T) {
 		case strings.Contains(joined, "check-ref-format"):
 			return nil, nil
 		case strings.Contains(joined, "worktree list --porcelain"):
-			return []byte("worktree " + path + "\nbranch refs/heads/opr/proj-orchestrator\n"), nil
-		case strings.Contains(joined, "rev-parse --verify --quiet refs/heads/opr/proj-orchestrator"):
+			return []byte("worktree " + path + "\nbranch refs/heads/opr/proj-1/root\n"), nil
+		case strings.Contains(joined, "rev-parse --verify --quiet refs/heads/opr/proj-1/root"):
 			return nil, nil
-		case strings.Contains(joined, "worktree add --force "+path+" opr/proj-orchestrator"):
+		case strings.Contains(joined, "worktree add --force "+path+" opr/proj-1/root"):
 			return nil, nil
 		default:
 			t.Fatalf("unexpected git invocation: %v", args)
@@ -309,14 +247,12 @@ func TestRestoreRecreatesMissingRegisteredWorktreeWithForce(t *testing.T) {
 	if err != nil {
 		t.Fatalf("new: %v", err)
 	}
-	path := filepath.Join(ws.managedRoot, "proj", "orchestrator", "proj-orchestrator")
+	path := filepath.Join(ws.managedRoot, "proj", "proj-1")
 	cfg := ports.WorkspaceConfig{
-		ProjectID:     "proj",
-		SessionID:     "proj-1",
-		Kind:          domain.KindOrchestrator,
-		SessionPrefix: "proj",
-		Branch:        "opr/proj-orchestrator",
-		Path:          path,
+		ProjectID: "proj",
+		SessionID: "proj-1",
+		Branch:    "opr/proj-1/root",
+		Path:      path,
 	}
 
 	var calls []string
@@ -327,10 +263,10 @@ func TestRestoreRecreatesMissingRegisteredWorktreeWithForce(t *testing.T) {
 		case strings.Contains(joined, "check-ref-format"):
 			return nil, nil
 		case strings.Contains(joined, "worktree list --porcelain"):
-			return []byte("worktree " + path + "\nbranch refs/heads/opr/proj-orchestrator\n"), nil
-		case strings.Contains(joined, "rev-parse --verify --quiet refs/heads/opr/proj-orchestrator"):
+			return []byte("worktree " + path + "\nbranch refs/heads/opr/proj-1/root\n"), nil
+		case strings.Contains(joined, "rev-parse --verify --quiet refs/heads/opr/proj-1/root"):
 			return nil, nil
-		case strings.Contains(joined, "worktree add --force "+path+" opr/proj-orchestrator"):
+		case strings.Contains(joined, "worktree add --force "+path+" opr/proj-1/root"):
 			return nil, nil
 		default:
 			t.Fatalf("unexpected git invocation: %v", args)
@@ -367,20 +303,18 @@ func TestRestoreRecreatesOnRegisteredBranchNotCfgBranch(t *testing.T) {
 	if err != nil {
 		t.Fatalf("new: %v", err)
 	}
-	path := filepath.Join(ws.managedRoot, "proj", "orchestrator", "proj-orchestrator")
-	const registeredBranch = "opr/proj-orchestrator/gh-pages-landing"
+	path := filepath.Join(ws.managedRoot, "proj", "proj-1")
+	const registeredBranch = "opr/proj-1/gh-pages-landing"
 	// cfg.Branch deliberately differs from the stale registration's branch
 	// (and is not a prefix of it, so a substring match on the recorded git
 	// invocations cannot accidentally pass either way), mirroring how Operator
 	// passes the session's root branch through Restore while the on-disk
 	// worktree may have been registered on a child branch.
 	cfg := ports.WorkspaceConfig{
-		ProjectID:     "proj",
-		SessionID:     "proj-1",
-		Kind:          domain.KindOrchestrator,
-		SessionPrefix: "proj",
-		Branch:        "opr/proj-orchestrator/root",
-		Path:          path,
+		ProjectID: "proj",
+		SessionID: "proj-1",
+		Branch:    "opr/proj-1/root",
+		Path:      path,
 	}
 
 	var calls []string

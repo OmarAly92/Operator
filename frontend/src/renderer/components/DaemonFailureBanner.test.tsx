@@ -1,14 +1,12 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { operatorBridge } from "../lib/bridge";
-import { appI18n } from "../i18n";
 import { DaemonFailureBanner } from "./DaemonFailureBanner";
 
 describe("DaemonFailureBanner", () => {
-	afterEach(async () => {
+	afterEach(() => {
 		vi.useRealTimers();
 		vi.restoreAllMocks();
-		await appI18n.changeLanguage("en");
 	});
 
 	it("shows the daemon failure message, code, and actionable hint", () => {
@@ -64,16 +62,6 @@ describe("DaemonFailureBanner", () => {
 		const { container } = render(<DaemonFailureBanner status={{ state: "starting" }} />);
 
 		expect(container).toBeEmptyDOMElement();
-	});
-
-	it("updates an already-mounted failure when the language changes", async () => {
-		render(<DaemonFailureBanner status={{ state: "error", code: "not_ready" }} />);
-		expect(screen.getByRole("button", { name: "Restart daemon" })).toBeInTheDocument();
-
-		await act(() => appI18n.changeLanguage("zh-CN"));
-
-		expect(screen.getByRole("button", { name: "重启守护进程" })).toBeInTheDocument();
-		expect(screen.getByRole("alert")).toHaveTextContent("Operator 守护进程尚未就绪");
 	});
 
 	it("restarts a daemon that timed out during startup", async () => {

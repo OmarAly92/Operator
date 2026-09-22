@@ -65,7 +65,6 @@ const session = (prs: PullRequestFacts[], overrides: Partial<WorkspaceSession> =
 	workspaceName: "my-app",
 	title: "do the thing",
 	provider: "claude-code",
-	kind: "worker",
 	branch: "feat/ns",
 	status: "review_pending",
 	updatedAt: "2026-06-15T00:00:00Z",
@@ -411,16 +410,15 @@ describe("SessionInspector completion controls", () => {
 		);
 	});
 
-	it("terminates a live merged session and returns to its orchestrator immediately", async () => {
+	it("terminates a live merged session and returns to the project board", async () => {
 		postMock.mockReturnValue(new Promise(() => {}));
 		const worker = session([pr(7, "merged")], { status: "merged" });
-		const orchestrator = session([], { id: "orch-1", kind: "orchestrator", title: "orchestrator" });
 		renderWithQuery(<SessionInspector session={worker} />, [
 			{
 				id: "ws-1",
 				name: "my-app",
 				path: "/repo",
-				sessions: [worker, orchestrator],
+				sessions: [worker],
 			},
 		]);
 
@@ -438,8 +436,8 @@ describe("SessionInspector completion controls", () => {
 		});
 		expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
 		expect(navigateMock).toHaveBeenCalledWith({
-			to: "/projects/$projectId/sessions/$sessionId",
-			params: { projectId: "ws-1", sessionId: "orch-1" },
+			to: "/projects/$projectId",
+			params: { projectId: "ws-1" },
 		});
 	});
 
@@ -469,12 +467,6 @@ describe("SessionInspector completion controls", () => {
 		expect(screen.queryByRole("button", { name: "Terminate session" })).not.toBeInTheDocument();
 	});
 
-	it("does not show completion controls for orchestrator sessions", () => {
-		renderWithQuery(<SessionInspector session={session([], { kind: "orchestrator" })} />);
-
-		expect(screen.queryByText("Completion")).not.toBeInTheDocument();
-		expect(screen.queryByRole("switch")).not.toBeInTheDocument();
-	});
 });
 
 describe("SessionInspector Activity section", () => {

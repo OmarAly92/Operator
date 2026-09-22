@@ -2,14 +2,22 @@ import { useCallback, useLayoutEffect, useRef, useState, type ReactElement, type
 import { clipboardHasImage, encodeKey, LineEditor, planPaste } from "@operator/terminal-editor";
 import {
 	createFindBar,
+	createPathProvider,
+	DEFAULT_LINK_PROVIDERS,
 	DomBlockRenderer,
 	RERUN_EVENT,
+	resolveFeatures,
+	type BlockFinishedEvent,
+	type DetectedLink,
 	type FindBar,
+	type HintEvent,
+	type RendererFeatures,
 	type SelectionKind,
 	type SelectionPoint,
 } from "@operator/terminal-renderer-dom";
-import { autoScrollRows, exceedsDragThreshold, isCopyChord, kindForClickCount } from "./selection-gesture.js";
+import { autoScrollRows, exceedsDragThreshold, isCopyChord, isHintChord, kindForClickCount, linkModifierHeld } from "./selection-gesture.js";
 import {
+	anchorFromElement,
 	createCompositionTarget,
 	decodeBlocks,
 	defaultStrings,
@@ -25,6 +33,7 @@ import {
 	accelerationGain,
 	GESTURE_IDLE_MS,
 	isMacPlatform,
+	isWindowsPlatform,
 	MIN_VELOCITY_SAMPLE_MS,
 	pointerCell,
 	SELECTION_CHROME,
@@ -61,7 +70,10 @@ export interface TerminalSurfaceProps {
 	 */
 	refitToken?: number;
 	focusToken?: number;
+	features?: Partial<RendererFeatures>;
 	onPaint?: () => void;
+	onBlockFinished?: (event: BlockFinishedEvent) => void;
+	onHint?: (hint: HintEvent) => void;
 }
 
 export function TerminalSurface({
@@ -77,21 +89,47 @@ export function TerminalSurface({
 	onSendRaw,
 	onGeometry,
 	onPaint,
+	onBlockFinished,
+	onHint,
 	refitToken,
 	focusToken,
+	features,
 }: TerminalSurfaceProps): ReactElement {
 	const hostRef = useRef<HTMLDivElement | null>(null);
+	const surfaceRef = useRef<HTMLDivElement | null>(null);
 	const editorHostRef = useRef<HTMLDivElement | null>(null);
 	const rendererRef = useRef<DomBlockRenderer | null>(null);
 	const editorRef = useRef<LineEditor | null>(null);
 	const onPaintRef = useRef(onPaint);
 	onPaintRef.current = onPaint;
+	const onBlockFinishedRef = useRef(onBlockFinished);
+	onBlockFinishedRef.current = onBlockFinished;
+	const onHintRef = useRef(onHint);
+	onHintRef.current = onHint;
 	const findBarRef = useRef<FindBar | null>(null);
 	const gridColumnsRef = useRef(0);
 	const gridRowsRef = useRef(0);
 	const compositionRef = useRef<CompositionTarget | null>(null);
 	const hostCapsRef = useRef(host);
 	hostCapsRef.current = host;
+	const resolvePath = host?.resolvePath;
+	const resolvePathRef = useRef(resolvePath);
+	resolvePathRef.current = resolvePath;
+
+	const applyLinkProviders = useCallback(() => {
+		const renderer = rendererRef.current;
+		if (!renderer) return;
+		const resolve = resolvePathRef.current;
+		if (!resolve) {
+			renderer.setLinkProviders(DEFAULT_LINK_PROVIDERS);
+			return;
+		}
+		const cwdOf = (blockId: string) => decodeBlocks(core.snapshot()).find((block) => block.id === blockId)?.cwd ?? "";
+		renderer.setLinkProviders([
+			...DEFAULT_LINK_PROVIDERS,
+			createPathProvider((path, cwd) => resolve(path, cwd), cwdOf, isWindowsPlatform() ? "windows" : "posix"),
+		]);
+	}, [core]);
 
 	useLayoutEffect(() => {
 		const blockHost = hostRef.current;
@@ -104,7 +142,11 @@ export function TerminalSurface({
 		renderer.setTheme(theme);
 		renderer.setFont(font);
 		const editor = new LineEditor();
-		editor.mount(editorHost, core, { send: onSend, sendRaw: onSendRaw });
+		editor.mount(editorHost, core, {
+			send: onSend,
+			sendRaw: onSendRaw,
+			compositionAnchor: (parent) => anchorFromElement(parent, blockHost.querySelector("[data-terminal-cursor-cell]")),
+		});
 		editor.setTheme(theme);
 		editor.setFont(font);
 		editor.setStrings(strings);
@@ -129,12 +171,15 @@ export function TerminalSurface({
 		};
 		blockHost.addEventListener(RERUN_EVENT, onRerun);
 		const offPaint = renderer.onPaint(() => onPaintRef.current?.());
+		const offFinished = renderer.onBlockFinished((event) => onBlockFinishedRef.current?.(event));
 		rendererRef.current = renderer;
 		editorRef.current = editor;
 		findBarRef.current = findBar;
+		applyLinkProviders();
 		return () => {
 			blockHost.removeEventListener(RERUN_EVENT, onRerun);
 			offPaint();
+			offFinished();
 			findBar.dispose();
 			editor.dispose();
 			renderer.dispose();
@@ -142,7 +187,7 @@ export function TerminalSurface({
 			rendererRef.current = null;
 			findBarRef.current = null;
 		};
-	}, [core, onSend, onSendRaw]);
+	}, [applyLinkProviders, core, onSend, onSendRaw]);
 
 	useLayoutEffect(() => {
 		rendererRef.current?.setTheme(theme);
@@ -153,6 +198,21 @@ export function TerminalSurface({
 		rendererRef.current?.setFont(font);
 		editorRef.current?.setFont(font);
 	}, [font]);
+
+	const featuresKey = JSON.stringify(features ?? {});
+	useLayoutEffect(() => {
+		rendererRef.current?.setFeatures(features ?? {});
+		core.setGraphemeClusters(resolveFeatures(features).graphemes);
+	}, [core, featuresKey]);
+
+	useLayoutEffect(() => {
+		applyLinkProviders();
+	}, [applyLinkProviders, resolvePath]);
+
+	const secretPatterns = host?.secretPatterns;
+	useLayoutEffect(() => {
+		rendererRef.current?.setSecretPatterns(secretPatterns ?? []);
+	}, [secretPatterns]);
 
 	useLayoutEffect(() => {
 		editorRef.current?.setStrings(strings);
@@ -218,6 +278,7 @@ export function TerminalSurface({
 		const composition = createCompositionTarget({
 			parent: blockHost,
 			onCommit: (text) => onSendRaw(text),
+			anchor: (parent) => anchorFromElement(parent, parent.querySelector("[data-terminal-cursor]")),
 		});
 		const onKeyDown = (event: KeyboardEvent) => {
 			if (composition.isComposing() || event.isComposing || event.keyCode === 229) {
@@ -366,10 +427,34 @@ export function TerminalSurface({
 				altScreen: snapshot.altScreen !== null,
 			});
 		};
+		const activateLink = (link: DetectedLink) => {
+			const caps = hostCapsRef.current;
+			if (!caps) return;
+			if (link.kind === "path") {
+				if (link.path !== undefined) void caps.openPath?.(link.path, link.line, link.column);
+				return;
+			}
+			if (link.uri !== undefined) void caps.openLink(link.uri);
+		};
+		const onHoverMove = (event: MouseEvent) => {
+			if (pressOrigin) return;
+			renderer()?.hoverAt(event.clientX, event.clientY);
+		};
+		const onHoverLeave = () => renderer()?.clearHover();
 		const onMouseDown = (event: MouseEvent) => {
 			compositionRef.current?.focus();
 			const button = buttonOf(event);
 			if (button === null) return;
+			if (button === 0 && linkModifierHeld(event, isMacPlatform())) {
+				renderer()?.hoverAt(event.clientX, event.clientY);
+				const link = renderer()?.hoveredLink();
+				if (link) {
+					event.preventDefault();
+					activateLink(link);
+					return;
+				}
+			}
+			if (button === 0 && !event.altKey) renderer()?.revealSecretAt(event.clientX, event.clientY);
 			const data = reportFor("press", button, event);
 			if (data !== null) {
 				event.preventDefault();
@@ -475,13 +560,46 @@ export function TerminalSurface({
 			event.stopPropagation();
 			void hostCapsRef.current?.writeClipboard(text);
 		};
+		const onHintKey = (event: KeyboardEvent) => {
+			const target = renderer();
+			if (!target) return;
+			if (!target.hintActive()) {
+				if (!isHintChord(event)) return;
+				event.preventDefault();
+				event.stopPropagation();
+				target.hintBegin();
+				return;
+			}
+			event.preventDefault();
+			event.stopPropagation();
+			if (event.key === "Escape") {
+				target.hintCancel();
+				return;
+			}
+			if (event.key === "Backspace") {
+				target.hintBackspace();
+				return;
+			}
+			if (event.key.length !== 1 || event.metaKey || event.ctrlKey || event.altKey) {
+				target.hintCancel();
+				return;
+			}
+			const hint = target.hintType(event.key);
+			if (hint) onHintRef.current?.(hint);
+		};
 		const onEditorTyping = (event: KeyboardEvent) => {
 			if (event.key === "Shift" || event.key === "Control" || event.key === "Alt" || event.key === "Meta") return;
 			if (isCopyChord(event, isMacPlatform())) return;
 			renderer()?.selectionClear();
 		};
+		const surface = surfaceRef.current;
+		const reportFocus = () => rendererRef.current?.setFocused(surface !== null && surface.contains(document.activeElement));
+		const onSurfaceFocusIn = () => reportFocus();
+		const onSurfaceFocusOut = () => reportFocus();
 		blockHost.addEventListener("mousedown", onMouseDown);
 		blockHost.addEventListener("mousemove", onMouseMove);
+		blockHost.addEventListener("mousemove", onHoverMove);
+		blockHost.addEventListener("mouseleave", onHoverLeave);
 		window.addEventListener("mouseup", onMouseUp);
 		blockHost.addEventListener("wheel", onWheel, { passive: false });
 		blockHost.addEventListener("focusin", onFocusIn);
@@ -489,9 +607,14 @@ export function TerminalSurface({
 		blockHost.addEventListener("keydown", onCopyKey);
 		editorHost.addEventListener("keydown", onCopyKey);
 		editorHost.addEventListener("keydown", onEditorTyping);
+		surface?.addEventListener("focusin", onSurfaceFocusIn);
+		surface?.addEventListener("focusout", onSurfaceFocusOut);
+		surface?.addEventListener("keydown", onHintKey, true);
 		return () => {
 			blockHost.removeEventListener("mousedown", onMouseDown);
 			blockHost.removeEventListener("mousemove", onMouseMove);
+			blockHost.removeEventListener("mousemove", onHoverMove);
+			blockHost.removeEventListener("mouseleave", onHoverLeave);
 			window.removeEventListener("mouseup", onMouseUp);
 			blockHost.removeEventListener("wheel", onWheel);
 			blockHost.removeEventListener("focusin", onFocusIn);
@@ -499,6 +622,9 @@ export function TerminalSurface({
 			blockHost.removeEventListener("keydown", onCopyKey);
 			editorHost.removeEventListener("keydown", onCopyKey);
 			editorHost.removeEventListener("keydown", onEditorTyping);
+			surface?.removeEventListener("focusin", onSurfaceFocusIn);
+			surface?.removeEventListener("focusout", onSurfaceFocusOut);
+			surface?.removeEventListener("keydown", onHintKey, true);
 			window.removeEventListener("mousemove", onWindowMouseMove);
 			window.removeEventListener("mouseup", onWindowMouseUp);
 			stopAutoScroll();
@@ -539,7 +665,7 @@ export function TerminalSurface({
 
 	const hostClassName = className ? `terminal-host ${className}` : "terminal-host";
 	const blockList = (
-		<div className="terminal-surface">
+		<div className="terminal-surface" ref={surfaceRef}>
 			{/* tabindex only while the alt-screen handler below is bound. In the
 			    normal buffer the editor is the input surface, and a focusable host
 			    steals the click: nothing handles keys there, so typing is dropped,

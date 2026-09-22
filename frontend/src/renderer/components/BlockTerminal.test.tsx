@@ -1,3 +1,4 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
 import { useEffect, useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -24,7 +25,19 @@ const mockState = vi.hoisted(() => {
 		core: undefined as MockCore | undefined,
 		emitGeometry: undefined as ((columns: number, rows: number) => void) | undefined,
 		coreOverrides: undefined as Partial<MockCore> | undefined,
-		host: undefined as { writeClipboard: (text: string) => Promise<void>; openLink: (url: string) => Promise<void> } | undefined,
+		host: undefined as
+			| {
+					writeClipboard: (text: string) => Promise<void>;
+					openLink: (url: string) => Promise<void>;
+					resolvePath?: (path: string, cwd: string) => Promise<string | null>;
+					openPath?: (path: string) => Promise<void>;
+					secretPatterns?: readonly { source: string; flags?: string }[];
+				}
+			| undefined,
+		onHint: undefined as ((hint: { ruleId: string; text: string; path?: string; line?: number }) => void) | undefined,
+		onBlockFinished: undefined as
+			| ((event: { id: string; exitCode: number | null; durationMs: number | null; visible: boolean }) => void)
+			| undefined,
 		font: undefined as { family?: string; lineHeight?: number } | undefined,
 		strings: undefined as Record<string, string> | undefined,
 		onSend: undefined as ((text: string) => void) | undefined,
@@ -131,14 +144,29 @@ vi.mock("@operator/terminal-react", () => {
 			font: unknown;
 			altScreenActive: boolean;
 			altScreenSurface?: React.ReactNode;
-			host?: { writeClipboard: (text: string) => Promise<void>; openLink: (url: string) => Promise<void> };
+			host?: {
+				writeClipboard: (text: string) => Promise<void>;
+				openLink: (url: string) => Promise<void>;
+				resolvePath?: (path: string, cwd: string) => Promise<string | null>;
+				openPath?: (path: string) => Promise<void>;
+				secretPatterns?: readonly { source: string; flags?: string }[];
+			};
 			strings?: Record<string, string>;
 			onSend?: (text: string) => void;
 			onSendRaw?: (data: string) => void;
 			onGeometry?: (columns: number, rows: number) => void;
+			onHint?: (hint: { ruleId: string; text: string; path?: string; line?: number }) => void;
+			onBlockFinished?: (event: {
+				id: string;
+				exitCode: number | null;
+				durationMs: number | null;
+				visible: boolean;
+			}) => void;
 			focusToken?: number;
 		}) => {
 			mockState.focusToken = props.focusToken;
+			mockState.onHint = props.onHint;
+			mockState.onBlockFinished = props.onBlockFinished;
 			mockState.altScreenActive = props.altScreenActive;
 			mockState.altScreenSurfaceProvided = props.altScreenSurface !== undefined;
 			if (props.host) mockState.host = props.host;
@@ -222,6 +250,13 @@ vi.mock("../lib/bridge", () => ({
 			writeText: vi.fn().mockResolvedValue(undefined),
 			readText: vi.fn().mockResolvedValue(""),
 		},
+		app: {
+			resolvePath: vi.fn().mockResolvedValue(null),
+			openPath: vi.fn().mockResolvedValue(undefined),
+		},
+		notifications: {
+			show: vi.fn().mockResolvedValue(undefined),
+		},
 	},
 }));
 
@@ -235,6 +270,19 @@ vi.mock("../theme/skin-context", () => ({
 
 import { BlockTerminal, type BlockTerminalHistoryBlock } from "./BlockTerminal";
 import { useUiStore } from "../stores/ui-store";
+import { operatorBridge } from "../lib/bridge";
+import { openLinkInSystemBrowser } from "../lib/external-link-policy";
+
+const openPathMock = vi.mocked(operatorBridge.app.openPath);
+const resolvePathMock = vi.mocked(operatorBridge.app.resolvePath);
+const showNotificationMock = vi.mocked(operatorBridge.notifications.show);
+const openLinkMock = vi.mocked(openLinkInSystemBrowser);
+
+// BlockTerminal reads the daemon's redaction patterns through react-query, so
+// every render of it needs a client the way the app's own tree provides one.
+function renderWithQuery(ui: React.ReactElement) {
+	return render(<QueryClientProvider client={new QueryClient()}>{ui}</QueryClientProvider>);
+}
 
 function harness(overrides: Partial<Parameters<typeof BlockTerminal>[0]> = {}) {
 	const listeners: Array<(bytes: Uint8Array) => void> = [];
@@ -276,6 +324,7 @@ function renderTerminal(
 		coreOverrides?: Partial<MockCore>;
 		onReplayPainted?: () => void;
 		focusToken?: number;
+		workspacePath?: string;
 	} = {},
 ) {
 	const localListeners: Array<(bytes: Uint8Array) => void> = [];
@@ -291,14 +340,17 @@ function renderTerminal(
 		dispose: vi.fn(),
 	};
 	render(
-		<BlockTerminal
-			transport={transport}
-			sessionId="s1"
-			historyBlocks={options.historyBlocks ?? []}
-			agentTui={options.agentTui}
-			onReplayPainted={options.onReplayPainted}
-			focusToken={options.focusToken}
-		/>,
+		<QueryClientProvider client={new QueryClient()}>
+			<BlockTerminal
+				transport={transport}
+				sessionId="s1"
+				historyBlocks={options.historyBlocks ?? []}
+				agentTui={options.agentTui}
+				onReplayPainted={options.onReplayPainted}
+				focusToken={options.focusToken}
+				workspacePath={options.workspacePath}
+			/>
+		</QueryClientProvider>,
 	);
 	const proxy = new Proxy({} as MockCore, {
 		get(_target, prop) {
@@ -326,6 +378,12 @@ beforeEach(() => {
 	mockState.strings = undefined;
 	mockState.onSend = undefined;
 	mockState.onSendRaw = undefined;
+	mockState.onHint = undefined;
+	mockState.onBlockFinished = undefined;
+	openPathMock.mockClear();
+	resolvePathMock.mockReset().mockResolvedValue(null);
+	showNotificationMock.mockClear();
+	openLinkMock.mockClear();
 	mockState.revision = 0;
 	mockState.reportGeometry = true;
 	mockState.emitGeometry = undefined;
@@ -334,6 +392,72 @@ beforeEach(() => {
 });
 
 describe("BlockTerminal", () => {
+	it("gives the surface the path resolver, the editor opener, the host's patterns and the two callbacks", async () => {
+		renderTerminal({ workspacePath: "/work" });
+		await waitFor(() => expect(mockState.host).toBeDefined());
+		expect(typeof mockState.host?.resolvePath).toBe("function");
+		expect(typeof mockState.host?.openPath).toBe("function");
+		expect(mockState.host?.secretPatterns).toEqual([]);
+		expect(typeof mockState.onHint).toBe("function");
+		expect(typeof mockState.onBlockFinished).toBe("function");
+	});
+
+	it("resolves a hinted path against the workspace before opening it, and only then", async () => {
+		resolvePathMock.mockResolvedValue("/work/src/a.ts");
+		renderWithQuery(
+			<BlockTerminal
+				transport={harness().transport}
+				sessionId="s1"
+				historyBlocks={[]}
+				workspacePath="/work"
+			/>,
+		);
+		await waitFor(() => expect(mockState.onHint).toBeTypeOf("function"));
+
+		mockState.onHint!({ ruleId: "file-line", text: "src/a.ts:42", path: "src/a.ts", line: 42 });
+		await waitFor(() => expect(resolvePathMock).toHaveBeenCalledWith("/work", "src/a.ts"));
+		await waitFor(() => expect(openPathMock).toHaveBeenCalledWith("/work/src/a.ts"));
+
+		resolvePathMock.mockResolvedValue(null);
+		openPathMock.mockClear();
+		mockState.onHint!({ ruleId: "file-line", text: "gone.ts:1", path: "gone.ts", line: 1 });
+		await waitFor(() => expect(resolvePathMock).toHaveBeenCalledWith("/work", "gone.ts"));
+		expect(openPathMock).not.toHaveBeenCalled();
+	});
+
+	it("opens a hinted URL in the browser and copies anything else", async () => {
+		const writeText = vi.fn().mockResolvedValue(undefined);
+		renderWithQuery(
+			<BlockTerminal transport={harness().transport} sessionId="s1" historyBlocks={[]} clipboard={{ writeText }} />,
+		);
+		await waitFor(() => expect(mockState.onHint).toBeTypeOf("function"));
+
+		mockState.onHint!({ ruleId: "url", text: "https://example.com" });
+		expect(openLinkMock).toHaveBeenCalledWith("https://example.com");
+		expect(openPathMock).not.toHaveBeenCalled();
+
+		mockState.onHint!({ ruleId: "sha", text: "deadbeef" });
+		await waitFor(() => expect(writeText).toHaveBeenCalledWith("deadbeef"));
+	});
+
+	it("notifies only for a long command that finished out of sight", async () => {
+		renderTerminal();
+		await waitFor(() => expect(mockState.onBlockFinished).toBeTypeOf("function"));
+
+		mockState.onBlockFinished!({ id: "0:1", exitCode: 0, durationMs: 12_000, visible: true });
+		mockState.onBlockFinished!({ id: "0:2", exitCode: 0, durationMs: 900, visible: false });
+		mockState.onBlockFinished!({ id: "0:3", exitCode: 0, durationMs: null, visible: false });
+		expect(showNotificationMock).not.toHaveBeenCalled();
+
+		mockState.onBlockFinished!({ id: "0:4", exitCode: 1, durationMs: 12_000, visible: false });
+		expect(showNotificationMock).toHaveBeenCalledWith({
+			id: "block-finished:s1:0:4",
+			title: "Command failed",
+			body: "after 12s",
+			type: "terminal",
+		});
+	});
+
 	it("hands the host's focus token to the surface", async () => {
 		renderTerminal({ focusToken: 3 });
 		await waitFor(() => expect(mockState.core).toBeDefined());
@@ -404,7 +528,7 @@ describe("BlockTerminal", () => {
 		// skin's own terminal colour and drifted from the terminal itself.
 		document.documentElement.style.removeProperty("--terminal-background");
 		const { transport } = harness();
-		render(<BlockTerminal transport={transport} sessionId="s1" historyBlocks={[]} />);
+		renderWithQuery(<BlockTerminal transport={transport} sessionId="s1" historyBlocks={[]} />);
 		await waitFor(() =>
 			expect(document.documentElement.style.getPropertyValue("--terminal-background")).toBe("#000000"),
 		);
@@ -414,7 +538,7 @@ describe("BlockTerminal", () => {
 		document.documentElement.style.removeProperty("--terminal-background");
 		useUiStore.setState({ terminalBackground: "charcoal" });
 		const { transport } = harness();
-		render(<BlockTerminal transport={transport} sessionId="s1" historyBlocks={[]} />);
+		renderWithQuery(<BlockTerminal transport={transport} sessionId="s1" historyBlocks={[]} />);
 		await waitFor(() =>
 			expect(document.documentElement.style.getPropertyValue("--terminal-background")).toBe("#1d2022"),
 		);
@@ -423,28 +547,28 @@ describe("BlockTerminal", () => {
 
 	it("uses Warp's line-height ratio", async () => {
 		const { transport } = harness();
-		render(<BlockTerminal transport={transport} sessionId="s1" historyBlocks={[]} />);
+		renderWithQuery(<BlockTerminal transport={transport} sessionId="s1" historyBlocks={[]} />);
 		await waitFor(() => expect(mockState.font).toBeDefined());
 		expect(mockState.font?.lineHeight).toBe(1.2);
 	});
 
 	it("prefers the bundled Hack family", async () => {
 		const { transport } = harness();
-		render(<BlockTerminal transport={transport} sessionId="s1" historyBlocks={[]} />);
+		renderWithQuery(<BlockTerminal transport={transport} sessionId="s1" historyBlocks={[]} />);
 		await waitFor(() => expect(mockState.font).toBeDefined());
 		expect(mockState.font?.family?.split(",")[0]).toBe('"Hack"');
 	});
 
 	it("feeds bytes from the mux channel into the core", async () => {
 		const { transport, emit } = harness();
-		render(<BlockTerminal transport={transport} sessionId="s1" historyBlocks={[]} />);
+		renderWithQuery(<BlockTerminal transport={transport} sessionId="s1" historyBlocks={[]} />);
 		emit("\x1b]133;A\x07\x1b]133;C\x07hello\n\x1b]133;D;0\x07");
 		await waitFor(() => expect(screen.getByText(/hello/)).toBeInTheDocument());
 	});
 
 	it("writes submitted text plus one newline and passes raw bytes unchanged", async () => {
 		const { transport } = harness();
-		render(<BlockTerminal transport={transport} sessionId="s1" historyBlocks={[]} />);
+		renderWithQuery(<BlockTerminal transport={transport} sessionId="s1" historyBlocks={[]} />);
 		await waitFor(() => expect(mockState.onSend).toBeTypeOf("function"));
 		mockState.onSend!("make test");
 		mockState.onSendRaw!("\x03");
@@ -454,7 +578,7 @@ describe("BlockTerminal", () => {
 
 	it("keeps the package renderer on the alternate screen", async () => {
 		const { transport, emit } = harness();
-		render(<BlockTerminal transport={transport} sessionId="s1" historyBlocks={[]} />);
+		renderWithQuery(<BlockTerminal transport={transport} sessionId="s1" historyBlocks={[]} />);
 		emit("\x1b[?1049h");
 		await waitFor(() => expect(mockState.altScreenActive).toBe(false));
 	});
@@ -462,7 +586,7 @@ describe("BlockTerminal", () => {
 	it("routes copy actions through Operator's clipboard bridge", async () => {
 		const writeText = vi.fn().mockResolvedValue(undefined);
 		const { transport, emit } = harness();
-		render(
+		renderWithQuery(
 			<BlockTerminal transport={transport} sessionId="s1" historyBlocks={[]} clipboard={{ writeText }} />,
 		);
 		emit("\x1b]133;A\x07\x1b]7000;v=1;cmd=ls\x07\x1b]133;C\x07a.txt\n\x1b]133;D;0\x07");
@@ -473,7 +597,7 @@ describe("BlockTerminal", () => {
 
 	it("renders history blocks before any live block arrives", async () => {
 		const { transport } = harness();
-		render(
+		renderWithQuery(
 			<BlockTerminal
 				transport={transport}
 				sessionId="s1"
@@ -513,7 +637,7 @@ describe("BlockTerminal", () => {
 
 	it("upserts a live block whose id was already replayed from history, via the mock core's id-keyed seam", async () => {
 		const { transport, emit } = harness();
-		render(
+		renderWithQuery(
 			<BlockTerminal
 				transport={transport}
 				sessionId="s1"
@@ -528,7 +652,7 @@ describe("BlockTerminal", () => {
 		const resize = vi.fn();
 		const { transport } = harness();
 		const merged = { ...transport, resize };
-		render(<BlockTerminal transport={merged} sessionId="s1" historyBlocks={[]} />);
+		renderWithQuery(<BlockTerminal transport={merged} sessionId="s1" historyBlocks={[]} />);
 		await waitFor(() => expect(resize).toHaveBeenCalled());
 		const [cols, rows] = resize.mock.calls.at(-1)!;
 		expect(cols).toBeGreaterThan(0);

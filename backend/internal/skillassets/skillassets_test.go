@@ -110,8 +110,8 @@ func TestInstall_WritesSkillAndIsIdempotent(t *testing.T) {
 	} else if len(b) == 0 {
 		t.Fatalf("SKILL.md is empty")
 	}
-	if _, err := os.Stat(filepath.Join(Dir(dataDir), "commands", "spawn.md")); err != nil {
-		t.Fatalf("commands/spawn.md missing: %v", err)
+	if _, err := os.Stat(filepath.Join(Dir(dataDir), "commands", "session.md")); err != nil {
+		t.Fatalf("commands/session.md missing: %v", err)
 	}
 	if _, err := os.Stat(filepath.Join(Dir(dataDir), "commands", "browser.md")); err != nil {
 		t.Fatalf("commands/browser.md missing: %v", err)
@@ -142,7 +142,7 @@ func TestMaterialize_WritesIntoArbitraryDest(t *testing.T) {
 	} else if len(b) == 0 {
 		t.Fatal("SKILL.md is empty")
 	}
-	if _, err := os.Stat(filepath.Join(dest, "commands", "spawn.md")); err != nil {
-		t.Fatalf("commands/spawn.md missing: %v", err)
+	if _, err := os.Stat(filepath.Join(dest, "commands", "session.md")); err != nil {
+		t.Fatalf("commands/session.md missing: %v", err)
 	}
 }

@@ -620,58 +620,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/orchestrators": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List orchestrator sessions across projects */
-        get: operations["listOrchestrators"];
-        put?: never;
-        /** Spawn an orchestrator session */
-        post: operations["spawnOrchestrator"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/orchestrators/{id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Fetch one orchestrator session */
-        get: operations["getOrchestrator"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/orchestrators/delegate": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Start a worker task and ask the orchestrator to title it */
-        post: operations["delegateTask"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/projects": {
         parameters: {
             query?: never;
@@ -720,40 +668,6 @@ export interface paths {
         /** Replace a project's per-project config */
         put: operations["setProjectConfig"];
         post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/projects/{id}/inbox": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List a project's pending orchestrator inbox events */
-        get: operations["listInboxEvents"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/projects/{id}/inbox/ack": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Acknowledge pending orchestrator inbox events by id */
-        post: operations["ackInboxEvents"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1046,6 +960,23 @@ export interface paths {
         post?: never;
         /** Unregister a phone's Expo push token */
         delete: operations["unregisterPushDevice"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/redaction/patterns": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List the secret shapes a client should mask locally */
+        get: operations["getRedactionPatterns"];
+        put?: never;
+        post?: never;
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -1789,6 +1720,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/sessions/delegate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Spawn a worker session for a task */
+        post: operations["delegateTask"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/settings": {
         parameters: {
             query?: never;
@@ -1991,12 +1939,6 @@ export interface components {
             message: string;
             requestId?: string;
         };
-        AckInboxEventsRequest: {
-            ids: string[];
-        };
-        AckInboxEventsResponse: {
-            acked: number;
-        };
         AddProjectInput: {
             asWorkspace?: boolean;
             config?: components["schemas"]["ProjectConfig"];
@@ -2184,9 +2126,6 @@ export interface components {
             /** Format: int64 */
             totalTokens: number;
         };
-        ContainerReapConfig: {
-            disabled?: boolean;
-        };
         ControllersRelaunchAgentRequest: {
             claudeAccountId?: string;
             keepPrompt?: boolean;
@@ -2263,7 +2202,6 @@ export interface components {
             isPinned: boolean;
             isTerminated: boolean;
             issueId?: string;
-            kind: string;
             latestAssistantUpdate?: string;
             latestUserPrompt?: string;
             model?: string;
@@ -2280,7 +2218,6 @@ export interface components {
             reviewerHarness?: "claude-code" | "codex" | "copilot" | "cursor" | "kilocode" | "opencode" | "kiro" | "pi" | "qwen" | "agy" | "continue" | "goose" | "vibe" | "devin" | "droid" | "kimi" | "kimchi" | "muse" | "amp" | "aider" | "grok" | "crush" | "auggie" | "cline" | "autohand";
             /** @enum {string} */
             scmStatus?: "pr_open" | "draft" | "ci_failed" | "review_pending" | "changes_requested" | "approved" | "mergeable" | "merged";
-            spawnedBy?: string;
             /** @enum {string} */
             status: "working" | "pr_open" | "draft" | "ci_failed" | "review_pending" | "changes_requested" | "approved" | "mergeable" | "merged" | "needs_input" | "exited" | "idle" | "terminated" | "no_signal";
             terminalHandleId?: string;
@@ -2335,7 +2272,6 @@ export interface components {
         };
         DelegateTaskResponse: {
             ok: boolean;
-            orchestratorId?: string;
             workerId: string;
         };
         DesktopResponse: {
@@ -2414,17 +2350,6 @@ export interface components {
             path: string;
             repos: components["schemas"]["ImportFolderScanRepo"][];
             setupWarning?: string;
-        };
-        InboxEntryView: {
-            id: string;
-            /** @enum {string} */
-            kind: "worker_idle" | "ci_failed" | "review_changes_requested";
-            /** Format: date-time */
-            occurredAt: string;
-            worker: components["schemas"]["ControllersSessionView"];
-        };
-        InboxResponse: {
-            entries: components["schemas"]["InboxEntryView"][];
         };
         InitializeRepositoryInput: {
             path: string;
@@ -2737,15 +2662,6 @@ export interface components {
             /** @description Session whose workspace the shell starts in - its worktree, or the project checkout for an in-place session. Takes precedence over projectId, and attributes the shell to that session. */
             sessionId?: string;
         };
-        OrchestratorPolicy: {
-            maxLiveWorkers?: number;
-            maxSpawnsPerHour?: number;
-        };
-        OrchestratorResponse: {
-            id: string;
-            projectId: string;
-            projectName?: string;
-        };
         PRReviewState: {
             latestRun?: components["schemas"]["ReviewRun"];
             prNumber: number;
@@ -2807,24 +2723,18 @@ export interface components {
             workspaceRepos?: components["schemas"]["WorkspaceRepo"][];
         };
         ProjectConfig: {
+            agent?: string;
             agentConfig?: components["schemas"]["AgentConfig"];
-            agentRules?: string;
-            agentRulesFile?: string;
-            containerReap?: components["schemas"]["ContainerReapConfig"];
             defaultBranch?: string;
             env?: {
                 [key: string]: string;
             };
-            orchestrator?: components["schemas"]["RoleOverride"];
-            orchestratorPolicy?: components["schemas"]["OrchestratorPolicy"];
-            orchestratorRules?: string;
             postCreate?: string[];
             reviewers?: components["schemas"]["DomainReviewerConfig"][];
             sessionPrefix?: string;
             symlinks?: string[];
             tickets?: components["schemas"]["TicketDefaults"];
             trackerIntake?: components["schemas"]["TrackerIntakeConfig"];
-            worker?: components["schemas"]["RoleOverride"];
         };
         ProjectGetResponse: {
             project: components["schemas"]["ProjectOrDegraded"];
@@ -2840,7 +2750,6 @@ export interface components {
             /** @enum {string} */
             kind: "single_repo" | "workspace" | "scratch";
             name: string;
-            orchestratorAgent?: string;
             path: string;
             resolveError?: string;
             sessionPrefix: string;
@@ -2856,6 +2765,13 @@ export interface components {
             lastSeenAt: string;
             platform?: string;
             token: string;
+        };
+        RedactionPattern: {
+            flags: string;
+            source: string;
+        };
+        RedactionPatternsResponse: {
+            patterns: components["schemas"]["RedactionPattern"][];
         };
         RegisterPushDeviceRequest: {
             /** @description Human-friendly device label. */
@@ -2941,10 +2857,6 @@ export interface components {
             review: components["schemas"]["ReviewRun"];
             reviewerHandleId: string;
             reviews: components["schemas"]["ReviewRun"][];
-        };
-        RoleOverride: {
-            agent?: string;
-            agentConfig?: components["schemas"]["AgentConfig"];
         };
         RollbackSessionResponse: {
             deleted?: boolean;
@@ -3217,18 +3129,10 @@ export interface components {
             meta: boolean;
             shift: boolean;
         };
-        SpawnOrchestratorRequest: {
-            claudeAccountId?: string;
-            clean?: boolean;
-            projectId: string;
-        };
-        SpawnOrchestratorResponse: {
-            orchestrator: components["schemas"]["OrchestratorResponse"];
-        };
         SpawnSessionRequest: {
             attachments?: components["schemas"]["AttachmentInput"][];
             branch?: string;
-            /** @description Claude account for a claude-code session. Omit for the default account, or for a worker to inherit its orchestrator's account. */
+            /** @description Claude account for a claude-code session. Omit for the default account. */
             claudeAccountId?: string;
             /** @description Columns of the terminal pane that will show the session, so the pty is born at that width instead of being resized on first attach. Omit when unknown. */
             cols?: number;
@@ -3236,11 +3140,8 @@ export interface components {
             /** @enum {string} */
             harness?: "claude-code" | "codex" | "aider" | "opencode" | "grok" | "droid" | "amp" | "agy" | "crush" | "cursor" | "qwen" | "copilot" | "goose" | "auggie" | "continue" | "devin" | "cline" | "kimi" | "muse" | "kiro" | "kilocode" | "vibe" | "pi" | "kimchi" | "prime-agent" | "autohand";
             issueId?: string;
-            /** @enum {string} */
-            kind?: "worker" | "orchestrator";
             projectId: string;
             prompt?: string;
-            requestedBy?: string;
             /** @description Rows of the terminal pane that will show the session; see cols. */
             rows?: number;
             /** @enum {string} */
@@ -5364,223 +5265,6 @@ export interface operations {
             };
         };
     };
-    listOrchestrators: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ListSessionsResponse"];
-                };
-            };
-            /** @description Internal Server Error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["APIError"];
-                };
-            };
-            /** @description Not Implemented */
-            501: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["APIError"];
-                };
-            };
-        };
-    };
-    spawnOrchestrator: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["SpawnOrchestratorRequest"];
-            };
-        };
-        responses: {
-            /** @description Created */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SpawnOrchestratorResponse"];
-                };
-            };
-            /** @description Bad Request */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["APIError"];
-                };
-            };
-            /** @description Not Found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["APIError"];
-                };
-            };
-            /** @description Internal Server Error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["APIError"];
-                };
-            };
-            /** @description Not Implemented */
-            501: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["APIError"];
-                };
-            };
-        };
-    };
-    getOrchestrator: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Orchestrator session identifier, e.g. project-orchestrator. */
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SessionResponse"];
-                };
-            };
-            /** @description Not Found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["APIError"];
-                };
-            };
-            /** @description Internal Server Error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["APIError"];
-                };
-            };
-            /** @description Not Implemented */
-            501: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["APIError"];
-                };
-            };
-        };
-    };
-    delegateTask: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["DelegateTaskRequest"];
-            };
-        };
-        responses: {
-            /** @description Accepted */
-            202: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["DelegateTaskResponse"];
-                };
-            };
-            /** @description Bad Request */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["APIError"];
-                };
-            };
-            /** @description Not Found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["APIError"];
-                };
-            };
-            /** @description Conflict */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["APIError"];
-                };
-            };
-            /** @description Internal Server Error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["APIError"];
-                };
-            };
-            /** @description Not Implemented */
-            501: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["APIError"];
-                };
-            };
-        };
-    };
     listProjects: {
         parameters: {
             query?: never;
@@ -5851,101 +5535,6 @@ export interface operations {
             };
             /** @description Internal Server Error */
             500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["APIError"];
-                };
-            };
-        };
-    };
-    listInboxEvents: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Project identifier (registry key). */
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["InboxResponse"];
-                };
-            };
-            /** @description Internal Server Error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["APIError"];
-                };
-            };
-            /** @description Not Implemented */
-            501: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["APIError"];
-                };
-            };
-        };
-    };
-    ackInboxEvents: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Project identifier (registry key). */
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["AckInboxEventsRequest"];
-            };
-        };
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["AckInboxEventsResponse"];
-                };
-            };
-            /** @description Bad Request */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["APIError"];
-                };
-            };
-            /** @description Internal Server Error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["APIError"];
-                };
-            };
-            /** @description Not Implemented */
-            501: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -7174,6 +6763,26 @@ export interface operations {
             };
         };
     };
+    getRedactionPatterns: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RedactionPatternsResponse"];
+                };
+            };
+        };
+    };
     setReviewActivity: {
         parameters: {
             query?: never;
@@ -7244,8 +6853,6 @@ export interface operations {
                 project?: string;
                 /** @description When true, return non-terminated sessions; when false, return terminated sessions. */
                 active?: null | boolean;
-                /** @description When true, return only orchestrator sessions. */
-                orchestratorOnly?: null | boolean;
                 /** @description When true, return only fresh non-terminated sessions. */
                 fresh?: null | boolean;
             };
@@ -10036,6 +9643,75 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CleanupSessionsResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    delegateTask: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DelegateTaskRequest"];
+            };
+        };
+        responses: {
+            /** @description Accepted */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DelegateTaskResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
                 };
             };
             /** @description Internal Server Error */

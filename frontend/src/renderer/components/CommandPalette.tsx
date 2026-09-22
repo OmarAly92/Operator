@@ -19,9 +19,7 @@ import {
 import { iconForCommand } from "../lib/command-palette-icons";
 import { isDialogOrMenuOpen, terminalHasFocus } from "../lib/dom-selectors";
 import { isMacPlatform } from "../lib/platform";
-import { spawnOrchestrator } from "../lib/spawn-orchestrator";
 import { useShell } from "../lib/shell-context";
-import { findProjectOrchestrator, hasConfiguredOrchestratorAgent } from "../types/workspace";
 import { useUiStore } from "../stores/ui-store";
 import { matchesRendererShortcut } from "../stores/keybindings-store";
 import { Button } from "./ui/button";
@@ -48,7 +46,6 @@ export function CommandPalette() {
 	const setThemePreference = useUiStore((s) => s.setThemePreference);
 	const isOpen = useUiStore((s) => s.isCommandPaletteOpen);
 	const setOpen = useUiStore((s) => s.setCommandPaletteOpen);
-	const restartingProjectIds = useUiStore((s) => s.restartingProjectIds);
 
 	const [view, setView] = useState<PaletteView>({ mode: "root" });
 	const [query, setQuery] = useState("");
@@ -73,9 +70,8 @@ export function CommandPalette() {
 				workspaces,
 				currentProjectId,
 				currentSessionId: params.sessionId,
-				restartingProjectIds,
 			}, t),
-		[workspaces, currentProjectId, params.sessionId, restartingProjectIds, t, i18n.resolvedLanguage],
+		[workspaces, currentProjectId, params.sessionId, t, i18n.resolvedLanguage],
 	);
 	const scoped = useMemo(
 		() => (view.mode === "session-actions" ? findSession(workspaces, view.sessionId) : undefined),
@@ -197,40 +193,6 @@ export function CommandPalette() {
 		[navigate],
 	);
 
-	const blockedByRestart = useCallback((projectId: string) => {
-		if (!useUiStore.getState().restartingProjectIds.has(projectId)) return false;
-		setError(t("command.orchestratorRestarting"));
-		return true;
-	}, [t]);
-
-	const openOrchestrator = useCallback(
-		async (projectId: string) => {
-			if (blockedByRestart(projectId)) return;
-			const orchestrator = findProjectOrchestrator(workspaces, projectId);
-			if (orchestrator) {
-				navigateToTarget({
-					to: "/projects/$projectId/sessions/$sessionId",
-					params: { projectId, sessionId: orchestrator.id },
-				});
-				closePalette();
-				return;
-			}
-			const workspace = workspaces.find((candidate) => candidate.id === projectId);
-			if (!hasConfiguredOrchestratorAgent(workspace)) {
-				if (workspace) {
-					navigateToTarget({ to: "/projects/$projectId/settings", params: { projectId } });
-					closePalette();
-				}
-				return;
-			}
-			const sessionId = await spawnOrchestrator(projectId, "command_palette");
-			await queryClient.invalidateQueries({ queryKey: workspaceQueryKey });
-			navigateToTarget({ to: "/projects/$projectId/sessions/$sessionId", params: { projectId, sessionId } });
-			closePalette();
-		},
-		[workspaces, navigateToTarget, queryClient, closePalette, blockedByRestart],
-	);
-
 	const resumeSession = useCallback(
 		async (sessionId: string) => {
 			const result = await restoreSessionById(sessionId);
@@ -282,16 +244,12 @@ export function CommandPalette() {
 						break;
 					}
 					case "open-new-task":
-						if (blockedByRestart(action.projectId)) break;
 						pushView({ mode: "new-task", projectId: action.projectId });
 						break;
 					case "open-new-project":
 						closePalette();
 						choosePathRef.current?.();
 						break;
-					case "open-orchestrator":
-							await openOrchestrator(action.projectId);
-							break;
 				}
 			} catch (err) {
 				if (isCurrentRun()) setError(err instanceof Error ? err.message : t("command.failed"));
@@ -300,7 +258,7 @@ export function CommandPalette() {
 				setPendingId(null);
 			}
 		},
-		[navigateToTarget, closePalette, toggleTheme, openOrchestrator, resumeSession, pushView, blockedByRestart, t],
+		[navigateToTarget, closePalette, toggleTheme, resumeSession, pushView, t],
 	);
 
 	const onSelectItem = useCallback(

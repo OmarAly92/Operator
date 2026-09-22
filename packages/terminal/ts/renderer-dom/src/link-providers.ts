@@ -1,0 +1,76 @@
+import { detectLinks, LINK_MAX_LINE_LENGTH, LINK_MAX_RESOLVED_LENGTH, LINK_MAX_RESOLVED_PER_LINE, type LinkOs } from "./link-parsing.js";
+import type { LinkRange, LogicalLineView } from "./logical-lines.js";
+
+export type LinkKind = "hyperlink" | "url" | "path";
+export type DetectedLink = Readonly<{ kind: LinkKind; text: string; uri?: string; path?: string; line?: number; column?: number; range: LinkRange }>;
+export type LinkProvider = (line: LogicalLineView) => Promise<readonly DetectedLink[]>;
+
+// xterm.js/addons/addon-web-links/src/WebLinksAddon.ts:21 (strictUrlRegex)
+const STRICT_URL = /(https?|HTTPS?):[/]{2}[^\s"'!*(){}|\\^<>`]*[^\s"':,.!?{}|\\^~\[\]`()<>]/g;
+const SCHEME = /^[a-z][a-z0-9+.-]*:\/\//iu;
+const PATH_CACHE_CAPACITY = 256;
+
+export const hyperlinkProvider: LinkProvider = async (line) => {
+	const out: DetectedLink[] = [];
+	let index = 0;
+	while (index < line.linkRuns.length) {
+		const first = line.linkRuns[index]!;
+		let end = first.endOffset;
+		let next = index + 1;
+		while (next < line.linkRuns.length && line.linkRuns[next]!.linkId === first.linkId && line.linkRuns[next]!.startOffset === end) {
+			end = line.linkRuns[next]!.endOffset;
+			next += 1;
+		}
+		const uri = line.linkUri(first.linkId);
+		if (uri !== null) out.push({ kind: "hyperlink", text: line.text.slice(first.startOffset, end), uri, range: line.rangeOf(first.startOffset, end) });
+		index = next;
+	}
+	return out;
+};
+
+export const urlProvider: LinkProvider = async (line) => {
+	const out: DetectedLink[] = [];
+	for (const match of line.text.matchAll(STRICT_URL)) {
+		const start = match.index ?? 0;
+		out.push({ kind: "url", text: match[0], uri: match[0], range: line.rangeOf(start, start + match[0].length) });
+	}
+	return out;
+};
+
+export function createPathProvider(
+	resolve: (path: string, cwd: string) => Promise<string | null>,
+	cwdOf: (blockId: string) => string,
+	os: LinkOs,
+): LinkProvider {
+	const cache = new Map<string, Promise<string | null>>();
+	const lookup = (path: string, cwd: string): Promise<string | null> => {
+		const key = `${cwd}\u0000${path}`;
+		let pending = cache.get(key);
+		if (!pending) {
+			pending = resolve(path, cwd);
+			cache.set(key, pending);
+			if (cache.size > PATH_CACHE_CAPACITY) cache.delete(cache.keys().next().value as string);
+		}
+		return pending;
+	};
+	return async (line) => {
+		if (line.text.length === 0 || line.text.length > LINK_MAX_LINE_LENGTH) return [];
+		const cwd = cwdOf(line.blockId);
+		const urls = [...line.text.matchAll(STRICT_URL)].map((match) => [match.index ?? 0, (match.index ?? 0) + match[0].length] as const);
+		const out: DetectedLink[] = [];
+		for (const candidate of detectLinks(line.text, os)) {
+			if (out.length >= LINK_MAX_RESOLVED_PER_LINE) break;
+			const raw = candidate.path.text;
+			if (raw.length > LINK_MAX_RESOLVED_LENGTH || SCHEME.test(raw)) continue;
+			if (urls.some(([start, end]) => candidate.path.index >= start && candidate.path.index < end)) continue;
+			const resolved = await lookup(raw, cwd);
+			if (resolved === null) continue;
+			const start = candidate.prefix ? candidate.prefix.index : candidate.path.index;
+			const end = candidate.suffix ? candidate.suffix.suffix.index + candidate.suffix.suffix.text.length : candidate.path.index + candidate.path.text.length;
+			out.push({ kind: "path", text: line.text.slice(start, end), path: resolved, line: candidate.suffix?.row, column: candidate.suffix?.col, range: line.rangeOf(start, end) });
+		}
+		return out;
+	};
+}
+
+export const DEFAULT_LINK_PROVIDERS: readonly LinkProvider[] = [hyperlinkProvider, urlProvider];

@@ -401,10 +401,10 @@ func TestProjectsAPI_RejectsUnknownConfigKeys(t *testing.T) {
 	body, status, _ = doRequest(t, srv, "PUT", "/api/v1/projects/rej", `{"displayName":"Rejects unknown","config":{"defaultBranch":"develop"},"surprise":"!"}`)
 	assertErrorCode(t, body, status, http.StatusBadRequest, "INVALID_JSON")
 
-	// Prompt rules are now modeled and accepted in project config.
-	body, status, _ = doRequest(t, srv, "PUT", "/api/v1/projects/rej", `{"displayName":"Rejects unknown","config":{"agentRules":"x"}}`)
+	// The harness field is modeled and accepted in project config.
+	body, status, _ = doRequest(t, srv, "PUT", "/api/v1/projects/rej", `{"displayName":"Rejects unknown","config":{"agent":"codex"}}`)
 	if status != http.StatusOK {
-		t.Fatalf("agentRules settings = %d, want 200; body=%s", status, body)
+		t.Fatalf("agent settings = %d, want 200; body=%s", status, body)
 	}
 
 	// A still-unknown nested config field is rejected, so misspellings cannot be
@@ -412,12 +412,17 @@ func TestProjectsAPI_RejectsUnknownConfigKeys(t *testing.T) {
 	body, status, _ = doRequest(t, srv, "PUT", "/api/v1/projects/rej", `{"displayName":"Rejects unknown","config":{"tracker":{"plugin":"github"}}}`)
 	assertErrorCode(t, body, status, http.StatusBadRequest, "INVALID_JSON")
 
+	// agentRules was removed in favor of a single project agent; it must now be
+	// rejected like any other unknown key.
+	body, status, _ = doRequest(t, srv, "PUT", "/api/v1/projects/rej", `{"displayName":"Rejects unknown","config":{"agentRules":"x"}}`)
+	assertErrorCode(t, body, status, http.StatusBadRequest, "INVALID_JSON")
+
 	// POST /projects gets the same gate, so add-time config rides the same rail.
+	// orchestratorRules was removed once its only consumer (the orchestrator)
+	// was deleted, so it is now rejected like any other unknown key.
 	otherRepo := gitRepo(t, "rejects-unknown-add")
 	body, status, _ = doRequest(t, srv, "POST", "/api/v1/projects", `{"path":`+quote(otherRepo)+`,"projectId":"rej2","config":{"orchestratorRules":"x"}}`)
-	if status != http.StatusCreated {
-		t.Fatalf("orchestratorRules add config = %d, want 201; body=%s", status, body)
-	}
+	assertErrorCode(t, body, status, http.StatusBadRequest, "INVALID_JSON")
 }
 
 func TestProjectsRoutes_LegacyUnregistered(t *testing.T) {

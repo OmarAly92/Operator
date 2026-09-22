@@ -70,8 +70,6 @@ type APIDeps struct {
 	Browser             controllers.BrowserService
 	PreviewServer       controllers.ManagedPreviewServer
 	SessionCapabilities controllers.SessionCapabilityValidator
-	Inbox               controllers.InboxEventStore
-	InboxSessions       controllers.InboxSessionReader
 	Tickets             controllers.TicketService
 }
 
@@ -93,8 +91,8 @@ type API struct {
 	dev            *controllers.DevController
 	browser        *controllers.BrowserController
 	desktop        *controllers.DesktopController
+	redaction      *controllers.RedactionController
 	events         *EventsController
-	inbox          *controllers.InboxController
 	tickets        *controllers.TicketsController
 }
 
@@ -133,8 +131,8 @@ func NewAPI(cfg config.Config, deps APIDeps) *API {
 		dev:            &controllers.DevController{Import: deps.DevImport, Scan: deps.DevScan, Replay: deps.DevBlockReplay},
 		browser:        &controllers.BrowserController{Svc: deps.Browser},
 		desktop:        &controllers.DesktopController{},
+		redaction:      &controllers.RedactionController{},
 		events:         &EventsController{Source: deps.CDC, Live: deps.Events},
-		inbox:          &controllers.InboxController{Events: deps.Inbox, Sessions: deps.InboxSessions},
 		tickets:        &controllers.TicketsController{Svc: deps.Tickets},
 	}
 }
@@ -170,9 +168,9 @@ func (a *API) Register(root chi.Router) {
 			a.claudeAccounts.Register(r)
 			a.dev.Register(r)
 			a.browser.Register(r)
-			a.inbox.Register(r)
 			a.tickets.Register(r)
 			a.desktop.Register(r)
+			a.redaction.Register(r)
 			// Sibling REST controllers plug in here.
 		})
 		// Agent switching synchronously collects a handoff, starts the target,

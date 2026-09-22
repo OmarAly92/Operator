@@ -61,7 +61,6 @@ describe("useWorkspaceQuery", () => {
 							id: "proj-1",
 							name: "my-app",
 							path: "/home/me/my-app",
-							orchestratorAgent: "codex",
 						},
 					],
 				},
@@ -113,7 +112,6 @@ describe("useWorkspaceQuery", () => {
 			id: "proj-1",
 			name: "my-app",
 			path: "/home/me/my-app",
-			orchestratorAgent: "codex",
 		});
 		expect(workspace.sessions).toHaveLength(2);
 		expect(workspace.sessions[0]).toMatchObject({

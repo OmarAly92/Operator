@@ -12,7 +12,6 @@ import 'package:operator_mobile/core/helpers/cache/cache_helper.dart';
 import 'package:operator_mobile/core/helpers/result/result.dart';
 import 'package:operator_mobile/core/mux/mux_client.dart';
 import 'package:operator_mobile/feature/sessions/data/model/board_snapshot.dart';
-import 'package:operator_mobile/feature/sessions/data/model/orchestrator_model.dart';
 import 'package:operator_mobile/feature/sessions/data/model/project_model.dart';
 import 'package:operator_mobile/feature/sessions/data/model/session_model.dart';
 import 'package:operator_mobile/feature/sessions/data/repository/sessions_repository.dart';
@@ -80,7 +79,6 @@ void main() {
           GlobalResponse(
             data: BoardSnapshot(
               sessions: [SessionModel(id: 'worker-$fetches')],
-              orchestrators: [OrchestratorModel(id: 'orchestrator-$fetches')],
               projects: [ProjectModel(id: 'project-$fetches')],
             ),
           ),
@@ -93,7 +91,6 @@ void main() {
       expect(cubit.sessions.single.id, 'worker-1');
       source.set(_configB);
       expect(cubit.sessions, isEmpty);
-      expect(cubit.orchestrators, isEmpty);
       expect(cubit.projects, isEmpty);
       await Future<void>.delayed(Duration.zero);
     },
@@ -194,7 +191,7 @@ void main() {
     },
   );
 
-  test('coalesces board changes and replaces workers, orchestrators and projects', () {
+  test('coalesces board changes and replaces workers and projects', () {
     fakeAsync((async) {
       var fetches = 0;
       when(() => repository.getBoard()).thenAnswer((_) async {
@@ -203,7 +200,6 @@ void main() {
           GlobalResponse(
             data: BoardSnapshot(
               sessions: [SessionModel(id: 'worker-$fetches')],
-              orchestrators: [OrchestratorModel(id: 'orchestrator-$fetches')],
               projects: [ProjectModel(id: 'project-$fetches')],
             ),
           ),
@@ -217,7 +213,6 @@ void main() {
       async.elapse(const Duration(milliseconds: 200));
       expect(fetches, 2);
       expect(cubit.sessions.single.id, 'worker-2');
-      expect(cubit.orchestrators.single.id, 'orchestrator-2');
       expect(cubit.projects.single.id, 'project-2');
       cubit.close();
     });
@@ -416,14 +411,13 @@ void main() {
   });
 
   blocTest<SessionsCubit, SessionsState>(
-    'exposes projects and orchestrators from one board fetch',
+    'exposes projects from one board fetch',
     build: () {
       when(() => repository.getBoard()).thenAnswer(
         (_) async => Result.success(
           GlobalResponse(
             data: const BoardSnapshot(
               sessions: [SessionModel(id: 'proj-1', projectId: 'p')],
-              orchestrators: [OrchestratorModel(id: 'o1', projectId: 'p')],
               projects: [ProjectModel(id: 'p', name: 'My App')],
             ),
           ),
@@ -434,7 +428,6 @@ void main() {
     act: (cubit) => Future<void>.delayed(Duration.zero),
     verify: (cubit) {
       expect(cubit.projects.single.name, 'My App');
-      expect(cubit.orchestrators.single.id, 'o1');
       expect(cubit.sessions.single.id, 'proj-1');
     },
   );

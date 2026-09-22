@@ -1188,6 +1188,8 @@ void (async () => {
             updater::updates_apply_settings,
             native::choose_directory,
             native::open_external,
+            native::resolve_path,
+            native::open_path,
             native::clipboard_write,
             native::clipboard_read,
             native::notification_show,

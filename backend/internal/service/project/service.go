@@ -116,12 +116,11 @@ func (m *Service) List(ctx context.Context) ([]Summary, error) {
 	out := make([]Summary, 0, len(projects))
 	for _, row := range projects {
 		out = append(out, Summary{
-			ID:                domain.ProjectID(row.ID),
-			Name:              displayName(row),
-			Path:              row.Path,
-			Kind:              row.Kind.WithDefault(),
-			SessionPrefix:     resolveSessionPrefix(row),
-			OrchestratorAgent: row.Config.Orchestrator.Harness,
+			ID:            domain.ProjectID(row.ID),
+			Name:          displayName(row),
+			Path:          row.Path,
+			Kind:          row.Kind.WithDefault(),
+			SessionPrefix: resolveSessionPrefix(row),
 		})
 	}
 	return out, nil
@@ -575,8 +574,7 @@ func (m *Service) EnsureDefaultScratchProject(ctx context.Context, scratchPath s
 	}
 
 	cfg := domain.ProjectConfig{
-		Worker:       domain.RoleOverride{Harness: m.defaultHarness},
-		Orchestrator: domain.RoleOverride{Harness: m.defaultHarness},
+		Harness: m.defaultHarness,
 	}
 	if err := cfg.Validate(); err != nil {
 		return Project{}, apierr.Internal("SCRATCH_PROJECT_SEED_FAILED", "Default scratch project config is invalid")

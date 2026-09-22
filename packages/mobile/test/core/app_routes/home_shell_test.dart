@@ -23,8 +23,6 @@ import 'package:operator_mobile/feature/notification/logic/push_registration.dar
 import 'package:operator_mobile/feature/notification/logic/push_status.dart';
 import 'package:operator_mobile/feature/notification/logic/push_token_source.dart';
 import 'package:operator_mobile/feature/notification/presentation/notifications_screen/logic/notifications_cubit.dart';
-import 'package:operator_mobile/feature/orchestrator/data/repository/orchestrator_repository.dart';
-import 'package:operator_mobile/feature/orchestrator/presentation/orchestrator_screen/logic/orchestrator_cubit.dart';
 import 'package:operator_mobile/feature/pairing/data/repository/desktops_repository.dart';
 import 'package:operator_mobile/feature/pull_request/data/repository/pull_request_repository.dart';
 import 'package:operator_mobile/feature/pull_request/presentation/pull_requests_screen/logic/pull_request_cubit.dart';
@@ -40,8 +38,6 @@ class _MockSessionsRepository extends Mock implements SessionsRepository {}
 class _MockMuxClient extends Mock implements MuxClient {}
 
 class _MockPullRequestRepository extends Mock implements PullRequestRepository {}
-
-class _MockOrchestratorRepository extends Mock implements OrchestratorRepository {}
 
 class _MockServerConfigStore extends Mock implements ServerConfigStore {}
 
@@ -115,7 +111,6 @@ void main() {
     );
     await sl.reset();
     sl.registerFactory<PullRequestCubit>(() => PullRequestCubit(_MockPullRequestRepository()));
-    sl.registerFactory<OrchestratorCubit>(() => OrchestratorCubit(_MockOrchestratorRepository()));
     final serverConfigStore = _MockServerConfigStore();
     when(() => serverConfigStore.current).thenReturn(null);
     when(() => serverConfigStore.changes).thenAnswer((_) => const Stream.empty());
@@ -175,10 +170,10 @@ void main() {
     await settle(tester);
   }
 
-  testWidgets('offers all four tabs', (tester) async {
+  testWidgets('offers all three tabs', (tester) async {
     await pumpShell(tester);
 
-    for (final label in ['Agents', 'Orchestrator', 'PRs', 'Settings']) {
+    for (final label in ['Agents', 'PRs', 'Settings']) {
       expect(tabLabel(label), findsOneWidget);
     }
   });
@@ -195,14 +190,14 @@ void main() {
     await tester.tap(tabLabel('Settings'));
     await settle(tester);
 
-    expect(tester.widget<BottomNavigationBar>(find.byType(BottomNavigationBar)).currentIndex, 3);
+    expect(tester.widget<BottomNavigationBar>(find.byType(BottomNavigationBar)).currentIndex, 2);
   });
 
   testWidgets('keeps every tab mounted so each keeps its state', (tester) async {
     await pumpShell(tester);
 
     expect(find.byType(IndexedStack), findsOneWidget);
-    expect(tester.widget<IndexedStack>(find.byType(IndexedStack)).children.length, 4);
+    expect(tester.widget<IndexedStack>(find.byType(IndexedStack)).children.length, 3);
   });
 
   testWidgets('re-tapping the active tab scrolls its list to the top', (tester) async {
@@ -254,7 +249,7 @@ void main() {
     await tester.tap(tabLabel('PRs'));
     await settle(tester);
 
-    expect(HomeShell.selectedTab.value, 2);
+    expect(HomeShell.selectedTab.value, 1);
     expect(agents.offset, 400);
   });
 }

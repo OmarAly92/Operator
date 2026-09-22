@@ -49,6 +49,21 @@ func TestRootCommandsHaveUniqueNames(t *testing.T) {
 	}
 }
 
+func TestRootCommandHasNoOrchestrationCommands(t *testing.T) {
+	root := NewRootCommand(Deps{})
+	removed := map[string]bool{"orchestrator": true, "board": true, "inbox": true, "send": true, "spawn": true}
+	kept := map[string]bool{"hooks": true, "pty-host": true, "browser": true, "preview": true, "session": true, "project": true, "status": true}
+	for _, cmd := range root.Commands() {
+		if removed[cmd.Name()] {
+			t.Errorf("command %q must be removed", cmd.Name())
+		}
+		delete(kept, cmd.Name())
+	}
+	for name := range kept {
+		t.Errorf("command %q must still be registered", name)
+	}
+}
+
 func TestCommandsRejectUnexpectedArgs(t *testing.T) {
 	for _, args := range [][]string{
 		{"daemon", "extra"},
@@ -120,7 +135,7 @@ func TestShouldEmitCLIInvocationSkipsNonUsageAndRoutineInternalCommands(t *testi
 		"pty-host":     false,
 		"pane-capture": false,
 		"status":       false,
-		"spawn":        true,
+		"session":      true,
 	} {
 		cmd, ok := byName[name]
 		if !ok {
@@ -193,7 +208,7 @@ func TestUsageErrorCommandDropsUserArgs(t *testing.T) {
 		wantCommand string
 		wantPath    string
 	}{
-		{[]string{"send", "orchestrator-pack-5", "wake", "heartbeat.reconcile"}, "send", "opr send"},
+		{[]string{"doctor", "extra"}, "doctor", "opr doctor"},
 		{[]string{"status", "extra"}, "status", "opr status"},
 		{[]string{"not-a-command", "whatever"}, "opr", "opr"},
 		{[]string{"--bad-flag"}, "opr", "opr"},
@@ -460,6 +475,22 @@ func serverPort(t *testing.T, raw string) int {
 		t.Fatal(err)
 	}
 	return port
+}
+
+// writeRunFileFor points the CLI's run-file at srv so postJSON/getJSON dial the
+// test server. It mirrors the run-file convention the other CLI tests use.
+func writeRunFileFor(t *testing.T, cfg testConfig, srv *httptest.Server) {
+	t.Helper()
+	if err := runfile.Write(cfg.runFile, runfile.Info{
+		PID: os.Getpid(), Port: serverPort(t, srv.URL), StartedAt: time.Unix(100, 0).UTC(),
+	}); err != nil {
+		t.Fatalf("write run-file: %v", err)
+	}
+}
+
+func authorizedAgentsJSON(agent string) string {
+	info := `{"id":` + jsonQuote(agent) + `,"label":` + jsonQuote(agent) + `,"authStatus":"authorized"}`
+	return `{"supported":[` + info + `],"installed":[` + info + `],"authorized":[` + info + `]}`
 }
 
 func closedPort(t *testing.T) int {

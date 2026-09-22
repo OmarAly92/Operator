@@ -5,7 +5,7 @@ import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/lo
 const String kDeepLinkScheme = 'aomobile';
 
 /// The PRs tab's index in `HomeShell`.
-const int kPrsTabIndex = 2;
+const int kPrsTabIndex = 1;
 
 class DeepLinkTarget extends Equatable {
   const DeepLinkTarget({required this.route, this.arguments, this.tabIndex});

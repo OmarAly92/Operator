@@ -131,7 +131,7 @@ describe("TaskComposer", () => {
 
 		await waitFor(() =>
 			expect(h.post).toHaveBeenCalledWith(
-				"/api/v1/orchestrators/delegate",
+				"/api/v1/sessions/delegate",
 				expect.objectContaining({ body: expect.objectContaining({ projectId: "proj-1", brief: "" }) }),
 			),
 		);
@@ -197,13 +197,13 @@ describe("TaskComposer", () => {
 
 		await waitFor(() => expect(onSubmittingChange).toHaveBeenLastCalledWith(true));
 		expect(h.post).toHaveBeenCalledWith(
-			"/api/v1/orchestrators/delegate",
+			"/api/v1/sessions/delegate",
 			expect.objectContaining({
 				body: expect.not.objectContaining({ attachments: expect.anything() }),
 			}),
 		);
 		expect(h.post).toHaveBeenCalledWith(
-			"/api/v1/orchestrators/delegate",
+			"/api/v1/sessions/delegate",
 			expect.objectContaining({
 				body: expect.objectContaining({ projectId: "proj-1", brief: "Do the thing" }),
 			}),
@@ -373,7 +373,7 @@ describe("TaskComposer", () => {
 				return { data: { agent: "codex", selectionMode: "text", models: [], allowCustom: true } };
 			}
 			return {
-				data: { status: "ok", project: { agent: "claude-code", config: { worker: { agent: "codex" } } } },
+				data: { status: "ok", project: { agent: "claude-code", config: { agent: "codex" } } },
 			};
 		});
 		h.post.mockResolvedValueOnce({ data: { workerId: "sess-3" } });
@@ -391,7 +391,7 @@ describe("TaskComposer", () => {
 
 		await waitFor(() =>
 			expect(h.post).toHaveBeenCalledWith(
-				"/api/v1/orchestrators/delegate",
+				"/api/v1/sessions/delegate",
 				expect.objectContaining({ body: expect.objectContaining({ agent: "codex" }) }),
 			),
 		);
@@ -566,7 +566,7 @@ describe("TaskComposer", () => {
 				data: {
 					status: "ok",
 					project: {
-						config: { worker: { agent: "codex", agentConfig: { model: "gpt-5" } } },
+						config: { agent: "codex", agentConfig: { model: "gpt-5" } },
 					},
 				},
 			};
@@ -586,7 +586,7 @@ describe("TaskComposer", () => {
 
 		await waitFor(() =>
 			expect(h.post).toHaveBeenCalledWith(
-				"/api/v1/orchestrators/delegate",
+				"/api/v1/sessions/delegate",
 				expect.objectContaining({
 					body: expect.objectContaining({ model: "gpt-5.1" }),
 				}),
@@ -603,7 +603,7 @@ describe("TaskComposer", () => {
 
 		await waitFor(() =>
 			expect(h.post).toHaveBeenCalledWith(
-				"/api/v1/orchestrators/delegate",
+				"/api/v1/sessions/delegate",
 				expect.objectContaining({ body: expect.objectContaining({ workspaceMode: "in_place" }) }),
 			),
 		);
@@ -619,7 +619,7 @@ describe("TaskComposer", () => {
 
 		await waitFor(() =>
 			expect(h.post).toHaveBeenCalledWith(
-				"/api/v1/orchestrators/delegate",
+				"/api/v1/sessions/delegate",
 				expect.objectContaining({ body: expect.objectContaining({ workspaceMode: "worktree" }) }),
 			),
 		);
@@ -667,7 +667,7 @@ describe("TaskComposer", () => {
 		fireEvent.click(await screen.findByRole("button", { name: "Start task" }));
 		await waitFor(() =>
 			expect(h.post).toHaveBeenCalledWith(
-				"/api/v1/orchestrators/delegate",
+				"/api/v1/sessions/delegate",
 				expect.objectContaining({ body: expect.objectContaining({ claudeAccountId: "personal" }) }),
 			),
 		);
@@ -703,7 +703,7 @@ describe("TaskComposer", () => {
 		fireEvent.click(await screen.findByRole("button", { name: "Start task" }));
 		await waitFor(() =>
 			expect(h.post).toHaveBeenCalledWith(
-				"/api/v1/orchestrators/delegate",
+				"/api/v1/sessions/delegate",
 				expect.objectContaining({ body: expect.objectContaining({ agent: "claude-code", claudeAccountId: "personal" }) }),
 			),
 		);

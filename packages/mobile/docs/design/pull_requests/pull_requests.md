@@ -10,14 +10,14 @@ Shared docs: [`../README.md`](../README.md) · [`../colors.md`](../colors.md) ·
 
 ### Purpose
 
-Third tab (`tab2`) of the 4-tab home shell. Lists pull requests across (or scoped to) the
+Second tab (`tab1`) of the 3-tab home shell. Lists pull requests across (or scoped to) the
 active project, filterable by Open/Merged/All. Reached by tapping "PRs" in the bottom nav.
 
 ### Layout tree (top → bottom)
 
 ```
 Scaffold (bg: skin.bgBase)
-  Appbar (S.appbarMain — identical spec to Orchestrator's, see that doc)
+  Appbar (S.appbarMain — identical spec to Settings', see that doc)
     Title "Pull Requests" (Display family, 19px, textPrimary, letterSpacing -0.3)
   Body (S.tabBody: flex:1, scroll, paddingBottom 40)
     Project switcher row (S.projectSwitcherRow: flex space-between, padding '12px 16px 4px')
@@ -28,7 +28,7 @@ Scaffold (bg: skin.bgBase)
       3 pills: "Open {n}", "Merged {n}", "All {n}"
     for each filtered PR → PrCard (radiusCard=14, bgSurface, 1px borderDefault,
                                     padding 12, margin '4px 16px', staggered entrance)
-  BottomNav — shared spec, see Orchestrator doc
+  BottomNav — shared spec, see Settings doc
 ```
 
 ### Per-element specs
@@ -68,7 +68,7 @@ for `agentChip`.
   link — no handler wired in source; treat as a future "open in browser" action).
 
 **State → color/label** (from `prSource`, hardcoded per PR in the mock, not derived from
-a generic status enum the way sessions/orchestrator are):
+a generic status enum the way the sessions board is):
 | life | merge-icon & state-label color | atom text | atom color |
 |---|---|---|---|
 | open, CI passing | `green` | "CI passing" | `green` |
@@ -109,7 +109,7 @@ first mount).
 
 - Tapping a filter pill sets `prFilter` and re-filters the list (verified via screenshot
   walk: Open → Merged → All, each showing the correct subset and pill counts).
-- Tapping a PR card's forum icon → **opens screen 7 (session detail)** for that PR's
+- Tapping a PR card's forum icon → **opens screen 6 (session detail)** for that PR's
   associated session (`p.sessionId`). Same terminal-vs-chat conflict flagged in README
   applies here.
 - open_in_new icon and the project-switcher row have no wired handler in the source (see

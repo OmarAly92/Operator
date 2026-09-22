@@ -1,6 +1,13 @@
 import { decodeBlocks, type TerminalCore } from "@operator/terminal-core";
 import { DomBenchmarkRenderer } from "../adapters/dom";
-import type { DomBlockRenderer } from "@operator/terminal-renderer-dom";
+import {
+	createPathProvider,
+	DEFAULT_LINK_PROVIDERS,
+	parseFeatureList,
+	type DetectedLink,
+	type DomBlockRenderer,
+	type RendererFeatures,
+} from "@operator/terminal-renderer-dom";
 
 type SizeEntry = { offset: number; cols: number; rows: number };
 
@@ -31,6 +38,7 @@ type AgentSession = {
 	scrollHeight(): number;
 	scrollTop(): number;
 	setScrollTop(top: number): Promise<void>;
+	paintAfter(action: () => void): Promise<void>;
 	visibleRows(): Array<{ block: string; row: number }>;
 	textHash(): string;
 	modelHash(): string;
@@ -40,6 +48,16 @@ type AgentSession = {
 	reopenFromReplay(frame: Uint8Array, chunks: Uint8Array[]): Promise<{ firstPaintMs: number; allRowsMs: number; rows: number }>;
 	widthChange(cols: number): Promise<{ settleMs: number; before: number; after: number; staleRows: number }>;
 	staleRowCount(): number;
+	cellMetrics(): { cellWidth: number; cellHeight: number };
+	features(): RendererFeatures;
+	hoverCell(row: number, cell: number): Promise<{ x: number; y: number }>;
+	clearHover(): void;
+	hoveredLink(): DetectedLink | null;
+	enablePathLinks(suffixes: string[]): void;
+	hintBegin(): number;
+	hintType(character: string): unknown;
+	hintCancel(): void;
+	setSecretPatterns(patterns: { source: string; flags?: string }[]): void;
 };
 
 const host = document.getElementById("terminal");
@@ -48,9 +66,10 @@ const params = new URLSearchParams(location.search);
 const fixtureName = params.get("fixture") ?? "claude-spinner-10s";
 const scrollback = Number(params.get("scrollback") ?? "200000");
 
+const fixtureDir = params.get("dir") === "probes" ? "probes" : "fixtures";
 const [recordingResponse, sizesResponse] = await Promise.all([
-	fetch(`/agent-session/fixtures/${fixtureName}/recording`),
-	fetch(`/agent-session/fixtures/${fixtureName}/size.json`),
+	fetch(`/agent-session/${fixtureDir}/${fixtureName}/recording`),
+	fetch(`/agent-session/${fixtureDir}/${fixtureName}/size.json`),
 ]);
 if (!recordingResponse.ok || !sizesResponse.ok) throw new Error(`fixture ${fixtureName} is missing`);
 const recording = new Uint8Array(await recordingResponse.arrayBuffer());
@@ -67,6 +86,13 @@ let fed = 0;
 let nextResize = 1;
 const longTasks: number[] = [];
 const domRenderer = (renderer as unknown as { renderer: DomBlockRenderer }).renderer;
+const featureList = params.get("features") ?? "";
+if (featureList !== "") {
+	const parsed = parseFeatureList(featureList);
+	domRenderer.setFeatures(parsed);
+	if (parsed.graphemes) core.setGraphemeClusters(true);
+}
+domRenderer.setFocused(params.get("focused") !== "0");
 domRenderer.onPaint(() => {
 	paints += 1;
 });
@@ -141,6 +167,17 @@ function rowCount(): number {
 
 async function nextFrame(): Promise<void> {
 	await new Promise((resolve) => requestAnimationFrame(() => resolve(undefined)));
+}
+
+const PAINT_WAIT_FRAMES = 600;
+
+async function paintAfter(action: () => void): Promise<void> {
+	const before = paints;
+	action();
+	for (let frame = 0; paints === before; frame += 1) {
+		if (frame >= PAINT_WAIT_FRAMES) throw new Error(`no paint landed within ${PAINT_WAIT_FRAMES} frames of the action`);
+		await nextFrame();
+	}
 }
 
 async function feedAll(): Promise<void> {
@@ -228,9 +265,7 @@ async function widthChange(cols: number): Promise<{ settleMs: number; before: nu
 	const before = visibleRows()[0]?.row ?? -1;
 	const currentRows = nextResize > 0 ? sizes[nextResize - 1]!.rows : sizes[0]!.rows;
 	const start = performance.now();
-	core.resize(cols, currentRows);
-	await nextFrame();
-	await nextFrame();
+	await paintAfter(() => core.resize(cols, currentRows));
 	const settleMs = performance.now() - start;
 	const after = visibleRows()[0]?.row ?? -1;
 	const staleRows = core.staleRowCount();
@@ -349,11 +384,12 @@ window.__agentSession = {
 	scrollHeight: () => scroller.scrollHeight,
 	scrollTop: () => scroller.scrollTop,
 	setScrollTop: async (top: number) => {
-		scroller.scrollTop = top;
-		scroller.dispatchEvent(new Event("scroll"));
-		await nextFrame();
-		await nextFrame();
+		await paintAfter(() => {
+			scroller.scrollTop = top;
+			scroller.dispatchEvent(new Event("scroll"));
+		});
 	},
+	paintAfter,
 	visibleRows,
 	textHash,
 	modelHash,
@@ -363,6 +399,32 @@ window.__agentSession = {
 	reopenFromReplay,
 	widthChange,
 	staleRowCount,
+	cellMetrics: () => domRenderer.measure(),
+	features: () => domRenderer.features(),
+	hoverCell: async (row, cell) => {
+		const label = core.snapshot().firstStableRow + row;
+		const node = host.querySelector<HTMLElement>(`[data-terminal-row="${label}"]`);
+		if (!node) throw new Error(`row ${row} is not rendered`);
+		const rect = node.getBoundingClientRect();
+		const { cellWidth, cellHeight } = domRenderer.measure();
+		const x = rect.left + (cell + 0.5) * cellWidth;
+		const y = rect.top + cellHeight / 2;
+		domRenderer.hoverAt(x, y);
+		await new Promise((resolve) => setTimeout(resolve, 50));
+		return { x, y };
+	},
+	clearHover: () => domRenderer.clearHover(),
+	hoveredLink: () => domRenderer.hoveredLink(),
+	enablePathLinks: (suffixes) => {
+		domRenderer.setLinkProviders([
+			...DEFAULT_LINK_PROVIDERS,
+			createPathProvider(async (path) => (suffixes.some((suffix) => path.endsWith(suffix)) ? `/probe/${path}` : null), () => "", "posix"),
+		]);
+	},
+	hintBegin: () => domRenderer.hintBegin(),
+	hintType: (character) => domRenderer.hintType(character),
+	hintCancel: () => domRenderer.hintCancel(),
+	setSecretPatterns: (patterns) => domRenderer.setSecretPatterns(patterns),
 	blocks: () => decodeBlocks(core.snapshot()).length,
 } as AgentSession & { blocks(): number };
 window.__agentSessionReady = true;

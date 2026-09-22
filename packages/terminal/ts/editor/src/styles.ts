@@ -1,4 +1,5 @@
 export const editorStyles = `.terminal-editor {
+	position: relative;
 	box-sizing: border-box;
 	width: 100%;
 	min-height: var(--terminal-line-height, 20px);

@@ -28,10 +28,30 @@ func feed(t *testing.T, p *Parser, s string) {
 	}
 }
 
-var sgrRE = regexp.MustCompile("\x1b\\[[0-9;]*m")
+var sgrRE = regexp.MustCompile("\x1b\\[[0-9;:]*m")
 
 func stripSGR(s string) string {
 	return sgrRE.ReplaceAllString(s, "")
+}
+
+// Attributes the child set must come back on reopen, or an italic tool name,
+// an underlined link and a struck diff line turn plain after every reattach.
+func TestReplayKeepsSgrAttributesAndTheUnderlineColour(t *testing.T) {
+	p := newTestParser(t, 80, 24)
+	feed(t, p, "\x1b[3;4:3;9;58;5;196mstyled\x1b[0m plain\r\n")
+
+	out, err := p.Replay(1000)
+	if err != nil {
+		t.Fatalf("replay: %v", err)
+	}
+	for _, want := range []string{"[3;", "4:3", ";9", "58;5;196"} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("replay lost %q:\n%q", want, out)
+		}
+	}
+	if !strings.Contains(stripSGR(out), "styled plain") {
+		t.Fatalf("replay text changed:\n%q", stripSGR(out))
+	}
 }
 
 // A pane whose child redraws in place must replay as ONE copy of the final
@@ -476,4 +496,37 @@ var oscRE = regexp.MustCompile("\x1b\\]7000;v=1;[^\x1b]*\x1b\\\\")
 
 func stripOSC(s string) string {
 	return oscRE.ReplaceAllString(s, "")
+}
+
+func TestReplayBracketsALinkedRunWithOsc8(t *testing.T) {
+	p := newTestParser(t, 80, 24)
+	feed(t, p, "see \x1b]8;;https://x.y/doc\x1b\\here\x1b]8;;\x1b\\ now\r\n")
+
+	out, err := p.Replay(1000)
+	if err != nil {
+		t.Fatalf("replay: %v", err)
+	}
+	want := "\x1b]8;;https://x.y/doc\x1b\\"
+	if !strings.Contains(out, want+"here") {
+		t.Fatalf("replay lost the hyperlink open before its run:\n%q", out)
+	}
+	if !strings.Contains(out, "here\x1b[0m\x1b]8;;\x1b\\") && !strings.Contains(out, "here\x1b]8;;\x1b\\") {
+		t.Fatalf("replay lost the hyperlink close after its run:\n%q", out)
+	}
+	if strings.Count(out, "\x1b]8;;") != 2 {
+		t.Fatalf("expected exactly one open and one close, got %d in:\n%q", strings.Count(out, "\x1b]8;;"), out)
+	}
+}
+
+func TestHistoryChunksCarryOsc8(t *testing.T) {
+	p := newTestParser(t, 20, 2)
+	feed(t, p, "\x1b]8;;https://old\x1b\\older\x1b]8;;\x1b\\\r\nx\r\ny\r\nz\r\n")
+
+	chunk, _, _, err := p.HistoryChunk(HistoryBefore, 2, 512)
+	if err != nil {
+		t.Fatalf("history chunk: %v", err)
+	}
+	if !strings.Contains(chunk, "\x1b]8;;https://old\x1b\\older") {
+		t.Fatalf("history chunk lost the hyperlink:\n%q", chunk)
+	}
 }

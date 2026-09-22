@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import * as Dialog from "@radix-ui/react-dialog";
-import { TriangleAlert, X, type LucideIcon } from "lucide-react";
+import { TriangleAlert, X } from "lucide-react";
 import { memo, useEffect, useState } from "react";
 import type { components } from "../../api/schema";
 import { agentsQueryKey, agentsQueryOptions, refreshAgents } from "../hooks/useAgentsQuery";
@@ -17,7 +17,6 @@ import { AgentAvatar } from "./AgentAvatar";
 import { FieldDefaultHint } from "./FieldDefaultHint";
 import { buildIntake, type IntakeForm, IntakeFields, intakeNeedsRule } from "./IntakeFields";
 import { AgentSelectMenuItem } from "./settings/AgentSelectMenuItem";
-import { SettingsRow } from "./settings/SettingsRow";
 import { SettingsOptionMenu } from "./settings/SettingsOptionMenu";
 import type { ProjectKind } from "../types/workspace";
 import { Button } from "./ui/button";
@@ -31,7 +30,6 @@ type AgentInfo = components["schemas"]["AgentInfo"];
 
 export type CreateProjectAgentSelection = {
 	workerAgent: string;
-	orchestratorAgent: string;
 	trackerIntake?: TrackerIntakeConfig;
 };
 
@@ -129,28 +127,23 @@ export function CreateProjectAgentSheet({
 			: t("createProject.couldNotRefreshAgents")
 		: agentsError;
 	const [workerAgent, setWorkerAgent] = useState("");
-	const [orchestratorAgent, setOrchestratorAgent] = useState("");
 	const [workerAgentTouched, setWorkerAgentTouched] = useState(false);
-	const [orchestratorAgentTouched, setOrchestratorAgentTouched] = useState(false);
 	const isBusy = isCreating || isInitializing;
 	const [intake, setIntake] = useState<IntakeForm>(EMPTY_INTAKE);
 	const intakeIncomplete = intakeNeedsRule(intake);
-	const canSubmit = workerAgent !== "" && orchestratorAgent !== "" && !intakeIncomplete && !isBusy && !isLoadingAgents;
+	const canSubmit = workerAgent !== "" && !intakeIncomplete && !isBusy && !isLoadingAgents;
 	const sheetError = error ? projectSheetError(error) : null;
 
 	useEffect(() => {
 		if (!open) return;
 		const defaultAgent = defaultAuthorizedAgent(agentOptions);
 		if (!workerAgentTouched) setWorkerAgent(defaultAgent);
-		if (!orchestratorAgentTouched) setOrchestratorAgent(defaultAgent);
-	}, [agentOptions, open, orchestratorAgentTouched, workerAgentTouched]);
+	}, [agentOptions, open, workerAgentTouched]);
 
 	useEffect(() => {
 		if (!open) {
 			setWorkerAgent("");
-			setOrchestratorAgent("");
 			setWorkerAgentTouched(false);
-			setOrchestratorAgentTouched(false);
 			setIntake(EMPTY_INTAKE);
 		}
 	}, [open, path]);
@@ -185,10 +178,10 @@ export function CreateProjectAgentSheet({
 						onSubmit={(event) => {
 							event.preventDefault();
 							if (!canSubmit) return;
-							void onSubmit({ workerAgent, orchestratorAgent, trackerIntake: buildIntake(intake) });
+							void onSubmit({ workerAgent, trackerIntake: buildIntake(intake) });
 						}}
 					>
-						<div className="grid gap-4 sm:grid-cols-2">
+						<div className="grid gap-4">
 							<RequiredAgentField
 								id="newProjectWorkerAgent"
 								label={t("createProject.workerAgent")}
@@ -204,23 +197,6 @@ export function CreateProjectAgentSheet({
 								onChange={(value) => {
 									setWorkerAgent(value);
 									setWorkerAgentTouched(true);
-								}}
-							/>
-							<RequiredAgentField
-								id="newProjectOrchestratorAgent"
-								label={t("createProject.orchestratorAgent")}
-								placeholder={t("createProject.selectOrchestrator")}
-								value={orchestratorAgent}
-								authorized={agentOptions}
-								installed={installedAgents}
-								supported={supportedAgents}
-								disabled={isLoadingAgents}
-								labelClassName="agents-sheet-label"
-								triggerClassName="agents-sheet-control"
-								contentClassName="agents-sheet-menu"
-								onChange={(value) => {
-									setOrchestratorAgent(value);
-									setOrchestratorAgentTouched(true);
 								}}
 							/>
 						</div>
@@ -338,7 +314,6 @@ export const RequiredAgentField = memo(function RequiredAgentField({
 	authorized,
 	disabled = false,
 	hint,
-	icon,
 	id,
 	invalid = false,
 	installed,
@@ -356,7 +331,6 @@ export const RequiredAgentField = memo(function RequiredAgentField({
 	disabled?: boolean;
 	/** Caption beside the label, e.g. naming where a preselected default came from. */
 	hint?: string;
-	icon?: LucideIcon;
 	id: string;
 	invalid?: boolean;
 	installed?: AgentInfo[];
@@ -368,7 +342,7 @@ export const RequiredAgentField = memo(function RequiredAgentField({
 	labelClassName?: string;
 	contentClassName?: string;
 	value: string;
-	variant?: "stacked" | "settings-row" | "chip";
+	variant?: "stacked" | "chip";
 }) {
 	const fallbackAgents: AgentInfo[] = AGENT_OPTIONS.map((agent) => ({ id: agent, label: agent }));
 	const options = buildRankedAgentOptions({
@@ -379,57 +353,13 @@ export const RequiredAgentField = memo(function RequiredAgentField({
 		fallbackAgents,
 	});
 
-	if (variant === "settings-row") {
-		const menuOptions = options.map((agent) => ({
-			value: agent.id,
-			label: agent.label,
-			disabled: agent.disabled,
-		}));
-
-		return (
-			<SettingsRow icon={icon} label={label}>
-				<SettingsOptionMenu
-					aria-label={label}
-					value={value}
-					placeholder={placeholder}
-					options={menuOptions}
-					disabled={disabled}
-					onChange={onChange}
-					triggerClassName={invalid ? "text-error" : undefined}
-					menuClassName="settings-agent-menu-surface"
-					menuItemClassName="settings-agent-menu-item"
-					renderTrigger={(selected, triggerPlaceholder) => (
-						<>
-							{selected ? <AgentAvatar provider={selected.value} className="size-icon-lg" /> : null}
-							<span className="min-w-0 truncate">{selected?.label ?? triggerPlaceholder}</span>
-						</>
-					)}
-					renderMenuItem={(option, selected) => {
-						const agent = options.find((entry) => entry.id === option.value);
-						if (!agent) return option.label;
-						return (
-							<AgentSelectMenuItem
-								agentId={agent.id}
-								label={agent.label}
-								selected={selected}
-								status={agent.status}
-								statusTone={agent.statusTone}
-								disabled={agent.disabled}
-							/>
-						);
-					}}
-				/>
-			</SettingsRow>
-		);
-	}
-
 	const selectedOption = options.find((agent) => agent.id === value);
 
 	// Chip: the value reads as part of a sentence ("Runs with Codex") rather than
 	// as a form field, so the label is carried by that sentence, not by a <Label>.
-	// Built on the same SettingsOptionMenu as the settings-row variant (and the
-	// model chip beside it) so both halves of the pill share one dropdown
-	// component instead of a Select-based menu and a DropdownMenu-based one.
+	// Built on the same SettingsOptionMenu as the model chip beside it so both
+	// halves of the pill share one dropdown component instead of a Select-based
+	// menu and a DropdownMenu-based one.
 	if (variant === "chip") {
 		const menuOptions = options.map((agent) => ({
 			value: agent.id,

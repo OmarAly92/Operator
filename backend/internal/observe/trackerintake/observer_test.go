@@ -42,7 +42,7 @@ func TestPollSpawnsWorkerForEligibleIssue(t *testing.T) {
 		t.Fatalf("spawn calls = %d, want 1", len(spawner.calls))
 	}
 	call := spawner.calls[0]
-	if call.ProjectID != "demo" || call.Kind != domain.KindWorker {
+	if call.ProjectID != "demo" {
 		t.Fatalf("spawn config = %+v", call)
 	}
 	if call.IssueID != "github:acme/demo#12" {
@@ -386,7 +386,7 @@ func (f *fakeSpawner) Spawn(_ context.Context, cfg ports.SpawnConfig) (domain.Se
 	if cfg.IssueID == f.failIssue {
 		return domain.Session{}, 0, 0, errors.New("spawn failed")
 	}
-	return domain.Session{SessionRecord: domain.SessionRecord{ID: domain.SessionID(string(cfg.ProjectID) + "-1"), ProjectID: cfg.ProjectID, IssueID: cfg.IssueID, Kind: cfg.Kind}}, len(cfg.Prompt), 0, nil
+	return domain.Session{SessionRecord: domain.SessionRecord{ID: domain.SessionID(string(cfg.ProjectID) + "-1"), ProjectID: cfg.ProjectID, IssueID: cfg.IssueID}}, len(cfg.Prompt), 0, nil
 }
 
 func discardLogger() *slog.Logger {

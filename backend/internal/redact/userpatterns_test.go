@@ -22,8 +22,8 @@ func discardLog() *slog.Logger { return slog.New(slog.NewTextHandler(io.Discard,
 
 func restoreDefaults(t *testing.T) {
 	t.Helper()
-	saved := patterns
-	t.Cleanup(func() { patterns = saved })
+	saved := userPatterns
+	t.Cleanup(func() { userPatterns = saved })
 }
 
 func TestLoadUserPatternsRedactsAHouseTokenShape(t *testing.T) {

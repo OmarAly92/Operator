@@ -92,7 +92,7 @@ export function TaskComposer({
 		async (input: CreateTaskInput): Promise<string> => {
 			void captureRendererEvent("opr.renderer.task_create_requested", { project_id: input.projectId });
 			try {
-				const { data, error } = await apiClient.POST("/api/v1/orchestrators/delegate", {
+				const { data, error } = await apiClient.POST("/api/v1/sessions/delegate", {
 					body: {
 						projectId: input.projectId,
 						brief: input.brief,
@@ -143,14 +143,12 @@ export function TaskComposer({
 	// The composer preselects the agent and model a spawn would actually use
 	// instead of parking the controls on a "default" label the user has to
 	// remember. Both resolved values remain directly editable.
-	const projectWorkerAgent = projectQuery.data?.config?.worker?.agent ?? "";
+	const projectAgent = projectQuery.data?.config?.agent ?? "";
 	const globalDefaultAgent = projectQuery.data?.agent ?? "";
-	const defaultWorkerAgent = projectWorkerAgent || globalDefaultAgent;
+	const defaultWorkerAgent = projectAgent || globalDefaultAgent;
 	const selectedAgent = agent || defaultWorkerAgent;
-	const defaultWorkerModel =
-		projectQuery.data?.config?.worker?.agentConfig?.model ?? projectQuery.data?.config?.agentConfig?.model ?? "";
-	const defaultWorkerMode =
-		projectQuery.data?.config?.worker?.agentConfig?.mode ?? projectQuery.data?.config?.agentConfig?.mode ?? "";
+	const defaultWorkerModel = projectQuery.data?.config?.agentConfig?.model ?? "";
+	const defaultWorkerMode = projectQuery.data?.config?.agentConfig?.mode ?? "";
 	const projectModelForSelectedAgent = selectedAgent === defaultWorkerAgent ? defaultWorkerModel : "";
 	const projectModeForSelectedAgent = selectedAgent === defaultWorkerAgent ? defaultWorkerMode : "";
 	const agentCatalog = agentsQuery.data;

@@ -473,17 +473,73 @@ describe("TerminalSurface", () => {
 	});
 
 	it("sends composed text once and swallows the composing keydown", () => {
+		vi.useFakeTimers();
 		const onSendRaw = vi.fn();
 		const { container, core } = renderSurface({ onSendRaw });
 		act(() => {
 			feed(core, "\x1b[?1049h");
 		});
 		const host = container.querySelector(".terminal-host") as HTMLElement;
-		const textarea = host.querySelector("textarea");
+		const textarea = host.querySelector<HTMLTextAreaElement>("textarea");
 		expect(textarea).not.toBeNull();
 		host.dispatchEvent(new KeyboardEvent("keydown", { key: "Process", keyCode: 229, bubbles: true }));
 		expect(onSendRaw).not.toHaveBeenCalled();
+		textarea!.value = "日本";
 		textarea!.dispatchEvent(new CompositionEvent("compositionend", { data: "日本" }));
+		expect(onSendRaw).not.toHaveBeenCalled();
+		vi.runAllTimers();
 		expect(onSendRaw).toHaveBeenCalledExactlyOnceWith("日本");
+		vi.useRealTimers();
+	});
+
+	it("forwards the features prop to the renderer and defaults it to every flag off", () => {
+		const setFeatures = vi.spyOn(DomBlockRenderer.prototype, "setFeatures");
+		const core = createTerminalCore({ columns: 16, scrollback: 100 });
+		const { rerender } = render(
+			<TerminalSurface core={core} theme={theme} font={font} altScreenActive={false} onSend={() => undefined} onSendRaw={() => undefined} />,
+		);
+		expect(setFeatures).toHaveBeenLastCalledWith({});
+		rerender(
+			<TerminalSurface core={core} theme={theme} font={font} altScreenActive={false} onSend={() => undefined} onSendRaw={() => undefined} features={{ attributes: "warp" }} />,
+		);
+		expect(setFeatures).toHaveBeenLastCalledWith({ attributes: "warp" });
+		setFeatures.mockRestore();
+	});
+
+	it("forwards onBlockFinished from the renderer", () => {
+		const onBlockFinished = vi.fn();
+		const listen = vi.spyOn(DomBlockRenderer.prototype, "onBlockFinished");
+		const core = createTerminalCore({ columns: 16, scrollback: 100 });
+		render(
+			<TerminalSurface core={core} theme={theme} font={font} altScreenActive={false} onSend={() => undefined} onSendRaw={() => undefined} onBlockFinished={onBlockFinished} />,
+		);
+		expect(listen).toHaveBeenCalledTimes(1);
+		const listener = listen.mock.calls[0]![0] as (event: unknown) => void;
+		listener({ id: "0:1", exitCode: 0, durationMs: 5, visible: true });
+		expect(onBlockFinished).toHaveBeenCalledWith({ id: "0:1", exitCode: 0, durationMs: 5, visible: true });
+		listen.mockRestore();
+	});
+
+	it("tells the renderer when focus enters and leaves the surface", () => {
+		const setFocused = vi.spyOn(DomBlockRenderer.prototype, "setFocused");
+		const core = createTerminalCore({ columns: 16, scrollback: 100 });
+		const { container } = render(
+			<TerminalSurface core={core} theme={theme} font={font} altScreenActive={false} onSend={() => undefined} onSendRaw={() => undefined} />,
+		);
+		const editor = container.querySelector<HTMLElement>(".terminal-editor")!;
+		act(() => editor.focus());
+		expect(setFocused).toHaveBeenLastCalledWith(true);
+		act(() => editor.blur());
+		expect(setFocused).toHaveBeenLastCalledWith(false);
+		setFocused.mockRestore();
+	});
+
+	it("passes the host's secret patterns to the renderer and nothing when there are none", () => {
+		const setSecretPatterns = vi.spyOn(DomBlockRenderer.prototype, "setSecretPatterns");
+		const core = createTerminalCore({ columns: 16, scrollback: 100 });
+		const host = { writeClipboard: async () => {}, readClipboard: async () => "", openLink: async () => {}, secretPatterns: [{ source: "x" }] };
+		render(<TerminalSurface core={core} theme={theme} font={font} altScreenActive={false} host={host} onSend={() => undefined} onSendRaw={() => undefined} />);
+		expect(setSecretPatterns).toHaveBeenLastCalledWith([{ source: "x" }]);
+		setSecretPatterns.mockRestore();
 	});
 });

@@ -721,7 +721,6 @@ func TestUsageRowsCascadeWhenSeedSessionDeleted(t *testing.T) {
 	now := time.Unix(1700000000, 0).UTC()
 	sess, err := s.CreateSession(ctx, domain.SessionRecord{
 		ProjectID: "usage",
-		Kind:      domain.KindWorker,
 		Harness:   domain.HarnessCodex,
 		Activity:  domain.Activity{State: domain.ActivityIdle, LastActivityAt: now},
 		Metadata:  domain.SessionMetadata{WorkspaceMode: domain.WorkspaceModeWorktree},

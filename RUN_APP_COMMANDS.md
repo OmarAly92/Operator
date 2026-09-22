@@ -146,10 +146,12 @@ installed on quit).
 git checkout master && git pull && git merge --no-ff development -m "release: merge development" && git push origin master
 ```
 
-2. Bump the version on `master` and push. This is the release trigger:
+2. Bump the version on `master` and push. This is the release trigger. `package.json`
+   is what `release-on-bump.yml` watches; `src-tauri/Cargo.toml` and `Cargo.lock` must
+   move with it or `cargo_toml_and_package_json_versions_stay_coupled` fails:
 
 ```bash
-cd frontend && npm version 0.14.4 --no-git-tag-version && cd .. && git add -A && git commit -m "release: bump to 0.14.4" && git push origin master
+cd frontend && npm version 0.14.4 --no-git-tag-version && sed -i '' 's/^version = ".*"/version = "0.14.4"/' src-tauri/Cargo.toml && (cd src-tauri && cargo update -p operator --offline) && cd .. && git add -A && git commit -m "release: bump to 0.14.4" && git push origin master
 ```
 
 3. Bring the bump back so `development` carries the same version:

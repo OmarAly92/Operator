@@ -4,26 +4,16 @@ import type { TFunction } from "i18next";
 import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import {
-	AlertTriangle,
 	Check,
 	Copy,
 	FolderOpen,
 	GitBranch,
 	LoaderCircle,
-	Plus,
 	RotateCcw,
-	RotateCw,
 	SquareTerminal,
 	Trash2,
 } from "lucide-react";
-import {
-	type WorkspaceSession,
-	canonicalTrackerIssueId,
-	hasConfiguredOrchestratorAgent,
-	newestActiveOrchestrator,
-	orchestratorHealth,
-	workerSessions,
-} from "../types/workspace";
+import { type WorkspaceSession, canonicalTrackerIssueId } from "../types/workspace";
 import {
 	attentionZone,
 	boardAttentionZoneOrder,
@@ -48,12 +38,7 @@ import {
 } from "../hooks/useTerminateSession";
 import { useWorkspaceQuery, workspaceQueryKey } from "../hooks/useWorkspaceQuery";
 import { BoardWelcome, ProjectBoardEmpty } from "./BoardEmptyStates";
-import { OrchestratorIcon } from "./icons";
-import { OrchestratorActivityIndicator } from "./OrchestratorActivityIndicator";
 import { AgentAvatar } from "./AgentAvatar";
-import { BoardDiff, TopbarButton, TopbarKillError, topbarProjectLabelClass } from "./TopbarButton";
-import { spawnOrchestrator } from "../lib/spawn-orchestrator";
-import { restartProjectOrchestrator } from "../lib/restart-orchestrator";
 import { prBrowserUrl, sessionPRDisplaySummaries } from "../lib/pr-display";
 import { formatTimeCompact } from "../lib/format-time";
 import { formatTokenCount } from "../lib/format-token-count";
@@ -61,7 +46,7 @@ import { SessionClaudeAccountChip } from "./SessionClaudeAccountChip";
 import { operatorBridge } from "../lib/bridge";
 import { usesPreviewWorkspaceData } from "../lib/preview-mode";
 import { cn } from "../lib/utils";
-import { shellChromeDragRegion, usesBoardActionsInPanel, windowDragRegion } from "../lib/platform";
+import { shellChromeDragRegion } from "../lib/platform";
 import { useUiStore } from "../stores/ui-store";
 import { RestoreUnavailableDialog } from "./RestoreUnavailableDialog";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
@@ -93,8 +78,6 @@ function isArchivedSession(session: WorkspaceSession): boolean {
 	return session.isTerminated === true || session.status === "terminated";
 }
 
-const dragRegion = windowDragRegion();
-
 export function SessionsBoard({ projectId }: SessionsBoardProps) {
 	const { t } = useTranslation();
 	const navigate = useNavigate();
@@ -105,13 +88,9 @@ export function SessionsBoard({ projectId }: SessionsBoardProps) {
 	const shell = useShellMaybe();
 	const usageBySession = useSessionUsageSummaries(projectId).data ?? emptyUsageBySession;
 	// Evaluated at render so platform mocks in tests can flip the in-panel chrome.
-	const boardActionsInPanel = usesBoardActionsInPanel();
 	const all = workspaceQuery.data ?? [];
 	const workspaces = projectId ? all.filter((w) => w.id === projectId) : all;
-	const workspace = projectId ? workspaces[0] : undefined;
-	// Same crumb as ShellTopbar: project name in scope, else root-board "Board".
-	const boardLabel = workspace?.name ?? (projectId ? "" : t("shell.board"));
-	const sessions = workspaces.flatMap((w) => workerSessions(w.sessions));
+	const sessions = workspaces.flatMap((w) => w.sessions);
 	const ticketProjects = workspaces
 		.filter((w) => w.kind === "single_repo")
 		.map((w) => ({ id: w.id, name: w.name }));
@@ -124,41 +103,8 @@ export function SessionsBoard({ projectId }: SessionsBoardProps) {
 	for (const w of workspaces) {
 		for (const s of w.sessions) sessionsById.set(s.id, s);
 	}
-	const orchestrator = projectId ? newestActiveOrchestrator(workspaces[0]?.sessions ?? []) : undefined;
-	const orchestratorActivityLabel = orchestrator ? getAgentActivityView(orchestrator.activity, t).label : undefined;
-	const [isSpawning, setIsSpawning] = useState(false);
-	const [spawnError, setSpawnError] = useState<string | null>(null);
 	const [createTicketOpen, setCreateTicketOpen] = useState(false);
-	const restartingProjectIds = useUiStore((state) => state.restartingProjectIds);
-	const orchestratorStartupError = useUiStore((state) =>
-		projectId ? (state.orchestratorStartupErrors[projectId] ?? null) : null,
-	);
-	const setProjectRestarting = useUiStore((state) => state.setProjectRestarting);
-	const setOrchestratorReplacementError = useUiStore((state) => state.setOrchestratorReplacementError);
-	const setOrchestratorStartupError = useUiStore((state) => state.setOrchestratorStartupError);
 	const requestNewTask = useUiStore((state) => state.requestNewTask);
-	const requestNewShellTerminal = useUiStore((state) => state.requestNewShellTerminal);
-	const isProjectRestarting = projectId ? restartingProjectIds.has(projectId) : false;
-	const health = workspace ? orchestratorHealth(workspace, isProjectRestarting) : { state: "ok" as const };
-	const visibleSpawnError = spawnError ?? orchestratorStartupError;
-	// The board instance survives project-to-project navigation (same route,
-	// new param), so a spawn failure must not follow the user to another board.
-	useEffect(() => {
-		setSpawnError(null);
-	}, [projectId]);
-	const previousProjectIdRef = useRef(projectId);
-	useEffect(() => {
-		const previousProjectId = previousProjectIdRef.current;
-		if (previousProjectId && previousProjectId !== projectId) {
-			setOrchestratorStartupError(previousProjectId, null);
-		}
-		previousProjectIdRef.current = projectId;
-	}, [projectId, setOrchestratorStartupError]);
-	useEffect(() => {
-		if (projectId && orchestrator && orchestratorStartupError) {
-			setOrchestratorStartupError(projectId, null);
-		}
-	}, [orchestrator, orchestratorStartupError, projectId, setOrchestratorStartupError]);
 
 	const archived = sessions
 		.filter(isArchivedSession)
@@ -237,136 +183,13 @@ export function SessionsBoard({ projectId }: SessionsBoardProps) {
 		}
 	};
 
-	const openOrchestrator = async () => {
-		if (!projectId || isProjectRestarting) return;
-		if (orchestrator) {
-			void navigate({
-				to: "/projects/$projectId/sessions/$sessionId",
-				params: { projectId, sessionId: orchestrator.id },
-			});
-			return;
-		}
-		if (!hasConfiguredOrchestratorAgent(workspace)) {
-			if (workspace) {
-				useUiStore.getState().openProjectSettings(projectId);
-			}
-			return;
-		}
-		setSpawnError(null);
-		setOrchestratorStartupError(projectId, null);
-		setIsSpawning(true);
-		try {
-			const sessionId = await spawnOrchestrator(projectId, "board", false);
-			await queryClient.invalidateQueries({ queryKey: workspaceQueryKey });
-			setOrchestratorStartupError(projectId, null);
-			void navigate({
-				to: "/projects/$projectId/sessions/$sessionId",
-				params: { projectId, sessionId },
-			});
-		} catch (err) {
-			// Never fail silently: the daemon's message (e.g. a worktree/branch
-			// conflict) is the only actionable signal the user gets.
-			console.error("Failed to spawn orchestrator:", err);
-			setSpawnError(err instanceof Error ? err.message : t("shell.couldNotSpawn"));
-		} finally {
-			setIsSpawning(false);
-		}
-	};
-
-	const restartOrchestrator = async () => {
-		if (!projectId) return;
-		await restartProjectOrchestrator({
-			projectId,
-			queryClient,
-			navigate,
-			setProjectRestarting,
-			setOrchestratorReplacementError,
-		});
-	};
-
-	const actions = projectId ? (
-		<>
-			{visibleSpawnError && !showProjectEmpty && (
-				<TopbarKillError className="max-w-content-max truncate" title={visibleSpawnError}>
-					{visibleSpawnError}
-				</TopbarKillError>
-			)}
-			<TopbarButton aria-label={t("shortcut.new-shell-terminal")} onClick={requestNewShellTerminal}>
-				<SquareTerminal className="size-icon-md" aria-hidden="true" />
-				{t("shortcut.new-shell-terminal")}
-			</TopbarButton>
-			<TopbarButton
-				aria-label={t("shell.newTask")}
-				disabled={isProjectRestarting}
-				onClick={() => projectId && requestNewTask(projectId)}
-				variant="accent"
-			>
-				<Plus className="size-icon-md" aria-hidden="true" />
-				{t("shell.newTask")}
-			</TopbarButton>
-			<TopbarButton
-				aria-label={
-					orchestratorActivityLabel
-						? t("shell.orchestratorWithActivity", { activity: orchestratorActivityLabel })
-						: t("shell.spawnOrchestrator")
-				}
-				disabled={isSpawning || isProjectRestarting}
-				onClick={() => void openOrchestrator()}
-				variant="primary"
-			>
-				<OrchestratorIcon className="size-icon-md" aria-hidden="true" />
-				{orchestrator ? <OrchestratorActivityIndicator session={orchestrator} /> : null}
-				{isProjectRestarting
-					? t("shell.restartingDots")
-					: isSpawning
-						? t("shell.spawningDots")
-						: orchestrator
-							? t("shell.orchestrator")
-							: t("shell.spawnOrchestrator")}
-			</TopbarButton>
-		</>
-	) : undefined;
-
 	return (
 		<div
 			className="flex h-full min-h-0 flex-col bg-background text-foreground"
 			data-tauri-drag-region={shellChromeDragRegion()}
 			data-testid="board"
 		>
-			{/* macOS: shell topbar is hidden on board routes, so the project/"Board"
-			    crumb + New task / Orchestrator / bell live in this in-panel row.
-			    Win/Linux keep the crumb and actions in the framed ShellTopbar.
-			    Welcome skips the row — a dangling "Board" above the import
-			    chooser was review feedback on #2432. */}
-			{!showWelcome && !showStartup && boardActionsInPanel && (boardLabel || actions) ? (
-				<div
-					className="center-panel-titlebar flex h-toolbar shrink-0 items-center gap-2 border-b border-border-strong pr-4"
-					data-tauri-drag-region={dragRegion}
-				>
-					{boardLabel ? <span className={topbarProjectLabelClass}>{boardLabel}</span> : null}
-					<div className="min-w-0 flex-1" />
-					<BoardDiff workspaces={workspaces} />
-					{actions ? (
-						<div className="flex shrink-0 items-center gap-2">
-							{actions}
-						</div>
-					) : null}
-				</div>
-			) : null}
-
 			<div className="min-h-0 flex-1 overflow-hidden">
-				{projectId && health.state !== "ok" ? (
-					<div className="mx-3 my-3 flex items-center gap-3 rounded-md border border-border bg-surface px-3 py-2 text-xs text-muted-foreground">
-						<AlertTriangle className="size-icon-base shrink-0 text-warning" aria-hidden="true" />
-						<span className="min-w-0 flex-1">{health.message}</span>
-						{health.state === "restart_needed" || health.state === "duplicates" ? (
-								<TopbarButton disabled={isProjectRestarting} onClick={() => void restartOrchestrator()} variant="primary">
-									<RotateCw className="size-3.5" aria-hidden="true" />
-									{t("shell.restart")}
-							</TopbarButton>
-						) : null}
-					</div>
-				) : null}
 				{showStartup ? (
 					<DaemonStartupLoader />
 				) : workspaceStartupState === "error" || workspaceQuery.isError ? (
@@ -375,13 +198,8 @@ export function SessionsBoard({ projectId }: SessionsBoardProps) {
 					<BoardWelcome />
 				) : showProjectEmpty ? (
 					<ProjectBoardEmpty
-						hasOrchestrator={orchestrator !== undefined}
-						isSpawning={isSpawning}
-						isProjectRestarting={isProjectRestarting}
 						onNewTask={() => projectId && requestNewTask(projectId)}
 						onNewTicket={supportsTickets ? () => setCreateTicketOpen(true) : undefined}
-						onOpenOrchestrator={() => void openOrchestrator()}
-						spawnError={visibleSpawnError}
 					/>
 				) : (
 					<div className="h-full overflow-x-auto overflow-y-hidden">
@@ -424,13 +242,13 @@ export function SessionsBoard({ projectId }: SessionsBoardProps) {
 
 			{archivedCount > 0 && (
 				<div className="shrink-0 border-t border-border-strong px-3">
-					{/* The 46px control gives the compact archive bar a slightly taller
-					    target while preserving the bar's surrounding row height. */}
-					<div className={cn("flex items-center gap-2", archiveExpanded ? "min-h-11" : "min-h-row-md")}>
+					{/* 40px bar: its hairline sits level with the sidebar's Settings
+					    footer, which is a 28px row inside 6px of padding. */}
+					<div className="flex min-h-10 items-center gap-2">
 						<button
 							aria-expanded={archiveExpanded}
 							aria-label={t("shell.archiveSessionsAria", { count: archivedCount })}
-							className="group flex h-[46px] min-w-0 items-center gap-2 py-0 text-muted-foreground transition-colors hover:text-foreground"
+							className="group flex h-10 min-w-0 items-center gap-2 py-0 text-muted-foreground transition-colors hover:text-foreground"
 							onClick={() => setArchiveExpanded((v) => !v)}
 							type="button"
 						>
@@ -1029,12 +847,12 @@ function SessionCard({
 				</div>
 			) : null}
 			{action ? <div className="absolute right-2 top-1.5 z-10">{action}</div> : null}
-			<div className="flex items-start gap-2.5 px-3.5 pb-2.5 pt-3">
-				<AgentAvatar className="mt-0.5" provider={session.provider} />
+			<div className="flex items-start gap-2 px-3 pb-2 pt-2.5">
+				<AgentAvatar className="mt-px size-icon-base" provider={session.provider} />
 				<div className="min-w-0 flex-1">
 					<div
 						className={cn(
-							"line-clamp-2 overflow-hidden text-base font-semibold leading-tight tracking-tight text-foreground",
+							"line-clamp-2 overflow-hidden text-control font-semibold leading-tight tracking-tight text-foreground",
 							cornerControlPadding,
 						)}
 						title={session.title}
@@ -1042,7 +860,7 @@ function SessionCard({
 						{session.title}
 					</div>
 					{showLocation && (
-						<div className="mt-1.5 flex min-w-0 items-center gap-1 font-mono text-micro leading-normal text-passive">
+						<div className="mt-1 flex min-w-0 items-center gap-1 font-mono text-micro leading-normal text-passive">
 							{showBranch && (
 								<span className="flex min-w-0 items-center gap-1" title={branch}>
 									<GitBranch aria-hidden="true" className="size-icon-2xs shrink-0 opacity-60" />
@@ -1071,8 +889,8 @@ function SessionCard({
 					/>
 				</div>
 			</div>
-			<div aria-hidden="true" className="mx-3.5 my-px h-px bg-border" />
-			<div className="flex flex-col gap-1.5 px-3.5 py-2">
+			<div aria-hidden="true" className="mx-3 my-px h-px bg-border" />
+			<div className="flex flex-col gap-1 px-3 py-1.5">
 				<div className="flex items-center justify-between gap-2">
 					<span
 						className={cn("inline-flex min-w-0 items-center gap-1.5 truncate text-2xs font-medium", badge.className)}

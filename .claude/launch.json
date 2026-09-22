@@ -15,6 +15,15 @@
         "--strictPort"
       ],
       "port": 5199
+    },
+    {
+      "name": "terminal-bench",
+      "runtimeExecutable": "sh",
+      "runtimeArgs": [
+        "-c",
+        "cd /Users/omaraly/development/AI/Operator/packages/terminal && npx vite --config bench/vite.config.ts --host 127.0.0.1 --port 5198 --strictPort"
+      ],
+      "port": 5198
     }
   ]
 }

@@ -21,7 +21,9 @@
 		"bench:agent": "node ./bench/agent-session/run.mjs",
 		"bench:agent:scroll": "node ./bench/agent-session/scroll-gate.mjs",
 		"bench:agent:gate": "node ./bench/agent-session/run.mjs --gate",
-		"bench:feel": "node ./bench/agent-session/feel-gate.mjs"
+		"bench:feel": "node ./bench/agent-session/feel-gate.mjs",
+		"bench:glyphs": "node ./bench/agent-session/glyph-probe.mjs",
+		"bench:affordances": "node ./bench/agent-session/affordance-gate.mjs"
 	},
 	"devDependencies": {
 		"@playwright/test": "1.60.0",

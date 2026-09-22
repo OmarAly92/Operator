@@ -26,9 +26,6 @@ import 'package:operator_mobile/feature/notification/logic/push_registrar.dart';
 import 'package:operator_mobile/feature/notification/logic/push_registration.dart';
 import 'package:operator_mobile/feature/notification/logic/push_token_source.dart';
 import 'package:operator_mobile/feature/notification/presentation/notifications_screen/logic/notifications_cubit.dart';
-import 'package:operator_mobile/feature/orchestrator/data/data_source/orchestrator_remote_data_source.dart';
-import 'package:operator_mobile/feature/orchestrator/data/repository/orchestrator_repository.dart';
-import 'package:operator_mobile/feature/orchestrator/presentation/orchestrator_screen/logic/orchestrator_cubit.dart';
 import 'package:operator_mobile/feature/pairing/data/data_source/desktops_local_data_source.dart';
 import 'package:operator_mobile/feature/pairing/data/data_source/pairing_remote_data_source.dart';
 import 'package:operator_mobile/feature/pairing/data/repository/desktops_repository.dart';
@@ -66,7 +63,6 @@ class ServiceLocator {
     _pairingFeatureSetup();
     _sessionsFeatureSetup();
     _pullRequestFeatureSetup();
-    _orchestratorFeatureSetup();
     _spawnFeatureSetup();
     _settingsFeatureSetup();
     _terminalFeatureSetup();
@@ -168,22 +164,6 @@ class ServiceLocator {
     );
     sl.registerLazySingleton<PullRequestRemoteDataSource>(
       () => PullRequestRemoteDataSourceImp(sl<ApiConsumer>()),
-    );
-  }
-
-  static void _orchestratorFeatureSetup() {
-    sl.registerFactory<OrchestratorCubit>(
-      () => OrchestratorCubit(sl<OrchestratorRepository>()),
-    );
-
-    sl.registerLazySingleton<OrchestratorRepository>(
-      () => OrchestratorRepositoryImp(
-        sl<OrchestratorRemoteDataSource>(),
-        sl<NetworkStatus>(),
-      ),
-    );
-    sl.registerLazySingleton<OrchestratorRemoteDataSource>(
-      () => OrchestratorRemoteDataSourceImp(sl<ApiConsumer>()),
     );
   }
 

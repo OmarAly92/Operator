@@ -13,8 +13,54 @@ fn flattens_rows_and_runs_as_u32_pairs() {
     assert_eq!(buffers.run_ranges(), &[0, 2, 2, 3]);
     assert_eq!(
         buffers.style_pairs(),
-        &[3, 1, 254, 6, 255, 254, 5, 255, 254]
+        &[3, 1, 254, 0, 255, 0, 6, 255, 254, 0, 255, 0, 5, 255, 254, 0, 255, 0]
     );
+}
+
+#[test]
+fn exports_the_link_id_as_the_sixth_word_and_the_uri_table_beside_it() {
+    let mut core = TerminalCore::new(16, 10).unwrap();
+    core.feed(b"a\x1b]8;;https://x.y\x1b\\b\x1b]8;;\x1b\\c");
+    let mut buffers = ExportBuffers::default();
+    buffers.refresh(&core.snapshot().unwrap()).unwrap();
+
+    assert_eq!(
+        buffers.style_pairs(),
+        &[1, 255, 254, 0, 255, 0, 2, 255, 254, 0, 255, 1, 3, 255, 254, 0, 255, 0]
+    );
+    assert_eq!(buffers.link_text(), b"https://x.y");
+    assert_eq!(buffers.link_ranges(), &[0, 11]);
+}
+
+#[test]
+fn a_partial_delta_appends_new_links_without_rebuilding_the_table() {
+    let mut core = TerminalCore::new(16, 10).unwrap();
+    core.resize(16, 2);
+    let mut buffers = ExportBuffers::default();
+    let initial = core.take_delta();
+    buffers.apply(&core, &initial).unwrap();
+    core.feed(b"\x1b]8;;https://one\x1b\\1\x1b]8;;\x1b\\\r\n");
+    let first = core.take_delta();
+    assert_eq!(first.kind, vt_core::DeltaKind::Partial);
+    buffers.apply(&core, &first).unwrap();
+    core.feed(b"\x1b]8;;https://two\x1b\\2\x1b]8;;\x1b\\\r\n");
+    let second = core.take_delta();
+    assert_eq!(second.kind, vt_core::DeltaKind::Partial);
+    buffers.apply(&core, &second).unwrap();
+
+    assert_eq!(buffers.link_text(), b"https://onehttps://two");
+    assert_eq!(buffers.link_ranges(), &[0, 11, 11, 22]);
+}
+
+#[test]
+fn exports_cell_spans_beside_the_rows_as_start_end_width_triples() {
+    let mut core = TerminalCore::new(16, 10).unwrap();
+    core.feed("ab\u{6f22}c\r\ne\u{301}".as_bytes());
+    let mut buffers = ExportBuffers::default();
+    buffers.refresh(&core.snapshot().unwrap()).unwrap();
+
+    assert_eq!(buffers.span_ranges(), &[0, 1, 1, 2]);
+    assert_eq!(buffers.cell_spans(), &[2, 5, 2, 0, 3, 1]);
 }
 
 #[test]
@@ -87,4 +133,15 @@ fn apply_matches_refresh_for_a_partial_delta() {
     assert_eq!(incremental.run_ranges(), full.run_ranges());
     assert_eq!(incremental.style_pairs(), full.style_pairs());
     assert_eq!(incremental.blocks(), full.blocks());
+}
+
+#[test]
+fn exports_one_wrapped_byte_per_row() {
+    let mut core = TerminalCore::new(4, 10).unwrap();
+    core.feed(b"abc def\r\nx");
+    let mut buffers = ExportBuffers::default();
+    buffers.refresh(&core.snapshot().unwrap()).unwrap();
+
+    assert_eq!(buffers.row_wrapped().len(), buffers.rows().len() / 2);
+    assert_eq!(&buffers.row_wrapped()[..3], &[1, 0, 0]);
 }

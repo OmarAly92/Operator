@@ -615,8 +615,8 @@ func TestGetAgentHooksInstallsPlugin(t *testing.T) {
 	if managed, err := isOperatorManagedSkill(workspace); err != nil || !managed {
 		t.Fatalf("isOperatorManagedSkill after install = (%v, %v), want (true, nil)", managed, err)
 	}
-	if _, err := os.Stat(filepath.Join(opencodeSkillDir(workspace), "commands", "spawn.md")); err != nil {
-		t.Fatalf("using-opr commands/spawn.md missing after install: %v", err)
+	if _, err := os.Stat(filepath.Join(opencodeSkillDir(workspace), "commands", "session.md")); err != nil {
+		t.Fatalf("using-opr commands/session.md missing after install: %v", err)
 	}
 }
 
@@ -711,8 +711,8 @@ func TestGetAgentHooksRecoversPartialSkillInstall(t *testing.T) {
 	if err := plugin.GetAgentHooks(ctx, ports.WorkspaceHookConfig{WorkspacePath: workspace}); err != nil {
 		t.Fatalf("GetAgentHooks: %v", err)
 	}
-	if _, err := os.Stat(filepath.Join(skillDir, "commands", "spawn.md")); err != nil {
-		t.Fatalf("recovered install missing commands/spawn.md: %v", err)
+	if _, err := os.Stat(filepath.Join(skillDir, "commands", "session.md")); err != nil {
+		t.Fatalf("recovered install missing commands/session.md: %v", err)
 	}
 }
 

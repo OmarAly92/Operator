@@ -24,7 +24,6 @@ class SpawnSessionParams extends Equatable {
     if (harness != null && harness!.isNotEmpty) 'harness': harness,
     if (workspaceMode != null) 'workspaceMode': workspaceMode,
     if (claudeAccountId != null && claudeAccountId!.isNotEmpty) 'claudeAccountId': claudeAccountId,
-    'kind': 'worker',
   };
 
   @override

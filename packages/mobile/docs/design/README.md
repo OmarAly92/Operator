@@ -47,19 +47,22 @@ token/getter names, not raw hex/px/ms values.
 
 The prototype models exactly 8 screens (verified by walking every `sc-if`/tab branch in
 the decoded template — see "Screens NOT covered" below for what it does *not* model).
+One of those, `tab1` ("Orchestrator"), is not built: the daemon's delegator/worker
+session split was removed (2026-09-20), the mobile delegator-session feature and its tab
+went with it, and the screen's design directory was deleted rather than kept as a spec
+for a screen this app will not implement. The table below covers the remaining 7.
 
 | # | Prototype screen (`sc-if` / tab) | Owning feature path | Notes |
 |---|---|---|---|
 | 1 | `isOnboarding` — "Connect your desktop" | `lib/feature/onboarding/presentation/onboarding_screen/` | Entry screen when no paired desktop exists. |
 | 2 | `isConnections` — "Your desktops" list | `lib/feature/pairing/presentation/connections_screen/` **(new — does not exist yet)** | Pairing feature already has `pairing_scan_screen/` (QR) and `manual_connect_screen/` (add/edit form) — this saved-connections LIST screen is new UI; its add/edit sheet should reuse `manual_connect_screen`'s cubit/form logic rather than duplicating it, see the screen's own `.md` for how. |
 | 3 | `tab0` — "Agents" board (Loading/Empty/Loaded) | `lib/feature/sessions/presentation/sessions_screen/` | First tab of the bottom-nav home shell (`lib/core/app_routes/home_shell.dart` — core, not owned by any feature). |
-| 4 | `tab1` — "Orchestrator" | `lib/feature/orchestrator/presentation/orchestrator_screen/` | Second tab. |
-| 5 | `tab2` — "Pull Requests" | `lib/feature/pull_request/presentation/pull_requests_screen/` | Third tab. |
-| 6 | `tab3` — "Settings" | `lib/feature/settings/presentation/settings_screen/` | Fourth tab. |
-| 7 | `isChat` — session detail (blocks/raw view, composer, command menu) | `lib/feature/blocks/presentation/blocks_screen/` (structured/blocks view) **and** `lib/feature/terminal/presentation/terminal_screen/` (raw view, header, composer shell), reached via `lib/feature/sessions/presentation/session_route/` | See the corrected assessment below — this is a good structural match, not a conflict. Split across two features; `session_detail.md` says which piece belongs to which. |
-| 8 | `isSpawn` — "Spawn agent" | `lib/feature/spawn/presentation/spawn_screen/` | Opened from the Agents tab's empty state or a FAB; owned by `spawn`, not `sessions`, even though `sessions` launches it (launcher-vs-owner). |
+| 4 | `tab2` — "Pull Requests" | `lib/feature/pull_request/presentation/pull_requests_screen/` | Second tab. |
+| 5 | `tab3` — "Settings" | `lib/feature/settings/presentation/settings_screen/` | Third tab. |
+| 6 | `isChat` — session detail (blocks/raw view, composer, command menu) | `lib/feature/blocks/presentation/blocks_screen/` (structured/blocks view) **and** `lib/feature/terminal/presentation/terminal_screen/` (raw view, header, composer shell), reached via `lib/feature/sessions/presentation/session_route/` | See the corrected assessment below — this is a good structural match, not a conflict. Split across two features; `session_detail.md` says which piece belongs to which. |
+| 7 | `isSpawn` — "Spawn agent" | `lib/feature/spawn/presentation/spawn_screen/` | Opened from the Agents tab's empty state or a FAB; owned by `spawn`, not `sessions`, even though `sessions` launches it (launcher-vs-owner). |
 
-**Screen 7 — corrected assessment (was previously flagged as a hard conflict; it isn't).**
+**Screen 6 — corrected assessment (was previously flagged as a hard conflict; it isn't).**
 An earlier pass of this README read the `isChat` block's surface (message list + composer)
 and flagged it against this project's CLAUDE.md rule *"there is no chat feature — every
 session runs the agent's own terminal UI."* Having now read the actual `blocks`/`terminal`
@@ -158,18 +161,18 @@ their spec.
 
 ## Suggested implementation order
 
-1. Home shell (bottom nav, 4 tabs) if not already wired to the new tab set.
+1. Home shell (bottom nav, 3 tabs) if not already wired to the new tab set.
 2. Sessions board (`tab0`) — most core widgets get exercised here (cards, chips, empty
    state, shimmer loading, status dots) so building it first validates Phase 5 widgets.
 3. Onboarding + Connections (screens 1-2) — smallest, most self-contained.
-4. Orchestrator, Pull Requests, Settings (tabs 1/2/3) — reuse Sessions-board patterns.
-5. Spawn (screen 8).
-6. Blocks/terminal session-detail (screen 7) — last, since it's the largest and reuses
+4. Pull Requests, Settings (tabs 1/2) — reuse Sessions-board patterns.
+5. Spawn (screen 7).
+6. Blocks/terminal session-detail (screen 6) — last, since it's the largest and reuses
    patterns from the sessions board; get the user's call on the stopped-agent
    banner-vs-overlay question (above) before restyling `terminal_dead_overlay.dart`.
 
 Screens without their doc built yet render as whatever placeholder this app's router
-already falls back to — don't block other screens on screen 7.
+already falls back to — don't block other screens on screen 6.
 
 ## How this was decoded (for re-derivation)
 

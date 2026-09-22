@@ -20,6 +20,23 @@ export async function loadFixture(name) {
 	return { name, recording, sizes };
 }
 
+export const PROBES_DIR = fileURLToPath(new URL("./probes/", import.meta.url));
+
+export function listProbes() {
+	return readdirSync(PROBES_DIR, { withFileTypes: true })
+		.filter((entry) => entry.isDirectory())
+		.map((entry) => entry.name)
+		.sort();
+}
+
+export async function loadProbe(name) {
+	const dir = join(PROBES_DIR, name);
+	const recording = new Uint8Array(await readFile(join(dir, "recording")));
+	const sizes = JSON.parse(await readFile(join(dir, "size.json"), "utf8"));
+	if (!Array.isArray(sizes)) throw new Error(`${name}/size.json must be a JSON array`);
+	return { name, recording, sizes };
+}
+
 export function frameBoundaries(recording) {
 	const esu = [0x1b, 0x5b, 0x3f, 0x32, 0x30, 0x32, 0x36, 0x6c];
 	const ends = [];

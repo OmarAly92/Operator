@@ -9,7 +9,6 @@ import (
 	"testing"
 
 	"github.com/OmarAly92/operator/backend/internal/adapters"
-	"github.com/OmarAly92/operator/backend/internal/domain"
 	"github.com/OmarAly92/operator/backend/internal/ports"
 )
 
@@ -62,7 +61,6 @@ func TestGetPromptDeliveryStrategy(t *testing.T) {
 func TestGetLaunchCommandWorkerWithPromptIsInteractive(t *testing.T) {
 	p := &Plugin{resolvedBinary: "pi"}
 	cmd, err := p.GetLaunchCommand(context.Background(), ports.LaunchConfig{
-		Kind:   domain.KindWorker,
 		Prompt: "add a health check",
 	})
 	if err != nil {
@@ -107,10 +105,9 @@ func TestGetLaunchCommandOmitsBlankConfiguredModel(t *testing.T) {
 	}
 }
 
-func TestGetLaunchCommandOrchestratorAppendsSystemPromptInteractively(t *testing.T) {
+func TestGetLaunchCommandAppendsSystemPromptInteractively(t *testing.T) {
 	p := &Plugin{resolvedBinary: "pi"}
 	cmd, err := p.GetLaunchCommand(context.Background(), ports.LaunchConfig{
-		Kind:         domain.KindOrchestrator,
 		SystemPrompt: "coordinate work and avoid implementation",
 		Prompt:       "plan the issue",
 	})
@@ -251,7 +248,6 @@ func TestGetRestoreCommandAppendsConfiguredModelBeforeSession(t *testing.T) {
 func TestGetRestoreCommandReappendsSystemPromptInteractively(t *testing.T) {
 	p := &Plugin{resolvedBinary: "pi"}
 	cmd, ok, err := p.GetRestoreCommand(context.Background(), ports.RestoreConfig{
-		Kind:         domain.KindOrchestrator,
 		Session:      ports.SessionRef{Metadata: map[string]string{ports.MetadataKeyAgentSessionID: "019e950e-52e0-7411-961b-d380ca7e610f"}},
 		SystemPrompt: "coordinate work and avoid implementation",
 	})

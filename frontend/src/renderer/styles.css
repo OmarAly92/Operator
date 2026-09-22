@@ -1248,11 +1248,15 @@ body {
 	user-select: none;
 }
 
-button,
-input,
-textarea,
-select {
-	font: inherit;
+/* Layered so Tailwind text-* utilities can size a control; an unlayered
+   `font: inherit` would outrank every utility on buttons and inputs. */
+@layer base {
+	button,
+	input,
+	textarea,
+	select {
+		font: inherit;
+	}
 }
 
 input,
@@ -3442,7 +3446,7 @@ html[data-native-browser-composition="true"] .browser-popout-overlay {
 	align-items: center;
 	gap: 10px;
 	width: min(320px, calc(100% - 360px));
-	height: 30px;
+	height: 26px;
 	padding: 0 14px;
 	border-radius: 8px;
 	background: var(--secondary);
@@ -3465,18 +3469,6 @@ html[data-native-browser-composition="true"] .browser-popout-overlay {
 
 .desktop-titlebar__search:hover {
 	background: var(--color-interactive-active);
-}
-
-.desktop-titlebar__avatar {
-	display: grid;
-	place-items: center;
-	width: 26px;
-	height: 26px;
-	border: 1px solid var(--color-border-strong);
-	border-radius: 50%;
-	background: var(--popover);
-	font-size: 11.5px;
-	font-weight: 600;
 }
 
 .desktop-design {
@@ -3597,6 +3589,3 @@ html[data-native-browser-composition="true"] .browser-popout-overlay {
 	font-size: 14px;
 }
 
-.desktop-design [data-session-row] button {
-	font-size: 13px;
-}

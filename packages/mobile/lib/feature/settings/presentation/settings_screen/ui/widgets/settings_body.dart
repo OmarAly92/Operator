@@ -206,7 +206,7 @@ class _SettingsBodyState extends State<SettingsBody> {
         }
 
         return ListView(
-          controller: HomeShell.controllerFor(3),
+          controller: HomeShell.controllerFor(2),
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 40),
           children: [
             SettingsGroup(

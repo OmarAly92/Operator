@@ -24,7 +24,7 @@ func TestTicketsInsertGetPlanningSessionArchive(t *testing.T) {
 		t.Fatalf("list = %+v err = %v", list, err)
 	}
 	sess, err := s.CreateSession(ctx, domain.SessionRecord{
-		ProjectID: "tk", Kind: domain.KindWorker, Harness: domain.HarnessClaudeCode,
+		ProjectID: "tk", Harness: domain.HarnessClaudeCode,
 		Activity:  domain.Activity{State: domain.ActivityIdle, LastActivityAt: now},
 		Metadata:  domain.SessionMetadata{WorkspaceMode: domain.WorkspaceModeInPlace},
 		CreatedAt: now, UpdatedAt: now,
@@ -81,7 +81,7 @@ func TestPlanAssignmentsNewestFirstAndRef(t *testing.T) {
 	}
 	mk := func() domain.SessionID {
 		sess, err := s.CreateSession(ctx, domain.SessionRecord{
-			ProjectID: "tk", Kind: domain.KindWorker, Harness: domain.HarnessClaudeCode,
+			ProjectID: "tk", Harness: domain.HarnessClaudeCode,
 			Activity:  domain.Activity{State: domain.ActivityIdle, LastActivityAt: now},
 			Metadata:  domain.SessionMetadata{WorkspaceMode: domain.WorkspaceModeWorktree},
 			CreatedAt: now, UpdatedAt: now,

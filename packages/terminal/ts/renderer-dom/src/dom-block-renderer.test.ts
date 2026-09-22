@@ -54,6 +54,18 @@ afterEach(() => {
 	vi.restoreAllMocks();
 });
 
+// jsdom lays nothing out, so a decoration box over a zero-width row collapses
+// to nothing. Only rows get a rect here; the measure node keeps jsdom's own.
+function stubRowLayout(): void {
+	const original = HTMLElement.prototype.getBoundingClientRect;
+	vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+		if (!this.hasAttribute("data-terminal-row")) return original.call(this);
+		const row = Number(this.dataset.terminalRow);
+		const top = row * 20;
+		return { x: 0, y: top, left: 0, top, right: 200, bottom: top + 20, width: 200, height: 20, toJSON: () => ({}) } as DOMRect;
+	});
+}
+
 function mountWith(input: string): { core: TerminalCore; host: HTMLElement; renderer: DomBlockRenderer } {
 	const core = createTerminalCore({ columns: 16, scrollback: 100 });
 	feed(core, input);
@@ -400,6 +412,23 @@ describe("DomBlockRenderer", () => {
 		await flushRepaint();
 		expect(host.textContent).toBe("alphabeta");
 	});
+
+	it("fires onBlockFinished once when a running block finishes, with the pane's visibility", async () => {
+		const { core, host, renderer } = mountWith("\x1b]133;A\x07\x1b]133;B\x07\x1b]133;C\x07out\r\n");
+		document.body.append(host);
+		host.getClientRects = () => [{}] as unknown as DOMRectList;
+		const events: unknown[] = [];
+		renderer.onBlockFinished((event) => events.push(event));
+		await flushRepaint();
+		feed(core, "\x1b]133;D;3\x07");
+		await flushRepaint();
+		await flushRepaint();
+		expect(events).toHaveLength(1);
+		expect(events[0]).toMatchObject({ exitCode: 3, visible: true });
+		expect((events[0] as { durationMs: number | null }).durationMs).not.toBeNull();
+		renderer.dispose();
+		host.remove();
+	});
 });
 
 describe("extended colour", () => {
@@ -480,6 +509,53 @@ describe("measure", () => {
 		expect(node.style.display).toBe("inline-block");
 		expect(node.style.lineHeight).toBe(`${font.lineHeight * font.sizePx}px`);
 		renderer.dispose();
+	});
+
+	it("labels every visible match on the chord, narrows on a typed character, and emits the hint", async () => {
+		stubRowLayout();
+		const { host, renderer } = mountWith("go https://x.y/a then src/a.ts:42\r\n");
+		await flushRepaint();
+		expect(renderer.hintBegin()).toBe(2);
+		expect(renderer.hintActive()).toBe(true);
+		const labels = [...host.querySelectorAll(".terminal-hint-label")].map((node) => node.textContent);
+		expect(labels).toEqual(["s", "a"]);
+		expect(host.querySelectorAll(".terminal-hint-match")).toHaveLength(3);
+		expect(renderer.hintType("a")).toEqual({ ruleId: "file-line", text: "src/a.ts:42", path: "src/a.ts", line: 42 });
+		expect(renderer.hintActive()).toBe(false);
+		expect(host.querySelectorAll(".terminal-hint-label")).toHaveLength(0);
+	});
+
+	it("masks a secret in the copy text and paints it, only once the host supplies patterns", async () => {
+		stubRowLayout();
+		const core = createTerminalCore({ columns: 80, scrollback: 100 });
+		feed(core, "token ghp_ABCDEFGHIJKLMNOPQRSTU end\r\n");
+		const host = document.createElement("div");
+		const renderer = new DomBlockRenderer();
+		renderer.mount(host, core);
+		renderer.setTheme(theme);
+		renderer.setFont(font);
+		await flushRepaint();
+		renderer.selectionBegin({ blockId: "0:0", row: 0, column: 0, side: "left" }, "line");
+		expect(renderer.selectedText()).toContain("ghp_ABCDEFGHIJKLMNOPQRSTU");
+		expect(host.querySelectorAll(".terminal-redaction")).toHaveLength(0);
+		renderer.setSecretPatterns([{ source: "\\bgh[pousr]_[A-Za-z0-9]{20,}\\b" }]);
+		await flushRepaint();
+		expect(renderer.selectedText()).not.toContain("ghp_");
+		expect(renderer.selectedText()).toContain("*".repeat(25));
+		expect(host.querySelectorAll(".terminal-redaction")).toHaveLength(1);
+		expect(host.textContent).toContain("ghp_ABCDEFGHIJKLMNOPQRSTU");
+	});
+
+	it("cancelling hint mode removes every label and paints nothing", async () => {
+		stubRowLayout();
+		const { host, renderer } = mountWith("go https://x.y/a\r\n");
+		await flushRepaint();
+		renderer.hintBegin();
+		expect(host.querySelectorAll(".terminal-hint-label").length).toBeGreaterThan(0);
+		renderer.hintCancel();
+		expect(host.querySelectorAll(".terminal-hint-label")).toHaveLength(0);
+		expect(host.querySelectorAll(".terminal-hint-match")).toHaveLength(0);
+		expect(renderer.hintActive()).toBe(false);
 	});
 
 	it("measure() reads layout once until the font changes", () => {
@@ -699,6 +775,36 @@ describe("row pool", () => {
 		await flushRepaint();
 		expect(container.querySelector(`[data-terminal-block-id="${last.id}"]`)).toBe(section);
 		expect(rowNode(container, stable)).toBe(row);
+		renderer.dispose();
+	});
+	it("clamps the scroller at its edges the way Warp's block list does", async () => {
+		const { host, renderer } = mountWith("one\r\ntwo");
+		await flushRepaint();
+		expect(host.style.getPropertyValue("overscroll-behavior-y")).toBe("none");
+		renderer.dispose();
+	});
+	it("does not fight an elastic overscroll past either edge", async () => {
+		const container = document.createElement("div");
+		Object.defineProperty(container, "clientHeight", { value: 100, configurable: true });
+		Object.defineProperty(container, "scrollHeight", { value: 100_000, configurable: true });
+		Object.defineProperty(container, "scrollTop", { value: 99_900, configurable: true, writable: true });
+		const core = createTerminalCore({ columns: 16, scrollback: 1000, rows: 2 });
+		for (let i = 0; i < 200; i += 1) feed(core, `row${i}\r\n`);
+		const renderer = new DomBlockRenderer();
+		renderer.mount(container, core);
+		renderer.setFont(font);
+		await flushRepaint();
+		container.scrollTop = 99_930;
+		container.dispatchEvent(new Event("scroll"));
+		await flushRepaint();
+		expect(container.scrollTop).toBe(99_930);
+		container.scrollTop = 99_900;
+		container.dispatchEvent(new Event("scroll"));
+		await flushRepaint();
+		container.scrollTop = -30;
+		container.dispatchEvent(new Event("scroll"));
+		await flushRepaint();
+		expect(container.scrollTop).toBe(-30);
 		renderer.dispose();
 	});
 	it("repaints a row that was rewritten and then scrolled into history", async () => {

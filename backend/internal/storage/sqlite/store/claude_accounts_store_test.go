@@ -112,7 +112,7 @@ func TestDeleteClaudeAccountRules(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	rec := budgetTestRecord("proj-1", domain.KindWorker, "", now)
+	rec := minimalSessionRecord("proj-1", now)
 	rec.ClaudeAccountID = "personal"
 	created, err := s.CreateSession(ctx, rec)
 	if err != nil {
@@ -140,7 +140,7 @@ func TestSessionWithoutAccountDefaults(t *testing.T) {
 	s := newTestStore(t)
 	ctx := context.Background()
 	seedProject(t, s, "proj-1")
-	created, err := s.CreateSession(ctx, budgetTestRecord("proj-1", domain.KindWorker, "", time.Now().UTC()))
+	created, err := s.CreateSession(ctx, minimalSessionRecord("proj-1", time.Now().UTC()))
 	if err != nil {
 		t.Fatal(err)
 	}

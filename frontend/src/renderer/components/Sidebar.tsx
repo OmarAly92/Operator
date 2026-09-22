@@ -13,25 +13,18 @@ import {
 	RefreshCw,
 	Search,
 	Settings,
-	SlidersHorizontal,
 	SquareTerminal,
 	Trash2,
+	X,
 } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import type { UpdateStatus } from "../../shared/update-settings";
-import {
-	hasConfiguredOrchestratorAgent,
-	newestActiveOrchestrator,
-	type WorkspaceSession,
-	type WorkspaceSummary,
-	workerSessions,
-} from "../types/workspace";
+import { type WorkspaceSession, type WorkspaceSummary } from "../types/workspace";
 import { getAgentActivityView } from "../lib/session-presentation";
 import { operatorBridge } from "../lib/bridge";
 import { workspaceQueryKey } from "../hooks/useWorkspaceQuery";
 import { usePinSession, useUnpinSession } from "../hooks/usePinSession";
-import { spawnOrchestrator } from "../lib/spawn-orchestrator";
 import { renameSession } from "../lib/rename-session";
 import { useTerminateSession } from "../hooks/useTerminateSession";
 import { useOpenShellTerminal } from "../hooks/useShellTerminals";
@@ -69,7 +62,6 @@ import {
 	useSidebar,
 } from "./ui/sidebar";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
-import { OrchestratorIcon } from "./icons";
 import { cn } from "../lib/utils";
 import { useUiStore } from "../stores/ui-store"
 import { ConfirmDialog } from "./ConfirmDialog";
@@ -83,19 +75,19 @@ import { isMacPlatform } from "../lib/platform";
 // under its custom titlebar.
 const isMac = isMacPlatform();
 
-// Shared styling for the per-project hover action buttons (orchestrator, kebab):
+// Shared styling for the per-project hover action buttons (new task, terminal, kebab):
 // a 20px square icon button that tints on hover, matching the old
 // SidebarMenuAction footprint.
 const HOVER_ACTION_CLASS =
-	"grid size-5 shrink-0 place-items-center rounded-md text-passive transition-colors hover:text-foreground disabled:pointer-events-none disabled:opacity-50 data-[state=open]:text-foreground [&_svg]:size-icon-lg";
+	"grid size-5 shrink-0 place-items-center rounded-md text-passive transition-colors hover:text-foreground disabled:pointer-events-none disabled:opacity-50 data-[state=open]:text-foreground [&_svg]:size-icon-sm";
 
-// Shared nav-row chrome (Codex-style): inset pill hover/selected, 14px type, no accent bar.
+// Shared nav-row chrome (Codex-style): inset pill hover/selected, 13px type, no accent bar.
 const NAV_ROW_CLASS =
-	"h-[34px] gap-2 rounded-lg px-2.5 text-base font-medium text-muted-foreground transition-[background-color,color] hover:bg-interactive-hover hover:text-foreground active:bg-interactive-hover active:text-foreground data-[active=true]:bg-interactive-active data-[active=true]:font-medium data-[active=true]:text-foreground";
+	"h-7 gap-2 rounded-lg px-2.5 text-control font-medium text-muted-foreground transition-[background-color,color] hover:bg-interactive-hover hover:text-foreground active:bg-interactive-hover active:text-foreground data-[active=true]:bg-interactive-active data-[active=true]:font-medium data-[active=true]:text-foreground";
 
 // Search + Pinned/Projects section chrome: same type, icon, and row size.
 const SECTION_ROW_CLASS =
-	"flex h-7 w-full min-w-0 items-center gap-1.5 rounded-md px-1.5 text-base font-medium text-passive [&_svg]:size-icon-md [&_svg]:shrink-0";
+	"flex h-7 w-full min-w-0 items-center gap-1.5 rounded-md px-1.5 text-control font-medium text-passive [&_svg]:size-icon-md [&_svg]:shrink-0";
 // Hover fill only for collapsible section headers (Pinned). Projects is a static label.
 const SECTION_ROW_INTERACTIVE_CLASS = "transition-colors hover:bg-interactive-hover hover:text-foreground";
 
@@ -187,7 +179,7 @@ export function Sidebar({
 	const daemonStatus = useShellMaybe()?.daemonStatus ?? null;
 	const [sidebarFilter, setSidebarFilter] = useState("");
 	const searchQuery = sidebarFilter.trim().toLocaleLowerCase();
-	const visibleWorkspaces = workspaces.filter((workspace) => workspace.name.toLocaleLowerCase().includes(searchQuery) || workerSessions(workspace.sessions).some((session) => !session.isTerminated && session.title.toLocaleLowerCase().includes(searchQuery)));
+	const visibleWorkspaces = workspaces.filter((workspace) => workspace.name.toLocaleLowerCase().includes(searchQuery) || workspace.sessions.some((session) => !session.isTerminated && session.title.toLocaleLowerCase().includes(searchQuery)));
 
 	useLayoutEffect(() => {
 		// Offcanvas: the panel slides off-screen on collapse — no need to hide content.
@@ -197,16 +189,22 @@ export function Sidebar({
 		}
 	}, [isCollapsed]);
 
-	// Disclosure state: projects are expanded by default; a project id present in
-	// this set is collapsed (sessions hidden).
-	const [collapsedIds, setCollapsedIds] = useState<ReadonlySet<string>>(() => new Set());
-	const toggleCollapsed = (id: string) =>
-		setCollapsedIds((prev) => {
+	// Disclosure state: projects start collapsed; a project id in this set shows
+	// its sessions. Opening a project's board or one of its sessions expands it,
+	// so the tree follows the user rather than opening everything at launch.
+	const [expandedIds, setExpandedIds] = useState<ReadonlySet<string>>(() => new Set());
+	const toggleExpanded = (id: string) =>
+		setExpandedIds((prev) => {
 			const next = new Set(prev);
 			if (next.has(id)) next.delete(id);
 			else next.add(id);
 			return next;
 		});
+	const activeProjectId = selection.activeProjectId;
+	useEffect(() => {
+		if (!activeProjectId) return;
+		setExpandedIds((prev) => (prev.has(activeProjectId) ? prev : new Set(prev).add(activeProjectId)));
+	}, [activeProjectId]);
 	// Section disclosure: Pinned header collapses its body. Projects stays open.
 	const [pinnedOpen, setPinnedOpen] = useState(true);
 
@@ -230,7 +228,7 @@ export function Sidebar({
 	});
 
 	const pinnedSessions = workspaces
-		.flatMap((w) => workerSessions(w.sessions))
+		.flatMap((w) => w.sessions)
 		.filter((s) => s.isPinned && s.isTerminated !== true && (s.title.toLocaleLowerCase().includes(searchQuery) || s.workspaceName.toLocaleLowerCase().includes(searchQuery)))
 		.sort((a, b) => {
 			const aTime = a.pinnedAt ? new Date(a.pinnedAt).getTime() : 0;
@@ -264,8 +262,9 @@ export function Sidebar({
 				<div className="sidebar-tab-search group-data-[collapsible=icon]:hidden">
 					<Search aria-hidden="true" />
 					<input aria-label={t("shell.searchTabsPlaceholder")} placeholder={t("shell.searchTabsPlaceholder")} value={sidebarFilter} onChange={(event) => setSidebarFilter(event.target.value)} />
-					<button type="button" aria-label={t("shell.sidebarOptions")} onClick={selection.goGlobalSettings}><SlidersHorizontal aria-hidden="true" /></button>
-					<button type="button" aria-label={t("shell.newTask")} onClick={() => selection.activeProjectId ? useUiStore.getState().requestNewTask(selection.activeProjectId) : useUiStore.getState().requestCreateProject()}><Plus aria-hidden="true" /></button>
+					{sidebarFilter !== "" ? (
+						<button type="button" aria-label={t("shell.clearSearch")} onClick={() => setSidebarFilter("")}><X aria-hidden="true" /></button>
+					) : null}
 				</div>
 
 				{/* Pinned — collapsible; hidden when empty. */}
@@ -287,7 +286,6 @@ export function Sidebar({
 										key={session.id}
 										session={session}
 										active={selection.activeSessionId === session.id}
-										indented={false}
 										onOpen={() => selection.goSession(session.workspaceId, session.id)}
 									/>
 								))}
@@ -327,10 +325,10 @@ export function Sidebar({
 									<ProjectItem
 										key={workspace.id}
 										workspace={workspace}
-										expanded={Boolean(searchQuery) || !collapsedIds.has(workspace.id)}
+										expanded={Boolean(searchQuery) || expandedIds.has(workspace.id)}
 										searchQuery={searchQuery}
 										selection={selection}
-										onToggle={() => toggleCollapsed(workspace.id)}
+										onToggle={() => toggleExpanded(workspace.id)}
 										onRemoveProject={onRemoveProject}
 									/>
 								))}
@@ -346,7 +344,7 @@ export function Sidebar({
 			    the sidebar is already height-clamped beside the inset center surface. */}
 			<SidebarFooter
 				className={cn(
-					"relative mt-auto gap-0 overflow-hidden border-t border-border-strong px-2 !py-2 transition-[padding] duration-200 ease-linear group-data-[collapsible=icon]:min-h-16 group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:border-t-0 group-data-[collapsible=icon]:px-1.5 group-data-[collapsible=icon]:!pb-0 group-data-[collapsible=icon]:!pt-1.5",
+					"relative mt-auto gap-0 overflow-hidden border-t border-border-strong px-2 !py-1.5 transition-[padding] duration-200 ease-linear group-data-[collapsible=icon]:min-h-16 group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:border-t-0 group-data-[collapsible=icon]:px-1.5 group-data-[collapsible=icon]:!pb-0 group-data-[collapsible=icon]:!pt-1.5",
 					isMac ? "mb-px" : "mb-[calc(var(--size-center-panel-bottom-inset)+1px)]",
 				)}
 			>
@@ -367,7 +365,7 @@ export function Sidebar({
 						aria-label={t("shell.settings")}
 						className={cn(
 							NAV_ROW_CLASS,
-							"flex h-[42px] w-full items-center text-left [&_svg]:size-icon-md [&_svg]:shrink-0",
+							"flex h-7 w-full items-center text-left [&_svg]:size-icon-sm [&_svg]:shrink-0",
 						)}
 						onClick={() => selection.goGlobalSettings()}
 						tabIndex={isCollapsed ? -1 : 0}
@@ -438,17 +436,9 @@ function ProjectItem({
 	const prefersReducedMotion = useReducedMotion();
 	const activeProjectMatches = selection.activeProjectId === workspace.id;
 	const dashboardActive = activeProjectMatches && !selection.activeSessionId;
-	const orchestratorActive =
-		activeProjectMatches &&
-		workspace.sessions.some(
-			(session) => session.id === selection.activeSessionId && session.kind === "orchestrator",
-		);
-	const projectActive = dashboardActive || orchestratorActive;
-	const queryClient = useQueryClient();
 	const [removeError, setRemoveError] = useState<string | null>(null);
 	const [isRemoving, setIsRemoving] = useState(false);
 	const [confirmOpen, setConfirmOpen] = useState(false);
-	const [isSpawning, setIsSpawning] = useState(false);
 	const [projectPressed, setProjectPressed] = useState(false);
 	const [rowHovered, setRowHovered] = useState(false);
 	// Skip enter animation on first mount — sessions arrive async and we don't
@@ -459,69 +449,31 @@ function ProjectItem({
 		const id = requestAnimationFrame(() => setAnimReady(true));
 		return () => cancelAnimationFrame(id);
 	}, []);
-	const restartingProjectIds = useUiStore((state) => state.restartingProjectIds);
-	const isProjectRestarting = restartingProjectIds.has(workspace.id);
 	const requestNewTask = useUiStore((state) => state.requestNewTask);
 	// Keep completed PR sessions reachable while their runtime still exists.
 	// Only termination removes a worker from the sidebar; archived sessions stay
 	// reachable through SessionsBoard.
-	const sessions = workerSessions(workspace.sessions).filter((session) => session.isTerminated !== true && (workspace.name.toLocaleLowerCase().includes(searchQuery) || session.title.toLocaleLowerCase().includes(searchQuery)));
-	// The project's live orchestrator (if any) backs the hover Orchestrator
-	// button: navigate to it when present, otherwise spawn one first.
-	const orchestrator = newestActiveOrchestrator(workspace.sessions);
+	const sessions = workspace.sessions.filter((session) => session.isTerminated !== true && (workspace.name.toLocaleLowerCase().includes(searchQuery) || session.title.toLocaleLowerCase().includes(searchQuery)));
 	const { mutate: openShellTerminal, isPending: isOpeningShell } = useOpenShellTerminal();
 	const setActiveShellTerminal = useUiStore((state) => state.setActiveShellTerminal);
 	const drop = useTicketDropTarget(projectDropId(workspace.id));
 
-	// A terminal for the project, scoped to the orchestrator when there is one:
-	// the orchestrator is a session like any other, so the daemon resolves its
-	// directory, and the shell lands as a tab beside the orchestrator's own
-	// terminal. With no orchestrator there is no session view to host a tab, so
-	// the shell opens against the project root and lives on /terminals.
+	// A terminal for the project: the shell opens against the project root and
+	// lives on /terminals.
 	const openProjectTerminal = () => {
 		openShellTerminal(
-			orchestrator ? { sessionId: orchestrator.id } : { projectId: workspace.id },
+			{ projectId: workspace.id },
 			{
 				onSuccess: (shell) => {
 					setActiveShellTerminal(shell.handleId);
-					if (orchestrator) selection.goSession(workspace.id, orchestrator.id);
-					else void navigate({ to: "/terminals" });
+					void navigate({ to: "/terminals" });
 				},
 			},
 		);
 	};
 
-	// Mirrors ShellTopbar's launcher: attach to the running orchestrator, or
-	// spawn one via the daemon and follow it once the workspace refetches.
-	// Expand a collapsed project so opening the orchestrator also reveals its
-	// session list — otherwise the tree stays shut while you're inside it.
-	const openOrchestrator = async () => {
-		if (isProjectRestarting) return;
-		if (!expanded) onToggle();
-		if (orchestrator) {
-			selection.goSession(workspace.id, orchestrator.id);
-			return;
-		}
-		if (!hasConfiguredOrchestratorAgent(workspace)) {
-			selection.goSettings(workspace.id);
-			return;
-		}
-		setIsSpawning(true);
-		try {
-			const sessionId = await spawnOrchestrator(workspace.id, "sidebar");
-			await queryClient.invalidateQueries({ queryKey: workspaceQueryKey });
-			selection.goSession(workspace.id, sessionId);
-		} catch (err) {
-			console.error("Failed to spawn orchestrator:", err);
-		} finally {
-			setIsSpawning(false);
-		}
-	};
-
 	// Expanded + already on the project board → collapse. Expanded + on a
-	// session (orchestrator or worker) → board. Collapsed → expand + board.
-	// Do not treat orchestratorActive like the board: the project row is the
-	// one-click path back from the orchestrator button.
+	// session → board. Collapsed → expand + board.
 	const onProjectClick = () => {
 		if (!expanded) {
 			onToggle();
@@ -601,15 +553,15 @@ function ProjectItem({
 	<SidebarMenuButton
 		aria-current={dashboardActive ? "page" : undefined}
 		aria-expanded={expanded}
-		isActive={projectActive}
+		isActive={dashboardActive}
 		tooltip={workspace.name}
 		onClick={onProjectClick}
 		onKeyDown={onProjectKeyDown}
 		className={cn(
 			NAV_ROW_CLASS,
-			// gap-2 matches SectionDisclosure so project icons/labels share the
-			// Projects header's left edge (NAV_ROW defaults to gap-2.5).
-			"gap-2 pr-sidebar-project-actions [&_svg]:size-icon-md",
+			// gap-1.5 matches SectionDisclosure so project icons/labels share the
+			// Projects header's left edge (NAV_ROW defaults to gap-2).
+			"gap-1.5 pr-sidebar-project-actions [&_svg]:size-icon-sm",
 			"group-data-[collapsible=icon]:size-control-board! group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:rounded-lg group-data-[collapsible=icon]:p-0! group-data-[collapsible=icon]:font-semibold",
 		)}
 	>
@@ -665,12 +617,13 @@ function ProjectItem({
 		type="button"
 	/>
 		</div>
-		{/* Per-project actions: orchestrator and kebab menu. Inside the scaled visual
-		row, but outside its navigation surface so their own presses stay independent.
-		Always visible (not hover-gated) to avoid CSS :hover group propagation in Chromium. */}
+		{/* Per-project actions: new task, terminal, and kebab menu. Inside the scaled
+		visual row, but outside its navigation surface so their own presses stay
+		independent. Always visible (not hover-gated) to avoid CSS :hover group
+		propagation in Chromium. */}
 		<div
 			className={cn(
-				"sidebar-expanded-chrome absolute top-0 right-0.5 z-chrome flex h-control-form items-center gap-px",
+				"sidebar-expanded-chrome absolute top-0 right-0.5 z-chrome flex h-7 items-center gap-px",
 				"group-data-[collapsible=icon]:hidden",
 			)}
 			data-project-actions=""
@@ -682,7 +635,6 @@ function ProjectItem({
 					<button
 						aria-label={t("shell.newTaskInProject", { name: workspace.name })}
 						className={HOVER_ACTION_CLASS}
-						disabled={isProjectRestarting}
 						onClick={() => requestNewTask(workspace.id)}
 						type="button"
 					>
@@ -705,33 +657,6 @@ function ProjectItem({
 				</TooltipTrigger>
 				<TooltipContent>{t("shell.openSessionTerminalAction")}</TooltipContent>
 			</Tooltip>
-			<Tooltip>
-				<TooltipTrigger asChild>
-					<button
-						aria-current={orchestratorActive ? "page" : undefined}
-						aria-label={
-							orchestrator
-								? t("shell.openProjectOrchestrator", { name: workspace.name })
-								: t("shell.spawnProjectOrchestrator", { name: workspace.name })
-						}
-						className={cn(HOVER_ACTION_CLASS, orchestratorActive && "text-foreground")}
-						disabled={isSpawning || isProjectRestarting}
-						onClick={() => void openOrchestrator()}
-						type="button"
-					>
-						<OrchestratorIcon aria-hidden="true" strokeWidth={orchestratorActive ? 2.5 : 2} />
-					</button>
-				</TooltipTrigger>
-				<TooltipContent>
-					{isProjectRestarting
-						? t("shell.restarting")
-						: isSpawning
-							? t("shell.spawning")
-							: orchestrator
-								? t("shell.orchestrator")
-								: t("shell.spawnOrchestratorLower")}
-				</TooltipContent>
-			</Tooltip>
 			<DropdownMenu>
 				<DropdownMenuTrigger asChild>
 					<button aria-label={t("shell.projectActions", { name: workspace.name })} className={HOVER_ACTION_CLASS} type="button">
@@ -739,7 +664,7 @@ function ProjectItem({
 					</button>
 				</DropdownMenuTrigger>
 				<DropdownMenuContent side="right" align="start" className="min-w-44">
-					<DropdownMenuItem disabled={isProjectRestarting} onSelect={() => requestNewTask(workspace.id)}>
+					<DropdownMenuItem onSelect={() => requestNewTask(workspace.id)}>
 						<Plus aria-hidden="true" />
 						{t("shell.newSession")}
 					</DropdownMenuItem>
@@ -774,8 +699,9 @@ function ProjectItem({
 				{removeError}
 			</div>
 		) : null}
-		{/* project-sidebar__sessions: indented under the project parent so worker
-          sessions read as children without adding a persistent guide rail. */}
+		{/* project-sidebar__sessions: flush with the project row, the status dot
+          sitting in the folder icon's column so sessions read as a list under
+          the project rather than a nested tree. */}
 		<AnimatePresence initial={false}>
 			{expanded && sessions.length > 0 && (
 				<motion.div
@@ -793,7 +719,7 @@ function ProjectItem({
 						exit={{ y: -12, opacity: 0 }}
 						transition={prefersReducedMotion ? { duration: 0 } : { duration: 0.14, ease: [0.25, 0.46, 0.45, 0.94] }}
 					>
-						<SidebarMenuSub className="mx-0 ml-3.5 translate-x-0 gap-px border-l-0 px-0 py-1">
+						<SidebarMenuSub className="mx-0 ml-0 translate-x-0 gap-px border-l-0 px-0 py-1">
 							{sessions.map((session) => (
 								<SessionRow
 									key={session.id}
@@ -826,7 +752,7 @@ function ProjectItem({
 		</SidebarMenuItem>
 		</ContextMenuTrigger>
 		<ContextMenuContent className="min-w-44">
-			<ContextMenuItem disabled={isProjectRestarting} onSelect={() => requestNewTask(workspace.id)}>
+			<ContextMenuItem onSelect={() => requestNewTask(workspace.id)}>
 				<Plus aria-hidden="true" />
 				{t("shell.newSession")}
 			</ContextMenuItem>
@@ -859,12 +785,10 @@ function ProjectItem({
 function SessionRow({
 	session,
 	active,
-	indented = true,
 	onOpen,
 }: {
 	session: WorkspaceSession;
 	active: boolean;
-	indented?: boolean;
 	onOpen: () => void;
 }) {
 	const { t } = useTranslation();
@@ -923,13 +847,15 @@ function SessionRow({
 
 	if (isEditing) {
 		return (
-			<SidebarMenuSubItem className={cn(indented && "pl-4.5")}>
-				<div className="relative flex h-8 w-full items-center gap-1.5 rounded-lg px-2.5 py-0">
-					<SessionStatusDot session={session} />
+			<SidebarMenuSubItem>
+				<div className="relative flex h-7 w-full items-center gap-1.5 rounded-lg px-2.5 py-0">
+					<span aria-hidden="true" className="inline-flex size-icon-md shrink-0 items-center justify-center">
+						<SessionStatusDot session={session} />
+					</span>
 					<input
 						aria-label={t("shell.renameSession", { title: session.title })}
 						autoFocus
-						className="min-w-0 flex-1 rounded-xs border border-accent bg-transparent px-1 py-px text-sm text-foreground outline-none focus-visible:ring-1 focus-visible:ring-accent"
+						className="min-w-0 flex-1 rounded-xs border border-accent bg-transparent px-1 py-px text-control text-foreground outline-none focus-visible:ring-1 focus-visible:ring-accent"
 						maxLength={MAX_DISPLAY_NAME_LEN}
 						onBlur={() => void commit()}
 						onChange={(e) => setDraft(e.target.value)}
@@ -954,21 +880,47 @@ function SessionRow({
 	return (
 		<ContextMenu>
 			<ContextMenuTrigger asChild>
-				<SidebarMenuSubItem className={cn(indented && "pl-4.5")}>
-					{/* Nothing is revealed on hover: every action lives in the context
-					    menu below. The terminal button leads the row instead, because
-					    opening a shell in the session's own tree is the one action worth
-					    a click rather than a right-click. It is a sibling of the open
-					    button, never nested inside it — nesting buttons is invalid HTML
-					    and breaks keyboard traversal. */}
+				<SidebarMenuSubItem>
+					{/* The row leads with the status dot in the project folder's icon
+					    column, so sessions line up under their project the way the
+					    project rows line up under the Projects header. Nothing is
+					    revealed on hover: every action lives in the context menu below.
+					    The terminal button trails the row instead, because opening a
+					    shell in the session's own tree is the one action worth a click
+					    rather than a right-click. It is a sibling of the open button,
+					    never nested inside it — nesting buttons is invalid HTML and
+					    breaks keyboard traversal. */}
 					<div
 						className={cn(
-							"group/session-row flex h-8 w-full items-center gap-0.5 rounded-lg pl-2 transition-[background-color,color]",
+							"group/session-row flex h-7 w-full items-center gap-0.5 rounded-lg pr-1.5 transition-[background-color,color]",
 							"hover:bg-interactive-hover hover:text-foreground focus-within:bg-interactive-hover",
 							active && "bg-interactive-active text-foreground",
 						)}
 						data-session-row=""
 					>
+						<div className="flex min-w-0 flex-1 transition-[transform] duration-[100ms] ease-out active:scale-[0.97]">
+							<button
+								aria-current={active ? "page" : undefined}
+								aria-label={t("shell.openSession", { title: session.title })}
+								className="flex h-7 min-w-0 flex-1 items-center gap-1.5 rounded-lg pl-2.5 pr-1 py-0 text-left text-control outline-hidden focus-visible:ring-2 focus-visible:ring-sidebar-ring"
+								onClick={onOpen}
+								type="button"
+							>
+								<span aria-hidden="true" className="inline-flex size-icon-md shrink-0 items-center justify-center">
+									<SessionStatusDot session={session} />
+								</span>
+								<span className="min-w-0 flex-1">
+									<span
+										className={cn(
+											"block truncate transition-colors",
+											active ? "text-foreground" : "text-muted-foreground group-hover/session-row:text-foreground",
+										)}
+									>
+										{session.title}
+									</span>
+								</span>
+							</button>
+						</div>
 						<button
 							aria-label={t("shell.openSessionTerminal", { title: session.title })}
 							className={cn(
@@ -982,27 +934,6 @@ function SessionRow({
 						>
 							<SquareTerminal aria-hidden="true" />
 						</button>
-						<div className="flex min-w-0 flex-1 transition-[transform] duration-[100ms] ease-out active:scale-[0.97]">
-							<button
-								aria-current={active ? "page" : undefined}
-								aria-label={t("shell.openSession", { title: session.title })}
-								className="flex h-8 min-w-0 flex-1 items-center gap-1.5 rounded-lg pr-2.5 pl-1.5 py-0 text-left text-sm outline-hidden focus-visible:ring-2 focus-visible:ring-sidebar-ring"
-								onClick={onOpen}
-								type="button"
-							>
-								<SessionStatusDot session={session} />
-								<span className="min-w-0 flex-1">
-									<span
-										className={cn(
-											"block truncate transition-colors",
-											active ? "text-foreground" : "text-muted-foreground group-hover/session-row:text-foreground",
-										)}
-									>
-										{session.title}
-									</span>
-								</span>
-							</button>
-						</div>
 					</div>
 				</SidebarMenuSubItem>
 			</ContextMenuTrigger>

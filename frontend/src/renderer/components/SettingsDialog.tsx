@@ -1,4 +1,4 @@
-import { Bot, CircleHelp, ClipboardList, GitBranch, Inbox, KeyRound, MonitorCog, RefreshCw, Settings2, Smartphone, TriangleAlert, X } from "lucide-react";
+import { CircleHelp, ClipboardList, Inbox, KeyRound, RefreshCw, Settings2, Smartphone, TriangleAlert, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { GlobalSettingsForm, type GlobalSettingsSection } from "./GlobalSettingsForm";
@@ -51,27 +51,23 @@ export function SettingsDialog() {
 	];
 
 	const projectSections: Array<{ id: ProjectSettingsSection; label: string; icon: typeof Settings2 }> = [
-		{ id: "general", label: t("settings.project.identity"), icon: MonitorCog },
-		{ id: "agents", label: t("settings.project.agents"), icon: Bot },
-		{ id: "workflow", label: t("settings.project.workflow"), icon: GitBranch },
 		{ id: "intake", label: t("settings.project.intake"), icon: Inbox },
 		{ id: "tickets", label: t("settings.project.tickets"), icon: ClipboardList },
 	];
 
 	const isProjectSettings = displaySettings?.scope === "project";
 	const [activeSection, setActiveSection] = useState<Exclude<GlobalSettingsSection, "all">>("general");
-	const [activeProjectSection, setActiveProjectSection] = useState<ProjectSettingsSection>("general");
+	const [activeProjectSection, setActiveProjectSection] = useState<ProjectSettingsSection>("intake");
 	const [projectSaveState, setProjectSaveState] = useState<ProjectSettingsSaveState>({
 		isPending: false,
 		showSaving: false,
 		validationError: null,
 		mutationError: null,
 		saved: false,
-		replacementError: null,
 	});
 
 	const activeLabel = isProjectSettings
-		? (projectSections.find((s) => s.id === activeProjectSection)?.label ?? t("settings.project.identity"))
+		? (projectSections.find((s) => s.id === activeProjectSection)?.label ?? t("settings.project.intake"))
 		: (globalSections.find((section) => section.id === activeSection)?.label ?? t("settings.general"));
 
 	const openKeyboardShortcuts = () => {
@@ -92,14 +88,13 @@ export function SettingsDialog() {
 	useEffect(() => {
 		if (settingsModal?.scope === "global") setActiveSection(settingsModal.section ?? "general");
 		if (settingsModal?.scope === "project") {
-			setActiveProjectSection("general");
+			setActiveProjectSection("intake");
 			setProjectSaveState({
 				isPending: false,
 				showSaving: false,
 				validationError: null,
 				mutationError: null,
 				saved: false,
-				replacementError: null,
 			});
 		}
 	}, [settingsModal]);
@@ -152,13 +147,7 @@ export function SettingsDialog() {
 									)}
 									disabled={projectSaveState.isPending}
 									aria-live="polite"
-									title={
-										projectSaveState.validationError ??
-										projectSaveState.mutationError ??
-										(projectSaveState.replacementError
-											? t("settings.project.restartFailed", { error: projectSaveState.replacementError })
-											: undefined)
-									}
+									title={projectSaveState.validationError ?? projectSaveState.mutationError ?? undefined}
 								>
 									{projectSaveState.showSaving ? (
 										t("settings.project.saving")

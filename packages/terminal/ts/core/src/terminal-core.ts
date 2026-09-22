@@ -1,5 +1,6 @@
 import { WasmTerminalCore } from "../wasm/vt_core.js";
 import { BLOCK_RECORD_WORDS, decodeBlocks } from "./blocks.js";
+import { CELL_SPAN_WORDS } from "./cell-spans.js";
 import { STYLE_RUN_WORDS } from "./style-runs.js";
 import {
 	getMemory,
@@ -9,6 +10,7 @@ import {
 	u8View,
 	type WasmInput,
 } from "./wasm-runtime.js";
+import { snapshotLogicalLines, type LogicalLine } from "./logical-lines.js";
 import type {
 	BlockId,
 	ChangeListener,
@@ -19,10 +21,12 @@ import type {
 	MemoryStats,
 	RowEvent,
 	RowEventListener,
+	RowRange,
 	TerminalCoreOptions,
 	TerminalLimits,
 	TerminalSnapshot,
 } from "./types.js";
+import { validateRowRange } from "./types.js";
 import type {
 	CompletionListener,
 	CompletionProvider,
@@ -68,6 +72,8 @@ export class TerminalCore {
 	private readonly feedParsedListeners = new Set<(bytes: number) => void>();
 	private cached: { generation: number; buffer: ArrayBufferLike; snapshot: TerminalSnapshot } | null = null;
 	private readonly rowEventListeners = new Set<RowEventListener>();
+	private readonly decoder = new TextDecoder("utf-8", { fatal: true });
+	private readonly linkUris = new Map<number, string>();
 
 	constructor(inner: WasmTerminalCore, host: HostCapabilities) {
 		this.inner = inner;
@@ -109,7 +115,7 @@ export class TerminalCore {
 		if (this.disposed) {
 			return;
 		}
-		this.inner.feed(bytes, nowMs());
+		this.inner.feed(bytes, Date.now());
 		if (!this.notifyIfChanged() && this.inner.synchronized_output()) {
 			this.notifyAll();
 		}
@@ -131,7 +137,7 @@ export class TerminalCore {
 		if (this.disposed) {
 			return { remaining: 0 };
 		}
-		const start = nowMs();
+		const start = budgetNow();
 		while (this.backlog.length > 0) {
 			const head = this.backlog[0]!;
 			let slice: Uint8Array;
@@ -145,7 +151,7 @@ export class TerminalCore {
 			this.backlogBytes -= slice.length;
 			this.feed(slice);
 			for (const listener of [...this.feedParsedListeners]) listener(slice.length);
-			if (nowMs() - start >= deadlineMs) {
+			if (budgetNow() - start >= deadlineMs) {
 				break;
 			}
 		}
@@ -241,6 +247,11 @@ export class TerminalCore {
 		return snapshot;
 	}
 
+	logicalLines(range: RowRange): LogicalLine[] {
+		validateRowRange(range);
+		return snapshotLogicalLines(this.snapshot(), range, this.decoder);
+	}
+
 	private buildSnapshot(memory: WebAssembly.Memory, generation: number): TerminalSnapshot {
 		const contentPtr = this.inner.content_ptr();
 		const contentLen = this.inner.content_len();
@@ -250,18 +261,37 @@ export class TerminalCore {
 		const runRangesLen = this.inner.run_ranges_len();
 		const stylePairsPtr = this.inner.style_pairs_ptr();
 		const stylePairsLen = this.inner.style_pairs_len();
+		const spanRangesPtr = this.inner.span_ranges_ptr();
+		const spanRangesLen = this.inner.span_ranges_len();
+		const cellSpansPtr = this.inner.cell_spans_ptr();
+		const cellSpansLen = this.inner.cell_spans_len();
 		const blocksPtr = this.inner.blocks_ptr();
 		const blocksLen = this.inner.blocks_len();
 		const blockTextPtr = this.inner.block_text_ptr();
 		const blockTextLen = this.inner.block_text_len();
+		const linkRangesPtr = this.inner.link_ranges_ptr();
+		const linkRangesLen = this.inner.link_ranges_len();
+		const linkTextPtr = this.inner.link_text_ptr();
+		const linkTextLen = this.inner.link_text_len();
 		const rowIndentsPtr = this.inner.row_indents_ptr();
 		const rowIndentsLen = this.inner.row_indents_len();
+		const rowWrappedPtr = this.inner.row_wrapped_ptr();
+		const rowWrappedLen = this.inner.row_wrapped_len();
 		validateEvenLength("rows", rowsLen);
 		validateEvenLength("runRanges", runRangesLen);
 		if (rowIndentsLen * 2 !== rowsLen) {
 			throw new Error(`rowIndents length ${rowIndentsLen} does not match ${rowsLen / 2} rows`);
 		}
+		if (rowWrappedLen * 2 !== rowsLen) {
+			throw new Error(`rowWrapped length ${rowWrappedLen} does not match ${rowsLen / 2} rows`);
+		}
 		validateMultipleOf("stylePairs", stylePairsLen, STYLE_RUN_WORDS);
+		validateEvenLength("linkRanges", linkRangesLen);
+		validateEvenLength("spanRanges", spanRangesLen);
+		if (spanRangesLen !== rowsLen) {
+			throw new Error(`spanRanges length ${spanRangesLen} does not match ${rowsLen} rows`);
+		}
+		validateMultipleOf("cellSpans", cellSpansLen, CELL_SPAN_WORDS);
 		if (blocksLen % BLOCK_RECORD_WORDS !== 0) {
 			throw new Error(
 				`blocks length ${blocksLen} is not a multiple of ${BLOCK_RECORD_WORDS}`,
@@ -275,6 +305,8 @@ export class TerminalCore {
 					rowRanges: u32View(memory, this.inner.alt_row_ranges_ptr(), this.inner.alt_row_ranges_len()),
 					runRanges: u32View(memory, this.inner.alt_run_ranges_ptr(), this.inner.alt_run_ranges_len()),
 					stylePairs: u32View(memory, this.inner.alt_style_pairs_ptr(), this.inner.alt_style_pairs_len()),
+					spanRanges: u32View(memory, this.inner.alt_span_ranges_ptr(), this.inner.alt_span_ranges_len()),
+					cellSpans: u32View(memory, this.inner.alt_cell_spans_ptr(), this.inner.alt_cell_spans_len()),
 					cursorRow: this.inner.alt_cursor_row(),
 					cursorColumn: this.inner.alt_cursor_col(),
 					cursorVisible: this.inner.alt_cursor_visible(),
@@ -287,10 +319,15 @@ export class TerminalCore {
 			content: u8View(memory, contentPtr, contentLen),
 			rows: u32View(memory, rowsPtr, rowsLen),
 			rowIndents: u16View(memory, rowIndentsPtr, rowIndentsLen),
+			rowWrapped: u8View(memory, rowWrappedPtr, rowWrappedLen),
 			runRanges: u32View(memory, runRangesPtr, runRangesLen),
 			stylePairs: u32View(memory, stylePairsPtr, stylePairsLen),
+			spanRanges: u32View(memory, spanRangesPtr, spanRangesLen),
+			cellSpans: u32View(memory, cellSpansPtr, cellSpansLen),
 			blocks: u32View(memory, blocksPtr, blocksLen),
 			blockText: u8View(memory, blockTextPtr, blockTextLen),
+			linkRanges: u32View(memory, linkRangesPtr, linkRangesLen),
+			linkText: u8View(memory, linkTextPtr, linkTextLen),
 			lineEditorState: this.inner.line_editor_state(),
 			cursorRow: this.inner.cursor_row(),
 			cursorColumn: this.inner.cursor_col(),
@@ -405,6 +442,15 @@ export class TerminalCore {
 		this.inner.setAgentTuiMode(on);
 	}
 
+	setGraphemeClusters(on: boolean): void {
+		if (this.disposed) return;
+		this.inner.setGraphemeClusters(on);
+	}
+
+	graphemeClusters(): boolean {
+		return this.inner.graphemeClusters();
+	}
+
 	setBlockBookmarked(id: BlockId, bookmarked: boolean): void {
 		if (this.disposed) {
 			return;
@@ -452,6 +498,19 @@ export class TerminalCore {
 		return decodeBlocks(this.snapshot()).at(-1)?.cwd ?? "";
 	}
 
+	linkUri(id: number): string | null {
+		if (!Number.isInteger(id) || id <= 0) return null;
+		const hit = this.linkUris.get(id);
+		if (hit !== undefined) return hit;
+		const snapshot = this.snapshot();
+		const start = snapshot.linkRanges[(id - 1) * 2];
+		const end = snapshot.linkRanges[(id - 1) * 2 + 1];
+		if (start === undefined || end === undefined) return null;
+		const uri = this.decoder.decode(snapshot.linkText.subarray(start, end));
+		this.linkUris.set(id, uri);
+		return uri;
+	}
+
 	dispose(): void {
 		if (this.disposed) {
 			return;
@@ -464,11 +523,12 @@ export class TerminalCore {
 		this.feedParsedListeners.clear();
 		this.cached = null;
 		this.rowEventListeners.clear();
+		this.linkUris.clear();
 		this.inner.free();
 	}
 }
 
-function nowMs(): number {
+function budgetNow(): number {
 	return typeof performance !== "undefined" ? performance.now() : Date.now();
 }
 

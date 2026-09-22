@@ -38,15 +38,15 @@ func TestCLIInvokedRouteEmitsTelemetryForUserCommands(t *testing.T) {
 		}
 	}
 
-	postInvoked("spawn", "opr spawn")
+	postInvoked("agent", "opr agent")
 	if len(sink.events) != 2 {
 		t.Fatalf("events = %d, want 2", len(sink.events))
 	}
 	if sink.events[0].Name != "opr.cli.invoked" {
 		t.Fatalf("event name = %q, want opr.cli.invoked", sink.events[0].Name)
 	}
-	if got := sink.events[0].Payload["command_path"]; got != "opr spawn" {
-		t.Fatalf("command_path = %#v, want opr spawn", got)
+	if got := sink.events[0].Payload["command_path"]; got != "opr agent" {
+		t.Fatalf("command_path = %#v, want opr agent", got)
 	}
 	if got := sink.events[0].Payload["actor_type"]; got != "user" {
 		t.Fatalf("actor_type = %#v, want user", got)
@@ -61,22 +61,22 @@ func TestCLIInvokedRouteEmitsTelemetryForUserCommands(t *testing.T) {
 	// Repeat invocations of the same command the same day are polling noise:
 	// both the per-command invocation event and the daily activity heartbeat
 	// stay silent.
-	postInvoked("spawn", "opr spawn")
+	postInvoked("agent", "opr agent")
 	if len(sink.events) != 2 {
 		t.Fatalf("events after repeat invocation = %d, want 2", len(sink.events))
 	}
 
 	// A different command the same day still reports its first invocation, but
 	// no additional heartbeat.
-	postInvoked("send", "opr send")
+	postInvoked("preview", "opr preview")
 	if len(sink.events) != 3 {
 		t.Fatalf("events after new command = %d, want 3", len(sink.events))
 	}
 	if sink.events[2].Name != "opr.cli.invoked" {
 		t.Fatalf("third event name = %q, want opr.cli.invoked", sink.events[2].Name)
 	}
-	if got := sink.events[2].Payload["command_path"]; got != "opr send" {
-		t.Fatalf("command_path = %#v, want opr send", got)
+	if got := sink.events[2].Payload["command_path"]; got != "opr preview" {
+		t.Fatalf("command_path = %#v, want opr preview", got)
 	}
 }
 
@@ -90,7 +90,7 @@ func TestCLIInvokedRouteDropsRoutineInternalSuccessTelemetry(t *testing.T) {
 		`{"command":"get","commandPath":"opr session get","actorType":"user"}`,
 		`{"command":"ls","commandPath":"opr project ls","actorType":"user"}`,
 		`{"command":"get","commandPath":"opr project get","actorType":"user"}`,
-		`{"command":"ls","commandPath":"opr orchestrator ls","actorType":"user"}`,
+		`{"command":"handoff","commandPath":"opr session handoff","actorType":"user"}`,
 		`{"command":"hooks","commandPath":"opr hooks","actorType":"agent"}`,
 		`{"command":"hooks","commandPath":"opr  hooks","actorType":"user"}`,
 		`{"command":"hooks","commandPath":"OPR HOOKS","actorType":"user"}`,
@@ -154,7 +154,7 @@ func TestCLIInvokedRouteSeparatesAgentAndSystemInvocationsFromActiveUsers(t *tes
 
 	// Newer CLIs mark any command run inside an Operator-managed agent session as
 	// agent-context, even if it is not the hooks subcommand.
-	postInvoked(`{"command":"send","commandPath":"opr send","actorType":"agent"}`)
+	postInvoked(`{"command":"agent","commandPath":"opr agent","actorType":"agent"}`)
 	if len(sink.events) != 1 {
 		t.Fatalf("events after agent send = %d, want 1", len(sink.events))
 	}
@@ -186,13 +186,13 @@ func TestCLIInvokedRouteDedupeIncludesActorType(t *testing.T) {
 		}
 	}
 
-	postInvoked(`{"command":"send","commandPath":"opr send","actorType":"agent"}`)
-	postInvoked(`{"command":"send","commandPath":"opr send","actorType":"agent"}`)
+	postInvoked(`{"command":"agent","commandPath":"opr agent","actorType":"agent"}`)
+	postInvoked(`{"command":"agent","commandPath":"opr agent","actorType":"agent"}`)
 	if len(sink.events) != 1 {
 		t.Fatalf("events after repeated agent command = %d, want 1", len(sink.events))
 	}
 
-	postInvoked(`{"command":"send","commandPath":"opr send","actorType":"user"}`)
+	postInvoked(`{"command":"agent","commandPath":"opr agent","actorType":"user"}`)
 	if len(sink.events) != 3 {
 		t.Fatalf("events after same user command = %d, want 3", len(sink.events))
 	}
@@ -341,18 +341,18 @@ func TestCLIInvokedRoutePersistsDailyReservationsAcrossRouterRestart(t *testing.
 	}
 
 	r1 := NewRouterWithControl(cfg, discardLogger(), nil, APIDeps{Telemetry: sink}, ControlDeps{})
-	postInvoked(r1, "spawn", "opr spawn")
+	postInvoked(r1, "agent", "opr agent")
 	if len(sink.events) != 2 {
 		t.Fatalf("events after first invocation = %d, want 2", len(sink.events))
 	}
 
 	r2 := NewRouterWithControl(cfg, discardLogger(), nil, APIDeps{Telemetry: sink}, ControlDeps{})
-	postInvoked(r2, "spawn", "opr spawn")
+	postInvoked(r2, "agent", "opr agent")
 	if len(sink.events) != 2 {
 		t.Fatalf("events after router restart repeat = %d, want 2", len(sink.events))
 	}
 
-	postInvoked(r2, "send", "opr send")
+	postInvoked(r2, "preview", "opr preview")
 	if len(sink.events) != 3 {
 		t.Fatalf("events after router restart new command = %d, want 3", len(sink.events))
 	}

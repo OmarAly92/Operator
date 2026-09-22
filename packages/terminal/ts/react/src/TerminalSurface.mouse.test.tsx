@@ -499,4 +499,67 @@ describe("TerminalSurface selection", () => {
 		expect(onSendRaw).toHaveBeenCalledWith("j");
 		expect(rows[0]!.style.backgroundImage).toBe("");
 	});
+
+	it("underlines the link under the pointer and opens it only with the platform modifier", async () => {
+		const originalPlatform = Object.getOwnPropertyDescriptor(navigator, "platform");
+		Object.defineProperty(navigator, "platform", { value: "MacIntel", configurable: true });
+		try {
+			const openLink = vi.fn(async () => {});
+			const host = { writeClipboard: async () => {}, readClipboard: async () => "", openLink };
+			const { container, core, host: blockHost, refit } = renderSurface({ host });
+			setHostSize(blockHost, 1000, 500);
+			refit(1);
+			act(() => { feed(core, "see https://x.y/doc now\r\n"); });
+			await flushRepaint();
+			const surface = container.querySelector(".terminal-host") as HTMLElement;
+			const rows = layoutRows(container);
+			mouse(rows[0]!, "mousemove", cellWidth * 6.5, cellHeight * 0.5);
+			await new Promise((resolve) => setTimeout(resolve, 0));
+			expect(surface.classList.contains("terminal-link-hover")).toBe(true);
+			expect(container.querySelectorAll(".terminal-link-underline")).toHaveLength(1);
+			mouse(rows[0]!, "mousedown", cellWidth * 6.5, cellHeight * 0.5, { detail: 1 });
+			mouse(window, "mouseup", cellWidth * 6.5, cellHeight * 0.5);
+			expect(openLink).not.toHaveBeenCalled();
+			mouse(rows[0]!, "mousedown", cellWidth * 6.5, cellHeight * 0.5, { detail: 1, metaKey: true });
+			mouse(window, "mouseup", cellWidth * 6.5, cellHeight * 0.5, { metaKey: true });
+			expect(openLink).toHaveBeenCalledWith("https://x.y/doc");
+			mouse(rows[0]!, "mousemove", cellWidth * 1.5, cellHeight * 0.5);
+			await new Promise((resolve) => setTimeout(resolve, 0));
+			expect(surface.classList.contains("terminal-link-hover")).toBe(false);
+		} finally {
+			if (originalPlatform) Object.defineProperty(navigator, "platform", originalPlatform);
+		}
+	});
+
+	it("keeps the host's path provider when the renderer is rebuilt under it", async () => {
+		const originalPlatform = Object.getOwnPropertyDescriptor(navigator, "platform");
+		Object.defineProperty(navigator, "platform", { value: "MacIntel", configurable: true });
+		try {
+			const openPath = vi.fn(async () => {});
+			const host = {
+				writeClipboard: async () => {},
+				readClipboard: async () => "",
+				openLink: async () => {},
+				resolvePath: async (path: string) => (path.endsWith(".ts") ? `/abs/${path}` : null),
+				openPath,
+			};
+			const { container, core, host: blockHost, refit, rebuild } = renderSurface({ host });
+			setHostSize(blockHost, 1000, 500);
+			refit(1);
+			act(() => { feed(core, "edit src/a.ts:42 now\r\n"); });
+			await flushRepaint();
+			act(() => { rebuild(); });
+			await flushRepaint();
+			const surface = container.querySelector(".terminal-host") as HTMLElement;
+			const rows = layoutRows(container);
+			mouse(rows[0]!, "mousemove", cellWidth * 8.5, cellHeight * 0.5);
+			await new Promise((resolve) => setTimeout(resolve, 0));
+			expect(surface.classList.contains("terminal-link-hover")).toBe(true);
+			mouse(rows[0]!, "mousedown", cellWidth * 8.5, cellHeight * 0.5, { detail: 1, metaKey: true });
+			mouse(window, "mouseup", cellWidth * 8.5, cellHeight * 0.5, { metaKey: true });
+			expect(openPath).toHaveBeenCalledWith("/abs/src/a.ts", 42, undefined);
+		} finally {
+			if (originalPlatform) Object.defineProperty(navigator, "platform", originalPlatform);
+		}
+	});
 });

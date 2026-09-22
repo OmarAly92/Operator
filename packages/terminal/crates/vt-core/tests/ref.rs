@@ -160,4 +160,52 @@ fn ref_test(dir: &Path) {
         );
     }
     assert_eq!(cursor, expected_cursor, "cursor differs from cursor.json");
+
+    let styles_path = dir.join("styles.json");
+    if styles_path.exists() {
+        let expected: StylesExpectation =
+            serde_json::from_str(&fs::read_to_string(&styles_path).expect("styles.json"))
+                .expect("styles.json");
+        let got = styled_segments(&core);
+        assert_eq!(
+            got, expected.rows,
+            "styled segments differ from styles.json (rows of [start_char, end_char, attrs, underline])"
+        );
+    }
+}
+
+#[derive(Deserialize)]
+struct StylesExpectation {
+    rows: Vec<Vec<(usize, usize, u16, u32)>>,
+}
+
+fn styled_segments(core: &TerminalCore) -> Vec<Vec<(usize, usize, u16, u32)>> {
+    let snapshot = core.snapshot().expect("snapshot");
+    let mut rows = Vec::new();
+    for index in 0..snapshot.row_count() {
+        let text = snapshot.row_text(index);
+        let char_at = |byte: usize| text[..byte.min(text.len())].chars().count();
+        let mut segments: Vec<(usize, usize, u16, u32)> = Vec::new();
+        let mut start = 0usize;
+        for &(end, style) in snapshot.row_style_pairs(index) {
+            let end = end as usize;
+            let attrs = style.attrs.bits();
+            let underline = style.underline.value();
+            if attrs != 0 || underline != vt_core::StyleCode::DEFAULT.value() {
+                let (from, to) = (char_at(start), char_at(end));
+                match segments.last_mut() {
+                    Some(last) if last.1 == from && last.2 == attrs && last.3 == underline => {
+                        last.1 = to
+                    }
+                    _ => segments.push((from, to, attrs, underline)),
+                }
+            }
+            start = end;
+        }
+        rows.push(segments);
+    }
+    while rows.last().is_some_and(|row| row.is_empty()) {
+        rows.pop();
+    }
+    rows
 }

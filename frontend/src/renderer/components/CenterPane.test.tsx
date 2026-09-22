@@ -102,7 +102,6 @@ const worker = {
 	workspaceName: "my-app",
 	title: "do the thing",
 	provider: "claude-code",
-	kind: "worker",
 	branch: "opr/sess-1",
 	status: "working",
 	updatedAt: "2026-06-10T00:00:00Z",
@@ -318,13 +317,6 @@ describe("CenterPane toolbar session label", () => {
 		fireEvent.click(screen.getByRole("button", { name: "Close terminal worktree-a" }));
 		expect(onCloseShellTerminal).toHaveBeenCalledWith("shellterm-1");
 		expect(onSelectShellTerminal).not.toHaveBeenCalled();
-	});
-
-	it("shows 'Orchestrator' for an orchestrator session", () => {
-		renderCenterPane({
-			session: { ...worker, id: "sess-orch", kind: "orchestrator" },
-		});
-		expect(screen.getByText("Orchestrator")).toBeInTheDocument();
 	});
 
 	it("shows 'No session' when there is no session", () => {
@@ -591,8 +583,8 @@ describe("agent tab relaunch menu", () => {
 	});
 
 	it("hides the replay item for a session with no saved task", () => {
-		renderCenterPane({ session: { ...worker, kind: "orchestrator", hasSavedPrompt: false } });
-		openTabMenu(/Orchestrator/);
+		renderCenterPane({ session: { ...worker, hasSavedPrompt: false } });
+		openTabMenu(/do the thing/);
 		expect(screen.getByRole("menuitem", { name: "Relaunch in a cleared session" })).toBeInTheDocument();
 		expect(screen.queryByRole("menuitem", { name: "Relaunch and replay the task" })).not.toBeInTheDocument();
 	});
@@ -630,8 +622,8 @@ describe("agent tab relaunch menu", () => {
 
 	it("lists the other Claude accounts for a Claude session and relaunches on the chosen one", async () => {
 		claudeAccountsMock.accounts = claudeAccountFixtures;
-		renderCenterPane({ session: { ...worker, kind: "orchestrator", claudeAccountId: "default" } });
-		openTabMenu(/Orchestrator/);
+		renderCenterPane({ session: { ...worker, claudeAccountId: "default" } });
+		openTabMenu(/do the thing/);
 		const trigger = screen.getByRole("menuitem", { name: /^Claude account/ });
 		fireEvent.pointerMove(trigger);
 		fireEvent.click(trigger);

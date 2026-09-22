@@ -17,8 +17,7 @@ abstract class AppSkin {
   Color get bgBase;
 
   /// The color of the app's side navigation rail or drawer. Example: the
-  /// fill behind the sidebar listing the orchestrator, PR review, and
-  /// settings tabs.
+  /// fill behind the sidebar listing the PR review and settings tabs.
   Color get bgSide;
 
   /// The fill of a single Kanban column, distinguishing it from the board's
@@ -75,8 +74,8 @@ abstract class AppSkin {
   /// columns.
   Color get borderStrong;
 
-  /// The conductor. Represents the orchestrator/coordinator itself.
-  /// Example: the icon color for the orchestrator tab in the sidebar.
+  /// A working agent starting up. Example: the status dot on a session
+  /// card whose run is starting.
   Color get blue;
 
   /// A working agent. Represents a session actively running. Example: the
@@ -100,8 +99,8 @@ abstract class AppSkin {
   Color get green;
 
   /// A soft, translucent fill of [blue], used behind blue-tinted content
-  /// rather than as a foreground color. Example: the pill background for
-  /// the orchestrator tab when it is the active tab.
+  /// rather than as a foreground color. Example: the pill background for a
+  /// session shown as starting.
   Color get tintBlue;
 
   /// A soft, translucent fill of [orange], used behind orange-tinted
@@ -139,7 +138,7 @@ abstract class AppSkin {
 
   /// The app's primary interactive color, used for default actions and
   /// emphasis outside the six state hues. Example: the fill of the
-  /// primary "Launch session" button on the orchestrator view.
+  /// primary "Launch session" button on the spawn screen.
   Color get accent;
 
   /// A soft, translucent fill of [accent]. Example: the highlighted

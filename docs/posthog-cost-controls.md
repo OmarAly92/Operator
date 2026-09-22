@@ -46,10 +46,8 @@ repeated whitespace collapsed. A routine command is one where
 followed by a space:
 
 - `opr hooks`
-- `opr board`
 - `opr session ls`
 - `opr session get`
-- `opr orchestrator ls`
 - `opr status`
 - `opr project ls`
 - `opr project get`
@@ -82,7 +80,7 @@ Examples the ingestion rule should cover:
 | `opr.cli.invoked` | `Operator  HOOKS` | `user` | Drop |
 | `opr.cli.invoked` | `opr hooks claude-code post-tool-use` | `user` | Drop |
 | `opr.app.active` (`channel = cli`) | `opr session get sess-123` | `user` | Drop |
-| `opr.cli.invoked` | `opr spawn` | `user` | Keep |
+| `opr.cli.invoked` | `opr session switch-agent opr-7 codex` | `user` | Keep |
 | `opr.app.active` (`channel = renderer`) | n/a | `renderer` | Keep |
 
 When these project-side ingestion controls are enabled, the 7-day estimate is a
@@ -108,12 +106,10 @@ billable PostHog volume. Do not track routine successful executions for
 internal/read-only commands such as:
 
 - `opr status`
-- `opr board`
 - `opr session ls`
 - `opr session get`
 - `opr project ls`
 - `opr project get`
-- `opr orchestrator ls`
 - `opr hooks`
 - `opr pty-host`
 
@@ -251,20 +247,16 @@ WHERE NOT (
     AND (
         normalized_command_path IN (
             'opr hooks',
-            'opr board',
             'opr session ls',
             'opr session get',
-            'opr orchestrator ls',
             'opr status',
             'opr project ls',
             'opr project get',
             'opr pty-host'
         )
         OR startsWith(normalized_command_path, 'opr hooks ')
-        OR startsWith(normalized_command_path, 'opr board ')
         OR startsWith(normalized_command_path, 'opr session ls ')
         OR startsWith(normalized_command_path, 'opr session get ')
-        OR startsWith(normalized_command_path, 'opr orchestrator ls ')
         OR startsWith(normalized_command_path, 'opr status ')
         OR startsWith(normalized_command_path, 'opr project ls ')
         OR startsWith(normalized_command_path, 'opr project get ')

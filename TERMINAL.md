@@ -86,13 +86,70 @@ rebuilt (§6).
     place. Mirrors Warp's `FullGridClearBehavior::Clear` (`warp/crates/warp_terminal/src/model/grid/resize.rs:60`).
   - In BOTH modes scrollback is **rewrapped** on a width change (§4.2).
 - **Snapshot** (`grid.rs` → vt-wasm `ExportBuffers` → TS `TerminalSnapshot`):
-  `content`, `rows` (start,end pairs), `rowIndents` (u16 per row), `runRanges`,
-  `stylePairs` (stride `STYLE_RUN_WORDS`), `blocks` (stride `BLOCK_RECORD_WORDS`),
-  cursor, alt screen. Adding a per-row field means: `GridSnapshot` + `append_row`/
-  `append_screen_row` + `ExportBuffers` + `*_ptr/_len` + `terminal-core.ts` +
-  `types.ts` + the Rust test fixture `vt-wasm/tests/exit_encoding.rs` — and now,
+  `content`, `rows` (start,end pairs), `rowIndents` (u16 per row), `rowWrapped`
+  (one byte per row, 1 when the next row continues this one — a printer
+  soft-wrap or a rewrap cut), `runRanges`, `stylePairs` (stride
+  `STYLE_RUN_WORDS = 6`: `end, fg, bg, attrs, underline, link`), `blocks`
+  (stride `BLOCK_RECORD_WORDS`), cursor, alt screen, `spanRanges`/`cellSpans`
+  (stride `CELL_SPAN_WORDS = 3`: `start, end, width` per cluster that is not a
+  single width-1 scalar) — and `linkRanges`/`linkText` (the OSC 8 URI table,
+  index `id - 1`: `linkRanges[(id-1)*2]`/`[(id-1)*2+1]` are the byte range
+  into `linkText`). Adding a per-row field means: `GridSnapshot` +
+  `append_row`/`append_screen_row` + `ExportBuffers` + `*_ptr/_len` +
+  `terminal-core.ts` + `types.ts` + the Rust test fixture
+  `vt-wasm/tests/exit_encoding.rs` — `row_wrapped` is the worked example
+  beside `row_indents`, the second per-row field the buffers carry — and now,
   if the field is per-section, `ExportedRow`/`push_row` in `export.rs` and
-  `history_rows`.
+  `history_rows`, and, for a per-cell field, `AltSnapshot` in
+  `screen/snapshot.rs` and the dead-prefix accounting in `ExportBuffers`
+  (`dead_*`/`history_*` counters, `drop_front`, `rewrite_history_from`,
+  `truncate_screen`, `compact`).
+- **Logical lines.** Two files own the join and neither duplicates the other:
+  `ts/core/src/logical-lines.ts` joins flat snapshot rows behind
+  `TerminalCore.logicalLines(range)`, the API any host can call over a plain
+  snapshot; `ts/renderer-dom/src/logical-lines.ts` lifts that same join into
+  the renderer's stable-row, per-block space and attaches link runs, because
+  that is the space the linkifier, hint mode and redaction address. The
+  renderer's `logicalLineAt` imports `joinLogicalLine` from
+  `@operator/terminal-core` and derives its `text`/`rowOffsets` from that one
+  function — it derives nothing of its own. A change to how pieces join
+  belongs in the core's `joinLogicalLine` and lands in both by construction.
+- **Hyperlinks.** `Parser::osc_dispatch` parses `OSC 8 ; params ; URI ST` and
+  interns it in `HyperlinkRegistry` (`crates/vt-core/src/hyperlink.rs`) with
+  Warp's caps (`MAX_DISTINCT_ENTRIES = 4096`, `MAX_URI_BYTES = 2083`) and no
+  reclamation. The id rides in `CellStyle.link` (`u16`, 0 = none), so it
+  splits, merges, rewraps, evicts and trims with the styles for free — no
+  separate span buffer. The mirror re-emits the sequence per run in the
+  attach replay and in every history chunk, because ids are per core, not
+  shared across the two. **The table is not part of the byte budget:**
+  `Parser::trim_to` weighs `content.resident_bytes() + styles.byte_len()`
+  only (`parser.rs:629`), so the registry grows to its cap and stays —
+  deliberate and bounded, not an oversight, and listed in §5.
+- **BlockGrid clock.** A block missing the shell hook's `start_ms`/`end_ms` is
+  stamped from the clock of the feed that opened and closed it
+  (`BlockGrid::set_clock`/`note_output`, `BlockRecord.started_at_ms`/
+  `finished_at_ms`). The TS core feeds and the renderer ticks with
+  `Date.now()`, not `performance.now()`, so these stamps are epoch
+  milliseconds like the Go mirror's `time.Now().UnixMilli()` and the hook's
+  own `start_ms`/`end_ms`.
+- **`RendererFeatures`** (`ts/renderer-dom/src/features.ts`, set through
+  `DomBlockRenderer.setFeatures` and the `features` prop of `TerminalSurface`)
+  is the gate every Plan D behavior sits behind — SGR attributes, grapheme
+  clusters, cursor contrast/hollow, and the width cache — all defaulting off
+  (see §5 for what each flag costs or leaves unresolved).
+- **Width mode.** `Parser::width_mode` (`WidthMode::Scalar` default,
+  `WidthMode::Grapheme` via `TerminalCore::set_grapheme_clusters`) chooses
+  whether a printed character occupies one cell per Unicode scalar or one
+  cell-span per extended grapheme cluster. `ScreenGrid::join_previous` is
+  where a soft-wrap join respects the active mode's cluster boundaries
+  instead of splitting mid-cluster; `RowIndex` measures rewrap width with the
+  same `clusters()` call the printer used, so a stale-run rewrap (§2's
+  "Stale runs" bullet) and a live-frame rewrap agree on where a row breaks.
+  The pty-host mirror is always `WidthMode::Scalar` — a deliberate Plan D
+  deviation, not an oversight, since the mirror only needs byte-identical
+  replay, not on-screen glyph placement (§5). The Unicode `GraphemeBreakTest`
+  corpus (`crates/vt-core/tests/grapheme/`) runs against the splitter in both
+  modes.
 - **Limits** (`Limits { rows, bytes }`, `crates/vt-core/src/limits.rs`) caps
   both cores from the product, not a hardcoded scrollback count:
   `TerminalCore::memory_stats()` (`lib.rs:102`) reports `MemoryStats` against
@@ -253,9 +310,9 @@ history of `master`.
   The renderer remembers the last grid a pane reported (`lib/pane-grid.ts`,
   fed by `BlockTerminal.onGeometry`) and spreads `paneGridBody()` into spawn,
   delegate, shell-terminal and restore bodies. Empty body → old default.
-- Still at the default grid (known, deliberate): `POST /api/v1/orchestrators`
-  (`SpawnOrchestrator`), `ResumeAgent`, `RestoreAll` on daemon start, the CLI,
-  and the mobile client (it may send the same fields later).
+- Still at the default grid (known, deliberate): `ResumeAgent`, `RestoreAll`
+  on daemon start, the CLI, and the mobile client (it may send the same
+  fields later).
 - Guards: `ptyhost/host_main_test.go`, `host_pty_unix_test.go::TestNewPTYIsBornAtTheRequestedGrid`,
   `runtime_test.go::TestCreate_ForwardsThePaneGridToTheSpawner`,
   `controllers/sessions_test.go::TestCreateSessionForwardsThePaneGrid / TestRestoreSessionForwardsThePaneGrid / TestRestoreSessionAcceptsAnEmptyBody`,
@@ -326,6 +383,12 @@ history of `master`.
   over its grid and uses the pointing hand only for links (`app/src/util/link_detection.rs`).
   `.terminal-block, .terminal-alt-surface { cursor: default }`. Guard:
   `styles-parity.test.ts` "keeps the arrow over the transcript".
+- Plan E: the arrow is still the default everywhere else in the transcript;
+  the pointing hand appears only while the `Linkifier` reports a link under
+  the pointer (`.terminal-link-hover`), Warp's own rule
+  (`app/src/terminal/view.rs` `set_cursor_shape`). Guard:
+  `styles-parity.test.ts` "shows the pointing hand only while a link is under
+  the pointer".
 
 ### 4.13 Selection destroyed by repaints — model-owned selection
 - Symptom: a selection survived only while the terminal was idle. Measured in
@@ -348,6 +411,10 @@ history of `master`.
   `terminal-selection.test.ts`, `selection-gesture.test.ts`,
   `TerminalSurface.mouse.test.tsx`, and the `bench:selection` Playwright gate
   (`bench/selection-gate.mjs`).
+- Plan E: the link underline, the hint labels and the redaction masks are
+  overlays in `.terminal-decorations`, positioned from the same row geometry
+  the selection fill uses — never edits to pooled row elements, for the same
+  reason the selection isn't one.
 - A pointer press on chrome is ignored on purpose (`SELECTION_CHROME` in
   `TerminalSurface.tsx` covers the block header, the pinned header, the
   jump-to-bottom button, the find bar and the palette). The gate therefore
@@ -583,17 +650,99 @@ history of `master`.
   the first chunk.
 - Guards: `TestHistoryStartsAtTheOriginTheFrameDeclared` (ptyhost).
 
+### 4.22 Private `CSI … m` sequences reached the SGR path — Plan D review
+- Symptom: none visible on `development` beyond a subtle one — every Claude
+  Code banner and prompt band painted at 55 % opacity. On the Plan D branch,
+  before the fix: every coloured run underlined once `attributes: "warp"`
+  was on, the style map split into 87,023 entries (260 is right) and the
+  renderer heap at 60k rows read 14 MiB, which the executor recorded as the
+  cost of the new export.
+- Cause: `Parser::csi_dispatch` (and the history receiver's `ScreenPerform`)
+  handed every `m` to `apply_sgr`. Claude Code sends `CSI > 4;2 m`
+  (XTMODKEYS, `modifyOtherKeys=2`) at startup; read as SGR that is `4` then
+  `2` — underline (ignored before Plan D, recorded after it) and **dim**,
+  which Claude Code never clears because it uses `39`/`22`, not `0`. vte
+  itself dispatches by intermediates: `('m', [])` is SGR, `('m', [b'>'])`
+  XTMODKEYS, `('m', [b'?'])` XTQMODKEYS (`vte-0.15.0/src/ansi.rs:1678-1694`).
+- Now: SGR runs only when `intermediates.is_empty()` in both dispatchers.
+  The `claude-spinner-10s` feel baseline was re-recorded in the same commit:
+  its banner is now full colour, which is what Warp shows.
+- Guards: `tests/sgr_attributes.rs::a_private_m_sequence_is_not_sgr`,
+  `…::a_private_m_sequence_in_a_history_chunk_is_not_sgr_either`,
+  `…::the_claude_code_recording_carries_no_attribute_bits` (feeds the real
+  spinner recording and asserts no attribute bit on any run).
+
 ## 5. Known gaps (not bugs, decisions pending)
 
+- SGR attributes (italic, underline in 5 styles, SGR 58 colour, strike,
+  overline, hidden, blink) are parsed unconditionally but rendered only
+  behind `RendererFeatures.attributes = "warp"`; the default is `"plain"`,
+  which paints none of them. An underlined trailing blank is still trimmed
+  from the export. The pty-host mirror stays in scalar width mode (its
+  `clip_row` clips by `char`, not by grapheme cluster — see §2 "Width mode").
+  `styles.json` covers no blink/overline case because Alacritty's reference
+  cell flags have none to record. In both width modes a zero-width scalar
+  after a space now rewraps with the space instead of starting a new row
+  (Task 5).
+- **Renderer and mirror wasm memory grew with the five-word style run.** At
+  the 60k-row fixture the renderer core heap reads ~11.4 MiB against ~8.9 MiB
+  on the pre-Plan-D tree measured the same way (mirror at `mirrorLimits`
+  ~11.25 MiB against ~9.19 MiB). The style-run *count* is identical (260
+  `AttributeMap` entries); the cost is the 5/3 stride on 60k exported runs,
+  `Vec` growth, the 16-byte `CellStyle`, and the Unicode 17 segmentation
+  tables in `vt_host.wasm` (250 → 306 KB). Far under the 128 MiB budget. A
+  larger jump than this is a fragmentation bug — see §4.22 for the one that
+  put it at 14 MiB.
+- **`widthCache` corrects toward the core's cell widths, so it needs
+  `graphemes`.** With `graphemes` off the core lays an emoji sequence out in
+  scalar-mode cells (`❤️` one cell, a ZWJ family three two-cell clusters) and
+  `widthCache` faithfully squeezes the glyphs into those cells
+  (`letter-spacing: -10px` on the heart; the glyph probe's `seq:` row goes
+  from -37.92 to -50.89 px). With both on the row lands at +0.27 px
+  (`bench/agent-session/baselines/glyph-probe/EVIDENCE-graphemes_widthCache.json`).
+  Chromium shapes a ZWJ sequence across the per-cluster spans (the follow-on
+  spans measure 0 px), so the split is not the cause; the target widths are.
+  A host that turns on `widthCache` should turn on `graphemes`.
+- **The pending manual Japanese-IME check.** Task 9's IME composition work
+  (the underlined marked-text view, the settled-value single-send fix) has
+  not yet been manually verified with a real macOS Japanese IME by a human;
+  this must be done before the feature is considered fully verified.
 - A DEC 2026 block that grows to `SYNC_BUFFER_CAP` (2 MiB) is flushed and
   parsed in one `feed` inside whatever frame receives it, bypassing the 12 ms
   `drain` budget: a burst of ~60 ms on this machine. Claude Code frames are
   kilobytes, so it needs a misbehaving program; lowering the cap or splitting
   the flush across frames is the fix if it ever shows.
 
-- Copying a rewrapped block (`readBlockOutput`, `vt_render`) joins rows with
-  `\n`, so a soft-wrapped line copies as several lines. Warp copies the logical
-  line. Fix would export `wrapped` per row and join on copy.
+- **Closed by Plan E Task 1:** the renderer's copy path now joins a
+  soft-wrapped line into one line (`selectedText`, via `TextRows.rowWrapped`
+  and `logicalLineAt`). `readBlockOutput`/`vt_render` on the HOST side still
+  join with `\n` — that path reads the block-output buffer directly, not
+  through the renderer's stable-row `TextRows`, so Task 1's join does not
+  reach it; a soft-wrapped line in a slash-output or an agent-handoff tail
+  still shows as several lines.
+- **The OSC 8 registry sits outside `Limits { bytes }` and is never
+  reclaimed.** `Parser::trim_to` weighs `content.resident_bytes() +
+  styles.byte_len()` only (`parser.rs:629`) and `memory_stats` reports the
+  same two, so `HyperlinkRegistry` is neither counted nor trimmed.
+  `HyperlinkRegistry` stores each interned URI twice (the `by_link:
+  HashMap<Hyperlink, LinkId>` key and the `by_id: Vec<Hyperlink>` element), so
+  the caps (`MAX_DISTINCT_ENTRIES = 4096`, `MAX_URI_BYTES = 2083`) permit a
+  core to hold up to ~17 MB of interned URIs (2 × 4096 × 2083 B) above its 128
+  MiB budget for its lifetime, before `HashMap` overhead — reachable only by
+  a program printing 4096 distinct maximal URIs. Measured on
+  `claude-long-50k` (no OSC 8): empty. Warp's own trade
+  (`hyperlink_registry.rs:11-15`), not an oversight here.
+- **`openPath`'s `line`/`column` reach Operator and are dropped.**
+  `tauri-plugin-opener`'s `open_path` command takes no editor argument, so
+  the file opens at line 1 regardless of what a `path:line:col` hint or link
+  resolved. Fixing this needs a per-editor argument convention (VS Code's
+  `--goto path:line:col`, for example), which is a host decision, not a
+  package one.
+- **The hint rule set is the package's constant; a host cannot replace it
+  yet.** `DomBlockRenderer.hintBegin(rules?)` accepts one rule list per call,
+  but nothing plumbs a host-supplied list through `TerminalSurface` — Operator
+  always gets `DEFAULT_HINT_RULES`. Revisit if a host ever needs its own
+  patterns (a `HostCapabilities.hintRules?` seam, most likely).
 - The screen's `wrapped` flag is cleared on any width change (`resize_cells`)
   because truncated cells can no longer be rejoined faithfully.
 - The hot region (the screen plus the newest `HOT_ROWS = 2_000` completed
@@ -615,30 +764,32 @@ history of `master`.
   instead of on the mark's `count` — the invariant `HistoryReceiver::consume`
   ends a chunk on. Revisit with a second anchor for that invariant; do not
   "fix" it by loosening the row count.
-- **`widthChange`'s top-edge row reads differently depending on prior scroll
-  state.** Measured by Task 13: `scroll-gate.mjs`'s width phase (scrolls to
-  the vertical midpoint, then resizes) reports the top-edge row identical
-  before and after a width change, as expected. `run.mjs`'s own `widthChange`
-  row — which resizes right after `feedAll()`, with no prior scroll — reads
-  the top-edge row as 5 rows apart before vs. after, reproduced identically
-  across two runs. Not investigated further; flagged here rather than
-  silently reconciled, since the two probes disagree and only one of them
-  (the scrolled one) is the gated measurement.
-- **`bench:agent:scroll`'s width phase itself is flaky, in the same family as
-  the pre-existing trim-phase flake below.** Eight consecutive runs of
-  `npm run bench:agent:scroll` on this HEAD: 3 clean passes (trim and width
-  both matched), 3 hit the pre-existing trim flake (`visibleRows()[0]` reads
-  `undefined` right after the trim), and 2 hit a new width-phase flake —
-  `width.before` reads `-1` (no row under the top edge) while `width.after`
-  correctly reads the resolved row, i.e. the same class of race (a
-  `visibleRows()` read landing before the renderer has painted the current
-  scroll position) now shows up around the width-change resize too, not only
-  around a trim. No code was changed to chase either flake down or to make a
-  run "count" as clean; both are reported here as observed, not patched
-  around by adding more `requestAnimationFrame` waits, which would be tuning
-  the gate to pass rather than fixing a diagnosed cause. Open follow-up: a
-  principled fix needs an explicit paint-completion signal the gate can wait
-  on instead of a frame-count guess — not designed or implemented here.
+- **A masked secret (Task 8) is unmasked to assistive tech.** `maskedTextRows`
+  only changes what `TextRows.rowText` returns to the copy path, the
+  linkifier, hint mode and the block-output source; the row DOM itself is
+  never rewritten, so a screen reader or the accessibility tree still reads
+  the original token. The mask is a paint (`.terminal-redaction`) plus a read
+  transform, not a redaction of the rendered cells.
+- **The `bench:agent:scroll` flake was the harness counting frames while the
+  renderer paces paints by time — fixed 2026-09-22.** `repaintOnFrame` defers
+  a paint that would land within `PAINT_INTERVAL_MS` of the previous one, so a
+  `setScrollTop` that waited two animation frames (~15 ms after a feed's
+  paint) could read `visibleRows()` before the scroll had painted: `[0]`
+  `undefined` after the trim, `-1` before the width change, and a scroll walk
+  that missed rows (`covered < total`). Probe evidence: in the failing run 0
+  paints landed inside the two frames and 1 landed within the next 200 ms.
+  `bench/agent-session/main.ts` now has `paintAfter(action)` — level-triggered
+  on the `onPaint` counter, bounded at 600 frames — and `setScrollTop`,
+  `widthChange` and the gate's trim phase use it. 6/6 clean runs after the
+  fix against 1/4 before. Do not reintroduce a frame-count wait in the
+  harness; wait for the paint the action causes.
+- **`run.mjs`'s `widthChange` row reads the top-edge row 5 rows apart before
+  and after (60081 → 60086) — that is the sticky-bottom contract, not a
+  bug.** That probe resizes with no prior scroll, so the pane is pinned to
+  the bottom; a 40-column rewrap of the hot region adds rows, and a pane
+  pinned to the bottom is *meant* to keep the newest row visible, moving its
+  top edge. The gated measurement (`scroll-gate.mjs`'s width phase) scrolls
+  to a stable position first and reads the same row before and after.
 - **Ack accounting is per pty-host CONNECTION, not per mux client.** `MsgAck`
   folds every ack into one `clientState`, and `unackedLocked` reports the
   worst connection. The daemon may fan a single attachment out to several mux
@@ -727,8 +878,11 @@ npm run build:wasm -- --force && npm run build:ts
 for p in core renderer-dom react; do (cd ts/$p && npx vitest run); done
 npm run bench:selection      # Playwright: a selection must survive 20 repaints
 npm run bench:feel           # Playwright: zero pixel diff vs bench/agent-session/baselines (record with -- --record)
+npm run bench:glyphs         # Playwright: evidence for the glyph probe (box-drawing gap, width-cache drift), writes baselines/glyph-probe/EVIDENCE*.json
+npm run bench:feel -- --feature <list>  # Playwright: side-by-side screenshots for a flag, e.g. attributes=warp — never diffed, only recorded
 npm run bench:agent:gate     # Playwright: no torn paint under the spinner, queued 2 MiB never blocks > 16 ms
 npm run bench:agent:scroll   # Playwright: full scroll coverage, trim anchor holds, width-change gate (top-edge row and lazy rewrap)
+npm run bench:affordances -- --action <hover|hint|redact>  # Playwright: side-by-side screenshots of one affordance on act-probe — never diffed
 
 # Frontend + daemon
 cd /Users/omaraly/development/AI/Operator/frontend && npx tsc --noEmit -p .

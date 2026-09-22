@@ -27,6 +27,8 @@
 		"allow-updates-apply-settings",
 		"allow-choose-directory",
 		"allow-open-external",
+		"allow-resolve-path",
+		"allow-open-path",
 		"allow-clipboard-write",
 		"allow-clipboard-read",
 		"allow-notification-show",

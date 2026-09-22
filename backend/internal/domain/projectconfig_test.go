@@ -1,6 +1,9 @@
 package domain
 
-import "testing"
+import (
+	"encoding/json"
+	"testing"
+)
 
 func TestProjectConfigValidate(t *testing.T) {
 	tests := []struct {
@@ -17,19 +20,13 @@ func TestProjectConfigValidate(t *testing.T) {
 		{"session prefix with slash", ProjectConfig{SessionPrefix: "opr/project"}, true},
 		{"session prefix with backslash", ProjectConfig{SessionPrefix: `opr\project`}, true},
 		{"session prefix traversal component", ProjectConfig{SessionPrefix: ".."}, true},
-		{"good role override", ProjectConfig{Worker: RoleOverride{Harness: HarnessCodex}}, false},
-		{"unknown role harness", ProjectConfig{Orchestrator: RoleOverride{Harness: "nope"}}, true},
-		{"bad role agent config", ProjectConfig{Worker: RoleOverride{AgentConfig: AgentConfig{Permissions: "nope"}}}, true},
+		{"good harness", ProjectConfig{Harness: HarnessCodex}, false},
+		{"unknown harness", ProjectConfig{Harness: "nope"}, true},
 		{"good symlinks", ProjectConfig{Symlinks: []string{".env", "configs/dev.toml"}}, false},
 		{"symlink absolute path", ProjectConfig{Symlinks: []string{"/etc/passwd"}}, true},
 		{"symlink parent escape", ProjectConfig{Symlinks: []string{"../escape"}}, true},
 		{"symlink embedded parent", ProjectConfig{Symlinks: []string{"a/../../b"}}, true},
 		{"symlink bare ..", ProjectConfig{Symlinks: []string{".."}}, true},
-		{"good prompt rules", ProjectConfig{AgentRules: "Run tests.", AgentRulesFile: "docs/agent-rules.md", OrchestratorRules: "Delegate work."}, false},
-		{"agent rules file absolute path", ProjectConfig{AgentRulesFile: "/etc/passwd"}, true},
-		{"agent rules file parent escape", ProjectConfig{AgentRulesFile: "../rules.md"}, true},
-		{"agent rules file cleans to dot", ProjectConfig{AgentRulesFile: "docs/.."}, true},
-		{"agent rules file bare dot", ProjectConfig{AgentRulesFile: "."}, true},
 		{"good reviewers", ProjectConfig{Reviewers: []ReviewerConfig{{Harness: ReviewerClaudeCode}}}, false},
 		{"good codex reviewer", ProjectConfig{Reviewers: []ReviewerConfig{{Harness: ReviewerCodex}}}, false},
 		{"good copilot reviewer", ProjectConfig{Reviewers: []ReviewerConfig{{Harness: ReviewerCopilot}}}, false},
@@ -173,26 +170,22 @@ func TestProjectConfigIsZero(t *testing.T) {
 	}
 }
 
-func TestOrchestratorPolicy_WithDefaults_FillsOnlyUnsetFields(t *testing.T) {
-	p := OrchestratorPolicy{MaxLiveWorkers: 3}.WithDefaults()
-	if p.MaxLiveWorkers != 3 {
-		t.Fatalf("MaxLiveWorkers = %d, want the explicitly set 3 preserved", p.MaxLiveWorkers)
+func TestProjectConfigHarnessRoundTrip(t *testing.T) {
+	var c ProjectConfig
+	if err := json.Unmarshal([]byte(`{"agent":"claude-code"}`), &c); err != nil {
+		t.Fatal(err)
 	}
-	if p.MaxSpawnsPerHour != DefaultMaxSpawnsPerHour {
-		t.Fatalf("MaxSpawnsPerHour = %d, want default %d", p.MaxSpawnsPerHour, DefaultMaxSpawnsPerHour)
+	if c.Harness != AgentHarness("claude-code") {
+		t.Fatalf("Harness = %q, want claude-code", c.Harness)
 	}
-}
-
-func TestOrchestratorPolicy_WithDefaults_OnZeroValue(t *testing.T) {
-	p := OrchestratorPolicy{}.WithDefaults()
-	if p.MaxLiveWorkers != DefaultMaxLiveWorkers || p.MaxSpawnsPerHour != DefaultMaxSpawnsPerHour {
-		t.Fatalf("got %+v, want both defaults", p)
+	if err := c.Validate(); err != nil {
+		t.Fatalf("Validate() = %v", err)
 	}
 }
 
-func TestProjectConfig_WithDefaults_FillsOrchestratorPolicy(t *testing.T) {
-	c := ProjectConfig{}.WithDefaults()
-	if c.OrchestratorPolicy.MaxLiveWorkers != DefaultMaxLiveWorkers {
-		t.Fatalf("ProjectConfig.WithDefaults() did not cascade into OrchestratorPolicy: %+v", c.OrchestratorPolicy)
+func TestProjectConfigRejectsUnknownHarness(t *testing.T) {
+	c := ProjectConfig{Harness: AgentHarness("nope")}
+	if err := c.Validate(); err == nil {
+		t.Fatal("Validate() must reject an unknown harness")
 	}
 }

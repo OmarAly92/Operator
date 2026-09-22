@@ -204,6 +204,66 @@
 	cursor: default;
 }
 
+/* The hand appears only while a link is under the pointer, the way Warp swaps
+   the cursor shape per hovered link (app/src/terminal/view.rs set_cursor_shape
+   Cursor::PointingHand / reset_cursor; app/src/util/link_detection.rs). */
+.terminal-link-hover .terminal-block,
+.terminal-link-hover .terminal-alt-surface {
+	cursor: pointer;
+}
+
+.terminal-decorations,
+.terminal-decorations [data-terminal-layer] {
+	position: absolute;
+	top: 0;
+	left: 0;
+	width: 0;
+	height: 0;
+	overflow: visible;
+	pointer-events: none;
+}
+
+.terminal-decorations {
+	z-index: 2;
+}
+
+.terminal-decorations [data-terminal-layer] > div {
+	position: absolute;
+	box-sizing: border-box;
+}
+
+.terminal-link-underline {
+	border-bottom: 1px solid var(--terminal-foreground);
+}
+
+/* Alacritty paints a hint's match and its label over the cells the match
+   occupies (alacritty/src/display/hint.rs, HintState::labels); the label sits
+   at the match's first cell so the eye reads label-then-text. */
+.terminal-hint-match {
+	background: var(--terminal-selection);
+}
+
+.terminal-hint-label {
+	display: flex;
+	align-items: center;
+	padding: 0 2px;
+	width: auto;
+	font-family: var(--terminal-font-family);
+	font-size: var(--terminal-font-size);
+	font-weight: 700;
+	line-height: var(--terminal-line-height);
+	color: var(--terminal-background);
+	background: var(--terminal-ansi-3);
+}
+
+/* A masked secret is painted over its cells rather than rewritten into the row,
+   so the model keeps the bytes and only what is READ is masked (Warp
+   crates/warp_terminal/src/model/secrets.rs, RespectObfuscatedSecrets). */
+.terminal-redaction {
+	background: var(--terminal-foreground);
+	opacity: 0.85;
+}
+
 /* Chrome stays unselectable, so dragging across a block picks up its output and
    not the header metadata or the labels of the buttons floating over it. */
 .terminal-block-header,
@@ -241,11 +301,116 @@
 	pointer-events: none;
 }
 
+/* Below MIN_CURSOR_CONTRAST the cursor takes the foreground and its glyph the
+   background (alacritty/src/display/content.rs:124-134); it rises above the
+   run to carry that glyph, as xterm.js's DOM block cursor does
+   (src/browser/renderer/dom/DomRendererRowFactory.ts, xterm-cursor-block).
+   Unfocused, a hollow block (ghostty/src/renderer/cursor.zig:58-60; Warp
+   HollowBlock, app/src/terminal/grid_renderer.rs:2471). */
+.terminal-cursor-inverted {
+	z-index: 1;
+	background: var(--terminal-foreground);
+	color: var(--terminal-background);
+	white-space: pre;
+}
+
+.terminal-cursor-hollow {
+	background: transparent;
+	box-shadow: inset 0 0 0 1px var(--terminal-cursor);
+}
+
+.terminal-cursor-inverted.terminal-cursor-hollow {
+	color: inherit;
+	box-shadow: inset 0 0 0 1px var(--terminal-foreground);
+}
+
+/* IME marked text over the cursor cell, underlined as Warp draws it
+   (app/src/terminal/grid_renderer.rs:657-675); positioned like xterm.js's
+   composition-view (css/xterm.css:79-91). */
+.terminal-composition-view {
+	position: absolute;
+	display: none;
+	z-index: 2;
+	pointer-events: none;
+	white-space: pre;
+	font: inherit;
+	color: var(--terminal-foreground);
+	background: var(--terminal-background);
+	text-decoration: underline;
+	text-decoration-thickness: 0.09em;
+}
+
+.terminal-composition-view.active {
+	display: inline-block;
+}
+
 .terminal-run {
 	display: inline-block;
 	vertical-align: top;
 	height: var(--terminal-line-height);
 	color: inherit;
+}
+
+/* SGR decorations, drawn only when RendererFeatures.attributes is "warp".
+   Thickness follows Warp's UNDERLINE_THICKNESS_SCALE_FACTOR = 0.15 of the
+   cell width (app/src/terminal/grid_renderer.rs:52,2352); Hack's advance is
+   0.6em, so 0.09em. Blink gets a class and no animation: Warp's
+   ansi_handler.rs terminal_attribute has no Blink arm. */
+.terminal-run[data-italic] {
+	font-style: italic;
+}
+
+.terminal-run[data-hidden] {
+	visibility: hidden;
+}
+
+.terminal-run[data-underline] {
+	text-decoration-thickness: 0.09em;
+	text-decoration-color: var(--terminal-underline, currentColor);
+}
+
+.terminal-run[data-underline="double"] {
+	text-decoration-style: double;
+}
+
+.terminal-run[data-underline="curly"] {
+	text-decoration-style: wavy;
+}
+
+.terminal-run[data-underline="dotted"] {
+	text-decoration-style: dotted;
+}
+
+.terminal-run[data-underline="dashed"] {
+	text-decoration-style: dashed;
+}
+
+.terminal-run[data-decor="u"] {
+	text-decoration-line: underline;
+}
+
+.terminal-run[data-decor="s"] {
+	text-decoration-line: line-through;
+}
+
+.terminal-run[data-decor="o"] {
+	text-decoration-line: overline;
+}
+
+.terminal-run[data-decor="us"] {
+	text-decoration-line: underline line-through;
+}
+
+.terminal-run[data-decor="uo"] {
+	text-decoration-line: underline overline;
+}
+
+.terminal-run[data-decor="so"] {
+	text-decoration-line: line-through overline;
+}
+
+.terminal-run[data-decor="uso"] {
+	text-decoration-line: underline line-through overline;
 }
 
 /* Block elements (U+2580..U+259F) are drawn as cell-filling rectangles rather

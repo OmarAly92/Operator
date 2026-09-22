@@ -15,10 +15,11 @@ const IDLE_PANES_BASELINE_S = 1.759;
 const SELECTION_ROWS_REPAINTED = 1;
 
 function parseArgs(argv) {
-	const out = { fixture: undefined, gate: false };
+	const out = { fixture: undefined, gate: false, features: "" };
 	for (let index = 0; index < argv.length; index += 1) {
 		if (argv[index] === "--fixture") out.fixture = argv[++index];
 		else if (argv[index] === "--gate") out.gate = true;
+		else if (argv[index] === "--features") out.features = argv[++index];
 		else throw new Error(`unsupported argument ${argv[index]}`);
 	}
 	return out;
@@ -29,9 +30,10 @@ function median(values) {
 	return sorted.length === 0 ? null : sorted[Math.floor(sorted.length / 2)];
 }
 
-async function openPage(browser, port, fixture) {
+async function openPage(browser, port, fixture, features) {
 	const page = await browser.newPage({ viewport: { width: 1600, height: 900 } });
-	await page.goto(`http://127.0.0.1:${port}/agent-session/index.html?fixture=${fixture}`);
+	const suffix = features ? `&features=${encodeURIComponent(features)}` : "";
+	await page.goto(`http://127.0.0.1:${port}/agent-session/index.html?fixture=${fixture}${suffix}`);
 	await page.waitForFunction(() => window.__agentSessionReady === true, undefined, { timeout: 30000 });
 	return page;
 }
@@ -224,42 +226,42 @@ async function main() {
 			const fixture = await loadFixture(name);
 			const rows = {};
 			if (name === "claude-spinner-10s") {
-				const page = await openPage(browser, port, name);
+				const page = await openPage(browser, port, name, args.features);
 				rows.spinner = await spinnerPaints(page);
 				rows.spinner.rowNodesAdded = await page.evaluate(() => window.__agentSession.rowNodesAdded());
 				await page.close();
-				const tearPage = await openPage(browser, port, name);
+				const tearPage = await openPage(browser, port, name, args.features);
 				const states = await tornPaints(tearPage, fixture.recording);
 				await tearPage.close();
-				const paintPage = await openPage(browser, port, name);
+				const paintPage = await openPage(browser, port, name, args.features);
 				rows.tearing = { ...states, ...(await paintsPerFrame(paintPage, fixture.recording)) };
 				await paintPage.close();
-				const idlePage = await openPage(browser, port, name);
+				const idlePage = await openPage(browser, port, name, args.features);
 				rows.idlePanes = await idlePanes(idlePage);
 				await idlePage.close();
-				const selectionPage = await openPage(browser, port, name);
+				const selectionPage = await openPage(browser, port, name, args.features);
 				rows.selectionRepaint = await selectionRepaint(selectionPage);
 				await selectionPage.close();
 			} else {
-				const page = await openPage(browser, port, name);
+				const page = await openPage(browser, port, name, args.features);
 				rows.feedCost = [];
 				for (const target of [1000, 5000, 50000]) rows.feedCost.push(await feedCostAt(page, target));
 				await page.evaluate(() => window.__agentSession.feedAll());
 				rows.rows = await page.evaluate(() => window.__agentSession.rowCount());
 				rows.rendererMemoryBytes = await page.evaluate(() => window.__agentSession.memoryBytes());
 				await page.close();
-				const feedSyncPage = await openPage(browser, port, name);
+				const feedSyncPage = await openPage(browser, port, name, args.features);
 				rows.feedSyncCost = [];
 				for (const target of [1000, 5000, 50000]) rows.feedSyncCost.push(await feedSyncCostAt(feedSyncPage, target));
 				await feedSyncPage.close();
-				const longTaskPage = await openPage(browser, port, name);
+				const longTaskPage = await openPage(browser, port, name, args.features);
 				rows.longTask = await longTask2MiB(longTaskPage);
 				await longTaskPage.close();
-				const reopenPage = await openPage(browser, port, name);
+				const reopenPage = await openPage(browser, port, name, args.features);
 				rows.reopen = await reopenReport(reopenPage, name);
 				await reopenPage.close();
 				if (name === "claude-long-50k") {
-					const widthPage = await openPage(browser, port, name);
+					const widthPage = await openPage(browser, port, name, args.features);
 					await widthPage.evaluate(() => window.__agentSession.feedAll());
 					rows.widthChange = await widthPage.evaluate(() => window.__agentSession.widthChange(40));
 					await widthPage.close();

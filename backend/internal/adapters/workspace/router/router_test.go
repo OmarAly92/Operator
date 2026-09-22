@@ -103,14 +103,14 @@ func TestRouterDelegatesCreateByProjectKind(t *testing.T) {
 		}},
 	})
 
-	if _, err := r.Create(context.Background(), ports.WorkspaceConfig{ProjectID: "scratch", SessionID: "scratch-1", Kind: domain.KindWorker}); err != nil {
+	if _, err := r.Create(context.Background(), ports.WorkspaceConfig{ProjectID: "scratch", SessionID: "scratch-1"}); err != nil {
 		t.Fatalf("Create scratch: %v", err)
 	}
 	if scratch.createCalls != 1 || git.createCalls != 0 {
 		t.Fatalf("create calls scratch/git = %d/%d, want 1/0", scratch.createCalls, git.createCalls)
 	}
 
-	if _, err := r.Create(context.Background(), ports.WorkspaceConfig{ProjectID: "repo", SessionID: "repo-1", Kind: domain.KindWorker, Branch: "opr/repo-1/root"}); err != nil {
+	if _, err := r.Create(context.Background(), ports.WorkspaceConfig{ProjectID: "repo", SessionID: "repo-1", Branch: "opr/repo-1/root"}); err != nil {
 		t.Fatalf("Create repo: %v", err)
 	}
 	if scratch.createCalls != 1 || git.createCalls != 1 {

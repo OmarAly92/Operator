@@ -3,7 +3,6 @@ import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { WorkspaceSession, WorkspaceSummary } from "../types/workspace";
-import { appI18n } from "../i18n";
 import { rememberPaneGrid, resetPaneGridForTests } from "../lib/pane-grid";
 
 const {
@@ -150,8 +149,7 @@ beforeEach(() => {
 });
 
 describe("SessionsBoard", () => {
-	it("localizes dynamic card actions and pull request lifecycle labels", async () => {
-		await appI18n.changeLanguage("zh-CN");
+	it("localizes dynamic card actions and pull request lifecycle labels", () => {
 		workspaceQueryMock.mockReturnValue({
 			data: [
 				workspaceWithSessions([
@@ -178,13 +176,9 @@ describe("SessionsBoard", () => {
 			isSuccess: true,
 		});
 
-		try {
-			renderBoard("p1");
-			expect(screen.getByRole("button", { name: "终止 localized worker" })).toBeInTheDocument();
-			expect(screen.getByLabelText("#42 已打开")).toHaveTextContent("已打开");
-		} finally {
-			await appI18n.changeLanguage("en");
-		}
+		renderBoard("p1");
+		expect(screen.getByRole("button", { name: "Terminate localized worker" })).toBeInTheDocument();
+		expect(screen.getByLabelText("#42 open")).toHaveTextContent("open");
 	});
 
 	it("does not show an agent setup warning on the board", () => {
@@ -193,7 +187,7 @@ describe("SessionsBoard", () => {
 		expect(screen.queryByText(/reload agents/i)).not.toBeInTheDocument();
 	});
 
-	it("shows the project name in the in-panel board chrome when actions live in the panel", () => {
+	it("renders no title row above the columns on any platform", () => {
 		boardActionsInPanelMock.mockReturnValue(true);
 		workspaceQueryMock.mockReturnValue({
 			data: [
@@ -223,70 +217,10 @@ describe("SessionsBoard", () => {
 
 		renderBoard("p1");
 
-		expect(screen.getByText("solkit-ui")).toBeInTheDocument();
-		expect(screen.getByRole("button", { name: "New task" })).toBeInTheDocument();
-	});
-
-	it.each([
-		["active", "Working", "bg-status-working", true],
-		["idle", "Idle", "bg-status-idle", false],
-	] as const)("shows %s orchestrator activity in the in-panel board toolbar", (state, label, tone, pulses) => {
-		boardActionsInPanelMock.mockReturnValue(true);
-		workspaceQueryMock.mockReturnValue({
-			data: [
-				{
-					id: "p1",
-					name: "solkit-ui",
-					path: "/tmp/solkit-ui",
-					sessions: [
-						{
-							id: "orch-1",
-							workspaceId: "p1",
-							workspaceName: "solkit-ui",
-							title: "orchestrator",
-							provider: "codex",
-							kind: "orchestrator",
-							branch: "main",
-							status: "working",
-							activity: { state, lastActivityAt: "2026-01-01T00:00:00Z" },
-							updatedAt: "2026-01-01T00:00:00Z",
-							prs: [],
-						},
-					],
-				},
-			],
-			isError: false,
-			isSuccess: true,
-		});
-
-		renderBoard("p1");
-
-		const button = screen.getByRole("button", { name: `Orchestrator, ${label}` });
-		const indicator = button.querySelector("span.size-dot-sm") as HTMLElement;
-		expect(indicator).toHaveAttribute("aria-hidden", "true");
-		expect(indicator).toHaveClass(tone);
-		expect(indicator).toHaveClass(pulses ? "animate-status-pulse" : "size-dot-sm");
-		if (!pulses) expect(indicator).not.toHaveClass("animate-status-pulse");
-	});
-
-	it("shows the Board crumb on the root board when actions live in the panel", () => {
-		boardActionsInPanelMock.mockReturnValue(true);
-		workspaceQueryMock.mockReturnValue({
-			data: [
-				{
-					id: "p1",
-					name: "solkit-ui",
-					path: "/tmp/solkit-ui",
-					sessions: [],
-				},
-			],
-			isError: false,
-			isSuccess: true,
-		});
-
-		renderBoard();
-
-		expect(screen.getByText("Board")).toBeInTheDocument();
+		expect(screen.queryByText("solkit-ui")).not.toBeInTheDocument();
+		expect(screen.queryByText("Board")).not.toBeInTheDocument();
+		expect(screen.queryByRole("button", { name: "New task" })).not.toBeInTheDocument();
+		expect(screen.queryByRole("button", { name: "New terminal" })).not.toBeInTheDocument();
 	});
 
 	it("labels an idle session as Idle, not Working", () => {
@@ -957,7 +891,7 @@ describe("SessionsBoard", () => {
 		renderBoard("p1");
 
 		const archiveButton = screen.getByRole("button", { name: /archive/i });
-		expect(archiveButton).toHaveClass("h-[46px]", "py-0");
+		expect(archiveButton).toHaveClass("h-10", "py-0");
 		await userEvent.click(archiveButton);
 
 		const archive = screen.getByRole("list", { name: "Archived sessions" });
@@ -1560,6 +1494,28 @@ describe("SessionsBoard", () => {
 		expect(screen.getByRole("button", { name: "Terminate merged worker" })).toBeEnabled();
 	});
 
+	it("places a needs-input session in the action column and a review session in pending", () => {
+		workspaceQueryMock.mockReturnValue({
+			data: [
+				workspaceWithSessions([
+					boardSession({ id: "a", title: "session a", status: "needs_input" }),
+					boardSession({ id: "b", title: "session b", status: "review_pending" }),
+					boardSession({ id: "c", title: "session c", status: "working" }),
+				]),
+			],
+			isError: false,
+			isSuccess: true,
+		});
+
+		renderBoard("p1");
+
+		const columns = screen.getAllByTestId("board-column");
+		const columnByZone = (zone: string) => columns.find((column) => column.getAttribute("data-column") === zone);
+		expect(within(columnByZone("action")!).getByText("session a")).toBeInTheDocument();
+		expect(within(columnByZone("pending")!).getByText("session b")).toBeInTheDocument();
+		expect(within(columnByZone("working")!).getByText("session c")).toBeInTheDocument();
+	});
+
 	it("shows the ticket badge on a linked session card and opens the ticket page from it", async () => {
 		workspaceQueryMock.mockReturnValue({
 			data: [
@@ -1623,7 +1579,6 @@ function terminatedSession(overrides: Partial<WorkspaceSession> = {}): Workspace
 		title: "dead worker",
 		issueId: "github:INT-17",
 		provider: "claude-code",
-		kind: "worker",
 		branch: "opr/dead-worker",
 		status: "terminated",
 		isTerminated: true,

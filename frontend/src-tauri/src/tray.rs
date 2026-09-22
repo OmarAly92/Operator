@@ -2,7 +2,7 @@ pub const MAX_MENU_SESSIONS: usize = 8;
 pub const TRAY_ICON_PNG: &[u8] = include_bytes!("../../assets/trayIcon.png");
 pub const TRAY_OPEN_SESSION_EVENT: &str = "tray:open-session";
 
-pub const APP_LOCALES: [&str; 8] = ["en", "zh-CN", "ja", "ko", "es", "fr", "de", "pt-BR"];
+pub const APP_LOCALES: [&str; 1] = ["en"];
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Zone {
@@ -92,29 +92,12 @@ pub struct TrayStrings {
 }
 
 const EN_CATALOG: &[u8] = include_bytes!("../../src/renderer/i18n/en.json");
-const ZH_CN_CATALOG: &[u8] = include_bytes!("../../src/renderer/i18n/zh-CN.json");
-const JA_CATALOG: &[u8] = include_bytes!("../../src/renderer/i18n/ja.json");
-const KO_CATALOG: &[u8] = include_bytes!("../../src/renderer/i18n/ko.json");
-const ES_CATALOG: &[u8] = include_bytes!("../../src/renderer/i18n/es.json");
-const FR_CATALOG: &[u8] = include_bytes!("../../src/renderer/i18n/fr.json");
-const DE_CATALOG: &[u8] = include_bytes!("../../src/renderer/i18n/de.json");
-const PT_BR_CATALOG: &[u8] = include_bytes!("../../src/renderer/i18n/pt-BR.json");
 
-fn catalog_bytes(locale: &str) -> &'static [u8] {
-    match locale {
-        "zh-CN" => ZH_CN_CATALOG,
-        "ja" => JA_CATALOG,
-        "ko" => KO_CATALOG,
-        "es" => ES_CATALOG,
-        "fr" => FR_CATALOG,
-        "de" => DE_CATALOG,
-        "pt-BR" => PT_BR_CATALOG,
-        _ => EN_CATALOG,
-    }
-}
-
-fn catalog_value(locale: &str, key: &str) -> Option<String> {
-    let catalog: serde_json::Value = serde_json::from_slice(catalog_bytes(locale)).ok()?;
+// Operator ships English only, so every locale resolves to the one catalog.
+// load_strings keeps its locale parameter because the renderer still pushes the
+// active locale through the tray_set_locale command.
+fn catalog_value(_locale: &str, key: &str) -> Option<String> {
+    let catalog: serde_json::Value = serde_json::from_slice(EN_CATALOG).ok()?;
     catalog.get(key)?.as_str().map(str::to_string)
 }
 
@@ -478,16 +461,16 @@ mod tests {
     }
 
     #[test]
-    fn catalogs_match_the_canonical_english_and_german_files() {
+    fn catalog_matches_the_canonical_english_file() {
         let en = load_strings("en");
         assert_eq!(en.show, "Show Operator");
         assert_eq!(en.empty, "No sessions need attention");
         assert_eq!(en.tooltip_one, "{{count}} session needs attention");
         assert_eq!(en.tooltip_other, "{{count}} sessions need attention");
 
-        let de = load_strings("de");
-        assert_eq!(de.show, "Operator anzeigen");
-        assert_eq!(de.more, "Mehr");
+        // Operator ships English only: every locale the renderer can still push
+        // through tray_set_locale, and any unknown one, resolves to that catalog.
+        assert_eq!(load_strings("de"), en);
         assert_eq!(load_strings("unknown-locale"), en);
     }
 
@@ -542,15 +525,16 @@ mod tests {
     }
 
     #[test]
-    fn untitled_sessions_fall_back_to_the_localized_label() {
+    fn untitled_sessions_fall_back_to_the_catalog_label() {
         let sessions = [SessionEntry::new("p1", "", "s1", "", Zone::Action)];
+        // A non-English locale still resolves to the English catalog.
         let plan = render(&sessions, &load_strings("de"));
 
         assert_eq!(
             plan.items[1],
             ItemSpec::Session {
                 id: "session/p1/s1".to_string(),
-                label: "Unbenannte Sitzung".to_string()
+                label: "Untitled session".to_string()
             }
         );
     }

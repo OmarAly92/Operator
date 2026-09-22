@@ -629,7 +629,6 @@ func TestCollectorIgnoresUsageSignalFromStaleRuntimeLaunch(t *testing.T) {
 	now := time.Now().UTC()
 	session, err := store.CreateSession(context.Background(), domain.SessionRecord{
 		ProjectID: "usage-test",
-		Kind:      domain.KindWorker,
 		Harness:   domain.HarnessCodex,
 		Activity:  domain.Activity{State: domain.ActivityIdle, LastActivityAt: now},
 		Metadata: domain.SessionMetadata{
@@ -1772,7 +1771,6 @@ func collectorTestSessionWithActivity(
 	now := time.Now().UTC()
 	session, err := store.CreateSession(context.Background(), domain.SessionRecord{
 		ProjectID:    "usage-test",
-		Kind:         domain.KindWorker,
 		Harness:      harness,
 		Activity:     domain.Activity{State: activity, LastActivityAt: now},
 		IsTerminated: terminated,

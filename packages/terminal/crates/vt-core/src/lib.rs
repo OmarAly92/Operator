@@ -11,6 +11,7 @@ pub mod event_bridge;
 pub mod find;
 pub mod grid;
 mod history;
+pub mod hyperlink;
 pub mod integrity;
 pub mod limits;
 mod line_editor;
@@ -18,10 +19,12 @@ pub mod parser;
 pub mod row_index;
 mod screen;
 mod scrollback;
+mod sgr;
 pub mod style;
 pub mod sync;
 #[cfg(feature = "trace")]
 pub mod trace;
+pub mod width;
 
 pub mod testing {
     pub use crate::screen::{Cell, ScreenGrid};
@@ -34,12 +37,14 @@ pub use block_selection::{BlockSelection, SelectionPoint};
 pub use block_tree::{BlockSummary, BlockTree};
 pub use delta::{Delta, DeltaKind};
 pub use find::{FindCursor, FindMatch, FindQuery};
-pub use grid::ExportedRow;
+pub use grid::{CellSpan, ExportedRow};
+pub use hyperlink::{Hyperlink, HyperlinkRegistry, LinkId};
 pub use integrity::IntegrityError;
 pub use limits::{Limits, MemoryStats};
 pub use line_editor::LineEditorState;
 pub use parser::{HistoryBlock, HistoryRow};
-pub use style::{CellStyle, StyleCode};
+pub use style::{Attrs, CellStyle, StyleCode};
+pub use width::{clusters, Cluster, WidthMode};
 
 use std::ops::Range;
 
@@ -199,9 +204,10 @@ impl TerminalCore {
     }
 
     fn feed_raw(&mut self, bytes: &[u8]) {
+        self.parser.set_clock(self.now_ms);
         let mut bytes = bytes;
         if self.history.is_active() {
-            let consumed = self.history.consume(bytes);
+            let consumed = self.history.consume(bytes, self.parser.hyperlinks_mut());
             self.drain_history();
             bytes = &bytes[consumed..];
             if bytes.is_empty() {
@@ -243,9 +249,10 @@ impl TerminalCore {
                     rows,
                 } => {
                     let cols = self.parser.columns();
-                    self.history.begin(first_stable_row, rows, cols);
+                    self.history
+                        .begin(first_stable_row, rows, cols, self.parser.width_mode());
                     let rest = &bytes[upto..];
-                    let consumed = self.history.consume(rest);
+                    let consumed = self.history.consume(rest, self.parser.hyperlinks_mut());
                     self.drain_history();
                     parsed = upto + consumed;
                     continue;
@@ -275,6 +282,7 @@ impl TerminalCore {
         if parsed < bytes.len() {
             self.advance_vte(&bytes[parsed..]);
         }
+        self.parser.note_output();
         self.parser.commit_evicted();
         self.parser.trim_to(self.limits);
         self.parser.note_mutation();
@@ -340,7 +348,17 @@ impl TerminalCore {
             self.line_editor.state(),
             self.parser.alt(),
             self.parser.first_stable_row(),
+            self.parser.width_mode(),
+            self.parser.hyperlinks(),
         )
+    }
+
+    pub fn hyperlink_count(&self) -> usize {
+        self.parser.hyperlinks().len()
+    }
+
+    pub fn hyperlink_uri(&self, id: LinkId) -> Option<&str> {
+        self.parser.hyperlinks().uri(id)
     }
 
     pub fn generation(&self) -> u64 {
@@ -368,7 +386,14 @@ impl TerminalCore {
         let completed = self.parser.rows().completed();
         range
             .filter_map(|index| completed.get(index))
-            .map(|row| grid::export_history_row(self.parser.content(), self.parser.styles(), row))
+            .map(|row| {
+                grid::export_history_row(
+                    self.parser.content(),
+                    self.parser.styles(),
+                    row,
+                    self.parser.width_mode(),
+                )
+            })
             .collect()
     }
 
@@ -488,6 +513,18 @@ impl TerminalCore {
     pub fn set_agent_tui_mode(&mut self, on: bool) {
         self.parser.set_agent_tui_mode(on);
         self.debug_check();
+    }
+
+    pub fn set_grapheme_clusters(&mut self, on: bool) {
+        self.parser.set_width_mode(if on {
+            WidthMode::Grapheme
+        } else {
+            WidthMode::Scalar
+        });
+    }
+
+    pub fn grapheme_clusters(&self) -> bool {
+        self.parser.width_mode() == WidthMode::Grapheme
     }
 
     pub fn set_block_bookmarked(&mut self, id: crate::block::BlockId, bookmarked: bool) {

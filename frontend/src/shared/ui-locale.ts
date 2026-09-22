@@ -1,5 +1,5 @@
 /** UI locales supported across the shell and renderer boundaries. */
-export const APP_LOCALES = ["en", "zh-CN", "ja", "ko", "es", "fr", "de", "pt-BR"] as const;
+export const APP_LOCALES = ["en"] as const;
 
 export type AppLocale = (typeof APP_LOCALES)[number];
 
@@ -11,11 +11,8 @@ export interface UiSettings {
 
 export const DEFAULT_UI_SETTINGS: UiSettings = { locale: DEFAULT_LOCALE };
 
-/** Normalize an unknown value to a supported UI locale. */
-export function coerceLocale(raw: unknown): AppLocale {
-	if (typeof raw === "string" && (APP_LOCALES as readonly string[]).includes(raw)) {
-		return raw as AppLocale;
-	}
+/** Normalize an unknown value to the supported UI locale. */
+export function coerceLocale(_raw: unknown): AppLocale {
 	return DEFAULT_LOCALE;
 }
 

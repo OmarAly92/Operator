@@ -17,7 +17,7 @@ import { cn } from "../lib/utils";
 import { useUiStore, type Theme } from "../stores/ui-store";
 import type { ShellTerminal } from "../hooks/useShellTerminals";
 import type { TerminalTarget } from "../types/terminal";
-import { isOrchestratorSession, type WorkspaceSession } from "../types/workspace";
+import type { WorkspaceSession } from "../types/workspace";
 import { AgentAvatar } from "./AgentAvatar";
 import { TerminalPane } from "./TerminalPane";
 import { SessionAgentTabMenu } from "./SessionAgentTabMenu";
@@ -89,11 +89,7 @@ export function CenterPane({
 	);
 	const target = terminalTarget ?? { kind: "worker" };
 
-	const sessionTabLabel = session
-		? isOrchestratorSession(session)
-			? t("shell.orchestrator")
-			: session.title
-		: t("terminal.noSession");
+	const sessionTabLabel = session ? session.title : t("terminal.noSession");
 	const activeShellHandleId = target.kind === "shell" ? target.handleId : undefined;
 	const activeTerminalLabel =
 		target.kind === "reviewer"

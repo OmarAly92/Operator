@@ -64,7 +64,6 @@ function TestProjectSettings({
 		validationError: null,
 		mutationError: null,
 		saved: false,
-		replacementError: null,
 	});
 	return (
 		<>
@@ -72,7 +71,6 @@ function TestProjectSettings({
 			{saveState.validationError && <span>{saveState.validationError}</span>}
 			{saveState.mutationError && <span>{saveState.mutationError}</span>}
 			{saveState.saved && <span>{"Saved"}</span>}
-			{saveState.replacementError && <span>{`Orchestrator restart failed: ${saveState.replacementError}`}</span>}
 		</>
 	);
 }
@@ -177,7 +175,7 @@ beforeEach(() => {
 	navigateMock.mockReset();
 	putMock.mockResolvedValue({ data: { project: {} }, error: undefined });
 	postMock.mockResolvedValue({
-		data: { orchestrator: { id: "proj-1-orch-2" } },
+		data: {},
 		error: undefined,
 		response: { status: 200 },
 	});
@@ -192,46 +190,14 @@ describe("ProjectSettingsForm", () => {
 			path: "/repo/project-one",
 			repo: "",
 			defaultBranch: "main",
-			config: {
-				worker: { agent: "codex" },
-				orchestrator: { agent: "claude-code" },
-			},
+			config: { agent: "codex" },
 		});
 
 		renderSettings();
-		await screen.findByRole("button", { name: "Edit Project name" });
+		await screen.findByLabelText("Enable issue intake");
 
-		// Close button is now in SettingsDialog, not in the form itself
 		expect(screen.queryByRole("button", { name: "Close settings" })).not.toBeInTheDocument();
 		expect(navigateMock).not.toHaveBeenCalled();
-	});
-
-	it("shows the project name as text with a pencil until edit is clicked", async () => {
-		mockProject({
-			id: "proj-1",
-			name: "Project One",
-			kind: "single_repo",
-			path: "/repo/project-one",
-			repo: "",
-			defaultBranch: "main",
-			config: {
-				worker: { agent: "codex" },
-				orchestrator: { agent: "claude-code" },
-			},
-		});
-
-		renderSettings();
-
-		expect(await screen.findByRole("button", { name: "Edit Project name" })).toHaveTextContent("Project One");
-		expect(screen.queryByRole("textbox", { name: "Project name" })).not.toBeInTheDocument();
-
-		await userEvent.click(screen.getByRole("button", { name: "Edit Project name" }));
-		expect(screen.getByRole("textbox", { name: "Project name" })).toHaveValue("Project One");
-		expect(screen.queryByRole("button", { name: "Edit Project name" })).not.toBeInTheDocument();
-
-		await userEvent.keyboard("{Escape}");
-		expect(await screen.findByRole("button", { name: "Edit Project name" })).toBeInTheDocument();
-		expect(screen.queryByRole("textbox", { name: "Project name" })).not.toBeInTheDocument();
 	});
 
 	it("does not navigate on Escape (dialog handles closing)", async () => {
@@ -242,51 +208,18 @@ describe("ProjectSettingsForm", () => {
 			path: "/repo/project-one",
 			repo: "",
 			defaultBranch: "main",
-			config: {
-				worker: { agent: "codex" },
-				orchestrator: { agent: "claude-code" },
-			},
+			config: { agent: "codex" },
 		});
 
 		renderSettings();
-		await screen.findByRole("button", { name: "Edit Project name" });
+		await screen.findByLabelText("Enable issue intake");
 
 		await userEvent.keyboard("{Escape}");
 
-		// Escape is handled by the Radix Dialog in SettingsDialog, not the form
 		expect(navigateMock).not.toHaveBeenCalled();
 	});
 
-	it("atomically saves the project display name and config without changing its stable ID", async () => {
-		mockProject({
-			id: "tg_content_factory_5863f66be3",
-			name: "tg_content_factory_5863f66be3",
-			kind: "single_repo",
-			path: "/repo/project-one",
-			repo: "",
-			defaultBranch: "main",
-			config: {
-				worker: { agent: "codex" },
-				orchestrator: { agent: "claude-code" },
-			},
-		});
-
-		renderSettings("tg_content_factory_5863f66be3");
-
-		const projectName = await beginEdit("Project name");
-		await userEvent.clear(projectName);
-		await userEvent.type(projectName, "TG Content Factory");
-		submitSettings();
-
-		await waitFor(() => expect(putMock).toHaveBeenCalledTimes(1));
-		expect(putMock).toHaveBeenCalledWith("/api/v1/projects/{id}", {
-			params: { path: { id: "tg_content_factory_5863f66be3" } },
-			body: expect.objectContaining({ displayName: "TG Content Factory" }),
-		});
-		expect(screen.getByText("tg_content_factory_5863f66be3")).toBeInTheDocument();
-	});
-
-	it("renders git scp-style remotes as clickable https links", async () => {
+	it("saves without touching the config it no longer edits", async () => {
 		mockProject({
 			id: "proj-1",
 			name: "Project One",
@@ -295,84 +228,16 @@ describe("ProjectSettingsForm", () => {
 			repo: "git@github.com:acme/project-one.git",
 			defaultBranch: "main",
 			config: {
-				worker: { agent: "codex" },
-				orchestrator: { agent: "claude-code" },
-			},
-		});
-
-		renderSettings();
-
-		const repoLink = await screen.findByRole("link", { name: "git@github.com:acme/project-one.git" });
-		expect(repoLink).toHaveAttribute("href", "https://github.com/acme/project-one");
-	});
-
-	it("renders ssh remotes as clickable https links", async () => {
-		mockProject({
-			id: "proj-1",
-			name: "Project One",
-			kind: "single_repo",
-			path: "/repo/project-one",
-			repo: "ssh://git@github.com/acme/project-one.git",
-			defaultBranch: "main",
-			config: {
-				worker: { agent: "codex" },
-				orchestrator: { agent: "claude-code" },
-			},
-		});
-
-		renderSettings();
-
-		const repoLink = await screen.findByRole("link", { name: "ssh://git@github.com/acme/project-one.git" });
-		expect(repoLink).toHaveAttribute("href", "https://github.com/acme/project-one");
-	});
-
-	it("loads agents fields and saves without dropping hidden workflow config", async () => {
-		mockProject({
-			id: "proj-1",
-			name: "Project One",
-			kind: "single_repo",
-			path: "/repo/project-one",
-			repo: "git@github.com:acme/project-one.git",
-			defaultBranch: "main",
-			config: {
+				agent: "codex",
+				agentConfig: { model: "gpt-5.4", permissions: "auto" },
 				defaultBranch: "develop",
-				sessionPrefix: "po",
-				env: { FOO: "bar" },
-				symlinks: [".env"],
-				postCreate: ["npm install"],
-				worker: {
-					agent: "codex",
-					agentConfig: { model: "worker-model" },
-				},
-				orchestrator: { agent: "claude-code" },
-				agentConfig: {
-					model: "claude-opus-4-5",
-					permissions: "auto",
-				},
+				sessionPrefix: "acme",
 				reviewers: [{ harness: "claude-code" }],
 			},
 		});
 
-		renderSettings("proj-1", undefined, "agents");
-
-		expect(screen.queryByLabelText("Default branch")).not.toBeInTheDocument();
-		expect(await screen.findByLabelText("Worker model")).toHaveValue("worker-model");
-		expect(screen.getByLabelText("Orchestrator model")).toHaveValue("claude-opus-4-5");
-
-		const workerAgent = screen.getByRole("button", { name: "Default worker agent" });
-		const orchestratorAgent = screen.getByRole("button", { name: "Default orchestrator agent" });
-		const permissionMode = screen.getByRole("button", { name: "Permission mode" });
-		expect(workerAgent).toHaveTextContent("codex");
-		expect(orchestratorAgent).toHaveTextContent("claude-code");
-		expect(permissionMode).toHaveTextContent("Auto");
-
-		await chooseOption(workerAgent, "OpenCode");
-		await chooseOption(orchestratorAgent, "Goose");
-		await userEvent.type(screen.getByLabelText("Worker model"), "openai/gpt-5.4");
-		await userEvent.type(screen.getByLabelText("Orchestrator model"), "anthropic/claude-sonnet");
-		await userEvent.click(permissionMode);
-		await userEvent.click(await screen.findByRole("menuitem", { name: "Bypass permissions" }));
-
+		renderSettings("proj-1", undefined, "intake");
+		await screen.findByLabelText("Enable issue intake");
 		submitSettings();
 
 		await waitFor(() => expect(putMock).toHaveBeenCalledTimes(1));
@@ -381,31 +246,17 @@ describe("ProjectSettingsForm", () => {
 			body: {
 				displayName: "Project One",
 				config: expect.objectContaining({
-					// Hidden workflow config is preserved
+					agent: "codex",
+					agentConfig: { model: "gpt-5.4", permissions: "auto" },
 					defaultBranch: "develop",
-					sessionPrefix: "po",
-					env: { FOO: "bar" },
+					sessionPrefix: "acme",
 					reviewers: [{ harness: "claude-code" }],
-					// Agents changes applied
-					worker: {
-						agent: "opencode",
-						agentConfig: { model: "openai/gpt-5.4" },
-					},
-					orchestrator: {
-						agent: "goose",
-						agentConfig: { model: "anthropic/claude-sonnet" },
-					},
-					agentConfig: {
-						permissions: "bypass-permissions",
-					},
 				}),
 			},
 		});
-		await waitFor(() => expect(postMock).toHaveBeenCalledTimes(1));
-		expect(await screen.findByText("Saved")).toBeInTheDocument();
-	}, 20_000);
+	});
 
-	it("loads workflow fields correctly", async () => {
+	it("shows the daemon validation message when the settings save fails", async () => {
 		mockProject({
 			id: "proj-1",
 			name: "Project One",
@@ -413,207 +264,15 @@ describe("ProjectSettingsForm", () => {
 			path: "/repo/project-one",
 			repo: "git@github.com:acme/project-one.git",
 			defaultBranch: "main",
-			config: {
-				defaultBranch: "develop",
-				sessionPrefix: "po",
-				worker: { agent: "codex" },
-				orchestrator: { agent: "claude-code" },
-				reviewers: [{ harness: "claude-code" }],
-			},
-		});
-
-		renderSettings("proj-1", undefined, "workflow");
-
-		expect(await beginEdit("Default branch")).toHaveValue("develop");
-		await userEvent.keyboard("{Escape}");
-		expect(await beginEdit("Session prefix")).toHaveValue("po");
-		const reviewerAgent = screen.getByRole("button", { name: "Default reviewer agent" });
-		expect(reviewerAgent).toHaveTextContent("Claude Code");
-	});
-
-	it("shows the full model catalog again after selecting a model", async () => {
-		getMock.mockImplementation(async (path: string) => {
-			if (path === "/api/v1/agents") return agentCatalogResponse;
-			if (path === "/api/v1/agents/{agent}/models") {
-				return {
-					data: {
-						agentId: "codex",
-						selectionMode: "catalog",
-						models: [
-							{ id: "gpt-5.6-sol", label: "GPT-5.6 Sol", isDefault: true },
-							{ id: "gpt-5.5", label: "GPT-5.5" },
-							{ id: "gpt-5.4", label: "GPT-5.4" },
-						],
-						allowCustom: true,
-						source: "official-catalog",
-						fetchedAt: "2026-07-31T00:00:00Z",
-						stale: false,
-					},
-					error: undefined,
-				};
-			}
-			return {
-				data: {
-					status: "ok",
-					project: {
-						id: "proj-1",
-						name: "Project One",
-						kind: "single_repo",
-						path: "/repo/project-one",
-						repo: "",
-						defaultBranch: "main",
-						config: {
-							worker: { agent: "codex" },
-							orchestrator: { agent: "codex" },
-						},
-					},
-				},
-				error: undefined,
-			};
-		});
-
-		renderSettings("proj-1", undefined, "agents");
-
-		const workerModel = await screen.findByRole("button", { name: "Worker model" });
-		await userEvent.click(workerModel);
-		expect((await screen.findAllByRole("menuitem")).map((item) => item.textContent)).toEqual([
-			"Agent default",
-			"GPT-5.6 SolDefault",
-			"GPT-5.5",
-			"GPT-5.4",
-			"Custom model…",
-		]);
-		// A compact catalog stays immediately scannable and does not spend a row on search.
-		expect(screen.queryByRole("searchbox", { name: "Search worker model" })).not.toBeInTheDocument();
-		await userEvent.click(screen.getByRole("menuitem", { name: /GPT-5\.4/ }));
-		expect(workerModel).toHaveTextContent("GPT-5.4");
-
-		await userEvent.click(workerModel);
-		expect(await screen.findByRole("menuitem", { name: /GPT-5\.6 Sol/ })).toBeInTheDocument();
-		expect(screen.getByRole("menuitem", { name: /GPT-5\.5/ })).toBeInTheDocument();
-		expect(screen.getByRole("menuitem", { name: /GPT-5\.4/ })).toBeInTheDocument();
-		expect(screen.getByRole("menuitem", { name: "Custom model…" })).toBeInTheDocument();
-	});
-
-	it("shows a warning when refreshing a cached model catalog fails", async () => {
-		getMock.mockImplementation(async (path: string) => {
-			if (path === "/api/v1/agents") return agentCatalogResponse;
-			if (path === "/api/v1/agents/{agent}/models") {
-				return {
-					data: {
-						agentId: "codex",
-						selectionMode: "catalog",
-						models: [{ id: "gpt-5.6-sol", label: "GPT-5.6 Sol" }],
-						allowCustom: true,
-						source: "official-catalog",
-						fetchedAt: "2026-07-31T00:00:00Z",
-						stale: false,
-					},
-					error: undefined,
-				};
-			}
-			return {
-				data: {
-					status: "ok",
-					project: {
-						id: "proj-1",
-						name: "Project One",
-						kind: "single_repo",
-						path: "/repo/project-one",
-						repo: "",
-						defaultBranch: "main",
-						config: {
-							worker: { agent: "codex" },
-							orchestrator: { agent: "codex" },
-						},
-					},
-				},
-				error: undefined,
-			};
-		});
-		postMock.mockResolvedValue({ data: undefined, error: { message: "model refresh unavailable" } });
-
-		renderSettings("proj-1", undefined, "agents");
-
-		await userEvent.click(await screen.findByRole("button", { name: "Refresh worker model list" }));
-		expect(await screen.findByText("model refresh unavailable")).toBeInTheDocument();
-		expect(screen.getByRole("button", { name: "Worker model" })).toHaveTextContent("Agent default");
-	});
-
-	it("shows cached models immediately and deduplicates background revalidation", async () => {
-		const cachedCatalog = {
-			agentId: "codex",
-			selectionMode: "catalog" as const,
-			models: [{ id: "gpt-5.6-sol", label: "GPT-5.6 Sol" }],
-			allowCustom: true,
-			source: "official-catalog",
-			fetchedAt: "2026-07-31T00:00:00Z",
-			validatedAt: "2026-07-31T00:00:00Z",
-			refreshRecommended: true,
-			stale: false,
-		};
-		getMock.mockImplementation(async (path: string) => {
-			if (path === "/api/v1/agents") return agentCatalogResponse;
-			if (path === "/api/v1/agents/{agent}/models") return { data: cachedCatalog, error: undefined };
-			return {
-				data: {
-					status: "ok",
-					project: {
-						id: "proj-1",
-						name: "Project One",
-						kind: "single_repo",
-						path: "/repo/project-one",
-						repo: "",
-						defaultBranch: "main",
-						config: {
-							worker: { agent: "codex" },
-							orchestrator: { agent: "codex" },
-						},
-					},
-				},
-				error: undefined,
-			};
-		});
-		postMock.mockResolvedValue({
-			data: { ...cachedCatalog, refreshRecommended: false, validatedAt: "2026-08-03T00:00:00Z" },
-			error: undefined,
-		});
-
-		renderSettings("proj-1", undefined, "agents");
-
-		expect(await screen.findByRole("button", { name: "Worker model" })).toHaveTextContent("Agent default");
-		await waitFor(() => expect(postMock).toHaveBeenCalledTimes(1));
-		expect(postMock).toHaveBeenCalledWith("/api/v1/agents/{agent}/models/refresh", {
-			params: {
-				path: { agent: "codex" },
-				query: { projectId: "proj-1", revalidate: true },
-			},
-		});
-	});
-
-	it("shows the daemon validation message when the atomic settings save fails", async () => {
-		mockProject({
-			id: "proj-1",
-			name: "Project One",
-			kind: "single_repo",
-			path: "/repo/project-one",
-			repo: "",
-			defaultBranch: "main",
-			config: {
-				worker: { agent: "codex" },
-				orchestrator: { agent: "claude-code" },
-			},
+			config: { agent: "codex" },
 		});
 		putMock.mockResolvedValue({
 			data: undefined,
 			error: { message: "invalid permissions" },
 		});
 
-		renderSettings();
-
-		const projectName = await beginEdit("Project name");
-		await userEvent.clear(projectName);
-		await userEvent.type(projectName, "Updated Project");
+		renderSettings("proj-1", undefined, "intake");
+		await screen.findByLabelText("Enable issue intake");
 		submitSettings();
 
 		expect(await screen.findByText("invalid permissions")).toBeInTheDocument();
@@ -621,579 +280,17 @@ describe("ProjectSettingsForm", () => {
 		expect(postMock).not.toHaveBeenCalled();
 	});
 
-	it("rejects a blank project name before sending the settings update", async () => {
+	it("tells scratch projects that intake is unavailable", async () => {
 		mockProject({
-			id: "proj-1",
-			name: "Project One",
-			kind: "single_repo",
-			path: "/repo/project-one",
-			repo: "",
-			defaultBranch: "main",
-			config: {
-				worker: { agent: "codex" },
-				orchestrator: { agent: "claude-code" },
-			},
-		});
-
-		renderSettings();
-
-		const projectName = await beginEdit("Project name");
-		await userEvent.clear(projectName);
-		await userEvent.type(projectName, "   ");
-		submitSettings();
-
-		expect(await screen.findByText("Project name is required.")).toBeInTheDocument();
-		expect(putMock).not.toHaveBeenCalled();
-	});
-
-	it("requires worker and orchestrator agents for existing projects missing role config", async () => {
-		mockProject({
-			id: "proj-1",
-			name: "Project One",
-			kind: "single_repo",
-			path: "/repo/project-one",
-			repo: "",
-			defaultBranch: "main",
-			config: {},
-		});
-
-		renderSettings("proj-1", undefined, "agents");
-
-		expect(await screen.findByText("Worker and orchestrator agents are required.")).toBeInTheDocument();
-		expect(screen.getByRole("button", { name: "Default worker agent" })).toHaveTextContent("Select worker agent");
-		expect(screen.getByRole("button", { name: "Default orchestrator agent" })).toHaveTextContent(
-			"Select orchestrator agent",
-		);
-
-		submitSettings();
-
-		expect(await screen.findAllByText("Worker and orchestrator agents are required.")).toHaveLength(2);
-		expect(putMock).not.toHaveBeenCalled();
-	});
-
-	it("uses the localized default label for the project reviewer picker", async () => {
-		mockProject({
-			id: "proj-1",
-			name: "Project One",
-			kind: "single_repo",
-			path: "/repo/project-one",
-			repo: "",
-			defaultBranch: "main",
-			config: {
-				worker: { agent: "codex" },
-				orchestrator: { agent: "claude-code" },
-			},
-		});
-
-		renderSettings("proj-1", undefined, "workflow");
-
-		const reviewerAgent = await screen.findByRole("button", { name: "Default reviewer agent" });
-		expect(reviewerAgent).toHaveTextContent("Project default");
-
-		await userEvent.click(reviewerAgent);
-		expect(await screen.findByRole("menuitem", { name: "Project default" })).toBeInTheDocument();
-	});
-
-	it("disables agent selectors while the initial agent catalog is loading", async () => {
-		getMock.mockImplementation(async (path: string) => {
-			if (path === "/api/v1/agents") {
-				return new Promise(() => {});
-			}
-			return {
-				data: {
-					status: "ok",
-					project: {
-						id: "proj-1",
-						name: "Project One",
-						kind: "single_repo",
-						path: "/repo/project-one",
-						repo: "",
-						defaultBranch: "main",
-						config: {
-							worker: { agent: "codex" },
-							orchestrator: { agent: "claude-code" },
-						},
-					},
-				},
-				error: undefined,
-			};
-		});
-
-		renderSettings("proj-1", undefined, "agents");
-
-		expect(await screen.findByRole("button", { name: "Default worker agent" })).toBeDisabled();
-		expect(screen.getByRole("button", { name: "Default orchestrator agent" })).toBeDisabled();
-	});
-
-	it("offers both interactive Kiro and Pi reviewers", async () => {
-		mockProject({
-			id: "proj-1",
-			name: "Project One",
-			kind: "single_repo",
-			path: "/repo/project-one",
-			repo: "",
-			defaultBranch: "main",
-			config: {
-				worker: { agent: "codex" },
-				orchestrator: { agent: "claude-code" },
-			},
-		});
-
-		renderSettings("proj-1", undefined, "workflow");
-		const reviewer = await screen.findByRole("button", { name: "Default reviewer agent" });
-		await userEvent.click(reviewer);
-		const labels = (await screen.findAllByRole("menuitem")).map((option) => option.textContent);
-		expect(labels).toContain("KiroAuth unknown");
-		expect(labels).toContain("Pi");
-	});
-
-	it("offers Muse Code as a reviewer", async () => {
-		const muse = { id: "muse", label: "Muse Code", authStatus: "authorized" };
-		mockProject({
-			id: "proj-1",
-			name: "Project One",
-			kind: "single_repo",
-			path: "/repo/project-one",
-			repo: "",
-			defaultBranch: "main",
-			config: {
-				worker: { agent: "muse" },
-				orchestrator: { agent: "claude-code" },
-			},
-		});
-		getMock.mockImplementation(async (path: string) => {
-			if (path === "/api/v1/agents") {
-				return {
-					data: {
-						supported: [...agentCatalogResponse.data.supported, muse],
-						installed: [...agentCatalogResponse.data.installed, muse],
-						authorized: [...agentCatalogResponse.data.authorized, muse],
-					},
-					error: undefined,
-				};
-			}
-			return {
-				data: {
-					status: "ok",
-					project: {
-						id: "proj-1",
-						name: "Project One",
-						kind: "single_repo",
-						path: "/repo/project-one",
-						repo: "",
-						defaultBranch: "main",
-						config: {
-							worker: { agent: "muse" },
-							orchestrator: { agent: "claude-code" },
-						},
-					},
-				},
-				error: undefined,
-			};
-		});
-
-		renderSettings("proj-1", undefined, "workflow");
-
-		const reviewer = await screen.findByRole("button", { name: "Default reviewer agent" });
-		await userEvent.click(reviewer);
-
-		expect(await screen.findByRole("menuitem", { name: /Muse Code/ })).toBeInTheDocument();
-	});
-
-	it("orders reviewers using the default agent priority", async () => {
-		mockProject({
-			id: "proj-1",
-			name: "Project One",
-			kind: "single_repo",
-			path: "/repo/project-one",
-			repo: "",
-			defaultBranch: "main",
-			config: {
-				worker: { agent: "codex" },
-				orchestrator: { agent: "claude-code" },
-			},
-		});
-
-		renderSettings("proj-1", undefined, "workflow");
-
-		await userEvent.click(await screen.findByRole("button", { name: "Default reviewer agent" }));
-		const reviewerLabels = (await screen.findAllByRole("menuitem"))
-			.map((option) => option.textContent)
-			.filter((label) => label !== "Project default");
-
-		expect(reviewerLabels).toEqual([
-			"Claude Code",
-			"Codex",
-			"Cursor",
-			"OpenCode",
-			"GitHub Copilot",
-			"Goose",
-			"Kilo Code",
-			"Pi",
-			"KiroAuth unknown",
-		]);
-	});
-
-	it("offers the experimental host-trusted reviewer set", async () => {
-		const project = {
-			id: "proj-1",
-			name: "Project One",
-			kind: "single_repo",
-			path: "/repo/project-one",
-			repo: "",
-			defaultBranch: "main",
-			config: { worker: { agent: "qwen" }, orchestrator: { agent: "claude-code" } },
-		};
-		const qwen = { id: "qwen", label: "Qwen Code", authStatus: "authorized" };
-		const devin = { id: "devin", label: "Devin", authStatus: "authorized" };
-		const droid = { id: "droid", label: "Droid", authStatus: "authorized" };
-		const kimi = { id: "kimi", label: "Kimi", authStatus: "authorized" };
-		const aider = { id: "aider", label: "Aider", authStatus: "authorized" };
-		const amp = { id: "amp", label: "Amp", authStatus: "authorized" };
-		const experimental = [
-			{ id: "agy", label: "Agy", authStatus: "authorized" },
-			{ id: "auggie", label: "Auggie", authStatus: "authorized" },
-			{ id: "autohand", label: "Autohand", authStatus: "authorized" },
-			{ id: "cline", label: "Cline", authStatus: "authorized" },
-			{ id: "continue", label: "Continue", authStatus: "authorized" },
-			{ id: "crush", label: "Crush", authStatus: "authorized" },
-			{ id: "grok", label: "Grok", authStatus: "authorized" },
-			{ id: "vibe", label: "Vibe", authStatus: "authorized" },
-		];
-		getMock.mockImplementation(async (path: string) => {
-			if (path === "/api/v1/agents") {
-				return {
-					data: {
-						supported: [...agentCatalogResponse.data.supported, qwen, devin, droid, kimi, aider, amp, ...experimental],
-						installed: [...agentCatalogResponse.data.installed, qwen, devin, droid, kimi, aider, amp, ...experimental],
-						authorized: [...agentCatalogResponse.data.authorized, qwen, devin, droid, kimi, aider, amp, ...experimental],
-					},
-					error: undefined,
-				};
-			}
-			return { data: { status: "ok", project }, error: undefined };
-		});
-
-		renderSettings("proj-1", undefined, "workflow");
-
-		const reviewer = await screen.findByRole("button", { name: "Default reviewer agent" });
-		await userEvent.click(reviewer);
-		const options = await screen.findAllByRole("menuitem");
-		const labels = options.map((option) => option.textContent);
-		expect(labels).toContain("Qwen Code");
-		expect(labels).toContain("Agy");
-		expect(labels).toContain("Continue");
-		expect(labels).toContain("Goose");
-		expect(labels).toContain("Vibe");
-		expect(labels).toContain("Devin");
-		expect(labels).toContain("Droid");
-		expect(labels).toContain("Kimi");
-		expect(labels).toContain("Aider");
-		expect(labels).toContain("Amp");
-		expect(labels).toContain("Auggie");
-		expect(labels).toContain("Autohand");
-		expect(labels).toContain("Cline");
-		expect(labels).toContain("Crush");
-		expect(labels).toContain("Grok");
-	});
-
-	it("warns when an experimental reviewer is selected", async () => {
-		const kimchi = { id: "kimchi", label: "Kimchi", authStatus: "authorized" };
-		getMock.mockImplementation(async (path: string) => {
-			if (path === "/api/v1/agents") {
-				return {
-					data: {
-						supported: [...agentCatalogResponse.data.supported, kimchi],
-						installed: [...agentCatalogResponse.data.installed, kimchi],
-						authorized: [...agentCatalogResponse.data.authorized, kimchi],
-					},
-					error: undefined,
-				};
-			}
-			return {
-				data: {
-					status: "ok",
-					project: {
-						id: "proj-1",
-						name: "Project One",
-						kind: "single_repo",
-						path: "/repo/project-one",
-						repo: "",
-						defaultBranch: "main",
-						config: { worker: { agent: "codex" }, orchestrator: { agent: "claude-code" } },
-					},
-				},
-				error: undefined,
-			};
-		});
-
-		renderSettings("proj-1", undefined, "workflow");
-		await chooseOption(await screen.findByRole("button", { name: "Default reviewer agent" }), "Kimchi");
-		expect(screen.getByRole("status")).toHaveTextContent("Experimental host-trusted reviewer");
-	});
-
-	it("shows unknown-auth agents as selectable with a warning in project settings", async () => {
-		mockProject({
-			id: "proj-1",
-			name: "Project One",
-			kind: "single_repo",
-			path: "/repo/project-one",
-			repo: "",
-			defaultBranch: "main",
-			config: {
-				worker: { agent: "codex" },
-				orchestrator: { agent: "claude-code" },
-			},
-		});
-
-		renderSettings("proj-1", undefined, "agents");
-
-		const workerAgent = await screen.findByRole("button", { name: "Default worker agent" });
-		await userEvent.click(workerAgent);
-		const options = await screen.findAllByRole("menuitem");
-		expect(options.map((option) => option.textContent)).toEqual([
-			"Claude Code",
-			"Codex",
-			"Cursor",
-			"OpenCode",
-			"GitHub Copilot",
-			"Goose",
-			"Kilo Code",
-			"Pi",
-			"KiroAuth unknown",
-		]);
-		expect(options[8]).not.toHaveAttribute("aria-disabled", "true");
-	});
-
-	it("shows Copilot as a reviewer option and saves it in the reviewers payload", async () => {
-		mockProject({
-			id: "proj-1",
-			name: "Project One",
-			kind: "single_repo",
-			path: "/repo/project-one",
-			repo: "",
-			defaultBranch: "main",
-			config: {
-				worker: { agent: "codex" },
-				orchestrator: { agent: "claude-code" },
-			},
-		});
-
-		renderSettings("proj-1", undefined, "workflow");
-
-		const reviewer = await screen.findByRole("button", { name: "Default reviewer agent" });
-		await userEvent.click(reviewer);
-		const copilot = await screen.findByRole("menuitem", { name: "GitHub Copilot" });
-		expect(copilot).not.toHaveAttribute("aria-disabled", "true");
-		await userEvent.click(copilot);
-		submitSettings();
-
-		await waitFor(() => expect(putMock).toHaveBeenCalledTimes(1));
-		expect(putMock).toHaveBeenCalledWith(
-			"/api/v1/projects/{id}",
-			expect.objectContaining({
-				body: expect.objectContaining({
-					config: expect.objectContaining({ reviewers: [{ harness: "copilot" }] }),
-				}),
-			}),
-		);
-	});
-
-	it("disables the Copilot reviewer when its binary is missing", async () => {
-		getMock.mockImplementation(async (path: string) => {
-			if (path === "/api/v1/agents") {
-				return {
-					data: {
-						supported: [{ id: "copilot", label: "GitHub Copilot" }],
-						installed: [],
-						authorized: [],
-					},
-					error: undefined,
-				};
-			}
-			return {
-				data: {
-					status: "ok",
-					project: {
-						id: "proj-1",
-						name: "Project One",
-						kind: "single_repo",
-						path: "/repo/project-one",
-						repo: "",
-						defaultBranch: "main",
-						config: {
-							worker: { agent: "codex" },
-							orchestrator: { agent: "claude-code" },
-						},
-					},
-				},
-				error: undefined,
-			};
-		});
-
-		renderSettings("proj-1", undefined, "workflow");
-
-		await userEvent.click(await screen.findByRole("button", { name: "Default reviewer agent" }));
-		const copilot = (await screen.findAllByRole("menuitem")).find((option) =>
-			option.textContent?.includes("GitHub Copilot"),
-		);
-		expect(copilot).toHaveTextContent("Needs install");
-		expect(copilot).toHaveAttribute("aria-disabled", "true");
-	});
-
-	it("shows the standard unknown-auth warning for an installed Copilot reviewer", async () => {
-		getMock.mockImplementation(async (path: string) => {
-			if (path === "/api/v1/agents") {
-				return {
-					data: {
-						supported: [{ id: "copilot", label: "GitHub Copilot" }],
-						installed: [{ id: "copilot", label: "GitHub Copilot", authStatus: "unknown" }],
-						authorized: [],
-					},
-					error: undefined,
-				};
-			}
-			return {
-				data: {
-					status: "ok",
-					project: {
-						id: "proj-1",
-						name: "Project One",
-						kind: "single_repo",
-						path: "/repo/project-one",
-						repo: "",
-						defaultBranch: "main",
-						config: {
-							worker: { agent: "codex" },
-							orchestrator: { agent: "claude-code" },
-						},
-					},
-				},
-				error: undefined,
-			};
-		});
-
-		renderSettings("proj-1", undefined, "workflow");
-
-		await userEvent.click(await screen.findByRole("button", { name: "Default reviewer agent" }));
-		const copilot = (await screen.findAllByRole("menuitem")).find((option) =>
-			option.textContent?.includes("GitHub Copilot"),
-		);
-		expect(copilot).toHaveTextContent("Auth unknown");
-		expect(copilot).not.toHaveAttribute("aria-disabled", "true");
-	});
-
-	it("offers Kilo Code as a configured reviewer", async () => {
-		mockProject({
-			id: "proj-1",
-			name: "Project One",
-			kind: "single_repo",
-			path: "/repo/project-one",
-			repo: "",
-			defaultBranch: "main",
-			config: {
-				worker: { agent: "codex" },
-				orchestrator: { agent: "claude-code" },
-			},
-		});
-
-		renderSettings("proj-1", undefined, "workflow");
-
-		const reviewer = await screen.findByRole("button", { name: "Default reviewer agent" });
-		await userEvent.click(reviewer);
-		expect(await screen.findByRole("menuitem", { name: "Kilo Code" })).toBeEnabled();
-	});
-
-	it("offers the experimental Agy reviewer", async () => {
-		const project = {
-			id: "proj-1",
-			name: "Project One",
-			kind: "single_repo",
-			path: "/repo/project-one",
-			repo: "",
-			defaultBranch: "main",
-			config: { worker: { agent: "agy" }, orchestrator: { agent: "claude-code" } },
-		};
-		const agy = { id: "agy", label: "Agy", authStatus: "authorized" };
-		getMock.mockImplementation(async (path: string) => {
-			if (path === "/api/v1/agents") {
-				return {
-					data: {
-						supported: [...agentCatalogResponse.data.supported, agy],
-						installed: [...agentCatalogResponse.data.installed, agy],
-						authorized: [...agentCatalogResponse.data.authorized, agy],
-					},
-					error: undefined,
-				};
-			}
-			return { data: { status: "ok", project }, error: undefined };
-		});
-
-		renderSettings("proj-1", undefined, "workflow");
-
-		const reviewerAgent = await screen.findByRole("button", { name: "Default reviewer agent" });
-		await userEvent.click(reviewerAgent);
-		const options = await screen.findAllByRole("menuitem");
-		expect(options.map((option) => option.textContent)).toContain("Agy");
-	});
-
-	it("shows scratch identity and saves only scratch-supported settings", async () => {
-		mockProject({
-			id: "scratch",
+			id: "proj-2",
 			name: "Scratch",
 			kind: "scratch",
-			path: "/home/me/.operator/scratch/default",
-			repo: "",
-			defaultBranch: "",
-			config: {
-				defaultBranch: "main",
-				sessionPrefix: "opr",
-				env: { FOO: "bar" },
-				symlinks: [".env"],
-				postCreate: ["npm install"],
-				agentRules: "keep work small",
-				worker: { agent: "codex" },
-				orchestrator: { agent: "claude-code" },
-				agentConfig: {
-					model: "gpt-5-codex",
-					permissions: "auto",
-				},
-				reviewers: [{ harness: "codex" }],
-				trackerIntake: { enabled: true, provider: "github", assignee: "octocat" },
-			},
+			path: "/tmp/scratch",
+			config: { agent: "claude-code" },
 		});
-
-		renderSettings("scratch");
-
-		const kindRow = (await screen.findByText("Type")).closest(".settings-row-bar");
-		expect(kindRow).toHaveTextContent("Scratch project");
-		expect(screen.queryByLabelText("Default branch")).not.toBeInTheDocument();
-		expect(screen.queryByLabelText("Session prefix")).not.toBeInTheDocument();
-		expect(screen.queryByText("Reviewers")).not.toBeInTheDocument();
-		expect(screen.queryByText("Tracker intake")).not.toBeInTheDocument();
-
-		submitSettings();
-
-		await waitFor(() => expect(putMock).toHaveBeenCalledTimes(1));
-		expect(putMock).toHaveBeenCalledWith("/api/v1/projects/{id}", {
-			params: { path: { id: "scratch" } },
-			body: {
-				displayName: "Scratch",
-				config: {
-					env: { FOO: "bar" },
-					sessionPrefix: "opr",
-					symlinks: [".env"],
-					postCreate: ["npm install"],
-					agentRules: "keep work small",
-					worker: { agent: "codex", agentConfig: { model: "gpt-5-codex" } },
-					orchestrator: { agent: "claude-code", agentConfig: { model: "gpt-5-codex" } },
-					agentConfig: {
-						permissions: "auto",
-					},
-				},
-			},
-		});
-		expect(postMock).not.toHaveBeenCalled();
+		renderSettings("proj-2", undefined, "intake");
+		expect(await screen.findByText("Tracker intake")).toBeInTheDocument();
+		expect(screen.queryByLabelText("Enable issue intake")).not.toBeInTheDocument();
 	});
 
 	it("saves GitHub tracker intake settings, deriving the repo from the project's git origin", async () => {
@@ -1208,8 +305,7 @@ describe("ProjectSettingsForm", () => {
 					repo: "git@github.com:acme/project-one.git",
 					defaultBranch: "main",
 					config: {
-						worker: { agent: "codex" },
-						orchestrator: { agent: "claude-code" },
+						agent: "codex",
 					},
 				},
 			},
@@ -1251,8 +347,7 @@ describe("ProjectSettingsForm", () => {
 					repo: "git@github.com:acme/project-one.git",
 					defaultBranch: "main",
 					config: {
-						worker: { agent: "codex" },
-						orchestrator: { agent: "claude-code" },
+						agent: "codex",
 					},
 				},
 			},
@@ -1268,103 +363,6 @@ describe("ProjectSettingsForm", () => {
 		expect(putMock).not.toHaveBeenCalled();
 	});
 
-	it("restarts when the saved orchestrator agent already differs from the running orchestrator", async () => {
-		getMock.mockResolvedValue({
-			data: {
-				status: "ok",
-				project: {
-					id: "proj-1",
-					name: "Project One",
-					kind: "single_repo",
-					path: "/repo/project-one",
-					repo: "",
-					defaultBranch: "main",
-					config: {
-						worker: { agent: "codex" },
-						orchestrator: { agent: "goose" },
-					},
-				},
-			},
-			error: undefined,
-		});
-
-		renderSettings("proj-1", [
-			{
-				id: "proj-1",
-				name: "Project One",
-				path: "/repo/project-one",
-				orchestratorAgent: "goose",
-				sessions: [
-					{
-						id: "proj-1-orchestrator",
-						workspaceId: "proj-1",
-						workspaceName: "Project One",
-						title: "Orchestrator",
-						provider: "claude-code",
-						kind: "orchestrator",
-						branch: "opr/proj-1-orchestrator",
-						status: "working",
-						createdAt: "2026-07-03T00:00:00Z",
-						updatedAt: "2026-07-03T00:00:00Z",
-						prs: [],
-					},
-				],
-			},
-		], "agents");
-
-		const orchestratorAgent = await screen.findByRole("button", { name: "Default orchestrator agent" });
-		expect(orchestratorAgent).toHaveTextContent("goose");
-
-		submitSettings();
-
-		await waitFor(() => expect(putMock).toHaveBeenCalledTimes(1));
-		await waitFor(() => expect(postMock).toHaveBeenCalledTimes(1));
-		expect(postMock).toHaveBeenCalledWith("/api/v1/orchestrators", {
-			body: { projectId: "proj-1", clean: true },
-		});
-	});
-
-	it("keeps the config save successful when orchestrator replacement fails", async () => {
-		getMock.mockResolvedValue({
-			data: {
-				status: "ok",
-				project: {
-					id: "proj-1",
-					name: "Project One",
-					kind: "single_repo",
-					path: "/repo/project-one",
-					repo: "",
-					defaultBranch: "main",
-					config: {
-						worker: { agent: "codex" },
-						orchestrator: { agent: "claude-code" },
-					},
-				},
-			},
-			error: undefined,
-		});
-		postMock.mockResolvedValue({
-			data: undefined,
-			error: { message: "missing goose binary" },
-			response: { status: 500 },
-		});
-
-		const queryClient = renderSettings("proj-1", undefined, "agents");
-		const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
-
-		const orchestratorAgent = await screen.findByRole("button", { name: "Default orchestrator agent" });
-		await chooseOption(orchestratorAgent, "goose");
-		submitSettings();
-
-		await waitFor(() => expect(putMock).toHaveBeenCalledTimes(1));
-		await waitFor(() => expect(postMock).toHaveBeenCalledTimes(1));
-		expect(await screen.findByText("Saved")).toBeInTheDocument();
-		expect(await screen.findByText("Orchestrator restart failed: missing goose binary")).toBeInTheDocument();
-		expect(screen.queryByText("Save failed")).not.toBeInTheDocument();
-		expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["project", "proj-1"] });
-		expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: workspaceQueryKey });
-	});
-
 	it("loads and saves the ticket role defaults without touching other config", async () => {
 		mockProject({
 			id: "proj-1",
@@ -1375,8 +373,7 @@ describe("ProjectSettingsForm", () => {
 			defaultBranch: "main",
 			config: {
 				defaultBranch: "develop",
-				worker: { agent: "claude-code" },
-				orchestrator: { agent: "claude-code" },
+				agent: "claude-code",
 				tickets: { planner: { agent: "claude-code", model: "claude-opus-5" } },
 			},
 		});
@@ -1415,7 +412,7 @@ describe("ProjectSettingsForm", () => {
 			name: "Scratch",
 			kind: "scratch",
 			path: "/tmp/scratch",
-			config: { worker: { agent: "claude-code" }, orchestrator: { agent: "claude-code" } },
+			config: { agent: "claude-code" },
 		});
 		renderSettings("proj-2", undefined, "tickets");
 		expect(await screen.findByText("Tickets are not available for scratch projects.")).toBeInTheDocument();

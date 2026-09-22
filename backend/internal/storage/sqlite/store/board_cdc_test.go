@@ -46,7 +46,7 @@ func TestBoardCDCDeletedSeedSurvivesSessionRemoval(t *testing.T) {
 	seedProject(t, s, "board")
 	now := time.Now().UTC()
 	session, err := s.CreateSession(ctx, domain.SessionRecord{
-		ProjectID: "board", Kind: domain.KindWorker, Harness: domain.HarnessClaudeCode,
+		ProjectID: "board", Harness: domain.HarnessClaudeCode,
 		Activity:  domain.Activity{State: domain.ActivityIdle, LastActivityAt: now},
 		Metadata:  domain.SessionMetadata{WorkspaceMode: domain.WorkspaceModeWorktree},
 		CreatedAt: now, UpdatedAt: now,

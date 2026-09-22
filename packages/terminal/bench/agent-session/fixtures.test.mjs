@@ -3,6 +3,7 @@ import { test } from "node:test";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { FIXTURES_DIR, listFixtures, loadFixture } from "./fixtures.mjs";
+import { listProbes, loadProbe, PROBES_DIR } from "./fixtures.mjs";
 
 test("every fixture directory has a recording and a well-formed size.json", async () => {
 	const names = listFixtures();
@@ -28,4 +29,26 @@ test("the spinner fixture contains synchronized-output frames", async () => {
 	const text = Buffer.from(recording).toString("latin1");
 	const esus = text.split("\x1b[?2026l").length - 1;
 	assert.ok(esus >= 50, `expected at least 50 ESU-terminated frames, found ${esus}`);
+});
+
+test("every probe has a recording and a well-formed size.json and is not a fixture", async () => {
+	const probes = listProbes();
+	assert.ok(probes.includes("glyph-probe"), `probes: ${probes.join(", ")}`);
+	assert.ok(probes.includes("act-probe"), `probes: ${probes.join(", ")}`);
+	for (const name of probes) {
+		assert.ok(existsSync(join(PROBES_DIR, name, "recording")));
+		assert.ok(!listFixtures().includes(name), `${name} must not also be a fixture`);
+		const probe = await loadProbe(name);
+		assert.ok(probe.recording.length > 0);
+		assert.equal(probe.sizes[0].offset, 0);
+	}
+});
+
+test("the glyph probe holds the rows the evidence script measures", async () => {
+	const { recording } = await loadProbe("glyph-probe");
+	const text = Buffer.from(recording).toString("utf8");
+	for (const marker of ["│ box", "│ rows", "wide: ", "cjk: ", "seq: ", "attrs: ", "band: "]) {
+		assert.ok(text.includes(marker), `probe is missing ${JSON.stringify(marker)}`);
+	}
+	assert.equal(text.split("\x1b[40G|").length - 1, 3, "three rows carry the column-40 marker");
 });

@@ -1,4 +1,4 @@
-import { decodeBlocks, type BlockId, type BlockView, type TerminalSnapshot } from "@operator/terminal-core";
+import { CELL_SPAN_WORDS, decodeBlocks, STYLE_RUN_WORDS, STYLE_WORD_LINK, type BlockId, type BlockView, type TerminalSnapshot } from "@operator/terminal-core";
 import { applyFilter, type BlockFilter } from "./block-filter.js";
 import { trimTrailingBlankRows } from "./block-rows.js";
 import { fillGradient, runFill } from "./selection-fill.js";
@@ -15,11 +15,37 @@ export function resolveSelectionView(selection: SelectionState, rows: TextRows):
 	const index = new Map(rows.blockIds.map((id, position) => [id, position] as const));
 	const order: BlockOrder = (blockId) => index.get(blockId) ?? -1;
 	if (order(selection.head.blockId) < 0 || order(selection.tail.blockId) < 0) return null;
-	const range = resolveRange(selection, order, rows.rowText);
+	const range = resolveRange(selection, order, rows.rowText, rows.rowSpans);
 	return range ? { range, order, rows } : null;
 }
 
-export function snapshotTextRows(snapshot: TerminalSnapshot, filter: BlockFilter | null, decoder: TextDecoder): TextRows {
+function spanSlice(spanRanges: Uint32Array, cellSpans: Uint32Array, row: number): Uint32Array {
+	const start = spanRanges[row * 2] ?? 0;
+	const end = spanRanges[row * 2 + 1] ?? start;
+	return cellSpans.subarray(start * CELL_SPAN_WORDS, end * CELL_SPAN_WORDS);
+}
+
+function linkRuns(runRanges: Uint32Array, stylePairs: Uint32Array, row: number): number[] {
+	const start = runRanges[row * 2] ?? 0;
+	const end = runRanges[row * 2 + 1] ?? start;
+	const out: number[] = [];
+	let cursor = 0;
+	for (let pair = start; pair < end; pair += 1) {
+		const base = pair * STYLE_RUN_WORDS;
+		const runEnd = stylePairs[base] ?? cursor;
+		const link = stylePairs[base + STYLE_WORD_LINK] ?? 0;
+		if (link !== 0) out.push(cursor, runEnd, link);
+		cursor = runEnd;
+	}
+	return out;
+}
+
+export function snapshotTextRows(
+	snapshot: TerminalSnapshot,
+	filter: BlockFilter | null,
+	decoder: TextDecoder,
+	linkUri?: (id: number) => string | null,
+): TextRows {
 	const rowString = (content: Uint8Array, rows: Uint32Array, row: number): string => {
 		const start = rows[row * 2] ?? 0;
 		const end = rows[row * 2 + 1] ?? start;
@@ -33,6 +59,10 @@ export function snapshotTextRows(snapshot: TerminalSnapshot, filter: BlockFilter
 			firstRow: () => 0,
 			rowCount: () => alt.rows,
 			rowText: (_id, row) => rowString(alt.content, alt.rowRanges, row),
+			rowSpans: (_id, row) => spanSlice(alt.spanRanges, alt.cellSpans, row),
+			rowWrapped: () => false,
+			rowLinkRuns: (_id, row) => linkRuns(alt.runRanges, alt.stylePairs, row),
+			linkUri: (id) => linkUri?.(id) ?? null,
 		};
 	}
 	const blocks = applyFilter(decodeBlocks(snapshot), filter).map((block) => trimTrailingBlankRows(snapshot, block));
@@ -49,6 +79,28 @@ export function snapshotTextRows(snapshot: TerminalSnapshot, filter: BlockFilter
 			if (flat < block.firstRow || flat >= block.firstRow + block.rowCount) return "";
 			return rowString(snapshot.content, snapshot.rows, flat);
 		},
+		rowSpans: (id, row) => {
+			const block = byId.get(id);
+			if (!block) return [];
+			const flat = row - base;
+			if (flat < block.firstRow || flat >= block.firstRow + block.rowCount) return [];
+			return spanSlice(snapshot.spanRanges, snapshot.cellSpans, flat);
+		},
+		rowWrapped: (id, row) => {
+			const block = byId.get(id);
+			if (!block) return false;
+			const flat = row - base;
+			if (flat < block.firstRow || flat + 1 >= block.firstRow + block.rowCount) return false;
+			return snapshot.rowWrapped[flat] === 1;
+		},
+		rowLinkRuns: (id, row) => {
+			const block = byId.get(id);
+			if (!block) return [];
+			const flat = row - base;
+			if (flat < block.firstRow || flat >= block.firstRow + block.rowCount) return [];
+			return linkRuns(snapshot.runRanges, snapshot.stylePairs, flat);
+		},
+		linkUri: (id) => linkUri?.(id) ?? null,
 	};
 }
 

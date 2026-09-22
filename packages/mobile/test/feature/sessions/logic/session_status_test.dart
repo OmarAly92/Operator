@@ -84,5 +84,17 @@ void main() {
     test('defaults to working', () {
       expect(attentionOf(session()), AttentionLevel.working);
     });
+
+    test('needs_input maps to respond', () {
+      expect(attentionOf(session(status: 'needs_input')), AttentionLevel.respond);
+    });
+
+    test('review_pending maps to pending', () {
+      expect(attentionOf(session(status: 'review_pending')), AttentionLevel.pending);
+    });
+
+    test('working maps to working', () {
+      expect(attentionOf(session(status: 'working')), AttentionLevel.working);
+    });
   });
 }

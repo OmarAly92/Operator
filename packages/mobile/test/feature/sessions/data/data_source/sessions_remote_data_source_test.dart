@@ -25,7 +25,7 @@ void main() {
       Response<dynamic>(requestOptions: RequestOptions(path: '/'), data: body);
 
   group('getBoard', () {
-    test('probes /sessions alone before fanning out to the other three', () async {
+    test('awaits /sessions alone before fanning out, and never calls /orchestrators', () async {
       final sessionsGate = Completer<Response<dynamic>>();
       final calls = <String>[];
 
@@ -44,14 +44,14 @@ void main() {
       sessionsGate.complete(jsonResponse({'sessions': <dynamic>[]}));
       await pending;
 
-      expect(calls.length, 4);
       expect(calls.first, EndPoints.sessions);
-      expect(calls.sublist(1).toSet(), {EndPoints.orchestrators, EndPoints.projects, EndPoints.claudeAccounts});
+      expect(calls, isNot(contains('/api/v1/orchestrators')));
+      expect(calls.length, 3);
+      expect(calls.sublist(1).toSet(), {EndPoints.projects, EndPoints.claudeAccounts});
     });
 
     test('maps claude account ids to their labels and survives a failed accounts read', () async {
       when(() => apiConsumer.get(EndPoints.sessions)).thenAnswer((_) async => jsonResponse({'sessions': <dynamic>[]}));
-      when(() => apiConsumer.get(EndPoints.orchestrators)).thenAnswer((_) async => jsonResponse({'sessions': <dynamic>[]}));
       when(() => apiConsumer.get(EndPoints.projects)).thenAnswer((_) async => jsonResponse({'projects': <dynamic>[]}));
       when(() => apiConsumer.get(EndPoints.claudeAccounts)).thenAnswer(
         (_) async => jsonResponse({
@@ -70,82 +70,8 @@ void main() {
       expect(degraded.data!.accountLabels, isEmpty);
     });
 
-    test('drops orchestrator-kind rows from the session list', () async {
-      when(() => apiConsumer.get(EndPoints.sessions)).thenAnswer(
-        (_) async => jsonResponse({
-          'sessions': [
-            {'id': 'w1', 'projectId': 'p', 'kind': 'worker'},
-            {'id': 'o1', 'projectId': 'p', 'kind': 'orchestrator'},
-          ],
-        }),
-      );
-      when(() => apiConsumer.get(EndPoints.orchestrators))
-          .thenAnswer((_) async => jsonResponse({'sessions': <dynamic>[]}));
-      when(() => apiConsumer.get(EndPoints.projects))
-          .thenAnswer((_) async => jsonResponse({'projects': <dynamic>[]}));
-
-      final board = await dataSource.getBoard();
-      expect(board.data!.sessions.map((s) => s.id), ['w1']);
-    });
-
-    test('keeps one orchestrator per project, preferring the live one', () async {
-      when(() => apiConsumer.get(EndPoints.sessions))
-          .thenAnswer((_) async => jsonResponse({'sessions': <dynamic>[]}));
-      when(() => apiConsumer.get(EndPoints.orchestrators)).thenAnswer(
-        (_) async => jsonResponse({
-          'sessions': [
-            {'id': 'old', 'projectId': 'p', 'isTerminated': true},
-            {'id': 'live', 'projectId': 'p'},
-          ],
-        }),
-      );
-      when(() => apiConsumer.get(EndPoints.projects))
-          .thenAnswer((_) async => jsonResponse({'projects': <dynamic>[]}));
-
-      final board = await dataSource.getBoard();
-      expect(board.data!.orchestrators.map((o) => o.id), ['live']);
-    });
-
-    test('falls back to the most recent when every orchestrator is terminated', () async {
-      when(() => apiConsumer.get(EndPoints.sessions))
-          .thenAnswer((_) async => jsonResponse({'sessions': <dynamic>[]}));
-      when(() => apiConsumer.get(EndPoints.orchestrators)).thenAnswer(
-        (_) async => jsonResponse({
-          'sessions': [
-            {'id': 'older', 'projectId': 'p', 'isTerminated': true},
-            {'id': 'newer', 'projectId': 'p', 'isTerminated': true},
-          ],
-        }),
-      );
-      when(() => apiConsumer.get(EndPoints.projects))
-          .thenAnswer((_) async => jsonResponse({'projects': <dynamic>[]}));
-
-      final board = await dataSource.getBoard();
-      expect(board.data!.orchestrators.map((o) => o.id), ['newer']);
-    });
-
-    test('labels orchestrators with their project name', () async {
-      when(() => apiConsumer.get(EndPoints.sessions))
-          .thenAnswer((_) async => jsonResponse({'sessions': <dynamic>[]}));
-      when(() => apiConsumer.get(EndPoints.orchestrators)).thenAnswer(
-        (_) async => jsonResponse({
-          'sessions': [{'id': 'o1', 'projectId': 'p'}],
-        }),
-      );
-      when(() => apiConsumer.get(EndPoints.projects)).thenAnswer(
-        (_) async => jsonResponse({
-          'projects': [{'id': 'p', 'name': 'My App'}],
-        }),
-      );
-
-      final board = await dataSource.getBoard();
-      expect(board.data!.orchestrators.single.projectName, 'My App');
-    });
-
     test('degrades to no projects rather than failing the whole board', () async {
       when(() => apiConsumer.get(EndPoints.sessions))
-          .thenAnswer((_) async => jsonResponse({'sessions': <dynamic>[]}));
-      when(() => apiConsumer.get(EndPoints.orchestrators))
           .thenAnswer((_) async => jsonResponse({'sessions': <dynamic>[]}));
       when(() => apiConsumer.get(EndPoints.projects)).thenAnswer((_) async => throw Exception('404'));
 

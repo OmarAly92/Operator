@@ -19,15 +19,11 @@ import 'package:operator_mobile/core/mux/mux_client.dart';
 import 'package:operator_mobile/core/telemetry/events.dart';
 import 'package:operator_mobile/core/telemetry/runtime.dart';
 import 'package:operator_mobile/feature/onboarding/presentation/onboarding_screen/ui/onboarding_screen.dart';
-import 'package:operator_mobile/feature/orchestrator/data/model/params/launch_orchestrator_params.dart';
-import 'package:operator_mobile/feature/orchestrator/data/repository/orchestrator_repository.dart';
-import 'package:operator_mobile/feature/orchestrator/presentation/orchestrator_screen/logic/orchestrator_cubit.dart';
 import 'package:operator_mobile/feature/pairing/data/model/desktop_model.dart';
 import 'package:operator_mobile/feature/pairing/data/repository/pairing_repository.dart';
 import 'package:operator_mobile/feature/pairing/presentation/manual_connect_screen/logic/manual_connect_cubit.dart';
 import 'package:operator_mobile/feature/pairing/presentation/pairing_scan_screen/logic/pairing_scan_cubit.dart';
 import 'package:operator_mobile/feature/sessions/data/model/board_snapshot.dart';
-import 'package:operator_mobile/feature/sessions/data/model/orchestrator_model.dart';
 import 'package:operator_mobile/feature/sessions/data/repository/sessions_repository.dart';
 import 'package:operator_mobile/feature/sessions/presentation/sessions_screen/logic/sessions_cubit.dart';
 import 'package:operator_mobile/feature/spawn/data/model/params/spawn_session_params.dart';
@@ -46,8 +42,6 @@ const _desktop = DesktopModel(id: 'a', name: 'Mac', host: '10.0.0.5', port: '301
 class _MockSessionsRepository extends Mock implements SessionsRepository {}
 
 class _MockSpawnRepository extends Mock implements SpawnRepository {}
-
-class _MockOrchestratorRepository extends Mock implements OrchestratorRepository {}
 
 class _MockMuxClient extends Mock implements MuxClient {}
 
@@ -78,7 +72,6 @@ void main() {
 
   setUpAll(() {
     registerFallbackValue(const ServerConfig(host: '', httpPort: '', secure: false, password: ''));
-    registerFallbackValue(const LaunchOrchestratorParams(projectId: 'p', clean: false));
     registerFallbackValue(
       const SpawnSessionParams(projectId: 'p', prompt: 'x', issueId: 'y', harness: 'codex'),
     );
@@ -229,20 +222,6 @@ void main() {
 
     expect(client.captures.single.properties['feature'], 'spawn');
     expect(client.captures.single.properties['outcome'], 'failed');
-    await cubit.close();
-  });
-
-  test('launching the conductor reports feature_used with the conductor feature', () async {
-    final repository = _MockOrchestratorRepository();
-    when(() => repository.launch(any())).thenAnswer(
-      (_) async => Result.success(const GlobalResponse<OrchestratorModel>()),
-    );
-    final cubit = OrchestratorCubit(repository);
-
-    await cubit.launch('p-1', clean: false);
-
-    expect(client.captures.single.properties['feature'], 'conductor');
-    expect(client.captures.single.properties['outcome'], 'succeeded');
     await cubit.close();
   });
 }

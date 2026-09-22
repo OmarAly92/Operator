@@ -40,7 +40,6 @@ function worker(overrides: Partial<WorkspaceSession> & { id: string }): Workspac
 		workspaceName: "note-tauri",
 		title: overrides.id,
 		provider: "codex",
-		kind: "worker",
 		branch: `feature/${overrides.id}`,
 		status: "working",
 		updatedAt: "2026-06-10T00:00:00Z",
@@ -61,7 +60,6 @@ function workspaces(): WorkspaceSummary[] {
 				worker({ id: "s-work", title: "working", status: "working" }),
 				worker({ id: "s-merge", title: "merge me", status: "mergeable" }),
 				worker({ id: "s-merged", title: "already merged", status: "merged" }),
-				worker({ id: "orch", title: "orchestrator", kind: "orchestrator", status: "needs_input" }),
 			],
 		},
 	];
@@ -74,7 +72,7 @@ afterEach(() => {
 });
 
 describe("TrayRuntime", () => {
-	it("pushes only attention-worthy worker sessions to the tray", () => {
+	it("pushes only attention-worthy sessions to the tray", () => {
 		h.workspaces = workspaces();
 		render(<TrayRuntime />);
 		expect(h.setAttentionState).toHaveBeenLastCalledWith({

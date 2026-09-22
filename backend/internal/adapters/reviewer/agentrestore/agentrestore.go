@@ -6,7 +6,6 @@ import (
 	"context"
 	"strings"
 
-	"github.com/OmarAly92/operator/backend/internal/domain"
 	"github.com/OmarAly92/operator/backend/internal/ports"
 )
 
@@ -33,7 +32,6 @@ func Command(ctx context.Context, agent ports.Agent, inv ports.ReviewInvocation,
 			WorkspacePath: inv.WorkspacePath,
 			Metadata:      metadata,
 		},
-		Kind:             domain.KindWorker,
 		DataDir:          inv.DataDir,
 		Permissions:      opts.Permissions,
 		AllowedTools:     opts.AllowedTools,

@@ -70,7 +70,6 @@ async function fetchWorkspaces(): Promise<WorkspaceSummary[]> {
 			name: project.name,
 			kind,
 			path: project.path,
-			orchestratorAgent: project.orchestratorAgent ? toAgentProvider(project.orchestratorAgent) : undefined,
 			sessions: (sessionsData?.sessions ?? [])
 				.filter((session) => session.projectId === project.id)
 				.map((session) => {
@@ -91,7 +90,6 @@ async function fetchWorkspaces(): Promise<WorkspaceSummary[]> {
 						provider: toAgentProvider(session.harness),
 						claudeAccountId: session.claudeAccountId,
 						reviewerHarness: toReviewerHarnessId(session.reviewerHarness),
-						kind: session.kind === "orchestrator" ? "orchestrator" : session.kind === "worker" ? "worker" : undefined,
 						branch: session.branch || undefined,
 						workspaceMode: session.workspaceMode,
 						workspacePath: session.workspacePath,

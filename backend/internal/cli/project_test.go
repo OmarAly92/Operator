@@ -68,7 +68,7 @@ func TestProjectSetConfig_TrackerIntakeJSON(t *testing.T) {
 
 	_, errOut, err := executeCLI(t, Deps{
 		ProcessAlive: func(int) bool { return true },
-	}, "project", "set-config", "demo", "--config-json", `{"worker":{"agent":"amp","agentConfig":{"mode":"ultra"}},"trackerIntake":{"enabled":true,"provider":"github","assignee":"alice"}}`)
+	}, "project", "set-config", "demo", "--config-json", `{"agent":"amp","agentConfig":{"mode":"ultra"},"trackerIntake":{"enabled":true,"provider":"github","assignee":"alice"}}`)
 	if err != nil {
 		t.Fatalf("unexpected error: %v\nstderr=%s", err, errOut)
 	}
@@ -79,8 +79,8 @@ func TestProjectSetConfig_TrackerIntakeJSON(t *testing.T) {
 	if !got.Config.TrackerIntake.Enabled || got.Config.TrackerIntake.Provider != "github" || got.Config.TrackerIntake.Assignee != "alice" {
 		t.Fatalf("tracker intake request = %#v", got.Config.TrackerIntake)
 	}
-	if got.Config.Worker.Agent != "amp" || got.Config.Worker.AgentConfig.Mode != "ultra" {
-		t.Fatalf("worker config = %#v, want preserved amp ultra mode", got.Config.Worker)
+	if got.Config.Agent != "amp" || got.Config.AgentConfig.Mode != "ultra" {
+		t.Fatalf("agent config = %#v, want preserved amp ultra mode", got.Config)
 	}
 }
 
@@ -182,7 +182,7 @@ func TestProjectGet_Success(t *testing.T) {
 
 func TestProjectGet_JSON(t *testing.T) {
 	cfg := setConfigEnv(t)
-	srv, capture := projectServer(t, http.StatusOK, `{"status":"degraded","project":{"id":"demo","name":"Demo","path":"/repo/demo","resolveError":"config missing","config":{"worker":{"agent":"amp","agentConfig":{"mode":"high"}}}}}`)
+	srv, capture := projectServer(t, http.StatusOK, `{"status":"degraded","project":{"id":"demo","name":"Demo","path":"/repo/demo","resolveError":"config missing","config":{"agent":"amp","agentConfig":{"mode":"high"}}}}`)
 	writeRunFileFor(t, cfg, srv)
 
 	out, errOut, err := executeCLI(t, Deps{
@@ -201,8 +201,8 @@ func TestProjectGet_JSON(t *testing.T) {
 	if got.Status != "degraded" || got.Project.ID != "demo" || got.Project.ResolveError != "config missing" {
 		t.Fatalf("get json = %#v, want degraded demo with resolve error", got)
 	}
-	if got.Project.Config == nil || got.Project.Config.Worker.AgentConfig.Mode != "high" {
-		t.Fatalf("get json worker config = %#v, want preserved amp high mode", got.Project.Config)
+	if got.Project.Config == nil || got.Project.Config.AgentConfig.Mode != "high" {
+		t.Fatalf("get json agent config = %#v, want preserved amp high mode", got.Project.Config)
 	}
 }
 
@@ -233,36 +233,6 @@ func TestProjectGet_NotFound(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "PROJECT_NOT_FOUND") && !strings.Contains(errOut, "PROJECT_NOT_FOUND") {
 		t.Fatalf("error did not surface not found envelope: %v\nstderr=%s", err, errOut)
-	}
-}
-
-func TestProjectSetConfig_RulesFlags(t *testing.T) {
-	cfg := setConfigEnv(t)
-	srv, capture := projectServer(t, http.StatusOK, `{"status":"ok","project":{"id":"demo","config":{"agentRules":"Run tests.","agentRulesFile":"docs/rules.md","orchestratorRules":"Delegate."}}}`)
-	writeRunFileFor(t, cfg, srv)
-
-	out, errOut, err := executeCLI(t, Deps{
-		ProcessAlive: func(int) bool { return true },
-	}, "project", "set-config", "demo",
-		"--agent-rules", "Run tests.",
-		"--agent-rules-file", "docs/rules.md",
-		"--orchestrator-rules", "Delegate.",
-	)
-	if err != nil {
-		t.Fatalf("unexpected error: %v\nstderr=%s", err, errOut)
-	}
-	if capture.method != http.MethodPut || capture.path != "/api/v1/projects/demo/config" {
-		t.Fatalf("request = %s %s, want PUT /api/v1/projects/demo/config", capture.method, capture.path)
-	}
-	var got setConfigRequest
-	if err := json.Unmarshal(capture.body, &got); err != nil {
-		t.Fatalf("decode request body: %v\nbody=%s", err, capture.body)
-	}
-	if got.Config.AgentRules != "Run tests." || got.Config.AgentRulesFile != "docs/rules.md" || got.Config.OrchestratorRules != "Delegate." {
-		t.Fatalf("rules config = %#v", got.Config)
-	}
-	if !strings.Contains(out, "updated config for project demo") {
-		t.Fatalf("output missing update message:\n%s", out)
 	}
 }
 

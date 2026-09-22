@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:operator_mobile/core/app_routes/home_shell.dart';
 import 'package:operator_mobile/core/app_routes/routes_strings.dart';
+import 'package:operator_mobile/core/deep_link/deep_link_target.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/app_themes/text_style/app_text_style.dart';
 import 'package:operator_mobile/core/widgets/loading_widget/app_loader.dart';
@@ -31,7 +32,7 @@ class NotificationsBody extends StatelessWidget {
       );
       return;
     }
-    HomeShell.selectedTab.value = 2;
+    HomeShell.selectedTab.value = kPrsTabIndex;
     Navigator.of(context).popUntil((route) => route.isFirst);
   }
 
