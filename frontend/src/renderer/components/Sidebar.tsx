@@ -917,7 +917,7 @@ function SessionRow({
 						)}
 						data-session-row=""
 						ref={drag.setNodeRef}
-						onPointerDown={drag.listeners?.onPointerDown}
+						onPointerDown={(event) => drag.listeners?.onPointerDown?.(event)}
 					>
 						<div className="flex min-w-0 flex-1 transition-[transform] duration-[100ms] ease-out active:scale-[0.97]">
 							<button
