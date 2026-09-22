@@ -28,10 +28,11 @@ Every task inherits these; they are the spec's "Global constraints" plus `TERMIN
 ## Decisions made here (the brief asked for a reason on each)
 
 - **OSC 8 is parsed in `Parser::osc_dispatch`, not as a `MarkEvent`.** An OSC 8 changes the printer's *pen* — every cell printed after it carries the link until the closing `OSC 8 ;; ST` — exactly the cadence of SGR, which `csi_dispatch` handles in the same `vte::Perform` impl. vte delivers `osc_dispatch` at the byte where the sequence ends and `print` for every cell after it, so the pen change lands between the right prints by construction; that is the stream-order rule of `TERMINAL.md` §4.15 (an event lands only after the bytes before it were parsed) satisfied without the offset dance `feed_raw` does for marks. A `MarkEvent::Hyperlink` would be applied through `apply_event` *after* `advance_vte` had already printed the bytes up to the mark's offset — correct too, but it would put pen state in the block state machine, and `crates/marks` decodes only 133 / 7 / 7000 by design (`osc.rs:21`). The history receiver's `ScreenPerform` gets the same arm so a replayed chunk keeps its links.
-- **The link id is a sixth style-run word, not a separate span buffer.** `CellStyle` gains `link: u16` (0 = none), which fills the two bytes of padding after `attrs: u16` — `size_of::<CellStyle>()` stays 16 (pinned by a test). The `AttributeMap<CellStyle>` then splits and merges runs at link boundaries for free, survives rewrap (offsets do not move), eviction and trim with zero new bookkeeping, and the alternate screen gets links through the same `style_pairs`. A per-row span buffer shaped like `cellSpans` would need its own dead/history accounting in `ExportBuffers`, a second `AltSnapshot` copy, and a second lookup on hover. Cost: one `u32` per exported run (`STYLE_RUN_WORDS = 6`), about 240 KB at the 60k-row fixture's 60,277 runs — measured in Task 10, not assumed.
+- **The link id is a sixth style-run word, not a separate span buffer.** `CellStyle` gains `link: u16` (0 = none), which fills the two bytes of padding after `attrs: u16` — `size_of::<CellStyle>()` stays 16 (pinned by a test). The `AttributeMap<CellStyle>` then splits and merges runs at link boundaries for free, survives rewrap (offsets do not move), eviction and trim with zero new bookkeeping, and the alternate screen gets links through the same `style_pairs`. A per-row span buffer shaped like `cellSpans` would need its own dead/history accounting in `ExportBuffers`, a second `AltSnapshot` copy, and a second lookup on hover. Cost: one `u32` per exported run (`STYLE_RUN_WORDS = 6`), about 240 KB at the 60k-row fixture's 60,277 runs — measured in Task 10, not assumed. **The registry itself sits outside `Limits { bytes }`**: `Parser::trim_to` weighs `content.resident_bytes() + styles.byte_len()` (`parser.rs:629`) and `memory_stats` reports the same two (`lib.rs:111-118`), so interned URIs are neither counted nor trimmed. At the caps that is a bounded ~8.5 MB worst case (4096 × `MAX_URI_BYTES`) on top of a 128 MiB budget, never reclaimed, which is Warp's own trade (`hyperlink_registry.rs:11-15`) and why the caps are the design rather than an afterthought. Task 10 reports the measured table size **against** the budget, not beside it, and `TERMINAL.md` §5 records the exclusion.
 - **The core's clock is epoch milliseconds in both cores.** The Go mirror already feeds `time.Now().UnixMilli()` (`vtwasm.go:111`) and the shell hook's `start_ms`/`end_ms` are epoch (`protocol/SPEC.md:130`); the TS core fed `performance.now()`, a page-relative clock. Block timestamps must be comparable across the three, so `TerminalCore.feed` and the renderer's `tick` switch to `Date.now()`. The DEC 2026 deadline logic only compares a feed's clock with a tick's clock, so it is unaffected as long as both use the same one; `drain()`'s 12 ms budget keeps `performance.now()` for its sub-millisecond resolution.
 - **Two URL grammars, on purpose.** The hover linkifier uses xterm.js's `strictUrlRegex` (`addon-web-links/src/WebLinksAddon.ts:21`): `https?` only, trailing punctuation excluded, no false positives under the pointer. Hint mode uses WezTerm's `url` pattern (`quickselect.rs:30`: `https?://|git@|git://|ssh://|ftp://|file://`) because that is the rule set the spec names for the chord. Survey §3.7 asked for the choice to be made after trying both on a Claude Code transcript; the act-probe fixture (Task 6) is that transcript in miniature and both are exercised there.
 - **`resolvePath` is a Tauri command, not a daemon route.** The check is "does this file exist relative to this cwd", the desktop and the daemon share the file system, and a Tauri command is one function with no API spec regeneration; the mobile client renders with its own xterm fork and is out of scope. The redaction pattern list *is* a daemon route (`GET /api/v1/redaction/patterns`), because the daemon already owns the patterns and the user's own `redact-patterns.txt` (`backend/internal/redact/userpatterns.go`); two hand-kept lists across Go and TS would drift.
+- **Two files named `logical-lines.ts`, and the renderer's builds on the core's.** `ts/core/src/logical-lines.ts` works in snapshot rows and answers `TerminalCore.logicalLines(range)` — the API the spec names, usable by any host with a snapshot. `ts/renderer-dom/src/logical-lines.ts` works in the renderer's stable-row, per-block space and carries link runs, because that is what the linkifier, hint mode and redaction address. The shapes genuinely differ (`LogicalLine` against `LogicalLineView`), so one file cannot serve both; what must not be duplicated is the *join*, and it is not: the renderer's `logicalLineAt` imports `joinLogicalLine` from `@operator/terminal-core` and derives its `text`/`rowOffsets` from that one function, deriving nothing itself. A change to how pieces join lands in both by construction. Task 10 records the pairing in `TERMINAL.md` §2 so a later reader does not "unify" them by re-deriving one.
 - **`onBlockFinished` is computed by `DomBlockRenderer`, which already decodes blocks on every paint**, and `visible` is answered there from the container (in layout, not `inert`, document visible). Putting it in `ts/core` would still only fire when someone calls `snapshot()`, and `visible` is a DOM question.
 - **Logical lines across a reopen are single rows.** `Parser::apply_history_chunk` prepends the rows `HistoryReceiver::take` built, and `history_row` builds every one of them with `wrapped: false` (`crates/vt-core/src/history.rs:193`; recorded in `TERMINAL.md` §5), so a reopened pane cannot rejoin lines the mirror soft-wrapped before the reopen. Task 1 exports what the model has; it does not change the chunk protocol. Recorded again in Task 10.
 - **Wrapped screen rows export their trailing blanks.** `export_screen_row` trims trailing blanks so a partially filled row exports only its text; for a row the printer soft-wrapped that trim loses the space a word break landed on (`abc ` + `def` would join as `abcdef`). `scrollback::commit_row` already keeps the full width for a wrapped row (`scrollback.rs:14-20`); Task 1 makes the screen export agree with it. Spaces at the end of a `white-space: pre` span paint nothing, and the feel gate proves it.
@@ -895,7 +896,7 @@ From `/Users/omaraly/development/AI/Operator/packages/terminal`:
 CHANGELOG:
 
 ```markdown
-- vt-core/vt-wasm/core: `OSC 8 ; params ; URI ST` is parsed in `Parser::osc_dispatch` and interned per core in a `HyperlinkRegistry` with Warp's two rules (`warp/crates/warp_terminal/src/model/grid/hyperlink_registry.rs`): at most `MAX_DISTINCT_ENTRIES = 4096` distinct links, URIs over `MAX_URI_BYTES = 2083` refused, entries never reclaimed. `CellStyle` gains `link: u16` (0 = none; SGR 0 keeps it, a process boundary drops it) in the padding after `attrs`, so it stays 16 bytes; the style run grows to six words `(end, fg, bg, attrs, underline, link)` — `STYLE_RUN_WORDS = 6`, `STYLE_WORD_LINK = 5` — and the snapshot exports the URI table as `linkRanges`/`linkText`, appended incrementally. `TerminalCore.linkUri(id)` resolves an id. Nothing paints or opens a link yet.
+- vt-core/vt-wasm/core: `OSC 8 ; params ; URI ST` is parsed in `Parser::osc_dispatch` and interned per core in a `HyperlinkRegistry` with Warp's two rules (`warp/crates/warp_terminal/src/model/grid/hyperlink_registry.rs`): at most `MAX_DISTINCT_ENTRIES = 4096` distinct links, URIs over `MAX_URI_BYTES = 2083` refused, entries never reclaimed. `CellStyle` gains `link: u16` (0 = none; SGR 0 keeps it, a process boundary drops it) in the padding after `attrs`, so it stays 16 bytes; the style run grows to six words `(end, fg, bg, attrs, underline, link)` — `STYLE_RUN_WORDS = 6`, `STYLE_WORD_LINK = 5` — and the snapshot exports the URI table as `linkRanges`/`linkText`, appended incrementally. `TerminalCore.linkUri(id)` resolves an id. The table is outside `Limits { bytes }` — `trim_to` and `memory_stats` weigh content plus styles only — so a core can hold up to ~8.5 MB of interned URIs above its budget for its lifetime; the two caps are what bounds it. Nothing paints or opens a link yet.
 ```
 
 ```bash
@@ -1912,7 +1913,7 @@ export function offsetAtByte(text: string, spans: ArrayLike<number>, byte: numbe
 
 `selection-text.ts` `TextRows` gains `rowLinkRuns?(blockId: string, row: number): ArrayLike<number>;` and `linkUri?(id: number): string | null;`.
 
-`packages/terminal/ts/renderer-dom/src/logical-lines.ts`:
+`packages/terminal/ts/renderer-dom/src/logical-lines.ts` — note the first import: the join itself is `ts/core`'s, and this file only lifts it into stable-row, per-block space. Do not re-derive `text` or `rowOffsets` here.
 
 ```ts
 import { joinLogicalLine } from "@operator/terminal-core";
@@ -2588,6 +2589,7 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 - Create: `packages/terminal/ts/renderer-dom/src/{hint-rules.ts,hint-rules.test.ts,hint-labels.ts,hint-labels.test.ts,hint-mode.ts,hint-mode.test.ts}`
 - Modify: `packages/terminal/ts/renderer-dom/src/{dom-block-renderer.ts,dom-block-renderer.test.ts,styles.css,index.ts}`
 - Modify: `packages/terminal/ts/react/src/{selection-gesture.ts,selection-gesture.test.ts,TerminalSurface.tsx}`, create `packages/terminal/ts/react/src/TerminalSurface.hint.test.tsx`
+- Modify: `packages/terminal/ts/editor/src/encode-key.test.ts` (pin plain Ctrl+Space; the encoder itself is unchanged)
 - Modify: `packages/terminal/bench/agent-session/{main.ts,affordance-gate.mjs,session-api.test.mjs}`
 - Modify: `packages/terminal/CHANGELOG.md`
 
@@ -2595,7 +2597,7 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 - Consumes: `logicalLineAt`, `LinkRange`, `rangeContains` (Task 6), `rangeBoxes`/`paintBoxes` and the named decoration sub-layers (Task 6), `TextRows` (Tasks 1/6), `renderedRows`/`filteredBlocks`/`cellMetrics` (`dom-block-renderer.ts`), the alt-screen `onKeyDown` (`TerminalSurface.tsx:239`) and the editor's `keydown` listeners (`TerminalSurface.tsx:505-512`, `ts/editor/src/line-editor.ts:70`).
 - Produces: the "Hint mode" shapes above. Task 9 maps `onHint` to Operator actions.
 
-The chord is Ctrl+Shift+Space, WezTerm's own default (`wezterm-gui/src/commands.rs:828`), on every platform — it collides with nothing the editor or the alt screen encode. While hint mode is active the surface swallows every key: a printable character narrows the label set, Backspace un-types, Escape and any other key cancel, and nothing reaches the pty. Labels come from WezTerm's `compute_labels_for_alphabet` (`quickselect.rs:57-100`, tmux-thumbs' algorithm) over `DEFAULT_HINT_ALPHABET`, assigned from the bottom-right match backwards so the nearest match gets the shortest label, and shared by matches whose text is identical (WezTerm's `match_id`).
+The chord is Ctrl+Shift+Space, WezTerm's own default (`wezterm-gui/src/commands.rs:828`), on every platform. **It is not free**: `encodeKey`'s control branch is `ctrlKey && !altKey` and ignores `shiftKey` (`ts/editor/src/encode-key.ts:111-115`), so Ctrl+Shift+Space encodes `controlCode(" ")` = `\x00` today, exactly as Ctrl+Space does. Taking the chord stops the **shifted** form reaching the pty; plain Ctrl+Space — the emacs set-mark key readline binds — keeps sending `\x00`, and Step 3 pins that. Nothing else in the encoder distinguishes the two, so this is the whole cost. While hint mode is active the surface swallows every key: a printable character narrows the label set, Backspace un-types, Escape and any other key cancel, and nothing reaches the pty. Labels come from WezTerm's `compute_labels_for_alphabet` (`quickselect.rs:57-100`, tmux-thumbs' algorithm) over `DEFAULT_HINT_ALPHABET`, assigned from the bottom-right match backwards so the nearest match gets the shortest label, and shared by matches whose text is identical (WezTerm's `match_id`).
 
 - [ ] **Step 1: Write the failing rule and label tests**
 
@@ -2997,10 +2999,31 @@ describe("TerminalSurface hint mode", () => {
 		key(surface, { key: "x" });
 		expect(onSendRaw).toHaveBeenCalledWith("x");
 	});
+
+	it("leaves plain Ctrl+Space alone so readline still gets its NUL", async () => {
+		const onSendRaw = vi.fn();
+		const { container, core } = renderSurface({ onSendRaw });
+		act(() => { feed(core, "\x1b[?1049hidle\r\n"); });
+		await flushRepaint();
+		const surface = container.querySelector(".terminal-host") as HTMLElement;
+		key(surface, { key: " ", code: "Space", ctrlKey: true });
+		expect(onSendRaw).toHaveBeenCalledWith("\x00");
+	});
 });
 ```
 
 (`renderSurface` gains `onHint?: (hint: HintEvent) => void;` in its overrides and passes it through, beside `onPaint`.)
+
+Add to `ts/editor/src/encode-key.test.ts`, beside the existing `\x00` case at `:42`, so the key the chord consumes is pinned before it is taken:
+
+```ts
+	it("keeps plain Ctrl+Space as NUL; only the shifted form is the hint chord", () => {
+		expect(encodeKey(key({ key: " ", ctrlKey: true }))).toBe("\x00");
+		expect(encodeKey(key({ key: " ", ctrlKey: true, shiftKey: true }))).toBe("\x00");
+	});
+```
+
+(both still encode `\x00` at this layer — the surface's capture-phase handler is what stops the shifted one before `encodeKey` is reached, which the `TerminalSurface.hint.test.tsx` case below proves by asserting `onSendRaw` was never called.)
 
 Add to `selection-gesture.test.ts`:
 
@@ -3207,7 +3230,7 @@ From `/Users/omaraly/development/AI/Operator/packages/terminal`:
 CHANGELOG:
 
 ```markdown
-- renderer-dom/react: Ctrl+Shift+Space (WezTerm's QuickSelect chord, `wezterm-gui/src/commands.rs`) labels every match of the package's rule set on the visible logical lines — WezTerm's `quickselect.rs` patterns minus IPFS, with Kitty's `path:line` (`kittens/hints/marks.go` `default_linenum_regex`) taking precedence over the bare path — with prefix-free labels from WezTerm's `compute_labels_for_alphabet`, assigned to the bottom-most match first and shared by identical texts. Typing a label emits `onHint({ ruleId, text, path?, line? })` and closes the mode; a character narrows the set, Backspace un-types, Escape or any other key cancels. While the mode is active no key reaches the pty. Side-by-side: `bench/agent-session/baselines/act-probe/affordance-hint/`.
+- renderer-dom/react: Ctrl+Shift+Space (WezTerm's QuickSelect chord, `wezterm-gui/src/commands.rs`) labels every match of the package's rule set on the visible logical lines — WezTerm's `quickselect.rs` patterns minus IPFS, with Kitty's `path:line` (`kittens/hints/marks.go` `default_linenum_regex`) taking precedence over the bare path — with prefix-free labels from WezTerm's `compute_labels_for_alphabet`, assigned to the bottom-most match first and shared by identical texts. Typing a label emits `onHint({ ruleId, text, path?, line? })` and closes the mode; a character narrows the set, Backspace un-types, Escape or any other key cancels. While the mode is active no key reaches the pty. The chord costs one key: Ctrl+Shift+Space used to encode `\x00` like Ctrl+Space (`encodeKey`'s control branch ignores Shift), and the shifted form no longer reaches the child. Plain Ctrl+Space, the emacs set-mark readline binds, is unaffected and pinned by `encode-key.test.ts`. Side-by-side: `bench/agent-session/baselines/act-probe/affordance-hint/`.
 ```
 
 ```bash
@@ -4160,6 +4183,7 @@ Copy from the JSON lines: `feedCost` and `feedSyncCost` medians at 1k/5k/50k wit
 
 **The two rows Plan E can move, and what to say about each:**
 - `rendererMemoryBytes` — the sixth style word is +1 `u32` per exported run, and the link table is the URIs a session actually emitted. Report the number against Plan D's 11,730,944 bytes and say which of the two accounts for the delta (60,277 runs × 4 bytes ≈ 241 KB is the arithmetic; `claude-long-50k` emits no OSC 8, so the table should be empty — if the growth is far past ~241 KB, that is a finding).
+- **The link table against the budget, stated explicitly.** `TerminalCore::memory_stats` and `Parser::trim_to` both weigh only content plus styles, so the registry is outside `Limits { bytes: 128 MiB }` and is never trimmed. Report `core.hyperlink_count()` and the table's byte size on the act-probe (which emits one OSC 8) and on `claude-long-50k` (which emits none), and state the worst case the caps permit as a fraction of the budget: 4096 × 2083 B ≈ 8.5 MB ≈ 6.6 % of 128 MiB, reachable only by a program printing 4096 distinct maximal URIs, and held for the life of the core. If a real session's table is anything but negligible, that is the finding.
 - `feedCost` / `feedSyncCost` — OSC 8 parsing runs once per sequence, and a fixture with none should read unchanged. The block-timestamp fallback adds two `Option` writes per block boundary.
 
 Everything else ("unchanged; Plan E does not touch it") is still measured and still copied.
@@ -4195,8 +4219,11 @@ Affordance reports (from `npm run bench:affordances`): hover
 
 Real-app verification (Task 9 Step 7): <what each of the six checks showed>.
 
-Known gaps carried into `TERMINAL.md` §5: a reopened pane's prepended rows are
-flagged `wrapped: false`, so a logical line the mirror wrapped before the reopen
+Known gaps carried into `TERMINAL.md` §5: the OSC 8 registry is outside
+`Limits { bytes }` — neither counted by `memory_stats` nor trimmed by
+`trim_to` — and is never reclaimed, so a core holds up to ~8.5 MB of interned
+URIs (4096 × 2083 B) above its 128 MiB budget for its lifetime; a reopened
+pane's prepended rows are flagged `wrapped: false`, so a logical line the mirror wrapped before the reopen
 still copies as several lines; a masked secret is masked in what the renderer
 reads and paints, not in the row DOM, so the accessibility tree still carries
 it; `openPath`'s line and column reach Operator and are dropped, because
@@ -4208,7 +4235,8 @@ one per call, nothing plumbs it through `TerminalSurface`).
 - [ ] **Step 3: `TERMINAL.md`**
 
 - §2 "Snapshot" bullet: the stride line becomes `stylePairs` (stride `STYLE_RUN_WORDS = 6`: `end, fg, bg, attrs, underline, link`); add `rowWrapped` (one byte per row, 1 when the next row continues this one) beside `rowIndents`, and `linkRanges`/`linkText` (the OSC 8 URI table, index `id - 1`) to the list; the checklist sentence gains `row_wrapped` beside `row_indents` as the worked example of a per-row field.
-- §2, a new bullet **Hyperlinks**: `Parser::osc_dispatch` parses OSC 8 and interns it in `HyperlinkRegistry` (`crates/vt-core/src/hyperlink.rs`) with Warp's caps and no reclamation; the id rides in `CellStyle.link`, so it splits, merges, rewraps, evicts and trims with the styles; the mirror re-emits the sequence per run in the replay and in history chunks, because ids are per core.
+- §2, a new bullet **Logical lines**: two files own them and neither duplicates the other — `ts/core/src/logical-lines.ts` joins snapshot rows behind `TerminalCore.logicalLines(range)`, and `ts/renderer-dom/src/logical-lines.ts` lifts that join (`joinLogicalLine`, imported from the core) into the renderer's stable-row, per-block space with link runs attached. A change to how pieces join belongs in the core's `joinLogicalLine`; the renderer derives nothing of its own.
+- §2, a new bullet **Hyperlinks**: `Parser::osc_dispatch` parses OSC 8 and interns it in `HyperlinkRegistry` (`crates/vt-core/src/hyperlink.rs`) with Warp's caps and no reclamation; the id rides in `CellStyle.link`, so it splits, merges, rewraps, evicts and trims with the styles; the mirror re-emits the sequence per run in the replay and in history chunks, because ids are per core. The **table is not** part of the byte budget: `trim_to` weighs content plus styles only (`parser.rs:629`), so the registry grows to its cap and stays — deliberate, bounded, and listed in §5.
 - §2, the **BlockGrid** bullet: a block missing the hook's `start_ms`/`end_ms` is stamped from the clock of the feed that opened and closed it (`BlockGrid::set_clock`/`note_output`), and the TS core feeds with `Date.now()` so its stamps are epoch like the mirror's.
 - §4.12: extend the entry — the arrow is still the default over the transcript, and the pointing hand appears only while the linkifier reports a link under the pointer (`.terminal-link-hover`), which is Warp's own rule (`app/src/terminal/view.rs` `set_cursor_shape`); the guard is `styles-parity.test.ts` "shows the pointing hand only while a link is under the pointer".
 - §4.13: one sentence — the link underline, the hint labels and the redaction masks are overlays in `.terminal-decorations`, positioned from the same row geometry the selection fill uses, never edits to pooled row elements.
