@@ -248,7 +248,6 @@ backend/internal/
 ├── runfile/             # Daemon run-file and single-instance lock
 ├── daemonmeta/          # Daemon build and version metadata
 ├── telemetrymeta/       # Telemetry metadata
-├── skillassets/         # Packaged skill assets
 ├── devimport/           # Development import
 ├── integration/         # Cross-package integration tests
 ├── testsupport/         # Test-only helpers, including a real pty

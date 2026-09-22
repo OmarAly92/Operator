@@ -126,7 +126,7 @@ func (p *Plugin) GetConfigSpec(ctx context.Context) (ports.ConfigSpec, error) {
 			{
 				Key:         "model",
 				Type:        ports.ConfigFieldString,
-				Description: "Model override passed to `claude --model` (e.g. claude-opus-4-5).",
+				Description: "Model override passed to `claude --model` (e.g. claude-opus-5).",
 			},
 			{
 				Key:         "permissions",

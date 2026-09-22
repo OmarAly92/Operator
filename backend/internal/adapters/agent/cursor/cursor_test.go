@@ -617,3 +617,74 @@ func countCursorHookCommand(entries []cursorHookEntry, command string) int {
 	}
 	return count
 }
+
+func TestGetAgentHooksWritesSystemPromptRule(t *testing.T) {
+	plugin := &Plugin{resolvedBinary: "cursor-agent"}
+	workspace := t.TempDir()
+	promptFile := filepath.Join(t.TempDir(), "system.md")
+	if err := os.WriteFile(promptFile, []byte("## Pull Requests for This Session\n\nKeep branch names inside this session namespace.\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cfg := ports.WorkspaceHookConfig{WorkspacePath: workspace, DataDir: t.TempDir(), SystemPromptFile: promptFile}
+	for i := 0; i < 2; i++ {
+		if err := plugin.GetAgentHooks(context.Background(), cfg); err != nil {
+			t.Fatalf("GetAgentHooks #%d: %v", i+1, err)
+		}
+	}
+	rulePath := filepath.Join(workspace, ".cursor", "rules", "opr-system-prompt.mdc")
+	data, err := os.ReadFile(rulePath)
+	if err != nil {
+		t.Fatalf("read rule: %v", err)
+	}
+	got := string(data)
+	if !strings.HasPrefix(got, "---\ndescription: Operator session instructions\nalwaysApply: true\n---\n") {
+		t.Fatalf("rule front matter missing:\n%s", got)
+	}
+	if !strings.Contains(got, "Keep branch names inside this session namespace.") {
+		t.Fatalf("rule missing system prompt:\n%s", got)
+	}
+	ignore, err := os.ReadFile(filepath.Join(workspace, ".cursor", "rules", ".gitignore"))
+	if err != nil || !strings.Contains(string(ignore), "opr-system-prompt.mdc") {
+		t.Fatalf("rules .gitignore = %q, %v", ignore, err)
+	}
+
+	if err := plugin.UninstallHooks(context.Background(), workspace); err != nil {
+		t.Fatalf("UninstallHooks: %v", err)
+	}
+	if _, err := os.Stat(rulePath); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("rule still present after uninstall: %v", err)
+	}
+}
+
+func TestGetAgentHooksSkipsSystemPromptRuleWhenEmpty(t *testing.T) {
+	plugin := &Plugin{resolvedBinary: "cursor-agent"}
+	workspace := t.TempDir()
+	if err := plugin.GetAgentHooks(context.Background(), ports.WorkspaceHookConfig{WorkspacePath: workspace, DataDir: t.TempDir()}); err != nil {
+		t.Fatalf("GetAgentHooks: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(workspace, ".cursor", "rules", "opr-system-prompt.mdc")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("rule written for empty prompt: %v", err)
+	}
+}
+
+func TestGetAgentHooksRefusesUserSystemPromptRule(t *testing.T) {
+	plugin := &Plugin{resolvedBinary: "cursor-agent"}
+	workspace := t.TempDir()
+	rulePath := filepath.Join(workspace, ".cursor", "rules", "opr-system-prompt.mdc")
+	if err := os.MkdirAll(filepath.Dir(rulePath), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(rulePath, []byte("user rule"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	err := plugin.GetAgentHooks(context.Background(), ports.WorkspaceHookConfig{WorkspacePath: workspace, DataDir: t.TempDir(), SystemPrompt: "rules"})
+	if err == nil || !strings.Contains(err.Error(), "refusing to overwrite") {
+		t.Fatalf("GetAgentHooks err = %v, want refusal", err)
+	}
+	if err := plugin.UninstallHooks(context.Background(), workspace); err != nil {
+		t.Fatalf("UninstallHooks: %v", err)
+	}
+	if data, _ := os.ReadFile(rulePath); string(data) != "user rule" {
+		t.Fatalf("user rule changed: %q", data)
+	}
+}

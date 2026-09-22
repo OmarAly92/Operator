@@ -32,6 +32,10 @@ const (
 	// install skips duplicates and uninstall recognizes Operator entries by
 	// prefix without an embedded template to diff against.
 	cursorHookCommandPrefix = "opr hooks cursor "
+
+	cursorRulesDirName           = "rules"
+	cursorSystemPromptRuleName   = "opr-system-prompt.mdc"
+	cursorSystemPromptRuleMarker = "operator: managed cursor system prompt"
 )
 
 // cursorHookFile is the on-disk shape of .cursor/hooks.json. It is used by tests
@@ -107,6 +111,72 @@ func (p *Plugin) GetAgentHooks(ctx context.Context, cfg ports.WorkspaceHookConfi
 	if err := hookutil.EnsureWorkspaceGitignore(filepath.Dir(hooksPath), cursorHooksFileName); err != nil {
 		return fmt.Errorf("cursor.GetAgentHooks: gitignore: %w", err)
 	}
+	if err := writeCursorSystemPromptRule(cfg.WorkspacePath, cfg.SystemPrompt, cfg.SystemPromptFile); err != nil {
+		return fmt.Errorf("cursor.GetAgentHooks: %w", err)
+	}
+	return nil
+}
+
+func cursorSystemPromptRulePath(workspacePath string) string {
+	return filepath.Join(workspacePath, cursorHooksDirName, cursorRulesDirName, cursorSystemPromptRuleName)
+}
+
+func writeCursorSystemPromptRule(workspacePath, inline, file string) error {
+	prompt := strings.TrimRight(inline, "\n")
+	if strings.TrimSpace(file) != "" {
+		data, err := os.ReadFile(file) //nolint:gosec // path is Operator-owned launch config
+		if err != nil {
+			return fmt.Errorf("read system prompt file: %w", err)
+		}
+		prompt = strings.TrimRight(string(data), "\n")
+	}
+	rulePath := cursorSystemPromptRulePath(workspacePath)
+	if strings.TrimSpace(prompt) == "" {
+		return removeCursorSystemPromptRule(rulePath)
+	}
+	managed, err := isOperatorManagedCursorRule(rulePath)
+	if err != nil {
+		return err
+	}
+	if !managed {
+		if _, err := os.Stat(rulePath); err == nil {
+			return fmt.Errorf("refusing to overwrite non-Operator file at %s", rulePath)
+		} else if !errors.Is(err, os.ErrNotExist) {
+			return fmt.Errorf("stat system prompt rule: %w", err)
+		}
+	}
+	if err := os.MkdirAll(filepath.Dir(rulePath), 0o750); err != nil {
+		return fmt.Errorf("create rules dir: %w", err)
+	}
+	content := "---\ndescription: Operator session instructions\nalwaysApply: true\n---\n\n<!-- " + cursorSystemPromptRuleMarker + " -->\n\n" + prompt + "\n"
+	if err := hookutil.AtomicWriteFile(rulePath, []byte(content), 0o600); err != nil {
+		return fmt.Errorf("write system prompt rule: %w", err)
+	}
+	if err := hookutil.EnsureWorkspaceGitignore(filepath.Dir(rulePath), cursorSystemPromptRuleName); err != nil {
+		return fmt.Errorf("rules gitignore: %w", err)
+	}
+	return nil
+}
+
+func isOperatorManagedCursorRule(path string) (bool, error) {
+	data, err := os.ReadFile(path) //nolint:gosec // path built from caller-owned workspace dir
+	if errors.Is(err, os.ErrNotExist) {
+		return false, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("read %s: %w", path, err)
+	}
+	return strings.Contains(string(data), cursorSystemPromptRuleMarker), nil
+}
+
+func removeCursorSystemPromptRule(rulePath string) error {
+	managed, err := isOperatorManagedCursorRule(rulePath)
+	if err != nil || !managed {
+		return err
+	}
+	if err := os.Remove(rulePath); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("remove system prompt rule: %w", err)
+	}
 	return nil
 }
 
@@ -136,6 +206,9 @@ func (p *Plugin) UninstallHooks(ctx context.Context, workspacePath string) error
 		return errors.New("cursor.UninstallHooks: workspacePath is required")
 	}
 
+	if err := removeCursorSystemPromptRule(cursorSystemPromptRulePath(workspacePath)); err != nil {
+		return fmt.Errorf("cursor.UninstallHooks: %w", err)
+	}
 	hooksPath := cursorHooksPath(workspacePath)
 	if _, err := os.Stat(hooksPath); errors.Is(err, os.ErrNotExist) {
 		return nil
