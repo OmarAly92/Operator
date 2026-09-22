@@ -204,7 +204,9 @@
 	cursor: default;
 }
 
-/* The hand appears only while a link is under the pointer. */
+/* The hand appears only while a link is under the pointer, the way Warp swaps
+   the cursor shape per hovered link (app/src/terminal/view.rs set_cursor_shape
+   Cursor::PointingHand / reset_cursor; app/src/util/link_detection.rs). */
 .terminal-link-hover .terminal-block,
 .terminal-link-hover .terminal-alt-surface {
 	cursor: pointer;

@@ -386,13 +386,15 @@ history of `master`.
   to the full line height".
 
 ### 4.12 I-beam pointer over the transcript — `b687426fd`
-- Selectable text gets a browser I-beam by default. The transcript keeps the
-  platform arrow over its grid instead:
+- Selectable text gets a browser I-beam by default. Warp keeps the platform arrow
+  over its grid and uses the pointing hand only for links (`app/src/util/link_detection.rs`).
   `.terminal-block, .terminal-alt-surface { cursor: default }`. Guard:
   `styles-parity.test.ts` "keeps the arrow over the transcript".
 - Plan E: the arrow is still the default everywhere else in the transcript;
   the pointing hand appears only while the `Linkifier` reports a link under
-  the pointer (`.terminal-link-hover`). How a link is found is §4.23. Guard:
+  the pointer (`.terminal-link-hover`), Warp's own rule
+  (`app/src/terminal/view.rs` `set_cursor_shape`). How a link is found is
+  §4.23. Guard:
   `styles-parity.test.ts` "shows the pointing hand only while a link is under
   the pointer".
 
@@ -823,12 +825,6 @@ history of `master`.
   a program printing 4096 distinct maximal URIs. Measured on
   `claude-long-50k` (no OSC 8): empty. Warp's own trade
   (`hyperlink_registry.rs:11-15`), not an oversight here.
-- **`openPath`'s `line`/`column` reach Operator and are dropped.**
-  `tauri-plugin-opener`'s `open_path` command takes no editor argument, so
-  the file opens at line 1 regardless of what a `path:line:col` hint or link
-  resolved. Fixing this needs a per-editor argument convention (VS Code's
-  `--goto path:line:col`, for example), which is a host decision, not a
-  package one.
 - **The hint rule set is the package's constant; a host cannot replace it
   yet.** `DomBlockRenderer.hintBegin(rules?)` accepts one rule list per call,
   but nothing plumbs a host-supplied list through `TerminalSurface` — Operator
