@@ -7,6 +7,8 @@ const base = {
 	firstRow: 0,
 	rowCount: 2,
 	source: "extension" as const,
+	startedAtMs: null,
+	finishedAtMs: null,
 	command: "git status",
 	cwd: "/Users/me/project",
 	gitBranch: "main",

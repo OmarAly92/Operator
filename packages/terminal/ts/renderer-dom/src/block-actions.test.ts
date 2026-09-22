@@ -10,7 +10,7 @@ import {
 
 const block = {
 	id: "0:1", firstRow: 0, rowCount: 1, state: "finished" as const,
-	source: "extension" as const, exitCode: 0, durationMs: 1,
+	source: "extension" as const, exitCode: 0, durationMs: 1, startedAtMs: null, finishedAtMs: null,
 	command: "ls -la", cwd: "/tmp", gitBranch: "main", bookmarked: false,
 };
 

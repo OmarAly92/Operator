@@ -115,7 +115,7 @@ export class TerminalCore {
 		if (this.disposed) {
 			return;
 		}
-		this.inner.feed(bytes, nowMs());
+		this.inner.feed(bytes, Date.now());
 		if (!this.notifyIfChanged() && this.inner.synchronized_output()) {
 			this.notifyAll();
 		}
@@ -137,7 +137,7 @@ export class TerminalCore {
 		if (this.disposed) {
 			return { remaining: 0 };
 		}
-		const start = nowMs();
+		const start = budgetNow();
 		while (this.backlog.length > 0) {
 			const head = this.backlog[0]!;
 			let slice: Uint8Array;
@@ -151,7 +151,7 @@ export class TerminalCore {
 			this.backlogBytes -= slice.length;
 			this.feed(slice);
 			for (const listener of [...this.feedParsedListeners]) listener(slice.length);
-			if (nowMs() - start >= deadlineMs) {
+			if (budgetNow() - start >= deadlineMs) {
 				break;
 			}
 		}
@@ -528,7 +528,7 @@ export class TerminalCore {
 	}
 }
 
-function nowMs(): number {
+function budgetNow(): number {
 	return typeof performance !== "undefined" ? performance.now() : Date.now();
 }
 

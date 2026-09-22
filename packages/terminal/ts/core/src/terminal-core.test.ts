@@ -336,7 +336,7 @@ describe("TerminalCore synchronized output", () => {
 		const core = createTerminalCore({ columns: 16, scrollback: 100 });
 		const listener = vi.fn();
 		core.onChange(listener);
-		const start = performance.now();
+		const start = Date.now();
 		core.feed(new TextEncoder().encode(`${BSU}late`));
 		expect(listener).toHaveBeenCalledTimes(1);
 		expect(core.tick(start + 100)).toBe(false);
@@ -344,6 +344,16 @@ describe("TerminalCore synchronized output", () => {
 		expect(core.tick(start + 200)).toBe(true);
 		expect(listener).toHaveBeenCalledTimes(2);
 		expect(new TextDecoder().decode(core.snapshot().content)).toBe("late");
+	});
+
+	it("stamps a block from the wall clock so it compares with the shell hook's epoch stamps", () => {
+		const core = createTerminalCore({ columns: 16, scrollback: 100 });
+		const before = Date.now();
+		core.feed(new TextEncoder().encode("\x1b]133;A\x07\x1b]133;B\x07\x1b]133;C\x07x\r\n\x1b]133;D;0\x07"));
+		const block = decodeBlocks(core.snapshot()).find((candidate) => candidate.state === "finished")!;
+		expect(block.startedAtMs).toBeGreaterThanOrEqual(before);
+		expect(block.finishedAtMs).toBeGreaterThanOrEqual(block.startedAtMs!);
+		expect(block.finishedAtMs).toBeLessThanOrEqual(Date.now());
 	});
 });
 

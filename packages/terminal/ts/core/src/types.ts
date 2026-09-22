@@ -14,6 +14,8 @@ export type BlockView = Readonly<{
 	source: BlockSource;
 	exitCode: number | null;
 	durationMs: number | null;
+	startedAtMs: number | null;
+	finishedAtMs: number | null;
 	command: string;
 	cwd: string;
 	gitBranch: string;

@@ -204,6 +204,7 @@ impl TerminalCore {
     }
 
     fn feed_raw(&mut self, bytes: &[u8]) {
+        self.parser.set_clock(self.now_ms);
         let mut bytes = bytes;
         if self.history.is_active() {
             let consumed = self.history.consume(bytes, self.parser.hyperlinks_mut());
@@ -281,6 +282,7 @@ impl TerminalCore {
         if parsed < bytes.len() {
             self.advance_vte(&bytes[parsed..]);
         }
+        self.parser.note_output();
         self.parser.commit_evicted();
         self.parser.trim_to(self.limits);
         self.parser.note_mutation();

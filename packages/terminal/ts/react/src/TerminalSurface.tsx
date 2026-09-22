@@ -5,6 +5,7 @@ import {
 	DomBlockRenderer,
 	RERUN_EVENT,
 	resolveFeatures,
+	type BlockFinishedEvent,
 	type FindBar,
 	type RendererFeatures,
 	type SelectionKind,
@@ -66,6 +67,7 @@ export interface TerminalSurfaceProps {
 	focusToken?: number;
 	features?: Partial<RendererFeatures>;
 	onPaint?: () => void;
+	onBlockFinished?: (event: BlockFinishedEvent) => void;
 }
 
 export function TerminalSurface({
@@ -81,6 +83,7 @@ export function TerminalSurface({
 	onSendRaw,
 	onGeometry,
 	onPaint,
+	onBlockFinished,
 	refitToken,
 	focusToken,
 	features,
@@ -92,6 +95,8 @@ export function TerminalSurface({
 	const editorRef = useRef<LineEditor | null>(null);
 	const onPaintRef = useRef(onPaint);
 	onPaintRef.current = onPaint;
+	const onBlockFinishedRef = useRef(onBlockFinished);
+	onBlockFinishedRef.current = onBlockFinished;
 	const findBarRef = useRef<FindBar | null>(null);
 	const gridColumnsRef = useRef(0);
 	const gridRowsRef = useRef(0);
@@ -139,12 +144,14 @@ export function TerminalSurface({
 		};
 		blockHost.addEventListener(RERUN_EVENT, onRerun);
 		const offPaint = renderer.onPaint(() => onPaintRef.current?.());
+		const offFinished = renderer.onBlockFinished((event) => onBlockFinishedRef.current?.(event));
 		rendererRef.current = renderer;
 		editorRef.current = editor;
 		findBarRef.current = findBar;
 		return () => {
 			blockHost.removeEventListener(RERUN_EVENT, onRerun);
 			offPaint();
+			offFinished();
 			findBar.dispose();
 			editor.dispose();
 			renderer.dispose();

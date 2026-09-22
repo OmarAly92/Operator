@@ -400,6 +400,23 @@ describe("DomBlockRenderer", () => {
 		await flushRepaint();
 		expect(host.textContent).toBe("alphabeta");
 	});
+
+	it("fires onBlockFinished once when a running block finishes, with the pane's visibility", async () => {
+		const { core, host, renderer } = mountWith("\x1b]133;A\x07\x1b]133;B\x07\x1b]133;C\x07out\r\n");
+		document.body.append(host);
+		host.getClientRects = () => [{}] as unknown as DOMRectList;
+		const events: unknown[] = [];
+		renderer.onBlockFinished((event) => events.push(event));
+		await flushRepaint();
+		feed(core, "\x1b]133;D;3\x07");
+		await flushRepaint();
+		await flushRepaint();
+		expect(events).toHaveLength(1);
+		expect(events[0]).toMatchObject({ exitCode: 3, visible: true });
+		expect((events[0] as { durationMs: number | null }).durationMs).not.toBeNull();
+		renderer.dispose();
+		host.remove();
+	});
 });
 
 describe("extended colour", () => {

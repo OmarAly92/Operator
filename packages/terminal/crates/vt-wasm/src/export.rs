@@ -8,7 +8,7 @@ pub const COMPACTION_DIVISOR: usize = 4;
 ///
 /// The TypeScript side pins the same constant and strides its `Uint32Array` by
 /// it, so the two must never drift apart.
-pub const BLOCK_RECORD_WORDS: usize = 14;
+pub const BLOCK_RECORD_WORDS: usize = 18;
 
 pub const FIND_MATCH_WORDS: usize = 5;
 
@@ -463,6 +463,14 @@ impl ExportBuffers {
             self.blocks.push(record.cwd.end);
             self.blocks.push(record.git_branch.start);
             self.blocks.push(record.git_branch.end);
+            for stamp in [record.started_at_ms, record.finished_at_ms] {
+                let (lo, hi) = match stamp {
+                    None => (u32::MAX, u32::MAX),
+                    Some(ms) => (ms as u32, (ms >> 32) as u32),
+                };
+                self.blocks.push(lo);
+                self.blocks.push(hi);
+            }
 
             debug_assert_eq!(self.blocks.len() - before, BLOCK_RECORD_WORDS);
         }

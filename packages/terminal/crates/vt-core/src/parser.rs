@@ -238,6 +238,14 @@ impl Parser {
         &mut self.styles
     }
 
+    pub(crate) fn set_clock(&mut self, now_ms: u64) {
+        self.grid.set_clock(now_ms);
+    }
+
+    pub(crate) fn note_output(&mut self) {
+        self.grid.note_output();
+    }
+
     pub(crate) fn open_block(&mut self, source: BlockSource) {
         self.commit_evicted();
         let first_row = self.block_start_row();

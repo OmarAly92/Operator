@@ -28,6 +28,8 @@ pub struct BlockGrid {
     /// so far (wezterm/term/src/screen.rs:734).
     origin: usize,
     retreat_slack: usize,
+    clock_ms: u64,
+    trailing_started_at_ms: Option<u64>,
 }
 
 impl BlockGrid {
@@ -41,11 +43,27 @@ impl BlockGrid {
             next_row: 0,
             origin: 0,
             retreat_slack: 0,
+            clock_ms: 0,
+            trailing_started_at_ms: None,
         }
     }
 
     pub fn origin(&self) -> usize {
         self.origin
+    }
+
+    pub fn set_clock(&mut self, now_ms: u64) {
+        self.clock_ms = now_ms;
+    }
+
+    pub fn note_output(&mut self) {
+        if self.open.is_none() && self.trailing_started_at_ms.is_none() {
+            self.trailing_started_at_ms = Some(self.clock_ms);
+        }
+    }
+
+    pub fn trailing_started_at_ms(&self) -> Option<u64> {
+        self.trailing_started_at_ms
     }
 
     /// Drop `dropped` rows off the front. Only closed blocks whose rows are
@@ -108,6 +126,7 @@ impl BlockGrid {
         if let Some(mut prev) = self.open.take() {
             prev.first_row = prev.first_row.min(self.next_row);
             prev.row_count = self.next_row - prev.first_row;
+            prev.meta.finished_at_ms.get_or_insert(self.clock_ms);
             let abandoned = Block {
                 state: BlockState::Abandoned,
                 ..prev
@@ -120,13 +139,16 @@ impl BlockGrid {
             source
         };
         self.pending_extension = false;
+        let mut meta = std::mem::take(&mut self.pending_meta);
+        meta.started_at_ms.get_or_insert(self.clock_ms);
+        self.trailing_started_at_ms = None;
         self.open = Some(Block {
             id: self.next_id,
             first_row: self.next_row,
             row_count: 0,
             state: BlockState::Running,
             source,
-            meta: std::mem::take(&mut self.pending_meta),
+            meta,
         });
         self.next_id += 1;
     }
@@ -142,6 +164,7 @@ impl BlockGrid {
         block.row_count = self.next_row - block.first_row;
         block.state = BlockState::Finished;
         block.meta.exit_code = exit_code;
+        block.meta.finished_at_ms.get_or_insert(self.clock_ms);
         self.closed.push(block);
     }
 
@@ -199,6 +222,8 @@ impl BlockGrid {
             source: BlockSource::Synthetic,
             meta: BlockMeta {
                 exit_code,
+                started_at_ms: self.trailing_started_at_ms.take(),
+                finished_at_ms: Some(self.clock_ms),
                 ..BlockMeta::default()
             },
         });

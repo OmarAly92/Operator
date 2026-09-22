@@ -4,6 +4,7 @@ import {
 	validateRowRange,
 	type BlockId,
 	type BlockRenderer,
+	type BlockState,
 	type BlockView,
 	type FontConfig,
 	type RowRange,
@@ -11,6 +12,7 @@ import {
 	type TerminalTheme,
 } from "@operator/terminal-core";
 import { renderAltSurface } from "./alt-surface.js";
+import { finishedBlocks, rendererVisible, type BlockFinishedEvent } from "./block-finished.js";
 import { populateBlock, reconcileChildren, ROW_GENERATION_ATTR } from "./block-body.js";
 import { createCursorElement, cursorPaintFor, primaryCursorPlacement, PLAIN_CURSOR_PAINT, type CursorPlacement } from "./cursor.js";
 import { ElementPool } from "./element-pool.js";
@@ -103,6 +105,8 @@ export class DomBlockRenderer implements BlockRenderer {
 	private rebuildAll = false;
 	private activeFeatures: RendererFeatures = DEFAULT_FEATURES;
 	private focused = true;
+	private blockStates = new Map<BlockId, BlockState>();
+	private readonly blockFinishedListeners = new Set<(event: BlockFinishedEvent) => void>();
 
 	mount(container: HTMLElement, core: TerminalCore): void {
 		this.dispose();
@@ -392,6 +396,8 @@ export class DomBlockRenderer implements BlockRenderer {
 		if (this.rafHandle !== null && typeof cancelAnimationFrame === "function") cancelAnimationFrame(this.rafHandle);
 		this.rafHandle = null;
 		this.paintListeners.clear();
+		this.blockStates = new Map();
+		this.blockFinishedListeners.clear();
 		if (this.container) {
 			this.container.replaceChildren();
 			this.container.style.removeProperty("position");
@@ -443,6 +449,13 @@ export class DomBlockRenderer implements BlockRenderer {
 		};
 	}
 
+	onBlockFinished(listener: (event: BlockFinishedEvent) => void): () => void {
+		this.blockFinishedListeners.add(listener);
+		return () => {
+			this.blockFinishedListeners.delete(listener);
+		};
+	}
+
 	private notifyPainted(): void {
 		for (const listener of [...this.paintListeners]) {
 			listener();
@@ -469,7 +482,7 @@ export class DomBlockRenderer implements BlockRenderer {
 			return;
 		}
 		this.core?.drain();
-		this.core?.tick(performance.now());
+		this.core?.tick(Date.now());
 		this.rafHandle = null;
 		this.repaint(timestamp);
 	}
@@ -553,6 +566,16 @@ export class DomBlockRenderer implements BlockRenderer {
 		this.wasAltActive = false;
 
 		const blocks = decodeBlocks(snapshot);
+		const finished = finishedBlocks(this.blockStates, blocks);
+		this.blockStates = new Map(blocks.map((block) => [block.id, block.state] as const));
+		if (finished.length > 0) {
+			const visible = rendererVisible(container);
+			for (const block of finished) {
+				for (const listener of [...this.blockFinishedListeners]) {
+					listener({ id: block.id, exitCode: block.exitCode, durationMs: block.durationMs, visible });
+				}
+			}
+		}
 		if (blocks.length > 0) {
 			this.knownBlockId = blocks[0]!.id;
 		}
