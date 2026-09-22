@@ -14,6 +14,8 @@ export type BlockView = Readonly<{
 	source: BlockSource;
 	exitCode: number | null;
 	durationMs: number | null;
+	startedAtMs: number | null;
+	finishedAtMs: number | null;
 	command: string;
 	cwd: string;
 	gitBranch: string;
@@ -79,12 +81,15 @@ export type TerminalSnapshot = Readonly<{
 	content: Uint8Array;
 	rows: Uint32Array;
 	rowIndents: Uint16Array;
+	rowWrapped: Uint8Array;
 	runRanges: Uint32Array;
 	stylePairs: Uint32Array;
 	spanRanges: Uint32Array;
 	cellSpans: Uint32Array;
 	blocks: Uint32Array;
 	blockText: Uint8Array;
+	linkRanges: Uint32Array;
+	linkText: Uint8Array;
 	lineEditorState: number;
 	cursorRow: number;
 	cursorColumn: number;
@@ -234,12 +239,17 @@ export type DirEntry = Readonly<{
 	isHidden: boolean;
 }>;
 
+export type SecretPattern = Readonly<{ source: string; flags?: string }>;
+
 export type HostCapabilities = Readonly<{
 	writeClipboard(text: string): Promise<void>;
 	readClipboard(): Promise<string>;
 	openLink(url: string): Promise<void>;
 	notify?(title: string, body: string): void;
 	listDirectory?(path: string): Promise<readonly DirEntry[]>;
+	resolvePath?(path: string, cwd: string): Promise<string | null>;
+	openPath?(path: string, line?: number, column?: number): Promise<void>;
+	secretPatterns?: readonly SecretPattern[];
 }>;
 
 export type HistoryStore = {

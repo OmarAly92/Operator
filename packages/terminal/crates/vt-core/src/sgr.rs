@@ -6,7 +6,10 @@ use crate::style::{Attrs, CellStyle, StyleCode};
 pub(crate) fn apply(style: &mut CellStyle, params: &Params) {
     let groups: Vec<Vec<u16>> = params.iter().map(|sub| sub.to_vec()).collect();
     if groups.is_empty() {
-        *style = CellStyle::DEFAULT;
+        *style = CellStyle {
+            link: style.link,
+            ..CellStyle::DEFAULT
+        };
         return;
     }
     let mut index = 0;
@@ -26,7 +29,12 @@ pub(crate) fn apply(style: &mut CellStyle, params: &Params) {
             continue;
         }
         match code {
-            0 => *style = CellStyle::DEFAULT,
+            0 => {
+                *style = CellStyle {
+                    link: style.link,
+                    ..CellStyle::DEFAULT
+                }
+            }
             1 => style.fg = style.fg.with_bold(true),
             2 => style.fg = style.fg.with_dim(true),
             3 => style.attrs = style.attrs.with(Attrs::ITALIC, true),

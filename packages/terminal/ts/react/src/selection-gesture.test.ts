@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { autoScrollRows, exceedsDragThreshold, isCopyChord, kindForClickCount } from "./selection-gesture";
+import { autoScrollRows, exceedsDragThreshold, isCopyChord, isHintChord, kindForClickCount, linkModifierHeld } from "./selection-gesture";
 
 describe("exceedsDragThreshold", () => {
 	it("ignores jitter under half a pixel, Warp's MIN_DELTA_FOR_TEXT_SELECTION", () => {
@@ -34,5 +34,25 @@ describe("isCopyChord", () => {
 		expect(isCopyChord({ key: "c", metaKey: false, ctrlKey: true, shiftKey: false, altKey: false }, true)).toBe(false);
 		expect(isCopyChord({ key: "C", metaKey: false, ctrlKey: true, shiftKey: true, altKey: false }, false)).toBe(true);
 		expect(isCopyChord({ key: "c", metaKey: false, ctrlKey: true, shiftKey: false, altKey: false }, false)).toBe(false);
+	});
+});
+
+describe("linkModifierHeld", () => {
+	const base = { metaKey: false, ctrlKey: false, altKey: false, shiftKey: false };
+	it("is cmd alone on mac and ctrl alone elsewhere", () => {
+		expect(linkModifierHeld({ ...base, metaKey: true }, true)).toBe(true);
+		expect(linkModifierHeld({ ...base, ctrlKey: true }, true)).toBe(false);
+		expect(linkModifierHeld({ ...base, ctrlKey: true }, false)).toBe(true);
+		expect(linkModifierHeld({ ...base, metaKey: true }, false)).toBe(false);
+		expect(linkModifierHeld({ ...base, metaKey: true, shiftKey: true }, true)).toBe(false);
+	});
+});
+
+describe("isHintChord", () => {
+	it("is ctrl+shift+space and nothing else", () => {
+		expect(isHintChord({ key: " ", code: "Space", ctrlKey: true, shiftKey: true, metaKey: false, altKey: false })).toBe(true);
+		expect(isHintChord({ key: " ", code: "Space", ctrlKey: true, shiftKey: false, metaKey: false, altKey: false })).toBe(false);
+		expect(isHintChord({ key: "a", code: "KeyA", ctrlKey: true, shiftKey: true, metaKey: false, altKey: false })).toBe(false);
+		expect(isHintChord({ key: " ", code: "Space", ctrlKey: true, shiftKey: true, metaKey: true, altKey: false })).toBe(false);
 	});
 });

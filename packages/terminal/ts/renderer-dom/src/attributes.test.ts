@@ -22,7 +22,7 @@ function rowOf(text: string, attrs: number, underline = STYLE_DEFAULT_UNDERLINE,
 		content,
 		rows: Uint32Array.from([0, content.byteLength]),
 		runRanges: Uint32Array.from([0, 1]),
-		stylePairs: Uint32Array.from([content.byteLength, 255, 254, attrs, underline]),
+		stylePairs: Uint32Array.from([content.byteLength, 255, 254, attrs, underline, 0]),
 	};
 	return buildRowNode(source, 0, 0, new TextDecoder("utf-8", { fatal: true }), 8, features);
 }
@@ -91,8 +91,8 @@ describe("row-builder merge predicate under attributes: warp", () => {
 			rows: Uint32Array.from([0, content.byteLength]),
 			runRanges: Uint32Array.from([0, 2]),
 			stylePairs: Uint32Array.from([
-				1, 255, 254, ATTR_ITALIC, STYLE_DEFAULT_UNDERLINE,
-				2, 255, 254, 0, STYLE_DEFAULT_UNDERLINE,
+				1, 255, 254, ATTR_ITALIC, STYLE_DEFAULT_UNDERLINE, 0,
+				2, 255, 254, 0, STYLE_DEFAULT_UNDERLINE, 0,
 			]),
 		};
 		const row = buildRowNode(source, 0, 0, new TextDecoder("utf-8", { fatal: true }), 8, warp);
@@ -109,8 +109,8 @@ describe("row-builder merge predicate under attributes: warp", () => {
 			rows: Uint32Array.from([0, content.byteLength]),
 			runRanges: Uint32Array.from([0, 2]),
 			stylePairs: Uint32Array.from([
-				1, 255, 254, ATTR_ITALIC, STYLE_DEFAULT_UNDERLINE,
-				2, 255, 254, 0, STYLE_DEFAULT_UNDERLINE,
+				1, 255, 254, ATTR_ITALIC, STYLE_DEFAULT_UNDERLINE, 0,
+				2, 255, 254, 0, STYLE_DEFAULT_UNDERLINE, 0,
 			]),
 		};
 		const row = buildRowNode(source, 0, 0, new TextDecoder("utf-8", { fatal: true }), 8, DEFAULT_FEATURES);

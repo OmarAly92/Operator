@@ -23,6 +23,7 @@ export type {
 	RowEvent,
 	RowEventListener,
 	RowRange,
+	SecretPattern,
 	ShellKind,
 	SpawnRecipe,
 	TerminalCoreOptions,
@@ -62,8 +63,10 @@ export {
 	STYLE_DEFAULT_FOREGROUND,
 	STYLE_DEFAULT_UNDERLINE,
 	STYLE_RUN_WORDS,
+	STYLE_WORD_LINK,
 } from "./style-runs.js";
 export { CELL_SPAN_WORDS } from "./cell-spans.js";
+export { joinLogicalLine, type LogicalLine } from "./logical-lines.js";
 export {
 	FEED_BUDGET_MS,
 	FEED_SLICE_BYTES,

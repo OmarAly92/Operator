@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cellCount, cellSlice, rowClusters } from "./clusters";
+import { cellAtByte, cellAtOffset, cellCount, cellSlice, offsetAtByte, rowClusters, rowCoordinates } from "./clusters";
 
 const HAN = "漢";
 const ROCKET = "\u{1f680}";
@@ -46,5 +46,21 @@ describe("cellSlice", () => {
 	it("clamps past the end", () => {
 		expect(cellSlice("abc", [], 1, 99)).toBe("bc");
 		expect(cellCount(`a${HAN}b`, [1, 4, 2])).toBe(4);
+	});
+});
+
+describe("rowCoordinates", () => {
+	it("maps cell, byte and utf-16 offset for ascii, wide and astral clusters", () => {
+		expect(rowCoordinates("a漢b", [1, 4, 2])).toEqual([
+			{ cell: 0, byte: 0, offset: 0 },
+			{ cell: 1, byte: 1, offset: 1 },
+			{ cell: 3, byte: 4, offset: 2 },
+			{ cell: 4, byte: 5, offset: 3 },
+		]);
+		expect(cellAtOffset("a漢b", [1, 4, 2], 2)).toBe(3);
+		expect(cellAtOffset("a漢b", [1, 4, 2], 3)).toBe(4);
+		expect(cellAtByte("a漢b", [1, 4, 2], 4)).toBe(3);
+		expect(offsetAtByte("a漢b", [1, 4, 2], 5)).toBe(3);
+		expect(cellAtOffset("x🚀y", [1, 5, 2], 3)).toBe(3);
 	});
 });

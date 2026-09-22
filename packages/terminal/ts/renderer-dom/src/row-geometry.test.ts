@@ -10,6 +10,8 @@ const block = (id: string, firstRow: number, rowCount: number): BlockView => ({
 	source: "synthetic",
 	exitCode: null,
 	durationMs: null,
+	startedAtMs: null,
+	finishedAtMs: null,
 	command: "",
 	cwd: "",
 	gitBranch: "",

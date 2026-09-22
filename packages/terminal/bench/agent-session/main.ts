@@ -1,6 +1,13 @@
 import { decodeBlocks, type TerminalCore } from "@operator/terminal-core";
 import { DomBenchmarkRenderer } from "../adapters/dom";
-import { parseFeatureList, type DomBlockRenderer, type RendererFeatures } from "@operator/terminal-renderer-dom";
+import {
+	createPathProvider,
+	DEFAULT_LINK_PROVIDERS,
+	parseFeatureList,
+	type DetectedLink,
+	type DomBlockRenderer,
+	type RendererFeatures,
+} from "@operator/terminal-renderer-dom";
 
 type SizeEntry = { offset: number; cols: number; rows: number };
 
@@ -43,6 +50,14 @@ type AgentSession = {
 	staleRowCount(): number;
 	cellMetrics(): { cellWidth: number; cellHeight: number };
 	features(): RendererFeatures;
+	hoverCell(row: number, cell: number): Promise<{ x: number; y: number }>;
+	clearHover(): void;
+	hoveredLink(): DetectedLink | null;
+	enablePathLinks(suffixes: string[]): void;
+	hintBegin(): number;
+	hintType(character: string): unknown;
+	hintCancel(): void;
+	setSecretPatterns(patterns: { source: string; flags?: string }[]): void;
 };
 
 const host = document.getElementById("terminal");
@@ -386,6 +401,30 @@ window.__agentSession = {
 	staleRowCount,
 	cellMetrics: () => domRenderer.measure(),
 	features: () => domRenderer.features(),
+	hoverCell: async (row, cell) => {
+		const label = core.snapshot().firstStableRow + row;
+		const node = host.querySelector<HTMLElement>(`[data-terminal-row="${label}"]`);
+		if (!node) throw new Error(`row ${row} is not rendered`);
+		const rect = node.getBoundingClientRect();
+		const { cellWidth, cellHeight } = domRenderer.measure();
+		const x = rect.left + (cell + 0.5) * cellWidth;
+		const y = rect.top + cellHeight / 2;
+		domRenderer.hoverAt(x, y);
+		await new Promise((resolve) => setTimeout(resolve, 50));
+		return { x, y };
+	},
+	clearHover: () => domRenderer.clearHover(),
+	hoveredLink: () => domRenderer.hoveredLink(),
+	enablePathLinks: (suffixes) => {
+		domRenderer.setLinkProviders([
+			...DEFAULT_LINK_PROVIDERS,
+			createPathProvider(async (path) => (suffixes.some((suffix) => path.endsWith(suffix)) ? `/probe/${path}` : null), () => "", "posix"),
+		]);
+	},
+	hintBegin: () => domRenderer.hintBegin(),
+	hintType: (character) => domRenderer.hintType(character),
+	hintCancel: () => domRenderer.hintCancel(),
+	setSecretPatterns: (patterns) => domRenderer.setSecretPatterns(patterns),
 	blocks: () => decodeBlocks(core.snapshot()).length,
 } as AgentSession & { blocks(): number };
 window.__agentSessionReady = true;

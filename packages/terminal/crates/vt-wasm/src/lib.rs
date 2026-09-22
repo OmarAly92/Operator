@@ -268,6 +268,14 @@ impl WasmTerminalCore {
         self.export.row_indents().len()
     }
 
+    pub fn row_wrapped_ptr(&self) -> *const u8 {
+        self.export.row_wrapped().as_ptr()
+    }
+
+    pub fn row_wrapped_len(&self) -> usize {
+        self.export.row_wrapped().len()
+    }
+
     pub fn run_ranges_ptr(&self) -> *const u32 {
         self.export.run_ranges().as_ptr()
     }
@@ -314,6 +322,22 @@ impl WasmTerminalCore {
 
     pub fn block_text_len(&self) -> usize {
         self.export.block_text().len()
+    }
+
+    pub fn link_text_ptr(&self) -> *const u8 {
+        self.export.link_text().as_ptr()
+    }
+
+    pub fn link_text_len(&self) -> usize {
+        self.export.link_text().len()
+    }
+
+    pub fn link_ranges_ptr(&self) -> *const u32 {
+        self.export.link_ranges().as_ptr()
+    }
+
+    pub fn link_ranges_len(&self) -> usize {
+        self.export.link_ranges().len()
     }
 
     pub fn line_editor_state(&self) -> u32 {

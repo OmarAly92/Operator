@@ -346,7 +346,9 @@ var schemaNames = map[string]string{
 	"ControllersMobileNgrokCheck":             "MobileNgrokCheck",
 	"ControllersMobileNgrokDiagnosis":         "MobileNgrokDiagnosis",
 	// httpd/controllers: desktop wire envelope
-	"ControllersDesktopResponse": "DesktopResponse",
+	"ControllersDesktopResponse":           "DesktopResponse",
+	"ControllersRedactionPatternsResponse": "RedactionPatternsResponse",
+	"ControllersRedactionPattern":          "RedactionPattern",
 	// devimport report
 	"DevimportReport":   "DevImportProjectsReport",
 	"DevimportConflict": "DevImportProjectsConflict",
@@ -455,6 +457,7 @@ func operations() []operation {
 	ops = append(ops, devOperations()...)
 	ops = append(ops, mobileOperations()...)
 	ops = append(ops, desktopOperations()...)
+	ops = append(ops, redactionOperations()...)
 	ops = append(ops, browserOperations()...)
 	ops = append(ops, shellTerminalOperations()...)
 	ops = append(ops, ticketOperations()...)
@@ -1086,6 +1089,21 @@ func desktopOperations() []operation {
 			summary: "Identify this desktop to an authenticated phone",
 			resps: []respUnit{
 				{http.StatusOK, controllers.DesktopResponse{}},
+			},
+		},
+	}
+}
+
+// redactionOperations declares the single /redaction/patterns operation. Must
+// stay 1:1 with the route RedactionController.Register mounts (enforced by the
+// parity test).
+func redactionOperations() []operation {
+	return []operation{
+		{
+			method: http.MethodGet, path: "/api/v1/redaction/patterns", id: "getRedactionPatterns", tag: "redaction",
+			summary: "List the secret shapes a client should mask locally",
+			resps: []respUnit{
+				{http.StatusOK, controllers.RedactionPatternsResponse{}},
 			},
 		},
 	}

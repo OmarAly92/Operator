@@ -91,6 +91,7 @@ type API struct {
 	dev            *controllers.DevController
 	browser        *controllers.BrowserController
 	desktop        *controllers.DesktopController
+	redaction      *controllers.RedactionController
 	events         *EventsController
 	tickets        *controllers.TicketsController
 }
@@ -130,6 +131,7 @@ func NewAPI(cfg config.Config, deps APIDeps) *API {
 		dev:            &controllers.DevController{Import: deps.DevImport, Scan: deps.DevScan, Replay: deps.DevBlockReplay},
 		browser:        &controllers.BrowserController{Svc: deps.Browser},
 		desktop:        &controllers.DesktopController{},
+		redaction:      &controllers.RedactionController{},
 		events:         &EventsController{Source: deps.CDC, Live: deps.Events},
 		tickets:        &controllers.TicketsController{Svc: deps.Tickets},
 	}
@@ -168,6 +170,7 @@ func (a *API) Register(root chi.Router) {
 			a.browser.Register(r)
 			a.tickets.Register(r)
 			a.desktop.Register(r)
+			a.redaction.Register(r)
 			// Sibling REST controllers plug in here.
 		})
 		// Agent switching synchronously collects a handoff, starts the target,

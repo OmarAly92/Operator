@@ -261,7 +261,7 @@ pub extern "C" fn vt_render_styled(handle: u32, lines: u32, out_ptr: u32, out_ca
                 let row_bytes = &alt.content[*start as usize..*end as usize];
                 let (pair_start, pair_end) = alt.run_ranges[i];
                 let pairs = &alt.style_pairs[pair_start as usize..pair_end as usize];
-                write_styled_row(&mut text, row_bytes, pairs);
+                write_styled_row(&mut text, row_bytes, pairs, &|id| snapshot.link_uri(id));
             }
         } else {
             let total = snapshot.row_count();
@@ -269,7 +269,9 @@ pub extern "C" fn vt_render_styled(handle: u32, lines: u32, out_ptr: u32, out_ca
             for i in first..total {
                 let row_bytes = snapshot.row_text(i).as_bytes();
                 write_indent(&mut text, snapshot.row_indent(i));
-                write_styled_row(&mut text, row_bytes, snapshot.row_style_pairs(i));
+                write_styled_row(&mut text, row_bytes, snapshot.row_style_pairs(i), &|id| {
+                    snapshot.link_uri(id)
+                });
             }
         }
 
@@ -328,7 +330,13 @@ pub extern "C" fn vt_replay(handle: u32, lines: u32, out_ptr: u32, out_cap: u32)
                 let (pair_start, pair_end) = alt.run_ranges[i];
                 let pairs = &alt.style_pairs[pair_start as usize..pair_end as usize];
                 let last = i + 1 == alt.row_ranges.len();
-                write_styled_row_with(&mut text, row_bytes, pairs, if last { "" } else { "\r\n" });
+                write_styled_row_with(
+                    &mut text,
+                    row_bytes,
+                    pairs,
+                    &|id| snapshot.link_uri(id),
+                    if last { "" } else { "\r\n" },
+                );
             }
             write_cursor_position(&mut text, alt.cursor_row, alt.cursor_col);
             if !alt.cursor_visible {
@@ -382,7 +390,13 @@ pub extern "C" fn vt_replay(handle: u32, lines: u32, out_ptr: u32, out_cap: u32)
                 );
                 let last = i + 1 == total;
                 write_indent(&mut text, indent);
-                write_styled_row_with(&mut text, row_bytes, &pairs, if last { "" } else { "\r\n" });
+                write_styled_row_with(
+                    &mut text,
+                    row_bytes,
+                    &pairs,
+                    &|id| snapshot.link_uri(id),
+                    if last { "" } else { "\r\n" },
+                );
             }
             // The cursor is addressed RELATIVELY, from the last row written.
             // Absolute addressing would be wrong: these rows scroll up into
@@ -484,7 +498,13 @@ pub extern "C" fn vt_history_chunk(
             let mut terminator = String::new();
             write_block_close(&mut terminator, &snapshot, row);
             terminator.push_str("\r\n");
-            write_styled_row_with(&mut text, row_bytes, &pairs, &terminator);
+            write_styled_row_with(
+                &mut text,
+                row_bytes,
+                &pairs,
+                &|id| snapshot.link_uri(id),
+                &terminator,
+            );
         }
 
         let out = text.into_bytes();
@@ -574,14 +594,20 @@ fn write_cursor_position(text: &mut String, row: usize, col: usize) {
     text.push_str(&format!("\x1b[{};{}H", row + 1, col + 1));
 }
 
-fn write_styled_row(text: &mut String, row_bytes: &[u8], pairs: &[(u32, CellStyle)]) {
-    write_styled_row_with(text, row_bytes, pairs, "\n");
-}
-
-fn write_styled_row_with(
+fn write_styled_row<'a>(
     text: &mut String,
     row_bytes: &[u8],
     pairs: &[(u32, CellStyle)],
+    link_uri: &dyn Fn(u16) -> Option<&'a str>,
+) {
+    write_styled_row_with(text, row_bytes, pairs, link_uri, "\n");
+}
+
+fn write_styled_row_with<'a>(
+    text: &mut String,
+    row_bytes: &[u8],
+    pairs: &[(u32, CellStyle)],
+    link_uri: &dyn Fn(u16) -> Option<&'a str>,
     terminator: &str,
 ) {
     let mut start = 0usize;
@@ -593,7 +619,20 @@ fn write_styled_row_with(
             text.push_str(&params);
             text.push('m');
         }
+        let uri = if style.link == 0 {
+            None
+        } else {
+            link_uri(style.link)
+        };
+        if let Some(uri) = uri {
+            text.push_str("\x1b]8;;");
+            text.push_str(uri);
+            text.push_str("\x1b\\");
+        }
         text.push_str(std::str::from_utf8(&row_bytes[start..end]).unwrap_or(""));
+        if uri.is_some() {
+            text.push_str("\x1b]8;;\x1b\\");
+        }
         start = end;
     }
     text.push_str("\x1b[0m");

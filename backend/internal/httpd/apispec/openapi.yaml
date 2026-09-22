@@ -2675,6 +2675,19 @@ paths:
       summary: Unregister a phone's Expo push token
       tags:
       - push
+  /api/v1/redaction/patterns:
+    get:
+      operationId: getRedactionPatterns
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RedactionPatternsResponse'
+          description: OK
+      summary: List the secret shapes a client should mask locally
+      tags:
+      - redaction
   /api/v1/reviews/{reviewSessionID}/activity:
     post:
       operationId: setReviewActivity
@@ -7734,6 +7747,25 @@ components:
       - token
       - createdAt
       - lastSeenAt
+      type: object
+    RedactionPattern:
+      properties:
+        flags:
+          type: string
+        source:
+          type: string
+      required:
+      - source
+      - flags
+      type: object
+    RedactionPatternsResponse:
+      properties:
+        patterns:
+          items:
+            $ref: '#/components/schemas/RedactionPattern'
+          type: array
+      required:
+      - patterns
       type: object
     RegisterPushDeviceRequest:
       properties:

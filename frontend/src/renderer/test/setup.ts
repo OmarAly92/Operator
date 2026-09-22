@@ -158,6 +158,8 @@ if (typeof window !== "undefined") {
 			getVersion: async () => "0.0.0-test",
 			chooseDirectory: async () => null,
 			openExternal: async () => undefined,
+			resolvePath: async () => null,
+			openPath: async () => undefined,
 			scanImportFolder: async ({ path }: { path: string }) => ({ path, repos: [] }),
 			checkAncestorRepo: async () => undefined,
 			onNewSessionShortcut: () => () => undefined,

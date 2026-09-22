@@ -31,6 +31,7 @@ function buildAltView(
 			DEFAULT_BACKGROUND_CODE,
 			0,
 			DEFAULT_STYLE_CODE,
+			0,
 		);
 		pairIndex += 1;
 		cursor += bytes.byteLength;

@@ -1,3 +1,5 @@
+use crate::hyperlink::LinkId;
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct StyleCode(u32);
 
@@ -138,6 +140,7 @@ pub struct CellStyle {
     pub bg: StyleCode,
     pub attrs: Attrs,
     pub underline: StyleCode,
+    pub link: LinkId,
 }
 
 impl CellStyle {
@@ -146,6 +149,7 @@ impl CellStyle {
         bg: StyleCode::DEFAULT_BACKGROUND,
         attrs: Attrs::NONE,
         underline: StyleCode::DEFAULT,
+        link: 0,
     };
 
     pub const fn new(fg: StyleCode, bg: StyleCode) -> Self {
@@ -154,6 +158,7 @@ impl CellStyle {
             bg,
             attrs: Attrs::NONE,
             underline: StyleCode::DEFAULT,
+            link: 0,
         }
     }
 
@@ -170,6 +175,7 @@ impl CellStyle {
             bg: self.fg.colour(),
             attrs: self.attrs,
             underline: self.underline,
+            link: self.link,
         }
     }
 

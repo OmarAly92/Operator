@@ -1,4 +1,6 @@
-export const STYLE_RUN_WORDS = 5;
+export const STYLE_RUN_WORDS = 6;
+
+export const STYLE_WORD_LINK = 5;
 
 export const STYLE_DEFAULT_FOREGROUND = 255;
 

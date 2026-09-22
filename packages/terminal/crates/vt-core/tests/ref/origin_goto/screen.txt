@@ -1,4 +1,4 @@
  UL  ~/programming/alacritty/alacritty  origin_mode ↑  printf "\e[2J\e[?6hHere"
 
-Here%
+Here%                                                                                                             
  UL  ~/programming/alacritty/alacritty  origin_mode ↑ 

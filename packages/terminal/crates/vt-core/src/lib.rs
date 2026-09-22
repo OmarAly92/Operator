@@ -11,6 +11,7 @@ pub mod event_bridge;
 pub mod find;
 pub mod grid;
 mod history;
+pub mod hyperlink;
 pub mod integrity;
 pub mod limits;
 mod line_editor;
@@ -37,6 +38,7 @@ pub use block_tree::{BlockSummary, BlockTree};
 pub use delta::{Delta, DeltaKind};
 pub use find::{FindCursor, FindMatch, FindQuery};
 pub use grid::{CellSpan, ExportedRow};
+pub use hyperlink::{Hyperlink, HyperlinkRegistry, LinkId};
 pub use integrity::IntegrityError;
 pub use limits::{Limits, MemoryStats};
 pub use line_editor::LineEditorState;
@@ -202,9 +204,10 @@ impl TerminalCore {
     }
 
     fn feed_raw(&mut self, bytes: &[u8]) {
+        self.parser.set_clock(self.now_ms);
         let mut bytes = bytes;
         if self.history.is_active() {
-            let consumed = self.history.consume(bytes);
+            let consumed = self.history.consume(bytes, self.parser.hyperlinks_mut());
             self.drain_history();
             bytes = &bytes[consumed..];
             if bytes.is_empty() {
@@ -249,7 +252,7 @@ impl TerminalCore {
                     self.history
                         .begin(first_stable_row, rows, cols, self.parser.width_mode());
                     let rest = &bytes[upto..];
-                    let consumed = self.history.consume(rest);
+                    let consumed = self.history.consume(rest, self.parser.hyperlinks_mut());
                     self.drain_history();
                     parsed = upto + consumed;
                     continue;
@@ -279,6 +282,7 @@ impl TerminalCore {
         if parsed < bytes.len() {
             self.advance_vte(&bytes[parsed..]);
         }
+        self.parser.note_output();
         self.parser.commit_evicted();
         self.parser.trim_to(self.limits);
         self.parser.note_mutation();
@@ -345,7 +349,16 @@ impl TerminalCore {
             self.parser.alt(),
             self.parser.first_stable_row(),
             self.parser.width_mode(),
+            self.parser.hyperlinks(),
         )
+    }
+
+    pub fn hyperlink_count(&self) -> usize {
+        self.parser.hyperlinks().len()
+    }
+
+    pub fn hyperlink_uri(&self, id: LinkId) -> Option<&str> {
+        self.parser.hyperlinks().uri(id)
     }
 
     pub fn generation(&self) -> u64 {

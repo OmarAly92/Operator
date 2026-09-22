@@ -1,0 +1,8 @@
+Open https://example.com/docs and src/app/main.ts:42 or lib/util.go:7:3 now
+See ]8;;https://example.org/x\the linked text]8;;\ and plain text after
+wrap: https://example.com/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/end tail
+token ghp_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA key AKIABBBBBBBBBBBBBBBB end
+--- a/foo/bar.ts
++++ b/foo/bar.ts
+sha 0123456789abcdef uuid 123e4567-e89b-12d3-a456-426614174000 #ff8800 10.0.0.1 0xdeadbeef 123456
+[docs](https://example.com/md) sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc

@@ -99,5 +99,5 @@
 4
 3
 2
-%
+%                                                                                                        
  UL  ~/…/tests/ref/history  issue-1244 

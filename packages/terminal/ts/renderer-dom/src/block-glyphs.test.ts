@@ -11,7 +11,7 @@ function rowOf(text: string, styleCode = DEFAULT_FOREGROUND): HTMLElement {
 		content,
 		rows: Uint32Array.from([0, content.byteLength]),
 		runRanges: Uint32Array.from([0, 1]),
-		stylePairs: Uint32Array.from([content.byteLength, styleCode, DEFAULT_BACKGROUND, 0, DEFAULT_FOREGROUND]),
+		stylePairs: Uint32Array.from([content.byteLength, styleCode, DEFAULT_BACKGROUND, 0, DEFAULT_FOREGROUND, 0]),
 	};
 	return buildRowNode(source, 0, 0, new TextDecoder("utf-8", { fatal: true }));
 }
@@ -106,8 +106,8 @@ describe("row run merging", () => {
 			rows: Uint32Array.from([0, content.byteLength]),
 			runRanges: Uint32Array.from([0, 2]),
 			stylePairs: Uint32Array.from([
-				1, DEFAULT_FOREGROUND, DEFAULT_BACKGROUND, 1, DEFAULT_FOREGROUND,
-				2, DEFAULT_FOREGROUND, DEFAULT_BACKGROUND, 0, 3,
+				1, DEFAULT_FOREGROUND, DEFAULT_BACKGROUND, 1, DEFAULT_FOREGROUND, 0,
+				2, DEFAULT_FOREGROUND, DEFAULT_BACKGROUND, 0, 3, 0,
 			]),
 		};
 		const row = buildRowNode(source, 0, 0, new TextDecoder("utf-8", { fatal: true }));
@@ -123,8 +123,8 @@ describe("row run merging", () => {
 			rows: Uint32Array.from([0, content.byteLength]),
 			runRanges: Uint32Array.from([0, 2]),
 			stylePairs: Uint32Array.from([
-				1, 1, DEFAULT_BACKGROUND, 0, DEFAULT_FOREGROUND,
-				2, DEFAULT_FOREGROUND, DEFAULT_BACKGROUND, 0, DEFAULT_FOREGROUND,
+				1, 1, DEFAULT_BACKGROUND, 0, DEFAULT_FOREGROUND, 0,
+				2, DEFAULT_FOREGROUND, DEFAULT_BACKGROUND, 0, DEFAULT_FOREGROUND, 0,
 			]),
 		};
 		const row = buildRowNode(source, 0, 0, new TextDecoder("utf-8", { fatal: true }));

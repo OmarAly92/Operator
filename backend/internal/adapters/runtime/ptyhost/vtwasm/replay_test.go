@@ -497,3 +497,36 @@ var oscRE = regexp.MustCompile("\x1b\\]7000;v=1;[^\x1b]*\x1b\\\\")
 func stripOSC(s string) string {
 	return oscRE.ReplaceAllString(s, "")
 }
+
+func TestReplayBracketsALinkedRunWithOsc8(t *testing.T) {
+	p := newTestParser(t, 80, 24)
+	feed(t, p, "see \x1b]8;;https://x.y/doc\x1b\\here\x1b]8;;\x1b\\ now\r\n")
+
+	out, err := p.Replay(1000)
+	if err != nil {
+		t.Fatalf("replay: %v", err)
+	}
+	want := "\x1b]8;;https://x.y/doc\x1b\\"
+	if !strings.Contains(out, want+"here") {
+		t.Fatalf("replay lost the hyperlink open before its run:\n%q", out)
+	}
+	if !strings.Contains(out, "here\x1b[0m\x1b]8;;\x1b\\") && !strings.Contains(out, "here\x1b]8;;\x1b\\") {
+		t.Fatalf("replay lost the hyperlink close after its run:\n%q", out)
+	}
+	if strings.Count(out, "\x1b]8;;") != 2 {
+		t.Fatalf("expected exactly one open and one close, got %d in:\n%q", strings.Count(out, "\x1b]8;;"), out)
+	}
+}
+
+func TestHistoryChunksCarryOsc8(t *testing.T) {
+	p := newTestParser(t, 20, 2)
+	feed(t, p, "\x1b]8;;https://old\x1b\\older\x1b]8;;\x1b\\\r\nx\r\ny\r\nz\r\n")
+
+	chunk, _, _, err := p.HistoryChunk(HistoryBefore, 2, 512)
+	if err != nil {
+		t.Fatalf("history chunk: %v", err)
+	}
+	if !strings.Contains(chunk, "\x1b]8;;https://old\x1b\\older") {
+		t.Fatalf("history chunk lost the hyperlink:\n%q", chunk)
+	}
+}

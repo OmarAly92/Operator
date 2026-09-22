@@ -26,7 +26,7 @@ describe("letter-spacing correction in a row", () => {
 			content,
 			rows: Uint32Array.from([0, content.byteLength]),
 			runRanges: Uint32Array.from([0, 1]),
-			stylePairs: Uint32Array.from([content.byteLength, 255, 254, 0, 255]),
+			stylePairs: Uint32Array.from([content.byteLength, 255, 254, 0, 255, 0]),
 			spanRanges: Uint32Array.from([0, spans.length / 3]),
 			cellSpans: Uint32Array.from(spans),
 		};
@@ -56,7 +56,7 @@ describe("letter-spacing correction alongside attributes: warp underline spaces"
 			content,
 			rows: Uint32Array.from([0, content.byteLength]),
 			runRanges: Uint32Array.from([0, 1]),
-			stylePairs: Uint32Array.from([content.byteLength, 255, 254, ATTR_UNDERLINE, STYLE_DEFAULT_UNDERLINE]),
+			stylePairs: Uint32Array.from([content.byteLength, 255, 254, ATTR_UNDERLINE, STYLE_DEFAULT_UNDERLINE, 0]),
 			spanRanges: Uint32Array.from([0, spans.length / 3]),
 			cellSpans: Uint32Array.from(spans),
 		};

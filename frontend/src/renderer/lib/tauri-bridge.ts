@@ -151,6 +151,11 @@ export function createTauriBridge({ invoke, listen }: TauriBridgeTransports): Op
 			openExternal: async (url: string) => {
 				await invoke("open_external", { url });
 			},
+			resolvePath: async (base: string | null, path: string) =>
+				(await invoke("resolve_path", { base, path })) as string | null,
+			openPath: async (path: string) => {
+				await invoke("open_path", { path });
+			},
 			scanImportFolder: async (input: { path: string; mode: "project" | "workspace" }) => {
 				const { data, error } = await apiClient.POST("/api/v1/dev/import-scan", { body: input });
 				if (error) throw new Error(apiErrorMessage(error));

@@ -1,7 +1,14 @@
 import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { beforeAll, describe, expect, it, vi } from "vitest";
-import { createTerminalCore, decodeBlocks, initTerminalCore, type RowEvent } from "./index";
+import {
+	createTerminalCore,
+	decodeBlocks,
+	initTerminalCore,
+	STYLE_RUN_WORDS,
+	STYLE_WORD_LINK,
+	type RowEvent,
+} from "./index";
 import { WasmTerminalCore } from "../wasm/vt_core.js";
 
 beforeAll(async () => {
@@ -22,7 +29,17 @@ describe("TerminalCore", () => {
 		expect(snapshot.runRanges).toBeInstanceOf(Uint32Array);
 		expect(new TextDecoder().decode(snapshot.content)).toBe("red caféplain");
 		expect([...snapshot.rows]).toEqual([0, 9, 9, 14]);
-		expect([...snapshot.stylePairs]).toEqual([3, 1, 254, 0, 255, 9, 255, 254, 0, 255, 5, 255, 254, 0, 255]);
+		expect([...snapshot.stylePairs]).toEqual([3, 1, 254, 0, 255, 0, 9, 255, 254, 0, 255, 0, 5, 255, 254, 0, 255, 0]);
+	});
+
+	it("exports the link id in the sixth style word and resolves the uri", () => {
+		const core = createTerminalCore({ columns: 16, scrollback: 10 });
+		core.feed(new TextEncoder().encode("a\x1b]8;;https://x.y\x1b\\b\x1b]8;;\x1b\\c"));
+		const snapshot = core.snapshot();
+		expect(snapshot.stylePairs[1 * STYLE_RUN_WORDS + STYLE_WORD_LINK]).toBe(1);
+		expect(core.linkUri(1)).toBe("https://x.y");
+		expect(core.linkUri(2)).toBeNull();
+		expect(core.linkUri(0)).toBeNull();
 	});
 
 	it("exports cell spans for wide and joined clusters", () => {
@@ -31,6 +48,22 @@ describe("TerminalCore", () => {
 		const snapshot = core.snapshot();
 		expect([...snapshot.spanRanges]).toEqual([0, 1, 1, 2]);
 		expect([...snapshot.cellSpans]).toEqual([2, 5, 2, 0, 3, 1]);
+	});
+
+	it("exports one wrapped byte per row and joins logical lines from it", () => {
+		const core = createTerminalCore({ columns: 4, scrollback: 100 });
+		core.resize(4, 3);
+		core.feed(new TextEncoder().encode("abc def\r\nxy"));
+		const snapshot = core.snapshot();
+		expect(snapshot.rowWrapped.length).toBe(snapshot.rows.length / 2);
+		expect([...snapshot.rowWrapped.subarray(0, 3)]).toEqual([1, 0, 0]);
+		expect(core.logicalLines({ start: 1, end: 2 })).toEqual([
+			{ firstRow: 0, rowCount: 2, text: "abc def", rowOffsets: [0, 4] },
+		]);
+		expect(core.logicalLines({ start: 0, end: 3 })).toEqual([
+			{ firstRow: 0, rowCount: 2, text: "abc def", rowOffsets: [0, 4] },
+			{ firstRow: 2, rowCount: 1, text: "xy", rowOffsets: [0] },
+		]);
 	});
 
 	it("creates independent instances that do not share state", () => {
@@ -303,7 +336,7 @@ describe("TerminalCore synchronized output", () => {
 		const core = createTerminalCore({ columns: 16, scrollback: 100 });
 		const listener = vi.fn();
 		core.onChange(listener);
-		const start = performance.now();
+		const start = Date.now();
 		core.feed(new TextEncoder().encode(`${BSU}late`));
 		expect(listener).toHaveBeenCalledTimes(1);
 		expect(core.tick(start + 100)).toBe(false);
@@ -311,6 +344,16 @@ describe("TerminalCore synchronized output", () => {
 		expect(core.tick(start + 200)).toBe(true);
 		expect(listener).toHaveBeenCalledTimes(2);
 		expect(new TextDecoder().decode(core.snapshot().content)).toBe("late");
+	});
+
+	it("stamps a block from the wall clock so it compares with the shell hook's epoch stamps", () => {
+		const core = createTerminalCore({ columns: 16, scrollback: 100 });
+		const before = Date.now();
+		core.feed(new TextEncoder().encode("\x1b]133;A\x07\x1b]133;B\x07\x1b]133;C\x07x\r\n\x1b]133;D;0\x07"));
+		const block = decodeBlocks(core.snapshot()).find((candidate) => candidate.state === "finished")!;
+		expect(block.startedAtMs).toBeGreaterThanOrEqual(before);
+		expect(block.finishedAtMs).toBeGreaterThanOrEqual(block.startedAtMs!);
+		expect(block.finishedAtMs).toBeLessThanOrEqual(Date.now());
 	});
 });
 

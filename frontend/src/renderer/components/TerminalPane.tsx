@@ -1004,6 +1004,7 @@ function AttachedTerminal({
 					sessionId={handleId ?? "no-session"}
 					historyBlocks={isShellTarget ? shellBlocks.blocks : NO_HISTORY_BLOCKS}
 					agentTui={terminalTarget?.kind === "worker"}
+					workspacePath={session?.workspacePath}
 					refitToken={refitToken}
 					focusToken={focusToken}
 					ariaLabel={terminalTarget?.kind === "shell" ? t("terminal.shellAria") : t("terminal.sessionAria")}

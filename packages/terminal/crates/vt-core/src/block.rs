@@ -77,6 +77,8 @@ pub struct BlockRecord {
     pub source: BlockSource,
     pub exit_code: Option<i32>,
     pub duration_ms: Option<u64>,
+    pub started_at_ms: Option<u64>,
+    pub finished_at_ms: Option<u64>,
     pub command: TextSpan,
     pub cwd: TextSpan,
     pub git_branch: TextSpan,

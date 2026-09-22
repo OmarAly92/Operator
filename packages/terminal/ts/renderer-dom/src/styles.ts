@@ -204,6 +204,66 @@ export const terminalStyles = `@font-face {
 	cursor: default;
 }
 
+/* The hand appears only while a link is under the pointer, the way Warp swaps
+   the cursor shape per hovered link (app/src/terminal/view.rs set_cursor_shape
+   Cursor::PointingHand / reset_cursor; app/src/util/link_detection.rs). */
+.terminal-link-hover .terminal-block,
+.terminal-link-hover .terminal-alt-surface {
+	cursor: pointer;
+}
+
+.terminal-decorations,
+.terminal-decorations [data-terminal-layer] {
+	position: absolute;
+	top: 0;
+	left: 0;
+	width: 0;
+	height: 0;
+	overflow: visible;
+	pointer-events: none;
+}
+
+.terminal-decorations {
+	z-index: 2;
+}
+
+.terminal-decorations [data-terminal-layer] > div {
+	position: absolute;
+	box-sizing: border-box;
+}
+
+.terminal-link-underline {
+	border-bottom: 1px solid var(--terminal-foreground);
+}
+
+/* Alacritty paints a hint's match and its label over the cells the match
+   occupies (alacritty/src/display/hint.rs, HintState::labels); the label sits
+   at the match's first cell so the eye reads label-then-text. */
+.terminal-hint-match {
+	background: var(--terminal-selection);
+}
+
+.terminal-hint-label {
+	display: flex;
+	align-items: center;
+	padding: 0 2px;
+	width: auto;
+	font-family: var(--terminal-font-family);
+	font-size: var(--terminal-font-size);
+	font-weight: 700;
+	line-height: var(--terminal-line-height);
+	color: var(--terminal-background);
+	background: var(--terminal-ansi-3);
+}
+
+/* A masked secret is painted over its cells rather than rewritten into the row,
+   so the model keeps the bytes and only what is READ is masked (Warp
+   crates/warp_terminal/src/model/secrets.rs, RespectObfuscatedSecrets). */
+.terminal-redaction {
+	background: var(--terminal-foreground);
+	opacity: 0.85;
+}
+
 /* Chrome stays unselectable, so dragging across a block picks up its output and
    not the header metadata or the labels of the buttons floating over it. */
 .terminal-block-header,

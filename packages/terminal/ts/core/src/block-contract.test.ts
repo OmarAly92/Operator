@@ -54,6 +54,10 @@ describe("exit code decoding", () => {
 		words[5] = exitWord;
 		words[6] = 0xffffffff;
 		words[7] = 0xffffffff;
+		words[14] = 0xffffffff;
+		words[15] = 0xffffffff;
+		words[16] = 0xffffffff;
+		words[17] = 0xffffffff;
 		return words;
 	}
 

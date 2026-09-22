@@ -58,7 +58,7 @@ func LoadUserPatterns(dataDir string, log *slog.Logger) int {
 			}
 			continue
 		}
-		patterns = append(patterns, re)
+		userPatterns = append(userPatterns, re)
 		installed++
 	}
 	return installed

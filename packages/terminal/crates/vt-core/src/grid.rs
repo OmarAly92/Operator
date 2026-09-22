@@ -3,6 +3,7 @@ use crate::attribute_map::AttributeMap;
 use crate::block::{BlockRecord, BlockSource, BlockState, TextSpan};
 use crate::block_grid::BlockGrid;
 use crate::content::Content;
+use crate::hyperlink::HyperlinkRegistry;
 use crate::row_index::{RowIndex, RowRange};
 use crate::screen::ScreenGrid;
 use crate::style::CellStyle;
@@ -29,6 +30,7 @@ pub struct CellSpan {
 pub struct ExportedRow {
     pub bytes: Vec<u8>,
     pub indent: u16,
+    pub wrapped: bool,
     pub styles: Vec<(u32, CellStyle)>,
     pub spans: Vec<CellSpan>,
 }
@@ -37,6 +39,7 @@ pub struct GridSnapshot {
     pub content: Vec<u8>,
     pub rows: Vec<(u32, u32)>,
     pub row_indents: Vec<u16>,
+    pub row_wrapped: Vec<bool>,
     pub run_ranges: Vec<(u32, u32)>,
     pub style_pairs: Vec<(u32, CellStyle)>,
     pub span_ranges: Vec<(u32, u32)>,
@@ -50,6 +53,8 @@ pub struct GridSnapshot {
     pub history_rows: u32,
     pub first_stable_row: u64,
     pub alt: Option<crate::alt::AltSnapshot>,
+    pub link_text: Vec<u8>,
+    pub link_ranges: Vec<(u32, u32)>,
 }
 
 impl GridSnapshot {
@@ -78,6 +83,10 @@ impl GridSnapshot {
         usize::from(self.row_indents[index])
     }
 
+    pub fn row_wrapped(&self, index: usize) -> bool {
+        self.row_wrapped[index]
+    }
+
     pub fn row_text(&self, index: usize) -> &str {
         let (start, end) = self.rows[index];
         std::str::from_utf8(&self.content[start as usize..end as usize])
@@ -93,6 +102,11 @@ impl GridSnapshot {
         let (start, end) = self.span_ranges[index];
         &self.cell_spans[start as usize..end as usize]
     }
+
+    pub fn link_uri(&self, id: crate::hyperlink::LinkId) -> Option<&str> {
+        let (start, end) = *self.link_ranges.get(usize::from(id).checked_sub(1)?)?;
+        std::str::from_utf8(&self.link_text[start as usize..end as usize]).ok()
+    }
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -106,10 +120,12 @@ pub(crate) fn build_snapshot(
     alt: Option<&AltGrid>,
     first_stable_row: u64,
     width_mode: WidthMode,
+    links: &HyperlinkRegistry,
 ) -> Result<GridSnapshot, CoreError> {
     let mut all_content = Vec::new();
     let mut row_ranges: Vec<(u32, u32)> = Vec::new();
     let mut row_indents: Vec<u16> = Vec::new();
+    let mut row_wrapped: Vec<bool> = Vec::new();
     let mut style_pairs: Vec<(u32, CellStyle)> = Vec::new();
     let mut run_ranges: Vec<(u32, u32)> = Vec::new();
     let mut span_ranges: Vec<(u32, u32)> = Vec::new();
@@ -118,6 +134,7 @@ pub(crate) fn build_snapshot(
         all_content: &mut all_content,
         row_ranges: &mut row_ranges,
         row_indents: &mut row_indents,
+        row_wrapped: &mut row_wrapped,
         style_pairs: &mut style_pairs,
         run_ranges: &mut run_ranges,
         span_ranges: &mut span_ranges,
@@ -144,10 +161,20 @@ pub(crate) fn build_snapshot(
         row_ranges[row].1 > row_ranges[row].0
     })?;
 
+    let mut link_text: Vec<u8> = Vec::new();
+    let mut link_ranges: Vec<(u32, u32)> = Vec::with_capacity(links.len());
+    for id in 1..=links.len() {
+        let uri = links.uri(id as crate::hyperlink::LinkId).unwrap_or("");
+        let start = checked_u32(link_text.len())?;
+        link_text.extend_from_slice(uri.as_bytes());
+        link_ranges.push((start, checked_u32(link_text.len())?));
+    }
+
     Ok(GridSnapshot {
         content: all_content,
         rows: row_ranges,
         row_indents,
+        row_wrapped,
         run_ranges,
         style_pairs,
         span_ranges,
@@ -161,6 +188,8 @@ pub(crate) fn build_snapshot(
         history_rows: checked_u32(history_rows)?,
         first_stable_row,
         alt: alt.map(|grid| grid.snapshot()),
+        link_text,
+        link_ranges,
     })
 }
 
@@ -182,6 +211,8 @@ pub(crate) fn export_blocks(
             source: BlockSource::Synthetic,
             exit_code: None,
             duration_ms: None,
+            started_at_ms: grid.trailing_started_at_ms(),
+            finished_at_ms: None,
             command: TextSpan::default(),
             cwd: TextSpan::default(),
             git_branch: TextSpan::default(),
@@ -214,6 +245,8 @@ pub(crate) fn export_blocks(
                 source: block.source,
                 exit_code: block.meta.exit_code,
                 duration_ms,
+                started_at_ms: started,
+                finished_at_ms: finished,
                 command,
                 cwd,
                 git_branch,
@@ -232,6 +265,8 @@ pub(crate) fn export_blocks(
                 source: BlockSource::Synthetic,
                 exit_code: None,
                 duration_ms: None,
+                started_at_ms: grid.trailing_started_at_ms(),
+                finished_at_ms: None,
                 command: TextSpan::default(),
                 cwd: TextSpan::default(),
                 git_branch: TextSpan::default(),
@@ -254,6 +289,7 @@ struct SnapshotCtx<'a> {
     all_content: &'a mut Vec<u8>,
     row_ranges: &'a mut Vec<(u32, u32)>,
     row_indents: &'a mut Vec<u16>,
+    row_wrapped: &'a mut Vec<bool>,
     style_pairs: &'a mut Vec<(u32, CellStyle)>,
     run_ranges: &'a mut Vec<(u32, u32)>,
     span_ranges: &'a mut Vec<(u32, u32)>,
@@ -266,6 +302,7 @@ impl SnapshotCtx<'_> {
         let content_end = checked_u32(self.all_content.len() + row.bytes.len())?;
         self.row_ranges.push((content_base, content_end));
         self.row_indents.push(row.indent);
+        self.row_wrapped.push(row.wrapped);
         self.all_content.extend_from_slice(&row.bytes);
 
         let pair_start = checked_u32(self.style_pairs.len())?;
@@ -314,15 +351,21 @@ pub(crate) fn export_history_row(
     ExportedRow {
         bytes,
         indent: row.indent,
+        wrapped: row.wrapped,
         styles: pairs,
         spans,
     }
 }
 
 pub(crate) fn export_screen_row(screen: &ScreenGrid, row: usize) -> ExportedRow {
-    let width = (0..screen.cols())
-        .rposition(|col| !screen.cell(row, col).is_blank())
-        .map_or(0, |col| col + 1);
+    let wrapped = screen.row_wrapped(row);
+    let width = if wrapped {
+        screen.cols()
+    } else {
+        (0..screen.cols())
+            .rposition(|col| !screen.cell(row, col).is_blank())
+            .map_or(0, |col| col + 1)
+    };
     let mut bytes: Vec<u8> = Vec::new();
     let mut pairs: Vec<(u32, CellStyle)> = Vec::new();
     let mut spans: Vec<CellSpan> = Vec::new();
@@ -362,6 +405,7 @@ pub(crate) fn export_screen_row(screen: &ScreenGrid, row: usize) -> ExportedRow 
     ExportedRow {
         bytes,
         indent: 0,
+        wrapped,
         styles: pairs,
         spans,
     }

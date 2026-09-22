@@ -3,6 +3,7 @@ import type { ThemePreference, ThemeStyle } from "../../lib/theme";
 import { useUiStore } from "../../stores/ui-store";
 import { TERMINAL_BACKGROUNDS, type TerminalBackground } from "../../lib/terminal-background";
 import { TERMINAL_FONT_SIZES, clampTerminalFontSize } from "../../lib/terminal-font-size";
+import { Switch } from "../ui/switch";
 import { SettingsOptionMenu, type SettingsOption } from "./SettingsOptionMenu";
 import { SettingsLinkRow, SettingsRow } from "./SettingsRow";
 import { SettingsSection } from "./SettingsSection";
@@ -46,6 +47,8 @@ export function GeneralSettingsSection({
 	const setTerminalBackground = useUiStore((state) => state.setTerminalBackground);
 	const terminalFontSize = useUiStore((state) => state.terminalFontSize);
 	const setTerminalFontSize = useUiStore((state) => state.setTerminalFontSize);
+	const terminalSecretRedaction = useUiStore((state) => state.terminalSecretRedaction);
+	const setTerminalSecretRedaction = useUiStore((state) => state.setTerminalSecretRedaction);
 
 	const themeOptions = [
 		{ value: "light", label: t("settings.theme.light") },
@@ -99,6 +102,13 @@ export function GeneralSettingsSection({
 					value={String(terminalFontSize)}
 					options={terminalFontSizeOptions}
 					onChange={(next) => setTerminalFontSize(clampTerminalFontSize(Number(next)))}
+				/>
+			</SettingsRow>
+			<SettingsRow label={t("settings.terminalSecretRedaction")}>
+				<Switch
+					aria-label={t("settings.terminalSecretRedaction")}
+					checked={terminalSecretRedaction}
+					onCheckedChange={setTerminalSecretRedaction}
 				/>
 			</SettingsRow>
 			<SettingsLinkRow label={t("settings.connectMobile")} onClick={onConnectMobile} />

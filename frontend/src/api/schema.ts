@@ -965,6 +965,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/redaction/patterns": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List the secret shapes a client should mask locally */
+        get: operations["getRedactionPatterns"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/reviews/{reviewSessionID}/activity": {
         parameters: {
             query?: never;
@@ -2748,6 +2765,13 @@ export interface components {
             lastSeenAt: string;
             platform?: string;
             token: string;
+        };
+        RedactionPattern: {
+            flags: string;
+            source: string;
+        };
+        RedactionPatternsResponse: {
+            patterns: components["schemas"]["RedactionPattern"][];
         };
         RegisterPushDeviceRequest: {
             /** @description Human-friendly device label. */
@@ -6735,6 +6759,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    getRedactionPatterns: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RedactionPatternsResponse"];
                 };
             };
         };

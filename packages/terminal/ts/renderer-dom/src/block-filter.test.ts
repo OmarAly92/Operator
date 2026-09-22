@@ -10,6 +10,8 @@ function makeBlock(overrides: Partial<BlockView> & { id: string }): BlockView {
 		source: "osc133",
 		exitCode: 0,
 		durationMs: null,
+		startedAtMs: null,
+		finishedAtMs: null,
 		command: "cmd",
 		cwd: "",
 		gitBranch: "",

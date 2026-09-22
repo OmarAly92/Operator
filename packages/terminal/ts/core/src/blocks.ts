@@ -1,6 +1,6 @@
 import type { BlockSource, BlockState, BlockView, TerminalSnapshot } from "./types.js";
 
-export const BLOCK_RECORD_WORDS = 14;
+export const BLOCK_RECORD_WORDS = 18;
 
 const STATES: readonly BlockState[] = ["running", "finished", "abandoned"];
 const SOURCES: readonly BlockSource[] = ["osc133", "extension", "synthetic"];
@@ -55,6 +55,11 @@ function decodeBlockRecords(
 			durationLow === 0xffffffff && durationHigh === 0xffffffff
 				? null
 				: durationHigh * 2 ** 32 + durationLow;
+		const stampAt = (index: number): number | null => {
+			const lo = blocks[base + index];
+			const hi = blocks[base + index + 1];
+			return lo === 0xffffffff && hi === 0xffffffff ? null : hi * 2 ** 32 + lo;
+		};
 		views.push({
 			// The Rust id is a u64; a JS number cannot hold one, so it stays a string.
 			id: `${idHigh}:${idLow}`,
@@ -68,6 +73,8 @@ function decodeBlockRecords(
 			cwd: decodeSpan(blockText, blocks[base + 10], blocks[base + 11]),
 			gitBranch: decodeSpan(blockText, blocks[base + 12], blocks[base + 13]),
 			bookmarked,
+			startedAtMs: stampAt(14),
+			finishedAtMs: stampAt(16),
 		});
 	}
 	return views;

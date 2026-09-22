@@ -23,6 +23,10 @@ import {
 export type { Theme, ThemePreference, ThemeStyle } from "../lib/theme";
 export type { TerminalBackground } from "../lib/terminal-background";
 import { readStoredTerminalFontSize, terminalFontSizeStorageKey, type TerminalFontSize } from "../lib/terminal-font-size";
+import {
+	readStoredTerminalSecretRedaction,
+	terminalSecretRedactionStorageKey,
+} from "../lib/terminal-secret-redaction";
 export { readStoredTerminalBackground } from "../lib/terminal-background";
 export { readStoredThemePreference, readStoredThemeStyle, resolveTheme } from "../lib/theme";
 
@@ -59,6 +63,8 @@ type UiState = {
 	themeStyle: ThemeStyle;
 	terminalBackground: TerminalBackground;
 	terminalFontSize: TerminalFontSize;
+	/** Mask daemon-shaped secrets in the terminal. Off by default. */
+	terminalSecretRedaction: boolean;
 	// Transient "open the New Task dialog for this project" signal. The nonce
 	// bumps on every request so a repeat press (even for the same project) still
 	// re-fires; the always-mounted GlobalNewTaskDialog consumes it. Selection
@@ -88,6 +94,7 @@ type UiState = {
 	setThemeStyle: (style: ThemeStyle) => void;
 	setTerminalBackground: (background: TerminalBackground) => void;
 	setTerminalFontSize: (size: TerminalFontSize) => void;
+	setTerminalSecretRedaction: (enabled: boolean) => void;
 	openGlobalSettings: () => void;
 	openMobileSettings: () => void;
 	openProjectSettings: (projectId: string) => void;
@@ -139,6 +146,7 @@ const initialThemePreference = readStoredThemePreference();
 const initialThemeStyle = readStoredThemeStyle();
 const initialTerminalBackground = readStoredTerminalBackground();
 const initialTerminalFontSize = readStoredTerminalFontSize();
+const initialTerminalSecretRedaction = readStoredTerminalSecretRedaction();
 
 export const useUiStore = create<UiState>((set, get) => ({
 	workbenchTab: "changes",
@@ -151,6 +159,7 @@ export const useUiStore = create<UiState>((set, get) => ({
 	themeStyle: initialThemeStyle,
 	terminalBackground: initialTerminalBackground,
 	terminalFontSize: initialTerminalFontSize,
+	terminalSecretRedaction: initialTerminalSecretRedaction,
 	newTaskRequest: null,
 	createProjectNonce: 0,
 	newShellTerminalNonce: 0,
@@ -184,6 +193,11 @@ export const useUiStore = create<UiState>((set, get) => ({
 		if (get().terminalFontSize === terminalFontSize) return;
 		getLocalStorage()?.setItem(terminalFontSizeStorageKey, String(terminalFontSize));
 		set({ terminalFontSize });
+	},
+	setTerminalSecretRedaction: (terminalSecretRedaction) => {
+		if (get().terminalSecretRedaction === terminalSecretRedaction) return;
+		getLocalStorage()?.setItem(terminalSecretRedactionStorageKey, terminalSecretRedaction ? "1" : "0");
+		set({ terminalSecretRedaction });
 	},
 	openGlobalSettings: () => set({ settingsModal: { scope: "global" } }),
 	openMobileSettings: () => set({ settingsModal: { scope: "global", section: "mobile" } }),
