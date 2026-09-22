@@ -302,6 +302,7 @@ export function Sidebar({
 										session={session}
 										active={visibleSessionIds.has(session.id)}
 										onOpen={() => selection.goSession(session.workspaceId, session.id)}
+										pinnedPlacement
 									/>
 								))}
 							</SidebarMenuSub>
@@ -804,10 +805,12 @@ function SessionRow({
 	session,
 	active,
 	onOpen,
+	pinnedPlacement = false,
 }: {
 	session: WorkspaceSession;
 	active: boolean;
 	onOpen: () => void;
+	pinnedPlacement?: boolean;
 }) {
 	const { t } = useTranslation();
 	const [isEditing, setIsEditing] = useState(false);
@@ -815,7 +818,11 @@ function SessionRow({
 	// Escape must not be swallowed by the blur-to-save path: the keydown handler
 	// blurs the input, so it flags a cancel here for onBlur to honour.
 	const cancelledRef = useRef(false);
-	const drag = useSplitTabDraggable({ kind: "session", sessionId: session.id }, session.title, "sidebar");
+	const drag = useSplitTabDraggable(
+		{ kind: "session", sessionId: session.id },
+		session.title,
+		pinnedPlacement ? "sidebar-pinned" : "sidebar",
+	);
 	const [killConfirmOpen, setKillConfirmOpen] = useState(false);
 
 	const queryClient = useQueryClient();

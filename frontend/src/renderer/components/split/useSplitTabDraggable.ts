@@ -7,7 +7,7 @@ export function isSplitTabDragData(value: unknown): value is SplitTabDragData {
 	return typeof value === "object" && value !== null && "splitTab" in value;
 }
 
-export function useSplitTabDraggable(tab: TabRef, label: string, origin: "strip" | "sidebar") {
+export function useSplitTabDraggable(tab: TabRef, label: string, origin: "strip" | "sidebar" | "sidebar-pinned") {
 	const { setNodeRef, listeners, isDragging } = useDraggable({
 		id: `split-tab:${origin}:${tabKey(tab)}`,
 		data: { splitTab: { tab, label } } satisfies SplitTabDragData,

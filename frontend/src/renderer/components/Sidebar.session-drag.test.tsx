@@ -8,6 +8,18 @@ vi.mock("motion/react", async (importOriginal) => {
 		AnimatePresence: ({ children }: { children: React.ReactNode }) => children,
 	};
 });
+const draggableIds = vi.hoisted(() => [] as string[]);
+
+vi.mock("@dnd-kit/core", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("@dnd-kit/core")>();
+	return {
+		...actual,
+		useDraggable: (args: Parameters<typeof actual.useDraggable>[0]) => {
+			draggableIds.push(String(args.id));
+			return actual.useDraggable(args);
+		},
+	};
+});
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -59,13 +71,14 @@ const session: WorkspaceSession = {
 };
 
 beforeEach(() => {
+	draggableIds.length = 0;
 	window.localStorage.clear();
 	navigateMock.mockReset();
 	mockParams.projectId = undefined;
 	mockParams.sessionId = undefined;
 });
 
-function renderSidebarInDndProvider() {
+function renderSidebarInDndProvider(sessions: WorkspaceSession[] = [session]) {
 	mockParams.projectId = "proj-1";
 	const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
 	queryClient.setQueryData(agentsQueryKey, {
@@ -81,7 +94,7 @@ function renderSidebarInDndProvider() {
 						onCreateProject={vi.fn().mockResolvedValue(undefined)}
 						onInitializeProject={vi.fn().mockResolvedValue(undefined)}
 						onRemoveProject={vi.fn().mockResolvedValue(undefined)}
-						workspaces={[{ ...workspace, sessions: [session] }]}
+						workspaces={[{ ...workspace, sessions }]}
 					/>
 				</SidebarProvider>
 			</AppDndProvider>
@@ -95,5 +108,12 @@ describe("SessionRow as a split drag source", () => {
 		const openButton = await screen.findByLabelText(`Open ${session.title}`);
 		await userEvent.click(openButton);
 		expect(navigateMock).toHaveBeenCalled();
+	});
+
+	it("gives a pinned session's two rows distinct drag ids", async () => {
+		renderSidebarInDndProvider([{ ...session, isPinned: true, pinnedAt: "2026-06-30T00:00:00Z" }]);
+		expect(await screen.findAllByLabelText(`Open ${session.title}`)).toHaveLength(2);
+		const rowIds = [...new Set(draggableIds.filter((id) => id.includes(session.id)))];
+		expect(rowIds).toHaveLength(2);
 	});
 });
