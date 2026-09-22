@@ -12,8 +12,16 @@ const dragOf = (tab: TabRef, label = "L"): SplitDrag => ({
 });
 
 describe("SplitDropOverlay", () => {
-	it("renders nothing without a target", () => {
+	it("renders nothing without a drag", () => {
 		render(<SplitDropOverlay />);
+		expect(screen.queryByTestId("split-drop-dim")).toBeNull();
+		expect(screen.queryByTestId("split-drop-box")).toBeNull();
+	});
+
+	it("dims the window for the whole drag, before a target resolves", () => {
+		useSplitDragStore.setState({ drag: dragOf(s("b")), target: null });
+		render(<SplitDropOverlay />);
+		expect(screen.getByTestId("split-drop-dim")).toBeInTheDocument();
 		expect(screen.queryByTestId("split-drop-box")).toBeNull();
 	});
 
