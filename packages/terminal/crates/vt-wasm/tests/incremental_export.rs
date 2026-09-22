@@ -48,6 +48,8 @@ fn assert_projection_equal(incremental: &ExportBuffers, full: &ExportBuffers) {
     assert_eq!(incremental.alt_row_ranges(), full.alt_row_ranges());
     assert_eq!(incremental.alt_run_ranges(), full.alt_run_ranges());
     assert_eq!(incremental.alt_style_pairs(), full.alt_style_pairs());
+    assert_eq!(incremental.alt_span_ranges(), full.alt_span_ranges());
+    assert_eq!(incremental.alt_cell_spans(), full.alt_cell_spans());
 }
 
 fn assert_bytes_equal(incremental: &ExportBuffers, full: &ExportBuffers) {
@@ -56,6 +58,8 @@ fn assert_bytes_equal(incremental: &ExportBuffers, full: &ExportBuffers) {
     assert_eq!(incremental.row_indents(), full.row_indents());
     assert_eq!(incremental.run_ranges(), full.run_ranges());
     assert_eq!(incremental.style_pairs(), full.style_pairs());
+    assert_eq!(incremental.span_ranges(), full.span_ranges());
+    assert_eq!(incremental.cell_spans(), full.cell_spans());
     assert_projection_equal(incremental, full);
 }
 
@@ -80,6 +84,7 @@ fn op() -> impl Strategy<Value = Op> {
         1 => Just(Op::Bytes(b"\x1b]7000;v=1;boundary=0\x07".to_vec())),
         1 => Just(Op::Bytes(b"\x1b[?1049h".to_vec())),
         1 => Just(Op::Bytes(b"\x1b[?1049l".to_vec())),
+        2 => Just(Op::Bytes("w\u{6f22}e\u{301}\r\n".as_bytes().to_vec())),
         2 => (10usize..=60, 2usize..=8).prop_map(|(cols, rows)| Op::Resize(cols, rows)),
     ]
 }

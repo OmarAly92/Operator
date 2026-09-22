@@ -49,6 +49,8 @@ function buildAltView(
 		rowRanges: Uint32Array.from(rowRanges),
 		runRanges: Uint32Array.from(runRanges),
 		stylePairs: Uint32Array.from(stylePairs),
+		spanRanges: new Uint32Array(rowTexts.length * 2),
+		cellSpans: new Uint32Array(0),
 		cursorRow: overrides.cursorRow ?? 0,
 		cursorColumn: overrides.cursorColumn ?? 0,
 		cursorVisible: overrides.cursorVisible ?? true,

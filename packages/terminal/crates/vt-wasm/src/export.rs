@@ -14,6 +14,8 @@ pub const FIND_MATCH_WORDS: usize = 5;
 
 pub const STYLE_RUN_WORDS: usize = 5;
 
+pub const CELL_SPAN_WORDS: usize = 3;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ExportError {
     OffsetOverflow,
@@ -36,6 +38,8 @@ pub struct ExportBuffers {
     row_indents: Vec<u16>,
     run_ranges: Vec<u32>,
     style_pairs: Vec<u32>,
+    span_ranges: Vec<u32>,
+    cell_spans: Vec<u32>,
     blocks: Vec<u32>,
     block_text: Vec<u8>,
     line_editor_state: u32,
@@ -53,12 +57,16 @@ pub struct ExportBuffers {
     alt_row_ranges: Vec<u32>,
     alt_run_ranges: Vec<u32>,
     alt_style_pairs: Vec<u32>,
+    alt_span_ranges: Vec<u32>,
+    alt_cell_spans: Vec<u32>,
     dead_rows: usize,
     dead_bytes: usize,
     dead_pairs: usize,
+    dead_spans: usize,
     history_rows: usize,
     history_end: usize,
     history_pairs: usize,
+    history_spans: usize,
 }
 
 impl ExportBuffers {
@@ -68,6 +76,8 @@ impl ExportBuffers {
         self.row_indents.clear();
         self.run_ranges.clear();
         self.style_pairs.clear();
+        self.span_ranges.clear();
+        self.cell_spans.clear();
         self.blocks.clear();
         self.block_text.clear();
         self.line_editor_state = snapshot.line_editor_state;
@@ -99,6 +109,17 @@ impl ExportBuffers {
             self.style_pairs.push(style.underline.value());
         }
 
+        for &(start, end) in &snapshot.span_ranges {
+            self.span_ranges.push(start);
+            self.span_ranges.push(end);
+        }
+
+        for &span in &snapshot.cell_spans {
+            self.cell_spans.push(span.start);
+            self.cell_spans.push(span.end);
+            self.cell_spans.push(u32::from(span.width));
+        }
+
         if let Some(alt) = snapshot.alt.as_ref() {
             self.alt_active = true;
             self.alt_rows = alt.rows as u32;
@@ -122,6 +143,15 @@ impl ExportBuffers {
                 self.alt_style_pairs.push(u32::from(style.attrs.bits()));
                 self.alt_style_pairs.push(style.underline.value());
             }
+            for &(start, end) in &alt.span_ranges {
+                self.alt_span_ranges.push(start);
+                self.alt_span_ranges.push(end);
+            }
+            for &span in &alt.cell_spans {
+                self.alt_cell_spans.push(span.start);
+                self.alt_cell_spans.push(span.end);
+                self.alt_cell_spans.push(u32::from(span.width));
+            }
         }
 
         self.write_blocks(&snapshot.blocks, &snapshot.block_text)?;
@@ -129,6 +159,7 @@ impl ExportBuffers {
         self.dead_rows = 0;
         self.dead_bytes = 0;
         self.dead_pairs = 0;
+        self.dead_spans = 0;
         self.history_rows = snapshot.history_rows as usize;
         self.history_end = if self.history_rows == 0 {
             0
@@ -139,6 +170,11 @@ impl ExportBuffers {
             0
         } else {
             self.run_ranges[self.history_rows * 2 - 1] as usize
+        };
+        self.history_spans = if self.history_rows == 0 {
+            0
+        } else {
+            self.span_ranges[self.history_rows * 2 - 1] as usize
         };
 
         Ok(())
@@ -162,6 +198,7 @@ impl ExportBuffers {
         }
         self.history_end = self.content.len();
         self.history_pairs = self.style_pairs.len() / STYLE_RUN_WORDS;
+        self.history_spans = self.cell_spans.len() / CELL_SPAN_WORDS;
         for row in core.export_screen_rows() {
             self.push_row(&row)?;
         }
@@ -202,6 +239,11 @@ impl ExportBuffers {
         } else {
             self.history_pairs
         };
+        self.dead_spans = if self.history_rows > 0 {
+            self.span_ranges[first_live] as usize
+        } else {
+            self.history_spans
+        };
     }
 
     fn rewrite_history_from(
@@ -221,11 +263,18 @@ impl ExportBuffers {
         } else {
             self.run_ranges[cut_row * 2 - 1] as usize
         };
+        let cut_spans = if cut_row == 0 {
+            0
+        } else {
+            self.span_ranges[cut_row * 2 - 1] as usize
+        };
         self.content.truncate(cut_bytes);
         self.rows.truncate(cut_row * 2);
         self.row_indents.truncate(cut_row);
         self.run_ranges.truncate(cut_row * 2);
         self.style_pairs.truncate(cut_pairs * STYLE_RUN_WORDS);
+        self.span_ranges.truncate(cut_row * 2);
+        self.cell_spans.truncate(cut_spans * CELL_SPAN_WORDS);
         self.history_rows = cut_row - self.dead_rows;
         let core_history_rows = core.history_rows();
         let from = from.min(core_history_rows);
@@ -244,6 +293,9 @@ impl ExportBuffers {
         self.run_ranges.truncate(keep_rows * 2);
         self.style_pairs
             .truncate(self.history_pairs * STYLE_RUN_WORDS);
+        self.span_ranges.truncate(keep_rows * 2);
+        self.cell_spans
+            .truncate(self.history_spans * CELL_SPAN_WORDS);
     }
 
     fn push_row(&mut self, row: &ExportedRow) -> Result<(), ExportError> {
@@ -264,6 +316,16 @@ impl ExportBuffers {
         let pair_end = checked_u32_from_u64((self.style_pairs.len() / STYLE_RUN_WORDS) as u64)?;
         self.run_ranges.push(pair_start);
         self.run_ranges.push(pair_end);
+
+        let span_start = checked_u32_from_u64((self.cell_spans.len() / CELL_SPAN_WORDS) as u64)?;
+        for &span in &row.spans {
+            self.cell_spans.push(span.start);
+            self.cell_spans.push(span.end);
+            self.cell_spans.push(u32::from(span.width));
+        }
+        let span_end = checked_u32_from_u64((self.cell_spans.len() / CELL_SPAN_WORDS) as u64)?;
+        self.span_ranges.push(span_start);
+        self.span_ranges.push(span_end);
         Ok(())
     }
 
@@ -278,6 +340,8 @@ impl ExportBuffers {
         self.alt_row_ranges.clear();
         self.alt_run_ranges.clear();
         self.alt_style_pairs.clear();
+        self.alt_span_ranges.clear();
+        self.alt_cell_spans.clear();
     }
 
     fn maybe_compact(&mut self) {
@@ -296,6 +360,7 @@ impl ExportBuffers {
         }
         let dead_bytes = self.dead_bytes as u32;
         let dead_pairs = self.dead_pairs as u32;
+        let dead_spans = self.dead_spans as u32;
         self.content.drain(..self.dead_bytes);
         self.rows.drain(..self.dead_rows * 2);
         for offset in &mut self.rows {
@@ -307,11 +372,18 @@ impl ExportBuffers {
             *index -= dead_pairs;
         }
         self.style_pairs.drain(..self.dead_pairs * STYLE_RUN_WORDS);
+        self.span_ranges.drain(..self.dead_rows * 2);
+        for index in &mut self.span_ranges {
+            *index -= dead_spans;
+        }
+        self.cell_spans.drain(..self.dead_spans * CELL_SPAN_WORDS);
         self.history_end -= self.dead_bytes;
         self.history_pairs -= self.dead_pairs;
+        self.history_spans -= self.dead_spans;
         self.dead_rows = 0;
         self.dead_bytes = 0;
         self.dead_pairs = 0;
+        self.dead_spans = 0;
     }
 
     pub fn dead_rows(&self) -> usize {
@@ -389,6 +461,14 @@ impl ExportBuffers {
         &self.style_pairs
     }
 
+    pub fn span_ranges(&self) -> &[u32] {
+        &self.span_ranges[self.dead_rows * 2..]
+    }
+
+    pub fn cell_spans(&self) -> &[u32] {
+        &self.cell_spans
+    }
+
     pub fn blocks(&self) -> &[u32] {
         &self.blocks
     }
@@ -455,5 +535,13 @@ impl ExportBuffers {
 
     pub fn alt_style_pairs(&self) -> &[u32] {
         &self.alt_style_pairs
+    }
+
+    pub fn alt_span_ranges(&self) -> &[u32] {
+        &self.alt_span_ranges
+    }
+
+    pub fn alt_cell_spans(&self) -> &[u32] {
+        &self.alt_cell_spans
     }
 }

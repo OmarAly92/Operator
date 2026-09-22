@@ -18,6 +18,17 @@ fn flattens_rows_and_runs_as_u32_pairs() {
 }
 
 #[test]
+fn exports_cell_spans_beside_the_rows_as_start_end_width_triples() {
+    let mut core = TerminalCore::new(16, 10).unwrap();
+    core.feed("ab\u{6f22}c\r\ne\u{301}".as_bytes());
+    let mut buffers = ExportBuffers::default();
+    buffers.refresh(&core.snapshot().unwrap()).unwrap();
+
+    assert_eq!(buffers.span_ranges(), &[0, 1, 1, 2]);
+    assert_eq!(buffers.cell_spans(), &[2, 5, 2, 0, 3, 1]);
+}
+
+#[test]
 fn offset_overflow_when_u64_exceeds_u32_max() {
     assert_eq!(
         vt_wasm::checked_u32_from_u64(u32::MAX as u64 + 1),

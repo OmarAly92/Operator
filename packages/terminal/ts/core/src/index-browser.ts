@@ -58,6 +58,7 @@ export {
 	STYLE_DEFAULT_UNDERLINE,
 	STYLE_RUN_WORDS,
 } from "./style-runs.js";
+export { CELL_SPAN_WORDS } from "./cell-spans.js";
 export {
 	FEED_BUDGET_MS,
 	FEED_SLICE_BYTES,

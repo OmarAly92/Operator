@@ -6,8 +6,8 @@ use vt_core::{FindCursor, FindMatch, FindQuery, TerminalCore};
 use wasm_bindgen::prelude::*;
 
 pub use export::{
-    checked_u32_from_u64, ExportBuffers, ExportError, BLOCK_RECORD_WORDS, COMPACTION_DIVISOR,
-    FIND_MATCH_WORDS, STYLE_RUN_WORDS,
+    checked_u32_from_u64, ExportBuffers, ExportError, BLOCK_RECORD_WORDS, CELL_SPAN_WORDS,
+    COMPACTION_DIVISOR, FIND_MATCH_WORDS, STYLE_RUN_WORDS,
 };
 
 pub const DIRTY_ROWS_CAP: usize = 4096;
@@ -284,6 +284,22 @@ impl WasmTerminalCore {
         self.export.style_pairs().len()
     }
 
+    pub fn span_ranges_ptr(&self) -> *const u32 {
+        self.export.span_ranges().as_ptr()
+    }
+
+    pub fn span_ranges_len(&self) -> usize {
+        self.export.span_ranges().len()
+    }
+
+    pub fn cell_spans_ptr(&self) -> *const u32 {
+        self.export.cell_spans().as_ptr()
+    }
+
+    pub fn cell_spans_len(&self) -> usize {
+        self.export.cell_spans().len()
+    }
+
     pub fn blocks_ptr(&self) -> *const u32 {
         self.export.blocks().as_ptr()
     }
@@ -402,6 +418,22 @@ impl WasmTerminalCore {
 
     pub fn alt_style_pairs_len(&self) -> usize {
         self.export.alt_style_pairs().len()
+    }
+
+    pub fn alt_span_ranges_ptr(&self) -> *const u32 {
+        self.export.alt_span_ranges().as_ptr()
+    }
+
+    pub fn alt_span_ranges_len(&self) -> usize {
+        self.export.alt_span_ranges().len()
+    }
+
+    pub fn alt_cell_spans_ptr(&self) -> *const u32 {
+        self.export.alt_cell_spans().as_ptr()
+    }
+
+    pub fn alt_cell_spans_len(&self) -> usize {
+        self.export.alt_cell_spans().len()
     }
 
     pub fn find_open(&mut self, query: &str, is_regex: bool) -> Result<u32, JsError> {

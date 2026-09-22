@@ -36,7 +36,7 @@ pub use block_selection::{BlockSelection, SelectionPoint};
 pub use block_tree::{BlockSummary, BlockTree};
 pub use delta::{Delta, DeltaKind};
 pub use find::{FindCursor, FindMatch, FindQuery};
-pub use grid::ExportedRow;
+pub use grid::{CellSpan, ExportedRow};
 pub use integrity::IntegrityError;
 pub use limits::{Limits, MemoryStats};
 pub use line_editor::LineEditorState;
@@ -344,6 +344,7 @@ impl TerminalCore {
             self.line_editor.state(),
             self.parser.alt(),
             self.parser.first_stable_row(),
+            self.parser.width_mode(),
         )
     }
 
@@ -372,7 +373,14 @@ impl TerminalCore {
         let completed = self.parser.rows().completed();
         range
             .filter_map(|index| completed.get(index))
-            .map(|row| grid::export_history_row(self.parser.content(), self.parser.styles(), row))
+            .map(|row| {
+                grid::export_history_row(
+                    self.parser.content(),
+                    self.parser.styles(),
+                    row,
+                    self.parser.width_mode(),
+                )
+            })
             .collect()
     }
 

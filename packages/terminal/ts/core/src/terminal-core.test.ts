@@ -25,6 +25,14 @@ describe("TerminalCore", () => {
 		expect([...snapshot.stylePairs]).toEqual([3, 1, 254, 0, 255, 9, 255, 254, 0, 255, 5, 255, 254, 0, 255]);
 	});
 
+	it("exports cell spans for wide and joined clusters", () => {
+		const core = createTerminalCore({ columns: 16, scrollback: 10 });
+		core.feed(new TextEncoder().encode("ab漢c\r\né"));
+		const snapshot = core.snapshot();
+		expect([...snapshot.spanRanges]).toEqual([0, 1, 1, 2]);
+		expect([...snapshot.cellSpans]).toEqual([2, 5, 2, 0, 3, 1]);
+	});
+
 	it("creates independent instances that do not share state", () => {
 		const a = createTerminalCore({ columns: 16, scrollback: 100 });
 		const b = createTerminalCore({ columns: 16, scrollback: 100 });

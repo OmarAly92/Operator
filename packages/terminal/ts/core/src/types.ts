@@ -81,6 +81,8 @@ export type TerminalSnapshot = Readonly<{
 	rowIndents: Uint16Array;
 	runRanges: Uint32Array;
 	stylePairs: Uint32Array;
+	spanRanges: Uint32Array;
+	cellSpans: Uint32Array;
 	blocks: Uint32Array;
 	blockText: Uint8Array;
 	lineEditorState: number;
@@ -103,6 +105,8 @@ export type AltScreenView = Readonly<{
 	rowRanges: Uint32Array;
 	runRanges: Uint32Array;
 	stylePairs: Uint32Array;
+	spanRanges: Uint32Array;
+	cellSpans: Uint32Array;
 	cursorRow: number;
 	cursorColumn: number;
 	cursorVisible: boolean;
