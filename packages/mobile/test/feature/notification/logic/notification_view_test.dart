@@ -26,11 +26,24 @@ void main() {
       expect(notificationVisual(skin, '').label, 'Notification');
       expect(notificationVisual(skin, '').color, skin.textTertiary);
     });
+
+    test('labels the agent alert types', () {
+      expect(notificationVisual(skin, 'turn_finished').label, 'Finished');
+      expect(notificationVisual(skin, 'turn_finished').color, skin.green);
+      expect(notificationVisual(skin, 'agent_exited').label, 'Exited');
+      expect(notificationVisual(skin, 'agent_exited').color, skin.red);
+    });
   });
 
   group('notificationTarget', () {
     test('opens the session for a needs_input notification', () {
       expect(notificationTarget(type: 'needs_input', sessionId: 'abc'), '/session/abc');
+    });
+
+    test('opens the session for turn_finished and agent_exited notifications', () {
+      expect(notificationTarget(type: 'turn_finished', sessionId: 's1'), '/session/s1');
+      expect(notificationTarget(type: 'agent_exited', sessionId: 's1'), '/session/s1');
+      expect(notificationTarget(type: 'ready_to_merge', sessionId: 's1'), '/prs');
     });
 
     test('falls back to the PRs tab when there is no session to open', () {

@@ -1,4 +1,4 @@
-import { CircleHelp, ClipboardList, Inbox, KeyRound, RefreshCw, Settings2, Smartphone, TriangleAlert, X } from "lucide-react";
+import { Bell, CircleHelp, ClipboardList, Inbox, KeyRound, RefreshCw, Settings2, Smartphone, TriangleAlert, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { GlobalSettingsForm, type GlobalSettingsSection } from "./GlobalSettingsForm";
@@ -46,6 +46,7 @@ export function SettingsDialog() {
 		{ id: "general", label: t("settings.general"), icon: Settings2 },
 		{ id: "claudeAccounts", label: t("settings.claudeAccounts.title"), icon: KeyRound },
 		{ id: "mobile", label: t("settings.mobile"), icon: Smartphone },
+		{ id: "notifications", label: t("settings.notifications.title"), icon: Bell },
 		{ id: "updates", label: t("settings.updates"), icon: RefreshCw },
 		{ id: "help", label: t("settings.help"), icon: CircleHelp },
 	];

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:operator_mobile/core/app_routes/home_shell.dart';
 import 'package:operator_mobile/core/app_routes/routes_strings.dart';
+import 'package:operator_mobile/core/notifications/viewed_session.dart';
 import 'package:operator_mobile/core/utils/service_locator.dart';
 import 'package:operator_mobile/core/widgets/failure_widgets/app_error_widget.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_scaffold.dart';
@@ -138,7 +139,7 @@ sealed class AppRouter {
                   ),
                 ),
             ],
-            child: const TerminalScreen(),
+            child: ViewedSessionMarker(sessionId: terminalArgs.sessionId, child: const TerminalScreen()),
           ),
           settings: settings,
         );

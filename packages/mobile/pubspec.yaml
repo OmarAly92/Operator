@@ -77,6 +77,7 @@ dependencies:
   flutter_markdown_plus: ^1.0.12
   drift: ^2.34.1
   drift_flutter: ^0.3.0
+  flutter_local_notifications: ^22.3.0
 
 dev_dependencies:
   flutter_test:

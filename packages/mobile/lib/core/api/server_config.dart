@@ -20,3 +20,5 @@ class ServerConfig extends Equatable {
   @override
   List<Object?> get props => [host, httpPort, secure, password];
 }
+
+bool hasServer(ServerConfig? server) => (server?.host.trim() ?? '').isNotEmpty;

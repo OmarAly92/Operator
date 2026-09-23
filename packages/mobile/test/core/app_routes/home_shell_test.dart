@@ -16,12 +16,8 @@ import 'package:operator_mobile/core/mux/session_patch.dart';
 import 'package:operator_mobile/core/utils/service_locator.dart';
 import 'package:operator_mobile/feature/notification/data/model/notification_page_model.dart';
 import 'package:operator_mobile/feature/notification/data/model/params/get_notifications_params.dart';
-import 'package:operator_mobile/feature/notification/data/model/params/register_push_device_params.dart';
+import 'package:operator_mobile/feature/notification/data/model/phone_alert_status_model.dart';
 import 'package:operator_mobile/feature/notification/data/repository/notification_repository.dart';
-import 'package:operator_mobile/feature/notification/logic/push_registrar.dart';
-import 'package:operator_mobile/feature/notification/logic/push_registration.dart';
-import 'package:operator_mobile/feature/notification/logic/push_status.dart';
-import 'package:operator_mobile/feature/notification/logic/push_token_source.dart';
 import 'package:operator_mobile/feature/notification/presentation/notifications_screen/logic/notifications_cubit.dart';
 import 'package:operator_mobile/feature/pairing/data/repository/desktops_repository.dart';
 import 'package:operator_mobile/feature/pull_request/data/repository/pull_request_repository.dart';
@@ -30,6 +26,7 @@ import 'package:operator_mobile/feature/sessions/data/model/board_snapshot.dart'
 import 'package:operator_mobile/feature/sessions/data/model/session_model.dart';
 import 'package:operator_mobile/feature/sessions/data/repository/sessions_repository.dart';
 import 'package:operator_mobile/feature/sessions/presentation/sessions_screen/logic/sessions_cubit.dart';
+import 'package:operator_mobile/feature/settings/presentation/settings_screen/logic/phone_alerts_cubit.dart';
 import 'package:operator_mobile/feature/settings/presentation/settings_screen/logic/settings_cubit.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -45,40 +42,6 @@ class _MockNotificationRepository extends Mock implements NotificationRepository
 
 class _MockDesktopsRepository extends Mock implements DesktopsRepository {}
 
-class _MemorySecureStorage implements PushSecureStorage {
-  final Map<String, String> values = {};
-
-  @override
-  Future<String?> read(String key) async => values[key];
-
-  @override
-  Future<void> write(String key, String value) async => values[key] = value;
-
-  @override
-  Future<void> delete(String key) async => values.remove(key);
-}
-
-class _FakeTokenSource implements PushTokenSource {
-  @override
-  bool get supported => false;
-
-  @override
-  String get platform => 'ios';
-
-  @override
-  Future<String?> deviceName() async => null;
-
-  @override
-  Future<String?> getToken() async => null;
-
-  @override
-  Future<bool> requestPermission() async => false;
-
-  @override
-  Future<PushStatus> permissionStatus() async =>
-      const PushStatus(supported: false, granted: false, canAskAgain: true, registered: false);
-}
-
 void main() {
   late _MockSessionsRepository repository;
   late _MockMuxClient mux;
@@ -86,7 +49,6 @@ void main() {
 
   setUpAll(() {
     registerFallbackValue(const GetNotificationsParams());
-    registerFallbackValue(const RegisterPushDeviceParams(token: 't'));
   });
 
   setUp(() async {
@@ -109,6 +71,9 @@ void main() {
         GlobalResponse(data: const NotificationPageModel(notifications: [], unreadCount: 0)),
       ),
     );
+    when(() => notificationRepository.getPhoneAlerts()).thenAnswer(
+      (_) async => Result.success(const PhoneAlertStatusModel(enabled: false, claimed: false)),
+    );
     await sl.reset();
     sl.registerFactory<PullRequestCubit>(() => PullRequestCubit(_MockPullRequestRepository()));
     final serverConfigStore = _MockServerConfigStore();
@@ -118,11 +83,12 @@ void main() {
     final desktopsRepository = _MockDesktopsRepository();
     when(() => desktopsRepository.deactivate()).thenAnswer((_) async => Result.success(null));
     sl.registerFactory<SettingsCubit>(() => SettingsCubit(repository, serverConfigStore, desktopsRepository));
-    sl.registerLazySingleton<PushRegistrar>(
-      () => PushRegistrar(
+    sl.registerFactory<PhoneAlertsCubit>(
+      () => PhoneAlertsCubit(
         notificationRepository,
-        PushRegistrationStore(_MemorySecureStorage()),
-        _FakeTokenSource(),
+        launch: (_) async => true,
+        copy: (_) async {},
+        ntfyDeepLink: false,
       ),
     );
   });

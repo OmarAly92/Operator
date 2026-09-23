@@ -1,6 +1,8 @@
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:get_it/get_it.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:operator_mobile/core/api/api_request_helpers/api_consumer.dart';
 import 'package:operator_mobile/core/api/api_request_helpers/dio_consumer.dart';
 import 'package:operator_mobile/core/api/server_config_store.dart';
@@ -9,6 +11,8 @@ import 'package:operator_mobile/core/database/tables/desktop/desktop_dao.dart';
 import 'package:operator_mobile/core/deep_link/deep_link_service.dart';
 import 'package:operator_mobile/core/helpers/network/network_status.dart';
 import 'package:operator_mobile/core/mux/mux_client.dart';
+import 'package:operator_mobile/core/notifications/local_alert_sink.dart';
+import 'package:operator_mobile/core/notifications/phone_alerts_runtime.dart';
 import 'package:operator_mobile/feature/dictation/device_provider.dart';
 import 'package:operator_mobile/feature/dictation/logic/voice_input_cubit.dart';
 import 'package:operator_mobile/feature/dictation/speech_recognizer.dart';
@@ -22,9 +26,6 @@ import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/session_view_cubit.dart';
 import 'package:operator_mobile/feature/notification/data/data_source/notification_remote_data_source.dart';
 import 'package:operator_mobile/feature/notification/data/repository/notification_repository.dart';
-import 'package:operator_mobile/feature/notification/logic/push_registrar.dart';
-import 'package:operator_mobile/feature/notification/logic/push_registration.dart';
-import 'package:operator_mobile/feature/notification/logic/push_token_source.dart';
 import 'package:operator_mobile/feature/notification/presentation/notifications_screen/logic/notifications_cubit.dart';
 import 'package:operator_mobile/feature/pairing/data/data_source/desktops_local_data_source.dart';
 import 'package:operator_mobile/feature/pairing/data/data_source/pairing_remote_data_source.dart';
@@ -42,6 +43,7 @@ import 'package:operator_mobile/feature/pull_request/presentation/pull_requests_
 import 'package:operator_mobile/feature/sessions/data/data_source/sessions_remote_data_source.dart';
 import 'package:operator_mobile/feature/sessions/data/repository/sessions_repository.dart';
 import 'package:operator_mobile/feature/sessions/presentation/sessions_screen/logic/sessions_cubit.dart';
+import 'package:operator_mobile/feature/settings/presentation/settings_screen/logic/phone_alerts_cubit.dart';
 import 'package:operator_mobile/feature/settings/presentation/settings_screen/logic/settings_cubit.dart';
 import 'package:operator_mobile/feature/spawn/data/data_source/spawn_remote_data_source.dart';
 import 'package:operator_mobile/feature/spawn/data/repository/spawn_repository.dart';
@@ -258,6 +260,10 @@ class ServiceLocator {
   }
 
   static void _notificationFeatureSetup() {
+    sl.registerLazySingleton<LocalAlertSink>(FlutterLocalAlertSink.new);
+    sl.registerLazySingleton<PhoneAlertsRuntime>(
+      () => PhoneAlertsRuntime(sl<MuxClient>(), sl<LocalAlertSink>(), (uri) => sl<DeepLinkService>().handle(uri)),
+    );
     sl.registerLazySingleton<NotificationsCubit>(
       () => NotificationsCubit(
         sl<NotificationRepository>(),
@@ -274,20 +280,12 @@ class ServiceLocator {
     sl.registerLazySingleton<NotificationRemoteDataSource>(
       () => NotificationRemoteDataSourceImp(sl<ApiConsumer>()),
     );
-
-    sl.registerLazySingleton<PushTokenSource>(
-      () => const UnconfiguredPushTokenSource(),
-    );
-    sl.registerLazySingleton<PushRegistrationStore>(
-      () => PushRegistrationStore(
-        FlutterPushSecureStorage(sl<FlutterSecureStorage>()),
-      ),
-    );
-    sl.registerLazySingleton<PushRegistrar>(
-      () => PushRegistrar(
+    sl.registerFactory<PhoneAlertsCubit>(
+      () => PhoneAlertsCubit(
         sl<NotificationRepository>(),
-        sl<PushRegistrationStore>(),
-        sl<PushTokenSource>(),
+        launch: (uri) => launchUrl(uri, mode: LaunchMode.externalApplication),
+        copy: (text) => Clipboard.setData(ClipboardData(text: text)),
+        ntfyDeepLink: false,
       ),
     );
   }

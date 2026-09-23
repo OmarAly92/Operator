@@ -84,7 +84,10 @@
 		<key>LSApplicationQueriesSchemes</key>
 		<array>
 			<string>github</string>
+			<string>ntfy</string>
 		</array>
+		<key>FlutterDeepLinkingEnabled</key>
+		<false/>
 		<key>CFBundleURLTypes</key>
 		<array>
 			<dict>
@@ -94,7 +97,7 @@
 				<string>dev.operator.mobile</string>
 				<key>CFBundleURLSchemes</key>
 				<array>
-					<string>aomobile</string>
+					<string>operator</string>
 				</array>
 			</dict>
 		</array>

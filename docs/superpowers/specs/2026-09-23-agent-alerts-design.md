@@ -2,7 +2,7 @@
 
 **Date:** 2026-09-23
 **Decision owner:** Omar Aly
-**Status:** approved design, not yet implemented
+**Status:** implemented — see [docs/superpowers/plans/2026-09-23-agent-alerts.md](../plans/2026-09-23-agent-alerts.md)
 **Scope:** `backend/`, `frontend/` (renderer and `src-tauri`), `packages/mobile`
 
 ## 1. Why
@@ -71,19 +71,59 @@ changes the plan as stated; nothing is built on an unverified assumption.
    notification, click it. Record: prompt shown, toast shown, delegate
    `didReceiveNotificationResponse` called with the id. *If any fails, use
    approach B (D7) and record why.*
+   **Result (2026-09-23): passed — approach A (UNUserNotificationCenter) stands.**
+   Probe `UNProbe.app` (bundle id `dev.operator.unprobe`), `codesign -dv`:
+   `Signature=adhoc`, `TeamIdentifier=not set`, installed in `/Applications`.
+   The first attempt came back denied even though the user reported clicking
+   Allow: `auth granted=false error=Optional(Error Domain=UNErrorDomain Code=1
+   "Notifications are not allowed for this application" ...)`. UNProbe was
+   listed in System Settings → Notifications; after the user switched it on
+   and the probe was relaunched: `auth granted=true error=nil`, `add error=nil`,
+   the banner showed, and clicking it logged `clicked id=probe-1`. Consequence:
+   the permission can land in "denied" on first run, so the Settings
+   "Open System Settings" path (§5.3, §5.5) is load-bearing, not cosmetic.
+   This comparison missed linker-signed vs bundle-signed: the probe was
+   bundle-signed, while a local `tauri build` of Operator was only
+   linker-signed (`Identifier=operator-<hash>`, no Info.plist bound, no sealed
+   resources) and never registered with Notification Center, so every packaged
+   macOS build is now bundle-signed ad-hoc through
+   `bundle.macOS.signingIdentity: "-"`.
 2. **Stop on interrupt.** Start Claude Code under Operator, send a long prompt,
    press Esc. Record whether `opr hooks claude-code stop` fires (the hooks log
    under the data dir). *Either result keeps §4.4's keystroke rule; this only
    records whether it is load-bearing.* The comment at `activity.go:39-43` says
    it fires; that claim is unverified.
+   **Result (2026-09-23): Esc does not fire Stop.** Installed Operator, daemon
+   on 127.0.0.1:3001, `/api/v1/events` watched. Session `scratch-37`: created
+   10:29:31Z, `session_updated` with `"activity":"active"` at 10:29:32.556Z;
+   the user sent the counting prompt and pressed Esc after a few lines. No
+   further `session_updated` arrived, and 40 s later `GET
+   /api/v1/sessions/scratch-37` still returned `{'state': 'active',
+   'lastActivityAt': '2026-09-23T10:29:32.556162Z'}`. The comment at
+   `activity.go:39-43` is wrong for Esc: an interrupted turn stays `active`,
+   so no `turn_finished` is emitted for it and the 3-second rule is not what
+   silences Esc. It still covers a typed `/exit`.
 3. **ntfy on the user's iPhone.** Install ntfy from the App Store (confirm it is
    free). Record: whether `ntfy://ntfy.sh/<topic>` opens the subscribe screen;
    whether a message sent with `Click: operator://session/<id>` opens Operator
    on tap (after the scheme rename, or test with `aomobile://` first).
+   **Result (2026-09-23): ntfy is free; `ntfy://` did not subscribe; custom
+   `Click` works.** The user installed ntfy (free). The `ntfy://ntfy.sh/<topic>`
+   link did not open a subscribe screen; the user subscribed with "+" (default
+   server, "Use another server" off). `curl -H "Title: operator-4 finished"
+   -H "Tags: white_check_mark" -H "Click: aomobile://session/operator-4" -d
+   finished https://ntfy.sh/<topic>` returned `"event":"message"` with
+   `"click":"aomobile://session/operator-4"`; with the phone locked the user
+   reported it "arrived instant", and tapping it opened the Operator app.
+   Consequence: Task 11 registers the cubit with `ntfyDeepLink: false`
+   (copy the topic, open ntfy).
 4. **ntfy.sh limits.** Send 20 messages in quick succession to a throwaway
    topic; record any `429`. The published default is 60 burst then one per
    10 s (ntfy FAQ); a daily cap on ntfy.sh is not documented — "not known"
    until observed.
+   **Result (2026-09-23): 20 × `200`, no `429`.** `for i in $(seq 1 20); do curl
+   ... -d "burst $i" https://ntfy.sh/<throwaway topic>; done | sort | uniq -c`
+   printed `20 200`. The 10 s per-session coalescing stays.
 
 ## 4. Events
 

@@ -552,7 +552,7 @@ func TestWiring_StartLifecycleThreadsMessengerIntoLCM(t *testing.T) {
 
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
 	messenger := &captureMessenger{}
-	stack := startLifecycle(ctx, store, ptyhost.New(ptyhost.Options{}), messenger, nil, nil, nil, log)
+	stack := startLifecycle(ctx, store, ptyhost.New(ptyhost.Options{}), messenger, nil, nil, nil, nil, log)
 	t.Cleanup(stack.Stop)
 	t.Cleanup(cancel)
 

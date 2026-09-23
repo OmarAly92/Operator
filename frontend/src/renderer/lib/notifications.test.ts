@@ -88,6 +88,7 @@ function notification(overrides: Partial<NotificationDTO> = {}): NotificationDTO
 		status: "unread",
 		createdAt: "2026-06-16T10:00:00Z",
 		target: { kind: "session", sessionId: "mer-1" },
+		quiet: false,
 		...overrides,
 	};
 }
@@ -410,6 +411,20 @@ describe("createNotificationsTransport", () => {
 		});
 	});
 
+	it("logs instead of leaving an unhandled rejection when the toast bridge call fails", async () => {
+		const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+		showNotificationMock.mockRejectedValueOnce(new Error("bridge unavailable"));
+		const qc = queryClient();
+		createNotificationsTransport(qc).connect();
+
+		EventSourceStub.instances[0].dispatch("notification_created", notification());
+		await Promise.resolve();
+		await Promise.resolve();
+
+		expect(warnSpy).toHaveBeenCalledWith("Unable to show notification toast", expect.any(Error));
+		warnSpy.mockRestore();
+	});
+
 	it("patches resolvedAt on live unread/all caches when Operator closes the issue", () => {
 		const qc = queryClient();
 		createNotificationsTransport(qc).connect();
@@ -431,7 +446,7 @@ describe("createNotificationsTransport", () => {
 	it("suppresses the needs_input toast for the session the user is already watching", () => {
 		setWindowState({ focused: true, visible: true });
 		const qc = queryClient();
-		createNotificationsTransport(qc, () => "mer-1").connect();
+		createNotificationsTransport(qc, (id) => id === "mer-1").connect();
 
 		EventSourceStub.instances[0].dispatch("notification_created", notification());
 
@@ -451,7 +466,7 @@ describe("createNotificationsTransport", () => {
 		{ activeSessionId: undefined, focused: true, reason: "no session is open", visible: true },
 	])("still shows the needs_input toast when $reason", ({ activeSessionId, focused, visible }) => {
 		setWindowState({ focused, visible });
-		createNotificationsTransport(queryClient(), () => activeSessionId).connect();
+		createNotificationsTransport(queryClient(), (id) => id === activeSessionId).connect();
 
 		EventSourceStub.instances[0].dispatch("notification_created", notification());
 
@@ -462,13 +477,37 @@ describe("createNotificationsTransport", () => {
 		"still shows the %s toast for the focused active session",
 		(type) => {
 			setWindowState({ focused: true, visible: true });
-			createNotificationsTransport(queryClient(), () => "mer-1").connect();
+			createNotificationsTransport(queryClient(), (id) => id === "mer-1").connect();
 
 			EventSourceStub.instances[0].dispatch("notification_created", notification({ type }));
 
 			expect(showNotificationMock).toHaveBeenCalledTimes(1);
 		},
 	);
+
+	it.each(["turn_finished", "agent_exited"] as const)(
+		"suppresses the %s toast for a session visible in a focused window",
+		(type) => {
+			setWindowState({ focused: true, visible: true });
+			createNotificationsTransport(queryClient(), (id) => id === "mer-1").connect();
+			EventSourceStub.instances[0].dispatch("notification_created", notification({ type }));
+			expect(showNotificationMock).not.toHaveBeenCalled();
+		},
+	);
+
+	it("toasts a session that is not in any visible pane while another one is", () => {
+		setWindowState({ focused: true, visible: true });
+		createNotificationsTransport(queryClient(), (id) => id === "other").connect();
+		EventSourceStub.instances[0].dispatch("notification_created", notification({ type: "turn_finished" }));
+		expect(showNotificationMock).toHaveBeenCalledTimes(1);
+	});
+
+	it("never toasts a quiet notification", () => {
+		setWindowState({ focused: false, visible: true });
+		createNotificationsTransport(queryClient(), () => false).connect();
+		EventSourceStub.instances[0].dispatch("notification_created", notification({ type: "turn_finished", quiet: true }));
+		expect(showNotificationMock).not.toHaveBeenCalled();
+	});
 
 	it("reconnects when the API base URL changes", () => {
 		createNotificationsTransport(queryClient()).connect();

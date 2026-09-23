@@ -31,6 +31,8 @@ fn main() {
         "clipboard_write",
         "clipboard_read",
         "notification_show",
+        "notification_permission",
+        "notification_open_settings",
         "notification_badge",
         "notification_dev_bounce",
         "stage_dropped_file",

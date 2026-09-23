@@ -2,12 +2,12 @@ import 'dart:async';
 
 import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:operator_mobile/core/api/server_config.dart';
 import 'package:operator_mobile/core/api/server_config_store.dart';
 import 'package:operator_mobile/core/helpers/result/result.dart';
 import 'package:operator_mobile/feature/notification/data/model/notification_model.dart';
 import 'package:operator_mobile/feature/notification/data/model/params/get_notifications_params.dart';
 import 'package:operator_mobile/feature/notification/data/repository/notification_repository.dart';
-import 'package:operator_mobile/feature/notification/logic/push_status.dart';
 
 part 'notifications_state.dart';
 

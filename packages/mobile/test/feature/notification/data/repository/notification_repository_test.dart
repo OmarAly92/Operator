@@ -1,14 +1,15 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:operator_mobile/core/api/models/global_response.dart';
-import 'package:operator_mobile/core/api/server_config.dart';
 import 'package:operator_mobile/core/error_handling/failures/failure.dart';
 import 'package:operator_mobile/core/helpers/network/network_status.dart';
 import 'package:operator_mobile/core/helpers/result/result.dart';
 import 'package:operator_mobile/feature/notification/data/data_source/notification_remote_data_source.dart';
 import 'package:operator_mobile/feature/notification/data/model/notification_page_model.dart';
 import 'package:operator_mobile/feature/notification/data/model/params/get_notifications_params.dart';
-import 'package:operator_mobile/feature/notification/data/model/params/register_push_device_params.dart';
+import 'package:operator_mobile/feature/notification/data/model/phone_alert_delivery_model.dart';
+import 'package:operator_mobile/feature/notification/data/model/phone_alert_status_model.dart';
+import 'package:operator_mobile/feature/notification/data/model/phone_alert_subscription_model.dart';
 import 'package:operator_mobile/feature/notification/data/repository/notification_repository.dart';
 
 class _MockDataSource extends Mock implements NotificationRemoteDataSource {}
@@ -22,10 +23,6 @@ void main() {
 
   setUpAll(() {
     registerFallbackValue(const GetNotificationsParams());
-    registerFallbackValue(const RegisterPushDeviceParams(token: 't'));
-    registerFallbackValue(
-      const ServerConfig(host: 'h', httpPort: '1', secure: false, password: 'p'),
-    );
   });
 
   setUp(() {
@@ -76,26 +73,42 @@ void main() {
     expect((await repository.markAllNotificationsRead()).isSuccess, isTrue);
   });
 
-  test('registers a device', () async {
+  test('fetches phone alert status', () async {
     when(() => network.isConnected).thenAnswer((_) async => true);
-    when(
-      () => dataSource.registerPushDevice(any(), target: any(named: 'target')),
-    ).thenAnswer((_) async {});
-
-    expect(
-      (await repository.registerPushDevice(const RegisterPushDeviceParams(token: 't-1'))).isSuccess,
-      isTrue,
+    when(() => dataSource.getPhoneAlerts()).thenAnswer(
+      (_) async => const PhoneAlertStatusModel(enabled: true, claimed: true),
     );
+
+    final result = await repository.getPhoneAlerts();
+
+    late PhoneAlertStatusModel status;
+    result.when(onSuccess: (value) => status = value, onFailure: (_) {});
+    expect(status.claimed, isTrue);
   });
 
-  test('unregisters a device from a named daemon', () async {
+  test('subscribes for phone alerts', () async {
     when(() => network.isConnected).thenAnswer((_) async => true);
-    when(
-      () => dataSource.unregisterPushDevice(any(), target: any(named: 'target')),
-    ).thenAnswer((_) async {});
+    when(() => dataSource.subscribePhoneAlerts()).thenAnswer(
+      (_) async => const PhoneAlertSubscriptionModel(topic: 'abc', server: 'https://ntfy.sh'),
+    );
 
-    const target = ServerConfig(host: 'old', httpPort: '3011', secure: false, password: 'p');
-    expect((await repository.unregisterPushDevice('t-1', target: target)).isSuccess, isTrue);
-    verify(() => dataSource.unregisterPushDevice('t-1', target: target)).called(1);
+    final result = await repository.subscribePhoneAlerts();
+
+    late PhoneAlertSubscriptionModel subscription;
+    result.when(onSuccess: (value) => subscription = value, onFailure: (_) {});
+    expect(subscription.topic, 'abc');
+  });
+
+  test('sends a test phone alert', () async {
+    when(() => network.isConnected).thenAnswer((_) async => true);
+    when(() => dataSource.testPhoneAlert()).thenAnswer(
+      (_) async => const PhoneAlertDeliveryModel(ok: false, error: 'ntfy answered 429'),
+    );
+
+    final result = await repository.testPhoneAlert();
+
+    late PhoneAlertDeliveryModel delivery;
+    result.when(onSuccess: (value) => delivery = value, onFailure: (_) {});
+    expect(delivery.error, 'ntfy answered 429');
   });
 }

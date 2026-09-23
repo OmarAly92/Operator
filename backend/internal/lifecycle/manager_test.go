@@ -2671,12 +2671,12 @@ func TestActivity_LeavingNeedsInputResolvesNotification(t *testing.T) {
 			if err := m.ApplyActivitySignal(ctx, "mer-1", ports.ActivitySignal{Valid: true, State: tt.next}); err != nil {
 				t.Fatal(err)
 			}
-			if len(sink.resolutions) != 1 {
-				t.Fatalf("resolutions = %+v, want 1", sink.resolutions)
+			got := resolutionsOf(sink, domain.NotificationNeedsInput)
+			if len(got) != 1 {
+				t.Fatalf("needs_input resolutions = %+v, want 1", got)
 			}
-			got := sink.resolutions[0]
-			if got.Type != domain.NotificationNeedsInput || got.SessionID != "mer-1" || !got.ResolvedAt.Equal(now) {
-				t.Fatalf("resolution = %+v", got)
+			if got[0].SessionID != "mer-1" || !got[0].ResolvedAt.Equal(now) {
+				t.Fatalf("resolution = %+v", got[0])
 			}
 		})
 	}
@@ -2718,8 +2718,8 @@ func TestMarkTerminated_ResolvesNeedsInputNotification(t *testing.T) {
 	if err := m.MarkTerminated(ctx, "mer-1"); err != nil {
 		t.Fatal(err)
 	}
-	if len(sink.resolutions) != 1 || sink.resolutions[0].Type != domain.NotificationNeedsInput {
-		t.Fatalf("resolutions = %+v", sink.resolutions)
+	if got := resolutionsOf(sink, domain.NotificationNeedsInput); len(got) != 1 {
+		t.Fatalf("needs_input resolutions = %+v", got)
 	}
 }
 

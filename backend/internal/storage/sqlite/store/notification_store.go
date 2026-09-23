@@ -15,8 +15,8 @@ import (
 )
 
 // CreateNotification inserts one unread notification. It returns created=false
-// when the open dedupe index already has a matching row — open meaning unseen
-// or still unresolved, so a notification the user has already looked at is not
+// when the open dedupe index already has a matching row — open meaning still
+// unresolved, so a notification the user has already looked at is not
 // re-raised while its underlying issue is unchanged.
 func (s *Store) CreateNotification(ctx context.Context, rec domain.NotificationRecord) (domain.NotificationRecord, bool, error) {
 	if err := rec.Validate(); err != nil {
@@ -39,6 +39,7 @@ func (s *Store) CreateNotification(ctx context.Context, rec domain.NotificationR
 		Body:      rec.Body,
 		Status:    rec.Status,
 		CreatedAt: rec.CreatedAt,
+		Quiet:     rec.Quiet,
 	})
 	if err != nil {
 		if isSQLiteUnique(err) {
@@ -206,6 +207,16 @@ func (s *Store) ReconcileResolvedNotifications(ctx context.Context, at time.Time
 		return nil, fmt.Errorf("reconcile needs-input notifications: %w", err)
 	}
 	resolved := notificationsFromGen(needsInput)
+	turnFinished, err := s.qw.ResolveStaleTurnFinishedNotifications(ctx, nullTime(at))
+	if err != nil {
+		return nil, fmt.Errorf("reconcile turn-finished notifications: %w", err)
+	}
+	resolved = append(resolved, notificationsFromGen(turnFinished)...)
+	agentExited, err := s.qw.ResolveStaleAgentExitedNotifications(ctx, nullTime(at))
+	if err != nil {
+		return nil, fmt.Errorf("reconcile agent-exited notifications: %w", err)
+	}
+	resolved = append(resolved, notificationsFromGen(agentExited)...)
 	for _, prURL := range stalePRs {
 		rows, err := s.qw.ResolvePRNotificationsByType(ctx, gen.ResolvePRNotificationsByTypeParams{
 			ResolvedAt: nullTime(at),
@@ -297,6 +308,7 @@ func notificationFromGen(row gen.Notification) domain.NotificationRecord {
 		Status:     row.Status,
 		CreatedAt:  row.CreatedAt,
 		ResolvedAt: timeFromNull(row.ResolvedAt),
+		Quiet:      row.Quiet,
 	}
 }
 

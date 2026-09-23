@@ -140,7 +140,8 @@ func Run() error {
 	// through the CDC change_log -- only session-state events do.
 	runtimeAdapter := runtimeselect.New(log)
 	managedPreview := previewserver.New(log, cfg.DataDir)
-	termMgr := terminal.NewManager(runtimeAdapter, cdcPipe.Broadcaster, log)
+	notificationHub := notify.NewHub()
+	termMgr := terminal.NewManager(runtimeAdapter, cdcPipe.Broadcaster, log, terminal.WithNotificationFeed(notificationHub))
 	defer termMgr.Close()
 
 	if n := redact.LoadUserPatterns(cfg.DataDir, log); n > 0 {
@@ -158,7 +159,6 @@ func Run() error {
 	// agent nudges (CI failure, review feedback, merge conflict).
 	messenger := newSessionMessenger(store, runtimeAdapter, log)
 	lifecycleMessenger := newModeAwareMessenger()
-	notificationHub := notify.NewHub()
 	notifier := notificationsvc.New(notificationsvc.Deps{Store: store})
 	notificationWriter := notify.New(notify.Deps{Store: store, Publisher: notificationHub})
 	// Resolution transitions that happened while the daemon was down never
@@ -187,7 +187,7 @@ func Run() error {
 		return fmt.Errorf("wire agent resolver: %w", err)
 	}
 
-	lcStack := startLifecycle(ctx, store, runtimeAdapter, lifecycleMessenger, notificationWriter, telemetrySink, agents, log)
+	lcStack := startLifecycle(ctx, store, runtimeAdapter, lifecycleMessenger, notificationWriter, telemetrySink, agents, termMgr, log)
 
 	// Daemon-owned preferences. The store's type is field-compatible with the
 	// service's, adapted here so neither package imports the other.
@@ -358,31 +358,13 @@ func Run() error {
 	if reconcileErr := lcStack.ReconcileRuntime(ctx); reconcileErr != nil {
 		log.Error("reconcile agent processes on boot failed", "err", reconcileErr)
 	}
-	// Push-device registry: persisted phones that receive OS push notifications.
-	// A load failure must not block boot — degrade to no push rather than refusing
-	// to start the daemon. pushRegistry (interface) is assigned only when load
-	// succeeds so a failure leaves a true nil interface (not a non-nil interface
-	// wrapping a nil pointer), which the controller's nil guard relies on to
-	// return 501. pushDevices keeps the concrete registry for the dispatcher.
-	var (
-		pushRegistry controllers.PushRegistry
-		pushDevices  *mobilebridge.DeviceRegistry
-	)
-	if reg, regErr := mobilebridge.LoadRegistry(mobilebridge.PushDevicesPath(cfg.DataDir)); regErr != nil {
-		log.Warn("load push device registry failed; push notifications disabled", "err", regErr)
-	} else {
-		pushRegistry = reg
-		pushDevices = reg
-	}
-
-	// Push dispatcher: an additive notification-hub subscriber that relays each
-	// new notification to every registered device via the Expo Push Service. Runs
-	// for the daemon's lifetime and stops when ctx is cancelled. EXPO_ACCESS_TOKEN
-	// (optional) enables Expo's enforced push security when set.
-	if pushDevices != nil {
-		dispatcher := push.NewDispatcher(notificationHub, pushDevices, push.NewExpoClient(os.Getenv("EXPO_ACCESS_TOKEN")), log)
-		go dispatcher.Run(ctx)
-	}
+	phoneAlerts := push.NewAlerts(push.AlertsDeps{
+		Subscriber: notificationHub,
+		Sender:     push.NewNtfySender(push.DefaultNtfyServer, nil),
+		ConfigPath: mobilebridge.Path(cfg.DataDir),
+		Presence:   termMgr,
+		Log:        log,
+	})
 
 	ticketSvc := ticketsvc.New(ticketsvc.Deps{Store: store, Sessions: sessionSvc, BaseURL: fmt.Sprintf("http://127.0.0.1:%d", cfg.Port)})
 	ticketsvc.NewAutoReviewer(ticketSvc, log).Subscribe(ctx, cdcPipe.Broadcaster)
@@ -395,7 +377,7 @@ func Run() error {
 		Reviews:             reviewSvc,
 		Notifications:       notifier,
 		NotificationStream:  notificationHub,
-		Push:                pushRegistry,
+		PhoneAlerts:         phoneAlerts,
 		ShellTerminals:      shellTermSvc,
 		ShellTerminalBlocks: terminalBlocks,
 		ClaudeAccounts:      claudeAccounts,
@@ -442,6 +424,8 @@ func Run() error {
 	// the LAN surface and loopback surface never drift apart.
 	lan := httpd.NewMobileLAN(srv.Handler(), mobilebridge.DefaultPort, log, telemetrySink)
 	bs.LAN = lan
+	phoneAlerts.SetBridge(lan)
+	go phoneAlerts.Run(ctx)
 	tunnelMgr.SetLocalPort(mobilebridge.DefaultPort)
 	tunnelMgr.SetOnProvider(lan.SetTrustedForwardHeader)
 

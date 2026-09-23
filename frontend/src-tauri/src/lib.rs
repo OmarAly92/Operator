@@ -1,4 +1,6 @@
 #[cfg(target_os = "macos")]
+mod mac_notifications;
+#[cfg(target_os = "macos")]
 mod mac_window_controls;
 use std::collections::HashMap;
 use std::{env, error::Error, fs, io, path::Path, path::PathBuf};
@@ -1194,6 +1196,8 @@ void (async () => {
             native::clipboard_write,
             native::clipboard_read,
             native::notification_show,
+            native::notification_permission,
+            native::notification_open_settings,
             native::notification_badge,
             native::notification_dev_bounce,
             native::stage_dropped_file,
@@ -1249,6 +1253,12 @@ void (async () => {
                 audit_script.clone(),
                 terminal_benchmark_url.clone(),
             )?;
+            #[cfg(target_os = "macos")]
+            if native::current_toast_backend()
+                == crate::notification_policy::ToastBackend::UserNotifications
+            {
+                mac_notifications::install(app.handle());
+            }
             if !app.manage(native::ShellState {
                 state_root: state_root.clone(),
                 tray: std::sync::Mutex::new(None),

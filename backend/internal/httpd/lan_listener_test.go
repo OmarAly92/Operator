@@ -6,11 +6,13 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/OmarAly92/operator/backend/internal/mobilebridge"
+	"github.com/OmarAly92/operator/backend/internal/terminal"
 )
 
 func TestLANManagerAuthGatesSharedHandler(t *testing.T) {
@@ -119,4 +121,18 @@ func TestLANManagerStartStopIdempotent(t *testing.T) {
 		t.Fatal("still running after stop")
 	}
 	_ = m.Stop(ctx) // second stop is a no-op
+}
+
+func TestLANHandlerMarksRequestsRemote(t *testing.T) {
+	var sawRemote bool
+	inner := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		sawRemote = terminal.IsRemoteOrigin(r.Context())
+		w.WriteHeader(http.StatusNoContent)
+	})
+	h := markRemoteOrigin(inner)
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/mux", nil))
+	if !sawRemote {
+		t.Fatal("LAN-served request was not marked remote")
+	}
 }

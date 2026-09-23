@@ -15,6 +15,9 @@ type NotificationIntent struct {
 	ProjectID domain.ProjectID
 	PRURL     string
 	CreatedAt time.Time
+	Quiet     bool
+
+	AssistantUpdate string
 
 	// Enrichment hints. These avoid storage reads on the hot path.
 	SessionDisplayName string

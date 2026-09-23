@@ -15,20 +15,16 @@ import 'package:operator_mobile/core/helpers/cache/cache_helper.dart';
 import 'package:operator_mobile/core/helpers/result/result.dart';
 import 'package:operator_mobile/core/mux/mux_client.dart';
 import 'package:operator_mobile/core/mux/session_patch.dart';
-import 'package:operator_mobile/core/error_handling/failures/failure.dart';
 import 'package:operator_mobile/core/utils/service_locator.dart';
-import 'package:operator_mobile/feature/notification/data/model/params/register_push_device_params.dart';
+import 'package:operator_mobile/feature/notification/data/model/phone_alert_status_model.dart';
 import 'package:operator_mobile/feature/notification/data/repository/notification_repository.dart';
-import 'package:operator_mobile/feature/notification/logic/push_registrar.dart';
-import 'package:operator_mobile/feature/notification/logic/push_registration.dart';
-import 'package:operator_mobile/feature/notification/logic/push_status.dart';
-import 'package:operator_mobile/feature/notification/logic/push_token_source.dart';
 import 'package:operator_mobile/feature/pairing/data/repository/desktops_repository.dart';
 import 'package:operator_mobile/feature/sessions/data/model/board_snapshot.dart';
 import 'package:operator_mobile/feature/sessions/data/model/project_model.dart';
 import 'package:operator_mobile/feature/sessions/data/model/session_model.dart';
 import 'package:operator_mobile/feature/sessions/data/repository/sessions_repository.dart';
 import 'package:operator_mobile/feature/sessions/presentation/sessions_screen/logic/sessions_cubit.dart';
+import 'package:operator_mobile/feature/settings/presentation/settings_screen/logic/phone_alerts_cubit.dart';
 import 'package:operator_mobile/feature/settings/presentation/settings_screen/logic/settings_cubit.dart';
 import 'package:operator_mobile/feature/settings/presentation/settings_screen/ui/widgets/settings_body.dart';
 import 'package:package_info_plus/package_info_plus.dart';
@@ -40,50 +36,9 @@ class _MockMuxClient extends Mock implements MuxClient {}
 
 class _MockServerConfigStore extends Mock implements ServerConfigStore {}
 
-class _MockNotificationRepository extends Mock implements NotificationRepository {}
-
 class _MockDesktopsRepository extends Mock implements DesktopsRepository {}
 
-class _MemorySecureStorage implements PushSecureStorage {
-  final Map<String, String> values = {};
-
-  @override
-  Future<String?> read(String key) async => values[key];
-
-  @override
-  Future<void> write(String key, String value) async => values[key] = value;
-
-  @override
-  Future<void> delete(String key) async => values.remove(key);
-}
-
-class _FakeTokenSource implements PushTokenSource {
-  bool supportedValue = false;
-  bool granted = false;
-
-  @override
-  bool get supported => supportedValue;
-
-  @override
-  String get platform => 'ios';
-
-  @override
-  Future<String?> deviceName() async => 'iPhone';
-
-  @override
-  Future<String?> getToken() async => 't-1';
-
-  @override
-  Future<bool> requestPermission() async => granted;
-
-  @override
-  Future<PushStatus> permissionStatus() async => PushStatus(
-    supported: supportedValue,
-    granted: granted,
-    canAskAgain: true,
-    registered: false,
-  );
-}
+class _MockNotificationRepository extends Mock implements NotificationRepository {}
 
 const _pairedConfig = ServerConfig(host: '10.0.0.5', httpPort: '3011', secure: false, password: 'secret12');
 
@@ -110,13 +65,7 @@ void main() {
   late _MockSessionsRepository sessionsRepository;
   late _MockMuxClient mux;
   late _MockServerConfigStore serverConfigStore;
-  late _MockNotificationRepository notificationRepository;
   late _MockDesktopsRepository desktopsRepository;
-  late _FakeTokenSource tokenSource;
-
-  setUpAll(() {
-    registerFallbackValue(const RegisterPushDeviceParams(token: 't'));
-  });
 
   setUp(() async {
     SharedPreferences.setMockInitialValues({});
@@ -146,20 +95,19 @@ void main() {
     when(() => serverConfigStore.current).thenReturn(null);
     when(() => serverConfigStore.changes).thenAnswer((_) => const Stream.empty());
 
+    final notificationRepository = _MockNotificationRepository();
+    when(() => notificationRepository.getPhoneAlerts()).thenAnswer(
+      (_) async => Result.success(const PhoneAlertStatusModel(enabled: false, claimed: false)),
+    );
+
     await sl.reset();
     sl.registerLazySingleton<ServerConfigStore>(() => serverConfigStore);
-
-    notificationRepository = _MockNotificationRepository();
-    tokenSource = _FakeTokenSource();
-    when(() => notificationRepository.registerPushDevice(any(), target: any(named: 'target')))
-        .thenAnswer((_) async => Result.success(true));
-    when(() => notificationRepository.unregisterPushDevice(any(), target: any(named: 'target')))
-        .thenAnswer((_) async => Result.success(true));
-    sl.registerLazySingleton<PushRegistrar>(
-      () => PushRegistrar(
+    sl.registerFactory<PhoneAlertsCubit>(
+      () => PhoneAlertsCubit(
         notificationRepository,
-        PushRegistrationStore(_MemorySecureStorage()),
-        tokenSource,
+        launch: (_) async => true,
+        copy: (_) async {},
+        ntfyDeepLink: false,
       ),
     );
   });
@@ -332,11 +280,9 @@ void main() {
   testWidgets('declining the disconnect confirmation leaves the server untouched', (tester) async {
     await pumpBody(tester, sessionsCubit: buildSessionsCubit());
 
-    await tester.dragUntilVisible(
-      find.text('Disconnect'),
-      find.byType(ListView),
-      const Offset(0, -200),
-    );
+    await tester.dragUntilVisible(find.text('Disconnect'), find.byType(ListView), const Offset(0, -200));
+    await tester.ensureVisible(find.text('Disconnect'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Disconnect'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Cancel'));
@@ -350,11 +296,9 @@ void main() {
 
     await pumpBody(tester, sessionsCubit: buildSessionsCubit());
 
-    await tester.dragUntilVisible(
-      find.text('Disconnect'),
-      find.byType(ListView),
-      const Offset(0, -200),
-    );
+    await tester.dragUntilVisible(find.text('Disconnect'), find.byType(ListView), const Offset(0, -200));
+    await tester.ensureVisible(find.text('Disconnect'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Disconnect'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Disconnect').last);
@@ -363,18 +307,6 @@ void main() {
     verify(() => desktopsRepository.deactivate()).called(1);
     verify(() => serverConfigStore.clear()).called(1);
     expect(find.text('Connections screen'), findsOneWidget);
-  });
-
-  testWidgets('the push switch is off and explains itself with no Firebase configuration', (
-    tester,
-  ) async {
-    when(() => serverConfigStore.current).thenReturn(_pairedConfig);
-
-    await pumpBody(tester, sessionsCubit: buildSessionsCubit());
-
-    expect(find.text('Agent notifications'), findsOneWidget);
-    expect(find.text('Push notifications need a physical device.'), findsOneWidget);
-    expect(tester.widget<Switch>(find.byType(Switch)).onChanged, isNull);
   });
 
   testWidgets('the Your desktops row opens the connections route', (tester) async {
@@ -389,6 +321,7 @@ void main() {
     when(() => serverConfigStore.current).thenReturn(_pairedConfig);
 
     await pumpBody(tester, sessionsCubit: buildSessionsCubit());
+    await tester.dragUntilVisible(find.text('History'), find.byType(ListView), const Offset(0, -200));
     await tester.tap(find.text('History'));
     await tester.pumpAndSettle();
 
@@ -398,6 +331,7 @@ void main() {
   testWidgets('settings offers a token usage row', (tester) async {
     await pumpBody(tester, sessionsCubit: buildSessionsCubit());
 
+    await tester.dragUntilVisible(find.text('Token usage'), find.byType(ListView), const Offset(0, -200));
     expect(find.text('Token usage'), findsOneWidget);
   });
 
@@ -414,49 +348,5 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Usage screen'), findsOneWidget);
-  });
-
-  testWidgets('a paired, granted, unregistered device offers a live switch', (tester) async {
-    when(() => serverConfigStore.current).thenReturn(_pairedConfig);
-    tokenSource
-      ..supportedValue = true
-      ..granted = true;
-
-    await pumpBody(tester, sessionsCubit: buildSessionsCubit());
-
-    expect(find.text("This device isn't registered with your server yet."), findsOneWidget);
-    expect(tester.widget<Switch>(find.byType(Switch)).onChanged, isNotNull);
-  });
-
-  testWidgets('turning the switch on registers the device', (tester) async {
-    when(() => serverConfigStore.current).thenReturn(_pairedConfig);
-    tokenSource
-      ..supportedValue = true
-      ..granted = true;
-
-    await pumpBody(tester, sessionsCubit: buildSessionsCubit());
-    await tester.tap(find.byType(Switch));
-    await tester.pumpAndSettle();
-
-    verify(() => notificationRepository.registerPushDevice(any(), target: any(named: 'target')))
-        .called(1);
-    expect(find.text("You'll be alerted when an agent needs you or a PR is ready."), findsOneWidget);
-  });
-
-  testWidgets('a rejected registration explains the server, not the build', (tester) async {
-    when(() => serverConfigStore.current).thenReturn(_pairedConfig);
-    tokenSource
-      ..supportedValue = true
-      ..granted = true;
-    when(() => notificationRepository.registerPushDevice(any(), target: any(named: 'target')))
-        .thenAnswer(
-          (_) async => Result.failure(ServerFailure(error: 'x', message: 'no', statusCode: 401)),
-        );
-
-    await pumpBody(tester, sessionsCubit: buildSessionsCubit());
-    await tester.tap(find.byType(Switch));
-    await tester.pumpAndSettle();
-
-    expect(find.text('Your Operator server rejected the request'), findsOneWidget);
   });
 }

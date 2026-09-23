@@ -7,6 +7,7 @@ import 'package:operator_mobile/core/api/interceptors/server_config_interceptor.
 import 'package:operator_mobile/core/api/server_config.dart';
 import 'package:operator_mobile/core/mux/mux_backoff.dart';
 import 'package:operator_mobile/core/mux/mux_client.dart';
+import 'package:operator_mobile/core/mux/mux_notification.dart';
 import 'package:operator_mobile/core/mux/session_patch.dart';
 import 'package:operator_mobile/core/mux/mux_socket.dart';
 
@@ -739,6 +740,97 @@ void main() {
         async.flushMicrotasks();
 
         expect(seen, isEmpty);
+        client.disconnect();
+      });
+    });
+
+    test('subscribes and unsubscribes to live notifications', () {
+      fakeAsync((async) {
+        late _FakeMuxSocket socket;
+        final client = MuxClient(_source, connect: (_, _) => socket = _FakeMuxSocket());
+        client.connect();
+        async.flushMicrotasks();
+
+        client.subscribeNotifications();
+        client.unsubscribeNotifications();
+
+        final frames = socket.sent
+            .map((s) => jsonDecode(s) as Map<String, dynamic>)
+            .where((m) => m['ch'] == 'notifications')
+            .toList();
+        expect(frames, [
+          {'ch': 'notifications', 'type': 'subscribe'},
+          {'ch': 'notifications', 'type': 'unsubscribe'},
+        ]);
+        client.disconnect();
+      });
+    });
+
+    test('re-sends the notification subscription after a reconnect only while subscribed', () {
+      fakeAsync((async) {
+        final sockets = <_FakeMuxSocket>[];
+        final client = MuxClient(
+          _source,
+          connect: (_, _) {
+            final socket = _FakeMuxSocket();
+            sockets.add(socket);
+            return socket;
+          },
+        );
+        client.connect();
+        async.flushMicrotasks();
+        client.subscribeNotifications();
+
+        sockets.last.closeFromServer();
+        async.elapse(const Duration(milliseconds: MuxBackoff.initialMs));
+        async.flushMicrotasks();
+        expect(sockets, hasLength(2));
+        expect(sockets.last.sent.map(jsonDecode), contains(equals({'ch': 'notifications', 'type': 'subscribe'})));
+
+        client.unsubscribeNotifications();
+        sockets.last.closeFromServer();
+        async.elapse(const Duration(milliseconds: MuxBackoff.initialMs * 4));
+        async.flushMicrotasks();
+        expect(sockets, hasLength(3));
+        expect(sockets.last.sent.map(jsonDecode), isNot(contains(equals({'ch': 'notifications', 'type': 'subscribe'}))));
+        client.disconnect();
+      });
+    });
+
+    test('emits one MuxNotification per notification frame and ignores malformed ones', () {
+      fakeAsync((async) {
+        late _FakeMuxSocket socket;
+        final client = MuxClient(_source, connect: (_, _) => socket = _FakeMuxSocket());
+        final received = <MuxNotification>[];
+        client.notifications.listen(received.add);
+        client.connect();
+        async.flushMicrotasks();
+
+        socket.pushMessage({
+          'ch': 'notifications',
+          'type': 'notification',
+          'notification': {
+            'id': 'n1',
+            'sessionId': 's1',
+            'type': 'turn_finished',
+            'title': 's1 finished',
+            'body': 'done',
+            'quiet': false,
+          },
+        });
+        socket.pushMessage({'ch': 'notifications', 'type': 'notification'});
+        async.flushMicrotasks();
+
+        expect(received, [
+          const MuxNotification(
+            id: 'n1',
+            sessionId: 's1',
+            type: 'turn_finished',
+            title: 's1 finished',
+            body: 'done',
+            quiet: false,
+          ),
+        ]);
         client.disconnect();
       });
     });

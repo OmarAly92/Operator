@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:operator_mobile/core/api/server_config_store.dart';
+import 'package:operator_mobile/core/app_routes/app_route_observer.dart';
 import 'package:operator_mobile/core/app_routes/app_router.dart';
 import 'package:operator_mobile/core/app_routes/routes_strings.dart';
 import 'package:operator_mobile/core/app_themes/colors/logic/skin_cubit.dart';
@@ -14,6 +15,7 @@ import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/app_themes/themes/app_themes.dart';
 import 'package:operator_mobile/core/deep_link/deep_link_service.dart';
 import 'package:operator_mobile/core/helpers/cache/cache_helper.dart';
+import 'package:operator_mobile/core/notifications/phone_alerts_runtime.dart';
 import 'package:operator_mobile/core/telemetry/runtime.dart';
 import 'package:operator_mobile/core/utils/device_kind.dart';
 import 'package:operator_mobile/core/utils/service_locator.dart';
@@ -77,7 +79,8 @@ class OperatorApp extends StatefulWidget {
 }
 
 class _OperatorAppState extends State<OperatorApp> {
-  late final AppLifecycleListener _lifecycle = AppLifecycleListener(
+  late final AppLifecycleListener _lifecycle = phoneAlertsLifecycle(
+    () => sl<PhoneAlertsRuntime>(),
     onResume: () => unawaited(TelemetryRuntime.active()),
   );
 
@@ -87,6 +90,7 @@ class _OperatorAppState extends State<OperatorApp> {
     _lifecycle.hashCode;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       unawaited(sl<DeepLinkService>().start());
+      unawaited(sl<PhoneAlertsRuntime>().start());
     });
   }
 
@@ -110,6 +114,7 @@ class _OperatorAppState extends State<OperatorApp> {
                 minTextAdapt: true,
                 builder: (context, child) => MaterialApp(
                   navigatorKey: sl<GlobalKey<NavigatorState>>(),
+                  navigatorObservers: [AppRouteObserver.instance],
                   debugShowCheckedModeBanner: false,
                   theme: AppThemes.fromSkin(skin),
                   themeMode: skin.themeMode,

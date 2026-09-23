@@ -121,6 +121,7 @@ var shippedMigrations = map[int64]string{
 	114: "0114_tickets.sql",
 	115: "0115_block_events_agent.sql",
 	116: "0116_remove_orchestrator.sql",
+	117: "0117_notification_alerts.sql",
 }
 
 // burnedVersion reports version numbers that must never be (re)used: they

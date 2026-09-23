@@ -71,6 +71,9 @@ type Manager struct {
 	inputMu      sync.Mutex
 	inputBlocked map[string]int
 	lastInputAt  map[string]time.Time
+
+	notificationFeed     NotificationFeed
+	stopNotificationFeed func()
 }
 
 // sharedTerm tracks every client currently viewing one terminal id (one PTY) so
@@ -140,6 +143,7 @@ func NewManager(src Source, events EventSource, log *slog.Logger, opts ...Option
 	for _, opt := range opts {
 		opt(m)
 	}
+	m.startNotificationFeed()
 	return m
 }
 
@@ -165,6 +169,12 @@ func (m *Manager) BeginInputDrain(terminalID string) (lastInputAt time.Time, rel
 	}
 }
 
+func (m *Manager) LastInputAt(terminalID string) time.Time {
+	m.inputMu.Lock()
+	defer m.inputMu.Unlock()
+	return m.lastInputAt[terminalID]
+}
+
 func (m *Manager) writeInput(terminalID string, a *attachment, raw []byte, release func()) {
 	m.inputMu.Lock()
 	defer m.inputMu.Unlock()
@@ -179,6 +189,9 @@ func (m *Manager) writeInput(terminalID string, a *attachment, raw []byte, relea
 // Close tears down every live attachment and stops re-attach loops. Safe to
 // call once on daemon shutdown.
 func (m *Manager) Close() {
+	if m.stopNotificationFeed != nil {
+		m.stopNotificationFeed()
+	}
 	m.mu.Lock()
 	if m.closed {
 		m.mu.Unlock()
@@ -343,6 +356,7 @@ func (m *Manager) Serve(ctx context.Context, conn wsConn) {
 		cancel: cancel,
 		out:    make(chan serverMsg, defaultWriteBuffer),
 		terms:  map[string]*attachment{},
+		remote: IsRemoteOrigin(ctx),
 	}
 	defer c.cleanup()
 
@@ -381,6 +395,9 @@ type connState struct {
 	termBlockSubs map[string]struct{}    // runtime handle -> subscribed
 	unsubEvts     func()
 	closed        bool
+
+	remote                  bool
+	notificationsSubscribed bool
 }
 
 func (c *connState) handle(msg clientMsg) {
@@ -391,6 +408,8 @@ func (c *connState) handle(msg clientMsg) {
 		c.handleSubscribe(msg)
 	case chBlocks:
 		c.handleBlockSubscribe(msg)
+	case chNotifications:
+		c.handleNotifications(msg)
 	case chSystem:
 		if msg.Type == msgPing {
 			c.enqueue(serverMsg{Ch: chSystem, Type: msgPong})

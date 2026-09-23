@@ -7,6 +7,8 @@ import (
 	"github.com/OmarAly92/operator/backend/internal/domain"
 )
 
+const turnSummaryRunes = 120
+
 func enrich(intent Intent) (domain.NotificationRecord, error) {
 	rec := domain.NotificationRecord{
 		SessionID: intent.SessionID,
@@ -15,11 +17,12 @@ func enrich(intent Intent) (domain.NotificationRecord, error) {
 		Type:      intent.Type,
 		Status:    domain.NotificationUnread,
 		CreatedAt: intent.CreatedAt,
+		Quiet:     intent.Quiet,
 	}
 	if !intent.Type.Valid() {
 		return domain.NotificationRecord{}, domain.ErrInvalidNotificationType
 	}
-	if intent.Type != domain.NotificationNeedsInput && rec.PRURL == "" {
+	if !intent.Type.SessionScoped() && rec.PRURL == "" {
 		return domain.NotificationRecord{}, domain.ErrInvalidNotificationRecord
 	}
 	rec.Title = titleForIntent(intent)
@@ -46,6 +49,10 @@ func titleForIntent(intent Intent) string {
 		return fmt.Sprintf("%s merged", prLabel(intent))
 	case domain.NotificationPRClosedUnmerged:
 		return fmt.Sprintf("%s closed", prLabel(intent))
+	case domain.NotificationTurnFinished:
+		return fmt.Sprintf("%s finished", sessionLabel(intent))
+	case domain.NotificationAgentExited:
+		return fmt.Sprintf("%s exited", sessionLabel(intent))
 	default:
 		return "Notification"
 	}
@@ -74,9 +81,25 @@ func bodyForIntent(intent Intent) string {
 			return fmt.Sprintf("%s was closed without merging. Reopen it if this wasn't intended.", title)
 		}
 		return "Closed without merging. Reopen it if this wasn't intended."
+	case domain.NotificationTurnFinished:
+		if summary := summarize(intent.AssistantUpdate, turnSummaryRunes); summary != "" {
+			return summary
+		}
+		return "Your agent finished its turn."
+	case domain.NotificationAgentExited:
+		return "The agent process ended. Relaunch it from the session."
 	default:
 		return ""
 	}
+}
+
+func summarize(text string, limit int) string {
+	text = strings.Join(strings.Fields(text), " ")
+	runes := []rune(text)
+	if len(runes) <= limit {
+		return text
+	}
+	return string(runes[:limit]) + "…"
 }
 
 func sessionLabel(intent Intent) string {

@@ -3,7 +3,7 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { operatorBridge } from "../lib/bridge";
-import type { NotificationDTO, NotificationListStatus } from "../lib/notifications";
+import { recentNotificationsQueryKey, type NotificationDTO, type NotificationListStatus } from "../lib/notifications";
 import { useUiStore } from "../stores/ui-store";
 import { NotificationCenter, NotificationRuntime } from "./NotificationCenter";
 import { TooltipProvider } from "./ui/tooltip";
@@ -14,7 +14,6 @@ const {
 	markAllMock,
 	navigateMock,
 	notificationQueryMock,
-	paramsMock,
 	restoreSessionMock,
 	workspaceQueryMock,
 } = vi.hoisted(() => ({
@@ -23,7 +22,6 @@ const {
 	markAllMock: vi.fn(),
 	navigateMock: vi.fn(),
 	notificationQueryMock: vi.fn(),
-	paramsMock: vi.fn(),
 	restoreSessionMock: vi.fn(),
 	workspaceQueryMock: vi.fn(),
 }));
@@ -40,6 +38,7 @@ const allNotifications: NotificationDTO[] = [
 		status: "unread",
 		createdAt: "2026-07-21T11:00:00Z",
 		target: { kind: "pr", sessionId: "sess-2", prUrl: "https://github.com/acme/app/pull/67" },
+		quiet: false,
 	},
 	{
 		id: "ntf_1",
@@ -52,6 +51,7 @@ const allNotifications: NotificationDTO[] = [
 		status: "unread",
 		createdAt: "2026-07-21T10:00:00Z",
 		target: { kind: "session", sessionId: "sess-1" },
+		quiet: false,
 	},
 	{
 		id: "ntf_4",
@@ -64,6 +64,7 @@ const allNotifications: NotificationDTO[] = [
 		status: "read",
 		createdAt: "2026-07-20T09:00:00Z",
 		target: { kind: "session", sessionId: "sess-4" },
+		quiet: false,
 	},
 	{
 		id: "ntf_dead",
@@ -78,12 +79,13 @@ const allNotifications: NotificationDTO[] = [
 		status: "read",
 		createdAt: "2026-07-19T09:00:00Z",
 		target: { kind: "session", sessionId: "sess-dead" },
+		quiet: false,
 	},
 ];
 
 const unreadNotifications = allNotifications.filter((item) => item.status === "unread");
 
-vi.mock("@tanstack/react-router", () => ({ useNavigate: () => navigateMock, useParams: () => paramsMock() }));
+vi.mock("@tanstack/react-router", () => ({ useNavigate: () => navigateMock }));
 
 vi.mock("../hooks/useNotificationsQuery", () => ({
 	useMarkAllNotificationsReadMutation: () => ({ isPending: false, mutateAsync: markAllMock }),
@@ -164,7 +166,6 @@ const stableAllQuery = notificationQueryResult("all");
 
 beforeEach(() => {
 	connectMock.mockReset();
-	paramsMock.mockReset().mockReturnValue({});
 	useUiStore.setState({ visibleTerminalKindBySession: {} });
 	fetchNextPageMock.mockReset().mockResolvedValue(undefined);
 	markAllMock.mockReset().mockResolvedValue(0);
@@ -194,9 +195,6 @@ beforeEach(() => {
 	vi.spyOn(window, "open").mockImplementation(() => null);
 });
 
-// The runtime tells the transport which session the user is actually watching.
-// Being on the session route is not enough: the pane shows one terminal at a
-// time, so a shell or reviewer tab hides the agent while the URL is unchanged.
 describe("NotificationRuntime", () => {
 	function renderRuntime() {
 		const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -205,44 +203,84 @@ describe("NotificationRuntime", () => {
 				<NotificationRuntime />
 			</QueryClientProvider>,
 		);
-		return connectMock.mock.calls[0][1] as () => string | undefined;
+		return connectMock.mock.calls[0][1] as (sessionId: string) => boolean;
 	}
 
-	it("reports the session while its agent terminal is the one on screen", () => {
-		paramsMock.mockReturnValue({ sessionId: "sess-1" });
+	it("reports true while a session's agent terminal is the one on screen", () => {
 		useUiStore.setState({ visibleTerminalKindBySession: { "sess-1": "worker" } });
 
-		expect(renderRuntime()()).toBe("sess-1");
+		expect(renderRuntime()("sess-1")).toBe(true);
 	});
 
-	it.each(["shell", "reviewer"] as const)("reports nothing while a %s terminal covers the agent", (kind) => {
-		paramsMock.mockReturnValue({ sessionId: "sess-1" });
+	it.each(["shell", "reviewer"] as const)("reports false while a %s terminal covers the agent", (kind) => {
 		useUiStore.setState({ visibleTerminalKindBySession: { "sess-1": kind } });
 
-		expect(renderRuntime()()).toBeUndefined();
+		expect(renderRuntime()("sess-1")).toBe(false);
 	});
 
-	it("reports nothing off a session route", () => {
-		paramsMock.mockReturnValue({});
+	it("reports false for a session with no visible pane", () => {
 		useUiStore.setState({ visibleTerminalKindBySession: { "sess-1": "worker" } });
 
-		expect(renderRuntime()()).toBeUndefined();
+		expect(renderRuntime()("sess-2")).toBe(false);
 	});
 
-	// The transport connects once and outlives navigation, so the getter has to
-	// read live state rather than close over the value it was created with.
 	it("tracks tab switches without reconnecting the stream", () => {
-		paramsMock.mockReturnValue({ sessionId: "sess-1" });
 		useUiStore.setState({ visibleTerminalKindBySession: { "sess-1": "worker" } });
-		const getVisibleAgentSessionId = renderRuntime();
+		const isWatchingSession = renderRuntime();
 
 		useUiStore.setState({ visibleTerminalKindBySession: { "sess-1": "shell" } });
-		expect(getVisibleAgentSessionId()).toBeUndefined();
+		expect(isWatchingSession("sess-1")).toBe(false);
 
 		useUiStore.setState({ visibleTerminalKindBySession: { "sess-1": "worker" } });
-		expect(getVisibleAgentSessionId()).toBe("sess-1");
+		expect(isWatchingSession("sess-1")).toBe(true);
 		expect(connectMock).toHaveBeenCalledTimes(1);
 	});
+
+	it.each(["turn_finished", "agent_exited"] as const)(
+		"opens the session behind a clicked %s notification",
+		(type) => {
+			let clickListener: ((id: string) => void) | undefined;
+			const onClickSpy = vi.spyOn(operatorBridge.notifications, "onClick").mockImplementation((listener) => {
+				clickListener = listener;
+				return () => undefined;
+			});
+
+			const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+			const target: NotificationDTO = {
+				id: "ntf_turn",
+				sessionId: "sess-9",
+				projectId: "proj-9",
+				prUrl: "",
+				type,
+				title: type === "turn_finished" ? "Session finished" : "Session exited",
+				body: "",
+				status: "unread",
+				createdAt: "2026-07-21T10:00:00Z",
+				target: { kind: "session", sessionId: "sess-9" },
+				quiet: false,
+			};
+			queryClient.setQueryData(recentNotificationsQueryKey, {
+				pageParams: [""],
+				pages: [{ notifications: [target], unreadCount: 1, unresolvedCount: 0 }],
+			});
+
+			render(
+				<QueryClientProvider client={queryClient}>
+					<NotificationRuntime />
+				</QueryClientProvider>,
+			);
+
+			expect(clickListener).toBeDefined();
+			clickListener?.("ntf_turn");
+
+			expect(navigateMock).toHaveBeenCalledWith({
+				to: "/projects/$projectId/sessions/$sessionId",
+				params: { projectId: "proj-9", sessionId: "sess-9" },
+			});
+
+			onClickSpy.mockRestore();
+		},
+	);
 });
 
 describe("NotificationCenter", () => {
@@ -336,6 +374,7 @@ describe("NotificationCenter", () => {
 			status: "unread",
 			createdAt: "2026-07-18T09:00:00Z",
 			target: { kind: "session", sessionId: "sess-1" },
+			quiet: false,
 		};
 		const allState = {
 			pages: [

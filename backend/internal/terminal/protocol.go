@@ -24,6 +24,8 @@ const (
 	chSessions  = "sessions"
 	chSystem    = "system"
 	chBlocks    = "blocks"
+
+	chNotifications = "notifications"
 )
 
 // client message types (ch "terminal" unless noted).
@@ -50,6 +52,8 @@ const (
 	// msgResize is reused as a SERVER frame too: the daemon pushes the shared
 	// PTY's authoritative grid (Cols/Rows) to every attached client so followers
 	// render the exact grid the PTY is using instead of their own fitted size.
+
+	msgNotification = "notification"
 )
 
 // Client roles for a terminal open. A single PTY has one grid; when several
@@ -107,6 +111,19 @@ type serverMsg struct {
 
 	BlockType     string              `json:"blockType,omitempty"`
 	TerminalBlock *terminalBlockFrame `json:"terminalBlock,omitempty"`
+
+	Notification *notificationFrame `json:"notification,omitempty"`
+}
+
+type notificationFrame struct {
+	ID        string    `json:"id"`
+	SessionID string    `json:"sessionId"`
+	ProjectID string    `json:"projectId"`
+	Type      string    `json:"type"`
+	Title     string    `json:"title"`
+	Body      string    `json:"body"`
+	Quiet     bool      `json:"quiet"`
+	CreatedAt time.Time `json:"createdAt"`
 }
 
 type terminalBlockFrame struct {
