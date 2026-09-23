@@ -82,6 +82,12 @@ changes the plan as stated; nothing is built on an unverified assumption.
    the banner showed, and clicking it logged `clicked id=probe-1`. Consequence:
    the permission can land in "denied" on first run, so the Settings
    "Open System Settings" path (§5.3, §5.5) is load-bearing, not cosmetic.
+   This comparison missed linker-signed vs bundle-signed: the probe was
+   bundle-signed, while a local `tauri build` of Operator was only
+   linker-signed (`Identifier=operator-<hash>`, no Info.plist bound, no sealed
+   resources) and never registered with Notification Center, so every packaged
+   macOS build is now bundle-signed ad-hoc through
+   `bundle.macOS.signingIdentity: "-"`.
 2. **Stop on interrupt.** Start Claude Code under Operator, send a long prompt,
    press Esc. Record whether `opr hooks claude-code stop` fires (the hooks log
    under the data dir). *Either result keeps §4.4's keystroke rule; this only
