@@ -780,6 +780,31 @@ history of `master`.
   sizes…", "sends nothing when a pane is parked and shown at the grid it already
   published".
 
+### 4.25 A hidden window drained nothing and notified nothing — `cb7b34b3b`
+- Symptom: while Operator's window was minimised or app-hidden, no pane parsed
+  its output and no "command finished" notification fired. On restore the
+  pending blocks finished at once and reported `visible: true`, so
+  `BlockTerminal` suppressed the notification for a command that finished while
+  the user was away.
+- Cause: `requestAnimationFrame` never fires in a hidden WKWebView (0 per
+  second minimised or app-hidden, measured by
+  `scripts/probe-wkwebview-hidden.swift`;
+  `docs/superpowers/specs/2026-09-23-background-pane-cost-measurement.md`), and
+  the renderer drained, ticked and detected finished blocks only from its
+  animation frame. Every pane, the active one too, stopped.
+- Now: while `document.visibilityState` is `"hidden"` the renderer schedules its
+  frame on a `HIDDEN_TICK_MS` (100 ms) timer, which WebKit throttles to ~1/s;
+  each tick drains up to `HIDDEN_DRAIN_MS` (250 ms), ticks the core and reports
+  finished blocks with `visible: false`, painting nothing. When the document is
+  shown the renderer goes back to animation frames and a pane that paints
+  rebuilds in full on the first one (`catchUp`). The paint gate (`setVisible(false)`,
+  `6f8e38973`) is the same non-painting frame for a parked pane while the
+  window is shown, so a pane parked in a hidden window stays unpainted when the
+  window returns.
+- Guards: `dom-block-renderer.visibility.test.ts` "hidden document" and "paint
+  gate" describes; `TerminalPane.test.tsx` "paints a retained terminal on
+  screen and stops painting it while parked".
+
 ## 5. Known gaps (not bugs, decisions pending)
 
 - SGR attributes (italic, underline in 5 styles, SGR 58 colour, strike,
@@ -1021,6 +1046,69 @@ history of `master`.
   Claude Code keystroke hooks there (`EditorHost.beforePassthrough`). Guard:
   `TerminalSurface.test.tsx` "keeps Claude Code on the primary screen…" feeds
   the recording and asserts `altScreen` stays null.
+
+- **What a parked pane still costs.** Measured 2026-09-23 on
+  `terminal-background-pane` `1b76f26fd` (`run.mjs --panes-only`, three runs,
+  `claude-spinner-10s`, 100 frames over 10 s): 1 visible + 9 parked
+  0.518–0.528 s against a solo row of 0.419–0.458 s and 10 visible
+  1.296–1.326 s, i.e. 7.6–12.1 ms per parked pane per 10 s (65–88 ms before
+  the gate); parked panes add no layouts, no style recalcs and no DOM
+  mutations (`parkedMutations` 0). What remains: every change still builds one
+  snapshot per parked pane for block detection (`settleHidden` →
+  `detectFinishedBlocks`, 55.4 ms of the 1+9 profile, mostly
+  `export_screen_row`) and decodes its blocks, and in the app
+  `TerminalSurface`'s alt-screen listener reads another
+  (`TerminalSurface.tsx:303`, not mounted by the bench), and the line editor
+  still ingests history per change from that same snapshot so a command that
+  scrolls out while the pane is hidden stays in Up-arrow recall; the parse itself is
+  small (`drain` 5.9 ms). A hidden window drains up to `HIDDEN_DRAIN_MS`
+  (250 ms) of parse per timer tick, and WebKit throttles that timer to ~1/s,
+  so only a producer that needs more than ~250 ms of parse per second grows
+  the backlog while the window is hidden. The budget is larger than
+  `FEED_BUDGET_MS` (12 ms) there because nothing paints, so there is no frame
+  to protect; with 12 ms a busy session's closing mark stayed in the backlog
+  until restore, where the block was reported `visible: true` and its
+  notification suppressed. Animation-frame drains keep 12 ms. `rendererVisible`
+  remains only the fallback for `onBlockFinished`'s `visible` when a host
+  never calls `setVisible`; it is never a paint gate. The forced layout per
+  paint (now `dom-block-renderer.ts:1141`, the pinned-header
+  `getBoundingClientRect`) is still paid by every **visible** pane
+  (measurement note, "Follow-ups"). Numbers and profile:
+  `docs/superpowers/specs/2026-09-23-background-pane-cost-measurement.md`
+  "After".
+  A pane parked longer than `RETAINED_TERMINAL_UNLOAD_MS` (30 minutes,
+  `frontend/src/renderer/lib/retained-terminal.ts`) is unloaded by Operator's
+  retained-terminal cache (`TerminalPane.tsx` `scheduleUnload`), not by the
+  package: its renderer, core and mux attachment go away, the pty-host keeps
+  the session, and showing it again reopens it through attach + history
+  replay (§4.19). A shell pane whose line editor holds an unsent draft is not
+  unloaded (its timer re-arms until the draft is gone). All cores share one
+  `WebAssembly.Memory`, which never
+  shrinks, so an unload frees space for the next core to reuse; it does not
+  lower the resident size already reached. What switching back costs was not
+  measured in the app (the real-app check could not run: dev ports busy); the
+  only numbers are the bench's, ~40 ms to first paint and ~100–130 ms for 60k
+  history rows (spec table "reopen" row). Worker panes lose no notifications
+  by unloading, since Claude Code emits no block marks (0 `OSC 133`, 0
+  `OSC 7000` in `claude-spinner-10s` and `claude-long-50k`) and "needs input"
+  comes from the daemon's SSE stream; an unloaded shell pane is notified of
+  finished commands from the daemon's `terminal_block` mux frames
+  (`TerminalMux.onTerminalBlock`, `lib/shell-block-notifications.ts`). The
+  shell hooks send no `start_ms`, so the daemon's `BlockAssembler` stamps a
+  block's start when its output begins (`OSC 133;C`) and a frame with no usable
+  start never notifies; before that fix every frame carried
+  `startedAt: 0001-01-01` and would have notified every command. The loaded
+  renderer times a block from its prompt (`OSC 133;A`, vt-core
+  `BlockGrid::open_block`), so its duration includes time spent typing at the
+  prompt — pre-existing, and why a short command after a long pause at the
+  prompt can still notify from a loaded pane. Long
+  run: the 30-minute bench soak (1 visible + 9 parked, 64 KiB/s each) holds
+  about 25 MiB of wasm per core at the 200k-row cap from minute 7, flat to
+  minute 30, and ~1.9 s of main thread a minute, byte-for-byte repeatable
+  across two runs; the bench has no cache, so it cannot show the unload. The
+  2-hour real-app soak (WebContent RSS and CPU, a minimised stretch, and
+  2 visible split panes + parked) is not verified: dev ports busy.
+  Measurement note "Memory and long run" and "Long run after unload".
 
 ---
 

@@ -49,6 +49,7 @@ const mockState = vi.hoisted(() => {
 		revision: 0,
 		wasmInits: 0,
 		focusToken: undefined as number | undefined,
+		visible: undefined as boolean | undefined,
 		// The real surface only reports geometry once its host has a non-zero
 		// client box. Off means "mounted but never laid out", which is what a
 		// pane behind another tab looks like.
@@ -171,8 +172,10 @@ vi.mock("@operator/terminal-react", () => {
 				visible: boolean;
 			}) => void;
 			focusToken?: number;
+			visible?: boolean;
 		}) => {
 			mockState.focusToken = props.focusToken;
+			mockState.visible = props.visible;
 			mockState.onHint = props.onHint;
 			mockState.onBlockFinished = props.onBlockFinished;
 			mockState.altScreenActive = props.altScreenActive;
@@ -335,6 +338,7 @@ function renderTerminal(
 		coreOverrides?: Partial<MockCore>;
 		onReplayPainted?: () => void;
 		focusToken?: number;
+		visible?: boolean;
 		workspacePath?: string;
 	} = {},
 ) {
@@ -359,6 +363,7 @@ function renderTerminal(
 				agentTui={options.agentTui}
 				onReplayPainted={options.onReplayPainted}
 				focusToken={options.focusToken}
+				visible={options.visible}
 				workspacePath={options.workspacePath}
 			/>
 		</QueryClientProvider>,
@@ -400,6 +405,7 @@ beforeEach(() => {
 	mockState.reportGeometry = true;
 	mockState.emitGeometry = undefined;
 	mockState.focusToken = undefined;
+	mockState.visible = undefined;
 	subscribers.clear();
 });
 
@@ -553,6 +559,12 @@ describe("BlockTerminal", () => {
 		renderTerminal({ focusToken: 3 });
 		await waitFor(() => expect(mockState.core).toBeDefined());
 		await waitFor(() => expect(mockState.focusToken).toBe(3));
+	});
+
+	it("hands the host's visibility to the surface", async () => {
+		renderTerminal({ visible: false });
+		await waitFor(() => expect(mockState.core).toBeDefined());
+		await waitFor(() => expect(mockState.visible).toBe(false));
 	});
 
 	// A core is born 120x24 and only takes the pane's real grid when the surface

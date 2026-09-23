@@ -27,15 +27,23 @@ import {
 	createTerminalMux,
 	createTerminalMuxPool,
 	muxUrlFromApiBase,
+	type TerminalBlockFrame,
 	type TerminalMux,
 	type TerminalMuxPool,
 } from "../lib/terminal-mux";
 import { cn } from "../lib/utils";
+import {
+	RETAINED_TERMINAL_UNLOAD_MS,
+	UNLOADED_SHELL_REWATCH_BASE_MS,
+	UNLOADED_SHELL_REWATCH_MAX_MS,
+} from "../lib/retained-terminal";
+import { terminalDebug } from "../lib/terminal-debug";
+import { shellBlockNotification } from "../lib/shell-block-notifications";
 import { useWorkspaceQuery, workspaceQueryKey } from "../hooks/useWorkspaceQuery";
 import { useRestoreSession } from "../hooks/useRestoreSession";
 import { useShellTerminals } from "../hooks/useShellTerminals";
 import { useShellTerminalBlocks } from "../hooks/useShellTerminalBlocks";
-import { nativeShellBridgePresent } from "../lib/bridge";
+import { nativeShellBridgePresent, operatorBridge } from "../lib/bridge";
 import { RestoreUnavailableDialog } from "./RestoreUnavailableDialog";
 import { BlockTerminal, type BlockTerminalHistoryBlock } from "./BlockTerminal";
 import { TerminalAttachment } from "./TerminalAttachment";
@@ -70,8 +78,10 @@ type CachedTerminalEntry = TerminalCacheDescriptor & {
 	activationId: number;
 	activationPhase: "parked" | "preparing" | "ready" | "revealed" | "visible";
 	container: HTMLDivElement;
+	hasDraft?: boolean;
 	props: TerminalPaneProps;
 	terminal?: AttachableTerminal;
+	unloadTimer?: ReturnType<typeof setTimeout>;
 };
 
 type TerminalCacheController = {
@@ -191,6 +201,12 @@ function parkTerminal(entry: CachedTerminalEntry, parking: HTMLDivElement): void
 	parking.appendChild(entry.container);
 }
 
+function cancelUnload(entry: CachedTerminalEntry): void {
+	if (entry.unloadTimer === undefined) return;
+	clearTimeout(entry.unloadTimer);
+	entry.unloadTimer = undefined;
+}
+
 function showTerminal(entry: CachedTerminalEntry, slot: HTMLDivElement): void {
 	entry.activationId += 1;
 	// A retained renderer already has the latest hidden output. Prepare it at the
@@ -217,6 +233,7 @@ function CachedTerminalPortal({
 	onPrepared,
 	onReveal,
 	onActivated,
+	onDraftChange,
 	onTerminalReady,
 }: {
 	active: boolean;
@@ -224,6 +241,7 @@ function CachedTerminalPortal({
 	onPrepared: (cacheKey: string, activationId: number) => void;
 	onReveal: (cacheKey: string, activationId: number) => void;
 	onActivated: (cacheKey: string, activationId: number) => void;
+	onDraftChange: (cacheKey: string, draft: string) => void;
 	onTerminalReady: (cacheKey: string, terminal: AttachableTerminal) => void;
 }) {
 	const handleTerminalReady = useCallback(
@@ -231,6 +249,12 @@ function CachedTerminalPortal({
 			onTerminalReady(entry.cacheKey, terminal);
 		},
 		[entry.cacheKey, onTerminalReady],
+	);
+	const handleDraftChange = useCallback(
+		(draft: string) => {
+			onDraftChange(entry.cacheKey, draft);
+		},
+		[entry.cacheKey, onDraftChange],
 	);
 	useLayoutEffect(() => {
 		const terminal = entry.terminal;
@@ -273,10 +297,12 @@ function CachedTerminalPortal({
 		<AttachedTerminal
 			{...entry.props}
 			isVisible={active && entry.activationPhase === "visible"}
+			isRendered={active && entry.activationPhase !== "parked"}
 			// activationId advances on every park and every show, which is exactly
 			// when the pane this surface sits in may have been relaid out without
 			// its own box appearing to change.
 			refitToken={entry.activationId}
+			onDraftChange={handleDraftChange}
 			onTerminalReady={handleTerminalReady}
 		/>,
 		entry.container,
@@ -313,11 +339,88 @@ export function TerminalCacheProvider({
 	const muxPool = muxPoolRef.current;
 	const [, setRevision] = useState(0);
 	const rerender = useCallback(() => setRevision((current) => current + 1), []);
+	const { t } = useTranslation();
+	const translateRef = useRef(t);
+	useEffect(() => {
+		translateRef.current = t;
+	}, [t]);
+	const unloadedShellsRef = useRef(
+		new Map<string, { generation?: string; handleId: string; release: () => void }>(),
+	);
+
+	const releaseUnloadedShell = useCallback((ownerKey: string) => {
+		const unloaded = unloadedShellsRef.current.get(ownerKey);
+		if (!unloaded) return;
+		unloadedShellsRef.current.delete(ownerKey);
+		unloaded.release();
+	}, []);
+
+	const watchUnloadedShell = useCallback(
+		(entry: CachedTerminalEntry) => {
+			releaseUnloadedShell(entry.ownerKey);
+			const handleId = entry.handleId;
+			let lease: TerminalMux | null = null;
+			let rewatchTimer: ReturnType<typeof setTimeout> | undefined;
+			let attempts = 0;
+			const notify = (block: TerminalBlockFrame) => {
+				const note = shellBlockNotification(block, handleId);
+				if (!note) return;
+				const translate = translateRef.current;
+				void operatorBridge.notifications
+					.show({
+						id: note.id,
+						title:
+							note.exitCode === 0 || note.exitCode === null
+								? translate("terminal.blockFinished")
+								: translate("terminal.blockFailed"),
+						body: translate("terminal.blockFinishedBody", { seconds: Math.round(note.durationMs / 1000) }),
+						type: "terminal",
+					})
+					.catch((error: unknown) => {
+						terminalDebug("terminal-pane", "notification failed", { error: String(error) });
+					});
+			};
+			const watch = () => {
+				const current = muxPool.acquire();
+				lease = current;
+				current.onTerminalBlock(handleId, notify);
+				current.onConnectionChange((state) => {
+					if (lease !== current) return;
+					if (state === "open") {
+						attempts = 0;
+						return;
+					}
+					lease = null;
+					current.dispose();
+					const delay = Math.min(UNLOADED_SHELL_REWATCH_BASE_MS * 2 ** attempts, UNLOADED_SHELL_REWATCH_MAX_MS);
+					attempts += 1;
+					rewatchTimer = setTimeout(() => {
+						rewatchTimer = undefined;
+						watch();
+					}, delay);
+				});
+			};
+			watch();
+			unloadedShellsRef.current.set(entry.ownerKey, {
+				generation: entry.generation,
+				handleId,
+				release: () => {
+					if (rewatchTimer !== undefined) clearTimeout(rewatchTimer);
+					rewatchTimer = undefined;
+					const current = lease;
+					lease = null;
+					current?.dispose();
+				},
+			});
+		},
+		[muxPool, releaseUnloadedShell],
+	);
 
 	const removeEntry = useCallback(
 		(cacheKey: string) => {
 			const entry = entriesRef.current.get(cacheKey);
 			if (!entry) return;
+			cancelUnload(entry);
 			if (activeSlotsRef.current.has(cacheKey)) {
 				blurTerminal(entry.container);
 				setTerminalPhase(entry, "parked");
@@ -328,6 +431,26 @@ export function TerminalCacheProvider({
 			rerender();
 		},
 		[rerender],
+	);
+
+	const scheduleUnload = useCallback(
+		(entry: CachedTerminalEntry) => {
+			const arm = () => {
+				entry.unloadTimer = setTimeout(() => {
+					entry.unloadTimer = undefined;
+					if (entriesRef.current.get(entry.cacheKey) !== entry || entry.activationPhase !== "parked") return;
+					if (entry.kind === "shell" && entry.hasDraft) {
+						arm();
+						return;
+					}
+					if (entry.kind === "shell") watchUnloadedShell(entry);
+					removeEntry(entry.cacheKey);
+				}, RETAINED_TERMINAL_UNLOAD_MS);
+			};
+			cancelUnload(entry);
+			arm();
+		},
+		[removeEntry, watchUnloadedShell],
 	);
 
 	const releaseWorker = useCallback(
@@ -344,13 +467,17 @@ export function TerminalCacheProvider({
 		(descriptor: TerminalCacheDescriptor, props: TerminalPaneProps, slot: HTMLDivElement) => {
 			const parking = parkingRef.current;
 			if (!parking) return;
+			releaseUnloadedShell(descriptor.ownerKey);
 			const cachedProps = { ...props, createMux: muxPool.acquire };
 
 			const slots = activeSlotsRef.current;
 			for (const [key, activeSlot] of [...slots]) {
 				if (activeSlot !== slot || key === descriptor.cacheKey) continue;
 				const previousEntry = entriesRef.current.get(key);
-				if (previousEntry) parkTerminal(previousEntry, parking);
+				if (previousEntry) {
+					parkTerminal(previousEntry, parking);
+					scheduleUnload(previousEntry);
+				}
 				slots.delete(key);
 			}
 			const elsewhere = slots.get(descriptor.cacheKey);
@@ -367,6 +494,7 @@ export function TerminalCacheProvider({
 						parkTerminal(entry, parking);
 						slots.delete(entry.cacheKey);
 					}
+					cancelUnload(entry);
 					entriesRef.current.delete(entry.cacheKey);
 					entry.container.remove();
 				}
@@ -394,11 +522,12 @@ export function TerminalCacheProvider({
 			} else {
 				entry.props = cachedProps;
 			}
+			cancelUnload(entry);
 			showTerminal(entry, slot);
 			slots.set(entry.cacheKey, slot);
 			rerender();
 		},
-		[muxPool, rerender],
+		[muxPool, releaseUnloadedShell, rerender, scheduleUnload],
 	);
 
 	const deactivate = useCallback(
@@ -415,9 +544,10 @@ export function TerminalCacheProvider({
 				return;
 			}
 			parkTerminal(entry, parking);
+			scheduleUnload(entry);
 			rerender();
 		},
-		[rerender],
+		[rerender, scheduleUnload],
 	);
 
 	const update = useCallback(
@@ -440,6 +570,11 @@ export function TerminalCacheProvider({
 		},
 		[rerender],
 	);
+
+	const markDraft = useCallback((cacheKey: string, draft: string) => {
+		const entry = entriesRef.current.get(cacheKey);
+		if (entry) entry.hasDraft = draft.length > 0;
+	}, []);
 
 	const markPrepared = useCallback(
 		(cacheKey: string, activationId: number) => {
@@ -505,9 +640,11 @@ export function TerminalCacheProvider({
 		if (changed) rerender();
 	}, [daemonReady, rerender, theme]);
 
-	// Project/session teardown is an ownership boundary, not an LRU event.
-	// Dispose retained terminal clients as soon as the authoritative workspace
-	// snapshot no longer contains their logical session.
+	// Project/session teardown is an ownership boundary: dispose retained
+	// terminal clients as soon as the authoritative workspace snapshot no longer
+	// contains their logical session. Separately, an entry left parked for
+	// RETAINED_TERMINAL_UNLOAD_MS is disposed by scheduleUnload and reopened
+	// from the pty-host when shown again.
 	useEffect(() => {
 		if (!workspaceQuery.isSuccess) return;
 		const sessions = new Map(
@@ -559,18 +696,26 @@ export function TerminalCacheProvider({
 				rerender();
 			}
 		}
-	}, [removeEntry, shellTerminalsQuery.data, shellTerminalsQuery.isSuccess]);
+		for (const [ownerKey, unloaded] of [...unloadedShellsRef.current]) {
+			const shell = shells.get(unloaded.handleId);
+			if (!shell || shell.createdAt !== unloaded.generation) releaseUnloadedShell(ownerKey);
+		}
+	}, [releaseUnloadedShell, removeEntry, shellTerminalsQuery.data, shellTerminalsQuery.isSuccess]);
 
 	// The provider is the final shell ownership boundary. React disposes the
 	// portals; remove their externally-created host nodes as well.
 	useEffect(
 		() => () => {
 			activeSlotsRef.current.clear();
-			for (const entry of entriesRef.current.values()) entry.container.remove();
+			for (const entry of entriesRef.current.values()) {
+				cancelUnload(entry);
+				entry.container.remove();
+			}
 			entriesRef.current.clear();
+			for (const ownerKey of [...unloadedShellsRef.current.keys()]) releaseUnloadedShell(ownerKey);
 			muxPool.dispose();
 		},
-		[muxPool],
+		[muxPool, releaseUnloadedShell],
 	);
 
 	const controller = useMemo<TerminalCacheController>(
@@ -596,6 +741,7 @@ export function TerminalCacheProvider({
 					entry={entry}
 					key={entry.cacheKey}
 					onActivated={markActivated}
+					onDraftChange={markDraft}
 					onPrepared={markPrepared}
 					onReveal={markReveal}
 					onTerminalReady={markTerminalReady}
@@ -833,11 +979,15 @@ function AttachedTerminal({
 	focused,
 	createMux,
 	isVisible = true,
+	isRendered = true,
+	onDraftChange,
 	onTerminalReady,
 	refitToken,
 }: TerminalPaneProps & {
 	isVisible?: boolean;
+	isRendered?: boolean;
 	refitToken?: number;
+	onDraftChange?: (draft: string) => void;
 	onTerminalReady?: (terminal: AttachableTerminal) => void;
 }) {
 	const { t } = useTranslation();
@@ -1012,11 +1162,13 @@ function AttachedTerminal({
 					workspacePath={session?.workspacePath}
 					refitToken={refitToken}
 					focusToken={focusToken}
+					visible={isRendered}
 					recordsSpawnGrid={focused !== false}
 					ariaLabel={terminalTarget?.kind === "shell" ? t("terminal.shellAria") : t("terminal.sessionAria")}
 					fontSize={fontSize}
 					onReplayPainted={handleReplayPainted}
 					onReplayReady={onReplayReady}
+					onDraftChange={onDraftChange}
 				/>
 				<TerminalAttachment onReady={handleReady} />
 				{showEmptyState && (

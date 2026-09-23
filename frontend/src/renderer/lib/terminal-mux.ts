@@ -27,6 +27,16 @@ type ServerFrame = {
 	data?: string;
 	error?: string;
 	block?: unknown;
+	blockType?: string;
+	terminalBlock?: unknown;
+};
+
+export type TerminalBlockFrame = {
+	sourceId: string;
+	sessionId?: string;
+	exitCode: number | null;
+	startedAt: string;
+	finishedAt: string;
 };
 
 // ---- pure framing helpers (unit-tested in terminal-mux.test.ts) ----
@@ -91,6 +101,14 @@ export function blocksUnsubscribeFrame(sessionId: string): string {
 	return JSON.stringify({ ch: "blocks", type: "unsubscribe", id: sessionId });
 }
 
+export function terminalBlocksSubscribeFrame(handleId: string): string {
+	return JSON.stringify({ ch: "blocks", type: "subscribe", id: handleId, blockType: "terminal_block" });
+}
+
+export function terminalBlocksUnsubscribeFrame(handleId: string): string {
+	return JSON.stringify({ ch: "blocks", type: "unsubscribe", id: handleId, blockType: "terminal_block" });
+}
+
 function pingFrame(): string {
 	return JSON.stringify({ ch: "system", type: "ping" });
 }
@@ -115,6 +133,7 @@ type ExitListener = () => void;
 type OpenedListener = () => void;
 type ErrorListener = (message: string) => void;
 type BlockListener = (block: BlockEventView) => void;
+type TerminalBlockListener = (block: TerminalBlockFrame) => void;
 
 export type MuxConnectionState = "open" | "closed";
 type ConnectionListener = (state: MuxConnectionState) => void;
@@ -144,6 +163,7 @@ export type TerminalMux = {
 	unsubscribeBlocks: (sessionId: string) => void;
 	/** Server `block` frames for one session id. */
 	onBlock: (sessionId: string, listener: BlockListener) => () => void;
+	onTerminalBlock: (handleId: string, listener: TerminalBlockListener) => () => void;
 	/** Socket-level state: "open" on connect, "closed" on close or socket error. */
 	onConnectionChange: (listener: ConnectionListener) => () => void;
 	/** Close the socket and drop all listeners. */
@@ -184,6 +204,7 @@ export function createTerminalMux(url: string, WebSocketImpl: typeof WebSocket =
 	const openedListeners = new Map<string, Set<OpenedListener>>();
 	const errorListeners = new Map<string, Set<ErrorListener>>();
 	const blockListeners = new Map<string, Set<BlockListener>>();
+	const terminalBlockListeners = new Map<string, Set<TerminalBlockListener>>();
 	const connectionListeners = new Set<ConnectionListener>();
 	let connectionState: MuxConnectionState | undefined;
 	let pingTimer: ReturnType<typeof setInterval> | undefined;
@@ -237,6 +258,12 @@ export function createTerminalMux(url: string, WebSocketImpl: typeof WebSocket =
 		}
 		if (frame.ch === "blocks") {
 			if (frame.type !== "block" || frame.id === undefined) return;
+			if (frame.blockType === "terminal_block") {
+				const terminalBlock = frame.terminalBlock;
+				if (typeof terminalBlock !== "object" || terminalBlock === null) return;
+				terminalBlockListeners.get(frame.id)?.forEach((listener) => listener(terminalBlock as TerminalBlockFrame));
+				return;
+			}
 			const block = frame.block;
 			if (typeof block !== "object" || block === null) return;
 			blockListeners.get(frame.id)?.forEach((listener) => listener(block as BlockEventView));
@@ -271,6 +298,7 @@ export function createTerminalMux(url: string, WebSocketImpl: typeof WebSocket =
 		openedListeners.clear();
 		errorListeners.clear();
 		blockListeners.clear();
+		terminalBlockListeners.clear();
 		connectionListeners.clear();
 		try {
 			socket.close();
@@ -307,6 +335,17 @@ export function createTerminalMux(url: string, WebSocketImpl: typeof WebSocket =
 			send(blocksUnsubscribeFrame(sessionId));
 		},
 		onBlock: (sessionId, listener) => subscribeById(blockListeners, sessionId, listener),
+		onTerminalBlock: (handleId, listener) => {
+			const set = terminalBlockListeners.get(handleId) ?? new Set<TerminalBlockListener>();
+			if (set.size === 0) send(terminalBlocksSubscribeFrame(handleId));
+			set.add(listener);
+			terminalBlockListeners.set(handleId, set);
+			return () => {
+				if (!set.delete(listener) || set.size > 0) return;
+				if (terminalBlockListeners.get(handleId) === set) terminalBlockListeners.delete(handleId);
+				send(terminalBlocksUnsubscribeFrame(handleId));
+			};
+		},
 		onConnectionChange: (listener) => {
 			connectionListeners.add(listener);
 			return () => connectionListeners.delete(listener);
@@ -423,6 +462,7 @@ export function createTerminalMuxPool(createMux: () => TerminalMux): TerminalMux
 				if (!released && !connection.closed && !connection.disposed) connection.mux.unsubscribeBlocks(sessionId);
 			},
 			onBlock: (sessionId, listener) => subscribe(() => connection.mux.onBlock(sessionId, listener)),
+			onTerminalBlock: (handleId, listener) => subscribe(() => connection.mux.onTerminalBlock(handleId, listener)),
 			onConnectionChange: (listener) => subscribe(() => connection.mux.onConnectionChange(listener)),
 			dispose,
 		};

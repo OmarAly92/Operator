@@ -4,6 +4,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { createTerminalCore, type HostCapabilities } from "@operator/terminal-core";
+import { LineEditor } from "@operator/terminal-editor";
 import { DomBlockRenderer, terminalStyles } from "@operator/terminal-renderer-dom";
 import { TerminalSurface } from "./index";
 import {
@@ -559,6 +560,56 @@ describe("TerminalSurface", () => {
 		act(() => editor.blur());
 		expect(setFocused).toHaveBeenLastCalledWith(false);
 		setFocused.mockRestore();
+	});
+
+	it("hands the host's visibility to the renderer", () => {
+		const spy = vi.spyOn(DomBlockRenderer.prototype, "setVisible");
+		const { setVisible } = renderSurface({ visible: false });
+		expect(spy).toHaveBeenLastCalledWith(false);
+		setVisible(true);
+		expect(spy).toHaveBeenLastCalledWith(true);
+		setVisible(undefined);
+		expect(spy).toHaveBeenLastCalledWith(null);
+		spy.mockRestore();
+	});
+
+	it("hands the host's visibility to the line editor", () => {
+		const spy = vi.spyOn(LineEditor.prototype, "setVisible");
+		const { setVisible } = renderSurface({ visible: false });
+		expect(spy).toHaveBeenLastCalledWith(false);
+		setVisible(true);
+		expect(spy).toHaveBeenLastCalledWith(true);
+		setVisible(undefined);
+		expect(spy).toHaveBeenLastCalledWith(true);
+		spy.mockRestore();
+	});
+
+	it("mounts a fresh renderer and editor already hidden when the mount effect reruns while parked", () => {
+		const rendererSpy = vi.spyOn(DomBlockRenderer.prototype, "setVisible");
+		const editorSpy = vi.spyOn(LineEditor.prototype, "setVisible");
+		const core = createTerminalCore({ columns: 16, scrollback: 100 });
+		const surfaceWith = (onSend: () => void) => (
+			<TerminalSurface
+				core={core}
+				theme={theme}
+				font={font}
+				altScreenActive={false}
+				onSend={onSend}
+				onSendRaw={ignoreRaw}
+				visible={false}
+			/>
+		);
+		const { rerender } = render(surfaceWith(() => undefined));
+		rendererSpy.mockClear();
+		editorSpy.mockClear();
+		const repaint = vi.spyOn(DomBlockRenderer.prototype as unknown as { repaint(): void }, "repaint");
+		rerender(surfaceWith(() => undefined));
+		expect(rendererSpy).toHaveBeenLastCalledWith(false);
+		expect(editorSpy).toHaveBeenLastCalledWith(false);
+		expect(repaint).not.toHaveBeenCalled();
+		repaint.mockRestore();
+		rendererSpy.mockRestore();
+		editorSpy.mockRestore();
 	});
 
 	async function mountAltSurface(extra: Partial<HostCapabilities>) {

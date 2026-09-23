@@ -3,6 +3,7 @@ package terminal
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -374,5 +375,33 @@ func TestAssemblerSecondPromptDiscardsUnfinishedFirst(t *testing.T) {
 	}
 	if bytes.Contains(blocks[0].RawOutput, []byte("first never ends")) {
 		t.Fatalf("abandoned block bytes leaked: %q", blocks[0].RawOutput)
+	}
+}
+
+func TestAssemblerStampsTheCommandStartWhenTheShellSendsNone(t *testing.T) {
+	clock := time.Date(2026, 9, 23, 10, 0, 0, 0, time.UTC)
+	a := NewBlockAssembler("term-1", "sess-1", "epoch-1", false, func() time.Time { return clock })
+	dec := marks.NewStreamDecoder()
+	a.Consume(dec.Feed([]byte("\x1b]7000;v=1;id=h-1;cwd=%2Frepo\x1b\\\x1b]133;A\a$ \x1b]7000;v=1;id=h-1;cmd=sleep 15\x1b\\")))
+	clock = clock.Add(20 * time.Second)
+	a.Consume(dec.Feed([]byte("\x1b]133;C\a")))
+	clock = clock.Add(15 * time.Second)
+	blocks := a.Consume(dec.Feed([]byte("done\r\n\x1b]7000;v=1;id=h-1;exit=0\x1b\\\x1b]133;D;0\a")))
+	if len(blocks) != 1 {
+		t.Fatalf("got %d blocks, want 1", len(blocks))
+	}
+	if got := blocks[0].FinishedAt.Sub(blocks[0].StartedAt); got != 15*time.Second {
+		t.Fatalf("duration = %v (started %v), want 15s from the output start, not the prompt", got, blocks[0].StartedAt)
+	}
+}
+
+func TestAssemblerKeepsTheShellsOwnStartTime(t *testing.T) {
+	clock := time.Date(2026, 9, 23, 10, 0, 0, 0, time.UTC)
+	a := NewBlockAssembler("term-1", "sess-1", "epoch-1", false, func() time.Time { return clock })
+	dec := marks.NewStreamDecoder()
+	start := clock.Add(-5 * time.Second).UnixMilli()
+	blocks := assembleChunks(a, dec, fmt.Sprintf("\x1b]133;A\a$ \x1b]7000;v=1;id=h-1;cmd=make;start_ms=%d\x1b\\\x1b]133;C\aok\r\n\x1b]133;D;0\a", start))
+	if len(blocks) != 1 || blocks[0].StartedAt.UnixMilli() != start {
+		t.Fatalf("blocks = %+v, want StartedAt from start_ms %d", blocks, start)
 	}
 }

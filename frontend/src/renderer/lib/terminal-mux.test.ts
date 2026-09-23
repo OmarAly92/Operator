@@ -295,6 +295,32 @@ describe("createTerminalMux client", () => {
 
 		expect(seen).toEqual([]);
 	});
+
+	function fakeMux() {
+		const mux = createTerminalMux("ws://x/mux", FakeSocket as unknown as typeof WebSocket);
+		const socket = FakeSocket.instances.at(-1)!;
+		socket.emitOpen();
+		return { mux, sent: socket.sent, receive: (frame: unknown) => socket.emitMessage(JSON.stringify(frame)) };
+	}
+
+	it("subscribes to a handle's terminal blocks and delivers them", () => {
+		const { mux, sent, receive } = fakeMux();
+		const seen: unknown[] = [];
+		const off = mux.onTerminalBlock("h1", (block) => seen.push(block));
+		expect(sent.map((frame) => JSON.parse(frame))).toContainEqual({ ch: "blocks", type: "subscribe", id: "h1", blockType: "terminal_block" });
+		receive({ ch: "blocks", id: "h1", type: "block", blockType: "terminal_block", terminalBlock: { sourceId: "b1", exitCode: 0, startedAt: "a", finishedAt: "b" } });
+		expect(seen).toEqual([{ sourceId: "b1", exitCode: 0, startedAt: "a", finishedAt: "b" }]);
+		off();
+		expect(sent.map((frame) => JSON.parse(frame))).toContainEqual({ ch: "blocks", type: "unsubscribe", id: "h1", blockType: "terminal_block" });
+	});
+
+	it("does not hand a terminal block to agent block listeners", () => {
+		const { mux, receive } = fakeMux();
+		const agent: unknown[] = [];
+		mux.onBlock("h1", (block) => agent.push(block));
+		receive({ ch: "blocks", id: "h1", type: "block", blockType: "terminal_block", terminalBlock: { sourceId: "b1" } });
+		expect(agent).toEqual([]);
+	});
 });
 
 describe("createTerminalMuxPool", () => {

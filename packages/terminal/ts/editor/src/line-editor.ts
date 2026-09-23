@@ -25,6 +25,7 @@ export type EditorHost = {
 	sendRaw(data: string): void;
 	beforePassthrough?(event: KeyboardEvent): void;
 	compositionAnchor?: (parent: HTMLElement) => CompositionAnchor | null;
+	onDraftChange?(draft: string): void;
 };
 
 export class LineEditor {
@@ -47,6 +48,9 @@ export class LineEditor {
 	private composition: CompositionTarget | null = null;
 	private unsubscribe: (() => void) | null = null;
 	private unsubscribeCompletions: (() => void) | null = null;
+	private visible = true;
+	private staleWhileHidden = false;
+	private reportedDraft = "";
 
 	mount(container: HTMLElement, core: TerminalCore, host: EditorHost): void {
 		this.dispose();
@@ -59,6 +63,7 @@ export class LineEditor {
 		this.promptBranch = "";
 		this.promptExitCode = null;
 		this.promptDurationMs = null;
+		this.reportedDraft = "";
 		this.search.cancel();
 		this.searchOpen = false;
 		this.dropdownOpen = false;
@@ -84,6 +89,10 @@ export class LineEditor {
 		this.dropdown.mount(root);
 		this.unsubscribe = core.onChange(() => {
 			this.ingestHistory();
+			if (!this.visible) {
+				this.staleWhileHidden = true;
+				return;
+			}
 			this.render();
 		});
 		this.unsubscribeCompletions = core.onCompletions((result) => {
@@ -130,6 +139,13 @@ export class LineEditor {
 		this.render();
 	}
 
+	setVisible(visible: boolean): void {
+		this.visible = visible;
+		if (!visible || !this.staleWhileHidden) return;
+		this.staleWhileHidden = false;
+		this.render();
+	}
+
 	focus(): void {
 		this.composition?.focus();
 	}
@@ -150,7 +166,11 @@ export class LineEditor {
 		}
 		this.root = null;
 		this.core = null;
+		if (this.reportedDraft !== "") this.host?.onDraftChange?.("");
+		this.reportedDraft = "";
 		this.host = null;
+		this.visible = true;
+		this.staleWhileHidden = false;
 	}
 
 	private commitComposedText(text: string): void {
@@ -365,7 +385,15 @@ export class LineEditor {
 		}
 	}
 
+	private reportDraft(): void {
+		const draft = this.buffer.text;
+		if (draft === this.reportedDraft) return;
+		this.reportedDraft = draft;
+		this.host?.onDraftChange?.(draft);
+	}
+
 	private render(): void {
+		this.reportDraft();
 		const root = this.root;
 		const content = this.content;
 		if (!root || !content) return;

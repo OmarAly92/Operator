@@ -69,10 +69,12 @@ export interface TerminalSurfaceProps {
 	 */
 	refitToken?: number;
 	focusToken?: number;
+	visible?: boolean;
 	features?: Partial<RendererFeatures>;
 	onPaint?: () => void;
 	onBlockFinished?: (event: BlockFinishedEvent) => void;
 	onHint?: (hint: HintEvent) => void;
+	onDraftChange?: (draft: string) => void;
 }
 
 function predictKeystroke(renderer: DomBlockRenderer | null, event: KeyboardEvent): void {
@@ -97,8 +99,10 @@ export function TerminalSurface({
 	onPaint,
 	onBlockFinished,
 	onHint,
+	onDraftChange,
 	refitToken,
 	focusToken,
+	visible,
 	features,
 }: TerminalSurfaceProps): ReactElement {
 	const hostRef = useRef<HTMLDivElement | null>(null);
@@ -112,6 +116,10 @@ export function TerminalSurface({
 	onBlockFinishedRef.current = onBlockFinished;
 	const onHintRef = useRef(onHint);
 	onHintRef.current = onHint;
+	const onDraftChangeRef = useRef(onDraftChange);
+	onDraftChangeRef.current = onDraftChange;
+	const visibleRef = useRef(visible);
+	visibleRef.current = visible;
 	const findBarRef = useRef<FindBar | null>(null);
 	const gridColumnsRef = useRef(0);
 	const gridRowsRef = useRef(0);
@@ -156,6 +164,7 @@ export function TerminalSurface({
 			return;
 		}
 		const renderer = new DomBlockRenderer();
+		renderer.setVisible(visibleRef.current ?? null);
 		renderer.mount(blockHost, core);
 		renderer.setFeatures(featuresRef.current ?? {});
 		renderer.setSecretPatterns(secretPatternsRef.current ?? []);
@@ -167,6 +176,7 @@ export function TerminalSurface({
 			sendRaw: onSendRaw,
 			beforePassthrough: (event) => predictKeystroke(renderer, event),
 			compositionAnchor: (parent) => anchorFromElement(parent, blockHost.querySelector("[data-terminal-cursor-cell]")),
+			onDraftChange: (draft) => onDraftChangeRef.current?.(draft),
 		});
 		editor.setTheme(theme);
 		editor.setFont(font);
@@ -196,6 +206,7 @@ export function TerminalSurface({
 		rendererRef.current = renderer;
 		editorRef.current = editor;
 		findBarRef.current = findBar;
+		editor.setVisible(visibleRef.current !== false);
 		applyLinkProviders();
 		applyPredictiveEchoRef.current();
 		return () => {
@@ -287,6 +298,11 @@ export function TerminalSurface({
 		observer.observe(blockHost);
 		return () => observer.disconnect();
 	}, [core, onGeometry, refitToken]);
+
+	useLayoutEffect(() => {
+		rendererRef.current?.setVisible(visible ?? null);
+		editorRef.current?.setVisible(visible !== false);
+	}, [visible]);
 
 	const [altActive, setAltActive] = useState(false);
 	useLayoutEffect(() => {

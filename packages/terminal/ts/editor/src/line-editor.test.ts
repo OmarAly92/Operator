@@ -223,6 +223,19 @@ describe("LineEditor ownership", () => {
 		expect(host.sent).toEqual(["a", "b"]);
 	});
 
+	it("reports each change of the unsent draft to the host", () => {
+		const drafts: string[] = [];
+		const { editor, core } = mount({ onDraftChange: (draft) => drafts.push(draft) });
+		core.feed(encode("\x1b]7000;v=1;input-ready=1\x07"));
+		editor.handleKey(key({ key: "l" }));
+		editor.handleKey(key({ key: "s" }));
+		editor.handleKey(key({ key: "ArrowLeft" }));
+		core.feed(encode("\x1b]7000;v=1;input-ready=1\x07"));
+		editor.handleKey(key({ key: "Enter" }));
+		editor.setText("pwd");
+		expect(drafts).toEqual(["l", "ls", "", "pwd"]);
+	});
+
 	it("keeps Ctrl-C a passthrough even while Owned", () => {
 		const { editor, host, core } = mount();
 		core.feed(encode("\x1b]7000;v=1;input-ready=1\x07"));
@@ -347,5 +360,60 @@ describe("LineEditor composition target stability", () => {
 		expect(root.textContent).toContain("abcde");
 		expect(removals).toBe(0);
 		expect(root.contains(input)).toBe(true);
+	});
+});
+
+describe("LineEditor visibility", () => {
+	it("does no render work while hidden and catches up when shown", () => {
+		const { editor, core, host, container } = mount();
+		core.feed(encode("\x1b]7000;v=1;input-ready=1\x07"));
+		editor.setVisible(false);
+		let mutations = 0;
+		const observer = new MutationObserver((records) => {
+			mutations += records.length;
+		});
+		observer.observe(container, { childList: true, subtree: true, attributes: true, characterData: true });
+		for (let index = 0; index < 10; index += 1) {
+			core.feed(
+				encode(
+					`\x1b]133;A\x07\x1b]7000;v=1;cmd=cmd${index}\x07\x1b]133;C\x07ok\n\x1b]133;D;0\x07`,
+				),
+			);
+		}
+		mutations += observer.takeRecords().length;
+		observer.disconnect();
+		expect(mutations).toBe(0);
+		editor.setVisible(true);
+		editor.handleKey(key({ key: "ArrowUp" }));
+		editor.handleKey(key({ key: "Enter" }));
+		expect(host.sent).toEqual(["cmd9"]);
+	});
+
+	it("tells the host its draft is gone when the editor is disposed", () => {
+		const drafts: string[] = [];
+		const { editor, core } = mount({ onDraftChange: (draft) => drafts.push(draft) });
+		core.feed(encode("\x1b]7000;v=1;input-ready=1\x07"));
+		editor.handleKey(key({ key: "l" }));
+		expect(drafts.at(-1)).toBe("l");
+		editor.dispose();
+		expect(drafts.at(-1)).toBe("");
+	});
+
+	it("keeps a command in history that scrolls out of the core while hidden", () => {
+		const ready = "\x1b]7000;v=1;input-ready=1\x07";
+		const block = (cmd: string, out = "ok\n") =>
+			`\x1b]133;A\x07\x1b]7000;v=1;cmd=${cmd}\x07\x1b]133;C\x07${out}\x1b]133;D;0\x07`;
+		const flood = Array.from({ length: 300 }, (_, index) => `line${index}\n`).join("");
+		const { editor, core, host } = mount();
+		core.feed(encode(ready));
+		editor.setVisible(false);
+		core.feed(encode(block("firstcmd")));
+		core.feed(encode(block("cat", flood)));
+		core.feed(encode(block("second")));
+		editor.setVisible(true);
+		core.feed(encode(ready));
+		for (let index = 0; index < 3; index += 1) editor.handleKey(key({ key: "ArrowUp" }));
+		editor.handleKey(key({ key: "Enter" }));
+		expect(host.sent).toEqual(["firstcmd"]);
 	});
 });
