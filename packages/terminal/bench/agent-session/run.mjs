@@ -138,6 +138,10 @@ async function paneLoad(page, { extra, mode, profileOut }) {
 	await page.waitForTimeout(300);
 	if (mode === "parked") out.parkedState = await page.evaluate(() => window.__agentSession.parkedPaneState());
 	out.parkedMutations = await page.evaluate(() => window.__agentSession.parkedMutations());
+	await session.send("HeapProfiler.collectGarbage");
+	const heap = await session.send("Runtime.getHeapUsage");
+	const dom = await session.send("Memory.getDOMCounters");
+	out.memory = { jsHeapUsedBytes: heap.usedSize, domNodes: dom.nodes, ...(await page.evaluate(() => window.__agentSession.paneMemory())) };
 	return out;
 }
 

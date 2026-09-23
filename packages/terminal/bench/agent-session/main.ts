@@ -46,6 +46,8 @@ type AgentSession = {
 	extendSelectionByOneRow(): Promise<number>;
 	mountPanes(count: number, mode?: "visible" | "parked"): Promise<void>;
 	parkedPaneState(): Array<{ backlog: boolean; generation: number; rows: number }>;
+	paneMemory(): { wasmBytes: number; cores: Array<{ mode: "visible" | "parked"; contentBytes: number; styleEntries: number; rows: number; blocks: number }> };
+	startSoakFeed(bytesPerSecond: number): void;
 	parkedMutations(): number;
 	resetParkedMutations(): void;
 	reopenFromReplay(frame: Uint8Array, chunks: Uint8Array[]): Promise<{ firstPaintMs: number; allRowsMs: number; rows: number }>;
@@ -279,6 +281,20 @@ async function mountPanes(count: number, mode: PaneMode = "visible"): Promise<vo
 	}
 }
 
+let soakTimer: ReturnType<typeof setInterval> | null = null;
+
+function startSoakFeed(bytesPerSecond: number): void {
+	let at = 0;
+	soakTimer ??= setInterval(() => {
+		if (at >= recording.length) at = 0;
+		const end = Math.min(recording.length, at + bytesPerSecond);
+		const chunk = recording.subarray(at, end);
+		core.enqueue(chunk);
+		for (const { pane } of extraPanes) (pane.getCoreForBench() as TerminalCore).enqueue(chunk);
+		at = end;
+	}, 1000);
+}
+
 async function reopenFromReplay(frame: Uint8Array, chunks: Uint8Array[]): Promise<{ firstPaintMs: number; allRowsMs: number; rows: number }> {
 	paints = 0;
 	addedNodes = 0;
@@ -447,6 +463,14 @@ window.__agentSession = {
 				const snapshot = paneCore.snapshot();
 				return { backlog: paneCore.hasBacklog(), generation: snapshot.generation, rows: snapshot.rows.length / 2 };
 			}),
+	paneMemory: () => ({
+		wasmBytes: core.snapshot().content.buffer.byteLength,
+		cores: [
+			{ mode: "visible" as const, ...core.memoryStats() },
+			...extraPanes.map(({ pane, mode }) => ({ mode, ...(pane.getCoreForBench() as TerminalCore).memoryStats() })),
+		],
+	}),
+	startSoakFeed,
 	reopenFromReplay,
 	widthChange,
 	staleRowCount,

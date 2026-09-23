@@ -325,3 +325,127 @@ The user's own dev app held both ports, so no second instance was started.
 
 - (a) Notification while minimised: **not verified — dev ports busy**.
 - (b) Reveal shows the tail: **not verified — dev ports busy**.
+
+## Memory and long run
+
+Tree: branch `terminal-background-pane` at `3f2d8f626` plus this section's
+bench changes, `packages/terminal` rebuilt with `npm run build:ts`. Headless
+Chromium (Playwright), 1600×900, same harness as above. New tooling:
+`bench/agent-session/main.ts` `paneMemory()` (one shared wasm memory for every
+core in the page, plus each core's `memoryStats()`) and `startSoakFeed()`,
+`run.mjs --panes-only` rows now carry `memory` (JS heap after a forced GC,
+`Memory.getDOMCounters().nodes`, `paneMemory()`), and
+`bench/agent-session/soak.mjs` (`npm run bench:soak`). Memory numbers do not
+depend on machine load; the CPU numbers here do (see the load averages).
+
+### Per retained pane (`run.mjs --panes-only`, `claude-spinner-10s`, after 100 frames)
+
+| row | JS heap used | DOM nodes | wasm memory | each core's `contentBytes` / completed rows |
+|---|---|---|---|---|
+| 1 visible, alone | 3,399,068 | 403 | 1,769,472 | 0 / 0 |
+| 1 visible + 3 parked | 3,494,264 | 479 | 2,162,688 | 0 / 0 |
+| 1 visible + 9 parked | 3,757,660 | 629 | 2,883,584 | 0 / 0 |
+| 10 visible | 3,807,220 | 2,941 | 2,883,584 | 0 / 0 |
+
+- Per parked pane, (parked9 − solo) / 9: **39,844 B of JS heap, 25.1 DOM
+  nodes, 123,790 B of wasm memory** (the wasm figure moves in 64 KiB pages).
+  A visible pane, (visible10 − solo) / 9: 45,350 B of heap and 282 DOM nodes.
+- Every core's `contentBytes` is 0: the spinner fixture never scrolls a row
+  off its 27-row screen (`parkedState` reads 27 snapshot rows, 0 completed
+  rows), and `contentBytes` counts completed scrollback only
+  (`crates/vt-core/src/lib.rs` `memory_stats`, `content.rs`
+  `resident_bytes`). So this row is the fixed cost of an empty retained pane;
+  scrollback is the soak's job.
+
+### Bench soak (`npm run bench:soak -- --minutes 30`)
+
+`claude-long-50k`, 1 visible + 9 parked panes, every core fed the same
+64 KiB of the recording per second (wrapping), one sample a minute.
+2026-09-23 02:12:55–02:42:56 UTC, 30 samples. Load average (1/5/15 min) at
+the start 76.8 / 112.8 / 87.2 and at the end 15.9 / 14.2 / 25.3 on 10 cores;
+the per-sample 1-minute load read 50–78 for minutes 1–5, 16–44 for 6–9, and
+9–19 from minute 10 on.
+
+| minute | wasm memory (MiB) | completed rows per core | `contentBytes` per core | JS heap used | DOM nodes | `TaskDuration` s/min |
+|---|---|---|---|---|---|---|
+| 1 | 45.3 | 32,732 | 187,124 | 3,669,512 | 453 | 1.763 |
+| 3 | 135.8 | 92,495 | 529,493 | 3,750,276 | 453 | 1.852 |
+| 5 | 198.6 | 152,244 | 871,778 | 3,790,296 | 512 | 1.944 |
+| 7 | 254.3 | 199,999 | 1,148,581 | 3,809,372 | 453 | 1.863 |
+| 10 | 254.3 | 199,999 | 1,145,759 | 3,827,712 | 546 | 1.825 |
+| 20 | 254.3 | 199,999 | 1,147,365 | 3,869,160 | 453 | 1.798 |
+| 30 | 254.3 | 199,999 | 1,147,997 | 3,886,580 | 458 | 1.933 |
+
+All ten cores read identical `contentBytes`, `styleEntries` and rows in
+every sample. Least-squares slopes per minute:
+
+| quantity | minutes 1–30 | minutes 1–9 (filling) | minutes 11–30 (at the cap) |
+|---|---|---|---|
+| wasm memory | +4,195,091 B | +30,663,202 B | 0 |
+| each core's `contentBytes` (all ten equal) | +18,675 B | +130,604 B | +12 B |
+| JS heap used | +5,078 B | +17,465 B | +2,480 B |
+| DOM nodes | −0.53 | −1.55 | −2.22 |
+| `TaskDuration` | +0.005 s | +0.014 s | +0.001 s |
+
+Read-outs:
+
+- Every core reaches the 200k-row cap at minute 7 and stays there
+  (199,999 rows). The 128 MiB byte cap is never approached: at the row cap a
+  core's scrollback text is 1.15 MB (`claude-long-50k` rows are mostly short
+  or blank) and it has 885–895 style entries.
+- **At the row cap a core costs about 25 MiB of wasm memory**:
+  (254.3 MiB − the 2.75 MiB ten empty cores take in the parked9 row) / 10 =
+  25.2 MiB, ~132 B per completed row, of which ~6 B is text. The rest is the
+  row index and the other per-row structures `memoryStats` does not break out.
+  Wasm memory is flat from minute 6 to 30: no growth past the cap.
+- DOM nodes do not grow: 453 at minute 1 and 453–458 at most samples to the
+  end; the 476–559 readings are single samples that fall back to 453 the next
+  minute (the visible pane's rows at the moment of the sample). Parked panes
+  add no DOM over time.
+- JS heap after a forced GC creeps up 2.5 KB a minute at the cap (3.83 MB at
+  minute 10, 3.89 MB at 30). Not attributed to anything; it is ~3.6 MB a day
+  at this rate, small against one core's 25 MiB. Reported, not called a leak.
+- `TaskDuration` does not drift: 1.52–2.14 s per minute throughout, slope
+  +0.001 s/min at the cap, with the load falling from ~70 to ~12 over the
+  run. Ten panes parsing 64 KiB/s each cost ~1.9 s of main thread a minute
+  (~3 % of a core). These CPU numbers are load-contaminated.
+- A `WebAssembly.Memory` never shrinks, so disposing a core returns its
+  memory to the allocator inside the one wasm instance, not to the OS. What an
+  unload saves is therefore the next pane's growth (a reopened or new core
+  reuses the freed space); whether vt-wasm's allocator reuses it without
+  fragmentation is not known. The page's peak wasm memory is set by the most
+  cores loaded at once.
+
+### Real-app soak
+
+`lsof -nP -iTCP:3002 -iTCP:5173 -sTCP:LISTEN` at 2026-09-23 05:43:48:
+
+```
+COMMAND  PID    USER   FD   TYPE             DEVICE SIZE/OFF NODE NAME
+node    3828 omaraly   18u  IPv4 0x8b4da106e253439e      0t0  TCP 127.0.0.1:5173 (LISTEN)
+opr     4537 omaraly   15u  IPv4 0xfd433cda80c33dc9      0t0  TCP 127.0.0.1:3002 (LISTEN)
+```
+
+**Not verified — dev ports busy.** The user's own dev app held both ports, so
+no second instance was started and there are no WebContent RSS/CPU numbers.
+The sampler for it is `scripts/soak-operator-webview.sh <pid> [minutes]`
+(CSV `minute,rss_kb,cpu_pct`, one line a minute); it was checked with
+`bash -n` and a 1-minute run against a `sleep` process.
+
+### What N = 30 minutes costs
+
+- Held while parked: a pane holds its core until N expires. A quiet pane
+  holds ~121 KiB of wasm, ~39 KiB of JS heap and ~25 DOM nodes plus its
+  scrollback at ~132 B per row; a busy one (64 KiB/s here) reaches the
+  200k-row cap in ~7 minutes and then holds ~25 MiB of wasm memory for the
+  remaining ~23 minutes. CPU while parked is the "After" section's
+  7.6–12.1 ms per 10 s for a spinner.
+- Paid on return after N: the replay, ~40 ms to first paint and ~100–130 ms
+  for 60k history rows in the bench (spec table "reopen" row).
+- A pane's memory is bounded by the row cap whatever N is; N sets how many
+  panes can sit at that ceiling together (every pane parked less than N ago).
+  With the user opening and leaving sessions over days, N = 30 keeps that to
+  the sessions touched in the last half hour. These numbers do not argue for
+  another value, so N stays 30 minutes. One caveat for Task 10: because wasm
+  memory does not shrink, unloading lowers future growth, not the resident
+  size already reached.
