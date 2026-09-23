@@ -1,4 +1,4 @@
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, SquareTerminal } from "lucide-react";
 import type { PointerEvent, ReactNode } from "react";
 import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
@@ -10,6 +10,7 @@ import { tabKey, type Pane, type TabRef } from "../../lib/split-layout";
 import type { WorkspaceSession } from "../../types/workspace";
 import { AgentAvatar } from "../AgentAvatar";
 import { ShellTerminalTab } from "../ShellTerminalTab";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "../ui/dropdown-menu";
 import { SessionPaneTab } from "./SessionPaneTab";
 import { useSplitTabDraggable } from "./useSplitTabDraggable";
 
@@ -20,6 +21,9 @@ type PaneTabStripProps = {
 	onSelect: (tab: TabRef) => void;
 	onClose: (tab: TabRef) => void;
 	onRenameShell: (handleId: string, title: string) => void;
+	onNewSession?: () => void;
+	onNewTerminal?: () => void;
+	isOpeningTerminal?: boolean;
 };
 
 function tabLabel(
@@ -45,7 +49,7 @@ function ScrollChevron({
 	return (
 		<button
 			aria-label={label}
-			className="inline-flex size-control-sm shrink-0 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-interactive-hover hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent/50"
+			className={STRIP_BUTTON_CLASS}
 			onClick={onClick}
 			title={label}
 			type="button"
@@ -56,6 +60,40 @@ function ScrollChevron({
 				<ChevronRight aria-hidden="true" className="size-icon-md" />
 			)}
 		</button>
+	);
+}
+
+const STRIP_BUTTON_CLASS =
+	"inline-flex size-control-sm shrink-0 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-interactive-hover hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent/50";
+
+function NewTabMenu({
+	onNewSession,
+	onNewTerminal,
+	isOpeningTerminal,
+}: {
+	onNewSession: () => void;
+	onNewTerminal: () => void;
+	isOpeningTerminal: boolean;
+}) {
+	const { t } = useTranslation();
+	return (
+		<DropdownMenu>
+			<DropdownMenuTrigger asChild>
+				<button aria-label={t("split.newTab")} className={cn(STRIP_BUTTON_CLASS, "mx-1")} title={t("split.newTab")} type="button">
+					<Plus aria-hidden="true" className="size-icon-md" />
+				</button>
+			</DropdownMenuTrigger>
+			<DropdownMenuContent align="start" className="min-w-44">
+				<DropdownMenuItem onSelect={onNewSession}>
+					<Plus aria-hidden="true" />
+					{t("shell.newSession")}
+				</DropdownMenuItem>
+				<DropdownMenuItem disabled={isOpeningTerminal} onSelect={onNewTerminal}>
+					<SquareTerminal aria-hidden="true" />
+					{t("shell.openSessionTerminalAction")}
+				</DropdownMenuItem>
+			</DropdownMenuContent>
+		</DropdownMenu>
 	);
 }
 
@@ -77,7 +115,17 @@ function DraggableTab({ tab, label, children }: { tab: TabRef; label: string; ch
 	);
 }
 
-export function PaneTabStrip({ pane, sessions, shells, onSelect, onClose, onRenameShell }: PaneTabStripProps) {
+export function PaneTabStrip({
+	pane,
+	sessions,
+	shells,
+	onSelect,
+	onClose,
+	onRenameShell,
+	onNewSession,
+	onNewTerminal,
+	isOpeningTerminal = false,
+}: PaneTabStripProps) {
 	const { t } = useTranslation();
 	const overflow = useOverflowScroll<HTMLDivElement>(pane.tabs.map(tabKey).join(","));
 
@@ -140,6 +188,9 @@ export function PaneTabStrip({ pane, sessions, shells, onSelect, onClose, onRena
 			</div>
 			{overflow.canScrollRight ? (
 				<ScrollChevron direction={1} label={t("terminal.scrollTabsRight")} onClick={() => overflow.scrollByDirection(1)} />
+			) : null}
+			{onNewSession && onNewTerminal ? (
+				<NewTabMenu isOpeningTerminal={isOpeningTerminal} onNewSession={onNewSession} onNewTerminal={onNewTerminal} />
 			) : null}
 		</div>
 	);

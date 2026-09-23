@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { operatorBridge } from "../../lib/bridge";
 import { listPanes, tabKey, type Split, type TabRef } from "../../lib/split-layout";
 import { useSplitLayoutStore } from "../../stores/split-layout-store";
+import { useUiStore } from "../../stores/ui-store";
 import { EMPTY_LAYOUT } from "../../lib/split-layout";
 import type { WorkspaceSession, WorkspaceSummary } from "../../types/workspace";
 import { SplitWorkspace } from "./SplitWorkspace";
@@ -55,7 +56,9 @@ vi.mock("../../hooks/useWorkspaceQuery", () => ({
 }));
 
 const { shellsState, reviewerState } = vi.hoisted(() => ({
-	shellsState: { value: [] as { handleId: string; sessionId?: string; workingDir: string; title: string; createdAt: string }[] },
+	shellsState: {
+		value: [] as { handleId: string; sessionId?: string; projectId?: string; workingDir: string; title: string; createdAt: string }[],
+	},
 	reviewerState: {
 		value: undefined as { handleId: string; harness: string } | undefined,
 		settled: true,
@@ -63,10 +66,12 @@ const { shellsState, reviewerState } = vi.hoisted(() => ({
 }));
 
 const closeShell = vi.hoisted(() => vi.fn());
+const openShell = vi.hoisted(() => vi.fn());
 
 vi.mock("../../hooks/useShellTerminals", () => ({
 	useShellTerminals: () => ({ data: shellsState.value, isSuccess: true }),
 	useCloseShellTerminal: () => ({ mutate: closeShell }),
+	useOpenShellTerminal: () => ({ mutate: openShell, isPending: false }),
 	useRenameShellTerminal: () => ({ mutate: vi.fn() }),
 }));
 
@@ -82,6 +87,8 @@ vi.mock("./SplitPane", () => ({
 		onSelect,
 		onClose,
 		onClosePane,
+		onNewSession,
+		onNewTerminal,
 	}: {
 		pane: { id: string; tabs: TabRef[]; activeTab: number };
 		focused: boolean;
@@ -89,6 +96,8 @@ vi.mock("./SplitPane", () => ({
 		onSelect: (tab: TabRef) => void;
 		onClose: (tab: TabRef) => void;
 		onClosePane: () => void;
+		onNewSession?: () => void;
+		onNewTerminal?: () => void;
 	}) => (
 		<div data-focused={focused} data-testid={`pane-${pane.id}`}>
 			{pane.tabs.map((tab) => (
@@ -104,6 +113,16 @@ vi.mock("./SplitPane", () => ({
 			<button onClick={onClosePane} type="button">
 				close pane
 			</button>
+			{onNewSession ? (
+				<button onClick={onNewSession} type="button">
+					new session
+				</button>
+			) : null}
+			{onNewTerminal ? (
+				<button onClick={onNewTerminal} type="button">
+					new terminal
+				</button>
+			) : null}
 		</div>
 	),
 }));
@@ -158,6 +177,8 @@ describe("SplitWorkspace", () => {
 		window.localStorage.clear();
 		navigateMock.mockReset();
 		closeShell.mockReset();
+		openShell.mockReset();
+		useUiStore.setState({ newTaskRequest: null });
 		shellsState.value = [];
 		reviewerState.value = undefined;
 		reviewerState.settled = true;
@@ -169,6 +190,25 @@ describe("SplitWorkspace", () => {
 		render(<SplitWorkspace routeSessionId="a" />);
 		expect(screen.getAllByTestId(/^pane-/)).toHaveLength(1);
 		expect(screen.getByText("session:a")).toBeInTheDocument();
+	});
+
+	it("asks for a new task in the pane's project from the new-tab menu", () => {
+		render(<SplitWorkspace routeSessionId="c" />);
+		fireEvent.click(screen.getByRole("button", { name: "new session" }));
+		expect(useUiStore.getState().newTaskRequest?.projectId).toBe("proj-2");
+	});
+
+	it("opens a project terminal and adds it as a tab of that pane once the daemon lists it", () => {
+		const { rerender } = render(<SplitWorkspace routeSessionId="a" />);
+		fireEvent.click(screen.getByRole("button", { name: "new terminal" }));
+		expect(openShell).toHaveBeenCalledWith({ projectId: "proj-1" }, expect.anything());
+		act(() => openShell.mock.calls[0][1].onSuccess({ handleId: "t1", projectId: "proj-1" }));
+		expect(screen.queryByText("shell:t1")).not.toBeInTheDocument();
+		shellsState.value = [{ handleId: "t1", projectId: "proj-1", workingDir: "/p1", title: "zsh", createdAt: "2026-06-10T00:00:00Z" }];
+		rerender(<SplitWorkspace routeSessionId="a" />);
+		const [only] = listPanes(useSplitLayoutStore.getState().layout.root);
+		expect(only.tabs.map(tabKey)).toEqual(["session:a", "shell:t1"]);
+		expect(only.activeTab).toBe(1);
 	});
 
 	it("renders every pane of a split and navigates when another pane is focused", () => {

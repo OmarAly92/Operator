@@ -843,6 +843,7 @@
 	"shortcut.updatedBody": "{{name}} → {{binding}}",
 	"shortcut.usedByFixed": "{{binding}} is used by {{name}}.",
 	"split.closePane": "Close pane",
+	"split.newTab": "New tab",
 	"split.openHere": "Open here",
 	"split.openInSplitView": "Open in split view",
 	"split.splitView": "Split view",

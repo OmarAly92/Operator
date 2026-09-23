@@ -31,6 +31,9 @@ type SplitPaneProps = {
 	onClose: (tab: TabRef) => void;
 	onClosePane: () => void;
 	onRenameShell: (handleId: string, title: string) => void;
+	onNewSession?: () => void;
+	onNewTerminal?: () => void;
+	isOpeningTerminal?: boolean;
 };
 
 function PaneSessionActions({ session, onFocus }: { session: WorkspaceSession; onFocus: () => void }) {
@@ -89,7 +92,10 @@ export function SplitPane(props: SplitPaneProps) {
 				data-tauri-drag-region={props.touchesTop ? dragRegion : undefined}
 			>
 				<PaneTabStrip
+					isOpeningTerminal={props.isOpeningTerminal}
 					onClose={props.onClose}
+					onNewSession={props.onNewSession}
+					onNewTerminal={props.onNewTerminal}
 					onRenameShell={props.onRenameShell}
 					onSelect={props.onSelect}
 					pane={props.pane}

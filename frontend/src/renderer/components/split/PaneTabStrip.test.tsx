@@ -115,4 +115,22 @@ describe("PaneTabStrip", () => {
 		fireEvent.keyDown(input, { key: "Enter" });
 		expect(screen.queryByLabelText("Rename terminal zsh")).not.toBeInTheDocument();
 	});
+
+	it("hides the new-tab button when the pane has no project", () => {
+		renderStrip();
+		expect(screen.queryByRole("button", { name: "New tab" })).not.toBeInTheDocument();
+	});
+
+	it("opens a new-tab menu offering a new session and a project terminal", async () => {
+		const onNewSession = vi.fn();
+		const onNewTerminal = vi.fn();
+		renderStrip({ onNewSession, onNewTerminal });
+		const trigger = screen.getByRole("button", { name: "New tab" });
+		fireEvent.pointerDown(trigger, { button: 0, ctrlKey: false, pointerType: "mouse" });
+		fireEvent.click(await screen.findByRole("menuitem", { name: "New session" }));
+		expect(onNewSession).toHaveBeenCalledTimes(1);
+		fireEvent.pointerDown(trigger, { button: 0, ctrlKey: false, pointerType: "mouse" });
+		fireEvent.click(await screen.findByRole("menuitem", { name: "Open terminal" }));
+		expect(onNewTerminal).toHaveBeenCalledTimes(1);
+	});
 });

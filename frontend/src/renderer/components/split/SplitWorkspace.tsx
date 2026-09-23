@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useMemo, type ReactNode } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, type ReactNode } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import {
 	activeTabOf,
@@ -13,7 +13,13 @@ import {
 } from "../../lib/split-layout";
 import { MIN_PANE_HEIGHT, MIN_PANE_WIDTH } from "../../lib/split-drop";
 import { useSplitLayoutStore } from "../../stores/split-layout-store";
-import { useShellTerminals, useCloseShellTerminal, useRenameShellTerminal } from "../../hooks/useShellTerminals";
+import {
+	useShellTerminals,
+	useCloseShellTerminal,
+	useOpenShellTerminal,
+	useRenameShellTerminal,
+	type ShellTerminal,
+} from "../../hooks/useShellTerminals";
 import { useWorkspaceQuery } from "../../hooks/useWorkspaceQuery";
 import { operatorBridge } from "../../lib/bridge";
 import { useShell } from "../../lib/shell-context";
@@ -23,6 +29,10 @@ import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "../ui/resi
 import { SessionCompanions } from "./SessionCompanions";
 import { SplitPane } from "./SplitPane";
 
+function shellProjectId(tab: TabRef, shells: Map<string, ShellTerminal>): string | undefined {
+	return tab.kind === "shell" ? shells.get(tab.handleId)?.projectId : undefined;
+}
+
 export function SplitWorkspace({ routeSessionId }: { routeSessionId: string }) {
 	const navigate = useNavigate();
 	const theme = useResolvedTheme();
@@ -31,6 +41,9 @@ export function SplitWorkspace({ routeSessionId }: { routeSessionId: string }) {
 	const shellsQuery = useShellTerminals();
 	const closeShellTerminal = useCloseShellTerminal();
 	const renameShellTerminal = useRenameShellTerminal();
+	const openShellTerminal = useOpenShellTerminal();
+	const requestNewTask = useUiStore((state) => state.requestNewTask);
+	const pendingShellRef = useRef<{ paneId: string; handleId: string } | null>(null);
 	const layout = useSplitLayoutStore((state) => state.layout);
 	const store = useSplitLayoutStore.getState;
 	const setVisibleTerminalKind = useUiStore((state) => state.setVisibleTerminalKind);
@@ -85,6 +98,33 @@ export function SplitWorkspace({ routeSessionId }: { routeSessionId: string }) {
 			for (const sessionId of kinds.keys()) clearVisibleTerminalKind(sessionId);
 		};
 	}, [clearVisibleTerminalKind, layout, setVisibleTerminalKind]);
+
+	useEffect(() => {
+		const pendingShell = pendingShellRef.current;
+		if (!pendingShell || !shells.has(pendingShell.handleId)) return;
+		pendingShellRef.current = null;
+		if (listPanes(store().layout.root).some((pane) => pane.id === pendingShell.paneId)) store().focusPane(pendingShell.paneId);
+		store().openTab({ kind: "shell", handleId: pendingShell.handleId });
+	}, [shells, store]);
+
+	const paneProjectId = (pane: Pane): string | undefined => {
+		const ordered = [activeTabOf(pane), ...pane.tabs];
+		for (const tab of ordered) {
+			const sessionId = tabSessionId(tab);
+			const projectId = sessionId ? sessions.get(sessionId)?.workspaceId : shellProjectId(tab, shells);
+			if (projectId) return projectId;
+		}
+		return undefined;
+	};
+
+	const openPaneTerminal = (pane: Pane, projectId: string) => {
+		openShellTerminal.mutate(
+			{ projectId },
+			{ onSuccess: (shell) => {
+					pendingShellRef.current = { paneId: pane.id, handleId: shell.handleId };
+				} },
+		);
+	};
 
 	const leaveIfEmpty = useCallback(
 		(projectId: string | undefined) => {
@@ -150,13 +190,17 @@ export function SplitWorkspace({ routeSessionId }: { routeSessionId: string }) {
 
 	const renderNode = (node: LayoutNode): ReactNode => {
 		if (node.type === "pane") {
+			const projectId = paneProjectId(node);
 			return (
 				<SplitPane
 					daemonReady={daemonStatus.state === "ready"}
 					focused={node.id === layout.focusedPaneId}
+					isOpeningTerminal={openShellTerminal.isPending}
 					onClose={closeTab}
 					onClosePane={() => closePane(node)}
 					onFocus={() => store().focusPane(node.id)}
+					onNewSession={projectId ? () => requestNewTask(projectId) : undefined}
+					onNewTerminal={projectId ? () => openPaneTerminal(node, projectId) : undefined}
 					onRenameShell={(handleId, title) => renameShellTerminal.mutate({ handleId, title })}
 					onSelect={(tab) => store().focusTab(tab)}
 					pane={node}
