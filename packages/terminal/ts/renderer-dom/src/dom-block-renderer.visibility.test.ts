@@ -342,11 +342,20 @@ describe("paint gate", () => {
 		const { core, host, renderer } = mounted();
 		core.feed(text("steady\r\n"));
 		await flushRepaint();
+		const steadyRow = [...host.querySelectorAll<HTMLElement>("[data-terminal-row]")].find((row) => row.textContent === "steady");
+		expect(steadyRow).toBeDefined();
 		renderer.setVisible(false);
 		core.enqueue(text("late\r\n"));
+		let paints = 0;
+		const stop = renderer.onPaint(() => {
+			paints += 1;
+		});
 		renderer.setVisible(true);
-		await flushRepaint();
+		stop();
+		expect(paints).toBe(1);
 		expect(rowTexts(host).join("\n")).toContain("late");
+		expect((renderer as unknown as { catchUp: boolean }).catchUp).toBe(false);
+		expect([...host.querySelectorAll<HTMLElement>("[data-terminal-row]")].find((row) => row.textContent === "steady")).toBe(steadyRow);
 		renderer.dispose();
 	});
 
