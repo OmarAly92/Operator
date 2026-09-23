@@ -19,6 +19,17 @@
 - The user keeps Operator open permanently. Retained panes are never evicted today — the cache drops an entry only when its session leaves the workspace snapshot or its handle changes (`TerminalPane.tsx:506-534`, "Project/session teardown is an ownership boundary, not an LRU event") — and each holds a full renderer core capped at 200k rows / 128 MiB (`BlockTerminal.tsx:73`) plus its DOM. Even gated, a parked pane re-parses every byte the pty-host mirror already parses. Memory and long-run cost were never measured (Task 9). The user chose **unload after N minutes** over a count cap, and set **N = 30 minutes** (2026-09-23): lowest memory, at the price of a replay (~40 ms first paint, ~100–130 ms for 60k history rows in the bench, spec table "reopen" row) when switching back to a pane unloaded earlier.
 - What unloading costs in notifications, verified: Claude Code emits no block marks at all (`claude-spinner-10s` and `claude-long-50k` recordings: 0 `OSC 133`, 0 `OSC 7000`), so a worker pane's renderer only ever finishes synthetic blocks at a process boundary (TERMINAL.md §4.15) — unloading it loses no command notification; agent "needs input" notifications already come from the daemon's SSE stream (`frontend/src/renderer/lib/notifications.ts:315-326`). Shell panes do emit `OSC 133`; the daemon records every finished shell block and publishes it on the mux as a `terminal_block` frame to connections subscribed with `blockType: "terminal_block"` (`backend/internal/terminal/manager.go:555-565`, `:627-658`, `protocol.go:64,103-131`; capture covers shell terminals only, `service/terminalcapture/supervisor.go:100`), and no client subscribes today. Task 11 subscribes for unloaded shell panes.
 
+## Split view lands first
+
+Split view is finished on branch `split-view` (worktree `/Users/omaraly/development/AI/Operator-split-view`, head `cc000f9e4`, 21 commits not yet on `development`). **Merge it before executing Tasks 6, 10 and 11**, then re-read `TerminalPane.tsx`: every `TerminalPane.tsx` line number in this plan was taken from `development` at `b59c3b27c` and will have moved. What split view changes, from `git diff $(git merge-base development split-view) split-view` (`TerminalPane.tsx`, `BlockTerminal.tsx`; `packages/terminal` is untouched):
+
+- **One live terminal per pane, not per app.** `activeRef` (one `{ key, slot }`) becomes `activeSlotsRef: Map<cacheKey, slot>`. `CachedTerminalPortal`'s `active` prop is now `activeSlotsRef.current.has(entry.cacheKey)`, so several entries are `active` at once. The plan's rule is unchanged: an entry paints when it is active and not `"parked"` (Task 6), and only parked entries arm the unload timer (Task 10). A terminal shown in any split pane is never unloaded.
+- **Where parking happens.** `activate` now parks every entry that held the *same slot* in a loop (`for (const [key, activeSlot] of [...slots])` … `parkTerminal(previousEntry, parking)`), and the replacement-generation loop parks via `slots.has(entry.cacheKey)`. Task 10's `scheduleUnload` goes after each of those `parkTerminal` calls and after the one in `deactivate` (closing a split pane deactivates its terminal, which should then start its 30-minute clock). `removeEntry` checks `activeSlotsRef.current.has(cacheKey)` instead of `activeRef`.
+- **A new `focused` prop.** An unfocused split pane is on screen but not focused: it gets no focus token and does not record the spawn grid (`recordsSpawnGrid={focused !== false}` on `BlockTerminal`). It **must still paint**, and a block finishing in it is on screen, so its `onBlockFinished` must say `visible: true`. `visible`/`isRendered` must never be derived from `focused` — keep Task 6's `active && entry.activationPhase !== "parked"`. Task 6 pins this with a two-pane test (Step 1).
+- **TERMINAL.md §3 rule 6 ("One place per terminal")** is new on that branch: a cache key is live in at most one slot. Unloading and reopening goes through `activate`'s fresh-entry path, so it keeps that invariant; Task 10's "an unloaded pane reopens once" test covers the reopen.
+- The measurement (Task 1) is unaffected: it measured one visible pane plus parked ones, which is still the shape of every pane not shown in some split. Task 12's real-app soak should add one run with two panes side by side, reporting CPU for "2 visible + parked".
+- The split-view worktree has an uncommitted diagnostic edit to `useTerminalSession.ts` (`terminalDebug("mux", "DIAG …")` lines). It is not part of the branch. Make sure it is not merged by accident.
+
 ## Global Constraints
 
 - Read `TERMINAL.md` end to end and `AGENTS.md` before Task 1.
@@ -958,7 +969,7 @@ git commit -m "feat(terminal): the line editor idles while its pane is hidden"
 
 The reveal ordering this relies on: `showTerminal` → rerender → `TerminalSurface`'s layout effect calls `setVisible(true)` → synchronous catch-up paint (Task 4) — all before the browser paints; `markReveal` clears `visibility: hidden` later in a layout effect, and `markActivated` runs two animation frames after that (`:262-274`). So the first frame the user sees is current.
 
-Split view (`docs/superpowers/plans/2026-09-22-split-view.md`, not built) gives each pane its own slot and entry; this wiring is per entry, so several panes can be visible at once without change.
+Split view ("Split view lands first" above) gives each pane its own slot and entry; this wiring is per entry, so several panes are visible at once, each painting, whether or not it has focus.
 
 **Files:**
 - Modify: `frontend/src/renderer/components/TerminalPane.tsx:276-285` (portal props), `:820-835` (`AttachedTerminal` props), `:1002-1014` (`BlockTerminal` props)
@@ -995,6 +1006,20 @@ Split view (`docs/superpowers/plans/2026-09-22-split-view.md`, not built) gives 
 		}
 	});
 
+	it("paints both terminals of a split, focused or not", async () => {
+		const sessionA = { ...worker, id: "sess-a", title: "session A", terminalHandleId: "handle-a" };
+		const sessionB = { ...worker, id: "sess-b", title: "session B", terminalHandleId: "handle-b" };
+		const view = renderSplitPanes({ left: sessionA, right: sessionB, focused: "left" });
+		try {
+			await waitFor(() => expect(screen.getAllByTestId("block-terminal")).toHaveLength(2));
+			for (const pane of screen.getAllByTestId("block-terminal")) {
+				await waitFor(() => expect(pane.getAttribute("data-visible")).toBe("true"));
+			}
+		} finally {
+			view.restore();
+		}
+	});
+
 	it("paints a retained terminal while it is being prepared, before it is revealed", async () => {
 		const sessionA = { ...worker, id: "sess-a", title: "session A", terminalHandleId: "handle-a" };
 		const sessionB = { ...worker, id: "sess-b", title: "session B", terminalHandleId: "handle-b" };
@@ -1013,6 +1038,8 @@ Split view (`docs/superpowers/plans/2026-09-22-split-view.md`, not built) gives 
 		}
 	});
 ```
+
+`renderSplitPanes` stands for however the merged split-view tests mount two `TerminalPane`s in two slots under one `TerminalCacheProvider` with one of them `focused={false}` — read split view's own tests (`TerminalPane.test.tsx` after the merge, and `components/split/*.test.tsx`) and reuse their helper; do not write a second harness.
 
 If the second test cannot observe `"preparing"` because the phases settle within one `waitFor` tick, keep its assertion as written (it checks the first non-parked phase already paints) — do not add sleeps.
 
