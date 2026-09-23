@@ -18,11 +18,13 @@ class PhoneAlertsCubit extends Cubit<PhoneAlertsState> {
   final Future<void> Function(String text) copy;
   final bool ntfyDeepLink;
 
-  Future<void> load() async {
+  Future<void> load() => _refresh(clearError: true);
+
+  Future<void> _refresh({required bool clearError}) async {
     final result = await _repository.getPhoneAlerts();
     result.when(
-      onSuccess: (status) => emit(state.copyWith(status: status, error: '')),
-      onFailure: (failure) => emit(state.copyWith(error: failure.message)),
+      onSuccess: (status) => emit(state.copyWith(status: status, error: clearError ? '' : null)),
+      onFailure: (failure) => emit(state.copyWith(error: "Couldn't reach the desktop: ${failure.message}")),
     );
   }
 
@@ -35,6 +37,7 @@ class PhoneAlertsCubit extends Cubit<PhoneAlertsState> {
       onSuccess: (sub) {
         topic = sub.topic;
         server = sub.server ?? server;
+        emit(state.copyWith(error: ''));
       },
       onFailure: (failure) => emit(state.copyWith(busy: false, error: failure.message)),
     );
@@ -54,16 +57,16 @@ class PhoneAlertsCubit extends Cubit<PhoneAlertsState> {
       }
     }
     emit(state.copyWith(busy: false, copiedTopic: copiedTopic));
-    await load();
+    await _refresh(clearError: false);
   }
 
   Future<void> sendTest() async {
     emit(state.copyWith(busy: true));
     final result = await _repository.testPhoneAlert();
     result.when(
-      onSuccess: (delivery) => emit(state.copyWith(busy: false, lastTest: delivery)),
+      onSuccess: (delivery) => emit(state.copyWith(busy: false, lastTest: delivery, error: '')),
       onFailure: (failure) => emit(state.copyWith(busy: false, error: failure.message)),
     );
-    await load();
+    await _refresh(clearError: false);
   }
 }

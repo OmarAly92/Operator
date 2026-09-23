@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:operator_mobile/core/app_routes/app_route_observer.dart';
 import 'package:operator_mobile/core/notifications/viewed_session.dart';
 
 Widget _app(GlobalKey<NavigatorState> navigator, String sessionId) => MaterialApp(
   navigatorKey: navigator,
+  navigatorObservers: [AppRouteObserver.instance],
   home: ViewedSessionMarker(sessionId: sessionId, child: Text(sessionId)),
 );
 
@@ -32,6 +34,28 @@ void main() {
     expect(ViewedSession.current.value, 's2');
 
     navigator.currentState!.pop();
+    await tester.pumpAndSettle();
+    expect(ViewedSession.current.value, 's1');
+  });
+
+  testWidgets('a non-session route pushed over a session hides it until popped', (tester) async {
+    final navigator = GlobalKey<NavigatorState>();
+    await tester.pumpWidget(_app(navigator, 's1'));
+    expect(ViewedSession.current.value, 's1');
+
+    navigator.currentState!.push(MaterialPageRoute<void>(builder: (_) => const Text('Settings')));
+    await tester.pumpAndSettle();
+    expect(ViewedSession.current.value, isNull);
+
+    navigator.currentState!.pop();
+    await tester.pumpAndSettle();
+    expect(ViewedSession.current.value, 's1');
+  });
+
+  testWidgets('a dialog over a session keeps it viewed', (tester) async {
+    final navigator = GlobalKey<NavigatorState>();
+    await tester.pumpWidget(_app(navigator, 's1'));
+    showDialog<void>(context: navigator.currentContext!, builder: (_) => const Text('dialog'));
     await tester.pumpAndSettle();
     expect(ViewedSession.current.value, 's1');
   });

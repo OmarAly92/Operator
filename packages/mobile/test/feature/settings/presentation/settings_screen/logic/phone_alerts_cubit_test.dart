@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:operator_mobile/core/error_handling/failures/failure.dart';
 import 'package:operator_mobile/core/helpers/result/result.dart';
 import 'package:operator_mobile/feature/notification/data/model/phone_alert_delivery_model.dart';
 import 'package:operator_mobile/feature/notification/data/model/phone_alert_status_model.dart';
@@ -77,5 +78,41 @@ void main() {
     final cubit = build(launchResult: (_) => true);
     await cubit.sendTest();
     expect(cubit.state.lastTest?.error, 'ntfy answered 429');
+  });
+
+  test('a failed load says the desktop could not be reached', () async {
+    when(
+      () => repo.getPhoneAlerts(),
+    ).thenAnswer((_) async => Result.failure(ServerFailure(error: 'timeout', message: 'Connection timed out')));
+    final cubit = build(launchResult: (_) => true);
+    await cubit.load();
+    expect(cubit.state.error, "Couldn't reach the desktop: Connection timed out");
+  });
+
+  test('a failed subscribe keeps the failure message and a later success clears it', () async {
+    when(() => repo.subscribePhoneAlerts()).thenAnswer(
+      (_) async => Result.failure(
+        ServerFailure(error: 'conflict', message: 'phone alerts need Connect Mobile to be on', statusCode: 409),
+      ),
+    );
+    final cubit = build(launchResult: (_) => true);
+    await cubit.subscribe();
+    expect(cubit.state.error, 'phone alerts need Connect Mobile to be on');
+    expect(cubit.state.busy, isFalse);
+
+    when(() => repo.subscribePhoneAlerts()).thenAnswer(
+      (_) async => Result.success(const PhoneAlertSubscriptionModel(topic: 'abc', server: 'https://ntfy.sh')),
+    );
+    await cubit.subscribe();
+    expect(cubit.state.error, isEmpty);
+  });
+
+  test('a failed test survives the status refresh that follows it', () async {
+    when(
+      () => repo.testPhoneAlert(),
+    ).thenAnswer((_) async => Result.failure(ServerFailure(error: 'down', message: 'Connection refused')));
+    final cubit = build(launchResult: (_) => true);
+    await cubit.sendTest();
+    expect(cubit.state.error, 'Connection refused');
   });
 }

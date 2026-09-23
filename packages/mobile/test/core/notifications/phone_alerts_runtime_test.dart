@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:operator_mobile/core/deep_link/deep_link_target.dart';
 import 'package:operator_mobile/core/mux/mux_client.dart';
 import 'package:operator_mobile/core/mux/mux_notification.dart';
 import 'package:operator_mobile/core/notifications/local_alert_sink.dart';
@@ -96,6 +97,15 @@ void main() {
     expect(sink.shown, isEmpty);
     feed.add(_n('n3', 's2'));
     expect(sink.shown.single.payload, 'operator://session/s2');
+  });
+
+  test('pull request alerts open the PRs tab', () {
+    for (final type in ['ready_to_merge', 'pr_merged', 'pr_closed_unmerged']) {
+      sink.shown.clear();
+      feed.add(MuxNotification(id: type, sessionId: 's1', type: type, title: 'PR', body: 'merged', quiet: false));
+      expect(sink.shown.single.payload, 'operator://prs', reason: type);
+      expect(resolveDeepLink(Uri.parse(sink.shown.single.payload))?.tabIndex, kPrsTabIndex, reason: type);
+    }
   });
 
   test('gives every notification its own id', () {

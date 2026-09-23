@@ -6,6 +6,7 @@ import 'package:operator_mobile/core/mux/mux_client.dart';
 import 'package:operator_mobile/core/mux/mux_notification.dart';
 import 'package:operator_mobile/core/notifications/local_alert_sink.dart';
 import 'package:operator_mobile/core/notifications/viewed_session.dart';
+import 'package:operator_mobile/feature/notification/logic/notification_view.dart';
 
 const int _idMask = 0x7fffffff;
 
@@ -66,7 +67,7 @@ class PhoneAlertsRuntime {
         id: id,
         title: n.title,
         body: n.body,
-        payload: '$kDeepLinkScheme://session/${Uri.encodeComponent(n.sessionId)}',
+        payload: '$kDeepLinkScheme:/${notificationTarget(type: n.type, sessionId: n.sessionId)}',
       ),
     );
   }

@@ -47,6 +47,9 @@ class PhoneAlertsGroup extends StatelessWidget {
   }
 
   String _statusLine(PhoneAlertsState state) {
+    if (state.error.isNotEmpty) {
+      return state.error;
+    }
     if (state.status?.enabled != true) {
       return 'Off — Connect Mobile is off on the desktop';
     }

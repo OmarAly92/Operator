@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:operator_mobile/core/api/server_config_store.dart';
+import 'package:operator_mobile/core/app_routes/app_route_observer.dart';
 import 'package:operator_mobile/core/app_routes/app_router.dart';
 import 'package:operator_mobile/core/app_routes/routes_strings.dart';
 import 'package:operator_mobile/core/app_themes/colors/logic/skin_cubit.dart';
@@ -113,6 +114,7 @@ class _OperatorAppState extends State<OperatorApp> {
                 minTextAdapt: true,
                 builder: (context, child) => MaterialApp(
                   navigatorKey: sl<GlobalKey<NavigatorState>>(),
+                  navigatorObservers: [AppRouteObserver.instance],
                   debugShowCheckedModeBanner: false,
                   theme: AppThemes.fromSkin(skin),
                   themeMode: skin.themeMode,
