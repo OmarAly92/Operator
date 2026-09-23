@@ -88,11 +88,11 @@ export class LineEditor {
 		});
 		this.dropdown.mount(root);
 		this.unsubscribe = core.onChange(() => {
+			this.ingestHistory();
 			if (!this.visible) {
 				this.staleWhileHidden = true;
 				return;
 			}
-			this.ingestHistory();
 			this.render();
 		});
 		this.unsubscribeCompletions = core.onCompletions((result) => {
@@ -143,7 +143,6 @@ export class LineEditor {
 		this.visible = visible;
 		if (!visible || !this.staleWhileHidden) return;
 		this.staleWhileHidden = false;
-		this.ingestHistory();
 		this.render();
 	}
 
@@ -167,6 +166,8 @@ export class LineEditor {
 		}
 		this.root = null;
 		this.core = null;
+		if (this.reportedDraft !== "") this.host?.onDraftChange?.("");
+		this.reportedDraft = "";
 		this.host = null;
 		this.visible = true;
 		this.staleWhileHidden = false;

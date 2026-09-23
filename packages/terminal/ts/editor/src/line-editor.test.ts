@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { beforeAll, describe, expect, it, vi } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 import { createTerminalCore, initTerminalCore } from "@operator/terminal-core";
 import { LineEditor, type EditorHost } from "./line-editor";
 import { editorStyles } from "./styles";
@@ -364,11 +364,15 @@ describe("LineEditor composition target stability", () => {
 });
 
 describe("LineEditor visibility", () => {
-	it("does no history or render work while hidden and catches up when shown", () => {
-		const { editor, core, host } = mount();
+	it("does no render work while hidden and catches up when shown", () => {
+		const { editor, core, host, container } = mount();
 		core.feed(encode("\x1b]7000;v=1;input-ready=1\x07"));
-		const snapshots = vi.spyOn(core, "snapshot");
 		editor.setVisible(false);
+		let mutations = 0;
+		const observer = new MutationObserver((records) => {
+			mutations += records.length;
+		});
+		observer.observe(container, { childList: true, subtree: true, attributes: true, characterData: true });
 		for (let index = 0; index < 10; index += 1) {
 			core.feed(
 				encode(
@@ -376,11 +380,40 @@ describe("LineEditor visibility", () => {
 				),
 			);
 		}
-		expect(snapshots).not.toHaveBeenCalled();
+		mutations += observer.takeRecords().length;
+		observer.disconnect();
+		expect(mutations).toBe(0);
 		editor.setVisible(true);
-		expect(snapshots).toHaveBeenCalled();
 		editor.handleKey(key({ key: "ArrowUp" }));
 		editor.handleKey(key({ key: "Enter" }));
 		expect(host.sent).toEqual(["cmd9"]);
+	});
+
+	it("tells the host its draft is gone when the editor is disposed", () => {
+		const drafts: string[] = [];
+		const { editor, core } = mount({ onDraftChange: (draft) => drafts.push(draft) });
+		core.feed(encode("\x1b]7000;v=1;input-ready=1\x07"));
+		editor.handleKey(key({ key: "l" }));
+		expect(drafts.at(-1)).toBe("l");
+		editor.dispose();
+		expect(drafts.at(-1)).toBe("");
+	});
+
+	it("keeps a command in history that scrolls out of the core while hidden", () => {
+		const ready = "\x1b]7000;v=1;input-ready=1\x07";
+		const block = (cmd: string, out = "ok\n") =>
+			`\x1b]133;A\x07\x1b]7000;v=1;cmd=${cmd}\x07\x1b]133;C\x07${out}\x1b]133;D;0\x07`;
+		const flood = Array.from({ length: 300 }, (_, index) => `line${index}\n`).join("");
+		const { editor, core, host } = mount();
+		core.feed(encode(ready));
+		editor.setVisible(false);
+		core.feed(encode(block("firstcmd")));
+		core.feed(encode(block("cat", flood)));
+		core.feed(encode(block("second")));
+		editor.setVisible(true);
+		core.feed(encode(ready));
+		for (let index = 0; index < 3; index += 1) editor.handleKey(key({ key: "ArrowUp" }));
+		editor.handleKey(key({ key: "Enter" }));
+		expect(host.sent).toEqual(["firstcmd"]);
 	});
 });
