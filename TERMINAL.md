@@ -772,6 +772,31 @@ history of `master`.
   sizes…", "sends nothing when a pane is parked and shown at the grid it already
   published".
 
+### 4.25 A hidden window drained nothing and notified nothing — `cb7b34b3b`
+- Symptom: while Operator's window was minimised or app-hidden, no pane parsed
+  its output and no "command finished" notification fired. On restore the
+  pending blocks finished at once and reported `visible: true`, so
+  `BlockTerminal` suppressed the notification for a command that finished while
+  the user was away.
+- Cause: `requestAnimationFrame` never fires in a hidden WKWebView (0 per
+  second minimised or app-hidden, measured by
+  `scripts/probe-wkwebview-hidden.swift`;
+  `docs/superpowers/specs/2026-09-23-background-pane-cost-measurement.md`), and
+  the renderer drained, ticked and detected finished blocks only from its
+  animation frame. Every pane, the active one too, stopped.
+- Now: while `document.visibilityState` is `"hidden"` the renderer schedules its
+  frame on a `HIDDEN_TICK_MS` (100 ms) timer, which WebKit throttles to ~1/s;
+  each tick drains up to `HIDDEN_DRAIN_MS` (250 ms), ticks the core and reports
+  finished blocks with `visible: false`, painting nothing. When the document is
+  shown the renderer goes back to animation frames and a pane that paints
+  rebuilds in full on the first one (`catchUp`). The paint gate (`setVisible(false)`,
+  `6f8e38973`) is the same non-painting frame for a parked pane while the
+  window is shown, so a pane parked in a hidden window stays unpainted when the
+  window returns.
+- Guards: `dom-block-renderer.visibility.test.ts` "hidden document" and "paint
+  gate" describes; `TerminalPane.test.tsx` "paints a retained terminal on
+  screen and stops painting it while parked".
+
 ## 5. Known gaps (not bugs, decisions pending)
 
 - SGR attributes (italic, underline in 5 styles, SGR 58 colour, strike,
@@ -1013,6 +1038,34 @@ history of `master`.
   Claude Code keystroke hooks there (`EditorHost.beforePassthrough`). Guard:
   `TerminalSurface.test.tsx` "keeps Claude Code on the primary screen…" feeds
   the recording and asserts `altScreen` stays null.
+
+- **What a parked pane still costs.** Measured 2026-09-23 on
+  `terminal-background-pane` `1b76f26fd` (`run.mjs --panes-only`, three runs,
+  `claude-spinner-10s`, 100 frames over 10 s): 1 visible + 9 parked
+  0.518–0.528 s against a solo row of 0.419–0.458 s and 10 visible
+  1.296–1.326 s, i.e. 7.6–12.1 ms per parked pane per 10 s (65–88 ms before
+  the gate); parked panes add no layouts, no style recalcs and no DOM
+  mutations (`parkedMutations` 0). What remains: every change still builds one
+  snapshot per parked pane for block detection (`settleHidden` →
+  `detectFinishedBlocks`, 55.4 ms of the 1+9 profile, mostly
+  `export_screen_row`) and decodes its blocks, and in the app
+  `TerminalSurface`'s alt-screen listener reads another
+  (`TerminalSurface.tsx:298`, not mounted by the bench); the parse itself is
+  small (`drain` 5.9 ms). A hidden window drains up to `HIDDEN_DRAIN_MS`
+  (250 ms) of parse per timer tick, and WebKit throttles that timer to ~1/s,
+  so only a producer that needs more than ~250 ms of parse per second grows
+  the backlog while the window is hidden. The budget is larger than
+  `FEED_BUDGET_MS` (12 ms) there because nothing paints, so there is no frame
+  to protect; with 12 ms a busy session's closing mark stayed in the backlog
+  until restore, where the block was reported `visible: true` and its
+  notification suppressed. Animation-frame drains keep 12 ms. `rendererVisible`
+  remains only the fallback for `onBlockFinished`'s `visible` when a host
+  never calls `setVisible`; it is never a paint gate. The forced layout per
+  paint (now `dom-block-renderer.ts:1141`, the pinned-header
+  `getBoundingClientRect`) is still paid by every **visible** pane
+  (measurement note, "Follow-ups"). Numbers and profile:
+  `docs/superpowers/specs/2026-09-23-background-pane-cost-measurement.md`
+  "After".
 
 ---
 

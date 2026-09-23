@@ -190,6 +190,10 @@ marks that `hidden` is not known.
   detection and leaves `blockStates` untouched, so a block that finishes
   while an alternate screen is up is reported late (on the first primary-screen
   paint), not dropped. Whether that is intended is not recorded anywhere.
+  That holds only for a block the core had already finished before the
+  alternate screen started: vt-core drops mark events while the alternate
+  screen is active (`crates/vt-core/src/lib.rs:262-268`), so a block whose
+  closing mark arrives during an alternate screen is never finished at all.
 - `rendererVisible` (`block-finished.ts:9-13`) returns false for an `inert`
   ancestor, and `setTerminalPhase` makes every phase except `"visible"`
   inert (`TerminalPane.tsx:170-172`), so today the `"preparing"`/`"ready"`/
@@ -206,3 +210,118 @@ marks that `hidden` is not known.
   too; it is most of the 10-visible row's cost. Reading layout before
   mutating (or not at all) would cut the visible-pane cost without changing
   pixels. Not part of the background-pane plan.
+
+## After (2026-09-23)
+
+Tree: branch `terminal-background-pane` at `1b76f26fd` (the paint gate,
+`LineEditor.setVisible`, Operator's `isRendered` wiring and the hidden-document
+timer path), `packages/terminal` rebuilt with
+`npm run build:wasm -- --force && npm run build:ts`. Same harness and fixture
+as "How it was measured", except that `park()` now also calls
+`setVisible(false)` on the parked pane's renderer and editor (what
+`TerminalPane` does through `TerminalSurface`'s `visible` prop) and each row
+reports `parkedMutations` (DOM mutations inside parked panes over the 10 s).
+Three runs without the profiler, then a fourth with it. Raw output:
+`packages/terminal/bench/agent-session/baselines/pane-cost/2026-09-23-after-run{1,2,3}.json`.
+
+The machine was far busier than for the before-runs (load average 31–54 on
+10 cores during the runs), which lifts every absolute number, the rows this
+plan does not touch included. So the pre-plan tree (`11323ce3d`, the same
+renderer code as `b59c3b27c`) was run three times interleaved with three more
+runs of the branch in the same session, as a control:
+
+| row | pre-plan tree `11323ce3d` (3 runs) | branch `1b76f26fd` (3 runs) |
+|---|---|---|
+| 1 visible, alone | 0.430 / 0.445 / 0.419 | 0.413 / 0.432 / 0.402 |
+| 1 visible + 3 parked | 0.767 / 0.793 / 0.795 (488–489 layouts) | 0.471 / 0.476 / 0.458 (122–123 layouts) |
+| 1 visible + 9 parked | 1.291 / 1.305 / 1.311 (1221 layouts) | 0.554 / 0.556 / 0.527 (122–123 layouts) |
+| 10 visible | 1.327 / 1.290 / 1.292 | 1.327 / 1.284 / 1.276 |
+
+Those control runs are not committed; the three recorded runs are below.
+
+### Numbers (seconds of main-thread time per 10 s)
+
+| row | TaskDuration (runs 1 / 2 / 3) | Script | Layout | RecalcStyle | Layouts / style recalcs | `parkedMutations` | `parkedState` |
+|---|---|---|---|---|---|---|---|
+| 1 visible, alone | 0.458 / 0.419 / 0.420 | 0.123–0.132 | 0.096–0.105 | 0.031 | 122 / 222 | 0 | — |
+| 1 visible + 3 parked | 0.445 / 0.448 / 0.478 | 0.170–0.179 | 0.090–0.100 | 0.029 | 122 / 222 | 0 | 3 × no backlog, generation 118, 27 rows |
+| 1 visible + 9 parked | 0.526 / 0.528 / 0.518 | 0.238–0.246 | 0.095–0.101 | 0.029–0.032 | 122–123 / 222–223 | 0 | 9 × no backlog, generation 118, 27 rows |
+| 10 visible | 1.326 / 1.324 / 1.296 | 0.415–0.429 | 0.343–0.360 | 0.110–0.116 | 1220–1221 / 2256–2257 | 0 | — |
+
+The profiled run read solo 0.410, 1+3 0.461, 1+9 0.270 (under the profiler)
+and 10 visible 1.242 s, all with `parkedMutations` 0.
+
+Read-outs:
+
+- Parked panes add no layouts and no style recalcs: every parked row counts
+  the solo row's 122 / 222, give or take the one extra that also shows up
+  between runs of rows with no parked pane (10 visible: 1220 / 1221).
+- Per parked pane over the same run's solo row: 0.068 / 0.109 / 0.098 s for
+  nine, i.e. **7.6–12.1 ms per parked pane per 10 s**, against 65–88 ms before.
+  In the interleaved control the pre-plan tree's parked pane cost 95.6–99.1 ms
+  and the branch's 13.8–15.7 ms.
+
+### Where the time goes now (CPU profile, 1 visible + 9 parked)
+
+10,063 ms profiled, 9,777 ms idle (before: 9,163 of 10,064). Top 10 self time,
+idle excluded:
+
+| function | self ms |
+|---|---|
+| `(program)` | 75.4 |
+| `getBoundingClientRect` | 62.7 |
+| `vt_core::grid::export_screen_row` (wasm) | 37.2 |
+| `vt_core::screen::ScreenGrid::cell` (wasm) | 16.1 |
+| `flushPending` (`row-builder.ts`) | 7.9 |
+| `(garbage collector)` | 6.9 |
+| `repaint` (`dom-block-renderer.ts`) | 5.6 |
+| `append` | 4.4 |
+| `remove` | 4.4 |
+| `WidthCache.get` (`width-cache.ts`) | 2.5 |
+
+Inclusive, all ten panes: `repaintOnFrame` 176.9 ms (was 695.7), `repaint`
+112.8 (was 615.1; the visible pane only), `populateBlock` 47.0 (was 258.2),
+`settleHidden` 55.4 (the parked panes' per-change `core.snapshot()` and
+block detection; `snapshot` is 67.4 in all), `LineEditor.ingestHistory` 15.1
+(was 73.2), `drain` 5.9, `detectFinishedBlocks` 1.9, `decodeBlocks` 1.5. What
+a parked pane still pays is mostly building that snapshot
+(`export_screen_row`, `ScreenGrid::cell`), not the parse.
+
+### Expectations
+
+- Parked panes add 0 layouts and 0 style recalcs — **met**: 122 / 222 in
+  every parked row, the solo row's count (one run of 1+9 read 123 / 223, the
+  same ±1 the 10-visible row shows between runs).
+- `parkedMutations` 0 — **met**: 0 in every row of every run, and in the
+  profiled run.
+- The 1+9 row lands near solo plus the parse plus the per-change snapshot —
+  **met**: 0.518–0.528 s, 0.068–0.109 s over solo, 7.6–12.1 ms per parked pane
+  per 10 s; the profile puts the parked panes' `settleHidden` at 55.4 ms
+  (~6 ms per pane) plus `drain` 5.9 ms.
+- The 1+9 row clearly below the 10-visible row — **met**: 0.518–0.528 s
+  against 1.296–1.326 s.
+- The 10-visible row unchanged within noise — **met under the control, not
+  comparable to the before-runs in absolute terms**: 1.296–1.326 s is above
+  the before note's 0.855–1.133 s, but the pre-plan tree run interleaved on
+  the same loaded machine read 1.290–1.327 s against the branch's
+  1.276–1.327 s, with identical layout and style-recalc counts; the solo row
+  rose the same way (0.232–0.392 before, 0.419–0.458 now; control 0.419–0.445
+  pre-plan).
+
+`RETAINED_TERMINAL_UNLOAD_MS` is not touched by these numbers: they are CPU per
+10 s, not memory over time (Task 9).
+
+### Real-app checks
+
+`lsof -nP -iTCP:3002 -iTCP:5173 -sTCP:LISTEN` at 2026-09-23 05:00:45:
+
+```
+COMMAND  PID    USER   FD   TYPE             DEVICE SIZE/OFF NODE NAME
+node    3828 omaraly   18u  IPv4 0x8b4da106e253439e      0t0  TCP 127.0.0.1:5173 (LISTEN)
+opr     4537 omaraly   15u  IPv4 0xfd433cda80c33dc9      0t0  TCP 127.0.0.1:3002 (LISTEN)
+```
+
+The user's own dev app held both ports, so no second instance was started.
+
+- (a) Notification while minimised: **not verified — dev ports busy**.
+- (b) Reveal shows the tail: **not verified — dev ports busy**.
