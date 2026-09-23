@@ -1066,6 +1066,29 @@ history of `master`.
   (measurement note, "Follow-ups"). Numbers and profile:
   `docs/superpowers/specs/2026-09-23-background-pane-cost-measurement.md`
   "After".
+  A pane parked longer than `RETAINED_TERMINAL_UNLOAD_MS` (30 minutes,
+  `frontend/src/renderer/lib/retained-terminal.ts`) is unloaded by Operator's
+  retained-terminal cache (`TerminalPane.tsx` `scheduleUnload`), not by the
+  package: its renderer, core and mux attachment go away, the pty-host keeps
+  the session, and showing it again reopens it through attach + history
+  replay (§4.19). All cores share one `WebAssembly.Memory`, which never
+  shrinks, so an unload frees space for the next core to reuse; it does not
+  lower the resident size already reached. What switching back costs was not
+  measured in the app (the real-app check could not run: dev ports busy); the
+  only numbers are the bench's, ~40 ms to first paint and ~100–130 ms for 60k
+  history rows (spec table "reopen" row). Worker panes lose no notifications
+  by unloading, since Claude Code emits no block marks (0 `OSC 133`, 0
+  `OSC 7000` in `claude-spinner-10s` and `claude-long-50k`) and "needs input"
+  comes from the daemon's SSE stream; an unloaded shell pane is notified of
+  finished commands from the daemon's `terminal_block` mux frames
+  (`TerminalMux.onTerminalBlock`, `lib/shell-block-notifications.ts`). Long
+  run: the 30-minute bench soak (1 visible + 9 parked, 64 KiB/s each) holds
+  about 25 MiB of wasm per core at the 200k-row cap from minute 7, flat to
+  minute 30, and ~1.9 s of main thread a minute, byte-for-byte repeatable
+  across two runs; the bench has no cache, so it cannot show the unload. The
+  2-hour real-app soak (WebContent RSS and CPU, a minimised stretch, and
+  2 visible split panes + parked) is not verified: dev ports busy.
+  Measurement note "Memory and long run" and "Long run after unload".
 
 ---
 

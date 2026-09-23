@@ -449,3 +449,110 @@ The sampler for it is `scripts/soak-operator-webview.sh <pid> [minutes]`
   another value, so N stays 30 minutes. One caveat for Task 10: because wasm
   memory does not shrink, unloading lowers future growth, not the resident
   size already reached.
+
+## Long run after unload
+
+Tree: branch `terminal-background-pane` at `13ad4994d` (after the 30-minute
+unload, `30245fc3a`, and the daemon shell notifications, `13ad4994d`),
+`packages/terminal` rebuilt with `npm run build:ts`. Same harness and command
+as "Memory and long run".
+
+### What the bench can and cannot compare
+
+The bench has no retained-terminal cache, so it cannot unload anything; the
+unload lives in Operator's `frontend/` cache, which the bench never mounts.
+And the "before" bench soak (Task 9, above) already ran on a tree with the
+paint gate in (Tasks 2–8). Tasks 10 and 11 changed `frontend/` only, so both
+bench soaks exercise the same `packages/terminal` code. **This comparison is a
+repeatability check of the bench soak, not a before/after of the unload.**
+
+### Bench soak (`npm run bench:soak -- --minutes 30`)
+
+`claude-long-50k`, 1 visible + 9 parked panes, 64 KiB/s into every core, one
+sample a minute. 2026-09-23 03:04:51–03:34:52 UTC, 30 samples. Load average
+(1/5/15 min) at the start 5.7 / 8.4 / 13.3 and at the end 7.8 / 8.8 / 8.9 on
+10 cores; the per-sample 1-minute load read 3.0–11.4 throughout (Task 9's run:
+9–78).
+
+| minute | wasm memory (MiB) | completed rows per core | `contentBytes` per core | JS heap used | DOM nodes | `TaskDuration` s/min |
+|---|---|---|---|---|---|---|
+| 1 | 45.3 | 32,732 | 187,124 | 3,669,412 | 453 | 1.814 |
+| 3 | 135.8 | 92,495 | 529,493 | 3,749,524 | 453 | 1.839 |
+| 5 | 198.6 | 152,244 | 871,778 | 3,789,276 | 512 | 1.886 |
+| 7 | 254.3 | 199,999 | 1,148,581 | 3,808,236 | 453 | 1.850 |
+| 10 | 254.3 | 199,999 | 1,145,759 | 3,826,952 | 546 | 1.811 |
+| 20 | 254.3 | 199,999 | 1,147,365 | 3,868,368 | 453 | 1.810 |
+| 30 | 254.3 | 199,999 | 1,147,997 | 3,884,836 | 458 | 1.908 |
+
+Least-squares slopes per minute, this run against Task 9's:
+
+| quantity | 1–30 now / Task 9 | 1–9 (filling) now / Task 9 | 11–30 (at the cap) now / Task 9 |
+|---|---|---|---|
+| wasm memory | +4,195,091 B / +4,195,091 B | +30,663,202 B / +30,663,202 B | 0 / 0 |
+| each core's `contentBytes` (all ten equal) | +18,675 B / +18,675 B | +130,604 B / +130,604 B | +12 B / +12 B |
+| JS heap used | +5,153 B / +5,078 B | +17,306 B / +17,465 B | +2,545 B / +2,480 B |
+| DOM nodes | −0.53 / −0.53 | −1.55 / −1.55 | −2.22 / −2.22 |
+| `TaskDuration` | +0.004 s / +0.005 s | +0.004 s / +0.014 s | +0.002 s / +0.001 s |
+
+Read-outs:
+
+- **Memory repeats exactly.** Wasm memory, rows, `contentBytes`, style
+  entries (885–895 at the cap) and DOM nodes are byte-for-byte the same as
+  Task 9's in every sample: cap at minute 7, wasm flat at 254.3 MiB from
+  minute 6, no growth past the cap, parked panes add no DOM. Memory in this
+  harness is deterministic.
+- **JS heap creep repeats**: +2.5 KB a minute at the cap again (3.83 MB at
+  minute 10, 3.88 MB at 30), within 3 % of Task 9's slope. Still
+  unattributed; still small against one core's 25 MiB.
+- **CPU repeats; Task 9's filling-phase slope was load.** `TaskDuration`
+  1.75–2.04 s a minute (mean 1.866) against Task 9's 1.52–2.14 (mean 1.868).
+  The 1–9 slope drops from +0.014 to +0.004 s/min with the load now low and
+  steady, so Task 9's steeper filling slope came from its falling load
+  (~70 → ~12), not from the panes. No drift at the cap.
+- None of this shows the unload. That needs the real app.
+
+### Real-app soak after unload
+
+`lsof -nP -iTCP:3002 -iTCP:5173 -sTCP:LISTEN` at 2026-09-23 03:34:59 UTC
+(and at 03:04 UTC, before the bench soak):
+
+```
+COMMAND  PID    USER   FD   TYPE             DEVICE SIZE/OFF NODE NAME
+node    3828 omaraly   18u  IPv4 0x8b4da106e253439e      0t0  TCP 127.0.0.1:5173 (LISTEN)
+opr     4537 omaraly   15u  IPv4 0xfd433cda80c33dc9      0t0  TCP 127.0.0.1:3002 (LISTEN)
+```
+
+The user's own dev app held both ports, so nothing was killed and no second
+instance was started. Each of the three planned runs is therefore:
+
+- 120-minute soak, 6 Claude sessions, 3 busy, 1 visible, real 30-minute
+  unload (WebContent RSS and CPU at 0/30/60/120 min): **not verified — dev
+  ports busy.**
+- The window minimised for 30 of the 120 minutes (CPU during that stretch):
+  **not verified — dev ports busy.**
+- 2 panes side by side in split view plus parked ones ("2 visible + parked"
+  CPU): **not verified — dev ports busy.**
+
+So the expectation that WebContent RSS "falls back toward a one-visible-pane
+level" after the first 30 minutes is untested, and on this section's own
+evidence it should not be expected as stated: every core in the page shares
+one `WebAssembly.Memory`, which never shrinks. An unload returns a core's
+space to vt-wasm's allocator for the next core to reuse; it does not lower the
+resident size the page already reached. What the unload should bound is
+growth: the wasm peak is set by the most cores loaded at once, which the
+unload caps at the panes shown plus those parked within the last 30 minutes.
+Whether the allocator reuses freed space without fragmentation is not known.
+The DOM and JS heap an unloaded pane held are ordinary garbage-collected
+objects; their release in the app was not measured either.
+
+### Before / after
+
+| | before (Task 9) | after (this section) |
+|---|---|---|
+| bench soak, 1 visible + 9 parked, 30 min | 254.3 MiB wasm at the cap from minute 6; 1.52–2.14 s/min task time; heap +2.5 KB/min | identical memory; 1.75–2.04 s/min; heap +2.5 KB/min |
+| real-app soak, 2 h, WebContent RSS and CPU | not verified — dev ports busy | not verified — dev ports busy |
+| real-app, window minimised 30 min, CPU | not run | not verified — dev ports busy |
+| real-app, 2 visible (split) + parked, CPU | not run | not verified — dev ports busy |
+| switching back to an unloaded pane | not measured in the app | not measured in the app (Task 10's real-app check was not run, dev ports busy); bench only: ~40 ms to first paint, ~100–130 ms for 60k history rows (spec table "reopen" row) |
+
+N stays 30 minutes; nothing here argues for another value.
