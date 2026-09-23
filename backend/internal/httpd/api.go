@@ -51,7 +51,7 @@ type APIDeps struct {
 	Reviews             reviewsvc.Manager
 	Notifications       controllers.NotificationService
 	NotificationStream  controllers.NotificationStream
-	Push                controllers.PushRegistry
+	PhoneAlerts         controllers.PhoneAlertService
 	ShellTerminals      controllers.ShellTerminalService
 	ShellTerminalBlocks controllers.ShellTerminalBlockHistory
 	ClaudeAccounts      controllers.ClaudeAccountService
@@ -84,7 +84,7 @@ type API struct {
 	prs            *controllers.PRsController
 	reviews        *controllers.ReviewsController
 	notifications  *controllers.NotificationsController
-	push           *controllers.PushController
+	phoneAlerts    *controllers.PhoneAlertsController
 	shellTerms     *controllers.ShellTerminalsController
 	claudeAccounts *controllers.ClaudeAccountsController
 	settings       *controllers.SettingsController
@@ -124,7 +124,7 @@ func NewAPI(cfg config.Config, deps APIDeps) *API {
 		prs:            &controllers.PRsController{Svc: deps.PRs},
 		reviews:        &controllers.ReviewsController{Svc: deps.Reviews},
 		notifications:  &controllers.NotificationsController{Svc: deps.Notifications, Stream: deps.NotificationStream},
-		push:           &controllers.PushController{Registry: deps.Push},
+		phoneAlerts:    &controllers.PhoneAlertsController{Svc: deps.PhoneAlerts},
 		shellTerms:     &controllers.ShellTerminalsController{Svc: deps.ShellTerminals, Blocks: deps.ShellTerminalBlocks},
 		claudeAccounts: &controllers.ClaudeAccountsController{Svc: deps.ClaudeAccounts, Terminals: deps.ShellTerminals},
 		settings:       &controllers.SettingsController{Svc: deps.Settings},
@@ -162,7 +162,7 @@ func (a *API) Register(root chi.Router) {
 			a.prs.Register(r)
 			a.reviews.Register(r)
 			a.notifications.Register(r)
-			a.push.Register(r)
+			a.phoneAlerts.Register(r)
 			a.shellTerms.Register(r)
 			a.settings.Register(r)
 			a.claudeAccounts.Register(r)

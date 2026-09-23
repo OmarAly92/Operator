@@ -71,8 +71,8 @@ func Build() ([]byte, error) {
 			"Durable dashboard notifications"),
 		*(&openapi31.Tag{Name: "usage"}).WithDescription(
 			"Token usage telemetry for Operator sessions"),
-		*(&openapi31.Tag{Name: "push"}).WithDescription(
-			"Mobile push-device registration for OS push notifications"),
+		*(&openapi31.Tag{Name: "phone-alerts"}).WithDescription(
+			"Phone alert delivery through ntfy"),
 		*(&openapi31.Tag{Name: "events"}).WithDescription(
 			"Server-sent CDC event stream with durable replay"),
 		*(&openapi31.Tag{Name: "dev"}).WithDescription(
@@ -350,13 +350,11 @@ var schemaNames = map[string]string{
 	"ControllersRedactionPatternsResponse": "RedactionPatternsResponse",
 	"ControllersRedactionPattern":          "RedactionPattern",
 	// devimport report
-	"DevimportReport":   "DevImportProjectsReport",
-	"DevimportConflict": "DevImportProjectsConflict",
-	// httpd/controllers: push-device wire envelopes
-	"ControllersRegisterPushDeviceRequest":    "RegisterPushDeviceRequest",
-	"ControllersPushDeviceEnvelope":           "PushDeviceEnvelope",
-	"ControllersPushDeviceResponse":           "PushDeviceResponse",
-	"ControllersUnregisterPushDeviceResponse": "UnregisterPushDeviceResponse",
+	"DevimportReport":                        "DevImportProjectsReport",
+	"DevimportConflict":                      "DevImportProjectsConflict",
+	"ControllersPhoneAlertDeliveryResponse":  "PhoneAlertDeliveryResponse",
+	"ControllersPhoneAlertStatusResponse":    "PhoneAlertStatusResponse",
+	"ControllersPhoneAlertSubscribeResponse": "PhoneAlertSubscribeResponse",
 	// service/project entities + DTOs
 	"ProjectProject":                    "Project",
 	"ProjectSummary":                    "ProjectSummary",
@@ -453,7 +451,7 @@ func operations() []operation {
 	ops = append(ops, reviewOperations()...)
 	ops = append(ops, notificationOperations()...)
 	ops = append(ops, usageOperations()...)
-	ops = append(ops, pushOperations()...)
+	ops = append(ops, phoneAlertOperations()...)
 	ops = append(ops, devOperations()...)
 	ops = append(ops, mobileOperations()...)
 	ops = append(ops, desktopOperations()...)
@@ -1210,37 +1208,40 @@ func notificationOperations() []operation {
 	}
 }
 
-// reviewOperations declares the session-scoped /reviews operations. Must stay
-// 1:1 with the routes ReviewsController.Register mounts (enforced by the parity
-// test).
-// pushOperations declares the /push/devices operations. Must stay 1:1 with the
-// routes PushController.Register mounts (enforced by the parity test).
-func pushOperations() []operation {
+func phoneAlertOperations() []operation {
 	return []operation{
 		{
-			method: http.MethodPost, path: "/api/v1/push/devices", id: "registerPushDevice", tag: "push",
-			summary: "Register (upsert) a phone's Expo push token",
-			reqBody: controllers.RegisterPushDeviceRequest{},
+			method: http.MethodGet, path: "/api/v1/phone-alerts", id: "getPhoneAlerts", tag: "phone-alerts",
+			summary: "Phone alert status and the last delivery",
 			resps: []respUnit{
-				{http.StatusOK, controllers.PushDeviceEnvelope{}},
-				{http.StatusBadRequest, envelope.APIError{}},
+				{http.StatusOK, controllers.PhoneAlertStatusResponse{}},
+				{http.StatusNotImplemented, envelope.APIError{}},
+			},
+		},
+		{
+			method: http.MethodPost, path: "/api/v1/phone-alerts/subscribe", id: "subscribePhoneAlerts", tag: "phone-alerts",
+			summary: "Return the ntfy topic for this pairing and mark it claimed",
+			resps: []respUnit{
+				{http.StatusOK, controllers.PhoneAlertSubscribeResponse{}},
+				{http.StatusConflict, envelope.APIError{}},
 				{http.StatusInternalServerError, envelope.APIError{}},
 				{http.StatusNotImplemented, envelope.APIError{}},
 			},
 		},
 		{
-			method: http.MethodDelete, path: "/api/v1/push/devices/{token}", id: "unregisterPushDevice", tag: "push",
-			summary:    "Unregister a phone's Expo push token",
-			pathParams: []any{controllers.PushDeviceTokenParam{}},
+			method: http.MethodPost, path: "/api/v1/phone-alerts/test", id: "testPhoneAlerts", tag: "phone-alerts",
+			summary: "Send one test alert to the paired phone",
 			resps: []respUnit{
-				{http.StatusOK, controllers.UnregisterPushDeviceResponse{}},
-				{http.StatusInternalServerError, envelope.APIError{}},
+				{http.StatusOK, controllers.PhoneAlertDeliveryResponse{}},
 				{http.StatusNotImplemented, envelope.APIError{}},
 			},
 		},
 	}
 }
 
+// reviewOperations declares the session-scoped /reviews operations. Must stay
+// 1:1 with the routes ReviewsController.Register mounts (enforced by the parity
+// test).
 func reviewOperations() []operation {
 	return []operation{
 		{

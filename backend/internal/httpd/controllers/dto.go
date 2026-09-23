@@ -1475,38 +1475,21 @@ type MobileNgrokDiagnosis struct {
 	Summary string             `json:"summary" description:"One-line overall diagnosis."`
 }
 
-// PushDeviceTokenParam is the {token} path parameter for push-device routes.
-type PushDeviceTokenParam struct {
-	Token string `path:"token" description:"Expo push token (URL-encoded) identifying the device."`
+type PhoneAlertDeliveryResponse struct {
+	At    time.Time `json:"at"`
+	OK    bool      `json:"ok"`
+	Error string    `json:"error,omitempty"`
 }
 
-// RegisterPushDeviceRequest is the body of POST /api/v1/push/devices. The phone
-// sends its Expo push token plus a bit of descriptive metadata; the daemon keys
-// the registry on the token and re-registering is an idempotent upsert.
-type RegisterPushDeviceRequest struct {
-	Token      string `json:"token" description:"Expo push token, e.g. ExponentPushToken[...]."`
-	Platform   string `json:"platform,omitempty" enum:"ios,android" description:"Device platform."`
-	DeviceName string `json:"deviceName,omitempty" description:"Human-friendly device label."`
+type PhoneAlertStatusResponse struct {
+	Enabled      bool                        `json:"enabled" description:"Connect Mobile is on and a topic exists."`
+	Claimed      bool                        `json:"claimed" description:"A paired phone has fetched the current topic."`
+	LastDelivery *PhoneAlertDeliveryResponse `json:"lastDelivery,omitempty"`
 }
 
-// PushDeviceResponse is the stored view of a registered push device.
-type PushDeviceResponse struct {
-	Token      string    `json:"token"`
-	Platform   string    `json:"platform,omitempty"`
-	DeviceName string    `json:"deviceName,omitempty"`
-	CreatedAt  time.Time `json:"createdAt"`
-	LastSeenAt time.Time `json:"lastSeenAt"`
-}
-
-// PushDeviceEnvelope is the { device } response body for a registered push device.
-type PushDeviceEnvelope struct {
-	Device PushDeviceResponse `json:"device"`
-}
-
-// UnregisterPushDeviceResponse is the body of DELETE /api/v1/push/devices/{token} (200).
-type UnregisterPushDeviceResponse struct {
-	Token   string `json:"token"`
-	Deleted bool   `json:"deleted"`
+type PhoneAlertSubscribeResponse struct {
+	Topic  string `json:"topic"`
+	Server string `json:"server"`
 }
 
 /* ---- settings ---------------------------------------------------------- */

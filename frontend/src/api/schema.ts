@@ -620,6 +620,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/phone-alerts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Phone alert status and the last delivery */
+        get: operations["getPhoneAlerts"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/phone-alerts/subscribe": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Return the ntfy topic for this pairing and mark it claimed */
+        post: operations["subscribePhoneAlerts"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/phone-alerts/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Send one test alert to the paired phone */
+        post: operations["testPhoneAlerts"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects": {
         parameters: {
             query?: never;
@@ -926,40 +977,6 @@ export interface paths {
         /** Resolve review threads on a pull request */
         post: operations["resolveComments"];
         delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/push/devices": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Register (upsert) a phone's Expo push token */
-        post: operations["registerPushDevice"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/push/devices/{token}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        /** Unregister a phone's Expo push token */
-        delete: operations["unregisterPushDevice"];
         options?: never;
         head?: never;
         patch?: never;
@@ -2673,6 +2690,23 @@ export interface components {
             targetSha: string;
             title: string;
         };
+        PhoneAlertDeliveryResponse: {
+            /** Format: date-time */
+            at: string;
+            error?: string;
+            ok: boolean;
+        };
+        PhoneAlertStatusResponse: {
+            /** @description A paired phone has fetched the current topic. */
+            claimed: boolean;
+            /** @description Connect Mobile is on and a topic exists. */
+            enabled: boolean;
+            lastDelivery?: components["schemas"]["PhoneAlertDeliveryResponse"];
+        };
+        PhoneAlertSubscribeResponse: {
+            server: string;
+            topic: string;
+        };
         PlanTicketRequest: {
             claudeAccountId?: string;
             extra?: string;
@@ -2755,35 +2789,12 @@ export interface components {
             resolveError?: string;
             sessionPrefix: string;
         };
-        PushDeviceEnvelope: {
-            device: components["schemas"]["PushDeviceResponse"];
-        };
-        PushDeviceResponse: {
-            /** Format: date-time */
-            createdAt: string;
-            deviceName?: string;
-            /** Format: date-time */
-            lastSeenAt: string;
-            platform?: string;
-            token: string;
-        };
         RedactionPattern: {
             flags: string;
             source: string;
         };
         RedactionPatternsResponse: {
             patterns: components["schemas"]["RedactionPattern"][];
-        };
-        RegisterPushDeviceRequest: {
-            /** @description Human-friendly device label. */
-            deviceName?: string;
-            /**
-             * @description Device platform.
-             * @enum {string}
-             */
-            platform?: "ios" | "android";
-            /** @description Expo push token, e.g. ExponentPushToken[...]. */
-            token: string;
         };
         RemoveProjectResult: {
             projectId: string;
@@ -3289,10 +3300,6 @@ export interface components {
         UiSettings: {
             /** @enum {string} */
             locale: "en" | "zh-CN" | "ja" | "ko" | "es" | "fr" | "de" | "pt-BR";
-        };
-        UnregisterPushDeviceResponse: {
-            deleted: boolean;
-            token: string;
         };
         UpdateProjectSettingsInput: {
             config: components["schemas"]["ProjectConfig"];
@@ -5266,6 +5273,111 @@ export interface operations {
             };
         };
     };
+    getPhoneAlerts: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PhoneAlertStatusResponse"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    subscribePhoneAlerts: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PhoneAlertSubscribeResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    testPhoneAlerts: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PhoneAlertDeliveryResponse"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
     listProjects: {
         parameters: {
             query?: never;
@@ -6654,98 +6766,6 @@ export interface operations {
             };
             /** @description Unprocessable Entity */
             422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["APIError"];
-                };
-            };
-            /** @description Not Implemented */
-            501: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["APIError"];
-                };
-            };
-        };
-    };
-    registerPushDevice: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["RegisterPushDeviceRequest"];
-            };
-        };
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PushDeviceEnvelope"];
-                };
-            };
-            /** @description Bad Request */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["APIError"];
-                };
-            };
-            /** @description Internal Server Error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["APIError"];
-                };
-            };
-            /** @description Not Implemented */
-            501: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["APIError"];
-                };
-            };
-        };
-    };
-    unregisterPushDevice: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Expo push token (URL-encoded) identifying the device. */
-                token: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["UnregisterPushDeviceResponse"];
-                };
-            };
-            /** @description Internal Server Error */
-            500: {
                 headers: {
                     [name: string]: unknown;
                 };
