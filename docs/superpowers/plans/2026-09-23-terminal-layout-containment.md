@@ -534,7 +534,7 @@ Co-Authored-By: <the harness trailer>"
 - Consumes: Task 1's `run.mjs --css`, `layout-trace.mjs --css`, `repaint-loop.mjs --css`, `$S/pixels-before/`.
 - Produces: either `.terminal-row { …; contain: layout; }` in both style files, or nothing in source.
 
-- [ ] **Step 1: Interleaved A/B in Chromium, three pairs**
+- [x] **Step 1: Interleaved A/B in Chromium, three pairs**
 
 ```bash
 T=/Users/omaraly/development/AI/Operator/packages/terminal; S=<your scratchpad>; D=$T/bench/agent-session/baselines/pane-cost; DAY=$(date +%F); cd $T && for i in 1 2 3; do echo "control$i $(date -u +%FT%TZ) $(uptime | sed 's/.*load averages: //')" >> $D/$DAY-containment-row-load.txt; node bench/agent-session/run.mjs --panes-only > $D/$DAY-containment-row-control-run$i.json || exit 1; echo "row$i $(date -u +%FT%TZ) $(uptime | sed 's/.*load averages: //')" >> $D/$DAY-containment-row-load.txt; node bench/agent-session/run.mjs --panes-only --css '.terminal-row{contain:layout}' > $D/$DAY-containment-row-after-run$i.json || exit 1; done; echo "end $(date -u +%FT%TZ) $(uptime | sed 's/.*load averages: //')" >> $D/$DAY-containment-row-load.txt
@@ -546,7 +546,7 @@ Before running, `ls $D` and make sure no `$DAY-containment-row-*` file exists; n
 T=/Users/omaraly/development/AI/Operator/packages/terminal; D=$T/bench/agent-session/baselines/pane-cost; DAY=$(date +%F); node -e 'const fs=require("fs");for(const kind of ["control","after"])for(const i of [1,2,3]){const r=JSON.parse(fs.readFileSync(`'$D'/'$DAY'-containment-row-${kind}-run${i}.json`,"utf8").trim().split("\n")[0]).panes;for(const k of ["solo","visible10"]){const x=r[k];console.log(kind,i,k,x.TaskDuration.toFixed(3),x.LayoutDuration.toFixed(3),x.RecalcStyleDuration.toFixed(3),x.LayoutCount,x.RecalcStyleCount)}}'
 ```
 
-- [ ] **Step 2: One trace each way**
+- [x] **Step 2: One trace each way**
 
 ```bash
 T=/Users/omaraly/development/AI/Operator/packages/terminal; D=$T/bench/agent-session/baselines/pane-cost; DAY=$(date +%F); cd $T && node bench/agent-session/layout-trace.mjs > $D/$DAY-containment-row-control-trace.json && node bench/agent-session/layout-trace.mjs --css '.terminal-row{contain:layout}' > $D/$DAY-containment-row-after-trace.json
@@ -554,7 +554,7 @@ T=/Users/omaraly/development/AI/Operator/packages/terminal; D=$T/bench/agent-ses
 
 Record from each: `forcedLayoutMs`, `renderStepLayouts` (must stay 0), `medianDirtyObjects`, `medianTotalObjects`, and `getBoundingClientRect` self time from `profile.visible10.top`.
 
-- [ ] **Step 3: WebKit A/B, three pairs (skip if Task 1 Step 9 did not get WebKit running)**
+- [x] **Step 3: WebKit A/B, three pairs (skip if Task 1 Step 9 did not get WebKit running)**
 
 ```bash
 T=/Users/omaraly/development/AI/Operator/packages/terminal; D=$T/bench/agent-session/baselines/pane-cost; DAY=$(date +%F); cd $T && for i in 1 2 3; do node bench/agent-session/repaint-loop.mjs --browser webkit > $D/$DAY-containment-row-webkit-control-run$i.json || exit 1; node bench/agent-session/repaint-loop.mjs --browser webkit --css '.terminal-row{contain:layout}' > $D/$DAY-containment-row-webkit-after-run$i.json || exit 1; done
@@ -562,7 +562,7 @@ T=/Users/omaraly/development/AI/Operator/packages/terminal; D=$T/bench/agent-ses
 
 Run the same loop with `--browser chromium` into `…-row-chromium-loop-{control,after}-run$i.json`, so both engines have the same metric.
 
-- [ ] **Step 4: Judge**
+- [x] **Step 4: Judge**
 
 Chromium, the rule from the request: **kept only if the median of the three `after` `visible10.LayoutDuration` readings is below the minimum of the three `control` readings from Step 1.** The control runs are the "before" for this rule because they ran in the same session under the same load. The planning-time before minimum (0.229 s, measurement note) is reported beside them. If the Step 1 control range lies outside the planning-time before range (0.229–0.234 s) by more than that range's own spread, write that the machine load differed, and quote the load log. Anything else is **no gain**, including an after median inside the control's range.
 
@@ -656,7 +656,7 @@ cd /Users/omaraly/development/AI/Operator && git add packages/terminal/ts/render
 Co-Authored-By: <the harness trailer>"
 ```
 
-- [ ] **Step 12 (not kept): Commit the evidence only**
+- [x] **Step 12 (not kept): Commit the evidence only**
 
 ```bash
 cd /Users/omaraly/development/AI/Operator && git add packages/terminal/bench/agent-session/baselines/pane-cost/<each new containment-row file, listed by name> && git commit -m "bench(terminal): row layout containment measured, no gain
