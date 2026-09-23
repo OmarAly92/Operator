@@ -565,6 +565,31 @@ describe("TerminalSurface", () => {
 		spy.mockRestore();
 	});
 
+	it("mounts a fresh renderer and editor already hidden when the mount effect reruns while parked", () => {
+		const rendererSpy = vi.spyOn(DomBlockRenderer.prototype, "setVisible");
+		const editorSpy = vi.spyOn(LineEditor.prototype, "setVisible");
+		const core = createTerminalCore({ columns: 16, scrollback: 100 });
+		const surfaceWith = (onSend: () => void) => (
+			<TerminalSurface
+				core={core}
+				theme={theme}
+				font={font}
+				altScreenActive={false}
+				onSend={onSend}
+				onSendRaw={ignoreRaw}
+				visible={false}
+			/>
+		);
+		const { rerender } = render(surfaceWith(() => undefined));
+		rendererSpy.mockClear();
+		editorSpy.mockClear();
+		rerender(surfaceWith(() => undefined));
+		expect(rendererSpy).toHaveBeenLastCalledWith(false);
+		expect(editorSpy).toHaveBeenLastCalledWith(false);
+		rendererSpy.mockRestore();
+		editorSpy.mockRestore();
+	});
+
 	async function mountAltSurface(extra: Partial<HostCapabilities>) {
 		const mount = vi.spyOn(DomBlockRenderer.prototype, "mount");
 		const host: HostCapabilities = { writeClipboard: async () => {}, readClipboard: async () => "", openLink: async () => {}, ...extra };

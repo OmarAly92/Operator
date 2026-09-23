@@ -114,6 +114,8 @@ export function TerminalSurface({
 	onBlockFinishedRef.current = onBlockFinished;
 	const onHintRef = useRef(onHint);
 	onHintRef.current = onHint;
+	const visibleRef = useRef(visible);
+	visibleRef.current = visible;
 	const findBarRef = useRef<FindBar | null>(null);
 	const gridColumnsRef = useRef(0);
 	const gridRowsRef = useRef(0);
@@ -191,6 +193,8 @@ export function TerminalSurface({
 		rendererRef.current = renderer;
 		editorRef.current = editor;
 		findBarRef.current = findBar;
+		renderer.setVisible(visibleRef.current ?? null);
+		editor.setVisible(visibleRef.current !== false);
 		applyLinkProviders();
 		applyPredictiveEchoRef.current();
 		return () => {
