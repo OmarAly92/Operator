@@ -9,6 +9,7 @@ import (
 	"github.com/OmarAly92/operator/backend/internal/adapters/agent/claudecode"
 	"github.com/OmarAly92/operator/backend/internal/domain"
 	"github.com/OmarAly92/operator/backend/internal/lifecycle"
+	"github.com/OmarAly92/operator/backend/internal/notify"
 	"github.com/OmarAly92/operator/backend/internal/ports"
 	sessionmanager "github.com/OmarAly92/operator/backend/internal/session_manager"
 	"github.com/OmarAly92/operator/backend/internal/storage/sqlite"
@@ -67,7 +68,27 @@ type alertStack struct {
 	sink  *alertSink
 }
 
+type lifecycleSink interface {
+	Notify(context.Context, ports.NotificationIntent) error
+	Resolve(context.Context, ports.NotificationResolution) error
+}
+
 func newAlertStack(t *testing.T) *alertStack {
+	t.Helper()
+	sink := &alertSink{}
+	s := buildAlertStack(t, func(*sqlite.Store) lifecycleSink { return sink })
+	s.sink = sink
+	return s
+}
+
+func newPersistedAlertStack(t *testing.T) *alertStack {
+	t.Helper()
+	return buildAlertStack(t, func(store *sqlite.Store) lifecycleSink {
+		return notify.New(notify.Deps{Store: store, Publisher: notify.NewHub()})
+	})
+}
+
+func buildAlertStack(t *testing.T, sinkFor func(*sqlite.Store) lifecycleSink) *alertStack {
 	t.Helper()
 	ctx := context.Background()
 	store, err := sqlitetest.Open(t.TempDir())
@@ -84,13 +105,12 @@ func newAlertStack(t *testing.T) *alertStack {
 		t.Fatal(err)
 	}
 	msg := &captureMessenger{}
-	sink := &alertSink{}
-	lcm := lifecycle.New(store, msg, lifecycle.WithNotificationSink(sink))
+	lcm := lifecycle.New(store, msg, lifecycle.WithNotificationSink(sinkFor(store)))
 	rt := &hookRuntime{stubRuntime: &stubRuntime{}}
 	mgr := sessionmanager.New(sessionmanager.Deps{Runtime: rt, Agents: stubAgents{}, Workspace: &stubWorkspace{}, Store: store, Messenger: msg, Lifecycle: lcm, LookPath: func(string) (string, error) { return "/usr/bin/true", nil }})
 	lcm.SetCompletionTerminator(mgr)
 	lcm.SetSessionOperationGate(mgr)
-	return &alertStack{store: store, mgr: mgr, lcm: lcm, rt: rt, sink: sink}
+	return &alertStack{store: store, mgr: mgr, lcm: lcm, rt: rt}
 }
 
 func (s *alertStack) spawnActive(t *testing.T) domain.SessionID {
@@ -302,6 +322,68 @@ func TestAgentAlerts_SessionEndReasons(t *testing.T) {
 				if got := s.session(t, id).Activity.State; got != domain.ActivityActive {
 					t.Fatalf("state = %s, want active kept for reason %q", got, tc.reason)
 				}
+			}
+		})
+	}
+}
+
+func (s *alertStack) agentExitedRows(t *testing.T, id domain.SessionID) []domain.NotificationRecord {
+	t.Helper()
+	rows, err := s.store.ListNotifications(context.Background(), domain.NotificationListAll, time.Time{}, "", 100)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var out []domain.NotificationRecord
+	for _, row := range rows {
+		if row.Type == domain.NotificationAgentExited && row.SessionID == id {
+			out = append(out, row)
+		}
+	}
+	return out
+}
+
+func TestAgentAlerts_RespawnResolvesAgentExitedSoTheNextCrashAlerts(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		respawn func(ctx context.Context, s *alertStack, id domain.SessionID) error
+	}{
+		{name: "relaunch", respawn: func(ctx context.Context, s *alertStack, id domain.SessionID) error {
+			_, err := s.mgr.RelaunchAgentFresh(ctx, id, sessionmanager.RelaunchAgentConfig{KeepPrompt: true})
+			return err
+		}},
+		{name: "resume", respawn: func(ctx context.Context, s *alertStack, id domain.SessionID) error {
+			_, err := s.mgr.ResumeAgentWithMode(ctx, id)
+			return err
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := context.Background()
+			s := newPersistedAlertStack(t)
+			id := s.spawnActive(t)
+			crash := func() {
+				t.Helper()
+				if err := s.lcm.ApplyRuntimeObservation(ctx, id, ports.RuntimeFacts{Runtime: ports.ProbeAlive, Workload: ports.ProbeDead, LaunchID: s.session(t, id).Metadata.RuntimeLaunchID}); err != nil {
+					t.Fatal(err)
+				}
+			}
+			crash()
+			rows := s.agentExitedRows(t, id)
+			if len(rows) != 1 || rows[0].Resolved() {
+				t.Fatalf("after first crash agent_exited rows = %+v, want 1 open", rows)
+			}
+			if err := tc.respawn(ctx, s, id); err != nil {
+				t.Fatal(err)
+			}
+			rows = s.agentExitedRows(t, id)
+			if len(rows) != 1 || !rows[0].Resolved() {
+				t.Fatalf("after %s agent_exited rows = %+v, want 1 resolved", tc.name, rows)
+			}
+			if err := s.lcm.ApplyActivitySignal(ctx, id, ports.ActivitySignal{Valid: true, State: domain.ActivityActive, Event: "user-prompt-submit", LaunchID: s.session(t, id).Metadata.RuntimeLaunchID}); err != nil {
+				t.Fatal(err)
+			}
+			crash()
+			if rows := s.agentExitedRows(t, id); len(rows) != 2 {
+				t.Fatalf("after second crash agent_exited rows = %+v, want 2", rows)
 			}
 		})
 	}

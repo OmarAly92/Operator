@@ -1056,6 +1056,7 @@ func (m *Manager) resolveNotifications(ctx context.Context, resolutions ...ports
 // MarkSpawned marks a newly spawned or restored session live and stores runtime/workspace handles.
 func (m *Manager) MarkSpawned(ctx context.Context, id domain.SessionID, metadata domain.SessionMetadata) error {
 	launchID := strings.TrimSpace(metadata.RuntimeLaunchID)
+	var resolutions []ports.NotificationResolution
 	reactivator, err := func() (sessionUsageReactivator, error) {
 		m.mu.Lock()
 		defer m.mu.Unlock()
@@ -1068,6 +1069,7 @@ func (m *Manager) MarkSpawned(ctx context.Context, id domain.SessionID, metadata
 			return nil, fmt.Errorf("lifecycle: MarkSpawned for unknown session %q", id)
 		}
 		now := m.clock()
+		prev := rec
 		rec.IsTerminated = false
 		rec.Activity = domain.Activity{State: domain.ActivityIdle, LastActivityAt: now}
 		// Each spawn/restore must re-prove its hook pipeline: clear the receipt so
@@ -1079,11 +1081,13 @@ func (m *Manager) MarkSpawned(ctx context.Context, id domain.SessionID, metadata
 		if err := m.store.UpdateSession(ctx, rec); err != nil {
 			return nil, err
 		}
+		resolutions = sessionResolutions(prev, rec, now)
 		return m.usageReactivator, nil
 	}()
 	if err != nil {
 		return err
 	}
+	m.resolveNotifications(ctx, resolutions...)
 	reactivateSessionUsage(ctx, id, launchID, reactivator)
 	return nil
 }

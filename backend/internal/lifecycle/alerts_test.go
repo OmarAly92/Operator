@@ -238,3 +238,19 @@ func TestAlerts_LeavingExitedResolvesAgentExited(t *testing.T) {
 		t.Fatalf("agent_exited resolutions = %+v, want 1", got)
 	}
 }
+
+func TestAlerts_MarkSpawnedResolvesAgentExited(t *testing.T) {
+	m, st, sink, _ := alertManager(t, domain.ActivityExited)
+	if err := m.MarkSpawned(ctx, "mer-1", domain.SessionMetadata{RuntimeHandleID: "mer-1", RuntimeLaunchID: "launch-2"}); err != nil {
+		t.Fatal(err)
+	}
+	if got := st.sessions["mer-1"].Activity.State; got != domain.ActivityIdle {
+		t.Fatalf("state = %s, want idle after respawn", got)
+	}
+	if got := resolutionsOf(sink, domain.NotificationAgentExited); len(got) != 1 || got[0].SessionID != "mer-1" {
+		t.Fatalf("agent_exited resolutions = %+v, want exactly 1", got)
+	}
+	if len(sink.intents) != 0 {
+		t.Fatalf("MarkSpawned emitted %+v", sink.intents)
+	}
+}
