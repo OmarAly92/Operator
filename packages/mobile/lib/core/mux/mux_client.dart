@@ -6,6 +6,7 @@ import 'package:equatable/equatable.dart';
 import 'package:operator_mobile/core/api/interceptors/server_config_interceptor.dart';
 import 'package:operator_mobile/core/api/server_config.dart';
 import 'package:operator_mobile/core/mux/mux_backoff.dart';
+import 'package:operator_mobile/core/mux/mux_notification.dart';
 import 'package:operator_mobile/core/mux/mux_socket.dart';
 import 'package:operator_mobile/core/mux/session_patch.dart';
 
@@ -80,6 +81,7 @@ class MuxClient {
   final _sessionPatchesController = StreamController<List<SessionPatch>>.broadcast();
   final _terminalEventsController = StreamController<TerminalEvent>.broadcast();
   final _blockEventsController = StreamController<BlockEventEnvelope>.broadcast();
+  final _notificationsController = StreamController<MuxNotification>.broadcast();
 
   Stream<void> get boardChanges => _boardChangesController.stream;
   bool get boardStreamReady => _boardStreamReady;
@@ -88,6 +90,7 @@ class MuxClient {
   Stream<List<SessionPatch>> get sessionPatches => _sessionPatchesController.stream;
   Stream<TerminalEvent> get terminalEvents => _terminalEventsController.stream;
   Stream<BlockEventEnvelope> get blockEvents => _blockEventsController.stream;
+  Stream<MuxNotification> get notifications => _notificationsController.stream;
 
   MuxSocket? _socket;
   StreamSubscription<dynamic>? _sub;
@@ -104,6 +107,7 @@ class MuxClient {
   final Map<String, int> _ackedBytes = {};
   final Set<String> _blockSessions = {};
   bool _subscribed = false;
+  bool _notificationsSubscribed = false;
 
   MuxStatus _currentStatus = MuxStatus.closed;
 
@@ -176,6 +180,7 @@ class MuxClient {
     for (final sessionId in _blockSessions) {
       _send({'ch': 'blocks', 'id': sessionId, 'type': 'subscribe'});
     }
+    if (_notificationsSubscribed) _send({'ch': 'notifications', 'type': 'subscribe'});
 
     _pingTimer = Timer.periodic(const Duration(seconds: 20), (_) => _send({'ch': 'system', 'type': 'ping'}));
   }
@@ -213,6 +218,12 @@ class MuxClient {
         }
         return;
       }
+      return;
+    }
+
+    if (ch == 'notifications' && type == 'notification') {
+      final notification = MuxNotification.fromJson(msg['notification']);
+      if (notification != null) _notificationsController.add(notification);
       return;
     }
 
@@ -339,6 +350,16 @@ class MuxClient {
   void unsubscribeBlocks(String sessionId) {
     _blockSessions.remove(sessionId);
     _send({'ch': 'blocks', 'id': sessionId, 'type': 'unsubscribe'});
+  }
+
+  void subscribeNotifications() {
+    _notificationsSubscribed = true;
+    _send({'ch': 'notifications', 'type': 'subscribe'});
+  }
+
+  void unsubscribeNotifications() {
+    _notificationsSubscribed = false;
+    _send({'ch': 'notifications', 'type': 'unsubscribe'});
   }
 
   Future<void> disconnect() async {

@@ -19,6 +19,16 @@ NotificationVisual notificationVisual(AppSkin skin, String type) => switch (type
     color: skin.amber,
     label: 'Needs input',
   ),
+  'turn_finished' => NotificationVisual(
+    icon: Icons.check_circle_outline,
+    color: skin.green,
+    label: 'Finished',
+  ),
+  'agent_exited' => NotificationVisual(
+    icon: Icons.stop_circle_outlined,
+    color: skin.red,
+    label: 'Exited',
+  ),
   'ready_to_merge' => NotificationVisual(
     icon: Icons.merge_outlined,
     color: skin.green,
@@ -41,11 +51,13 @@ NotificationVisual notificationVisual(AppSkin skin, String type) => switch (type
   ),
 };
 
+const _sessionTypes = {'needs_input', 'turn_finished', 'agent_exited'};
+
 /// The id is escaped because the consumer (`resolveDeepLinkPath`) decodes it —
 /// leaving it raw makes a `%` or a `/` in an id either mangle the path or fail
 /// to resolve.
 String notificationTarget({required String type, String? sessionId}) =>
-    type == 'needs_input' && (sessionId ?? '').isNotEmpty
+    _sessionTypes.contains(type) && (sessionId ?? '').isNotEmpty
     ? '/session/${Uri.encodeComponent(sessionId!)}'
     : '/prs';
 

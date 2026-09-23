@@ -9,6 +9,8 @@ import 'package:operator_mobile/core/database/tables/desktop/desktop_dao.dart';
 import 'package:operator_mobile/core/deep_link/deep_link_service.dart';
 import 'package:operator_mobile/core/helpers/network/network_status.dart';
 import 'package:operator_mobile/core/mux/mux_client.dart';
+import 'package:operator_mobile/core/notifications/local_alert_sink.dart';
+import 'package:operator_mobile/core/notifications/phone_alerts_runtime.dart';
 import 'package:operator_mobile/feature/dictation/device_provider.dart';
 import 'package:operator_mobile/feature/dictation/logic/voice_input_cubit.dart';
 import 'package:operator_mobile/feature/dictation/speech_recognizer.dart';
@@ -255,6 +257,10 @@ class ServiceLocator {
   }
 
   static void _notificationFeatureSetup() {
+    sl.registerLazySingleton<LocalAlertSink>(FlutterLocalAlertSink.new);
+    sl.registerLazySingleton<PhoneAlertsRuntime>(
+      () => PhoneAlertsRuntime(sl<MuxClient>(), sl<LocalAlertSink>(), (uri) => sl<DeepLinkService>().handle(uri)),
+    );
     sl.registerLazySingleton<NotificationsCubit>(
       () => NotificationsCubit(
         sl<NotificationRepository>(),

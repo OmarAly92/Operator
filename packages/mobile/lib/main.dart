@@ -14,6 +14,7 @@ import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/app_themes/themes/app_themes.dart';
 import 'package:operator_mobile/core/deep_link/deep_link_service.dart';
 import 'package:operator_mobile/core/helpers/cache/cache_helper.dart';
+import 'package:operator_mobile/core/notifications/phone_alerts_runtime.dart';
 import 'package:operator_mobile/core/telemetry/runtime.dart';
 import 'package:operator_mobile/core/utils/device_kind.dart';
 import 'package:operator_mobile/core/utils/service_locator.dart';
@@ -78,7 +79,13 @@ class OperatorApp extends StatefulWidget {
 
 class _OperatorAppState extends State<OperatorApp> {
   late final AppLifecycleListener _lifecycle = AppLifecycleListener(
-    onResume: () => unawaited(TelemetryRuntime.active()),
+    onResume: () {
+      unawaited(TelemetryRuntime.active());
+      sl<PhoneAlertsRuntime>().foreground();
+    },
+    onShow: () => sl<PhoneAlertsRuntime>().foreground(),
+    onHide: () => sl<PhoneAlertsRuntime>().background(),
+    onPause: () => sl<PhoneAlertsRuntime>().background(),
   );
 
   @override
@@ -87,6 +94,7 @@ class _OperatorAppState extends State<OperatorApp> {
     _lifecycle.hashCode;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       unawaited(sl<DeepLinkService>().start());
+      unawaited(sl<PhoneAlertsRuntime>().start());
     });
   }
 
