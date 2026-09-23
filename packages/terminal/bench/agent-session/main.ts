@@ -26,6 +26,7 @@ type AgentSession = {
 	feedNext(limit: number): number;
 	feedChunk(start: number, end: number): number;
 	feedFrames(count: number, intervalMs: number): Promise<void>;
+	repaintLoop(frames: number): { frames: number; totalMs: number };
 	feedNextSynced(limit: number): number;
 	rowCount(): number;
 	renderableRowCount(): number;
@@ -95,6 +96,13 @@ const featureList = params.get("features") ?? "";
 if (featureList !== "") domRenderer.setFeatures(parseFeatureList(featureList));
 core.setGraphemeClusters(domRenderer.features().graphemes);
 domRenderer.setFocused(params.get("focused") !== "0");
+const benchCss = params.get("css");
+if (benchCss) {
+	const tag = document.createElement("style");
+	tag.dataset.benchCss = "";
+	tag.textContent = benchCss;
+	document.head.append(tag);
+}
 domRenderer.onPaint(() => {
 	paints += 1;
 });
@@ -373,6 +381,30 @@ async function feedFrames(count: number, intervalMs: number): Promise<void> {
 	}
 }
 
+function visibleRenderers(): DomBlockRenderer[] {
+	return [
+		domRenderer,
+		...extraPanes
+			.filter(({ mode }) => mode === "visible")
+			.map(({ pane }) => (pane as unknown as { renderer: DomBlockRenderer }).renderer),
+	];
+}
+
+function repaintLoop(count: number): { frames: number; totalMs: number } {
+	const ends = frameEnds().filter((end) => end > fed).slice(0, count);
+	const renderers = visibleRenderers();
+	const began = performance.now();
+	for (const end of ends) {
+		const start = fed;
+		feedChunk(start, end);
+		for (const { pane, mode } of extraPanes) {
+			if (mode === "visible") (pane.getCoreForBench() as TerminalCore).feed(recording.subarray(start, end));
+		}
+		for (const paneRenderer of renderers) (paneRenderer as unknown as { repaint(): void }).repaint();
+	}
+	return { frames: ends.length, totalMs: performance.now() - began };
+}
+
 function visibleRows(): Array<{ block: string; row: number }> {
 	const box = host!.getBoundingClientRect();
 	const out: Array<{ block: string; row: number }> = [];
@@ -422,6 +454,7 @@ window.__agentSession = {
 	feedNext,
 	feedChunk,
 	feedFrames,
+	repaintLoop,
 	feedNextSynced,
 	rowCount,
 	renderableRowCount,

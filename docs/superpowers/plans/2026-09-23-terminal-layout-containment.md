@@ -88,7 +88,7 @@ The before numbers were measured during planning on `f4d93ba68` (measurement not
 - Produces: `node bench/agent-session/layout-trace.mjs [--css <text>]` prints one JSON line: `{ measuredAt, css, trace: { solo, visible10 }, profile: { visible10: { file, top } } }`.
 - Produces: `node bench/agent-session/repaint-loop.mjs --browser <chromium|webkit> [--css <text>] [--frames <n>]` prints one JSON line: `{ measuredAt, browser, css, solo: { frames, totalMs }, visible10: { frames, totalMs } }`.
 
-- [ ] **Step 1: Confirm the before numbers still describe the tree**
+- [x] **Step 1: Confirm the before numbers still describe the tree**
 
 ```bash
 cd /Users/omaraly/development/AI/Operator && git log --oneline -1 && git diff --stat f4d93ba68 HEAD -- packages/terminal/ts packages/terminal/crates packages/terminal/bench/agent-session/main.ts packages/terminal/bench/adapters
@@ -96,7 +96,7 @@ cd /Users/omaraly/development/AI/Operator && git log --oneline -1 && git diff --
 
 Expected: empty diff. If it is **not** empty, renderer or harness code changed after the before-runs. Rebuild (`cd $T && npm run build:wasm -- --force && npm run build:ts`), re-run `node $T/bench/agent-session/run.mjs --panes-only` three times, save them as `baselines/pane-cost/<today>-containment-before-rerun{1,2,3}.json`, and add a "Before (re-run)" subsection to the measurement note. If the trace (Step 7) then shows any render-step layout, **stop and report**: the double-layout finding no longer holds, and the pinned-header task the request describes would come back into scope.
 
-- [ ] **Step 2: `?css=` injection in the bench page**
+- [x] **Step 2: `?css=` injection in the bench page**
 
 In `$T/bench/agent-session/main.ts`, directly after `domRenderer.setFocused(params.get("focused") !== "0");` (`:97`):
 
@@ -112,7 +112,7 @@ if (benchCss) {
 
 The injected rule has the same specificity as the package rule, and no package rule sets `contain` on a row or block, so `.terminal-row{contain:layout}` injected is the same computed style as the source change Task 2 would make.
 
-- [ ] **Step 3: `repaintLoop`**
+- [x] **Step 3: `repaintLoop`**
 
 In the `AgentSession` type (`main.ts:20-65`), after `feedFrames(count: number, intervalMs: number): Promise<void>;`:
 
@@ -156,7 +156,7 @@ In the `window.__agentSession = { … }` object, after `feedFrames,`:
 
 `repaintLoop` measures script, style and the forced layout of `repaint` itself, in any engine, with `performance.now()` totals over ~100 frames. That matters because WebKit coarsens `performance.now()`, and a total over hundreds of milliseconds survives the coarsening where per-call timings would not. It measures neither paint nor the render step, and the render step lays out nothing today (planning finding 4).
 
-- [ ] **Step 4: `run.mjs` flags**
+- [x] **Step 4: `run.mjs` flags**
 
 In `$T/bench/agent-session/run.mjs`:
 
@@ -208,7 +208,7 @@ The `--panes-only` call (`:304`):
 
 Add `if (args.css) report.css = args.css;` directly after `const report = { … };` (`:295`), and change the stdout line (`:349`) to `process.stdout.write(`${JSON.stringify({ fixture: name, ...(args.css ? { css: args.css } : {}), ...rows })}\n`);` so every run file says which stylesheet it measured.
 
-- [ ] **Step 5: `layout-trace.mjs`**
+- [x] **Step 5: `layout-trace.mjs`**
 
 Create `$T/bench/agent-session/layout-trace.mjs`. It is the planning-time script (which produced `…-before-trace-run{1,2}.json`) plus `--css`:
 
@@ -402,7 +402,7 @@ try {
 }
 ```
 
-- [ ] **Step 6: `repaint-loop.mjs`**
+- [x] **Step 6: `repaint-loop.mjs`**
 
 Create `$T/bench/agent-session/repaint-loop.mjs`:
 
@@ -461,7 +461,7 @@ try {
 }
 ```
 
-- [ ] **Step 7: Check the tooling reproduces the before-state**
+- [x] **Step 7: Check the tooling reproduces the before-state**
 
 ```bash
 T=/Users/omaraly/development/AI/Operator/packages/terminal; cd $T && npm run build:ts && uptime && node $T/bench/agent-session/run.mjs --panes-only && node $T/bench/agent-session/layout-trace.mjs && node $T/bench/agent-session/repaint-loop.mjs --browser chromium && uptime
@@ -469,7 +469,7 @@ T=/Users/omaraly/development/AI/Operator/packages/terminal; cd $T && npm run bui
 
 Expected: the `run.mjs` line's `panes.solo` reads `LayoutCount` 122 and `RecalcStyleCount` 222, and `panes.visible10` reads 1220–1221 and 2256–2257 (the harness change adds nothing to a run without `--css`). The trace reads `renderStepLayouts: 0` in both rows. `repaint-loop` prints `frames: 100` for both rows and a finite `totalMs`. If a layout or recalc count moves, Step 2 or 3 broke the page: fix before continuing.
 
-- [ ] **Step 8: The bench gates still pass with the harness change**
+- [x] **Step 8: The bench gates still pass with the harness change**
 
 ```bash
 T=/Users/omaraly/development/AI/Operator/packages/terminal; cd $T && npm run bench:agent:gate && npm run bench:agent:scroll && npm run bench:feel
@@ -477,7 +477,7 @@ T=/Users/omaraly/development/AI/Operator/packages/terminal; cd $T && npm run ben
 
 Expected: `PASS agent-session gate`, the scroll gate green, `PASS feel gate: zero pixel diff`.
 
-- [ ] **Step 9: WebKit — ask, then try**
+- [x] **Step 9: WebKit — ask, then try**
 
 Ask the user in chat, and wait for a clear yes: "Task 1 needs Playwright's WebKit build to measure the engine the desktop app uses (WKWebView). May I run `npx playwright install webkit` in `packages/terminal`? It downloads Playwright's WebKit build from Playwright's CDN; the installer prints the size." Do not run it without that yes.
 
@@ -490,7 +490,7 @@ T=/Users/omaraly/development/AI/Operator/packages/terminal; cd $T && npx playwri
 
 Expected: one JSON line with `browser: "webkit"`, `frames: 100` in both rows. If it fails (the page never sets `__agentSessionReady`, wasm fails, a WebKit build does not exist for this macOS), record the exact error text in the note as the reason WebKit could not be measured. Then skip the WebKit steps below.
 
-- [ ] **Step 10: Capture the pixel before-state**
+- [x] **Step 10: Capture the pixel before-state**
 
 ```bash
 T=/Users/omaraly/development/AI/Operator/packages/terminal; cd $T && git status --porcelain -- bench/agent-session/baselines && npm run bench:feel && for f in attributes=warp cursorContrast cursorHollowUnfocused graphemes=false graphemes=false,widthCache=false widthCache=false; do npm run bench:feel -- --feature "$f" || exit 1; done && for a in hover hint redact; do npm run bench:affordances -- --action "$a" || exit 1; done; git status --porcelain -- bench/agent-session/baselines
@@ -506,7 +506,7 @@ T=/Users/omaraly/development/AI/Operator/packages/terminal; S=<your scratchpad>;
 
 Then, **only if** the last `git status` listed files, restore the committed ones. They are this run's own generated output, so run `git -C /Users/omaraly/development/AI/Operator diff --name-only -- packages/terminal/bench/agent-session/baselines` first, read the list, and `git checkout -- <each listed path>`. Never commit regenerated PNGs.
 
-- [ ] **Step 11: CHANGELOG and commit**
+- [x] **Step 11: CHANGELOG and commit**
 
 Add under `## Unreleased` in `$T/CHANGELOG.md`, as the first bullet:
 
