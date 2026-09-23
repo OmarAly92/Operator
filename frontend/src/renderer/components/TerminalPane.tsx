@@ -27,11 +27,17 @@ import {
 	createTerminalMux,
 	createTerminalMuxPool,
 	muxUrlFromApiBase,
+	type TerminalBlockFrame,
 	type TerminalMux,
 	type TerminalMuxPool,
 } from "../lib/terminal-mux";
 import { cn } from "../lib/utils";
-import { RETAINED_TERMINAL_UNLOAD_MS } from "../lib/retained-terminal";
+import {
+	RETAINED_TERMINAL_UNLOAD_MS,
+	UNLOADED_SHELL_REWATCH_BASE_MS,
+	UNLOADED_SHELL_REWATCH_MAX_MS,
+} from "../lib/retained-terminal";
+import { terminalDebug } from "../lib/terminal-debug";
 import { shellBlockNotification } from "../lib/shell-block-notifications";
 import { useWorkspaceQuery, workspaceQueryKey } from "../hooks/useWorkspaceQuery";
 import { useRestoreSession } from "../hooks/useRestoreSession";
@@ -343,8 +349,10 @@ export function TerminalCacheProvider({
 		(entry: CachedTerminalEntry) => {
 			releaseUnloadedShell(entry.ownerKey);
 			const handleId = entry.handleId;
-			const lease = muxPool.acquire();
-			const off = lease.onTerminalBlock(handleId, (block) => {
+			let lease: TerminalMux | null = null;
+			let rewatchTimer: ReturnType<typeof setTimeout> | undefined;
+			let attempts = 0;
+			const notify = (block: TerminalBlockFrame) => {
 				const note = shellBlockNotification(block, handleId);
 				if (!note) return;
 				const translate = translateRef.current;
@@ -358,14 +366,40 @@ export function TerminalCacheProvider({
 						body: translate("terminal.blockFinishedBody", { seconds: Math.round(note.durationMs / 1000) }),
 						type: "terminal",
 					})
-					.catch(() => undefined);
-			});
+					.catch((error: unknown) => {
+						terminalDebug("terminal-pane", "notification failed", { error: String(error) });
+					});
+			};
+			const watch = () => {
+				const current = muxPool.acquire();
+				lease = current;
+				current.onTerminalBlock(handleId, notify);
+				current.onConnectionChange((state) => {
+					if (lease !== current) return;
+					if (state === "open") {
+						attempts = 0;
+						return;
+					}
+					lease = null;
+					current.dispose();
+					const delay = Math.min(UNLOADED_SHELL_REWATCH_BASE_MS * 2 ** attempts, UNLOADED_SHELL_REWATCH_MAX_MS);
+					attempts += 1;
+					rewatchTimer = setTimeout(() => {
+						rewatchTimer = undefined;
+						watch();
+					}, delay);
+				});
+			};
+			watch();
 			unloadedShellsRef.current.set(entry.ownerKey, {
 				generation: entry.generation,
 				handleId,
 				release: () => {
-					off();
-					lease.dispose();
+					if (rewatchTimer !== undefined) clearTimeout(rewatchTimer);
+					rewatchTimer = undefined;
+					const current = lease;
+					lease = null;
+					current?.dispose();
 				},
 			});
 		},

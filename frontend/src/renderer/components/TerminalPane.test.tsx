@@ -10,7 +10,7 @@ import type { TerminalTarget } from "../types/terminal";
 import type { WorkspaceSession } from "../types/workspace";
 import { useUiStore } from "../stores/ui-store";
 import { rememberPaneGrid, resetPaneGridForTests } from "../lib/pane-grid";
-import { RETAINED_TERMINAL_UNLOAD_MS } from "../lib/retained-terminal";
+import { RETAINED_TERMINAL_UNLOAD_MS, UNLOADED_SHELL_REWATCH_MAX_MS } from "../lib/retained-terminal";
 import { operatorBridge } from "../lib/bridge";
 import type { TerminalBlockFrame, TerminalMux } from "../lib/terminal-mux";
 import {
@@ -51,8 +51,9 @@ const {
 		attachmentUnmounts: { value: 0 },
 	}),
 );
-const { terminalBlockListeners } = vi.hoisted(() => ({
+const { terminalBlockListeners, muxConnectionListeners } = vi.hoisted(() => ({
 	terminalBlockListeners: new Map<string, Set<(block: TerminalBlockFrame) => void>>(),
+	muxConnectionListeners: new Set<(state: "open" | "closed") => void>(),
 }));
 vi.mock("../lib/terminal-mux", async (importOriginal) => {
 	const actual = await importOriginal<typeof import("../lib/terminal-mux")>();
@@ -75,7 +76,10 @@ vi.mock("../lib/terminal-mux", async (importOriginal) => {
 			terminalBlockListeners.set(handleId, set);
 			return () => set.delete(listener);
 		},
-		onConnectionChange: () => () => undefined,
+		onConnectionChange: (listener) => {
+			muxConnectionListeners.add(listener);
+			return () => muxConnectionListeners.delete(listener);
+		},
 		dispose: () => undefined,
 	});
 	return { ...actual, createTerminalMux: fakeMux };
@@ -198,6 +202,7 @@ beforeEach(() => {
 	attachmentMounts.value = 0;
 	attachmentUnmounts.value = 0;
 	terminalBlockListeners.clear();
+	muxConnectionListeners.clear();
 	useUiStore.setState({ inspectorSessions: {} });
 	resetPaneGridForTests();
 });
@@ -854,6 +859,66 @@ describe("TerminalCacheProvider", () => {
 					view.queryClient.setQueryData(shellTerminalsQueryKey, []);
 				});
 				await waitFor(() => expect(terminalBlockListeners.get(shell.handleId)?.size).toBe(0));
+			} finally {
+				vi.useRealTimers();
+				view.restore();
+			}
+		});
+
+		const dropSocket = () => {
+			act(() => {
+				[...muxConnectionListeners].forEach((listener) => listener("closed"));
+			});
+		};
+
+		it("watches an unloaded shell again after the mux socket drops", async () => {
+			const show = vi.spyOn(operatorBridge.notifications, "show").mockResolvedValue(undefined);
+			const view = await unloadShell();
+			try {
+				expect(terminalBlockListeners.get(shell.handleId)?.size).toBe(1);
+				dropSocket();
+				expect(terminalBlockListeners.get(shell.handleId)?.size ?? 0).toBe(0);
+				await act(async () => {
+					vi.advanceTimersByTime(UNLOADED_SHELL_REWATCH_MAX_MS);
+				});
+				expect(terminalBlockListeners.get(shell.handleId)?.size).toBe(1);
+				deliver(finished("osc133-3-0"));
+				expect(show).toHaveBeenCalledTimes(1);
+				expect(show).toHaveBeenCalledWith(
+					expect.objectContaining({ id: "block-finished:shell-handle:osc133-3-0" }),
+				);
+			} finally {
+				show.mockRestore();
+				vi.useRealTimers();
+				view.restore();
+			}
+		});
+
+		it("leaves no watch behind when an unloaded shell is reopened during the re-watch backoff", async () => {
+			const view = await unloadShell();
+			try {
+				dropSocket();
+				view.show(sessionA, shellTarget);
+				await waitFor(() => expect(activeAttachment().isConnected).toBe(true));
+				await act(async () => {
+					vi.advanceTimersByTime(UNLOADED_SHELL_REWATCH_MAX_MS);
+				});
+				expect(terminalBlockListeners.get(shell.handleId)?.size ?? 0).toBe(0);
+			} finally {
+				vi.useRealTimers();
+				view.restore();
+			}
+		});
+
+		it("leaves no watch behind when the provider unmounts during the re-watch backoff", async () => {
+			const view = await unloadShell();
+			try {
+				dropSocket();
+				view.unmount();
+				await act(async () => {
+					vi.advanceTimersByTime(UNLOADED_SHELL_REWATCH_MAX_MS);
+				});
+				expect(terminalBlockListeners.get(shell.handleId)?.size ?? 0).toBe(0);
 			} finally {
 				vi.useRealTimers();
 				view.restore();
