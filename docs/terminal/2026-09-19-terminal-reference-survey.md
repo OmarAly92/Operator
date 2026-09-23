@@ -60,7 +60,7 @@ Entries the agent-TUI spec (`docs/superpowers/specs/2026-09-19-agent-tui-experie
 | §2.1 | Done | Plan A — DEC 2026 buffered in `vt-core` (`SyncBuffer`, 150 ms / 2 MiB), pump holds across a block. |
 | §2.3 | Partial | Plan B — dirty rows and a selection damage diff (one row repainted per selection step). Row granularity only; no column bounds. |
 | §2.7 | Done | Plan E — hint mode on Ctrl+Shift+Space with labels and `onHint`. |
-| §2.8 | Done | Plan D — ten attribute bits and underline colour in the style word; painted only with `attributes: "warp"` (default `"plain"`). |
+| §2.8 | Done | Plan D — ten attribute bits and underline colour in the style word; painted with `attributes: "warp"`, the default since 2026-09-23 (was `"plain"`). |
 | §2.9 | Done | Plan A — `tests/ref` with Alacritty's recordings plus our own. |
 | §2.10 | Done | Plan A — `enqueue`/`drain` with a 12 ms budget per animation frame. |
 | §2.12 | Done | Plan D — `cursorContrast` and `cursorHollowUnfocused` flags, default off. |
@@ -1557,7 +1557,7 @@ product-independent because the rules and actions come from the host.
 
 ### 2.8 Full SGR attribute set as a cell flag bitset, with rare data out of line
 
-> **Status: Done.** Plan D — ten attribute bits and underline colour in the style word; painted only with `attributes: "warp"` (default `"plain"`).
+> **Status: Done.** Plan D — ten attribute bits and underline colour in the style word; painted with `attributes: "warp"`, the default since 2026-09-23 (was `"plain"`).
 
 **Reference**
 - `alacritty_terminal/src/term/cell.rs:22-40` `Flags: u16` —

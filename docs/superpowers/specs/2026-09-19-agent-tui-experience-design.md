@@ -375,18 +375,18 @@ from the review commit that follows `5ba24affc`, which fixed the parser bug
 described under "Flags-off rows". Every visible change is behind
 `RendererFeatures` (`packages/terminal/ts/renderer-dom/src/features.ts`), set
 through `DomBlockRenderer.setFeatures` and the `features` prop of
-`TerminalSurface`; Operator passes nothing, so every flag is at its default (`graphemes` and `widthCache` default on since 2026-09-22; the rest are off):
+`TerminalSurface`; Operator passes nothing, so every flag is at its default (`graphemes` and `widthCache` default on since 2026-09-22, `attributes` is `"warp"` since 2026-09-23; the rest are off):
 
 | Flag | Default | What it changes | Side-by-side |
 |---|---|---|---|
-| `attributes` | `"plain"` | `"warp"` paints italic/underline (5 styles, SGR 58 colour)/strike/overline/hidden, tags blink | `bench/agent-session/baselines/*/feature-attributes_warp/` (both Claude fixtures are byte-identical to their baselines: Claude Code uses none of these) |
+| `attributes` | `"warp"` since 2026-09-23 (was `"plain"`) | `"warp"` paints italic/underline (5 styles, SGR 58 colour)/strike/overline/hidden, tags blink | `bench/agent-session/baselines/*/feature-attributes_plain/` (the old look; on the Claude Code recordings only `claude-markdown-reply` offset-0 differs, its two italic words — Claude Code emitted italic and nothing else from this set) |
 | `graphemes` | `true` since 2026-09-22 (was `false`; flipped together with `widthCache`) | core prints and rewraps by grapheme cluster; selection follows the exported spans | `…/feature-graphemes_false_widthCache_false/` (the old default against the new baseline; its `diff-offset-*.png` crop each changed row, flags off on top, on in the middle, changed pixels in red), `…/feature-widthCache_false/` (graphemes without the width cache), `baselines/glyph-probe/EVIDENCE-graphemes.json` |
 | `cursorContrast` | `false` | inverted cursor below contrast 1.5 | `…/feature-cursorContrast/` |
 | `cursorHollowUnfocused` | `false` | hollow block while unfocused | `…/feature-cursorHollowUnfocused/` |
 | `widthCache` | `true` since 2026-09-22 (was `false`; flipped together with `graphemes`) | per-cluster letter-spacing toward the core's cell widths (Task 11: landed — `wideDriftPx`/`cjkDriftPx` in `EVIDENCE.json`); meaningful together with `graphemes`, see below | `…/feature-graphemes_false/` (the width cache alone — why the two flags move together), `…/feature-graphemes_false_widthCache_false/` |
 | `boxDrawing` | `false` | procedural box glyphs (Task 10: not needed — `boxGapPx` = 0, `EVIDENCE.json`) | n/a — never implemented; the flag name is accepted and read by nothing |
 
-Decision 4 stands: `attributes` defaults to `"plain"`. Flipping any default is a
+Decision 4 was reversed 2026-09-23 by the user after the side-by-sides on a recorded markdown reply: `attributes` defaults to `"warp"` (`docs/terminal/2026-09-23-day-to-day-suggestions.md` item 2). Flipping any default is a
 one-line change in `DEFAULT_FEATURES` plus a re-recorded feel baseline; the
 side-by-side screenshots above are what the user compares before that.
 
@@ -1087,7 +1087,7 @@ changes nothing on a local pane.
    equals the last committed scrollback row, drop the duplicate. A genuinely
    repeated line would also be dropped once. Yes/no.
 4. **SGR attributes default**: `"plain"` (today) or `"warp"` after the
-   side-by-side.
+   side-by-side. Decided 2026-09-23: `"warp"`.
 5. **Lazy rewrap** (1.3.F) vs eager with a bigger budget. Proposed: lazy.
 
 ## Plans this spec produces

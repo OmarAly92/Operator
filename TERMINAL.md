@@ -153,8 +153,8 @@ rebuilt (§6).
   is the gate every Plan D behavior sits behind — SGR attributes, grapheme
   clusters, cursor contrast/hollow, and the width cache. `graphemes` and
   `widthCache` default on (2026-09-22, together — see §5 for why never one
-  without the other); the rest default off (see §5 for what each flag costs
-  or leaves unresolved). `TerminalSurface` puts the core in the resolved
+  without the other); `attributes` defaults to `"warp"` (2026-09-23, §5);
+  the cursor flags default off (see §5 for what each leaves unresolved). `TerminalSurface` puts the core in the resolved
   `graphemes` mode in a layout effect that runs before the geometry effect,
   and hosts `enqueue` bytes, which parse on the renderer's frame drain — so no
   byte reaches the parser before the mode is set.
@@ -833,11 +833,22 @@ history of `master`.
 
 ## 5. Known gaps (not bugs, decisions pending)
 
-- SGR attributes (italic, underline in 5 styles, SGR 58 colour, strike,
-  overline, hidden, blink) are parsed unconditionally but rendered only
-  behind `RendererFeatures.attributes = "warp"`; the default is `"plain"`,
-  which paints none of them. An underlined trailing blank is still trimmed
-  from the export.
+- **SGR attributes render by default since 2026-09-23.**
+  `RendererFeatures.attributes` defaults to `"warp"` (italic, underline in 5
+  styles, SGR 58 colour, strike, overline, hidden, blink); `"plain"` keeps
+  only bold and dim (`row-builder.ts:75-80`) and is what
+  `baselines/*/feature-attributes_plain/` shows. Evidence
+  (`bench/agent-session/fixtures/claude-markdown-reply`, a markdown reply, a
+  diff and a Bash call from Claude Code v2.1.280): italic 5 emissions, bold
+  18, dim 6, and no underline, strike, inverse, blink, hidden, overline or
+  SGR 58; the older two recordings carry none of the new set. On every
+  Claude Code recording the flip changes exactly two words, both italic
+  (`claude-markdown-reply` offset-0). The underline, strike, overline and
+  hidden paths are exercised only by `glyph-probe` and unit tests. An
+  underlined trailing blank is still trimmed from the export. The cursor
+  flags stayed off: `cursorContrast` changes 0 px on every Claude Code
+  recording (the input cursor sits on the default background), and
+  `cursorHollowUnfocused` was not chosen.
   `styles.json` covers no blink/overline case because Alacritty's reference
   cell flags have none to record. In both width modes a zero-width scalar
   after a space now rewraps with the space instead of starting a new row
@@ -1177,7 +1188,7 @@ for p in core renderer-dom react; do (cd ts/$p && npx vitest run); done
 npm run bench:selection      # Playwright: a selection must survive 20 repaints
 npm run bench:feel           # Playwright: zero pixel diff vs bench/agent-session/baselines (record with -- --record)
 npm run bench:glyphs         # Playwright: evidence for the glyph probe (box-drawing gap, width-cache drift), writes baselines/glyph-probe/EVIDENCE*.json
-npm run bench:feel -- --feature <list>  # Playwright: side-by-side screenshots for a flag, e.g. attributes=warp — never diffed, only recorded
+npm run bench:feel -- --feature <list>  # Playwright: side-by-side screenshots for a flag, e.g. attributes=plain — never diffed, only recorded
 npm run bench:agent:gate     # Playwright: no torn paint under the spinner, queued 2 MiB never blocks > 16 ms
 npm run bench:agent:scroll   # Playwright: full scroll coverage, trim anchor holds, width-change gate (top-edge row and lazy rewrap)
 npm run bench:affordances -- --action <hover|hint|redact>  # Playwright: side-by-side screenshots of one affordance on act-probe — never diffed
