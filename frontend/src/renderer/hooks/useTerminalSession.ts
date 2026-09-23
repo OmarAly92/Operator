@@ -911,15 +911,22 @@ export function useTerminalSession(session: WorkspaceSession | undefined, option
 	// its final positive grid even when xterm's local size no longer changes.
 	const isVisible = options.isVisible !== false;
 	useLayoutEffect(() => {
-		if (isVisible) return;
 		const r = runtime.current;
+		if (isVisible) {
+			const surface = r.surfaceGeometry;
+			const published = r.lastPublishedGrid;
+			if (!surface || !r.inputReady) return;
+			if (published?.cols === surface.cols && published.rows === surface.rows) return;
+			publishGrid(surface.cols, surface.rows);
+			return;
+		}
 		r.needsVisibleSizeSync = true;
 		if (r.resizeTimer) {
 			clearTimeout(r.resizeTimer);
 			r.resizeTimer = null;
 		}
 		r.pendingGrid = null;
-	}, [isVisible]);
+	}, [isVisible, publishGrid]);
 
 	useEffect(() => {
 		const r = runtime.current;

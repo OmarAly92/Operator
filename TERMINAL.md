@@ -752,6 +752,26 @@ history of `master`.
   — the recorded fixtures print an elided `/…/` path instead), `native.rs`
   `first_existing_path_*`, `tauri-bridge.test.ts`, `BlockTerminal.test.tsx`.
 
+### 4.24 A pane shown again kept the pty at its old grid — split view review
+- Symptom: in split panes, typed text landed on the wrong row (over Claude
+  Code's separator or a transcript line), long lines were cut at the pane edge,
+  and Claude Code's banner repeated in overlapping copies.
+- Cause: a layout change parks and re-shows the pane's retained terminal. The
+  surface measured the new grid, parking cleared the queued publish
+  (`useTerminalSession` visibility effect), and nothing re-sent it on return:
+  `syncVisibleSize` only covers the xterm fallback (`surfaceGeometry !== null`
+  returns), and the surface does not report again because its box did not change
+  after it measured. The pty stayed at the old width (measured live: 98 columns
+  behind a 47-column pane), so Claude Code drew frames the renderer rewrapped
+  taller than Claude Code believed, and its relative repaints left copies.
+- Now: when a pane becomes visible and its surface grid differs from the last
+  published grid, that grid goes through the normal debounced publish, so a
+  re-shown pane's settling sizes still collapse into one SIGWINCH (§4.6).
+- Guards: `useTerminalSession.test.tsx` "publishes a surface grid that parking
+  cancelled…", "…measured while parked…", "collapses a reshown pane's settling
+  sizes…", "sends nothing when a pane is parked and shown at the grid it already
+  published".
+
 ## 5. Known gaps (not bugs, decisions pending)
 
 - SGR attributes (italic, underline in 5 styles, SGR 58 colour, strike,
