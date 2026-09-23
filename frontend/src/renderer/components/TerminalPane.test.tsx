@@ -451,6 +451,7 @@ describe("TerminalPane focus", () => {
 			view.show(sessionA);
 			await waitFor(() => expect(activeFocusToken()).toBe("1"));
 			expect(document.querySelectorAll('[data-terminal-cache-key*="handle-a"]')).toHaveLength(1);
+			expect(attachmentMounts.value - attachmentUnmounts.value).toBe(2);
 		} finally {
 			vi.useRealTimers();
 			view.restore();
