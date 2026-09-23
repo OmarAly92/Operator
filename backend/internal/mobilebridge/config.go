@@ -9,7 +9,9 @@ import (
 	"crypto/subtle"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"sync"
@@ -96,6 +98,10 @@ func Update(path string, fn func(*State) error) (State, error) {
 	stateMu.Lock()
 	defer stateMu.Unlock()
 	st, err := Load(path)
+	if isParseError(err) {
+		slog.Warn("mobile config unreadable; starting from a fresh state", "path", path, "err", err)
+		st, err = State{}, nil
+	}
 	if err != nil {
 		return State{}, err
 	}
@@ -106,6 +112,12 @@ func Update(path string, fn func(*State) error) (State, error) {
 		return State{}, err
 	}
 	return st, nil
+}
+
+func isParseError(err error) bool {
+	var syntaxErr *json.SyntaxError
+	var typeErr *json.UnmarshalTypeError
+	return errors.As(err, &syntaxErr) || errors.As(err, &typeErr)
 }
 
 const pwAlphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"

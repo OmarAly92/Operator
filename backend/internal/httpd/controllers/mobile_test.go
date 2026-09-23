@@ -681,3 +681,25 @@ func TestSetDomainAndClaimDoNotRaceUnderTheSameLock(t *testing.T) {
 		t.Errorf("Claim write lost: %+v", got)
 	}
 }
+
+func TestMobileEnableRecoversFromCorruptConfig(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "mobile", "config.json")
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte("{not json"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	b := &BridgeService{LAN: &fakeLAN{}, ConfigPath: path, DefaultPort: 3011}
+	got, err := b.Enable()
+	if err != nil {
+		t.Fatalf("Enable on a corrupt config: %v", err)
+	}
+	st, err := mobilebridge.Load(path)
+	if err != nil {
+		t.Fatalf("Load after Enable: %v", err)
+	}
+	if !st.Enabled || st.Password == "" || st.Password != got.Password || st.AlertTopic == "" {
+		t.Fatalf("persisted state = %+v, status = %+v", st, got)
+	}
+}
