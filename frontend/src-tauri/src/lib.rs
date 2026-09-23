@@ -1254,7 +1254,7 @@ void (async () => {
                 terminal_benchmark_url.clone(),
             )?;
             #[cfg(target_os = "macos")]
-            if crate::notification_policy::toast_backend(true, tauri::is_dev())
+            if native::current_toast_backend()
                 == crate::notification_policy::ToastBackend::UserNotifications
             {
                 mac_notifications::install(app.handle());

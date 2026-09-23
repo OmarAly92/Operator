@@ -38,8 +38,8 @@ pub enum ToastBackend {
     UserNotifications,
 }
 
-pub fn toast_backend(is_macos: bool, is_dev: bool) -> ToastBackend {
-    if is_macos && !is_dev {
+pub fn toast_backend(is_macos: bool, is_dev: bool, has_bundle_id: bool) -> ToastBackend {
+    if is_macos && !is_dev && has_bundle_id {
         ToastBackend::UserNotifications
     } else {
         ToastBackend::Plugin
@@ -180,14 +180,21 @@ mod tests {
 
     #[test]
     fn dev_builds_toast_through_the_plugin() {
-        assert_eq!(toast_backend(true, true), ToastBackend::Plugin);
-        assert_eq!(toast_backend(false, true), ToastBackend::Plugin);
+        assert_eq!(toast_backend(true, true, true), ToastBackend::Plugin);
+        assert_eq!(toast_backend(false, true, true), ToastBackend::Plugin);
+        assert_eq!(toast_backend(true, true, false), ToastBackend::Plugin);
     }
 
     #[test]
     fn packaged_macos_toasts_through_user_notifications() {
-        assert_eq!(toast_backend(true, false), ToastBackend::UserNotifications);
-        assert_eq!(toast_backend(false, false), ToastBackend::Plugin);
+        assert_eq!(toast_backend(true, false, true), ToastBackend::UserNotifications);
+        assert_eq!(toast_backend(false, false, true), ToastBackend::Plugin);
+    }
+
+    #[test]
+    fn release_binary_outside_a_bundle_toasts_through_the_plugin() {
+        assert_eq!(toast_backend(true, false, false), ToastBackend::Plugin);
+        assert_eq!(toast_backend(false, false, false), ToastBackend::Plugin);
     }
 
     #[test]

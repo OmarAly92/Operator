@@ -472,11 +472,19 @@ pub async fn notification_show(
     toast_result
 }
 
+pub fn current_toast_backend() -> crate::notification_policy::ToastBackend {
+    #[cfg(target_os = "macos")]
+    let has_bundle_id = crate::mac_notifications::has_main_bundle_identifier();
+    #[cfg(not(target_os = "macos"))]
+    let has_bundle_id = false;
+    toast_backend(cfg!(target_os = "macos"), tauri::is_dev(), has_bundle_id)
+}
+
 async fn show_toast(
     window: &tauri::WebviewWindow,
     notification: &NotificationInput,
 ) -> Result<(), String> {
-    match toast_backend(cfg!(target_os = "macos"), tauri::is_dev()) {
+    match current_toast_backend() {
         #[cfg(target_os = "macos")]
         crate::notification_policy::ToastBackend::UserNotifications => {
             crate::mac_notifications::post(
@@ -501,7 +509,7 @@ async fn show_toast(
 
 #[tauri::command]
 pub async fn notification_permission() -> Result<String, String> {
-    match toast_backend(cfg!(target_os = "macos"), tauri::is_dev()) {
+    match current_toast_backend() {
         #[cfg(target_os = "macos")]
         crate::notification_policy::ToastBackend::UserNotifications => {
             Ok(crate::mac_notifications::authorization().await.to_string())

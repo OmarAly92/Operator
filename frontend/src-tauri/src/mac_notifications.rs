@@ -6,7 +6,7 @@ use block2::RcBlock;
 use objc2::rc::Retained;
 use objc2::runtime::{Bool, ProtocolObject};
 use objc2::{define_class, msg_send, AnyThread};
-use objc2_foundation::{NSError, NSObject, NSObjectProtocol, NSString};
+use objc2_foundation::{NSBundle, NSError, NSObject, NSObjectProtocol, NSString};
 use objc2_user_notifications::{
     UNAuthorizationOptions, UNAuthorizationStatus, UNMutableNotificationContent, UNNotification,
     UNNotificationPresentationOptions, UNNotificationRequest, UNNotificationResponse,
@@ -64,6 +64,10 @@ impl NotificationDelegate {
         let this = Self::alloc().set_ivars(());
         unsafe { msg_send![super(this), init] }
     }
+}
+
+pub fn has_main_bundle_identifier() -> bool {
+    NSBundle::mainBundle().bundleIdentifier().is_some()
 }
 
 pub fn install(app: &AppHandle) {
