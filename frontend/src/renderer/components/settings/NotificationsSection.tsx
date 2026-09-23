@@ -9,16 +9,27 @@ import { SettingsSection } from "./SettingsSection";
 
 type Permission = "authorized" | "denied" | "not_determined" | "unsupported";
 
-const PERMISSION_DENIED_PREFIX = "notification_permission=denied";
+const PERMISSION_ERROR_PATTERN = /^notification_permission=([a-z_]+):/;
+
+function permissionFromError(message: string): Permission | null {
+	const match = PERMISSION_ERROR_PATTERN.exec(message);
+	if (!match) return null;
+	const state = match[1];
+	if (state === "authorized" || state === "denied" || state === "not_determined" || state === "unsupported") {
+		return state;
+	}
+	return null;
+}
 
 export function NotificationsSection({ titleHidden }: { titleHidden?: boolean } = {}) {
 	const { t } = useTranslation();
 	const [permission, setPermission] = useState<Permission | undefined>(undefined);
 	const [macTestError, setMacTestError] = useState<string | null>(null);
+	const [macTestBlocked, setMacTestBlocked] = useState(false);
 	const phone = usePhoneAlerts();
 	const testPhone = useTestPhoneAlert();
 
-	useEffect(() => {
+	const refreshPermission = () => {
 		operatorBridge.notifications
 			.permission()
 			.then(setPermission)
@@ -26,10 +37,28 @@ export function NotificationsSection({ titleHidden }: { titleHidden?: boolean } 
 				console.warn("Unable to read the macOS notification permission", error);
 				setPermission("unsupported");
 			});
+	};
+
+	useEffect(() => {
+		refreshPermission();
+	}, []);
+
+	useEffect(() => {
+		const onFocus = () => refreshPermission();
+		const onVisibilityChange = () => {
+			if (document.visibilityState === "visible") refreshPermission();
+		};
+		window.addEventListener("focus", onFocus);
+		document.addEventListener("visibilitychange", onVisibilityChange);
+		return () => {
+			window.removeEventListener("focus", onFocus);
+			document.removeEventListener("visibilitychange", onVisibilityChange);
+		};
 	}, []);
 
 	const sendMacTest = () => {
 		setMacTestError(null);
+		setMacTestBlocked(false);
 		operatorBridge.notifications
 			.show({
 				id: `test:${Date.now()}`,
@@ -39,8 +68,10 @@ export function NotificationsSection({ titleHidden }: { titleHidden?: boolean } 
 			})
 			.catch((error: unknown) => {
 				const message = error instanceof Error ? error.message : String(error);
-				if (message.startsWith(PERMISSION_DENIED_PREFIX)) {
-					setPermission("denied");
+				const state = permissionFromError(message);
+				if (state && state !== "authorized") {
+					setPermission(state);
+					setMacTestBlocked(true);
 				} else {
 					setMacTestError(message);
 				}
@@ -66,7 +97,7 @@ export function NotificationsSection({ titleHidden }: { titleHidden?: boolean } 
 		<SettingsSection title={t("settings.notifications.title")} titleHidden={titleHidden} grouped>
 			<SettingsRow label={t("settings.notifications.mac")}>
 				<span>{t(`settings.notifications.permission.${permission ?? "checking"}`)}</span>
-				{permission === "denied" ? (
+				{permission === "denied" || permission === "not_determined" ? (
 					<Button variant="outline" size="sm" onClick={() => void operatorBridge.notifications.openSettings()}>
 						{t("settings.notifications.openSystemSettings")}
 					</Button>
@@ -77,7 +108,11 @@ export function NotificationsSection({ titleHidden }: { titleHidden?: boolean } 
 					{t("settings.notifications.send")}
 				</Button>
 			</SettingsRow>
-			{macTestError ? <p className="px-1 text-xs text-error">{macTestError}</p> : null}
+			{macTestBlocked ? (
+				<p className="px-1 text-xs text-error">{t("settings.notifications.macPermissionBlocked")}</p>
+			) : macTestError ? (
+				<p className="px-1 text-xs text-error">{macTestError}</p>
+			) : null}
 			<SettingsRow label={t("settings.notifications.phone")}>
 				<span>{phoneLine}</span>
 			</SettingsRow>

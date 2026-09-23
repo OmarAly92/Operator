@@ -41,6 +41,21 @@ test("denied permission offers System Settings", async () => {
 	expect(h.openSettings).toHaveBeenCalledTimes(1);
 });
 
+test("not_determined permission also offers System Settings", async () => {
+	h.permission.mockResolvedValue("not_determined");
+	render(<NotificationsSection />);
+	expect(await screen.findByText("Off — not allowed yet")).toBeTruthy();
+	await userEvent.click(screen.getByRole("button", { name: "Open System Settings" }));
+	expect(h.openSettings).toHaveBeenCalledTimes(1);
+});
+
+test("unsupported permission still offers no System Settings button", async () => {
+	h.permission.mockRejectedValue(new Error("bridge unavailable"));
+	render(<NotificationsSection />);
+	expect(await screen.findByText("Not available in this build")).toBeTruthy();
+	expect(screen.queryByRole("button", { name: "Open System Settings" })).not.toBeInTheDocument();
+});
+
 test("shows a loading state before the permission call resolves, never the unsupported flash", async () => {
 	h.permission.mockImplementation(() => new Promise(() => undefined));
 	render(<NotificationsSection />);
@@ -78,6 +93,33 @@ test("a non-permission Mac test failure shows an inline error next to Send test"
 	await userEvent.click(screen.getAllByRole("button", { name: "Send test" })[0]);
 	expect(await screen.findByText("The native bridge is unavailable")).toBeTruthy();
 	expect(screen.queryByText("Off in System Settings")).not.toBeInTheDocument();
+});
+
+test("a not_determined Mac test failure shows a friendly line and System Settings instead of the raw error", async () => {
+	h.show.mockRejectedValue(
+		new Error(
+			"notification_permission=not_determined: The operation couldn't be completed. (UNErrorDomain error 1.)",
+		),
+	);
+	render(<NotificationsSection />);
+	await userEvent.click(screen.getAllByRole("button", { name: "Send test" })[0]);
+	expect(
+		await screen.findByText(
+			"macOS didn't allow Operator's notifications. Turn them on in System Settings → Notifications → Operator.",
+		),
+	).toBeTruthy();
+	expect(screen.queryByText(/UNErrorDomain/)).not.toBeInTheDocument();
+	expect(await screen.findByText("Off — not allowed yet")).toBeTruthy();
+	expect(await screen.findByRole("button", { name: "Open System Settings" })).toBeTruthy();
+});
+
+test("re-checks Mac permission when the window regains focus", async () => {
+	render(<NotificationsSection />);
+	await screen.findByText("Allowed");
+	h.permission.mockResolvedValue("denied");
+	window.dispatchEvent(new Event("focus"));
+	expect(await screen.findByText("Off in System Settings")).toBeTruthy();
+	expect(h.permission).toHaveBeenCalledTimes(2);
 });
 
 test("renders nothing for the phone line while the phone-alerts query is loading", async () => {
