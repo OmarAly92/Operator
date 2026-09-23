@@ -27,6 +27,10 @@ Changes from upstream:
   `SQUIRCLE_EXTENT`) fitted to Flutter's `RoundedSuperellipseBorder`. Upstream used the
   rounded-rectangle formula, so the lens and the clip disagreed at the corners.
 
+- `LiquidGlassSettings.fillRatio` (default 0.8, upstream's hard-coded value) sets how
+  strongly the side facing away from the light is lit. The rim brightness is clamped to
+  [0, 1]. Apple's rim is bright on the lit side with a dim fill opposite.
+
 Record every later change to `lib/` in this file.
 
 Upstream: https://github.com/whynotmake-it/flutter_liquid_glass/tree/main/packages/liquid_glass_renderer

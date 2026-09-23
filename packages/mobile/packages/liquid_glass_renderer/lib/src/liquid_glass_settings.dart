@@ -19,6 +19,7 @@ class LiquidGlassSettings with EquatableMixin {
     this.ambientStrength = 0,
     this.refractiveIndex = 1.2,
     this.saturation = 1.5,
+    this.fillRatio = 0.8,
   });
 
   /// Creates a new [LiquidGlassSettings] with the given settings where each
@@ -133,6 +134,8 @@ class LiquidGlassSettings with EquatableMixin {
   /// The effective saturation taking visibility into account.
   double get effectiveSaturation => 1 + (saturation - 1) * visibility;
 
+  final double fillRatio;
+
   /// Creates a new [LiquidGlassSettings] with the given settings.
   LiquidGlassSettings copyWith({
     double? visibility,
@@ -146,6 +149,7 @@ class LiquidGlassSettings with EquatableMixin {
     double? ambientStrength,
     double? refractiveIndex,
     double? saturation,
+    double? fillRatio,
   }) =>
       LiquidGlassSettings(
         visibility: visibility ?? this.visibility,
@@ -158,6 +162,7 @@ class LiquidGlassSettings with EquatableMixin {
         ambientStrength: ambientStrength ?? this.ambientStrength,
         refractiveIndex: refractiveIndex ?? this.refractiveIndex,
         saturation: saturation ?? this.saturation,
+        fillRatio: fillRatio ?? this.fillRatio,
       );
 
   @override
@@ -172,5 +177,6 @@ class LiquidGlassSettings with EquatableMixin {
         ambientStrength,
         refractiveIndex,
         saturation,
+        fillRatio,
       ];
 }

@@ -21,6 +21,7 @@ uniform vec4 uGlassColor;
 uniform vec3 uOpticalProps;
 uniform vec3 uLightConfig;
 uniform vec2 uLightDirection;
+uniform float uFillRatio;
 
 float uRefractiveIndex = uOpticalProps.x;
 float uChromaticAberration = uOpticalProps.y;
@@ -106,12 +107,12 @@ void main() {
         float mainLight = max(0.0, dot(normalXY, uLightDirection));
         float oppositeLight = max(0.0, dot(normalXY, -uLightDirection));
         
-        float totalInfluence = mainLight + oppositeLight * 0.8;
+        float totalInfluence = mainLight + oppositeLight * uFillRatio;
         
         float directional = pow(totalInfluence, 1.5) * uLightIntensity * 3.0;
         float ambient = uAmbientStrength * 0.5;
         
-        float brightness = (directional + ambient) * edgeFactor * thicknessScale * 0.8;
+        float brightness = clamp((directional + ambient) * edgeFactor * thicknessScale * 0.8, 0.0, 1.0);
 
         vec3 bgColor = refractColor.rgb;
         float bgLuminance = dot(bgColor, LUMA_WEIGHTS);

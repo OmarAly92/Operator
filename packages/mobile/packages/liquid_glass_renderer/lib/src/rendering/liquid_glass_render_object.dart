@@ -118,7 +118,8 @@ abstract class LiquidGlassRenderObject extends RenderProxyBox {
             cos(settings.lightAngle),
             sin(settings.lightAngle),
           ),
-        );
+        )
+        ..setFloat(settings.fillRatio);
     });
   }
 

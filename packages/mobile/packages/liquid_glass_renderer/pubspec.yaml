@@ -17,6 +17,10 @@ dependencies:
   meta: ^1.16.0
   motor: ^1.0.1
 
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
 flutter:
   shaders:
     - lib/assets/shaders/liquid_glass_geometry_blended.frag
