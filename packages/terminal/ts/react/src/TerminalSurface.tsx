@@ -159,6 +159,7 @@ export function TerminalSurface({
 			return;
 		}
 		const renderer = new DomBlockRenderer();
+		renderer.setVisible(visibleRef.current ?? null);
 		renderer.mount(blockHost, core);
 		renderer.setTheme(theme);
 		renderer.setFont(font);
@@ -198,7 +199,6 @@ export function TerminalSurface({
 		rendererRef.current = renderer;
 		editorRef.current = editor;
 		findBarRef.current = findBar;
-		renderer.setVisible(visibleRef.current ?? null);
 		editor.setVisible(visibleRef.current !== false);
 		applyLinkProviders();
 		applyPredictiveEchoRef.current();

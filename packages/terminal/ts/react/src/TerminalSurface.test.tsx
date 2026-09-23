@@ -583,9 +583,12 @@ describe("TerminalSurface", () => {
 		const { rerender } = render(surfaceWith(() => undefined));
 		rendererSpy.mockClear();
 		editorSpy.mockClear();
+		const repaint = vi.spyOn(DomBlockRenderer.prototype as unknown as { repaint(): void }, "repaint");
 		rerender(surfaceWith(() => undefined));
 		expect(rendererSpy).toHaveBeenLastCalledWith(false);
 		expect(editorSpy).toHaveBeenLastCalledWith(false);
+		expect(repaint).not.toHaveBeenCalled();
+		repaint.mockRestore();
 		rendererSpy.mockRestore();
 		editorSpy.mockRestore();
 	});

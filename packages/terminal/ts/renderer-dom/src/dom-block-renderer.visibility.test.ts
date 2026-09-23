@@ -332,10 +332,15 @@ describe("paint gate", () => {
 		const medianBefore = rtt.median();
 		renderer.noteSend(performance.now());
 		renderer.setVisible(false);
+		core.enqueue(text(" "));
+		await flushRepaint();
 		expect(renderer.predictionCount()).toBe(0);
 		expect(host.querySelectorAll(".terminal-prediction")).toHaveLength(0);
 		core.enqueue(text("a"));
 		await flushRepaint();
+		expect(rtt.median()).toBe(medianBefore);
+		renderer.setVisible(true);
+		core.feed(text("b"));
 		expect(rtt.median()).toBe(medianBefore);
 		renderer.dispose();
 	});
@@ -457,5 +462,80 @@ describe("hidden document", () => {
 		setDocumentVisibility("hidden");
 		expect(frame).not.toHaveBeenCalled();
 		expect(schedule).not.toHaveBeenCalled();
+	});
+});
+
+describe("echo and edges across a park", () => {
+	const typed = { text: "a", ctrlKey: false, altKey: false, metaKey: false, isComposing: false };
+
+	it("keeps pending predictions across a park and show within one frame", async () => {
+		const { core, renderer } = mounted();
+		core.feed(text("$ "));
+		await flushRepaint();
+		renderer.setPredictiveEcho({ thresholdMs: 0 });
+		renderer.noteRoundTrip(0, 50);
+		expect(renderer.predictKey(typed, performance.now())).toBe(true);
+		renderer.setVisible(false);
+		renderer.setVisible(true);
+		expect(renderer.predictionCount()).toBe(1);
+		renderer.dispose();
+	});
+
+	it("keeps the in-flight round trip across a park and show within one frame", async () => {
+		const { core, renderer } = mounted();
+		core.feed(text("$ "));
+		await flushRepaint();
+		const rtt = (renderer as unknown as { rtt: { median(): number | null } }).rtt;
+		renderer.noteSend(performance.now());
+		renderer.setVisible(false);
+		renderer.setVisible(true);
+		core.feed(text("a"));
+		expect(rtt.median()).not.toBeNull();
+		renderer.dispose();
+	});
+
+	it("does not time a send made while hidden", async () => {
+		const { core, renderer } = mounted();
+		core.feed(text("$ "));
+		await flushRepaint();
+		const rtt = (renderer as unknown as { rtt: { median(): number | null } }).rtt;
+		renderer.setVisible(false);
+		renderer.noteSend(performance.now());
+		core.enqueue(text("a"));
+		await flushRepaint();
+		renderer.setVisible(true);
+		core.feed(text("b"));
+		expect(rtt.median()).toBeNull();
+		renderer.dispose();
+	});
+
+	it("holds the paint gate when there is no requestAnimationFrame", async () => {
+		const { core, host, renderer, events } = mounted();
+		core.feed(text(`before\r\n${OPEN_BLOCK}`));
+		await flushRepaint();
+		const before = rowTexts(host);
+		const eventsBefore = events.length;
+		renderer.setVisible(false);
+		vi.stubGlobal("requestAnimationFrame", undefined);
+		core.feed(text(`while parked\r\n${CLOSE_BLOCK}`));
+		expect(rowTexts(host)).toEqual(before);
+		expect(events.slice(eventsBefore)).toHaveLength(1);
+		expect(events.at(-1)).toMatchObject({ visible: false });
+		renderer.dispose();
+	});
+
+	it("does not paint when mounted already hidden, and paints on show", () => {
+		const core = createTerminalCore({ columns: 40, scrollback: 1000, rows: 5 });
+		core.feed(text("already here\r\n"));
+		const host = scrollable();
+		document.body.append(host);
+		const renderer = new DomBlockRenderer();
+		renderer.setVisible(false);
+		renderer.mount(host, core);
+		expect(rowTexts(host)).toEqual([]);
+		expect(renderer.visibility()).toBe(false);
+		renderer.setVisible(true);
+		expect(rowTexts(host).join("\n")).toContain("already here");
+		renderer.dispose();
 	});
 });

@@ -150,7 +150,9 @@ export class DomBlockRenderer implements BlockRenderer {
 	private sentCursor: CursorPoint | null = null;
 
 	mount(container: HTMLElement, core: TerminalCore): void {
+		const visible = this.hostVisible;
 		this.dispose();
+		this.hostVisible = visible;
 		this.container = container;
 		this.core = core;
 		ensurePackageStyleTag();
@@ -195,7 +197,8 @@ export class DomBlockRenderer implements BlockRenderer {
 		bindActionEvents(container, { setBlockBookmarked: (id, b) => core.setBlockBookmarked(id, b), getBlockBookmarked: (id) => core.blockBookmarked(id), setFilter: (f) => this.setFilter(f), scrollToBlock: (id, a) => this.scrollToBlock(id, a), scheduleRepaint: () => this.scheduleRepaint() });
 		this.jumpToBottom = mountJumpToBottom({ container, getBlocks: () => this.filteredBlocks, getCellHeight: () => this.measure().cellHeight, getStickToBottom: () => this.stickToBottom, scrollToLatest: () => this.scrollToLatest(), isAltScreenActive: () => core.snapshot().altScreen !== null, strings: defaultStrings });
 		this.jumpToBottom.mount();
-		this.repaint();
+		if (this.painting()) this.repaint();
+		else this.settleHidden(false);
 	}
 
 	setTheme(theme: TerminalTheme): void {
@@ -232,14 +235,7 @@ export class DomBlockRenderer implements BlockRenderer {
 	setVisible(visible: boolean | null): void {
 		const wasPainting = this.painting();
 		this.hostVisible = visible;
-		if (!this.painting()) {
-			if (wasPainting) {
-				this.sentCursor = null;
-				this.predictionsClear();
-			}
-			return;
-		}
-		if (wasPainting) return;
+		if (!this.painting() || wasPainting) return;
 		if (this.rafHandle !== null && typeof cancelAnimationFrame === "function") cancelAnimationFrame(this.rafHandle);
 		this.rafHandle = null;
 		this.core?.drain();
@@ -617,6 +613,7 @@ export class DomBlockRenderer implements BlockRenderer {
 	}
 
 	noteSend(nowMs: number): void {
+		if (!this.painting()) return;
 		if (this.rtt.sent(nowMs)) this.sentCursor = this.cursorPoint() ?? { row: -1, column: -1 };
 	}
 
@@ -862,7 +859,8 @@ export class DomBlockRenderer implements BlockRenderer {
 			return;
 		}
 		if (typeof requestAnimationFrame !== "function") {
-			this.repaint();
+			if (this.painting()) this.repaint();
+			else this.settleHidden(false);
 			return;
 		}
 		this.rafHandle = requestAnimationFrame((timestamp) => this.repaintOnFrame(timestamp));
@@ -902,13 +900,23 @@ export class DomBlockRenderer implements BlockRenderer {
 		return this.hostVisible !== false;
 	}
 
-	private settleHidden(): void {
+	private settleHidden(reschedule = true): void {
 		const core = this.core;
 		if (!core || !this.container) return;
+		this.dropEchoWhileHidden();
 		this.detectFinishedBlocks(core.snapshot());
 		core.takeDirty();
 		this.catchUp = true;
-		this.rescheduleIfPending(core);
+		if (reschedule) this.rescheduleIfPending(core);
+	}
+
+	private dropEchoWhileHidden(): void {
+		if (this.hostVisible !== false) return;
+		if (this.sentCursor !== null) {
+			this.sentCursor = null;
+			this.rtt.cancel();
+		}
+		if (this.predictions.pending().length > 0) this.predictionsClear();
 	}
 
 	private applyStyleVars(): void {
