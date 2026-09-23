@@ -19,6 +19,7 @@ import 'package:operator_mobile/core/notifications/phone_alerts_runtime.dart';
 import 'package:operator_mobile/core/telemetry/runtime.dart';
 import 'package:operator_mobile/core/utils/device_kind.dart';
 import 'package:operator_mobile/core/utils/service_locator.dart';
+import 'package:operator_mobile/core/widgets/glass/lab/glass_lab_scene.dart';
 import 'package:operator_mobile/feature/onboarding/logic/onboarding.dart';
 import 'package:operator_mobile/feature/pairing/data/repository/desktops_repository.dart';
 import 'package:package_info_plus/package_info_plus.dart';
@@ -53,11 +54,14 @@ Future<void> main() async {
   );
   unawaited(TelemetryRuntime.active());
 
-  final initialRoute = switch (destination) {
-    LaunchDestination.onboarding => RoutesStrings.onboarding,
-    LaunchDestination.desktops => RoutesStrings.connections,
-    LaunchDestination.sessions => RoutesStrings.sessions,
-  };
+  final labScene = kDebugMode ? GlassLabScene.fromEnvironment() : null;
+  final initialRoute = labScene != null
+      ? RoutesStrings.glassLab
+      : switch (destination) {
+          LaunchDestination.onboarding => RoutesStrings.onboarding,
+          LaunchDestination.desktops => RoutesStrings.connections,
+          LaunchDestination.sessions => RoutesStrings.sessions,
+        };
 
   runApp(
     EasyLocalization(

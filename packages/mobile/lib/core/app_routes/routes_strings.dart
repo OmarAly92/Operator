@@ -11,4 +11,5 @@ sealed class RoutesStrings {
   static const String notifications = '/notifications';
   static const String preview = '/preview';
   static const String usage = '/usage';
+  static const String glassLab = '/glass-lab';
 }

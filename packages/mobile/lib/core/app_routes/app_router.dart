@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:operator_mobile/core/app_routes/home_shell.dart';
 import 'package:operator_mobile/core/app_routes/routes_strings.dart';
+import 'package:operator_mobile/core/widgets/glass/lab/glass_lab_scene.dart';
+import 'package:operator_mobile/core/widgets/glass/lab/glass_lab_screen.dart';
 import 'package:operator_mobile/core/notifications/viewed_session.dart';
 import 'package:operator_mobile/core/utils/service_locator.dart';
 import 'package:operator_mobile/core/widgets/failure_widgets/app_error_widget.dart';
@@ -180,6 +182,12 @@ sealed class AppRouter {
       case RoutesStrings.usage:
         return MaterialPageRoute(
           builder: (context) => BlocProvider(create: (_) => sl<UsageCubit>(), child: const UsageScreen()),
+          settings: settings,
+        );
+
+      case RoutesStrings.glassLab:
+        return MaterialPageRoute(
+          builder: (_) => GlassLabScreen(scene: GlassLabScene.fromEnvironment() ?? GlassLabScene.rest),
           settings: settings,
         );
 
