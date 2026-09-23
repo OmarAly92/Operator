@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:operator_mobile/core/mux/mux_client.dart';
@@ -9,6 +10,8 @@ import 'package:operator_mobile/core/notifications/phone_alerts_runtime.dart';
 import 'package:operator_mobile/core/notifications/viewed_session.dart';
 
 class _MockMux extends Mock implements MuxClient {}
+
+class _MockRuntime extends Mock implements PhoneAlertsRuntime {}
 
 class _Shown {
   _Shown(this.id, this.title, this.body, this.payload);
@@ -21,12 +24,12 @@ class _Shown {
 class _FakeSink implements LocalAlertSink {
   final shown = <_Shown>[];
   void Function(String payload)? onTap;
-  Future<void> ready = Future.value();
+  Future<bool> ready = Future.value(true);
 
   @override
-  Future<void> init(void Function(String payload) onTap) async {
+  Future<bool> init(void Function(String payload) onTap) async {
     this.onTap = onTap;
-    await ready;
+    return ready;
   }
 
   @override
@@ -49,12 +52,18 @@ void main() {
   late _FakeSink sink;
   late List<Uri> opened;
   late PhoneAlertsRuntime runtime;
+  final owner = Object();
+
+  _MockMux newMux() {
+    final m = _MockMux();
+    when(() => m.notifications).thenAnswer((_) => feed.stream);
+    return m;
+  }
 
   setUp(() async {
-    ViewedSession.current.value = null;
-    mux = _MockMux();
+    ViewedSession.reset();
     feed = StreamController<MuxNotification>.broadcast(sync: true);
-    when(() => mux.notifications).thenAnswer((_) => feed.stream);
+    mux = newMux();
     sink = _FakeSink();
     opened = [];
     runtime = PhoneAlertsRuntime(mux, sink, (uri) {
@@ -65,6 +74,7 @@ void main() {
   });
 
   tearDown(() async {
+    ViewedSession.reset();
     await runtime.dispose();
     await feed.close();
   });
@@ -80,7 +90,7 @@ void main() {
   });
 
   test('skips the session on screen and quiet notifications', () {
-    ViewedSession.current.value = 's1';
+    ViewedSession.show(owner, 's1');
     feed.add(_n('n1', 's1'));
     feed.add(_n('n2', 's2', quiet: true));
     expect(sink.shown, isEmpty);
@@ -94,6 +104,16 @@ void main() {
     expect(sink.shown.map((s) => s.id).toSet(), hasLength(2));
   });
 
+  test('seeds ids from the clock so a relaunch does not reuse tray ids, staying within 31 bits', () async {
+    await runtime.dispose();
+    final seeded = PhoneAlertsRuntime(newMux(), sink, (_) => true, now: () => DateTime.fromMillisecondsSinceEpoch(0x17fffffff));
+    await seeded.start();
+    feed.add(_n('n1', 's1'));
+    feed.add(_n('n2', 's2'));
+    await seeded.dispose();
+    expect(sink.shown.map((s) => s.id), [0x7fffffff, 0]);
+  });
+
   test('start subscribes; foreground and background follow the app', () {
     verify(() => mux.subscribeNotifications()).called(1);
     runtime.background();
@@ -103,20 +123,83 @@ void main() {
     verify(() => mux.subscribeNotifications()).called(1);
   });
 
+  test('repeated lifecycle callbacks send one frame per change', () {
+    clearInteractions(mux);
+    runtime.foreground();
+    runtime.background();
+    runtime.background();
+    runtime.foreground();
+    runtime.foreground();
+    verify(() => mux.unsubscribeNotifications()).called(1);
+    verify(() => mux.subscribeNotifications()).called(1);
+  });
+
   test('a background that arrives while start is still initialising keeps the feed unsubscribed', () async {
-    final slowMux = _MockMux();
-    when(() => slowMux.notifications).thenAnswer((_) => feed.stream);
-    final gate = Completer<void>();
+    final slowMux = newMux();
+    final gate = Completer<bool>();
     final slowSink = _FakeSink()..ready = gate.future;
     final slow = PhoneAlertsRuntime(slowMux, slowSink, (_) => true);
 
     final starting = slow.start();
     slow.background();
-    gate.complete();
+    gate.complete(true);
     await starting;
 
     verifyNever(() => slowMux.subscribeNotifications());
-    verify(() => slowMux.unsubscribeNotifications()).called(1);
+    slow.foreground();
+    verify(() => slowMux.subscribeNotifications()).called(1);
     await slow.dispose();
+  });
+
+  test('does not subscribe when the sink fails to initialise', () async {
+    final failingMux = newMux();
+    final failingSink = _FakeSink()..ready = Future<bool>.error(StateError('no plugin'));
+    final failing = PhoneAlertsRuntime(failingMux, failingSink, (_) => true);
+
+    await failing.start();
+    failing.foreground();
+
+    verifyNever(() => failingMux.subscribeNotifications());
+    await failing.dispose();
+  });
+
+  test('does not subscribe when notification permission is denied, so the daemon keeps ntfy', () async {
+    final deniedMux = newMux();
+    final deniedSink = _FakeSink()..ready = Future.value(false);
+    final denied = PhoneAlertsRuntime(deniedMux, deniedSink, (_) => true);
+
+    await denied.start();
+    denied.background();
+    denied.foreground();
+
+    verifyNever(() => deniedMux.subscribeNotifications());
+    verifyNever(() => deniedMux.unsubscribeNotifications());
+    await denied.dispose();
+  });
+
+  group('phoneAlertsLifecycle', () {
+    testWidgets('pause and hide go to background; show and resume come back to foreground', (tester) async {
+      final alerts = _MockRuntime();
+      var resumed = 0;
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      final listener = phoneAlertsLifecycle(() => alerts, onResume: () => resumed++);
+      addTearDown(listener.dispose);
+
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+      verify(() => alerts.background()).called(1);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+      verify(() => alerts.background()).called(1);
+      verifyNever(() => alerts.foreground());
+
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+      verifyNever(() => alerts.foreground());
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      verify(() => alerts.foreground()).called(1);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      verify(() => alerts.foreground()).called(1);
+      verifyNever(() => alerts.background());
+      expect(resumed, 1);
+    });
   });
 }

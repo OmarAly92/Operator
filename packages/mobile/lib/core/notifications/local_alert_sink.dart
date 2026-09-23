@@ -1,7 +1,7 @@
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 abstract class LocalAlertSink {
-  Future<void> init(void Function(String payload) onTap);
+  Future<bool> init(void Function(String payload) onTap);
   Future<void> show({required int id, required String title, required String body, required String payload});
 }
 
@@ -12,8 +12,8 @@ class FlutterLocalAlertSink implements LocalAlertSink {
   final FlutterLocalNotificationsPlugin _plugin;
 
   @override
-  Future<void> init(void Function(String payload) onTap) async {
-    await _plugin.initialize(
+  Future<bool> init(void Function(String payload) onTap) async {
+    final initialized = await _plugin.initialize(
       settings: const InitializationSettings(
         android: AndroidInitializationSettings('@mipmap/ic_launcher'),
         iOS: DarwinInitializationSettings(),
@@ -23,12 +23,24 @@ class FlutterLocalAlertSink implements LocalAlertSink {
         if (payload != null && payload.isNotEmpty) onTap(payload);
       },
     );
-    await _plugin
-        .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
-        ?.requestNotificationsPermission();
     final launch = await _plugin.getNotificationAppLaunchDetails();
     final payload = launch?.notificationResponse?.payload;
     if ((launch?.didNotificationLaunchApp ?? false) && payload != null && payload.isNotEmpty) onTap(payload);
+    return _canShow(initialized ?? false);
+  }
+
+  Future<bool> _canShow(bool initialized) async {
+    final android = _plugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
+    if (android != null) {
+      await android.requestNotificationsPermission();
+      return await android.areNotificationsEnabled() ?? false;
+    }
+    final ios = _plugin.resolvePlatformSpecificImplementation<IOSFlutterLocalNotificationsPlugin>();
+    if (ios != null) {
+      final permissions = await ios.checkPermissions();
+      return permissions?.isEnabled ?? false;
+    }
+    return initialized;
   }
 
   @override

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
+import 'package:operator_mobile/core/notifications/viewed_session.dart';
 import 'package:operator_mobile/core/utils/service_locator.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_empty_state.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/global_appbar.dart';
@@ -78,6 +79,13 @@ class _SessionRouteScreenState extends State<SessionRouteScreen> {
 
   @override
   Widget build(BuildContext context) {
+    return ViewedSessionMarker(
+      sessionId: widget.sessionId,
+      child: _buildSession(context),
+    );
+  }
+
+  Widget _buildSession(BuildContext context) {
     return BlocBuilder<SessionsCubit, SessionsState>(
       buildWhen: (previous, current) =>
           current is GetSessionsLoadingState ||

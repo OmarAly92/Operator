@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -6,6 +8,12 @@ import 'package:mocktail/mocktail.dart';
 import 'package:operator_mobile/core/api/interceptors/server_config_interceptor.dart';
 import 'package:operator_mobile/core/api/models/global_response.dart';
 import 'package:operator_mobile/core/api/server_config.dart';
+import 'package:operator_mobile/core/app_routes/app_router.dart';
+import 'package:operator_mobile/core/deep_link/deep_link_target.dart';
+import 'package:operator_mobile/core/mux/mux_notification.dart';
+import 'package:operator_mobile/core/notifications/local_alert_sink.dart';
+import 'package:operator_mobile/core/notifications/phone_alerts_runtime.dart';
+import 'package:operator_mobile/core/notifications/viewed_session.dart';
 import 'package:operator_mobile/feature/blocks/data/model/params/get_session_blocks_params.dart';
 import 'package:operator_mobile/core/app_themes/colors/dark_skin.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
@@ -59,6 +67,17 @@ class _MockSessionControlRepository extends Mock
     implements SessionControlRepository {}
 
 class _MockUsageRepository extends Mock implements UsageRepository {}
+
+class _RecordingSink implements LocalAlertSink {
+  final payloads = <String>[];
+
+  @override
+  Future<bool> init(void Function(String payload) onTap) async => true;
+
+  @override
+  Future<void> show({required int id, required String title, required String body, required String payload}) async =>
+      payloads.add(payload);
+}
 
 class _InertVoiceProvider implements VoiceProvider {
   @override
@@ -306,5 +325,64 @@ void main() {
     } finally {
       await cubit.close();
     }
+  });
+
+  testWidgets('the /session/<id> route an alert tap opens marks that session viewed and silences its alerts', (
+    tester,
+  ) async {
+    ViewedSession.reset();
+    addTearDown(ViewedSession.reset);
+    when(() => repository.getBoard()).thenAnswer(
+      (_) async => Result.success(
+        GlobalResponse(
+          data: BoardSnapshot(
+            sessions: const [SessionModel(id: 'w-1', projectId: 'p', harness: 'claude-code')],
+          ),
+        ),
+      ),
+    );
+    final sessions = SessionsCubit(repository, mux, _StubConfigSource());
+    sl.registerSingleton<SessionsCubit>(sessions);
+    final feed = StreamController<MuxNotification>.broadcast(sync: true);
+    addTearDown(feed.close);
+    when(() => mux.notifications).thenAnswer((_) => feed.stream);
+    when(() => mux.subscribeNotifications()).thenReturn(null);
+    final sink = _RecordingSink();
+    final alerts = PhoneAlertsRuntime(mux, sink, (_) => true);
+    addTearDown(alerts.dispose);
+    await alerts.start();
+
+    final target = resolveDeepLink(Uri.parse('operator://session/w-1'))!;
+    await tester.pumpWidget(
+      SkinScope(
+        skin: const DarkSkin(),
+        child: ScreenUtilInit(
+          designSize: const Size(390, 844),
+          builder: (context, _) => MaterialApp(
+            onGenerateInitialRoutes: (_) => [
+              AppRouter.generateRoute(RouteSettings(name: target.route, arguments: target.arguments)),
+            ],
+            onGenerateRoute: AppRouter.generateRoute,
+          ),
+        ),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 20));
+    await tester.pump();
+
+    expect(find.byType(TerminalScreen), findsOneWidget);
+    expect(ViewedSession.current.value, 'w-1');
+
+    feed.add(
+      const MuxNotification(id: 'n1', sessionId: 'w-1', type: 'turn_finished', title: 'w-1 finished', body: '', quiet: false),
+    );
+    feed.add(
+      const MuxNotification(id: 'n2', sessionId: 'w-2', type: 'turn_finished', title: 'w-2 finished', body: '', quiet: false),
+    );
+    expect(sink.payloads, ['operator://session/w-2']);
+
+    await tester.pumpWidget(const SizedBox());
+    expect(ViewedSession.current.value, isNull);
+    await sessions.close();
   });
 }

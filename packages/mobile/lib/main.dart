@@ -78,14 +78,9 @@ class OperatorApp extends StatefulWidget {
 }
 
 class _OperatorAppState extends State<OperatorApp> {
-  late final AppLifecycleListener _lifecycle = AppLifecycleListener(
-    onResume: () {
-      unawaited(TelemetryRuntime.active());
-      sl<PhoneAlertsRuntime>().foreground();
-    },
-    onShow: () => sl<PhoneAlertsRuntime>().foreground(),
-    onHide: () => sl<PhoneAlertsRuntime>().background(),
-    onPause: () => sl<PhoneAlertsRuntime>().background(),
+  late final AppLifecycleListener _lifecycle = phoneAlertsLifecycle(
+    () => sl<PhoneAlertsRuntime>(),
+    onResume: () => unawaited(TelemetryRuntime.active()),
   );
 
   @override
