@@ -32,6 +32,7 @@ fn main() {
         "clipboard_read",
         "notification_show",
         "notification_permission",
+        "notification_request_permission",
         "notification_open_settings",
         "notification_badge",
         "notification_dev_bounce",

@@ -94,6 +94,7 @@ export type OperatorBridge = {
 		devBounce: () => Promise<void>;
 		onClick: (listener: (id: string) => void) => () => void;
 		permission: () => Promise<"authorized" | "denied" | "not_determined" | "unsupported">;
+		requestPermission: () => Promise<"authorized" | "denied" | "not_determined" | "unsupported">;
 		openSettings: () => Promise<void>;
 	};
 	tray: {

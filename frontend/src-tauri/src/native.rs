@@ -519,6 +519,19 @@ pub async fn notification_permission() -> Result<String, String> {
 }
 
 #[tauri::command]
+pub async fn notification_request_permission() -> Result<String, String> {
+    match current_toast_backend() {
+        #[cfg(target_os = "macos")]
+        crate::notification_policy::ToastBackend::UserNotifications => {
+            Ok(crate::mac_notifications::ensure_authorization()
+                .await
+                .to_string())
+        }
+        _ => Ok("unsupported".to_string()),
+    }
+}
+
+#[tauri::command]
 pub async fn notification_open_settings(app: AppHandle) -> Result<(), String> {
     #[cfg(target_os = "macos")]
     {

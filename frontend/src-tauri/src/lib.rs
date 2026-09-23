@@ -1197,6 +1197,7 @@ void (async () => {
             native::clipboard_read,
             native::notification_show,
             native::notification_permission,
+            native::notification_request_permission,
             native::notification_open_settings,
             native::notification_badge,
             native::notification_dev_bounce,

@@ -97,6 +97,7 @@ function createBrowserPreviewBridge(): OperatorBridge {
 			devBounce: async () => undefined,
 			onClick: () => () => undefined,
 			permission: async () => "unsupported" as const,
+			requestPermission: async () => "unsupported" as const,
 			openSettings: async () => undefined,
 		},
 		tray: {

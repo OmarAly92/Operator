@@ -8,11 +8,10 @@
 ## Open items (read first)
 
 - **V4 — the phone app never tells the daemon it is open.** With Operator open on the iPhone (notification permission Allowed, relaunched, both LAN and tunnel pairing), the daemon kept sending ntfy (`GET /api/v1/phone-alerts` `lastDelivery` advanced at 19:15:22, 19:18:21, 19:55:38, 19:56:49) and the app showed no local notification of its own. The daemon side is proven: a Python client subscribed on `/mux` through the LAN listener (19:19:03) and through the cloudflared tunnel (19:47) received the `notification` frame and ntfy was skipped both times. Not the cause: lazy socket (the terminal was opened first, 19:55). A test through the real `MuxClient` + `PhoneAlertsRuntime` passes (`b866d1477`), so the fault is on the device path, not yet found. Next lead: `local_alert_sink.dart:40-41` gates everything on `IOSFlutterLocalNotificationsPlugin.checkPermissions()?.isEnabled`; if that returns null/false on iOS 27 the app never subscribes (Task 10 ruling: no subscription without permission). Needs a profile build with logging on the device.
-- **Check 5 (Connect Mobile off → no ntfy) was not run on the device.** Covered only by `push` gate tests.
-- **Check 2** was answered "Focused; both toasted" (a toast for the session on screen), then the user said "no its working like spec lets move on". Not independently confirmed.
+- **Check 2** was answered "Focused; both toasted", then "no its working like spec lets move on". The earlier run drove prompts over `/mux` from a script while another app was frontmost, so `document.hasFocus()` was false and toasting was correct (`notifications.ts` `shouldToast`). A rerun with a prompt typed in the focused window was set up (follow-up build) but not confirmed before merge.
 - **ntfy on iOS shows lock-screen banners only while the phone is locked**; unlocked, messages go straight to ntfy's list (user, 19:26). ntfy/iOS behavior; with V4 fixed the in-app notification covers "app open", but "unlocked, Operator not open" gets no banner.
-- **Owner sign-off needed:** Mac notification authorization is requested at launch, not at first use (spec §5.3 says first use).
-- **Open question:** `claude agents` background sessions may only emit `agent_completed` (no Stop); after fix I1 they get no `turn_finished`. Not known from the code.
+- **Resolved (follow-up):** Mac notification authorization moved to first use as spec §5.3 says (owner chose it). `mac_notifications::post` requests when the status is `not_determined`; Settings → Notifications shows "Allow notifications" for `not_determined` and "Open System Settings" only for `denied`. A fresh bundle id launched with no prompt.
+- **Resolved (follow-up):** `claude --bg` background sessions fire `Stop` at the end of a turn (Claude Code 2.1.280, hook log `SessionStart, UserPromptSubmit, Stop`; no `agent_completed` within 20 s), so they get `turn_finished`.
 
 ## Task 0 — device checks (spec §3, commit `d7740b1a2`)
 
@@ -70,7 +69,7 @@ Setup: isolated packaged build copied to `~/Applications/Operator Alerts Test/` 
 2. **Session visible in a focused pane → no toast: NOT CONFIRMED** (see open items).
 3. **Locked iPhone → ntfy alert; tap opens the session: PASS after fix V3.** Delivery: ntfy.sh poll shows `alerts-a2 finished | finished | operator://session/repo-21`, priority 3, no private text. Tap first showed "Something went wrong" over the correct session (V3), fixed in `c3d0b1250`.
 4. **App open → one local notification, no ntfy: FAIL (V4).**
-5. **Connect Mobile off → no ntfy: NOT RUN.**
+5. **Connect Mobile off → no ntfy: PASS (follow-up).** Isolated branch daemon on the device's claimed topic, turn driven through the real `opr hooks claude-code` commands: mobile on → ntfy.sh poll shows `alerts-a2 finished | operator://session/repo-21`; `POST /mobile/disable` → the same turn creates the `turn_finished` row, ntfy.sh shows nothing, `lastDelivery` unchanged.
 6. **Kill → no exited; kill -9 → one exited: PASS.** `POST /sessions/repo-18/kill` → terminated, no `agent_exited`; `kill -9` of repo-22's claude → one `alerts-a3 exited` (16:20:28Z), ntfy ok; user: "a3 exited only".
 7. **Two turns in a row → two alerts: PASS.** 8 `turn_finished` rows for repo-21, all unread, each resolved at the next prompt.
 8. **Daemon restart → phone still gets alerts without re-subscribing: PASS.** New daemon pid, `{"enabled":true,"claimed":true}`, topic unchanged, 19:21:43 alert on the same topic and in ntfy's list (user screenshot).

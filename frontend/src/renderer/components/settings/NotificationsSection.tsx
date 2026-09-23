@@ -56,6 +56,16 @@ export function NotificationsSection({ titleHidden }: { titleHidden?: boolean } 
 		};
 	}, []);
 
+	const requestPermission = () => {
+		operatorBridge.notifications
+			.requestPermission()
+			.then(setPermission)
+			.catch((error: unknown) => {
+				console.warn("Unable to request the macOS notification permission", error);
+				refreshPermission();
+			});
+	};
+
 	const sendMacTest = () => {
 		setMacTestError(null);
 		setMacTestBlocked(false);
@@ -71,7 +81,7 @@ export function NotificationsSection({ titleHidden }: { titleHidden?: boolean } 
 				const state = permissionFromError(message);
 				if (state && state !== "authorized") {
 					setPermission(state);
-					setMacTestBlocked(true);
+					setMacTestBlocked(state === "denied");
 				} else {
 					setMacTestError(message);
 				}
@@ -97,7 +107,11 @@ export function NotificationsSection({ titleHidden }: { titleHidden?: boolean } 
 		<SettingsSection title={t("settings.notifications.title")} titleHidden={titleHidden} grouped>
 			<SettingsRow label={t("settings.notifications.mac")}>
 				<span>{t(`settings.notifications.permission.${permission ?? "checking"}`)}</span>
-				{permission === "denied" || permission === "not_determined" ? (
+				{permission === "not_determined" ? (
+					<Button variant="outline" size="sm" onClick={requestPermission}>
+						{t("settings.notifications.allow")}
+					</Button>
+				) : permission === "denied" ? (
 					<Button variant="outline" size="sm" onClick={() => void operatorBridge.notifications.openSettings()}>
 						{t("settings.notifications.openSystemSettings")}
 					</Button>

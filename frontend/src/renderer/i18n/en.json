@@ -651,6 +651,7 @@
 	"settings.notifications.permission.not_determined": "Off — not allowed yet",
 	"settings.notifications.permission.unsupported": "Not available in this build",
 	"settings.notifications.openSystemSettings": "Open System Settings",
+	"settings.notifications.allow": "Allow notifications",
 	"settings.notifications.macPermissionBlocked": "macOS didn't allow Operator's notifications. Turn them on in System Settings → Notifications → Operator.",
 	"settings.notifications.testMac": "Test on this Mac",
 	"settings.notifications.testTitle": "Operator",

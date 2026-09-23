@@ -5,6 +5,7 @@ import { beforeEach, expect, test, vi } from "vitest";
 const h = vi.hoisted(() => ({
 	permission: vi.fn(),
 	openSettings: vi.fn(),
+	requestPermission: vi.fn(),
 	show: vi.fn(),
 	status: undefined as unknown,
 	phoneLoading: false,
@@ -13,7 +14,14 @@ const h = vi.hoisted(() => ({
 }));
 
 vi.mock("../../lib/bridge", () => ({
-	operatorBridge: { notifications: { permission: h.permission, openSettings: h.openSettings, show: h.show } },
+	operatorBridge: {
+		notifications: {
+			permission: h.permission,
+			requestPermission: h.requestPermission,
+			openSettings: h.openSettings,
+			show: h.show,
+		},
+	},
 }));
 
 vi.mock("../../hooks/usePhoneAlerts", () => ({
@@ -24,7 +32,7 @@ vi.mock("../../hooks/usePhoneAlerts", () => ({
 import { NotificationsSection } from "./NotificationsSection";
 
 beforeEach(() => {
-	for (const fn of [h.permission, h.openSettings, h.show, h.sendTest]) fn.mockReset();
+	for (const fn of [h.permission, h.requestPermission, h.openSettings, h.show, h.sendTest]) fn.mockReset();
 	h.permission.mockResolvedValue("authorized");
 	h.show.mockResolvedValue(undefined);
 	h.status = { enabled: true, claimed: true };
@@ -41,12 +49,25 @@ test("denied permission offers System Settings", async () => {
 	expect(h.openSettings).toHaveBeenCalledTimes(1);
 });
 
-test("not_determined permission also offers System Settings", async () => {
+test("not_determined permission asks macOS and shows the answer", async () => {
 	h.permission.mockResolvedValue("not_determined");
+	h.requestPermission.mockResolvedValue("authorized");
 	render(<NotificationsSection />);
 	expect(await screen.findByText("Off — not allowed yet")).toBeTruthy();
-	await userEvent.click(screen.getByRole("button", { name: "Open System Settings" }));
-	expect(h.openSettings).toHaveBeenCalledTimes(1);
+	expect(screen.queryByRole("button", { name: "Open System Settings" })).not.toBeInTheDocument();
+	await userEvent.click(screen.getByRole("button", { name: "Allow notifications" }));
+	expect(h.requestPermission).toHaveBeenCalledTimes(1);
+	expect(h.openSettings).not.toHaveBeenCalled();
+	expect(await screen.findByText("Allowed")).toBeTruthy();
+});
+
+test("not_determined permission turned down offers System Settings", async () => {
+	h.permission.mockResolvedValue("not_determined");
+	h.requestPermission.mockResolvedValue("denied");
+	render(<NotificationsSection />);
+	await userEvent.click(await screen.findByRole("button", { name: "Allow notifications" }));
+	expect(await screen.findByText("Off in System Settings")).toBeTruthy();
+	expect(screen.getByRole("button", { name: "Open System Settings" })).toBeTruthy();
 });
 
 test("unsupported permission still offers no System Settings button", async () => {
@@ -95,7 +116,7 @@ test("a non-permission Mac test failure shows an inline error next to Send test"
 	expect(screen.queryByText("Off in System Settings")).not.toBeInTheDocument();
 });
 
-test("a not_determined Mac test failure shows a friendly line and System Settings instead of the raw error", async () => {
+test("a not_determined Mac test failure offers Allow instead of the raw error", async () => {
 	h.show.mockRejectedValue(
 		new Error(
 			"notification_permission=not_determined: The operation couldn't be completed. (UNErrorDomain error 1.)",
@@ -103,14 +124,10 @@ test("a not_determined Mac test failure shows a friendly line and System Setting
 	);
 	render(<NotificationsSection />);
 	await userEvent.click(screen.getAllByRole("button", { name: "Send test" })[0]);
-	expect(
-		await screen.findByText(
-			"macOS didn't allow Operator's notifications. Turn them on in System Settings → Notifications → Operator.",
-		),
-	).toBeTruthy();
-	expect(screen.queryByText(/UNErrorDomain/)).not.toBeInTheDocument();
 	expect(await screen.findByText("Off — not allowed yet")).toBeTruthy();
-	expect(await screen.findByRole("button", { name: "Open System Settings" })).toBeTruthy();
+	expect(screen.queryByText(/UNErrorDomain/)).not.toBeInTheDocument();
+	expect(screen.queryByText(/didn't allow/)).not.toBeInTheDocument();
+	expect(await screen.findByRole("button", { name: "Allow notifications" })).toBeTruthy();
 });
 
 test("re-checks Mac permission when the window regains focus", async () => {

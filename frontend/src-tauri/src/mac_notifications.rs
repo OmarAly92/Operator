@@ -76,20 +76,6 @@ pub fn install(app: &AppHandle) {
     let delegate = NotificationDelegate::new();
     center.setDelegate(Some(ProtocolObject::from_ref(&*delegate)));
     std::mem::forget(delegate);
-    let done = RcBlock::new(|granted: Bool, error: *mut NSError| {
-        if !granted.as_bool() {
-            eprintln!(
-                "notification authorization was not granted: {}",
-                describe_error(error).unwrap_or_default()
-            );
-        }
-    });
-    center.requestAuthorizationWithOptions_completionHandler(
-        UNAuthorizationOptions::Alert
-            | UNAuthorizationOptions::Sound
-            | UNAuthorizationOptions::Badge,
-        &done,
-    );
 }
 
 fn describe_error(error: *mut NSError) -> Option<String> {
@@ -117,7 +103,39 @@ fn submit(id: &str, title: &str, body: Option<&str>) -> UnboundedReceiver<Option
     rx
 }
 
+fn request_authorization() -> UnboundedReceiver<()> {
+    let (tx, rx) = unbounded_channel();
+    let done = RcBlock::new(move |granted: Bool, error: *mut NSError| {
+        if !granted.as_bool() {
+            eprintln!(
+                "notification authorization was not granted: {}",
+                describe_error(error).unwrap_or_default()
+            );
+        }
+        let _ = tx.send(());
+    });
+    UNUserNotificationCenter::currentNotificationCenter()
+        .requestAuthorizationWithOptions_completionHandler(
+            UNAuthorizationOptions::Alert
+                | UNAuthorizationOptions::Sound
+                | UNAuthorizationOptions::Badge,
+            &done,
+        );
+    rx
+}
+
+pub async fn ensure_authorization() -> &'static str {
+    let status = authorization().await;
+    if status != permission_name(Some(PermissionStatus::NotDetermined)) {
+        return status;
+    }
+    let mut rx = request_authorization();
+    let _ = rx.recv().await;
+    authorization().await
+}
+
 pub async fn post(id: &str, title: &str, body: Option<&str>) -> Result<(), String> {
+    ensure_authorization().await;
     let mut rx = submit(id, title, body);
     let detail = match tokio::time::timeout(CALLBACK_TIMEOUT, rx.recv()).await {
         Ok(Some(None)) => return Ok(()),

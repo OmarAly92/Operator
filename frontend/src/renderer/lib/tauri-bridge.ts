@@ -265,6 +265,12 @@ export function createTauriBridge({ invoke, listen }: TauriBridgeTransports): Op
 			onClick: (listener: (id: string) => void) => subscribe<string>("notifications:click", listener),
 			permission: async () =>
 				(await invoke("notification_permission")) as "authorized" | "denied" | "not_determined" | "unsupported",
+			requestPermission: async () =>
+				(await invoke("notification_request_permission")) as
+					| "authorized"
+					| "denied"
+					| "not_determined"
+					| "unsupported",
 			openSettings: async () => {
 				await invoke("notification_open_settings");
 			},
