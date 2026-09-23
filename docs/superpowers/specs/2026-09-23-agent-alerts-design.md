@@ -93,6 +93,9 @@ changes the plan as stated; nothing is built on an unverified assumption.
   `active → idle`. That transition is Claude's `stop` hook
   (`activity.go:39`); `SubagentStop` does not map to an activity state and does
   not fire it.
+- Not while the session manager holds an agent operation on the session
+  (`SessionMutationInProgress`, `session_manager/session_input.go:69`): an agent
+  switch's internal hand-off turn ends with a Stop the user never asked for.
 - One per turn. The next `user-prompt-submit` resolves the open
   `turn_finished` for that session, the same way leaving the needs-input family
   resolves `needs_input` (`manager.go:668`, `needsInputResolutions`).
@@ -112,11 +115,14 @@ Trigger unchanged (`manager.go:657`). It now also reaches the phone and obeys
   - `session-end` with reason `logout`, `prompt_input_exit` or `other`
     (`activity.go:97-108`; `clear` and `resume` already map to no state);
   - the reaper observing runtime alive / workload dead
-    (`lifecycle/manager.go:429-436`);
-  - the reaper terminating a runtime that is clearly dead
-    (`lifecycle/manager.go:455-466`).
-- Only those two sources may emit it: the activity signal path and
-  `ApplyRuntimeObservation` (`lifecycle/manager.go:413`). `MarkTerminated`
+    (`lifecycle/manager.go:429-436`) — an agent crash or `kill -9` of the
+    agent process.
+- The reaper's other branch, terminating a session whose whole runtime is dead
+  (`lifecycle/manager.go:455-466`), does **not** alert. A dead runtime means
+  the pty host is gone, which after a reboot is true of every session at once;
+  alerting there would flood the user with one "exited" per session at boot.
+- Only those two sources may emit it: the activity signal path and the first
+  branch of `ApplyRuntimeObservation` (`lifecycle/manager.go:413`). `MarkTerminated`
   (`lifecycle/manager.go:1097`) never emits it. `MarkTerminated` has ten callers
   (`session_manager/manager.go:968,1087,1105,1123,1462,1585,1649,1653,2050`,
   `lifecycle/reactions.go:545`) covering Kill, cleanup, relaunch, the startup
@@ -148,6 +154,28 @@ Applied in this order; the first match suppresses on the channel named.
 The 3-second rule covers Esc and a typed `/exit`: the user is at that session.
 The in-app bell (persisted notification history) is never suppressed.
 
+### 4.5 Duplicate suppression must not swallow repeat alerts (existing bug)
+
+`CreateNotification` skips an insert, and therefore the publish every alert
+path hangs off, while an "open" row with the same `(session, type, pr_url)`
+exists (`storage/sqlite/store/notification_store.go:21-31`). "Open" is
+`status = 'unread' OR resolved_at IS NULL`
+(`storage/sqlite/queries/notifications.sql:109-116`, index
+`migrations/0041_notification_resolution.sql:21-23`). A needs-input row is
+resolved when the user answers but stays `unread` until the bell panel is
+opened, so every later needs-input for that session is silently dropped until
+then. The same rule would drop every `turn_finished` after a session's first.
+
+Fix: for types that carry a resolution (`needs_input`, `ready_to_merge`,
+`turn_finished`, `agent_exited`) "open" means `resolved_at IS NULL` only; a
+resolved row never blocks a new one. For one-shot facts (`pr_merged`,
+`pr_closed_unmerged`) the existing `unread OR unresolved` rule stays, because
+the SCM observer re-observes the same merge on every poll. `NeedsResolution()`
+returns true for `turn_finished` and `agent_exited`. `agent_exited` is resolved
+when the session leaves `exited` or is terminated, and the boot-time reconcile
+(`ReconcileResolvedNotifications`) resolves stranded `turn_finished` and
+`agent_exited` rows the same way it already does for `needs_input`.
+
 ## 5. Components
 
 ### 5.1 Daemon — events (`internal/lifecycle`, `internal/domain`, `internal/notify`)
@@ -176,18 +204,31 @@ The in-app bell (persisted notification history) is never suppressed.
   `Title`, `Tags`, `Priority`, `Click: operator://session/<id>`. Body is the
   event word only (D6). 5 s timeout, one retry after 2 s, no retry after that.
 - The dispatcher sends only when: Connect Mobile is on
-  (`LANManager.Running()`), a phone is paired (the password hash is set), no
-  foreground phone connection exists (§5.4), the notification is not `quiet`,
-  and the per-session 10 s coalescing window has passed.
-- Topic: 32 random URL-safe characters, generated when Connect Mobile is first
-  enabled, stored in `mobilebridge.State` (`internal/mobilebridge/config.go`),
-  regenerated on every password rotation
-  (`internal/httpd/controllers/mobile.go:263-274`), returned to the paired
-  phone by an authenticated route.
-- Every attempt records `{at, ok, error}` in memory (last 20) and the latest
-  is exposed on the mobile status route for both Settings screens. Test route:
-  `POST /api/v1/mobile/alerts/test` sends one message and returns the result
-  synchronously.
+  (`LANManager.Running()`), a phone has **claimed** the current topic (below),
+  no phone holds a foreground `notifications` subscription (§5.4), the
+  notification is not `quiet`, and the per-session 10 s coalescing window has
+  passed.
+- Topic: 32 random URL-safe characters, stored in `mobilebridge.State`
+  (`internal/mobilebridge/config.go`) as `alertTopic`, with `alertTopicClaimed`.
+  A new topic is generated, unclaimed, every time `enableWithPassword` sets a
+  new password (`internal/httpd/controllers/mobile.go:209-253`: enable,
+  regenerate, and the tunnel's upgrade to a long password). Boot restore
+  (`internal/daemon/mobile_restore.go`) keeps the persisted topic.
+  `enableWithPassword` starts from the loaded state instead of a fresh
+  `State{}` so `alertTopic` and `ngrokDomain` survive a rotation's write.
+- "A phone is paired" means the topic is claimed: the phone calls
+  `POST /api/v1/phone-alerts/subscribe` (LAN-authenticated) to receive the
+  topic, which marks it claimed. A rotation unclaims it, so a phone that no
+  longer knows the password never receives alerts.
+- Routes live under `/api/v1/phone-alerts`, not `/api/v1/mobile`: the LAN
+  listener 404s every `/api/v1/mobile` path (`internal/httpd/lan_listener.go:60-67`),
+  and the phone must reach these. `GET /api/v1/phone-alerts` returns
+  `{enabled, claimed, lastDelivery}` (no topic). `POST /api/v1/phone-alerts/subscribe`
+  returns `{topic, server}` and claims. `POST /api/v1/phone-alerts/test` sends one
+  message through the same gate minus the foreground check and returns the
+  result synchronously.
+- Every attempt records `{at, ok, error}` in memory (last 20); the latest is
+  `lastDelivery` on the GET route, read by both Settings screens.
 - Delete `/api/v1/push/devices` (`internal/httpd/controllers/push.go`) and its
   OpenAPI entries; regenerate the spec and TS types (`npm run api`).
 
@@ -211,17 +252,26 @@ The in-app bell (persisted notification history) is never suppressed.
   Notifications). Windows and Linux keep the plugin.
 - If step 0 check 1 fails: approach B instead of this section, recorded in §3.
 
-### 5.4 Daemon — phone presence (`internal/terminal`, `internal/httpd`)
+### 5.4 Daemon — live notifications to the phone (`internal/terminal`, `internal/httpd`)
 
-- The LAN listener marks its requests (request-context value set in
-  `LANManager`'s handler chain, `internal/httpd/lan_listener.go`), so the mux
-  knows a connection came from the phone.
-- New mux client frame `presence {state: "foreground" | "background"}`. The
-  phone sends it on connect and on every `AppLifecycleState` change. The
-  terminal manager exposes `PhoneForeground() bool`: true while any
-  LAN-origin connection's last presence is `foreground`.
-- A connection that closes counts as background. The dispatcher reads this at
-  send time.
+The phone has no live notification feed today: its list polls REST every 30 s
+(`notifications_cubit.dart:20-26`). The mux socket it already holds carries
+one more channel.
+
+- New mux channel `notifications`. Client frames `subscribe` / `unsubscribe`;
+  server frame `notification` carrying `{id, sessionId, projectId, type,
+  title, body, quiet, createdAt}` for every `NotificationCreated` hub event.
+  The terminal manager takes the hub through an option
+  (`WithNotificationFeed`) and fans each event out to subscribed connections.
+- The phone subscribes when the app is in the foreground and unsubscribes when
+  it is not (§5.6). The daemon's "phone app is open" check is
+  `PhoneForeground()`: some connection that arrived through the LAN listener
+  holds a `notifications` subscription. The LAN listener marks its requests
+  with a context value (`LANManager`'s handler chain,
+  `internal/httpd/lan_listener.go:36-45`); the mux handler passes it into
+  `Serve`. Loopback connections never count.
+- A closed connection drops its subscription immediately; a socket that dies
+  without a close is dropped by the mux heartbeat.
 
 ### 5.5 Desktop — renderer (`frontend/src/renderer`)
 
@@ -242,12 +292,19 @@ The in-app bell (persisted notification history) is never suppressed.
 
 ### 5.6 Mobile (`packages/mobile`)
 
-- Add `flutter_local_notifications`. On a notification event from the
-  existing stream while the app is foregrounded, show a local notification
-  unless the session is the one on screen or the notification is `quiet`.
-  Tapping routes through `resolveDeepLink` to `session/<id>`.
-- Send the `presence` frame (§5.4) from `MuxClient` on connect and on
-  lifecycle changes.
+- Add `flutter_local_notifications`. `MuxClient` exposes the §5.4
+  `notifications` channel as a stream plus `subscribeNotifications()` /
+  `unsubscribeNotifications()`, and re-sends the subscription on reconnect the
+  way it re-sends block subscriptions (`mux_client.dart:173-178`).
+- `_OperatorAppState`'s `AppLifecycleListener` (`lib/main.dart:80`)
+  subscribes on resume/show and unsubscribes on hide/pause.
+- While subscribed, each `notification` frame raises a local notification
+  unless it is `quiet` or its session is the one on screen (a
+  `ViewedSession` notifier set by the terminal route). Tapping routes through
+  `DeepLinkService.handle` to `operator://session/<id>`.
+- `notificationTarget` (`lib/feature/notification/logic/notification_view.dart:47-50`)
+  sends only `needs_input` to the session; `turn_finished` and `agent_exited`
+  must go there too, and `notificationVisual` gets entries for both.
 - Settings → Phone alerts, per saved desktop: "Install ntfy" (App Store link),
   "Subscribe" (opens `ntfy://ntfy.sh/<topic>` if step 0 check 3 passed,
   otherwise copies the topic URL and opens ntfy), "Send test" with the result,
@@ -269,12 +326,13 @@ The in-app bell (persisted notification history) is never suppressed.
   swallowing it; Settings shows "Off in System Settings".
 - Topic missing (Connect Mobile never enabled): the sender is inert; the phone
   Settings screen says pairing is required.
-- Phone offline while foreground presence is stale: a closed socket clears
-  presence, so ntfy resumes as soon as the daemon sees the close. A socket that
+- Phone offline while its foreground subscription is stale: a closed socket
+  clears it, so ntfy resumes as soon as the daemon sees the close. A socket that
   dies without a close frame is caught by the mux heartbeat
-  (`internal/terminal/manager.go:357`, `heartbeatLoop`, interval
-  `defaultHeartbeat`); the plan must state the
-  heartbeat's timeout as the worst-case window where ntfy is wrongly skipped.
+  (`internal/terminal/manager.go:727-740`: a 15 s tick, `defaultHeartbeat`, and
+  a ping that times out after another 15 s). Worst case, ntfy is wrongly
+  skipped for about 30 s after the phone drops off the network without closing
+  the socket.
 
 ## 7. Testing
 
@@ -286,12 +344,17 @@ Every rule gets a positive and a negative test.
   and `resume` emit nothing. Input 1 s before the transition marks it quiet;
   input 4 s before does not.
 - **Dispatcher (Go, fake HTTP server):** sends only with Connect Mobile on and
-  a paired phone; skips when `PhoneForeground()`; skips `quiet`; coalesces
+  a claimed topic; skips when `PhoneForeground()`; skips `quiet`; coalesces
   within 10 s and sends again after; records failures with the error; the
   request body and headers contain no assistant text; the topic changes on
   password rotation; the test route returns the real result.
-- **Presence (Go):** a LAN-origin connection with `foreground` sets
-  `PhoneForeground()`; loopback connections never do; close clears it.
+- **Live feed (Go):** a subscribed connection receives each created
+  notification once; an unsubscribed one receives none; a LAN-origin
+  subscription sets `PhoneForeground()`, a loopback one never does, and close
+  or unsubscribe clears it.
+- **Store (Go):** a resolved-but-unread `needs_input` or `turn_finished` does
+  not block a new one; an unresolved one does; an unread `pr_merged` still
+  blocks a duplicate.
 - **Rust:** `route_click` focuses and emits the id; `show_plan` no longer
   drops on focus; the dev fallback selects the plugin.
 - **Renderer (Vitest):** toast suppressed when the session is in any visible
@@ -299,7 +362,7 @@ Every rule gets a positive and a negative test.
   another project; `quiet` never toasts.
 - **Mobile (flutter test):** local notification skipped for the viewed
   session and for `quiet`; shown otherwise; `operator://session/<id>` resolves;
-  presence frames on lifecycle changes; Settings states.
+  subscribe/unsubscribe on lifecycle changes and on reconnect; Settings states.
 - Gates: `go test -race ./...` in `backend/`, `npm run typecheck` and the
   renderer tests in `frontend/`, `cargo test` in `frontend/src-tauri`,
   `flutter analyze` and `flutter test` in `packages/mobile`.
