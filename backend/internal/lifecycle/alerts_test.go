@@ -254,3 +254,44 @@ func TestAlerts_MarkSpawnedResolvesAgentExited(t *testing.T) {
 		t.Fatalf("MarkSpawned emitted %+v", sink.intents)
 	}
 }
+
+type fixedRecency map[string]time.Time
+
+func (f fixedRecency) LastInputAt(id string) time.Time { return f[id] }
+
+func TestAlerts_RecentInputMarksTheAlertQuiet(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		ago   time.Duration
+		quiet bool
+	}{
+		{"typed 1s before", time.Second, true},
+		{"typed 4s before", 4 * time.Second, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			m, _, sink, now := alertManager(t, domain.ActivityActive)
+			m.SetInputRecency(fixedRecency{"mer-1": now.Add(-tc.ago)})
+			if err := m.ApplyActivitySignal(ctx, "mer-1", ports.ActivitySignal{Valid: true, State: domain.ActivityIdle, Event: "stop"}); err != nil {
+				t.Fatal(err)
+			}
+			got := intentsOf(sink, domain.NotificationTurnFinished)
+			if len(got) != 1 || got[0].Quiet != tc.quiet {
+				t.Fatalf("intents = %+v, want one with quiet=%v", got, tc.quiet)
+			}
+		})
+	}
+}
+
+func TestAlerts_RecencyFallsBackToSessionIDWithoutHandle(t *testing.T) {
+	m, st, sink, now := alertManager(t, domain.ActivityActive)
+	rec := st.sessions["mer-1"]
+	rec.Metadata.RuntimeHandleID = ""
+	st.sessions["mer-1"] = rec
+	m.SetInputRecency(fixedRecency{"mer-1": now.Add(-time.Second)})
+	if err := m.ApplyActivitySignal(ctx, "mer-1", ports.ActivitySignal{Valid: true, State: domain.ActivityIdle, Event: "stop"}); err != nil {
+		t.Fatal(err)
+	}
+	if got := intentsOf(sink, domain.NotificationTurnFinished); len(got) != 1 || !got[0].Quiet {
+		t.Fatalf("intents = %+v", got)
+	}
+}

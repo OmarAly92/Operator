@@ -165,6 +165,12 @@ func (m *Manager) BeginInputDrain(terminalID string) (lastInputAt time.Time, rel
 	}
 }
 
+func (m *Manager) LastInputAt(terminalID string) time.Time {
+	m.inputMu.Lock()
+	defer m.inputMu.Unlock()
+	return m.lastInputAt[terminalID]
+}
+
 func (m *Manager) writeInput(terminalID string, a *attachment, raw []byte, release func()) {
 	m.inputMu.Lock()
 	defer m.inputMu.Unlock()

@@ -961,3 +961,21 @@ func TestTerminalAckOnAStreamWithoutFlowControlIsIgnored(t *testing.T) {
 
 	eventually(t, time.Second, func() bool { return string(pty.writtenBytes()) == "x" })
 }
+
+func TestLastInputAtRecordsTheLatestWrite(t *testing.T) {
+	pty := newFakePTY()
+	mgr := NewManager(&fakeSource{alive: true, spawner: &fakeSpawner{ptys: []*fakePTY{pty}}}, nil, testLogger(), WithHeartbeat(0))
+	defer mgr.Close()
+	if !mgr.LastInputAt("t1").IsZero() {
+		t.Fatal("unexpected input time before any write")
+	}
+	conn := newFakeConn()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go mgr.Serve(ctx, conn)
+	conn.in <- clientMsg{Ch: chTerminal, ID: "t1", Type: msgOpen}
+	recv(t, conn, chTerminal, msgOpened, time.Second)
+	before := time.Now()
+	conn.in <- clientMsg{Ch: chTerminal, ID: "t1", Type: msgData, Data: base64.StdEncoding.EncodeToString([]byte("x"))}
+	eventually(t, time.Second, func() bool { return !mgr.LastInputAt("t1").Before(before) })
+}

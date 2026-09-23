@@ -180,6 +180,38 @@ type Manager struct {
 	// record.
 	echoMu      sync.Mutex
 	pendingEcho map[domain.SessionID]map[string]struct{}
+
+	recencyMu sync.RWMutex
+	recency   InputRecency
+}
+
+const quietInputWindow = 3 * time.Second
+
+// InputRecency is the small seam lifecycle uses to ask the terminal manager
+// when a session last received user input, without importing internal/terminal.
+type InputRecency interface {
+	LastInputAt(terminalID string) time.Time
+}
+
+func (m *Manager) SetInputRecency(r InputRecency) {
+	m.recencyMu.Lock()
+	m.recency = r
+	m.recencyMu.Unlock()
+}
+
+func (m *Manager) typedRecently(rec domain.SessionRecord) bool {
+	m.recencyMu.RLock()
+	r := m.recency
+	m.recencyMu.RUnlock()
+	if r == nil {
+		return false
+	}
+	id := rec.Metadata.RuntimeHandleID
+	if id == "" {
+		id = string(rec.ID)
+	}
+	last := r.LastInputAt(id)
+	return !last.IsZero() && m.clock().Sub(last) < quietInputWindow
 }
 
 // New builds a Lifecycle Manager over the session store it writes and the messenger it uses for agent nudges.
@@ -424,6 +456,7 @@ func (m *Manager) sessionIntent(typ domain.NotificationType, rec domain.SessionR
 		ProjectID:          rec.ProjectID,
 		CreatedAt:          rec.Activity.LastActivityAt,
 		SessionDisplayName: rec.DisplayName,
+		Quiet:              m.typedRecently(rec),
 	}
 	if typ == domain.NotificationTurnFinished {
 		intent.AssistantUpdate = rec.Metadata.LatestAssistantUpdate
