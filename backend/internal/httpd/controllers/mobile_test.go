@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/OmarAly92/operator/backend/internal/mobilebridge"
@@ -548,5 +549,135 @@ func TestBridgeSetDomainRestartsALiveNgrokTunnel(t *testing.T) {
 	cfg, _ := mobilebridge.Load(b.ConfigPath)
 	if cfg.NgrokDomain != "phone.example.ngrok.app" {
 		t.Errorf("domain not persisted: %+v", cfg)
+	}
+}
+
+func newTestBridge(t *testing.T) (*BridgeService, string) {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "mobile", "config.json")
+	return &BridgeService{LAN: &fakeLAN{}, ConfigPath: path, DefaultPort: 0}, path
+}
+
+func TestEnableIssuesAnUnclaimedTopicAndRotationReplacesIt(t *testing.T) {
+	bs, path := newTestBridge(t)
+	if _, err := bs.Enable(); err != nil {
+		t.Fatal(err)
+	}
+	first, _ := mobilebridge.Load(path)
+	if len(first.AlertTopic) != mobilebridge.AlertTopicLength || first.AlertTopicClaimed {
+		t.Fatalf("after enable: %+v", first)
+	}
+	if _, err := mobilebridge.Update(path, func(s *mobilebridge.State) error { s.AlertTopicClaimed = true; return nil }); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := bs.Regenerate(); err != nil {
+		t.Fatal(err)
+	}
+	second, _ := mobilebridge.Load(path)
+	if second.AlertTopic == first.AlertTopic || second.AlertTopicClaimed {
+		t.Fatalf("after rotate: %+v (was %+v)", second, first)
+	}
+}
+
+func TestEnableKeepsNgrokDomain(t *testing.T) {
+	bs, path := newTestBridge(t)
+	if err := mobilebridge.Save(path, mobilebridge.State{NgrokDomain: "keep.ngrok.app"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := bs.Enable(); err != nil {
+		t.Fatal(err)
+	}
+	if st, _ := mobilebridge.Load(path); st.NgrokDomain != "keep.ngrok.app" {
+		t.Fatalf("ngrok domain lost: %+v", st)
+	}
+}
+
+func TestNonPasswordWritesPreserveTheClaimedTopic(t *testing.T) {
+	seed := func(t *testing.T, path string) mobilebridge.State {
+		t.Helper()
+		st := mobilebridge.State{
+			Enabled:           true,
+			Password:          "abcd1234",
+			AlertTopic:        strings.Repeat("a", mobilebridge.AlertTopicLength),
+			AlertTopicClaimed: true,
+		}
+		if err := mobilebridge.Save(path, st); err != nil {
+			t.Fatal(err)
+		}
+		return st
+	}
+	assertUnchanged := func(t *testing.T, path string, want mobilebridge.State) {
+		t.Helper()
+		got, err := mobilebridge.Load(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got.AlertTopic != want.AlertTopic || !got.AlertTopicClaimed {
+			t.Fatalf("non-password write changed the topic: got %+v want topic %q claimed", got, want.AlertTopic)
+		}
+	}
+
+	t.Run("SetDomain", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), "mobile", "config.json")
+		want := seed(t, path)
+		ft := &fakeTunnel{status: tunnel.Status{State: tunnel.StateLive, Provider: "cloudflared"}}
+		b := &BridgeService{LAN: &fakeLAN{running: true}, ConfigPath: path, DefaultPort: 0, Tunnel: ft}
+		if _, err := b.SetDomain(context.Background(), "phone.example.ngrok.app"); err != nil {
+			t.Fatal(err)
+		}
+		assertUnchanged(t, path, want)
+	})
+
+	t.Run("Disable", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), "mobile", "config.json")
+		want := seed(t, path)
+		b := &BridgeService{LAN: &fakeLAN{running: true}, ConfigPath: path, DefaultPort: 0}
+		if err := b.Disable(); err != nil {
+			t.Fatal(err)
+		}
+		assertUnchanged(t, path, want)
+	})
+
+	t.Run("TunnelDisable", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), "mobile", "config.json")
+		want := seed(t, path)
+		ft := &fakeTunnel{}
+		b := &BridgeService{LAN: &fakeLAN{running: true}, ConfigPath: path, DefaultPort: 0, Tunnel: ft}
+		if _, err := b.TunnelDisable(); err != nil {
+			t.Fatal(err)
+		}
+		assertUnchanged(t, path, want)
+	})
+}
+
+func TestSetDomainAndClaimDoNotRaceUnderTheSameLock(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "mobile", "config.json")
+	if err := mobilebridge.Save(path, mobilebridge.State{Enabled: true, Password: "abcd1234"}); err != nil {
+		t.Fatal(err)
+	}
+	ft := &fakeTunnel{}
+	b := &BridgeService{LAN: &fakeLAN{running: true}, ConfigPath: path, DefaultPort: 0, Tunnel: ft}
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		_, _ = b.SetDomain(context.Background(), "race.ngrok.app")
+	}()
+	go func() {
+		defer wg.Done()
+		_, _ = mobilebridge.Update(path, func(s *mobilebridge.State) error { s.AlertTopicClaimed = true; return nil })
+	}()
+	wg.Wait()
+
+	got, err := mobilebridge.Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.NgrokDomain != "race.ngrok.app" {
+		t.Errorf("SetDomain write lost: %+v", got)
+	}
+	if !got.AlertTopicClaimed {
+		t.Errorf("Claim write lost: %+v", got)
 	}
 }
