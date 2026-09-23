@@ -68,6 +68,8 @@ abstract class LiquidGlassRenderObject extends RenderProxyBox {
   set devicePixelRatio(double value) {
     if (_devicePixelRatio == value) return;
     _devicePixelRatio = value;
+    _updateShaderSettings();
+    needsGeometryUpdate = true;
     markNeedsPaint();
   }
 
@@ -106,7 +108,7 @@ abstract class LiquidGlassRenderObject extends RenderProxyBox {
         ..setFloats([
           settings.refractiveIndex,
           settings.effectiveChromaticAberration,
-          settings.effectiveThickness,
+          settings.effectiveThickness * devicePixelRatio,
           settings.effectiveLightIntensity,
           settings.effectiveAmbientStrength,
           settings.effectiveSaturation,

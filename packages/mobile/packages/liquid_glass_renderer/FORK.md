@@ -14,7 +14,15 @@ Only `lib/`, `LICENSE`, `README.md` and `CHANGELOG.md` are kept. Upstream's `exa
 `test/` (macOS-only goldens), `doc/` GIFs and `coverage/` are dropped; README image links
 therefore do not resolve.
 
-Changes from upstream: `pubspec.yaml` only (workspace resolution, `publish_to: none`, dev
-dependencies removed). Record every later change to `lib/` in this file.
+Changes from upstream:
+
+- `pubspec.yaml`: workspace resolution, `publish_to: none`, dev dependencies removed.
+- Thickness is uploaded × devicePixelRatio to both the geometry and the final render pass,
+  so `LiquidGlassSettings.thickness` is in logical points. Upstream left it in physical
+  pixels, making the lens band a third as wide on a 3x screen. A DPR change re-uploads it.
+  Blend was already uploaded × devicePixelRatio upstream (`liquid_glass_blend_group.dart`,
+  `updateShaderWithSettings`); no change needed there.
+
+Record every later change to `lib/` in this file.
 
 Upstream: https://github.com/whynotmake-it/flutter_liquid_glass/tree/main/packages/liquid_glass_renderer

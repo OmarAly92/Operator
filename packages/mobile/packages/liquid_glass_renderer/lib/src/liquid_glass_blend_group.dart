@@ -215,7 +215,7 @@ class RenderLiquidGlassBlendGroup extends RenderLiquidGlassGeometry
       value.setFloats([
         settings.refractiveIndex,
         settings.effectiveChromaticAberration,
-        settings.effectiveThickness,
+        settings.effectiveThickness * devicePixelRatio,
         blend * devicePixelRatio,
       ]);
     });
