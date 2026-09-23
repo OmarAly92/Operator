@@ -187,8 +187,6 @@ type Manager struct {
 
 const quietInputWindow = 3 * time.Second
 
-// InputRecency is the small seam lifecycle uses to ask the terminal manager
-// when a session last received user input, without importing internal/terminal.
 type InputRecency interface {
 	LastInputAt(terminalID string) time.Time
 }
