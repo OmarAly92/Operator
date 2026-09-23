@@ -85,7 +85,7 @@ done.
 
 ## Before the next push (housekeeping, not a plan)
 
-- **AGPL commits in published history (user decision pending).**
+- **AGPL commits in published history: left as is (user decision 2026-09-23).**
   `ad0d322e0` (Warp-derived path detection) and its revert `7bfe5cdec` are
   already on `origin/development` of the public repo `OmarAly92/Operator`, and
   the local branches `split-view` and `terminal-hover-file-paths` contain them.
@@ -93,6 +93,7 @@ done.
   Removing them means rewriting published history and force-pushing
   `development`; GitHub keeps orphaned commits reachable by SHA until support
   purges them, so a rewrite alone does not unpublish them.
+  The user chose to keep the history unchanged; do not rewrite it.
 - **Duplicate survey: done 2026-09-23.** The `docs/superpowers/specs/` copy was
   deleted; `docs/terminal/2026-09-19-terminal-reference-survey.md` was a
   strict superset (it adds the implementation status table). Every reference
