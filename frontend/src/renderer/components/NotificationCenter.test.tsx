@@ -40,6 +40,7 @@ const allNotifications: NotificationDTO[] = [
 		status: "unread",
 		createdAt: "2026-07-21T11:00:00Z",
 		target: { kind: "pr", sessionId: "sess-2", prUrl: "https://github.com/acme/app/pull/67" },
+		quiet: false,
 	},
 	{
 		id: "ntf_1",
@@ -52,6 +53,7 @@ const allNotifications: NotificationDTO[] = [
 		status: "unread",
 		createdAt: "2026-07-21T10:00:00Z",
 		target: { kind: "session", sessionId: "sess-1" },
+		quiet: false,
 	},
 	{
 		id: "ntf_4",
@@ -64,6 +66,7 @@ const allNotifications: NotificationDTO[] = [
 		status: "read",
 		createdAt: "2026-07-20T09:00:00Z",
 		target: { kind: "session", sessionId: "sess-4" },
+		quiet: false,
 	},
 	{
 		id: "ntf_dead",
@@ -78,6 +81,7 @@ const allNotifications: NotificationDTO[] = [
 		status: "read",
 		createdAt: "2026-07-19T09:00:00Z",
 		target: { kind: "session", sessionId: "sess-dead" },
+		quiet: false,
 	},
 ];
 
@@ -336,6 +340,7 @@ describe("NotificationCenter", () => {
 			status: "unread",
 			createdAt: "2026-07-18T09:00:00Z",
 			target: { kind: "session", sessionId: "sess-1" },
+			quiet: false,
 		};
 		const allState = {
 			pages: [

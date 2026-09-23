@@ -16,6 +16,7 @@ const notifications: NotificationDTO[] = [
 		status: "unread",
 		createdAt: "2026-06-16T10:00:00Z",
 		target: { kind: "session", sessionId: "sess-1" },
+		quiet: false,
 	},
 	{
 		id: "ntf_2",
@@ -28,6 +29,7 @@ const notifications: NotificationDTO[] = [
 		status: "unread",
 		createdAt: "2026-06-16T11:00:00Z",
 		target: { kind: "session", sessionId: "sess-2" },
+		quiet: false,
 	},
 ];
 

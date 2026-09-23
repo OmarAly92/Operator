@@ -71,6 +71,10 @@ SELECT id, session_id, project_id, pr_url, type, title, body, status, created_at
 FROM notifications
 WHERE type IN ('needs_input', 'ready_to_merge', 'pr_merged', 'pr_closed_unmerged');
 
+UPDATE notifications_prev
+SET status = 'read'
+WHERE resolved_at IS NOT NULL;
+
 DROP TABLE notifications;
 ALTER TABLE notifications_prev RENAME TO notifications;
 

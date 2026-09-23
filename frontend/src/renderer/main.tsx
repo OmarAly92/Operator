@@ -28,9 +28,17 @@ if (import.meta.env.DEV) {
 		ready_to_merge: "Ready to merge",
 		pr_merged: "PR merged",
 		pr_closed_unmerged: "PR closed",
+		turn_finished: "Agent finished its turn",
+		agent_exited: "Agent exited",
 	};
 	w.__testNotif = async (
-		type: "needs_input" | "ready_to_merge" | "pr_merged" | "pr_closed_unmerged" = "needs_input",
+		type:
+			| "needs_input"
+			| "ready_to_merge"
+			| "pr_merged"
+			| "pr_closed_unmerged"
+			| "turn_finished"
+			| "agent_exited" = "needs_input",
 	) => {
 		const key = unreadNotificationsQueryKey;
 		const id = `test-${Date.now()}`;
@@ -48,6 +56,7 @@ if (import.meta.env.DEV) {
 			prUrl: "",
 			target: { kind: "session", sessionId: "" },
 			status: "unread",
+			quiet: false,
 		});
 		console.log("[testNotif] bell updated - click away from Operator now, bounce fires in 3s");
 		setTimeout(() => {

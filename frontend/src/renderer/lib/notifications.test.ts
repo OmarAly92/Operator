@@ -88,6 +88,7 @@ function notification(overrides: Partial<NotificationDTO> = {}): NotificationDTO
 		status: "unread",
 		createdAt: "2026-06-16T10:00:00Z",
 		target: { kind: "session", sessionId: "mer-1" },
+		quiet: false,
 		...overrides,
 	};
 }
