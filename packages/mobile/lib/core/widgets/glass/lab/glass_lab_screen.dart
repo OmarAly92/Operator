@@ -3,6 +3,8 @@ import 'package:liquid_glass_renderer/liquid_glass_renderer.dart';
 import 'package:operator_mobile/core/app_themes/colors/dark_skin.dart';
 import 'package:operator_mobile/core/app_themes/colors/light_skin.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
+import 'package:operator_mobile/core/widgets/glass/glass_button.dart';
+import 'package:operator_mobile/core/widgets/glass/glass_metrics.dart';
 import 'package:operator_mobile/core/widgets/glass/lab/glass_lab_backdrop.dart';
 import 'package:operator_mobile/core/widgets/glass/lab/glass_lab_scene.dart';
 
@@ -61,6 +63,12 @@ class GlassLabScreen extends StatelessWidget {
                   shape: const LiquidRoundedRectangle(borderRadius: 31),
                   child: const SizedBox.expand(),
                 ),
+              ),
+            if (scene != GlassLabScene.corners)
+              Positioned(
+                right: GlassMetrics.primaryButtonInset,
+                bottom: GlassMetrics.tabBarBottomInset + GlassMetrics.tabBarHeight + GlassMetrics.primaryButtonInset,
+                child: GlassButton.label(label: 'Run', icon: Icons.play_arrow_rounded, prominent: true, onPressed: () {}),
               ),
           ],
         ),
