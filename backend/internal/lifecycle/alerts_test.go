@@ -295,3 +295,16 @@ func TestAlerts_RecencyFallsBackToSessionIDWithoutHandle(t *testing.T) {
 		t.Fatalf("intents = %+v", got)
 	}
 }
+
+func TestAlerts_NotificationIdleDoesNotEmitTurnFinished(t *testing.T) {
+	m, st, sink, _ := alertManager(t, domain.ActivityActive)
+	if err := m.ApplyActivitySignal(ctx, "mer-1", ports.ActivitySignal{Valid: true, State: domain.ActivityIdle, Event: "notification"}); err != nil {
+		t.Fatal(err)
+	}
+	if got := intentsOf(sink, domain.NotificationTurnFinished); len(got) != 0 {
+		t.Fatalf("turn_finished intents = %+v, want none for a notification idle", got)
+	}
+	if st.sessions["mer-1"].Activity.State != domain.ActivityIdle {
+		t.Fatalf("state = %s, want idle", st.sessions["mer-1"].Activity.State)
+	}
+}

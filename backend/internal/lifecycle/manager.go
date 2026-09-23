@@ -721,7 +721,7 @@ func (m *Manager) ApplyActivitySignal(ctx context.Context, id domain.SessionID, 
 	switch {
 	case !rec.Activity.State.NeedsInput() && next.Activity.State.NeedsInput() && !next.IsTerminated:
 		intent = m.sessionIntent(domain.NotificationNeedsInput, next)
-	case !gated && rec.Activity.State == domain.ActivityActive && next.Activity.State == domain.ActivityIdle && !next.IsTerminated:
+	case !gated && s.Event != "notification" && rec.Activity.State == domain.ActivityActive && next.Activity.State == domain.ActivityIdle && !next.IsTerminated:
 		intent = m.sessionIntent(domain.NotificationTurnFinished, next)
 	case !gated && rec.Activity.State != domain.ActivityExited && next.Activity.State == domain.ActivityExited && !next.IsTerminated:
 		intent = m.sessionIntent(domain.NotificationAgentExited, next)
