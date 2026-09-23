@@ -411,6 +411,20 @@ describe("createNotificationsTransport", () => {
 		});
 	});
 
+	it("logs instead of leaving an unhandled rejection when the toast bridge call fails", async () => {
+		const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+		showNotificationMock.mockRejectedValueOnce(new Error("bridge unavailable"));
+		const qc = queryClient();
+		createNotificationsTransport(qc).connect();
+
+		EventSourceStub.instances[0].dispatch("notification_created", notification());
+		await Promise.resolve();
+		await Promise.resolve();
+
+		expect(warnSpy).toHaveBeenCalledWith("Unable to show notification toast", expect.any(Error));
+		warnSpy.mockRestore();
+	});
+
 	it("patches resolvedAt on live unread/all caches when Operator closes the issue", () => {
 		const qc = queryClient();
 		createNotificationsTransport(qc).connect();

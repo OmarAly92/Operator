@@ -3,7 +3,7 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { operatorBridge } from "../lib/bridge";
-import type { NotificationDTO, NotificationListStatus } from "../lib/notifications";
+import { recentNotificationsQueryKey, type NotificationDTO, type NotificationListStatus } from "../lib/notifications";
 import { useUiStore } from "../stores/ui-store";
 import { NotificationCenter, NotificationRuntime } from "./NotificationCenter";
 import { TooltipProvider } from "./ui/tooltip";
@@ -14,7 +14,6 @@ const {
 	markAllMock,
 	navigateMock,
 	notificationQueryMock,
-	paramsMock,
 	restoreSessionMock,
 	workspaceQueryMock,
 } = vi.hoisted(() => ({
@@ -23,7 +22,6 @@ const {
 	markAllMock: vi.fn(),
 	navigateMock: vi.fn(),
 	notificationQueryMock: vi.fn(),
-	paramsMock: vi.fn(),
 	restoreSessionMock: vi.fn(),
 	workspaceQueryMock: vi.fn(),
 }));
@@ -87,7 +85,7 @@ const allNotifications: NotificationDTO[] = [
 
 const unreadNotifications = allNotifications.filter((item) => item.status === "unread");
 
-vi.mock("@tanstack/react-router", () => ({ useNavigate: () => navigateMock, useParams: () => paramsMock() }));
+vi.mock("@tanstack/react-router", () => ({ useNavigate: () => navigateMock }));
 
 vi.mock("../hooks/useNotificationsQuery", () => ({
 	useMarkAllNotificationsReadMutation: () => ({ isPending: false, mutateAsync: markAllMock }),
@@ -168,7 +166,6 @@ const stableAllQuery = notificationQueryResult("all");
 
 beforeEach(() => {
 	connectMock.mockReset();
-	paramsMock.mockReset().mockReturnValue({});
 	useUiStore.setState({ visibleTerminalKindBySession: {} });
 	fetchNextPageMock.mockReset().mockResolvedValue(undefined);
 	markAllMock.mockReset().mockResolvedValue(0);
@@ -198,9 +195,6 @@ beforeEach(() => {
 	vi.spyOn(window, "open").mockImplementation(() => null);
 });
 
-// The runtime tells the transport which sessions the user is actually
-// watching. Split view can show several panes at once, so this is a
-// predicate over session ids rather than a single "current" session.
 describe("NotificationRuntime", () => {
 	function renderRuntime() {
 		const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -230,8 +224,6 @@ describe("NotificationRuntime", () => {
 		expect(renderRuntime()("sess-2")).toBe(false);
 	});
 
-	// The transport connects once and outlives navigation, so the predicate has
-	// to read live state rather than close over the value it was created with.
 	it("tracks tab switches without reconnecting the stream", () => {
 		useUiStore.setState({ visibleTerminalKindBySession: { "sess-1": "worker" } });
 		const isWatchingSession = renderRuntime();
@@ -243,6 +235,52 @@ describe("NotificationRuntime", () => {
 		expect(isWatchingSession("sess-1")).toBe(true);
 		expect(connectMock).toHaveBeenCalledTimes(1);
 	});
+
+	it.each(["turn_finished", "agent_exited"] as const)(
+		"opens the session behind a clicked %s notification",
+		(type) => {
+			let clickListener: ((id: string) => void) | undefined;
+			const onClickSpy = vi.spyOn(operatorBridge.notifications, "onClick").mockImplementation((listener) => {
+				clickListener = listener;
+				return () => undefined;
+			});
+
+			const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+			const target: NotificationDTO = {
+				id: "ntf_turn",
+				sessionId: "sess-9",
+				projectId: "proj-9",
+				prUrl: "",
+				type,
+				title: type === "turn_finished" ? "Session finished" : "Session exited",
+				body: "",
+				status: "unread",
+				createdAt: "2026-07-21T10:00:00Z",
+				target: { kind: "session", sessionId: "sess-9" },
+				quiet: false,
+			};
+			queryClient.setQueryData(recentNotificationsQueryKey, {
+				pageParams: [""],
+				pages: [{ notifications: [target], unreadCount: 1, unresolvedCount: 0 }],
+			});
+
+			render(
+				<QueryClientProvider client={queryClient}>
+					<NotificationRuntime />
+				</QueryClientProvider>,
+			);
+
+			expect(clickListener).toBeDefined();
+			clickListener?.("ntf_turn");
+
+			expect(navigateMock).toHaveBeenCalledWith({
+				to: "/projects/$projectId/sessions/$sessionId",
+				params: { projectId: "proj-9", sessionId: "sess-9" },
+			});
+
+			onClickSpy.mockRestore();
+		},
+	);
 });
 
 describe("NotificationCenter", () => {

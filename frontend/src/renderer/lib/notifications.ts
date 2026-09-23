@@ -309,12 +309,16 @@ export function createNotificationsTransport(
 						const inserted = mergeUnreadNotification(queryClient, notification);
 						mergeRecentNotification(queryClient, notification);
 						if (inserted && shouldToast(notification, isWatchingSession)) {
-							void operatorBridge.notifications.show({
-								id: notification.id,
-								title: notification.title,
-								body: notification.body || undefined,
-								type: notification.type,
-							});
+							operatorBridge.notifications
+								.show({
+									id: notification.id,
+									title: notification.title,
+									body: notification.body || undefined,
+									type: notification.type,
+								})
+								.catch((error: unknown) => {
+									console.warn("Unable to show notification toast", error);
+								});
 						}
 					});
 					// Operator closed the underlying issue (the session got its input, the

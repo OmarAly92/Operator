@@ -7,6 +7,8 @@ const h = vi.hoisted(() => ({
 	openSettings: vi.fn(),
 	show: vi.fn(),
 	status: undefined as unknown,
+	phoneLoading: false,
+	phoneError: false,
 	sendTest: vi.fn(),
 }));
 
@@ -15,7 +17,7 @@ vi.mock("../../lib/bridge", () => ({
 }));
 
 vi.mock("../../hooks/usePhoneAlerts", () => ({
-	usePhoneAlerts: () => ({ data: h.status }),
+	usePhoneAlerts: () => ({ data: h.status, isLoading: h.phoneLoading, isError: h.phoneError }),
 	useTestPhoneAlert: () => ({ mutate: h.sendTest, isPending: false }),
 }));
 
@@ -24,7 +26,11 @@ import { NotificationsSection } from "./NotificationsSection";
 beforeEach(() => {
 	for (const fn of [h.permission, h.openSettings, h.show, h.sendTest]) fn.mockReset();
 	h.permission.mockResolvedValue("authorized");
+	h.show.mockResolvedValue(undefined);
 	h.status = { enabled: true, claimed: true };
+	h.phoneLoading = false;
+	h.phoneError = false;
+	vi.spyOn(console, "warn").mockImplementation(() => undefined);
 });
 
 test("denied permission offers System Settings", async () => {
@@ -35,10 +41,59 @@ test("denied permission offers System Settings", async () => {
 	expect(h.openSettings).toHaveBeenCalledTimes(1);
 });
 
+test("shows a loading state before the permission call resolves, never the unsupported flash", async () => {
+	h.permission.mockImplementation(() => new Promise(() => undefined));
+	render(<NotificationsSection />);
+	expect(screen.getByText("Checking…")).toBeTruthy();
+	expect(screen.queryByText("Not available in this build")).not.toBeInTheDocument();
+});
+
+test("falls back to unsupported and logs when the permission call rejects", async () => {
+	h.permission.mockRejectedValue(new Error("bridge unavailable"));
+	render(<NotificationsSection />);
+	expect(await screen.findByText("Not available in this build")).toBeTruthy();
+	expect(console.warn).toHaveBeenCalledWith(
+		"Unable to read the macOS notification permission",
+		expect.any(Error),
+	);
+});
+
 test("the Mac test posts a test notification", async () => {
 	render(<NotificationsSection />);
 	await userEvent.click(screen.getAllByRole("button", { name: "Send test" })[0]);
 	expect(h.show).toHaveBeenCalledWith(expect.objectContaining({ type: "test", title: "Operator" }));
+});
+
+test("a denied Mac test flips permission to denied and offers System Settings", async () => {
+	h.show.mockRejectedValue(new Error("notification_permission=denied: not authorized"));
+	render(<NotificationsSection />);
+	await userEvent.click(screen.getAllByRole("button", { name: "Send test" })[0]);
+	expect(await screen.findByText("Off in System Settings")).toBeTruthy();
+	expect(await screen.findByRole("button", { name: "Open System Settings" })).toBeTruthy();
+});
+
+test("a non-permission Mac test failure shows an inline error next to Send test", async () => {
+	h.show.mockRejectedValue(new Error("The native bridge is unavailable"));
+	render(<NotificationsSection />);
+	await userEvent.click(screen.getAllByRole("button", { name: "Send test" })[0]);
+	expect(await screen.findByText("The native bridge is unavailable")).toBeTruthy();
+	expect(screen.queryByText("Off in System Settings")).not.toBeInTheDocument();
+});
+
+test("renders nothing for the phone line while the phone-alerts query is loading", async () => {
+	h.phoneLoading = true;
+	h.status = undefined;
+	render(<NotificationsSection />);
+	await screen.findByText("Allowed");
+	expect(screen.queryByText("Off — Connect Mobile is off")).not.toBeInTheDocument();
+	expect(screen.queryByText("On for your paired phone")).not.toBeInTheDocument();
+});
+
+test("shows an error line when the phone-alerts query fails", async () => {
+	h.phoneError = true;
+	h.status = undefined;
+	render(<NotificationsSection />);
+	expect(await screen.findByText("Could not load phone status.")).toBeTruthy();
 });
 
 test.each([
