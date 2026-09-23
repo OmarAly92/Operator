@@ -275,7 +275,7 @@ async function mountPanes(count: number, mode: PaneMode = "visible"): Promise<vo
 		(pane.getCoreForBench() as TerminalCore).setAgentTuiMode(true);
 		if (mode === "parked") {
 			park(paneHost);
-			pane.setVisible(false);
+			if (params.get("ungated") !== "1") pane.setVisible(false);
 		}
 		extraPanes.push({ pane, mode });
 	}

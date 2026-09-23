@@ -1050,7 +1050,9 @@ history of `master`.
   `detectFinishedBlocks`, 55.4 ms of the 1+9 profile, mostly
   `export_screen_row`) and decodes its blocks, and in the app
   `TerminalSurface`'s alt-screen listener reads another
-  (`TerminalSurface.tsx:298`, not mounted by the bench); the parse itself is
+  (`TerminalSurface.tsx:303`, not mounted by the bench), and the line editor
+  still ingests history per change from that same snapshot so a command that
+  scrolls out while the pane is hidden stays in Up-arrow recall; the parse itself is
   small (`drain` 5.9 ms). A hidden window drains up to `HIDDEN_DRAIN_MS`
   (250 ms) of parse per timer tick, and WebKit throttles that timer to ~1/s,
   so only a producer that needs more than ~250 ms of parse per second grows
@@ -1083,7 +1085,15 @@ history of `master`.
   `OSC 7000` in `claude-spinner-10s` and `claude-long-50k`) and "needs input"
   comes from the daemon's SSE stream; an unloaded shell pane is notified of
   finished commands from the daemon's `terminal_block` mux frames
-  (`TerminalMux.onTerminalBlock`, `lib/shell-block-notifications.ts`). Long
+  (`TerminalMux.onTerminalBlock`, `lib/shell-block-notifications.ts`). The
+  shell hooks send no `start_ms`, so the daemon's `BlockAssembler` stamps a
+  block's start when its output begins (`OSC 133;C`) and a frame with no usable
+  start never notifies; before that fix every frame carried
+  `startedAt: 0001-01-01` and would have notified every command. The loaded
+  renderer times a block from its prompt (`OSC 133;A`, vt-core
+  `BlockGrid::open_block`), so its duration includes time spent typing at the
+  prompt — pre-existing, and why a short command after a long pause at the
+  prompt can still notify from a loaded pane. Long
   run: the 30-minute bench soak (1 visible + 9 parked, 64 KiB/s each) holds
   about 25 MiB of wasm per core at the 200k-row cap from minute 7, flat to
   minute 30, and ~1.9 s of main thread a minute, byte-for-byte repeatable

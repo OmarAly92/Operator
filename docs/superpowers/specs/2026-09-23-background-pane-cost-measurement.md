@@ -399,7 +399,7 @@ Read-outs:
   row index and the other per-row structures `memoryStats` does not break out.
   Wasm memory is flat from minute 6 to 30: no growth past the cap.
 - DOM nodes do not grow: 453 at minute 1 and 453–458 at most samples to the
-  end; the 476–559 readings are single samples that fall back to 453 the next
+  end; the 477–559 readings are single samples that fall back to 453 the next
   minute (the visible pane's rows at the moment of the sample). Parked panes
   add no DOM over time.
 - JS heap after a forced GC creeps up 2.5 KB a minute at the cap (3.83 MB at

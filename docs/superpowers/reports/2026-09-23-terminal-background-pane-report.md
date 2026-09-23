@@ -87,8 +87,8 @@ Whole-branch gate, run 2026-09-23 07:00–07:10 EEST at `e5b2a466a`, after `npm 
 | row | before: TaskDuration (3 runs) | before: layouts / recalcs | before: `parkedMutations` | after (Task 8, 3 runs) | after (Task 8): layouts / recalcs, `parkedMutations` | after (Part 1 run) | after (Part 1): layouts / recalcs, `parkedMutations` |
 |---|---|---|---|---|---|---|---|
 | 1 alone | 0.354 / 0.392 / 0.232 | 122 / 222 | counter did not exist | 0.458 / 0.419 / 0.420 | 122 / 222, 0 | 0.643 | 122 / 222, 0 |
-| 1 + 3 parked | 0.532 / 0.617 / 0.642 | 488–489 / 888–889 | counter did not exist; 8145 in Task 4's pre-gate comparison run | 0.445 / 0.448 / 0.478 | 122 / 222, 0 | 0.747 | 122 / 222, 0 |
-| 1 + 9 parked | 0.886 (profiler) / 1.004 / 0.939 | 1220–1221 / 2220–2221 | counter did not exist; 24435 in Task 4's pre-gate comparison run | 0.526 / 0.528 / 0.518 | 122–123 / 222–223, 0 | 0.857 | 123 / 223, 0 |
+| 1 + 3 parked | 0.532 / 0.617 / 0.642 | 488–489 / 888–889 | counter did not exist; 8145 in `run.mjs --panes-only --ungated` (`2026-09-23-sources/review-ungated.json` reads 8145) | 0.445 / 0.448 / 0.478 | 122 / 222, 0 | 0.747 | 122 / 222, 0 |
+| 1 + 9 parked | 0.886 (profiler) / 1.004 / 0.939 | 1220–1221 / 2220–2221 | counter did not exist; 24435 in `run.mjs --panes-only --ungated` (`2026-09-23-sources/review-ungated.json` reads 24439) | 0.526 / 0.528 / 0.518 | 122–123 / 222–223, 0 | 0.857 | 123 / 223, 0 |
 | 10 visible | 1.083 / 0.855 / 1.133 | 1220–1221 / 2256–2257 | — | 1.326 / 1.324 / 1.296 | 1220–1221 / 2256–2257, 0 | 1.721 | 1221 / 2257, 0 |
 
 Part 1 `parkedState`: parked3 3 × `{backlog false, generation 118, rows 27}`, parked9 9 × the same. The `bench:agent:gate` run in Part 1 re-ran these rows: solo 0.669, parked3 0.731, parked9 0.827, visible10 1.750 s, layouts the same, `parkedMutations` 0.
@@ -96,7 +96,7 @@ Part 1 `parkedState`: parked3 3 × `{backlog false, generation 118, rows 27}`, p
 Machine load:
 - Before (Task 1): load not recorded in the measurement note.
 - Task 8: load average 31–54 on 10 cores during the runs, peaking near 100. Task 8 ran the pre-plan tree `11323ce3d` as a control, interleaved with the branch `1b76f26fd`, three runs each. Control solo 0.430 / 0.445 / 0.419 vs branch 0.413 / 0.432 / 0.402; parked3 0.767–0.795 (488–489 layouts) vs 0.458–0.476 (122–123); parked9 1.291–1.311 (1221 layouts) vs 0.527–0.556 (122–123); visible10 1.290–1.327 vs 1.276–1.327. Per parked pane: pre-plan 95.6–99.1 ms, branch 13.8–15.7 ms.
-- Part 1: `uptime` load 6.39 / 7.86 / 8.37 before the panes-only run and 6.05 / 7.57 / 8.23 after. Absolute numbers are higher than Task 8's despite the lower load average, including the rows with no parked pane (solo 0.643 vs 0.419–0.458). No control was run in Part 1, so the cause is not known. Per parked pane over the same run's solo: 34.7 ms (1+3) and 23.8 ms (1+9) per 10 s. Layout and style-recalc counts match Task 8 exactly: parked panes add none.
+- Part 1: `uptime` load 6.39 / 7.86 / 8.37 before the panes-only run and 6.05 / 7.57 / 8.23 after. Absolute numbers are higher than Task 8's despite the lower load average, including the rows with no parked pane (solo 0.643 vs 0.419–0.458). No control was run in Part 1, so the cause is not known. Per parked pane over the same run's solo: 34.6 ms (1+3) and 23.8 ms (1+9) per 10 s. Layout and style-recalc counts match Task 8 exactly: parked panes add none.
 
 ## 5. Memory rows and both soaks
 
@@ -109,7 +109,7 @@ Memory per retained pane (Task 9, `run.mjs --panes-only`, one run):
 | parked9 | 3,757,660 | 629 | 2,883,584 |
 | visible10 | 3,807,220 | 2,941 | 2,883,584 |
 
-Per parked pane: 39,844 B JS heap, 25.1 DOM nodes, 123,790 B wasm. `contentBytes` is 0 per core (the fixture never scrolls a row off its 27-row screen). Part 1's run gave solo 3,401,660 / 403 / 1,769,472, parked3 3,496,660 / 479 / 2,162,688, parked9 3,756,928 / 629 / 2,883,584, visible10 3,811,808 / 2,941 / 2,883,584.
+Per parked pane: 39,844 B JS heap, 25.1 DOM nodes, 123,790 B wasm. `contentBytes` is 0 per core (the fixture never scrolls a row off its 27-row screen). Part 1's `bench:agent:gate` run (`gate.txt`) gave solo 3,401,660 / 403 / 1,769,472, parked3 3,496,660 / 479 / 2,162,688, parked9 3,756,928 / 629 / 2,883,584, visible10 3,811,808 / 2,941 / 2,883,584; the `--panes-only` run (`panes.txt`) read JS heap 3,401,540 / 3,496,468 / 3,760,236 / 3,806,892.
 
 Bench soak (`npm run bench:soak -- --minutes 30`, 1 visible + 9 parked):
 - Task 9 (tree `8378d78af`, load average 76.8 → 15.9): all ten cores reached the 200k-row cap (199,999 rows) at minute 7; wasm flat at 254.3 MiB from minute 6 (~25.2 MiB per core, ~132 B/row); taskDuration 1.52–2.14 s/min; JS heap +2,480 B/min at the cap; DOM nodes flat at 453.
@@ -180,7 +180,7 @@ Parked by the final review:
 
 Deferred minors from the ledger:
 - Task 2: `lib.rs` citation 262-267 vs 262-268 (cosmetic).
-- Task 4: `scheduleRepaint`'s no-rAF fallback calls `repaint()` directly, bypassing the gate (`dom-block-renderer.ts:848-852`); still open after Task 7.
+- Task 4: `scheduleRepaint`'s no-rAF fallback called `repaint()` directly, bypassing the gate — fixed in the final review (`58b913f2f`).
 - Task 4: `predictKey` and `selectionChanged` overlays still write DOM while hidden.
 - Task 4: the report's 1200-mutation arithmetic was wrong (fixed in the report; the count went to 0 in Task 5).
 - Task 7: `dispose()` calls `document.removeEventListener` unguarded (throws with no DOM on a never-mounted renderer; no current caller).
@@ -201,3 +201,34 @@ Task 9 / 12 findings:
 - The 200k-row cap binds before the 128 MiB byte cap: ~132 B/row, ~25 MiB per core at the cap.
 - The JS heap creeps about 2.5 KB/min at the cap (+2,480 and +2,545 B/min in the two soaks), untraced.
 - The unload's real-app memory and CPU effect, and the switch-back replay time in the app, are unmeasured (dev ports busy).
+
+## 10. Final review (planning session, 2026-09-23)
+
+Whole-branch review of `be049b290`: every gate re-run independently, four adversarial reviewers (renderer gate, Operator cache and notifications, editor and surface, tests and claims) each required to prove a finding with a failing test, and a real-browser probe.
+
+Fixed on the branch, each test-first:
+
+| Finding | Commit |
+|---|---|
+| An unloaded shell pane would notify every command: the shell hooks send no `start_ms`, so every `terminal_block` frame carried `startedAt: 0001-01-01` (a ~63.9-billion-second duration). The daemon's `BlockAssembler` now stamps the start at `OSC 133;C` when the shell sent none; `shellBlockNotification` ignores a frame with no usable start. | `d5b15c718` |
+| A hidden line editor lost a command from Up-arrow history when its block scrolled out of the core before reveal. History is now ingested on every change; only the render waits. | `942330926` |
+| Disposing the editor dropped unsent text without telling the host, so Operator's `hasDraft` stuck and a parked shell never unloaded. `dispose()` now reports an empty draft. | `942330926` |
+| A park and show within one frame (a split-layout change) dropped pending predictions and the in-flight round-trip sample. They are now dropped on the first hidden frame (`RttMeter.cancel()`). `noteSend` is ignored while hidden. The no-`requestAnimationFrame` fallback respects the gate. A renderer given `setVisible(false)` before `mount` does not paint, and `TerminalSurface` sets it before mounting. | `58b913f2f` |
+| The reopen test passed even when nothing unloaded; a split-view test now pins that the terminal a pane replaced unloads and on-screen panes never do. | `601c18870` |
+| `run.mjs --ungated` measures the pre-gate parked cost again; the measurement sources that lived only in the executing session's scratchpad are committed under `bench/agent-session/baselines/pane-cost/2026-09-23-sources/`. Doc numbers and citations corrected. | this section's commit |
+
+Same-machine comparison from `2026-09-23-sources/review-{ungated,gated}.json` (TaskDuration per 10 s): solo 0.386 / 0.452; 1+3 parked 0.813 / 0.472; 1+9 parked 1.251 / 0.546; 10 visible 1.324 / 1.225. Layouts at 1+9: 1,221 ungated, 123 gated. `parkedMutations` at 1+9: 24,439 ungated, 0 gated.
+
+Checked and sound:
+- Parking moves the scroll container, and Chromium resets its `scrollTop` to 0 and fires a scroll event. The branch's synchronous reveal paint restores it: a bottom-stuck pane comes back at the newest row, and a scrolled-up pane comes back on the exact row it showed. On `development`, with no gate, the same reveal left the viewport at `scrollTop` 0 until the next output, so the branch fixes that. This was probed in headless Chromium only; WebKit is not installed for Playwright here.
+- A revealed pane paints the same rows as a never-parked pane fed the same bytes: the spinner in 512-byte chunks and 600 KB of `claude-long-50k`, parked and revealed every 5 chunks.
+- No state-machine race found across `setVisible`, pending frames, the hidden timer, `visibilitychange`, and dispose/mount.
+- The `activate`-loop `scheduleUnload` has no test. It cannot be reached through `CachedTerminalSlot`: its layout-effect cleanup always `deactivate`s the old key first, and that path is tested.
+
+Still open, not fixed here:
+- Every real-app step is still not verified. The user's own dev app held ports 3002 and 5173 throughout the review too.
+- vt-core times a block from its prompt (`OSC 133;A`), so a loaded pane's duration includes time spent typing. This predates the branch.
+- `TerminalSurface`'s features and secret-pattern effects are not re-applied when its mount effect reruns. This predates the branch; `development` has the same deps.
+- Parked panes are not paced to 60 Hz, which may double their small remaining cost on a 120 Hz display.
+- The ~2.5 KB/min JS-heap creep at the row cap is untraced.
+- A full rebuild runs on each window restore for a visible pane even when nothing arrived while hidden. It costs one first paint and is not a correctness problem.
