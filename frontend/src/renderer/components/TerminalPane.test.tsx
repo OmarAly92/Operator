@@ -457,6 +457,8 @@ describe("TerminalPane focus", () => {
 			await act(async () => {
 				vi.advanceTimersByTime(RETAINED_TERMINAL_UNLOAD_MS);
 			});
+			expect(document.querySelectorAll('[data-terminal-cache-key*="handle-a"]')).toHaveLength(0);
+			expect(attachmentMounts.value - attachmentUnmounts.value).toBe(1);
 			view.show(sessionA);
 			view.show(sessionA);
 			await waitFor(() => expect(activeFocusToken()).toBe("1"));
@@ -1366,6 +1368,36 @@ describe("TerminalCacheProvider with several panes", () => {
 				screen.getByTestId("terminal-cache-parking").querySelector('[data-terminal-cache-key^="session:sess-b:worker|"]'),
 			).not.toBeNull();
 		} finally {
+			view.restore();
+		}
+	});
+
+	it("unloads the terminal a split pane replaced, and never the ones on screen", async () => {
+		vi.useFakeTimers({ shouldAdvanceTime: true });
+		const view = renderSplitPanes([a, b, c]);
+		try {
+			const left = await waitFor(() => {
+				const element = attachmentIn("pane-left");
+				expect(element).not.toBeNull();
+				return element as HTMLElement;
+			});
+			view.show(a, c);
+			const right = await waitFor(() => {
+				const element = screen.getByTestId("pane-right").querySelector<HTMLElement>('[data-terminal-cache-key^="session:sess-c:worker|"]');
+				expect(element).not.toBeNull();
+				return element as HTMLElement;
+			});
+			const parking = screen.getByTestId("terminal-cache-parking");
+			expect(parking.querySelector('[data-terminal-cache-key^="session:sess-b:worker|"]')).not.toBeNull();
+			await act(async () => {
+				vi.advanceTimersByTime(RETAINED_TERMINAL_UNLOAD_MS * 2);
+			});
+			expect(parking.querySelector('[data-terminal-cache-key^="session:sess-b:worker|"]')).toBeNull();
+			expect(attachmentIn("pane-left")).toBe(left);
+			expect(right.isConnected).toBe(true);
+			expect(attachmentUnmounts.value).toBe(1);
+		} finally {
+			vi.useRealTimers();
 			view.restore();
 		}
 	});
