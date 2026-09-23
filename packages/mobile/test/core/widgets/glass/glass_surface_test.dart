@@ -54,6 +54,23 @@ void main() {
     expect(inner.settings.glassColor.withValues(alpha: 1), const LightSkin().accent);
   });
 
+  testWidgets('clear glass keeps its own layer inside a regular scope', (tester) async {
+    await tester.pumpWidget(_host(
+      const LightSkin(),
+      const GlassScope(
+        variant: GlassVariant.regular,
+        size: 44,
+        child: GlassSurface(kind: GlassShapeKind.capsule, size: 44, variant: GlassVariant.clear, child: SizedBox(width: 80, height: 44)),
+      ),
+    ));
+    expect(find.byType(LiquidGlassLayer), findsNWidgets(2));
+    final inner = tester.widgetList<LiquidGlassLayer>(find.byType(LiquidGlassLayer)).last;
+    expect(
+      inner.settings.glassColor,
+      GlassStyle.resolve(skin: const LightSkin(), variant: GlassVariant.clear, size: 44).glassColor,
+    );
+  });
+
   testWidgets('high contrast draws an outline', (tester) async {
     await tester.pumpWidget(_host(const DarkSkin(), _surface, highContrast: true));
     expect(find.byKey(GlassSurface.outlineKey), findsOneWidget);

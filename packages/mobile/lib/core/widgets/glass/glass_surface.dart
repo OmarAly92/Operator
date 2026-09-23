@@ -51,7 +51,7 @@ class GlassSurface extends StatelessWidget {
         : child;
     final shadows = GlassStyle.shadows(skin);
     final settings = GlassStyle.resolve(skin: skin, variant: variant, size: size, highContrast: highContrast);
-    if (variant == GlassVariant.prominent) {
+    if (variant != GlassVariant.regular) {
       return LiquidGlass.withOwnLayer(shape: _shape, shadows: shadows, settings: settings, child: content);
     }
     if (grouped) {
