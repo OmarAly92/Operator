@@ -127,3 +127,62 @@ describe("block-finished detection", () => {
 		renderer.dispose();
 	});
 });
+
+function setDocumentVisibility(state: DocumentVisibilityState): void {
+	Object.defineProperty(document, "visibilityState", { configurable: true, get: () => state });
+	document.dispatchEvent(new Event("visibilitychange"));
+}
+
+describe("visibility seam", () => {
+	afterEach(() => setDocumentVisibility("visible"));
+
+	it("reports the host's fact instead of guessing from the DOM", async () => {
+		const { core, renderer, events } = mounted();
+		renderer.setVisible(true);
+		expect(renderer.visibility()).toBe(true);
+		core.feed(text(OPEN_BLOCK));
+		await flushRepaint();
+		core.feed(text(CLOSE_BLOCK));
+		await flushRepaint();
+		expect(events[0]).toMatchObject({ visible: true });
+		renderer.dispose();
+	});
+
+	it("reports not visible when the host says so even if the DOM looks visible", async () => {
+		const { core, host, renderer, events } = mounted();
+		host.getClientRects = () => [{}] as unknown as DOMRectList;
+		renderer.setVisible(false);
+		core.feed(text(OPEN_BLOCK));
+		await flushRepaint();
+		core.enqueue(text(CLOSE_BLOCK));
+		await flushRepaint();
+		await flushRepaint();
+		expect(events[0]).toMatchObject({ visible: false });
+		renderer.dispose();
+	});
+
+	it("falls back to the DOM when the host sets nothing", async () => {
+		const { core, host, renderer, events } = mounted();
+		host.getClientRects = () => [{}] as unknown as DOMRectList;
+		renderer.setVisible(true);
+		renderer.setVisible(null);
+		core.feed(text(OPEN_BLOCK));
+		await flushRepaint();
+		core.feed(text(CLOSE_BLOCK));
+		await flushRepaint();
+		expect(events[0]).toMatchObject({ visible: true });
+		renderer.dispose();
+	});
+
+	it("reports not visible while the document is hidden, whatever the host says", async () => {
+		const { core, renderer, events } = mounted();
+		renderer.setVisible(true);
+		core.feed(text(OPEN_BLOCK));
+		await flushRepaint();
+		setDocumentVisibility("hidden");
+		core.feed(text(CLOSE_BLOCK));
+		(renderer as unknown as { detectFinishedBlocks(s: unknown): unknown }).detectFinishedBlocks(core.snapshot());
+		expect(events.at(-1)).toMatchObject({ visible: false });
+		renderer.dispose();
+	});
+});

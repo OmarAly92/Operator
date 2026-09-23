@@ -69,6 +69,7 @@ export interface TerminalSurfaceProps {
 	 */
 	refitToken?: number;
 	focusToken?: number;
+	visible?: boolean;
 	features?: Partial<RendererFeatures>;
 	onPaint?: () => void;
 	onBlockFinished?: (event: BlockFinishedEvent) => void;
@@ -99,6 +100,7 @@ export function TerminalSurface({
 	onHint,
 	refitToken,
 	focusToken,
+	visible,
 	features,
 }: TerminalSurfaceProps): ReactElement {
 	const hostRef = useRef<HTMLDivElement | null>(null);
@@ -281,6 +283,10 @@ export function TerminalSurface({
 		observer.observe(blockHost);
 		return () => observer.disconnect();
 	}, [core, onGeometry, refitToken]);
+
+	useLayoutEffect(() => {
+		rendererRef.current?.setVisible(visible ?? null);
+	}, [visible]);
 
 	const [altActive, setAltActive] = useState(false);
 	useLayoutEffect(() => {

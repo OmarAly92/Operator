@@ -542,6 +542,17 @@ describe("TerminalSurface", () => {
 		setFocused.mockRestore();
 	});
 
+	it("hands the host's visibility to the renderer", () => {
+		const spy = vi.spyOn(DomBlockRenderer.prototype, "setVisible");
+		const { setVisible } = renderSurface({ visible: false });
+		expect(spy).toHaveBeenLastCalledWith(false);
+		setVisible(true);
+		expect(spy).toHaveBeenLastCalledWith(true);
+		setVisible(undefined);
+		expect(spy).toHaveBeenLastCalledWith(null);
+		spy.mockRestore();
+	});
+
 	async function mountAltSurface(extra: Partial<HostCapabilities>) {
 		const mount = vi.spyOn(DomBlockRenderer.prototype, "mount");
 		const host: HostCapabilities = { writeClipboard: async () => {}, readClipboard: async () => "", openLink: async () => {}, ...extra };

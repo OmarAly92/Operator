@@ -15,7 +15,7 @@ import {
 	type TerminalTheme,
 } from "@operator/terminal-core";
 import { renderAltSurface } from "./alt-surface.js";
-import { finishedBlocks, rendererVisible, type BlockFinishedEvent } from "./block-finished.js";
+import { documentHidden, finishedBlocks, rendererVisible, type BlockFinishedEvent } from "./block-finished.js";
 import { populateBlock, reconcileChildren, ROW_GENERATION_ATTR } from "./block-body.js";
 import { createCursorElement, cursorPaintFor, primaryCursorPlacement, PLAIN_CURSOR_PAINT, CURSOR_ATTR, type CursorPlacement } from "./cursor.js";
 import { PREDICTION_TTL_MS, PredictionState, type CursorPoint, type KeyDescriptor } from "./prediction.js";
@@ -118,6 +118,7 @@ export class DomBlockRenderer implements BlockRenderer {
 	private rebuildAll = false;
 	private activeFeatures: RendererFeatures = DEFAULT_FEATURES;
 	private focused = true;
+	private hostVisible: boolean | null = null;
 	private blockStates = new Map<BlockId, BlockState>();
 	private readonly blockFinishedListeners = new Set<(event: BlockFinishedEvent) => void>();
 	private linkProviders: readonly LinkProvider[] = DEFAULT_LINK_PROVIDERS;
@@ -215,6 +216,14 @@ export class DomBlockRenderer implements BlockRenderer {
 		if (this.focused === focused) return;
 		this.focused = focused;
 		if (this.activeFeatures.cursorHollowUnfocused) this.scheduleRepaint();
+	}
+
+	setVisible(visible: boolean | null): void {
+		this.hostVisible = visible;
+	}
+
+	visibility(): boolean | null {
+		return this.hostVisible;
 	}
 
 	setFilter(filter: BlockFilter | null): void {
@@ -733,6 +742,7 @@ export class DomBlockRenderer implements BlockRenderer {
 	}
 
 	dispose(): void {
+		this.hostVisible = null;
 		if (this.predictionTimer !== null) clearTimeout(this.predictionTimer), (this.predictionTimer = null);
 		this.jumpToBottom?.dispose(), (this.jumpToBottom = null);
 		this.blockNav?.dispose(), (this.blockNav = null);
@@ -879,6 +889,7 @@ export class DomBlockRenderer implements BlockRenderer {
 	}
 
 	private shownToUser(): boolean {
+		if (this.hostVisible !== null) return this.hostVisible && !documentHidden();
 		return this.container !== null && rendererVisible(this.container);
 	}
 
