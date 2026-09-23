@@ -118,6 +118,11 @@ export function TerminalSurface({
 	const compositionRef = useRef<CompositionTarget | null>(null);
 	const hostCapsRef = useRef(host);
 	hostCapsRef.current = host;
+	const featuresRef = useRef(features);
+	featuresRef.current = features;
+	const secretPatterns = host?.secretPatterns;
+	const secretPatternsRef = useRef(secretPatterns);
+	secretPatternsRef.current = secretPatterns;
 	const resolveFirstPath = host?.resolveFirstPath;
 	const resolveFirstPathRef = useRef(resolveFirstPath);
 	resolveFirstPathRef.current = resolveFirstPath;
@@ -152,6 +157,8 @@ export function TerminalSurface({
 		}
 		const renderer = new DomBlockRenderer();
 		renderer.mount(blockHost, core);
+		renderer.setFeatures(featuresRef.current ?? {});
+		renderer.setSecretPatterns(secretPatternsRef.current ?? []);
 		renderer.setTheme(theme);
 		renderer.setFont(font);
 		const editor = new LineEditor();
@@ -225,7 +232,6 @@ export function TerminalSurface({
 		applyLinkProviders();
 	}, [applyLinkProviders, resolveFirstPath]);
 
-	const secretPatterns = host?.secretPatterns;
 	useLayoutEffect(() => {
 		rendererRef.current?.setSecretPatterns(secretPatterns ?? []);
 	}, [secretPatterns]);
