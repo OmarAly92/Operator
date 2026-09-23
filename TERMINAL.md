@@ -818,8 +818,10 @@ history of `master`.
 - Why it cannot help much here: the scroller is already `contain: strict`
   (`dom-block-renderer.ts:161`), so a frame's layout never leaves the pane,
   and each layout already has a median of 142 dirty objects out of 274–370
-  (trace `beginData`), the same 142 with containment; those are new row
-  nodes that need layout anyway. There is also no second layout to remove:
+  (trace `beginData`), the same 142 with containment. What they are was not
+  broken down; the rows rebuilt each frame are the likely bulk (inference,
+  not measured), and new nodes need layout anyway. There is also no second
+  layout to remove:
   0 render-step layouts per frame.
 - Ruled out, do not add: `paint` (clips at the box and saves no layout);
   `size`, `strict`, `content`, `content-visibility: auto` (a row's height is
