@@ -15,13 +15,16 @@ const IDLE_PANES_BASELINE_S = 1.759;
 const SELECTION_ROWS_REPAINTED = 1;
 
 function parseArgs(argv) {
-	const out = { fixture: undefined, gate: false, features: "", panesOnly: false, profile: false };
+	const out = { fixture: undefined, gate: false, features: "", panesOnly: false, profile: false, ungated: false, css: "", profileRow: "parked9" };
 	for (let index = 0; index < argv.length; index += 1) {
 		if (argv[index] === "--fixture") out.fixture = argv[++index];
 		else if (argv[index] === "--gate") out.gate = true;
 		else if (argv[index] === "--panes-only") out.panesOnly = true;
+		else if (argv[index] === "--ungated") out.ungated = true;
 		else if (argv[index] === "--profile") out.profile = true;
 		else if (argv[index] === "--features") out.features = argv[++index];
+		else if (argv[index] === "--css") out.css = argv[++index];
+		else if (argv[index] === "--profile-row") out.profileRow = argv[++index];
 		else throw new Error(`unsupported argument ${argv[index]}`);
 	}
 	return out;
@@ -32,9 +35,9 @@ function median(values) {
 	return sorted.length === 0 ? null : sorted[Math.floor(sorted.length / 2)];
 }
 
-async function openPage(browser, port, fixture, features) {
+async function openPage(browser, port, fixture, features, ungated = false, css = "") {
 	const page = await browser.newPage({ viewport: { width: 1600, height: 900 } });
-	const suffix = features ? `&features=${encodeURIComponent(features)}` : "";
+	const suffix = `${features ? `&features=${encodeURIComponent(features)}` : ""}${ungated ? "&ungated=1" : ""}${css ? `&css=${encodeURIComponent(css)}` : ""}`;
 	await page.goto(`http://127.0.0.1:${port}/agent-session/index.html?fixture=${fixture}${suffix}`);
 	await page.waitForFunction(() => window.__agentSessionReady === true, undefined, { timeout: 30000 });
 	return page;
@@ -123,6 +126,7 @@ async function paneLoad(page, { extra, mode, profileOut }) {
 		await session.send("Profiler.setSamplingInterval", { interval: 100 });
 		await session.send("Profiler.start");
 	}
+	await page.evaluate(() => window.__agentSession.resetParkedMutations?.());
 	const before = await metricsNow(session);
 	await page.evaluate(() => window.__agentSession.feedFrames(100, 100));
 	const after = await metricsNow(session);
@@ -136,10 +140,15 @@ async function paneLoad(page, { extra, mode, profileOut }) {
 	}
 	await page.waitForTimeout(300);
 	if (mode === "parked") out.parkedState = await page.evaluate(() => window.__agentSession.parkedPaneState());
+	out.parkedMutations = await page.evaluate(() => window.__agentSession.parkedMutations());
+	await session.send("HeapProfiler.collectGarbage");
+	const heap = await session.send("Runtime.getHeapUsage");
+	const dom = await session.send("Memory.getDOMCounters");
+	out.memory = { jsHeapUsedBytes: heap.usedSize, domNodes: dom.nodes, ...(await page.evaluate(() => window.__agentSession.paneMemory())) };
 	return out;
 }
 
-async function paneRows(browser, port, name, features, profile) {
+async function paneRows(browser, port, name, features, profile, ungated = false, css = "", profileRow = "parked9") {
 	const rows = {};
 	const shapes = [
 		["solo", { extra: 0, mode: "visible" }],
@@ -148,8 +157,8 @@ async function paneRows(browser, port, name, features, profile) {
 		["visible10", { extra: 9, mode: "visible" }],
 	];
 	for (const [key, shape] of shapes) {
-		const page = await openPage(browser, port, name, features);
-		const profileOut = profile && key === "parked9" ? path.join(resultsDir, `parked9-${Date.now()}.cpuprofile`) : undefined;
+		const page = await openPage(browser, port, name, features, ungated, css);
+		const profileOut = profile && key === profileRow ? path.join(resultsDir, `${key}-${Date.now()}.cpuprofile`) : undefined;
 		rows[key] = await paneLoad(page, { ...shape, profileOut });
 		await page.close();
 	}
@@ -286,6 +295,7 @@ async function main() {
 	const server = await createServer({ configFile, logLevel: "error" });
 	let browser;
 	const report = { measuredAt: new Date().toISOString(), fixtures: {} };
+	if (args.css) report.css = args.css;
 	try {
 		await server.listen(0);
 		const port = server.httpServer.address().port;
@@ -294,7 +304,7 @@ async function main() {
 			const fixture = await loadFixture(name);
 			const rows = {};
 			if (args.panesOnly) {
-				rows.panes = await paneRows(browser, port, name, args.features, args.profile);
+				rows.panes = await paneRows(browser, port, name, args.features, args.profile, args.ungated, args.css, args.profileRow);
 			} else if (name === "claude-spinner-10s") {
 				const page = await openPage(browser, port, name, args.features);
 				rows.spinner = await spinnerPaints(page);
@@ -339,7 +349,7 @@ async function main() {
 				}
 			}
 			report.fixtures[name] = rows;
-			process.stdout.write(`${JSON.stringify({ fixture: name, ...rows })}\n`);
+			process.stdout.write(`${JSON.stringify({ fixture: name, ...(args.css ? { css: args.css } : {}), ...rows })}\n`);
 		}
 		await mkdir(resultsDir, { recursive: true });
 		await writeFile(path.join(resultsDir, `agent-session-${report.measuredAt.replace(/[:.]/g, "-")}.json`), JSON.stringify(report, null, "\t"));

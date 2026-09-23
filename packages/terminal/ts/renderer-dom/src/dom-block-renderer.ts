@@ -11,10 +11,11 @@ import {
 	type RowRange,
 	type SecretPattern,
 	type TerminalCore,
+	type TerminalSnapshot,
 	type TerminalTheme,
 } from "@operator/terminal-core";
 import { renderAltSurface } from "./alt-surface.js";
-import { finishedBlocks, rendererVisible, type BlockFinishedEvent } from "./block-finished.js";
+import { documentHidden, finishedBlocks, rendererVisible, type BlockFinishedEvent } from "./block-finished.js";
 import { populateBlock, reconcileChildren, ROW_GENERATION_ATTR } from "./block-body.js";
 import { createCursorElement, cursorPaintFor, primaryCursorPlacement, PLAIN_CURSOR_PAINT, CURSOR_ATTR, type CursorPlacement } from "./cursor.js";
 import { PREDICTION_TTL_MS, PredictionState, type CursorPoint, type KeyDescriptor } from "./prediction.js";
@@ -66,6 +67,8 @@ function overscrolled(container: HTMLElement): boolean {
 	return container.scrollTop < 0 || container.scrollTop > container.scrollHeight - container.clientHeight;
 }
 const PAINT_INTERVAL_MS = 1000 / 60;
+export const HIDDEN_TICK_MS = 100;
+export const HIDDEN_DRAIN_MS = 250;
 const POOL_CAPACITY_FACTOR = 3;
 const POOL_DIRTY_CAP = 4096;
 const FRAME_EPSILON_MS = 0.25;
@@ -117,6 +120,15 @@ export class DomBlockRenderer implements BlockRenderer {
 	private rebuildAll = false;
 	private activeFeatures: RendererFeatures = DEFAULT_FEATURES;
 	private focused = true;
+	private hostVisible: boolean | null = null;
+	private catchUp = false;
+	private hiddenTimer: ReturnType<typeof setTimeout> | null = null;
+	private readonly onVisibilityChange = () => {
+		if (this.rafHandle !== null && typeof cancelAnimationFrame === "function") cancelAnimationFrame(this.rafHandle);
+		this.rafHandle = null;
+		if (this.hiddenTimer !== null) clearTimeout(this.hiddenTimer), (this.hiddenTimer = null);
+		this.scheduleRepaint();
+	};
 	private blockStates = new Map<BlockId, BlockState>();
 	private readonly blockFinishedListeners = new Set<(event: BlockFinishedEvent) => void>();
 	private linkProviders: readonly LinkProvider[] = DEFAULT_LINK_PROVIDERS;
@@ -138,7 +150,9 @@ export class DomBlockRenderer implements BlockRenderer {
 	private sentCursor: CursorPoint | null = null;
 
 	mount(container: HTMLElement, core: TerminalCore): void {
+		const visible = this.hostVisible;
 		this.dispose();
+		this.hostVisible = visible;
 		this.container = container;
 		this.core = core;
 		ensurePackageStyleTag();
@@ -178,11 +192,13 @@ export class DomBlockRenderer implements BlockRenderer {
 			this.noteReceived(performance.now());
 			this.scheduleRepaint();
 		});
+		document.addEventListener("visibilitychange", this.onVisibilityChange);
 		this.blockNav = mountBlockNavFromRenderer({ container, getBlocks: () => this.filteredBlocks, scrollToBlock: (id, align) => this.scrollToBlock(id, align), isAltScreenActive: () => core.snapshot().altScreen !== null });
 		bindActionEvents(container, { setBlockBookmarked: (id, b) => core.setBlockBookmarked(id, b), getBlockBookmarked: (id) => core.blockBookmarked(id), setFilter: (f) => this.setFilter(f), scrollToBlock: (id, a) => this.scrollToBlock(id, a), scheduleRepaint: () => this.scheduleRepaint() });
 		this.jumpToBottom = mountJumpToBottom({ container, getBlocks: () => this.filteredBlocks, getCellHeight: () => this.measure().cellHeight, getStickToBottom: () => this.stickToBottom, scrollToLatest: () => this.scrollToLatest(), isAltScreenActive: () => core.snapshot().altScreen !== null, strings: defaultStrings });
 		this.jumpToBottom.mount();
-		this.repaint();
+		if (this.painting()) this.repaint();
+		else this.settleHidden(false);
 	}
 
 	setTheme(theme: TerminalTheme): void {
@@ -214,6 +230,21 @@ export class DomBlockRenderer implements BlockRenderer {
 		if (this.focused === focused) return;
 		this.focused = focused;
 		if (this.activeFeatures.cursorHollowUnfocused) this.scheduleRepaint();
+	}
+
+	setVisible(visible: boolean | null): void {
+		const wasPainting = this.painting();
+		this.hostVisible = visible;
+		if (!this.painting() || wasPainting) return;
+		if (this.rafHandle !== null && typeof cancelAnimationFrame === "function") cancelAnimationFrame(this.rafHandle);
+		this.rafHandle = null;
+		this.core?.drain();
+		this.core?.tick(Date.now());
+		this.repaint(performance.now());
+	}
+
+	visibility(): boolean | null {
+		return this.hostVisible;
 	}
 
 	setFilter(filter: BlockFilter | null): void {
@@ -461,7 +492,7 @@ export class DomBlockRenderer implements BlockRenderer {
 	private linkChanged(): void {
 		const link = this.linkifier.current();
 		this.container?.classList.toggle("terminal-link-hover", link !== null);
-		this.paintDecorations();
+		if (this.painting()) this.paintDecorations();
 		for (const listener of [...this.linkHoverListeners]) listener(link);
 	}
 
@@ -582,10 +613,12 @@ export class DomBlockRenderer implements BlockRenderer {
 	}
 
 	noteSend(nowMs: number): void {
+		if (!this.painting()) return;
 		if (this.rtt.sent(nowMs)) this.sentCursor = this.cursorPoint() ?? { row: -1, column: -1 };
 	}
 
 	private noteReceived(nowMs: number): void {
+		if (!this.painting()) return;
 		const before = this.sentCursor;
 		if (before === null) return;
 		const after = this.cursorPoint();
@@ -647,6 +680,7 @@ export class DomBlockRenderer implements BlockRenderer {
 	}
 
 	private reconcilePredictions(): void {
+		if (!this.painting()) return;
 		const now = performance.now();
 		const cursor = this.cursorPoint();
 		if (cursor !== null) {
@@ -732,6 +766,10 @@ export class DomBlockRenderer implements BlockRenderer {
 	}
 
 	dispose(): void {
+		document.removeEventListener("visibilitychange", this.onVisibilityChange);
+		if (this.hiddenTimer !== null) clearTimeout(this.hiddenTimer), (this.hiddenTimer = null);
+		this.hostVisible = null;
+		this.catchUp = false;
 		if (this.predictionTimer !== null) clearTimeout(this.predictionTimer), (this.predictionTimer = null);
 		this.jumpToBottom?.dispose(), (this.jumpToBottom = null);
 		this.blockNav?.dispose(), (this.blockNav = null);
@@ -815,16 +853,31 @@ export class DomBlockRenderer implements BlockRenderer {
 	}
 
 	private scheduleRepaint(): void {
-		if (this.rafHandle !== null) return;
+		if (this.rafHandle !== null || this.hiddenTimer !== null) return;
+		if (documentHidden()) {
+			this.hiddenTimer = setTimeout(() => this.hiddenTick(), HIDDEN_TICK_MS);
+			return;
+		}
 		if (typeof requestAnimationFrame !== "function") {
-			this.repaint();
+			if (this.painting()) this.repaint();
+			else this.settleHidden(false);
 			return;
 		}
 		this.rafHandle = requestAnimationFrame((timestamp) => this.repaintOnFrame(timestamp));
 	}
 
+	private hiddenTick(): void {
+		this.hiddenTimer = null;
+		const core = this.core;
+		if (!core) return;
+		core.drain(HIDDEN_DRAIN_MS);
+		core.tick(Date.now());
+		this.settleHidden();
+	}
+
 	private repaintOnFrame(timestamp: number): void {
 		if (
+			this.painting() &&
 			this.lastPaintAt !== null &&
 			timestamp - this.lastPaintAt + FRAME_EPSILON_MS < PAINT_INTERVAL_MS
 		) {
@@ -836,7 +889,34 @@ export class DomBlockRenderer implements BlockRenderer {
 		this.core?.drain();
 		this.core?.tick(Date.now());
 		this.rafHandle = null;
+		if (!this.painting()) {
+			this.settleHidden();
+			return;
+		}
 		this.repaint(timestamp);
+	}
+
+	private painting(): boolean {
+		return this.hostVisible !== false;
+	}
+
+	private settleHidden(reschedule = true): void {
+		const core = this.core;
+		if (!core || !this.container) return;
+		this.dropEchoWhileHidden();
+		this.detectFinishedBlocks(core.snapshot());
+		core.takeDirty();
+		this.catchUp = true;
+		if (reschedule) this.rescheduleIfPending(core);
+	}
+
+	private dropEchoWhileHidden(): void {
+		if (this.hostVisible !== false) return;
+		if (this.sentCursor !== null) {
+			this.sentCursor = null;
+			this.rtt.cancel();
+		}
+		if (this.predictions.pending().length > 0) this.predictionsClear();
 	}
 
 	private applyStyleVars(): void {
@@ -877,7 +957,31 @@ export class DomBlockRenderer implements BlockRenderer {
 		node.style.fontVariantLigatures = this.font.ligatures ? "common-ligatures" : "none";
 	}
 
+	private shownToUser(): boolean {
+		if (this.hostVisible !== null) return this.hostVisible && !documentHidden();
+		return this.container !== null && rendererVisible(this.container);
+	}
+
+	private detectFinishedBlocks(snapshot: TerminalSnapshot): BlockView[] {
+		if (snapshot.altScreen !== null) return [];
+		const blocks = decodeBlocks(snapshot);
+		const finished = finishedBlocks(this.blockStates, blocks);
+		this.blockStates = new Map(blocks.map((block) => [block.id, block.state] as const));
+		if (finished.length === 0) return blocks;
+		const visible = this.shownToUser();
+		for (const block of finished) {
+			for (const listener of [...this.blockFinishedListeners]) {
+				listener({ id: block.id, exitCode: block.exitCode, durationMs: block.durationMs, visible });
+			}
+		}
+		return blocks;
+	}
+
 	private repaint(paintedAt?: number): void {
+		if (this.catchUp) {
+			this.rebuildAll = true;
+			this.catchUp = false;
+		}
 		const core = this.core;
 		const container = this.container;
 		const list = this.list;
@@ -929,17 +1033,7 @@ export class DomBlockRenderer implements BlockRenderer {
 		if (this.wasAltActive) this.dropSelection();
 		this.wasAltActive = false;
 
-		const blocks = decodeBlocks(snapshot);
-		const finished = finishedBlocks(this.blockStates, blocks);
-		this.blockStates = new Map(blocks.map((block) => [block.id, block.state] as const));
-		if (finished.length > 0) {
-			const visible = rendererVisible(container);
-			for (const block of finished) {
-				for (const listener of [...this.blockFinishedListeners]) {
-					listener({ id: block.id, exitCode: block.exitCode, durationMs: block.durationMs, visible });
-				}
-			}
-		}
+		const blocks = this.detectFinishedBlocks(snapshot);
 		if (blocks.length > 0) {
 			this.knownBlockId = blocks[0]!.id;
 		}

@@ -4,6 +4,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { createTerminalCore, type HostCapabilities } from "@operator/terminal-core";
+import { LineEditor } from "@operator/terminal-editor";
 import { DomBlockRenderer, terminalStyles } from "@operator/terminal-renderer-dom";
 import { TerminalSurface } from "./index";
 import {
@@ -514,6 +515,25 @@ describe("TerminalSurface", () => {
 		setFeatures.mockRestore();
 	});
 
+	it("keeps the features on a renderer the surface rebuilds for a new onSend", () => {
+		const mount = vi.spyOn(DomBlockRenderer.prototype, "mount");
+		const setFeatures = vi.spyOn(DomBlockRenderer.prototype, "setFeatures");
+		const core = createTerminalCore({ columns: 16, scrollback: 100 });
+		const surfaceWith = (onSend: () => void) => (
+			<TerminalSurface core={core} theme={theme} font={font} altScreenActive={false} onSend={onSend} onSendRaw={ignoreRaw} features={{ attributes: "warp" }} />
+		);
+		const { rerender } = render(surfaceWith(() => undefined));
+		const first = mount.mock.contexts.at(-1);
+		setFeatures.mockClear();
+		rerender(surfaceWith(() => undefined));
+		const rebuilt = mount.mock.contexts.at(-1);
+		expect(rebuilt).not.toBe(first);
+		expect(setFeatures).toHaveBeenLastCalledWith({ attributes: "warp" });
+		expect(setFeatures.mock.contexts.at(-1)).toBe(rebuilt);
+		mount.mockRestore();
+		setFeatures.mockRestore();
+	});
+
 	it("forwards onBlockFinished from the renderer", () => {
 		const onBlockFinished = vi.fn();
 		const listen = vi.spyOn(DomBlockRenderer.prototype, "onBlockFinished");
@@ -540,6 +560,56 @@ describe("TerminalSurface", () => {
 		act(() => editor.blur());
 		expect(setFocused).toHaveBeenLastCalledWith(false);
 		setFocused.mockRestore();
+	});
+
+	it("hands the host's visibility to the renderer", () => {
+		const spy = vi.spyOn(DomBlockRenderer.prototype, "setVisible");
+		const { setVisible } = renderSurface({ visible: false });
+		expect(spy).toHaveBeenLastCalledWith(false);
+		setVisible(true);
+		expect(spy).toHaveBeenLastCalledWith(true);
+		setVisible(undefined);
+		expect(spy).toHaveBeenLastCalledWith(null);
+		spy.mockRestore();
+	});
+
+	it("hands the host's visibility to the line editor", () => {
+		const spy = vi.spyOn(LineEditor.prototype, "setVisible");
+		const { setVisible } = renderSurface({ visible: false });
+		expect(spy).toHaveBeenLastCalledWith(false);
+		setVisible(true);
+		expect(spy).toHaveBeenLastCalledWith(true);
+		setVisible(undefined);
+		expect(spy).toHaveBeenLastCalledWith(true);
+		spy.mockRestore();
+	});
+
+	it("mounts a fresh renderer and editor already hidden when the mount effect reruns while parked", () => {
+		const rendererSpy = vi.spyOn(DomBlockRenderer.prototype, "setVisible");
+		const editorSpy = vi.spyOn(LineEditor.prototype, "setVisible");
+		const core = createTerminalCore({ columns: 16, scrollback: 100 });
+		const surfaceWith = (onSend: () => void) => (
+			<TerminalSurface
+				core={core}
+				theme={theme}
+				font={font}
+				altScreenActive={false}
+				onSend={onSend}
+				onSendRaw={ignoreRaw}
+				visible={false}
+			/>
+		);
+		const { rerender } = render(surfaceWith(() => undefined));
+		rendererSpy.mockClear();
+		editorSpy.mockClear();
+		const repaint = vi.spyOn(DomBlockRenderer.prototype as unknown as { repaint(): void }, "repaint");
+		rerender(surfaceWith(() => undefined));
+		expect(rendererSpy).toHaveBeenLastCalledWith(false);
+		expect(editorSpy).toHaveBeenLastCalledWith(false);
+		expect(repaint).not.toHaveBeenCalled();
+		repaint.mockRestore();
+		rendererSpy.mockRestore();
+		editorSpy.mockRestore();
 	});
 
 	async function mountAltSurface(extra: Partial<HostCapabilities>) {
@@ -685,6 +755,26 @@ describe("TerminalSurface", () => {
 		const host = { writeClipboard: async () => {}, readClipboard: async () => "", openLink: async () => {}, secretPatterns: [{ source: "x" }] };
 		render(<TerminalSurface core={core} theme={theme} font={font} altScreenActive={false} host={host} onSend={() => undefined} onSendRaw={() => undefined} />);
 		expect(setSecretPatterns).toHaveBeenLastCalledWith([{ source: "x" }]);
+		setSecretPatterns.mockRestore();
+	});
+
+	it("keeps the secret patterns on a renderer the surface rebuilds for a new onSend", () => {
+		const mount = vi.spyOn(DomBlockRenderer.prototype, "mount");
+		const setSecretPatterns = vi.spyOn(DomBlockRenderer.prototype, "setSecretPatterns");
+		const core = createTerminalCore({ columns: 16, scrollback: 100 });
+		const host = { writeClipboard: async () => {}, readClipboard: async () => "", openLink: async () => {}, secretPatterns: [{ source: "x" }] };
+		const surfaceWith = (onSend: () => void) => (
+			<TerminalSurface core={core} theme={theme} font={font} altScreenActive={false} host={host} onSend={onSend} onSendRaw={ignoreRaw} />
+		);
+		const { rerender } = render(surfaceWith(() => undefined));
+		const first = mount.mock.contexts.at(-1);
+		setSecretPatterns.mockClear();
+		rerender(surfaceWith(() => undefined));
+		const rebuilt = mount.mock.contexts.at(-1);
+		expect(rebuilt).not.toBe(first);
+		expect(setSecretPatterns).toHaveBeenLastCalledWith([{ source: "x" }]);
+		expect(setSecretPatterns.mock.contexts.at(-1)).toBe(rebuilt);
+		mount.mockRestore();
 		setSecretPatterns.mockRestore();
 	});
 });

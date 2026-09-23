@@ -26,6 +26,7 @@ type AgentSession = {
 	feedNext(limit: number): number;
 	feedChunk(start: number, end: number): number;
 	feedFrames(count: number, intervalMs: number): Promise<void>;
+	repaintLoop(frames: number): { frames: number; totalMs: number };
 	feedNextSynced(limit: number): number;
 	rowCount(): number;
 	renderableRowCount(): number;
@@ -46,6 +47,10 @@ type AgentSession = {
 	extendSelectionByOneRow(): Promise<number>;
 	mountPanes(count: number, mode?: "visible" | "parked"): Promise<void>;
 	parkedPaneState(): Array<{ backlog: boolean; generation: number; rows: number }>;
+	paneMemory(): { wasmBytes: number; cores: Array<{ mode: "visible" | "parked"; contentBytes: number; styleEntries: number; rows: number; blocks: number }> };
+	startSoakFeed(bytesPerSecond: number): void;
+	parkedMutations(): number;
+	resetParkedMutations(): void;
 	reopenFromReplay(frame: Uint8Array, chunks: Uint8Array[]): Promise<{ firstPaintMs: number; allRowsMs: number; rows: number }>;
 	widthChange(cols: number): Promise<{ settleMs: number; before: number; after: number; staleRows: number }>;
 	staleRowCount(): number;
@@ -91,6 +96,13 @@ const featureList = params.get("features") ?? "";
 if (featureList !== "") domRenderer.setFeatures(parseFeatureList(featureList));
 core.setGraphemeClusters(domRenderer.features().graphemes);
 domRenderer.setFocused(params.get("focused") !== "0");
+const benchCss = params.get("css");
+if (benchCss) {
+	const tag = document.createElement("style");
+	tag.dataset.benchCss = "";
+	tag.textContent = benchCss;
+	document.head.append(tag);
+}
 domRenderer.onPaint(() => {
 	paints += 1;
 });
@@ -169,29 +181,35 @@ async function nextFrame(): Promise<void> {
 
 const PAINT_WAIT_FRAMES = 600;
 
-async function paintAfter(action: () => void): Promise<void> {
-	const before = paints;
-	action();
+async function paintSince(before: number): Promise<void> {
 	for (let frame = 0; paints === before; frame += 1) {
 		if (frame >= PAINT_WAIT_FRAMES) throw new Error(`no paint landed within ${PAINT_WAIT_FRAMES} frames of the action`);
 		await nextFrame();
 	}
 }
 
-async function feedAll(): Promise<void> {
-	while (fed < recording.length) {
+async function paintAfter(action: () => void): Promise<void> {
+	const before = paints;
+	action();
+	await paintSince(before);
+}
+
+async function feedWhile(more: () => boolean): Promise<void> {
+	let beforeLastFeed: number | null = null;
+	while (more()) {
+		beforeLastFeed = paints;
 		feedNext(64 * 1024);
 		await nextFrame();
 	}
-	await renderer.waitForPaint().catch(() => undefined);
+	if (beforeLastFeed !== null) await paintSince(beforeLastFeed);
+}
+
+async function feedAll(): Promise<void> {
+	await feedWhile(() => fed < recording.length);
 }
 
 async function feedUntilRows(target: number): Promise<number> {
-	while (fed < recording.length && rowCount() < target) {
-		feedNext(64 * 1024);
-		await nextFrame();
-	}
-	await renderer.waitForPaint().catch(() => undefined);
+	await feedWhile(() => fed < recording.length && rowCount() < target);
 	return rowCount();
 }
 
@@ -231,6 +249,7 @@ type PaneMode = "visible" | "parked";
 
 const extraPanes: Array<{ pane: DomBenchmarkRenderer; mode: PaneMode }> = [];
 let parkingLot: HTMLElement | null = null;
+let parkedMutations = 0;
 
 function parking(): HTMLElement {
 	if (parkingLot) return parkingLot;
@@ -239,6 +258,9 @@ function parking(): HTMLElement {
 	lot.dataset.testid = "terminal-cache-parking";
 	Object.assign(lot.style, { position: "fixed", top: "0", left: "-100000px", visibility: "hidden", pointerEvents: "none" });
 	document.body.append(lot);
+	new MutationObserver((records) => {
+		parkedMutations += records.length;
+	}).observe(lot, { childList: true, subtree: true, attributes: true, characterData: true });
 	parkingLot = lot;
 	return lot;
 }
@@ -265,9 +287,26 @@ async function mountPanes(count: number, mode: PaneMode = "visible"): Promise<vo
 		const pane = new DomBenchmarkRenderer();
 		await pane.mount(paneHost, { columns: sizes[0].cols, rows: sizes[0].rows, scrollback });
 		(pane.getCoreForBench() as TerminalCore).setAgentTuiMode(true);
-		if (mode === "parked") park(paneHost);
+		if (mode === "parked") {
+			park(paneHost);
+			if (params.get("ungated") !== "1") pane.setVisible(false);
+		}
 		extraPanes.push({ pane, mode });
 	}
+}
+
+let soakTimer: ReturnType<typeof setInterval> | null = null;
+
+function startSoakFeed(bytesPerSecond: number): void {
+	let at = 0;
+	soakTimer ??= setInterval(() => {
+		if (at >= recording.length) at = 0;
+		const end = Math.min(recording.length, at + bytesPerSecond);
+		const chunk = recording.subarray(at, end);
+		core.enqueue(chunk);
+		for (const { pane } of extraPanes) (pane.getCoreForBench() as TerminalCore).enqueue(chunk);
+		at = end;
+	}, 1000);
 }
 
 async function reopenFromReplay(frame: Uint8Array, chunks: Uint8Array[]): Promise<{ firstPaintMs: number; allRowsMs: number; rows: number }> {
@@ -348,6 +387,30 @@ async function feedFrames(count: number, intervalMs: number): Promise<void> {
 	}
 }
 
+function visibleRenderers(): DomBlockRenderer[] {
+	return [
+		domRenderer,
+		...extraPanes
+			.filter(({ mode }) => mode === "visible")
+			.map(({ pane }) => (pane as unknown as { renderer: DomBlockRenderer }).renderer),
+	];
+}
+
+function repaintLoop(count: number): { frames: number; totalMs: number } {
+	const ends = frameEnds().filter((end) => end > fed).slice(0, count);
+	const renderers = visibleRenderers();
+	const began = performance.now();
+	for (const end of ends) {
+		const start = fed;
+		feedChunk(start, end);
+		for (const { pane, mode } of extraPanes) {
+			if (mode === "visible") (pane.getCoreForBench() as TerminalCore).feed(recording.subarray(start, end));
+		}
+		for (const paneRenderer of renderers) (paneRenderer as unknown as { repaint(): void }).repaint();
+	}
+	return { frames: ends.length, totalMs: performance.now() - began };
+}
+
 function visibleRows(): Array<{ block: string; row: number }> {
 	const box = host!.getBoundingClientRect();
 	const out: Array<{ block: string; row: number }> = [];
@@ -397,6 +460,7 @@ window.__agentSession = {
 	feedNext,
 	feedChunk,
 	feedFrames,
+	repaintLoop,
 	feedNextSynced,
 	rowCount,
 	renderableRowCount,
@@ -426,6 +490,10 @@ window.__agentSession = {
 	core: () => core,
 	extendSelectionByOneRow,
 	mountPanes,
+	parkedMutations: () => parkedMutations,
+	resetParkedMutations: () => {
+		parkedMutations = 0;
+	},
 	parkedPaneState: () =>
 		extraPanes
 			.filter(({ mode }) => mode === "parked")
@@ -434,6 +502,14 @@ window.__agentSession = {
 				const snapshot = paneCore.snapshot();
 				return { backlog: paneCore.hasBacklog(), generation: snapshot.generation, rows: snapshot.rows.length / 2 };
 			}),
+	paneMemory: () => ({
+		wasmBytes: core.snapshot().content.buffer.byteLength,
+		cores: [
+			{ mode: "visible" as const, ...core.memoryStats() },
+			...extraPanes.map(({ pane, mode }) => ({ mode, ...(pane.getCoreForBench() as TerminalCore).memoryStats() })),
+		],
+	}),
+	startSoakFeed,
 	reopenFromReplay,
 	widthChange,
 	staleRowCount,

@@ -80,6 +80,7 @@ function createFakeMux(): FakeMux {
 			subscribeBlocks: () => undefined,
 			unsubscribeBlocks: () => undefined,
 			onBlock: () => () => undefined,
+			onTerminalBlock: () => () => undefined,
 			onConnectionChange: (listener) => {
 				connection.add(listener);
 				return () => connection.delete(listener);

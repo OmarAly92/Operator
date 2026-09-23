@@ -10,6 +10,15 @@ Order is the recommended order of work.
 
 ## 1. Cheaper layout for visible panes (only if several panes are visible at once)
 
+**Status: measured 2026-09-23, no gain, nothing changed.**
+`.terminal-row { contain: layout }` was inside noise in Chromium and WebKit;
+the scroller already carries `contain: strict`
+(`packages/terminal/ts/renderer-dom/src/dom-block-renderer.ts:161`, set inline,
+which this item missed by reading only `styles.css`), and each layout has the
+same 142 dirty objects with or without row containment. See
+`docs/superpowers/specs/2026-09-23-layout-containment-measurement.md` and
+TERMINAL.md §4.26. The section below is kept as the original proposal.
+
 **What the user feels:** less CPU while several visible panes stream at once
 (split view). With one visible pane there is nothing to feel.
 
@@ -43,6 +52,18 @@ is used day to day.
 **Size:** one small plan, measurement first.
 
 ## 2. Try the display flags that are built but default off
+
+**Status: done 2026-09-23. `attributes` flipped to `"warp"` (`534ef20fe`);
+`cursorContrast` and `cursorHollowUnfocused` left off.** A new fixture,
+`bench/agent-session/fixtures/claude-markdown-reply` (`a405a9917`: markdown
+reply, diff, Bash call, idle prompt), emits bold 18, dim 6, italic 5 and no
+underline, strike, inverse, blink, hidden, overline or SGR 58 (byte count
+and vt-core export agree on which attributes appear). Side-by-sides:
+`attributes=warp` changed only the two italic words on the Claude Code
+recordings; `cursorContrast` changed 0 px on all three, because the input
+cursor sits on the default background, so it was not flipped;
+`cursorHollowUnfocused` outlined the `❯` input cursor on all three, and the
+user did not choose it. The section below is kept as the original proposal.
 
 **What each flag does:**
 
@@ -128,7 +149,7 @@ done.
 
 ## Order
 
-1. Execute Plan 4 (background-pane cost).
-2. #2 recording and side-by-side session.
-3. #1 only if split view is used.
+1. Plan 4 (background-pane cost): merged (`f4d93ba68`).
+2. #2 recording and side-by-side session: done, `attributes` flipped (see its status).
+3. #1: done, no gain (see its status).
 4. #3 only if wanted.

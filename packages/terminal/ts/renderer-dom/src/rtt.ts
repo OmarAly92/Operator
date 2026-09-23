@@ -12,6 +12,10 @@ export class RttMeter {
 		return true;
 	}
 
+	cancel(): void {
+		this.sentAt = null;
+	}
+
 	received(nowMs: number): void {
 		if (this.sentAt === null) return;
 		const elapsed = nowMs - this.sentAt;

@@ -10,6 +10,9 @@ import type { TerminalTarget } from "../types/terminal";
 import type { WorkspaceSession } from "../types/workspace";
 import { useUiStore } from "../stores/ui-store";
 import { rememberPaneGrid, resetPaneGridForTests } from "../lib/pane-grid";
+import { RETAINED_TERMINAL_UNLOAD_MS, UNLOADED_SHELL_REWATCH_MAX_MS } from "../lib/retained-terminal";
+import { operatorBridge } from "../lib/bridge";
+import type { TerminalBlockFrame, TerminalMux } from "../lib/terminal-mux";
 import {
 	TerminalCacheProvider,
 	TerminalPane,
@@ -48,6 +51,39 @@ const {
 		attachmentUnmounts: { value: 0 },
 	}),
 );
+const { terminalBlockListeners, muxConnectionListeners } = vi.hoisted(() => ({
+	terminalBlockListeners: new Map<string, Set<(block: TerminalBlockFrame) => void>>(),
+	muxConnectionListeners: new Set<(state: "open" | "closed") => void>(),
+}));
+vi.mock("../lib/terminal-mux", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("../lib/terminal-mux")>();
+	const fakeMux = (): TerminalMux => ({
+		open: () => undefined,
+		sendInput: () => undefined,
+		resize: () => undefined,
+		close: () => undefined,
+		ack: () => undefined,
+		onData: () => () => undefined,
+		onExit: () => () => undefined,
+		onOpened: () => () => undefined,
+		onError: () => () => undefined,
+		subscribeBlocks: () => undefined,
+		unsubscribeBlocks: () => undefined,
+		onBlock: () => () => undefined,
+		onTerminalBlock: (handleId, listener) => {
+			const set = terminalBlockListeners.get(handleId) ?? new Set();
+			set.add(listener);
+			terminalBlockListeners.set(handleId, set);
+			return () => set.delete(listener);
+		},
+		onConnectionChange: (listener) => {
+			muxConnectionListeners.add(listener);
+			return () => muxConnectionListeners.delete(listener);
+		},
+		dispose: () => undefined,
+	});
+	return { ...actual, createTerminalMux: fakeMux };
+});
 vi.mock("../lib/api-client", () => ({
 	apiClient: {
 		GET: (
@@ -57,19 +93,25 @@ vi.mock("../lib/api-client", () => ({
 		POST: (...args: unknown[]) => postMock(...args),
 	},
 	apiErrorMessage: (_error: unknown, fallback: string) => fallback,
+	getApiBaseUrl: () => "",
 }));
 
 const blockReplayPainted: { value: (() => void) | undefined } = { value: undefined };
 const blockReplayReady: { value: (() => void) | undefined } = { value: undefined };
+const blockDraftChange = new Map<string, (draft: string) => void>();
 
 vi.mock("./BlockTerminal", () => ({
 	BlockTerminal: (props: {
 		ariaLabel?: string;
 		onReplayPainted?: () => void;
 		onReplayReady?: () => void;
+		onDraftChange?: (draft: string) => void;
 		focusToken?: number;
 		recordsSpawnGrid?: boolean;
+		sessionId?: string;
+		visible?: boolean;
 	}) => {
+		if (props.sessionId && props.onDraftChange) blockDraftChange.set(props.sessionId, props.onDraftChange);
 		blockReplayPainted.value = props.onReplayPainted;
 		blockReplayReady.value = props.onReplayReady;
 		return (
@@ -78,6 +120,7 @@ vi.mock("./BlockTerminal", () => ({
 				data-testid="block-terminal"
 				data-focus-token={props.focusToken}
 				data-records-spawn-grid={String(props.recordsSpawnGrid ?? true)}
+				data-visible={String(props.visible)}
 				className="block-terminal-root h-full w-full"
 			/>
 		);
@@ -162,6 +205,9 @@ beforeEach(() => {
 	prepareForActivationMock.mockResolvedValue(undefined);
 	attachmentMounts.value = 0;
 	attachmentUnmounts.value = 0;
+	terminalBlockListeners.clear();
+	muxConnectionListeners.clear();
+	blockDraftChange.clear();
 	useUiStore.setState({ inspectorSessions: {} });
 	resetPaneGridForTests();
 });
@@ -293,6 +339,133 @@ describe("TerminalPane focus", () => {
 			await waitFor(() => expect(activeFocusToken()).toBe("2"));
 			expect(screen.getByTestId("terminal-cache-parking").querySelector("[data-focus-token]")?.getAttribute("data-focus-token")).toBe("1");
 		} finally {
+			view.restore();
+		}
+	});
+
+	it("paints a retained terminal on screen and stops painting it while parked", async () => {
+		const sessionA = { ...worker, id: "sess-a", title: "session A", terminalHandleId: "handle-a" };
+		const sessionB = { ...worker, id: "sess-b", title: "session B", terminalHandleId: "handle-b" };
+		const view = renderCachedPane({ session: sessionA, sessions: [sessionA, sessionB] });
+		try {
+			await waitFor(() => expect(activeFocusToken()).toBe("1"));
+			const paneA = screen.getByTestId("block-terminal");
+			expect(paneA.getAttribute("data-visible")).toBe("true");
+
+			view.show(sessionB);
+			await waitFor(() => expect(paneA.getAttribute("data-visible")).toBe("false"));
+			expect(
+				within(screen.getByTestId("session-terminal-slot")).getByTestId("block-terminal").getAttribute("data-visible"),
+			).toBe("true");
+
+			view.show(sessionA);
+			await waitFor(() => expect(activeFocusToken()).toBe("2"));
+			expect(paneA.getAttribute("data-visible")).toBe("true");
+		} finally {
+			view.restore();
+		}
+	});
+
+	it("paints both terminals of a split, focused or not", async () => {
+		const sessionA = { ...worker, id: "sess-a", title: "session A", terminalHandleId: "handle-a" };
+		const sessionB = { ...worker, id: "sess-b", title: "session B", terminalHandleId: "handle-b" };
+		const view = renderSplitPanes([sessionA, sessionB]);
+		try {
+			await waitFor(() => expect(screen.getAllByTestId("block-terminal")).toHaveLength(2));
+			for (const pane of screen.getAllByTestId("block-terminal")) {
+				await waitFor(() => expect(pane.getAttribute("data-visible")).toBe("true"));
+			}
+		} finally {
+			view.restore();
+		}
+	});
+
+	it("paints a retained terminal while it is being prepared, before it is revealed", async () => {
+		const sessionA = { ...worker, id: "sess-a", title: "session A", terminalHandleId: "handle-a" };
+		const sessionB = { ...worker, id: "sess-b", title: "session B", terminalHandleId: "handle-b" };
+		const view = renderCachedPane({ session: sessionA, sessions: [sessionA, sessionB] });
+		try {
+			await waitFor(() => expect(activeFocusToken()).toBe("1"));
+			const paneA = screen.getByTestId("block-terminal");
+			view.show(sessionB);
+			await waitFor(() => expect(paneA.getAttribute("data-visible")).toBe("false"));
+			view.show(sessionA);
+			const container = paneA.closest<HTMLElement>("[data-terminal-activation-phase]")!;
+			await waitFor(() => expect(container.dataset.terminalActivationPhase).not.toBe("parked"));
+			expect(paneA.getAttribute("data-visible")).toBe("true");
+		} finally {
+			view.restore();
+		}
+	});
+
+	it("unloads a pane left parked for the unload delay and reopens it fresh", async () => {
+		vi.useFakeTimers({ shouldAdvanceTime: true });
+		const sessionA = { ...worker, id: "sess-a", title: "session A", terminalHandleId: "handle-a" };
+		const sessionB = { ...worker, id: "sess-b", title: "session B", terminalHandleId: "handle-b" };
+		const view = renderCachedPane({ session: sessionA, sessions: [sessionA, sessionB] });
+		try {
+			await waitFor(() => expect(activeFocusToken()).toBe("1"));
+			view.show(sessionB);
+			const parking = screen.getByTestId("terminal-cache-parking");
+			await waitFor(() => expect(parking.querySelector("[data-terminal-cache-key]")).not.toBeNull());
+			await act(async () => {
+				vi.advanceTimersByTime(RETAINED_TERMINAL_UNLOAD_MS);
+			});
+			expect(parking.querySelector("[data-terminal-cache-key]")).toBeNull();
+			view.show(sessionA);
+			await waitFor(() => expect(activeFocusToken()).toBe("1"));
+			expect(screen.getAllByTestId("block-terminal")).toHaveLength(2);
+		} finally {
+			vi.useRealTimers();
+			view.restore();
+		}
+	});
+
+	it("showing a parked pane cancels its unload", async () => {
+		vi.useFakeTimers({ shouldAdvanceTime: true });
+		const sessionA = { ...worker, id: "sess-a", title: "session A", terminalHandleId: "handle-a" };
+		const sessionB = { ...worker, id: "sess-b", title: "session B", terminalHandleId: "handle-b" };
+		const view = renderCachedPane({ session: sessionA, sessions: [sessionA, sessionB] });
+		try {
+			await waitFor(() => expect(activeFocusToken()).toBe("1"));
+			const paneA = screen.getByTestId("block-terminal");
+			view.show(sessionB);
+			await act(async () => {
+				vi.advanceTimersByTime(RETAINED_TERMINAL_UNLOAD_MS - 1000);
+			});
+			view.show(sessionA);
+			await waitFor(() => expect(activeFocusToken()).toBe("2"));
+			await act(async () => {
+				vi.advanceTimersByTime(RETAINED_TERMINAL_UNLOAD_MS);
+			});
+			expect(paneA.isConnected).toBe(true);
+			expect(within(screen.getByTestId("session-terminal-slot")).getByTestId("block-terminal")).toBe(paneA);
+		} finally {
+			vi.useRealTimers();
+			view.restore();
+		}
+	});
+
+	it("an unloaded pane reopens once, with one attachment", async () => {
+		vi.useFakeTimers({ shouldAdvanceTime: true });
+		const sessionA = { ...worker, id: "sess-a", title: "session A", terminalHandleId: "handle-a" };
+		const sessionB = { ...worker, id: "sess-b", title: "session B", terminalHandleId: "handle-b" };
+		const view = renderCachedPane({ session: sessionA, sessions: [sessionA, sessionB] });
+		try {
+			await waitFor(() => expect(activeFocusToken()).toBe("1"));
+			view.show(sessionB);
+			await act(async () => {
+				vi.advanceTimersByTime(RETAINED_TERMINAL_UNLOAD_MS);
+			});
+			expect(document.querySelectorAll('[data-terminal-cache-key*="handle-a"]')).toHaveLength(0);
+			expect(attachmentMounts.value - attachmentUnmounts.value).toBe(1);
+			view.show(sessionA);
+			view.show(sessionA);
+			await waitFor(() => expect(activeFocusToken()).toBe("1"));
+			expect(document.querySelectorAll('[data-terminal-cache-key*="handle-a"]')).toHaveLength(1);
+			expect(attachmentMounts.value - attachmentUnmounts.value).toBe(2);
+		} finally {
+			vi.useRealTimers();
 			view.restore();
 		}
 	});
@@ -620,6 +793,184 @@ describe("TerminalCacheProvider", () => {
 		} finally {
 			view.restore();
 		}
+	});
+
+	describe("unloaded shell notifications", () => {
+		const shell: ShellTerminal = {
+			handleId: "shell-handle",
+			workingDir: "/repo/my-app",
+			title: "scratch",
+			createdAt: "2026-07-30T00:00:00Z",
+		};
+		const shellTarget: TerminalTarget = {
+			generation: shell.createdAt,
+			kind: "shell",
+			handleId: shell.handleId,
+			sessionId: sessionA.id,
+			title: shell.title,
+		};
+		const finished = (sourceId: string): TerminalBlockFrame => ({
+			sourceId,
+			exitCode: 0,
+			startedAt: "2026-09-23T10:00:00.000Z",
+			finishedAt: "2026-09-23T10:00:15.000Z",
+		});
+		const deliver = (block: TerminalBlockFrame) =>
+			terminalBlockListeners.get(shell.handleId)?.forEach((listener) => listener(block));
+
+		async function unloadShell() {
+			vi.useFakeTimers({ shouldAdvanceTime: true });
+			const view = renderCachedPane({
+				session: sessionA,
+				sessions: [sessionA],
+				shellTerminals: [shell],
+				terminalTarget: shellTarget,
+			});
+			const shellAttachment = await waitFor(() => activeAttachment());
+			view.show(sessionA, { kind: "worker" });
+			await waitFor(() => expect(activeAttachment()).not.toBe(shellAttachment));
+			await act(async () => {
+				vi.advanceTimersByTime(RETAINED_TERMINAL_UNLOAD_MS);
+			});
+			await waitFor(() => expect(shellAttachment.isConnected).toBe(false));
+			return view;
+		}
+
+		it("keeps a parked shell holding an unsent draft loaded until the draft is gone", async () => {
+			vi.useFakeTimers({ shouldAdvanceTime: true });
+			const view = renderCachedPane({
+				session: sessionA,
+				sessions: [sessionA],
+				shellTerminals: [shell],
+				terminalTarget: shellTarget,
+			});
+			try {
+				const shellAttachment = await waitFor(() => activeAttachment());
+				act(() => blockDraftChange.get(shell.handleId)?.("echo unsent"));
+				view.show(sessionA, { kind: "worker" });
+				await waitFor(() => expect(activeAttachment()).not.toBe(shellAttachment));
+				await act(async () => {
+					vi.advanceTimersByTime(RETAINED_TERMINAL_UNLOAD_MS);
+				});
+				expect(shellAttachment.isConnected).toBe(true);
+				act(() => blockDraftChange.get(shell.handleId)?.(""));
+				await act(async () => {
+					vi.advanceTimersByTime(RETAINED_TERMINAL_UNLOAD_MS);
+				});
+				await waitFor(() => expect(shellAttachment.isConnected).toBe(false));
+			} finally {
+				vi.useRealTimers();
+				view.restore();
+			}
+		});
+
+		it("notifies a finished command of an unloaded shell once, and not after it is shown again", async () => {
+			const show = vi.spyOn(operatorBridge.notifications, "show").mockResolvedValue(undefined);
+			const view = await unloadShell();
+			try {
+				deliver(finished("osc133-1-0"));
+				expect(show).toHaveBeenCalledTimes(1);
+				expect(show).toHaveBeenCalledWith(
+					expect.objectContaining({ id: "block-finished:shell-handle:osc133-1-0", type: "terminal" }),
+				);
+
+				view.show(sessionA, shellTarget);
+				await waitFor(() => expect(activeAttachment().isConnected).toBe(true));
+				deliver(finished("osc133-2-0"));
+				expect(show).toHaveBeenCalledTimes(1);
+				expect(terminalBlockListeners.get(shell.handleId)?.size ?? 0).toBe(0);
+			} finally {
+				show.mockRestore();
+				vi.useRealTimers();
+				view.restore();
+			}
+		});
+
+		it("drops an unloaded shell's block subscription when the shell closes", async () => {
+			const view = await unloadShell();
+			try {
+				expect(terminalBlockListeners.get(shell.handleId)?.size).toBe(1);
+				act(() => {
+					view.queryClient.setQueryData(shellTerminalsQueryKey, []);
+				});
+				await waitFor(() => expect(terminalBlockListeners.get(shell.handleId)?.size).toBe(0));
+			} finally {
+				vi.useRealTimers();
+				view.restore();
+			}
+		});
+
+		const dropSocket = () => {
+			act(() => {
+				[...muxConnectionListeners].forEach((listener) => listener("closed"));
+			});
+		};
+
+		it("watches an unloaded shell again after the mux socket drops", async () => {
+			const show = vi.spyOn(operatorBridge.notifications, "show").mockResolvedValue(undefined);
+			const view = await unloadShell();
+			try {
+				expect(terminalBlockListeners.get(shell.handleId)?.size).toBe(1);
+				dropSocket();
+				expect(terminalBlockListeners.get(shell.handleId)?.size ?? 0).toBe(0);
+				await act(async () => {
+					vi.advanceTimersByTime(UNLOADED_SHELL_REWATCH_MAX_MS);
+				});
+				expect(terminalBlockListeners.get(shell.handleId)?.size).toBe(1);
+				deliver(finished("osc133-3-0"));
+				expect(show).toHaveBeenCalledTimes(1);
+				expect(show).toHaveBeenCalledWith(
+					expect.objectContaining({ id: "block-finished:shell-handle:osc133-3-0" }),
+				);
+			} finally {
+				show.mockRestore();
+				vi.useRealTimers();
+				view.restore();
+			}
+		});
+
+		it("leaves no watch behind when an unloaded shell is reopened during the re-watch backoff", async () => {
+			const view = await unloadShell();
+			try {
+				dropSocket();
+				view.show(sessionA, shellTarget);
+				await waitFor(() => expect(activeAttachment().isConnected).toBe(true));
+				await act(async () => {
+					vi.advanceTimersByTime(UNLOADED_SHELL_REWATCH_MAX_MS);
+				});
+				expect(terminalBlockListeners.get(shell.handleId)?.size ?? 0).toBe(0);
+			} finally {
+				vi.useRealTimers();
+				view.restore();
+			}
+		});
+
+		it("leaves no watch behind when the provider unmounts during the re-watch backoff", async () => {
+			const view = await unloadShell();
+			try {
+				dropSocket();
+				view.unmount();
+				await act(async () => {
+					vi.advanceTimersByTime(UNLOADED_SHELL_REWATCH_MAX_MS);
+				});
+				expect(terminalBlockListeners.get(shell.handleId)?.size ?? 0).toBe(0);
+			} finally {
+				vi.useRealTimers();
+				view.restore();
+			}
+		});
+
+		it("drops an unloaded shell's block subscription when the provider unmounts", async () => {
+			const view = await unloadShell();
+			try {
+				expect(terminalBlockListeners.get(shell.handleId)?.size).toBe(1);
+				view.unmount();
+				expect(terminalBlockListeners.get(shell.handleId)?.size).toBe(0);
+			} finally {
+				vi.useRealTimers();
+				view.restore();
+			}
+		});
 	});
 
 	// The sidebar's per-session terminal button lands here: the session view
@@ -1017,6 +1368,36 @@ describe("TerminalCacheProvider with several panes", () => {
 				screen.getByTestId("terminal-cache-parking").querySelector('[data-terminal-cache-key^="session:sess-b:worker|"]'),
 			).not.toBeNull();
 		} finally {
+			view.restore();
+		}
+	});
+
+	it("unloads the terminal a split pane replaced, and never the ones on screen", async () => {
+		vi.useFakeTimers({ shouldAdvanceTime: true });
+		const view = renderSplitPanes([a, b, c]);
+		try {
+			const left = await waitFor(() => {
+				const element = attachmentIn("pane-left");
+				expect(element).not.toBeNull();
+				return element as HTMLElement;
+			});
+			view.show(a, c);
+			const right = await waitFor(() => {
+				const element = screen.getByTestId("pane-right").querySelector<HTMLElement>('[data-terminal-cache-key^="session:sess-c:worker|"]');
+				expect(element).not.toBeNull();
+				return element as HTMLElement;
+			});
+			const parking = screen.getByTestId("terminal-cache-parking");
+			expect(parking.querySelector('[data-terminal-cache-key^="session:sess-b:worker|"]')).not.toBeNull();
+			await act(async () => {
+				vi.advanceTimersByTime(RETAINED_TERMINAL_UNLOAD_MS * 2);
+			});
+			expect(parking.querySelector('[data-terminal-cache-key^="session:sess-b:worker|"]')).toBeNull();
+			expect(attachmentIn("pane-left")).toBe(left);
+			expect(right.isConnected).toBe(true);
+			expect(attachmentUnmounts.value).toBe(1);
+		} finally {
+			vi.useRealTimers();
 			view.restore();
 		}
 	});

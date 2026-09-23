@@ -183,6 +183,11 @@ export class DomBenchmarkRenderer implements BenchmarkRenderer {
 		return this.core;
 	}
 
+	setVisible(visible: boolean): void {
+		this.renderer?.setVisible(visible);
+		this.editor?.setVisible(visible);
+	}
+
 	private assertReady(): void {
 		if (this.failure) throw this.failure;
 		if (!this.core || !this.renderer || !this.editor || !this.editorRoot) {

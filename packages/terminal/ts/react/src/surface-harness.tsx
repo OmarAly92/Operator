@@ -63,14 +63,17 @@ export function renderSurface(
 		host?: HostCapabilities;
 		onHint?: (hint: HintEvent) => void;
 		focusToken?: number;
+		visible?: boolean;
 	} = {},
 ) {
 	const core = createTerminalCore({ columns: 16, scrollback: 100 });
+	let currentVisible = overrides.visible;
 	const surfaceWith = (
 		onPaint?: () => void,
 		refitToken?: number,
 		focusToken = overrides.focusToken,
 		onSendRaw: (data: string) => void = overrides.onSendRaw ?? ignoreRaw,
+		visible: boolean | undefined = currentVisible,
 	) => (
 		<TerminalSurface
 			core={core}
@@ -85,6 +88,7 @@ export function renderSurface(
 			onHint={overrides.onHint}
 			refitToken={refitToken}
 			focusToken={focusToken}
+			visible={visible}
 		/>
 	);
 	const result = render(surfaceWith());
@@ -95,7 +99,11 @@ export function renderSurface(
 	const focus = (token: number) => result.rerender(surfaceWith(undefined, undefined, token));
 	const rebuild = () =>
 		result.rerender(surfaceWith(undefined, undefined, undefined, (data) => (overrides.onSendRaw ?? ignoreRaw)(data)));
-	return { core, host, surface, rerenderWithPaint, refit, focus, rebuild, ...result };
+	const setVisible = (visible?: boolean) => {
+		currentVisible = visible;
+		return result.rerender(surfaceWith(undefined, undefined, undefined, undefined, visible));
+	};
+	return { core, host, surface, rerenderWithPaint, refit, focus, rebuild, setVisible, ...result };
 }
 
 export function setHostSize(host: HTMLElement, width: number, height: number): void {

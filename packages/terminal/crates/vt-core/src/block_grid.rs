@@ -30,6 +30,7 @@ pub struct BlockGrid {
     retreat_slack: usize,
     clock_ms: u64,
     trailing_started_at_ms: Option<u64>,
+    open_start_fixed: bool,
 }
 
 impl BlockGrid {
@@ -45,6 +46,7 @@ impl BlockGrid {
             retreat_slack: 0,
             clock_ms: 0,
             trailing_started_at_ms: None,
+            open_start_fixed: false,
         }
     }
 
@@ -140,6 +142,7 @@ impl BlockGrid {
         };
         self.pending_extension = false;
         let mut meta = std::mem::take(&mut self.pending_meta);
+        self.open_start_fixed = meta.started_at_ms.is_some();
         meta.started_at_ms.get_or_insert(self.clock_ms);
         self.trailing_started_at_ms = None;
         self.open = Some(Block {
@@ -172,6 +175,10 @@ impl BlockGrid {
         if let Some(block) = self.open.as_mut() {
             if !block.meta.command.is_empty() {
                 block.first_row = self.origin + first_row;
+            }
+            if !self.open_start_fixed {
+                block.meta.started_at_ms = Some(self.clock_ms);
+                self.open_start_fixed = true;
             }
         }
     }
@@ -290,6 +297,7 @@ impl BlockGrid {
             "start_ms" => {
                 if let Ok(ts) = value.parse::<u64>() {
                     meta.started_at_ms = Some(ts);
+                    self.open_start_fixed = true;
                 }
                 // See "exit" above for why a recognised key still
                 // upgrades on a parse failure.

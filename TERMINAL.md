@@ -134,9 +134,17 @@ rebuilt (§6).
   only (`parser.rs:629`), so the registry grows to its cap and stays —
   deliberate and bounded, not an oversight, and listed in §5.
 - **BlockGrid clock.** A block missing the shell hook's `start_ms`/`end_ms` is
-  stamped from the clock of the feed that opened and closed it
-  (`BlockGrid::set_clock`/`note_output`, `BlockRecord.started_at_ms`/
-  `finished_at_ms`). The TS core feeds and the renderer ticks with
+  stamped from the clock of the feed that started its command and the feed
+  that closed it (`BlockGrid::set_clock`/`note_output`,
+  `BlockRecord.started_at_ms`/`finished_at_ms`). The start is the command's
+  output start (`OSC 133;C`, `BlockGrid::start_output`), not its prompt
+  (`OSC 133;A`), so a block's duration never includes time spent typing at the
+  prompt; a block whose command never started keeps its prompt's clock, and a
+  hook `start_ms` always wins. Warp times a block the same way: `start_ts` is
+  set when the command is submitted, or at preexec when that was not observed
+  (`warp/app/src/terminal/model/block.rs` `Block::start`,
+  `ensure_started_for_preexec`), and its long-running notification reads
+  `completed_ts - start_ts` (`warp/app/src/terminal/view.rs` `block_duration`). The TS core feeds and the renderer ticks with
   `Date.now()`, not `performance.now()`, so these stamps are epoch
   milliseconds like the Go mirror's `time.Now().UnixMilli()` and the hook's
   own `start_ms`/`end_ms`.
@@ -145,8 +153,8 @@ rebuilt (§6).
   is the gate every Plan D behavior sits behind — SGR attributes, grapheme
   clusters, cursor contrast/hollow, and the width cache. `graphemes` and
   `widthCache` default on (2026-09-22, together — see §5 for why never one
-  without the other); the rest default off (see §5 for what each flag costs
-  or leaves unresolved). `TerminalSurface` puts the core in the resolved
+  without the other); `attributes` defaults to `"warp"` (2026-09-23, §5);
+  the cursor flags default off (see §5 for what each leaves unresolved). `TerminalSurface` puts the core in the resolved
   `graphemes` mode in a layout effect that runs before the geometry effect,
   and hosts `enqueue` bytes, which parse on the renderer's frame drain — so no
   byte reaches the parser before the mode is set.
@@ -772,13 +780,75 @@ history of `master`.
   sizes…", "sends nothing when a pane is parked and shown at the grid it already
   published".
 
+### 4.25 A hidden window drained nothing and notified nothing — `cb7b34b3b`
+- Symptom: while Operator's window was minimised or app-hidden, no pane parsed
+  its output and no "command finished" notification fired. On restore the
+  pending blocks finished at once and reported `visible: true`, so
+  `BlockTerminal` suppressed the notification for a command that finished while
+  the user was away.
+- Cause: `requestAnimationFrame` never fires in a hidden WKWebView (0 per
+  second minimised or app-hidden, measured by
+  `scripts/probe-wkwebview-hidden.swift`;
+  `docs/superpowers/specs/2026-09-23-background-pane-cost-measurement.md`), and
+  the renderer drained, ticked and detected finished blocks only from its
+  animation frame. Every pane, the active one too, stopped.
+- Now: while `document.visibilityState` is `"hidden"` the renderer schedules its
+  frame on a `HIDDEN_TICK_MS` (100 ms) timer, which WebKit throttles to ~1/s;
+  each tick drains up to `HIDDEN_DRAIN_MS` (250 ms), ticks the core and reports
+  finished blocks with `visible: false`, painting nothing. When the document is
+  shown the renderer goes back to animation frames and a pane that paints
+  rebuilds in full on the first one (`catchUp`). The paint gate (`setVisible(false)`,
+  `6f8e38973`) is the same non-painting frame for a parked pane while the
+  window is shown, so a pane parked in a hidden window stays unpainted when the
+  window returns.
+- Guards: `dom-block-renderer.visibility.test.ts` "hidden document" and "paint
+  gate" describes; `TerminalPane.test.tsx` "paints a retained terminal on
+  screen and stops painting it while parked".
+
+### 4.26 Layout containment — measured, no gain, not applied
+- What was tried: `contain: layout` on `.terminal-row`, A/B in one session
+  against a control (`bench/agent-session/run.mjs --panes-only --css …`).
+  10-visible Layout: control 0.246–0.296, with containment 0.264–0.274 s —
+  inside noise (2026-09-23,
+  `docs/superpowers/specs/2026-09-23-layout-containment-measurement.md`
+  "After"); WebKit repaint loop 1109–1170 ms control against 1075–1164 ms,
+  discarded because the control ran first in every pair and drifted down
+  through the session. `.terminal-block` was not tried: the plan tries it
+  only on top of kept row containment. Nothing was changed.
+- Why it cannot help much here: the scroller is already `contain: strict`
+  (`dom-block-renderer.ts:161`), so a frame's layout never leaves the pane,
+  and each layout already has a median of 142 dirty objects out of 274–370
+  (trace `beginData`), the same 142 with containment. What they are was not
+  broken down; the rows rebuilt each frame are the likely bulk (inference,
+  not measured), and new nodes need layout anyway. There is also no second
+  layout to remove:
+  0 render-step layouts per frame.
+- Ruled out, do not add: `paint` (clips at the box and saves no layout);
+  `size`, `strict`, `content`, `content-visibility: auto` (a row's height is
+  not provably one line: text past its last run sits in the row's own line
+  box, `row-builder.ts:116-119`; the virtualiser already mounts only visible
+  rows); `style` (nothing to scope).
+- Guard: `styles-parity.test.ts` "never uses a containment that clips paint
+  or fixes size".
+
 ## 5. Known gaps (not bugs, decisions pending)
 
-- SGR attributes (italic, underline in 5 styles, SGR 58 colour, strike,
-  overline, hidden, blink) are parsed unconditionally but rendered only
-  behind `RendererFeatures.attributes = "warp"`; the default is `"plain"`,
-  which paints none of them. An underlined trailing blank is still trimmed
-  from the export.
+- **SGR attributes render by default since 2026-09-23.**
+  `RendererFeatures.attributes` defaults to `"warp"` (italic, underline in 5
+  styles, SGR 58 colour, strike, overline, hidden, blink); `"plain"` keeps
+  only bold and dim (`row-builder.ts:75-80`) and is what
+  `baselines/*/feature-attributes_plain/` shows. Evidence
+  (`bench/agent-session/fixtures/claude-markdown-reply`, a markdown reply, a
+  diff and a Bash call from Claude Code v2.1.280): italic 5 emissions, bold
+  18, dim 6, and no underline, strike, inverse, blink, hidden, overline or
+  SGR 58; the older two recordings carry none of the new set. On every
+  Claude Code recording the flip changes exactly two words, both italic
+  (`claude-markdown-reply` offset-0). The underline, strike, overline and
+  hidden paths are exercised only by `glyph-probe` and unit tests. An
+  underlined trailing blank is still trimmed from the export. The cursor
+  flags stayed off: `cursorContrast` changes 0 px on every Claude Code
+  recording (the input cursor sits on the default background), and
+  `cursorHollowUnfocused` was not chosen.
   `styles.json` covers no blink/overline case because Alacritty's reference
   cell flags have none to record. In both width modes a zero-width scalar
   after a space now rewraps with the space instead of starting a new row
@@ -906,6 +976,19 @@ history of `master`.
   `widthChange` and the gate's trim phase use it. 6/6 clean runs after the
   fix against 1/4 before. Do not reintroduce a frame-count wait in the
   harness; wait for the paint the action causes.
+- **A second frame-count wait lived in `feedAll`/`feedUntilRows` — fixed
+  2026-09-23.** `bench:agent:scroll` failed 2 of 20 runs with `scrolling
+  reached 59908 of 60134 rows` (2235 steps against 2245). Headless Chromium
+  fires animation frames every ~8.3 ms, so the renderer paints every other
+  frame; `feedAll` waited one frame after the last feed and then
+  `DomBenchmarkRenderer.waitForPaint`, which resolves one frame after *any*
+  paint since it last looked (`bench/adapters/dom.ts:123-127`) — an earlier
+  chunk's paint. When both frames fell under 16.42 ms of the previous paint
+  (15.1, 15.8, 16.0 ms in the failing traces) the last chunk was unpainted:
+  the DOM's last row 59852 of 60133 and `scrollHeight` 4720 px short, so the
+  walk started ten steps low and never saw the tail. Probe: 5 of 50 short
+  before, 0 of 30 after. `feedWhile` now waits on the paint counter from
+  before the last feed (`paintSince`), like `paintAfter`.
 - **`run.mjs`'s `widthChange` row reads the top-edge row 5 rows apart before
   and after (60081 → 60086) — that is the sticky-bottom contract, not a
   bug.** That probe resizes with no prior scroll, so the pane is pinned to
@@ -1014,6 +1097,69 @@ history of `master`.
   `TerminalSurface.test.tsx` "keeps Claude Code on the primary screen…" feeds
   the recording and asserts `altScreen` stays null.
 
+- **What a parked pane still costs.** Measured 2026-09-23 on
+  `terminal-background-pane` `1b76f26fd` (`run.mjs --panes-only`, three runs,
+  `claude-spinner-10s`, 100 frames over 10 s): 1 visible + 9 parked
+  0.518–0.528 s against a solo row of 0.419–0.458 s and 10 visible
+  1.296–1.326 s, i.e. 7.6–12.1 ms per parked pane per 10 s (65–88 ms before
+  the gate); parked panes add no layouts, no style recalcs and no DOM
+  mutations (`parkedMutations` 0). What remains: every change still builds one
+  snapshot per parked pane for block detection (`settleHidden` →
+  `detectFinishedBlocks`, 55.4 ms of the 1+9 profile, mostly
+  `export_screen_row`) and decodes its blocks, and in the app
+  `TerminalSurface`'s alt-screen listener reads another
+  (`TerminalSurface.tsx:303`, not mounted by the bench), and the line editor
+  still ingests history per change from that same snapshot so a command that
+  scrolls out while the pane is hidden stays in Up-arrow recall; the parse itself is
+  small (`drain` 5.9 ms). A hidden window drains up to `HIDDEN_DRAIN_MS`
+  (250 ms) of parse per timer tick, and WebKit throttles that timer to ~1/s,
+  so only a producer that needs more than ~250 ms of parse per second grows
+  the backlog while the window is hidden. The budget is larger than
+  `FEED_BUDGET_MS` (12 ms) there because nothing paints, so there is no frame
+  to protect; with 12 ms a busy session's closing mark stayed in the backlog
+  until restore, where the block was reported `visible: true` and its
+  notification suppressed. Animation-frame drains keep 12 ms. `rendererVisible`
+  remains only the fallback for `onBlockFinished`'s `visible` when a host
+  never calls `setVisible`; it is never a paint gate. The forced layout per
+  paint (now `dom-block-renderer.ts:1149`, the pinned-header
+  `getBoundingClientRect`) is still paid by every **visible** pane
+  (measurement note, "Follow-ups"). Numbers and profile:
+  `docs/superpowers/specs/2026-09-23-background-pane-cost-measurement.md`
+  "After".
+  A pane parked longer than `RETAINED_TERMINAL_UNLOAD_MS` (30 minutes,
+  `frontend/src/renderer/lib/retained-terminal.ts`) is unloaded by Operator's
+  retained-terminal cache (`TerminalPane.tsx` `scheduleUnload`), not by the
+  package: its renderer, core and mux attachment go away, the pty-host keeps
+  the session, and showing it again reopens it through attach + history
+  replay (§4.19). A shell pane whose line editor holds an unsent draft is not
+  unloaded (its timer re-arms until the draft is gone). All cores share one
+  `WebAssembly.Memory`, which never
+  shrinks, so an unload frees space for the next core to reuse; it does not
+  lower the resident size already reached. What switching back costs was not
+  measured in the app (the real-app check could not run: dev ports busy); the
+  only numbers are the bench's, ~40 ms to first paint and ~100–130 ms for 60k
+  history rows (spec table "reopen" row). Worker panes lose no notifications
+  by unloading, since Claude Code emits no block marks (0 `OSC 133`, 0
+  `OSC 7000` in `claude-spinner-10s` and `claude-long-50k`) and "needs input"
+  comes from the daemon's SSE stream; an unloaded shell pane is notified of
+  finished commands from the daemon's `terminal_block` mux frames
+  (`TerminalMux.onTerminalBlock`, `lib/shell-block-notifications.ts`). The
+  shell hooks send no `start_ms`, so the daemon's `BlockAssembler` stamps a
+  block's start when its output begins (`OSC 133;C`) and a frame with no usable
+  start never notifies; before that fix every frame carried
+  `startedAt: 0001-01-01` and would have notified every command. The loaded
+  renderer times a block from its prompt (`OSC 133;A`, vt-core
+  `BlockGrid::open_block`), so its duration includes time spent typing at the
+  prompt — pre-existing, and why a short command after a long pause at the
+  prompt can still notify from a loaded pane. Long
+  run: the 30-minute bench soak (1 visible + 9 parked, 64 KiB/s each) holds
+  about 25 MiB of wasm per core at the 200k-row cap from minute 7, flat to
+  minute 30, and ~1.9 s of main thread a minute, byte-for-byte repeatable
+  across two runs; the bench has no cache, so it cannot show the unload. The
+  2-hour real-app soak (WebContent RSS and CPU, a minimised stretch, and
+  2 visible split panes + parked) is not verified: dev ports busy.
+  Measurement note "Memory and long run" and "Long run after unload".
+
 ---
 
 ## 6. Verify and ship — the exact recipe
@@ -1042,7 +1188,7 @@ for p in core renderer-dom react; do (cd ts/$p && npx vitest run); done
 npm run bench:selection      # Playwright: a selection must survive 20 repaints
 npm run bench:feel           # Playwright: zero pixel diff vs bench/agent-session/baselines (record with -- --record)
 npm run bench:glyphs         # Playwright: evidence for the glyph probe (box-drawing gap, width-cache drift), writes baselines/glyph-probe/EVIDENCE*.json
-npm run bench:feel -- --feature <list>  # Playwright: side-by-side screenshots for a flag, e.g. attributes=warp — never diffed, only recorded
+npm run bench:feel -- --feature <list>  # Playwright: side-by-side screenshots for a flag, e.g. attributes=plain — never diffed, only recorded
 npm run bench:agent:gate     # Playwright: no torn paint under the spinner, queued 2 MiB never blocks > 16 ms
 npm run bench:agent:scroll   # Playwright: full scroll coverage, trim anchor holds, width-change gate (top-edge row and lazy rewrap)
 npm run bench:affordances -- --action <hover|hint|redact>  # Playwright: side-by-side screenshots of one affordance on act-probe — never diffed

@@ -34,6 +34,7 @@ describe("TerminalSurface mouse and wheel", () => {
 	});
 
 	it("accumulates precise trackpad pixels using the measured cell height", () => {
+		const clock = vi.spyOn(performance, "now").mockReturnValue(1000);
 		const onSendRaw = vi.fn();
 		const { container, core } = renderSurface({ onSendRaw });
 		act(() => {
@@ -45,6 +46,7 @@ describe("TerminalSurface mouse and wheel", () => {
 		surface.dispatchEvent(new WheelEvent("wheel", { deltaY: 9, bubbles: true, cancelable: true }));
 		expect(onSendRaw).toHaveBeenCalledOnce();
 		expect(onSendRaw).toHaveBeenCalledWith("\x1bOB");
+		clock.mockRestore();
 	});
 
 	it("accelerates a flick so it travels further than the same pixels crept", () => {
