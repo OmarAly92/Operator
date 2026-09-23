@@ -153,6 +153,14 @@ branches on it. Keep `requestId` — dropping it is a regression, not a simplifi
 deliberately: this is a dense, information-first phone UI, and rounding up to a
 Material scale would visibly change the design.
 
+**Phone alerts.** The phone gets alerts two ways: while the app is open, a live
+`notifications` channel on `MuxClient` raises local notifications (skipping the
+viewed session and quiet ones); while it is backgrounded or the phone is locked,
+the daemon sends through ntfy (ntfy.sh) to a per-pairing topic claimed via
+`POST /api/v1/phone-alerts/subscribe` and rotated with the desktop password.
+Settings → Phone alerts covers install, subscribe and a test send against
+`/api/v1/phone-alerts`. There is no Firebase or APNs dependency.
+
 ### Conventions specific to this package
 
 - **Cubit only** — never `Bloc` with events. Static-only classes are `sealed class X`.
@@ -187,12 +195,9 @@ not gate the app; keep fork diffs small enough to re-apply.
 
 ### Deliberately unwired
 
-Two subsystems are built and tested behind their seams but have no live SDK, and this
-is intentional — do not "finish" them without the credentials:
+One subsystem is built and tested behind its seam but has no live SDK, and this
+is intentional — do not "finish" it without the credentials:
 
 - **Telemetry.** The sanitizer, rate limiter, daily-active tracker and closed event
   vocabulary all exist; the sink is the abstract `MobileTelemetryClient`. No PostHog key
   exists, so nothing is sent.
-- **Push.** `push_registrar`, `push_registration`, `push_status` and the Settings switch
-  exist behind `PushTokenSource`. FCM/APNs registration needs a Firebase project and an
-  APNs key.

@@ -2,7 +2,7 @@
 
 **Date:** 2026-09-23
 **Decision owner:** Omar Aly
-**Status:** approved design, not yet implemented
+**Status:** implemented — see [docs/superpowers/plans/2026-09-23-agent-alerts.md](../plans/2026-09-23-agent-alerts.md)
 **Scope:** `backend/`, `frontend/` (renderer and `src-tauri`), `packages/mobile`
 
 ## 1. Why
