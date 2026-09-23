@@ -140,7 +140,8 @@ func Run() error {
 	// through the CDC change_log -- only session-state events do.
 	runtimeAdapter := runtimeselect.New(log)
 	managedPreview := previewserver.New(log, cfg.DataDir)
-	termMgr := terminal.NewManager(runtimeAdapter, cdcPipe.Broadcaster, log)
+	notificationHub := notify.NewHub()
+	termMgr := terminal.NewManager(runtimeAdapter, cdcPipe.Broadcaster, log, terminal.WithNotificationFeed(notificationHub))
 	defer termMgr.Close()
 
 	if n := redact.LoadUserPatterns(cfg.DataDir, log); n > 0 {
@@ -158,7 +159,6 @@ func Run() error {
 	// agent nudges (CI failure, review feedback, merge conflict).
 	messenger := newSessionMessenger(store, runtimeAdapter, log)
 	lifecycleMessenger := newModeAwareMessenger()
-	notificationHub := notify.NewHub()
 	notifier := notificationsvc.New(notificationsvc.Deps{Store: store})
 	notificationWriter := notify.New(notify.Deps{Store: store, Publisher: notificationHub})
 	// Resolution transitions that happened while the daemon was down never
