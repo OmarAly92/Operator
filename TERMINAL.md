@@ -134,9 +134,17 @@ rebuilt (§6).
   only (`parser.rs:629`), so the registry grows to its cap and stays —
   deliberate and bounded, not an oversight, and listed in §5.
 - **BlockGrid clock.** A block missing the shell hook's `start_ms`/`end_ms` is
-  stamped from the clock of the feed that opened and closed it
-  (`BlockGrid::set_clock`/`note_output`, `BlockRecord.started_at_ms`/
-  `finished_at_ms`). The TS core feeds and the renderer ticks with
+  stamped from the clock of the feed that started its command and the feed
+  that closed it (`BlockGrid::set_clock`/`note_output`,
+  `BlockRecord.started_at_ms`/`finished_at_ms`). The start is the command's
+  output start (`OSC 133;C`, `BlockGrid::start_output`), not its prompt
+  (`OSC 133;A`), so a block's duration never includes time spent typing at the
+  prompt; a block whose command never started keeps its prompt's clock, and a
+  hook `start_ms` always wins. Warp times a block the same way: `start_ts` is
+  set when the command is submitted, or at preexec when that was not observed
+  (`warp/app/src/terminal/model/block.rs` `Block::start`,
+  `ensure_started_for_preexec`), and its long-running notification reads
+  `completed_ts - start_ts` (`warp/app/src/terminal/view.rs` `block_duration`). The TS core feeds and the renderer ticks with
   `Date.now()`, not `performance.now()`, so these stamps are epoch
   milliseconds like the Go mirror's `time.Now().UnixMilli()` and the hook's
   own `start_ms`/`end_ms`.
