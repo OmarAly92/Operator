@@ -119,6 +119,7 @@ export class DomBlockRenderer implements BlockRenderer {
 	private activeFeatures: RendererFeatures = DEFAULT_FEATURES;
 	private focused = true;
 	private hostVisible: boolean | null = null;
+	private catchUp = false;
 	private blockStates = new Map<BlockId, BlockState>();
 	private readonly blockFinishedListeners = new Set<(event: BlockFinishedEvent) => void>();
 	private linkProviders: readonly LinkProvider[] = DEFAULT_LINK_PROVIDERS;
@@ -219,7 +220,23 @@ export class DomBlockRenderer implements BlockRenderer {
 	}
 
 	setVisible(visible: boolean | null): void {
+		const wasPainting = this.painting();
 		this.hostVisible = visible;
+		if (!this.painting()) {
+			if (wasPainting) {
+				this.sentCursor = null;
+				this.predictionsClear();
+			}
+			return;
+		}
+		if (wasPainting) return;
+		if (this.rafHandle !== null && typeof cancelAnimationFrame === "function") cancelAnimationFrame(this.rafHandle);
+		this.rafHandle = null;
+		this.core?.drain();
+		this.core?.tick(Date.now());
+		this.rebuildAll = this.rebuildAll || this.catchUp;
+		this.catchUp = false;
+		this.repaint(performance.now());
 	}
 
 	visibility(): boolean | null {
@@ -471,7 +488,7 @@ export class DomBlockRenderer implements BlockRenderer {
 	private linkChanged(): void {
 		const link = this.linkifier.current();
 		this.container?.classList.toggle("terminal-link-hover", link !== null);
-		this.paintDecorations();
+		if (this.painting()) this.paintDecorations();
 		for (const listener of [...this.linkHoverListeners]) listener(link);
 	}
 
@@ -596,6 +613,7 @@ export class DomBlockRenderer implements BlockRenderer {
 	}
 
 	private noteReceived(nowMs: number): void {
+		if (!this.painting()) return;
 		const before = this.sentCursor;
 		if (before === null) return;
 		const after = this.cursorPoint();
@@ -657,6 +675,7 @@ export class DomBlockRenderer implements BlockRenderer {
 	}
 
 	private reconcilePredictions(): void {
+		if (!this.painting()) return;
 		const now = performance.now();
 		const cursor = this.cursorPoint();
 		if (cursor !== null) {
@@ -743,6 +762,7 @@ export class DomBlockRenderer implements BlockRenderer {
 
 	dispose(): void {
 		this.hostVisible = null;
+		this.catchUp = false;
 		if (this.predictionTimer !== null) clearTimeout(this.predictionTimer), (this.predictionTimer = null);
 		this.jumpToBottom?.dispose(), (this.jumpToBottom = null);
 		this.blockNav?.dispose(), (this.blockNav = null);
@@ -836,6 +856,7 @@ export class DomBlockRenderer implements BlockRenderer {
 
 	private repaintOnFrame(timestamp: number): void {
 		if (
+			this.painting() &&
 			this.lastPaintAt !== null &&
 			timestamp - this.lastPaintAt + FRAME_EPSILON_MS < PAINT_INTERVAL_MS
 		) {
@@ -847,7 +868,24 @@ export class DomBlockRenderer implements BlockRenderer {
 		this.core?.drain();
 		this.core?.tick(Date.now());
 		this.rafHandle = null;
+		if (!this.painting()) {
+			this.settleHidden();
+			return;
+		}
 		this.repaint(timestamp);
+	}
+
+	private painting(): boolean {
+		return this.hostVisible !== false;
+	}
+
+	private settleHidden(): void {
+		const core = this.core;
+		if (!core || !this.container) return;
+		this.detectFinishedBlocks(core.snapshot());
+		core.takeDirty();
+		this.catchUp = true;
+		this.rescheduleIfPending(core);
 	}
 
 	private applyStyleVars(): void {

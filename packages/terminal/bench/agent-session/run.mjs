@@ -123,6 +123,7 @@ async function paneLoad(page, { extra, mode, profileOut }) {
 		await session.send("Profiler.setSamplingInterval", { interval: 100 });
 		await session.send("Profiler.start");
 	}
+	await page.evaluate(() => window.__agentSession.resetParkedMutations?.());
 	const before = await metricsNow(session);
 	await page.evaluate(() => window.__agentSession.feedFrames(100, 100));
 	const after = await metricsNow(session);
@@ -136,6 +137,7 @@ async function paneLoad(page, { extra, mode, profileOut }) {
 	}
 	await page.waitForTimeout(300);
 	if (mode === "parked") out.parkedState = await page.evaluate(() => window.__agentSession.parkedPaneState());
+	out.parkedMutations = await page.evaluate(() => window.__agentSession.parkedMutations());
 	return out;
 }
 

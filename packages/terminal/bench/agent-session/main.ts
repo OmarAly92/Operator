@@ -46,6 +46,8 @@ type AgentSession = {
 	extendSelectionByOneRow(): Promise<number>;
 	mountPanes(count: number, mode?: "visible" | "parked"): Promise<void>;
 	parkedPaneState(): Array<{ backlog: boolean; generation: number; rows: number }>;
+	parkedMutations(): number;
+	resetParkedMutations(): void;
 	reopenFromReplay(frame: Uint8Array, chunks: Uint8Array[]): Promise<{ firstPaintMs: number; allRowsMs: number; rows: number }>;
 	widthChange(cols: number): Promise<{ settleMs: number; before: number; after: number; staleRows: number }>;
 	staleRowCount(): number;
@@ -231,6 +233,7 @@ type PaneMode = "visible" | "parked";
 
 const extraPanes: Array<{ pane: DomBenchmarkRenderer; mode: PaneMode }> = [];
 let parkingLot: HTMLElement | null = null;
+let parkedMutations = 0;
 
 function parking(): HTMLElement {
 	if (parkingLot) return parkingLot;
@@ -239,6 +242,9 @@ function parking(): HTMLElement {
 	lot.dataset.testid = "terminal-cache-parking";
 	Object.assign(lot.style, { position: "fixed", top: "0", left: "-100000px", visibility: "hidden", pointerEvents: "none" });
 	document.body.append(lot);
+	new MutationObserver((records) => {
+		parkedMutations += records.length;
+	}).observe(lot, { childList: true, subtree: true, attributes: true, characterData: true });
 	parkingLot = lot;
 	return lot;
 }
@@ -265,7 +271,10 @@ async function mountPanes(count: number, mode: PaneMode = "visible"): Promise<vo
 		const pane = new DomBenchmarkRenderer();
 		await pane.mount(paneHost, { columns: sizes[0].cols, rows: sizes[0].rows, scrollback });
 		(pane.getCoreForBench() as TerminalCore).setAgentTuiMode(true);
-		if (mode === "parked") park(paneHost);
+		if (mode === "parked") {
+			park(paneHost);
+			pane.setVisible(false);
+		}
 		extraPanes.push({ pane, mode });
 	}
 }
@@ -426,6 +435,10 @@ window.__agentSession = {
 	core: () => core,
 	extendSelectionByOneRow,
 	mountPanes,
+	parkedMutations: () => parkedMutations,
+	resetParkedMutations: () => {
+		parkedMutations = 0;
+	},
 	parkedPaneState: () =>
 		extraPanes
 			.filter(({ mode }) => mode === "parked")

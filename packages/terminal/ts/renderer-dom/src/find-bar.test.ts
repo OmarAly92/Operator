@@ -444,4 +444,25 @@ describe("find-bar", () => {
 
 		bar.dispose();
 	});
+
+	it("keeps the query and the count across park and reveal", async () => {
+		const { core, host, renderer } = makeMountedCore();
+		unmount = () => renderer.dispose();
+		const bar = createFindBar({ core, renderer: renderer as unknown as BlockRenderer, host: makeBarHost(renderer), strings: defaultStrings });
+		bar.mount(host);
+		bar.open();
+		const input = host.querySelector<HTMLInputElement>("input[data-terminal-find-input]")!;
+		input.value = "line 1";
+		input.dispatchEvent(new Event("input", { bubbles: true }));
+		await flushFrames(8);
+		const count = host.querySelector<HTMLElement>("[data-terminal-find-count]")!;
+		const before = count.textContent;
+		renderer.setVisible(false);
+		core.enqueue(new TextEncoder().encode("unrelated output\r\n"));
+		await flushFrames(8);
+		renderer.setVisible(true);
+		await flushFrames(8);
+		expect(input.value).toBe("line 1");
+		expect(count.textContent).toBe(before);
+	});
 });
