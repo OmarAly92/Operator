@@ -14,6 +14,7 @@ import {
 } from "@operator/terminal-react";
 import { operatorBridge } from "../lib/bridge";
 import { rememberPaneGrid } from "../lib/pane-grid";
+import { BLOCK_NOTIFY_AFTER_MS } from "../lib/retained-terminal";
 import { terminalBackgroundColor, type TerminalBackground } from "../lib/terminal-background";
 import { terminalPredictiveEchoThresholdMs } from "../lib/terminal-predictive-echo";
 import { useUiStore } from "../stores/ui-store";
@@ -73,10 +74,6 @@ export type BlockTerminalProps = {
 
 const DEFAULT_COLUMNS = 120;
 const DEFAULT_LIMITS = { rows: 200_000, bytes: 128 * 1024 * 1024 } as const;
-// Kitty's `notify_on_cmd_finish unfocused 10.0`
-// (kitty/kitty/options/definition.py): a command only earns a notification once
-// it has run long enough that the user has plausibly looked away.
-const BLOCK_NOTIFY_AFTER_MS = 10_000;
 const SOURCE_ID_MARKER = new TextEncoder().encode("\x1b]7000;v=1;id=");
 const BEL = 0x07;
 

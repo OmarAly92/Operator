@@ -11,6 +11,8 @@ import type { WorkspaceSession } from "../types/workspace";
 import { useUiStore } from "../stores/ui-store";
 import { rememberPaneGrid, resetPaneGridForTests } from "../lib/pane-grid";
 import { RETAINED_TERMINAL_UNLOAD_MS } from "../lib/retained-terminal";
+import { operatorBridge } from "../lib/bridge";
+import type { TerminalBlockFrame, TerminalMux } from "../lib/terminal-mux";
 import {
 	TerminalCacheProvider,
 	TerminalPane,
@@ -49,6 +51,35 @@ const {
 		attachmentUnmounts: { value: 0 },
 	}),
 );
+const { terminalBlockListeners } = vi.hoisted(() => ({
+	terminalBlockListeners: new Map<string, Set<(block: TerminalBlockFrame) => void>>(),
+}));
+vi.mock("../lib/terminal-mux", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("../lib/terminal-mux")>();
+	const fakeMux = (): TerminalMux => ({
+		open: () => undefined,
+		sendInput: () => undefined,
+		resize: () => undefined,
+		close: () => undefined,
+		ack: () => undefined,
+		onData: () => () => undefined,
+		onExit: () => () => undefined,
+		onOpened: () => () => undefined,
+		onError: () => () => undefined,
+		subscribeBlocks: () => undefined,
+		unsubscribeBlocks: () => undefined,
+		onBlock: () => () => undefined,
+		onTerminalBlock: (handleId, listener) => {
+			const set = terminalBlockListeners.get(handleId) ?? new Set();
+			set.add(listener);
+			terminalBlockListeners.set(handleId, set);
+			return () => set.delete(listener);
+		},
+		onConnectionChange: () => () => undefined,
+		dispose: () => undefined,
+	});
+	return { ...actual, createTerminalMux: fakeMux };
+});
 vi.mock("../lib/api-client", () => ({
 	apiClient: {
 		GET: (
@@ -58,6 +89,7 @@ vi.mock("../lib/api-client", () => ({
 		POST: (...args: unknown[]) => postMock(...args),
 	},
 	apiErrorMessage: (_error: unknown, fallback: string) => fallback,
+	getApiBaseUrl: () => "",
 }));
 
 const blockReplayPainted: { value: (() => void) | undefined } = { value: undefined };
@@ -165,6 +197,7 @@ beforeEach(() => {
 	prepareForActivationMock.mockResolvedValue(undefined);
 	attachmentMounts.value = 0;
 	attachmentUnmounts.value = 0;
+	terminalBlockListeners.clear();
 	useUiStore.setState({ inspectorSessions: {} });
 	resetPaneGridForTests();
 });
@@ -747,6 +780,96 @@ describe("TerminalCacheProvider", () => {
 		} finally {
 			view.restore();
 		}
+	});
+
+	describe("unloaded shell notifications", () => {
+		const shell: ShellTerminal = {
+			handleId: "shell-handle",
+			workingDir: "/repo/my-app",
+			title: "scratch",
+			createdAt: "2026-07-30T00:00:00Z",
+		};
+		const shellTarget: TerminalTarget = {
+			generation: shell.createdAt,
+			kind: "shell",
+			handleId: shell.handleId,
+			sessionId: sessionA.id,
+			title: shell.title,
+		};
+		const finished = (sourceId: string): TerminalBlockFrame => ({
+			sourceId,
+			exitCode: 0,
+			startedAt: "2026-09-23T10:00:00.000Z",
+			finishedAt: "2026-09-23T10:00:15.000Z",
+		});
+		const deliver = (block: TerminalBlockFrame) =>
+			terminalBlockListeners.get(shell.handleId)?.forEach((listener) => listener(block));
+
+		async function unloadShell() {
+			vi.useFakeTimers({ shouldAdvanceTime: true });
+			const view = renderCachedPane({
+				session: sessionA,
+				sessions: [sessionA],
+				shellTerminals: [shell],
+				terminalTarget: shellTarget,
+			});
+			const shellAttachment = await waitFor(() => activeAttachment());
+			view.show(sessionA, { kind: "worker" });
+			await waitFor(() => expect(activeAttachment()).not.toBe(shellAttachment));
+			await act(async () => {
+				vi.advanceTimersByTime(RETAINED_TERMINAL_UNLOAD_MS);
+			});
+			await waitFor(() => expect(shellAttachment.isConnected).toBe(false));
+			return view;
+		}
+
+		it("notifies a finished command of an unloaded shell once, and not after it is shown again", async () => {
+			const show = vi.spyOn(operatorBridge.notifications, "show").mockResolvedValue(undefined);
+			const view = await unloadShell();
+			try {
+				deliver(finished("osc133-1-0"));
+				expect(show).toHaveBeenCalledTimes(1);
+				expect(show).toHaveBeenCalledWith(
+					expect.objectContaining({ id: "block-finished:shell-handle:osc133-1-0", type: "terminal" }),
+				);
+
+				view.show(sessionA, shellTarget);
+				await waitFor(() => expect(activeAttachment().isConnected).toBe(true));
+				deliver(finished("osc133-2-0"));
+				expect(show).toHaveBeenCalledTimes(1);
+				expect(terminalBlockListeners.get(shell.handleId)?.size ?? 0).toBe(0);
+			} finally {
+				show.mockRestore();
+				vi.useRealTimers();
+				view.restore();
+			}
+		});
+
+		it("drops an unloaded shell's block subscription when the shell closes", async () => {
+			const view = await unloadShell();
+			try {
+				expect(terminalBlockListeners.get(shell.handleId)?.size).toBe(1);
+				act(() => {
+					view.queryClient.setQueryData(shellTerminalsQueryKey, []);
+				});
+				await waitFor(() => expect(terminalBlockListeners.get(shell.handleId)?.size).toBe(0));
+			} finally {
+				vi.useRealTimers();
+				view.restore();
+			}
+		});
+
+		it("drops an unloaded shell's block subscription when the provider unmounts", async () => {
+			const view = await unloadShell();
+			try {
+				expect(terminalBlockListeners.get(shell.handleId)?.size).toBe(1);
+				view.unmount();
+				expect(terminalBlockListeners.get(shell.handleId)?.size).toBe(0);
+			} finally {
+				vi.useRealTimers();
+				view.restore();
+			}
+		});
 	});
 
 	// The sidebar's per-session terminal button lands here: the session view

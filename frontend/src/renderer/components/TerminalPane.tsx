@@ -32,11 +32,12 @@ import {
 } from "../lib/terminal-mux";
 import { cn } from "../lib/utils";
 import { RETAINED_TERMINAL_UNLOAD_MS } from "../lib/retained-terminal";
+import { shellBlockNotification } from "../lib/shell-block-notifications";
 import { useWorkspaceQuery, workspaceQueryKey } from "../hooks/useWorkspaceQuery";
 import { useRestoreSession } from "../hooks/useRestoreSession";
 import { useShellTerminals } from "../hooks/useShellTerminals";
 import { useShellTerminalBlocks } from "../hooks/useShellTerminalBlocks";
-import { nativeShellBridgePresent } from "../lib/bridge";
+import { nativeShellBridgePresent, operatorBridge } from "../lib/bridge";
 import { RestoreUnavailableDialog } from "./RestoreUnavailableDialog";
 import { BlockTerminal, type BlockTerminalHistoryBlock } from "./BlockTerminal";
 import { TerminalAttachment } from "./TerminalAttachment";
@@ -322,6 +323,54 @@ export function TerminalCacheProvider({
 	const muxPool = muxPoolRef.current;
 	const [, setRevision] = useState(0);
 	const rerender = useCallback(() => setRevision((current) => current + 1), []);
+	const { t } = useTranslation();
+	const translateRef = useRef(t);
+	useEffect(() => {
+		translateRef.current = t;
+	}, [t]);
+	const unloadedShellsRef = useRef(
+		new Map<string, { generation?: string; handleId: string; release: () => void }>(),
+	);
+
+	const releaseUnloadedShell = useCallback((ownerKey: string) => {
+		const unloaded = unloadedShellsRef.current.get(ownerKey);
+		if (!unloaded) return;
+		unloadedShellsRef.current.delete(ownerKey);
+		unloaded.release();
+	}, []);
+
+	const watchUnloadedShell = useCallback(
+		(entry: CachedTerminalEntry) => {
+			releaseUnloadedShell(entry.ownerKey);
+			const handleId = entry.handleId;
+			const lease = muxPool.acquire();
+			const off = lease.onTerminalBlock(handleId, (block) => {
+				const note = shellBlockNotification(block, handleId);
+				if (!note) return;
+				const translate = translateRef.current;
+				void operatorBridge.notifications
+					.show({
+						id: note.id,
+						title:
+							note.exitCode === 0 || note.exitCode === null
+								? translate("terminal.blockFinished")
+								: translate("terminal.blockFailed"),
+						body: translate("terminal.blockFinishedBody", { seconds: Math.round(note.durationMs / 1000) }),
+						type: "terminal",
+					})
+					.catch(() => undefined);
+			});
+			unloadedShellsRef.current.set(entry.ownerKey, {
+				generation: entry.generation,
+				handleId,
+				release: () => {
+					off();
+					lease.dispose();
+				},
+			});
+		},
+		[muxPool, releaseUnloadedShell],
+	);
 
 	const removeEntry = useCallback(
 		(cacheKey: string) => {
@@ -346,10 +395,11 @@ export function TerminalCacheProvider({
 			entry.unloadTimer = setTimeout(() => {
 				entry.unloadTimer = undefined;
 				if (entriesRef.current.get(entry.cacheKey) !== entry || entry.activationPhase !== "parked") return;
+				if (entry.kind === "shell") watchUnloadedShell(entry);
 				removeEntry(entry.cacheKey);
 			}, RETAINED_TERMINAL_UNLOAD_MS);
 		},
-		[removeEntry],
+		[removeEntry, watchUnloadedShell],
 	);
 
 	const releaseWorker = useCallback(
@@ -366,6 +416,7 @@ export function TerminalCacheProvider({
 		(descriptor: TerminalCacheDescriptor, props: TerminalPaneProps, slot: HTMLDivElement) => {
 			const parking = parkingRef.current;
 			if (!parking) return;
+			releaseUnloadedShell(descriptor.ownerKey);
 			const cachedProps = { ...props, createMux: muxPool.acquire };
 
 			const slots = activeSlotsRef.current;
@@ -425,7 +476,7 @@ export function TerminalCacheProvider({
 			slots.set(entry.cacheKey, slot);
 			rerender();
 		},
-		[muxPool, rerender, scheduleUnload],
+		[muxPool, releaseUnloadedShell, rerender, scheduleUnload],
 	);
 
 	const deactivate = useCallback(
@@ -589,7 +640,11 @@ export function TerminalCacheProvider({
 				rerender();
 			}
 		}
-	}, [removeEntry, shellTerminalsQuery.data, shellTerminalsQuery.isSuccess]);
+		for (const [ownerKey, unloaded] of [...unloadedShellsRef.current]) {
+			const shell = shells.get(unloaded.handleId);
+			if (!shell || shell.createdAt !== unloaded.generation) releaseUnloadedShell(ownerKey);
+		}
+	}, [releaseUnloadedShell, removeEntry, shellTerminalsQuery.data, shellTerminalsQuery.isSuccess]);
 
 	// The provider is the final shell ownership boundary. React disposes the
 	// portals; remove their externally-created host nodes as well.
@@ -601,9 +656,10 @@ export function TerminalCacheProvider({
 				entry.container.remove();
 			}
 			entriesRef.current.clear();
+			for (const ownerKey of [...unloadedShellsRef.current.keys()]) releaseUnloadedShell(ownerKey);
 			muxPool.dispose();
 		},
-		[muxPool],
+		[muxPool, releaseUnloadedShell],
 	);
 
 	const controller = useMemo<TerminalCacheController>(
