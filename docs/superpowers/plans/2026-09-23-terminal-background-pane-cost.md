@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** A retained terminal pane the user is not looking at keeps its model current and keeps reporting finished blocks, but stops painting DOM; a hidden (minimised) Operator window keeps draining and notifying instead of freezing; and a pane left in the background longer than `RETAINED_TERMINAL_UNLOAD_MS` (10 minutes) is unloaded entirely and reattached from the pty-host when shown, so an Operator that stays open for days does not accumulate one full terminal per session ever opened.
+**Goal:** A retained terminal pane the user is not looking at keeps its model current and keeps reporting finished blocks, but stops painting DOM; a hidden (minimised) Operator window keeps draining and notifying instead of freezing; and a pane left in the background longer than `RETAINED_TERMINAL_UNLOAD_MS` (30 minutes) is unloaded entirely and reattached from the pty-host when shown, so an Operator that stays open for days does not accumulate one full terminal per session ever opened.
 
-**Architecture:** `DomBlockRenderer` gets a host-driven visibility seam (`setVisible(boolean | null)`). Every frame still drains and ticks the core; block-finished detection moves into its own method that runs on painting and non-painting frames alike; the DOM repaint, overlays and predictive echo run only while the host says the pane is visible, with one synchronous catch-up paint (a full rebuild) when it becomes visible again. `LineEditor` gets the same seam. While `document.visibilityState === "hidden"` (where `requestAnimationFrame` never fires) the renderer schedules its frames on a timer instead. Operator drives the seam from `TerminalPane`'s activation phases: every phase except `"parked"` paints. On top of that, the retained-terminal cache unloads a pane parked for 10 minutes (its renderer, core and mux attachment go away; the pty-host keeps the session) and reopens it through the existing attach + history replay (TERMINAL.md §4.19); for unloaded shell panes, finished-command notifications come from the daemon's `terminal_block` mux frames instead of the renderer. A long-run measurement (memory and CPU over time) runs before and after the unload.
+**Architecture:** `DomBlockRenderer` gets a host-driven visibility seam (`setVisible(boolean | null)`). Every frame still drains and ticks the core; block-finished detection moves into its own method that runs on painting and non-painting frames alike; the DOM repaint, overlays and predictive echo run only while the host says the pane is visible, with one synchronous catch-up paint (a full rebuild) when it becomes visible again. `LineEditor` gets the same seam. While `document.visibilityState === "hidden"` (where `requestAnimationFrame` never fires) the renderer schedules its frames on a timer instead. Operator drives the seam from `TerminalPane`'s activation phases: every phase except `"parked"` paints. On top of that, the retained-terminal cache unloads a pane parked for 30 minutes (its renderer, core and mux attachment go away; the pty-host keeps the session) and reopens it through the existing attach + history replay (TERMINAL.md §4.19); for unloaded shell panes, finished-command notifications come from the daemon's `terminal_block` mux frames instead of the renderer. A long-run measurement (memory and CPU over time) runs before and after the unload.
 
 **Tech Stack:** TypeScript, vt-core wasm (`@operator/terminal-core`), Vitest + jsdom, React 19 (`TerminalSurface`, `TerminalPane`), Playwright + CDP (bench).
 
@@ -16,7 +16,7 @@
 - Of the paint-loop time in the 1+9 profile, `repaint` is 615 ms inclusive; `drain` 74 ms; `LineEditor.ingestHistory` 73 ms. So the gate must skip `repaint`, keep `drain`, and also idle the `LineEditor` (Task 5), or ~half of what remains per parked pane stays.
 - WKWebView fires **zero** animation frames while the window is minimised or app-hidden, and throttles `setTimeout` to ~1/s. Today that stops draining and block-finished detection for every pane, so the notification feature is silent while the window is hidden. The hidden-document path (Task 7) is required, not optional.
 - Acks to the pty-host go out on receipt, not on parse (`useTerminalSession.ts:590-598`), so nothing here changes flow control.
-- The user keeps Operator open permanently. Retained panes are never evicted today — the cache drops an entry only when its session leaves the workspace snapshot or its handle changes (`TerminalPane.tsx:506-534`, "Project/session teardown is an ownership boundary, not an LRU event") — and each holds a full renderer core capped at 200k rows / 128 MiB (`BlockTerminal.tsx:73`) plus its DOM. Even gated, a parked pane re-parses every byte the pty-host mirror already parses. Memory and long-run cost were never measured (Task 9). The user chose **unload after N minutes** over a count cap (2026-09-23): lowest memory, at the price of a replay (~40 ms first paint, ~100–130 ms for 60k history rows in the bench, spec table "reopen" row) when switching back to a pane unloaded earlier.
+- The user keeps Operator open permanently. Retained panes are never evicted today — the cache drops an entry only when its session leaves the workspace snapshot or its handle changes (`TerminalPane.tsx:506-534`, "Project/session teardown is an ownership boundary, not an LRU event") — and each holds a full renderer core capped at 200k rows / 128 MiB (`BlockTerminal.tsx:73`) plus its DOM. Even gated, a parked pane re-parses every byte the pty-host mirror already parses. Memory and long-run cost were never measured (Task 9). The user chose **unload after N minutes** over a count cap, and set **N = 30 minutes** (2026-09-23): lowest memory, at the price of a replay (~40 ms first paint, ~100–130 ms for 60k history rows in the bench, spec table "reopen" row) when switching back to a pane unloaded earlier.
 - What unloading costs in notifications, verified: Claude Code emits no block marks at all (`claude-spinner-10s` and `claude-long-50k` recordings: 0 `OSC 133`, 0 `OSC 7000`), so a worker pane's renderer only ever finishes synthetic blocks at a process boundary (TERMINAL.md §4.15) — unloading it loses no command notification; agent "needs input" notifications already come from the daemon's SSE stream (`frontend/src/renderer/lib/notifications.ts:315-326`). Shell panes do emit `OSC 133`; the daemon records every finished shell block and publishes it on the mux as a `terminal_block` frame to connections subscribed with `blockType: "terminal_block"` (`backend/internal/terminal/manager.go:555-565`, `:627-658`, `protocol.go:64,103-131`; capture covers shell terminals only, `service/terminalcapture/supervisor.go:100`), and no client subscribes today. Task 11 subscribes for unloaded shell panes.
 
 ## Global Constraints
@@ -1476,7 +1476,7 @@ Run with the real app (rebuilt `dist`, `tauri:dev` restarted with the scrubbed e
 
 - [ ] **Step 5: Record and choose N**
 
-Add "## Memory and long run" to the measurement note with Steps 2–4's numbers. Then check N = 10 minutes against them: N trades memory held by a pane you left against a replay when you return. Keep 10 unless the numbers argue otherwise; if they do, write the number and the reason in the note and use it in Task 10.
+Add "## Memory and long run" to the measurement note with Steps 2–4's numbers. Then report what N = 30 minutes costs by these numbers: N trades memory held by a pane you left against a replay when you return. N = 30 is the user's decision (2026-09-23), not a default to tune: if the numbers argue for a different value, write the number and the reason in the note and ask the user before Task 10 — do not change it on your own.
 
 - [ ] **Step 6: Commit**
 
@@ -1488,7 +1488,7 @@ git commit -m "bench(terminal): memory per retained pane and a long-run soak"
 
 ---
 
-### Task 10: Unload a pane left in the background for 10 minutes
+### Task 10: Unload a pane left in the background for 30 minutes
 
 Operator-side only; `packages/terminal` is untouched. When an entry is parked, arm a timer; when it fires and the entry is still parked, drop it with the existing `removeEntry` (`TerminalPane.tsx:320-334`). Removal unmounts the portal, and `useTerminalSession`'s unmount runs `teardownMux` (`useTerminalSession.ts:335-378`), which closes the daemon attachment and releases the mux lease; the pty-host keeps the session and its mirror. Showing the session again goes through `activate`'s "no entry" branch: a fresh container, a fresh core, and a sized open that requests history (`useTerminalSession.ts:779-781`), behind the existing replay cover. Showing a parked entry before the timer fires cancels it.
 
@@ -1500,7 +1500,7 @@ This reverses a recorded design decision — the comment at `TerminalPane.tsx:50
 - Test: `frontend/src/renderer/components/TerminalPane.test.tsx`
 
 **Interfaces:**
-- Produces: `export const RETAINED_TERMINAL_UNLOAD_MS = 10 * 60_000;` (or Task 9's N).
+- Produces: `export const RETAINED_TERMINAL_UNLOAD_MS = 30 * 60_000;` (the user's N; change only with their approval).
 - Produces: `CachedTerminalEntry.unloadTimer?: ReturnType<typeof setTimeout>`.
 
 - [ ] **Step 1: Write the failing tests**
@@ -1590,7 +1590,7 @@ Expected: FAIL — `retained-terminal` does not exist; after creating the consta
 `frontend/src/renderer/lib/retained-terminal.ts`:
 
 ```ts
-export const RETAINED_TERMINAL_UNLOAD_MS = 10 * 60_000;
+export const RETAINED_TERMINAL_UNLOAD_MS = 30 * 60_000;
 ```
 
 `TerminalPane.tsx` — add to `CachedTerminalEntry`:
@@ -1645,7 +1645,7 @@ With a temporary local edit of `RETAINED_TERMINAL_UNLOAD_MS` to `60_000` (never 
 ```bash
 cd /Users/omaraly/development/AI/Operator
 git add frontend/src/renderer/lib/retained-terminal.ts frontend/src/renderer/components/TerminalPane.tsx frontend/src/renderer/components/TerminalPane.test.tsx
-git commit -m "feat(terminal): unload a pane left in the background for ten minutes"
+git commit -m "feat(terminal): unload a pane left in the background for thirty minutes"
 ```
 
 ---
@@ -1802,7 +1802,7 @@ The bench has no cache, so it cannot show the unload; it shows what the paint ga
 
 - [ ] **Step 2: Real-app soak, after**
 
-Same setup as Task 9 Step 4 (6 Claude sessions, 3 busy, one visible, 120 min, real 10-minute unload). Expected: after the first ~10 minutes, RSS falls back toward a one-visible-pane level instead of holding every session, and CPU with the window visible stays near what one visible pane costs. Also minimise the window for 30 of the 120 minutes and record CPU during that stretch. Report measured values; "not verified" if the run could not be done.
+Same setup as Task 9 Step 4 (6 Claude sessions, 3 busy, one visible, 120 min, real 30-minute unload). Expected: after the first ~30 minutes, RSS falls back toward a one-visible-pane level instead of holding every session, and CPU with the window visible stays near what one visible pane costs. Also minimise the window for 30 of the 120 minutes and record CPU during that stretch. Report measured values; "not verified" if the run could not be done.
 
 - [ ] **Step 3: Record**
 
