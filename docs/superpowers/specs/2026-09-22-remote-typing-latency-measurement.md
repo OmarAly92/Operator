@@ -9,7 +9,7 @@ itself left open had to be answered with numbers: in the user's real case —
 typing on the phone and having it reach the Claude Code TUI — how much of the
 felt wait is the network, and how much is Claude thinking? The survey says so
 explicitly: "the typical RTT: not known — measure"
-([`2026-09-19-terminal-reference-survey.md`](2026-09-19-terminal-reference-survey.md) §4.3,
+([`2026-09-19-terminal-reference-survey.md`](../../terminal/2026-09-19-terminal-reference-survey.md) §4.3,
 "Ours today").
 
 **Answer, in one line:** the network is ~107 ms per keystroke over the public

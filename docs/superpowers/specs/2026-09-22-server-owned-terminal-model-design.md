@@ -3,7 +3,7 @@
 **Date:** 2026-09-22
 **Decision owner:** Omar Aly
 **Status:** not pursued — its implementation was dropped by the user on 2026-09-22. Kept as a record of the design and of why it was not taken forward; see "Why not pursued" below.
-**Derived from:** `docs/superpowers/specs/2026-09-19-terminal-reference-survey.md` §4.2
+**Derived from:** `docs/terminal/2026-09-19-terminal-reference-survey.md` §4.2
 (with §4.5 for width, §1.9 and §3.1 for what it subsumes), and
 `docs/superpowers/specs/2026-09-19-agent-tui-experience-design.md` Part 6.
 **Motivated by:** `docs/superpowers/specs/2026-09-22-remote-typing-latency-measurement.md`.

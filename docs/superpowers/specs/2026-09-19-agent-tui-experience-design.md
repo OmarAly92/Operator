@@ -3,7 +3,7 @@
 **Date:** 2026-09-19
 **Decision owner:** Omar Aly
 **Status:** approved direction; plan A is the next document to write
-**Derived from:** [`2026-09-19-terminal-reference-survey.md`](2026-09-19-terminal-reference-survey.md)
+**Derived from:** [`2026-09-19-terminal-reference-survey.md`](../../terminal/2026-09-19-terminal-reference-survey.md)
 (the survey). `§N.M` refers to that document. This spec restates what it
 needs, adds the long-session requirements the survey did not cover, and
 carries the implementation reference (current code with file:line, target

@@ -8,7 +8,7 @@
 
 **Tech Stack:** Rust (`vt-core`, `crates/marks`, `vt-wasm` via wasm-bindgen, `vt-host` C-ABI wasm run by wazero), Go (`backend/internal/adapters/runtime/ptyhost`, `backend/internal/terminal`, `backend/internal/httpd`), TypeScript (`ts/core`, `ts/renderer-dom`, `frontend/`), Dart (`packages/mobile`), Vite + Playwright benches (`bench/agent-session`).
 
-**Spec:** `docs/superpowers/specs/2026-09-19-agent-tui-experience-design.md` — Plan C is Part 1.3 items **F**, **G** and **H**, and nothing else. Survey entries cited: `docs/superpowers/specs/2026-09-19-terminal-reference-survey.md` §1.9 (Ghostty READY-first snapshot), §3.11 (xterm.js `SerializeAddon`), §3.13 (xterm.js `write(data, cb)` flow control), §4.2 (WezTerm, the shape of "rows by stable id" only), §5.8 (Kitty lazy pagerhist rewrap), §6.3 (VS Code flow-control constants and replay with command state). Read `TERMINAL.md` end to end before starting.
+**Spec:** `docs/superpowers/specs/2026-09-19-agent-tui-experience-design.md` — Plan C is Part 1.3 items **F**, **G** and **H**, and nothing else. Survey entries cited: `docs/terminal/2026-09-19-terminal-reference-survey.md` §1.9 (Ghostty READY-first snapshot), §3.11 (xterm.js `SerializeAddon`), §3.13 (xterm.js `write(data, cb)` flow control), §4.2 (WezTerm, the shape of "rows by stable id" only), §5.8 (Kitty lazy pagerhist rewrap), §6.3 (VS Code flow-control constants and replay with command state). Read `TERMINAL.md` end to end before starting.
 
 **Review applied.** This plan was reviewed at commit `05881c5b9` against the tree at `ba6dd6d35` (`docs/superpowers/plans/2026-09-20-agent-tui-plan-c-review-fixes.md`). Every **Required** item (R1–R6) and every **Recommended** item is applied here, with one deliberate exception:
 

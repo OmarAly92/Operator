@@ -8,7 +8,7 @@
 
 **Tech Stack:** Rust (`vt-core`, `vt-wasm` via wasm-bindgen, `vt-host` C-ABI wasm run by wazero; `unicode-width` 0.2.2 and `unicode-segmentation` 1.13.3, both Unicode 17.0), Go (`backend/internal/adapters/runtime/ptyhost/vtwasm`), TypeScript (`ts/core`, `ts/renderer-dom`, `ts/editor`, `ts/react`, `frontend/`), Vite + Playwright benches, Python 3 (corpus import tool).
 
-**Spec:** `docs/superpowers/specs/2026-09-19-agent-tui-experience-design.md` — Plan D covers exactly Part 4 ("Text and glyph fidelity"), gated on Plan A (landed `9a71794e9`; B `ba6dd6d35` and C `7412050f4` have also landed, so the export is incremental). Survey entries cited: `docs/superpowers/specs/2026-09-19-terminal-reference-survey.md` §1.17, §2.8, §2.12, §3.2, §3.10, §3.14, §5.9, §7.5. Read `TERMINAL.md` end to end before starting — §2 (snapshot layout and the checklist for adding a field), §3 (product independence), §5 (known gaps: underline/italic/strike not rendered), §6 (verify-and-ship recipe).
+**Spec:** `docs/superpowers/specs/2026-09-19-agent-tui-experience-design.md` — Plan D covers exactly Part 4 ("Text and glyph fidelity"), gated on Plan A (landed `9a71794e9`; B `ba6dd6d35` and C `7412050f4` have also landed, so the export is incremental). Survey entries cited: `docs/terminal/2026-09-19-terminal-reference-survey.md` §1.17, §2.8, §2.12, §3.2, §3.10, §3.14, §5.9, §7.5. Read `TERMINAL.md` end to end before starting — §2 (snapshot layout and the checklist for adding a field), §3 (product independence), §5 (known gaps: underline/italic/strike not rendered), §6 (verify-and-ship recipe).
 
 ## Global Constraints
 

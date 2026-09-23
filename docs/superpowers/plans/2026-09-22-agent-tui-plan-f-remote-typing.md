@@ -52,7 +52,7 @@ whole point of the overlay design.
 **Spec:** `docs/superpowers/specs/2026-09-19-agent-tui-experience-design.md`,
 Part 6 ("Remote typing"), whose two bullets are the server-owned model
 (Task 1) and predictive echo (Tasks 3–7). Its survey input is
-`docs/superpowers/specs/2026-09-19-terminal-reference-survey.md` §4.2 in full,
+`docs/terminal/2026-09-19-terminal-reference-survey.md` §4.2 in full,
 plus §4.3 and §6.5 for the echo. Gated on Plan C, which has landed
 (`7412050f4`), as have B (`ba6dd6d35`), D (`b4c3067b2`) and E (`7336d8150`) —
 confirm with `git log --oneline | grep -i "merge: Plan"`. Read `TERMINAL.md`
@@ -220,7 +220,7 @@ in the same commit as this plan.
 
 **Files:**
 - Create: `/Users/omaraly/development/AI/Operator/docs/superpowers/specs/2026-09-22-server-owned-terminal-model-design.md`
-- Read (do not modify): `/Users/omaraly/development/AI/Operator/docs/superpowers/specs/2026-09-19-terminal-reference-survey.md` §4.2 (lines 2559-2658), §4.3 (2660-2703), §6.5 (3550-3585); `/Users/omaraly/development/AI/Operator/docs/superpowers/specs/2026-09-19-agent-tui-experience-design.md`; `/Users/omaraly/development/AI/Operator/TERMINAL.md`; `/Users/omaraly/development/AI/Operator/docs/superpowers/specs/2026-09-22-remote-typing-latency-measurement.md`
+- Read (do not modify): `/Users/omaraly/development/AI/Operator/docs/terminal/2026-09-19-terminal-reference-survey.md` §4.2 (lines 2654-2755), §4.3 (2757-2801), §6.5 (3673-3709); `/Users/omaraly/development/AI/Operator/docs/superpowers/specs/2026-09-19-agent-tui-experience-design.md`; `/Users/omaraly/development/AI/Operator/TERMINAL.md`; `/Users/omaraly/development/AI/Operator/docs/superpowers/specs/2026-09-22-remote-typing-latency-measurement.md`
 - Test: `/Users/omaraly/development/AI/Operator/docs/superpowers/specs/2026-09-22-server-owned-terminal-model-design.md` is checked by the greps in Steps 2 and 8 (there is no code to unit-test; the gate is that every required section exists, every `file:line` citation resolves, and no placeholder survives)
 
 **Interfaces:**
@@ -369,7 +369,7 @@ Create the spec with this header (fill the date and the confirmed hashes):
 **Date:** 2026-09-22
 **Decision owner:** Omar Aly
 **Status:** design only — no implementation tasks in this document
-**Derived from:** `docs/superpowers/specs/2026-09-19-terminal-reference-survey.md` §4.2
+**Derived from:** `docs/terminal/2026-09-19-terminal-reference-survey.md` §4.2
 (with §4.5 for width, §1.9 and §3.1 for what it subsumes), and
 `docs/superpowers/specs/2026-09-19-agent-tui-experience-design.md` Part 6.
 **Motivated by:** `docs/superpowers/specs/2026-09-22-remote-typing-latency-measurement.md`.
