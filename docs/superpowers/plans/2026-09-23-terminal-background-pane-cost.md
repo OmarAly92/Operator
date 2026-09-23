@@ -16,19 +16,21 @@
 - Of the paint-loop time in the 1+9 profile, `repaint` is 615 ms inclusive; `drain` 74 ms; `LineEditor.ingestHistory` 73 ms. So the gate must skip `repaint`, keep `drain`, and also idle the `LineEditor` (Task 5), or ~half of what remains per parked pane stays.
 - WKWebView fires **zero** animation frames while the window is minimised or app-hidden, and throttles `setTimeout` to ~1/s. Today that stops draining and block-finished detection for every pane, so the notification feature is silent while the window is hidden. The hidden-document path (Task 7) is required, not optional.
 - Acks to the pty-host go out on receipt, not on parse (`useTerminalSession.ts:590-598`), so nothing here changes flow control.
-- The user keeps Operator open permanently. Retained panes are never evicted today — the cache drops an entry only when its session leaves the workspace snapshot or its handle changes (`TerminalPane.tsx:506-534`, "Project/session teardown is an ownership boundary, not an LRU event") — and each holds a full renderer core capped at 200k rows / 128 MiB (`BlockTerminal.tsx:73`) plus its DOM. Even gated, a parked pane re-parses every byte the pty-host mirror already parses. Memory and long-run cost were never measured (Task 9). The user chose **unload after N minutes** over a count cap, and set **N = 30 minutes** (2026-09-23): lowest memory, at the price of a replay (~40 ms first paint, ~100–130 ms for 60k history rows in the bench, spec table "reopen" row) when switching back to a pane unloaded earlier.
+- The user keeps Operator open permanently. Retained panes are never evicted today — the cache drops an entry only when its session leaves the workspace snapshot or its handle changes (`TerminalPane.tsx:508-536`, "Project/session teardown is an ownership boundary, not an LRU event") — and each holds a full renderer core capped at 200k rows / 128 MiB (`BlockTerminal.tsx:74`) plus its DOM. Even gated, a parked pane re-parses every byte the pty-host mirror already parses. Memory and long-run cost were never measured (Task 9). The user chose **unload after N minutes** over a count cap, and set **N = 30 minutes** (2026-09-23): lowest memory, at the price of a replay (~40 ms first paint, ~100–130 ms for 60k history rows in the bench, spec table "reopen" row) when switching back to a pane unloaded earlier.
 - What unloading costs in notifications, verified: Claude Code emits no block marks at all (`claude-spinner-10s` and `claude-long-50k` recordings: 0 `OSC 133`, 0 `OSC 7000`), so a worker pane's renderer only ever finishes synthetic blocks at a process boundary (TERMINAL.md §4.15) — unloading it loses no command notification; agent "needs input" notifications already come from the daemon's SSE stream (`frontend/src/renderer/lib/notifications.ts:315-326`). Shell panes do emit `OSC 133`; the daemon records every finished shell block and publishes it on the mux as a `terminal_block` frame to connections subscribed with `blockType: "terminal_block"` (`backend/internal/terminal/manager.go:555-565`, `:627-658`, `protocol.go:64,103-131`; capture covers shell terminals only, `service/terminalcapture/supervisor.go:100`), and no client subscribes today. Task 11 subscribes for unloaded shell panes.
 
-## Split view lands first
+## Split view has landed
 
-Split view is finished on branch `split-view` (worktree `/Users/omaraly/development/AI/Operator-split-view`, head `cc000f9e4`, 21 commits not yet on `development`). **Merge it before executing Tasks 6, 10 and 11**, then re-read `TerminalPane.tsx`: every `TerminalPane.tsx` line number in this plan was taken from `development` at `b59c3b27c` and will have moved. What split view changes, from `git diff $(git merge-base development split-view) split-view` (`TerminalPane.tsx`, `BlockTerminal.tsx`; `packages/terminal` is untouched):
+Split view was merged into `development` at `495690b41` (2026-09-23), with `be9d35222` just before it. Every `TerminalPane.tsx`/`BlockTerminal.tsx` line cited in Tasks 6, 10 and 11 is from the merged tree. `packages/terminal` was untouched by the merge, so Tasks 2–5 and 7 are unaffected. What split view changed for this plan:
 
-- **One live terminal per pane, not per app.** `activeRef` (one `{ key, slot }`) becomes `activeSlotsRef: Map<cacheKey, slot>`. `CachedTerminalPortal`'s `active` prop is now `activeSlotsRef.current.has(entry.cacheKey)`, so several entries are `active` at once. The plan's rule is unchanged: an entry paints when it is active and not `"parked"` (Task 6), and only parked entries arm the unload timer (Task 10). A terminal shown in any split pane is never unloaded.
-- **Where parking happens.** `activate` now parks every entry that held the *same slot* in a loop (`for (const [key, activeSlot] of [...slots])` … `parkTerminal(previousEntry, parking)`), and the replacement-generation loop parks via `slots.has(entry.cacheKey)`. Task 10's `scheduleUnload` goes after each of those `parkTerminal` calls and after the one in `deactivate` (closing a split pane deactivates its terminal, which should then start its 30-minute clock). `removeEntry` checks `activeSlotsRef.current.has(cacheKey)` instead of `activeRef`.
-- **A new `focused` prop.** An unfocused split pane is on screen but not focused: it gets no focus token and does not record the spawn grid (`recordsSpawnGrid={focused !== false}` on `BlockTerminal`). It **must still paint**, and a block finishing in it is on screen, so its `onBlockFinished` must say `visible: true`. `visible`/`isRendered` must never be derived from `focused` — keep Task 6's `active && entry.activationPhase !== "parked"`. Task 6 pins this with a two-pane test (Step 1).
-- **TERMINAL.md §3 rule 6 ("One place per terminal")** is new on that branch: a cache key is live in at most one slot. Unloading and reopening goes through `activate`'s fresh-entry path, so it keeps that invariant; Task 10's "an unloaded pane reopens once" test covers the reopen.
-- The measurement (Task 1) is unaffected: it measured one visible pane plus parked ones, which is still the shape of every pane not shown in some split. Task 12's real-app soak should add one run with two panes side by side, reporting CPU for "2 visible + parked".
-- The split-view worktree has an uncommitted diagnostic edit to `useTerminalSession.ts` (`terminalDebug("mux", "DIAG …")` lines). It is not part of the branch. Make sure it is not merged by accident.
+- **One live terminal per pane, not per app.** `activeSlotsRef: Map<cacheKey, slot>` (`TerminalPane.tsx:305`) replaced the single `activeRef`. `CachedTerminalPortal`'s `active` prop is `activeSlotsRef.current.has(entry.cacheKey)`, so several entries are `active` at once. The plan's rule is unchanged: an entry paints when it is active and not `"parked"` (Task 6), and only parked entries arm the unload timer (Task 10). A terminal shown in any split pane is never unloaded.
+- **Where parking happens.** `activate` (`:343`) parks every entry that held the *same slot* in a loop (`for (const [key, activeSlot] of [...slots])` … `parkTerminal(previousEntry, parking)`), and the replacement-generation loop parks via `slots.has(entry.cacheKey)`. Task 10's `scheduleUnload` goes after each of those `parkTerminal` calls and after the one in `deactivate` (`:404`; closing a split pane deactivates its terminal, which then starts its 30-minute clock). `removeEntry` (`:317`) checks `activeSlotsRef.current.has(cacheKey)`.
+- **A `focused` prop.** An unfocused split pane is on screen but not focused: no focus token, and `recordsSpawnGrid={focused !== false}` on `BlockTerminal`. It **must still paint**, and a block finishing in it is on screen, so its `onBlockFinished` must say `visible: true`. Never derive `visible`/`isRendered` from `focused`; keep Task 6's `active && entry.activationPhase !== "parked"`. Task 6 pins this with a two-pane test using the merged `renderSplitPanes` helper (`TerminalPane.test.tsx:951`).
+- **A layout change parks and re-shows each pane** (split resize, adding or closing a pane — `be9d35222`'s message and TERMINAL.md §4.24). With the paint gate that is `setVisible(false)` then `setVisible(true)`, usually before any animation frame runs. `catchUp` is only set by a hidden frame (`settleHidden`), so a quick park/show does an ordinary repaint, not a full rebuild; Review Focus 2's test pins it. The unload timer armed by that park is cancelled by the re-show (`activate` calls `cancelUnload` before `showTerminal`), so layout changes never unload anything.
+- **`be9d35222` re-sends the pty grid when a pane becomes visible** (`useTerminalSession.ts`, visibility effect): at the `"visible"` phase, if the surface grid differs from the last published grid, it goes through the normal debounced publish. Task 4's catch-up paint happens earlier, at `"preparing"`, so it paints the core at the surface's new grid (TerminalSurface refits the core in its geometry effect, which runs before the Task 3 visibility effect), and Claude Code's SIGWINCH repaint follows once the pty is resized — the same order as before this plan. Tasks 6 and 10 must keep `useTerminalSession.test.tsx`'s four "…parked…/…reshown…" tests from that commit green; add that file to their test runs.
+- **TERMINAL.md §3 rule 6 ("One place per terminal")**: a cache key is live in at most one slot. Unloading and reopening goes through `activate`'s fresh-entry path, so it keeps that invariant; Task 10's "an unloaded pane reopens once" test covers the reopen.
+- **TERMINAL.md §4.24 is taken** (the reshown-grid fix), so this plan's new bugs-already-solved entry is **§4.25**.
+- The measurement (Task 1) is unaffected: it measured one visible pane plus parked ones, which is still the shape of every pane not shown in some split. Task 12's real-app soak adds one run with two panes side by side, reporting CPU for "2 visible + parked".
 
 ## Global Constraints
 
@@ -972,8 +974,8 @@ The reveal ordering this relies on: `showTerminal` → rerender → `TerminalSur
 Split view ("Split view lands first" above) gives each pane its own slot and entry; this wiring is per entry, so several panes are visible at once, each painting, whether or not it has focus.
 
 **Files:**
-- Modify: `frontend/src/renderer/components/TerminalPane.tsx:276-285` (portal props), `:820-835` (`AttachedTerminal` props), `:1002-1014` (`BlockTerminal` props)
-- Modify: `frontend/src/renderer/components/BlockTerminal.tsx:42-68` (props), `:575-608` (`surfaceProps`)
+- Modify: `frontend/src/renderer/components/TerminalPane.tsx:273-284` (portal props), `:826-842` (`AttachedTerminal` props), `:1007-1020` (`BlockTerminal` props)
+- Modify: `frontend/src/renderer/components/BlockTerminal.tsx:42-70` (props), `:580-624` (`surfaceProps`)
 - Test: `frontend/src/renderer/components/TerminalPane.test.tsx`, `frontend/src/renderer/components/BlockTerminal.test.tsx`
 
 **Interfaces:**
@@ -1009,7 +1011,7 @@ Split view ("Split view lands first" above) gives each pane its own slot and ent
 	it("paints both terminals of a split, focused or not", async () => {
 		const sessionA = { ...worker, id: "sess-a", title: "session A", terminalHandleId: "handle-a" };
 		const sessionB = { ...worker, id: "sess-b", title: "session B", terminalHandleId: "handle-b" };
-		const view = renderSplitPanes({ left: sessionA, right: sessionB, focused: "left" });
+		const view = renderSplitPanes([sessionA, sessionB]);
 		try {
 			await waitFor(() => expect(screen.getAllByTestId("block-terminal")).toHaveLength(2));
 			for (const pane of screen.getAllByTestId("block-terminal")) {
@@ -1039,7 +1041,7 @@ Split view ("Split view lands first" above) gives each pane its own slot and ent
 	});
 ```
 
-`renderSplitPanes` stands for however the merged split-view tests mount two `TerminalPane`s in two slots under one `TerminalCacheProvider` with one of them `focused={false}` — read split view's own tests (`TerminalPane.test.tsx` after the merge, and `components/split/*.test.tsx`) and reuse their helper; do not write a second harness.
+`renderSplitPanes` is the merged helper (`TerminalPane.test.tsx:951`): two `TerminalPane`s under one `TerminalCacheProvider`, the right one `focused={false}` by default. It lives below the `describe` blocks, so the test can call it from `describe("TerminalPane focus")`.
 
 If the second test cannot observe `"preparing"` because the phases settle within one `waitFor` tick, keep its assertion as written (it checks the first non-parked phase already paints) — do not add sleeps.
 
@@ -1068,7 +1070,7 @@ destructure it and add `visible,` to `surfaceProps` beside `focusToken,`.
 
 - [ ] **Step 4: Run and see them pass**
 
-Run: `cd /Users/omaraly/development/AI/Operator/frontend && npx vitest run src/renderer/components/TerminalPane.test.tsx src/renderer/components/BlockTerminal.test.tsx && npx tsc --noEmit -p .`
+Run: `cd /Users/omaraly/development/AI/Operator/frontend && npx vitest run src/renderer/components/TerminalPane.test.tsx src/renderer/components/BlockTerminal.test.tsx src/renderer/hooks/useTerminalSession.test.tsx && npx tsc --noEmit -p .`
 Expected: PASS; no type errors.
 
 - [ ] **Step 5: Real-app check**
@@ -1321,7 +1323,7 @@ and write the after-numbers into a new sentence at the end of each of these two 
 
 - [ ] **Step 4: TERMINAL.md**
 
-§4 — add "### 4.24 A hidden window drained nothing and notified nothing" (symptom; cause: `requestAnimationFrame` never fires in a hidden WKWebView, measured by `scripts/probe-wkwebview-hidden.swift`; now: Task 7's timer path and Task 4's paint gate; guards: `dom-block-renderer.visibility.test.ts` "hidden document" and "paint gate" describes, `TerminalPane.test.tsx` "paints a retained terminal on screen and stops painting it while parked").
+§4 — add "### 4.25 A hidden window drained nothing and notified nothing" (symptom; cause: `requestAnimationFrame` never fires in a hidden WKWebView, measured by `scripts/probe-wkwebview-hidden.swift`; now: Task 7's timer path and Task 4's paint gate; guards: `dom-block-renderer.visibility.test.ts` "hidden document" and "paint gate" describes, `TerminalPane.test.tsx` "paints a retained terminal on screen and stops painting it while parked").
 
 §5 — add a bullet "**What a parked pane still costs.**" with: the measured after-numbers from Step 1; that each change still builds one snapshot (block detection, `TerminalSurface`'s alt-screen read) and decodes blocks; that a hidden window drains up to `HIDDEN_DRAIN_MS` (250 ms) of parse per timer tick, which WebKit throttles to ~1/s, so only a producer needing more than ~250 ms of parse per second grows the backlog while hidden — and why the budget is larger than `FEED_BUDGET_MS` there (no paint to protect; a 12 ms budget left a busy session's closing mark in the backlog until restore, where the block was reported `visible: true` and its notification suppressed); that `rendererVisible` remains the fallback only for `onBlockFinished` when a host sets nothing, and is never a paint gate; and that the forced layout at `dom-block-renderer.ts:1055` is still paid by every **visible** pane (measurement note, "Follow-ups").
 
@@ -1347,7 +1349,7 @@ TERMINAL.md §6 block for every touched layer:
 cd /Users/omaraly/development/AI/Operator/packages/terminal && npm run build:ts
 for p in core renderer-dom editor react; do (cd /Users/omaraly/development/AI/Operator/packages/terminal/ts/$p && npx vitest run); done
 cd /Users/omaraly/development/AI/Operator/packages/terminal && npm run bench:feel && npm run bench:selection && npm run bench:agent:gate && npm run bench:agent:scroll
-cd /Users/omaraly/development/AI/Operator/frontend && npx tsc --noEmit -p . && npx vitest run src/renderer/components/TerminalPane.test.tsx src/renderer/components/BlockTerminal.test.tsx
+cd /Users/omaraly/development/AI/Operator/frontend && npx tsc --noEmit -p . && npx vitest run src/renderer/components/TerminalPane.test.tsx src/renderer/components/BlockTerminal.test.tsx src/renderer/hooks/useTerminalSession.test.tsx
 ```
 
 Expected: all green; `PASS feel gate: zero pixel diff`.
@@ -1519,7 +1521,7 @@ git commit -m "bench(terminal): memory per retained pane and a long-run soak"
 
 Operator-side only; `packages/terminal` is untouched. When an entry is parked, arm a timer; when it fires and the entry is still parked, drop it with the existing `removeEntry` (`TerminalPane.tsx:320-334`). Removal unmounts the portal, and `useTerminalSession`'s unmount runs `teardownMux` (`useTerminalSession.ts:335-378`), which closes the daemon attachment and releases the mux lease; the pty-host keeps the session and its mirror. Showing the session again goes through `activate`'s "no entry" branch: a fresh container, a fresh core, and a sized open that requests history (`useTerminalSession.ts:779-781`), behind the existing replay cover. Showing a parked entry before the timer fires cancels it.
 
-This reverses a recorded design decision — the comment at `TerminalPane.tsx:506-508` says teardown "is an ownership boundary, not an LRU event". Correct that comment (existing comments may be corrected when they become false, TERMINAL.md §3.3) to say ownership still disposes immediately and a parked entry is also disposed after `RETAINED_TERMINAL_UNLOAD_MS`.
+This reverses a recorded design decision — the comment at `TerminalPane.tsx:508-510` says teardown "is an ownership boundary, not an LRU event". Correct that comment (existing comments may be corrected when they become false, TERMINAL.md §3.3) to say ownership still disposes immediately and a parked entry is also disposed after `RETAINED_TERMINAL_UNLOAD_MS`.
 
 **Files:**
 - Create: `frontend/src/renderer/lib/retained-terminal.ts`
@@ -1660,7 +1662,7 @@ inside the provider, after `removeEntry`:
 
 - [ ] **Step 4: Run and see them pass**
 
-Run: `cd /Users/omaraly/development/AI/Operator/frontend && npx vitest run src/renderer/components/TerminalPane.test.tsx && npx tsc --noEmit -p .`
+Run: `cd /Users/omaraly/development/AI/Operator/frontend && npx vitest run src/renderer/components/TerminalPane.test.tsx src/renderer/hooks/useTerminalSession.test.tsx && npx tsc --noEmit -p .`
 Expected: PASS, including every existing "TerminalPane focus" test.
 
 - [ ] **Step 5: Real-app check**
@@ -1800,7 +1802,7 @@ In `lib/retained-terminal.ts` add `export const BLOCK_NOTIFY_AFTER_MS = 10_000;`
 			unloadedShells.current.set(entry.ownerKey, () => { off(); lease.dispose(); });
 ```
 
-(`entry.handleId`, because a loaded pane's `BlockTerminal` gets `sessionId={handleId ?? "no-session"}` (`TerminalPane.tsx:1004`), so both paths build the same `block-finished:<handleId>:<blockId>` id and the OS collapses a duplicate). In `activate`, when a descriptor's `ownerKey` is in `unloadedShells`, call and delete it before creating the fresh entry; when the shell leaves `shellTerminalsQuery` (`:537-556`), call and delete it too; on provider unmount, call all. Use the i18n instance the file already imports (`useTranslation` is per component; inside the provider use its `t`).
+(`entry.handleId`, because a loaded pane's `BlockTerminal` gets `sessionId={handleId ?? "no-session"}` (`TerminalPane.tsx:1009`), so both paths build the same `block-finished:<handleId>:<blockId>` id and the OS collapses a duplicate). In `activate`, when a descriptor's `ownerKey` is in `unloadedShells`, call and delete it before creating the fresh entry; when the shell leaves `shellTerminalsQuery` (`:537-556`), call and delete it too; on provider unmount, call all. Use the i18n instance the file already imports (`useTranslation` is per component; inside the provider use its `t`).
 
 - [ ] **Step 5: Run and see them pass**
 

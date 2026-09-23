@@ -176,10 +176,12 @@ marks that `hidden` is not known.
 
 ## Other facts the plan depends on
 
-- Split view is planned but not built: `docs/superpowers/plans/2026-09-22-split-view.md`
-  moves "the retained-terminal cache … from one live slot to one per pane".
-  Today `TerminalPane.tsx` has one `activeRef` (one visible pane). A
-  visibility seam must be per renderer so several can be visible later.
+- Split view was planned but not built when this was measured
+  (`development` `b59c3b27c`, one `activeRef`, one visible pane). It was
+  merged later the same day (`495690b41`): the cache now holds one live
+  terminal per pane (`activeSlotsRef`), so several panes can be visible at
+  once and the visibility seam is per renderer. The rows above still
+  describe every pane that is not shown in some split.
 - The snapshot's block list is not windowed: `ExportBuffers` writes every
   block from `export_blocks(total_rows, …)` (`crates/vt-wasm/src/export.rs:226-230`)
   regardless of `setExportWindow`, so block-finished detection can read any
