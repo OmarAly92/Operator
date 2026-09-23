@@ -61,7 +61,7 @@ import { isTicketInArchive } from "../lib/ticket-presentation";
 import { LANE_DROP_ID } from "../lib/ticket-assign";
 import { PlannedColumn } from "./tickets/PlannedColumn";
 import { CreateTicketSheet } from "./tickets/CreateTicketSheet";
-import { useTicketDrag, useTicketDropTarget } from "./tickets/TicketDndProvider";
+import { useTicketDrag, useTicketDropTarget } from "./dnd/AppDndProvider";
 
 type SessionsBoardProps = {
 	/** When set, the board shows only this project's sessions. */

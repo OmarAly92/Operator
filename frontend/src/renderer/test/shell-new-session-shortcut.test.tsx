@@ -306,20 +306,15 @@ beforeEach(() => {
 });
 
 describe("shell workspace startup", () => {
-	it("places the topbar host inside the center panel surface on session routes", async () => {
+	it("renders the session route inside the center panel surface, topbar-host free", async () => {
 		shellMocks.state.routeParams = { sessionId: "sess-1" };
 		await renderShell();
 
-		const host = screen.getByTestId("session-topbar-host");
 		const sidebar = screen.getByTestId("sidebar");
-		// Host now lives inside center-panel-surface (after the sidebar in DOM order).
-		expect(host.compareDocumentPosition(sidebar) & Node.DOCUMENT_POSITION_PRECEDING).toBeTruthy();
-		expect(host).toHaveClass("h-inspector-tabs");
+		expect(screen.queryByTestId("session-topbar-host")).not.toBeInTheDocument();
 		// Sidebar uses the same topbar offset as non-session routes (no longer "session").
 		expect(sidebar).not.toHaveAttribute("data-topbar-offset", "session");
 		expect(document.querySelector(".center-panel-shell--session > .center-panel-surface")).toBeInTheDocument();
-		// Host must be a descendant of the session surface.
-		expect(document.querySelector(".center-panel-shell--session > .center-panel-surface")?.contains(host)).toBe(true);
 	});
 
 	it("forces a confirmed fetch and preserves a collapsed sidebar preference", async () => {

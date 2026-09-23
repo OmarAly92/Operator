@@ -461,6 +461,68 @@ describe("useTerminalSession", () => {
 		expect(muxes[0].resizes.slice(initialResizes)).toEqual([["handle-1", 132, 47]]);
 	});
 
+	it("publishes a surface grid that parking cancelled once the pane is visible again", () => {
+		const { view, muxes } = setup();
+		act(() => muxes[0].emitOpened("handle-1"));
+		act(() => void view.result.current.transport.resize?.(98, 34));
+		const initial = muxes[0].resizes.length;
+
+		act(() => void view.result.current.transport.resize?.(47, 15));
+		view.rerender({ daemonReady: true, isVisible: false });
+		act(() => void vi.advanceTimersByTime(500));
+		expect(muxes[0].resizes.slice(initial)).toEqual([]);
+
+		view.rerender({ daemonReady: true, isVisible: true });
+		act(() => void vi.advanceTimersByTime(100));
+		expect(muxes[0].resizes.slice(initial)).toEqual([["handle-1", 47, 15]]);
+	});
+
+	it("publishes a surface grid measured while parked once the pane is visible again", () => {
+		const { view, muxes } = setup();
+		act(() => muxes[0].emitOpened("handle-1"));
+		act(() => void view.result.current.transport.resize?.(98, 45));
+		const initial = muxes[0].resizes.length;
+
+		view.rerender({ daemonReady: true, isVisible: false });
+		act(() => void view.result.current.transport.resize?.(47, 45));
+		act(() => void vi.advanceTimersByTime(500));
+		expect(muxes[0].resizes.slice(initial)).toEqual([]);
+
+		view.rerender({ daemonReady: true, isVisible: true });
+		act(() => void vi.advanceTimersByTime(100));
+		expect(muxes[0].resizes.slice(initial)).toEqual([["handle-1", 47, 45]]);
+	});
+
+	it("collapses a reshown pane's settling sizes into one resize at the final grid", () => {
+		const { view, muxes } = setup();
+		act(() => muxes[0].emitOpened("handle-1"));
+		act(() => void view.result.current.transport.resize?.(98, 34));
+		const initial = muxes[0].resizes.length;
+
+		view.rerender({ daemonReady: true, isVisible: false });
+		act(() => void view.result.current.transport.resize?.(98, 20));
+		view.rerender({ daemonReady: true, isVisible: true });
+		act(() => {
+			view.result.current.transport.resize?.(60, 20);
+			vi.advanceTimersByTime(30);
+			view.result.current.transport.resize?.(45, 20);
+		});
+		act(() => void vi.advanceTimersByTime(100));
+		expect(muxes[0].resizes.slice(initial)).toEqual([["handle-1", 45, 20]]);
+	});
+
+	it("sends nothing when a pane is parked and shown at the grid it already published", () => {
+		const { view, muxes } = setup();
+		act(() => muxes[0].emitOpened("handle-1"));
+		act(() => void view.result.current.transport.resize?.(98, 34));
+		const initial = muxes[0].resizes.length;
+
+		view.rerender({ daemonReady: true, isVisible: false });
+		view.rerender({ daemonReady: true, isVisible: true });
+		act(() => void vi.advanceTimersByTime(500));
+		expect(muxes[0].resizes.slice(initial)).toEqual([]);
+	});
+
 	it("collapses a drag's burst into the leading and settled grids only", () => {
 		const { terminal, muxes } = setup();
 		const initialResizes = muxes[0].resizes.length;

@@ -94,9 +94,6 @@ type UiState = {
 	// session. Surfaces outside the session subtree (the notification runtime)
 	// need that distinction, and SessionView's own target is local state.
 	visibleTerminalKindBySession: Record<string, TerminalTarget["kind"]>;
-	// Session tabs open in each project's session view, in strip order. Closing a
-	// tab only takes the session off screen; the agent keeps running.
-	openSessionTabsByProject: Record<string, string[]>;
 	setWorkbenchTab: (tab: WorkbenchTab) => void;
 	setThemePreference: (theme: ThemePreference) => void;
 	setThemeStyle: (style: ThemeStyle) => void;
@@ -122,8 +119,6 @@ type UiState = {
 	setActiveShellTerminal: (handleId: string | null) => void;
 	setVisibleTerminalKind: (sessionId: string, kind: TerminalTarget["kind"]) => void;
 	clearVisibleTerminalKind: (sessionId: string) => void;
-	openSessionTab: (projectId: string, sessionId: string, afterSessionId?: string) => void;
-	closeSessionTab: (projectId: string, sessionId: string) => void;
 };
 
 const sidebarStorageKey = "opr.sidebar.open";
@@ -181,7 +176,6 @@ export const useUiStore = create<UiState>((set, get) => ({
 	newShellTerminalNonce: 0,
 	activeShellTerminalHandleId: null,
 	visibleTerminalKindBySession: {},
-	openSessionTabsByProject: {},
 	setWorkbenchTab: (workbenchTab) => set({ workbenchTab }),
 	setThemePreference: (themePreference) => {
 		if (get().themePreference === themePreference) return;
@@ -298,25 +292,6 @@ export const useUiStore = create<UiState>((set, get) => ({
 			const visibleTerminalKindBySession = { ...state.visibleTerminalKindBySession };
 			delete visibleTerminalKindBySession[sessionId];
 			return { visibleTerminalKindBySession };
-		}),
-	openSessionTab: (projectId, sessionId, afterSessionId) =>
-		set((state) => {
-			const tabs = state.openSessionTabsByProject[projectId] ?? [];
-			if (tabs.includes(sessionId)) return state;
-			const anchor = afterSessionId ? tabs.indexOf(afterSessionId) : -1;
-			const next = anchor < 0 ? [...tabs, sessionId] : [...tabs.slice(0, anchor + 1), sessionId, ...tabs.slice(anchor + 1)];
-			return { openSessionTabsByProject: { ...state.openSessionTabsByProject, [projectId]: next } };
-		}),
-	closeSessionTab: (projectId, sessionId) =>
-		set((state) => {
-			const tabs = state.openSessionTabsByProject[projectId];
-			if (!tabs?.includes(sessionId)) return state;
-			return {
-				openSessionTabsByProject: {
-					...state.openSessionTabsByProject,
-					[projectId]: tabs.filter((id) => id !== sessionId),
-				},
-			};
 		}),
 }));
 

@@ -1,4 +1,5 @@
 import { SidebarProvider } from "@/components/ui/sidebar";
+import { DndContext } from "@dnd-kit/core";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 // Disable motion animations so AnimatePresence unmounts children immediately
@@ -21,6 +22,9 @@ import {
 import type { WorkspaceSession, WorkspaceSummary } from "../types/workspace";
 import { agentsQueryKey } from "../hooks/useAgentsQuery";
 import { useUiStore } from "../stores/ui-store";
+import { useSplitLayoutStore } from "../stores/split-layout-store";
+import { EMPTY_LAYOUT, openTab, splitPane } from "../lib/split-layout";
+import type { TabRef } from "../lib/split-layout";
 
 const { getMock, postMock, navigateMock, mockParams, renameSessionMock, updateStatusMock, commandPaletteEnabled } = vi.hoisted(
 	() => ({
@@ -42,7 +46,7 @@ const { sidebarDropMock } = vi.hoisted(() => ({
 	sidebarDropMock: vi.fn((id: string) => ({ setNodeRef: () => undefined, isOver: false, accepts: false, dragging: false, id })),
 }));
 
-vi.mock("./tickets/TicketDndProvider", () => ({
+vi.mock("./dnd/AppDndProvider", () => ({
 	useTicketDropTarget: (id: string) => sidebarDropMock(id),
 	useTicketDrag: () => ({ active: null, requestAssign: () => undefined }),
 }));
@@ -133,6 +137,7 @@ function renderSidebar({
 	seedAgents = true,
 	workspaces = [workspace],
 	initialOpen = true,
+	wrapWithDnd = false,
 }: {
 	onCreateProject?: CreateProjectHandler;
 	onInitializeProject?: InitializeProjectHandler;
@@ -140,6 +145,7 @@ function renderSidebar({
 	seedAgents?: boolean;
 	workspaces?: WorkspaceSummary[];
 	initialOpen?: boolean;
+	wrapWithDnd?: boolean;
 } = {}) {
 	const queryClient = new QueryClient({
 		defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
@@ -160,7 +166,7 @@ function renderSidebar({
 			],
 		});
 	}
-	render(
+	const tree = (
 		<QueryClientProvider client={queryClient}>
 			<SidebarProvider defaultOpen={initialOpen}>
 				<Sidebar
@@ -170,8 +176,9 @@ function renderSidebar({
 					workspaces={workspaces}
 				/>
 			</SidebarProvider>
-		</QueryClientProvider>,
+		</QueryClientProvider>
 	);
+	render(wrapWithDnd ? <DndContext>{tree}</DndContext> : tree);
 	return onRemoveProject;
 }
 
@@ -528,6 +535,21 @@ describe("Sidebar", () => {
 			"Rename session",
 			"Kill session",
 		]);
+	});
+
+	it("does not intercept Enter/Space bubbling up from the session row, so Open still fires and no phantom drag starts", () => {
+		mockParams.projectId = "proj-1";
+		renderSidebar({ workspaces: [{ ...workspace, sessions: [session] }], wrapWithDnd: true });
+
+		const openButton = screen.getByLabelText("Open fix login");
+		expect(fireEvent.keyDown(openButton, { key: "Enter", code: "Enter" })).toBe(true);
+		expect(fireEvent.keyDown(openButton, { key: " ", code: "Space" })).toBe(true);
+
+		fireEvent.click(openButton);
+		expect(navigateMock).toHaveBeenCalledWith({
+			to: "/projects/$projectId/sessions/$sessionId",
+			params: { projectId: "proj-1", sessionId: "proj-1-1" },
+		});
 	});
 
 	it("does not kill the session when the confirmation is cancelled", async () => {
@@ -1480,5 +1502,77 @@ describe("Sidebar", () => {
 			expect(button).toHaveClass("text-working", "bg-working/12");
 		}
 		expect(screen.getByText("v9.9.9 ready")).toBeInTheDocument();
+	});
+
+	it("shows every session visible in a pane as active in the sidebar", () => {
+		const sessionA: WorkspaceSession = { ...session, id: "proj-1-a", title: "session a" };
+		const sessionB: WorkspaceSession = { ...session, id: "proj-1-b", title: "session b" };
+
+		const createLayout = (tab1: TabRef, tab2: TabRef) => {
+			const next = (() => {
+				let n = 0;
+				return () => `id${++n}`;
+			})();
+			let layout = openTab(EMPTY_LAYOUT, tab1, next);
+			const paneId = layout.focusedPaneId as string;
+			layout = splitPane(layout, tab2, paneId, "right", next);
+			return layout;
+		};
+
+		const twoPane = createLayout(
+			{ kind: "session", sessionId: "proj-1-a" },
+			{ kind: "session", sessionId: "proj-1-b" },
+		);
+
+		mockParams.projectId = "proj-1";
+		mockParams.sessionId = "proj-1-a";
+
+		useSplitLayoutStore.setState({ layout: twoPane });
+
+		renderSidebar({
+			workspaces: [{ ...workspace, sessions: [sessionA, sessionB] }],
+		});
+
+		const openA = screen.getByLabelText("Open session a");
+		const openB = screen.getByLabelText("Open session b");
+
+		expect(openA).toHaveAttribute("aria-current", "page");
+		expect(openB).toHaveAttribute("aria-current", "page");
+	});
+
+	it("does not mark sessions as active on the project board route", () => {
+		const sessionA: WorkspaceSession = { ...session, id: "proj-1-a", title: "session a" };
+		const sessionB: WorkspaceSession = { ...session, id: "proj-1-b", title: "session b" };
+
+		const createLayout = (tab1: TabRef, tab2: TabRef) => {
+			const next = (() => {
+				let n = 0;
+				return () => `id${++n}`;
+			})();
+			let layout = openTab(EMPTY_LAYOUT, tab1, next);
+			const paneId = layout.focusedPaneId as string;
+			layout = splitPane(layout, tab2, paneId, "right", next);
+			return layout;
+		};
+
+		const twoPane = createLayout(
+			{ kind: "session", sessionId: "proj-1-a" },
+			{ kind: "session", sessionId: "proj-1-b" },
+		);
+
+		mockParams.projectId = "proj-1";
+		mockParams.sessionId = undefined;
+
+		useSplitLayoutStore.setState({ layout: twoPane });
+
+		renderSidebar({
+			workspaces: [{ ...workspace, sessions: [sessionA, sessionB] }],
+		});
+
+		const openA = screen.getByLabelText("Open session a");
+		const openB = screen.getByLabelText("Open session b");
+
+		expect(openA).not.toHaveAttribute("aria-current");
+		expect(openB).not.toHaveAttribute("aria-current");
 	});
 });

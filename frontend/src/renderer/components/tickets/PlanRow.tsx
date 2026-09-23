@@ -6,7 +6,7 @@ import { assignActionKey, canAssignPlan } from "../../lib/ticket-assign";
 import { getPlanStatusView, planNumber, type PlanView, type TicketWithProject } from "../../lib/ticket-presentation";
 import { cn } from "../../lib/utils";
 import type { WorkspaceSession } from "../../types/workspace";
-import { usePlanDraggable } from "./TicketDndProvider";
+import { usePlanDraggable } from "../dnd/AppDndProvider";
 
 export type PlanRowProps = {
 	ticket: TicketWithProject;

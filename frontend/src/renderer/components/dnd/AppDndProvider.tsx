@@ -11,12 +11,16 @@ import {
 	useSensors,
 	type CollisionDetection,
 	type DragEndEvent,
+	type DragMoveEvent,
 	type DragStartEvent,
 } from "@dnd-kit/core";
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from "react";
 import { dropAccepts, planDragId, type PlanDragData } from "../../lib/ticket-assign";
 import { planNumber, type PlanView, type TicketWithProject } from "../../lib/ticket-presentation";
-import { AssignPlanSheet } from "./AssignPlanSheet";
+import { splitDragCancel, splitDragEnd, splitDragMove, splitDragStart } from "../split/split-drag-handlers";
+import { SplitDragPreview } from "../split/SplitDragPreview";
+import { SplitDropOverlay } from "../split/SplitDropOverlay";
+import { AssignPlanSheet } from "../tickets/AssignPlanSheet";
 
 export type AssignRequest = PlanDragData;
 
@@ -41,7 +45,7 @@ function dragData(event: { active: { data: { current?: unknown } } }): PlanDragD
 	return data && data.ticket && data.plan ? data : null;
 }
 
-export function TicketDndProvider({ children }: { children: ReactNode }) {
+export function AppDndProvider({ children }: { children: ReactNode }) {
 	const [active, setActive] = useState<PlanDragData | null>(null);
 	const [pending, setPending] = useState<AssignRequest | null>(null);
 	const sensors = useSensors(
@@ -49,12 +53,21 @@ export function TicketDndProvider({ children }: { children: ReactNode }) {
 		useSensor(KeyboardSensor),
 	);
 	const requestAssign = useCallback((ticket: TicketWithProject, plan: PlanView) => setPending({ ticket, plan }), []);
-	const onDragStart = (event: DragStartEvent) => setActive(dragData(event));
+	const onDragStart = (event: DragStartEvent) => {
+		if (splitDragStart(event)) return;
+		setActive(dragData(event));
+	};
+	const onDragMove = (event: DragMoveEvent) => splitDragMove(event);
 	const onDragEnd = (event: DragEndEvent) => {
+		if (splitDragEnd(event)) return;
 		const data = dragData(event);
 		setActive(null);
 		if (!data || !event.over) return;
 		if (dropAccepts(String(event.over.id), data)) setPending(data);
+	};
+	const onDragCancel = () => {
+		splitDragCancel();
+		setActive(null);
 	};
 	const value = useMemo(() => ({ active, requestAssign }), [active, requestAssign]);
 
@@ -64,11 +77,13 @@ export function TicketDndProvider({ children }: { children: ReactNode }) {
 				sensors={sensors}
 				collisionDetection={collisionDetection}
 				onDragStart={onDragStart}
+				onDragMove={onDragMove}
 				onDragEnd={onDragEnd}
-				onDragCancel={() => setActive(null)}
+				onDragCancel={onDragCancel}
 			>
 				{children}
-				<DragOverlay dropAnimation={null}>{active ? <PlanDragChip data={active} /> : null}</DragOverlay>
+				<DragOverlay dropAnimation={null}>{active ? <PlanDragChip data={active} /> : <SplitDragPreview />}</DragOverlay>
+				<SplitDropOverlay />
 			</DndContext>
 			{pending ? (
 				<AssignPlanSheet

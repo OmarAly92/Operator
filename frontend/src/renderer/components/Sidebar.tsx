@@ -17,7 +17,7 @@ import {
 	Trash2,
 	X,
 } from "lucide-react";
-import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
+import { useMemo, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import type { UpdateStatus } from "../../shared/update-settings";
 import { type WorkspaceSession, type WorkspaceSummary } from "../types/workspace";
@@ -32,7 +32,8 @@ import { useResizable } from "../hooks/useResizable";
 import { useShellMaybe } from "../lib/shell-context";
 import { useUpdateStatus } from "../hooks/useUpdateStatus";
 import { projectDropId } from "../lib/ticket-assign";
-import { useTicketDropTarget } from "./tickets/TicketDndProvider";
+import { useTicketDropTarget } from "./dnd/AppDndProvider";
+import { useSplitTabDraggable } from "./split/useSplitTabDraggable";
 import {
 	ContextMenu,
 	ContextMenuContent,
@@ -63,7 +64,9 @@ import {
 } from "./ui/sidebar";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 import { cn } from "../lib/utils";
-import { useUiStore } from "../stores/ui-store"
+import { useUiStore } from "../stores/ui-store";
+import { useSplitLayoutStore } from "../stores/split-layout-store";
+import { activeTabOf, listPanes, tabSessionId } from "../lib/split-layout";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { CreateProjectFlow, type CreateProjectInput } from "./CreateProjectFlow";
 import { ResizeHandle } from "./ResizeHandle";
@@ -74,6 +77,17 @@ import { isMacPlatform } from "../lib/platform";
 // sidebar toggle + history arrows above this surface. Windows hangs the sidebar
 // under its custom titlebar.
 const isMac = isMacPlatform();
+
+export function useVisibleSessionIds(routeSessionId: string | undefined): Set<string> {
+	const layout = useSplitLayoutStore((state) => state.layout);
+	return useMemo(() => {
+		if (!routeSessionId) return new Set<string>();
+		const ids = listPanes(layout.root)
+			.map((pane) => tabSessionId(activeTabOf(pane)))
+			.filter((id): id is string => Boolean(id));
+		return new Set([routeSessionId, ...ids]);
+	}, [layout, routeSessionId]);
+}
 
 // Shared styling for the per-project hover action buttons (new task, terminal, kebab):
 // a 20px square icon button that tints on hover, matching the old
@@ -169,6 +183,7 @@ export function Sidebar({
 }: SidebarProps) {
 	const { t } = useTranslation();
 	const selection = useSelection(workspaces);
+	const visibleSessionIds = useVisibleSessionIds(selection.activeSessionId);
 	const { state, setOpen } = useSidebar();
 	const isCollapsed = state === "collapsed";
 	const [expandedChromeVisible, setExpandedChromeVisible] = useState(!isCollapsed);
@@ -285,8 +300,9 @@ export function Sidebar({
 									<SessionRow
 										key={session.id}
 										session={session}
-										active={selection.activeSessionId === session.id}
+										active={visibleSessionIds.has(session.id)}
 										onOpen={() => selection.goSession(session.workspaceId, session.id)}
+										pinnedPlacement
 									/>
 								))}
 							</SidebarMenuSub>
@@ -328,6 +344,7 @@ export function Sidebar({
 										expanded={Boolean(searchQuery) || expandedIds.has(workspace.id)}
 										searchQuery={searchQuery}
 										selection={selection}
+										visibleSessionIds={visibleSessionIds}
 										onToggle={() => toggleExpanded(workspace.id)}
 										onRemoveProject={onRemoveProject}
 									/>
@@ -421,6 +438,7 @@ function ProjectItem({
 	workspace,
 	expanded,
 	selection,
+	visibleSessionIds,
 	onToggle,
 	onRemoveProject,
 }: {
@@ -428,6 +446,7 @@ function ProjectItem({
 	workspace: WorkspaceSummary;
 	expanded: boolean;
 	selection: Selection;
+	visibleSessionIds: Set<string>;
 	onToggle: () => void;
 	onRemoveProject: (projectId: string) => Promise<void>;
 }) {
@@ -724,7 +743,7 @@ function ProjectItem({
 								<SessionRow
 									key={session.id}
 									session={session}
-									active={selection.activeSessionId === session.id}
+									active={visibleSessionIds.has(session.id)}
 									onOpen={() => selection.goSession(workspace.id, session.id)}
 								/>
 							))}
@@ -786,10 +805,12 @@ function SessionRow({
 	session,
 	active,
 	onOpen,
+	pinnedPlacement = false,
 }: {
 	session: WorkspaceSession;
 	active: boolean;
 	onOpen: () => void;
+	pinnedPlacement?: boolean;
 }) {
 	const { t } = useTranslation();
 	const [isEditing, setIsEditing] = useState(false);
@@ -797,6 +818,11 @@ function SessionRow({
 	// Escape must not be swallowed by the blur-to-save path: the keydown handler
 	// blurs the input, so it flags a cancel here for onBlur to honour.
 	const cancelledRef = useRef(false);
+	const drag = useSplitTabDraggable(
+		{ kind: "session", sessionId: session.id },
+		session.title,
+		pinnedPlacement ? "sidebar-pinned" : "sidebar",
+	);
 	const [killConfirmOpen, setKillConfirmOpen] = useState(false);
 
 	const queryClient = useQueryClient();
@@ -898,6 +924,8 @@ function SessionRow({
 							active && "bg-interactive-active text-foreground",
 						)}
 						data-session-row=""
+						ref={drag.setNodeRef}
+						onPointerDown={(event) => drag.listeners?.onPointerDown?.(event)}
 					>
 						<div className="flex min-w-0 flex-1 transition-[transform] duration-[100ms] ease-out active:scale-[0.97]">
 							<button

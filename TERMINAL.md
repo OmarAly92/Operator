@@ -37,8 +37,16 @@ daemon (session_manager → httpd mux channels)
    ▼
 renderer  frontend/src/renderer
    ├─ hooks/useTerminalSession.ts   transport, grid publisher, RESIZE_DEBOUNCE_MS
-   ├─ components/TerminalPane.tsx   picks the surface; agentTui={kind === "worker"}
-   ├─ components/BlockTerminal.tsx  mounts the package, setAgentTuiMode, onGeometry
+   ├─ components/TerminalPane.tsx   picks the surface; agentTui={kind === "worker"}; the
+   │                                 retained-terminal cache keeps one live terminal per
+   │                                 split-view pane slot (`activeSlotsRef`, a Map keyed by
+   │                                 pane slot), not one live terminal for the whole app —
+   │                                 every other cached terminal for a tab shown elsewhere is
+   │                                 parked, never torn down
+   ├─ components/BlockTerminal.tsx  mounts the package, setAgentTuiMode, onGeometry;
+   │                                 `recordsSpawnGrid` (default true) gates `onGeometry`'s
+   │                                 `rememberPaneGrid` call so an unfocused split pane never
+   │                                 overwrites the remembered spawn grid with its own size
    └─ lib/pane-grid.ts              last measured grid, spread into create/restore bodies
    │
    ▼
@@ -243,6 +251,14 @@ rebuilt (§6).
 5. **Rebuild both wasm artifacts and the daemon** after any vt-core change, then
    tell the user to restart the daemon and the app. Old pty-host processes keep the
    old wasm for the life of the session.
+6. **One place per terminal.** A split-view pane's retained terminal cache holds
+   at most one live slot per cache key; the split layout tree
+   (`frontend/src/renderer/lib/split-layout.ts`) separately guarantees a tab
+   exists in at most one pane (`assertLayout`'s duplicate-tab check). Together
+   these mean a session, shell or reviewer terminal is attached to exactly one
+   DOM slot at a time. `TerminalPane.tsx`'s `activate` asserts this in dev
+   builds (`console.error` when a cache key would activate in a second slot)
+   rather than silently letting two panes fight over the same live vt-core.
 
 ---
 
@@ -735,6 +751,26 @@ history of `master`.
   from a `claude` v2.1.280 launch in a pty, `ts/react/src/__fixtures__/claude-code-banner`
   — the recorded fixtures print an elided `/…/` path instead), `native.rs`
   `first_existing_path_*`, `tauri-bridge.test.ts`, `BlockTerminal.test.tsx`.
+
+### 4.24 A pane shown again kept the pty at its old grid — split view review
+- Symptom: in split panes, typed text landed on the wrong row (over Claude
+  Code's separator or a transcript line), long lines were cut at the pane edge,
+  and Claude Code's banner repeated in overlapping copies.
+- Cause: a layout change parks and re-shows the pane's retained terminal. The
+  surface measured the new grid, parking cleared the queued publish
+  (`useTerminalSession` visibility effect), and nothing re-sent it on return:
+  `syncVisibleSize` only covers the xterm fallback (`surfaceGeometry !== null`
+  returns), and the surface does not report again because its box did not change
+  after it measured. The pty stayed at the old width (measured live: 98 columns
+  behind a 47-column pane), so Claude Code drew frames the renderer rewrapped
+  taller than Claude Code believed, and its relative repaints left copies.
+- Now: when a pane becomes visible and its surface grid differs from the last
+  published grid, that grid goes through the normal debounced publish, so a
+  re-shown pane's settling sizes still collapse into one SIGWINCH (§4.6).
+- Guards: `useTerminalSession.test.tsx` "publishes a surface grid that parking
+  cancelled…", "…measured while parked…", "collapses a reshown pane's settling
+  sizes…", "sends nothing when a pane is parked and shown at the grid it already
+  published".
 
 ## 5. Known gaps (not bugs, decisions pending)
 

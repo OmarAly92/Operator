@@ -1,10 +1,10 @@
 import { StrictMode, type ReactNode, type Ref } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, fireEvent, render as rtlRender, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render as rtlRender, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi, type Mock } from "vitest";
 import { SessionView } from "./SessionView";
-import { operatorBridge } from "../lib/bridge";
 import { useUiStore } from "../stores/ui-store";
+import { useSplitLayoutStore } from "../stores/split-layout-store";
 import type { WorkspaceSession, WorkspaceSummary } from "../types/workspace";
 
 const navigateMock = vi.hoisted(() => vi.fn());
@@ -89,76 +89,11 @@ const { workspaces, workspaceQueryState, panels } = vi.hoisted(() => {
 });
 
 // The terminal and inspector body pull in xterm/SSE machinery irrelevant to
-// the split under test. (ShellTopbar is shell-owned on Win/Linux; when the
-// platform hides the shell topbar, SessionView mounts it in-panel.)
+// this split.
 vi.mock("./ShellTopbar", () => ({ ShellTopbar: () => null }));
-vi.mock("./CenterPane", () => ({
-	CenterPane: ({
-		session,
-		onSelectSessionTerminal,
-		onSelectReviewerTerminal,
-		topbarActions,
-		reviewerTerminal,
-		terminalTarget,
-		shellTerminals,
-		onSelectShellTerminal,
-		onCloseShellTerminal,
-		sessionTabs,
-		onSelectSessionTab,
-		onCloseSessionTab,
-	}: {
-		sessionTabs?: WorkspaceSession[];
-		onSelectSessionTab?: (sessionId: string) => void;
-		onCloseSessionTab?: (sessionId: string) => void;
-		session?: WorkspaceSession;
-		onSelectSessionTerminal?: () => void;
-		onSelectReviewerTerminal?: (target: { handleId: string; harness: string }) => void;
-		topbarActions?: ReactNode;
-		reviewerTerminal?: { handleId: string; harness: string };
-		terminalTarget?: { kind: string; handleId?: string };
-		shellTerminals?: { handleId: string; title: string }[];
-		onSelectShellTerminal?: (shell: { handleId: string; title: string }) => void;
-		onCloseShellTerminal?: (handleId: string) => void;
-	}) => (
-		<div data-testid="terminal-pane">
-			terminal center
-			{topbarActions}
-			<div data-testid="terminal-target">
-				{terminalTarget?.kind === "shell" ? terminalTarget.handleId : (terminalTarget?.kind ?? "worker")}
-			</div>
-			<div data-testid="session-tab">{session?.title ?? ""}</div>
-			<div data-testid="reviewer-harness">{reviewerTerminal?.harness ?? ""}</div>
-			{reviewerTerminal ? (
-				<button type="button" onClick={() => onSelectReviewerTerminal?.(reviewerTerminal)}>
-					select reviewer tab
-				</button>
-			) : null}
-			<button type="button" onClick={() => onSelectSessionTerminal?.()}>
-				select agent tab
-			</button>
-			<div data-testid="session-tabs">{(sessionTabs ?? []).map((tab) => tab.id).join(",")}</div>
-			{(sessionTabs ?? []).map((tab) => (
-				<div key={tab.id}>
-					<button type="button" onClick={() => onSelectSessionTab?.(tab.id)}>
-						select session {tab.id}
-					</button>
-					<button type="button" onClick={() => onCloseSessionTab?.(tab.id)}>
-						close session {tab.id}
-					</button>
-				</div>
-			))}
-			<div data-testid="shell-tabs">{(shellTerminals ?? []).map((shell) => shell.handleId).join(",")}</div>
-			{(shellTerminals ?? []).map((shell) => (
-				<div key={shell.handleId}>
-					<button type="button" onClick={() => onSelectShellTerminal?.(shell)}>
-						select shell {shell.handleId}
-					</button>
-					<button type="button" onClick={() => onCloseShellTerminal?.(shell.handleId)}>
-						close shell {shell.handleId}
-					</button>
-				</div>
-			))}
-		</div>
+vi.mock("./split/SplitWorkspace", () => ({
+	SplitWorkspace: ({ routeSessionId }: { routeSessionId: string }) => (
+		<div data-testid="split-workspace">{routeSessionId}</div>
 	),
 }));
 const { externalPreviewOptions, externalPreviewState } = vi.hoisted(() => ({
@@ -223,35 +158,11 @@ vi.mock("./SessionInspector", () => ({
 		</div>
 	),
 }));
-vi.mock("../lib/shell-context", () => ({
-	useShell: () => ({ daemonStatus: { state: "ready" } }),
-}));
 vi.mock("../hooks/useWorkspaceQuery", () => ({
 	useWorkspaceQuery: () => ({
 		data: workspaceQueryState.data,
 		isLoading: workspaceQueryState.isLoading,
 	}),
-}));
-const shellTerminalState = vi.hoisted(() => ({
-	shells: [
-		{
-			handleId: "shell-in-session",
-			sessionId: "sess-1",
-			workingDir: "/tmp",
-			title: "shell",
-			createdAt: "2026-06-10T00:00:00Z",
-		},
-	] as { handleId: string; sessionId?: string; workingDir: string; title: string; createdAt: string }[],
-	close: vi.fn(),
-	rename: vi.fn(),
-}));
-
-vi.mock("../hooks/useShellTerminals", () => ({
-	useShellTerminals: () => ({ data: shellTerminalState.shells, isSuccess: true }),
-	useOpenShellTerminal: () => ({ mutate: vi.fn() }),
-	useCloseShellTerminal: () => ({ mutate: shellTerminalState.close }),
-	useRenameShellTerminal: () => ({ mutate: shellTerminalState.rename }),
-	shellTerminalsQueryKey: ["shell-terminals"],
 }));
 
 // jsdom has no layout engine, so the real react-resizable-panels would never
@@ -368,321 +279,21 @@ describe("SessionView", () => {
 			activeShellTerminalHandleId: null,
 			inspectorSessions: {},
 			visibleTerminalKindBySession: {},
-			openSessionTabsByProject: {},
 		});
+		useSplitLayoutStore.setState({ layout: { root: null, focusedPaneId: null } });
 		panels.clear();
 		externalPreviewOptions.current = undefined;
 		externalPreviewState.error = "";
-		shellTerminalState.shells = [
-			{
-				handleId: "shell-in-session",
-				sessionId: "sess-1",
-				workingDir: "/tmp",
-				title: "shell",
-				createdAt: "2026-06-10T00:00:00Z",
-			},
-		];
-		shellTerminalState.close.mockReset();
-		shellTerminalState.rename.mockReset();
 	navigateMock.mockReset();
 		reviewGetMock.mockReset();
 		reviewGetMock.mockResolvedValue({ data: { reviewerHandleId: "", reviews: [], runs: [] }, error: undefined });
 	});
 
-	it("opens another session of the project as a tab next to the current one", async () => {
-		useUiStore.setState({ openSessionTabsByProject: { "proj-1": ["sess-1", "sess-3"] } });
-		const { rerender } = render(<SessionView sessionId="sess-1" />);
-		expect(await screen.findByTestId("session-tabs")).toHaveTextContent("sess-1,sess-3");
-
-		rerender(<SessionView sessionId="sess-2" />);
-		await waitFor(() => expect(screen.getByTestId("session-tabs")).toHaveTextContent("sess-1,sess-2,sess-3"));
-
-		fireEvent.click(screen.getByRole("button", { name: "select session sess-3" }));
-		expect(navigateMock).toHaveBeenCalledWith({
-			to: "/projects/$projectId/sessions/$sessionId",
-			params: { projectId: "proj-1", sessionId: "sess-3" },
-		});
-	});
-
-	it("closing the current tab shows its neighbour without killing the session", async () => {
-		useUiStore.setState({ openSessionTabsByProject: { "proj-1": ["sess-1", "sess-2"] } });
+	it("renders SplitWorkspace for the routed session", () => {
 		render(<SessionView sessionId="sess-1" />);
-
-		fireEvent.click(await screen.findByRole("button", { name: "close session sess-1" }));
-
-		expect(useUiStore.getState().openSessionTabsByProject["proj-1"]).toEqual(["sess-2"]);
-		expect(navigateMock).toHaveBeenCalledWith({
-			to: "/projects/$projectId/sessions/$sessionId",
-			params: { projectId: "proj-1", sessionId: "sess-2" },
-			replace: true,
-		});
+		expect(screen.getByTestId("split-workspace")).toHaveTextContent("sess-1");
 	});
 
-	it("closing another tab stays on the current session", async () => {
-		useUiStore.setState({ openSessionTabsByProject: { "proj-1": ["sess-1", "sess-2"] } });
-		render(<SessionView sessionId="sess-1" />);
-
-		fireEvent.click(await screen.findByRole("button", { name: "close session sess-2" }));
-
-		expect(screen.getByTestId("session-tabs")).toHaveTextContent(/^sess-1$/);
-		expect(navigateMock).not.toHaveBeenCalled();
-	});
-
-	it("closes the active tab from the close-tab shortcut instead of the window", async () => {
-		let fireShortcut = () => {};
-		const onShortcut = vi.spyOn(operatorBridge.app, "onCloseShellTerminalShortcut").mockImplementation((listener) => {
-			fireShortcut = listener;
-			return () => undefined;
-		});
-		const setEnabled = vi.spyOn(operatorBridge.app, "setCloseShellTerminalShortcutEnabled");
-		useUiStore.setState({ openSessionTabsByProject: { "proj-1": ["sess-1", "sess-2"] } });
-		const { unmount } = render(<SessionView sessionId="sess-1" />);
-		expect(setEnabled).toHaveBeenLastCalledWith(true);
-
-		fireEvent.click(await screen.findByRole("button", { name: "select shell shell-in-session" }));
-		act(() => fireShortcut());
-		expect(shellTerminalState.close).toHaveBeenCalledWith("shell-in-session");
-		expect(navigateMock).not.toHaveBeenCalled();
-
-		fireEvent.click(screen.getByRole("button", { name: "select agent tab" }));
-		act(() => fireShortcut());
-		expect(navigateMock).toHaveBeenCalledWith({
-			to: "/projects/$projectId/sessions/$sessionId",
-			params: { projectId: "proj-1", sessionId: "sess-2" },
-			replace: true,
-		});
-
-		unmount();
-		expect(setEnabled).toHaveBeenLastCalledWith(false);
-		onShortcut.mockRestore();
-		setEnabled.mockRestore();
-	});
-
-	it("walks the agent, shell and neighbouring session tabs with the tab shortcuts", async () => {
-		const listeners: { previous: () => void; next: () => void } = { previous: () => {}, next: () => {} };
-		const onPrevious = vi.spyOn(operatorBridge.app, "onPreviousTabShortcut").mockImplementation((listener) => {
-			listeners.previous = listener;
-			return () => undefined;
-		});
-		const onNext = vi.spyOn(operatorBridge.app, "onNextTabShortcut").mockImplementation((listener) => {
-			listeners.next = listener;
-			return () => undefined;
-		});
-		useUiStore.setState({ openSessionTabsByProject: { "proj-1": ["sess-3", "sess-1", "sess-2"] } });
-		render(<SessionView sessionId="sess-1" />);
-		expect(await screen.findByTestId("terminal-target")).toHaveTextContent("worker");
-
-		act(() => listeners.next());
-		expect(screen.getByTestId("terminal-target")).toHaveTextContent("shell-in-session");
-
-		act(() => listeners.next());
-		expect(navigateMock).toHaveBeenLastCalledWith({
-			to: "/projects/$projectId/sessions/$sessionId",
-			params: { projectId: "proj-1", sessionId: "sess-2" },
-		});
-
-		act(() => listeners.previous());
-		expect(screen.getByTestId("terminal-target")).toHaveTextContent("worker");
-
-		act(() => listeners.previous());
-		expect(navigateMock).toHaveBeenLastCalledWith({
-			to: "/projects/$projectId/sessions/$sessionId",
-			params: { projectId: "proj-1", sessionId: "sess-3" },
-		});
-		onPrevious.mockRestore();
-		onNext.mockRestore();
-	});
-
-	it("closing the last tab goes back to the project kanban", async () => {
-		render(<SessionView sessionId="sess-1" />);
-
-		fireEvent.click(await screen.findByRole("button", { name: "close session sess-1" }));
-
-		expect(useUiStore.getState().openSessionTabsByProject["proj-1"]).toEqual([]);
-		expect(navigateMock).toHaveBeenCalledWith({ to: "/projects/$projectId", params: { projectId: "proj-1" }, replace: true });
-	});
-
-	it("gives the tab strip this session's shells and no other session's", async () => {
-		shellTerminalState.shells = [
-			{ handleId: "shell-in-session", sessionId: "sess-1", workingDir: "/tmp", title: "a", createdAt: "2026-06-10T00:00:00Z" },
-			{ handleId: "shell-elsewhere", sessionId: "sess-2", workingDir: "/tmp", title: "b", createdAt: "2026-06-10T00:00:00Z" },
-			{ handleId: "shell-standalone", workingDir: "/tmp", title: "c", createdAt: "2026-06-10T00:00:00Z" },
-		];
-		render(<SessionView sessionId="sess-1" />);
-		expect(await screen.findByTestId("shell-tabs")).toHaveTextContent("shell-in-session");
-		expect(screen.getByTestId("shell-tabs")).not.toHaveTextContent("shell-elsewhere");
-		expect(screen.getByTestId("shell-tabs")).not.toHaveTextContent("shell-standalone");
-	});
-
-	// The sidebar's terminal button opens the shell and names it in the store,
-	// then routes here; the pane must come up already showing it.
-	it("shows a shell requested from outside once it belongs to this session", async () => {
-		render(<SessionView sessionId="sess-1" />);
-		expect(screen.getByTestId("terminal-target")).toHaveTextContent("worker");
-
-		act(() => {
-			useUiStore.getState().setActiveShellTerminal("shell-in-session");
-		});
-
-		await waitFor(() => expect(screen.getByTestId("terminal-target")).toHaveTextContent("shell-in-session"));
-	});
-
-	// A request is honoured once. Without that, clicking back to the agent tab
-	// would be undone on the next render by a request already satisfied.
-	it("stays on the agent tab after the user selects it back", async () => {
-		render(<SessionView sessionId="sess-1" />);
-		act(() => {
-			useUiStore.getState().setActiveShellTerminal("shell-in-session");
-		});
-		await waitFor(() => expect(screen.getByTestId("terminal-target")).toHaveTextContent("shell-in-session"));
-
-		fireEvent.click(screen.getByRole("button", { name: "select agent tab" }));
-
-		expect(screen.getByTestId("terminal-target")).toHaveTextContent("worker");
-		await new Promise((resolve) => setTimeout(resolve, 0));
-		expect(screen.getByTestId("terminal-target")).toHaveTextContent("worker");
-	});
-
-	it("never shows another session's shell, even when it is the active one", async () => {
-		shellTerminalState.shells = [
-			{ handleId: "shell-elsewhere", sessionId: "sess-2", workingDir: "/tmp", title: "b", createdAt: "2026-06-10T00:00:00Z" },
-		];
-		render(<SessionView sessionId="sess-1" />);
-
-		act(() => {
-			useUiStore.getState().setActiveShellTerminal("shell-elsewhere");
-		});
-
-		await new Promise((resolve) => setTimeout(resolve, 0));
-		expect(screen.getByTestId("terminal-target")).toHaveTextContent("worker");
-	});
-
-	// A closed shell's handle is dead; leaving the pane bound to it would render
-	// a terminal that can never attach.
-	it("falls back to the agent tab when the shell on screen disappears", async () => {
-		const view = render(<SessionView sessionId="sess-1" />);
-		act(() => {
-			useUiStore.getState().setActiveShellTerminal("shell-in-session");
-		});
-		await waitFor(() => expect(screen.getByTestId("terminal-target")).toHaveTextContent("shell-in-session"));
-
-		fireEvent.click(screen.getByRole("button", { name: "close shell shell-in-session" }));
-		expect(shellTerminalState.close).toHaveBeenCalledWith("shell-in-session");
-
-		shellTerminalState.shells = [];
-		view.rerender(<SessionView sessionId="sess-1" />);
-
-		await waitFor(() => expect(screen.getByTestId("terminal-target")).toHaveTextContent("worker"));
-	});
-
-	// The strip only ever shows the session on screen — pinning another session's
-	// terminal as a tab (and the cross-project picker that did it) is gone (#3208).
-	it("shows only the session on screen in the tab strip", () => {
-		render(<SessionView sessionId="sess-1" />);
-
-		expect(screen.getByTestId("session-tab")).toHaveTextContent("do the thing");
-		expect(screen.getByTestId("session-tab")).not.toHaveTextContent("do the other thing");
-		expect(screen.queryByRole("button", { name: /^Add / })).not.toBeInTheDocument();
-	});
-
-	it("uses the stored reviewer harness for the reviewer tab icon when no latest run is current", async () => {
-		const worker = workerSession("sess-1");
-		worker.prs = [
-			{
-				url: "https://github.com/acme/repo/pull/7",
-				number: 7,
-				state: "open",
-				ci: "passing",
-				review: "none",
-				mergeability: "mergeable",
-				reviewComments: false,
-				updatedAt: "2026-06-15T00:00:00Z",
-			},
-		];
-		reviewGetMock.mockResolvedValueOnce({
-			data: { reviewerHandleId: "review-sess-1", reviewerHarness: "codex", reviews: [], runs: [] },
-			error: undefined,
-		});
-
-		render(<SessionView sessionId="sess-1" />);
-
-		await waitFor(() => expect(screen.getByTestId("reviewer-harness")).toHaveTextContent("codex"));
-	});
-
-	it("returns to the session terminal when the reviewer handle is cleared", async () => {
-		const worker = workerSession("sess-1");
-		worker.prs = [
-			{
-				url: "https://github.com/acme/repo/pull/7",
-				number: 7,
-				state: "open",
-				ci: "passing",
-				review: "none",
-				mergeability: "mergeable",
-				reviewComments: false,
-				updatedAt: "2026-06-15T00:00:00Z",
-			},
-		];
-		reviewGetMock.mockResolvedValueOnce({
-			data: { reviewerHandleId: "review-sess-1", reviewerHarness: "codex", reviews: [] },
-			error: undefined,
-		});
-
-		const view = render(<SessionView sessionId="sess-1" />);
-		await screen.findByRole("button", { name: "select reviewer tab" });
-		fireEvent.click(screen.getByRole("button", { name: "select reviewer tab" }));
-		expect(screen.getByTestId("terminal-target")).toHaveTextContent("reviewer");
-
-		act(() => {
-			view.client.setQueryData(["session-reviews", "sess-1"], { reviewerHandleId: "", reviews: [] });
-		});
-
-		await waitFor(() => expect(screen.getByTestId("terminal-target")).toHaveTextContent("worker"));
-		expect(screen.queryByRole("button", { name: "select reviewer tab" })).not.toBeInTheDocument();
-	});
-
-	it("restores the selected reviewer terminal when the session becomes active again", async () => {
-		const worker = workerSession("sess-1");
-		worker.prs = [
-			{
-				url: "https://github.com/acme/repo/pull/7",
-				number: 7,
-				state: "open",
-				ci: "passing",
-				review: "none",
-				mergeability: "mergeable",
-				reviewComments: false,
-				updatedAt: "2026-06-15T00:00:00Z",
-			},
-		];
-		reviewGetMock.mockResolvedValueOnce({
-			data: { reviewerHandleId: "review-sess-1", reviewerHarness: "codex", reviews: [] },
-			error: undefined,
-		});
-
-		const view = render(<SessionView sessionId="sess-1" />);
-		await screen.findByRole("button", { name: "select reviewer tab" });
-		fireEvent.click(screen.getByRole("button", { name: "select reviewer tab" }));
-		expect(screen.getByTestId("terminal-target")).toHaveTextContent("reviewer");
-
-		worker.status = "terminated";
-		worker.isTerminated = true;
-		view.rerender(<SessionView sessionId="sess-1" />);
-		expect(screen.getByTestId("terminal-target")).toHaveTextContent("reviewer");
-		expect(screen.queryByRole("button", { name: "select reviewer tab" })).not.toBeInTheDocument();
-
-		worker.status = "working";
-		worker.isTerminated = false;
-		view.rerender(<SessionView sessionId="sess-1" />);
-
-		await screen.findByRole("button", { name: "select reviewer tab" });
-		expect(screen.getByTestId("terminal-target")).toHaveTextContent("reviewer");
-	});
-
-	// Regression: react-resizable-panels v4 treats bare numeric sizes as PIXELS
-	// (numbers were percentages in the older API the shadcn examples use).
-	// defaultSize={28}/maxSize={45} clamped the inspector rail to a 45px sliver.
-	// Every size must be an explicit percentage string.
 	it("sizes the terminal/inspector split in percentages, not pixels", () => {
 		render(<SessionView sessionId="sess-1" />);
 
@@ -698,7 +309,7 @@ describe("SessionView", () => {
 	it("leaves the inspector closed on a session opened for the first time", () => {
 		render(<SessionView sessionId="sess-1" />);
 
-		expect(screen.getByText("terminal center")).toBeInTheDocument();
+		expect(screen.getByTestId("split-workspace")).toBeInTheDocument();
 		expect(panelSizes("inspector")[0]).toBe("0%");
 		expect(screen.getByTestId("panel-inspector")).toHaveAttribute("inert");
 	});
@@ -707,7 +318,7 @@ describe("SessionView", () => {
 		act(() => useUiStore.getState().setInspectorOpen("sess-1", true));
 		render(<SessionView sessionId="sess-1" />);
 
-		expect(screen.getByText("terminal center")).toBeInTheDocument();
+		expect(screen.getByTestId("split-workspace")).toBeInTheDocument();
 		expect(panelSizes("inspector")[0]).toBe("30%");
 		// Open panels are non-collapsible so a drag clamps at minSize instead of
 		// snapping the rail away; only the closed panel is collapsible.
@@ -966,7 +577,7 @@ describe("SessionView", () => {
 			within(screen.getByTestId("panel-inspector")).getByRole("button", { name: "files rail" }),
 		).toBeInTheDocument();
 		expect(screen.queryByRole("button", { name: "files center" })).not.toBeInTheDocument();
-		expect(screen.getByText("terminal center")).toBeInTheDocument();
+		expect(screen.getByTestId("split-workspace")).toBeInTheDocument();
 	});
 
 	it("maximizes files over the whole app window and returns to the rail", () => {
@@ -980,14 +591,14 @@ describe("SessionView", () => {
 		const overlay = document.querySelector(".files-popout-overlay");
 		expect(overlay).toHaveClass("files-popout-overlay--mac-windowed");
 		expect(overlay?.parentElement).toBe(document.body);
-		expect(screen.getByText("terminal center")).toBeInTheDocument();
+		expect(screen.getByTestId("split-workspace")).toBeInTheDocument();
 
 		fireEvent.click(screen.getByRole("button", { name: "files center" }));
 		expect(screen.queryByRole("button", { name: "files center" })).not.toBeInTheDocument();
 		expect(
 			within(screen.getByTestId("panel-inspector")).getByRole("button", { name: "files rail" }),
 		).toBeInTheDocument();
-		expect(screen.getByText("terminal center")).toBeInTheDocument();
+		expect(screen.getByTestId("split-workspace")).toBeInTheDocument();
 	});
 
 	it("does not reserve the traffic-light band for maximized files during native macOS fullscreen", () => {
@@ -1012,5 +623,10 @@ describe("SessionView", () => {
 
 		expect(externalPreviewOptions.current).toMatchObject({ sessionId: "sess-1", terminated: true });
 	});
-});
 
+	it("shows the session not found message when the session isn't in the workspace", () => {
+		render(<SessionView sessionId="sess-missing" />);
+
+		expect(screen.queryByTestId("split-workspace")).not.toBeInTheDocument();
+	});
+});

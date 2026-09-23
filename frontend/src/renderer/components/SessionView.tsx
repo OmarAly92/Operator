@@ -1,54 +1,31 @@
-import { useQuery } from "@tanstack/react-query";
-import { useNavigate } from "@tanstack/react-router";
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 import type { PanelImperativeHandle, PanelSize } from "react-resizable-panels";
-import type { components } from "../../api/schema";
-import { CenterPane } from "./CenterPane";
 import { SessionFilesView } from "./SessionFilesView";
 import { SessionInspector } from "./SessionInspector";
-import { ShellTopbar } from "./ShellTopbar";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "./ui/resizable";
+import { SplitWorkspace } from "./split/SplitWorkspace";
 import { useExternalPreview } from "../hooks/useExternalPreview";
-import {
-	useCloseShellTerminal,
-	useRenameShellTerminal,
-	useShellTerminals,
-	type ShellTerminal,
-} from "../hooks/useShellTerminals";
 import { useWorkspaceQuery } from "../hooks/useWorkspaceQuery";
 import { useWindowFullScreen } from "../hooks/useWindowFullScreen";
-import { apiClient, apiErrorMessage } from "../lib/api-client";
-import { nativeShellBridgePresent, operatorBridge } from "../lib/bridge";
 import { hidesShellTopbar } from "../lib/platform";
-import { useShell } from "../lib/shell-context";
 import { cn } from "../lib/utils";
-import { sessionIsActive, type WorkspaceSession } from "../types/workspace";
-import { terminalTargetBelongsToSession, type TerminalTarget } from "../types/terminal";
+import { sessionIsActive } from "../types/workspace";
 import { matchesRendererShortcut } from "../stores/keybindings-store";
-import { inspectorState, useResolvedTheme, useUiStore, type InspectorView } from "../stores/ui-store";
+import { inspectorState, useUiStore, type InspectorView } from "../stores/ui-store";
+import { useSplitLayoutStore } from "../stores/split-layout-store";
 
 const INSPECTOR_MIN_PERCENT = 30;
 const INSPECTOR_MAX_PERCENT = 45;
 const inspectorSplitStorageKey = "opr.inspector.split";
 const shellTopbarHiddenByPlatform = hidesShellTopbar();
 
-type ReviewsResponse = components["schemas"]["ListReviewsResponse"];
-type ReviewerTerminalTarget = { handleId: string; harness: string };
-
 function initialSplitPercent(): number {
 	const raw = typeof window === "undefined" ? null : window.localStorage?.getItem(inspectorSplitStorageKey);
 	const parsed = raw === null ? Number.NaN : Number(raw);
 	if (!Number.isFinite(parsed)) return INSPECTOR_MIN_PERCENT;
 	return Math.min(INSPECTOR_MAX_PERCENT, Math.max(INSPECTOR_MIN_PERCENT, parsed));
-}
-
-function reviewerTerminalFromReviews(data?: ReviewsResponse): ReviewerTerminalTarget | undefined {
-	const handleId = data?.reviewerHandleId?.trim();
-	if (!handleId) return undefined;
-	const latest = data?.reviews?.find((review) => review.latestRun)?.latestRun;
-	return { handleId, harness: data?.reviewerHarness || latest?.harness || "codex" };
 }
 
 type SessionViewProps = {
@@ -76,157 +53,19 @@ export function SessionView({ sessionId }: SessionViewProps) {
 	const { t } = useTranslation();
 	const workspaceQuery = useWorkspaceQuery();
 	const workspaces = workspaceQuery.data ?? [];
-	const theme = useResolvedTheme();
 	const isInspectorOpen = useUiStore((state) => inspectorState(state.inspectorSessions, sessionId).isOpen);
 	const inspectorView = useUiStore((state) => state.inspectorSessions[sessionId]?.view ?? "summary");
 	const setInspectorOpenForSession = useUiStore((state) => state.setInspectorOpen);
 	const toggleInspector = useUiStore((state) => state.toggleInspector);
 	const setInspectorViewForSession = useUiStore((state) => state.setInspectorView);
-	const { daemonStatus } = useShell();
 	const inspectorRef = useRef<PanelImperativeHandle | null>(null);
 	const inspectorSeparatorRef = useRef<HTMLDivElement | null>(null);
-	const [terminalTarget, setTerminalTarget] = useState<TerminalTarget>({ kind: "worker" });
-	const shellTerminalsQuery = useShellTerminals();
-	const closeShellTerminal = useCloseShellTerminal();
-	const renameShellTerminal = useRenameShellTerminal();
-	const activeShellHandleId = useUiStore((state) => state.activeShellTerminalHandleId);
-	const setActiveShellTerminal = useUiStore((state) => state.setActiveShellTerminal);
-	// Applied once, by handle: the store's active shell is a REQUEST to show one
-	// (the sidebar sets it before navigating here), not a running description of
-	// what the pane shows. Without this, selecting the agent tab again would be
-	// undone on the next render by a request that was already honoured.
-	const appliedShellHandleRef = useRef<string | null>(null);
 	const [filesPoppedOut, setFilesPoppedOut] = useState(false);
 	const isNativeFullScreen = useWindowFullScreen();
 
 	const session = workspaces.flatMap((workspace) => workspace.sessions).find((s) => s.id === sessionId);
-	const navigate = useNavigate();
-	const projectId = session?.workspaceId;
-	const openSessionTabIds = useUiStore((state) => (projectId ? state.openSessionTabsByProject[projectId] : undefined));
-	const openSessionTab = useUiStore((state) => state.openSessionTab);
-	const closeSessionTab = useUiStore((state) => state.closeSessionTab);
-	const previousSessionRef = useRef<{ id: string; projectId: string } | null>(null);
 
-	useEffect(() => {
-		if (!projectId) return;
-		const previous = previousSessionRef.current;
-		openSessionTab(projectId, sessionId, previous?.projectId === projectId ? previous.id : undefined);
-		previousSessionRef.current = { id: sessionId, projectId };
-	}, [openSessionTab, projectId, sessionId]);
-
-	const sessionTabs = useMemo(() => {
-		if (!session) return [];
-		const projectSessions =
-			workspaceQuery.data?.find((workspace) => workspace.id === session.workspaceId)?.sessions ?? [];
-		const ids = openSessionTabIds?.includes(session.id) ? openSessionTabIds : [...(openSessionTabIds ?? []), session.id];
-		return ids
-			.map((id) => projectSessions.find((candidate) => candidate.id === id))
-			.filter((candidate): candidate is WorkspaceSession => Boolean(candidate));
-	}, [openSessionTabIds, session, workspaceQuery.data]);
-
-	const selectSessionTab = useCallback(
-		(nextSessionId: string) => {
-			if (!projectId || nextSessionId === sessionId) return;
-			void navigate({ to: "/projects/$projectId/sessions/$sessionId", params: { projectId, sessionId: nextSessionId } });
-		},
-		[navigate, projectId, sessionId],
-	);
-
-	const closeSessionTabById = useCallback(
-		(closedSessionId: string) => {
-			if (!projectId) return;
-			const index = sessionTabs.findIndex((tab) => tab.id === closedSessionId);
-			closeSessionTab(projectId, closedSessionId);
-			if (closedSessionId !== sessionId) return;
-			const neighbour = sessionTabs[index + 1] ?? sessionTabs[index - 1];
-			previousSessionRef.current = null;
-			if (neighbour) {
-				void navigate({
-					to: "/projects/$projectId/sessions/$sessionId",
-					params: { projectId, sessionId: neighbour.id },
-					replace: true,
-				});
-			} else {
-				void navigate({ to: "/projects/$projectId", params: { projectId }, replace: true });
-			}
-		},
-		[closeSessionTab, navigate, projectId, sessionId, sessionTabs],
-	);
-	const reviewerQuery = useQuery({
-		queryKey: ["session-reviews", sessionId],
-		enabled: Boolean(
-			nativeShellBridgePresent() && session && sessionIsActive(session) && session.prs.length > 0,
-		),
-		refetchInterval: (query) => {
-			const data = query.state.data as ReviewsResponse | undefined;
-			return data?.reviews?.some((review) => review.status === "running") ? 2500 : false;
-		},
-		queryFn: async () => {
-			const { data, error } = await apiClient.GET("/api/v1/sessions/{sessionId}/reviews", {
-				params: { path: { sessionId } },
-			});
-			if (error) throw new Error(apiErrorMessage(error, "Unable to load reviews"));
-			return data ?? ({ reviewerHandleId: "", reviews: [], runs: [] } satisfies ReviewsResponse);
-		},
-	});
-	const availableReviewerTerminal = reviewerTerminalFromReviews(reviewerQuery.data);
-	const reviewerTerminal = session && sessionIsActive(session) ? availableReviewerTerminal : undefined;
-
-	const setVisibleTerminalKind = useUiStore((state) => state.setVisibleTerminalKind);
-	const clearVisibleTerminalKind = useUiStore((state) => state.clearVisibleTerminalKind);
-
-	const selectSessionTerminal = useCallback(() => {
-		setTerminalTarget({ kind: "worker" });
-	}, []);
-	const selectReviewerTerminal = useCallback((target: ReviewerTerminalTarget) => {
-		setTerminalTarget({ kind: "reviewer", handleId: target.handleId, harness: target.harness, sessionId });
-	}, [sessionId]);
-
-	// Shells this session owns. A shell opened from the topbar or ⌘T belongs to
-	// no session and stays on /terminals, so it never appears here.
-	const sessionShells = useMemo(
-		() => (shellTerminalsQuery.data ?? []).filter((shell) => shell.sessionId === sessionId),
-		[shellTerminalsQuery.data, sessionId],
-	);
-
-	const selectShellTerminal = useCallback(
-		(shell: ShellTerminal) => {
-			appliedShellHandleRef.current = shell.handleId;
-			setActiveShellTerminal(shell.handleId);
-			setTerminalTarget({
-				// createdAt is stable per shell and changes when a handle is reused,
-				// which is what keeps a new PTY from inheriting the old one's buffer.
-				generation: shell.createdAt,
-				kind: "shell",
-				handleId: shell.handleId,
-				sessionId,
-				title: shell.title,
-			});
-		},
-		[sessionId, setActiveShellTerminal],
-	);
-
-	// Honour a shell requested from elsewhere (the sidebar's per-session terminal
-	// button) once the newly opened shell actually shows up in the list — the
-	// open mutation only invalidates the query, so the request usually lands a
-	// render before the shell it names.
-	useEffect(() => {
-		if (!activeShellHandleId || appliedShellHandleRef.current === activeShellHandleId) return;
-		const shell = sessionShells.find((candidate) => candidate.handleId === activeShellHandleId);
-		if (!shell) return;
-		selectShellTerminal(shell);
-	}, [activeShellHandleId, selectShellTerminal, sessionShells]);
-
-	useEffect(() => {
-		setTerminalTarget((current) =>
-			current.kind === "reviewer" &&
-			(!availableReviewerTerminal || availableReviewerTerminal.handleId !== current.handleId)
-				? { kind: "worker" }
-				: current,
-		);
-	}, [availableReviewerTerminal]);
 	const hasInspector = Boolean(session);
-	const sessionHeaderActions = <ShellTopbar embedded />;
 	const previewUrl = session?.previewUrl?.trim() || undefined;
 	const previewRevision = session?.previewRevision;
 	const terminated = session ? !sessionIsActive(session) : false;
@@ -243,95 +82,15 @@ export function SessionView({ sessionId }: SessionViewProps) {
 	}, [externalPreview, previewUrl]);
 
 	useLayoutEffect(() => {
-		setTerminalTarget({ kind: "worker" });
 		setFilesPoppedOut(false);
 	}, [sessionId]);
 
-	// Route props change one render before the passive reset above. Reject the
-	// previous session's shell/reviewer synchronously so its handle can never be
-	// cached under the destination session.
-	// A shell that is gone — closed here, or reaped daemon-side — is rejected the
-	// same way and for the same reason: the pane must never be left bound to a
-	// handle nothing can attach to.
-	const routedTerminalTarget =
-		terminalTargetBelongsToSession(terminalTarget, sessionId) &&
-		(terminalTarget.kind !== "shell" || sessionShells.some((shell) => shell.handleId === terminalTarget.handleId))
-			? terminalTarget
-			: ({ kind: "worker" } satisfies TerminalTarget);
-
-	const closeActiveTab = useCallback(() => {
-		if (routedTerminalTarget.kind === "shell") {
-			closeShellTerminal.mutate(routedTerminalTarget.handleId);
-			return;
-		}
-		closeSessionTabById(sessionId);
-	}, [closeSessionTabById, closeShellTerminal, routedTerminalTarget, sessionId]);
-
-	useEffect(() => operatorBridge.app.onCloseShellTerminalShortcut(closeActiveTab), [closeActiveTab]);
-
-	const selectAdjacentTab = useCallback(
-		(direction: -1 | 1) => {
-			const tabs: { select: () => void; active: boolean }[] = [];
-			for (const tab of sessionTabs) {
-				if (tab.id !== sessionId) {
-					tabs.push({ select: () => selectSessionTab(tab.id), active: false });
-					continue;
-				}
-				tabs.push({ select: selectSessionTerminal, active: routedTerminalTarget.kind === "worker" });
-				if (reviewerTerminal) {
-					tabs.push({
-						select: () => selectReviewerTerminal(reviewerTerminal),
-						active: routedTerminalTarget.kind === "reviewer",
-					});
-				}
-				for (const shell of sessionShells) {
-					tabs.push({
-						select: () => selectShellTerminal(shell),
-						active: routedTerminalTarget.kind === "shell" && routedTerminalTarget.handleId === shell.handleId,
-					});
-				}
-			}
-			const current = tabs.findIndex((tab) => tab.active);
-			if (tabs.length < 2 || current < 0) return;
-			tabs[(current + direction + tabs.length) % tabs.length].select();
+	const handleOpenReviewerTerminal = useCallback(
+		(target: { handleId: string; harness: string }) => {
+			useSplitLayoutStore.getState().openTab({ kind: "reviewer", sessionId, handleId: target.handleId, harness: target.harness });
 		},
-		[
-			reviewerTerminal,
-			routedTerminalTarget,
-			selectReviewerTerminal,
-			selectSessionTab,
-			selectSessionTerminal,
-			selectShellTerminal,
-			sessionId,
-			sessionShells,
-			sessionTabs,
-		],
+		[sessionId],
 	);
-
-	useEffect(() => {
-		const disposePrevious = operatorBridge.app.onPreviousTabShortcut(() => selectAdjacentTab(-1));
-		const disposeNext = operatorBridge.app.onNextTabShortcut(() => selectAdjacentTab(1));
-		return () => {
-			disposePrevious();
-			disposeNext();
-		};
-	}, [selectAdjacentTab]);
-
-	const hasSession = Boolean(session);
-	useEffect(() => {
-		if (!hasSession) return;
-		operatorBridge.app.setCloseShellTerminalShortcutEnabled(true);
-		return () => operatorBridge.app.setCloseShellTerminalShortcutEnabled(false);
-	}, [hasSession]);
-
-	// The pane shows one terminal at a time, so selecting a shell or the reviewer
-	// takes the agent's terminal off screen while the route still points here.
-	// Publish which one is showing: the notification runtime lives outside this
-	// subtree and must not treat "on the session route" as "watching the agent".
-	useEffect(() => {
-		setVisibleTerminalKind(sessionId, routedTerminalTarget.kind);
-		return () => clearVisibleTerminalKind(sessionId);
-	}, [clearVisibleTerminalKind, routedTerminalTarget.kind, sessionId, setVisibleTerminalKind]);
 
 	const handleOpenFiles = useCallback(() => {
 		setFilesPoppedOut(false);
@@ -455,25 +214,7 @@ export function SessionView({ sessionId }: SessionViewProps) {
 				{/* RRP's inner panel defaults to overflow:auto. Nothing scrolls at pane level,
 				    so clip the chat rail's active marker instead of creating a horizontal scrollbar. */}
 				<ResizablePanel defaultSize="72%" id="terminal" minSize="45%" style={{ overflow: "hidden" }}>
-					<div className="relative h-full min-h-0">
-						<CenterPane
-							daemonReady={daemonStatus.state === "ready"}
-							onCloseSessionTab={closeSessionTabById}
-							onCloseShellTerminal={(handleId) => closeShellTerminal.mutate(handleId)}
-							onRenameShellTerminal={(handleId, title) => renameShellTerminal.mutate({ handleId, title })}
-							onSelectSessionTab={selectSessionTab}
-							onSelectSessionTerminal={selectSessionTerminal}
-							onSelectReviewerTerminal={selectReviewerTerminal}
-							onSelectShellTerminal={selectShellTerminal}
-							reviewerTerminal={reviewerTerminal}
-							shellTerminals={sessionShells}
-							session={session}
-							sessionTabs={sessionTabs}
-							terminalTarget={routedTerminalTarget}
-							theme={theme}
-							topbarActions={sessionHeaderActions}
-						/>
-					</div>
+					<SplitWorkspace routeSessionId={sessionId} />
 				</ResizablePanel>
 				{hasInspector ? (
 					<>
@@ -504,7 +245,7 @@ export function SessionView({ sessionId }: SessionViewProps) {
 									}
 									isInspectorVisible={isInspectorOpen}
 									onOpenFiles={handleOpenFiles}
-									onOpenReviewerTerminal={selectReviewerTerminal}
+									onOpenReviewerTerminal={handleOpenReviewerTerminal}
 									onReopenPreview={handleReopenPreview}
 									onRetryPreview={externalPreview.retry}
 									onViewChange={(next: InspectorView) => setInspectorViewForSession(sessionId, next)}

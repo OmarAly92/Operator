@@ -52,6 +52,7 @@ type TerminalPaneProps = {
 	inputDisabled?: boolean;
 	/** Focus the terminal when an in-flight controller asks for human input. */
 	focusRequested?: boolean;
+	focused?: boolean;
 	/** Provider-owned shared transport lease factory. */
 	createMux?: () => TerminalMux;
 };
@@ -71,11 +72,6 @@ type CachedTerminalEntry = TerminalCacheDescriptor & {
 	container: HTMLDivElement;
 	props: TerminalPaneProps;
 	terminal?: AttachableTerminal;
-};
-
-type ActiveTerminalEntry = {
-	key: string;
-	slot: HTMLDivElement;
 };
 
 type TerminalCacheController = {
@@ -117,6 +113,7 @@ function terminalPropsMatch(left: TerminalPaneProps, right: TerminalPaneProps): 
 		left.fontSize === right.fontSize &&
 		left.inputDisabled === right.inputDisabled &&
 		left.focusRequested === right.focusRequested &&
+		left.focused === right.focused &&
 		left.createMux === right.createMux &&
 		terminalTargetMatches(left.terminalTarget, right.terminalTarget)
 	);
@@ -305,7 +302,7 @@ export function TerminalCacheProvider({
 	const workspaceQuery = useWorkspaceQuery();
 	const shellTerminalsQuery = useShellTerminals();
 	const entriesRef = useRef(new Map<string, CachedTerminalEntry>());
-	const activeRef = useRef<ActiveTerminalEntry | null>(null);
+	const activeSlotsRef = useRef(new Map<string, HTMLDivElement>());
 	const parkingRef = useRef<HTMLDivElement | null>(null);
 	const muxPoolRef = useRef<TerminalMuxPool | null>(null);
 	if (!muxPoolRef.current) {
@@ -321,11 +318,10 @@ export function TerminalCacheProvider({
 		(cacheKey: string) => {
 			const entry = entriesRef.current.get(cacheKey);
 			if (!entry) return;
-			const active = activeRef.current;
-			if (active?.key === cacheKey) {
+			if (activeSlotsRef.current.has(cacheKey)) {
 				blurTerminal(entry.container);
 				setTerminalPhase(entry, "parked");
-				activeRef.current = null;
+				activeSlotsRef.current.delete(cacheKey);
 			}
 			entriesRef.current.delete(cacheKey);
 			entry.container.remove();
@@ -350,12 +346,16 @@ export function TerminalCacheProvider({
 			if (!parking) return;
 			const cachedProps = { ...props, createMux: muxPool.acquire };
 
-			const previous = activeRef.current;
-			if (previous && previous.key !== descriptor.cacheKey) {
-				const previousEntry = entriesRef.current.get(previous.key);
-				if (previousEntry) {
-					parkTerminal(previousEntry, parking);
-				}
+			const slots = activeSlotsRef.current;
+			for (const [key, activeSlot] of [...slots]) {
+				if (activeSlot !== slot || key === descriptor.cacheKey) continue;
+				const previousEntry = entriesRef.current.get(key);
+				if (previousEntry) parkTerminal(previousEntry, parking);
+				slots.delete(key);
+			}
+			const elsewhere = slots.get(descriptor.cacheKey);
+			if (elsewhere && elsewhere !== slot && import.meta.env.DEV) {
+				console.error(`terminal ${descriptor.cacheKey} activated in a second pane`);
 			}
 
 			// A logical terminal can have only one generation. A replacement
@@ -363,7 +363,10 @@ export function TerminalCacheProvider({
 			// old generation, even if an opaque handle is later reused elsewhere.
 			for (const entry of entriesRef.current.values()) {
 				if (entry.ownerKey === descriptor.ownerKey && entry.cacheKey !== descriptor.cacheKey) {
-					if (activeRef.current?.key === entry.cacheKey) parkTerminal(entry, parking);
+					if (slots.has(entry.cacheKey)) {
+						parkTerminal(entry, parking);
+						slots.delete(entry.cacheKey);
+					}
 					entriesRef.current.delete(entry.cacheKey);
 					entry.container.remove();
 				}
@@ -392,7 +395,7 @@ export function TerminalCacheProvider({
 				entry.props = cachedProps;
 			}
 			showTerminal(entry, slot);
-			activeRef.current = { key: entry.cacheKey, slot };
+			slots.set(entry.cacheKey, slot);
 			rerender();
 		},
 		[muxPool, rerender],
@@ -400,11 +403,10 @@ export function TerminalCacheProvider({
 
 	const deactivate = useCallback(
 		(cacheKey: string, slot: HTMLDivElement) => {
-			const active = activeRef.current;
-			if (active?.key !== cacheKey || active.slot !== slot) return;
+			if (activeSlotsRef.current.get(cacheKey) !== slot) return;
 			const entry = entriesRef.current.get(cacheKey);
 			const parking = parkingRef.current;
-			activeRef.current = null;
+			activeSlotsRef.current.delete(cacheKey);
 			if (!entry) return;
 			if (!parking) {
 				entriesRef.current.delete(cacheKey);
@@ -446,7 +448,7 @@ export function TerminalCacheProvider({
 				!entry ||
 				entry.activationId !== activationId ||
 				entry.activationPhase !== "preparing" ||
-				activeRef.current?.key !== cacheKey
+				!activeSlotsRef.current.has(cacheKey)
 			) {
 				return;
 			}
@@ -463,7 +465,7 @@ export function TerminalCacheProvider({
 				!entry ||
 				entry.activationId !== activationId ||
 				entry.activationPhase !== "ready" ||
-				activeRef.current?.key !== cacheKey
+				!activeSlotsRef.current.has(cacheKey)
 			) {
 				return;
 			}
@@ -480,7 +482,7 @@ export function TerminalCacheProvider({
 				!entry ||
 				entry.activationId !== activationId ||
 				entry.activationPhase !== "revealed" ||
-				activeRef.current?.key !== cacheKey
+				!activeSlotsRef.current.has(cacheKey)
 			) {
 				return;
 			}
@@ -563,7 +565,7 @@ export function TerminalCacheProvider({
 	// portals; remove their externally-created host nodes as well.
 	useEffect(
 		() => () => {
-			activeRef.current = null;
+			activeSlotsRef.current.clear();
 			for (const entry of entriesRef.current.values()) entry.container.remove();
 			entriesRef.current.clear();
 			muxPool.dispose();
@@ -590,7 +592,7 @@ export function TerminalCacheProvider({
 			{children}
 			{[...entriesRef.current.values()].map((entry) => (
 				<CachedTerminalPortal
-					active={activeRef.current?.key === entry.cacheKey}
+					active={activeSlotsRef.current.has(entry.cacheKey)}
 					entry={entry}
 					key={entry.cacheKey}
 					onActivated={markActivated}
@@ -639,6 +641,7 @@ export function TerminalPane({
 	fontSize,
 	inputDisabled,
 	focusRequested,
+	focused,
 }: TerminalPaneProps) {
 	const terminalTarget =
 		requestedTerminalTarget &&
@@ -702,7 +705,7 @@ export function TerminalPane({
 		);
 	}
 
-	const props = { session, theme, daemonReady, terminalTarget, fontSize, inputDisabled, focusRequested };
+	const props = { session, theme, daemonReady, terminalTarget, fontSize, inputDisabled, focusRequested, focused };
 	const descriptor = cacheDescriptor(session, terminalTarget);
 	if (cache && descriptor) {
 		return <CachedTerminalSlot descriptor={descriptor} props={props} />;
@@ -717,6 +720,7 @@ export function TerminalPane({
 			fontSize={fontSize}
 			inputDisabled={inputDisabled}
 			focusRequested={focusRequested}
+			focused={focused}
 			terminalTarget={terminalTarget}
 		/>
 	);
@@ -826,6 +830,7 @@ function AttachedTerminal({
 	fontSize,
 	inputDisabled,
 	focusRequested,
+	focused,
 	createMux,
 	isVisible = true,
 	onTerminalReady,
@@ -900,9 +905,9 @@ function AttachedTerminal({
 	}, [handleId]);
 	const [focusToken, setFocusToken] = useState<number | undefined>(undefined);
 	useLayoutEffect(() => {
-		if (!isVisible) return;
+		if (!isVisible || focused === false) return;
 		setFocusToken((token) => (token ?? 0) + 1);
-	}, [focusRequested, isVisible]);
+	}, [focusRequested, focused, isVisible]);
 	const isSessionActive = session ? sessionIsActive(session) : false;
 	// A standalone shell is never restorable: there is no session row to restore.
 	const canRestoreSession =
@@ -1007,6 +1012,7 @@ function AttachedTerminal({
 					workspacePath={session?.workspacePath}
 					refitToken={refitToken}
 					focusToken={focusToken}
+					recordsSpawnGrid={focused !== false}
 					ariaLabel={terminalTarget?.kind === "shell" ? t("terminal.shellAria") : t("terminal.sessionAria")}
 					fontSize={fontSize}
 					onReplayPainted={handleReplayPainted}

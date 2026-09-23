@@ -31,7 +31,7 @@ vi.mock("../../hooks/useTicketMutations", async (importOriginal) => {
 vi.mock("./PlanWithAgentSheet", () => ({ PlanWithAgentSheet: () => null }));
 vi.mock("./ReviewPlanSheet", () => ({ ReviewPlanSheet: () => null }));
 vi.mock("./MergeConfirmDialog", () => ({ MergeConfirmDialog: () => null }));
-vi.mock("./TicketDndProvider", () => ({
+vi.mock("../dnd/AppDndProvider", () => ({
 	useTicketDrag: () => ({ active: null, requestAssign: requestAssignMock }),
 	usePlanDraggable: () => ({
 		attributes: {},
