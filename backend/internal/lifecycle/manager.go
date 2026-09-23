@@ -385,7 +385,7 @@ func (m *Manager) mutate(ctx context.Context, id domain.SessionID, fn func(domai
 	m.mu.Unlock()
 	// Notification side effects run outside the reducer lock, like the activity
 	// path does: a slow notification store must never stall lifecycle writes.
-	m.resolveNotifications(ctx, needsInputResolutions(rec, next, now)...)
+	m.resolveNotifications(ctx, sessionResolutions(rec, next, now)...)
 	return nil
 }
 
@@ -406,6 +406,31 @@ func needsInputResolutions(prev, next domain.SessionRecord, now time.Time) []por
 	}}
 }
 
+func sessionResolutions(prev, next domain.SessionRecord, now time.Time) []ports.NotificationResolution {
+	out := needsInputResolutions(prev, next, now)
+	if next.IsTerminated || (prev.Activity.State != domain.ActivityActive && next.Activity.State == domain.ActivityActive) {
+		out = append(out, ports.NotificationResolution{Type: domain.NotificationTurnFinished, SessionID: next.ID, ResolvedAt: now})
+	}
+	if next.IsTerminated || (prev.Activity.State == domain.ActivityExited && next.Activity.State != domain.ActivityExited) {
+		out = append(out, ports.NotificationResolution{Type: domain.NotificationAgentExited, SessionID: next.ID, ResolvedAt: now})
+	}
+	return out
+}
+
+func (m *Manager) sessionIntent(typ domain.NotificationType, rec domain.SessionRecord) *ports.NotificationIntent {
+	intent := &ports.NotificationIntent{
+		Type:               typ,
+		SessionID:          rec.ID,
+		ProjectID:          rec.ProjectID,
+		CreatedAt:          rec.Activity.LastActivityAt,
+		SessionDisplayName: rec.DisplayName,
+	}
+	if typ == domain.NotificationTurnFinished {
+		intent.AssistantUpdate = rec.Metadata.LatestAssistantUpdate
+	}
+	return intent
+}
+
 // ApplyRuntimeObservation only writes when runtime liveness is unambiguous. A
 // failed probe or liveness disagreement is ignored. Runtime death keeps the
 // existing recent-activity guard; supervised workload death is independently
@@ -420,6 +445,7 @@ func (m *Manager) ApplyRuntimeObservation(ctx context.Context, id domain.Session
 		terminationLaunch   string
 		terminationRevision time.Time
 		shouldTerminate     bool
+		exited              *ports.NotificationIntent
 	)
 	if err := m.mutate(ctx, id, func(cur domain.SessionRecord, now time.Time) (domain.SessionRecord, bool) {
 		if cur.IsTerminated || !matchesLaunch(cur) {
@@ -433,6 +459,9 @@ func (m *Manager) ApplyRuntimeObservation(ctx context.Context, id domain.Session
 			next := cur
 			next.Activity = domain.Activity{State: domain.ActivityExited, LastActivityAt: timeOr(f.ObservedAt, now)}
 			delete(m.flights, id)
+			if !m.sessionMutationInProgress(id) {
+				exited = m.sessionIntent(domain.NotificationAgentExited, next)
+			}
 			return next, true
 		}
 		if !runtimeClearlyDead(f, cur.Activity, now, m.window) {
@@ -447,6 +476,9 @@ func (m *Manager) ApplyRuntimeObservation(ctx context.Context, id domain.Session
 		shouldTerminate = true
 		return cur, false
 	}); err != nil || !shouldTerminate {
+		if err == nil {
+			m.emitNotification(ctx, exited)
+		}
 		return err
 	}
 
@@ -654,18 +686,16 @@ func (m *Manager) ApplyActivitySignal(ctx context.Context, id domain.SessionID, 
 	// Transition into the needs-input family (waiting_input or blocked) pings
 	// the user; an in-family escalation (waiting_input -> blocked) does not
 	// re-notify — the user was already pinged once for this pause.
-	if !rec.Activity.State.NeedsInput() && next.Activity.State.NeedsInput() && !next.IsTerminated {
-		intent = &ports.NotificationIntent{
-			Type:               domain.NotificationNeedsInput,
-			SessionID:          next.ID,
-			ProjectID:          next.ProjectID,
-			CreatedAt:          next.Activity.LastActivityAt,
-			SessionDisplayName: next.DisplayName,
-		}
+	gated := m.sessionMutationInProgress(id)
+	switch {
+	case !rec.Activity.State.NeedsInput() && next.Activity.State.NeedsInput() && !next.IsTerminated:
+		intent = m.sessionIntent(domain.NotificationNeedsInput, next)
+	case !gated && rec.Activity.State == domain.ActivityActive && next.Activity.State == domain.ActivityIdle && !next.IsTerminated:
+		intent = m.sessionIntent(domain.NotificationTurnFinished, next)
+	case !gated && rec.Activity.State != domain.ActivityExited && next.Activity.State == domain.ActivityExited && !next.IsTerminated:
+		intent = m.sessionIntent(domain.NotificationAgentExited, next)
 	}
-	// Leaving the needs-input family is the user answering: the notification
-	// that pinged them has nothing left to resolve.
-	resolutions := needsInputResolutions(rec, next, now)
+	resolutions := sessionResolutions(rec, next, now)
 	waitingEvents := m.waitingInputEvents(next, prevState, prevAt, now)
 	m.mu.Unlock()
 	if err := m.acknowledgeAgentSwitchTarget(ctx, id, s, now); err != nil {
