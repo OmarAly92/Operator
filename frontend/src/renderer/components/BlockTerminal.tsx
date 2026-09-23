@@ -56,6 +56,7 @@ export type BlockTerminalProps = {
 	 */
 	refitToken?: number;
 	focusToken?: number;
+	visible?: boolean;
 	recordsSpawnGrid?: boolean;
 	/**
 	 * Fired once, on the frame that first carries the pane's replay -- and only
@@ -187,6 +188,7 @@ export function BlockTerminal({
 	workspacePath,
 	refitToken,
 	focusToken,
+	visible,
 	recordsSpawnGrid = true,
 	onReplayPainted,
 	onReplayReady,
@@ -589,6 +591,7 @@ export function BlockTerminal({
 		onGeometry,
 		refitToken,
 		focusToken,
+		visible,
 		onHint: (hint) => {
 			// A hint's path is the text as it was printed, so it is relative as
 			// often as not; open_path only answers for an absolute file. Resolving

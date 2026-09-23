@@ -69,6 +69,7 @@ vi.mock("./BlockTerminal", () => ({
 		onReplayReady?: () => void;
 		focusToken?: number;
 		recordsSpawnGrid?: boolean;
+		visible?: boolean;
 	}) => {
 		blockReplayPainted.value = props.onReplayPainted;
 		blockReplayReady.value = props.onReplayReady;
@@ -78,6 +79,7 @@ vi.mock("./BlockTerminal", () => ({
 				data-testid="block-terminal"
 				data-focus-token={props.focusToken}
 				data-records-spawn-grid={String(props.recordsSpawnGrid ?? true)}
+				data-visible={String(props.visible)}
 				className="block-terminal-root h-full w-full"
 			/>
 		);
@@ -292,6 +294,61 @@ describe("TerminalPane focus", () => {
 			view.show(sessionA);
 			await waitFor(() => expect(activeFocusToken()).toBe("2"));
 			expect(screen.getByTestId("terminal-cache-parking").querySelector("[data-focus-token]")?.getAttribute("data-focus-token")).toBe("1");
+		} finally {
+			view.restore();
+		}
+	});
+
+	it("paints a retained terminal on screen and stops painting it while parked", async () => {
+		const sessionA = { ...worker, id: "sess-a", title: "session A", terminalHandleId: "handle-a" };
+		const sessionB = { ...worker, id: "sess-b", title: "session B", terminalHandleId: "handle-b" };
+		const view = renderCachedPane({ session: sessionA, sessions: [sessionA, sessionB] });
+		try {
+			await waitFor(() => expect(activeFocusToken()).toBe("1"));
+			const paneA = screen.getByTestId("block-terminal");
+			expect(paneA.getAttribute("data-visible")).toBe("true");
+
+			view.show(sessionB);
+			await waitFor(() => expect(paneA.getAttribute("data-visible")).toBe("false"));
+			expect(
+				within(screen.getByTestId("session-terminal-slot")).getByTestId("block-terminal").getAttribute("data-visible"),
+			).toBe("true");
+
+			view.show(sessionA);
+			await waitFor(() => expect(activeFocusToken()).toBe("2"));
+			expect(paneA.getAttribute("data-visible")).toBe("true");
+		} finally {
+			view.restore();
+		}
+	});
+
+	it("paints both terminals of a split, focused or not", async () => {
+		const sessionA = { ...worker, id: "sess-a", title: "session A", terminalHandleId: "handle-a" };
+		const sessionB = { ...worker, id: "sess-b", title: "session B", terminalHandleId: "handle-b" };
+		const view = renderSplitPanes([sessionA, sessionB]);
+		try {
+			await waitFor(() => expect(screen.getAllByTestId("block-terminal")).toHaveLength(2));
+			for (const pane of screen.getAllByTestId("block-terminal")) {
+				await waitFor(() => expect(pane.getAttribute("data-visible")).toBe("true"));
+			}
+		} finally {
+			view.restore();
+		}
+	});
+
+	it("paints a retained terminal while it is being prepared, before it is revealed", async () => {
+		const sessionA = { ...worker, id: "sess-a", title: "session A", terminalHandleId: "handle-a" };
+		const sessionB = { ...worker, id: "sess-b", title: "session B", terminalHandleId: "handle-b" };
+		const view = renderCachedPane({ session: sessionA, sessions: [sessionA, sessionB] });
+		try {
+			await waitFor(() => expect(activeFocusToken()).toBe("1"));
+			const paneA = screen.getByTestId("block-terminal");
+			view.show(sessionB);
+			await waitFor(() => expect(paneA.getAttribute("data-visible")).toBe("false"));
+			view.show(sessionA);
+			const container = paneA.closest<HTMLElement>("[data-terminal-activation-phase]")!;
+			await waitFor(() => expect(container.dataset.terminalActivationPhase).not.toBe("parked"));
+			expect(paneA.getAttribute("data-visible")).toBe("true");
 		} finally {
 			view.restore();
 		}

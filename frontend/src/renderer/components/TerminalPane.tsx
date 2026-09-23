@@ -273,6 +273,7 @@ function CachedTerminalPortal({
 		<AttachedTerminal
 			{...entry.props}
 			isVisible={active && entry.activationPhase === "visible"}
+			isRendered={active && entry.activationPhase !== "parked"}
 			// activationId advances on every park and every show, which is exactly
 			// when the pane this surface sits in may have been relaid out without
 			// its own box appearing to change.
@@ -833,10 +834,12 @@ function AttachedTerminal({
 	focused,
 	createMux,
 	isVisible = true,
+	isRendered = true,
 	onTerminalReady,
 	refitToken,
 }: TerminalPaneProps & {
 	isVisible?: boolean;
+	isRendered?: boolean;
 	refitToken?: number;
 	onTerminalReady?: (terminal: AttachableTerminal) => void;
 }) {
@@ -1012,6 +1015,7 @@ function AttachedTerminal({
 					workspacePath={session?.workspacePath}
 					refitToken={refitToken}
 					focusToken={focusToken}
+					visible={isRendered}
 					recordsSpawnGrid={focused !== false}
 					ariaLabel={terminalTarget?.kind === "shell" ? t("terminal.shellAria") : t("terminal.sessionAria")}
 					fontSize={fontSize}
