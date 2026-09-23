@@ -10,6 +10,7 @@ import {
 } from "@operator/terminal-core";
 import { DomBlockRenderer, warpDarkTheme } from "./index";
 import type { BlockFinishedEvent } from "./block-finished";
+import { HIDDEN_DRAIN_MS } from "./dom-block-renderer";
 
 const wasmPath = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "core", "wasm", "vt_core_bg.wasm");
 const fixture = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "bench", "agent-session", "fixtures", "claude-spinner-10s", "recording");
@@ -180,9 +181,10 @@ describe("visibility seam", () => {
 		renderer.setVisible(true);
 		core.feed(text(OPEN_BLOCK));
 		await flushRepaint();
+		vi.stubGlobal("requestAnimationFrame", () => 0);
 		setDocumentVisibility("hidden");
-		core.feed(text(CLOSE_BLOCK));
-		(renderer as unknown as { detectFinishedBlocks(s: unknown): unknown }).detectFinishedBlocks(core.snapshot());
+		core.enqueue(text(CLOSE_BLOCK));
+		await sleep(400);
 		expect(events.at(-1)).toMatchObject({ visible: false });
 		renderer.dispose();
 	});
@@ -371,5 +373,78 @@ describe("paint gate", () => {
 		expect(shown).toContain("frame one");
 		expect(shown).not.toContain("half of frame two");
 		renderer.dispose();
+	});
+});
+
+function sleep(ms: number): Promise<void> {
+	return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+describe("hidden document", () => {
+	afterEach(() => setDocumentVisibility("visible"));
+
+	it("drains and reports finished blocks on a timer while the document is hidden", async () => {
+		const { core, renderer, events } = mounted();
+		core.feed(text(OPEN_BLOCK));
+		await flushRepaint();
+		vi.stubGlobal("requestAnimationFrame", () => 0);
+		setDocumentVisibility("hidden");
+		core.enqueue(text(`done\r\n${CLOSE_BLOCK}`));
+		await sleep(400);
+		expect(core.hasBacklog()).toBe(false);
+		expect(events).toHaveLength(1);
+		expect(events[0]).toMatchObject({ visible: false });
+		renderer.dispose();
+	});
+
+	it("paints the visible pane when the document is shown again, and not the parked one", async () => {
+		const shown = mounted();
+		const parked = mounted();
+		parked.renderer.setVisible(false);
+		shown.renderer.setVisible(true);
+		await flushRepaint();
+		const parkedRows = rowTexts(parked.host);
+		setDocumentVisibility("hidden");
+		shown.core.enqueue(text("while away\r\n"));
+		parked.core.enqueue(text("while away\r\n"));
+		await sleep(400);
+		setDocumentVisibility("visible");
+		await flushRepaint();
+		expect(rowTexts(shown.host).join("\n")).toContain("while away");
+		expect(rowTexts(parked.host)).toEqual(parkedRows);
+		shown.renderer.dispose();
+		parked.renderer.dispose();
+	});
+
+	it("drains ~2 MiB enqueued while hidden within a few ticks and reports the block closing at its end as not visible", async () => {
+		const { core, renderer, events } = mounted(80);
+		core.feed(text(OPEN_BLOCK));
+		await flushRepaint();
+		vi.stubGlobal("requestAnimationFrame", () => 0);
+		setDocumentVisibility("hidden");
+		const drain = vi.spyOn(core, "drain");
+		const line = text(`${"x".repeat(78)}\r\n`);
+		const burst = new Uint8Array(line.length * 26_000);
+		for (let at = 0; at < burst.length; at += line.length) burst.set(line, at);
+		for (let at = 0; at < burst.length; at += 64 * 1024) core.enqueue(burst.subarray(at, Math.min(burst.length, at + 64 * 1024)));
+		core.enqueue(text(CLOSE_BLOCK));
+		for (let waited = 0; events.length === 0 && waited < 5000; waited += 50) await sleep(50);
+		expect(core.hasBacklog()).toBe(false);
+		expect(drain).toHaveBeenCalledWith(HIDDEN_DRAIN_MS);
+		expect(drain.mock.calls.length).toBeLessThanOrEqual(3);
+		expect(events).toHaveLength(1);
+		expect(events[0]).toMatchObject({ visible: false });
+		renderer.dispose();
+	});
+
+	it("stops its timer when disposed while hidden", async () => {
+		const { core, renderer } = mounted();
+		vi.stubGlobal("requestAnimationFrame", () => 0);
+		setDocumentVisibility("hidden");
+		core.enqueue(text("x\r\n"));
+		const drain = vi.spyOn(core, "drain");
+		renderer.dispose();
+		await sleep(400);
+		expect(drain).not.toHaveBeenCalled();
 	});
 });

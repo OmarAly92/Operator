@@ -67,6 +67,8 @@ function overscrolled(container: HTMLElement): boolean {
 	return container.scrollTop < 0 || container.scrollTop > container.scrollHeight - container.clientHeight;
 }
 const PAINT_INTERVAL_MS = 1000 / 60;
+export const HIDDEN_TICK_MS = 100;
+export const HIDDEN_DRAIN_MS = 250;
 const POOL_CAPACITY_FACTOR = 3;
 const POOL_DIRTY_CAP = 4096;
 const FRAME_EPSILON_MS = 0.25;
@@ -120,6 +122,13 @@ export class DomBlockRenderer implements BlockRenderer {
 	private focused = true;
 	private hostVisible: boolean | null = null;
 	private catchUp = false;
+	private hiddenTimer: ReturnType<typeof setTimeout> | null = null;
+	private readonly onVisibilityChange = () => {
+		if (this.rafHandle !== null && typeof cancelAnimationFrame === "function") cancelAnimationFrame(this.rafHandle);
+		this.rafHandle = null;
+		if (this.hiddenTimer !== null) clearTimeout(this.hiddenTimer), (this.hiddenTimer = null);
+		this.scheduleRepaint();
+	};
 	private blockStates = new Map<BlockId, BlockState>();
 	private readonly blockFinishedListeners = new Set<(event: BlockFinishedEvent) => void>();
 	private linkProviders: readonly LinkProvider[] = DEFAULT_LINK_PROVIDERS;
@@ -181,6 +190,7 @@ export class DomBlockRenderer implements BlockRenderer {
 			this.noteReceived(performance.now());
 			this.scheduleRepaint();
 		});
+		document.addEventListener("visibilitychange", this.onVisibilityChange);
 		this.blockNav = mountBlockNavFromRenderer({ container, getBlocks: () => this.filteredBlocks, scrollToBlock: (id, align) => this.scrollToBlock(id, align), isAltScreenActive: () => core.snapshot().altScreen !== null });
 		bindActionEvents(container, { setBlockBookmarked: (id, b) => core.setBlockBookmarked(id, b), getBlockBookmarked: (id) => core.blockBookmarked(id), setFilter: (f) => this.setFilter(f), scrollToBlock: (id, a) => this.scrollToBlock(id, a), scheduleRepaint: () => this.scheduleRepaint() });
 		this.jumpToBottom = mountJumpToBottom({ container, getBlocks: () => this.filteredBlocks, getCellHeight: () => this.measure().cellHeight, getStickToBottom: () => this.stickToBottom, scrollToLatest: () => this.scrollToLatest(), isAltScreenActive: () => core.snapshot().altScreen !== null, strings: defaultStrings });
@@ -234,8 +244,6 @@ export class DomBlockRenderer implements BlockRenderer {
 		this.rafHandle = null;
 		this.core?.drain();
 		this.core?.tick(Date.now());
-		this.rebuildAll = this.rebuildAll || this.catchUp;
-		this.catchUp = false;
 		this.repaint(performance.now());
 	}
 
@@ -761,6 +769,8 @@ export class DomBlockRenderer implements BlockRenderer {
 	}
 
 	dispose(): void {
+		document.removeEventListener("visibilitychange", this.onVisibilityChange);
+		if (this.hiddenTimer !== null) clearTimeout(this.hiddenTimer), (this.hiddenTimer = null);
 		this.hostVisible = null;
 		this.catchUp = false;
 		if (this.predictionTimer !== null) clearTimeout(this.predictionTimer), (this.predictionTimer = null);
@@ -846,12 +856,25 @@ export class DomBlockRenderer implements BlockRenderer {
 	}
 
 	private scheduleRepaint(): void {
-		if (this.rafHandle !== null) return;
+		if (this.rafHandle !== null || this.hiddenTimer !== null) return;
+		if (documentHidden()) {
+			this.hiddenTimer = setTimeout(() => this.hiddenTick(), HIDDEN_TICK_MS);
+			return;
+		}
 		if (typeof requestAnimationFrame !== "function") {
 			this.repaint();
 			return;
 		}
 		this.rafHandle = requestAnimationFrame((timestamp) => this.repaintOnFrame(timestamp));
+	}
+
+	private hiddenTick(): void {
+		this.hiddenTimer = null;
+		const core = this.core;
+		if (!core) return;
+		core.drain(HIDDEN_DRAIN_MS);
+		core.tick(Date.now());
+		this.settleHidden();
 	}
 
 	private repaintOnFrame(timestamp: number): void {
@@ -947,6 +970,10 @@ export class DomBlockRenderer implements BlockRenderer {
 	}
 
 	private repaint(paintedAt?: number): void {
+		if (this.catchUp) {
+			this.rebuildAll = true;
+			this.catchUp = false;
+		}
 		const core = this.core;
 		const container = this.container;
 		const list = this.list;
