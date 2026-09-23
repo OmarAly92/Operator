@@ -5,6 +5,7 @@ import 'package:operator_mobile/core/app_themes/colors/light_skin.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/widgets/glass/glass_button.dart';
 import 'package:operator_mobile/core/widgets/glass/glass_metrics.dart';
+import 'package:operator_mobile/core/widgets/glass/glass_toolbar.dart';
 import 'package:operator_mobile/core/widgets/glass/lab/glass_lab_backdrop.dart';
 import 'package:operator_mobile/core/widgets/glass/lab/glass_lab_scene.dart';
 
@@ -69,6 +70,17 @@ class GlassLabScreen extends StatelessWidget {
                 right: GlassMetrics.primaryButtonInset,
                 bottom: GlassMetrics.tabBarBottomInset + GlassMetrics.tabBarHeight + GlassMetrics.primaryButtonInset,
                 child: GlassButton.label(label: 'Run', icon: Icons.play_arrow_rounded, prominent: true, onPressed: () {}),
+              ),
+            if (scene != GlassLabScene.corners)
+              Positioned(
+                left: 0,
+                right: 0,
+                top: 0,
+                child: GlassToolbar(
+                  leading: GlassButton.icon(icon: Icons.chevron_left_rounded, onPressed: () {}),
+                  title: 'Agents',
+                  trailing: [GlassButton.label(label: 'Edit', onPressed: () {})],
+                ),
               ),
           ],
         ),
