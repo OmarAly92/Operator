@@ -150,4 +150,9 @@ describe("terminalStyles", () => {
 	it("styles the IME composition view like Warp's marked text", () => {
 		expect(terminalStyles).toContain(".terminal-composition-view.active");
 	});
+
+	it("never uses a containment that clips paint or fixes size", () => {
+		expect(terminalStyles).not.toMatch(/contain:[^;]*\b(paint|size|inline-size|strict|content)\b/);
+		expect(terminalStyles).not.toContain("content-visibility");
+	});
 });

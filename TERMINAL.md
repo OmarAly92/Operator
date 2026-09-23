@@ -805,6 +805,30 @@ history of `master`.
   gate" describes; `TerminalPane.test.tsx` "paints a retained terminal on
   screen and stops painting it while parked".
 
+### 4.26 Layout containment — measured, no gain, not applied
+- What was tried: `contain: layout` on `.terminal-row`, A/B in one session
+  against a control (`bench/agent-session/run.mjs --panes-only --css …`).
+  10-visible Layout: control 0.246–0.296, with containment 0.264–0.274 s —
+  inside noise (2026-09-23,
+  `docs/superpowers/specs/2026-09-23-layout-containment-measurement.md`
+  "After"); WebKit repaint loop 1109–1170 ms control against 1075–1164 ms,
+  discarded because the control ran first in every pair and drifted down
+  through the session. `.terminal-block` was not tried: the plan tries it
+  only on top of kept row containment. Nothing was changed.
+- Why it cannot help much here: the scroller is already `contain: strict`
+  (`dom-block-renderer.ts:161`), so a frame's layout never leaves the pane,
+  and each layout already has a median of 142 dirty objects out of 274–370
+  (trace `beginData`), the same 142 with containment; those are new row
+  nodes that need layout anyway. There is also no second layout to remove:
+  0 render-step layouts per frame.
+- Ruled out, do not add: `paint` (clips at the box and saves no layout);
+  `size`, `strict`, `content`, `content-visibility: auto` (a row's height is
+  not provably one line: text past its last run sits in the row's own line
+  box, `row-builder.ts:116-119`; the virtualiser already mounts only visible
+  rows); `style` (nothing to scope).
+- Guard: `styles-parity.test.ts` "never uses a containment that clips paint
+  or fixes size".
+
 ## 5. Known gaps (not bugs, decisions pending)
 
 - SGR attributes (italic, underline in 5 styles, SGR 58 colour, strike,
@@ -1071,7 +1095,7 @@ history of `master`.
   notification suppressed. Animation-frame drains keep 12 ms. `rendererVisible`
   remains only the fallback for `onBlockFinished`'s `visible` when a host
   never calls `setVisible`; it is never a paint gate. The forced layout per
-  paint (now `dom-block-renderer.ts:1141`, the pinned-header
+  paint (now `dom-block-renderer.ts:1149`, the pinned-header
   `getBoundingClientRect`) is still paid by every **visible** pane
   (measurement note, "Follow-ups"). Numbers and profile:
   `docs/superpowers/specs/2026-09-23-background-pane-cost-measurement.md`

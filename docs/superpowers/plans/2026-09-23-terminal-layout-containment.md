@@ -703,8 +703,8 @@ Why it is safe to try, from planning finding 9: making `.terminal-block` a conta
 
 ### Task 4: Full gate on the final state
 
-- [ ] **Step 1: Which state is final.** `git -C /Users/omaraly/development/AI/Operator diff f4d93ba68 HEAD -- packages/terminal/ts`. If it is empty, no CSS was kept. Run Step 2 anyway, since the bench harness changed, and report every Step 3 item as "not verified — no renderer change shipped, so there is nothing new to see in the app". Then go to Task 5.
-- [ ] **Step 2: Bench and unit gates**
+- [x] **Step 1: Which state is final.** `git -C /Users/omaraly/development/AI/Operator diff f4d93ba68 HEAD -- packages/terminal/ts`. If it is empty, no CSS was kept. Run Step 2 anyway, since the bench harness changed, and report every Step 3 item as "not verified — no renderer change shipped, so there is nothing new to see in the app". Then go to Task 5.
+- [x] **Step 2: Bench and unit gates**
 
 ```bash
 T=/Users/omaraly/development/AI/Operator/packages/terminal; cd $T && npm run build:ts && for p in core renderer-dom react; do (cd $T/ts/$p && npx vitest run) || exit 1; done && npm run bench:selection && npm run bench:agent:scroll && npm run bench:agent:gate && npm run bench:feel
@@ -712,7 +712,7 @@ T=/Users/omaraly/development/AI/Operator/packages/terminal; cd $T && npm run bui
 
 Then the affordance and feature comparison exactly as in Task 2 Step 10 (all three actions, all six features, `cmp` against `$S/pixels-before/`, restore tracked PNGs afterwards). Expected: all green, `PASS agent-session gate`, zero pixel diff, no `DIFF` line. Paste each command's final line into the report.
 
-- [ ] **Step 3: Real app (only if CSS was kept)**
+- [x] **Step 3: Real app (only if CSS was kept)**
 
 Check for a running app first: `lsof -nP -iTCP:3002 -iTCP:5173 -sTCP:LISTEN`. If either port is held, do not start a second instance or kill anything. Record the `lsof` output, and report every item below as "not verified — dev ports busy".
 
@@ -743,9 +743,9 @@ Stop the app you started when done.
 - Modify: `TERMINAL.md` (§4, after §4.25 at `TERMINAL.md:783-806`; §5 line reference at `:1074`)
 - Modify (no-gain outcome only): `packages/terminal/ts/renderer-dom/src/styles-parity.test.ts` (the guard test from Task 2 Step 8)
 
-- [ ] **Step 1: "After" section of the measurement note.** Append `## After (<date>)` with: the tree (commit), the load log excerpts, and for each of Task 2 and Task 3 a table of control against after per run (TaskDuration, Layout, RecalcStyle, layout and recalc counts for solo and 10 visible), the trace figures, the WebKit loop figures or "WebKit: not measured — <reason from Task 1 Step 9>", and the verdict ("kept" / "not kept: no gain" / "reverted: pixel diff in …" / "stopped: reported to the user because …"). Add the Task 1 Step 10 answer (whether the committed feature and affordance PNGs reproduce on the unmodified tree) and the Task 4 results item by item. Every number cites its run file.
+- [x] **Step 1: "After" section of the measurement note.** Append `## After (<date>)` with: the tree (commit), the load log excerpts, and for each of Task 2 and Task 3 a table of control against after per run (TaskDuration, Layout, RecalcStyle, layout and recalc counts for solo and 10 visible), the trace figures, the WebKit loop figures or "WebKit: not measured — <reason from Task 1 Step 9>", and the verdict ("kept" / "not kept: no gain" / "reverted: pixel diff in …" / "stopped: reported to the user because …"). Add the Task 1 Step 10 answer (whether the committed feature and affordance PNGs reproduce on the unmodified tree) and the Task 4 results item by item. Every number cites its run file.
 
-- [ ] **Step 2: TERMINAL.md §4.26.** Insert after §4.25, before `## 5.`. Use the variant that matches the outcome and fill every `<…>` from the note:
+- [x] **Step 2: TERMINAL.md §4.26.** Insert after §4.25, before `## 5.`. Use the variant that matches the outcome and fill every `<…>` from the note:
 
 Kept (Task 2 and/or Task 3):
 
@@ -800,11 +800,11 @@ Not kept:
   or fixes size".
 ```
 
-- [ ] **Step 3: Correct the stale line in §5.** In TERMINAL.md §5 "What a parked pane still costs", the text `(now \`dom-block-renderer.ts:1141\`, the pinned-header \`getBoundingClientRect\`)` is false. Change `:1141` to `:1149`, after checking with `grep -n "getBoundingClientRect" /Users/omaraly/development/AI/Operator/packages/terminal/ts/renderer-dom/src/dom-block-renderer.ts` that `:1149` is still the line.
+- [x] **Step 3: Correct the stale line in §5.** In TERMINAL.md §5 "What a parked pane still costs", the text `(now \`dom-block-renderer.ts:1141\`, the pinned-header \`getBoundingClientRect\`)` is false. Change `:1141` to `:1149`, after checking with `grep -n "getBoundingClientRect" /Users/omaraly/development/AI/Operator/packages/terminal/ts/renderer-dom/src/dom-block-renderer.ts` that `:1149` is still the line.
 
-- [ ] **Step 4 (no-gain outcome only): Land the guard test.** Add Task 2 Step 8's `it("never uses a containment that clips paint or fixes size", …)` to `styles-parity.test.ts`. Run `cd /Users/omaraly/development/AI/Operator/packages/terminal/ts/renderer-dom && npx vitest run src/styles-parity.test.ts`. Expected: PASS. It pins the ruled-out values the §4.26 entry names.
+- [x] **Step 4 (no-gain outcome only): Land the guard test.** Add Task 2 Step 8's `it("never uses a containment that clips paint or fixes size", …)` to `styles-parity.test.ts`. Run `cd /Users/omaraly/development/AI/Operator/packages/terminal/ts/renderer-dom && npx vitest run src/styles-parity.test.ts`. Expected: PASS. It pins the ruled-out values the §4.26 entry names.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 cd /Users/omaraly/development/AI/Operator && git add docs/superpowers/specs/2026-09-23-layout-containment-measurement.md TERMINAL.md <packages/terminal/ts/renderer-dom/src/styles-parity.test.ts, only in the no-gain outcome> && git commit -m "docs(terminal): layout containment measured — <kept on rows|kept on rows and blocks|no gain>
