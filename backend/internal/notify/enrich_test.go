@@ -1,6 +1,7 @@
 package notify
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -49,5 +50,43 @@ func TestEnrichReadyToMergeFallsBackWithoutPRTitle(t *testing.T) {
 
 	if want := "PR #67 is ready to merge"; rec.Title != want {
 		t.Fatalf("title = %q, want %q", rec.Title, want)
+	}
+}
+
+func TestEnrichTurnFinished(t *testing.T) {
+	at := time.Date(2026, 9, 23, 10, 0, 0, 0, time.UTC)
+	long := strings.Repeat("a", 200)
+	rec, err := enrich(Intent{Type: domain.NotificationTurnFinished, SessionID: "operator-4", ProjectID: "operator", CreatedAt: at, SessionDisplayName: "split close fix", AssistantUpdate: "  " + long + "  ", Quiet: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rec.Title != "split close fix finished" {
+		t.Fatalf("title = %q", rec.Title)
+	}
+	if len([]rune(rec.Body)) != 121 || !strings.HasSuffix(rec.Body, "…") {
+		t.Fatalf("body = %q (%d runes)", rec.Body, len([]rune(rec.Body)))
+	}
+	if !rec.Quiet {
+		t.Fatal("quiet was not carried")
+	}
+}
+
+func TestEnrichTurnFinishedWithoutAssistantText(t *testing.T) {
+	rec, err := enrich(Intent{Type: domain.NotificationTurnFinished, SessionID: "s", ProjectID: "p", CreatedAt: time.Now()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rec.Body != "Your agent finished its turn." {
+		t.Fatalf("body = %q", rec.Body)
+	}
+}
+
+func TestEnrichAgentExited(t *testing.T) {
+	rec, err := enrich(Intent{Type: domain.NotificationAgentExited, SessionID: "s", ProjectID: "p", CreatedAt: time.Now(), SessionDisplayName: "checkout"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rec.Title != "checkout exited" || rec.Body != "The agent process ended. Relaunch it from the session." {
+		t.Fatalf("rec = %+v", rec)
 	}
 }

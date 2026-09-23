@@ -2633,6 +2633,7 @@ export interface components {
             id: string;
             prUrl: string;
             projectId: string;
+            quiet: boolean;
             /** Format: date-time */
             resolvedAt?: null | string;
             sessionId: string;
@@ -2644,7 +2645,7 @@ export interface components {
             target: components["schemas"]["NotificationTarget"];
             title: string;
             /** @enum {string} */
-            type: "needs_input" | "ready_to_merge" | "pr_merged" | "pr_closed_unmerged";
+            type: "needs_input" | "ready_to_merge" | "pr_merged" | "pr_closed_unmerged" | "turn_finished" | "agent_exited";
         };
         NotificationTarget: {
             /** @enum {string} */

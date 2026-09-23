@@ -1138,7 +1138,7 @@ type NotificationResponse struct {
 	SessionID string    `json:"sessionId"`
 	ProjectID string    `json:"projectId"`
 	PRURL     string    `json:"prUrl"`
-	Type      string    `json:"type" enum:"needs_input,ready_to_merge,pr_merged,pr_closed_unmerged"`
+	Type      string    `json:"type" enum:"needs_input,ready_to_merge,pr_merged,pr_closed_unmerged,turn_finished,agent_exited"`
 	Title     string    `json:"title"`
 	Body      string    `json:"body"`
 	Status    string    `json:"status" enum:"unread,read" description:"Seen state. unread means the user has not opened the notification panel since it arrived."`
@@ -1147,6 +1147,7 @@ type NotificationResponse struct {
 	// received its input, the PR stopped waiting on a merge). Absent means the
 	// issue is still open. There is no user-facing action that sets it.
 	ResolvedAt *time.Time         `json:"resolvedAt,omitempty"`
+	Quiet      bool               `json:"quiet"`
 	Target     NotificationTarget `json:"target"`
 }
 

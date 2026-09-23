@@ -7398,6 +7398,8 @@ components:
           type: string
         projectId:
           type: string
+        quiet:
+          type: boolean
         resolvedAt:
           format: date-time
           type:
@@ -7422,6 +7424,8 @@ components:
           - ready_to_merge
           - pr_merged
           - pr_closed_unmerged
+          - turn_finished
+          - agent_exited
           type: string
       required:
       - id
@@ -7433,6 +7437,7 @@ components:
       - body
       - status
       - createdAt
+      - quiet
       - target
       type: object
     NotificationTarget:
