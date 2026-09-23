@@ -23,6 +23,10 @@ Changes from upstream:
   Blend was already uploaded × devicePixelRatio upstream (`liquid_glass_blend_group.dart`,
   `updateShaderWithSettings`); no change needed there.
 
+- `sdfSquircle` in `sdf.glsl` is a p-norm continuous corner (`SQUIRCLE_EXPONENT`,
+  `SQUIRCLE_EXTENT`) fitted to Flutter's `RoundedSuperellipseBorder`. Upstream used the
+  rounded-rectangle formula, so the lens and the clip disagreed at the corners.
+
 Record every later change to `lib/` in this file.
 
 Upstream: https://github.com/whynotmake-it/flutter_liquid_glass/tree/main/packages/liquid_glass_renderer

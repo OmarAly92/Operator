@@ -14,14 +14,16 @@ float sdfRect(vec2 p, vec2 b) {
     return length(max(d, 0.0)) + min(max(d.x, d.y), 0.0);
 }
 
+#define SQUIRCLE_EXPONENT 4.0
+#define SQUIRCLE_EXTENT 1.4
+
 float sdfSquircle(vec2 p, vec2 b, float r) {
     float shortest = min(b.x, b.y);
-    r = min(r, shortest);
-
+    r = min(r * SQUIRCLE_EXTENT, shortest);
     vec2 q = abs(p) - b + r;
-    
-    vec2 maxQ = max(q, 0.0);
-    return min(max(q.x, q.y), 0.0) + sqrt(maxQ.x * maxQ.x + maxQ.y * maxQ.y) - r;
+    vec2 m = max(q, 0.0);
+    float corner = pow(pow(m.x, SQUIRCLE_EXPONENT) + pow(m.y, SQUIRCLE_EXPONENT), 1.0 / SQUIRCLE_EXPONENT);
+    return min(max(q.x, q.y), 0.0) + corner - r;
 }
 
 float sdfEllipse(vec2 p, vec2 r) {

@@ -21,16 +21,47 @@ class GlassLabScreen extends StatelessWidget {
         child: Stack(
           children: [
             const Positioned.fill(child: GlassLabBackdrop()),
-            Positioned(
-              left: 21,
-              right: 21,
-              bottom: 21,
-              height: 62,
-              child: LiquidGlass.withOwnLayer(
-                shape: const LiquidRoundedRectangle(borderRadius: 31),
-                child: const SizedBox.expand(),
+            if (scene == GlassLabScene.corners)
+              Center(
+                child: SizedBox(
+                  width: 300,
+                  height: 200,
+                  child: Stack(
+                    children: [
+                      Positioned.fill(
+                        child: LiquidGlass.withOwnLayer(
+                          settings: const LiquidGlassSettings(thickness: 12, blur: 0, glassColor: Color(0x00000000)),
+                          shape: const LiquidRoundedSuperellipse(borderRadius: 60),
+                          child: const SizedBox.expand(),
+                        ),
+                      ),
+                      const Positioned.fill(
+                        child: IgnorePointer(
+                          child: DecoratedBox(
+                            decoration: ShapeDecoration(
+                              shape: RoundedSuperellipseBorder(
+                                borderRadius: BorderRadius.all(Radius.circular(60)),
+                                side: BorderSide(color: Color(0xFF000000), width: 0.5),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              )
+            else
+              Positioned(
+                left: 21,
+                right: 21,
+                bottom: 21,
+                height: 62,
+                child: LiquidGlass.withOwnLayer(
+                  shape: const LiquidRoundedRectangle(borderRadius: 31),
+                  child: const SizedBox.expand(),
+                ),
               ),
-            ),
           ],
         ),
       ),
