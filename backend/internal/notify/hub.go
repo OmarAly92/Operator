@@ -2,6 +2,7 @@ package notify
 
 import (
 	"context"
+	"log/slog"
 	"sync"
 
 	"github.com/OmarAly92/operator/backend/internal/domain"
@@ -63,6 +64,7 @@ func (h *Hub) Publish(_ context.Context, event domain.NotificationEvent) error {
 		select {
 		case sub.ch <- event:
 		default:
+			slog.Warn("notification dropped: subscriber buffer full", "project", sub.projectID, "type", event.Record.Type, "session", event.Record.SessionID)
 		}
 	}
 	return nil

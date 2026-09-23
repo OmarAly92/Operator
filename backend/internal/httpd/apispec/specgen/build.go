@@ -1233,6 +1233,8 @@ func phoneAlertOperations() []operation {
 			summary: "Send one test alert to the paired phone",
 			resps: []respUnit{
 				{http.StatusOK, controllers.PhoneAlertDeliveryResponse{}},
+				{http.StatusConflict, envelope.APIError{}},
+				{http.StatusInternalServerError, envelope.APIError{}},
 				{http.StatusNotImplemented, envelope.APIError{}},
 			},
 		},

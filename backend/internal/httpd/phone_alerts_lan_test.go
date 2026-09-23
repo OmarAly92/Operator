@@ -135,7 +135,11 @@ func TestPhoneAlertsThroughTheLANListenerAndTheRealHub(t *testing.T) {
 	}
 
 	var probe string
+	probeDeadline := time.Now().Add(10 * time.Second)
 	for i := 0; ; i++ {
+		if time.Now().After(probeDeadline) {
+			t.Fatal("alert runner never delivered a probe alert")
+		}
 		probe = fmt.Sprintf("probe-%d", i)
 		notifyTurn(domain.NotificationTurnFinished, probe)
 		select {

@@ -23,7 +23,7 @@ func TestNtfySendsTitleMessageAndClick(t *testing.T) {
 	}))
 	defer srv.Close()
 	s := NewNtfySender(srv.URL, srv.Client())
-	err := s.Send(context.Background(), "topic123", Alert{SessionID: "operator-4", Title: "split fix finished", Message: "finished", Priority: "high"})
+	err := s.Send(context.Background(), "topic123", Alert{Click: "operator://session/operator-4", Title: "split fix finished", Message: "finished", Priority: "high"})
 	if err != nil {
 		t.Fatal(err)
 	}

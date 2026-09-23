@@ -20,13 +20,16 @@ type fakePhoneAlerts struct {
 	topic    string
 	claimErr error
 	delivery push.Delivery
+	testErr  error
 }
 
 func (f *fakePhoneAlerts) Status() push.Status { return f.status }
 func (f *fakePhoneAlerts) Claim() (string, string, error) {
 	return f.topic, push.DefaultNtfyServer, f.claimErr
 }
-func (f *fakePhoneAlerts) Test(context.Context) push.Delivery { return f.delivery }
+func (f *fakePhoneAlerts) Test(context.Context) (push.Delivery, error) {
+	return f.delivery, f.testErr
+}
 
 func phoneAlertsServer(t *testing.T, svc *fakePhoneAlerts) *httptest.Server {
 	t.Helper()
@@ -90,5 +93,19 @@ func TestPhoneAlertsTest(t *testing.T) {
 	_ = json.NewDecoder(res.Body).Decode(&body)
 	if body["ok"] != false || body["error"] != "ntfy answered 429" {
 		t.Fatalf("body=%v", body)
+	}
+}
+
+func TestPhoneAlertsTestWithoutConnectMobile(t *testing.T) {
+	srv := phoneAlertsServer(t, &fakePhoneAlerts{testErr: push.ErrAlertsUnavailable})
+	res, err := http.Post(srv.URL+"/api/v1/phone-alerts/test", "application/json", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer res.Body.Close()
+	var body map[string]any
+	_ = json.NewDecoder(res.Body).Decode(&body)
+	if res.StatusCode != http.StatusConflict || body["code"] != "PHONE_ALERTS_UNAVAILABLE" {
+		t.Fatalf("status=%d body=%v", res.StatusCode, body)
 	}
 }

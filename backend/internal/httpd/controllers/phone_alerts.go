@@ -15,7 +15,7 @@ import (
 type PhoneAlertService interface {
 	Status() push.Status
 	Claim() (string, string, error)
-	Test(ctx context.Context) push.Delivery
+	Test(ctx context.Context) (push.Delivery, error)
 }
 
 type PhoneAlertsController struct {
@@ -59,7 +59,15 @@ func (c *PhoneAlertsController) test(w http.ResponseWriter, r *http.Request) {
 		apispec.NotImplemented(w, r, "POST", "/api/v1/phone-alerts/test")
 		return
 	}
-	d := c.Svc.Test(r.Context())
+	d, err := c.Svc.Test(r.Context())
+	if errors.Is(err, push.ErrAlertsUnavailable) {
+		envelope.WriteAPIError(w, r, http.StatusConflict, "conflict", "PHONE_ALERTS_UNAVAILABLE", err.Error(), nil)
+		return
+	}
+	if err != nil {
+		envelope.WriteAPIError(w, r, http.StatusInternalServerError, "internal", "PHONE_ALERTS_FAILED", err.Error(), nil)
+		return
+	}
 	envelope.WriteJSON(w, http.StatusOK, *deliveryResponse(&d))
 }
 

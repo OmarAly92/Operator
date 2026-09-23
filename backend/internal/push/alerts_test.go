@@ -59,7 +59,7 @@ func TestAlertsSendsWhenPairedAndBackgrounded(t *testing.T) {
 		t.Fatalf("sent=%+v topics=%v", sender.sent, sender.topics)
 	}
 	got := sender.sent[0]
-	if got.Title != "operator-4 finished" || got.Message != "finished" || got.SessionID != "operator-4" {
+	if got.Title != "operator-4 finished" || got.Message != "finished" || got.Click != "operator://session/operator-4" {
 		t.Fatalf("alert = %+v", got)
 	}
 	if strings.Contains(got.Title+got.Message, "secret") {
@@ -133,6 +133,16 @@ func TestAlertsPRTypesNeverCarryThePRTitle(t *testing.T) {
 	}
 }
 
+func TestAlertsPRTypesClickThroughToPullRequests(t *testing.T) {
+	for _, typ := range []domain.NotificationType{domain.NotificationReadyToMerge, domain.NotificationPRMerged, domain.NotificationPRClosedUnmerged} {
+		a, sender, _ := setup(t, paired, true, false)
+		a.dispatch(context.Background(), record(typ, "s"))
+		if len(sender.sent) != 1 || sender.sent[0].Click != "operator://prs" {
+			t.Fatalf("%s: sent = %+v, want click operator://prs", typ, sender.sent)
+		}
+	}
+}
+
 func TestAlertsPriorityIsHighOnlyForNeedsInput(t *testing.T) {
 	for typ, want := range map[domain.NotificationType]string{
 		domain.NotificationNeedsInput:   PriorityHigh,
@@ -174,11 +184,21 @@ func TestClaimWithoutConnectMobileFails(t *testing.T) {
 
 func TestTestIgnoresForegroundButNotPairing(t *testing.T) {
 	a, sender, _ := setup(t, paired, true, true)
-	if d := a.Test(context.Background()); !d.OK || len(sender.sent) != 1 {
-		t.Fatalf("delivery=%+v sent=%d", d, len(sender.sent))
+	if d, err := a.Test(context.Background()); err != nil || !d.OK || len(sender.sent) != 1 {
+		t.Fatalf("delivery=%+v err=%v sent=%d", d, err, len(sender.sent))
 	}
 	b, sender2, _ := setup(t, mobilebridge.State{}, false, false)
-	if d := b.Test(context.Background()); d.OK || len(sender2.sent) != 0 {
-		t.Fatalf("unpaired test delivery=%+v sent=%d", d, len(sender2.sent))
+	if _, err := b.Test(context.Background()); !errors.Is(err, ErrAlertsUnavailable) || len(sender2.sent) != 0 {
+		t.Fatalf("unpaired test err=%v sent=%d", err, len(sender2.sent))
+	}
+}
+
+func TestTestWhenNotReadyIsNotRecordedAsADelivery(t *testing.T) {
+	a, _, _ := setup(t, mobilebridge.State{Enabled: true, Password: "pw", AlertTopic: strings.Repeat("t", 32)}, true, false)
+	if _, err := a.Test(context.Background()); !errors.Is(err, ErrAlertsUnavailable) {
+		t.Fatalf("err = %v, want ErrAlertsUnavailable", err)
+	}
+	if st := a.Status(); st.LastDelivery != nil {
+		t.Fatalf("last delivery = %+v, want none", st.LastDelivery)
 	}
 }

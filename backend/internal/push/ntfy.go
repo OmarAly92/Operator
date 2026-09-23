@@ -19,10 +19,10 @@ const (
 )
 
 type Alert struct {
-	SessionID string
-	Title     string
-	Message   string
-	Priority  string
+	Click    string
+	Title    string
+	Message  string
+	Priority string
 }
 
 type NtfySender struct {
@@ -65,8 +65,8 @@ func (s *NtfySender) post(ctx context.Context, topic string, alert Alert) error 
 	req.Header.Set("Title", mime.QEncoding.Encode("utf-8", alert.Title))
 	req.Header.Set("Tags", "robot")
 	req.Header.Set("Priority", priority)
-	if alert.SessionID != "" {
-		req.Header.Set("Click", "operator://session/"+url.PathEscape(alert.SessionID))
+	if alert.Click != "" {
+		req.Header.Set("Click", alert.Click)
 	}
 	res, err := s.client.Do(req)
 	if err != nil {

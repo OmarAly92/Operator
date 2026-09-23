@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"net/url"
 	"sync"
 	"time"
 
@@ -134,16 +135,16 @@ func (a *Alerts) Claim() (string, string, error) {
 	return st.AlertTopic, a.d.Server, nil
 }
 
-func (a *Alerts) Test(ctx context.Context) Delivery {
+func (a *Alerts) Test(ctx context.Context) (Delivery, error) {
 	st, _ := mobilebridge.Load(a.d.ConfigPath)
 	a.mu.Lock()
 	ready := a.enabledLocked(st) && st.AlertTopicClaimed
 	a.mu.Unlock()
 	if !ready {
-		return a.recordDelivery(ErrAlertsUnavailable)
+		return Delivery{}, ErrAlertsUnavailable
 	}
 	err := a.d.Sender.Send(ctx, st.AlertTopic, Alert{Title: "Operator", Message: "Test alert from your desktop", Priority: PriorityDefault})
-	return a.recordDelivery(err)
+	return a.recordDelivery(err), nil
 }
 
 func (a *Alerts) dispatch(ctx context.Context, rec domain.NotificationRecord) {
@@ -152,6 +153,7 @@ func (a *Alerts) dispatch(ctx context.Context, rec domain.NotificationRecord) {
 	}
 	st, err := mobilebridge.Load(a.d.ConfigPath)
 	if err != nil {
+		a.d.Log.Warn("phone alert skipped: mobile config unreadable", "err", err)
 		return
 	}
 	now := a.d.Clock()
@@ -193,12 +195,16 @@ func (a *Alerts) recordDelivery(err error) Delivery {
 }
 
 func alertFor(rec domain.NotificationRecord) Alert {
-	alert := Alert{SessionID: string(rec.SessionID), Title: rec.Title, Message: eventWord(rec.Type), Priority: PriorityDefault}
+	alert := Alert{Title: rec.Title, Message: eventWord(rec.Type), Priority: PriorityDefault}
+	if rec.SessionID != "" {
+		alert.Click = "operator://session/" + url.PathEscape(string(rec.SessionID))
+	}
 	if rec.Type == domain.NotificationNeedsInput {
 		alert.Priority = PriorityHigh
 	}
 	if !rec.Type.SessionScoped() {
 		alert.Title = "Pull request " + eventWord(rec.Type)
+		alert.Click = "operator://prs"
 	}
 	return alert
 }
