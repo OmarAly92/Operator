@@ -86,6 +86,8 @@
 			<string>github</string>
 			<string>ntfy</string>
 		</array>
+		<key>FlutterDeepLinkingEnabled</key>
+		<false/>
 		<key>CFBundleURLTypes</key>
 		<array>
 			<dict>
