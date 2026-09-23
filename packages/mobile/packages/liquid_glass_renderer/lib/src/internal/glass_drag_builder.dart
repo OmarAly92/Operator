@@ -79,6 +79,12 @@ class _GlassDragBuilderState extends State<GlassDragBuilder> {
               currentDragOffset = null;
             });
           },
+          onPointerCancel: (event) {
+            if (!mounted) return;
+            setState(() {
+              currentDragOffset = null;
+            });
+          },
           child: widget.builder(context, currentDragOffset, widget.child),
         );
       case GestureMode.gestureDetector:

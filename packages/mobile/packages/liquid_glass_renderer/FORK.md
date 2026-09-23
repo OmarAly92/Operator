@@ -31,6 +31,14 @@ Changes from upstream:
   strongly the side facing away from the light is lit. The rim brightness is clamped to
   [0, 1]. Apple's rim is bright on the lit side with a dim fill opposite.
 
+- `GlassDragBuilder` handles `onPointerCancel` in listener mode; upstream left a cancelled
+  touch stuck pressed.
+- `GlassGlow` fades out where the finger lifted; upstream slid the glow to the top-left
+  corner on release.
+- Removed `Glassify` (`experimental.dart`), the unused `LiquidGlassFilter`, and their
+  shaders `liquid_glass_filter.frag` and `liquid_glass_arbitrary.frag`. The app uses
+  neither, and both failed SkSL compilation on every build.
+
 Record every later change to `lib/` in this file.
 
 Upstream: https://github.com/whynotmake-it/flutter_liquid_glass/tree/main/packages/liquid_glass_renderer

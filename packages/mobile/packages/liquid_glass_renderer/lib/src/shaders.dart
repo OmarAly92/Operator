@@ -19,16 +19,6 @@ abstract class ShaderKeys {
   static final liquidGlassRender =
       '${_shadersRoot}lib/assets/shaders/liquid_glass_final_render.frag';
 
-  static final String liquidGlassFilterShader =
-      '${_shadersRoot}lib/assets/shaders/liquid_glass_filter.frag';
-
-  static final String glassify =
-      '${_shadersRoot}lib/assets/shaders/liquid_glass_arbitrary.frag';
-
   static final String fakeGlassColor =
       '${_shadersRoot}lib/assets/shaders/fake_glass_color.frag';
-
-  @Deprecated('This shader is only for legacy reasons and reference.')
-  static final legacyLiquidGlass =
-      '${_shadersRoot}lib/assets/shaders/liquid_glass.frag';
 }

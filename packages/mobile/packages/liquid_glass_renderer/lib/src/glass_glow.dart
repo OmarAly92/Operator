@@ -180,7 +180,6 @@ class GlassGlowLayerState extends State<GlassGlowLayer>
     _radiusController.motion =
         _alphaController.motion = const Motion.smoothSpring(snapToEnd: true);
     _dragging = false;
-    _offsetController.animateTo(Offset.zero);
     _radiusController.animateTo(10);
     _alphaController.animateTo(0);
   }
