@@ -1,0 +1,1 @@
+export const RETAINED_TERMINAL_UNLOAD_MS = 30 * 60_000;

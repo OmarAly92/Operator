@@ -31,6 +31,7 @@ import {
 	type TerminalMuxPool,
 } from "../lib/terminal-mux";
 import { cn } from "../lib/utils";
+import { RETAINED_TERMINAL_UNLOAD_MS } from "../lib/retained-terminal";
 import { useWorkspaceQuery, workspaceQueryKey } from "../hooks/useWorkspaceQuery";
 import { useRestoreSession } from "../hooks/useRestoreSession";
 import { useShellTerminals } from "../hooks/useShellTerminals";
@@ -72,6 +73,7 @@ type CachedTerminalEntry = TerminalCacheDescriptor & {
 	container: HTMLDivElement;
 	props: TerminalPaneProps;
 	terminal?: AttachableTerminal;
+	unloadTimer?: ReturnType<typeof setTimeout>;
 };
 
 type TerminalCacheController = {
@@ -189,6 +191,12 @@ function parkTerminal(entry: CachedTerminalEntry, parking: HTMLDivElement): void
 	blurTerminal(entry.container);
 	setTerminalPhase(entry, "parked");
 	parking.appendChild(entry.container);
+}
+
+function cancelUnload(entry: CachedTerminalEntry): void {
+	if (entry.unloadTimer === undefined) return;
+	clearTimeout(entry.unloadTimer);
+	entry.unloadTimer = undefined;
 }
 
 function showTerminal(entry: CachedTerminalEntry, slot: HTMLDivElement): void {
@@ -319,6 +327,7 @@ export function TerminalCacheProvider({
 		(cacheKey: string) => {
 			const entry = entriesRef.current.get(cacheKey);
 			if (!entry) return;
+			cancelUnload(entry);
 			if (activeSlotsRef.current.has(cacheKey)) {
 				blurTerminal(entry.container);
 				setTerminalPhase(entry, "parked");
@@ -329,6 +338,18 @@ export function TerminalCacheProvider({
 			rerender();
 		},
 		[rerender],
+	);
+
+	const scheduleUnload = useCallback(
+		(entry: CachedTerminalEntry) => {
+			cancelUnload(entry);
+			entry.unloadTimer = setTimeout(() => {
+				entry.unloadTimer = undefined;
+				if (entriesRef.current.get(entry.cacheKey) !== entry || entry.activationPhase !== "parked") return;
+				removeEntry(entry.cacheKey);
+			}, RETAINED_TERMINAL_UNLOAD_MS);
+		},
+		[removeEntry],
 	);
 
 	const releaseWorker = useCallback(
@@ -351,7 +372,10 @@ export function TerminalCacheProvider({
 			for (const [key, activeSlot] of [...slots]) {
 				if (activeSlot !== slot || key === descriptor.cacheKey) continue;
 				const previousEntry = entriesRef.current.get(key);
-				if (previousEntry) parkTerminal(previousEntry, parking);
+				if (previousEntry) {
+					parkTerminal(previousEntry, parking);
+					scheduleUnload(previousEntry);
+				}
 				slots.delete(key);
 			}
 			const elsewhere = slots.get(descriptor.cacheKey);
@@ -368,6 +392,7 @@ export function TerminalCacheProvider({
 						parkTerminal(entry, parking);
 						slots.delete(entry.cacheKey);
 					}
+					cancelUnload(entry);
 					entriesRef.current.delete(entry.cacheKey);
 					entry.container.remove();
 				}
@@ -395,11 +420,12 @@ export function TerminalCacheProvider({
 			} else {
 				entry.props = cachedProps;
 			}
+			cancelUnload(entry);
 			showTerminal(entry, slot);
 			slots.set(entry.cacheKey, slot);
 			rerender();
 		},
-		[muxPool, rerender],
+		[muxPool, rerender, scheduleUnload],
 	);
 
 	const deactivate = useCallback(
@@ -416,9 +442,10 @@ export function TerminalCacheProvider({
 				return;
 			}
 			parkTerminal(entry, parking);
+			scheduleUnload(entry);
 			rerender();
 		},
-		[rerender],
+		[rerender, scheduleUnload],
 	);
 
 	const update = useCallback(
@@ -506,9 +533,11 @@ export function TerminalCacheProvider({
 		if (changed) rerender();
 	}, [daemonReady, rerender, theme]);
 
-	// Project/session teardown is an ownership boundary, not an LRU event.
-	// Dispose retained terminal clients as soon as the authoritative workspace
-	// snapshot no longer contains their logical session.
+	// Project/session teardown is an ownership boundary: dispose retained
+	// terminal clients as soon as the authoritative workspace snapshot no longer
+	// contains their logical session. Separately, an entry left parked for
+	// RETAINED_TERMINAL_UNLOAD_MS is disposed by scheduleUnload and reopened
+	// from the pty-host when shown again.
 	useEffect(() => {
 		if (!workspaceQuery.isSuccess) return;
 		const sessions = new Map(
@@ -567,7 +596,10 @@ export function TerminalCacheProvider({
 	useEffect(
 		() => () => {
 			activeSlotsRef.current.clear();
-			for (const entry of entriesRef.current.values()) entry.container.remove();
+			for (const entry of entriesRef.current.values()) {
+				cancelUnload(entry);
+				entry.container.remove();
+			}
 			entriesRef.current.clear();
 			muxPool.dispose();
 		},

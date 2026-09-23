@@ -10,6 +10,7 @@ import type { TerminalTarget } from "../types/terminal";
 import type { WorkspaceSession } from "../types/workspace";
 import { useUiStore } from "../stores/ui-store";
 import { rememberPaneGrid, resetPaneGridForTests } from "../lib/pane-grid";
+import { RETAINED_TERMINAL_UNLOAD_MS } from "../lib/retained-terminal";
 import {
 	TerminalCacheProvider,
 	TerminalPane,
@@ -350,6 +351,75 @@ describe("TerminalPane focus", () => {
 			await waitFor(() => expect(container.dataset.terminalActivationPhase).not.toBe("parked"));
 			expect(paneA.getAttribute("data-visible")).toBe("true");
 		} finally {
+			view.restore();
+		}
+	});
+
+	it("unloads a pane left parked for the unload delay and reopens it fresh", async () => {
+		vi.useFakeTimers({ shouldAdvanceTime: true });
+		const sessionA = { ...worker, id: "sess-a", title: "session A", terminalHandleId: "handle-a" };
+		const sessionB = { ...worker, id: "sess-b", title: "session B", terminalHandleId: "handle-b" };
+		const view = renderCachedPane({ session: sessionA, sessions: [sessionA, sessionB] });
+		try {
+			await waitFor(() => expect(activeFocusToken()).toBe("1"));
+			view.show(sessionB);
+			const parking = screen.getByTestId("terminal-cache-parking");
+			await waitFor(() => expect(parking.querySelector("[data-terminal-cache-key]")).not.toBeNull());
+			await act(async () => {
+				vi.advanceTimersByTime(RETAINED_TERMINAL_UNLOAD_MS);
+			});
+			expect(parking.querySelector("[data-terminal-cache-key]")).toBeNull();
+			view.show(sessionA);
+			await waitFor(() => expect(activeFocusToken()).toBe("1"));
+			expect(screen.getAllByTestId("block-terminal")).toHaveLength(2);
+		} finally {
+			vi.useRealTimers();
+			view.restore();
+		}
+	});
+
+	it("showing a parked pane cancels its unload", async () => {
+		vi.useFakeTimers({ shouldAdvanceTime: true });
+		const sessionA = { ...worker, id: "sess-a", title: "session A", terminalHandleId: "handle-a" };
+		const sessionB = { ...worker, id: "sess-b", title: "session B", terminalHandleId: "handle-b" };
+		const view = renderCachedPane({ session: sessionA, sessions: [sessionA, sessionB] });
+		try {
+			await waitFor(() => expect(activeFocusToken()).toBe("1"));
+			const paneA = screen.getByTestId("block-terminal");
+			view.show(sessionB);
+			await act(async () => {
+				vi.advanceTimersByTime(RETAINED_TERMINAL_UNLOAD_MS - 1000);
+			});
+			view.show(sessionA);
+			await waitFor(() => expect(activeFocusToken()).toBe("2"));
+			await act(async () => {
+				vi.advanceTimersByTime(RETAINED_TERMINAL_UNLOAD_MS);
+			});
+			expect(paneA.isConnected).toBe(true);
+			expect(within(screen.getByTestId("session-terminal-slot")).getByTestId("block-terminal")).toBe(paneA);
+		} finally {
+			vi.useRealTimers();
+			view.restore();
+		}
+	});
+
+	it("an unloaded pane reopens once, with one attachment", async () => {
+		vi.useFakeTimers({ shouldAdvanceTime: true });
+		const sessionA = { ...worker, id: "sess-a", title: "session A", terminalHandleId: "handle-a" };
+		const sessionB = { ...worker, id: "sess-b", title: "session B", terminalHandleId: "handle-b" };
+		const view = renderCachedPane({ session: sessionA, sessions: [sessionA, sessionB] });
+		try {
+			await waitFor(() => expect(activeFocusToken()).toBe("1"));
+			view.show(sessionB);
+			await act(async () => {
+				vi.advanceTimersByTime(RETAINED_TERMINAL_UNLOAD_MS);
+			});
+			view.show(sessionA);
+			view.show(sessionA);
+			await waitFor(() => expect(activeFocusToken()).toBe("1"));
+			expect(document.querySelectorAll('[data-terminal-cache-key*="handle-a"]')).toHaveLength(1);
+		} finally {
+			vi.useRealTimers();
 			view.restore();
 		}
 	});
