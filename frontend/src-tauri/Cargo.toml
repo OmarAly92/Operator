@@ -44,4 +44,7 @@ windows-sys = { version = "=0.61.2", features = ["Win32_Foundation", "Win32_Grap
 
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2-app-kit = { version = "=0.3.2", default-features = false, features = ["NSWindow", "NSButton", "NSView", "NSResponder"] }
-objc2-foundation = { version = "=0.3.2", default-features = false, features = ["NSGeometry"] }
+objc2 = "=0.6.4"
+block2 = "=0.6.2"
+objc2-foundation = { version = "=0.3.2", default-features = false, features = ["NSGeometry", "NSString", "NSError", "NSObject"] }
+objc2-user-notifications = { version = "=0.3.2", default-features = false, features = ["std", "block2", "bitflags", "UNUserNotificationCenter", "UNNotification", "UNNotificationContent", "UNNotificationRequest", "UNNotificationResponse", "UNNotificationSound", "UNNotificationSettings", "UNNotificationTrigger"] }

@@ -13,7 +13,9 @@ use tauri_plugin_opener::OpenerExt;
 
 use crate::dropped_files::{self, MAX_INPUT_BYTES};
 use crate::menu::MenuPlatform;
-use crate::notification_policy::{dev_bounce_available, normalize_badge_count, show_plan};
+use crate::notification_policy::{
+    dev_bounce_available, normalize_badge_count, show_plan, toast_backend,
+};
 use crate::tray::{self, OpenSessionTarget, PendingTarget, SessionEntry, Zone};
 
 pub const DEFAULT_CHOOSER_TITLE: &str = "Choose a git repository";
@@ -449,17 +451,11 @@ pub async fn notification_show(
         Some(&notification.title),
         notification.notification_type.as_deref(),
     );
+    let mut toast_result = Ok(());
     for action in plan {
         match action {
             crate::notification_policy::SignalAction::Toast => {
-                let mut builder = window
-                    .notification()
-                    .builder()
-                    .title(notification.title.clone());
-                if let Some(body) = &notification.body {
-                    builder = builder.body(body.clone());
-                }
-                builder.show().map_err(|error| error.to_string())?;
+                toast_result = show_toast(&window, &notification).await;
             }
             crate::notification_policy::SignalAction::Attention => {
                 let request_type = if cfg!(target_os = "macos") {
@@ -473,7 +469,76 @@ pub async fn notification_show(
             }
         }
     }
-    Ok(())
+    toast_result
+}
+
+async fn show_toast(
+    window: &tauri::WebviewWindow,
+    notification: &NotificationInput,
+) -> Result<(), String> {
+    match toast_backend(cfg!(target_os = "macos"), tauri::is_dev()) {
+        #[cfg(target_os = "macos")]
+        crate::notification_policy::ToastBackend::UserNotifications => {
+            crate::mac_notifications::post(
+                &notification.id,
+                &notification.title,
+                notification.body.as_deref(),
+            )
+            .await
+        }
+        _ => {
+            let mut builder = window
+                .notification()
+                .builder()
+                .title(notification.title.clone());
+            if let Some(body) = &notification.body {
+                builder = builder.body(body.clone());
+            }
+            builder.show().map_err(|error| error.to_string())
+        }
+    }
+}
+
+#[tauri::command]
+pub async fn notification_permission() -> Result<String, String> {
+    match toast_backend(cfg!(target_os = "macos"), tauri::is_dev()) {
+        #[cfg(target_os = "macos")]
+        crate::notification_policy::ToastBackend::UserNotifications => {
+            Ok(crate::mac_notifications::authorization().await.to_string())
+        }
+        _ => Ok("unsupported".to_string()),
+    }
+}
+
+#[tauri::command]
+pub async fn notification_open_settings(app: AppHandle) -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    {
+        let url = crate::mac_notifications::settings_url(&app.config().identifier);
+        app.opener()
+            .open_url(url, None::<&str>)
+            .map_err(|error| error.to_string())
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = app;
+        Ok(())
+    }
+}
+
+pub struct AppClickHost<'a>(pub &'a AppHandle);
+
+impl crate::notification_policy::ClickHost for AppClickHost<'_> {
+    fn focus_main_window(&mut self) {
+        focus_main_window(self.0);
+    }
+
+    fn send_clicked(&mut self, id: &str) {
+        use tauri::Emitter;
+        let _ = self
+            .0
+            .emit(crate::notification_policy::CLICK_EVENT, id.to_string());
+    }
 }
 
 #[cfg(target_os = "windows")]

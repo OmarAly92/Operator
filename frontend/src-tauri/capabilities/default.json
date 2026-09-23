@@ -33,6 +33,8 @@
 		"allow-clipboard-write",
 		"allow-clipboard-read",
 		"allow-notification-show",
+		"allow-notification-permission",
+		"allow-notification-open-settings",
 		"allow-notification-badge",
 		"allow-notification-dev-bounce",
 		"allow-stage-dropped-file",

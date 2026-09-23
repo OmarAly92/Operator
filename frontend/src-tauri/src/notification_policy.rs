@@ -22,17 +22,47 @@ pub fn show_plan(
     title: Option<&str>,
     notification_type: Option<&str>,
 ) -> Vec<SignalAction> {
-    if focused {
-        return Vec::new();
-    }
     let mut plan = Vec::with_capacity(2);
     if should_toast(title, supported) {
         plan.push(SignalAction::Toast);
     }
-    if should_signal_attention(notification_type) {
+    if !focused && should_signal_attention(notification_type) {
         plan.push(SignalAction::Attention);
     }
     plan
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub enum ToastBackend {
+    Plugin,
+    UserNotifications,
+}
+
+pub fn toast_backend(is_macos: bool, is_dev: bool) -> ToastBackend {
+    if is_macos && !is_dev {
+        ToastBackend::UserNotifications
+    } else {
+        ToastBackend::Plugin
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub enum PermissionStatus {
+    Authorized,
+    Denied,
+    NotDetermined,
+}
+
+pub fn permission_name(status: Option<PermissionStatus>) -> &'static str {
+    match status {
+        Some(PermissionStatus::Authorized) => "authorized",
+        Some(PermissionStatus::Denied) => "denied",
+        Some(PermissionStatus::NotDetermined) | None => "not_determined",
+    }
+}
+
+pub fn toast_failure(permission: &str, detail: &str) -> String {
+    format!("notification_permission={permission}: {detail}")
 }
 
 pub fn normalize_badge_count(count: f64) -> i64 {
@@ -60,11 +90,13 @@ pub fn route_click(id: &str, host: &mut impl ClickHost) {
 mod tests {
     use super::*;
 
-    const ALL_TYPES: [&str; 4] = [
+    const ALL_TYPES: [&str; 6] = [
         "needs_input",
         "ready_to_merge",
         "pr_merged",
         "pr_closed_unmerged",
+        "turn_finished",
+        "agent_exited",
     ];
 
     #[test]
@@ -126,15 +158,66 @@ mod tests {
     }
 
     #[test]
-    fn everything_is_suppressed_while_the_window_has_focus() {
+    fn focused_window_still_toasts_but_does_not_bounce() {
         assert_eq!(
-            show_plan(true, true, Some("needs input"), Some("needs_input")),
-            Vec::<SignalAction>::new()
+            show_plan(true, true, Some("operator-4 finished"), Some("needs_input")),
+            vec![SignalAction::Toast]
         );
+    }
+
+    #[test]
+    fn unfocused_window_toasts_and_bounces_for_attention_types() {
         assert_eq!(
-            show_plan(true, true, Some("merged"), Some("pr_merged")),
-            Vec::<SignalAction>::new()
+            show_plan(
+                false,
+                true,
+                Some("operator-4 needs your input"),
+                Some("needs_input")
+            ),
+            vec![SignalAction::Toast, SignalAction::Attention]
         );
+    }
+
+    #[test]
+    fn dev_builds_toast_through_the_plugin() {
+        assert_eq!(toast_backend(true, true), ToastBackend::Plugin);
+        assert_eq!(toast_backend(false, true), ToastBackend::Plugin);
+    }
+
+    #[test]
+    fn packaged_macos_toasts_through_user_notifications() {
+        assert_eq!(toast_backend(true, false), ToastBackend::UserNotifications);
+        assert_eq!(toast_backend(false, false), ToastBackend::Plugin);
+    }
+
+    #[test]
+    fn toast_failures_carry_the_permission_state() {
+        let message = toast_failure(
+            "denied",
+            "Notifications are not allowed for this application",
+        );
+        assert!(
+            message.starts_with("notification_permission=denied"),
+            "{message}"
+        );
+        assert!(
+            message.contains("Notifications are not allowed"),
+            "{message}"
+        );
+    }
+
+    #[test]
+    fn authorization_status_names_match_the_renderer_contract() {
+        assert_eq!(
+            permission_name(Some(PermissionStatus::Authorized)),
+            "authorized"
+        );
+        assert_eq!(permission_name(Some(PermissionStatus::Denied)), "denied");
+        assert_eq!(
+            permission_name(Some(PermissionStatus::NotDetermined)),
+            "not_determined"
+        );
+        assert_eq!(permission_name(None), "not_determined");
     }
 
     #[test]
