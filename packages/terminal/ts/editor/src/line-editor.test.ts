@@ -223,6 +223,19 @@ describe("LineEditor ownership", () => {
 		expect(host.sent).toEqual(["a", "b"]);
 	});
 
+	it("reports each change of the unsent draft to the host", () => {
+		const drafts: string[] = [];
+		const { editor, core } = mount({ onDraftChange: (draft) => drafts.push(draft) });
+		core.feed(encode("\x1b]7000;v=1;input-ready=1\x07"));
+		editor.handleKey(key({ key: "l" }));
+		editor.handleKey(key({ key: "s" }));
+		editor.handleKey(key({ key: "ArrowLeft" }));
+		core.feed(encode("\x1b]7000;v=1;input-ready=1\x07"));
+		editor.handleKey(key({ key: "Enter" }));
+		editor.setText("pwd");
+		expect(drafts).toEqual(["l", "ls", "", "pwd"]);
+	});
+
 	it("keeps Ctrl-C a passthrough even while Owned", () => {
 		const { editor, host, core } = mount();
 		core.feed(encode("\x1b]7000;v=1;input-ready=1\x07"));

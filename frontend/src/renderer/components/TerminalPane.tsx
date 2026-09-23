@@ -78,6 +78,7 @@ type CachedTerminalEntry = TerminalCacheDescriptor & {
 	activationId: number;
 	activationPhase: "parked" | "preparing" | "ready" | "revealed" | "visible";
 	container: HTMLDivElement;
+	hasDraft?: boolean;
 	props: TerminalPaneProps;
 	terminal?: AttachableTerminal;
 	unloadTimer?: ReturnType<typeof setTimeout>;
@@ -232,6 +233,7 @@ function CachedTerminalPortal({
 	onPrepared,
 	onReveal,
 	onActivated,
+	onDraftChange,
 	onTerminalReady,
 }: {
 	active: boolean;
@@ -239,6 +241,7 @@ function CachedTerminalPortal({
 	onPrepared: (cacheKey: string, activationId: number) => void;
 	onReveal: (cacheKey: string, activationId: number) => void;
 	onActivated: (cacheKey: string, activationId: number) => void;
+	onDraftChange: (cacheKey: string, draft: string) => void;
 	onTerminalReady: (cacheKey: string, terminal: AttachableTerminal) => void;
 }) {
 	const handleTerminalReady = useCallback(
@@ -246,6 +249,12 @@ function CachedTerminalPortal({
 			onTerminalReady(entry.cacheKey, terminal);
 		},
 		[entry.cacheKey, onTerminalReady],
+	);
+	const handleDraftChange = useCallback(
+		(draft: string) => {
+			onDraftChange(entry.cacheKey, draft);
+		},
+		[entry.cacheKey, onDraftChange],
 	);
 	useLayoutEffect(() => {
 		const terminal = entry.terminal;
@@ -293,6 +302,7 @@ function CachedTerminalPortal({
 			// when the pane this surface sits in may have been relaid out without
 			// its own box appearing to change.
 			refitToken={entry.activationId}
+			onDraftChange={handleDraftChange}
 			onTerminalReady={handleTerminalReady}
 		/>,
 		entry.container,
@@ -425,13 +435,20 @@ export function TerminalCacheProvider({
 
 	const scheduleUnload = useCallback(
 		(entry: CachedTerminalEntry) => {
+			const arm = () => {
+				entry.unloadTimer = setTimeout(() => {
+					entry.unloadTimer = undefined;
+					if (entriesRef.current.get(entry.cacheKey) !== entry || entry.activationPhase !== "parked") return;
+					if (entry.kind === "shell" && entry.hasDraft) {
+						arm();
+						return;
+					}
+					if (entry.kind === "shell") watchUnloadedShell(entry);
+					removeEntry(entry.cacheKey);
+				}, RETAINED_TERMINAL_UNLOAD_MS);
+			};
 			cancelUnload(entry);
-			entry.unloadTimer = setTimeout(() => {
-				entry.unloadTimer = undefined;
-				if (entriesRef.current.get(entry.cacheKey) !== entry || entry.activationPhase !== "parked") return;
-				if (entry.kind === "shell") watchUnloadedShell(entry);
-				removeEntry(entry.cacheKey);
-			}, RETAINED_TERMINAL_UNLOAD_MS);
+			arm();
 		},
 		[removeEntry, watchUnloadedShell],
 	);
@@ -553,6 +570,11 @@ export function TerminalCacheProvider({
 		},
 		[rerender],
 	);
+
+	const markDraft = useCallback((cacheKey: string, draft: string) => {
+		const entry = entriesRef.current.get(cacheKey);
+		if (entry) entry.hasDraft = draft.length > 0;
+	}, []);
 
 	const markPrepared = useCallback(
 		(cacheKey: string, activationId: number) => {
@@ -719,6 +741,7 @@ export function TerminalCacheProvider({
 					entry={entry}
 					key={entry.cacheKey}
 					onActivated={markActivated}
+					onDraftChange={markDraft}
 					onPrepared={markPrepared}
 					onReveal={markReveal}
 					onTerminalReady={markTerminalReady}
@@ -957,12 +980,14 @@ function AttachedTerminal({
 	createMux,
 	isVisible = true,
 	isRendered = true,
+	onDraftChange,
 	onTerminalReady,
 	refitToken,
 }: TerminalPaneProps & {
 	isVisible?: boolean;
 	isRendered?: boolean;
 	refitToken?: number;
+	onDraftChange?: (draft: string) => void;
 	onTerminalReady?: (terminal: AttachableTerminal) => void;
 }) {
 	const { t } = useTranslation();
@@ -1143,6 +1168,7 @@ function AttachedTerminal({
 					fontSize={fontSize}
 					onReplayPainted={handleReplayPainted}
 					onReplayReady={onReplayReady}
+					onDraftChange={onDraftChange}
 				/>
 				<TerminalAttachment onReady={handleReady} />
 				{showEmptyState && (

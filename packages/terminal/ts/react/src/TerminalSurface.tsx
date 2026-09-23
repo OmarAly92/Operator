@@ -74,6 +74,7 @@ export interface TerminalSurfaceProps {
 	onPaint?: () => void;
 	onBlockFinished?: (event: BlockFinishedEvent) => void;
 	onHint?: (hint: HintEvent) => void;
+	onDraftChange?: (draft: string) => void;
 }
 
 function predictKeystroke(renderer: DomBlockRenderer | null, event: KeyboardEvent): void {
@@ -98,6 +99,7 @@ export function TerminalSurface({
 	onPaint,
 	onBlockFinished,
 	onHint,
+	onDraftChange,
 	refitToken,
 	focusToken,
 	visible,
@@ -114,6 +116,8 @@ export function TerminalSurface({
 	onBlockFinishedRef.current = onBlockFinished;
 	const onHintRef = useRef(onHint);
 	onHintRef.current = onHint;
+	const onDraftChangeRef = useRef(onDraftChange);
+	onDraftChangeRef.current = onDraftChange;
 	const visibleRef = useRef(visible);
 	visibleRef.current = visible;
 	const findBarRef = useRef<FindBar | null>(null);
@@ -164,6 +168,7 @@ export function TerminalSurface({
 			sendRaw: onSendRaw,
 			beforePassthrough: (event) => predictKeystroke(renderer, event),
 			compositionAnchor: (parent) => anchorFromElement(parent, blockHost.querySelector("[data-terminal-cursor-cell]")),
+			onDraftChange: (draft) => onDraftChangeRef.current?.(draft),
 		});
 		editor.setTheme(theme);
 		editor.setFont(font);

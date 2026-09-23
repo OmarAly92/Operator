@@ -1071,7 +1071,9 @@ history of `master`.
   retained-terminal cache (`TerminalPane.tsx` `scheduleUnload`), not by the
   package: its renderer, core and mux attachment go away, the pty-host keeps
   the session, and showing it again reopens it through attach + history
-  replay (§4.19). All cores share one `WebAssembly.Memory`, which never
+  replay (§4.19). A shell pane whose line editor holds an unsent draft is not
+  unloaded (its timer re-arms until the draft is gone). All cores share one
+  `WebAssembly.Memory`, which never
   shrinks, so an unload frees space for the next core to reuse; it does not
   lower the resident size already reached. What switching back costs was not
   measured in the app (the real-app check could not run: dev ports busy); the

@@ -70,6 +70,7 @@ export type BlockTerminalProps = {
 	 */
 	onReplayPainted?: () => void;
 	onReplayReady?: () => void; // fired once, on the first change where replayReady() is true
+	onDraftChange?: (draft: string) => void;
 };
 
 const DEFAULT_COLUMNS = 120;
@@ -189,6 +190,7 @@ export function BlockTerminal({
 	recordsSpawnGrid = true,
 	onReplayPainted,
 	onReplayReady,
+	onDraftChange,
 }: BlockTerminalProps) {
 	const { t } = useTranslation();
 	const coreRef = useRef<TerminalCore | null>(null);
@@ -589,6 +591,7 @@ export function BlockTerminal({
 		refitToken,
 		focusToken,
 		visible,
+		onDraftChange,
 		onHint: (hint) => {
 			// A hint's path is the text as it was printed, so it is relative as
 			// often as not; open_path only answers for an absolute file. Resolving

@@ -25,6 +25,7 @@ export type EditorHost = {
 	sendRaw(data: string): void;
 	beforePassthrough?(event: KeyboardEvent): void;
 	compositionAnchor?: (parent: HTMLElement) => CompositionAnchor | null;
+	onDraftChange?(draft: string): void;
 };
 
 export class LineEditor {
@@ -49,6 +50,7 @@ export class LineEditor {
 	private unsubscribeCompletions: (() => void) | null = null;
 	private visible = true;
 	private staleWhileHidden = false;
+	private reportedDraft = "";
 
 	mount(container: HTMLElement, core: TerminalCore, host: EditorHost): void {
 		this.dispose();
@@ -61,6 +63,7 @@ export class LineEditor {
 		this.promptBranch = "";
 		this.promptExitCode = null;
 		this.promptDurationMs = null;
+		this.reportedDraft = "";
 		this.search.cancel();
 		this.searchOpen = false;
 		this.dropdownOpen = false;
@@ -381,7 +384,15 @@ export class LineEditor {
 		}
 	}
 
+	private reportDraft(): void {
+		const draft = this.buffer.text;
+		if (draft === this.reportedDraft) return;
+		this.reportedDraft = draft;
+		this.host?.onDraftChange?.(draft);
+	}
+
 	private render(): void {
+		this.reportDraft();
 		const root = this.root;
 		const content = this.content;
 		if (!root || !content) return;

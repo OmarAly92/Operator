@@ -98,16 +98,20 @@ vi.mock("../lib/api-client", () => ({
 
 const blockReplayPainted: { value: (() => void) | undefined } = { value: undefined };
 const blockReplayReady: { value: (() => void) | undefined } = { value: undefined };
+const blockDraftChange = new Map<string, (draft: string) => void>();
 
 vi.mock("./BlockTerminal", () => ({
 	BlockTerminal: (props: {
 		ariaLabel?: string;
 		onReplayPainted?: () => void;
 		onReplayReady?: () => void;
+		onDraftChange?: (draft: string) => void;
 		focusToken?: number;
 		recordsSpawnGrid?: boolean;
+		sessionId?: string;
 		visible?: boolean;
 	}) => {
+		if (props.sessionId && props.onDraftChange) blockDraftChange.set(props.sessionId, props.onDraftChange);
 		blockReplayPainted.value = props.onReplayPainted;
 		blockReplayReady.value = props.onReplayReady;
 		return (
@@ -203,6 +207,7 @@ beforeEach(() => {
 	attachmentUnmounts.value = 0;
 	terminalBlockListeners.clear();
 	muxConnectionListeners.clear();
+	blockDraftChange.clear();
 	useUiStore.setState({ inspectorSessions: {} });
 	resetPaneGridForTests();
 });
@@ -828,6 +833,34 @@ describe("TerminalCacheProvider", () => {
 			await waitFor(() => expect(shellAttachment.isConnected).toBe(false));
 			return view;
 		}
+
+		it("keeps a parked shell holding an unsent draft loaded until the draft is gone", async () => {
+			vi.useFakeTimers({ shouldAdvanceTime: true });
+			const view = renderCachedPane({
+				session: sessionA,
+				sessions: [sessionA],
+				shellTerminals: [shell],
+				terminalTarget: shellTarget,
+			});
+			try {
+				const shellAttachment = await waitFor(() => activeAttachment());
+				act(() => blockDraftChange.get(shell.handleId)?.("echo unsent"));
+				view.show(sessionA, { kind: "worker" });
+				await waitFor(() => expect(activeAttachment()).not.toBe(shellAttachment));
+				await act(async () => {
+					vi.advanceTimersByTime(RETAINED_TERMINAL_UNLOAD_MS);
+				});
+				expect(shellAttachment.isConnected).toBe(true);
+				act(() => blockDraftChange.get(shell.handleId)?.(""));
+				await act(async () => {
+					vi.advanceTimersByTime(RETAINED_TERMINAL_UNLOAD_MS);
+				});
+				await waitFor(() => expect(shellAttachment.isConnected).toBe(false));
+			} finally {
+				vi.useRealTimers();
+				view.restore();
+			}
+		});
 
 		it("notifies a finished command of an unloaded shell once, and not after it is shown again", async () => {
 			const show = vi.spyOn(operatorBridge.notifications, "show").mockResolvedValue(undefined);
