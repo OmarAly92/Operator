@@ -10,6 +10,15 @@ Order is the recommended order of work.
 
 ## 1. Cheaper layout for visible panes (only if several panes are visible at once)
 
+**Status: measured 2026-09-23, no gain, nothing changed.**
+`.terminal-row { contain: layout }` was inside noise in Chromium and WebKit;
+the scroller already carries `contain: strict`
+(`packages/terminal/ts/renderer-dom/src/dom-block-renderer.ts:161`, set inline,
+which this item missed by reading only `styles.css`), and each layout has the
+same 142 dirty objects with or without row containment. See
+`docs/superpowers/specs/2026-09-23-layout-containment-measurement.md` and
+TERMINAL.md §4.26. The section below is kept as the original proposal.
+
 **What the user feels:** less CPU while several visible panes stream at once
 (split view). With one visible pane there is nothing to feel.
 
@@ -128,7 +137,7 @@ done.
 
 ## Order
 
-1. Execute Plan 4 (background-pane cost).
+1. Plan 4 (background-pane cost): merged (`f4d93ba68`).
 2. #2 recording and side-by-side session.
-3. #1 only if split view is used.
+3. #1: done, no gain (see its status).
 4. #3 only if wanted.
