@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { beforeAll, describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 import { createTerminalCore, initTerminalCore } from "@operator/terminal-core";
 import { LineEditor, type EditorHost } from "./line-editor";
 import { editorStyles } from "./styles";
@@ -347,5 +347,27 @@ describe("LineEditor composition target stability", () => {
 		expect(root.textContent).toContain("abcde");
 		expect(removals).toBe(0);
 		expect(root.contains(input)).toBe(true);
+	});
+});
+
+describe("LineEditor visibility", () => {
+	it("does no history or render work while hidden and catches up when shown", () => {
+		const { editor, core, host } = mount();
+		core.feed(encode("\x1b]7000;v=1;input-ready=1\x07"));
+		const snapshots = vi.spyOn(core, "snapshot");
+		editor.setVisible(false);
+		for (let index = 0; index < 10; index += 1) {
+			core.feed(
+				encode(
+					`\x1b]133;A\x07\x1b]7000;v=1;cmd=cmd${index}\x07\x1b]133;C\x07ok\n\x1b]133;D;0\x07`,
+				),
+			);
+		}
+		expect(snapshots).not.toHaveBeenCalled();
+		editor.setVisible(true);
+		expect(snapshots).toHaveBeenCalled();
+		editor.handleKey(key({ key: "ArrowUp" }));
+		editor.handleKey(key({ key: "Enter" }));
+		expect(host.sent).toEqual(["cmd9"]);
 	});
 });

@@ -286,6 +286,7 @@ export function TerminalSurface({
 
 	useLayoutEffect(() => {
 		rendererRef.current?.setVisible(visible ?? null);
+		editorRef.current?.setVisible(visible !== false);
 	}, [visible]);
 
 	const [altActive, setAltActive] = useState(false);

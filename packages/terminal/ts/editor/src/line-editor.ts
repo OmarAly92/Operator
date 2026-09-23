@@ -47,6 +47,8 @@ export class LineEditor {
 	private composition: CompositionTarget | null = null;
 	private unsubscribe: (() => void) | null = null;
 	private unsubscribeCompletions: (() => void) | null = null;
+	private visible = true;
+	private staleWhileHidden = false;
 
 	mount(container: HTMLElement, core: TerminalCore, host: EditorHost): void {
 		this.dispose();
@@ -83,6 +85,10 @@ export class LineEditor {
 		});
 		this.dropdown.mount(root);
 		this.unsubscribe = core.onChange(() => {
+			if (!this.visible) {
+				this.staleWhileHidden = true;
+				return;
+			}
 			this.ingestHistory();
 			this.render();
 		});
@@ -130,6 +136,14 @@ export class LineEditor {
 		this.render();
 	}
 
+	setVisible(visible: boolean): void {
+		this.visible = visible;
+		if (!visible || !this.staleWhileHidden) return;
+		this.staleWhileHidden = false;
+		this.ingestHistory();
+		this.render();
+	}
+
 	focus(): void {
 		this.composition?.focus();
 	}
@@ -151,6 +165,8 @@ export class LineEditor {
 		this.root = null;
 		this.core = null;
 		this.host = null;
+		this.visible = true;
+		this.staleWhileHidden = false;
 	}
 
 	private commitComposedText(text: string): void {

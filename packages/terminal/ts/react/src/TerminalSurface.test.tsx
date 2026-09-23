@@ -4,6 +4,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { createTerminalCore, type HostCapabilities } from "@operator/terminal-core";
+import { LineEditor } from "@operator/terminal-editor";
 import { DomBlockRenderer, terminalStyles } from "@operator/terminal-renderer-dom";
 import { TerminalSurface } from "./index";
 import {
@@ -550,6 +551,17 @@ describe("TerminalSurface", () => {
 		expect(spy).toHaveBeenLastCalledWith(true);
 		setVisible(undefined);
 		expect(spy).toHaveBeenLastCalledWith(null);
+		spy.mockRestore();
+	});
+
+	it("hands the host's visibility to the line editor", () => {
+		const spy = vi.spyOn(LineEditor.prototype, "setVisible");
+		const { setVisible } = renderSurface({ visible: false });
+		expect(spy).toHaveBeenLastCalledWith(false);
+		setVisible(true);
+		expect(spy).toHaveBeenLastCalledWith(true);
+		setVisible(undefined);
+		expect(spy).toHaveBeenLastCalledWith(true);
 		spy.mockRestore();
 	});
 
