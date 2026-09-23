@@ -15,7 +15,7 @@ Claude Code writes to the pane being watched.
 
 **Evidence:**
 
-- `docs/superpowers/specs/2026-09-23-background-pane-cost.md` measured repaint
+- `docs/superpowers/specs/2026-09-23-background-pane-cost-measurement.md` measured repaint
   at 615 ms against parse 74 ms and line-editor snapshot 73 ms, and named a
   forced layout as the largest single cost.
 - The site is `packages/terminal/ts/renderer-dom/src/dom-block-renderer.ts:1055`:
