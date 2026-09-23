@@ -1,0 +1,26 @@
+name: liquid_glass_renderer
+resolution: workspace
+description: "The raw renderer for a liquid glass effect in Flutter. Vendored fork, see FORK.md."
+version: 0.2.0-dev.4+operator
+publish_to: "none"
+
+environment:
+  sdk: ^3.10.3
+  flutter: ">=3.32.4"
+
+dependencies:
+  equatable: ^2.0.7
+  flutter:
+    sdk: flutter
+  flutter_shaders: ^0.1.3
+  logging: ^1.3.0
+  meta: ^1.16.0
+  motor: ^1.0.1
+
+flutter:
+  shaders:
+    - lib/assets/shaders/liquid_glass_geometry_blended.frag
+    - lib/assets/shaders/liquid_glass_filter.frag
+    - lib/assets/shaders/liquid_glass_arbitrary.frag
+    - lib/assets/shaders/liquid_glass_final_render.frag
+    - lib/assets/shaders/fake_glass_color.frag
