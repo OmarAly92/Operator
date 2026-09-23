@@ -8,54 +8,72 @@ conversation view, trying predictive echo, and Plan G (§4.2).
 
 Order is the recommended order of work.
 
-## 1. The visible pane's forced layout on every repaint (recommended next)
+## 1. Cheaper layout for visible panes (only if several panes are visible at once)
 
-**What the user feels:** smoother streaming and less CPU, fan and battery while
-Claude Code writes to the pane being watched.
+**What the user feels:** less CPU while several visible panes stream at once
+(split view). With one visible pane there is nothing to feel.
 
-**Evidence:**
+**Evidence** (`docs/superpowers/specs/2026-09-23-background-pane-cost-measurement.md`):
 
-- `docs/superpowers/specs/2026-09-23-background-pane-cost-measurement.md` measured repaint
-  at 615 ms against parse 74 ms and line-editor snapshot 73 ms, and named a
-  forced layout as the largest single cost.
-- The site is `packages/terminal/ts/renderer-dom/src/dom-block-renderer.ts:1055`:
-  when `this.pinnedHeader` is set, every repaint calls
-  `first.getBoundingClientRect()` and `container.getBoundingClientRect()` to
-  decide `scrolledPastHeader`. Both reads come after `reconcileChildren` has
-  mutated the DOM (`:1052`), so the browser lays out mid-frame.
+- One visible pane alone costs 0.23–0.39 s of main thread per 10 s (2–4 % of a
+  core), of which layout is 0.06–0.10 s. Ten visible panes cost 0.86–1.13 s
+  per 10 s, layout 0.25–0.30 s.
+- The 615 ms `repaint` figure is from the profile of the 1 visible + 9 parked
+  row, so most of it is parked panes, which Plan 4 removes.
+- Each pane pays about one layout per output frame (122 per 100 frames). It is
+  forced at the pinned-header test,
+  `packages/terminal/ts/renderer-dom/src/dom-block-renderer.ts:1055`
+  (`getBoundingClientRect` after `reconcileChildren` at `:1052`). The note
+  records that removing that read only moves the layout to
+  `applyStickiness`'s `scrollHeight` at `:1128`; the browser would lay out
+  before painting anyway. Moving or removing reads does not remove the cost.
+- `styles.css` sets no `contain` or `content-visibility` on blocks or rows.
 
-**Direction:** derive `scrolledPastHeader` from state the renderer already owns
-(block offsets from the windowing result, `rowHeight`, `BLOCK_PADDING_TOP_LINES`,
-the scroll position it tracks) instead of reading geometry. The result must be
-identical: `npm run bench:feel` zero pixel diff, `npm run bench:selection` and
-`bench:agent:scroll` green, and a before/after layout count per 100 frames with
-the same harness the measurement note used.
+**Direction:** make each layout cheaper rather than avoid it: CSS containment
+on block and row elements so a changed row does not re-lay-out the whole list,
+and derive the pinned-header test from the windowing result so the frame has
+one layout instead of a forced one plus the render-step one (measure whether
+there are two first). Gate: `npm run bench:feel` zero pixel diff,
+`bench:selection` and `bench:agent:scroll` green, and the pane-cost harness's
+10-visible row before and after.
 
-**Sequencing:** after Plan 4 lands; both change the repaint path in the same
-file.
+**Sequencing:** after Plan 4, and only if split view (several visible panes)
+is used day to day.
 
-**Size:** one small plan.
+**Size:** one small plan, measurement first.
 
 ## 2. Try the display flags that are built but default off
 
-**What the user feels:** possibly better-looking Claude Code output (bold,
-italic, dim and underline drawn properly; a cursor that stays readable).
+**What each flag does:**
 
-**Evidence:** `packages/terminal/ts/renderer-dom/src/features.ts` defaults
-`attributes: "plain"`, `cursorContrast: false`, `cursorHollowUnfocused: false`.
-Plan D built all three; the feel gate already carries baselines for them
-(`baselines/<fixture>/feature-attributes_warp`, `feature-cursorContrast`,
-`feature-cursorHollowUnfocused`).
+- `attributes: "warp"` (`features.ts`, default `"plain"`): `"plain"` already
+  paints bold (`fontWeight 700`) and dim (`opacity 0.55`)
+  (`row-builder.ts:75-80`). `"warp"` adds italic, five underline styles,
+  underline colour (SGR 58), strike, overline, blink and hidden
+  (`attributes.ts`, `row-builder.ts:82`; TERMINAL.md §5).
+- `cursorContrast`: when the cursor colour sits on a background too close to
+  it, the cursor cell is drawn inverted with the character on top
+  (`cursor.ts:63`, `cursor-contrast.ts:51`).
+- `cursorHollowUnfocused`: the cursor becomes an outline when the pane is not
+  focused (`cursor.ts:62`), which shows which pane has the keyboard.
 
-**Not known:** how much dim or italic text Claude Code emits in normal use. The
-side-by-side answers that.
+**Evidence of use:** in the `claude-long-50k` fixture Claude Code emits bold
+5,630 times, dim once, and no italic, underline or inverse. It hides and shows
+the terminal cursor 5,837/5,838 times, so Operator's cursor is the one drawn in
+Claude's input box. The fixture is a plain number list, so it does not show
+what markdown replies, diffs or links emit.
 
-**Direction:** the same route as the graphemes/widthCache flip (7395b910c):
-side-by-side screenshots on the real app with each flag, then flip only the
-ones that look better, re-record the default baselines and keep a
-`feature-<name>_false` baseline for the old look.
+**Not known:** whether Claude Code uses italic or underline in normal replies.
+A recording of a markdown-heavy reply answers it before anything is flipped.
 
-**Size:** no plan; one session like #2.
+**Direction:** record one real session with a markdown reply and a diff,
+count its SGR attributes, then the same route as the graphemes/widthCache flip
+(7395b910c): side-by-side screenshots on the real app per flag, flip only what
+looks better, re-record the default baselines and keep a
+`feature-<name>_false` baseline for the old look. `cursorHollowUnfocused` is
+the most likely keeper if split view is used.
+
+**Size:** no plan; one session.
 
 ## 3. Claude Code's window title (lower priority)
 
@@ -111,6 +129,6 @@ done.
 ## Order
 
 1. Execute Plan 4 (background-pane cost).
-2. Plan for #1 (visible-pane forced layout).
-3. #2 side-by-side session.
+2. #2 recording and side-by-side session.
+3. #1 only if split view is used.
 4. #3 only if wanted.
