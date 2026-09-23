@@ -4,12 +4,20 @@ import { useUiStore } from "../stores/ui-store";
 import { ClaudeAccountsSection } from "./settings/ClaudeAccountsSection";
 import { GeneralSettingsSection } from "./settings/GeneralSettingsSection";
 import { MobileSettingsSection } from "./settings/mobile/MobileSettingsSection";
+import { NotificationsSection } from "./settings/NotificationsSection";
 import { ReportProblemDialog } from "./settings/ReportProblemDialog";
 import { SettingsLinkRow } from "./settings/SettingsRow";
 import { SettingsSection } from "./settings/SettingsSection";
 import { UpdatesSection } from "./settings/UpdatesSection";
 
-export type GlobalSettingsSection = "general" | "claudeAccounts" | "mobile" | "updates" | "help" | "all";
+export type GlobalSettingsSection =
+	| "general"
+	| "claudeAccounts"
+	| "mobile"
+	| "notifications"
+	| "updates"
+	| "help"
+	| "all";
 
 export function GlobalSettingsForm({
 	section = "all",
@@ -48,6 +56,9 @@ export function GlobalSettingsForm({
 				)}
 				{(section === "all" || section === "claudeAccounts") && <ClaudeAccountsSection titleHidden={leadingTitleHidden} />}
 				{(section === "all" || section === "mobile") && <MobileSettingsSection titleHidden={leadingTitleHidden} />}
+				{(section === "all" || section === "notifications") && (
+					<NotificationsSection titleHidden={leadingTitleHidden} />
+				)}
 				{(section === "all" || section === "updates") && <UpdatesSection titleHidden={leadingTitleHidden} />}
 				{(section === "all" || section === "help") && (
 					<SettingsSection title={t("settings.getHelp")} titleHidden={leadingTitleHidden} grouped>

@@ -198,9 +198,9 @@ beforeEach(() => {
 	vi.spyOn(window, "open").mockImplementation(() => null);
 });
 
-// The runtime tells the transport which session the user is actually watching.
-// Being on the session route is not enough: the pane shows one terminal at a
-// time, so a shell or reviewer tab hides the agent while the URL is unchanged.
+// The runtime tells the transport which sessions the user is actually
+// watching. Split view can show several panes at once, so this is a
+// predicate over session ids rather than a single "current" session.
 describe("NotificationRuntime", () => {
 	function renderRuntime() {
 		const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -209,42 +209,38 @@ describe("NotificationRuntime", () => {
 				<NotificationRuntime />
 			</QueryClientProvider>,
 		);
-		return connectMock.mock.calls[0][1] as () => string | undefined;
+		return connectMock.mock.calls[0][1] as (sessionId: string) => boolean;
 	}
 
-	it("reports the session while its agent terminal is the one on screen", () => {
-		paramsMock.mockReturnValue({ sessionId: "sess-1" });
+	it("reports true while a session's agent terminal is the one on screen", () => {
 		useUiStore.setState({ visibleTerminalKindBySession: { "sess-1": "worker" } });
 
-		expect(renderRuntime()()).toBe("sess-1");
+		expect(renderRuntime()("sess-1")).toBe(true);
 	});
 
-	it.each(["shell", "reviewer"] as const)("reports nothing while a %s terminal covers the agent", (kind) => {
-		paramsMock.mockReturnValue({ sessionId: "sess-1" });
+	it.each(["shell", "reviewer"] as const)("reports false while a %s terminal covers the agent", (kind) => {
 		useUiStore.setState({ visibleTerminalKindBySession: { "sess-1": kind } });
 
-		expect(renderRuntime()()).toBeUndefined();
+		expect(renderRuntime()("sess-1")).toBe(false);
 	});
 
-	it("reports nothing off a session route", () => {
-		paramsMock.mockReturnValue({});
+	it("reports false for a session with no visible pane", () => {
 		useUiStore.setState({ visibleTerminalKindBySession: { "sess-1": "worker" } });
 
-		expect(renderRuntime()()).toBeUndefined();
+		expect(renderRuntime()("sess-2")).toBe(false);
 	});
 
-	// The transport connects once and outlives navigation, so the getter has to
-	// read live state rather than close over the value it was created with.
+	// The transport connects once and outlives navigation, so the predicate has
+	// to read live state rather than close over the value it was created with.
 	it("tracks tab switches without reconnecting the stream", () => {
-		paramsMock.mockReturnValue({ sessionId: "sess-1" });
 		useUiStore.setState({ visibleTerminalKindBySession: { "sess-1": "worker" } });
-		const getVisibleAgentSessionId = renderRuntime();
+		const isWatchingSession = renderRuntime();
 
 		useUiStore.setState({ visibleTerminalKindBySession: { "sess-1": "shell" } });
-		expect(getVisibleAgentSessionId()).toBeUndefined();
+		expect(isWatchingSession("sess-1")).toBe(false);
 
 		useUiStore.setState({ visibleTerminalKindBySession: { "sess-1": "worker" } });
-		expect(getVisibleAgentSessionId()).toBe("sess-1");
+		expect(isWatchingSession("sess-1")).toBe(true);
 		expect(connectMock).toHaveBeenCalledTimes(1);
 	});
 });

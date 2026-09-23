@@ -263,6 +263,11 @@ export function createTauriBridge({ invoke, listen }: TauriBridgeTransports): Op
 				await invoke("notification_dev_bounce");
 			},
 			onClick: (listener: (id: string) => void) => subscribe<string>("notifications:click", listener),
+			permission: async () =>
+				(await invoke("notification_permission")) as "authorized" | "denied" | "not_determined" | "unsupported",
+			openSettings: async () => {
+				await invoke("notification_open_settings");
+			},
 		},
 		tray: {
 			setAttentionState: (state: TrayAttentionState) => {

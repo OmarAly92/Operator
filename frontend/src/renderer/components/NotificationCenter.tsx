@@ -1,17 +1,18 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { useParams } from "@tanstack/react-router";
 import {
 	ArrowUpRight,
 	Bell,
 	CheckCheck,
 	CircleAlert,
+	CircleCheck,
 	GitMerge,
 	GitPullRequestArrow,
 	GitPullRequestClosed,
 	Inbox,
 	LoaderCircle,
 	MessageSquareDot,
+	OctagonX,
 	RotateCcw,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -105,24 +106,15 @@ export function NotificationRuntime() {
 	const { openPrimary } = useNotificationTargetNavigation();
 	const unreadQuery = useNotificationsQuery("unread");
 	const unreadCount = getCachedUnreadCount(unreadQuery.data);
-	const params = useParams({ strict: false }) as { sessionId?: string };
-	const routeSessionIdRef = useRef(params.sessionId);
-	routeSessionIdRef.current = params.sessionId;
 
-	// Being on the session route is not the same as watching the agent: its pane
-	// renders one terminal at a time, so a shell or reviewer tab hides the agent
-	// while the route is unchanged. Only report the session whose agent terminal
-	// is the one on screen. Read the store imperatively — this feeds a getter for
-	// the long-lived SSE connection, which needs the current value, not a render.
-	const getVisibleAgentSessionId = useCallback(() => {
-		const sessionId = routeSessionIdRef.current;
-		if (!sessionId) return undefined;
-		return useUiStore.getState().visibleTerminalKindBySession[sessionId] === "worker" ? sessionId : undefined;
-	}, []);
+	const isWatchingSession = useCallback(
+		(sessionId: string) => useUiStore.getState().visibleTerminalKindBySession[sessionId] === "worker",
+		[],
+	);
 
 	useEffect(
-		() => createNotificationsTransport(queryClient, getVisibleAgentSessionId).connect(),
-		[getVisibleAgentSessionId, queryClient],
+		() => createNotificationsTransport(queryClient, isWatchingSession).connect(),
+		[isWatchingSession, queryClient],
 	);
 
 	// Keep the OS launcher badge in sync here rather than in NotificationCenter:
@@ -638,6 +630,10 @@ function notificationIcon(type: string) {
 			return GitMerge;
 		case "pr_closed_unmerged":
 			return GitPullRequestClosed;
+		case "turn_finished":
+			return CircleCheck;
+		case "agent_exited":
+			return OctagonX;
 		default:
 			return Bell;
 	}
@@ -655,6 +651,10 @@ function notificationIconClass(type: string): string {
 		case "pr_merged":
 			return "text-[var(--color-pr-merged)]";
 		case "pr_closed_unmerged":
+			return "text-error";
+		case "turn_finished":
+			return "text-success";
+		case "agent_exited":
 			return "text-error";
 		default:
 			return "text-muted-foreground";

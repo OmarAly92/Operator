@@ -212,6 +212,8 @@ if (typeof window !== "undefined") {
 			setBadge: async () => undefined,
 			devBounce: async () => undefined,
 			onClick: () => () => undefined,
+			permission: async () => "unsupported" as const,
+			openSettings: async () => undefined,
 		},
 		tray: {
 			setAttentionState: () => undefined,
