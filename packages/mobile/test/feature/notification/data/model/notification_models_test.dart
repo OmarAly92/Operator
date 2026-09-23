@@ -3,7 +3,6 @@ import 'package:operator_mobile/feature/notification/data/model/notification_mod
 import 'package:operator_mobile/feature/notification/data/model/notification_page_model.dart';
 import 'package:operator_mobile/feature/notification/data/model/params/get_notifications_params.dart';
 import 'package:operator_mobile/feature/notification/data/model/params/mark_notification_read_params.dart';
-import 'package:operator_mobile/feature/notification/data/model/params/register_push_device_params.dart';
 
 void main() {
   test('parses one record and tolerates a record with nothing but an id', () {
@@ -52,10 +51,5 @@ void main() {
     );
     expect(const GetNotificationsParams().toJson(), isEmpty);
     expect(const MarkNotificationReadParams().toJson(), {'status': 'read'});
-    expect(
-      const RegisterPushDeviceParams(token: 't-1', platform: 'ios', deviceName: 'iPhone').toJson(),
-      {'token': 't-1', 'platform': 'ios', 'deviceName': 'iPhone'},
-    );
-    expect(const RegisterPushDeviceParams(token: 't-1').toJson(), {'token': 't-1'});
   });
 }

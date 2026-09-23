@@ -22,9 +22,6 @@ import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/session_view_cubit.dart';
 import 'package:operator_mobile/feature/notification/data/data_source/notification_remote_data_source.dart';
 import 'package:operator_mobile/feature/notification/data/repository/notification_repository.dart';
-import 'package:operator_mobile/feature/notification/logic/push_registrar.dart';
-import 'package:operator_mobile/feature/notification/logic/push_registration.dart';
-import 'package:operator_mobile/feature/notification/logic/push_token_source.dart';
 import 'package:operator_mobile/feature/notification/presentation/notifications_screen/logic/notifications_cubit.dart';
 import 'package:operator_mobile/feature/pairing/data/data_source/desktops_local_data_source.dart';
 import 'package:operator_mobile/feature/pairing/data/data_source/pairing_remote_data_source.dart';
@@ -273,22 +270,6 @@ class ServiceLocator {
     );
     sl.registerLazySingleton<NotificationRemoteDataSource>(
       () => NotificationRemoteDataSourceImp(sl<ApiConsumer>()),
-    );
-
-    sl.registerLazySingleton<PushTokenSource>(
-      () => const UnconfiguredPushTokenSource(),
-    );
-    sl.registerLazySingleton<PushRegistrationStore>(
-      () => PushRegistrationStore(
-        FlutterPushSecureStorage(sl<FlutterSecureStorage>()),
-      ),
-    );
-    sl.registerLazySingleton<PushRegistrar>(
-      () => PushRegistrar(
-        sl<NotificationRepository>(),
-        sl<PushRegistrationStore>(),
-        sl<PushTokenSource>(),
-      ),
     );
   }
 

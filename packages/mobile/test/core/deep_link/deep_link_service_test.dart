@@ -52,7 +52,7 @@ void main() {
   }
 
   testWidgets('a cold-start link lands on its screen', (tester) async {
-    source.initial = Uri.parse('aomobile://session/abc');
+    source.initial = Uri.parse('operator://session/abc');
     await pumpApp(tester);
     final service = DeepLinkService(source, navigatorKey);
 
@@ -67,7 +67,7 @@ void main() {
     final service = DeepLinkService(source, navigatorKey);
     await service.start();
 
-    source.controller.add(Uri.parse('aomobile://notifications'));
+    source.controller.add(Uri.parse('operator://notifications'));
     await tester.pumpAndSettle();
 
     expect(observer.pushed.last, RoutesStrings.notifications);
@@ -79,7 +79,7 @@ void main() {
     await service.start();
     observer.pushed.clear();
 
-    source.controller.add(Uri.parse('aomobile://prs'));
+    source.controller.add(Uri.parse('operator://prs'));
     await tester.pumpAndSettle();
 
     expect(HomeShell.selectedTab.value, 1);
@@ -92,7 +92,7 @@ void main() {
     await service.start();
     observer.pushed.clear();
 
-    source.controller.add(Uri.parse('aomobile://settings'));
+    source.controller.add(Uri.parse('operator://settings'));
     source.controller.add(Uri.parse('https://example.com/session/abc'));
     await tester.pumpAndSettle();
 
@@ -102,7 +102,7 @@ void main() {
   testWidgets('handling before the navigator exists reports that it did nothing', (tester) async {
     final service = DeepLinkService(source, GlobalKey<NavigatorState>());
 
-    expect(service.handle(Uri.parse('aomobile://session/abc')), isFalse);
+    expect(service.handle(Uri.parse('operator://session/abc')), isFalse);
   });
 
   test('dispose cancels the link-stream subscription', () async {

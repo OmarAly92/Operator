@@ -94,7 +94,7 @@
 				<string>dev.operator.mobile</string>
 				<key>CFBundleURLSchemes</key>
 				<array>
-					<string>aomobile</string>
+					<string>operator</string>
 				</array>
 			</dict>
 		</array>
