@@ -158,6 +158,9 @@ func (a *BlockAssembler) step(tok marks.Token) (domain.Block, bool) {
 	case "output_start":
 		if a.pending != nil {
 			a.pending.outputStarted = true
+			if a.pending.startedAt.IsZero() {
+				a.pending.startedAt = a.now()
+			}
 		}
 		a.record(tok)
 	case "cwd_changed":

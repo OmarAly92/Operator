@@ -12,6 +12,14 @@ describe("shellBlockNotification", () => {
 		expect(shellBlockNotification({ ...base, finishedAt: "2026-09-23T10:00:05.000Z" }, "h1")).toBeNull();
 	});
 
+	it("stays quiet when the daemon frame carries no start time", () => {
+		expect(shellBlockNotification({ ...base, startedAt: "0001-01-01T00:00:00Z" }, "h1")).toBeNull();
+	});
+
+	it("stays quiet when the finish precedes the start", () => {
+		expect(shellBlockNotification({ ...base, startedAt: base.finishedAt, finishedAt: base.startedAt }, "h1")).toBeNull();
+	});
+
 	it("stays quiet when a time does not parse", () => {
 		expect(shellBlockNotification({ ...base, startedAt: "" }, "h1")).toBeNull();
 	});
