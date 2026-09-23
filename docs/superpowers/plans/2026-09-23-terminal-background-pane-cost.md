@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** A retained terminal pane the user is not looking at keeps its model current and keeps reporting finished blocks, but stops painting DOM — and a hidden (minimised) Operator window keeps draining and notifying instead of freezing.
+**Goal:** A retained terminal pane the user is not looking at keeps its model current and keeps reporting finished blocks, but stops painting DOM; a hidden (minimised) Operator window keeps draining and notifying instead of freezing; and a pane left in the background longer than `RETAINED_TERMINAL_UNLOAD_MS` (10 minutes) is unloaded entirely and reattached from the pty-host when shown, so an Operator that stays open for days does not accumulate one full terminal per session ever opened.
 
-**Architecture:** `DomBlockRenderer` gets a host-driven visibility seam (`setVisible(boolean | null)`). Every frame still drains and ticks the core; block-finished detection moves into its own method that runs on painting and non-painting frames alike; the DOM repaint, overlays and predictive echo run only while the host says the pane is visible, with one synchronous catch-up paint (a full rebuild) when it becomes visible again. `LineEditor` gets the same seam. While `document.visibilityState === "hidden"` (where `requestAnimationFrame` never fires) the renderer schedules its frames on a timer instead. Operator drives the seam from `TerminalPane`'s activation phases: every phase except `"parked"` paints.
+**Architecture:** `DomBlockRenderer` gets a host-driven visibility seam (`setVisible(boolean | null)`). Every frame still drains and ticks the core; block-finished detection moves into its own method that runs on painting and non-painting frames alike; the DOM repaint, overlays and predictive echo run only while the host says the pane is visible, with one synchronous catch-up paint (a full rebuild) when it becomes visible again. `LineEditor` gets the same seam. While `document.visibilityState === "hidden"` (where `requestAnimationFrame` never fires) the renderer schedules its frames on a timer instead. Operator drives the seam from `TerminalPane`'s activation phases: every phase except `"parked"` paints. On top of that, the retained-terminal cache unloads a pane parked for 10 minutes (its renderer, core and mux attachment go away; the pty-host keeps the session) and reopens it through the existing attach + history replay (TERMINAL.md §4.19); for unloaded shell panes, finished-command notifications come from the daemon's `terminal_block` mux frames instead of the renderer. A long-run measurement (memory and CPU over time) runs before and after the unload.
 
 **Tech Stack:** TypeScript, vt-core wasm (`@operator/terminal-core`), Vitest + jsdom, React 19 (`TerminalSurface`, `TerminalPane`), Playwright + CDP (bench).
 
@@ -16,6 +16,8 @@
 - Of the paint-loop time in the 1+9 profile, `repaint` is 615 ms inclusive; `drain` 74 ms; `LineEditor.ingestHistory` 73 ms. So the gate must skip `repaint`, keep `drain`, and also idle the `LineEditor` (Task 5), or ~half of what remains per parked pane stays.
 - WKWebView fires **zero** animation frames while the window is minimised or app-hidden, and throttles `setTimeout` to ~1/s. Today that stops draining and block-finished detection for every pane, so the notification feature is silent while the window is hidden. The hidden-document path (Task 7) is required, not optional.
 - Acks to the pty-host go out on receipt, not on parse (`useTerminalSession.ts:590-598`), so nothing here changes flow control.
+- The user keeps Operator open permanently. Retained panes are never evicted today — the cache drops an entry only when its session leaves the workspace snapshot or its handle changes (`TerminalPane.tsx:506-534`, "Project/session teardown is an ownership boundary, not an LRU event") — and each holds a full renderer core capped at 200k rows / 128 MiB (`BlockTerminal.tsx:73`) plus its DOM. Even gated, a parked pane re-parses every byte the pty-host mirror already parses. Memory and long-run cost were never measured (Task 9). The user chose **unload after N minutes** over a count cap (2026-09-23): lowest memory, at the price of a replay (~40 ms first paint, ~100–130 ms for 60k history rows in the bench, spec table "reopen" row) when switching back to a pane unloaded earlier.
+- What unloading costs in notifications, verified: Claude Code emits no block marks at all (`claude-spinner-10s` and `claude-long-50k` recordings: 0 `OSC 133`, 0 `OSC 7000`), so a worker pane's renderer only ever finishes synthetic blocks at a process boundary (TERMINAL.md §4.15) — unloading it loses no command notification; agent "needs input" notifications already come from the daemon's SSE stream (`frontend/src/renderer/lib/notifications.ts:315-326`). Shell panes do emit `OSC 133`; the daemon records every finished shell block and publishes it on the mux as a `terminal_block` frame to connections subscribed with `blockType: "terminal_block"` (`backend/internal/terminal/manager.go:555-565`, `:627-658`, `protocol.go:64,103-131`; capture covers shell terminals only, `service/terminalcapture/supervisor.go:100`), and no client subscribes today. Task 11 subscribes for unloaded shell panes.
 
 ## Global Constraints
 
@@ -36,7 +38,7 @@
 2. **Park → reveal within one frame.** Switching A→B→A faster than a frame: `setVisible(false)` then `setVisible(true)` before any frame ran must still paint once and not leave `catchUp` set. Pinned in Task 4.
 3. **Window hidden while a pane is parked, then shown while it is still parked.** The timer path must not paint the parked pane when the document becomes visible. Pinned in Task 7.
 4. **A block that finishes while the pane is parked AND the alternate screen is up.** Today's deferral (reported on the first primary-screen frame) must survive the move, parked or not. Pinned in Task 2 and re-checked in Task 4.
-5. **Dispose while hidden.** A renderer disposed while the hidden timer is armed must not tick a disposed core. Pinned in Task 7.
+5. **Switching back to a pane at the moment its unload timer fires, or while it is being reopened.** The user must get one working pane — never a pane unloaded under them, never two attachments to one handle. Pinned in Task 10 ("showing a parked pane cancels its unload" and "an unloaded pane reopens once").
 
 ---
 
@@ -53,7 +55,12 @@
 | `packages/terminal/ts/react/src/TerminalSurface.tsx` + `TerminalSurface.test.tsx` | `visible` prop → renderer + editor | 3, 5 |
 | `frontend/src/renderer/components/BlockTerminal.tsx` + test | `visible` prop passthrough | 6 |
 | `frontend/src/renderer/components/TerminalPane.tsx` + test | `isRendered` from the activation phase | 6 |
-| `packages/terminal/CHANGELOG.md`, `TERMINAL.md`, the spec table | docs | 2–8 |
+| `frontend/src/renderer/lib/retained-terminal.ts` (new) + test | `RETAINED_TERMINAL_UNLOAD_MS` | 10 |
+| `frontend/src/renderer/lib/terminal-mux.ts` + test | `terminal_block` subscription | 11 |
+| `frontend/src/renderer/lib/shell-block-notifications.ts` (new) + test | notify from daemon shell blocks | 11 |
+| `packages/terminal/bench/agent-session/soak.mjs` (new), `main.ts` | memory rows and the long-run soak | 9, 12 |
+| `scripts/soak-operator-webview.sh` (new) | real-app RSS/CPU sampler | 9, 12 |
+| `packages/terminal/CHANGELOG.md`, `TERMINAL.md`, the spec table | docs | 2–12 |
 
 ---
 
@@ -1324,4 +1331,489 @@ Expected: all green; `PASS feel gate: zero pixel diff`.
 cd /Users/omaraly/development/AI/Operator
 git add TERMINAL.md docs/superpowers/specs/2026-09-19-agent-tui-experience-design.md docs/superpowers/specs/2026-09-23-background-pane-cost-measurement.md packages/terminal/bench/agent-session/baselines/pane-cost
 git commit -m "docs(terminal): parked-pane cost after the paint gate"
+```
+
+---
+
+### Task 9: Measure memory and long-run cost (before unloading)
+
+Measure first: the unload decision is made, but its size (and the value of N) must come from numbers. This task changes no product code.
+
+**Files:**
+- Modify: `packages/terminal/bench/agent-session/main.ts` (`paneMemory()`), `packages/terminal/bench/agent-session/run.mjs` (`paneLoad` records memory)
+- Create: `packages/terminal/bench/agent-session/soak.mjs`
+- Create: `scripts/soak-operator-webview.sh`
+- Modify: `packages/terminal/package.json` (`"bench:soak": "node ./bench/agent-session/soak.mjs"`)
+- Modify: `docs/superpowers/specs/2026-09-23-background-pane-cost-measurement.md` (new section "Memory and long run")
+
+**Interfaces:**
+- Produces: `window.__agentSession.paneMemory(): { wasmBytes: number; cores: Array<{ mode: "visible" | "parked"; contentBytes: number; styleEntries: number; rows: number }> }` — `wasmBytes` is the ONE shared wasm memory (every core lives in the same instance: `initTerminalCore` runs once per page), so per-core cost is read from `core.memoryStats()` (`ts/core/src/terminal-core.ts:99`; `MemoryStats` is `{ contentBytes, styleEntries, rows, blocks }`, `ts/core/src/types.ts:122-127`), not from the buffer. `contentBytes` is the scrollback text only; the rest of a core's footprint (row index, export buffers) is visible only in the shared `wasmBytes`, so report that too.
+
+- [ ] **Step 1: `paneMemory()` in `main.ts`**
+
+Add beside `parkedPaneState`:
+
+```ts
+	paneMemory: () => ({
+		wasmBytes: core.snapshot().content.buffer.byteLength,
+		cores: [
+			{ mode: "visible" as const, ...core.memoryStats() },
+			...extraPanes.map(({ pane, mode }) => ({ mode, ...(pane.getCoreForBench() as TerminalCore).memoryStats() })),
+		],
+	}),
+```
+
+and its signature in the `AgentSession` type.
+
+- [ ] **Step 2: `paneLoad` records memory**
+
+In `run.mjs` `paneLoad`, after the parked-state read:
+
+```js
+	await session.send("HeapProfiler.collectGarbage");
+	const heap = await session.send("Runtime.getHeapUsage");
+	const dom = await session.send("Memory.getDOMCounters");
+	out.memory = { jsHeapUsedBytes: heap.usedSize, domNodes: dom.nodes, ...(await page.evaluate(() => window.__agentSession.paneMemory())) };
+```
+
+Run: `cd /Users/omaraly/development/AI/Operator/packages/terminal && npm run build:ts && node bench/agent-session/run.mjs --panes-only`
+Expected: every row has `memory`. Per parked pane cost = (parked9 − solo) / 9 for `jsHeapUsedBytes` and `domNodes`, and each parked core's `contentBytes`.
+
+- [ ] **Step 3: The bench soak**
+
+`soak.mjs` opens the agent-session page on `claude-long-50k` (the only fixture large enough to grow scrollback), mounts 9 parked panes, then for `--minutes` (default 30) feeds each parked pane and the visible one 64 KiB of the recording per second, wrapping to the start of the recording when it ends, and every 60 s records one sample: `TaskDuration` delta over that minute, `Runtime.getHeapUsage().usedSize` after `HeapProfiler.collectGarbage`, `Memory.getDOMCounters().nodes`, and `paneMemory()`. It writes `bench/results/soak-<iso>.json` and prints one JSON line per sample.
+
+```js
+import { mkdir, writeFile } from "node:fs/promises";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { chromium } from "playwright";
+import { createServer } from "vite";
+
+const benchDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const minutesArg = process.argv.indexOf("--minutes");
+const minutes = minutesArg >= 0 ? Number(process.argv[minutesArg + 1]) : 30;
+
+const server = await createServer({ configFile: path.join(benchDir, "vite.config.ts"), logLevel: "error" });
+await server.listen(0);
+const browser = await chromium.launch({ headless: true });
+const samples = [];
+try {
+	const page = await browser.newPage({ viewport: { width: 1600, height: 900 } });
+	await page.goto(`http://127.0.0.1:${server.httpServer.address().port}/agent-session/index.html?fixture=claude-long-50k`);
+	await page.waitForFunction(() => window.__agentSessionReady === true, undefined, { timeout: 30000 });
+	const session = await page.context().newCDPSession(page);
+	await session.send("Performance.enable");
+	await page.evaluate(() => window.__agentSession.mountPanes(9, "parked"));
+	await page.evaluate(() => window.__agentSession.startSoakFeed(64 * 1024));
+	const task = async () => (await session.send("Performance.getMetrics")).metrics.find((m) => m.name === "TaskDuration").value;
+	let last = await task();
+	for (let minute = 1; minute <= minutes; minute += 1) {
+		await page.waitForTimeout(60_000);
+		const now = await task();
+		await session.send("HeapProfiler.collectGarbage");
+		const sample = {
+			minute,
+			taskDurationS: now - last,
+			jsHeapUsedBytes: (await session.send("Runtime.getHeapUsage")).usedSize,
+			domNodes: (await session.send("Memory.getDOMCounters")).nodes,
+			...(await page.evaluate(() => window.__agentSession.paneMemory())),
+		};
+		last = now;
+		samples.push(sample);
+		process.stdout.write(`${JSON.stringify(sample)}\n`);
+	}
+} finally {
+	await mkdir(path.join(benchDir, "results"), { recursive: true });
+	await writeFile(path.join(benchDir, "results", `soak-${new Date().toISOString().replace(/[:.]/g, "-")}.json`), JSON.stringify(samples, null, "\t"));
+	await browser.close();
+	await server.close();
+}
+```
+
+and in `main.ts`:
+
+```ts
+let soakTimer: ReturnType<typeof setInterval> | null = null;
+
+function startSoakFeed(bytesPerSecond: number): void {
+	let at = 0;
+	soakTimer ??= setInterval(() => {
+		if (at >= recording.length) at = 0;
+		const end = Math.min(recording.length, at + bytesPerSecond);
+		const chunk = recording.subarray(at, end);
+		core.enqueue(chunk);
+		for (const { pane } of extraPanes) (pane.getCoreForBench() as TerminalCore).enqueue(chunk);
+		at = end;
+	}, 1000);
+}
+```
+
+(exported as `startSoakFeed` on `window.__agentSession` and in the `AgentSession` type). Wrapping the recording replays its resize-free bytes; the model stays valid because every chunk is ordinary output.
+
+Run: `cd /Users/omaraly/development/AI/Operator/packages/terminal && npm run bench:soak -- --minutes 30`
+Expected: 30 samples. Report the slope of `jsHeapUsedBytes`, `domNodes`, `wasmBytes` and each core's `contentBytes` per minute, and whether `taskDurationS` per minute drifts upward. Growth that tracks scrollback up to the 128 MiB/200k-row cap is expected; growth past the cap, or DOM nodes growing in parked panes, is a leak — record it, do not fix it in this task.
+
+- [ ] **Step 4: The real-app soak sampler**
+
+`scripts/soak-operator-webview.sh`:
+
+```bash
+#!/bin/bash
+set -euo pipefail
+pid="${1:?usage: soak-operator-webview.sh <WebContent pid> [minutes]}"
+minutes="${2:-120}"
+echo "minute,rss_kb,cpu_pct"
+for ((m = 0; m <= minutes; m++)); do
+	ps -o rss=,%cpu= -p "$pid" | awk -v m="$m" '{ printf "%d,%s,%s\n", m, $1, $2 }'
+	sleep 60
+done
+```
+
+Finding the pid: list `ps -axo pid,command | grep com.apple.WebKit.WebContent` before starting Operator and again after; the new WebContent pid is Operator's renderer. If that cannot be told apart, write "not known" and use the Operator process itself.
+
+Run with the real app (rebuilt `dist`, `tauri:dev` restarted with the scrubbed env): open 6 Claude Code worker sessions, give 3 of them long-running tasks, leave one visible, and sample for 120 minutes. Report RSS and CPU at 0/30/60/120 min. If you cannot drive the real app for two hours, report "not verified" — do not substitute the bench numbers.
+
+- [ ] **Step 5: Record and choose N**
+
+Add "## Memory and long run" to the measurement note with Steps 2–4's numbers. Then check N = 10 minutes against them: N trades memory held by a pane you left against a replay when you return. Keep 10 unless the numbers argue otherwise; if they do, write the number and the reason in the note and use it in Task 10.
+
+- [ ] **Step 6: Commit**
+
+```bash
+cd /Users/omaraly/development/AI/Operator
+git add packages/terminal/bench/agent-session/main.ts packages/terminal/bench/agent-session/run.mjs packages/terminal/bench/agent-session/soak.mjs packages/terminal/package.json scripts/soak-operator-webview.sh docs/superpowers/specs/2026-09-23-background-pane-cost-measurement.md
+git commit -m "bench(terminal): memory per retained pane and a long-run soak"
+```
+
+---
+
+### Task 10: Unload a pane left in the background for 10 minutes
+
+Operator-side only; `packages/terminal` is untouched. When an entry is parked, arm a timer; when it fires and the entry is still parked, drop it with the existing `removeEntry` (`TerminalPane.tsx:320-334`). Removal unmounts the portal, and `useTerminalSession`'s unmount runs `teardownMux` (`useTerminalSession.ts:335-378`), which closes the daemon attachment and releases the mux lease; the pty-host keeps the session and its mirror. Showing the session again goes through `activate`'s "no entry" branch: a fresh container, a fresh core, and a sized open that requests history (`useTerminalSession.ts:779-781`), behind the existing replay cover. Showing a parked entry before the timer fires cancels it.
+
+This reverses a recorded design decision — the comment at `TerminalPane.tsx:506-508` says teardown "is an ownership boundary, not an LRU event". Correct that comment (existing comments may be corrected when they become false, TERMINAL.md §3.3) to say ownership still disposes immediately and a parked entry is also disposed after `RETAINED_TERMINAL_UNLOAD_MS`.
+
+**Files:**
+- Create: `frontend/src/renderer/lib/retained-terminal.ts`
+- Modify: `frontend/src/renderer/components/TerminalPane.tsx` — `CachedTerminalEntry` (`:68-74`), `removeEntry` (`:320-334`), `activate` (`:346-398`), `deactivate` (`:400-418`), the comment at `:506-508`
+- Test: `frontend/src/renderer/components/TerminalPane.test.tsx`
+
+**Interfaces:**
+- Produces: `export const RETAINED_TERMINAL_UNLOAD_MS = 10 * 60_000;` (or Task 9's N).
+- Produces: `CachedTerminalEntry.unloadTimer?: ReturnType<typeof setTimeout>`.
+
+- [ ] **Step 1: Write the failing tests**
+
+In `TerminalPane.test.tsx`, `describe("TerminalPane focus")` (it has `renderCachedPane`, `view.show`, `activeFocusToken`). Import `RETAINED_TERMINAL_UNLOAD_MS` from `../lib/retained-terminal`.
+
+```tsx
+	it("unloads a pane left parked for the unload delay and reopens it fresh", async () => {
+		vi.useFakeTimers({ shouldAdvanceTime: true });
+		const sessionA = { ...worker, id: "sess-a", title: "session A", terminalHandleId: "handle-a" };
+		const sessionB = { ...worker, id: "sess-b", title: "session B", terminalHandleId: "handle-b" };
+		const view = renderCachedPane({ session: sessionA, sessions: [sessionA, sessionB] });
+		try {
+			await waitFor(() => expect(activeFocusToken()).toBe("1"));
+			view.show(sessionB);
+			const parking = screen.getByTestId("terminal-cache-parking");
+			await waitFor(() => expect(parking.querySelector("[data-terminal-cache-key]")).not.toBeNull());
+			await act(async () => {
+				vi.advanceTimersByTime(RETAINED_TERMINAL_UNLOAD_MS);
+			});
+			expect(parking.querySelector("[data-terminal-cache-key]")).toBeNull();
+			view.show(sessionA);
+			await waitFor(() => expect(activeFocusToken()).toBe("1"));
+			expect(screen.getAllByTestId("block-terminal")).toHaveLength(2);
+		} finally {
+			vi.useRealTimers();
+			view.restore();
+		}
+	});
+
+	it("showing a parked pane cancels its unload", async () => {
+		vi.useFakeTimers({ shouldAdvanceTime: true });
+		const sessionA = { ...worker, id: "sess-a", title: "session A", terminalHandleId: "handle-a" };
+		const sessionB = { ...worker, id: "sess-b", title: "session B", terminalHandleId: "handle-b" };
+		const view = renderCachedPane({ session: sessionA, sessions: [sessionA, sessionB] });
+		try {
+			await waitFor(() => expect(activeFocusToken()).toBe("1"));
+			const paneA = screen.getByTestId("block-terminal");
+			view.show(sessionB);
+			await act(async () => {
+				vi.advanceTimersByTime(RETAINED_TERMINAL_UNLOAD_MS - 1000);
+			});
+			view.show(sessionA);
+			await waitFor(() => expect(activeFocusToken()).toBe("2"));
+			await act(async () => {
+				vi.advanceTimersByTime(RETAINED_TERMINAL_UNLOAD_MS);
+			});
+			expect(paneA.isConnected).toBe(true);
+			expect(within(screen.getByTestId("session-terminal-slot")).getByTestId("block-terminal")).toBe(paneA);
+		} finally {
+			vi.useRealTimers();
+			view.restore();
+		}
+	});
+
+	it("an unloaded pane reopens once, with one attachment", async () => {
+		vi.useFakeTimers({ shouldAdvanceTime: true });
+		const sessionA = { ...worker, id: "sess-a", title: "session A", terminalHandleId: "handle-a" };
+		const sessionB = { ...worker, id: "sess-b", title: "session B", terminalHandleId: "handle-b" };
+		const view = renderCachedPane({ session: sessionA, sessions: [sessionA, sessionB] });
+		try {
+			await waitFor(() => expect(activeFocusToken()).toBe("1"));
+			view.show(sessionB);
+			await act(async () => {
+				vi.advanceTimersByTime(RETAINED_TERMINAL_UNLOAD_MS);
+			});
+			view.show(sessionA);
+			view.show(sessionA);
+			await waitFor(() => expect(activeFocusToken()).toBe("1"));
+			expect(document.querySelectorAll('[data-terminal-cache-key*="handle-a"]')).toHaveLength(1);
+		} finally {
+			vi.useRealTimers();
+			view.restore();
+		}
+	});
+```
+
+The last line of the first test counts B's pane plus the reopened A (the old A is gone). If `renderCachedPane` renders other `block-terminal`s, count by `data-terminal-cache-key` instead, as the third test does.
+
+- [ ] **Step 2: Run and see them fail**
+
+Run: `cd /Users/omaraly/development/AI/Operator/frontend && npx vitest run src/renderer/components/TerminalPane.test.tsx -t "unload"`
+Expected: FAIL — `retained-terminal` does not exist; after creating the constant alone, the first test fails because the parked container is still there.
+
+- [ ] **Step 3: Implement**
+
+`frontend/src/renderer/lib/retained-terminal.ts`:
+
+```ts
+export const RETAINED_TERMINAL_UNLOAD_MS = 10 * 60_000;
+```
+
+`TerminalPane.tsx` — add to `CachedTerminalEntry`:
+
+```ts
+	unloadTimer?: ReturnType<typeof setTimeout>;
+```
+
+module helper beside `parkTerminal`:
+
+```ts
+function cancelUnload(entry: CachedTerminalEntry): void {
+	if (entry.unloadTimer === undefined) return;
+	clearTimeout(entry.unloadTimer);
+	entry.unloadTimer = undefined;
+}
+```
+
+inside the provider, after `removeEntry`:
+
+```ts
+	const scheduleUnload = useCallback(
+		(entry: CachedTerminalEntry) => {
+			cancelUnload(entry);
+			entry.unloadTimer = setTimeout(() => {
+				entry.unloadTimer = undefined;
+				if (entriesRef.current.get(entry.cacheKey) !== entry || entry.activationPhase !== "parked") return;
+				removeEntry(entry.cacheKey);
+			}, RETAINED_TERMINAL_UNLOAD_MS);
+		},
+		[removeEntry],
+	);
+```
+
+- `removeEntry`: call `cancelUnload(entry)` right after the `if (!entry) return;`.
+- `activate`: after `parkTerminal(previousEntry, parking);` add `scheduleUnload(previousEntry);`; in the replacement-generation loop call `cancelUnload(entry);` before `entriesRef.current.delete(entry.cacheKey);`; before `showTerminal(entry, slot);` add `cancelUnload(entry);`. Add `scheduleUnload` to `activate`'s dependency list.
+- `deactivate`: after `parkTerminal(entry, parking);` add `scheduleUnload(entry);`; add it to the dependency list.
+- On provider unmount, clear every entry's timer: an effect `useEffect(() => () => { for (const entry of entriesRef.current.values()) cancelUnload(entry); }, []);`.
+- Correct the comment at `:506-508` as described above.
+
+- [ ] **Step 4: Run and see them pass**
+
+Run: `cd /Users/omaraly/development/AI/Operator/frontend && npx vitest run src/renderer/components/TerminalPane.test.tsx && npx tsc --noEmit -p .`
+Expected: PASS, including every existing "TerminalPane focus" test.
+
+- [ ] **Step 5: Real-app check**
+
+With a temporary local edit of `RETAINED_TERMINAL_UNLOAD_MS` to `60_000` (never committed), rebuild and restart `tauri:dev`, park a Claude session for 90 s, switch back. Expected: the replay cover shows briefly, then the full transcript with scrollback (history streamed), at the right width, input working. Report the switch-back time you observed (or "not verified"). Revert the edit and confirm `git diff frontend/src/renderer/lib/retained-terminal.ts` is empty before committing.
+
+- [ ] **Step 6: Commit**
+
+```bash
+cd /Users/omaraly/development/AI/Operator
+git add frontend/src/renderer/lib/retained-terminal.ts frontend/src/renderer/components/TerminalPane.tsx frontend/src/renderer/components/TerminalPane.test.tsx
+git commit -m "feat(terminal): unload a pane left in the background for ten minutes"
+```
+
+---
+
+### Task 11: Finished-command notifications for unloaded shell panes, from the daemon
+
+An unloaded shell pane has no renderer to report its blocks. The daemon already publishes every finished shell block as a `terminal_block` frame (see "Why this plan has this shape"). While a shell entry is unloaded, the cache provider subscribes to that handle's `terminal_block` frames on the shared mux and raises the same notification `BlockTerminal` raises (`BlockTerminal.tsx:609-618`: skipped under `BLOCK_NOTIFY_AFTER_MS`, id `block-finished:${sessionId}:${id}` where a shell pane's `sessionId` is its handle id, the same `t("terminal.blockFinished" | "terminal.blockFailed" | "terminal.blockFinishedBody")` keys — no new i18n strings). The subscription ends when the pane is reopened, so the loaded renderer and the daemon never both notify.
+
+**Files:**
+- Modify: `frontend/src/renderer/lib/terminal-mux.ts` — frame builder, `TerminalMux.onTerminalBlock`, the pooled wrapper (`:419-425`), the `blocks` message branch (`:238-243`)
+- Create: `frontend/src/renderer/lib/shell-block-notifications.ts` + `shell-block-notifications.test.ts`
+- Modify: `frontend/src/renderer/components/TerminalPane.tsx` (subscribe on unload, drop on reopen or removal of the shell)
+- Modify: `frontend/src/renderer/components/BlockTerminal.tsx` — `BLOCK_NOTIFY_AFTER_MS` (`:77`, `10_000`) moves to `lib/retained-terminal.ts` and is imported back, so both notification paths share one threshold
+- Test: `frontend/src/renderer/lib/terminal-mux.test.ts`, `frontend/src/renderer/components/TerminalPane.test.tsx`
+
+**Interfaces:**
+- Produces: `export function terminalBlocksSubscribeFrame(handleId: string): string` → `{"ch":"blocks","type":"subscribe","id":handleId,"blockType":"terminal_block"}` and the matching unsubscribe.
+- Produces: `TerminalMux.onTerminalBlock(handleId: string, listener: (block: TerminalBlockFrame) => void): () => void` — sends the subscribe on first listener, unsubscribe on last.
+- Produces: `export type TerminalBlockFrame = { sourceId: string; sessionId?: string; exitCode: number | null; startedAt: string; finishedAt: string }` (the fields used; the wire has more, `protocol.go:103-131`).
+- Produces: `export function shellBlockNotification(block: TerminalBlockFrame, sessionId: string): { id: string; exitCode: number | null; durationMs: number } | null` — `null` below `BLOCK_NOTIFY_AFTER_MS` or with an unparseable time.
+
+- [ ] **Step 1: Confirm the subscription key**
+
+Read `backend/internal/terminal/manager.go:627-658`: `PublishTerminalBlock(handleID, …)` sends to connections whose `termBlockSubs` contain that id, and `supervisor.go:92-97` passes `b.TerminalID`. Confirm `TerminalID` is the shell's handle id (the value `TerminalPane` holds as `entry.handleId`). If it is not, stop and report — the subscription key would be wrong.
+
+- [ ] **Step 2: Write the failing tests**
+
+`shell-block-notifications.test.ts`:
+
+```ts
+import { describe, expect, it } from "vitest";
+import { shellBlockNotification } from "./shell-block-notifications";
+
+const base = { sourceId: "osc133-1-0", exitCode: 0, startedAt: "2026-09-23T10:00:00.000Z", finishedAt: "2026-09-23T10:00:15.000Z" };
+
+describe("shellBlockNotification", () => {
+	it("notifies a command that ran at least the notify threshold", () => {
+		expect(shellBlockNotification(base, "h1")).toEqual({ id: "block-finished:h1:osc133-1-0", exitCode: 0, durationMs: 15_000 });
+	});
+
+	it("stays quiet under the threshold", () => {
+		expect(shellBlockNotification({ ...base, finishedAt: "2026-09-23T10:00:05.000Z" }, "h1")).toBeNull();
+	});
+
+	it("stays quiet when a time does not parse", () => {
+		expect(shellBlockNotification({ ...base, startedAt: "" }, "h1")).toBeNull();
+	});
+});
+```
+
+`terminal-mux.test.ts`, using the file's fake-socket helper (read its top for the name):
+
+```ts
+it("subscribes to a handle's terminal blocks and delivers them", () => {
+	const { mux, sent, receive } = fakeMux();
+	const seen: unknown[] = [];
+	const off = mux.onTerminalBlock("h1", (block) => seen.push(block));
+	expect(sent.map((frame) => JSON.parse(frame))).toContainEqual({ ch: "blocks", type: "subscribe", id: "h1", blockType: "terminal_block" });
+	receive({ ch: "blocks", id: "h1", type: "block", blockType: "terminal_block", terminalBlock: { sourceId: "b1", exitCode: 0, startedAt: "a", finishedAt: "b" } });
+	expect(seen).toEqual([{ sourceId: "b1", exitCode: 0, startedAt: "a", finishedAt: "b" }]);
+	off();
+	expect(sent.map((frame) => JSON.parse(frame))).toContainEqual({ ch: "blocks", type: "unsubscribe", id: "h1", blockType: "terminal_block" });
+});
+
+it("does not hand a terminal block to agent block listeners", () => {
+	const { mux, receive } = fakeMux();
+	const agent: unknown[] = [];
+	mux.onBlock("h1", (block) => agent.push(block));
+	receive({ ch: "blocks", id: "h1", type: "block", blockType: "terminal_block", terminalBlock: { sourceId: "b1" } });
+	expect(agent).toEqual([]);
+});
+```
+
+`TerminalPane.test.tsx`: with a shell target (the file has shell-pane helpers; read them), park the shell pane, advance past `RETAINED_TERMINAL_UNLOAD_MS`, then have the mocked mux deliver a `terminal_block` for that handle with a 15 s duration, and assert `window.operator.notifications.show` (or however the file stubs `operatorBridge.notifications.show`) was called once with `id: "block-finished:<handleId>:<sourceId>"`; then show the pane again, deliver another block, and assert no second call.
+
+- [ ] **Step 3: Run and see them fail**
+
+Run: `cd /Users/omaraly/development/AI/Operator/frontend && npx vitest run src/renderer/lib/shell-block-notifications.test.ts src/renderer/lib/terminal-mux.test.ts src/renderer/components/TerminalPane.test.tsx -t "terminal block|shellBlockNotification|unloaded shell"`
+Expected: FAIL — module and method missing.
+
+- [ ] **Step 4: Implement**
+
+`shell-block-notifications.ts`:
+
+```ts
+import { BLOCK_NOTIFY_AFTER_MS } from "./retained-terminal";
+import type { TerminalBlockFrame } from "./terminal-mux";
+
+export function shellBlockNotification(block: TerminalBlockFrame, sessionId: string): { id: string; exitCode: number | null; durationMs: number } | null {
+	const durationMs = Date.parse(block.finishedAt) - Date.parse(block.startedAt);
+	if (!Number.isFinite(durationMs) || durationMs < BLOCK_NOTIFY_AFTER_MS) return null;
+	return { id: `block-finished:${sessionId}:${block.sourceId}`, exitCode: block.exitCode, durationMs };
+}
+```
+
+In `lib/retained-terminal.ts` add `export const BLOCK_NOTIFY_AFTER_MS = 10_000;`; in `BlockTerminal.tsx` delete the local constant at `:77` and import it from `../lib/retained-terminal` (keep the Kitty citation comment above it where it now lives).
+
+`terminal-mux.ts`: add `terminalBlocksSubscribeFrame`/`terminalBlocksUnsubscribeFrame` beside `blocksSubscribeFrame` (`:86`); a `terminalBlockListeners = new Map<string, Set<(block: TerminalBlockFrame) => void>>()` beside `blockListeners` (`:186`); in the `blocks` branch, before the agent-block dispatch:
+
+```ts
+			if (frame.blockType === "terminal_block") {
+				const terminalBlock = frame.terminalBlock;
+				if (frame.id === undefined || typeof terminalBlock !== "object" || terminalBlock === null) return;
+				terminalBlockListeners.get(frame.id)?.forEach((listener) => listener(terminalBlock as TerminalBlockFrame));
+				return;
+			}
+```
+
+`onTerminalBlock` that sends the subscribe frame when the handle's listener set goes from empty to one and the unsubscribe when it empties, clears the map with the others on close (`:273`), and the pooled wrapper forwarding it like `onBlock` (`:425`). Add `blockType?: string; terminalBlock?: unknown` to `ServerFrame`.
+
+`TerminalPane.tsx`: in `scheduleUnload`'s timer, before `removeEntry` for an entry with `kind === "shell"`, store, in a provider ref `unloadedShells = useRef(new Map<string, () => void>())` keyed by `entry.ownerKey`, the cleanup built from
+
+```ts
+			const lease = muxPool.acquire();
+			const off = lease.onTerminalBlock(entry.handleId, (block) => {
+				const note = shellBlockNotification(block, entry.handleId);
+				if (!note) return;
+				void operatorBridge.notifications.show({
+					id: note.id,
+					title: note.exitCode === 0 || note.exitCode === null ? i18n.t("terminal.blockFinished") : i18n.t("terminal.blockFailed"),
+					body: i18n.t("terminal.blockFinishedBody", { seconds: Math.round(note.durationMs / 1000) }),
+					type: "terminal",
+				});
+			});
+			unloadedShells.current.set(entry.ownerKey, () => { off(); lease.dispose(); });
+```
+
+(`entry.handleId`, because a loaded pane's `BlockTerminal` gets `sessionId={handleId ?? "no-session"}` (`TerminalPane.tsx:1004`), so both paths build the same `block-finished:<handleId>:<blockId>` id and the OS collapses a duplicate). In `activate`, when a descriptor's `ownerKey` is in `unloadedShells`, call and delete it before creating the fresh entry; when the shell leaves `shellTerminalsQuery` (`:537-556`), call and delete it too; on provider unmount, call all. Use the i18n instance the file already imports (`useTranslation` is per component; inside the provider use its `t`).
+
+- [ ] **Step 5: Run and see them pass**
+
+Run the Step 3 command without `-t`, then `npx tsc --noEmit -p .` and `npx eslint src/renderer/lib/terminal-mux.ts src/renderer/lib/shell-block-notifications.ts src/renderer/components/TerminalPane.tsx` from `frontend/`.
+Expected: PASS, no lint errors.
+
+- [ ] **Step 6: Real-app check**
+
+With the temporary 60 s unload delay from Task 10 Step 5 (reverted before commit): in a shell pane run `sleep 90; echo done`, switch to another session, wait past the unload and the command. Expected: one "command finished" notification. Then switch back and run another 15 s command in view: no notification (visible). Report "observed" or "not verified".
+
+- [ ] **Step 7: Commit**
+
+```bash
+cd /Users/omaraly/development/AI/Operator
+git add frontend/src/renderer/lib/terminal-mux.ts frontend/src/renderer/lib/terminal-mux.test.ts frontend/src/renderer/lib/shell-block-notifications.ts frontend/src/renderer/lib/shell-block-notifications.test.ts frontend/src/renderer/components/TerminalPane.tsx frontend/src/renderer/components/TerminalPane.test.tsx frontend/src/renderer/components/BlockTerminal.tsx
+git commit -m "feat(terminal): notify finished commands of unloaded shell panes from the daemon"
+```
+
+---
+
+### Task 12: Re-measure the long run and record
+
+- [ ] **Step 1: Bench soak, after**
+
+The bench has no cache, so it cannot show the unload; it shows what the paint gate did to a long run. Run `npm run bench:soak -- --minutes 30` and compare slope-by-slope with Task 9's run.
+
+- [ ] **Step 2: Real-app soak, after**
+
+Same setup as Task 9 Step 4 (6 Claude sessions, 3 busy, one visible, 120 min, real 10-minute unload). Expected: after the first ~10 minutes, RSS falls back toward a one-visible-pane level instead of holding every session, and CPU with the window visible stays near what one visible pane costs. Also minimise the window for 30 of the 120 minutes and record CPU during that stretch. Report measured values; "not verified" if the run could not be done.
+
+- [ ] **Step 3: Record**
+
+- Measurement note: append "## Long run after unload" with both soaks and the before/after comparison.
+- TERMINAL.md §5, the "What a parked pane still costs" bullet from Task 8: add that parked panes are unloaded after `RETAINED_TERMINAL_UNLOAD_MS` (Operator's cache, not the package), what switching back to an unloaded pane costs (the measured replay time from Task 10 Step 5), that worker panes lose no notifications by unloading (Claude Code emits no block marks) and shell panes are notified from the daemon's `terminal_block` frames, and the soak numbers.
+- Spec table: add a row "retained panes over a 2 h real-app soak: WebContent RSS and CPU" with the before (Task 9) and after (this task) values in the "Today" cell's text, as Task 8 Step 3 did.
+
+- [ ] **Step 4: Commit**
+
+```bash
+cd /Users/omaraly/development/AI/Operator
+git add TERMINAL.md docs/superpowers/specs/2026-09-19-agent-tui-experience-design.md docs/superpowers/specs/2026-09-23-background-pane-cost-measurement.md
+git commit -m "docs(terminal): long-run cost after unloading background panes"
 ```
