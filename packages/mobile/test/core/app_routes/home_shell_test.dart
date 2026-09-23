@@ -16,6 +16,7 @@ import 'package:operator_mobile/core/mux/session_patch.dart';
 import 'package:operator_mobile/core/utils/service_locator.dart';
 import 'package:operator_mobile/feature/notification/data/model/notification_page_model.dart';
 import 'package:operator_mobile/feature/notification/data/model/params/get_notifications_params.dart';
+import 'package:operator_mobile/feature/notification/data/model/phone_alert_status_model.dart';
 import 'package:operator_mobile/feature/notification/data/repository/notification_repository.dart';
 import 'package:operator_mobile/feature/notification/presentation/notifications_screen/logic/notifications_cubit.dart';
 import 'package:operator_mobile/feature/pairing/data/repository/desktops_repository.dart';
@@ -25,6 +26,7 @@ import 'package:operator_mobile/feature/sessions/data/model/board_snapshot.dart'
 import 'package:operator_mobile/feature/sessions/data/model/session_model.dart';
 import 'package:operator_mobile/feature/sessions/data/repository/sessions_repository.dart';
 import 'package:operator_mobile/feature/sessions/presentation/sessions_screen/logic/sessions_cubit.dart';
+import 'package:operator_mobile/feature/settings/presentation/settings_screen/logic/phone_alerts_cubit.dart';
 import 'package:operator_mobile/feature/settings/presentation/settings_screen/logic/settings_cubit.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -69,6 +71,9 @@ void main() {
         GlobalResponse(data: const NotificationPageModel(notifications: [], unreadCount: 0)),
       ),
     );
+    when(() => notificationRepository.getPhoneAlerts()).thenAnswer(
+      (_) async => Result.success(const PhoneAlertStatusModel(enabled: false, claimed: false)),
+    );
     await sl.reset();
     sl.registerFactory<PullRequestCubit>(() => PullRequestCubit(_MockPullRequestRepository()));
     final serverConfigStore = _MockServerConfigStore();
@@ -78,6 +83,14 @@ void main() {
     final desktopsRepository = _MockDesktopsRepository();
     when(() => desktopsRepository.deactivate()).thenAnswer((_) async => Result.success(null));
     sl.registerFactory<SettingsCubit>(() => SettingsCubit(repository, serverConfigStore, desktopsRepository));
+    sl.registerFactory<PhoneAlertsCubit>(
+      () => PhoneAlertsCubit(
+        notificationRepository,
+        launch: (_) async => true,
+        copy: (_) async {},
+        ntfyDeepLink: false,
+      ),
+    );
   });
 
   tearDown(() => sl.reset());

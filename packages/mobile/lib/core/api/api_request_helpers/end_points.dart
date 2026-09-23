@@ -9,6 +9,9 @@ sealed class EndPoints {
   static const String claudeAccounts = '/api/v1/claude-accounts';
   static const String notifications = '/api/v1/notifications';
   static const String notificationsReadAll = '/api/v1/notifications/read-all';
+  static const String phoneAlerts = '/api/v1/phone-alerts';
+  static const String phoneAlertsSubscribe = '/api/v1/phone-alerts/subscribe';
+  static const String phoneAlertsTest = '/api/v1/phone-alerts/test';
   static const String events = '/api/v1/events';
   static const String usageRollup = '/api/v1/usage/rollup';
   static const String usageQuota = '/api/v1/usage/quota';

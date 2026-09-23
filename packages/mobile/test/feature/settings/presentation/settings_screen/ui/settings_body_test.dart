@@ -16,12 +16,15 @@ import 'package:operator_mobile/core/helpers/result/result.dart';
 import 'package:operator_mobile/core/mux/mux_client.dart';
 import 'package:operator_mobile/core/mux/session_patch.dart';
 import 'package:operator_mobile/core/utils/service_locator.dart';
+import 'package:operator_mobile/feature/notification/data/model/phone_alert_status_model.dart';
+import 'package:operator_mobile/feature/notification/data/repository/notification_repository.dart';
 import 'package:operator_mobile/feature/pairing/data/repository/desktops_repository.dart';
 import 'package:operator_mobile/feature/sessions/data/model/board_snapshot.dart';
 import 'package:operator_mobile/feature/sessions/data/model/project_model.dart';
 import 'package:operator_mobile/feature/sessions/data/model/session_model.dart';
 import 'package:operator_mobile/feature/sessions/data/repository/sessions_repository.dart';
 import 'package:operator_mobile/feature/sessions/presentation/sessions_screen/logic/sessions_cubit.dart';
+import 'package:operator_mobile/feature/settings/presentation/settings_screen/logic/phone_alerts_cubit.dart';
 import 'package:operator_mobile/feature/settings/presentation/settings_screen/logic/settings_cubit.dart';
 import 'package:operator_mobile/feature/settings/presentation/settings_screen/ui/widgets/settings_body.dart';
 import 'package:package_info_plus/package_info_plus.dart';
@@ -34,6 +37,8 @@ class _MockMuxClient extends Mock implements MuxClient {}
 class _MockServerConfigStore extends Mock implements ServerConfigStore {}
 
 class _MockDesktopsRepository extends Mock implements DesktopsRepository {}
+
+class _MockNotificationRepository extends Mock implements NotificationRepository {}
 
 const _pairedConfig = ServerConfig(host: '10.0.0.5', httpPort: '3011', secure: false, password: 'secret12');
 
@@ -90,8 +95,21 @@ void main() {
     when(() => serverConfigStore.current).thenReturn(null);
     when(() => serverConfigStore.changes).thenAnswer((_) => const Stream.empty());
 
+    final notificationRepository = _MockNotificationRepository();
+    when(() => notificationRepository.getPhoneAlerts()).thenAnswer(
+      (_) async => Result.success(const PhoneAlertStatusModel(enabled: false, claimed: false)),
+    );
+
     await sl.reset();
     sl.registerLazySingleton<ServerConfigStore>(() => serverConfigStore);
+    sl.registerFactory<PhoneAlertsCubit>(
+      () => PhoneAlertsCubit(
+        notificationRepository,
+        launch: (_) async => true,
+        copy: (_) async {},
+        ntfyDeepLink: false,
+      ),
+    );
   });
 
   tearDown(() => sl.reset());
@@ -262,6 +280,7 @@ void main() {
   testWidgets('declining the disconnect confirmation leaves the server untouched', (tester) async {
     await pumpBody(tester, sessionsCubit: buildSessionsCubit());
 
+    await tester.dragUntilVisible(find.text('Disconnect'), find.byType(ListView), const Offset(0, -200));
     await tester.ensureVisible(find.text('Disconnect'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Disconnect'));
@@ -277,6 +296,7 @@ void main() {
 
     await pumpBody(tester, sessionsCubit: buildSessionsCubit());
 
+    await tester.dragUntilVisible(find.text('Disconnect'), find.byType(ListView), const Offset(0, -200));
     await tester.ensureVisible(find.text('Disconnect'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Disconnect'));
@@ -301,6 +321,7 @@ void main() {
     when(() => serverConfigStore.current).thenReturn(_pairedConfig);
 
     await pumpBody(tester, sessionsCubit: buildSessionsCubit());
+    await tester.dragUntilVisible(find.text('History'), find.byType(ListView), const Offset(0, -200));
     await tester.tap(find.text('History'));
     await tester.pumpAndSettle();
 
@@ -310,6 +331,7 @@ void main() {
   testWidgets('settings offers a token usage row', (tester) async {
     await pumpBody(tester, sessionsCubit: buildSessionsCubit());
 
+    await tester.dragUntilVisible(find.text('Token usage'), find.byType(ListView), const Offset(0, -200));
     expect(find.text('Token usage'), findsOneWidget);
   });
 

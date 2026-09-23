@@ -5,6 +5,9 @@ import 'package:operator_mobile/core/helpers/result/result.dart';
 import 'package:operator_mobile/feature/notification/data/data_source/notification_remote_data_source.dart';
 import 'package:operator_mobile/feature/notification/data/model/notification_page_model.dart';
 import 'package:operator_mobile/feature/notification/data/model/params/get_notifications_params.dart';
+import 'package:operator_mobile/feature/notification/data/model/phone_alert_delivery_model.dart';
+import 'package:operator_mobile/feature/notification/data/model/phone_alert_status_model.dart';
+import 'package:operator_mobile/feature/notification/data/model/phone_alert_subscription_model.dart';
 
 abstract class NotificationRepository {
   FutureResult<GlobalResponse<NotificationPageModel>> getNotifications(
@@ -12,6 +15,9 @@ abstract class NotificationRepository {
   );
   FutureResult<bool> markNotificationRead(String id);
   FutureResult<bool> markAllNotificationsRead();
+  FutureResult<PhoneAlertStatusModel> getPhoneAlerts();
+  FutureResult<PhoneAlertSubscriptionModel> subscribePhoneAlerts();
+  FutureResult<PhoneAlertDeliveryModel> testPhoneAlert();
 }
 
 class NotificationRepositoryImp implements NotificationRepository {
@@ -32,6 +38,18 @@ class NotificationRepositoryImp implements NotificationRepository {
   @override
   FutureResult<bool> markAllNotificationsRead() =>
       _run(_remoteDataSource.markAllNotificationsRead);
+
+  @override
+  FutureResult<PhoneAlertStatusModel> getPhoneAlerts() =>
+      _guard(_remoteDataSource.getPhoneAlerts);
+
+  @override
+  FutureResult<PhoneAlertSubscriptionModel> subscribePhoneAlerts() =>
+      _guard(_remoteDataSource.subscribePhoneAlerts);
+
+  @override
+  FutureResult<PhoneAlertDeliveryModel> testPhoneAlert() =>
+      _guard(_remoteDataSource.testPhoneAlert);
 
   Future<Result<T, Failure>> _guard<T>(Future<T> Function() action) async {
     if (await _network.isConnected) {

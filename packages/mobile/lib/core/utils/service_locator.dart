@@ -1,6 +1,8 @@
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:get_it/get_it.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:operator_mobile/core/api/api_request_helpers/api_consumer.dart';
 import 'package:operator_mobile/core/api/api_request_helpers/dio_consumer.dart';
 import 'package:operator_mobile/core/api/server_config_store.dart';
@@ -41,6 +43,7 @@ import 'package:operator_mobile/feature/pull_request/presentation/pull_requests_
 import 'package:operator_mobile/feature/sessions/data/data_source/sessions_remote_data_source.dart';
 import 'package:operator_mobile/feature/sessions/data/repository/sessions_repository.dart';
 import 'package:operator_mobile/feature/sessions/presentation/sessions_screen/logic/sessions_cubit.dart';
+import 'package:operator_mobile/feature/settings/presentation/settings_screen/logic/phone_alerts_cubit.dart';
 import 'package:operator_mobile/feature/settings/presentation/settings_screen/logic/settings_cubit.dart';
 import 'package:operator_mobile/feature/spawn/data/data_source/spawn_remote_data_source.dart';
 import 'package:operator_mobile/feature/spawn/data/repository/spawn_repository.dart';
@@ -276,6 +279,14 @@ class ServiceLocator {
     );
     sl.registerLazySingleton<NotificationRemoteDataSource>(
       () => NotificationRemoteDataSourceImp(sl<ApiConsumer>()),
+    );
+    sl.registerFactory<PhoneAlertsCubit>(
+      () => PhoneAlertsCubit(
+        sl<NotificationRepository>(),
+        launch: (uri) => launchUrl(uri, mode: LaunchMode.externalApplication),
+        copy: (text) => Clipboard.setData(ClipboardData(text: text)),
+        ntfyDeepLink: false,
+      ),
     );
   }
 

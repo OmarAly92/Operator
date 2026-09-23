@@ -84,6 +84,7 @@
 		<key>LSApplicationQueriesSchemes</key>
 		<array>
 			<string>github</string>
+			<string>ntfy</string>
 		</array>
 		<key>CFBundleURLTypes</key>
 		<array>

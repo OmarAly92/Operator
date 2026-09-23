@@ -60,4 +60,42 @@ void main() {
 
     verify(() => apiConsumer.post(EndPoints.notificationsReadAll)).called(1);
   });
+
+  test('fetches phone alert status with a GET', () async {
+    when(() => apiConsumer.get(any())).thenAnswer(
+      (_) async => _response({
+        'enabled': true,
+        'claimed': false,
+      }),
+    );
+
+    final status = await dataSource.getPhoneAlerts();
+
+    expect(status.enabled, isTrue);
+    expect(status.claimed, isFalse);
+    verify(() => apiConsumer.get(EndPoints.phoneAlerts)).called(1);
+  });
+
+  test('subscribes for phone alerts with a POST', () async {
+    when(() => apiConsumer.post(any())).thenAnswer(
+      (_) async => _response({'topic': 'abc', 'server': 'https://ntfy.sh'}),
+    );
+
+    final subscription = await dataSource.subscribePhoneAlerts();
+
+    expect(subscription.topic, 'abc');
+    expect(subscription.server, 'https://ntfy.sh');
+    verify(() => apiConsumer.post(EndPoints.phoneAlertsSubscribe)).called(1);
+  });
+
+  test('sends a test phone alert with a POST', () async {
+    when(() => apiConsumer.post(any())).thenAnswer(
+      (_) async => _response({'at': '2026-09-23T10:00:00Z', 'ok': true}),
+    );
+
+    final delivery = await dataSource.testPhoneAlert();
+
+    expect(delivery.ok, isTrue);
+    verify(() => apiConsumer.post(EndPoints.phoneAlertsTest)).called(1);
+  });
 }

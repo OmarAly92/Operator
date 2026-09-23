@@ -21,8 +21,10 @@ import 'package:operator_mobile/core/widgets/pickers/project_picker_sheet.dart';
 import 'package:operator_mobile/core/widgets/pickers/theme_picker_sheet.dart';
 import 'package:operator_mobile/feature/pull_request/logic/open_github.dart';
 import 'package:operator_mobile/feature/sessions/presentation/sessions_screen/logic/sessions_cubit.dart';
+import 'package:operator_mobile/feature/settings/presentation/settings_screen/logic/phone_alerts_cubit.dart';
 import 'package:operator_mobile/feature/settings/presentation/settings_screen/logic/settings_cubit.dart';
 import 'package:operator_mobile/feature/settings/presentation/settings_screen/logic/settings_state.dart';
+import 'package:operator_mobile/feature/settings/presentation/settings_screen/ui/widgets/phone_alerts_group.dart';
 import 'package:operator_mobile/feature/settings/presentation/settings_screen/ui/widgets/test_connection_row.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
@@ -202,6 +204,11 @@ class _SettingsBodyState extends State<SettingsBody> {
                   onTap: () => _openThemePicker(context, skinCubit),
                 ),
               ],
+            ),
+            const VerticalSpace(20),
+            BlocProvider<PhoneAlertsCubit>(
+              create: (_) => sl<PhoneAlertsCubit>()..load(),
+              child: const PhoneAlertsGroup(),
             ),
             const VerticalSpace(20),
             SettingsGroup(
