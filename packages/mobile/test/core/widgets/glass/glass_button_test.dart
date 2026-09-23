@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:liquid_glass_renderer/liquid_glass_renderer.dart';
 import 'package:operator_mobile/core/app_themes/colors/light_skin.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/widgets/glass/glass_button.dart';
@@ -83,6 +84,16 @@ void main() {
     await tester.pump();
     expect(scaleOf(tester), 1.0);
     await gesture.up();
+  });
+
+  testWidgets('disabled button renders no GlassGlow', (tester) async {
+    await tester.pumpWidget(host(const GlassButton.icon(icon: Icons.add, onPressed: null)));
+    expect(find.byType(GlassGlow), findsNothing);
+  });
+
+  testWidgets('enabled button renders a GlassGlow', (tester) async {
+    await tester.pumpWidget(host(GlassButton.icon(icon: Icons.add, onPressed: () {})));
+    expect(find.byType(GlassGlow), findsOneWidget);
   });
 
   testWidgets('meets the 44pt minimum hit target', (tester) async {

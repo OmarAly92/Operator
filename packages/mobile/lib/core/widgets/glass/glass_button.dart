@@ -98,10 +98,12 @@ class _GlassButtonState extends State<GlassButton> {
               kind: isIcon ? GlassShapeKind.circle : GlassShapeKind.capsule,
               size: GlassMetrics.hitTarget,
               variant: widget.prominent ? GlassVariant.prominent : GlassVariant.regular,
-              child: GlassGlow(
-                glowColor: const Color(0xFFFFFFFF).withValues(alpha: widget.prominent ? 0.25 : 0.35),
-                child: content,
-              ),
+              child: _enabled
+                  ? GlassGlow(
+                      glowColor: const Color(0xFFFFFFFF).withValues(alpha: widget.prominent ? 0.25 : 0.35),
+                      child: content,
+                    )
+                  : content,
             ),
           ),
         ),
