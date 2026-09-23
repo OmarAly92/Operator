@@ -11,6 +11,7 @@ import {
 	type RowRange,
 	type SecretPattern,
 	type TerminalCore,
+	type TerminalSnapshot,
 	type TerminalTheme,
 } from "@operator/terminal-core";
 import { renderAltSurface } from "./alt-surface.js";
@@ -877,6 +878,25 @@ export class DomBlockRenderer implements BlockRenderer {
 		node.style.fontVariantLigatures = this.font.ligatures ? "common-ligatures" : "none";
 	}
 
+	private shownToUser(): boolean {
+		return this.container !== null && rendererVisible(this.container);
+	}
+
+	private detectFinishedBlocks(snapshot: TerminalSnapshot): BlockView[] {
+		if (snapshot.altScreen !== null) return [];
+		const blocks = decodeBlocks(snapshot);
+		const finished = finishedBlocks(this.blockStates, blocks);
+		this.blockStates = new Map(blocks.map((block) => [block.id, block.state] as const));
+		if (finished.length === 0) return blocks;
+		const visible = this.shownToUser();
+		for (const block of finished) {
+			for (const listener of [...this.blockFinishedListeners]) {
+				listener({ id: block.id, exitCode: block.exitCode, durationMs: block.durationMs, visible });
+			}
+		}
+		return blocks;
+	}
+
 	private repaint(paintedAt?: number): void {
 		const core = this.core;
 		const container = this.container;
@@ -929,17 +949,7 @@ export class DomBlockRenderer implements BlockRenderer {
 		if (this.wasAltActive) this.dropSelection();
 		this.wasAltActive = false;
 
-		const blocks = decodeBlocks(snapshot);
-		const finished = finishedBlocks(this.blockStates, blocks);
-		this.blockStates = new Map(blocks.map((block) => [block.id, block.state] as const));
-		if (finished.length > 0) {
-			const visible = rendererVisible(container);
-			for (const block of finished) {
-				for (const listener of [...this.blockFinishedListeners]) {
-					listener({ id: block.id, exitCode: block.exitCode, durationMs: block.durationMs, visible });
-				}
-			}
-		}
+		const blocks = this.detectFinishedBlocks(snapshot);
 		if (blocks.length > 0) {
 			this.knownBlockId = blocks[0]!.id;
 		}
