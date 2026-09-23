@@ -230,8 +230,9 @@ change is the bench harness. Final output lines:
 - `npm run bench:agent:scroll`: first run `FAIL scrolling reached 59908 of
   60134 rows` (2235 steps). Four reruns covered 60134 of 60134 (2245 steps),
   the last with exit 0. It had also passed in Task 1. The harness change adds
-  functions and a `?css=` branch the scroll gate never uses; root cause not
-  investigated.
+  functions and a `?css=` branch the scroll gate never uses. Root cause found
+  afterwards: a frame-count wait in `feedAll`, unrelated to this plan
+  (TERMINAL.md §5, "A second frame-count wait").
 - `npm run bench:agent:gate`: `PASS agent-session gate`.
 - `npm run bench:feel`: `PASS feel gate: zero pixel diff`.
 - Feature and affordance byte comparison: `compared 128 files`, no `DIFF`.

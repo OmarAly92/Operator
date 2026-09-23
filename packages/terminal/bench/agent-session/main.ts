@@ -181,29 +181,35 @@ async function nextFrame(): Promise<void> {
 
 const PAINT_WAIT_FRAMES = 600;
 
-async function paintAfter(action: () => void): Promise<void> {
-	const before = paints;
-	action();
+async function paintSince(before: number): Promise<void> {
 	for (let frame = 0; paints === before; frame += 1) {
 		if (frame >= PAINT_WAIT_FRAMES) throw new Error(`no paint landed within ${PAINT_WAIT_FRAMES} frames of the action`);
 		await nextFrame();
 	}
 }
 
-async function feedAll(): Promise<void> {
-	while (fed < recording.length) {
+async function paintAfter(action: () => void): Promise<void> {
+	const before = paints;
+	action();
+	await paintSince(before);
+}
+
+async function feedWhile(more: () => boolean): Promise<void> {
+	let beforeLastFeed: number | null = null;
+	while (more()) {
+		beforeLastFeed = paints;
 		feedNext(64 * 1024);
 		await nextFrame();
 	}
-	await renderer.waitForPaint().catch(() => undefined);
+	if (beforeLastFeed !== null) await paintSince(beforeLastFeed);
+}
+
+async function feedAll(): Promise<void> {
+	await feedWhile(() => fed < recording.length);
 }
 
 async function feedUntilRows(target: number): Promise<number> {
-	while (fed < recording.length && rowCount() < target) {
-		feedNext(64 * 1024);
-		await nextFrame();
-	}
-	await renderer.waitForPaint().catch(() => undefined);
+	await feedWhile(() => fed < recording.length && rowCount() < target);
 	return rowCount();
 }
 

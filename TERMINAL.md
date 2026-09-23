@@ -965,6 +965,19 @@ history of `master`.
   `widthChange` and the gate's trim phase use it. 6/6 clean runs after the
   fix against 1/4 before. Do not reintroduce a frame-count wait in the
   harness; wait for the paint the action causes.
+- **A second frame-count wait lived in `feedAll`/`feedUntilRows` — fixed
+  2026-09-23.** `bench:agent:scroll` failed 2 of 20 runs with `scrolling
+  reached 59908 of 60134 rows` (2235 steps against 2245). Headless Chromium
+  fires animation frames every ~8.3 ms, so the renderer paints every other
+  frame; `feedAll` waited one frame after the last feed and then
+  `DomBenchmarkRenderer.waitForPaint`, which resolves one frame after *any*
+  paint since it last looked (`bench/adapters/dom.ts:123-127`) — an earlier
+  chunk's paint. When both frames fell under 16.42 ms of the previous paint
+  (15.1, 15.8, 16.0 ms in the failing traces) the last chunk was unpainted:
+  the DOM's last row 59852 of 60133 and `scrollHeight` 4720 px short, so the
+  walk started ten steps low and never saw the tail. Probe: 5 of 50 short
+  before, 0 of 30 after. `feedWhile` now waits on the paint counter from
+  before the last feed (`paintSince`), like `paintAfter`.
 - **`run.mjs`'s `widthChange` row reads the top-edge row 5 rows apart before
   and after (60081 → 60086) — that is the sticky-bottom contract, not a
   bug.** That probe resizes with no prior scroll, so the pane is pinned to
