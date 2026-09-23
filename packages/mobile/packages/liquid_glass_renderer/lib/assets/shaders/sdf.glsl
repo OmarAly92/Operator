@@ -14,8 +14,8 @@ float sdfRect(vec2 p, vec2 b) {
     return length(max(d, 0.0)) + min(max(d.x, d.y), 0.0);
 }
 
-#define SQUIRCLE_EXPONENT 4.0
-#define SQUIRCLE_EXTENT 1.4
+#define SQUIRCLE_EXPONENT 3.5
+#define SQUIRCLE_EXTENT 1.65
 
 float sdfSquircle(vec2 p, vec2 b, float r) {
     float shortest = min(b.x, b.y);
