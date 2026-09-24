@@ -61,7 +61,8 @@ func (c *PRsController) resolveComments(w http.ResponseWriter, r *http.Request) 
 	}
 	prID := chi.URLParam(r, "id")
 
-	// Body is optional: omitting it resolves all unresolved threads.
+	// An empty body decodes to no prUrl and is refused below as INVALID_PR, the
+	// clearer error; omitting commentIds resolves every unresolved thread.
 	var in ResolveCommentsRequest
 	if err := decodeJSON(r, &in); err != nil && !isEmptyBody(err) {
 		envelope.WriteAPIError(w, r, http.StatusBadRequest, "bad_request", "INVALID_JSON", "Invalid JSON body", nil)

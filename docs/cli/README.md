@@ -152,11 +152,16 @@ needs to be open.
 
 `go run .` in `backend/` remains a compatibility wrapper around the daemon.
 
-PR actions are available through `opr pr merge` and
-`opr pr resolve-comments <number> [comment-id...] --url <pr-url>`, which resolves the
-threads containing the given GitHub comment or thread node ids, or every unresolved
-thread when none is given; `--url` is required because a number alone is ambiguous
-across repositories. Review actions are available through `opr review ls`,
+PR actions are `opr pr merge <number>` and
+`opr pr resolve-comments <number> [comment-id...]`. The daemon needs the PR's URL,
+because a number alone is ambiguous across repositories. A merge also needs the head
+commit you saw, so a push made since then is never merged unseen. Both commands read
+these from the session's PR list (`$OPERATOR_SESSION_ID`, or `--session <id>`), the
+same data the desktop's merge button uses. `--url` and, for merge, `--head-sha`
+supply them directly instead. `resolve-comments` resolves the threads containing the
+given GitHub comment or thread node ids, or every unresolved thread when none is given.
+
+Review actions are available through `opr review ls`,
 `opr review trigger` (also `execute` and `restart`), `opr review cancel` (also
 `stop`), and `opr review submit`.
 
