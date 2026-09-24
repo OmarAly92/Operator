@@ -27,8 +27,15 @@ export type RowRange = Readonly<{ start: number; end: number }>;
 export type FindMatch = Readonly<{
 	blockId: BlockId;
 	row: number;
-	byteRangeStart: number;
-	byteRangeEnd: number;
+	endRow: number;
+	startByte: number;
+	endByte: number;
+}>;
+
+export type FindUpdate = Readonly<{
+	added: number;
+	removed: number;
+	complete: boolean;
 }>;
 
 export type FontConfig = Readonly<{
