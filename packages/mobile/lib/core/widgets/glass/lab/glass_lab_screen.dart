@@ -44,12 +44,12 @@ class _GlassLabScreenState extends State<GlassLabScreen> {
       final skin = dark ? const DarkSkin() : const LightSkin();
       showExpressiveSheet<void>(
         context: context,
-        barrierColor: const Color(0x00000000),
+        barrierColor: GlassSheetLogic.barrierColor(skin),
         builder: (_) => SkinScope(
           skin: skin,
           child: GlassSheetChrome(
             child: SizedBox(
-              height: 380,
+              height: 430,
               child: Center(
                 child: Text('Sheet', style: AppTextStyle.style16SemiBold.copyWith(color: skin.textPrimary)),
               ),

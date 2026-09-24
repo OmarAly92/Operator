@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:operator_mobile/core/app_themes/colors/dark_skin.dart';
 import 'package:operator_mobile/core/app_themes/colors/light_skin.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/widgets/glass/glass_sheet.dart';
@@ -21,6 +22,11 @@ void main() {
   test('floats below 90% of the screen and anchors above', () {
     expect(GlassSheetLogic.isFloating(sheetHeight: 437, screenHeight: 874), isTrue);
     expect(GlassSheetLogic.isFloating(sheetHeight: 800, screenHeight: 874), isFalse);
+  });
+
+  test('barrier dim is fitted per theme from native pixels', () {
+    expect(GlassSheetLogic.barrierColor(const LightSkin()), const Color(0x33000000));
+    expect(GlassSheetLogic.barrierColor(const DarkSkin()), const Color(0x79000000));
   });
 
   testWidgets('a half-height sheet floats as glass', (tester) async {

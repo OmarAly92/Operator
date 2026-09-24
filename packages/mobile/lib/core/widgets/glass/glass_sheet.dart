@@ -1,5 +1,6 @@
 import 'package:expressive_sheet/expressive_sheet.dart';
 import 'package:flutter/material.dart';
+import 'package:operator_mobile/core/app_themes/colors/app_skin.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/utils/app_constants.dart';
 import 'package:operator_mobile/core/widgets/glass/glass_metrics.dart';
@@ -10,6 +11,9 @@ sealed class GlassSheetLogic {
       sheetHeight < screenHeight * GlassMetrics.floatingSheetMaxFraction;
 
   static double cornerRadius() => GlassMetrics.displayCornerRadius - GlassMetrics.sheetInset;
+
+  static Color barrierColor(AppSkin skin) =>
+      skin.themeMode == ThemeMode.dark ? const Color(0x79000000) : const Color(0x33000000);
 }
 
 class GlassSheetChrome extends StatelessWidget {
@@ -112,7 +116,7 @@ class _MeasuredSheetState extends State<_MeasuredSheet> {
 Future<T?> showGlassSheet<T>({required BuildContext context, required WidgetBuilder builder}) {
   return showExpressiveSheet<T>(
     context: context,
-    barrierColor: const Color(0x00000000),
+    barrierColor: GlassSheetLogic.barrierColor(context.skin),
     builder: (context) => GlassSheetChrome(child: builder(context)),
   );
 }
