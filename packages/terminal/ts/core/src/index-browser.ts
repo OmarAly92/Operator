@@ -14,6 +14,7 @@ export type {
 	DirEntry,
 	DirtyRows,
 	FindMatch,
+	FindUpdate,
 	FontConfig,
 	HostCapabilities,
 	HistoryStore,
@@ -73,7 +74,7 @@ export { joinLogicalLine, type LogicalLine } from "./logical-lines.js";
 export {
 	FEED_BUDGET_MS,
 	FEED_SLICE_BYTES,
-	FIND_STEP_BUDGET,
+	FIND_UPDATE_BUDGET_BYTES,
 	UNBOUNDED_BYTES,
 } from "./terminal-core.js";
 export { TerminalCore };

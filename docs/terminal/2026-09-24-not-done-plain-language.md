@@ -22,9 +22,14 @@ says so.
 1. **Search that keeps up (§1.7, §3.12).** While Claude is still writing, the
    find bar doesn't pick up new text that matches, so you have to search
    again. *If done:* matches appear as new output arrives.
+   **Done (Plan 2):** matches appear while Claude is still writing, in
+   Claude Code panes too — before, the find bar found nothing there.
 2. **Smarter search (§2.6).** Search is exact and case-sensitive: "error"
    won't find "Error". *If done:* lowercase searches ignore case, and
    "next/previous" jumps are fast even in huge output.
+   **Done (Plan 2):** a lowercase search ignores case, a `.*` button
+   switches to patterns, and next/previous steps through the list already
+   found.
 3. **One look for everything highlighted (§1.8).** Selected text, search
    matches and other marks are drawn by separate code, so they can look
    inconsistent or clash. *If done:* they all look and behave the same, and

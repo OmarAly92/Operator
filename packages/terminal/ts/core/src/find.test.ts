@@ -9,12 +9,11 @@ beforeAll(async () => {
 	await initTerminalCore(wasmBytes);
 });
 
-function feedBlocks(core: ReturnType<typeof createTerminalCore>, count: number): void {
-	const encoder = new TextEncoder();
-	for (let index = 0; index < count; index += 1) {
-		core.feed(
-			encoder.encode(`\x1b]133;A\x07\x1b]133;C\x07line ${index} of text\x1b]133;D;0\x07\r\n`),
-		);
+const encoder = new TextEncoder();
+
+function feedBlocks(core: ReturnType<typeof createTerminalCore>, count: number, from: number = 0): void {
+	for (let index = from; index < from + count; index += 1) {
+		core.feed(encoder.encode(`\x1b]133;A\x07\x1b]133;C\x07line ${index} of text\x1b]133;D;0\x07\r\n`));
 	}
 }
 
@@ -22,25 +21,21 @@ function makeCore(): ReturnType<typeof createTerminalCore> {
 	return createTerminalCore({ columns: 40, scrollback: 1000, rows: 1 });
 }
 
-describe("TerminalCore.findOpen / findStep / findResults", () => {
+describe("TerminalCore.findOpen / findUpdate / findResults", () => {
 	it("finds a literal across a synthetic 5-block scrollback", () => {
 		const core = makeCore();
 		feedBlocks(core, 5);
 		const blocks = decodeBlocks(core.snapshot());
 		expect(blocks.length).toBe(5);
 		const session = core.findOpen("line 2", false);
-		let guard = 0;
-		while (!core.findIsComplete(session) && guard < 1000) {
-			core.findStep(session, 1);
-			guard += 1;
-		}
-		const matches = core.findResults();
+		expect(core.findUpdate(session).complete).toBe(true);
+		const matches = core.findResults(session);
 		expect(matches).toHaveLength(1);
-		expect(matches[0]?.blockId).toBeTruthy();
-		expect(matches[0]?.row).toBeTypeOf("number");
-		expect(matches[0]?.byteRangeStart).toBeTypeOf("number");
-		expect(matches[0]?.byteRangeEnd).toBeTypeOf("number");
-		expect(matches[0]?.byteRangeEnd).toBeGreaterThan(matches[0]?.byteRangeStart ?? 0);
+		expect(blocks.map((block) => block.id)).toContain(matches[0]!.blockId);
+		expect(matches[0]!.row).toBe(2);
+		expect(matches[0]!.endRow).toBe(2);
+		expect(matches[0]!.startByte).toBe(0);
+		expect(matches[0]!.endByte).toBe(6);
 		core.findCancel(session);
 		core.dispose();
 	});
@@ -49,12 +44,8 @@ describe("TerminalCore.findOpen / findStep / findResults", () => {
 		const core = makeCore();
 		feedBlocks(core, 5);
 		const session = core.findOpen("absent-needle", false);
-		let guard = 0;
-		while (!core.findIsComplete(session) && guard < 1000) {
-			core.findStep(session, 1);
-			guard += 1;
-		}
-		expect(core.findResults()).toEqual([]);
+		expect(core.findUpdate(session).complete).toBe(true);
+		expect(core.findResults(session)).toEqual([]);
 		core.findCancel(session);
 		core.dispose();
 	});
@@ -63,22 +54,21 @@ describe("TerminalCore.findOpen / findStep / findResults", () => {
 		const core = makeCore();
 		feedBlocks(core, 5);
 		expect(() => core.findOpen("(unclosed", true)).toThrow();
-		core.feed(new TextEncoder().encode("after-error"));
+		core.feed(encoder.encode("after-error"));
 		expect(new TextDecoder().decode(core.snapshot().content)).toContain("after-error");
 		core.dispose();
 	});
 
-	it("finds every occurrence across blocks when stepped with a tiny budget", () => {
+	it("finds every occurrence when updated with a tiny budget", () => {
 		const core = makeCore();
 		feedBlocks(core, 5);
 		const session = core.findOpen("line", false);
 		let guard = 0;
-		while (!core.findIsComplete(session) && guard < 10000) {
-			core.findStep(session, 1);
+		while (!core.findUpdate(session, 8).complete && guard < 1000) {
 			guard += 1;
 		}
-		const matches = core.findResults();
-		expect(matches).toHaveLength(5);
+		expect(guard).toBeGreaterThan(0);
+		expect(core.findResults(session)).toHaveLength(5);
 		core.findCancel(session);
 		core.dispose();
 	});
@@ -87,41 +77,79 @@ describe("TerminalCore.findOpen / findStep / findResults", () => {
 		const core = makeCore();
 		feedBlocks(core, 5);
 		const session = core.findOpen("line \\d of", true);
-		let guard = 0;
-		while (!core.findIsComplete(session) && guard < 1000) {
-			core.findStep(session, 2);
-			guard += 1;
-		}
-		expect(core.findResults()).toHaveLength(5);
+		core.findUpdate(session);
+		expect(core.findResults(session)).toHaveLength(5);
 		core.findCancel(session);
+		core.dispose();
+	});
+
+	it("ignores case for a query without capitals", () => {
+		const core = makeCore();
+		core.feed(encoder.encode("Error one\r\nerror two\r\n"));
+		const lower = core.findOpen("error", false);
+		core.findUpdate(lower);
+		expect(core.findResults(lower)).toHaveLength(2);
+		const upper = core.findOpen("Error", false);
+		core.findUpdate(upper);
+		expect(core.findResults(upper)).toHaveLength(1);
+		core.dispose();
+	});
+
+	it("searches a session without block marks, screen rows included", () => {
+		const core = createTerminalCore({ columns: 40, scrollback: 1000, rows: 5 });
+		for (let index = 0; index < 20; index += 1) core.feed(encoder.encode(`hello ${index}\r\n`));
+		const session = core.findOpen("hello", false);
+		core.findUpdate(session);
+		expect(core.findResults(session)).toHaveLength(20);
+		core.dispose();
+	});
+});
+
+describe("TerminalCore.findUpdate on a growing buffer", () => {
+	it("picks up output that arrives after the scan completed", () => {
+		const core = makeCore();
+		feedBlocks(core, 3);
+		const session = core.findOpen("UNIQUE_NEEDLE", false);
+		expect(core.findUpdate(session).complete).toBe(true);
+		expect(core.findResults(session)).toEqual([]);
+		core.feed(encoder.encode("\x1b]133;A\x07\x1b]133;C\x07UNIQUE_NEEDLE appears here\x1b]133;D;0\x07\r\n"));
+		const update = core.findUpdate(session);
+		expect(update.added).toBe(1);
+		expect(update.complete).toBe(true);
+		expect(core.findResults(session)).toHaveLength(1);
+		core.findCancel(session);
+		core.dispose();
+	});
+
+	it("scans only the new history when output arrives", () => {
+		const core = makeCore();
+		feedBlocks(core, 50);
+		const session = core.findOpen("line", false);
+		core.findUpdate(session);
+		const scanned = core.findHistoryBytesScanned(session);
+		expect(scanned).toBeGreaterThan(0);
+		const quiet = core.findUpdate(session);
+		expect(quiet).toEqual({ added: 0, removed: 0, complete: true });
+		expect(core.findHistoryBytesScanned(session)).toBe(scanned);
+		feedBlocks(core, 1, 50);
+		core.findUpdate(session);
+		const grown = core.findHistoryBytesScanned(session) - scanned;
+		expect(grown).toBeGreaterThan(0);
+		expect(grown).toBeLessThan(scanned / 10);
+		expect(core.findResults(session)).toHaveLength(51);
 		core.dispose();
 	});
 });
 
 describe("TerminalCore.findCancel", () => {
-	it("stops producing results after cancel, even when stepped again", () => {
-		const core = makeCore();
-		feedBlocks(core, 10);
-		const session = core.findOpen("line", false);
-		core.findStep(session, 3);
-		const atCancel = core.findResults().length;
-		expect(atCancel).toBeGreaterThan(0);
-		core.findCancel(session);
-		core.findStep(session, 1000);
-		expect(core.findIsComplete(session)).toBe(true);
-		expect(core.findResults().length).toBe(atCancel);
-		core.dispose();
-	});
-
-	it("treats findStep on a cancelled session as a no-op", () => {
+	it("forgets the session, so a later update is an error", () => {
 		const core = makeCore();
 		feedBlocks(core, 3);
 		const session = core.findOpen("line", false);
-		core.findStep(session, 1);
-		const before = core.findResults().length;
+		core.findUpdate(session);
 		core.findCancel(session);
-		expect(() => core.findStep(session, 1)).not.toThrow();
-		expect(core.findResults().length).toBe(before);
+		expect(() => core.findUpdate(session)).toThrow();
+		expect(() => core.findCancel(session)).not.toThrow();
 		core.dispose();
 	});
 
@@ -144,56 +172,6 @@ describe("TerminalCore.findCancel", () => {
 		expect(a).not.toBe(b);
 		core.findCancel(a);
 		core.findCancel(b);
-		core.dispose();
-	});
-});
-
-describe("TerminalCore.find mutation safety", () => {
-	it("does not crash and returns well-formed matches when the core mutates between steps", () => {
-		const core = makeCore();
-		feedBlocks(core, 50);
-		const session = core.findOpen("line", false);
-		core.findStep(session, 3);
-		const before = core.findResults();
-		expect(before.length).toBeGreaterThan(0);
-		feedBlocks(core, 50);
-		expect(() => {
-			core.findStep(session, 3);
-			core.findStep(session, 3);
-		}).not.toThrow();
-		const after = core.findResults();
-		for (const match of after) {
-			expect(match.blockId).toBeTruthy();
-			expect(match.byteRangeEnd).toBeGreaterThan(match.byteRangeStart);
-		}
-		core.findCancel(session);
-		core.dispose();
-	});
-
-	it("sees content added after findOpen when stepping the cursor", () => {
-		const core = makeCore();
-		feedBlocks(core, 3);
-		const session = core.findOpen("UNIQUE_NEEDLE", false);
-		core.findStep(session, 1);
-		expect(core.findIsComplete(session)).toBe(false);
-		expect(core.findResults()).toEqual([]);
-
-		core.feed(
-			new TextEncoder().encode(
-				"\x1b]133;A\x07\x1b]133;C\x07UNIQUE_NEEDLE appears here\x1b]133;D;0\x07\r\n",
-			),
-		);
-		let guard = 0;
-		while (!core.findIsComplete(session) && guard < 1000) {
-			core.findStep(session, 10);
-			guard += 1;
-		}
-		const matches = core.findResults();
-		expect(matches.length).toBe(1);
-		expect(matches[0]?.blockId).toBeTruthy();
-		expect(matches[0]?.row).toBeTypeOf("number");
-		expect(matches[0]?.byteRangeEnd).toBeGreaterThan(matches[0]?.byteRangeStart ?? 0);
-		core.findCancel(session);
 		core.dispose();
 	});
 });

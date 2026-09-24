@@ -302,3 +302,21 @@ describe("row pool", () => {
 		renderer.dispose();
 	});
 });
+
+describe("scrollToRow", () => {
+	it("brings a far row into the rendered window and refuses a row it does not hold", async () => {
+		const container = scrollable();
+		const core = createTerminalCore({ columns: 20, limits: { rows: 1000, bytes: 0xffff_ffff }, rows: 2 });
+		for (let i = 0; i < 500; i += 1) feed(core, `line ${i}\r\n`);
+		const renderer = new DomBlockRenderer();
+		renderer.mount(container, core);
+		renderer.setFont(font);
+		await flushRepaint();
+		expect(container.querySelector('[data-terminal-row="10"]')).toBeNull();
+		expect(renderer.scrollToRow(10, "center")).toBe(true);
+		await flushRepaint();
+		expect(container.querySelector('[data-terminal-row="10"]')?.textContent).toBe("line 10");
+		expect(renderer.scrollToRow(100_000, "center")).toBe(false);
+		renderer.dispose();
+	});
+});

@@ -99,6 +99,21 @@ export class ScrollTracker {
 		return top === null ? fallback : Math.max(0, top + anchor.offsetPx);
 	}
 
+	scrollToRow(row: number, align: "start" | "center" | "end"): boolean {
+		const container = this.deps.container();
+		const flat = row - this.deps.paintedFirstStableRow();
+		if (!container || flat < 0) return false;
+		const { rowHeight, headerHeight, paddingY } = this.deps.layout();
+		const top = rowTop(this.deps.blocks(), flat, rowHeight, headerHeight, paddingY);
+		if (top === null) return false;
+		const room = Math.max(0, container.clientHeight - rowHeight);
+		const offset = align === "start" ? 0 : align === "end" ? room : room / 2;
+		this.stickToBottom = false;
+		container.scrollTop = Math.max(0, top - offset);
+		this.captureAnchor();
+		return true;
+	}
+
 	updateStickiness(): void {
 		const container = this.deps.container();
 		if (!container) return;

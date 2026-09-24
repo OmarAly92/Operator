@@ -47,7 +47,7 @@ Absent evidence is written as "not known", never guessed.
 
 ## Implementation status (updated 2026-09-24)
 
-Every entry below carries a **Status** line under its heading, checked against the tree on 2026-09-24 (`development`): 38 done, 17 partial, 24 not done, 7 not pursued, 1 not needed, 1 n/a. "Plan A–F" are the agent-TUI spec's plans (`docs/superpowers/specs/2026-09-19-agent-tui-experience-design.md`); "Plan 4" is the background-pane plan (`docs/superpowers/plans/2026-09-23-terminal-background-pane-cost.md`). Entries marked non-goal were excluded by the agent-TUI spec, not rejected. "Roadmap Plan 1" is the paste-safety plan (`docs/superpowers/plans/2026-09-24-terminal-plan-1-paste-safety.md`).
+Every entry below carries a **Status** line under its heading, checked against the tree on 2026-09-24 (`development`): 39 done, 19 partial, 21 not done, 7 not pursued, 1 not needed, 1 n/a. "Plan A–F" are the agent-TUI spec's plans (`docs/superpowers/specs/2026-09-19-agent-tui-experience-design.md`); "Plan 4" is the background-pane plan (`docs/superpowers/plans/2026-09-23-terminal-background-pane-cost.md`). Entries marked non-goal were excluded by the agent-TUI spec, not rejected. "Roadmap Plan 1" is the paste-safety plan (`docs/superpowers/plans/2026-09-24-terminal-plan-1-paste-safety.md`).
 
 | Entry | Status | What landed / what is missing |
 |---|---|---|
@@ -57,7 +57,7 @@ Every entry below carries a **Status** line under its heading, checked against t
 | §1.4 | Partial | Plan E — copy joins a soft-wrapped line. Not done: rectangle (Alt-drag), Shift+click / Shift+arrow adjust, the select-block-output gesture, configurable click behaviours. |
 | §1.5 | Not done | Shell resize still evicts the frame once (Warp model). A non-goal of the agent-TUI spec. |
 | §1.6 | Not done | `decode_osc133` still reads only `A`/`B`/`C`/`D` and `D;<exit>`. A non-goal of the agent-TUI spec. |
-| §1.7 | Not done | No incremental `FindSession`; each query scans the whole buffer once and does not pick up later output. Hits carry stable rows since Plan B. |
+| §1.7 | Done | Plan 2 — `FindSession` on the core: settled history scanned once from `scanned_to` and never again; the unsettled tail and the live screen re-searched only when the generation changes; hits re-resolve through the row index after a trim or rewrap. Also fixed: panes without OSC 133 marks (Claude Code) and rows still on the screen were never searched. |
 | §1.8 | Not done | The selection paints through `selection-fill` and find hits use row classes; Plan E's range painter (`decorations.ts`) serves links, hints, redaction and prediction only. |
 | §1.9 | Done | Plan C — `vt_replay` sends origin, modes, the frame, `READY`, then history in 512-row chunks; the pane paints at `READY`. |
 | §1.10 | Done | Roadmap Plan 1 — `encodePaste` returns the bytes and a verdict; outside bracketed paste a newline, a C0 control other than tab, or `ESC[201~` is unsafe and goes to `HostCapabilities.confirmPaste` (Operator: a dialog with the first five lines); no handler sends as before. The editor-owned line never asks. The confirm is a host seam, not surface chrome as the entry proposed. |
@@ -74,7 +74,7 @@ Every entry below carries a **Status** line under its heading, checked against t
 | §2.3 | Done | Plan B — selection damage diffed against the previous paint (one row repainted per selection step) and one moved cursor element. Column bounds were ruled out by the entry itself for a DOM renderer. |
 | §2.4 | Not done | No pull-back on height growth and no cursor-carrying reflow; waits on §1.5. The wide-character-at-the-cut case was already covered. |
 | §2.5 | Partial | Plan B — `onRowEvents` (trim and rewrap `remap`) and stable rows make trims harmless. Not done: the selection does not apply `remap`, so a width change moves it. |
-| §2.6 | Not done | No directional or bounded `find_next`, no hybrid DFAs, no smart case; the find bar opens literal and case-sensitive. |
+| §2.6 | Partial | Plan 2 — smart case (Alacritty `search.rs:39-40`) for literals and regexes, and a regex toggle in the find bar. Next/previous is an index step through the session's sorted results, so directional DFAs were not needed. Not done: `bracket_search`, `semantic_search_*`. |
 | §2.7 | Done | Plan E — hint mode on Ctrl+Shift+Space with labels and `onHint`. Not done: host-supplied rules (package constant only) and Alacritty's bracket post-processing. |
 | §2.8 | Done | Plan D — ten attribute bits and underline colour in the style word; painted with `attributes: "warp"`, the default since 2026-09-23 (`534ef20fe`). |
 | §2.9 | Done | Plan A — `tests/ref` with Alacritty's recordings plus our own. |
@@ -94,7 +94,7 @@ Every entry below carries a **Status** line under its heading, checked against t
 | §3.9 | Not done | No screen-reader mode, row roles or live region for output; the only `aria-live` is the find-bar counter. |
 | §3.10 | Done | Plan D — composition view at the cursor and one send a tick after `compositionend`. Manual Japanese-IME check still pending. |
 | §3.11 | Done | Plan C — the replay re-emits the child's modes before the frame. Soft-wrapped history rows are still replayed unjoined (`TERMINAL.md` §5). |
-| §3.12 | Not done | No re-search on new output and no `onResultsChanged`; highlights are still row classes. Only change: hits carry stable rows (Plan B). |
+| §3.12 | Partial | Plan 2 — the find bar updates on every paint through `findUpdate` (new matches appear without retyping; history is not rescanned) and keeps the current hit anchored by stable row. Not done: hits as decorations (still row classes, §1.8) and a host `onResultsChanged`. |
 | §3.13 | Partial | Plan A (12 ms budget) and Plan C (ack every 5,000 bytes, pause at 100,000); a hidden window drains 250 ms per tick (Plan 4). No 50 MB discard watermark. |
 | §3.14 | Done | Plan D — grapheme-cluster widths, on by default since 2026-09-22 (`7395b910c`); the renderer reads exported cell spans. The pty-host mirror stays in scalar mode (`TERMINAL.md` §5). |
 | §3.15 | Partial | Plan A — `onFeedParsed`. Not done: the Windows wrapped-line heuristic, OSC 9;4 progress, the Kitty keyboard encoder. |
@@ -625,7 +625,7 @@ adopted.
 
 ### 1.7 Search: incremental, scoped to what can change
 
-> **Status: Not done.** No incremental `FindSession`; each query scans the whole buffer once and does not pick up later output. Hits carry stable rows since Plan B.
+> **Status: Done.** Plan 2 — `FindSession` on the core: settled history scanned once from `scanned_to`, the unsettled tail and the live screen re-searched only when the generation changes, hits re-resolved through the row index. Also fixed: markless (Claude Code) panes and on-screen rows were never searched.
 
 **Reference**
 - `src/terminal/search.zig`: `Active`, `PageList`, `Screen`, `Terminal`,
@@ -1520,7 +1520,7 @@ by row events) is the recommended synthesis of the two.
 
 ### 2.6 Directional, bounded regex search with lazy DFAs and smart case
 
-> **Status: Not done.** No directional or bounded `find_next`, no hybrid DFAs, no smart case; the find bar opens literal and case-sensitive.
+> **Status: Partial.** Plan 2 — smart case and a regex toggle; next/previous walks sorted results, so no directional DFAs. Not done: `bracket_search`, `semantic_search_*`.
 
 **Reference**
 - `alacritty_terminal/src/term/search.rs:25-31` `RegexSearch` holds four
@@ -2487,7 +2487,7 @@ buffer, cursor last.
 
 ### 3.12 Search addon: line cache with TTL, incremental find, decorations for all matches, result tracker
 
-> **Status: Not done.** No re-search on new output and no `onResultsChanged`; highlights are still row classes. Only change: hits carry stable rows (Plan B).
+> **Status: Partial.** Plan 2 — re-search on every paint through `findUpdate`, current hit anchored by stable row. Not done: hits as decorations (still row classes, §1.8) and `onResultsChanged`.
 
 **Reference**
 - `xterm.js/addons/addon-search/src/SearchLineCache.ts:29-60`:

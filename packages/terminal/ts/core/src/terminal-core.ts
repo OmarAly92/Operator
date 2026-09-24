@@ -16,6 +16,7 @@ import type {
 	ChangeListener,
 	DirtyRows,
 	FindMatch,
+	FindUpdate,
 	HostCapabilities,
 	LineEditorState,
 	MemoryStats,
@@ -35,9 +36,9 @@ import { CompletionDispatcher } from "./completions.js";
 
 const LINE_EDITOR_STATES: readonly LineEditorState[] = ["unknown", "owned", "released"];
 
-export const FIND_MATCH_WORDS = 5;
+export const FIND_MATCH_WORDS = 6;
 
-export const FIND_STEP_BUDGET = 1000;
+export const FIND_UPDATE_BUDGET_BYTES = 1 << 20;
 
 export const FEED_BUDGET_MS = 12;
 
@@ -387,17 +388,19 @@ export class TerminalCore {
 		return this.inner.find_open(query, isRegex);
 	}
 
-	findStep(id: number, budget: number = FIND_STEP_BUDGET): void {
+	findUpdate(id: number, budgetBytes: number = FIND_UPDATE_BUDGET_BYTES): FindUpdate {
 		if (this.disposed) {
 			throw new Error("terminal core is disposed");
 		}
-		this.inner.find_step(id, budget);
+		const words = this.inner.find_update(id, budgetBytes);
+		return { added: words[0]!, removed: words[1]!, complete: words[2] === 1 };
 	}
 
-	findResults(): FindMatch[] {
+	findResults(id: number): FindMatch[] {
 		if (this.disposed) {
 			throw new Error("terminal core is disposed");
 		}
+		this.inner.find_export(id);
 		const memory = getMemory();
 		const ptr = this.inner.find_results_ptr();
 		const len = this.inner.find_results_len();
@@ -414,18 +417,19 @@ export class TerminalCore {
 			matches.push({
 				blockId: `${view[base + 1]!}:${view[base]!}`,
 				row: view[base + 2]!,
-				byteRangeStart: view[base + 3]!,
-				byteRangeEnd: view[base + 4]!,
+				endRow: view[base + 3]!,
+				startByte: view[base + 4]!,
+				endByte: view[base + 5]!,
 			});
 		}
 		return matches;
 	}
 
-	findIsComplete(id: number): boolean {
+	findHistoryBytesScanned(id: number): number {
 		if (this.disposed) {
 			throw new Error("terminal core is disposed");
 		}
-		return this.inner.find_is_complete(id);
+		return this.inner.find_history_bytes_scanned(id);
 	}
 
 	findCancel(id: number): void {
