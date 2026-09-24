@@ -53,6 +53,9 @@ func (p *Plugin) GetAgentHooks(ctx context.Context, cfg ports.WorkspaceHookConfi
 	if err := applyCrushModelOverride(cfg.WorkspacePath, cfg.Config.Model); err != nil {
 		return fmt.Errorf("crush.GetAgentHooks: %w", err)
 	}
+	if err := mergeCrushMCPServers(crushConfigFile(cfg.WorkspacePath), cfg.MCPServers); err != nil {
+		return fmt.Errorf("crush.GetAgentHooks: merge mcp: %w", err)
+	}
 	if strings.TrimSpace(prompt) == "" {
 		return nil
 	}
@@ -108,6 +111,9 @@ func (p *Plugin) UninstallHooks(ctx context.Context, workspacePath string) error
 	}
 	if err := removeCrushContextPath(crushConfigFile(workspacePath), crushSystemPromptPath); err != nil {
 		return fmt.Errorf("crush.UninstallHooks: merge config: %w", err)
+	}
+	if err := removeCrushMCPServers(crushConfigFile(workspacePath)); err != nil {
+		return fmt.Errorf("crush.UninstallHooks: remove mcp: %w", err)
 	}
 	return nil
 }

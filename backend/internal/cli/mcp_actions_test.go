@@ -1,13 +1,17 @@
 package cli
 
 import (
+	"context"
 	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
+	"sort"
 	"strings"
 	"testing"
+
+	"github.com/OmarAly92/operator/backend/internal/ports"
 )
 
 // actionDaemon fakes the routes behind the self-scoped action tools and keeps
@@ -139,5 +143,26 @@ func TestMCPTicketMarkMergeReadyRefusesANonReviewer(t *testing.T) {
 		if strings.HasSuffix(req, "/merge-ready") {
 			t.Fatalf("merge-ready was posted for a non-reviewer: %#v", log.all())
 		}
+	}
+}
+
+// Adapters pre-approve the server's tools by exact name from
+// ports.OperatorMCPToolNames; it must list exactly what the server registers.
+func TestOperatorMCPToolNamesMatchTheServer(t *testing.T) {
+	srv, _ := mcpDaemon(t)
+	cs := connectMCP(t, srv, selfIdentity)
+	tools, err := cs.ListTools(context.Background(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got []string
+	for _, tool := range tools.Tools {
+		got = append(got, tool.Name)
+	}
+	want := append([]string(nil), ports.OperatorMCPToolNames...)
+	sort.Strings(got)
+	sort.Strings(want)
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("server tools %v, ports.OperatorMCPToolNames %v", got, want)
 	}
 }

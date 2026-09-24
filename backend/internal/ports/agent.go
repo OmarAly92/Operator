@@ -400,6 +400,14 @@ Tools:
 
 Never try to move, stop or change another session's card.`
 
+// OperatorMCPToolNames lists the tools `opr mcp` registers, for agent CLIs whose
+// approval config takes exact tool names rather than a whole server. A cli test
+// pins it to the server's real tool list.
+var OperatorMCPToolNames = []string{
+	"board_get", "session_get", "ticket_get", "session_report",
+	"session_rename", "pr_claim", "review_request", "ticket_mark_merge_ready",
+}
+
 // MCPInstructionsSurfacer is implemented by agent adapters whose CLI is known to
 // place MCP server `instructions` in the model's context. Adapters that do not
 // implement it get the Operator board rules in their standing system prompt
