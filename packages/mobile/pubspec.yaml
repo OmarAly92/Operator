@@ -198,3 +198,6 @@ flutter:
         - asset: assets/fonts/anthropic_sans/AnthropicSansDisplay-800-Italic.otf
           weight: 800
           style: italic
+
+  shaders:
+    - shaders/scroll_edge_blur.frag

@@ -12,6 +12,7 @@ import 'package:operator_mobile/core/widgets/glass/glass_tab_bar.dart';
 import 'package:operator_mobile/core/widgets/glass/glass_toolbar.dart';
 import 'package:operator_mobile/core/widgets/glass/lab/glass_lab_backdrop.dart';
 import 'package:operator_mobile/core/widgets/glass/lab/glass_lab_scene.dart';
+import 'package:operator_mobile/core/widgets/glass/scroll_edge_effect.dart';
 
 class GlassLabScreen extends StatefulWidget {
   const GlassLabScreen({super.key, required this.scene});
@@ -55,6 +56,10 @@ class _GlassLabScreenState extends State<GlassLabScreen> {
         child: Stack(
           children: [
             const Positioned.fill(child: GlassLabBackdrop()),
+            if (scene != GlassLabScene.corners) ...[
+              const Positioned(left: 0, right: 0, top: 0, child: ScrollEdgeEffect(edge: ScrollEdge.top, height: 130)),
+              const Positioned(left: 0, right: 0, bottom: 0, child: ScrollEdgeEffect(edge: ScrollEdge.bottom, height: 120)),
+            ],
             if (scene == GlassLabScene.corners)
               Center(
                 child: SizedBox(
