@@ -152,4 +152,9 @@ void main() {
     await tester.pumpAndSettle();
     expect(taps, 1);
   });
+
+  testWidgets('an icon button takes an explicit foreground colour', (tester) async {
+    await tester.pumpWidget(host(GlassButton.icon(icon: Icons.add, foreground: const Color(0xFF123456), onPressed: () {})));
+    expect(tester.widget<Icon>(find.byIcon(Icons.add)).color, const Color(0xFF123456));
+  });
 }

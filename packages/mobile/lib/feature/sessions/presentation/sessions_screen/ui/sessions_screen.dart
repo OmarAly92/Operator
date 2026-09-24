@@ -22,8 +22,6 @@ class SessionsScreen extends StatelessWidget {
     child: Scaffold(
       backgroundColor: context.skin.bgBase,
       appBar: GlobalAppbar.main(
-        backgroundColor: context.skin.bgChrome,
-        hasBorder: true,
         title: AppText('Agents', style: AppTextStyle.style19SemiBold.copyWith(letterSpacing: -0.3)),
         actions: const [NotificationBell()],
       ),

@@ -19,8 +19,6 @@ class SettingsScreen extends StatelessWidget {
     child: Scaffold(
       backgroundColor: context.skin.bgBase,
       appBar: GlobalAppbar.main(
-        backgroundColor: context.skin.bgChrome,
-        hasBorder: true,
         title: AppText(
           'Settings',
           style: AppTextStyle.style19SemiBold.copyWith(

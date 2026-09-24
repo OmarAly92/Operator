@@ -16,6 +16,7 @@ class GlassButton extends StatefulWidget {
     required this.onPressed,
     this.semanticLabel,
     this.prominent = false,
+    this.foreground,
   })  : label = null,
         compact = false;
 
@@ -26,7 +27,8 @@ class GlassButton extends StatefulWidget {
     this.icon,
     this.prominent = false,
     this.compact = false,
-  }) : semanticLabel = null;
+  })  : semanticLabel = null,
+        foreground = null;
 
   static const double pressedScale = 1.08;
 
@@ -36,6 +38,7 @@ class GlassButton extends StatefulWidget {
   final VoidCallback? onPressed;
   final bool prominent;
   final bool compact;
+  final Color? foreground;
 
   @override
   State<GlassButton> createState() => _GlassButtonState();
@@ -67,7 +70,7 @@ class _GlassButtonState extends State<GlassButton> {
   Widget build(BuildContext context) {
     final skin = context.skin;
     final reduceMotion = MediaQuery.disableAnimationsOf(context);
-    final foreground = widget.prominent ? skin.onGlassProminent : skin.accent;
+    final foreground = widget.foreground ?? (widget.prominent ? skin.onGlassProminent : skin.accent);
     final isIcon = widget.label == null;
     final capsuleHeight = widget.compact ? GlassMetrics.compactButtonHeight : GlassMetrics.hitTarget;
     final horizontalPadding = widget.compact ? GlassMetrics.compactLabelButtonPadding : GlassMetrics.labelButtonPadding;

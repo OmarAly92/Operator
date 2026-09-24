@@ -15,30 +15,30 @@ class NotificationsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) => BlocListener<NotificationsCubit, NotificationsState>(
     listener: (context, state) {},
-    child: AppScaffold(
-      appBar: GlobalAppbar.sub(
-        titleText: 'Notifications',
-        actions: [
-          BlocBuilder<NotificationsCubit, NotificationsState>(
-            buildWhen: (previous, current) => current is NotificationsReadyState,
-            builder: (context, state) {
-              final cubit = context.read<NotificationsCubit>();
-              if (cubit.unreadCount == 0) return const SizedBox.shrink();
-              return TextButton(
-                onPressed: () {
-                  Haptics.tap();
-                  cubit.markAllRead();
-                },
-                child: AppText(
-                  'Mark all read',
-                  style: AppTextStyle.style15SemiBold.copyWith(color: context.skin.blue),
+    child: BlocBuilder<NotificationsCubit, NotificationsState>(
+      buildWhen: (previous, current) => current is NotificationsReadyState,
+      builder: (context, state) {
+        final cubit = context.read<NotificationsCubit>();
+        return AppScaffold(
+          appBar: GlobalAppbar.sub(
+            titleText: 'Notifications',
+            actions: [
+              if (cubit.unreadCount > 0)
+                TextButton(
+                  onPressed: () {
+                    Haptics.tap();
+                    cubit.markAllRead();
+                  },
+                  child: AppText(
+                    'Mark all read',
+                    style: AppTextStyle.style15SemiBold.copyWith(color: context.skin.blue),
+                  ),
                 ),
-              );
-            },
+            ],
           ),
-        ],
-      ),
-      body: const NotificationsBody(),
+          body: const NotificationsBody(),
+        );
+      },
     ),
   );
 }
