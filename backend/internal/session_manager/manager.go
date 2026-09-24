@@ -1905,7 +1905,7 @@ func (m *Manager) markSessionWorktreesActive(ctx context.Context, rows []domain.
 
 func (m *Manager) restoreSessionWorkspace(ctx context.Context, project domain.ProjectRecord, rec domain.SessionRecord) (ports.WorkspaceInfo, error) {
 	if project.Kind.WithDefault() != domain.ProjectKindWorkspace {
-		return m.workspace.Restore(ctx, ports.WorkspaceConfig{
+		ws, err := m.workspace.Restore(ctx, ports.WorkspaceConfig{
 			ProjectID:     rec.ProjectID,
 			SessionID:     rec.ID,
 			SessionPrefix: sessionPrefix(project),
@@ -1913,6 +1913,11 @@ func (m *Manager) restoreSessionWorkspace(ctx context.Context, project domain.Pr
 			Path:          rec.Metadata.WorkspacePath,
 			Mode:          rec.Metadata.WorkspaceMode,
 		})
+		if err != nil {
+			return ports.WorkspaceInfo{}, err
+		}
+		m.consumeSingleRepoRestoreMarker(ctx, rec.ID, ws)
+		return ws, nil
 	}
 	rows, err := m.workspaceProjectRestoreRows(ctx, project, rec)
 	if err != nil {
@@ -1932,6 +1937,73 @@ func (m *Manager) restoreSessionWorkspace(ctx context.Context, project domain.Pr
 		}
 	}
 	return workspaceInfoFromRepoInfo(root), nil
+}
+
+// consumeSingleRepoRestoreMarker is a manual restore's version of RestoreAll's
+// replay-and-consume for a single-repo session. A boot-time relaunch that failed
+// leaves the saved work only in the marker's preserve ref, and a manual restore
+// is how the user gets it back. A clean replay (or no saved work) consumes the
+// marker the way RestoreAll does. A conflicted, failed or skipped replay keeps
+// the ref on a row marked active, so the pointer to the saved work survives but
+// the next boot does not relaunch the session or replay the ref again.
+// Failures are logged: the worktree is back, and the relaunch goes ahead.
+func (m *Manager) consumeSingleRepoRestoreMarker(ctx context.Context, id domain.SessionID, ws ports.WorkspaceInfo) {
+	rows, err := m.store.ListSessionWorktrees(ctx, id)
+	if err != nil {
+		m.logger.Error("restore: list worktrees failed; saved work not replayed", "sessionID", id, "error", err)
+		return
+	}
+	rows = restorableWorktreeRows(rows)
+	if len(rows) == 0 {
+		return
+	}
+	var preserveRef string
+	for _, row := range rows {
+		if row.PreservedRef != "" {
+			preserveRef = row.PreservedRef
+			break
+		}
+	}
+	if preserveRef != "" && !m.replayPreserved(ctx, ws, preserveRef, "") {
+		for _, row := range rows {
+			row.State = "active"
+			if err := m.store.UpsertSessionWorktree(ctx, row); err != nil {
+				m.logger.Warn("restore: marking worktree active failed", "sessionID", id, "error", err)
+			}
+		}
+		return
+	}
+	if err := m.markSessionWorktreesActive(ctx, rows); err != nil {
+		m.logger.Warn("restore: marking worktrees active failed", "sessionID", id, "error", err)
+	}
+	if err := m.store.DeleteSessionWorktrees(ctx, id); err != nil {
+		m.logger.Warn("restore: delete restore marker failed", "sessionID", id, "error", err)
+	}
+}
+
+// replayPreserved applies a preserve ref to a restored worktree and reports
+// whether it applied cleanly. A worktree that is already dirty was never torn
+// down, so it still holds that work: replaying the capture onto it would only
+// conflict, and it is skipped. repo is only for the log ("" for a single-repo
+// session).
+func (m *Manager) replayPreserved(ctx context.Context, info ports.WorkspaceInfo, preserveRef, repo string) bool {
+	if observer, ok := m.workspace.(ports.WorkspaceObserver); ok {
+		if observation, observeErr := observer.ObserveWorkspace(ctx, info); observeErr == nil && observation.Dirty {
+			m.logger.Warn("restore: worktree already holds uncommitted work; saved work kept, not replayed",
+				"sessionID", info.SessionID, "repo", repo, "ref", preserveRef)
+			return false
+		}
+	}
+	if applyErr := m.workspace.ApplyPreserved(ctx, info, preserveRef); applyErr != nil {
+		if errors.Is(applyErr, ports.ErrPreservedConflict) {
+			m.logger.Warn("restore: apply preserved produced conflicts; agent relaunched with conflict markers in place",
+				"sessionID", info.SessionID, "repo", repo, "ref", preserveRef, "error", applyErr)
+		} else {
+			m.logger.Error("restore: apply preserved failed", "sessionID", info.SessionID, "repo", repo, "error", applyErr)
+		}
+		return false
+	}
+	return true
 }
 
 func (m *Manager) workspaceProjectRestoreRows(ctx context.Context, project domain.ProjectRecord, rec domain.SessionRecord) ([]ports.WorkspaceRepoInfo, error) {
@@ -2293,7 +2365,6 @@ func (m *Manager) restoreWorkspaceProjectRows(ctx context.Context, rows []ports.
 // already dirty was never torn down, so it still holds that work: replaying the
 // capture onto it would only conflict, and it is skipped with the ref kept.
 func (m *Manager) applyWorkspaceProjectPreserved(ctx context.Context, rows []ports.WorkspaceRepoInfo) {
-	observer, canObserve := m.workspace.(ports.WorkspaceObserver)
 	for _, row := range rows {
 		preserveRef, err := m.workspaceProjectPreservedRef(ctx, row)
 		if err != nil {
@@ -2303,21 +2374,7 @@ func (m *Manager) applyWorkspaceProjectPreserved(ctx context.Context, rows []por
 		if preserveRef == "" {
 			continue
 		}
-		info := workspaceInfoFromRepoInfo(row)
-		if canObserve {
-			if observation, observeErr := observer.ObserveWorkspace(ctx, info); observeErr == nil && observation.Dirty {
-				m.logger.Warn("restore: worktree already holds uncommitted work; saved work kept, not replayed",
-					"sessionID", row.SessionID, "repo", row.RepoName, "ref", preserveRef)
-				continue
-			}
-		}
-		if applyErr := m.workspace.ApplyPreserved(ctx, info, preserveRef); applyErr != nil {
-			if errors.Is(applyErr, ports.ErrPreservedConflict) {
-				m.logger.Warn("restore: apply preserved produced conflicts; agent relaunched with conflict markers in place",
-					"sessionID", row.SessionID, "repo", row.RepoName, "ref", preserveRef, "error", applyErr)
-			} else {
-				m.logger.Error("restore: apply preserved failed", "sessionID", row.SessionID, "repo", row.RepoName, "error", applyErr)
-			}
+		if !m.replayPreserved(ctx, workspaceInfoFromRepoInfo(row), preserveRef, row.RepoName) {
 			continue
 		}
 		state := "removed"

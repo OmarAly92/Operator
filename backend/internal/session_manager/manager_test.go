@@ -6150,6 +6150,62 @@ func TestRestoreAll_WorkspaceProjectConflictedApplyKeepsPreservedRef(t *testing.
 	}
 }
 
+// TestRestore_SingleRepoAppliesPreservedWork: the single-repo counterpart of
+// TestRestore_WorkspaceProjectAppliesPreservedWork. A manual restore replays the
+// shutdown marker's saved work and, after a clean replay, consumes the marker the
+// way RestoreAll does, so the next boot neither relaunches nor replays it again.
+func TestRestore_SingleRepoAppliesPreservedWork(t *testing.T) {
+	m, st, rt, ws := newManager()
+	seedTerminal(st, "mer-1", domain.SessionMetadata{WorkspacePath: "/ws/mer-1", Branch: "opr/mer-1", AgentSessionID: "agent-x"})
+	st.worktrees["mer-1"] = []domain.SessionWorktreeRecord{
+		{SessionID: "mer-1", RepoName: domain.RootWorkspaceRepoName, Branch: "opr/mer-1", WorktreePath: "/ws/mer-1", PreservedRef: "refs/opr/preserved/mer-1", State: "removed"},
+	}
+
+	if _, err := m.RestoreWithMode(ctx, "mer-1", ports.PaneGrid{}); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(strings.Join(ws.calls, ","), "ApplyPreserved:mer-1") {
+		t.Fatalf("calls = %v, want ApplyPreserved:mer-1", ws.calls)
+	}
+	if rows := st.worktrees["mer-1"]; len(rows) != 0 {
+		t.Fatalf("marker rows = %+v, want consumed after a clean replay", rows)
+	}
+
+	// A second boot must not relaunch the manually restored session from the
+	// consumed marker.
+	st.sessions["mer-1"] = domain.SessionRecord{ID: "mer-1", ProjectID: "mer", IsTerminated: true, Metadata: st.sessions["mer-1"].Metadata}
+	created := rt.created
+	if err := m.RestoreAll(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if rt.created != created {
+		t.Fatalf("RestoreAll relaunched a session whose marker a manual restore consumed")
+	}
+}
+
+// TestRestore_SingleRepoConflictedApplyKeepsPreservedRef: a conflicted replay
+// keeps the only pointer to the saved work, on a row marked active so the next
+// boot does not relaunch the session or replay the ref again.
+func TestRestore_SingleRepoConflictedApplyKeepsPreservedRef(t *testing.T) {
+	m, st, _, ws := newManager()
+	ws.applyErr = fmt.Errorf("replay: %w", ports.ErrPreservedConflict)
+	seedTerminal(st, "mer-1", domain.SessionMetadata{WorkspacePath: "/ws/mer-1", Branch: "opr/mer-1", AgentSessionID: "agent-x"})
+	st.worktrees["mer-1"] = []domain.SessionWorktreeRecord{
+		{SessionID: "mer-1", RepoName: domain.RootWorkspaceRepoName, Branch: "opr/mer-1", WorktreePath: "/ws/mer-1", PreservedRef: "refs/opr/preserved/mer-1", State: "removed"},
+	}
+
+	if _, err := m.RestoreWithMode(ctx, "mer-1", ports.PaneGrid{}); err != nil {
+		t.Fatalf("a conflicted replay must not fail the restore: %v", err)
+	}
+	if !strings.Contains(strings.Join(ws.calls, ","), "ApplyPreserved:mer-1") {
+		t.Fatalf("calls = %v, want ApplyPreserved:mer-1", ws.calls)
+	}
+	rows := st.worktrees["mer-1"]
+	if len(rows) != 1 || rows[0].State != "active" || rows[0].PreservedRef != "refs/opr/preserved/mer-1" {
+		t.Fatalf("marker rows = %+v, want one active row that keeps the ref", rows)
+	}
+}
+
 // TestRestore_WorkspaceProjectAppliesPreservedWork: a manual restore is how a
 // user gets back a session whose boot-time relaunch failed, so it must replay
 // the saved work instead of clearing the pointers to it.
