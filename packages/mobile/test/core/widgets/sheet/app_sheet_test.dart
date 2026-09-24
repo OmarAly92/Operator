@@ -410,30 +410,46 @@ void main() {
 
   Finder headerBlurs() => find.descendant(of: find.byKey(AppSheet.headerBarKey), matching: find.byType(BackdropFilter));
 
-  testWidgets('the sheet clips everything, backdrop filters included, in its own antialiased save layer', (tester) async {
-    await openMany(
-      tester,
-      page: AppSheetPage(
+  AppSheetPage searchPage() => AppSheetPage(
         title: 'Many',
         searchHint: 'Search',
         rows: (context, query) => [for (var i = 0; i < 40; i++) SizedBox(height: 44, child: Text('Row $i'))],
-      ),
-    );
-    final clip = tester.widget<ClipRSuperellipse>(
-      find.ancestor(of: find.byKey(AppSheet.surfaceKey), matching: find.byType(ClipRSuperellipse)).first,
-    );
-    expect(clip.clipBehavior, Clip.antiAliasWithSaveLayer);
-    expect(
-      clip.borderRadius,
-      BorderRadius.vertical(
+      );
+
+  BorderRadius sheetRadius() => BorderRadius.vertical(
         top: Radius.circular(AppSheetLogic.topCornerRadius()),
         bottom: Radius.circular(AppSheetLogic.cornerRadius()),
-      ),
-    );
-    expect(find.descendant(of: find.byType(ClipRSuperellipse).first, matching: find.byKey(AppSheet.surfaceKey)), findsOneWidget);
+      );
+
+  testWidgets('the surface layer clip saves a layer only while the header frosts', (tester) async {
+    await openMany(tester, page: searchPage());
+    ClipRSuperellipse layerClip() => tester.widget<ClipRSuperellipse>(find.byKey(AppSheet.layerClipKey));
+    expect(layerClip().borderRadius, sheetRadius());
+    expect(find.descendant(of: find.byKey(AppSheet.layerClipKey), matching: find.byKey(AppSheet.surfaceKey)), findsOneWidget);
     expect(find.descendant(of: find.byKey(AppSheet.surfaceKey), matching: find.byKey(AppSheet.headerBarKey)), findsOneWidget);
+    expect(layerClip().clipBehavior, Clip.antiAlias);
+
+    await scrollTo(tester, 4);
+    expect(layerClip().clipBehavior, Clip.antiAliasWithSaveLayer);
+    await scrollTo(tester, 40);
+    expect(layerClip().clipBehavior, Clip.antiAliasWithSaveLayer);
+    await scrollTo(tester, 0);
+    expect(layerClip().clipBehavior, Clip.antiAlias);
+
+    expect(AppSheetLogic.surfaceClip(0), Clip.antiAlias);
+    expect(AppSheetLogic.surfaceClip(0.01), Clip.antiAliasWithSaveLayer);
+  });
+
+  testWidgets('the search capsule sits outside the save layer but under a rounded clip of the sheet shape', (tester) async {
+    await openMany(tester, page: searchPage());
     expect(find.byKey(AppSheet.searchFieldKey), findsOneWidget);
-    expect(find.descendant(of: find.byKey(AppSheet.surfaceKey), matching: find.byKey(AppSheet.searchFieldKey)), findsNothing);
+    expect(find.descendant(of: find.byKey(AppSheet.layerClipKey), matching: find.byKey(AppSheet.searchFieldKey)), findsNothing);
+    expect(find.descendant(of: find.byKey(AppSheet.outerClipKey), matching: find.byKey(AppSheet.searchFieldKey)), findsOneWidget);
+    expect(find.descendant(of: find.byKey(AppSheet.outerClipKey), matching: find.byKey(AppSheet.layerClipKey)), findsOneWidget);
+    final outer = tester.widget<ClipRSuperellipse>(find.byKey(AppSheet.outerClipKey));
+    expect(outer.clipBehavior, Clip.antiAlias);
+    expect(outer.borderRadius, sheetRadius());
+    expect(tester.getRect(find.byKey(AppSheet.outerClipKey)), tester.getRect(find.byKey(AppSheet.surfaceKey)));
   });
 
   testWidgets('page content never paints in the grabber band at the top edge', (tester) async {
@@ -461,7 +477,7 @@ void main() {
     final halfTints = tester
         .widgetList<ColoredBox>(find.descendant(of: find.byKey(AppSheet.headerBarKey), matching: find.byType(ColoredBox)))
         .toList();
-    expect(halfTints.first.color.a, closeTo(0.35, 0.01));
+    expect(halfTints.first.color.a, closeTo(0.225, 0.01));
     expect(halfTints.last.color.a, closeTo(FrostedMaterial.lightenAlpha / 2, 0.001));
 
     await scrollTo(tester, 40);
@@ -469,7 +485,7 @@ void main() {
     final tints = tester
         .widgetList<ColoredBox>(find.descendant(of: find.byKey(AppSheet.headerBarKey), matching: find.byType(ColoredBox)))
         .toList();
-    expect(tints.first.color, skin.bgSurface.withValues(alpha: 0.7));
+    expect(tints.first.color, skin.bgSurface.withValues(alpha: 0.45));
     expect(tints.last.color, skin.textPrimary.withValues(alpha: FrostedMaterial.lightenAlpha));
 
     await scrollTo(tester, 0);
@@ -494,12 +510,13 @@ void main() {
     expect(find.descendant(of: headerBar, matching: find.byType(GlassSurface)), findsNothing);
   });
 
-  test('the frosted material is a heavy mirrored blur over a saturation boost', () {
+  test('the frosted material is a sigma 14 mirrored blur over a saturation boost', () {
     final filter = FrostedMaterial.filter();
     expect(filter, FrostedMaterial.filter(1));
-    expect(filter.toString(), contains('22.0'));
+    expect(filter.toString(), contains('14.0'));
     expect(filter.toString(), contains('mirror'));
-    expect(FrostedMaterial.filter(0.5).toString(), contains('11.0'));
+    expect(FrostedMaterial.filter(0.5).toString(), contains('7.0'));
+    expect(FrostedMaterial.blurSigma, 14);
     expect(FrostedMaterial.saturation, 1.7);
   });
 

@@ -69,6 +69,9 @@ sealed class AppSheetLogic {
   static double headerBarVisibility(double offset) =>
       (offset / AppSheetMetrics.headerFadeExtent).clamp(0.0, 1.0).toDouble();
 
+  static Clip surfaceClip(double headerVisibility) =>
+      headerVisibility > 0 ? Clip.antiAliasWithSaveLayer : Clip.antiAlias;
+
   static double bottomClearance({required bool hasSearch}) => hasSearch
       ? AppSheetMetrics.searchBottom + AppSheetMetrics.searchHeight + AppSheetMetrics.contentBottom
       : AppSheetMetrics.contentBottom;
@@ -106,6 +109,8 @@ class AppSheet extends StatefulWidget {
   static const Key backKey = ValueKey('app-sheet-back');
   static const Key headerBarKey = ValueKey('app-sheet-header-bar');
   static const Key contentClipKey = ValueKey('app-sheet-content-clip');
+  static const Key outerClipKey = ValueKey('app-sheet-outer-clip');
+  static const Key layerClipKey = ValueKey('app-sheet-layer-clip');
 
   final AppSheetPage root;
   final List<AppSheetPage> pushed;
@@ -337,39 +342,48 @@ class _AppSheetState extends State<AppSheet> {
               GlassMetrics.sheetInset,
               GlassMetrics.sheetInset,
             ),
-            child: Stack(
-              children: [
-                ClipRSuperellipse(
-                  borderRadius: radius,
-                  clipBehavior: Clip.antiAliasWithSaveLayer,
-                  child: DecoratedBox(
-                    key: AppSheet.surfaceKey,
-                    decoration: ShapeDecoration(
-                      color: skin.bgSurface,
-                      shape: RoundedSuperellipseBorder(borderRadius: radius),
+            child: ClipRSuperellipse(
+              key: AppSheet.outerClipKey,
+              borderRadius: radius,
+              child: Stack(
+                children: [
+                  ValueListenableBuilder<double>(
+                    valueListenable: _headerVisibility,
+                    builder: (context, visibility, child) => ClipRSuperellipse(
+                      key: AppSheet.layerClipKey,
+                      borderRadius: radius,
+                      clipBehavior: AppSheetLogic.surfaceClip(visibility),
+                      child: child,
                     ),
-                    child: Material(
-                      type: MaterialType.transparency,
-                      child: AnimatedSize(
-                        duration: AppMotion.base,
-                        curve: AppMotion.easeOut,
-                        alignment: Alignment.bottomCenter,
-                        child: height == null
-                            ? ConstrainedBox(constraints: BoxConstraints(maxHeight: maxHeight), child: stack)
-                            : SizedBox(height: height, child: stack),
+                    child: DecoratedBox(
+                      key: AppSheet.surfaceKey,
+                      decoration: ShapeDecoration(
+                        color: skin.bgSurface,
+                        shape: RoundedSuperellipseBorder(borderRadius: radius),
+                      ),
+                      child: Material(
+                        type: MaterialType.transparency,
+                        child: AnimatedSize(
+                          duration: AppMotion.base,
+                          curve: AppMotion.easeOut,
+                          alignment: Alignment.bottomCenter,
+                          child: height == null
+                              ? ConstrainedBox(constraints: BoxConstraints(maxHeight: maxHeight), child: stack)
+                              : SizedBox(height: height, child: stack),
+                        ),
                       ),
                     ),
                   ),
-                ),
-                if (page.searchHint != null)
-                  Positioned(
-                    left: AppSheetMetrics.searchSide,
-                    right: AppSheetMetrics.searchSide,
-                    bottom: AppSheetMetrics.searchBottom,
-                    height: AppSheetMetrics.searchHeight,
-                    child: _SearchCapsule(controller: _search, hint: page.searchHint!),
-                  ),
-              ],
+                  if (page.searchHint != null)
+                    Positioned(
+                      left: AppSheetMetrics.searchSide,
+                      right: AppSheetMetrics.searchSide,
+                      bottom: AppSheetMetrics.searchBottom,
+                      height: AppSheetMetrics.searchHeight,
+                      child: _SearchCapsule(controller: _search, hint: page.searchHint!),
+                    ),
+                ],
+              ),
             ),
           );
         },
@@ -393,7 +407,7 @@ class _HeaderBar extends StatelessWidget {
 
   final double visibility;
 
-  static const double _tintAlpha = 0.7;
+  static const double _tintAlpha = 0.45;
 
   @override
   Widget build(BuildContext context) {

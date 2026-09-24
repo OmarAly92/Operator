@@ -6,7 +6,7 @@ import 'package:operator_mobile/core/utils/haptics.dart';
 import 'package:operator_mobile/core/widgets/glass/glass_metrics.dart';
 
 sealed class FrostedMaterial {
-  static const double blurSigma = 22;
+  static const double blurSigma = 14;
   static const double saturation = 1.7;
   static const double lightenAlpha = 0.045;
 
