@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:liquid_glass_renderer/liquid_glass_renderer.dart';
 import 'package:operator_mobile/core/app_themes/colors/light_skin.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/widgets/glass/glass_button.dart';
+import 'package:operator_mobile/core/widgets/glass/glass_metrics.dart';
 import 'package:operator_mobile/core/widgets/glass/glass_toolbar.dart';
 
 Widget _host(Widget child, {double textScale = 1}) => MaterialApp(
@@ -42,5 +44,11 @@ void main() {
     addTearDown(tester.view.reset);
     await tester.pumpWidget(_host(_toolbar(), textScale: 2));
     expect(tester.takeException(), isNull);
+
+    final titleParagraph = tester.renderObject<RenderParagraph>(find.text('Agents'));
+    expect(titleParagraph.textSize.height, lessThanOrEqualTo(GlassMetrics.hitTarget));
+
+    final editParagraph = tester.renderObject<RenderParagraph>(find.text('Edit'));
+    expect(editParagraph.textSize.height, lessThanOrEqualTo(GlassMetrics.hitTarget));
   });
 }

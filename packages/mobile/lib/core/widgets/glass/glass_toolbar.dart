@@ -13,9 +13,12 @@ class GlassToolbar extends StatelessWidget {
   final String? title;
   final List<Widget> trailing;
 
+  static const double _maxTextScaleFactor = 1.8;
+
   @override
   Widget build(BuildContext context) {
     final top = MediaQuery.paddingOf(context).top;
+    final clampedScaler = MediaQuery.textScalerOf(context).clamp(maxScaleFactor: _maxTextScaleFactor);
     return Padding(
       padding: EdgeInsets.fromLTRB(
         GlassMetrics.toolbarSideInset,
@@ -28,28 +31,31 @@ class GlassToolbar extends StatelessWidget {
         child: GlassScope(
           variant: GlassVariant.regular,
           size: GlassMetrics.hitTarget,
-          child: NavigationToolbar(
-            leading: leading,
-            middle: title == null
-                ? null
-                : AppText(
-                    title!,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: AppTextStyle.style16SemiBold.copyWith(color: context.skin.textPrimary),
-                  ),
-            trailing: trailing.isEmpty
-                ? null
-                : Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      for (var i = 0; i < trailing.length; i++) ...[
-                        if (i > 0) const SizedBox(width: GlassMetrics.toolbarItemGap),
-                        trailing[i],
+          child: MediaQuery(
+            data: MediaQuery.of(context).copyWith(textScaler: clampedScaler),
+            child: NavigationToolbar(
+              leading: leading,
+              middle: title == null
+                  ? null
+                  : AppText(
+                      title!,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTextStyle.style16SemiBold.copyWith(color: context.skin.textPrimary),
+                    ),
+              trailing: trailing.isEmpty
+                  ? null
+                  : Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        for (var i = 0; i < trailing.length; i++) ...[
+                          if (i > 0) const SizedBox(width: GlassMetrics.toolbarItemGap),
+                          trailing[i],
+                        ],
                       ],
-                    ],
-                  ),
-            middleSpacing: GlassMetrics.toolbarItemGap,
+                    ),
+              middleSpacing: GlassMetrics.toolbarItemGap,
+            ),
           ),
         ),
       ),
