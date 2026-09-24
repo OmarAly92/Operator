@@ -59,6 +59,7 @@ Every product command resolves to a daemon HTTP route. Run `opr <command>
 | `opr preview start/status/stop`      | `POST/GET/DELETE /api/v1/sessions/{id}/preview/server` |
 | `opr browser ...`                    | `GET /api/v1/browser/status`, `POST /api/v1/browser/commands` |
 | `opr hooks <agent> <event>`          | `POST /api/v1/sessions/{id}/activity` (hidden) |
+| `opr mcp`                            | stdio MCP server over `GET /projects/{id}`, `/sessions`, `/sessions/{id}`, `/sessions/{id}/pr`, `/projects/{id}/tickets[/{slug}]` (hidden) |
 
 `opr agent ls` prints the daemon-supported agent catalog with local install/auth
 readiness. Use `--refresh` to rerun the bounded local probes and `--json` to

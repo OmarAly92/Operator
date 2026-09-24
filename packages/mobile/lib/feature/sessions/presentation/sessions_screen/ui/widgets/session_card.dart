@@ -50,6 +50,7 @@ class SessionCard extends StatelessWidget {
     final harness = session.harness;
     final account = sessionAccountLabel(session, accountLabels);
     final model = session.model == null || session.model!.isEmpty ? null : formatModelLabel(session.model!);
+    final report = agentReportLine(session);
 
     return AppContainer(
       onTap: onTap,
@@ -227,6 +228,19 @@ class SessionCard extends StatelessWidget {
               ),
             ),
 
+            if (report != null) ...[
+              const VerticalSpace(7),
+              Padding(
+                padding: const EdgeInsets.only(left: 29),
+                child: AppText(
+                  report,
+                  maxLines: 2,
+                  style: AppTextStyle.style12Regular.copyWith(
+                    color: visual.color,
+                  ),
+                ),
+              ),
+            ],
             if (prs != null) ...[
               const VerticalSpace(9),
               Container(height: 1, color: skin.borderSubtle),

@@ -577,6 +577,7 @@ func (m *Manager) Spawn(ctx context.Context, cfg ports.SpawnConfig) (domain.Sess
 		return domain.SessionRecord{}, 0, 0, fmt.Errorf("spawn: create: %w", err)
 	}
 	id := rec.ID
+	systemPrompt = m.withMCPBoardInstructions(cfg.Harness, systemPrompt)
 	systemPromptFile, err := m.prepareSystemPromptFile(id, cfg.Harness, systemPrompt)
 	if err != nil {
 		m.rollbackSpawnSeedRow(ctx, id)
@@ -653,6 +654,7 @@ func (m *Manager) Spawn(ctx context.Context, cfg ports.SpawnConfig) (domain.Sess
 		IssueID:          string(cfg.IssueID),
 		Config:           agentConfig,
 		Permissions:      agentConfig.Permissions,
+		MCPServers:       m.operatorMCPServers(id, cfg.ProjectID),
 	}
 	delivery, err := agent.GetPromptDeliveryStrategy(ctx, launchCfg)
 	if err != nil {
@@ -1359,6 +1361,7 @@ func (m *Manager) relaunchSessionWithPolicy(ctx context.Context, operation strin
 	if err != nil {
 		return RestoreResult{}, fmt.Errorf("%s %s: switched continuation: %w", operation, rec.ID, err)
 	}
+	systemPrompt = m.withMCPBoardInstructions(rec.Harness, systemPrompt)
 	systemPromptFile, err := m.prepareSystemPromptFile(rec.ID, rec.Harness, systemPrompt)
 	if err != nil {
 		m.cleanupSystemPromptDir(rec.ID)
@@ -1385,6 +1388,7 @@ func (m *Manager) relaunchSessionWithPolicy(ctx context.Context, operation strin
 		delivery ports.PromptDeliveryStrategy
 		mode     RestoreMode
 	)
+	mcpServers := m.operatorMCPServers(rec.ID, rec.ProjectID)
 	if policy.forceFresh {
 		var nativeSessionID string
 		nativeSessionID, err = freshNativeSessionID(agent)
@@ -1393,10 +1397,10 @@ func (m *Manager) relaunchSessionWithPolicy(ctx context.Context, operation strin
 			return RestoreResult{}, fmt.Errorf("%s %s: fresh native session id: %w", operation, rec.ID, err)
 		}
 		argv, delivery, mode, err = freshLaunchArgv(ctx, agent, rec.ID, ws.Path, launchMeta,
-			systemPrompt, systemPromptFile, agentConfig, m.dataDir, true, nativeSessionID)
+			systemPrompt, systemPromptFile, agentConfig, m.dataDir, true, nativeSessionID, mcpServers)
 	} else {
 		argv, delivery, mode, err = restoreArgv(ctx, agent, rec.ID, ws.Path, launchMeta,
-			systemPrompt, systemPromptFile, agentConfig, rec.Harness, m.dataDir)
+			systemPrompt, systemPromptFile, agentConfig, rec.Harness, m.dataDir, mcpServers)
 	}
 	if err != nil {
 		m.cleanupSystemPromptDir(rec.ID)
@@ -3108,12 +3112,8 @@ func HookPATH(executable func() (string, error), getenv func(string) string, pro
 	if err != nil {
 		return "", fmt.Errorf("resolve daemon executable: %w", err)
 	}
-	name := filepath.Base(exe)
-	if runtime.GOOS == "windows" {
-		name = strings.TrimSuffix(strings.ToLower(name), ".exe")
-	}
-	if name != hookBinaryName {
-		return "", fmt.Errorf("daemon executable %s is not named %q", exe, hookBinaryName)
+	if err := requireOprExecutable(exe); err != nil {
+		return "", err
 	}
 	base := projectEnv["PATH"]
 	if base == "" {
@@ -3124,6 +3124,19 @@ func HookPATH(executable func() (string, error), getenv func(string) string, pro
 		return dir, nil
 	}
 	return dir + string(os.PathListSeparator) + base, nil
+}
+
+// requireOprExecutable reports whether exe is an `opr` binary, the only kind the
+// hook PATH pin and the Operator MCP server registration may point agents at.
+func requireOprExecutable(exe string) error {
+	name := filepath.Base(exe)
+	if runtime.GOOS == "windows" {
+		name = strings.TrimSuffix(strings.ToLower(name), ".exe")
+	}
+	if name != hookBinaryName {
+		return fmt.Errorf("daemon executable %s is not named %q", exe, hookBinaryName)
+	}
+	return nil
 }
 
 // provisionWorkspace applies the project's per-workspace setup after the
@@ -3249,6 +3262,7 @@ func (m *Manager) prepareWorkspace(ctx context.Context, agent ports.Agent, id do
 		SystemPrompt:     systemPrompt,
 		SystemPromptFile: systemPromptFile,
 		Config:           agentConfig,
+		MCPServers:       m.operatorMCPServers(id, domain.ProjectID(env[EnvProjectID])),
 	}); err != nil {
 		m.cleanupPreparedAgentWorkspace(ctx, agent, id, workspacePath, env)
 		return fmt.Errorf("install hooks: %w", err)
@@ -3475,13 +3489,13 @@ func freshNativeSessionID(agent ports.Agent) (string, error) {
 // signals via ok=false (e.g. no native session id captured yet). Returns
 // ErrNotResumable when transcript-preserving restore is required but unavailable,
 // or when a promptless, unresumable worker has nothing to restore from.
-func restoreArgv(ctx context.Context, agent ports.Agent, id domain.SessionID, workspacePath string, meta domain.SessionMetadata, systemPrompt, systemPromptFile string, agentConfig ports.AgentConfig, _ domain.AgentHarness, dataDir string) ([]string, ports.PromptDeliveryStrategy, RestoreMode, error) {
+func restoreArgv(ctx context.Context, agent ports.Agent, id domain.SessionID, workspacePath string, meta domain.SessionMetadata, systemPrompt, systemPromptFile string, agentConfig ports.AgentConfig, _ domain.AgentHarness, dataDir string, mcpServers []ports.MCPServerSpec) ([]string, ports.PromptDeliveryStrategy, RestoreMode, error) {
 	ref := ports.SessionRef{
 		ID:            string(id),
 		WorkspacePath: workspacePath,
 		Metadata:      map[string]string{ports.MetadataKeyAgentSessionID: meta.AgentSessionID},
 	}
-	cmd, ok, err := agent.GetRestoreCommand(ctx, ports.RestoreConfig{Session: ref, DataDir: dataDir, SystemPrompt: systemPrompt, SystemPromptFile: systemPromptFile, Config: agentConfig, Permissions: agentConfig.Permissions})
+	cmd, ok, err := agent.GetRestoreCommand(ctx, ports.RestoreConfig{Session: ref, DataDir: dataDir, SystemPrompt: systemPrompt, SystemPromptFile: systemPromptFile, Config: agentConfig, Permissions: agentConfig.Permissions, MCPServers: mcpServers})
 	if err != nil {
 		return nil, "", "", fmt.Errorf("restore command: %w", err)
 	}
@@ -3489,13 +3503,13 @@ func restoreArgv(ctx context.Context, agent ports.Agent, id domain.SessionID, wo
 		return cmd, ports.PromptDeliveryInCommand, RestoreModeNative, nil
 	}
 	return freshLaunchArgv(ctx, agent, id, workspacePath, meta, systemPrompt,
-		systemPromptFile, agentConfig, dataDir, false, "")
+		systemPromptFile, agentConfig, dataDir, false, "", mcpServers)
 }
 
 // freshLaunchArgv builds the non-resume half of restoreArgv. Interface
 // transitions also use it when an adapter proves its reserved id has no
 // persisted history, both for preflight and for the actual target launch.
-func freshLaunchArgv(ctx context.Context, agent ports.Agent, id domain.SessionID, workspacePath string, meta domain.SessionMetadata, systemPrompt, systemPromptFile string, agentConfig ports.AgentConfig, dataDir string, allowPromptless bool, nativeSessionID string) ([]string, ports.PromptDeliveryStrategy, RestoreMode, error) {
+func freshLaunchArgv(ctx context.Context, agent ports.Agent, id domain.SessionID, workspacePath string, meta domain.SessionMetadata, systemPrompt, systemPromptFile string, agentConfig ports.AgentConfig, dataDir string, allowPromptless bool, nativeSessionID string, mcpServers []ports.MCPServerSpec) ([]string, ports.PromptDeliveryStrategy, RestoreMode, error) {
 	// A saved prompt is replayed fresh. A promptless worker has no task and no
 	// session id to restore from: do not blank-relaunch it.
 	if meta.Prompt == "" && !allowPromptless {
@@ -3514,6 +3528,7 @@ func freshLaunchArgv(ctx context.Context, agent ports.Agent, id domain.SessionID
 		Config:           agentConfig,
 		Permissions:      agentConfig.Permissions,
 		NativeSessionID:  nativeSessionID,
+		MCPServers:       mcpServers,
 	}
 	delivery, err := agent.GetPromptDeliveryStrategy(ctx, launchCfg)
 	if err != nil {

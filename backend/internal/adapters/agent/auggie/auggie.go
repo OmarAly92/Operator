@@ -116,6 +116,9 @@ func (p *Plugin) GetLaunchCommand(ctx context.Context, cfg ports.LaunchConfig) (
 		cmd = append(cmd, "--rules", cfg.SystemPromptFile)
 	}
 	appendModelFlag(&cmd, cfg.Config)
+	if err := appendMCPConfigFlag(&cmd, cfg.MCPServers); err != nil {
+		return nil, err
+	}
 	if cfg.Prompt != "" {
 		cmd = append(cmd, "--", cfg.Prompt)
 	}
@@ -147,6 +150,9 @@ func (p *Plugin) GetRestoreCommand(ctx context.Context, cfg ports.RestoreConfig)
 		cmd = append(cmd, "--rules", cfg.SystemPromptFile)
 	}
 	appendModelFlag(&cmd, cfg.Config)
+	if err := appendMCPConfigFlag(&cmd, cfg.MCPServers); err != nil {
+		return nil, false, err
+	}
 	cmd = append(cmd, "--resume", agentSessionID)
 	return cmd, true, nil
 }

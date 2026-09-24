@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { describe, expect, it } from "vitest";
 import {
 	attentionZone,
@@ -7,8 +9,9 @@ import {
 	getSessionTimelinePillView,
 	isAgentActivityWorking,
 	isSessionIdle,
+	type AttentionZone,
 } from "./session-presentation";
-import type { WorkspaceSession } from "../types/workspace";
+import type { SessionStatus, WorkspaceSession } from "../types/workspace";
 
 function sessionWith(overrides: Partial<WorkspaceSession>): WorkspaceSession {
 	return {
@@ -161,5 +164,24 @@ describe("session presentation", () => {
 		["changes_requested", "Changes Requested", "var(--color-status-needs-you)"],
 	] as const)("centralizes the %s timeline pill", (status, label, tone) => {
 		expect(getSessionTimelinePillView(status)).toMatchObject({ label, tone, breathe: false });
+	});
+});
+
+// testdata/board/columns.json is shared with the daemon's domain.BoardColumnFor,
+// which the Operator MCP server reports to agents; both maps must agree.
+describe("attentionZone board-column parity", () => {
+	const fixture = JSON.parse(
+		readFileSync(path.resolve(process.cwd(), "../testdata/board/columns.json"), "utf8"),
+	) as { live: Record<string, string> };
+	const columnForZone: Record<AttentionZone, string> = {
+		working: "working",
+		action: "needs_you",
+		pending: "in_review",
+		merge: "ready_to_merge",
+		done: "archive",
+	};
+
+	it.each(Object.entries(fixture.live))("maps %s to the %s column", (status, column) => {
+		expect(columnForZone[attentionZone(status as SessionStatus)]).toBe(column);
 	});
 });

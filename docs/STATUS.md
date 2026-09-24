@@ -173,6 +173,13 @@ surface (`npm run sqlc`, `npm run api`).
 
 ## In flight / not yet a runtime feature
 
+- **Operator MCP server (`docs/plans/kanban-mcp.md`)**: every worker session
+  gets `opr mcp`: read tools (`board_get`, `session_get`, `ticket_get`),
+  `session_report` (agent-driven Needs you / ready for review, with the reason on
+  the desktop and mobile cards and in the alert) and self-scoped actions. Wired
+  for Claude Code, Codex, OpenCode, Qwen, Amp, Copilot, Auggie, Crush and Kilo;
+  the remaining harnesses are handed off in
+  `docs/plans/kanban-mcp-remaining-harnesses.md`.
 - **macOS signing and notarization**: there is no Apple Developer account, so
   macOS builds are ad-hoc signed and not notarized. Auto-update works, but a
   fresh DMG download must be allowed through Gatekeeper by hand. Adding the

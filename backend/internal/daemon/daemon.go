@@ -366,7 +366,7 @@ func Run() error {
 		Log:        log,
 	})
 
-	ticketSvc := ticketsvc.New(ticketsvc.Deps{Store: store, Sessions: sessionSvc, BaseURL: fmt.Sprintf("http://127.0.0.1:%d", cfg.Port)})
+	ticketSvc := ticketsvc.New(ticketsvc.Deps{Store: store, Sessions: sessionSvc})
 	ticketsvc.NewAutoReviewer(ticketSvc, log).Subscribe(ctx, cdcPipe.Broadcaster)
 
 	srv, err := httpd.NewWithDeps(cfg, log, termMgr, httpd.APIDeps{
