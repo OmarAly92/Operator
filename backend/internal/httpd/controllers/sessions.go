@@ -1507,20 +1507,8 @@ func (c *SessionsController) decision(w http.ResponseWriter, r *http.Request) {
 		envelope.WriteJSON(w, http.StatusOK, SessionDecisionResponse{State: "sent"})
 	case errors.Is(err, sessionmanager.ErrUnconfirmed):
 		envelope.WriteJSON(w, http.StatusOK, SessionDecisionResponse{State: "unconfirmed"})
-	case errors.Is(err, sessionmanager.ErrDialogAbsent):
-		envelope.WriteAPIError(w, r, http.StatusConflict, "conflict", "SESSION_DIALOG_ABSENT",
-			"the expected dialog is no longer on screen", nil)
-	case errors.Is(err, sessionmanager.ErrDialogKindMismatch):
-		envelope.WriteAPIError(w, r, http.StatusConflict, "conflict", "SESSION_DIALOG_KIND_MISMATCH",
-			"the pending dialog is not of the kind this route answers", nil)
-	case errors.Is(err, sessionmanager.ErrNotFound):
-		envelope.WriteAPIError(w, r, http.StatusNotFound, "not_found", "SESSION_NOT_FOUND", "session not found", nil)
-	case errors.Is(err, sessionmanager.ErrTerminated), errors.Is(err, sessionmanager.ErrAgentExited):
-		envelope.WriteAPIError(w, r, http.StatusConflict, "conflict", "SESSION_NOT_RUNNING", "the session is not running", nil)
-	case errors.Is(err, sessionmanager.ErrAnswerInvalid):
-		envelope.WriteAPIError(w, r, http.StatusBadRequest, "validation", "SESSION_DECISION_INVALID", err.Error(), nil)
 	default:
-		envelope.WriteError(w, r, err)
+		writeDialogError(w, r, err, "SESSION_DECISION_INVALID")
 	}
 }
 
@@ -1542,6 +1530,13 @@ func (c *SessionsController) answer(w http.ResponseWriter, r *http.Request) {
 		envelope.WriteJSON(w, http.StatusOK, SessionAnswerResponse{State: "sent"})
 	case errors.Is(err, sessionmanager.ErrUnconfirmed):
 		envelope.WriteJSON(w, http.StatusOK, SessionAnswerResponse{State: "unconfirmed"})
+	default:
+		writeDialogError(w, r, err, "SESSION_ANSWER_INVALID")
+	}
+}
+
+func writeDialogError(w http.ResponseWriter, r *http.Request, err error, invalidCode string) {
+	switch {
 	case errors.Is(err, sessionmanager.ErrDialogAbsent):
 		envelope.WriteAPIError(w, r, http.StatusConflict, "conflict", "SESSION_DIALOG_ABSENT",
 			"the expected dialog is no longer on screen", nil)
@@ -1553,7 +1548,7 @@ func (c *SessionsController) answer(w http.ResponseWriter, r *http.Request) {
 	case errors.Is(err, sessionmanager.ErrTerminated), errors.Is(err, sessionmanager.ErrAgentExited):
 		envelope.WriteAPIError(w, r, http.StatusConflict, "conflict", "SESSION_NOT_RUNNING", "the session is not running", nil)
 	case errors.Is(err, sessionmanager.ErrAnswerInvalid):
-		envelope.WriteAPIError(w, r, http.StatusBadRequest, "validation", "SESSION_ANSWER_INVALID", err.Error(), nil)
+		envelope.WriteAPIError(w, r, http.StatusBadRequest, "validation", invalidCode, err.Error(), nil)
 	default:
 		envelope.WriteError(w, r, err)
 	}

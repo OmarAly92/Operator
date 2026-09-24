@@ -2,6 +2,7 @@ package sessionmanager
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -150,7 +151,7 @@ func TestSlashOutputIsEmptyForNonBuiltinsAndSessionsWithoutARuntime(t *testing.T
 	if got, err := m.SlashOutput(context.Background(), "s1", "/context"); err != nil || got != "" {
 		t.Fatalf("no runtime handle: got %q, %v", got, err)
 	}
-	if _, err := m.SlashOutput(context.Background(), "ghost", "/context"); err != ErrNotFound {
+	if _, err := m.SlashOutput(context.Background(), "ghost", "/context"); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("unknown session err = %v, want ErrNotFound", err)
 	}
 }
