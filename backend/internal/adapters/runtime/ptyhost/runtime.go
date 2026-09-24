@@ -27,9 +27,10 @@ var validSessionID = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
 
 // hostSession is the in-memory state for a live pty-host connection.
 type hostSession struct {
-	addr     string
-	pid      int
-	launchID string
+	addr         string
+	pid          int
+	launchID     string
+	failedProbes int
 }
 
 // Options configures the Runtime. All fields are optional; zero values use
@@ -48,9 +49,14 @@ type Runtime struct {
 	processFinder func(int) (processKiller, error)
 	destroyWait   time.Duration
 	destroyPoll   time.Duration
+	probeTimeout  time.Duration
 
 	mu       sync.Mutex
 	sessions map[string]*hostSession // sessionID -> live session
+
+	watchMu     sync.Mutex
+	watchers    map[int]func(string, ports.TerminalHealth)
+	nextWatcher int
 }
 
 // New creates a Runtime with the given options.
@@ -66,7 +72,9 @@ func New(opts Options) *Runtime {
 		processFinder: findProcess,
 		destroyWait:   500 * time.Millisecond,
 		destroyPoll:   25 * time.Millisecond,
+		probeTimeout:  isAliveTimeout,
 		sessions:      make(map[string]*hostSession),
+		watchers:      make(map[int]func(string, ports.TerminalHealth)),
 	}
 }
 
@@ -159,8 +167,12 @@ func (r *Runtime) Destroy(ctx context.Context, handle ports.RuntimeHandle) error
 	}
 
 	r.mu.Lock()
+	wasHung := sess.failedProbes >= hungAfterFailedProbes
 	delete(r.sessions, handle.ID)
 	r.mu.Unlock()
+	if wasHung {
+		r.notifyHealth(handle.ID, ports.TerminalHealthy)
+	}
 
 	if err := ptyregistry.Unregister(handle.ID); err != nil {
 		return fmt.Errorf("ptyhost: unregister destroyed session %q: %w", handle.ID, err)
@@ -271,7 +283,9 @@ func (r *Runtime) IsAlive(ctx context.Context, handle ports.RuntimeHandle) (bool
 	if sess == nil {
 		return false, nil // no in-memory entry, no registry entry -> definitively gone
 	}
-	return clientIsAlive(sess.addr)
+	_, alive, err := clientStatusWithin(sess.addr, r.probeTimeout)
+	r.recordProbe(handle.ID, sess, err)
+	return alive, err
 }
 
 // IsSupervisedProcessAlive uses the pty-host's child status. For a supervised

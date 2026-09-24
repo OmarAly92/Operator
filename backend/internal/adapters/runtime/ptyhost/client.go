@@ -249,7 +249,11 @@ func clientIsAlive(addr string) (alive bool, transientErr error) {
 // process managed by that host. A reachable host remains the runtime after its
 // child exits.
 func clientStatus(addr string) (status StatusPayload, hostAlive bool, transientErr error) {
-	conn, err := dialHost(addr, isAliveTimeout)
+	return clientStatusWithin(addr, isAliveTimeout)
+}
+
+func clientStatusWithin(addr string, timeout time.Duration) (status StatusPayload, hostAlive bool, transientErr error) {
+	conn, err := dialHost(addr, timeout)
 	if err != nil {
 		// A dial timeout is transient (the loopback hiccupped). A refused
 		// connection means nothing is listening -> definitively gone. Any
@@ -264,7 +268,7 @@ func clientStatus(addr string) (status StatusPayload, hostAlive bool, transientE
 	}
 	defer func() { _ = conn.Close() }()
 
-	_ = conn.SetDeadline(time.Now().Add(isAliveTimeout))
+	_ = conn.SetDeadline(time.Now().Add(timeout))
 
 	statusReqFrame, _ := EncodeMessage(MsgStatusReq, nil) // nil payload, never overflows
 	if _, err := conn.Write(statusReqFrame); err != nil {
