@@ -74,7 +74,7 @@ class _ScrollEdgeEffectState extends State<ScrollEdgeEffect> {
                     ..setFloat(4, bg.r)
                     ..setFloat(5, bg.g)
                     ..setFloat(6, bg.b)
-                    ..setFloat(7, 0.55);
+                    ..setFloat(7, 0.35);
                   ui.ImageFilter filter;
                   try {
                     filter = ui.ImageFilter.shader(shader);
