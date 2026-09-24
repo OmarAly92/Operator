@@ -2207,6 +2207,8 @@ export interface components {
         ControllersSessionView: {
             activity: components["schemas"]["DomainActivity"];
             autoInjectReview: boolean;
+            /** @enum {string} */
+            boardColumn: "working" | "needs_you" | "in_review" | "ready_to_merge" | "archive";
             branch?: string;
             brief?: string;
             claudeAccountId: string;
@@ -2237,6 +2239,7 @@ export interface components {
             scmStatus?: "pr_open" | "draft" | "ci_failed" | "review_pending" | "changes_requested" | "approved" | "mergeable" | "merged";
             /** @enum {string} */
             status: "working" | "pr_open" | "draft" | "ci_failed" | "review_pending" | "changes_requested" | "approved" | "mergeable" | "merged" | "needs_input" | "exited" | "idle" | "terminated" | "no_signal";
+            statusReason: string;
             terminalHandleId?: string;
             terminateOnPrMerge: boolean;
             ticket?: components["schemas"]["SessionTicketRef"];

@@ -775,10 +775,13 @@ func (s *Service) toSession(ctx context.Context, rec domain.SessionRecord) (doma
 		return domain.Session{}, fmt.Errorf("pr facts %s: %w", rec.ID, err)
 	}
 	prs = deduplicatePRFacts(prs)
+	status := deriveStatus(rec, prs, s.now(), s.harnessSignals(rec.Harness))
 	sess := domain.Session{
 		SessionRecord:    rec,
-		Status:           deriveStatus(rec, prs, s.now(), s.harnessSignals(rec.Harness)),
+		Status:           status,
 		SCMStatus:        deriveSCMStatus(prs),
+		BoardColumn:      domain.BoardColumnFor(status, rec.IsTerminated),
+		StatusReason:     deriveStatusReason(status, rec, prs),
 		TerminalHandleID: rec.Metadata.RuntimeHandleID,
 		PRs:              prs,
 	}

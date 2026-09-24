@@ -6263,6 +6263,14 @@ components:
           $ref: '#/components/schemas/DomainActivity'
         autoInjectReview:
           type: boolean
+        boardColumn:
+          enum:
+          - working
+          - needs_you
+          - in_review
+          - ready_to_merge
+          - archive
+          type: string
         branch:
           type: string
         brief:
@@ -6370,6 +6378,8 @@ components:
           - terminated
           - no_signal
           type: string
+        statusReason:
+          type: string
         terminalHandleId:
           type: string
         terminateOnPrMerge:
@@ -6398,6 +6408,8 @@ components:
       - updatedAt
       - isPinned
       - status
+      - boardColumn
+      - statusReason
       - prs
       type: object
     ControllersSlashCommandView:
