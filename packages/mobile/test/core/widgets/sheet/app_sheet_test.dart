@@ -6,7 +6,7 @@ import 'package:operator_mobile/core/app_themes/colors/app_skin.dart';
 import 'package:operator_mobile/core/app_themes/colors/dark_skin.dart';
 import 'package:operator_mobile/core/app_themes/colors/light_skin.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
-import 'package:operator_mobile/core/widgets/glass/glass_bar_item.dart';
+import 'package:operator_mobile/core/widgets/glass/frosted_header.dart';
 import 'package:operator_mobile/core/widgets/glass/glass_sheet.dart';
 import 'package:operator_mobile/core/widgets/glass/glass_surface.dart';
 import 'package:operator_mobile/core/widgets/sheet/app_sheet.dart';
@@ -288,7 +288,7 @@ void main() {
       ),
     );
     await open(tester);
-    expect(find.ancestor(of: find.text('Done'), matching: find.byType(GlassBarItem)), findsOneWidget);
+    expect(find.ancestor(of: find.text('Done'), matching: find.byType(FrostedCapsule)), findsOneWidget);
   });
 
   testWidgets('a long title at text scale 2 ellipsizes between the back button and the actions', (tester) async {
@@ -315,7 +315,7 @@ void main() {
     expect(tester.takeException(), isNull);
     final title = tester.getRect(find.textContaining('A remarkably long'));
     expect(title.left, greaterThanOrEqualTo(tester.getRect(find.byKey(AppSheet.backKey)).right));
-    expect(title.right, lessThanOrEqualTo(tester.getRect(find.byType(GlassBarItem)).left));
+    expect(title.right, lessThanOrEqualTo(tester.getRect(find.byType(FrostedCapsule)).left));
   });
 
   test('detents and clamps', () {
@@ -328,7 +328,7 @@ void main() {
     expect(AppSheetLogic.topCornerRadius(), 44);
   });
 
-  testWidgets('the back button is 38pt and a sheet action sits in a 38pt-tall glass item', (tester) async {
+  testWidgets('the back button is 38pt and a sheet action sits in a 38pt-tall frosted item, neither using the glass engine', (tester) async {
     phone(tester);
     await tester.pumpWidget(
       host(
@@ -346,12 +346,20 @@ void main() {
       ),
     );
     await open(tester);
-    final actionItem = tester.getRect(find.ancestor(of: find.text('Done'), matching: find.byType(GlassBarItem)));
+    final actionItem = tester.getRect(find.ancestor(of: find.text('Done'), matching: find.byType(FrostedCapsule)));
     expect(actionItem.height, 38);
+    expect(
+      find.descendant(of: find.byType(FrostedCapsule), matching: find.byType(GlassSurface)),
+      findsNothing,
+    );
 
     await tester.tap(find.text('Go deeper'));
     await tester.pumpAndSettle();
     expect(tester.getSize(find.byKey(AppSheet.backKey)), const Size(38, 38));
+    expect(
+      find.descendant(of: find.byKey(AppSheet.backKey), matching: find.byType(GlassSurface)),
+      findsNothing,
+    );
   });
 
   testWidgets('the search field disables autocorrect and suggestions', (tester) async {
@@ -394,6 +402,15 @@ void main() {
     );
     expect(backdrop.filter.toString(), contains('12.0'));
     expect(find.descendant(of: headerBar, matching: find.byType(ShaderMask)), findsNothing);
+
+    final surfaceWidth = tester.getSize(find.byKey(AppSheet.surfaceKey)).width;
+    final backdropSize = tester.getSize(find.descendant(of: headerBar, matching: find.byType(BackdropFilter)));
+    expect(backdropSize.width, surfaceWidth);
+    expect(backdropSize.height, AppSheetMetrics.contentTop - 10);
+
+    final tintStripSize = tester.getSize(find.descendant(of: headerBar, matching: find.byType(DecoratedBox)));
+    expect(tintStripSize.width, surfaceWidth);
+    expect(tintStripSize.height, 10);
 
     final opaqueGradients = tester
         .widgetList<DecoratedBox>(find.descendant(of: headerBar, matching: find.byType(DecoratedBox)))

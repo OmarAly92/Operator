@@ -7,8 +7,7 @@ import 'package:operator_mobile/core/app_themes/app_motion.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/app_themes/text_style/app_text_style.dart';
 import 'package:operator_mobile/core/utils/app_constants.dart';
-import 'package:operator_mobile/core/widgets/glass/glass_bar_item.dart';
-import 'package:operator_mobile/core/widgets/glass/glass_button.dart';
+import 'package:operator_mobile/core/widgets/glass/frosted_header.dart';
 import 'package:operator_mobile/core/widgets/glass/glass_metrics.dart';
 import 'package:operator_mobile/core/widgets/glass/glass_sheet.dart';
 import 'package:operator_mobile/core/widgets/glass/glass_surface.dart';
@@ -211,12 +210,11 @@ class _AppSheetState extends State<AppSheet> {
           ? Center(
               widthFactor: 1,
               heightFactor: 1,
-              child: GlassButton.icon(
+              child: FrostedCircleButton(
                 key: AppSheet.backKey,
                 icon: Icons.arrow_back_ios_new_rounded,
                 semanticLabel: 'Back',
                 foreground: skin.textPrimary,
-                diameter: GlassMetrics.sheetHeaderButton,
                 onPressed: _pop,
               ),
             )
@@ -229,7 +227,7 @@ class _AppSheetState extends State<AppSheet> {
               children: [
                 for (var i = 0; i < page.actions.length; i++) ...[
                   if (i > 0) const SizedBox(width: GlassMetrics.toolbarItemGap),
-                  GlassBarItem(extent: GlassMetrics.sheetHeaderButton, child: page.actions[i]),
+                  FrostedCapsule(child: page.actions[i]),
                 ],
               ],
             ),
@@ -352,17 +350,19 @@ class _HeaderBar extends StatelessWidget {
     final surface = context.skin.bgSurface;
     return IgnorePointer(
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Expanded(
             child: ClipRect(
               child: BackdropFilter(
                 filter: ui.ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-                child: ColoredBox(color: surface.withValues(alpha: 0.72)),
+                child: ColoredBox(color: surface.withValues(alpha: 0.72), child: const SizedBox.expand()),
               ),
             ),
           ),
           SizedBox(
             height: _softenExtent,
+            width: double.infinity,
             child: DecoratedBox(
               decoration: BoxDecoration(
                 gradient: LinearGradient(
