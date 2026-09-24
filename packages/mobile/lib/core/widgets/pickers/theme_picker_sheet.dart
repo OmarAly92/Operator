@@ -4,38 +4,26 @@ import 'package:operator_mobile/core/app_themes/colors/theme_preference.dart';
 import 'package:operator_mobile/core/app_themes/text_style/app_text_style.dart';
 import 'package:operator_mobile/core/utils/haptics.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_container.dart';
-import 'package:operator_mobile/core/widgets/main_widgets/app_sheet_chrome.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_text.dart';
-import 'package:operator_mobile/core/widgets/main_widgets/space_widgets.dart';
+import 'package:operator_mobile/core/widgets/sheet/app_sheet.dart';
 
 Future<ThemeMode?> showThemePickerSheet(BuildContext context, {required ThemeMode selected}) {
-  final skin = context.skin;
   return showAppSheet<ThemeMode>(
     context: context,
-    builder: (sheetContext) => AppSheetChrome(
-      child: ListView(
-        shrinkWrap: true,
-        padding: EdgeInsets.zero,
-        children: [
-          AppText('Theme', style: AppTextStyle.style17SemiBold),
-          const VerticalSpace(4),
-          AppText(
-            'Applies across the app.',
-            style: AppTextStyle.style12Regular.copyWith(color: skin.textTertiary),
-            maxLines: 2,
+    page: AppSheetPage(
+      title: 'Theme',
+      subtitle: 'Applies across the app.',
+      rows: (context, query) => [
+        for (final mode in ThemeMode.values)
+          _ThemeOption(
+            label: preferenceLabel(mode),
+            selected: selected == mode,
+            onTap: () {
+              Haptics.select();
+              Navigator.of(context).pop(mode);
+            },
           ),
-          const VerticalSpace(8),
-          for (final mode in ThemeMode.values)
-            _ThemeOption(
-              label: preferenceLabel(mode),
-              selected: selected == mode,
-              onTap: () {
-                Haptics.select();
-                Navigator.of(sheetContext).pop(mode);
-              },
-            ),
-        ],
-      ),
+      ],
     ),
   );
 }

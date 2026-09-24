@@ -2,12 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:operator_mobile/core/app_themes/colors/app_skin.dart';
-import 'package:operator_mobile/core/app_themes/colors/dark_skin.dart';
 import 'package:operator_mobile/core/app_themes/colors/light_skin.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
-import 'package:operator_mobile/core/widgets/glass/glass_sheet.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_sheet_chrome.dart';
-import 'package:operator_mobile/core/widgets/pickers/theme_picker_sheet.dart';
 
 void main() {
   Widget host(AppSkin skin, void Function(BuildContext context) open) => SkinScope(
@@ -23,30 +20,6 @@ void main() {
           ),
         ),
       );
-
-  for (final skin in const <AppSkin>[LightSkin(), DarkSkin()]) {
-    testWidgets('the theme picker floats as glass over the fitted barrier (${skin.themeMode.name})', (tester) async {
-      await tester.pumpWidget(host(skin, (context) => showThemePickerSheet(context, selected: ThemeMode.system)));
-      await tester.tap(find.text('Open'));
-      await tester.pumpAndSettle();
-      expect(find.byKey(GlassSheetChrome.floatingKey), findsOneWidget);
-      final route = ModalRoute.of(tester.element(find.text('Light')))!;
-      expect(route.barrierColor, GlassSheetLogic.barrierColor(skin));
-    });
-  }
-
-  testWidgets('a picked theme is still returned', (tester) async {
-    ThemeMode? picked;
-    await tester.pumpWidget(
-      host(const LightSkin(), (context) async => picked = await showThemePickerSheet(context, selected: ThemeMode.system)),
-    );
-    await tester.tap(find.text('Open'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Dark'));
-    await tester.pumpAndSettle();
-    expect(picked, ThemeMode.dark);
-    expect(find.byType(GlassSheetChrome), findsNothing);
-  });
 
   testWidgets('sheet content spans the sheet and ink rows work inside it', (tester) async {
     const contentKey = ValueKey('content');
