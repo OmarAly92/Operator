@@ -224,6 +224,68 @@ void main() {
       expect(find.text('1'), findsOneWidget);
     });
 
+    testWidgets('keeps painting the last expanded child while collapsing to an empty child', (tester) async {
+      const content = SizedBox(height: 40, width: 100, child: Text('strip'));
+      await tester.pumpWidget(disclosureHost(true, child: content));
+      await tester.pump(AppMotion.disclosure);
+
+      await tester.pumpWidget(disclosureHost(false, child: const SizedBox.shrink()));
+      await tester.pump(AppMotion.disclosure ~/ 4);
+
+      expect(find.text('strip'), findsOneWidget);
+      final fade = tester.widget<FadeTransition>(
+        find.descendant(of: find.byType(Disclosure), matching: find.byType(FadeTransition)),
+      );
+      expect(fade.opacity.value, greaterThan(0));
+      final height = tester.getSize(find.byType(Disclosure)).height;
+      expect(height, greaterThan(0));
+      expect(height, lessThan(40));
+
+      await tester.pumpAndSettle();
+      expect(find.text('strip'), findsNothing);
+      expect(tester.getSize(find.byType(Disclosure)).height, 0);
+    });
+
+    testWidgets('the retained child ignores taps while collapsing', (tester) async {
+      var taps = 0;
+      Widget content() => SizedBox(
+            height: 40,
+            width: 100,
+            child: GestureDetector(onTap: () => taps++, child: const Text('strip')),
+          );
+      await tester.pumpWidget(disclosureHost(true, child: content()));
+      await tester.pump(AppMotion.disclosure);
+
+      await tester.pumpWidget(disclosureHost(false, child: const SizedBox.shrink()));
+      await tester.pump(const Duration(milliseconds: 16));
+      await tester.tap(find.text('strip'), warnIfMissed: false);
+
+      expect(taps, 0);
+    });
+
+    testWidgets('re-expanding mid-collapse shows the new child', (tester) async {
+      await tester.pumpWidget(disclosureHost(true, child: const Text('old')));
+      await tester.pump(AppMotion.disclosure);
+      await tester.pumpWidget(disclosureHost(false, child: const SizedBox.shrink()));
+      await tester.pump(AppMotion.disclosure ~/ 4);
+      expect(find.text('old'), findsOneWidget);
+
+      await tester.pumpWidget(disclosureHost(true, child: const Text('new')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('old'), findsNothing);
+      expect(find.text('new'), findsOneWidget);
+    });
+
+    testWidgets('collapses to an empty child instantly under reduce motion', (tester) async {
+      await tester.pumpWidget(disclosureHost(true, reduceMotion: true, child: const Text('strip')));
+      await tester.pumpWidget(disclosureHost(false, reduceMotion: true, child: const SizedBox.shrink()));
+      await tester.pump();
+
+      expect(find.text('strip'), findsNothing);
+      expect(tester.getSize(find.byType(Disclosure)).height, 0);
+    });
+
     testWidgets('keeps child state while expanded across rebuilds', (tester) async {
       const key = ValueKey('counter');
       await tester.pumpWidget(disclosureHost(true, child: const _Counter(key: key)));

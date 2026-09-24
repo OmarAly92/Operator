@@ -63,6 +63,7 @@ Future<void> _pump(
   DateTime? Function()? workingSince,
   bool stopped = false,
   ValueNotifier<double>? dock,
+  Widget? strip,
 }) {
   final commands = commandCubit ?? _MockSessionCommandCubit();
   if (commandCubit == null) when(() => commands.state).thenReturn(const SessionCommandState());
@@ -85,9 +86,16 @@ Future<void> _pump(
                 height: 700,
                 child: dock == null
                     ? BlocksBody(onRerun: onRerun, workingSince: workingSince, stopped: stopped)
-                    : ChatInsets(
-                        bottom: dock,
-                        child: BlocksBody(onRerun: onRerun, workingSince: workingSince, stopped: stopped),
+                    : Stack(
+                        children: [
+                          Positioned.fill(
+                            child: ChatInsets(
+                              bottom: dock,
+                              child: BlocksBody(onRerun: onRerun, workingSince: workingSince, stopped: stopped),
+                            ),
+                          ),
+                          if (strip != null) Positioned(left: 0, right: 0, bottom: 0, child: strip),
+                        ],
                       ),
               ),
             ),
@@ -544,6 +552,52 @@ void main() {
     final pill = tester.getRect(find.byKey(FloatingWorkingControl.pillKey));
     final last = tester.getRect(find.text('Bash 29'));
     expect(last.bottom, lessThanOrEqualTo(pill.top));
+  });
+
+  testWidgets('a strip collapsing above the composer glides the pinned list down and keeps it pinned', (tester) async {
+    when(() => cubit.blocks).thenReturn(
+      List.generate(30, (index) => _block(id: 'seq-$index', firstSeq: index, title: 'Bash $index')),
+    );
+    final open = ValueNotifier<bool>(true);
+    addTearDown(open.dispose);
+    final dock = ValueNotifier<double>(360);
+    addTearDown(dock.dispose);
+    final strip = ValueListenableBuilder<bool>(
+      valueListenable: open,
+      builder: (context, isOpen, _) => MeasuredHeight(
+        onHeight: (height) => dock.value = height + 60,
+        child: Disclosure(
+          expanded: isOpen,
+          child: isOpen ? const SizedBox(height: 300, child: Text('strip')) : const SizedBox.shrink(),
+        ),
+      ),
+    );
+    await _pump(tester, cubit, dock: dock, strip: strip);
+    await tester.pumpAndSettle();
+    final list = tester.state<BlockListState>(find.byType(BlockList));
+    expect(list.pinned, isTrue);
+    final start = tester.getRect(find.text('Bash 29')).bottom;
+
+    open.value = false;
+    await tester.pump();
+    var previous = start;
+    var intermediate = false;
+    for (var frame = 0; frame < 16; frame++) {
+      await tester.pump(const Duration(milliseconds: 16));
+      final bottom = tester.getRect(find.text('Bash 29')).bottom;
+      expect(bottom - previous, lessThan(150));
+      if (bottom > start + 1 && bottom < start + 299) intermediate = true;
+      expect(list.pinned, isTrue);
+      previous = bottom;
+    }
+    expect(intermediate, isTrue);
+
+    await tester.pumpAndSettle();
+    expect(find.text('strip'), findsNothing);
+    expect(dock.value, 60);
+    expect(list.pinned, isTrue);
+    expect(list.controller.position.pixels, moreOrLessEquals(list.controller.position.maxScrollExtent, epsilon: 0.5));
+    expect(tester.getRect(find.text('Bash 29')).bottom, moreOrLessEquals(start + 300, epsilon: 0.5));
   });
 
   testWidgets(

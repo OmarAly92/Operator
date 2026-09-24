@@ -47,6 +47,7 @@ class _DisclosureState extends State<Disclosure> with SingleTickerProviderStateM
   late final AnimationController _controller;
   late final Animation<double> _size;
   late final Animation<double> _fade;
+  Widget? _retained;
 
   @override
   void initState() {
@@ -76,17 +77,19 @@ class _DisclosureState extends State<Disclosure> with SingleTickerProviderStateM
     super.didChangeDependencies();
     if (MediaQuery.disableAnimationsOf(context) && _controller.isAnimating) {
       _controller.value = widget.expanded ? 1 : 0;
+      _retained = null;
     }
   }
 
   void _onStatus(AnimationStatus status) {
-    if (status == AnimationStatus.dismissed && mounted) setState(() {});
+    if (status == AnimationStatus.dismissed && mounted) setState(() => _retained = null);
   }
 
   @override
   void didUpdateWidget(covariant Disclosure oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.expanded == oldWidget.expanded) return;
+    _retained = widget.expanded ? null : oldWidget.child;
     if (MediaQuery.disableAnimationsOf(context)) {
       _controller.value = widget.expanded ? 1 : 0;
     } else {
@@ -113,7 +116,11 @@ class _DisclosureState extends State<Disclosure> with SingleTickerProviderStateM
       child: FadeTransition(
         opacity: _fade,
         child: showChild
-            ? KeyedSubtree(key: const ValueKey('expanded'), child: widget.child)
+            ? IgnorePointer(
+                key: const ValueKey('expanded'),
+                ignoring: !widget.expanded,
+                child: widget.expanded ? widget.child : _retained ?? widget.child,
+              )
             : const SizedBox.shrink(key: ValueKey('collapsed')),
       ),
     );
