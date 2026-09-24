@@ -25,7 +25,7 @@ sealed class GlassStyle {
     final dark = skin.themeMode == ThemeMode.dark;
     final t = sizeProgress(size);
     final baseTint = switch (variant) {
-      GlassVariant.regular => dark ? skin.bgSurface.withValues(alpha: 0.42) : const Color(0xFFFFFFFF).withValues(alpha: 0.55),
+      GlassVariant.regular => dark ? skin.bgSurface.withValues(alpha: 0.2) : const Color(0xFFFFFFFF).withValues(alpha: 0.62),
       GlassVariant.clear => dark ? skin.bgSurface.withValues(alpha: 0.12) : const Color(0xFFFFFFFF).withValues(alpha: 0.08),
       GlassVariant.prominent => skin.accent.withValues(alpha: 0.85),
     };

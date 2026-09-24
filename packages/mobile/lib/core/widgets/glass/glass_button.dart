@@ -67,7 +67,7 @@ class _GlassButtonState extends State<GlassButton> {
     final content = isIcon
         ? SizedBox.square(
             dimension: GlassMetrics.hitTarget,
-            child: Icon(widget.icon, size: 20, color: foreground, semanticLabel: widget.semanticLabel),
+            child: Icon(widget.icon, size: 22, color: foreground, semanticLabel: widget.semanticLabel),
           )
         : SizedBox(
             height: capsuleHeight,
@@ -77,7 +77,7 @@ class _GlassButtonState extends State<GlassButton> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   if (widget.icon != null) ...[
-                    Icon(widget.icon, size: 17, color: foreground),
+                    Icon(widget.icon, size: 20, color: foreground),
                     const SizedBox(width: 6),
                   ],
                   AppText(widget.label!, style: AppTextStyle.style17Regular.copyWith(color: foreground)),

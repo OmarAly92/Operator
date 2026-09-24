@@ -148,7 +148,7 @@ class _GlassLabScreenState extends State<GlassLabScreen> {
                 right: 0,
                 top: 0,
                 child: GlassToolbar(
-                  leading: GlassButton.icon(icon: Icons.chevron_left_rounded, onPressed: () {}),
+                  leading: GlassButton.icon(icon: Icons.arrow_back_ios_new_rounded, onPressed: () {}),
                   title: 'Agents',
                   trailing: [GlassButton.label(label: 'Edit', onPressed: () {})],
                 ),
