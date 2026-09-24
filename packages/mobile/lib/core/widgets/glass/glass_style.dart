@@ -25,8 +25,8 @@ sealed class GlassStyle {
     final dark = skin.themeMode == ThemeMode.dark;
     final t = sizeProgress(size);
     final baseTint = switch (variant) {
-      GlassVariant.regular => dark ? skin.bgSurface.withValues(alpha: 0.2) : const Color(0xFFFFFFFF).withValues(alpha: 0.62),
-      GlassVariant.clear => dark ? skin.bgSurface.withValues(alpha: 0.12) : const Color(0xFFFFFFFF).withValues(alpha: 0.08),
+      GlassVariant.regular => dark ? skin.bgSurface.withValues(alpha: 0.1) : const Color(0xFFFFFFFF).withValues(alpha: 0.58),
+      GlassVariant.clear => dark ? skin.bgSurface.withValues(alpha: 0.05) : const Color(0xFFFFFFFF).withValues(alpha: 0.08),
       GlassVariant.prominent => skin.accent.withValues(alpha: 0.85),
     };
     final tint = highContrast ? baseTint.withValues(alpha: math.min(0.92, baseTint.a + 0.3)) : baseTint;
@@ -41,7 +41,7 @@ sealed class GlassStyle {
       refractiveIndex: 1.2,
       saturation: switch (variant) {
         GlassVariant.clear => 1.2,
-        GlassVariant.regular => 1.6,
+        GlassVariant.regular => dark ? 1.2 : 2.0,
         GlassVariant.prominent => 1.0,
       },
       fillRatio: 0.25,
