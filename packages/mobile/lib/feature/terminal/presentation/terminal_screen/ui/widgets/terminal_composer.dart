@@ -9,12 +9,12 @@ import 'package:operator_mobile/core/app_themes/text_style/app_text_style.dart';
 import 'package:operator_mobile/core/utils/haptics.dart';
 import 'package:operator_mobile/core/utils/service_locator.dart';
 import 'package:operator_mobile/core/widgets/glass/glass_surface.dart';
-import 'package:operator_mobile/feature/blocks/logic/session_activity.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/session_command_cubit.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/session_command_row.dart';
 import 'package:operator_mobile/feature/dictation/logic/voice_input_cubit.dart';
 import 'package:operator_mobile/feature/dictation/ui/mic_key.dart';
 import 'package:operator_mobile/feature/dictation/ui/voice_strip.dart';
+import 'package:operator_mobile/feature/dictation/voice_types.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/model_picker_sheet.dart';
 import 'package:operator_mobile/feature/terminal/logic/model_command.dart';
 import 'package:operator_mobile/feature/terminal/logic/send_route.dart';
@@ -26,14 +26,12 @@ import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/ui
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/ui/widgets/terminal_composer_draft_hint.dart';
 
 class TerminalComposer extends StatefulWidget {
-  const TerminalComposer({super.key, this.onStop});
+  const TerminalComposer({super.key});
 
   static const Key capsuleKey = ValueKey('terminal-composer-capsule');
   static const double restHeight = 48;
   static const double cardRadius = 26;
   static const int maxLines = 5;
-
-  final VoidCallback? onStop;
 
   @override
   State<TerminalComposer> createState() => _TerminalComposerState();
@@ -55,6 +53,10 @@ class _TerminalComposerState extends State<TerminalComposer> {
     onPause: _voice.onAppBackgrounded,
   );
   final FocusNode _focus = FocusNode(debugLabel: 'terminal-composer');
+  bool _pickerOpen = false;
+  TextStyle? _measuredStyle;
+  TextScaler? _measuredScaler;
+  double _measuredLineHeight = 0;
 
   void _appendTranscript(String spoken) {
     final composer = context.read<TerminalCubit>().composer;
@@ -152,8 +154,21 @@ class _TerminalComposerState extends State<TerminalComposer> {
     );
   }
 
+  void _stop(SessionCommandCubit commands) {
+    Haptics.tap();
+    unawaited(commands.run('stop'));
+  }
+
+  Future<void> _openModelPicker(BuildContext context, String? harness) async {
+    setState(() => _pickerOpen = true);
+    await showModelPicker(context, harness: harness);
+    if (!mounted) return;
+    setState(() => _pickerOpen = false);
+    _focus.requestFocus();
+  }
+
   bool _expands(String text, TextStyle style, TextScaler scaler, double width) {
-    if (!_focus.hasFocus || text.isEmpty) return false;
+    if (!(_focus.hasFocus || _pickerOpen) || text.isEmpty) return false;
     if (text.contains('\n')) return true;
     if (width <= 0) return false;
     final painter = TextPainter(
@@ -168,6 +183,7 @@ class _TerminalComposerState extends State<TerminalComposer> {
   }
 
   double _lineHeight(TextStyle style, TextScaler scaler) {
+    if (style == _measuredStyle && scaler == _measuredScaler) return _measuredLineHeight;
     final painter = TextPainter(
       text: TextSpan(text: ' ', style: style),
       strutStyle: StrutStyle.fromTextStyle(style),
@@ -176,6 +192,9 @@ class _TerminalComposerState extends State<TerminalComposer> {
     )..layout();
     final height = painter.height;
     painter.dispose();
+    _measuredStyle = style;
+    _measuredScaler = scaler;
+    _measuredLineHeight = height;
     return height;
   }
 
@@ -197,7 +216,11 @@ class _TerminalComposerState extends State<TerminalComposer> {
             builder: (context, state) => LayoutBuilder(
               builder: (context, constraints) => ListenableBuilder(
                 listenable: Listenable.merge([_focus, cubit.composer]),
-                builder: (context, _) => _capsule(context, cubit, constraints.maxWidth),
+                builder: (context, _) => BlocBuilder<SessionCommandCubit, SessionCommandState>(
+                  builder: (context, _) => BlocBuilder<VoiceInputCubit, VoiceInputState>(
+                    builder: (context, _) => _capsule(context, cubit, constraints.maxWidth),
+                  ),
+                ),
               ),
             ),
           ),
@@ -217,7 +240,13 @@ class _TerminalComposerState extends State<TerminalComposer> {
     final style = AppTextStyle.style17Regular.copyWith(color: skin.textPrimary, height: _lineSpacing);
     final leading = shellOnly ? _textInset : _buttonZone;
     final text = cubit.composer.text;
-    final expanded = _expands(text, style, scaler, width - leading - _buttonZone - _measureSlack);
+    final hasText = text.trim().isNotEmpty;
+    final commands = context.read<SessionCommandCubit>();
+    final voice = context.read<VoiceInputCubit>();
+    final recording = voice.phase == VoiceState.starting || voice.phase == VoiceState.recording;
+    final showStop = composerShowsStop(hasText: hasText, canStop: !shellOnly && commands.enabled('stop'));
+    final trailing = _buttonZone + (showStop ? ComposerActionButton.size + ComposerStopButton.gap : 0);
+    final expanded = _expands(text, style, scaler, width - leading - trailing - _measureSlack);
     final lineHeight = _lineHeight(style, scaler);
 
     final body = Stack(
@@ -225,7 +254,7 @@ class _TerminalComposerState extends State<TerminalComposer> {
         Padding(
           padding: expanded
               ? const EdgeInsets.fromLTRB(_textInset, _cardTop, _textInset, _buttonZone)
-              : EdgeInsets.only(left: leading, right: _buttonZone),
+              : EdgeInsets.only(left: leading, right: trailing),
           child: ConstrainedBox(
             constraints: BoxConstraints(minHeight: expanded ? lineHeight : TerminalComposer.restHeight),
             child: Align(
@@ -274,7 +303,7 @@ class _TerminalComposerState extends State<TerminalComposer> {
           ),
         Positioned(
           left: leading,
-          right: _buttonZone,
+          right: trailing,
           bottom: _buttonInset,
           height: ComposerActionButton.size,
           child: AnimatedSwitcher(
@@ -291,6 +320,7 @@ class _TerminalComposerState extends State<TerminalComposer> {
                     harness: cubit.args.harness,
                     showModel: !shellOnly && !toTerminal,
                     showHideKeyboard: keyboardUp,
+                    onModel: () => unawaited(_openModelPicker(context, cubit.args.harness)),
                   )
                 : const SizedBox.shrink(),
           ),
@@ -298,16 +328,15 @@ class _TerminalComposerState extends State<TerminalComposer> {
         Positioned(
           right: _buttonInset,
           bottom: _buttonInset,
-          child: BlocBuilder<SessionCommandCubit, SessionCommandState>(
-            builder: (context, _) => ComposerActionButton(
-              action: composerActionFor(
-                hasText: text.trim().isNotEmpty,
-                working: sessionIsWorking(context.read<SessionCommandCubit>().activity),
-                canStop: !shellOnly && widget.onStop != null,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ComposerStopButton(visible: showStop, onStop: () => _stop(commands)),
+              ComposerActionButton(
+                action: composerActionFor(hasText: hasText, recording: recording),
+                onSend: cubit.sending ? null : () => _send(context, cubit),
               ),
-              onSend: cubit.sending ? null : () => _send(context, cubit),
-              onStop: widget.onStop,
-            ),
+            ],
           ),
         ),
       ],
@@ -319,7 +348,9 @@ class _TerminalComposerState extends State<TerminalComposer> {
       curve: AppMotion.easeOut,
       builder: (context, radius, child) => GlassSurface(
         key: TerminalComposer.capsuleKey,
-        kind: GlassShapeKind.roundedRect,
+        kind: !expanded && radius == TerminalComposer.restHeight / 2
+            ? GlassShapeKind.capsule
+            : GlassShapeKind.roundedRect,
         size: TerminalComposer.restHeight,
         radius: radius,
         child: child!,
@@ -345,11 +376,13 @@ class _Toolbar extends StatelessWidget {
     required this.harness,
     required this.showModel,
     required this.showHideKeyboard,
+    required this.onModel,
   });
 
   final String? harness;
   final bool showModel;
   final bool showHideKeyboard;
+  final VoidCallback onModel;
 
   @override
   Widget build(BuildContext context) {
@@ -359,7 +392,7 @@ class _Toolbar extends StatelessWidget {
         Expanded(
           child: Align(
             alignment: Alignment.centerLeft,
-            child: showModel ? ComposerModelChip(harness: harness) : const SizedBox.shrink(),
+            child: showModel ? ComposerModelChip(harness: harness, onTap: onModel) : const SizedBox.shrink(),
           ),
         ),
         if (showHideKeyboard)

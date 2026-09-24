@@ -3,6 +3,13 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:operator_mobile/feature/dictation/ui/mic_key.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:operator_mobile/core/api/models/global_response.dart';
+import 'package:operator_mobile/core/widgets/glass/glass_style.dart';
+import 'package:operator_mobile/feature/blocks/data/model/params/session_command_params.dart';
+import 'package:operator_mobile/feature/blocks/data/model/session_command_result_model.dart';
+import 'package:operator_mobile/feature/blocks/data/model/session_model_option_model.dart';
+import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/model_picker_sheet.dart';
+import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/ui/widgets/composer_action_button.dart';
 import 'package:operator_mobile/core/helpers/result/result.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_text.dart';
 import 'package:operator_mobile/core/app_themes/app_motion.dart';
@@ -16,6 +23,8 @@ import '../../../terminal_harness.dart';
 
 void main() {
   late TerminalHarness harness;
+
+  setUpAll(() => registerFallbackValue(const SessionCommandParams(command: '')));
 
   setUp(() => harness = TerminalHarness()..start());
 
@@ -46,16 +55,21 @@ void main() {
     expect(find.byType(MicKey), findsNothing);
   });
 
-  testWidgets('stop replaces the microphone while the agent works, and runs the stop flow', (tester) async {
-    var stops = 0;
+  void stubStop() => when(
+    () => harness.controlRepository.sendCommand(any(), any()),
+  ).thenAnswer((_) async => Result.success(GlobalResponse<SessionCommandResultModel>()));
+
+  testWidgets('while the agent works with an empty field, stop sits beside the mic', (tester) async {
     harness.commandCubit.onActivity('active');
-    await harness.pump(tester, TerminalComposer(onStop: () => stops++));
+    await pumpComposer(tester);
     await tester.pumpAndSettle();
 
-    expect(find.byType(MicKey), findsNothing);
+    expect(find.byType(MicKey), findsOneWidget);
     expect(find.bySemanticsLabel('Stop'), findsOneWidget);
-    await tester.tap(find.bySemanticsLabel('Stop'));
-    expect(stops, 1);
+    final stop = tester.getRect(find.bySemanticsLabel('Stop'));
+    final mic = tester.getRect(find.byType(MicKey));
+    expect(stop.right, lessThanOrEqualTo(mic.left));
+    expect(stop.size, const Size.square(ComposerActionButton.size));
 
     await tester.enterText(find.byType(TextField), 'next step');
     await tester.pumpAndSettle();
@@ -69,16 +83,117 @@ void main() {
     expect(find.byType(MicKey), findsOneWidget);
   });
 
+  testWidgets('stop fades and scales in over the action swap', (tester) async {
+    await pumpComposer(tester);
+    harness.commandCubit.onActivity('active');
+    await tester.pump();
+    await tester.pump();
+    await tester.pump(AppMotion.chatActionSwap ~/ 2);
+
+    final fades = tester
+        .widgetList<FadeTransition>(
+          find.descendant(of: find.byType(ComposerStopButton), matching: find.byType(FadeTransition)),
+        )
+        .toList();
+    expect(fades.any((fade) => fade.opacity.value > 0 && fade.opacity.value < 1), isTrue);
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('tapping stop interrupts the turn: it runs stop, never kill, and opens no dialog', (tester) async {
+    stubStop();
+    harness.commandCubit.onActivity('active');
+    await pumpComposer(tester);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.bySemanticsLabel('Stop'));
+    await tester.pumpAndSettle();
+
+    verify(() => harness.controlRepository.sendCommand('s-1', const SessionCommandParams(command: 'stop'))).called(1);
+    verifyNever(() => harness.sessionsRepository.kill(any()));
+    await tester.pump(const Duration(minutes: 1));
+    expect(find.byType(Dialog), findsNothing);
+    expect(find.byType(AlertDialog), findsNothing);
+  });
+
+  testWidgets('dictation can start while the agent works', (tester) async {
+    harness.voice.availableValue = true;
+    harness.commandCubit.onActivity('active');
+    await pumpComposer(tester);
+    await tester.pumpAndSettle();
+
+    final gesture = await tester.press(find.byType(MicKey));
+    await tester.pump();
+    await tester.pump();
+
+    expect(harness.voice.callbacks, isNotNull);
+    expect(find.text('Keep holding…'), findsOneWidget);
+    await gesture.up();
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('the mic is never swapped out from under a live recording', (tester) async {
+    harness.voice.availableValue = true;
+    await pumpComposer(tester);
+    await tester.pumpAndSettle();
+    final micElement = tester.element(find.byType(MicKey));
+
+    final gesture = await tester.startGesture(tester.getCenter(find.byType(MicKey)));
+    await tester.pump();
+    await tester.pump();
+    harness.voice.callbacks!.onReady();
+    harness.commandCubit.onActivity('active');
+    harness.cubit.composer.text = 'typed while recording';
+    await tester.pump();
+    await tester.pump();
+    await tester.pump(AppMotion.chatActionSwap * 2);
+
+    expect(find.byType(MicKey), findsOneWidget);
+    expect(tester.element(find.byType(MicKey)), same(micElement));
+    expect(find.bySemanticsLabel('Send'), findsNothing);
+
+    await gesture.up();
+    await tester.pumpAndSettle();
+    expect(harness.voice.stops + harness.voice.aborts, 1);
+  });
+
   testWidgets('a shell never offers stop or session actions', (tester) async {
     await harness.dispose();
     harness = TerminalHarness()..start(shellOnly: true);
     harness.commandCubit.onActivity('active');
-    await harness.pump(tester, TerminalComposer(onStop: () {}));
+    await pumpComposer(tester);
     await tester.pumpAndSettle();
 
     expect(find.bySemanticsLabel('Stop'), findsNothing);
     expect(find.byType(MicKey), findsOneWidget);
     expect(find.byTooltip('Session actions'), findsNothing);
+  });
+
+  testWidgets('opening the model picker keeps the card expanded and returns focus when it closes', (tester) async {
+    when(
+      () => harness.controlRepository.getModels(any()),
+    ).thenAnswer((_) async => Result.success(GlobalResponse<List<SessionModelOptionModel>>(data: const [])));
+    harness.commandCubit.onActivity('idle');
+    await pumpComposer(tester);
+    await tester.enterText(find.byType(TextField), 'first\nsecond');
+    await tester.pumpAndSettle();
+    final grown = tester.getSize(find.byKey(TerminalComposer.capsuleKey)).height;
+
+    await tester.tapAt(tester.getRect(find.byType(ComposerModelChip)).centerRight - const Offset(12, 0));
+    await tester.pumpAndSettle();
+    expect(find.byType(ModelPickerSheet), findsOneWidget);
+    expect(tester.getSize(find.byKey(TerminalComposer.capsuleKey)).height, grown);
+    expect(find.byType(ComposerModelChip), findsOneWidget);
+
+    Navigator.of(tester.element(find.byType(ModelPickerSheet))).pop();
+    await tester.pumpAndSettle();
+    expect(find.byType(ModelPickerSheet), findsNothing);
+    expect(tester.getSize(find.byKey(TerminalComposer.capsuleKey)).height, grown);
+    final focused = FocusManager.instance.primaryFocus?.context;
+    expect(focused, isNotNull);
+    expect(
+      find.ancestor(of: find.byElementPredicate((e) => e == focused), matching: find.byType(TextField)),
+      findsOneWidget,
+    );
   });
 
   RenderEditable editable(WidgetTester tester) => tester.renderObject<RenderEditable>(
@@ -130,8 +245,9 @@ void main() {
     await pumpComposer(tester);
     expect(tester.getSize(find.byKey(TerminalComposer.capsuleKey)).height, TerminalComposer.restHeight);
     final glass = tester.widget<GlassSurface>(find.byKey(TerminalComposer.capsuleKey));
-    expect(glass.kind, GlassShapeKind.roundedRect);
-    expect(glass.radius, TerminalComposer.restHeight / 2);
+    expect(glass.kind, GlassShapeKind.capsule);
+    expect(glass.variant, GlassVariant.regular);
+    expect(glass.size, TerminalComposer.restHeight);
     expect(find.byType(ComposerModelChip), findsNothing);
   });
 
@@ -148,12 +264,15 @@ void main() {
     expect(midway, lessThan(grown));
     expect(find.byType(ComposerModelChip), findsOneWidget);
     expect(find.byTooltip('Session actions'), findsOneWidget);
-    expect(tester.widget<GlassSurface>(find.byKey(TerminalComposer.capsuleKey)).radius, TerminalComposer.cardRadius);
+    final card = tester.widget<GlassSurface>(find.byKey(TerminalComposer.capsuleKey));
+    expect(card.kind, GlassShapeKind.roundedRect);
+    expect(card.radius, TerminalComposer.cardRadius);
 
     await tester.enterText(find.byType(TextField), '');
     await tester.pumpAndSettle();
     expect(tester.getSize(find.byKey(TerminalComposer.capsuleKey)).height, TerminalComposer.restHeight);
     expect(find.byType(ComposerModelChip), findsNothing);
+    expect(tester.widget<GlassSurface>(find.byKey(TerminalComposer.capsuleKey)).kind, GlassShapeKind.capsule);
   });
 
   testWidgets('text that wraps to a second line expands the capsule', (tester) async {

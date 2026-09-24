@@ -4,17 +4,19 @@ import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
 
 class ChatInsets extends InheritedWidget {
-  const ChatInsets({super.key, required this.bottom, required super.child});
+  const ChatInsets({super.key, required this.bottom, this.gap = 0, required super.child});
 
   static const double listGap = 12;
 
   final ValueListenable<double> bottom;
+  final double gap;
 
-  static ValueListenable<double>? maybeBottomOf(BuildContext context) =>
-      context.dependOnInheritedWidgetOfExactType<ChatInsets>()?.bottom;
+  double get inset => bottom.value + gap;
+
+  static ChatInsets? maybeOf(BuildContext context) => context.dependOnInheritedWidgetOfExactType<ChatInsets>();
 
   @override
-  bool updateShouldNotify(ChatInsets oldWidget) => bottom != oldWidget.bottom;
+  bool updateShouldNotify(ChatInsets oldWidget) => bottom != oldWidget.bottom || gap != oldWidget.gap;
 }
 
 class MeasuredHeight extends SingleChildRenderObjectWidget {

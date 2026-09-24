@@ -16,7 +16,7 @@ const _kPlaceholderModels = {
   'codex': ['gpt-5.6-sol', 'gpt-5.6-terra', 'gpt-5.5'],
 };
 
-void showModelPicker(BuildContext context, {String? harness}) {
+Future<void> showModelPicker(BuildContext context, {String? harness}) async {
   final cubit = context.read<SessionCommandCubit>();
   if (!cubit.enabled('model')) {
     final reason = cubit.disabledReason('model');
@@ -25,7 +25,7 @@ void showModelPicker(BuildContext context, {String? harness}) {
   }
   Haptics.tap();
   cubit.fetchModels();
-  showModalBottomSheet<void>(
+  await showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
     backgroundColor: context.skin.bgSurface,

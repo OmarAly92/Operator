@@ -4,22 +4,27 @@ import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/press_scale.dart';
 import 'package:operator_mobile/feature/dictation/ui/mic_key.dart';
 
-enum ComposerAction { mic, send, stop }
+enum ComposerAction { mic, send }
 
-ComposerAction composerActionFor({required bool hasText, required bool working, required bool canStop}) {
-  if (hasText) return ComposerAction.send;
-  if (working && canStop) return ComposerAction.stop;
-  return ComposerAction.mic;
+ComposerAction composerActionFor({required bool hasText, required bool recording}) {
+  if (recording) return ComposerAction.mic;
+  return hasText ? ComposerAction.send : ComposerAction.mic;
 }
 
+bool composerShowsStop({required bool hasText, required bool canStop}) => canStop && !hasText;
+
+Widget _swapTransition(Widget child, Animation<double> animation) => FadeTransition(
+  opacity: animation,
+  child: ScaleTransition(scale: Tween<double>(begin: 0.8, end: 1).animate(animation), child: child),
+);
+
 class ComposerActionButton extends StatelessWidget {
-  const ComposerActionButton({super.key, required this.action, this.onSend, this.onStop});
+  const ComposerActionButton({super.key, required this.action, this.onSend});
 
   static const double size = 36;
 
   final ComposerAction action;
   final VoidCallback? onSend;
-  final VoidCallback? onStop;
 
   @override
   Widget build(BuildContext context) {
@@ -30,10 +35,7 @@ class ComposerActionButton extends StatelessWidget {
         duration: reduceMotion ? Duration.zero : AppMotion.chatActionSwap,
         switchInCurve: AppMotion.easeOut,
         switchOutCurve: AppMotion.easeOut,
-        transitionBuilder: (child, animation) => FadeTransition(
-          opacity: animation,
-          child: ScaleTransition(scale: Tween<double>(begin: 0.8, end: 1).animate(animation), child: child),
-        ),
+        transitionBuilder: _swapTransition,
         child: switch (action) {
           ComposerAction.mic => const MicKey(key: ValueKey(ComposerAction.mic), prominent: true, size: size),
           ComposerAction.send => _RoundAction(
@@ -44,16 +46,41 @@ class ComposerActionButton extends StatelessWidget {
             ink: context.skin.onAccent,
             onTap: onSend,
           ),
-          ComposerAction.stop => _RoundAction(
-            key: const ValueKey(ComposerAction.stop),
-            label: 'Stop',
-            icon: Icons.stop_rounded,
-            color: context.skin.red,
-            ink: context.skin.onAccent,
-            onTap: onStop,
-          ),
         },
       ),
+    );
+  }
+}
+
+class ComposerStopButton extends StatelessWidget {
+  const ComposerStopButton({super.key, required this.visible, required this.onStop});
+
+  static const double gap = 6;
+
+  final bool visible;
+  final VoidCallback onStop;
+
+  @override
+  Widget build(BuildContext context) {
+    final reduceMotion = MediaQuery.disableAnimationsOf(context);
+    return AnimatedSwitcher(
+      duration: reduceMotion ? Duration.zero : AppMotion.chatActionSwap,
+      switchInCurve: AppMotion.easeOut,
+      switchOutCurve: AppMotion.easeOut,
+      transitionBuilder: _swapTransition,
+      child: visible
+          ? Padding(
+              key: const ValueKey('composer-stop'),
+              padding: const EdgeInsets.only(right: gap),
+              child: _RoundAction(
+                label: 'Stop',
+                icon: Icons.stop_rounded,
+                color: context.skin.red,
+                ink: context.skin.onAccent,
+                onTap: onStop,
+              ),
+            )
+          : const SizedBox.shrink(key: ValueKey('composer-no-stop')),
     );
   }
 }

@@ -46,27 +46,32 @@ class MockSessionControlRepository extends Mock
 
 class MockUsageRepository extends Mock implements UsageRepository {}
 
-class _InertVoiceProvider implements VoiceProvider {
+class HarnessVoiceProvider implements VoiceProvider {
+  bool availableValue = false;
+  VoiceCallbacks? callbacks;
+  int stops = 0;
+  int aborts = 0;
+
   @override
-  bool get available => false;
+  bool get available => availableValue;
 
   @override
   String? get language => null;
 
   @override
-  Future<bool> requestPermission() async => false;
+  Future<bool> requestPermission() async => availableValue;
 
   @override
   Future<void> start(
     VoiceCallbacks callbacks, {
     VoiceMode mode = VoiceMode.push,
-  }) async {}
+  }) async => this.callbacks = callbacks;
 
   @override
-  void stop() {}
+  void stop() => stops++;
 
   @override
-  void abort() {}
+  void abort() => aborts++;
 }
 
 class TerminalHarness {
@@ -87,14 +92,14 @@ class TerminalHarness {
   late BlocksCubit blocksCubit;
   late SessionCommandCubit commandCubit;
   late SlashMenuCubit slashMenuCubit;
+  final HarnessVoiceProvider voice = HarnessVoiceProvider();
+  final MockSessionControlRepository controlRepository = MockSessionControlRepository();
 
   void start({bool shellOnly = false, String? harness, List<BlockEventModel> blockRecords = const []}) {
-    if (!sl.isRegistered<VoiceInputCubit>()) {
-      sl.registerFactoryParam<VoiceInputCubit, void Function(String), void>(
-        (onTranscript, _) =>
-            VoiceInputCubit(_InertVoiceProvider(), onTranscript: onTranscript),
-      );
-    }
+    if (sl.isRegistered<VoiceInputCubit>()) sl.unregister<VoiceInputCubit>();
+    sl.registerFactoryParam<VoiceInputCubit, void Function(String), void>(
+      (onTranscript, _) => VoiceInputCubit(voice, onTranscript: onTranscript),
+    );
     if (!sl.isRegistered<PreviewCubit>()) {
       final previewRepository = MockPreviewRepository();
       when(
@@ -168,7 +173,6 @@ class TerminalHarness {
       blocksRepository,
       BlocksScope(sessionId: cubit.args.sessionId, harness: harness),
     );
-    final controlRepository = MockSessionControlRepository();
     when(() => controlRepository.getInteractions(any())).thenAnswer(
       (_) async =>
           Result.success(GlobalResponse<List<PendingInteractionModel>>()),

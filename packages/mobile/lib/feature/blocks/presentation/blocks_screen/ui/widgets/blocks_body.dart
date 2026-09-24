@@ -1,11 +1,11 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/ui/widgets/chat_insets.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/app_themes/text_style/app_text_style.dart';
 import 'package:operator_mobile/core/search/text_match.dart';
 import 'package:operator_mobile/core/utils/haptics.dart';
+import 'package:operator_mobile/core/widgets/chat/chat_insets.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_text.dart';
 import 'package:operator_mobile/feature/blocks/logic/block_actions.dart';
 import 'package:operator_mobile/feature/blocks/logic/block_find.dart';
@@ -250,7 +250,9 @@ class BlocksBodyState extends State<BlocksBody> {
           if (index >= 0) list.scrollBlockIntoView(index);
         });
 
-        final dockInset = ChatInsets.maybeBottomOf(context);
+        final insets = ChatInsets.maybeOf(context);
+        final dockInset = insets?.bottom;
+        final dockGap = insets?.gap ?? 0;
         return PopScope(
           canPop: !_selectionMode,
           onPopInvokedWithResult: (didPop, _) {
@@ -308,12 +310,13 @@ class BlocksBodyState extends State<BlocksBody> {
                             ? null
                             : _enterSelectionMode,
                         bottomInset: _selectionMode ? null : dockInset,
-                        bottomGap: dockInset == null || _selectionMode ? 6 : ChatInsets.listGap,
+                        bottomGap: dockInset == null || _selectionMode ? 6 : dockGap + ChatInsets.listGap,
                       ),
                     ),
                     if (_selectionMode)
                       _DockClearance(
                         inset: dockInset,
+                        gap: dockGap,
                         child: BlockSelectionBar(
                           selectedIds: _selected,
                           documentOrder: visibleBlocks,
@@ -333,6 +336,7 @@ class BlocksBodyState extends State<BlocksBody> {
               ),
               _DockClearance(
                 inset: dockInset,
+                gap: dockGap,
                 positioned: true,
                 child: ValueListenableBuilder<bool>(
                   valueListenable: _pinned,
@@ -416,9 +420,10 @@ class _StickyHeaderWithContextReadout extends StatelessWidget {
 }
 
 class _DockClearance extends StatelessWidget {
-  const _DockClearance({required this.inset, required this.child, this.positioned = false});
+  const _DockClearance({required this.inset, required this.child, this.gap = 0, this.positioned = false});
 
   final ValueListenable<double>? inset;
+  final double gap;
   final Widget child;
   final bool positioned;
 
@@ -432,7 +437,7 @@ class _DockClearance extends StatelessWidget {
     if (inset == null) return _place(0);
     return ValueListenableBuilder<double>(
       valueListenable: inset,
-      builder: (context, bottom, _) => _place(bottom),
+      builder: (context, bottom, _) => _place(bottom + gap),
     );
   }
 }

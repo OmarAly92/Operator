@@ -9,11 +9,12 @@ import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/wid
 import 'package:operator_mobile/feature/sessions/presentation/sessions_screen/ui/widgets/agent_logo.dart';
 
 class ComposerModelChip extends StatelessWidget {
-  const ComposerModelChip({super.key, this.harness});
+  const ComposerModelChip({super.key, this.harness, this.onTap});
 
   static const String fallbackLabel = 'Default';
 
   final String? harness;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -31,7 +32,7 @@ class ComposerModelChip extends StatelessWidget {
             excludeSemantics: true,
             child: GestureDetector(
               behavior: HitTestBehavior.opaque,
-              onTap: () => showModelPicker(context, harness: harness),
+              onTap: onTap ?? () => showModelPicker(context, harness: harness),
               child: Container(
                 height: 30,
                 padding: const EdgeInsets.fromLTRB(7, 0, 8, 0),
