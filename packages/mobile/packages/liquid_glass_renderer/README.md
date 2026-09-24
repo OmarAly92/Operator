@@ -92,7 +92,7 @@ This package provides several widgets to create the glass effect:
 | `FakeGlass`               | Lightweight glass appearance without refraction. Better performance, less visual fidelity. |
 | `GlassGlow`               | Add touch-responsive glow effects to glass surfaces.                                       |
 | `LiquidStretch`           | Add interactive squash and stretch effects to glass widgets.                               |
-| `Glassify` (Experimental) | To apply a glass effect to any arbitrary widget (e.g., text, icons). Less performant.      |
+| `Glassify` (Experimental) | Removed in this fork. See `FORK.md`.                                                       |
 
 ### ⚠️ Limitations
 
@@ -435,48 +435,7 @@ The widget listens to drag gestures and applies smooth squash and stretch transf
 
 ### `Glassify`: Glass Effect on Any Shape (Experimental)
 
-
-
-> ⚠️ `Glassify` is experimental. It is significantly less performant and will produce lower-quality results than `LiquidGlass`. 
->
-> **Don't use it in production unless you have clearly tested and validated it on your target devices.**
-> 
-> **Never use it for primitive shapes that could be rendered with `LiquidGlass`!**
-
-![Glassify Demo](doc/clock.gif)
-
-The `Glassify` widget can apply the glass effect to any child widget, not just a predefined shape. This is useful for text, icons, or custom-painted widgets.
-
-Apple themselves barely use this effect, one of their uses is the time on the lock screen. 
-To make it look best, consider a few key tips:
-
-- Try to limit the use of these widgets on each screen, to keep the performance good
-- **Note: Blur is not supported in `Glassify`** due to performance constraints. The shader has been optimized to remove blur to improve mobile GPU performance.
-- The algorithm often falls apart for high thicknesses, try to keep it below 20px for best results
-- Depending on the shape, you might need to adjust `lightIntensity` and `ambientStrength` to make it look best
-- Colors help maintain readability
-
-```dart
-// Important: You need to import from experimental.dart
-import 'package:liquid_glass_renderer/experimental.dart';
-
-Center(
-  child: Glassify(
-    settings: const LiquidGlassSettings(
-      thickness: 5,
-      glassColor: Color(0x33FFFFFF),
-    ),
-    child: const Text(
-      'Liquid',
-      style: TextStyle(
-        fontSize: 120,
-        fontWeight: FontWeight.bold,
-        color: Colors.black,
-      ),
-    ),
-  ),
-)
-```
+Removed in this fork, along with `experimental.dart`. See `FORK.md`.
 
 ---
 

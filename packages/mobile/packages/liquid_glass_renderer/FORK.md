@@ -10,13 +10,13 @@ It is the renderer behind the iOS-style glass chrome (tab bar, navigation bars, 
 sheets). It is vendored rather than depended on so the app can tune the shaders and the
 fallback path to its own design, and so an experimental pre-release cannot change under it.
 
-Only `lib/`, `LICENSE`, `README.md` and `CHANGELOG.md` are kept. Upstream's `example/`,
-`test/` (macOS-only goldens), `doc/` GIFs and `coverage/` are dropped; README image links
-therefore do not resolve.
+`lib/`, `test/`, `LICENSE`, `README.md` and `CHANGELOG.md` are kept. Upstream's `example/`,
+`doc/` GIFs and `coverage/` are dropped; README image links therefore do not resolve.
 
 Changes from upstream:
 
-- `pubspec.yaml`: workspace resolution, `publish_to: none`, dev dependencies removed.
+- `pubspec.yaml`: workspace resolution, `publish_to: none`, a `flutter_test` dev
+  dependency kept for `test/`.
 - Thickness is uploaded × devicePixelRatio to both the geometry and the final render pass,
   so `LiquidGlassSettings.thickness` is in logical points. Upstream left it in physical
   pixels, making the lens band a third as wide on a 3x screen. A DPR change re-uploads it.
@@ -29,7 +29,7 @@ Changes from upstream:
 
 - `LiquidGlassSettings.fillRatio` (default 0.8, upstream's hard-coded value) sets how
   strongly the side facing away from the light is lit. The rim brightness is clamped to
-  [0, 1]. Apple's rim is bright on the lit side with a dim fill opposite.
+  [0, 1]. The app sets 0.7 after measuring a near-uniform native rim.
 
 - `GlassDragBuilder` handles `onPointerCancel` in listener mode; upstream left a cancelled
   touch stuck pressed.
@@ -38,6 +38,9 @@ Changes from upstream:
 - Removed `Glassify` (`experimental.dart`), the unused `LiquidGlassFilter`, and their
   shaders `liquid_glass_filter.frag` and `liquid_glass_arbitrary.frag`. The app uses
   neither, and both failed SkSL compilation on every build.
+- Removed `lib/assets/shaders/shared.glsl`, unused once `Glassify` was removed.
+- Removed the public `ShaderKeys` fields `legacyLiquidGlass`, `liquidGlassFilterShader`
+  and `glassify`, which only `Glassify` referenced.
 
 Record every later change to `lib/` in this file.
 
