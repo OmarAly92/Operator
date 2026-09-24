@@ -25,4 +25,20 @@ void main() {
     expect(tester.getSize(find.byType(ScrollEdgeEffect)).height, 120);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('renders the fallback with no exception once settled', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: SkinScope(
+          skin: const LightSkin(),
+          child: const Stack(
+            children: [Positioned(left: 0, right: 0, top: 0, child: ScrollEdgeEffect(edge: ScrollEdge.top, height: 120))],
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byType(BackdropFilter), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
 }

@@ -17,19 +17,41 @@ class ScrollEdgeEffect extends StatefulWidget {
 }
 
 class _ScrollEdgeEffectState extends State<ScrollEdgeEffect> {
-  ui.FragmentProgram? _program;
+  final _boxKey = GlobalKey();
+  ui.FragmentShader? _shader;
+  double? _originY;
 
   @override
   void initState() {
     super.initState();
-    unawaited(_loadProgram());
+    if (ui.ImageFilter.isShaderFilterSupported) {
+      unawaited(_loadProgram());
+    }
   }
 
   Future<void> _loadProgram() async {
-    final program = await ui.FragmentProgram.fromAsset('shaders/scroll_edge_blur.frag');
+    final ui.FragmentProgram program;
+    try {
+      program = await ui.FragmentProgram.fromAsset('shaders/scroll_edge_blur.frag');
+    } on Object {
+      return;
+    }
     if (!mounted) return;
     setState(() {
-      _program = program;
+      _shader = program.fragmentShader();
+    });
+  }
+
+  void _scheduleMeasure() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final box = _boxKey.currentContext?.findRenderObject();
+      if (box is! RenderBox || !box.attached) return;
+      final dpr = MediaQuery.devicePixelRatioOf(context);
+      final newOriginY = box.localToGlobal(Offset.zero).dy * dpr;
+      if (_originY != newOriginY) {
+        setState(() => _originY = newOriginY);
+      }
     });
   }
 
@@ -53,38 +75,44 @@ class _ScrollEdgeEffectState extends State<ScrollEdgeEffect> {
   }
 
   @override
+  void dispose() {
+    _shader?.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final dark = context.skin.themeMode == ThemeMode.dark;
     final maxAlpha = dark ? 0.2 : 0.15;
-    final program = _program;
+    final shader = _shader;
+    final originY = _originY;
+    _scheduleMeasure();
     return IgnorePointer(
       child: SizedBox(
+        key: _boxKey,
         height: widget.height,
         width: double.infinity,
-        child: program == null
+        child: shader == null || originY == null
             ? _fallback(maxAlpha)
-            : LayoutBuilder(
-                builder: (context, constraints) {
-                  final size = Size(constraints.maxWidth, widget.height);
+            : Builder(
+                builder: (context) {
                   final dpr = MediaQuery.devicePixelRatioOf(context);
-                  final shader = program.fragmentShader()
-                    ..setFloat(0, size.width * dpr)
-                    ..setFloat(1, size.height * dpr)
-                    ..setFloat(2, size.height * dpr)
+                  shader
+                    ..setFloat(0, 0)
+                    ..setFloat(1, 0)
+                    ..setFloat(2, widget.height * dpr)
                     ..setFloat(3, 18 * dpr)
                     ..setFloat(4, widget.edge == ScrollEdge.top ? 1 : 0)
-                    ..setFloat(5, 0)
+                    ..setFloat(5, originY)
                     ..setFloat(6, 0)
                     ..setFloat(7, 0)
-                    ..setFloat(8, maxAlpha);
-                  ui.ImageFilter filter;
-                  try {
-                    filter = ui.ImageFilter.shader(shader);
-                  } on UnsupportedError {
-                    return _fallback(maxAlpha);
-                  }
+                    ..setFloat(8, 0)
+                    ..setFloat(9, maxAlpha);
                   return ClipRect(
-                    child: BackdropFilter(filter: filter, child: const SizedBox.expand()),
+                    child: BackdropFilter(
+                      filter: ui.ImageFilter.shader(shader),
+                      child: const SizedBox.expand(),
+                    ),
                   );
                 },
               ),

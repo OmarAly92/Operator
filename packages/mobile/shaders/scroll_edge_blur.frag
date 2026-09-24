@@ -1,5 +1,5 @@
 #version 460 core
-precision mediump float;
+precision highp float;
 
 #include <flutter/runtime_effect.glsl>
 
@@ -7,6 +7,7 @@ uniform vec2 uSize;
 uniform float uBandHeight;
 uniform float uMaxRadius;
 uniform float uFromTop;
+uniform float uBandOriginY;
 uniform vec4 uTint;
 uniform sampler2D uTexture;
 
@@ -14,7 +15,7 @@ out vec4 fragColor;
 
 void main() {
     vec2 frag = FlutterFragCoord().xy;
-    float distFromEdge = uFromTop > 0.5 ? frag.y : (uSize.y - frag.y);
+    float distFromEdge = uFromTop > 0.5 ? (frag.y - uBandOriginY) : (uBandOriginY + uBandHeight - frag.y);
     float s = clamp(distFromEdge / uBandHeight, 0.0, 1.0);
     float t = 1.0 - s;
     float w = smoothstep(0.0, 0.45, t);
