@@ -3,75 +3,77 @@ import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/app_themes/text_style/app_text_style.dart';
 import 'package:operator_mobile/core/utils/haptics.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_ink_well.dart';
-import 'package:operator_mobile/core/widgets/main_widgets/app_sheet_chrome.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_text.dart';
-import 'package:operator_mobile/core/widgets/main_widgets/space_widgets.dart';
+import 'package:operator_mobile/core/widgets/pickers/picker_filter.dart';
+import 'package:operator_mobile/core/widgets/sheet/app_sheet.dart';
 import 'package:operator_mobile/feature/spawn/data/model/claude_account_model.dart';
 
-Future<String?> showClaudeAccountPickerSheet(
-  BuildContext context, {
+AppSheetPage claudeAccountPickerPage({
   required List<ClaudeAccountModel> accounts,
   required String selected,
+  required void Function(BuildContext context, String id) onPicked,
 }) {
-  final skin = context.skin;
-  return showAppSheet<String>(
-    context: context,
-    builder: (sheetContext) => AppSheetChrome(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          AppText('Claude account', style: AppTextStyle.style17SemiBold),
-          const VerticalSpace(4),
-          AppText(
-            'Which Claude login this session runs on.',
-            style: AppTextStyle.style12Regular.copyWith(color: skin.textTertiary),
-            maxLines: 2,
+  return AppSheetPage(
+    title: 'Claude account',
+    subtitle: 'Which Claude login this session runs on.',
+    searchHint: 'Search accounts',
+    rows: (context, query) => [
+      for (final account in accounts)
+        if (PickerFilter.matches(query, [account.label, account.id, account.planLabel]))
+          _AccountOption(
+            account: account,
+            selected: account.id == selected,
+            onTap: () {
+              Haptics.select();
+              final id = account.id;
+              if (id == null) {
+                Navigator.of(context).pop();
+              } else {
+                onPicked(context, id);
+              }
+            },
           ),
-          const VerticalSpace(8),
-          Flexible(
-            child: ListView(
-              shrinkWrap: true,
-              children: [
-                for (final account in accounts)
-                  AppInkWell(
-                    onTap: () {
-                      Haptics.select();
-                      Navigator.of(sheetContext).pop(account.id);
-                    },
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 10),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                AppText(
-                                  account.label ?? account.id ?? '',
-                                  style: AppTextStyle.style15Medium.copyWith(
-                                    color: account.id == selected ? skin.accent : skin.textPrimary,
-                                  ),
-                                ),
-                                AppText(
-                                  account.planLabel,
-                                  style: AppTextStyle.style12Regular.copyWith(
-                                    color: account.loggedIn == true ? skin.textTertiary : skin.amber,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          if (account.id == selected) Icon(Icons.check, size: 18, color: skin.accent),
-                        ],
-                      ),
+    ],
+  );
+}
+
+class _AccountOption extends StatelessWidget {
+  const _AccountOption({required this.account, required this.selected, required this.onTap});
+
+  final ClaudeAccountModel account;
+  final bool selected;
+  final void Function() onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final skin = context.skin;
+    return AppInkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  AppText(
+                    account.label ?? account.id ?? '',
+                    style: AppTextStyle.style15Medium.copyWith(color: selected ? skin.accent : skin.textPrimary),
+                  ),
+                  AppText(
+                    account.planLabel,
+                    style: AppTextStyle.style12Regular.copyWith(
+                      color: account.loggedIn == true ? skin.textTertiary : skin.amber,
                     ),
                   ),
-              ],
+                ],
+              ),
             ),
-          ),
-        ],
+            if (selected) Icon(Icons.check, size: 18, color: skin.accent),
+          ],
+        ),
       ),
-    ),
-  );
+    );
+  }
 }

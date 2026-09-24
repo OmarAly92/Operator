@@ -2,110 +2,84 @@ import 'package:flutter/material.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/app_themes/text_style/app_text_style.dart';
 import 'package:operator_mobile/core/utils/haptics.dart';
-import 'package:operator_mobile/core/widgets/loading_widget/app_loader.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_ink_well.dart';
-import 'package:operator_mobile/core/widgets/main_widgets/app_sheet_chrome.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_text.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/space_widgets.dart';
+import 'package:operator_mobile/core/widgets/pickers/picker_filter.dart';
+import 'package:operator_mobile/core/widgets/sheet/app_sheet.dart';
 import 'package:operator_mobile/feature/sessions/presentation/sessions_screen/ui/widgets/agent_logo.dart';
 import 'package:operator_mobile/feature/spawn/logic/agent_picker.dart';
 
-Future<String?> showAgentPickerSheet(
-  BuildContext context, {
+const String kNoAgentsText = 'No agents reported. Check that Operator is running on your computer, then refresh.';
+
+AppSheetPage agentPickerPage({
   required List<RankedAgent> agents,
   required String selected,
-  required Future<void> Function() onRefresh,
-  bool refreshing = false,
+  required void Function(BuildContext context, String id) onPicked,
+  List<Widget> actions = const [],
   String? error,
 }) {
-  final skin = context.skin;
-  return showAppSheet<String>(
-    context: context,
-    builder: (sheetContext) {
-      var isRefreshing = refreshing;
-      return StatefulBuilder(
-        builder: (builderContext, setState) {
-          Future<void> handleRefresh() async {
-            Haptics.tap();
-            setState(() => isRefreshing = true);
-            await onRefresh();
-            setState(() => isRefreshing = false);
-          }
-
-          return AppSheetChrome(
-            child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            AppText('Agent', style: AppTextStyle.style17SemiBold),
-                            const VerticalSpace(4),
-                            AppText(
-                              'Which harness should run this task.',
-                              style: AppTextStyle.style12Regular.copyWith(color: skin.textTertiary),
-                              maxLines: 2,
-                            ),
-                          ],
-                        ),
-                      ),
-                      AppInkWell(
-                        onTap: isRefreshing ? null : handleRefresh,
-                        borderRadius: BorderRadius.circular(8),
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                          child: isRefreshing
-                              ? const SizedBox(width: 16, height: 16, child: AppLoader(strokeWidth: 2))
-                              : AppText('Refresh', style: AppTextStyle.style13Regular.copyWith(color: skin.accent)),
-                        ),
-                      ),
-                    ],
-                  ),
-                  if (error != null) ...[
-                    const VerticalSpace(8),
-                    AppText(error, style: AppTextStyle.style13Regular.copyWith(color: skin.red), maxLines: 2),
-                  ],
-                  const VerticalSpace(8),
-                  if (agents.isEmpty)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      child: AppText(
-                        'No agents reported. Check that Operator is running on your computer, then refresh.',
-                        style: AppTextStyle.style13Regular.copyWith(color: skin.textTertiary),
-                        maxLines: 3,
-                      ),
-                    )
-                  else
-                    Flexible(
-                      child: ListView(
-                        shrinkWrap: true,
-                        children: [
-                          for (final agent in agents)
-                            _AgentOption(
-                              agent: agent,
-                              selected: agent.id == selected,
-                              onTap: agent.selectable
-                                  ? () {
-                                      Haptics.select();
-                                      Navigator.of(sheetContext).pop(agent.id);
-                                    }
-                                  : null,
-                            ),
-                        ],
-                      ),
-                    ),
-                ],
-              ),
-            );
-        },
-      );
+  return AppSheetPage(
+    title: 'Agent',
+    subtitle: 'Which harness should run this task.',
+    actions: actions,
+    searchHint: 'Search agents',
+    emptyText: kNoAgentsText,
+    rows: (context, query) {
+      final matching = [
+        for (final agent in agents)
+          if (PickerFilter.matches(query, [agent.label, agent.id])) agent,
+      ];
+      if (error == null && matching.isEmpty) return const [];
+      return [
+        if (error != null) _AgentError(error),
+        for (final agent in matching)
+          _AgentOption(
+            agent: agent,
+            selected: agent.id == selected,
+            onTap: agent.selectable
+                ? () {
+                    Haptics.select();
+                    onPicked(context, agent.id);
+                  }
+                : null,
+          ),
+        if (matching.isEmpty) AgentPickerEmpty(query.isEmpty ? kNoAgentsText : 'No matches'),
+      ];
     },
   );
+}
+
+class _AgentError extends StatelessWidget {
+  const _AgentError(this.message);
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: AppText(message, style: AppTextStyle.style13Regular.copyWith(color: context.skin.red), maxLines: 2),
+    );
+  }
+}
+
+class AgentPickerEmpty extends StatelessWidget {
+  const AgentPickerEmpty(this.message, {super.key});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 14),
+      child: AppText(
+        message,
+        style: AppTextStyle.style13Regular.copyWith(color: context.skin.textTertiary),
+        maxLines: 3,
+      ),
+    );
+  }
 }
 
 class _AgentOption extends StatelessWidget {

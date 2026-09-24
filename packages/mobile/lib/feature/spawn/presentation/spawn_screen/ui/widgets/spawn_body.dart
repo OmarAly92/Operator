@@ -10,14 +10,12 @@ import 'package:operator_mobile/core/widgets/main_widgets/app_text_field.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/primary_button.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/settings_group.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/space_widgets.dart';
-import 'package:operator_mobile/core/widgets/pickers/agent_picker_sheet.dart';
-import 'package:operator_mobile/core/widgets/pickers/claude_account_picker_sheet.dart';
-import 'package:operator_mobile/core/widgets/pickers/project_picker_sheet.dart';
 import 'package:operator_mobile/feature/sessions/data/model/project_model.dart';
 import 'package:operator_mobile/feature/sessions/presentation/sessions_screen/logic/sessions_cubit.dart';
 import 'package:operator_mobile/feature/sessions/presentation/sessions_screen/ui/widgets/agent_logo.dart';
 import 'package:operator_mobile/feature/spawn/logic/agent_picker.dart';
 import 'package:operator_mobile/feature/spawn/presentation/spawn_screen/logic/spawn_cubit.dart';
+import 'package:operator_mobile/feature/spawn/presentation/spawn_screen/ui/widgets/spawn_options_sheet.dart';
 
 ProjectModel? _projectById(List<ProjectModel> projects, String? id) {
   if (id == null) return null;
@@ -75,39 +73,19 @@ class _SpawnBodyState extends State<SpawnBody> {
     super.dispose();
   }
 
-  Future<void> _openProjectPicker(BuildContext context) async {
-    final chosen = await showProjectPickerSheet(
-      context,
-      projects: _sessionsCubit.projects,
-      selected: _cubit.projectId ?? '',
-      includeAll: false,
-      title: 'Project',
-      subtitle: 'Where this agent gets its workspace.',
-    );
-    if (chosen != null && context.mounted) {
-      _cubit.setProject(chosen, kind: _projectById(_sessionsCubit.projects, chosen)?.kind);
-    }
-  }
+  Future<void> _openOptions(BuildContext context, SpawnOption option) => showSpawnOptionsSheet(
+        context,
+        cubit: _cubit,
+        projects: _sessionsCubit.projects,
+        open: option,
+        onRefreshAgents: _refreshCatalog,
+      );
 
-  Future<void> _openAgentPicker(BuildContext context, SpawnState state) async {
-    final chosen = await showAgentPickerSheet(
-      context,
-      agents: _cubit.agents,
-      selected: _cubit.harness,
-      onRefresh: _refreshCatalog,
-      error: state is CatalogFailureState ? 'Could not reach your Operator server' : null,
-    );
-    if (chosen != null && context.mounted) _cubit.setHarness(chosen);
-  }
+  Future<void> _openProjectPicker(BuildContext context) => _openOptions(context, SpawnOption.project);
 
-  Future<void> _openClaudeAccountPicker(BuildContext context) async {
-    final chosen = await showClaudeAccountPickerSheet(
-      context,
-      accounts: _cubit.claudeAccounts,
-      selected: _cubit.claudeAccountId,
-    );
-    if (chosen != null && context.mounted) _cubit.setClaudeAccount(chosen);
-  }
+  Future<void> _openAgentPicker(BuildContext context) => _openOptions(context, SpawnOption.agent);
+
+  Future<void> _openClaudeAccountPicker(BuildContext context) => _openOptions(context, SpawnOption.account);
 
   String _claudeAccountValue() {
     for (final account in _cubit.claudeAccounts) {
@@ -198,7 +176,7 @@ class _SpawnBodyState extends State<SpawnBody> {
                     label: 'Agent',
                     value: agentValue,
                     leading: AgentLogo(harness: _cubit.harness.isEmpty ? null : _cubit.harness, size: 20),
-                    onTap: () => _openAgentPicker(context, state),
+                    onTap: () => _openAgentPicker(context),
                   ),
                   if (_cubit.harness == 'claude-code' && _cubit.claudeAccounts.isNotEmpty)
                     SettingsRow(
