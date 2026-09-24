@@ -238,3 +238,62 @@ func TestPumpResetsWhenTheFileShrinks(t *testing.T) {
 		t.Fatalf("after shrink emitted %+v", got[before:])
 	}
 }
+
+type fakeInterrupts struct{ ids []domain.SessionID }
+
+func (f *fakeInterrupts) ApplyUserInterrupt(_ context.Context, id domain.SessionID) error {
+	f.ids = append(f.ids, id)
+	return nil
+}
+
+const interruptLine = `{"type":"user","uuid":"u-4","message":{"content":[{"type":"text","text":"[Request interrupted by user]"}]}}`
+
+func TestPumpReportsATranscriptThatEndsOnAnInterrupt(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "native.jsonl")
+	appendLines(t, path, assistantLine, interruptLine)
+
+	interrupts := &fakeInterrupts{}
+	tl := newTail(path)
+	tl.interrupts = interrupts
+	if err := tl.pump(context.Background(), &fakeSink{}, &fakeOffsets{}, time.Now); err != nil {
+		t.Fatalf("pump: %v", err)
+	}
+	if len(interrupts.ids) != 1 || interrupts.ids[0] != "s-1" {
+		t.Fatalf("interrupts = %v, want [s-1]", interrupts.ids)
+	}
+
+	// Nothing new: the same interrupt is not reported twice.
+	_ = tl.pump(context.Background(), &fakeSink{}, &fakeOffsets{}, time.Now)
+	if len(interrupts.ids) != 1 {
+		t.Fatalf("interrupts = %v after an idle pump", interrupts.ids)
+	}
+}
+
+func TestPumpIgnoresAnInterruptTheUserAlreadyMovedPast(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "native.jsonl")
+	appendLines(t, path, interruptLine, `{"type":"user","uuid":"u-5","message":{"content":"carry on"}}`, assistantLine)
+
+	interrupts := &fakeInterrupts{}
+	tl := newTail(path)
+	tl.interrupts = interrupts
+	if err := tl.pump(context.Background(), &fakeSink{}, &fakeOffsets{}, time.Now); err != nil {
+		t.Fatalf("pump: %v", err)
+	}
+	if len(interrupts.ids) != 0 {
+		t.Fatalf("interrupts = %v, want none", interrupts.ids)
+	}
+}
+
+func TestPumpDoesNotReportASubagentInterrupt(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "agent-a1.jsonl")
+	appendLines(t, path, interruptLine)
+
+	interrupts := &fakeInterrupts{}
+	tl := newTail(path)
+	tl.agentID = "a1"
+	tl.interrupts = interrupts
+	_ = tl.pump(context.Background(), &fakeSink{}, &fakeOffsets{}, time.Now)
+	if len(interrupts.ids) != 0 {
+		t.Fatalf("interrupts = %v, want none", interrupts.ids)
+	}
+}

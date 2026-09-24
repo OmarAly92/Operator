@@ -9,6 +9,7 @@ import (
 	"net"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -39,6 +40,8 @@ type fakePTY struct {
 	closeMu  sync.Mutex
 
 	pid int
+
+	outRead atomic.Int64
 }
 
 func newFakePTY(pid int) *fakePTY {
@@ -67,7 +70,11 @@ func (f *fakePTY) CloseOutput(code int) {
 func (f *fakePTY) ReadInput(buf []byte) (int, error) { return f.inR.Read(buf) }
 
 // ptyConn interface implementation.
-func (f *fakePTY) Read(b []byte) (int, error)  { return f.outR.Read(b) }
+func (f *fakePTY) Read(b []byte) (int, error) {
+	n, err := f.outR.Read(b)
+	f.outRead.Add(int64(n))
+	return n, err
+}
 func (f *fakePTY) Write(b []byte) (int, error) { return f.inW.Write(b) }
 
 func (f *fakePTY) Resize(cols, rows int) error {
@@ -1167,35 +1174,63 @@ func TestReadPausesPastHighWatermarkAndResumesOnAck(t *testing.T) {
 	sendAck(t, c, len(replay))
 	waitForAckingClient(t, f)
 
-	// Written from a background goroutine, spaced out, so pumpPTY's own
-	// goroutine actually gets to run and flush the accumulating batches --
-	// each flush registers as delivered bytes for this client -- before the
-	// burst finishes. Without that spacing, an in-memory io.Pipe pairs every
-	// Write with its Read fast enough that the reader can race through all 8
-	// blobs before pumpPTY is ever scheduled, coalescing them into a single
-	// flush that lands after the reader has already moved on to its next,
-	// forever-blocking Read; nothing then wakes it back up to notice the
-	// watermark. The write loop must not block the test goroutine while that
-	// plays out: once the watermark trips mid-burst, readPTY stops being read
-	// and a later WriteOutput call blocks for good, so the writes run on their
-	// own goroutine and the test observes the pause independently of whether
-	// the burst has finished.
-	blob := bytes.Repeat([]byte("x"), 32*1024)
+	// The reader only checks the watermark before its next Read, so a burst
+	// that ends before pumpPTY has flushed past readHighWatermark leaves the
+	// reader blocked in a Read nothing will ever satisfy, and it never parks.
+	// The writer therefore keeps producing until the pause is observed, each
+	// blob only once every byte read so far has been delivered, so the reader
+	// sees the backlog at its next check and never runs far ahead of pumpPTY.
+	// Once parked, readPTY stops being read and the writer's in-flight Write
+	// blocks, so the writes run on their own goroutine.
+	go func() {
+		for range c.frameC {
+		}
+	}()
+	const blobSize = 32 * 1024
+	blob := bytes.Repeat([]byte("x"), blobSize)
+	stop := make(chan struct{})
+	var stopOnce sync.Once
+	halt := func() { stopOnce.Do(func() { close(stop) }) }
+	defer halt()
+	base := f.pty.outRead.Load()
+	caughtUp := func() bool {
+		return deliveredTo(f) == len(replay)+int(f.pty.outRead.Load()-base)
+	}
 	writeDone := make(chan error, 1)
 	go func() {
-		for i := 0; i < 8; i++ {
+		for {
+			for !caughtUp() {
+				select {
+				case <-stop:
+					writeDone <- nil
+					return
+				case <-time.After(time.Millisecond):
+				}
+			}
+			select {
+			case <-stop:
+				writeDone <- nil
+				return
+			default:
+			}
 			if _, err := f.pty.WriteOutput(blob); err != nil {
 				writeDone <- err
 				return
 			}
-			time.Sleep(5 * time.Millisecond)
 		}
-		writeDone <- nil
 	}()
 
 	waitFor(t, 3*time.Second, func() bool { return f.readsPaused() })
+	halt()
 
-	sendAck(t, c, len(replay)+8*32*1024)
+	burst := int(f.pty.outRead.Load() - base)
+	if burst <= readHighWatermark {
+		t.Fatalf("paused after reading %d bytes, want more than %d", burst, readHighWatermark)
+	}
+	read := len(replay) + burst
+	waitFor(t, 3*time.Second, caughtUp)
+
+	sendAck(t, c, read)
 	waitFor(t, 3*time.Second, func() bool { return !f.readsPaused() })
 
 	select {
@@ -1206,6 +1241,18 @@ func TestReadPausesPastHighWatermarkAndResumesOnAck(t *testing.T) {
 	case <-time.After(3 * time.Second):
 		t.Fatal("blob writer did not finish after the watermark cleared")
 	}
+}
+
+func deliveredTo(f *serveFixture) int {
+	f.host.mu.Lock()
+	defer f.host.mu.Unlock()
+	most := 0
+	for _, cs := range f.host.clients {
+		if cs.delivered > most {
+			most = cs.delivered
+		}
+	}
+	return most
 }
 
 // Streaming a long history to one client must never pause the child for the

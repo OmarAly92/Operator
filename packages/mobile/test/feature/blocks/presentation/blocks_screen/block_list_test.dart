@@ -188,6 +188,29 @@ void main() {
     expect(find.text('Bash 2'), findsNothing);
   });
 
+  testWidgets('a lone tool sits in the same bordered card as grouped tools', (tester) async {
+    await pumpList(tester, [block(1), block(2, kind: BlockKind.tool), block(3)]);
+    expect(find.textContaining('tools'), findsNothing);
+    final card = tester
+        .widgetList<Container>(find.ancestor(of: find.text('Bash 2'), matching: find.byType(Container)))
+        .map((container) => container.decoration)
+        .whereType<BoxDecoration>()
+        .firstWhere((decoration) => decoration.border != null);
+    final border = card.border! as Border;
+    expect(border.top.style, BorderStyle.solid);
+    expect(border.bottom.style, BorderStyle.solid);
+    expect(card.borderRadius, const BorderRadius.vertical(top: Radius.circular(10), bottom: Radius.circular(10)));
+  });
+
+  testWidgets('a running tool shows its status at the end of the row', (tester) async {
+    await pumpList(tester, [block(1), block(2, kind: BlockKind.tool, status: BlockStatus.running), block(3)]);
+    final card = tester.getRect(find.byKey(const ValueKey('seq-2')).first);
+    final label = tester.getRect(find.text('running'));
+    final chevron = tester.getRect(find.byIcon(Icons.chevron_right));
+    expect(card.right - chevron.right, lessThanOrEqualTo(40));
+    expect(chevron.left - label.right, lessThanOrEqualTo(8));
+  });
+
   testWidgets('tool failures remain visible in a collapsed group', (tester) async {
     await pumpList(tester, [
       block(1, kind: BlockKind.tool),
@@ -474,7 +497,7 @@ void main() {
 
     expect(state.topBlockIndex, 1);
     expect(
-      tester.getTopLeft(find.byKey(const ValueKey('seq-2'))).dy,
+      tester.getTopLeft(find.byKey(const ValueKey('seq-2')).first).dy,
       closeTo(0, 1.5),
     );
   });
@@ -503,7 +526,7 @@ void main() {
 
     expect(state.topBlockIndex, 1);
     expect(
-      tester.getTopLeft(find.byKey(const ValueKey('seq-2'))).dy,
+      tester.getTopLeft(find.byKey(const ValueKey('seq-2')).first).dy,
       closeTo(0, 1.5),
     );
   });
@@ -804,7 +827,7 @@ void main() {
     );
 
     final richTextFinder = find.descendant(
-      of: find.byKey(const ValueKey('seq-2')),
+      of: find.byKey(const ValueKey('seq-2')).first,
       matching: find.byType(RichText),
     );
     expect(richTextFinder, findsWidgets);

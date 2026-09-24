@@ -381,7 +381,13 @@ class BlockListState extends State<BlockList> {
 
   Widget _toolOrBlock(SessionBlock block, List<SessionBlock>? tools, TurnGroup? group, bool hasFollowingRailItem) {
     if (tools == null) return _blockWithGroupStatus(block, group, hasFollowingRailItem);
-    if (tools.length == 1) return _blockWithGroupStatus(block, group, false, compactTool: true);
+    if (tools.length == 1) {
+      return Padding(
+        key: ValueKey(block.id),
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: _toolCard(block, group, first: true, last: true),
+      );
+    }
     final groupId = tools.first.id;
     final expanded = !_collapsedToolGroups.contains(groupId);
     final status = block.id != groupId
@@ -407,27 +413,27 @@ class BlockListState extends State<BlockList> {
             }),
           ),
         if (expanded)
-          Container(
-            margin: const EdgeInsets.symmetric(horizontal: 16),
-            clipBehavior: Clip.antiAlias,
-            decoration: BoxDecoration(
-              color: context.skin.bgSurface,
-              borderRadius: BorderRadius.vertical(
-                top: block.id == groupId ? const Radius.circular(10) : Radius.zero,
-                bottom: block.id == tools.last.id ? const Radius.circular(10) : Radius.zero,
-              ),
-              border: Border(
-                left: BorderSide(color: context.skin.borderSubtle),
-                right: BorderSide(color: context.skin.borderSubtle),
-                bottom: BorderSide(color: context.skin.borderSubtle),
-                top: block.id == groupId ? BorderSide(color: context.skin.borderSubtle) : BorderSide.none,
-              ),
-            ),
-            child: _blockWithGroupStatus(block, group, false, compactTool: true),
-          )
+          _toolCard(block, group, first: block.id == groupId, last: block.id == tools.last.id)
         else if (group != null)
           _blockWithGroupStatus(block, group, false, showCard: false),
       ],
+    );
+  }
+
+  Widget _toolCard(SessionBlock block, TurnGroup? group, {required bool first, required bool last}) {
+    final border = BorderSide(color: context.skin.borderSubtle);
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        color: context.skin.bgSurface,
+        borderRadius: BorderRadius.vertical(
+          top: first ? const Radius.circular(10) : Radius.zero,
+          bottom: last ? const Radius.circular(10) : Radius.zero,
+        ),
+        border: Border(left: border, right: border, bottom: border, top: first ? border : BorderSide.none),
+      ),
+      child: _blockWithGroupStatus(block, group, false, compactTool: true),
     );
   }
 

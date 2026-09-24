@@ -463,12 +463,13 @@ func Run() error {
 		}
 	}
 	transcriptDone := transcriptsvc.NewSupervisor(transcriptsvc.Deps{
-		Sessions: store,
-		Offsets:  store,
-		Sink:     blockEvents,
-		Resolver: transcriptsvc.NewResolver(agents, claudeAccounts),
-		Watcher:  transcriptWatcher,
-		Logger:   log,
+		Sessions:   store,
+		Offsets:    store,
+		Sink:       blockEvents,
+		Interrupts: lcStack.LCM,
+		Resolver:   transcriptsvc.NewResolver(agents, claudeAccounts),
+		Watcher:    transcriptWatcher,
+		Logger:     log,
 	}).Start(ctx)
 	// ponytail: 5s tolerates a brief frontend restart; tune if dev hot-reload trips it.
 	const supervisorGrace = 5 * time.Second

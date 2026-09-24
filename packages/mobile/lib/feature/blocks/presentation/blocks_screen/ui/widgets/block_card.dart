@@ -623,9 +623,15 @@ class _GroupBody extends StatelessWidget {
             ),
             if (meta != null)
               Flexible(
+                fit: FlexFit.tight,
                 child: Padding(
                   padding: const EdgeInsets.only(left: 8),
-                  child: AppText(meta, maxLines: 2, style: AppTextStyle.mono11Regular.copyWith(color: skin.textTertiary)),
+                  child: AppText(
+                    meta,
+                    maxLines: 2,
+                    textAlign: TextAlign.end,
+                    style: AppTextStyle.mono11Regular.copyWith(color: skin.textTertiary),
+                  ),
                 ),
               ),
             if (onToggleCollapse != null)

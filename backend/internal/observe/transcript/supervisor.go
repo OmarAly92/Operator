@@ -56,11 +56,13 @@ type Deps struct {
 	Sessions SessionSource
 	Offsets  OffsetStore
 	Sink     Sink
-	Resolver *Resolver
-	Watcher  Watcher
-	Interval time.Duration
-	Logger   *slog.Logger
-	Clock    func() time.Time
+	// Interrupts may be nil; a user interrupt then leaves activity to hooks.
+	Interrupts InterruptSink
+	Resolver   *Resolver
+	Watcher    Watcher
+	Interval   time.Duration
+	Logger     *slog.Logger
+	Clock      func() time.Time
 }
 
 // Supervisor owns one tail per live session whose harness has a transcript
@@ -279,7 +281,7 @@ func fileStillReadable(path string) bool {
 }
 
 func (s *Supervisor) newTail(ctx context.Context, rec domain.SessionRecord, path string) *tail {
-	created := &tail{sessionID: rec.ID, harness: string(rec.Harness), path: path}
+	created := &tail{sessionID: rec.ID, harness: string(rec.Harness), path: path, interrupts: s.deps.Interrupts}
 	if s.deps.Offsets == nil {
 		return created
 	}
