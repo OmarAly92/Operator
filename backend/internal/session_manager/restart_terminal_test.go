@@ -109,3 +109,16 @@ func TestRestartTerminal_RejectsAConcurrentOperation(t *testing.T) {
 		t.Fatalf("first restart: %v", err)
 	}
 }
+
+func TestRelaunchedHostsRestoreTheirHistory(t *testing.T) {
+	runtime := &fakeRuntime{aliveByHandle: map[string]bool{"pty-mer-1": true}, aliveErr: errors.New("read tcp 127.0.0.1:1: i/o timeout")}
+	runtime.onDestroy = func(int, ports.RuntimeHandle) { runtime.aliveErr = nil }
+	m, _ := newHungTerminalManager(t, runtime)
+
+	if _, err := m.RestartTerminal(ctx, "mer-1", ports.PaneGrid{}); err != nil {
+		t.Fatalf("RestartTerminal: %v", err)
+	}
+	if !runtime.lastCfg.RestoreHistory {
+		t.Fatal("a relaunched host must replay the history its predecessor saved")
+	}
+}

@@ -1465,12 +1465,13 @@ func (m *Manager) relaunchSessionWithPolicy(ctx context.Context, operation strin
 	}
 	defer m.lcm.CancelLaunch(rec.ID, launchID)
 	runtimeCfg := ports.RuntimeConfig{
-		SessionID:     rec.ID,
-		WorkspacePath: ws.Path,
-		Argv:          argv,
-		Env:           env,
-		Cols:          grid.Cols,
-		Rows:          grid.Rows,
+		SessionID:      rec.ID,
+		WorkspacePath:  ws.Path,
+		Argv:           argv,
+		Env:            env,
+		Cols:           grid.Cols,
+		Rows:           grid.Rows,
+		RestoreHistory: true,
 	}
 	var handle ports.RuntimeHandle
 	if restartHandle == nil {
