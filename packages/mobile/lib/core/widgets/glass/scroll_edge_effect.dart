@@ -33,7 +33,7 @@ class _ScrollEdgeEffectState extends State<ScrollEdgeEffect> {
     });
   }
 
-  Widget _fallback(Color bg) {
+  Widget _fallback(double maxAlpha) {
     final outer = widget.edge == ScrollEdge.top ? Alignment.topCenter : Alignment.bottomCenter;
     final inner = widget.edge == ScrollEdge.top ? Alignment.bottomCenter : Alignment.topCenter;
     return ShaderMask(
@@ -46,7 +46,7 @@ class _ScrollEdgeEffectState extends State<ScrollEdgeEffect> {
       child: ClipRect(
         child: BackdropFilter(
           filter: ui.ImageFilter.blur(sigmaX: 6, sigmaY: 6),
-          child: ColoredBox(color: bg.withValues(alpha: 0.5)),
+          child: ColoredBox(color: const Color(0xFF000000).withValues(alpha: maxAlpha)),
         ),
       ),
     );
@@ -54,14 +54,15 @@ class _ScrollEdgeEffectState extends State<ScrollEdgeEffect> {
 
   @override
   Widget build(BuildContext context) {
-    final bg = context.skin.bgBase;
+    final dark = context.skin.themeMode == ThemeMode.dark;
+    final maxAlpha = dark ? 0.2 : 0.15;
     final program = _program;
     return IgnorePointer(
       child: SizedBox(
         height: widget.height,
         width: double.infinity,
         child: program == null
-            ? _fallback(bg)
+            ? _fallback(maxAlpha)
             : LayoutBuilder(
                 builder: (context, constraints) {
                   final size = Size(constraints.maxWidth, widget.height);
@@ -69,17 +70,18 @@ class _ScrollEdgeEffectState extends State<ScrollEdgeEffect> {
                   final shader = program.fragmentShader()
                     ..setFloat(0, size.width * dpr)
                     ..setFloat(1, size.height * dpr)
-                    ..setFloat(2, 18 * dpr)
-                    ..setFloat(3, widget.edge == ScrollEdge.top ? 1 : 0)
-                    ..setFloat(4, bg.r)
-                    ..setFloat(5, bg.g)
-                    ..setFloat(6, bg.b)
-                    ..setFloat(7, 0.35);
+                    ..setFloat(2, size.height * dpr)
+                    ..setFloat(3, 18 * dpr)
+                    ..setFloat(4, widget.edge == ScrollEdge.top ? 1 : 0)
+                    ..setFloat(5, 0)
+                    ..setFloat(6, 0)
+                    ..setFloat(7, 0)
+                    ..setFloat(8, maxAlpha);
                   ui.ImageFilter filter;
                   try {
                     filter = ui.ImageFilter.shader(shader);
                   } on UnsupportedError {
-                    return _fallback(bg);
+                    return _fallback(maxAlpha);
                   }
                   return ClipRect(
                     child: BackdropFilter(filter: filter, child: const SizedBox.expand()),

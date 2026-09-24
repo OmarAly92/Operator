@@ -57,8 +57,8 @@ class _GlassLabScreenState extends State<GlassLabScreen> {
           children: [
             const Positioned.fill(child: GlassLabBackdrop()),
             if (scene != GlassLabScene.corners) ...[
-              const Positioned(left: 0, right: 0, top: 0, child: ScrollEdgeEffect(edge: ScrollEdge.top, height: 130)),
-              const Positioned(left: 0, right: 0, bottom: 0, child: ScrollEdgeEffect(edge: ScrollEdge.bottom, height: 120)),
+              const Positioned(left: 0, right: 0, top: 0, child: ScrollEdgeEffect(edge: ScrollEdge.top, height: 150)),
+              const Positioned(left: 0, right: 0, bottom: 0, child: ScrollEdgeEffect(edge: ScrollEdge.bottom, height: 150)),
             ],
             if (scene == GlassLabScene.corners)
               Center(
