@@ -2,7 +2,7 @@ mod export;
 
 use std::collections::HashMap;
 
-use vt_core::{FindCursor, FindMatch, FindQuery, TerminalCore};
+use vt_core::{FindQuery, FindSession, TerminalCore};
 use wasm_bindgen::prelude::*;
 
 pub use export::{
@@ -473,52 +473,38 @@ impl WasmTerminalCore {
             self.find_next_id = self.find_next_id.wrapping_add(1).max(1);
             id
         };
-        self.find_sessions.insert(id, FindSession::open(parsed));
+        self.find_sessions.insert(id, FindSession::new(parsed));
         self.find_results.clear();
         Ok(id)
     }
 
-    pub fn find_step(&mut self, id: u32, budget: usize) -> Result<(), JsError> {
-        let budget = budget.max(1);
-        let (query, next_block, results, complete) = {
-            let session = self
-                .find_sessions
-                .get_mut(&id)
-                .ok_or_else(|| JsError::new("unknown find session"))?;
-            if session.cancelled || session.complete {
-                return Ok(());
-            }
-            (
-                session.query.clone(),
-                session.next_block,
-                std::mem::take(&mut session.results),
-                session.complete,
-            )
-        };
-        let mut cursor: FindCursor<'_> = self
-            .core
-            .find_with_state(query, next_block, results, complete);
-        cursor.step(budget);
-        let (next_block, results, complete) = cursor.into_parts();
+    pub fn find_update(&mut self, id: u32, budget_bytes: usize) -> Result<Vec<u32>, JsError> {
         let session = self
             .find_sessions
             .get_mut(&id)
             .ok_or_else(|| JsError::new("unknown find session"))?;
-        session.next_block = next_block;
-        session.complete = complete;
-        session.results = results;
-        let mut flattened = Vec::with_capacity(session.results.len() * FIND_MATCH_WORDS);
-        for hit in &session.results {
-            checked_u32_from_u64(hit.byte_range.start as u64)
-                .map_err(|_| ExportError::FindOffsetOverflow)?;
-            checked_u32_from_u64(hit.byte_range.end as u64)
-                .map_err(|_| ExportError::FindOffsetOverflow)?;
+        let update = self.core.find_update(session, budget_bytes);
+        Ok(vec![
+            u32::try_from(update.added).unwrap_or(u32::MAX),
+            u32::try_from(update.removed).unwrap_or(u32::MAX),
+            u32::from(update.complete),
+        ])
+    }
+
+    pub fn find_export(&mut self, id: u32) -> Result<(), JsError> {
+        let session = self
+            .find_sessions
+            .get(&id)
+            .ok_or_else(|| JsError::new("unknown find session"))?;
+        let hits = self.core.find_results(session);
+        let mut flattened = Vec::with_capacity(hits.len() * FIND_MATCH_WORDS);
+        for hit in &hits {
             flattened.push(hit.block as u32);
             flattened.push((hit.block >> 32) as u32);
-            flattened
-                .push(checked_u32_from_u64(hit.row).map_err(|_| ExportError::FindOffsetOverflow)?);
-            flattened.push(hit.byte_range.start as u32);
-            flattened.push(hit.byte_range.end as u32);
+            for word in [hit.row, hit.end_row, hit.start as u64, hit.end as u64] {
+                flattened
+                    .push(checked_u32_from_u64(word).map_err(|_| ExportError::FindOffsetOverflow)?);
+            }
         }
         self.find_results = flattened;
         Ok(())
@@ -532,23 +518,18 @@ impl WasmTerminalCore {
         self.find_results.len()
     }
 
-    pub fn find_is_complete(&self, id: u32) -> Result<bool, JsError> {
+    pub fn find_history_bytes_scanned(&self, id: u32) -> Result<f64, JsError> {
         let session = self
             .find_sessions
             .get(&id)
             .ok_or_else(|| JsError::new("unknown find session"))?;
-        Ok(session.complete)
+        Ok(session.history_bytes_scanned() as f64)
     }
 
-    pub fn find_cancel(&mut self, id: u32) -> Result<(), JsError> {
-        let session = self
-            .find_sessions
-            .get_mut(&id)
-            .ok_or_else(|| JsError::new("unknown find session"))?;
-        session.cancelled = true;
-        session.complete = true;
-        self.find_free_ids.push(id);
-        Ok(())
+    pub fn find_cancel(&mut self, id: u32) {
+        if self.find_sessions.remove(&id).is_some() {
+            self.find_free_ids.push(id);
+        }
     }
 }
 
@@ -575,26 +556,6 @@ impl From<ExportError> for JsError {
         match err {
             ExportError::OffsetOverflow => JsError::new("offset overflows u32"),
             ExportError::FindOffsetOverflow => JsError::new("find result offset overflows u32"),
-        }
-    }
-}
-
-struct FindSession {
-    query: FindQuery,
-    next_block: usize,
-    complete: bool,
-    cancelled: bool,
-    results: Vec<FindMatch>,
-}
-
-impl FindSession {
-    fn open(query: FindQuery) -> Self {
-        Self {
-            query,
-            next_block: 0,
-            complete: false,
-            cancelled: false,
-            results: Vec::new(),
         }
     }
 }

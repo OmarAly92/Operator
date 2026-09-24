@@ -36,7 +36,7 @@ pub use block_grid::BlockGrid;
 pub use block_selection::{BlockSelection, SelectionPoint};
 pub use block_tree::{BlockSummary, BlockTree};
 pub use delta::{Delta, DeltaKind};
-pub use find::{FindCursor, FindMatch, FindQuery};
+pub use find::{FindMatch, FindQuery, FindSession, FindUpdate};
 pub use grid::{CellSpan, ExportedRow};
 pub use hyperlink::{Hyperlink, HyperlinkRegistry, LinkId};
 pub use integrity::IntegrityError;
@@ -440,31 +440,26 @@ impl TerminalCore {
         self.parser.flat_row(stable)
     }
 
-    pub fn find(&self, query: find::FindQuery) -> find::FindCursor<'_> {
-        find::FindCursor::new(
-            self.parser.grid(),
-            self.parser.rows(),
-            self.parser.content(),
-            query,
-        )
+    fn find_view(&self) -> find::FindView<'_> {
+        find::FindView {
+            content: self.parser.content(),
+            rows: self.parser.rows(),
+            screen: self.parser.screen(),
+            generation: self.parser.generation(),
+            first_stable_row: self.parser.first_stable_row(),
+        }
     }
 
-    pub fn find_with_state(
-        &self,
-        query: find::FindQuery,
-        next_block: usize,
-        results: Vec<find::FindMatch>,
-        complete: bool,
-    ) -> find::FindCursor<'_> {
-        find::FindCursor::with_state(
-            self.parser.grid(),
-            self.parser.rows(),
-            self.parser.content(),
-            query,
-            next_block,
-            results,
-            complete,
-        )
+    pub fn find_update(&self, session: &mut FindSession, budget_bytes: usize) -> FindUpdate {
+        session.update(&self.find_view(), budget_bytes)
+    }
+
+    pub fn find_results(&self, session: &FindSession) -> Vec<FindMatch> {
+        let total = self.history_rows() + self.parser.screen().content_rows();
+        let blocks = grid::export_blocks(self.parser.grid(), total, |_| true)
+            .map(|(records, _)| records)
+            .unwrap_or_default();
+        session.results(&self.find_view(), &blocks)
     }
 
     pub fn alt_screen_active(&self) -> bool {
