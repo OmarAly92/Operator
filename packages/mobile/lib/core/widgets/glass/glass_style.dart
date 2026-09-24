@@ -12,9 +12,11 @@ sealed class GlassStyle {
   static const double _maxSize = 600;
 
   static double sizeProgress(double size) =>
-      ((size.clamp(_minSize, _maxSize) - _minSize) / (_maxSize - _minSize)).toDouble();
+      ((size.clamp(_minSize, _maxSize) - _minSize) / (_maxSize - _minSize))
+          .toDouble();
 
-  static double thicknessFor(double size) => lerpDouble(10, 30, math.sqrt(sizeProgress(size)))!;
+  static double thicknessFor(double size) =>
+      lerpDouble(10, 30, math.sqrt(sizeProgress(size)))!;
 
   static LiquidGlassSettings resolve({
     required AppSkin skin,
@@ -25,11 +27,21 @@ sealed class GlassStyle {
     final dark = skin.themeMode == ThemeMode.dark;
     final t = sizeProgress(size);
     final baseTint = switch (variant) {
-      GlassVariant.regular => dark ? skin.bgSurface.withValues(alpha: 0.1) : const Color(0xFFFFFFFF).withValues(alpha: 0.58),
-      GlassVariant.clear => dark ? skin.bgSurface.withValues(alpha: 0.05) : const Color(0xFFFFFFFF).withValues(alpha: 0.08),
+      GlassVariant.regular =>
+        dark
+            ? skin.bgSurface.withValues(alpha: lerpDouble(0.1, 0.48, t)!)
+            : const Color(
+                0xFFFFFFFF,
+              ).withValues(alpha: lerpDouble(0.58, 0.76, t)!),
+      GlassVariant.clear =>
+        dark
+            ? skin.bgSurface.withValues(alpha: 0.05)
+            : const Color(0xFFFFFFFF).withValues(alpha: 0.08),
       GlassVariant.prominent => skin.accent.withValues(alpha: 0.85),
     };
-    final tint = highContrast ? baseTint.withValues(alpha: math.min(0.92, baseTint.a + 0.3)) : baseTint;
+    final tint = highContrast
+        ? baseTint.withValues(alpha: math.min(0.92, baseTint.a + 0.3))
+        : baseTint;
     return LiquidGlassSettings(
       glassColor: tint,
       thickness: thicknessFor(size),
@@ -41,7 +53,8 @@ sealed class GlassStyle {
       refractiveIndex: 1.2,
       saturation: switch (variant) {
         GlassVariant.clear => 1.2,
-        GlassVariant.regular => dark ? 1.2 : 2.0,
+        GlassVariant.regular =>
+          dark ? lerpDouble(1.2, 0.75, t)! : lerpDouble(2.0, 1.24, t)!,
         GlassVariant.prominent => 1.0,
       },
       fillRatio: 0.7,
