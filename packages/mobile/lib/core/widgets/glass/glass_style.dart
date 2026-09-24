@@ -44,15 +44,24 @@ sealed class GlassStyle {
         GlassVariant.regular => dark ? 1.2 : 2.0,
         GlassVariant.prominent => 1.0,
       },
-      fillRatio: 0.25,
+      fillRatio: 0.7,
     );
   }
 
-  static List<BoxShadow> shadows(AppSkin skin) {
+  static List<BoxShadow> shadows(AppSkin skin, {required double size}) {
     final dark = skin.themeMode == ThemeMode.dark;
+    final t = sizeProgress(size);
     return [
-      BoxShadow(blurStyle: BlurStyle.outer, color: const Color(0xFF000000).withValues(alpha: dark ? 0.2 : 0.05), blurRadius: 2),
-      BoxShadow(blurStyle: BlurStyle.outer, color: const Color(0xFF000000).withValues(alpha: dark ? 0.35 : 0.12), blurRadius: 24),
+      BoxShadow(
+        blurStyle: BlurStyle.outer,
+        color: const Color(0xFF000000).withValues(alpha: dark ? 0.06 : 0.03),
+        blurRadius: lerpDouble(1, 3, t)!,
+      ),
+      BoxShadow(
+        blurStyle: BlurStyle.outer,
+        color: const Color(0xFF000000).withValues(alpha: dark ? 0.10 : 0.06),
+        blurRadius: lerpDouble(10, 30, t)!,
+      ),
     ];
   }
 }

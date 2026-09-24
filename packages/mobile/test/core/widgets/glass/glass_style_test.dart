@@ -44,9 +44,9 @@ void main() {
       expect(contrast.glassColor.a, greaterThan(normal.glassColor.a));
     });
 
-    test('uses a dim fill so the rim reads directional', () {
+    test('uses a near-uniform fill', () {
       final s = GlassStyle.resolve(skin: light, variant: GlassVariant.regular, size: 62);
-      expect(s.fillRatio, lessThan(0.5));
+      expect(s.fillRatio, greaterThan(0.5));
     });
 
     test('bigger glass blurs more', () {
@@ -57,8 +57,14 @@ void main() {
   });
 
   test('shadows are two outer-blur layers', () {
-    final shadows = GlassStyle.shadows(light);
+    final shadows = GlassStyle.shadows(light, size: 62);
     expect(shadows, hasLength(2));
     expect(shadows.every((s) => s.blurStyle == BlurStyle.outer), isTrue);
+  });
+
+  test('bigger glass casts a softer, larger ambient shadow', () {
+    final small = GlassStyle.shadows(light, size: 44);
+    final big = GlassStyle.shadows(light, size: 400);
+    expect(big[1].blurRadius, greaterThan(small[1].blurRadius));
   });
 }
