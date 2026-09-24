@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:operator_mobile/core/app_routes/home_shell.dart';
@@ -186,6 +187,12 @@ sealed class AppRouter {
         );
 
       case RoutesStrings.glassLab:
+        if (!kDebugMode) {
+          return MaterialPageRoute(
+            builder: (context) => const AppScaffold(appBar: GlobalAppbar.sub(), body: AppErrorWidget()),
+            settings: settings,
+          );
+        }
         return MaterialPageRoute(
           builder: (_) => GlassLabScreen(scene: GlassLabScene.fromEnvironment() ?? GlassLabScene.rest),
           settings: settings,
