@@ -831,6 +831,31 @@ history of `master`.
 - Guard: `styles-parity.test.ts` "never uses a containment that clips paint
   or fixes size".
 
+### 4.27 A paste that runs by itself — roadmap Plan 1
+- Symptom: text copied from a web page with a hidden line break ran as a
+  command the moment it was pasted into a pane whose program did not ask for
+  bracketed paste, and inside bracketed paste a lone `ESC` or `^C` reached the
+  program (`ts/editor/src/paste.ts` before this plan: only `ESC[201~` was
+  removed).
+- Now: one rule in `ts/editor/src/paste.ts` (`encodePaste`, `deliverPaste`),
+  used by the line editor's passthrough (primary screen, where Claude Code
+  runs) and by the alternate-screen handler in `TerminalSurface.tsx`.
+  Bracketed: strip `ESC[201~`, `ESC` and `^C` and send. Unbracketed while the
+  child owns the line: a newline, a C0 control other than tab, or `ESC[201~`
+  makes the paste unsafe, and the host's `HostCapabilities.confirmPaste` is
+  asked. No handler means send as before (product independence, §3.1). The
+  editor-owned line never asks: nothing runs until Enter.
+- Operator: `frontend/src/renderer/hooks/usePasteConfirm.tsx` shows the first
+  5 lines (200 characters each) and a one-line reason in `ConfirmDialog`,
+  wired in `BlockTerminal.tsx`. "Paste" or "Cancel", no "don't ask again".
+- References, behaviour only (no code adapted, so no attribution file):
+  Ghostty `src/input/paste.zig:160-190`, Alacritty
+  `alacritty/src/event.rs:1369-1410`.
+- Guards: `paste.test.ts` (verdict table, preview, delivery),
+  `line-editor-paste.test.ts`, `TerminalSurface.paste.test.tsx`,
+  `frontend/src/renderer/hooks/usePasteConfirm.test.tsx`,
+  `BlockTerminal.test.tsx` "BlockTerminal paste confirm".
+
 ## 5. Known gaps (not bugs, decisions pending)
 
 - **SGR attributes render by default since 2026-09-23.**

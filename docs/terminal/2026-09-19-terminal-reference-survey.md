@@ -47,7 +47,7 @@ Absent evidence is written as "not known", never guessed.
 
 ## Implementation status (updated 2026-09-24)
 
-Every entry below carries a **Status** line under its heading, checked against the tree on 2026-09-24 (`development`): 36 done, 17 partial, 26 not done, 7 not pursued, 1 not needed, 1 n/a. "Plan A–F" are the agent-TUI spec's plans (`docs/superpowers/specs/2026-09-19-agent-tui-experience-design.md`); "Plan 4" is the background-pane plan (`docs/superpowers/plans/2026-09-23-terminal-background-pane-cost.md`). Entries marked non-goal were excluded by the agent-TUI spec, not rejected.
+Every entry below carries a **Status** line under its heading, checked against the tree on 2026-09-24 (`development`): 38 done, 17 partial, 24 not done, 7 not pursued, 1 not needed, 1 n/a. "Plan A–F" are the agent-TUI spec's plans (`docs/superpowers/specs/2026-09-19-agent-tui-experience-design.md`); "Plan 4" is the background-pane plan (`docs/superpowers/plans/2026-09-23-terminal-background-pane-cost.md`). Entries marked non-goal were excluded by the agent-TUI spec, not rejected. "Roadmap Plan 1" is the paste-safety plan (`docs/superpowers/plans/2026-09-24-terminal-plan-1-paste-safety.md`).
 
 | Entry | Status | What landed / what is missing |
 |---|---|---|
@@ -60,7 +60,7 @@ Every entry below carries a **Status** line under its heading, checked against t
 | §1.7 | Not done | No incremental `FindSession`; each query scans the whole buffer once and does not pick up later output. Hits carry stable rows since Plan B. |
 | §1.8 | Not done | The selection paints through `selection-fill` and find hits use row classes; Plan E's range painter (`decorations.ts`) serves links, hints, redaction and prediction only. |
 | §1.9 | Done | Plan C — `vt_replay` sends origin, modes, the frame, `READY`, then history in 512-row chunks; the pane paints at `READY`. |
-| §1.10 | Not done | `planPaste` still strips `ESC[201~` silently and sends an unbracketed multi-line paste line by line; no unsafe verdict, no confirm. |
+| §1.10 | Done | Roadmap Plan 1 — `encodePaste` returns the bytes and a verdict; outside bracketed paste a newline, a C0 control other than tab, or `ESC[201~` is unsafe and goes to `HostCapabilities.confirmPaste` (Operator: a dialog with the first five lines); no handler sends as before. The editor-owned line never asks. The confirm is a host seam, not surface chrome as the entry proposed. |
 | §1.11 | Not done | `print` is still per character with a style resolve each; no `print_run`, no unknown-sequence ring (Plan A's `trace` feature is a debug build, not the ring). |
 | §1.12 | Not done | No `RowFlags`; `ScreenGrid` keeps separate `wrapped` and `dirty` vectors. |
 | §1.13 | Done | Plan B — `Limits { rows: 200_000, bytes: 128 MiB }` in both cores, plus `memory_stats`. Compression was excluded by the proposal itself. Open: the OSC 8 registry sits outside the byte budget (`TERMINAL.md` §5). |
@@ -79,7 +79,7 @@ Every entry below carries a **Status** line under its heading, checked against t
 | §2.8 | Done | Plan D — ten attribute bits and underline colour in the style word; painted with `attributes: "warp"`, the default since 2026-09-23 (`534ef20fe`). |
 | §2.9 | Done | Plan A — `tests/ref` with Alacritty's recordings plus our own. |
 | §2.10 | Done | Plan A — `enqueue`/`drain` with a 12 ms budget per animation frame. Plan 4 added a 250 ms drain per timer tick while the window is hidden (`cb7b34b3b`). |
-| §2.11 | Not done | Bracketed paste still strips only the literal `ESC[201~`; a lone `ESC` or `^C` passes through. |
+| §2.11 | Done | Roadmap Plan 1 — inside bracketed paste `ESC[201~`, every `ESC` and every `^C` are removed and the paste is sent without asking; outside, `\r\n`/`\n` still become `\r`. |
 | §2.12 | Done | Plan D — `cursorContrast` and `cursorHollowUnfocused` flags, both still off: `cursorContrast` changes 0 px on the Claude Code recordings (`TERMINAL.md` §5). |
 | §2.13 | Not pursued | The entry itself says not recommended, and the agent-TUI spec lists it under non-goals. |
 | §2.14 | Not done | Nothing to cap yet: `vt-core` has no title or keyboard-mode stacks. The grapheme byte cap (256) was already in place. |
@@ -765,7 +765,7 @@ state; whether that has ever produced a visible artefact: not known).
 
 ### 1.10 Paste safety as one rule in one place
 
-> **Status: Not done.** `planPaste` still strips `ESC[201~` silently and sends an unbracketed multi-line paste line by line; no unsafe verdict, no confirm.
+> **Status: Done (roadmap Plan 1, 2026-09-24).** `encodePaste` gives a verdict; an unsafe unbracketed paste goes to the host's `confirmPaste` (Operator shows a dialog). Deviation from the proposal below: the confirm is a host seam rather than surface chrome, and `ESC[201~` is still stripped inside brackets (with every `ESC` and `^C`, §2.11) instead of refused.
 
 **Reference**
 - `src/terminal/paste.zig:1-17`: the single function that turns "the user
@@ -1785,7 +1785,7 @@ not known — measure).
 
 ### 2.11 Paste: strip `ESC` and `^C` inside bracketed paste; keep newlines as `\r` outside
 
-> **Status: Not done.** Bracketed paste still strips only the literal `ESC[201~`; a lone `ESC` or `^C` passes through.
+> **Status: Done (roadmap Plan 1, 2026-09-24).** Bracketed paste removes `ESC[201~`, then every `ESC` and `^C`.
 
 **Reference**
 - `alacritty/src/event.rs:1369-1410` `paste`: search mode consumes the text;

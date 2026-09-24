@@ -20,6 +20,7 @@ export type {
 	LineEditorState,
 	MemoryStats,
 	PaletteCommand,
+	PasteUnsafeReason,
 	PathCandidate,
 	ResolvedPath,
 	RowEvent,

@@ -22,6 +22,7 @@ import { previewBytes, terminalDebug } from "../lib/terminal-debug";
 import { isWebLink, openLinkInSystemBrowser } from "../lib/external-link-policy";
 import { fetchRedactionPatterns, redactionPatternsQueryKey } from "../lib/redaction-patterns";
 import { externalEditorLabel } from "../lib/open-files-in";
+import { usePasteConfirm } from "../hooks/usePasteConfirm";
 
 export type BlockTerminalClipboard = {
 	writeText: (text: string) => Promise<void>;
@@ -462,6 +463,7 @@ export function BlockTerminal({
 
 	const predictiveEcho = useUiStore((state) => state.terminalPredictiveEcho);
 	const predictiveThresholdMs = predictiveEcho ? terminalPredictiveEchoThresholdMs : undefined;
+	const { confirmPaste, dialog: pasteConfirmDialog } = usePasteConfirm();
 	const host = useMemo<HostCapabilities>(
 		() => ({
 			writeClipboard: async (text: string) => {
@@ -486,8 +488,9 @@ export function BlockTerminal({
 			},
 			secretPatterns,
 			...(predictiveThresholdMs === undefined ? {} : { predictiveEcho: { thresholdMs: predictiveThresholdMs } }),
+			confirmPaste,
 		}),
-		[clipboard, workspacePath, secretPatterns, predictiveThresholdMs, openFile],
+		[clipboard, workspacePath, secretPatterns, predictiveThresholdMs, openFile, confirmPaste],
 	);
 
 	const strings = useMemo<TerminalStrings>(
@@ -635,6 +638,7 @@ export function BlockTerminal({
 			ref={rootRef}
 		>
 			<TerminalSurface {...surfaceProps} />
+			{pasteConfirmDialog}
 			{openPathNotice ? (
 				<div
 					className="pointer-events-none fixed bottom-4 right-4 z-overlay w-[min(24rem,calc(100%-2rem))] rounded-xl border border-(--color-border-settings-dialog) bg-settings-dialog px-4 py-3 shadow-[var(--shadow-settings-dialog)]"

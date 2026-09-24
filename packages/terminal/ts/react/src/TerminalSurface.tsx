@@ -1,5 +1,5 @@
 import { useCallback, useLayoutEffect, useRef, useState, type ReactElement, type ReactNode } from "react";
-import { clipboardHasImage, encodeKey, LineEditor, planPaste } from "@operator/terminal-editor";
+import { clipboardHasImage, deliverPaste, encodeKey, LineEditor, planPaste } from "@operator/terminal-editor";
 import {
 	createFindBar,
 	createPathProvider,
@@ -123,6 +123,9 @@ export function TerminalSurface({
 	const resolveFirstPath = host?.resolveFirstPath;
 	const resolveFirstPathRef = useRef(resolveFirstPath);
 	resolveFirstPathRef.current = resolveFirstPath;
+	const confirmPaste = host?.confirmPaste;
+	const confirmPasteRef = useRef(confirmPaste);
+	confirmPasteRef.current = confirmPaste;
 
 	const applyLinkProviders = useCallback(() => {
 		const renderer = rendererRef.current;
@@ -170,6 +173,7 @@ export function TerminalSurface({
 		editor.setTheme(theme);
 		editor.setFont(font);
 		editor.setStrings(strings);
+		editor.setPasteConfirm(confirmPasteRef.current ?? null);
 		const findBar = createFindBar({
 			core,
 			renderer,
@@ -245,6 +249,10 @@ export function TerminalSurface({
 	}, [strings]);
 
 	useLayoutEffect(() => {
+		editorRef.current?.setPasteConfirm(confirmPaste ?? null);
+	}, [confirmPaste]);
+
+	useLayoutEffect(() => {
 		const blockHost = hostRef.current;
 		const renderer = rendererRef.current;
 		if (!blockHost || !renderer) {
@@ -306,6 +314,7 @@ export function TerminalSurface({
 			return;
 		}
 		const appCursor = () => core.snapshot().applicationCursorKeys;
+		let active = true;
 		const composition = createCompositionTarget({
 			parent: blockHost,
 			onCommit: (text) => onSendRaw(text),
@@ -338,13 +347,20 @@ export function TerminalSurface({
 				owned: false,
 				bracketedPaste: core.snapshot().bracketedPaste,
 			});
-			if (plan.kind === "send") onSendRaw(plan.data);
+			void deliverPaste(
+				plan,
+				(bytes) => {
+					if (active) onSendRaw(bytes);
+				},
+				hostCapsRef.current?.confirmPaste,
+			);
 		};
 		blockHost.addEventListener("keydown", onKeyDown);
 		blockHost.addEventListener("paste", onPaste);
 		compositionRef.current = composition;
 		composition.focus();
 		return () => {
+			active = false;
 			blockHost.removeEventListener("keydown", onKeyDown);
 			blockHost.removeEventListener("paste", onPaste);
 			compositionRef.current = null;

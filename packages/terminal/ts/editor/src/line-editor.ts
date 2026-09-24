@@ -14,7 +14,7 @@ import { CompletionsDropdown } from "./completions-dropdown.js";
 import { tokenize, type TokenKind } from "./highlight.js";
 import { HistoryModel } from "./history.js";
 import { encodeKey } from "./encode-key.js";
-import { clipboardHasImage, planPaste } from "./paste.js";
+import { clipboardHasImage, deliverPaste, planPaste, type PasteConfirm } from "./paste.js";
 import { mapKey, type EditorCommand } from "./keymap.js";
 import { renderPromptRow } from "./prompt-row.js";
 import { ReverseSearch } from "./reverse-search.js";
@@ -51,6 +51,7 @@ export class LineEditor {
 	private visible = true;
 	private staleWhileHidden = false;
 	private reportedDraft = "";
+	private pasteConfirm: PasteConfirm | null = null;
 
 	mount(container: HTMLElement, core: TerminalCore, host: EditorHost): void {
 		this.dispose();
@@ -137,6 +138,10 @@ export class LineEditor {
 	setStrings(strings: TerminalStrings): void {
 		this.strings = strings;
 		this.render();
+	}
+
+	setPasteConfirm(confirm: PasteConfirm | null): void {
+		this.pasteConfirm = confirm;
 	}
 
 	setVisible(visible: boolean): void {
@@ -230,7 +235,16 @@ export class LineEditor {
 			this.apply({ kind: "insert", text: plan.text });
 			return;
 		}
-		if (plan.kind === "send") this.host?.sendRaw(plan.data);
+		const host = this.host;
+		const root = this.root;
+		if (!host) return;
+		void deliverPaste(
+			plan,
+			(data) => {
+				if (this.root === root) host.sendRaw(data);
+			},
+			this.pasteConfirm ?? undefined,
+		);
 	};
 
 	// Returns null when the editor owns the line and should edit locally, and

@@ -245,6 +245,8 @@ export type PathCandidate = Readonly<{ path: string; allowDirectory: boolean }>;
 
 export type ResolvedPath = Readonly<{ index: number; path: string }>;
 
+export type PasteUnsafeReason = "newline" | "control" | "paste-end";
+
 export type HostCapabilities = Readonly<{
 	writeClipboard(text: string): Promise<void>;
 	readClipboard(): Promise<string>;
@@ -255,6 +257,7 @@ export type HostCapabilities = Readonly<{
 	openPath?(path: string, line?: number, column?: number): Promise<void>;
 	secretPatterns?: readonly SecretPattern[];
 	predictiveEcho?: Readonly<{ thresholdMs: number }>;
+	confirmPaste?(preview: string, reason: PasteUnsafeReason): Promise<boolean>;
 }>;
 
 export type HistoryStore = {

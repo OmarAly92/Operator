@@ -1,7 +1,17 @@
 export { EditorBuffer } from "./buffer.js";
 export { LineEditor, type EditorHost } from "./line-editor.js";
 export { encodeKey } from "./encode-key.js";
-export { clipboardHasImage, planPaste, type PastePlan } from "./paste.js";
+export {
+	clipboardHasImage,
+	deliverPaste,
+	encodePaste,
+	pastePreview,
+	planPaste,
+	type EncodedPaste,
+	type PasteConfirm,
+	type PastePlan,
+	type PasteVerdict,
+} from "./paste.js";
 export { mapKey, type EditorCommand } from "./keymap.js";
 export { tokenize, type Token, type TokenKind } from "./highlight.js";
 export { HistoryModel } from "./history.js";
