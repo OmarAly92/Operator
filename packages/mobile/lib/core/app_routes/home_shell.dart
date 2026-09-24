@@ -1,7 +1,12 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
+import 'package:operator_mobile/core/app_routes/routes_strings.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
-import 'package:operator_mobile/core/app_themes/text_style/app_text_style.dart';
-import 'package:operator_mobile/core/utils/haptics.dart';
+import 'package:operator_mobile/core/widgets/glass/glass_button.dart';
+import 'package:operator_mobile/core/widgets/glass/glass_metrics.dart';
+import 'package:operator_mobile/core/widgets/glass/glass_tab_bar.dart';
+import 'package:operator_mobile/core/widgets/glass/scroll_edge_effect.dart';
 import 'package:operator_mobile/feature/pull_request/presentation/pull_requests_screen/ui/pull_requests_screen.dart';
 import 'package:operator_mobile/feature/sessions/presentation/sessions_screen/ui/sessions_screen.dart';
 import 'package:operator_mobile/feature/settings/presentation/settings_screen/ui/settings_screen.dart';
@@ -17,6 +22,17 @@ class HomeShell extends StatefulWidget {
   );
 
   static ScrollController controllerFor(int tab) => _controllers[tab];
+
+  static const Key spawnButtonKey = ValueKey('home-shell-spawn');
+
+  static const List<GlassTabItem> tabs = [
+    GlassTabItem(icon: Icons.auto_awesome_motion_outlined, label: 'Agents'),
+    GlassTabItem(icon: Icons.call_merge_outlined, label: 'PRs'),
+    GlassTabItem(icon: Icons.settings_outlined, label: 'Settings'),
+  ];
+
+  static double contentBottomInset(double safeBottom) =>
+      math.max(safeBottom, GlassMetrics.tabBarBottomInset + GlassMetrics.tabBarHeight);
 
   @override
   State<HomeShell> createState() => _HomeShellState();
@@ -37,57 +53,72 @@ class _HomeShellState extends State<HomeShell> {
 
   void _onTabChanged() => setState(() {});
 
+  void _select(int next) {
+    if (next == HomeShell.selectedTab.value) {
+      final controller = HomeShell.controllerFor(next);
+      if (controller.hasClients && controller.offset > 0) {
+        controller.animateTo(
+          0,
+          duration: const Duration(milliseconds: 250),
+          curve: Curves.easeOut,
+        );
+      }
+      return;
+    }
+    HomeShell.selectedTab.value = next;
+  }
+
   @override
   Widget build(BuildContext context) {
     final skin = context.skin;
+    final media = MediaQuery.of(context);
+    final selected = HomeShell.selectedTab.value;
+    final bottomInset = HomeShell.contentBottomInset(media.padding.bottom);
     return Scaffold(
       backgroundColor: skin.bgBase,
-      body: IndexedStack(
-        index: HomeShell.selectedTab.value,
+      body: Stack(
         children: [
-          const SessionsScreen(),
-          const PullRequestsScreen(),
-          SettingsScreen(onOpenBoard: () => HomeShell.selectedTab.value = 0),
-        ],
-      ),
-      bottomNavigationBar: DecoratedBox(
-        decoration: BoxDecoration(
-          color: skin.bgChrome,
-          border: Border(top: BorderSide(color: skin.borderSubtle)),
-        ),
-        child: SafeArea(
-          top: false,
-          child: BottomNavigationBar(
-            currentIndex: HomeShell.selectedTab.value,
-            onTap: (next) {
-              Haptics.select();
-              if (next == HomeShell.selectedTab.value) {
-                final controller = HomeShell.controllerFor(next);
-                if (controller.hasClients && controller.offset > 0) {
-                  controller.animateTo(
-                    0,
-                    duration: const Duration(milliseconds: 250),
-                    curve: Curves.easeOut,
-                  );
-                }
-                return;
-              }
-              HomeShell.selectedTab.value = next;
-            },
-            type: BottomNavigationBarType.fixed,
-            backgroundColor: Colors.transparent,
-            elevation: 0,
-            selectedItemColor: skin.accent,
-            unselectedItemColor: skin.textTertiary,
-            selectedLabelStyle: AppTextStyle.style11SemiBold,
-            unselectedLabelStyle: AppTextStyle.style11SemiBold,
-            items: const [
-              BottomNavigationBarItem(icon: Icon(Icons.auto_awesome_motion_outlined), label: 'Agents'),
-              BottomNavigationBarItem(icon: Icon(Icons.call_merge_outlined), label: 'PRs'),
-              BottomNavigationBarItem(icon: Icon(Icons.settings_outlined), label: 'Settings'),
-            ],
+          Positioned.fill(
+            child: MediaQuery(
+              data: media.copyWith(padding: media.padding.copyWith(bottom: bottomInset)),
+              child: IndexedStack(
+                index: selected,
+                children: [
+                  const SessionsScreen(),
+                  const PullRequestsScreen(),
+                  SettingsScreen(onOpenBoard: () => HomeShell.selectedTab.value = 0),
+                ],
+              ),
+            ),
           ),
-        ),
+          const Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: ScrollEdgeEffect(
+              edge: ScrollEdge.bottom,
+              height: GlassMetrics.tabBarBottomInset + GlassMetrics.tabBarHeight + GlassMetrics.bottomEdgeFadeExtent,
+            ),
+          ),
+          if (selected == 0)
+            Positioned(
+              right: GlassMetrics.primaryButtonInset,
+              bottom: GlassMetrics.tabBarBottomInset + GlassMetrics.tabBarHeight + GlassMetrics.primaryButtonBottomGap,
+              child: GlassButton.icon(
+                key: HomeShell.spawnButtonKey,
+                icon: Icons.add,
+                semanticLabel: 'Spawn agent',
+                prominent: true,
+                onPressed: () => Navigator.of(context).pushNamed(RoutesStrings.spawn),
+              ),
+            ),
+          Positioned(
+            left: GlassMetrics.tabBarSideInset,
+            right: GlassMetrics.tabBarSideInset,
+            bottom: GlassMetrics.tabBarBottomInset,
+            child: GlassTabBar(items: HomeShell.tabs, selectedIndex: selected, onSelected: _select),
+          ),
+        ],
       ),
     );
   }

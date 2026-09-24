@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -6,6 +7,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:operator_mobile/core/api/models/global_response.dart';
 import 'package:operator_mobile/core/api/server_config_store.dart';
 import 'package:operator_mobile/core/app_routes/home_shell.dart';
+import 'package:operator_mobile/core/app_routes/routes_strings.dart';
 import 'package:operator_mobile/core/app_themes/colors/dark_skin.dart';
 import 'package:operator_mobile/core/app_themes/colors/logic/skin_cubit.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
@@ -14,6 +16,9 @@ import 'package:operator_mobile/core/helpers/result/result.dart';
 import 'package:operator_mobile/core/mux/mux_client.dart';
 import 'package:operator_mobile/core/mux/session_patch.dart';
 import 'package:operator_mobile/core/utils/service_locator.dart';
+import 'package:operator_mobile/core/widgets/glass/glass_button.dart';
+import 'package:operator_mobile/core/widgets/glass/glass_tab_bar.dart';
+import 'package:operator_mobile/core/widgets/glass/scroll_edge_effect.dart';
 import 'package:operator_mobile/feature/notification/data/model/notification_page_model.dart';
 import 'package:operator_mobile/feature/notification/data/model/params/get_notifications_params.dart';
 import 'package:operator_mobile/feature/notification/data/model/phone_alert_status_model.dart';
@@ -28,6 +33,7 @@ import 'package:operator_mobile/feature/sessions/data/model/session_model.dart';
 import 'package:operator_mobile/feature/sessions/data/repository/sessions_repository.dart';
 import 'package:operator_mobile/feature/sessions/presentation/sessions_screen/logic/sessions_cubit.dart';
 import 'package:operator_mobile/feature/sessions/presentation/sessions_screen/ui/sessions_screen.dart';
+import 'package:operator_mobile/feature/sessions/presentation/sessions_screen/ui/widgets/session_card.dart';
 import 'package:operator_mobile/feature/settings/presentation/settings_screen/logic/phone_alerts_cubit.dart';
 import 'package:operator_mobile/feature/settings/presentation/settings_screen/logic/settings_cubit.dart';
 import 'package:operator_mobile/feature/settings/presentation/settings_screen/ui/settings_screen.dart';
@@ -109,7 +115,7 @@ void main() {
   }
 
   Finder tabLabel(String label) =>
-      find.descendant(of: find.byType(BottomNavigationBar), matching: find.text(label));
+      find.descendant(of: find.byType(GlassTabBar), matching: find.text(label));
 
   Future<void> pumpShell(WidgetTester tester) async {
     await tester.pumpWidget(
@@ -118,6 +124,8 @@ void main() {
         child: ScreenUtilInit(
           designSize: const Size(390, 844),
           builder: (context, child) => MaterialApp(
+            onGenerateRoute: (settings) =>
+                MaterialPageRoute<void>(builder: (_) => Text('route ${settings.name}'), settings: settings),
             home: MultiBlocProvider(
               providers: [
                 BlocProvider<SessionsCubit>(create: (_) => SessionsCubit(repository, mux, sl<ServerConfigStore>())),
@@ -150,7 +158,7 @@ void main() {
   testWidgets('opens on the Agents tab', (tester) async {
     await pumpShell(tester);
 
-    expect(tester.widget<BottomNavigationBar>(find.byType(BottomNavigationBar)).currentIndex, 0);
+    expect(tester.widget<GlassTabBar>(find.byType(GlassTabBar)).selectedIndex, 0);
   });
 
   testWidgets('switches tabs on tap', (tester) async {
@@ -159,7 +167,7 @@ void main() {
     await tester.tap(tabLabel('Settings'));
     await settle(tester);
 
-    expect(tester.widget<BottomNavigationBar>(find.byType(BottomNavigationBar)).currentIndex, 2);
+    expect(tester.widget<GlassTabBar>(find.byType(GlassTabBar)).selectedIndex, 2);
   });
 
   testWidgets('keeps every tab mounted so each keeps its state', (tester) async {
@@ -270,5 +278,79 @@ void main() {
       );
       expect(scaffold.extendBodyBehindAppBar, isTrue, reason: '$screen');
     }
+  });
+
+  testWidgets('uses the floating glass tab bar', (tester) async {
+    await pumpShell(tester);
+    expect(find.byType(BottomNavigationBar), findsNothing);
+    expect(find.byType(GlassTabBar), findsOneWidget);
+    final bottomFade = tester.widgetList<ScrollEdgeEffect>(find.byType(ScrollEdgeEffect)).where((e) => e.edge == ScrollEdge.bottom);
+    expect(bottomFade.single.height, 120);
+  });
+
+  testWidgets('the + button is prominent glass and opens spawn', (tester) async {
+    await pumpShell(tester);
+    expect(tester.widget<GlassButton>(find.byKey(HomeShell.spawnButtonKey)).prominent, isTrue);
+    expect(find.byType(FloatingActionButton), findsNothing);
+    await tester.tap(find.byKey(HomeShell.spawnButtonKey));
+    await settle(tester);
+    expect(find.text('route ${RoutesStrings.spawn}'), findsOneWidget);
+  });
+
+  testWidgets('the + button shows only on the Agents tab', (tester) async {
+    await pumpShell(tester);
+    await tester.tap(tabLabel('PRs'));
+    await settle(tester);
+    expect(find.byKey(HomeShell.spawnButtonKey), findsNothing);
+    await tester.tap(tabLabel('Agents'));
+    await settle(tester);
+    expect(find.byKey(HomeShell.spawnButtonKey), findsOneWidget);
+  });
+
+  testWidgets('a tab tap fires exactly one haptic', (tester) async {
+    final haptics = <MethodCall>[];
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(
+      SystemChannels.platform,
+      (call) async {
+        if (call.method == 'HapticFeedback.vibrate') haptics.add(call);
+        return null;
+      },
+    );
+    addTearDown(
+      () => TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(SystemChannels.platform, null),
+    );
+    await pumpShell(tester);
+    await tester.tap(tabLabel('PRs'));
+    await settle(tester);
+    expect(haptics, hasLength(1));
+  });
+
+  testWidgets('tab lists clear the floating tab bar and the + button', (tester) async {
+    when(() => repository.getBoard()).thenAnswer(
+      (_) async => Result.success(
+        GlobalResponse(
+          data: BoardSnapshot(
+            sessions: [
+              for (var i = 0; i < 40; i++)
+                SessionModel(id: 's$i', projectId: 'proj', displayName: 'Session $i', status: 'working'),
+            ],
+          ),
+        ),
+      ),
+    );
+    await pumpShell(tester);
+
+    expect(HomeShell.contentBottomInset(0), 83);
+    expect(HomeShell.contentBottomInset(100), 100);
+    expect((tabList(tester, 0).padding! as EdgeInsets).bottom, 83 + 12 + 44);
+    expect((tabList(tester, 1).padding! as EdgeInsets).bottom, 83 + 40);
+    expect((tabList(tester, 2).padding! as EdgeInsets).bottom, 83 + 40);
+
+    final controller = HomeShell.controllerFor(0);
+    controller.jumpTo(controller.position.maxScrollExtent);
+    await settle(tester);
+    final lastCard = tester.getRect(find.byType(SessionCard).last);
+    expect(lastCard.bottom, lessThanOrEqualTo(tester.getRect(find.byKey(HomeShell.spawnButtonKey)).top));
+    expect(lastCard.bottom, lessThanOrEqualTo(tester.getRect(find.byType(GlassTabBar)).top));
   });
 }

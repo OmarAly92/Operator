@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:operator_mobile/core/app_routes/routes_strings.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/app_themes/text_style/app_text_style.dart';
 import 'package:operator_mobile/core/utils/extensions.dart';
@@ -28,13 +27,6 @@ class SessionsScreen extends StatelessWidget {
         actions: const [NotificationBell()],
       ),
       body: const ScrollUnderBars(child: SessionsBody()),
-      floatingActionButton: FloatingActionButton(
-        backgroundColor: context.skin.accent,
-        elevation: 4,
-        shape: const CircleBorder(),
-        onPressed: () => Navigator.of(context).pushNamed(RoutesStrings.spawn),
-        child: Icon(Icons.add, color: context.skin.onAccent, size: 24),
-      ),
     ),
   );
 }
