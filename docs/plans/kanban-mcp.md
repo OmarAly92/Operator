@@ -413,6 +413,8 @@ harnesses.
 
 ### Phase 5: every remaining harness
 
+Progress and the per-harness handoff for what is left: `docs/plans/kanban-mcp-remaining-harnesses.md`.
+
 Wire every remaining adapter in `backend/internal/adapters/agent/`, one commit per
 harness. The "already writes" column is from the adapters' current code. Before wiring
 each harness, confirm its MCP config key, instructions support and approval rules
