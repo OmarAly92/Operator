@@ -8,6 +8,7 @@ import 'package:operator_mobile/core/utils/haptics.dart';
 import 'package:operator_mobile/core/utils/keyboard_inset.dart';
 import 'package:operator_mobile/core/widgets/chat/chat_insets.dart';
 import 'package:operator_mobile/core/widgets/dialog/app_dialog.dart';
+import 'package:operator_mobile/core/widgets/glass/frosted_header.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_text.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/session_view_cubit.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/blocks_body.dart';
@@ -31,11 +32,33 @@ class _TerminalBodyState extends State<TerminalBody> {
 
   final GlobalKey<BlocksBodyState> _blocks = GlobalKey<BlocksBodyState>();
   final ValueNotifier<double> _dockHeight = ValueNotifier<double>(TerminalComposer.restHeight);
+  final ValueNotifier<double> _frost = ValueNotifier<double>(0);
+  final ValueNotifier<double> _clear = ValueNotifier<double>(0);
+  double _topExtra = 0;
 
   @override
   void dispose() {
     _dockHeight.dispose();
+    _frost.dispose();
+    _clear.dispose();
     super.dispose();
+  }
+
+  bool _onScroll(Notification notification) {
+    final metrics = switch (notification) {
+      ScrollNotification(:final metrics, depth: 0) => metrics,
+      ScrollMetricsNotification(:final metrics, depth: 0) => metrics,
+      _ => null,
+    };
+    if (metrics != null && metrics.axis == Axis.vertical) {
+      _frost.value = FrostedBand.visibilityFor(metrics.pixels - metrics.minScrollExtent);
+    }
+    return false;
+  }
+
+  void _onTopExtra(double height) {
+    if (!mounted || height == _topExtra) return;
+    setState(() => _topExtra = height);
   }
 
   Future<void> _confirmKill(BuildContext context) async {
@@ -81,78 +104,91 @@ class _TerminalBodyState extends State<TerminalBody> {
                     context.read<SessionViewCubit>().mode ==
                     SessionViewMode.blocks;
 
-                return Column(
-                  children: [
-                    TerminalChatHeader(
-                      onFind: () => _blocks.currentState?.openFind(),
-                      onKill: () => _confirmKill(context),
-                    ),
-                    if (banner != null)
-                      InkWell(
-                        onTap: cubit.dismissBanner,
-                        child: Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 14,
-                            vertical: 8,
-                          ),
-                          decoration: BoxDecoration(
-                            color: skin.bgElevated,
-                            border: Border(
-                              bottom: BorderSide(color: skin.borderDefault),
-                            ),
-                          ),
-                          child: AppText(
-                            '$banner (tap to dismiss)',
-                            style: AppTextStyle.style12Regular.copyWith(
-                              color: skin.attention,
-                            ),
-                            maxLines: 3,
+                final top = TerminalChatHeader.heightOf(context) + _topExtra;
+
+                return ChatInsets(
+                  bottom: _dockHeight,
+                  gap: gap,
+                  top: top,
+                  child: Stack(
+                    children: [
+                      Positioned.fill(
+                        child: blocksMode
+                            ? NotificationListener<Notification>(
+                                onNotification: _onScroll,
+                                child: BlocksBody(key: _blocks, onRerun: _fillComposer),
+                              )
+                            : ValueListenableBuilder<double>(
+                                valueListenable: _dockHeight,
+                                builder: (context, height, child) => Padding(
+                                  padding: EdgeInsets.only(top: top, bottom: height + gap),
+                                  child: child,
+                                ),
+                                child: const RawTerminalPane(),
+                              ),
+                      ),
+                      Positioned(
+                        left: kDockSide,
+                        right: kDockSide,
+                        bottom: gap,
+                        child: MeasuredHeight(
+                          onHeight: (height) => _dockHeight.value = height,
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              if (blocksMode && !cubit.args.shellOnly) SubagentStrip(parentTitle: cubit.args.title),
+                              if (!blocksMode) const TerminalKeyRow(),
+                              const TerminalComposer(),
+                            ],
                           ),
                         ),
                       ),
-                    if (cubit.notFound) const TerminalDeadOverlay(),
-                    Expanded(
-                      child: ChatInsets(
-                        bottom: _dockHeight,
-                        gap: gap,
-                        child: Stack(
+                      Positioned(
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            Positioned.fill(
-                              child: blocksMode
-                                  ? BlocksBody(key: _blocks, onRerun: _fillComposer)
-                                  : ValueListenableBuilder<double>(
-                                      valueListenable: _dockHeight,
-                                      builder: (context, height, child) => Padding(
-                                        padding: EdgeInsets.only(bottom: height + gap),
-                                        child: child,
-                                      ),
-                                      child: const RawTerminalPane(),
-                                    ),
+                            TerminalChatHeader(
+                              onFind: () => _blocks.currentState?.openFind(),
+                              onKill: () => _confirmKill(context),
+                              frost: blocksMode ? _frost : _clear,
                             ),
-                            Positioned(
-                              left: kDockSide,
-                              right: kDockSide,
-                              bottom: gap,
-                              child: MeasuredHeight(
-                                onHeight: (height) => _dockHeight.value = height,
-                                child: Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                                  children: [
-                                    if (blocksMode && !cubit.args.shellOnly)
-                                      SubagentStrip(parentTitle: cubit.args.title),
-                                    if (!blocksMode) const TerminalKeyRow(),
-                                    const TerminalComposer(),
-                                  ],
-                                ),
+                            MeasuredHeight(
+                              onHeight: _onTopExtra,
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  if (banner != null)
+                                    InkWell(
+                                      onTap: cubit.dismissBanner,
+                                      child: Container(
+                                        width: double.infinity,
+                                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                                        decoration: BoxDecoration(
+                                          color: skin.bgElevated,
+                                          border: Border(bottom: BorderSide(color: skin.borderDefault)),
+                                        ),
+                                        child: AppText(
+                                          '$banner (tap to dismiss)',
+                                          style: AppTextStyle.style12Regular.copyWith(color: skin.attention),
+                                          maxLines: 3,
+                                        ),
+                                      ),
+                                    ),
+                                  if (cubit.notFound) const TerminalDeadOverlay(),
+                                ],
                               ),
                             ),
                           ],
                         ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 );
               },
             ),

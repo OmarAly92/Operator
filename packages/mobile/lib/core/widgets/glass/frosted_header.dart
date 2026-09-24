@@ -31,6 +31,57 @@ sealed class FrostedMaterial {
   }
 }
 
+class FrostedBand extends StatelessWidget {
+  const FrostedBand({super.key, required this.visibility, this.hairline = false});
+
+  static const double fadeExtent = 16;
+  static const double tintAlpha = 0.45;
+  static const double hairlineWidth = 0.5;
+  static const Key hairlineKey = ValueKey('frosted-band-hairline');
+
+  static double visibilityFor(double offset) => (offset / fadeExtent).clamp(0.0, 1.0).toDouble();
+
+  final double visibility;
+  final bool hairline;
+
+  @override
+  Widget build(BuildContext context) {
+    if (visibility <= 0) return const SizedBox.expand();
+    final skin = context.skin;
+    final frost = ClipRect(
+      child: BackdropFilter(
+        filter: FrostedMaterial.filter(visibility),
+        child: ColoredBox(
+          color: skin.bgSurface.withValues(alpha: tintAlpha * visibility),
+          child: ColoredBox(
+            color: skin.textPrimary.withValues(alpha: FrostedMaterial.lightenAlpha * visibility),
+            child: const SizedBox.expand(),
+          ),
+        ),
+      ),
+    );
+    return IgnorePointer(
+      child: hairline
+          ? Stack(
+              fit: StackFit.expand,
+              children: [
+                frost,
+                Align(
+                  alignment: Alignment.bottomCenter,
+                  child: SizedBox(
+                    key: hairlineKey,
+                    height: hairlineWidth,
+                    width: double.infinity,
+                    child: ColoredBox(color: skin.borderDefault.withValues(alpha: skin.borderDefault.a * visibility)),
+                  ),
+                ),
+              ],
+            )
+          : frost,
+    );
+  }
+}
+
 class FrostedCircleButton extends StatelessWidget {
   const FrostedCircleButton({
     super.key,

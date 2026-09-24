@@ -253,6 +253,7 @@ class BlocksBodyState extends State<BlocksBody> {
         final insets = ChatInsets.maybeOf(context);
         final dockInset = insets?.bottom;
         final dockGap = insets?.gap ?? 0;
+        final top = insets?.top ?? 0;
         return PopScope(
           canPop: !_selectionMode,
           onPopInvokedWithResult: (didPop, _) {
@@ -263,6 +264,7 @@ class BlocksBodyState extends State<BlocksBody> {
               Positioned.fill(
                 child: Column(
                   children: [
+                    if (_findOpen) SizedBox(height: top),
                     if (_findOpen)
                       BlockFindBar(
                         queryController: _queryController,
@@ -311,6 +313,7 @@ class BlocksBodyState extends State<BlocksBody> {
                             : _enterSelectionMode,
                         bottomInset: _selectionMode ? null : dockInset,
                         bottomGap: dockInset == null || _selectionMode ? 6 : dockGap + ChatInsets.listGap,
+                        topInset: _findOpen ? 0 : top,
                       ),
                     ),
                     if (_selectionMode)
@@ -327,7 +330,7 @@ class BlocksBodyState extends State<BlocksBody> {
                 ),
               ),
               Positioned(
-                top: 6,
+                top: top + 6,
                 left: 0,
                 right: 0,
                 child: IgnorePointer(

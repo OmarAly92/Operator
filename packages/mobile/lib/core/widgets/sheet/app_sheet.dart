@@ -49,7 +49,7 @@ sealed class AppSheetMetrics {
   static const double searchBottom = 12;
   static const double mediumFraction = 0.55;
   static const double largeFraction = 0.92;
-  static const double headerFadeExtent = 16;
+  static const double headerFadeExtent = FrostedBand.fadeExtent;
   static const double pushParallax = 0.3;
 }
 
@@ -71,8 +71,7 @@ sealed class AppSheetLogic {
   static const double pageRemoved = 1;
   static const double pageCovered = -AppSheetMetrics.pushParallax;
 
-  static double headerBarVisibility(double offset) =>
-      (offset / AppSheetMetrics.headerFadeExtent).clamp(0.0, 1.0).toDouble();
+  static double headerBarVisibility(double offset) => FrostedBand.visibilityFor(offset);
 
   static Clip surfaceClip(double headerVisibility) =>
       headerVisibility > 0 ? Clip.antiAliasWithSaveLayer : Clip.antiAlias;
@@ -500,27 +499,8 @@ class _HeaderBar extends StatelessWidget {
 
   final double visibility;
 
-  static const double _tintAlpha = 0.45;
-
   @override
-  Widget build(BuildContext context) {
-    if (visibility <= 0) return const SizedBox.expand();
-    final skin = context.skin;
-    return IgnorePointer(
-      child: ClipRect(
-        child: BackdropFilter(
-          filter: FrostedMaterial.filter(visibility),
-          child: ColoredBox(
-            color: skin.bgSurface.withValues(alpha: _tintAlpha * visibility),
-            child: ColoredBox(
-              color: skin.textPrimary.withValues(alpha: FrostedMaterial.lightenAlpha * visibility),
-              child: const SizedBox.expand(),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
+  Widget build(BuildContext context) => FrostedBand(visibility: visibility);
 }
 
 class _SearchCapsule extends StatelessWidget {

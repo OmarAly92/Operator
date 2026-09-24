@@ -44,7 +44,10 @@ class BlockList extends StatefulWidget {
     this.sessionActive = false,
     this.bottomInset,
     this.bottomGap = 6,
+    this.topInset = 0,
   });
+
+  static const double topGap = 14;
 
   final String sessionId;
   final List<SessionBlock> blocks;
@@ -67,6 +70,7 @@ class BlockList extends StatefulWidget {
   final void Function(String blockId)? onLongPressHeader;
   final ValueListenable<double>? bottomInset;
   final double bottomGap;
+  final double topInset;
 
   @override
   State<BlockList> createState() => BlockListState();
@@ -188,7 +192,7 @@ class BlockListState extends State<BlockList> {
     if (viewport is! RenderBox || !viewport.hasSize || block == null) {
       return null;
     }
-    final top = viewport.localToGlobal(Offset.zero).dy;
+    final top = viewport.localToGlobal(Offset.zero).dy + widget.topInset;
     return block.localToGlobal(Offset.zero).dy - top;
   }
 
@@ -198,7 +202,7 @@ class BlockListState extends State<BlockList> {
     if (viewport is! RenderBox || !viewport.hasSize || block == null) {
       return null;
     }
-    final top = viewport.localToGlobal(Offset.zero).dy;
+    final top = viewport.localToGlobal(Offset.zero).dy + widget.topInset;
     return block.localToGlobal(Offset(0, block.size.height)).dy - top;
   }
 
@@ -263,7 +267,7 @@ class BlockListState extends State<BlockList> {
       return;
     }
 
-    final top = viewport.localToGlobal(Offset.zero).dy + 0.5;
+    final top = viewport.localToGlobal(Offset.zero).dy + widget.topInset + 0.5;
     final pivot = BlockViewport.pivotIndex(widget.blocks, _pivotSeq);
 
     for (final key in [leadingKey, centerKey]) {
@@ -352,51 +356,56 @@ class BlockListState extends State<BlockList> {
         ? const <String, List<SessionBlock>>{}
         : groupConsecutiveTools(blocks, pivot: pivot);
 
+    final lead = widget.topInset > 0 ? widget.topInset + BlockList.topGap : 0.0;
     return SizedBox.expand(
       key: viewportKey,
-      child: CustomScrollView(
-        controller: controller,
-        center: centerKey,
-        slivers: [
-          if (header != null) SliverToBoxAdapter(child: header),
-          const SliverToBoxAdapter(child: SizedBox(height: 14)),
-          SliverList.builder(
-            key: leadingKey,
-            itemCount: pivot,
-            itemBuilder: (context, index) {
-              final blockIndex = pivot - 1 - index;
-              final block = blocks[blockIndex];
-              return _toolOrBlock(
-                block,
-                _toolGroups[block.id],
-                groupEndingByBlockId[block.id],
-                _hasFollowingRailItem(blocks, blockIndex),
-              );
-            },
-          ),
-          SliverList.builder(
-            key: centerKey,
-            itemCount: blocks.length - pivot,
-            itemBuilder: (context, index) {
-              final blockIndex = pivot + index;
-              final block = blocks[blockIndex];
-              return _toolOrBlock(
-                block,
-                _toolGroups[block.id],
-                groupEndingByBlockId[block.id],
-                _hasFollowingRailItem(blocks, blockIndex),
-              );
-            },
-          ),
-          SliverToBoxAdapter(
-            child: widget.bottomInset == null
-                ? SizedBox(height: widget.bottomGap)
-                : ValueListenableBuilder<double>(
-                    valueListenable: widget.bottomInset!,
-                    builder: (context, inset, _) => SizedBox(height: inset + widget.bottomGap),
-                  ),
-          ),
-        ],
+      child: LayoutBuilder(
+        builder: (context, constraints) => CustomScrollView(
+          controller: controller,
+          anchor: constraints.maxHeight > 0 ? (lead / constraints.maxHeight).clamp(0.0, 1.0) : 0,
+          center: centerKey,
+          slivers: [
+            if (widget.topInset > 0) SliverToBoxAdapter(child: SizedBox(height: widget.topInset)),
+            if (header != null) SliverToBoxAdapter(child: header),
+            const SliverToBoxAdapter(child: SizedBox(height: BlockList.topGap)),
+            SliverList.builder(
+              key: leadingKey,
+              itemCount: pivot,
+              itemBuilder: (context, index) {
+                final blockIndex = pivot - 1 - index;
+                final block = blocks[blockIndex];
+                return _toolOrBlock(
+                  block,
+                  _toolGroups[block.id],
+                  groupEndingByBlockId[block.id],
+                  _hasFollowingRailItem(blocks, blockIndex),
+                );
+              },
+            ),
+            SliverList.builder(
+              key: centerKey,
+              itemCount: blocks.length - pivot,
+              itemBuilder: (context, index) {
+                final blockIndex = pivot + index;
+                final block = blocks[blockIndex];
+                return _toolOrBlock(
+                  block,
+                  _toolGroups[block.id],
+                  groupEndingByBlockId[block.id],
+                  _hasFollowingRailItem(blocks, blockIndex),
+                );
+              },
+            ),
+            SliverToBoxAdapter(
+              child: widget.bottomInset == null
+                  ? SizedBox(height: widget.bottomGap)
+                  : ValueListenableBuilder<double>(
+                      valueListenable: widget.bottomInset!,
+                      builder: (context, inset, _) => SizedBox(height: inset + widget.bottomGap),
+                    ),
+            ),
+          ],
+        ),
       ),
     );
   }
