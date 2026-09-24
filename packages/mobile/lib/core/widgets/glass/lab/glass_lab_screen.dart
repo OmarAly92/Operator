@@ -16,6 +16,7 @@ import 'package:operator_mobile/core/widgets/glass/glass_toolbar.dart';
 import 'package:operator_mobile/core/widgets/glass/lab/glass_lab_backdrop.dart';
 import 'package:operator_mobile/core/widgets/glass/lab/glass_lab_scene.dart';
 import 'package:operator_mobile/core/widgets/glass/scroll_edge_effect.dart';
+import 'package:operator_mobile/core/widgets/sheet/app_sheet.dart';
 
 class GlassLabScreen extends StatefulWidget {
   const GlassLabScreen({super.key, required this.scene});
@@ -28,6 +29,7 @@ class GlassLabScreen extends StatefulWidget {
 
 class _GlassLabScreenState extends State<GlassLabScreen> {
   final _tabBarKey = GlobalKey();
+  final _firstRowKey = GlobalKey();
 
   @override
   void initState() {
@@ -36,6 +38,9 @@ class _GlassLabScreenState extends State<GlassLabScreen> {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         unawaited(Future<void>.delayed(const Duration(milliseconds: 500), _injectLiftTouch));
       });
+    }
+    if (widget.scene == GlassLabScene.sheetscroll) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _openScrollSheet());
     }
     if (widget.scene != GlassLabScene.sheet) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -58,6 +63,43 @@ class _GlassLabScreenState extends State<GlassLabScreen> {
         ),
       );
     });
+  }
+
+  void _openScrollSheet() {
+    final labContext = _tabBarKey.currentContext;
+    if (!mounted || labContext == null) return;
+    final skin = labContext.skin;
+    final page = AppSheetPage(
+      title: 'Agent',
+      searchHint: 'Search agents',
+      actions: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: Text('Done', style: AppTextStyle.style15SemiBold.copyWith(color: skin.accent)),
+        ),
+      ],
+      rows: (context, query) => [
+        for (var i = 0; i < 40; i++)
+          if ('Agent row $i'.toLowerCase().contains(query.toLowerCase()))
+            _ScrollRow(key: i == 0 ? _firstRowKey : null, index: i),
+      ],
+    );
+    unawaited(
+      showAppSheet<void>(
+        context: labContext,
+        page: AppSheetPage(title: 'Root', rows: (_, _) => const []),
+        pushed: [page],
+        detent: AppSheetDetent.large,
+        scope: (_, sheet) => SkinScope(skin: skin, child: sheet),
+      ),
+    );
+    unawaited(Future<void>.delayed(const Duration(milliseconds: 5000), _scrollSheet));
+  }
+
+  void _scrollSheet() {
+    final rowContext = _firstRowKey.currentContext;
+    if (rowContext == null) return;
+    Scrollable.maybeOf(rowContext)?.position.jumpTo(150);
   }
 
   void _injectLiftTouch() {
@@ -155,6 +197,42 @@ class _GlassLabScreenState extends State<GlassLabScreen> {
               ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _ScrollRow extends StatelessWidget {
+  const _ScrollRow({super.key, required this.index});
+
+  final int index;
+
+  @override
+  Widget build(BuildContext context) {
+    final skin = context.skin;
+    final hue = (index * 37) % 360;
+    return SizedBox(
+      height: 58,
+      child: Row(
+        children: [
+          Container(
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(
+              color: HSLColor.fromAHSL(1, hue.toDouble(), 0.75, 0.5).toColor(),
+              borderRadius: BorderRadius.circular(8),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Agent row $index', style: AppTextStyle.style17Regular.copyWith(color: skin.textPrimary)),
+              Text('Needs install', style: AppTextStyle.style15Regular.copyWith(color: skin.textTertiary)),
+            ],
+          ),
+        ],
       ),
     );
   }

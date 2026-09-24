@@ -10,6 +10,7 @@ void main() {
       expect(GlassLabScene.parse('sheet'), GlassLabScene.sheet);
       expect(GlassLabScene.parse('corners'), GlassLabScene.corners);
       expect(GlassLabScene.parse('lifted'), GlassLabScene.lifted);
+      expect(GlassLabScene.parse('sheetscroll'), GlassLabScene.sheetscroll);
       expect(GlassLabScene.parse('rest'), GlassLabScene.rest);
     });
 
