@@ -185,12 +185,18 @@ class _AppSheetState extends State<AppSheet> {
   }
 
   Widget _transition(Widget child, Animation<double> animation) {
-    final incoming = child.key == ValueKey<int>(_pages.length);
-    final from = incoming == _forward ? const Offset(1, 0) : const Offset(-1, 0);
     return ClipRect(
-      child: SlideTransition(
-        position: Tween<Offset>(begin: from, end: Offset.zero).animate(animation),
+      child: AnimatedBuilder(
+        animation: animation,
         child: child,
+        builder: (context, child) {
+          final outgoing = animation.status == AnimationStatus.reverse;
+          final side = outgoing == _forward ? -1.0 : 1.0;
+          return FractionalTranslation(
+            translation: Offset(side * (1 - animation.value), 0),
+            child: child,
+          );
+        },
       ),
     );
   }

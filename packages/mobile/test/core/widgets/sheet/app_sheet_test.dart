@@ -327,6 +327,43 @@ void main() {
     expect(AppSheetLogic.cornerRadius(), 56);
   });
 
+  testWidgets('push slides the old page out left and the new in from the right; pop mirrors it', (tester) async {
+    phone(tester);
+    await tester.pumpWidget(
+      host(
+        const LightSkin(),
+        (context) => showAppSheet<String>(
+          context: context,
+          page: AppSheetPage(
+            title: 'Root',
+            rows: (context, query) => [
+              ListTile(title: const Text('Go'), onTap: () => AppSheet.of(context).push(fruitPage())),
+            ],
+          ),
+          detent: AppSheetDetent.large,
+        ),
+      ),
+    );
+    await open(tester);
+    final rest = tester.getRect(find.text('Go')).left;
+
+    await tester.tap(find.text('Go'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(tester.getRect(find.text('Go')).left, lessThan(rest));
+    expect(tester.getRect(find.text('Apple')).left, greaterThan(rest));
+    await tester.pumpAndSettle();
+    expect(tester.getRect(find.text('Apple')).left, moreOrLessEquals(rest));
+
+    await tester.tap(find.byKey(AppSheet.backKey));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(tester.getRect(find.text('Apple')).left, greaterThan(rest));
+    expect(tester.getRect(find.text('Go')).left, lessThan(rest));
+    await tester.pumpAndSettle();
+    expect(tester.getRect(find.text('Go')).left, moreOrLessEquals(rest));
+  });
+
   testWidgets('a push fires no haptic and the back button fires one', (tester) async {
     final fired = <MethodCall>[];
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(
