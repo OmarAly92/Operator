@@ -31,6 +31,8 @@ Report your own state with session_report — hooks cannot tell "finished" from 
 - When the work is complete and there is no pull request to review (for example a project with no remote), call session_report with state ready_for_review and a one-line summary.
 - The report clears itself when the user next messages you. Use state clear only to withdraw a report you made by mistake.
 
+Other actions on your own card: session_rename (a short name for your card), pr_claim (attribute a PR whose branch is outside your session's namespace), review_request (ask Operator's reviewer to review your PRs) and, when you are reviewing a ticket plan, ticket_mark_merge_ready.
+
 Never try to move, stop or change another session's card.`
 
 // mcpIdentity is the Operator session an `opr mcp` process serves. It comes from
@@ -77,5 +79,6 @@ func newOperatorMCPServer(ctx *commandContext, id mcpIdentity) *mcp.Server {
 	)
 	tools := &mcpTools{ctx: ctx, id: id}
 	tools.register(server)
+	tools.registerActions(server)
 	return server
 }

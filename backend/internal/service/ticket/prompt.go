@@ -76,7 +76,7 @@ func implementPrompt(t domain.Ticket, plan domain.Plan, kickoff, extra string) s
 	return b.String()
 }
 
-func reviewPrompt(t domain.Ticket, plan domain.Plan, branch, worktree, mergeReadyCurl, extra string) string {
+func reviewPrompt(t domain.Ticket, plan domain.Plan, branch, worktree, extra string) string {
 	folder := ticketFolder(t.Slug)
 	var b strings.Builder
 	fmt.Fprintf(&b, "Review the implementation of `%s` (%s) for ticket `%s` (%s).\n\n", plan.File, plan.Title, t.Slug, t.Title)
@@ -88,7 +88,7 @@ func reviewPrompt(t domain.Ticket, plan domain.Plan, branch, worktree, mergeRead
 		fmt.Fprintf(&b, " in the worktree `%s`", worktree)
 	}
 	b.WriteString(".\n\nReview the whole branch against the spec and the plan, not only the diff summary: read every changed file, run the gates the plan names, and verify the behaviour in the real app or daemon, not just in tests. Fix what is wrong on that branch and commit the fixes there. Do not merge.\n\n")
-	b.WriteString("When the branch is ready to merge, report it to Operator with one line describing what was verified:\n\n```\n" + mergeReadyCurl + "\n```\n\nThen wait. The user confirms the merge from the board and you will receive the go-ahead here.\n")
+	b.WriteString("When the branch is ready to merge, report it to Operator by calling the `ticket_mark_merge_ready` tool (Operator MCP server) with one line describing what was verified. Then wait. The user confirms the merge from the board and you will receive the go-ahead here.\n")
 	if extra = strings.TrimSpace(extra); extra != "" {
 		b.WriteString("\nAdditional instructions:\n" + extra + "\n")
 	}

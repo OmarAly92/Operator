@@ -597,8 +597,11 @@ get no server.
 - Claude Code: inline `--mcp-config` JSON (additive; never `--strict-mcp-config`,
   never a worktree `.mcp.json`) and `mcp__operator` pre-approved via `--allowedTools`.
 - Tools: `board_get`, `session_get` and `ticket_get` (read-only, thin wrappers over
-  daemon routes), and `session_report` (self-scoped). The full plan is
-  `docs/plans/kanban-mcp.md`.
+  daemon routes), and the self-scoped actions `session_report`, `session_rename`,
+  `pr_claim` (never takes over another live session's PR), `review_request` and
+  `ticket_mark_merge_ready` (only for the plan whose `reviewerSessionId` is the
+  caller; it replaces the curl the ticket reviewer prompt used to carry). The full
+  plan is `docs/plans/kanban-mcp.md`.
 
 ### Agent Report
 

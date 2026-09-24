@@ -619,7 +619,7 @@ func TestReviewWithPlannerSendsOrSpawns(t *testing.T) {
 		t.Fatalf("no planner: spawned=%+v sent=%+v", h.sessions.spawned, h.sessions.sent)
 	}
 	prompt := h.sessions.spawned[1].Prompt
-	for _, want := range []string{"opr/editor-01", "/ws/x", "merge-ready", "http://127.0.0.1:3001/api/v1/projects/tk/tickets/editor/plans/01-daemon.md/merge-ready", "Do not merge"} {
+	for _, want := range []string{"opr/editor-01", "/ws/x", "ticket_mark_merge_ready", "Do not merge"} {
 		if !strings.Contains(prompt, want) {
 			t.Errorf("review prompt missing %q:\n%s", want, prompt)
 		}

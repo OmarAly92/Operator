@@ -81,7 +81,7 @@ Reading other sessions is allowed. It lets agents avoid duplicate work across a 
 | `session_report` | `state: needs_you \| ready_for_review \| clear`, `reason` (≤ 280 chars, required unless clear) | moves own card; reason shows on the card and in the Needs you alert | **new** `PUT/DELETE /sessions/{id}/agent-report` |
 | `session_rename` | `name` (≤ 20 chars) | sets the card title | `PATCH /sessions/{id}` |
 | `pr_claim` | `pr` (number or URL) | attributes a PR opened off-convention to this session | `POST /sessions/{id}/pr/claim` |
-| `pr_resolve_comments` | `pr`, `comment_ids?` | resolves review threads after addressing them; rejected unless the PR belongs to this session | `POST /prs/{id}/resolve-comments` |
+| ~~`pr_resolve_comments`~~ | dropped | the daemon's `ResolveComments` is a stub that resolves nothing (`service/pr/action_service.go`), so the tool would report success for no effect; agents resolve threads with their own git host tooling | — |
 | `review_request` | none | asks Operator's internal reviewer to review own PR(s) | `POST /sessions/{id}/reviews/trigger` |
 | `ticket_mark_merge_ready` | `summary` | reviewer role only: reports the plan branch ready; replaces the `curl` in `reviewPrompt` | `POST /projects/{id}/tickets/{slug}/plans/{plan}/merge-ready` |
 
@@ -267,7 +267,7 @@ New `backend/internal/cli/mcp.go` and `mcp_tools.go`:
   `code`, `message` and `requestId`, so the agent can react and requestIds survive.
 - The daemon being unreachable is a tool error, not a server crash. An agent that
   starts before the daemon is ready then recovers on the next call.
-- `pr_resolve_comments` and `ticket_mark_merge_ready` check ownership/role against
+- `ticket_mark_merge_ready` checks the caller is the plan's reviewer against
   `session_get` before calling the route.
 
 ### 5. Registering the server at launch
@@ -387,7 +387,7 @@ harnesses.
 
 ### Phase 3: self-scoped actions
 
-- `session_rename`, `pr_claim`, `pr_resolve_comments` (ownership check),
+- `session_rename`, `pr_claim` (no takeover), `pr_resolve_comments` dropped (daemon stub),
   `review_request`, `ticket_mark_merge_ready` (role check).
 - `reviewPrompt` curl removal.
 - **Tests**: each tool's happy path, daemon error mapping, and ownership/role rejection.
@@ -463,7 +463,7 @@ phase 4, and run the phase 1 read check in a real session.
     agent learns to use it".
   - Phase 2: ask it to finish a task with no remote. The card moves to In review with
     its reason.
-  - Phase 3: on a real PR, `pr_resolve_comments` resolves only that PR's threads.
+  - Phase 3: `pr_claim` on another live session's PR is refused; `ticket_mark_merge_ready` works only for the plan's reviewer.
 
 ## Rollout notes
 
