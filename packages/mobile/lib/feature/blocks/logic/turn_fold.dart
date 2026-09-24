@@ -34,7 +34,7 @@ bool showsThinking(List<TurnGroup> groups) {
 
 TurnFold? _foldOf(TurnGroup group) {
   if (group.running || group.blocks.first.kind != BlockKind.prompt) return null;
-  final reply = _finalReply(group.blocks);
+  final reply = finalReplyOf(group.blocks);
   final hidden = <SessionBlock>[
     for (final block in group.blocks)
       if (block != reply && foldableInTurn(block)) block,
@@ -51,7 +51,7 @@ TurnFold? _foldOf(TurnGroup group) {
 bool foldableInTurn(SessionBlock block) =>
     block.kind != BlockKind.prompt && block.kind != BlockKind.permission && block.detail is! QuestionBlockDetail;
 
-SessionBlock? _finalReply(List<SessionBlock> blocks) {
+SessionBlock? finalReplyOf(List<SessionBlock> blocks) {
   for (var index = blocks.length - 1; index >= 0; index--) {
     final block = blocks[index];
     if (block.kind == BlockKind.assistant && block.detail is! FileChangeBlockDetail && block.body.trim().isNotEmpty) {
@@ -63,7 +63,7 @@ SessionBlock? _finalReply(List<SessionBlock> blocks) {
 
 String _label(TurnGroup group, int steps) {
   final ms = group.durationMs ?? _between(group.startedAt, group.completedAt);
-  if (ms != null) return 'Worked for ${turnElapsed(Duration(milliseconds: ms))}';
+  if (ms != null) return 'Worked for ${turnElapsed(Duration(milliseconds: ms), spaced: true)}';
   return 'Worked · $steps ${steps == 1 ? 'step' : 'steps'}';
 }
 

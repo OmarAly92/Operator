@@ -21,6 +21,12 @@ void main() {
     expect(turnElapsed(const Duration(hours: 26, minutes: 4)), '26h 4m');
   });
 
+  test('spaced separates minutes and seconds only', () {
+    expect(turnElapsed(const Duration(seconds: 12), spaced: true), '12s');
+    expect(turnElapsed(const Duration(minutes: 6, seconds: 56), spaced: true), '6m 56s');
+    expect(turnElapsed(const Duration(hours: 3, minutes: 30), spaced: true), '3h 30m');
+  });
+
   test('a negative duration clamps to zero', () {
     expect(turnElapsed(const Duration(seconds: -5)), '0s');
   });

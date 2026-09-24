@@ -33,11 +33,15 @@ void main() {
         ),
       );
 
-  Widget disclosureHost(bool expanded, {bool reduceMotion = false, Widget? child}) => MaterialApp(
+  Widget disclosureHost(bool expanded, {bool reduceMotion = false, Widget? child, bool? initiallyExpanded}) => MaterialApp(
         home: MediaQuery(
           data: MediaQueryData(disableAnimations: reduceMotion),
           child: Scaffold(
-            body: Disclosure(expanded: expanded, child: child ?? const SizedBox(height: 40, width: 100)),
+            body: Disclosure(
+              expanded: expanded,
+              initiallyExpanded: initiallyExpanded,
+              child: child ?? const SizedBox(height: 40, width: 100),
+            ),
           ),
         ),
       );
@@ -185,6 +189,39 @@ void main() {
       final after = tester.getSize(find.byType(Disclosure)).height;
       expect(after, greaterThan(mid));
       expect(after, lessThan(40));
+    });
+
+    testWidgets('mounting with initiallyExpanded false animates open from 0', (tester) async {
+      await tester.pumpWidget(disclosureHost(true, initiallyExpanded: false));
+      expect(tester.getSize(find.byType(Disclosure)).height, 0);
+
+      await tester.pump(AppMotion.disclosure ~/ 2);
+      final height = tester.getSize(find.byType(Disclosure)).height;
+      expect(height, greaterThan(0));
+      expect(height, lessThan(40));
+
+      await tester.pumpAndSettle();
+      expect(tester.getSize(find.byType(Disclosure)).height, 40);
+    });
+
+    testWidgets('initiallyExpanded is ignored under reduce motion', (tester) async {
+      await tester.pumpWidget(disclosureHost(true, initiallyExpanded: false, reduceMotion: true));
+
+      expect(tester.getSize(find.byType(Disclosure)).height, 40);
+    });
+
+    testWidgets('keeps child state when a collapse is reversed mid-way', (tester) async {
+      const key = ValueKey('counter');
+      await tester.pumpWidget(disclosureHost(true, child: const _Counter(key: key)));
+      await tester.tap(find.text('inc'));
+      await tester.pump();
+
+      await tester.pumpWidget(disclosureHost(false, child: const _Counter(key: key)));
+      await tester.pump(AppMotion.disclosure ~/ 2);
+      await tester.pumpWidget(disclosureHost(true, child: const _Counter(key: key)));
+      await tester.pumpAndSettle();
+
+      expect(find.text('1'), findsOneWidget);
     });
 
     testWidgets('keeps child state while expanded across rebuilds', (tester) async {

@@ -100,12 +100,18 @@ class BlockListState extends State<BlockList> {
   Map<String, TurnFold> _foldAnchors = {};
   bool _thinking = false;
   Duration? _followUntil;
-  Duration? _anchorUntil;
-  String? _anchorId;
-  double? _anchorDelta;
   Duration? _revealUntil;
+  final Map<String, Duration> _foldMotion = {};
+  final Set<String> _opening = {};
+  List<int> _leadingItems = const [];
+  List<int> _centerItems = const [];
+  Map<String, int> _leadingSlots = const {};
+  Map<String, int> _centerSlots = const {};
+  bool _motionSweepScheduled = false;
+  bool _built = false;
 
   int? _pivotSeq;
+  int? _groupPivotSeq;
   bool _pinned = true;
   bool _followScheduled = false;
   bool _seeking = false;
@@ -153,10 +159,13 @@ class BlockListState extends State<BlockList> {
       _collapsedToolGroups.clear();
       _expandedTools.clear();
       _expandedTurns.clear();
+      _foldMotion.clear();
+      _opening.clear();
       _pendingResponses.clear();
       _unsettledReplies = {};
       _settlingReplies = {};
       _pivotSeq = null;
+      _groupPivotSeq = null;
       _topIndex = null;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
@@ -175,10 +184,29 @@ class BlockListState extends State<BlockList> {
     _adoptPivot();
     final revealed = _revealActiveMatch(oldWidget);
     final reshaped = _syncFolds();
-    if (revealed || reshaped || !setEquals(widget.collapsedIds, oldWidget.collapsedIds)) {
+    if (revealed) {
+      _holdDuringDisclosure();
+    } else if (reshaped) {
+      _holdDuringDisclosure(anchorId: _readingAnchor());
+    } else if (!setEquals(widget.collapsedIds, oldWidget.collapsedIds)) {
       _holdDuringDisclosure(anchorId: _changedCollapse(oldWidget));
     }
     if (_pinned && !_seeking) _scheduleFollow();
+  }
+
+  String? _readingAnchor() {
+    final top = _topIndex;
+    if (top == null || top >= widget.blocks.length) return null;
+    final block = widget.blocks[top];
+    if (!_folded(block.id)) return block.id;
+    for (var index = top + 1; index < widget.blocks.length; index++) {
+      final next = widget.blocks[index];
+      if (_folded(next.id)) continue;
+      if (_renderedBlock(index) != null) return next.id;
+      break;
+    }
+    final fold = _foldOfBlock[block.id];
+    return fold?.anchorId;
   }
 
   String? _changedCollapse(BlockList oldWidget) {
@@ -197,6 +225,7 @@ class BlockListState extends State<BlockList> {
     final groups = groupBlocksByTurn(widget.blocks, sessionActive: widget.sessionActive);
     for (final fold in turnFolds(groups)) {
       if (fold.hiddenIds.contains(id) && _expandedTurns.add(fold.id)) {
+        _startOpening(fold.id);
         _revealUntil = _now + AppMotion.disclosure + _settleSlack;
         return true;
       }
@@ -213,10 +242,54 @@ class BlockListState extends State<BlockList> {
         for (final id in fold.hiddenIds) id: fold,
     };
     final changed = thinking != _thinking || !setEquals(foldOfBlock.keys.toSet(), _foldOfBlock.keys.toSet());
+    final previous = {for (final fold in _foldOfBlock.values) fold.id};
+    final settling = [
+      for (final fold in folds)
+        if (_built && !previous.contains(fold.id) && !_expandedTurns.contains(fold.id)) fold.id,
+    ];
     _thinking = thinking;
     _foldOfBlock = foldOfBlock;
     _foldAnchors = {for (final fold in folds) fold.anchorId: fold};
+    _pendingResponses.removeWhere(_folded);
+    for (final id in settling) {
+      _foldMotion[id] = _now + AppMotion.disclosure + _settleSlack;
+    }
+    if (settling.isNotEmpty) _scheduleMotionSweep();
     return changed;
+  }
+
+  void _startOpening(String foldId) {
+    _opening.add(foldId);
+    _foldMotion[foldId] = _now + AppMotion.disclosure + _settleSlack;
+    _scheduleMotionSweep();
+  }
+
+  void _scheduleMotionSweep() {
+    if (_motionSweepScheduled) return;
+    _motionSweepScheduled = true;
+    WidgetsBinding.instance.scheduleFrame();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _motionSweepScheduled = false;
+      if (!mounted) return;
+      final now = _now;
+      final expired = [
+        for (final entry in _foldMotion.entries)
+          if (now >= entry.value) entry.key,
+      ];
+      if (expired.isNotEmpty) {
+        setState(() {
+          expired.forEach(_foldMotion.remove);
+          _opening.removeAll(expired);
+        });
+      }
+      if (_foldMotion.isNotEmpty) _scheduleMotionSweep();
+    });
+  }
+
+  bool _shown(String blockId) {
+    final fold = _foldOfBlock[blockId];
+    if (fold == null || !_folded(blockId)) return true;
+    return fold.anchorId == blockId || _foldMotion.containsKey(fold.id);
   }
 
   bool _folded(String blockId) {
@@ -224,13 +297,15 @@ class BlockListState extends State<BlockList> {
     return fold != null && !_expandedTurns.contains(fold.id);
   }
 
-  bool _hasFollowingRailItem(List<SessionBlock> blocks, int index) {
-    if (!isRailBlock(blocks[index])) return false;
-    for (var next = index + 1; next < blocks.length; next++) {
-      if (_folded(blocks[next].id)) continue;
-      return isRailBlock(blocks[next]);
+  List<bool> _followingRail(List<SessionBlock> blocks) {
+    final following = List<bool>.filled(blocks.length, false);
+    bool? nextIsRail;
+    for (var index = blocks.length - 1; index >= 0; index--) {
+      final rail = isRailBlock(blocks[index]);
+      following[index] = rail && nextIsRail == true;
+      if (!_folded(blocks[index].id)) nextIsRail = rail;
     }
-    return false;
+    return following;
   }
 
   static const Duration _settleSlack = Duration(milliseconds: 48);
@@ -238,53 +313,38 @@ class BlockListState extends State<BlockList> {
   Duration get _now => SchedulerBinding.instance.currentSystemFrameTimeStamp;
 
   void _toggleTurn(TurnFold fold) {
-    setState(() {
-      if (!_expandedTurns.add(fold.id)) _expandedTurns.remove(fold.id);
-    });
     _holdDuringDisclosure(anchorId: fold.anchorId);
+    setState(() {
+      if (_expandedTurns.add(fold.id)) {
+        _startOpening(fold.id);
+      } else {
+        _expandedTurns.remove(fold.id);
+        _opening.remove(fold.id);
+        _foldMotion[fold.id] = _now + AppMotion.disclosure + _settleSlack;
+        _scheduleMotionSweep();
+      }
+    });
   }
 
   void _holdDuringDisclosure({String? anchorId}) {
-    final until = _now + AppMotion.disclosure + _settleSlack;
     if (_pinned || _seeking) {
-      _followUntil = until;
+      _followUntil = _now + AppMotion.disclosure + _settleSlack;
       if (!_seeking) _scheduleFollow();
       return;
     }
-    if (anchorId == null) return;
-    final index = widget.blocks.indexWhere((block) => block.id == anchorId);
-    final delta = index < 0 ? null : _viewportTopDelta(index);
-    if (delta == null) return;
-    final holding = _anchorUntil != null;
-    _anchorId = anchorId;
-    _anchorDelta = delta;
-    _anchorUntil = until;
-    if (!holding) _anchorStep();
+    if (anchorId != null) _repivotAt(anchorId);
   }
 
-  void _anchorStep() {
-    WidgetsBinding.instance.scheduleFrame();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final until = _anchorUntil;
-      if (!mounted || until == null || !controller.hasClients || _pinned) {
-        _anchorUntil = null;
-        return;
-      }
-      final index = widget.blocks.indexWhere((block) => block.id == _anchorId);
-      final delta = index < 0 ? null : _viewportTopDelta(index);
-      final target = _anchorDelta;
-      if (delta != null && target != null && (delta - target).abs() >= 0.5) {
-        final position = controller.position;
-        controller.jumpTo(
-          (position.pixels + delta - target).clamp(position.minScrollExtent, position.maxScrollExtent),
-        );
-      }
-      if (_now >= until) {
-        _anchorUntil = null;
-        return;
-      }
-      _anchorStep();
-    });
+  void _repivotAt(String blockId) {
+    if (!controller.hasClients || controller.position.isScrollingNotifier.value) return;
+    final index = widget.blocks.indexWhere((block) => block.id == blockId);
+    final viewport = viewportKey.currentContext?.findRenderObject();
+    final delta = index < 0 ? null : _viewportTopDelta(index);
+    if (delta == null || viewport is! RenderBox || !viewport.hasSize) return;
+    final lead = widget.topInset > 0 ? widget.topInset + BlockList.topGap : 0.0;
+    final anchor = viewport.size.height > 0 ? (lead / viewport.size.height).clamp(0.0, 1.0) * viewport.size.height : 0.0;
+    _pivotSeq = widget.blocks[index].firstSeq;
+    controller.position.correctPixels(anchor - delta - widget.topInset);
   }
 
   bool _isFresh(SessionBlock block) {
@@ -321,11 +381,8 @@ class BlockListState extends State<BlockList> {
     final unsettled = <String>{};
     if (!widget.selectionMode) {
       for (final group in groups) {
-        final reply = group.blocks.lastWhere(
-          (block) => railKindOf(block) == RailKind.text && block.body.trim().isNotEmpty,
-          orElse: () => group.blocks.first,
-        );
-        if (railKindOf(reply) != RailKind.text) continue;
+        final reply = finalReplyOf(group.blocks);
+        if (reply == null) continue;
         if (group.running || reply.status == BlockStatus.running) {
           unsettled.add(reply.id);
         } else {
@@ -341,6 +398,7 @@ class BlockListState extends State<BlockList> {
   void _adoptPivot() {
     if (_pivotSeq != null || widget.blocks.isEmpty) return;
     _pivotSeq = widget.blocks.first.firstSeq;
+    _groupPivotSeq = _pivotSeq;
   }
 
   void jumpToLatest() {
@@ -372,8 +430,8 @@ class BlockListState extends State<BlockList> {
   }
 
   void _onPointerDown(PointerDownEvent event) {
-    _anchorUntil = null;
     _followUntil = null;
+    _revealUntil = null;
     if (!_seeking) return;
     _seeking = false;
     _onScroll();
@@ -400,17 +458,18 @@ class BlockListState extends State<BlockList> {
     });
   }
 
+  int _blockAt(GlobalKey key, int sliverIndex) {
+    final items = key == leadingKey ? _leadingItems : _centerItems;
+    return sliverIndex >= 0 && sliverIndex < items.length ? items[sliverIndex] : -1;
+  }
+
   RenderBox? _renderedBlock(int index) {
-    final pivot = BlockViewport.pivotIndex(widget.blocks, _pivotSeq);
     for (final key in [leadingKey, centerKey]) {
       final sliver = key.currentContext?.findRenderObject();
       if (sliver is! RenderSliverMultiBoxAdaptor) continue;
       RenderBox? child = sliver.firstChild;
       while (child != null) {
-        final sliverIndex = sliver.indexOf(child);
-        final blockIndex = key == leadingKey
-            ? pivot - 1 - sliverIndex
-            : pivot + sliverIndex;
+        final blockIndex = _blockAt(key, sliver.indexOf(child));
         if (blockIndex == index) return child;
         child = sliver.childAfter(child);
       }
@@ -459,6 +518,11 @@ class BlockListState extends State<BlockList> {
   void _alignBlock(int index) {
     final fold = _foldOfBlock[widget.blocks[index].id];
     if (fold != null && _folded(fold.anchorId)) {
+      if (_expandedTurns.add(fold.id)) {
+        _startOpening(fold.id);
+        _revealUntil = _now + AppMotion.disclosure + _settleSlack;
+        setState(() {});
+      }
       index = widget.blocks.indexWhere((block) => block.id == fold.anchorId);
     }
     final tools = _toolGroups[widget.blocks[index].id];
@@ -525,7 +589,6 @@ class BlockListState extends State<BlockList> {
     }
 
     final top = viewport.localToGlobal(Offset.zero).dy + widget.topInset + 0.5;
-    final pivot = BlockViewport.pivotIndex(widget.blocks, _pivotSeq);
 
     for (final key in [leadingKey, centerKey]) {
       final sliver = key.currentContext?.findRenderObject();
@@ -535,10 +598,7 @@ class BlockListState extends State<BlockList> {
         final childTop = child.localToGlobal(Offset.zero).dy;
         final height = child.size.height;
         if (childTop <= top && childTop + height > top) {
-          final sliverIndex = sliver.indexOf(child);
-          final blockIndex = key == leadingKey
-              ? pivot - 1 - sliverIndex
-              : pivot + sliverIndex;
+          final blockIndex = _blockAt(key, sliver.indexOf(child));
           if (blockIndex < 0 || blockIndex >= widget.blocks.length) {
             _topIndex = null;
             notifier?.value = null;
@@ -624,7 +684,30 @@ class BlockListState extends State<BlockList> {
     final header = widget.header;
     _toolGroups = widget.selectionMode || widget.highlights.isNotEmpty
         ? const <String, List<SessionBlock>>{}
-        : groupConsecutiveTools(blocks, pivot: pivot);
+        : groupConsecutiveTools(blocks, pivot: BlockViewport.pivotIndex(blocks, _groupPivotSeq));
+    _built = true;
+    final followingRail = _followingRail(blocks);
+    _leadingItems = [
+      for (var index = pivot - 1; index >= 0; index--)
+        if (_shown(blocks[index].id)) index,
+    ];
+    _centerItems = [
+      for (var index = pivot; index < blocks.length; index++)
+        if (_shown(blocks[index].id)) index,
+    ];
+    _leadingSlots = {for (var slot = 0; slot < _leadingItems.length; slot++) 'slot-${blocks[_leadingItems[slot]].id}': slot};
+    _centerSlots = {for (var slot = 0; slot < _centerItems.length; slot++) 'slot-${blocks[_centerItems[slot]].id}': slot};
+    final leadingItems = _leadingItems;
+    final centerItems = _centerItems;
+    final leadingSlots = _leadingSlots;
+    final centerSlots = _centerSlots;
+    Widget itemAt(int blockIndex) {
+      final block = blocks[blockIndex];
+      return KeyedSubtree(
+        key: ValueKey<String>('slot-${block.id}'),
+        child: _item(block, _toolGroups[block.id], groupEndingByBlockId[block.id], followingRail[blockIndex]),
+      );
+    }
 
     final lead = widget.topInset > 0 ? widget.topInset + BlockList.topGap : 0.0;
     return SizedBox.expand(
@@ -642,31 +725,15 @@ class BlockListState extends State<BlockList> {
               const SliverToBoxAdapter(child: SizedBox(height: BlockList.topGap)),
               SliverList.builder(
                 key: leadingKey,
-                itemCount: pivot,
-                itemBuilder: (context, index) {
-                  final blockIndex = pivot - 1 - index;
-                  final block = blocks[blockIndex];
-                  return _item(
-                    block,
-                    _toolGroups[block.id],
-                    groupEndingByBlockId[block.id],
-                    _hasFollowingRailItem(blocks, blockIndex),
-                  );
-                },
+                itemCount: leadingItems.length,
+                findChildIndexCallback: (key) => key is ValueKey<String> ? leadingSlots[key.value] : null,
+                itemBuilder: (context, index) => itemAt(leadingItems[index]),
               ),
               SliverList.builder(
                 key: centerKey,
-                itemCount: blocks.length - pivot,
-                itemBuilder: (context, index) {
-                  final blockIndex = pivot + index;
-                  final block = blocks[blockIndex];
-                  return _item(
-                    block,
-                    _toolGroups[block.id],
-                    groupEndingByBlockId[block.id],
-                    _hasFollowingRailItem(blocks, blockIndex),
-                  );
-                },
+                itemCount: centerItems.length,
+                findChildIndexCallback: (key) => key is ValueKey<String> ? centerSlots[key.value] : null,
+                itemBuilder: (context, index) => itemAt(centerItems[index]),
               ),
               SliverToBoxAdapter(
                 child: Disclosure(expanded: _thinking, child: const ThinkingRow()),
@@ -713,7 +780,11 @@ class BlockListState extends State<BlockList> {
                   onTap: () => _toggleTurn(fold),
                 ),
         ),
-        Disclosure(expanded: !_folded(block.id), child: content),
+        Disclosure(
+          expanded: !_folded(block.id),
+          initiallyExpanded: _opening.contains(_foldOfBlock[block.id]?.id) ? false : null,
+          child: content,
+        ),
         ?status,
       ],
     );

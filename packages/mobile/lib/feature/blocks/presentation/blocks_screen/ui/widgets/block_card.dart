@@ -720,7 +720,7 @@ class _GroupBody extends StatelessWidget {
     final children = block.children ?? const <SessionBlock>[];
 
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         header,
         Disclosure(expanded: !collapsed, child: _body(context, cmdLines, children)),

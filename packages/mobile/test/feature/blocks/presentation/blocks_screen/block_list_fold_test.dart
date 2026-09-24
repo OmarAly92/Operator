@@ -6,6 +6,7 @@ import 'package:operator_mobile/core/widgets/motion/disclosure.dart';
 import 'package:operator_mobile/core/widgets/motion/shimmer.dart';
 import 'package:operator_mobile/feature/blocks/logic/block_find.dart';
 import 'package:operator_mobile/feature/blocks/logic/session_block.dart';
+import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/block_card.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/block_list.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/thinking_row.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/tool_group_header.dart';
@@ -185,6 +186,45 @@ void main() {
       await tester.pumpAndSettle();
       expect(position.pixels, closeTo(position.maxScrollExtent, 0.5));
       expect(pinned.value, isTrue);
+    });
+
+    testWidgets('a turn settling while scrolled up keeps the block being read in place', (tester) async {
+      final harness = await pumpList(tester, _turn(1, tools: 8, replyLines: 80), sessionActive: true);
+      final list = _list(tester);
+      list.scrollBlockIntoView(9);
+      await tester.pump();
+      expect(list.pinned, isFalse);
+      final before = tester.getRect(find.textContaining('line 0 of block 10')).top;
+
+      harness.replace(harness.blocks, active: false);
+      for (var frame = 0; frame < 16; frame++) {
+        await tester.pump(const Duration(milliseconds: 16));
+        expect(tester.getRect(find.textContaining('line 0 of block 10')).top, closeTo(before, 1));
+      }
+      await tester.pumpAndSettle();
+      expect(find.text('Worked for 13s', skipOffstage: false), findsOneWidget);
+      expect(find.text('Used 8 tools', skipOffstage: false), findsNothing);
+      expect(tester.getRect(find.textContaining('line 0 of block 10')).top, closeTo(before, 1));
+    });
+
+    testWidgets('a folded run is not built as one list item per hidden block', (tester) async {
+      await pumpList(tester, _turn(1, tools: 300));
+
+      expect(find.text('Worked for 13s'), findsOneWidget);
+      expect(tester.widgetList(find.byType(BlockCard, skipOffstage: false)).length, lessThan(10));
+      expect(tester.widgetList(find.byType(Disclosure, skipOffstage: false)).length, lessThan(20));
+    });
+
+    testWidgets('scrollBlockIntoView on a folded block opens its turn and shows the block at the top', (tester) async {
+      await pumpList(tester, [..._turn(1, tools: 3), ..._turn(10, tools: 1, replyLines: 30, startSecond: 60)]);
+      expect(find.text('Bash 3', skipOffstage: false), findsNothing);
+
+      _list(tester).scrollBlockIntoView(2);
+      await tester.pumpAndSettle();
+
+      final rect = tester.getRect(find.text('Bash 3'));
+      expect(rect.top, greaterThanOrEqualTo(0));
+      expect(rect.top, lessThan(60));
     });
 
     testWidgets('expanding a fold while scrolled up keeps the row where it was tapped', (tester) async {

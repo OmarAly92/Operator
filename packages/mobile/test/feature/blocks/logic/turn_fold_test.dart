@@ -132,7 +132,7 @@ void main() {
       ),
     ]);
 
-    expect(folds.single.label, 'Worked for 2m5s');
+    expect(folds.single.label, 'Worked for 2m 5s');
   });
 
   test('the label formats hours with turnElapsed', () {

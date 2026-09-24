@@ -30,10 +30,11 @@ class DisclosureChevron extends StatelessWidget {
 }
 
 class Disclosure extends StatefulWidget {
-  const Disclosure({super.key, required this.expanded, required this.child});
+  const Disclosure({super.key, required this.expanded, required this.child, this.initiallyExpanded});
 
   final bool expanded;
   final Widget child;
+  final bool? initiallyExpanded;
 
   @override
   State<Disclosure> createState() => _DisclosureState();
@@ -50,7 +51,8 @@ class _DisclosureState extends State<Disclosure> with SingleTickerProviderStateM
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(vsync: this, duration: AppMotion.disclosure, value: widget.expanded ? 1 : 0)
+    final initial = widget.initiallyExpanded ?? widget.expanded;
+    _controller = AnimationController(vsync: this, duration: AppMotion.disclosure, value: initial ? 1 : 0)
       ..addStatusListener(_onStatus);
     _size = CurvedAnimation(parent: _controller, curve: AppMotion.easeOut, reverseCurve: AppMotion.easeOut.flipped);
     _fade = CurvedAnimation(
@@ -58,6 +60,23 @@ class _DisclosureState extends State<Disclosure> with SingleTickerProviderStateM
       curve: Interval(0, _fadeInEnd, curve: AppMotion.easeOut),
       reverseCurve: Interval(_fadeOutStart, 1, curve: AppMotion.easeOut.flipped),
     );
+    if (initial != widget.expanded) _animateTo(widget.expanded);
+  }
+
+  void _animateTo(bool expanded) {
+    if (expanded) {
+      _controller.forward();
+    } else {
+      _controller.reverse();
+    }
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (MediaQuery.disableAnimationsOf(context) && _controller.isAnimating) {
+      _controller.value = widget.expanded ? 1 : 0;
+    }
   }
 
   void _onStatus(AnimationStatus status) {
@@ -70,10 +89,8 @@ class _DisclosureState extends State<Disclosure> with SingleTickerProviderStateM
     if (widget.expanded == oldWidget.expanded) return;
     if (MediaQuery.disableAnimationsOf(context)) {
       _controller.value = widget.expanded ? 1 : 0;
-    } else if (widget.expanded) {
-      _controller.forward();
     } else {
-      _controller.reverse();
+      _animateTo(widget.expanded);
     }
   }
 
@@ -89,13 +106,13 @@ class _DisclosureState extends State<Disclosure> with SingleTickerProviderStateM
       return ClipRect(child: widget.expanded ? widget.child : const SizedBox.shrink());
     }
 
-    final mounted = widget.expanded || !_controller.isDismissed;
+    final showChild = widget.expanded || !_controller.isDismissed;
     return SizeTransition(
       sizeFactor: _size,
       alignment: Alignment.topCenter,
       child: FadeTransition(
         opacity: _fade,
-        child: mounted
+        child: showChild
             ? KeyedSubtree(key: const ValueKey('expanded'), child: widget.child)
             : const SizedBox.shrink(key: ValueKey('collapsed')),
       ),
