@@ -157,4 +157,29 @@ void main() {
       expect(contentHeight, lessThanOrEqualTo(GlassMetrics.tabBarHeight));
     }
   });
+
+  testWidgets('releasing far above the bar selects nothing', (tester) async {
+    final picked = <int>[];
+    await tester.pumpWidget(host(selected: 0, onSelected: picked.add));
+    final gesture = await tester.startGesture(tester.getCenter(find.text('PRs')));
+    await tester.pump();
+    await gesture.moveBy(const Offset(0, -200));
+    await tester.pump();
+    await gesture.up();
+    await tester.pumpAndSettle();
+    expect(picked, isEmpty);
+    expect(haptics, isEmpty);
+  });
+
+  testWidgets('releasing just above the bar still selects', (tester) async {
+    final picked = <int>[];
+    await tester.pumpWidget(host(selected: 0, onSelected: picked.add));
+    final gesture = await tester.startGesture(tester.getCenter(find.text('PRs')));
+    await tester.pump();
+    await gesture.moveBy(const Offset(0, -30));
+    await tester.pump();
+    await gesture.up();
+    await tester.pumpAndSettle();
+    expect(picked, [1]);
+  });
 }

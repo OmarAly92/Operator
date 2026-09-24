@@ -66,8 +66,10 @@ class _GlassTabBarState extends State<GlassTabBar> {
 
   void _up(PointerUpEvent event, double width) {
     if (event.pointer != _activePointer) return;
+    final selects = GlassTabBarLogic.releaseSelects(event.localPosition, width, GlassMetrics.tabBarHeight);
     final slot = GlassTabBarLogic.slotAt(event.localPosition.dx, width, widget.items.length);
     _endDrag();
+    if (!selects) return;
     Haptics.select();
     widget.onSelected(slot);
   }

@@ -27,4 +27,12 @@ void main() {
     expect(GlassTabBarLogic.stretchFor(-8), GlassTabBarLogic.stretchFor(8));
     expect(GlassTabBarLogic.stretchFor(1000), 1.2);
   });
+
+  test('a release selects only within a hit target of the bar', () {
+    expect(GlassTabBarLogic.releaseSelects(const Offset(10, 10), 300, 62), isTrue);
+    expect(GlassTabBarLogic.releaseSelects(const Offset(10, -40), 300, 62), isTrue);
+    expect(GlassTabBarLogic.releaseSelects(const Offset(10, -50), 300, 62), isFalse);
+    expect(GlassTabBarLogic.releaseSelects(const Offset(10, 110), 300, 62), isFalse);
+    expect(GlassTabBarLogic.releaseSelects(const Offset(-50, 10), 300, 62), isFalse);
+  });
 }
