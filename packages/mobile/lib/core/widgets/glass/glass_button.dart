@@ -17,6 +17,7 @@ class GlassButton extends StatefulWidget {
     this.semanticLabel,
     this.prominent = false,
     this.foreground,
+    this.diameter,
   })  : label = null,
         compact = false;
 
@@ -28,7 +29,8 @@ class GlassButton extends StatefulWidget {
     this.prominent = false,
     this.compact = false,
   })  : semanticLabel = null,
-        foreground = null;
+        foreground = null,
+        diameter = null;
 
   static const double pressedScale = 1.08;
 
@@ -39,6 +41,7 @@ class GlassButton extends StatefulWidget {
   final bool prominent;
   final bool compact;
   final Color? foreground;
+  final double? diameter;
 
   @override
   State<GlassButton> createState() => _GlassButtonState();
@@ -74,10 +77,12 @@ class _GlassButtonState extends State<GlassButton> {
     final isIcon = widget.label == null;
     final capsuleHeight = widget.compact ? GlassMetrics.compactButtonHeight : GlassMetrics.hitTarget;
     final horizontalPadding = widget.compact ? GlassMetrics.compactLabelButtonPadding : GlassMetrics.labelButtonPadding;
+    final iconDiameter = widget.diameter ?? GlassMetrics.hitTarget;
+    final iconGlyphSize = ((22 * iconDiameter / GlassMetrics.hitTarget) * 2).round() / 2;
     final content = isIcon
         ? SizedBox.square(
-            dimension: GlassMetrics.hitTarget,
-            child: Icon(widget.icon, size: 22, color: foreground, semanticLabel: widget.semanticLabel),
+            dimension: iconDiameter,
+            child: Icon(widget.icon, size: iconGlyphSize, color: foreground, semanticLabel: widget.semanticLabel),
           )
         : SizedBox(
             height: capsuleHeight,
@@ -101,7 +106,7 @@ class _GlassButtonState extends State<GlassButton> {
       curve: AppMotion.spring,
       child: GlassSurface(
         kind: isIcon ? GlassShapeKind.circle : GlassShapeKind.capsule,
-        size: isIcon ? GlassMetrics.hitTarget : capsuleHeight,
+        size: isIcon ? iconDiameter : capsuleHeight,
         variant: widget.prominent ? GlassVariant.prominent : GlassVariant.regular,
         child: _enabled
             ? GlassGlow(

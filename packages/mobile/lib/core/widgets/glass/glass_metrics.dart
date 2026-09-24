@@ -18,4 +18,6 @@ sealed class GlassMetrics {
   static const double compactLabelButtonPadding = 11;
   static const double topEdgeFadeExtent = 34;
   static const double bottomEdgeFadeExtent = 37;
+  static const double sheetHeaderButton = 38;
+  static const double sheetTopCornerRadius = 44;
 }

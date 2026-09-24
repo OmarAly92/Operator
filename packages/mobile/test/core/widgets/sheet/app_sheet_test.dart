@@ -325,6 +325,85 @@ void main() {
     expect(AppSheetLogic.maxHeight(available: 874, topSafe: 62), 796);
     expect(AppSheetLogic.maxHeight(available: 10, topSafe: 62), 0);
     expect(AppSheetLogic.cornerRadius(), 56);
+    expect(AppSheetLogic.topCornerRadius(), 44);
+  });
+
+  testWidgets('the back button is 38pt and a sheet action sits in a 38pt-tall glass item', (tester) async {
+    phone(tester);
+    await tester.pumpWidget(
+      host(
+        const LightSkin(),
+        (context) => showAppSheet<String>(
+          context: context,
+          page: AppSheetPage(
+            title: 'Root',
+            actions: [TextButton(onPressed: () {}, child: const Text('Done'))],
+            rows: (context, query) => [
+              ListTile(title: const Text('Go deeper'), onTap: () => AppSheet.of(context).push(fruitPage())),
+            ],
+          ),
+        ),
+      ),
+    );
+    await open(tester);
+    final actionItem = tester.getRect(find.ancestor(of: find.text('Done'), matching: find.byType(GlassBarItem)));
+    expect(actionItem.height, 38);
+
+    await tester.tap(find.text('Go deeper'));
+    await tester.pumpAndSettle();
+    expect(tester.getSize(find.byKey(AppSheet.backKey)), const Size(38, 38));
+  });
+
+  testWidgets('the search field disables autocorrect and suggestions', (tester) async {
+    phone(tester);
+    await tester.pumpWidget(
+      host(
+        const LightSkin(),
+        (context) => showAppSheet<String>(context: context, page: fruitPage(searchHint: 'Search fruit')),
+      ),
+    );
+    await open(tester);
+    final field = tester.widget<TextField>(find.byKey(AppSheet.searchFieldKey));
+    expect(field.autocorrect, isFalse);
+    expect(field.enableSuggestions, isFalse);
+  });
+
+  testWidgets('the header bar blurs scrolled content instead of blanking it', (tester) async {
+    phone(tester);
+    await tester.pumpWidget(
+      host(
+        const LightSkin(),
+        (context) => showAppSheet<String>(
+          context: context,
+          page: AppSheetPage(
+            title: 'Many',
+            rows: (context, query) => [for (var i = 0; i < 40; i++) SizedBox(height: 44, child: Text('Row $i'))],
+          ),
+          detent: AppSheetDetent.large,
+        ),
+      ),
+    );
+    await open(tester);
+    await tester.dragUntilVisible(find.text('Row 39'), find.byType(ListView), const Offset(0, -300));
+    await tester.pumpAndSettle();
+
+    final headerBar = find.byKey(AppSheet.headerBarKey);
+    expect(headerBar, findsOneWidget);
+    final backdrop = tester.widget<BackdropFilter>(
+      find.descendant(of: headerBar, matching: find.byType(BackdropFilter)),
+    );
+    expect(backdrop.filter.toString(), contains('12.0'));
+
+    final opaqueGradients = tester
+        .widgetList<DecoratedBox>(find.descendant(of: headerBar, matching: find.byType(DecoratedBox)))
+        .where((box) {
+      final decoration = box.decoration;
+      if (decoration is! BoxDecoration) return false;
+      final gradient = decoration.gradient;
+      if (gradient is! LinearGradient) return false;
+      return gradient.colors.every((c) => c.a == 1.0);
+    });
+    expect(opaqueGradients, isEmpty);
   });
 
   testWidgets('push slides the old page out left and the new in from the right; pop mirrors it', (tester) async {

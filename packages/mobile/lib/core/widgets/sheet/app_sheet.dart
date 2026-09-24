@@ -65,6 +65,8 @@ sealed class AppSheetLogic {
 
   static double cornerRadius() => GlassMetrics.displayCornerRadius - GlassMetrics.sheetInset;
 
+  static double topCornerRadius() => GlassMetrics.sheetTopCornerRadius;
+
   static double bottomClearance({required bool hasSearch}) => hasSearch
       ? AppSheetMetrics.searchBottom + AppSheetMetrics.searchHeight + AppSheetMetrics.contentBottom
       : AppSheetMetrics.contentBottom;
@@ -100,6 +102,7 @@ class AppSheet extends StatefulWidget {
   static const Key grabberKey = ValueKey('app-sheet-grabber');
   static const Key searchFieldKey = ValueKey('app-sheet-search');
   static const Key backKey = ValueKey('app-sheet-back');
+  static const Key headerBarKey = ValueKey('app-sheet-header-bar');
 
   final AppSheetPage root;
   final List<AppSheetPage> pushed;
@@ -205,12 +208,17 @@ class _AppSheetState extends State<AppSheet> {
     final skin = context.skin;
     return NavigationToolbar(
       leading: _pages.length > 1
-          ? GlassButton.icon(
-              key: AppSheet.backKey,
-              icon: Icons.arrow_back_ios_new_rounded,
-              semanticLabel: 'Back',
-              foreground: skin.textPrimary,
-              onPressed: _pop,
+          ? Center(
+              widthFactor: 1,
+              heightFactor: 1,
+              child: GlassButton.icon(
+                key: AppSheet.backKey,
+                icon: Icons.arrow_back_ios_new_rounded,
+                semanticLabel: 'Back',
+                foreground: skin.textPrimary,
+                diameter: GlassMetrics.sheetHeaderButton,
+                onPressed: _pop,
+              ),
             )
           : null,
       middle: AppText(page.title, style: AppTextStyle.style17Bold, maxLines: 1, overflow: TextOverflow.ellipsis),
@@ -221,7 +229,7 @@ class _AppSheetState extends State<AppSheet> {
               children: [
                 for (var i = 0; i < page.actions.length; i++) ...[
                   if (i > 0) const SizedBox(width: GlassMetrics.toolbarItemGap),
-                  GlassBarItem(child: page.actions[i]),
+                  GlassBarItem(extent: GlassMetrics.sheetHeaderButton, child: page.actions[i]),
                 ],
               ],
             ),
@@ -234,7 +242,10 @@ class _AppSheetState extends State<AppSheet> {
     final skin = context.skin;
     final media = MediaQuery.of(context);
     final page = _pages.last;
-    final radius = BorderRadius.all(Radius.circular(AppSheetLogic.cornerRadius()));
+    final radius = BorderRadius.vertical(
+      top: Radius.circular(AppSheetLogic.topCornerRadius()),
+      bottom: Radius.circular(AppSheetLogic.cornerRadius()),
+    );
     return _AppSheetScope(
       controller: _controller,
       child: LayoutBuilder(
@@ -256,12 +267,12 @@ class _AppSheetState extends State<AppSheet> {
           final stack = Stack(
             children: [
               if (height == null) switcher else Positioned.fill(child: switcher),
-              const Positioned(
+              Positioned(
                 left: 0,
                 right: 0,
                 top: 0,
-                height: AppSheetMetrics.contentTop + 8,
-                child: _HeaderFade(),
+                height: AppSheetMetrics.contentTop,
+                child: _HeaderBar(key: AppSheet.headerBarKey),
               ),
               Positioned(
                 top: AppSheetMetrics.grabberTop,
@@ -331,40 +342,31 @@ class _AppSheetState extends State<AppSheet> {
   }
 }
 
-class _HeaderFade extends StatelessWidget {
-  const _HeaderFade();
+class _HeaderBar extends StatelessWidget {
+  const _HeaderBar({super.key});
+
+  static const double _softenExtent = 10;
 
   @override
   Widget build(BuildContext context) {
     final surface = context.skin.bgSurface;
     return IgnorePointer(
       child: ClipRect(
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            ShaderMask(
-              blendMode: BlendMode.dstIn,
-              shaderCallback: (rect) => const LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [Color(0xFFFFFFFF), Color(0x00FFFFFF)],
-              ).createShader(rect),
-              child: BackdropFilter(
-                filter: ui.ImageFilter.blur(sigmaX: 4, sigmaY: 4),
-                child: const SizedBox.expand(),
-              ),
-            ),
-            DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [surface, surface.withValues(alpha: 0.85), surface.withValues(alpha: 0)],
-                  stops: const [0, 0.6, 1],
-                ),
-              ),
-            ),
-          ],
+        child: ShaderMask(
+          blendMode: BlendMode.dstIn,
+          shaderCallback: (rect) {
+            final stop = ((rect.height - _softenExtent) / rect.height).clamp(0.0, 1.0);
+            return LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: const [Color(0xFFFFFFFF), Color(0xFFFFFFFF), Color(0x00FFFFFF)],
+              stops: [0, stop, 1],
+            ).createShader(rect);
+          },
+          child: BackdropFilter(
+            filter: ui.ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+            child: ColoredBox(color: surface.withValues(alpha: 0.72)),
+          ),
         ),
       ),
     );
@@ -395,6 +397,8 @@ class _SearchCapsule extends StatelessWidget {
                 key: AppSheet.searchFieldKey,
                 controller: controller,
                 textInputAction: TextInputAction.search,
+                autocorrect: false,
+                enableSuggestions: false,
                 style: AppTextStyle.style17Regular.copyWith(color: skin.textPrimary),
                 cursorColor: skin.accent,
                 decoration: InputDecoration.collapsed(

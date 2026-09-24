@@ -157,4 +157,20 @@ void main() {
     await tester.pumpWidget(host(GlassButton.icon(icon: Icons.add, foreground: const Color(0xFF123456), onPressed: () {})));
     expect(tester.widget<Icon>(find.byIcon(Icons.add)).color, const Color(0xFF123456));
   });
+
+  testWidgets('an icon button with no diameter is still 44', (tester) async {
+    await tester.pumpWidget(host(GlassButton.icon(icon: Icons.add, onPressed: () {})));
+    final size = tester.getSize(find.byType(GlassButton));
+    expect(size, const Size(44, 44));
+    expect(tester.widget<Icon>(find.byIcon(Icons.add)).size, 22);
+  });
+
+  testWidgets('an icon button with a smaller diameter shrinks the circle and the glyph', (tester) async {
+    await tester.pumpWidget(host(GlassButton.icon(icon: Icons.add, diameter: 38, onPressed: () {})));
+    final size = tester.getSize(find.byType(GlassButton));
+    expect(size, const Size(38, 38));
+    expect(tester.widget<Icon>(find.byIcon(Icons.add)).size, 19);
+    final surfaceSize = tester.getSize(find.byType(GlassSurface));
+    expect(surfaceSize, const Size(38, 38));
+  });
 }
