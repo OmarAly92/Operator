@@ -2,6 +2,7 @@ package tunnel
 
 import (
 	"context"
+	"os"
 	"sync"
 	"testing"
 	"time"
@@ -94,9 +95,16 @@ func dripFeed(t *testing.T, sleeper *recordingSleeper, interval time.Duration) {
 }
 
 func TestManagerRestartsAfterUnexpectedExit(t *testing.T) {
-	restartOnce := "#!/bin/sh\nif [ -f \"$TUNNEL_TEST_MARKER\" ]; then while true; do sleep 1; done; fi\ntouch \"$TUNNEL_TEST_MARKER\"\nexit 1\n"
+	// The first run holds until the test has seen the tunnel go live, then
+	// exits. Exiting straight away races the manager's first URL poll: a
+	// first attempt that dies before publishing a URL is, by design, a
+	// provider refusal (terminal with one provider), not a restart.
+	restartOnce := "#!/bin/sh\nif [ -f \"$TUNNEL_TEST_MARKER\" ]; then while true; do sleep 1; done; fi\ntouch \"$TUNNEL_TEST_MARKER\"\nwhile [ ! -f \"$TUNNEL_TEST_EXIT\" ]; do sleep 0.01; done\nexit 1\n"
 	provider := newFakeProvider(t, "ngrok", restartOnce)
-	t.Setenv("TUNNEL_TEST_MARKER", t.TempDir()+"/marker")
+	dir := t.TempDir()
+	t.Setenv("TUNNEL_TEST_MARKER", dir+"/marker")
+	exitFile := dir + "/exit"
+	t.Setenv("TUNNEL_TEST_EXIT", exitFile)
 
 	sleeper := newRecordingSleeper()
 	dripFeed(t, sleeper, 20*time.Millisecond)
@@ -115,11 +123,19 @@ func TestManagerRestartsAfterUnexpectedExit(t *testing.T) {
 	if err := m.Enable(context.Background()); err != nil {
 		t.Fatalf("Enable: %v", err)
 	}
-	deadline := time.Now().Add(5 * time.Second)
+	waitForState(t, m, StateLive)
+
+	if err := os.WriteFile(exitFile, nil, 0o600); err != nil {
+		t.Fatalf("release first run: %v", err)
+	}
+	deadline := time.Now().Add(30 * time.Second)
 	for time.Now().Before(deadline) {
 		status := m.Status()
 		if status.State == StateLive && status.Restarts >= 1 {
 			return
+		}
+		if status.State == StateFailed {
+			t.Fatalf("status = %+v, want a restart after an unexpected exit, not failed", status)
 		}
 		time.Sleep(5 * time.Millisecond)
 	}
