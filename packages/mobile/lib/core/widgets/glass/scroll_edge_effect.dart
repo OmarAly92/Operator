@@ -59,7 +59,7 @@ class _ScrollEdgeEffectState extends State<ScrollEdgeEffect> {
     return switch ((dark, widget.edge)) {
       (false, ScrollEdge.top) => 0.26,
       (false, ScrollEdge.bottom) => 0.26,
-      (true, ScrollEdge.top) => 0.45,
+      (true, ScrollEdge.top) => 0.6,
       (true, ScrollEdge.bottom) => 0.49,
     };
   }

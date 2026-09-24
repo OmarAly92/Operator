@@ -54,13 +54,13 @@ sealed class GlassStyle {
     return [
       BoxShadow(
         blurStyle: BlurStyle.outer,
-        color: const Color(0xFF000000).withValues(alpha: dark ? 0.06 : 0.03),
+        color: const Color(0xFF000000).withValues(alpha: dark ? 0.06 : 0.05),
         blurRadius: lerpDouble(1, 3, t)!,
       ),
       BoxShadow(
         blurStyle: BlurStyle.outer,
-        color: const Color(0xFF000000).withValues(alpha: dark ? 0.10 : 0.06),
-        blurRadius: lerpDouble(10, 30, t)!,
+        color: const Color(0xFF000000).withValues(alpha: dark ? 0.10 : 0.12),
+        blurRadius: lerpDouble(24, 40, t)!,
       ),
     ];
   }
