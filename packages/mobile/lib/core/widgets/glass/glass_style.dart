@@ -29,7 +29,7 @@ sealed class GlassStyle {
     final baseTint = switch (variant) {
       GlassVariant.regular =>
         dark
-            ? skin.bgSurface.withValues(alpha: lerpDouble(0.1, 0.48, t)!)
+            ? skin.bgElevated.withValues(alpha: lerpDouble(0.1, 0.9, t)!)
             : const Color(
                 0xFFFFFFFF,
               ).withValues(alpha: lerpDouble(0.58, 0.76, t)!),
@@ -54,7 +54,7 @@ sealed class GlassStyle {
       saturation: switch (variant) {
         GlassVariant.clear => 1.2,
         GlassVariant.regular =>
-          dark ? lerpDouble(1.2, 0.75, t)! : lerpDouble(2.0, 1.24, t)!,
+          dark ? lerpDouble(1.2, 1.1, t)! : lerpDouble(2.0, 1.24, t)!,
         GlassVariant.prominent => 1.0,
       },
       fillRatio: 0.7,
