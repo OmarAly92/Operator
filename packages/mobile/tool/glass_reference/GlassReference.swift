@@ -54,15 +54,21 @@ struct SceneContent: View {
     let p: Palette
 
     var body: some View {
-        VStack(spacing: 0) {
-            Stripes().frame(height: 182)
-            VStack(spacing: 12) {
-                ForEach(0..<4, id: \.self) { Card(p: p, index: $0) }
+        GeometryReader { proxy in
+            ScrollView {
+                VStack(spacing: 0) {
+                    Stripes().frame(height: 182)
+                    VStack(spacing: 12) {
+                        ForEach(0..<4, id: \.self) { Card(p: p, index: $0) }
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.top, 20)
+                    Spacer(minLength: 0)
+                    Stripes().frame(height: 180)
+                }
+                .frame(minHeight: proxy.size.height)
             }
-            .padding(.horizontal, 16)
-            .padding(.top, 20)
-            Spacer(minLength: 0)
-            Stripes().frame(height: 180)
+            .scrollEdgeEffectStyle(.soft, for: .all)
         }
         .background(p.bg)
         .ignoresSafeArea()
