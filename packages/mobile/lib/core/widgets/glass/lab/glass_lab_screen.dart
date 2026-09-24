@@ -81,8 +81,8 @@ class _GlassLabScreenState extends State<GlassLabScreen> {
           children: [
             const Positioned.fill(child: GlassLabBackdrop()),
             if (scene != GlassLabScene.corners) ...[
-              const Positioned(left: 0, right: 0, top: 0, child: ScrollEdgeEffect(edge: ScrollEdge.top, height: 150)),
-              const Positioned(left: 0, right: 0, bottom: 0, child: ScrollEdgeEffect(edge: ScrollEdge.bottom, height: 150)),
+              const Positioned(left: 0, right: 0, top: 0, child: ScrollEdgeEffect(edge: ScrollEdge.top, height: 140)),
+              const Positioned(left: 0, right: 0, bottom: 0, child: ScrollEdgeEffect(edge: ScrollEdge.bottom, height: 120)),
             ],
             if (scene == GlassLabScene.corners)
               Center(
@@ -122,9 +122,9 @@ class _GlassLabScreenState extends State<GlassLabScreen> {
                 child: GlassTabBar(
                   key: _tabBarKey,
                   items: const [
-                    GlassTabItem(icon: Icons.layers_outlined, label: 'Agents'),
-                    GlassTabItem(icon: Icons.call_merge_outlined, label: 'PRs'),
-                    GlassTabItem(icon: Icons.settings_outlined, label: 'Settings'),
+                    GlassTabItem(icon: Icons.layers, label: 'Agents'),
+                    GlassTabItem(icon: Icons.call_merge, label: 'PRs'),
+                    GlassTabItem(icon: Icons.settings, label: 'Settings'),
                   ],
                   selectedIndex: 0,
                   onSelected: (_) {},
@@ -133,7 +133,7 @@ class _GlassLabScreenState extends State<GlassLabScreen> {
             if (scene != GlassLabScene.corners)
               Positioned(
                 right: GlassMetrics.primaryButtonInset,
-                bottom: GlassMetrics.tabBarBottomInset + GlassMetrics.tabBarHeight + GlassMetrics.primaryButtonInset,
+                bottom: GlassMetrics.tabBarBottomInset + GlassMetrics.tabBarHeight + GlassMetrics.primaryButtonBottomGap,
                 child: GlassButton.label(
                   label: 'Run',
                   icon: Icons.play_arrow_rounded,

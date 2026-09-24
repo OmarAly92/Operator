@@ -9,6 +9,7 @@ uniform float uMaxRadius;
 uniform float uFromTop;
 uniform float uBandOriginY;
 uniform vec4 uTint;
+uniform float uKnee;
 uniform sampler2D uTexture;
 
 out vec4 fragColor;
@@ -18,7 +19,7 @@ void main() {
     float distFromEdge = uFromTop > 0.5 ? (frag.y - uBandOriginY) : (uBandOriginY + uBandHeight - frag.y);
     float s = clamp(distFromEdge / uBandHeight, 0.0, 1.0);
     float t = 1.0 - s;
-    float w = smoothstep(0.0, 0.45, t);
+    float w = smoothstep(0.0, uKnee, t);
     float r = uMaxRadius * w;
     vec4 acc = vec4(0.0);
     float wsum = 0.0;

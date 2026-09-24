@@ -55,6 +55,17 @@ class _ScrollEdgeEffectState extends State<ScrollEdgeEffect> {
     });
   }
 
+  double _maxAlpha(bool dark) {
+    return switch ((dark, widget.edge)) {
+      (false, ScrollEdge.top) => 0.26,
+      (false, ScrollEdge.bottom) => 0.26,
+      (true, ScrollEdge.top) => 0.45,
+      (true, ScrollEdge.bottom) => 0.49,
+    };
+  }
+
+  double get _knee => widget.edge == ScrollEdge.top ? 0.45 : 0.8;
+
   Widget _fallback(double maxAlpha) {
     final outer = widget.edge == ScrollEdge.top ? Alignment.topCenter : Alignment.bottomCenter;
     final inner = widget.edge == ScrollEdge.top ? Alignment.bottomCenter : Alignment.topCenter;
@@ -83,7 +94,7 @@ class _ScrollEdgeEffectState extends State<ScrollEdgeEffect> {
   @override
   Widget build(BuildContext context) {
     final dark = context.skin.themeMode == ThemeMode.dark;
-    final maxAlpha = dark ? 0.2 : 0.15;
+    final maxAlpha = _maxAlpha(dark);
     final shader = _shader;
     final originY = _originY;
     _scheduleMeasure();
@@ -101,13 +112,14 @@ class _ScrollEdgeEffectState extends State<ScrollEdgeEffect> {
                     ..setFloat(0, 0)
                     ..setFloat(1, 0)
                     ..setFloat(2, widget.height * dpr)
-                    ..setFloat(3, 18 * dpr)
+                    ..setFloat(3, 4 * dpr)
                     ..setFloat(4, widget.edge == ScrollEdge.top ? 1 : 0)
                     ..setFloat(5, originY)
                     ..setFloat(6, 0)
                     ..setFloat(7, 0)
                     ..setFloat(8, 0)
-                    ..setFloat(9, maxAlpha);
+                    ..setFloat(9, maxAlpha)
+                    ..setFloat(10, _knee);
                   return ClipRect(
                     child: BackdropFilter(
                       filter: ui.ImageFilter.shader(shader),

@@ -63,7 +63,7 @@ class _GlassButtonState extends State<GlassButton> {
     final foreground = widget.prominent ? const Color(0xFFFFFFFF) : skin.accent;
     final isIcon = widget.label == null;
     final capsuleHeight = widget.compact ? GlassMetrics.compactButtonHeight : GlassMetrics.hitTarget;
-    final horizontalPadding = widget.compact ? 12.0 : 16.0;
+    final horizontalPadding = widget.compact ? GlassMetrics.compactLabelButtonPadding : GlassMetrics.labelButtonPadding;
     final content = isIcon
         ? SizedBox.square(
             dimension: GlassMetrics.hitTarget,
