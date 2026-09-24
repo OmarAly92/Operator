@@ -627,19 +627,133 @@ void main() {
     expect(tester.getRect(find.text('Go')).left, moreOrLessEquals(rest));
   });
 
-  test('page offsets follow the UIKit push: incoming from 100%, outgoing to -30%, mirrored on pop', () {
-    expect(AppSheetLogic.pageOffset(incoming: true, forward: true, progress: 0), 1);
-    expect(AppSheetLogic.pageOffset(incoming: true, forward: true, progress: 0.5), 0.5);
-    expect(AppSheetLogic.pageOffset(incoming: false, forward: true, progress: 0.5), closeTo(-0.15, 1e-9));
-    expect(AppSheetLogic.pageOffset(incoming: true, forward: false, progress: 0.5), closeTo(-0.15, 1e-9));
-    expect(AppSheetLogic.pageOffset(incoming: false, forward: false, progress: 0.5), 0.5);
-    expect(AppSheetLogic.pageOffset(incoming: false, forward: false, progress: 1), 0);
+  test('page resting offsets follow the UIKit push: shown at 0, removed at 100%, covered at -30%', () {
+    expect(AppSheetLogic.pageShown, 0);
+    expect(AppSheetLogic.pageRemoved, 1);
+    expect(AppSheetLogic.pageCovered, -0.3);
     expect(AppMotion.sheetPush, const Duration(milliseconds: 350));
     expect(AppMotion.sheetPushCurve, const CriticallyDampedCurve(8));
     expect(AppMotion.sheetPushCurve.transform(0), 0);
     expect(AppMotion.sheetPushCurve.transform(1), 1);
     expect(AppMotion.sheetPushCurve.transform(0.1), closeTo(0.19, 0.01));
     expect(AppMotion.sheetPushCurve.transform(0.5), closeTo(0.91, 0.01));
+  });
+
+  AppSheetPage chainPage(String title, String row, AppSheetPage? next) => AppSheetPage(
+        title: title,
+        rows: (context, query) => [
+          ListTile(
+            title: Text(row),
+            onTap: next == null ? null : () => AppSheet.of(context).push(next),
+          ),
+        ],
+      );
+
+  Future<double> openChain(WidgetTester tester) async {
+    phone(tester);
+    final leaf = chainPage('Third', 'Leaf', null);
+    final middle = chainPage('Second', 'Next', leaf);
+    await tester.pumpWidget(
+      host(
+        const LightSkin(),
+        (context) => showAppSheet<String>(
+          context: context,
+          page: chainPage('First', 'Go', middle),
+          detent: AppSheetDetent.large,
+        ),
+      ),
+    );
+    await open(tester);
+    return tester.getSize(find.byKey(AppSheet.surfaceKey)).width;
+  }
+
+  Future<Map<String, double>> trackFrames(
+    WidgetTester tester,
+    List<String> labels,
+    double width, {
+    required int frames,
+    Map<String, double>? from,
+  }) async {
+    var last = <String, double>{...?from};
+    for (var i = 0; i < frames; i++) {
+      await tester.pump(const Duration(milliseconds: 16));
+      final now = <String, double>{};
+      for (final label in labels) {
+        final found = find.text(label);
+        final count = found.evaluate().length;
+        expect(count, lessThanOrEqualTo(1), reason: '$label painted $count times at frame $i');
+        if (count == 1) now[label] = tester.getRect(found).left;
+      }
+      for (final label in now.keys) {
+        final before = last[label];
+        if (before != null) {
+          expect(
+            (now[label]! - before).abs(),
+            lessThan(width * 0.16),
+            reason: '$label jumped from $before to ${now[label]} at frame $i',
+          );
+        }
+      }
+      last = now;
+    }
+    return last;
+  }
+
+  int layerOf(WidgetTester tester, String label) {
+    final layers = tester.widget<Stack>(find.ancestor(of: find.text(label), matching: find.byType(Stack)).first).children;
+    return layers.indexWhere((layer) => find.descendant(of: find.byWidget(layer), matching: find.text(label)).evaluate().isNotEmpty);
+  }
+
+  testWidgets('a pop halfway through a push reverses both pages continuously with the exiting page on top',
+      (tester) async {
+    final width = await openChain(tester);
+    final rest = tester.getRect(find.text('Go')).left;
+    await tester.tap(find.text('Go'));
+    await tester.pump();
+    var last = await trackFrames(tester, ['Go', 'Next'], width, frames: 5);
+    await tester.tap(find.byKey(AppSheet.backKey));
+    last = await trackFrames(tester, ['Go', 'Next'], width, frames: 1, from: last);
+    expect(layerOf(tester, 'Next'), greaterThan(layerOf(tester, 'Go')));
+    await trackFrames(tester, ['Go', 'Next'], width, frames: 30, from: last);
+    await tester.pumpAndSettle();
+    expect(find.text('Next'), findsNothing);
+    expect(tester.getRect(find.text('Go')).left, moreOrLessEquals(rest));
+    expect(find.text('First'), findsOneWidget);
+  });
+
+  testWidgets('two quick pushes keep every page on a continuous path and stack the newest on top', (tester) async {
+    final width = await openChain(tester);
+    final rest = tester.getRect(find.text('Go')).left;
+    await tester.tap(find.text('Go'));
+    await tester.pump();
+    var last = await trackFrames(tester, ['Go', 'Next', 'Leaf'], width, frames: 6);
+    await tester.tap(find.text('Next'));
+    last = await trackFrames(tester, ['Go', 'Next', 'Leaf'], width, frames: 1, from: last);
+    expect(layerOf(tester, 'Leaf'), greaterThan(layerOf(tester, 'Next')));
+    await trackFrames(tester, ['Go', 'Next', 'Leaf'], width, frames: 30, from: last);
+    await tester.pumpAndSettle();
+    expect(tester.getRect(find.text('Leaf')).left, moreOrLessEquals(rest));
+    expect(find.text('Next'), findsNothing);
+    expect(find.text('Go'), findsNothing);
+  });
+
+  testWidgets('a push halfway through a pop sends the returning page back under a continuous new page',
+      (tester) async {
+    final width = await openChain(tester);
+    final rest = tester.getRect(find.text('Go')).left;
+    await tester.tap(find.text('Go'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(AppSheet.backKey));
+    await tester.pump();
+    var last = await trackFrames(tester, ['Go', 'Next'], width, frames: 5);
+    await tester.tap(find.text('Go'));
+    last = await trackFrames(tester, ['Go', 'Next'], width, frames: 1, from: last);
+    expect(layerOf(tester, 'Next'), greaterThan(layerOf(tester, 'Go')));
+    await trackFrames(tester, ['Go', 'Next'], width, frames: 30, from: last);
+    await tester.pumpAndSettle();
+    expect(tester.getRect(find.text('Next')).left, moreOrLessEquals(rest));
+    expect(find.text('Go'), findsNothing);
+    expect(find.text('Second'), findsOneWidget);
   });
 
   testWidgets('each page is an opaque bgSurface Material with its own ink, so a tapped row highlight leaves with its page and never shows through',
@@ -670,14 +784,21 @@ void main() {
     await tester.pumpAndSettle();
   });
 
-  testWidgets('the page switcher and the fit height use the sheet push duration and curve', (tester) async {
+  testWidgets('the pages and the fit height move on the sheet push duration and curve', (tester) async {
     await openRootWithPush(tester, detent: AppSheetDetent.fit);
-    final switcher = tester.widget<AnimatedSwitcher>(
-      find.ancestor(of: find.text('Go'), matching: find.byType(AnimatedSwitcher)).first,
-    );
-    expect(switcher.duration, AppMotion.sheetPush);
-    expect(switcher.switchInCurve, AppMotion.sheetPushCurve);
-    expect((switcher.switchOutCurve as FlippedCurve).curve, AppMotion.sheetPushCurve);
+    final width = tester.getSize(find.byKey(AppSheet.surfaceKey)).width;
+    final rest = tester.getRect(find.text('Go')).left;
+    await tester.tap(find.text('Go'));
+    await tester.pump();
+    var elapsed = 0.0;
+    for (final t in [0.1, 0.25, 0.5, 0.8]) {
+      await tester.pump(AppMotion.sheetPush * (t - elapsed));
+      elapsed = t;
+      final p = AppMotion.sheetPushCurve.transform(t);
+      expect(tester.getRect(find.text('Apple')).left, moreOrLessEquals(rest + width * (1 - p), epsilon: 1.5));
+      expect(tester.getRect(find.text('Go')).left, moreOrLessEquals(rest - width * 0.3 * p, epsilon: 1.5));
+    }
+    await tester.pumpAndSettle();
     final size = tester.widget<AnimatedSize>(
       find.descendant(of: find.byKey(AppSheet.surfaceKey), matching: find.byType(AnimatedSize)),
     );

@@ -67,10 +67,9 @@ sealed class AppSheetLogic {
 
   static double topCornerRadius() => GlassMetrics.sheetTopCornerRadius;
 
-  static double pageOffset({required bool incoming, required bool forward, required double progress}) {
-    final hidden = incoming == forward ? 1.0 : -AppSheetMetrics.pushParallax;
-    return hidden * (1 - progress);
-  }
+  static const double pageShown = 0;
+  static const double pageRemoved = 1;
+  static const double pageCovered = -AppSheetMetrics.pushParallax;
 
   static double headerBarVisibility(double offset) =>
       (offset / AppSheetMetrics.headerFadeExtent).clamp(0.0, 1.0).toDouble();
@@ -117,6 +116,7 @@ class AppSheet extends StatefulWidget {
   static const Key contentClipKey = ValueKey('app-sheet-content-clip');
   static const Key searchCapsuleKey = ValueKey('app-sheet-search-capsule');
   static const Key pageMaterialKey = ValueKey('app-sheet-page-material');
+  static const Key pagesKey = ValueKey('app-sheet-pages');
   static const Key outerClipKey = ValueKey('app-sheet-outer-clip');
   static const Key layerClipKey = ValueKey('app-sheet-layer-clip');
 
@@ -131,7 +131,16 @@ class AppSheet extends StatefulWidget {
   State<AppSheet> createState() => _AppSheetState();
 }
 
-class _AppSheetState extends State<AppSheet> with SingleTickerProviderStateMixin {
+class _PageEntry {
+  _PageEntry({required this.depth, required this.page, required this.motion});
+
+  final int depth;
+  final AppSheetPage page;
+  final AnimationController motion;
+  double target = AppSheetLogic.pageShown;
+}
+
+class _AppSheetState extends State<AppSheet> with TickerProviderStateMixin {
   late final List<AppSheetPage> _pages = [widget.root, ...widget.pushed];
   late final AppSheetController _controller = AppSheetController._(this);
   final TextEditingController _search = TextEditingController();
@@ -139,7 +148,27 @@ class _AppSheetState extends State<AppSheet> with SingleTickerProviderStateMixin
   late final AnimationController _handoff = AnimationController(vsync: this, duration: AppMotion.sheetPush);
   late final Listenable _headerListenable = Listenable.merge([_headerVisibility, _handoff]);
   double _handoffFrom = 0;
-  bool _forward = true;
+  late final List<_PageEntry> _entries = [_entry(_pages.length, _pages.last, AppSheetLogic.pageShown)];
+
+  _PageEntry _entry(int depth, AppSheetPage page, double offset) => _PageEntry(
+        depth: depth,
+        page: page,
+        motion: AnimationController.unbounded(vsync: this, value: offset),
+      );
+
+  void _slide(_PageEntry entry, double target) {
+    entry.target = target;
+    entry.motion
+        .animateTo(target, duration: AppMotion.sheetPush, curve: AppMotion.sheetPushCurve)
+        .whenCompleteOrCancel(() => _settle(entry));
+  }
+
+  void _settle(_PageEntry entry) {
+    if (!mounted || entry.motion.isAnimating || entry.target == AppSheetLogic.pageShown) return;
+    if (!_entries.contains(entry)) return;
+    setState(() => _entries.remove(entry));
+    entry.motion.dispose();
+  }
 
   double get _shownVisibility {
     final target = _headerVisibility.value;
@@ -157,8 +186,19 @@ class _AppSheetState extends State<AppSheet> with SingleTickerProviderStateMixin
   void _push(AppSheetPage page) {
     _startHandoff();
     setState(() {
-      _forward = true;
+      for (final entry in _entries) {
+        if (entry.target == AppSheetLogic.pageShown) _slide(entry, AppSheetLogic.pageCovered);
+      }
       _pages.add(page);
+      final depth = _pages.length;
+      final returning = _entries
+          .where((entry) => entry.depth == depth && entry.target == AppSheetLogic.pageRemoved && identical(entry.page, page))
+          .lastOrNull;
+      final incoming = returning ?? _entry(depth, page, AppSheetLogic.pageRemoved);
+      _entries
+        ..remove(incoming)
+        ..add(incoming);
+      _slide(incoming, AppSheetLogic.pageShown);
       _search.clear();
     });
   }
@@ -167,8 +207,20 @@ class _AppSheetState extends State<AppSheet> with SingleTickerProviderStateMixin
     if (_pages.length < 2) return;
     _startHandoff();
     setState(() {
-      _forward = false;
+      for (final entry in _entries) {
+        if (entry.target == AppSheetLogic.pageShown) _slide(entry, AppSheetLogic.pageRemoved);
+      }
       _pages.removeLast();
+      final depth = _pages.length;
+      final existing = _entries
+          .where((entry) => entry.depth == depth && entry.target != AppSheetLogic.pageRemoved)
+          .lastOrNull;
+      final incoming = existing ?? _entry(depth, _pages.last, AppSheetLogic.pageCovered);
+      if (existing == null) {
+        final above = _entries.indexWhere((entry) => entry.depth > depth);
+        _entries.insert(above < 0 ? _entries.length : above, incoming);
+      }
+      _slide(incoming, AppSheetLogic.pageShown);
       _search.clear();
     });
   }
@@ -178,6 +230,9 @@ class _AppSheetState extends State<AppSheet> with SingleTickerProviderStateMixin
     _search.dispose();
     _headerVisibility.dispose();
     _handoff.dispose();
+    for (final entry in _entries) {
+      entry.motion.dispose();
+    }
     super.dispose();
   }
 
@@ -194,12 +249,10 @@ class _AppSheetState extends State<AppSheet> with SingleTickerProviderStateMixin
     return false;
   }
 
-  Widget _content(AppSheetPage page, bool shrinkWrap) {
+  Widget _content(AppSheetPage page, int depth, bool shrinkWrap) {
     final skin = context.skin;
-    final depth = _pages.length;
     final bottom = AppSheetLogic.bottomClearance(hasSearch: page.searchHint != null);
     return ValueListenableBuilder<TextEditingValue>(
-      key: ValueKey<int>(_pages.length),
       valueListenable: _search,
       builder: (context, value, _) {
         final query = value.text.trim();
@@ -241,21 +294,16 @@ class _AppSheetState extends State<AppSheet> with SingleTickerProviderStateMixin
     );
   }
 
-  Widget _transition(Widget child, Animation<double> animation) {
+  Widget _pageLayer(_PageEntry entry, bool shrinkWrap) {
     return AnimatedBuilder(
-      animation: animation,
-      builder: (context, child) => FractionalTranslation(
-        translation: Offset(
-          AppSheetLogic.pageOffset(
-            incoming: animation.status != AnimationStatus.reverse,
-            forward: _forward,
-            progress: animation.value,
-          ),
-          0,
-        ),
-        child: child,
+      key: ObjectKey(entry),
+      animation: entry.motion,
+      builder: (context, child) => FractionalTranslation(translation: Offset(entry.motion.value, 0), child: child),
+      child: Material(
+        key: AppSheet.pageMaterialKey,
+        color: context.skin.bgSurface,
+        child: _content(entry.page, entry.depth, shrinkWrap),
       ),
-      child: Material(key: AppSheet.pageMaterialKey, color: context.skin.bgSurface, child: child),
     );
   }
 
@@ -333,16 +381,10 @@ class _AppSheetState extends State<AppSheet> with SingleTickerProviderStateMixin
           final maxHeight = AppSheetLogic.maxHeight(available: constraints.maxHeight, topSafe: media.padding.top);
           final fixed = AppSheetLogic.fixedHeight(widget.detent, media.size.height);
           final height = fixed == null ? null : math.min(fixed, maxHeight);
-          final switcher = AnimatedSwitcher(
-            duration: AppMotion.sheetPush,
-            switchInCurve: AppMotion.sheetPushCurve,
-            switchOutCurve: AppMotion.sheetPushCurve.flipped,
-            transitionBuilder: _transition,
-            layoutBuilder: (current, previous) => Stack(
-              alignment: Alignment.topCenter,
-              children: _forward ? [...previous, ?current] : [?current, ...previous],
-            ),
-            child: _content(page, height == null),
+          final switcher = Stack(
+            key: AppSheet.pagesKey,
+            alignment: Alignment.topCenter,
+            children: [for (final entry in _entries) _pageLayer(entry, height == null)],
           );
           final content = ClipRect(key: AppSheet.contentClipKey, clipper: const _BelowGrabberClipper(), child: switcher);
           final stack = Stack(
