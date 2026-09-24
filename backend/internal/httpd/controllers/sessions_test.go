@@ -84,6 +84,9 @@ type fakeSessionService struct {
 	switchErr               error
 	handoff                 json.RawMessage
 	handoffSource           domain.AgentGenerationID
+
+	restartTerminalErr  error
+	restartTerminalGrid ports.PaneGrid
 }
 
 type fakeManagedPreviewServer struct {
@@ -258,6 +261,16 @@ func (f *fakeSessionService) Restore(_ context.Context, id domain.SessionID, gri
 	s.Status = domain.StatusIdle
 	f.sessions[id] = s
 	return sessionsvc.RestoreOutcome{Session: s, Mode: sessionsvc.RestoreModeView("native")}, nil
+}
+
+func (f *fakeSessionService) RestartTerminal(_ context.Context, id domain.SessionID, grid ports.PaneGrid) (sessionsvc.ResumeAgentOutcome, error) {
+	f.restartTerminalGrid = grid
+	if f.restartTerminalErr != nil {
+		return sessionsvc.ResumeAgentOutcome{}, f.restartTerminalErr
+	}
+	s := f.sessions[id]
+	s.ID = id
+	return sessionsvc.ResumeAgentOutcome{Session: s, Mode: sessionsvc.RestoreModeView("native")}, nil
 }
 
 func (f *fakeSessionService) RelaunchAgent(_ context.Context, id domain.SessionID, cfg sessionmanager.RelaunchAgentConfig) (sessionsvc.ResumeAgentOutcome, error) {
@@ -2606,6 +2619,60 @@ func TestRestoreSessionAcceptsAnEmptyBody(t *testing.T) {
 	if svc.lastRestoreGrid != (ports.PaneGrid{}) {
 		t.Fatalf("grid = %+v, want zero", svc.lastRestoreGrid)
 	}
+}
+
+func TestRestartTerminal(t *testing.T) {
+	t.Run("forwards the pane grid and reports the restart mode", func(t *testing.T) {
+		svc := newFakeSessionService()
+		srv := newSessionTestServer(t, svc)
+		body, status, _ := doRequest(t, srv, http.MethodPost, "/api/v1/sessions/opr-1/restart-terminal", `{"cols":132,"rows":43}`)
+		if status != http.StatusOK {
+			t.Fatalf("restart = %d, want 200; body=%s", status, body)
+		}
+		var got struct {
+			OK          bool   `json:"ok"`
+			SessionID   string `json:"sessionId"`
+			RestartMode string `json:"restartMode"`
+		}
+		mustJSON(t, body, &got)
+		if !got.OK || got.SessionID != "opr-1" || got.RestartMode != "native" {
+			t.Fatalf("restart response = %#v", got)
+		}
+		if svc.restartTerminalGrid != (ports.PaneGrid{Cols: 132, Rows: 43}) {
+			t.Fatalf("grid forwarded as %+v, want 132x43", svc.restartTerminalGrid)
+		}
+	})
+
+	t.Run("accepts an empty body", func(t *testing.T) {
+		svc := newFakeSessionService()
+		srv := newSessionTestServer(t, svc)
+		body, status, _ := doRequest(t, srv, http.MethodPost, "/api/v1/sessions/opr-1/restart-terminal", "")
+		if status != http.StatusOK {
+			t.Fatalf("restart = %d, want 200; body=%s", status, body)
+		}
+		if svc.restartTerminalGrid != (ports.PaneGrid{}) {
+			t.Fatalf("grid = %+v, want zero", svc.restartTerminalGrid)
+		}
+	})
+
+	t.Run("surfaces a typed conflict", func(t *testing.T) {
+		svc := newFakeSessionService()
+		svc.restartTerminalErr = apierr.Conflict("SESSION_TERMINATED", "Session is terminated", nil)
+		srv := newSessionTestServer(t, svc)
+		body, status, _ := doRequest(t, srv, http.MethodPost, "/api/v1/sessions/opr-1/restart-terminal", "")
+		if status != http.StatusConflict || !strings.Contains(string(body), "SESSION_TERMINATED") {
+			t.Fatalf("terminated restart = %d body=%s", status, body)
+		}
+	})
+
+	t.Run("rejects a malformed body", func(t *testing.T) {
+		svc := newFakeSessionService()
+		srv := newSessionTestServer(t, svc)
+		body, status, _ := doRequest(t, srv, http.MethodPost, "/api/v1/sessions/opr-1/restart-terminal", `{`)
+		if status != http.StatusBadRequest || !strings.Contains(string(body), "INVALID_JSON") {
+			t.Fatalf("malformed restart = %d body=%s", status, body)
+		}
+	})
 }
 
 func TestRelaunchAgent(t *testing.T) {

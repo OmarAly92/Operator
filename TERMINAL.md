@@ -20,6 +20,10 @@ agent / shell process
    ▼
 opr pty-host  (backend/internal/adapters/runtime/ptyhost, one subprocess per session)
    ├─ ring.go            raw output ring for late attachers
+   ├─ persist.go         every 60 s (when changed) and on shutdown, writes the attach
+   │                     replay (frame + newest 20 history chunks, ≤ 4 MiB) to
+   │                     ~/.operator/pty-host-history/<id>.vt; a host created for a
+   │                     relaunched session seeds its mirror from it (§4.29)
    ├─ vtwasm/            PASSIVE MIRROR: vt-core compiled to wasm (vt_host.wasm),
    │                     run by wazero. Feeds every byte, answers GetOutput /
    │                     text extraction, and produces the attach REPLAY.
@@ -897,6 +901,43 @@ history of `master`.
   `npm run bench:terminal -- --renderer dom --scenario find-500k`,
   `npm run bench:find-update`.
 
+### 4.29 A hung pty-host froze its pane; a dead one lost its history — roadmap Plan 4
+- Symptom: a pty-host that stopped answering (SIGSTOP, or wedged) left its pane
+  frozen with no message, and nothing offered a way out short of restarting the
+  daemon and the app. A pty-host that died took the terminal's history with it:
+  the mirror and the ring live only in host memory.
+- Cause: the reaper records a timed-out probe as `ProbeFailed`
+  (`observe/reaper/reaper.go:205-215`) and lifecycle ignores it by design
+  (`ports/runtime_observations.go:13-14`), so nothing ever concluded "hung";
+  and nothing wrote the mirror anywhere.
+- Now: `ptyhost.Runtime` counts consecutive failed `IsAlive` probes per host;
+  at `hungAfterFailedProbes` (3, i.e. ~12-17 s at the reaper's 5 s tick) the
+  host is hung, the terminal mux sends `{"type":"health","health":"hung"}` on
+  `ch:"terminal"` to the panes viewing it (and to a pane that opens it later),
+  and the pane shows "This terminal stopped responding." with **Restart
+  terminal**. Restart is `POST /api/v1/sessions/{id}/restart-terminal`:
+  `Runtime.Destroy` (SIGKILL after 500 ms, which reaches a stopped process)
+  then the normal relaunch into a fresh host under the same handle id. It is
+  never automatic. `respawn.go` cannot do this: it runs inside the hung host.
+  Every host also saves its attach replay to `~/.operator/pty-host-history/`
+  (`persist.go`); `Runtime.Create` deletes a session's file unless
+  `RuntimeConfig.RestoreHistory` (set only by the session manager's relaunch
+  path), and prunes files of gone hosts older than 7 days; the new host feeds
+  the file and a process-boundary mark into its mirror before the child's
+  first byte, so every attach replays the old history above the new process.
+- Measured: `claude-long-50k` (60k rows) — frame 17 KB, newest 20 chunks
+  180 KB in 491 ms; all 116 chunks would be 938 KB in 2.7 s, because every
+  `vt_history_chunk` snapshots the whole core (`vt-host/src/lib.rs:470`).
+  `docs/superpowers/specs/2026-09-24-crash-recovery-measurement.md`.
+- Guards: `ptyhost/health_test.go` (hung after 3 not before, recovery, slow
+  once, refused is gone, destroy clears), `terminal/health_test.go` (viewers
+  only, new viewer told at once, client stays attached across a restart),
+  `session_manager/restart_terminal_test.go`, controller `TestRestartTerminal`,
+  `ptyhost/persist_test.go` (round trip after a crash, byte cap, write only on
+  change, shutdown write, header, prune), `persist_runtime_test.go`,
+  `TerminalPane.test.tsx` "terminal not responding",
+  `useTerminalSession.test.tsx` health tests.
+
 ## 5. Known gaps (not bugs, decisions pending)
 
 - **Find exports every hit on every change.** `findResults` copies all hits
@@ -1168,6 +1209,28 @@ history of `master`.
   `TerminalSurface.test.tsx` "keeps Claude Code on the primary screen…" feeds
   the recording and asserts `altScreen` stays null.
 
+- **Hung detection covers session terminals only, and the board shows
+  nothing.** The reaper probes session rows (`reaper.go:143-166`), so a
+  standalone shell or a reviewer terminal is never marked hung; the hung state
+  lives in daemon memory and reaches only the pane (`ch:"terminal"` health
+  frames). A board badge needs a read-time runtime join in `SessionView` and a
+  push trigger; not built (roadmap Plan 4, decision D6).
+- **Every liveness probe renders a full attach replay.** A status probe is a
+  new connection, and `handleConn` renders `replayFrameLocked` under `h.mu`
+  for it before answering (`host.go:862`), ~24 ms at 60k rows. The reaper
+  pays it every 5 s per session. Skipping the replay for a connection whose
+  first frame is not a resize is the fix if it ever shows.
+- **After Restart terminal the pane keeps its renderer core.** A worker pane's
+  cache key is its handle id (`TerminalPane.tsx:156`), which a restart keeps,
+  so the new host's replay lands on the existing core — the same path as
+  Restore. Check for duplicated rows in the real app; a fix belongs with the
+  Restore path.
+- **Saved history is bounded.** Frame plus the newest 10,240 history rows,
+  ≤ 4 MiB, written at most once a minute: a crash loses up to the last minute,
+  and older rows of a very long session are not saved. An in-place respawn
+  ("Relaunch in a cleared session") replaces the mirror, so the next save
+  holds only the new process. Files of hosts that are gone are deleted after
+  7 days, the next time any terminal is created.
 - **What a parked pane still costs.** Measured 2026-09-23 on
   `terminal-background-pane` `1b76f26fd` (`run.mjs --panes-only`, three runs,
   `claude-spinner-10s`, 100 frames over 10 s): 1 visible + 9 parked

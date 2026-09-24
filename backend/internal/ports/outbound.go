@@ -130,6 +130,8 @@ type RuntimeConfig struct {
 	// full agent repaint before anything has been typed.
 	Cols int
 	Rows int
+
+	RestoreHistory bool
 }
 
 // RuntimeHandle identifies a live runtime instance. Its ID is opaque outside

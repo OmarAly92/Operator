@@ -2,7 +2,7 @@ import { act, renderHook } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { MuxConnectionState, TerminalMux } from "../lib/terminal-mux";
+import type { MuxConnectionState, TerminalHealth, TerminalMux } from "../lib/terminal-mux";
 import type { WorkspaceSession } from "../types/workspace";
 import { useTerminalSession, type AttachableTerminal } from "./useTerminalSession";
 import { workspaceQueryKey } from "./useWorkspaceQuery";
@@ -35,6 +35,7 @@ type FakeMux = {
 	emitOpened(id: string): void;
 	emitExit(id: string): void;
 	emitError(id: string, message: string): void;
+	emitHealth(id: string, health: TerminalHealth): void;
 	emitConnection(state: MuxConnectionState): void;
 };
 
@@ -50,6 +51,7 @@ function createFakeMux(): FakeMux {
 	const exit = new Map<string, Set<() => void>>();
 	const opened = new Map<string, Set<() => void>>();
 	const error = new Map<string, Set<(message: string) => void>>();
+	const health = new Map<string, Set<(next: TerminalHealth) => void>>();
 	const connection = new Set<(state: MuxConnectionState) => void>();
 
 	const fake: FakeMux = {
@@ -77,6 +79,7 @@ function createFakeMux(): FakeMux {
 			onExit: (id, listener) => subscribe(exit, id, listener),
 			onOpened: (id, listener) => subscribe(opened, id, listener),
 			onError: (id, listener) => subscribe(error, id, listener),
+			onHealth: (id, listener) => subscribe(health, id, listener),
 			subscribeBlocks: () => undefined,
 			unsubscribeBlocks: () => undefined,
 			onBlock: () => () => undefined,
@@ -95,6 +98,7 @@ function createFakeMux(): FakeMux {
 		emitOpened: (id) => opened.get(id)?.forEach((listener) => listener()),
 		emitExit: (id) => exit.get(id)?.forEach((listener) => listener()),
 		emitError: (id, message) => error.get(id)?.forEach((listener) => listener(message)),
+		emitHealth: (id, next) => health.get(id)?.forEach((listener) => listener(next)),
 		emitConnection: (state) => connection.forEach((listener) => listener(state)),
 	};
 	return fake;
@@ -234,6 +238,42 @@ afterEach(() => {
 });
 
 describe("useTerminalSession", () => {
+	it("reports a hung terminal from the daemon and reconnects fresh after a restart", () => {
+		const { view, muxes } = setup();
+		act(() => muxes[0].emitOpened("handle-1"));
+		expect(view.result.current.health).toBe("ok");
+		act(() => muxes[0].emitHealth("other-handle", "hung"));
+		expect(view.result.current.health).toBe("ok");
+		act(() => muxes[0].emitHealth("handle-1", "hung"));
+		expect(view.result.current.health).toBe("hung");
+
+		act(() => view.result.current.reconnectAfterRestart());
+
+		expect(view.result.current.health).toBe("ok");
+		expect(view.result.current.state).toBe("connecting");
+		expect(muxes).toHaveLength(2);
+		expect(muxes[0].closes).toEqual(["handle-1"]);
+		expect(muxes[0].disposed).toBe(true);
+		expect(muxes[1].opens.map(([id]) => id)).toEqual(["handle-1"]);
+		act(() => muxes[0].emitHealth("handle-1", "hung"));
+		expect(view.result.current.health).toBe("ok");
+	});
+
+	it("reconnects after a restart even when the hung attachment already exited", () => {
+		const { view, muxes } = setup();
+		act(() => muxes[0].emitHealth("handle-1", "hung"));
+		act(() => muxes[0].emitExit("handle-1"));
+		expect(view.result.current.state).toBe("exited");
+		expect(view.result.current.health).toBe("hung");
+
+		act(() => view.result.current.reconnectAfterRestart());
+
+		expect(view.result.current.state).toBe("connecting");
+		expect(view.result.current.health).toBe("ok");
+		expect(muxes).toHaveLength(2);
+		expect(muxes[1].opens.map(([id]) => id)).toEqual(["handle-1"]);
+	});
+
 	it("opens the pane at the terminal's size and reaches attached on the server ack", () => {
 		const { view, muxes } = setup();
 		expect(view.result.current.state).toBe("connecting");

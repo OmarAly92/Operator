@@ -41,12 +41,14 @@ import { terminalDebug } from "../lib/terminal-debug";
 import { shellBlockNotification } from "../lib/shell-block-notifications";
 import { useWorkspaceQuery, workspaceQueryKey } from "../hooks/useWorkspaceQuery";
 import { useRestoreSession } from "../hooks/useRestoreSession";
+import { useRestartTerminal } from "../hooks/useRestartTerminal";
 import { useShellTerminals } from "../hooks/useShellTerminals";
 import { useShellTerminalBlocks } from "../hooks/useShellTerminalBlocks";
 import { nativeShellBridgePresent, operatorBridge } from "../lib/bridge";
 import { RestoreUnavailableDialog } from "./RestoreUnavailableDialog";
 import { BlockTerminal, type BlockTerminalHistoryBlock } from "./BlockTerminal";
 import { TerminalAttachment } from "./TerminalAttachment";
+import { Button } from "./ui/button";
 
 const NO_HISTORY_BLOCKS: BlockTerminalHistoryBlock[] = [];
 
@@ -1004,20 +1006,24 @@ function AttachedTerminal({
 	const [restoreUnavailable, setRestoreUnavailable] = useState(false);
 	const queryClient = useQueryClient();
 	const restoreSessionById = useRestoreSession();
+	const restartTerminalById = useRestartTerminal();
+	const [isRestartingTerminal, setIsRestartingTerminal] = useState(false);
+	const [restartTerminalError, setRestartTerminalError] = useState<string | undefined>();
 	// A shell pane has no session, so it hands the hook its handle directly
 	// instead of reading one off `attachSession`.
 	const shellTerminalHandleId = terminalTarget?.kind === "shell" ? terminalTarget.handleId : undefined;
 	const isShellTarget = terminalTarget?.kind === "shell";
 	const shellBlocks = useShellTerminalBlocks(terminalTarget);
-	const { attach, state, error, replaySettled, transport, onReplayReady } = useTerminalSession(attachSession, {
-		coverInitialReplay: terminalTarget?.kind !== "reviewer",
-		createMux,
-		daemonReady,
-		enabled: !isShellTarget || !shellBlocks.isLoading,
-		inputDisabled,
-		isVisible,
-		shellTerminalHandleId,
-	});
+	const { attach, state, error, health, replaySettled, transport, onReplayReady, reconnectAfterRestart } =
+		useTerminalSession(attachSession, {
+			coverInitialReplay: terminalTarget?.kind !== "reviewer",
+			createMux,
+			daemonReady,
+			enabled: !isShellTarget || !shellBlocks.isLoading,
+			inputDisabled,
+			isVisible,
+			shellTerminalHandleId,
+		});
 	// xterm's write callback means the replay has been parsed, not that the
 	// browser has painted its final viewport. Keep the first-load cover mounted
 	// through the same render/paint preparation used when activating a retained
@@ -1065,6 +1071,11 @@ function AttachedTerminal({
 		terminalTarget?.kind !== "shell" &&
 		session !== undefined &&
 		!isSessionActive;
+	const canRestartTerminal =
+		terminalTarget?.kind !== "reviewer" &&
+		terminalTarget?.kind !== "shell" &&
+		session !== undefined &&
+		isSessionActive;
 
 	const detachRef = useRef<(() => void) | undefined>(undefined);
 	const handleReady = useCallback((handle: AttachableTerminal) => {
@@ -1105,6 +1116,22 @@ function AttachedTerminal({
 		}
 	}, [canRestoreSession, isRestoring, restoreSessionById, session?.id, t]);
 
+	const restartTerminal = useCallback(async () => {
+		if (!session?.id || !canRestartTerminal || isRestartingTerminal) return;
+		setIsRestartingTerminal(true);
+		setRestartTerminalError(undefined);
+		try {
+			const result = await restartTerminalById(session.id);
+			if (result.status === "error") {
+				setRestartTerminalError(result.message);
+				return;
+			}
+			reconnectAfterRestart();
+		} finally {
+			setIsRestartingTerminal(false);
+		}
+	}, [canRestartTerminal, isRestartingTerminal, reconnectAfterRestart, restartTerminalById, session?.id]);
+
 	useEffect(() => {
 		return () => {
 			detachRef.current?.();
@@ -1129,12 +1156,20 @@ function AttachedTerminal({
 		!replayPainted &&
 		(!replaySettled || replayPaintPending) &&
 		(state === "connecting" || state === "attached");
-	const showEndedState = state === "exited" || canRestoreSession;
+	const showHungState = health === "hung" && canRestartTerminal;
+	const showEndedState = !showHungState && (state === "exited" || canRestoreSession);
 	const emptyStateTitle = session ? t("terminal.startingSession") : "Operator";
 	const emptyStateMessage = session ? t("terminal.preparingWorker") : t("terminal.noSessionSelected");
 
 	return (
 		<div className="terminal-pane-surface flex h-full min-h-0 flex-col" data-testid="session-terminal">
+			{showHungState && (
+				<TerminalHungStrip
+					error={restartTerminalError}
+					isRestarting={isRestartingTerminal}
+					onRestart={restartTerminal}
+				/>
+			)}
 			{showEndedState && (
 				<TerminalEndedStrip
 					canRestore={canRestoreSession}
@@ -1238,6 +1273,40 @@ function ReplayCover() {
 			data-testid="terminal-replay-cover"
 		>
 			{showLabel && <div className="font-mono text-caption text-terminal-dim">{t("terminal.loadingOutput")}</div>}
+		</div>
+	);
+}
+
+type TerminalHungStripProps = {
+	error?: string;
+	isRestarting: boolean;
+	onRestart: () => void;
+};
+
+function TerminalHungStrip({ error, isRestarting, onRestart }: TerminalHungStripProps) {
+	const { t } = useTranslation();
+	return (
+		<div className="shrink-0 border-b border-border bg-surface/80 px-4 py-2" data-testid="terminal-hung-strip">
+			<div className="flex min-h-control-board items-center gap-3">
+				<div className="min-w-0 flex-1">
+					<div className="font-mono text-caption font-medium uppercase tracking-wide-md text-muted-foreground">
+						{t("terminal.hungTitle")}
+					</div>
+					<div className="mt-0.5 truncate text-xs text-muted-foreground">{t("terminal.hungMessage")}</div>
+					<div className="mt-0.5 text-xs text-muted-foreground">{t("terminal.restartTerminalHint")}</div>
+				</div>
+				{error && <div className="max-w-content-max truncate text-xs text-destructive">{error}</div>}
+				<Button
+					variant="outline"
+					size="sm"
+					title={t("terminal.restartTerminalHint")}
+					disabled={isRestarting}
+					onClick={onRestart}
+				>
+					<RotateCcw className={cn("size-icon-base", isRestarting && "animate-spin")} aria-hidden="true" />
+					{t("terminal.restartTerminal")}
+				</Button>
+			</div>
 		</div>
 	);
 }

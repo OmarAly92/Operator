@@ -7,7 +7,7 @@
 //
 //   ch "terminal" — per-pane byte stream keyed by an opaque runtime handle id
 //     client → open{id,cols,rows} | data{id,data} | resize{id,cols,rows,force?} | close{id}
-//     server → opened{id} | data{id,data} | exited{id} | error{id?,error}
+//     server → opened{id} | data{id,data} | exited{id} | error{id?,error} | health{id,health}
 //   ch "system"   — ping/pong liveness
 //   ch "blocks"   — normalized session block events
 //     client → subscribe{id} | unsubscribe{id}
@@ -26,6 +26,7 @@ type ServerFrame = {
 	type: string;
 	data?: string;
 	error?: string;
+	health?: string;
 	block?: unknown;
 	blockType?: string;
 	terminalBlock?: unknown;
@@ -132,6 +133,8 @@ type DataListener = (bytes: Uint8Array) => void;
 type ExitListener = () => void;
 type OpenedListener = () => void;
 type ErrorListener = (message: string) => void;
+export type TerminalHealth = "ok" | "hung";
+type HealthListener = (health: TerminalHealth) => void;
 type BlockListener = (block: BlockEventView) => void;
 type TerminalBlockListener = (block: TerminalBlockFrame) => void;
 
@@ -157,6 +160,7 @@ export type TerminalMux = {
 	 * listener.
 	 */
 	onError: (id: string, listener: ErrorListener) => () => void;
+	onHealth: (id: string, listener: HealthListener) => () => void;
 	/** Ask the daemon to push this session's normalized block events. */
 	subscribeBlocks: (sessionId: string) => void;
 	/** Stop that push. The daemon drops the subscription; listeners are separate. */
@@ -203,6 +207,7 @@ export function createTerminalMux(url: string, WebSocketImpl: typeof WebSocket =
 	const exitListeners = new Map<string, Set<ExitListener>>();
 	const openedListeners = new Map<string, Set<OpenedListener>>();
 	const errorListeners = new Map<string, Set<ErrorListener>>();
+	const healthListeners = new Map<string, Set<HealthListener>>();
 	const blockListeners = new Map<string, Set<BlockListener>>();
 	const terminalBlockListeners = new Map<string, Set<TerminalBlockListener>>();
 	const connectionListeners = new Set<ConnectionListener>();
@@ -286,6 +291,9 @@ export function createTerminalMux(url: string, WebSocketImpl: typeof WebSocket =
 			exitListeners.get(frame.id)?.forEach((listener) => listener());
 		} else if (frame.type === "opened") {
 			openedListeners.get(frame.id)?.forEach((listener) => listener());
+		} else if (frame.type === "health") {
+			const health: TerminalHealth = frame.health === "hung" ? "hung" : "ok";
+			healthListeners.get(frame.id)?.forEach((listener) => listener(health));
 		}
 	});
 
@@ -297,6 +305,7 @@ export function createTerminalMux(url: string, WebSocketImpl: typeof WebSocket =
 		exitListeners.clear();
 		openedListeners.clear();
 		errorListeners.clear();
+		healthListeners.clear();
 		blockListeners.clear();
 		terminalBlockListeners.clear();
 		connectionListeners.clear();
@@ -328,6 +337,7 @@ export function createTerminalMux(url: string, WebSocketImpl: typeof WebSocket =
 		onExit: (id, listener) => subscribeById(exitListeners, id, listener),
 		onOpened: (id, listener) => subscribeById(openedListeners, id, listener),
 		onError: (id, listener) => subscribeById(errorListeners, id, listener),
+		onHealth: (id, listener) => subscribeById(healthListeners, id, listener),
 		subscribeBlocks: (sessionId) => {
 			send(blocksSubscribeFrame(sessionId));
 		},
@@ -455,6 +465,7 @@ export function createTerminalMuxPool(createMux: () => TerminalMux): TerminalMux
 			onExit: (id, listener) => subscribe(() => connection.mux.onExit(id, listener)),
 			onOpened: (id, listener) => subscribe(() => connection.mux.onOpened(id, listener)),
 			onError: (id, listener) => subscribe(() => connection.mux.onError(id, listener)),
+			onHealth: (id, listener) => subscribe(() => connection.mux.onHealth(id, listener)),
 			subscribeBlocks: (sessionId) => {
 				if (!released && !connection.closed && !connection.disposed) connection.mux.subscribeBlocks(sessionId);
 			},

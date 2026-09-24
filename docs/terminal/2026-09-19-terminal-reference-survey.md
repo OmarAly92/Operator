@@ -120,7 +120,7 @@ Every entry below carries a **Status** line under its heading, checked against t
 | §5.10 | Done | Plan A — `vt-core` `feature = "trace"` records every dispatched action with its stream offset (Kitty's `REPORT_COMMAND`), which was the whole proposal. |
 | §6.1 | Not done | No nonce, `trusted` flag or continuation property. The rerun action fills the line editor and does not execute. |
 | §6.2 | Partial | Plan E — block timestamps from the feed clock, timed from output start (`288cb4770`); links resolve against the hovered block's cwd. Not done: confidence, invalidation, serialisation, PS2/right-prompt stripping, core `blockForRow`/`cwdForRow`. |
-| §6.3 | Partial | Plan C — replay with block marks and flow-control acks. Not done: resize-aware ring, a pty-host heartbeat (the 15 s WebSocket heartbeat to mux clients predates the survey), mirror persistence across restarts. |
+| §6.3 | Partial | Plan C — replay with block marks and flow-control acks. Roadmap Plan 4 (2026-09-24) — a pty-host that fails 3 reaper probes in a row is marked hung and its pane offers Restart terminal; the mirror's attach replay is saved every 60 s and replayed into the next host for a relaunched session. Not done: resize-aware ring. |
 | §6.4 | Done | Hover tries the spans through the hovered cell, longest first, in one capped `resolveFirstPath` host call; VS Code's suffix grammar (ported with its test table) strips the line/column; VS Code's per-line caps. Multi-line and word links not done. |
 | §6.5 | Done | Plan F — renderer-only overlay armed above a 30 ms host RTT, off by default; behavioural exclusions (no-echo, row jump, alt screen, paste, control keys, open 2026 block, TTL). Overlay-only is the proposal's own choice, so no timeline. Phone not pursued. |
 | §6.6 | Not done | No quick-fix matcher or `onQuickFix`. A non-goal of the agent-TUI spec. |
@@ -3669,7 +3669,7 @@ from multi-line commands), `IsWindows` (ConPTY heuristics), `PromptType`
 
 ### 6.3 Pty host persistence: reconnect with grace periods, replay with command state, flow control, heartbeat
 
-> **Status: Partial.** Plan C — replay with block marks and flow-control acks. Not done: resize-aware ring, a pty-host heartbeat (the 15 s WebSocket heartbeat to mux clients predates the survey), mirror persistence across restarts.
+> **Status: Partial.** Plan C — replay with block marks and flow-control acks. Roadmap Plan 4 (2026-09-24) — hung pty-host detection (3 consecutive failed reaper probes, `ptyhost/health.go`) with Restart terminal, and mirror persistence across a host's death (`ptyhost/persist.go`). Not done: resize-aware ring.
 
 **Reference**
 - `vscode/src/vs/platform/terminal/node/ptyService.ts:687-810`

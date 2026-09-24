@@ -74,6 +74,8 @@ type Manager struct {
 
 	notificationFeed     NotificationFeed
 	stopNotificationFeed func()
+
+	stopHealthWatch func()
 }
 
 // sharedTerm tracks every client currently viewing one terminal id (one PTY) so
@@ -144,6 +146,7 @@ func NewManager(src Source, events EventSource, log *slog.Logger, opts ...Option
 		opt(m)
 	}
 	m.startNotificationFeed()
+	m.startHealthWatch()
 	return m
 }
 
@@ -191,6 +194,9 @@ func (m *Manager) writeInput(terminalID string, a *attachment, raw []byte, relea
 func (m *Manager) Close() {
 	if m.stopNotificationFeed != nil {
 		m.stopNotificationFeed()
+	}
+	if m.stopHealthWatch != nil {
+		m.stopHealthWatch()
 	}
 	m.mu.Lock()
 	if m.closed {
@@ -512,6 +518,9 @@ func (c *connState) openTerminal(id string, rows, cols uint16, role string, hist
 	// the authoritative grid (the open frame's rows/cols become this client's
 	// requested size). An empty role means primary — the size-driving client.
 	c.mgr.joinTerminal(id, c, a, cols, rows, role != roleSecondary)
+	if c.mgr.terminalHealth(id) == ports.TerminalHung {
+		c.enqueue(healthFrame(id, ports.TerminalHung))
+	}
 
 	go func() {
 		a.run(c.mgr.ctx)

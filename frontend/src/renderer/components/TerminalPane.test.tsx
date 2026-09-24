@@ -32,6 +32,8 @@ const {
 	terminalSessionOptions,
 	attachmentMounts,
 	attachmentUnmounts,
+	terminalHealth,
+	reconnectAfterRestartMock,
 } = vi.hoisted(
 	() => ({
 		attachMock: vi.fn(() => vi.fn()),
@@ -49,6 +51,8 @@ const {
 		terminalSessionOptions: [] as Array<{ coverInitialReplay?: boolean }>,
 		attachmentMounts: { value: 0 },
 		attachmentUnmounts: { value: 0 },
+		terminalHealth: { value: "ok" as "ok" | "hung" },
+		reconnectAfterRestartMock: vi.fn(),
 	}),
 );
 const { terminalBlockListeners, muxConnectionListeners } = vi.hoisted(() => ({
@@ -67,6 +71,7 @@ vi.mock("../lib/terminal-mux", async (importOriginal) => {
 		onExit: () => () => undefined,
 		onOpened: () => () => undefined,
 		onError: () => () => undefined,
+		onHealth: () => () => undefined,
 		subscribeBlocks: () => undefined,
 		unsubscribeBlocks: () => undefined,
 		onBlock: () => () => undefined,
@@ -166,6 +171,8 @@ vi.mock("../hooks/useTerminalSession", () => ({
 			attach: attachMock,
 			state: terminalState.value,
 			error: terminalError.value,
+			health: terminalHealth.value,
+			reconnectAfterRestart: reconnectAfterRestartMock,
 			replaySettled: replaySettled.value,
 			transport: {
 				write: vi.fn(),
@@ -197,6 +204,8 @@ beforeEach(() => {
 	postMock.mockResolvedValue({ data: {} });
 	terminalError.value = undefined;
 	terminalState.value = "idle";
+	terminalHealth.value = "ok";
+	reconnectAfterRestartMock.mockClear();
 	replaySettled.value = true;
 	terminalSessionOptions.length = 0;
 	attachMock.mockClear();
@@ -1235,6 +1244,71 @@ describe("shell block history", () => {
 		try {
 			expect(await screen.findByTestId("shell-history-warning", {}, { timeout: 5000 })).toBeInTheDocument();
 			expect(activeAttachment()).toBeInTheDocument();
+		} finally {
+			view.restore();
+		}
+	});
+});
+
+describe("terminal not responding", () => {
+	it("tells the user a hung terminal stopped responding and offers a restart", () => {
+		terminalState.value = "attached";
+		terminalHealth.value = "hung";
+		const view = renderPane({ ...worker, terminalHandleId: "term-1" });
+		try {
+			expect(screen.getByText("This terminal stopped responding.")).toBeInTheDocument();
+			expect(screen.getByText("Stops whatever is running in this terminal and resumes the agent in a new one")).toBeInTheDocument();
+			expect(screen.getByRole("button", { name: "Restart terminal" })).toBeEnabled();
+			expect(screen.queryByText("Terminal ended")).not.toBeInTheDocument();
+		} finally {
+			view.restore();
+		}
+	});
+
+	it("restarts the terminal through the daemon and reconnects the pane", async () => {
+		terminalState.value = "exited";
+		terminalHealth.value = "hung";
+		rememberPaneGrid(132, 43);
+		const view = renderPane({ ...worker, terminalHandleId: "term-1" });
+		const invalidate = vi.spyOn(view.queryClient, "invalidateQueries").mockResolvedValue(undefined);
+		try {
+			await userEvent.click(screen.getByRole("button", { name: "Restart terminal" }));
+
+			await waitFor(() =>
+				expect(postMock).toHaveBeenCalledWith("/api/v1/sessions/{sessionId}/restart-terminal", {
+					params: { path: { sessionId: "sess-1" } },
+					body: { cols: 132, rows: 43 },
+				}),
+			);
+			await waitFor(() => expect(reconnectAfterRestartMock).toHaveBeenCalledTimes(1));
+			expect(invalidate).toHaveBeenCalledWith({ queryKey: ["workspaces"] });
+		} finally {
+			view.restore();
+		}
+	});
+
+	it("keeps the pane as it is and shows the error when the restart fails", async () => {
+		terminalState.value = "attached";
+		terminalHealth.value = "hung";
+		postMock.mockResolvedValue({ error: { code: "SESSION_TERMINATED", message: "Session is terminated" } });
+		const view = renderPane({ ...worker, terminalHandleId: "term-1" });
+		try {
+			await userEvent.click(screen.getByRole("button", { name: "Restart terminal" }));
+
+			expect(await screen.findByText("Unable to restart terminal")).toBeInTheDocument();
+			expect(reconnectAfterRestartMock).not.toHaveBeenCalled();
+			expect(screen.getByRole("button", { name: "Restart terminal" })).toBeEnabled();
+		} finally {
+			view.restore();
+		}
+	});
+
+	it("offers no restart on a terminated session", () => {
+		terminalState.value = "attached";
+		terminalHealth.value = "hung";
+		const view = renderPane({ ...worker, status: "terminated", terminalHandleId: "term-1" });
+		try {
+			expect(screen.queryByRole("button", { name: "Restart terminal" })).not.toBeInTheDocument();
 		} finally {
 			view.restore();
 		}

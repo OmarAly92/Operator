@@ -168,14 +168,16 @@ func RunHost(args []string, stdout io.Writer) int {
 		parser = nil
 	}
 	cfg := ServeConfig{
-		SessionID:   sessionID,
-		Listener:    ln,
-		PTY:         pty,
-		Ring:        ring,
-		Parser:      parser,
-		InitialCols: parsed.cols,
-		InitialRows: parsed.rows,
-		Recorder:    recorderFromEnv(sessionID, parsed.cols, parsed.rows),
+		SessionID:       sessionID,
+		Listener:        ln,
+		PTY:             pty,
+		Ring:            ring,
+		Parser:          parser,
+		InitialCols:     parsed.cols,
+		InitialRows:     parsed.rows,
+		Recorder:        recorderFromEnv(sessionID, parsed.cols, parsed.rows),
+		HistoryPath:     prepareHistory(sessionID, parser),
+		PersistInterval: persistInterval,
 	}
 
 	if err := Serve(ctx, cfg); err != nil {
