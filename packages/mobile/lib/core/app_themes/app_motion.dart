@@ -34,6 +34,10 @@ sealed class AppMotion {
 
   static const Duration control = Duration(milliseconds: 240);
 
+  static const Duration controlFade = Duration(milliseconds: 180);
+
+  static const Duration jumpToLatest = Duration(milliseconds: 320);
+
   static const Duration composerMorph = Duration(milliseconds: 220);
 
   static const Duration shimmerSweep = Duration(milliseconds: 1350);

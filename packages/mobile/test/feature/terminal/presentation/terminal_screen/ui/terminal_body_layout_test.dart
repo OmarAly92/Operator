@@ -1,12 +1,18 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:operator_mobile/core/api/models/global_response.dart';
+import 'package:operator_mobile/core/error_handling/failures/failure.dart';
+import 'package:operator_mobile/core/utils/haptics.dart';
 import 'package:operator_mobile/core/helpers/result/result.dart';
 import 'package:operator_mobile/feature/blocks/data/model/params/session_command_params.dart';
 import 'package:operator_mobile/feature/blocks/data/model/session_command_result_model.dart';
 import 'package:operator_mobile/feature/blocks/data/model/block_event_model.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/block_list.dart';
+import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/floating_working_control.dart';
 import 'package:operator_mobile/feature/terminal/data/model/params/send_session_message_params.dart';
 import 'package:operator_mobile/core/widgets/chat/chat_insets.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/ui/widgets/raw_terminal_pane.dart';
@@ -33,6 +39,12 @@ List<BlockEventModel> _conversation(int turns) => [
     ),
   ],
 ];
+
+Future<void> _settleWhileWorking(WidgetTester tester) async {
+  for (var frame = 0; frame < 30; frame++) {
+    await tester.pump(const Duration(milliseconds: 50));
+  }
+}
 
 void main() {
   late TerminalHarness harness;
@@ -107,15 +119,94 @@ void main() {
     ).thenAnswer((_) async => Result.success(GlobalResponse<SessionCommandResultModel>()));
     harness.commandCubit.onActivity('active');
     await harness.pump(tester, const TerminalBody());
-    await tester.pumpAndSettle();
+    await _settleWhileWorking(tester);
 
     await tester.tap(find.bySemanticsLabel('Stop'));
-    await tester.pumpAndSettle();
+    await _settleWhileWorking(tester);
 
     expect(find.text('Kill session?'), findsNothing);
     verify(() => harness.controlRepository.sendCommand('s-1', const SessionCommandParams(command: 'stop'))).called(1);
     verifyNever(() => harness.sessionsRepository.kill(any()));
     await tester.pump(const Duration(minutes: 1));
+  });
+
+  testWidgets('a session seeded as working shows the working pill above the composer', (tester) async {
+    harness = TerminalHarness()..start(harness: 'claude-code', blockRecords: _conversation(1), activity: 'active');
+    await harness.pump(tester, const TerminalBody());
+    await _settleWhileWorking(tester);
+
+    final pill = tester.getRect(find.byKey(FloatingWorkingControl.pillKey));
+    expect(capsule(tester).top - pill.bottom, moreOrLessEquals(FloatingWorkingControl.lift, epsilon: 0.5));
+    expect(find.descendant(of: find.byKey(FloatingWorkingControl.pillKey), matching: find.textContaining('Working')), findsOneWidget);
+    await tester.pump(const Duration(minutes: 1));
+  });
+
+  testWidgets('an idle session shows no working pill', (tester) async {
+    harness = TerminalHarness()..start(harness: 'claude-code', blockRecords: _conversation(1), activity: 'idle');
+    await harness.pump(tester, const TerminalBody());
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(FloatingWorkingControl.pillKey), findsNothing);
+  });
+
+  testWidgets('stop ignores a second tap while the first is sending', (tester) async {
+    harness = TerminalHarness()..start(harness: 'claude-code', blockRecords: _conversation(1));
+    final reply = Completer<Result<GlobalResponse<SessionCommandResultModel>, Failure>>();
+    when(() => harness.controlRepository.sendCommand(any(), any())).thenAnswer((_) => reply.future);
+    harness.commandCubit.onActivity('active');
+    await harness.pump(tester, const TerminalBody());
+    await _settleWhileWorking(tester);
+
+    await tester.tap(find.bySemanticsLabel('Stop'));
+    await tester.pump();
+    await tester.tap(find.bySemanticsLabel('Stop'));
+    await tester.pump();
+
+    verify(() => harness.controlRepository.sendCommand('s-1', const SessionCommandParams(command: 'stop'))).called(1);
+    reply.complete(Result.success(GlobalResponse<SessionCommandResultModel>()));
+    await _settleWhileWorking(tester);
+    await tester.pump(const Duration(minutes: 1));
+  });
+
+  testWidgets('a failed stop buzzes an error', (tester) async {
+    final notified = <Object?>[];
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(const MethodChannel(Haptics.channelName), (call) async {
+      notified.add(call.arguments);
+      return null;
+    });
+    addTearDown(() => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(const MethodChannel(Haptics.channelName), null));
+    harness = TerminalHarness()..start(harness: 'claude-code', blockRecords: _conversation(1));
+    when(() => harness.controlRepository.sendCommand(any(), any())).thenAnswer(
+      (_) async => Result.failure(ServerFailure(error: 'down', message: 'down', statusCode: 503)),
+    );
+    harness.commandCubit.onActivity('active');
+    await harness.pump(tester, const TerminalBody());
+    await _settleWhileWorking(tester);
+
+    await tester.tap(find.bySemanticsLabel('Stop'));
+    await _settleWhileWorking(tester);
+
+    expect(notified, contains('error'));
+    expect(find.bySemanticsLabel('Stop'), findsOneWidget);
+  });
+
+  testWidgets('a fading-out stop no longer takes taps', (tester) async {
+    harness = TerminalHarness()..start(harness: 'claude-code', blockRecords: _conversation(1));
+    when(
+      () => harness.controlRepository.sendCommand(any(), any()),
+    ).thenAnswer((_) async => Result.success(GlobalResponse<SessionCommandResultModel>()));
+    harness.commandCubit.onActivity('active');
+    await harness.pump(tester, const TerminalBody());
+    await _settleWhileWorking(tester);
+    final stop = tester.getCenter(find.bySemanticsLabel('Stop'));
+
+    harness.commandCubit.onActivity('idle');
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 60));
+    await tester.tapAt(stop);
+    await tester.pumpAndSettle();
+
+    verifyNever(() => harness.controlRepository.sendCommand(any(), any()));
   });
 
   Widget withInsets({EdgeInsets padding = EdgeInsets.zero, EdgeInsets viewInsets = EdgeInsets.zero}) => Builder(

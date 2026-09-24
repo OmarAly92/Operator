@@ -9,14 +9,14 @@ import 'package:operator_mobile/core/widgets/glass/glass_metrics.dart';
 import 'package:operator_mobile/core/widgets/glass/glass_scope.dart';
 import 'package:operator_mobile/core/widgets/glass/glass_style.dart';
 import 'package:operator_mobile/core/widgets/glass/glass_surface.dart';
-import 'package:operator_mobile/feature/blocks/logic/turn_grouping.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/blocks_cubit.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/app_themes/text_style/app_text_style.dart';
 import 'package:operator_mobile/core/mux/mux_client.dart';
 import 'package:operator_mobile/core/utils/turn_elapsed.dart';
-import 'package:operator_mobile/feature/sessions/logic/active_since.dart';
+import 'package:operator_mobile/feature/sessions/data/model/session_model.dart';
+import 'package:operator_mobile/feature/terminal/logic/working_since.dart';
 import 'package:operator_mobile/feature/sessions/presentation/sessions_screen/logic/sessions_cubit.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/session_command_cubit.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/session_view_cubit.dart';
@@ -27,6 +27,20 @@ import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/ui
 
 class TerminalChatHeader extends StatelessWidget {
   const TerminalChatHeader({super.key, required this.onFind, required this.onKill, required this.frost});
+
+  static DateTime? workingSinceOf(BuildContext context) {
+    List<SessionModel> sessions;
+    try {
+      sessions = context.read<SessionsCubit>().sessions;
+    } on ProviderNotFoundException {
+      sessions = const [];
+    }
+    return workingSince(
+      sessions: sessions,
+      sessionId: context.read<SessionCommandCubit>().sessionId,
+      blocks: context.read<BlocksCubit>().blocks,
+    );
+  }
 
   static const double barHeight = 52;
   static const double buttonSize = GlassMetrics.sheetHeaderButton;
@@ -289,23 +303,10 @@ class _SessionActivityPillState extends State<_SessionActivityPill> {
     super.dispose();
   }
 
-  DateTime? _activeSince(BuildContext context) {
-    final SessionsCubit sessions;
-    try {
-      sessions = context.read<SessionsCubit>();
-    } on ProviderNotFoundException {
-      return null;
-    }
-    return activeSince(sessions.sessions, context.read<SessionCommandCubit>().sessionId);
-  }
-
   String _elapsed(BuildContext context) {
-    final since = _activeSince(context);
-    if (since != null) return turnElapsed(DateTime.now().difference(since));
-    final groups = groupBlocksByTurn(context.read<BlocksCubit>().blocks, sessionActive: true);
-    final start = DateTime.tryParse(groups.lastOrNull?.startedAt ?? '');
-    if (start == null) return 'Working';
-    return turnElapsed(DateTime.now().difference(start));
+    final since = TerminalChatHeader.workingSinceOf(context);
+    if (since == null) return 'Working';
+    return turnElapsed(DateTime.now().difference(since));
   }
 
   @override

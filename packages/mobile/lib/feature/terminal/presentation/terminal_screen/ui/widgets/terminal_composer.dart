@@ -9,6 +9,7 @@ import 'package:operator_mobile/core/app_themes/text_style/app_text_style.dart';
 import 'package:operator_mobile/core/utils/haptics.dart';
 import 'package:operator_mobile/core/utils/service_locator.dart';
 import 'package:operator_mobile/core/widgets/glass/glass_surface.dart';
+import 'package:operator_mobile/feature/blocks/logic/command_confirmation.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/session_command_cubit.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/session_command_row.dart';
 import 'package:operator_mobile/feature/dictation/logic/voice_input_cubit.dart';
@@ -154,9 +155,12 @@ class _TerminalComposerState extends State<TerminalComposer> {
     );
   }
 
-  void _stop(SessionCommandCubit commands) {
+  Future<void> _stop(SessionCommandCubit commands) async {
+    if (commands.phases['stop'] == CommandPhase.sending) return;
     Haptics.tap();
-    unawaited(commands.run('stop'));
+    await commands.run('stop');
+    if (!mounted || commands.isClosed) return;
+    if (commands.phases['stop'] == CommandPhase.idle) Haptics.error();
   }
 
   Future<void> _openModelPicker(BuildContext context, String? harness) async {
@@ -331,7 +335,10 @@ class _TerminalComposerState extends State<TerminalComposer> {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              ComposerStopButton(visible: showStop, onStop: () => _stop(commands)),
+              ComposerStopButton(
+                visible: showStop,
+                onStop: commands.phases['stop'] == CommandPhase.sending ? null : () => unawaited(_stop(commands)),
+              ),
               ComposerActionButton(
                 action: composerActionFor(hasText: hasText, recording: recording),
                 onSend: cubit.sending ? null : () => _send(context, cubit),

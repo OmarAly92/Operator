@@ -9,23 +9,28 @@ import 'package:operator_mobile/core/widgets/chat/chat_insets.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_text.dart';
 import 'package:operator_mobile/feature/blocks/logic/block_actions.dart';
 import 'package:operator_mobile/feature/blocks/logic/block_find.dart';
+import 'package:operator_mobile/feature/blocks/logic/session_activity.dart';
 import 'package:operator_mobile/feature/blocks/logic/session_block.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/blocks_cubit.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/session_command_cubit.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/block_find_bar.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/block_list.dart';
-import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/block_nav_controls.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/block_selection_bar.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/context_readout_chip.dart';
+import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/floating_working_control.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/sticky_block_header.dart';
 import 'package:operator_mobile/feature/usage/logic/context_readout.dart';
 
 class BlocksBody extends StatefulWidget {
-  const BlocksBody({super.key, this.onRerun});
+  const BlocksBody({super.key, this.onRerun, this.workingSince, this.stopped = false});
 
   /// Fills the composer with a past prompt. Null means the screen has no
   /// composer to fill, and the re-run action is not offered at all.
   final void Function(String text)? onRerun;
+
+  final DateTime? Function()? workingSince;
+
+  final bool stopped;
 
   @override
   State<BlocksBody> createState() => BlocksBodyState();
@@ -45,13 +50,25 @@ class BlocksBodyState extends State<BlocksBody> {
   bool _filtering = false;
   String? _activeMatchId;
   final TextEditingController _queryController = TextEditingController();
+  final ValueNotifier<double> _coverage = ValueNotifier<double>(0);
+  _ListInset? _listInset;
 
   @override
   void dispose() {
+    _listInset?.dispose();
+    _coverage.dispose();
     _sticky.dispose();
     _pinned.dispose();
     _queryController.dispose();
     super.dispose();
+  }
+
+  ValueListenable<double>? _insetFor(ValueListenable<double>? dock) {
+    if (dock == null) return null;
+    final current = _listInset;
+    if (current != null && current.dock == dock) return current;
+    current?.dispose();
+    return _listInset = _ListInset(dock, _coverage);
   }
 
   void _syncCollapsed(String sessionId) {
@@ -252,6 +269,7 @@ class BlocksBodyState extends State<BlocksBody> {
 
         final insets = ChatInsets.maybeOf(context);
         final dockInset = insets?.bottom;
+        final listInset = _insetFor(dockInset);
         final dockGap = insets?.gap ?? 0;
         final top = insets?.top ?? 0;
         return PopScope(
@@ -311,7 +329,7 @@ class BlocksBodyState extends State<BlocksBody> {
                         onLongPressHeader: _selectionMode
                             ? null
                             : _enterSelectionMode,
-                        bottomInset: _selectionMode ? null : dockInset,
+                        bottomInset: _selectionMode ? null : listInset,
                         bottomGap: dockInset == null || _selectionMode ? 6 : dockGap + ChatInsets.listGap,
                         topInset: _findOpen ? 0 : top,
                       ),
@@ -343,12 +361,13 @@ class BlocksBodyState extends State<BlocksBody> {
                 positioned: true,
                 child: ValueListenableBuilder<bool>(
                   valueListenable: _pinned,
-                  builder: (context, pinned, _) => _selectionMode || pinned
-                      ? const SizedBox.shrink()
-                      : BlockNavControls(
-                          onLatest: () => _listKey.currentState?.jumpToLatest(),
-                          showLatest: !pinned,
-                        ),
+                  builder: (context, pinned, _) => _WorkingControl(
+                    workingSince: _selectionMode ? null : widget.workingSince,
+                    stopped: widget.stopped,
+                    showLatest: !_selectionMode && !pinned,
+                    coverage: _coverage,
+                    onLatest: () => _listKey.currentState?.animateToLatest(),
+                  ),
                 ),
               ),
             ],
@@ -431,7 +450,7 @@ class _DockClearance extends StatelessWidget {
   final bool positioned;
 
   Widget _place(double bottom) => positioned
-      ? Positioned(right: 12, bottom: 12 + bottom, child: child)
+      ? Positioned(left: 0, right: 0, bottom: FloatingWorkingControl.lift + bottom, child: Center(child: child))
       : Padding(padding: EdgeInsets.only(bottom: bottom), child: child);
 
   @override
@@ -442,5 +461,60 @@ class _DockClearance extends StatelessWidget {
       valueListenable: inset,
       builder: (context, bottom, _) => _place(bottom + gap),
     );
+  }
+}
+
+class _WorkingControl extends StatelessWidget {
+  const _WorkingControl({
+    required this.workingSince,
+    required this.stopped,
+    required this.showLatest,
+    required this.coverage,
+    required this.onLatest,
+  });
+
+  final DateTime? Function()? workingSince;
+  final bool stopped;
+  final bool showLatest;
+  final ValueNotifier<double> coverage;
+  final VoidCallback onLatest;
+
+  @override
+  Widget build(BuildContext context) {
+    String? activity;
+    if (workingSince != null) {
+      try {
+        activity = context.select<SessionCommandCubit, String?>((cubit) => cubit.activity);
+      } on ProviderNotFoundException {
+        activity = null;
+      }
+    }
+    return FloatingWorkingControl(
+      working: workingSince != null && !stopped && sessionIsWorking(activity),
+      showLatest: showLatest,
+      since: workingSince,
+      coverage: coverage,
+      onLatest: onLatest,
+    );
+  }
+}
+
+class _ListInset extends ChangeNotifier implements ValueListenable<double> {
+  _ListInset(this.dock, this.coverage) {
+    dock.addListener(notifyListeners);
+    coverage.addListener(notifyListeners);
+  }
+
+  final ValueListenable<double> dock;
+  final ValueListenable<double> coverage;
+
+  @override
+  double get value => dock.value + coverage.value;
+
+  @override
+  void dispose() {
+    dock.removeListener(notifyListeners);
+    coverage.removeListener(notifyListeners);
+    super.dispose();
   }
 }

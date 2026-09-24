@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
+import 'package:operator_mobile/core/app_themes/app_motion.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/feature/blocks/logic/block_actions.dart';
 import 'package:operator_mobile/feature/blocks/logic/block_find.dart';
@@ -90,6 +91,7 @@ class BlockListState extends State<BlockList> {
   int? _pivotSeq;
   bool _pinned = true;
   bool _followScheduled = false;
+  bool _seeking = false;
   int _followHops = 0;
   int? _topIndex;
 
@@ -106,7 +108,7 @@ class BlockListState extends State<BlockList> {
   }
 
   void _onInsetChanged() {
-    if (_pinned) _scheduleFollow();
+    if (_pinned && !_seeking) _scheduleFollow();
   }
 
   @override
@@ -136,7 +138,7 @@ class BlockListState extends State<BlockList> {
       }
     }
     _adoptPivot();
-    if (_pinned) _scheduleFollow();
+    if (_pinned && !_seeking) _scheduleFollow();
   }
 
   void _adoptPivot() {
@@ -149,6 +151,37 @@ class BlockListState extends State<BlockList> {
     _scheduleFollow();
   }
 
+  Future<void> animateToLatest() async {
+    if (!controller.hasClients || MediaQuery.disableAnimationsOf(context)) {
+      _seeking = false;
+      jumpToLatest();
+      return;
+    }
+    _seeking = true;
+    _setPinned(true);
+    await controller.animateTo(
+      controller.position.maxScrollExtent,
+      duration: AppMotion.jumpToLatest,
+      curve: AppMotion.easeOut,
+    );
+    if (!mounted || !_seeking) return;
+    _seeking = false;
+    jumpToLatest();
+  }
+
+  bool _onUserScroll(ScrollNotification notification) {
+    final dragged = switch (notification) {
+      ScrollStartNotification(:final dragDetails) => dragDetails != null,
+      ScrollUpdateNotification(:final dragDetails) => dragDetails != null,
+      _ => false,
+    };
+    if (_seeking && dragged && notification.depth == 0) {
+      _seeking = false;
+      _onScroll();
+    }
+    return false;
+  }
+
   void _setPinned(bool pinned) {
     _pinned = pinned;
     widget.pinnedListenable?.value = pinned;
@@ -156,12 +189,14 @@ class BlockListState extends State<BlockList> {
 
   void _onScroll() {
     if (!controller.hasClients) return;
-    _setPinned(
-      BlockViewport.isPinned(
-        controller.position.pixels,
-        controller.position.maxScrollExtent,
-      ),
-    );
+    if (!_seeking) {
+      _setPinned(
+        BlockViewport.isPinned(
+          controller.position.pixels,
+          controller.position.maxScrollExtent,
+        ),
+      );
+    }
     _updateSticky();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _updateSticky();
@@ -360,51 +395,54 @@ class BlockListState extends State<BlockList> {
     return SizedBox.expand(
       key: viewportKey,
       child: LayoutBuilder(
-        builder: (context, constraints) => CustomScrollView(
-          controller: controller,
-          anchor: constraints.maxHeight > 0 ? (lead / constraints.maxHeight).clamp(0.0, 1.0) : 0,
-          center: centerKey,
-          slivers: [
-            if (widget.topInset > 0) SliverToBoxAdapter(child: SizedBox(height: widget.topInset)),
-            if (header != null) SliverToBoxAdapter(child: header),
-            const SliverToBoxAdapter(child: SizedBox(height: BlockList.topGap)),
-            SliverList.builder(
-              key: leadingKey,
-              itemCount: pivot,
-              itemBuilder: (context, index) {
-                final blockIndex = pivot - 1 - index;
-                final block = blocks[blockIndex];
-                return _toolOrBlock(
-                  block,
-                  _toolGroups[block.id],
-                  groupEndingByBlockId[block.id],
-                  _hasFollowingRailItem(blocks, blockIndex),
-                );
-              },
-            ),
-            SliverList.builder(
-              key: centerKey,
-              itemCount: blocks.length - pivot,
-              itemBuilder: (context, index) {
-                final blockIndex = pivot + index;
-                final block = blocks[blockIndex];
-                return _toolOrBlock(
-                  block,
-                  _toolGroups[block.id],
-                  groupEndingByBlockId[block.id],
-                  _hasFollowingRailItem(blocks, blockIndex),
-                );
-              },
-            ),
-            SliverToBoxAdapter(
-              child: widget.bottomInset == null
-                  ? SizedBox(height: widget.bottomGap)
-                  : ValueListenableBuilder<double>(
-                      valueListenable: widget.bottomInset!,
-                      builder: (context, inset, _) => SizedBox(height: inset + widget.bottomGap),
-                    ),
-            ),
-          ],
+        builder: (context, constraints) => NotificationListener<ScrollNotification>(
+          onNotification: _onUserScroll,
+          child: CustomScrollView(
+            controller: controller,
+            anchor: constraints.maxHeight > 0 ? (lead / constraints.maxHeight).clamp(0.0, 1.0) : 0,
+            center: centerKey,
+            slivers: [
+              if (widget.topInset > 0) SliverToBoxAdapter(child: SizedBox(height: widget.topInset)),
+              if (header != null) SliverToBoxAdapter(child: header),
+              const SliverToBoxAdapter(child: SizedBox(height: BlockList.topGap)),
+              SliverList.builder(
+                key: leadingKey,
+                itemCount: pivot,
+                itemBuilder: (context, index) {
+                  final blockIndex = pivot - 1 - index;
+                  final block = blocks[blockIndex];
+                  return _toolOrBlock(
+                    block,
+                    _toolGroups[block.id],
+                    groupEndingByBlockId[block.id],
+                    _hasFollowingRailItem(blocks, blockIndex),
+                  );
+                },
+              ),
+              SliverList.builder(
+                key: centerKey,
+                itemCount: blocks.length - pivot,
+                itemBuilder: (context, index) {
+                  final blockIndex = pivot + index;
+                  final block = blocks[blockIndex];
+                  return _toolOrBlock(
+                    block,
+                    _toolGroups[block.id],
+                    groupEndingByBlockId[block.id],
+                    _hasFollowingRailItem(blocks, blockIndex),
+                  );
+                },
+              ),
+              SliverToBoxAdapter(
+                child: widget.bottomInset == null
+                    ? SizedBox(height: widget.bottomGap)
+                    : ValueListenableBuilder<double>(
+                        valueListenable: widget.bottomInset!,
+                        builder: (context, inset, _) => SizedBox(height: inset + widget.bottomGap),
+                      ),
+              ),
+            ],
+          ),
         ),
       ),
     );

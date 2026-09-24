@@ -13,10 +13,56 @@ ComposerAction composerActionFor({required bool hasText, required bool recording
 
 bool composerShowsStop({required bool hasText, required bool canStop}) => canStop && !hasText;
 
-Widget _swapTransition(Widget child, Animation<double> animation) => FadeTransition(
-  opacity: animation,
-  child: ScaleTransition(scale: Tween<double>(begin: 0.8, end: 1).animate(animation), child: child),
+Widget _swapTransition(Widget child, Animation<double> animation) => _IgnoreWhileLeaving(
+  animation: animation,
+  child: FadeTransition(
+    opacity: animation,
+    child: ScaleTransition(scale: Tween<double>(begin: 0.8, end: 1).animate(animation), child: child),
+  ),
 );
+
+class _IgnoreWhileLeaving extends StatefulWidget {
+  const _IgnoreWhileLeaving({required this.animation, required this.child});
+
+  final Animation<double> animation;
+  final Widget child;
+
+  @override
+  State<_IgnoreWhileLeaving> createState() => _IgnoreWhileLeavingState();
+}
+
+class _IgnoreWhileLeavingState extends State<_IgnoreWhileLeaving> {
+  @override
+  void initState() {
+    super.initState();
+    widget.animation.addStatusListener(_onStatus);
+  }
+
+  @override
+  void didUpdateWidget(_IgnoreWhileLeaving oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.animation == oldWidget.animation) return;
+    oldWidget.animation.removeStatusListener(_onStatus);
+    widget.animation.addStatusListener(_onStatus);
+  }
+
+  @override
+  void dispose() {
+    widget.animation.removeStatusListener(_onStatus);
+    super.dispose();
+  }
+
+  void _onStatus(AnimationStatus status) => setState(() {});
+
+  @override
+  Widget build(BuildContext context) {
+    final status = widget.animation.status;
+    return IgnorePointer(
+      ignoring: status == AnimationStatus.reverse || status == AnimationStatus.dismissed,
+      child: widget.child,
+    );
+  }
+}
 
 class ComposerActionButton extends StatelessWidget {
   const ComposerActionButton({super.key, required this.action, this.onSend});
@@ -58,7 +104,7 @@ class ComposerStopButton extends StatelessWidget {
   static const double gap = 6;
 
   final bool visible;
-  final VoidCallback onStop;
+  final VoidCallback? onStop;
 
   @override
   Widget build(BuildContext context) {

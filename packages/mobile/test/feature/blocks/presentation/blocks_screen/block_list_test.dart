@@ -422,6 +422,83 @@ void main() {
     );
   });
 
+  testWidgets('animateToLatest glides to the tail over several frames and re-pins', (tester) async {
+    final pinned = ValueNotifier<bool>(true);
+    await pumpList(tester, range(1, 200, lines: (seq) => 1 + seq % 6), pinned: pinned);
+    final state = tester.state<BlockListState>(find.byType(BlockList));
+    state.controller.jumpTo(0);
+    await tester.pumpAndSettle();
+    expect(pinned.value, isFalse);
+
+    final arrived = state.animateToLatest();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 16));
+    final early = state.controller.position.pixels;
+    expect(early, greaterThan(0));
+    expect(early, lessThan(state.controller.position.maxScrollExtent));
+    await tester.pump(const Duration(milliseconds: 100));
+    final later = state.controller.position.pixels;
+    expect(later, greaterThan(early));
+    expect(later, lessThan(state.controller.position.maxScrollExtent));
+    expect(pinned.value, isTrue);
+
+    await tester.pumpAndSettle();
+    await arrived;
+    expect(state.controller.position.pixels, state.controller.position.maxScrollExtent);
+    expect(state.pinned, isTrue);
+    expect(find.text('Bash 200'), findsOneWidget);
+  });
+
+  testWidgets('animateToLatest jumps under reduce motion', (tester) async {
+    await tester.pumpWidget(
+      SkinScope(
+        skin: const DarkSkin(),
+        child: ScreenUtilInit(
+          designSize: const Size(390, 844),
+          builder: (context, _) => MaterialApp(
+            home: MediaQuery(
+              data: const MediaQueryData(disableAnimations: true),
+              child: Scaffold(
+                body: SizedBox(
+                  width: 390,
+                  height: 600,
+                  child: ListHarness(initial: range(1, 200, lines: (seq) => 1 + seq % 6)),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final state = tester.state<BlockListState>(find.byType(BlockList));
+    state.controller.jumpTo(0);
+    await tester.pumpAndSettle();
+
+    state.animateToLatest();
+    await tester.pump();
+    await tester.pump();
+
+    expect(state.controller.position.pixels, state.controller.position.maxScrollExtent);
+    expect(state.pinned, isTrue);
+  });
+
+  testWidgets('a drag during animateToLatest hands control back to the user', (tester) async {
+    await pumpList(tester, range(1, 200, lines: (seq) => 1 + seq % 6));
+    final state = tester.state<BlockListState>(find.byType(BlockList));
+    state.controller.jumpTo(0);
+    await tester.pumpAndSettle();
+
+    state.animateToLatest();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 60));
+    await tester.drag(find.byType(BlockList), const Offset(0, 300));
+    await tester.pumpAndSettle();
+
+    expect(state.pinned, isFalse);
+    expect(state.controller.position.pixels, lessThan(state.controller.position.maxScrollExtent - 100));
+  });
+
   testWidgets('the header of the block under the top edge is pinned', (
     tester,
   ) async {

@@ -95,7 +95,7 @@ class TerminalHarness {
   final HarnessVoiceProvider voice = HarnessVoiceProvider();
   final MockSessionControlRepository controlRepository = MockSessionControlRepository();
 
-  void start({bool shellOnly = false, String? harness, List<BlockEventModel> blockRecords = const []}) {
+  void start({bool shellOnly = false, String? harness, List<BlockEventModel> blockRecords = const [], String? activity}) {
     if (sl.isRegistered<VoiceInputCubit>()) sl.unregister<VoiceInputCubit>();
     sl.registerFactoryParam<VoiceInputCubit, void Function(String), void>(
       (onTranscript, _) => VoiceInputCubit(voice, onTranscript: onTranscript),
@@ -186,6 +186,7 @@ class TerminalHarness {
       controlRepository,
       usageRepository,
       sessionId: cubit.args.sessionId,
+      initialActivity: activity,
     );
   }
 

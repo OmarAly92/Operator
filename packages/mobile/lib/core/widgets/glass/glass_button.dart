@@ -18,6 +18,7 @@ class GlassButton extends StatefulWidget {
     this.prominent = false,
     this.foreground,
     this.diameter,
+    this.haptic = Haptics.tap,
   })  : label = null,
         compact = false;
 
@@ -28,6 +29,7 @@ class GlassButton extends StatefulWidget {
     this.icon,
     this.prominent = false,
     this.compact = false,
+    this.haptic = Haptics.tap,
   })  : semanticLabel = null,
         foreground = null,
         diameter = null;
@@ -42,6 +44,7 @@ class GlassButton extends StatefulWidget {
   final bool compact;
   final Color? foreground;
   final double? diameter;
+  final VoidCallback haptic;
 
   @override
   State<GlassButton> createState() => _GlassButtonState();
@@ -65,7 +68,7 @@ class _GlassButtonState extends State<GlassButton> {
   }
 
   void _handleTap() {
-    Haptics.tap();
+    widget.haptic();
     widget.onPressed!();
   }
 

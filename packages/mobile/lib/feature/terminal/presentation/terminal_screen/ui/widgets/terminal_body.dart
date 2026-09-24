@@ -116,7 +116,12 @@ class _TerminalBodyState extends State<TerminalBody> {
                         child: blocksMode
                             ? NotificationListener<Notification>(
                                 onNotification: _onScroll,
-                                child: BlocksBody(key: _blocks, onRerun: _fillComposer),
+                                child: BlocksBody(
+                                  key: _blocks,
+                                  onRerun: _fillComposer,
+                                  workingSince: () => TerminalChatHeader.workingSinceOf(context),
+                                  stopped: cubit.notFound,
+                                ),
                               )
                             : ValueListenableBuilder<double>(
                                 valueListenable: _dockHeight,
