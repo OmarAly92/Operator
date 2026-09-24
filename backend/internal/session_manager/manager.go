@@ -1922,6 +1922,10 @@ func (m *Manager) restoreSessionWorkspace(ctx context.Context, project domain.Pr
 	if err != nil {
 		return ports.WorkspaceInfo{}, err
 	}
+	// Same replay as RestoreAll: a boot-time relaunch that failed leaves the
+	// saved work only in the preserve refs, and a manual restore is how the user
+	// gets it back.
+	m.applyWorkspaceProjectPreserved(ctx, rows)
 	for _, row := range rows {
 		if err := m.upsertWorkspaceProjectRowState(ctx, row, "active"); err != nil {
 			return ports.WorkspaceInfo{}, fmt.Errorf("mark repo %s active: %w", row.RepoName, err)
@@ -2061,21 +2065,27 @@ func (m *Manager) sessionWorktreeRowsToRepoInfos(ctx context.Context, project do
 	return out, nil
 }
 
+// saveAndTeardownWorkspaceProject saves every repo before it marks any of them
+// removed. Marking repos one by one left a partial set of "removed" rows when a
+// later stash failed; the next boot then restored those repos onto worktrees
+// that were never torn down and relaunched a half-saved session. Now either
+// every repo is captured and marked, or no row changes and nothing is removed.
 func (m *Manager) saveAndTeardownWorkspaceProject(ctx context.Context, rec domain.SessionRecord, rows []ports.WorkspaceRepoInfo, destroyRuntime bool) error {
-	for _, row := range rows {
+	refs := make([]string, len(rows))
+	for i, row := range rows {
 		ref, err := m.workspace.StashUncommitted(ctx, workspaceInfoFromRepoInfo(row))
 		if err != nil {
 			return fmt.Errorf("save %s repo %s: stash: %w", rec.ID, row.RepoName, err)
 		}
-		if err := m.store.UpsertSessionWorktree(ctx, domain.SessionWorktreeRecord{
-			SessionID:    rec.ID,
-			RepoName:     row.RepoName,
-			Branch:       row.Branch,
-			BaseSHA:      row.BaseSHA,
-			WorktreePath: row.Path,
-			PreservedRef: ref,
-			State:        "removed",
-		}); err != nil {
+		refs[i] = ref
+	}
+	before, err := m.store.ListSessionWorktrees(ctx, rec.ID)
+	if err != nil {
+		return fmt.Errorf("save %s: list worktree rows: %w", rec.ID, err)
+	}
+	for i, row := range rows {
+		if err := m.upsertWorkspaceProjectRow(ctx, row, "removed", refs[i]); err != nil {
+			m.rollbackWorkspaceProjectRows(ctx, rec.ID, rows[:i], before)
 			return fmt.Errorf("save %s repo %s: upsert worktree row: %w", rec.ID, row.RepoName, err)
 		}
 	}
@@ -2104,6 +2114,23 @@ func (m *Manager) saveAndTeardownWorkspaceProject(ctx context.Context, rec domai
 		m.cleanupAgentWorkspace(ctx, rec, rec.Metadata.WorkspacePath)
 	}
 	return nil
+}
+
+// rollbackWorkspaceProjectRows puts rows written during a failed save back to
+// the state and PreservedRef they had before it; a row that did not exist is
+// marked active, which RestoreAll never picks up.
+func (m *Manager) rollbackWorkspaceProjectRows(ctx context.Context, id domain.SessionID, written []ports.WorkspaceRepoInfo, before []domain.SessionWorktreeRecord) {
+	for _, row := range written {
+		state, ref := "active", ""
+		for _, prior := range before {
+			if prior.RepoName == row.RepoName {
+				state, ref = prior.State, prior.PreservedRef
+			}
+		}
+		if err := m.upsertWorkspaceProjectRow(ctx, row, state, ref); err != nil {
+			m.logger.Error("save: rolling back removed marker failed", "sessionID", id, "repo", row.RepoName, "error", err)
+		}
+	}
 }
 
 // destroyWorkspaceProjectRows removes a workspace session's worktrees, children
@@ -2199,15 +2226,40 @@ func (m *Manager) refuseDirtyWorkspaceProjectRows(ctx context.Context, rows []po
 	return nil
 }
 
+// upsertWorkspaceProjectRowState changes a repo row's state and keeps its
+// PreservedRef. The upsert writes every column, so dropping the ref here would
+// lose the only pointer to saved work that has not been applied yet.
 func (m *Manager) upsertWorkspaceProjectRowState(ctx context.Context, row ports.WorkspaceRepoInfo, state string) error {
+	ref, err := m.workspaceProjectPreservedRef(ctx, row)
+	if err != nil {
+		return err
+	}
+	return m.upsertWorkspaceProjectRow(ctx, row, state, ref)
+}
+
+func (m *Manager) upsertWorkspaceProjectRow(ctx context.Context, row ports.WorkspaceRepoInfo, state, preservedRef string) error {
 	return m.store.UpsertSessionWorktree(ctx, domain.SessionWorktreeRecord{
 		SessionID:    row.SessionID,
 		RepoName:     row.RepoName,
 		Branch:       row.Branch,
 		BaseSHA:      row.BaseSHA,
 		WorktreePath: row.Path,
+		PreservedRef: preservedRef,
 		State:        state,
 	})
+}
+
+func (m *Manager) workspaceProjectPreservedRef(ctx context.Context, row ports.WorkspaceRepoInfo) (string, error) {
+	rows, err := m.store.ListSessionWorktrees(ctx, row.SessionID)
+	if err != nil {
+		return "", err
+	}
+	for _, existing := range rows {
+		if existing.RepoName == row.RepoName {
+			return existing.PreservedRef, nil
+		}
+	}
+	return "", nil
 }
 
 func (m *Manager) restoreWorkspaceProjectRows(ctx context.Context, rows []ports.WorkspaceRepoInfo) (ports.WorkspaceRepoInfo, error) {
@@ -2235,30 +2287,49 @@ func (m *Manager) restoreWorkspaceProjectRows(ctx context.Context, rows []ports.
 	return root, nil
 }
 
+// applyWorkspaceProjectPreserved replays each repo's saved work and clears the
+// row's PreservedRef only when the replay was clean. A conflicted or failed
+// replay keeps the ref (and the adapter keeps the git ref). A worktree that is
+// already dirty was never torn down, so it still holds that work: replaying the
+// capture onto it would only conflict, and it is skipped with the ref kept.
 func (m *Manager) applyWorkspaceProjectPreserved(ctx context.Context, rows []ports.WorkspaceRepoInfo) {
+	observer, canObserve := m.workspace.(ports.WorkspaceObserver)
 	for _, row := range rows {
-		var preserveRef string
-		sessionRows, err := m.store.ListSessionWorktrees(ctx, row.SessionID)
+		preserveRef, err := m.workspaceProjectPreservedRef(ctx, row)
 		if err != nil {
-			m.logger.Error("restore-all: list worktrees failed", "sessionID", row.SessionID, "error", err)
+			m.logger.Error("restore: list worktrees failed", "sessionID", row.SessionID, "error", err)
 			continue
-		}
-		for _, sessionRow := range sessionRows {
-			if sessionRow.RepoName == row.RepoName {
-				preserveRef = sessionRow.PreservedRef
-				break
-			}
 		}
 		if preserveRef == "" {
 			continue
 		}
-		if applyErr := m.workspace.ApplyPreserved(ctx, workspaceInfoFromRepoInfo(row), preserveRef); applyErr != nil {
+		info := workspaceInfoFromRepoInfo(row)
+		if canObserve {
+			if observation, observeErr := observer.ObserveWorkspace(ctx, info); observeErr == nil && observation.Dirty {
+				m.logger.Warn("restore: worktree already holds uncommitted work; saved work kept, not replayed",
+					"sessionID", row.SessionID, "repo", row.RepoName, "ref", preserveRef)
+				continue
+			}
+		}
+		if applyErr := m.workspace.ApplyPreserved(ctx, info, preserveRef); applyErr != nil {
 			if errors.Is(applyErr, ports.ErrPreservedConflict) {
-				m.logger.Warn("restore-all: apply preserved produced conflicts; agent relaunched with conflict markers in place",
+				m.logger.Warn("restore: apply preserved produced conflicts; agent relaunched with conflict markers in place",
 					"sessionID", row.SessionID, "repo", row.RepoName, "ref", preserveRef, "error", applyErr)
 			} else {
-				m.logger.Error("restore-all: apply preserved failed", "sessionID", row.SessionID, "repo", row.RepoName, "error", applyErr)
+				m.logger.Error("restore: apply preserved failed", "sessionID", row.SessionID, "repo", row.RepoName, "error", applyErr)
 			}
+			continue
+		}
+		state := "removed"
+		if sessionRows, listErr := m.store.ListSessionWorktrees(ctx, row.SessionID); listErr == nil {
+			for _, existing := range sessionRows {
+				if existing.RepoName == row.RepoName && existing.State != "" {
+					state = existing.State
+				}
+			}
+		}
+		if err := m.upsertWorkspaceProjectRow(ctx, row, state, ""); err != nil {
+			m.logger.Warn("restore: clearing applied preserve ref failed", "sessionID", row.SessionID, "repo", row.RepoName, "error", err)
 		}
 	}
 }

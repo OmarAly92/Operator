@@ -486,8 +486,20 @@ func (w *Workspace) StashUncommitted(ctx context.Context, info ports.WorkspaceIn
 	}
 	commitSHA := strings.TrimSpace(string(commitOut))
 
-	// Point the preserve ref at the commit.
+	// Point the preserve ref at the commit. A ref that is still there was never
+	// applied cleanly (a clean ApplyPreserved deletes it), so it may hold the
+	// only copy of earlier work: keep it under a name derived from its commit
+	// instead of overwriting it.
 	ref := "refs/opr/preserved/" + string(info.SessionID)
+	if out, err := w.run(ctx, w.binary, revParseVerifyArgs(path, ref)...); err == nil {
+		if previous := strings.TrimSpace(string(out)); previous != "" && previous != commitSHA {
+			backup := ref + "-" + previous[:min(12, len(previous))]
+			if _, err := w.run(ctx, w.binary, updateRefArgs(path, backup, previous)...); err != nil {
+				return "", fmt.Errorf("gitworktree: keep unapplied preserve ref %q: %w", ref, err)
+			}
+			slog.WarnContext(ctx, "gitworktree: previous preserved work was never applied; kept it", "ref", backup, "session", info.SessionID)
+		}
+	}
 	if _, err := w.run(ctx, w.binary, updateRefArgs(path, ref, commitSHA)...); err != nil {
 		return "", fmt.Errorf("gitworktree: update-ref %q: %w", ref, err)
 	}

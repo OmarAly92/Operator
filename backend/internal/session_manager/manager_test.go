@@ -698,9 +698,13 @@ type fakeWorkspace struct {
 	// can point at a real temp directory.
 	path string
 	// stashRef is returned by StashUncommitted (empty means clean worktree).
-	stashRef        string
-	stashErr        error
-	applyErr        error
+	stashRef string
+	stashErr error
+	applyErr error
+	// stashErrFor and applyErrFor, keyed by repo name, override stashErr and
+	// applyErr for one repo of a workspace session.
+	stashErrFor     map[string]error
+	applyErrFor     map[string]error
 	forceDestroyErr error
 	// stashCalls counts StashUncommitted invocations.
 	stashCalls        int
@@ -822,6 +826,9 @@ func (w *fakeWorkspace) StashUncommitted(_ context.Context, info ports.Workspace
 	if w.sharedLog != nil {
 		*w.sharedLog = append(*w.sharedLog, entry)
 	}
+	if err, ok := w.stashErrFor[fakeWorkspaceRepoName(info)]; ok && info.RepoPath != "" {
+		return "", err
+	}
 	if w.stashErr != nil || w.stashRef == "" || info.RepoPath == "" {
 		return w.stashRef, w.stashErr
 	}
@@ -833,6 +840,9 @@ func (w *fakeWorkspace) ApplyPreserved(_ context.Context, info ports.WorkspaceIn
 		entry = "ApplyPreserved:" + fakeWorkspaceRepoName(info) + ":" + ref
 	}
 	w.calls = append(w.calls, entry)
+	if err, ok := w.applyErrFor[fakeWorkspaceRepoName(info)]; ok && info.RepoPath != "" {
+		return err
+	}
 	return w.applyErr
 }
 
@@ -6063,5 +6073,108 @@ func TestRelaunchAgentFresh_RejectsClaudeAccountOnOtherHarness(t *testing.T) {
 	}
 	if agent.launchCalls != 0 {
 		t.Fatalf("rejected relaunch launched %d times", agent.launchCalls)
+	}
+}
+
+// TestSaveAndTeardownAll_WorkspaceProjectStashFailureMarksNothingRemoved: a
+// stash failure in one repo must leave every row and worktree untouched.
+// Marking repos removed one by one let the next boot restore a partial set onto
+// worktrees that were never torn down and relaunch a half-saved session.
+func TestSaveAndTeardownAll_WorkspaceProjectStashFailureMarksNothingRemoved(t *testing.T) {
+	m, st, _, ws := newLifecycleManager()
+	st.projects["mer"] = domain.ProjectRecord{ID: "mer", Path: "/repo/mer", Kind: domain.ProjectKindWorkspace, Config: testRoleAgents()}
+	st.workspaceRepo["mer"] = []domain.WorkspaceRepoRecord{{Name: "api", RelativePath: "api"}}
+	ws.stashRef = "refs/opr/preserved/mer-1"
+	ws.stashErrFor = map[string]error{"api": errors.New("index locked")}
+	st.sessions["mer-1"] = domain.SessionRecord{
+		ID:        "mer-1",
+		ProjectID: "mer",
+		Metadata:  domain.SessionMetadata{WorkspacePath: "/ws/mer-1", Branch: "opr/mer-1/root", RuntimeHandleID: "h1"},
+		Activity:  domain.Activity{State: domain.ActivityActive},
+	}
+	st.worktrees["mer-1"] = []domain.SessionWorktreeRecord{
+		{SessionID: "mer-1", RepoName: domain.RootWorkspaceRepoName, Branch: "opr/mer-1/root", WorktreePath: "/ws/mer-1", State: "active"},
+		{SessionID: "mer-1", RepoName: "api", Branch: "opr/mer-1/root", WorktreePath: "/ws/mer-1/api", State: "active"},
+	}
+
+	_ = m.SaveAndTeardownAll(ctx)
+
+	for _, row := range st.worktrees["mer-1"] {
+		if row.State != "active" || row.PreservedRef != "" {
+			t.Fatalf("row %s = state %q ref %q, want untouched", row.RepoName, row.State, row.PreservedRef)
+		}
+	}
+	for _, call := range ws.calls {
+		if strings.HasPrefix(call, "ForceDestroy:") {
+			t.Fatalf("worktree removed after a failed save: calls %v", ws.calls)
+		}
+	}
+}
+
+// TestRestoreAll_WorkspaceProjectConflictedApplyKeepsPreservedRef: marking the
+// rows active after relaunch used to clear every PreservedRef, so a conflicted
+// replay lost the only pointer to the saved work.
+func TestRestoreAll_WorkspaceProjectConflictedApplyKeepsPreservedRef(t *testing.T) {
+	m, st, _, ws := newLifecycleManager()
+	st.projects["mer"] = domain.ProjectRecord{ID: "mer", Path: "/repo/mer", Kind: domain.ProjectKindWorkspace, Config: testRoleAgents()}
+	st.workspaceRepo["mer"] = []domain.WorkspaceRepoRecord{{Name: "api", RelativePath: "api"}}
+	ws.applyErrFor = map[string]error{"api": fmt.Errorf("replay: %w", ports.ErrPreservedConflict)}
+	st.sessions["mer-1"] = domain.SessionRecord{
+		ID:           "mer-1",
+		ProjectID:    "mer",
+		Harness:      domain.HarnessClaudeCode,
+		IsTerminated: true,
+		Metadata:     domain.SessionMetadata{WorkspacePath: "/ws/mer-1", Branch: "opr/mer-1/root", AgentSessionID: "agent-w"},
+		Activity:     domain.Activity{State: domain.ActivityExited},
+	}
+	st.worktrees["mer-1"] = []domain.SessionWorktreeRecord{
+		{SessionID: "mer-1", RepoName: domain.RootWorkspaceRepoName, Branch: "opr/mer-1/root", WorktreePath: "/ws/mer-1", PreservedRef: "refs/opr/preserved/mer-1", State: "removed"},
+		{SessionID: "mer-1", RepoName: "api", Branch: "opr/mer-1/root", WorktreePath: "/ws/mer-1/api", PreservedRef: "refs/opr/preserved/mer-1", State: "removed"},
+	}
+
+	if err := m.RestoreAll(ctx); err != nil {
+		t.Fatalf("RestoreAll err = %v", err)
+	}
+	refs := map[string]string{}
+	for _, row := range st.worktrees["mer-1"] {
+		refs[row.RepoName] = row.PreservedRef
+		if row.State != "active" {
+			t.Fatalf("row %s state = %q, want active", row.RepoName, row.State)
+		}
+	}
+	if refs[domain.RootWorkspaceRepoName] != "" {
+		t.Fatalf("root ref = %q, want cleared after a clean replay", refs[domain.RootWorkspaceRepoName])
+	}
+	if refs["api"] != "refs/opr/preserved/mer-1" {
+		t.Fatalf("api ref = %q, want kept after a conflicted replay", refs["api"])
+	}
+}
+
+// TestRestore_WorkspaceProjectAppliesPreservedWork: a manual restore is how a
+// user gets back a session whose boot-time relaunch failed, so it must replay
+// the saved work instead of clearing the pointers to it.
+func TestRestore_WorkspaceProjectAppliesPreservedWork(t *testing.T) {
+	m, st, _, ws := newManager()
+	st.projects["mer"] = domain.ProjectRecord{ID: "mer", Path: "/repo/mer", Kind: domain.ProjectKindWorkspace, Config: testRoleAgents()}
+	st.workspaceRepo["mer"] = []domain.WorkspaceRepoRecord{{Name: "api", RelativePath: "api"}}
+	seedTerminal(st, "mer-1", domain.SessionMetadata{WorkspacePath: "/ws/mer-1", Branch: "opr/mer-1/root", AgentSessionID: "agent-x"})
+	st.worktrees["mer-1"] = []domain.SessionWorktreeRecord{
+		{SessionID: "mer-1", RepoName: domain.RootWorkspaceRepoName, Branch: "opr/mer-1/root", WorktreePath: "/ws/mer-1", PreservedRef: "refs/opr/preserved/mer-1", State: "removed"},
+		{SessionID: "mer-1", RepoName: "api", Branch: "opr/mer-1/root", WorktreePath: "/ws/mer-1/api", PreservedRef: "refs/opr/preserved/mer-1", State: "removed"},
+	}
+
+	if _, err := m.RestoreWithMode(ctx, "mer-1", ports.PaneGrid{}); err != nil {
+		t.Fatal(err)
+	}
+	calls := strings.Join(ws.calls, ",")
+	for _, want := range []string{"ApplyPreserved:__root__:refs/opr/preserved/mer-1", "ApplyPreserved:api:refs/opr/preserved/mer-1"} {
+		if !strings.Contains(calls, want) {
+			t.Fatalf("calls = %v, want %s", ws.calls, want)
+		}
+	}
+	for _, row := range st.worktrees["mer-1"] {
+		if row.State != "active" || row.PreservedRef != "" {
+			t.Fatalf("row %s = state %q ref %q, want active with the ref consumed", row.RepoName, row.State, row.PreservedRef)
+		}
 	}
 }
