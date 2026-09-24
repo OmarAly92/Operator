@@ -191,6 +191,42 @@ describe("find-bar while output streams", () => {
 		expect(count.textContent).toBe("1 of 1");
 	});
 
+	it("unregisters the repaint listener on close and re-registers cleanly on reopen", async () => {
+		const core = createTerminalCore({ columns: 40, scrollback: 1000, rows: 1 });
+		const host = document.createElement("div");
+		const renderer = new DomBlockRenderer();
+		renderer.mount(host, core);
+		renderer.setFont(font);
+		const offFns: Array<ReturnType<typeof vi.fn>> = [];
+		const afterRepaint = vi.fn((_listener: () => void) => {
+			const off = vi.fn();
+			offFns.push(off);
+			return off;
+		});
+		const barHost: FindBarHost = {
+			scrollToBlock: () => undefined,
+			invalidate: (range) => renderer.invalidate(range),
+			afterRepaint,
+		};
+		const bar = createFindBar({ core, renderer: renderer as unknown as BlockRenderer, host: barHost, strings: defaultStrings });
+		bar.mount(host);
+
+		bar.open();
+		expect(afterRepaint).toHaveBeenCalledTimes(1);
+
+		bar.close();
+		expect(offFns[0]).toHaveBeenCalledTimes(1);
+
+		bar.open();
+		expect(afterRepaint).toHaveBeenCalledTimes(2);
+
+		bar.close();
+		expect(offFns[1]).toHaveBeenCalledTimes(1);
+
+		bar.dispose();
+		renderer.dispose();
+	});
+
 	it("finds text in a session that has no block marks", async () => {
 		const core = createTerminalCore({ columns: 40, scrollback: 1000, rows: 5 });
 		const host = document.createElement("div");

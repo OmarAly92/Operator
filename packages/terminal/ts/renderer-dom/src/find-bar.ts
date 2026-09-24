@@ -314,6 +314,10 @@ export function createFindBar(options: FindBarOptions): FindBar {
 		stopSession();
 		invalid = false;
 		clearMarks();
+		if (repaintOff) {
+			repaintOff();
+			repaintOff = null;
+		}
 		if (bar && bar.parentElement === container) {
 			container.removeChild(bar);
 		}
