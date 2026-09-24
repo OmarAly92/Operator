@@ -455,29 +455,16 @@ void main() {
     expect(tester.getRect(find.byKey(AppSheet.outerClipKey)), tester.getRect(find.byKey(AppSheet.surfaceKey)));
   });
 
-  testWidgets('the search capsule is calm glass with no outer shadow', (tester) async {
+  testWidgets('the search capsule is the regular glass capsule with its own shadows', (tester) async {
     await openMany(tester, page: searchPage());
     final capsule = tester.widget<GlassSurface>(find.byKey(AppSheet.searchCapsuleKey));
     expect(capsule.kind, GlassShapeKind.capsule);
     expect(capsule.size, AppSheetMetrics.searchHeight);
-    expect(capsule.shadows, isEmpty);
+    expect(capsule.variant, GlassVariant.regular);
     final glass = tester.widget<LiquidGlass>(
       find.descendant(of: find.byKey(AppSheet.searchCapsuleKey), matching: find.byType(LiquidGlass)),
     );
-    expect(glass.shadows, isEmpty);
-    final regular = GlassStyle.resolve(
-      skin: const LightSkin(),
-      variant: GlassVariant.regular,
-      size: AppSheetMetrics.searchHeight,
-    );
-    final calm = AppSheetLogic.calmGlass(regular);
-    expect(calm.refractiveIndex, 1);
-    expect(calm.chromaticAberration, 0);
-    expect(calm.glassColor, regular.glassColor);
-    expect(calm.blur, regular.blur);
-    expect(calm.thickness, regular.thickness);
-    expect(calm.lightIntensity, regular.lightIntensity);
-    expect(glass.ownLayerConfig!.$1, calm);
+    expect(glass.shadows, GlassStyle.shadows(const LightSkin(), size: AppSheetMetrics.searchHeight));
   });
 
   testWidgets('page content never paints in the grabber band at the top edge', (tester) async {

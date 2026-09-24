@@ -2,7 +2,6 @@ import 'dart:math' as math;
 
 import 'package:expressive_sheet/expressive_sheet.dart';
 import 'package:flutter/material.dart';
-import 'package:liquid_glass_renderer/liquid_glass_renderer.dart';
 import 'package:operator_mobile/core/app_themes/app_motion.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/app_themes/text_style/app_text_style.dart';
@@ -78,9 +77,6 @@ sealed class AppSheetLogic {
 
   static Clip surfaceClip(double headerVisibility) =>
       headerVisibility > 0 ? Clip.antiAliasWithSaveLayer : Clip.antiAlias;
-
-  static LiquidGlassSettings calmGlass(LiquidGlassSettings settings) =>
-      settings.copyWith(refractiveIndex: 1, chromaticAberration: 0);
 
   static double bottomClearance({required bool hasSearch}) => hasSearch
       ? AppSheetMetrics.searchBottom + AppSheetMetrics.searchHeight + AppSheetMetrics.contentBottom
@@ -498,8 +494,6 @@ class _SearchCapsule extends StatelessWidget {
       key: AppSheet.searchCapsuleKey,
       kind: GlassShapeKind.capsule,
       size: AppSheetMetrics.searchHeight,
-      shadows: const [],
-      tune: AppSheetLogic.calmGlass,
       child: Material(
         type: MaterialType.transparency,
         child: Row(
