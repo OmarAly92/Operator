@@ -2,6 +2,7 @@ package sessionmanager
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/OmarAly92/operator/backend/internal/domain"
@@ -93,4 +94,37 @@ func TestRestoreFreshLaunchReappliesOperatorMCPServer(t *testing.T) {
 		t.Fatalf("launch calls = %d, want the fresh-launch fallback", agent.launchCalls)
 	}
 	assertOperatorMCPServer(t, agent.lastLaunch.MCPServers, "mer-1")
+}
+
+// surfacingAgent stands in for an adapter whose CLI surfaces MCP instructions.
+type surfacingAgent struct{ *recordingAgent }
+
+func (surfacingAgent) SurfacesMCPServerInstructions() bool { return true }
+
+func TestBoardRulesReachThePromptOnlyWhenTheCLIDropsServerInstructions(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		agent      func(*recordingAgent) ports.Agent
+		executable string
+		wantRules  bool
+	}{
+		{"agent that surfaces instructions", func(a *recordingAgent) ports.Agent { return surfacingAgent{a} }, "/opt/operator/opr", false},
+		{"agent that does not", func(a *recordingAgent) ports.Agent { return a }, "/opt/operator/opr", true},
+		{"no MCP server registered", func(a *recordingAgent) ports.Agent { return a }, "/tmp/session_manager.test", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			st := newFakeStore()
+			st.projects["mer"] = domain.ProjectRecord{ID: "mer", Config: testRoleAgents()}
+			rec := &recordingAgent{}
+			m := mcpTestManager(st, tc.agent(rec), tc.executable)
+			if _, _, _, err := m.Spawn(ctx, ports.SpawnConfig{ProjectID: "mer", Prompt: "fix it"}); err != nil {
+				t.Fatal(err)
+			}
+			got := strings.Contains(rec.lastLaunch.SystemPrompt, "## Operator board") &&
+				strings.Contains(rec.lastLaunch.SystemPrompt, "session_report")
+			if got != tc.wantRules {
+				t.Fatalf("board rules in system prompt = %v, want %v:\n%s", got, tc.wantRules, rec.lastLaunch.SystemPrompt)
+			}
+		})
+	}
 }

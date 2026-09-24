@@ -1,6 +1,8 @@
 package sessionmanager
 
 import (
+	"strings"
+
 	"github.com/OmarAly92/operator/backend/internal/domain"
 	"github.com/OmarAly92/operator/backend/internal/ports"
 )
@@ -32,4 +34,35 @@ func (m *Manager) operatorMCPServers(id domain.SessionID, project domain.Project
 			EnvRunFile:   m.runFilePath,
 		},
 	}}
+}
+
+// operatorMCPBoardSection is how the board rules appear in a standing system
+// prompt, for agents whose CLI does not surface MCP server instructions.
+const operatorMCPBoardSection = "## Operator board\n\n" + ports.OperatorMCPInstructions
+
+// withMCPBoardInstructions adds the Operator board rules to a session's standing
+// system prompt when the Operator MCP server will be registered and the harness
+// cannot be relied on to surface the server's own instructions. Sessions that
+// get no server get no rules: this is how the rules reach the model, not a
+// fallback for agents without MCP.
+func (m *Manager) withMCPBoardInstructions(harness domain.AgentHarness, systemPrompt string) string {
+	if !m.registersOperatorMCP() {
+		return systemPrompt
+	}
+	if agent, ok := m.agents.Agent(harness); ok {
+		if s, ok := agent.(ports.MCPInstructionsSurfacer); ok && s.SurfacesMCPServerInstructions() {
+			return systemPrompt
+		}
+	}
+	if strings.TrimSpace(systemPrompt) == "" {
+		return operatorMCPBoardSection
+	}
+	return strings.TrimRight(systemPrompt, "\n") + "\n\n" + operatorMCPBoardSection
+}
+
+// registersOperatorMCP reports whether operatorMCPServers will register the
+// server, without its logging.
+func (m *Manager) registersOperatorMCP() bool {
+	exe, err := m.executable()
+	return err == nil && requireOprExecutable(exe) == nil
 }

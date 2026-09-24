@@ -17,19 +17,8 @@ const MCPServerName = ports.OperatorMCPServerName
 
 // MCPBoardInstructions is the Operator MCP server's `instructions`: the always-on
 // board rules an agent CLI places in the model's context when the server
-// connects. It is the only place those rules live — Operator adds nothing to
-// the standing system prompt for the board.
-const MCPBoardInstructions = `You are an agent in an Operator session; your session is a card on the user's kanban board. Before you end a turn waiting on the user (a question, a decision, missing access), call session_report with state needs_you and a one-line reason, or your card reads Idle and nobody is alerted. When the work is done and there is no pull request to review, call session_report with ready_for_review. Use session_get for your column and why, board_get for other sessions.
-
-The board columns are Working (includes Idle), Needs you, In review and Ready to merge. Your card moves automatically from your activity and from the pull requests attributed to your session: a failing check, requested changes or an agent that stopped responding put it in Needs you; an open or draft PR puts it in In review; an approved or mergeable PR puts it in Ready to merge. A session_report clears itself when the user next messages you; use state clear only to withdraw a report you made by mistake.
-
-Tools:
-- session_get: your own card — status, column, the reason you are in that column, your branch and your PRs with CI and review detail.
-- board_get: every card in a project, grouped by column. Check it before starting broad work so you do not duplicate what another session in the project is already doing.
-- ticket_get: the ticket and plan your session belongs to, when it was started from one.
-- session_rename, pr_claim (a PR whose branch is outside your session's namespace), review_request (Operator's code reviewer) and, when you are reviewing a ticket plan, ticket_mark_merge_ready.
-
-Never try to move, stop or change another session's card.`
+// connects (ports.OperatorMCPInstructions).
+const MCPBoardInstructions = ports.OperatorMCPInstructions
 
 // mcpIdentity is the Operator session an `opr mcp` process serves. It comes from
 // the environment Operator launches the agent with, never from tool arguments,

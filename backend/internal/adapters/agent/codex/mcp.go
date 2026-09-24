@@ -54,3 +54,7 @@ func appendMCPServerFlags(cmd *[]string, servers []ports.MCPServerSpec) error {
 	}
 	return nil
 }
+
+// SurfacesMCPServerInstructions: Codex reads an MCP server's instructions as
+// server-wide guidance, favouring the first 512 characters.
+func (p *Plugin) SurfacesMCPServerInstructions() bool { return true }

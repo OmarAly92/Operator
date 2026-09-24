@@ -620,3 +620,7 @@ func ensureWorkspaceTrusted(configPath, workspacePath string) error {
 
 	return claudesetup.WriteObjectAtomic(configPath, root)
 }
+
+// SurfacesMCPServerInstructions: Claude Code adds a connected MCP server's
+// instructions to the system prompt.
+func (p *Plugin) SurfacesMCPServerInstructions() bool { return true }
