@@ -173,6 +173,13 @@ surface (`npm run sqlc`, `npm run api`).
 
 ## In flight / not yet a runtime feature
 
+- **Operator MCP server (`docs/plans/kanban-mcp.md`)**: phase 1 of 6
+  is built. Claude Code sessions get `opr mcp` with the read-only
+  `board_get`, `session_get` and `ticket_get` tools and the board rules as MCP
+  instructions; the read model carries `boardColumn` and `statusReason`. Still
+  to come: agent-reported column moves (`session_report`), self-scoped actions,
+  and wiring for Codex, OpenCode and the remaining harnesses.
+
 - **macOS signing and notarization**: there is no Apple Developer account, so
   macOS builds are ad-hoc signed and not notarized. Auto-update works, but a
   fresh DMG download must be allowed through Gatekeeper by hand. Adding the

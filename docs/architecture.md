@@ -574,6 +574,31 @@ flowchart TD
 
 ```
 
+### Board Column and Status Reason
+
+`toSession` also derives two display facts, never stored:
+
+- `boardColumn` (`domain.BoardColumnFor`): `working`, `needs_you`, `in_review`,
+  `ready_to_merge` or `archive`. It mirrors the desktop's `attentionZone`, and
+  `testdata/board/columns.json` pins both maps to the same table.
+- `statusReason` (`deriveStatusReason`): one line explaining the status, e.g.
+  `CI failing on PR #12; merge conflict on PR #12`.
+
+### Operator MCP Server
+
+Every worker session is launched with the Operator MCP server, so the agent can
+read the board it sits on. `opr mcp` (hidden) serves it over stdio from the
+daemon's own executable; the session manager registers it on spawn, restore and
+agent switch through `ports.LaunchConfig.MCPServers` / `RestoreConfig.MCPServers`,
+with the session and project ids in the server's env. The board rules ship as the
+server's MCP `instructions`, not as standing system-prompt text. Reviewer sessions
+get no server.
+
+- Claude Code: inline `--mcp-config` JSON (additive; never `--strict-mcp-config`,
+  never a worktree `.mcp.json`) and `mcp__operator` pre-approved via `--allowedTools`.
+- Tools: `board_get`, `session_get` and `ticket_get` (read-only, thin wrappers over
+  daemon routes). The plan for the remaining phases is `docs/plans/kanban-mcp.md`.
+
 ### PR Pipeline States
 
 ```mermaid

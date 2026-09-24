@@ -316,13 +316,14 @@ these in order:
 
 | Harness | Mechanism | Pre-approval |
 | --- | --- | --- |
-| Claude Code | write `<dataDir>/prompts/<id>/mcp.json` (`{"mcpServers":{"operator":{...}}}`), pass `--mcp-config <path>`. Never `--strict-mcp-config`, which would drop the user's own servers. Never a worktree `.mcp.json`, which dirties git and triggers the project-server approval prompt. | append `mcp__operator` to `--allowedTools` inside the adapter only when the operator server is present |
+| Claude Code | pass the config inline: `--mcp-config '{"mcpServers":{"operator":{...}}}'` (the flag accepts JSON strings), so no file is written or cleaned up. Never `--strict-mcp-config`, which would drop the user's own servers. Never a worktree `.mcp.json`, which dirties git and triggers the project-server approval prompt. | append `mcp__operator` to `--allowedTools` inside the adapter only when the operator server is present |
 | Codex | `-c mcp_servers.operator.command=…`, `-c mcp_servers.operator.args=["mcp"]`, `-c mcp_servers.operator.env={…}` via the existing `codexTOMLConfigString` quoting | verify Codex's MCP approval behaviour under each approval mode; document it |
 | OpenCode | add `mcp.operator = {type: "local", command: [opr, "mcp"], environment: {…}}` to the generated `opencode.json` that `OPENCODE_CONFIG` already points at | `permission` block if needed |
 | Others | phase 5, per the table there | per CLI |
 
-The config file is written by `prepareSystemPromptFile`'s sibling and removed by
-`cleanupSystemPromptDir`, which already owns `prompts/<id>/`.
+Where a CLI needs a config *file* (option 2), it is written under
+`<dataDir>/prompts/<id>/` next to `system.md` and removed by
+`cleanupSystemPromptDir`, which already owns that directory.
 
 ## Frontend changes (desktop)
 
