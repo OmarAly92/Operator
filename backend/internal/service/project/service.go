@@ -224,6 +224,13 @@ func (m *Service) Add(ctx context.Context, in AddInput) (Project, error) {
 			return Project{}, err
 		}
 		row.Kind = domain.ProjectKindWorkspace
+		// Same rule as a single-repo project below: without it an adopted parent
+		// on `master` bases every root worktree on the missing `main`.
+		if row.Config.DefaultBranch == "" {
+			if branch := resolveDefaultBranch(path); branch != "" && branch != domain.DefaultBranchName {
+				row.Config.DefaultBranch = branch
+			}
+		}
 		row.RepoOriginURL = resolveGitOriginURL(path)
 		if err := m.store.UpsertWorkspaceProject(ctx, row, repos); err != nil {
 			return Project{}, apierr.Internal("PROJECT_ADD_FAILED", "Failed to register workspace project")

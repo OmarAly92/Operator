@@ -250,3 +250,48 @@ func TestWorkspaceIntegrationStashCleanWorktree(t *testing.T) {
 		t.Fatalf("destroy clean worktree: %v", err)
 	}
 }
+
+// TestWorkspaceIntegrationStashKeepsUnappliedPreserveRef: a preserve ref that is
+// still present when the next save runs was never applied cleanly, so it may be
+// the only copy of that work. The next save must keep it rather than overwrite it.
+func TestWorkspaceIntegrationStashKeepsUnappliedPreserveRef(t *testing.T) {
+	git := requireGit(t)
+	tmp := t.TempDir()
+	repo := setupOriginClone(t, git, tmp)
+	ws, err := New(Options{Binary: git, ManagedRoot: filepath.Join(tmp, "managed"), RepoResolver: StaticRepoResolver{"proj": repo}})
+	if err != nil {
+		t.Fatalf("new: %v", err)
+	}
+	ctx := context.Background()
+	info, err := ws.Create(ctx, ports.WorkspaceConfig{ProjectID: "proj", SessionID: "sess-keep", Branch: "feature/keep"})
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+
+	if err := os.WriteFile(filepath.Join(info.Path, "first.txt"), []byte("first\n"), 0o644); err != nil {
+		t.Fatalf("write first: %v", err)
+	}
+	ref, err := ws.StashUncommitted(ctx, info)
+	if err != nil || ref == "" {
+		t.Fatalf("first stash ref=%q err=%v", ref, err)
+	}
+	first := gitOutput(t, git, info.Path, "rev-parse", ref)
+
+	if err := os.Remove(filepath.Join(info.Path, "first.txt")); err != nil {
+		t.Fatalf("remove first: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(info.Path, "second.txt"), []byte("second\n"), 0o644); err != nil {
+		t.Fatalf("write second: %v", err)
+	}
+	if _, err := ws.StashUncommitted(ctx, info); err != nil {
+		t.Fatalf("second stash: %v", err)
+	}
+
+	backup := ref + "-" + first[:12]
+	if got := gitOutput(t, git, info.Path, "rev-parse", backup); got != first {
+		t.Fatalf("backup %s = %s, want the unapplied capture %s", backup, got, first)
+	}
+	if got := gitOutput(t, git, info.Path, "rev-parse", ref); got == first {
+		t.Fatalf("preserve ref still points at the first capture; want the second")
+	}
+}
