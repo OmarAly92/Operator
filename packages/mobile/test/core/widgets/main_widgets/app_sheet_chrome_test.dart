@@ -58,9 +58,10 @@ void main() {
           context: context,
           builder: (_) => AppSheetChrome(
             child: Column(
+              key: contentKey,
               mainAxisSize: MainAxisSize.min,
               children: [
-                const SizedBox(key: contentKey, height: 20),
+                const SizedBox(height: 20),
                 ListTile(title: const Text('Row'), onTap: () => tapped++),
               ],
             ),
