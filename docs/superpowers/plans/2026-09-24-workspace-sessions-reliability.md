@@ -80,6 +80,25 @@ Line numbers are a snapshot; re-find the function by name before editing.
 
 ## Phase 1 — Safety (F1–F4, F15)
 
+**Status: done 2026-09-24** on `claude/dazzling-newton-8k4n30` (commits `7cb29e0`,
+`bab9515`, `e0d322a`, `8323026`, `da33ce7`). Full backend suite green. Where the
+build differs from the tasks below:
+
+- 1.1: the dirty pre-check uses the existing `WorkspaceObserver`; a repo that
+  cannot be observed is left to `Destroy`'s own refusal. The data-loss mechanism
+  was reproduced with real git; the guard itself is covered by unit tests.
+- 1.2: existing projects are not migrated. Spawn passes an unset root branch
+  through and the adapter infers it (origin/HEAD, then current branch), which
+  covers them without a migration.
+- 1.3: "never overwrite an unapplied ref" is done in the adapter: the next save
+  moves it to `refs/opr/preserved/<id>-<commit>`. Also added: replay is skipped
+  on a worktree that is already dirty (it was never torn down).
+- 1.4: `AddExclude` now matches whole lines; the substring test skipped `/api/`
+  when `/services/api/` was listed.
+- 1.5: applies to Kill and cleanup only. The shutdown-save path keeps its
+  existing rows, because rebuilding would stash child paths that may not exist.
+- Not done: the manual kill/restart/restore check in the real app.
+
 Nothing in this phase changes what a user sees when things go right. It changes
 what happens when they go wrong.
 
@@ -87,43 +106,43 @@ what happens when they go wrong.
 
 **Files:** `backend/internal/session_manager/manager.go` (`destroyWorkspaceProjectRows`, Kill path), tests in `manager_test.go`, real-git test in `adapters/workspace/gitworktree/`.
 
-- [ ] Before removing anything, probe every repo for uncommitted work. If any repo is dirty, stop with `ErrWorkspaceDirty` and remove nothing, so Kill is all-or-nothing.
-- [ ] If any child's `Destroy` fails for any reason, do **not** remove the root. Mark the rows `retry_remove` and return the error.
-- [ ] Root removal also checks that every child path under it is gone (or was never registered) before calling `Destroy`.
-- [ ] Unit test: child `Destroy` fails with a non-dirty error → root `Destroy` never called.
-- [ ] Real-git test: dirty child plus locked child worktree → Kill fails and the child's file still exists.
+- [x] Before removing anything, probe every repo for uncommitted work. If any repo is dirty, stop with `ErrWorkspaceDirty` and remove nothing, so Kill is all-or-nothing.
+- [x] If any child's `Destroy` fails for any reason, do **not** remove the root. Mark the rows `retry_remove` and return the error.
+- [x] Root removal also checks that every child path under it is gone (or was never registered) before calling `Destroy`.
+- [x] Unit test: child `Destroy` fails with a non-dirty error → root `Destroy` never called.
+- [x] Real-git test: dirty child plus locked child worktree → Kill fails and the child's file still exists.
 
 ### Task 1.2: Record the root's branch at registration
 
 **Files:** `service/project/service.go` (`Add`), a store migration or a one-time startup backfill, `service_test.go`.
 
-- [ ] In the workspace branch of `Add`, set `row.Config.DefaultBranch` from `resolveDefaultBranch(path)` exactly like the single-repo branch does.
-- [ ] Backfill existing workspace projects whose `DefaultBranch` is empty and whose root has no `main`.
-- [ ] Test: adopt a parent on `master` → spawn succeeds.
+- [x] In the workspace branch of `Add`, set `row.Config.DefaultBranch` from `resolveDefaultBranch(path)` exactly like the single-repo branch does.
+- [x] Backfill existing workspace projects whose `DefaultBranch` is empty and whose root has no `main`.
+- [x] Test: adopt a parent on `master` → spawn succeeds.
 
 ### Task 1.3: Keep and use preserved work
 
 **Files:** `manager.go` (`upsertWorkspaceProjectRowState`, `restoreSessionWorkspace`, `saveAndTeardownWorkspaceProject`, `reconcileLive`, `RestoreAll`).
 
-- [ ] `upsertWorkspaceProjectRowState` carries the existing `PreservedRef` through instead of clearing it.
-- [ ] `restoreSessionWorkspace` applies preserved refs the same way `RestoreAll` does before clearing them.
-- [ ] Save is two-phase: stash every repo first; mark rows `removed` and tear down only when all stashes succeeded. On any failure leave every worktree in place and do not relaunch.
-- [ ] Never write a new preserve ref over one that has not been applied; use a per-save suffix or refuse.
-- [ ] Tests: conflicted apply keeps the ref; manual restore brings the work back; a stash failure in the second repo leaves both worktrees intact and no relaunch.
+- [x] `upsertWorkspaceProjectRowState` carries the existing `PreservedRef` through instead of clearing it.
+- [x] `restoreSessionWorkspace` applies preserved refs the same way `RestoreAll` does before clearing them.
+- [x] Save is two-phase: stash every repo first; mark rows `removed` and tear down only when all stashes succeeded. On any failure leave every worktree in place and do not relaunch.
+- [x] Never write a new preserve ref over one that has not been applied; use a per-save suffix or refuse.
+- [x] Tests: conflicted apply keeps the ref; manual restore brings the work back; a stash failure in the second repo leaves both worktrees intact and no relaunch.
 
 ### Task 1.4: Root worktree always carries the child ignores
 
 **Files:** `gitworktree/workspace.go` (`CreateWorkspaceProject` root repo), maybe `workspace_registration.go`.
 
-- [ ] At spawn, write the child entries to the root repo's `info/exclude` (found with `git rev-parse --git-common-dir`, so it applies to every worktree of the root). It needs no commit and works whatever branch the root is based on. *(Decided 2026-09-24.)*
-- [ ] Real-git test: root with an origin that lacks the ignore commit → `git status` in the root worktree is clean after spawn.
+- [x] At spawn, write the child entries to the root repo's `info/exclude` (found with `git rev-parse --git-common-dir`, so it applies to every worktree of the root). It needs no commit and works whatever branch the root is based on. *(Decided 2026-09-24.)*
+- [x] Real-git test: root with an origin that lacks the ignore commit → `git status` in the root worktree is clean after spawn.
 
 ### Task 1.5: Single-row and legacy rows never force-remove a root with children
 
 **Files:** `manager.go` (`workspaceProjectRows` callers).
 
-- [ ] For a workspace project, use the multi-repo path whenever the project has registered children, not only when there are more than one rows; rebuild missing rows from the registry first.
-- [ ] Test: workspace session with only its root row → Kill does not delete child folders.
+- [x] For a workspace project, use the multi-repo path whenever the project has registered children, not only when there are more than one rows; rebuild missing rows from the registry first.
+- [x] Test: workspace session with only its root row → Kill does not delete child folders.
 
 **Phase 1 done when:** the tests above pass, the whole backend suite passes, and a manual kill/restart/restore cycle on a real workspace loses nothing.
 
