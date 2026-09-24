@@ -86,6 +86,27 @@ void main() {
     expect(find.text('Operator'), findsNothing);
   });
 
+  testWidgets('tapping a project with a null id closes the sheet with no value', (tester) async {
+    phone(tester);
+    String? picked = 'unset';
+    await tester.pumpWidget(
+      host(
+        const LightSkin(),
+        (context) async => picked = await showProjectPickerSheet(
+          context,
+          projects: const [ProjectModel(id: null, name: 'Untitled', sessionPrefix: 'untitled')],
+          selected: kAllProjects,
+        ),
+      ),
+    );
+    await tester.tap(find.text('Open'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Untitled'));
+    await tester.pumpAndSettle();
+    expect(picked, isNull);
+    expect(find.byKey(AppSheet.surfaceKey), findsNothing);
+  });
+
   testWidgets('the project picker opens as a large sheet', (tester) async {
     phone(tester);
     await tester.pumpWidget(

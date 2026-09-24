@@ -43,7 +43,12 @@ AppSheetPage projectPickerPage({
             selected: selected == project.id,
             onTap: () {
               Haptics.select();
-              onPicked(context, project.id ?? '');
+              final id = project.id;
+              if (id == null) {
+                Navigator.of(context).pop();
+              } else {
+                onPicked(context, id);
+              }
             },
           ),
     ],
