@@ -48,3 +48,27 @@ func TestDeriveActivityState(t *testing.T) {
 		})
 	}
 }
+
+func TestTranscriptInterruptRecognisesTheInterruptMarker(t *testing.T) {
+	cases := []struct {
+		name              string
+		line              string
+		interrupted, turn bool
+	}{
+		{"mid-response", `{"type":"user","message":{"role":"user","content":[{"type":"text","text":"[Request interrupted by user]"}]}}`, true, true},
+		{"at a tool", `{"type":"user","message":{"role":"user","content":[{"type":"text","text":"[Request interrupted by user for tool use]"}]}}`, true, true},
+		{"string content", `{"type":"user","message":{"role":"user","content":"[Request interrupted by user]"}}`, true, true},
+		{"next prompt", `{"type":"user","message":{"role":"user","content":"carry on"}}`, false, true},
+		{"assistant", `{"type":"assistant","message":{"content":[{"type":"text","text":"ok"}]}}`, false, true},
+		{"subagent", `{"type":"user","isSidechain":true,"message":{"content":"[Request interrupted by user]"}}`, false, false},
+		{"meta", `{"type":"user","isMeta":true,"message":{"content":"caveat"}}`, false, false},
+		{"bookkeeping", `{"type":"file-history-snapshot"}`, false, false},
+		{"malformed", `{`, false, false},
+	}
+	for _, tc := range cases {
+		interrupted, turn := TranscriptInterrupt([]byte(tc.line))
+		if interrupted != tc.interrupted || turn != tc.turn {
+			t.Errorf("%s: got (%v, %v), want (%v, %v)", tc.name, interrupted, turn, tc.interrupted, tc.turn)
+		}
+	}
+}

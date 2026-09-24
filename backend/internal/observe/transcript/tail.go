@@ -29,15 +29,22 @@ type OffsetStore interface {
 	UpsertTranscriptOffset(ctx context.Context, sessionID, path string, offset int64, at time.Time) error
 }
 
+// InterruptSink is told when a main transcript ends on a user interrupt, which
+// some harnesses record there and announce through no hook.
+type InterruptSink interface {
+	ApplyUserInterrupt(ctx context.Context, sessionID domain.SessionID) error
+}
+
 type tail struct {
-	sessionID domain.SessionID
-	harness   string
-	path      string
-	agentID   string
-	offset    int64
-	lastModel string
-	unknown   int
-	logged    int
+	sessionID  domain.SessionID
+	harness    string
+	path       string
+	agentID    string
+	offset     int64
+	lastModel  string
+	unknown    int
+	logged     int
+	interrupts InterruptSink
 }
 
 func offsetKey(sessionID domain.SessionID, agentID string) string {
@@ -74,6 +81,9 @@ func (t *tail) pump(ctx context.Context, sink Sink, offsets OffsetStore, now fun
 	reader := bufio.NewReaderSize(file, 64<<10)
 	committed := t.offset
 	consumed := t.offset
+	// Only an interrupt that is the last turn record read is reported: a
+	// later record means the user already started the next turn.
+	interrupted := false
 	for {
 		if err := ctx.Err(); err != nil {
 			return err
@@ -103,6 +113,11 @@ func (t *tail) pump(ctx context.Context, sink Sink, offsets OffsetStore, now fun
 		if !known {
 			t.unknown++
 		}
+		if t.agentID == "" {
+			if marker, turn := blocktranscript.Interrupt(t.harness, record); turn {
+				interrupted = marker
+			}
+		}
 		for _, event := range events {
 			if event.Kind == domain.BlockEventTurnModel {
 				if event.Text == t.lastModel {
@@ -122,5 +137,11 @@ func (t *tail) pump(ctx context.Context, sink Sink, offsets OffsetStore, now fun
 		return nil
 	}
 	t.offset = committed
-	return offsets.UpsertTranscriptOffset(ctx, offsetKey(t.sessionID, t.agentID), t.path, t.offset, now())
+	if err := offsets.UpsertTranscriptOffset(ctx, offsetKey(t.sessionID, t.agentID), t.path, t.offset, now()); err != nil {
+		return err
+	}
+	if interrupted && t.interrupts != nil {
+		return t.interrupts.ApplyUserInterrupt(ctx, t.sessionID)
+	}
+	return nil
 }

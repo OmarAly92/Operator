@@ -28,6 +28,10 @@ type RuntimeFacts struct {
 
 const EventDialogAbsent = "dialog-absent"
 
+// EventUserInterrupt tags the idle signal lifecycle derives when the user
+// interrupts a turn. It ends the turn like Stop, which the harness skips then.
+const EventUserInterrupt = "user-interrupt"
+
 // ActivitySignal is pushed by the agent hooks. Only a Valid activity state is
 // authoritative; a stale/absent one is ignored rather than read as idleness.
 // AgentSessionID may be supplied independently by metadata-only hooks such as
