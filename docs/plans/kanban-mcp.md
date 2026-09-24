@@ -295,6 +295,11 @@ on the card (`status_visual.dart`). Gate: `flutter analyze` + `flutter test`.
 
 ## Delivery: one PR per phase, branched from `development`
 
+Claude Code is the primary harness. It is wired in phase 1, so every tool added in
+phases 2 and 3 works in Claude Code as soon as it lands. Each phase's real-app check
+runs in a Claude Code session. Phases 4 and 5 only extend the same tools to other
+harnesses.
+
 ### Phase 1: read-only MCP on Claude Code
 
 - `domain.BoardColumn` + fixture + Go/TS parity tests.
@@ -326,6 +331,13 @@ on the card (`status_visual.dart`). Gate: `flutter analyze` + `flutter test`.
   `review_request`, `ticket_mark_merge_ready` (role check).
 - `reviewPrompt` curl removal.
 - **Tests**: each tool's happy path, daemon error mapping, and ownership/role rejection.
+- **Real-app check, in a Claude Code session**:
+  - Rename the card.
+  - Claim an off-convention PR.
+  - Resolve own review threads, and get a rejection on another session's PR.
+  - Request an internal review.
+  - As a ticket reviewer, report merge-ready via the tool; the board shows the merge
+    prompt.
 
 ### Phase 4: Codex and OpenCode wiring
 
