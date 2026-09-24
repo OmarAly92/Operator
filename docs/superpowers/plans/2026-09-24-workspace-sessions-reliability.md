@@ -115,9 +115,7 @@ what happens when they go wrong.
 
 **Files:** `gitworktree/workspace.go` (`CreateWorkspaceProject` root repo), maybe `workspace_registration.go`.
 
-- [ ] Choose one:
-  - **(a) Recommended:** write the child entries to the root worktree's `.git/info/exclude` (via `git rev-parse --git-path info/exclude`) at spawn. It is per-repo, needs no commit, and works whatever branch the root is based on.
-  - (b) Base the root worktree on the local default branch when it is ahead of `origin`.
+- [ ] At spawn, write the child entries to the root repo's `info/exclude` (found with `git rev-parse --git-common-dir`, so it applies to every worktree of the root). It needs no commit and works whatever branch the root is based on. *(Decided 2026-09-24.)*
 - [ ] Real-git test: root with an origin that lacks the ignore commit → `git status` in the root worktree is clean after spawn.
 
 ### Task 1.5: Single-row and legacy rows never force-remove a root with children
@@ -167,14 +165,39 @@ what happens when they go wrong.
 **Files:** `lifecycle/reactions.go` (`sessionComplete`, `prBlockedByOpenParent`), `service/session/stack.go`, `domain/pr.go`.
 
 - [ ] Add the repo to `PRFacts`; stack parents must be in the same repo.
-- [ ] For workspace sessions, do not treat the session as complete while any repo has commits on the session branch that are not in a merged PR, or simply disable terminate-on-merge for workspace sessions until that exists. **Decision needed.**
+- [ ] A workspace session is complete only when every repo with commits on the session branch has a merged PR and no PR is open. *(Decided 2026-09-24.)*
 - [ ] Cross-repo tests for both.
+
+### Task 2.6: "Keep agent, reset to base" after merge
+
+*(Decided 2026-09-24.)* When a session's PRs have all merged, the user wants the
+worktree retired but the agent kept, sitting on the up-to-date default branch, so
+its conversation can be reused for the next task. Applies to single-repo and
+workspace sessions.
+
+Git allows a branch to be checked out in only one worktree, and the project's own
+checkout usually holds `main`, so the session cannot sit on `main` itself. It sits
+on a fresh branch cut from the latest `origin/<base>`, which has the same content.
+The worktree path does not change, so the running agent keeps its cwd and context.
+
+**Files:** `domain` session record (new after-merge mode next to `TerminateOnPRMerge`), store + migration, `observe/scm/observer.go` (the merge-teardown hook), `session_manager` (new `ResetToBase`), `gitworktree/workspace.go`, HTTP route + spec, desktop and mobile toggle.
+
+- [ ] Per-session setting `AfterMerge`: `keep` (today's default: nothing happens), `end` (today's `TerminateOnPRMerge`), `reset` (new).
+- [ ] `reset`, per repo in the session, only when complete (Task 2.4):
+  - refuse and notify the user if the worktree has uncommitted changes or unpushed commits;
+  - `git fetch origin <base>`;
+  - check out a fresh session-namespace branch from `origin/<base>` in the same worktree (for example `opr/<id>/root` recreated, or `opr/<id>/r2` if the old one cannot be deleted yet);
+  - delete the merged local branch;
+  - clear the session's tracked PRs so the next PR is discovered fresh.
+- [ ] Send the agent one message: the PRs merged, the workspace is now on the latest `<base>` (branch `<name>`) in each repo, wait for the next task.
+- [ ] Real-git test: merge simulated by advancing `origin/main` to include the branch → reset leaves the worktree clean on a branch equal to `origin/main`, agent process untouched.
+- [ ] Dirty-worktree test: reset refuses and nothing changes.
 
 ### Task 2.5: Provision child repos and diff them against their own base
 
 **Files:** `manager.go` (`provisionWorkspace`), `service/session/workspace_files.go`, `domain` config if per-repo commands are added.
 
-- [ ] Run post-create commands in every repo, or add a per-repo `cwd`. **Decision needed.** Symlinks already resolve against the project path.
+- [ ] Each post-create command may name the repo it runs in (for example `api: npm install`, `web: pnpm install`); a command with no repo runs in the root as today, so existing projects are unchanged. *(Decided 2026-09-24.)* Symlinks already resolve against the project path.
 - [ ] Use `WorkspaceRepoRecord.DefaultBranch` for child diffs.
 
 **Phase 2 done when:** in a real workspace with two child repos, an agent asked to change both opens one PR per repo, both are tracked, a CI failure in one produces a message naming its folder, and the reviewer reviews the right diff.
@@ -199,7 +222,7 @@ what happens when they go wrong.
 - [ ] Report invalid children with a reason and let the user skip them, instead of rejecting the whole workspace.
 - [ ] Add `.env`, `.env.*` to the denylist; write the denylist to `.git/info/exclude` rather than the user's `.gitignore`.
 - [ ] Roll back the adopt path on failure.
-- [ ] Optionally scan to depth 2–3 (`services/api`). **Decision needed.**
+- [ ] Scan up to 3 levels deep (`services/api`), stopping at the first repo on each path so repos inside repos are not picked up. Each found repo can be skipped (see above). *(Decided 2026-09-24.)*
 
 ### Task 3.3: Fresh bases and branch cleanup
 
@@ -225,12 +248,12 @@ what happens when they go wrong.
 
 ---
 
-## Decisions needed
+## Decisions (2026-09-24)
 
-1. **Terminate-on-merge for workspace sessions (Task 2.4):** disable it for workspace sessions, or finish only when every repo with session commits has a merged PR?
-2. **Child provisioning (Task 2.5):** run post-create commands in every repo, or add a per-command `cwd`?
-3. **Nested discovery depth (Task 3.2):** stay at depth 1, or scan deeper?
-4. **Root ignores (Task 1.4):** `info/exclude` at spawn (recommended) or change the root base?
+1. **After merge (Tasks 2.4, 2.6):** a workspace session is complete only when every changed repo has a merged PR. Then the worktree is reset to the latest base on a fresh branch and the agent is kept, as a per-session "reset" mode alongside today's "end".
+2. **Child provisioning (Task 2.5):** each post-create command may name its repo; unnamed commands run in the root.
+3. **Nested discovery (Task 3.2):** scan up to 3 levels, stop at the first repo on each path.
+4. **Root ignores (Task 1.4):** write child entries to the root repo's `info/exclude` at spawn.
 
 ## Verification for every task
 
