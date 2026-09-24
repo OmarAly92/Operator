@@ -147,9 +147,10 @@ class _SettingsBodyState extends State<SettingsBody> {
           }
         }
 
+        final insets = MediaQuery.paddingOf(context);
         return ListView(
           controller: HomeShell.controllerFor(2),
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 40),
+          padding: EdgeInsets.fromLTRB(16, insets.top + 16, 16, insets.bottom + 40),
           children: [
             SettingsGroup(
               footer: "Your PC's Tailscale name / 100.x address, or its LAN IP on the same Wi-Fi.",

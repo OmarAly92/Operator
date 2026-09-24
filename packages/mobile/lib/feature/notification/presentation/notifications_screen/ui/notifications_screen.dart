@@ -20,6 +20,7 @@ class NotificationsScreen extends StatelessWidget {
       builder: (context, state) {
         final cubit = context.read<NotificationsCubit>();
         return AppScaffold(
+          scrollsUnderAppBar: true,
           appBar: GlobalAppbar.sub(
             titleText: 'Notifications',
             actions: [

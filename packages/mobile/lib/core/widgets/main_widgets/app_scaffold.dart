@@ -1,4 +1,5 @@
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
+import 'package:operator_mobile/core/widgets/glass/scroll_under_bars.dart';
 import 'package:flutter/material.dart';
 
 class AppScaffold extends StatelessWidget {
@@ -13,7 +14,7 @@ class AppScaffold extends StatelessWidget {
   final Color? backgroundColor;
   final bool? resizeToAvoidBottomInset;
   final bool extendBody;
-  final bool extendBodyBehindAppBar;
+  final bool scrollsUnderAppBar;
   final FloatingActionButtonLocation? floatingActionButtonLocation;
 
   const AppScaffold({
@@ -29,7 +30,7 @@ class AppScaffold extends StatelessWidget {
     this.backgroundColor,
     this.resizeToAvoidBottomInset,
     this.extendBody = false,
-    this.extendBodyBehindAppBar = false,
+    this.scrollsUnderAppBar = false,
     this.floatingActionButtonLocation,
   });
 
@@ -38,12 +39,14 @@ class AppScaffold extends StatelessWidget {
     return Scaffold(
       appBar: appBar,
       extendBody: extendBody,
-      extendBodyBehindAppBar: extendBodyBehindAppBar,
+      extendBodyBehindAppBar: scrollsUnderAppBar,
       backgroundColor: backgroundColor ?? context.skin.bgBase,
       body: Column(
         children: [
           Expanded(
-            child: Padding(padding: padding ?? EdgeInsets.zero, child: body),
+            child: scrollsUnderAppBar
+                ? ScrollUnderBars(child: Padding(padding: padding ?? EdgeInsets.zero, child: body))
+                : Padding(padding: padding ?? EdgeInsets.zero, child: body),
           ),
         ],
       ),

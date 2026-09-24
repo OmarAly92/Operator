@@ -58,11 +58,13 @@ class PullRequestsBody extends StatelessWidget {
             final failureState = sessionsState is GetSessionsFailureState ? sessionsState : null;
             final isConnectionFailure = filtered.isEmpty && failureState != null && noCache;
 
+            final insets = MediaQuery.paddingOf(context);
             return RefreshIndicator(
               onRefresh: onRefresh,
+              edgeOffset: insets.top,
               child: ListView(
                 controller: HomeShell.controllerFor(1),
-                padding: const EdgeInsets.only(bottom: 40),
+                padding: EdgeInsets.only(top: insets.top, bottom: insets.bottom + 40),
                 children: [
                   const ProjectSwitcher(),
                   Padding(

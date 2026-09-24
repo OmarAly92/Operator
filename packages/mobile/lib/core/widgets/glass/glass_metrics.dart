@@ -16,4 +16,6 @@ sealed class GlassMetrics {
   static const double floatingSheetMaxFraction = 0.9;
   static const double labelButtonPadding = 14;
   static const double compactLabelButtonPadding = 11;
+  static const double topEdgeFadeExtent = 34;
+  static const double bottomEdgeFadeExtent = 37;
 }

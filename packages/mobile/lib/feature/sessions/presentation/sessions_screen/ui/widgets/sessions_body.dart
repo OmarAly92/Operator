@@ -5,6 +5,7 @@ import 'package:operator_mobile/core/app_routes/routes_strings.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/app_themes/text_style/app_text_style.dart';
 import 'package:operator_mobile/core/utils/haptics.dart';
+import 'package:operator_mobile/core/widgets/glass/glass_metrics.dart';
 import 'package:operator_mobile/core/widgets/failure_widgets/app_error_widget.dart';
 import 'package:operator_mobile/core/widgets/loading_widget/app_loader.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_empty_state.dart';
@@ -140,14 +141,19 @@ class _SessionsBodyState extends State<SessionsBody> with WidgetsBindingObserver
           );
         }
 
+        final insets = MediaQuery.paddingOf(context);
         return RefreshIndicator(
           onRefresh: () async {
             Haptics.tap();
             await cubit.refresh();
           },
+          edgeOffset: insets.top,
           child: ListView(
             controller: HomeShell.controllerFor(0),
-            padding: const EdgeInsets.only(bottom: 40),
+            padding: EdgeInsets.only(
+              top: insets.top,
+              bottom: insets.bottom + GlassMetrics.primaryButtonBottomGap + GlassMetrics.hitTarget,
+            ),
             children: [
               const ProjectSwitcher(),
               SessionFilterChipsRow(selected: _filter, onSelect: _selectFilter, counts: counts),

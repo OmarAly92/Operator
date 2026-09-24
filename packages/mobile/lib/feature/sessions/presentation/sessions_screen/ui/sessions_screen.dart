@@ -4,6 +4,7 @@ import 'package:operator_mobile/core/app_routes/routes_strings.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/app_themes/text_style/app_text_style.dart';
 import 'package:operator_mobile/core/utils/extensions.dart';
+import 'package:operator_mobile/core/widgets/glass/scroll_under_bars.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_text.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/global_appbar.dart';
 import 'package:operator_mobile/feature/notification/presentation/notifications_screen/ui/widgets/notification_bell.dart';
@@ -21,11 +22,12 @@ class SessionsScreen extends StatelessWidget {
     },
     child: Scaffold(
       backgroundColor: context.skin.bgBase,
+      extendBodyBehindAppBar: true,
       appBar: GlobalAppbar.main(
         title: AppText('Agents', style: AppTextStyle.style19SemiBold.copyWith(letterSpacing: -0.3)),
         actions: const [NotificationBell()],
       ),
-      body: const SessionsBody(),
+      body: const ScrollUnderBars(child: SessionsBody()),
       floatingActionButton: FloatingActionButton(
         backgroundColor: context.skin.accent,
         elevation: 4,

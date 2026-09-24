@@ -22,12 +22,15 @@ import 'package:operator_mobile/feature/notification/presentation/notifications_
 import 'package:operator_mobile/feature/pairing/data/repository/desktops_repository.dart';
 import 'package:operator_mobile/feature/pull_request/data/repository/pull_request_repository.dart';
 import 'package:operator_mobile/feature/pull_request/presentation/pull_requests_screen/logic/pull_request_cubit.dart';
+import 'package:operator_mobile/feature/pull_request/presentation/pull_requests_screen/ui/pull_requests_screen.dart';
 import 'package:operator_mobile/feature/sessions/data/model/board_snapshot.dart';
 import 'package:operator_mobile/feature/sessions/data/model/session_model.dart';
 import 'package:operator_mobile/feature/sessions/data/repository/sessions_repository.dart';
 import 'package:operator_mobile/feature/sessions/presentation/sessions_screen/logic/sessions_cubit.dart';
+import 'package:operator_mobile/feature/sessions/presentation/sessions_screen/ui/sessions_screen.dart';
 import 'package:operator_mobile/feature/settings/presentation/settings_screen/logic/phone_alerts_cubit.dart';
 import 'package:operator_mobile/feature/settings/presentation/settings_screen/logic/settings_cubit.dart';
+import 'package:operator_mobile/feature/settings/presentation/settings_screen/ui/settings_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class _MockSessionsRepository extends Mock implements SessionsRepository {}
@@ -217,5 +220,55 @@ void main() {
 
     expect(HomeShell.selectedTab.value, 1);
     expect(agents.offset, 400);
+  });
+
+  ListView tabList(WidgetTester tester, int tab) => tester.widget<ListView>(
+        find.byWidgetPredicate(
+          (w) => w is ListView && w.controller == HomeShell.controllerFor(tab),
+          skipOffstage: false,
+        ),
+      );
+
+  testWidgets('every tab list starts below the glass top bar', (tester) async {
+    await pumpShell(tester);
+    expect((tabList(tester, 0).padding! as EdgeInsets).top, 44);
+    expect(
+      tester.widget<RefreshIndicator>(
+        find.descendant(
+          of: find.byType(SessionsScreen, skipOffstage: false),
+          matching: find.byType(RefreshIndicator, skipOffstage: false),
+          skipOffstage: false,
+        ),
+      ).edgeOffset,
+      44,
+    );
+    expect((tabList(tester, 1).padding! as EdgeInsets).top, 44);
+    expect(
+      tester.widget<RefreshIndicator>(
+        find.descendant(
+          of: find.byType(PullRequestsScreen, skipOffstage: false),
+          matching: find.byType(RefreshIndicator, skipOffstage: false),
+          skipOffstage: false,
+        ),
+      ).edgeOffset,
+      44,
+    );
+    expect((tabList(tester, 2).padding! as EdgeInsets).top, 60);
+  });
+
+  testWidgets('tab roots extend their body under the bar', (tester) async {
+    await pumpShell(tester);
+    for (final screen in [SessionsScreen, PullRequestsScreen, SettingsScreen]) {
+      final scaffold = tester.widget<Scaffold>(
+        find
+            .descendant(
+              of: find.byType(screen, skipOffstage: false),
+              matching: find.byType(Scaffold, skipOffstage: false),
+              skipOffstage: false,
+            )
+            .first,
+      );
+      expect(scaffold.extendBodyBehindAppBar, isTrue, reason: '$screen');
+    }
   });
 }
