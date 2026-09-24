@@ -5065,6 +5065,59 @@ func TestRestoreAll_ConflictLogsAndContinues(t *testing.T) {
 	if rt.created != 1 {
 		t.Fatalf("session must still relaunch after conflict, runtime.Create called %d times", rt.created)
 	}
+	// The conflicted replay must not lose the only pointer to the saved work,
+	// and the kept row must not make the next boot relaunch the session again.
+	rows := st.worktrees["mer-1"]
+	if len(rows) != 1 || rows[0].State != "active" || rows[0].PreservedRef != "refs/opr/preserved/mer-1" {
+		t.Fatalf("marker rows = %+v, want one active row that keeps the ref", rows)
+	}
+	st.sessions["mer-1"] = domain.SessionRecord{ID: "mer-1", ProjectID: "mer", Harness: domain.HarnessClaudeCode, IsTerminated: true, Metadata: st.sessions["mer-1"].Metadata}
+	if err := m.RestoreAll(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if rt.created != 1 {
+		t.Fatalf("second boot relaunched from a kept ref, runtime.Create called %d times", rt.created)
+	}
+}
+
+// TestRestoreAll_CleanApplyClearsRefBeforeFailedRelaunch: a clean replay deletes
+// the git ref, so the row's pointer to it is cleared before the relaunch. A
+// relaunch that then fails leaves the marker for a manual restore, which must
+// not try to replay a ref that no longer exists.
+func TestRestoreAll_CleanApplyClearsRefBeforeFailedRelaunch(t *testing.T) {
+	m, st, rt, ws := newLifecycleManager()
+	st.sessions["mer-1"] = domain.SessionRecord{
+		ID:           "mer-1",
+		ProjectID:    "mer",
+		Harness:      domain.HarnessClaudeCode,
+		IsTerminated: true,
+		Metadata:     domain.SessionMetadata{WorkspacePath: "/ws/mer-1", Branch: "opr/mer-1/root", AgentSessionID: "agent-w"},
+		Activity:     domain.Activity{State: domain.ActivityExited},
+	}
+	st.worktrees["mer-1"] = []domain.SessionWorktreeRecord{
+		{SessionID: "mer-1", RepoName: "__root__", PreservedRef: "refs/opr/preserved/mer-1", State: "removed"},
+	}
+	rt.createErr = errors.New("spawn failed")
+
+	if err := m.RestoreAll(ctx); err != nil {
+		t.Fatal(err)
+	}
+	rows := st.worktrees["mer-1"]
+	if len(rows) != 1 || rows[0].State != "removed" || rows[0].PreservedRef != "" {
+		t.Fatalf("marker rows = %+v, want the marker kept with the applied ref cleared", rows)
+	}
+
+	rt.createErr = nil
+	ws.calls = nil
+	if _, err := m.RestoreWithMode(ctx, "mer-1", ports.PaneGrid{}); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(strings.Join(ws.calls, ","), "ApplyPreserved") {
+		t.Fatalf("calls = %v, manual restore replayed a ref the boot already applied", ws.calls)
+	}
+	if rows := st.worktrees["mer-1"]; len(rows) != 0 {
+		t.Fatalf("marker rows = %+v, want consumed by the manual restore", rows)
+	}
 }
 
 func TestRestoreAll_WorkspaceProjectRestoresAndAppliesEachRepo(t *testing.T) {

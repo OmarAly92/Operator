@@ -1746,7 +1746,7 @@ func (m *Manager) Reconcile(ctx context.Context) error {
 // For each saved session:
 //  1. Ensure the worktree exists via workspace.Restore.
 //  2. If a preserve ref is recorded, replay it via ApplyPreserved; on conflict
-//     log and continue (still relaunch the agent, never delete the ref).
+//     log and continue (still relaunch the agent, and keep the ref on the row).
 //  3. Relaunch via the existing Restore method.
 //
 // Failures on individual sessions are logged and do not abort the loop.
@@ -1821,24 +1821,7 @@ func (m *Manager) RestoreAll(ctx context.Context) error {
 		if restoredWorkspaceProject {
 			m.applyWorkspaceProjectPreserved(ctx, projectRows)
 		} else {
-			var preserveRef string
-			for _, r := range rows {
-				if r.PreservedRef != "" {
-					preserveRef = r.PreservedRef
-					break
-				}
-			}
-			if preserveRef != "" {
-				if applyErr := m.workspace.ApplyPreserved(ctx, ws, preserveRef); applyErr != nil {
-					if errors.Is(applyErr, ports.ErrPreservedConflict) {
-						m.logger.Warn("restore-all: apply preserved produced conflicts; agent relaunched with conflict markers in place",
-							"sessionID", rec.ID, "ref", preserveRef, "error", applyErr)
-					} else {
-						m.logger.Error("restore-all: apply preserved failed", "sessionID", rec.ID, "error", applyErr)
-					}
-					// Continue: always relaunch even on conflict (never delete the ref here).
-				}
-			}
+			rows = m.replaySingleRepoMarker(ctx, rec.ID, ws, rows)
 		}
 
 		// Step 3: relaunch the agent in the restored workspace.
@@ -1867,12 +1850,7 @@ func (m *Manager) RestoreAll(ctx context.Context) error {
 				}
 			}
 		} else {
-			if err := m.markSessionWorktreesActive(ctx, rows); err != nil {
-				m.logger.Warn("restore-all: marking worktrees active failed", "sessionID", rec.ID, "error", err)
-			}
-			if err := m.store.DeleteSessionWorktrees(ctx, rec.ID); err != nil {
-				m.logger.Warn("restore-all: delete restore marker failed", "sessionID", rec.ID, "error", err)
-			}
+			m.consumeSingleRepoMarker(ctx, rec.ID, rows)
 		}
 	}
 	return nil
@@ -1942,11 +1920,8 @@ func (m *Manager) restoreSessionWorkspace(ctx context.Context, project domain.Pr
 // consumeSingleRepoRestoreMarker is a manual restore's version of RestoreAll's
 // replay-and-consume for a single-repo session. A boot-time relaunch that failed
 // leaves the saved work only in the marker's preserve ref, and a manual restore
-// is how the user gets it back. A clean replay (or no saved work) consumes the
-// marker the way RestoreAll does. A conflicted, failed or skipped replay keeps
-// the ref on a row marked active, so the pointer to the saved work survives but
-// the next boot does not relaunch the session or replay the ref again.
-// Failures are logged: the worktree is back, and the relaunch goes ahead.
+// is how the user gets it back. Failures are logged: the worktree is back, and
+// the relaunch goes ahead.
 func (m *Manager) consumeSingleRepoRestoreMarker(ctx context.Context, id domain.SessionID, ws ports.WorkspaceInfo) {
 	rows, err := m.store.ListSessionWorktrees(ctx, id)
 	if err != nil {
@@ -1957,6 +1932,16 @@ func (m *Manager) consumeSingleRepoRestoreMarker(ctx context.Context, id domain.
 	if len(rows) == 0 {
 		return
 	}
+	m.consumeSingleRepoMarker(ctx, id, m.replaySingleRepoMarker(ctx, id, ws, rows))
+}
+
+// replaySingleRepoMarker replays a single-repo marker's preserve ref onto the
+// restored worktree and returns the rows as they now stand. A clean replay
+// clears the rows' PreservedRef at once: the adapter has deleted the git ref,
+// and a relaunch that fails after this must not leave a pointer to it. A
+// conflicted, failed or skipped replay keeps the ref, the only pointer to the
+// saved work.
+func (m *Manager) replaySingleRepoMarker(ctx context.Context, id domain.SessionID, ws ports.WorkspaceInfo, rows []domain.SessionWorktreeRecord) []domain.SessionWorktreeRecord {
 	var preserveRef string
 	for _, row := range rows {
 		if row.PreservedRef != "" {
@@ -1964,7 +1949,32 @@ func (m *Manager) consumeSingleRepoRestoreMarker(ctx context.Context, id domain.
 			break
 		}
 	}
-	if preserveRef != "" && !m.replayPreserved(ctx, ws, preserveRef, "") {
+	if preserveRef == "" || !m.replayPreserved(ctx, ws, preserveRef, "") {
+		return rows
+	}
+	out := make([]domain.SessionWorktreeRecord, 0, len(rows))
+	for _, row := range rows {
+		row.PreservedRef = ""
+		if err := m.store.UpsertSessionWorktree(ctx, row); err != nil {
+			m.logger.Warn("restore: clearing applied preserve ref failed", "sessionID", id, "error", err)
+		}
+		out = append(out, row)
+	}
+	return out
+}
+
+// consumeSingleRepoMarker retires a single-repo shutdown marker once its session
+// is restored, so it never outlives one restart (#2319). With no saved work left
+// the rows are marked active and deleted. A row still holding a PreservedRef
+// (its replay did not apply cleanly) is marked active and kept: the next boot
+// neither relaunches the session nor replays the ref, but the pointer to the
+// saved work survives.
+func (m *Manager) consumeSingleRepoMarker(ctx context.Context, id domain.SessionID, rows []domain.SessionWorktreeRecord) {
+	keepRef := false
+	for _, row := range rows {
+		keepRef = keepRef || row.PreservedRef != ""
+	}
+	if keepRef {
 		for _, row := range rows {
 			row.State = "active"
 			if err := m.store.UpsertSessionWorktree(ctx, row); err != nil {
