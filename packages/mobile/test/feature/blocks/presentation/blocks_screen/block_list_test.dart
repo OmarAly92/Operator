@@ -351,6 +351,31 @@ void main() {
       expect(fired, 0);
     });
 
+    testWidgets('stays silent while another route covers the list', (tester) async {
+      var fired = 0;
+      final prompt = block(1, kind: BlockKind.prompt);
+      SessionBlock reply(int lines) => block(2, kind: BlockKind.assistant, status: BlockStatus.running, lines: lines);
+      final harness = await pumpList(
+        tester,
+        [prompt],
+        sessionActive: true,
+        onStreamingHaptic: () => fired++,
+        settle: false,
+      );
+      tester.state<NavigatorState>(find.byType(Navigator)).push(
+        MaterialPageRoute<void>(builder: (_) => const Scaffold(body: Text('covering'))),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('covering'), findsOneWidget);
+
+      harness.replace([prompt, reply(1)]);
+      await tester.pump(const Duration(milliseconds: 16));
+      await tester.pump(const Duration(milliseconds: 400));
+      harness.replace([prompt, reply(2)]);
+      await tester.pump(const Duration(milliseconds: 16));
+      expect(fired, 0);
+    });
+
     testWidgets('stays silent under reduce motion', (tester) async {
       tester.platformDispatcher.accessibilityFeaturesTestValue = const FakeAccessibilityFeatures(disableAnimations: true);
       addTearDown(tester.platformDispatcher.clearAccessibilityFeaturesTestValue);

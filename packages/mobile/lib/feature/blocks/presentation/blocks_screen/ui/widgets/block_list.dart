@@ -365,6 +365,7 @@ class BlockListState extends State<BlockList> {
   void _trackStreaming(List<SessionBlock> previousBlocks) {
     final haptics = _haptics;
     if (haptics == null || !widget.sessionActive || previousBlocks.isEmpty) return;
+    if (!TickerMode.valuesOf(context).enabled) return;
     final latest = _latestAssistant(widget.blocks);
     if (latest == null) return;
     final previous = _latestAssistant(previousBlocks);
