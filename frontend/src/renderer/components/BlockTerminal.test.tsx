@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { useEffect, useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -36,6 +37,7 @@ const mockState = vi.hoisted(() => {
 					openPath?: (path: string, line?: number, column?: number) => Promise<void>;
 					secretPatterns?: readonly { source: string; flags?: string }[];
 					predictiveEcho?: Readonly<{ thresholdMs: number }>;
+					confirmPaste?: (preview: string, reason: "newline" | "control" | "paste-end") => Promise<boolean>;
 				}
 			| undefined,
 		onHint: undefined as ((hint: { ruleId: string; text: string; path?: string; line?: number }) => void) | undefined,
@@ -159,6 +161,7 @@ vi.mock("@operator/terminal-react", () => {
 				openPath?: (path: string, line?: number, column?: number) => Promise<void>;
 				secretPatterns?: readonly { source: string; flags?: string }[];
 				predictiveEcho?: Readonly<{ thresholdMs: number }>;
+				confirmPaste?: (preview: string, reason: "newline" | "control" | "paste-end") => Promise<boolean>;
 			};
 			strings?: Record<string, string>;
 			onSend?: (text: string) => void;
@@ -880,5 +883,32 @@ describe("BlockTerminal replay paint", () => {
 		emit(encode("live output"));
 		await waitFor(() => expect(mockState.feeds.length).toBeGreaterThan(1));
 		expect(onReplayPainted).toHaveBeenCalledTimes(1);
+	});
+});
+
+describe("BlockTerminal paste confirm", () => {
+	it("asks before an unsafe paste and answers with the button pressed", async () => {
+		renderTerminal();
+		await waitFor(() => expect(mockState.host?.confirmPaste).toBeTypeOf("function"));
+		let answer: Promise<boolean> = Promise.resolve(false);
+		act(() => {
+			answer = mockState.host!.confirmPaste!("git pull\nnpm install", "newline");
+		});
+		const dialog = await screen.findByRole("dialog", { name: "Paste into the terminal?" });
+		expect(dialog).toHaveTextContent("git pull");
+		await userEvent.click(screen.getByRole("button", { name: "Paste" }));
+		await expect(answer).resolves.toBe(true);
+	});
+
+	it("answers no when the user cancels", async () => {
+		renderTerminal();
+		await waitFor(() => expect(mockState.host?.confirmPaste).toBeTypeOf("function"));
+		let answer: Promise<boolean> = Promise.resolve(true);
+		act(() => {
+			answer = mockState.host!.confirmPaste!("a\x1b", "control");
+		});
+		await screen.findByRole("dialog", { name: "Paste into the terminal?" });
+		await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+		await expect(answer).resolves.toBe(false);
 	});
 });
