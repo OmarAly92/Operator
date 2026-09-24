@@ -105,6 +105,7 @@ export async function installFakeBridge(page: Page, opts: FakeBridgeOptions = {}
 					devBounce: async () => undefined,
 					onClick: unsubscribe,
 					permission: async () => "unsupported" as const,
+					requestPermission: async () => "unsupported" as const,
 					openSettings: async () => undefined,
 				},
 				tray: {
@@ -452,6 +453,7 @@ export async function installFakeAgent(page: Page, opts: FakeAgentOptions = {}):
 					devBounce: async () => undefined,
 					onClick: unsubscribe,
 					permission: async () => "unsupported" as const,
+					requestPermission: async () => "unsupported" as const,
 					openSettings: async () => undefined,
 				},
 				tray: { setAttentionState: () => undefined, onOpenSession: unsubscribe },

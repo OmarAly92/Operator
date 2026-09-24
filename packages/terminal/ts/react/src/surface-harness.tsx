@@ -31,6 +31,9 @@ export const font: FontConfig = {
 	ligatures: false,
 };
 
+export const cellWidth = font.sizePx * 0.6;
+export const cellHeight = font.lineHeight * font.sizePx;
+
 export const theme: TerminalTheme = warpDarkTheme;
 export const ignoreSend = () => undefined;
 export const ignoreRaw = () => undefined;

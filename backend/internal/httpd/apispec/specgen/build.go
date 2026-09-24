@@ -143,7 +143,7 @@ func schemaName(_ reflect.Type, defaultName string) string {
 // schemaNames is the exhaustive default→clean mapping for every type reflected
 // by projectOperations(). Add an entry when a new contract type is introduced;
 // the drift test fails until the spec is regenerated, which flags the gap.
-var schemaNames = map[string]string{
+var schemaNames = map[string]string{ //nolint:gosec // G101: schema type names such as MobileNgrokCredential, not credentials.
 	"ControllersSettingsResponse": "SettingsResponse",
 	"ControllersUiSettings":       "UiSettings",
 	"SettingsUpdateSettings":      "UpdateSettings",

@@ -45,7 +45,7 @@ func (m *Manager) SlashOutput(ctx context.Context, id domain.SessionID, message 
 	for {
 		pane, err := m.runtime.GetOutput(ctx, handle, slashOutputPaneLines)
 		if err != nil {
-			return "", nil
+			return "", err
 		}
 		current := redact.Text(extractSlashOutput(pane, message)).Text
 		if seen && current != "" && current == previous {
@@ -56,7 +56,7 @@ func (m *Manager) SlashOutput(ctx context.Context, id domain.SessionID, message 
 			return "", nil
 		}
 		if err := sleepContext(ctx, m.slashOutput.pollInterval); err != nil {
-			return "", nil
+			return "", err
 		}
 	}
 }

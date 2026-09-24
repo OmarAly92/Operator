@@ -93,8 +93,8 @@ func (p *Plugin) GetLaunchCommand(ctx context.Context, cfg ports.LaunchConfig) (
 		return nil, err
 	}
 
-	cmd = []string{binary, "chat"}
-	cmd = append(cmd, "--agent", kiroAgentName)
+	cmd = make([]string, 0, 5)
+	cmd = append(cmd, binary, "chat", "--agent", kiroAgentName)
 	appendApprovalFlags(&cmd, cfg.Permissions)
 
 	return cmd, nil

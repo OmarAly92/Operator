@@ -152,11 +152,6 @@ func clientGetStyledOutput(addr string, lines int) (string, error) {
 }
 
 func clientStartCapture(addr string, argv []string) error {
-	conn, err := dialHost(addr, dialTimeout)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = conn.Close() }()
 	req, err := json.Marshal(CaptureStartReq{Argv: argv})
 	if err != nil {
 		return err
@@ -165,25 +160,24 @@ func clientStartCapture(addr string, argv []string) error {
 	if err != nil {
 		return err
 	}
-	_, err = conn.Write(frame)
+	_, err = captureRoundTrip(addr, frame)
 	return err
 }
 
 func clientStopCapture(addr string) error {
-	conn, err := dialHost(addr, dialTimeout)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = conn.Close() }()
 	frame, err := EncodeMessage(MsgCaptureStopReq, nil)
 	if err != nil {
 		return err
 	}
-	_, err = conn.Write(frame)
+	_, err = captureRoundTrip(addr, frame)
 	return err
 }
 
 func clientCaptureState(addr string) (CaptureStateRes, error) {
+	return captureRoundTrip(addr, nil)
+}
+
+func captureRoundTrip(addr string, command []byte) (CaptureStateRes, error) {
 	conn, err := dialHost(addr, getOutputTimeout)
 	if err != nil {
 		return CaptureStateRes{}, err
@@ -196,7 +190,7 @@ func clientCaptureState(addr string) (CaptureStateRes, error) {
 	if err != nil {
 		return CaptureStateRes{}, err
 	}
-	if _, err := conn.Write(reqFrame); err != nil {
+	if _, err := conn.Write(append(command, reqFrame...)); err != nil {
 		return CaptureStateRes{}, err
 	}
 

@@ -325,7 +325,7 @@ func (h *host) applyLargestLocked(pending *clientState) {
 	}
 	if pending != nil && pending.sized {
 		if area := pending.cols * pending.rows; area > bestArea {
-			bestArea, bestCols, bestRows = area, pending.cols, pending.rows
+			bestCols, bestRows = pending.cols, pending.rows
 		}
 	}
 	// No client has reported a size yet: leave the PTY at its current grid (the

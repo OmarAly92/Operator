@@ -1,122 +1,83 @@
 import {
-	CELL_SPAN_WORDS,
-	decodeBlocks,
 	defaultStrings,
 	validateRowRange,
 	type BlockId,
 	type BlockRenderer,
-	type BlockState,
 	type BlockView,
 	type FontConfig,
 	type RowRange,
 	type SecretPattern,
 	type TerminalCore,
-	type TerminalSnapshot,
 	type TerminalTheme,
 } from "@operator/terminal-core";
 import { renderAltSurface } from "./alt-surface.js";
-import { documentHidden, finishedBlocks, rendererVisible, type BlockFinishedEvent } from "./block-finished.js";
-import { populateBlock, reconcileChildren, ROW_GENERATION_ATTR } from "./block-body.js";
-import { createCursorElement, cursorPaintFor, primaryCursorPlacement, PLAIN_CURSOR_PAINT, CURSOR_ATTR, type CursorPlacement } from "./cursor.js";
-import { PREDICTION_TTL_MS, PredictionState, type CursorPoint, type KeyDescriptor } from "./prediction.js";
-import { cellString } from "./clusters.js";
+import { documentHidden, type BlockFinishedEvent } from "./block-finished.js";
+import { reconcileChildren } from "./block-body.js";
+import { FinishedBlockTracker, shownToUser } from "./finished-block-tracker.js";
+import { BlockElementCache, shownBlocks } from "./block-element-cache.js";
+import { blockLayout, CellMeasurer, cellMetricsFor, rowHeightFor } from "./cell-measurer.js";
+import { createCursorElement, cursorPaintFor, primaryCursorPlacement, PLAIN_CURSOR_PAINT, type CursorPlacement } from "./cursor.js";
+import { type KeyDescriptor } from "./prediction.js";
+import { EchoPredictor, snapshotCursorPoint, snapshotRowCells } from "./echo-predictor.js";
 import { RttMeter } from "./rtt.js";
-import { ElementPool } from "./element-pool.js";
-import { bindActionEvents } from "./action-events.js";
-import { applyFilter, type BlockFilter } from "./block-filter.js";
-import { mountBlockNavFromRenderer, type BlockNavHandle } from "./block-nav.js";
-import { mountJumpToBottom, type JumpToBottom } from "./jump-to-bottom.js";
-import { createPinnedHeaderElement, updatePinnedHeader } from "./pinned-header.js";
+import { type BlockFilter } from "./block-filter.js";
+import { updatePinnedHeader } from "./pinned-header.js";
 import { DEFAULT_FEATURES, resolveFeatures, sameFeatures, type RendererFeatures } from "./features.js";
 import { defaultFont } from "./default-font.js";
-import { ensureMeasureHost, HIDDEN_MEASURE_ID, listenScroll } from "./host-dom.js";
-import { createDomMeasurer, WidthCache } from "./width-cache.js";
-import { BLOCK_PADDING_X_PX, BLOCK_PADDING_TOP_LINES, BLOCK_COMMAND_GAP_LINES, blockPaddingY } from "./block-metrics.js";
-import { blockIsBlank, trimTrailingBlankRows } from "./block-rows.js";
+import { BLOCK_PADDING_X_PX, BLOCK_PADDING_TOP_LINES, blockPaddingY } from "./block-metrics.js";
 import { paintedRowOrigin, type RowOrigin } from "./row-geometry.js";
 import { pointAtFromRows } from "./selection-geometry.js";
-import { type SelectionKind, type SelectionPoint, type SelectionState } from "./selection-model.js";
-import { selectedText, type TextRows } from "./selection-text.js";
-import { Linkifier } from "./linkifier.js";
-import { DEFAULT_LINK_PROVIDERS, type DetectedLink, type LinkProvider } from "./link-providers.js";
-import { paintBoxes, rangeBoxes, type DecorationBox } from "./decorations.js";
-import { collectHintMatches, HintSession, type HintEvent } from "./hint-mode.js";
+import { type SelectionKind, type SelectionPoint } from "./selection-model.js";
+import { type TextRows } from "./selection-text.js";
+import { type DetectedLink, type LinkProvider } from "./link-providers.js";
+import { type HintEvent } from "./hint-mode.js";
 import { DEFAULT_HINT_RULES, type HintRule } from "./hint-rules.js";
-import { logicalLineAt, rangeContains, type LogicalLineView } from "./logical-lines.js";
-import { compileSecretPatterns, maskedTextRows, redactionMatches } from "./redaction.js";
-import {
-	renderedRows,
-	resolveSelectionView,
-	selectionFills,
-	snapshotTextRows,
-	type RenderedRow,
-	type SelectionView,
-} from "./selection-view.js";
-import { styleVarEntries, styleVarsString } from "./style-vars.js";
-import { terminalStylesForDocument } from "./styles.js";
+import { renderedRows, snapshotTextRows, type RenderedRow } from "./selection-view.js";
+import { styleVarsString } from "./style-vars.js";
 import { warpDarkTheme } from "./theme-warp.js";
-import { anchorAt, computeWindow, rowTop } from "./viewport.js";
+import {
+	applyStyleVars,
+	createAltRoot,
+	createRendererChrome,
+	releaseContainer,
+	showAltRoot,
+	showBlockList,
+	type RendererChrome,
+} from "./renderer-chrome.js";
+import { RendererOverlays } from "./renderer-overlays.js";
+import { RendererSelection } from "./renderer-selection.js";
+import { ScrollTracker, type ScrollAnchor } from "./scroll-tracker.js";
+import { wireRenderer, type RendererWiring } from "./renderer-wiring.js";
+import { ListenerSet } from "./listener-set.js";
+import { tooSoonToPaint } from "./frame-budget.js";
 
-const CLASS_BLOCK = "terminal-block";
-const CLASS_LEADING_SPACER = "terminal-spacer";
-const CLASS_TRAILING_SPACER = "terminal-spacer";
 const OVERSCAN_ROWS = 6;
-const STICK_THRESHOLD_PX = 4;
-
-function overscrolled(container: HTMLElement): boolean {
-	return container.scrollTop < 0 || container.scrollTop > container.scrollHeight - container.clientHeight;
-}
-const PAINT_INTERVAL_MS = 1000 / 60;
 export const HIDDEN_TICK_MS = 100;
 export const HIDDEN_DRAIN_MS = 250;
 const POOL_CAPACITY_FACTOR = 3;
-const POOL_DIRTY_CAP = 4096;
-const FRAME_EPSILON_MS = 0.25;
 export { ALT_BLOCK_ID } from "./selection-view.js";
-
-export type ScrollAnchor = Readonly<{ stableRow: number; offsetPx: number }>;
+export type { ScrollAnchor } from "./scroll-tracker.js";
 
 export class DomBlockRenderer implements BlockRenderer {
 	private container: HTMLElement | null = null;
 	private core: TerminalCore | null = null;
-	private list: HTMLElement | null = null;
+	private chrome: RendererChrome | null = null;
 	private altRoot: HTMLElement | null = null;
-	private leadingSpacer: HTMLElement | null = null;
-	private trailingSpacer: HTMLElement | null = null;
 	private theme: TerminalTheme = warpDarkTheme;
 	private font: FontConfig = defaultFont();
-	private unsubscribe: (() => void) | null = null;
-	private scrollUnsubscribe: (() => void) | null = null;
-	private measureHost: HTMLElement | null = null;
-	private measureNode: HTMLElement | null = null;
-	private readonly blockElements: Map<BlockId, HTMLElement> = new Map();
+	private wiring: RendererWiring | null = null;
+	private readonly elements = new BlockElementCache();
 	private rafHandle: number | null = null;
-	private readonly paintListeners = new Set<() => void>();
+	private readonly paintListeners = new ListenerSet();
 	private knownBlockId: BlockId | null = null;
-	private stickToBottom = true;
-	private lastClientHeight = 0;
 	private lastPaintAt: number | null = null;
 	private wasAltActive = false;
 	private readonly decoder = new TextDecoder("utf-8", { fatal: true });
 	private filteredBlocks: readonly BlockView[] = [];
 	private currentFilter: BlockFilter | null = null;
-	private pinnedHeader: HTMLElement | null = null;
-	private blockNav: BlockNavHandle | null = null;
-	private jumpToBottom: JumpToBottom | null = null;
-	private filled: Map<HTMLElement, string> = new Map();
-	private selection: SelectionState | null = null;
-	private readonly selectionListeners = new Set<() => void>();
-	private metricsCache: { cellWidth: number; cellHeight: number } | null = null;
-	private widths: WidthCache | null = null;
-	private dprQuery: MediaQueryList | null = null;
-	private readonly onDprChange = () => this.invalidateMetrics();
-	private anchor: ScrollAnchor | null = null;
+	private readonly measurer = new CellMeasurer(() => this.invalidateMetrics());
 	private paintedFirstStableRow = 0;
-	private rowEventsUnsubscribe: (() => void) | null = null;
-	private readonly pool = new ElementPool();
-	private readonly pooledDirty = new Map<BlockId, Set<number> | null>();
 	private cursorElement: HTMLElement | null = null;
-	private fullSince = 0;
 	private rebuildAll = false;
 	private activeFeatures: RendererFeatures = DEFAULT_FEATURES;
 	private focused = true;
@@ -129,25 +90,37 @@ export class DomBlockRenderer implements BlockRenderer {
 		if (this.hiddenTimer !== null) clearTimeout(this.hiddenTimer), (this.hiddenTimer = null);
 		this.scheduleRepaint();
 	};
-	private blockStates = new Map<BlockId, BlockState>();
-	private readonly blockFinishedListeners = new Set<(event: BlockFinishedEvent) => void>();
-	private linkProviders: readonly LinkProvider[] = DEFAULT_LINK_PROVIDERS;
-	private readonly linkifier = new Linkifier({
-		rows: () => this.textRows(),
-		providers: () => this.linkProviders,
-		onChange: () => this.linkChanged(),
+	private readonly finished = new FinishedBlockTracker();
+	private readonly scroll = new ScrollTracker({
+		container: () => this.container,
+		blocks: () => this.filteredBlocks,
+		layout: () => this.layout(),
+		paintedFirstStableRow: () => this.paintedFirstStableRow,
 	});
-	private decorationLayer: HTMLElement | null = null;
-	private readonly linkHoverListeners = new Set<(link: DetectedLink | null) => void>();
-	private hint: HintSession | null = null;
-	private secretRegexes: RegExp[] = [];
-	private revealedSecrets = new Set<string>();
-	private revealedAt = -1;
-	private readonly predictions = new PredictionState();
+	private readonly selection = new RendererSelection({
+		hasCore: () => this.core !== null,
+		textRows: () => this.overlays.textRows(),
+		renderedRows: () => this.renderedRows(),
+		cellWidth: () => this.cellMetrics().cellWidth,
+	});
+	private readonly overlays = new RendererOverlays({
+		container: () => this.container,
+		painting: () => this.painting(),
+		rawTextRows: () => this.rawTextRows(),
+		renderedRows: () => this.renderedRows(),
+		cellMetrics: () => this.cellMetrics(),
+	});
 	private readonly rtt = new RttMeter();
+	private readonly echo = new EchoPredictor(this.rtt, {
+		painting: () => this.painting(),
+		cursorPoint: () => (this.core ? snapshotCursorPoint(this.core.snapshot()) : null),
+		rowCellsAt: (row) => snapshotRowCells(this.core!.snapshot(), row, this.decoder),
+		layer: () => this.overlays.layer("predictions"),
+		container: () => this.container,
+		altShowing: () => this.core?.snapshot().altScreen != null && this.altRoot != null && !this.altRoot.hidden,
+		cellMetrics: () => this.cellMetrics(),
+	});
 	private echoThresholdMs: number | null = null;
-	private predictionTimer: ReturnType<typeof setTimeout> | null = null;
-	private sentCursor: CursorPoint | null = null;
 
 	mount(container: HTMLElement, core: TerminalCore): void {
 		const visible = this.hostVisible;
@@ -155,48 +128,30 @@ export class DomBlockRenderer implements BlockRenderer {
 		this.hostVisible = visible;
 		this.container = container;
 		this.core = core;
-		ensurePackageStyleTag();
-		container.style.position = "relative";
-		applyScrollOverflow(container);
-		container.style.contain = "strict";
-		const list = document.createElement("div");
-		list.className = "terminal-list";
-		list.setAttribute("data-testid", "terminal-block-list");
-		list.style.position = "relative";
-		const leading = document.createElement("div");
-		leading.className = CLASS_LEADING_SPACER;
-		const trailing = document.createElement("div");
-		trailing.className = CLASS_TRAILING_SPACER;
-		list.append(leading, trailing);
-		container.append(list);
-		this.list = list;
-		this.leadingSpacer = leading;
-		this.trailingSpacer = trailing;
-		const pinned = createPinnedHeaderElement();
-		container.insertBefore(pinned, list);
-		this.pinnedHeader = pinned;
-		const decorations = document.createElement("div");
-		decorations.className = "terminal-decorations";
-		decorations.setAttribute("style", styleVarsString(this.theme, this.font));
-		container.append(decorations);
-		this.decorationLayer = decorations;
-		this.measureHost = ensureMeasureHost();
-		this.measureNode = this.measureHost.querySelector<HTMLElement>(`#${HIDDEN_MEASURE_ID}`);
-		this.scrollUnsubscribe = listenScroll(container, () => {
-			this.updateStickiness();
-			if (!this.stickToBottom) this.captureAnchor();
-			this.scheduleRepaint();
+		const chrome = createRendererChrome(container, styleVarsString(this.theme, this.font));
+		this.chrome = chrome;
+		this.overlays.decorationLayer = chrome.decorations;
+		this.measurer.attach();
+		this.wiring = wireRenderer(container, core, {
+			onScroll: () => {
+				this.scroll.updateStickiness();
+				if (!this.scroll.stickToBottom) this.scroll.captureAnchor();
+				this.scheduleRepaint();
+			},
+			onRowRemap: (remap) => this.scroll.remapAnchor(remap),
+			onChange: () => {
+				this.echo.noteReceived(performance.now());
+				this.scheduleRepaint();
+			},
+			onVisibilityChange: this.onVisibilityChange,
+			getBlocks: () => this.filteredBlocks,
+			scrollToBlock: (id, align) => this.scrollToBlock(id, align),
+			setFilter: (f) => this.setFilter(f),
+			scheduleRepaint: () => this.scheduleRepaint(),
+			getCellHeight: () => this.measure().cellHeight,
+			getStickToBottom: () => this.scroll.stickToBottom,
+			scrollToLatest: () => this.scrollToLatest(),
 		});
-		this.rowEventsUnsubscribe = core.onRowEvents((event) => this.remapAnchor(event.remap));
-		this.unsubscribe = core.onChange(() => {
-			this.noteReceived(performance.now());
-			this.scheduleRepaint();
-		});
-		document.addEventListener("visibilitychange", this.onVisibilityChange);
-		this.blockNav = mountBlockNavFromRenderer({ container, getBlocks: () => this.filteredBlocks, scrollToBlock: (id, align) => this.scrollToBlock(id, align), isAltScreenActive: () => core.snapshot().altScreen !== null });
-		bindActionEvents(container, { setBlockBookmarked: (id, b) => core.setBlockBookmarked(id, b), getBlockBookmarked: (id) => core.blockBookmarked(id), setFilter: (f) => this.setFilter(f), scrollToBlock: (id, a) => this.scrollToBlock(id, a), scheduleRepaint: () => this.scheduleRepaint() });
-		this.jumpToBottom = mountJumpToBottom({ container, getBlocks: () => this.filteredBlocks, getCellHeight: () => this.measure().cellHeight, getStickToBottom: () => this.stickToBottom, scrollToLatest: () => this.scrollToLatest(), isAltScreenActive: () => core.snapshot().altScreen !== null, strings: defaultStrings });
-		this.jumpToBottom.mount();
 		if (this.painting()) this.repaint();
 		else this.settleHidden(false);
 	}
@@ -257,52 +212,26 @@ export class DomBlockRenderer implements BlockRenderer {
 	}
 
 	measure(): { cellWidth: number; cellHeight: number } {
-		if (this.metricsCache) return this.metricsCache;
-		const host = this.measureHost ?? ensureMeasureHost();
-		const node = this.measureNode ?? host.querySelector<HTMLElement>(`#${HIDDEN_MEASURE_ID}`);
-		if (!node) {
-			return { cellWidth: 0, cellHeight: 0 };
-		}
-		this.applyFontToMeasureNode(node);
-		const rect = node.getBoundingClientRect();
-		const cellWidth = rect.width > 0 ? rect.width : this.font.sizePx * 0.6;
-		const cellHeight =
-			rect.height > 0 ? rect.height : this.font.lineHeight * this.font.sizePx;
-		this.metricsCache = { cellWidth, cellHeight };
-		if (!this.widths) {
-			this.widths = new WidthCache(createDomMeasurer(node));
-		}
-		this.watchDevicePixelRatio();
-		return this.metricsCache;
+		return this.measurer.measure(this.font);
 	}
 
 	private invalidateMetrics(): void {
-		this.metricsCache = null;
-		this.widths?.clear();
+		this.measurer.invalidate();
 		this.scheduleRepaint();
-	}
-
-	// xterm.js src/browser/renderer/dom/DomRenderer.ts:330-334 (handleDevicePixelRatioChange)
-	private watchDevicePixelRatio(): void {
-		if (typeof matchMedia !== "function") return;
-		this.dprQuery?.removeEventListener("change", this.onDprChange);
-		this.dprQuery = matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`);
-		this.dprQuery.addEventListener("change", this.onDprChange);
 	}
 
 	// The space a block reserves around its rows. A grid sized to the host rather
 	// than to this is told it has more columns than a row can actually show, so
 	// full-width lines overflow and the pane grows a horizontal scrollbar.
 	blockContentInset(): { x: number; y: number } {
-		const { cellHeight } = this.measure();
-		const rowHeight = cellHeight > 0 ? cellHeight : this.font.lineHeight * this.font.sizePx;
+		const rowHeight = rowHeightFor(this.measure().cellHeight, this.font);
 		return { x: BLOCK_PADDING_X_PX * 2, y: blockPaddingY(rowHeight) };
 	}
 
 	rowOrigin(row: number): RowOrigin | null {
 		return paintedRowOrigin(
 			this.filteredBlocks,
-			this.blockElements,
+			this.elements.blockElements,
 			row,
 			this.cellMetrics().cellHeight,
 			this.paintedFirstStableRow,
@@ -310,88 +239,22 @@ export class DomBlockRenderer implements BlockRenderer {
 	}
 
 	scrollToBlock(id: BlockId, align: "start" | "center" | "end"): void {
-		if (this.knownBlockId !== null && id !== this.knownBlockId) {
-			throw new Error(`unknown block id ${id}`);
-		}
-		const element = this.blockElements.get(id);
-		if (!element) {
-			throw new Error("renderer is not mounted");
-		}
-		element.scrollIntoView({ block: align, inline: "nearest" });
+		this.elements.scrollTo(id, align, this.knownBlockId);
 	}
 
 	scrollToLatest(): void {
 		const c = this.container;
 		if (!c) return;
-		this.stickToBottom = true;
-		this.anchor = null;
-		const target = c.scrollHeight - c.clientHeight;
-		if (target > 0) c.scrollTop = target;
+		this.scroll.stickToLatest(c);
 		this.scheduleRepaint();
 	}
 
 	scrollAnchor(): ScrollAnchor | null {
-		return this.stickToBottom ? null : this.anchor;
+		return this.scroll.scrollAnchor();
 	}
 
 	private layout(): { rowHeight: number; headerHeight: number; paddingY: number } {
-		const { cellHeight } = this.measure();
-		const rowHeight = cellHeight > 0 ? cellHeight : this.font.lineHeight * this.font.sizePx;
-		return {
-			rowHeight,
-			headerHeight: rowHeight * (2 + BLOCK_COMMAND_GAP_LINES),
-			paddingY: blockPaddingY(rowHeight) + 1,
-		};
-	}
-
-	private flatRowFor(anchor: ScrollAnchor | null): number {
-		if (!anchor) return 0;
-		return Math.max(0, anchor.stableRow - this.paintedFirstStableRow);
-	}
-
-	private visibleRowCapacity(): number {
-		const container = this.container;
-		const { rowHeight } = this.layout();
-		if (!container || rowHeight <= 0) return 0;
-		return Math.ceil(container.clientHeight / rowHeight);
-	}
-
-	private captureAnchor(): void {
-		const container = this.container;
-		if (!container) return;
-		const { rowHeight, headerHeight, paddingY } = this.layout();
-		const anchor = anchorAt(this.filteredBlocks, container.scrollTop, rowHeight, headerHeight, paddingY);
-		this.anchor = anchor
-			? { stableRow: this.paintedFirstStableRow + anchor.flatRow, offsetPx: anchor.offsetPx }
-			: null;
-	}
-
-	private remapAnchor(remap: ReadonlyArray<readonly [number, number]> | null): void {
-		if (!remap || !this.anchor) return;
-		let low = 0;
-		let high = remap.length - 1;
-		while (low <= high) {
-			const mid = (low + high) >> 1;
-			const [from, to] = remap[mid]!;
-			if (from === this.anchor.stableRow) {
-				this.anchor = { stableRow: to, offsetPx: this.anchor.offsetPx };
-				return;
-			}
-			if (from < this.anchor.stableRow) low = mid + 1;
-			else high = mid - 1;
-		}
-	}
-
-	private anchoredScrollTop(firstStableRow: number, fallback: number): number {
-		const anchor = this.anchor;
-		if (!anchor) return fallback;
-		const { rowHeight, headerHeight, paddingY } = this.layout();
-		const flat = Math.max(0, anchor.stableRow - firstStableRow);
-		if (flat === 0 && anchor.stableRow < firstStableRow) {
-			this.anchor = { stableRow: firstStableRow, offsetPx: anchor.offsetPx };
-		}
-		const top = rowTop(this.filteredBlocks, flat, rowHeight, headerHeight, paddingY);
-		return top === null ? fallback : Math.max(0, top + anchor.offsetPx);
+		return blockLayout(this.measure().cellHeight, this.font);
 	}
 
 	pointAt(x: number, y: number): SelectionPoint | null {
@@ -401,51 +264,27 @@ export class DomBlockRenderer implements BlockRenderer {
 	}
 
 	selectionBegin(point: SelectionPoint, kind: SelectionKind): void {
-		this.selection = { head: point, tail: point, kind };
-		this.selectionChanged();
+		this.selection.begin(point, kind);
 	}
 
 	selectionUpdate(point: SelectionPoint): void {
-		if (!this.selection) return;
-		this.selection = { ...this.selection, tail: point };
-		this.selectionChanged();
+		this.selection.update(point);
 	}
 
 	selectionClear(): void {
-		if (!this.selection) return;
-		this.selection = null;
-		this.selectionChanged();
+		this.selection.clear();
 	}
 
 	hasSelection(): boolean {
-		return this.selectionView() !== null;
+		return this.selection.view() !== null;
 	}
 
 	selectedText(): string | null {
-		const view = this.selectionView();
-		return view ? selectedText(view.range, view.rows) : null;
+		return this.selection.text();
 	}
 
 	onSelectionChange(listener: () => void): () => void {
-		this.selectionListeners.add(listener);
-		return () => {
-			this.selectionListeners.delete(listener);
-		};
-	}
-
-	private selectionChanged(): void {
-		this.paintSelectionFill();
-		this.notifySelectionListeners();
-	}
-
-	private notifySelectionListeners(): void {
-		for (const listener of [...this.selectionListeners]) listener();
-	}
-
-	private dropSelection(): void {
-		if (!this.selection) return;
-		this.selection = null;
-		this.notifySelectionListeners();
+		return this.selection.onChange(listener);
 	}
 
 	private rawTextRows(): TextRows {
@@ -453,158 +292,58 @@ export class DomBlockRenderer implements BlockRenderer {
 		return snapshotTextRows(core.snapshot(), this.currentFilter, this.decoder, (id) => core.linkUri(id));
 	}
 
-	private textRows(): TextRows {
-		return maskedTextRows(this.rawTextRows(), this.secretRegexes, this.revealedSecrets);
-	}
-
-	private selectionView(): SelectionView | null {
-		const selection = this.selection;
-		const core = this.core;
-		if (!selection || !core) return null;
-		return resolveSelectionView(selection, this.textRows());
-	}
-
 	hoverAt(x: number, y: number): void {
 		if (!this.core) return;
-		this.linkifier.hover(this.pointAt(x, y));
+		this.overlays.hover(this.pointAt(x, y));
 	}
 
 	clearHover(): void {
-		this.linkifier.hover(null);
+		this.overlays.hover(null);
 	}
 
 	hoveredLink(): DetectedLink | null {
-		return this.linkifier.current();
+		return this.overlays.hoveredLink();
 	}
 
 	onLinkHover(listener: (link: DetectedLink | null) => void): () => void {
-		this.linkHoverListeners.add(listener);
-		return () => {
-			this.linkHoverListeners.delete(listener);
-		};
+		return this.overlays.onLinkHover(listener);
 	}
 
 	setLinkProviders(providers: readonly LinkProvider[]): void {
-		this.linkProviders = providers;
-		this.linkifier.invalidate();
-	}
-
-	private linkChanged(): void {
-		const link = this.linkifier.current();
-		this.container?.classList.toggle("terminal-link-hover", link !== null);
-		if (this.painting()) this.paintDecorations();
-		for (const listener of [...this.linkHoverListeners]) listener(link);
+		this.overlays.setLinkProviders(providers);
 	}
 
 	hintBegin(rules: readonly HintRule[] = DEFAULT_HINT_RULES): number {
 		if (!this.core) return 0;
-		const rows = this.textRows();
-		const seen = new Set<string>();
-		const lines: LogicalLineView[] = [];
-		for (const { box } of this.renderedRows()) {
-			const line = logicalLineAt(rows, box.blockId, box.row);
-			if (!line) continue;
-			const key = `${line.blockId}:${line.firstRow}`;
-			if (seen.has(key)) continue;
-			seen.add(key);
-			lines.push(line);
-		}
-		const matches = collectHintMatches(lines, rules);
-		this.hint = matches.length > 0 ? new HintSession(matches) : null;
-		this.paintHints();
-		return matches.length;
+		return this.overlays.hintBegin(rules);
 	}
 
 	hintType(character: string): HintEvent | null {
-		const session = this.hint;
-		if (!session) return null;
-		const match = session.type(character);
-		if (!match) {
-			this.paintHints();
-			return null;
-		}
-		this.hintCancel();
-		return { ruleId: match.ruleId, text: match.text, path: match.path, line: match.line };
+		return this.overlays.hintType(character);
 	}
 
 	hintBackspace(): void {
-		this.hint?.backspace();
-		this.paintHints();
+		this.overlays.hintBackspace();
 	}
 
 	hintCancel(): void {
-		this.hint = null;
-		this.paintHints();
+		this.overlays.hintCancel();
 	}
 
 	hintActive(): boolean {
-		return this.hint !== null;
+		return this.overlays.hintActive();
 	}
 
 	setSecretPatterns(patterns: readonly SecretPattern[]): void {
-		this.secretRegexes = compileSecretPatterns(patterns);
-		this.revealedSecrets.clear();
+		this.overlays.setSecretPatterns(patterns);
 		this.scheduleRepaint();
 	}
 
 	revealSecretAt(x: number, y: number): void {
-		if (this.secretRegexes.length === 0) return;
+		if (!this.overlays.hasSecrets()) return;
 		const point = this.pointAt(x, y);
 		if (!point) return;
-		const line = logicalLineAt(this.rawTextRows(), point.blockId, point.row);
-		if (!line) return;
-		for (const match of redactionMatches(line, this.secretRegexes)) {
-			if (!rangeContains(match.range, point.row, point.column)) continue;
-			this.revealedSecrets.add(match.key);
-			this.revealedAt = this.core?.snapshot().generation ?? this.revealedAt;
-			this.scheduleRepaint();
-			return;
-		}
-	}
-
-	private paintHints(): void {
-		const matchLayer = this.layer("hints");
-		const labelLayer = this.layer("labels");
-		const container = this.container;
-		if (!matchLayer || !labelLayer || !container) return;
-		const entries = this.hint?.labelled() ?? [];
-		const matchBoxes: DecorationBox[] = [];
-		const labelBoxes: DecorationBox[] = [];
-		const labels: string[] = [];
-		if (entries.length > 0) {
-			const rows = this.renderedRows();
-			const { cellWidth, cellHeight } = this.cellMetrics();
-			for (const entry of entries) {
-				const boxes = rangeBoxes(entry.match.range, rows, cellWidth, container);
-				if (boxes.length === 0) continue;
-				matchBoxes.push(...boxes);
-				labelBoxes.push({ ...boxes[0]!, width: Math.max(entry.label.length, 1) * cellWidth, height: cellHeight });
-				labels.push(entry.label);
-			}
-		}
-		paintBoxes(matchLayer, "terminal-hint-match", matchBoxes);
-		paintBoxes(labelLayer, "terminal-hint-label", labelBoxes, labels);
-	}
-
-	private layer(name: string): HTMLElement | null {
-		const parent = this.decorationLayer;
-		if (!parent) return null;
-		let layer = parent.querySelector<HTMLElement>(`[data-terminal-layer="${name}"]`);
-		if (!layer) {
-			layer = document.createElement("div");
-			layer.dataset.terminalLayer = name;
-			parent.append(layer);
-		}
-		return layer;
-	}
-
-	private paintDecorations(): void {
-		const layer = this.layer("links");
-		const container = this.container;
-		if (!layer || !container) return;
-		const link = this.linkifier.current();
-		const boxes = link ? rangeBoxes(link.range, this.renderedRows(), this.cellMetrics().cellWidth, container) : [];
-		paintBoxes(layer, "terminal-link-underline", boxes);
+		if (this.overlays.revealSecretAt(point, () => this.core?.snapshot().generation)) this.scheduleRepaint();
 	}
 
 	setPredictiveEcho(config: { thresholdMs: number } | null): void {
@@ -613,18 +352,7 @@ export class DomBlockRenderer implements BlockRenderer {
 	}
 
 	noteSend(nowMs: number): void {
-		if (!this.painting()) return;
-		if (this.rtt.sent(nowMs)) this.sentCursor = this.cursorPoint() ?? { row: -1, column: -1 };
-	}
-
-	private noteReceived(nowMs: number): void {
-		if (!this.painting()) return;
-		const before = this.sentCursor;
-		if (before === null) return;
-		const after = this.cursorPoint();
-		if (after === null || (after.row === before.row && after.column === before.column)) return;
-		this.sentCursor = null;
-		this.rtt.received(nowMs);
+		this.echo.noteSend(nowMs);
 	}
 
 	noteRoundTrip(sentMs: number, receivedMs: number): void {
@@ -633,136 +361,15 @@ export class DomBlockRenderer implements BlockRenderer {
 	}
 
 	predictKey(key: KeyDescriptor, nowMs: number): boolean {
-		if (this.echoThresholdMs === null || !this.rtt.shouldPredict(this.echoThresholdMs)) return false;
-		this.reconcilePredictions();
-		const cursor = this.cursorPoint();
-		if (cursor === null) return false;
-		if (!this.predictions.register(key, cursor, nowMs)) return false;
-		this.armPredictionExpiry(performance.now());
-		this.paintPredictions();
-		return true;
+		return this.echo.predictKey(key, nowMs, this.echoThresholdMs);
 	}
 
 	predictionsClear(): void {
-		this.predictions.clear();
-		this.armPredictionExpiry(performance.now());
-		this.paintPredictions();
+		this.echo.clear();
 	}
 
 	predictionCount(): number {
-		return this.predictions.pending().length;
-	}
-
-	private cursorPoint(): CursorPoint | null {
-		if (!this.core) return null;
-		const snapshot = this.core.snapshot();
-		const alt = snapshot.altScreen;
-		if (alt) {
-			if (!alt.cursorVisible) return null;
-			return { row: alt.cursorRow, column: alt.cursorColumn };
-		}
-		return primaryCursorPlacement(snapshot);
-	}
-
-	private rowCellsAt(row: number): string {
-		const snapshot = this.core!.snapshot();
-		const alt = snapshot.altScreen;
-		const content = alt ? alt.content : snapshot.content;
-		const rows = alt ? alt.rowRanges : snapshot.rows;
-		const spanRanges = alt ? alt.spanRanges : snapshot.spanRanges;
-		const cellSpans = alt ? alt.cellSpans : snapshot.cellSpans;
-		const start = rows[row * 2] ?? 0;
-		const end = rows[row * 2 + 1] ?? start;
-		const text = end > start ? this.decoder.decode(content.subarray(start, end)) : "";
-		const spanStart = spanRanges[row * 2] ?? 0;
-		const spanEnd = spanRanges[row * 2 + 1] ?? spanStart;
-		return cellString(text, cellSpans.subarray(spanStart * CELL_SPAN_WORDS, spanEnd * CELL_SPAN_WORDS));
-	}
-
-	private reconcilePredictions(): void {
-		if (!this.painting()) return;
-		const now = performance.now();
-		const cursor = this.cursorPoint();
-		if (cursor !== null) {
-			const cells = this.predictions.pending().length > 0 ? this.rowCellsAt(cursor.row) : "";
-			this.predictions.reconcile(cursor, cells, now, this.predictionTtlMs());
-		} else {
-			this.predictions.expire(now, this.predictionTtlMs());
-		}
-		this.armPredictionExpiry(now);
-		this.paintPredictions();
-	}
-
-	private predictionTtlMs(): number {
-		return Math.max(PREDICTION_TTL_MS, 2 * (this.rtt.median() ?? 0));
-	}
-
-	private armPredictionExpiry(nowMs: number): void {
-		if (this.predictionTimer !== null) clearTimeout(this.predictionTimer), (this.predictionTimer = null);
-		const oldest = this.predictions.pending()[0];
-		if (oldest === undefined) return;
-		const delay = Math.max(0, oldest.sentAtMs + this.predictionTtlMs() - nowMs) + 1;
-		this.predictionTimer = setTimeout(() => {
-			this.predictionTimer = null;
-			this.reconcilePredictions();
-		}, delay);
-	}
-
-	private paintPredictions(): void {
-		const layer = this.layer("predictions");
-		const container = this.container;
-		if (!layer || !container) return;
-		const pending = this.predictions.pending();
-		const cursor = pending.length === 0 ? null : this.cursorPoint();
-		if (cursor === null) {
-			paintBoxes(layer, "terminal-prediction", []);
-			return;
-		}
-		const altShowing = this.core?.snapshot().altScreen != null && this.altRoot != null && !this.altRoot.hidden;
-		const anchor = altShowing
-			? container.querySelector<HTMLElement>("[data-terminal-cursor]")
-			: container.querySelector<HTMLElement>(`[${CURSOR_ATTR}]`);
-		if (!anchor) {
-			paintBoxes(layer, "terminal-prediction", []);
-			return;
-		}
-		const { cellWidth, cellHeight } = this.cellMetrics();
-		const origin = container.getBoundingClientRect();
-		const cell = anchor.getBoundingClientRect();
-		const boxes = pending.map((prediction) => ({
-			left: cell.left - origin.left + container.scrollLeft + (prediction.at.column - cursor.column) * cellWidth,
-			top: cell.top - origin.top + container.scrollTop,
-			width: cellWidth,
-			height: cellHeight,
-		}));
-		paintBoxes(layer, "terminal-prediction", boxes, pending.map((prediction) => prediction.text));
-	}
-
-	private paintRedactions(): void {
-		const layer = this.layer("redactions");
-		const container = this.container;
-		if (!layer || !container) return;
-		if (this.secretRegexes.length === 0) {
-			paintBoxes(layer, "terminal-redaction", []);
-			return;
-		}
-		const rows = this.rawTextRows();
-		const seen = new Set<string>();
-		const boxes: DecorationBox[] = [];
-		const rendered = this.renderedRows();
-		const { cellWidth } = this.cellMetrics();
-		for (const { box } of rendered) {
-			const line = logicalLineAt(rows, box.blockId, box.row);
-			if (!line) continue;
-			const key = `${line.blockId}:${line.firstRow}`;
-			if (seen.has(key)) continue;
-			seen.add(key);
-			for (const match of redactionMatches(line, this.secretRegexes)) {
-				if (this.revealedSecrets.has(match.key)) continue;
-				boxes.push(...rangeBoxes(match.range, rendered, cellWidth, container));
-			}
-		}
-		paintBoxes(layer, "terminal-redaction", boxes);
+		return this.echo.pending().length;
 	}
 
 	dispose(): void {
@@ -770,61 +377,29 @@ export class DomBlockRenderer implements BlockRenderer {
 		if (this.hiddenTimer !== null) clearTimeout(this.hiddenTimer), (this.hiddenTimer = null);
 		this.hostVisible = null;
 		this.catchUp = false;
-		if (this.predictionTimer !== null) clearTimeout(this.predictionTimer), (this.predictionTimer = null);
-		this.jumpToBottom?.dispose(), (this.jumpToBottom = null);
-		this.blockNav?.dispose(), (this.blockNav = null);
-		if (this.unsubscribe) this.unsubscribe(), (this.unsubscribe = null);
-		if (this.scrollUnsubscribe) this.scrollUnsubscribe(), (this.scrollUnsubscribe = null);
-		if (this.rowEventsUnsubscribe) this.rowEventsUnsubscribe(), (this.rowEventsUnsubscribe = null);
+		this.echo.cancelTimer();
+		this.wiring?.teardown(), (this.wiring = null);
 		if (this.rafHandle !== null && typeof cancelAnimationFrame === "function") cancelAnimationFrame(this.rafHandle);
 		this.rafHandle = null;
 		this.paintListeners.clear();
-		this.blockStates = new Map();
-		this.blockFinishedListeners.clear();
-		this.linkifier.dispose();
-		this.hint = null;
-		this.secretRegexes = [];
-		this.revealedSecrets.clear();
-		this.decorationLayer = null;
-		this.linkHoverListeners.clear();
-		if (this.container) {
-			this.container.classList.remove("terminal-link-hover");
-			this.container.replaceChildren();
-			this.container.style.removeProperty("position");
-			this.container.style.removeProperty("overflow");
-			this.container.style.removeProperty("overflow-x");
-			this.container.style.removeProperty("overflow-y");
-			this.container.style.removeProperty("overscroll-behavior-y");
-			this.container.style.removeProperty("contain");
-		}
+		this.finished.reset();
+		this.overlays.dispose();
+		if (this.container) releaseContainer(this.container);
 		this.container = null;
 		this.core = null;
-		this.list = null;
+		this.chrome = null;
 		this.altRoot = null;
-		this.leadingSpacer = null;
-		this.trailingSpacer = null;
-		this.filled = new Map();
-		this.pinnedHeader = null;
-		this.blockElements.clear();
-		this.pool.clear();
-		this.pooledDirty.clear();
+		this.elements.reset();
 		this.cursorElement?.remove();
 		this.cursorElement = null;
-		this.fullSince = 0;
 		this.rebuildAll = false;
-		this.measureNode = null;
 		this.knownBlockId = null;
-		this.stickToBottom = true;
-		this.anchor = null;
+		this.scroll.reset();
 		this.paintedFirstStableRow = 0;
-		this.lastClientHeight = 0;
 		this.lastPaintAt = null;
 		this.wasAltActive = false;
-		this.selection = null;
-		this.dprQuery?.removeEventListener("change", this.onDprChange);
-		this.dprQuery = null;
-		this.metricsCache = null;
-		this.widths = null;
+		this.selection.reset();
+		this.measurer.reset();
 	}
 
 	/// Notifies when a repaint has actually landed in the DOM.
@@ -833,23 +408,11 @@ export class DomBlockRenderer implements BlockRenderer {
 	/// covers. Without it a caller can only wait for a bare animation frame,
 	/// which fires whether or not anything painted.
 	onPaint(listener: () => void): () => void {
-		this.paintListeners.add(listener);
-		return () => {
-			this.paintListeners.delete(listener);
-		};
+		return this.paintListeners.add(listener);
 	}
 
 	onBlockFinished(listener: (event: BlockFinishedEvent) => void): () => void {
-		this.blockFinishedListeners.add(listener);
-		return () => {
-			this.blockFinishedListeners.delete(listener);
-		};
-	}
-
-	private notifyPainted(): void {
-		for (const listener of [...this.paintListeners]) {
-			listener();
-		}
+		return this.finished.onBlockFinished(listener);
 	}
 
 	private scheduleRepaint(): void {
@@ -876,11 +439,7 @@ export class DomBlockRenderer implements BlockRenderer {
 	}
 
 	private repaintOnFrame(timestamp: number): void {
-		if (
-			this.painting() &&
-			this.lastPaintAt !== null &&
-			timestamp - this.lastPaintAt + FRAME_EPSILON_MS < PAINT_INTERVAL_MS
-		) {
+		if (this.painting() && tooSoonToPaint(timestamp, this.lastPaintAt)) {
 			this.rafHandle = requestAnimationFrame((nextTimestamp) =>
 				this.repaintOnFrame(nextTimestamp),
 			);
@@ -903,78 +462,16 @@ export class DomBlockRenderer implements BlockRenderer {
 	private settleHidden(reschedule = true): void {
 		const core = this.core;
 		if (!core || !this.container) return;
-		this.dropEchoWhileHidden();
-		this.detectFinishedBlocks(core.snapshot());
+		this.echo.dropWhileHidden(this.hostVisible, () => this.predictionsClear());
+		this.finished.detect(core.snapshot(), () => shownToUser(this.hostVisible, this.container));
 		core.takeDirty();
 		this.catchUp = true;
 		if (reschedule) this.rescheduleIfPending(core);
 	}
 
-	private dropEchoWhileHidden(): void {
-		if (this.hostVisible !== false) return;
-		if (this.sentCursor !== null) {
-			this.sentCursor = null;
-			this.rtt.cancel();
-		}
-		if (this.predictions.pending().length > 0) this.predictionsClear();
-	}
-
 	private applyStyleVars(): void {
-		const style = styleVarsString(this.theme, this.font);
-		// The host gets them too, so the surface behind and between the blocks can
-		// paint the theme's own background. Without this the gaps between blocks
-		// fall through to whatever the embedding app painted, which seams against
-		// the blocks whenever the terminal's palette is not the app's.
-		//
-		// Set them one at a time rather than replacing the style attribute: the
-		// container is the one element mount() also styles, and overwriting the
-		// attribute drops position/overflow/contain, which stops it being a
-		// scroll container at all.
-		if (this.container) {
-			const target = this.container.style;
-			for (const [name, value] of styleVarEntries(this.theme, this.font)) {
-				target.setProperty(name, value);
-			}
-		}
-		for (const element of this.blockElements.values()) {
-			element.setAttribute("style", style);
-		}
-		if (this.altRoot) {
-			this.altRoot.setAttribute("style", style);
-		}
-		if (this.decorationLayer) {
-			this.decorationLayer.setAttribute("style", style);
-		}
-	}
-
-	private applyFontToMeasureNode(node: HTMLElement): void {
-		node.style.display = "inline-block";
-		node.style.fontFamily = this.font.family;
-		node.style.fontSize = `${this.font.sizePx}px`;
-		node.style.fontWeight = String(this.font.weight);
-		node.style.letterSpacing = `${this.font.letterSpacingPx}px`;
-		node.style.lineHeight = `${this.font.lineHeight * this.font.sizePx}px`;
-		node.style.fontVariantLigatures = this.font.ligatures ? "common-ligatures" : "none";
-	}
-
-	private shownToUser(): boolean {
-		if (this.hostVisible !== null) return this.hostVisible && !documentHidden();
-		return this.container !== null && rendererVisible(this.container);
-	}
-
-	private detectFinishedBlocks(snapshot: TerminalSnapshot): BlockView[] {
-		if (snapshot.altScreen !== null) return [];
-		const blocks = decodeBlocks(snapshot);
-		const finished = finishedBlocks(this.blockStates, blocks);
-		this.blockStates = new Map(blocks.map((block) => [block.id, block.state] as const));
-		if (finished.length === 0) return blocks;
-		const visible = this.shownToUser();
-		for (const block of finished) {
-			for (const listener of [...this.blockFinishedListeners]) {
-				listener({ id: block.id, exitCode: block.exitCode, durationMs: block.durationMs, visible });
-			}
-		}
-		return blocks;
+		const parts = { container: this.container, blockElements: this.elements.blockElements.values(), altRoot: this.altRoot, decorationLayer: this.overlays.decorationLayer };
+		applyStyleVars(parts, this.theme, this.font);
 	}
 
 	private repaint(paintedAt?: number): void {
@@ -984,303 +481,105 @@ export class DomBlockRenderer implements BlockRenderer {
 		}
 		const core = this.core;
 		const container = this.container;
-		const list = this.list;
-		const leading = this.leadingSpacer;
-		const trailing = this.trailingSpacer;
-		if (!core || !container || !list || !leading || !trailing) {
+		const chrome = this.chrome;
+		if (!core || !container || !chrome) {
 			return;
 		}
+		const { list, leading, trailing } = chrome;
 		const anchor = this.scrollAnchor();
-		const firstRow = Math.max(0, this.flatRowFor(anchor) - OVERSCAN_ROWS);
-		core.setExportWindow(firstRow, firstRow + this.visibleRowCapacity() + 2 * OVERSCAN_ROWS);
+		const firstRow = Math.max(0, this.scroll.flatRowFor(anchor) - OVERSCAN_ROWS);
+		core.setExportWindow(firstRow, firstRow + this.scroll.visibleRowCapacity() + 2 * OVERSCAN_ROWS);
 		const snapshot = core.snapshot();
-		if (this.revealedAt !== snapshot.generation) {
-			this.revealedSecrets.clear();
-			this.revealedAt = snapshot.generation;
-		}
+		this.overlays.noteGeneration(snapshot.generation);
 
 		const alt = snapshot.altScreen;
 		if (alt) {
 			if (!this.wasAltActive) {
-				this.dropSelection();
+				this.selection.drop();
 				this.wasAltActive = true;
 			}
-			container.style.overflow = "hidden";
-			container.scrollTop = 0;
-			const altRoot = this.ensureAltRoot(container);
-			altRoot.setAttribute("style", styleVarsString(this.theme, this.font));
-			altRoot.hidden = false;
-			if (this.list) this.list.hidden = true;
-			if (this.pinnedHeader) this.pinnedHeader.hidden = true;
-			renderAltSurface(alt, this.altRoot!, this.decoder, this.cellMetrics(), this.activeFeatures, this.widths);
-			this.paintSelectionFill();
-			this.linkifier.refresh();
-			this.paintDecorations();
-			this.paintHints();
-			this.paintRedactions();
-			this.reconcilePredictions();
-			if (paintedAt !== undefined) this.lastPaintAt = paintedAt;
-			this.notifyPainted();
+			showAltRoot(container, chrome, () => this.ensureAltRoot(container), styleVarsString(this.theme, this.font));
+			renderAltSurface(alt, this.altRoot!, this.decoder, this.cellMetrics(), this.activeFeatures, this.measurer.widths);
+			this.finishPaint(paintedAt);
 			core.takeDirty();
 			this.rescheduleIfPending(core);
 			return;
 		}
-		if (this.altRoot) {
-			this.altRoot.hidden = true;
-		}
-		if (this.list) this.list.hidden = false;
-		applyScrollOverflow(container);
-		if (this.wasAltActive) this.dropSelection();
+		showBlockList(container, chrome, this.altRoot);
+		if (this.wasAltActive) this.selection.drop();
 		this.wasAltActive = false;
 
-		const blocks = this.detectFinishedBlocks(snapshot);
+		const blocks = this.finished.detect(snapshot, () => shownToUser(this.hostVisible, this.container));
 		if (blocks.length > 0) {
 			this.knownBlockId = blocks[0]!.id;
 		}
-		if (this.selection) {
-			const ids = new Set(blocks.map((block) => block.id));
-			if (!ids.has(this.selection.head.blockId) || !ids.has(this.selection.tail.blockId)) this.dropSelection();
-		}
+		this.selection.dropUnlessShown(blocks);
 		const cursor: CursorPlacement | null = primaryCursorPlacement(snapshot);
 		const cursorPaint = cursor
 			? cursorPaintFor({ source: snapshot, row: cursor.row, column: cursor.column, theme: this.theme, features: this.activeFeatures, focused: this.focused, decoder: this.decoder })
 			: PLAIN_CURSOR_PAINT;
 		const dirty = core.takeDirty();
-		if (dirty.full || this.rebuildAll) {
-			this.fullSince = snapshot.generation;
-			this.pool.clear();
-			this.pooledDirty.clear();
-			if (this.rebuildAll) this.blockElements.clear();
-			this.rebuildAll = false;
-		}
-		for (const [id, away] of this.pooledDirty) {
-			if (away === null) continue;
-			if (away.size + dirty.rows.size > POOL_DIRTY_CAP) {
-				this.pooledDirty.set(id, null);
-				continue;
-			}
-			for (const stableRow of dirty.rows) away.add(stableRow);
-		}
+		this.elements.startPaint(dirty, this.rebuildAll, snapshot.generation);
+		this.rebuildAll = false;
 		const firstScreenStable = snapshot.firstStableRow + snapshot.historyRows;
 		const pooledThisPaint = new Map<BlockId, Set<number> | null>();
-		const freshFor = (blockId: BlockId) => (stableRow: number, node: HTMLElement): boolean => {
-			const built = Number(node.getAttribute(ROW_GENERATION_ATTR));
-			if (!Number.isFinite(built) || built < this.fullSince) return false;
-			if (dirty.rows.has(stableRow)) return false;
-			if (!pooledThisPaint.has(blockId)) return true;
-			const away = pooledThisPaint.get(blockId);
-			if (!away || away.has(stableRow)) return false;
-			return stableRow < firstScreenStable;
-		};
+		const freshFor = this.elements.freshness(dirty.rows, pooledThisPaint, firstScreenStable);
 		const cursorElement = this.cursorElement ?? (this.cursorElement = createCursorElement(0, 0));
-		let cursorPlaced = false;
-		this.filteredBlocks = applyFilter(blocks, this.currentFilter)
-			.filter((block) => !(
-				snapshot.lineEditorState === 1 &&
-				block === blocks.at(-1) &&
-				block.source !== "synthetic" &&
-				block.state === "running" &&
-				block.command === "" &&
-				blockIsBlank(snapshot, block)
-			))
-			.map((block) => trimTrailingBlankRows(snapshot, block));
+		this.filteredBlocks = shownBlocks(snapshot, blocks, this.currentFilter);
 		const { cellWidth } = this.measure();
 		this.paintedFirstStableRow = snapshot.firstStableRow;
-		const { rowHeight, headerHeight, paddingY } = this.layout();
-		const previousScrollTop = container.scrollTop;
-		const scrollTop = this.stickToBottom
-			? Number.MAX_SAFE_INTEGER
-			: this.anchoredScrollTop(snapshot.firstStableRow, previousScrollTop);
-		const viewportHeight = container.clientHeight || 1;
-		this.lastClientHeight = container.clientHeight;
-		const windowResult = computeWindow({
-			blocks: this.filteredBlocks,
-			scrollTop,
-			viewportHeight,
-			rowHeight,
-			headerHeight,
-			overscanRows: OVERSCAN_ROWS,
-			blockPaddingY: paddingY,
-		});
+		const layout = this.layout();
+		const { rowHeight } = layout;
+		const { scrollTop, windowResult } = this.scroll.frame(container, snapshot.firstStableRow, layout, OVERSCAN_ROWS);
 
 		leading.style.height = `${windowResult.leadingSpacer}px`;
 		trailing.style.height = `${windowResult.trailingSpacer}px`;
-		if (this.blockNav) this.blockNav.setPinnedIndex(windowResult.pinnedBlockIndex);
+		if (this.wiring) this.wiring.blockNav.setPinnedIndex(windowResult.pinnedBlockIndex);
 
-
-		const visibleIds = new Set<BlockId>();
-		if (windowResult.firstBlock <= windowResult.lastBlock) {
-			for (let i = windowResult.firstBlock; i <= windowResult.lastBlock; i += 1) {
-				const block = this.filteredBlocks[i]!;
-				visibleIds.add(block.id);
-				const { element, pooled, away } = this.ensureBlockElement(block);
-				if (pooled) pooledThisPaint.set(block.id, away);
-				const rowWindow = windowResult.rowWindows.get(i) ?? null;
-				const placed = populateBlock(element, {
-					block,
-					snapshot,
-					rowWindow,
-					rowHeight,
-					cellWidth,
-					cursor,
-					cursorElement,
-					cursorPaint,
-					decoder: this.decoder,
-					firstStableRow: snapshot.firstStableRow,
-					generation: snapshot.generation,
-					rowIsFresh: freshFor(block.id),
-					features: this.activeFeatures,
-					widths: this.widths,
-				});
-				if (placed.cursorPlaced) cursorPlaced = true;
-			}
-		}
+		const body = { snapshot, rowHeight, cellWidth, cursor, cursorElement, cursorPaint, decoder: this.decoder, firstStableRow: snapshot.firstStableRow, generation: snapshot.generation, features: this.activeFeatures, widths: this.measurer.widths };
+		const style = () => styleVarsString(this.theme, this.font);
+		const { visibleIds, orderedVisible, cursorPlaced } = this.elements.populateWindow(this.filteredBlocks, windowResult, freshFor, pooledThisPaint, style, body);
 		if (!cursorPlaced) cursorElement.remove();
 
-		const orderedVisible: HTMLElement[] = [];
-		for (let i = windowResult.firstBlock; i <= windowResult.lastBlock; i += 1) {
-			const block = this.filteredBlocks[i]!;
-			const element = this.blockElements.get(block.id);
-			if (element) orderedVisible.push(element);
-		}
 		reconcileChildren(list, [leading, ...orderedVisible, trailing]);
-		if (this.pinnedHeader) {
-			const first = orderedVisible[0];
-			const scrolledPastHeader = first && first.getBoundingClientRect().top + rowHeight * (BLOCK_PADDING_TOP_LINES + 2) + 1 < container.getBoundingClientRect().top;
-			updatePinnedHeader(this.pinnedHeader, this.filteredBlocks, scrolledPastHeader ? windowResult.firstBlock : -1, defaultStrings);
-		}
+		const first = orderedVisible[0];
+		const scrolledPastHeader = first && first.getBoundingClientRect().top + rowHeight * (BLOCK_PADDING_TOP_LINES + 2) + 1 < container.getBoundingClientRect().top;
+		updatePinnedHeader(chrome.pinned, this.filteredBlocks, scrolledPastHeader ? windowResult.firstBlock : -1, defaultStrings);
 
 		const capacity = POOL_CAPACITY_FACTOR * Math.max(1, orderedVisible.length);
-		for (const [id, element] of this.blockElements) {
-			if (!visibleIds.has(id)) {
-				this.pool.put(id, element, capacity);
-				this.pooledDirty.set(id, dirty.rows.size > POOL_DIRTY_CAP ? null : new Set(dirty.rows));
-				this.blockElements.delete(id);
-			}
-		}
-		for (const id of [...this.pooledDirty.keys()]) {
-			if (!this.pool.has(id)) this.pooledDirty.delete(id);
-		}
-		if (this.stickToBottom) {
-			this.applyStickiness();
-		} else if (!overscrolled(container) && Math.abs(container.scrollTop - scrollTop) > 0.5) {
-			container.scrollTop = scrollTop;
-		}
-		this.paintSelectionFill();
-		this.linkifier.refresh();
-		this.paintDecorations();
-		this.paintHints();
-		this.paintRedactions();
-		this.reconcilePredictions();
-		if (paintedAt !== undefined) this.lastPaintAt = paintedAt;
-		this.notifyPainted();
+		this.elements.poolHidden(visibleIds, dirty.rows, capacity);
+		this.scroll.settle(container, scrollTop);
+		this.finishPaint(paintedAt);
 		this.rescheduleIfPending(core);
+	}
+
+	private finishPaint(paintedAt: number | undefined): void {
+		this.selection.paintFill();
+		this.overlays.refreshLinks();
+		this.overlays.paintDecorations();
+		this.overlays.paintHints();
+		this.overlays.paintRedactions();
+		this.echo.reconcile();
+		if (paintedAt !== undefined) this.lastPaintAt = paintedAt;
+		this.paintListeners.emit();
 	}
 
 	private rescheduleIfPending(core: TerminalCore): void {
 		if (core.hasBacklog() || core.synchronizedOutput()) this.scheduleRepaint();
 	}
 
-	private paintSelectionFill(): void {
-		const view = this.selectionView();
-		const next = view ? selectionFills(view, this.renderedRows(), this.cellMetrics().cellWidth) : new Map<HTMLElement, string>();
-		for (const element of this.filled.keys()) {
-			if (!next.has(element)) element.style.backgroundImage = "";
-		}
-		for (const [element, image] of next) {
-			if (this.filled.get(element) !== image) element.style.backgroundImage = image;
-		}
-		this.filled = next;
-	}
-
 	private renderedRows(): RenderedRow[] {
-		return renderedRows(this.altRoot, this.filteredBlocks, this.blockElements, this.paintedFirstStableRow);
-	}
-
-	private updateStickiness(): void {
-		const container = this.container;
-		if (!container) return;
-		// A viewport that changed height moves the bottom out from under a pinned
-		// terminal. The scroll event that follows belongs to the layout, not to
-		// the user, and reading it as a deliberate scroll leaves the terminal
-		// stranded a few rows short of the bottom for the rest of the session.
-		if (container.clientHeight !== this.lastClientHeight) {
-			this.lastClientHeight = container.clientHeight;
-			if (this.stickToBottom) {
-				this.applyStickiness();
-				return;
-			}
-		}
-		const distance = container.scrollHeight - container.scrollTop - container.clientHeight;
-		this.stickToBottom = distance <= STICK_THRESHOLD_PX;
-		if (this.stickToBottom) this.anchor = null;
-	}
-
-	private applyStickiness(): void {
-		const container = this.container;
-		if (!container || !this.stickToBottom) return;
-		const target = container.scrollHeight - container.clientHeight;
-		if (target <= 0) return;
-		if (container.scrollTop < target - 0.5) {
-			container.scrollTop = target;
-		}
-	}
-
-	private ensureBlockElement(block: BlockView): { element: HTMLElement; pooled: boolean; away: Set<number> | null } {
-		const existing = this.blockElements.get(block.id);
-		if (existing) return { element: existing, pooled: false, away: null };
-		const pooled = this.pool.take(block.id);
-		if (pooled) {
-			const away = this.pooledDirty.get(block.id) ?? null;
-			this.pooledDirty.delete(block.id);
-			pooled.setAttribute("style", styleVarsString(this.theme, this.font));
-			this.blockElements.set(block.id, pooled);
-			return { element: pooled, pooled: true, away };
-		}
-		const section = document.createElement("section");
-		section.className = CLASS_BLOCK;
-		section.dataset.terminalBlockId = block.id;
-		section.setAttribute("style", styleVarsString(this.theme, this.font));
-		this.blockElements.set(block.id, section);
-		return { element: section, pooled: false, away: null };
+		return renderedRows(this.altRoot, this.filteredBlocks, this.elements.blockElements, this.paintedFirstStableRow);
 	}
 
 	private cellMetrics(): { cellWidth: number; cellHeight: number } {
-		const { cellWidth, cellHeight } = this.measure();
-		return { cellWidth: cellWidth > 0 ? cellWidth : this.font.sizePx * 0.6, cellHeight: cellHeight > 0 ? cellHeight : this.font.lineHeight * this.font.sizePx };
+		return cellMetricsFor(this.measure(), this.font);
 	}
 
 	private ensureAltRoot(container: HTMLElement): HTMLElement {
 		if (this.altRoot) return this.altRoot;
-		const root = document.createElement("div");
-		root.setAttribute("data-terminal-alt-surface", "");
-		root.classList.add("terminal-alt-surface");
-		root.setAttribute("style", styleVarsString(this.theme, this.font));
-		container.append(root);
+		const root = createAltRoot(container, styleVarsString(this.theme, this.font));
 		this.altRoot = root;
 		return root;
 	}
-}
-
-function applyScrollOverflow(container: HTMLElement): void {
-	container.style.overflowX = "hidden";
-	container.style.overflowY = "auto";
-	container.style.setProperty("overscroll-behavior-y", "none");
-}
-
-function ensurePackageStyleTag(): HTMLStyleElement {
-	const existing = document.head.querySelector<HTMLStyleElement>("style[data-terminal-package]");
-	if (existing) {
-		// Refresh rather than skip: under HMR the module re-evaluates with new CSS
-		// while the previous version's tag survives, leaving current markup styled
-		// by a stale stylesheet.
-		const current = terminalStylesForDocument();
-		if (existing.textContent !== current) existing.textContent = current;
-		return existing;
-	}
-	const tag = document.createElement("style");
-	tag.setAttribute("data-terminal-package", "renderer-dom");
-	tag.textContent = terminalStylesForDocument();
-	document.head.append(tag);
-	return tag;
 }
