@@ -9,7 +9,6 @@ import 'package:operator_mobile/core/utils/app_constants.dart';
 import 'package:operator_mobile/core/widgets/glass/frosted_header.dart';
 import 'package:operator_mobile/core/widgets/glass/glass_metrics.dart';
 import 'package:operator_mobile/core/widgets/glass/glass_sheet.dart';
-import 'package:operator_mobile/core/widgets/glass/glass_surface.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_text.dart';
 
 enum AppSheetDetent { fit, medium, large }
@@ -69,8 +68,8 @@ sealed class AppSheetLogic {
   static double headerBarVisibility(double offset) =>
       (offset / AppSheetMetrics.headerFadeExtent).clamp(0.0, 1.0).toDouble();
 
-  static Clip surfaceClip(double headerVisibility) =>
-      headerVisibility > 0 ? Clip.antiAliasWithSaveLayer : Clip.antiAlias;
+  static Clip surfaceClip({required double headerVisibility, required bool hasSearch}) =>
+      headerVisibility > 0 || hasSearch ? Clip.antiAliasWithSaveLayer : Clip.antiAlias;
 
   static double bottomClearance({required bool hasSearch}) => hasSearch
       ? AppSheetMetrics.searchBottom + AppSheetMetrics.searchHeight + AppSheetMetrics.contentBottom
@@ -109,7 +108,7 @@ class AppSheet extends StatefulWidget {
   static const Key backKey = ValueKey('app-sheet-back');
   static const Key headerBarKey = ValueKey('app-sheet-header-bar');
   static const Key contentClipKey = ValueKey('app-sheet-content-clip');
-  static const Key outerClipKey = ValueKey('app-sheet-outer-clip');
+  static const Key searchCapsuleKey = ValueKey('app-sheet-search-capsule');
   static const Key layerClipKey = ValueKey('app-sheet-layer-clip');
 
   final AppSheetPage root;
@@ -333,6 +332,14 @@ class _AppSheetState extends State<AppSheet> {
                   builder: (context, visibility, _) => _header(page, visibility),
                 ),
               ),
+              if (page.searchHint != null)
+                Positioned(
+                  left: AppSheetMetrics.searchSide,
+                  right: AppSheetMetrics.searchSide,
+                  bottom: AppSheetMetrics.searchBottom,
+                  height: AppSheetMetrics.searchHeight,
+                  child: _SearchCapsule(controller: _search, hint: page.searchHint!),
+                ),
             ],
           );
           return Padding(
@@ -342,47 +349,31 @@ class _AppSheetState extends State<AppSheet> {
               GlassMetrics.sheetInset,
               GlassMetrics.sheetInset,
             ),
-            child: ClipRSuperellipse(
-              key: AppSheet.outerClipKey,
-              borderRadius: radius,
-              child: Stack(
-                children: [
-                  ValueListenableBuilder<double>(
-                    valueListenable: _headerVisibility,
-                    builder: (context, visibility, child) => ClipRSuperellipse(
-                      key: AppSheet.layerClipKey,
-                      borderRadius: radius,
-                      clipBehavior: AppSheetLogic.surfaceClip(visibility),
-                      child: child,
-                    ),
-                    child: DecoratedBox(
-                      key: AppSheet.surfaceKey,
-                      decoration: ShapeDecoration(
-                        color: skin.bgSurface,
-                        shape: RoundedSuperellipseBorder(borderRadius: radius),
-                      ),
-                      child: Material(
-                        type: MaterialType.transparency,
-                        child: AnimatedSize(
-                          duration: AppMotion.base,
-                          curve: AppMotion.easeOut,
-                          alignment: Alignment.bottomCenter,
-                          child: height == null
-                              ? ConstrainedBox(constraints: BoxConstraints(maxHeight: maxHeight), child: stack)
-                              : SizedBox(height: height, child: stack),
-                        ),
-                      ),
-                    ),
+            child: ValueListenableBuilder<double>(
+              valueListenable: _headerVisibility,
+              builder: (context, visibility, child) => ClipRSuperellipse(
+                key: AppSheet.layerClipKey,
+                borderRadius: radius,
+                clipBehavior: AppSheetLogic.surfaceClip(headerVisibility: visibility, hasSearch: page.searchHint != null),
+                child: child,
+              ),
+              child: DecoratedBox(
+                key: AppSheet.surfaceKey,
+                decoration: ShapeDecoration(
+                  color: skin.bgSurface,
+                  shape: RoundedSuperellipseBorder(borderRadius: radius),
+                ),
+                child: Material(
+                  type: MaterialType.transparency,
+                  child: AnimatedSize(
+                    duration: AppMotion.base,
+                    curve: AppMotion.easeOut,
+                    alignment: Alignment.bottomCenter,
+                    child: height == null
+                        ? ConstrainedBox(constraints: BoxConstraints(maxHeight: maxHeight), child: stack)
+                        : SizedBox(height: height, child: stack),
                   ),
-                  if (page.searchHint != null)
-                    Positioned(
-                      left: AppSheetMetrics.searchSide,
-                      right: AppSheetMetrics.searchSide,
-                      bottom: AppSheetMetrics.searchBottom,
-                      height: AppSheetMetrics.searchHeight,
-                      child: _SearchCapsule(controller: _search, hint: page.searchHint!),
-                    ),
-                ],
+                ),
               ),
             ),
           );
@@ -439,9 +430,9 @@ class _SearchCapsule extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final skin = context.skin;
-    return GlassSurface(
-      kind: GlassShapeKind.capsule,
-      size: AppSheetMetrics.searchHeight,
+    return FrostedCapsule(
+      key: AppSheet.searchCapsuleKey,
+      extent: AppSheetMetrics.searchHeight,
       child: Material(
         type: MaterialType.transparency,
         child: Row(
