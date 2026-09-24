@@ -130,8 +130,10 @@ You'd only notice these as fewer rare glitches or slightly less CPU use.
 - **Very old output:** beyond 200,000 lines, the oldest text is dropped
   instead of saved for "load more" (§5.8).
 - **Crash recovery:** if the helper process that runs a terminal hangs,
-  nothing restarts it, and terminals don't survive restarting the whole app
-  (§6.3).
+  nothing notices or restarts it, and if it dies (or the Mac reboots) the
+  terminal's history is lost because it is never saved to disk (§6.3).
+  Terminals do survive a daemon or app restart: the helper outlives the
+  daemon and is found again.
 - **Typing ahead:** while a command runs, what you type goes straight to the
   running program instead of waiting in the input box (§7.2).
 - The rest are small or test-only: §1.14, §3.6, §3.13, §3.15, §4.4, §4.10,
