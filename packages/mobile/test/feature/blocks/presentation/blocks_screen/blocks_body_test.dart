@@ -8,6 +8,7 @@ import 'package:operator_mobile/core/app_themes/colors/dark_skin.dart';
 import 'package:operator_mobile/core/app_themes/app_motion.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/widgets/chat/chat_insets.dart';
+import 'package:operator_mobile/core/widgets/motion/disclosure.dart';
 import 'package:operator_mobile/feature/blocks/logic/session_block.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/blocks_cubit.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/session_command_cubit.dart';
@@ -171,7 +172,7 @@ void main() {
     ]);
 
     await _pump(tester, cubit);
-    await tester.tap(find.byIcon(Icons.chevron_right).first);
+    await tester.tap(find.byType(DisclosureChevron).first);
     await tester.pumpAndSettle();
 
     expect(find.byType(BlockCard), findsNWidgets(2));
@@ -186,7 +187,7 @@ void main() {
     when(() => cubit.blocks).thenReturn([_block(body: long)]);
 
     await _pump(tester, cubit);
-    await tester.tap(find.byIcon(Icons.chevron_right).first);
+    await tester.tap(find.byType(DisclosureChevron).first);
     await tester.pumpAndSettle();
 
     final text = tester.widget<Text>(find.text(long));
@@ -365,7 +366,7 @@ void main() {
     ]);
 
     await _pump(tester, cubit);
-    await tester.tap(find.byIcon(Icons.chevron_right).first);
+    await tester.tap(find.byType(DisclosureChevron).first);
     await tester.pumpAndSettle();
 
     final dot = tester.widget<BlockStatusDot>(

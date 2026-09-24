@@ -5,6 +5,7 @@ import 'package:operator_mobile/core/app_themes/app_motion.dart';
 import 'package:operator_mobile/core/app_themes/colors/dark_skin.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/search/text_match.dart';
+import 'package:operator_mobile/core/widgets/motion/disclosure.dart';
 import 'package:operator_mobile/feature/blocks/logic/block_find.dart';
 import 'package:operator_mobile/feature/blocks/logic/session_block.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/block_card.dart';
@@ -43,9 +44,13 @@ class ListHarness extends StatefulWidget {
     this.highlights = const {},
     this.sessionActive = false,
     this.onStreamingHaptic,
+    this.activeMatchId,
+    this.selectionMode = false,
   });
 
   final List<SessionBlock> initial;
+  final String? activeMatchId;
+  final bool selectionMode;
   final bool sessionActive;
   final VoidCallback? onStreamingHaptic;
   final String sessionId;
@@ -61,6 +66,16 @@ class ListHarnessState extends State<ListHarness> {
   late List<SessionBlock> blocks = widget.initial;
   late String sessionId = widget.sessionId;
   late bool sessionActive = widget.sessionActive;
+  late String? activeMatchId = widget.activeMatchId;
+  late Map<String, BlockMatch> highlights = widget.highlights;
+  late bool selectionMode = widget.selectionMode;
+
+  void findMatch(String? id, Map<String, BlockMatch> matches) => setState(() {
+    activeMatchId = id;
+    highlights = matches;
+  });
+
+  void select(bool value) => setState(() => selectionMode = value);
 
   void replace(List<SessionBlock> next, {bool? active}) => setState(() {
     blocks = next;
@@ -92,7 +107,9 @@ class ListHarnessState extends State<ListHarness> {
     blocks: blocks,
     sticky: widget.sticky,
     pinnedListenable: widget.pinned,
-    highlights: widget.highlights,
+    highlights: highlights,
+    activeMatchId: activeMatchId,
+    selectionMode: selectionMode,
     sessionActive: sessionActive,
     onStreamingHaptic: widget.onStreamingHaptic,
   );
@@ -107,6 +124,7 @@ Future<ListHarnessState> pumpList(
   Map<String, BlockMatch> highlights = const {},
   bool sessionActive = false,
   VoidCallback? onStreamingHaptic,
+  bool settle = true,
 }) async {
   await tester.pumpWidget(
     SkinScope(
@@ -147,7 +165,12 @@ Future<ListHarnessState> pumpList(
       ),
     ),
   );
-  await tester.pumpAndSettle();
+  if (settle) {
+    await tester.pumpAndSettle();
+  } else {
+    await tester.pump();
+    await tester.pump(AppMotion.disclosure);
+  }
   return tester.state<ListHarnessState>(find.byType(ListHarness));
 }
 
@@ -274,7 +297,13 @@ void main() {
       var fired = 0;
       final prompt = block(1, kind: BlockKind.prompt);
       SessionBlock reply(int lines) => block(2, kind: BlockKind.assistant, status: BlockStatus.running, lines: lines);
-      final harness = await pumpList(tester, [prompt], sessionActive: true, onStreamingHaptic: () => fired++);
+      final harness = await pumpList(
+        tester,
+        [prompt],
+        sessionActive: true,
+        onStreamingHaptic: () => fired++,
+        settle: false,
+      );
       expect(fired, 0);
       harness.replace([prompt, reply(1)]);
       await tester.pump(const Duration(milliseconds: 16));
@@ -315,6 +344,7 @@ void main() {
         [block(1, kind: BlockKind.prompt)],
         sessionActive: true,
         onStreamingHaptic: () => fired++,
+        settle: false,
       );
       harness.append([block(2, kind: BlockKind.assistant, createdAt: ago(const Duration(seconds: 10)))]);
       await tester.pump();
@@ -330,6 +360,7 @@ void main() {
         [block(1, kind: BlockKind.prompt)],
         sessionActive: true,
         onStreamingHaptic: () => fired++,
+        settle: false,
       );
       harness.append([block(2, kind: BlockKind.assistant, status: BlockStatus.running)]);
       await tester.pump();
@@ -371,7 +402,7 @@ void main() {
     await pumpList(tester, [block(1), block(2, kind: BlockKind.tool, status: BlockStatus.running), block(3)]);
     final card = tester.getRect(find.byKey(const ValueKey('seq-2')).first);
     final label = tester.getRect(find.text('running'));
-    final chevron = tester.getRect(find.byIcon(Icons.chevron_right));
+    final chevron = tester.getRect(find.byType(DisclosureChevron));
     expect(card.right - chevron.right, lessThanOrEqualTo(40));
     expect(chevron.left - label.right, lessThanOrEqualTo(8));
   });

@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/app_themes/text_style/app_text_style.dart';
+import 'package:operator_mobile/core/utils/haptics.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_text.dart';
+import 'package:operator_mobile/core/widgets/motion/disclosure.dart';
 import 'package:operator_mobile/feature/blocks/logic/session_block.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/block_status_dot.dart';
 
@@ -33,7 +35,10 @@ class ToolGroupHeader extends StatelessWidget {
         button: true,
         expanded: expanded,
         child: InkWell(
-          onTap: onTap,
+          onTap: () {
+            Haptics.select();
+            onTap();
+          },
           onLongPress: onLongPress,
           borderRadius: BorderRadius.circular(10),
           child: ConstrainedBox(
@@ -66,10 +71,12 @@ class ToolGroupHeader extends StatelessWidget {
                   ),
                 ],
                 const SizedBox(width: 6),
-                Icon(
-                  expanded ? Icons.expand_more : Icons.chevron_right,
+                DisclosureChevron(
+                  expanded: expanded,
                   size: 18,
                   color: skin.textTertiary,
+                  collapsedTurns: -0.25,
+                  expandedTurns: 0,
                 ),
               ],
             ),

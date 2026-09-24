@@ -6,23 +6,21 @@ import 'package:operator_mobile/core/app_themes/app_motion.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/utils/haptics.dart';
 import 'package:operator_mobile/core/utils/streaming_haptics.dart';
+import 'package:operator_mobile/core/widgets/motion/disclosure.dart';
 import 'package:operator_mobile/feature/blocks/logic/block_actions.dart';
 import 'package:operator_mobile/feature/blocks/logic/block_find.dart';
 import 'package:operator_mobile/feature/blocks/logic/block_viewport.dart';
 import 'package:operator_mobile/feature/blocks/logic/session_block.dart';
 import 'package:operator_mobile/feature/blocks/logic/tool_grouping.dart';
+import 'package:operator_mobile/feature/blocks/logic/turn_fold.dart';
 import 'package:operator_mobile/feature/blocks/logic/turn_grouping.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/block_card.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/incoming_response.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/sticky_block_header.dart';
+import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/thinking_row.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/tool_group_header.dart';
+import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/turn_fold_row.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/turn_group_status.dart';
-
-bool _hasFollowingRailItem(List<SessionBlock> blocks, int index) {
-  if (!isRailBlock(blocks[index])) return false;
-  final next = index + 1;
-  return next < blocks.length && isRailBlock(blocks[next]);
-}
 
 class BlockList extends StatefulWidget {
   const BlockList({
@@ -97,6 +95,15 @@ class BlockListState extends State<BlockList> {
   StreamingHaptics? _haptics;
   bool? _hapticsReduceMotion;
   Map<String, List<SessionBlock>> _toolGroups = {};
+  final Set<String> _expandedTurns = {};
+  Map<String, TurnFold> _foldOfBlock = {};
+  Map<String, TurnFold> _foldAnchors = {};
+  bool _thinking = false;
+  Duration? _followUntil;
+  Duration? _anchorUntil;
+  String? _anchorId;
+  double? _anchorDelta;
+  Duration? _revealUntil;
 
   int? _pivotSeq;
   bool _pinned = true;
@@ -114,6 +121,7 @@ class BlockListState extends State<BlockList> {
     controller.addListener(_onScroll);
     widget.bottomInset?.addListener(_onInsetChanged);
     _adoptPivot();
+    _syncFolds();
     _scheduleFollow();
   }
 
@@ -144,6 +152,7 @@ class BlockListState extends State<BlockList> {
     if (widget.sessionId != oldWidget.sessionId) {
       _collapsedToolGroups.clear();
       _expandedTools.clear();
+      _expandedTurns.clear();
       _pendingResponses.clear();
       _unsettledReplies = {};
       _settlingReplies = {};
@@ -164,7 +173,118 @@ class BlockListState extends State<BlockList> {
     }
     if (widget.sessionId == oldWidget.sessionId) _trackStreaming(oldWidget.blocks);
     _adoptPivot();
+    final revealed = _revealActiveMatch(oldWidget);
+    final reshaped = _syncFolds();
+    if (revealed || reshaped || !setEquals(widget.collapsedIds, oldWidget.collapsedIds)) {
+      _holdDuringDisclosure(anchorId: _changedCollapse(oldWidget));
+    }
     if (_pinned && !_seeking) _scheduleFollow();
+  }
+
+  String? _changedCollapse(BlockList oldWidget) {
+    for (final id in widget.collapsedIds.difference(oldWidget.collapsedIds)) {
+      return id;
+    }
+    for (final id in oldWidget.collapsedIds.difference(widget.collapsedIds)) {
+      return id;
+    }
+    return null;
+  }
+
+  bool _revealActiveMatch(BlockList oldWidget) {
+    final id = widget.activeMatchId;
+    if (id == null || id == oldWidget.activeMatchId || widget.selectionMode) return false;
+    final groups = groupBlocksByTurn(widget.blocks, sessionActive: widget.sessionActive);
+    for (final fold in turnFolds(groups)) {
+      if (fold.hiddenIds.contains(id) && _expandedTurns.add(fold.id)) {
+        _revealUntil = _now + AppMotion.disclosure + _settleSlack;
+        return true;
+      }
+    }
+    return false;
+  }
+
+  bool _syncFolds() {
+    final groups = groupBlocksByTurn(widget.blocks, sessionActive: widget.sessionActive);
+    final folds = widget.selectionMode ? const <TurnFold>[] : turnFolds(groups);
+    final thinking = widget.sessionActive && !widget.selectionMode && showsThinking(groups);
+    final foldOfBlock = <String, TurnFold>{
+      for (final fold in folds)
+        for (final id in fold.hiddenIds) id: fold,
+    };
+    final changed = thinking != _thinking || !setEquals(foldOfBlock.keys.toSet(), _foldOfBlock.keys.toSet());
+    _thinking = thinking;
+    _foldOfBlock = foldOfBlock;
+    _foldAnchors = {for (final fold in folds) fold.anchorId: fold};
+    return changed;
+  }
+
+  bool _folded(String blockId) {
+    final fold = _foldOfBlock[blockId];
+    return fold != null && !_expandedTurns.contains(fold.id);
+  }
+
+  bool _hasFollowingRailItem(List<SessionBlock> blocks, int index) {
+    if (!isRailBlock(blocks[index])) return false;
+    for (var next = index + 1; next < blocks.length; next++) {
+      if (_folded(blocks[next].id)) continue;
+      return isRailBlock(blocks[next]);
+    }
+    return false;
+  }
+
+  static const Duration _settleSlack = Duration(milliseconds: 48);
+
+  Duration get _now => SchedulerBinding.instance.currentSystemFrameTimeStamp;
+
+  void _toggleTurn(TurnFold fold) {
+    setState(() {
+      if (!_expandedTurns.add(fold.id)) _expandedTurns.remove(fold.id);
+    });
+    _holdDuringDisclosure(anchorId: fold.anchorId);
+  }
+
+  void _holdDuringDisclosure({String? anchorId}) {
+    final until = _now + AppMotion.disclosure + _settleSlack;
+    if (_pinned || _seeking) {
+      _followUntil = until;
+      if (!_seeking) _scheduleFollow();
+      return;
+    }
+    if (anchorId == null) return;
+    final index = widget.blocks.indexWhere((block) => block.id == anchorId);
+    final delta = index < 0 ? null : _viewportTopDelta(index);
+    if (delta == null) return;
+    final holding = _anchorUntil != null;
+    _anchorId = anchorId;
+    _anchorDelta = delta;
+    _anchorUntil = until;
+    if (!holding) _anchorStep();
+  }
+
+  void _anchorStep() {
+    WidgetsBinding.instance.scheduleFrame();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final until = _anchorUntil;
+      if (!mounted || until == null || !controller.hasClients || _pinned) {
+        _anchorUntil = null;
+        return;
+      }
+      final index = widget.blocks.indexWhere((block) => block.id == _anchorId);
+      final delta = index < 0 ? null : _viewportTopDelta(index);
+      final target = _anchorDelta;
+      if (delta != null && target != null && (delta - target).abs() >= 0.5) {
+        final position = controller.position;
+        controller.jumpTo(
+          (position.pixels + delta - target).clamp(position.minScrollExtent, position.maxScrollExtent),
+        );
+      }
+      if (_now >= until) {
+        _anchorUntil = null;
+        return;
+      }
+      _anchorStep();
+    });
   }
 
   bool _isFresh(SessionBlock block) {
@@ -252,6 +372,8 @@ class BlockListState extends State<BlockList> {
   }
 
   void _onPointerDown(PointerDownEvent event) {
+    _anchorUntil = null;
+    _followUntil = null;
     if (!_seeking) return;
     _seeking = false;
     _onScroll();
@@ -318,6 +440,27 @@ class BlockListState extends State<BlockList> {
 
   void scrollBlockIntoView(int index) {
     if (!controller.hasClients) return;
+    final id = widget.blocks[index].id;
+    _alignBlock(index);
+    final until = _revealUntil;
+    if (until == null) return;
+    if (_now >= until) {
+      _revealUntil = null;
+      return;
+    }
+    WidgetsBinding.instance.scheduleFrame();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final next = widget.blocks.indexWhere((block) => block.id == id);
+      if (next >= 0) scrollBlockIntoView(next);
+    });
+  }
+
+  void _alignBlock(int index) {
+    final fold = _foldOfBlock[widget.blocks[index].id];
+    if (fold != null && _folded(fold.anchorId)) {
+      index = widget.blocks.indexWhere((block) => block.id == fold.anchorId);
+    }
     final tools = _toolGroups[widget.blocks[index].id];
     if (tools != null && tools.length > 1 && _collapsedToolGroups.contains(tools.first.id)) {
       index = widget.blocks.indexWhere((block) => block.id == tools.first.id);
@@ -341,9 +484,13 @@ class BlockListState extends State<BlockList> {
 
   int? _nextVisibleBoundary(int? index) {
     final tools = index == null ? null : _toolGroups[widget.blocks[index].id];
-    final boundary = tools != null && tools.length > 1 && _collapsedToolGroups.contains(tools.first.id)
+    var boundary = tools != null && tools.length > 1 && _collapsedToolGroups.contains(tools.first.id)
         ? widget.blocks.indexWhere((block) => block.id == tools.last.id)
         : index;
+    final fold = boundary == null ? null : _foldOfBlock[widget.blocks[boundary].id];
+    if (fold != null && _folded(fold.anchorId)) {
+      boundary = widget.blocks.indexWhere((block) => block.id == fold.hiddenIds.last);
+    }
     return BlockViewport.nextBoundary(boundary, widget.blocks.length);
   }
 
@@ -401,7 +548,7 @@ class BlockListState extends State<BlockList> {
           final tools = _toolGroups[widget.blocks[blockIndex].id];
           final collapsedGroup = tools != null && tools.length > 1 && _collapsedToolGroups.contains(tools.first.id);
           notifier?.value =
-              !collapsedGroup && BlockViewport.headerSticks(height, viewport.size.height)
+              !collapsedGroup && !_folded(widget.blocks[blockIndex].id) && BlockViewport.headerSticks(height, viewport.size.height)
               ? StickyBlock(block: widget.blocks[blockIndex], height: height)
               : null;
           return;
@@ -424,19 +571,31 @@ class BlockListState extends State<BlockList> {
 
   void _followStep() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      final until = _followUntil;
+      final holding = until != null && _now < until;
+      if (!holding) _followUntil = null;
       if (!mounted ||
           !controller.hasClients ||
           !_pinned ||
-          _followHops >= kMaxFollowHops) {
+          (!holding && _followHops >= kMaxFollowHops)) {
         _followScheduled = false;
         return;
       }
       final extent = controller.position.maxScrollExtent;
       if ((controller.position.pixels - extent).abs() < 0.5) {
-        _followScheduled = false;
+        if (!holding) {
+          _followScheduled = false;
+          return;
+        }
+        WidgetsBinding.instance.scheduleFrame();
+        _followStep();
         return;
       }
-      _followHops++;
+      if (holding) {
+        WidgetsBinding.instance.scheduleFrame();
+      } else {
+        _followHops++;
+      }
       controller.jumpTo(extent);
       _followStep();
     });
@@ -487,7 +646,7 @@ class BlockListState extends State<BlockList> {
                 itemBuilder: (context, index) {
                   final blockIndex = pivot - 1 - index;
                   final block = blocks[blockIndex];
-                  return _toolOrBlock(
+                  return _item(
                     block,
                     _toolGroups[block.id],
                     groupEndingByBlockId[block.id],
@@ -501,13 +660,16 @@ class BlockListState extends State<BlockList> {
                 itemBuilder: (context, index) {
                   final blockIndex = pivot + index;
                   final block = blocks[blockIndex];
-                  return _toolOrBlock(
+                  return _item(
                     block,
                     _toolGroups[block.id],
                     groupEndingByBlockId[block.id],
                     _hasFollowingRailItem(blocks, blockIndex),
                   );
                 },
+              ),
+              SliverToBoxAdapter(
+                child: Disclosure(expanded: _thinking, child: const ThinkingRow()),
               ),
               SliverToBoxAdapter(
                 child: widget.bottomInset == null
@@ -524,13 +686,46 @@ class BlockListState extends State<BlockList> {
     );
   }
 
-  Widget _toolOrBlock(SessionBlock block, List<SessionBlock>? tools, TurnGroup? group, bool hasFollowingRailItem) {
-    if (tools == null) return _blockWithGroupStatus(block, group, hasFollowingRailItem);
+  Widget _item(SessionBlock block, List<SessionBlock>? tools, TurnGroup? group, bool hasFollowingRailItem) {
+    final content = _toolOrBlock(block, tools, hasFollowingRailItem);
+    final status = group != null && widget.canRollbackTurn?.call(group) == true ? _turnStatus(group) : null;
+    if (!foldableInTurn(block)) {
+      if (status == null) return content;
+      return Column(
+        key: ValueKey('item-${block.id}'),
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [content, status],
+      );
+    }
+    final fold = _foldAnchors[block.id];
+    return Column(
+      key: ValueKey('item-${block.id}'),
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Disclosure(
+          expanded: fold != null,
+          child: fold == null
+              ? const SizedBox.shrink()
+              : TurnFoldRow(
+                  key: ValueKey('turn-fold-${fold.id}'),
+                  label: fold.label,
+                  expanded: _expandedTurns.contains(fold.id),
+                  onTap: () => _toggleTurn(fold),
+                ),
+        ),
+        Disclosure(expanded: !_folded(block.id), child: content),
+        ?status,
+      ],
+    );
+  }
+
+  Widget _toolOrBlock(SessionBlock block, List<SessionBlock>? tools, bool hasFollowingRailItem) {
+    if (tools == null) return _blockCard(block, hasFollowingRailItem);
     if (tools.length == 1) {
       return Padding(
         key: ValueKey(block.id),
         padding: const EdgeInsets.symmetric(vertical: 4),
-        child: _toolCard(block, group, first: true, last: true),
+        child: _toolCard(block, first: true, last: true),
       );
     }
     final groupId = tools.first.id;
@@ -553,19 +748,22 @@ class BlockListState extends State<BlockList> {
             status: status,
             expanded: expanded,
             onLongPress: widget.onLongPressHeader == null ? null : () => widget.onLongPressHeader!(groupId),
-            onTap: () => setState(() {
-              if (!_collapsedToolGroups.add(groupId)) _collapsedToolGroups.remove(groupId);
-            }),
+            onTap: () {
+              setState(() {
+                if (!_collapsedToolGroups.add(groupId)) _collapsedToolGroups.remove(groupId);
+              });
+              _holdDuringDisclosure(anchorId: groupId);
+            },
           ),
-        if (expanded)
-          _toolCard(block, group, first: block.id == groupId, last: block.id == tools.last.id)
-        else if (group != null)
-          _blockWithGroupStatus(block, group, false, showCard: false),
+        Disclosure(
+          expanded: expanded,
+          child: _toolCard(block, first: block.id == groupId, last: block.id == tools.last.id),
+        ),
       ],
     );
   }
 
-  Widget _toolCard(SessionBlock block, TurnGroup? group, {required bool first, required bool last}) {
+  Widget _toolCard(SessionBlock block, {required bool first, required bool last}) {
     final border = BorderSide(color: context.skin.borderSubtle);
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
@@ -578,17 +776,18 @@ class BlockListState extends State<BlockList> {
         ),
         border: Border(left: border, right: border, bottom: border, top: first ? border : BorderSide.none),
       ),
-      child: _blockWithGroupStatus(block, group, false, compactTool: true),
+      child: _blockCard(block, false, compactTool: true),
     );
   }
 
-  Widget _blockWithGroupStatus(
-    SessionBlock block,
-    TurnGroup? group,
-    bool hasFollowingRailItem, {
-    bool compactTool = false,
-    bool showCard = true,
-  }) {
+  Widget _turnStatus(TurnGroup group) => TurnGroupStatus(
+    group: group,
+    onRollback: widget.onRollbackTurn == null || widget.canRollbackTurn == null
+        ? null
+        : (widget.canRollbackTurn!(group) ? widget.onRollbackTurn : null),
+  );
+
+  Widget _blockCard(SessionBlock block, bool hasFollowingRailItem, {bool compactTool = false}) {
     final ctx = widget.actionContext;
     final actions = ctx == null ? const <BlockAction>[] : BlockActions.forBlock(block, ctx);
     final card = BlockCard(
@@ -602,9 +801,12 @@ class BlockListState extends State<BlockList> {
           ? !_expandedTools.contains(block.id)
           : widget.collapsedIds.contains(block.id) && !widget.highlights.containsKey(block.id),
       onToggleCollapse: compactTool
-          ? () => setState(() {
-              if (!_expandedTools.add(block.id)) _expandedTools.remove(block.id);
-            })
+          ? () {
+              setState(() {
+                if (!_expandedTools.add(block.id)) _expandedTools.remove(block.id);
+              });
+              _holdDuringDisclosure(anchorId: block.id);
+            }
           : widget.onToggleCollapse == null
           ? null
           : () => widget.onToggleCollapse!(block.id),
@@ -624,27 +826,12 @@ class BlockListState extends State<BlockList> {
       showReplyMeta: _settledReplies.contains(block.id),
       animateReplyMeta: _settlingReplies.remove(block.id),
     );
-    return Column(
+    if (block.kind != BlockKind.assistant) return KeyedSubtree(key: ValueKey(block.id), child: card);
+    return IncomingResponse(
       key: ValueKey(block.id),
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        if (showCard)
-          if (block.kind == BlockKind.assistant)
-            IncomingResponse(
-              blockId: block.id,
-              animate: _pendingResponses.remove(block.id),
-              child: card,
-            )
-          else
-            card,
-        if (group != null && widget.canRollbackTurn?.call(group) == true)
-          TurnGroupStatus(
-            group: group,
-            onRollback: widget.onRollbackTurn == null || widget.canRollbackTurn == null
-                ? null
-                : (widget.canRollbackTurn!(group) ? widget.onRollbackTurn : null),
-          ),
-      ],
+      blockId: block.id,
+      animate: _pendingResponses.remove(block.id),
+      child: card,
     );
   }
 }

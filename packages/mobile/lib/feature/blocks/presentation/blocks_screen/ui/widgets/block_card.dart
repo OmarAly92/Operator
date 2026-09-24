@@ -11,6 +11,7 @@ import 'package:operator_mobile/core/utils/app_constants.dart';
 import 'package:operator_mobile/core/utils/haptics.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_text.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/typing_dots.dart';
+import 'package:operator_mobile/core/widgets/motion/disclosure.dart';
 import 'package:operator_mobile/feature/blocks/logic/block_actions.dart';
 import 'package:operator_mobile/feature/blocks/logic/block_find.dart';
 import 'package:operator_mobile/feature/blocks/logic/block_question.dart';
@@ -212,7 +213,8 @@ class BlockCard extends StatelessWidget {
           ],
         ),
       ),
-      RailKind.group || RailKind.mcpGroup || RailKind.agent => Padding(
+      RailKind.group || RailKind.mcpGroup => railBody,
+      RailKind.agent => Padding(
         padding: EdgeInsets.only(bottom: collapsed ? 0 : 6),
         child: railBody,
       ),
@@ -482,9 +484,15 @@ class _ThinkBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final skin = context.skin;
+    final toggle = onToggleCollapse;
     final header = GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onTap: onToggleCollapse,
+      onTap: toggle == null
+          ? null
+          : () {
+              Haptics.select();
+              toggle();
+            },
       onLongPress: onLongPressHeader,
       child: Row(
         children: [
@@ -496,55 +504,55 @@ class _ThinkBody extends StatelessWidget {
               base: AppTextStyle.style13Medium.copyWith(color: skin.textTertiary),
             ),
           ),
-          if (onToggleCollapse != null)
-            Icon(
-              collapsed ? Icons.expand_more : Icons.expand_less,
+          if (toggle != null)
+            DisclosureChevron(
+              expanded: !collapsed,
               size: 16,
               color: skin.textTertiary,
+              expandedTurns: 0.5,
             ),
         ],
       ),
     );
 
-    if (collapsed) {
-      final preview = _reasoningPreview(display.summary);
-      if (preview.isEmpty) return header;
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          header,
-          Padding(
-            padding: const EdgeInsets.only(top: 2),
-            child: AppText(
-              preview,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: AppTextStyle.style10Regular.copyWith(color: skin.textFaint),
-            ),
-          ),
-        ],
-      );
-    }
-
+    final preview = _reasoningPreview(display.summary);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         header,
-        const SizedBox(height: 6),
-        GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onLongPress: onLongPressBody,
-          child: Container(
-            padding: const EdgeInsets.only(left: 10),
-            decoration: BoxDecoration(
-              border: Border(left: BorderSide(color: skin.borderSubtle, width: 2)),
+        if (preview.isNotEmpty)
+          Disclosure(
+            expanded: collapsed,
+            child: Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: AppText(
+                preview,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AppTextStyle.style10Regular.copyWith(color: skin.textFaint),
+              ),
             ),
-            child: _highlightedField(
-              context: context,
-              text: display.summary,
-              ranges: summaryHighlight?.ranges ?? const [],
-              base: AppTextStyle.style13Regular.copyWith(color: skin.textTertiary, height: 1.5),
-              softWrap: true,
+          ),
+        Disclosure(
+          expanded: !collapsed,
+          child: Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onLongPress: onLongPressBody,
+              child: Container(
+                padding: const EdgeInsets.only(left: 10),
+                decoration: BoxDecoration(
+                  border: Border(left: BorderSide(color: skin.borderSubtle, width: 2)),
+                ),
+                child: _highlightedField(
+                  context: context,
+                  text: display.summary,
+                  ranges: summaryHighlight?.ranges ?? const [],
+                  base: AppTextStyle.style13Regular.copyWith(color: skin.textTertiary, height: 1.5),
+                  softWrap: true,
+                ),
+              ),
             ),
           ),
         ),
@@ -624,9 +632,15 @@ class _GroupBody extends StatelessWidget {
   Widget build(BuildContext context) {
     final skin = context.skin;
     final meta = _meta;
+    final toggle = onToggleCollapse;
     final header = GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onTap: onToggleCollapse,
+      onTap: toggle == null
+          ? null
+          : () {
+              Haptics.select();
+              toggle();
+            },
       onLongPress: onLongPressHeader,
       child: ConstrainedBox(
         constraints: const BoxConstraints(minHeight: 44),
@@ -657,21 +671,21 @@ class _GroupBody extends StatelessWidget {
                   ),
                 ),
               ),
-            if (onToggleCollapse != null)
+            if (toggle != null)
               Padding(
                 padding: const EdgeInsets.only(left: 6),
-                child: Icon(
-                  collapsed ? Icons.chevron_right : Icons.expand_more,
+                child: DisclosureChevron(
+                  expanded: !collapsed,
                   size: 16,
                   color: skin.textTertiary,
+                  collapsedTurns: -0.25,
+                  expandedTurns: 0,
                 ),
               ),
           ],
         ),
       ),
     );
-
-    if (collapsed) return header;
 
     final detail = block.detail;
     final cmdLines = <Widget>[];
@@ -706,9 +720,19 @@ class _GroupBody extends StatelessWidget {
     final children = block.children ?? const <SessionBlock>[];
 
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         header,
+        Disclosure(expanded: !collapsed, child: _body(context, cmdLines, children)),
+      ],
+    );
+  }
+
+  Widget _body(BuildContext context, List<Widget> cmdLines, List<SessionBlock> children) {
+    final skin = context.skin;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
         if (cmdLines.isNotEmpty) ...[
           const SizedBox(height: 6),
           GestureDetector(
@@ -769,6 +793,7 @@ class _GroupBody extends StatelessWidget {
           const SizedBox(height: 6),
           _RunningRow(block: block),
         ],
+        const SizedBox(height: 6),
       ],
     );
   }

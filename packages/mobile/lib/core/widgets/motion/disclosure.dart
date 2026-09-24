@@ -43,23 +43,22 @@ class _DisclosureState extends State<Disclosure> with SingleTickerProviderStateM
   static final double _fadeInEnd = AppMotion.disclosureIn.inMicroseconds / AppMotion.disclosure.inMicroseconds;
   static final double _fadeOutStart = 1 - AppMotion.disclosureOut.inMicroseconds / AppMotion.disclosure.inMicroseconds;
 
-  late final AnimationController _controller = AnimationController(
-    vsync: this,
-    duration: AppMotion.disclosure,
-    value: widget.expanded ? 1 : 0,
-  )..addStatusListener(_onStatus);
+  late final AnimationController _controller;
+  late final Animation<double> _size;
+  late final Animation<double> _fade;
 
-  late final Animation<double> _size = CurvedAnimation(
-    parent: _controller,
-    curve: AppMotion.easeOut,
-    reverseCurve: AppMotion.easeOut.flipped,
-  );
-
-  late final Animation<double> _fade = CurvedAnimation(
-    parent: _controller,
-    curve: Interval(0, _fadeInEnd, curve: AppMotion.easeOut),
-    reverseCurve: Interval(_fadeOutStart, 1, curve: AppMotion.easeOut.flipped),
-  );
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(vsync: this, duration: AppMotion.disclosure, value: widget.expanded ? 1 : 0)
+      ..addStatusListener(_onStatus);
+    _size = CurvedAnimation(parent: _controller, curve: AppMotion.easeOut, reverseCurve: AppMotion.easeOut.flipped);
+    _fade = CurvedAnimation(
+      parent: _controller,
+      curve: Interval(0, _fadeInEnd, curve: AppMotion.easeOut),
+      reverseCurve: Interval(_fadeOutStart, 1, curve: AppMotion.easeOut.flipped),
+    );
+  }
 
   void _onStatus(AnimationStatus status) {
     if (status == AnimationStatus.dismissed && mounted) setState(() {});
@@ -93,7 +92,7 @@ class _DisclosureState extends State<Disclosure> with SingleTickerProviderStateM
     final mounted = widget.expanded || !_controller.isDismissed;
     return SizeTransition(
       sizeFactor: _size,
-      axisAlignment: -1,
+      alignment: Alignment.topCenter,
       child: FadeTransition(
         opacity: _fade,
         child: mounted

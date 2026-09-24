@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:operator_mobile/core/app_themes/colors/dark_skin.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
+import 'package:operator_mobile/core/widgets/motion/disclosure.dart';
 import 'package:operator_mobile/feature/blocks/logic/session_block.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/blocks_cubit.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/blocks_body.dart';
@@ -118,7 +119,7 @@ void main() {
     expect(find.byIcon(Icons.check_circle), findsNothing);
     expect(find.byIcon(Icons.radio_button_unchecked), findsNothing);
 
-    await tester.longPress(find.byIcon(Icons.chevron_right));
+    await tester.longPress(find.byType(DisclosureChevron));
     await tester.pumpAndSettle();
 
     expect(find.byIcon(Icons.check_circle), findsOneWidget);
@@ -133,7 +134,7 @@ void main() {
 
     await _pump(tester, cubit);
 
-    await tester.tap(find.byIcon(Icons.chevron_right));
+    await tester.tap(find.byType(DisclosureChevron));
     await tester.pumpAndSettle();
     await tester.longPress(find.textContaining('hello world'));
     await tester.pumpAndSettle();
@@ -223,7 +224,7 @@ void main() {
 
     await _pump(tester, cubit);
 
-    await tester.longPress(find.byIcon(Icons.chevron_right));
+    await tester.longPress(find.byType(DisclosureChevron));
     await tester.pumpAndSettle();
     expect(find.text('1 selected'), findsOneWidget);
 
@@ -278,7 +279,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(BlocksBody), findsOneWidget);
 
-    await tester.longPress(find.byIcon(Icons.chevron_right));
+    await tester.longPress(find.byType(DisclosureChevron));
     await tester.pumpAndSettle();
     expect(find.text('1 selected'), findsOneWidget);
 
