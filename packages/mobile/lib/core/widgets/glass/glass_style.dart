@@ -45,7 +45,7 @@ sealed class GlassStyle {
     return LiquidGlassSettings(
       glassColor: tint,
       thickness: thicknessFor(size),
-      blur: lerpDouble(2, 10, t)! * (variant == GlassVariant.clear ? 0.5 : 1),
+      blur: lerpDouble(4.2, 5, t)! * (variant == GlassVariant.clear ? 0.5 : 1),
       chromaticAberration: 0.005,
       lightAngle: 0.5 * math.pi,
       lightIntensity: lerpDouble(0.55, 0.8, t)!,
