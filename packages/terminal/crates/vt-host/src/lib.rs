@@ -1,6 +1,12 @@
+mod block_marks;
+mod sgr;
+
 use std::cell::RefCell;
 use std::collections::HashMap;
-use vt_core::{Attrs, CellStyle, StyleCode, TerminalCore};
+use vt_core::{CellStyle, TerminalCore};
+
+use block_marks::{write_block_close, write_block_open};
+use sgr::{write_styled_row, write_styled_row_with};
 
 thread_local! {
     static CORES: RefCell<HashMap<u32, TerminalCore>> = RefCell::new(HashMap::new());
@@ -523,49 +529,6 @@ pub extern "C" fn vt_history_chunk(
     })
 }
 
-fn write_block_open(text: &mut String, snapshot: &vt_core::GridSnapshot, row: usize) {
-    for (index, block) in snapshot.blocks.iter().enumerate() {
-        if block.source == vt_core::BlockSource::Synthetic {
-            continue;
-        }
-        if block.first_row as usize == row {
-            text.push_str("\x1b]7000;v=1;id=");
-            text.push_str(&index.to_string());
-            text.push_str(";cmd=");
-            percent_encode_into(text, snapshot.block_command(index));
-            text.push_str("\x1b\\");
-            return;
-        }
-    }
-}
-
-fn write_block_close(text: &mut String, snapshot: &vt_core::GridSnapshot, row: usize) {
-    for block in snapshot.blocks.iter() {
-        if block.source == vt_core::BlockSource::Synthetic {
-            continue;
-        }
-        let last_row = block.first_row as usize + block.row_count as usize - 1;
-        if last_row == row {
-            if let Some(exit_code) = block.exit_code {
-                text.push_str("\x1b]7000;v=1;exit=");
-                text.push_str(&exit_code.to_string());
-                text.push_str("\x1b\\");
-            }
-            return;
-        }
-    }
-}
-
-fn percent_encode_into(text: &mut String, value: &str) {
-    for ch in value.chars() {
-        if ch.is_ascii() && matches!(ch as u8, b';' | b'=' | b'%' | 0x00..=0x1f) {
-            text.push_str(&format!("%{:02X}", ch as u8));
-        } else {
-            text.push(ch);
-        }
-    }
-}
-
 fn clip_row<'a>(
     row_bytes: &'a [u8],
     pairs: &[(u32, CellStyle)],
@@ -592,144 +555,4 @@ fn write_indent(text: &mut String, indent: usize) {
 
 fn write_cursor_position(text: &mut String, row: usize, col: usize) {
     text.push_str(&format!("\x1b[{};{}H", row + 1, col + 1));
-}
-
-fn write_styled_row<'a>(
-    text: &mut String,
-    row_bytes: &[u8],
-    pairs: &[(u32, CellStyle)],
-    link_uri: &dyn Fn(u16) -> Option<&'a str>,
-) {
-    write_styled_row_with(text, row_bytes, pairs, link_uri, "\n");
-}
-
-fn write_styled_row_with<'a>(
-    text: &mut String,
-    row_bytes: &[u8],
-    pairs: &[(u32, CellStyle)],
-    link_uri: &dyn Fn(u16) -> Option<&'a str>,
-    terminator: &str,
-) {
-    let mut start = 0usize;
-    for (end, style) in pairs {
-        let end = *end as usize;
-        text.push_str("\x1b[0m");
-        if let Some(params) = style_sgr_params(*style) {
-            text.push_str("\x1b[");
-            text.push_str(&params);
-            text.push('m');
-        }
-        let uri = if style.link == 0 {
-            None
-        } else {
-            link_uri(style.link)
-        };
-        if let Some(uri) = uri {
-            text.push_str("\x1b]8;;");
-            text.push_str(uri);
-            text.push_str("\x1b\\");
-        }
-        text.push_str(std::str::from_utf8(&row_bytes[start..end]).unwrap_or(""));
-        if uri.is_some() {
-            text.push_str("\x1b]8;;\x1b\\");
-        }
-        start = end;
-    }
-    text.push_str("\x1b[0m");
-    text.push_str(terminator);
-}
-
-// Mirrors the bit layout in vt-core's `style.rs` (`TAG_INDEXED`/`TAG_RGB`,
-// neither exported) since only `StyleCode`'s public accessors cross the
-// crate boundary.
-const TAG_INDEXED: u32 = 0x0100_0000;
-const TAG_RGB: u32 = 0x0200_0000;
-
-fn colour_params(colour: StyleCode, base: u32, extended: u32) -> String {
-    let value = colour.value();
-    if value & TAG_RGB != 0 {
-        let rgb = value & 0x00ff_ffff;
-        format!(
-            "{};2;{};{};{}",
-            extended,
-            (rgb >> 16) & 0xff,
-            (rgb >> 8) & 0xff,
-            rgb & 0xff
-        )
-    } else if value & TAG_INDEXED != 0 {
-        format!("{};5;{}", extended, value & 0xff)
-    } else if value < 8 {
-        format!("{}", base + value)
-    } else {
-        format!("{}", base + 60 + (value - 8))
-    }
-}
-
-fn underline_colour_params(colour: StyleCode) -> String {
-    let value = colour.value();
-    if value & TAG_RGB != 0 {
-        let rgb = value & 0x00ff_ffff;
-        format!(
-            "58;2;{};{};{}",
-            (rgb >> 16) & 0xff,
-            (rgb >> 8) & 0xff,
-            rgb & 0xff
-        )
-    } else {
-        format!("58;5;{}", value & 0xff)
-    }
-}
-
-fn style_sgr_params(style: CellStyle) -> Option<String> {
-    let mut params = Vec::new();
-    if style.fg.is_bold() {
-        params.push("1".to_string());
-    }
-    if style.fg.is_dim() {
-        params.push("2".to_string());
-    }
-    let attrs = style.attrs;
-    if attrs.contains(Attrs::ITALIC) {
-        params.push("3".to_string());
-    }
-    let underline = [
-        (Attrs::UNDERLINE, "4:1"),
-        (Attrs::DOUBLE_UNDERLINE, "4:2"),
-        (Attrs::CURLY_UNDERLINE, "4:3"),
-        (Attrs::DOTTED_UNDERLINE, "4:4"),
-        (Attrs::DASHED_UNDERLINE, "4:5"),
-    ]
-    .into_iter()
-    .find(|(flag, _)| attrs.contains(*flag));
-    if let Some((_, code)) = underline {
-        params.push(code.to_string());
-    }
-    if attrs.contains(Attrs::BLINK) {
-        params.push("5".to_string());
-    }
-    if attrs.contains(Attrs::HIDDEN) {
-        params.push("8".to_string());
-    }
-    if attrs.contains(Attrs::STRIKE) {
-        params.push("9".to_string());
-    }
-    if attrs.contains(Attrs::OVERLINE) {
-        params.push("53".to_string());
-    }
-    if style.underline != StyleCode::DEFAULT {
-        params.push(underline_colour_params(style.underline));
-    }
-    let foreground = style.fg.colour();
-    if foreground != StyleCode::DEFAULT.colour() {
-        params.push(colour_params(foreground, 30, 38));
-    }
-    let background = style.bg.colour();
-    if background != StyleCode::DEFAULT_BACKGROUND.colour() {
-        params.push(colour_params(background, 40, 48));
-    }
-    if params.is_empty() {
-        None
-    } else {
-        Some(params.join(";"))
-    }
 }
