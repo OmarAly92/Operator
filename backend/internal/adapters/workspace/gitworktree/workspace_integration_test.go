@@ -472,7 +472,7 @@ func TestWorkspaceIntegrationWorkspaceProjectInfersChildDefaultBranches(t *testi
 	info, err := ws.CreateWorkspaceProject(context.Background(), ports.WorkspaceProjectConfig{
 		ProjectID:    "proj",
 		SessionID:    "sess",
-		Branch:       "opr/proj-1",
+		Branch:       "opr/proj-1/root",
 		RootRepoPath: rootRepo,
 		BaseBranch:   "main",
 		Repos: []ports.WorkspaceProjectRepoConfig{
@@ -498,17 +498,17 @@ func TestWorkspaceIntegrationWorkspaceProjectInfersChildDefaultBranches(t *testi
 	if _, err := os.Stat(filepath.Join(devChildPath, "README.md")); err != nil {
 		t.Fatalf("dev child worktree missing seed file: %v", err)
 	}
-	devChildHead := gitOutput(t, git, devChildRepo, "rev-parse", "refs/heads/opr/proj-1")
+	devChildHead := gitOutput(t, git, devChildRepo, "rev-parse", "refs/heads/opr/proj-1/root")
 	devChildBase := gitOutput(t, git, devChildRepo, "rev-parse", "origin/dev")
 	if devChildHead != devChildBase {
 		t.Fatalf("dev child branch base = %s, want origin/dev %s", devChildHead, devChildBase)
 	}
-	mainChildHead := gitOutput(t, git, mainChildRepo, "rev-parse", "refs/heads/opr/proj-1")
+	mainChildHead := gitOutput(t, git, mainChildRepo, "rev-parse", "refs/heads/opr/proj-1/root")
 	mainChildBase := gitOutput(t, git, mainChildRepo, "rev-parse", "origin/main")
 	if mainChildHead != mainChildBase {
 		t.Fatalf("main child branch base = %s, want origin/main %s", mainChildHead, mainChildBase)
 	}
-	rootHead := gitOutput(t, git, rootRepo, "rev-parse", "refs/heads/opr/proj-1")
+	rootHead := gitOutput(t, git, rootRepo, "rev-parse", "refs/heads/opr/proj-1/root")
 	rootBase := gitOutput(t, git, rootRepo, "rev-parse", "origin/main")
 	if rootHead != rootBase {
 		t.Fatalf("root branch base = %s, want origin/main %s", rootHead, rootBase)

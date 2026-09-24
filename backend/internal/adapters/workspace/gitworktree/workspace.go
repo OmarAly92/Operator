@@ -1337,8 +1337,11 @@ func (w *Workspace) restorePath(cfg ports.WorkspaceConfig) (string, error) {
 	return w.managedPath(cfg)
 }
 
+// defaultSessionBranchName is the fallback when a caller passes no branch. It
+// matches the session manager's DefaultSpawnBranch shape so sibling PR branches
+// (opr/<session>/<topic>) stay valid Git refs beside it.
 func defaultSessionBranchName(id domain.SessionID) string {
-	return "opr/" + string(id)
+	return "opr/" + string(id) + "/root"
 }
 
 func firstNonEmpty(values ...string) string {

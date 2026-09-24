@@ -1030,3 +1030,12 @@ func TestGitWorktreeExitStatusOneHelper(t *testing.T) {
 	}
 	os.Exit(1)
 }
+
+// TestDefaultSessionBranchNameUsesRootShape keeps the adapter's fallback in step
+// with sessionmanager.DefaultSpawnBranch: a bare opr/<session> branch would block
+// every opr/<session>/<topic> sibling PR branch.
+func TestDefaultSessionBranchNameUsesRootShape(t *testing.T) {
+	if got := defaultSessionBranchName("proj-1"); got != "opr/proj-1/root" {
+		t.Fatalf("defaultSessionBranchName = %q, want opr/proj-1/root", got)
+	}
+}
