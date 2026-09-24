@@ -51,6 +51,7 @@ sealed class AppSheetMetrics {
   static const double mediumFraction = 0.55;
   static const double largeFraction = 0.92;
   static const double headerFadeExtent = 16;
+  static const double pushParallax = 0.3;
 }
 
 sealed class AppSheetLogic {
@@ -66,6 +67,11 @@ sealed class AppSheetLogic {
   static double cornerRadius() => GlassMetrics.displayCornerRadius - GlassMetrics.sheetInset;
 
   static double topCornerRadius() => GlassMetrics.sheetTopCornerRadius;
+
+  static double pageOffset({required bool incoming, required bool forward, required double progress}) {
+    final hidden = incoming == forward ? 1.0 : -AppSheetMetrics.pushParallax;
+    return hidden * (1 - progress);
+  }
 
   static double headerBarVisibility(double offset) =>
       (offset / AppSheetMetrics.headerFadeExtent).clamp(0.0, 1.0).toDouble();
@@ -114,6 +120,7 @@ class AppSheet extends StatefulWidget {
   static const Key headerBarKey = ValueKey('app-sheet-header-bar');
   static const Key contentClipKey = ValueKey('app-sheet-content-clip');
   static const Key searchCapsuleKey = ValueKey('app-sheet-search-capsule');
+  static const Key pageMaterialKey = ValueKey('app-sheet-page-material');
   static const Key outerClipKey = ValueKey('app-sheet-outer-clip');
   static const Key layerClipKey = ValueKey('app-sheet-layer-clip');
 
@@ -128,15 +135,31 @@ class AppSheet extends StatefulWidget {
   State<AppSheet> createState() => _AppSheetState();
 }
 
-class _AppSheetState extends State<AppSheet> {
+class _AppSheetState extends State<AppSheet> with SingleTickerProviderStateMixin {
   late final List<AppSheetPage> _pages = [widget.root, ...widget.pushed];
   late final AppSheetController _controller = AppSheetController._(this);
   final TextEditingController _search = TextEditingController();
   final ValueNotifier<double> _headerVisibility = ValueNotifier<double>(0);
+  late final AnimationController _handoff = AnimationController(vsync: this, duration: AppMotion.sheetPush);
+  late final Listenable _headerListenable = Listenable.merge([_headerVisibility, _handoff]);
+  double _handoffFrom = 0;
   bool _forward = true;
 
-  void _push(AppSheetPage page) {
+  double get _shownVisibility {
+    final target = _headerVisibility.value;
+    if (!_handoff.isAnimating) return target;
+    final t = AppMotion.sheetPushCurve.transform(_handoff.value);
+    return _handoffFrom + (target - _handoffFrom) * t;
+  }
+
+  void _startHandoff() {
+    _handoffFrom = _shownVisibility;
     _headerVisibility.value = 0;
+    _handoff.forward(from: 0);
+  }
+
+  void _push(AppSheetPage page) {
+    _startHandoff();
     setState(() {
       _forward = true;
       _pages.add(page);
@@ -146,7 +169,7 @@ class _AppSheetState extends State<AppSheet> {
 
   void _pop() {
     if (_pages.length < 2) return;
-    _headerVisibility.value = 0;
+    _startHandoff();
     setState(() {
       _forward = false;
       _pages.removeLast();
@@ -158,6 +181,7 @@ class _AppSheetState extends State<AppSheet> {
   void dispose() {
     _search.dispose();
     _headerVisibility.dispose();
+    _handoff.dispose();
     super.dispose();
   }
 
@@ -222,51 +246,77 @@ class _AppSheetState extends State<AppSheet> {
   }
 
   Widget _transition(Widget child, Animation<double> animation) {
-    return ClipRect(
-      child: AnimatedBuilder(
-        animation: animation,
+    return AnimatedBuilder(
+      animation: animation,
+      builder: (context, child) => FractionalTranslation(
+        translation: Offset(
+          AppSheetLogic.pageOffset(
+            incoming: animation.status != AnimationStatus.reverse,
+            forward: _forward,
+            progress: animation.value,
+          ),
+          0,
+        ),
         child: child,
-        builder: (context, child) {
-          final outgoing = animation.status == AnimationStatus.reverse;
-          final side = outgoing == _forward ? -1.0 : 1.0;
-          return FractionalTranslation(
-            translation: Offset(side * (1 - animation.value), 0),
-            child: child,
-          );
-        },
       ),
+      child: Material(key: AppSheet.pageMaterialKey, color: context.skin.bgSurface, child: child),
     );
   }
 
+  Widget _fade(Widget child, Animation<double> animation) => FadeTransition(opacity: animation, child: child);
+
+  Widget _crossFade(Widget child) => AnimatedSwitcher(
+        duration: AppMotion.sheetPush,
+        switchInCurve: AppMotion.sheetPushCurve,
+        switchOutCurve: AppMotion.sheetPushCurve.flipped,
+        transitionBuilder: _fade,
+        child: child,
+      );
+
   Widget _header(AppSheetPage page, double frost) {
     final skin = context.skin;
+    final depth = _pages.length;
     return NavigationToolbar(
-      leading: _pages.length > 1
-          ? Center(
-              widthFactor: 1,
-              heightFactor: 1,
-              child: FrostedCircleButton(
+      leading: _crossFade(
+        depth > 1
+            ? Center(
+                key: const ValueKey<bool>(true),
+                widthFactor: 1,
+                heightFactor: 1,
+                child: FrostedCircleButton(
                 key: AppSheet.backKey,
                 icon: Icons.arrow_back_ios_new_rounded,
                 semanticLabel: 'Back',
                 foreground: skin.textPrimary,
-                frost: frost,
-                onPressed: _pop,
-              ),
-            )
-          : null,
-      middle: AppText(page.title, style: AppTextStyle.style17Bold, maxLines: 1, overflow: TextOverflow.ellipsis),
-      trailing: page.actions.isEmpty
-          ? null
-          : Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                for (var i = 0; i < page.actions.length; i++) ...[
-                  if (i > 0) const SizedBox(width: GlassMetrics.toolbarItemGap),
-                  FrostedCapsule(frost: frost, child: page.actions[i]),
+                  frost: frost,
+                  onPressed: _pop,
+                ),
+              )
+            : const SizedBox.shrink(key: ValueKey<bool>(false)),
+      ),
+      middle: _crossFade(
+        AppText(
+          page.title,
+          key: ValueKey<int>(depth),
+          style: AppTextStyle.style17Bold,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+      ),
+      trailing: _crossFade(
+        page.actions.isEmpty
+            ? SizedBox.shrink(key: ValueKey<int>(depth))
+            : Row(
+                key: ValueKey<int>(depth),
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  for (var i = 0; i < page.actions.length; i++) ...[
+                    if (i > 0) const SizedBox(width: GlassMetrics.toolbarItemGap),
+                    FrostedCapsule(frost: frost, child: page.actions[i]),
+                  ],
                 ],
-              ],
-            ),
+              ),
+      ),
       middleSpacing: GlassMetrics.toolbarItemGap,
     );
   }
@@ -288,13 +338,13 @@ class _AppSheetState extends State<AppSheet> {
           final fixed = AppSheetLogic.fixedHeight(widget.detent, media.size.height);
           final height = fixed == null ? null : math.min(fixed, maxHeight);
           final switcher = AnimatedSwitcher(
-            duration: AppMotion.base,
-            switchInCurve: AppMotion.easeOut,
-            switchOutCurve: AppMotion.easeOut,
+            duration: AppMotion.sheetPush,
+            switchInCurve: AppMotion.sheetPushCurve,
+            switchOutCurve: AppMotion.sheetPushCurve.flipped,
             transitionBuilder: _transition,
             layoutBuilder: (current, previous) => Stack(
               alignment: Alignment.topCenter,
-              children: [...previous, ?current],
+              children: _forward ? [...previous, ?current] : [?current, ...previous],
             ),
             child: _content(page, height == null),
           );
@@ -307,9 +357,9 @@ class _AppSheetState extends State<AppSheet> {
                 right: 0,
                 top: 0,
                 height: AppSheetMetrics.contentTop,
-                child: ValueListenableBuilder<double>(
-                  valueListenable: _headerVisibility,
-                  builder: (context, visibility, _) => _HeaderBar(key: AppSheet.headerBarKey, visibility: visibility),
+                child: ListenableBuilder(
+                  listenable: _headerListenable,
+                  builder: (context, _) => _HeaderBar(key: AppSheet.headerBarKey, visibility: _shownVisibility),
                 ),
               ),
               Positioned(
@@ -333,9 +383,9 @@ class _AppSheetState extends State<AppSheet> {
                 left: AppSheetMetrics.headerSide,
                 right: AppSheetMetrics.headerSide,
                 height: AppSheetMetrics.headerHeight,
-                child: ValueListenableBuilder<double>(
-                  valueListenable: _headerVisibility,
-                  builder: (context, visibility, _) => _header(page, visibility),
+                child: ListenableBuilder(
+                  listenable: _headerListenable,
+                  builder: (context, _) => _header(page, _shownVisibility),
                 ),
               ),
             ],
@@ -352,12 +402,12 @@ class _AppSheetState extends State<AppSheet> {
               borderRadius: radius,
               child: Stack(
                 children: [
-                  ValueListenableBuilder<double>(
-                    valueListenable: _headerVisibility,
-                    builder: (context, visibility, child) => ClipRSuperellipse(
+                  ListenableBuilder(
+                    listenable: _headerListenable,
+                    builder: (context, child) => ClipRSuperellipse(
                       key: AppSheet.layerClipKey,
                       borderRadius: radius,
-                      clipBehavior: AppSheetLogic.surfaceClip(visibility),
+                      clipBehavior: AppSheetLogic.surfaceClip(_shownVisibility),
                       child: child,
                     ),
                     child: DecoratedBox(
@@ -369,8 +419,8 @@ class _AppSheetState extends State<AppSheet> {
                       child: Material(
                         type: MaterialType.transparency,
                         child: AnimatedSize(
-                          duration: AppMotion.base,
-                          curve: AppMotion.easeOut,
+                          duration: AppMotion.sheetPush,
+                          curve: AppMotion.sheetPushCurve,
                           alignment: Alignment.bottomCenter,
                           child: height == null
                               ? ConstrainedBox(constraints: BoxConstraints(maxHeight: maxHeight), child: stack)

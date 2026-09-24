@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:liquid_glass_renderer/liquid_glass_renderer.dart';
+import 'package:operator_mobile/core/app_themes/app_motion.dart';
 import 'package:operator_mobile/core/app_themes/colors/app_skin.dart';
 import 'package:operator_mobile/core/app_themes/colors/dark_skin.dart';
 import 'package:operator_mobile/core/app_themes/colors/light_skin.dart';
@@ -585,7 +586,7 @@ void main() {
     expect(headerBlurs(), AppSheetLogic.headerBarVisibility(rootOffset) > 0 ? findsWidgets : findsNothing);
   });
 
-  testWidgets('push slides the old page out left and the new in from the right; pop mirrors it', (tester) async {
+  Future<void> openRootWithPush(WidgetTester tester, {AppSheetDetent detent = AppSheetDetent.large}) async {
     phone(tester);
     await tester.pumpWidget(
       host(
@@ -598,28 +599,155 @@ void main() {
               ListTile(title: const Text('Go'), onTap: () => AppSheet.of(context).push(fruitPage())),
             ],
           ),
-          detent: AppSheetDetent.large,
+          detent: detent,
         ),
       ),
     );
     await open(tester);
+  }
+
+  double halfway() => AppMotion.sheetPushCurve.transform(0.5);
+
+  testWidgets('push slides the new page in from the full width over a 30% parallax of the old; pop mirrors it',
+      (tester) async {
+    await openRootWithPush(tester);
+    final width = tester.getSize(find.byKey(AppSheet.surfaceKey)).width;
     final rest = tester.getRect(find.text('Go')).left;
+    final half = AppMotion.sheetPush ~/ 2;
 
     await tester.tap(find.text('Go'));
     await tester.pump();
-    await tester.pump(const Duration(milliseconds: 100));
-    expect(tester.getRect(find.text('Go')).left, lessThan(rest));
-    expect(tester.getRect(find.text('Apple')).left, greaterThan(rest));
+    await tester.pump(half);
+    final p = halfway();
+    expect(tester.getRect(find.text('Apple')).left, moreOrLessEquals(rest + width * (1 - p), epsilon: 1));
+    expect(tester.getRect(find.text('Go')).left, moreOrLessEquals(rest - width * 0.3 * p, epsilon: 1));
+    expect(tester.getRect(find.text('Apple')).left - rest, greaterThan(width * 0.05));
+    expect(rest - tester.getRect(find.text('Go')).left, lessThan(width * 0.3));
+    final order = tester.widget<Stack>(find.ancestor(of: find.text('Apple'), matching: find.byType(Stack)).first).children;
+    expect(find.descendant(of: find.byWidget(order.last), matching: find.text('Apple')), findsOneWidget);
     await tester.pumpAndSettle();
     expect(tester.getRect(find.text('Apple')).left, moreOrLessEquals(rest));
 
     await tester.tap(find.byKey(AppSheet.backKey));
     await tester.pump();
-    await tester.pump(const Duration(milliseconds: 100));
-    expect(tester.getRect(find.text('Apple')).left, greaterThan(rest));
-    expect(tester.getRect(find.text('Go')).left, lessThan(rest));
+    await tester.pump(half);
+    expect(tester.getRect(find.text('Apple')).left, moreOrLessEquals(rest + width * p, epsilon: 1));
+    expect(tester.getRect(find.text('Go')).left, moreOrLessEquals(rest - width * 0.3 * (1 - p), epsilon: 1));
+    final popOrder = tester.widget<Stack>(find.ancestor(of: find.text('Go'), matching: find.byType(Stack)).first).children;
+    expect(find.descendant(of: find.byWidget(popOrder.last), matching: find.text('Apple')), findsOneWidget);
+    expect(find.descendant(of: find.byWidget(popOrder.first), matching: find.text('Go')), findsOneWidget);
     await tester.pumpAndSettle();
     expect(tester.getRect(find.text('Go')).left, moreOrLessEquals(rest));
+  });
+
+  test('page offsets follow the UIKit push: incoming from 100%, outgoing to -30%, mirrored on pop', () {
+    expect(AppSheetLogic.pageOffset(incoming: true, forward: true, progress: 0), 1);
+    expect(AppSheetLogic.pageOffset(incoming: true, forward: true, progress: 0.5), 0.5);
+    expect(AppSheetLogic.pageOffset(incoming: false, forward: true, progress: 0.5), closeTo(-0.15, 1e-9));
+    expect(AppSheetLogic.pageOffset(incoming: true, forward: false, progress: 0.5), closeTo(-0.15, 1e-9));
+    expect(AppSheetLogic.pageOffset(incoming: false, forward: false, progress: 0.5), 0.5);
+    expect(AppSheetLogic.pageOffset(incoming: false, forward: false, progress: 1), 0);
+    expect(AppMotion.sheetPush, const Duration(milliseconds: 350));
+    expect(AppMotion.sheetPushCurve, const CriticallyDampedCurve(8));
+    expect(AppMotion.sheetPushCurve.transform(0), 0);
+    expect(AppMotion.sheetPushCurve.transform(1), 1);
+    expect(AppMotion.sheetPushCurve.transform(0.1), closeTo(0.19, 0.01));
+    expect(AppMotion.sheetPushCurve.transform(0.5), closeTo(0.91, 0.01));
+  });
+
+  testWidgets('each page is an opaque bgSurface Material with its own ink, so a tapped row highlight leaves with its page and never shows through',
+      (tester) async {
+    await openRootWithPush(tester);
+    final gesture = await tester.startGesture(tester.getCenter(find.text('Go')));
+    await tester.pump(const Duration(milliseconds: 200));
+    await gesture.up();
+    await tester.pump();
+    await tester.pump(AppMotion.sheetPush ~/ 2);
+
+    final goInk = Material.of(tester.element(find.text('Go')));
+    final appleInk = Material.of(tester.element(find.text('Apple')));
+    final headerInk = Material.of(tester.element(find.text('Fruit')));
+    expect(goInk, isNot(same(appleInk)));
+    expect(goInk, isNot(same(headerInk)));
+    expect(appleInk, isNot(same(headerInk)));
+    final goPage = find.ancestor(of: find.text('Go'), matching: find.byKey(AppSheet.pageMaterialKey));
+    expect(goPage, findsOneWidget);
+    expect(identical(Material.of(tester.element(find.descendant(of: goPage, matching: find.byType(ListView)))), goInk), isTrue);
+    expect(find.descendant(of: goPage, matching: find.text('Apple')), findsNothing);
+    final applePage = tester.widget<Material>(
+      find.ancestor(of: find.text('Apple'), matching: find.byKey(AppSheet.pageMaterialKey)),
+    );
+    expect(applePage.type, MaterialType.canvas);
+    expect(applePage.color, const LightSkin().bgSurface);
+    expect(applePage.color!.a, 1);
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('the page switcher and the fit height use the sheet push duration and curve', (tester) async {
+    await openRootWithPush(tester, detent: AppSheetDetent.fit);
+    final switcher = tester.widget<AnimatedSwitcher>(
+      find.ancestor(of: find.text('Go'), matching: find.byType(AnimatedSwitcher)).first,
+    );
+    expect(switcher.duration, AppMotion.sheetPush);
+    expect(switcher.switchInCurve, AppMotion.sheetPushCurve);
+    expect((switcher.switchOutCurve as FlippedCurve).curve, AppMotion.sheetPushCurve);
+    final size = tester.widget<AnimatedSize>(
+      find.descendant(of: find.byKey(AppSheet.surfaceKey), matching: find.byType(AnimatedSize)),
+    );
+    expect(size.duration, AppMotion.sheetPush);
+    expect(size.curve, AppMotion.sheetPushCurve);
+  });
+
+  testWidgets('the header title cross-fades and the back button fades in on push and out on pop', (tester) async {
+    await openRootWithPush(tester);
+    double opacityOf(Finder finder) => tester
+        .widgetList<FadeTransition>(find.ancestor(of: finder, matching: find.byType(FadeTransition)))
+        .fold(1.0, (value, fade) => value * fade.opacity.value);
+
+    await tester.tap(find.text('Go'));
+    await tester.pump();
+    await tester.pump(AppMotion.sheetPush ~/ 2);
+    final root = opacityOf(find.text('Root'));
+    final fruit = opacityOf(find.text('Fruit'));
+    expect(root, greaterThan(0));
+    expect(root, lessThan(1));
+    expect(fruit, greaterThan(0));
+    expect(fruit, lessThan(1));
+    expect(root + fruit, moreOrLessEquals(1, epsilon: 0.01));
+    expect(fruit, moreOrLessEquals(halfway(), epsilon: 0.01));
+    expect(opacityOf(find.byKey(AppSheet.backKey)), moreOrLessEquals(halfway(), epsilon: 0.01));
+    await tester.pump(AppMotion.sheetPush ~/ 4);
+    expect(opacityOf(find.text('Fruit')), greaterThan(fruit));
+    expect(opacityOf(find.text('Root')), lessThan(root));
+    await tester.pumpAndSettle();
+    expect(find.text('Root'), findsNothing);
+    expect(opacityOf(find.byKey(AppSheet.backKey)), 1);
+
+    await tester.tap(find.byKey(AppSheet.backKey));
+    await tester.pump();
+    await tester.pump(AppMotion.sheetPush ~/ 2);
+    expect(opacityOf(find.byKey(AppSheet.backKey)), moreOrLessEquals(1 - halfway(), epsilon: 0.01));
+    expect(opacityOf(find.text('Root')), moreOrLessEquals(halfway(), epsilon: 0.01));
+    await tester.pumpAndSettle();
+    expect(find.byKey(AppSheet.backKey), findsNothing);
+    expect(find.text('Fruit'), findsNothing);
+  });
+
+  testWidgets('a push hands the scrolled header band down to hidden over the push instead of snapping', (tester) async {
+    await openMany(tester, page: manyPage(title: 'Root'));
+    await scrollTo(tester, 40);
+    ClipRSuperellipse layerClip() => tester.widget<ClipRSuperellipse>(find.byKey(AppSheet.layerClipKey));
+    AppSheet.of(tester.element(find.text('Root row 5'))).push(manyPage(title: 'Deep'));
+    await tester.pump();
+    await tester.pump(AppMotion.sheetPush ~/ 2);
+    final tint = tester.widgetList<ColoredBox>(
+      find.descendant(of: find.byKey(AppSheet.headerBarKey), matching: find.byType(ColoredBox)),
+    );
+    expect(tint.first.color.a, moreOrLessEquals(0.45 * (1 - halfway()), epsilon: 0.01));
+    expect(layerClip().clipBehavior, Clip.antiAliasWithSaveLayer);
+    await tester.pumpAndSettle();
+    expect(headerBlurs(), findsNothing);
+    expect(layerClip().clipBehavior, Clip.antiAlias);
   });
 
   testWidgets('a push fires no haptic and the back button fires one', (tester) async {

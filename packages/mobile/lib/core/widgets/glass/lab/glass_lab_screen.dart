@@ -87,7 +87,15 @@ class _GlassLabScreenState extends State<GlassLabScreen> {
     unawaited(
       showAppSheet<void>(
         context: labContext,
-        page: AppSheetPage(title: 'Root', rows: (_, _) => const []),
+        page: AppSheetPage(
+          title: 'Spawn',
+          rows: (context, _) => [
+            ListTile(
+              title: Text('Agent', style: AppTextStyle.style17Regular.copyWith(color: skin.textPrimary)),
+              onTap: () => AppSheet.of(context).push(page),
+            ),
+          ],
+        ),
         pushed: [page],
         detent: AppSheetDetent.large,
         scope: (_, sheet) => SkinScope(skin: skin, child: sheet),

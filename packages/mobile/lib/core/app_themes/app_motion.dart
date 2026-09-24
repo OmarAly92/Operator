@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/animation.dart';
 
 /// Motion constants extracted from the design prototype
@@ -16,6 +18,8 @@ sealed class AppMotion {
 
   /// Entrance stagger duration (fade-up/pop/slide-up), sheet/dialog pop-in.
   static const Duration slow = Duration(milliseconds: 260);
+
+  static const Duration sheetPush = Duration(milliseconds: 350);
 
   /// Skeleton shimmer sweep.
   static const Duration shimmer = Duration(milliseconds: 1400);
@@ -66,6 +70,8 @@ sealed class AppMotion {
   /// scrims, and most one-shot transitions.
   static const Curve easeOut = Cubic(0.22, 0.61, 0.36, 1);
 
+  static const Curve sheetPushCurve = CriticallyDampedCurve(8);
+
   /// `cubic-bezier(.65,0,.35,1)` — symmetric ease for looping animations
   /// (dot bounce, orb float).
   static const Curve easeInOut = Cubic(0.65, 0, 0.35, 1);
@@ -113,4 +119,15 @@ sealed class AppMotion {
 
   /// The chat composer send button.
   static const double pressScaleSend = 0.92;
+}
+
+class CriticallyDampedCurve extends Curve {
+  const CriticallyDampedCurve(this.omega);
+
+  final double omega;
+
+  double _raw(double t) => 1 - (1 + omega * t) * math.exp(-omega * t);
+
+  @override
+  double transformInternal(double t) => _raw(t) / _raw(1);
 }
