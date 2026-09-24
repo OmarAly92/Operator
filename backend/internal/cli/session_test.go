@@ -17,7 +17,10 @@ type sessionRequestLog struct {
 	requests []string
 }
 
-const cliInvokedRequest = "POST /internal/telemetry/cli-invoked"
+const (
+	cliInvokedRequest         = "POST /internal/telemetry/cli-invoked"
+	mcpToolCalledRequestEntry = "POST " + mcpToolCalledPath
+)
 
 func requestLogEntry(r *http.Request) string {
 	entry := r.Method + " " + r.URL.Path
@@ -29,7 +32,7 @@ func requestLogEntry(r *http.Request) string {
 
 func appendPrimaryRequest(dst *[]string, r *http.Request) {
 	entry := requestLogEntry(r)
-	if entry == cliInvokedRequest {
+	if entry == cliInvokedRequest || entry == mcpToolCalledRequestEntry {
 		return
 	}
 	*dst = append(*dst, entry)

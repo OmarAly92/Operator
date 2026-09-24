@@ -62,6 +62,7 @@ func newOperatorMCPServer(ctx *commandContext, id mcpIdentity) *mcp.Server {
 		&mcp.Implementation{Name: MCPServerName, Title: "Operator", Version: VersionString()},
 		&mcp.ServerOptions{Instructions: MCPBoardInstructions},
 	)
+	server.AddReceivingMiddleware(ctx.mcpTelemetryMiddleware(id))
 	tools := &mcpTools{ctx: ctx, id: id}
 	tools.register(server)
 	tools.registerActions(server)

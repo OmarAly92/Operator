@@ -608,6 +608,10 @@ get no server.
   `ticket_mark_merge_ready` (only for the plan whose `reviewerSessionId` is the
   caller; it replaces the curl the ticket reviewer prompt used to carry). The full
   plan is `docs/plans/kanban-mcp.md`.
+- Telemetry: every tool call reports its tool name and outcome (plus the state
+  for `session_report`) to `/internal/telemetry/mcp-tool-called`, which the
+  daemon rolls up into one `opr.mcp.tool_calls` event per day, harness, tool,
+  outcome and state (`httpd/mcp_telemetry.go`; see `docs/telemetry.md`).
 
 ### Agent Report
 
