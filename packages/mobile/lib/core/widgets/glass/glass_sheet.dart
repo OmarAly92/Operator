@@ -39,9 +39,9 @@ class GlassSheetChrome extends StatelessWidget {
         ),
       ),
     );
-    final body = Column(mainAxisSize: MainAxisSize.min, children: [grabber, child]);
     return _MeasuredSheet(
-      builder: (height) {
+      body: Column(mainAxisSize: MainAxisSize.min, children: [grabber, child]),
+      builder: (height, body) {
         if (height == null || GlassSheetLogic.isFloating(sheetHeight: height, screenHeight: screen.height)) {
           return Padding(
             key: floatingKey,
@@ -75,9 +75,10 @@ class GlassSheetChrome extends StatelessWidget {
 }
 
 class _MeasuredSheet extends StatefulWidget {
-  const _MeasuredSheet({required this.builder});
+  const _MeasuredSheet({required this.body, required this.builder});
 
-  final Widget Function(double? height) builder;
+  final Widget body;
+  final Widget Function(double? height, Widget body) builder;
 
   @override
   State<_MeasuredSheet> createState() => _MeasuredSheetState();
@@ -85,9 +86,11 @@ class _MeasuredSheet extends StatefulWidget {
 
 class _MeasuredSheetState extends State<_MeasuredSheet> {
   double? _height;
+  final GlobalKey _bodyKey = GlobalKey();
 
   @override
   Widget build(BuildContext context) {
+    final body = KeyedSubtree(key: _bodyKey, child: widget.body);
     return NotificationListener<SizeChangedLayoutNotification>(
       onNotification: (_) {
         WidgetsBinding.instance.addPostFrameCallback((_) => _measure());
@@ -97,7 +100,7 @@ class _MeasuredSheetState extends State<_MeasuredSheet> {
         child: Builder(
           builder: (context) {
             WidgetsBinding.instance.addPostFrameCallback((_) => _measure());
-            return widget.builder(_height);
+            return widget.builder(_height, body);
           },
         ),
       ),
