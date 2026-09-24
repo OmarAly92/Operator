@@ -24,7 +24,8 @@
 		"bench:feel": "node ./bench/agent-session/feel-gate.mjs",
 		"bench:glyphs": "node ./bench/agent-session/glyph-probe.mjs",
 		"bench:affordances": "node ./bench/agent-session/affordance-gate.mjs",
-		"bench:soak": "node ./bench/agent-session/soak.mjs"
+		"bench:soak": "node ./bench/agent-session/soak.mjs",
+		"bench:find-update": "node ./bench/find-update.mjs"
 	},
 	"devDependencies": {
 		"@playwright/test": "1.60.0",
