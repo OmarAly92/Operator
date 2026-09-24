@@ -40,7 +40,7 @@ void main() {
     await harness.pump(tester, const TerminalComposer());
 
     await tester.enterText(find.byType(TextField), 'ship it');
-    await tester.pump();
+    await tester.pumpAndSettle();
     await tester.tap(find.bySemanticsLabel('Send'));
     await tester.pumpAndSettle();
 

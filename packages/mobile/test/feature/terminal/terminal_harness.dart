@@ -88,7 +88,7 @@ class TerminalHarness {
   late SessionCommandCubit commandCubit;
   late SlashMenuCubit slashMenuCubit;
 
-  void start({bool shellOnly = false, String? harness}) {
+  void start({bool shellOnly = false, String? harness, List<BlockEventModel> blockRecords = const []}) {
     if (!sl.isRegistered<VoiceInputCubit>()) {
       sl.registerFactoryParam<VoiceInputCubit, void Function(String), void>(
         (onTranscript, _) =>
@@ -160,7 +160,7 @@ class TerminalHarness {
     final blocksRepository = MockBlocksRepository();
     when(
       () => blocksRepository.getSessionBlocks(any(), any()),
-    ).thenAnswer((_) async => Result.success(const <BlockEventModel>[]));
+    ).thenAnswer((_) async => Result.success(blockRecords));
 
     viewCubit = SessionViewCubit(defaultViewMode(cubit.args));
     blocksCubit = BlocksCubit(

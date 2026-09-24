@@ -12,8 +12,7 @@ import 'package:operator_mobile/feature/sessions/logic/active_since.dart';
 import 'package:operator_mobile/feature/sessions/presentation/sessions_screen/logic/sessions_cubit.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/session_command_cubit.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/session_view_cubit.dart';
-import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/model_picker_sheet.dart';
-import 'package:operator_mobile/feature/blocks/logic/model_label.dart';
+import 'package:operator_mobile/feature/blocks/logic/session_activity.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/logic/terminal_cubit.dart';
 import 'package:operator_mobile/feature/preview/presentation/preview_screen/logic/preview_cubit.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/ui/widgets/terminal_preview_globe.dart';
@@ -131,8 +130,6 @@ class TerminalChatHeader extends StatelessWidget {
                               ),
                             ),
                           ),
-                          if (!args.shellOnly)
-                            _SessionModelLabel(harness: args.harness),
                         ],
                       ),
                       Text(
@@ -215,47 +212,6 @@ class TerminalChatHeader extends StatelessWidget {
   }
 }
 
-class _SessionModelLabel extends StatelessWidget {
-  const _SessionModelLabel({this.harness});
-
-  final String? harness;
-
-  @override
-  Widget build(BuildContext context) {
-    final skin = context.skin;
-    return BlocBuilder<BlocksCubit, BlocksState>(
-      builder: (context, _) =>
-          BlocBuilder<SessionCommandCubit, SessionCommandState>(
-            buildWhen: (previous, current) =>
-                previous.currentModel != current.currentModel,
-            builder: (context, state) {
-              final model = state.currentModel ?? _latestBlockModel(context);
-              if (model == null) return const SizedBox.shrink();
-              return GestureDetector(
-                onTap: () => showModelPicker(context, harness: harness),
-                child: Text(
-                  model,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: AppTextStyle.mono11Regular.copyWith(
-                    color: skin.accent,
-                  ),
-                ),
-              );
-            },
-          ),
-    );
-  }
-
-  String? _latestBlockModel(BuildContext context) {
-    for (final block in context.read<BlocksCubit>().blocks.reversed) {
-      final model = block.model;
-      if (model != null && model.isNotEmpty) return formatModelLabel(model);
-    }
-    return null;
-  }
-}
-
 class _SessionActivityPill extends StatefulWidget {
   const _SessionActivityPill({required this.stopped});
 
@@ -272,7 +228,7 @@ class _SessionActivityPillState extends State<_SessionActivityPill> {
   void initState() {
     super.initState();
     _timer = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (mounted && context.read<SessionCommandCubit>().activity == 'active') {
+      if (mounted && sessionIsWorking(context.read<SessionCommandCubit>().activity)) {
         setState(() {});
       }
     });
@@ -313,8 +269,8 @@ class _SessionActivityPillState extends State<_SessionActivityPill> {
         builder: (context, state) {
           final skin = context.skin;
           final activity = context.read<SessionCommandCubit>().activity;
-          final busy = activity == 'active';
-          final waiting = activity == 'blocked';
+          final busy = sessionIsWorking(activity);
+          final waiting = sessionIsWaiting(activity);
           final ink = widget.stopped
               ? skin.red
               : busy

@@ -79,7 +79,7 @@ class _Bubble extends StatelessWidget {
     final skin = context.skin;
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 8, 12, 6),
+      padding: const EdgeInsets.only(bottom: 8),
       child: Align(
         alignment: Alignment.centerLeft,
         child: PressScale(

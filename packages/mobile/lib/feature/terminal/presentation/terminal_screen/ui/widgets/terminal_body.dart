@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
@@ -11,6 +13,7 @@ import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/wid
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/ui/widgets/terminal_chat_header.dart';
 import 'package:operator_mobile/core/utils/keyboard_inset.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/logic/terminal_cubit.dart';
+import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/ui/widgets/chat_insets.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/ui/widgets/raw_terminal_pane.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/ui/widgets/terminal_composer.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/ui/widgets/terminal_dead_overlay.dart';
@@ -24,7 +27,16 @@ class TerminalBody extends StatefulWidget {
 }
 
 class _TerminalBodyState extends State<TerminalBody> {
+  static const double kDockSide = 8;
+
   final GlobalKey<BlocksBodyState> _blocks = GlobalKey<BlocksBodyState>();
+  final ValueNotifier<double> _dockHeight = ValueNotifier<double>(0);
+
+  @override
+  void dispose() {
+    _dockHeight.dispose();
+    super.dispose();
+  }
 
   Future<void> _confirmKill(BuildContext context) async {
     final cubit = context.read<TerminalCubit>();
@@ -100,28 +112,50 @@ class _TerminalBodyState extends State<TerminalBody> {
                       ),
                     if (cubit.notFound) const TerminalDeadOverlay(),
                     Expanded(
-                      child: blocksMode
-                          ? BlocksBody(key: _blocks, onRerun: _fillComposer)
-                          : const RawTerminalPane(),
-                    ),
-                    Container(
-                      padding: EdgeInsets.only(
-                        bottom: dockInset(keyboard, safeBottom),
-                      ),
-                      decoration: BoxDecoration(
-                        color: skin.bgChrome,
-                        border: Border(
-                          top: BorderSide(color: skin.borderSubtle),
+                      child: ChatInsets(
+                        bottom: _dockHeight,
+                        child: Stack(
+                          children: [
+                            Positioned.fill(
+                              child: blocksMode
+                                  ? BlocksBody(key: _blocks, onRerun: _fillComposer)
+                                  : ValueListenableBuilder<double>(
+                                      valueListenable: _dockHeight,
+                                      builder: (context, inset, child) => Padding(
+                                        padding: EdgeInsets.only(bottom: inset),
+                                        child: child,
+                                      ),
+                                      child: const RawTerminalPane(),
+                                    ),
+                            ),
+                            Positioned(
+                              left: 0,
+                              right: 0,
+                              bottom: 0,
+                              child: MeasuredHeight(
+                                onHeight: (height) => _dockHeight.value = height,
+                                child: Padding(
+                                  padding: EdgeInsets.fromLTRB(
+                                    kDockSide,
+                                    0,
+                                    kDockSide,
+                                    math.max(dockInset(keyboard, safeBottom), kMinDockInset),
+                                  ),
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                                    children: [
+                                      if (blocksMode && !cubit.args.shellOnly)
+                                        SubagentStrip(parentTitle: cubit.args.title),
+                                      if (!blocksMode) const TerminalKeyRow(),
+                                      TerminalComposer(onStop: () => _confirmKill(context)),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
-                      ),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          if (blocksMode && !cubit.args.shellOnly)
-                            SubagentStrip(parentTitle: cubit.args.title),
-                          if (!blocksMode) const TerminalKeyRow(),
-                          const TerminalComposer(),
-                        ],
                       ),
                     ),
                   ],

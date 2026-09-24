@@ -77,4 +77,15 @@ void main() {
     await tester.pumpWidget(_host(const DarkSkin(), _surface));
     expect(find.byKey(GlassSurface.outlineKey), findsNothing);
   });
+
+  testWidgets('a rounded rect uses a plain rounded rectangle at its radius, so it can morph from a capsule', (tester) async {
+    await tester.pumpWidget(_host(
+      const LightSkin(),
+      const GlassSurface(kind: GlassShapeKind.roundedRect, size: 48, radius: 26, child: SizedBox(width: 200, height: 90)),
+    ));
+    final glass = tester.widget<LiquidGlass>(find.byType(LiquidGlass));
+    expect(glass.shape, isA<LiquidRoundedRectangle>());
+    expect((glass.shape as LiquidRoundedRectangle).borderRadius, 26);
+    expect(tester.takeException(), isNull);
+  });
 }

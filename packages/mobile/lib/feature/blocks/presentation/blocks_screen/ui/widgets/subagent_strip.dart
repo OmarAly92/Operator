@@ -6,12 +6,16 @@ import 'package:operator_mobile/core/app_routes/routes_strings.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/app_themes/text_style/app_text_style.dart';
 import 'package:operator_mobile/core/utils/app_constants.dart';
+import 'package:operator_mobile/core/widgets/glass/glass_surface.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_text.dart';
+import 'package:operator_mobile/core/widgets/motion/disclosure.dart';
 import 'package:operator_mobile/feature/blocks/logic/session_block.dart';
 import 'package:operator_mobile/feature/blocks/logic/subagents.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/blocks_cubit.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/block_card.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/block_status_dot.dart';
+
+const double _kStripHeight = 44;
 
 class SubagentStrip extends StatefulWidget {
   const SubagentStrip({super.key, this.onOpen, this.parentTitle});
@@ -63,7 +67,9 @@ class _SubagentStripState extends State<SubagentStrip> {
     showModalBottomSheet<void>(
       context: context,
       backgroundColor: skin.bgElevated,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(AppConstants.radiusLg))),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(AppConstants.radiusLg)),
+      ),
       builder: (sheet) => SafeArea(
         child: ListView(
           shrinkWrap: true,
@@ -74,7 +80,10 @@ class _SubagentStripState extends State<SubagentStrip> {
                 dense: true,
                 leading: BlockStatusDot(status: entry.card?.status ?? BlockStatus.ok),
                 title: AppText(entry.title, style: AppTextStyle.style12Medium.copyWith(color: skin.textPrimary)),
-                subtitle: AppText(_finishedMeta(entry), style: AppTextStyle.mono11Regular.copyWith(color: skin.textTertiary)),
+                subtitle: AppText(
+                  _finishedMeta(entry),
+                  style: AppTextStyle.mono11Regular.copyWith(color: skin.textTertiary),
+                ),
                 trailing: Icon(Icons.chevron_right, size: 16, color: skin.textTertiary),
                 onTap: () {
                   Navigator.of(sheet).pop();
@@ -106,35 +115,46 @@ class _SubagentStripState extends State<SubagentStrip> {
     builder: (context, _) {
       final cubit = context.read<BlocksCubit>();
       final entries = subagentsOf(cubit.blocks, cubit.subagentSummaries);
-      if (entries.isEmpty) return const SizedBox.shrink();
-      final skin = context.skin;
+      if (entries.isEmpty) return const Disclosure(expanded: false, child: SizedBox.shrink());
       final running = entries.where((e) => e.running).toList();
       final finished = entries.where((e) => !e.running).toList();
-      return Container(
-        height: 44,
-        decoration: BoxDecoration(color: skin.bgChrome, border: Border(top: BorderSide(color: skin.borderSubtle))),
-        child: ListView(
-          scrollDirection: Axis.horizontal,
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-          children: [
-            for (final entry in running) ...[
-              _Pill(
-                dot: BlockStatusDot(status: BlockStatus.running),
-                label: entry.title,
-                meta: _runningMeta(entry),
-                onTap: () => _open(context, entry),
+      return Disclosure(
+        expanded: true,
+        child: Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: GlassSurface(
+            kind: GlassShapeKind.capsule,
+            size: _kStripHeight,
+            child: SizedBox(
+              height: _kStripHeight,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(_kStripHeight / 2),
+                child: ListView(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                  children: [
+                    for (final entry in running) ...[
+                      _Pill(
+                        dot: BlockStatusDot(status: BlockStatus.running),
+                        label: entry.title,
+                        meta: _runningMeta(entry),
+                        onTap: () => _open(context, entry),
+                      ),
+                      const SizedBox(width: 8),
+                    ],
+                    if (finished.isNotEmpty)
+                      _Pill(
+                        dot: null,
+                        label: '${finished.length} done',
+                        meta: '',
+                        failed: finished.any((e) => e.card?.status == BlockStatus.failed),
+                        onTap: () => _showFinished(context, finished),
+                      ),
+                  ],
+                ),
               ),
-              const SizedBox(width: 8),
-            ],
-            if (finished.isNotEmpty)
-              _Pill(
-                dot: null,
-                label: '${finished.length} done',
-                meta: '',
-                failed: finished.any((e) => e.card?.status == BlockStatus.failed),
-                onTap: () => _showFinished(context, finished),
-              ),
-          ],
+            ),
+          ),
         ),
       );
     },

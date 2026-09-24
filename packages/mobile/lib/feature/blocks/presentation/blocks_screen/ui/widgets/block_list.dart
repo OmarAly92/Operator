@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
@@ -41,6 +42,8 @@ class BlockList extends StatefulWidget {
     this.onToggleSelect,
     this.onLongPressHeader,
     this.sessionActive = false,
+    this.bottomInset,
+    this.bottomGap = 6,
   });
 
   final String sessionId;
@@ -62,6 +65,8 @@ class BlockList extends StatefulWidget {
   final bool selectionMode;
   final void Function(String blockId, bool selected)? onToggleSelect;
   final void Function(String blockId)? onLongPressHeader;
+  final ValueListenable<double>? bottomInset;
+  final double bottomGap;
 
   @override
   State<BlockList> createState() => BlockListState();
@@ -91,13 +96,22 @@ class BlockListState extends State<BlockList> {
   void initState() {
     super.initState();
     controller.addListener(_onScroll);
+    widget.bottomInset?.addListener(_onInsetChanged);
     _adoptPivot();
     _scheduleFollow();
+  }
+
+  void _onInsetChanged() {
+    if (_pinned) _scheduleFollow();
   }
 
   @override
   void didUpdateWidget(BlockList oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (widget.bottomInset != oldWidget.bottomInset) {
+      oldWidget.bottomInset?.removeListener(_onInsetChanged);
+      widget.bottomInset?.addListener(_onInsetChanged);
+    }
     if (widget.sessionId != oldWidget.sessionId) {
       _collapsedToolGroups.clear();
       _expandedTools.clear();
@@ -317,6 +331,7 @@ class BlockListState extends State<BlockList> {
   @override
   void dispose() {
     controller.removeListener(_onScroll);
+    widget.bottomInset?.removeListener(_onInsetChanged);
     controller.dispose();
     super.dispose();
   }
@@ -373,7 +388,14 @@ class BlockListState extends State<BlockList> {
               );
             },
           ),
-          const SliverToBoxAdapter(child: SizedBox(height: 6)),
+          SliverToBoxAdapter(
+            child: widget.bottomInset == null
+                ? SizedBox(height: widget.bottomGap)
+                : ValueListenableBuilder<double>(
+                    valueListenable: widget.bottomInset!,
+                    builder: (context, inset, _) => SizedBox(height: inset + widget.bottomGap),
+                  ),
+          ),
         ],
       ),
     );

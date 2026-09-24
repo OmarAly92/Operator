@@ -19,7 +19,7 @@ class TerminalKeyRow extends StatelessWidget {
     final cubit = context.read<TerminalCubit>();
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
+      padding: const EdgeInsets.only(bottom: 8),
       child: Row(
         spacing: 5,
         children: [

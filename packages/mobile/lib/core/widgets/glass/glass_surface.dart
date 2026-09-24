@@ -3,7 +3,7 @@ import 'package:liquid_glass_renderer/liquid_glass_renderer.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/widgets/glass/glass_style.dart';
 
-enum GlassShapeKind { capsule, circle, rect }
+enum GlassShapeKind { capsule, circle, rect, roundedRect }
 
 class GlassSurface extends StatelessWidget {
   const GlassSurface({
@@ -29,12 +29,14 @@ class GlassSurface extends StatelessWidget {
         GlassShapeKind.capsule => const LiquidRoundedRectangle(borderRadius: 999),
         GlassShapeKind.circle => const LiquidOval(),
         GlassShapeKind.rect => LiquidRoundedSuperellipse(borderRadius: radius),
+        GlassShapeKind.roundedRect => LiquidRoundedRectangle(borderRadius: radius),
       };
 
   OutlinedBorder get _outline => switch (kind) {
         GlassShapeKind.capsule => const StadiumBorder(),
         GlassShapeKind.circle => const CircleBorder(),
         GlassShapeKind.rect => RoundedSuperellipseBorder(borderRadius: BorderRadius.all(Radius.circular(radius))),
+        GlassShapeKind.roundedRect => RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(radius))),
       };
 
   @override

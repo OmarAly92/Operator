@@ -1,4 +1,6 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/ui/widgets/chat_insets.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/app_themes/text_style/app_text_style.dart';
@@ -248,6 +250,7 @@ class BlocksBodyState extends State<BlocksBody> {
           if (index >= 0) list.scrollBlockIntoView(index);
         });
 
+        final dockInset = ChatInsets.maybeBottomOf(context);
         return PopScope(
           canPop: !_selectionMode,
           onPopInvokedWithResult: (didPop, _) {
@@ -304,13 +307,18 @@ class BlocksBodyState extends State<BlocksBody> {
                         onLongPressHeader: _selectionMode
                             ? null
                             : _enterSelectionMode,
+                        bottomInset: _selectionMode ? null : dockInset,
+                        bottomGap: dockInset == null || _selectionMode ? 6 : ChatInsets.listGap,
                       ),
                     ),
                     if (_selectionMode)
-                      BlockSelectionBar(
-                        selectedIds: _selected,
-                        documentOrder: visibleBlocks,
-                        onCancel: _exitSelectionMode,
+                      _DockClearance(
+                        inset: dockInset,
+                        child: BlockSelectionBar(
+                          selectedIds: _selected,
+                          documentOrder: visibleBlocks,
+                          onCancel: _exitSelectionMode,
+                        ),
                       ),
                   ],
                 ),
@@ -323,9 +331,9 @@ class BlocksBodyState extends State<BlocksBody> {
                   child: _StickyHeaderWithContextReadout(sticky: _sticky),
                 ),
               ),
-              Positioned(
-                right: 12,
-                bottom: 12,
+              _DockClearance(
+                inset: dockInset,
+                positioned: true,
                 child: ValueListenableBuilder<bool>(
                   valueListenable: _pinned,
                   builder: (context, pinned, _) => _selectionMode || pinned
@@ -403,6 +411,28 @@ class _StickyHeaderWithContextReadout extends StatelessWidget {
     return StickyBlockHeader(
       sticky: sticky,
       trailing: ContextReadoutChip(readout: readout),
+    );
+  }
+}
+
+class _DockClearance extends StatelessWidget {
+  const _DockClearance({required this.inset, required this.child, this.positioned = false});
+
+  final ValueListenable<double>? inset;
+  final Widget child;
+  final bool positioned;
+
+  Widget _place(double bottom) => positioned
+      ? Positioned(right: 12, bottom: 12 + bottom, child: child)
+      : Padding(padding: EdgeInsets.only(bottom: bottom), child: child);
+
+  @override
+  Widget build(BuildContext context) {
+    final inset = this.inset;
+    if (inset == null) return _place(0);
+    return ValueListenableBuilder<double>(
+      valueListenable: inset,
+      builder: (context, bottom, _) => _place(bottom),
     );
   }
 }
