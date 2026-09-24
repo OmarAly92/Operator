@@ -69,5 +69,5 @@ Operator attributes a PR to this session when its source branch is this session 
 - If the current branch ends in ` + "`/root`" + `, the part before ` + "`/root`" + ` is this session namespace. Create each additional PR branch as a sibling, ` + "`<namespace>/<topic>`" + `, starting from the branch it builds on.
 - To stack a PR on another, create its sibling branch from the parent PR's branch and target the parent branch in the PR.
 - Git cannot create a branch beneath an existing branch, so never name a branch ` + "`<existing-branch>/<topic>`" + `. If the current branch does not end in ` + "`/root`" + `, it has no room for sibling branches: open PRs from the current branch only.
-- If the user or project instructions require a different branch name, follow them and say that Operator will not track that PR automatically.`
+- If the user or project instructions require a different branch name, follow them. Operator will not attribute that PR by itself: claim it with the Operator pr_claim tool when you have it, and otherwise tell the user it is not tracked.`
 }
