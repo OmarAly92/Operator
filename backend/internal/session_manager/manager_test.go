@@ -2497,6 +2497,25 @@ func TestKill_WorkspaceProjectDirtyRepoRemovesNothing(t *testing.T) {
 	}
 }
 
+// TestKill_WorkspaceProjectWithOnlyRootRowStillRemovesChildrenFirst covers a
+// workspace session whose child rows are missing (legacy data): the single-repo
+// teardown would remove the root and the children nested inside it, so the rows
+// are rebuilt from the registry and children go first.
+func TestKill_WorkspaceProjectWithOnlyRootRowStillRemovesChildrenFirst(t *testing.T) {
+	ws := &fakeWorkspace{}
+	m, st := newWorkspaceKillFixture(t, ws)
+	st.worktrees["mer-1"] = st.worktrees["mer-1"][:1]
+
+	freed, err := m.Kill(ctx, "mer-1")
+	if err != nil || !freed {
+		t.Fatalf("freed=%v err=%v", freed, err)
+	}
+	want := []string{"Destroy:web", "Destroy:api", "Destroy:" + domain.RootWorkspaceRepoName}
+	if got := ws.calls; strings.Join(got, ",") != strings.Join(want, ",") {
+		t.Fatalf("destroy calls = %v, want %v", got, want)
+	}
+}
+
 func TestKill_WorkspaceProjectFailsClosedOnUnregisteredChildRows(t *testing.T) {
 	m, st, _, ws := newManager()
 	st.projects["mer"] = domain.ProjectRecord{ID: "mer", Path: "/repo/mer", Kind: domain.ProjectKindWorkspace, Config: testRoleAgents()}

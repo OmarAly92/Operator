@@ -1068,7 +1068,7 @@ func (m *Manager) Kill(ctx context.Context, id domain.SessionID) (bool, error) {
 
 	var workspaceProjectRows []ports.WorkspaceRepoInfo
 	workspaceProject := false
-	if rows, ok, rowErr := m.workspaceProjectRows(ctx, rec); rowErr != nil {
+	if rows, ok, rowErr := m.workspaceProjectTeardownRows(ctx, rec); rowErr != nil {
 		return false, fmt.Errorf("kill %s: workspace rows: %w", id, rowErr)
 	} else if ok {
 		workspaceProjectRows = rows
@@ -1977,6 +1977,37 @@ func (m *Manager) workspaceProjectRestoreRowsFromMarkers(ctx context.Context, pr
 	return out, nil
 }
 
+// workspaceProjectTeardownRows is workspaceProjectRows for paths that remove
+// worktrees. A workspace session with at most one worktree row (legacy data, or
+// rows lost) still has its children nested inside the root worktree, and the
+// single-repo teardown would delete them with the root. Such sessions get their
+// rows rebuilt from the registry so children are handled before the root.
+func (m *Manager) workspaceProjectTeardownRows(ctx context.Context, rec domain.SessionRecord) ([]ports.WorkspaceRepoInfo, bool, error) {
+	rows, ok, err := m.workspaceProjectRows(ctx, rec)
+	if err != nil || ok {
+		return rows, ok, err
+	}
+	project, err := m.loadProject(ctx, rec.ProjectID)
+	if err != nil {
+		return nil, false, err
+	}
+	if project.Kind.WithDefault() != domain.ProjectKindWorkspace || strings.TrimSpace(rec.Metadata.WorkspacePath) == "" {
+		return nil, false, nil
+	}
+	markers, err := m.store.ListSessionWorktrees(ctx, rec.ID)
+	if err != nil {
+		return nil, false, err
+	}
+	rebuilt, err := m.workspaceProjectRestoreRowsFromMarkers(ctx, project, rec, markers)
+	if err != nil {
+		return nil, false, err
+	}
+	if len(rebuilt) <= 1 {
+		return nil, false, nil
+	}
+	return rebuilt, true, nil
+}
+
 func (m *Manager) workspaceProjectRows(ctx context.Context, rec domain.SessionRecord) ([]ports.WorkspaceRepoInfo, bool, error) {
 	rows, err := m.store.ListSessionWorktrees(ctx, rec.ID)
 	if err != nil {
@@ -2551,7 +2582,7 @@ func (m *Manager) Cleanup(ctx context.Context, project domain.ProjectID) (Cleanu
 // it was left alone this run (Cleanup records it in Skipped and can retry on
 // a later call).
 func (m *Manager) cleanupOne(ctx context.Context, rec domain.SessionRecord, ws ports.WorkspaceInfo) (skipReason string) {
-	if rows, ok, rowErr := m.workspaceProjectRows(ctx, rec); rowErr != nil {
+	if rows, ok, rowErr := m.workspaceProjectTeardownRows(ctx, rec); rowErr != nil {
 		m.logger.Warn("cleanup: workspace rows failed", "sessionID", rec.ID, "error", rowErr)
 		return "workspace teardown failed"
 	} else if ok {
