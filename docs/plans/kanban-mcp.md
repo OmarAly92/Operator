@@ -1,6 +1,6 @@
 # Operator MCP server: board-aware sessions
 
-**Status:** proposed
+**Status:** accepted
 
 **Date:** 2026-09-24
 
@@ -181,7 +181,7 @@ effect when the turn ends, which is the intended moment.
 - the harness's user-prompt-submitted event (Claude `UserPromptSubmit`, Codex
   equivalent). This fires when the user answers, and also on Operator nudges, which
   are pasted user turns.
-- restore of a terminated session, and terminate.
+- terminate. A restore keeps the report (see Decisions).
 - an explicit `session_report clear`.
 
 Do not clear on every transition into `active`: a permission dialog
@@ -357,14 +357,16 @@ from that CLI's docs. Wire it, or record it as unsupported in `docs/architecture
 - `docs/cli/README.md`: `opr mcp` (hidden; launched by agents, not users).
 - `docs/STATUS.md` as phases land.
 
-## Open questions
+## Decisions
 
-1. **Pre-approve every `mcp__operator` tool?** Recommended: yes. All of them are
-   self-scoped and reversible, and a permission prompt on `session_report` would itself
-   park the card in Needs you.
-2. **Report survival across restore.** Recommended: keep it until the next user prompt.
-   A restored session that was waiting on you is still waiting on you.
-3. **Cross-project reads.** `board_get` takes any `project_id`. Recommended: allow it,
-   since everything is local and read-only. Restrict to own project if that proves noisy.
-4. **Spawning helpers** (`/sessions/delegate`) is out of scope here. Revisit once
-   agents use the board.
+Confirmed by the user on 2026-09-24:
+
+1. **Every `mcp__operator` tool is pre-approved.** All of them are self-scoped and
+   reversible, and a permission prompt on `session_report` would itself park the card
+   in Needs you.
+2. **A report survives restore.** It stays until the next user prompt, because a
+   restored session that was waiting on the user is still waiting.
+3. **`board_get` may read any project.** Everything is local and read-only.
+
+Out of scope for now: spawning helpers (`/sessions/delegate`). Revisit once agents use
+the board.
