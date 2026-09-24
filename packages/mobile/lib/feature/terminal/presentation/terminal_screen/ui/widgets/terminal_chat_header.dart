@@ -7,6 +7,9 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/app_themes/text_style/app_text_style.dart';
 import 'package:operator_mobile/core/mux/mux_client.dart';
+import 'package:operator_mobile/core/utils/turn_elapsed.dart';
+import 'package:operator_mobile/feature/sessions/logic/active_since.dart';
+import 'package:operator_mobile/feature/sessions/presentation/sessions_screen/logic/sessions_cubit.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/session_command_cubit.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/session_view_cubit.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/model_picker_sheet.dart';
@@ -281,18 +284,26 @@ class _SessionActivityPillState extends State<_SessionActivityPill> {
     super.dispose();
   }
 
+  DateTime? _activeSince(BuildContext context) {
+    final SessionsCubit sessions;
+    try {
+      sessions = context.read<SessionsCubit>();
+    } on ProviderNotFoundException {
+      return null;
+    }
+    return activeSince(sessions.sessions, context.read<SessionCommandCubit>().sessionId);
+  }
+
   String _elapsed(BuildContext context) {
+    final since = _activeSince(context);
+    if (since != null) return turnElapsed(DateTime.now().difference(since));
     final groups = groupBlocksByTurn(
       context.read<BlocksCubit>().blocks,
       sessionActive: true,
     );
     final start = DateTime.tryParse(groups.lastOrNull?.startedAt ?? '');
     if (start == null) return 'Working';
-    final seconds = DateTime.now()
-        .difference(start)
-        .inSeconds
-        .clamp(0, 1 << 31);
-    return seconds < 60 ? '${seconds}s' : '${seconds ~/ 60}m${seconds % 60}s';
+    return turnElapsed(DateTime.now().difference(start));
   }
 
   @override

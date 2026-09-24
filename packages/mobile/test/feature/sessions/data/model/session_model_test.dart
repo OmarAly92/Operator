@@ -32,5 +32,14 @@ void main() {
       expect(plain.agentReportState, isNull);
       expect(plain.agentReportReason, isNull);
     });
+
+    test('reads when the current activity state began', () {
+      final session = SessionModel.fromJson({
+        'id': 'a',
+        'activity': {'state': 'active', 'lastActivityAt': '2026-09-23T12:00:00Z'},
+      });
+      expect(session.activity, 'active');
+      expect(session.activitySince, '2026-09-23T12:00:00Z');
+    });
   });
 }
