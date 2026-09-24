@@ -92,12 +92,17 @@ func pruneHistory(now time.Time, live func(sessionID string) bool) error {
 	return nil
 }
 
-func pruneStaleHistory(now time.Time, creating string) {
+func (r *Runtime) pruneStaleHistory(now time.Time, creating string) {
 	entries, err := ptyregistry.List()
 	if err != nil {
 		return
 	}
-	keep := make(map[string]bool, len(entries)+1)
+	r.mu.Lock()
+	keep := make(map[string]bool, len(entries)+len(r.sessions)+1)
+	for id := range r.sessions {
+		keep[id] = true
+	}
+	r.mu.Unlock()
 	keep[creating] = true
 	for _, entry := range entries {
 		keep[entry.SessionID] = true

@@ -106,7 +106,7 @@ func (r *Runtime) Create(ctx context.Context, cfg ports.RuntimeConfig) (ports.Ru
 	if !cfg.RestoreHistory {
 		_ = removeHistory(id)
 	}
-	pruneStaleHistory(time.Now(), id)
+	r.pruneStaleHistory(time.Now(), id)
 
 	addr, pid, err := r.spawner(ctx, id, cfg.WorkspacePath, cfg.Argv, cfg.Env, cfg.Cols, cfg.Rows)
 	if err != nil {
