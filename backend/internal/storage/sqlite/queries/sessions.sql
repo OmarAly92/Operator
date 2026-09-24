@@ -49,7 +49,8 @@ SELECT id, project_id, num, issue_id, harness,
     workspace_repo_path, terminate_on_pr_merge, diff_base_sha, diff_base_ref,
     reviewer_harness, is_pinned, pinned_at,
     provider_conversation_id, controller_generation, browser_capability_verifier,
-    latest_user_prompt, latest_assistant_update, native_transcript_path, auto_inject_review, claude_account_id
+    latest_user_prompt, latest_assistant_update, native_transcript_path, auto_inject_review, claude_account_id,
+    agent_report_state, agent_report_reason, agent_report_at
 FROM sessions WHERE id = ?;
 
 -- name: ListSessionsByProject :many
@@ -61,7 +62,8 @@ SELECT id, project_id, num, issue_id, harness,
     workspace_repo_path, terminate_on_pr_merge, diff_base_sha, diff_base_ref,
     reviewer_harness, is_pinned, pinned_at,
     provider_conversation_id, controller_generation, browser_capability_verifier,
-    latest_user_prompt, latest_assistant_update, native_transcript_path, auto_inject_review, claude_account_id
+    latest_user_prompt, latest_assistant_update, native_transcript_path, auto_inject_review, claude_account_id,
+    agent_report_state, agent_report_reason, agent_report_at
 FROM sessions WHERE project_id = ? ORDER BY num;
 
 -- name: ListAllSessions :many
@@ -73,7 +75,8 @@ SELECT id, project_id, num, issue_id, harness,
     workspace_repo_path, terminate_on_pr_merge, diff_base_sha, diff_base_ref,
     reviewer_harness, is_pinned, pinned_at,
     provider_conversation_id, controller_generation, browser_capability_verifier,
-    latest_user_prompt, latest_assistant_update, native_transcript_path, auto_inject_review, claude_account_id
+    latest_user_prompt, latest_assistant_update, native_transcript_path, auto_inject_review, claude_account_id,
+    agent_report_state, agent_report_reason, agent_report_at
 FROM sessions ORDER BY project_id, num;
 
 
@@ -108,6 +111,12 @@ UPDATE sessions SET reviewer_harness = ?, updated_at = ? WHERE id = ?;
 
 -- name: SetSessionClaudeAccount :execrows
 UPDATE sessions SET claude_account_id = ?, updated_at = ? WHERE id = ?;
+
+-- name: SetSessionAgentReport :execrows
+UPDATE sessions SET agent_report_state = ?, agent_report_reason = ?, agent_report_at = ?, updated_at = ? WHERE id = ?;
+
+-- name: ClearSessionAgentReport :execrows
+UPDATE sessions SET agent_report_state = '', agent_report_reason = '', agent_report_at = NULL, updated_at = ? WHERE id = ? AND agent_report_state <> '';
 
 -- name: SessionIsSeed :one
 -- SessionIsSeed reports whether the session id matches a row still in seed

@@ -49,25 +49,33 @@ is no orchestrator or coordinator role prompt; comments that mention one
 (`manager.go:2661`, `adapters/agent/claudecode/claudecode.go:210`) are
 leftovers.
 
-**Section 1: pull requests for this session** (`session_manager/prompt.go:60-70`),
+**Section 1: pull requests for this session** (`session_manager/prompt.go`),
 always present:
 
 > ## Pull Requests for This Session
 >
-> Operator attributes PRs to this session when the source branch is this session
-> branch or lives under this session namespace.
+> Operator attributes a PR to this session when its source branch is this
+> session branch or sits under this session namespace, so keep PR branch names in
+> the shapes below.
 >
-> - If your current branch ends in `/root`, create independent PR branches as
->   siblings under the same namespace, for example `<namespace>/<topic>` from
->   `<namespace>/root`. Do not create `<namespace>/root/<topic>`.
-> - Otherwise, create each source branch as a child of this session branch, for
->   example `<current-branch>/<topic>`.
-> - To stack a PR on top of another, create the child branch from the parent
->   branch and name it `<parent-branch>/<topic>`, then target the parent branch
->   in the PR.
->
-> Keep branch names inside this session namespace so Operator can track every PR
-> you open.
+> - Open the first PR directly from the current branch; it needs no new branch.
+> - If the current branch ends in `/root`, the part before `/root` is this
+>   session namespace. Create each additional PR branch as a sibling,
+>   `<namespace>/<topic>`, starting from the branch it builds on.
+> - To stack a PR on another, create its sibling branch from the parent PR's
+>   branch and target the parent branch in the PR.
+> - Git cannot create a branch beneath an existing branch, so never name a branch
+>   `<existing-branch>/<topic>`. If the current branch does not end in `/root`,
+>   it has no room for sibling branches: open PRs from the current branch only.
+> - If the user or project instructions require a different branch name, follow
+>   them and say that Operator will not track that PR automatically.
+
+Revised 2026-09-24. The earlier text asked for `<current-branch>/<topic>` and
+`<parent-branch>/<topic>` branches, which Git refuses while the parent branch
+exists (`refs/heads/a/b` blocks `refs/heads/a/b/c`). It also had no escape for
+user or project branch rules. Workspace projects now get `opr/<id>/root` like
+single-repo projects (`DefaultSpawnBranch`), where they used to get a bare
+`opr/<id>` with no valid name for a second PR.
 
 **Section 2: workspace project** (`session_manager/manager.go:2764`), only for
 multi-repository workspace projects:

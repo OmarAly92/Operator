@@ -351,8 +351,9 @@ func TestReviewMessageReusesLiveProcessAndCancelIsOneCtrlC(t *testing.T) {
 }
 
 func TestGooseReviewerIdentityAndHostTrustWarning(t *testing.T) {
-	if New().Harness() != HarnessID || !HarnessID.IsKnown() {
-		t.Fatalf("reviewer harness is not enabled: %q", New().Harness())
+	// Retired until Goose can load the Operator reviewer MCP server.
+	if New().Harness() != HarnessID || !HarnessID.IsRetired() {
+		t.Fatalf("reviewer harness is not a domain reviewer: %q", New().Harness())
 	}
 	for _, phrase := range []string{"host-trusted", "developer tools", "without OS or network isolation"} {
 		if !strings.Contains(HostTrustWarning, phrase) {

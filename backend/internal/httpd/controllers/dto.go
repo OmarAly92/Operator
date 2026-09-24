@@ -206,6 +206,12 @@ type AttachmentInput struct {
 	Data string `json:"data"`
 }
 
+// SetAgentReportRequest is the body of PUT /api/v1/sessions/{sessionId}/agent-report.
+type SetAgentReportRequest struct {
+	State  domain.AgentReportState `json:"state" enum:"needs_you,ready_for_review" description:"needs_you: the agent is waiting on the user. ready_for_review: the work is complete and there is no PR to review."`
+	Reason string                  `json:"reason,omitempty" maxLength:"280" description:"One line shown on the card and in the Needs you alert. Required for needs_you."`
+}
+
 // SessionResponse is the { session } body shared by session reads and updates.
 type SessionResponse struct {
 	Session SessionView `json:"session"`
@@ -463,7 +469,7 @@ type RenameSessionRequest struct {
 // SetSessionReviewerRequest sets the durable reviewer preference for a session.
 // Empty clears the preference and falls back to project configuration.
 type SetSessionReviewerRequest struct {
-	Harness domain.ReviewerHarness `json:"harness,omitempty" enum:"claude-code,codex,copilot,cursor,kilocode,opencode,kiro,pi,qwen,agy,continue,goose,vibe,devin,droid,kimi,kimchi,muse,amp,aider,grok,crush,auggie,cline,autohand"`
+	Harness domain.ReviewerHarness `json:"harness,omitempty" enum:"claude-code,codex,copilot,kilocode,opencode,qwen,amp,auggie"`
 }
 
 // SetSessionPreviewRequest is the body of POST /api/v1/sessions/{sessionId}/preview.
@@ -1335,9 +1341,12 @@ type MergePRResponse struct {
 	Method   string `json:"method"`
 }
 
-// ResolveCommentsRequest is the optional body of POST /api/v1/prs/{id}/resolve-comments.
+// ResolveCommentsRequest is the body of POST /api/v1/prs/{id}/resolve-comments.
 type ResolveCommentsRequest struct {
-	CommentIDs []string `json:"commentIds,omitempty"`
+	// PRURL pins the tracked pull request: a number alone is ambiguous across
+	// repositories (the same contract as MergePRRequest).
+	PRURL      string   `json:"prUrl" minLength:"1" description:"URL of the tracked pull request."`
+	CommentIDs []string `json:"commentIds,omitempty" description:"Review comment or thread ids whose threads to resolve. Omit to resolve every unresolved thread."`
 }
 
 // ResolveCommentsResponse is the body of POST /api/v1/prs/{id}/resolve-comments (200).
@@ -1515,7 +1524,7 @@ type UiSettings struct {
 // it for this pass only, without editing project config, so one session's choice
 // cannot change what another session in the project runs.
 type TriggerReviewRequest struct {
-	Harness domain.ReviewerHarness `json:"harness,omitempty" enum:"claude-code,codex,copilot,cursor,kilocode,opencode,kiro,pi,qwen,agy,continue,goose,vibe,devin,droid,kimi,kimchi,muse,amp,aider,grok,crush,auggie,cline,autohand"`
+	Harness domain.ReviewerHarness `json:"harness,omitempty" enum:"claude-code,codex,copilot,kilocode,opencode,qwen,amp,auggie"`
 }
 
 // DesktopResponse is the body of GET /api/v1/desktop: how this machine

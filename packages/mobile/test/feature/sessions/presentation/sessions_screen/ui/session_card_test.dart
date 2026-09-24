@@ -52,6 +52,52 @@ void main() {
     expect(longPressed, isTrue);
   });
 
+  Future<void> pumpCard(WidgetTester tester, SessionModel session) => tester.pumpWidget(
+    ScreenUtilInit(
+      designSize: const Size(390, 844),
+      builder: (context, child) => MaterialApp(
+        home: SkinScope(
+          skin: const DarkSkin(),
+          child: Scaffold(
+            body: SessionCard(session: session, showProject: true, onTap: () {}, onLongPress: () {}),
+          ),
+        ),
+      ),
+    ),
+  );
+
+  testWidgets('a working agent shows how long its turn has run', (tester) async {
+    final since = DateTime.now().subtract(const Duration(minutes: 2, seconds: 2));
+    await pumpCard(
+      tester,
+      SessionModel(
+        id: 'proj-1',
+        projectId: 'proj',
+        displayName: 'Fix auth',
+        status: 'working',
+        activity: 'active',
+        activitySince: since.toUtc().toIso8601String(),
+      ),
+    );
+    expect(find.text('Working'), findsNothing);
+    expect(find.textContaining(RegExp(r'^2m[23]s$')), findsOneWidget);
+  });
+
+  testWidgets('an agent that is not working keeps its status label', (tester) async {
+    await pumpCard(
+      tester,
+      SessionModel(
+        id: 'proj-1',
+        projectId: 'proj',
+        displayName: 'Fix auth',
+        status: 'idle',
+        activity: 'idle',
+        activitySince: DateTime.now().subtract(const Duration(minutes: 5)).toIso8601String(),
+      ),
+    );
+    expect(find.text('Idle'), findsOneWidget);
+  });
+
   testWidgets('renders no timestamp when the session has never reported one', (tester) async {
     const session = SessionModel(id: 'proj-1', projectId: 'proj', displayName: 'Fix auth', status: 'working');
 
@@ -245,5 +291,32 @@ void main() {
 
     expect(find.text('codex'), findsOneWidget);
     expect(find.text('Default'), findsNothing);
+  });
+
+  testWidgets('shows the reason the agent reported for its card', (tester) async {
+    const session = SessionModel(
+      id: 'proj-1',
+      projectId: 'proj',
+      displayName: 'Pick a db',
+      status: 'needs_input',
+      agentReportState: 'needs_you',
+      agentReportReason: 'Postgres or SQLite?',
+    );
+
+    await tester.pumpWidget(
+      ScreenUtilInit(
+        designSize: const Size(390, 844),
+        builder: (context, child) => MaterialApp(
+          home: SkinScope(
+            skin: const DarkSkin(),
+            child: Scaffold(
+              body: SessionCard(session: session, showProject: true, onTap: () {}, onLongPress: () {}),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('Postgres or SQLite?'), findsOneWidget);
   });
 }

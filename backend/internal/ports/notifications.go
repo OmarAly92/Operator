@@ -18,6 +18,9 @@ type NotificationIntent struct {
 	Quiet     bool
 
 	AssistantUpdate string
+	// AgentReportReason is the agent's own one-line reason for a Needs you
+	// alert raised by an agent report; it becomes the notification body.
+	AgentReportReason string
 
 	// Enrichment hints. These avoid storage reads on the hot path.
 	SessionDisplayName string

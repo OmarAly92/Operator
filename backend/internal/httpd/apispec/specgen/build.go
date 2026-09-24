@@ -143,7 +143,7 @@ func schemaName(_ reflect.Type, defaultName string) string {
 // schemaNames is the exhaustive default→clean mapping for every type reflected
 // by projectOperations(). Add an entry when a new contract type is introduced;
 // the drift test fails until the spec is regenerated, which flags the gap.
-var schemaNames = map[string]string{
+var schemaNames = map[string]string{ //nolint:gosec // G101: schema type names such as MobileNgrokCredential, not credentials.
 	"ControllersSettingsResponse": "SettingsResponse",
 	"ControllersUiSettings":       "UiSettings",
 	"SettingsUpdateSettings":      "UpdateSettings",
@@ -158,6 +158,8 @@ var schemaNames = map[string]string{
 	"DomainIssueID":                    "IssueID",
 	"DomainSession":                    "Session",
 	"DomainSessionTicketRef":           "SessionTicketRef",
+	"DomainAgentReport":                "AgentReport",
+	"ControllersSetAgentReportRequest": "SetAgentReportRequest",
 	"DomainTicketRole":                 "TicketRole",
 	"DomainProjectConfig":              "ProjectConfig",
 	"DomainTrackerIntakeConfig":        "TrackerIntakeConfig",
@@ -1482,6 +1484,32 @@ func sessionOperations() []operation {
 			},
 		},
 		{
+			method: http.MethodPut, path: "/api/v1/sessions/{sessionId}/agent-report", id: "setSessionAgentReport", tag: "sessions",
+			summary:    "Record what the agent reports about its own board card",
+			pathParams: []any{controllers.SessionIDParam{}},
+			reqBody:    controllers.SetAgentReportRequest{},
+			resps: []respUnit{
+				{http.StatusOK, controllers.SessionResponse{}},
+				{http.StatusBadRequest, envelope.APIError{}},
+				{http.StatusNotFound, envelope.APIError{}},
+				{http.StatusConflict, envelope.APIError{}},
+				{http.StatusInternalServerError, envelope.APIError{}},
+				{http.StatusNotImplemented, envelope.APIError{}},
+			},
+		},
+		{
+			method: http.MethodDelete, path: "/api/v1/sessions/{sessionId}/agent-report", id: "clearSessionAgentReport", tag: "sessions",
+			summary:    "Clear the agent's report about its own board card",
+			pathParams: []any{controllers.SessionIDParam{}},
+			resps: []respUnit{
+				{http.StatusOK, controllers.SessionResponse{}},
+				{http.StatusNotFound, envelope.APIError{}},
+				{http.StatusConflict, envelope.APIError{}},
+				{http.StatusInternalServerError, envelope.APIError{}},
+				{http.StatusNotImplemented, envelope.APIError{}},
+			},
+		},
+		{
 			method: http.MethodDelete, path: "/api/v1/sessions/{sessionId}/pin", id: "unpinSession", tag: "sessions",
 			summary:    "Unpin a session",
 			pathParams: []any{controllers.SessionIDParam{}},
@@ -2003,8 +2031,9 @@ func prOperations() []operation {
 			method: http.MethodPost, path: "/api/v1/prs/{id}/resolve-comments", id: "resolveComments", tag: "prs",
 			summary:    "Resolve review threads on a pull request",
 			pathParams: []any{controllers.PRIDParam{}},
-			reqBody:    nil, // body is optional: omitting it resolves all unresolved threads
+			reqBody:    controllers.ResolveCommentsRequest{},
 			resps: []respUnit{
+				{http.StatusBadRequest, envelope.APIError{}},
 				{http.StatusOK, controllers.ResolveCommentsResponse{}},
 				{http.StatusNotFound, envelope.APIError{}},
 				{http.StatusUnprocessableEntity, envelope.APIError{}},

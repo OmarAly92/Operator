@@ -1069,6 +1069,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/sessions/{sessionId}/agent-report": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Record what the agent reports about its own board card */
+        put: operations["setSessionAgentReport"];
+        post?: never;
+        /** Clear the agent's report about its own board card */
+        delete: operations["clearSessionAgentReport"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/sessions/{sessionId}/agent-switches": {
         parameters: {
             query?: never;
@@ -1999,6 +2017,13 @@ export interface components {
             validatedAt?: string;
             warning?: string;
         };
+        AgentReport: {
+            /** Format: date-time */
+            at: string;
+            reason: string;
+            /** @enum {string} */
+            state: "needs_you" | "ready_for_review";
+        };
         AgentSwitch: {
             /** @enum {string} */
             agentHandoffStatus: "not_attempted" | "requested" | "received" | "unavailable" | "timed_out" | "failed" | "rejected";
@@ -2206,7 +2231,10 @@ export interface components {
         };
         ControllersSessionView: {
             activity: components["schemas"]["DomainActivity"];
+            agentReport?: components["schemas"]["AgentReport"];
             autoInjectReview: boolean;
+            /** @enum {string} */
+            boardColumn: "working" | "needs_you" | "in_review" | "ready_to_merge" | "archive";
             branch?: string;
             brief?: string;
             claudeAccountId: string;
@@ -2237,6 +2265,7 @@ export interface components {
             scmStatus?: "pr_open" | "draft" | "ci_failed" | "review_pending" | "changes_requested" | "approved" | "mergeable" | "merged";
             /** @enum {string} */
             status: "working" | "pr_open" | "draft" | "ci_failed" | "review_pending" | "changes_requested" | "approved" | "mergeable" | "merged" | "needs_input" | "exited" | "idle" | "terminated" | "no_signal";
+            statusReason: string;
             terminalHandleId?: string;
             terminateOnPrMerge: boolean;
             ticket?: components["schemas"]["SessionTicketRef"];
@@ -2811,6 +2840,12 @@ export interface components {
             ok: boolean;
             sessionId: string;
         };
+        ResolveCommentsRequest: {
+            /** @description Review comment or thread ids whose threads to resolve. Omit to resolve every unresolved thread. */
+            commentIds?: string[];
+            /** @description URL of the tracked pull request. */
+            prUrl: string;
+        };
         ResolveCommentsResponse: {
             ok: boolean;
             resolved: number;
@@ -3067,6 +3102,15 @@ export interface components {
             sessionId: string;
             state: string;
         };
+        SetAgentReportRequest: {
+            /** @description One line shown on the card and in the Needs you alert. Required for needs_you. */
+            reason?: string;
+            /**
+             * @description needs_you: the agent is waiting on the user. ready_for_review: the work is complete and there is no PR to review.
+             * @enum {string}
+             */
+            state: "needs_you" | "ready_for_review";
+        };
         SetProjectConfigInput: {
             config: components["schemas"]["ProjectConfig"];
         };
@@ -3111,7 +3155,7 @@ export interface components {
         };
         SetSessionReviewerRequest: {
             /** @enum {string} */
-            harness?: "claude-code" | "codex" | "copilot" | "cursor" | "kilocode" | "opencode" | "kiro" | "pi" | "qwen" | "agy" | "continue" | "goose" | "vibe" | "devin" | "droid" | "kimi" | "kimchi" | "muse" | "amp" | "aider" | "grok" | "crush" | "auggie" | "cline" | "autohand";
+            harness?: "claude-code" | "codex" | "copilot" | "kilocode" | "opencode" | "qwen" | "amp" | "auggie";
         };
         SettingsResponse: {
             keybindings: components["schemas"]["KeybindingOverrides"];
@@ -3288,7 +3332,7 @@ export interface components {
         };
         TriggerReviewRequest: {
             /** @enum {string} */
-            harness?: "claude-code" | "codex" | "copilot" | "cursor" | "kilocode" | "opencode" | "kiro" | "pi" | "qwen" | "agy" | "continue" | "goose" | "vibe" | "devin" | "droid" | "kimi" | "kimchi" | "muse" | "amp" | "aider" | "grok" | "crush" | "auggie" | "cline" | "autohand";
+            harness?: "claude-code" | "codex" | "copilot" | "kilocode" | "opencode" | "qwen" | "amp" | "auggie";
         };
         TriggerReviewResponse: {
             /** @description True when a new review pass was started; false when an existing run for the same commit was reused. */
@@ -6762,7 +6806,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ResolveCommentsRequest"];
+            };
+        };
         responses: {
             /** @description OK */
             200: {
@@ -6771,6 +6819,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ResolveCommentsResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
                 };
             };
             /** @description Not Found */
@@ -7121,6 +7178,137 @@ export interface operations {
             };
             /** @description Not Found */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    setSessionAgentReport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Session identifier, e.g. project-1. */
+                sessionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetAgentReportRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SessionResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    clearSessionAgentReport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Session identifier, e.g. project-1. */
+                sessionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SessionResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Conflict */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

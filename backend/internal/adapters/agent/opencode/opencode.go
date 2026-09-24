@@ -108,7 +108,7 @@ func (p *Plugin) GetLaunchCommand(ctx context.Context, cfg ports.LaunchConfig) (
 		return nil, err
 	}
 
-	envPrefix, agentName, err := opencodeConfigEnvPrefix(cfg.SystemPrompt, cfg.SystemPromptFile, cfg.SessionID)
+	envPrefix, agentName, err := opencodeConfigEnvPrefix(cfg.SystemPrompt, cfg.SystemPromptFile, cfg.SessionID, cfg.MCPServers)
 	if err != nil {
 		return nil, err
 	}
@@ -145,7 +145,7 @@ func (p *Plugin) GetRestoreCommand(ctx context.Context, cfg ports.RestoreConfig)
 		return nil, false, err
 	}
 
-	envPrefix, agentName, err := opencodeConfigEnvPrefix(cfg.SystemPrompt, cfg.SystemPromptFile, cfg.Session.ID)
+	envPrefix, agentName, err := opencodeConfigEnvPrefix(cfg.SystemPrompt, cfg.SystemPromptFile, cfg.Session.ID, cfg.MCPServers)
 	if err != nil {
 		return nil, false, err
 	}
@@ -373,6 +373,17 @@ const opencodeConfigEnvVar = "OPENCODE_CONFIG"
 type opencodeInlineConfig struct {
 	Schema string                           `json:"$schema,omitempty"`
 	Agent  map[string]opencodeAgentSettings `json:"agent,omitempty"`
+	// MCP registers the launch's MCP servers. OPENCODE_CONFIG merges with the
+	// user's global and project configs, so their own servers still load.
+	MCP map[string]opencodeMCPServer `json:"mcp,omitempty"`
+}
+
+// opencodeMCPServer is opencode's local (stdio) MCP server entry.
+type opencodeMCPServer struct {
+	Type        string            `json:"type"`
+	Command     []string          `json:"command"`
+	Environment map[string]string `json:"environment,omitempty"`
+	Enabled     bool              `json:"enabled"`
 }
 
 type opencodeAgentSettings struct {
@@ -380,7 +391,12 @@ type opencodeAgentSettings struct {
 	Prompt string `json:"prompt,omitempty"`
 }
 
-func opencodeConfigEnvPrefix(inlinePrompt, promptFile, sessionID string) ([]string, string, error) {
+// opencodeConfigEnvPrefix writes the per-session opencode config next to the
+// system prompt file: the Operator agent carrying the standing prompt, and the
+// launch's MCP servers. The file lives in the prompt artifact directory the
+// session manager owns, so nothing lands in the worktree; without a prompt file
+// there is no such directory and no config is written.
+func opencodeConfigEnvPrefix(inlinePrompt, promptFile, sessionID string, servers []ports.MCPServerSpec) ([]string, string, error) {
 	if inlinePrompt == "" && promptFile == "" {
 		return nil, "", nil
 	}
@@ -402,6 +418,17 @@ func opencodeConfigEnvPrefix(inlinePrompt, promptFile, sessionID string) ([]stri
 				Prompt: prompt,
 			},
 		},
+	}
+	if len(servers) > 0 {
+		config.MCP = make(map[string]opencodeMCPServer, len(servers))
+		for _, srv := range servers {
+			config.MCP[srv.Name] = opencodeMCPServer{
+				Type:        "local",
+				Command:     append([]string{srv.Command}, srv.Args...),
+				Environment: srv.Env,
+				Enabled:     true,
+			}
+		}
 	}
 	data, err := json.MarshalIndent(config, "", "  ")
 	if err != nil {
@@ -518,3 +545,9 @@ func (p *Plugin) opencodeBinary(ctx context.Context) (string, error) {
 	p.resolvedBinary = binary
 	return binary, nil
 }
+
+var _ ports.MCPServerLoader = (*Plugin)(nil)
+
+// LoadsMCPServers reports that the launch registers LaunchConfig.MCPServers
+// with the CLI, so the session has the Operator MCP server.
+func (*Plugin) LoadsMCPServers() bool { return true }

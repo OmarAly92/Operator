@@ -9,6 +9,9 @@ import (
 // ErrSessionNotFound reports an observation for an unknown session id.
 var ErrSessionNotFound = errors.New("session not found")
 
+// ErrSessionTerminated rejects a write that only makes sense for a live session.
+var ErrSessionTerminated = errors.New("session terminated")
+
 // SpawnConfig is the request to start a new session: which project/issue, which
 // agent harness, and the branch/prompt the agent launches with.
 // PaneGrid is the size of the terminal pane that will show a session, so a

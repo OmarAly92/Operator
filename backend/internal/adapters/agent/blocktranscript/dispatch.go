@@ -59,3 +59,24 @@ func MapSidechain(harness, agentID string, line []byte) ([]domain.BlockTranscrip
 	}
 	return mapper(agentID, line)
 }
+
+// InterruptFunc classifies one main transcript line: interrupted marks a user
+// interrupt, turn marks any record that belongs to a turn and so supersedes an
+// earlier interrupt.
+type InterruptFunc func(line []byte) (interrupted, turn bool)
+
+// InterruptDetectors covers harnesses whose interrupt fires no hook and is only
+// visible in the transcript.
+var InterruptDetectors = map[string]InterruptFunc{
+	"claude-code": claudecode.TranscriptInterrupt,
+}
+
+// Interrupt applies the harness's interrupt detector. A harness without one
+// reports neither.
+func Interrupt(harness string, line []byte) (interrupted, turn bool) {
+	detect, found := InterruptDetectors[harness]
+	if !found {
+		return false, false
+	}
+	return detect(line)
+}

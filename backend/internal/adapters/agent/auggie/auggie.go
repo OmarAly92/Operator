@@ -116,6 +116,9 @@ func (p *Plugin) GetLaunchCommand(ctx context.Context, cfg ports.LaunchConfig) (
 		cmd = append(cmd, "--rules", cfg.SystemPromptFile)
 	}
 	appendModelFlag(&cmd, cfg.Config)
+	if err := appendMCPConfigFlag(&cmd, cfg.MCPServers); err != nil {
+		return nil, err
+	}
 	if cfg.Prompt != "" {
 		cmd = append(cmd, "--", cfg.Prompt)
 	}
@@ -147,6 +150,9 @@ func (p *Plugin) GetRestoreCommand(ctx context.Context, cfg ports.RestoreConfig)
 		cmd = append(cmd, "--rules", cfg.SystemPromptFile)
 	}
 	appendModelFlag(&cmd, cfg.Config)
+	if err := appendMCPConfigFlag(&cmd, cfg.MCPServers); err != nil {
+		return nil, false, err
+	}
 	cmd = append(cmd, "--resume", agentSessionID)
 	return cmd, true, nil
 }
@@ -200,3 +206,9 @@ func (p *Plugin) auggieBinary(ctx context.Context) (string, error) {
 	p.resolvedBinary = binary
 	return binary, nil
 }
+
+var _ ports.MCPServerLoader = (*Plugin)(nil)
+
+// LoadsMCPServers reports that the launch registers LaunchConfig.MCPServers
+// with the CLI, so the session has the Operator MCP server.
+func (*Plugin) LoadsMCPServers() bool { return true }

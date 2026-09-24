@@ -1415,7 +1415,7 @@ func TestTriggerRerunsChangesRequestedCurrentHead(t *testing.T) {
 
 func TestTriggerUsesConfiguredReviewerHarness(t *testing.T) {
 	store := &fakeStore{}
-	projects := fakeProjects{cfg: domain.ProjectConfig{Reviewers: []domain.ReviewerConfig{{Harness: domain.ReviewerHarness("greptile")}}}}
+	projects := fakeProjects{cfg: domain.ProjectConfig{Reviewers: []domain.ReviewerConfig{{Harness: domain.ReviewerCodex}}}}
 	launcher := &fakeLauncher{handle: "review-mer-1"}
 	eng := newEngineForTest(store, fakeSessions{rec: liveWorker(), ok: true}, prAt("sha1"), projects, launcher)
 
@@ -1423,7 +1423,7 @@ func TestTriggerUsesConfiguredReviewerHarness(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Trigger: %v", err)
 	}
-	if res.Run.Harness != domain.ReviewerHarness("greptile") || launcher.gotSpec.Harness != domain.ReviewerHarness("greptile") {
+	if res.Run.Harness != domain.ReviewerCodex || launcher.gotSpec.Harness != domain.ReviewerCodex {
 		t.Fatalf("harness not used: run=%+v spec=%+v", res.Run, launcher.gotSpec)
 	}
 }

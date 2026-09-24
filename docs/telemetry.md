@@ -26,6 +26,18 @@ ingestion drop rules, see [posthog-cost-controls.md](posthog-cost-controls.md).
   source code. The PR URL and target SHA are also withheld, because both identify
   the repository. `opr.review.submitted` fires only on the real running-to-complete
   transition, so a reviewer retrying a submit cannot double-count a verdict
+- Operator MCP tool use: `opr.mcp.tool_calls` / `opr.v2.mcp.tool_calls`, a
+  daily rollup of the calls agents make to the tools `opr mcp` serves. One
+  event per UTC day per `role` (`worker`, or `reviewer` for `opr mcp --reviewer`,
+  counted under the reviewer's own harness), `harness`, `tool`, `outcome`
+  (`ok` / `error`) and, for
+  `session_report`, report `state` (`needs_you` / `ready_for_review` / `clear`),
+  carrying the number of `calls` and of distinct `sessions`. It answers how often
+  each agent reports its state, not what it said: no tool argument is sent (a
+  report reason, a card name or a merge-ready summary is the agent's prose about
+  the user's work), and session ids are counted on the machine, never exported.
+  The daemon holds the day's counts under the data dir and emits them with the
+  first call of a later day or at the next daemon start
 - Desktop update outcomes: `opr.renderer.update_failed`,
   `opr.renderer.update_downloaded`, and `opr.renderer.update_unsupported`. These
   carry a coarse `error_category`, the `phase` (`check` or `download`), whether

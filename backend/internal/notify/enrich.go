@@ -61,6 +61,9 @@ func titleForIntent(intent Intent) string {
 func bodyForIntent(intent Intent) string {
 	switch intent.Type {
 	case domain.NotificationNeedsInput:
+		if reason := summarize(intent.AgentReportReason, turnSummaryRunes); reason != "" {
+			return reason
+		}
 		return "Your agent is waiting on you to continue."
 	case domain.NotificationReadyToMerge:
 		if session := sessionLabel(intent); session != "session" {

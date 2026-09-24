@@ -746,6 +746,7 @@ func (m *Manager) prepareTargetActivation(ctx context.Context, store ports.Agent
 		return preparedTargetActivation{}, fmt.Errorf("system prompt: %w", err)
 	}
 	systemPrompt = appendAgentContinuationProtocol(systemPrompt)
+	systemPrompt = m.withMCPBoardInstructions(harness, systemPrompt)
 	systemFile, err := m.prepareSystemPromptFile(rec.ID, harness, systemPrompt)
 	if err != nil {
 		return preparedTargetActivation{}, fmt.Errorf("system prompt file: %w", err)
@@ -771,6 +772,7 @@ func (m *Manager) prepareTargetActivation(ctx context.Context, store ports.Agent
 		DataDir: m.dataDir, SessionID: string(rec.ID), WorkspacePath: rec.Metadata.WorkspacePath,
 		SystemPrompt: systemPrompt, SystemPromptFile: systemFile,
 		Config: config, Permissions: config.Permissions,
+		MCPServers: m.operatorMCPServers(rec.ID, rec.ProjectID),
 	}
 	promptDelivery, err := agent.GetPromptDeliveryStrategy(ctx, launch)
 	if err != nil {
@@ -785,7 +787,7 @@ func (m *Manager) prepareTargetActivation(ctx context.Context, store ports.Agent
 		cmd, ok, restoreErr := agent.GetRestoreCommand(ctx, ports.RestoreConfig{
 			Session: ports.SessionRef{ID: string(rec.ID), WorkspacePath: rec.Metadata.WorkspacePath, Metadata: map[string]string{ports.MetadataKeyAgentSessionID: candidate.NativeSessionID}},
 			DataDir: m.dataDir, SystemPrompt: systemPrompt, SystemPromptFile: systemFile,
-			Config: config, Permissions: config.Permissions,
+			Config: config, Permissions: config.Permissions, MCPServers: launch.MCPServers,
 		})
 		if restoreErr != nil {
 			return preparedTargetActivation{}, fmt.Errorf("restore command: %w", restoreErr)
@@ -904,6 +906,7 @@ func (m *Manager) systemPromptForNativeRestore(ctx context.Context, rec domain.S
 func (m *Manager) prepareTargetLaunchPrompt(ctx context.Context, rec domain.SessionRecord, target *preparedTargetActivation, systemPrompt, prompt string) error {
 	launch := target.launch
 	systemPrompt = strings.TrimSpace(systemPrompt)
+	systemPrompt = m.withMCPBoardInstructions(target.harness, systemPrompt)
 	systemFile, err := m.prepareSystemPromptFile(rec.ID, target.harness, systemPrompt)
 	if err != nil {
 		return fmt.Errorf("system prompt file: %w", err)
@@ -927,7 +930,7 @@ func (m *Manager) prepareTargetLaunchPrompt(ctx context.Context, rec domain.Sess
 			},
 			DataDir: m.dataDir, Prompt: prompt,
 			SystemPrompt: launch.SystemPrompt, SystemPromptFile: launch.SystemPromptFile,
-			Config: launch.Config, Permissions: launch.Config.Permissions,
+			Config: launch.Config, Permissions: launch.Config.Permissions, MCPServers: launch.MCPServers,
 		})
 		if buildErr != nil {
 			return fmt.Errorf("restore command: %w", buildErr)
@@ -1208,7 +1211,10 @@ func (m *Manager) collectOptionalAgentHandoff(ctx context.Context, store ports.A
 		steerer, ok := agent.(ports.ActiveTurnSteerer)
 		return ok && steerer.SteersActiveTurn()
 	}
-	opportunity := strings.TrimSpace(candidatePath) != ""
+	// The semantic handoff is submitted with the Operator MCP server's
+	// session_handoff_submit tool, so only a source session that has the
+	// server is asked; the others get the deterministic continuation.
+	opportunity := strings.TrimSpace(candidatePath) != "" && m.harnessHasOperatorMCP(rec.Harness)
 	if opportunity {
 		var opportunityErr error
 		opportunity, opportunityErr = m.waitForSourceHandoffOpportunity(handoffCtx, rec, agent, steersActiveTurn)
@@ -1248,11 +1254,7 @@ func (m *Manager) collectOptionalAgentHandoff(ctx context.Context, store ports.A
 		}
 		return settled, settleErr
 	}
-	operatorExecutable := hookBinaryName
-	if executable, executableErr := m.executable(); executableErr == nil && filepath.IsAbs(executable) {
-		operatorExecutable = executable
-	}
-	request := buildSourceHandoffRequest(sw, candidatePath, operatorExecutable)
+	request := buildSourceHandoffRequest(sw)
 	if safe, safeErr := m.sourceGenerationCanReceiveCoordination(handoffCtx, rec); safeErr != nil || !safe {
 		updated, settleErr := m.settleOptionalAgentHandoff(ctx, store, sw, domain.AgentHandoffUnavailable)
 		if settleErr != nil {
@@ -1515,38 +1517,26 @@ func (m *Manager) composerIsEmpty(ctx context.Context, handle ports.RuntimeHandl
 	return detector.ComposerIsEmpty(output), nil
 }
 
-func buildSourceHandoffRequest(sw domain.AgentSwitch, candidatePath, operatorExecutable string) string {
-	arguments := []string{
-		"session", "handoff", "submit",
-		"--switch", string(sw.ID),
-		"--source-generation", string(sw.SourceGenerationID),
-		"--file", candidatePath,
-	}
+func buildSourceHandoffRequest(sw domain.AgentSwitch) string {
 	params, _ := json.MarshalIndent(struct {
-		SwitchID           string   `json:"switch"`
-		SourceGeneration   string   `json:"sourceGeneration"`
-		CandidateFile      string   `json:"candidateFile"`
-		OperatorExecutable string   `json:"operatorExecutable"`
-		Arguments          []string `json:"arguments"`
+		SwitchID         string `json:"switch_id"`
+		SourceGeneration string `json:"source_generation"`
 	}{
-		SwitchID:           string(sw.ID),
-		SourceGeneration:   string(sw.SourceGenerationID),
-		CandidateFile:      candidatePath,
-		OperatorExecutable: operatorExecutable,
-		Arguments:          arguments,
+		SwitchID:         string(sw.ID),
+		SourceGeneration: string(sw.SourceGenerationID),
 	}, "", "  ")
 	return fmt.Sprintf(`<opr-handoff-request switch-id=%s source-generation=%s>
 Operator is preparing to switch this session to %s. This is internal coordination, not a new human request. Do not start new implementation work and do not modify the repository.
 
 Using only the context already present in your current native conversation, create a concise but comprehensive semantic handoff. Stop new work. Do not inspect Operator-generated context files or start additional discovery; Operator will build deterministic workspace and session facts separately.
 
-If you can respond, write exactly one JSON object (schemaVersion 1, maximum 64 KiB) to candidateFile. The required fields are schemaVersion (integer 1), goal (non-empty string), and progressSummary (non-empty string). Optional fields are latestUserIntent (string), completedWork (string array), currentWork (string), decisions (string array), rejectedApproaches (string array), relevantFiles (string array), testsAndResults (string array), blockers (string array), uncertainties (string array), risks (string array), recommendedNextSteps (string array), userPreferencesAndConstraints (string array), freeformDetails (string), and taskComplete (boolean). Use only these semantic report fields unless a genuinely necessary provider-neutral detail has no fitting field. State taskComplete explicitly when known.
+If you can respond, call the session_handoff_submit tool of the Operator MCP server once, with the switch_id and source_generation below and a handoff argument that is exactly one JSON object (schemaVersion 1, maximum 64 KiB). The required fields are schemaVersion (integer 1), goal (non-empty string), and progressSummary (non-empty string). Optional fields are latestUserIntent (string), completedWork (string array), currentWork (string), decisions (string array), rejectedApproaches (string array), relevantFiles (string array), testsAndResults (string array), blockers (string array), uncertainties (string array), risks (string array), recommendedNextSteps (string array), userPreferencesAndConstraints (string array), freeformDetails (string), and taskComplete (boolean). Use only these semantic report fields unless a genuinely necessary provider-neutral detail has no fitting field. State taskComplete explicitly when known. Do not write the handoff to a file.
 
 <opr-handoff-submission-parameters>
 %s
 </opr-handoff-submission-parameters>
 
-Then invoke the exact executable in operatorExecutable with the arguments array in order. Do not substitute a bare opr command: older sessions may not have Operator on PATH. Decode standard JSON Unicode escapes such as \u003c and \u003e to their literal characters.
+Decode standard JSON Unicode escapes such as \u003c and \u003e to their literal characters.
 
 The switch will continue with Operator's deterministic continuation if you cannot provide this optional semantic handoff.
 </opr-handoff-request>`, coordinationQuotedAttribute(string(sw.ID)), coordinationQuotedAttribute(string(sw.SourceGenerationID)), escapeOperatorCoordinationTags(string(sw.TargetHarness)), params)

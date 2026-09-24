@@ -2658,6 +2658,12 @@ paths:
         schema:
           description: PR number.
           type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResolveCommentsRequest'
+        required: true
       responses:
         "200":
           content:
@@ -2665,6 +2671,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/ResolveCommentsResponse'
           description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Bad Request
         "404":
           content:
             application/json:
@@ -2970,6 +2982,107 @@ paths:
                 $ref: '#/components/schemas/APIError'
           description: Not Implemented
       summary: Report an agent activity-state signal for a session
+      tags:
+      - sessions
+  /api/v1/sessions/{sessionId}/agent-report:
+    delete:
+      operationId: clearSessionAgentReport
+      parameters:
+      - description: Session identifier, e.g. project-1.
+        in: path
+        name: sessionId
+        required: true
+        schema:
+          description: Session identifier, e.g. project-1.
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionResponse'
+          description: OK
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Conflict
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: Clear the agent's report about its own board card
+      tags:
+      - sessions
+    put:
+      operationId: setSessionAgentReport
+      parameters:
+      - description: Session identifier, e.g. project-1.
+        in: path
+        name: sessionId
+        required: true
+        schema:
+          description: Session identifier, e.g. project-1.
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SetAgentReportRequest'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionResponse'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Conflict
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: Record what the agent reports about its own board card
       tags:
       - sessions
   /api/v1/sessions/{sessionId}/agent-switches:
@@ -5710,6 +5823,23 @@ components:
       - fetchedAt
       - stale
       type: object
+    AgentReport:
+      properties:
+        at:
+          format: date-time
+          type: string
+        reason:
+          type: string
+        state:
+          enum:
+          - needs_you
+          - ready_for_review
+          type: string
+      required:
+      - state
+      - reason
+      - at
+      type: object
     AgentSwitch:
       properties:
         agentHandoffStatus:
@@ -6261,8 +6391,18 @@ components:
       properties:
         activity:
           $ref: '#/components/schemas/DomainActivity'
+        agentReport:
+          $ref: '#/components/schemas/AgentReport'
         autoInjectReview:
           type: boolean
+        boardColumn:
+          enum:
+          - working
+          - needs_you
+          - in_review
+          - ready_to_merge
+          - archive
+          type: string
         branch:
           type: string
         brief:
@@ -6370,6 +6510,8 @@ components:
           - terminated
           - no_signal
           type: string
+        statusReason:
+          type: string
         terminalHandleId:
           type: string
         terminateOnPrMerge:
@@ -6398,6 +6540,8 @@ components:
       - updatedAt
       - isPinned
       - status
+      - boardColumn
+      - statusReason
       - prs
       type: object
     ControllersSlashCommandView:
@@ -7833,6 +7977,21 @@ components:
       - sessionId
       - displayName
       type: object
+    ResolveCommentsRequest:
+      properties:
+        commentIds:
+          description: Review comment or thread ids whose threads to resolve. Omit
+            to resolve every unresolved thread.
+          items:
+            type: string
+          type: array
+        prUrl:
+          description: URL of the tracked pull request.
+          minLength: 1
+          type: string
+      required:
+      - prUrl
+      type: object
     ResolveCommentsResponse:
       properties:
         ok:
@@ -8500,6 +8659,23 @@ components:
       - sessionId
       - state
       type: object
+    SetAgentReportRequest:
+      properties:
+        reason:
+          description: One line shown on the card and in the Needs you alert. Required
+            for needs_you.
+          maxLength: 280
+          type: string
+        state:
+          description: 'needs_you: the agent is waiting on the user. ready_for_review:
+            the work is complete and there is no PR to review.'
+          enum:
+          - needs_you
+          - ready_for_review
+          type: string
+      required:
+      - state
+      type: object
     SetProjectConfigInput:
       properties:
         config:
@@ -8599,28 +8775,11 @@ components:
           - claude-code
           - codex
           - copilot
-          - cursor
           - kilocode
           - opencode
-          - kiro
-          - pi
           - qwen
-          - agy
-          - continue
-          - goose
-          - vibe
-          - devin
-          - droid
-          - kimi
-          - kimchi
-          - muse
           - amp
-          - aider
-          - grok
-          - crush
           - auggie
-          - cline
-          - autohand
           type: string
       type: object
     SettingsResponse:
@@ -9059,28 +9218,11 @@ components:
           - claude-code
           - codex
           - copilot
-          - cursor
           - kilocode
           - opencode
-          - kiro
-          - pi
           - qwen
-          - agy
-          - continue
-          - goose
-          - vibe
-          - devin
-          - droid
-          - kimi
-          - kimchi
-          - muse
           - amp
-          - aider
-          - grok
-          - crush
           - auggie
-          - cline
-          - autohand
           type: string
       type: object
     TriggerReviewResponse:

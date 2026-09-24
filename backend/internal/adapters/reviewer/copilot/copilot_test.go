@@ -158,11 +158,19 @@ func TestReviewPolicyAllowsReviewCommandsAndDeniesWritesAndGitMutations(t *testi
 		"shell(git status:*)",
 		"shell(printf:*)",
 		"shell(gh api:*)",
-		"shell(opr review submit:*)",
 	} {
 		if !slices.Contains(allowedTools, want) {
 			t.Errorf("allowed policy missing %q: %#v", want, allowedTools)
 		}
+	}
+	// The result is recorded through the MCP tool, never an opr command.
+	for _, tool := range allowedTools {
+		if strings.Contains(tool, "opr") {
+			t.Errorf("allowed policy admits an opr command: %q", tool)
+		}
+	}
+	if !strings.HasSuffix(availableTools, ",operator-review_submit") {
+		t.Errorf("available tools = %q, want review_submit available to the model", availableTools)
 	}
 	for _, want := range []string{
 		"write",

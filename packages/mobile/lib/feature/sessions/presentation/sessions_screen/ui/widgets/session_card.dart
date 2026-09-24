@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/app_themes/text_style/app_text_style.dart';
 import 'package:operator_mobile/core/utils/app_constants.dart';
 import 'package:operator_mobile/core/utils/relative_time.dart';
+import 'package:operator_mobile/core/utils/turn_elapsed.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_container.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_text.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/space_widgets.dart';
@@ -10,6 +13,7 @@ import 'package:operator_mobile/core/widgets/main_widgets/status_dot.dart';
 import 'package:operator_mobile/feature/sessions/data/model/session_model.dart';
 import 'package:operator_mobile/feature/blocks/logic/model_label.dart';
 import 'package:operator_mobile/feature/sessions/logic/agent_line.dart';
+import 'package:operator_mobile/feature/sessions/logic/active_since.dart';
 import 'package:operator_mobile/feature/sessions/logic/agents_view.dart';
 import 'package:operator_mobile/feature/sessions/logic/session_status.dart';
 import 'package:operator_mobile/feature/sessions/logic/status_visual.dart';
@@ -50,6 +54,7 @@ class SessionCard extends StatelessWidget {
     final harness = session.harness;
     final account = sessionAccountLabel(session, accountLabels);
     final model = session.model == null || session.model!.isEmpty ? null : formatModelLabel(session.model!);
+    final report = agentReportLine(session);
 
     return AppContainer(
       onTap: onTap,
@@ -100,8 +105,9 @@ class SessionCard extends StatelessWidget {
                         breathing: visual.breathing,
                       ),
                       const HorizontalSpace(6),
-                      AppText(
-                        visual.label,
+                      _StatusLabel(
+                        label: visual.label,
+                        since: session.status == 'working' ? activeSince([session], session.id ?? '') : null,
                         style: AppTextStyle.style11p5SemiBold.copyWith(
                           color: visual.color,
                         ),
@@ -227,6 +233,19 @@ class SessionCard extends StatelessWidget {
               ),
             ),
 
+            if (report != null) ...[
+              const VerticalSpace(7),
+              Padding(
+                padding: const EdgeInsets.only(left: 29),
+                child: AppText(
+                  report,
+                  maxLines: 2,
+                  style: AppTextStyle.style12Regular.copyWith(
+                    color: visual.color,
+                  ),
+                ),
+              ),
+            ],
             if (prs != null) ...[
               const VerticalSpace(9),
               Container(height: 1, color: skin.borderSubtle),
@@ -249,6 +268,59 @@ class SessionCard extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _StatusLabel extends StatefulWidget {
+  const _StatusLabel({required this.label, required this.since, required this.style});
+
+  final String label;
+  final DateTime? since;
+  final TextStyle style;
+
+  @override
+  State<_StatusLabel> createState() => _StatusLabelState();
+}
+
+class _StatusLabelState extends State<_StatusLabel> {
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _sync();
+  }
+
+  @override
+  void didUpdateWidget(_StatusLabel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _sync();
+  }
+
+  void _sync() {
+    if (widget.since == null) {
+      _timer?.cancel();
+      _timer = null;
+    } else {
+      _timer ??= Timer.periodic(const Duration(seconds: 1), (_) {
+        if (mounted) setState(() {});
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final since = widget.since;
+    return AppText(
+      since == null ? widget.label : turnElapsed(DateTime.now().difference(since)),
+      style: widget.style,
     );
   }
 }

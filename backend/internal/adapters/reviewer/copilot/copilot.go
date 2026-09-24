@@ -10,7 +10,11 @@ import (
 	"github.com/OmarAly92/operator/backend/internal/ports"
 )
 
-const availableTools = "bash,view,grep,glob"
+// availableTools limits the model to inspection tools plus the Operator MCP
+// server's review_submit. Copilot's canonical wire name for an MCP tool is
+// <server>-<tool>; the worker adapter pre-approves the server's tools with
+// --allow-tool=operator.
+var availableTools = "bash,view,grep,glob," + ports.OperatorMCPServerName + "-review_submit"
 
 var allowedTools = []string{
 	"read",
@@ -20,7 +24,6 @@ var allowedTools = []string{
 	"shell(git status:*)",
 	"shell(printf:*)",
 	"shell(gh api:*)",
-	"shell(opr review submit:*)",
 }
 
 var deniedTools = []string{
@@ -81,6 +84,7 @@ func (r *Reviewer) ReviewCommand(ctx context.Context, inv ports.ReviewInvocation
 		Prompt:           inv.Prompt,
 		SystemPromptFile: inv.SystemPromptFile,
 		Permissions:      ports.PermissionModeDefault,
+		MCPServers:       inv.MCPServers,
 	})
 	if err != nil {
 		return ports.ReviewCommandSpec{}, err

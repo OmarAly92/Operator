@@ -131,7 +131,7 @@ rebuilt (§6).
   attach replay and in every history chunk, because ids are per core, not
   shared across the two. **The table is not part of the byte budget:**
   `Parser::trim_to` weighs `content.resident_bytes() + styles.byte_len()`
-  only (`parser.rs:629`), so the registry grows to its cap and stays —
+  only (`parser/history.rs:91`), so the registry grows to its cap and stays —
   deliberate and bounded, not an oversight, and listed in §5.
 - **BlockGrid clock.** A block missing the shell hook's `start_ms`/`end_ms` is
   stamped from the clock of the feed that started its command and the feed
@@ -187,10 +187,10 @@ rebuilt (§6).
   hand — there is no shared source of truth across the Rust/Go boundary.
 - **Stable rows** give a row an identity that survives it migrating from the
   live screen into scrollback and back out again under trim. `trimmed_total`
-  (`parser.rs:34,95`) counts rows evicted off the front since the session
+  (`parser.rs:55,91`) counts rows evicted off the front since the session
   began; `stable_row(flat)` / `flat_row(stable)` (`lib.rs:340,344`) convert
   between a row's position in the current flat (scrollback + screen) space
-  and this permanent counter. `BlockGrid::origin` (`block_grid.rs:27,45`) is
+  and this permanent counter. `BlockGrid::origin` (`block_grid.rs:29,45`) is
   the stable row of flat row 0 — equal to `Parser::trimmed_total`, advanced
   on every trim. Blocks hold **stable** rows in `Block.first_row` and
   convert down to flat rows at the grid's public boundary (`flat_extent`).
@@ -203,7 +203,7 @@ rebuilt (§6).
 - **Prepended history.** `Content` allocates downward from `CONTENT_BASE`
   (`content.rs`) so prepended bytes never move already-committed offsets;
   rows stay offset-ordered, which is what every trim, style lookup and
-  integrity check rests on. `Parser::adopt_origin` (`parser.rs:529`) is what
+  integrity check rests on. `Parser::adopt_origin` (`parser/history.rs:9`) is what
   puts a fresh core into the replaying host's stable row space before any
   history lands — it only succeeds on a core that has trimmed nothing and
   drawn nothing yet, and without it the two cores' stable-row spaces never
@@ -221,7 +221,7 @@ rebuilt (§6).
   `take_delta()` (`lib.rs:295`) drains a `Delta` of the rows the `ScreenGrid`
   marked dirty since the last call. The dirty bits are set by the cell
   writers in `ScreenGrid` and by cursor movement: `ScreenGrid::move_to`
-  (`screen.rs:371`) marks both the row the cursor left and the row it
+  (`screen.rs:379`) marks both the row the cursor left and the row it
   arrived on, so a bare cursor move repaints those two rows and nothing else.
   `ExportBuffers::apply` (`vt-wasm/src/export.rs:141`) applies a `Delta`
   against the exporter's own buffers rather than rebuilding them, dropping a
@@ -582,7 +582,7 @@ history of `master`.
   were stable across a repaint, which stopped being true once trimming a
   200k-row session became routine instead of a one-time edge case.
 - Now: the viewport anchors to a **stable row** (§2) instead of a pixel
-  offset. `DomBlockRenderer.scrollAnchor()` (`dom-block-renderer.ts:230`)
+  offset. `DomBlockRenderer.scrollAnchor()` (`dom-block-renderer.ts:252`, `scroll-tracker.ts:24`)
   captures the stable row under the top edge and its sub-row pixel offset
   before a repaint; `rowTop()`/`anchorAt()` (`viewport.ts:53,75`) convert
   between a stable row and a pixel position using the current block layout,
@@ -611,7 +611,7 @@ history of `master`.
   (`first_stable_row + rows.len() == trimmed_total`) never lines up, so
   every chunk is dropped. The fix states the origin **first**, before any
   row exists on the receiving core, because `Parser::adopt_origin` refuses
-  to act once a row has already been drawn or trimmed (`parser.rs:529`) —
+  to act once a row has already been drawn or trimmed (`parser/history.rs:9`) —
   reordering the replay after a row exists silently reintroduces the bug.
   (b) a chunk's closing `exit=` mark must sit **inside** its last row,
   before that row's CR-LF terminator, not as a separate line after it — a
@@ -624,7 +624,7 @@ history of `master`.
   client that opted in, history chunks newest→oldest, each framed by
   `OSC 7000;v=1;history=<first_stable_row>,<count>` with `id=`/`cmd=`/`exit=`
   marks re-emitted so the reopened pane has the same blocks, not re-derived
-  ones. `Parser::apply_history_chunk` (`parser.rs:542`) prepends the rows,
+  ones. `Parser::apply_history_chunk` (`parser/history.rs:22`) prepends the rows,
   retreats the block grid's origin, and rejects a chunk whose row space
   doesn't land exactly at the receiver's current `trimmed_total`.
 - Guards: `TestReplayOpensWithTheOriginMark`, `TestReplayOrderIsModesFrameReadyHistory`,
@@ -816,7 +816,7 @@ history of `master`.
   through the session. `.terminal-block` was not tried: the plan tries it
   only on top of kept row containment. Nothing was changed.
 - Why it cannot help much here: the scroller is already `contain: strict`
-  (`dom-block-renderer.ts:161`), so a frame's layout never leaves the pane,
+  (`renderer-chrome.ts:22`), so a frame's layout never leaves the pane,
   and each layout already has a median of 142 dirty objects out of 274–370
   (trace `beginData`), the same 142 with containment. What they are was not
   broken down; the rows rebuilt each frame are the likely bulk (inference,
@@ -921,7 +921,7 @@ history of `master`.
   still shows as several lines.
 - **The OSC 8 registry sits outside `Limits { bytes }` and is never
   reclaimed.** `Parser::trim_to` weighs `content.resident_bytes() +
-  styles.byte_len()` only (`parser.rs:629`) and `memory_stats` reports the
+  styles.byte_len()` only (`parser/history.rs:91`) and `memory_stats` reports the
   same two, so `HyperlinkRegistry` is neither counted nor trimmed.
   `HyperlinkRegistry` stores each interned URI twice (the `by_link:
   HashMap<Hyperlink, LinkId>` key and the `by_id: Vec<Hyperlink>` element), so
@@ -948,7 +948,7 @@ history of `master`.
 - **A reopened pane's prepended rows lose their `wrapped` flag.**
   `vt_history_chunk` emits every history row CR-LF terminated and
   `Parser::apply_history_chunk` prepends them with `wrapped: false`
-  (`parser.rs:568`), so a later width change cannot rejoin a logical line the
+  (`parser/history.rs:48`), so a later width change cannot rejoin a logical line the
   mirror had soft-wrapped — those rows rewrap as independent lines. Rows the
   pane produces *after* the reopen are unaffected. Carrying the flag would
   mean emitting wrapped rows without `\r\n` and sizing the receiver's scratch
@@ -1013,7 +1013,7 @@ history of `master`.
   rather than fixed; a real fix needs per-mux-client accounting at the
   pty-host connection layer, which does not exist today.
 - **A block that straddles a 512-row chunk boundary loses its tail.**
-  `write_block_open`/`write_block_close` (`crates/vt-host/src/lib.rs`) emit a
+  `write_block_open`/`write_block_close` (`crates/vt-host/src/block_marks.rs`) emit a
   block's `id=`/`cmd=` mark on its first row and its `exit=` mark on its last.
   When those rows fall in different chunks, the receiver sees an opening mark
   with no close (or a close with no open) and the block ends at the chunk
@@ -1038,14 +1038,14 @@ history of `master`.
 - Found triaging the Alacritty reference corpus (`crates/vt-core/tests/ref/TRIAGE.md`),
   not fixed there:
   - `ESC # 8` (DECALN, fill screen with `E`) is never dispatched —
-    `Parser::esc_dispatch` (`crates/vt-core/src/parser.rs:475`) discards
+    `Parser::esc_dispatch` (`crates/vt-core/src/parser/perform.rs:78`) discards
     `intermediates`, and `ScreenGrid::esc` (`crates/vt-core/src/screen/dispatch.rs:73`)
     has no `#`/`8` arm. Corpus: `decaln_reset`, `vttest_cursor_movement_1`.
   - `ESC ( 0` / `ESC ( B` (G0 charset designation, DEC Special Graphics line
     drawing) is never dispatched, for the same reason — intermediates are
     discarded before `esc()` sees them. Corpus: `saved_cursor`, `saved_cursor_alt`.
   - `CSI ?3h`/`?3l` (DECCOLM, 80/132-column switch) is not in
-    `Parser::note_private_mode` (`crates/vt-core/src/parser.rs:199`), so the
+    `Parser::note_private_mode` (`crates/vt-core/src/parser.rs:312`), so the
     screen clear real terminals perform on a column-mode switch never happens
     and stale content bleeds through. Corpus: `deccolm_reset`, `vttest_insert`,
     `vttest_origin_mode_1`, `vttest_origin_mode_2`, `vttest_tab_clear_set`.
@@ -1108,7 +1108,7 @@ history of `master`.
   `detectFinishedBlocks`, 55.4 ms of the 1+9 profile, mostly
   `export_screen_row`) and decodes its blocks, and in the app
   `TerminalSurface`'s alt-screen listener reads another
-  (`TerminalSurface.tsx:303`, not mounted by the bench), and the line editor
+  (`TerminalSurface.tsx:298`, not mounted by the bench), and the line editor
   still ingests history per change from that same snapshot so a command that
   scrolls out while the pane is hidden stays in Up-arrow recall; the parse itself is
   small (`drain` 5.9 ms). A hidden window drains up to `HIDDEN_DRAIN_MS`
@@ -1121,7 +1121,7 @@ history of `master`.
   notification suppressed. Animation-frame drains keep 12 ms. `rendererVisible`
   remains only the fallback for `onBlockFinished`'s `visible` when a host
   never calls `setVisible`; it is never a paint gate. The forced layout per
-  paint (now `dom-block-renderer.ts:1149`, the pinned-header
+  paint (now `dom-block-renderer.ts:546`, the pinned-header
   `getBoundingClientRect`) is still paid by every **visible** pane
   (measurement note, "Follow-ups"). Numbers and profile:
   `docs/superpowers/specs/2026-09-23-background-pane-cost-measurement.md`

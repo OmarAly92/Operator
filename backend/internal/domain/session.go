@@ -91,10 +91,14 @@ type SessionRecord struct {
 	IsTerminated  bool      `json:"isTerminated"`
 	// TerminateOnPRMerge is a user-controlled lifecycle policy. When enabled,
 	// completing the session's PR set through a merge tears down the session.
-	TerminateOnPRMerge bool            `json:"terminateOnPrMerge"`
-	AutoInjectReview   bool            `json:"autoInjectReview"`
-	Metadata           SessionMetadata `json:"-"`
-	ClaudeAccountID    ClaudeAccountID `json:"claudeAccountId"`
+	TerminateOnPRMerge bool `json:"terminateOnPrMerge"`
+	AutoInjectReview   bool `json:"autoInjectReview"`
+	// AgentReport is what the agent last reported about its own card through
+	// the Operator MCP server (needs_you / ready_for_review); nil when nothing
+	// is reported. deriveStatus reads it below live activity signals.
+	AgentReport     *AgentReport    `json:"agentReport,omitempty"`
+	Metadata        SessionMetadata `json:"-"`
+	ClaudeAccountID ClaudeAccountID `json:"claudeAccountId"`
 	// CleanupGeneration is a monotonic counter bumped each time the session is
 	// un-terminated (spawn/restore). The terminal-resource reconciler stamps its
 	// durable cleanup facts with the generation they were written for so a
@@ -108,12 +112,17 @@ type SessionRecord struct {
 }
 
 // Session is the read-model returned across the API boundary: a SessionRecord
-// plus derived display facts. Neither Status nor SCMStatus is persisted.
+// plus derived display facts. None of Status, SCMStatus, BoardColumn or
+// StatusReason is persisted.
 type Session struct {
 	SessionRecord
-	Status           SessionStatus `json:"status" enum:"working,pr_open,draft,ci_failed,review_pending,changes_requested,approved,mergeable,merged,needs_input,exited,idle,terminated,no_signal"`
-	SCMStatus        SessionStatus `json:"scmStatus,omitempty" enum:"pr_open,draft,ci_failed,review_pending,changes_requested,approved,mergeable,merged"`
-	TerminalHandleID string        `json:"terminalHandleId,omitempty"`
+	Status    SessionStatus `json:"status" enum:"working,pr_open,draft,ci_failed,review_pending,changes_requested,approved,mergeable,merged,needs_input,exited,idle,terminated,no_signal"`
+	SCMStatus SessionStatus `json:"scmStatus,omitempty" enum:"pr_open,draft,ci_failed,review_pending,changes_requested,approved,mergeable,merged"`
+	// BoardColumn is the kanban column the card sits in (BoardColumnFor).
+	BoardColumn BoardColumn `json:"boardColumn" enum:"working,needs_you,in_review,ready_to_merge,archive"`
+	// StatusReason explains Status in one line, e.g. "CI failing on PR #12".
+	StatusReason     string `json:"statusReason"`
+	TerminalHandleID string `json:"terminalHandleId,omitempty"`
 	// PRs are the session's attributed pull requests (one session can own many).
 	// They feed status derivation and are surfaced on the API read model. Not
 	// serialized here: the HTTP boundary maps them to the curated wire shape.

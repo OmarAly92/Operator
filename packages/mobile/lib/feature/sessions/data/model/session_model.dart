@@ -8,6 +8,7 @@ class SessionModel extends Equatable {
     this.projectId,
     this.status,
     this.activity,
+    this.activitySince,
     this.harness,
     this.branch,
     this.issueId,
@@ -21,12 +22,15 @@ class SessionModel extends Equatable {
     this.workspacePath,
     this.claudeAccountId,
     this.model,
+    this.agentReportState,
+    this.agentReportReason,
   });
 
   final String? id;
   final String? projectId;
   final String? status;
   final String? activity;
+  final String? activitySince;
   final String? harness;
   final String? branch;
   final String? issueId;
@@ -41,11 +45,19 @@ class SessionModel extends Equatable {
   final String? claudeAccountId;
   final String? model;
 
+  /// What the agent reported about its own card through the Operator MCP server:
+  /// `needs_you` or `ready_for_review`; null when it reported nothing.
+  final String? agentReportState;
+
+  /// The agent's one-line reason for [agentReportState].
+  final String? agentReportReason;
+
   factory SessionModel.fromJson(Map<String, dynamic> json) => SessionModel(
     id: json['id'] as String?,
     projectId: json['projectId'] as String?,
     status: json['status'] as String?,
     activity: activityString(json['activity']),
+    activitySince: activitySinceString(json['activity']),
     harness: json['harness'] as String?,
     branch: json['branch'] as String?,
     issueId: json['issueId'] as String?,
@@ -61,12 +73,20 @@ class SessionModel extends Equatable {
     workspacePath: json['workspacePath'] as String?,
     claudeAccountId: json['claudeAccountId'] as String?,
     model: json['model'] as String?,
+    agentReportState: _agentReport(json)?['state'] as String?,
+    agentReportReason: _agentReport(json)?['reason'] as String?,
   );
+
+  static Map<String, dynamic>? _agentReport(Map<String, dynamic> json) {
+    final report = json['agentReport'];
+    return report is Map<String, dynamic> ? report : null;
+  }
 
   @override
   List<Object?> get props => [
-    id, projectId, status, activity, harness, branch, issueId,
+    id, projectId, status, activity, activitySince, harness, branch, issueId,
     displayName, createdAt, updatedAt, previewUrl, isTerminated, prs,
     workspaceMode, workspacePath, claudeAccountId, model,
+    agentReportState, agentReportReason,
   ];
 }

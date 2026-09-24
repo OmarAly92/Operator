@@ -438,6 +438,9 @@ func needsInputResolutions(prev, next domain.SessionRecord, now time.Time) []por
 
 func sessionResolutions(prev, next domain.SessionRecord, now time.Time) []ports.NotificationResolution {
 	out := needsInputResolutions(prev, next, now)
+	if next.IsTerminated && prev.AgentReport.NeedsYou() && !prev.Activity.State.NeedsInput() {
+		out = append(out, ports.NotificationResolution{Type: domain.NotificationNeedsInput, SessionID: next.ID, ResolvedAt: now})
+	}
 	if next.IsTerminated || (prev.Activity.State != domain.ActivityActive && next.Activity.State == domain.ActivityActive) {
 		out = append(out, ports.NotificationResolution{Type: domain.NotificationTurnFinished, SessionID: next.ID, ResolvedAt: now})
 	}
@@ -638,6 +641,23 @@ func (m *Manager) ApplyActivitySignal(ctx context.Context, id domain.SessionID, 
 		m.mu.Unlock()
 		return nil
 	}
+	// A new user turn ends whatever the agent last reported about its card.
+	if rec.AgentReport != nil && clearsAgentReport(rec.Activity.State, s) {
+		if store, ok := m.store.(agentReportStore); ok {
+			cleared, err := store.ClearSessionAgentReport(ctx, id, now)
+			if err != nil {
+				m.mu.Unlock()
+				return err
+			}
+			if cleared {
+				if rec.AgentReport.NeedsYou() {
+					// Runs after every return path below has released m.mu.
+					defer m.resolveNotifications(ctx, agentReportResolutions(rec, now)...)
+				}
+				rec.AgentReport = nil
+			}
+		}
+	}
 	// Event-tagged signals fold through the session's tool-flight state first:
 	// they may be suppressed (state write skipped) by the blocked-precedence
 	// rule, while their tracking side effects still land. Untagged signals
@@ -721,8 +741,14 @@ func (m *Manager) ApplyActivitySignal(ctx context.Context, id domain.SessionID, 
 	switch {
 	case !rec.Activity.State.NeedsInput() && next.Activity.State.NeedsInput() && !next.IsTerminated:
 		intent = m.sessionIntent(domain.NotificationNeedsInput, next)
-	case !gated && s.Event != "notification" && rec.Activity.State == domain.ActivityActive && next.Activity.State == domain.ActivityIdle && !next.IsTerminated:
-		intent = m.sessionIntent(domain.NotificationTurnFinished, next)
+	case !gated && s.Event != "notification" && s.Event != ports.EventUserInterrupt && rec.Activity.State == domain.ActivityActive && next.Activity.State == domain.ActivityIdle && !next.IsTerminated:
+		// A turn that ends on a needs_you report is a Needs you alert carrying
+		// the agent's reason, not a plain "finished" ping.
+		if next.AgentReport.NeedsYou() {
+			intent = m.agentReportIntent(next)
+		} else {
+			intent = m.sessionIntent(domain.NotificationTurnFinished, next)
+		}
 	case !gated && rec.Activity.State != domain.ActivityExited && next.Activity.State == domain.ActivityExited && !next.IsTerminated:
 		intent = m.sessionIntent(domain.NotificationAgentExited, next)
 	}
@@ -738,6 +764,30 @@ func (m *Manager) ApplyActivitySignal(ctx context.Context, id domain.SessionID, 
 	m.emitNotification(ctx, intent)
 	m.resolveNotifications(ctx, resolutions...)
 	return nil
+}
+
+// ApplyUserInterrupt ends the turn the user just interrupted. The harness
+// fires no Stop hook for an interrupt, so without this the session keeps
+// reading active (or blocked, for an interrupted dialog) until the next
+// prompt. The signal is fenced to the session's current launch and revision:
+// anything that lands between the read and the write wins over it.
+func (m *Manager) ApplyUserInterrupt(ctx context.Context, id domain.SessionID) error {
+	rec, ok, err := m.store.GetSession(ctx, id)
+	if err != nil || !ok || rec.IsTerminated {
+		return err
+	}
+	switch rec.Activity.State {
+	case domain.ActivityActive, domain.ActivityBlocked, domain.ActivityWaitingInput:
+	default:
+		return nil
+	}
+	return m.ApplyActivitySignal(ctx, id, ports.ActivitySignal{
+		Valid:             true,
+		State:             domain.ActivityIdle,
+		Event:             ports.EventUserInterrupt,
+		LaunchID:          rec.Metadata.RuntimeLaunchID,
+		ExpectedUpdatedAt: rec.UpdatedAt,
+	})
 }
 
 // stagePendingAgentSwitchNativeMetadata persists provider-assigned startup
@@ -863,7 +913,7 @@ func isPostToolUseEvent(event string) bool {
 // composer, and a turn cannot end (or the session exit) with one on screen.
 func isTurnBoundaryEvent(event string) bool {
 	return event == "user-prompt-submit" || event == "stop" || event == "session-end" ||
-		event == "process-exited"
+		event == "process-exited" || event == ports.EventUserInterrupt
 }
 
 // applyToolPrecedenceLocked folds an event-tagged activity signal through the

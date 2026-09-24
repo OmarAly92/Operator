@@ -978,3 +978,117 @@ func TestPreLaunchTrustsWorkspaceInAccountConfig(t *testing.T) {
 		t.Fatalf("default ~/.claude.json was touched: %v", err)
 	}
 }
+
+var operatorMCPServer = ports.MCPServerSpec{
+	Name:    "operator",
+	Command: "/opt/operator/opr",
+	Args:    []string{"mcp"},
+	Env:     map[string]string{"OPERATOR_SESSION_ID": "opr-1", "OPERATOR_PROJECT_ID": "demo"},
+}
+
+// mcpConfigArg returns the inline JSON passed to --mcp-config and asserts the
+// flag is followed by another flag, `--` or nothing (it is variadic).
+func mcpConfigArg(t *testing.T, cmd []string) map[string]any {
+	t.Helper()
+	for i, arg := range cmd {
+		if arg != "--mcp-config" {
+			continue
+		}
+		if i+1 >= len(cmd) {
+			t.Fatalf("--mcp-config has no value: %#v", cmd)
+		}
+		if i+2 < len(cmd) && !strings.HasPrefix(cmd[i+2], "--") {
+			t.Fatalf("--mcp-config is variadic and would swallow %q: %#v", cmd[i+2], cmd)
+		}
+		var cfg map[string]any
+		if err := json.Unmarshal([]byte(cmd[i+1]), &cfg); err != nil {
+			t.Fatalf("--mcp-config value is not JSON: %v", err)
+		}
+		return cfg
+	}
+	t.Fatalf("missing --mcp-config: %#v", cmd)
+	return nil
+}
+
+func assertOperatorMCPConfig(t *testing.T, cmd []string) {
+	t.Helper()
+	cfg := mcpConfigArg(t, cmd)
+	want := map[string]any{"mcpServers": map[string]any{"operator": map[string]any{
+		"type": "stdio", "command": "/opt/operator/opr", "args": []any{"mcp"},
+		"env": map[string]any{"OPERATOR_SESSION_ID": "opr-1", "OPERATOR_PROJECT_ID": "demo"},
+	}}}
+	if !reflect.DeepEqual(cfg, want) {
+		t.Fatalf("mcp config = %#v, want %#v", cfg, want)
+	}
+	approved := false
+	for i := 0; i+1 < len(cmd); i++ {
+		if cmd[i] == "--allowedTools" {
+			approved = contains(strings.Split(cmd[i+1], ","), "mcp__operator")
+		}
+	}
+	if !approved {
+		t.Fatalf("operator tools not pre-approved: %#v", cmd)
+	}
+	if contains(cmd, "--strict-mcp-config") {
+		t.Fatalf("--strict-mcp-config would drop the user's own MCP servers: %#v", cmd)
+	}
+}
+
+func TestGetLaunchCommandRegistersMCPServersInline(t *testing.T) {
+	dir := t.TempDir()
+	systemFile := filepath.Join(dir, "system.md")
+	if err := os.WriteFile(systemFile, []byte("standing"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cmd, err := (&Plugin{resolvedBinary: "claude"}).GetLaunchCommand(context.Background(), ports.LaunchConfig{
+		SessionID:        "opr-1",
+		Prompt:           "fix it",
+		SystemPromptFile: systemFile,
+		MCPServers:       []ports.MCPServerSpec{operatorMCPServer},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertOperatorMCPConfig(t, cmd)
+	if got := cmd[len(cmd)-2:]; !reflect.DeepEqual(got, []string{"--", "fix it"}) {
+		t.Fatalf("prompt must stay last after --: %#v", cmd)
+	}
+}
+
+func TestGetLaunchCommandMergesMCPToolsIntoAllowlist(t *testing.T) {
+	cmd, err := (&Plugin{resolvedBinary: "claude"}).GetLaunchCommand(context.Background(), ports.LaunchConfig{
+		AllowedTools: []string{"Read"},
+		MCPServers:   []ports.MCPServerSpec{operatorMCPServer},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !containsSubsequence(cmd, []string{"--allowedTools", "Read,mcp__operator"}) {
+		t.Fatalf("allowlist not merged into one value: %#v", cmd)
+	}
+	assertOperatorMCPConfig(t, cmd)
+}
+
+func TestGetLaunchCommandOmitsMCPFlagsWithoutServers(t *testing.T) {
+	cmd, err := (&Plugin{resolvedBinary: "claude"}).GetLaunchCommand(context.Background(), ports.LaunchConfig{Prompt: "fix it"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if contains(cmd, "--mcp-config") || contains(cmd, "--allowedTools") {
+		t.Fatalf("launch without MCP servers emitted MCP flags: %#v", cmd)
+	}
+}
+
+func TestGetRestoreCommandReappliesMCPServers(t *testing.T) {
+	cmd, ok, err := (&Plugin{resolvedBinary: "claude"}).GetRestoreCommand(context.Background(), ports.RestoreConfig{
+		Session:    ports.SessionRef{ID: "opr-1", Metadata: map[string]string{ports.MetadataKeyAgentSessionID: "claude-native-1"}},
+		MCPServers: []ports.MCPServerSpec{operatorMCPServer},
+	})
+	if err != nil || !ok {
+		t.Fatalf("restore = (ok=%v, err=%v), want ok", ok, err)
+	}
+	assertOperatorMCPConfig(t, cmd)
+	if !containsSubsequence(cmd, []string{"--resume", "claude-native-1"}) {
+		t.Fatalf("restore lost --resume: %#v", cmd)
+	}
+}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"os"
 	"path/filepath"
 	"sync"
 
@@ -242,6 +243,7 @@ func startSession(ctx context.Context, cfg config.Config, runtime runtimeselect.
 		// no_signal only makes sense for harnesses whose adapters install
 		// activity hooks; the deriver registry is the source of truth for that.
 		SignalCapable: activitydispatch.SupportsHarness,
+		AgentReports:  lcm,
 	})
 	// Triggering a review spawns a reviewer over the worker's worktree, resolved
 	// from the reviewer registry (distinct from the worker agent set). The
@@ -256,7 +258,9 @@ func startSession(ctx context.Context, cfg config.Config, runtime runtimeselect.
 		Sessions: store,
 		PRs:      store,
 		Projects: store,
-		Launcher: reviewcore.NewLauncher(reviewers, runtime, cfg.DataDir, reviewcore.WithAgentAuth(reviewerAgentAuth{agents: agents})),
+		Launcher: reviewcore.NewLauncher(reviewers, runtime, cfg.DataDir,
+			reviewcore.WithAgentAuth(reviewerAgentAuth{agents: agents}),
+			reviewcore.WithOperatorMCP(os.Executable, cfg.RunFilePath)),
 	})
 	reviewSvc := reviewsvc.New(reviewEngine, store,
 		reviewsvc.WithLifecycleReducer(lcm),

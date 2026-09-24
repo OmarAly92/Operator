@@ -72,7 +72,7 @@ func (s *NtfySender) post(ctx context.Context, topic string, alert Alert) error 
 	if err != nil {
 		return err
 	}
-	defer res.Body.Close()
+	defer func() { _ = res.Body.Close() }()
 	if res.StatusCode/100 != 2 {
 		return fmt.Errorf("ntfy answered %s", res.Status)
 	}

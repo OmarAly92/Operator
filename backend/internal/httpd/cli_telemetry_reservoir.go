@@ -137,10 +137,16 @@ func (r *cliTelemetryReservoir) saveLocked() error {
 	if err != nil {
 		return err
 	}
-	if err := os.MkdirAll(filepath.Dir(r.path), 0o700); err != nil {
+	return writeTelemetryStateFile(r.path, body)
+}
+
+// writeTelemetryStateFile atomically replaces a telemetry state file under
+// DataDir, readable only by the user.
+func writeTelemetryStateFile(path string, body []byte) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return err
 	}
-	tmp, err := os.CreateTemp(filepath.Dir(r.path), ".telemetry-cli-*.json")
+	tmp, err := os.CreateTemp(filepath.Dir(path), ".telemetry-state-*.json")
 	if err != nil {
 		return err
 	}
@@ -157,11 +163,11 @@ func (r *cliTelemetryReservoir) saveLocked() error {
 	if err := tmp.Close(); err != nil {
 		return err
 	}
-	if err := os.Rename(tmpName, r.path); err != nil {
-		if removeErr := os.Remove(r.path); removeErr != nil && !os.IsNotExist(removeErr) {
+	if err := os.Rename(tmpName, path); err != nil {
+		if removeErr := os.Remove(path); removeErr != nil && !os.IsNotExist(removeErr) {
 			return err
 		}
-		return os.Rename(tmpName, r.path)
+		return os.Rename(tmpName, path)
 	}
 	return nil
 }

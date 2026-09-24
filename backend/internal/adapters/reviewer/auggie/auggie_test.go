@@ -27,3 +27,18 @@ func TestReviewCommandUsesRulesAndUserPermissions(t *testing.T) {
 		t.Fatal("Auggie reviewer must force a fresh process for each pass")
 	}
 }
+
+func TestReviewCommandRegistersOperatorMCPServer(t *testing.T) {
+	r := &Reviewer{resolveBinary: func(context.Context) (string, error) { return "/opt/auggie", nil }}
+	spec, err := r.ReviewCommand(context.Background(), ports.ReviewInvocation{
+		TaskPromptRoot: "/opr/prompts", SystemPromptFile: "/opr/prompts/system.md", Prompt: "Read task.",
+		MCPServers: []ports.MCPServerSpec{{Name: "operator", Command: "/opt/opr", Args: []string{"mcp", "--reviewer"}}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"/opt/auggie", "--rules", "/opr/prompts/system.md", "--mcp-config", `{"mcpServers":{"operator":{"command":"/opt/opr","args":["mcp","--reviewer"]}}}`}
+	if !slices.Equal(spec.Argv, want) {
+		t.Fatalf("argv = %#v, want %#v", spec.Argv, want)
+	}
+}

@@ -10,32 +10,17 @@ import type { components } from "../../api/schema";
 // to prevent hiding newly-added reviewers.
 export type ReviewerHarnessId = NonNullable<components["schemas"]["TriggerReviewRequest"]["harness"]>;
 
+// A reviewer records its result only through the Operator MCP server, so the
+// daemon offers just the reviewers whose CLI loads it (domain.AllReviewerHarnesses).
 const REVIEWER_HARNESS_IDS = [
-	"agy",
-	"aider",
 	"amp",
 	"auggie",
-	"autohand",
 	"claude-code",
 	"codex",
-	"cline",
-	"continue",
 	"copilot",
-	"crush",
-	"cursor",
-	"devin",
-	"droid",
-	"goose",
-	"grok",
 	"kilocode",
-	"kiro",
-	"kimi",
-	"kimchi",
-	"muse",
 	"opencode",
-	"pi",
 	"qwen",
-	"vibe",
 ] as const satisfies readonly ReviewerHarnessId[];
 
 type UnlistedReviewerHarness = Exclude<ReviewerHarnessId, (typeof REVIEWER_HARNESS_IDS)[number]>;

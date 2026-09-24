@@ -61,9 +61,13 @@ func TestReviewCommandLaunchesReadOnlyOffBypass(t *testing.T) {
 		WorkspacePath: "/ws/w1",
 		Prompt:        "review it",
 		SystemPrompt:  "you are a reviewer",
+		MCPServers:    []ports.MCPServerSpec{{Name: "operator", Command: "/opt/opr", Args: []string{"mcp", "--reviewer"}}},
 	})
 	if err != nil {
 		t.Fatalf("ReviewCommand: %v", err)
+	}
+	if len(agent.got.MCPServers) != 1 || agent.got.MCPServers[0].Args[1] != "--reviewer" {
+		t.Fatalf("reviewer launch must register the reviewer MCP server: %#v", agent.got.MCPServers)
 	}
 
 	// The allowlist is what enforces read-only, so it must launch in an
@@ -78,8 +82,14 @@ func TestReviewCommandLaunchesReadOnlyOffBypass(t *testing.T) {
 	if spec.AgentSessionID != agent.got.SessionID {
 		t.Fatalf("persisted agent session id = %q, launched session id = %q", spec.AgentSessionID, agent.got.SessionID)
 	}
-	if !contains(agent.got.AllowedTools, "Read") || !contains(agent.got.AllowedTools, "Bash(opr review submit:*)") {
+	if !contains(agent.got.AllowedTools, "Read") {
 		t.Fatalf("allowlist missing read-only review tools: %#v", agent.got.AllowedTools)
+	}
+	// Results are recorded through review_submit, not a shell command.
+	for _, tool := range agent.got.AllowedTools {
+		if strings.Contains(tool, "opr") {
+			t.Fatalf("allowlist still admits an opr command: %#v", agent.got.AllowedTools)
+		}
 	}
 	for _, denied := range []string{"Edit", "Write", "Bash(git push:*)", "Bash(git commit:*)"} {
 		if !contains(agent.got.DisallowedTools, denied) {
@@ -125,7 +135,6 @@ func TestAllowlistCoversPromptRequiredPipedCommands(t *testing.T) {
 
 	for _, cmd := range []string{
 		"printf '%s' '{ \"event\": \"COMMENT\", \"body\": \"x\" }' | gh api --method POST repos/o/r/pulls/1/reviews --input - --jq '.id'",
-		"printf '%s' '{ \"reviews\": [] }' | opr review submit --session sess-1 --reviews -",
 	} {
 		if !compoundCommandCovered(agent.got.AllowedTools, cmd) {
 			t.Fatalf("allowlist does not cover prompt-required command %q with tools %#v", cmd, agent.got.AllowedTools)

@@ -18,3 +18,5 @@ Changes made in the port, and nothing else:
 - The three caps of `terminalLocalLinkDetector.ts:22-34` are exported as constants here so
   the provider that consumes the grammar reads them from one place.
 - Comments are kept as they are in the source (a port keeps its author's comments).
+- The test file is split to stay under the package's 600-line limit: `link-parsing.test.ts`,
+  `link-parsing.diffs.test.ts`, and the shared test table in `link-parsing-cases.ts`.

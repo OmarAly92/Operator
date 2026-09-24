@@ -233,3 +233,24 @@ func contains(values []string, want string) bool {
 	}
 	return false
 }
+
+func TestReviewCommandRegistersTrustedOperatorMCPServer(t *testing.T) {
+	reviewer := New()
+	reviewer.resolveBinary = func(context.Context) (string, error) { return "/opt/qwen/bin/qwen", nil }
+	inv := invocation(t)
+	inv.MCPServers = []ports.MCPServerSpec{{Name: "operator", Command: "/opt/opr", Args: []string{"mcp", "--reviewer"}, Env: map[string]string{"OPERATOR_REVIEW_WORKER_SESSION_ID": "worker-1"}}}
+
+	spec, err := reviewer.ReviewCommand(context.Background(), inv)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{
+		"/opt/qwen/bin/qwen", "--bare", "--approval-mode", "plan",
+		"--mcp-config", `{"mcpServers":{"operator":{"command":"/opt/opr","args":["mcp","--reviewer"],"env":{"OPERATOR_REVIEW_WORKER_SESSION_ID":"worker-1"},"trust":true}}}`,
+		// Plan mode blocks any tool that would ask; review_submit must not.
+		"--allowed-tools", "mcp__operator",
+	}
+	if !reflect.DeepEqual(spec.Argv, want) {
+		t.Fatalf("argv = %#v, want %#v", spec.Argv, want)
+	}
+}

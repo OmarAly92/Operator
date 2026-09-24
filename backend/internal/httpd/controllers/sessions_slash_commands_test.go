@@ -217,9 +217,9 @@ func TestSendBuiltinWithNoPaneOutputRecordsOnlyThePrompt(t *testing.T) {
 	if status != http.StatusOK {
 		t.Fatalf("status = %d, want 200", status)
 	}
-	signals := waitForSignals(t, rec, 1)
+	waitForSignals(t, rec, 1)
 	time.Sleep(20 * time.Millisecond)
-	if signals = rec.snapshot(); len(signals) != 1 || signals[0].Event != "user-prompt-submit" {
+	if signals := rec.snapshot(); len(signals) != 1 || signals[0].Event != "user-prompt-submit" {
 		t.Fatalf("signals = %+v, want just the prompt", signals)
 	}
 }

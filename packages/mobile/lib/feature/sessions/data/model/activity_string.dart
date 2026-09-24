@@ -6,3 +6,11 @@ String? activityString(dynamic raw) {
   }
   return null;
 }
+
+String? activitySinceString(dynamic raw) {
+  if (raw is Map<String, dynamic> && raw['lastActivityAt'] is String) {
+    final since = raw['lastActivityAt'] as String;
+    return since.isEmpty ? null : since;
+  }
+  return null;
+}

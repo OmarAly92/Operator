@@ -102,7 +102,7 @@ func (p *Plugin) GetLaunchCommand(ctx context.Context, cfg ports.LaunchConfig) (
 		return nil, err
 	}
 
-	envPrefix, agentName, err := kilocodeConfigEnvPrefix(cfg.Permissions, cfg.SystemPrompt, cfg.SystemPromptFile, cfg.SessionID, cfg.Config.Model)
+	envPrefix, agentName, err := kilocodeConfigEnvPrefix(cfg.Permissions, cfg.SystemPrompt, cfg.SystemPromptFile, cfg.SessionID, cfg.Config.Model, cfg.MCPServers)
 	if err != nil {
 		return nil, err
 	}
@@ -137,7 +137,7 @@ func (p *Plugin) GetRestoreCommand(ctx context.Context, cfg ports.RestoreConfig)
 		return nil, false, err
 	}
 
-	envPrefix, agentName, err := kilocodeConfigEnvPrefix(cfg.Permissions, cfg.SystemPrompt, cfg.SystemPromptFile, cfg.Session.ID, cfg.Config.Model)
+	envPrefix, agentName, err := kilocodeConfigEnvPrefix(cfg.Permissions, cfg.SystemPrompt, cfg.SystemPromptFile, cfg.Session.ID, cfg.Config.Model, cfg.MCPServers)
 	if err != nil {
 		return nil, false, err
 	}
@@ -197,6 +197,17 @@ func kilocodePermissionConfig(mode ports.PermissionMode) map[string]string {
 type kilocodeInlineConfig struct {
 	Permission map[string]string                `json:"permission,omitempty"`
 	Agent      map[string]kilocodeAgentSettings `json:"agent,omitempty"`
+	// MCP registers the launch's MCP servers (Kilo's OpenCode-style local
+	// server entry). KILO_CONFIG_CONTENT merges over the user's configs, so
+	// their own servers still load.
+	MCP map[string]kilocodeMCPServer `json:"mcp,omitempty"`
+}
+
+type kilocodeMCPServer struct {
+	Type        string            `json:"type"`
+	Command     []string          `json:"command"`
+	Environment map[string]string `json:"environment,omitempty"`
+	Enabled     bool              `json:"enabled"`
 }
 
 type kilocodeAgentSettings struct {
@@ -215,8 +226,21 @@ type kilocodeAgentSettings struct {
 // rather than read as an assignment — hence the explicit `env` wrapper.
 // The spawner applies such assignments to the child environment itself on every
 // platform (see stripEnvAssignments).
-func kilocodeConfigEnvPrefix(mode ports.PermissionMode, inlinePrompt, promptFile, sessionID, model string) ([]string, string, error) {
+func kilocodeConfigEnvPrefix(mode ports.PermissionMode, inlinePrompt, promptFile, sessionID, model string, servers []ports.MCPServerSpec) ([]string, string, error) {
 	config := kilocodeInlineConfig{Permission: kilocodePermissionConfig(mode)}
+	if len(servers) > 0 {
+		config.MCP = make(map[string]kilocodeMCPServer, len(servers))
+		for _, srv := range servers {
+			config.MCP[srv.Name] = kilocodeMCPServer{Type: "local", Command: append([]string{srv.Command}, srv.Args...), Environment: srv.Env, Enabled: true}
+			// Pre-approve the server's tools (Kilo names them <server>_<tool>):
+			// they act on the calling session only, and a prompt on
+			// session_report would itself park the card in Needs you.
+			if config.Permission == nil {
+				config.Permission = map[string]string{}
+			}
+			config.Permission[srv.Name+"_*"] = "allow"
+		}
+	}
 	agentName := ""
 	systemPrompt, err := kilocodeSystemPromptText(inlinePrompt, promptFile)
 	if err != nil {
@@ -233,7 +257,7 @@ func kilocodeConfigEnvPrefix(mode ports.PermissionMode, inlinePrompt, promptFile
 			agentName: {Prompt: systemPrompt, Model: model},
 		}
 	}
-	if len(config.Permission) == 0 && len(config.Agent) == 0 {
+	if len(config.Permission) == 0 && len(config.Agent) == 0 && len(config.MCP) == 0 {
 		return nil, "", nil
 	}
 	blob, err := json.Marshal(config)
@@ -320,3 +344,9 @@ func (p *Plugin) kilocodeBinary(ctx context.Context) (string, error) {
 	p.resolvedBinary = binary
 	return binary, nil
 }
+
+var _ ports.MCPServerLoader = (*Plugin)(nil)
+
+// LoadsMCPServers reports that the launch registers LaunchConfig.MCPServers
+// with the CLI, so the session has the Operator MCP server.
+func (*Plugin) LoadsMCPServers() bool { return true }

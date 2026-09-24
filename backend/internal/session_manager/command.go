@@ -118,7 +118,7 @@ func (m *Manager) awaitMenu(ctx context.Context, reader ports.TerminalMenuReader
 			return ports.Menu{}, false, nil
 		}
 		if err := sleepContext(ctx, menuAppearPoll); err != nil {
-			return ports.Menu{}, false, nil
+			return ports.Menu{}, false, err
 		}
 	}
 }
@@ -274,7 +274,7 @@ func indexOfRow(rows []string, label string) int {
 		return -1
 	}
 	for i, option := range parseModelOptions(ports.Menu{Rows: rows, Selected: -1}) {
-		if strings.ToLower(option.Label) == want {
+		if strings.EqualFold(option.Label, want) {
 			return i
 		}
 	}

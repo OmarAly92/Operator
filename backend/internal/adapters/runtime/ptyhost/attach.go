@@ -196,8 +196,8 @@ func (s *loopbackStream) Resize(rows, cols uint16) error {
 	return writeResize(s.conn, rows, cols)
 }
 
-func (s *loopbackStream) Ack(bytes uint64) error {
-	payload, err := json.Marshal(AckPayload{Bytes: int(bytes)})
+func (s *loopbackStream) Ack(consumed uint64) error {
+	payload, err := json.Marshal(AckPayload{Bytes: int(consumed)})
 	if err != nil {
 		return err
 	}

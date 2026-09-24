@@ -33,6 +33,8 @@
 	"common.sidebar": "Sidebar",
 	"common.sidebarDescription": "Displays the mobile sidebar.",
 	"common.yes": "Yes",
+	"board.agentReport.needsYou": "The agent is waiting on you",
+	"board.agentReport.readyForReview": "The agent reports this is ready for review",
 	"board.empty.body": "Start a task from New Task, or from a ticket, plan, or tracker issue, and it lands here as a worker session you can follow as work moves forward.",
 	"board.empty.title": "No worker sessions yet",
 	"blocks.empty": "No blocks yet. They appear as the agent works.",
