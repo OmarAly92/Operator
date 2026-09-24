@@ -347,7 +347,12 @@ void main() {
     expect((tabList(tester, 2).padding! as EdgeInsets).bottom, 83 + 40);
 
     final controller = HomeShell.controllerFor(0);
-    controller.jumpTo(controller.position.maxScrollExtent);
+    for (var i = 0; i < 20 && controller.offset < controller.position.maxScrollExtent; i++) {
+      controller.jumpTo(controller.position.maxScrollExtent);
+      await tester.pump();
+    }
+    expect(controller.offset, controller.position.maxScrollExtent);
+    await tester.pump(const Duration(milliseconds: 2000));
     await settle(tester);
     final lastCard = tester.getRect(find.byType(SessionCard).last);
     expect(lastCard.bottom, lessThanOrEqualTo(tester.getRect(find.byKey(HomeShell.spawnButtonKey)).top));
