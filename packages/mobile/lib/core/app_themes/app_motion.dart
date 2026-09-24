@@ -24,6 +24,26 @@ sealed class AppMotion {
   /// Skeleton shimmer sweep.
   static const Duration shimmer = Duration(milliseconds: 1400);
 
+  static const Duration chatReply = Duration(milliseconds: 220);
+
+  static const Duration disclosure = Duration(milliseconds: 180);
+
+  static const Duration disclosureIn = Duration(milliseconds: 140);
+
+  static const Duration disclosureOut = Duration(milliseconds: 120);
+
+  static const Duration control = Duration(milliseconds: 240);
+
+  static const Duration composerMorph = Duration(milliseconds: 220);
+
+  static const Duration shimmerSweep = Duration(milliseconds: 1350);
+
+  static const Duration shimmerPause = Duration(milliseconds: 1450);
+
+  static const Duration chatActionSwap = Duration(milliseconds: 160);
+
+  static const Duration streamingHapticGap = Duration(milliseconds: 320);
+
   /// Expressive loader shape-morph container spin.
   static const Duration loaderSpin = Duration(milliseconds: 1730);
 
@@ -80,6 +100,8 @@ sealed class AppMotion {
   /// feedback, sheet/dialog pop-in and slide-up, and the toggle thumb.
   /// The `1.4` second control point is what produces the overshoot.
   static const Curve spring = Cubic(0.34, 1.4, 0.64, 1);
+
+  static const Curve controlCurve = Cubic(0.33, 1, 0.68, 1);
 
   // ---------------------------------------------------------------------
   // Keyframe deltas
