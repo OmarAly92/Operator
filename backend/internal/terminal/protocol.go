@@ -49,6 +49,7 @@ const (
 	msgSnapshot   = "snapshot" // ch "sessions"
 	msgPong       = "pong"     // ch "system"
 	msgBlock      = "block"    // ch "blocks"
+	msgHealth     = "health"
 	// msgResize is reused as a SERVER frame too: the daemon pushes the shared
 	// PTY's authoritative grid (Cols/Rows) to every attached client so followers
 	// render the exact grid the PTY is using instead of their own fitted size.
@@ -105,6 +106,7 @@ type serverMsg struct {
 	Cols    uint16         `json:"cols,omitempty"`
 	Rows    uint16         `json:"rows,omitempty"`
 	Error   string         `json:"error,omitempty"`
+	Health  string         `json:"health,omitempty"`
 	Session *sessionUpdate `json:"session,omitempty"`
 	// Block is the ch "blocks" payload: one normalized agent block event.
 	Block *blockeventsvc.Record `json:"block,omitempty"`
