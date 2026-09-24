@@ -5,6 +5,7 @@ import 'package:operator_mobile/core/app_themes/colors/light_skin.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/widgets/glass/glass_button.dart';
 import 'package:operator_mobile/core/widgets/glass/glass_metrics.dart';
+import 'package:operator_mobile/core/widgets/glass/glass_tab_bar.dart';
 import 'package:operator_mobile/core/widgets/glass/glass_toolbar.dart';
 import 'package:operator_mobile/core/widgets/glass/lab/glass_lab_backdrop.dart';
 import 'package:operator_mobile/core/widgets/glass/lab/glass_lab_scene.dart';
@@ -56,13 +57,17 @@ class GlassLabScreen extends StatelessWidget {
               )
             else
               Positioned(
-                left: 21,
-                right: 21,
-                bottom: 21,
-                height: 62,
-                child: LiquidGlass.withOwnLayer(
-                  shape: const LiquidRoundedRectangle(borderRadius: 31),
-                  child: const SizedBox.expand(),
+                left: GlassMetrics.tabBarSideInset,
+                right: GlassMetrics.tabBarSideInset,
+                bottom: GlassMetrics.tabBarBottomInset,
+                child: GlassTabBar(
+                  items: const [
+                    GlassTabItem(icon: Icons.layers_outlined, label: 'Agents'),
+                    GlassTabItem(icon: Icons.call_merge_outlined, label: 'PRs'),
+                    GlassTabItem(icon: Icons.settings_outlined, label: 'Settings'),
+                  ],
+                  selectedIndex: 0,
+                  onSelected: (_) {},
                 ),
               ),
             if (scene != GlassLabScene.corners)
