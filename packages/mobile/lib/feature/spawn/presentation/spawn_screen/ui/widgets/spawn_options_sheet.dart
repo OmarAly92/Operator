@@ -11,28 +11,13 @@ import 'package:operator_mobile/core/widgets/pickers/claude_account_picker_sheet
 import 'package:operator_mobile/core/widgets/pickers/project_picker_sheet.dart';
 import 'package:operator_mobile/core/widgets/sheet/app_sheet.dart';
 import 'package:operator_mobile/feature/sessions/data/model/project_model.dart';
-import 'package:operator_mobile/feature/sessions/presentation/sessions_screen/ui/widgets/agent_logo.dart';
-import 'package:operator_mobile/feature/spawn/logic/agent_picker.dart';
+import 'package:operator_mobile/feature/spawn/logic/spawn_option_values.dart';
 import 'package:operator_mobile/feature/spawn/presentation/spawn_screen/logic/spawn_cubit.dart';
+import 'package:operator_mobile/feature/spawn/presentation/spawn_screen/ui/widgets/spawn_option_rows.dart';
 
-enum SpawnOption { project, agent, account }
+export 'package:operator_mobile/feature/spawn/logic/spawn_option_values.dart' show SpawnOption;
 
 const String _catalogError = 'Could not reach your Operator server';
-
-ProjectModel? _projectById(List<ProjectModel> projects, String? id) {
-  if (id == null) return null;
-  for (final project in projects) {
-    if (project.id == id) return project;
-  }
-  return null;
-}
-
-RankedAgent? _agentById(List<RankedAgent> agents, String id) {
-  for (final agent in agents) {
-    if (agent.id == id) return agent;
-  }
-  return null;
-}
 
 Future<void> showSpawnOptionsSheet(
   BuildContext context, {
@@ -78,18 +63,16 @@ AppSheetPage _projectPage(SpawnCubit cubit, List<ProjectModel> projects) => proj
       title: 'Project',
       subtitle: 'Where this agent gets its workspace.',
       onPicked: (context, id) {
-        cubit.setProject(id, kind: _projectById(projects, id)?.kind);
+        cubit.setProject(id, kind: SpawnOptionValues.projectById(projects, id)?.kind);
         AppSheet.of(context).pop();
       },
     );
 
 AppSheetPage _agentPage(SpawnCubit cubit, Future<void> Function() onRefreshAgents) {
-  final template = agentPickerPage(agents: const [], selected: '', onPicked: (_, _) {});
   return AppSheetPage(
-    title: template.title,
-    subtitle: template.subtitle,
-    searchHint: template.searchHint,
-    emptyText: template.emptyText,
+    title: kAgentPickerTitle,
+    subtitle: kAgentPickerSubtitle,
+    searchHint: kAgentPickerSearchHint,
     actions: [_RefreshAgentsAction(onRefresh: onRefreshAgents)],
     rows: (context, query) => [
       BlocBuilder<SpawnCubit, SpawnState>(
@@ -115,11 +98,10 @@ AppSheetPage _agentPage(SpawnCubit cubit, Future<void> Function() onRefreshAgent
 }
 
 AppSheetPage _accountPage(SpawnCubit cubit) {
-  final template = claudeAccountPickerPage(accounts: const [], selected: '', onPicked: (_, _) {});
   return AppSheetPage(
-    title: template.title,
-    subtitle: template.subtitle,
-    searchHint: template.searchHint,
+    title: kClaudeAccountPickerTitle,
+    subtitle: kClaudeAccountPickerSubtitle,
+    searchHint: kClaudeAccountPickerSearchHint,
     rows: (context, query) => [
       BlocBuilder<SpawnCubit, SpawnState>(
         builder: (context, state) {
@@ -173,54 +155,17 @@ class _SpawnOptionsRows extends StatelessWidget {
   final List<ProjectModel> projects;
   final void Function(BuildContext context, SpawnOption option) onOpen;
 
-  String _claudeAccountValue(SpawnCubit cubit) {
-    for (final account in cubit.claudeAccounts) {
-      if (account.id == cubit.claudeAccountId) return account.displayLabel;
-    }
-    return 'Default';
-  }
-
   @override
   Widget build(BuildContext context) {
     return BlocBuilder<SpawnCubit, SpawnState>(
-      builder: (context, state) {
-        final cubit = context.read<SpawnCubit>();
-        final project = _projectById(projects, cubit.projectId);
-        final selectedAgent = _agentById(cubit.agents, cubit.harness);
-
-        String agentValue;
-        if (selectedAgent != null) {
-          agentValue = selectedAgent.label;
-        } else if (state is CatalogLoadingState) {
-          agentValue = 'Loading…';
-        } else {
-          agentValue = 'Choose an agent';
-        }
-
-        return SettingsGroup(
-          children: [
-            SettingsRow(
-              icon: Icons.folder_outlined,
-              label: 'Project',
-              value: project?.name ?? 'Choose a project',
-              onTap: () => onOpen(context, SpawnOption.project),
-            ),
-            SettingsRow(
-              label: 'Agent',
-              value: agentValue,
-              leading: AgentLogo(harness: cubit.harness.isEmpty ? null : cubit.harness, size: 20),
-              onTap: () => onOpen(context, SpawnOption.agent),
-            ),
-            if (cubit.harness == 'claude-code' && cubit.claudeAccounts.isNotEmpty)
-              SettingsRow(
-                icon: Icons.person_outline,
-                label: 'Account',
-                value: _claudeAccountValue(cubit),
-                onTap: () => onOpen(context, SpawnOption.account),
-              ),
-          ],
-        );
-      },
+      builder: (context, state) => SettingsGroup(
+        children: spawnOptionRows(
+          cubit: context.read<SpawnCubit>(),
+          state: state,
+          projects: projects,
+          onOpen: (option) => onOpen(context, option),
+        ),
+      ),
     );
   }
 }

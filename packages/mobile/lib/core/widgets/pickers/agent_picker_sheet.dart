@@ -10,6 +10,9 @@ import 'package:operator_mobile/core/widgets/sheet/app_sheet.dart';
 import 'package:operator_mobile/feature/sessions/presentation/sessions_screen/ui/widgets/agent_logo.dart';
 import 'package:operator_mobile/feature/spawn/logic/agent_picker.dart';
 
+const String kAgentPickerTitle = 'Agent';
+const String kAgentPickerSubtitle = 'Which harness should run this task.';
+const String kAgentPickerSearchHint = 'Search agents';
 const String kNoAgentsText = 'No agents reported. Check that Operator is running on your computer, then refresh.';
 
 AppSheetPage agentPickerPage({
@@ -20,10 +23,10 @@ AppSheetPage agentPickerPage({
   String? error,
 }) {
   return AppSheetPage(
-    title: 'Agent',
-    subtitle: 'Which harness should run this task.',
+    title: kAgentPickerTitle,
+    subtitle: kAgentPickerSubtitle,
     actions: actions,
-    searchHint: 'Search agents',
+    searchHint: kAgentPickerSearchHint,
     emptyText: kNoAgentsText,
     rows: (context, query) {
       final matching = [

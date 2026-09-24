@@ -8,15 +8,19 @@ import 'package:operator_mobile/core/widgets/pickers/picker_filter.dart';
 import 'package:operator_mobile/core/widgets/sheet/app_sheet.dart';
 import 'package:operator_mobile/feature/spawn/data/model/claude_account_model.dart';
 
+const String kClaudeAccountPickerTitle = 'Claude account';
+const String kClaudeAccountPickerSubtitle = 'Which Claude login this session runs on.';
+const String kClaudeAccountPickerSearchHint = 'Search accounts';
+
 AppSheetPage claudeAccountPickerPage({
   required List<ClaudeAccountModel> accounts,
   required String selected,
   required void Function(BuildContext context, String id) onPicked,
 }) {
   return AppSheetPage(
-    title: 'Claude account',
-    subtitle: 'Which Claude login this session runs on.',
-    searchHint: 'Search accounts',
+    title: kClaudeAccountPickerTitle,
+    subtitle: kClaudeAccountPickerSubtitle,
+    searchHint: kClaudeAccountPickerSearchHint,
     rows: (context, query) => [
       for (final account in accounts)
         if (PickerFilter.matches(query, [account.label, account.id, account.planLabel]))
