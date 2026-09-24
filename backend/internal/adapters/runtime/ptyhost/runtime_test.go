@@ -109,6 +109,54 @@ func TestPaneCaptureRoundTrip(t *testing.T) {
 	}
 }
 
+func TestCaptureStartAndStopTakeEffectBeforeTheyReturn(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("shells out to /bin/sh")
+	}
+	isolateRegistry(t)
+	prevExecutable := captureExecutablePath
+	captureExecutablePath = func() (string, error) { return "/bin/sh", nil }
+	t.Cleanup(func() { captureExecutablePath = prevExecutable })
+	hosts := map[string]*inProcHost{}
+	rt := New(Options{Spawner: fakeSpawnerFor(t, hosts, livePID())})
+	ctx := context.Background()
+
+	handle, err := rt.Create(ctx, ports.RuntimeConfig{
+		SessionID:     "sess-cap-sync",
+		WorkspacePath: "/tmp/w",
+		Argv:          []string{"sh"},
+	})
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+	h := hosts["sess-cap-sync"]
+	defer h.cleanup(t)
+
+	sink := filepath.Join(t.TempDir(), "capture.log")
+	for i := 0; i < 20; i++ {
+		if err := rt.StartCapture(ctx, handle, []string{"-c", "cat >> " + sink}); err != nil {
+			t.Fatalf("round %d StartCapture: %v", i, err)
+		}
+		state, err := rt.CaptureState(ctx, handle)
+		if err != nil {
+			t.Fatalf("round %d CaptureState after start: %v", i, err)
+		}
+		if !state.PipeOpen {
+			t.Fatalf("round %d: PipeOpen = false right after StartCapture returned", i)
+		}
+		if err := rt.StopCapture(ctx, handle); err != nil {
+			t.Fatalf("round %d StopCapture: %v", i, err)
+		}
+		state, err = rt.CaptureState(ctx, handle)
+		if err != nil {
+			t.Fatalf("round %d CaptureState after stop: %v", i, err)
+		}
+		if state.PipeOpen {
+			t.Fatalf("round %d: PipeOpen = true right after StopCapture returned", i)
+		}
+	}
+}
+
 // ---------------------------------------------------------------------------
 // Test harness: in-process pty-host backed by a fakePTY.
 // ---------------------------------------------------------------------------
