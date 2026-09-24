@@ -44,9 +44,10 @@ const operatorMCPBoardSection = "## Operator board\n\n" + ports.OperatorMCPInstr
 // system prompt when the Operator MCP server will be registered and the harness
 // cannot be relied on to surface the server's own instructions. Sessions that
 // get no server get no rules: this is how the rules reach the model, not a
-// fallback for agents without MCP.
+// fallback for agents without MCP. It is idempotent: an agent switch rebuilds
+// its prompt from one that may already carry the section.
 func (m *Manager) withMCPBoardInstructions(harness domain.AgentHarness, systemPrompt string) string {
-	if !m.registersOperatorMCP() {
+	if !m.registersOperatorMCP() || strings.Contains(systemPrompt, operatorMCPBoardSection) {
 		return systemPrompt
 	}
 	if agent, ok := m.agents.Agent(harness); ok {
