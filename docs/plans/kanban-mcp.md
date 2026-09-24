@@ -81,7 +81,7 @@ Reading other sessions is allowed. It lets agents avoid duplicate work across a 
 | `session_report` | `state: needs_you \| ready_for_review \| clear`, `reason` (≤ 280 chars, required unless clear) | moves own card; reason shows on the card and in the Needs you alert | **new** `PUT/DELETE /sessions/{id}/agent-report` |
 | `session_rename` | `name` (≤ 20 chars) | sets the card title | `PATCH /sessions/{id}` |
 | `pr_claim` | `pr` (number or URL) | attributes a PR opened off-convention to this session | `POST /sessions/{id}/pr/claim` |
-| ~~`pr_resolve_comments`~~ | dropped | the daemon's `ResolveComments` is a stub that resolves nothing (`service/pr/action_service.go`), so the tool would report success for no effect; agents resolve threads with their own git host tooling | — |
+| `pr_resolve_comments` | `pr`, `comment_ids?` | only a PR in the caller's own `prs`; no ids resolves every unresolved thread. First dropped while the daemon's `ResolveComments` was a stub; restored once it re-fetches threads and runs GitHub's `resolveReviewThread` | `POST /prs/{number}/resolve-comments` with `{prUrl, commentIds}` |
 | `review_request` | none | asks Operator's internal reviewer to review own PR(s) | `POST /sessions/{id}/reviews/trigger` |
 | `ticket_mark_merge_ready` | `summary` | reviewer role only: reports the plan branch ready; replaces the `curl` in `reviewPrompt` | `POST /projects/{id}/tickets/{slug}/plans/{plan}/merge-ready` |
 
@@ -387,8 +387,8 @@ harnesses.
 
 ### Phase 3: self-scoped actions
 
-- `session_rename`, `pr_claim` (no takeover), `pr_resolve_comments` dropped (daemon stub),
-  `review_request`, `ticket_mark_merge_ready` (role check).
+- `session_rename`, `pr_claim` (no takeover), `pr_resolve_comments` (own PRs only; restored
+  after the daemon handler was implemented), `review_request`, `ticket_mark_merge_ready` (role check).
 - `reviewPrompt` curl removal.
 - **Tests**: each tool's happy path, daemon error mapping, and ownership/role rejection.
 - **Real-app check, in a Claude Code session**:

@@ -1341,9 +1341,12 @@ type MergePRResponse struct {
 	Method   string `json:"method"`
 }
 
-// ResolveCommentsRequest is the optional body of POST /api/v1/prs/{id}/resolve-comments.
+// ResolveCommentsRequest is the body of POST /api/v1/prs/{id}/resolve-comments.
 type ResolveCommentsRequest struct {
-	CommentIDs []string `json:"commentIds,omitempty"`
+	// PRURL pins the tracked pull request: a number alone is ambiguous across
+	// repositories (the same contract as MergePRRequest).
+	PRURL      string   `json:"prUrl" minLength:"1" description:"URL of the tracked pull request."`
+	CommentIDs []string `json:"commentIds,omitempty" description:"Review comment or thread ids whose threads to resolve. Omit to resolve every unresolved thread."`
 }
 
 // ResolveCommentsResponse is the body of POST /api/v1/prs/{id}/resolve-comments (200).

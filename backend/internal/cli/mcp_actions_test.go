@@ -39,11 +39,14 @@ func actionDaemon(t *testing.T, reviewerSession string) (*httptest.Server, *sess
 				return
 			}
 			_, _ = io.WriteString(w, `{"ok":true,"sessionId":"opr-1","prs":[{"url":"https://github.com/o/r/pull/12","number":12,"state":"open","ci":"pending","review":"none","mergeability":"unknown","reviewComments":false,"updatedAt":"2026-09-24T10:00:00Z"}],"branchChanged":true,"takenOverFrom":[]}`)
+		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/prs/12/resolve-comments":
+			_, _ = io.WriteString(w, `{"ok":true,"resolved":2}`)
 		case r.URL.Path == "/api/v1/sessions/opr-1/reviews/trigger":
 			w.WriteHeader(http.StatusCreated)
 			_, _ = io.WriteString(w, `{"reviewerHandleId":"h","reviews":[],"runs":[{"id":"run-1"}],"created":true}`)
 		case r.URL.Path == "/api/v1/sessions/opr-1":
-			_, _ = io.WriteString(w, `{"session":{"id":"opr-1","projectId":"demo","status":"idle","activity":{"state":"idle"},"prs":[],"ticket":{"slug":"login","role":"planning"}}}`)
+			_, _ = io.WriteString(w, `{"session":{"id":"opr-1","projectId":"demo","status":"idle","activity":{"state":"idle"},"prs":[`+
+				`{"url":"https://github.com/o/r/pull/12","number":12},{"url":"https://github.com/o/r/pull/34","number":34},{"url":"https://github.com/x/y/pull/34","number":34}],"ticket":{"slug":"login","role":"planning"}}}`)
 		case r.URL.Path == "/api/v1/projects/demo/tickets/login":
 			_, _ = io.WriteString(w, `{"ticket":{"slug":"login","title":"Login","status":"in_progress","files":[],"plans":[`+
 				`{"file":"plans/01-redirect.md","order":1,"title":"Redirect","status":"reviewing","sessionId":"opr-3","reviewerSessionId":`+jsonQuote(reviewerSession)+`}]}}`)
@@ -164,5 +167,41 @@ func TestOperatorMCPToolNamesMatchTheServer(t *testing.T) {
 	sort.Strings(want)
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("server tools %v, ports.OperatorMCPToolNames %v", got, want)
+	}
+}
+
+func TestMCPPRResolveCommentsActsOnlyOnOwnPRs(t *testing.T) {
+	srv, log, bodies := actionDaemon(t, "opr-1")
+	cs := connectMCP(t, srv, selfIdentity)
+
+	var out prResolveCommentsOutput
+	args := map[string]any{"pr": "#12", "comment_ids": []string{" PRRC_1 ", ""}}
+	if res := callMCPTool(t, cs, "pr_resolve_comments", args, &out); res.IsError {
+		t.Fatalf("pr_resolve_comments failed: %s", toolErrorText(res))
+	}
+	if out.PR != 12 || out.Resolved != 2 || out.URL != "https://github.com/o/r/pull/12" {
+		t.Fatalf("output = %+v", out)
+	}
+	if body := bodies["POST /api/v1/prs/12/resolve-comments"]; body != `{"prUrl":"https://github.com/o/r/pull/12","commentIds":["PRRC_1"]}` {
+		t.Fatalf("body = %s", body)
+	}
+	for pr, want := range map[string]string{
+		"77":                             "not attributed to your session",
+		"https://github.com/o/r/pull/77": "not attributed to your session",
+		"34":                             "pass its URL",
+	} {
+		res := callMCPTool(t, cs, "pr_resolve_comments", map[string]any{"pr": pr}, nil)
+		if !res.IsError || !strings.Contains(toolErrorText(res), want) {
+			t.Fatalf("pr %s: result = %+v, want error %q", pr, res, want)
+		}
+	}
+	resolves := 0
+	for _, req := range log.all() {
+		if strings.HasSuffix(req, "/resolve-comments") {
+			resolves++
+		}
+	}
+	if resolves != 1 {
+		t.Fatalf("requests = %#v, want one resolve", log.all())
 	}
 }

@@ -603,7 +603,8 @@ get no server.
   opencode 1.18.32, whose `opencode mcp list` connects to `opr mcp`).
 - Tools: `board_get`, `session_get` and `ticket_get` (read-only, thin wrappers over
   daemon routes), and the self-scoped actions `session_report`, `session_rename`,
-  `pr_claim` (never takes over another live session's PR), `review_request` and
+  `pr_claim` (never takes over another live session's PR), `pr_resolve_comments`
+  (only on a PR attributed to the caller), `review_request` and
   `ticket_mark_merge_ready` (only for the plan whose `reviewerSessionId` is the
   caller; it replaces the curl the ticket reviewer prompt used to carry). The full
   plan is `docs/plans/kanban-mcp.md`.

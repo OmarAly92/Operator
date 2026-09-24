@@ -153,7 +153,10 @@ needs to be open.
 `go run .` in `backend/` remains a compatibility wrapper around the daemon.
 
 PR actions are available through `opr pr merge` and
-`opr pr resolve-comments`. Review actions are available through `opr review ls`,
+`opr pr resolve-comments <number> [comment-id...] --url <pr-url>`, which resolves the
+threads containing the given GitHub comment or thread node ids, or every unresolved
+thread when none is given; `--url` is required because a number alone is ambiguous
+across repositories. Review actions are available through `opr review ls`,
 `opr review trigger` (also `execute` and `restart`), `opr review cancel` (also
 `stop`), and `opr review submit`.
 

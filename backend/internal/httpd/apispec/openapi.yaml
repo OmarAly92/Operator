@@ -2658,6 +2658,12 @@ paths:
         schema:
           description: PR number.
           type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResolveCommentsRequest'
+        required: true
       responses:
         "200":
           content:
@@ -2665,6 +2671,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/ResolveCommentsResponse'
           description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Bad Request
         "404":
           content:
             application/json:
@@ -7964,6 +7976,21 @@ components:
       - ok
       - sessionId
       - displayName
+      type: object
+    ResolveCommentsRequest:
+      properties:
+        commentIds:
+          description: Review comment or thread ids whose threads to resolve. Omit
+            to resolve every unresolved thread.
+          items:
+            type: string
+          type: array
+        prUrl:
+          description: URL of the tracked pull request.
+          minLength: 1
+          type: string
+      required:
+      - prUrl
       type: object
     ResolveCommentsResponse:
       properties:

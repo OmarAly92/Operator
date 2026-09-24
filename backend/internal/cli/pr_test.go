@@ -89,7 +89,7 @@ func TestPRResolveCommentsPostsIDs(t *testing.T) {
 	srv, capture := reviewServer(t, http.StatusOK, `{"ok":true,"resolved":2}`)
 	writeRunFileFor(t, cfg, srv)
 
-	out, errOut, err := executeCLI(t, aliveDeps(), "pr", "resolve-comments", "42", "thread-1", "thread-2")
+	out, errOut, err := executeCLI(t, aliveDeps(), "pr", "resolve-comments", "42", "thread-1", "thread-2", "--url", "https://github.com/acme/widgets/pull/42")
 	if err != nil {
 		t.Fatalf("unexpected error: %v\nstderr=%s", err, errOut)
 	}
@@ -99,6 +99,9 @@ func TestPRResolveCommentsPostsIDs(t *testing.T) {
 	var req resolveCommentsRequest
 	if err := json.Unmarshal([]byte(capture.body), &req); err != nil {
 		t.Fatalf("decode body: %v", err)
+	}
+	if req.PRURL != "https://github.com/acme/widgets/pull/42" {
+		t.Fatalf("pr url = %q", req.PRURL)
 	}
 	if len(req.CommentIDs) != 2 || req.CommentIDs[0] != "thread-1" || req.CommentIDs[1] != "thread-2" {
 		t.Fatalf("comment ids = %v", req.CommentIDs)
@@ -113,11 +116,20 @@ func TestPRResolveCommentsAllowsNoIDs(t *testing.T) {
 	srv, capture := reviewServer(t, http.StatusOK, `{"ok":true,"resolved":3}`)
 	writeRunFileFor(t, cfg, srv)
 
-	if _, errOut, err := executeCLI(t, aliveDeps(), "pr", "resolve-comments", "42"); err != nil {
+	if _, errOut, err := executeCLI(t, aliveDeps(), "pr", "resolve-comments", "42", "--url", "https://github.com/acme/widgets/pull/42"); err != nil {
 		t.Fatalf("unexpected error: %v\nstderr=%s", err, errOut)
 	}
-	if strings.TrimSpace(capture.body) != "{}" {
-		t.Fatalf("body = %q, want {}", capture.body)
+	if want := `{"prUrl":"https://github.com/acme/widgets/pull/42"}`; strings.TrimSpace(capture.body) != want {
+		t.Fatalf("body = %q, want %s", capture.body, want)
+	}
+}
+
+func TestPRResolveCommentsRequiresURL(t *testing.T) {
+	setConfigEnv(t)
+
+	_, _, err := executeCLI(t, aliveDeps(), "pr", "resolve-comments", "42")
+	if got := ExitCode(err); got != 2 {
+		t.Fatalf("exit code = %d, want 2; err=%v", got, err)
 	}
 }
 

@@ -143,7 +143,7 @@ func TestMCPServerAdvertisesReadToolsAndBoardInstructions(t *testing.T) {
 		}
 	}
 	sort.Strings(names)
-	if want := []string{"board_get", "pr_claim", "review_request", "session_get", "session_rename", "session_report", "ticket_get", "ticket_mark_merge_ready"}; !reflect.DeepEqual(names, want) {
+	if want := []string{"board_get", "pr_claim", "pr_resolve_comments", "review_request", "session_get", "session_rename", "session_report", "ticket_get", "ticket_mark_merge_ready"}; !reflect.DeepEqual(names, want) {
 		t.Fatalf("tools = %v, want %v", names, want)
 	}
 }

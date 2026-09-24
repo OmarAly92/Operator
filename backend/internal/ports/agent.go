@@ -396,7 +396,7 @@ Tools:
 - session_get: your own card — status, column, the reason you are in that column, your branch and your PRs with CI and review detail.
 - board_get: every card in a project, grouped by column. Check it before starting broad work so you do not duplicate what another session in the project is already doing.
 - ticket_get: the ticket and plan your session belongs to, when it was started from one.
-- session_rename, pr_claim (a PR whose branch is outside your session's namespace), review_request (Operator's code reviewer) and, when you are reviewing a ticket plan, ticket_mark_merge_ready.
+- session_rename, pr_claim (a PR whose branch is outside your session's namespace), pr_resolve_comments (after addressing review threads on your PR), review_request (Operator's code reviewer) and, when you are reviewing a ticket plan, ticket_mark_merge_ready.
 
 Never try to move, stop or change another session's card.`
 
@@ -405,7 +405,7 @@ Never try to move, stop or change another session's card.`
 // pins it to the server's real tool list.
 var OperatorMCPToolNames = []string{
 	"board_get", "session_get", "ticket_get", "session_report",
-	"session_rename", "pr_claim", "review_request", "ticket_mark_merge_ready",
+	"session_rename", "pr_claim", "pr_resolve_comments", "review_request", "ticket_mark_merge_ready",
 }
 
 // MCPInstructionsSurfacer is implemented by agent adapters whose CLI is known to

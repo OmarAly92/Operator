@@ -17,6 +17,7 @@ type mergePRResponse struct {
 }
 
 type resolveCommentsRequest struct {
+	PRURL      string   `json:"prUrl"`
 	CommentIDs []string `json:"commentIds,omitempty"`
 }
 
@@ -60,14 +61,22 @@ func newPRMergeCommand(ctx *commandContext) *cobra.Command {
 }
 
 func newPRResolveCommentsCommand(ctx *commandContext) *cobra.Command {
-	return &cobra.Command{
+	var prURL string
+	cmd := &cobra.Command{
 		Use:   "resolve-comments <pr-number> [comment-id...]",
 		Short: "Resolve review threads on a pull request",
-		Args:  usageArgs(cobra.MinimumNArgs(1)),
+		Long: "Resolve review threads on a tracked pull request. With no comment ids, every\n" +
+			"unresolved thread is resolved; otherwise only the threads that contain one of\n" +
+			"the comment ids (or are named by a thread id).",
+		Args: usageArgs(cobra.MinimumNArgs(1)),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			prNumber, err := normalizePRNumber(args[0])
 			if err != nil {
 				return err
+			}
+			prURL = strings.TrimSpace(prURL)
+			if prURL == "" {
+				return usageError{errors.New("--url is required: a PR number alone is ambiguous across repositories")}
 			}
 			commentIDs := make([]string, 0, len(args)-1)
 			for _, id := range args[1:] {
@@ -81,7 +90,7 @@ func newPRResolveCommentsCommand(ctx *commandContext) *cobra.Command {
 			if err := ctx.postJSON(
 				cmd.Context(),
 				"prs/"+url.PathEscape(prNumber)+"/resolve-comments",
-				resolveCommentsRequest{CommentIDs: commentIDs},
+				resolveCommentsRequest{PRURL: prURL, CommentIDs: commentIDs},
 				&res,
 			); err != nil {
 				return err
@@ -90,6 +99,8 @@ func newPRResolveCommentsCommand(ctx *commandContext) *cobra.Command {
 			return err
 		},
 	}
+	cmd.Flags().StringVar(&prURL, "url", "", "URL of the pull request (required)")
+	return cmd
 }
 
 func normalizePRNumber(raw string) (string, error) {

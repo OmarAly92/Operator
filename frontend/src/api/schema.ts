@@ -2840,6 +2840,12 @@ export interface components {
             ok: boolean;
             sessionId: string;
         };
+        ResolveCommentsRequest: {
+            /** @description Review comment or thread ids whose threads to resolve. Omit to resolve every unresolved thread. */
+            commentIds?: string[];
+            /** @description URL of the tracked pull request. */
+            prUrl: string;
+        };
         ResolveCommentsResponse: {
             ok: boolean;
             resolved: number;
@@ -6800,7 +6806,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ResolveCommentsRequest"];
+            };
+        };
         responses: {
             /** @description OK */
             200: {
@@ -6809,6 +6819,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ResolveCommentsResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
                 };
             };
             /** @description Not Found */

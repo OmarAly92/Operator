@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/url"
 	"path"
+	"strconv"
 	"strings"
 	"unicode/utf8"
 
@@ -32,6 +33,14 @@ func (t *mcpTools) registerActions(server *mcp.Server) {
 			"your session's branch namespace. Refuses a PR already claimed by another live session.",
 		Annotations: selfActionTool,
 	}, t.prClaim)
+	mcp.AddTool(server, &mcp.Tool{
+		Name:  "pr_resolve_comments",
+		Title: "Resolve review threads",
+		Description: "Resolve review threads on one of your session's pull requests, after you have addressed them. With no comment_ids, every unresolved " +
+			"thread is resolved; otherwise only the threads containing one of the ids. Ids are GitHub GraphQL node ids (PRRC_… for a comment, " +
+			"PRRT_… for a thread), as `gh api graphql` or `gh pr view --json` return them. Refuses a pull request not attributed to your session.",
+		Annotations: selfActionTool,
+	}, t.prResolveComments)
 	mcp.AddTool(server, &mcp.Tool{
 		Name:  "review_request",
 		Title: "Request an Operator review",
@@ -102,6 +111,64 @@ func (t *mcpTools) prClaim(ctx context.Context, _ *mcp.CallToolRequest, in prCla
 		})
 	}
 	return nil, out, nil
+}
+
+type prResolveCommentsInput struct {
+	PR         string   `json:"pr" jsonschema:"The pull request number or URL; it must be one of your session's pull requests."`
+	CommentIDs []string `json:"comment_ids,omitempty" jsonschema:"Review comment or thread node ids whose threads to resolve. Omit to resolve every unresolved thread."`
+}
+
+type prResolveCommentsOutput struct {
+	PR       int    `json:"pr"`
+	URL      string `json:"url"`
+	Resolved int    `json:"resolved"`
+}
+
+func (t *mcpTools) prResolveComments(ctx context.Context, _ *mcp.CallToolRequest, in prResolveCommentsInput) (*mcp.CallToolResult, prResolveCommentsOutput, error) {
+	want := strings.TrimPrefix(strings.TrimSpace(in.PR), "#")
+	if want == "" {
+		return nil, prResolveCommentsOutput{}, errors.New("pr is required")
+	}
+	commentIDs := make([]string, 0, len(in.CommentIDs))
+	for _, id := range in.CommentIDs {
+		if id = strings.TrimSpace(id); id != "" {
+			commentIDs = append(commentIDs, id)
+		}
+	}
+	self, err := t.session(ctx, t.id.SessionID)
+	if err != nil {
+		return nil, prResolveCommentsOutput{}, err
+	}
+	pr, err := ownPR(self.PRs, want)
+	if err != nil {
+		return nil, prResolveCommentsOutput{}, err
+	}
+	var res resolveCommentsResponse
+	req := resolveCommentsRequest{PRURL: pr.URL, CommentIDs: commentIDs}
+	if err := t.ctx.postJSON(ctx, "prs/"+strconv.Itoa(pr.Number)+"/resolve-comments", req, &res); err != nil {
+		return nil, prResolveCommentsOutput{}, err
+	}
+	return nil, prResolveCommentsOutput{PR: pr.Number, URL: pr.URL, Resolved: res.Resolved}, nil
+}
+
+// ownPR finds the pull request named by want (a number or URL) among the
+// session's own. Acting only on these is the tool's guardrail: the loopback
+// route itself would resolve threads on any tracked pull request.
+func ownPR(prs []sessionPRDTO, want string) (sessionPRDTO, error) {
+	var matches []sessionPRDTO
+	for _, pr := range prs {
+		if strings.EqualFold(strings.TrimRight(pr.URL, "/"), strings.TrimRight(want, "/")) || strconv.Itoa(pr.Number) == want {
+			matches = append(matches, pr)
+		}
+	}
+	switch len(matches) {
+	case 1:
+		return matches[0], nil
+	case 0:
+		return sessionPRDTO{}, fmt.Errorf("pull request %s is not attributed to your session (see session_get; pr_claim attributes one)", want)
+	default:
+		return sessionPRDTO{}, fmt.Errorf("pull request number %s matches several of your pull requests; pass its URL", want)
+	}
 }
 
 type reviewRequestInput struct{}
