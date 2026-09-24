@@ -221,7 +221,7 @@ class _TabItemView extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(item.icon, size: 24, color: color),
+          Icon(item.icon, size: GlassMetrics.tabGlyph, color: color),
           const SizedBox(height: 2),
           Text(
             item.label,

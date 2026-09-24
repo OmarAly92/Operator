@@ -38,7 +38,7 @@ light/rest 6.89 / 26.92 and dark/rest 6.26 / 23.42.
 | tabBarHeight | 62 | measured, matches |
 | tabBarSideInset | 64 | measured (native 3-tab bar is 274pt wide) |
 | tabBarBottomInset | 21 | measured, matches |
-| tabGlyph | 28 | plan |
+| tabGlyph | 24 | measured (native tab icon glyph) |
 | dropletInset | 4 | plan |
 | compactButtonHeight | 36 | measured (native `.glassProminent` capsule) |
 | primaryButtonInset | 16 | measured (right inset) |
@@ -92,6 +92,26 @@ Shadows (black, `BlurStyle.outer`): contact Î± 0.05 light / 0.06 dark, radius 1â
   GlassSheetChrome always draws one.
 - **Sheet label position.** The lab's "Sheet" text sits about 28pt lower than native's (lab
   content only).
+
+## Deviations from the spec and unfinished items
+
+- The `clear` variant's 35% dim layer (spec B) was not built.
+- Native mid-press captures (spec C) were not taken; the lab `lifted` scene is lab-only.
+- Reduce Transparency is out of scope (spec decision 2) and remains a follow-up.
+- `fillRatio` is 0.7, not the spec's 0.25, because native crops show a near-uniform rim.
+- The package default `fillRatio` stays 0.8 (plan) against the spec's 0.25.
+- Regular glass buttons are accent-tinted and prominent text is white, matching the native
+  reference's `.tint(accent)`. Accent #1ACB64 against white glass is about 2.1:1 contrast,
+  below WCAG AA for 17pt text; this is a design decision for the user before project 2.
+- The native reference was changed from a `VStack` to a `ScrollView` (spec: "a scrolling
+  list") so iOS draws its scroll-edge effect.
+- The sheet dims its barrier (black 0.20 light / 0.48 dark), fitted to native, where the
+  plan had a transparent barrier.
+- `tabBarSideInset` is 64 (the measured native 3-tab width), not the spec's 21pt; project 2
+  must size the bar by tab count.
+- `GlassTabBar`: a pointer-up far off the bar still selects, since the `Listener` is outside
+  the gesture arena. Fix before project 2 uses it on scrolling screens.
+- `ScrollEdgeEffect` re-measures its band origin only on rebuild. Fix before any sheet uses it.
 
 ## Not verified by these captures
 

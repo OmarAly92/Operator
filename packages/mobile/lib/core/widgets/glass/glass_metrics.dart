@@ -6,7 +6,7 @@ sealed class GlassMetrics {
   static const double tabBarHeight = 62;
   static const double tabBarSideInset = 64;
   static const double tabBarBottomInset = 21;
-  static const double tabGlyph = 28;
+  static const double tabGlyph = 24;
   static const double dropletInset = 4;
   static const double compactButtonHeight = 36;
   static const double primaryButtonInset = 16;
