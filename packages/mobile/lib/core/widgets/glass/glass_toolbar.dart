@@ -41,7 +41,7 @@ class GlassToolbar extends StatelessWidget {
                       title!,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: AppTextStyle.style16SemiBold.copyWith(color: context.skin.textPrimary),
+                      style: AppTextStyle.style17SemiBold.copyWith(color: context.skin.textPrimary),
                     ),
               trailing: trailing.isEmpty
                   ? null

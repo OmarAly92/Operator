@@ -134,7 +134,13 @@ class _GlassLabScreenState extends State<GlassLabScreen> {
               Positioned(
                 right: GlassMetrics.primaryButtonInset,
                 bottom: GlassMetrics.tabBarBottomInset + GlassMetrics.tabBarHeight + GlassMetrics.primaryButtonInset,
-                child: GlassButton.label(label: 'Run', icon: Icons.play_arrow_rounded, prominent: true, onPressed: () {}),
+                child: GlassButton.label(
+                  label: 'Run',
+                  icon: Icons.play_arrow_rounded,
+                  prominent: true,
+                  compact: true,
+                  onPressed: () {},
+                ),
               ),
             if (scene != GlassLabScene.corners)
               Positioned(

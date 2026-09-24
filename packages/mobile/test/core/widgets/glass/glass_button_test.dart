@@ -6,6 +6,7 @@ import 'package:liquid_glass_renderer/liquid_glass_renderer.dart';
 import 'package:operator_mobile/core/app_themes/colors/light_skin.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/widgets/glass/glass_button.dart';
+import 'package:operator_mobile/core/widgets/glass/glass_surface.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -101,5 +102,21 @@ void main() {
     final size = tester.getSize(find.byType(GlassButton));
     expect(size.width, greaterThanOrEqualTo(44));
     expect(size.height, greaterThanOrEqualTo(44));
+  });
+
+  testWidgets('compact label button keeps a 44pt hit target with a 36pt capsule', (tester) async {
+    var taps = 0;
+    await tester.pumpWidget(
+      host(GlassButton.label(label: 'Run', compact: true, onPressed: () => taps++)),
+    );
+    final buttonSize = tester.getSize(find.byType(GlassButton));
+    expect(buttonSize.height, greaterThanOrEqualTo(44));
+    final surfaceSize = tester.getSize(find.byType(GlassSurface));
+    expect(surfaceSize.height, 36);
+    final buttonCenter = tester.getCenter(find.byType(GlassButton));
+    final marginPoint = Offset(buttonCenter.dx, buttonCenter.dy + (surfaceSize.height / 2) + 2);
+    await tester.tapAt(marginPoint);
+    await tester.pumpAndSettle();
+    expect(taps, 1);
   });
 }
