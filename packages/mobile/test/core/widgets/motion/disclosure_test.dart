@@ -135,23 +135,56 @@ void main() {
       expect(tester.getSize(find.byType(Disclosure)).height, 40);
     });
 
-    testWidgets('collapse holds full height through the fade, then shrinks', (tester) async {
+    testWidgets('collapsing is strictly between full and 0 at half duration', (tester) async {
       await tester.pumpWidget(disclosureHost(true));
       await tester.pump(AppMotion.disclosure);
       expect(tester.getSize(find.byType(Disclosure)).height, 40);
 
       await tester.pumpWidget(disclosureHost(false));
-      await tester.pump(const Duration(milliseconds: 50));
-      expect(tester.getSize(find.byType(Disclosure)).height, 40);
-      await tester.pump(const Duration(milliseconds: 50));
-      expect(tester.getSize(find.byType(Disclosure)).height, 40);
-      await tester.pump(const Duration(milliseconds: 50));
-      expect(tester.getSize(find.byType(Disclosure)).height, 40);
-
-      await tester.pump(const Duration(milliseconds: 50));
+      await tester.pump(AppMotion.disclosure ~/ 2);
       final height = tester.getSize(find.byType(Disclosure)).height;
       expect(height, greaterThan(0));
       expect(height, lessThan(40));
+
+      await tester.pump(AppMotion.disclosure ~/ 2);
+      expect(tester.getSize(find.byType(Disclosure)).height, 0);
+    });
+
+    testWidgets('content fades out within disclosureOut while collapsing', (tester) async {
+      await tester.pumpWidget(disclosureHost(true));
+      await tester.pumpWidget(disclosureHost(false));
+      await tester.pump(AppMotion.disclosureOut);
+
+      final fade = tester.widget<FadeTransition>(
+        find.descendant(of: find.byType(Disclosure), matching: find.byType(FadeTransition)),
+      );
+      expect(fade.opacity.value, 0);
+      expect(tester.getSize(find.byType(Disclosure)).height, greaterThan(0));
+    });
+
+    testWidgets('content fades in within disclosureIn while expanding', (tester) async {
+      await tester.pumpWidget(disclosureHost(false));
+      await tester.pumpWidget(disclosureHost(true));
+      await tester.pump(AppMotion.disclosureIn);
+
+      final fade = tester.widget<FadeTransition>(
+        find.descendant(of: find.byType(Disclosure), matching: find.byType(FadeTransition)),
+      );
+      expect(fade.opacity.value, 1);
+      expect(tester.getSize(find.byType(Disclosure)).height, lessThan(40));
+    });
+
+    testWidgets('re-expanding mid-collapse reverses from where it is', (tester) async {
+      await tester.pumpWidget(disclosureHost(true));
+      await tester.pumpWidget(disclosureHost(false));
+      await tester.pump(AppMotion.disclosure ~/ 2);
+      final mid = tester.getSize(find.byType(Disclosure)).height;
+
+      await tester.pumpWidget(disclosureHost(true));
+      await tester.pump(const Duration(milliseconds: 16));
+      final after = tester.getSize(find.byType(Disclosure)).height;
+      expect(after, greaterThan(mid));
+      expect(after, lessThan(40));
     });
 
     testWidgets('keeps child state while expanded across rebuilds', (tester) async {

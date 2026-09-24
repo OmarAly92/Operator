@@ -29,34 +29,76 @@ class DisclosureChevron extends StatelessWidget {
   }
 }
 
-class Disclosure extends StatelessWidget {
+class Disclosure extends StatefulWidget {
   const Disclosure({super.key, required this.expanded, required this.child});
 
   final bool expanded;
   final Widget child;
 
   @override
+  State<Disclosure> createState() => _DisclosureState();
+}
+
+class _DisclosureState extends State<Disclosure> with SingleTickerProviderStateMixin {
+  static final double _fadeInEnd = AppMotion.disclosureIn.inMicroseconds / AppMotion.disclosure.inMicroseconds;
+  static final double _fadeOutStart = 1 - AppMotion.disclosureOut.inMicroseconds / AppMotion.disclosure.inMicroseconds;
+
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: AppMotion.disclosure,
+    value: widget.expanded ? 1 : 0,
+  )..addStatusListener(_onStatus);
+
+  late final Animation<double> _size = CurvedAnimation(
+    parent: _controller,
+    curve: AppMotion.easeOut,
+    reverseCurve: AppMotion.easeOut.flipped,
+  );
+
+  late final Animation<double> _fade = CurvedAnimation(
+    parent: _controller,
+    curve: Interval(0, _fadeInEnd, curve: AppMotion.easeOut),
+    reverseCurve: Interval(_fadeOutStart, 1, curve: AppMotion.easeOut.flipped),
+  );
+
+  void _onStatus(AnimationStatus status) {
+    if (status == AnimationStatus.dismissed && mounted) setState(() {});
+  }
+
+  @override
+  void didUpdateWidget(covariant Disclosure oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.expanded == oldWidget.expanded) return;
+    if (MediaQuery.disableAnimationsOf(context)) {
+      _controller.value = widget.expanded ? 1 : 0;
+    } else if (widget.expanded) {
+      _controller.forward();
+    } else {
+      _controller.reverse();
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     if (MediaQuery.disableAnimationsOf(context)) {
-      return ClipRect(child: expanded ? child : const SizedBox.shrink());
+      return ClipRect(child: widget.expanded ? widget.child : const SizedBox.shrink());
     }
 
-    final switchDuration = expanded ? AppMotion.disclosureIn : AppMotion.disclosureOut;
-    return ClipRect(
-      child: AnimatedSize(
-        duration: AppMotion.disclosure,
-        curve: AppMotion.easeOut,
-        alignment: Alignment.topCenter,
-        child: AnimatedSwitcher(
-          duration: switchDuration,
-          switchInCurve: AppMotion.easeOut,
-          switchOutCurve: AppMotion.easeOut,
-          transitionBuilder: (transitionChild, animation) =>
-              FadeTransition(opacity: animation, child: transitionChild),
-          child: expanded
-              ? KeyedSubtree(key: const ValueKey('expanded'), child: child)
-              : const SizedBox.shrink(key: ValueKey('collapsed')),
-        ),
+    final mounted = widget.expanded || !_controller.isDismissed;
+    return SizeTransition(
+      sizeFactor: _size,
+      axisAlignment: -1,
+      child: FadeTransition(
+        opacity: _fade,
+        child: mounted
+            ? KeyedSubtree(key: const ValueKey('expanded'), child: widget.child)
+            : const SizedBox.shrink(key: ValueKey('collapsed')),
       ),
     );
   }
