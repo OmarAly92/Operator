@@ -2118,8 +2118,8 @@ func TestSpawn_WorkspaceProjectRecordsRootAndChildWorktrees(t *testing.T) {
 	if rec.Metadata.WorkspacePath != managedPath {
 		t.Fatalf("workspace path = %q, want root worktree path", rec.Metadata.WorkspacePath)
 	}
-	if rec.Metadata.Branch != "opr/mer-1" {
-		t.Fatalf("workspace branch = %q, want opr/mer-1", rec.Metadata.Branch)
+	if rec.Metadata.Branch != "opr/mer-1/root" {
+		t.Fatalf("workspace branch = %q, want opr/mer-1/root", rec.Metadata.Branch)
 	}
 	if got := ws.lastProjectCfg.RootRepoPath; got != projectPath {
 		t.Fatalf("root repo path = %q, want %q", got, projectPath)
@@ -2905,6 +2905,19 @@ func TestSpawn_DefaultsBranchFromSessionID(t *testing.T) {
 	}
 	if !st.sessions[s.ID].AutoInjectReview {
 		t.Fatal("automatic review injection must default to enabled")
+	}
+}
+
+func TestDefaultSpawnBranch_WorkspaceUsesRootShape(t *testing.T) {
+	// A workspace branch without /root would leave no Git-valid sibling name for
+	// a second PR: opr/<id>/<topic> cannot exist beside opr/<id>.
+	for _, kind := range []domain.ProjectKind{domain.ProjectKindSingleRepo, domain.ProjectKindWorkspace} {
+		if got := DefaultSpawnBranch("mer-1", kind, ""); got != "opr/mer-1/root" {
+			t.Errorf("DefaultSpawnBranch(%s) = %q, want opr/mer-1/root", kind, got)
+		}
+	}
+	if got := DefaultSpawnBranch("mer-1", domain.ProjectKindScratch, ""); got != "" {
+		t.Errorf("DefaultSpawnBranch(scratch) = %q, want empty", got)
 	}
 }
 

@@ -2559,11 +2559,10 @@ func DefaultSpawnBranch(id domain.SessionID, projectKind domain.ProjectKind, dat
 	if projectKind == domain.ProjectKindScratch {
 		return ""
 	}
-	branchNamespace := generatedBranchNamespace(dataDir)
-	if projectKind == domain.ProjectKindWorkspace {
-		return operatorBranch(branchNamespace, string(id))
-	}
-	return defaultSessionBranch(id, branchNamespace)
+	// Workspace projects use the same /root shape as single-repo projects: a bare
+	// opr/<session> branch would leave no Git-valid name for a second PR, since
+	// opr/<session>/<topic> cannot exist beside it.
+	return defaultSessionBranch(id, generatedBranchNamespace(dataDir))
 }
 
 func operatorBranch(namespace string, parts ...string) string {
