@@ -350,8 +350,8 @@ func TestShellBlocksRestartAdoptsLiveHelperAndJournal(t *testing.T) {
 	h := newShellBlocksHarness(t, "shell-blocks-reader-restart")
 	commands := []string{
 		"printf 'before-reader-stop\\n'",
-		"printf 'while-reader-gone-one\\n'",
-		"printf 'while-reader-gone-two\\n'",
+		"printf 'while-reader-gone-%s\\n' one",
+		"printf 'while-reader-gone-%s\\n' two",
 	}
 	h.send(t, commands[0])
 	h.waitHistory(t, 1)
@@ -364,6 +364,7 @@ func TestShellBlocksRestartAdoptsLiveHelperAndJournal(t *testing.T) {
 	}
 
 	h.send(t, commands[1])
+	h.waitPaneOutput(t, "while-reader-gone-one", 10*time.Second)
 	h.send(t, commands[2])
 	h.waitPaneOutput(t, "while-reader-gone-two", 10*time.Second)
 	h.replaceSupervisor(t, true)
