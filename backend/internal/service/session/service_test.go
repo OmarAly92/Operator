@@ -1192,6 +1192,9 @@ type fakeCommander struct {
 	killsAtSpawn       int
 	restoreErr         error
 	restoreResult      sessionmanager.RestoreResult
+
+	restartedTerminals  []domain.SessionID
+	restartTerminalGrid ports.PaneGrid
 }
 
 func (f *fakeCommander) Spawn(_ context.Context, cfg ports.SpawnConfig) (domain.SessionRecord, int, int, error) {
@@ -1228,6 +1231,14 @@ func (f *fakeCommander) RestoreWithMode(context.Context, domain.SessionID, ports
 func (f *fakeCommander) RelaunchAgentFresh(_ context.Context, id domain.SessionID, cfg sessionmanager.RelaunchAgentConfig) (sessionmanager.RestoreResult, error) {
 	f.relaunched = append(f.relaunched, id)
 	f.relaunchKeptPrompt = cfg.KeepPrompt
+	if f.restoreErr != nil {
+		return sessionmanager.RestoreResult{}, f.restoreErr
+	}
+	return f.restoreResult, nil
+}
+func (f *fakeCommander) RestartTerminal(_ context.Context, id domain.SessionID, grid ports.PaneGrid) (sessionmanager.RestoreResult, error) {
+	f.restartedTerminals = append(f.restartedTerminals, id)
+	f.restartTerminalGrid = grid
 	if f.restoreErr != nil {
 		return sessionmanager.RestoreResult{}, f.restoreErr
 	}
@@ -1783,6 +1794,48 @@ func TestResumeAgentMapsManagerModeToServiceView(t *testing.T) {
 	}
 	if got.Session.ID != "mer-1" || got.Mode != RestoreModeViewNative {
 		t.Fatalf("resume outcome = %+v", got)
+	}
+}
+
+func TestRestartTerminalForwardsTheGridAndMapsTheMode(t *testing.T) {
+	st := newFakeStore()
+	rec := domain.SessionRecord{
+		ID:        "mer-1",
+		ProjectID: "mer",
+		Harness:   domain.HarnessCodex,
+		Activity:  domain.Activity{State: domain.ActivityIdle},
+	}
+	fc := &fakeCommander{
+		restoreResult: sessionmanager.RestoreResult{
+			Session: rec,
+			Mode:    sessionmanager.RestoreModeNative,
+		},
+	}
+	svc := &Service{manager: fc, store: st}
+
+	got, err := svc.RestartTerminal(context.Background(), "mer-1", ports.PaneGrid{Cols: 132, Rows: 43})
+	if err != nil {
+		t.Fatalf("RestartTerminal: %v", err)
+	}
+	if got.Session.ID != "mer-1" || got.Mode != RestoreModeViewNative {
+		t.Fatalf("restart outcome = %+v", got)
+	}
+	if len(fc.restartedTerminals) != 1 || fc.restartedTerminals[0] != "mer-1" {
+		t.Fatalf("restarted = %v, want [mer-1]", fc.restartedTerminals)
+	}
+	if fc.restartTerminalGrid != (ports.PaneGrid{Cols: 132, Rows: 43}) {
+		t.Fatalf("grid = %+v, want 132x43", fc.restartTerminalGrid)
+	}
+}
+
+func TestRestartTerminalMapsATerminatedSessionToAConflict(t *testing.T) {
+	fc := &fakeCommander{restoreErr: fmt.Errorf("restart terminal mer-1: %w", sessionmanager.ErrTerminated)}
+	svc := &Service{manager: fc, store: newFakeStore()}
+
+	_, err := svc.RestartTerminal(context.Background(), "mer-1", ports.PaneGrid{})
+	var apiErr *apierr.Error
+	if !errors.As(err, &apiErr) || apiErr.Code != "SESSION_TERMINATED" {
+		t.Fatalf("restart of a terminated session = %v, want SESSION_TERMINATED", err)
 	}
 }
 

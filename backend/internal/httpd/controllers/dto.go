@@ -610,6 +610,18 @@ type RelaunchAgentResponse struct {
 	Session      SessionView                `json:"session"`
 }
 
+type RestartTerminalRequest struct {
+	Cols int `json:"cols,omitempty" description:"Columns of the terminal pane that shows the session, so the fresh pty is born at that width. Omit when unknown." minimum:"1" maximum:"1000"`
+	Rows int `json:"rows,omitempty" description:"Rows of the terminal pane that shows the session; see cols." minimum:"1" maximum:"1000"`
+}
+
+type RestartTerminalResponse struct {
+	OK          bool                       `json:"ok"`
+	SessionID   domain.SessionID           `json:"sessionId"`
+	RestartMode sessionsvc.RestoreModeView `json:"restartMode" enum:"native,saved_prompt,fresh"`
+	Session     SessionView                `json:"session"`
+}
+
 // KillSessionResponse is the body of POST /api/v1/sessions/{sessionId}/kill.
 type KillSessionResponse struct {
 	OK        bool             `json:"ok"`
