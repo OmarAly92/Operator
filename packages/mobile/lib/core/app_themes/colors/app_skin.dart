@@ -132,6 +132,8 @@ abstract class AppSkin {
   /// label color of the primary "Launch session" button.
   Color get onAccent;
 
+  Color get onGlassProminent;
+
   /// The dimmed layer covering the screen behind dialogs and sheets.
   /// Example: the dark overlay behind an open session's terminal sheet.
   Color get scrim;

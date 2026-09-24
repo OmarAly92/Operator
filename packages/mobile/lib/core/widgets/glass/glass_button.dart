@@ -47,8 +47,15 @@ class _GlassButtonState extends State<GlassButton> {
   bool get _enabled => widget.onPressed != null;
 
   void _setPressed(bool value) {
-    if (!_enabled || _pressed == value) return;
+    if (value && !_enabled) return;
+    if (_pressed == value) return;
     setState(() => _pressed = value);
+  }
+
+  @override
+  void didUpdateWidget(covariant GlassButton oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!_enabled && _pressed) setState(() => _pressed = false);
   }
 
   void _handleTap() {
@@ -60,7 +67,7 @@ class _GlassButtonState extends State<GlassButton> {
   Widget build(BuildContext context) {
     final skin = context.skin;
     final reduceMotion = MediaQuery.disableAnimationsOf(context);
-    final foreground = widget.prominent ? const Color(0xFFFFFFFF) : skin.accent;
+    final foreground = widget.prominent ? skin.onGlassProminent : skin.accent;
     final isIcon = widget.label == null;
     final capsuleHeight = widget.compact ? GlassMetrics.compactButtonHeight : GlassMetrics.hitTarget;
     final horizontalPadding = widget.compact ? GlassMetrics.compactLabelButtonPadding : GlassMetrics.labelButtonPadding;

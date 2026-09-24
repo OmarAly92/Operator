@@ -104,6 +104,39 @@ void main() {
     expect(size.height, greaterThanOrEqualTo(44));
   });
 
+  testWidgets('disabling mid-press releases the pressed scale', (tester) async {
+    VoidCallback? onPressed = () {};
+    await tester.pumpWidget(
+      host(
+        StatefulBuilder(
+          builder: (context, setState) => GlassButton.icon(
+            icon: Icons.add,
+            onPressed: onPressed,
+            semanticLabel: 'action',
+          ),
+        ),
+      ),
+    );
+    final gesture = await tester.startGesture(tester.getCenter(find.byType(GlassButton)));
+    await tester.pump();
+    expect(scaleOf(tester), GlassButton.pressedScale);
+    onPressed = null;
+    await tester.pumpWidget(
+      host(
+        StatefulBuilder(
+          builder: (context, setState) => GlassButton.icon(
+            icon: Icons.add,
+            onPressed: onPressed,
+            semanticLabel: 'action',
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(scaleOf(tester), 1.0);
+    await gesture.up();
+  });
+
   testWidgets('compact label button keeps a 44pt hit target with a 36pt capsule', (tester) async {
     var taps = 0;
     await tester.pumpWidget(
