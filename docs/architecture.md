@@ -597,7 +597,21 @@ get no server.
 - Claude Code: inline `--mcp-config` JSON (additive; never `--strict-mcp-config`,
   never a worktree `.mcp.json`) and `mcp__operator` pre-approved via `--allowedTools`.
 - Tools: `board_get`, `session_get` and `ticket_get` (read-only, thin wrappers over
-  daemon routes). The plan for the remaining phases is `docs/plans/kanban-mcp.md`.
+  daemon routes), and `session_report` (self-scoped). The full plan is
+  `docs/plans/kanban-mcp.md`.
+
+### Agent Report
+
+`session_report` writes `PUT/DELETE /sessions/{id}/agent-report`, which the
+lifecycle manager persists as the durable `agent_report_*` columns (migration
+0118; written only by their own queries, never by `UpdateSession`). Status
+derivation reads the report below live activity: `needs_you` → `needs_input`
+(outranks PR state), `ready_for_review` → `review_pending` (any PR fact wins).
+The next user turn (`user-prompt-submit`, or an untagged idle/waiting→active
+signal) clears it; a permission prompt resolving mid-turn does not. A needs_you
+report alerts when it takes effect: at the end of the turn, replacing the
+`turn_finished` alert, or immediately if the agent is already idle. The alert
+body is the agent's reason.
 
 ### PR Pipeline States
 

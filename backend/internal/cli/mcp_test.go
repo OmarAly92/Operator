@@ -135,14 +135,15 @@ func TestMCPServerAdvertisesReadToolsAndBoardInstructions(t *testing.T) {
 		t.Fatalf("list tools: %v", err)
 	}
 	var names []string
+	readOnly := map[string]bool{"board_get": true, "session_get": true, "ticket_get": true}
 	for _, tool := range tools.Tools {
 		names = append(names, tool.Name)
-		if tool.Annotations == nil || !tool.Annotations.ReadOnlyHint {
-			t.Errorf("tool %s is not annotated read-only", tool.Name)
+		if tool.Annotations == nil || tool.Annotations.ReadOnlyHint != readOnly[tool.Name] {
+			t.Errorf("tool %s read-only annotation = %+v, want %v", tool.Name, tool.Annotations, readOnly[tool.Name])
 		}
 	}
 	sort.Strings(names)
-	if want := []string{"board_get", "session_get", "ticket_get"}; !reflect.DeepEqual(names, want) {
+	if want := []string{"board_get", "session_get", "session_report", "ticket_get"}; !reflect.DeepEqual(names, want) {
 		t.Fatalf("tools = %v, want %v", names, want)
 	}
 }

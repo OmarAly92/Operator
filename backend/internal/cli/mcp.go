@@ -26,6 +26,11 @@ Use the operator tools to see the board:
 - board_get: every card in a project, grouped by column. Check it before starting broad work so you do not duplicate what another session in the project is already doing.
 - ticket_get: the ticket and plan your session belongs to, when it was started from one.
 
+Report your own state with session_report — hooks cannot tell "finished" from "waiting on the user", only you can:
+- Before you end a turn waiting on the user (a question, a decision, missing access or credentials), call session_report with state needs_you and a one-line reason. Otherwise your card reads Idle and nobody is alerted.
+- When the work is complete and there is no pull request to review (for example a project with no remote), call session_report with state ready_for_review and a one-line summary.
+- The report clears itself when the user next messages you. Use state clear only to withdraw a report you made by mistake.
+
 Never try to move, stop or change another session's card.`
 
 // mcpIdentity is the Operator session an `opr mcp` process serves. It comes from

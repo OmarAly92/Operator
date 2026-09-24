@@ -206,6 +206,12 @@ type AttachmentInput struct {
 	Data string `json:"data"`
 }
 
+// SetAgentReportRequest is the body of PUT /api/v1/sessions/{sessionId}/agent-report.
+type SetAgentReportRequest struct {
+	State  domain.AgentReportState `json:"state" enum:"needs_you,ready_for_review" description:"needs_you: the agent is waiting on the user. ready_for_review: the work is complete and there is no PR to review."`
+	Reason string                  `json:"reason,omitempty" maxLength:"280" description:"One line shown on the card and in the Needs you alert. Required for needs_you."`
+}
+
 // SessionResponse is the { session } body shared by session reads and updates.
 type SessionResponse struct {
 	Session SessionView `json:"session"`

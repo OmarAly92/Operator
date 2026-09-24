@@ -149,6 +149,7 @@ type Service struct {
 	// the no_signal downgrade: a hook-less harness staying silent forever is
 	// normal, not a broken pipeline. nil means "unknown": never downgrade.
 	signalCapable func(domain.AgentHarness) bool
+	agentReports  agentReporter
 }
 
 // New wires a controller-facing session service over an internal session Manager.
@@ -177,11 +178,20 @@ type Deps struct {
 	// wiring passes activitydispatch.SupportsHarness. Left nil, no session is
 	// ever downgraded to no_signal.
 	SignalCapable func(domain.AgentHarness) bool
+	// AgentReports records agent-reported card state; daemon wiring passes the
+	// lifecycle manager, which owns the alert that goes with a report.
+	AgentReports agentReporter
+}
+
+// agentReporter persists an agent report (nil clears it) together with its
+// notification side effects.
+type agentReporter interface {
+	SetAgentReport(ctx context.Context, id domain.SessionID, report *domain.AgentReport) error
 }
 
 // NewWithDeps wires a session service with optional PR-claim dependencies.
 func NewWithDeps(d Deps) *Service {
-	s := &Service{manager: d.Manager, store: d.Store, prClaimer: d.PRClaimer, scm: d.SCM, tracker: d.Tracker, clock: d.Clock, dataDir: d.DataDir, signalCapable: d.SignalCapable, telemetry: d.Telemetry, logger: d.Logger}
+	s := &Service{manager: d.Manager, store: d.Store, prClaimer: d.PRClaimer, scm: d.SCM, tracker: d.Tracker, clock: d.Clock, dataDir: d.DataDir, signalCapable: d.SignalCapable, telemetry: d.Telemetry, logger: d.Logger, agentReports: d.AgentReports}
 	if s.prClaimer == nil {
 		if w, ok := d.Store.(ports.PRClaimer); ok {
 			s.prClaimer = w

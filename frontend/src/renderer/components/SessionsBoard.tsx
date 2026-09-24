@@ -895,6 +895,7 @@ function SessionCard({
 					<span
 						className={cn("inline-flex min-w-0 items-center gap-1.5 truncate text-2xs font-medium", badge.className)}
 						style={showLiveActivity ? { color: activity.tone } : undefined}
+						title={session.statusReason}
 					>
 						<span
 							aria-hidden="true"
@@ -913,6 +914,18 @@ function SessionCard({
 						</span>
 					</div>
 				</div>
+				{session.agentReport ? (
+					<p
+						className="line-clamp-2 text-2xs leading-snug text-muted-foreground"
+						data-testid="board-agent-report"
+						title={session.agentReport.reason || undefined}
+					>
+						{session.agentReport.reason ||
+							(session.agentReport.state === "ready_for_review"
+								? t("board.agentReport.readyForReview")
+								: t("board.agentReport.needsYou"))}
+					</p>
+				) : null}
 				{prSummaries.length > 0 && (
 					<div className="flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-2xs text-passive">
 						{groupPRsByLifecycle(prSummaries).map((group) => (

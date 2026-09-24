@@ -217,7 +217,8 @@ effect when the turn ends, which is the intended moment.
 - the harness's user-prompt-submitted event (Claude `UserPromptSubmit`, Codex
   equivalent). This fires when the user answers, and also on Operator nudges, which
   are pasted user turns.
-- terminate. A restore keeps the report (see Decisions).
+- nothing else: terminate does not clear it, so a restore keeps it (see
+  Decisions). Terminate resolves the report's alert.
 - an explicit `session_report clear`.
 
 Do not clear on every transition into `active`: a permission dialog

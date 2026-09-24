@@ -95,6 +95,10 @@ async function fetchWorkspaces(): Promise<WorkspaceSummary[]> {
 						workspacePath: session.workspacePath,
 						status,
 						scmStatus,
+						statusReason: session.statusReason || undefined,
+						agentReport: session.agentReport
+							? { state: session.agentReport.state, reason: session.agentReport.reason }
+							: undefined,
 						isTerminated: session.isTerminated,
 						hasSavedPrompt: session.hasSavedPrompt ?? false,
 						terminateOnPrMerge: session.terminateOnPrMerge ?? false,

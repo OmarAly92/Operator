@@ -62,3 +62,41 @@ func TestDeriveStatusReasonExplainsTheDerivedStatus(t *testing.T) {
 		})
 	}
 }
+
+func TestDeriveStatusAppliesAgentReportBelowLiveActivity(t *testing.T) {
+	withReport := func(activity domain.ActivityState, state domain.AgentReportState) domain.SessionRecord {
+		rec := statusRec(activity, false)
+		rec.AgentReport = &domain.AgentReport{State: state, Reason: "why", At: statusNow}
+		return rec
+	}
+	openPR := statusPR(domain.PRFacts{URL: "u/3", Number: 3, CI: domain.CIPassing})
+	tests := []struct {
+		name string
+		rec  domain.SessionRecord
+		prs  []domain.PRFacts
+		want domain.SessionStatus
+	}{
+		{"a live turn still reads working", withReport(domain.ActivityActive, domain.AgentReportNeedsYou), nil, domain.StatusWorking},
+		{"needs_you once idle", withReport(domain.ActivityIdle, domain.AgentReportNeedsYou), nil, domain.StatusNeedsInput},
+		{"needs_you outranks an open PR", withReport(domain.ActivityIdle, domain.AgentReportNeedsYou), openPR, domain.StatusNeedsInput},
+		{"exited outranks needs_you", withReport(domain.ActivityExited, domain.AgentReportNeedsYou), nil, domain.StatusExited},
+		{"ready_for_review stands in for a PR", withReport(domain.ActivityIdle, domain.AgentReportReadyForReview), nil, domain.StatusReviewPending},
+		{"a real PR outranks ready_for_review", withReport(domain.ActivityIdle, domain.AgentReportReadyForReview), openPR, domain.StatusPROpen},
+		{"terminated outranks any report", func() domain.SessionRecord {
+			rec := withReport(domain.ActivityIdle, domain.AgentReportNeedsYou)
+			rec.IsTerminated = true
+			return rec
+		}(), nil, domain.StatusTerminated},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := deriveStatus(tc.rec, tc.prs, statusNow, true); got != tc.want {
+				t.Fatalf("status = %s, want %s", got, tc.want)
+			}
+		})
+	}
+	ready := withReport(domain.ActivityIdle, domain.AgentReportReadyForReview)
+	if got := deriveStatusReason(domain.StatusReviewPending, ready, nil); got != "Agent reports ready for review: why" {
+		t.Fatalf("ready reason = %q", got)
+	}
+}

@@ -8,6 +8,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/OmarAly92/operator/backend/internal/domain"
@@ -25,6 +26,10 @@ type mcpTools struct {
 const mcpCardBriefLimit = 280
 
 var readOnlyTool = &mcp.ToolAnnotations{ReadOnlyHint: true, OpenWorldHint: new(bool)}
+
+// selfActionTool marks the self-scoped actions: they change only the calling
+// session's own card, never destructively.
+var selfActionTool = &mcp.ToolAnnotations{DestructiveHint: new(bool), IdempotentHint: true, OpenWorldHint: new(bool)}
 
 func (t *mcpTools) register(server *mcp.Server) {
 	mcp.AddTool(server, &mcp.Tool{
@@ -45,27 +50,39 @@ func (t *mcpTools) register(server *mcp.Server) {
 		Description: "Get an Operator ticket: title, brief, status, its folder and files, and each plan phase with its status and sessions. Defaults to the ticket your session was started from, including your role (planning, implementing, reviewing) and plan file.",
 		Annotations: readOnlyTool,
 	}, t.ticketGet)
+	mcp.AddTool(server, &mcp.Tool{
+		Name:  "session_report",
+		Title: "Report your state",
+		Description: "Report your own card's state on the Operator board. state needs_you: call this BEFORE ending a turn in which you are waiting on the user " +
+			"(a question, a decision, missing access); reason is required and is shown on the card and in the user's alert. " +
+			"state ready_for_review: the work is complete and there is no pull request to review; reason is a one-line summary. " +
+			"state clear: withdraw a report made by mistake (a report also clears itself when the user next messages you). " +
+			"Affects only your own session.",
+		InputSchema: sessionReportSchema(),
+		Annotations: selfActionTool,
+	}, t.sessionReport)
 }
 
 // ---- wire shapes (hand-mirrored from the daemon DTOs, as elsewhere in the CLI) ----
 
 type mcpSessionWire struct {
-	ID                    string          `json:"id"`
-	ProjectID             string          `json:"projectId"`
-	Harness               string          `json:"harness,omitempty"`
-	DisplayName           string          `json:"displayName,omitempty"`
-	Activity              sessionActivity `json:"activity"`
-	IsTerminated          bool            `json:"isTerminated"`
-	Status                string          `json:"status"`
-	BoardColumn           string          `json:"boardColumn"`
-	StatusReason          string          `json:"statusReason"`
-	Branch                string          `json:"branch,omitempty"`
-	WorkspacePath         string          `json:"workspacePath,omitempty"`
-	PRs                   []sessionPRDTO  `json:"prs"`
-	Brief                 string          `json:"brief,omitempty"`
-	LatestUserPrompt      string          `json:"latestUserPrompt,omitempty"`
-	LatestAssistantUpdate string          `json:"latestAssistantUpdate,omitempty"`
-	Ticket                *mcpTicketRef   `json:"ticket,omitempty"`
+	ID                    string           `json:"id"`
+	ProjectID             string           `json:"projectId"`
+	Harness               string           `json:"harness,omitempty"`
+	DisplayName           string           `json:"displayName,omitempty"`
+	Activity              sessionActivity  `json:"activity"`
+	IsTerminated          bool             `json:"isTerminated"`
+	Status                string           `json:"status"`
+	BoardColumn           string           `json:"boardColumn"`
+	StatusReason          string           `json:"statusReason"`
+	Branch                string           `json:"branch,omitempty"`
+	WorkspacePath         string           `json:"workspacePath,omitempty"`
+	PRs                   []sessionPRDTO   `json:"prs"`
+	Brief                 string           `json:"brief,omitempty"`
+	LatestUserPrompt      string           `json:"latestUserPrompt,omitempty"`
+	LatestAssistantUpdate string           `json:"latestAssistantUpdate,omitempty"`
+	Ticket                *mcpTicketRef    `json:"ticket,omitempty"`
+	AgentReport           *agentReportWire `json:"agentReport,omitempty"`
 }
 
 type mcpSessionWireResponse struct {
@@ -171,18 +188,24 @@ type mcpCardTicket struct {
 }
 
 type mcpCard struct {
-	SessionID      string         `json:"session_id"`
-	Name           string         `json:"name"`
-	IsSelf         bool           `json:"is_self"`
-	Harness        string         `json:"harness,omitempty"`
-	Status         string         `json:"status"`
-	Column         string         `json:"column"`
-	StatusReason   string         `json:"status_reason"`
-	Branch         string         `json:"branch,omitempty"`
-	Brief          string         `json:"brief,omitempty"`
-	PRs            []mcpPR        `json:"prs"`
-	Ticket         *mcpCardTicket `json:"ticket,omitempty"`
-	LastActivityAt string         `json:"last_activity_at,omitempty"`
+	SessionID      string          `json:"session_id"`
+	Name           string          `json:"name"`
+	IsSelf         bool            `json:"is_self"`
+	Harness        string          `json:"harness,omitempty"`
+	Status         string          `json:"status"`
+	Column         string          `json:"column"`
+	StatusReason   string          `json:"status_reason"`
+	Branch         string          `json:"branch,omitempty"`
+	Brief          string          `json:"brief,omitempty"`
+	PRs            []mcpPR         `json:"prs"`
+	Ticket         *mcpCardTicket  `json:"ticket,omitempty"`
+	AgentReport    *mcpAgentReport `json:"agent_report,omitempty"`
+	LastActivityAt string          `json:"last_activity_at,omitempty"`
+}
+
+type mcpAgentReport struct {
+	State  string `json:"state"`
+	Reason string `json:"reason,omitempty"`
 }
 
 type mcpBoardProject struct {
@@ -281,7 +304,46 @@ type ticketGetOutput struct {
 	YourPlan  string    `json:"your_plan_file,omitempty"`
 }
 
+type sessionReportInput struct {
+	State  string `json:"state" jsonschema:"needs_you, ready_for_review or clear"`
+	Reason string `json:"reason,omitempty" jsonschema:"One line (at most 280 characters) shown on your card and in the Needs you alert. Required for needs_you."`
+}
+
+// sessionReportSchema is the inferred input schema with state narrowed to its
+// three values, which the struct tags cannot express.
+func sessionReportSchema() *jsonschema.Schema {
+	schema, err := jsonschema.For[sessionReportInput](nil)
+	if err != nil {
+		panic(fmt.Sprintf("session_report schema: %v", err))
+	}
+	schema.Properties["state"].Enum = []any{string(domain.AgentReportNeedsYou), string(domain.AgentReportReadyForReview), "clear"}
+	return schema
+}
+
+type agentReportWire struct {
+	State  string `json:"state"`
+	Reason string `json:"reason,omitempty"`
+}
+
 // ---- handlers ----
+
+func (t *mcpTools) sessionReport(ctx context.Context, _ *mcp.CallToolRequest, in sessionReportInput) (*mcp.CallToolResult, mcpCard, error) {
+	path := "sessions/" + url.PathEscape(t.id.SessionID) + "/agent-report"
+	var res mcpSessionWireResponse
+	var err error
+	switch in.State {
+	case string(domain.AgentReportNeedsYou), string(domain.AgentReportReadyForReview):
+		err = t.ctx.putJSON(ctx, path, agentReportWire(in), &res)
+	case "clear":
+		err = t.ctx.deleteJSON(ctx, path, &res)
+	default:
+		return nil, mcpCard{}, fmt.Errorf("state must be needs_you, ready_for_review or clear, got %q", in.State)
+	}
+	if err != nil {
+		return nil, mcpCard{}, err
+	}
+	return nil, t.card(res.Session, false), nil
+}
 
 func (t *mcpTools) boardGet(ctx context.Context, _ *mcp.CallToolRequest, in boardGetInput) (*mcp.CallToolResult, boardGetOutput, error) {
 	projectID, err := t.resolveProjectID(ctx, in.ProjectID)
@@ -466,6 +528,9 @@ func (t *mcpTools) card(s mcpSessionWire, capBrief bool) mcpCard {
 	}
 	if s.Ticket != nil {
 		card.Ticket = &mcpCardTicket{Slug: s.Ticket.Slug, PlanFile: s.Ticket.PlanFile, Role: s.Ticket.Role}
+	}
+	if s.AgentReport != nil {
+		card.AgentReport = &mcpAgentReport{State: s.AgentReport.State, Reason: s.AgentReport.Reason}
 	}
 	return card
 }

@@ -2972,6 +2972,107 @@ paths:
       summary: Report an agent activity-state signal for a session
       tags:
       - sessions
+  /api/v1/sessions/{sessionId}/agent-report:
+    delete:
+      operationId: clearSessionAgentReport
+      parameters:
+      - description: Session identifier, e.g. project-1.
+        in: path
+        name: sessionId
+        required: true
+        schema:
+          description: Session identifier, e.g. project-1.
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionResponse'
+          description: OK
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Conflict
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: Clear the agent's report about its own board card
+      tags:
+      - sessions
+    put:
+      operationId: setSessionAgentReport
+      parameters:
+      - description: Session identifier, e.g. project-1.
+        in: path
+        name: sessionId
+        required: true
+        schema:
+          description: Session identifier, e.g. project-1.
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SetAgentReportRequest'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionResponse'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Conflict
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: Record what the agent reports about its own board card
+      tags:
+      - sessions
   /api/v1/sessions/{sessionId}/agent-switches:
     get:
       operationId: listSessionAgentSwitches
@@ -5710,6 +5811,23 @@ components:
       - fetchedAt
       - stale
       type: object
+    AgentReport:
+      properties:
+        at:
+          format: date-time
+          type: string
+        reason:
+          type: string
+        state:
+          enum:
+          - needs_you
+          - ready_for_review
+          type: string
+      required:
+      - state
+      - reason
+      - at
+      type: object
     AgentSwitch:
       properties:
         agentHandoffStatus:
@@ -6261,6 +6379,8 @@ components:
       properties:
         activity:
           $ref: '#/components/schemas/DomainActivity'
+        agentReport:
+          $ref: '#/components/schemas/AgentReport'
         autoInjectReview:
           type: boolean
         boardColumn:
@@ -8510,6 +8630,23 @@ components:
       required:
       - ok
       - sessionId
+      - state
+      type: object
+    SetAgentReportRequest:
+      properties:
+        reason:
+          description: One line shown on the card and in the Needs you alert. Required
+            for needs_you.
+          maxLength: 280
+          type: string
+        state:
+          description: 'needs_you: the agent is waiting on the user. ready_for_review:
+            the work is complete and there is no PR to review.'
+          enum:
+          - needs_you
+          - ready_for_review
+          type: string
+      required:
       - state
       type: object
     SetProjectConfigInput:

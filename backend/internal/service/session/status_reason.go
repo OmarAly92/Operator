@@ -31,8 +31,11 @@ func baseStatusReason(status domain.SessionStatus, rec domain.SessionRecord, prs
 	case domain.StatusIdle:
 		return "Agent finished its turn and is waiting for the next instruction"
 	case domain.StatusNeedsInput:
-		if rec.Activity.State == domain.ActivityBlocked {
+		switch {
+		case rec.Activity.State == domain.ActivityBlocked:
 			return "Agent is waiting on a permission prompt"
+		case rec.Activity.State != domain.ActivityWaitingInput && rec.AgentReport.NeedsYou():
+			return agentReportReason("Agent needs you", rec.AgentReport)
 		}
 		return "Agent is waiting for your input"
 	case domain.StatusExited:
@@ -43,6 +46,9 @@ func baseStatusReason(status domain.SessionStatus, rec domain.SessionRecord, prs
 		return "Session terminated"
 	case domain.StatusMerged:
 		return "Merged " + prNumbers(prs, func(p domain.PRFacts) bool { return p.Merged })
+	}
+	if status == domain.StatusReviewPending && len(openPRs(prs)) == 0 && rec.AgentReport != nil {
+		return agentReportReason("Agent reports ready for review", rec.AgentReport)
 	}
 	open := openPRs(prs)
 	matching := prNumbers(open, func(p domain.PRFacts) bool { return prPipelineStatus(p) == status })
@@ -67,6 +73,13 @@ func baseStatusReason(status domain.SessionStatus, rec domain.SessionRecord, prs
 	default:
 		return string(status)
 	}
+}
+
+func agentReportReason(prefix string, r *domain.AgentReport) string {
+	if r.Reason == "" {
+		return prefix
+	}
+	return prefix + ": " + r.Reason
 }
 
 // prNumbers renders the PRs that satisfy keep as "PR #1, PR #2". A PR without a

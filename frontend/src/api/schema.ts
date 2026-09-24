@@ -1069,6 +1069,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/sessions/{sessionId}/agent-report": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Record what the agent reports about its own board card */
+        put: operations["setSessionAgentReport"];
+        post?: never;
+        /** Clear the agent's report about its own board card */
+        delete: operations["clearSessionAgentReport"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/sessions/{sessionId}/agent-switches": {
         parameters: {
             query?: never;
@@ -1999,6 +2017,13 @@ export interface components {
             validatedAt?: string;
             warning?: string;
         };
+        AgentReport: {
+            /** Format: date-time */
+            at: string;
+            reason: string;
+            /** @enum {string} */
+            state: "needs_you" | "ready_for_review";
+        };
         AgentSwitch: {
             /** @enum {string} */
             agentHandoffStatus: "not_attempted" | "requested" | "received" | "unavailable" | "timed_out" | "failed" | "rejected";
@@ -2206,6 +2231,7 @@ export interface components {
         };
         ControllersSessionView: {
             activity: components["schemas"]["DomainActivity"];
+            agentReport?: components["schemas"]["AgentReport"];
             autoInjectReview: boolean;
             /** @enum {string} */
             boardColumn: "working" | "needs_you" | "in_review" | "ready_to_merge" | "archive";
@@ -3069,6 +3095,15 @@ export interface components {
             ok: boolean;
             sessionId: string;
             state: string;
+        };
+        SetAgentReportRequest: {
+            /** @description One line shown on the card and in the Needs you alert. Required for needs_you. */
+            reason?: string;
+            /**
+             * @description needs_you: the agent is waiting on the user. ready_for_review: the work is complete and there is no PR to review.
+             * @enum {string}
+             */
+            state: "needs_you" | "ready_for_review";
         };
         SetProjectConfigInput: {
             config: components["schemas"]["ProjectConfig"];
@@ -7124,6 +7159,137 @@ export interface operations {
             };
             /** @description Not Found */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    setSessionAgentReport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Session identifier, e.g. project-1. */
+                sessionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetAgentReportRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SessionResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    clearSessionAgentReport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Session identifier, e.g. project-1. */
+                sessionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SessionResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Conflict */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
