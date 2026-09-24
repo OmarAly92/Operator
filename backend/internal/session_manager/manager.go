@@ -2075,32 +2075,97 @@ func (m *Manager) saveAndTeardownWorkspaceProject(ctx context.Context, rec domai
 	return nil
 }
 
+// destroyWorkspaceProjectRows removes a workspace session's worktrees, children
+// first and the root last. Child worktrees live inside the root worktree and the
+// root ignores them, so `git worktree remove` on the root deletes any child
+// directory still there, uncommitted work included. Teardown is therefore
+// all-or-nothing on dirtiness (every repo is checked before anything is
+// removed) and the root is only removed once every child is gone.
 func (m *Manager) destroyWorkspaceProjectRows(ctx context.Context, rows []ports.WorkspaceRepoInfo) (bool, error) {
-	cleaned := false
-	var firstErr error
-	for i := len(rows) - 1; i >= 0; i-- {
-		if rows[i].Path == "" {
+	if err := m.refuseDirtyWorkspaceProjectRows(ctx, rows); err != nil {
+		return false, err
+	}
+	var root *ports.WorkspaceRepoInfo
+	children := make([]ports.WorkspaceRepoInfo, 0, len(rows))
+	for i := range rows {
+		if rows[i].RepoName == domain.RootWorkspaceRepoName {
+			root = &rows[i]
 			continue
 		}
-		info := workspaceInfoFromRepoInfo(rows[i])
-		if err := m.workspace.Destroy(ctx, info); err != nil {
+		children = append(children, rows[i])
+	}
+	cleaned := false
+	var firstErr error
+	destroy := func(row ports.WorkspaceRepoInfo) (removed bool, dirty error) {
+		if err := m.workspace.Destroy(ctx, workspaceInfoFromRepoInfo(row)); err != nil {
 			if errors.Is(err, ports.ErrWorkspaceDirty) {
-				return cleaned, err
+				return false, err
 			}
-			if stateErr := m.upsertWorkspaceProjectRowState(ctx, rows[i], "retry_remove"); stateErr != nil && firstErr == nil {
+			if stateErr := m.upsertWorkspaceProjectRowState(ctx, row, "retry_remove"); stateErr != nil && firstErr == nil {
 				firstErr = stateErr
 			}
 			if firstErr == nil {
 				firstErr = err
 			}
-			continue
+			return false, nil
 		}
-		if err := m.upsertWorkspaceProjectRowState(ctx, rows[i], "unavailable"); err != nil && firstErr == nil {
+		if err := m.upsertWorkspaceProjectRowState(ctx, row, "unavailable"); err != nil && firstErr == nil {
 			firstErr = err
 		}
 		cleaned = true
+		return true, nil
+	}
+	childrenRemoved := true
+	for i := len(children) - 1; i >= 0; i-- {
+		if children[i].Path == "" {
+			continue
+		}
+		removed, dirty := destroy(children[i])
+		if dirty != nil {
+			return cleaned, dirty
+		}
+		if !removed {
+			childrenRemoved = false
+		}
+	}
+	if root == nil || root.Path == "" {
+		return cleaned, firstErr
+	}
+	if !childrenRemoved {
+		if stateErr := m.upsertWorkspaceProjectRowState(ctx, *root, "retry_remove"); stateErr != nil && firstErr == nil {
+			firstErr = stateErr
+		}
+		return cleaned, firstErr
+	}
+	if _, dirty := destroy(*root); dirty != nil {
+		return cleaned, dirty
 	}
 	return cleaned, firstErr
+}
+
+// refuseDirtyWorkspaceProjectRows returns ErrWorkspaceDirty when any repo in the
+// session holds uncommitted work, so a kill never removes some repos and then
+// stops at a dirty one. A repo that cannot be observed (already removed, say) is
+// left to Destroy's own dirty refusal.
+func (m *Manager) refuseDirtyWorkspaceProjectRows(ctx context.Context, rows []ports.WorkspaceRepoInfo) error {
+	observer, ok := m.workspace.(ports.WorkspaceObserver)
+	if !ok {
+		return nil
+	}
+	for _, row := range rows {
+		if row.Path == "" {
+			continue
+		}
+		observation, err := observer.ObserveWorkspace(ctx, workspaceInfoFromRepoInfo(row))
+		if err != nil {
+			m.logger.Debug("workspace dirty pre-check skipped a repo", "sessionID", row.SessionID, "repo", row.RepoName, "err", err)
+			continue
+		}
+		if observation.Dirty {
+			return fmt.Errorf("workspace repo %q has uncommitted work: %w", row.RepoName, ports.ErrWorkspaceDirty)
+		}
+	}
+	return nil
 }
 
 func (m *Manager) upsertWorkspaceProjectRowState(ctx context.Context, row ports.WorkspaceRepoInfo, state string) error {

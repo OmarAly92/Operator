@@ -677,7 +677,10 @@ func (missingAgents) Agent(domain.AgentHarness) (ports.Agent, bool) { return nil
 type fakeWorkspace struct {
 	createErr  error
 	destroyErr error
-	destroyed  int
+	// destroyErrFor, keyed by repo name (see fakeWorkspaceRepoName), overrides
+	// destroyErr for that repo's worktree.
+	destroyErrFor map[string]error
+	destroyed     int
 	// createRepoPath, when set, is returned as the RepoPath of a single-repo
 	// Create so tests can assert it survives the spawn->teardown metadata round
 	// trip (production Create resolves this path; the zero default keeps every
@@ -776,6 +779,9 @@ func (w *fakeWorkspace) Destroy(_ context.Context, info ports.WorkspaceInfo) err
 		}
 	}
 	w.destroyed++
+	if err, ok := w.destroyErrFor[fakeWorkspaceRepoName(info)]; ok {
+		return err
+	}
 	return w.destroyErr
 }
 func (w *fakeWorkspace) DestroyWorkspaceProject(context.Context, ports.WorkspaceProjectInfo) error {
@@ -2411,6 +2417,83 @@ func TestKill_WorkspaceProjectDestroysChildrenBeforeRoot(t *testing.T) {
 	want := []string{"Destroy:api", "Destroy:__root__"}
 	if got := ws.calls; strings.Join(got, ",") != strings.Join(want, ",") {
 		t.Fatalf("destroy order = %v, want %v", got, want)
+	}
+}
+
+// observingWorkspace adds the WorkspaceObserver capability to fakeWorkspace so
+// the workspace kill path can run its all-repos dirty pre-check.
+type observingWorkspace struct {
+	*fakeWorkspace
+	dirty map[string]bool
+}
+
+func (w observingWorkspace) ObserveWorkspace(_ context.Context, info ports.WorkspaceInfo) (ports.WorkspaceObservation, error) {
+	return ports.WorkspaceObservation{Path: info.Path, Dirty: w.dirty[fakeWorkspaceRepoName(info)]}, nil
+}
+
+func newWorkspaceKillFixture(t *testing.T, workspace ports.Workspace) (*Manager, *fakeStore) {
+	t.Helper()
+	st := newFakeStore()
+	st.projects["mer"] = domain.ProjectRecord{ID: "mer", Path: "/repo/mer", Kind: domain.ProjectKindWorkspace, Config: testRoleAgents()}
+	st.workspaceRepo["mer"] = []domain.WorkspaceRepoRecord{{Name: "api", RelativePath: "api"}, {Name: "web", RelativePath: "web"}}
+	st.sessions["mer-1"] = domain.SessionRecord{
+		ID:        "mer-1",
+		ProjectID: "mer",
+		Metadata:  domain.SessionMetadata{WorkspacePath: "/ws/mer-1", Branch: "opr/mer-1/root", RuntimeHandleID: "h1"},
+		Activity:  domain.Activity{State: domain.ActivityActive},
+	}
+	st.worktrees["mer-1"] = []domain.SessionWorktreeRecord{
+		{SessionID: "mer-1", RepoName: domain.RootWorkspaceRepoName, Branch: "opr/mer-1/root", WorktreePath: "/ws/mer-1"},
+		{SessionID: "mer-1", RepoName: "api", Branch: "opr/mer-1/root", WorktreePath: "/ws/mer-1/api"},
+		{SessionID: "mer-1", RepoName: "web", Branch: "opr/mer-1/root", WorktreePath: "/ws/mer-1/web"},
+	}
+	lookPath := func(string) (string, error) { return "/bin/true", nil }
+	m := New(Deps{Runtime: &fakeRuntime{}, Agents: fakeAgents{}, Workspace: workspace, Store: st, Messenger: &fakeMessenger{}, Lifecycle: &fakeLCM{store: st}, LookPath: lookPath})
+	return m, st
+}
+
+// TestKill_WorkspaceProjectKeepsRootWhenAChildFailsToRemove guards against
+// data loss: children live inside the root worktree, so removing the root after
+// a child failed to go (for any reason, not only dirtiness) deletes that child's
+// directory and its uncommitted work.
+func TestKill_WorkspaceProjectKeepsRootWhenAChildFailsToRemove(t *testing.T) {
+	ws := &fakeWorkspace{destroyErrFor: map[string]error{"api": errors.New("worktree is locked")}}
+	m, st := newWorkspaceKillFixture(t, ws)
+
+	freed, err := m.Kill(ctx, "mer-1")
+	if err == nil || !strings.Contains(err.Error(), "worktree is locked") {
+		t.Fatalf("freed=%v err=%v, want the child failure surfaced", freed, err)
+	}
+	for _, call := range ws.calls {
+		if call == "Destroy:"+domain.RootWorkspaceRepoName {
+			t.Fatalf("root destroyed after a child failed to remove; calls = %v", ws.calls)
+		}
+	}
+	states := map[string]string{}
+	for _, row := range st.worktrees["mer-1"] {
+		states[row.RepoName] = row.State
+	}
+	if states[domain.RootWorkspaceRepoName] != "retry_remove" || states["api"] != "retry_remove" {
+		t.Fatalf("row states = %v, want root and api left for retry", states)
+	}
+}
+
+// TestKill_WorkspaceProjectDirtyRepoRemovesNothing pins the all-or-nothing
+// pre-check: a dirty repo anywhere in the session stops the kill before any
+// worktree is removed, rather than after some repos are already gone.
+func TestKill_WorkspaceProjectDirtyRepoRemovesNothing(t *testing.T) {
+	fake := &fakeWorkspace{}
+	m, st := newWorkspaceKillFixture(t, observingWorkspace{fakeWorkspace: fake, dirty: map[string]bool{"api": true}})
+
+	freed, err := m.Kill(ctx, "mer-1")
+	if err != nil || freed {
+		t.Fatalf("freed=%v err=%v, want the dirty workspace preserved", freed, err)
+	}
+	if len(fake.calls) != 0 {
+		t.Fatalf("destroy calls = %v, want none", fake.calls)
+	}
+	if !st.sessions["mer-1"].IsTerminated {
+		t.Fatal("session must still be terminated with its workspace preserved")
 	}
 }
 
