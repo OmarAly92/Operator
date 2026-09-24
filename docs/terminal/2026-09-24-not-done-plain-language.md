@@ -134,7 +134,7 @@ You'd only notice these as fewer rare glitches or slightly less CPU use.
   seconds, the terminal says "This terminal stopped responding." and offers
   **Restart terminal**, which stops the stuck helper and resumes the agent in
   a new one. If a helper dies (or the Mac reboots), its recent history, up to
-  about 11,000 lines, was saved to disk once a minute and comes back when the
+  about 10,000 lines, was saved to disk once a minute and comes back when the
   session is restored. Still missing: the board does not show a stuck
   terminal, shells are not checked, and a replay is not redrawn at the sizes
   the output was produced at (§6.3).

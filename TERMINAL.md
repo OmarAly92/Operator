@@ -1146,7 +1146,7 @@ history of `master`.
   push trigger; not built (roadmap Plan 4, decision D6).
 - **Every liveness probe renders a full attach replay.** A status probe is a
   new connection, and `handleConn` renders `replayFrameLocked` under `h.mu`
-  for it before answering (`host.go:851`), ~24 ms at 60k rows. The reaper
+  for it before answering (`host.go:862`), ~24 ms at 60k rows. The reaper
   pays it every 5 s per session. Skipping the replay for a connection whose
   first frame is not a resize is the fix if it ever shows.
 - **After Restart terminal the pane keeps its renderer core.** A worker pane's
