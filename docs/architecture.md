@@ -596,6 +596,11 @@ get no server.
 
 - Claude Code: inline `--mcp-config` JSON (additive; never `--strict-mcp-config`,
   never a worktree `.mcp.json`) and `mcp__operator` pre-approved via `--allowedTools`.
+- Codex: one `-c mcp_servers.operator={command=…,args=[…],env={…},default_tools_approval_mode="approve"}`
+  override, which merges into the user's own `mcp_servers` (checked against codex-cli 0.156.1).
+- OpenCode: an `mcp.operator` local-server entry in the per-session `opencode.json` that
+  `OPENCODE_CONFIG` already points at; it merges with the user's configs (checked with
+  opencode 1.18.32, whose `opencode mcp list` connects to `opr mcp`).
 - Tools: `board_get`, `session_get` and `ticket_get` (read-only, thin wrappers over
   daemon routes), and the self-scoped actions `session_report`, `session_rename`,
   `pr_claim` (never takes over another live session's PR), `review_request` and

@@ -99,9 +99,20 @@ func TestMCPSessionReportSchemaNarrowsState(t *testing.T) {
 }
 
 func TestMCPInstructionsTeachTheReportRule(t *testing.T) {
-	for _, want := range []string{"session_report", "needs_you", "ready_for_review", "Before you end a turn waiting on the user"} {
+	for _, want := range []string{"session_report", "needs_you", "ready_for_review", "Before you end a turn waiting on the user", "ticket_mark_merge_ready"} {
 		if !strings.Contains(MCPBoardInstructions, want) {
 			t.Fatalf("instructions missing %q", want)
+		}
+	}
+}
+
+// Codex surfaces the first 512 characters of server instructions when deciding
+// how to use a server, so the must-follow rule has to fit there.
+func TestMCPInstructionsLeadWithTheReportRule(t *testing.T) {
+	head := string([]rune(MCPBoardInstructions)[:512])
+	for _, want := range []string{"session_report", "needs_you", "ready_for_review", "session_get"} {
+		if !strings.Contains(head, want) {
+			t.Fatalf("first 512 characters miss %q:\n%s", want, head)
 		}
 	}
 }
