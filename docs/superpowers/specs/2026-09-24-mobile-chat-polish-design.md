@@ -31,7 +31,7 @@ smooth, good animation". The ideas are taken from T3, not copied from it.
 
 - **Layout.** The opaque dock becomes a floating glass capsule over the content.
   - The body is a `Stack`: the content fills the screen, and the dock floats at the bottom.
-  - The capsule is 8pt in from the sides and 8pt above the keyboard, or above the bottom safe area.
+  - The capsule is 8pt in from the sides. It sits 8pt above the keyboard when the keyboard is up, and on the bottom safe area otherwise, as T3 does.
   - Content scrolls under the capsule. The list's bottom padding is the dock's measured height plus 12pt.
 - **The capsule** is a `GlassSurface` capsule, 48pt at rest, with the same material as the approved sheet search capsule.
   - Leading: a 36pt ⚡ session-actions button. It is hidden for shell-only sessions.
@@ -39,7 +39,8 @@ smooth, good animation". The ideas are taken from T3, not copied from it.
   - Trailing: one 36pt round action that cross-fades (`AnimatedSwitcher`, 160ms, scale 0.8→1 plus fade) between three states:
     - **Mic**: the text is empty and the session is idle. This is today's `MicKey`.
     - **Send**: there is text. An accent circle with an up arrow.
-    - **Stop**: the text is empty and the session is working. A red circle with a stop square. It runs the existing kill flow, with its confirm dialog.
+    - **Stop**: the text is empty and the session is working. A red circle with a stop square, placed left of the mic, which stays so dictation still works. It interrupts the current turn (`SessionCommandCubit.run('stop')`), with no confirm. Kill stays in the ⚡ menu.
+  - A live recording always keeps the mic in place.
 - **Expanding.** When the field has focus and holds 2+ lines, or contains a newline, the capsule morphs into a card.
   - Card radius 26, up to 5 lines tall.
   - A toolbar row appears below the text, holding the model chip (`ProviderIcon`-style harness glyph, model label and a chevron) and send.
