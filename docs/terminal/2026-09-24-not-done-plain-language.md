@@ -129,11 +129,15 @@ You'd only notice these as fewer rare glitches or slightly less CPU use.
 - **Jump to the last command you looked at:** not built (§5.3).
 - **Very old output:** beyond 200,000 lines, the oldest text is dropped
   instead of saved for "load more" (§5.8).
-- **Crash recovery:** if the helper process that runs a terminal hangs,
-  nothing notices or restarts it, and if it dies (or the Mac reboots) the
-  terminal's history is lost because it is never saved to disk (§6.3).
-  Terminals do survive a daemon or app restart: the helper outlives the
-  daemon and is found again.
+- **Crash recovery (built 2026-09-24, roadmap Plan 4):** if the helper
+  process that runs a session's terminal stops answering for about 15
+  seconds, the terminal says "This terminal stopped responding." and offers
+  **Restart terminal**, which stops the stuck helper and resumes the agent in
+  a new one. If a helper dies (or the Mac reboots), its recent history, up to
+  about 11,000 lines, was saved to disk once a minute and comes back when the
+  session is restored. Still missing: the board does not show a stuck
+  terminal, shells are not checked, and a replay is not redrawn at the sizes
+  the output was produced at (§6.3).
 - **Typing ahead:** while a command runs, what you type goes straight to the
   running program instead of waiting in the input box (§7.2).
 - The rest are small or test-only: §1.14, §3.6, §3.13, §3.15, §4.4, §4.10,
@@ -149,6 +153,7 @@ a difference you'd feel:
   searched often.
 - **Claude's window title (partial list):** sessions show what each agent is
   doing right now.
-- **Crash recovery (partial list):** a stuck terminal fixes itself.
+- **Crash recovery (partial list):** a stuck terminal is noticed and restarts
+  with one click; built 2026-09-24 (roadmap Plan 4).
 
 Everything else mainly helps the shell, or is invisible.
