@@ -14,7 +14,6 @@ import 'package:operator_mobile/feature/pairing/presentation/connections_screen/
 import 'package:operator_mobile/feature/pairing/presentation/connections_screen/ui/widgets/connection_row.dart';
 import 'package:operator_mobile/feature/pairing/presentation/connections_screen/ui/widgets/connections_header.dart';
 import 'package:operator_mobile/feature/pairing/presentation/connections_screen/ui/widgets/remove_connection_dialog.dart';
-import 'package:operator_mobile/feature/pairing/presentation/connections_screen/ui/widgets/rename_desktop_sheet.dart';
 
 class ConnectionsBody extends StatelessWidget {
   const ConnectionsBody({super.key});
@@ -27,14 +26,13 @@ class ConnectionsBody extends StatelessWidget {
     final cubit = context.read<ConnectionsCubit>();
     final id = desktop.id!;
     final title = desktop.name ?? desktop.address;
-    final action = await showConnectionMenuSheet(context, name: title);
-    if (!context.mounted || action == null) return;
-    switch (action) {
-      case ConnectionMenuAction.rename:
-        final name = await showRenameDesktopSheet(context, initialName: title);
-        if (name == null || name.isEmpty) return;
+    final result = await showConnectionMenuSheet(context, name: title);
+    if (!context.mounted || result == null) return;
+    switch (result) {
+      case RenameDesktopResult(:final name):
+        if (name.isEmpty) return;
         await cubit.rename(id, name);
-      case ConnectionMenuAction.remove:
+      case RemoveDesktopResult():
         final confirmed = await showRemoveConnectionDialog(context, name: title);
         if (confirmed) await cubit.remove(id);
     }
