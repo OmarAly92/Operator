@@ -1,13 +1,16 @@
 import 'dart:async';
 
+import 'package:expressive_sheet/expressive_sheet.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:liquid_glass_renderer/liquid_glass_renderer.dart';
 import 'package:operator_mobile/core/app_themes/colors/dark_skin.dart';
 import 'package:operator_mobile/core/app_themes/colors/light_skin.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
+import 'package:operator_mobile/core/app_themes/text_style/app_text_style.dart';
 import 'package:operator_mobile/core/widgets/glass/glass_button.dart';
 import 'package:operator_mobile/core/widgets/glass/glass_metrics.dart';
+import 'package:operator_mobile/core/widgets/glass/glass_sheet.dart';
 import 'package:operator_mobile/core/widgets/glass/glass_tab_bar.dart';
 import 'package:operator_mobile/core/widgets/glass/glass_toolbar.dart';
 import 'package:operator_mobile/core/widgets/glass/lab/glass_lab_backdrop.dart';
@@ -34,6 +37,27 @@ class _GlassLabScreenState extends State<GlassLabScreen> {
         unawaited(Future<void>.delayed(const Duration(milliseconds: 500), _injectLiftTouch));
       });
     }
+    if (widget.scene != GlassLabScene.sheet) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final dark = MediaQuery.platformBrightnessOf(context) == Brightness.dark;
+      final skin = dark ? const DarkSkin() : const LightSkin();
+      showExpressiveSheet<void>(
+        context: context,
+        barrierColor: const Color(0x00000000),
+        builder: (_) => SkinScope(
+          skin: skin,
+          child: GlassSheetChrome(
+            child: SizedBox(
+              height: 380,
+              child: Center(
+                child: Text('Sheet', style: AppTextStyle.style16SemiBold.copyWith(color: skin.textPrimary)),
+              ),
+            ),
+          ),
+        ),
+      );
+    });
   }
 
   void _injectLiftTouch() {
