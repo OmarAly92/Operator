@@ -212,6 +212,16 @@ void main() {
     expect(tester.widget<Opacity>(opacity).opacity, 1);
   });
 
+  testWidgets('a reply with a missing or unparsable createdAt is treated as fresh', (tester) async {
+    final harness = await pumpList(tester, [block(1, kind: BlockKind.prompt)]);
+    harness.append([block(2, kind: BlockKind.assistant)]);
+    harness.append([block(3, kind: BlockKind.assistant, createdAt: 'not a timestamp')]);
+    await tester.pump();
+    expect(tester.widget<Opacity>(find.byKey(const ValueKey('response-opacity-seq-2'))).opacity, 0);
+    expect(tester.widget<Opacity>(find.byKey(const ValueKey('response-opacity-seq-3'))).opacity, 0);
+    await tester.pumpAndSettle();
+  });
+
   testWidgets('assistant meta stays hidden while the turn runs and appears once it settles', (tester) async {
     final prompt = block(1, kind: BlockKind.prompt);
     final first = block(2, kind: BlockKind.assistant);
@@ -294,6 +304,19 @@ void main() {
       harness.append([block(6, kind: BlockKind.assistant)]);
       await tester.pump();
       harness.replace([block(1, kind: BlockKind.assistant), ...harness.blocks], active: true);
+      await tester.pump();
+      expect(fired, 0);
+    });
+
+    testWidgets('stays silent when an old completed reply is replayed into an active session', (tester) async {
+      var fired = 0;
+      final harness = await pumpList(
+        tester,
+        [block(1, kind: BlockKind.prompt)],
+        sessionActive: true,
+        onStreamingHaptic: () => fired++,
+      );
+      harness.append([block(2, kind: BlockKind.assistant, createdAt: ago(const Duration(seconds: 10)))]);
       await tester.pump();
       expect(fired, 0);
     });

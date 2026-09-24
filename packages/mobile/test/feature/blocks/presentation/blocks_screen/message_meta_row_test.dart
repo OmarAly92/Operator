@@ -141,10 +141,11 @@ void main() {
 
   testWidgets('the user bubble has radius 20 and caps at 85% of the content width', (tester) async {
     final long = _prompt.copyWith(body: List.filled(60, 'word').join(' '));
-    await tester.pumpWidget(_host(BlockCard(block: long)));
-    final screen = tester.getSize(find.byType(Scaffold));
+    await tester.pumpWidget(
+      _host(Align(alignment: Alignment.topLeft, child: SizedBox(width: 300, child: BlockCard(block: long)))),
+    );
     final bubble = find.byKey(const ValueKey('user-bubble-p-1'));
-    expect(tester.getSize(bubble).width, closeTo((screen.width - 32) * 0.85, 0.5));
+    expect(tester.getSize(bubble).width, closeTo((300 - 32) * 0.85, 0.5));
     final decoration = tester.widget<Container>(bubble).decoration! as BoxDecoration;
     expect(decoration.borderRadius, BorderRadius.circular(20));
   });

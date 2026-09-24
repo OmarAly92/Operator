@@ -171,7 +171,7 @@ class BlockListState extends State<BlockList> {
     final raw = block.createdAt;
     if (raw == null) return true;
     final created = DateTime.tryParse(raw);
-    if (created == null) return false;
+    if (created == null) return true;
     return DateTime.now().difference(created) < AppMotion.freshReplyWindow;
   }
 
@@ -189,7 +189,8 @@ class BlockListState extends State<BlockList> {
     if (latest == null) return;
     final previous = _latestAssistant(previousBlocks);
     if (previous == null || previous.id != latest.id) {
-      if (latest.firstSeq > previousBlocks.last.firstSeq) haptics.onStreamStart();
+      final live = latest.status == BlockStatus.running || _isFresh(latest);
+      if (live && latest.firstSeq > previousBlocks.last.firstSeq) haptics.onStreamStart();
       return;
     }
     if (latest.body.length > previous.body.length) haptics.onTextGrew();
@@ -446,7 +447,6 @@ class BlockListState extends State<BlockList> {
     controller.removeListener(_onScroll);
     widget.bottomInset?.removeListener(_onInsetChanged);
     controller.dispose();
-    _haptics = null;
     super.dispose();
   }
 
