@@ -25,6 +25,7 @@ import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/wid
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/block_result_section.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/block_status_dot.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/block_todo_list.dart';
+import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/message_meta_row.dart';
 
 /// The rail-based visual kind a block renders as (`docs/design/session_detail/
 /// session_detail.md`, "ground truth extracted from the prototype"). This is
@@ -113,6 +114,8 @@ class BlockCard extends StatelessWidget {
     this.onLongPressHeader,
     this.hasFollowingRailItem = false,
     this.onOpenAgent,
+    this.showReplyMeta = false,
+    this.animateReplyMeta = false,
   });
 
   final SessionBlock block;
@@ -136,6 +139,8 @@ class BlockCard extends StatelessWidget {
   final bool hasFollowingRailItem;
 
   final void Function(SessionBlock block)? onOpenAgent;
+  final bool showReplyMeta;
+  final bool animateReplyMeta;
 
   void _showActionSheet(BuildContext context) {
     if (onAction == null || actions.isEmpty) return;
@@ -183,11 +188,29 @@ class BlockCard extends StatelessWidget {
         highlight: summaryHighlight,
         onLongPressHeader: onLongPressHeader,
         onLongPressBody: () => _showActionSheet(context),
+        selectionMode: selectionMode,
       ),
       RailKind.notice => _NoticeRow(block: block),
       RailKind.text => Padding(
-        padding: const EdgeInsets.only(bottom: 22, top: 4),
-        child: railBody,
+        padding: EdgeInsets.only(bottom: showReplyMeta ? 12 : 22, top: 4),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            railBody,
+            if (showReplyMeta) ...[
+              const SizedBox(height: 4),
+              MessageMetaRow(
+                key: ValueKey('reply-meta-${block.id}'),
+                id: block.id,
+                text: block.body,
+                createdAt: block.createdAt,
+                side: MessageMetaSide.assistant,
+                animateIn: animateReplyMeta,
+                interactive: !selectionMode,
+              ),
+            ],
+          ],
+        ),
       ),
       RailKind.group || RailKind.mcpGroup || RailKind.agent => Padding(
         padding: EdgeInsets.only(bottom: collapsed ? 0 : 6),
@@ -1163,24 +1186,14 @@ class _UserBubble extends StatelessWidget {
     required this.highlight,
     required this.onLongPressHeader,
     required this.onLongPressBody,
+    required this.selectionMode,
   });
 
   final SessionBlock block;
   final BlockMatch? highlight;
   final VoidCallback? onLongPressHeader;
   final VoidCallback onLongPressBody;
-
-  String get _timestamp {
-    final raw = block.createdAt;
-    if (raw == null) return 'now';
-    final parsed = DateTime.tryParse(raw);
-    if (parsed == null) return 'now';
-    final local = parsed.toLocal();
-    String two(int value) => value.toString().padLeft(2, '0');
-    final hour = local.hour % 12 == 0 ? 12 : local.hour % 12;
-    final period = local.hour < 12 ? 'AM' : 'PM';
-    return '$hour:${two(local.minute)} $period';
-  }
+  final bool selectionMode;
 
   @override
   Widget build(BuildContext context) {
@@ -1193,38 +1206,36 @@ class _UserBubble extends StatelessWidget {
           GestureDetector(
             behavior: HitTestBehavior.opaque,
             onLongPress: onLongPressBody,
-            child: ConstrainedBox(
-              constraints: BoxConstraints(maxWidth: (MediaQuery.of(context).size.width - 32) * 0.78),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                decoration: BoxDecoration(
-                  color: skin.bgElevatedHover,
-                  borderRadius: const BorderRadius.only(
-                    topLeft: Radius.circular(18),
-                    topRight: Radius.circular(18),
-                    bottomLeft: Radius.circular(18),
-                    bottomRight: Radius.circular(4),
+            child: LayoutBuilder(
+              builder: (context, constraints) => ConstrainedBox(
+                constraints: BoxConstraints(maxWidth: constraints.maxWidth * 0.85),
+                child: Container(
+                  key: ValueKey('user-bubble-${block.id}'),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: skin.bgElevatedHover,
+                    borderRadius: BorderRadius.circular(20),
                   ),
-                ),
-                child: _highlightedField(
-                  context: context,
-                  text: block.body,
-                  ranges: highlight?.ranges ?? const [],
-                  base: AppTextStyle.style13Regular.copyWith(color: skin.textPrimary, height: 1.4),
-                  softWrap: true,
+                  child: _highlightedField(
+                    context: context,
+                    text: block.body,
+                    ranges: highlight?.ranges ?? const [],
+                    base: AppTextStyle.style13Regular.copyWith(color: skin.textPrimary, height: 1.4),
+                    softWrap: true,
+                  ),
                 ),
               ),
             ),
           ),
-          const SizedBox(height: 4),
-          GestureDetector(
-            key: ValueKey('bubble-timestamp-${block.id}'),
-            behavior: HitTestBehavior.opaque,
-            onLongPress: onLongPressHeader,
-            child: AppText(
-              _timestamp,
-              style: AppTextStyle.mono10p5Regular.copyWith(color: skin.textTertiary),
-            ),
+          const SizedBox(height: 2),
+          MessageMetaRow(
+            id: block.id,
+            text: block.body,
+            createdAt: block.createdAt,
+            side: MessageMetaSide.user,
+            timeKey: ValueKey('bubble-timestamp-${block.id}'),
+            onLongPressTime: onLongPressHeader,
+            interactive: !selectionMode,
           ),
         ],
       ),

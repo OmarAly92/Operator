@@ -48,6 +48,10 @@ sealed class AppMotion {
 
   static const Duration streamingHapticGap = Duration(milliseconds: 320);
 
+  static const Duration copyConfirm = Duration(milliseconds: 1200);
+
+  static const Duration freshReplyWindow = Duration(seconds: 3);
+
   /// Expressive loader shape-morph container spin.
   static const Duration loaderSpin = Duration(milliseconds: 1730);
 

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:operator_mobile/core/app_themes/app_motion.dart';
 import 'package:operator_mobile/core/app_themes/colors/dark_skin.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/search/text_match.dart';
@@ -40,9 +41,13 @@ class ListHarness extends StatefulWidget {
     this.sticky,
     this.pinned,
     this.highlights = const {},
+    this.sessionActive = false,
+    this.onStreamingHaptic,
   });
 
   final List<SessionBlock> initial;
+  final bool sessionActive;
+  final VoidCallback? onStreamingHaptic;
   final String sessionId;
   final ValueNotifier<StickyBlock?>? sticky;
   final ValueNotifier<bool>? pinned;
@@ -55,6 +60,12 @@ class ListHarness extends StatefulWidget {
 class ListHarnessState extends State<ListHarness> {
   late List<SessionBlock> blocks = widget.initial;
   late String sessionId = widget.sessionId;
+  late bool sessionActive = widget.sessionActive;
+
+  void replace(List<SessionBlock> next, {bool? active}) => setState(() {
+    blocks = next;
+    sessionActive = active ?? sessionActive;
+  });
 
   void prepend(List<SessionBlock> older) =>
       setState(() => blocks = [...older, ...blocks]);
@@ -82,6 +93,8 @@ class ListHarnessState extends State<ListHarness> {
     sticky: widget.sticky,
     pinnedListenable: widget.pinned,
     highlights: widget.highlights,
+    sessionActive: sessionActive,
+    onStreamingHaptic: widget.onStreamingHaptic,
   );
 }
 
@@ -92,6 +105,8 @@ Future<ListHarnessState> pumpList(
   ValueNotifier<bool>? pinned,
   bool renderStickyHeader = true,
   Map<String, BlockMatch> highlights = const {},
+  bool sessionActive = false,
+  VoidCallback? onStreamingHaptic,
 }) async {
   await tester.pumpWidget(
     SkinScope(
@@ -112,6 +127,8 @@ Future<ListHarnessState> pumpList(
                         sticky: sticky,
                         pinned: pinned,
                         highlights: highlights,
+                        sessionActive: sessionActive,
+                        onStreamingHaptic: onStreamingHaptic,
                       ),
                     ),
                     if (sticky != null && renderStickyHeader)
@@ -170,6 +187,131 @@ void main() {
     list.controller.jumpTo(list.controller.position.minScrollExtent);
     await tester.pump();
     expect(tester.widget<Opacity>(find.byKey(const ValueKey('response-opacity-seq-1'))).opacity, 1);
+  });
+
+  String ago(Duration age) => DateTime.now().toUtc().subtract(age).toIso8601String();
+
+  testWidgets('a reply created 10s ago arrives without animating', (tester) async {
+    final harness = await pumpList(tester, [block(1, kind: BlockKind.prompt)]);
+    harness.append([block(2, kind: BlockKind.assistant, createdAt: ago(const Duration(seconds: 10)))]);
+    await tester.pump();
+    expect(tester.widget<Opacity>(find.byKey(const ValueKey('response-opacity-seq-2'))).opacity, 1);
+    expect(tester.widget<Transform>(find.byKey(const ValueKey('response-offset-seq-2'))).transform.storage[13], 0);
+    expect(tester.hasRunningAnimations, isFalse);
+  });
+
+  testWidgets('a reply created now fades in over 220ms', (tester) async {
+    final harness = await pumpList(tester, [block(1, kind: BlockKind.prompt)]);
+    harness.append([block(2, kind: BlockKind.assistant, createdAt: ago(Duration.zero))]);
+    await tester.pump();
+    final opacity = find.byKey(const ValueKey('response-opacity-seq-2'));
+    expect(tester.widget<Opacity>(opacity).opacity, 0);
+    await tester.pump(AppMotion.chatReply ~/ 2);
+    expect(tester.widget<Opacity>(opacity).opacity, inExclusiveRange(0, 1));
+    await tester.pump(AppMotion.chatReply ~/ 2);
+    expect(tester.widget<Opacity>(opacity).opacity, 1);
+  });
+
+  testWidgets('assistant meta stays hidden while the turn runs and appears once it settles', (tester) async {
+    final prompt = block(1, kind: BlockKind.prompt);
+    final first = block(2, kind: BlockKind.assistant);
+    final tool = block(3, kind: BlockKind.tool);
+    final streaming = block(4, kind: BlockKind.assistant, status: BlockStatus.running);
+    final harness = await pumpList(tester, [prompt, first, tool, streaming], sessionActive: true);
+    expect(find.byKey(const ValueKey('reply-meta-seq-4')), findsNothing);
+    expect(find.byKey(const ValueKey('reply-meta-seq-2')), findsNothing);
+    harness.replace([prompt, first, tool, block(4, kind: BlockKind.assistant)]);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('reply-meta-seq-4')), findsNothing);
+    harness.replace([prompt, first, tool, block(4, kind: BlockKind.assistant)], active: false);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('reply-meta-seq-4')), findsOneWidget);
+    expect(find.byKey(const ValueKey('reply-meta-seq-2')), findsNothing);
+  });
+
+  testWidgets('reply meta fades in as its turn settles but not for loaded history', (tester) async {
+    final prompt = block(1, kind: BlockKind.prompt);
+    final harness = await pumpList(tester, [prompt, block(2, kind: BlockKind.assistant)], sessionActive: true);
+    Opacity metaOpacity() => tester.widget<Opacity>(
+      find.descendant(of: find.byKey(const ValueKey('reply-meta-seq-2')), matching: find.byType(Opacity)).first,
+    );
+    harness.replace([prompt, block(2, kind: BlockKind.assistant)], active: false);
+    await tester.pump();
+    expect(metaOpacity().opacity, lessThan(1));
+    await tester.pump(AppMotion.chatReply ~/ 2);
+    expect(metaOpacity().opacity, inExclusiveRange(0, 1));
+    await tester.pumpAndSettle();
+    expect(metaOpacity().opacity, 1);
+    harness.replace([block(0, kind: BlockKind.assistant), ...harness.blocks]);
+    await tester.pump();
+    expect(metaOpacity().opacity, 1);
+  });
+
+  testWidgets('a settled reply meta row sits left-aligned under the reply', (tester) async {
+    await pumpList(tester, [block(1, kind: BlockKind.prompt), block(2, kind: BlockKind.assistant)]);
+    final meta = tester.getRect(find.byKey(const ValueKey('reply-meta-seq-2')));
+    final reply = tester.getRect(find.text('line 0 of block 2', findRichText: true));
+    expect(meta.top, greaterThanOrEqualTo(reply.bottom));
+    final icon = tester.getRect(find.descendant(
+      of: find.byKey(const ValueKey('reply-meta-seq-2')),
+      matching: find.byIcon(Icons.content_copy_rounded),
+    ));
+    expect(icon.left, closeTo(reply.left, 1));
+  });
+
+  group('streaming haptic', () {
+    testWidgets('fires when a reply starts and at most every 320ms while it grows', (tester) async {
+      var fired = 0;
+      final prompt = block(1, kind: BlockKind.prompt);
+      SessionBlock reply(int lines) => block(2, kind: BlockKind.assistant, status: BlockStatus.running, lines: lines);
+      final harness = await pumpList(tester, [prompt], sessionActive: true, onStreamingHaptic: () => fired++);
+      expect(fired, 0);
+      harness.replace([prompt, reply(1)]);
+      await tester.pump(const Duration(milliseconds: 16));
+      expect(fired, 1);
+      harness.replace([prompt, reply(2)]);
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(fired, 1);
+      harness.replace([prompt, reply(3)]);
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(fired, 1);
+      await tester.pump(const Duration(milliseconds: 200));
+      harness.replace([prompt, reply(4)]);
+      await tester.pump(const Duration(milliseconds: 16));
+      expect(fired, 2);
+      harness.replace([prompt, reply(4)]);
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(fired, 2);
+    });
+
+    testWidgets('stays silent for an idle session and for loaded history', (tester) async {
+      var fired = 0;
+      final harness = await pumpList(
+        tester,
+        [block(5, kind: BlockKind.prompt)],
+        onStreamingHaptic: () => fired++,
+      );
+      harness.append([block(6, kind: BlockKind.assistant)]);
+      await tester.pump();
+      harness.replace([block(1, kind: BlockKind.assistant), ...harness.blocks], active: true);
+      await tester.pump();
+      expect(fired, 0);
+    });
+
+    testWidgets('stays silent under reduce motion', (tester) async {
+      tester.platformDispatcher.accessibilityFeaturesTestValue = const FakeAccessibilityFeatures(disableAnimations: true);
+      addTearDown(tester.platformDispatcher.clearAccessibilityFeaturesTestValue);
+      var fired = 0;
+      final harness = await pumpList(
+        tester,
+        [block(1, kind: BlockKind.prompt)],
+        sessionActive: true,
+        onStreamingHaptic: () => fired++,
+      );
+      harness.append([block(2, kind: BlockKind.assistant, status: BlockStatus.running)]);
+      await tester.pump();
+      expect(fired, 0);
+    });
   });
 
   testWidgets('tool lists start expanded while individual details stay collapsed', (tester) async {

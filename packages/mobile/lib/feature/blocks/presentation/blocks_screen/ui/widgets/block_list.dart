@@ -1,8 +1,11 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:operator_mobile/core/app_themes/app_motion.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
+import 'package:operator_mobile/core/utils/haptics.dart';
+import 'package:operator_mobile/core/utils/streaming_haptics.dart';
 import 'package:operator_mobile/feature/blocks/logic/block_actions.dart';
 import 'package:operator_mobile/feature/blocks/logic/block_find.dart';
 import 'package:operator_mobile/feature/blocks/logic/block_viewport.dart';
@@ -46,6 +49,7 @@ class BlockList extends StatefulWidget {
     this.bottomInset,
     this.bottomGap = 6,
     this.topInset = 0,
+    this.onStreamingHaptic,
   });
 
   static const double topGap = 14;
@@ -72,6 +76,7 @@ class BlockList extends StatefulWidget {
   final ValueListenable<double>? bottomInset;
   final double bottomGap;
   final double topInset;
+  final VoidCallback? onStreamingHaptic;
 
   @override
   State<BlockList> createState() => BlockListState();
@@ -86,6 +91,11 @@ class BlockListState extends State<BlockList> {
   final Set<String> _collapsedToolGroups = {};
   final Set<String> _expandedTools = {};
   final Set<String> _pendingResponses = {};
+  Set<String> _settledReplies = {};
+  Set<String> _unsettledReplies = {};
+  Set<String> _settlingReplies = {};
+  StreamingHaptics? _haptics;
+  bool? _hapticsReduceMotion;
   Map<String, List<SessionBlock>> _toolGroups = {};
 
   int? _pivotSeq;
@@ -107,6 +117,19 @@ class BlockListState extends State<BlockList> {
     _scheduleFollow();
   }
 
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final reduceMotion = MediaQuery.disableAnimationsOf(context);
+    if (_haptics != null && _hapticsReduceMotion == reduceMotion) return;
+    _hapticsReduceMotion = reduceMotion;
+    _haptics = StreamingHaptics(
+      fire: () => (widget.onStreamingHaptic ?? Haptics.select)(),
+      clock: () => SchedulerBinding.instance.currentSystemFrameTimeStamp,
+      reduceMotion: reduceMotion,
+    );
+  }
+
   void _onInsetChanged() {
     if (_pinned && !_seeking) _scheduleFollow();
   }
@@ -122,6 +145,8 @@ class BlockListState extends State<BlockList> {
       _collapsedToolGroups.clear();
       _expandedTools.clear();
       _pendingResponses.clear();
+      _unsettledReplies = {};
+      _settlingReplies = {};
       _pivotSeq = null;
       _topIndex = null;
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -132,13 +157,64 @@ class BlockListState extends State<BlockList> {
     } else if (_pinned && oldWidget.blocks.isNotEmpty) {
       final previousTail = oldWidget.blocks.last.firstSeq;
       for (final block in widget.blocks) {
-        if (block.kind == BlockKind.assistant && block.firstSeq > previousTail) {
+        if (block.kind == BlockKind.assistant && block.firstSeq > previousTail && _isFresh(block)) {
           _pendingResponses.add(block.id);
         }
       }
     }
+    if (widget.sessionId == oldWidget.sessionId) _trackStreaming(oldWidget.blocks);
     _adoptPivot();
     if (_pinned && !_seeking) _scheduleFollow();
+  }
+
+  bool _isFresh(SessionBlock block) {
+    final raw = block.createdAt;
+    if (raw == null) return true;
+    final created = DateTime.tryParse(raw);
+    if (created == null) return false;
+    return DateTime.now().difference(created) < AppMotion.freshReplyWindow;
+  }
+
+  SessionBlock? _latestAssistant(List<SessionBlock> blocks) {
+    for (var index = blocks.length - 1; index >= 0; index--) {
+      if (blocks[index].kind == BlockKind.assistant) return blocks[index];
+    }
+    return null;
+  }
+
+  void _trackStreaming(List<SessionBlock> previousBlocks) {
+    final haptics = _haptics;
+    if (haptics == null || !widget.sessionActive || previousBlocks.isEmpty) return;
+    final latest = _latestAssistant(widget.blocks);
+    if (latest == null) return;
+    final previous = _latestAssistant(previousBlocks);
+    if (previous == null || previous.id != latest.id) {
+      if (latest.firstSeq > previousBlocks.last.firstSeq) haptics.onStreamStart();
+      return;
+    }
+    if (latest.body.length > previous.body.length) haptics.onTextGrew();
+  }
+
+  void _trackReplyMeta(List<TurnGroup> groups) {
+    final settled = <String>{};
+    final unsettled = <String>{};
+    if (!widget.selectionMode) {
+      for (final group in groups) {
+        final reply = group.blocks.lastWhere(
+          (block) => railKindOf(block) == RailKind.text && block.body.trim().isNotEmpty,
+          orElse: () => group.blocks.first,
+        );
+        if (railKindOf(reply) != RailKind.text) continue;
+        if (group.running || reply.status == BlockStatus.running) {
+          unsettled.add(reply.id);
+        } else {
+          settled.add(reply.id);
+        }
+      }
+    }
+    _settlingReplies = settled.where(_unsettledReplies.contains).toSet();
+    _settledReplies = settled;
+    _unsettledReplies = unsettled;
   }
 
   void _adoptPivot() {
@@ -370,6 +446,7 @@ class BlockListState extends State<BlockList> {
     controller.removeListener(_onScroll);
     widget.bottomInset?.removeListener(_onInsetChanged);
     controller.dispose();
+    _haptics = null;
     super.dispose();
   }
 
@@ -379,9 +456,10 @@ class BlockListState extends State<BlockList> {
       if (mounted) _updateSticky();
     });
     final blocks = widget.blocks;
+    final groups = groupBlocksByTurn(blocks, sessionActive: widget.sessionActive);
+    _trackReplyMeta(groups);
     final groupEndingByBlockId = <String, TurnGroup>{
-      for (final group in groupBlocksByTurn(blocks, sessionActive: widget.sessionActive))
-        group.blocks.last.id: group,
+      for (final group in groups) group.blocks.last.id: group,
     };
     final pivot = BlockViewport.pivotIndex(blocks, _pivotSeq);
     final header = widget.header;
@@ -543,6 +621,8 @@ class BlockListState extends State<BlockList> {
           ? null
           : () => widget.onLongPressHeader!(block.id),
       hasFollowingRailItem: hasFollowingRailItem,
+      showReplyMeta: _settledReplies.contains(block.id),
+      animateReplyMeta: _settlingReplies.remove(block.id),
     );
     return Column(
       key: ValueKey(block.id),
