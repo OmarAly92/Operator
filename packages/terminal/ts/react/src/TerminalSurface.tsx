@@ -175,6 +175,7 @@ export function TerminalSurface({
 			renderer,
 			host: {
 				scrollToBlock: (id, align) => renderer.scrollToBlock(id, align),
+				scrollToRow: (row, align) => renderer.scrollToRow(row, align),
 				invalidate: (range) => renderer.invalidate(range),
 				afterRepaint: (listener) => renderer.onPaint(listener),
 			},

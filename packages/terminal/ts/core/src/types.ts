@@ -204,6 +204,7 @@ export type TerminalStrings = Readonly<{
 	findPlaceholder: string;
 	findLabel: string;
 	findMatchCount: string;
+	findRegexLabel: string;
 	palettePlaceholder: string;
 	paletteLabel: string;
 	paletteNoMatches: string;
@@ -228,6 +229,7 @@ export const defaultStrings: TerminalStrings = Object.freeze({
 	findPlaceholder: "Find in terminal",
 	findLabel: "Find",
 	findMatchCount: "%1 of %2",
+	findRegexLabel: "Use regular expression",
 	palettePlaceholder: "Type a command",
 	paletteLabel: "Command palette",
 	paletteNoMatches: "No matching commands",

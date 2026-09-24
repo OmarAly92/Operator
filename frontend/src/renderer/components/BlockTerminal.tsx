@@ -512,6 +512,7 @@ export function BlockTerminal({
 			}),
 			findLabel: t("blocks.findLabel", { defaultValue: "Find" }),
 			findMatchCount: t("blocks.findMatchCount", { defaultValue: "%1 of %2" }),
+			findRegexLabel: t("blocks.findRegexLabel", { defaultValue: "Use regular expression" }),
 			palettePlaceholder: t("blocks.palettePlaceholder", {
 				defaultValue: "Type a command",
 			}),

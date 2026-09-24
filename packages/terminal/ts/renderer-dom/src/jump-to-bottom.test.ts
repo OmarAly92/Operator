@@ -20,6 +20,7 @@ const STRINGS: TerminalStrings = {
 	findPlaceholder: "Find",
 	findLabel: "Find label",
 	findMatchCount: "%1 of %2",
+	findRegexLabel: "Regex",
 	palettePlaceholder: "Type a command",
 	paletteLabel: "Command palette",
 	paletteNoMatches: "No matching commands",
