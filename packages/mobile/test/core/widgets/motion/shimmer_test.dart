@@ -76,5 +76,37 @@ void main() {
       expect(find.byType(ShaderMask), findsNothing);
       expect(find.byKey(const ValueKey('child')), findsOneWidget);
     });
+
+    testWidgets('schedules no frame when disabled', (tester) async {
+      await tester.pumpWidget(host(enabled: false));
+      await tester.pump();
+
+      expect(tester.hasRunningAnimations, isFalse);
+    });
+
+    testWidgets('schedules no frame under reduce motion', (tester) async {
+      await tester.pumpWidget(host(reduceMotion: true));
+      await tester.pump();
+
+      expect(tester.hasRunningAnimations, isFalse);
+    });
+
+    testWidgets('schedules no frame when TickerMode is off', (tester) async {
+      await tester.pumpWidget(host(tickerEnabled: false));
+      await tester.pump();
+
+      expect(tester.hasRunningAnimations, isFalse);
+    });
+
+    testWidgets('resumes animating once re-enabled', (tester) async {
+      await tester.pumpWidget(host(enabled: false));
+      await tester.pump();
+      expect(tester.hasRunningAnimations, isFalse);
+
+      await tester.pumpWidget(host());
+      await tester.pump();
+
+      expect(tester.hasRunningAnimations, isTrue);
+    });
   });
 }

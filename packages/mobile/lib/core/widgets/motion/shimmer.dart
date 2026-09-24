@@ -45,7 +45,19 @@ class _ShimmerState extends State<Shimmer> with SingleTickerProviderStateMixin {
     _controller = AnimationController(
       vsync: this,
       duration: AppMotion.shimmerSweep + AppMotion.shimmerPause,
-    )..repeat();
+    );
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _syncController(context);
+  }
+
+  @override
+  void didUpdateWidget(covariant Shimmer oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _syncController(context);
   }
 
   @override
@@ -56,6 +68,14 @@ class _ShimmerState extends State<Shimmer> with SingleTickerProviderStateMixin {
 
   bool _animates(BuildContext context) =>
       widget.enabled && !MediaQuery.disableAnimationsOf(context) && TickerMode.valuesOf(context).enabled;
+
+  void _syncController(BuildContext context) {
+    if (_animates(context)) {
+      if (!_controller.isAnimating) _controller.repeat();
+    } else if (_controller.isAnimating) {
+      _controller.stop();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {

@@ -19,9 +19,10 @@ class DisclosureChevron extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final reduceMotion = MediaQuery.disableAnimationsOf(context);
     return AnimatedRotation(
       turns: expanded ? expandedTurns : collapsedTurns,
-      duration: AppMotion.disclosure,
+      duration: reduceMotion ? Duration.zero : AppMotion.disclosure,
       curve: AppMotion.easeOut,
       child: Icon(Icons.keyboard_arrow_down, size: size, color: color),
     );
@@ -36,13 +37,18 @@ class Disclosure extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (MediaQuery.disableAnimationsOf(context)) {
+      return ClipRect(child: expanded ? child : const SizedBox.shrink());
+    }
+
+    final switchDuration = expanded ? AppMotion.disclosureIn : AppMotion.disclosureOut;
     return ClipRect(
       child: AnimatedSize(
         duration: AppMotion.disclosure,
         curve: AppMotion.easeOut,
         alignment: Alignment.topCenter,
         child: AnimatedSwitcher(
-          duration: expanded ? AppMotion.disclosureIn : AppMotion.disclosureOut,
+          duration: switchDuration,
           switchInCurve: AppMotion.easeOut,
           switchOutCurve: AppMotion.easeOut,
           transitionBuilder: (transitionChild, animation) =>
