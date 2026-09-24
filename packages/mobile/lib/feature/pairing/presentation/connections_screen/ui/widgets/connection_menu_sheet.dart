@@ -1,4 +1,3 @@
-import 'package:expressive_sheet/expressive_sheet.dart';
 import 'package:flutter/material.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/app_themes/text_style/app_text_style.dart';
@@ -11,7 +10,7 @@ import 'package:operator_mobile/core/widgets/main_widgets/space_widgets.dart';
 enum ConnectionMenuAction { rename, remove }
 
 Future<ConnectionMenuAction?> showConnectionMenuSheet(BuildContext context, {required String name}) {
-  return showExpressiveSheet<ConnectionMenuAction>(
+  return showAppSheet<ConnectionMenuAction>(
     context: context,
     builder: (sheetContext) => AppSheetChrome(
       child: Column(

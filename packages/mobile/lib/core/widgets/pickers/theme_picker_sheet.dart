@@ -1,4 +1,3 @@
-import 'package:expressive_sheet/expressive_sheet.dart';
 import 'package:flutter/material.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/app_themes/colors/theme_preference.dart';
@@ -11,7 +10,7 @@ import 'package:operator_mobile/core/widgets/main_widgets/space_widgets.dart';
 
 Future<ThemeMode?> showThemePickerSheet(BuildContext context, {required ThemeMode selected}) {
   final skin = context.skin;
-  return showExpressiveSheet<ThemeMode>(
+  return showAppSheet<ThemeMode>(
     context: context,
     builder: (sheetContext) => AppSheetChrome(
       child: ListView(

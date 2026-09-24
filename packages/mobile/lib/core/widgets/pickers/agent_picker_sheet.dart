@@ -1,4 +1,3 @@
-import 'package:expressive_sheet/expressive_sheet.dart';
 import 'package:flutter/material.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/app_themes/text_style/app_text_style.dart';
@@ -20,7 +19,7 @@ Future<String?> showAgentPickerSheet(
   String? error,
 }) {
   final skin = context.skin;
-  return showExpressiveSheet<String>(
+  return showAppSheet<String>(
     context: context,
     builder: (sheetContext) {
       var isRefreshing = refreshing;
