@@ -14,6 +14,8 @@ class GlassSurface extends StatelessWidget {
     this.radius = 0,
     this.grouped = false,
     this.variant = GlassVariant.regular,
+    this.shadows,
+    this.tune,
   });
 
   static const Key outlineKey = ValueKey('glass-surface-outline');
@@ -23,6 +25,8 @@ class GlassSurface extends StatelessWidget {
   final double radius;
   final bool grouped;
   final GlassVariant variant;
+  final List<BoxShadow>? shadows;
+  final LiquidGlassSettings Function(LiquidGlassSettings settings)? tune;
   final Widget child;
 
   LiquidShape get _shape => switch (kind) {
@@ -49,8 +53,9 @@ class GlassSurface extends StatelessWidget {
             child: child,
           )
         : child;
-    final shadows = GlassStyle.shadows(skin, size: size);
-    final settings = GlassStyle.resolve(skin: skin, variant: variant, size: size, highContrast: highContrast);
+    final shadows = this.shadows ?? GlassStyle.shadows(skin, size: size);
+    final resolved = GlassStyle.resolve(skin: skin, variant: variant, size: size, highContrast: highContrast);
+    final settings = tune == null ? resolved : tune!(resolved);
     if (variant != GlassVariant.regular) {
       return LiquidGlass.withOwnLayer(shape: _shape, shadows: shadows, settings: settings, child: content);
     }

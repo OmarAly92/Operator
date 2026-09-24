@@ -9,6 +9,7 @@ import 'package:operator_mobile/core/app_themes/colors/light_skin.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/widgets/glass/frosted_header.dart';
 import 'package:operator_mobile/core/widgets/glass/glass_sheet.dart';
+import 'package:operator_mobile/core/widgets/glass/glass_style.dart';
 import 'package:operator_mobile/core/widgets/glass/glass_surface.dart';
 import 'package:operator_mobile/core/widgets/sheet/app_sheet.dart';
 
@@ -144,7 +145,7 @@ void main() {
     );
     await open(tester);
     expect(find.text('Search fruit'), findsOneWidget);
-    expect(find.ancestor(of: find.byKey(AppSheet.searchFieldKey), matching: find.byKey(AppSheet.searchCapsuleKey)), findsOneWidget);
+    expect(find.ancestor(of: find.byKey(AppSheet.searchFieldKey), matching: find.byType(GlassSurface)), findsOneWidget);
 
     await tester.enterText(find.byKey(AppSheet.searchFieldKey), 'zzz');
     await tester.pumpAndSettle();
@@ -195,7 +196,7 @@ void main() {
     expect(tester.getRect(find.text('Row 0')).top, greaterThan(title.bottom));
     await tester.dragUntilVisible(find.text('Row 39'), find.byType(ListView), const Offset(0, -300));
     await tester.pumpAndSettle();
-    final capsule = tester.getRect(find.byKey(AppSheet.searchCapsuleKey));
+    final capsule = tester.getRect(find.ancestor(of: find.byKey(AppSheet.searchFieldKey), matching: find.byType(GlassSurface)));
     for (var i = 0; i < 6; i++) {
       await tester.drag(find.byType(ListView), const Offset(0, -500));
       await tester.pumpAndSettle();
@@ -422,8 +423,8 @@ void main() {
         bottom: Radius.circular(AppSheetLogic.cornerRadius()),
       );
 
-  testWidgets('the surface layer clip saves a layer only while a backdrop filter is inside it', (tester) async {
-    await openMany(tester);
+  testWidgets('the surface layer clip saves a layer only while the header frosts', (tester) async {
+    await openMany(tester, page: searchPage());
     ClipRSuperellipse layerClip() => tester.widget<ClipRSuperellipse>(find.byKey(AppSheet.layerClipKey));
     expect(layerClip().borderRadius, sheetRadius());
     expect(find.descendant(of: find.byKey(AppSheet.layerClipKey), matching: find.byKey(AppSheet.surfaceKey)), findsOneWidget);
@@ -437,40 +438,45 @@ void main() {
     await scrollTo(tester, 0);
     expect(layerClip().clipBehavior, Clip.antiAlias);
 
-    expect(AppSheetLogic.surfaceClip(headerVisibility: 0, hasSearch: false), Clip.antiAlias);
-    expect(AppSheetLogic.surfaceClip(headerVisibility: 0.01, hasSearch: false), Clip.antiAliasWithSaveLayer);
-    expect(AppSheetLogic.surfaceClip(headerVisibility: 0, hasSearch: true), Clip.antiAliasWithSaveLayer);
+    expect(AppSheetLogic.surfaceClip(0), Clip.antiAlias);
+    expect(AppSheetLogic.surfaceClip(0.01), Clip.antiAliasWithSaveLayer);
   });
 
-  testWidgets('the search capsule is a shadowless frosted material capsule inside the save layer', (tester) async {
+  testWidgets('the search capsule sits outside the save layer but under a rounded clip of the sheet shape', (tester) async {
     await openMany(tester, page: searchPage());
-    final capsule = find.byKey(AppSheet.searchCapsuleKey);
-    expect(tester.widget(capsule), isA<FrostedCapsule>());
-    expect(find.descendant(of: capsule, matching: find.byKey(AppSheet.searchFieldKey)), findsOneWidget);
-    expect(find.descendant(of: find.byKey(AppSheet.layerClipKey), matching: capsule), findsOneWidget);
-    expect(tester.widget<ClipRSuperellipse>(find.byKey(AppSheet.layerClipKey)).clipBehavior, Clip.antiAliasWithSaveLayer);
-    expect(tester.getSize(capsule).height, AppSheetMetrics.searchHeight);
+    expect(find.byKey(AppSheet.searchFieldKey), findsOneWidget);
+    expect(find.descendant(of: find.byKey(AppSheet.layerClipKey), matching: find.byKey(AppSheet.searchFieldKey)), findsNothing);
+    expect(find.descendant(of: find.byKey(AppSheet.outerClipKey), matching: find.byKey(AppSheet.searchFieldKey)), findsOneWidget);
+    expect(find.descendant(of: find.byKey(AppSheet.outerClipKey), matching: find.byKey(AppSheet.layerClipKey)), findsOneWidget);
+    final outer = tester.widget<ClipRSuperellipse>(find.byKey(AppSheet.outerClipKey));
+    expect(outer.clipBehavior, Clip.antiAlias);
+    expect(outer.borderRadius, sheetRadius());
+    expect(tester.getRect(find.byKey(AppSheet.outerClipKey)), tester.getRect(find.byKey(AppSheet.surfaceKey)));
+  });
 
-    expect(find.ancestor(of: find.byKey(AppSheet.searchFieldKey), matching: find.byType(GlassSurface)), findsNothing);
-    expect(find.descendant(of: find.byKey(AppSheet.surfaceKey), matching: find.byType(GlassSurface)), findsNothing);
-    expect(find.descendant(of: find.byKey(AppSheet.surfaceKey), matching: find.byType(LiquidGlass)), findsNothing);
-    expect(find.descendant(of: find.byKey(AppSheet.surfaceKey), matching: find.byType(LiquidGlassLayer)), findsNothing);
-
-    expect(tester.widget<BackdropFilter>(find.descendant(of: capsule, matching: find.byType(BackdropFilter))).filter,
-        FrostedMaterial.filter());
-    final boxes = tester.widgetList<Container>(find.descendant(of: capsule, matching: find.byType(Container)));
-    for (final box in boxes) {
-      final decoration = box.decoration;
-      if (decoration is BoxDecoration) expect(decoration.boxShadow, isNull);
-    }
-    final ring = boxes.map((b) => b.decoration).whereType<BoxDecoration>().single;
-    expect((ring.border! as Border).top.width, 0.5);
-    expect((ring.border! as Border).top.color, const LightSkin().borderStrong);
-    expect(find.descendant(of: capsule, matching: find.byType(PhysicalModel)), findsNothing);
-    expect(find.descendant(of: capsule, matching: find.byType(DecoratedBox)).evaluate().where((e) {
-      final d = (e.widget as DecoratedBox).decoration;
-      return d is BoxDecoration && d.boxShadow != null;
-    }), isEmpty);
+  testWidgets('the search capsule is calm glass with no outer shadow', (tester) async {
+    await openMany(tester, page: searchPage());
+    final capsule = tester.widget<GlassSurface>(find.byKey(AppSheet.searchCapsuleKey));
+    expect(capsule.kind, GlassShapeKind.capsule);
+    expect(capsule.size, AppSheetMetrics.searchHeight);
+    expect(capsule.shadows, isEmpty);
+    final glass = tester.widget<LiquidGlass>(
+      find.descendant(of: find.byKey(AppSheet.searchCapsuleKey), matching: find.byType(LiquidGlass)),
+    );
+    expect(glass.shadows, isEmpty);
+    final regular = GlassStyle.resolve(
+      skin: const LightSkin(),
+      variant: GlassVariant.regular,
+      size: AppSheetMetrics.searchHeight,
+    );
+    final calm = AppSheetLogic.calmGlass(regular);
+    expect(calm.refractiveIndex, 1);
+    expect(calm.chromaticAberration, 0);
+    expect(calm.glassColor, regular.glassColor);
+    expect(calm.blur, regular.blur);
+    expect(calm.thickness, regular.thickness);
+    expect(calm.lightIntensity, regular.lightIntensity);
+    expect(glass.ownLayerConfig!.$1, calm);
   });
 
   testWidgets('page content never paints in the grabber band at the top edge', (tester) async {
