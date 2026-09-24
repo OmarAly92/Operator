@@ -143,6 +143,9 @@ func (p *Plugin) GetConfigSpec(ctx context.Context) (ports.ConfigSpec, error) {
 //
 //	claude [--session-id <uuid>] \
 //	       [--permission-mode <mode>] \
+//	       [--allowedTools <rules>] [--disallowedTools <rules>] \
+//	       [--model <model>] \
+//	       [--mcp-config <inline json>] \
 //	       [--append-system-prompt-file <path> | --append-system-prompt <text>] \
 //	       [-- <prompt>]
 //
@@ -189,10 +192,13 @@ func (p *Plugin) GetLaunchCommand(ctx context.Context, cfg ports.LaunchConfig) (
 		permissions = cfg.Config.Permissions
 	}
 	appendPermissionFlags(&cmd, permissions)
-	appendToolFlags(&cmd, cfg.AllowedTools, cfg.DisallowedTools)
+	appendToolFlags(&cmd, withMCPServerTools(cfg.AllowedTools, cfg.MCPServers), cfg.DisallowedTools)
 
 	if model := strings.TrimSpace(cfg.Config.Model); model != "" {
 		cmd = append(cmd, "--model", model)
+	}
+	if err := appendMCPConfig(&cmd, cfg.MCPServers); err != nil {
+		return nil, err
 	}
 
 	if cfg.SystemPromptFile != "" {
@@ -273,7 +279,10 @@ func (p *Plugin) GetRestoreCommand(ctx context.Context, cfg ports.RestoreConfig)
 	cmd = make([]string, 0, 7)
 	cmd = append(cmd, binary)
 	appendPermissionFlags(&cmd, cfg.Permissions)
-	appendToolFlags(&cmd, cfg.AllowedTools, cfg.DisallowedTools)
+	appendToolFlags(&cmd, withMCPServerTools(cfg.AllowedTools, cfg.MCPServers), cfg.DisallowedTools)
+	if err := appendMCPConfig(&cmd, cfg.MCPServers); err != nil {
+		return nil, false, err
+	}
 	if cfg.SystemPromptFile != "" {
 		if err := validateClaudeSystemPromptFile(cfg.SystemPromptFile); err != nil {
 			return nil, false, err
@@ -472,6 +481,51 @@ func appendPermissionFlags(cmd *[]string, permissions ports.PermissionMode) {
 // spaces (e.g. "Bash(git diff:*)") are not split into separate tool names.
 // Empty lists emit nothing, so an unrestricted launch is unchanged. These rules
 // only bite when the launch is off bypassPermissions, which ignores them.
+// appendMCPConfig registers the launch's MCP servers with --mcp-config, which
+// accepts inline JSON, so no config file has to be written or cleaned up and
+// nothing lands in the worktree (a project .mcp.json would dirty git and trigger
+// Claude's project-server approval prompt). It is additive: without
+// --strict-mcp-config the user's own MCP servers still load. --mcp-config is
+// variadic, so callers must follow it with another flag, `--`, or nothing.
+func appendMCPConfig(cmd *[]string, servers []ports.MCPServerSpec) error {
+	if len(servers) == 0 {
+		return nil
+	}
+	type stdioServer struct {
+		Type    string            `json:"type"`
+		Command string            `json:"command"`
+		Args    []string          `json:"args,omitempty"`
+		Env     map[string]string `json:"env,omitempty"`
+	}
+	config := struct {
+		MCPServers map[string]stdioServer `json:"mcpServers"`
+	}{MCPServers: make(map[string]stdioServer, len(servers))}
+	for _, srv := range servers {
+		config.MCPServers[srv.Name] = stdioServer{Type: "stdio", Command: srv.Command, Args: srv.Args, Env: srv.Env}
+	}
+	raw, err := json.Marshal(config)
+	if err != nil {
+		return fmt.Errorf("claude-code: encode mcp config: %w", err)
+	}
+	*cmd = append(*cmd, "--mcp-config", string(raw))
+	return nil
+}
+
+// withMCPServerTools pre-approves every tool of the launch's MCP servers
+// (mcp__<server> matches all of that server's tools). Operator only registers
+// its own server, whose tools are self-scoped; a permission prompt on them
+// would itself park the card in Needs you.
+func withMCPServerTools(allowed []string, servers []ports.MCPServerSpec) []string {
+	if len(servers) == 0 {
+		return allowed
+	}
+	out := append([]string(nil), allowed...)
+	for _, srv := range servers {
+		out = append(out, "mcp__"+srv.Name)
+	}
+	return out
+}
+
 func appendToolFlags(cmd *[]string, allowed, disallowed []string) {
 	if len(allowed) > 0 {
 		*cmd = append(*cmd, "--allowedTools", strings.Join(allowed, ","))

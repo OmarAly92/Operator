@@ -378,6 +378,24 @@ const (
 	ConfigFieldEnum       ConfigFieldType = "enum"
 )
 
+// OperatorMCPServerName is the name agents see the Operator MCP server (`opr
+// mcp`) under; Claude Code surfaces its tools as mcp__operator__<tool>.
+const OperatorMCPServerName = "operator"
+
+// MCPServerSpec is one stdio MCP server Operator registers with the agent CLI
+// for a single launch. Adapters whose CLI accepts per-launch MCP configuration
+// map it onto that mechanism; adapters without MCP support ignore it.
+type MCPServerSpec struct {
+	// Name is the server name the agent sees (tools surface as mcp__<Name>__*).
+	Name string
+	// Command is the absolute executable to run.
+	Command string
+	Args    []string
+	// Env is set explicitly on the server process rather than relying on the
+	// agent CLI to pass its own environment through.
+	Env map[string]string
+}
+
 // LaunchConfig carries inputs needed to build a new agent launch command.
 type LaunchConfig struct {
 	Config      AgentConfig
@@ -404,6 +422,9 @@ type LaunchConfig struct {
 	SystemPromptFile string
 	WorkspacePath    string
 	Env              map[string]string
+	// MCPServers are the MCP servers to register for this launch (the Operator
+	// MCP server for worker sessions). Empty for reviewers.
+	MCPServers []MCPServerSpec
 }
 
 // WorkspaceHookConfig carries inputs needed to install workspace-local agent hooks.
@@ -436,6 +457,9 @@ type RestoreConfig struct {
 	// system-prompt flag should re-apply this in their resume command.
 	SystemPrompt     string
 	SystemPromptFile string
+	// MCPServers must be re-applied on resume for the same reason: agent CLIs
+	// rebuild their MCP configuration from flags, not from the transcript.
+	MCPServers []MCPServerSpec
 }
 
 // SessionRef identifies an Operator session whose agent-owned metadata may be read.

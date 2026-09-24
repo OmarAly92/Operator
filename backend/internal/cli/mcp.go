@@ -7,11 +7,13 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/spf13/cobra"
+
+	"github.com/OmarAly92/operator/backend/internal/ports"
 )
 
-// MCPServerName is the name agents see the Operator MCP server under; Claude Code
-// exposes its tools as mcp__operator__<tool>.
-const MCPServerName = "operator"
+// MCPServerName is the name the server reports; the session manager registers
+// it with agents under the same name.
+const MCPServerName = ports.OperatorMCPServerName
 
 // MCPBoardInstructions is the Operator MCP server's `instructions`: the always-on
 // board rules an agent CLI places in the model's context when the server
