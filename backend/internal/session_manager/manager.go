@@ -36,6 +36,7 @@ var (
 	ErrAgentExited        = errors.New("session: agent exited")
 	ErrAgentNotExited     = errors.New("session: agent has not exited")
 	ErrIncompleteHandle   = errors.New("session: incomplete teardown handle")
+	ErrTerminalResponding = errors.New("session: terminal is responding")
 	ErrWrongActivityState = errors.New("session: command not available in this activity state")
 	ErrDialogAbsent       = errors.New("session: dialog is no longer on screen")
 	ErrDialogKindMismatch = errors.New("session: the pending dialog is not of that kind")
@@ -1349,6 +1350,9 @@ func (m *Manager) RestartTerminal(ctx context.Context, id domain.SessionID, grid
 		return RestoreResult{}, fmt.Errorf("restart terminal %s: %w", id, ErrIncompleteHandle)
 	}
 	handle := ports.RuntimeHandle{ID: meta.RuntimeHandleID}
+	if reader, ok := m.runtime.(ports.TerminalHealthReader); ok && reader.TerminalHealth(handle) == ports.TerminalHealthy {
+		return RestoreResult{}, fmt.Errorf("restart terminal %s: %w", id, ErrTerminalResponding)
+	}
 	if err := m.runtime.Destroy(ctx, handle); err != nil {
 		return RestoreResult{}, fmt.Errorf("restart terminal %s: stop the unresponsive terminal: %w", id, err)
 	}

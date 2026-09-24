@@ -62,6 +62,33 @@ func TestRestartTerminal_RejectsATerminatedSession(t *testing.T) {
 	}
 }
 
+func TestRestartTerminal_RefusesATerminalThatIsResponding(t *testing.T) {
+	runtime := &fakeRuntime{aliveByHandle: map[string]bool{"pty-mer-1": true}, terminalHealth: ports.TerminalHealthy}
+	m, st := newHungTerminalManager(t, runtime)
+
+	if _, err := m.RestartTerminal(ctx, "mer-1", ports.PaneGrid{}); !errors.Is(err, ErrTerminalResponding) {
+		t.Fatalf("restart of a responding terminal = %v, want ErrTerminalResponding", err)
+	}
+	if runtime.destroyed != 0 || runtime.created != 0 {
+		t.Fatalf("a refused restart touched the runtime: destroyed=%d created=%d", runtime.destroyed, runtime.created)
+	}
+	if got := st.sessions["mer-1"]; got.Metadata.RuntimeHandleID != "pty-mer-1" {
+		t.Fatalf("a refused restart changed the session: %+v", got.Metadata)
+	}
+}
+
+func TestRestartTerminal_RestartsATerminalReportedHung(t *testing.T) {
+	runtime := &fakeRuntime{aliveByHandle: map[string]bool{"pty-mer-1": true}, terminalHealth: ports.TerminalHung}
+	m, _ := newHungTerminalManager(t, runtime)
+
+	if _, err := m.RestartTerminal(ctx, "mer-1", ports.PaneGrid{}); err != nil {
+		t.Fatalf("RestartTerminal: %v", err)
+	}
+	if runtime.destroyed != 1 || runtime.created != 1 {
+		t.Fatalf("runtime lifecycle: destroyed=%d created=%d, want one of each", runtime.destroyed, runtime.created)
+	}
+}
+
 func TestRestartTerminal_KeepsTheSessionWhenTheHostCannotBeStopped(t *testing.T) {
 	runtime := &fakeRuntime{
 		aliveByHandle: map[string]bool{"pty-mer-1": true},

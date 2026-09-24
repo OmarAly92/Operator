@@ -725,6 +725,8 @@ func toAPIError(err error) error {
 	case errors.Is(err, sessionmanager.ErrAwaitingDecision):
 		return apierr.Conflict("SESSION_AWAITING_DECISION",
 			"Session is paused on a permission decision; answer it in the session terminal first", nil)
+	case errors.Is(err, sessionmanager.ErrTerminalResponding):
+		return apierr.Conflict("TERMINAL_RESPONDING", "The terminal is responding; only a terminal that stopped responding can be restarted", nil)
 	case errors.Is(err, sessionmanager.ErrIncompleteHandle):
 		return apierr.Conflict("SESSION_INCOMPLETE_HANDLE", "Session is missing runtime or workspace handles", nil)
 	case errors.Is(err, sessionmanager.ErrNotResumable):
