@@ -126,6 +126,9 @@ func (p *Plugin) GetLaunchCommand(ctx context.Context, cfg ports.LaunchConfig) (
 	appendTerminalCompatibilityFlags(&cmd)
 	appendWorkspaceTrustFlag(&cmd, cfg.WorkspacePath)
 	appendModelFlag(&cmd, cfg.Config)
+	if err := appendMCPServerFlags(&cmd, cfg.MCPServers); err != nil {
+		return nil, err
+	}
 
 	if cfg.SystemPromptFile != "" {
 		cmd = append(cmd, "-c", "model_instructions_file="+cfg.SystemPromptFile)
@@ -170,6 +173,9 @@ func (p *Plugin) GetRestoreCommand(ctx context.Context, cfg ports.RestoreConfig)
 	appendTerminalCompatibilityFlags(&cmd)
 	appendWorkspaceTrustFlag(&cmd, cfg.Session.WorkspacePath)
 	appendModelFlag(&cmd, cfg.Config)
+	if err := appendMCPServerFlags(&cmd, cfg.MCPServers); err != nil {
+		return nil, false, err
+	}
 	if cfg.SystemPromptFile != "" {
 		cmd = append(cmd, "-c", "model_instructions_file="+cfg.SystemPromptFile)
 	} else if cfg.SystemPrompt != "" {

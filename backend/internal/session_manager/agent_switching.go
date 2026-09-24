@@ -746,6 +746,7 @@ func (m *Manager) prepareTargetActivation(ctx context.Context, store ports.Agent
 		return preparedTargetActivation{}, fmt.Errorf("system prompt: %w", err)
 	}
 	systemPrompt = appendAgentContinuationProtocol(systemPrompt)
+	systemPrompt = m.withMCPBoardInstructions(harness, systemPrompt)
 	systemFile, err := m.prepareSystemPromptFile(rec.ID, harness, systemPrompt)
 	if err != nil {
 		return preparedTargetActivation{}, fmt.Errorf("system prompt file: %w", err)
@@ -771,6 +772,7 @@ func (m *Manager) prepareTargetActivation(ctx context.Context, store ports.Agent
 		DataDir: m.dataDir, SessionID: string(rec.ID), WorkspacePath: rec.Metadata.WorkspacePath,
 		SystemPrompt: systemPrompt, SystemPromptFile: systemFile,
 		Config: config, Permissions: config.Permissions,
+		MCPServers: m.operatorMCPServers(rec.ID, rec.ProjectID),
 	}
 	promptDelivery, err := agent.GetPromptDeliveryStrategy(ctx, launch)
 	if err != nil {
@@ -785,7 +787,7 @@ func (m *Manager) prepareTargetActivation(ctx context.Context, store ports.Agent
 		cmd, ok, restoreErr := agent.GetRestoreCommand(ctx, ports.RestoreConfig{
 			Session: ports.SessionRef{ID: string(rec.ID), WorkspacePath: rec.Metadata.WorkspacePath, Metadata: map[string]string{ports.MetadataKeyAgentSessionID: candidate.NativeSessionID}},
 			DataDir: m.dataDir, SystemPrompt: systemPrompt, SystemPromptFile: systemFile,
-			Config: config, Permissions: config.Permissions,
+			Config: config, Permissions: config.Permissions, MCPServers: launch.MCPServers,
 		})
 		if restoreErr != nil {
 			return preparedTargetActivation{}, fmt.Errorf("restore command: %w", restoreErr)
@@ -904,6 +906,7 @@ func (m *Manager) systemPromptForNativeRestore(ctx context.Context, rec domain.S
 func (m *Manager) prepareTargetLaunchPrompt(ctx context.Context, rec domain.SessionRecord, target *preparedTargetActivation, systemPrompt, prompt string) error {
 	launch := target.launch
 	systemPrompt = strings.TrimSpace(systemPrompt)
+	systemPrompt = m.withMCPBoardInstructions(target.harness, systemPrompt)
 	systemFile, err := m.prepareSystemPromptFile(rec.ID, target.harness, systemPrompt)
 	if err != nil {
 		return fmt.Errorf("system prompt file: %w", err)
@@ -927,7 +930,7 @@ func (m *Manager) prepareTargetLaunchPrompt(ctx context.Context, rec domain.Sess
 			},
 			DataDir: m.dataDir, Prompt: prompt,
 			SystemPrompt: launch.SystemPrompt, SystemPromptFile: launch.SystemPromptFile,
-			Config: launch.Config, Permissions: launch.Config.Permissions,
+			Config: launch.Config, Permissions: launch.Config.Permissions, MCPServers: launch.MCPServers,
 		})
 		if buildErr != nil {
 			return fmt.Errorf("restore command: %w", buildErr)

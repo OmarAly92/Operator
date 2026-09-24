@@ -107,6 +107,9 @@ func (p *Plugin) GetLaunchCommand(ctx context.Context, cfg ports.LaunchConfig) (
 	cmd = append(cmd, binary)
 	appendApprovalFlags(&cmd, cfg.Permissions)
 	appendModelFlag(&cmd, cfg.Config)
+	if err := appendMCPServerFlags(&cmd, cfg.MCPServers); err != nil {
+		return nil, err
+	}
 	if agentName := copilotAgentName(cfg.SessionID, cfg.SystemPrompt, cfg.SystemPromptFile); agentName != "" {
 		cmd = append(cmd, "--agent="+agentName)
 	}
@@ -151,6 +154,9 @@ func (p *Plugin) GetRestoreCommand(ctx context.Context, cfg ports.RestoreConfig)
 
 	cmd = append(cmd, binary)
 	appendApprovalFlags(&cmd, cfg.Permissions)
+	if err := appendMCPServerFlags(&cmd, cfg.MCPServers); err != nil {
+		return nil, false, err
+	}
 	// Deliberately does not forward cfg.Config.Model: --model + --resume
 	// composition is unverified against a real copilot install (see #2895
 	// and appendModelFlag). Pinned by

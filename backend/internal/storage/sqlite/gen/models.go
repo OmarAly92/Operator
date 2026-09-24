@@ -326,6 +326,9 @@ type Session struct {
 	PreviewOpenedRevision     int64
 	WorkspaceMode             string
 	ClaudeAccountID           domain.ClaudeAccountID
+	AgentReportState          string
+	AgentReportReason         string
+	AgentReportAt             sql.NullTime
 }
 
 type SessionCleanupFact struct {

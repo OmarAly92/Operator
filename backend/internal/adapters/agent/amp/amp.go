@@ -8,6 +8,8 @@ package amp
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"strings"
 	"sync"
 	"time"
@@ -90,7 +92,26 @@ func (p *Plugin) GetLaunchCommand(ctx context.Context, cfg ports.LaunchConfig) (
 	if mode := strings.TrimSpace(cfg.Config.Mode); mode != "" {
 		cmd = append(cmd, "--mode", mode)
 	}
+	if err := appendMCPConfigFlag(&cmd, cfg.MCPServers); err != nil {
+		return nil, err
+	}
 	return cmd, nil
+}
+
+// appendMCPConfigFlag registers the launch's MCP servers with --mcp-config.
+// Amp takes a bare {"<name>": {...}} map (an "mcpServers" wrapper is rejected)
+// and merges it with the user's settings for this run only, without writing
+// the settings file.
+func appendMCPConfigFlag(cmd *[]string, servers []ports.MCPServerSpec) error {
+	if len(servers) == 0 {
+		return nil
+	}
+	raw, err := json.Marshal(agentbase.MCPServersMap(servers))
+	if err != nil {
+		return fmt.Errorf("amp: encode mcp servers: %w", err)
+	}
+	*cmd = append(*cmd, "--mcp-config", string(raw))
+	return nil
 }
 
 // GetPromptDeliveryStrategy reports that Operator should inject prompted Amp tasks
@@ -139,10 +160,13 @@ func (p *Plugin) GetRestoreCommand(ctx context.Context, cfg ports.RestoreConfig)
 		return nil, false, err
 	}
 	// Capacity fits binary + --resume + sessionID.
-	cmd = make([]string, 0, 3)
+	cmd = make([]string, 0, 5)
 	cmd = append(cmd, binary)
 	if mode := strings.TrimSpace(cfg.Config.Mode); mode != "" {
 		cmd = append(cmd, "--mode", mode)
+	}
+	if err := appendMCPConfigFlag(&cmd, cfg.MCPServers); err != nil {
+		return nil, false, err
 	}
 	cmd = append(cmd, "--resume", agentSessionID)
 	return cmd, true, nil

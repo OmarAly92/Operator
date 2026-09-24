@@ -246,4 +246,31 @@ void main() {
     expect(find.text('codex'), findsOneWidget);
     expect(find.text('Default'), findsNothing);
   });
+
+  testWidgets('shows the reason the agent reported for its card', (tester) async {
+    const session = SessionModel(
+      id: 'proj-1',
+      projectId: 'proj',
+      displayName: 'Pick a db',
+      status: 'needs_input',
+      agentReportState: 'needs_you',
+      agentReportReason: 'Postgres or SQLite?',
+    );
+
+    await tester.pumpWidget(
+      ScreenUtilInit(
+        designSize: const Size(390, 844),
+        builder: (context, child) => MaterialApp(
+          home: SkinScope(
+            skin: const DarkSkin(),
+            child: Scaffold(
+              body: SessionCard(session: session, showProject: true, onTap: () {}, onLongPress: () {}),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('Postgres or SQLite?'), findsOneWidget);
+  });
 }

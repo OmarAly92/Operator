@@ -574,6 +574,53 @@ flowchart TD
 
 ```
 
+### Board Column and Status Reason
+
+`toSession` also derives two display facts, never stored:
+
+- `boardColumn` (`domain.BoardColumnFor`): `working`, `needs_you`, `in_review`,
+  `ready_to_merge` or `archive`. It mirrors the desktop's `attentionZone`, and
+  `testdata/board/columns.json` pins both maps to the same table.
+- `statusReason` (`deriveStatusReason`): one line explaining the status, e.g.
+  `CI failing on PR #12; merge conflict on PR #12`.
+
+### Operator MCP Server
+
+Every worker session is launched with the Operator MCP server, so the agent can
+read the board it sits on. `opr mcp` (hidden) serves it over stdio from the
+daemon's own executable; the session manager registers it on spawn, restore and
+agent switch through `ports.LaunchConfig.MCPServers` / `RestoreConfig.MCPServers`,
+with the session and project ids in the server's env. The board rules ship as the
+server's MCP `instructions`, not as standing system-prompt text. Reviewer sessions
+get no server.
+
+- Claude Code: inline `--mcp-config` JSON (additive; never `--strict-mcp-config`,
+  never a worktree `.mcp.json`) and `mcp__operator` pre-approved via `--allowedTools`.
+- Codex: one `-c mcp_servers.operator={command=…,args=[…],env={…},default_tools_approval_mode="approve"}`
+  override, which merges into the user's own `mcp_servers` (checked against codex-cli 0.156.1).
+- OpenCode: an `mcp.operator` local-server entry in the per-session `opencode.json` that
+  `OPENCODE_CONFIG` already points at; it merges with the user's configs (checked with
+  opencode 1.18.32, whose `opencode mcp list` connects to `opr mcp`).
+- Tools: `board_get`, `session_get` and `ticket_get` (read-only, thin wrappers over
+  daemon routes), and the self-scoped actions `session_report`, `session_rename`,
+  `pr_claim` (never takes over another live session's PR), `review_request` and
+  `ticket_mark_merge_ready` (only for the plan whose `reviewerSessionId` is the
+  caller; it replaces the curl the ticket reviewer prompt used to carry). The full
+  plan is `docs/plans/kanban-mcp.md`.
+
+### Agent Report
+
+`session_report` writes `PUT/DELETE /sessions/{id}/agent-report`, which the
+lifecycle manager persists as the durable `agent_report_*` columns (migration
+0118; written only by their own queries, never by `UpdateSession`). Status
+derivation reads the report below live activity: `needs_you` → `needs_input`
+(outranks PR state), `ready_for_review` → `review_pending` (any PR fact wins).
+The next user turn (`user-prompt-submit`, or an untagged idle/waiting→active
+signal) clears it; a permission prompt resolving mid-turn does not. A needs_you
+report alerts when it takes effect: at the end of the turn, replacing the
+`turn_finished` alert, or immediately if the agent is already idle. The alert
+body is the agent's reason.
+
 ### PR Pipeline States
 
 ```mermaid

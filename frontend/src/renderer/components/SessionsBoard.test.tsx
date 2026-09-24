@@ -458,6 +458,43 @@ describe("SessionsBoard", () => {
 		expect(working.querySelector("span")).toHaveClass("bg-status-working", "animate-status-pulse");
 	});
 
+	// The agent's own report (Operator MCP session_report) explains the card:
+	// the question it is waiting on shows under the status, and the daemon's
+	// status reason is the status label's tooltip.
+	it("shows the agent's reported reason and the status reason on the card", () => {
+		workspaceQueryMock.mockReturnValue({
+			data: [
+				workspaceWithSessions([
+					boardSession({
+						id: "s-report",
+						title: "report-card-task",
+						status: "needs_input",
+						statusReason: "Agent needs you: Postgres or SQLite?",
+						agentReport: { state: "needs_you", reason: "Postgres or SQLite?" },
+					}),
+					boardSession({
+						id: "s-ready",
+						title: "ready-card-task",
+						status: "review_pending",
+						agentReport: { state: "ready_for_review", reason: "" },
+					}),
+					boardSession({ id: "s-plain", title: "plain-card-task", status: "idle" }),
+				]),
+			],
+			isError: false,
+			isSuccess: true,
+		});
+
+		renderBoard("p1");
+		const card = screen.getByText("report-card-task").closest('[data-testid="board-session-card"]') as HTMLElement;
+		expect(within(card).getByTestId("board-agent-report")).toHaveTextContent("Postgres or SQLite?");
+		expect(within(card).getByTitle("Agent needs you: Postgres or SQLite?")).toBeInTheDocument();
+		const ready = screen.getByText("ready-card-task").closest('[data-testid="board-session-card"]') as HTMLElement;
+		expect(within(ready).getByTestId("board-agent-report")).toHaveTextContent("The agent reports this is ready for review");
+		const plain = screen.getByText("plain-card-task").closest('[data-testid="board-session-card"]') as HTMLElement;
+		expect(within(plain).queryByTestId("board-agent-report")).toBeNull();
+	});
+
 	// Same contract as the sidebar row's terminal action: an id goes to the
 	// daemon, never a path, and the board then opens the session so the new shell
 	// is on screen as a tab beside the agent.

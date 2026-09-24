@@ -123,6 +123,37 @@ func (s *Store) RenameSession(ctx context.Context, id domain.SessionID, displayN
 	return rows > 0, nil
 }
 
+// SetSessionAgentReport records what the agent reported about its own card. It
+// returns ok=false when the session id does not exist. The columns are written
+// only here and by ClearSessionAgentReport, never by UpdateSession.
+func (s *Store) SetSessionAgentReport(ctx context.Context, id domain.SessionID, report domain.AgentReport, updatedAt time.Time) (bool, error) {
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
+	rows, err := s.qw.SetSessionAgentReport(ctx, gen.SetSessionAgentReportParams{
+		AgentReportState:  string(report.State),
+		AgentReportReason: report.Reason,
+		AgentReportAt:     timeToNullTime(report.At),
+		UpdatedAt:         updatedAt,
+		ID:                id,
+	})
+	if err != nil {
+		return false, fmt.Errorf("set session agent report %s: %w", id, err)
+	}
+	return rows > 0, nil
+}
+
+// ClearSessionAgentReport drops the session's agent report. It returns true
+// only when a report was actually cleared.
+func (s *Store) ClearSessionAgentReport(ctx context.Context, id domain.SessionID, updatedAt time.Time) (bool, error) {
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
+	rows, err := s.qw.ClearSessionAgentReport(ctx, gen.ClearSessionAgentReportParams{UpdatedAt: updatedAt, ID: id})
+	if err != nil {
+		return false, fmt.Errorf("clear session agent report %s: %w", id, err)
+	}
+	return rows > 0, nil
+}
+
 // SetSessionPinned updates the pinned status of a session.
 func (s *Store) SetSessionPinned(ctx context.Context, id domain.SessionID, isPinned bool, pinnedAt *time.Time, updatedAt time.Time) (bool, error) {
 	s.writeMu.Lock()
@@ -407,7 +438,15 @@ func rowToRecord(row gen.GetSessionRow) domain.SessionRecord {
 		CleanupGeneration: row.CleanupGeneration,
 		CreatedAt:         row.CreatedAt,
 		UpdatedAt:         row.UpdatedAt,
+		AgentReport:       agentReportFromRow(row.AgentReportState, row.AgentReportReason, row.AgentReportAt),
 	}
+}
+
+func agentReportFromRow(state, reason string, at sql.NullTime) *domain.AgentReport {
+	if state == "" {
+		return nil
+	}
+	return &domain.AgentReport{State: domain.AgentReportState(state), Reason: reason, At: nullTimeToTime(at)}
 }
 
 func getSessionRowToRecord(row gen.GetSessionRow) domain.SessionRecord {

@@ -378,6 +378,58 @@ const (
 	ConfigFieldEnum       ConfigFieldType = "enum"
 )
 
+// OperatorMCPServerName is the name agents see the Operator MCP server (`opr
+// mcp`) under; Claude Code surfaces its tools as mcp__operator__<tool>.
+const OperatorMCPServerName = "operator"
+
+// OperatorMCPInstructions is the Operator MCP server's `instructions`: the
+// always-on board rules. Agent CLIs that surface server instructions put them in
+// the model's context when the server connects; for the others the session
+// manager adds the same text to the standing system prompt (see
+// MCPInstructionsSurfacer). The first 512 characters carry the must-follow rule,
+// which is what Codex shows when deciding how to use a server.
+const OperatorMCPInstructions = `You are an agent in an Operator session; your session is a card on the user's kanban board. Before you end a turn waiting on the user (a question, a decision, missing access), call session_report with state needs_you and a one-line reason, or your card reads Idle and nobody is alerted. When the work is done and there is no pull request to review, call session_report with ready_for_review. Use session_get for your column and why, board_get for other sessions.
+
+The board columns are Working (includes Idle), Needs you, In review and Ready to merge. Your card moves automatically from your activity and from the pull requests attributed to your session: a failing check, requested changes or an agent that stopped responding put it in Needs you; an open or draft PR puts it in In review; an approved or mergeable PR puts it in Ready to merge. A session_report clears itself when the user next messages you; use state clear only to withdraw a report you made by mistake.
+
+Tools:
+- session_get: your own card — status, column, the reason you are in that column, your branch and your PRs with CI and review detail.
+- board_get: every card in a project, grouped by column. Check it before starting broad work so you do not duplicate what another session in the project is already doing.
+- ticket_get: the ticket and plan your session belongs to, when it was started from one.
+- session_rename, pr_claim (a PR whose branch is outside your session's namespace), review_request (Operator's code reviewer) and, when you are reviewing a ticket plan, ticket_mark_merge_ready.
+
+Never try to move, stop or change another session's card.`
+
+// OperatorMCPToolNames lists the tools `opr mcp` registers, for agent CLIs whose
+// approval config takes exact tool names rather than a whole server. A cli test
+// pins it to the server's real tool list.
+var OperatorMCPToolNames = []string{
+	"board_get", "session_get", "ticket_get", "session_report",
+	"session_rename", "pr_claim", "review_request", "ticket_mark_merge_ready",
+}
+
+// MCPInstructionsSurfacer is implemented by agent adapters whose CLI is known to
+// place MCP server `instructions` in the model's context. Adapters that do not
+// implement it get the Operator board rules in their standing system prompt
+// whenever the Operator MCP server is registered.
+type MCPInstructionsSurfacer interface {
+	SurfacesMCPServerInstructions() bool
+}
+
+// MCPServerSpec is one stdio MCP server Operator registers with the agent CLI
+// for a single launch. Adapters whose CLI accepts per-launch MCP configuration
+// map it onto that mechanism; adapters without MCP support ignore it.
+type MCPServerSpec struct {
+	// Name is the server name the agent sees (tools surface as mcp__<Name>__*).
+	Name string
+	// Command is the absolute executable to run.
+	Command string
+	Args    []string
+	// Env is set explicitly on the server process rather than relying on the
+	// agent CLI to pass its own environment through.
+	Env map[string]string
+}
+
 // LaunchConfig carries inputs needed to build a new agent launch command.
 type LaunchConfig struct {
 	Config      AgentConfig
@@ -404,6 +456,9 @@ type LaunchConfig struct {
 	SystemPromptFile string
 	WorkspacePath    string
 	Env              map[string]string
+	// MCPServers are the MCP servers to register for this launch (the Operator
+	// MCP server for worker sessions). Empty for reviewers.
+	MCPServers []MCPServerSpec
 }
 
 // WorkspaceHookConfig carries inputs needed to install workspace-local agent hooks.
@@ -415,6 +470,12 @@ type WorkspaceHookConfig struct {
 	SystemPrompt     string
 	SystemPromptFile string
 	WorkspacePath    string
+	// MCPServers are the launch's MCP servers, for adapters whose CLI only reads
+	// MCP configuration from the files GetAgentHooks already writes. A file in
+	// the workspace can be shared by sessions of an in_place checkout, so such
+	// adapters register the server without its Env and let `opr mcp` inherit the
+	// session identity from the agent process, exactly as the hooks do.
+	MCPServers []MCPServerSpec
 }
 
 // RestoreConfig carries inputs needed to continue an existing native agent session.
@@ -436,6 +497,9 @@ type RestoreConfig struct {
 	// system-prompt flag should re-apply this in their resume command.
 	SystemPrompt     string
 	SystemPromptFile string
+	// MCPServers must be re-applied on resume for the same reason: agent CLIs
+	// rebuild their MCP configuration from flags, not from the transcript.
+	MCPServers []MCPServerSpec
 }
 
 // SessionRef identifies an Operator session whose agent-owned metadata may be read.

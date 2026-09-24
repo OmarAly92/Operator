@@ -118,6 +118,7 @@ type SessionService interface {
 	GetWorkspaceFile(ctx context.Context, id domain.SessionID, path string) (sessionsvc.WorkspaceFileDetail, error)
 	InvalidateWorkspaceCache(id domain.SessionID)
 	Pin(ctx context.Context, id domain.SessionID) (domain.Session, error)
+	SetAgentReport(ctx context.Context, id domain.SessionID, state domain.AgentReportState, reason string) (domain.Session, error)
 	Unpin(ctx context.Context, id domain.SessionID) (domain.Session, error)
 }
 
@@ -241,6 +242,8 @@ func (c *SessionsController) Register(r chi.Router) {
 	r.Post("/sessions/{sessionId}/activity", c.activity)
 	r.Post("/sessions/{sessionId}/pin", c.pin)
 	r.Delete("/sessions/{sessionId}/pin", c.unpin)
+	r.Put("/sessions/{sessionId}/agent-report", c.setAgentReport)
+	r.Delete("/sessions/{sessionId}/agent-report", c.clearAgentReport)
 	r.Post("/sessions/delegate", c.delegateTask)
 }
 
@@ -1118,6 +1121,43 @@ func (c *SessionsController) unpin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	sess, err := c.Svc.Unpin(r.Context(), sessionID(r))
+	if err != nil {
+		envelope.WriteError(w, r, err)
+		return
+	}
+	envelope.WriteJSON(w, http.StatusOK, SessionResponse{Session: sessionView(sess)})
+}
+
+// setAgentReport records what the agent reported about its own card. It is
+// what the Operator MCP server's session_report tool calls.
+func (c *SessionsController) setAgentReport(w http.ResponseWriter, r *http.Request) {
+	if c.Svc == nil {
+		apispec.NotImplemented(w, r, "PUT", "/api/v1/sessions/{sessionId}/agent-report")
+		return
+	}
+	var in SetAgentReportRequest
+	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+		envelope.WriteAPIError(w, r, http.StatusBadRequest, "bad_request", "INVALID_JSON", "Invalid JSON body", nil)
+		return
+	}
+	if in.State == "" {
+		envelope.WriteAPIError(w, r, http.StatusBadRequest, "bad_request", "INVALID_AGENT_REPORT", "state is required", nil)
+		return
+	}
+	sess, err := c.Svc.SetAgentReport(r.Context(), sessionID(r), in.State, in.Reason)
+	if err != nil {
+		envelope.WriteError(w, r, err)
+		return
+	}
+	envelope.WriteJSON(w, http.StatusOK, SessionResponse{Session: sessionView(sess)})
+}
+
+func (c *SessionsController) clearAgentReport(w http.ResponseWriter, r *http.Request) {
+	if c.Svc == nil {
+		apispec.NotImplemented(w, r, "DELETE", "/api/v1/sessions/{sessionId}/agent-report")
+		return
+	}
+	sess, err := c.Svc.SetAgentReport(r.Context(), sessionID(r), "", "")
 	if err != nil {
 		envelope.WriteError(w, r, err)
 		return

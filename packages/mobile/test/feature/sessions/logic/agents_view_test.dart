@@ -186,4 +186,20 @@ void main() {
       expect(trackerIssueId('   '), isNull);
     });
   });
+
+  group('agentReportLine', () {
+    test('shows the agent\'s reason, or names the state when it gave none', () {
+      expect(
+        agentReportLine(const SessionModel(agentReportState: 'needs_you', agentReportReason: ' Which branch? ')),
+        'Which branch?',
+      );
+      expect(agentReportLine(const SessionModel(agentReportState: 'needs_you')), 'The agent is waiting on you');
+      expect(
+        agentReportLine(const SessionModel(agentReportState: 'ready_for_review', agentReportReason: '')),
+        'The agent reports this is ready for review',
+      );
+      expect(agentReportLine(const SessionModel(status: 'idle')), isNull);
+      expect(agentReportLine(const SessionModel(agentReportState: 'something_new', agentReportReason: 'x')), isNull);
+    });
+  });
 }

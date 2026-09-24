@@ -362,6 +362,7 @@ type switchTestAgent struct {
 	restoreSystemPrompt string
 	launchSystemFile    string
 	restoreSystemFile   string
+	launchMCPServers    []ports.MCPServerSpec
 }
 
 type switchReleaseLCM struct {
@@ -470,6 +471,7 @@ func (a *switchTestAgent) GetLaunchCommand(_ context.Context, cfg ports.LaunchCo
 	a.launchNativeID = cfg.NativeSessionID
 	a.launchSystemPrompt = cfg.SystemPrompt
 	a.launchSystemFile = cfg.SystemPromptFile
+	a.launchMCPServers = cfg.MCPServers
 	return []string{"agent", "fresh", cfg.Prompt}, nil
 }
 
@@ -1170,6 +1172,9 @@ func TestSwitchAgentFreshPreservesOperatorIdentityAndDeliversArtifact(t *testing
 	}
 	if target.launchPrompt != operatorTargetActivationPrompt || target.launchSystemFile == "" {
 		t.Fatalf("target delivery prompt=%q systemFile=%q", target.launchPrompt, target.launchSystemFile)
+	}
+	if len(target.launchMCPServers) != 1 || target.launchMCPServers[0].Name != ports.OperatorMCPServerName {
+		t.Fatalf("switched target lost the operator MCP server: %#v", target.launchMCPServers)
 	}
 	if sw.AgentHandoffPath != "" || sw.AgentHandoffHash != "" {
 		t.Fatalf("unavailable semantic handoff unexpectedly retained a file: path=%q hash=%q", sw.AgentHandoffPath, sw.AgentHandoffHash)
