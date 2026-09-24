@@ -3,8 +3,9 @@
 A plain-language companion to the status lines in
 [`2026-09-19-terminal-reference-survey.md`](2026-09-19-terminal-reference-survey.md)
 (checked against the tree on 2026-09-24). The `§` numbers point at the survey
-entries. The 26 entries marked **Not done** are grouped below into 20 items;
-the 17 marked **Partial** follow with what each is missing.
+entries. The 26 entries marked **Not done** on 2026-09-24 are grouped below
+into 20 items (item 5 has since been done, roadmap Plan 1); the 17 marked
+**Partial** follow with what each is missing.
 
 Two words used throughout:
 
@@ -34,11 +35,13 @@ says so.
 
 ### Pasting
 
-5. **Paste safety (§1.10, §2.11).** Pasting text copied from a web page can
-   contain hidden control characters, which can make a command run by
-   itself. Operator silently removes only one such trick. *If done:* risky
-   pastes are cleaned up or you're asked "this paste will run a command,
-   continue?", which protects you from dangerous copy-paste.
+5. **Paste safety (§1.10, §2.11). Done (roadmap Plan 1, 2026-09-24).** When
+   the program asked for bracketed paste (Claude Code does), hidden control
+   characters are removed before the paste is sent. When it did not, a paste
+   with a line break or a hidden control character opens a dialog showing
+   the first lines and why, with "Paste" and "Cancel". At a shell prompt
+   nothing changed: the paste goes into the line and runs only when you
+   press Enter.
 
 ### Resizing the window (shell only)
 
@@ -144,7 +147,7 @@ You'd only notice these as fewer rare glitches or slightly less CPU use.
 For how Operator is used (mostly Claude Code), only a few of these would make
 a difference you'd feel:
 
-- **Paste safety (#5):** protection against dangerous copy-paste.
+- **Paste safety (#5):** done (roadmap Plan 1).
 - **Search that keeps up, and ignores case (#1, #2):** Claude's output is
   searched often.
 - **Claude's window title (partial list):** sessions show what each agent is
