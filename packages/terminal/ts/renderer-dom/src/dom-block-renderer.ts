@@ -242,6 +242,12 @@ export class DomBlockRenderer implements BlockRenderer {
 		this.elements.scrollTo(id, align, this.knownBlockId);
 	}
 
+	scrollToRow(row: number, align: "start" | "center" | "end"): boolean {
+		const moved = this.scroll.scrollToRow(row, align);
+		if (moved) this.scheduleRepaint();
+		return moved;
+	}
+
 	scrollToLatest(): void {
 		const c = this.container;
 		if (!c) return;
