@@ -344,36 +344,39 @@ class _HeaderBar extends StatelessWidget {
   const _HeaderBar({super.key});
 
   static const double _softenExtent = 10;
+  static const double _blurSigma = 10;
+  static const double _tintAlpha = 0.5;
 
   @override
   Widget build(BuildContext context) {
     final surface = context.skin.bgSurface;
     return IgnorePointer(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Expanded(
-            child: ClipRect(
+      child: ClipRSuperellipse(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(AppSheetLogic.topCornerRadius())),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(
               child: BackdropFilter(
-                filter: ui.ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-                child: ColoredBox(color: surface.withValues(alpha: 0.72), child: const SizedBox.expand()),
+                filter: ui.ImageFilter.blur(sigmaX: _blurSigma, sigmaY: _blurSigma),
+                child: ColoredBox(color: surface.withValues(alpha: _tintAlpha), child: const SizedBox.expand()),
               ),
             ),
-          ),
-          SizedBox(
-            height: _softenExtent,
-            width: double.infinity,
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [surface.withValues(alpha: 0.72), surface.withValues(alpha: 0)],
+            SizedBox(
+              height: _softenExtent,
+              width: double.infinity,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [surface.withValues(alpha: _tintAlpha), surface.withValues(alpha: 0)],
+                  ),
                 ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

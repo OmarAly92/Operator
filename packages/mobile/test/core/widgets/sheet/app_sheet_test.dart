@@ -400,7 +400,7 @@ void main() {
     final backdrop = tester.widget<BackdropFilter>(
       find.descendant(of: headerBar, matching: find.byType(BackdropFilter)),
     );
-    expect(backdrop.filter.toString(), contains('12.0'));
+    expect(backdrop.filter.toString(), contains('10.0'));
     expect(find.descendant(of: headerBar, matching: find.byType(ShaderMask)), findsNothing);
 
     final surfaceWidth = tester.getSize(find.byKey(AppSheet.surfaceKey)).width;
@@ -408,9 +408,24 @@ void main() {
     expect(backdropSize.width, surfaceWidth);
     expect(backdropSize.height, AppSheetMetrics.contentTop - 10);
 
+    final clip = tester.widget<ClipRSuperellipse>(
+      find.descendant(of: headerBar, matching: find.byType(ClipRSuperellipse)),
+    );
+    expect(clip.borderRadius, BorderRadius.vertical(top: Radius.circular(AppSheetLogic.topCornerRadius())));
+
+    final tint = tester.widget<ColoredBox>(find.descendant(of: headerBar, matching: find.byType(ColoredBox)));
+    expect(tint.color.a, closeTo(0.5, 0.01));
+
     final tintStripSize = tester.getSize(find.descendant(of: headerBar, matching: find.byType(DecoratedBox)));
     expect(tintStripSize.width, surfaceWidth);
     expect(tintStripSize.height, 10);
+
+    final tintStripGradient =
+        (tester.widget<DecoratedBox>(find.descendant(of: headerBar, matching: find.byType(DecoratedBox))).decoration
+                as BoxDecoration)
+            .gradient! as LinearGradient;
+    expect(tintStripGradient.colors.first.a, closeTo(0.5, 0.01));
+    expect(tintStripGradient.colors.last.a, 0);
 
     final opaqueGradients = tester
         .widgetList<DecoratedBox>(find.descendant(of: headerBar, matching: find.byType(DecoratedBox)))
