@@ -252,6 +252,10 @@ rebuilt (§6).
    under `crates/` or `ts/` may reference the host repository.
 2. **Match Warp, cite Warp.** Rendering/behaviour decisions quote the Warp file
    and line they mirror (see the comments already in `styles.css`, `screen.rs`).
+   Find cites two MIT/Apache references for behaviour only, no code adapted:
+   Ghostty `src/terminal/search/active.zig:11-19` (re-search only what can
+   change) and Alacritty `alacritty_terminal/src/term/search.rs:39-40` (smart
+   case).
 3. **No comments in new code** (user's global instruction). Existing comments may
    be corrected when they become false; do not add new ones.
 4. **Root cause before fix.** Every entry in §4 was mis-diagnosed first. Capture
@@ -831,8 +835,50 @@ history of `master`.
 - Guard: `styles-parity.test.ts` "never uses a containment that clips paint
   or fixes size".
 
+### 4.28 Find found nothing in Claude Code panes and never kept up — Plan 2
+- Symptom: in a Claude Code pane the find bar said "No matches" for text on
+  the screen; in a shell it found only commands whose output had scrolled
+  entirely into scrollback; a match printed after the query was typed never
+  appeared.
+- Cause: `FindCursor` walked `BlockGrid` blocks and searched a block only when
+  every row of it was completed history (`block_byte_range` returned `None`
+  otherwise). A pane without OSC 133 marks — every Claude Code pane — has an
+  empty `BlockGrid` (its one block is synthesised only at export,
+  `grid.rs` `export_blocks`), so there was nothing to walk. Each query
+  scanned once and stopped; the bar decoded every block and ran two
+  `querySelector` calls per hit on every repaint.
+- Now: `FindSession` (`crates/vt-core/src/find.rs`) searches rows, not
+  blocks. Settled history — completed rows up to the last one that ends a
+  line — is scanned once, oldest first, in `FIND_UPDATE_BUDGET_BYTES`
+  (1 MiB) steps, then only from `scanned_to`. Hits are content byte ranges:
+  a trim drops those below the first row, a rewrap only changes the rows
+  they resolve to in `find_results`, a history prepend (attach replay)
+  restarts the scan. The unsettled tail (a soft-wrapped last history row)
+  plus the live screen is re-searched when `generation()` changed, so a
+  match across the scrollback/screen boundary is one hit. A soft-wrapped
+  line is one line to the search; a hard break is a `\n` the query cannot
+  cross (a match that would cross is searched again inside its own line).
+  Literal queries use `memchr` when case-sensitive and an escaped regex
+  (`regex-syntax`'s meta-character set) when not. The bar calls
+  `findUpdate` after every paint while open, refetches results only when
+  hits were added or removed, marks rendered rows from a set of hit rows,
+  re-anchors the current hit by (stable row, byte), and scrolls to the
+  hit's row with `DomBlockRenderer.scrollToRow`. Next/previous is an index
+  step through sorted results, so Alacritty's directional DFAs
+  (survey §2.6) were not needed.
+- Guards: `crates/vt-core/tests/find_session.rs`, the `find.rs` unit tests,
+  `ts/core/src/find.test.ts`, `ts/renderer-dom/src/find-bar.incremental.test.ts`,
+  `dom-block-renderer.scroll.test.ts` "scrollToRow",
+  `npm run bench:terminal -- --renderer dom --scenario find-500k`,
+  `npm run bench:find-update`.
+
 ## 5. Known gaps (not bugs, decisions pending)
 
+- **Find exports every hit on every change.** `findResults` copies all hits
+  out of wasm whenever an update adds or removes one; while Claude streams, a
+  query with hundreds of thousands of hits (a single letter) pays that per
+  paint. Hits are still row classes, not decorations (survey §1.8, Plan 5),
+  and there is no host `onResultsChanged` (survey §3.12).
 - **SGR attributes render by default since 2026-09-23.**
   `RendererFeatures.attributes` defaults to `"warp"` (italic, underline in 5
   styles, SGR 58 colour, strike, overline, hidden, blink); `"plain"` keeps
