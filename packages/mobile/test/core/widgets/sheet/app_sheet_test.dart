@@ -393,6 +393,7 @@ void main() {
       find.descendant(of: headerBar, matching: find.byType(BackdropFilter)),
     );
     expect(backdrop.filter.toString(), contains('12.0'));
+    expect(find.descendant(of: headerBar, matching: find.byType(ShaderMask)), findsNothing);
 
     final opaqueGradients = tester
         .widgetList<DecoratedBox>(find.descendant(of: headerBar, matching: find.byType(DecoratedBox)))

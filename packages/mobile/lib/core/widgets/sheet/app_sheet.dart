@@ -351,23 +351,29 @@ class _HeaderBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final surface = context.skin.bgSurface;
     return IgnorePointer(
-      child: ClipRect(
-        child: ShaderMask(
-          blendMode: BlendMode.dstIn,
-          shaderCallback: (rect) {
-            final stop = ((rect.height - _softenExtent) / rect.height).clamp(0.0, 1.0);
-            return LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: const [Color(0xFFFFFFFF), Color(0xFFFFFFFF), Color(0x00FFFFFF)],
-              stops: [0, stop, 1],
-            ).createShader(rect);
-          },
-          child: BackdropFilter(
-            filter: ui.ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-            child: ColoredBox(color: surface.withValues(alpha: 0.72)),
+      child: Column(
+        children: [
+          Expanded(
+            child: ClipRect(
+              child: BackdropFilter(
+                filter: ui.ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+                child: ColoredBox(color: surface.withValues(alpha: 0.72)),
+              ),
+            ),
           ),
-        ),
+          SizedBox(
+            height: _softenExtent,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [surface.withValues(alpha: 0.72), surface.withValues(alpha: 0)],
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
