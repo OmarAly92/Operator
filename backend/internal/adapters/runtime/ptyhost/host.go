@@ -48,6 +48,10 @@ type ServeConfig struct {
 	InitialCols int
 	InitialRows int
 	Recorder    *recorder
+
+	HistoryPath     string
+	PersistInterval time.Duration
+	HistoryMaxBytes int
 }
 
 // Serve runs the host event loop until the listener closes or Shutdown is
@@ -220,6 +224,10 @@ type host struct {
 
 	readCond   *sync.Cond
 	readParked bool
+
+	fedBytes       uint64
+	persistMu      sync.Mutex
+	persistedBytes uint64
 }
 
 // runWriter drains one client's outbound queue, blocking on each conn.Write
@@ -348,6 +356,7 @@ func (h *host) applyLargestLocked(pending *clientState) {
 func (h *host) run(ctx context.Context) error {
 	// Pump PTY output to ring + broadcast.
 	go h.pumpPTY()
+	go h.runHistoryPersist()
 
 	// Watch for ctx cancellation and trigger shutdown.
 	go func() {
@@ -387,6 +396,7 @@ func (h *host) shutdown() {
 		h.mu.Lock()
 		h.readCond.Broadcast()
 		h.mu.Unlock()
+		h.persistHistory()
 
 		// 1. Dispose the ConPTY first (critical ordering).
 		_ = h.currentPTY().Close()
@@ -616,6 +626,7 @@ func (h *host) deliver(batch []byte) bool {
 	// This costs the screen nothing: the batch is already queued to every
 	// client, and runWriter drains those queues without h.mu.
 	h.feedParserLocked(batch)
+	h.fedBytes += uint64(len(batch))
 	inSync := h.parserInSyncLocked()
 	replies := h.takeQueryRepliesLocked()
 	pty := h.pty
