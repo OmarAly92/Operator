@@ -1,5 +1,4 @@
 import 'dart:math' as math;
-import 'dart:ui' as ui;
 
 import 'package:expressive_sheet/expressive_sheet.dart';
 import 'package:flutter/material.dart';
@@ -50,6 +49,7 @@ sealed class AppSheetMetrics {
   static const double searchBottom = 12;
   static const double mediumFraction = 0.55;
   static const double largeFraction = 0.92;
+  static const double headerFadeExtent = 16;
 }
 
 sealed class AppSheetLogic {
@@ -65,6 +65,9 @@ sealed class AppSheetLogic {
   static double cornerRadius() => GlassMetrics.displayCornerRadius - GlassMetrics.sheetInset;
 
   static double topCornerRadius() => GlassMetrics.sheetTopCornerRadius;
+
+  static double headerBarVisibility(double offset) =>
+      (offset / AppSheetMetrics.headerFadeExtent).clamp(0.0, 1.0).toDouble();
 
   static double bottomClearance({required bool hasSearch}) => hasSearch
       ? AppSheetMetrics.searchBottom + AppSheetMetrics.searchHeight + AppSheetMetrics.contentBottom
@@ -102,6 +105,7 @@ class AppSheet extends StatefulWidget {
   static const Key searchFieldKey = ValueKey('app-sheet-search');
   static const Key backKey = ValueKey('app-sheet-back');
   static const Key headerBarKey = ValueKey('app-sheet-header-bar');
+  static const Key contentClipKey = ValueKey('app-sheet-content-clip');
 
   final AppSheetPage root;
   final List<AppSheetPage> pushed;
@@ -118,9 +122,11 @@ class _AppSheetState extends State<AppSheet> {
   late final List<AppSheetPage> _pages = [widget.root, ...widget.pushed];
   late final AppSheetController _controller = AppSheetController._(this);
   final TextEditingController _search = TextEditingController();
+  final ValueNotifier<double> _headerVisibility = ValueNotifier<double>(0);
   bool _forward = true;
 
   void _push(AppSheetPage page) {
+    _headerVisibility.value = 0;
     setState(() {
       _forward = true;
       _pages.add(page);
@@ -130,6 +136,7 @@ class _AppSheetState extends State<AppSheet> {
 
   void _pop() {
     if (_pages.length < 2) return;
+    _headerVisibility.value = 0;
     setState(() {
       _forward = false;
       _pages.removeLast();
@@ -140,11 +147,26 @@ class _AppSheetState extends State<AppSheet> {
   @override
   void dispose() {
     _search.dispose();
+    _headerVisibility.dispose();
     super.dispose();
+  }
+
+  bool _onScroll(Notification notification, int depth) {
+    if (depth != _pages.length) return false;
+    final metrics = switch (notification) {
+      ScrollNotification(:final metrics, depth: 0) => metrics,
+      ScrollMetricsNotification(:final metrics, depth: 0) => metrics,
+      _ => null,
+    };
+    if (metrics != null && metrics.axis == Axis.vertical) {
+      _headerVisibility.value = AppSheetLogic.headerBarVisibility(metrics.pixels);
+    }
+    return false;
   }
 
   Widget _content(AppSheetPage page, bool shrinkWrap) {
     final skin = context.skin;
+    final depth = _pages.length;
     final bottom = AppSheetLogic.bottomClearance(hasSearch: page.searchHint != null);
     return ValueListenableBuilder<TextEditingValue>(
       key: ValueKey<int>(_pages.length),
@@ -153,34 +175,37 @@ class _AppSheetState extends State<AppSheet> {
         final query = value.text.trim();
         final rows = page.rows(context, query);
         final String? message = rows.isNotEmpty ? null : (query.isNotEmpty ? 'No matches' : page.emptyText);
-        return ListView(
-          shrinkWrap: shrinkWrap,
-          padding: EdgeInsets.fromLTRB(
-            AppSheetMetrics.contentSide,
-            AppSheetMetrics.contentTop,
-            AppSheetMetrics.contentSide,
-            bottom,
-          ),
-          children: [
-            if (page.subtitle != null) ...[
-              AppText(
-                page.subtitle!,
-                style: AppTextStyle.style12Regular.copyWith(color: skin.textTertiary),
-                maxLines: 2,
-              ),
-              const SizedBox(height: 8),
-            ],
-            ...rows,
-            if (message != null)
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                child: AppText(
-                  message,
-                  style: AppTextStyle.style13Regular.copyWith(color: skin.textTertiary),
-                  maxLines: 3,
+        return NotificationListener<Notification>(
+          onNotification: (notification) => _onScroll(notification, depth),
+          child: ListView(
+            shrinkWrap: shrinkWrap,
+            padding: EdgeInsets.fromLTRB(
+              AppSheetMetrics.contentSide,
+              AppSheetMetrics.contentTop,
+              AppSheetMetrics.contentSide,
+              bottom,
+            ),
+            children: [
+              if (page.subtitle != null) ...[
+                AppText(
+                  page.subtitle!,
+                  style: AppTextStyle.style12Regular.copyWith(color: skin.textTertiary),
+                  maxLines: 2,
                 ),
-              ),
-          ],
+                const SizedBox(height: 8),
+              ],
+              ...rows,
+              if (message != null)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  child: AppText(
+                    message,
+                    style: AppTextStyle.style13Regular.copyWith(color: skin.textTertiary),
+                    maxLines: 3,
+                  ),
+                ),
+            ],
+          ),
         );
       },
     );
@@ -203,7 +228,7 @@ class _AppSheetState extends State<AppSheet> {
     );
   }
 
-  Widget _header(AppSheetPage page) {
+  Widget _header(AppSheetPage page, double frost) {
     final skin = context.skin;
     return NavigationToolbar(
       leading: _pages.length > 1
@@ -215,6 +240,7 @@ class _AppSheetState extends State<AppSheet> {
                 icon: Icons.arrow_back_ios_new_rounded,
                 semanticLabel: 'Back',
                 foreground: skin.textPrimary,
+                frost: frost,
                 onPressed: _pop,
               ),
             )
@@ -227,7 +253,7 @@ class _AppSheetState extends State<AppSheet> {
               children: [
                 for (var i = 0; i < page.actions.length; i++) ...[
                   if (i > 0) const SizedBox(width: GlassMetrics.toolbarItemGap),
-                  FrostedCapsule(child: page.actions[i]),
+                  FrostedCapsule(frost: frost, child: page.actions[i]),
                 ],
               ],
             ),
@@ -262,15 +288,19 @@ class _AppSheetState extends State<AppSheet> {
             ),
             child: _content(page, height == null),
           );
+          final content = ClipRect(key: AppSheet.contentClipKey, clipper: const _BelowGrabberClipper(), child: switcher);
           final stack = Stack(
             children: [
-              if (height == null) switcher else Positioned.fill(child: switcher),
+              if (height == null) content else Positioned.fill(child: content),
               Positioned(
                 left: 0,
                 right: 0,
                 top: 0,
                 height: AppSheetMetrics.contentTop,
-                child: _HeaderBar(key: AppSheet.headerBarKey),
+                child: ValueListenableBuilder<double>(
+                  valueListenable: _headerVisibility,
+                  builder: (context, visibility, _) => _HeaderBar(key: AppSheet.headerBarKey, visibility: visibility),
+                ),
               ),
               Positioned(
                 top: AppSheetMetrics.grabberTop,
@@ -293,16 +323,11 @@ class _AppSheetState extends State<AppSheet> {
                 left: AppSheetMetrics.headerSide,
                 right: AppSheetMetrics.headerSide,
                 height: AppSheetMetrics.headerHeight,
-                child: _header(page),
-              ),
-              if (page.searchHint != null)
-                Positioned(
-                  left: AppSheetMetrics.searchSide,
-                  right: AppSheetMetrics.searchSide,
-                  bottom: AppSheetMetrics.searchBottom,
-                  height: AppSheetMetrics.searchHeight,
-                  child: _SearchCapsule(controller: _search, hint: page.searchHint!),
+                child: ValueListenableBuilder<double>(
+                  valueListenable: _headerVisibility,
+                  builder: (context, visibility, _) => _header(page, visibility),
                 ),
+              ),
             ],
           );
           return Padding(
@@ -312,26 +337,39 @@ class _AppSheetState extends State<AppSheet> {
               GlassMetrics.sheetInset,
               GlassMetrics.sheetInset,
             ),
-            child: DecoratedBox(
-              key: AppSheet.surfaceKey,
-              decoration: ShapeDecoration(
-                color: skin.bgSurface,
-                shape: RoundedSuperellipseBorder(borderRadius: radius),
-              ),
-              child: ClipRSuperellipse(
-                borderRadius: radius,
-                child: Material(
-                  type: MaterialType.transparency,
-                  child: AnimatedSize(
-                    duration: AppMotion.base,
-                    curve: AppMotion.easeOut,
-                    alignment: Alignment.bottomCenter,
-                    child: height == null
-                        ? ConstrainedBox(constraints: BoxConstraints(maxHeight: maxHeight), child: stack)
-                        : SizedBox(height: height, child: stack),
+            child: Stack(
+              children: [
+                ClipRSuperellipse(
+                  borderRadius: radius,
+                  clipBehavior: Clip.antiAliasWithSaveLayer,
+                  child: DecoratedBox(
+                    key: AppSheet.surfaceKey,
+                    decoration: ShapeDecoration(
+                      color: skin.bgSurface,
+                      shape: RoundedSuperellipseBorder(borderRadius: radius),
+                    ),
+                    child: Material(
+                      type: MaterialType.transparency,
+                      child: AnimatedSize(
+                        duration: AppMotion.base,
+                        curve: AppMotion.easeOut,
+                        alignment: Alignment.bottomCenter,
+                        child: height == null
+                            ? ConstrainedBox(constraints: BoxConstraints(maxHeight: maxHeight), child: stack)
+                            : SizedBox(height: height, child: stack),
+                      ),
+                    ),
                   ),
                 ),
-              ),
+                if (page.searchHint != null)
+                  Positioned(
+                    left: AppSheetMetrics.searchSide,
+                    right: AppSheetMetrics.searchSide,
+                    bottom: AppSheetMetrics.searchBottom,
+                    height: AppSheetMetrics.searchHeight,
+                    child: _SearchCapsule(controller: _search, hint: page.searchHint!),
+                  ),
+              ],
             ),
           );
         },
@@ -340,42 +378,38 @@ class _AppSheetState extends State<AppSheet> {
   }
 }
 
-class _HeaderBar extends StatelessWidget {
-  const _HeaderBar({super.key});
+class _BelowGrabberClipper extends CustomClipper<Rect> {
+  const _BelowGrabberClipper();
 
-  static const double _softenExtent = 10;
-  static const double _blurSigma = 10;
-  static const double _tintAlpha = 0.5;
+  @override
+  Rect getClip(Size size) => Rect.fromLTRB(0, AppSheetMetrics.headerTop, size.width, size.height);
+
+  @override
+  bool shouldReclip(_BelowGrabberClipper oldClipper) => false;
+}
+
+class _HeaderBar extends StatelessWidget {
+  const _HeaderBar({super.key, required this.visibility});
+
+  final double visibility;
+
+  static const double _tintAlpha = 0.7;
 
   @override
   Widget build(BuildContext context) {
-    final surface = context.skin.bgSurface;
+    if (visibility <= 0) return const SizedBox.expand();
+    final skin = context.skin;
     return IgnorePointer(
-      child: ClipRSuperellipse(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(AppSheetLogic.topCornerRadius())),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Expanded(
-              child: BackdropFilter(
-                filter: ui.ImageFilter.blur(sigmaX: _blurSigma, sigmaY: _blurSigma),
-                child: ColoredBox(color: surface.withValues(alpha: _tintAlpha), child: const SizedBox.expand()),
-              ),
+      child: ClipRect(
+        child: BackdropFilter(
+          filter: FrostedMaterial.filter(visibility),
+          child: ColoredBox(
+            color: skin.bgSurface.withValues(alpha: _tintAlpha * visibility),
+            child: ColoredBox(
+              color: skin.textPrimary.withValues(alpha: FrostedMaterial.lightenAlpha * visibility),
+              child: const SizedBox.expand(),
             ),
-            SizedBox(
-              height: _softenExtent,
-              width: double.infinity,
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [surface.withValues(alpha: _tintAlpha), surface.withValues(alpha: 0)],
-                  ),
-                ),
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );

@@ -376,67 +376,169 @@ void main() {
     expect(field.enableSuggestions, isFalse);
   });
 
-  testWidgets('the header bar blurs scrolled content instead of blanking it', (tester) async {
+  AppSheetPage manyPage({String title = 'Many', void Function(BuildContext context)? onFirst}) => AppSheetPage(
+        title: title,
+        rows: (context, query) => [
+          for (var i = 0; i < 40; i++)
+            SizedBox(
+              height: 44,
+              child: i == 0 && onFirst != null
+                  ? TextButton(onPressed: () => onFirst(context), child: Text('$title row $i'))
+                  : Text('$title row $i'),
+            ),
+        ],
+      );
+
+  Future<void> openMany(WidgetTester tester, {AppSheetPage? page}) async {
     phone(tester);
     await tester.pumpWidget(
       host(
         const LightSkin(),
-        (context) => showAppSheet<String>(
-          context: context,
-          page: AppSheetPage(
-            title: 'Many',
-            rows: (context, query) => [for (var i = 0; i < 40; i++) SizedBox(height: 44, child: Text('Row $i'))],
-          ),
-          detent: AppSheetDetent.large,
-        ),
+        (context) => showAppSheet<String>(context: context, page: page ?? manyPage(), detent: AppSheetDetent.large),
       ),
     );
     await open(tester);
-    await tester.dragUntilVisible(find.text('Row 39'), find.byType(ListView), const Offset(0, -300));
-    await tester.pumpAndSettle();
+  }
+
+  ScrollPosition listPosition(WidgetTester tester) =>
+      tester.state<ScrollableState>(find.descendant(of: find.byType(ListView), matching: find.byType(Scrollable))).position;
+
+  Future<void> scrollTo(WidgetTester tester, double offset) async {
+    listPosition(tester).jumpTo(offset);
+    await tester.pump();
+  }
+
+  Finder headerBlurs() => find.descendant(of: find.byKey(AppSheet.headerBarKey), matching: find.byType(BackdropFilter));
+
+  testWidgets('the sheet clips everything, backdrop filters included, in its own antialiased save layer', (tester) async {
+    await openMany(
+      tester,
+      page: AppSheetPage(
+        title: 'Many',
+        searchHint: 'Search',
+        rows: (context, query) => [for (var i = 0; i < 40; i++) SizedBox(height: 44, child: Text('Row $i'))],
+      ),
+    );
+    final clip = tester.widget<ClipRSuperellipse>(
+      find.ancestor(of: find.byKey(AppSheet.surfaceKey), matching: find.byType(ClipRSuperellipse)).first,
+    );
+    expect(clip.clipBehavior, Clip.antiAliasWithSaveLayer);
+    expect(
+      clip.borderRadius,
+      BorderRadius.vertical(
+        top: Radius.circular(AppSheetLogic.topCornerRadius()),
+        bottom: Radius.circular(AppSheetLogic.cornerRadius()),
+      ),
+    );
+    expect(find.descendant(of: find.byType(ClipRSuperellipse).first, matching: find.byKey(AppSheet.surfaceKey)), findsOneWidget);
+    expect(find.descendant(of: find.byKey(AppSheet.surfaceKey), matching: find.byKey(AppSheet.headerBarKey)), findsOneWidget);
+    expect(find.byKey(AppSheet.searchFieldKey), findsOneWidget);
+    expect(find.descendant(of: find.byKey(AppSheet.surfaceKey), matching: find.byKey(AppSheet.searchFieldKey)), findsNothing);
+  });
+
+  testWidgets('page content never paints in the grabber band at the top edge', (tester) async {
+    await openMany(tester);
+    final clip = tester.widget<ClipRect>(find.byKey(AppSheet.contentClipKey));
+    final size = tester.getSize(find.byKey(AppSheet.contentClipKey));
+    expect(clip.clipper!.getClip(size), Rect.fromLTRB(0, AppSheetMetrics.headerTop, size.width, size.height));
+    expect(find.descendant(of: find.byKey(AppSheet.contentClipKey), matching: find.byType(ListView)), findsOneWidget);
+  });
+
+  testWidgets('at scroll offset 0 the header bar paints nothing', (tester) async {
+    await openMany(tester);
+    expect(find.byKey(AppSheet.headerBarKey), findsOneWidget);
+    expect(headerBlurs(), findsNothing);
+    expect(find.descendant(of: find.byKey(AppSheet.headerBarKey), matching: find.byType(ColoredBox)), findsNothing);
+    expect(find.descendant(of: find.byKey(AppSheet.headerBarKey), matching: find.byType(DecoratedBox)), findsNothing);
+  });
+
+  testWidgets('the header bar fades in over the first 16pt of scroll and out again at the top', (tester) async {
+    await openMany(tester);
+    final skin = const LightSkin();
+
+    await scrollTo(tester, 8);
+    expect(tester.widget<BackdropFilter>(headerBlurs()).filter, FrostedMaterial.filter(0.5));
+    final halfTints = tester
+        .widgetList<ColoredBox>(find.descendant(of: find.byKey(AppSheet.headerBarKey), matching: find.byType(ColoredBox)))
+        .toList();
+    expect(halfTints.first.color.a, closeTo(0.35, 0.01));
+    expect(halfTints.last.color.a, closeTo(FrostedMaterial.lightenAlpha / 2, 0.001));
+
+    await scrollTo(tester, 40);
+    expect(tester.widget<BackdropFilter>(headerBlurs()).filter, FrostedMaterial.filter());
+    final tints = tester
+        .widgetList<ColoredBox>(find.descendant(of: find.byKey(AppSheet.headerBarKey), matching: find.byType(ColoredBox)))
+        .toList();
+    expect(tints.first.color, skin.bgSurface.withValues(alpha: 0.7));
+    expect(tints.last.color, skin.textPrimary.withValues(alpha: FrostedMaterial.lightenAlpha));
+
+    await scrollTo(tester, 0);
+    expect(headerBlurs(), findsNothing);
+  });
+
+  testWidgets('scrolled, the header bar is one full-width frosted material band with a hard bottom edge', (tester) async {
+    await openMany(tester);
+    await scrollTo(tester, 40);
 
     final headerBar = find.byKey(AppSheet.headerBarKey);
-    expect(headerBar, findsOneWidget);
-    final backdrop = tester.widget<BackdropFilter>(
-      find.descendant(of: headerBar, matching: find.byType(BackdropFilter)),
-    );
-    expect(backdrop.filter.toString(), contains('10.0'));
+    final surface = tester.getRect(find.byKey(AppSheet.surfaceKey));
+    final band = tester.getRect(headerBlurs());
+    expect(band.width, surface.width);
+    expect(band.top, surface.top);
+    expect(band.height, AppSheetMetrics.contentTop);
+    expect(find.descendant(of: headerBar, matching: find.byType(ClipRect)), findsOneWidget);
+    expect(find.descendant(of: headerBar, matching: find.byType(ClipRSuperellipse)), findsNothing);
+    expect(find.descendant(of: headerBar, matching: find.byType(ClipRRect)), findsNothing);
     expect(find.descendant(of: headerBar, matching: find.byType(ShaderMask)), findsNothing);
+    expect(find.descendant(of: headerBar, matching: find.byType(DecoratedBox)), findsNothing);
+    expect(find.descendant(of: headerBar, matching: find.byType(GlassSurface)), findsNothing);
+  });
 
-    final surfaceWidth = tester.getSize(find.byKey(AppSheet.surfaceKey)).width;
-    final backdropSize = tester.getSize(find.descendant(of: headerBar, matching: find.byType(BackdropFilter)));
-    expect(backdropSize.width, surfaceWidth);
-    expect(backdropSize.height, AppSheetMetrics.contentTop - 10);
+  test('the frosted material is a heavy mirrored blur over a saturation boost', () {
+    final filter = FrostedMaterial.filter();
+    expect(filter, FrostedMaterial.filter(1));
+    expect(filter.toString(), contains('22.0'));
+    expect(filter.toString(), contains('mirror'));
+    expect(FrostedMaterial.filter(0.5).toString(), contains('11.0'));
+    expect(FrostedMaterial.saturation, 1.7);
+  });
 
-    final clip = tester.widget<ClipRSuperellipse>(
-      find.descendant(of: headerBar, matching: find.byType(ClipRSuperellipse)),
+  testWidgets('the header buttons share the material and frost only while content is under the header', (tester) async {
+    await openMany(
+      tester,
+      page: AppSheetPage(
+        title: 'Root',
+        actions: [TextButton(onPressed: () {}, child: const Text('Done'))],
+        rows: (context, query) => [for (var i = 0; i < 40; i++) SizedBox(height: 44, child: Text('Row $i'))],
+      ),
     );
-    expect(clip.borderRadius, BorderRadius.vertical(top: Radius.circular(AppSheetLogic.topCornerRadius())));
+    Finder capsuleBlur() => find.descendant(of: find.byType(FrostedCapsule), matching: find.byType(BackdropFilter));
+    expect(capsuleBlur(), findsNothing);
 
-    final tint = tester.widget<ColoredBox>(find.descendant(of: headerBar, matching: find.byType(ColoredBox)));
-    expect(tint.color.a, closeTo(0.5, 0.01));
+    await scrollTo(tester, 40);
+    expect(tester.widget<BackdropFilter>(capsuleBlur()).filter, FrostedMaterial.filter());
+    expect(tester.getRect(find.ancestor(of: find.text('Done'), matching: find.byType(FrostedCapsule))).height, 38);
+  });
 
-    final tintStripSize = tester.getSize(find.descendant(of: headerBar, matching: find.byType(DecoratedBox)));
-    expect(tintStripSize.width, surfaceWidth);
-    expect(tintStripSize.height, 10);
+  testWidgets('a pushed page starts with the header bar hidden and popping follows the root list offset', (tester) async {
+    await openMany(tester, page: manyPage(title: 'Root'));
+    await scrollTo(tester, 40);
+    expect(headerBlurs(), findsWidgets);
 
-    final tintStripGradient =
-        (tester.widget<DecoratedBox>(find.descendant(of: headerBar, matching: find.byType(DecoratedBox))).decoration
-                as BoxDecoration)
-            .gradient! as LinearGradient;
-    expect(tintStripGradient.colors.first.a, closeTo(0.5, 0.01));
-    expect(tintStripGradient.colors.last.a, 0);
+    AppSheet.of(tester.element(find.text('Root row 5'))).push(manyPage(title: 'Deep'));
+    await tester.pumpAndSettle();
+    expect(find.text('Deep'), findsOneWidget);
+    expect(listPosition(tester).pixels, 0);
+    expect(headerBlurs(), findsNothing);
 
-    final opaqueGradients = tester
-        .widgetList<DecoratedBox>(find.descendant(of: headerBar, matching: find.byType(DecoratedBox)))
-        .where((box) {
-      final decoration = box.decoration;
-      if (decoration is! BoxDecoration) return false;
-      final gradient = decoration.gradient;
-      if (gradient is! LinearGradient) return false;
-      return gradient.colors.every((c) => c.a == 1.0);
-    });
-    expect(opaqueGradients, isEmpty);
+    await scrollTo(tester, 40);
+    expect(headerBlurs(), findsWidgets);
+
+    await tester.tap(find.byKey(AppSheet.backKey));
+    await tester.pumpAndSettle();
+    expect(find.text('Root'), findsOneWidget);
+    final rootOffset = listPosition(tester).pixels;
+    expect(headerBlurs(), AppSheetLogic.headerBarVisibility(rootOffset) > 0 ? findsWidgets : findsNothing);
   });
 
   testWidgets('push slides the old page out left and the new in from the right; pop mirrors it', (tester) async {
