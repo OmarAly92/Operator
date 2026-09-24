@@ -90,6 +90,42 @@ Reading other sessions is allowed. It lets agents avoid duplicate work across a 
 These stay the user's decision on the board: kill, restore, spawn/delegate, PR merge,
 ticket merge approval, moving or editing other sessions, and changing project config.
 
+### How the agent learns to use it (no skill)
+
+The agent uses these tools without the user asking. Three layers deliver that, all
+automatic:
+
+1. **Tool list.** A connected MCP server's tools appear in the agent's tool list with
+   their descriptions. Nine small tools stay well under Claude Code's threshold for
+   deferring MCP tools behind tool search.
+2. **Server `instructions`.** Claude Code adds a connected server's `instructions` to
+   the system prompt, so the rules below are always in context. No user prompt and no
+   Operator prompt text are needed.
+3. **Tool descriptions** carry the when-to-call rule a second time at the point of use.
+   For example, `session_report`: "Call this before ending a turn in which you are
+   waiting on the user…".
+
+**No skill.**
+- A skill loads on demand when its description matches the task, but "report before
+  you stop and wait" must be always on.
+- Skills are Claude Code only, and injecting one means writing into the worktree or
+  `~/.claude`.
+- The MCP `instructions` field is the standard, per-launch, cross-harness place for
+  always-on rules.
+
+**Per-harness check (phases 4 and 5).** Confirm that each harness's MCP client puts
+server `instructions` in context. Where one drops them, the adapter adds the same text
+(one Go constant, `mcpBoardInstructions`) to that harness's standing system prompt. The
+text only goes to sessions that also have the MCP server, so it is a delivery channel,
+not a non-MCP fallback.
+
+**Residual risk.** Reads are pulled when useful. `session_report` depends on the model
+following the rule; nothing in the hooks can tell "idle, done" from "idle, waiting on
+you". Phase 2's real-app check measures this with no hint in the user prompt. If
+compliance is poor, tighten the wording first. Only then consider a Claude Code `Stop`
+hook that blocks once per turn when the final message ends in a question and no report
+was made.
+
 ### Server instructions (draft)
 
 > You are running inside an Operator session. Operator shows every session as a card on
@@ -185,12 +221,22 @@ effect when the turn ends, which is the intended moment.
 - an explicit `session_report clear`.
 
 Do not clear on every transition into `active`: a permission dialog
-(`blocked`→`active`) mid-turn would wipe a fresh report.
+(`blocked`→`active`) mid-turn would wipe a fresh report. For a harness whose hooks have
+no prompt-submitted event, clear on a transition from `idle`/`waiting_input` into
+`active` instead. A new turn can only start from there. Each adapter declares which
+rule applies.
 
-**Notifications.** A transition into report `needs_you` raises a
-`NotificationNeedsInput` intent through `sessionIntent`, with the reason as the body.
-`needsInputResolutions` resolves it when the report clears. Phone alerts (ntfy) and
-desktop alerts follow for free.
+**Notifications.** Raise the alert when the report *takes effect*, not when it is
+written. The agent usually reports mid-turn while it is still `active`, and alerting
+then would ping the user before the agent has stopped.
+- In `ApplyActivitySignal`, when a session leaves `active` with report `needs_you` set,
+  raise a `NotificationNeedsInput` intent through `sessionIntent` with the reason as
+  the body.
+- Suppress the `turn_finished` intent for that same stop, so the user gets one alert,
+  not two.
+- A report written while the session is already idle alerts immediately.
+- `needsInputResolutions` resolves the alert when the report clears.
+- Phone alerts (ntfy) and desktop alerts follow for free.
 
 **Route.** Add `PUT /api/v1/sessions/{sessionId}/agent-report` with body
 `{state, reason}`, and `DELETE` for the same path.
@@ -225,8 +271,10 @@ New `backend/internal/cli/mcp.go` and `mcp_tools.go`:
 
 ### 5. Registering the server at launch
 
-**Ports.** Add `MCPServers []MCPServerSpec` to `ports.LaunchConfig` and
-`ports.RestoreConfig`:
+**Ports.** Add `MCPServers []MCPServerSpec` to `ports.LaunchConfig`,
+`ports.RestoreConfig` and `ports.WorkspaceHookConfig`. The last one matters because
+most adapters already configure their CLI through files written by `GetAgentHooks`,
+and the MCP entry belongs in the same file:
 
 ```go
 type MCPServerSpec struct {
@@ -252,16 +300,26 @@ every worker session.
 - Reviewer sessions (`internal/review/launcher.go`) get no MCP server. They are
   read-only by contract.
 
-**Adapters.** Each supported adapter maps the spec to its CLI's mechanism, in both
-`GetLaunchCommand` and `GetRestoreCommand`. Resume rebuilds config from flags, exactly
-like the system prompt.
+**Adapters.** Each supported adapter maps the spec to its CLI's mechanism, preferring
+these in order:
+
+1. **A per-launch flag** in `GetLaunchCommand` and `GetRestoreCommand`. Resume rebuilds
+   config from flags, exactly like the system prompt.
+2. **An Operator-owned config file** that the adapter already points the CLI at through
+   an env var or flag (`OPENCODE_CONFIG`, `CODEX_HOME`, `KILO_CONFIG_CONTENT`,
+   `AUTOHAND_CONFIG`, `VIBE_HOME`, `KIMI_CODE_HOME`, …).
+3. **The workspace-local config file** the adapter already writes for hooks in
+   `GetAgentHooks` (`.claude/settings.local.json`-style), removed by
+   `CleanupWorkspace`. Files in a `worktree` workspace are git-excluded with
+   `Workspace.AddExclude`. For an `in_place` workspace, write only what the adapter
+   already writes there for hooks; never add a new file to the user's own checkout.
 
 | Harness | Mechanism | Pre-approval |
 | --- | --- | --- |
 | Claude Code | write `<dataDir>/prompts/<id>/mcp.json` (`{"mcpServers":{"operator":{...}}}`), pass `--mcp-config <path>`. Never `--strict-mcp-config`, which would drop the user's own servers. Never a worktree `.mcp.json`, which dirties git and triggers the project-server approval prompt. | append `mcp__operator` to `--allowedTools` inside the adapter only when the operator server is present |
 | Codex | `-c mcp_servers.operator.command=…`, `-c mcp_servers.operator.args=["mcp"]`, `-c mcp_servers.operator.env={…}` via the existing `codexTOMLConfigString` quoting | verify Codex's MCP approval behaviour under each approval mode; document it |
 | OpenCode | add `mcp.operator = {type: "local", command: [opr, "mcp"], environment: {…}}` to the generated `opencode.json` that `OPENCODE_CONFIG` already points at | `permission` block if needed |
-| Others | audited in phase 5: add where the CLI accepts a per-launch MCP config; mark unsupported otherwise | per CLI |
+| Others | phase 5, per the table there | per CLI |
 
 The config file is written by `prepareSystemPromptFile`'s sibling and removed by
 `cleanupSystemPromptDir`, which already owns `prompts/<id>/`.
@@ -341,12 +399,51 @@ harnesses.
 
 ### Phase 4: Codex and OpenCode wiring
 
-Adapter mapping + argv/config tests for launch and restore.
+- Adapter mapping for launch, restore and agent switch (Claude ⇄ Codex keeps the server).
+- Confirm each CLI surfaces server `instructions`; if not, set the adapter's
+  instructions-in-system-prompt flag.
+- Codex tool approval: pre-approve the operator server under every approval mode the
+  adapter emits (per-server approval config if the pinned Codex version supports it).
+- Prompt-submitted clearing event for each.
+- **Tests**: argv/config tests for launch and restore, and an instructions-channel test.
+- **Real-app check**: the phase 1–3 checks, repeated in a Codex session and an OpenCode
+  session.
 
-### Phase 5: remaining harness audit
+### Phase 5: every remaining harness
 
-For each adapter in `backend/internal/adapters/agent/`, confirm per-launch MCP support
-from that CLI's docs. Wire it, or record it as unsupported in `docs/architecture.md`.
+Wire every remaining adapter in `backend/internal/adapters/agent/`, one commit per
+harness. The "already writes" column is from the adapters' current code. Before wiring
+each harness, confirm its MCP config key, instructions support and approval rules
+against that CLI's documentation for the version Operator pins.
+
+| Harness | Already writes / points at | Likely MCP channel |
+| --- | --- | --- |
+| amp | `settings.json` | `amp.mcpServers` in that settings file |
+| agy | `hooks.json` | per CLI docs |
+| auggie | nothing | per-launch MCP flag, if the CLI has one |
+| autohand | `config.json` via `AUTOHAND_CONFIG` | MCP block in that config |
+| cline | nothing | per CLI docs |
+| continue | `config.yaml` | `mcpServers` in that config |
+| copilot | `config.json`, agent profile | additional MCP config flag or the agent profile |
+| crush | data dir via `XDG_DATA_HOME` | `mcp` block in its config |
+| cursor | `cli-config.json`, `hooks.json` | `mcp.json` alongside the hooks it already writes |
+| devin | `config.local.json` | MCP block in that config |
+| droid | `settings.json`, `hooks.json` | Factory MCP config next to them |
+| goose | `config.yaml` via `XDG_CONFIG_HOME` | an `extensions` entry (stdio) in that config |
+| grok | `settings.local.json` | MCP block in that settings file |
+| kilocode | `KILO_CONFIG` / `KILO_CONFIG_CONTENT` | `mcp` block in the injected config |
+| kimchi | `config.json`, `hooks.local.json` | MCP block in that config (it already speaks `mcp__server__tool` rules) |
+| kimi | `config.toml` via `KIMI_CODE_HOME` | MCP config file flag or that config |
+| kiro | agent config with `mcpServers: {}` | fill the `mcpServers` map it already writes |
+| muse | config via `XDG_CONFIG_HOME` | per CLI docs |
+| qwen | `settings.json` | `mcpServers` in that settings file |
+| vibe | `config.toml`, `hooks.toml` via `VIBE_HOME` | MCP servers table in that config |
+| prime-agent | nothing | per CLI docs |
+| aider, pi | nothing | expected no MCP client → recorded as unsupported |
+
+A harness with no MCP client is recorded as unsupported in `docs/architecture.md` and
+gets nothing, with no prompt fallback. Per harness, add the same config tests as
+phase 4, and run the phase 1 read check in a real session.
 
 ### Phase 6 (optional): mobile reason line
 
@@ -357,11 +454,24 @@ from that CLI's docs. Wire it, or record it as unsupported in `docs/architecture
   (spec drift).
 - **Real app**: `npm run tauri:dev`, spawn a Claude session in Scratch.
   - Phase 1: ask it "what column are you in and why?" It answers from `session_get`.
-  - Phase 2: ask it to ask you a question. The card moves Idle → Needs you with the
-    question, the alert fires, and answering moves it back.
+  - Phase 2, with no mention of Operator in the prompt: give it a task that needs a
+    decision from you. The card moves Working → Needs you with the question when the
+    turn ends, exactly one alert fires, and answering moves it back. Repeat about 10
+    times and record how often it reports; this is the compliance measure from "How the
+    agent learns to use it".
   - Phase 2: ask it to finish a task with no remote. The card moves to In review with
     its reason.
   - Phase 3: on a real PR, `pr_resolve_comments` resolves only that PR's threads.
+
+## Rollout notes
+
+- Sessions that are already running get the MCP server only when they are next
+  restored or relaunched, because config is applied at launch.
+- The config points at the daemon's own `opr` path, the same path the hooks already
+  depend on. An app update that replaces the binary in place keeps working. A moved
+  install breaks both the hooks and MCP together, and `opr doctor` should check both.
+- Add a telemetry event for tool calls (tool name and outcome only, never arguments)
+  so compliance can be seen after release.
 
 ## Docs to update
 
