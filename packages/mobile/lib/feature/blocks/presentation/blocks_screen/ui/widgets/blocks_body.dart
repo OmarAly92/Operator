@@ -361,13 +361,25 @@ class BlocksBodyState extends State<BlocksBody> {
                 positioned: true,
                 child: ValueListenableBuilder<bool>(
                   valueListenable: _pinned,
-                  builder: (context, pinned, _) => _WorkingControl(
-                    workingSince: _selectionMode ? null : widget.workingSince,
-                    stopped: widget.stopped,
-                    showLatest: !_selectionMode && !pinned,
-                    coverage: _coverage,
-                    onLatest: () => _listKey.currentState?.animateToLatest(),
-                  ),
+                  builder: (context, pinned, _) {
+                    final workingSince = _selectionMode ? null : widget.workingSince;
+                    final showLatest = !_selectionMode && !pinned;
+                    void onLatest() => _listKey.currentState?.animateToLatest();
+                    return workingSince == null
+                        ? FloatingWorkingControl(
+                            working: false,
+                            showLatest: showLatest,
+                            coverage: _coverage,
+                            onLatest: onLatest,
+                          )
+                        : _WorkingControl(
+                            workingSince: workingSince,
+                            stopped: widget.stopped,
+                            showLatest: showLatest,
+                            coverage: _coverage,
+                            onLatest: onLatest,
+                          );
+                  },
                 ),
               ),
             ],
@@ -473,7 +485,7 @@ class _WorkingControl extends StatelessWidget {
     required this.onLatest,
   });
 
-  final DateTime? Function()? workingSince;
+  final DateTime? Function() workingSince;
   final bool stopped;
   final bool showLatest;
   final ValueNotifier<double> coverage;
@@ -481,16 +493,9 @@ class _WorkingControl extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    String? activity;
-    if (workingSince != null) {
-      try {
-        activity = context.select<SessionCommandCubit, String?>((cubit) => cubit.activity);
-      } on ProviderNotFoundException {
-        activity = null;
-      }
-    }
+    final activity = context.select<SessionCommandCubit, String?>((cubit) => cubit.activity);
     return FloatingWorkingControl(
-      working: workingSince != null && !stopped && sessionIsWorking(activity),
+      working: !stopped && sessionIsWorking(activity),
       showLatest: showLatest,
       since: workingSince,
       coverage: coverage,

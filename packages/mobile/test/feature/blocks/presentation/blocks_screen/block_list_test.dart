@@ -483,7 +483,7 @@ void main() {
     expect(state.pinned, isTrue);
   });
 
-  testWidgets('a drag during animateToLatest hands control back to the user', (tester) async {
+  testWidgets('grabbing the list mid-glide stops it where it is and follows the finger', (tester) async {
     await pumpList(tester, range(1, 200, lines: (seq) => 1 + seq % 6));
     final state = tester.state<BlockListState>(find.byType(BlockList));
     state.controller.jumpTo(0);
@@ -492,11 +492,73 @@ void main() {
     state.animateToLatest();
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 60));
-    await tester.drag(find.byType(BlockList), const Offset(0, 300));
+    final gesture = await tester.startGesture(tester.getCenter(find.byType(BlockList)));
+    await tester.pump(const Duration(milliseconds: 16));
+    final held = state.controller.position.pixels;
+    expect(held, lessThan(state.controller.position.maxScrollExtent - 100));
+    expect(state.pinned, isFalse);
+
+    await gesture.moveBy(const Offset(0, 40));
+    await tester.pump(const Duration(milliseconds: 16));
+    await gesture.moveBy(const Offset(0, 40));
+    await tester.pump(const Duration(milliseconds: 16));
+    expect(state.controller.position.pixels, lessThan(held));
+    expect(state.controller.position.pixels, greaterThan(held - 120));
+
+    await gesture.up();
+    await tester.pumpAndSettle();
+    expect(state.pinned, isFalse);
+    expect(state.controller.position.pixels, lessThan(state.controller.position.maxScrollExtent - 100));
+  });
+
+  testWidgets('another scroll during the glide cancels it instead of re-pinning', (tester) async {
+    await pumpList(tester, range(1, 200, lines: (seq) => 1 + seq % 6));
+    final state = tester.state<BlockListState>(find.byType(BlockList));
+    state.controller.jumpTo(0);
+    await tester.pumpAndSettle();
+
+    state.animateToLatest();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 60));
+    state.controller.jumpTo(500);
     await tester.pumpAndSettle();
 
     expect(state.pinned, isFalse);
-    expect(state.controller.position.pixels, lessThan(state.controller.position.maxScrollExtent - 100));
+    expect(state.controller.position.pixels, 500);
+  });
+
+  testWidgets('blocks streaming in mid-glide still end pinned at the new tail', (tester) async {
+    final harness = await pumpList(tester, range(1, 200, lines: (seq) => 1 + seq % 6));
+    final state = tester.state<BlockListState>(find.byType(BlockList));
+    state.controller.jumpTo(0);
+    await tester.pumpAndSettle();
+
+    state.animateToLatest();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 60));
+    harness.append(range(201, 230, lines: (seq) => 4));
+    await tester.pump(const Duration(milliseconds: 60));
+    await tester.pumpAndSettle();
+
+    expect(state.pinned, isTrue);
+    expect(state.controller.position.pixels, state.controller.position.maxScrollExtent);
+    expect(find.text('Bash 230'), findsOneWidget);
+  });
+
+  testWidgets('disposing the list mid-glide is safe', (tester) async {
+    await pumpList(tester, range(1, 200, lines: (seq) => 1 + seq % 6));
+    final state = tester.state<BlockListState>(find.byType(BlockList));
+    state.controller.jumpTo(0);
+    await tester.pumpAndSettle();
+
+    final glide = state.animateToLatest();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 60));
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump(const Duration(milliseconds: 400));
+    await glide;
+
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('the header of the block under the top edge is pinned', (

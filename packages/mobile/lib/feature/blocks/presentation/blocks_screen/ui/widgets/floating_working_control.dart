@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:operator_mobile/core/app_themes/app_motion.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/app_themes/text_style/app_text_style.dart';
@@ -19,6 +20,7 @@ class FloatingWorkingControl extends StatefulWidget {
     required this.onLatest,
     this.since,
     this.coverage,
+    this.now = DateTime.now,
   });
 
   static const Key pillKey = ValueKey('floating-working-pill');
@@ -33,6 +35,7 @@ class FloatingWorkingControl extends StatefulWidget {
   final VoidCallback onLatest;
   final DateTime? Function()? since;
   final ValueNotifier<double>? coverage;
+  final DateTime Function() now;
 
   @override
   State<FloatingWorkingControl> createState() => _FloatingWorkingControlState();
@@ -43,21 +46,38 @@ class _FloatingWorkingControlState extends State<FloatingWorkingControl> with Ti
     ..addListener(_report);
   late final AnimationController _latest = AnimationController(vsync: this, value: widget.showLatest ? 1 : 0);
   Timer? _ticker;
+  bool _visible = true;
+  DateTime? _since;
   String _label = 'Working';
 
   @override
   void initState() {
     super.initState();
-    _report();
+    _refreshSince();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _report();
+    });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final visible = TickerMode.valuesOf(context).enabled;
+    if (visible && !_visible) _refreshSince();
+    _visible = visible;
     _syncTicker();
   }
 
   @override
   void didUpdateWidget(FloatingWorkingControl oldWidget) {
     super.didUpdateWidget(oldWidget);
+    _refreshSince();
     if (widget.coverage != oldWidget.coverage) {
-      oldWidget.coverage?.value = 0;
-      _report();
+      final old = oldWidget.coverage;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        old?.value = 0;
+        if (mounted) _report();
+      });
     }
     if (widget.working != oldWidget.working) {
       _drive(_pill, widget.working, AppMotion.control);
@@ -76,7 +96,24 @@ class _FloatingWorkingControlState extends State<FloatingWorkingControl> with Ti
     super.dispose();
   }
 
-  void _report() => widget.coverage?.value = _pill.value * FloatingWorkingControl.coverageHeight;
+  bool get _ticks => widget.working && _visible;
+
+  void _refreshSince() {
+    if (widget.working) _since = widget.since?.call();
+  }
+
+  void _report() {
+    final coverage = widget.coverage;
+    if (coverage == null) return;
+    final value = _pill.value * FloatingWorkingControl.coverageHeight;
+    if (SchedulerBinding.instance.schedulerPhase != SchedulerPhase.persistentCallbacks) {
+      coverage.value = value;
+      return;
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) coverage.value = _pill.value * FloatingWorkingControl.coverageHeight;
+    });
+  }
 
   void _drive(AnimationController controller, bool show, Duration duration) {
     final target = show ? 1.0 : 0.0;
@@ -89,7 +126,7 @@ class _FloatingWorkingControlState extends State<FloatingWorkingControl> with Ti
 
   void _syncTicker() {
     _ticker?.cancel();
-    _ticker = widget.working
+    _ticker = _ticks
         ? Timer.periodic(const Duration(seconds: 1), (_) {
             if (mounted) setState(() {});
           })
@@ -98,8 +135,8 @@ class _FloatingWorkingControlState extends State<FloatingWorkingControl> with Ti
 
   String _currentLabel() {
     if (!widget.working) return _label;
-    final since = widget.since?.call();
-    _label = since == null ? 'Working' : 'Working ${turnElapsed(DateTime.now().difference(since))}';
+    final since = _since;
+    _label = since == null ? 'Working' : 'Working ${turnElapsed(widget.now().difference(since))}';
     return _label;
   }
 

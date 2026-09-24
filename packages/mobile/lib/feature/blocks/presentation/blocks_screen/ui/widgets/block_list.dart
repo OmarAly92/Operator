@@ -159,27 +159,25 @@ class BlockListState extends State<BlockList> {
     }
     _seeking = true;
     _setPinned(true);
-    await controller.animateTo(
-      controller.position.maxScrollExtent,
-      duration: AppMotion.jumpToLatest,
-      curve: AppMotion.easeOut,
-    );
+    final target = controller.position.maxScrollExtent;
+    await controller.animateTo(target, duration: AppMotion.jumpToLatest, curve: AppMotion.easeOut);
     if (!mounted || !_seeking) return;
     _seeking = false;
-    jumpToLatest();
-  }
-
-  bool _onUserScroll(ScrollNotification notification) {
-    final dragged = switch (notification) {
-      ScrollStartNotification(:final dragDetails) => dragDetails != null,
-      ScrollUpdateNotification(:final dragDetails) => dragDetails != null,
-      _ => false,
-    };
-    if (_seeking && dragged && notification.depth == 0) {
-      _seeking = false;
+    if (!controller.hasClients) return;
+    final position = controller.position;
+    final arrived =
+        (position.pixels - target).abs() < 1 || BlockViewport.isPinned(position.pixels, position.maxScrollExtent);
+    if (arrived) {
+      jumpToLatest();
+    } else {
       _onScroll();
     }
-    return false;
+  }
+
+  void _onPointerDown(PointerDownEvent event) {
+    if (!_seeking) return;
+    _seeking = false;
+    _onScroll();
   }
 
   void _setPinned(bool pinned) {
@@ -395,8 +393,8 @@ class BlockListState extends State<BlockList> {
     return SizedBox.expand(
       key: viewportKey,
       child: LayoutBuilder(
-        builder: (context, constraints) => NotificationListener<ScrollNotification>(
-          onNotification: _onUserScroll,
+        builder: (context, constraints) => Listener(
+          onPointerDown: _onPointerDown,
           child: CustomScrollView(
             controller: controller,
             anchor: constraints.maxHeight > 0 ? (lead / constraints.maxHeight).clamp(0.0, 1.0) : 0,

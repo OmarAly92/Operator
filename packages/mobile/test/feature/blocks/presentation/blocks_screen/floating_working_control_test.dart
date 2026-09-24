@@ -10,13 +10,14 @@ import 'package:operator_mobile/core/widgets/motion/shimmer.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/floating_working_control.dart';
 
 class _Host extends StatefulWidget {
-  const _Host({required this.working, required this.showLatest, this.since, this.coverage, this.onLatest});
+  const _Host({required this.working, required this.showLatest, this.since, this.coverage, this.onLatest, this.now});
 
   final bool working;
   final bool showLatest;
   final DateTime? Function()? since;
   final ValueNotifier<double>? coverage;
   final VoidCallback? onLatest;
+  final DateTime Function()? now;
 
   @override
   State<_Host> createState() => _HostState();
@@ -25,20 +26,26 @@ class _Host extends StatefulWidget {
 class _HostState extends State<_Host> {
   late bool working = widget.working;
   late bool showLatest = widget.showLatest;
+  bool visible = true;
 
-  void set({bool? working, bool? showLatest}) => setState(() {
+  void set({bool? working, bool? showLatest, bool? visible}) => setState(() {
     this.working = working ?? this.working;
     this.showLatest = showLatest ?? this.showLatest;
+    this.visible = visible ?? this.visible;
   });
 
   @override
-  Widget build(BuildContext context) => Center(
-    child: FloatingWorkingControl(
-      working: working,
-      showLatest: showLatest,
-      since: widget.since,
-      coverage: widget.coverage,
-      onLatest: widget.onLatest ?? () {},
+  Widget build(BuildContext context) => TickerMode(
+    enabled: visible,
+    child: Center(
+      child: FloatingWorkingControl(
+        working: working,
+        showLatest: showLatest,
+        since: widget.since,
+        coverage: widget.coverage,
+        onLatest: widget.onLatest ?? () {},
+        now: widget.now ?? DateTime.now,
+      ),
     ),
   );
 }
@@ -50,6 +57,7 @@ Future<_HostState> _pump(
   DateTime? Function()? since,
   ValueNotifier<double>? coverage,
   VoidCallback? onLatest,
+  DateTime Function()? now,
   bool reduceMotion = false,
 }) async {
   await tester.pumpWidget(
@@ -71,6 +79,7 @@ Future<_HostState> _pump(
                     since: since,
                     coverage: coverage,
                     onLatest: onLatest,
+                    now: now,
                   ),
                 ),
               ),
@@ -121,14 +130,53 @@ void main() {
   });
 
   testWidgets('the timer ticks each second', (tester) async {
-    var since = DateTime.now().subtract(const Duration(seconds: 9));
-    await _pump(tester, working: true, since: () => since);
+    final start = DateTime(2026, 9, 25, 12);
+    var now = start.add(const Duration(seconds: 9));
+    await _pump(tester, working: true, since: () => start, now: () => now);
     expect(find.text('Working 9s'), findsOneWidget);
 
-    since = since.subtract(const Duration(seconds: 1));
+    now = now.add(const Duration(seconds: 1));
     await tester.pump(const Duration(seconds: 1));
 
     expect(find.text('Working 10s'), findsOneWidget);
+  });
+
+  testWidgets('the start time is read once, not on every tick', (tester) async {
+    final start = DateTime(2026, 9, 25, 12);
+    var now = start;
+    var reads = 0;
+    await _pump(tester, working: true, since: () {
+      reads++;
+      return start;
+    }, now: () => now);
+    final initial = reads;
+
+    for (var tick = 0; tick < 5; tick++) {
+      now = now.add(const Duration(seconds: 1));
+      await tester.pump(const Duration(seconds: 1));
+    }
+
+    expect(find.text('Working 5s'), findsOneWidget);
+    expect(reads, initial);
+  });
+
+  testWidgets('the timer pauses while the route is hidden and resumes when shown', (tester) async {
+    final start = DateTime(2026, 9, 25, 12);
+    var now = start.add(const Duration(seconds: 3));
+    final host = await _pump(tester, working: true, since: () => start, now: () => now);
+    expect(find.text('Working 3s'), findsOneWidget);
+
+    host.set(visible: false);
+    await tester.pump();
+    now = now.add(const Duration(seconds: 4));
+    await tester.pump(const Duration(seconds: 1));
+    await tester.pump(const Duration(seconds: 1));
+    expect(find.text('Working 3s'), findsOneWidget);
+
+    host.set(visible: true);
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
+    expect(find.text('Working 7s'), findsOneWidget);
   });
 
   testWidgets('without a start time the pill reads Working', (tester) async {
@@ -232,11 +280,12 @@ void main() {
 
   testWidgets('the pill width animates to its label', (tester) async {
     DateTime? since;
-    await _pump(tester, working: true, since: () => since);
+    final host = await _pump(tester, working: true, since: () => since);
     final narrow = tester.getSize(_pill).width;
 
     since = DateTime.now().subtract(const Duration(minutes: 42, seconds: 17));
-    await tester.pump(const Duration(seconds: 1));
+    host.set();
+    await tester.pump();
     await tester.pump(AppMotion.control ~/ 2);
     final mid = tester.getSize(_pill).width;
     await tester.pump(AppMotion.control);
@@ -245,6 +294,15 @@ void main() {
     expect(wide, greaterThan(narrow + 10));
     expect(mid, greaterThan(narrow + 1));
     expect(mid, lessThan(wide - 1));
+  });
+
+  testWidgets('a pill shown from the start publishes its coverage after the first frame', (tester) async {
+    final coverage = ValueNotifier<double>(0);
+    addTearDown(coverage.dispose);
+    await _pump(tester, working: true, coverage: coverage, since: () => DateTime.now());
+    await tester.pump();
+
+    expect(coverage.value, FloatingWorkingControl.coverageHeight);
   });
 
   testWidgets('coverage follows the pill so the list can clear it', (tester) async {
