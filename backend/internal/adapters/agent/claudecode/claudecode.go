@@ -624,3 +624,9 @@ func ensureWorkspaceTrusted(configPath, workspacePath string) error {
 // SurfacesMCPServerInstructions: Claude Code adds a connected MCP server's
 // instructions to the system prompt.
 func (p *Plugin) SurfacesMCPServerInstructions() bool { return true }
+
+var _ ports.MCPServerLoader = (*Plugin)(nil)
+
+// LoadsMCPServers reports that the launch registers LaunchConfig.MCPServers
+// with the CLI, so the session has the Operator MCP server.
+func (*Plugin) LoadsMCPServers() bool { return true }

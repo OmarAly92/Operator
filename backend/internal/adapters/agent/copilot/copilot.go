@@ -367,3 +367,9 @@ func appendModelFlag(cmd *[]string, cfg ports.AgentConfig) {
 		*cmd = append(*cmd, "--model", trimmed)
 	}
 }
+
+var _ ports.MCPServerLoader = (*Plugin)(nil)
+
+// LoadsMCPServers reports that the launch registers LaunchConfig.MCPServers
+// with the CLI, so the session has the Operator MCP server.
+func (*Plugin) LoadsMCPServers() bool { return true }

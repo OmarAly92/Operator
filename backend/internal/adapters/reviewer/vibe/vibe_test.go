@@ -250,8 +250,9 @@ func TestReviewMessageReusesLivePaneAndCancelUsesOneEscape(t *testing.T) {
 }
 
 func TestReviewerHarnessAndHostTrustWarning(t *testing.T) {
-	if New().Harness() != HarnessID || !HarnessID.IsKnown() {
-		t.Fatal("Vibe reviewer must be domain registered")
+	// Retired until Vibe can load the Operator reviewer MCP server.
+	if New().Harness() != HarnessID || !HarnessID.IsRetired() {
+		t.Fatal("Vibe reviewer must be a domain reviewer")
 	}
 	for _, phrase := range []string{"host-trusted", "shell", "without OS isolation"} {
 		if !strings.Contains(HostTrustWarning, phrase) {

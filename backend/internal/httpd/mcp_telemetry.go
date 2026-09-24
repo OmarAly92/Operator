@@ -34,6 +34,8 @@ type mcpToolCalledRequest struct {
 	Tool      string `json:"tool"`
 	Outcome   string `json:"outcome"`
 	State     string `json:"state"`
+	Role      string `json:"role"`
+	Harness   string `json:"harness"`
 }
 
 // mcpSessionLookup is the slice of the session service the rollup needs.
@@ -68,7 +70,17 @@ func mountMCPTelemetry(r chi.Router, cfg config.Config, sink ports.EventSink, se
 			envelope.WriteAPIError(w, req, http.StatusBadRequest, "bad_request", "INVALID_JSON", "request body must be valid JSON", nil)
 			return
 		}
-		if !slices.Contains(ports.OperatorMCPToolNames, body.Tool) || (body.Outcome != "ok" && body.Outcome != "error") {
+		names := ports.OperatorMCPToolNames
+		switch body.Role {
+		case "":
+			body.Role = "worker"
+		case "reviewer":
+			names = ports.OperatorReviewerMCPToolNames
+		default:
+			envelope.WriteAPIError(w, req, http.StatusBadRequest, "bad_request", "INVALID_MCP_TOOL_CALL", "role must be empty or reviewer", nil)
+			return
+		}
+		if !slices.Contains(names, body.Tool) || (body.Outcome != "ok" && body.Outcome != "error") {
 			envelope.WriteAPIError(w, req, http.StatusBadRequest, "bad_request", "INVALID_MCP_TOOL_CALL", "tool must be an Operator MCP tool and outcome ok or error", nil)
 			return
 		}
@@ -76,12 +88,18 @@ func mountMCPTelemetry(r chi.Router, cfg config.Config, sink ports.EventSink, se
 			body.State = ""
 		}
 		harness := "unknown"
-		if sessions != nil && body.SessionID != "" {
+		if body.Role == "reviewer" {
+			// A reviewer reports its own harness; the session id, if any, would be
+			// the worker's.
+			if domain.ReviewerHarness(body.Harness).IsKnown() {
+				harness = body.Harness
+			}
+		} else if sessions != nil && body.SessionID != "" {
 			if s, err := sessions.Get(req.Context(), domain.SessionID(body.SessionID)); err == nil && s.Harness != "" {
 				harness = string(s.Harness)
 			}
 		}
-		flushed := rollup.record(time.Now(), mcpToolCallKey{Harness: harness, Tool: body.Tool, Outcome: body.Outcome, State: body.State}, body.SessionID)
+		flushed := rollup.record(time.Now(), mcpToolCallKey{Role: body.Role, Harness: harness, Tool: body.Tool, Outcome: body.Outcome, State: body.State}, body.SessionID)
 		emitMCPToolCallRollup(req.Context(), sink, middleware.GetReqID(req.Context()), flushed)
 		w.WriteHeader(http.StatusAccepted)
 	})
@@ -95,6 +113,7 @@ func emitMCPToolCallRollup(ctx context.Context, sink ports.EventSink, requestID 
 		for _, count := range day.Counts {
 			payload := map[string]any{
 				"day":      day.Day,
+				"role":     count.Role,
 				"harness":  count.Harness,
 				"tool":     count.Tool,
 				"outcome":  count.Outcome,
@@ -117,6 +136,7 @@ func emitMCPToolCallRollup(ctx context.Context, sink ports.EventSink, requestID 
 }
 
 type mcpToolCallKey struct {
+	Role    string `json:"role,omitempty"`
 	Harness string `json:"harness"`
 	Tool    string `json:"tool"`
 	Outcome string `json:"outcome"`
@@ -200,6 +220,9 @@ func (r *mcpToolCallRollup) sortedCountsLocked() []mcpToolCallCount {
 	}
 	sort.Slice(out, func(i, j int) bool {
 		a, b := out[i].mcpToolCallKey, out[j].mcpToolCallKey
+		if a.Role != b.Role {
+			return a.Role > b.Role
+		}
 		if a.Harness != b.Harness {
 			return a.Harness < b.Harness
 		}

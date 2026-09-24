@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/OmarAly92/operator/backend/internal/adapters/agent/agentbase"
 	workerqwen "github.com/OmarAly92/operator/backend/internal/adapters/agent/qwen"
 	"github.com/OmarAly92/operator/backend/internal/domain"
 	"github.com/OmarAly92/operator/backend/internal/ports"
@@ -77,8 +78,23 @@ func (r *Reviewer) ReviewCommand(ctx context.Context, inv ports.ReviewInvocation
 		envVars[key] = value
 	}
 	envVars["OPERATOR_DATA_DIR"] = env.DataDir
+	argv := []string{binary, "--bare", "--approval-mode", "plan"}
+	// --bare still honors explicit flags. Plan mode blocks any tool that would
+	// need confirmation, so the Operator server is trusted and its tools
+	// (mcp__operator__*) are pre-allowed: review_submit is the only way the
+	// reviewer records its result.
+	mcpConfig, err := agentbase.MCPServersJSON(inv.MCPServers, agentbase.WithTrust)
+	if err != nil {
+		return ports.ReviewCommandSpec{}, fmt.Errorf("qwen reviewer: %w", err)
+	}
+	if mcpConfig != "" {
+		argv = append(argv, "--mcp-config", mcpConfig)
+		for _, name := range agentbase.MCPServerNames(inv.MCPServers) {
+			argv = append(argv, "--allowed-tools", "mcp__"+name)
+		}
+	}
 	return ports.ReviewCommandSpec{
-		Argv:             []string{binary, "--bare", "--approval-mode", "plan"},
+		Argv:             argv,
 		Env:              envVars,
 		InitialMessage:   inv.Prompt,
 		WorkingDirectory: env.WorkingDirectory,

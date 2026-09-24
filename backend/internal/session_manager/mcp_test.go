@@ -96,8 +96,14 @@ func TestRestoreFreshLaunchReappliesOperatorMCPServer(t *testing.T) {
 	assertOperatorMCPServer(t, agent.lastLaunch.MCPServers, "mer-1")
 }
 
-// surfacingAgent stands in for an adapter whose CLI surfaces MCP instructions.
-type surfacingAgent struct{ *recordingAgent }
+// loadingAgent stands in for an adapter that registers the MCP server with
+// its CLI.
+type loadingAgent struct{ *recordingAgent }
+
+func (loadingAgent) LoadsMCPServers() bool { return true }
+
+// surfacingAgent also has a CLI that surfaces MCP server instructions.
+type surfacingAgent struct{ loadingAgent }
 
 func (surfacingAgent) SurfacesMCPServerInstructions() bool { return true }
 
@@ -108,9 +114,11 @@ func TestBoardRulesReachThePromptOnlyWhenTheCLIDropsServerInstructions(t *testin
 		executable string
 		wantRules  bool
 	}{
-		{"agent that surfaces instructions", func(a *recordingAgent) ports.Agent { return surfacingAgent{a} }, "/opt/operator/opr", false},
-		{"agent that does not", func(a *recordingAgent) ports.Agent { return a }, "/opt/operator/opr", true},
-		{"no MCP server registered", func(a *recordingAgent) ports.Agent { return a }, "/tmp/session_manager.test", false},
+		{"agent that surfaces instructions", func(a *recordingAgent) ports.Agent { return surfacingAgent{loadingAgent{a}} }, "/opt/operator/opr", false},
+		{"agent that does not", func(a *recordingAgent) ports.Agent { return loadingAgent{a} }, "/opt/operator/opr", true},
+		// Rules naming tools the session does not have would mislead it.
+		{"agent that cannot load MCP servers", func(a *recordingAgent) ports.Agent { return a }, "/opt/operator/opr", false},
+		{"no MCP server registered", func(a *recordingAgent) ports.Agent { return loadingAgent{a} }, "/tmp/session_manager.test", false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			st := newFakeStore()

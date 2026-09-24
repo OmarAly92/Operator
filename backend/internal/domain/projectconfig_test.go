@@ -134,11 +134,12 @@ func TestResolveReviewerHarness(t *testing.T) {
 	if got := (ProjectConfig{}).ResolveReviewerHarness(HarnessOpenCode); got != ReviewerOpenCode {
 		t.Fatalf("opencode worker = %q, want reviewer opencode", got)
 	}
-	if got := (ProjectConfig{}).ResolveReviewerHarness(HarnessMuse); got != ReviewerMuse {
-		t.Fatalf("muse worker = %q, want reviewer muse", got)
+	// Muse and Kimchi reviewers are retired, so those workers fall back.
+	if got := (ProjectConfig{}).ResolveReviewerHarness(HarnessMuse); got != FallbackReviewerHarness {
+		t.Fatalf("muse worker = %q, want the fallback reviewer", got)
 	}
-	if got := (ProjectConfig{}).ResolveReviewerHarness(HarnessKimchi); got != ReviewerKimchi {
-		t.Fatalf("kimchi worker = %q, want reviewer kimchi", got)
+	if got := (ProjectConfig{}).ResolveReviewerHarness(HarnessKimchi); got != FallbackReviewerHarness {
+		t.Fatalf("kimchi worker = %q, want the fallback reviewer", got)
 	}
 
 	// A worker harness that is not itself a reviewer (e.g. crush, aider) falls
@@ -187,5 +188,24 @@ func TestProjectConfigRejectsUnknownHarness(t *testing.T) {
 	c := ProjectConfig{Harness: AgentHarness("nope")}
 	if err := c.Validate(); err == nil {
 		t.Fatal("Validate() must reject an unknown harness")
+	}
+}
+
+func TestResolveReviewerHarnessSkipsRetiredReviewers(t *testing.T) {
+	cfg := ProjectConfig{Reviewers: []ReviewerConfig{{Harness: ReviewerAider}, {Harness: ReviewerCodex}}}
+	if got := cfg.ResolveReviewerHarness(HarnessClaudeCode); got != ReviewerCodex {
+		t.Fatalf("reviewer = %q, want the first offered one (codex)", got)
+	}
+	cfg = ProjectConfig{Reviewers: []ReviewerConfig{{Harness: ReviewerAider}}}
+	if got := cfg.ResolveReviewerHarness(HarnessCodex); got != ReviewerCodex {
+		t.Fatalf("reviewer = %q, want the worker's own (codex)", got)
+	}
+	if got := (ProjectConfig{}).ResolveReviewerHarness(HarnessMuse); got != FallbackReviewerHarness {
+		t.Fatalf("reviewer = %q, want the fallback for a worker whose reviewer is retired", got)
+	}
+	for _, h := range RetiredReviewerHarnesses {
+		if h.IsKnown() {
+			t.Fatalf("%q is both offered and retired", h)
+		}
 	}
 }

@@ -397,6 +397,9 @@ Tools:
 - board_get: every card in a project, grouped by column. Check it before starting broad work so you do not duplicate what another session in the project is already doing.
 - ticket_get: the ticket and plan your session belongs to, when it was started from one.
 - session_rename, pr_claim (a PR whose branch is outside your session's namespace), pr_resolve_comments (after addressing review threads on your PR), review_request (Operator's code reviewer) and, when you are reviewing a ticket plan, ticket_mark_merge_ready.
+- session_handoff_submit: only when Operator sends you an <opr-handoff-request> before switching this session to another agent.
+
+These tools are how you act on Operator. Do not run opr commands for any of this.
 
 Never try to move, stop or change another session's card.`
 
@@ -405,7 +408,28 @@ Never try to move, stop or change another session's card.`
 // pins it to the server's real tool list.
 var OperatorMCPToolNames = []string{
 	"board_get", "session_get", "ticket_get", "session_report",
-	"session_rename", "pr_claim", "pr_resolve_comments", "review_request", "ticket_mark_merge_ready",
+	"session_rename", "pr_claim", "pr_resolve_comments", "review_request", "session_handoff_submit", "ticket_mark_merge_ready",
+}
+
+// OperatorReviewerMCPArg selects the reviewer role: `opr mcp --reviewer` serves
+// only the reviewer's tools, for the worker named in the reviewer pane's
+// OPERATOR_REVIEW_WORKER_SESSION_ID. A reviewer never gets the worker tools,
+// which would let it write the worker's card.
+const OperatorReviewerMCPArg = "--reviewer"
+
+// OperatorReviewerMCPInstructions is the reviewer-role server's instructions.
+const OperatorReviewerMCPInstructions = `You are an Operator code reviewer. After you have posted your review on each pull request, record the result with review_submit: one entry per review task, with its run id, your verdict (approved or changes_requested), the full review markdown, and the GitHub review id you captured. Operator does not see a review until review_submit records it. Submit every task in the queue in one call.`
+
+// OperatorReviewerMCPToolNames lists the tools `opr mcp --reviewer` registers.
+var OperatorReviewerMCPToolNames = []string{"review_submit"}
+
+// MCPServerLoader is implemented by agent adapters whose launch, restore and
+// hook install register LaunchConfig.MCPServers with the agent CLI. Only those
+// sessions have the Operator tools, so only they get the board rules and the
+// tool-based agent-switch handoff request; every other adapter ignores
+// MCPServers.
+type MCPServerLoader interface {
+	LoadsMCPServers() bool
 }
 
 // MCPInstructionsSurfacer is implemented by agent adapters whose CLI is known to

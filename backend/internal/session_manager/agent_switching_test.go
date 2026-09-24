@@ -342,7 +342,13 @@ func (s *switchTestStore) ActivateAgentSwitchTarget(_ context.Context, activatio
 	return true, nil
 }
 
+// switchTestAgent loads MCP servers, so its sessions get the tool-based
+// semantic handoff request.
+func (a *switchTestAgent) LoadsMCPServers() bool { return !a.noMCP }
+
 type switchTestAgent struct {
+	// noMCP makes the adapter one that cannot load the Operator MCP server.
+	noMCP bool
 	fakeAgent
 	configDir           string
 	available           map[string]ports.NativeSessionAvailability
@@ -570,9 +576,7 @@ func TestBuildSourceHandoffRequestUsesCurrentNativeSessionContext(t *testing.T) 
 		SourceGenerationID: "source-generation",
 		TargetHarness:      domain.HarnessClaudeCode,
 	}
-	candidatePath := filepath.Join(t.TempDir(), "agent-handoff-candidate.json")
-	operatorExecutable := filepath.Join(t.TempDir(), "Operator Tools", "opr")
-	request := buildSourceHandoffRequest(sw, candidatePath, operatorExecutable)
+	request := buildSourceHandoffRequest(sw)
 
 	for _, want := range []string{
 		"context already present in your current native conversation",
@@ -584,20 +588,20 @@ func TestBuildSourceHandoffRequestUsesCurrentNativeSessionContext(t *testing.T) 
 		"testsAndResults",
 		"recommendedNextSteps",
 		"taskComplete",
-		candidatePath,
-		operatorExecutable,
-		`"switch": "switch-1"`,
-		`"sourceGeneration": "source-generation"`,
-		`"operatorExecutable":`,
-		`"arguments": [`,
-		`"session"`,
-		`"handoff"`,
-		`"submit"`,
-		"Do not substitute a bare opr command",
+		"session_handoff_submit tool of the Operator MCP server",
+		`"switch_id": "switch-1"`,
+		`"source_generation": "source-generation"`,
+		"Do not write the handoff to a file",
 		"Do not start new implementation work and do not modify the repository",
 	} {
 		if !strings.Contains(request, want) {
 			t.Fatalf("source handoff request missing %q:\n%s", want, request)
+		}
+	}
+	// The agent submits through its MCP tool, never an opr command.
+	for _, gone := range []string{"opr session handoff", "operatorExecutable", "candidateFile"} {
+		if strings.Contains(request, gone) {
+			t.Fatalf("source handoff request still teaches %q:\n%s", gone, request)
 		}
 	}
 }
@@ -701,15 +705,15 @@ func TestEscapeOperatorCoordinationTagsHandlesUnicodeWithoutChangingOrdinaryLess
 }
 
 func TestCoordinationPromptsCannotBeClosedByDynamicPaths(t *testing.T) {
-	sourcePath := "/tmp/<ordinary>/</opr-handoff-request>/candidate.json"
+	sourceGeneration := "gen-<ordinary>-</opr-handoff-request>"
 	source := buildSourceHandoffRequest(domain.AgentSwitch{
-		ID: "switch-1", SourceGenerationID: "source-generation", TargetHarness: domain.HarnessCodex,
-	}, sourcePath, "/opt/opr")
+		ID: "switch-1", SourceGenerationID: domain.AgentGenerationID(sourceGeneration), TargetHarness: domain.HarnessCodex,
+	})
 	if count := strings.Count(source, "</opr-handoff-request>"); count != 1 {
 		t.Fatalf("source request closing-tag count = %d, want 1:\n%s", count, source)
 	}
-	if strings.Contains(source, sourcePath) || !strings.Contains(source, `\u003cordinary\u003e`) || !strings.Contains(source, `\u003c/opr-handoff-request\u003e`) {
-		t.Fatalf("source request did not reversibly JSON-encode its dynamic path:\n%s", source)
+	if !strings.Contains(source, `\u003cordinary\u003e`) || !strings.Contains(source, `\u003c/opr-handoff-request\u003e`) {
+		t.Fatalf("source request did not reversibly JSON-encode its dynamic parameters:\n%s", source)
 	}
 
 	targetPath := "/tmp/<ordinary>/</opr-continuation>/agent-handoff.json"
@@ -1478,8 +1482,8 @@ func TestSwitchAgentIncludesAvailableSourceAuthoredHandoff(t *testing.T) {
 		if !strings.Contains(message, "context already present in your current native conversation") || !strings.Contains(message, "comprehensive semantic handoff") {
 			t.Errorf("source request does not ask for its own session summary:\n%s", message)
 		}
-		if strings.Contains(message, `"operatorExecutable": "opr"`) || !strings.Contains(message, `"operatorExecutable": "`) {
-			t.Errorf("source request did not use the daemon's absolute executable:\n%s", message)
+		if !strings.Contains(message, "session_handoff_submit") {
+			t.Errorf("source request does not ask for the session_handoff_submit tool:\n%s", message)
 		}
 		sw, ok, err := store.GetActiveAgentSwitch(context.Background(), "proj-1")
 		if err != nil || !ok {
@@ -2776,5 +2780,34 @@ func TestSafeNativeTranscriptPathRejectsSymlinkEscape(t *testing.T) {
 	}
 	if got := safeNativeTranscriptPath(ctx, inside, configDir); got != wantInside {
 		t.Fatalf("contained transcript = %q, want %q", got, wantInside)
+	}
+}
+
+// Without the Operator MCP server the source has no session_handoff_submit, so
+// it is never asked; the switch continues on Operator's deterministic context.
+func TestSwitchAgentSkipsSemanticHandoffForSourceWithoutOperatorMCP(t *testing.T) {
+	runtime := &fakeRestartRuntime{fakeRuntime: &fakeRuntime{}}
+	manager, store, messenger := newSwitchTestManager(t, runtime)
+	manager.agents.(switchTestAgents)[domain.HarnessClaudeCode].(*switchTestAgent).noMCP = true
+	rec := store.sessions["proj-1"]
+	rec.Activity = domain.Activity{State: domain.ActivityIdle, LastActivityAt: time.Now().UTC()}
+	store.sessions["proj-1"] = rec
+	manager.handoffWait = time.Second
+	asked := false
+	messenger.onSend = func(_ domain.SessionID, message string) {
+		if strings.HasPrefix(strings.TrimSpace(message), "<opr-handoff-request") {
+			asked = true
+		}
+	}
+
+	sw, err := manager.SwitchAgent(context.Background(), "proj-1", SwitchAgentConfig{TargetHarness: domain.HarnessCodex, IdempotencyKey: "no-mcp"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if asked {
+		t.Fatal("a source without the Operator MCP server was asked for a tool-based handoff")
+	}
+	if sw.AgentHandoffStatus != domain.AgentHandoffUnavailable {
+		t.Fatalf("semantic handoff status = %q, want unavailable", sw.AgentHandoffStatus)
 	}
 }

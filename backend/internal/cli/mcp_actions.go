@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/url"
@@ -48,6 +49,13 @@ func (t *mcpTools) registerActions(server *mcp.Server) {
 			"running for the same commit. The reviewer's verdict reaches you as a message.",
 		Annotations: selfActionTool,
 	}, t.reviewRequest)
+	mcp.AddTool(server, &mcp.Tool{
+		Name:  "session_handoff_submit",
+		Title: "Submit an agent-switch handoff",
+		Description: "Only when Operator sends you an <opr-handoff-request>: submit your semantic handoff for the agent switch it names, " +
+			"with the switch_id and source_generation from that request and the handoff JSON object it describes. Never call it otherwise.",
+		Annotations: selfActionTool,
+	}, t.sessionHandoffSubmit)
 	mcp.AddTool(server, &mcp.Tool{
 		Name:  "ticket_mark_merge_ready",
 		Title: "Mark a ticket plan merge-ready",
@@ -250,4 +258,43 @@ func (t *mcpTools) ticketMarkMergeReady(ctx context.Context, _ *mcp.CallToolRequ
 
 type mergeReadyWire struct {
 	Summary string `json:"summary"`
+}
+
+// maxHandoffBytes mirrors the daemon's 64 KiB handoff document limit.
+const maxHandoffBytes = 64 << 10
+
+type sessionHandoffSubmitInput struct {
+	SwitchID         string         `json:"switch_id" jsonschema:"The switch_id from the <opr-handoff-request>."`
+	SourceGeneration string         `json:"source_generation" jsonschema:"The source_generation from the <opr-handoff-request>."`
+	Handoff          map[string]any `json:"handoff" jsonschema:"The handoff document: one JSON object with schemaVersion 1, goal and progressSummary, and the optional fields the request lists."`
+}
+
+type sessionHandoffSubmitOutput struct {
+	SwitchID      string `json:"switch_id"`
+	State         string `json:"state"`
+	HandoffStatus string `json:"handoff_status"`
+}
+
+func (t *mcpTools) sessionHandoffSubmit(ctx context.Context, _ *mcp.CallToolRequest, in sessionHandoffSubmitInput) (*mcp.CallToolResult, sessionHandoffSubmitOutput, error) {
+	switchID := strings.TrimSpace(in.SwitchID)
+	generation := strings.TrimSpace(in.SourceGeneration)
+	if switchID == "" || generation == "" {
+		return nil, sessionHandoffSubmitOutput{}, errors.New("switch_id and source_generation are required: copy them from the <opr-handoff-request>")
+	}
+	if len(in.Handoff) == 0 {
+		return nil, sessionHandoffSubmitOutput{}, errors.New("handoff is required: one JSON object")
+	}
+	raw, err := json.Marshal(in.Handoff)
+	if err != nil {
+		return nil, sessionHandoffSubmitOutput{}, fmt.Errorf("encode handoff: %w", err)
+	}
+	if len(raw) > maxHandoffBytes {
+		return nil, sessionHandoffSubmitOutput{}, fmt.Errorf("handoff is %d bytes; the limit is %d", len(raw), maxHandoffBytes)
+	}
+	var res agentSwitchResponse
+	route := "sessions/" + url.PathEscape(t.id.SessionID) + "/agent-switches/" + url.PathEscape(switchID) + "/handoff"
+	if err := t.ctx.postJSON(ctx, route, submitAgentHandoffRequest{SourceGenerationID: generation, Handoff: raw}, &res); err != nil {
+		return nil, sessionHandoffSubmitOutput{}, err
+	}
+	return nil, sessionHandoffSubmitOutput{SwitchID: res.Switch.ID, State: res.Switch.State, HandoffStatus: res.Switch.AgentHandoffStatus}, nil
 }

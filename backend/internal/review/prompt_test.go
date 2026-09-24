@@ -29,11 +29,14 @@ func TestReviewTextsIncludesMultiPRQueue(t *testing.T) {
 		"After every PR has its own GitHub review from step 1",
 		"printf '%s'",
 		"do not use a heredoc",
-		"opr review submit --session mer-1 --reviews -",
+		"review_submit { \"reviews\": [",
 		`"reviews": [`,
 	} {
 		if !strings.Contains(prompt, want) {
 			t.Fatalf("prompt missing %q:\n%s", want, prompt)
 		}
+	}
+	if strings.Contains(prompt, "opr review submit") {
+		t.Fatalf("prompt still teaches the opr command:\n%s", prompt)
 	}
 }

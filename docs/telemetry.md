@@ -27,8 +27,10 @@ ingestion drop rules, see [posthog-cost-controls.md](posthog-cost-controls.md).
   the repository. `opr.review.submitted` fires only on the real running-to-complete
   transition, so a reviewer retrying a submit cannot double-count a verdict
 - Operator MCP tool use: `opr.mcp.tool_calls` / `opr.v2.mcp.tool_calls`, a
-  daily rollup of the calls agents make to the board tools `opr mcp` serves. One
-  event per UTC day per `harness`, `tool`, `outcome` (`ok` / `error`) and, for
+  daily rollup of the calls agents make to the tools `opr mcp` serves. One
+  event per UTC day per `role` (`worker`, or `reviewer` for `opr mcp --reviewer`,
+  counted under the reviewer's own harness), `harness`, `tool`, `outcome`
+  (`ok` / `error`) and, for
   `session_report`, report `state` (`needs_you` / `ready_for_review` / `clear`),
   carrying the number of `calls` and of distinct `sessions`. It answers how often
   each agent reports its state, not what it said: no tool argument is sent (a

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"os"
 	"path/filepath"
 	"sync"
 
@@ -257,7 +258,9 @@ func startSession(ctx context.Context, cfg config.Config, runtime runtimeselect.
 		Sessions: store,
 		PRs:      store,
 		Projects: store,
-		Launcher: reviewcore.NewLauncher(reviewers, runtime, cfg.DataDir, reviewcore.WithAgentAuth(reviewerAgentAuth{agents: agents})),
+		Launcher: reviewcore.NewLauncher(reviewers, runtime, cfg.DataDir,
+			reviewcore.WithAgentAuth(reviewerAgentAuth{agents: agents}),
+			reviewcore.WithOperatorMCP(os.Executable, cfg.RunFilePath)),
 	})
 	reviewSvc := reviewsvc.New(reviewEngine, store,
 		reviewsvc.WithLifecycleReducer(lcm),

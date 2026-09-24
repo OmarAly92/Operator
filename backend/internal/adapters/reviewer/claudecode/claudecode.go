@@ -42,8 +42,9 @@ var _ ports.ReviewerRestorer = (*Reviewer)(nil)
 // mode where these rules are honored: allow rules auto-approve without
 // prompting, so the reviewer can read the checkout and run the few commands it
 // needs (git diff/log/show to inspect the PR, printf to pipe review JSON into
-// the downstream commands without writing a worktree file, gh to post the
-// review, and `opr review submit` to record the verdict) without stalling.
+// gh without writing a worktree file, and gh to post the review) without
+// stalling. The verdict is recorded through the Operator MCP server's
+// review_submit tool, which the adapter allows as mcp__operator.
 var reviewerAllowedTools = []string{
 	"Read",
 	"Grep",
@@ -54,7 +55,6 @@ var reviewerAllowedTools = []string{
 	"Bash(git log:*)",
 	"Bash(git show:*)",
 	"Bash(git status:*)",
-	"Bash(opr review submit:*)",
 }
 
 // reviewerDisallowedTools hard-denies the write paths as defense in depth, so a
@@ -89,6 +89,7 @@ func (r *Reviewer) ReviewCommand(ctx context.Context, inv ports.ReviewInvocation
 		Permissions:     ports.PermissionModeAuto,
 		AllowedTools:    reviewerAllowedTools,
 		DisallowedTools: reviewerDisallowedTools,
+		MCPServers:      inv.MCPServers,
 	})
 	if err != nil {
 		return ports.ReviewCommandSpec{}, err

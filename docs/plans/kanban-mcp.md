@@ -494,5 +494,15 @@ Confirmed by the user on 2026-09-24:
    restored session that was waiting on the user is still waiting.
 3. **`board_get` may read any project.** Everything is local and read-only.
 
+4. **Agents act on Operator only through MCP tools** (2026-09-24). `opr` commands
+   stay for hooks, people and scripts. The two commands agents were still told to
+   run became tools: the reviewer's `opr review submit` is `review_submit`, served by
+   `opr mcp --reviewer`, and the agent-switch `opr session handoff submit` is
+   `session_handoff_submit`. Reviewers whose CLI cannot load the server are no
+   longer offered (`domain.RetiredReviewerHarnesses`); no command fallback.
+5. **Board rules and the handoff request go only to sessions that have the
+   tools** (`ports.MCPServerLoader`). Before this, an agent without MCP got rules
+   naming tools it did not have.
+
 Out of scope for now: spawning helpers (`/sessions/delegate`). Revisit once agents use
 the board.

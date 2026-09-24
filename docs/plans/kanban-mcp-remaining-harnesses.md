@@ -300,6 +300,26 @@ Use these; do not re-derive them.
 
 No MCP client. Record it as unsupported in `docs/architecture.md`; no code.
 
+## Retired reviewers
+
+A reviewer records its verdict only with `review_submit` on `opr mcp --reviewer`, so
+Operator offers only reviewers whose adapter registers that server
+(`domain.AllReviewerHarnesses`: amp, auggie, claude-code, codex, copilot, kilocode,
+opencode, qwen). The other reviewer adapters in `adapters/reviewer` are unregistered
+and listed in `domain.RetiredReviewerHarnesses`. To bring one back:
+
+- Register `inv.MCPServers` with its CLI from a place outside the worker's checkout
+  (a flag, an env var, or a file under the reviewer prompt root). Droid and Crush read
+  MCP config only from workspace or home files, which is why they are retired.
+- Pre-approve the Operator server's tools in the reviewer's permission policy, and
+  drop any `opr review submit` rule it still carries.
+- Move the harness from `RetiredReviewerHarnesses` to `AllReviewerHarnesses`, add it
+  to `reviewer.Constructors()`, the request enums in `controllers/dto.go`, and
+  `frontend/src/renderer/lib/reviewer-harnesses.ts`.
+
+A worker harness gets the Operator tools only when its adapter implements
+`ports.MCPServerLoader`; add that method when you wire one of the harnesses above.
+
 ## How to check a harness without an account
 
 None of this needs a login. `mcp list` / `mcp add` style subcommands work offline and

@@ -350,3 +350,9 @@ func safeQwenSessionKey(sessionID string) string {
 func qwenShellQuote(value string) string {
 	return "'" + strings.ReplaceAll(value, "'", "'\\''") + "'"
 }
+
+var _ ports.MCPServerLoader = (*Plugin)(nil)
+
+// LoadsMCPServers reports that the launch registers LaunchConfig.MCPServers
+// with the CLI, so the session has the Operator MCP server.
+func (*Plugin) LoadsMCPServers() bool { return true }

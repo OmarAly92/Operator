@@ -586,13 +586,16 @@ flowchart TD
 
 ### Operator MCP Server
 
-Every worker session is launched with the Operator MCP server, so the agent can
-read the board it sits on. `opr mcp` (hidden) serves it over stdio from the
+Every worker session whose agent can load MCP servers (its adapter implements
+`ports.MCPServerLoader`) is launched with the Operator MCP server, so the agent can
+read the board it sits on and act on Operator. Agents act on Operator only through
+these tools; `opr` commands are for hooks, people and scripts. `opr mcp` (hidden) serves it over stdio from the
 daemon's own executable; the session manager registers it on spawn, restore and
 agent switch through `ports.LaunchConfig.MCPServers` / `RestoreConfig.MCPServers`,
 with the session and project ids in the server's env. The board rules ship as the
-server's MCP `instructions`, not as standing system-prompt text. Reviewer sessions
-get no server.
+server's MCP `instructions`; for agents whose CLI does not surface them, the same
+rules are appended to the standing system prompt. Sessions without the server get
+neither.
 
 - Claude Code: inline `--mcp-config` JSON (additive; never `--strict-mcp-config`,
   never a worktree `.mcp.json`) and `mcp__operator` pre-approved via `--allowedTools`.
@@ -606,8 +609,23 @@ get no server.
   `pr_claim` (never takes over another live session's PR), `pr_resolve_comments`
   (only on a PR attributed to the caller), `review_request` and
   `ticket_mark_merge_ready` (only for the plan whose `reviewerSessionId` is the
-  caller; it replaces the curl the ticket reviewer prompt used to carry). The full
-  plan is `docs/plans/kanban-mcp.md`.
+  caller; it replaces the curl the ticket reviewer prompt used to carry), and
+  `session_handoff_submit`, which a source agent calls when an agent switch sends it
+  an `<opr-handoff-request>`. A source without the server is not asked; the switch
+  uses Operator's deterministic continuation. The full plan is
+  `docs/plans/kanban-mcp.md`.
+- Reviewers: `opr mcp --reviewer` serves only `review_submit`, for the worker named
+  in the reviewer pane's `OPERATOR_REVIEW_WORKER_SESSION_ID` (the pane never
+  carries `OPERATOR_SESSION_ID`). The review launcher passes it to every reviewer
+  in `ports.ReviewInvocation.MCPServers`, and the reviewer task prompt records the
+  verdict with that tool. Operator offers only reviewers whose adapter registers it
+  (`domain.AllReviewerHarnesses`): Claude Code, Codex, OpenCode, Kilo and Copilot
+  through their worker adapters; Qwen (`--mcp-config`, trusted, plus
+  `--allowed-tools mcp__operator`, since plan mode blocks any tool that would ask);
+  Amp (the private settings file's `amp.mcpServers` plus an `mcp__operator__*` allow
+  rule); and Auggie (`--mcp-config`). The other reviewer adapters are unregistered
+  (`domain.RetiredReviewerHarnesses`): a stored choice of one still saves, and is
+  skipped when choosing the reviewer.
 - Telemetry: every tool call reports its tool name and outcome (plus the state
   for `session_report`) to `/internal/telemetry/mcp-tool-called`, which the
   daemon rolls up into one `opr.mcp.tool_calls` event per day, harness, tool,

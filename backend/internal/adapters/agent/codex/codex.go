@@ -436,3 +436,9 @@ var fileExists = func(path string) bool {
 	info, err := os.Stat(path)
 	return err == nil && !info.IsDir()
 }
+
+var _ ports.MCPServerLoader = (*Plugin)(nil)
+
+// LoadsMCPServers reports that the launch registers LaunchConfig.MCPServers
+// with the CLI, so the session has the Operator MCP server.
+func (*Plugin) LoadsMCPServers() bool { return true }

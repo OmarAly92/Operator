@@ -75,6 +75,7 @@ func TestReviewCommandPreservesAgentAndAppliesReadOnlyPolicy(t *testing.T) {
 		Permission struct {
 			CatchAll          string            `json:"*"`
 			Read              string            `json:"read"`
+			Operator          string            `json:"operator_*"`
 			Bash              map[string]string `json:"bash"`
 			ExternalDirectory map[string]string `json:"external_directory"`
 		} `json:"permission"`
@@ -86,12 +87,11 @@ func TestReviewCommandPreservesAgentAndAppliesReadOnlyPolicy(t *testing.T) {
 	if _, ok := config.Agent["opr-review-w1"]; !ok {
 		t.Fatalf("generated reviewer agent was lost: %s", raw)
 	}
-	if config.Permission.CatchAll != "deny" || config.Permission.Read != "allow" {
+	if config.Permission.CatchAll != "deny" || config.Permission.Read != "allow" || config.Permission.Operator != "allow" {
 		t.Fatalf("permission policy = %+v", config.Permission)
 	}
 	if config.Permission.Bash["*"] != "deny" ||
 		config.Permission.Bash["gh api *"] != "allow" ||
-		config.Permission.Bash["opr review submit *"] != "allow" ||
 		config.Permission.Bash["printf *"] != "allow" {
 		t.Fatalf("bash policy = %#v", config.Permission.Bash)
 	}
@@ -158,13 +158,6 @@ func TestBashPolicyAllowsEveryParsedReportingPipelineStage(t *testing.T) {
 				`gh api --method POST repos/o/r/pulls/1/reviews --input - --jq '.id'`,
 			},
 		},
-		{
-			name: "Operator bookkeeping",
-			stages: []string{
-				`printf '%s' '{ "reviews": [] }'`,
-				`opr review submit --session sess-1 --reviews -`,
-			},
-		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -174,6 +167,10 @@ func TestBashPolicyAllowsEveryParsedReportingPipelineStage(t *testing.T) {
 				}
 			}
 		})
+	}
+	// Results are recorded through review_submit, never an opr command.
+	if bashAllowsCommand(t, bash, `opr review submit --session sess-1 --reviews -`) {
+		t.Fatalf("opr command is allowed by policy: %#v", bash)
 	}
 	if bashAllowsCommand(t, bash, `rm -rf /`) {
 		t.Fatalf("arbitrary command is allowed by policy: %#v", bash)

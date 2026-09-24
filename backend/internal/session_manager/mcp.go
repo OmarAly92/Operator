@@ -1,6 +1,7 @@
 package sessionmanager
 
 import (
+	"os"
 	"strings"
 
 	"github.com/OmarAly92/operator/backend/internal/domain"
@@ -36,6 +37,34 @@ func (m *Manager) operatorMCPServers(id domain.SessionID, project domain.Project
 	}}
 }
 
+// ReviewerMCPServers returns the reviewer-role Operator MCP server for a
+// reviewer pane: `opr mcp --reviewer` run from the daemon's executable, told
+// which worker it reviews through its env. Agent CLIs may start MCP servers
+// with a trimmed environment, so everything the server needs is in Env. It
+// returns nil when exe is not an `opr` binary.
+func ReviewerMCPServers(exe string, worker domain.SessionID, harness domain.ReviewerHarness, dataDir, runFile string) []ports.MCPServerSpec {
+	if requireOprExecutable(exe) != nil {
+		return nil
+	}
+	env := map[string]string{
+		"OPERATOR_REVIEW_WORKER_SESSION_ID": string(worker),
+		"OPERATOR_REVIEW_HARNESS":           string(harness),
+		EnvDataDir:                          dataDir,
+	}
+	if runFile != "" {
+		env[EnvRunFile] = runFile
+	}
+	if port := os.Getenv("OPERATOR_PORT"); port != "" {
+		env["OPERATOR_PORT"] = port
+	}
+	return []ports.MCPServerSpec{{
+		Name:    ports.OperatorMCPServerName,
+		Command: exe,
+		Args:    []string{"mcp", ports.OperatorReviewerMCPArg},
+		Env:     env,
+	}}
+}
+
 // operatorMCPBoardSection is how the board rules appear in a standing system
 // prompt, for agents whose CLI does not surface MCP server instructions.
 const operatorMCPBoardSection = "## Operator board\n\n" + ports.OperatorMCPInstructions
@@ -47,7 +76,7 @@ const operatorMCPBoardSection = "## Operator board\n\n" + ports.OperatorMCPInstr
 // fallback for agents without MCP. It is idempotent: an agent switch rebuilds
 // its prompt from one that may already carry the section.
 func (m *Manager) withMCPBoardInstructions(harness domain.AgentHarness, systemPrompt string) string {
-	if !m.registersOperatorMCP() || strings.Contains(systemPrompt, operatorMCPBoardSection) {
+	if !m.harnessHasOperatorMCP(harness) || strings.Contains(systemPrompt, operatorMCPBoardSection) {
 		return systemPrompt
 	}
 	if agent, ok := m.agents.Agent(harness); ok {
@@ -59,6 +88,22 @@ func (m *Manager) withMCPBoardInstructions(harness domain.AgentHarness, systemPr
 		return operatorMCPBoardSection
 	}
 	return strings.TrimRight(systemPrompt, "\n") + "\n\n" + operatorMCPBoardSection
+}
+
+// harnessHasOperatorMCP reports whether a session of this harness gets the
+// Operator MCP server: the daemon can register it and the harness's adapter
+// actually loads it into the CLI (ports.MCPServerLoader). Rules or requests
+// that name Operator tools go only to such sessions.
+func (m *Manager) harnessHasOperatorMCP(harness domain.AgentHarness) bool {
+	if !m.registersOperatorMCP() {
+		return false
+	}
+	agent, ok := m.agents.Agent(harness)
+	if !ok {
+		return false
+	}
+	loader, ok := agent.(ports.MCPServerLoader)
+	return ok && loader.LoadsMCPServers()
 }
 
 // registersOperatorMCP reports whether operatorMCPServers will register the

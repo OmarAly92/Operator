@@ -206,3 +206,9 @@ func (p *Plugin) ampBinary(ctx context.Context) (string, error) {
 	p.resolvedBinary = binary
 	return binary, nil
 }
+
+var _ ports.MCPServerLoader = (*Plugin)(nil)
+
+// LoadsMCPServers reports that the launch registers LaunchConfig.MCPServers
+// with the CLI, so the session has the Operator MCP server.
+func (*Plugin) LoadsMCPServers() bool { return true }

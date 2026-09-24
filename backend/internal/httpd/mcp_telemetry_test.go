@@ -151,3 +151,28 @@ func TestMCPToolCalledRouteRequiresLoopback(t *testing.T) {
 		t.Fatalf("status = %d, want 403", rec.Code)
 	}
 }
+
+func TestMCPToolCalledRouteCountsReviewerCallsUnderTheReviewerHarness(t *testing.T) {
+	dir := t.TempDir()
+	r := chi.NewRouter()
+	// The worker's harness must not be used for a reviewer's call.
+	mountMCPTelemetry(r, config.Config{DataDir: dir}, &captureSink{}, harnessLookup{"opr-1": "claude-code"})
+
+	for body, want := range map[string]int{
+		`{"tool":"review_submit","outcome":"ok","role":"reviewer","harness":"codex"}`:  http.StatusAccepted,
+		`{"tool":"session_report","outcome":"ok","role":"reviewer","harness":"codex"}`: http.StatusBadRequest,
+		`{"tool":"review_submit","outcome":"ok"}`:                                      http.StatusBadRequest,
+		`{"tool":"review_submit","outcome":"ok","role":"admin"}`:                       http.StatusBadRequest,
+	} {
+		if code := postMCPToolCalled(t, r, body); code != want {
+			t.Fatalf("%s: status = %d, want %d", body, code, want)
+		}
+	}
+	flushed := newMCPToolCallRollup(dir).flushBefore(time.Now().Add(48 * time.Hour))
+	if len(flushed) != 1 || len(flushed[0].Counts) != 1 {
+		t.Fatalf("flushed = %#v, want the one reviewer call", flushed)
+	}
+	if got := flushed[0].Counts[0].mcpToolCallKey; got != (mcpToolCallKey{Role: "reviewer", Harness: "codex", Tool: "review_submit", Outcome: "ok"}) {
+		t.Fatalf("key = %#v", got)
+	}
+}

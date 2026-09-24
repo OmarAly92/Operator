@@ -111,6 +111,7 @@ var remotePayloadAllowlist = map[string]map[string]struct{}{
 		"day":      {},
 		"harness":  {},
 		"outcome":  {},
+		"role":     {},
 		"sessions": {},
 		"state":    {},
 		"tool":     {},

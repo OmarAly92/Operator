@@ -19,6 +19,10 @@ type mcpToolCalledRequest struct {
 	Tool      string `json:"tool"`
 	Outcome   string `json:"outcome"`
 	State     string `json:"state,omitempty"`
+	// Role is "reviewer" for `opr mcp --reviewer`, whose calls count under the
+	// reviewer's own Harness rather than the worker session's.
+	Role    string `json:"role,omitempty"`
+	Harness string `json:"harness,omitempty"`
 }
 
 // mcpTelemetryMiddleware reports each Operator tool call to the daemon: the
@@ -43,10 +47,15 @@ func (c *commandContext) mcpTelemetryMiddleware(id mcpIdentity) mcp.Middleware {
 }
 
 func mcpToolCalledEvent(id mcpIdentity, params *mcp.CallToolParamsRaw, result mcp.Result, err error) (mcpToolCalledRequest, bool) {
-	if !slices.Contains(ports.OperatorMCPToolNames, params.Name) {
+	event := mcpToolCalledRequest{SessionID: id.SessionID, Tool: params.Name, Outcome: "ok"}
+	names := ports.OperatorMCPToolNames
+	if id.Reviewer != nil {
+		names = ports.OperatorReviewerMCPToolNames
+		event = mcpToolCalledRequest{Tool: params.Name, Outcome: "ok", Role: "reviewer", Harness: id.Reviewer.Harness}
+	}
+	if !slices.Contains(names, params.Name) {
 		return mcpToolCalledRequest{}, false
 	}
-	event := mcpToolCalledRequest{SessionID: id.SessionID, Tool: params.Name, Outcome: "ok"}
 	if res, ok := result.(*mcp.CallToolResult); err != nil || !ok || res.IsError {
 		event.Outcome = "error"
 	}

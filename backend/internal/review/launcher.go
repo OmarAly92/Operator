@@ -94,6 +94,10 @@ type agentLauncher struct {
 	runtime   reviewerRuntime
 	dataDir   string
 	auth      agentAuthResolver
+	// executable and runFile locate the `opr` binary and daemon run file the
+	// reviewer's Operator MCP server runs with.
+	executable func() (string, error)
+	runFile    string
 }
 
 type preLaunchReviewer interface {
@@ -111,6 +115,27 @@ type agentAuthResolver interface {
 // LauncherOption configures reviewer launcher behavior.
 type LauncherOption func(*agentLauncher)
 
+// WithOperatorMCP sets where the reviewer's Operator MCP server comes from: the
+// daemon executable (an `opr` binary) and the daemon's run file.
+func WithOperatorMCP(executable func() (string, error), runFile string) LauncherOption {
+	return func(l *agentLauncher) {
+		if executable != nil {
+			l.executable = executable
+		}
+		l.runFile = runFile
+	}
+}
+
+// reviewerMCPServers is the reviewer-role Operator MCP server for a worker's
+// reviewer pane, or nil when the daemon is not running from an `opr` binary.
+func (l *agentLauncher) reviewerMCPServers(worker domain.SessionID, harness domain.ReviewerHarness) []ports.MCPServerSpec {
+	exe, err := l.executable()
+	if err != nil {
+		return nil
+	}
+	return sessionmanager.ReviewerMCPServers(exe, worker, harness, l.dataDir, l.runFile)
+}
+
 // WithAgentAuth lets reviewer preflight reuse the agent auth catalog for the
 // same harness. Reviewer-specific auth probes must not be stricter than the
 // normal agent's local auth status.
@@ -122,7 +147,7 @@ func WithAgentAuth(auth agentAuthResolver) LauncherOption {
 
 // NewLauncher builds the production reviewer launcher.
 func NewLauncher(reviewers ports.ReviewerResolver, runtime reviewerRuntime, dataDir string, opts ...LauncherOption) Launcher {
-	l := &agentLauncher{reviewers: reviewers, runtime: runtime, dataDir: dataDir}
+	l := &agentLauncher{reviewers: reviewers, runtime: runtime, dataDir: dataDir, executable: os.Executable}
 	for _, opt := range opts {
 		opt(l)
 	}
@@ -221,6 +246,7 @@ func (l *agentLauncher) invocation(spec LaunchSpec) ports.ReviewInvocation {
 		DataDir:         l.dataDir,
 		Prompt:          prompt,
 		SystemPrompt:    systemPrompt,
+		MCPServers:      l.reviewerMCPServers(spec.WorkerID, spec.Harness),
 	}
 }
 
@@ -296,6 +322,7 @@ func (l *agentLauncher) prepareIdleInvocation(spec LaunchSpec) (ports.ReviewInvo
 		SystemPrompt:     "",
 		SystemPromptFile: systemPath,
 		TaskPromptRoot:   promptRoot,
+		MCPServers:       l.reviewerMCPServers(spec.WorkerID, spec.Harness),
 	}, nil
 }
 

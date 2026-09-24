@@ -9,6 +9,7 @@ import (
 	"reflect"
 	"sort"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/OmarAly92/operator/backend/internal/ports"
@@ -203,5 +204,49 @@ func TestMCPPRResolveCommentsActsOnlyOnOwnPRs(t *testing.T) {
 	}
 	if resolves != 1 {
 		t.Fatalf("requests = %#v, want one resolve", log.all())
+	}
+}
+
+func TestMCPSessionHandoffSubmitPostsTheDocumentForTheCallersSwitch(t *testing.T) {
+	var mu sync.Mutex
+	bodies := map[string]string{}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		raw, _ := io.ReadAll(r.Body)
+		mu.Lock()
+		bodies[r.Method+" "+r.URL.Path] = string(raw)
+		mu.Unlock()
+		w.Header().Set("Content-Type", "application/json")
+		if r.URL.Path == "/api/v1/sessions/opr-1/agent-switches/sw-1/handoff" {
+			_, _ = io.WriteString(w, `{"switch":{"id":"sw-1","sessionId":"opr-1","state":"collecting_handoff","agentHandoffStatus":"received"}}`)
+			return
+		}
+		w.WriteHeader(http.StatusAccepted)
+	}))
+	t.Cleanup(srv.Close)
+	cs := connectMCP(t, srv, selfIdentity)
+
+	var out sessionHandoffSubmitOutput
+	args := map[string]any{"switch_id": "sw-1", "source_generation": "gen-1", "handoff": map[string]any{"schemaVersion": 1, "goal": "ship it", "progressSummary": "half done"}}
+	if res := callMCPTool(t, cs, "session_handoff_submit", args, &out); res.IsError {
+		t.Fatalf("session_handoff_submit failed: %s", toolErrorText(res))
+	}
+	if out.SwitchID != "sw-1" || out.HandoffStatus != "received" {
+		t.Fatalf("output = %+v", out)
+	}
+	mu.Lock()
+	body := bodies["POST /api/v1/sessions/opr-1/agent-switches/sw-1/handoff"]
+	mu.Unlock()
+	if want := `{"sourceGenerationId":"gen-1","handoff":{"goal":"ship it","progressSummary":"half done","schemaVersion":1}}`; body != want {
+		t.Fatalf("body = %s, want %s", body, want)
+	}
+
+	for _, bad := range []map[string]any{
+		{"switch_id": "", "source_generation": "gen-1", "handoff": map[string]any{"goal": "x"}},
+		{"switch_id": "sw-1", "source_generation": "gen-1", "handoff": map[string]any{}},
+		{"switch_id": "sw-1", "source_generation": "gen-1", "handoff": map[string]any{"freeformDetails": strings.Repeat("x", maxHandoffBytes)}},
+	} {
+		if res := callMCPTool(t, cs, "session_handoff_submit", bad, nil); !res.IsError {
+			t.Fatalf("%v was accepted", bad)
+		}
 	}
 }

@@ -3155,7 +3155,7 @@ export interface components {
         };
         SetSessionReviewerRequest: {
             /** @enum {string} */
-            harness?: "claude-code" | "codex" | "copilot" | "cursor" | "kilocode" | "opencode" | "kiro" | "pi" | "qwen" | "agy" | "continue" | "goose" | "vibe" | "devin" | "droid" | "kimi" | "kimchi" | "muse" | "amp" | "aider" | "grok" | "crush" | "auggie" | "cline" | "autohand";
+            harness?: "claude-code" | "codex" | "copilot" | "kilocode" | "opencode" | "qwen" | "amp" | "auggie";
         };
         SettingsResponse: {
             keybindings: components["schemas"]["KeybindingOverrides"];
@@ -3332,7 +3332,7 @@ export interface components {
         };
         TriggerReviewRequest: {
             /** @enum {string} */
-            harness?: "claude-code" | "codex" | "copilot" | "cursor" | "kilocode" | "opencode" | "kiro" | "pi" | "qwen" | "agy" | "continue" | "goose" | "vibe" | "devin" | "droid" | "kimi" | "kimchi" | "muse" | "amp" | "aider" | "grok" | "crush" | "auggie" | "cline" | "autohand";
+            harness?: "claude-code" | "codex" | "copilot" | "kilocode" | "opencode" | "qwen" | "amp" | "auggie";
         };
         TriggerReviewResponse: {
             /** @description True when a new review pass was started; false when an existing run for the same commit was reused. */

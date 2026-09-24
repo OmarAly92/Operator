@@ -38,6 +38,7 @@ func Command(ctx context.Context, agent ports.Agent, inv ports.ReviewInvocation,
 		DisallowedTools:  opts.DisallowedTools,
 		SystemPrompt:     inv.SystemPrompt,
 		SystemPromptFile: inv.SystemPromptFile,
+		MCPServers:       inv.MCPServers,
 	})
 	if err != nil || !ok {
 		return ports.ReviewCommandSpec{}, ok, err

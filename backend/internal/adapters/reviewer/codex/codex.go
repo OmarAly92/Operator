@@ -3,9 +3,6 @@ package codex
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
-	"os"
 
 	workeragent "github.com/OmarAly92/operator/backend/internal/adapters/agent/codex"
 	"github.com/OmarAly92/operator/backend/internal/adapters/reviewer/agentrestore"
@@ -34,7 +31,9 @@ var _ ports.ReviewerRestorer = (*Reviewer)(nil)
 
 // ReviewCommand launches the reviewer with an enforced read-only filesystem
 // sandbox. Auto approval lets the headless session request the narrowly needed
-// network access for posting the review and reporting its result.
+// network access for posting the review. The result is recorded through the
+// Operator MCP server's review_submit tool; Codex runs MCP servers itself, so
+// the shell sandbox does not reach them.
 func (r *Reviewer) ReviewCommand(ctx context.Context, inv ports.ReviewInvocation) (ports.ReviewCommandSpec, error) {
 	argv, err := r.agent.GetLaunchCommand(ctx, ports.LaunchConfig{
 		SessionID:        inv.ReviewerID,
@@ -43,15 +42,12 @@ func (r *Reviewer) ReviewCommand(ctx context.Context, inv ports.ReviewInvocation
 		SystemPrompt:     inv.SystemPrompt,
 		SystemPromptFile: inv.SystemPromptFile,
 		Permissions:      ports.PermissionModeAuto,
+		MCPServers:       inv.MCPServers,
 	})
 	if err != nil {
 		return ports.ReviewCommandSpec{}, err
 	}
-	extra, err := codexReadOnlyArgs()
-	if err != nil {
-		return ports.ReviewCommandSpec{}, err
-	}
-	return ports.ReviewCommandSpec{Argv: insertBeforePrompt(argv, extra...)}, nil
+	return ports.ReviewCommandSpec{Argv: insertBeforePrompt(argv, codexReadOnlyArgs()...)}, nil
 }
 
 // ReviewRestoreCommand resumes the reviewer Codex conversation captured from
@@ -61,11 +57,7 @@ func (r *Reviewer) ReviewRestoreCommand(ctx context.Context, inv ports.ReviewInv
 	if err != nil || !ok {
 		return cmd, ok, err
 	}
-	extra, err := codexReadOnlyArgs()
-	if err != nil {
-		return ports.ReviewCommandSpec{}, false, err
-	}
-	cmd.Argv = insertBeforeLastArg(cmd.Argv, extra...)
+	cmd.Argv = insertBeforeLastArg(cmd.Argv, codexReadOnlyArgs()...)
 	return cmd, true, nil
 }
 
@@ -106,20 +98,6 @@ func insertBeforeLastArg(argv []string, extra ...string) []string {
 	return append(out, argv[len(argv)-1])
 }
 
-func codexReadOnlyArgs() ([]string, error) {
-	extra := []string{"--sandbox", "read-only"}
-	// Shell commands inherit only Codex's core environment by default. Preserve
-	// the Operator location overrides the reviewer needs to submit to this daemon.
-	for _, name := range []string{"OPERATOR_PORT", "OPERATOR_DATA_DIR", "OPERATOR_RUN_FILE"} {
-		value := os.Getenv(name)
-		if value == "" {
-			continue
-		}
-		encoded, err := json.Marshal(value)
-		if err != nil {
-			return nil, fmt.Errorf("encode %s: %w", name, err)
-		}
-		extra = append(extra, "-c", "shell_environment_policy.set."+name+"="+string(encoded))
-	}
-	return extra, nil
+func codexReadOnlyArgs() []string {
+	return []string{"--sandbox", "read-only"}
 }

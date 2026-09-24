@@ -46,6 +46,9 @@ func (r *Reviewer) ReviewCommand(ctx context.Context, inv ports.ReviewInvocation
 		SystemPrompt:     inv.SystemPrompt,
 		SystemPromptFile: inv.SystemPromptFile,
 		Permissions:      ports.PermissionModeDefault,
+		// The worker adapter puts the server in the inline config's mcp block,
+		// which withReviewerConfig keeps.
+		MCPServers: inv.MCPServers,
 	})
 	if err != nil {
 		return ports.ReviewCommandSpec{}, err
@@ -101,17 +104,17 @@ func withReviewerConfig(argv []string, taskPromptRoot, systemPromptFile string) 
 		"read": "allow",
 		"glob": "allow",
 		"grep": "allow",
+		// Kilo names MCP tools <server>_<tool>; review_submit records the result.
+		ports.OperatorMCPServerName + "_*": "allow",
 		"bash": map[string]string{
-			"*":                              "deny",
-			"gh api *":                       "allow",
-			"git diff*":                      "allow",
-			"git log*":                       "allow",
-			"git show*":                      "allow",
-			"git status*":                    "allow",
-			"opr review submit *":            "allow",
-			"printf *":                       "allow",
-			"printf * | gh api *":            "allow",
-			"printf * | opr review submit *": "allow",
+			"*":                   "deny",
+			"gh api *":            "allow",
+			"git diff*":           "allow",
+			"git log*":            "allow",
+			"git show*":           "allow",
+			"git status*":         "allow",
+			"printf *":            "allow",
+			"printf * | gh api *": "allow",
 		},
 	}
 	if taskPromptRoot != "" {
