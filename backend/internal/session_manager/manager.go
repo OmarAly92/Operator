@@ -794,8 +794,12 @@ func (m *Manager) createSessionWorkspace(ctx context.Context, project domain.Pro
 		SessionPrefix: sessionPrefix(project),
 		Branch:        branch,
 		RootRepoPath:  project.Path,
-		BaseBranch:    project.Config.WithDefaults().DefaultBranch,
-		Repos:         childRepos,
+		// The configured value, not WithDefaults: an unset root branch is inferred
+		// from the root repo (origin/HEAD, then its current branch). Workspace
+		// projects registered before the root branch was recorded otherwise base
+		// the root on a `main` that a `master` repo does not have.
+		BaseBranch: project.Config.DefaultBranch,
+		Repos:      childRepos,
 	})
 	if err != nil {
 		return ports.WorkspaceInfo{}, nil, err
