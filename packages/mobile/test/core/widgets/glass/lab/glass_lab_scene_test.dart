@@ -9,6 +9,7 @@ void main() {
     test('maps known names', () {
       expect(GlassLabScene.parse('sheet'), GlassLabScene.sheet);
       expect(GlassLabScene.parse('corners'), GlassLabScene.corners);
+      expect(GlassLabScene.parse('lifted'), GlassLabScene.lifted);
       expect(GlassLabScene.parse('rest'), GlassLabScene.rest);
     });
 

@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:liquid_glass_renderer/liquid_glass_renderer.dart';
 import 'package:operator_mobile/core/app_themes/app_motion.dart';
@@ -21,7 +24,9 @@ class GlassTabBar extends StatefulWidget {
   const GlassTabBar({super.key, required this.items, required this.selectedIndex, required this.onSelected});
 
   static const Key dropletKey = ValueKey('glass-tab-bar-droplet');
-  static const double liftScale = 1.15;
+  static const double liftScale = 1.3;
+  static const double stretchVelocityDivisor = 400;
+  static const Duration stretchIdleDelay = Duration(milliseconds: 80);
 
   final List<GlassTabItem> items;
   final int selectedIndex;
@@ -33,51 +38,79 @@ class GlassTabBar extends StatefulWidget {
 
 class _GlassTabBarState extends State<GlassTabBar> {
   double? _dragX;
-  double _lastDx = 0;
   int? _activePointer;
+  VelocityTracker? _velocityTracker;
+  double _stretchTarget = 1.0;
+  Timer? _stretchIdleTimer;
 
   void _down(PointerDownEvent event) {
     if (_activePointer != null) return;
+    _velocityTracker = VelocityTracker.withKind(event.kind);
+    _velocityTracker!.addPosition(event.timeStamp, event.position);
     setState(() {
       _activePointer = event.pointer;
       _dragX = event.localPosition.dx;
-      _lastDx = 0;
     });
   }
 
   void _move(PointerMoveEvent event) {
     if (event.pointer != _activePointer) return;
+    _velocityTracker?.addPosition(event.timeStamp, event.position);
+    final velocity = _velocityTracker?.getVelocity().pixelsPerSecond.dx ?? 0;
+    _scheduleStretchDecay();
     setState(() {
       _dragX = event.localPosition.dx;
-      _lastDx = event.delta.dx;
+      _stretchTarget = GlassTabBarLogic.stretchFor(velocity / GlassTabBar.stretchVelocityDivisor);
     });
   }
 
   void _up(PointerUpEvent event, double width) {
     if (event.pointer != _activePointer) return;
     final slot = GlassTabBarLogic.slotAt(event.localPosition.dx, width, widget.items.length);
-    setState(() {
-      _activePointer = null;
-      _dragX = null;
-      _lastDx = 0;
-    });
+    _endDrag();
     Haptics.select();
     widget.onSelected(slot);
   }
 
   void _cancel(PointerCancelEvent event) {
     if (event.pointer != _activePointer) return;
+    _endDrag();
+  }
+
+  void _endDrag() {
+    _stretchIdleTimer?.cancel();
+    _velocityTracker = null;
     setState(() {
       _activePointer = null;
       _dragX = null;
-      _lastDx = 0;
+      _stretchTarget = 1.0;
     });
+  }
+
+  void _scheduleStretchDecay() {
+    _stretchIdleTimer?.cancel();
+    _stretchIdleTimer = Timer(GlassTabBar.stretchIdleDelay, () {
+      if (!mounted) return;
+      setState(() => _stretchTarget = 1.0);
+    });
+  }
+
+  void _selectByTap(int index) {
+    Haptics.select();
+    widget.onSelected(index);
+  }
+
+  @override
+  void dispose() {
+    _stretchIdleTimer?.cancel();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     final skin = context.skin;
     final reduceMotion = MediaQuery.disableAnimationsOf(context);
+    final curve = reduceMotion ? AppMotion.easeOut : AppMotion.spring;
     return SizedBox(
       height: GlassMetrics.tabBarHeight,
       child: LayoutBuilder(
@@ -86,12 +119,14 @@ class _GlassTabBarState extends State<GlassTabBar> {
           final count = widget.items.length;
           final slotWidth = width / count;
           final dropletWidth = slotWidth - GlassMetrics.dropletInset * 2;
-          final dropletHeight = GlassMetrics.tabBarHeight - GlassMetrics.dropletInset * 2;
+          final restHeight = GlassMetrics.tabBarHeight - GlassMetrics.dropletInset * 2;
           final lifted = _dragX != null;
+          final liftActive = lifted && !reduceMotion;
+          final dropletHeight = liftActive ? restHeight * GlassTabBar.liftScale : restHeight;
+          final top = (GlassMetrics.tabBarHeight - dropletHeight) / 2;
           final centerX = _dragX ?? GlassTabBarLogic.slotCenter(widget.selectedIndex, width, count);
           final left = GlassTabBarLogic.dropletLeft(centerX: centerX, dropletWidth: dropletWidth, barWidth: width);
-          final stretch = lifted && !reduceMotion ? GlassTabBarLogic.stretchFor(_lastDx) : 1.0;
-          final lift = lifted && !reduceMotion ? GlassTabBar.liftScale : 1.0;
+          final stretch = liftActive ? _stretchTarget : 1.0;
           return Listener(
             behavior: HitTestBehavior.opaque,
             onPointerDown: _down,
@@ -117,29 +152,30 @@ class _GlassTabBarState extends State<GlassTabBar> {
                     AnimatedPositioned(
                       key: GlassTabBar.dropletKey,
                       duration: lifted ? Duration.zero : AppMotion.slow,
-                      curve: AppMotion.spring,
+                      curve: curve,
                       left: left,
-                      top: GlassMetrics.dropletInset,
+                      top: top,
                       width: dropletWidth,
                       height: dropletHeight,
-                      child: AnimatedScale(
-                        scale: lift,
+                      child: TweenAnimationBuilder<double>(
+                        tween: Tween<double>(end: stretch),
                         duration: AppMotion.base,
-                        curve: AppMotion.spring,
-                        child: Transform.scale(
-                          scaleX: stretch,
-                          scaleY: 1 / stretch,
-                          child: lifted
-                              ? const GlassSurface(
-                                  kind: GlassShapeKind.capsule,
-                                  size: GlassMetrics.tabBarHeight,
-                                  grouped: true,
-                                  child: SizedBox.expand(),
-                                )
-                              : DecoratedBox(
-                                  decoration: ShapeDecoration(color: skin.bgSubtle, shape: const StadiumBorder()),
-                                ),
+                        curve: curve,
+                        builder: (context, animatedStretch, child) => Transform.scale(
+                          scaleX: animatedStretch,
+                          scaleY: 1 / animatedStretch,
+                          child: child,
                         ),
+                        child: lifted
+                            ? const GlassSurface(
+                                kind: GlassShapeKind.capsule,
+                                size: GlassMetrics.tabBarHeight,
+                                grouped: true,
+                                child: SizedBox.expand(),
+                              )
+                            : DecoratedBox(
+                                decoration: ShapeDecoration(color: skin.bgSubtle, shape: const StadiumBorder()),
+                              ),
                       ),
                     ),
                     Row(
@@ -149,6 +185,7 @@ class _GlassTabBarState extends State<GlassTabBar> {
                             child: _TabItemView(
                               item: widget.items[i],
                               selected: i == widget.selectedIndex,
+                              onTap: () => _selectByTap(i),
                             ),
                           ),
                       ],
@@ -165,10 +202,11 @@ class _GlassTabBarState extends State<GlassTabBar> {
 }
 
 class _TabItemView extends StatelessWidget {
-  const _TabItemView({required this.item, required this.selected});
+  const _TabItemView({required this.item, required this.selected, required this.onTap});
 
   final GlassTabItem item;
   final bool selected;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -178,6 +216,8 @@ class _TabItemView extends StatelessWidget {
       button: true,
       selected: selected,
       label: item.label,
+      excludeSemantics: true,
+      onTap: onTap,
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [

@@ -1,11 +1,13 @@
 enum GlassLabScene {
   rest,
   sheet,
-  corners;
+  corners,
+  lifted;
 
   static GlassLabScene parse(String? raw) => switch (raw) {
         'sheet' => GlassLabScene.sheet,
         'corners' => GlassLabScene.corners,
+        'lifted' => GlassLabScene.lifted,
         _ => GlassLabScene.rest,
       };
 

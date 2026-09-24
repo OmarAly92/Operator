@@ -33,11 +33,17 @@ void main() {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(SystemChannels.platform, null);
   });
 
-  Widget host({required int selected, required ValueChanged<int> onSelected, double textScale = 1}) => MaterialApp(
+  Widget host({
+    required int selected,
+    required ValueChanged<int> onSelected,
+    double textScale = 1,
+    bool reduceMotion = false,
+  }) =>
+      MaterialApp(
         home: ScreenUtilInit(
           designSize: const Size(390, 844),
           builder: (context, _) => MediaQuery(
-            data: MediaQueryData(textScaler: TextScaler.linear(textScale)),
+            data: MediaQueryData(textScaler: TextScaler.linear(textScale), disableAnimations: reduceMotion),
             child: SkinScope(
               skin: const LightSkin(),
               child: Material(
@@ -113,6 +119,33 @@ void main() {
     await g1.up();
     await tester.pumpAndSettle();
     expect(picked, [2]);
+  });
+
+  testWidgets('reduce motion drags without lift or stretch', (tester) async {
+    await tester.pumpWidget(host(selected: 0, onSelected: (_) {}, reduceMotion: true));
+    final gesture = await tester.startGesture(tester.getCenter(find.text('Agents')));
+    await tester.pump();
+    await gesture.moveTo(tester.getCenter(find.text('Settings')));
+    await tester.pump();
+    final positioned = tester.widget<AnimatedPositioned>(find.byKey(GlassTabBar.dropletKey));
+    expect(positioned.height, closeTo(GlassMetrics.tabBarHeight - GlassMetrics.dropletInset * 2, 0.01));
+    final transform = tester.widget<Transform>(
+      find.descendant(of: find.byKey(GlassTabBar.dropletKey), matching: find.byType(Transform)).first,
+    );
+    expect(transform.transform.getMaxScaleOnAxis(), closeTo(1.0, 0.01));
+    await gesture.up();
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('a screen reader tap selects the item', (tester) async {
+    final picked = <int>[];
+    await tester.pumpWidget(host(selected: 0, onSelected: picked.add));
+    final handle = tester.ensureSemantics();
+    tester.semantics.tap(find.semantics.byLabel('PRs'));
+    await tester.pumpAndSettle();
+    expect(picked, [1]);
+    expect(haptics, hasLength(1));
+    handle.dispose();
   });
 
   testWidgets('large text does not overflow', (tester) async {
