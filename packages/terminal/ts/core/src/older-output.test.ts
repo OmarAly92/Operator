@@ -49,6 +49,14 @@ describe("olderOutput", () => {
 		core.dispose();
 	});
 
+	it("forgets the floor at a process boundary so the pane stops offering older rows", () => {
+		const core = createTerminalCore({ columns: 20, rows: 3, limits: { rows: 10, bytes: 1 << 20 } });
+		core.feed(encoder.encode("\x1b]7000;v=1;older=3\x1b\\"));
+		core.feed(encoder.encode("\x1b[?1049l\x1b[0m\x1b]7000;v=1;boundary=0\x07"));
+		expect(core.olderOutput()).toEqual({ floor: null, marks: 2 });
+		core.dispose();
+	});
+
 	it("reads no floor from a disposed core", () => {
 		const core = createTerminalCore({ columns: 20, rows: 3, limits: { rows: 10, bytes: 1 << 20 } });
 		core.feed(encoder.encode("\x1b]7000;v=1;older=3\x1b\\"));

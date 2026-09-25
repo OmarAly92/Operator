@@ -1117,6 +1117,45 @@ history of `master`.
   (`older_chunk`) plus the floor, in-band on that client's stream. The chunk
   carries `cols=` so a row wider than the pane lands whole and rewraps lazily.
   Loaded rows sit above the renderer's cap until the next live row trims them.
+- Review fixes (branch `fix/plan-7-review`), each reproduced by a test first:
+  (a) **labels match content.** `older_rows` (`parser/cold.rs:44-62`) used to
+  clamp `before` to the mirror's own end and `older_chunk` still labelled the
+  rows as ending at `before`, so after a respawn (a fresh mirror numbered from
+  0, `ptyhost/respawn.go:63`) every click prepended the new process's rows, and
+  a pane numbered ahead of the mirror got the same rows again under each new
+  label. It now answers nothing when `before` is past the mirror's completed
+  rows or outside the ring; the host then sends `older=<before>`
+  (`ptyhost/older.go:27-41`) so the pane hides the button, and a process
+  boundary clears the pane's floor (`OlderState::observe`, `older.rs:22`,
+  called at `lib.rs:281`). (b) **answers stay out of the live parser.** The
+  host queues older answers and attach-history chunks (`streamHistory`, off
+  `h.mu`) between live PTY batches split at any byte, so a chunk could land
+  inside a CSI or a UTF-8 character; its ESC reset vte and the live sequence
+  printed as text (`1mRED`, `caf��`). `AnswerGate` (`answer_gate.rs`, used at
+  `lib.rs:321`) holds `OSC 7000;v=1;history=` and `older=` back from vte across
+  feeds (the rows already go to the history receiver), and the mark scanner
+  restarts on an ESC inside a CSI or after an ESC (`marks/src/scanner.rs:72,86`)
+  instead of dropping it and missing the chunk. Fixed in the core rather than
+  by inserting at clean boundaries in the host because both insertion sites
+  (`serveOlder` and Plan C's `streamHistory`) share it and vte exposes no
+  state to test for a boundary. (c) **stale runs.** `rewrap_hot` rewrapped
+  prepended wide rows inside the newest 2,000 rows but kept their stale runs
+  (`StaleRunOutsideRows`); it now trims every run to the rows below the hot
+  window (`row_index.rs:136`). (d) **ring heap.** Row lengths lived in a second
+  `VecDeque` that doubled beside the text buffer reserved at the full cap, so
+  blank rows took the heap to 2× the cap; each row's length and width now sit
+  in the one buffer as a 6-byte header and a 4-byte trailer
+  (`COLD_ROW_OVERHEAD_BYTES = 10`, `cold_ring.rs:4-7`), read from the nearer
+  end (`offset_of`, `cold_ring.rs:127`). (e) **oversized rows.** A row whose
+  serialised form alone passes the answer budget is sent blank
+  (`older.rs:65-70`) instead of stopping every later click. Guards:
+  `tests/older_seams.rs` (including a nine-step repro and 64 seeded
+  feed/load/resize/touch sequences with `verify_integrity` after every step),
+  `tests/injected_answers.rs`, `answer_gate.rs` unit tests,
+  `cold_ring.rs` `the_heap_stays_within_the_cap_for_blank_and_long_rows`,
+  scanner `an_escape_inside_a_csi_or_after_an_escape_still_opens_a_mark`,
+  `ptyhost/older_test.go` `TestAnOlderRequestPastTheMirrorsRowsAnswersNothingOlder`,
+  `ts/core/src/older-output.test.ts` "forgets the floor at a process boundary".
 - Not persisted: the saved history (§4.29) is 4 MiB and 20 chunks; cold rows are
   older than anything it can hold.
 - Measured (`docs/superpowers/specs/2026-09-25-old-output-measurement.md`): a
@@ -1442,9 +1481,19 @@ history of `master`.
 - **The seam between loaded rows and the pane is exact only at one width.** Rows
   are addressed by stable row; pane and mirror count the same rows only when they
   ran at the same width and saw the same resizes. Otherwise a few rows can repeat
-  or be skipped at the seam. Loaded rows carry no block marks and no `wrapped` flag.
+  or be skipped at the seam; a chunk's label always matches the mirror rows it
+  carries, and a pane numbered past everything the mirror holds (a respawn, a
+  pane far ahead) is told nothing is older rather than sent mismatched rows.
+  Loaded rows carry no block marks and no `wrapped` flag.
 - **A cold row larger than the 1 MiB answer buffer** (a very long row of heavily
-  styled or linked text) cannot be loaded; the load stops at it.
+  styled or linked text) loads as a blank row, so the rows older than it stay
+  reachable; its text is lost.
+- **Only `history=` and `older=` marks are kept out of the live parser.**
+  `origin=`, `ready=` and `boundary=` still reach vte: the first two are
+  written with the attach frame before any live byte, and the boundary is
+  preceded by its own resets. An answer that lands inside a live OSC (a title
+  split across two PTY reads) makes the mark scanner drop that OSC's payload;
+  vte keeps it.
 - **What a parked pane still costs.** Measured 2026-09-23 on
   `terminal-background-pane` `1b76f26fd` (`run.mjs --panes-only`, three runs,
   `claude-spinner-10s`, 100 frames over 10 s): 1 visible + 9 parked
