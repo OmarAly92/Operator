@@ -62,6 +62,10 @@ impl Perform for Parser {
             self.answer_xtversion();
             return;
         }
+        if intermediates.is_empty() && c == 't' {
+            self.xtwinops(params);
+            return;
+        }
         if intermediates.first() == Some(&b'?') && matches!(c, 'h' | 'l') {
             let set = c == 'h';
             for group in params.iter() {
@@ -86,15 +90,19 @@ impl Perform for Parser {
         self.active_screen_mut().esc(byte);
     }
 
-    fn osc_dispatch(&mut self, params: &[&[u8]], _bell_terminated: bool) {
+    fn osc_dispatch(&mut self, params: &[&[u8]], bell_terminated: bool) {
         #[cfg(feature = "trace")]
         self.trace.record(crate::trace::TraceAction::Osc(
             params.iter().map(|p| p.to_vec()).collect(),
         ));
-        if params.first().copied() == Some(b"8".as_slice()) {
-            let id = crate::hyperlink::parse_osc8(&params[1..])
-                .and_then(|link| self.hyperlinks.intern(link));
-            self.pending_style.link = id.unwrap_or(0);
+        match crate::program::OscKind::of(params) {
+            crate::program::OscKind::Hyperlink => {
+                let id = crate::hyperlink::parse_osc8(&params[1..])
+                    .and_then(|link| self.hyperlinks.intern(link));
+                self.pending_style.link = id.unwrap_or(0);
+            }
+            crate::program::OscKind::Other | crate::program::OscKind::IconName => {}
+            _ => self.program_osc(params, bell_terminated),
         }
     }
 }

@@ -16,6 +16,7 @@ pub mod integrity;
 pub mod limits;
 mod line_editor;
 pub mod parser;
+pub mod program;
 pub mod row_index;
 mod screen;
 mod scrollback;

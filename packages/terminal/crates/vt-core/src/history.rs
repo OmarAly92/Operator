@@ -150,7 +150,7 @@ impl Perform for ScreenPerform<'_> {
     }
 
     fn osc_dispatch(&mut self, params: &[&[u8]], _bell_terminated: bool) {
-        if params.first().copied() == Some(b"8".as_slice()) {
+        if crate::program::OscKind::of(params) == crate::program::OscKind::Hyperlink {
             let id =
                 crate::hyperlink::parse_osc8(&params[1..]).and_then(|link| self.links.intern(link));
             self.style.link = id.unwrap_or(0);

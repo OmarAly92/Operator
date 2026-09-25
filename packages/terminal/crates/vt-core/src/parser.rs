@@ -2,6 +2,7 @@ mod blocks;
 mod colour;
 mod history;
 mod perform;
+mod program;
 
 pub(crate) use colour::read_extended_colour;
 
@@ -62,6 +63,7 @@ pub(crate) struct Parser {
     last_width: usize,
     width_mode: WidthMode,
     hyperlinks: HyperlinkRegistry,
+    program: crate::program::ProgramState,
     #[cfg(feature = "trace")]
     pub(crate) trace: crate::trace::Trace,
 }
@@ -98,6 +100,7 @@ impl Parser {
             last_width: width,
             width_mode: WidthMode::default(),
             hyperlinks: HyperlinkRegistry::default(),
+            program: crate::program::ProgramState::default(),
             #[cfg(feature = "trace")]
             trace: Default::default(),
         }
@@ -326,6 +329,10 @@ impl Parser {
                 self.focus_reporting = set;
                 return;
             }
+            2048 => {
+                self.note_in_band_resize_mode(set);
+                return;
+            }
             1000 => 0b001,
             1002 => 0b010,
             1003 => 0b100,
@@ -386,6 +393,7 @@ impl Parser {
             1049 => self.alt.is_some(),
             2004 => self.bracketed_paste,
             2026 => false,
+            2048 => self.program.in_band_resize(),
             _ => return 0,
         };
         if set {
@@ -439,6 +447,7 @@ impl Parser {
         }
         self.grid
             .clamp_to_rows(self.rows.completed().len() + self.screen.rows());
+        self.send_in_band_report();
     }
 
     pub(crate) fn commit_evicted(&mut self) {
