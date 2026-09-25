@@ -180,6 +180,11 @@ func (fakePanelReader) TasksCommandReady(pane string) bool {
 	return json.Unmarshal([]byte(pane), &decoded) == nil && decoded.Ready
 }
 
+func (fakePanelReader) TasksCommandTyped(pane string) bool {
+	var decoded fakeTUIPane
+	return json.Unmarshal([]byte(pane), &decoded) == nil && decoded.Composer == "/tasks"
+}
+
 func (fakePanelReader) TasksPanelKeys() ports.TasksPanelKeys {
 	return ports.TasksPanelKeys{Command: "/tasks", Submit: "\r", Clear: "\x15", Up: "\x1b[A", Down: "\x1b[B", View: "\r", Stop: "x", Close: "\x1b"}
 }
@@ -370,6 +375,10 @@ func TestAgentTaskStopSupportedNeedsAVerifiedVersion(t *testing.T) {
 	}
 	m.tasksPanelReader = fakePanelReader{verified: "2.1.280"}
 	m.composerReader = fakeComposerReader{ok: true}
+	if m.AgentTaskStopSupported(domain.HarnessClaudeCode, "2.1.280") {
+		t.Fatal("supported without an empty-composer detector")
+	}
+	m.emptyComposerDetector = fakeEmptyComposerDetector{empty: true}
 	if !m.AgentTaskStopSupported(domain.HarnessClaudeCode, "2.1.280") {
 		t.Fatal("verified version refused")
 	}
@@ -499,5 +508,24 @@ func TestPaneDrivesArePruned(t *testing.T) {
 	defer m.agentOpMu.Unlock()
 	if len(m.paneDrives) != 0 || m.inputLeases["s1"] != 0 {
 		t.Fatalf("drives %v leases %v", m.paneDrives, m.inputLeases)
+	}
+}
+
+type styledOnlyRuntime struct {
+	*fakeRuntime
+	styledCalls int
+}
+
+func (r *styledOnlyRuntime) GetStyledOutput(context.Context, ports.RuntimeHandle, int) (string, error) {
+	r.styledCalls++
+	return "styled", nil
+}
+
+func TestPanelScreenReadsTheParsedScreenNotTheRing(t *testing.T) {
+	rt := &styledOnlyRuntime{fakeRuntime: &fakeRuntime{panes: []string{"ring"}}}
+	screen := panelScreen{runtimeScreen: runtimeScreen{runtime: rt, handle: ports.RuntimeHandle{ID: "h"}}, styled: rt, empty: fakeEmptyComposerDetector{empty: true}, composer: fakeComposerReader{}}
+	pane, err := screen.Read(context.Background())
+	if err != nil || pane != "styled" || rt.styledCalls != 1 {
+		t.Fatalf("pane = %q, %v, styled calls %d", pane, err, rt.styledCalls)
 	}
 }

@@ -616,6 +616,7 @@ type TasksPanelKeys struct {
 type TerminalTasksPanelReader interface {
 	ReadTasksPanel(pane string) (TasksPanel, bool)
 	TasksCommandReady(pane string) bool
+	TasksCommandTyped(pane string) bool
 	TasksPanelKeys() TasksPanelKeys
 	TasksPanelVerified(version string) bool
 }

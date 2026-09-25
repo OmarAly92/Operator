@@ -14,7 +14,7 @@ var (
 )
 
 func (p *Plugin) ReadTasksPanel(pane string) (ports.TasksPanel, bool) {
-	lines := paneLines(pane)
+	lines := tasksPaneLines(pane)
 	if len(lines) == 0 {
 		return ports.TasksPanel{}, false
 	}
@@ -55,19 +55,40 @@ func (p *Plugin) TasksPanelVerified(version string) bool {
 }
 
 func (p *Plugin) TasksCommandReady(pane string) bool {
-	lines := paneLines(pane)
-	for i := len(lines) - 1; i >= 0; i-- {
-		if lines[i] != "❯ /tasks" {
-			continue
-		}
-		if i+2 >= len(lines) || !isRule(lines[i+1]) {
-			return false
-		}
-		first := lines[i+2]
-		rest, ok := strings.CutPrefix(first, "/tasks")
-		return ok && (rest == "" || strings.HasPrefix(rest, " "))
+	lines := tasksPaneLines(pane)
+	at := lastPromptLine(lines)
+	if at < 0 || lines[at] != "❯ /tasks" || at+2 >= len(lines) || !isRule(lines[at+1]) {
+		return false
 	}
-	return false
+	rest, ok := strings.CutPrefix(lines[at+2], "/tasks")
+	return ok && (rest == "" || strings.HasPrefix(rest, " "))
+}
+
+func (p *Plugin) TasksCommandTyped(pane string) bool {
+	lines := tasksPaneLines(pane)
+	at := lastPromptLine(lines)
+	return at >= 0 && lines[at] == "❯ /tasks"
+}
+
+func lastPromptLine(lines []string) int {
+	for i := len(lines) - 1; i >= 0; i-- {
+		if strings.HasPrefix(lines[i], "❯") && i > 0 && isRule(lines[i-1]) {
+			return i
+		}
+	}
+	return -1
+}
+
+func tasksPaneLines(pane string) []string {
+	plain := claudeTerminalEscape.ReplaceAllString(strings.ReplaceAll(pane, "\r", "\n"), "")
+	plain = strings.ReplaceAll(plain, "\u00a0", " ")
+	var lines []string
+	for _, line := range strings.Split(plain, "\n") {
+		if line = strings.TrimSpace(line); line != "" {
+			lines = append(lines, line)
+		}
+	}
+	return lines
 }
 
 func panelFooter(lines []string) (int, bool) {

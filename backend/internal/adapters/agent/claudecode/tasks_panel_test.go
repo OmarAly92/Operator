@@ -189,6 +189,20 @@ func TestTasksCommandReady(t *testing.T) {
 	if !p.TasksCommandReady(ready) {
 		t.Fatal("typed /tasks with its suggestion on top not recognised")
 	}
+	nbsp := pane(panelRule, "❯\u00a0/tasks", panelRule, "  /tasks     View and manage everything running in the background")
+	if !p.TasksCommandReady(nbsp) || !p.TasksCommandTyped(nbsp) {
+		t.Fatal("a no-break space after the prompt marker is not recognised")
+	}
+	long := []string{panelRule, "❯ /tasks", panelRule, "  /tasks     View and manage everything running in the background"}
+	for range 60 {
+		long = append(long, "  /some:skill        description", "                     continuation")
+	}
+	if !p.TasksCommandReady(pane(long...)) {
+		t.Fatal("a long suggestion list hid the typed command")
+	}
+	if p.TasksCommandTyped(pane(panelRule, "❯ /tasks/tasks", panelRule)) || p.TasksCommandTyped(pane(panelRule, "❯ ", panelRule)) {
+		t.Fatal("typed detection accepted another draft")
+	}
 	for name, text := range map[string]string{
 		"other suggestion first": pane(panelRule, "❯ /tasks", panelRule, "  /tasks-extra   something"),
 		"draft differs":          pane(panelRule, "❯ /task", panelRule, "  /tasks   View and manage"),

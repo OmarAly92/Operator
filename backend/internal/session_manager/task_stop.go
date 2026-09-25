@@ -35,6 +35,9 @@ func (m *Manager) AgentTaskStopSupported(harness domain.AgentHarness, version st
 	if _, ok := m.composerReaderFor(harness); !ok {
 		return false
 	}
+	if _, ok := m.emptyComposerDetectorFor(harness); !ok {
+		return false
+	}
 	return reader.TasksPanelVerified(version)
 }
 
@@ -74,6 +77,10 @@ func (m *Manager) stopAgentTask(ctx context.Context, id domain.SessionID, label 
 	if !ok {
 		return domain.ErrTaskStopUnsupported
 	}
+	empty, ok := m.emptyComposerDetectorFor(rec.Harness)
+	if !ok {
+		return domain.ErrTaskStopUnsupported
+	}
 	styled, ok := m.runtime.(ports.StyledTerminalOutputReader)
 	if !ok {
 		return domain.ErrTaskStopUnsupported
@@ -82,6 +89,7 @@ func (m *Manager) stopAgentTask(ctx context.Context, id domain.SessionID, label 
 		runtimeScreen: runtimeScreen{runtime: m.runtime, handle: runtimeHandle(rec.Metadata)},
 		styled:        styled,
 		composer:      composer,
+		empty:         empty,
 	}
 	return stopTaskOnPanel(ctx, screen, reader, label, livePanelTiming)
 }
@@ -90,12 +98,22 @@ type panelScreen struct {
 	runtimeScreen
 	styled   ports.StyledTerminalOutputReader
 	composer ports.TerminalComposerReader
+	empty    ports.EmptyComposerDetector
+}
+
+const panelPaneLines = 160
+
+func (s panelScreen) Read(ctx context.Context) (string, error) {
+	return s.styled.GetStyledOutput(ctx, s.handle, panelPaneLines)
 }
 
 func (s panelScreen) Draft(ctx context.Context) (string, bool, error) {
-	pane, err := s.styled.GetStyledOutput(ctx, s.handle, sourceComposerProbeLines)
+	pane, err := s.styled.GetStyledOutput(ctx, s.handle, panelPaneLines)
 	if err != nil {
 		return "", false, err
+	}
+	if s.empty.ComposerIsEmpty(pane) {
+		return "", true, nil
 	}
 	draft, ok := s.composer.ReadComposerDraft(pane)
 	return draft, ok, nil
@@ -201,11 +219,6 @@ func (s panelSession) openPanel(ctx context.Context) error {
 	if !ready {
 		return s.clearTyped(ctx)
 	}
-	if draft, known, err := s.screen.Draft(ctx); err != nil {
-		return err
-	} else if !known || draft != s.keys.Command {
-		return s.clearTyped(ctx)
-	}
 	if err := s.write(ctx, s.keys.Submit); err != nil {
 		return err
 	}
@@ -223,8 +236,8 @@ func (s panelSession) openPanel(ctx context.Context) error {
 }
 
 func (s panelSession) clearTyped(ctx context.Context) error {
-	draft, known, err := s.screen.Draft(ctx)
-	if err == nil && known && draft == s.keys.Command {
+	pane, err := s.screen.Read(ctx)
+	if err == nil && s.reader.TasksCommandTyped(pane) {
 		_ = s.write(ctx, s.keys.Clear)
 	}
 	return domain.ErrTaskPanelUnavailable
