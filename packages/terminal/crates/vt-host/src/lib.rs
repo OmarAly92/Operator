@@ -1,13 +1,13 @@
 mod block_marks;
+mod older;
 mod program;
-mod sgr;
 
 use std::cell::RefCell;
 use std::collections::HashMap;
 use vt_core::{CellStyle, TerminalCore};
 
 use block_marks::{write_block_close, write_block_open};
-use sgr::{write_styled_row, write_styled_row_with};
+use vt_core::style_sgr::{write_styled_row, write_styled_row_with};
 
 thread_local! {
     static CORES: RefCell<HashMap<u32, TerminalCore>> = RefCell::new(HashMap::new());

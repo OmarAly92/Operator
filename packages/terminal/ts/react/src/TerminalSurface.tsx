@@ -5,11 +5,13 @@ import {
 	createPathProvider,
 	DEFAULT_LINK_PROVIDERS,
 	DomBlockRenderer,
+	mountLoadOlder,
 	RERUN_EVENT,
 	resolveFeatures,
 	type BlockFinishedEvent,
 	type FindBar,
 	type HintEvent,
+	type LoadOlder,
 	type MarkRule,
 	type RendererFeatures,
 } from "@operator/terminal-renderer-dom";
@@ -120,6 +122,7 @@ export function TerminalSurface({
 	const visibleRef = useRef(visible);
 	visibleRef.current = visible;
 	const findBarRef = useRef<FindBar | null>(null);
+	const loadOlderRef = useRef<LoadOlder | null>(null);
 	const gridColumnsRef = useRef(0);
 	const gridRowsRef = useRef(0);
 	const compositionRef = useRef<CompositionTarget | null>(null);
@@ -200,6 +203,18 @@ export function TerminalSurface({
 			strings,
 		});
 		findBar.mount(blockHost);
+		const loadOlder = mountLoadOlder({
+			container: blockHost,
+			source: {
+				canLoad: () => hostCapsRef.current?.loadOlderOutput !== undefined,
+				firstStableRow: () => core.snapshot().firstStableRow,
+				altScreenActive: () => core.snapshot().altScreen !== null,
+				olderOutput: () => core.olderOutput(),
+			},
+			strings,
+			load: (before) => hostCapsRef.current?.loadOlderOutput?.(before),
+		});
+		const offOlder = renderer.onPaint(() => loadOlder.update());
 		const onRerun = (event: Event) => {
 			const blockId = (event as CustomEvent<{ blockId?: string }>).detail?.blockId;
 			if (!blockId) return;
@@ -214,6 +229,7 @@ export function TerminalSurface({
 		rendererRef.current = renderer;
 		editorRef.current = editor;
 		findBarRef.current = findBar;
+		loadOlderRef.current = loadOlder;
 		editor.setVisible(visibleRef.current !== false);
 		applyLinkProviders();
 		applyPredictiveEchoRef.current();
@@ -221,6 +237,9 @@ export function TerminalSurface({
 			blockHost.removeEventListener(RERUN_EVENT, onRerun);
 			offPaint();
 			offFinished();
+			offOlder();
+			loadOlder.dispose();
+			loadOlderRef.current = null;
 			findBar.dispose();
 			editor.dispose();
 			renderer.predictionsClear();
@@ -266,6 +285,7 @@ export function TerminalSurface({
 
 	useLayoutEffect(() => {
 		editorRef.current?.setStrings(strings);
+		loadOlderRef.current?.setStrings(strings);
 	}, [strings]);
 
 	useLayoutEffect(() => {

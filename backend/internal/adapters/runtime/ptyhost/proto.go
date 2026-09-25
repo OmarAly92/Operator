@@ -33,6 +33,7 @@ const (
 	MsgWatchReq        byte = 0x12
 	MsgProgramEvent    byte = 0x13
 	MsgAppearance      byte = 0x14
+	MsgOlderReq        byte = 0x15
 )
 
 // JSON payload structs shared with later tasks (kept minimal).
@@ -104,6 +105,10 @@ type AppearancePayload struct {
 	CellHeight int    `json:"cellHeight,omitempty"`
 	Foreground string `json:"foreground,omitempty"`
 	Background string `json:"background,omitempty"`
+}
+
+type OlderReq struct {
+	Before uint64 `json:"before"`
 }
 
 const frameHeaderBytes = 5

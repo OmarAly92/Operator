@@ -64,6 +64,7 @@ function fakeMux(): Fake {
 		resize: () => undefined,
 		close: () => undefined,
 		ack: () => undefined,
+		requestOlder: () => undefined,
 		onData: () => () => undefined,
 		onExit: () => () => undefined,
 		onOpened: () => () => undefined,

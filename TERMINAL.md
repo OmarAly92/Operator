@@ -27,6 +27,9 @@ opr pty-host  (backend/internal/adapters/runtime/ptyhost, one subprocess per ses
    ├─ vtwasm/            PASSIVE MIRROR: vt-core compiled to wasm (vt_host.wasm),
    │                     run by wazero. Feeds every byte, answers GetOutput /
    │                     text extraction, and produces the attach REPLAY.
+   │                     Rows the mirror trims past its cap go, as styled text, to a
+   │                     32 MiB cold ring (mirror_limits.go); MsgOlderReq answers
+   │                     "Load older output" from it on the asking connection (§4.33)
    ├─ attach.go          handshake: client states its grid (and whether it can
    │                     read history), host replays origin + modes + the
    │                     mirror's screen + READY, returns, then — for a client
@@ -189,6 +192,8 @@ rebuilt (§6).
   (the package that owns `mirrorLimits` imports `vtwasm`, so the test
   cannot read it). These are set independently and must be kept in sync by
   hand — there is no shared source of truth across the Rust/Go boundary.
+  The mirror also keeps a cold ring of trimmed rows (`Limits.ColdRingBytes`,
+  32 MiB in `mirrorLimits`); the renderer core has none (§4.33).
 - **Stable rows** give a row an identity that survives it migrating from the
   live screen into scrollback and back out again under trim. `trimmed_total`
   (`parser.rs:55,91`) counts rows evicted off the front since the session
@@ -1098,6 +1103,38 @@ history of `master`.
   `TestAssemblerIgnoresATypeaheadMark`; `backend/internal/integration`
   `TestShellBlocks*`.
 
+### 4.33 Output older than the row cap was dropped — roadmap Plan 7
+- Symptom: past 200,000 rows (or 128 MiB) the oldest output was gone for good,
+  in the pane and in the mirror (`Parser::trim_to` dropped it).
+- Now: the pty-host mirror keeps trimmed rows as SGR text in a 32 MiB cold ring
+  (`crates/vt-core/src/cold_ring.rs`, filled in `parser/history.rs` `trim_to`
+  through `parser/cold.rs`). The mirror sends `OSC 7000;v=1;older=<floor>` after
+  the attach history (or after the frame for a sized client without history) and
+  at the end of every older answer. The pane shows **Load older output**
+  (`ts/renderer-dom/src/load-older.ts`) when a floor below its first stable row is
+  known and the host implements `HostCapabilities.loadOlderOutput`; a click sends
+  mux `older{before}` → `MsgOlderReq` → one history chunk of ≤ 2,048 rows
+  (`older_chunk`) plus the floor, in-band on that client's stream. The chunk
+  carries `cols=` so a row wider than the pane lands whole and rewraps lazily.
+  Loaded rows sit above the renderer's cap until the next live row trims them.
+- Not persisted: the saved history (§4.29) is 4 MiB and 20 chunks; cold rows are
+  older than anything it can hold.
+- Measured (`docs/superpowers/specs/2026-09-25-old-output-measurement.md`): a
+  full 32 MiB ring costs the mirror wasm memory ≈1.2× its cap (77,594,624 bytes
+  with a full ring vs 35,979,264 without); the ring's own payload never passes
+  its cap (33,554,386 ≤ 33,554,432); a click's host side is under a few ms
+  (1.382 ms newest, 0.610 ms oldest on a 520k-row synthetic mirror); the
+  renderer side of a click is one full re-export of 200k rows (1,193.38 ms,
+  the same order as the first full export, 1,158.68 ms), while feeding the
+  2,048-row chunk itself costs 45.05 ms.
+- Guards: `crates/vt-core/tests/cold_ring.rs`, `cold_ring.rs`/`content.rs` unit
+  tests, marks `scanner.rs` older/cols tests, `vtwasm/older_test.go`,
+  `ptyhost/older_test.go`, `terminal/manager_test.go` "Older", 
+  `ts/core/src/older-output.test.ts`, `load-older.test.ts`,
+  `dom-block-renderer.older.test.ts`, `TerminalSurface.older.test.tsx`,
+  frontend `terminal-mux.test.ts`, `useTerminalSession.test.tsx`,
+  `BlockTerminal.test.tsx` "load older output".
+
 ## 5. Known gaps (not bugs, decisions pending)
 
 - **Find exports every hit on every change.** `findResults` copies all hits
@@ -1392,6 +1429,22 @@ history of `master`.
   ("Relaunch in a cleared session") replaces the mirror, so the next save
   holds only the new process. Files of hosts that are gone are deleted after
   7 days, the next time any terminal is created.
+- **A Load older output click re-exports the whole scrollback once.**
+  `apply_history_chunk` marks the export full (`parser/history.rs`), so a click
+  at 200k rows costs 1,193.38 ms of renderer time (the 2,048-row feed itself
+  45.05 ms). Every attach-history chunk pays the same. The fix is an
+  incremental front prepend in `ExportBuffers` (`vt-wasm/src/export.rs`, 599
+  lines: split first).
+- **Loaded rows do not survive new output.** The renderer keeps its cap; the next
+  committed live row trims the loaded rows first and the button returns. A load
+  whose answer arrives after live rows made the pane trim is rejected silently
+  (the chunk no longer abuts) and the button returns.
+- **The seam between loaded rows and the pane is exact only at one width.** Rows
+  are addressed by stable row; pane and mirror count the same rows only when they
+  ran at the same width and saw the same resizes. Otherwise a few rows can repeat
+  or be skipped at the seam. Loaded rows carry no block marks and no `wrapped` flag.
+- **A cold row larger than the 1 MiB answer buffer** (a very long row of heavily
+  styled or linked text) cannot be loaded; the load stops at it.
 - **What a parked pane still costs.** Measured 2026-09-23 on
   `terminal-background-pane` `1b76f26fd` (`run.mjs --panes-only`, three runs,
   `claude-spinner-10s`, 100 frames over 10 s): 1 visible + 9 parked

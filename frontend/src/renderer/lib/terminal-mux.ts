@@ -6,7 +6,7 @@
 // raw JSON string cannot represent.
 //
 //   ch "terminal" — per-pane byte stream keyed by an opaque runtime handle id
-//     client → open{id,cols,rows} | data{id,data} | resize{id,cols,rows,force?} | close{id}
+//     client → open{id,cols,rows} | data{id,data} | resize{id,cols,rows,force?} | close{id} | older{id,before}
 //     server → opened{id} | data{id,data} | exited{id} | error{id?,error} | health{id,health}
 //   ch "system"   — ping/pong liveness
 //   ch "blocks"   — normalized session block events
@@ -108,6 +108,10 @@ export function ackFrame(id: string, bytes: number): string {
 	return JSON.stringify({ ch: "terminal", type: "ack", id, bytes });
 }
 
+export function olderFrame(id: string, before: number): string {
+	return JSON.stringify({ ch: "terminal", type: "older", id, before });
+}
+
 export function blocksSubscribeFrame(sessionId: string): string {
 	return JSON.stringify({ ch: "blocks", type: "subscribe", id: sessionId });
 }
@@ -178,6 +182,7 @@ export type TerminalMux = {
 	resize: (id: string, cols: number, rows: number, force?: boolean) => void;
 	close: (id: string) => void;
 	ack: (id: string, bytes: number) => void;
+	requestOlder: (id: string, before: number) => void;
 	onData: (id: string, listener: DataListener) => () => void;
 	onExit: (id: string, listener: ExitListener) => () => void;
 	/** Server ack that the pane is attached; the output replay follows it. */
@@ -395,6 +400,9 @@ export function createTerminalMux(url: string, WebSocketImpl: typeof WebSocket =
 		ack: (id, bytes) => {
 			send(ackFrame(id, bytes));
 		},
+		requestOlder: (id, before) => {
+			send(olderFrame(id, before));
+		},
 		onData: (id, listener) => subscribeById(dataListeners, id, listener),
 		onExit: (id, listener) => subscribeById(exitListeners, id, listener),
 		onOpened: (id, listener) => subscribeById(openedListeners, id, listener),
@@ -529,6 +537,9 @@ export function createTerminalMuxPool(createMux: () => TerminalMux): TerminalMux
 			},
 			ack: (id, bytes) => {
 				if (!released && !connection.closed && !connection.disposed) connection.mux.ack(id, bytes);
+			},
+			requestOlder: (id, before) => {
+				if (!released && !connection.closed && !connection.disposed) connection.mux.requestOlder(id, before);
 			},
 			onData: (id, listener) => subscribe(() => connection.mux.onData(id, listener)),
 			onExit: (id, listener) => subscribe(() => connection.mux.onExit(id, listener)),

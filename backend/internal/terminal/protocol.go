@@ -40,6 +40,7 @@ const (
 	msgUnsubscribe = "unsubscribe" // ch "blocks"
 	msgPing        = "ping"        // ch "system"
 	msgAppearance  = "appearance"
+	msgOlder       = "older"
 )
 
 // server message types.
@@ -100,6 +101,8 @@ type clientMsg struct {
 	CellHeight int    `json:"cellHeight,omitempty"`
 	Foreground string `json:"foreground,omitempty"`
 	Background string `json:"background,omitempty"`
+
+	Before uint64 `json:"before,omitempty"`
 }
 
 // serverMsg is one outbound frame.

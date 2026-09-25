@@ -29,6 +29,7 @@ type FakeMux = {
 	closes: string[];
 	acks: number[];
 	appearances: Array<[string, TerminalAppearance]>;
+	olders: Array<[string, number]>;
 	events: string[];
 	disposed: boolean;
 	emitData(id: string, text: string): void;
@@ -63,6 +64,7 @@ function createFakeMux(): FakeMux {
 		closes: [],
 		acks: [],
 		appearances: [],
+		olders: [],
 		events: [],
 		disposed: false,
 		mux: {
@@ -78,6 +80,7 @@ function createFakeMux(): FakeMux {
 			},
 			ack: (_id, bytes) => fake.acks.push(bytes),
 			appearance: (id, appearance) => fake.appearances.push([id, appearance]),
+			requestOlder: (id, before) => fake.olders.push([id, before]),
 			onData: (id, listener) => subscribe(data, id, listener),
 			onExit: (id, listener) => subscribe(exit, id, listener),
 			onOpened: (id, listener) => subscribe(opened, id, listener),
@@ -284,6 +287,19 @@ describe("useTerminalSession", () => {
 		expect(muxes[0].opens).toEqual([["handle-1", 80, 24]]);
 		act(() => muxes[0].emitOpened("handle-1"));
 		expect(view.result.current.state).toBe("attached");
+	});
+
+	it("asks the mux for older output only while attached", () => {
+		const { view, muxes, detach } = setup();
+		act(() => view.result.current.transport.requestOlder(4096));
+		expect(muxes[0].olders).toEqual([]);
+		act(() => muxes[0].emitOpened("handle-1"));
+		act(() => view.result.current.transport.requestOlder(0));
+		act(() => view.result.current.transport.requestOlder(4096));
+		expect(muxes[0].olders).toEqual([["handle-1", 4096]]);
+		detach();
+		act(() => view.result.current.transport.requestOlder(2048));
+		expect(muxes[0].olders).toEqual([["handle-1", 4096]]);
 	});
 
 	it("acks the transport every 5,000 bytes", () => {

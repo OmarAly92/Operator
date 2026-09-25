@@ -115,6 +115,17 @@ impl Content {
         }
     }
 
+    pub fn trim_front_to(&mut self, offset: u64) {
+        self.drop_before(offset);
+        if let Some(front) = self.chunks.front_mut() {
+            if front.start < offset {
+                let cut = ((offset - front.start) as usize).min(front.bytes.len());
+                front.bytes.drain(..cut);
+                front.start += cut as u64;
+            }
+        }
+    }
+
     pub fn resident_bytes(&self) -> usize {
         self.chunks.iter().map(|chunk| chunk.bytes.len()).sum()
     }
@@ -193,5 +204,28 @@ mod tests {
         c.drop_before(start + 2);
         assert_eq!(c.start_offset(), 1024);
         assert_eq!(c.copy_range(1024, 1025), b"z");
+    }
+
+    #[test]
+    fn trim_front_to_cuts_into_the_front_chunk_so_a_prepend_abuts_the_first_row() {
+        let mut c = Content::with_base(1024);
+        for _ in 0..10 {
+            c.push_char("x");
+        }
+        c.trim_front_to(1030);
+        assert_eq!(c.start_offset(), 1030);
+        assert_eq!(c.resident_bytes(), 4);
+        let start = c.prepend(b"ab");
+        assert_eq!(start, 1028);
+        assert_eq!(c.copy_range(1028, 1034), b"abxxxx");
+    }
+
+    #[test]
+    fn trim_front_to_below_the_start_changes_nothing() {
+        let mut c = Content::with_base(1024);
+        c.push_char("q");
+        c.trim_front_to(1000);
+        assert_eq!(c.start_offset(), 1024);
+        assert_eq!(c.copy_range(1024, 1025), b"q");
     }
 }

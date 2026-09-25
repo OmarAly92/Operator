@@ -469,6 +469,13 @@ func (c *connState) handleTerminal(msg clientMsg) {
 		if a := c.lookup(msg.ID); a != nil {
 			_ = a.ack(uint64(msg.Bytes))
 		}
+	case msgOlder:
+		if msg.Before == 0 {
+			return
+		}
+		if a := c.lookup(msg.ID); a != nil {
+			_ = a.requestOlder(msg.Before)
+		}
 	}
 }
 

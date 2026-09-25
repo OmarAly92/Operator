@@ -7,6 +7,7 @@ import {
 	createTerminalMuxPool,
 	dataFrame,
 	muxUrlFromApiBase,
+	olderFrame,
 	openFrame,
 	resizeFrame,
 } from "./terminal-mux";
@@ -42,6 +43,15 @@ describe("terminal-mux framing", () => {
 			force: true,
 		});
 		expect(JSON.parse(closeFrame("s"))).toEqual({ ch: "terminal", type: "close", id: "s" });
+	});
+
+	it("asks for the rows above a stable row in an older frame", () => {
+		expect(JSON.parse(olderFrame("sess-1", 4096))).toEqual({
+			ch: "terminal",
+			type: "older",
+			id: "sess-1",
+			before: 4096,
+		});
 	});
 
 	it("derives the ws mux url from the http api base (root path, not /api/v1)", () => {
@@ -422,6 +432,22 @@ describe("createTerminalMuxPool", () => {
 		lease.dispose();
 		socket.emitMessage(JSON.stringify({ ch: "terminal", id: "s", type: "health", health: "ok" }));
 		expect(seen).toEqual(["hung"]);
+		keeper.dispose();
+	});
+
+	it("a lease forwards an older request and drops it once released", () => {
+		const pool = createTerminalMuxPool(() =>
+			createTerminalMux("ws://x/mux", FakeSocket as unknown as typeof WebSocket),
+		);
+		const lease = pool.acquire();
+		const keeper = pool.acquire();
+		const socket = FakeSocket.instances.at(-1)!;
+		socket.emitOpen();
+		lease.requestOlder("s-1", 512);
+		lease.dispose();
+		lease.requestOlder("s-1", 256);
+		const olders = socket.sent.map((frame) => JSON.parse(frame)).filter((frame) => frame.type === "older");
+		expect(olders).toEqual([{ ch: "terminal", type: "older", id: "s-1", before: 512 }]);
 		keeper.dispose();
 	});
 

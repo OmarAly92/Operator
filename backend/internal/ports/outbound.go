@@ -194,6 +194,10 @@ type FlowControlled interface {
 	Ack(bytes uint64) error
 }
 
+type OlderOutputRequester interface {
+	RequestOlder(before uint64) error
+}
+
 // Attacher opens a fresh attach Stream for a session handle, sized rows x cols from
 // birth (0 means size not yet known). ctx cancellation must terminate the stream.
 type Attacher interface {

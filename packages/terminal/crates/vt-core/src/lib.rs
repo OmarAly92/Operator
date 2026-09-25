@@ -5,6 +5,7 @@ pub mod block;
 pub mod block_grid;
 pub mod block_selection;
 pub mod block_tree;
+pub mod cold_ring;
 pub mod content;
 pub mod delta;
 pub mod event_bridge;
@@ -16,6 +17,7 @@ pub mod integrity;
 pub mod limits;
 mod line_editor;
 pub mod mark_regex;
+pub mod older;
 pub mod parser;
 pub mod program;
 pub mod row_index;
@@ -23,6 +25,7 @@ mod screen;
 mod scrollback;
 mod sgr;
 pub mod style;
+pub mod style_sgr;
 pub mod sync;
 #[cfg(feature = "trace")]
 pub mod trace;
@@ -37,6 +40,7 @@ pub use block::{Block, BlockId, BlockMeta, BlockRecord, BlockSource, BlockState,
 pub use block_grid::BlockGrid;
 pub use block_selection::{BlockSelection, SelectionPoint};
 pub use block_tree::{BlockSummary, BlockTree};
+pub use cold_ring::{ColdRow, ColdStats};
 pub use delta::{Delta, DeltaKind};
 pub use find::{FindMatch, FindQuery, FindSession, FindUpdate};
 pub use grid::{CellSpan, ExportedRow};
@@ -44,6 +48,7 @@ pub use hyperlink::{Hyperlink, HyperlinkRegistry, LinkId};
 pub use integrity::IntegrityError;
 pub use limits::{Limits, MemoryStats};
 pub use line_editor::LineEditorState;
+pub use older::{OlderChunk, OlderState, OLDER_CHUNK_ROWS};
 pub use parser::{HistoryBlock, HistoryRow};
 pub use style::{Attrs, CellStyle, StyleCode};
 pub use width::{clusters, Cluster, WidthMode};
@@ -78,6 +83,7 @@ pub struct TerminalCore {
     now_ms: u64,
     history: history::HistoryReceiver,
     replay_ready: bool,
+    older: OlderState,
 }
 
 impl TerminalCore {
@@ -105,6 +111,7 @@ impl TerminalCore {
             now_ms: 0,
             history: history::HistoryReceiver::new(),
             replay_ready: false,
+            older: OlderState::default(),
         })
     }
 
@@ -206,6 +213,7 @@ impl TerminalCore {
     }
 
     fn feed_raw(&mut self, bytes: &[u8]) {
+        let committed = self.parser.committed_rows();
         self.parser.set_clock(self.now_ms);
         let mut bytes = bytes;
         if self.history.is_active() {
@@ -246,11 +254,17 @@ impl TerminalCore {
                     parsed = upto;
                     continue;
                 }
+                MarkEvent::OlderFloor(floor) => {
+                    self.older.note(floor);
+                    parsed = upto;
+                    continue;
+                }
                 MarkEvent::HistoryChunk {
                     first_stable_row,
                     rows,
+                    cols,
                 } => {
-                    let cols = self.parser.columns();
+                    let cols = self.parser.columns().max(cols.unwrap_or(0));
                     self.history
                         .begin(first_stable_row, rows, cols, self.parser.width_mode());
                     let rest = &bytes[upto..];
@@ -292,17 +306,11 @@ impl TerminalCore {
         }
         self.parser.note_output();
         self.parser.commit_evicted();
-        self.parser.trim_to(self.limits);
+        if self.parser.committed_rows() != committed {
+            self.parser.trim_to(self.limits);
+        }
         self.parser.note_mutation();
         self.debug_check();
-    }
-
-    fn drain_history(&mut self) {
-        if let Some((first_stable_row, rows, blocks)) = self.history.take() {
-            self.parser
-                .apply_history_chunk(first_stable_row, rows, blocks);
-            self.debug_check();
-        }
     }
 
     fn advance_vte(&mut self, bytes: &[u8]) {

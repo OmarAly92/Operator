@@ -20,6 +20,7 @@ export type {
 	HistoryStore,
 	LineEditorState,
 	MemoryStats,
+	OlderOutput,
 	PaletteCommand,
 	PasteUnsafeReason,
 	PathCandidate,

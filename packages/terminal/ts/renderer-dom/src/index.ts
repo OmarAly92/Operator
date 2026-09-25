@@ -18,4 +18,5 @@ export type { FindHighlights } from "./renderer-highlights.js";
 export { compileMarks, disposeMarks, type MarkRule } from "./marks.js";
 export { HIGHLIGHT_PRIORITY, type HighlightKind } from "./highlights.js";
 export { mountJumpToBottom, type JumpToBottom, type JumpToBottomOptions } from "./jump-to-bottom.js";
+export { LOAD_OLDER_RETRY_MS, mountLoadOlder, type LoadOlder, type LoadOlderOptions, type LoadOlderSource } from "./load-older.js";
 export { mountPalette, type Palette, type PaletteHost, type PaletteOptions } from "./palette.js";

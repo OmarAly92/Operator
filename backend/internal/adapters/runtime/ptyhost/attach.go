@@ -210,6 +210,19 @@ func (s *loopbackStream) Ack(consumed uint64) error {
 	return err
 }
 
+func (s *loopbackStream) RequestOlder(before uint64) error {
+	payload, err := json.Marshal(OlderReq{Before: before})
+	if err != nil {
+		return err
+	}
+	frame, err := EncodeMessage(MsgOlderReq, payload)
+	if err != nil {
+		return err
+	}
+	_, err = s.conn.Write(frame)
+	return err
+}
+
 // writeResize encodes and sends one MsgResize frame.
 func writeResize(w io.Writer, rows, cols uint16) error {
 	return writeResizeWithHistory(w, rows, cols, false)

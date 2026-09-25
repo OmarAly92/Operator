@@ -895,6 +895,8 @@ func (h *host) handleConn(conn net.Conn) {
 
 	if cs.wantsHistory {
 		go h.streamHistory(cs, origin)
+	} else if opening != nil {
+		h.sendOlderMark(cs)
 	}
 
 	defer func() {
@@ -1024,6 +1026,7 @@ func (h *host) streamHistory(cs *clientState, before uint64) {
 			return
 		}
 		if !ok {
+			h.sendOlderMark(cs)
 			return
 		}
 		frame, err := EncodeMessage(MsgTerminalData, []byte(chunk))
@@ -1167,6 +1170,12 @@ func (h *host) handleClientMsg(conn net.Conn, msgType byte, payload []byte) {
 
 	case MsgAppearance:
 		h.handleAppearance(payload)
+
+	case MsgOlderReq:
+		var req OlderReq
+		if err := json.Unmarshal(payload, &req); err == nil {
+			h.serveOlder(conn, req.Before)
+		}
 
 	case MsgAck:
 		var ack AckPayload

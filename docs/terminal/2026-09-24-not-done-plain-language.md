@@ -146,8 +146,13 @@ You'd only notice these as fewer rare glitches or slightly less CPU use.
   notification pops up when that pane is not on screen.
 - **Minimum contrast option for the theme:** not built (§1.17).
 - **Jump to the last command you looked at:** not built (§5.3).
-- **Very old output:** beyond 200,000 lines, the oldest text is dropped
-  instead of saved for "load more" (§5.8).
+- **Very old output (built 2026-09-25, roadmap Plan 7):** past 200,000 lines
+  the oldest text is no longer lost: the helper keeps up to 32 MB of it per
+  terminal, and scrolling to the top shows **Load older output**, which brings
+  back about 2,000 earlier lines per click. Still missing: loaded lines leave
+  again as soon as new output arrives, the old text is not kept across a crash
+  or a restart of the helper, and each click briefly pauses a very long pane
+  (§5.8).
 - **Crash recovery (built 2026-09-24, roadmap Plan 4):** if the helper
   process that runs a session's terminal stops answering for about 15
   seconds, the terminal says "This terminal stopped responding." and offers

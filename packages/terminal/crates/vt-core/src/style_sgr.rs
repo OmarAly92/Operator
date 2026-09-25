@@ -1,6 +1,6 @@
-use vt_core::{Attrs, CellStyle, StyleCode};
+use crate::style::{Attrs, CellStyle, StyleCode};
 
-pub(crate) fn write_styled_row<'a>(
+pub fn write_styled_row<'a>(
     text: &mut String,
     row_bytes: &[u8],
     pairs: &[(u32, CellStyle)],
@@ -9,7 +9,7 @@ pub(crate) fn write_styled_row<'a>(
     write_styled_row_with(text, row_bytes, pairs, link_uri, "\n");
 }
 
-pub(crate) fn write_styled_row_with<'a>(
+pub fn write_styled_row_with<'a>(
     text: &mut String,
     row_bytes: &[u8],
     pairs: &[(u32, CellStyle)],
@@ -45,9 +45,6 @@ pub(crate) fn write_styled_row_with<'a>(
     text.push_str(terminator);
 }
 
-// Mirrors the bit layout in vt-core's `style.rs` (`TAG_INDEXED`/`TAG_RGB`,
-// neither exported) since only `StyleCode`'s public accessors cross the
-// crate boundary.
 const TAG_INDEXED: u32 = 0x0100_0000;
 const TAG_RGB: u32 = 0x0200_0000;
 

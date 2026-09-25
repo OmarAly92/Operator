@@ -30,6 +30,7 @@ function fakeMux(): FakeProgramMux {
 		resize: () => undefined,
 		close: () => undefined,
 		ack: () => undefined,
+		requestOlder: () => undefined,
 		onData: () => () => undefined,
 		onExit: () => () => undefined,
 		onOpened: () => () => undefined,

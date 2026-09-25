@@ -21,6 +21,7 @@ import type {
 	HostCapabilities,
 	LineEditorState,
 	MemoryStats,
+	OlderOutput,
 	RowEvent,
 	RowEventListener,
 	RowRange,
@@ -199,6 +200,14 @@ export class TerminalCore {
 			return false;
 		}
 		return this.inner.replay_ready();
+	}
+
+	olderOutput(): OlderOutput {
+		if (this.disposed) {
+			return { floor: null, marks: 0 };
+		}
+		const floor = this.inner.older_floor();
+		return { floor: floor < 0 ? null : floor, marks: this.inner.older_marks() };
 	}
 
 	private notifyIfChanged(): boolean {

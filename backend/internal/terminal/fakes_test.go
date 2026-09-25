@@ -160,6 +160,7 @@ type flowControlledFakePTY struct {
 	*fakePTY
 	mu    sync.Mutex
 	acked uint64
+	older []uint64
 }
 
 func newFlowControlledFakePTY() *flowControlledFakePTY {
@@ -171,6 +172,19 @@ func (p *flowControlledFakePTY) Ack(bytes uint64) error {
 	p.acked = bytes
 	p.mu.Unlock()
 	return nil
+}
+
+func (p *flowControlledFakePTY) RequestOlder(before uint64) error {
+	p.mu.Lock()
+	p.older = append(p.older, before)
+	p.mu.Unlock()
+	return nil
+}
+
+func (p *flowControlledFakePTY) olderRequests() []uint64 {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return append([]uint64(nil), p.older...)
 }
 
 func (p *flowControlledFakePTY) ackedBytes() uint64 {
