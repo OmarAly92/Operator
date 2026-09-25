@@ -55,6 +55,7 @@ class SessionsCubit extends Cubit<SessionsState> {
   DateTime? boardFetchedAt;
   bool boardIsCached = false;
   bool _freshLoaded = false;
+  GetSessionsFailureState? _freshFailure;
   Future<void> _cacheReady = Future<void>.value();
 
   Future<void> get cacheReady => _cacheReady;
@@ -99,6 +100,8 @@ class SessionsCubit extends Cubit<SessionsState> {
     boardFetchedAt = cached.fetchedAt;
     boardIsCached = true;
     emit(GetSessionsSuccessState(++_revision, fromCache: true));
+    final failure = _freshFailure;
+    if (failure != null) emit(failure);
   }
 
   Future<void> _refreshBoard() async {
@@ -135,6 +138,7 @@ class SessionsCubit extends Cubit<SessionsState> {
     boardFetchedAt = null;
     boardIsCached = false;
     _freshLoaded = false;
+    _freshFailure = null;
     _needsRetry = false;
     _connectionOpen = false;
     _revision = 0;
@@ -162,6 +166,7 @@ class SessionsCubit extends Cubit<SessionsState> {
         projects = board.projects;
         accountLabels = board.accountLabels;
         _freshLoaded = true;
+        _freshFailure = null;
         boardFetchedAt = _clock();
         boardIsCached = false;
         if (!_connectionOpen) {
@@ -176,7 +181,9 @@ class SessionsCubit extends Cubit<SessionsState> {
       onFailure: (failure) {
         _needsRetry = true;
         _connectionOpen = false;
-        emit(GetSessionsFailureState(failure));
+        final state = GetSessionsFailureState(failure);
+        _freshFailure = state;
+        emit(state);
         if (!shouldKeepPolling(failure.statusCode)) {
           _stopped = true;
           _fallbackTimer?.cancel();

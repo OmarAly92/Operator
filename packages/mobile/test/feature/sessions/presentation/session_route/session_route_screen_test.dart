@@ -327,6 +327,31 @@ void main() {
     expect(find.text('Session not found.'), findsOneWidget);
   });
 
+  testWidgets('a cached board that lands after a failed fetch still lets the route settle', (tester) async {
+    final read = Completer<Replicated<BoardSnapshot>?>();
+    when(() => repository.cachedBoard()).thenAnswer((_) => read.future);
+    when(() => repository.getBoard()).thenAnswer(
+      (_) async => Result.failure(ServerFailure(error: 'x', message: 'bad', statusCode: 401)),
+    );
+    final cubit = SessionsCubit(repository, mux, _StubConfigSource());
+    try {
+      await tester.runAsync(() async {
+        await cubit.stream.firstWhere((state) => state is GetSessionsFailureState);
+        read.complete(Replicated(value: const BoardSnapshot(), fetchedAt: DateTime.utc(2026, 9, 25)));
+        await cubit.cacheReady;
+      });
+      expect(cubit.boardIsCached, isTrue);
+      expect(cubit.state, isA<GetSessionsFailureState>());
+
+      await pumpSettledRoute(tester, cubit);
+      await tester.pump();
+
+      expect(find.text('Session not found.'), findsOneWidget);
+    } finally {
+      await cubit.close();
+    }
+  });
+
   testWidgets(
     'refreshes a settled empty cache once before reporting the session missing',
     (tester) async {

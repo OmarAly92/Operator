@@ -581,6 +581,44 @@ void main() {
 
       expect(cubit.sessions, isEmpty);
       expect(cubit.boardFetchedAt, isNull);
+      expect(cubit.accountLabels, isEmpty);
+      expect(cubit.boardIsCached, isFalse);
+      await cubit.close();
+    });
+
+    test('a cache read that lands after a failed fetch loads the rows and keeps the failure current', () async {
+      final read = Completer<Replicated<BoardSnapshot>?>();
+      final failure = ServerFailure(error: 'unauthorized', message: 'unauthorized', statusCode: 401);
+      when(() => repository.cachedBoard()).thenAnswer((_) => read.future);
+      when(() => repository.getBoard()).thenAnswer((_) async => Result.failure(failure));
+
+      final cubit = SessionsCubit(repository, mux, source);
+      final states = <SessionsState>[];
+      final sub = cubit.stream.listen(states.add);
+      await Future<void>.delayed(Duration.zero);
+      expect(cubit.state, isA<GetSessionsFailureState>());
+
+      final settled = cubit.stream.firstWhere(
+        (state) => (state is GetSessionsSuccessState && !state.fromCache) || state is GetSessionsFailureState,
+      );
+      read.complete(
+        Replicated(
+          value: const BoardSnapshot(
+            sessions: [SessionModel(id: 'cached')],
+            accountLabels: {'default': 'Default'},
+          ),
+          fetchedAt: DateTime.utc(2026, 9, 25, 8),
+        ),
+      );
+
+      expect(await settled.timeout(const Duration(seconds: 1)), isA<GetSessionsFailureState>());
+      expect(cubit.state, GetSessionsFailureState(failure));
+      expect(states.last, GetSessionsFailureState(failure));
+      expect(cubit.sessions.single.id, 'cached');
+      expect(cubit.accountLabels, {'default': 'Default'});
+      expect(cubit.boardIsCached, isTrue);
+      expect(cubit.boardFetchedAt, DateTime.utc(2026, 9, 25, 8));
+      await sub.cancel();
       await cubit.close();
     });
 
