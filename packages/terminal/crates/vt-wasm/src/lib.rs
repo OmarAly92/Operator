@@ -93,6 +93,17 @@ impl WasmTerminalCore {
         self.core.replay_ready()
     }
 
+    pub fn older_floor(&self) -> f64 {
+        self.core
+            .older_state()
+            .floor
+            .map_or(-1.0, |floor| floor as f64)
+    }
+
+    pub fn older_marks(&self) -> u32 {
+        self.core.older_state().marks
+    }
+
     pub fn resize(&mut self, columns: usize, rows: usize) -> Result<(), JsError> {
         self.core.resize(columns, rows);
         Ok(())

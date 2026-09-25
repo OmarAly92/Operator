@@ -995,6 +995,11 @@ export function useTerminalSession(session: WorkspaceSession | undefined, option
 					r.byteListeners.delete(listener);
 				};
 			},
+			requestOlder: (before: number) => {
+				const r = runtime.current;
+				if (!r.mux || !r.handle || !r.inputReady || before <= 0) return;
+				r.mux.requestOlder(r.handle, before);
+			},
 			resize: (cols: number, rows: number) => {
 				const r = runtime.current;
 				if (cols <= 0 || rows <= 0) return;

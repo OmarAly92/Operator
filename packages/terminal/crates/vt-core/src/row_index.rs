@@ -154,7 +154,7 @@ impl RowIndex {
     // the width the touch used, so a later width change has to re-mark it.
     // Extending from the last run alone reaches the tail and skips the middle,
     // which then stays cut at that intermediate width forever.
-    fn mark_stale(&mut self, start: usize, end: usize, cols: usize) {
+    pub(crate) fn mark_stale(&mut self, start: usize, end: usize, cols: usize) {
         if end <= start {
             return;
         }

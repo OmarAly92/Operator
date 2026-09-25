@@ -39,6 +39,7 @@ export type BlockTerminalTransport = {
 	write: (data: Uint8Array) => void;
 	onData: (listener: (bytes: Uint8Array) => void) => () => void;
 	resize?: (cols: number, rows: number) => void;
+	requestOlder?: (before: number) => void;
 	dispose?: () => void;
 };
 
@@ -492,8 +493,11 @@ export function BlockTerminal({
 			secretPatterns,
 			...(predictiveThresholdMs === undefined ? {} : { predictiveEcho: { thresholdMs: predictiveThresholdMs } }),
 			confirmPaste,
+			...(transport.requestOlder
+				? { loadOlderOutput: (before: number) => transportRef.current.requestOlder?.(before) }
+				: {}),
 		}),
-		[clipboard, workspacePath, secretPatterns, predictiveThresholdMs, openFile, confirmPaste],
+		[clipboard, workspacePath, secretPatterns, predictiveThresholdMs, openFile, confirmPaste, transport.requestOlder],
 	);
 
 	const strings = useMemo<TerminalStrings>(
@@ -527,6 +531,7 @@ export function BlockTerminal({
 				defaultValue: "No matching commands",
 			}),
 			jumpToBottom: t("blocks.jumpToBottom", { defaultValue: "Jump to bottom" }),
+			loadOlderOutput: t("blocks.loadOlderOutput", { defaultValue: "Load older output" }),
 			shellBlocksUnavailable: t("blocks.shellBlocksUnavailable", {
 				defaultValue: "Shell blocks are unavailable in this terminal.",
 			}),

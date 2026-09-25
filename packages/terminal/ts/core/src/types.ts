@@ -126,6 +126,8 @@ export type AltScreenView = Readonly<{
 
 export type TerminalLimits = Readonly<{ rows: number; bytes: number }>;
 
+export type OlderOutput = Readonly<{ floor: number | null; marks: number }>;
+
 export type MemoryStats = Readonly<{
 	contentBytes: number;
 	styleEntries: number;
@@ -209,6 +211,7 @@ export type TerminalStrings = Readonly<{
 	paletteLabel: string;
 	paletteNoMatches: string;
 	jumpToBottom: string;
+	loadOlderOutput: string;
 }>;
 
 export const defaultStrings: TerminalStrings = Object.freeze({
@@ -234,6 +237,7 @@ export const defaultStrings: TerminalStrings = Object.freeze({
 	paletteLabel: "Command palette",
 	paletteNoMatches: "No matching commands",
 	jumpToBottom: "Jump to bottom",
+	loadOlderOutput: "Load older output",
 });
 
 export type PaletteCommand = Readonly<{
@@ -267,6 +271,7 @@ export type HostCapabilities = Readonly<{
 	secretPatterns?: readonly SecretPattern[];
 	predictiveEcho?: Readonly<{ thresholdMs: number }>;
 	confirmPaste?(preview: string, reason: PasteUnsafeReason): Promise<boolean>;
+	loadOlderOutput?(beforeStableRow: number): void;
 }>;
 
 export type HistoryStore = {

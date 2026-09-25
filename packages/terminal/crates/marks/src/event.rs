@@ -39,7 +39,9 @@ pub enum MarkEvent {
     HistoryChunk {
         first_stable_row: u64,
         rows: usize,
+        cols: Option<usize>,
     },
+    OlderFloor(u64),
 }
 
 /// Stateful byte-level decoder. It survives across `feed` calls so a mark

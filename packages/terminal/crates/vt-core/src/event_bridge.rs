@@ -41,7 +41,10 @@ pub(crate) fn apply_event(parser: &mut Parser, alt: &mut AltScreen, event: MarkE
             }
         }
         MarkEvent::InputReady | MarkEvent::InputReleased => {}
-        MarkEvent::ReplayOrigin(_) | MarkEvent::ReplayReady | MarkEvent::HistoryChunk { .. } => {}
+        MarkEvent::ReplayOrigin(_)
+        | MarkEvent::ReplayReady
+        | MarkEvent::HistoryChunk { .. }
+        | MarkEvent::OlderFloor(_) => {}
         MarkEvent::AltScreenEnter => {
             alt.set(true);
         }
