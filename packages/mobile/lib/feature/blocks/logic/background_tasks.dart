@@ -161,5 +161,8 @@ String taskStopErrorMessage(String? code) => switch (code) {
   'SESSION_COMPOSER_NOT_EMPTY' => "Couldn't stop — draft in composer",
   'SESSION_AWAITING_DECISION' => "Couldn't stop — waiting on a decision",
   'TASK_UNSAFE' => "Couldn't stop safely",
+  'SESSION_BUSY' => "Couldn't stop — terminal busy",
+  'SESSION_NOT_READY' => "Couldn't stop — session not ready",
+  'SESSION_NOT_RUNNING' => "Couldn't stop — session not running",
   _ => "Couldn't stop",
 };
