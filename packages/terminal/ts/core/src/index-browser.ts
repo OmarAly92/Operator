@@ -81,6 +81,13 @@ export {
 	type ProgramNotification,
 } from "./program-messages.js";
 export {
+	AgentEvents,
+	type AgentEvent,
+	type AgentEventListener,
+	type AgentEventSource,
+	type AgentState,
+} from "./agent-events.js";
+export {
 	FEED_BUDGET_MS,
 	FEED_SLICE_BYTES,
 	FIND_UPDATE_BUDGET_BYTES,

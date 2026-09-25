@@ -12,6 +12,8 @@ import {
 } from "./wasm-runtime.js";
 import { snapshotLogicalLines, type LogicalLine } from "./logical-lines.js";
 import { ProgramMessages, type ProgramMessageListener } from "./program-messages.js";
+import { AgentEvents, type AgentEventListener } from "./agent-events.js";
+import { budgetNow, decodeFindMatches, parseBlockId, validateEvenLength, validateMultipleOf } from "./core-checks.js";
 import type {
 	BlockId,
 	ChangeListener,
@@ -78,10 +80,12 @@ export class TerminalCore {
 	private readonly decoder = new TextDecoder("utf-8", { fatal: true });
 	private readonly linkUris = new Map<number, string>();
 	private readonly program: ProgramMessages;
+	private readonly agentEvents: AgentEvents;
 
 	constructor(inner: WasmTerminalCore, host: HostCapabilities) {
 		this.inner = inner;
 		this.program = new ProgramMessages(inner, host);
+		this.agentEvents = new AgentEvents(inner);
 		this.completions = new CompletionDispatcher(
 			() => decodeBlocks(this.snapshot()).at(-1)?.cwd ?? "",
 			host,
@@ -122,6 +126,7 @@ export class TerminalCore {
 		}
 		this.inner.feed(bytes, Date.now());
 		this.program.poll();
+		this.agentEvents.poll();
 		if (!this.notifyIfChanged() && this.inner.synchronized_output()) {
 			this.notifyAll();
 		}
@@ -183,6 +188,7 @@ export class TerminalCore {
 			return false;
 		}
 		this.program.poll();
+		this.agentEvents.poll();
 		this.notifyIfChanged();
 		return true;
 	}
@@ -423,20 +429,7 @@ export class TerminalCore {
 				`find results length ${len} is not a multiple of ${FIND_MATCH_WORDS}`,
 			);
 		}
-		const view = u32View(memory, ptr, len);
-		const count = len / FIND_MATCH_WORDS;
-		const matches: FindMatch[] = [];
-		for (let index = 0; index < count; index += 1) {
-			const base = index * FIND_MATCH_WORDS;
-			matches.push({
-				blockId: `${view[base + 1]!}:${view[base]!}`,
-				row: view[base + 2]!,
-				endRow: view[base + 3]!,
-				startByte: view[base + 4]!,
-				endByte: view[base + 5]!,
-			});
-		}
-		return matches;
+		return decodeFindMatches(u32View(memory, ptr, len), FIND_MATCH_WORDS);
 	}
 
 	findHistoryBytesScanned(id: number): number {
@@ -497,6 +490,10 @@ export class TerminalCore {
 		return this.program.onMessage(listener);
 	}
 
+	onAgentEvent(listener: AgentEventListener): () => void {
+		return this.agentEvents.onEvent(listener);
+	}
+
 	lineEditorState(): LineEditorState {
 		return LINE_EDITOR_STATES[this.snapshot().lineEditorState] ?? "unknown";
 	}
@@ -555,6 +552,7 @@ export class TerminalCore {
 		this.disposed = true;
 		this.completions.dispose();
 		this.program.dispose();
+		this.agentEvents.dispose();
 		this.listeners.clear();
 		this.backlog = [];
 		this.backlogBytes = 0;
@@ -564,35 +562,6 @@ export class TerminalCore {
 		this.linkUris.clear();
 		this.inner.free();
 	}
-}
-
-function budgetNow(): number {
-	return typeof performance !== "undefined" ? performance.now() : Date.now();
-}
-
-function validateEvenLength(name: string, length: number): void {
-	if (length % 2 !== 0) {
-		throw new Error(`${name} length ${length} is not even`);
-	}
-}
-
-function validateMultipleOf(name: string, length: number, words: number): void {
-	if (length % words !== 0) {
-		throw new Error(`${name} length ${length} is not a multiple of ${words}`);
-	}
-}
-
-function parseBlockId(id: BlockId): [number, number] {
-	const separator = id.indexOf(":");
-	if (separator < 0) {
-		throw new Error(`block id ${id} is not in hi:lo form`);
-	}
-	const hi = Number.parseInt(id.slice(0, separator), 10);
-	const lo = Number.parseInt(id.slice(separator + 1), 10);
-	if (!Number.isFinite(hi) || !Number.isFinite(lo)) {
-		throw new Error(`block id ${id} is not numeric`);
-	}
-	return [lo, hi];
 }
 
 export type { WasmInput };
