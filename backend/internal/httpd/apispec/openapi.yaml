@@ -8678,6 +8678,8 @@ components:
       type: object
     SessionTaskView:
       properties:
+        agentId:
+          type: string
         canStop:
           type: boolean
         command:

@@ -279,7 +279,7 @@ func (q *Queries) SelectLatestTurnModels(ctx context.Context) ([]SelectLatestTur
 const selectTaskUpdatesBySession = `-- name: SelectTaskUpdatesBySession :many
 SELECT seq, session_id, source_id, kind, raw_event, harness, tool_name, tool_use_id, text, redacted_spans, error_type, hook_version, truncated_lines, created_at, tool_input, source, interaction_id, agent_id, detail
 FROM block_events
-WHERE session_id = ? AND agent_id = '' AND kind = 'task_update'
+WHERE session_id = ? AND kind = 'task_update'
 ORDER BY seq
 `
 

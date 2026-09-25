@@ -401,3 +401,18 @@ func TestStopAgentWithoutADescriptionOrStopperIsUnsupported(t *testing.T) {
 		t.Fatalf("err = %v", err)
 	}
 }
+
+func TestListMergesASubagentShellWithItsMainScopeNotification(t *testing.T) {
+	h := newHarness(t)
+	h.events.add(t, domain.BackgroundTask{TaskID: "bsub", Kind: domain.BackgroundTaskShell, Status: domain.BackgroundTaskRunning, Description: "Sleep for 15 minutes", Command: "sleep 900"})
+	h.events.records[0].AgentID = "a9"
+	h.events.add(t, domain.BackgroundTask{TaskID: "bsub", Kind: domain.BackgroundTaskShell, Status: domain.BackgroundTaskStopped, Summary: `Task "Sleep for 15 minutes" was stopped by main session`})
+	tasks, err := h.svc.List(context.Background(), "s-1")
+	if err != nil || len(tasks) != 1 {
+		t.Fatalf("tasks = %+v, %v", tasks, err)
+	}
+	got := tasks[0]
+	if got.AgentID != "a9" || got.Status != domain.BackgroundTaskStopped || got.Command != "sleep 900" || got.Description != "Sleep for 15 minutes" {
+		t.Fatalf("task = %+v", got)
+	}
+}

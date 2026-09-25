@@ -424,7 +424,7 @@ func TestRecordTranscriptDropsTaskUpdateWithUnreadableDetail(t *testing.T) {
 	}
 }
 
-func TestTaskUpdatesReadsTheMainScope(t *testing.T) {
+func TestTaskUpdatesPassesTheSessionThrough(t *testing.T) {
 	store := &fakeStore{taskUpdates: []Record{{Seq: 3, Kind: domain.BlockEventTaskUpdate}}}
 	svc := NewService(store, nil, 500)
 	got, err := svc.TaskUpdates(context.Background(), "s-1")

@@ -3091,6 +3091,7 @@ export interface components {
             session: components["schemas"]["ControllersSessionView"];
         };
         SessionTaskView: {
+            agentId?: string;
             canStop: boolean;
             command?: string;
             description?: string;

@@ -102,6 +102,7 @@ func sessionTaskView(task backgroundtask.Task) SessionTaskView {
 		OutputFile:  task.OutputFile,
 		StartedAt:   task.StartedAt,
 		EndedAt:     task.EndedAt,
+		AgentID:     task.AgentID,
 		CanStop:     task.CanStop,
 		UpdatedSeq:  task.UpdatedSeq,
 	}

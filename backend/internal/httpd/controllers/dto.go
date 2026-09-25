@@ -319,6 +319,7 @@ type SessionTaskView struct {
 	OutputFile  string `json:"outputFile,omitempty"`
 	StartedAt   string `json:"startedAt,omitempty"`
 	EndedAt     string `json:"endedAt,omitempty"`
+	AgentID     string `json:"agentId,omitempty"`
 	CanStop     bool   `json:"canStop"`
 	UpdatedSeq  int64  `json:"updatedSeq"`
 }

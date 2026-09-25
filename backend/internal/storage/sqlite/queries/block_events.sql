@@ -55,7 +55,7 @@ WHERE outer_be.session_id = ?
 -- name: SelectTaskUpdatesBySession :many
 SELECT *
 FROM block_events
-WHERE session_id = ? AND agent_id = '' AND kind = 'task_update'
+WHERE session_id = ? AND kind = 'task_update'
 ORDER BY seq;
 
 -- name: SelectLatestTurnModels :many

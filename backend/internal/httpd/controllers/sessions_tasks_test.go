@@ -61,7 +61,7 @@ func TestListSessionTasks(t *testing.T) {
 			ToolUseID: "toolu_1", Description: "Nap", Command: "sleep 1", Summary: "done", ExitCode: &code,
 			DurationMs: &duration, OutputFile: "/tmp/tasks/b1.output",
 			StartedAt: "2026-09-25T00:54:00.000Z", EndedAt: "2026-09-25T00:54:01.000Z",
-		}, UpdatedSeq: 9},
+		}, AgentID: "a7", UpdatedSeq: 9},
 	}}
 	srv := newTasksTestServer(t, tasks)
 
@@ -81,7 +81,7 @@ func TestListSessionTasks(t *testing.T) {
 		t.Fatalf("running agent carries an exit code: %+v", agent)
 	}
 	if shell["exitCode"] != float64(0) || shell["durationMs"] != float64(7412) || shell["canStop"] != false ||
-		shell["command"] != "sleep 1" || shell["endedAt"] != "2026-09-25T00:54:01.000Z" || shell["updatedSeq"] != float64(9) {
+		shell["command"] != "sleep 1" || shell["endedAt"] != "2026-09-25T00:54:01.000Z" || shell["updatedSeq"] != float64(9) || shell["agentId"] != "a7" {
 		t.Fatalf("shell = %+v", shell)
 	}
 	if tasks.gotSession != "s-1" {

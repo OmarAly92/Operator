@@ -349,8 +349,8 @@ func TestTaskUpdatesSurviveTheBlockTrimOnTheirOwnBudget(t *testing.T) {
 	if err != nil {
 		t.Fatalf("select task updates: %v", err)
 	}
-	if len(tasks) != 2 || tasks[0].SourceID != "t2" || tasks[1].SourceID != "t3" {
-		t.Fatalf("task updates = %+v, want t2,t3 in order", tasks)
+	if len(tasks) != 3 || tasks[0].SourceID != "t2" || tasks[1].SourceID != "t3" || tasks[2].SourceID != "t4" || tasks[2].AgentID != "a1" {
+		t.Fatalf("task updates = %+v, want t2,t3 then the subagent's t4", tasks)
 	}
 	all, err := s.SelectBlockEventsBySession(ctx, "s1", "", 0, 100)
 	if err != nil {

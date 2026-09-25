@@ -48,6 +48,7 @@ type Service struct {
 
 type Task struct {
 	domain.BackgroundTask
+	AgentID    string
 	CanStop    bool
 	UpdatedSeq int64
 }
@@ -134,12 +135,15 @@ func (s *Service) fold(ctx context.Context, rec domain.SessionRecord) ([]Task, e
 		}
 		existing, known := byID[update.TaskID]
 		if !known {
-			byID[update.TaskID] = &Task{BackgroundTask: update, UpdatedSeq: record.Seq}
+			byID[update.TaskID] = &Task{BackgroundTask: update, AgentID: record.AgentID, UpdatedSeq: record.Seq}
 			firstSeen[update.TaskID] = record.Seq
 			continue
 		}
 		existing.BackgroundTask = merge(existing.BackgroundTask, update)
 		existing.UpdatedSeq = record.Seq
+		if existing.AgentID == "" {
+			existing.AgentID = record.AgentID
+		}
 	}
 	out := make([]Task, 0, len(byID))
 	for _, task := range byID {
