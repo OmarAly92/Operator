@@ -34,7 +34,7 @@ class BlocksRepositoryImp implements BlocksRepository {
     final desktopId = _replica.desktopId;
     final body = await _remoteDataSource.getSessionBlocks(sessionId, params);
     final events = _parse(body);
-    if ((params.agentId ?? '').isEmpty) await _remember(desktopId, sessionId, _rows(body));
+    if ((params.agentId ?? '').isEmpty && params.beforeSeq == null) await _remember(desktopId, sessionId, _rows(body));
     return events;
   });
 

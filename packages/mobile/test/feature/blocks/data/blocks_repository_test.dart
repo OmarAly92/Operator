@@ -132,6 +132,21 @@ void main() {
     verifyNever(() => local.writeHistory(any(), any(), any()));
   });
 
+  test('an older page fetched by scrolling back is not stored', () async {
+    when(() => source.getSessionBlocks(any(), any())).thenAnswer(
+      (_) async => {
+        'blocks': [
+          {'seq': 3, 'kind': 'stop'},
+        ],
+      },
+    );
+
+    final result = await online().getSessionBlocks('s-1', const GetSessionBlocksParams(beforeSeq: 50, limit: 100));
+
+    expect(result.getOrDefault(const []).single.seq, 3);
+    verifyNever(() => local.writeHistory(any(), any(), any()));
+  });
+
   test('cachedHistory parses the stored rows through BlockEventModel', () async {
     when(() => local.readHistory('a', 's-1')).thenAnswer(
       (_) async => [
