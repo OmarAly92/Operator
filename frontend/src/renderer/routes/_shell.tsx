@@ -6,6 +6,7 @@ import { CommandPalette } from "../components/CommandPalette";
 import { CenterPanelShell } from "../components/CenterPanelShell";
 import { DaemonFailureBanner } from "../components/DaemonFailureBanner";
 import { NotificationCenter, NotificationRuntime } from "../components/NotificationCenter";
+import { ProgramRuntime } from "../components/ProgramRuntime";
 import { TrayRuntime } from "../components/TrayRuntime";
 import { GlobalNewTaskDialog } from "../components/GlobalNewTaskDialog";
 import { SettingsDialog } from "../components/SettingsDialog";
@@ -550,6 +551,7 @@ function ShellLayout() {
 				    ready daemon because the answer is read from shared settings. */}
 				{daemonStatus.state === "ready" && <UpdateOptInPrompt />}
 				<NotificationRuntime />
+				<ProgramRuntime />
 				<TrayRuntime />
 				<GlobalNewTaskDialog />
 				<SettingsDialog />
