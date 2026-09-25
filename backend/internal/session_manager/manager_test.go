@@ -84,6 +84,15 @@ func (f *fakeStore) SetSessionClaudeAccount(_ context.Context, id domain.Session
 	f.sessions[id] = rec
 	return true, nil
 }
+func (f *fakeStore) SetSessionLaunchPermissionMode(_ context.Context, id domain.SessionID, mode domain.PermissionMode, _ time.Time) (bool, error) {
+	rec, ok := f.sessions[id]
+	if !ok {
+		return false, nil
+	}
+	rec.LaunchPermissionMode = mode
+	f.sessions[id] = rec
+	return true, nil
+}
 func (f *fakeStore) RecordSessionLatestUserPrompt(_ context.Context, id domain.SessionID, prompt string, updatedAt time.Time) (bool, error) {
 	rec, ok := f.sessions[id]
 	if !ok || rec.IsTerminated || rec.UpdatedAt.After(updatedAt) {

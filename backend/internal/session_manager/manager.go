@@ -214,6 +214,7 @@ type Store interface {
 	// SetSessionClaudeAccount is the only way to move a session's Claude account:
 	// UpdateSession does not write that column.
 	SetSessionClaudeAccount(ctx context.Context, id domain.SessionID, account domain.ClaudeAccountID, updatedAt time.Time) (bool, error)
+	SetSessionLaunchPermissionMode(ctx context.Context, id domain.SessionID, mode domain.PermissionMode, updatedAt time.Time) (bool, error)
 	GetSession(ctx context.Context, id domain.SessionID) (domain.SessionRecord, bool, error)
 	ListSessions(ctx context.Context, project domain.ProjectID) ([]domain.SessionRecord, error)
 	ListAllSessions(ctx context.Context) ([]domain.SessionRecord, error)
@@ -262,9 +263,13 @@ type Manager struct {
 	// emptyComposerDetector overrides emptyComposerDetectorFor's resolution
 	// against m.agents. It is nil in production; tests set it directly since
 	// their fakeAgents do not implement ports.EmptyComposerDetector.
-	emptyComposerDetector ports.EmptyComposerDetector
-	tasksPanelReader      ports.TerminalTasksPanelReader
-	permissionModeReader  ports.TerminalPermissionModeReader
+	emptyComposerDetector   ports.EmptyComposerDetector
+	tasksPanelReader        ports.TerminalTasksPanelReader
+	permissionModeReader    ports.TerminalPermissionModeReader
+	permissionModesMu       sync.Mutex
+	permissionModes         PermissionModeObserver
+	permissionModeTiming    permissionModeTiming
+	permissionRestartSettle func(context.Context) error
 	// messenger is a sessionguard.Guard wrapping the raw messenger, so every
 	// pane write is guarded (re-read state, refuse a blocked session) without
 	// each call site re-deriving the check. Send/confirmActive use Deliver for
@@ -483,6 +488,8 @@ func New(d Deps) *Manager {
 		handoffWait:                  60 * time.Second,
 		switchPermissionDecisionWait: 2 * time.Minute,
 		switchTargetStartWait:        3 * time.Second,
+		permissionModeTiming:         livePermissionModeTiming,
+		permissionRestartSettle:      func(ctx context.Context) error { return sleepContext(ctx, permissionRestartSettleDelay) },
 		// Provider startup, including slow MCP initialization, can delay the
 		// prompt-submit hook even though the continuation is correctly buffered.
 		// Keep the acknowledgement wait below the CLI's seven-minute switch timeout
@@ -1391,7 +1398,8 @@ type relaunchPolicy struct {
 	forceFresh bool
 	// keepPrompt re-delivers the session's saved task prompt into the new
 	// conversation. Ignored unless forceFresh is set.
-	keepPrompt bool
+	keepPrompt  bool
+	permissions domain.PermissionMode
 }
 
 func (m *Manager) relaunchSession(ctx context.Context, operation string, rec domain.SessionRecord, project domain.ProjectRecord, ws ports.WorkspaceInfo, restartHandle *ports.RuntimeHandle, grid ports.PaneGrid) (RestoreResult, error) {
@@ -1434,6 +1442,9 @@ func (m *Manager) relaunchSessionWithPolicy(ctx context.Context, operation strin
 	// model carries across a restore, matching fresh spawn; permissions come
 	// from the session's recorded launch mode when set, else the project's.
 	agentConfig := sessionAgentConfig(rec, project.Config)
+	if policy.permissions != "" {
+		agentConfig.Permissions = policy.permissions
+	}
 	env, browserCapabilityVerifier, err := m.launchRuntimeEnv(ctx, rec, rec.ClaudeAccountID, project.Config.Env)
 	if err != nil {
 		return RestoreResult{}, fmt.Errorf("%s %s: launch env: %w", operation, rec.ID, err)
@@ -1517,6 +1528,11 @@ func (m *Manager) relaunchSessionWithPolicy(ctx context.Context, operation strin
 		_ = m.runtime.Destroy(ctx, handle)
 		m.cleanupSystemPromptDir(rec.ID)
 		return RestoreResult{}, fmt.Errorf("%s %s: completed: %w", operation, rec.ID, err)
+	}
+	if policy.permissions != "" {
+		if _, err := m.store.SetSessionLaunchPermissionMode(ctx, rec.ID, policy.permissions, m.clock()); err != nil {
+			m.logger.Warn("relaunch: record launch permission mode", "sessionID", rec.ID, "error", err)
+		}
 	}
 	if delivery == ports.PromptDeliveryAfterStart && launchMeta.Prompt != "" {
 		launchCfg := ports.LaunchConfig{
