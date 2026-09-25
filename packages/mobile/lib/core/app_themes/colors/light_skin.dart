@@ -107,6 +107,9 @@ class LightSkin extends AppSkin {
   Color get scrollEdgeTint => const Color(0xFFFAF7F2);
 
   @override
+  Color get glassRim => const Color(0x241A1612);
+
+  @override
   Color get attention => const Color(0xFF1ACB64);
 
   @override

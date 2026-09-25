@@ -88,4 +88,28 @@ void main() {
     expect((glass.shape as LiquidRoundedRectangle).borderRadius, 26);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('light glass carries a hairline rim so it separates from white and cream', (tester) async {
+    await tester.pumpWidget(_host(const LightSkin(), _surface));
+    final rim = tester.widget<DecoratedBox>(find.byKey(GlassSurface.rimKey));
+    final side = (rim.decoration as ShapeDecoration).shape as OutlinedBorder;
+    expect(side.side.color, const LightSkin().glassRim);
+    expect(side.side.width, GlassSurface.rimWidth);
+    expect(rim.position, DecorationPosition.foreground);
+  });
+
+  testWidgets('dark glass has no rim, so its tree is what it was', (tester) async {
+    await tester.pumpWidget(_host(const DarkSkin(), _surface));
+    expect(find.byKey(GlassSurface.rimKey), findsNothing);
+    expect(find.byKey(GlassSurface.outlineKey), findsNothing);
+    expect(find.descendant(of: find.byType(GlassSurface), matching: find.byType(DecoratedBox)), findsNothing);
+  });
+
+  testWidgets('prominent glass has no rim', (tester) async {
+    await tester.pumpWidget(_host(
+      const LightSkin(),
+      const GlassSurface(kind: GlassShapeKind.circle, size: 44, variant: GlassVariant.prominent, child: SizedBox.square(dimension: 44)),
+    ));
+    expect(find.byKey(GlassSurface.rimKey), findsNothing);
+  });
 }

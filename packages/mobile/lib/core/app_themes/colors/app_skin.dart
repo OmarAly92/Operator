@@ -151,6 +151,8 @@ abstract class AppSkin {
 
   Color get scrollEdgeTint;
 
+  Color get glassRim;
+
   /// The color drawing the eye to something that needs attention, outside
   /// the per-session state hues. Example: the dot on the notifications
   /// bell icon when there are unread notifications.

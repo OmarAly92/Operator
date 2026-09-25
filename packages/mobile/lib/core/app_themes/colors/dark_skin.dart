@@ -107,6 +107,9 @@ class DarkSkin extends AppSkin {
   Color get scrollEdgeTint => const Color(0xFF000000);
 
   @override
+  Color get glassRim => const Color(0x00000000);
+
+  @override
   Color get attention => const Color(0xFF1ACB64);
 
   @override

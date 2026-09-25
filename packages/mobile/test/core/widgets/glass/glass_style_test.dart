@@ -67,4 +67,28 @@ void main() {
     final big = GlassStyle.shadows(light, size: 400);
     expect(big[1].blurRadius, greaterThan(small[1].blurRadius));
   });
+
+  test('dark shadows keep their approved values', () {
+    for (final size in [38.0, 48.0, 62.0, 400.0]) {
+      final t = GlassStyle.sizeProgress(size);
+      final shadows = GlassStyle.shadows(dark, size: size);
+      expect(shadows[0].color, const Color(0xFF000000).withValues(alpha: 0.06));
+      expect(shadows[0].blurRadius, moreOrLessEquals(1 + 2 * t, epsilon: 1e-9));
+      expect(shadows[1].color, const Color(0xFF000000).withValues(alpha: 0.10));
+      expect(shadows[1].blurRadius, moreOrLessEquals(24 + 16 * t, epsilon: 1e-9));
+    }
+  });
+
+  test('light shadows are stronger than dark so glass lifts off cream and white', () {
+    final l = GlassStyle.shadows(light, size: 48);
+    final d = GlassStyle.shadows(dark, size: 48);
+    expect(l[0].color.a, greaterThan(d[0].color.a));
+    expect(l[0].blurRadius, greaterThan(d[0].blurRadius));
+    expect(l[1].color.a, greaterThan(d[1].color.a));
+  });
+
+  test('only light has a glass rim', () {
+    expect(light.glassRim.a, greaterThan(0));
+    expect(dark.glassRim.a, 0);
+  });
 }

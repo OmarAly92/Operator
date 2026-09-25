@@ -17,6 +17,8 @@ class GlassSurface extends StatelessWidget {
   });
 
   static const Key outlineKey = ValueKey('glass-surface-outline');
+  static const Key rimKey = ValueKey('glass-surface-rim');
+  static const double rimWidth = 0.5;
 
   final GlassShapeKind kind;
   final double size;
@@ -50,7 +52,14 @@ class GlassSurface extends StatelessWidget {
             decoration: ShapeDecoration(shape: _outline.copyWith(side: BorderSide(color: skin.borderStrong))),
             child: child,
           )
-        : child;
+        : skin.glassRim.a > 0 && variant != GlassVariant.prominent
+            ? DecoratedBox(
+                key: rimKey,
+                position: DecorationPosition.foreground,
+                decoration: ShapeDecoration(shape: _outline.copyWith(side: BorderSide(color: skin.glassRim, width: rimWidth))),
+                child: child,
+              )
+            : child;
     final shadows = GlassStyle.shadows(skin, size: size);
     final settings = GlassStyle.resolve(skin: skin, variant: variant, size: size, highContrast: highContrast);
     if (variant != GlassVariant.regular) {
