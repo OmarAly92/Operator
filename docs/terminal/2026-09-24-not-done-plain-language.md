@@ -120,9 +120,11 @@ Claude Code sessions don't use them.
 
 You'd only notice these as fewer rare glitches or slightly less CPU use.
 
-16. **Faster text processing (§1.11).** Text is processed one character at a
-    time. *If done:* big outputs go through faster, and strange codes the
-    terminal doesn't understand are logged so they can be fixed.
+16. **Faster text processing (§1.11) — done (roadmap Plan 9).** Plain text
+    is now written a stretch at a time instead of one character at a time;
+    Claude Code's long output is read noticeably faster in the
+    terminal's own measurements. Codes the terminal doesn't understand are
+    kept in a short list developers can read.
 17. **Faster line edits (§1.12).** Rows don't remember "nothing fancy is on
     me". *If done:* erasing and inserting in plain rows gets quicker.
 18. **Tidier code for control codes (§2.2) — tried and dropped (2026-09-26,

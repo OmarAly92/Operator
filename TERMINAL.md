@@ -1301,6 +1301,39 @@ history of `master`.
   and every per-feed `Delta` with `tests/goldens/*.golden`, generated on the
   tree before the rework (`UPDATE_GOLDENS=1`). Regenerate only for a
   deliberate behaviour change, and name it in the commit.
+- **Part B: printable runs and unknown sequences.** The parser buffers
+  printable ASCII between control sequences (`Parser.run`, flushed before
+  every other callback and at the end of every `advance_vte`, so a mark, an
+  alternate-screen switch or a sync flush never sees bytes pending) and
+  `ScreenGrid::print_ascii_run` (`crates/vt-core/src/screen/print.rs`) writes
+  it a row segment at a time; `ScreenGrid::print` skips the width lookup and
+  the grapheme join for ASCII after an ASCII cell (an ASCII scalar joins a
+  cluster only after a `Prepend`, UAX #29 GB9b); `joins_previous` no longer
+  allocates (`width.rs`). Ghostty's run decode (`src/terminal/stream.zig:599-720`)
+  is the idea, not the code: vte owns the byte loop, so the batching happens
+  on its `print` callbacks. `TerminalCore::unknown_sequences()` keeps the
+  newest 64 distinct CSI/ESC/DCS/OSC that nothing handled
+  (`parser/unknown.rs`; an OSC by its number only, never its payload; text
+  ≤ 48 bytes; debugging only, also `WasmTerminalCore.unknown_sequences()`).
+  The three Claude Code recordings leave `CSI <0u`, `CSI >4;2m`, `CSI >4m`,
+  `CSI >5u`, `CSI ?0u`, `CSI ?2031h/l` and `ESC (B` in it.
+- Part B measured (`examples/parse_throughput.rs` and
+  `bench/parse-throughput.mjs`, 3 alternated pairs, medians of 7, MB/s):
+  - ascii-heavy grapheme: control 16.69-17.33 partB 31.91-32.50 (86.3% median) faster
+  - ascii-heavy scalar: control 26.79-27.86 partB 32.59-33.97 (22.4% median) faster
+  - claude-long-50k grapheme: control 22.94-23.12 partB 27.42-28.39 (19.9% median) faster
+  - claude-long-50k scalar: control 45.54-46.08 partB 44.38-46.21 (-0.5% median) noise
+  - edit-heavy grapheme: control 23.21-24.76 partB 45.80-47.46 (101.4% median) faster
+  - edit-heavy scalar: control 37.96-41.60 partB 47.05-49.36 (20.9% median) faster
+  - wasm claude-long-50k grapheme: control 15.96-16.58 partB 19.79-20.40 (23.2% median) faster
+  - wasm claude-long-50k scalar: control 34.22-34.89 partB 33.61-35.00 (-0.5% median) noise
+  - Environment: Linux x86_64, Intel(R) Xeon(R) Processor @ 2.10GHz
+- Guards (Part B): `tests/print_run.rs` (a 512-case proptest against
+  one-character-at-a-time printing, the `Prepend` join, runs split at every
+  byte, a run before a boundary mark and before the alternate screen,
+  invalid UTF-8, DEL), `tests/unknown_sequences.rs`, `vt-wasm`
+  `program_exports.rs` `the_wasm_core_lists_unknown_sequences_with_their_counts`,
+  and the goldens.
 
 ## 5. Known gaps (not bugs, decisions pending)
 
@@ -1722,6 +1755,14 @@ history of `master`.
   more lines that exactly repeats the lines just before it is dropped even
   when the program printed it twice, and a repainted frame with a distinct
   line between the copies is kept (`claude-markdown-reply`, §4.34).
+- **Unknown sequences are recorded, not reported** (§4.35). Only code reads
+  the ring (`TerminalCore::unknown_sequences()`, or
+  `WasmTerminalCore.unknown_sequences()` from a devtools console); the
+  pty-host mirror's ring is never read, and SOS/PM/APC strings reach no vte
+  callback, so they are not recorded at all.
+- **The history receiver prints one character at a time.** History chunks and
+  older answers go through `crates/vt-core/src/history.rs`'s own `Perform`,
+  which gets `ScreenGrid::print`'s ASCII fast path but not the run buffer.
 
 ---
 
