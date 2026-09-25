@@ -67,8 +67,11 @@ class ConnectionCubit extends Cubit<AppConnectionState> implements ConnectionSig
     if (sentTo != null && sentTo != _config.current) return;
     switch (report.outcome) {
       case ConnectionOutcome.online:
-        if (authFailed && report.path == EndPoints.health) return;
-        _goOnline(report.at);
+        if (report.path == EndPoints.health) {
+          _onReachable(report.at);
+        } else {
+          _goOnline(report.at);
+        }
       case ConnectionOutcome.auth:
         _goAuthFailed();
       case ConnectionOutcome.unreachable:
@@ -114,6 +117,17 @@ class ConnectionCubit extends Cubit<AppConnectionState> implements ConnectionSig
     _lastSeenAt = at;
     emit(ConnectionOnlineState(updatedAt: at, desktopName: state.desktopName));
     if (wasAuthFailed) _retries.add(null);
+  }
+
+  void _onReachable(DateTime at) {
+    final current = state;
+    if (current is ConnectionAuthFailedState) return;
+    _lastSeenAt = at;
+    if (current is ConnectionOfflineState) {
+      emit(ConnectionOfflineState(reason: current.reason, lastSeenAt: at, desktopName: current.desktopName));
+    } else {
+      emit(ConnectionOnlineState(updatedAt: at, desktopName: current.desktopName));
+    }
   }
 
   void _goOffline(ConnectionFailure reason) {

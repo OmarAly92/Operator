@@ -93,6 +93,41 @@ void main() {
     });
   });
 
+  test('a /healthz 200 while offline neither recovers nor resets the backoff', () {
+    fakeAsync((async) {
+      final harness = ConnectionHarness();
+      final retriesAt = <int>[];
+      final states = <AppConnectionState>[];
+      harness.cubit.stream.listen(states.add);
+      harness.cubit.retries.listen((_) {
+        retriesAt.add(async.elapsed.inSeconds);
+        harness.report(ConnectionOutcome.online, path: EndPoints.health);
+        harness.report(ConnectionOutcome.serverError);
+      });
+
+      harness.report(ConnectionOutcome.serverError);
+      async.elapse(const Duration(seconds: 125));
+
+      expect(retriesAt, [1, 3, 7, 15, 31, 61, 91, 121]);
+      expect(states, everyElement(isA<ConnectionOfflineState>()));
+      expect(harness.cubit.state, isA<ConnectionOfflineState>());
+      harness.cubit.close();
+      async.flushMicrotasks();
+    });
+  });
+
+  test('a /healthz 200 while offline refreshes when the desktop was last seen', () async {
+    final harness = ConnectionHarness();
+    harness.report(ConnectionOutcome.unreachable, at: t0);
+    harness.report(ConnectionOutcome.online, path: EndPoints.health, at: t0.add(const Duration(minutes: 1)));
+
+    expect(
+      harness.cubit.state,
+      isA<ConnectionOfflineState>().having((s) => s.lastSeenAt, 'lastSeenAt', t0.add(const Duration(minutes: 1))),
+    );
+    await harness.dispose();
+  });
+
   test('rate-limited waits a full minute before the next probe', () {
     fakeAsync((async) {
       final harness = ConnectionHarness();
