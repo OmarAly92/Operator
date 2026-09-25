@@ -483,3 +483,51 @@ cut and a multi-line prompt.
   each plan proposes with a screenshot and asks, under `DESIGN.md`.
 - Whether Plan 4's persistence and Plan 7's ring share one on-disk format.
 - The order after Plan 4; it may change with what Plans 1–4 find.
+
+---
+
+## Real-app checks, deferred to the end (user decision 2026-09-25)
+
+Run all of these once every plan has merged, in the desktop app (`npm run tauri:dev`
+with the CLAUDE* environment scrubbed, daemon and app restarted so both wasm builds
+and the shell scripts are current). Each plan adds its checks here when it merges.
+
+- **Plan 1 — paste safety:** in a shell pane run `cat`, paste two lines: a dialog
+  appears; Cancel sends nothing, Paste sends both. Paste two lines at an idle
+  shell prompt: they go into the input line, nothing runs until Enter. Paste two
+  lines into a Claude pane: no dialog, the text arrives.
+- **Plan 2 — search:** in a Claude pane that is writing, Cmd+F a word that keeps
+  appearing: the count grows without retyping. `error` also finds `Error`;
+  `Error` finds only that case. Enter/Shift+Enter stay on the chosen hit while
+  output streams. The `.*` toggle works (`line [0-9]+`).
+- **Plan 4 — crash recovery:** find a session's pty-host pid in
+  `~/.operator/windows-pty-hosts.json`. `kill -STOP <pid>`: within ~17 s the
+  pane shows "This terminal stopped responding." with Restart terminal; Restart
+  brings it back with the agent resumed. `kill -CONT` instead: the strip goes
+  away by itself. Wait over a minute, `kill -KILL <pid>`, restore the session:
+  the old output is still there.
+- **Plan 6 — typing ahead:** in a zsh pane run `sleep 3` and type `echo hi`
+  during it: afterwards `echo hi` is in the input box and did not run. In a
+  Claude pane, typing while Claude works behaves as before.
+- **Plan 5 — highlights and marks:** Settings → Terminal highlights → add
+  `error` (red): Claude output containing it is tinted, including inside the
+  grey message band, and follows rewrap and streaming. Turn on `.*` and type
+  `(`: an inline error, no terminal change; `err(or)?` matches, `ERROR` does
+  not. Cmd+F: hit tint as before; Enter outlines the current row; a selection
+  dragged over a hit row sits on top. A mark and a find hit on one row layer
+  as selection > current hit > find tint > mark. Park a pane, edit a highlight,
+  switch back: new colour. Remove all highlights: nothing stays tinted.
+- **Plan 3 — messages from programs:** start a Claude Code session: the
+  session card and the pane header show the live title without the spinner
+  glyph, update as Claude works, and clear after "Relaunch in a cleared
+  session". Close the pane: the card still updates. In a shell pane that is off
+  screen (or with the window unfocused) run `printf '\e]9;hello\a'`: a Mac
+  notification appears, and clicking it opens that terminal; on screen, none.
+  `printf '\e[18t'`, `printf '\e]11;?\a'` get answers; `printf '\e]22;text\a'`
+  changes the pointer.
+- **Plan 7 — very old output:** in a shell pane run `seq 1 400000`. Scroll to
+  the top: the first row is about 200001 and "Load older output" shows. Click
+  it: the view does not jump and rows up to about 200000 appear above; the
+  button comes back. Keep clicking until it disappears (near 1). `echo hi`:
+  loaded rows trim away and the button returns at the top.
+- **Input ordering fix (d1a962b8f):** nothing to click; covered by tests.

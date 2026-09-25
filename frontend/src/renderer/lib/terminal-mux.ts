@@ -6,12 +6,15 @@
 // raw JSON string cannot represent.
 //
 //   ch "terminal" — per-pane byte stream keyed by an opaque runtime handle id
-//     client → open{id,cols,rows} | data{id,data} | resize{id,cols,rows,force?} | close{id}
-//     server → opened{id} | data{id,data} | exited{id} | error{id?,error}
+//     client → open{id,cols,rows} | data{id,data} | resize{id,cols,rows,force?} | close{id} | older{id,before}
+//     server → opened{id} | data{id,data} | exited{id} | error{id?,error} | health{id,health}
 //   ch "system"   — ping/pong liveness
 //   ch "blocks"   — normalized session block events
 //     client → subscribe{id} | unsubscribe{id}
 //     server → block{id,block}
+//   ch "programs" — titles and notifications the programs in every terminal send
+//     client → subscribe | unsubscribe
+//     server → title{id,title} | notification{id,title,body}
 //
 // The renderer connects directly to the loopback daemon (same host/port as the
 // REST API, path `/mux`); it is not proxied through the shell.
@@ -26,10 +29,22 @@ type ServerFrame = {
 	type: string;
 	data?: string;
 	error?: string;
+	health?: string;
 	block?: unknown;
 	blockType?: string;
 	terminalBlock?: unknown;
+	title?: string;
+	body?: string;
 };
+
+export type TerminalAppearance = Readonly<{
+	cellWidth: number;
+	cellHeight: number;
+	foreground: string;
+	background: string;
+}>;
+
+export type ProgramNotification = Readonly<{ title: string; body: string }>;
 
 export type TerminalBlockFrame = {
 	sourceId: string;
@@ -93,6 +108,10 @@ export function ackFrame(id: string, bytes: number): string {
 	return JSON.stringify({ ch: "terminal", type: "ack", id, bytes });
 }
 
+export function olderFrame(id: string, before: number): string {
+	return JSON.stringify({ ch: "terminal", type: "older", id, before });
+}
+
 export function blocksSubscribeFrame(sessionId: string): string {
 	return JSON.stringify({ ch: "blocks", type: "subscribe", id: sessionId });
 }
@@ -107,6 +126,18 @@ export function terminalBlocksSubscribeFrame(handleId: string): string {
 
 export function terminalBlocksUnsubscribeFrame(handleId: string): string {
 	return JSON.stringify({ ch: "blocks", type: "unsubscribe", id: handleId, blockType: "terminal_block" });
+}
+
+export function appearanceFrame(id: string, appearance: TerminalAppearance): string {
+	return JSON.stringify({ ch: "terminal", type: "appearance", id, ...appearance });
+}
+
+export function programsSubscribeFrame(): string {
+	return JSON.stringify({ ch: "programs", type: "subscribe" });
+}
+
+export function programsUnsubscribeFrame(): string {
+	return JSON.stringify({ ch: "programs", type: "unsubscribe" });
 }
 
 function pingFrame(): string {
@@ -132,8 +163,12 @@ type DataListener = (bytes: Uint8Array) => void;
 type ExitListener = () => void;
 type OpenedListener = () => void;
 type ErrorListener = (message: string) => void;
+export type TerminalHealth = "ok" | "hung";
+type HealthListener = (health: TerminalHealth) => void;
 type BlockListener = (block: BlockEventView) => void;
 type TerminalBlockListener = (block: TerminalBlockFrame) => void;
+type ProgramTitleListener = (handleId: string, title: string) => void;
+type ProgramNotificationListener = (handleId: string, notification: ProgramNotification) => void;
 
 export type MuxConnectionState = "open" | "closed";
 type ConnectionListener = (state: MuxConnectionState) => void;
@@ -147,6 +182,7 @@ export type TerminalMux = {
 	resize: (id: string, cols: number, rows: number, force?: boolean) => void;
 	close: (id: string) => void;
 	ack: (id: string, bytes: number) => void;
+	requestOlder: (id: string, before: number) => void;
 	onData: (id: string, listener: DataListener) => () => void;
 	onExit: (id: string, listener: ExitListener) => () => void;
 	/** Server ack that the pane is attached; the output replay follows it. */
@@ -157,6 +193,7 @@ export type TerminalMux = {
 	 * listener.
 	 */
 	onError: (id: string, listener: ErrorListener) => () => void;
+	onHealth: (id: string, listener: HealthListener) => () => void;
 	/** Ask the daemon to push this session's normalized block events. */
 	subscribeBlocks: (sessionId: string) => void;
 	/** Stop that push. The daemon drops the subscription; listeners are separate. */
@@ -164,6 +201,9 @@ export type TerminalMux = {
 	/** Server `block` frames for one session id. */
 	onBlock: (sessionId: string, listener: BlockListener) => () => void;
 	onTerminalBlock: (handleId: string, listener: TerminalBlockListener) => () => void;
+	appearance?: (id: string, appearance: TerminalAppearance) => void;
+	onProgramTitle?: (listener: ProgramTitleListener) => () => void;
+	onProgramNotification?: (listener: ProgramNotificationListener) => () => void;
 	/** Socket-level state: "open" on connect, "closed" on close or socket error. */
 	onConnectionChange: (listener: ConnectionListener) => () => void;
 	/** Close the socket and drop all listeners. */
@@ -203,8 +243,11 @@ export function createTerminalMux(url: string, WebSocketImpl: typeof WebSocket =
 	const exitListeners = new Map<string, Set<ExitListener>>();
 	const openedListeners = new Map<string, Set<OpenedListener>>();
 	const errorListeners = new Map<string, Set<ErrorListener>>();
+	const healthListeners = new Map<string, Set<HealthListener>>();
 	const blockListeners = new Map<string, Set<BlockListener>>();
 	const terminalBlockListeners = new Map<string, Set<TerminalBlockListener>>();
+	const programTitleListeners = new Set<ProgramTitleListener>();
+	const programNotificationListeners = new Set<ProgramNotificationListener>();
 	const connectionListeners = new Set<ConnectionListener>();
 	let connectionState: MuxConnectionState | undefined;
 	let pingTimer: ReturnType<typeof setInterval> | undefined;
@@ -269,6 +312,18 @@ export function createTerminalMux(url: string, WebSocketImpl: typeof WebSocket =
 			blockListeners.get(frame.id)?.forEach((listener) => listener(block as BlockEventView));
 			return;
 		}
+		if (frame.ch === "programs") {
+			if (frame.id === undefined) return;
+			const handleId = frame.id;
+			if (frame.type === "title") {
+				const title = frame.title ?? "";
+				programTitleListeners.forEach((listener) => listener(handleId, title));
+			} else if (frame.type === "notification") {
+				const notification = { title: frame.title ?? "", body: frame.body ?? "" };
+				programNotificationListeners.forEach((listener) => listener(handleId, notification));
+			}
+			return;
+		}
 		if (frame.ch !== "terminal") return;
 		if (frame.type === "error") {
 			const message = frame.error ?? "unknown terminal error";
@@ -286,6 +341,9 @@ export function createTerminalMux(url: string, WebSocketImpl: typeof WebSocket =
 			exitListeners.get(frame.id)?.forEach((listener) => listener());
 		} else if (frame.type === "opened") {
 			openedListeners.get(frame.id)?.forEach((listener) => listener());
+		} else if (frame.type === "health") {
+			const health: TerminalHealth = frame.health === "hung" ? "hung" : "ok";
+			healthListeners.get(frame.id)?.forEach((listener) => listener(health));
 		}
 	});
 
@@ -297,8 +355,11 @@ export function createTerminalMux(url: string, WebSocketImpl: typeof WebSocket =
 		exitListeners.clear();
 		openedListeners.clear();
 		errorListeners.clear();
+		healthListeners.clear();
 		blockListeners.clear();
 		terminalBlockListeners.clear();
+		programTitleListeners.clear();
+		programNotificationListeners.clear();
 		connectionListeners.clear();
 		try {
 			socket.close();
@@ -307,10 +368,25 @@ export function createTerminalMux(url: string, WebSocketImpl: typeof WebSocket =
 		}
 	};
 
+	const programListenerCount = () => programTitleListeners.size + programNotificationListeners.size;
+	const addProgramListener = <T>(set: Set<T>, listener: T): (() => void) => {
+		if (programListenerCount() === 0) send(programsSubscribeFrame());
+		set.add(listener);
+		return () => {
+			if (!set.delete(listener) || programListenerCount() > 0) return;
+			send(programsUnsubscribeFrame());
+		};
+	};
+
 	return {
 		open: (id, cols, rows, history) => {
 			send(openFrame(id, cols, rows, history));
 		},
+		appearance: (id, appearance) => {
+			send(appearanceFrame(id, appearance));
+		},
+		onProgramTitle: (listener) => addProgramListener(programTitleListeners, listener),
+		onProgramNotification: (listener) => addProgramListener(programNotificationListeners, listener),
 		sendInput: (id, input) => {
 			const bytes = encoder.encode(input);
 			send(dataFrame(id, bytes));
@@ -324,10 +400,14 @@ export function createTerminalMux(url: string, WebSocketImpl: typeof WebSocket =
 		ack: (id, bytes) => {
 			send(ackFrame(id, bytes));
 		},
+		requestOlder: (id, before) => {
+			send(olderFrame(id, before));
+		},
 		onData: (id, listener) => subscribeById(dataListeners, id, listener),
 		onExit: (id, listener) => subscribeById(exitListeners, id, listener),
 		onOpened: (id, listener) => subscribeById(openedListeners, id, listener),
 		onError: (id, listener) => subscribeById(errorListeners, id, listener),
+		onHealth: (id, listener) => subscribeById(healthListeners, id, listener),
 		subscribeBlocks: (sessionId) => {
 			send(blocksSubscribeFrame(sessionId));
 		},
@@ -437,6 +517,13 @@ export function createTerminalMuxPool(createMux: () => TerminalMux): TerminalMux
 			open: (id, cols, rows, history) => {
 				if (!released && !connection.closed && !connection.disposed) connection.mux.open(id, cols, rows, history);
 			},
+			appearance: (id, appearance) => {
+				if (!released && !connection.closed && !connection.disposed) connection.mux.appearance?.(id, appearance);
+			},
+			onProgramTitle: (listener) =>
+				subscribe(() => connection.mux.onProgramTitle?.(listener) ?? (() => undefined)),
+			onProgramNotification: (listener) =>
+				subscribe(() => connection.mux.onProgramNotification?.(listener) ?? (() => undefined)),
 			sendInput: (id, input) => {
 				if (!released && !connection.closed && !connection.disposed) connection.mux.sendInput(id, input);
 			},
@@ -451,10 +538,14 @@ export function createTerminalMuxPool(createMux: () => TerminalMux): TerminalMux
 			ack: (id, bytes) => {
 				if (!released && !connection.closed && !connection.disposed) connection.mux.ack(id, bytes);
 			},
+			requestOlder: (id, before) => {
+				if (!released && !connection.closed && !connection.disposed) connection.mux.requestOlder(id, before);
+			},
 			onData: (id, listener) => subscribe(() => connection.mux.onData(id, listener)),
 			onExit: (id, listener) => subscribe(() => connection.mux.onExit(id, listener)),
 			onOpened: (id, listener) => subscribe(() => connection.mux.onOpened(id, listener)),
 			onError: (id, listener) => subscribe(() => connection.mux.onError(id, listener)),
+			onHealth: (id, listener) => subscribe(() => connection.mux.onHealth(id, listener)),
 			subscribeBlocks: (sessionId) => {
 				if (!released && !connection.closed && !connection.disposed) connection.mux.subscribeBlocks(sessionId);
 			},

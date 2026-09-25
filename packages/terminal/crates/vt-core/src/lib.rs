@@ -1,11 +1,15 @@
+pub mod agent;
 pub mod alt;
 pub mod alt_screen;
+mod answer_gate;
 pub mod attribute_map;
 pub mod block;
 pub mod block_grid;
 pub mod block_selection;
 pub mod block_tree;
+pub mod cold_ring;
 pub mod content;
+mod core_modes;
 pub mod delta;
 pub mod event_bridge;
 pub mod find;
@@ -15,12 +19,17 @@ pub mod hyperlink;
 pub mod integrity;
 pub mod limits;
 mod line_editor;
+mod live_output;
+pub mod mark_regex;
+pub mod older;
 pub mod parser;
+pub mod program;
 pub mod row_index;
 mod screen;
 mod scrollback;
 mod sgr;
 pub mod style;
+pub mod style_sgr;
 pub mod sync;
 #[cfg(feature = "trace")]
 pub mod trace;
@@ -35,13 +44,15 @@ pub use block::{Block, BlockId, BlockMeta, BlockRecord, BlockSource, BlockState,
 pub use block_grid::BlockGrid;
 pub use block_selection::{BlockSelection, SelectionPoint};
 pub use block_tree::{BlockSummary, BlockTree};
+pub use cold_ring::{ColdRow, ColdStats};
 pub use delta::{Delta, DeltaKind};
-pub use find::{FindCursor, FindMatch, FindQuery};
+pub use find::{FindMatch, FindQuery, FindSession, FindUpdate};
 pub use grid::{CellSpan, ExportedRow};
 pub use hyperlink::{Hyperlink, HyperlinkRegistry, LinkId};
 pub use integrity::IntegrityError;
 pub use limits::{Limits, MemoryStats};
 pub use line_editor::LineEditorState;
+pub use older::{OlderChunk, OlderState, OLDER_CHUNK_ROWS};
 pub use parser::{HistoryBlock, HistoryRow};
 pub use style::{Attrs, CellStyle, StyleCode};
 pub use width::{clusters, Cluster, WidthMode};
@@ -66,6 +77,7 @@ pub const DEFAULT_ROWS: usize = 24;
 pub struct TerminalCore {
     parser: parser::Parser,
     vte: VteParser,
+    answer_gate: answer_gate::AnswerGate,
     mark_decoder: MarkDecoder,
     alt_screen: alt_screen::AltScreen,
     line_editor: line_editor::LineEditorTracker,
@@ -76,6 +88,9 @@ pub struct TerminalCore {
     now_ms: u64,
     history: history::HistoryReceiver,
     replay_ready: bool,
+    older: OlderState,
+    live_output: u64,
+    open_osc_live: u64,
 }
 
 impl TerminalCore {
@@ -93,6 +108,7 @@ impl TerminalCore {
         Ok(Self {
             parser: parser::Parser::new(columns),
             vte: VteParser::new(),
+            answer_gate: answer_gate::AnswerGate::default(),
             mark_decoder: MarkDecoder::new(),
             alt_screen: alt_screen::AltScreen::new(),
             line_editor: line_editor::LineEditorTracker::default(),
@@ -103,6 +119,9 @@ impl TerminalCore {
             now_ms: 0,
             history: history::HistoryReceiver::new(),
             replay_ready: false,
+            older: OlderState::default(),
+            live_output: 0,
+            open_osc_live: 0,
         })
     }
 
@@ -204,6 +223,7 @@ impl TerminalCore {
     }
 
     fn feed_raw(&mut self, bytes: &[u8]) {
+        let committed = self.parser.committed_rows();
         self.parser.set_clock(self.now_ms);
         let mut bytes = bytes;
         if self.history.is_active() {
@@ -229,26 +249,38 @@ impl TerminalCore {
             if offset < parsed {
                 continue;
             }
+            if let MarkEvent::ReplayOrigin(_) = event {
+                parsed = self.open_replay_window(bytes, parsed, upto);
+            }
             if upto > parsed {
                 self.advance_vte(&bytes[parsed..upto]);
                 parsed = upto;
             }
             match event {
                 MarkEvent::ReplayOrigin(origin) => {
-                    self.parser.adopt_origin(origin);
+                    if self.parser.adopt_origin(origin) {
+                        self.live_output = 0;
+                    }
                     parsed = upto;
                     continue;
                 }
                 MarkEvent::ReplayReady => {
                     self.replay_ready = true;
+                    self.parser.program_mut().agent_mut().set_replaying(false);
+                    parsed = upto;
+                    continue;
+                }
+                MarkEvent::OlderFloor(floor) => {
+                    self.older.note(floor);
                     parsed = upto;
                     continue;
                 }
                 MarkEvent::HistoryChunk {
                     first_stable_row,
                     rows,
+                    cols,
                 } => {
-                    let cols = self.parser.columns();
+                    let cols = self.parser.columns().max(cols.unwrap_or(0));
                     self.history
                         .begin(first_stable_row, rows, cols, self.parser.width_mode());
                     let rest = &bytes[upto..];
@@ -259,16 +291,23 @@ impl TerminalCore {
                 }
                 _ => {}
             }
+            self.older.observe(&event);
             // Re-read the alt-screen state after every event so an
             // `AltScreenEnter` freezes the rest of this chunk's events and a
             // trailing `AltScreenLeave` thaws them.
             if self.alt_screen.is_active() && !matches!(event, MarkEvent::AltScreenLeave) {
                 continue;
             }
-            match event {
+            match &event {
                 MarkEvent::InputReady => self.line_editor.on_input_ready(),
                 MarkEvent::InputReleased => self.line_editor.on_input_released(),
                 MarkEvent::AltScreenEnter => self.line_editor.on_alt_screen_enter(),
+                MarkEvent::Extension(fields) => {
+                    if let Some((_, text)) = fields.pairs.iter().find(|(key, _)| key == "typeahead")
+                    {
+                        self.line_editor.on_typeahead(text);
+                    }
+                }
                 _ => {}
             }
             let switch = event.clone();
@@ -282,22 +321,21 @@ impl TerminalCore {
         if parsed < bytes.len() {
             self.advance_vte(&bytes[parsed..]);
         }
+        self.note_open_osc();
         self.parser.note_output();
         self.parser.commit_evicted();
-        self.parser.trim_to(self.limits);
+        if self.parser.committed_rows() != committed {
+            self.parser.trim_to(self.limits);
+        }
         self.parser.note_mutation();
         self.debug_check();
     }
 
-    fn drain_history(&mut self) {
-        if let Some((first_stable_row, rows, blocks)) = self.history.take() {
-            self.parser
-                .apply_history_chunk(first_stable_row, rows, blocks);
-            self.debug_check();
-        }
-    }
-
     fn advance_vte(&mut self, bytes: &[u8]) {
+        let bytes: &[u8] = &self.answer_gate.filter(bytes);
+        if !self.parser.program().agent().replaying() {
+            self.live_output = self.live_output.wrapping_add(bytes.len() as u64);
+        }
         #[cfg(feature = "trace")]
         {
             for byte in bytes {
@@ -440,31 +478,26 @@ impl TerminalCore {
         self.parser.flat_row(stable)
     }
 
-    pub fn find(&self, query: find::FindQuery) -> find::FindCursor<'_> {
-        find::FindCursor::new(
-            self.parser.grid(),
-            self.parser.rows(),
-            self.parser.content(),
-            query,
-        )
+    fn find_view(&self) -> find::FindView<'_> {
+        find::FindView {
+            content: self.parser.content(),
+            rows: self.parser.rows(),
+            screen: self.parser.screen(),
+            generation: self.parser.generation(),
+            first_stable_row: self.parser.first_stable_row(),
+        }
     }
 
-    pub fn find_with_state(
-        &self,
-        query: find::FindQuery,
-        next_block: usize,
-        results: Vec<find::FindMatch>,
-        complete: bool,
-    ) -> find::FindCursor<'_> {
-        find::FindCursor::with_state(
-            self.parser.grid(),
-            self.parser.rows(),
-            self.parser.content(),
-            query,
-            next_block,
-            results,
-            complete,
-        )
+    pub fn find_update(&self, session: &mut FindSession, budget_bytes: usize) -> FindUpdate {
+        session.update(&self.find_view(), budget_bytes)
+    }
+
+    pub fn find_results(&self, session: &FindSession) -> Vec<FindMatch> {
+        let total = self.history_rows() + self.parser.screen().content_rows();
+        let blocks = grid::export_blocks(self.parser.grid(), total, |_| true)
+            .map(|(records, _)| records)
+            .unwrap_or_default();
+        session.results(&self.find_view(), &blocks)
     }
 
     pub fn alt_screen_active(&self) -> bool {
@@ -473,6 +506,10 @@ impl TerminalCore {
 
     pub fn line_editor_state(&self) -> LineEditorState {
         self.line_editor.state()
+    }
+
+    pub fn take_typeahead(&mut self) -> Option<String> {
+        self.line_editor.take_typeahead()
     }
 
     pub fn columns(&self) -> usize {
@@ -543,30 +580,6 @@ impl TerminalCore {
 
     pub fn alt_grid(&self) -> Option<&alt::AltGrid> {
         self.parser.alt()
-    }
-
-    pub fn application_cursor_keys(&self) -> bool {
-        self.parser.app_cursor()
-    }
-
-    pub fn sgr_mouse(&self) -> bool {
-        self.parser.sgr_mouse()
-    }
-
-    pub fn bracketed_paste(&self) -> bool {
-        self.parser.bracketed_paste()
-    }
-
-    pub fn focus_reporting(&self) -> bool {
-        self.parser.focus_reporting()
-    }
-
-    pub fn mouse_tracking(&self) -> bool {
-        self.parser.mouse_tracking()
-    }
-
-    pub fn mouse_tracking_level(&self) -> u8 {
-        self.parser.mouse_tracking_level()
     }
 }
 

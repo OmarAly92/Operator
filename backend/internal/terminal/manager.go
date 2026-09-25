@@ -74,6 +74,10 @@ type Manager struct {
 
 	notificationFeed     NotificationFeed
 	stopNotificationFeed func()
+
+	stopHealthWatch func()
+
+	stopProgramWatch func()
 }
 
 // sharedTerm tracks every client currently viewing one terminal id (one PTY) so
@@ -144,6 +148,8 @@ func NewManager(src Source, events EventSource, log *slog.Logger, opts ...Option
 		opt(m)
 	}
 	m.startNotificationFeed()
+	m.startHealthWatch()
+	m.startProgramWatch()
 	return m
 }
 
@@ -191,6 +197,12 @@ func (m *Manager) writeInput(terminalID string, a *attachment, raw []byte, relea
 func (m *Manager) Close() {
 	if m.stopNotificationFeed != nil {
 		m.stopNotificationFeed()
+	}
+	if m.stopHealthWatch != nil {
+		m.stopHealthWatch()
+	}
+	if m.stopProgramWatch != nil {
+		m.stopProgramWatch()
 	}
 	m.mu.Lock()
 	if m.closed {
@@ -398,6 +410,7 @@ type connState struct {
 
 	remote                  bool
 	notificationsSubscribed bool
+	programsSubscribed      bool
 }
 
 func (c *connState) handle(msg clientMsg) {
@@ -410,6 +423,8 @@ func (c *connState) handle(msg clientMsg) {
 		c.handleBlockSubscribe(msg)
 	case chNotifications:
 		c.handleNotifications(msg)
+	case chPrograms:
+		c.handlePrograms(msg)
 	case chSystem:
 		if msg.Type == msgPing {
 			c.enqueue(serverMsg{Ch: chSystem, Type: msgPong})
@@ -443,12 +458,23 @@ func (c *connState) handleTerminal(msg clientMsg) {
 		c.mgr.updateTerminalSize(msg.ID, c, msg.Cols, msg.Rows, msg.Force)
 	case msgClose:
 		c.closeTerminal(msg.ID)
+	case msgAppearance:
+		if a := c.lookup(msg.ID); a != nil {
+			_ = a.setAppearance(appearanceOf(msg))
+		}
 	case msgAck:
 		if msg.Bytes <= 0 {
 			return
 		}
 		if a := c.lookup(msg.ID); a != nil {
 			_ = a.ack(uint64(msg.Bytes))
+		}
+	case msgOlder:
+		if msg.Before == 0 {
+			return
+		}
+		if a := c.lookup(msg.ID); a != nil {
+			_ = a.requestOlder(msg.Before)
 		}
 	}
 }
@@ -512,6 +538,9 @@ func (c *connState) openTerminal(id string, rows, cols uint16, role string, hist
 	// the authoritative grid (the open frame's rows/cols become this client's
 	// requested size). An empty role means primary — the size-driving client.
 	c.mgr.joinTerminal(id, c, a, cols, rows, role != roleSecondary)
+	if c.mgr.terminalHealth(id) == ports.TerminalHung {
+		c.enqueue(healthFrame(id, ports.TerminalHung))
+	}
 
 	go func() {
 		a.run(c.mgr.ctx)

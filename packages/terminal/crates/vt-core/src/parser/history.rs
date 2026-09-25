@@ -14,6 +14,7 @@ impl Parser {
             return false;
         }
         self.trimmed_total = origin;
+        self.reset_cold_ring();
         self.grid.advance_origin(origin as usize);
         self.note_mutation();
         true
@@ -34,6 +35,12 @@ impl Parser {
             bytes.extend_from_slice(&row.bytes);
             lengths.push(row.bytes.len() as u64);
         }
+        let head = self
+            .rows
+            .completed()
+            .front()
+            .map_or(self.rows.open_start(), |row| row.start);
+        self.content.trim_front_to(head);
         let base = self.content.prepend(&bytes);
         let mut runs: Vec<(u64, CellStyle)> = Vec::new();
         let mut ranges = Vec::with_capacity(rows.len());
@@ -54,6 +61,7 @@ impl Parser {
         let count = ranges.len();
         self.rows.prepend(ranges);
         self.trimmed_total = first_stable_row;
+        self.reset_cold_ring();
         self.grid.retreat_origin(count);
         let history_blocks: Vec<Block> = blocks
             .into_iter()
@@ -83,6 +91,10 @@ impl Parser {
         }
     }
 
+    pub(crate) fn mark_history_stale(&mut self, rows: usize, cut_at: usize) {
+        self.rows.mark_stale(0, rows, cut_at);
+    }
+
     pub fn trim_to(&mut self, limits: Limits) -> usize {
         let before = self.rows.completed().len();
         loop {
@@ -93,6 +105,9 @@ impl Parser {
                 break;
             }
             let keep = if over_rows { limits.rows } else { completed };
+            let spilled = (completed + 1).saturating_sub(keep).min(completed);
+            let first = self.trimmed_total + (before - completed) as u64;
+            self.spill_to_cold(first, spilled);
             let Some(new_start) = self.rows.trim_to(keep) else {
                 break;
             };

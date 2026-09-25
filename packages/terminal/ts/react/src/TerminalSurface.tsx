@@ -1,15 +1,18 @@
 import { useCallback, useLayoutEffect, useRef, useState, type ReactElement, type ReactNode } from "react";
-import { clipboardHasImage, encodeKey, LineEditor, planPaste } from "@operator/terminal-editor";
+import { clipboardHasImage, deliverPaste, encodeKey, LineEditor, planPaste } from "@operator/terminal-editor";
 import {
 	createFindBar,
 	createPathProvider,
 	DEFAULT_LINK_PROVIDERS,
 	DomBlockRenderer,
+	mountLoadOlder,
 	RERUN_EVENT,
 	resolveFeatures,
 	type BlockFinishedEvent,
 	type FindBar,
 	type HintEvent,
+	type LoadOlder,
+	type MarkRule,
 	type RendererFeatures,
 } from "@operator/terminal-renderer-dom";
 import { isCopyChord } from "./selection-gesture.js";
@@ -28,6 +31,9 @@ import {
 import { AltScreenSlot } from "./AltScreenSlot.js";
 import { isMacPlatform } from "./surface-geometry.js";
 import { useSurfaceInput } from "./use-surface-input.js";
+import { useProgramMessages } from "./use-program-messages.js";
+
+export type CellSize = Readonly<{ width: number; height: number }>;
 
 export interface TerminalSurfaceProps {
 	core: TerminalCore;
@@ -40,7 +46,8 @@ export interface TerminalSurfaceProps {
 	strings?: TerminalStrings;
 	onSend(text: string): void;
 	onSendRaw(data: string): void;
-	onGeometry?: (columns: number, rows: number) => void;
+	onGeometry?: (columns: number, rows: number, cell?: CellSize) => void;
+	onTitle?: (title: string) => void;
 	/**
 	 * Bump to force the surface to re-derive its grid from the live box.
 	 *
@@ -60,6 +67,7 @@ export interface TerminalSurfaceProps {
 	focusToken?: number;
 	visible?: boolean;
 	features?: Partial<RendererFeatures>;
+	marks?: readonly MarkRule[];
 	onPaint?: () => void;
 	onBlockFinished?: (event: BlockFinishedEvent) => void;
 	onHint?: (hint: HintEvent) => void;
@@ -85,6 +93,7 @@ export function TerminalSurface({
 	onSend,
 	onSendRaw,
 	onGeometry,
+	onTitle,
 	onPaint,
 	onBlockFinished,
 	onHint,
@@ -93,6 +102,7 @@ export function TerminalSurface({
 	focusToken,
 	visible,
 	features,
+	marks,
 }: TerminalSurfaceProps): ReactElement {
 	const hostRef = useRef<HTMLDivElement | null>(null);
 	const surfaceRef = useRef<HTMLDivElement | null>(null);
@@ -107,9 +117,12 @@ export function TerminalSurface({
 	onHintRef.current = onHint;
 	const onDraftChangeRef = useRef(onDraftChange);
 	onDraftChangeRef.current = onDraftChange;
+	const onTitleRef = useRef(onTitle);
+	onTitleRef.current = onTitle;
 	const visibleRef = useRef(visible);
 	visibleRef.current = visible;
 	const findBarRef = useRef<FindBar | null>(null);
+	const loadOlderRef = useRef<LoadOlder | null>(null);
 	const gridColumnsRef = useRef(0);
 	const gridRowsRef = useRef(0);
 	const compositionRef = useRef<CompositionTarget | null>(null);
@@ -117,12 +130,17 @@ export function TerminalSurface({
 	hostCapsRef.current = host;
 	const featuresRef = useRef(features);
 	featuresRef.current = features;
+	const marksRef = useRef(marks);
+	marksRef.current = marks;
 	const secretPatterns = host?.secretPatterns;
 	const secretPatternsRef = useRef(secretPatterns);
 	secretPatternsRef.current = secretPatterns;
 	const resolveFirstPath = host?.resolveFirstPath;
 	const resolveFirstPathRef = useRef(resolveFirstPath);
 	resolveFirstPathRef.current = resolveFirstPath;
+	const confirmPaste = host?.confirmPaste;
+	const confirmPasteRef = useRef(confirmPaste);
+	confirmPasteRef.current = confirmPaste;
 
 	const applyLinkProviders = useCallback(() => {
 		const renderer = rendererRef.current;
@@ -157,6 +175,7 @@ export function TerminalSurface({
 		renderer.mount(blockHost, core);
 		renderer.setFeatures(featuresRef.current ?? {});
 		renderer.setSecretPatterns(secretPatternsRef.current ?? []);
+		renderer.setMarks(marksRef.current ?? []);
 		renderer.setTheme(theme);
 		renderer.setFont(font);
 		const editor = new LineEditor();
@@ -170,17 +189,32 @@ export function TerminalSurface({
 		editor.setTheme(theme);
 		editor.setFont(font);
 		editor.setStrings(strings);
+		editor.setPasteConfirm(confirmPasteRef.current ?? null);
 		const findBar = createFindBar({
 			core,
 			renderer,
 			host: {
 				scrollToBlock: (id, align) => renderer.scrollToBlock(id, align),
+				scrollToRow: (row, align) => renderer.scrollToRow(row, align),
 				invalidate: (range) => renderer.invalidate(range),
 				afterRepaint: (listener) => renderer.onPaint(listener),
+				highlightFind: (find) => renderer.setFindHighlights(find),
 			},
 			strings,
 		});
 		findBar.mount(blockHost);
+		const loadOlder = mountLoadOlder({
+			container: blockHost,
+			source: {
+				canLoad: () => hostCapsRef.current?.loadOlderOutput !== undefined,
+				firstStableRow: () => core.snapshot().firstStableRow,
+				altScreenActive: () => core.snapshot().altScreen !== null,
+				olderOutput: () => core.olderOutput(),
+			},
+			strings,
+			load: (before) => hostCapsRef.current?.loadOlderOutput?.(before),
+		});
+		const offOlder = renderer.onPaint(() => loadOlder.update());
 		const onRerun = (event: Event) => {
 			const blockId = (event as CustomEvent<{ blockId?: string }>).detail?.blockId;
 			if (!blockId) return;
@@ -195,6 +229,7 @@ export function TerminalSurface({
 		rendererRef.current = renderer;
 		editorRef.current = editor;
 		findBarRef.current = findBar;
+		loadOlderRef.current = loadOlder;
 		editor.setVisible(visibleRef.current !== false);
 		applyLinkProviders();
 		applyPredictiveEchoRef.current();
@@ -202,6 +237,9 @@ export function TerminalSurface({
 			blockHost.removeEventListener(RERUN_EVENT, onRerun);
 			offPaint();
 			offFinished();
+			offOlder();
+			loadOlder.dispose();
+			loadOlderRef.current = null;
 			findBar.dispose();
 			editor.dispose();
 			renderer.predictionsClear();
@@ -236,13 +274,23 @@ export function TerminalSurface({
 		rendererRef.current?.setSecretPatterns(secretPatterns ?? []);
 	}, [secretPatterns]);
 
+	const marksKey = JSON.stringify(marks ?? []);
+	useLayoutEffect(() => {
+		rendererRef.current?.setMarks(marksRef.current ?? []);
+	}, [marksKey]);
+
 	useLayoutEffect(() => {
 		applyPredictiveEcho();
 	}, [applyPredictiveEcho]);
 
 	useLayoutEffect(() => {
 		editorRef.current?.setStrings(strings);
+		loadOlderRef.current?.setStrings(strings);
 	}, [strings]);
+
+	useLayoutEffect(() => {
+		editorRef.current?.setPasteConfirm(confirmPaste ?? null);
+	}, [confirmPaste]);
 
 	useLayoutEffect(() => {
 		const blockHost = hostRef.current;
@@ -277,7 +325,7 @@ export function TerminalSurface({
 			gridRowsRef.current = rows;
 			if (changed) renderer.selectionClear();
 			core.resize(columns, rows);
-			onGeometry?.(columns, rows);
+			onGeometry?.(columns, rows, { width: cellWidth, height: cellHeight });
 		};
 		apply(true);
 		if (typeof ResizeObserver !== "function") {
@@ -306,6 +354,7 @@ export function TerminalSurface({
 			return;
 		}
 		const appCursor = () => core.snapshot().applicationCursorKeys;
+		let active = true;
 		const composition = createCompositionTarget({
 			parent: blockHost,
 			onCommit: (text) => onSendRaw(text),
@@ -338,19 +387,28 @@ export function TerminalSurface({
 				owned: false,
 				bracketedPaste: core.snapshot().bracketedPaste,
 			});
-			if (plan.kind === "send") onSendRaw(plan.data);
+			void deliverPaste(
+				plan,
+				(bytes) => {
+					if (active) onSendRaw(bytes);
+				},
+				hostCapsRef.current?.confirmPaste,
+			);
 		};
 		blockHost.addEventListener("keydown", onKeyDown);
 		blockHost.addEventListener("paste", onPaste);
 		compositionRef.current = composition;
 		composition.focus();
 		return () => {
+			active = false;
 			blockHost.removeEventListener("keydown", onKeyDown);
 			blockHost.removeEventListener("paste", onPaste);
 			compositionRef.current = null;
 			composition.dispose();
 		};
 	}, [altActive, core, onSendRaw]);
+
+	useProgramMessages(core, surfaceRef, onTitleRef);
 
 	useSurfaceInput(
 		{ hostRef, editorHostRef, surfaceRef, rendererRef, compositionRef, gridColumnsRef, gridRowsRef, hostCapsRef, onHintRef },

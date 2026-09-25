@@ -1,30 +1,30 @@
 import {
-	decodeBlocks,
-	FIND_STEP_BUDGET,
+	FIND_UPDATE_BUDGET_BYTES,
 	type BlockId,
 	type BlockRenderer,
-	type BlockView,
 	type FindMatch,
+	type FindUpdate,
 	type RowRange,
 	type TerminalCore,
 	type TerminalStrings,
 } from "@operator/terminal-core";
+import type { FindHighlights } from "./renderer-highlights.js";
 
 const CLASS_BAR = "terminal-find-bar";
 const CLASS_INPUT = "terminal-find-input";
 const CLASS_COUNT = "terminal-find-count";
-const CLASS_ROW_MATCH = "terminal-find-row-match";
-const CLASS_ROW_ACTIVE = "terminal-find-row-active";
+const CLASS_REGEX = "terminal-find-regex";
 const ATTR_BAR = "data-terminal-find-bar";
 const ATTR_INPUT = "data-terminal-find-input";
 const ATTR_COUNT = "data-terminal-find-count";
-const ATTR_ROW_MATCH = "data-terminal-find-row-match";
-const ATTR_ROW_ACTIVE = "data-terminal-find-row-active";
+const ATTR_REGEX = "data-terminal-find-regex";
 
 export type FindBarHost = Readonly<{
 	scrollToBlock(id: BlockId, align: "start" | "center" | "end"): void;
+	scrollToRow?(row: number, align: "start" | "center" | "end"): boolean;
 	invalidate(range: RowRange): void;
 	afterRepaint(listener: () => void): () => void;
+	highlightFind(find: FindHighlights | null): void;
 }>;
 
 export type FindBarOptions = Readonly<{
@@ -41,15 +41,13 @@ export type FindBar = Readonly<{
 	dispose(): void;
 }>;
 
-type Step = "idle" | "open" | "step" | "done";
-
-type Session = Readonly<{
-	id: number;
-	query: string;
-	step: Step;
+type Session = {
+	readonly id: number;
 	results: readonly FindMatch[];
-	currentIndex: number;
-}>;
+	rows: ReadonlySet<number>;
+	current: number;
+	loaded: boolean;
+};
 
 export function createFindBar(options: FindBarOptions): FindBar {
 	const { core, host, strings } = options;
@@ -58,11 +56,11 @@ export function createFindBar(options: FindBarOptions): FindBar {
 	let input: HTMLInputElement | null = null;
 	let countNode: HTMLElement | null = null;
 	let session: Session | null = null;
+	let regex = false;
+	let invalid = false;
 	let rafHandle: number | null = null;
-	let allBlocks: readonly BlockView[] = [];
 	let repaintOff: (() => void) | null = null;
 	let previousFocus: HTMLElement | null = null;
-	let queryBeforeEdit: string = "";
 
 	const cancelRaf = (): void => {
 		if (rafHandle !== null && typeof cancelAnimationFrame === "function") {
@@ -71,17 +69,12 @@ export function createFindBar(options: FindBarOptions): FindBar {
 		rafHandle = null;
 	};
 
-	const formatCount = (current: number, total: number): string => {
-		const template = strings.findMatchCount;
-		const currentStr = String(current);
-		const totalStr = String(total);
-		return template
-			.replace("%1", currentStr)
-			.replace("%2", totalStr);
-	};
-
 	const renderCount = (): void => {
 		if (!countNode) return;
+		if (invalid) {
+			countNode.textContent = strings.searchNoMatches;
+			return;
+		}
 		if (!session) {
 			countNode.textContent = "";
 			return;
@@ -91,97 +84,27 @@ export function createFindBar(options: FindBarOptions): FindBar {
 			countNode.textContent = strings.searchNoMatches;
 			return;
 		}
-		countNode.textContent = formatCount(
-			session.currentIndex + 1,
-			total,
-		);
+		countNode.textContent = strings.findMatchCount
+			.replace("%1", String(session.current + 1))
+			.replace("%2", String(total));
 	};
 
-	const findBlockById = (id: BlockId): BlockView | undefined => {
-		return allBlocks.find((block) => block.id === id);
-	};
-
-	const rowNodeFor = (block: BlockView, row: number): HTMLElement | null => {
-		if (!container) return null;
-		const blockNode = container.querySelector<HTMLElement>(
-			`[data-terminal-block-id="${cssEscape(block.id)}"]`,
-		);
-		if (!blockNode) return null;
-		const rowNode = blockNode.querySelector<HTMLElement>(
-			`[data-terminal-row="${row}"]`,
-		);
-		return rowNode;
-	};
-
-	const isRowVisible = (block: BlockView, row: number): boolean => {
-		if (!container) return false;
-		const blockNode = container.querySelector<HTMLElement>(
-			`[data-terminal-block-id="${cssEscape(block.id)}"]`,
-		);
-		if (!blockNode) return false;
-		return blockNode.querySelector(`[data-terminal-row="${row}"]`) !== null;
+	const clearMarks = (): void => {
+		host.highlightFind(null);
 	};
 
 	const applyHighlights = (): void => {
-		if (!container) return;
-		container
-			.querySelectorAll<HTMLElement>(`[${ATTR_ROW_MATCH}]`)
-			.forEach((node) => {
-				node.classList.remove(CLASS_ROW_MATCH);
-				node.removeAttribute(ATTR_ROW_MATCH);
-			});
-		container
-			.querySelectorAll<HTMLElement>(`[${ATTR_ROW_ACTIVE}]`)
-			.forEach((node) => {
-				node.classList.remove(CLASS_ROW_ACTIVE);
-				node.removeAttribute(ATTR_ROW_ACTIVE);
-			});
-
-		if (!session) return;
-		const current = session.results[session.currentIndex];
-		for (let index = 0; index < session.results.length; index += 1) {
-			const match = session.results[index]!;
-			const block = findBlockById(match.blockId);
-			if (!block) continue;
-			if (!isRowVisible(block, match.row)) continue;
-			const rowNode = rowNodeFor(block, match.row);
-			if (!rowNode) continue;
-			rowNode.classList.add(CLASS_ROW_MATCH);
-			rowNode.setAttribute(ATTR_ROW_MATCH, "");
+		const active = session;
+		if (!active || active.results.length === 0) {
+			clearMarks();
+			return;
 		}
-		if (current) {
-			const block = findBlockById(current.blockId);
-			if (block) {
-				const rowNode = rowNodeFor(block, current.row);
-				if (rowNode) {
-					rowNode.classList.add(CLASS_ROW_ACTIVE);
-					rowNode.setAttribute(ATTR_ROW_ACTIVE, "");
-				}
-			}
-		}
-	};
-
-	const tearDownHighlights = (): void => {
-		if (!container) return;
-		container
-			.querySelectorAll<HTMLElement>(`[${ATTR_ROW_MATCH}]`)
-			.forEach((node) => {
-				node.classList.remove(CLASS_ROW_MATCH);
-				node.removeAttribute(ATTR_ROW_MATCH);
-			});
-		container
-			.querySelectorAll<HTMLElement>(`[${ATTR_ROW_ACTIVE}]`)
-			.forEach((node) => {
-				node.classList.remove(CLASS_ROW_ACTIVE);
-				node.removeAttribute(ATTR_ROW_ACTIVE);
-			});
-	};
-
-	const refreshBlocks = (): void => {
-		allBlocks = decodeBlocks(core.snapshot());
+		const current = active.results[active.current];
+		host.highlightFind({ rows: active.rows, current: current ? { row: current.row, endRow: current.endRow } : null });
 	};
 
 	const stopSession = (): void => {
+		cancelRaf();
 		if (session) {
 			try {
 				core.findCancel(session.id);
@@ -192,65 +115,100 @@ export function createFindBar(options: FindBarOptions): FindBar {
 		}
 	};
 
-	const runStep = (): void => {
-		rafHandle = null;
-		if (!session) return;
-		if (session.step === "done") {
-			applyHighlights();
-			renderCount();
-			return;
-		}
-		try {
-			core.findStep(session.id, FIND_STEP_BUDGET);
-		} catch {
-			session = { ...session, step: "done" };
-			applyHighlights();
-			renderCount();
-			return;
-		}
-		const results = core.findResults();
-		let nextStep: Step = session.step;
-		try {
-			if (core.findIsComplete(session.id)) {
-				nextStep = "done";
+	const indexNear = (results: readonly FindMatch[], anchor: FindMatch | undefined): number => {
+		if (!anchor || results.length === 0) return 0;
+		let low = 0;
+		let high = results.length;
+		while (low < high) {
+			const mid = (low + high) >> 1;
+			const hit = results[mid]!;
+			if (hit.row < anchor.row || (hit.row === anchor.row && hit.startByte < anchor.startByte)) {
+				low = mid + 1;
+			} else {
+				high = mid;
 			}
-		} catch {
-			nextStep = "done";
 		}
-		let currentIndex = session.currentIndex;
-		if (currentIndex >= results.length) {
-			currentIndex = results.length === 0 ? 0 : results.length - 1;
-		}
-		session = { ...session, results, step: nextStep, currentIndex };
-		applyHighlights();
-		renderCount();
-		if (nextStep !== "done") {
-			rafHandle = requestAnimationFrame(runStep);
-		}
+		return Math.min(low, results.length - 1);
 	};
 
-	const scheduleStep = (): void => {
+	const rowsOf = (results: readonly FindMatch[]): Set<number> => {
+		const rows = new Set<number>();
+		for (const hit of results) {
+			for (let row = hit.row; row <= hit.endRow; row += 1) rows.add(row);
+		}
+		return rows;
+	};
+
+	const refresh = (active: Session): void => {
+		const anchor = active.loaded ? active.results[active.current] : undefined;
+		const results = core.findResults(active.id);
+		active.results = results;
+		active.rows = rowsOf(results);
+		active.current = indexNear(results, anchor);
+		active.loaded = true;
+	};
+
+	const pump = (): void => {
+		rafHandle = null;
+		const active = session;
+		if (!active) return;
+		let update: FindUpdate;
+		try {
+			update = core.findUpdate(active.id, FIND_UPDATE_BUDGET_BYTES);
+			if (!active.loaded || update.added > 0 || update.removed > 0) {
+				refresh(active);
+				applyHighlights();
+				renderCount();
+			}
+		} catch {
+			stopSession();
+			clearMarks();
+			renderCount();
+			return;
+		}
+		if (!update.complete) schedulePump();
+	};
+
+	const schedulePump = (): void => {
 		if (rafHandle !== null) return;
-		rafHandle = requestAnimationFrame(runStep);
+		rafHandle = requestAnimationFrame(pump);
 	};
 
 	const openSession = (query: string): void => {
 		stopSession();
+		invalid = false;
+		input?.removeAttribute("aria-invalid");
 		if (query === "") {
-			session = null;
-			tearDownHighlights();
+			clearMarks();
 			renderCount();
 			return;
 		}
-		const id = core.findOpen(query, false);
-		session = {
-			id,
-			query,
-			step: "open",
-			results: [],
-			currentIndex: 0,
-		};
-		scheduleStep();
+		let id: number;
+		try {
+			id = core.findOpen(query, regex);
+		} catch {
+			invalid = true;
+			input?.setAttribute("aria-invalid", "true");
+			clearMarks();
+			renderCount();
+			return;
+		}
+		session = { id, results: [], rows: new Set(), current: 0, loaded: false };
+		schedulePump();
+	};
+
+	const walk = (delta: number): void => {
+		const active = session;
+		if (!active) return;
+		const total = active.results.length;
+		if (total === 0) return;
+		active.current = (active.current + delta + total) % total;
+		const match = active.results[active.current]!;
+		if (!host.scrollToRow?.(match.row, "center")) {
+			host.scrollToBlock(match.blockId, "center");
+		}
+		applyHighlights();
+		renderCount();
 	};
 
 	const ensureBar = (): HTMLElement => {
@@ -270,11 +228,6 @@ export function createFindBar(options: FindBarOptions): FindBar {
 		field.spellcheck = false;
 		field.autocomplete = "off";
 		field.addEventListener("input", () => {
-			if (!field.value) {
-				queryBeforeEdit = "";
-			} else if (queryBeforeEdit === "") {
-				queryBeforeEdit = field.value;
-			}
 			openSession(field.value);
 		});
 		field.addEventListener("keydown", (event) => {
@@ -286,36 +239,35 @@ export function createFindBar(options: FindBarOptions): FindBar {
 				close();
 			}
 		});
+		const toggle = document.createElement("button");
+		toggle.type = "button";
+		toggle.className = CLASS_REGEX;
+		toggle.setAttribute(ATTR_REGEX, "");
+		toggle.setAttribute("aria-label", strings.findRegexLabel);
+		toggle.setAttribute("aria-pressed", String(regex));
+		toggle.title = strings.findRegexLabel;
+		toggle.textContent = ".*";
+		toggle.addEventListener("mousedown", (event) => event.preventDefault());
+		toggle.addEventListener("click", () => {
+			regex = !regex;
+			toggle.setAttribute("aria-pressed", String(regex));
+			openSession(field.value);
+			field.focus();
+		});
 		const counter = document.createElement("span");
 		counter.className = CLASS_COUNT;
 		counter.setAttribute(ATTR_COUNT, "");
 		counter.setAttribute("aria-live", "polite");
 		label.append(field);
-		node.append(label, counter);
+		node.append(label, toggle, counter);
 		bar = node;
 		input = field;
 		countNode = counter;
 		return node;
 	};
 
-	const walk = (delta: number): void => {
-		if (!session) return;
-		const total = session.results.length;
-		if (total === 0) return;
-		let next = session.currentIndex + delta;
-		if (next < 0) next = total - 1;
-		if (next >= total) next = 0;
-		session = { ...session, currentIndex: next };
-		const match = session.results[next];
-		if (!match) return;
-		host.scrollToBlock(match.blockId, "center");
-		applyHighlights();
-		renderCount();
-	};
-
 	function open(): void {
 		if (!container) return;
-		refreshBlocks();
 		previousFocus = document.activeElement as HTMLElement | null;
 		const node = ensureBar();
 		if (node.parentElement !== container) {
@@ -324,24 +276,28 @@ export function createFindBar(options: FindBarOptions): FindBar {
 		bar = node;
 		if (repaintOff === null) {
 			repaintOff = host.afterRepaint(() => {
-				refreshBlocks();
-				applyHighlights();
+				if (session) schedulePump();
 			});
 		}
 		if (input) {
 			input.value = "";
+			input.removeAttribute("aria-invalid");
 			input.focus();
 		}
-		queryBeforeEdit = "";
+		invalid = false;
 		stopSession();
-		session = null;
 		renderCount();
 	}
 
 	function close(): void {
 		if (!container) return;
 		stopSession();
-		tearDownHighlights();
+		invalid = false;
+		clearMarks();
+		if (repaintOff) {
+			repaintOff();
+			repaintOff = null;
+		}
 		if (bar && bar.parentElement === container) {
 			container.removeChild(bar);
 		}
@@ -356,13 +312,11 @@ export function createFindBar(options: FindBarOptions): FindBar {
 
 	function mount(target: HTMLElement): void {
 		container = target;
-		refreshBlocks();
 	}
 
 	function dispose(): void {
-		cancelRaf();
 		stopSession();
-		tearDownHighlights();
+		clearMarks();
 		if (repaintOff) {
 			repaintOff();
 			repaintOff = null;
@@ -374,16 +328,8 @@ export function createFindBar(options: FindBarOptions): FindBar {
 		input = null;
 		countNode = null;
 		container = null;
-		allBlocks = [];
 		previousFocus = null;
 	}
 
 	return { mount, open, close, dispose };
-}
-
-function cssEscape(value: string): string {
-	if (typeof CSS !== "undefined" && typeof CSS.escape === "function") {
-		return CSS.escape(value);
-	}
-	return value.replace(/(["\\])/g, "\\$1");
 }

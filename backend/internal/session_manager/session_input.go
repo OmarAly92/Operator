@@ -19,6 +19,8 @@ const (
 	agentOperationRestore  agentOperationKind = "restore"
 	agentOperationRetire   agentOperationKind = "retire"
 	agentOperationRelaunch agentOperationKind = "relaunch"
+
+	agentOperationRestartTerminal agentOperationKind = "restart-terminal"
 )
 
 var errAgentOperationInProgress = errors.New("session: another exclusive operation is in progress")

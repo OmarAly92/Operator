@@ -11,14 +11,22 @@ import {
 	type WasmInput,
 } from "./wasm-runtime.js";
 import { snapshotLogicalLines, type LogicalLine } from "./logical-lines.js";
+import { ProgramMessages, type ProgramMessageListener } from "./program-messages.js";
+import { AgentEvents, type AgentEventListener } from "./agent-events.js";
+import { attempt, throwFailures } from "./listener-failures.js";
+import { AgentActivityMonitor, cursorLineText, type AgentActivityListener, type AgentActivityState } from "./agent-activity.js";
+import { blockOutputText, type BlockOutputOptions } from "./block-output.js";
+import { budgetNow, decodeFindMatches, parseBlockId, validateEvenLength, validateMultipleOf } from "./core-checks.js";
 import type {
 	BlockId,
 	ChangeListener,
 	DirtyRows,
 	FindMatch,
+	FindUpdate,
 	HostCapabilities,
 	LineEditorState,
 	MemoryStats,
+	OlderOutput,
 	RowEvent,
 	RowEventListener,
 	RowRange,
@@ -35,9 +43,9 @@ import { CompletionDispatcher } from "./completions.js";
 
 const LINE_EDITOR_STATES: readonly LineEditorState[] = ["unknown", "owned", "released"];
 
-export const FIND_MATCH_WORDS = 5;
+export const FIND_MATCH_WORDS = 6;
 
-export const FIND_STEP_BUDGET = 1000;
+export const FIND_UPDATE_BUDGET_BYTES = 1 << 20;
 
 export const FEED_BUDGET_MS = 12;
 
@@ -74,9 +82,20 @@ export class TerminalCore {
 	private readonly rowEventListeners = new Set<RowEventListener>();
 	private readonly decoder = new TextDecoder("utf-8", { fatal: true });
 	private readonly linkUris = new Map<number, string>();
+	private readonly program: ProgramMessages;
+	private readonly agentEvents: AgentEvents;
+	private readonly activity: AgentActivityMonitor;
 
 	constructor(inner: WasmTerminalCore, host: HostCapabilities) {
 		this.inner = inner;
+		this.program = new ProgramMessages(inner, host);
+		this.agentEvents = new AgentEvents(inner);
+		this.activity = new AgentActivityMonitor({
+			liveOutputBytes: () => (this.disposed ? 0 : this.inner.live_output_bytes()),
+			cursorLine: () => (this.disposed ? "" : cursorLineText(this.snapshot(), this.decoder)),
+			lineEditorOwnsLine: () => !this.disposed && LINE_EDITOR_STATES[this.snapshot().lineEditorState] === "owned",
+			now: () => Date.now(),
+		});
 		this.completions = new CompletionDispatcher(
 			() => decodeBlocks(this.snapshot()).at(-1)?.cwd ?? "",
 			host,
@@ -116,9 +135,7 @@ export class TerminalCore {
 			return;
 		}
 		this.inner.feed(bytes, Date.now());
-		if (!this.notifyIfChanged() && this.inner.synchronized_output()) {
-			this.notifyAll();
-		}
+		this.afterParse(true);
 	}
 
 	enqueue(bytes: Uint8Array): void {
@@ -176,8 +193,20 @@ export class TerminalCore {
 		if (!this.inner.tick(nowMs)) {
 			return false;
 		}
-		this.notifyIfChanged();
+		this.afterParse(false);
 		return true;
+	}
+
+	private afterParse(fed: boolean): void {
+		const failures: unknown[] = [];
+		attempt(() => this.program.poll(), failures);
+		attempt(() => this.agentEvents.poll(), failures);
+		attempt(() => this.activity.observe(), failures);
+		attempt(() => {
+			if (!this.notifyIfChanged() && fed && this.inner.synchronized_output()) this.notifyAll();
+		}, failures);
+		if (failures.length === 1) throw failures[0];
+		throwFailures(failures, "terminal core listener failed");
 	}
 
 	synchronizedOutput(): boolean {
@@ -193,6 +222,14 @@ export class TerminalCore {
 			return false;
 		}
 		return this.inner.replay_ready();
+	}
+
+	olderOutput(): OlderOutput {
+		if (this.disposed) {
+			return { floor: null, marks: 0 };
+		}
+		const floor = this.inner.older_floor();
+		return { floor: floor < 0 ? null : floor, marks: this.inner.older_marks() };
 	}
 
 	private notifyIfChanged(): boolean {
@@ -387,17 +424,19 @@ export class TerminalCore {
 		return this.inner.find_open(query, isRegex);
 	}
 
-	findStep(id: number, budget: number = FIND_STEP_BUDGET): void {
+	findUpdate(id: number, budgetBytes: number = FIND_UPDATE_BUDGET_BYTES): FindUpdate {
 		if (this.disposed) {
 			throw new Error("terminal core is disposed");
 		}
-		this.inner.find_step(id, budget);
+		const words = this.inner.find_update(id, budgetBytes);
+		return { added: words[0]!, removed: words[1]!, complete: words[2] === 1 };
 	}
 
-	findResults(): FindMatch[] {
+	findResults(id: number): FindMatch[] {
 		if (this.disposed) {
 			throw new Error("terminal core is disposed");
 		}
+		this.inner.find_export(id);
 		const memory = getMemory();
 		const ptr = this.inner.find_results_ptr();
 		const len = this.inner.find_results_len();
@@ -406,26 +445,14 @@ export class TerminalCore {
 				`find results length ${len} is not a multiple of ${FIND_MATCH_WORDS}`,
 			);
 		}
-		const view = u32View(memory, ptr, len);
-		const count = len / FIND_MATCH_WORDS;
-		const matches: FindMatch[] = [];
-		for (let index = 0; index < count; index += 1) {
-			const base = index * FIND_MATCH_WORDS;
-			matches.push({
-				blockId: `${view[base + 1]!}:${view[base]!}`,
-				row: view[base + 2]!,
-				byteRangeStart: view[base + 3]!,
-				byteRangeEnd: view[base + 4]!,
-			});
-		}
-		return matches;
+		return decodeFindMatches(u32View(memory, ptr, len), FIND_MATCH_WORDS);
 	}
 
-	findIsComplete(id: number): boolean {
+	findHistoryBytesScanned(id: number): number {
 		if (this.disposed) {
 			throw new Error("terminal core is disposed");
 		}
-		return this.inner.find_is_complete(id);
+		return this.inner.find_history_bytes_scanned(id);
 	}
 
 	findCancel(id: number): void {
@@ -467,8 +494,46 @@ export class TerminalCore {
 		return this.inner.block_bookmarked(idLo, idHi);
 	}
 
+	title(): string {
+		return this.program.title();
+	}
+
+	pointerShape(): string {
+		return this.program.pointerShape();
+	}
+
+	onProgramMessage(listener: ProgramMessageListener): () => void {
+		return this.program.onMessage(listener);
+	}
+
+	onAgentEvent(listener: AgentEventListener): () => void {
+		return this.agentEvents.onEvent(listener);
+	}
+
+	agentActivity(): AgentActivityState {
+		return this.activity.state();
+	}
+
+	onAgentActivity(listener: AgentActivityListener): () => void {
+		return this.activity.onChange(listener);
+	}
+
+	readBlockOutput(id: BlockId, options: BlockOutputOptions = {}): string | null {
+		if (this.disposed) return null;
+		const snapshot = this.snapshot();
+		const block = decodeBlocks(snapshot).find((view) => view.id === id);
+		return block ? blockOutputText(snapshot, block, this.decoder, options) : null;
+	}
+
 	lineEditorState(): LineEditorState {
 		return LINE_EDITOR_STATES[this.snapshot().lineEditorState] ?? "unknown";
+	}
+
+	takeTypeahead(): string {
+		if (this.disposed) {
+			return "";
+		}
+		return this.inner.takeTypeahead();
 	}
 
 	onChange(listener: ChangeListener): () => void {
@@ -517,6 +582,9 @@ export class TerminalCore {
 		}
 		this.disposed = true;
 		this.completions.dispose();
+		this.program.dispose();
+		this.agentEvents.dispose();
+		this.activity.dispose();
 		this.listeners.clear();
 		this.backlog = [];
 		this.backlogBytes = 0;
@@ -526,35 +594,6 @@ export class TerminalCore {
 		this.linkUris.clear();
 		this.inner.free();
 	}
-}
-
-function budgetNow(): number {
-	return typeof performance !== "undefined" ? performance.now() : Date.now();
-}
-
-function validateEvenLength(name: string, length: number): void {
-	if (length % 2 !== 0) {
-		throw new Error(`${name} length ${length} is not even`);
-	}
-}
-
-function validateMultipleOf(name: string, length: number, words: number): void {
-	if (length % words !== 0) {
-		throw new Error(`${name} length ${length} is not a multiple of ${words}`);
-	}
-}
-
-function parseBlockId(id: BlockId): [number, number] {
-	const separator = id.indexOf(":");
-	if (separator < 0) {
-		throw new Error(`block id ${id} is not in hi:lo form`);
-	}
-	const hi = Number.parseInt(id.slice(0, separator), 10);
-	const lo = Number.parseInt(id.slice(separator + 1), 10);
-	if (!Number.isFinite(hi) || !Number.isFinite(lo)) {
-		throw new Error(`block id ${id} is not numeric`);
-	}
-	return [lo, hi];
 }
 
 export type { WasmInput };

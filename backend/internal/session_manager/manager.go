@@ -36,6 +36,7 @@ var (
 	ErrAgentExited        = errors.New("session: agent exited")
 	ErrAgentNotExited     = errors.New("session: agent has not exited")
 	ErrIncompleteHandle   = errors.New("session: incomplete teardown handle")
+	ErrTerminalResponding = errors.New("session: terminal is responding")
 	ErrWrongActivityState = errors.New("session: command not available in this activity state")
 	ErrDialogAbsent       = errors.New("session: dialog is no longer on screen")
 	ErrDialogKindMismatch = errors.New("session: the pending dialog is not of that kind")
@@ -1323,6 +1324,52 @@ func (m *Manager) RelaunchAgentFresh(ctx context.Context, id domain.SessionID, c
 		relaunchPolicy{forceFresh: true, keepPrompt: cfg.KeepPrompt})
 }
 
+func (m *Manager) RestartTerminal(ctx context.Context, id domain.SessionID, grid ports.PaneGrid) (RestoreResult, error) {
+	if err := m.beginAgentOperation(ctx, id, agentOperationRestartTerminal); err != nil {
+		if errors.Is(err, errAgentOperationInProgress) {
+			err = ErrSwitchInProgress
+		}
+		return RestoreResult{}, fmt.Errorf("restart terminal %s: %w", id, err)
+	}
+	defer m.endAgentOperation(id, agentOperationRestartTerminal)
+
+	rec, ok, err := m.store.GetSession(ctx, id)
+	if err != nil {
+		return RestoreResult{}, fmt.Errorf("restart terminal %s: %w", id, err)
+	}
+	if !ok {
+		return RestoreResult{}, fmt.Errorf("restart terminal %s: %w", id, ErrNotFound)
+	}
+	if rec.IsTerminated {
+		return RestoreResult{}, fmt.Errorf("restart terminal %s: %w", id, ErrTerminated)
+	}
+	project, err := m.loadProject(ctx, rec.ProjectID)
+	if err != nil {
+		return RestoreResult{}, fmt.Errorf("restart terminal %s: %w", id, err)
+	}
+	meta := rec.Metadata
+	if meta.WorkspacePath == "" ||
+		(meta.Branch == "" && project.Kind.WithDefault() != domain.ProjectKindScratch) ||
+		meta.RuntimeHandleID == "" {
+		return RestoreResult{}, fmt.Errorf("restart terminal %s: %w", id, ErrIncompleteHandle)
+	}
+	handle := ports.RuntimeHandle{ID: meta.RuntimeHandleID}
+	if reader, ok := m.runtime.(ports.TerminalHealthReader); ok && reader.TerminalHealth(handle) == ports.TerminalHealthy {
+		return RestoreResult{}, fmt.Errorf("restart terminal %s: %w", id, ErrTerminalResponding)
+	}
+	if err := m.runtime.Destroy(ctx, handle); err != nil {
+		return RestoreResult{}, fmt.Errorf("restart terminal %s: stop the unresponsive terminal: %w", id, err)
+	}
+	ws := ports.WorkspaceInfo{
+		Path:      meta.WorkspacePath,
+		Branch:    meta.Branch,
+		SessionID: rec.ID,
+		ProjectID: rec.ProjectID,
+		Mode:      meta.WorkspaceMode,
+	}
+	return m.relaunchSession(ctx, "restart terminal", rec, project, ws, &handle, grid)
+}
+
 // relaunchPolicy selects how a relaunch rebuilds the agent's conversation.
 // The zero value is the historical behavior: prefer the harness's native
 // resume, fall back to replaying the saved prompt.
@@ -1426,12 +1473,13 @@ func (m *Manager) relaunchSessionWithPolicy(ctx context.Context, operation strin
 	}
 	defer m.lcm.CancelLaunch(rec.ID, launchID)
 	runtimeCfg := ports.RuntimeConfig{
-		SessionID:     rec.ID,
-		WorkspacePath: ws.Path,
-		Argv:          argv,
-		Env:           env,
-		Cols:          grid.Cols,
-		Rows:          grid.Rows,
+		SessionID:      rec.ID,
+		WorkspacePath:  ws.Path,
+		Argv:           argv,
+		Env:            env,
+		Cols:           grid.Cols,
+		Rows:           grid.Rows,
+		RestoreHistory: true,
 	}
 	var handle ports.RuntimeHandle
 	if restartHandle == nil {

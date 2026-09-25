@@ -6,6 +6,7 @@ import {
 	createTerminalCore,
 	initTerminalCoreFromUrl,
 	warpDarkTheme,
+	type CellSize,
 	type FontConfig,
 	type HostCapabilities,
 	type TerminalCore,
@@ -17,11 +18,15 @@ import { rememberPaneGrid } from "../lib/pane-grid";
 import { BLOCK_NOTIFY_AFTER_MS } from "../lib/retained-terminal";
 import { terminalBackgroundColor, type TerminalBackground } from "../lib/terminal-background";
 import { terminalPredictiveEchoThresholdMs } from "../lib/terminal-predictive-echo";
+import { terminalMarkRules } from "../lib/terminal-marks";
 import { useUiStore } from "../stores/ui-store";
 import { previewBytes, terminalDebug } from "../lib/terminal-debug";
 import { isWebLink, openLinkInSystemBrowser } from "../lib/external-link-policy";
 import { fetchRedactionPatterns, redactionPatternsQueryKey } from "../lib/redaction-patterns";
 import { externalEditorLabel } from "../lib/open-files-in";
+import { usePasteConfirm } from "../hooks/usePasteConfirm";
+import type { TerminalAppearance } from "../lib/terminal-mux";
+import { terminalAppearance, type TerminalColors } from "../lib/terminal-appearance";
 
 export type BlockTerminalClipboard = {
 	writeText: (text: string) => Promise<void>;
@@ -37,6 +42,8 @@ export type BlockTerminalTransport = {
 	write: (data: Uint8Array) => void;
 	onData: (listener: (bytes: Uint8Array) => void) => () => void;
 	resize?: (cols: number, rows: number) => void;
+	appearance?: (appearance: TerminalAppearance) => void;
+	requestOlder?: (before: number) => void;
 	dispose?: () => void;
 };
 
@@ -256,9 +263,21 @@ export function BlockTerminal({
 	const onSendRaw = useCallback((data: string) => {
 		transportRef.current.write(new TextEncoder().encode(data));
 	}, []);
-	const onGeometry = useCallback((columns: number, rows: number) => {
+	const cellSizeRef = useRef<CellSize | null>(null);
+	const terminalColorsRef = useRef<TerminalColors | null>(null);
+	const publishAppearance = useCallback(() => {
+		const cell = cellSizeRef.current;
+		const colors = terminalColorsRef.current;
+		if (!cell || !colors) return;
+		transportRef.current.appearance?.(terminalAppearance(cell, colors, window.devicePixelRatio));
+	}, []);
+	const onGeometry = useCallback((columns: number, rows: number, cell?: CellSize) => {
 		if (recordsSpawnGridRef.current) rememberPaneGrid(columns, rows);
 		transportRef.current.resize?.(columns, rows);
+		if (cell) {
+			cellSizeRef.current = cell;
+			publishAppearance();
+		}
 		// TerminalSurface resizes the core immediately before reporting, so the
 		// core is correctly sized by the time this runs and the held bytes can be
 		// parsed against the grid they were written for.
@@ -273,7 +292,7 @@ export function BlockTerminal({
 			feedToCore(core, bytes, historyIdsRef.current);
 		}
 		reportReplayPainted();
-	}, [reportReplayPainted]);
+	}, [publishAppearance, reportReplayPainted]);
 
 	useEffect(() => {
 		if (!core) return;
@@ -427,6 +446,11 @@ export function BlockTerminal({
 		document.documentElement.style.setProperty("--terminal-background", resolvedTheme.background);
 	}, [resolvedTheme.background]);
 
+	useEffect(() => {
+		terminalColorsRef.current = { foreground: resolvedTheme.foreground, background: resolvedTheme.background };
+		publishAppearance();
+	}, [publishAppearance, resolvedTheme.background, resolvedTheme.foreground]);
+
 	const redactSecrets = useUiStore((state) => state.terminalSecretRedaction);
 	const { data: patterns } = useQuery({
 		queryKey: redactionPatternsQueryKey,
@@ -460,8 +484,11 @@ export function BlockTerminal({
 		[t],
 	);
 
+	const terminalMarks = useUiStore((state) => state.terminalMarks);
+	const marks = useMemo(() => terminalMarkRules(terminalMarks), [terminalMarks]);
 	const predictiveEcho = useUiStore((state) => state.terminalPredictiveEcho);
 	const predictiveThresholdMs = predictiveEcho ? terminalPredictiveEchoThresholdMs : undefined;
+	const { confirmPaste, dialog: pasteConfirmDialog } = usePasteConfirm();
 	const host = useMemo<HostCapabilities>(
 		() => ({
 			writeClipboard: async (text: string) => {
@@ -486,8 +513,12 @@ export function BlockTerminal({
 			},
 			secretPatterns,
 			...(predictiveThresholdMs === undefined ? {} : { predictiveEcho: { thresholdMs: predictiveThresholdMs } }),
+			confirmPaste,
+			...(transport.requestOlder
+				? { loadOlderOutput: (before: number) => transportRef.current.requestOlder?.(before) }
+				: {}),
 		}),
-		[clipboard, workspacePath, secretPatterns, predictiveThresholdMs, openFile],
+		[clipboard, workspacePath, secretPatterns, predictiveThresholdMs, openFile, confirmPaste, transport.requestOlder],
 	);
 
 	const strings = useMemo<TerminalStrings>(
@@ -512,6 +543,7 @@ export function BlockTerminal({
 			}),
 			findLabel: t("blocks.findLabel", { defaultValue: "Find" }),
 			findMatchCount: t("blocks.findMatchCount", { defaultValue: "%1 of %2" }),
+			findRegexLabel: t("blocks.findRegexLabel", { defaultValue: "Use regular expression" }),
 			palettePlaceholder: t("blocks.palettePlaceholder", {
 				defaultValue: "Type a command",
 			}),
@@ -520,6 +552,7 @@ export function BlockTerminal({
 				defaultValue: "No matching commands",
 			}),
 			jumpToBottom: t("blocks.jumpToBottom", { defaultValue: "Jump to bottom" }),
+			loadOlderOutput: t("blocks.loadOlderOutput", { defaultValue: "Load older output" }),
 			shellBlocksUnavailable: t("blocks.shellBlocksUnavailable", {
 				defaultValue: "Shell blocks are unavailable in this terminal.",
 			}),
@@ -591,6 +624,7 @@ export function BlockTerminal({
 		refitToken,
 		focusToken,
 		visible,
+		marks,
 		onDraftChange,
 		onHint: (hint) => {
 			// A hint's path is the text as it was printed, so it is relative as
@@ -635,6 +669,7 @@ export function BlockTerminal({
 			ref={rootRef}
 		>
 			<TerminalSurface {...surfaceProps} />
+			{pasteConfirmDialog}
 			{openPathNotice ? (
 				<div
 					className="pointer-events-none fixed bottom-4 right-4 z-overlay w-[min(24rem,calc(100%-2rem))] rounded-xl border border-(--color-border-settings-dialog) bg-settings-dialog px-4 py-3 shadow-[var(--shadow-settings-dialog)]"

@@ -265,6 +265,15 @@ type fakeRuntime struct {
 	styledOutput            string
 	styledOutputErr         error
 	styledOutputCalls       int
+	terminalHealth          ports.TerminalHealth
+}
+
+func (r *fakeRuntime) TerminalHealth(ports.RuntimeHandle) ports.TerminalHealth {
+	return r.terminalHealth
+}
+
+func (r *fakeRuntime) WatchTerminalHealth(func(string, ports.TerminalHealth)) func() {
+	return func() {}
 }
 
 func (r *fakeRuntime) Interrupt(_ context.Context, handle ports.RuntimeHandle) error {
@@ -5559,6 +5568,7 @@ func TestSendPropagatesConfirmationPollingError(t *testing.T) {
 	m := newSendTestManager(t, signalingAgent{}, msg, st)
 	wantErr := errors.New("read session")
 	m.store = &getSessionErrorStore{fakeStore: st, readsBeforeError: 3, err: wantErr}
+	m.sendConfirm.attemptDeadline = time.Minute
 
 	err := m.Send(context.Background(), "s1", "do the thing", nil)
 	if !errors.Is(err, wantErr) {

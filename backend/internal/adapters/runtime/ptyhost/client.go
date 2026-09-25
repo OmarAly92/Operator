@@ -73,8 +73,11 @@ func clientSendMessage(addr, message string) error {
 	if err != nil {
 		return err
 	}
-	_, err = conn.Write(frame)
-	return err
+	if _, err := conn.Write(frame); err != nil {
+		return err
+	}
+	awaitInputApplied(conn)
+	return nil
 }
 
 func clientSendInput(addr, input string) error {
@@ -87,8 +90,38 @@ func clientSendInput(addr, input string) error {
 	if err != nil {
 		return err
 	}
-	_, err = conn.Write(frame)
-	return err
+	if _, err := conn.Write(frame); err != nil {
+		return err
+	}
+	awaitInputApplied(conn)
+	return nil
+}
+
+func awaitInputApplied(conn net.Conn) {
+	_ = conn.SetDeadline(time.Now().Add(getOutputTimeout))
+	frame, err := EncodeMessage(MsgStatusReq, nil)
+	if err != nil {
+		return
+	}
+	if _, err := conn.Write(frame); err != nil {
+		return
+	}
+	done := false
+	parser := NewMessageParser(func(msgType byte, _ []byte) {
+		if msgType == MsgStatusRes {
+			done = true
+		}
+	})
+	buf := make([]byte, 4096)
+	for !done {
+		n, err := conn.Read(buf)
+		if n > 0 {
+			parser.Feed(buf[:n])
+		}
+		if err != nil {
+			return
+		}
+	}
 }
 
 // clientRequestText sends reqType and reads frames until resType arrives.
@@ -249,7 +282,11 @@ func clientIsAlive(addr string) (alive bool, transientErr error) {
 // process managed by that host. A reachable host remains the runtime after its
 // child exits.
 func clientStatus(addr string) (status StatusPayload, hostAlive bool, transientErr error) {
-	conn, err := dialHost(addr, isAliveTimeout)
+	return clientStatusWithin(addr, isAliveTimeout)
+}
+
+func clientStatusWithin(addr string, timeout time.Duration) (status StatusPayload, hostAlive bool, transientErr error) {
+	conn, err := dialHost(addr, timeout)
 	if err != nil {
 		// A dial timeout is transient (the loopback hiccupped). A refused
 		// connection means nothing is listening -> definitively gone. Any
@@ -264,7 +301,7 @@ func clientStatus(addr string) (status StatusPayload, hostAlive bool, transientE
 	}
 	defer func() { _ = conn.Close() }()
 
-	_ = conn.SetDeadline(time.Now().Add(isAliveTimeout))
+	_ = conn.SetDeadline(time.Now().Add(timeout))
 
 	statusReqFrame, _ := EncodeMessage(MsgStatusReq, nil) // nil payload, never overflows
 	if _, err := conn.Write(statusReqFrame); err != nil {

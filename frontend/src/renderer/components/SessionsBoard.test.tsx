@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { WorkspaceSession, WorkspaceSummary } from "../types/workspace";
 import { rememberPaneGrid, resetPaneGridForTests } from "../lib/pane-grid";
+import { clearTerminalTitles, setTerminalTitle } from "../lib/terminal-titles";
 
 const {
 	navigateMock,
@@ -456,6 +457,33 @@ describe("SessionsBoard", () => {
 		const card = screen.getByText("active-card-task").closest('[data-testid="board-session-card"]') as HTMLElement;
 		const working = within(card).getByText("Working").closest("span") as HTMLElement;
 		expect(working.querySelector("span")).toHaveClass("bg-status-working", "animate-status-pulse");
+	});
+
+	it("shows the terminal's live title under the session name and nothing when it has none", () => {
+		workspaceQueryMock.mockReturnValue({
+			data: [
+				workspaceWithSessions([
+					boardSession({ id: "s-titled", title: "titled-card-task", status: "working", terminalHandleId: "h-titled" }),
+					boardSession({ id: "s-untitled", title: "untitled-card-task", status: "idle", terminalHandleId: "h-untitled" }),
+				]),
+			],
+			isError: false,
+			isSuccess: true,
+		});
+		act(() => setTerminalTitle("h-titled", "Number list 1 to 3000"));
+		renderBoard("p1");
+		const titled = screen.getByText("titled-card-task").closest('[data-testid="board-session-card"]') as HTMLElement;
+		const line = within(titled).getByTestId("board-terminal-title");
+		expect(line).toHaveTextContent("Number list 1 to 3000");
+		expect(line).toHaveAttribute("title", "Number list 1 to 3000");
+		expect(line).toHaveAccessibleName("Terminal title: Number list 1 to 3000");
+		act(() => setTerminalTitle("h-titled", "Refactor the parser"));
+		expect(within(titled).getByTestId("board-terminal-title")).toHaveTextContent("Refactor the parser");
+		const untitled = screen.getByText("untitled-card-task").closest('[data-testid="board-session-card"]') as HTMLElement;
+		expect(within(untitled).queryByTestId("board-terminal-title")).toBeNull();
+		act(() => setTerminalTitle("h-titled", ""));
+		expect(within(titled).queryByTestId("board-terminal-title")).toBeNull();
+		act(() => clearTerminalTitles());
 	});
 
 	// The agent's own report (Operator MCP session_report) explains the card:

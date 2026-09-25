@@ -201,7 +201,7 @@ export const terminalStyles = `@font-face {
 .terminal-alt-surface {
 	-webkit-user-select: none;
 	user-select: none;
-	cursor: default;
+	cursor: var(--terminal-pointer-shape, default);
 }
 
 /* The hand appears only while a link is under the pointer, the way Warp swaps
@@ -506,6 +506,25 @@ export const terminalStyles = `@font-face {
 
 .terminal-find-input:focus-visible {
 	border-color: var(--terminal-block-header-foreground);
+}
+
+.terminal-find-regex {
+	font: inherit;
+	font-size: 11px;
+	line-height: 1;
+	color: var(--terminal-block-header-foreground);
+	background: transparent;
+	border: 1px solid transparent;
+	border-radius: 3px;
+	padding: 2px 4px;
+	cursor: default;
+	opacity: 0.7;
+}
+
+.terminal-find-regex[aria-pressed="true"] {
+	background: var(--terminal-background);
+	border-color: var(--terminal-block-border);
+	opacity: 1;
 }
 
 .terminal-find-count {

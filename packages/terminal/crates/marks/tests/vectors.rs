@@ -72,6 +72,7 @@ fn event_kind_tier(ev: &MarkEvent) -> (String, MarkTier) {
         MarkEvent::ReplayOrigin(_) => ("replay_origin".to_string(), MarkTier::Extension),
         MarkEvent::ReplayReady => ("replay_ready".to_string(), MarkTier::Extension),
         MarkEvent::HistoryChunk { .. } => ("history_chunk".to_string(), MarkTier::Extension),
+        MarkEvent::OlderFloor(_) => ("older_floor".to_string(), MarkTier::Extension),
     }
 }
 

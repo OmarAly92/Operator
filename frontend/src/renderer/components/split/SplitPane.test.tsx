@@ -1,11 +1,12 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import type { ComponentProps } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Pane } from "../../lib/split-layout";
 import type { ShellTerminal } from "../../hooks/useShellTerminals";
 import type { WorkspaceSession } from "../../types/workspace";
 import { TooltipProvider } from "../ui/tooltip";
+import { clearTerminalTitles, setTerminalTitle } from "../../lib/terminal-titles";
 import { SplitPane } from "./SplitPane";
 
 vi.mock("./PaneTerminal", async (importOriginal) => {
@@ -27,6 +28,7 @@ const a: WorkspaceSession = {
 	workspaceId: "p",
 	workspaceName: "app",
 	title: "alpha",
+	terminalHandleId: "ha",
 	provider: "claude-code",
 	status: "working",
 	updatedAt: "2026-09-22T00:00:00Z",
@@ -75,6 +77,8 @@ function renderPane(overrides: Partial<ComponentProps<typeof SplitPane>> = {}) {
 	return render(paneTree(overrides));
 }
 
+afterEach(() => clearTerminalTitles());
+
 describe("SplitPane", () => {
 	it("focuses on pointer down, renders the ring only when asked, and closes the pane", () => {
 		const onFocus = vi.fn();
@@ -87,6 +91,21 @@ describe("SplitPane", () => {
 		expect(document.querySelector(".border-ring\\/60")).not.toBeNull();
 		fireEvent.click(screen.getByRole("button", { name: "Close pane" }));
 		expect(onClosePane).toHaveBeenCalled();
+	});
+
+	it("shows the active tab's terminal title in the pane header", () => {
+		act(() => {
+			setTerminalTitle("ha", "Number list 1 to 3000");
+			setTerminalTitle("h1", "vim main.go");
+		});
+		const { rerender } = renderPane();
+		const title = screen.getByTestId("pane-terminal-title");
+		expect(title).toHaveTextContent("Number list 1 to 3000");
+		expect(title).toHaveAccessibleName("Terminal title: Number list 1 to 3000");
+		rerender(paneTree({ pane: { ...basePane, activeTab: 1 } }));
+		expect(screen.getByTestId("pane-terminal-title")).toHaveTextContent("vim main.go");
+		act(() => setTerminalTitle("h1", ""));
+		expect(screen.queryByTestId("pane-terminal-title")).toBeNull();
 	});
 
 	it("hands the active tab's target to the terminal", () => {

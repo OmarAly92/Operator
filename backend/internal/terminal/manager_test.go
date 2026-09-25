@@ -899,6 +899,51 @@ func TestTerminalAckReachesTheStream(t *testing.T) {
 	eventually(t, time.Second, func() bool { return pty.ackedBytes() == 5000 })
 }
 
+func TestTerminalOlderRequestReachesTheStream(t *testing.T) {
+	pty := newFlowControlledFakePTY()
+	src := &fakeSource{alive: true, attachFn: func(ctx context.Context, rows, cols uint16) (ports.Stream, error) {
+		return pty, nil
+	}}
+	mgr := NewManager(src, nil, testLogger(), WithHeartbeat(0))
+	defer mgr.Close()
+
+	conn := newFakeConn()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go mgr.Serve(ctx, conn)
+
+	conn.in <- clientMsg{Ch: chTerminal, ID: "pane-5", Type: msgOpen}
+	recv(t, conn, chTerminal, msgOpened, time.Second)
+
+	conn.in <- clientMsg{Ch: chTerminal, ID: "pane-5", Type: msgOlder}
+	conn.in <- clientMsg{Ch: chTerminal, ID: "pane-5", Type: msgOlder, Before: 4096}
+
+	eventually(t, time.Second, func() bool { return len(pty.olderRequests()) == 1 })
+	if got := pty.olderRequests(); got[0] != 4096 {
+		t.Fatalf("older requests = %v, want [4096]", got)
+	}
+}
+
+func TestTerminalOlderRequestOnAStreamWithoutTheCapabilityIsIgnored(t *testing.T) {
+	pty := newFakePTY()
+	src := &fakeSource{alive: true, spawner: &fakeSpawner{ptys: []*fakePTY{pty}}}
+	mgr := NewManager(src, nil, testLogger(), WithHeartbeat(0))
+	defer mgr.Close()
+
+	conn := newFakeConn()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go mgr.Serve(ctx, conn)
+
+	conn.in <- clientMsg{Ch: chTerminal, ID: "pane-6", Type: msgOpen}
+	recv(t, conn, chTerminal, msgOpened, time.Second)
+
+	conn.in <- clientMsg{Ch: chTerminal, ID: "pane-6", Type: msgOlder, Before: 10}
+	conn.in <- clientMsg{Ch: chTerminal, ID: "pane-6", Type: msgData, Data: base64.StdEncoding.EncodeToString([]byte("y"))}
+
+	eventually(t, time.Second, func() bool { return string(pty.writtenBytes()) == "y" })
+}
+
 // The desktop declares that it can read history chunks; the daemon forwards
 // that to the runtime, which is what makes the pty-host stream scrollback.
 func TestTerminalOpenForwardsTheHistoryOptIn(t *testing.T) {

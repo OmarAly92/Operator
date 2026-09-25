@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { useEffect, useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -23,7 +24,7 @@ const mockState = vi.hoisted(() => {
 		altScreenSurfaceProvided: false,
 		altScreen: null as unknown,
 		core: undefined as MockCore | undefined,
-		emitGeometry: undefined as ((columns: number, rows: number) => void) | undefined,
+		emitGeometry: undefined as ((columns: number, rows: number, cell?: { width: number; height: number }) => void) | undefined,
 		coreOverrides: undefined as Partial<MockCore> | undefined,
 		host: undefined as
 			| {
@@ -36,6 +37,8 @@ const mockState = vi.hoisted(() => {
 					openPath?: (path: string, line?: number, column?: number) => Promise<void>;
 					secretPatterns?: readonly { source: string; flags?: string }[];
 					predictiveEcho?: Readonly<{ thresholdMs: number }>;
+					confirmPaste?: (preview: string, reason: "newline" | "control" | "paste-end") => Promise<boolean>;
+					loadOlderOutput?: (before: number) => void;
 				}
 			| undefined,
 		onHint: undefined as ((hint: { ruleId: string; text: string; path?: string; line?: number }) => void) | undefined,
@@ -50,6 +53,7 @@ const mockState = vi.hoisted(() => {
 		wasmInits: 0,
 		focusToken: undefined as number | undefined,
 		visible: undefined as boolean | undefined,
+		marks: undefined as readonly { pattern: string; regex: boolean; colour: string }[] | undefined,
 		// The real surface only reports geometry once its host has a non-zero
 		// client box. Off means "mounted but never laid out", which is what a
 		// pane behind another tab looks like.
@@ -159,11 +163,13 @@ vi.mock("@operator/terminal-react", () => {
 				openPath?: (path: string, line?: number, column?: number) => Promise<void>;
 				secretPatterns?: readonly { source: string; flags?: string }[];
 				predictiveEcho?: Readonly<{ thresholdMs: number }>;
+				confirmPaste?: (preview: string, reason: "newline" | "control" | "paste-end") => Promise<boolean>;
+				loadOlderOutput?: (before: number) => void;
 			};
 			strings?: Record<string, string>;
 			onSend?: (text: string) => void;
 			onSendRaw?: (data: string) => void;
-			onGeometry?: (columns: number, rows: number) => void;
+			onGeometry?: (columns: number, rows: number, cell?: { width: number; height: number }) => void;
 			onHint?: (hint: { ruleId: string; text: string; path?: string; line?: number }) => void;
 			onBlockFinished?: (event: {
 				id: string;
@@ -173,9 +179,11 @@ vi.mock("@operator/terminal-react", () => {
 			}) => void;
 			focusToken?: number;
 			visible?: boolean;
+			marks?: readonly { pattern: string; regex: boolean; colour: string }[];
 		}) => {
 			mockState.focusToken = props.focusToken;
 			mockState.visible = props.visible;
+			mockState.marks = props.marks;
 			mockState.onHint = props.onHint;
 			mockState.onBlockFinished = props.onBlockFinished;
 			mockState.altScreenActive = props.altScreenActive;
@@ -204,6 +212,7 @@ vi.mock("@operator/terminal-react", () => {
 		initTerminalCoreFromUrl: async () => {
 			mockState.wasmInits += 1;
 		},
+		markRegexValid: (_pattern: string): boolean | null => null,
 		createTerminalCore: () => {
 			let generation = 0;
 			const core: MockCore = {
@@ -283,6 +292,7 @@ vi.mock("../theme/skin-context", () => ({
 import { BlockTerminal, type BlockTerminalHistoryBlock } from "./BlockTerminal";
 import { terminalPredictiveEchoThresholdMs } from "../lib/terminal-predictive-echo";
 import { useUiStore } from "../stores/ui-store";
+import { terminalBackgroundColor } from "../lib/terminal-background";
 import { operatorBridge } from "../lib/bridge";
 import { openLinkInSystemBrowser } from "../lib/external-link-policy";
 
@@ -340,6 +350,7 @@ function renderTerminal(
 		focusToken?: number;
 		visible?: boolean;
 		workspacePath?: string;
+		requestOlder?: (before: number) => void;
 	} = {},
 ) {
 	const localListeners: Array<(bytes: Uint8Array) => void> = [];
@@ -352,7 +363,9 @@ function renderTerminal(
 			return () => {};
 		},
 		resize: vi.fn(),
+		appearance: vi.fn(),
 		dispose: vi.fn(),
+		...(options.requestOlder ? { requestOlder: options.requestOlder } : {}),
 	};
 	render(
 		<QueryClientProvider client={new QueryClient()}>
@@ -378,7 +391,7 @@ function renderTerminal(
 			return typeof value === "function" ? (value as (...a: unknown[]) => unknown).bind(c) : value;
 		},
 	});
-	return { core: proxy };
+	return { core: proxy, transport };
 }
 
 beforeEach(() => {
@@ -406,6 +419,7 @@ beforeEach(() => {
 	mockState.emitGeometry = undefined;
 	mockState.focusToken = undefined;
 	mockState.visible = undefined;
+	mockState.marks = undefined;
 	subscribers.clear();
 });
 
@@ -553,6 +567,31 @@ describe("BlockTerminal", () => {
 		renderTerminal();
 		await waitFor(() => expect(mockState.host?.predictiveEcho).toEqual({ thresholdMs: terminalPredictiveEchoThresholdMs }));
 		useUiStore.setState({ terminalPredictiveEcho: false });
+	});
+
+	it("gives the surface no marks while Settings has none", async () => {
+		useUiStore.setState({ terminalMarks: [] });
+		renderTerminal();
+		await waitFor(() => expect(mockState.marks).toEqual([]));
+	});
+
+	it("hands Settings' highlights to the surface as renderer rules and follows edits", async () => {
+		useUiStore.setState({ terminalMarks: [{ id: "a", pattern: "error", regex: false, colour: "red" }] });
+		renderTerminal();
+		await waitFor(() =>
+			expect(mockState.marks).toEqual([{ pattern: "error", regex: false, colour: "color-mix(in srgb, var(--terminal-ansi-1) 40%, transparent)" }]),
+		);
+		act(() => {
+			useUiStore.setState({
+				terminalMarks: [
+					{ id: "a", pattern: "error", regex: false, colour: "red" },
+					{ id: "b", pattern: "(broken", regex: true, colour: "green" },
+					{ id: "c", pattern: "FAIL|panic", regex: true, colour: "yellow" },
+				],
+			});
+		});
+		await waitFor(() => expect(mockState.marks?.map((mark) => mark.pattern)).toEqual(["error", "FAIL|panic"]));
+		useUiStore.setState({ terminalMarks: [] });
 	});
 
 	it("hands the host's focus token to the surface", async () => {
@@ -880,5 +919,69 @@ describe("BlockTerminal replay paint", () => {
 		emit(encode("live output"));
 		await waitFor(() => expect(mockState.feeds.length).toBeGreaterThan(1));
 		expect(onReplayPainted).toHaveBeenCalledTimes(1);
+	});
+});
+
+describe("BlockTerminal paste confirm", () => {
+	it("asks before an unsafe paste and answers with the button pressed", async () => {
+		renderTerminal();
+		await waitFor(() => expect(mockState.host?.confirmPaste).toBeTypeOf("function"));
+		let answer: Promise<boolean> = Promise.resolve(false);
+		act(() => {
+			answer = mockState.host!.confirmPaste!("git pull\nnpm install", "newline");
+		});
+		const dialog = await screen.findByRole("dialog", { name: "Paste into the terminal?" });
+		expect(dialog).toHaveTextContent("git pull");
+		await userEvent.click(screen.getByRole("button", { name: "Paste" }));
+		await expect(answer).resolves.toBe(true);
+	});
+
+	it("answers no when the user cancels", async () => {
+		renderTerminal();
+		await waitFor(() => expect(mockState.host?.confirmPaste).toBeTypeOf("function"));
+		let answer: Promise<boolean> = Promise.resolve(true);
+		act(() => {
+			answer = mockState.host!.confirmPaste!("a\x1b", "control");
+		});
+		await screen.findByRole("dialog", { name: "Paste into the terminal?" });
+		await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+		await expect(answer).resolves.toBe(false);
+	});
+});
+
+describe("BlockTerminal appearance", () => {
+	it("sends nothing until the surface has measured a cell", async () => {
+		const { transport } = renderTerminal();
+		await waitFor(() => expect(mockState.emitGeometry).toBeDefined());
+		expect(transport.appearance).not.toHaveBeenCalled();
+	});
+
+	it("sends the cell size in device pixels and the terminal's colours once the surface measures", async () => {
+		const { transport } = renderTerminal();
+		await waitFor(() => expect(mockState.emitGeometry).toBeDefined());
+		act(() => mockState.emitGeometry?.(80, 24, { width: 8.4, height: 16.8 }));
+		expect(transport.appearance).toHaveBeenLastCalledWith({
+			cellWidth: 8,
+			cellHeight: 17,
+			foreground: "#ffffff",
+			background: terminalBackgroundColor(useUiStore.getState().terminalBackground),
+		});
+	});
+});
+
+describe("BlockTerminal load older output", () => {
+	it("hands the surface a loader that asks the transport for the rows above a stable row", async () => {
+		const requestOlder = vi.fn();
+		renderTerminal({ requestOlder });
+		await waitFor(() => expect(mockState.host?.loadOlderOutput).toBeTypeOf("function"));
+		mockState.host!.loadOlderOutput!(4096);
+		expect(requestOlder).toHaveBeenCalledWith(4096);
+		expect(mockState.strings?.loadOlderOutput).toBe("Load older output");
+	});
+
+	it("offers no loader when the transport cannot fetch older output", async () => {
+		renderTerminal();
+		await waitFor(() => expect(mockState.host?.confirmPaste).toBeTypeOf("function"));
+		expect(mockState.host?.loadOlderOutput).toBeUndefined();
 	});
 });

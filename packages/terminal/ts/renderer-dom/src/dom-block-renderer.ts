@@ -32,7 +32,7 @@ import { type TextRows } from "./selection-text.js";
 import { type DetectedLink, type LinkProvider } from "./link-providers.js";
 import { type HintEvent } from "./hint-mode.js";
 import { DEFAULT_HINT_RULES, type HintRule } from "./hint-rules.js";
-import { renderedRows, snapshotTextRows, type RenderedRow } from "./selection-view.js";
+import { renderedRowRefs, renderedRows, snapshotTextRows, type RenderedRow } from "./selection-view.js";
 import { styleVarsString } from "./style-vars.js";
 import { warpDarkTheme } from "./theme-warp.js";
 import {
@@ -45,7 +45,7 @@ import {
 	type RendererChrome,
 } from "./renderer-chrome.js";
 import { RendererOverlays } from "./renderer-overlays.js";
-import { RendererSelection } from "./renderer-selection.js";
+import { RendererHighlights, type FindHighlights, type MarkRule } from "./renderer-highlights.js";
 import { ScrollTracker, type ScrollAnchor } from "./scroll-tracker.js";
 import { wireRenderer, type RendererWiring } from "./renderer-wiring.js";
 import { ListenerSet } from "./listener-set.js";
@@ -97,10 +97,11 @@ export class DomBlockRenderer implements BlockRenderer {
 		layout: () => this.layout(),
 		paintedFirstStableRow: () => this.paintedFirstStableRow,
 	});
-	private readonly selection = new RendererSelection({
+	private readonly highlights = new RendererHighlights({
 		hasCore: () => this.core !== null,
+		painting: () => this.painting(),
 		textRows: () => this.overlays.textRows(),
-		renderedRows: () => this.renderedRows(),
+		rowRefs: () => renderedRowRefs(this.altRoot, this.filteredBlocks, this.elements.blockElements, this.paintedFirstStableRow),
 		cellWidth: () => this.cellMetrics().cellWidth,
 	});
 	private readonly overlays = new RendererOverlays({
@@ -242,6 +243,12 @@ export class DomBlockRenderer implements BlockRenderer {
 		this.elements.scrollTo(id, align, this.knownBlockId);
 	}
 
+	scrollToRow(row: number, align: "start" | "center" | "end"): boolean {
+		const moved = this.scroll.scrollToRow(row, align);
+		if (moved) this.scheduleRepaint();
+		return moved;
+	}
+
 	scrollToLatest(): void {
 		const c = this.container;
 		if (!c) return;
@@ -264,27 +271,35 @@ export class DomBlockRenderer implements BlockRenderer {
 	}
 
 	selectionBegin(point: SelectionPoint, kind: SelectionKind): void {
-		this.selection.begin(point, kind);
+		this.highlights.selection.begin(point, kind);
 	}
 
 	selectionUpdate(point: SelectionPoint): void {
-		this.selection.update(point);
+		this.highlights.selection.update(point);
 	}
 
 	selectionClear(): void {
-		this.selection.clear();
+		this.highlights.selection.clear();
 	}
 
 	hasSelection(): boolean {
-		return this.selection.view() !== null;
+		return this.highlights.selection.view() !== null;
 	}
 
 	selectedText(): string | null {
-		return this.selection.text();
+		return this.highlights.selection.text();
 	}
 
 	onSelectionChange(listener: () => void): () => void {
-		return this.selection.onChange(listener);
+		return this.highlights.selection.onChange(listener);
+	}
+
+	setMarks(rules: readonly MarkRule[]): void {
+		this.highlights.setMarks(rules);
+	}
+
+	setFindHighlights(find: FindHighlights | null): void {
+		this.highlights.setFind(find);
 	}
 
 	private rawTextRows(): TextRows {
@@ -398,7 +413,7 @@ export class DomBlockRenderer implements BlockRenderer {
 		this.paintedFirstStableRow = 0;
 		this.lastPaintAt = null;
 		this.wasAltActive = false;
-		this.selection.reset();
+		this.highlights.reset();
 		this.measurer.reset();
 	}
 
@@ -495,7 +510,7 @@ export class DomBlockRenderer implements BlockRenderer {
 		const alt = snapshot.altScreen;
 		if (alt) {
 			if (!this.wasAltActive) {
-				this.selection.drop();
+				this.highlights.selection.drop();
 				this.wasAltActive = true;
 			}
 			showAltRoot(container, chrome, () => this.ensureAltRoot(container), styleVarsString(this.theme, this.font));
@@ -506,14 +521,14 @@ export class DomBlockRenderer implements BlockRenderer {
 			return;
 		}
 		showBlockList(container, chrome, this.altRoot);
-		if (this.wasAltActive) this.selection.drop();
+		if (this.wasAltActive) this.highlights.selection.drop();
 		this.wasAltActive = false;
 
 		const blocks = this.finished.detect(snapshot, () => shownToUser(this.hostVisible, this.container));
 		if (blocks.length > 0) {
 			this.knownBlockId = blocks[0]!.id;
 		}
-		this.selection.dropUnlessShown(blocks);
+		this.highlights.selection.dropUnlessShown(blocks);
 		const cursor: CursorPlacement | null = primaryCursorPlacement(snapshot);
 		const cursorPaint = cursor
 			? cursorPaintFor({ source: snapshot, row: cursor.row, column: cursor.column, theme: this.theme, features: this.activeFeatures, focused: this.focused, decoder: this.decoder })
@@ -554,7 +569,7 @@ export class DomBlockRenderer implements BlockRenderer {
 	}
 
 	private finishPaint(paintedAt: number | undefined): void {
-		this.selection.paintFill();
+		this.highlights.paint();
 		this.overlays.refreshLinks();
 		this.overlays.paintDecorations();
 		this.overlays.paintHints();

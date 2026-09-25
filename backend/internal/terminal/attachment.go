@@ -62,6 +62,7 @@ type attachment struct {
 	cancel       context.CancelFunc
 	rows         uint16 // last size the client asked for; re-applied on every attach
 	cols         uint16
+	appearance   *ports.TerminalAppearance
 	closed       bool
 	exited       bool
 	opened       bool
@@ -293,6 +294,20 @@ func (a *attachment) ack(bytes uint64) error {
 	return flow.Ack(bytes)
 }
 
+func (a *attachment) requestOlder(before uint64) error {
+	a.mu.Lock()
+	pty := a.pty
+	a.mu.Unlock()
+	if pty == nil {
+		return nil
+	}
+	older, ok := pty.(ports.OlderOutputRequester)
+	if !ok {
+		return nil
+	}
+	return older.RequestOlder(before)
+}
+
 // size returns the client's last requested grid (zero before the first
 // open/resize recorded one). The attach path reads it so the Stream starts at
 // the client's grid instead of the kernel default.
@@ -315,6 +330,7 @@ func (a *attachment) setPTY(p ports.Stream) bool {
 	a.pty = p
 	a.inputReady = false
 	rows, cols := a.rows, a.cols
+	appearance := a.appearance
 	shouldOpen := !a.opened
 	if shouldOpen {
 		a.opened = true
@@ -323,6 +339,9 @@ func (a *attachment) setPTY(p ports.Stream) bool {
 	a.mu.Unlock()
 	if rows > 0 && cols > 0 {
 		_ = p.Resize(rows, cols)
+	}
+	if appearance != nil {
+		_ = applyAppearance(p, *appearance)
 	}
 	if shouldOpen && onOpen != nil {
 		onOpen()

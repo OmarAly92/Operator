@@ -17,7 +17,13 @@ import { terminalDebug, terminalSpan } from "../lib/terminal-debug";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { getApiBaseUrl } from "../lib/api-client";
 import { captureRendererEvent } from "../lib/telemetry";
-import { createTerminalMux, muxUrlFromApiBase, type TerminalMux } from "../lib/terminal-mux";
+import {
+	createTerminalMux,
+	muxUrlFromApiBase,
+	type TerminalAppearance,
+	type TerminalHealth,
+	type TerminalMux,
+} from "../lib/terminal-mux";
 import { sessionIsActive, type WorkspaceSession } from "../types/workspace";
 import { workspaceQueryKey } from "./useWorkspaceQuery";
 
@@ -170,6 +176,7 @@ export function useTerminalSession(session: WorkspaceSession | undefined, option
 	// False only while the initial replay is being buffered — the pane keeps a
 	// cover over xterm until the burst has been written and parsed.
 	const [replaySettled, setReplaySettled] = useState(true);
+	const [health, setHealth] = useState<TerminalHealth>("ok");
 
 	const sessionRef = useRef(session);
 	sessionRef.current = session;
@@ -207,6 +214,7 @@ export function useTerminalSession(session: WorkspaceSession | undefined, option
 		// computed height and width are the literal "100%", which FitAddon parses
 		// as 100px and turns into a 12-column proposal of nothing.
 		surfaceGeometry: null as { cols: number; rows: number } | null,
+		appearance: null as TerminalAppearance | null,
 		attempts: 0,
 		generation: 0,
 		inputReady: false,
@@ -428,6 +436,7 @@ export function useTerminalSession(session: WorkspaceSession | undefined, option
 		r.generation = generation;
 		r.inputReady = false;
 		teardownMux();
+		setHealth("ok");
 
 		const mux = (optionsRef.current.createMux ?? defaultCreateMux)();
 		r.mux = mux;
@@ -631,6 +640,7 @@ export function useTerminalSession(session: WorkspaceSession | undefined, option
 				r.attempts = 0;
 				setError(undefined);
 				transition("attached");
+				if (r.appearance) mux.appearance?.(handle, r.appearance);
 				const measured = r.surfaceGeometry;
 				if (measured) {
 					const published = r.lastPublishedGrid;
@@ -686,6 +696,10 @@ export function useTerminalSession(session: WorkspaceSession | undefined, option
 				teardownMux();
 				void captureRendererEvent("opr.renderer.terminal_attach_failed", { reason: "pane_error" });
 				invalidateWorkspaces();
+			}),
+			mux.onHealth(handle, (next) => {
+				if (!isCurrentAttachment(generation, handle, mux)) return;
+				setHealth(next);
 			}),
 			mux.onConnectionChange((connectionState) => {
 				if (!isCurrentAttachment(generation, handle, mux)) return;
@@ -989,12 +1003,23 @@ export function useTerminalSession(session: WorkspaceSession | undefined, option
 					r.byteListeners.delete(listener);
 				};
 			},
+			requestOlder: (before: number) => {
+				const r = runtime.current;
+				if (!r.mux || !r.handle || !r.inputReady || before <= 0) return;
+				r.mux.requestOlder(r.handle, before);
+			},
 			resize: (cols: number, rows: number) => {
 				const r = runtime.current;
 				if (cols <= 0 || rows <= 0) return;
 				r.surfaceGeometry = { cols, rows };
 				if (!r.inputReady) return;
 				publishGrid(cols, rows);
+			},
+			appearance: (appearance: TerminalAppearance) => {
+				const r = runtime.current;
+				r.appearance = appearance;
+				if (!r.mux || !r.handle || !r.inputReady) return;
+				r.mux.appearance?.(r.handle, appearance);
 			},
 			dispose: () => {
 				const r = runtime.current;
@@ -1005,6 +1030,18 @@ export function useTerminalSession(session: WorkspaceSession | undefined, option
 		[],
 	);
 
+	const reconnectAfterRestart = useCallback(() => {
+		const r = runtime.current;
+		setHealth("ok");
+		if (r.detached || !r.terminal || !r.handle) return;
+		if (optionsRef.current.daemonReady) {
+			transition("connecting");
+			connect();
+		} else {
+			transition("reattaching");
+		}
+	}, [connect, transition]);
+
 	const onReplayReady = useCallback(() => {
 		const r = runtime.current;
 		if (r.replayReadySeen) return;
@@ -1012,5 +1049,15 @@ export function useTerminalSession(session: WorkspaceSession | undefined, option
 		r.flushReplay?.();
 	}, []);
 
-	return { attach, state, error, replaySettled, syncVisibleSize, transport, onReplayReady };
+	return {
+		attach,
+		state,
+		error,
+		health,
+		replaySettled,
+		syncVisibleSize,
+		transport,
+		onReplayReady,
+		reconnectAfterRestart,
+	};
 }

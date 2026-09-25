@@ -89,6 +89,7 @@ type SessionService interface {
 	Restore(ctx context.Context, id domain.SessionID, grid ports.PaneGrid) (sessionsvc.RestoreOutcome, error)
 	ResumeAgent(ctx context.Context, id domain.SessionID) (sessionsvc.ResumeAgentOutcome, error)
 	RelaunchAgent(ctx context.Context, id domain.SessionID, cfg sessionmanager.RelaunchAgentConfig) (sessionsvc.ResumeAgentOutcome, error)
+	RestartTerminal(ctx context.Context, id domain.SessionID, grid ports.PaneGrid) (sessionsvc.ResumeAgentOutcome, error)
 	SwitchAgent(ctx context.Context, id domain.SessionID, in sessionsvc.SwitchAgentInput) (domain.AgentSwitch, error)
 	ListAgentSwitches(ctx context.Context, id domain.SessionID) ([]domain.AgentSwitch, error)
 	SubmitAgentHandoff(ctx context.Context, id domain.SessionID, switchID domain.AgentSwitchID, sourceGenerationID domain.AgentGenerationID, handoff json.RawMessage) (domain.AgentSwitch, error)
@@ -226,6 +227,7 @@ func (c *SessionsController) Register(r chi.Router) {
 	r.Post("/sessions/{sessionId}/restore", c.restore)
 	r.Post("/sessions/{sessionId}/resume-agent", c.resumeAgent)
 	r.Post("/sessions/{sessionId}/relaunch-agent", c.relaunchAgent)
+	r.Post("/sessions/{sessionId}/restart-terminal", c.restartTerminal)
 	r.Get("/sessions/{sessionId}/agent-switches", c.listAgentSwitches)
 	r.Post("/sessions/{sessionId}/agent-switches/{switchId}/handoff", c.submitAgentHandoff)
 	r.Get("/sessions/{sessionId}/blocks", c.listBlockEvents)
@@ -1092,12 +1094,11 @@ func (c *SessionsController) restore(w http.ResponseWriter, r *http.Request) {
 		apispec.NotImplemented(w, r, "POST", "/api/v1/sessions/{sessionId}/restore")
 		return
 	}
-	var in RestoreSessionRequest
-	if err := json.NewDecoder(r.Body).Decode(&in); err != nil && !errors.Is(err, io.EOF) {
-		envelope.WriteAPIError(w, r, http.StatusBadRequest, "bad_request", "INVALID_JSON", "Invalid JSON body", nil)
+	grid, ok := decodePaneGrid(w, r)
+	if !ok {
 		return
 	}
-	out, err := c.Svc.Restore(r.Context(), sessionID(r), ports.PaneGrid{Cols: in.Cols, Rows: in.Rows})
+	out, err := c.Svc.Restore(r.Context(), sessionID(r), grid)
 	if err != nil {
 		envelope.WriteError(w, r, err)
 		return
@@ -1209,6 +1210,37 @@ func (c *SessionsController) relaunchAgent(w http.ResponseWriter, r *http.Reques
 		RelaunchMode: out.Mode,
 		Session:      sessionView(out.Session),
 	})
+}
+
+func (c *SessionsController) restartTerminal(w http.ResponseWriter, r *http.Request) {
+	if c.Svc == nil {
+		apispec.NotImplemented(w, r, "POST", "/api/v1/sessions/{sessionId}/restart-terminal")
+		return
+	}
+	grid, ok := decodePaneGrid(w, r)
+	if !ok {
+		return
+	}
+	out, err := c.Svc.RestartTerminal(r.Context(), sessionID(r), grid)
+	if err != nil {
+		envelope.WriteError(w, r, err)
+		return
+	}
+	envelope.WriteJSON(w, http.StatusOK, RestartTerminalResponse{
+		OK:          true,
+		SessionID:   sessionID(r),
+		RestartMode: out.Mode,
+		Session:     sessionView(out.Session),
+	})
+}
+
+func decodePaneGrid(w http.ResponseWriter, r *http.Request) (ports.PaneGrid, bool) {
+	var in RestoreSessionRequest
+	if err := json.NewDecoder(r.Body).Decode(&in); err != nil && !errors.Is(err, io.EOF) {
+		envelope.WriteAPIError(w, r, http.StatusBadRequest, "bad_request", "INVALID_JSON", "Invalid JSON body", nil)
+		return ports.PaneGrid{}, false
+	}
+	return ports.PaneGrid{Cols: in.Cols, Rows: in.Rows}, true
 }
 
 func (c *SessionsController) switchAgent(w http.ResponseWriter, r *http.Request) {

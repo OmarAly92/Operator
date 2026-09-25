@@ -2,7 +2,7 @@ import { act, renderHook } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { MuxConnectionState, TerminalMux } from "../lib/terminal-mux";
+import type { MuxConnectionState, TerminalAppearance, TerminalHealth, TerminalMux } from "../lib/terminal-mux";
 import type { WorkspaceSession } from "../types/workspace";
 import { useTerminalSession, type AttachableTerminal } from "./useTerminalSession";
 import { workspaceQueryKey } from "./useWorkspaceQuery";
@@ -28,6 +28,8 @@ type FakeMux = {
 	inputs: Array<[string, string]>;
 	closes: string[];
 	acks: number[];
+	appearances: Array<[string, TerminalAppearance]>;
+	olders: Array<[string, number]>;
 	events: string[];
 	disposed: boolean;
 	emitData(id: string, text: string): void;
@@ -35,6 +37,7 @@ type FakeMux = {
 	emitOpened(id: string): void;
 	emitExit(id: string): void;
 	emitError(id: string, message: string): void;
+	emitHealth(id: string, health: TerminalHealth): void;
 	emitConnection(state: MuxConnectionState): void;
 };
 
@@ -50,6 +53,7 @@ function createFakeMux(): FakeMux {
 	const exit = new Map<string, Set<() => void>>();
 	const opened = new Map<string, Set<() => void>>();
 	const error = new Map<string, Set<(message: string) => void>>();
+	const health = new Map<string, Set<(next: TerminalHealth) => void>>();
 	const connection = new Set<(state: MuxConnectionState) => void>();
 
 	const fake: FakeMux = {
@@ -59,6 +63,8 @@ function createFakeMux(): FakeMux {
 		inputs: [],
 		closes: [],
 		acks: [],
+		appearances: [],
+		olders: [],
 		events: [],
 		disposed: false,
 		mux: {
@@ -73,10 +79,13 @@ function createFakeMux(): FakeMux {
 				fake.events.push(`close:${id}`);
 			},
 			ack: (_id, bytes) => fake.acks.push(bytes),
+			appearance: (id, appearance) => fake.appearances.push([id, appearance]),
+			requestOlder: (id, before) => fake.olders.push([id, before]),
 			onData: (id, listener) => subscribe(data, id, listener),
 			onExit: (id, listener) => subscribe(exit, id, listener),
 			onOpened: (id, listener) => subscribe(opened, id, listener),
 			onError: (id, listener) => subscribe(error, id, listener),
+			onHealth: (id, listener) => subscribe(health, id, listener),
 			subscribeBlocks: () => undefined,
 			unsubscribeBlocks: () => undefined,
 			onBlock: () => () => undefined,
@@ -95,6 +104,7 @@ function createFakeMux(): FakeMux {
 		emitOpened: (id) => opened.get(id)?.forEach((listener) => listener()),
 		emitExit: (id) => exit.get(id)?.forEach((listener) => listener()),
 		emitError: (id, message) => error.get(id)?.forEach((listener) => listener(message)),
+		emitHealth: (id, next) => health.get(id)?.forEach((listener) => listener(next)),
 		emitConnection: (state) => connection.forEach((listener) => listener(state)),
 	};
 	return fake;
@@ -234,6 +244,42 @@ afterEach(() => {
 });
 
 describe("useTerminalSession", () => {
+	it("reports a hung terminal from the daemon and reconnects fresh after a restart", () => {
+		const { view, muxes } = setup();
+		act(() => muxes[0].emitOpened("handle-1"));
+		expect(view.result.current.health).toBe("ok");
+		act(() => muxes[0].emitHealth("other-handle", "hung"));
+		expect(view.result.current.health).toBe("ok");
+		act(() => muxes[0].emitHealth("handle-1", "hung"));
+		expect(view.result.current.health).toBe("hung");
+
+		act(() => view.result.current.reconnectAfterRestart());
+
+		expect(view.result.current.health).toBe("ok");
+		expect(view.result.current.state).toBe("connecting");
+		expect(muxes).toHaveLength(2);
+		expect(muxes[0].closes).toEqual(["handle-1"]);
+		expect(muxes[0].disposed).toBe(true);
+		expect(muxes[1].opens.map(([id]) => id)).toEqual(["handle-1"]);
+		act(() => muxes[0].emitHealth("handle-1", "hung"));
+		expect(view.result.current.health).toBe("ok");
+	});
+
+	it("reconnects after a restart even when the hung attachment already exited", () => {
+		const { view, muxes } = setup();
+		act(() => muxes[0].emitHealth("handle-1", "hung"));
+		act(() => muxes[0].emitExit("handle-1"));
+		expect(view.result.current.state).toBe("exited");
+		expect(view.result.current.health).toBe("hung");
+
+		act(() => view.result.current.reconnectAfterRestart());
+
+		expect(view.result.current.state).toBe("connecting");
+		expect(view.result.current.health).toBe("ok");
+		expect(muxes).toHaveLength(2);
+		expect(muxes[1].opens.map(([id]) => id)).toEqual(["handle-1"]);
+	});
+
 	it("opens the pane at the terminal's size and reaches attached on the server ack", () => {
 		const { view, muxes } = setup();
 		expect(view.result.current.state).toBe("connecting");
@@ -241,6 +287,19 @@ describe("useTerminalSession", () => {
 		expect(muxes[0].opens).toEqual([["handle-1", 80, 24]]);
 		act(() => muxes[0].emitOpened("handle-1"));
 		expect(view.result.current.state).toBe("attached");
+	});
+
+	it("asks the mux for older output only while attached", () => {
+		const { view, muxes, detach } = setup();
+		act(() => view.result.current.transport.requestOlder(4096));
+		expect(muxes[0].olders).toEqual([]);
+		act(() => muxes[0].emitOpened("handle-1"));
+		act(() => view.result.current.transport.requestOlder(0));
+		act(() => view.result.current.transport.requestOlder(4096));
+		expect(muxes[0].olders).toEqual([["handle-1", 4096]]);
+		detach();
+		act(() => view.result.current.transport.requestOlder(2048));
+		expect(muxes[0].olders).toEqual([["handle-1", 4096]]);
 	});
 
 	it("acks the transport every 5,000 bytes", () => {
@@ -255,6 +314,23 @@ describe("useTerminalSession", () => {
 		act(() => muxes[0].emitBytes("handle-1", chunk));
 		act(() => muxes[0].emitBytes("handle-1", chunk));
 		expect(muxes[0].acks).toEqual([6_000, 10_000]);
+	});
+
+	it("sends the terminal's appearance once attached and again on every reopen", () => {
+		const appearance: TerminalAppearance = { cellWidth: 16, cellHeight: 34, foreground: "#ffffff", background: "#1d2022" };
+		const { view, muxes } = setup();
+		act(() => view.result.current.transport.appearance(appearance));
+		expect(muxes[0].appearances).toEqual([]);
+		act(() => muxes[0].emitOpened("handle-1"));
+		expect(muxes[0].appearances).toEqual([["handle-1", appearance]]);
+		const next: TerminalAppearance = { ...appearance, cellWidth: 18 };
+		act(() => view.result.current.transport.appearance(next));
+		expect(muxes[0].appearances).toEqual([
+			["handle-1", appearance],
+			["handle-1", next],
+		]);
+		act(() => muxes[0].emitOpened("handle-1"));
+		expect(muxes[0].appearances.at(-1)).toEqual(["handle-1", next]);
 	});
 
 	it("stays idle when the session has no terminal handle", () => {

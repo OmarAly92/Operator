@@ -17,6 +17,7 @@ struct OpenBlock {
 pub(crate) struct HistoryReceiver {
     first_stable_row: u64,
     wanted: usize,
+    cols: usize,
     seen_rows: usize,
     vte: VteParser,
     screen: Option<ScreenGrid>,
@@ -32,6 +33,7 @@ impl HistoryReceiver {
         Self {
             first_stable_row: 0,
             wanted: 0,
+            cols: 0,
             seen_rows: 0,
             vte: VteParser::new(),
             screen: None,
@@ -49,6 +51,7 @@ impl HistoryReceiver {
 
     pub fn begin(&mut self, first_stable_row: u64, rows: usize, cols: usize, mode: WidthMode) {
         let mut screen = ScreenGrid::new(rows.max(1) + 1, cols.max(1));
+        self.cols = screen.cols();
         screen.set_records_eviction(false);
         screen.set_width_mode(mode);
         self.first_stable_row = first_stable_row;
@@ -90,7 +93,7 @@ impl HistoryReceiver {
         consumed
     }
 
-    pub fn take(&mut self) -> Option<(u64, Vec<HistoryRow>, Vec<HistoryBlock>)> {
+    pub fn take(&mut self) -> Option<(u64, Vec<HistoryRow>, Vec<HistoryBlock>, usize)> {
         if !self.done {
             return None;
         }
@@ -111,7 +114,24 @@ impl HistoryReceiver {
             self.first_stable_row,
             rows,
             std::mem::take(&mut self.blocks),
+            self.cols,
         ))
+    }
+}
+
+impl crate::TerminalCore {
+    pub(crate) fn drain_history(&mut self) {
+        if let Some((first_stable_row, rows, blocks, cols)) = self.history.take() {
+            let count = rows.len();
+            if self
+                .parser
+                .apply_history_chunk(first_stable_row, rows, blocks)
+                && cols > self.parser.columns()
+            {
+                self.parser.mark_history_stale(count, cols);
+            }
+            self.debug_check();
+        }
     }
 }
 
@@ -150,7 +170,7 @@ impl Perform for ScreenPerform<'_> {
     }
 
     fn osc_dispatch(&mut self, params: &[&[u8]], _bell_terminated: bool) {
-        if params.first().copied() == Some(b"8".as_slice()) {
+        if crate::program::OscKind::of(params) == crate::program::OscKind::Hyperlink {
             let id =
                 crate::hyperlink::parse_osc8(&params[1..]).and_then(|link| self.links.intern(link));
             self.style.link = id.unwrap_or(0);

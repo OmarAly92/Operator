@@ -55,6 +55,7 @@ import { DaemonStartupLoader } from "./DaemonStartupLoader";
 import { TicketBadge } from "./tickets/TicketBadge";
 import { ArchiveTicketItem } from "./tickets/ArchiveTicketItem";
 import { useShellMaybe } from "../lib/shell-context";
+import { useTerminalTitle } from "../lib/terminal-titles";
 import { dotGlow } from "../theme/effects";
 import { useTicketsQuery } from "../hooks/useTicketsQuery";
 import { isTicketInArchive } from "../lib/ticket-presentation";
@@ -739,6 +740,7 @@ function SessionCard({
 			: "";
 	const showLocation = showBranch || location !== "";
 	const prSummaries = sessionPRDisplaySummaries(session, useSessionScmSummary(session.id).data);
+	const terminalTitle = useTerminalTitle(session.terminalHandleId);
 	const termination = useTerminateSessionState(session.id);
 	const showTerminate = interactive && session.isTerminated !== true && onTerminate;
 	// Same action as the sidebar row's: the daemon owns where the session lives,
@@ -859,6 +861,16 @@ function SessionCard({
 					>
 						{session.title}
 					</div>
+					{terminalTitle ? (
+						<div
+							aria-label={t("terminal.programTitleAria", { title: terminalTitle })}
+							className={cn("mt-0.5 truncate text-2xs leading-snug text-muted-foreground", cornerControlPadding)}
+							data-testid="board-terminal-title"
+							title={terminalTitle}
+						>
+							{terminalTitle}
+						</div>
+					) : null}
 					{showLocation && (
 						<div className="mt-1 flex min-w-0 items-center gap-1 font-mono text-micro leading-normal text-passive">
 							{showBranch && (

@@ -130,6 +130,8 @@ type RuntimeConfig struct {
 	// full agent repaint before anything has been typed.
 	Cols int
 	Rows int
+
+	RestoreHistory bool
 }
 
 // RuntimeHandle identifies a live runtime instance. Its ID is opaque outside
@@ -190,6 +192,10 @@ type PaneCapturer interface {
 // call site, so a Stream without it simply has no flow control.
 type FlowControlled interface {
 	Ack(bytes uint64) error
+}
+
+type OlderOutputRequester interface {
+	RequestOlder(before uint64) error
 }
 
 // Attacher opens a fresh attach Stream for a session handle, sized rows x cols from

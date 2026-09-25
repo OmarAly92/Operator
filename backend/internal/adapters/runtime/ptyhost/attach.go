@@ -37,6 +37,7 @@ func (r *Runtime) AttachWithHistory(ctx context.Context, handle ports.RuntimeHan
 	if err != nil {
 		return nil, fmt.Errorf("ptyhost: dial host for %q: %w", handle.ID, err)
 	}
+	r.ensureProgramWatch(handle.ID, sess)
 
 	// The birth resize is handshaken synchronously, on the bare conn, before
 	// any pipe exists. It is also what the host waits for before it renders
@@ -202,6 +203,19 @@ func (s *loopbackStream) Ack(consumed uint64) error {
 		return err
 	}
 	frame, err := EncodeMessage(MsgAck, payload)
+	if err != nil {
+		return err
+	}
+	_, err = s.conn.Write(frame)
+	return err
+}
+
+func (s *loopbackStream) RequestOlder(before uint64) error {
+	payload, err := json.Marshal(OlderReq{Before: before})
+	if err != nil {
+		return err
+	}
+	frame, err := EncodeMessage(MsgOlderReq, payload)
 	if err != nil {
 		return err
 	}

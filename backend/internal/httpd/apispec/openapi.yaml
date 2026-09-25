@@ -4324,6 +4324,63 @@ paths:
       summary: Kill the running agent and relaunch it on a new conversation
       tags:
       - sessions
+  /api/v1/sessions/{sessionId}/restart-terminal:
+    post:
+      operationId: restartSessionTerminal
+      parameters:
+      - description: Session identifier, e.g. project-1.
+        in: path
+        name: sessionId
+        required: true
+        schema:
+          description: Session identifier, e.g. project-1.
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RestartTerminalRequest'
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RestartTerminalResponse'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Conflict
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: Stop a session's unresponsive terminal host and resume the agent in
+        a fresh one
+      tags:
+      - sessions
   /api/v1/sessions/{sessionId}/restore:
     post:
       operationId: restoreSession
@@ -8123,6 +8180,40 @@ components:
       required:
       - ok
       - resolved
+      type: object
+    RestartTerminalRequest:
+      properties:
+        cols:
+          description: Columns of the terminal pane that shows the session, so the
+            fresh pty is born at that width. Omit when unknown.
+          maximum: 1000
+          minimum: 1
+          type: integer
+        rows:
+          description: Rows of the terminal pane that shows the session; see cols.
+          maximum: 1000
+          minimum: 1
+          type: integer
+      type: object
+    RestartTerminalResponse:
+      properties:
+        ok:
+          type: boolean
+        restartMode:
+          enum:
+          - native
+          - saved_prompt
+          - fresh
+          type: string
+        session:
+          $ref: '#/components/schemas/ControllersSessionView'
+        sessionId:
+          type: string
+      required:
+      - ok
+      - sessionId
+      - restartMode
+      - session
       type: object
     RestoreReviewResponse:
       properties:

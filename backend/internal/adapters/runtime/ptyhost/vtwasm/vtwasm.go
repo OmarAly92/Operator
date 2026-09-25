@@ -31,8 +31,9 @@ type Parser struct {
 const TerminalIdentity = "Operator"
 
 type Limits struct {
-	Rows  uint32
-	Bytes uint32
+	Rows          uint32
+	Bytes         uint32
+	ColdRingBytes uint32
 }
 
 type MemoryStats struct {
@@ -59,30 +60,21 @@ func New(ctx context.Context, wasmModule []byte, cols, rows uint32, limits Limit
 		_ = rt.Close(ctx)
 		return nil, err
 	}
+	if limits.ColdRingBytes > 0 {
+		if _, err := mod.ExportedFunction("vt_set_cold_ring").Call(ctx, uint64(p.handle), uint64(limits.ColdRingBytes)); err != nil {
+			_ = rt.Close(ctx)
+			return nil, fmt.Errorf("vtwasm: set_cold_ring: %w", err)
+		}
+	}
 	return p, nil
 }
 
 const memoryStatsBytes = 16
 
 func (p *Parser) MemoryStats() (MemoryStats, error) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	res, err := p.module.ExportedFunction("vt_alloc").Call(p.ctx, memoryStatsBytes)
+	raw, err := p.readStruct("vt_memory_stats", memoryStatsBytes)
 	if err != nil {
-		return MemoryStats{}, fmt.Errorf("vtwasm: alloc stats: %w", err)
-	}
-	out := uint32(res[0])
-	defer func() { _, _ = p.module.ExportedFunction("vt_free").Call(p.ctx, uint64(out), memoryStatsBytes) }()
-	res, err = p.module.ExportedFunction("vt_memory_stats").Call(p.ctx, uint64(p.handle), uint64(out))
-	if err != nil {
-		return MemoryStats{}, fmt.Errorf("vtwasm: memory_stats: %w", err)
-	}
-	if res[0] != 1 {
-		return MemoryStats{}, fmt.Errorf("vtwasm: memory_stats failed for handle %d", p.handle)
-	}
-	raw, ok := p.module.Memory().Read(out, memoryStatsBytes)
-	if !ok {
-		return MemoryStats{}, fmt.Errorf("vtwasm: read stats out of range")
+		return MemoryStats{}, err
 	}
 	return MemoryStats{
 		ContentBytes: binary.LittleEndian.Uint32(raw[0:4]),
@@ -90,6 +82,29 @@ func (p *Parser) MemoryStats() (MemoryStats, error) {
 		Rows:         binary.LittleEndian.Uint32(raw[8:12]),
 		Blocks:       binary.LittleEndian.Uint32(raw[12:16]),
 	}, nil
+}
+
+func (p *Parser) readStruct(fn string, size uint32) ([]byte, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	res, err := p.module.ExportedFunction("vt_alloc").Call(p.ctx, uint64(size))
+	if err != nil {
+		return nil, fmt.Errorf("vtwasm: alloc %s: %w", fn, err)
+	}
+	out := uint32(res[0])
+	defer func() { _, _ = p.module.ExportedFunction("vt_free").Call(p.ctx, uint64(out), uint64(size)) }()
+	res, err = p.module.ExportedFunction(fn).Call(p.ctx, uint64(p.handle), uint64(out))
+	if err != nil {
+		return nil, fmt.Errorf("vtwasm: %s: %w", fn, err)
+	}
+	if res[0] != 1 {
+		return nil, fmt.Errorf("vtwasm: %s failed for handle %d", fn, p.handle)
+	}
+	raw, ok := p.module.Memory().Read(out, size)
+	if !ok {
+		return nil, fmt.Errorf("vtwasm: read %s out of range", fn)
+	}
+	return append([]byte(nil), raw...), nil
 }
 
 func (p *Parser) setTerminalIdentity(name string) error {

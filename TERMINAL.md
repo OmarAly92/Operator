@@ -20,9 +20,16 @@ agent / shell process
    ▼
 opr pty-host  (backend/internal/adapters/runtime/ptyhost, one subprocess per session)
    ├─ ring.go            raw output ring for late attachers
+   ├─ persist.go         every 60 s (when changed) and on shutdown, writes the attach
+   │                     replay (frame + newest 20 history chunks, ≤ 4 MiB) to
+   │                     ~/.operator/pty-host-history/<id>.vt; a host created for a
+   │                     relaunched session seeds its mirror from it (§4.29)
    ├─ vtwasm/            PASSIVE MIRROR: vt-core compiled to wasm (vt_host.wasm),
    │                     run by wazero. Feeds every byte, answers GetOutput /
    │                     text extraction, and produces the attach REPLAY.
+   │                     Rows the mirror trims past its cap go, as styled text, to a
+   │                     32 MiB cold ring (mirror_limits.go); MsgOlderReq answers
+   │                     "Load older output" from it on the asking connection (§4.33)
    ├─ attach.go          handshake: client states its grid (and whether it can
    │                     read history), host replays origin + modes + the
    │                     mirror's screen + READY, returns, then — for a client
@@ -185,6 +192,8 @@ rebuilt (§6).
   (the package that owns `mirrorLimits` imports `vtwasm`, so the test
   cannot read it). These are set independently and must be kept in sync by
   hand — there is no shared source of truth across the Rust/Go boundary.
+  The mirror also keeps a cold ring of trimmed rows (`Limits.ColdRingBytes`,
+  32 MiB in `mirrorLimits`); the renderer core has none (§4.33).
 - **Stable rows** give a row an identity that survives it migrating from the
   live screen into scrollback and back out again under trim. `trimmed_total`
   (`parser.rs:55,91`) counts rows evicted off the front since the session
@@ -252,6 +261,18 @@ rebuilt (§6).
    under `crates/` or `ts/` may reference the host repository.
 2. **Match Warp, cite Warp.** Rendering/behaviour decisions quote the Warp file
    and line they mirror (see the comments already in `styles.css`, `screen.rs`).
+   Find cites two MIT/Apache references for behaviour only, no code adapted:
+   Ghostty `src/terminal/search/active.zig:11-19` (re-search only what can
+   change) and Alacritty `alacritty_terminal/src/term/search.rs:39-40` (smart
+   case). Highlights (§4.31) cite Ghostty `src/terminal/highlight.zig:1-10`
+   (one representation for selection, search and marks) for behaviour only, no
+   code adapted; Kitty's marks are GPL-3.0 and were not read.
+   Agent activity (§4.34) ports VS Code's `detectsHighConfidenceInputPattern`
+   (MIT; `ts/core/src/input-patterns.ts`, `VSCODE-INPUT-PATTERNS-ATTRIBUTION.md`
+   and `LICENSE-VSCODE-MIT` beside it) and follows VS Code's idle polling
+   behaviour without copying code; the in-band agent events are our own wire
+   format (`protocol/SPEC.md` §10), written from the survey's description of
+   Warp's (§7.1; AGPL-3.0, no Warp file read).
 3. **No comments in new code** (user's global instruction). Existing comments may
    be corrected when they become false; do not add new ones.
 4. **Root cause before fix.** Every entry in §4 was mis-diagnosed first. Capture
@@ -831,8 +852,436 @@ history of `master`.
 - Guard: `styles-parity.test.ts` "never uses a containment that clips paint
   or fixes size".
 
+### 4.27 A paste that runs by itself — roadmap Plan 1
+- Symptom: text copied from a web page with a hidden line break ran as a
+  command the moment it was pasted into a pane whose program did not ask for
+  bracketed paste, and inside bracketed paste a lone `ESC` or `^C` reached the
+  program (`ts/editor/src/paste.ts` before this plan: only `ESC[201~` was
+  removed).
+- Now: one rule in `ts/editor/src/paste.ts` (`encodePaste`, `deliverPaste`),
+  used by the line editor's passthrough (primary screen, where Claude Code
+  runs) and by the alternate-screen handler in `TerminalSurface.tsx`.
+  Bracketed: strip `ESC[201~`, `ESC` and `^C` and send. Unbracketed while the
+  child owns the line: a newline, a C0 control other than tab, or `ESC[201~`
+  makes the paste unsafe, and the host's `HostCapabilities.confirmPaste` is
+  asked. No handler means send as before (product independence, §3.1). The
+  editor-owned line never asks: nothing runs until Enter.
+- Operator: `frontend/src/renderer/hooks/usePasteConfirm.tsx` shows the first
+  5 lines (200 characters each) and a one-line reason in `ConfirmDialog`,
+  wired in `BlockTerminal.tsx`. "Paste" or "Cancel", no "don't ask again".
+- References, behaviour only (no code adapted, so no attribution file):
+  Ghostty `src/input/paste.zig:160-190`, Alacritty
+  `alacritty/src/event.rs:1369-1410`.
+- Guards: `paste.test.ts` (verdict table, preview, delivery),
+  `line-editor-paste.test.ts`, `TerminalSurface.paste.test.tsx`,
+  `frontend/src/renderer/hooks/usePasteConfirm.test.tsx`,
+  `BlockTerminal.test.tsx` "BlockTerminal paste confirm".
+
+### 4.28 Find found nothing in Claude Code panes and never kept up — Plan 2
+- Symptom: in a Claude Code pane the find bar said "No matches" for text on
+  the screen; in a shell it found only commands whose output had scrolled
+  entirely into scrollback; a match printed after the query was typed never
+  appeared.
+- Cause: `FindCursor` walked `BlockGrid` blocks and searched a block only when
+  every row of it was completed history (`block_byte_range` returned `None`
+  otherwise). A pane without OSC 133 marks — every Claude Code pane — has an
+  empty `BlockGrid` (its one block is synthesised only at export,
+  `grid.rs` `export_blocks`), so there was nothing to walk. Each query
+  scanned once and stopped; the bar decoded every block and ran two
+  `querySelector` calls per hit on every repaint.
+- Now: `FindSession` (`crates/vt-core/src/find.rs`) searches rows, not
+  blocks. Settled history — completed rows up to the last one that ends a
+  line — is scanned once, oldest first, in `FIND_UPDATE_BUDGET_BYTES`
+  (1 MiB) steps, then only from `scanned_to`. Hits are content byte ranges:
+  a trim drops those below the first row, a rewrap only changes the rows
+  they resolve to in `find_results`, a history prepend (attach replay)
+  restarts the scan. The unsettled tail (a soft-wrapped last history row)
+  plus the live screen is re-searched when `generation()` changed, so a
+  match across the scrollback/screen boundary is one hit. A soft-wrapped
+  line is one line to the search; a hard break is a `\n` the query cannot
+  cross (a match that would cross is searched again inside its own line).
+  Literal queries use `memchr` when case-sensitive and an escaped regex
+  (`regex-syntax`'s meta-character set) when not. The bar calls
+  `findUpdate` after every paint while open, refetches results only when
+  hits were added or removed, marks rendered rows from a set of hit rows,
+  re-anchors the current hit by (stable row, byte), and scrolls to the
+  hit's row with `DomBlockRenderer.scrollToRow`. Next/previous is an index
+  step through sorted results, so Alacritty's directional DFAs
+  (survey §2.6) were not needed.
+- Guards: `crates/vt-core/tests/find_session.rs`, the `find.rs` unit tests,
+  `ts/core/src/find.test.ts`, `ts/renderer-dom/src/find-bar.incremental.test.ts`,
+  `dom-block-renderer.scroll.test.ts` "scrollToRow",
+  `npm run bench:terminal -- --renderer dom --scenario find-500k`,
+  `npm run bench:find-update`.
+
+### 4.29 A hung pty-host froze its pane; a dead one lost its history — roadmap Plan 4
+- Symptom: a pty-host that stopped answering (SIGSTOP, or wedged) left its pane
+  frozen with no message, and nothing offered a way out short of restarting the
+  daemon and the app. A pty-host that died took the terminal's history with it:
+  the mirror and the ring live only in host memory.
+- Cause: the reaper records a timed-out probe as `ProbeFailed`
+  (`observe/reaper/reaper.go:205-215`) and lifecycle ignores it by design
+  (`ports/runtime_observations.go:13-14`), so nothing ever concluded "hung";
+  and nothing wrote the mirror anywhere.
+- Now: `ptyhost.Runtime` counts consecutive failed `IsAlive` probes per host;
+  at `hungAfterFailedProbes` (3, i.e. ~12-17 s at the reaper's 5 s tick) the
+  host is hung, the terminal mux sends `{"type":"health","health":"hung"}` on
+  `ch:"terminal"` to the panes viewing it (and to a pane that opens it later),
+  and the pane shows "This terminal stopped responding." with **Restart
+  terminal**. Restart is `POST /api/v1/sessions/{id}/restart-terminal`:
+  `Runtime.Destroy` (SIGKILL after 500 ms, which reaches a stopped process)
+  then the normal relaunch into a fresh host under the same handle id. It is
+  never automatic. `respawn.go` cannot do this: it runs inside the hung host.
+  Every host also saves its attach replay to `~/.operator/pty-host-history/`
+  (`persist.go`); `Runtime.Create` deletes a session's file unless
+  `RuntimeConfig.RestoreHistory` (set only by the session manager's relaunch
+  path), and prunes files of gone hosts older than 7 days; the new host feeds
+  the file and a process-boundary mark into its mirror before the child's
+  first byte, so every attach replays the old history above the new process.
+- Measured: `claude-long-50k` (60k rows) — frame 17 KB, newest 20 chunks
+  180 KB in 491 ms; all 116 chunks would be 938 KB in 2.7 s, because every
+  `vt_history_chunk` snapshots the whole core (`vt-host/src/lib.rs:470`).
+  `docs/superpowers/specs/2026-09-24-crash-recovery-measurement.md`.
+- Guards: `ptyhost/health_test.go` (hung after 3 not before, recovery, slow
+  once, refused is gone, destroy clears), `terminal/health_test.go` (viewers
+  only, new viewer told at once, client stays attached across a restart),
+  `session_manager/restart_terminal_test.go`, controller `TestRestartTerminal`,
+  `ptyhost/persist_test.go` (round trip after a crash, byte cap, write only on
+  change, shutdown write, header, prune), `persist_runtime_test.go`,
+  `TerminalPane.test.tsx` "terminal not responding",
+  `useTerminalSession.test.tsx` health tests.
+
+### 4.30 Messages from programs: title, notifications, size and colour replies — roadmap Plan 3
+- Symptom: Claude Code sets its window title about ten times a second (`claude-long-50k`: 1,047 `OSC 0`) and Operator showed none of it; a program's own "done" notification (OSC 9/777/99) went nowhere; `CSI 16 t` (sent by Claude Code v2.1.280, `claude-markdown-reply`), `CSI 14/18 t`, mode 2048 and `OSC 10/11 ; ?` went unanswered; OSC 22 was ignored.
+- Now: `vt-core` `program.rs` holds the title, a title stack capped at 4,096, up to 16 pending notifications and a pointer shape; both OSC dispatchers classify through `OscKind` and the history receiver handles only hyperlinks, so replayed history never changes the title or notifies. Replies use the same queue as the XTVERSION/DECRQM/DA1 answers (§4.16): only the mirror answers. The mirror learns the cell size (device pixels) and colours from the pane's `appearance` mux frame (last writer wins; nothing is answered for 14/16/2048/10/11 before one arrives). The pty-host strips a leading glyph+space (`domain.TerminalDisplayTitle`) and pushes only a changed stripped title, plus every notification, to **watcher** connections (`MsgWatchReq`, `MsgProgramEvent`); the daemon's runtime keeps one watch per live host in memory (opened by `Create`, `Attach` and each successful reaper probe; closed by `Destroy`) and the terminal mux relays on `ch:"programs"` with a snapshot on subscribe. The renderer's `ProgramRuntime` feeds `useTerminalTitle` (session card under the name, pane header) and shows a program notification as a desktop toast only when its terminal is not on screen in a focused window (agent-alerts rule D2); the pointer shape is the surface's `--terminal-pointer-shape`.
+- Guards: `vt-core/tests/program_messages.rs`, `program_replies.rs`; `vt-wasm/tests/program_exports.rs`; `ts/core/src/program-messages.test.ts`; `ts/react/src/TerminalSurface.program.test.tsx`; `vtwasm/program_test.go`; `ptyhost/program_test.go`, `program_watch_test.go`; `domain/terminal_title_test.go`; `terminal/programs_test.go`; renderer `terminal-mux.programs.test.ts`, `terminal-titles.test.tsx`, `on-screen-terminals.test.ts`, `program-feed.test.ts`, `ProgramRuntime.test.tsx`, `SplitWorkspaceOnScreenTerminals.test.tsx`, `ShellTerminalsView.onscreen.test.tsx`, `terminal-appearance.test.ts`, and the new cases in `SessionsBoard.test.tsx`, `SplitPane.test.tsx`, `BlockTerminal.test.tsx`, `useTerminalSession.test.tsx`.
+- References, behaviour only (no code adapted, so no attribution file): Ghostty `src/terminal/size_report.zig:5-80`, `stream_terminal.zig:256-280,1456-1476,1602-1605`, `osc/parsers/osc9.zig`, `rxvt_extension.zig`, `mouse.zig:100-150`; Alacritty `alacritty_terminal/src/term/mod.rs:42-48,2235-2248`; kitty's desktop-notification protocol description (no kitty code read).
+
+### 4.31 One look for highlights; user marks — roadmap Plan 5
+- Before: the selection painted its own `background-image` per row
+  (`selection-view.ts` `selectionFills`), the find bar added and removed row
+  classes itself on every repaint (`find-bar.ts` `applyHighlights`), and there
+  were no user marks. Two paint paths for one idea, and nothing to put a third
+  kind on.
+- Now: `highlights.ts` is the model — `Highlight { kind, range, colour, rank }`,
+  `range` in stable rows (§2), priority selection 3 > current find hit 2 > find
+  hit 1 > mark 0, earlier mark rule above a later one. `highlight-painter.ts` is
+  the only code that paints them: a row's layers, top first, as one
+  `background-image` of `fillGradient` strings, the same layers clipped by
+  `runFill` onto runs with their own background (the §4.11 rule, now for every
+  kind), and the find classes. It diffs against what it painted, so an unchanged
+  row gets no write. `renderer-highlights.ts` collects selection, find and
+  marks and calls it from `finishPaint` and on every change; it never schedules
+  a repaint, and it paints nothing while the pane is parked.
+- Find keeps its old pixels on purpose: a hit row keeps
+  `terminal-find-row-match` (a background colour) and the current hit keeps the
+  `terminal-find-row-active` outline. A gradient layer of the same colour
+  differs by up to 1 level per channel (measured while planning: 8,278 channel
+  values in a 900×60 Chromium shot), so the colour stays a colour — except on a
+  row that also has a mark, where the find tint becomes a layer above the mark
+  so the priority holds. Find paints only transcript rows, never the alternate
+  screen, as before.
+- Marks: `setMarks(rules)` / `TerminalSurface` `marks`, `MarkRule { pattern,
+  regex, colour }`. Literal = escaped, any case; regex = as written. Invalid
+  regex, empty pattern, zero-length matches and colours `CSS.supports` rejects
+  are dropped; touching matches of one rule merge. Each paint joins the logical
+  lines of the rendered rows once (`visibleLogicalLines`), matches each line,
+  and maps back with `rangeOf`; `MarkCache` keeps each line's spans while its
+  text is unchanged. Nothing is stored in rows, so a trim or a rewrap cannot
+  strand a mark. Marks read the masked text, so they never outline a redacted
+  secret. Operator: Settings → Terminal highlights, five colours
+  (`color-mix(in srgb, var(--terminal-ansi-N) 40%, transparent)` for yellow 3,
+  red 1, green 2, cyan 6, magenta 5 — no blue, the selection's colour), at most
+  10 rules, stored under `opr.terminal.marks`.
+- Not moved onto the model: links, hints, redaction and prediction. They are
+  overlays above the text (`.terminal-decorations { z-index: 2 }`); a redaction
+  must cover glyphs. The model paints under the text.
+- Cost (`run.mjs --panes-only`, `claude-spinner-10s`, alternated A/B, three
+  pairs, 5 `BENCH_MARKS`, re-measured on the owner's Mac 2026-09-25 at review):
+  10-visible TaskDuration control 0.846–0.877 s, marks 1.038–1.117 s;
+  ScriptDuration 0.28 → 0.43–0.47 s; solo 0.207 → 0.244–0.254 s. That is a real
+  cost, not noise (the planning-machine "overlap" came from a noisy control,
+  1.088–1.277 s; the cloud sandbox ran 2.2–3.1 s overall). It is the cost of the
+  feature on a worst case: `\d+` touches almost every row of the recording, and
+  Claude Code's spinner rewrites those rows every frame, so they are rebuilt as
+  new elements (`block-body.ts:74-77`) and must be painted again, one extra
+  style recalc per pane per frame (RecalcStyleCount 2,256 → 3,237). About 1–2 %
+  of one core across ten streaming panes, zero with no marks. The painter
+  caches each row's paint by element, highlights and pane geometry and reuses
+  it for a row whose element did not change, and measures one touched row per
+  paint for the pane's left edge and width instead of every touched row
+  (review fix; selection, find and marks screenshots byte-identical before and
+  after, 11 of 11). A first
+  build that measured every rendered row per paint doubled ScriptDuration.
+- Regex marks run on vt-core's linear-time engine, not JavaScript's
+  backtracking one (fixed at review 2026-09-25): `crates/vt-core/src/mark_regex.rs`
+  (`regex-automata` meta regex, NFA size limit 1 MiB, empty matches skipped,
+  offsets returned in UTF-16 units), exported as `WasmMarkRegex`
+  (`crates/vt-wasm/src/mark.rs`) and wrapped by `compileMarkRegex` /
+  `markRegexValid` in `ts/core/src/mark-regex.ts`. `(a+)+$` over 20,000
+  characters returns at once instead of hanging the pane. The syntax is Rust's:
+  lookaround and backreferences are rejected, and Operator's Settings validates
+  with the same engine (`markRegexValid`, loaded when the section opens; a
+  JavaScript syntax check is the fallback before the wasm is ready). Literal
+  words stay a case-insensitive escaped JavaScript regex, which cannot
+  backtrack. Compiled regexes live in wasm memory and are freed by
+  `disposeMarks` when the rules change or the renderer resets. Guards:
+  `crates/vt-core/tests/mark_regex.rs`, `ts/core/src/mark-regex.test.ts`,
+  `marks.test.ts` "regex safety", `frontend/src/renderer/lib/terminal-marks.test.ts`.
+- Guards: `highlights.test.ts`, `highlight-painter.test.ts`, `marks.test.ts`,
+  `dom-block-renderer.highlights.test.ts` (overlap order, trim, rewrap, no
+  repaint scheduled, no layout read when idle, parked, alternate screen,
+  rejected colour, dispose), `find-bar.incremental.test.ts` "hands its hits…",
+  `TerminalSurface.marks.test.tsx`, `terminal-selection.test.ts` (unchanged),
+  `bench:affordances --action select|find --compare <Task 0 captures>` (byte
+  identical), `bench:selection`, `bench:feel`; Operator:
+  `terminal-marks.test.ts`, `ui-store.terminal-marks.test.ts`,
+  `TerminalMarksSection.test.tsx`, `BlockTerminal.test.tsx` "hands Settings'
+  highlights…".
+
+### 4.32 Text typed during a command reached the shell, not the input box — roadmap Plan 6
+- Symptom: in a zsh pane, keys typed while a command ran went to the pty
+  (deliberate since `4b31952aa`, so a `y/n` prompt, a password or Claude Code
+  gets them: `ts/editor/src/line-editor.ts` `passthrough`). When the prompt
+  returned, zsh held the text in its own line buffer, invisible in the input
+  box, and the next thing submitted from the box was appended to it: `echo hi`
+  typed during `sleep`, then `ls` in the box, ran `echo hils`.
+- Cause: a shell reads typeahead only after its prompt starts, and nothing
+  told the line editor what it read. At `line-init`, zsh's `$BUFFER` is still
+  empty; the text is waiting on the tty.
+- Now: behaviour taken from the survey's description of Warp's shell-reported
+  typeahead (§7.2; Warp is AGPL-3.0 — clean-room, no Warp file read).
+  `shell/zsh.sh`'s `line-init` hook, once per finished command
+  (`__operator_terminal_TYPEAHEAD_ARMED`, set in `precmd`) and only at a
+  primary prompt (`$CONTEXT == start`), reads what is waiting
+  (`read -t 0 -k 1`, at most 257 characters), pushes it straight back into zle
+  (`zle -U`), and — when it is at most 256 characters with no control
+  character — reports it right after `input-ready` as
+  `OSC 7000;v=1;typeahead=<percent-encoded UTF-8>` (`protocol/SPEC.md` §4.5).
+  vt-core keeps the report only while the line is owned
+  (`LineEditorTracker::on_typeahead`; `input-released` and the alternate
+  screen drop it) and `TerminalCore.takeTypeahead()` hands it over once.
+  `LineEditor` takes it on every change, visible or not, and adopts it only if
+  the user sent keys, IME text or a paste to the pty since the last report
+  (`TypeaheadGate`, `ts/editor/src/typeahead.ts`): it appends the text to the
+  buffer, never submits it, and sends `^U` (0x15) to clear zsh's copy. Keys are
+  still never held back.
+- Why the shell does not clear its own buffer (the first design did): the
+  daemon's `SendMessage` writes text, pauses, then sends Enter as a separate
+  frame (`backend/internal/adapters/runtime/ptyhost/client.go:38-70`). Text
+  arriving while a command is finishing looks exactly like typeahead to the
+  shell; a shell that cleared it lost the command and ran an empty line —
+  `TestShellBlocksAlternateScreenAtCaptureStartExcludesRepaint` failed 3 of 3
+  runs that way. Only the line editor knows the user typed the text, so only
+  it clears the shell's copy. `^U` is `kill-whole-line` in zsh's emacs keymap
+  and `vi-kill-line` in `viins`; both clear the pushed text.
+- bash and fish are not covered, by decision. bash: `READLINE_LINE` is
+  reachable only inside a `bind -x` binding, which the additive-only contract
+  forbids (`docs/superpowers/specs/2026-08-29-warp-terminal-package-design.md`
+  §8, line 872); a `PROMPT_COMMAND` drain (`read -r -s -n 1 -t …`) can read the
+  text but cannot hand it back to readline, so it would lose the `SendMessage`
+  case; macOS `/bin/bash` 3.2 also takes whole-second timeouts only (`-t 0`
+  read nothing). fish: `commandline` is empty in a `fish_prompt` handler (fish
+  reads the typeahead after drawing the prompt) and its `read` has no timeout.
+  Both keep the old doubling.
+- Limits: a line typed ahead with Enter runs as before and is not moved; the
+  typed text also stays in the finished command's output, where the tty echoed
+  it while the command ran (as in every terminal); keys that reach zsh after
+  its report and before the `^U` (one pty round trip) are cleared with it; a
+  client without a line editor (the phone) leaves the text in the shell, as
+  before; a user who rebinds `^U` gets the old doubling.
+- Also fixed: `__operator_terminal_pct_encode` in `zsh.sh` encoded a code
+  point, not bytes (`é` → `%e9`, `€` → `%c`); it now encodes UTF-8 bytes under
+  `no_multibyte`. `bash.sh`'s encoder had the same bug and also let `é` through
+  unencoded (its `[A-Za-z]` range matches accented letters in a UTF-8 locale);
+  it now walks bytes under `LC_ALL=C` and masks each to 0–255, because bash
+  3.2 sign-extends bytes above 127 (`%ffffffffffffffc3`). Guard:
+  `bash.test.mjs` "percent-encodes non-ASCII bytes as UTF-8".
+- Guards: `shell/zsh.test.mjs` (reports and is cleared by Ctrl-U, kept when
+  nothing clears it, UTF-8, Enter typed ahead runs, multi-line submission,
+  over the cap, `read -s` password never surfaced, a program's own prompt
+  still gets its keys, vi insert mode, byte encoding); `bash.test.mjs` and
+  `fish.test.mjs` "reports no typeahead"; `crates/vt-core/tests/typeahead.rs`
+  (incl. the Claude Code recording); `ts/core/src/typeahead.test.ts`;
+  `ts/editor/src/line-editor-typeahead.test.ts` (incl. the Claude Code
+  recording and a faked report); `protocol/vectors/typeahead.json`;
+  `backend/internal/terminal/block_assembler_test.go`
+  `TestAssemblerIgnoresATypeaheadMark`; `backend/internal/integration`
+  `TestShellBlocks*`.
+
+### 4.33 Output older than the row cap was dropped — roadmap Plan 7
+- Symptom: past 200,000 rows (or 128 MiB) the oldest output was gone for good,
+  in the pane and in the mirror (`Parser::trim_to` dropped it).
+- Now: the pty-host mirror keeps trimmed rows as SGR text in a 32 MiB cold ring
+  (`crates/vt-core/src/cold_ring.rs`, filled in `parser/history.rs` `trim_to`
+  through `parser/cold.rs`). The mirror sends `OSC 7000;v=1;older=<floor>` after
+  the attach history (or after the frame for a sized client without history) and
+  at the end of every older answer. The pane shows **Load older output**
+  (`ts/renderer-dom/src/load-older.ts`) when a floor below its first stable row is
+  known and the host implements `HostCapabilities.loadOlderOutput`; a click sends
+  mux `older{before}` → `MsgOlderReq` → one history chunk of ≤ 2,048 rows
+  (`older_chunk`) plus the floor, in-band on that client's stream. The chunk
+  carries `cols=` so a row wider than the pane lands whole and rewraps lazily.
+  Loaded rows sit above the renderer's cap until the next live row trims them.
+- Review fixes (branch `fix/plan-7-review`), each reproduced by a test first:
+  (a) **labels match content.** `older_rows` (`parser/cold.rs:44-62`) used to
+  clamp `before` to the mirror's own end and `older_chunk` still labelled the
+  rows as ending at `before`, so after a respawn (a fresh mirror numbered from
+  0, `ptyhost/respawn.go:63`) every click prepended the new process's rows, and
+  a pane numbered ahead of the mirror got the same rows again under each new
+  label. It now answers nothing when `before` is past the mirror's completed
+  rows or outside the ring; the host then sends `older=<before>`
+  (`ptyhost/older.go:27-41`) so the pane hides the button, and a process
+  boundary clears the pane's floor (`OlderState::observe`, `older.rs:22`,
+  called at `lib.rs:281`). (b) **answers stay out of the live parser.** The
+  host queues older answers and attach-history chunks (`streamHistory`, off
+  `h.mu`) between live PTY batches split at any byte, so a chunk could land
+  inside a CSI or a UTF-8 character; its ESC reset vte and the live sequence
+  printed as text (`1mRED`, `caf��`). `AnswerGate` (`answer_gate.rs`, used at
+  `lib.rs:321`) holds `OSC 7000;v=1;history=` and `older=` back from vte across
+  feeds (the rows already go to the history receiver), and the mark scanner
+  restarts on an ESC inside a CSI or after an ESC (`marks/src/scanner.rs:72,86`)
+  instead of dropping it and missing the chunk. Fixed in the core rather than
+  by inserting at clean boundaries in the host because both insertion sites
+  (`serveOlder` and Plan C's `streamHistory`) share it and vte exposes no
+  state to test for a boundary. (c) **stale runs.** `rewrap_hot` rewrapped
+  prepended wide rows inside the newest 2,000 rows but kept their stale runs
+  (`StaleRunOutsideRows`); it now trims every run to the rows below the hot
+  window (`row_index.rs:136`). (d) **ring heap.** Row lengths lived in a second
+  `VecDeque` that doubled beside the text buffer reserved at the full cap, so
+  blank rows took the heap to 2× the cap; each row's length and width now sit
+  in the one buffer as a 6-byte header and a 4-byte trailer
+  (`COLD_ROW_OVERHEAD_BYTES = 10`, `cold_ring.rs:4-7`), read from the nearer
+  end (`offset_of`, `cold_ring.rs:127`). (e) **oversized rows.** A row whose
+  serialised form alone passes the answer budget is sent blank
+  (`older.rs:65-70`) instead of stopping every later click. Guards:
+  `tests/older_seams.rs` (including a nine-step repro and 64 seeded
+  feed/load/resize/touch sequences with `verify_integrity` after every step),
+  `tests/injected_answers.rs`, `answer_gate.rs` unit tests,
+  `cold_ring.rs` `the_heap_stays_within_the_cap_for_blank_and_long_rows`,
+  scanner `an_escape_inside_a_csi_or_after_an_escape_still_opens_a_mark`,
+  `ptyhost/older_test.go` `TestAnOlderRequestPastTheMirrorsRowsAnswersNothingOlder`,
+  `ts/core/src/older-output.test.ts` "forgets the floor at a process boundary".
+- Not persisted: the saved history (§4.29) is 4 MiB and 20 chunks; cold rows are
+  older than anything it can hold.
+- Measured (`docs/superpowers/specs/2026-09-25-old-output-measurement.md`): a
+  full 32 MiB ring costs the mirror wasm memory ≈1.2× its cap (77,594,624 bytes
+  with a full ring vs 35,979,264 without); the ring's own payload never passes
+  its cap (33,554,386 ≤ 33,554,432); a click's host side is under a few ms
+  (1.382 ms newest, 0.610 ms oldest on a 520k-row synthetic mirror); the
+  renderer side of a click is one full re-export of 200k rows (1,193.38 ms,
+  the same order as the first full export, 1,158.68 ms), while feeding the
+  2,048-row chunk itself costs 45.05 ms.
+- Guards: `crates/vt-core/tests/cold_ring.rs`, `cold_ring.rs`/`content.rs` unit
+  tests, marks `scanner.rs` older/cols tests, `vtwasm/older_test.go`,
+  `ptyhost/older_test.go`, `terminal/manager_test.go` "Older", 
+  `ts/core/src/older-output.test.ts`, `load-older.test.ts`,
+  `dom-block-renderer.older.test.ts`, `TerminalSurface.older.test.tsx`,
+  frontend `terminal-mux.test.ts`, `useTerminalSession.test.tsx`,
+  `BlockTerminal.test.tsx` "load older output".
+
+### 4.34 Agents could not tell the terminal what they were doing — roadmap Plan 8
+- Before: agent state reached Operator only out of band (`opr` hooks over
+  loopback HTTP, `opr mcp` `session_report`), so nothing worked for an agent
+  whose hooks cannot reach the daemon (SSH, a container), and no host of the
+  package could tell that an agent was idle or asking a question.
+- In-band events: `OSC 777 ; agent-state ; v=1 ; state=… [; detail=…] ST`
+  (`protocol/SPEC.md` §10). Plan 3's dispatcher (`program.rs` `osc777`) sends
+  the `agent-state` extension to `AgentChannel` (`crates/vt-core/src/agent.rs`)
+  before its `notify` check, so the two can never be confused. Parsing is
+  strict (exact `v=1`, known state, no repeated key, strict percent-decoding);
+  a payload of 1,024 bytes or more is ignored because vte's `no-std` OSC buffer
+  (`MAX_OSC_RAW = 1024`) has already cut it. Identical consecutive events
+  collapse; 16 wait at most; a process boundary forgets the last one; each
+  queued event bumps the program generation, which `ts/core`'s `AgentEvents`
+  polls after every feed and tick (`TerminalCore.onAgentEvent`).
+- Never from loaded or replayed output — the Plan 3/7 rule: history chunk rows
+  (attach history, older answers) go to the `HistoryReceiver`, whose
+  `osc_dispatch` only interns hyperlinks, and their marks are held back by
+  `AnswerGate`; the attach replay frame does reach vte, so `AgentChannel` is
+  silenced from any `origin=` mark to `ready=`, adopted or not
+  (`crates/vt-core/src/live_output.rs:2` `open_replay_window`, called from
+  `lib.rs` `feed_raw`).
+- Activity: `vt-core` counts bytes handed to vte outside the replay window
+  (`live_output_bytes`, reset when a fresh core adopts a replay origin). The
+  origin mark's own bytes are outside the count: the pre-mark bytes of the
+  chunk are fed first, the mark after the window opens; a mark split across
+  feeds takes back what the previous feed counted of it
+  (`MarkDecoder::open_osc_bytes`, `crates/marks/src/scanner.rs:69`, less the
+  answer gate's held bytes, `live_output.rs:21`).
+  `AgentActivityMonitor` (`ts/core/src/agent-activity.ts`) turns it into
+  `active` (output in the last 500 ms), `pollingForIdle`, `idle` (1,500 ms
+  quiet) or `prompting` (quiet and the cursor line matches VS Code's
+  high-confidence prompt patterns, `input-patterns.ts`) — VS Code's
+  500 ms / two-idle-polls behaviour (`chatAgentTools/.../monitoring/types.ts`
+  `PollingConsts`) as a clock. The timer runs only while someone listens and
+  stops at `idle`; every output restarts it, so each threshold is timed from
+  the latest output (`agent-activity.ts:81` `schedule`). The reported state
+  changes only in `publish` (`agent-activity.ts:71`), which reaches every
+  listener; a listener that subscribes when the state has moved on gets it
+  through a 0 ms timer, so `onChange` never calls a listener or throws. The
+  cursor line is padded to the cursor column in cells from the exported cell
+  spans (`agent-activity.ts:127` `cellWidth`). `prompting` is not reported
+  while the shell's line editor owns the line (`agent-activity.ts:67`): VS
+  Code applies the patterns only while a command runs, and an idle
+  `[~] $ ` prompt matches them. A pane without shell integration (Claude
+  Code) has the line editor `unknown` and is checked as before.
+- Listener failures: agent event and activity listeners each run isolated
+  (`listener-failures.ts`); every listener gets every event, internal state
+  settles first, and the failures are thrown together as an `AggregateError`
+  afterwards, as `TerminalCore.notifyAll` already did. `feed()` and `tick()`
+  run polling, activity and change notification whatever throws
+  (`terminal-core.ts:200` `afterParse`).
+- `readBlockOutput(id, { compact, maxLines })`: a block's logical lines;
+  `compact` drops lines that are wholly a spinner frame (a spinner glyph,
+  text, an ellipsis, an optional parenthesised status; `compact-output.ts:5`),
+  blank runs, back-to-back repeats and a run of ≥ 3 non-blank lines that
+  redraws the kept lines immediately before it, up to 256 lines
+  (`compact-output.ts:49`). A run separated from its twin by a distinct line
+  is kept (a later test's setup/run/teardown). Lossy by design and opt-in;
+  redaction is not applied (renderer only). `maxLines` of 0 or less gives
+  nothing, `Infinity` no cap, a fraction its floor (`compact-output.ts:64`).
+- Measured (planning run, 2026-09-25): the Claude Code recordings replayed one
+  frame per 100 ms (120, 157 and 1,048 frames) are `active` throughout and
+  `idle` 1,500 ms after the last byte, `prompting` at none of 1,325 frame
+  boundaries; compact keeps all 60,000 number lines of `claude-long-50k`
+  (24.9–30.5 ms per call) and cuts `claude-markdown-reply` without agent-TUI
+  mode from 101 to 88 lines. After the review fixes (2026-09-25) that cut is
+  101 to 96 lines with 3 of the 4 banners kept: two of the banner frames are
+  separated by the `⏵⏵ auto mode on` and `◐` lines, the same shape as a
+  legitimate repeated run, so the redraw rule no longer drops them.
+- Operator: nothing consumes these yet (user decision 2026-09-25). The mirror
+  parses the events into its capped queue and drops them;
+  `publishProgramLocked` (`ptyhost/program.go`) publishes only titles and
+  notifications.
+- References: VS Code (MIT) — `detectsHighConfidenceInputPattern` ported
+  verbatim (`VSCODE-INPUT-PATTERNS-ATTRIBUTION.md`), polling behaviour
+  followed. Warp (AGPL-3.0) — not read; the survey's description (§7.1) only.
+- Guards: `crates/vt-core/tests/agent_events.rs` (vectors whole and byte by
+  byte, history chunk, older answer byte by byte and inside a live event,
+  replay frame, flood, boundary, sync block, live byte counter, recordings),
+  `agent.rs` unit tests, `vt-wasm/tests/program_exports.rs`,
+  `vtwasm/program_test.go` `TestAnAgentEventIsNeitherATitleNorANotificationInTheMirror`,
+  `ts/core/src/agent-events.test.ts`, `agent-activity.test.ts` (incl. the three
+  recordings and a hidden window's one-second drains), `compact-output.test.ts`,
+  `block-output.test.ts`. Review fixes: `agent_events.rs`
+  `a_replay_into_a_reused_core_is_neither_live_output_nor_an_event`,
+  `a_replay_split_byte_by_byte_into_a_reused_core_is_not_live_output`,
+  `an_origin_mark_after_rows_exist_silences_events_until_ready`; `scanner.rs`
+  `open_osc_bytes_counts_the_sequence_in_flight`; `agent-activity.test.ts`
+  (reconnect replay, late joiner, threshold timing, throwing listener, line
+  editor ownership, wide-character padding, idle shell prompt);
+  `agent-events.test.ts` "AgentEvents listener failures";
+  `compact-output.test.ts` (whole-line spinner, separated runs, `maxLines`).
+
 ## 5. Known gaps (not bugs, decisions pending)
 
+- **Find exports every hit on every change.** `findResults` copies all hits
+  out of wasm whenever an update adds or removes one; while Claude streams, a
+  query with hundreds of thousands of hits (a single letter) pays that per
+  paint. Hits paint through the highlight model since Plan 5 (§4.31) but still
+  as whole rows, not the hit's cells, and there is no host `onResultsChanged`
+  (survey §3.12).
 - **SGR attributes render by default since 2026-09-23.**
   `RendererFeatures.attributes` defaults to `"warp"` (italic, underline in 5
   styles, SGR 58 colour, strike, overline, hidden, blink); `"plain"` keeps
@@ -1097,6 +1546,54 @@ history of `master`.
   `TerminalSurface.test.tsx` "keeps Claude Code on the primary screen…" feeds
   the recording and asserts `altScreen` stays null.
 
+- **Hung detection covers session terminals only, and the board shows
+  nothing.** The reaper probes session rows (`reaper.go:143-166`), so a
+  standalone shell or a reviewer terminal is never marked hung; the hung state
+  lives in daemon memory and reaches only the pane (`ch:"terminal"` health
+  frames). A board badge needs a read-time runtime join in `SessionView` and a
+  push trigger; not built (roadmap Plan 4, decision D6).
+- **Every liveness probe renders a full attach replay.** A status probe is a
+  new connection, and `handleConn` renders `replayFrameLocked` under `h.mu`
+  for it before answering (`host.go:862`), ~24 ms at 60k rows. The reaper
+  pays it every 5 s per session. Skipping the replay for a connection whose
+  first frame is not a resize is the fix if it ever shows.
+- **After Restart terminal the pane keeps its renderer core.** A worker pane's
+  cache key is its handle id (`TerminalPane.tsx:156`), which a restart keeps,
+  so the new host's replay lands on the existing core — the same path as
+  Restore. Check for duplicated rows in the real app; a fix belongs with the
+  Restore path.
+- **Saved history is bounded.** Frame plus the newest 10,240 history rows,
+  ≤ 4 MiB, written at most once a minute: a crash loses up to the last minute,
+  and older rows of a very long session are not saved. An in-place respawn
+  ("Relaunch in a cleared session") replaces the mirror, so the next save
+  holds only the new process. Files of hosts that are gone are deleted after
+  7 days, the next time any terminal is created.
+- **A Load older output click re-exports the whole scrollback once.**
+  `apply_history_chunk` marks the export full (`parser/history.rs`), so a click
+  at 200k rows costs 1,193.38 ms of renderer time (the 2,048-row feed itself
+  45.05 ms). Every attach-history chunk pays the same. The fix is an
+  incremental front prepend in `ExportBuffers` (`vt-wasm/src/export.rs`, 599
+  lines: split first).
+- **Loaded rows do not survive new output.** The renderer keeps its cap; the next
+  committed live row trims the loaded rows first and the button returns. A load
+  whose answer arrives after live rows made the pane trim is rejected silently
+  (the chunk no longer abuts) and the button returns.
+- **The seam between loaded rows and the pane is exact only at one width.** Rows
+  are addressed by stable row; pane and mirror count the same rows only when they
+  ran at the same width and saw the same resizes. Otherwise a few rows can repeat
+  or be skipped at the seam; a chunk's label always matches the mirror rows it
+  carries, and a pane numbered past everything the mirror holds (a respawn, a
+  pane far ahead) is told nothing is older rather than sent mismatched rows.
+  Loaded rows carry no block marks and no `wrapped` flag.
+- **A cold row larger than the 1 MiB answer buffer** (a very long row of heavily
+  styled or linked text) loads as a blank row, so the rows older than it stay
+  reachable; its text is lost.
+- **Only `history=` and `older=` marks are kept out of the live parser.**
+  `origin=`, `ready=` and `boundary=` still reach vte: the first two are
+  written with the attach frame before any live byte, and the boundary is
+  preceded by its own resets. An answer that lands inside a live OSC (a title
+  split across two PTY reads) makes the mark scanner drop that OSC's payload;
+  vte keeps it.
 - **What a parked pane still costs.** Measured 2026-09-23 on
   `terminal-background-pane` `1b76f26fd` (`run.mjs --panes-only`, three runs,
   `claude-spinner-10s`, 100 frames over 10 s): 1 visible + 9 parked
@@ -1159,6 +1656,44 @@ history of `master`.
   2-hour real-app soak (WebContent RSS and CPU, a minimised stretch, and
   2 visible split panes + parked) is not verified: dev ports busy.
   Measurement note "Memory and long run" and "Long run after unload".
+- **Program notifications are desktop toasts only.** They are not notification rows: those need a session and project and a type the table's `CHECK` allows (`migrations/0117_notification_alerts.sql:8-9`), which standalone shells cannot give. So no bell entry and no phone alert (ntfy) for OSC 9/777/99, and nothing is shown while Operator's window is closed. A notification the child sends before the daemon's watch connects (the first milliseconds of a host) is dropped.
+- **Size and colour answers wait for a pane.** The mirror answers `CSI 14/16 t`, mode 2048 and `OSC 10/11` only after a pane has sent its cell size and colours; a Claude Code session started while no pane is open gets no answer to its startup `CSI 16 t`. With several panes on one terminal, the last to send wins.
+- **The title is not in the attach replay.** A renderer core that reattaches has an empty `title()` until the program sets it again; Operator reads the title from the daemon, so nothing visible depends on it.
+- **Typing ahead covers zsh only.** bash and fish panes keep the old
+  behaviour: text typed during a command lands in the shell's own line and
+  is doubled by the next submission from the input box. The reasons and the
+  evidence are in §4.32; `bash.sh`'s percent-encoder still encodes code
+  points, not UTF-8 bytes, so a non-ASCII `cmd=`/`cwd=` from bash is wrong.
+- **Nothing emits or consumes agent events yet** (§4.34). Operator keeps its
+  local hooks; the in-band channel waits for remote agents. A sender must keep
+  each sequence under 1,024 bytes and 14 fields (vte limits).
+- **A replay that never sends `ready=` silences agent events** and live
+  output on that core until a later `ready=`: the window opens at any
+  `origin=` mark. The pty-host always sends both
+  (`crates/vt-host/src/lib.rs:378-380` and `:438`). The pty-host does not
+  filter marks out of the child's output, so a child that prints an
+  `origin=` mark (`cat` of a recorded session) silences agent events and the
+  activity counter until something prints `ready=`; before the review fix
+  this happened only on a core with no rows.
+- **An agent event pending in an open DEC 2026 sync block at attach is
+  dropped as replayed.** `vt_replay` appends the mirror's pending sync bytes
+  (`crates/vt-host/src/lib.rs:434`) before the `ready=` mark (`:438`), so the
+  event reaches the renderer core inside the replay window. The mirror never
+  delivers it either (Operator drops mirror events, §4.34).
+- **Agent activity flickers in a hidden window.** WebKit throttles the drain
+  and the monitor's timer to about once a second (§4.25), so a streaming agent
+  reads `active` → `pollingForIdle` between bursts; it never reaches `idle`
+  while bursts keep coming (1,500 ms threshold).
+- **`prompting` is not known to detect Claude Code's own permission
+  dialog** (its numbered choice list). No recording under
+  `bench/agent-session/fixtures` contains one, so whether any of VS Code's
+  high-confidence patterns matches its cursor line is not known. Add a
+  pattern only once a real recording of the dialog exists.
+- **`readBlockOutput` ignores redaction** (`secretPatterns` is applied by the
+  renderer's text sources only) and `compact` is lossy: a run of three or
+  more lines that exactly repeats the lines just before it is dropped even
+  when the program printed it twice, and a repainted frame with a distinct
+  line between the copies is kept (`claude-markdown-reply`, §4.34).
 
 ---
 

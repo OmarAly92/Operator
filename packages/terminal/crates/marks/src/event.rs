@@ -39,7 +39,9 @@ pub enum MarkEvent {
     HistoryChunk {
         first_stable_row: u64,
         rows: usize,
+        cols: Option<usize>,
     },
+    OlderFloor(u64),
 }
 
 /// Stateful byte-level decoder. It survives across `feed` calls so a mark
@@ -68,6 +70,10 @@ impl MarkDecoder {
     /// force the Go decoder to grow a block model it was scoped out of.
     pub fn feed_with_offsets(&mut self, bytes: &[u8]) -> Vec<(usize, MarkEvent)> {
         self.scanner.feed(bytes)
+    }
+
+    pub fn open_osc_bytes(&self) -> usize {
+        self.scanner.open_osc_bytes()
     }
 
     pub fn feed(&mut self, bytes: &[u8]) -> Vec<MarkEvent> {

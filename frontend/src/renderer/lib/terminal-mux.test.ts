@@ -7,6 +7,7 @@ import {
 	createTerminalMuxPool,
 	dataFrame,
 	muxUrlFromApiBase,
+	olderFrame,
 	openFrame,
 	resizeFrame,
 } from "./terminal-mux";
@@ -42,6 +43,15 @@ describe("terminal-mux framing", () => {
 			force: true,
 		});
 		expect(JSON.parse(closeFrame("s"))).toEqual({ ch: "terminal", type: "close", id: "s" });
+	});
+
+	it("asks for the rows above a stable row in an older frame", () => {
+		expect(JSON.parse(olderFrame("sess-1", 4096))).toEqual({
+			ch: "terminal",
+			type: "older",
+			id: "sess-1",
+			before: 4096,
+		});
 	});
 
 	it("derives the ws mux url from the http api base (root path, not /api/v1)", () => {
@@ -145,6 +155,21 @@ describe("createTerminalMux client", () => {
 		});
 		socket.emitMessage(JSON.stringify({ ch: "terminal", id: "s", type: "opened" }));
 		expect(opened).toBe(true);
+	});
+
+	it("routes a health frame to that pane's health listener only", () => {
+		const mux = createTerminalMux("ws://x/mux", FakeSocket as unknown as typeof WebSocket);
+		const socket = FakeSocket.instances.at(-1)!;
+		socket.emitOpen();
+		const seen: string[] = [];
+		const other: string[] = [];
+		mux.onHealth("s", (health) => seen.push(health));
+		mux.onHealth("other", (health) => other.push(health));
+		socket.emitMessage(JSON.stringify({ ch: "terminal", id: "s", type: "health", health: "hung" }));
+		socket.emitMessage(JSON.stringify({ ch: "terminal", id: "s", type: "health", health: "ok" }));
+		socket.emitMessage(JSON.stringify({ ch: "terminal", id: "s", type: "health", health: "unknown-value" }));
+		expect(seen).toEqual(["hung", "ok", "ok"]);
+		expect(other).toEqual([]);
 	});
 
 	it("routes a pane error frame to that pane's error listener only", () => {
@@ -391,6 +416,39 @@ describe("createTerminalMuxPool", () => {
 			}),
 		);
 		expect(data).toEqual([]);
+	});
+
+	it("a lease stops delivering health frames after it is disposed", () => {
+		const pool = createTerminalMuxPool(() =>
+			createTerminalMux("ws://x/mux", FakeSocket as unknown as typeof WebSocket),
+		);
+		const lease = pool.acquire();
+		const keeper = pool.acquire();
+		const socket = FakeSocket.instances[0];
+		socket.emitOpen();
+		const seen: string[] = [];
+		lease.onHealth("s", (health) => seen.push(health));
+		socket.emitMessage(JSON.stringify({ ch: "terminal", id: "s", type: "health", health: "hung" }));
+		lease.dispose();
+		socket.emitMessage(JSON.stringify({ ch: "terminal", id: "s", type: "health", health: "ok" }));
+		expect(seen).toEqual(["hung"]);
+		keeper.dispose();
+	});
+
+	it("a lease forwards an older request and drops it once released", () => {
+		const pool = createTerminalMuxPool(() =>
+			createTerminalMux("ws://x/mux", FakeSocket as unknown as typeof WebSocket),
+		);
+		const lease = pool.acquire();
+		const keeper = pool.acquire();
+		const socket = FakeSocket.instances.at(-1)!;
+		socket.emitOpen();
+		lease.requestOlder("s-1", 512);
+		lease.dispose();
+		lease.requestOlder("s-1", 256);
+		const olders = socket.sent.map((frame) => JSON.parse(frame)).filter((frame) => frame.type === "older");
+		expect(olders).toEqual([{ ch: "terminal", type: "older", id: "s-1", before: 512 }]);
+		keeper.dispose();
 	});
 
 	it("a lease forwards blocks subscribe and stops after it is disposed", () => {

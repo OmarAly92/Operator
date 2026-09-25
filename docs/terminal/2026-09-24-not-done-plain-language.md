@@ -3,8 +3,10 @@
 A plain-language companion to the status lines in
 [`2026-09-19-terminal-reference-survey.md`](2026-09-19-terminal-reference-survey.md)
 (checked against the tree on 2026-09-24). The `§` numbers point at the survey
-entries. The 26 entries marked **Not done** are grouped below into 20 items;
-the 17 marked **Partial** follow with what each is missing.
+entries. The 26 entries marked **Not done** on 2026-09-24 are grouped below
+into 20 items (items 3, 4 and 5 have since been done, roadmap Plans 5 and 1;
+items 19 and 20 have since been done, roadmap Plan 3); the 16 marked
+**Partial** follow with what each is missing.
 
 Two words used throughout:
 
@@ -21,24 +23,38 @@ says so.
 1. **Search that keeps up (§1.7, §3.12).** While Claude is still writing, the
    find bar doesn't pick up new text that matches, so you have to search
    again. *If done:* matches appear as new output arrives.
+   **Done (Plan 2):** matches appear while Claude is still writing, in
+   Claude Code panes too — before, the find bar found nothing there.
 2. **Smarter search (§2.6).** Search is exact and case-sensitive: "error"
    won't find "Error". *If done:* lowercase searches ignore case, and
    "next/previous" jumps are fast even in huge output.
+   **Done (Plan 2):** a lowercase search ignores case, a `.*` button
+   switches to patterns, and next/previous steps through the list already
+   found.
 3. **One look for everything highlighted (§1.8).** Selected text, search
    matches and other marks are drawn by separate code, so they can look
    inconsistent or clash. *If done:* they all look and behave the same, and
    overlap cleanly.
+   **Done (roadmap Plan 5):** selection, search matches and your own
+   highlights are drawn by one piece of code. Where they overlap, the
+   selection is on top, then the current search match, then other matches,
+   then your highlights. Selection and search look exactly as before.
 4. **Highlight words you care about (§5.6).** You can't tell the terminal
    "always highlight the word ERROR in red". *If done:* important words stand
    out while you scroll.
+   **Done (roadmap Plan 5):** Settings → Terminal highlights. Add a word (any
+   capitalisation matches) or a pattern (the `.*` button), pick one of five
+   colours, and it is coloured in every terminal, Claude Code panes included.
 
 ### Pasting
 
-5. **Paste safety (§1.10, §2.11).** Pasting text copied from a web page can
-   contain hidden control characters, which can make a command run by
-   itself. Operator silently removes only one such trick. *If done:* risky
-   pastes are cleaned up or you're asked "this paste will run a command,
-   continue?", which protects you from dangerous copy-paste.
+5. **Paste safety (§1.10, §2.11). Done (roadmap Plan 1, 2026-09-24).** When
+   the program asked for bracketed paste (Claude Code does), hidden control
+   characters are removed before the paste is sent. When it did not, a paste
+   with a line break or a hidden control character opens a dialog showing
+   the first lines and why, with "Paste" and "Cancel". At a shell prompt
+   nothing changed: the paste goes into the line and runs only when you
+   press Enter.
 
 ### Resizing the window (shell only)
 
@@ -89,15 +105,16 @@ Claude Code sessions don't use them.
 
 ## Things about Claude Code and agents
 
-14. **Agents telling the terminal what they're doing (§7.1).** Operator
-    learns Claude's state ("working", "needs you") through a side channel on
-    your own machine. *If done:* the same signals would also work for Claude
-    running on a remote machine over SSH.
-15. **The terminal noticing an agent is idle or waiting (§6.9).** The
-    terminal itself doesn't know "the agent stopped and is waiting for an
-    answer". Operator already knows this another way. *If done:* any app
-    using the terminal would get this for free, plus a way to read output
-    with the noise stripped out.
+14. **Agents telling the terminal what they're doing (§7.1).** *Partly done
+    (roadmap Plan 8, 2026-09-25):* the terminal now understands a short
+    in-band message an agent can print ("working", "needs you", "idle",
+    "done"), which would also travel over SSH. Operator doesn't use it yet —
+    it still learns Claude's state from its own side channel on your machine.
+15. **The terminal noticing an agent is idle or waiting (§6.9).** *Partly
+    done (roadmap Plan 8, 2026-09-25):* the terminal package can now tell
+    "busy", "went quiet", "idle" and "asking a yes/no question" on its own,
+    and can hand over a block's output with spinner lines and repeated
+    redraws stripped out. Operator doesn't use either yet.
 
 ## Invisible under-the-hood work
 
@@ -112,30 +129,46 @@ You'd only notice these as fewer rare glitches or slightly less CPU use.
     invisible commands programs send (colours, cursor moves) is hand-written.
     *If done:* it uses a standard, well-tested library, so fewer odd bugs
     from unusual programs.
-19. **Safety caps (§2.14).** There's nothing to cap yet. This only becomes
-    relevant once #16 or #18 adds the pieces that need limits.
-20. **Reporting the window size (§1.16).** A program that asks "how big is
-    the window in pixels?" gets no answer. *If done:* the few programs that
-    ask, like image viewers in the terminal, would work.
+19. **Safety caps (§2.14) — done (2026-09-25, roadmap Plan 3).** Programs can
+    push window titles onto a stack; it now stops at 4,096 and drops the
+    oldest, so a runaway program cannot grow memory.
+20. **Reporting the window size (§1.16) — done (2026-09-25, roadmap Plan 3).**
+    A program that asks how big the window or a character cell is, in cells
+    or pixels, now gets an answer (Claude Code asks for the cell size).
 
-## The 17 partly done items, and what's missing
+## The 16 partly done items, and what's missing
 
 - **Selection:** you can't select a rectangle (Alt-drag), extend a selection
   with Shift+click, or pick a block's output with one gesture. Changing the
   window width can also move a selection (§1.3, §1.4, §2.5, §3.8).
-- **Window title and other messages from programs:** Claude's title (what
-  it's working on right now) and program notifications are ignored (§1.15).
+- **Window title and other messages from programs — done (2026-09-25,
+  roadmap Plan 3):** what Claude says it is doing shows under the session
+  name on the board and in the pane header; a program's own "done"
+  notification pops up when that pane is not on screen.
 - **Minimum contrast option for the theme:** not built (§1.17).
 - **Jump to the last command you looked at:** not built (§5.3).
-- **Very old output:** beyond 200,000 lines, the oldest text is dropped
-  instead of saved for "load more" (§5.8).
-- **Crash recovery:** if the helper process that runs a terminal hangs,
-  nothing notices or restarts it, and if it dies (or the Mac reboots) the
-  terminal's history is lost because it is never saved to disk (§6.3).
-  Terminals do survive a daemon or app restart: the helper outlives the
-  daemon and is found again.
-- **Typing ahead:** while a command runs, what you type goes straight to the
-  running program instead of waiting in the input box (§7.2).
+- **Very old output (built 2026-09-25, roadmap Plan 7):** past 200,000 lines
+  the oldest text is no longer lost: the helper keeps up to 32 MB of it per
+  terminal, and scrolling to the top shows **Load older output**, which brings
+  back about 2,000 earlier lines per click. Still missing: loaded lines leave
+  again as soon as new output arrives, the old text is not kept across a crash
+  or a restart of the helper, and each click briefly pauses a very long pane
+  (§5.8).
+- **Crash recovery (built 2026-09-24, roadmap Plan 4):** if the helper
+  process that runs a session's terminal stops answering for about 15
+  seconds, the terminal says "This terminal stopped responding." and offers
+  **Restart terminal**, which stops the stuck helper and resumes the agent in
+  a new one. If a helper dies (or the Mac reboots), its recent history, up to
+  about 10,000 lines, was saved to disk once a minute and comes back when the
+  session is restored. Still missing: the board does not show a stuck
+  terminal, shells are not checked, and a replay is not redrawn at the sizes
+  the output was produced at (§6.3).
+- **Typing ahead (done for zsh, roadmap Plan 6, 2026-09-25):** in a zsh
+  shell, what you type while a command runs still reaches the running
+  program, and whatever it did not read shows up in the input box when the
+  command finishes, ready to edit; it runs only when you press Enter. A line
+  you finish with Enter while the command runs still runs right after it,
+  as before. Still missing: bash and fish shells behave the old way (§7.2).
 - The rest are small or test-only: §1.14, §3.6, §3.13, §3.15, §4.4, §4.10,
   §6.2.
 
@@ -144,11 +177,12 @@ You'd only notice these as fewer rare glitches or slightly less CPU use.
 For how Operator is used (mostly Claude Code), only a few of these would make
 a difference you'd feel:
 
-- **Paste safety (#5):** protection against dangerous copy-paste.
+- **Paste safety (#5):** done (roadmap Plan 1).
 - **Search that keeps up, and ignores case (#1, #2):** Claude's output is
   searched often.
 - **Claude's window title (partial list):** sessions show what each agent is
   doing right now.
-- **Crash recovery (partial list):** a stuck terminal fixes itself.
+- **Crash recovery (partial list):** a stuck terminal is noticed and restarts
+  with one click; built 2026-09-24 (roadmap Plan 4).
 
 Everything else mainly helps the shell, or is invisible.

@@ -59,6 +59,7 @@ type commander interface {
 	RestoreWithMode(ctx context.Context, id domain.SessionID, grid ports.PaneGrid) (sessionmanager.RestoreResult, error)
 	ResumeAgentWithMode(ctx context.Context, id domain.SessionID) (sessionmanager.RestoreResult, error)
 	RelaunchAgentFresh(ctx context.Context, id domain.SessionID, cfg sessionmanager.RelaunchAgentConfig) (sessionmanager.RestoreResult, error)
+	RestartTerminal(ctx context.Context, id domain.SessionID, grid ports.PaneGrid) (sessionmanager.RestoreResult, error)
 	Kill(ctx context.Context, id domain.SessionID) (bool, error)
 	Send(ctx context.Context, id domain.SessionID, message string, attachment *ports.SpawnAttachment) error
 	Command(ctx context.Context, id domain.SessionID, command domain.SessionCommand, model string) (sessionmanager.CommandResult, error)
@@ -371,6 +372,18 @@ func (s *Service) ResumeAgent(ctx context.Context, id domain.SessionID) (ResumeA
 // cfg.ClaudeAccountID moves a claude-code session onto another account first.
 func (s *Service) RelaunchAgent(ctx context.Context, id domain.SessionID, cfg sessionmanager.RelaunchAgentConfig) (ResumeAgentOutcome, error) {
 	res, err := s.manager.RelaunchAgentFresh(ctx, id, cfg)
+	if err != nil {
+		return ResumeAgentOutcome{}, toAPIError(err)
+	}
+	session, err := s.toSession(ctx, res.Session)
+	if err != nil {
+		return ResumeAgentOutcome{}, err
+	}
+	return ResumeAgentOutcome{Session: session, Mode: restoreModeView(res.Mode)}, nil
+}
+
+func (s *Service) RestartTerminal(ctx context.Context, id domain.SessionID, grid ports.PaneGrid) (ResumeAgentOutcome, error) {
+	res, err := s.manager.RestartTerminal(ctx, id, grid)
 	if err != nil {
 		return ResumeAgentOutcome{}, toAPIError(err)
 	}
@@ -712,6 +725,8 @@ func toAPIError(err error) error {
 	case errors.Is(err, sessionmanager.ErrAwaitingDecision):
 		return apierr.Conflict("SESSION_AWAITING_DECISION",
 			"Session is paused on a permission decision; answer it in the session terminal first", nil)
+	case errors.Is(err, sessionmanager.ErrTerminalResponding):
+		return apierr.Conflict("TERMINAL_RESPONDING", "The terminal is responding; only a terminal that stopped responding can be restarted", nil)
 	case errors.Is(err, sessionmanager.ErrIncompleteHandle):
 		return apierr.Conflict("SESSION_INCOMPLETE_HANDLE", "Session is missing runtime or workspace handles", nil)
 	case errors.Is(err, sessionmanager.ErrNotResumable):
