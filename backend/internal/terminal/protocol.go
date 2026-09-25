@@ -38,6 +38,7 @@ const (
 	msgSubscribe   = "subscribe"   // ch "subscribe"
 	msgUnsubscribe = "unsubscribe" // ch "blocks"
 	msgPing        = "ping"        // ch "system"
+	msgOlder       = "older"
 )
 
 // server message types.
@@ -92,6 +93,8 @@ type clientMsg struct {
 	// it understands the runtime's history marks.
 	Bytes   int  `json:"bytes,omitempty"`
 	History bool `json:"history,omitempty"`
+
+	Before uint64 `json:"before,omitempty"`
 }
 
 // serverMsg is one outbound frame.
