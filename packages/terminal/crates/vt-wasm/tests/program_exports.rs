@@ -65,3 +65,12 @@ fn the_wasm_core_exposes_agent_events_and_live_output() {
     assert_eq!(core.program_generation().wrapping_sub(start), 1);
     assert_eq!(core.live_output_bytes(), bytes.len() as f64);
 }
+
+#[test]
+fn the_wasm_core_lists_unknown_sequences_with_their_counts() {
+    let Ok(mut core) = WasmTerminalCore::new(80, 1_000, 1 << 20) else {
+        panic!("core");
+    };
+    assert!(core.feed(b"\x1b[>1u\x1b[>1u\x1b(0\x1b[31m", 0.0).is_ok());
+    assert_eq!(core.unknown_sequences(), vec!["2 CSI >1u", "1 ESC (0"]);
+}

@@ -43,4 +43,12 @@ impl WasmTerminalCore {
     pub fn live_output_bytes(&self) -> f64 {
         self.core.live_output_bytes() as f64
     }
+
+    pub fn unknown_sequences(&self) -> Vec<String> {
+        self.core
+            .unknown_sequences()
+            .into_iter()
+            .map(|entry| format!("{} {}", entry.count, entry.text))
+            .collect()
+    }
 }
