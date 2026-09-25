@@ -21,6 +21,32 @@ function hostWith(notify?: HostCapabilities["notify"]): HostCapabilities {
 }
 
 describe("ProgramMessages", () => {
+	it("delivers every message to every listener even when one throws, then reports the failure", () => {
+		let notifications = ["Build", "done"];
+		const source = {
+			program_generation: () => 1,
+			title: () => "◐ Working",
+			pointer_shape: () => "",
+			take_notifications: () => {
+				const taken = notifications;
+				notifications = [];
+				return taken;
+			},
+		};
+		const program = new ProgramMessages(source, hostWith());
+		const seen: ProgramMessageEvent[] = [];
+		program.onMessage(() => {
+			throw new Error("boom");
+		});
+		program.onMessage((event) => seen.push(event));
+		expect(() => program.poll()).toThrow(AggregateError);
+		expect(seen).toEqual([
+			{ kind: "title", title: "◐ Working" },
+			{ kind: "notification", notification: { title: "Build", body: "done" } },
+		]);
+		expect(program.title()).toBe("◐ Working");
+	});
+
 	it("reads nothing while the generation is unchanged", () => {
 		const source = {
 			program_generation: vi.fn(() => 0),

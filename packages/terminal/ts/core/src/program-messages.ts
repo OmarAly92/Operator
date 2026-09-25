@@ -1,3 +1,4 @@
+import { attempt, callEach, throwFailures } from "./listener-failures.js";
 import type { HostCapabilities } from "./types.js";
 
 export type ProgramNotification = Readonly<{ title: string; body: string }>;
@@ -48,29 +49,34 @@ export class ProgramMessages {
 		const generation = this.source.program_generation();
 		if (generation === this.generation) return;
 		this.generation = generation;
+		const events: ProgramMessageEvent[] = [];
 		const title = this.source.title();
 		if (title !== this.currentTitle) {
 			this.currentTitle = title;
-			this.emit({ kind: "title", title });
+			events.push({ kind: "title", title });
 		}
 		const shape = this.source.pointer_shape();
 		if (shape !== this.currentPointer) {
 			this.currentPointer = shape;
-			this.emit({ kind: "pointer", shape });
+			events.push({ kind: "pointer", shape });
 		}
 		const flat = this.source.take_notifications();
 		for (let index = 0; index + 1 < flat.length; index += 2) {
-			const notification = { title: flat[index]!, body: flat[index + 1]! };
-			this.host.notify?.(notification.title, notification.body);
-			this.emit({ kind: "notification", notification });
+			events.push({ kind: "notification", notification: { title: flat[index]!, body: flat[index + 1]! } });
 		}
+		const failures: unknown[] = [];
+		for (const event of events) {
+			if (event.kind === "notification") {
+				const { title: noteTitle, body } = event.notification;
+				attempt(() => this.host.notify?.(noteTitle, body), failures);
+			}
+			callEach(this.listeners, event, failures);
+		}
+		throwFailures(failures, "program message listener failed");
 	}
 
 	dispose(): void {
 		this.listeners.clear();
 	}
 
-	private emit(event: ProgramMessageEvent): void {
-		for (const listener of [...this.listeners]) listener(event);
-	}
 }
