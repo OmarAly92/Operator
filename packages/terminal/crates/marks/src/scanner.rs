@@ -66,6 +66,15 @@ impl Scanner {
         events
     }
 
+    pub fn open_osc_bytes(&self) -> usize {
+        match self.state {
+            State::AfterEsc => 1,
+            State::Osc => 2 + self.pending.len(),
+            State::OscSawEsc => 3 + self.pending.len(),
+            State::Ground | State::CsiPrivate => 0,
+        }
+    }
+
     fn step(&mut self, byte: u8, next_offset: usize, events: &mut Vec<(usize, MarkEvent)>) {
         match self.state {
             State::Ground => {
@@ -242,6 +251,22 @@ impl Default for Scanner {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn open_osc_bytes_counts_the_sequence_in_flight() {
+        let mut scanner = Scanner::new();
+        assert_eq!(scanner.open_osc_bytes(), 0);
+        scanner.feed(b"ab\x1b");
+        assert_eq!(scanner.open_osc_bytes(), 1);
+        scanner.feed(b"]7000;v=1");
+        assert_eq!(scanner.open_osc_bytes(), 10);
+        scanner.feed(b"\x1b");
+        assert_eq!(scanner.open_osc_bytes(), 11);
+        scanner.feed(b"\\");
+        assert_eq!(scanner.open_osc_bytes(), 0);
+        scanner.feed(b"\x1b[?1049");
+        assert_eq!(scanner.open_osc_bytes(), 0);
+    }
+
     fn events_only(pairs: Vec<(usize, MarkEvent)>) -> Vec<MarkEvent> {
         pairs.into_iter().map(|(_, event)| event).collect()
     }

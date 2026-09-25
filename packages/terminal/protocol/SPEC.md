@@ -316,7 +316,10 @@ The state is the sender's claim; the terminal does not check it.
   dropped.
 - Output that is loaded or replayed never delivers an event: rows of a
   history chunk (`history=`, including "load older output" answers) and the
-  attach replay frame, from an adopted `origin=` mark to the `ready=` mark.
+  attach replay frame, from an `origin=` mark (the mark's own bytes included)
+  to the `ready=` mark. This holds whether or not the core adopts the origin:
+  a reconnect replays into a core that already has rows, and that replay is
+  neither an event nor live output.
 - Inside a DEC 2026 synchronized-output block the event is delivered when
   the block is parsed.
 - The sequence prints nothing.

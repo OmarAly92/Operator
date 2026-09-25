@@ -19,6 +19,7 @@ pub mod hyperlink;
 pub mod integrity;
 pub mod limits;
 mod line_editor;
+mod live_output;
 pub mod mark_regex;
 pub mod older;
 pub mod parser;
@@ -89,6 +90,7 @@ pub struct TerminalCore {
     replay_ready: bool,
     older: OlderState,
     live_output: u64,
+    open_osc_live: u64,
 }
 
 impl TerminalCore {
@@ -119,6 +121,7 @@ impl TerminalCore {
             replay_ready: false,
             older: OlderState::default(),
             live_output: 0,
+            open_osc_live: 0,
         })
     }
 
@@ -246,17 +249,18 @@ impl TerminalCore {
             if offset < parsed {
                 continue;
             }
+            if let MarkEvent::ReplayOrigin(_) = event {
+                parsed = self.open_replay_window(bytes, parsed, upto);
+            }
             if upto > parsed {
                 self.advance_vte(&bytes[parsed..upto]);
                 parsed = upto;
             }
             match event {
                 MarkEvent::ReplayOrigin(origin) => {
-                    let adopted = self.parser.adopt_origin(origin);
-                    if adopted {
+                    if self.parser.adopt_origin(origin) {
                         self.live_output = 0;
                     }
-                    self.parser.program_mut().agent_mut().set_replaying(adopted);
                     parsed = upto;
                     continue;
                 }
@@ -317,6 +321,7 @@ impl TerminalCore {
         if parsed < bytes.len() {
             self.advance_vte(&bytes[parsed..]);
         }
+        self.note_open_osc();
         self.parser.note_output();
         self.parser.commit_evicted();
         if self.parser.committed_rows() != committed {

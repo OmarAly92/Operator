@@ -72,6 +72,10 @@ impl MarkDecoder {
         self.scanner.feed(bytes)
     }
 
+    pub fn open_osc_bytes(&self) -> usize {
+        self.scanner.open_osc_bytes()
+    }
+
     pub fn feed(&mut self, bytes: &[u8]) -> Vec<MarkEvent> {
         self.feed_with_offsets(bytes)
             .into_iter()

@@ -231,14 +231,31 @@ fn an_event_in_the_replay_frame_is_ignored_and_live_events_after_ready_fire() {
 }
 
 #[test]
-fn an_origin_mark_after_rows_exist_does_not_silence_events() {
+fn an_origin_mark_after_rows_exist_silences_events_until_ready() {
     let mut core = core();
     core.feed(b"live\r\n\x1b]7000;v=1;origin=9999\x1b\\");
     core.feed(b"\x1b]777;agent-state;v=1;state=working\x07");
+    assert!(core.take_agent_events().is_empty());
+    core.feed(b"\x1b]7000;v=1;ready=1\x1b\\\x1b]777;agent-state;v=1;state=working\x07");
     assert_eq!(
         core.take_agent_events(),
         vec![event(AgentState::Working, "")]
     );
+}
+
+#[test]
+fn a_replay_into_a_reused_core_is_neither_live_output_nor_an_event() {
+    let mut core = core();
+    core.feed(b"\x1b]7000;v=1;origin=1000\x1b\\\x1b]7000;v=1;ready=1\x1b\\live\r\n");
+    let live = core.live_output_bytes();
+    core.feed(
+        b"\x1b]7000;v=1;origin=1000\x1b\\frame\x1b]777;agent-state;v=1;state=waiting\x07\r\n",
+    );
+    core.feed(b"\x1b]7000;v=1;ready=1\x1b\\");
+    assert_eq!(core.live_output_bytes(), live);
+    assert!(core.take_agent_events().is_empty());
+    core.feed(b"xy");
+    assert_eq!(core.live_output_bytes(), live + 2);
 }
 
 #[test]
@@ -260,6 +277,20 @@ fn live_output_counts_live_bytes_only() {
     assert_eq!(reopened.live_output_bytes(), 0);
     reopened.feed(b"xy");
     assert_eq!(reopened.live_output_bytes(), 2);
+}
+
+#[test]
+fn a_replay_split_byte_by_byte_into_a_reused_core_is_not_live_output() {
+    let mut core = core();
+    core.feed(b"\x1b]7000;v=1;origin=1000\x1b\\\x1b]7000;v=1;ready=1\x1b\\live\r\n");
+    let live = core.live_output_bytes();
+    let replay = b"\x1b]7000;v=1;origin=1000\x1b\\frame\r\n\x1b]7000;v=1;ready=1\x1b\\";
+    for byte in replay {
+        core.feed(std::slice::from_ref(byte));
+    }
+    assert_eq!(core.live_output_bytes(), live);
+    core.feed(b"x\x1b]7000;v=1;origin=1000\x1b\\frame\x1b]7000;v=1;ready=1\x1b\\y");
+    assert_eq!(core.live_output_bytes(), live + 2);
 }
 
 #[test]

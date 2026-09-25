@@ -240,6 +240,18 @@ describe("TerminalCore agent activity", () => {
 		target.dispose();
 	});
 
+	it("a reconnect's replay into a reused core is not live output", () => {
+		const target = core(80, 24);
+		target.feed(encoder.encode("\x1b]7000;v=1;origin=1000\x1b\\\x1b]7000;v=1;ready=1\x1b\\live\r\n"));
+		vi.advanceTimersByTime(5_000);
+		const seen: AgentActivityState[] = [];
+		target.onAgentActivity((state) => seen.push(state));
+		target.feed(encoder.encode("\x1b]7000;v=1;origin=1000\x1b\\live\r\nframe\r\n\x1b]7000;v=1;ready=1\x1b\\"));
+		expect(target.agentActivity()).toBe("idle");
+		expect(seen).toEqual([]);
+		target.dispose();
+	});
+
 	it("stops reporting after the listener's teardown and after dispose", () => {
 		const target = core(80, 24);
 		const listener = vi.fn();

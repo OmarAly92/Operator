@@ -46,6 +46,10 @@ impl AnswerGate {
         Cow::Owned(out)
     }
 
+    pub(crate) fn held_len(&self) -> usize {
+        self.held.len()
+    }
+
     fn step(&mut self, byte: u8, out: &mut Vec<u8>) {
         match self.state {
             State::Pass => {
