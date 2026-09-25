@@ -47,7 +47,7 @@ Absent evidence is written as "not known", never guessed.
 
 ## Implementation status (updated 2026-09-24)
 
-Every entry below carries a **Status** line under its heading, checked against the tree on 2026-09-24 (`development`): 39 done, 19 partial, 21 not done, 7 not pursued, 1 not needed, 1 n/a. "Plan A–F" are the agent-TUI spec's plans (`docs/superpowers/specs/2026-09-19-agent-tui-experience-design.md`); "Plan 4" is the background-pane plan (`docs/superpowers/plans/2026-09-23-terminal-background-pane-cost.md`). Entries marked non-goal were excluded by the agent-TUI spec, not rejected. "Roadmap Plan 1" is the paste-safety plan (`docs/superpowers/plans/2026-09-24-terminal-plan-1-paste-safety.md`).
+Every entry below carries a **Status** line under its heading, checked against the tree on 2026-09-24 (`development`): 41 done, 19 partial, 19 not done, 7 not pursued, 1 not needed, 1 n/a. "Plan A–F" are the agent-TUI spec's plans (`docs/superpowers/specs/2026-09-19-agent-tui-experience-design.md`); "Plan 4" is the background-pane plan (`docs/superpowers/plans/2026-09-23-terminal-background-pane-cost.md`). Entries marked non-goal were excluded by the agent-TUI spec, not rejected. "Roadmap Plan 1" is the paste-safety plan (`docs/superpowers/plans/2026-09-24-terminal-plan-1-paste-safety.md`); "Roadmap Plan 5" is the highlights plan (`docs/superpowers/plans/2026-09-25-terminal-plan-5-highlights-marks.md`).
 
 | Entry | Status | What landed / what is missing |
 |---|---|---|
@@ -58,7 +58,7 @@ Every entry below carries a **Status** line under its heading, checked against t
 | §1.5 | Not done | Shell resize still evicts the frame once (Warp model). A non-goal of the agent-TUI spec. |
 | §1.6 | Not done | `decode_osc133` still reads only `A`/`B`/`C`/`D` and `D;<exit>`. A non-goal of the agent-TUI spec. |
 | §1.7 | Done | Plan 2 — `FindSession` on the core: settled history scanned once from `scanned_to` and never again; the unsettled tail and the live screen re-searched only when the generation changes; hits re-resolve through the row index after a trim or rewrap. Also fixed: panes without OSC 133 marks (Claude Code) and rows still on the screen were never searched. |
-| §1.8 | Not done | The selection paints through `selection-fill` and find hits use row classes; Plan E's range painter (`decorations.ts`) serves links, hints, redaction and prediction only. |
+| §1.8 | Done | Roadmap Plan 5 — `highlights.ts` (ranges in stable rows, a kind, a priority) painted only by `highlight-painter.ts`; selection, find hits and user marks all go through it (`renderer-highlights.ts`). Links, hints, redaction and prediction stay overlays in `decorations.ts` because they paint above the text. Find hits keep their whole-row look. |
 | §1.9 | Done | Plan C — `vt_replay` sends origin, modes, the frame, `READY`, then history in 512-row chunks; the pane paints at `READY`. |
 | §1.10 | Done | Roadmap Plan 1 — `encodePaste` returns the bytes and a verdict; outside bracketed paste a newline, a C0 control other than tab, or `ESC[201~` is unsafe and goes to `HostCapabilities.confirmPaste` (Operator: a dialog with the first five lines); no handler sends as before. The editor-owned line never asks. The confirm is a host seam, not surface chrome as the entry proposed. |
 | §1.11 | Not done | `print` is still per character with a style resolve each; no `print_run`, no unknown-sequence ring (Plan A's `trace` feature is a debug build, not the ring). |
@@ -94,7 +94,7 @@ Every entry below carries a **Status** line under its heading, checked against t
 | §3.9 | Not done | No screen-reader mode, row roles or live region for output; the only `aria-live` is the find-bar counter. |
 | §3.10 | Done | Plan D — composition view at the cursor and one send a tick after `compositionend`. Manual Japanese-IME check still pending. |
 | §3.11 | Done | Plan C — the replay re-emits the child's modes before the frame. Soft-wrapped history rows are still replayed unjoined (`TERMINAL.md` §5). |
-| §3.12 | Partial | Plan 2 — the find bar updates on every paint through `findUpdate` (new matches appear without retyping; history is not rescanned) and keeps the current hit anchored by stable row. Not done: hits as decorations (still row classes, §1.8) and a host `onResultsChanged`. |
+| §3.12 | Partial | Plan 2 — the find bar updates on every paint through `findUpdate` (new matches appear without retyping; history is not rescanned) and keeps the current hit anchored by stable row. Plan 5 — hits paint through the highlight model (§1.8), still whole rows. Not done: a host `onResultsChanged`. |
 | §3.13 | Partial | Plan A (12 ms budget) and Plan C (ack every 5,000 bytes, pause at 100,000); a hidden window drains 250 ms per tick (Plan 4). No 50 MB discard watermark. |
 | §3.14 | Done | Plan D — grapheme-cluster widths, on by default since 2026-09-22 (`7395b910c`); the renderer reads exported cell spans. The pty-host mirror stays in scalar mode (`TERMINAL.md` §5). |
 | §3.15 | Partial | Plan A — `onFeedParsed`. Not done: the Windows wrapped-line heuristic, OSC 9;4 progress, the Kitty keyboard encoder. |
@@ -113,7 +113,7 @@ Every entry below carries a **Status** line under its heading, checked against t
 | §5.3 | Partial | Plan E — `onBlockFinished` with duration and visibility. Plan 4 — a hidden window still drains and reports (`cb7b34b3b`); unloaded shell panes notify from the daemon (`13ad4994d`). macOS toasts `59624c9a9`. Not done: `lastVisitedBlockId` and `readBlockOutput` defaulting to it. |
 | §5.4 | Not done | Shell resize still evicts the frame; Kitty's exempt-the-prompt option was not taken up. A non-goal of the agent-TUI spec. |
 | §5.5 | Done | Plan E — `path:line` hints and links open through the host; since `fdc202778` the editor chosen in Settings (VS Code, Cursor, Zed) opens at the line and column. The default "system" opener opens the file without the line. |
-| §5.6 | Not done | No host highlight-rule or marker API. |
+| §5.6 | Done | Roadmap Plan 5 — `DomBlockRenderer.setMarks` / `TerminalSurface` `marks` (`MarkRule { pattern, regex, colour }`), matched per painted logical line; Operator Settings → Terminal highlights. Not built: next/previous-mark navigation. |
 | §5.7 | Not pursued | Replaced by the pump hold (1/60 s coalescing, held across a DEC 2026 block) and the 12 ms drain budget (agent-TUI spec). |
 | §5.8 | Partial | Plan C — lazy rewrap for cold scrollback (`HOT_ROWS = 2_000`). Fixed segments and an ANSI ring beyond the cap not done. |
 | §5.9 | Done | Plan D — `unicode-width`/`unicode-segmentation` on Unicode 17, tested against `GraphemeBreakTest.json`; `graphemes` on by default since `7395b910c`. |
@@ -680,7 +680,7 @@ onto our `Content` (append-only) + `ScreenGrid` (mutable) split.
 
 ### 1.8 Highlights as one representation for selection, search and future marks
 
-> **Status: Not done.** The selection paints through `selection-fill` and find hits use row classes; Plan E's range painter (`decorations.ts`) serves links, hints, redaction and prediction only.
+> **Status: Done.** Roadmap Plan 5 — one model (`highlights.ts`), one painter (`highlight-painter.ts`) for selection, find hits and user marks; links, hints, redaction and prediction stay overlays in `decorations.ts` (above the text). See `TERMINAL.md` §4.31.
 
 **Reference**
 - `src/terminal/highlight.zig:1-10`: "Highlights are any contiguous sequences
@@ -2487,7 +2487,7 @@ buffer, cursor last.
 
 ### 3.12 Search addon: line cache with TTL, incremental find, decorations for all matches, result tracker
 
-> **Status: Partial.** Plan 2 — re-search on every paint through `findUpdate`, current hit anchored by stable row. Not done: hits as decorations (still row classes, §1.8) and `onResultsChanged`.
+> **Status: Partial.** Plan 2 — re-search on every paint through `findUpdate`, current hit anchored by stable row. Plan 5 — hits paint through the highlight model (§1.8). Not done: `onResultsChanged`.
 
 **Reference**
 - `xterm.js/addons/addon-search/src/SearchLineCache.ts:29-60`:
@@ -3356,7 +3356,7 @@ hint for us.
 
 ### 5.6 Marks: user-toggled regex highlights over the transcript
 
-> **Status: Not done.** No host highlight-rule or marker API.
+> **Status: Done.** Roadmap Plan 5 — `setMarks(rules)` / `TerminalSurface` `marks`, literal (any case) or regex rules with a colour, painted by the §1.8 model; Operator Settings → Terminal highlights. Not built: next/previous-mark navigation. See `TERMINAL.md` §4.31.
 
 **Reference**
 - `kitty/docs/marks.rst:1-60`: `map f1 toggle_marker text 1 ERROR` /

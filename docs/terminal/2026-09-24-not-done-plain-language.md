@@ -4,7 +4,7 @@ A plain-language companion to the status lines in
 [`2026-09-19-terminal-reference-survey.md`](2026-09-19-terminal-reference-survey.md)
 (checked against the tree on 2026-09-24). The `§` numbers point at the survey
 entries. The 26 entries marked **Not done** on 2026-09-24 are grouped below
-into 20 items (item 5 has since been done, roadmap Plan 1); the 17 marked
+into 20 items (items 3, 4 and 5 have since been done, roadmap Plans 5 and 1); the 17 marked
 **Partial** follow with what each is missing.
 
 Two words used throughout:
@@ -34,9 +34,16 @@ says so.
    matches and other marks are drawn by separate code, so they can look
    inconsistent or clash. *If done:* they all look and behave the same, and
    overlap cleanly.
+   **Done (roadmap Plan 5):** selection, search matches and your own
+   highlights are drawn by one piece of code. Where they overlap, the
+   selection is on top, then the current search match, then other matches,
+   then your highlights. Selection and search look exactly as before.
 4. **Highlight words you care about (§5.6).** You can't tell the terminal
    "always highlight the word ERROR in red". *If done:* important words stand
    out while you scroll.
+   **Done (roadmap Plan 5):** Settings → Terminal highlights. Add a word (any
+   capitalisation matches) or a pattern (the `.*` button), pick one of five
+   colours, and it is coloured in every terminal, Claude Code panes included.
 
 ### Pasting
 
