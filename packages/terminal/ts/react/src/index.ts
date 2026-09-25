@@ -1,4 +1,5 @@
-export { TerminalSurface, type TerminalSurfaceProps } from "./TerminalSurface.js";
+export { TerminalSurface, type CellSize, type TerminalSurfaceProps } from "./TerminalSurface.js";
+export { POINTER_SHAPE_PROPERTY } from "./use-program-messages.js";
 export { AltScreenSlot, type AltScreenSlotProps } from "./AltScreenSlot.js";
 export { createCompositionTarget, type CompositionTarget } from "@operator/terminal-core";
 export {

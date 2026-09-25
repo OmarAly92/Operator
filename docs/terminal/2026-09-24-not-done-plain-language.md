@@ -4,7 +4,8 @@ A plain-language companion to the status lines in
 [`2026-09-19-terminal-reference-survey.md`](2026-09-19-terminal-reference-survey.md)
 (checked against the tree on 2026-09-24). The `§` numbers point at the survey
 entries. The 26 entries marked **Not done** on 2026-09-24 are grouped below
-into 20 items (items 3, 4 and 5 have since been done, roadmap Plans 5 and 1); the 17 marked
+into 20 items (items 3, 4 and 5 have since been done, roadmap Plans 5 and 1;
+items 19 and 20 have since been done, roadmap Plan 3); the 16 marked
 **Partial** follow with what each is missing.
 
 Two words used throughout:
@@ -127,19 +128,22 @@ You'd only notice these as fewer rare glitches or slightly less CPU use.
     invisible commands programs send (colours, cursor moves) is hand-written.
     *If done:* it uses a standard, well-tested library, so fewer odd bugs
     from unusual programs.
-19. **Safety caps (§2.14).** There's nothing to cap yet. This only becomes
-    relevant once #16 or #18 adds the pieces that need limits.
-20. **Reporting the window size (§1.16).** A program that asks "how big is
-    the window in pixels?" gets no answer. *If done:* the few programs that
-    ask, like image viewers in the terminal, would work.
+19. **Safety caps (§2.14) — done (2026-09-25, roadmap Plan 3).** Programs can
+    push window titles onto a stack; it now stops at 4,096 and drops the
+    oldest, so a runaway program cannot grow memory.
+20. **Reporting the window size (§1.16) — done (2026-09-25, roadmap Plan 3).**
+    A program that asks how big the window or a character cell is, in cells
+    or pixels, now gets an answer (Claude Code asks for the cell size).
 
-## The 17 partly done items, and what's missing
+## The 16 partly done items, and what's missing
 
 - **Selection:** you can't select a rectangle (Alt-drag), extend a selection
   with Shift+click, or pick a block's output with one gesture. Changing the
   window width can also move a selection (§1.3, §1.4, §2.5, §3.8).
-- **Window title and other messages from programs:** Claude's title (what
-  it's working on right now) and program notifications are ignored (§1.15).
+- **Window title and other messages from programs — done (2026-09-25,
+  roadmap Plan 3):** what Claude says it is doing shows under the session
+  name on the board and in the pane header; a program's own "done"
+  notification pops up when that pane is not on screen.
 - **Minimum contrast option for the theme:** not built (§1.17).
 - **Jump to the last command you looked at:** not built (§5.3).
 - **Very old output (built 2026-09-25, roadmap Plan 7):** past 200,000 lines

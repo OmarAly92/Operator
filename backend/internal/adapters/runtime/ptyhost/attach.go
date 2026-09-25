@@ -37,6 +37,7 @@ func (r *Runtime) AttachWithHistory(ctx context.Context, handle ports.RuntimeHan
 	if err != nil {
 		return nil, fmt.Errorf("ptyhost: dial host for %q: %w", handle.ID, err)
 	}
+	r.ensureProgramWatch(handle.ID, sess)
 
 	// The birth resize is handshaken synchronously, on the bare conn, before
 	// any pipe exists. It is also what the host waits for before it renders

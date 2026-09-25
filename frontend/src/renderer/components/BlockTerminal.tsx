@@ -6,6 +6,7 @@ import {
 	createTerminalCore,
 	initTerminalCoreFromUrl,
 	warpDarkTheme,
+	type CellSize,
 	type FontConfig,
 	type HostCapabilities,
 	type TerminalCore,
@@ -24,6 +25,8 @@ import { isWebLink, openLinkInSystemBrowser } from "../lib/external-link-policy"
 import { fetchRedactionPatterns, redactionPatternsQueryKey } from "../lib/redaction-patterns";
 import { externalEditorLabel } from "../lib/open-files-in";
 import { usePasteConfirm } from "../hooks/usePasteConfirm";
+import type { TerminalAppearance } from "../lib/terminal-mux";
+import { terminalAppearance, type TerminalColors } from "../lib/terminal-appearance";
 
 export type BlockTerminalClipboard = {
 	writeText: (text: string) => Promise<void>;
@@ -39,6 +42,7 @@ export type BlockTerminalTransport = {
 	write: (data: Uint8Array) => void;
 	onData: (listener: (bytes: Uint8Array) => void) => () => void;
 	resize?: (cols: number, rows: number) => void;
+	appearance?: (appearance: TerminalAppearance) => void;
 	requestOlder?: (before: number) => void;
 	dispose?: () => void;
 };
@@ -259,9 +263,21 @@ export function BlockTerminal({
 	const onSendRaw = useCallback((data: string) => {
 		transportRef.current.write(new TextEncoder().encode(data));
 	}, []);
-	const onGeometry = useCallback((columns: number, rows: number) => {
+	const cellSizeRef = useRef<CellSize | null>(null);
+	const terminalColorsRef = useRef<TerminalColors | null>(null);
+	const publishAppearance = useCallback(() => {
+		const cell = cellSizeRef.current;
+		const colors = terminalColorsRef.current;
+		if (!cell || !colors) return;
+		transportRef.current.appearance?.(terminalAppearance(cell, colors, window.devicePixelRatio));
+	}, []);
+	const onGeometry = useCallback((columns: number, rows: number, cell?: CellSize) => {
 		if (recordsSpawnGridRef.current) rememberPaneGrid(columns, rows);
 		transportRef.current.resize?.(columns, rows);
+		if (cell) {
+			cellSizeRef.current = cell;
+			publishAppearance();
+		}
 		// TerminalSurface resizes the core immediately before reporting, so the
 		// core is correctly sized by the time this runs and the held bytes can be
 		// parsed against the grid they were written for.
@@ -276,7 +292,7 @@ export function BlockTerminal({
 			feedToCore(core, bytes, historyIdsRef.current);
 		}
 		reportReplayPainted();
-	}, [reportReplayPainted]);
+	}, [publishAppearance, reportReplayPainted]);
 
 	useEffect(() => {
 		if (!core) return;
@@ -429,6 +445,11 @@ export function BlockTerminal({
 	useEffect(() => {
 		document.documentElement.style.setProperty("--terminal-background", resolvedTheme.background);
 	}, [resolvedTheme.background]);
+
+	useEffect(() => {
+		terminalColorsRef.current = { foreground: resolvedTheme.foreground, background: resolvedTheme.background };
+		publishAppearance();
+	}, [publishAppearance, resolvedTheme.background, resolvedTheme.foreground]);
 
 	const redactSecrets = useUiStore((state) => state.terminalSecretRedaction);
 	const { data: patterns } = useQuery({

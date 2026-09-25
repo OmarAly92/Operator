@@ -22,6 +22,7 @@ import {
 } from "../../hooks/useShellTerminals";
 import { useWorkspaceQuery } from "../../hooks/useWorkspaceQuery";
 import { operatorBridge } from "../../lib/bridge";
+import { claimOnScreenTerminals } from "../../lib/on-screen-terminals";
 import { useShell } from "../../lib/shell-context";
 import { useResolvedTheme, useUiStore } from "../../stores/ui-store";
 import type { TerminalTarget } from "../../types/terminal";
@@ -98,6 +99,20 @@ export function SplitWorkspace({ routeSessionId }: { routeSessionId: string }) {
 			for (const sessionId of kinds.keys()) clearVisibleTerminalKind(sessionId);
 		};
 	}, [clearVisibleTerminalKind, layout, setVisibleTerminalKind]);
+
+	useEffect(() => {
+		const handles: string[] = [];
+		for (const pane of listPanes(layout.root)) {
+			const tab = activeTabOf(pane);
+			if (tab.kind !== "session") {
+				handles.push(tab.handleId);
+				continue;
+			}
+			const handleId = sessions.get(tab.sessionId)?.terminalHandleId;
+			if (handleId) handles.push(handleId);
+		}
+		return claimOnScreenTerminals(handles);
+	}, [layout, sessions]);
 
 	useEffect(() => {
 		const pendingShell = pendingShellRef.current;

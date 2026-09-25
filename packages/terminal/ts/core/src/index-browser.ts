@@ -74,6 +74,13 @@ export { CELL_SPAN_WORDS } from "./cell-spans.js";
 export { joinLogicalLine, type LogicalLine } from "./logical-lines.js";
 export { compileMarkRegex, markRegexValid, type MarkRegex } from "./mark-regex.js";
 export {
+	ProgramMessages,
+	type ProgramMessageEvent,
+	type ProgramMessageListener,
+	type ProgramMessageSource,
+	type ProgramNotification,
+} from "./program-messages.js";
+export {
 	FEED_BUDGET_MS,
 	FEED_SLICE_BYTES,
 	FIND_UPDATE_BUDGET_BYTES,

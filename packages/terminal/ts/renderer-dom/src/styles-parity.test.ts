@@ -109,7 +109,7 @@ describe("terminalStyles", () => {
 			terminalStyles.indexOf("}", terminalStyles.indexOf(".terminal-block,")),
 		);
 		expect(block).toContain(".terminal-alt-surface");
-		expect(block).toContain("cursor: default");
+		expect(block).toContain("cursor: var(--terminal-pointer-shape, default)");
 		expect(block).not.toContain("cursor: text");
 	});
 

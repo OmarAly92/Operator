@@ -26,6 +26,7 @@ const (
 	chBlocks    = "blocks"
 
 	chNotifications = "notifications"
+	chPrograms      = "programs"
 )
 
 // client message types (ch "terminal" unless noted).
@@ -38,6 +39,7 @@ const (
 	msgSubscribe   = "subscribe"   // ch "subscribe"
 	msgUnsubscribe = "unsubscribe" // ch "blocks"
 	msgPing        = "ping"        // ch "system"
+	msgAppearance  = "appearance"
 	msgOlder       = "older"
 )
 
@@ -56,6 +58,7 @@ const (
 	// render the exact grid the PTY is using instead of their own fitted size.
 
 	msgNotification = "notification"
+	msgTitle        = "title"
 )
 
 // Client roles for a terminal open. A single PTY has one grid; when several
@@ -94,6 +97,11 @@ type clientMsg struct {
 	Bytes   int  `json:"bytes,omitempty"`
 	History bool `json:"history,omitempty"`
 
+	CellWidth  int    `json:"cellWidth,omitempty"`
+	CellHeight int    `json:"cellHeight,omitempty"`
+	Foreground string `json:"foreground,omitempty"`
+	Background string `json:"background,omitempty"`
+
 	Before uint64 `json:"before,omitempty"`
 }
 
@@ -118,6 +126,9 @@ type serverMsg struct {
 	TerminalBlock *terminalBlockFrame `json:"terminalBlock,omitempty"`
 
 	Notification *notificationFrame `json:"notification,omitempty"`
+
+	Title string `json:"title,omitempty"`
+	Body  string `json:"body,omitempty"`
 }
 
 type notificationFrame struct {

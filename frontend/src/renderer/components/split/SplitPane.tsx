@@ -11,6 +11,7 @@ import { TopbarButton } from "../TopbarButton";
 import { PaneTabStrip } from "./PaneTabStrip";
 import { PaneTerminal, terminalTargetForTab } from "./PaneTerminal";
 import { registerPaneElement } from "./pane-registry";
+import { useTerminalTitle } from "../../lib/terminal-titles";
 
 const isMac = isMacPlatform();
 const isLinux = isLinuxPlatform();
@@ -74,6 +75,7 @@ export function SplitPane(props: SplitPaneProps) {
 	const sessionId = tabSessionId(tab);
 	const session = sessionId ? props.sessions.get(sessionId) : undefined;
 	const shell = tab.kind === "shell" ? props.shells.get(tab.handleId) : undefined;
+	const paneTitle = useTerminalTitle(tab.kind === "session" ? session?.terminalHandleId : tab.handleId);
 	return (
 		<section
 			ref={(element) => registerPaneElement(props.pane.id, "pane", element)}
@@ -102,6 +104,16 @@ export function SplitPane(props: SplitPaneProps) {
 					sessions={props.sessions}
 					shells={props.shells}
 				/>
+				{paneTitle ? (
+					<span
+						aria-label={t("terminal.programTitleAria", { title: paneTitle })}
+						className="min-w-0 max-w-[40%] shrink truncate self-center pl-3 text-micro text-muted-foreground"
+						data-testid="pane-terminal-title"
+						title={paneTitle}
+					>
+						{paneTitle}
+					</span>
+				) : null}
 				<div className="ml-auto flex shrink-0 items-center gap-1.5 px-3">
 					{session ? <PaneSessionActions session={session} onFocus={props.onFocus} /> : null}
 					<TopbarButton

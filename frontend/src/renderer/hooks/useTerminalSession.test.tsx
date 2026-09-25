@@ -2,7 +2,7 @@ import { act, renderHook } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { MuxConnectionState, TerminalHealth, TerminalMux } from "../lib/terminal-mux";
+import type { MuxConnectionState, TerminalAppearance, TerminalHealth, TerminalMux } from "../lib/terminal-mux";
 import type { WorkspaceSession } from "../types/workspace";
 import { useTerminalSession, type AttachableTerminal } from "./useTerminalSession";
 import { workspaceQueryKey } from "./useWorkspaceQuery";
@@ -28,6 +28,7 @@ type FakeMux = {
 	inputs: Array<[string, string]>;
 	closes: string[];
 	acks: number[];
+	appearances: Array<[string, TerminalAppearance]>;
 	olders: Array<[string, number]>;
 	events: string[];
 	disposed: boolean;
@@ -62,6 +63,7 @@ function createFakeMux(): FakeMux {
 		inputs: [],
 		closes: [],
 		acks: [],
+		appearances: [],
 		olders: [],
 		events: [],
 		disposed: false,
@@ -77,6 +79,7 @@ function createFakeMux(): FakeMux {
 				fake.events.push(`close:${id}`);
 			},
 			ack: (_id, bytes) => fake.acks.push(bytes),
+			appearance: (id, appearance) => fake.appearances.push([id, appearance]),
 			requestOlder: (id, before) => fake.olders.push([id, before]),
 			onData: (id, listener) => subscribe(data, id, listener),
 			onExit: (id, listener) => subscribe(exit, id, listener),
@@ -311,6 +314,23 @@ describe("useTerminalSession", () => {
 		act(() => muxes[0].emitBytes("handle-1", chunk));
 		act(() => muxes[0].emitBytes("handle-1", chunk));
 		expect(muxes[0].acks).toEqual([6_000, 10_000]);
+	});
+
+	it("sends the terminal's appearance once attached and again on every reopen", () => {
+		const appearance: TerminalAppearance = { cellWidth: 16, cellHeight: 34, foreground: "#ffffff", background: "#1d2022" };
+		const { view, muxes } = setup();
+		act(() => view.result.current.transport.appearance(appearance));
+		expect(muxes[0].appearances).toEqual([]);
+		act(() => muxes[0].emitOpened("handle-1"));
+		expect(muxes[0].appearances).toEqual([["handle-1", appearance]]);
+		const next: TerminalAppearance = { ...appearance, cellWidth: 18 };
+		act(() => view.result.current.transport.appearance(next));
+		expect(muxes[0].appearances).toEqual([
+			["handle-1", appearance],
+			["handle-1", next],
+		]);
+		act(() => muxes[0].emitOpened("handle-1"));
+		expect(muxes[0].appearances.at(-1)).toEqual(["handle-1", next]);
 	});
 
 	it("stays idle when the session has no terminal handle", () => {

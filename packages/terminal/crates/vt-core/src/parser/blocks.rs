@@ -38,6 +38,7 @@ impl Parser {
         self.grid.sync_next_row(self.rows.completed().len());
         self.pending_style = CellStyle::DEFAULT;
         self.sync_erase_background();
+        self.program.reset_for_new_process();
     }
 
     fn materialize_uncovered_rows(

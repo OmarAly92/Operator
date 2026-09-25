@@ -9,6 +9,7 @@ import { operatorBridge } from "../lib/bridge";
 import { isMacPlatform, windowDragRegion } from "../lib/platform";
 import { cn } from "../lib/utils";
 import { handleTerminalTabListKeyDown } from "../lib/terminal-tabs";
+import { claimOnScreenTerminals } from "../lib/on-screen-terminals";
 import { useResolvedTheme, useUiStore } from "../stores/ui-store";
 import { ShellTerminalTab } from "./ShellTerminalTab";
 import { TerminalPane } from "./TerminalPane";
@@ -61,6 +62,12 @@ export function ShellTerminalsView() {
 		}
 		if (!active) setActiveShellTerminal(shellTerminals[0].handleId);
 	}, [shellTerminals, active, activeHandleId, setActiveShellTerminal]);
+
+	const activeShellHandleId = active?.handleId;
+	useEffect(
+		() => (activeShellHandleId ? claimOnScreenTerminals([activeShellHandleId]) : undefined),
+		[activeShellHandleId],
+	);
 
 	useEffect(
 		() =>
