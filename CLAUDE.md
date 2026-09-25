@@ -120,6 +120,18 @@ the current config and `ServerConfigInterceptor` stamps `baseUrl` and the
 how pairing verifies before persisting. Saved desktops live in the drift `desktops`
 table; each one's password lives in `flutter_secure_storage` keyed by desktop id;
 `ServerConfigStore` holds only the active one in memory, loaded at launch.
+`ServerConfig.desktopId` names the active desktop; every replica read and write is
+scoped by it, so a desktop never shows another desktop's data.
+
+**Start flow and connection state.** Opening the app paints the last known board, first
+notifications page and chat history from drift, then replaces them with fresh data. Each
+replicated repository writes the daemon's decoded JSON on every successful fetch and exposes
+a `cachedX()` read that parses through the same hand-written `fromJson`; cubits read the cache
+once per desktop. `ConnectionCubit` (`core/connection/`, provided at the app root) is the single
+source of connection state, fed by `ConnectionReportInterceptor` and `MuxClient.status`. It backs
+off 1 s to 30 s while offline, waits 60 s when rate-limited, and stops on an auth failure so a
+rotated password cannot trip the daemon's lockout. `/healthz` needs no password, so its 200 never
+clears an auth failure.
 
 **Two load-bearing behaviors that look like inefficiencies.** Do not "optimize" either:
 
@@ -167,16 +179,19 @@ Settings → Phone alerts covers install, subscribe and a test send against
 - **No `freezed` or `json_serializable`** in first-party code. Models are hand-written
   with all fields nullable and `fromJson` doing the wire→domain mapping. One params
   class per method under `data/model/params/`, never shared.
-- **`drift` and `build_runner` are permitted for on-device state under
-  `lib/core/database/`** (saved desktops today; the replica cache when it lands),
-  following the `flutter-knowledge:drift-local-database` layout: tables and DAOs
-  in `core/database/tables/<table>/`, local data sources in the feature, no drift
-  import above the data source. Wire models stay hand-written — drift never
-  parses the wire. Passwords never enter SQLite; they stay in
-  `flutter_secure_storage` under `server.password.<id>`. Generated `*.g.dart` is
-  committed, because CI runs `flutter analyze` and `flutter test` with no
-  generation step. Regenerate with `dart run build_runner build
-  --delete-conflicting-outputs`.
+- **drift is the single local store**, under `lib/core/database/`: saved desktops, settings
+  (read through `AppPreferences`, loaded once at launch so reads stay synchronous), and the
+  replica (`replica_documents` for whole-resource snapshots, `replica_block_events` for chat
+  history capped at 200 per session). Layout follows `flutter-knowledge:drift-local-database`:
+  tables and DAOs in `core/database/tables/<table>/`, local data sources in the feature, no drift
+  import above the data source. Wire models stay hand-written: drift never parses the wire, and
+  the replica stores the daemon's JSON for the same `fromJson` to parse. Passwords never enter
+  SQLite; the Keychain (`flutter_secure_storage`, `server.password.<id>`) holds passwords only.
+  There is no SharedPreferences in first-party code (`easy_localization` still pulls it in
+  transitively), and `test/core/no_shared_preferences_test.dart` pins that. A schema bump may
+  wipe and recreate every table, and the wipe purges the Keychain passwords with it. Generated
+  `*.g.dart` is committed, because CI runs `flutter analyze` and `flutter test` with no
+  generation step. Regenerate with `dart run build_runner build --delete-conflicting-outputs`.
 - Parameterized paths get static methods on `EndPoints`; interpolating at a call site is
   forbidden.
 - Feature code never imports `flutter_screenutil` — spacing, padding and radii take raw ints.
