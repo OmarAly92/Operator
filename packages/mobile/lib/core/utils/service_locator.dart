@@ -128,7 +128,7 @@ class ServiceLocator {
       () => GlobalKey<NavigatorState>(),
     );
     sl.registerLazySingleton<DeepLinkService>(
-      () => DeepLinkService(AppLinksSource(), sl<GlobalKey<NavigatorState>>()),
+      () => DeepLinkService(AppLinksSource(), sl<GlobalKey<NavigatorState>>(), sl<ServerConfigStore>()),
     );
   }
 

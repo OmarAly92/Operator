@@ -4,6 +4,8 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:operator_mobile/core/api/interceptors/server_config_interceptor.dart';
+import 'package:operator_mobile/core/api/server_config.dart';
 import 'package:operator_mobile/core/app_routes/routes_strings.dart';
 import 'package:operator_mobile/core/deep_link/deep_link_service.dart';
 
@@ -16,6 +18,16 @@ class _FakeSource implements AppLinkSource {
 
   @override
   Stream<Uri> get linkStream => controller.stream;
+}
+
+class _Paired implements ServerConfigSource {
+  const _Paired([this.current = const ServerConfig(host: '10.0.0.5', httpPort: '3011', secure: false, password: 'pw', desktopId: 'd-1')]);
+
+  @override
+  final ServerConfig? current;
+
+  @override
+  Stream<ServerConfig?> get changes => const Stream.empty();
 }
 
 class _RecordingObserver extends NavigatorObserver {
@@ -86,7 +98,7 @@ void main() {
     await pumpApp(tester);
     observer.pushed.clear();
 
-    await DeepLinkService(source, navigatorKey).start();
+    await DeepLinkService(source, navigatorKey, const _Paired()).start();
     if (_iosEmbedderHandlesLinks()) await _embedderPushes(tester, link);
     await tester.pumpAndSettle();
 
@@ -96,7 +108,7 @@ void main() {
   testWidgets('iOS: a warm notification tap pushes exactly the session route', (tester) async {
     await pumpApp(tester);
     observer.pushed.clear();
-    await DeepLinkService(source, navigatorKey).start();
+    await DeepLinkService(source, navigatorKey, const _Paired()).start();
 
     source.controller.add(link);
     if (_iosEmbedderHandlesLinks()) await _embedderPushes(tester, link);
@@ -113,7 +125,7 @@ void main() {
     }
     await pumpApp(tester);
 
-    await DeepLinkService(source, navigatorKey).start();
+    await DeepLinkService(source, navigatorKey, const _Paired()).start();
     await tester.pumpAndSettle();
 
     expect(observer.pushed, [RoutesStrings.sessions, RoutesStrings.session]);
@@ -122,12 +134,23 @@ void main() {
   testWidgets('Android: a warm link pushes exactly the session route', (tester) async {
     await pumpApp(tester);
     observer.pushed.clear();
-    await DeepLinkService(source, navigatorKey).start();
+    await DeepLinkService(source, navigatorKey, const _Paired()).start();
 
     source.controller.add(link);
     if (_androidEmbedderHandlesLinks()) await _embedderPushes(tester, link);
     await tester.pumpAndSettle();
 
     expect(observer.pushed, [RoutesStrings.session]);
+  });
+
+  testWidgets('with no paired desktop, a cold-start notification tap opens nothing', (tester) async {
+    source.initial = link;
+    await pumpApp(tester);
+    observer.pushed.clear();
+
+    await DeepLinkService(source, navigatorKey, const _Paired(null)).start();
+    await tester.pumpAndSettle();
+
+    expect(observer.pushed, isEmpty);
   });
 }

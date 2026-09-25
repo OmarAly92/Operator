@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:app_links/app_links.dart';
 import 'package:flutter/widgets.dart';
+import 'package:operator_mobile/core/api/interceptors/server_config_interceptor.dart';
 import 'package:operator_mobile/core/app_routes/home_shell.dart';
 import 'package:operator_mobile/core/deep_link/deep_link_target.dart';
 
@@ -24,10 +25,11 @@ class AppLinksSource implements AppLinkSource {
 }
 
 class DeepLinkService {
-  DeepLinkService(this._source, this._navigatorKey);
+  DeepLinkService(this._source, this._navigatorKey, this._config);
 
   final AppLinkSource _source;
   final GlobalKey<NavigatorState> _navigatorKey;
+  final ServerConfigSource _config;
 
   StreamSubscription<Uri>? _subscription;
 
@@ -41,6 +43,7 @@ class DeepLinkService {
   }
 
   bool handle(Uri uri) {
+    if (_config.current == null) return false;
     final target = resolveDeepLink(uri);
     if (target == null) return false;
     final navigator = _navigatorKey.currentState;
