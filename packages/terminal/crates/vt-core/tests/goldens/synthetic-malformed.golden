@@ -1,0 +1,52 @@
+renderer rows 12
+renderer rows[0..] text 3c711e8e7f4595fa styles 4d076c00741d5347 spans d57d1d6d6c51aad1
+renderer blocks 3 9c8cb3bf81481e85
+renderer links 3ed91aae70e0ece5
+renderer cursor 4 17 true history 0 first_stable 0 editor 0
+renderer alt none
+renderer modes app_cursor=false sgr_mouse=true paste=true focus=true mouse=3 sync=false pending_sync=0
+renderer program title="two" pointer="text" stack=0 live_output=6852 older=OlderState { floor: None, marks: 0 }
+renderer replies "\u{1b}]10;rgb:dddd/dddd/dddd\u{7}\u{1b}]11;rgb:1111/1111/1111\u{1b}\\\u{1b}[6;18;9t\u{1b}[4;216;360t\u{1b}[8;12;40t\u{1b}P>|GoldenTerm\u{1b}\\\u{1b}[?62;22c\u{1b}[?62;22c\u{1b}[?2026;2$y\u{1b}[?1;2$y\u{1b}[?25;1$y\u{1b}[?9999;0$y\u{1b}[48;12;40;216;360t"
+renderer notifications 3 a850a5e1407109ec
+renderer agent_events 1 934592130d870f88
+renderer typeahead []
+renderer deltas 2 bd1a325f2971cb2a
+renderer-odd rows 12
+renderer-odd rows[0..] text 3c711e8e7f4595fa styles 4d076c00741d5347 spans d57d1d6d6c51aad1
+renderer-odd blocks 3 2e6fbac138371124
+renderer-odd links 3ed91aae70e0ece5
+renderer-odd cursor 4 17 true history 0 first_stable 0 editor 0
+renderer-odd alt none
+renderer-odd modes app_cursor=false sgr_mouse=true paste=true focus=true mouse=3 sync=false pending_sync=0
+renderer-odd program title="two" pointer="text" stack=0 live_output=6852 older=OlderState { floor: None, marks: 0 }
+renderer-odd replies "\u{1b}]10;rgb:dddd/dddd/dddd\u{7}\u{1b}]11;rgb:1111/1111/1111\u{1b}\\\u{1b}[6;18;9t\u{1b}[4;216;360t\u{1b}[8;12;40t\u{1b}P>|GoldenTerm\u{1b}\\\u{1b}[?62;22c\u{1b}[?62;22c\u{1b}[?2026;2$y\u{1b}[?1;2$y\u{1b}[?25;1$y\u{1b}[?9999;0$y\u{1b}[48;12;40;216;360t"
+renderer-odd notifications 3 a850a5e1407109ec
+renderer-odd agent_events 1 934592130d870f88
+renderer-odd typeahead []
+renderer-odd deltas 12 3025b5067a8425d9
+mirror rows 12
+mirror rows[0..] text 3c711e8e7f4595fa styles 4d076c00741d5347 spans d57d1d6d6c51aad1
+mirror blocks 3 9c8cb3bf81481e85
+mirror links 3ed91aae70e0ece5
+mirror cursor 4 17 true history 0 first_stable 0 editor 0
+mirror alt none
+mirror modes app_cursor=false sgr_mouse=true paste=true focus=true mouse=3 sync=false pending_sync=0
+mirror program title="two" pointer="text" stack=0 live_output=6852 older=OlderState { floor: None, marks: 0 }
+mirror replies "\u{1b}]10;rgb:dddd/dddd/dddd\u{7}\u{1b}]11;rgb:1111/1111/1111\u{1b}\\\u{1b}[6;18;9t\u{1b}[4;216;360t\u{1b}[8;12;40t\u{1b}P>|GoldenTerm\u{1b}\\\u{1b}[?62;22c\u{1b}[?62;22c\u{1b}[?2026;2$y\u{1b}[?1;2$y\u{1b}[?25;1$y\u{1b}[?9999;0$y\u{1b}[48;12;40;216;360t"
+mirror notifications 3 a850a5e1407109ec
+mirror agent_events 1 934592130d870f88
+mirror typeahead []
+mirror deltas 2 bd1a325f2971cb2a
+agent-odd rows 12
+agent-odd rows[0..] text 3c711e8e7f4595fa styles 4d076c00741d5347 spans d57d1d6d6c51aad1
+agent-odd blocks 3 2e6fbac138371124
+agent-odd links 3ed91aae70e0ece5
+agent-odd cursor 4 17 true history 0 first_stable 0 editor 0
+agent-odd alt none
+agent-odd modes app_cursor=false sgr_mouse=true paste=true focus=true mouse=3 sync=false pending_sync=0
+agent-odd program title="two" pointer="text" stack=0 live_output=6852 older=OlderState { floor: None, marks: 0 }
+agent-odd replies "\u{1b}]10;rgb:dddd/dddd/dddd\u{7}\u{1b}]11;rgb:1111/1111/1111\u{1b}\\\u{1b}[6;18;9t\u{1b}[4;216;360t\u{1b}[8;12;40t\u{1b}P>|GoldenTerm\u{1b}\\\u{1b}[?62;22c\u{1b}[?62;22c\u{1b}[?2026;2$y\u{1b}[?1;2$y\u{1b}[?25;1$y\u{1b}[?9999;0$y\u{1b}[48;12;40;216;360t"
+agent-odd notifications 3 a850a5e1407109ec
+agent-odd agent_events 1 934592130d870f88
+agent-odd typeahead []
+agent-odd deltas 12 3025b5067a8425d9
