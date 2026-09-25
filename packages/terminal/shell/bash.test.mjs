@@ -239,3 +239,20 @@ test("emits one ordered bash lifecycle without DEBUG hook commands", { skip: pty
 		assert.ok(commandIndex < releasedIndex && releasedIndex < outputIndex && outputIndex < exitIndex && exitIndex < endIndex);
 	}
 });
+
+test("reports no typeahead: text typed during a command stays with readline, as before", { skip: ptySkip }, () => {
+	const raw = runInPty(
+		"bash --noprofile --norc -i",
+		[
+			`source ${JSON.stringify(bootstrap)}`,
+			{ keys: "sleep 1", waitMs: 200 },
+			{ keys: "echo later", enter: false, waitMs: 1800 },
+			{ keys: "", waitMs: 500 },
+		],
+		{ settleMs: 300 },
+	);
+	const records = parseOscRecords(raw);
+	assert.equal(records.some((record) => record.payload.includes("typeahead=")), false);
+	const commands = records.map((record) => fieldOf(record.payload, "cmd")).filter((command) => command !== undefined);
+	assert.deepEqual(commands, ["sleep%201", "echo%20later"]);
+});

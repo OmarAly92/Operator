@@ -115,3 +115,20 @@ test("emits fish lifecycle records for success and failure, records nothing for 
 	const openPrompt = records.slice(-2).map((record) => record.payload);
 	assert.deepEqual(openPrompt, ["133;A;click_events=1", "133;B"]);
 });
+
+test("reports no typeahead: text typed during a command stays with fish's reader, as before", { skip: fishSkip }, () => {
+	const raw = runInPty(
+		"fish --no-config --interactive",
+		[
+			`source ${JSON.stringify(bootstrap)}`,
+			{ keys: "sleep 1", waitMs: 200 },
+			{ keys: "echo later", enter: false, waitMs: 1800 },
+			{ keys: "", waitMs: 500 },
+		],
+		{ settleMs: 300 },
+	);
+	const records = parseOscRecords(raw);
+	assert.equal(records.some((record) => record.payload.includes("typeahead=")), false);
+	const commands = records.map((record) => field(record.payload, "cmd")).filter((command) => command !== undefined);
+	assert.deepEqual(commands, ["sleep%201", "echo%20later"]);
+});
