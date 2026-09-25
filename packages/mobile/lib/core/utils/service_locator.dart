@@ -114,14 +114,16 @@ class ServiceLocator {
     sl.registerLazySingleton<MuxClient>(
       () => MuxClient(sl<ServerConfigStore>()),
     );
-    sl.registerLazySingleton<ConnectionCubit>(
-      () => ConnectionCubit(
+    sl.registerLazySingleton<ConnectionCubit>(() {
+      final connection = ConnectionCubit(
         sl<ConnectionReports>(),
         sl<MuxClient>().status,
         sl<ServerConfigStore>(),
         desktopNames: sl<ServerConfigStore>().activeDesktopName,
-      ),
-    );
+      );
+      sl<MuxClient>().bindConnection(connection);
+      return connection;
+    });
     sl.registerLazySingleton<GlobalKey<NavigatorState>>(
       () => GlobalKey<NavigatorState>(),
     );

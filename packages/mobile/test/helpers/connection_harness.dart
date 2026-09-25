@@ -38,8 +38,8 @@ class ConnectionHarness {
   final TestConfigSource config;
   late final ConnectionCubit cubit;
 
-  void report(ConnectionOutcome outcome, {String path = '/api/v1/sessions', DateTime? at}) =>
-      reports.add(ConnectionReport(outcome, path: path, at: at ?? DateTime.now()));
+  void report(ConnectionOutcome outcome, {String path = '/api/v1/sessions', DateTime? at, ServerConfig? sentTo}) =>
+      reports.add(ConnectionReport(outcome, path: path, at: at ?? DateTime.now(), sentTo: sentTo));
 
   Future<void> dispose() async {
     await cubit.close();

@@ -1,4 +1,6 @@
 import 'package:dio/dio.dart';
+import 'package:operator_mobile/core/api/interceptors/server_config_interceptor.dart';
+import 'package:operator_mobile/core/api/server_config.dart';
 import 'package:operator_mobile/core/connection/connection_report.dart';
 
 class ConnectionReportInterceptor extends Interceptor {
@@ -22,7 +24,10 @@ class ConnectionReportInterceptor extends Interceptor {
 
   void _report(RequestOptions options, ConnectionOutcome outcome) {
     if (options.extra['pairingTarget'] != null) return;
-    _reports.add(ConnectionReport(outcome, path: options.path, at: _clock()));
+    final sentTo = options.extra[kSentToExtra];
+    _reports.add(
+      ConnectionReport(outcome, path: options.path, at: _clock(), sentTo: sentTo is ServerConfig ? sentTo : null),
+    );
   }
 
   static ConnectionOutcome? _outcomeOf(DioException error) => switch (error.type) {
@@ -37,7 +42,7 @@ class ConnectionReportInterceptor extends Interceptor {
   };
 
   static ConnectionOutcome _fromStatus(int? status) {
-    if (status == 401 || status == 403) return ConnectionOutcome.auth;
+    if (status == 401) return ConnectionOutcome.auth;
     if (status == 429) return ConnectionOutcome.rateLimited;
     if (status != null && status >= 500) return ConnectionOutcome.serverError;
     return ConnectionOutcome.online;

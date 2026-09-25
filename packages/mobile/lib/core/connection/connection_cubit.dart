@@ -9,6 +9,7 @@ import 'package:operator_mobile/core/connection/connection_backoff.dart';
 import 'package:operator_mobile/core/connection/connection_report.dart';
 import 'package:operator_mobile/core/connection/connection_signals.dart';
 import 'package:operator_mobile/core/error_handling/connection_error.dart';
+import 'package:operator_mobile/core/helpers/logging/app_logger.dart';
 import 'package:operator_mobile/core/mux/mux_client.dart';
 
 part 'connection_state.dart';
@@ -25,7 +26,7 @@ class ConnectionCubit extends Cubit<AppConnectionState> implements ConnectionSig
     _reportSub = _reports.stream.listen(_onReport);
     _muxSub = muxStatus.listen(_onMux);
     _configSub = _config.changes.listen(_onConfig);
-    _nameSub = desktopNames?.listen(_onName, onError: (Object _) {});
+    _nameSub = desktopNames?.listen(_onName, onError: _onNameError);
     final last = _reports.last;
     if (last != null) _onReport(last);
   }
@@ -40,6 +41,7 @@ class ConnectionCubit extends Cubit<AppConnectionState> implements ConnectionSig
   StreamSubscription<ServerConfig?>? _configSub;
   StreamSubscription<String?>? _nameSub;
   Timer? _retryTimer;
+  Timer? _muxProbeGate;
   Duration _delay = ConnectionBackoff.initial;
   DateTime? _lastSeenAt;
   int _episode = 0;
@@ -61,6 +63,8 @@ class ConnectionCubit extends Cubit<AppConnectionState> implements ConnectionSig
 
   void _onReport(ConnectionReport report) {
     if (isClosed) return;
+    final sentTo = report.sentTo;
+    if (sentTo != null && sentTo != _config.current) return;
     switch (report.outcome) {
       case ConnectionOutcome.online:
         if (authFailed && report.path == EndPoints.health) return;
@@ -80,7 +84,8 @@ class ConnectionCubit extends Cubit<AppConnectionState> implements ConnectionSig
     if (isClosed || _config.current == null) return;
     if (status == MuxStatus.open) {
       _goOnline(_clock());
-    } else if (status == MuxStatus.error && state is ConnectionOnlineState) {
+    } else if (status == MuxStatus.error && state is ConnectionOnlineState && _muxProbeGate == null) {
+      _muxProbeGate = Timer(_delay, () => _muxProbeGate = null);
       _retries.add(null);
     }
   }
@@ -88,6 +93,7 @@ class ConnectionCubit extends Cubit<AppConnectionState> implements ConnectionSig
   void _onConfig(ServerConfig? next) {
     if (isClosed) return;
     _cancelRetry();
+    _cancelMuxProbeGate();
     _delay = ConnectionBackoff.initial;
     _lastSeenAt = null;
     emit(ConnectionConnectingState(desktopName: state.desktopName));
@@ -98,11 +104,16 @@ class ConnectionCubit extends Cubit<AppConnectionState> implements ConnectionSig
     emit(state.withName(name));
   }
 
+  void _onNameError(Object error, StackTrace stackTrace) =>
+      AppLogger.warning('Desktop name stream failed', exception: error, stackTrace: stackTrace);
+
   void _goOnline(DateTime at) {
+    final wasAuthFailed = authFailed;
     _cancelRetry();
     _delay = ConnectionBackoff.initial;
     _lastSeenAt = at;
     emit(ConnectionOnlineState(updatedAt: at, desktopName: state.desktopName));
+    if (wasAuthFailed) _retries.add(null);
   }
 
   void _goOffline(ConnectionFailure reason) {
@@ -138,9 +149,15 @@ class ConnectionCubit extends Cubit<AppConnectionState> implements ConnectionSig
     _retryTimer = null;
   }
 
+  void _cancelMuxProbeGate() {
+    _muxProbeGate?.cancel();
+    _muxProbeGate = null;
+  }
+
   @override
   Future<void> close() async {
     _cancelRetry();
+    _cancelMuxProbeGate();
     await _reportSub?.cancel();
     await _muxSub?.cancel();
     await _configSub?.cancel();

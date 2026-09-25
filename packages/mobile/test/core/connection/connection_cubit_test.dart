@@ -2,6 +2,7 @@ import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:operator_mobile/core/api/api_request_helpers/end_points.dart';
 import 'package:operator_mobile/core/api/server_config.dart';
+import 'package:operator_mobile/core/connection/connection_backoff.dart';
 import 'package:operator_mobile/core/connection/connection_cubit.dart';
 import 'package:operator_mobile/core/connection/connection_report.dart';
 import 'package:operator_mobile/core/error_handling/connection_error.dart';
@@ -180,6 +181,73 @@ void main() {
     harness.muxStatus.add(MuxStatus.open);
 
     expect(harness.cubit.state, isA<ConnectionOnlineState>());
+    await harness.dispose();
+  });
+
+  test('mux errors while online probe at most once per backoff window', () {
+    fakeAsync((async) {
+      final harness = ConnectionHarness();
+      var retries = 0;
+      harness.cubit.retries.listen((_) => retries++);
+      harness.report(ConnectionOutcome.online);
+
+      harness.muxStatus.add(MuxStatus.error);
+      harness.muxStatus.add(MuxStatus.error);
+      async.elapse(const Duration(milliseconds: 500));
+      harness.muxStatus.add(MuxStatus.error);
+      async.flushMicrotasks();
+      expect(retries, 1);
+
+      async.elapse(ConnectionBackoff.initial);
+      harness.muxStatus.add(MuxStatus.error);
+      async.flushMicrotasks();
+      expect(retries, 2);
+      harness.cubit.close();
+      async.flushMicrotasks();
+    });
+  });
+
+  test('a report from the desktop the app switched away from is ignored', () async {
+    final harness = ConnectionHarness();
+    harness.report(ConnectionOutcome.online, sentTo: kTestDesktop);
+    const next = ServerConfig(host: 'h', httpPort: '1', secure: false, password: 'p', desktopId: 'd-2');
+    harness.config.set(next);
+
+    harness.report(ConnectionOutcome.auth, sentTo: kTestDesktop);
+
+    expect(harness.cubit.state, isA<ConnectionConnectingState>());
+    expect(harness.cubit.authFailed, isFalse);
+
+    harness.report(ConnectionOutcome.auth, sentTo: next);
+    expect(harness.cubit.state, isA<ConnectionAuthFailedState>());
+    await harness.dispose();
+  });
+
+  test('a report that landed before a desktop switch does not seed the cubit', () async {
+    final reports = ConnectionReports()
+      ..add(ConnectionReport(ConnectionOutcome.auth, path: EndPoints.sessions, at: t0, sentTo: kTestDesktop));
+    final config = TestConfigSource(
+      const ServerConfig(host: 'h', httpPort: '1', secure: false, password: 'p', desktopId: 'd-2'),
+    );
+
+    final cubit = ConnectionCubit(reports, const Stream<MuxStatus>.empty(), config);
+
+    expect(cubit.state, isA<ConnectionConnectingState>());
+    await cubit.close();
+    await config.controller.close();
+  });
+
+  test('clearing an auth failure asks everyone to retry once', () async {
+    final harness = ConnectionHarness();
+    var retries = 0;
+    harness.cubit.retries.listen((_) => retries++);
+    harness.report(ConnectionOutcome.auth);
+
+    harness.report(ConnectionOutcome.online);
+    harness.report(ConnectionOutcome.online);
+    await Future<void>.delayed(Duration.zero);
+
+    expect(retries, 1);
     await harness.dispose();
   });
 

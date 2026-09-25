@@ -5,6 +5,7 @@ import 'dart:typed_data';
 import 'package:equatable/equatable.dart';
 import 'package:operator_mobile/core/api/interceptors/server_config_interceptor.dart';
 import 'package:operator_mobile/core/api/server_config.dart';
+import 'package:operator_mobile/core/connection/connection_signals.dart';
 import 'package:operator_mobile/core/mux/mux_backoff.dart';
 import 'package:operator_mobile/core/mux/mux_notification.dart';
 import 'package:operator_mobile/core/mux/mux_socket.dart';
@@ -100,6 +101,9 @@ class MuxClient {
   ServerConfig? _dialled;
   int _dialGeneration = 0;
   Timer? _reconnectTimer;
+  ConnectionSignals? _connection;
+  StreamSubscription<void>? _retrySub;
+  bool _parked = false;
   Timer? _pingTimer;
   int _backoffMs = MuxBackoff.initialMs;
   final Map<String, String?> _openTerminals = {};
@@ -119,10 +123,29 @@ class MuxClient {
     _statusController.add(status);
   }
 
+  void bindConnection(ConnectionSignals connection) {
+    unawaited(_retrySub?.cancel());
+    _connection = connection;
+    _retrySub = connection.retries.listen((_) => _unpark());
+  }
+
+  bool get _authFailed => _connection?.authFailed ?? false;
+
+  void _unpark() {
+    if (!_parked || _closedByUser || _authFailed) return;
+    _parked = false;
+    _backoffMs = MuxBackoff.initialMs;
+    unawaited(_open());
+  }
+
   void connect() {
     if (_isOpen || _currentStatus == MuxStatus.connecting) return;
     _closedByUser = false;
     _reconnectTimer?.cancel();
+    if (_authFailed) {
+      _parked = true;
+      return;
+    }
     unawaited(_open());
   }
 
@@ -260,7 +283,8 @@ class MuxClient {
   }
 
   void _onConfigChanged(ServerConfig? next) {
-    if (_closedByUser || _dialled == next) return;
+    if (_closedByUser || (_dialled == next && !_parked)) return;
+    _parked = false;
     _dialGeneration++;
     _reconnectTimer?.cancel();
     _clearPing();
@@ -287,7 +311,19 @@ class MuxClient {
   void _scheduleReconnect() {
     if (_closedByUser) return;
     _reconnectTimer?.cancel();
-    _reconnectTimer = Timer(Duration(milliseconds: _backoffMs), () => unawaited(_open()));
+    if (_authFailed) {
+      _parked = true;
+      return;
+    }
+    _reconnectTimer = Timer(Duration(milliseconds: _backoffMs), () {
+      _reconnectTimer = null;
+      if (_closedByUser) return;
+      if (_authFailed) {
+        _parked = true;
+        return;
+      }
+      unawaited(_open());
+    });
     _backoffMs = MuxBackoff.next(_backoffMs);
   }
 
@@ -364,6 +400,7 @@ class MuxClient {
 
   Future<void> disconnect() async {
     _closedByUser = true;
+    _parked = false;
     _reconnectTimer?.cancel();
     _clearPing();
     _isOpen = false;

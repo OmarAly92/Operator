@@ -4,6 +4,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:operator_mobile/core/api/api_request_helpers/end_points.dart';
 import 'package:operator_mobile/core/api/interceptors/connection_report_interceptor.dart';
+import 'package:operator_mobile/core/api/interceptors/server_config_interceptor.dart';
 import 'package:operator_mobile/core/api/server_config.dart';
 import 'package:operator_mobile/core/connection/connection_report.dart';
 
@@ -18,6 +19,16 @@ class _Adapter implements HttpClientAdapter {
 
   @override
   void close({bool force = false}) {}
+}
+
+class _Source implements ServerConfigSource {
+  _Source(this.current);
+
+  @override
+  final ServerConfig? current;
+
+  @override
+  Stream<ServerConfig?> get changes => const Stream.empty();
 }
 
 void main() {
@@ -59,9 +70,12 @@ void main() {
     expect((await outcomeOf((_) async => json(404))).single.outcome, ConnectionOutcome.online);
   });
 
-  test('401 and 403 mean auth', () async {
+  test('401 means auth', () async {
     expect((await outcomeOf((_) async => json(401))).single.outcome, ConnectionOutcome.auth);
-    expect((await outcomeOf((_) async => json(403))).single.outcome, ConnectionOutcome.auth);
+  });
+
+  test('403 is a preview or origin refusal, so the desktop answered', () async {
+    expect((await outcomeOf((_) async => json(403))).single.outcome, ConnectionOutcome.online);
   });
 
   test('429 means rate-limited', () async {
@@ -78,6 +92,8 @@ void main() {
       DioExceptionType.receiveTimeout,
       DioExceptionType.sendTimeout,
       DioExceptionType.connectionError,
+      DioExceptionType.transformTimeout,
+      DioExceptionType.badCertificate,
     ]) {
       final seen = await outcomeOf((options) async => throw DioException(requestOptions: options, type: type));
       expect(seen.single.outcome, ConnectionOutcome.unreachable, reason: type.name);
@@ -101,5 +117,28 @@ void main() {
     );
 
     expect(seen, isEmpty);
+  });
+
+  test('an unknown error reports nothing', () async {
+    final seen = await outcomeOf(
+      (options) async => throw DioException(requestOptions: options, type: DioExceptionType.unknown),
+    );
+
+    expect(seen, isEmpty);
+  });
+
+  test('each report names the desktop the request was sent to', () async {
+    const desktop = ServerConfig(host: '10.0.0.5', httpPort: '3011', secure: false, password: 'pw', desktopId: 'd-1');
+    final reports = ConnectionReports();
+    final seen = <ConnectionReport>[];
+    reports.stream.listen(seen.add);
+    final dio = Dio()
+      ..httpClientAdapter = _Adapter((_) async => json(401))
+      ..interceptors.add(ServerConfigInterceptor(_Source(desktop)))
+      ..interceptors.add(ConnectionReportInterceptor(reports, clock: () => at));
+
+    await expectLater(dio.get<dynamic>(EndPoints.sessions), throwsA(isA<DioException>()));
+
+    expect(seen.single.sentTo, desktop);
   });
 }

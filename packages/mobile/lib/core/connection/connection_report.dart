@@ -1,18 +1,20 @@
 import 'dart:async';
 
 import 'package:equatable/equatable.dart';
+import 'package:operator_mobile/core/api/server_config.dart';
 
 enum ConnectionOutcome { online, unreachable, auth, rateLimited, serverError }
 
 class ConnectionReport extends Equatable {
-  const ConnectionReport(this.outcome, {required this.path, required this.at});
+  const ConnectionReport(this.outcome, {required this.path, required this.at, this.sentTo});
 
   final ConnectionOutcome outcome;
   final String path;
   final DateTime at;
+  final ServerConfig? sentTo;
 
   @override
-  List<Object?> get props => [outcome, path, at];
+  List<Object?> get props => [outcome, path, at, sentTo];
 }
 
 class ConnectionReports {

@@ -682,6 +682,34 @@ void main() {
       await cubit.close();
     });
 
+    test('a retry landing while a resume fetch is in flight does not fetch again', () {
+      fakeAsync((async) {
+        var fetches = 0;
+        final pending = <Completer<Result<GlobalResponse<BoardSnapshot>, Failure>>>[];
+        when(() => repository.getBoard()).thenAnswer((_) {
+          fetches++;
+          final completer = Completer<Result<GlobalResponse<BoardSnapshot>, Failure>>();
+          pending.add(completer);
+          return completer.future;
+        });
+        final cubit = SessionsCubit(repository, mux, source, connection: signals);
+        async.flushMicrotasks();
+        pending.removeAt(0).complete(Result.success(GlobalResponse(data: const BoardSnapshot())));
+        async.flushMicrotasks();
+        cubit.pauseUpdates();
+
+        cubit.resumeUpdates();
+        retries.add(null);
+        async.flushMicrotasks();
+        pending.removeAt(0).complete(Result.success(GlobalResponse(data: const BoardSnapshot())));
+        async.elapse(const Duration(seconds: 1));
+
+        expect(fetches, 2);
+        cubit.close();
+        async.flushMicrotasks();
+      });
+    });
+
     test('resuming the app while re-pairing is needed spends no auth attempt', () async {
       var fetches = 0;
       when(() => repository.getBoard()).thenAnswer((_) async {

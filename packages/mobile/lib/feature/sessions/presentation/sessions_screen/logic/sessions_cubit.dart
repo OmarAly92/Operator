@@ -42,7 +42,7 @@ class SessionsCubit extends Cubit<SessionsState> {
       if (status == MuxStatus.open) _scheduleRefresh();
     });
     _configSub = _configSource.changes.listen(_onConfigChanged);
-    _retrySub = connection?.retries.listen((_) => unawaited(refresh()));
+    _retrySub = connection?.retries.listen((_) => _onConnectionRetry());
     _muxClient.connect();
     _muxClient.subscribeSessions();
     _cacheReady = _primeFromCache(_boardEpoch);
@@ -231,6 +231,11 @@ class SessionsCubit extends Cubit<SessionsState> {
     if (!_paused) return;
     _paused = false;
     if (_connection?.authFailed ?? false) return;
+    unawaited(refresh());
+  }
+
+  void _onConnectionRetry() {
+    if (_refreshFuture != null) return;
     unawaited(refresh());
   }
 
