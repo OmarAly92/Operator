@@ -57,6 +57,12 @@ type Runtime struct {
 	watchMu     sync.Mutex
 	watchers    map[int]func(string, ports.TerminalHealth)
 	nextWatcher int
+
+	programMu           sync.Mutex
+	programWatches      map[string]*programWatch
+	titles              map[string]string
+	programListeners    map[int]func(string, ports.TerminalProgramEvent)
+	nextProgramListener int
 }
 
 // New creates a Runtime with the given options.
@@ -75,6 +81,10 @@ func New(opts Options) *Runtime {
 		probeTimeout:  isAliveTimeout,
 		sessions:      make(map[string]*hostSession),
 		watchers:      make(map[int]func(string, ports.TerminalHealth)),
+
+		programWatches:   make(map[string]*programWatch),
+		titles:           make(map[string]string),
+		programListeners: make(map[int]func(string, ports.TerminalProgramEvent)),
 	}
 }
 
@@ -122,6 +132,7 @@ func (r *Runtime) Create(ctx context.Context, cfg ports.RuntimeConfig) (ports.Ru
 	r.mu.Lock()
 	r.sessions[id] = sess
 	r.mu.Unlock()
+	r.ensureProgramWatch(id, sess)
 
 	// Register in B2 registry for daemon-restart recovery (best-effort).
 	// launchID is read from the local, not sess: the session is public the
@@ -175,6 +186,7 @@ func (r *Runtime) Destroy(ctx context.Context, handle ports.RuntimeHandle) error
 	wasHung := sess.failedProbes >= hungAfterFailedProbes
 	delete(r.sessions, handle.ID)
 	r.mu.Unlock()
+	r.stopProgramWatch(handle.ID)
 	if wasHung {
 		r.notifyHealth(handle.ID, ports.TerminalHealthy)
 	}
@@ -290,6 +302,9 @@ func (r *Runtime) IsAlive(ctx context.Context, handle ports.RuntimeHandle) (bool
 	}
 	_, alive, err := clientStatusWithin(sess.addr, r.probeTimeout)
 	r.recordProbe(handle.ID, sess, err)
+	if alive {
+		r.ensureProgramWatch(handle.ID, sess)
+	}
 	return alive, err
 }
 
