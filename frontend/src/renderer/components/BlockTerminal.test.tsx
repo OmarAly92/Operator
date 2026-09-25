@@ -38,6 +38,7 @@ const mockState = vi.hoisted(() => {
 					secretPatterns?: readonly { source: string; flags?: string }[];
 					predictiveEcho?: Readonly<{ thresholdMs: number }>;
 					confirmPaste?: (preview: string, reason: "newline" | "control" | "paste-end") => Promise<boolean>;
+					loadOlderOutput?: (before: number) => void;
 				}
 			| undefined,
 		onHint: undefined as ((hint: { ruleId: string; text: string; path?: string; line?: number }) => void) | undefined,
@@ -162,6 +163,7 @@ vi.mock("@operator/terminal-react", () => {
 				secretPatterns?: readonly { source: string; flags?: string }[];
 				predictiveEcho?: Readonly<{ thresholdMs: number }>;
 				confirmPaste?: (preview: string, reason: "newline" | "control" | "paste-end") => Promise<boolean>;
+				loadOlderOutput?: (before: number) => void;
 			};
 			strings?: Record<string, string>;
 			onSend?: (text: string) => void;
@@ -343,6 +345,7 @@ function renderTerminal(
 		focusToken?: number;
 		visible?: boolean;
 		workspacePath?: string;
+		requestOlder?: (before: number) => void;
 	} = {},
 ) {
 	const localListeners: Array<(bytes: Uint8Array) => void> = [];
@@ -356,6 +359,7 @@ function renderTerminal(
 		},
 		resize: vi.fn(),
 		dispose: vi.fn(),
+		...(options.requestOlder ? { requestOlder: options.requestOlder } : {}),
 	};
 	render(
 		<QueryClientProvider client={new QueryClient()}>
@@ -910,5 +914,22 @@ describe("BlockTerminal paste confirm", () => {
 		await screen.findByRole("dialog", { name: "Paste into the terminal?" });
 		await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
 		await expect(answer).resolves.toBe(false);
+	});
+});
+
+describe("BlockTerminal load older output", () => {
+	it("hands the surface a loader that asks the transport for the rows above a stable row", async () => {
+		const requestOlder = vi.fn();
+		renderTerminal({ requestOlder });
+		await waitFor(() => expect(mockState.host?.loadOlderOutput).toBeTypeOf("function"));
+		mockState.host!.loadOlderOutput!(4096);
+		expect(requestOlder).toHaveBeenCalledWith(4096);
+		expect(mockState.strings?.loadOlderOutput).toBe("Load older output");
+	});
+
+	it("offers no loader when the transport cannot fetch older output", async () => {
+		renderTerminal();
+		await waitFor(() => expect(mockState.host?.confirmPaste).toBeTypeOf("function"));
+		expect(mockState.host?.loadOlderOutput).toBeUndefined();
 	});
 });
