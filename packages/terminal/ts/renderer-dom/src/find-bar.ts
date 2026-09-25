@@ -8,26 +8,23 @@ import {
 	type TerminalCore,
 	type TerminalStrings,
 } from "@operator/terminal-core";
+import type { FindHighlights } from "./renderer-highlights.js";
 
 const CLASS_BAR = "terminal-find-bar";
 const CLASS_INPUT = "terminal-find-input";
 const CLASS_COUNT = "terminal-find-count";
 const CLASS_REGEX = "terminal-find-regex";
-const CLASS_ROW_MATCH = "terminal-find-row-match";
-const CLASS_ROW_ACTIVE = "terminal-find-row-active";
 const ATTR_BAR = "data-terminal-find-bar";
 const ATTR_INPUT = "data-terminal-find-input";
 const ATTR_COUNT = "data-terminal-find-count";
 const ATTR_REGEX = "data-terminal-find-regex";
-const ATTR_ROW_MATCH = "data-terminal-find-row-match";
-const ATTR_ROW_ACTIVE = "data-terminal-find-row-active";
-const TRANSCRIPT_ROWS = "[data-terminal-block-id] [data-terminal-row]";
 
 export type FindBarHost = Readonly<{
 	scrollToBlock(id: BlockId, align: "start" | "center" | "end"): void;
 	scrollToRow?(row: number, align: "start" | "center" | "end"): boolean;
 	invalidate(range: RowRange): void;
 	afterRepaint(listener: () => void): () => void;
+	highlightFind(find: FindHighlights | null): void;
 }>;
 
 export type FindBarOptions = Readonly<{
@@ -93,33 +90,17 @@ export function createFindBar(options: FindBarOptions): FindBar {
 	};
 
 	const clearMarks = (): void => {
-		if (!container) return;
-		container
-			.querySelectorAll<HTMLElement>(`[${ATTR_ROW_MATCH}], [${ATTR_ROW_ACTIVE}]`)
-			.forEach((node) => {
-				node.classList.remove(CLASS_ROW_MATCH, CLASS_ROW_ACTIVE);
-				node.removeAttribute(ATTR_ROW_MATCH);
-				node.removeAttribute(ATTR_ROW_ACTIVE);
-			});
+		host.highlightFind(null);
 	};
 
 	const applyHighlights = (): void => {
-		if (!container) return;
-		clearMarks();
 		const active = session;
-		if (!active || active.results.length === 0) return;
+		if (!active || active.results.length === 0) {
+			clearMarks();
+			return;
+		}
 		const current = active.results[active.current];
-		container.querySelectorAll<HTMLElement>(TRANSCRIPT_ROWS).forEach((node) => {
-			const row = Number(node.dataset.terminalRow);
-			if (active.rows.has(row)) {
-				node.classList.add(CLASS_ROW_MATCH);
-				node.setAttribute(ATTR_ROW_MATCH, "");
-			}
-			if (current && row >= current.row && row <= current.endRow) {
-				node.classList.add(CLASS_ROW_ACTIVE);
-				node.setAttribute(ATTR_ROW_ACTIVE, "");
-			}
-		});
+		host.highlightFind({ rows: active.rows, current: current ? { row: current.row, endRow: current.endRow } : null });
 	};
 
 	const stopSession = (): void => {
@@ -295,7 +276,6 @@ export function createFindBar(options: FindBarOptions): FindBar {
 		bar = node;
 		if (repaintOff === null) {
 			repaintOff = host.afterRepaint(() => {
-				applyHighlights();
 				if (session) schedulePump();
 			});
 		}

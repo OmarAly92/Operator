@@ -8,6 +8,7 @@ import { NotificationsSection } from "./settings/NotificationsSection";
 import { ReportProblemDialog } from "./settings/ReportProblemDialog";
 import { SettingsLinkRow } from "./settings/SettingsRow";
 import { SettingsSection } from "./settings/SettingsSection";
+import { TerminalMarksSection } from "./settings/TerminalMarksSection";
 import { UpdatesSection } from "./settings/UpdatesSection";
 
 export type GlobalSettingsSection =
@@ -46,6 +47,7 @@ export function GlobalSettingsForm({
 							onConnectMobile={() => useUiStore.getState().openMobileSettings()}
 							titleHidden={leadingTitleHidden}
 						/>
+						<TerminalMarksSection />
 						<SettingsSection title={t("settings.preferences")} grouped>
 							<SettingsLinkRow
 								label={t("settings.keyboardShortcuts")}
