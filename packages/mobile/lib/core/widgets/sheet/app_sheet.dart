@@ -64,7 +64,7 @@ sealed class AppSheetLogic {
       };
 
   static double maxHeight({required double available, required double topSafe}) =>
-      math.max(0, available - topSafe - GlassMetrics.sheetInset);
+      math.max(0, available - math.max(topSafe, GlassMetrics.sheetInset) - GlassMetrics.sheetInset);
 
   static double cornerRadius() => GlassMetrics.displayCornerRadius - GlassMetrics.sheetInset;
 

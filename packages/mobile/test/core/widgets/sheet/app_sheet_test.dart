@@ -329,6 +329,8 @@ void main() {
     expect(AppSheetLogic.fixedHeight(AppSheetDetent.large, 874), moreOrLessEquals(804.08));
     expect(AppSheetLogic.maxHeight(available: 874, topSafe: 62), 804);
     expect(AppSheetLogic.maxHeight(available: 10, topSafe: 62), 0);
+    expect(AppSheetLogic.maxHeight(available: 402, topSafe: 0), 402 - 16);
+    expect(AppSheetLogic.maxHeight(available: 874, topSafe: 4), 874 - 16);
     expect(AppSheetLogic.cornerRadius(), 56);
     expect(AppSheetLogic.topCornerRadius(), 44);
   });
@@ -1005,5 +1007,20 @@ void main() {
     await open(tester);
     expect(find.byKey(AppSheet.searchFadeKey), findsOneWidget);
     expect(find.descendant(of: find.byKey(AppSheet.searchFadeKey), matching: find.byType(DecoratedBox)), findsNothing);
+  });
+
+  testWidgets('with no top safe area a large sheet still keeps an 8pt gap at the screen top', (tester) async {
+    tester.view.devicePixelRatio = 3;
+    tester.view.physicalSize = const Size(874 * 3, 402 * 3);
+    tester.view.padding = FakeViewPadding.zero;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      host(
+        const LightSkin(),
+        (context) => showAppSheet<String>(context: context, page: manyPage()),
+      ),
+    );
+    await open(tester);
+    expect(tester.getRect(find.byKey(AppSheet.surfaceKey)).top, moreOrLessEquals(8, epsilon: 0.5));
   });
 }
