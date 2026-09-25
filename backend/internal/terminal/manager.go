@@ -76,6 +76,8 @@ type Manager struct {
 	stopNotificationFeed func()
 
 	stopHealthWatch func()
+
+	stopProgramWatch func()
 }
 
 // sharedTerm tracks every client currently viewing one terminal id (one PTY) so
@@ -147,6 +149,7 @@ func NewManager(src Source, events EventSource, log *slog.Logger, opts ...Option
 	}
 	m.startNotificationFeed()
 	m.startHealthWatch()
+	m.startProgramWatch()
 	return m
 }
 
@@ -197,6 +200,9 @@ func (m *Manager) Close() {
 	}
 	if m.stopHealthWatch != nil {
 		m.stopHealthWatch()
+	}
+	if m.stopProgramWatch != nil {
+		m.stopProgramWatch()
 	}
 	m.mu.Lock()
 	if m.closed {
@@ -404,6 +410,7 @@ type connState struct {
 
 	remote                  bool
 	notificationsSubscribed bool
+	programsSubscribed      bool
 }
 
 func (c *connState) handle(msg clientMsg) {
@@ -416,6 +423,8 @@ func (c *connState) handle(msg clientMsg) {
 		c.handleBlockSubscribe(msg)
 	case chNotifications:
 		c.handleNotifications(msg)
+	case chPrograms:
+		c.handlePrograms(msg)
 	case chSystem:
 		if msg.Type == msgPing {
 			c.enqueue(serverMsg{Ch: chSystem, Type: msgPong})
@@ -449,6 +458,10 @@ func (c *connState) handleTerminal(msg clientMsg) {
 		c.mgr.updateTerminalSize(msg.ID, c, msg.Cols, msg.Rows, msg.Force)
 	case msgClose:
 		c.closeTerminal(msg.ID)
+	case msgAppearance:
+		if a := c.lookup(msg.ID); a != nil {
+			_ = a.setAppearance(appearanceOf(msg))
+		}
 	case msgAck:
 		if msg.Bytes <= 0 {
 			return
