@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -106,5 +107,22 @@ func TestTheClaudeRecordingEndsOnItsIdleTitle(t *testing.T) {
 	notes, err := p.TakeNotifications()
 	if err != nil || len(notes) != 0 {
 		t.Fatalf("notifications = %#v, %v; want none", notes, err)
+	}
+}
+
+func TestAnAgentEventIsNeitherATitleNorANotificationInTheMirror(t *testing.T) {
+	p := newTestParser(t, 80, 24)
+	feed(t, p, "\x1b]2;kept\x07\x1b]777;agent-state;v=1;state=waiting;detail=Allow%20Bash%3F\x07after")
+	title, err := p.Title()
+	if err != nil || title != "kept" {
+		t.Fatalf("title = %q, %v; want kept", title, err)
+	}
+	notes, err := p.TakeNotifications()
+	if err != nil || len(notes) != 0 {
+		t.Fatalf("notifications = %#v, %v; want none", notes, err)
+	}
+	text, err := p.RenderTail(5)
+	if err != nil || !strings.Contains(text, "after") || strings.Contains(text, "agent-state") {
+		t.Fatalf("output = %q, %v; want only the text around the event", text, err)
 	}
 }

@@ -1,6 +1,7 @@
+use vt_core::agent::{AgentEvent, AgentState};
 use vt_core::program::ProgramNotification;
-use vt_wasm::flatten_notifications;
 use vt_wasm::WasmTerminalCore;
+use vt_wasm::{flatten_agent_events, flatten_notifications};
 
 #[test]
 fn notifications_flatten_to_title_body_pairs_in_order() {
@@ -34,4 +35,33 @@ fn the_wasm_core_exposes_title_pointer_and_notifications() {
     assert_eq!(core.take_notifications(), vec!["", "hi"]);
     assert!(core.take_notifications().is_empty());
     assert_eq!(core.program_generation().wrapping_sub(start), 3);
+}
+
+#[test]
+fn agent_events_flatten_to_state_detail_pairs_in_order() {
+    let flat = flatten_agent_events(vec![
+        AgentEvent {
+            state: AgentState::Waiting,
+            detail: "Allow Bash?".to_string(),
+        },
+        AgentEvent {
+            state: AgentState::Done,
+            detail: String::new(),
+        },
+    ]);
+    assert_eq!(flat, vec!["waiting", "Allow Bash?", "done", ""]);
+}
+
+#[test]
+fn the_wasm_core_exposes_agent_events_and_live_output() {
+    let Ok(mut core) = WasmTerminalCore::new(80, 1_000, 1 << 20) else {
+        panic!("core");
+    };
+    let start = core.program_generation();
+    let bytes = b"ab\x1b]777;agent-state;v=1;state=working;detail=Read\x07";
+    assert!(core.feed(bytes, 0.0).is_ok());
+    assert_eq!(core.take_agent_events(), vec!["working", "Read"]);
+    assert!(core.take_agent_events().is_empty());
+    assert_eq!(core.program_generation().wrapping_sub(start), 1);
+    assert_eq!(core.live_output_bytes(), bytes.len() as f64);
 }

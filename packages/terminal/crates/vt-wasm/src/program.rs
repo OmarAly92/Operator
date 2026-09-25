@@ -1,3 +1,4 @@
+use vt_core::agent::AgentEvent;
 use vt_core::program::ProgramNotification;
 use wasm_bindgen::prelude::*;
 
@@ -7,6 +8,13 @@ pub fn flatten_notifications(notifications: Vec<ProgramNotification>) -> Vec<Str
     notifications
         .into_iter()
         .flat_map(|notification| [notification.title, notification.body])
+        .collect()
+}
+
+pub fn flatten_agent_events(events: Vec<AgentEvent>) -> Vec<String> {
+    events
+        .into_iter()
+        .flat_map(|event| [event.state.as_str().to_string(), event.detail])
         .collect()
 }
 
@@ -26,5 +34,13 @@ impl WasmTerminalCore {
 
     pub fn take_notifications(&mut self) -> Vec<String> {
         flatten_notifications(self.core.take_notifications())
+    }
+
+    pub fn take_agent_events(&mut self) -> Vec<String> {
+        flatten_agent_events(self.core.take_agent_events())
+    }
+
+    pub fn live_output_bytes(&self) -> f64 {
+        self.core.live_output_bytes() as f64
     }
 }
