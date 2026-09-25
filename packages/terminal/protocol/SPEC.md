@@ -145,6 +145,20 @@ These are the explicit signal that replaces Warp's 50ms activation timer
 They remain strictly additive. A decoder that ignores them still produces
 correct blocks, and no block lifecycle transition depends on either key.
 
+### 4.5 Typeahead key
+
+| Key | Meaning | Value |
+| --- | --- | --- |
+| `typeahead` | text the user typed while the previous command ran, found waiting by the shell when its next prompt started | percent-encoded UTF-8, at most 256 characters, no control character |
+
+A shell emits `typeahead` in a mark of its own, directly after the
+`input-ready` mark of the prompt that found the text, and only when the text
+holds no line break or other control character. The shell keeps the text in
+its own line buffer. A line editor that adopts the text clears the shell's
+copy by sending `^U` (0x15). Decoders surface the key as an ordinary
+`extension` event (vector `typeahead.json`); a decoder that ignores it loses
+nothing, because the text is still in the shell's buffer.
+
 ## 5. Tier 2 — events emitted
 
 Tier 2 is consumed when `v` is present and its major version is the
