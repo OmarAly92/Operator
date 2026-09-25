@@ -72,6 +72,7 @@ func (h *host) handleRespawn(conn net.Conn, payload []byte) {
 		}
 		h.mu.Lock()
 		h.parser = nil
+		h.resetProgramLocked()
 		h.mu.Unlock()
 		h.sendTo(conn, respawnResFrame(false, 0, err.Error()))
 		return
