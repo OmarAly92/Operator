@@ -42,6 +42,8 @@ void main() {
   late _MockApiConsumer api;
   late BackgroundTasksRepositoryImp repository;
 
+  setUpAll(() => registerFallbackValue(Options()));
+
   setUp(() {
     api = _MockApiConsumer();
     repository = BackgroundTasksRepositoryImp(BackgroundTasksRemoteDataSourceImp(api), _Network(true));
@@ -70,7 +72,7 @@ void main() {
   });
 
   test('stopTask posts with no body and parses the task and confirmation', () async {
-    when(() => api.post(any())).thenAnswer(
+    when(() => api.post(any(), options: any(named: 'options'))).thenAnswer(
       (_) async => _ok({
         'task': {'taskId': 'b1', 'kind': 'shell', 'status': 'running'},
         'confirmed': false,
@@ -79,14 +81,16 @@ void main() {
 
     final result = await repository.stopTask(const StopSessionTaskParams(sessionId: 's-1', taskId: 'b1'));
 
-    verify(() => api.post('/api/v1/sessions/s-1/tasks/b1/stop')).called(1);
+    final options = verify(() => api.post('/api/v1/sessions/s-1/tasks/b1/stop', options: captureAny(named: 'options'))).captured.single as Options;
+    expect(options.receiveTimeout, BackgroundTasksRemoteDataSourceImp.stopReceiveTimeout);
+    expect(options.receiveTimeout, greaterThan(const Duration(seconds: 40)));
     final body = result.valueOrNull!.data!;
     expect(body.task?.taskId, 'b1');
     expect(body.confirmed, isFalse);
   });
 
   test('an error envelope keeps its code and requestId', () async {
-    when(() => api.post(any())).thenThrow(_envelope(409, 'TASK_AMBIGUOUS'));
+    when(() => api.post(any(), options: any(named: 'options'))).thenThrow(_envelope(409, 'TASK_AMBIGUOUS'));
 
     final result = await repository.stopTask(const StopSessionTaskParams(sessionId: 's-1', taskId: 'b1'));
 

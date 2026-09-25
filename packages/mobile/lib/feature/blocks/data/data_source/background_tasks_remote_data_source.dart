@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'package:operator_mobile/core/api/api_request_helpers/api_consumer.dart';
 import 'package:operator_mobile/core/api/api_request_helpers/end_points.dart';
 import 'package:operator_mobile/core/api/models/global_response.dart';
@@ -12,6 +13,8 @@ abstract class BackgroundTasksRemoteDataSource {
 }
 
 class BackgroundTasksRemoteDataSourceImp implements BackgroundTasksRemoteDataSource {
+  static const Duration stopReceiveTimeout = Duration(seconds: 45);
+
   final ApiConsumer _apiConsumer;
 
   BackgroundTasksRemoteDataSourceImp(this._apiConsumer);
@@ -28,7 +31,10 @@ class BackgroundTasksRemoteDataSourceImp implements BackgroundTasksRemoteDataSou
 
   @override
   Future<GlobalResponse<StopSessionTaskResultModel>> stopTask(StopSessionTaskParams params) async {
-    final response = await _apiConsumer.post(EndPoints.sessionTaskStop(params.sessionId, params.taskId));
+    final response = await _apiConsumer.post(
+      EndPoints.sessionTaskStop(params.sessionId, params.taskId),
+      options: Options(receiveTimeout: stopReceiveTimeout),
+    );
     return GlobalResponse<StopSessionTaskResultModel>.fromJson(
       response.data as Map<String, dynamic>,
       withDataKey: false,
