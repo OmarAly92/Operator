@@ -77,14 +77,16 @@ String relativeTime(String iso, [DateTime? now]) {
 }
 
 final _fence = RegExp(r'```[^\n]*');
-final _image = RegExp(r'!\[([^\]]*)\]\([^)]*\)');
-final _link = RegExp(r'\[([^\]]+)\]\([^)]*\)');
-final _heading = RegExp(r'^\s{0,3}#{1,6}\s*', multiLine: true);
+final _image = RegExp(r'!\[([^\]]*)\]\((?:[^()\s]|\([^()]*\))*\)');
+final _link = RegExp(r'\[([^\]]+)\]\((?:[^()\s]|\([^()]*\))*\)');
+final _heading = RegExp(r'^\s{0,3}#{1,6}[ \t]+', multiLine: true);
 final _quote = RegExp(r'^\s{0,3}>\s?', multiLine: true);
 final _bullet = RegExp(r'^\s*(?:[-*+]|\d+[.)])\s+', multiLine: true);
-final _strong = RegExp(r'(\*\*|__)(.+?)\1');
+final _strong = RegExp(r'(?<![\w*])\*\*(?!\s)(.+?)(?<!\s)\*\*(?![\w*])');
+final _strongUnderscore = RegExp(r'(?<![\w.])__(?!\s)(.+?)(?<!\s)__(?=$|[\s,;:!?)])');
 final _emphasis = RegExp(r'(?<![\w*])\*(?!\s)([^*\n]+?)(?<!\s)\*(?![\w*])');
 final _strike = RegExp(r'~~(.+?)~~');
+final _strayStars = RegExp(r'(?<![\w*])\*\*(?!\*)|(?<!\*)\*\*(?![\w*])');
 final _whitespace = RegExp(r'\s+');
 
 String plainPreview(String markdown) => markdown
@@ -94,9 +96,11 @@ String plainPreview(String markdown) => markdown
     .replaceAll(_heading, '')
     .replaceAll(_quote, '')
     .replaceAll(_bullet, '')
-    .replaceAllMapped(_strong, (m) => m[2]!)
+    .replaceAllMapped(_strong, (m) => m[1]!)
+    .replaceAllMapped(_strongUnderscore, (m) => m[1]!)
     .replaceAllMapped(_strike, (m) => m[1]!)
     .replaceAllMapped(_emphasis, (m) => m[1]!)
+    .replaceAll(_strayStars, '')
     .replaceAll('`', '')
     .replaceAll(_whitespace, ' ')
     .trim();

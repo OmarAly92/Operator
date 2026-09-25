@@ -111,6 +111,31 @@ void main() {
       expect(plainPreview('*really* ~~old~~ keep_this_name and 2 * 3'), 'really old keep_this_name and 2 * 3');
     });
 
+    test('keeps underscores inside words', () {
+      expect(plainPreview('Edited __init__.py and snake__case'), 'Edited __init__.py and snake__case');
+    });
+
+    test('still unwraps __bold__ that stands on its own', () {
+      expect(plainPreview('This is __done__ now'), 'This is done now');
+    });
+
+    test('drops an unmatched leading **', () {
+      expect(plainPreview('**Committed as 5b907f4. The ticket is complete'), 'Committed as 5b907f4. The ticket is complete');
+    });
+
+    test('drops an unmatched trailing ** left by truncation', () {
+      expect(plainPreview('Wrote the spec to **spec'), 'Wrote the spec to spec');
+    });
+
+    test('a heading needs a space after the hashes', () {
+      expect(plainPreview('#123 was fixed'), '#123 was fixed');
+      expect(plainPreview('# Summary'), 'Summary');
+    });
+
+    test('a link target may contain parentheses', () {
+      expect(plainPreview('See [the docs](https://x.test/a_(b)) now'), 'See the docs now');
+    });
+
     test('leaves plain text alone', () {
       expect(plainPreview('Improve code finished its turn.'), 'Improve code finished its turn.');
     });
