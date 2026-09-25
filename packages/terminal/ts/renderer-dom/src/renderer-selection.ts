@@ -1,17 +1,15 @@
 import type { BlockView } from "@operator/terminal-core";
 import type { SelectionKind, SelectionPoint, SelectionState } from "./selection-model.js";
 import { selectedText, type TextRows } from "./selection-text.js";
-import { resolveSelectionView, selectionFills, type RenderedRow, type SelectionView } from "./selection-view.js";
+import { resolveSelectionView, type SelectionView } from "./selection-view.js";
 
 export type RendererSelectionDeps = Readonly<{
 	hasCore: () => boolean;
 	textRows: () => TextRows;
-	renderedRows: () => RenderedRow[];
-	cellWidth: () => number;
+	repaint: () => void;
 }>;
 
 export class RendererSelection {
-	private filled: Map<HTMLElement, string> = new Map();
 	private selection: SelectionState | null = null;
 	private readonly selectionListeners = new Set<() => void>();
 
@@ -65,25 +63,12 @@ export class RendererSelection {
 		return resolveSelectionView(selection, this.deps.textRows());
 	}
 
-	paintFill(): void {
-		const view = this.view();
-		const next = view ? selectionFills(view, this.deps.renderedRows(), this.deps.cellWidth()) : new Map<HTMLElement, string>();
-		for (const element of this.filled.keys()) {
-			if (!next.has(element)) element.style.backgroundImage = "";
-		}
-		for (const [element, image] of next) {
-			if (this.filled.get(element) !== image) element.style.backgroundImage = image;
-		}
-		this.filled = next;
-	}
-
 	reset(): void {
-		this.filled = new Map();
 		this.selection = null;
 	}
 
 	private changed(): void {
-		this.paintFill();
+		this.deps.repaint();
 		this.notifyListeners();
 	}
 

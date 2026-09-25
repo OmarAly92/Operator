@@ -1,0 +1,9 @@
+{
+  "name": "typeahead",
+  "description": "A shell reports the text typed ahead of its prompt as its own Tier-2 mark after input-ready. It decodes as an extension event whose typeahead value is percent-decoded UTF-8.",
+  "input": "\u001b]7000;v=1;input-ready=1\u0007\u001b]7000;v=1;typeahead=echo%20caf%c3%a9\u0007",
+  "events": [
+    { "kind": "input_ready" },
+    { "kind": "extension", "pairs": [["v", "1"], ["typeahead", "echo café"]] }
+  ]
+}

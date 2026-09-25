@@ -4,8 +4,8 @@ A plain-language companion to the status lines in
 [`2026-09-19-terminal-reference-survey.md`](2026-09-19-terminal-reference-survey.md)
 (checked against the tree on 2026-09-24). The `§` numbers point at the survey
 entries. The 26 entries marked **Not done** on 2026-09-24 are grouped below
-into 20 items (item 5 has since been done, roadmap Plan 1; items 19 and 20
-have since been done, roadmap Plan 3); the 16 marked
+into 20 items (items 3, 4 and 5 have since been done, roadmap Plans 5 and 1;
+items 19 and 20 have since been done, roadmap Plan 3); the 16 marked
 **Partial** follow with what each is missing.
 
 Two words used throughout:
@@ -35,9 +35,16 @@ says so.
    matches and other marks are drawn by separate code, so they can look
    inconsistent or clash. *If done:* they all look and behave the same, and
    overlap cleanly.
+   **Done (roadmap Plan 5):** selection, search matches and your own
+   highlights are drawn by one piece of code. Where they overlap, the
+   selection is on top, then the current search match, then other matches,
+   then your highlights. Selection and search look exactly as before.
 4. **Highlight words you care about (§5.6).** You can't tell the terminal
    "always highlight the word ERROR in red". *If done:* important words stand
    out while you scroll.
+   **Done (roadmap Plan 5):** Settings → Terminal highlights. Add a word (any
+   capitalisation matches) or a pattern (the `.*` button), pick one of five
+   colours, and it is coloured in every terminal, Claude Code panes included.
 
 ### Pasting
 
@@ -150,8 +157,12 @@ You'd only notice these as fewer rare glitches or slightly less CPU use.
   session is restored. Still missing: the board does not show a stuck
   terminal, shells are not checked, and a replay is not redrawn at the sizes
   the output was produced at (§6.3).
-- **Typing ahead:** while a command runs, what you type goes straight to the
-  running program instead of waiting in the input box (§7.2).
+- **Typing ahead (done for zsh, roadmap Plan 6, 2026-09-25):** in a zsh
+  shell, what you type while a command runs still reaches the running
+  program, and whatever it did not read shows up in the input box when the
+  command finishes, ready to edit; it runs only when you press Enter. A line
+  you finish with Enter while the command runs still runs right after it,
+  as before. Still missing: bash and fish shells behave the old way (§7.2).
 - The rest are small or test-only: §1.14, §3.6, §3.13, §3.15, §4.4, §4.10,
   §6.2.
 

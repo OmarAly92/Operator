@@ -18,6 +18,7 @@ import { rememberPaneGrid } from "../lib/pane-grid";
 import { BLOCK_NOTIFY_AFTER_MS } from "../lib/retained-terminal";
 import { terminalBackgroundColor, type TerminalBackground } from "../lib/terminal-background";
 import { terminalPredictiveEchoThresholdMs } from "../lib/terminal-predictive-echo";
+import { terminalMarkRules } from "../lib/terminal-marks";
 import { useUiStore } from "../stores/ui-store";
 import { previewBytes, terminalDebug } from "../lib/terminal-debug";
 import { isWebLink, openLinkInSystemBrowser } from "../lib/external-link-policy";
@@ -482,6 +483,8 @@ export function BlockTerminal({
 		[t],
 	);
 
+	const terminalMarks = useUiStore((state) => state.terminalMarks);
+	const marks = useMemo(() => terminalMarkRules(terminalMarks), [terminalMarks]);
 	const predictiveEcho = useUiStore((state) => state.terminalPredictiveEcho);
 	const predictiveThresholdMs = predictiveEcho ? terminalPredictiveEchoThresholdMs : undefined;
 	const { confirmPaste, dialog: pasteConfirmDialog } = usePasteConfirm();
@@ -616,6 +619,7 @@ export function BlockTerminal({
 		refitToken,
 		focusToken,
 		visible,
+		marks,
 		onDraftChange,
 		onHint: (hint) => {
 			// A hint's path is the text as it was printed, so it is relative as

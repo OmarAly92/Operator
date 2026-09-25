@@ -266,10 +266,16 @@ impl TerminalCore {
             if self.alt_screen.is_active() && !matches!(event, MarkEvent::AltScreenLeave) {
                 continue;
             }
-            match event {
+            match &event {
                 MarkEvent::InputReady => self.line_editor.on_input_ready(),
                 MarkEvent::InputReleased => self.line_editor.on_input_released(),
                 MarkEvent::AltScreenEnter => self.line_editor.on_alt_screen_enter(),
+                MarkEvent::Extension(fields) => {
+                    if let Some((_, text)) = fields.pairs.iter().find(|(key, _)| key == "typeahead")
+                    {
+                        self.line_editor.on_typeahead(text);
+                    }
+                }
                 _ => {}
             }
             let switch = event.clone();
@@ -469,6 +475,10 @@ impl TerminalCore {
 
     pub fn line_editor_state(&self) -> LineEditorState {
         self.line_editor.state()
+    }
+
+    pub fn take_typeahead(&mut self) -> Option<String> {
+        self.line_editor.take_typeahead()
     }
 
     pub fn columns(&self) -> usize {

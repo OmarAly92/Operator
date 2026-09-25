@@ -15,7 +15,7 @@ const IDLE_PANES_BASELINE_S = 1.759;
 const SELECTION_ROWS_REPAINTED = 1;
 
 function parseArgs(argv) {
-	const out = { fixture: undefined, gate: false, features: "", panesOnly: false, profile: false, ungated: false, css: "", profileRow: "parked9" };
+	const out = { fixture: undefined, gate: false, features: "", panesOnly: false, profile: false, ungated: false, css: "", profileRow: "parked9", marks: 0 };
 	for (let index = 0; index < argv.length; index += 1) {
 		if (argv[index] === "--fixture") out.fixture = argv[++index];
 		else if (argv[index] === "--gate") out.gate = true;
@@ -25,6 +25,7 @@ function parseArgs(argv) {
 		else if (argv[index] === "--features") out.features = argv[++index];
 		else if (argv[index] === "--css") out.css = argv[++index];
 		else if (argv[index] === "--profile-row") out.profileRow = argv[++index];
+		else if (argv[index] === "--marks") out.marks = Number(argv[++index]);
 		else throw new Error(`unsupported argument ${argv[index]}`);
 	}
 	return out;
@@ -35,9 +36,9 @@ function median(values) {
 	return sorted.length === 0 ? null : sorted[Math.floor(sorted.length / 2)];
 }
 
-async function openPage(browser, port, fixture, features, ungated = false, css = "") {
+async function openPage(browser, port, fixture, features, ungated = false, css = "", marks = 0) {
 	const page = await browser.newPage({ viewport: { width: 1600, height: 900 } });
-	const suffix = `${features ? `&features=${encodeURIComponent(features)}` : ""}${ungated ? "&ungated=1" : ""}${css ? `&css=${encodeURIComponent(css)}` : ""}`;
+	const suffix = `${features ? `&features=${encodeURIComponent(features)}` : ""}${ungated ? "&ungated=1" : ""}${css ? `&css=${encodeURIComponent(css)}` : ""}${marks > 0 ? `&marks=${marks}` : ""}`;
 	await page.goto(`http://127.0.0.1:${port}/agent-session/index.html?fixture=${fixture}${suffix}`);
 	await page.waitForFunction(() => window.__agentSessionReady === true, undefined, { timeout: 30000 });
 	return page;
@@ -148,7 +149,7 @@ async function paneLoad(page, { extra, mode, profileOut }) {
 	return out;
 }
 
-async function paneRows(browser, port, name, features, profile, ungated = false, css = "", profileRow = "parked9") {
+async function paneRows(browser, port, name, features, profile, ungated = false, css = "", profileRow = "parked9", marks = 0) {
 	const rows = {};
 	const shapes = [
 		["solo", { extra: 0, mode: "visible" }],
@@ -157,7 +158,7 @@ async function paneRows(browser, port, name, features, profile, ungated = false,
 		["visible10", { extra: 9, mode: "visible" }],
 	];
 	for (const [key, shape] of shapes) {
-		const page = await openPage(browser, port, name, features, ungated, css);
+		const page = await openPage(browser, port, name, features, ungated, css, marks);
 		const profileOut = profile && key === profileRow ? path.join(resultsDir, `${key}-${Date.now()}.cpuprofile`) : undefined;
 		rows[key] = await paneLoad(page, { ...shape, profileOut });
 		await page.close();
@@ -296,6 +297,7 @@ async function main() {
 	let browser;
 	const report = { measuredAt: new Date().toISOString(), fixtures: {} };
 	if (args.css) report.css = args.css;
+	if (args.marks > 0) report.marks = args.marks;
 	try {
 		await server.listen(0);
 		const port = server.httpServer.address().port;
@@ -304,7 +306,7 @@ async function main() {
 			const fixture = await loadFixture(name);
 			const rows = {};
 			if (args.panesOnly) {
-				rows.panes = await paneRows(browser, port, name, args.features, args.profile, args.ungated, args.css, args.profileRow);
+				rows.panes = await paneRows(browser, port, name, args.features, args.profile, args.ungated, args.css, args.profileRow, args.marks);
 			} else if (name === "claude-spinner-10s") {
 				const page = await openPage(browser, port, name, args.features);
 				rows.spinner = await spinnerPaints(page);
@@ -349,7 +351,7 @@ async function main() {
 				}
 			}
 			report.fixtures[name] = rows;
-			process.stdout.write(`${JSON.stringify({ fixture: name, ...(args.css ? { css: args.css } : {}), ...rows })}\n`);
+			process.stdout.write(`${JSON.stringify({ fixture: name, ...(args.css ? { css: args.css } : {}), ...(args.marks > 0 ? { marks: args.marks } : {}), ...rows })}\n`);
 		}
 		await mkdir(resultsDir, { recursive: true });
 		await writeFile(path.join(resultsDir, `agent-session-${report.measuredAt.replace(/[:.]/g, "-")}.json`), JSON.stringify(report, null, "\t"));

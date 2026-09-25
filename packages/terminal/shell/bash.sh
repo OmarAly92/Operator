@@ -7,12 +7,13 @@ __operator_terminal_COUNTER=0
 __operator_terminal_INITIAL_PROMPT=1
 
 __operator_terminal_pct_encode() {
-	local s=$1 out='' i ch encoded
+	local LC_ALL=C
+	local s=$1 out='' i ch encoded code
 	for ((i = 0; i < ${#s}; i++)); do
 		ch=${s:i:1}
 		case $ch in
 			[A-Za-z0-9._~/:@!\$\&\(\)\*\+,-]) out+=$ch ;;
-			*) printf -v encoded '%%%02x' "'$ch"; out+=$encoded ;;
+			*) printf -v code '%d' "'$ch"; printf -v encoded '%%%02x' $((code & 255)); out+=$encoded ;;
 		esac
 	done
 	printf '%s' "$out"

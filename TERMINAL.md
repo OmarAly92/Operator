@@ -259,7 +259,9 @@ rebuilt (§6).
    Find cites two MIT/Apache references for behaviour only, no code adapted:
    Ghostty `src/terminal/search/active.zig:11-19` (re-search only what can
    change) and Alacritty `alacritty_terminal/src/term/search.rs:39-40` (smart
-   case).
+   case). Highlights (§4.31) cite Ghostty `src/terminal/highlight.zig:1-10`
+   (one representation for selection, search and marks) for behaviour only, no
+   code adapted; Kitty's marks are GPL-3.0 and were not read.
 3. **No comments in new code** (user's global instruction). Existing comments may
    be corrected when they become false; do not add new ones.
 4. **Root cause before fix.** Every entry in §4 was mis-diagnosed first. Capture
@@ -944,13 +946,151 @@ history of `master`.
 - Guards: `vt-core/tests/program_messages.rs`, `program_replies.rs`; `vt-wasm/tests/program_exports.rs`; `ts/core/src/program-messages.test.ts`; `ts/react/src/TerminalSurface.program.test.tsx`; `vtwasm/program_test.go`; `ptyhost/program_test.go`, `program_watch_test.go`; `domain/terminal_title_test.go`; `terminal/programs_test.go`; renderer `terminal-mux.programs.test.ts`, `terminal-titles.test.tsx`, `on-screen-terminals.test.ts`, `program-feed.test.ts`, `ProgramRuntime.test.tsx`, `SplitWorkspaceOnScreenTerminals.test.tsx`, `ShellTerminalsView.onscreen.test.tsx`, `terminal-appearance.test.ts`, and the new cases in `SessionsBoard.test.tsx`, `SplitPane.test.tsx`, `BlockTerminal.test.tsx`, `useTerminalSession.test.tsx`.
 - References, behaviour only (no code adapted, so no attribution file): Ghostty `src/terminal/size_report.zig:5-80`, `stream_terminal.zig:256-280,1456-1476,1602-1605`, `osc/parsers/osc9.zig`, `rxvt_extension.zig`, `mouse.zig:100-150`; Alacritty `alacritty_terminal/src/term/mod.rs:42-48,2235-2248`; kitty's desktop-notification protocol description (no kitty code read).
 
+### 4.31 One look for highlights; user marks — roadmap Plan 5
+- Before: the selection painted its own `background-image` per row
+  (`selection-view.ts` `selectionFills`), the find bar added and removed row
+  classes itself on every repaint (`find-bar.ts` `applyHighlights`), and there
+  were no user marks. Two paint paths for one idea, and nothing to put a third
+  kind on.
+- Now: `highlights.ts` is the model — `Highlight { kind, range, colour, rank }`,
+  `range` in stable rows (§2), priority selection 3 > current find hit 2 > find
+  hit 1 > mark 0, earlier mark rule above a later one. `highlight-painter.ts` is
+  the only code that paints them: a row's layers, top first, as one
+  `background-image` of `fillGradient` strings, the same layers clipped by
+  `runFill` onto runs with their own background (the §4.11 rule, now for every
+  kind), and the find classes. It diffs against what it painted, so an unchanged
+  row gets no write. `renderer-highlights.ts` collects selection, find and
+  marks and calls it from `finishPaint` and on every change; it never schedules
+  a repaint, and it paints nothing while the pane is parked.
+- Find keeps its old pixels on purpose: a hit row keeps
+  `terminal-find-row-match` (a background colour) and the current hit keeps the
+  `terminal-find-row-active` outline. A gradient layer of the same colour
+  differs by up to 1 level per channel (measured while planning: 8,278 channel
+  values in a 900×60 Chromium shot), so the colour stays a colour — except on a
+  row that also has a mark, where the find tint becomes a layer above the mark
+  so the priority holds. Find paints only transcript rows, never the alternate
+  screen, as before.
+- Marks: `setMarks(rules)` / `TerminalSurface` `marks`, `MarkRule { pattern,
+  regex, colour }`. Literal = escaped, any case; regex = as written. Invalid
+  regex, empty pattern, zero-length matches and colours `CSS.supports` rejects
+  are dropped; touching matches of one rule merge. Each paint joins the logical
+  lines of the rendered rows once (`visibleLogicalLines`), matches each line,
+  and maps back with `rangeOf`; `MarkCache` keeps each line's spans while its
+  text is unchanged. Nothing is stored in rows, so a trim or a rewrap cannot
+  strand a mark. Marks read the masked text, so they never outline a redacted
+  secret. Operator: Settings → Terminal highlights, five colours
+  (`color-mix(in srgb, var(--terminal-ansi-N) 40%, transparent)` for yellow 3,
+  red 1, green 2, cyan 6, magenta 5 — no blue, the selection's colour), at most
+  10 rules, stored under `opr.terminal.marks`.
+- Not moved onto the model: links, hints, redaction and prediction. They are
+  overlays above the text (`.terminal-decorations { z-index: 2 }`); a redaction
+  must cover glyphs. The model paints under the text.
+- Cost (`run.mjs --panes-only`, `claude-spinner-10s`, alternated A/B, three
+  pairs, 5 `BENCH_MARKS`, planning machine): 10-visible TaskDuration control
+  1.088–1.277 s, marks 1.085–1.155 s, ScriptDuration +0.03–0.12 s per 10 s
+  across ten panes. On the cloud sandbox this plan was implemented in (three
+  pairs, same fixture), the same A/B ran slower overall and did not clear the
+  gate — control 2.248–2.338 s, marks=5 2.854–3.110 s — but a CPU profile of
+  the marks 10-visible row
+  (`bench/agent-session/baselines/pane-cost/2026-09-25-marks-profile-visible10.txt`)
+  put `highlight-painter.js` self time at ~119 ms of a 10 s window against
+  ~1,145 ms in `getBoundingClientRect` (paid by every visible pane regardless
+  of marks), showing no highlight-specific blowup; the gap looks like sandbox
+  noise, not a regression, but it was not re-measured on the planning machine
+  to confirm. The painter measures only rows a highlight touches; a first
+  build that measured every rendered row per paint doubled ScriptDuration.
+- Known risk, not fixed: JavaScript has no regex time limit. A user regex with
+  catastrophic backtracking runs on each changed painted line. The per-line
+  cache means only lines whose text changed are rescanned.
+- Guards: `highlights.test.ts`, `highlight-painter.test.ts`, `marks.test.ts`,
+  `dom-block-renderer.highlights.test.ts` (overlap order, trim, rewrap, no
+  repaint scheduled, no layout read when idle, parked, alternate screen,
+  rejected colour, dispose), `find-bar.incremental.test.ts` "hands its hits…",
+  `TerminalSurface.marks.test.tsx`, `terminal-selection.test.ts` (unchanged),
+  `bench:affordances --action select|find --compare <Task 0 captures>` (byte
+  identical), `bench:selection`, `bench:feel`; Operator:
+  `terminal-marks.test.ts`, `ui-store.terminal-marks.test.ts`,
+  `TerminalMarksSection.test.tsx`, `BlockTerminal.test.tsx` "hands Settings'
+  highlights…".
+
+### 4.32 Text typed during a command reached the shell, not the input box — roadmap Plan 6
+- Symptom: in a zsh pane, keys typed while a command ran went to the pty
+  (deliberate since `4b31952aa`, so a `y/n` prompt, a password or Claude Code
+  gets them: `ts/editor/src/line-editor.ts` `passthrough`). When the prompt
+  returned, zsh held the text in its own line buffer, invisible in the input
+  box, and the next thing submitted from the box was appended to it: `echo hi`
+  typed during `sleep`, then `ls` in the box, ran `echo hils`.
+- Cause: a shell reads typeahead only after its prompt starts, and nothing
+  told the line editor what it read. At `line-init`, zsh's `$BUFFER` is still
+  empty; the text is waiting on the tty.
+- Now: behaviour taken from the survey's description of Warp's shell-reported
+  typeahead (§7.2; Warp is AGPL-3.0 — clean-room, no Warp file read).
+  `shell/zsh.sh`'s `line-init` hook, once per finished command
+  (`__operator_terminal_TYPEAHEAD_ARMED`, set in `precmd`) and only at a
+  primary prompt (`$CONTEXT == start`), reads what is waiting
+  (`read -t 0 -k 1`, at most 257 characters), pushes it straight back into zle
+  (`zle -U`), and — when it is at most 256 characters with no control
+  character — reports it right after `input-ready` as
+  `OSC 7000;v=1;typeahead=<percent-encoded UTF-8>` (`protocol/SPEC.md` §4.5).
+  vt-core keeps the report only while the line is owned
+  (`LineEditorTracker::on_typeahead`; `input-released` and the alternate
+  screen drop it) and `TerminalCore.takeTypeahead()` hands it over once.
+  `LineEditor` takes it on every change, visible or not, and adopts it only if
+  the user sent keys, IME text or a paste to the pty since the last report
+  (`TypeaheadGate`, `ts/editor/src/typeahead.ts`): it appends the text to the
+  buffer, never submits it, and sends `^U` (0x15) to clear zsh's copy. Keys are
+  still never held back.
+- Why the shell does not clear its own buffer (the first design did): the
+  daemon's `SendMessage` writes text, pauses, then sends Enter as a separate
+  frame (`backend/internal/adapters/runtime/ptyhost/client.go:38-70`). Text
+  arriving while a command is finishing looks exactly like typeahead to the
+  shell; a shell that cleared it lost the command and ran an empty line —
+  `TestShellBlocksAlternateScreenAtCaptureStartExcludesRepaint` failed 3 of 3
+  runs that way. Only the line editor knows the user typed the text, so only
+  it clears the shell's copy. `^U` is `kill-whole-line` in zsh's emacs keymap
+  and `vi-kill-line` in `viins`; both clear the pushed text.
+- bash and fish are not covered, by decision. bash: `READLINE_LINE` is
+  reachable only inside a `bind -x` binding, which the additive-only contract
+  forbids (`docs/superpowers/specs/2026-08-29-warp-terminal-package-design.md`
+  §8, line 872); a `PROMPT_COMMAND` drain (`read -r -s -n 1 -t …`) can read the
+  text but cannot hand it back to readline, so it would lose the `SendMessage`
+  case; macOS `/bin/bash` 3.2 also takes whole-second timeouts only (`-t 0`
+  read nothing). fish: `commandline` is empty in a `fish_prompt` handler (fish
+  reads the typeahead after drawing the prompt) and its `read` has no timeout.
+  Both keep the old doubling.
+- Limits: a line typed ahead with Enter runs as before and is not moved; the
+  typed text also stays in the finished command's output, where the tty echoed
+  it while the command ran (as in every terminal); keys that reach zsh after
+  its report and before the `^U` (one pty round trip) are cleared with it; a
+  client without a line editor (the phone) leaves the text in the shell, as
+  before; a user who rebinds `^U` gets the old doubling.
+- Also fixed: `__operator_terminal_pct_encode` in `zsh.sh` encoded a code
+  point, not bytes (`é` → `%e9`, `€` → `%c`); it now encodes UTF-8 bytes under
+  `no_multibyte`. `bash.sh`'s encoder had the same bug and also let `é` through
+  unencoded (its `[A-Za-z]` range matches accented letters in a UTF-8 locale);
+  it now walks bytes under `LC_ALL=C` and masks each to 0–255, because bash
+  3.2 sign-extends bytes above 127 (`%ffffffffffffffc3`). Guard:
+  `bash.test.mjs` "percent-encodes non-ASCII bytes as UTF-8".
+- Guards: `shell/zsh.test.mjs` (reports and is cleared by Ctrl-U, kept when
+  nothing clears it, UTF-8, Enter typed ahead runs, multi-line submission,
+  over the cap, `read -s` password never surfaced, a program's own prompt
+  still gets its keys, vi insert mode, byte encoding); `bash.test.mjs` and
+  `fish.test.mjs` "reports no typeahead"; `crates/vt-core/tests/typeahead.rs`
+  (incl. the Claude Code recording); `ts/core/src/typeahead.test.ts`;
+  `ts/editor/src/line-editor-typeahead.test.ts` (incl. the Claude Code
+  recording and a faked report); `protocol/vectors/typeahead.json`;
+  `backend/internal/terminal/block_assembler_test.go`
+  `TestAssemblerIgnoresATypeaheadMark`; `backend/internal/integration`
+  `TestShellBlocks*`.
+
 ## 5. Known gaps (not bugs, decisions pending)
 
 - **Find exports every hit on every change.** `findResults` copies all hits
   out of wasm whenever an update adds or removes one; while Claude streams, a
   query with hundreds of thousands of hits (a single letter) pays that per
-  paint. Hits are still row classes, not decorations (survey §1.8, Plan 5),
-  and there is no host `onResultsChanged` (survey §3.12).
+  paint. Hits paint through the highlight model since Plan 5 (§4.31) but still
+  as whole rows, not the hit's cells, and there is no host `onResultsChanged`
+  (survey §3.12).
 - **SGR attributes render by default since 2026-09-23.**
   `RendererFeatures.attributes` defaults to `"warp"` (italic, underline in 5
   styles, SGR 58 colour, strike, overline, hidden, blink); `"plain"` keeps
@@ -1302,6 +1442,11 @@ history of `master`.
 - **Program notifications are desktop toasts only.** They are not notification rows: those need a session and project and a type the table's `CHECK` allows (`migrations/0117_notification_alerts.sql:8-9`), which standalone shells cannot give. So no bell entry and no phone alert (ntfy) for OSC 9/777/99, and nothing is shown while Operator's window is closed. A notification the child sends before the daemon's watch connects (the first milliseconds of a host) is dropped.
 - **Size and colour answers wait for a pane.** The mirror answers `CSI 14/16 t`, mode 2048 and `OSC 10/11` only after a pane has sent its cell size and colours; a Claude Code session started while no pane is open gets no answer to its startup `CSI 16 t`. With several panes on one terminal, the last to send wins.
 - **The title is not in the attach replay.** A renderer core that reattaches has an empty `title()` until the program sets it again; Operator reads the title from the daemon, so nothing visible depends on it.
+- **Typing ahead covers zsh only.** bash and fish panes keep the old
+  behaviour: text typed during a command lands in the shell's own line and
+  is doubled by the next submission from the input box. The reasons and the
+  evidence are in §4.32; `bash.sh`'s percent-encoder still encodes code
+  points, not UTF-8 bytes, so a non-ASCII `cmd=`/`cwd=` from bash is wrong.
 
 ---
 

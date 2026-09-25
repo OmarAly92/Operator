@@ -492,6 +492,13 @@ export class TerminalCore {
 		return LINE_EDITOR_STATES[this.snapshot().lineEditorState] ?? "unknown";
 	}
 
+	takeTypeahead(): string {
+		if (this.disposed) {
+			return "";
+		}
+		return this.inner.takeTypeahead();
+	}
+
 	onChange(listener: ChangeListener): () => void {
 		this.listeners.add(listener);
 		return () => {
