@@ -33,7 +33,7 @@ class NotificationBell extends StatelessWidget {
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
                       decoration: BoxDecoration(
-                        color: skin.blue,
+                        color: skin.accent,
                         borderRadius: BorderRadius.circular(9),
                       ),
                       child: AppText(

@@ -73,7 +73,7 @@ class NotificationRow extends StatelessWidget {
                               Container(
                                 width: 7,
                                 height: 7,
-                                decoration: BoxDecoration(color: skin.blue, shape: BoxShape.circle),
+                                decoration: BoxDecoration(color: skin.accent, shape: BoxShape.circle),
                               ),
                             ],
                           ],

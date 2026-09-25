@@ -32,7 +32,7 @@ class NotificationsScreen extends StatelessWidget {
                   },
                   child: AppText(
                     'Mark all read',
-                    style: AppTextStyle.style15SemiBold.copyWith(color: context.skin.blue),
+                    style: AppTextStyle.style15SemiBold.copyWith(color: context.skin.accentText),
                   ),
                 ),
             ],
