@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:operator_mobile/core/connection/connection_signals.dart';
 import 'package:operator_mobile/core/error_handling/failures/failure.dart';
 import 'package:operator_mobile/core/helpers/result/result.dart';
 import 'package:operator_mobile/core/mux/mux_client.dart';
@@ -29,6 +30,16 @@ Map<String, dynamic> _stop(int seq, {String? agentId}) => {
 };
 
 BlockEventModel _row(int seq) => BlockEventModel.fromJson(_stop(seq));
+
+class _Signals implements ConnectionSignals {
+  final StreamController<void> controller = StreamController<void>.broadcast(sync: true);
+
+  @override
+  Stream<void> get retries => controller.stream;
+
+  @override
+  bool authFailed = false;
+}
 
 void main() {
   late _MockMux mux;
@@ -69,12 +80,49 @@ void main() {
     await statuses.close();
   });
 
-  BlocksCubit build({String? agentId}) => BlocksCubit(
+  BlocksCubit build({String? agentId, ConnectionSignals? connection}) => BlocksCubit(
     mux,
     repository,
     BlocksScope(sessionId: 's-1', harness: 'claude-code', agentId: agentId),
     tasks: tasks,
+    connection: connection,
   );
+
+  test('while the desktop rejects the password the chat shows its cache and fetches nothing until it clears', () async {
+    final signals = _Signals()..authFailed = true;
+    when(() => repository.cachedHistory('s-1')).thenAnswer((_) async => [_row(1)]);
+
+    final cubit = build(connection: signals);
+    await Future<void>.delayed(Duration.zero);
+
+    expect(cubit.blocks.map((block) => block.id), ['seq-1']);
+    expect(cubit.loading, isFalse);
+    verifyNever(() => repository.getSessionBlocks(any(), any()));
+    verifyNever(() => tasks.getTasks(any()));
+
+    signals.authFailed = false;
+    signals.controller.add(null);
+    await Future<void>.delayed(Duration.zero);
+
+    verify(() => repository.getSessionBlocks('s-1', const GetSessionBlocksParams(afterSeq: 1))).called(1);
+    verify(() => tasks.getTasks(any())).called(1);
+    await signals.controller.close();
+    await cubit.close();
+  });
+
+  test('a connection retry while the chat is not held fetches nothing extra', () async {
+    final signals = _Signals();
+
+    final cubit = build(connection: signals);
+    await Future<void>.delayed(Duration.zero);
+    signals.controller.add(null);
+    await Future<void>.delayed(Duration.zero);
+
+    verify(() => repository.getSessionBlocks(any(), any())).called(1);
+    verify(() => tasks.getTasks(any())).called(1);
+    await signals.controller.close();
+    await cubit.close();
+  });
 
   test('draws the cached history before the network answers, then fetches only what came after it', () async {
     final gate = Completer<Result<List<BlockEventModel>, Failure>>();

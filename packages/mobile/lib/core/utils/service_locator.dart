@@ -258,6 +258,7 @@ class ServiceLocator {
         sl<BlocksRepository>(),
         scope,
         tasks: sl<BackgroundTasksRepository>(),
+        connection: sl<ConnectionCubit>(),
       ),
     );
     sl.registerFactoryParam<SessionViewCubit, TerminalArgs, void>(

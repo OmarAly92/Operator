@@ -5,6 +5,7 @@ import 'dart:math';
 import 'package:equatable/equatable.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:operator_mobile/core/connection/connection_signals.dart';
 import 'package:operator_mobile/core/mux/mux_client.dart';
 import 'package:operator_mobile/core/mux/session_patch.dart';
 import 'package:operator_mobile/core/error_handling/dio_error_handler/status_code.dart';
@@ -46,8 +47,9 @@ class BlocksScope extends Equatable {
 }
 
 class BlocksCubit extends Cubit<BlocksState> {
-  BlocksCubit(this._mux, this._repository, this.scope, {required this._tasks})
-    : supported = BlockHarnesses.covers(scope.harness),
+  BlocksCubit(this._mux, this._repository, this.scope, {required this._tasks, ConnectionSignals? connection})
+    : _signals = connection,
+      supported = BlockHarnesses.covers(scope.harness),
       super(const BlocksInitialState()) {
     if (!supported) {
       emit(BlocksUnsupportedState(harness));
@@ -56,6 +58,7 @@ class BlocksCubit extends Cubit<BlocksState> {
     _eventsSub = _mux.blockEvents.where((event) => event.sessionId == sessionId).listen(_onLive);
     _statusSub = _mux.status.listen(_onStatus);
     _patchesSub = _mux.sessionPatches.listen(_onPatches);
+    _retrySub = connection?.retries.listen((_) => _onConnectionRetry());
     _mux.subscribeBlocks(sessionId);
     loading = true;
     unawaited(_start());
@@ -65,6 +68,7 @@ class BlocksCubit extends Cubit<BlocksState> {
   final MuxClient _mux;
   final BlocksRepository _repository;
   final BackgroundTasksRepository _tasks;
+  final ConnectionSignals? _signals;
   final BlocksScope scope;
   String get sessionId => scope.sessionId;
   String? get agentId => scope.agentId;
@@ -101,6 +105,16 @@ class BlocksCubit extends Cubit<BlocksState> {
   StreamSubscription<BlockEventEnvelope>? _eventsSub;
   StreamSubscription<MuxStatus>? _statusSub;
   StreamSubscription<List<SessionPatch>>? _patchesSub;
+  StreamSubscription<void>? _retrySub;
+  bool _heldForAuth = false;
+
+  bool get _authFailed => _signals?.authFailed ?? false;
+
+  void _onConnectionRetry() {
+    if (isClosed || !_heldForAuth || _authFailed) return;
+    unawaited(refresh());
+    unawaited(_seedTasks());
+  }
 
   int _taskSeq = 0;
   int? _lowestTaskSeq;
@@ -140,6 +154,13 @@ class BlocksCubit extends Cubit<BlocksState> {
   }
 
   Future<void> refresh() async {
+    if (_authFailed) {
+      _heldForAuth = true;
+      loading = false;
+      _emit();
+      return;
+    }
+    _heldForAuth = false;
     loading = true;
     _emit();
     final generation = ++_generation;
@@ -206,7 +227,7 @@ class BlocksCubit extends Cubit<BlocksState> {
   static int? _later(int? a, int? b) => a == null ? b : (b == null ? a : max(a, b));
 
   Future<void> loadOlder() async {
-    if (loadingOlder || !hasOlder) return;
+    if (loadingOlder || !hasOlder || _authFailed) return;
     final before = _lowestSeq;
     if (before == null) return;
 
@@ -300,6 +321,10 @@ class BlocksCubit extends Cubit<BlocksState> {
   Future<void> _seedTasks() async {
     final tasks = _tasks;
     if (agentId != null || !supported || _taskFeedMissing) return;
+    if (_authFailed) {
+      _heldForAuth = true;
+      return;
+    }
     if (_seeding) {
       _reseed = true;
       return;
@@ -409,6 +434,7 @@ class BlocksCubit extends Cubit<BlocksState> {
     unawaited(_eventsSub?.cancel());
     unawaited(_statusSub?.cancel());
     unawaited(_patchesSub?.cancel());
+    unawaited(_retrySub?.cancel());
     if (supported) _mux.unsubscribeBlocks(sessionId);
     return super.close();
   }
