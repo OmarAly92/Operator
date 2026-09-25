@@ -37,35 +37,6 @@ void main() {
     });
   });
 
-  group('routeForSend', () {
-    test('sends to the agent by default', () {
-      expect(routeForSend(SendTarget.agent), SendTarget.agent);
-    });
-
-    test('honours the explicit terminal target', () {
-      expect(routeForSend(SendTarget.terminal), SendTarget.terminal);
-      expect(
-        routeForSend(SendTarget.terminal, _failure(statusCode: 500, code: 'INTERNAL')),
-        SendTarget.terminal,
-      );
-    });
-
-    test('auto-engages the terminal route for a blocked prompt', () {
-      expect(
-        routeForSend(SendTarget.agent, _failure(statusCode: 409, code: kAwaitingDecision)),
-        SendTarget.terminal,
-      );
-    });
-
-    test('keeps ordinary failures on the agent route', () {
-      expect(routeForSend(SendTarget.agent, _failure(statusCode: 401)), SendTarget.agent);
-      expect(
-        routeForSend(SendTarget.agent, _failure(statusCode: 409, code: 'SESSION_TERMINATED')),
-        SendTarget.agent,
-      );
-    });
-  });
-
   group('terminalPayload', () {
     test('submits the line with a carriage return', () {
       expect(terminalPayload('y'), 'y\r');

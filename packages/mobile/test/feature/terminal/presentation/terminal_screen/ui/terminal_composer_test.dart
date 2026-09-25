@@ -168,6 +168,27 @@ void main() {
     expect(find.byTooltip('Session actions'), findsNothing);
   });
 
+  testWidgets('the agent composer has no session actions button and its field starts at the shell inset', (tester) async {
+    await pumpComposer(tester);
+    expect(find.byTooltip('Session actions'), findsNothing);
+    expect(find.byIcon(Icons.bolt_rounded), findsNothing);
+    final agentInset = tester.getRect(find.byType(TextField)).left - tester.getRect(find.byKey(TerminalComposer.capsuleKey)).left;
+
+    await tester.enterText(find.byType(TextField), 'first\nsecond');
+    await tester.pumpAndSettle();
+    final card = tester.getRect(find.byKey(TerminalComposer.capsuleKey));
+    expect(tester.getRect(find.byType(TextField)).left - card.left, agentInset);
+    expect(tester.getRect(find.byType(ComposerModelChip)).left - card.left, agentInset);
+
+    await tester.pumpWidget(const SizedBox());
+    await harness.dispose();
+    harness = TerminalHarness()..start(shellOnly: true);
+    await pumpComposer(tester);
+    await tester.pumpAndSettle();
+    final shellInset = tester.getRect(find.byType(TextField)).left - tester.getRect(find.byKey(TerminalComposer.capsuleKey)).left;
+    expect(agentInset, shellInset);
+  });
+
   testWidgets('opening the model picker keeps the card expanded and returns focus when it closes', (tester) async {
     when(
       () => harness.controlRepository.getModels(any()),
@@ -263,7 +284,6 @@ void main() {
     expect(midway, greaterThan(TerminalComposer.restHeight));
     expect(midway, lessThan(grown));
     expect(find.byType(ComposerModelChip), findsOneWidget);
-    expect(find.byTooltip('Session actions'), findsOneWidget);
     final card = tester.widget<GlassSurface>(find.byKey(TerminalComposer.capsuleKey));
     expect(card.kind, GlassShapeKind.roundedRect);
     expect(card.radius, TerminalComposer.cardRadius);

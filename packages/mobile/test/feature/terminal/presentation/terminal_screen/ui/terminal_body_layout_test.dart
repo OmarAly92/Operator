@@ -22,6 +22,7 @@ import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/ui
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/ui/widgets/terminal_body.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/ui/widgets/terminal_chat_header.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/ui/widgets/terminal_composer.dart';
+import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/ui/widgets/terminal_key_row.dart';
 
 import '../../../terminal_harness.dart';
 
@@ -226,19 +227,31 @@ void main() {
     await tester.pump(const Duration(minutes: 1));
   });
 
-  testWidgets('the mic sits as far in from the capsule end as the bolt glyph\'s ink does from the start', (tester) async {
+  testWidgets('the mic sits as far in from the capsule end as the text field does from the start', (tester) async {
     harness = TerminalHarness()..start(harness: 'claude-code', blockRecords: _conversation(1));
     await harness.pump(tester, const TerminalBody());
     await tester.pumpAndSettle();
 
     final dock = capsule(tester);
-    final bolt = tester.getRect(find.byIcon(Icons.bolt_rounded));
-    expect(bolt.width, TerminalComposer.actionGlyph);
-    final leadingInk = bolt.left + bolt.width * TerminalComposer.boltInkLeft - dock.left;
+    final field = tester.getRect(find.descendant(of: find.byKey(TerminalComposer.capsuleKey), matching: find.byType(TextField)));
     final action = tester.getRect(find.byType(ComposerActionButton));
-    final trailingFill = dock.right - action.right;
-    expect((leadingInk - trailingFill).abs(), lessThanOrEqualTo(1));
+    expect((field.left - dock.left) - (dock.right - action.right), moreOrLessEquals(0, epsilon: 0.5));
     expect(dock.bottom - action.bottom, 6);
+  });
+
+  testWidgets('the key row shows in the raw terminal and gives way to the composer in chat', (tester) async {
+    harness = TerminalHarness()..start();
+    await harness.pump(tester, const TerminalBody());
+    await tester.pumpAndSettle();
+    expect(find.byType(TerminalKeyRow), findsOneWidget);
+    await tester.pumpWidget(const SizedBox());
+    await harness.dispose();
+
+    harness = TerminalHarness()..start(harness: 'claude-code', blockRecords: _conversation(1));
+    await harness.pump(tester, const TerminalBody());
+    await tester.pumpAndSettle();
+    expect(find.byType(TerminalKeyRow), findsNothing);
+    expect(find.byType(TerminalComposer), findsOneWidget);
   });
 
   testWidgets('the header pill and the floating pill read the same elapsed time on every frame', (tester) async {

@@ -12,14 +12,12 @@ import 'package:operator_mobile/core/utils/service_locator.dart';
 import 'package:operator_mobile/core/widgets/glass/glass_surface.dart';
 import 'package:operator_mobile/feature/blocks/logic/command_confirmation.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/session_command_cubit.dart';
-import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/session_command_row.dart';
 import 'package:operator_mobile/feature/dictation/logic/voice_input_cubit.dart';
 import 'package:operator_mobile/feature/dictation/ui/mic_key.dart';
 import 'package:operator_mobile/feature/dictation/ui/voice_strip.dart';
 import 'package:operator_mobile/feature/dictation/voice_types.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/model_picker_sheet.dart';
 import 'package:operator_mobile/feature/terminal/logic/model_command.dart';
-import 'package:operator_mobile/feature/terminal/logic/send_route.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/logic/terminal_cubit.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/ui/widgets/composer_action_button.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/ui/widgets/composer_model_chip.dart';
@@ -34,9 +32,6 @@ class TerminalComposer extends StatefulWidget {
   static const double restHeight = 48;
   static const double cardRadius = 26;
   static const int maxLines = 5;
-  static const double actionGlyph = 21;
-  static const double boltInkLeft = 7 / 24;
-  static const double leadingInkInset = 6 + (ComposerActionButton.size - actionGlyph) / 2 + actionGlyph * boltInkLeft;
 
   @override
   State<TerminalComposer> createState() => _TerminalComposerState();
@@ -45,9 +40,9 @@ class TerminalComposer extends StatefulWidget {
 class _TerminalComposerState extends State<TerminalComposer> {
   static const double _buttonInset = 6;
   static const double _buttonZone = _buttonInset * 2 + ComposerActionButton.size;
-  static const double _trailingInset = TerminalComposer.leadingInkInset;
-  static const double _trailingZone = _buttonInset + ComposerActionButton.size + _trailingInset;
   static const double _textInset = 18;
+  static const double _trailingInset = _textInset;
+  static const double _trailingZone = _buttonInset + ComposerActionButton.size + _trailingInset;
   static const double _cardTop = 14;
   static const double _measureSlack = 4;
   static const double _lineSpacing = 1.3;
@@ -87,9 +82,7 @@ class _TerminalComposerState extends State<TerminalComposer> {
   }
 
   void _send(BuildContext context, TerminalCubit cubit) {
-    final command = cubit.args.shellOnly || cubit.sendTarget == SendTarget.terminal
-        ? null
-        : parseModelCommand(cubit.composer.text);
+    final command = cubit.args.shellOnly ? null : parseModelCommand(cubit.composer.text);
     if (command == null) {
       unawaited(cubit.send());
       return;
@@ -101,64 +94,6 @@ class _TerminalComposerState extends State<TerminalComposer> {
       return;
     }
     unawaited(switchModel(context, label));
-  }
-
-  void _openActions(BuildContext context) {
-    final commands = context.read<SessionCommandCubit>();
-    final terminal = context.read<TerminalCubit>();
-    final skin = context.skin;
-    showGeneralDialog<void>(
-      context: context,
-      barrierDismissible: true,
-      barrierLabel: 'Close session actions',
-      barrierColor: skin.scrim,
-      pageBuilder: (dialogContext, _, animation) => SafeArea(
-        child: Align(
-          alignment: Alignment.bottomCenter,
-          child: Padding(
-            padding: EdgeInsets.fromLTRB(
-              12,
-              0,
-              12,
-              MediaQuery.viewInsetsOf(context).bottom + 72,
-            ),
-            child: Material(
-              color: skin.bgSurface,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(14),
-                side: BorderSide(color: skin.borderDefault),
-              ),
-              child: BlocProvider.value(
-                value: commands,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    SessionCommandRow(menu: true),
-                    ListTile(
-                      dense: true,
-                      leading: const Icon(Icons.swap_horiz, size: 19),
-                      title: Text(
-                        terminal.sendTarget == SendTarget.agent
-                            ? 'Send to terminal'
-                            : 'Message the agent',
-                      ),
-                      onTap: () {
-                        terminal.setSendTarget(
-                          terminal.sendTarget == SendTarget.agent
-                              ? SendTarget.terminal
-                              : SendTarget.agent,
-                        );
-                        Navigator.pop(dialogContext);
-                      },
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
   }
 
   Future<void> _stop(SessionCommandCubit commands) async {
@@ -245,13 +180,11 @@ class _TerminalComposerState extends State<TerminalComposer> {
   Widget _capsule(BuildContext context, TerminalCubit cubit, double width) {
     final skin = context.skin;
     final shellOnly = cubit.args.shellOnly;
-    final toTerminal = cubit.sendTarget == SendTarget.terminal;
     final keyboardUp = MediaQuery.viewInsetsOf(context).bottom > 0;
     final reduceMotion = MediaQuery.disableAnimationsOf(context);
     final duration = reduceMotion ? Duration.zero : AppMotion.composerMorph;
     final scaler = MediaQuery.textScalerOf(context);
     final style = AppTextStyle.style17Regular.copyWith(color: skin.textPrimary, height: _lineSpacing);
-    final leading = shellOnly ? _textInset : _buttonZone;
     final text = cubit.composer.text;
     final hasText = text.trim().isNotEmpty;
     final commands = context.read<SessionCommandCubit>();
@@ -259,7 +192,7 @@ class _TerminalComposerState extends State<TerminalComposer> {
     final recording = voice.phase == VoiceState.starting || voice.phase == VoiceState.recording;
     final showStop = composerShowsStop(hasText: hasText, canStop: !shellOnly && commands.enabled('stop'));
     final trailing = _trailingZone + (showStop ? ComposerActionButton.size + ComposerStopButton.gap : 0);
-    final expanded = _expands(text, style, scaler, width - leading - trailing - _measureSlack);
+    final expanded = _expands(text, style, scaler, width - _textInset - trailing - _measureSlack);
     final lineHeight = _lineHeight(style, scaler);
 
     final body = Stack(
@@ -267,7 +200,7 @@ class _TerminalComposerState extends State<TerminalComposer> {
         Padding(
           padding: expanded
               ? const EdgeInsets.fromLTRB(_textInset, _cardTop, _textInset, _buttonZone)
-              : EdgeInsets.only(left: leading, right: trailing),
+              : EdgeInsets.only(left: _textInset, right: trailing),
           child: ConstrainedBox(
             constraints: BoxConstraints(minHeight: expanded ? lineHeight : TerminalComposer.restHeight),
             child: Align(
@@ -286,7 +219,7 @@ class _TerminalComposerState extends State<TerminalComposer> {
                         style: style,
                         cursorColor: skin.accent,
                         decoration: InputDecoration.collapsed(
-                          hintText: toTerminal ? 'Send to terminal...' : 'Message the agent...',
+                          hintText: shellOnly ? 'Send to terminal...' : 'Message the agent...',
                           hintStyle: style.copyWith(color: skin.textTertiary),
                           hintMaxLines: 1,
                         ),
@@ -299,23 +232,8 @@ class _TerminalComposerState extends State<TerminalComposer> {
             ),
           ),
         ),
-        if (!shellOnly)
-          Positioned(
-            left: _buttonInset,
-            bottom: _buttonInset,
-            child: SizedBox.square(
-              dimension: ComposerActionButton.size,
-              child: IconButton(
-                style: IconButton.styleFrom(tapTargetSize: MaterialTapTargetSize.shrinkWrap),
-                tooltip: 'Session actions',
-                onPressed: () => _openActions(context),
-                padding: EdgeInsets.zero,
-                icon: Icon(Icons.bolt_rounded, size: TerminalComposer.actionGlyph, color: skin.textSecondary),
-              ),
-            ),
-          ),
         Positioned(
-          left: leading,
+          left: _textInset,
           right: trailing,
           bottom: _buttonInset,
           height: ComposerActionButton.size,
@@ -331,7 +249,7 @@ class _TerminalComposerState extends State<TerminalComposer> {
                 ? _Toolbar(
                     key: const ValueKey('composer-toolbar'),
                     harness: cubit.args.harness,
-                    showModel: !shellOnly && !toTerminal,
+                    showModel: !shellOnly,
                     showHideKeyboard: keyboardUp,
                     onModel: () => unawaited(_openModelPicker(context, cubit.args.harness)),
                   )

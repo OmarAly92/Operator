@@ -5,7 +5,6 @@ import 'package:operator_mobile/core/helpers/result/result.dart';
 import 'package:operator_mobile/core/mux/mux_client.dart';
 import 'package:operator_mobile/feature/terminal/data/model/params/send_session_message_params.dart';
 import 'package:operator_mobile/feature/terminal/logic/keys.dart';
-import 'package:operator_mobile/feature/terminal/logic/send_route.dart';
 import 'package:operator_mobile/feature/terminal/logic/terminal_fit.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/ui/widgets/terminal_composer.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/ui/widgets/terminal_key_row.dart';
@@ -45,19 +44,6 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(cubit.composer.text, isEmpty);
-  });
-
-  testWidgets('the route toggle switches the composer to the PTY', (tester) async {
-    final cubit = harness.cubit;
-    await harness.pump(tester, const TerminalComposer());
-
-    await tester.tap(find.byTooltip('Session actions'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Send to terminal'));
-    await tester.pump();
-
-    expect(cubit.sendTarget, SendTarget.terminal);
-    expect(find.text('Send to terminal...'), findsOneWidget);
   });
 
   testWidgets('a plain worktree shell hides the misleading agent toggle', (tester) async {

@@ -93,8 +93,7 @@ class TerminalCubit extends Cubit<TerminalState> {
     this.args, {
     required this._restoreDelay,
     required this._suggestionRetryDelays,
-  }) : sendTarget = args.shellOnly ? SendTarget.terminal : SendTarget.agent,
-       super(const TerminalInitialState()) {
+  }) : super(const TerminalInitialState()) {
     status = _mux.currentStatus;
     terminal.onOutput = (data) => _mux.sendInput(args.id, data, projectId: args.projectId);
     terminal.mouseHandler = TerminalScrollRouter(terminal, harness: args.harness);
@@ -127,7 +126,6 @@ class TerminalCubit extends Cubit<TerminalState> {
   String? banner;
   String? draft;
   String? suggestion;
-  SendTarget sendTarget;
   double fontSize = kTerminalFontSize;
 
   late final Sink<List<int>> _output = utf8.decoder
@@ -288,11 +286,6 @@ class TerminalCubit extends Cubit<TerminalState> {
     _emit();
   }
 
-  void setSendTarget(SendTarget target) {
-    sendTarget = target;
-    _emit();
-  }
-
   void zoom(int delta) {
     fontSize = (fontSize + delta).clamp(kTerminalMinFontSize, kTerminalMaxFontSize);
     _emit();
@@ -302,7 +295,7 @@ class TerminalCubit extends Cubit<TerminalState> {
     final text = composer.text.trim();
     if (text.isEmpty) return;
 
-    if (routeForSend(sendTarget) == SendTarget.terminal) {
+    if (args.shellOnly) {
       if (!_writeToPty(text)) {
         Haptics.error();
         banner = kTerminalUnavailableNotice;
@@ -334,9 +327,8 @@ class TerminalCubit extends Cubit<TerminalState> {
       onFailure: (failure) {
         // Only reroute onto a socket we actually hold open — otherwise the write
         // is a no-op and we would clear the field having sent nothing.
-        if (routeForSend(sendTarget, failure) == SendTarget.terminal && _writeToPty(text)) {
+        if (shouldRetryOnTerminal(failure) && _writeToPty(text)) {
           Haptics.success();
-          sendTarget = SendTarget.terminal;
           banner = kReroutedNotice;
           composer.clear();
           dismissSuggestion();

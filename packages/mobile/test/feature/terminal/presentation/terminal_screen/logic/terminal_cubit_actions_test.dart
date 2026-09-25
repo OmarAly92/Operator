@@ -145,25 +145,23 @@ void main() {
       await cubit.close();
     });
 
-    test('writes to the PTY, with a submit, on the terminal route', () async {
-      final cubit = build();
+    test('a worktree shell writes to the PTY, with a submit', () async {
+      final cubit = build(shellArgs);
       cubit.attach();
-      cubit.setSendTarget(SendTarget.terminal);
       cubit.composer.text = 'yes,\nthe second one';
 
       await cubit.send();
 
-      verify(() => mux.sendInput('s-1', 'yes, the second one\r', projectId: 'p-1')).called(1);
+      verify(() => mux.sendInput('h-1', 'yes, the second one\r', projectId: 'p-1')).called(1);
       expect(cubit.banner, kTerminalModeNotice);
       expect(cubit.composer.text, isEmpty);
       verifyNever(() => terminalRepository.sendSessionMessage(any(), any()));
       await cubit.close();
     });
 
-    test('refuses the terminal route when the socket is not open, keeping the text', () async {
+    test('a worktree shell refuses to send when the socket is not open, keeping the text', () async {
       when(() => mux.currentStatus).thenReturn(MuxStatus.closed);
-      final cubit = build();
-      cubit.setSendTarget(SendTarget.terminal);
+      final cubit = build(shellArgs);
       cubit.composer.text = 'y';
 
       await cubit.send();
@@ -186,9 +184,29 @@ void main() {
       await cubit.send();
 
       verify(() => mux.sendInput('s-1', 'approve\r', projectId: 'p-1')).called(1);
-      expect(cubit.sendTarget, SendTarget.terminal);
       expect(cubit.banner, kReroutedNotice);
       expect(cubit.composer.text, isEmpty);
+      await cubit.close();
+    });
+
+    test('a reroute does not stick: the next send goes to the agent again', () async {
+      when(() => terminalRepository.sendSessionMessage(any(), any()))
+          .thenAnswer((_) async => Result.failure(awaitingDecision()));
+      final cubit = build();
+      cubit.attach();
+      cubit.composer.text = 'approve';
+      await cubit.send();
+      when(() => terminalRepository.sendSessionMessage(any(), any()))
+          .thenAnswer((_) async => Result.success(true));
+      cubit.composer.text = 'carry on';
+
+      await cubit.send();
+
+      final captured = verify(
+        () => terminalRepository.sendSessionMessage('s-1', captureAny()),
+      ).captured.last as SendSessionMessageParams;
+      expect(captured.message, 'carry on');
+      verifyNever(() => mux.sendInput('s-1', 'carry on\r', projectId: 'p-1'));
       await cubit.close();
     });
 
