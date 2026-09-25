@@ -47,7 +47,7 @@ Absent evidence is written as "not known", never guessed.
 
 ## Implementation status (updated 2026-09-24)
 
-Every entry below carries a **Status** line under its heading, checked against the tree on 2026-09-24 (`development`): 39 done, 19 partial, 21 not done, 7 not pursued, 1 not needed, 1 n/a. "Plan A–F" are the agent-TUI spec's plans (`docs/superpowers/specs/2026-09-19-agent-tui-experience-design.md`); "Plan 4" is the background-pane plan (`docs/superpowers/plans/2026-09-23-terminal-background-pane-cost.md`). Entries marked non-goal were excluded by the agent-TUI spec, not rejected. "Roadmap Plan 1" is the paste-safety plan (`docs/superpowers/plans/2026-09-24-terminal-plan-1-paste-safety.md`).
+Every entry below carries a **Status** line under its heading, checked against the tree on 2026-09-24 (`development`): 42 done, 18 partial, 19 not done, 7 not pursued, 1 not needed, 1 n/a. "Plan A–F" are the agent-TUI spec's plans (`docs/superpowers/specs/2026-09-19-agent-tui-experience-design.md`); "Plan 4" is the background-pane plan (`docs/superpowers/plans/2026-09-23-terminal-background-pane-cost.md`). Entries marked non-goal were excluded by the agent-TUI spec, not rejected. "Roadmap Plan 1" is the paste-safety plan (`docs/superpowers/plans/2026-09-24-terminal-plan-1-paste-safety.md`). "Roadmap Plan 3" is the program-messages plan (docs/superpowers/plans/2026-09-25-terminal-plan-3-program-messages.md).
 
 | Entry | Status | What landed / what is missing |
 |---|---|---|
@@ -65,8 +65,8 @@ Every entry below carries a **Status** line under its heading, checked against t
 | §1.12 | Not done | No `RowFlags`; `ScreenGrid` keeps separate `wrapped` and `dirty` vectors. |
 | §1.13 | Done | Plan B — `Limits { rows: 200_000, bytes: 128 MiB }` in both cores, plus `memory_stats`. Compression was excluded by the proposal itself. Open: the OSC 8 registry sits outside the byte budget (`TERMINAL.md` §5). |
 | §1.14 | Partial | Plan A — `verify_integrity`, the proptest generator and the `trace` feature. Not done: failure injection, pyte agreement in the proptest. |
-| §1.15 | Partial | Plan E — OSC 8 interned per core; hover links (OSC 8 first, then URL and path providers, path rules clean-room since `b17acd63c`) open through the host, `path:line` at the line (`fdc202778`). Not done: OSC 0/2 title, OSC 10/11 replies, OSC 9/99 notifications, OSC 22 pointer shape. |
-| §1.16 | Not done | No XTWINOPS 14/16/18 `t` and no mode 2048. Coalescing was already adequate (`RESIZE_DEBOUNCE_MS` = 100), as the entry says. |
+| §1.15 | Done | Plan E — OSC 8 and hover links. Roadmap Plan 3 — OSC 0/2 title (card and pane header in Operator), OSC 9/777/99 notifications (toast when the pane is not on screen), OSC 10/11 replies from the pane's colours, OSC 22 pointer shape. |
+| §1.16 | Done | Roadmap Plan 3 — the mirror answers XTWINOPS 14/16/18 `t` and mode 2048 from the grid and the pane's cell size (device pixels). Coalescing was already adequate (`RESIZE_DEBOUNCE_MS` = 100). |
 | §1.17 | Partial | Plan D — contrast-inverted and hollow-unfocused cursor behind flags (both off); box drawing measured and ruled out (`boxGapPx` = 0). Not done: the `minContrast` theme option, dropped by the Plan D spec without a recorded decision. |
 | §1.18 | Not done | The shell scripts still emit bare `133;A/B/C/D`; no `redraw=`, `k=s` or `133;P`. Folded into §1.6. |
 | §2.1 | Done | Plan A — DEC 2026 buffered in `vt-core` (`SyncBuffer`, 150 ms / 2 MiB), pump holds across a block. |
@@ -82,7 +82,7 @@ Every entry below carries a **Status** line under its heading, checked against t
 | §2.11 | Done | Roadmap Plan 1 — inside bracketed paste `ESC[201~`, every `ESC` and every `^C` are removed and the paste is sent without asking; outside, `\r\n`/`\n` still become `\r`. |
 | §2.12 | Done | Plan D — `cursorContrast` and `cursorHollowUnfocused` flags, both still off: `cursorContrast` changes 0 px on the Claude Code recordings (`TERMINAL.md` §5). |
 | §2.13 | Not pursued | The entry itself says not recommended, and the agent-TUI spec lists it under non-goals. |
-| §2.14 | Not done | Nothing to cap yet: `vt-core` has no title or keyboard-mode stacks. The grapheme byte cap (256) was already in place. |
+| §2.14 | Done | Roadmap Plan 3 — title stack capped at 4,096 (oldest dropped), pending notifications at 16, titles at 1,024 bytes. There is no keyboard-mode stack to cap. The grapheme byte cap (256) was already in place. |
 | §3.1 | Done | Plan B — row-element pool with dirty-row patching. The ≤ 2 nodes per changed row target was missed (≈7 per styled row). Since Plan 4 a parked pane does not paint; row layout containment was measured with no gain (`TERMINAL.md` §4.26). |
 | §3.2 | Done | Plan D — per-cluster letter-spacing from a width cache, on by default together with `graphemes` since 2026-09-22 (`7395b910c`); ZWJ and flag clusters are measured as one span. The ligature joiner is not adopted (Hack has no ligatures). |
 | §3.3 | Done | Plan A — char metrics cached, invalidated by `setFont`, `setTheme` and the DPR query. No `ResizeObserver` on the measure host and no `TextMetrics` path, both by decision (Plan A deviations). |
@@ -986,7 +986,7 @@ session" question answerable.
 
 ### 1.15 OSC coverage: hyperlinks, working directory, notifications, pointer shape, colours, title
 
-> **Status: Partial.** Plan E — OSC 8 interned per core; hover links (OSC 8 first, then URL and path providers, path rules clean-room since `b17acd63c`) open through the host, `path:line` at the line (`fdc202778`). Not done: OSC 0/2 title, OSC 10/11 replies, OSC 9/99 notifications, OSC 22 pointer shape.
+> **Status: Done.** Plan E — OSC 8 and hover links. Roadmap Plan 3 — OSC 0/2 title (card and pane header in Operator), OSC 9/777/99 notifications (toast when the pane is not on screen), OSC 10/11 replies from the pane's colours, OSC 22 pointer shape.
 
 **Reference** (`src/terminal/osc/parsers/`)
 - `hyperlink.zig:8` — OSC 8 with `id=` (tests `:59-86`); storage in
@@ -1051,7 +1051,7 @@ keyboard-addressable hints.
 
 ### 1.16 Resize coalescing and in-band size reports
 
-> **Status: Not done.** No XTWINOPS 14/16/18 `t` and no mode 2048. Coalescing was already adequate (`RESIZE_DEBOUNCE_MS` = 100), as the entry says.
+> **Status: Done.** Roadmap Plan 3 — the mirror answers XTWINOPS 14/16/18 `t` and mode 2048 from the grid and the pane's cell size (device pixels). Coalescing was already adequate (`RESIZE_DEBOUNCE_MS` = 100).
 
 **Reference**
 - `src/termio/Thread.zig:28-31` (`Coalesce.min_ms = 25`), `:390-405`
@@ -1872,7 +1872,7 @@ for completeness.
 
 ### 2.14 Robustness caps on app-driven stacks
 
-> **Status: Not done.** Nothing to cap yet: `vt-core` has no title or keyboard-mode stacks. The grapheme byte cap (256) was already in place.
+> **Status: Done.** Roadmap Plan 3 — title stack capped at 4,096 (oldest dropped), pending notifications at 16, titles at 1,024 bytes. There is no keyboard-mode stack to cap. The grapheme byte cap (256) was already in place.
 
 **Reference**
 - `alacritty_terminal/src/term/mod.rs:42-48` `TITLE_STACK_MAX_DEPTH = 4096`,
