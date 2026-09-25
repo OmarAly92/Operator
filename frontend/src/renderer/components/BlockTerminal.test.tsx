@@ -24,7 +24,7 @@ const mockState = vi.hoisted(() => {
 		altScreenSurfaceProvided: false,
 		altScreen: null as unknown,
 		core: undefined as MockCore | undefined,
-		emitGeometry: undefined as ((columns: number, rows: number) => void) | undefined,
+		emitGeometry: undefined as ((columns: number, rows: number, cell?: { width: number; height: number }) => void) | undefined,
 		coreOverrides: undefined as Partial<MockCore> | undefined,
 		host: undefined as
 			| {
@@ -166,7 +166,7 @@ vi.mock("@operator/terminal-react", () => {
 			strings?: Record<string, string>;
 			onSend?: (text: string) => void;
 			onSendRaw?: (data: string) => void;
-			onGeometry?: (columns: number, rows: number) => void;
+			onGeometry?: (columns: number, rows: number, cell?: { width: number; height: number }) => void;
 			onHint?: (hint: { ruleId: string; text: string; path?: string; line?: number }) => void;
 			onBlockFinished?: (event: {
 				id: string;
@@ -286,6 +286,7 @@ vi.mock("../theme/skin-context", () => ({
 import { BlockTerminal, type BlockTerminalHistoryBlock } from "./BlockTerminal";
 import { terminalPredictiveEchoThresholdMs } from "../lib/terminal-predictive-echo";
 import { useUiStore } from "../stores/ui-store";
+import { terminalBackgroundColor } from "../lib/terminal-background";
 import { operatorBridge } from "../lib/bridge";
 import { openLinkInSystemBrowser } from "../lib/external-link-policy";
 
@@ -355,6 +356,7 @@ function renderTerminal(
 			return () => {};
 		},
 		resize: vi.fn(),
+		appearance: vi.fn(),
 		dispose: vi.fn(),
 	};
 	render(
@@ -381,7 +383,7 @@ function renderTerminal(
 			return typeof value === "function" ? (value as (...a: unknown[]) => unknown).bind(c) : value;
 		},
 	});
-	return { core: proxy };
+	return { core: proxy, transport };
 }
 
 beforeEach(() => {
@@ -912,3 +914,24 @@ describe("BlockTerminal paste confirm", () => {
 		await expect(answer).resolves.toBe(false);
 	});
 });
+
+describe("BlockTerminal appearance", () => {
+	it("sends nothing until the surface has measured a cell", async () => {
+		const { transport } = renderTerminal();
+		await waitFor(() => expect(mockState.emitGeometry).toBeDefined());
+		expect(transport.appearance).not.toHaveBeenCalled();
+	});
+
+	it("sends the cell size in device pixels and the terminal's colours once the surface measures", async () => {
+		const { transport } = renderTerminal();
+		await waitFor(() => expect(mockState.emitGeometry).toBeDefined());
+		act(() => mockState.emitGeometry?.(80, 24, { width: 8.4, height: 16.8 }));
+		expect(transport.appearance).toHaveBeenLastCalledWith({
+			cellWidth: 8,
+			cellHeight: 17,
+			foreground: "#ffffff",
+			background: terminalBackgroundColor(useUiStore.getState().terminalBackground),
+		});
+	});
+});
+
