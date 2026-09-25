@@ -51,6 +51,9 @@ class _Signals implements ConnectionSignals {
 
   @override
   bool authFailed = false;
+
+  @override
+  bool rateLimited = false;
 }
 
 void main() {
@@ -314,6 +317,27 @@ void main() {
     await cubit.refreshUnread();
 
     verifyNever(() => repository.getNotifications(any()));
+    await cubit.close();
+  });
+
+  test('the unread poll holds while the desktop is rate limiting', () async {
+    when(() => repository.getNotifications(any())).thenAnswer((_) async => page([]));
+    final signals = _Signals(const Stream.empty())..rateLimited = true;
+    final cubit = NotificationsCubit(
+      repository,
+      serverConfigStore,
+      unreadPoll: const Duration(hours: 1),
+      connection: signals,
+    );
+    await Future<void>.delayed(Duration.zero);
+    clearInteractions(repository);
+
+    await cubit.refreshUnread();
+    verifyNever(() => repository.getNotifications(any()));
+
+    signals.rateLimited = false;
+    await cubit.refreshUnread();
+    verify(() => repository.getNotifications(any())).called(1);
     await cubit.close();
   });
 }

@@ -144,6 +144,19 @@ void main() {
     });
   });
 
+  test('rateLimited is true only while offline because the desktop is rate limiting', () async {
+    final harness = ConnectionHarness();
+    expect(harness.cubit.rateLimited, isFalse);
+    harness.report(ConnectionOutcome.rateLimited);
+    expect(harness.cubit.rateLimited, isTrue);
+    harness.report(ConnectionOutcome.serverError);
+    expect(harness.cubit.rateLimited, isFalse);
+    harness.report(ConnectionOutcome.rateLimited);
+    harness.report(ConnectionOutcome.online);
+    expect(harness.cubit.rateLimited, isFalse);
+    await harness.dispose();
+  });
+
   test('an auth failure stops every retry, and neither /healthz nor more failures clear it', () {
     fakeAsync((async) {
       final harness = ConnectionHarness();

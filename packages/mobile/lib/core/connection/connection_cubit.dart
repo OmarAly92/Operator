@@ -55,6 +55,12 @@ class ConnectionCubit extends Cubit<AppConnectionState> implements ConnectionSig
   @override
   bool get authFailed => state is ConnectionAuthFailedState;
 
+  @override
+  bool get rateLimited => switch (state) {
+    ConnectionOfflineState(reason: ConnectionFailure.rateLimited) => true,
+    _ => false,
+  };
+
   bool rePairOffered(int episode) => _rePairOfferedEpisode == episode;
 
   void markRePairOffered(int episode) => _rePairOfferedEpisode = episode;

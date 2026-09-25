@@ -49,6 +49,9 @@ class _Signals implements ConnectionSignals {
 
   @override
   bool authFailed = false;
+
+  @override
+  bool rateLimited = false;
 }
 
 void main() {

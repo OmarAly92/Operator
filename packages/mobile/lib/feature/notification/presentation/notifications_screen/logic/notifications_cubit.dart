@@ -148,7 +148,8 @@ class NotificationsCubit extends Cubit<NotificationsState> {
   }
 
   Future<void> refreshUnread() async {
-    if (!_hasServer || (_connection?.authFailed ?? false)) return;
+    final connection = _connection;
+    if (!_hasServer || (connection != null && (connection.authFailed || connection.rateLimited))) return;
     final epoch = _epoch;
     final result = await _repository.getNotifications(
       const GetNotificationsParams(status: 'unread', limit: 1),

@@ -83,6 +83,9 @@ class _Signals implements ConnectionSignals {
 
   @override
   bool authFailed = false;
+
+  @override
+  bool rateLimited = false;
 }
 
 const _config = ServerConfig(host: '10.0.0.5', httpPort: '3011', secure: false, password: 'secret12');
