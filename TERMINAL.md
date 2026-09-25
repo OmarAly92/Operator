@@ -996,9 +996,21 @@ history of `master`.
   (review fix; selection, find and marks screenshots byte-identical before and
   after, 11 of 11). A first
   build that measured every rendered row per paint doubled ScriptDuration.
-- Known risk, not fixed: JavaScript has no regex time limit. A user regex with
-  catastrophic backtracking runs on each changed painted line. The per-line
-  cache means only lines whose text changed are rescanned.
+- Regex marks run on vt-core's linear-time engine, not JavaScript's
+  backtracking one (fixed at review 2026-09-25): `crates/vt-core/src/mark_regex.rs`
+  (`regex-automata` meta regex, NFA size limit 1 MiB, empty matches skipped,
+  offsets returned in UTF-16 units), exported as `WasmMarkRegex`
+  (`crates/vt-wasm/src/mark.rs`) and wrapped by `compileMarkRegex` /
+  `markRegexValid` in `ts/core/src/mark-regex.ts`. `(a+)+$` over 20,000
+  characters returns at once instead of hanging the pane. The syntax is Rust's:
+  lookaround and backreferences are rejected, and Operator's Settings validates
+  with the same engine (`markRegexValid`, loaded when the section opens; a
+  JavaScript syntax check is the fallback before the wasm is ready). Literal
+  words stay a case-insensitive escaped JavaScript regex, which cannot
+  backtrack. Compiled regexes live in wasm memory and are freed by
+  `disposeMarks` when the rules change or the renderer resets. Guards:
+  `crates/vt-core/tests/mark_regex.rs`, `ts/core/src/mark-regex.test.ts`,
+  `marks.test.ts` "regex safety", `frontend/src/renderer/lib/terminal-marks.test.ts`.
 - Guards: `highlights.test.ts`, `highlight-painter.test.ts`, `marks.test.ts`,
   `dom-block-renderer.highlights.test.ts` (overlap order, trim, rewrap, no
   repaint scheduled, no layout read when idle, parked, alternate screen,

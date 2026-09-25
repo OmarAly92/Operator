@@ -1,9 +1,10 @@
+import { compileMarkRegex } from "@operator/terminal-core";
 import type { Highlight } from "./highlights.js";
 import { logicalLineAt, type LogicalLineView } from "./logical-lines.js";
 import type { TextRows } from "./selection-text.js";
 
 export type MarkRule = Readonly<{ pattern: string; regex: boolean; colour: string }>;
-export type CompiledMark = Readonly<{ regex: RegExp; colour: string }>;
+export type CompiledMark = Readonly<{ colour: string; spans(text: string): ArrayLike<number>; dispose(): void }>;
 export type MarkSpan = Readonly<{ start: number; end: number; rank: number }>;
 
 export const MARK_CACHE_LINES = 512;
@@ -16,28 +17,50 @@ function validColour(colour: string): boolean {
 	return typeof css?.supports !== "function" || css.supports("color", colour);
 }
 
+function literalMark(pattern: string, colour: string): CompiledMark {
+	const regex = new RegExp(pattern.replace(LITERAL_SPECIALS, "\\$&"), "gi");
+	return {
+		colour,
+		spans: (text) => {
+			const out: number[] = [];
+			for (const match of text.matchAll(regex)) {
+				const start = match.index ?? 0;
+				out.push(start, start + match[0].length);
+			}
+			return out;
+		},
+		dispose: () => undefined,
+	};
+}
+
+function regexMark(pattern: string, colour: string): CompiledMark | null {
+	const regex = compileMarkRegex(pattern);
+	if (!regex) return null;
+	return { colour, spans: (text) => regex.ranges(text), dispose: () => regex.dispose() };
+}
+
 export function compileMarks(rules: readonly MarkRule[]): CompiledMark[] {
 	const out: CompiledMark[] = [];
 	for (const rule of rules) {
 		if (rule.pattern === "" || !validColour(rule.colour)) continue;
-		try {
-			const regex = rule.regex ? new RegExp(rule.pattern, "g") : new RegExp(rule.pattern.replace(LITERAL_SPECIALS, "\\$&"), "gi");
-			out.push({ regex, colour: rule.colour });
-		} catch {
-			continue;
-		}
+		const mark = rule.regex ? regexMark(rule.pattern, rule.colour) : literalMark(rule.pattern, rule.colour);
+		if (mark) out.push(mark);
 	}
 	return out;
+}
+
+export function disposeMarks(marks: readonly CompiledMark[]): void {
+	for (const mark of marks) mark.dispose();
 }
 
 export function markSpans(text: string, marks: readonly CompiledMark[]): MarkSpan[] {
 	const out: MarkSpan[] = [];
 	marks.forEach((mark, rank) => {
-		mark.regex.lastIndex = 0;
 		let open: { start: number; end: number } | null = null;
-		for (const match of text.matchAll(mark.regex)) {
-			const start = match.index ?? 0;
-			const end = start + match[0].length;
+		const found = mark.spans(text);
+		for (let index = 0; index + 1 < found.length; index += 2) {
+			const start = found[index]!;
+			const end = found[index + 1]!;
 			if (end <= start) continue;
 			if (open && start <= open.end) {
 				open.end = Math.max(open.end, end);

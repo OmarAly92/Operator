@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { markRegexValid } from "@operator/terminal-react";
 import {
 	MAX_TERMINAL_MARK_PATTERN,
 	MAX_TERMINAL_MARKS,
@@ -42,6 +43,20 @@ describe("terminal marks", () => {
 			{ pattern: "error", regex: false, colour: terminalMarkColourCss("red") },
 			{ pattern: "FAIL|panic", regex: true, colour: terminalMarkColourCss("yellow") },
 		]);
+	});
+
+	it("asks the terminal's linear-time engine once it is loaded", () => {
+		vi.mocked(markRegexValid).mockReturnValueOnce(false);
+		expect(terminalMarkPatternValid("(?=x)", true)).toBe(false);
+		vi.mocked(markRegexValid).mockReturnValueOnce(true);
+		expect(terminalMarkPatternValid("err(or)?", true)).toBe(true);
+		expect(markRegexValid).toHaveBeenCalledWith("err(or)?");
+	});
+
+	it("never asks the engine about a literal", () => {
+		vi.mocked(markRegexValid).mockClear();
+		expect(terminalMarkPatternValid("(?=x)", false)).toBe(true);
+		expect(markRegexValid).not.toHaveBeenCalled();
 	});
 
 	it("accepts any literal and only a regex that compiles", () => {
