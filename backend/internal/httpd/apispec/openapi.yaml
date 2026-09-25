@@ -6611,7 +6611,8 @@ components:
           type: string
         permissionMode:
           description: The mode the transcript last reported, or the launch mode before
-            it reports. Filled on the session list and get endpoints only.
+            it reports. Omitted for a harness Operator cannot read the mode of. Filled
+            on the session list and get endpoints only.
           enum:
           - default
           - accept-edits

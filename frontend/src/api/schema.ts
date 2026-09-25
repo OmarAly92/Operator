@@ -2304,7 +2304,7 @@ export interface components {
             latestUserPrompt?: string;
             model?: string;
             /**
-             * @description The mode the transcript last reported, or the launch mode before it reports. Filled on the session list and get endpoints only.
+             * @description The mode the transcript last reported, or the launch mode before it reports. Omitted for a harness Operator cannot read the mode of. Filled on the session list and get endpoints only.
              * @enum {string}
              */
             permissionMode?: "default" | "accept-edits" | "plan" | "auto" | "bypass-permissions";

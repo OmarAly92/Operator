@@ -18,12 +18,21 @@ import (
 )
 
 type fakePermissionModes struct {
-	modes map[domain.SessionID]domain.PermissionModeObservation
-	err   error
+	modes  map[domain.SessionID]domain.PermissionModeObservation
+	err    error
+	allErr error
 }
 
 func (f fakePermissionModes) LatestPermissionModes(context.Context) (map[domain.SessionID]domain.PermissionModeObservation, error) {
+	if f.allErr != nil {
+		return nil, f.allErr
+	}
 	return f.modes, f.err
+}
+
+func (f fakePermissionModes) LatestPermissionMode(_ context.Context, id domain.SessionID) (domain.PermissionModeObservation, bool, error) {
+	observation, ok := f.modes[id]
+	return observation, ok, f.err
 }
 
 type fakePermissionModeGate struct{ version string }
@@ -39,11 +48,20 @@ func (f fakePermissionModeGate) PermissionModeSupport(harness domain.AgentHarnes
 	return true, cycle
 }
 
+func (fakePermissionModeGate) PermissionModeReadable(harness domain.AgentHarness) bool {
+	return harness == domain.HarnessClaudeCode
+}
+
 func permissionModeServer(t *testing.T, modes fakePermissionModes) *httptest.Server {
+	t.Helper()
+	return permissionModeServerFor(t, domain.HarnessClaudeCode, modes)
+}
+
+func permissionModeServerFor(t *testing.T, harness domain.AgentHarness, modes fakePermissionModes) *httptest.Server {
 	t.Helper()
 	svc := newFakeSessionService()
 	s := svc.sessions["opr-1"]
-	s.Harness = domain.HarnessClaudeCode
+	s.Harness = harness
 	s.LaunchPermissionMode = domain.PermissionModeBypassPermissions
 	svc.sessions["opr-1"] = s
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
@@ -93,5 +111,36 @@ func TestSessionViewsKeepTheLaunchModeWhenTheReadFails(t *testing.T) {
 	body, status, _ := doRequest(t, srv, http.MethodGet, "/api/v1/sessions", "")
 	if status != http.StatusOK || !strings.Contains(string(body), `"permissionMode":"bypass-permissions"`) {
 		t.Fatalf("status = %d body = %s", status, body)
+	}
+}
+
+func TestSessionGetReadsOnlyThatSessionsPermissionMode(t *testing.T) {
+	srv := permissionModeServer(t, fakePermissionModes{
+		modes:  map[domain.SessionID]domain.PermissionModeObservation{"opr-1": {Mode: domain.PermissionModePlan, Version: "2.1.280"}},
+		allErr: errors.New("the get endpoint must not read every session"),
+	})
+
+	body, status, _ := doRequest(t, srv, http.MethodGet, "/api/v1/sessions/opr-1", "")
+	if status != http.StatusOK {
+		t.Fatalf("status = %d body = %s", status, body)
+	}
+	var got controllers.SessionResponse
+	mustJSON(t, body, &got)
+	if got.Session.PermissionMode != "plan" || !got.Session.Capabilities.PermissionMode {
+		t.Fatalf("session = %+v", got.Session)
+	}
+}
+
+func TestSessionViewsLeaveThePermissionModeEmptyForAHarnessWithoutAReader(t *testing.T) {
+	srv := permissionModeServerFor(t, domain.HarnessCodex, fakePermissionModes{})
+
+	for _, path := range []string{"/api/v1/sessions", "/api/v1/sessions/opr-1"} {
+		body, status, _ := doRequest(t, srv, http.MethodGet, path, "")
+		if status != http.StatusOK {
+			t.Fatalf("%s status = %d body = %s", path, status, body)
+		}
+		if strings.Contains(string(body), `"permissionMode":"`) || strings.Contains(string(body), `"permissionMode":true`) {
+			t.Fatalf("%s body = %s; want no permission mode and no capability", path, body)
+		}
 	}
 }

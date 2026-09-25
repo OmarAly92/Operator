@@ -54,4 +54,7 @@ func TestPermissionModeSupportIsOffForAHarnessWithoutAReader(t *testing.T) {
 	if ok, _ := m.PermissionModeSupport(domain.HarnessCodex, domain.PermissionModeDefault, "2.1.280"); ok {
 		t.Fatal("a harness whose adapter has no reader reported support")
 	}
+	if m.PermissionModeReadable(domain.HarnessCodex) {
+		t.Fatal("a harness whose adapter has no reader reported a readable mode")
+	}
 }

@@ -17,7 +17,11 @@ func TestReadPermissionModeFromTheComposerFooter(t *testing.T) {
 		want domain.PermissionMode
 		ok   bool
 	}{
-		{"ask shows no mode line", box + "  ? for shortcuts\n", domain.PermissionModeDefault, true},
+		{"ask shows manual mode", box + "  ⏸ manual mode on · ? for shortcuts\n", domain.PermissionModeDefault, true},
+		{"ask beside the agents hint", box + "  ⏸ manual mode on · esc to interrupt · ← 1 agent · ↓ to manage          46785 tokens\n", domain.PermissionModeDefault, true},
+		{"no mode line is unknown", box + "  ? for shortcuts\n", "", false},
+		{"an unknown mode line", box + "  ⏵⏵ foo mode on (shift+tab to cycle)\n", "", false},
+		{"an unknown paused mode line", box + "  ⏸ something else mode on\n", "", false},
 		{"accept edits", box + "  ⏵⏵ accept edits on (shift+tab to cycle)\n", domain.PermissionModeAcceptEdits, true},
 		{"plan", box + "  ⏸ plan mode on (shift+tab to cycle)\n", domain.PermissionModePlan, true},
 		{"bypass", box + "  ⏵⏵ bypass permissions on (shift+tab to cycle)\n", domain.PermissionModeBypassPermissions, true},

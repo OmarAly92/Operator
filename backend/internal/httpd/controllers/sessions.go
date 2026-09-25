@@ -155,10 +155,12 @@ type SessionModelReader interface {
 
 type SessionPermissionModeReader interface {
 	LatestPermissionModes(ctx context.Context) (map[domain.SessionID]domain.PermissionModeObservation, error)
+	LatestPermissionMode(ctx context.Context, id domain.SessionID) (domain.PermissionModeObservation, bool, error)
 }
 
 type PermissionModeGate interface {
 	PermissionModeSupport(harness domain.AgentHarness, launch domain.PermissionMode, version string) (bool, []domain.PermissionMode)
+	PermissionModeReadable(harness domain.AgentHarness) bool
 }
 
 // InteractionReader serves a session's currently pending dialogs. This exists
@@ -292,7 +294,7 @@ func (c *SessionsController) list(w http.ResponseWriter, r *http.Request) {
 	}
 	views := sessionViews(sessions)
 	c.attachModels(r.Context(), views)
-	c.attachPermissionModes(r.Context(), views)
+	c.attachPermissionModes(views, c.latestPermissionModes(r.Context(), views))
 	envelope.WriteJSON(w, http.StatusOK, ListSessionsResponse{Sessions: views})
 }
 
@@ -493,7 +495,7 @@ func (c *SessionsController) get(w http.ResponseWriter, r *http.Request) {
 	}
 	views := []SessionView{sessionView(sess)}
 	c.attachModels(r.Context(), views)
-	c.attachPermissionModes(r.Context(), views)
+	c.attachPermissionModes(views, c.latestPermissionMode(r.Context(), sess.ID))
 	envelope.WriteJSON(w, http.StatusOK, SessionResponse{Session: views[0]})
 }
 
@@ -513,21 +515,42 @@ func (c *SessionsController) attachModels(ctx context.Context, views []SessionVi
 	}
 }
 
-func (c *SessionsController) attachPermissionModes(ctx context.Context, views []SessionView) {
-	var observed map[domain.SessionID]domain.PermissionModeObservation
-	if c.PermissionModes != nil && len(views) > 0 {
-		modes, err := c.PermissionModes.LatestPermissionModes(ctx)
-		if err != nil {
-			slog.Default().Warn("session permission modes read failed", "err", err)
-		} else {
-			observed = modes
-		}
+func (c *SessionsController) latestPermissionModes(ctx context.Context, views []SessionView) map[domain.SessionID]domain.PermissionModeObservation {
+	if c.PermissionModes == nil || len(views) == 0 {
+		return nil
 	}
+	modes, err := c.PermissionModes.LatestPermissionModes(ctx)
+	if err != nil {
+		slog.Default().Warn("session permission modes read failed", "err", err)
+		return nil
+	}
+	return modes
+}
+
+func (c *SessionsController) latestPermissionMode(ctx context.Context, id domain.SessionID) map[domain.SessionID]domain.PermissionModeObservation {
+	if c.PermissionModes == nil {
+		return nil
+	}
+	observation, ok, err := c.PermissionModes.LatestPermissionMode(ctx, id)
+	if err != nil {
+		slog.Default().Warn("session permission mode read failed", "session", id, "err", err)
+		return nil
+	}
+	if !ok {
+		return nil
+	}
+	return map[domain.SessionID]domain.PermissionModeObservation{id: observation}
+}
+
+func (c *SessionsController) attachPermissionModes(views []SessionView, observed map[domain.SessionID]domain.PermissionModeObservation) {
 	for i := range views {
 		observation := observed[views[i].ID]
+		readable := c.PermissionModeGate == nil || c.PermissionModeGate.PermissionModeReadable(views[i].Harness)
 		mode := ports.NormalizePermissionMode(views[i].LaunchPermissionMode)
 		if observation.Mode != "" {
 			mode = observation.Mode
+		} else if !readable {
+			mode = ""
 		}
 		views[i].PermissionMode = string(mode)
 		if c.PermissionModeGate == nil {

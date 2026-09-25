@@ -17,6 +17,11 @@ func (m *Manager) permissionModeReaderFor(harness domain.AgentHarness) (ports.Te
 	return reader, ok
 }
 
+func (m *Manager) PermissionModeReadable(harness domain.AgentHarness) bool {
+	_, ok := m.permissionModeReaderFor(harness)
+	return ok
+}
+
 func (m *Manager) PermissionModeSupport(harness domain.AgentHarness, launch domain.PermissionMode, version string) (bool, []domain.PermissionMode) {
 	reader, ok := m.permissionModeReaderFor(harness)
 	if !ok || !reader.PermissionModeVerified(version) {

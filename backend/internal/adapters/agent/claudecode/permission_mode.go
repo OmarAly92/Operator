@@ -18,6 +18,7 @@ var permissionModeFooters = []struct {
 	{"plan mode on", domain.PermissionModePlan},
 	{"bypass permissions on", domain.PermissionModeBypassPermissions},
 	{"auto mode on", domain.PermissionModeAuto},
+	{"manual mode on", domain.PermissionModeDefault},
 }
 
 var permissionModeVerifiedVersions = map[string]struct{}{
@@ -50,7 +51,7 @@ func (p *Plugin) ReadPermissionMode(pane string) (domain.PermissionMode, bool) {
 			}
 		}
 	}
-	return domain.PermissionModeDefault, true
+	return "", false
 }
 
 func (p *Plugin) PermissionModeKeys() ports.PermissionModeKeys {
