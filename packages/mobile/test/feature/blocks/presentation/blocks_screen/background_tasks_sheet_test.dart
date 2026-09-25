@@ -445,6 +445,22 @@ void main() {
     verify(() => cubit.stopTask('b1')).called(1);
   });
 
+  testWidgets('under reduce motion the stopping indicator is a static glyph, not a spinner', (tester) async {
+    tester.platformDispatcher.accessibilityFeaturesTestValue = const FakeAccessibilityFeatures(disableAnimations: true);
+    addTearDown(tester.platformDispatcher.clearAccessibilityFeaturesTestValue);
+    when(() => cubit.blocks).thenReturn(const []);
+    final reply = Completer<Failure?>();
+    await open(tester, tasksOf: (_) => [_shell('a', canStop: true)], onStop: (_) => reply.future);
+
+    await tester.tap(find.byKey(BackgroundTasksView.stopKey));
+    await tester.pump();
+    expect(find.byKey(BackgroundTasksView.stoppingKey), findsOneWidget);
+    expect(find.descendant(of: find.byKey(BackgroundTasksView.stoppingKey), matching: find.byType(CircularProgressIndicator)), findsNothing);
+    expect(find.descendant(of: find.byKey(BackgroundTasksView.stoppingKey), matching: find.byIcon(Icons.hourglass_top_rounded)), findsOneWidget);
+    reply.complete(null);
+    await tester.pump();
+  });
+
   testWidgets('stop taps once: a haptic, a spinner that ignores taps, then the card moves when the update lands', (tester) async {
     when(() => cubit.blocks).thenReturn(const []);
     var finished = false;

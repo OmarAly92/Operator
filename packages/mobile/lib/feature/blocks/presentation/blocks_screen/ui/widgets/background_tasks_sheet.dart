@@ -455,7 +455,9 @@ class _StopButton extends StatelessWidget {
                   child: SizedBox.square(
                     key: BackgroundTasksView.stoppingKey,
                     dimension: 16,
-                    child: CircularProgressIndicator(strokeWidth: 1.5, color: skin.textSecondary),
+                    child: MediaQuery.disableAnimationsOf(context)
+                        ? Icon(Icons.hourglass_top_rounded, size: 16, color: skin.textSecondary)
+                        : CircularProgressIndicator(strokeWidth: 1.5, color: skin.textSecondary),
                   ),
                 )
               : Container(

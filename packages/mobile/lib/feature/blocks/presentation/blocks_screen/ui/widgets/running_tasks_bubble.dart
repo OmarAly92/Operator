@@ -7,7 +7,7 @@ import 'package:operator_mobile/core/app_themes/text_style/app_text_style.dart';
 import 'package:operator_mobile/core/utils/haptics.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/press_scale.dart';
 
-class RunningTasksBubble extends StatelessWidget {
+class RunningTasksBubble extends StatefulWidget {
   const RunningTasksBubble({super.key, required this.count, required this.onTap});
 
   static const Key capsuleKey = ValueKey('running-tasks-capsule');
@@ -18,15 +18,23 @@ class RunningTasksBubble extends StatelessWidget {
 
   static String labelFor(int count) => count == 1 ? '1 running task' : '$count running tasks';
 
+  @override
+  State<RunningTasksBubble> createState() => _RunningTasksBubbleState();
+}
+
+class _RunningTasksBubbleState extends State<RunningTasksBubble> {
+  int _shown = 1;
+
   void _tap() {
     Haptics.select();
-    onTap();
+    widget.onTap();
   }
 
   @override
   Widget build(BuildContext context) {
     final skin = context.skin;
-    final label = labelFor(count);
+    if (widget.count > 0) _shown = widget.count;
+    final label = RunningTasksBubble.labelFor(_shown);
     return Semantics(
       button: true,
       label: '$label, show background tasks',
@@ -37,8 +45,8 @@ class RunningTasksBubble extends StatelessWidget {
         onTap: _tap,
         child: PressScale(
           child: Container(
-            key: capsuleKey,
-            height: height,
+            key: RunningTasksBubble.capsuleKey,
+            height: RunningTasksBubble.height,
             padding: const EdgeInsets.symmetric(horizontal: 14),
             decoration: ShapeDecoration(
               color: skin.bgElevated.withValues(alpha: 0.6),

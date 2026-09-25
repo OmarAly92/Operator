@@ -41,6 +41,18 @@ void main() {
     ),
   );
 
+  testWidgets('while collapsing to zero it keeps the last non-zero count, never "0 running tasks"', (tester) async {
+    await tester.pumpWidget(host(RunningTasksBubble(count: 3, onTap: () {})));
+    expect(find.text('3 running tasks'), findsOneWidget);
+
+    await tester.pumpWidget(host(RunningTasksBubble(count: 0, onTap: () {})));
+    expect(find.text('3 running tasks'), findsOneWidget);
+    expect(find.textContaining('0 running'), findsNothing);
+
+    await tester.pumpWidget(host(RunningTasksBubble(count: 2, onTap: () {})));
+    expect(find.text('2 running tasks'), findsOneWidget);
+  });
+
   testWidgets('reads one running task in the singular and several in the plural', (tester) async {
     await tester.pumpWidget(host(RunningTasksBubble(count: 1, onTap: () {})));
     expect(find.text('1 running task'), findsOneWidget);
