@@ -1,3 +1,5 @@
+use terminal_marks::MarkEvent;
+
 use crate::cold_ring::ColdStats;
 use crate::TerminalCore;
 
@@ -15,6 +17,16 @@ impl OlderState {
     pub(crate) fn note(&mut self, floor: u64) {
         self.floor = Some(floor);
         self.marks = self.marks.wrapping_add(1);
+    }
+
+    pub(crate) fn observe(&mut self, event: &MarkEvent) {
+        let MarkEvent::Extension(fields) = event else {
+            return;
+        };
+        if fields.pairs.iter().any(|(key, _)| key == "boundary") {
+            self.floor = None;
+            self.marks = self.marks.wrapping_add(1);
+        }
     }
 }
 

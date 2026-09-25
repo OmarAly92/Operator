@@ -44,17 +44,25 @@ impl Parser {
     pub(crate) fn older_rows(&self, before: u64, max_rows: usize) -> Vec<ColdRow> {
         let front = self.trimmed_total;
         let completed = self.rows.completed();
-        let bound = before.min(front + completed.len() as u64);
-        if bound > front {
-            let hi = (bound - front) as usize;
+        if before > front + completed.len() as u64 {
+            return Vec::new();
+        }
+        if before > front {
+            let hi = (before - front) as usize;
             let lo = hi.saturating_sub(max_rows);
             return (lo..hi)
                 .filter_map(|index| completed.get(index))
                 .map(|range| self.cold_row(range))
                 .collect();
         }
-        let hi = before.min(self.cold.end_stable());
-        self.cold.rows(hi.saturating_sub(max_rows as u64)..hi)
+        if before > self.cold.end_stable() || before <= self.cold.first_stable() {
+            return Vec::new();
+        }
+        self.cold.rows(
+            before
+                .saturating_sub(max_rows as u64)
+                .max(self.cold.first_stable())..before,
+        )
     }
 
     fn cold_row(&self, range: &RowRange) -> ColdRow {

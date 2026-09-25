@@ -275,6 +275,7 @@ impl TerminalCore {
                 }
                 _ => {}
             }
+            self.older.observe(&event);
             // Re-read the alt-screen state after every event so an
             // `AltScreenEnter` freezes the rest of this chunk's events and a
             // trailing `AltScreenLeave` thaws them.

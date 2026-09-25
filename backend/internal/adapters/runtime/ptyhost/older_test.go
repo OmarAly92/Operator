@@ -162,6 +162,26 @@ func TestAnOlderRequestBelowTheFloorAnswersWithTheFloorAlone(t *testing.T) {
 	}
 }
 
+func TestAnOlderRequestPastTheMirrorsRowsAnswersNothingOlder(t *testing.T) {
+	f := startServeWithLimits(t, 765, 20, 4, ringLimits)
+	defer f.cancel()
+	fillPastTheCap(t, f, 30)
+
+	c := newTestClient(t, f.addr)
+	defer c.close()
+	sendResize(t, c, 20, 4)
+	_ = readStreamUntil(t, c, "\x1b]7000;v=1;older=0\x1b\\")
+
+	requestOlder(t, c, 399)
+	answer := readStreamUntil(t, c, "\x1b]7000;v=1;older=")
+	if strings.Contains(answer, "history=") {
+		t.Fatalf("rows the mirror does not hold were served under row 399:\n%q", answer)
+	}
+	if !strings.Contains(answer, "\x1b]7000;v=1;older=399\x1b\\") {
+		t.Fatalf("the answer did not tell the pane nothing is older than row 399:\n%q", answer)
+	}
+}
+
 func TestRequestOlderWritesOneOlderFrame(t *testing.T) {
 	client, server := net.Pipe()
 	defer client.Close()

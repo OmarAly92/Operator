@@ -2,6 +2,8 @@ package ptyhost
 
 import (
 	"net"
+	"strconv"
+	"strings"
 
 	"github.com/OmarAly92/operator/backend/internal/adapters/runtime/ptyhost/vtwasm"
 )
@@ -14,7 +16,7 @@ func (h *host) serveOlder(conn net.Conn, before uint64) {
 	if cs == nil || parser == nil {
 		return
 	}
-	chunk, _, _, err := parser.OlderChunk(before, vtwasm.OlderChunkRows)
+	chunk, _, ok, err := parser.OlderChunk(before, vtwasm.OlderChunkRows)
 	if err != nil {
 		h.logf("older output: %v", err)
 	}
@@ -22,7 +24,20 @@ func (h *host) serveOlder(conn net.Conn, before uint64) {
 	if err != nil {
 		h.logf("older output mark: %v", err)
 	}
+	if !ok && mark != "" {
+		mark = nothingOlderMark(mark, before)
+	}
 	h.queueOlder(cs, []byte(chunk+mark))
+}
+
+const olderMarkPrefix = "\x1b]7000;v=1;older="
+
+func nothingOlderMark(mark string, before uint64) string {
+	floor, err := strconv.ParseUint(strings.TrimSuffix(strings.TrimPrefix(mark, olderMarkPrefix), "\x1b\\"), 10, 64)
+	if err == nil && floor >= before {
+		return mark
+	}
+	return olderMarkPrefix + strconv.FormatUint(before, 10) + "\x1b\\"
 }
 
 func (h *host) sendOlderMark(cs *clientState) {
