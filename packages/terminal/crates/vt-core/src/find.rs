@@ -127,6 +127,7 @@ pub struct FindSession {
     screen: Vec<ScreenHit>,
     screen_generation: Option<u64>,
     screen_scans: u64,
+    truncations: u64,
 }
 
 pub(crate) struct FindView<'a> {
@@ -149,6 +150,7 @@ impl FindSession {
             screen: Vec::new(),
             screen_generation: None,
             screen_scans: 0,
+            truncations: 0,
         }
     }
 
@@ -180,10 +182,15 @@ impl FindSession {
         } else {
             completed[settled - 1].end
         };
-        if !self.started || history_start < self.scanned_from || settled_end < self.scanned_to {
+        if !self.started
+            || history_start < self.scanned_from
+            || settled_end < self.scanned_to
+            || view.content.truncations() != self.truncations
+        {
             update.removed += self.history.len();
             self.history.clear();
             self.started = true;
+            self.truncations = view.content.truncations();
             self.scanned_from = history_start;
             self.scanned_to = history_start;
         }

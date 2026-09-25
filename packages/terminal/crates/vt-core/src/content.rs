@@ -12,6 +12,7 @@ pub(crate) struct Chunk {
 pub(crate) struct Content {
     chunks: VecDeque<Chunk>,
     next_offset: u64,
+    truncations: u64,
 }
 
 impl Clone for Content {
@@ -19,6 +20,7 @@ impl Clone for Content {
         Self {
             chunks: self.chunks.clone(),
             next_offset: self.next_offset,
+            truncations: self.truncations,
         }
     }
 }
@@ -29,6 +31,7 @@ impl Content {
         Self {
             chunks: VecDeque::new(),
             next_offset: 0,
+            truncations: 0,
         }
     }
 
@@ -36,6 +39,7 @@ impl Content {
         Self {
             chunks: VecDeque::new(),
             next_offset: base,
+            truncations: 0,
         }
     }
 
@@ -139,6 +143,11 @@ impl Content {
             back.bytes.truncate(keep);
         }
         self.next_offset = offset;
+        self.truncations += 1;
+    }
+
+    pub fn truncations(&self) -> u64 {
+        self.truncations
     }
 
     pub fn resident_bytes(&self) -> usize {

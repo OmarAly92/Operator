@@ -446,3 +446,101 @@ fn an_older_output_chunk_still_lands_after_a_prompt_resize_pulled_every_row_back
     assert_eq!(rows[..8].to_vec(), expected);
     assert_eq!(rows.iter().filter(|row| row.as_str() == "three").count(), 1);
 }
+
+fn older_rows_after_the_chunk_scrolls_away(
+    pull: bool,
+) -> Vec<(String, Vec<(u32, vt_core::CellStyle)>)> {
+    let mut mirror = TerminalCore::with_limits(
+        40,
+        vt_core::Limits {
+            rows: 50,
+            bytes: usize::MAX,
+        },
+    )
+    .unwrap();
+    mirror.set_reflow_on_resize(false);
+    mirror.resize(40, 3);
+    mirror.set_cold_ring_bytes(1 << 20);
+    let numbered: String = (0..200)
+        .map(|i| format!("\x1b[32mrow {i:05}\x1b[0m\r\n"))
+        .collect();
+    mirror.feed(numbered.as_bytes());
+    let origin = mirror.first_stable_row();
+    let mut pane = TerminalCore::new(40, 10_000).unwrap();
+    pane.resize(40, 6);
+    pane.feed(format!("\x1b]7000;v=1;origin={origin}\x1b\\").as_bytes());
+    prompt(&mut pane, "$ ");
+    run(&mut pane, "echo", "one\r\ntwo\r\nthree\r\n");
+    prompt(&mut pane, "$ ");
+    if pull {
+        pane.resize(40, 12);
+    }
+    let chunk = mirror
+        .older_chunk(origin, 4, 1 << 20)
+        .expect("the mirror has older rows");
+    pane.feed(&chunk.bytes);
+    pane.feed(b"\x1b]7000;v=1;input-released=1\x07\x1b[H\x1b[31mQ\x1b[0m");
+    for _ in 0..14 {
+        pane.feed(b"\r\nx");
+    }
+    common::check(&pane);
+    let snapshot = pane.snapshot().unwrap();
+    (0..snapshot.row_count())
+        .filter(|&row| snapshot.row_text(row).starts_with("row "))
+        .map(|row| {
+            (
+                snapshot.row_text(row).to_string(),
+                snapshot.row_style_pairs(row).to_vec(),
+            )
+        })
+        .collect()
+}
+
+#[test]
+fn an_older_output_chunk_keeps_its_styles_after_a_prompt_resize_pulled_every_row_back() {
+    let unpulled = older_rows_after_the_chunk_scrolls_away(false);
+    assert_eq!(unpulled.len(), 4);
+    assert!(unpulled.iter().all(|(_, runs)| runs.len() == 1));
+    assert_eq!(older_rows_after_the_chunk_scrolls_away(true), unpulled);
+}
+
+#[test]
+fn find_hits_stay_on_their_text_when_pulled_rows_are_rewritten_before_the_next_update() {
+    let mut core = core(40, 10);
+    prompt(&mut core, "$ ");
+    let output: String = (0..30)
+        .map(|i| {
+            if i % 3 == 0 {
+                format!("needle {i}\r\n")
+            } else {
+                format!("hay {i}\r\n")
+            }
+        })
+        .collect();
+    run(&mut core, "seq", &output);
+    prompt(&mut core, "$ ");
+    let mut session = FindSession::new(FindQuery::literal("needle"));
+    core.find_update(&mut session, usize::MAX);
+    core.resize(40, 18);
+    core.feed(b"\x1b]7000;v=1;input-released=1\x07\x1b[1;1H");
+    for _ in 0..8 {
+        core.feed(b"zzzzzzzzzzzzz\x1b[K\r\n");
+    }
+    core.feed(b"\x1b[18;1H");
+    for _ in 0..20 {
+        core.feed(b"\r\nmore");
+    }
+    core.find_update(&mut session, usize::MAX);
+    common::check(&core);
+    let hits = core.find_results(&session);
+    assert_eq!(hits.len(), count(&core, "needle"));
+    let snapshot = core.snapshot().unwrap();
+    for hit in hits {
+        let flat = core.flat_row(hit.row).expect("hit row still exists");
+        assert!(
+            snapshot.row_text(flat).contains("needle"),
+            "row {flat} {:?}",
+            snapshot.row_text(flat)
+        );
+    }
+}

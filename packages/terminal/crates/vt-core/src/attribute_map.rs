@@ -28,6 +28,9 @@ impl<A: Copy + Eq> AttributeMap<A> {
         for (end, value) in runs {
             self.ends.insert(*end, *value);
         }
+        if let Some((end, _)) = runs.last() {
+            self.run_start = self.run_start.max(*end);
+        }
     }
 
     #[cfg(test)]
@@ -200,5 +203,17 @@ mod tests {
         map.prepend_runs(&[(98, 3u8), (100, 4u8)]);
         assert_eq!(map.runs(96, 100), vec![(2, 3u8), (4, 4u8)]);
         assert_eq!(map.runs(100, 102), vec![(2, 7u8)]);
+    }
+
+    #[test]
+    fn runs_prepended_after_a_full_truncation_survive_a_style_change_at_the_seam() {
+        let mut map = AttributeMap::with_base(0u8, 100);
+        map.set_from(100, 1);
+        map.set_from(104, 0);
+        map.truncate_to(100);
+        map.prepend_runs(&[(98, 3u8), (100, 4u8)]);
+        map.set_from(100, 5);
+        assert_eq!(map.runs(96, 100), vec![(2, 3u8), (4, 4u8)]);
+        assert_eq!(map.runs(100, 103), vec![(3, 5u8)]);
     }
 }

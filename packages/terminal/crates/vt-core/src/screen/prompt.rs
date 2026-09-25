@@ -63,9 +63,10 @@ impl ScreenGrid {
 
     pub(crate) fn push_rows_on_top(&mut self, pulled: Vec<(Vec<Cell>, bool)>) {
         let count = pulled.len();
-        if count == 0 || self.max_cursor_row + count >= self.rows {
+        if count == 0 {
             return;
         }
+        debug_assert!(self.max_cursor_row + count < self.rows);
         self.materialize();
         let cols = self.cols;
         self.cells.rotate_right(count * cols);
