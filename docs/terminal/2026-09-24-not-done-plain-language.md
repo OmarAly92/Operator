@@ -105,15 +105,16 @@ Claude Code sessions don't use them.
 
 ## Things about Claude Code and agents
 
-14. **Agents telling the terminal what they're doing (§7.1).** Operator
-    learns Claude's state ("working", "needs you") through a side channel on
-    your own machine. *If done:* the same signals would also work for Claude
-    running on a remote machine over SSH.
-15. **The terminal noticing an agent is idle or waiting (§6.9).** The
-    terminal itself doesn't know "the agent stopped and is waiting for an
-    answer". Operator already knows this another way. *If done:* any app
-    using the terminal would get this for free, plus a way to read output
-    with the noise stripped out.
+14. **Agents telling the terminal what they're doing (§7.1).** *Partly done
+    (roadmap Plan 8, 2026-09-25):* the terminal now understands a short
+    in-band message an agent can print ("working", "needs you", "idle",
+    "done"), which would also travel over SSH. Operator doesn't use it yet —
+    it still learns Claude's state from its own side channel on your machine.
+15. **The terminal noticing an agent is idle or waiting (§6.9).** *Partly
+    done (roadmap Plan 8, 2026-09-25):* the terminal package can now tell
+    "busy", "went quiet", "idle" and "asking a yes/no question" on its own,
+    and can hand over a block's output with spinner lines and repeated
+    redraws stripped out. Operator doesn't use either yet.
 
 ## Invisible under-the-hood work
 

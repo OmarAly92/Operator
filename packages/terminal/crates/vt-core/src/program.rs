@@ -65,6 +65,7 @@ pub struct ProgramState {
     foreground: Option<u32>,
     background: Option<u32>,
     in_band_resize: bool,
+    agent: crate::agent::AgentChannel,
 }
 
 impl ProgramState {
@@ -90,6 +91,14 @@ impl ProgramState {
 
     pub fn take_notifications(&mut self) -> Vec<ProgramNotification> {
         self.notifications.drain(..).collect()
+    }
+
+    pub fn agent(&self) -> &crate::agent::AgentChannel {
+        &self.agent
+    }
+
+    pub fn agent_mut(&mut self) -> &mut crate::agent::AgentChannel {
+        &mut self.agent
     }
 
     pub fn osc(&mut self, params: &[&[u8]], bell_terminated: bool) -> Option<Vec<u8>> {
@@ -150,6 +159,7 @@ impl ProgramState {
         self.pointer_shape = "";
         self.kitty = None;
         self.in_band_resize = false;
+        self.agent.reset_for_new_process();
         if changed {
             self.bump();
         }
@@ -236,6 +246,12 @@ impl ProgramState {
     }
 
     fn osc777(&mut self, payload: &[&[u8]]) {
+        if payload.first() == Some(&crate::agent::AGENT_EXTENSION) {
+            if self.agent.osc(&payload[1..]) {
+                self.bump();
+            }
+            return;
+        }
         let [extension, title, body @ ..] = payload else {
             return;
         };
@@ -357,7 +373,7 @@ fn joined(parts: &[&[u8]]) -> Vec<u8> {
     out
 }
 
-fn clean_text(raw: &[u8], cap: usize) -> String {
+pub(crate) fn clean_text(raw: &[u8], cap: usize) -> String {
     let decoded = String::from_utf8_lossy(raw);
     let mut out = String::new();
     for ch in decoded.chars().filter(|ch| !ch.is_control()) {

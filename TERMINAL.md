@@ -267,6 +267,12 @@ rebuilt (§6).
    case). Highlights (§4.31) cite Ghostty `src/terminal/highlight.zig:1-10`
    (one representation for selection, search and marks) for behaviour only, no
    code adapted; Kitty's marks are GPL-3.0 and were not read.
+   Agent activity (§4.34) ports VS Code's `detectsHighConfidenceInputPattern`
+   (MIT; `ts/core/src/input-patterns.ts`, `VSCODE-INPUT-PATTERNS-ATTRIBUTION.md`
+   and `LICENSE-VSCODE-MIT` beside it) and follows VS Code's idle polling
+   behaviour without copying code; the in-band agent events are our own wire
+   format (`protocol/SPEC.md` §10), written from the survey's description of
+   Warp's (§7.1; AGPL-3.0, no Warp file read).
 3. **No comments in new code** (user's global instruction). Existing comments may
    be corrected when they become false; do not add new ones.
 4. **Root cause before fix.** Every entry in §4 was mis-diagnosed first. Capture
@@ -1174,6 +1180,62 @@ history of `master`.
   frontend `terminal-mux.test.ts`, `useTerminalSession.test.tsx`,
   `BlockTerminal.test.tsx` "load older output".
 
+### 4.34 Agents could not tell the terminal what they were doing — roadmap Plan 8
+- Before: agent state reached Operator only out of band (`opr` hooks over
+  loopback HTTP, `opr mcp` `session_report`), so nothing worked for an agent
+  whose hooks cannot reach the daemon (SSH, a container), and no host of the
+  package could tell that an agent was idle or asking a question.
+- In-band events: `OSC 777 ; agent-state ; v=1 ; state=… [; detail=…] ST`
+  (`protocol/SPEC.md` §10). Plan 3's dispatcher (`program.rs` `osc777`) sends
+  the `agent-state` extension to `AgentChannel` (`crates/vt-core/src/agent.rs`)
+  before its `notify` check, so the two can never be confused. Parsing is
+  strict (exact `v=1`, known state, no repeated key, strict percent-decoding);
+  a payload of 1,024 bytes or more is ignored because vte's `no-std` OSC buffer
+  (`MAX_OSC_RAW = 1024`) has already cut it. Identical consecutive events
+  collapse; 16 wait at most; a process boundary forgets the last one; each
+  queued event bumps the program generation, which `ts/core`'s `AgentEvents`
+  polls after every feed and tick (`TerminalCore.onAgentEvent`).
+- Never from loaded or replayed output — the Plan 3/7 rule: history chunk rows
+  (attach history, older answers) go to the `HistoryReceiver`, whose
+  `osc_dispatch` only interns hyperlinks, and their marks are held back by
+  `AnswerGate`; the attach replay frame does reach vte, so `AgentChannel` is
+  silenced from an adopted `origin=` mark to `ready=` (`lib.rs` `feed_raw`).
+- Activity: `vt-core` counts bytes handed to vte outside the replay window
+  (`live_output_bytes`, reset when a fresh core adopts a replay origin).
+  `AgentActivityMonitor` (`ts/core/src/agent-activity.ts`) turns it into
+  `active` (output in the last 500 ms), `pollingForIdle`, `idle` (1,500 ms
+  quiet) or `prompting` (quiet and the cursor line matches VS Code's
+  high-confidence prompt patterns, `input-patterns.ts`) — VS Code's
+  500 ms / two-idle-polls behaviour (`chatAgentTools/.../monitoring/types.ts`
+  `PollingConsts`) as a clock. The timer runs only while someone listens and
+  stops at `idle`.
+- `readBlockOutput(id, { compact, maxLines })`: a block's logical lines;
+  `compact` drops spinner status lines (a spinner glyph, text, an ellipsis),
+  blank runs, back-to-back repeats and any run of ≥ 3 non-blank lines that
+  repeats one within the last 256 kept lines (a repainted frame). Lossy by
+  design and opt-in; redaction is not applied (renderer only).
+- Measured (planning run, 2026-09-25): the Claude Code recordings replayed one
+  frame per 100 ms (120, 157 and 1,048 frames) are `active` throughout and
+  `idle` 1,500 ms after the last byte, `prompting` at none of 1,325 frame
+  boundaries; compact keeps all 60,000 number lines of `claude-long-50k`
+  (24.9–30.5 ms per call) and cuts `claude-markdown-reply` without agent-TUI
+  mode from 101 to 88 lines.
+- Operator: nothing consumes these yet (user decision 2026-09-25). The mirror
+  parses the events into its capped queue and drops them;
+  `publishProgramLocked` (`ptyhost/program.go`) publishes only titles and
+  notifications.
+- References: VS Code (MIT) — `detectsHighConfidenceInputPattern` ported
+  verbatim (`VSCODE-INPUT-PATTERNS-ATTRIBUTION.md`), polling behaviour
+  followed. Warp (AGPL-3.0) — not read; the survey's description (§7.1) only.
+- Guards: `crates/vt-core/tests/agent_events.rs` (vectors whole and byte by
+  byte, history chunk, older answer byte by byte and inside a live event,
+  replay frame, flood, boundary, sync block, live byte counter, recordings),
+  `agent.rs` unit tests, `vt-wasm/tests/program_exports.rs`,
+  `vtwasm/program_test.go` `TestAnAgentEventIsNeitherATitleNorANotificationInTheMirror`,
+  `ts/core/src/agent-events.test.ts`, `agent-activity.test.ts` (incl. the three
+  recordings and a hidden window's one-second drains), `compact-output.test.ts`,
+  `block-output.test.ts`.
+
 ## 5. Known gaps (not bugs, decisions pending)
 
 - **Find exports every hit on every change.** `findResults` copies all hits
@@ -1564,6 +1626,22 @@ history of `master`.
   is doubled by the next submission from the input box. The reasons and the
   evidence are in §4.32; `bash.sh`'s percent-encoder still encodes code
   points, not UTF-8 bytes, so a non-ASCII `cmd=`/`cwd=` from bash is wrong.
+- **Nothing emits or consumes agent events yet** (§4.34). Operator keeps its
+  local hooks; the in-band channel waits for remote agents. A sender must keep
+  each sequence under 1,024 bytes and 14 fields (vte limits).
+- **A replay that never sends `ready=` silences agent events** on that core
+  until a later `ready=`: the window opens at an adopted `origin=` mark. The
+  pty-host always sends both (§4.19).
+- **Agent activity flickers in a hidden window.** WebKit throttles the drain
+  and the monitor's timer to about once a second (§4.25), so a streaming agent
+  reads `active` → `pollingForIdle` between bursts; it never reaches `idle`
+  while bursts keep coming (1,500 ms threshold).
+- **The prompt check counts code points, not cells**, when it pads the cursor
+  line to the cursor column; on a row with wide characters the padding is
+  short and a "trailing space" prompt pattern can miss.
+- **`readBlockOutput` ignores redaction** (`secretPatterns` is applied by the
+  renderer's text sources only) and `compact` is lossy: a legitimately
+  repeated run of three or more lines within 256 lines is dropped.
 
 ---
 

@@ -81,6 +81,31 @@ export {
 	type ProgramNotification,
 } from "./program-messages.js";
 export {
+	AgentEvents,
+	type AgentEvent,
+	type AgentEventListener,
+	type AgentEventSource,
+	type AgentState,
+} from "./agent-events.js";
+export {
+	ACTIVITY_IDLE_AFTER_MS,
+	ACTIVITY_POLLING_AFTER_MS,
+	AgentActivityMonitor,
+	cursorLineText,
+	type AgentActivityListener,
+	type AgentActivitySource,
+	type AgentActivityState,
+} from "./agent-activity.js";
+export { detectsHighConfidenceInputPattern } from "./input-patterns.js";
+export {
+	COMPACT_MIN_REDRAW_LINES,
+	COMPACT_REDRAW_LOOKBACK,
+	capLines,
+	compactLines,
+	isSpinnerLine,
+} from "./compact-output.js";
+export { blockOutputText, type BlockOutputOptions } from "./block-output.js";
+export {
 	FEED_BUDGET_MS,
 	FEED_SLICE_BYTES,
 	FIND_UPDATE_BUDGET_BYTES,

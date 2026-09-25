@@ -47,7 +47,7 @@ Absent evidence is written as "not known", never guessed.
 
 ## Implementation status (updated 2026-09-25)
 
-Every entry below carries a **Status** line under its heading, checked against the tree on 2026-09-24 (`development`): 45 done, 17 partial, 17 not done, 7 not pursued, 1 not needed, 1 n/a. "Plan A–F" are the agent-TUI spec's plans (`docs/superpowers/specs/2026-09-19-agent-tui-experience-design.md`); "Plan 4" is the background-pane plan (`docs/superpowers/plans/2026-09-23-terminal-background-pane-cost.md`). Entries marked non-goal were excluded by the agent-TUI spec, not rejected. "Roadmap Plan 1" is the paste-safety plan (`docs/superpowers/plans/2026-09-24-terminal-plan-1-paste-safety.md`); "Roadmap Plan 3" is the program-messages plan (docs/superpowers/plans/2026-09-25-terminal-plan-3-program-messages.md); "Roadmap Plan 5" is the highlights plan (`docs/superpowers/plans/2026-09-25-terminal-plan-5-highlights-marks.md`); "Roadmap Plan 7" is the very-old-output plan (`docs/superpowers/plans/2026-09-25-terminal-plan-7-old-output.md`).
+Every entry below carries a **Status** line under its heading, checked against the tree on 2026-09-24 (`development`): 45 done, 19 partial, 15 not done, 7 not pursued, 1 not needed, 1 n/a. "Plan A–F" are the agent-TUI spec's plans (`docs/superpowers/specs/2026-09-19-agent-tui-experience-design.md`); "Plan 4" is the background-pane plan (`docs/superpowers/plans/2026-09-23-terminal-background-pane-cost.md`). Entries marked non-goal were excluded by the agent-TUI spec, not rejected. "Roadmap Plan 1" is the paste-safety plan (`docs/superpowers/plans/2026-09-24-terminal-plan-1-paste-safety.md`); "Roadmap Plan 3" is the program-messages plan (docs/superpowers/plans/2026-09-25-terminal-plan-3-program-messages.md); "Roadmap Plan 5" is the highlights plan (`docs/superpowers/plans/2026-09-25-terminal-plan-5-highlights-marks.md`); "Roadmap Plan 7" is the very-old-output plan (`docs/superpowers/plans/2026-09-25-terminal-plan-7-old-output.md`). "Roadmap Plan 8" is the agent-awareness plan (`docs/superpowers/plans/2026-09-25-terminal-plan-8-agent-awareness.md`).
 
 | Entry | Status | What landed / what is missing |
 |---|---|---|
@@ -126,10 +126,10 @@ Every entry below carries a **Status** line under its heading, checked against t
 | §6.6 | Not done | No quick-fix matcher or `onQuickFix`. A non-goal of the agent-TUI spec. |
 | §6.7 | Not pursued | Not adopted by the entry itself; `pinned-header.ts` pins the block header, not the prompt. |
 | §6.8 | Not done | Line-editor history reads only this session's blocks. A non-goal of the agent-TUI spec. |
-| §6.9 | Not done | No idle/prompt state machine in the package and no `readBlockOutput({ compact })`. Adjacent host work is not this: agents report board state through `opr mcp` (`2e54a6bfb`), the daemon derives board status (`0cd094f12`). |
+| §6.9 | Partial | Roadmap Plan 8 (2026-09-25) — `ts/core` has `agentActivity()`/`onAgentActivity` (active / pollingForIdle / idle / prompting from live output, 500 ms / 1,500 ms, VS Code's high-confidence prompt patterns) and `readBlockOutput(id, { compact, maxLines })` (spinner lines and redrawn frames dropped). Not done: Operator does not consume either; no tool surface (run/get-output/send), no user-input tracking while prompting, no per-command compressors. |
 | §6.10 | Done | Already before the survey: block headers show duration (`fa6cec10b`); block actions include copy, share, bookmark, filter, jump and rerun; `block-nav`. Nonce gating is §6.1. |
 | §6.11 | Done | A parked pane sends no resize; on show its grid goes through the normal debounced publish (`be9d35222`, `TERMINAL.md` §4.24). Plan 4 added the visibility seam, paint gate and 30-minute unload. Rows-immediate not adopted (`TERMINAL.md` §4.6). |
-| §7.1 | Not done | A non-goal of the agent-TUI spec. `vt-core` parses no OSC 777 or OSC 9; agent events reach the daemon out of band (hooks, `opr mcp` `session_report`, the transcript's interrupt marker). |
+| §7.1 | Partial | Roadmap Plan 8 (2026-09-25) — `vt-core` parses `OSC 777 ; agent-state ; v=1 ; state=… [; detail=…]` (our format, `protocol/SPEC.md` §10) into `onAgentEvent`, never from history, older answers or the replay frame; Plan 3 already parses OSC 777 `notify` and OSC 9. Not done: nothing emits it (Operator's hooks stay out of band, loopback HTTP) and Operator consumes none; remote/SSH agents are future work. |
 | §7.2 | Partial | Background output after the last block is kept as a running synthetic block (`e7684bed8`). Typeahead done for zsh (roadmap Plan 6): the shell reports text typed during a command at its next prompt, the line editor adopts it only if the user typed it and clears the shell's copy with `^U` (`TERMINAL.md` §4.32). bash and fish keep the old behaviour. |
 | §7.3 | Done | Plan E — the daemon's patterns masked in copy, selection, links, hints and block text; default off. The phone view is not masked, and a masked token stays readable by assistive tech (`TERMINAL.md` §5). |
 | §7.4 | Done | Plan E — capped, never-reclaimed registry; the link id is the sixth style word. |
@@ -3908,7 +3908,7 @@ product backlog.
 
 ### 6.9 Agent tools on top of the terminal: idle detection, output compression, prompt detection
 
-> **Status: Not done.** No idle/prompt state machine in the package and no `readBlockOutput({ compact })`. Adjacent host work is not this: agents report board state through `opr mcp` (`2e54a6bfb`), the daemon derives board status (`0cd094f12`).
+> **Status: Partial.** Roadmap Plan 8 (2026-09-25) — the idle/prompt detector (`TerminalCore.agentActivity()`/`onAgentActivity`) and `readBlockOutput({ compact })` are in `ts/core` (`TERMINAL.md` §4.34). Operator does not consume them; its board state still comes from `opr mcp` (`2e54a6bfb`) and the daemon (`0cd094f12`).
 
 **Reference**
 - `vscode/src/vs/workbench/contrib/terminalContrib/chatAgentTools/browser/executeStrategy/executeStrategy.ts:14-31`:
@@ -4050,7 +4050,7 @@ means `/Users/omaraly/development/AI/warp/app/src/terminal/cli_agent.rs`.
 
 ### 7.1 CLI-agent session events over OSC 777 from an installed agent plugin
 
-> **Status: Not done.** A non-goal of the agent-TUI spec. `vt-core` parses no OSC 777 or OSC 9; agent events reach the daemon out of band (hooks, `opr mcp` `session_report`, the transcript's interrupt marker).
+> **Status: Partial.** Roadmap Plan 8 (2026-09-25) — an in-band agent-state channel over OSC 777 (`protocol/SPEC.md` §10, `TERMINAL.md` §4.34) parsed by `vt-core` and surfaced by `ts/core`; Plan 3 parses OSC 777 `notify` and OSC 9. Agent events still reach the daemon out of band (hooks, `opr mcp` `session_report`, the transcript's interrupt marker); nothing emits or consumes the in-band channel yet.
 
 **Reference**
 - `warp/app/src/terminal/cli_agent.rs:1-4`: "detecting and working with
