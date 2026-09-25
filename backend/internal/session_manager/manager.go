@@ -264,6 +264,7 @@ type Manager struct {
 	// their fakeAgents do not implement ports.EmptyComposerDetector.
 	emptyComposerDetector ports.EmptyComposerDetector
 	tasksPanelReader      ports.TerminalTasksPanelReader
+	permissionModeReader  ports.TerminalPermissionModeReader
 	// messenger is a sessionguard.Guard wrapping the raw messenger, so every
 	// pane write is guarded (re-read state, refuse a blocked session) without
 	// each call site re-deriving the check. Send/confirmActive use Deliver for

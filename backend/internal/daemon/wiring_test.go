@@ -661,6 +661,10 @@ func (f *fakeSessionLifecycle) AgentTaskStopSupported(domain.AgentHarness, strin
 	return false
 }
 
+func (f *fakeSessionLifecycle) PermissionModeSupport(domain.AgentHarness, domain.PermissionMode, string) (bool, []domain.PermissionMode) {
+	return false, nil
+}
+
 // TestWiring_SessionLifecycleInterfaceInvokedByDaemon asserts the
 // sessionLifecycle interface is satisfied by *sessionmanager.Manager (compile
 // check) and that Reconcile and RestoreAll dispatch correctly through the

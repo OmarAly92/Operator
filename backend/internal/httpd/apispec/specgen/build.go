@@ -240,6 +240,7 @@ var schemaNames = map[string]string{ //nolint:gosec // G101: schema type names s
 	"ControllersSendSessionMessageResponse":         "SendSessionMessageResponse",
 	"ControllersSessionCommandRequest":              "SessionCommandRequest",
 	"ControllersSessionCommandResponse":             "SessionCommandResponse",
+	"ControllersSessionCapabilitiesView":            "SessionCapabilitiesView",
 	"ControllersDelegateTaskRequest":                "DelegateTaskRequest",
 	"ControllersDelegateTaskResponse":               "DelegateTaskResponse",
 	"ControllersClaimPRResponse":                    "ClaimPRResponse",

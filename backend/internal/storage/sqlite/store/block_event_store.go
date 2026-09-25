@@ -252,7 +252,16 @@ func (s *Store) TrimBlockEvents(ctx context.Context, sessionID, agentID string, 
 	if err != nil {
 		return n, fmt.Errorf("trim task updates for %s/%s: %w", sessionID, agentID, err)
 	}
-	return n + tasks, nil
+	modes, err := s.qw.TrimPermissionModesForSession(ctx, gen.TrimPermissionModesForSessionParams{
+		SessionID:   sessionID,
+		AgentID:     agentID,
+		SessionID_2: sessionID,
+		AgentID_2:   agentID,
+	})
+	if err != nil {
+		return n + tasks, fmt.Errorf("trim permission modes for %s/%s: %w", sessionID, agentID, err)
+	}
+	return n + tasks + modes, nil
 }
 
 func (s *Store) SelectTaskUpdates(ctx context.Context, sessionID string) ([]blockeventsvc.Record, error) {

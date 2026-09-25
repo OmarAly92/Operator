@@ -416,6 +416,39 @@ func (q *Queries) TrimBlockEventsForSession(ctx context.Context, arg TrimBlockEv
 	return result.RowsAffected()
 }
 
+const trimPermissionModesForSession = `-- name: TrimPermissionModesForSession :execrows
+DELETE FROM block_events AS outer_be
+WHERE outer_be.session_id = ?
+  AND outer_be.agent_id = ?
+  AND outer_be.kind = 'permission_mode'
+  AND outer_be.seq < (
+    SELECT MAX(be.seq) FROM block_events AS be
+    WHERE be.session_id = ?
+      AND be.agent_id = ?
+      AND be.kind = 'permission_mode'
+  )
+`
+
+type TrimPermissionModesForSessionParams struct {
+	SessionID   string
+	AgentID     string
+	SessionID_2 string
+	AgentID_2   string
+}
+
+func (q *Queries) TrimPermissionModesForSession(ctx context.Context, arg TrimPermissionModesForSessionParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, trimPermissionModesForSession,
+		arg.SessionID,
+		arg.AgentID,
+		arg.SessionID_2,
+		arg.AgentID_2,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const trimTaskUpdatesForSession = `-- name: TrimTaskUpdatesForSession :execrows
 DELETE FROM block_events AS outer_be
 WHERE outer_be.session_id = ?

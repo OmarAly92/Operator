@@ -52,6 +52,18 @@ WHERE outer_be.session_id = ?
     LIMIT 1 OFFSET ?
   );
 
+-- name: TrimPermissionModesForSession :execrows
+DELETE FROM block_events AS outer_be
+WHERE outer_be.session_id = ?
+  AND outer_be.agent_id = ?
+  AND outer_be.kind = 'permission_mode'
+  AND outer_be.seq < (
+    SELECT MAX(be.seq) FROM block_events AS be
+    WHERE be.session_id = ?
+      AND be.agent_id = ?
+      AND be.kind = 'permission_mode'
+  );
+
 -- name: SelectTaskUpdatesBySession :many
 SELECT *
 FROM block_events

@@ -153,6 +153,14 @@ type SessionModelReader interface {
 	LatestModels(ctx context.Context) (map[domain.SessionID]string, error)
 }
 
+type SessionPermissionModeReader interface {
+	LatestPermissionModes(ctx context.Context) (map[domain.SessionID]domain.PermissionModeObservation, error)
+}
+
+type PermissionModeGate interface {
+	PermissionModeSupport(harness domain.AgentHarness, launch domain.PermissionMode, version string) (bool, []domain.PermissionMode)
+}
+
 // InteractionReader serves a session's currently pending dialogs. This exists
 // for reconnect reconciliation: a phone that was backgrounded when the dialog
 // appeared has no block event for it.
@@ -189,17 +197,19 @@ type UsageHookRecorder interface {
 // SessionsController owns the session routes. Nil keeps routes registered but
 // returns OpenAPI-backed 501s.
 type SessionsController struct {
-	Svc           SessionService
-	Activity      ActivityRecorder
-	BlockEvents   BlockEventRecorder
-	Models        SessionModelReader
-	BlockHistory  BlockEventHistory
-	Interactions  InteractionReader
-	SlashCommands SlashCommandLister
-	Usage         UsageHookRecorder
-	PreviewServer ManagedPreviewServer
-	Capabilities  SessionCapabilityValidator
-	Tasks         BackgroundTaskService
+	Svc                SessionService
+	Activity           ActivityRecorder
+	BlockEvents        BlockEventRecorder
+	Models             SessionModelReader
+	PermissionModes    SessionPermissionModeReader
+	PermissionModeGate PermissionModeGate
+	BlockHistory       BlockEventHistory
+	Interactions       InteractionReader
+	SlashCommands      SlashCommandLister
+	Usage              UsageHookRecorder
+	PreviewServer      ManagedPreviewServer
+	Capabilities       SessionCapabilityValidator
+	Tasks              BackgroundTaskService
 }
 
 // Register mounts the session routes on the supplied router.
@@ -282,6 +292,7 @@ func (c *SessionsController) list(w http.ResponseWriter, r *http.Request) {
 	}
 	views := sessionViews(sessions)
 	c.attachModels(r.Context(), views)
+	c.attachPermissionModes(r.Context(), views)
 	envelope.WriteJSON(w, http.StatusOK, ListSessionsResponse{Sessions: views})
 }
 
@@ -482,6 +493,7 @@ func (c *SessionsController) get(w http.ResponseWriter, r *http.Request) {
 	}
 	views := []SessionView{sessionView(sess)}
 	c.attachModels(r.Context(), views)
+	c.attachPermissionModes(r.Context(), views)
 	envelope.WriteJSON(w, http.StatusOK, SessionResponse{Session: views[0]})
 }
 
@@ -499,6 +511,42 @@ func (c *SessionsController) attachModels(ctx context.Context, views []SessionVi
 	for i := range views {
 		views[i].Model = models[views[i].ID]
 	}
+}
+
+func (c *SessionsController) attachPermissionModes(ctx context.Context, views []SessionView) {
+	var observed map[domain.SessionID]domain.PermissionModeObservation
+	if c.PermissionModes != nil && len(views) > 0 {
+		modes, err := c.PermissionModes.LatestPermissionModes(ctx)
+		if err != nil {
+			slog.Default().Warn("session permission modes read failed", "err", err)
+		} else {
+			observed = modes
+		}
+	}
+	for i := range views {
+		observation := observed[views[i].ID]
+		mode := ports.NormalizePermissionMode(views[i].LaunchPermissionMode)
+		if observation.Mode != "" {
+			mode = observation.Mode
+		}
+		views[i].PermissionMode = string(mode)
+		if c.PermissionModeGate == nil {
+			continue
+		}
+		supported, cycle := c.PermissionModeGate.PermissionModeSupport(views[i].Harness, views[i].LaunchPermissionMode, observation.Version)
+		views[i].Capabilities = SessionCapabilitiesView{PermissionMode: supported, PermissionModeCycle: permissionModeStrings(cycle)}
+	}
+}
+
+func permissionModeStrings(modes []domain.PermissionMode) []string {
+	if len(modes) == 0 {
+		return nil
+	}
+	out := make([]string, 0, len(modes))
+	for _, mode := range modes {
+		out = append(out, string(mode))
+	}
+	return out
 }
 
 func (c *SessionsController) preview(w http.ResponseWriter, r *http.Request) {

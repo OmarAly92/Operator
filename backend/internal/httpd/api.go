@@ -39,7 +39,9 @@ type APIDeps struct {
 	BlockHistory    controllers.BlockEventHistory
 	BackgroundTasks controllers.BackgroundTaskService
 	// SessionModels names the model each session last ran on. Nil omits it.
-	SessionModels controllers.SessionModelReader
+	SessionModels          controllers.SessionModelReader
+	SessionPermissionModes controllers.SessionPermissionModeReader
+	PermissionModeGate     controllers.PermissionModeGate
 	// Interactions serves a session's currently pending dialogs, for reconnect
 	// reconciliation.
 	Interactions controllers.InteractionReader
@@ -110,17 +112,19 @@ func NewAPI(cfg config.Config, deps APIDeps) *API {
 			Mgr: deps.Projects,
 		},
 		sessions: &controllers.SessionsController{
-			Svc:           deps.Sessions,
-			Activity:      deps.Activity,
-			BlockEvents:   deps.BlockEvents,
-			BlockHistory:  deps.BlockHistory,
-			Tasks:         deps.BackgroundTasks,
-			Models:        deps.SessionModels,
-			Interactions:  deps.Interactions,
-			SlashCommands: deps.SlashCommands,
-			Usage:         deps.UsageHooks,
-			PreviewServer: deps.PreviewServer,
-			Capabilities:  deps.SessionCapabilities,
+			Svc:                deps.Sessions,
+			Activity:           deps.Activity,
+			BlockEvents:        deps.BlockEvents,
+			BlockHistory:       deps.BlockHistory,
+			Tasks:              deps.BackgroundTasks,
+			Models:             deps.SessionModels,
+			PermissionModes:    deps.SessionPermissionModes,
+			PermissionModeGate: deps.PermissionModeGate,
+			Interactions:       deps.Interactions,
+			SlashCommands:      deps.SlashCommands,
+			Usage:              deps.UsageHooks,
+			PreviewServer:      deps.PreviewServer,
+			Capabilities:       deps.SessionCapabilities,
 		},
 		usage:          &controllers.UsageController{Svc: deps.UsageSummary},
 		prs:            &controllers.PRsController{Svc: deps.PRs},

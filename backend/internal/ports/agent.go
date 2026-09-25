@@ -622,3 +622,14 @@ type TerminalTasksPanelReader interface {
 	TasksPanelKeys() TasksPanelKeys
 	TasksPanelVerified(version string) bool
 }
+
+type PermissionModeKeys struct {
+	Cycle string
+}
+
+type TerminalPermissionModeReader interface {
+	ReadPermissionMode(pane string) (PermissionMode, bool)
+	PermissionModeKeys() PermissionModeKeys
+	PermissionModeCycle(launch PermissionMode) []PermissionMode
+	PermissionModeVerified(version string) bool
+}

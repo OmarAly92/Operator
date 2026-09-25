@@ -46,13 +46,23 @@ func TestLatestPermissionModeSurvivesTheTrim(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	tools := 0
+	tools, modes := 0, 0
 	for _, event := range events {
-		if event.Kind == domain.BlockEventToolComplete {
+		switch event.Kind {
+		case domain.BlockEventToolComplete:
 			tools++
+		case domain.BlockEventPermissionMode:
+			modes++
 		}
 	}
 	if tools != 3 {
 		t.Fatalf("tool events after trim = %d, want 3", tools)
+	}
+	if modes != 1 {
+		t.Fatalf("permission_mode events after trim = %d, want only the newest", modes)
+	}
+	others, err := s.SelectBlockEventsBySession(ctx, "s-2", "", 0, 100)
+	if err != nil || len(others) != 1 {
+		t.Fatalf("s-2 events = %d, %v; another session's mode must survive", len(others), err)
 	}
 }

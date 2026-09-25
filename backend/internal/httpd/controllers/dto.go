@@ -131,6 +131,11 @@ type WorkspaceFileQuery struct {
 	Path string `query:"path" description:"Session-worktree-relative file path."`
 }
 
+type SessionCapabilitiesView struct {
+	PermissionMode      bool     `json:"permissionMode" description:"The session's permission mode can be changed through the permission-mode command. Filled on the session list and get endpoints only; false elsewhere."`
+	PermissionModeCycle []string `json:"permissionModeCycle,omitempty" description:"Modes the command reaches with Shift+Tab. Any other mode restarts the agent with --resume. Filled on the session list and get endpoints only."`
+}
+
 // SessionView is the session wire shape: the domain read model plus the
 // display-safe branch name and the session's attributed pull requests in the
 // curated SessionPRFacts shape. One session can own many PRs (e.g. a stack), so
@@ -166,7 +171,9 @@ type SessionView struct {
 	// daemon could replay into a fresh conversation. The prompt itself lives on
 	// the unserialized domain Metadata; clients need only the yes/no to decide
 	// whether a replay action applies.
-	HasSavedPrompt bool `json:"hasSavedPrompt,omitempty"`
+	HasSavedPrompt bool                    `json:"hasSavedPrompt,omitempty"`
+	PermissionMode string                  `json:"permissionMode,omitempty" enum:"default,accept-edits,plan,auto,bypass-permissions" description:"The mode the transcript last reported, or the launch mode before it reports. Filled on the session list and get endpoints only."`
+	Capabilities   SessionCapabilitiesView `json:"capabilities" description:"What a client can change on this session. Filled on the session list and get endpoints only."`
 }
 
 // ListSessionsResponse is the body of GET /api/v1/sessions.

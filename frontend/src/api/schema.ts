@@ -2288,6 +2288,8 @@ export interface components {
             boardColumn: "working" | "needs_you" | "in_review" | "ready_to_merge" | "archive";
             branch?: string;
             brief?: string;
+            /** @description What a client can change on this session. Filled on the session list and get endpoints only. */
+            capabilities: components["schemas"]["SessionCapabilitiesView"];
             claudeAccountId: string;
             /** Format: date-time */
             createdAt: string;
@@ -2301,6 +2303,11 @@ export interface components {
             latestAssistantUpdate?: string;
             latestUserPrompt?: string;
             model?: string;
+            /**
+             * @description The mode the transcript last reported, or the launch mode before it reports. Filled on the session list and get endpoints only.
+             * @enum {string}
+             */
+            permissionMode?: "default" | "accept-edits" | "plan" | "auto" | "bypass-permissions";
             /** Format: date-time */
             pinnedAt?: null | string;
             /** Format: int64 */
@@ -2991,6 +2998,12 @@ export interface components {
             message: string;
             ok: boolean;
             sessionId: string;
+        };
+        SessionCapabilitiesView: {
+            /** @description The session's permission mode can be changed through the permission-mode command. Filled on the session list and get endpoints only; false elsewhere. */
+            permissionMode: boolean;
+            /** @description Modes the command reaches with Shift+Tab. Any other mode restarts the agent with --resume. Filled on the session list and get endpoints only. */
+            permissionModeCycle?: string[];
         };
         SessionCommandRequest: {
             command: string;

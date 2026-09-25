@@ -6578,6 +6578,10 @@ components:
         brief:
           maxLength: 2048
           type: string
+        capabilities:
+          $ref: '#/components/schemas/SessionCapabilitiesView'
+          description: What a client can change on this session. Filled on the session
+            list and get endpoints only.
         claudeAccountId:
           type: string
         createdAt:
@@ -6604,6 +6608,16 @@ components:
           maxLength: 2048
           type: string
         model:
+          type: string
+        permissionMode:
+          description: The mode the transcript last reported, or the launch mode before
+            it reports. Filled on the session list and get endpoints only.
+          enum:
+          - default
+          - accept-edits
+          - plan
+          - auto
+          - bypass-permissions
           type: string
         pinnedAt:
           format: date-time
@@ -6713,6 +6727,7 @@ components:
       - boardColumn
       - statusReason
       - prs
+      - capabilities
       type: object
     ControllersSlashCommandView:
       properties:
@@ -8417,6 +8432,22 @@ components:
       - ok
       - sessionId
       - message
+      type: object
+    SessionCapabilitiesView:
+      properties:
+        permissionMode:
+          description: The session's permission mode can be changed through the permission-mode
+            command. Filled on the session list and get endpoints only; false elsewhere.
+          type: boolean
+        permissionModeCycle:
+          description: Modes the command reaches with Shift+Tab. Any other mode restarts
+            the agent with --resume. Filled on the session list and get endpoints
+            only.
+          items:
+            type: string
+          type: array
+      required:
+      - permissionMode
       type: object
     SessionCommandRequest:
       properties:
