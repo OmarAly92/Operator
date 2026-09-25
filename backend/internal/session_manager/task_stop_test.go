@@ -630,3 +630,16 @@ func TestStopAgentTaskInAnUnknownStateIsNotReady(t *testing.T) {
 		t.Fatalf("writes = %q", rt.inputs)
 	}
 }
+
+func TestCommandDuringAnExclusiveOperationIsBusy(t *testing.T) {
+	m, rt := newCommandTestManager(t, domain.ActivityActive)
+	if err := m.beginAgentOperation(context.Background(), "s1", agentOperationSwitch); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := m.Command(context.Background(), "s1", domain.CommandStop, ""); !errors.Is(err, ErrSessionBusy) {
+		t.Fatalf("err = %v", err)
+	}
+	if len(rt.inputs) != 0 {
+		t.Fatalf("writes = %q", rt.inputs)
+	}
+}

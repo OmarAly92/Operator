@@ -272,40 +272,57 @@ func TestStopShellRefusesWhenTheAgentAlsoWritesTheOutput(t *testing.T) {
 	}
 }
 
-func TestStopShellFallsBackToTheExactCommand(t *testing.T) {
-	h := newHarness(t)
-	task := runningShell()
-	task.OutputFile = ""
-	h.events.add(t, task)
-	if _, err := h.svc.Stop(context.Background(), "s-1", "b1"); err != nil {
-		t.Fatalf("Stop: %v", err)
-	}
-	if len(h.signals.sent) == 0 || h.signals.sent[0].pid != 300 {
-		t.Fatalf("signals = %+v", h.signals.sent)
-	}
-}
-
-func TestStopShellIgnoresAnOutputFileNotNamedForTheTask(t *testing.T) {
-	h := newHarness(t)
-	task := runningShell()
-	task.OutputFile = "/etc/passwd"
-	task.Command = "npm run dev"
-	h.procs.holders["/etc/passwd"] = []int{300}
-	h.events.add(t, task)
-	if _, err := h.svc.Stop(context.Background(), "s-1", "b1"); err != nil {
-		t.Fatalf("Stop: %v", err)
-	}
-	if len(h.signals.sent) == 0 || h.signals.sent[0].pid != 400 {
-		t.Fatalf("signals = %+v", h.signals.sent)
+func TestStopWithoutTheTasksOwnOutputFileIsUnsupported(t *testing.T) {
+	for name, file := range map[string]string{
+		"unknown":              "",
+		"named for another id": "/etc/passwd",
+	} {
+		t.Run(name, func(t *testing.T) {
+			h := newHarness(t)
+			task := runningShell()
+			task.OutputFile = file
+			h.procs.holders["/etc/passwd"] = []int{300}
+			h.events.add(t, task)
+			tasks, _ := h.svc.List(context.Background(), "s-1")
+			if len(tasks) != 1 || tasks[0].CanStop {
+				t.Fatalf("tasks = %+v", tasks)
+			}
+			if _, err := h.svc.Stop(context.Background(), "s-1", "b1"); !errors.Is(err, domain.ErrTaskStopUnsupported) {
+				t.Fatalf("err = %v", err)
+			}
+			if len(h.signals.sent) != 0 {
+				t.Fatalf("signalled %+v", h.signals.sent)
+			}
+		})
 	}
 }
 
-func TestStopShellRefusesAnAmbiguousCommand(t *testing.T) {
+func TestStopNeverSignalsAForegroundTwinOfAnEndedMonitor(t *testing.T) {
 	h := newHarness(t)
-	task := runningShell()
-	task.OutputFile = ""
-	h.events.add(t, task)
-	h.procs.procs = append(h.procs.procs, ports.ProcessInfo{PID: 500, PPID: 200, PGID: 500, Command: "/bin/zsh -c eval 'sleep 900' < /dev/null"})
+	h.procs.procs = []ports.ProcessInfo{
+		{PID: 100, PPID: 1, PGID: 100, Command: "opr agent-process supervise"},
+		{PID: 200, PPID: 100, PGID: 200, Command: "claude"},
+		{PID: 600, PPID: 200, PGID: 600, Command: "/bin/zsh -c source snap.sh && eval 'tail -f server.log' < /dev/null && pwd -P >| /tmp/claude-77aa-cwd"},
+		{PID: 601, PPID: 600, PGID: 600, Command: "tail -f server.log"},
+	}
+	h.procs.holders = map[string][]int{}
+	h.events.add(t, domain.BackgroundTask{
+		TaskID: "bmon1", Kind: domain.BackgroundTaskMonitor, Status: domain.BackgroundTaskRunning,
+		ToolUseID: "toolu_m", Description: "server log", Command: "tail -f server.log",
+		StartedAt: "2026-09-25T00:00:00.000Z",
+	})
+	if _, err := h.svc.Stop(context.Background(), "s-1", "bmon1"); !errors.Is(err, domain.ErrTaskStopUnsupported) {
+		t.Fatalf("err = %v", err)
+	}
+	if len(h.signals.sent) != 0 {
+		t.Fatalf("signalled the foreground command: %+v", h.signals.sent)
+	}
+}
+
+func TestStopShellRefusesTwoWriterGroups(t *testing.T) {
+	h := newHarness(t)
+	h.events.add(t, runningShell())
+	h.procs.holders[outputFile] = []int{300, 400}
 	if _, err := h.svc.Stop(context.Background(), "s-1", "b1"); !errors.Is(err, domain.ErrTaskAmbiguous) {
 		t.Fatalf("err = %v", err)
 	}

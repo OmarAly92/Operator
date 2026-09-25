@@ -54,7 +54,7 @@ func (m *Manager) Command(ctx context.Context, id domain.SessionID, cmd domain.S
 
 func commandDriveError(err error) error {
 	if errors.Is(err, errAgentOperationInProgress) {
-		return ErrWrongActivityState
+		return ErrSessionBusy
 	}
 	return err
 }

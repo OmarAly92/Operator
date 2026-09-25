@@ -1617,6 +1617,9 @@ func (c *SessionsController) writeCommandError(w http.ResponseWriter, r *http.Re
 	case errors.Is(err, sessionmanager.ErrAwaitingDecision):
 		envelope.WriteAPIError(w, r, http.StatusConflict, "conflict", "SESSION_AWAITING_DECISION",
 			"the session is paused on a permission decision", nil)
+	case errors.Is(err, sessionmanager.ErrSessionBusy):
+		envelope.WriteAPIError(w, r, http.StatusConflict, "conflict", "SESSION_BUSY",
+			"another operation owns the session's terminal", nil)
 	case errors.Is(err, sessionmanager.ErrWrongActivityState):
 		envelope.WriteAPIError(w, r, http.StatusConflict, "conflict", "SESSION_COMMAND_UNAVAILABLE",
 			"the command is not available in the session's current state", nil)

@@ -191,7 +191,7 @@ func (s *Service) canStop(rec domain.SessionRecord, task domain.BackgroundTask, 
 			runningAgents[label] == 1 &&
 			s.deps.Agents.AgentTaskStopSupported(rec.Harness, task.HarnessVersion)
 	}
-	return s.deps.Runtime != nil && s.deps.Processes != nil && s.deps.Signals != nil
+	return taskOutputFile(task) != "" && s.deps.Runtime != nil && s.deps.Processes != nil && s.deps.Signals != nil
 }
 
 func findTask(tasks []Task, id string) (Task, bool) {
@@ -285,17 +285,15 @@ func (s *Service) locate(ctx context.Context, rec domain.SessionRecord, task Tas
 		return nil, false, false, fmt.Errorf("background tasks %s: list processes: %w", rec.ID, err)
 	}
 	tree := descendants(procs, root)
-	var candidates []int
-	if file := taskOutputFile(task.BackgroundTask); file != "" {
-		writers, err := s.deps.Processes.OpenFileWriters(ctx, file)
-		if err != nil {
-			return nil, false, false, fmt.Errorf("background tasks %s: find output writers: %w", rec.ID, err)
-		}
-		candidates = writers
-	} else if task.Command != "" {
-		candidates = commandMatches(tree, task.Command)
+	file := taskOutputFile(task.BackgroundTask)
+	if file == "" {
+		return nil, false, false, domain.ErrTaskStopUnsupported
 	}
-	safe, unsafe := targetGroups(procs, tree, root, candidates)
+	writers, err := s.deps.Processes.OpenFileWriters(ctx, file)
+	if err != nil {
+		return nil, false, false, fmt.Errorf("background tasks %s: find output writers: %w", rec.ID, err)
+	}
+	safe, unsafe := targetGroups(procs, tree, root, writers)
 	return safe, unsafe, true, nil
 }
 
@@ -406,21 +404,6 @@ func groupIsSafe(pgid int, members []ports.ProcessInfo, children map[int][]ports
 		}
 	}
 	return true
-}
-
-func commandMatches(tree map[int]ports.ProcessInfo, command string) []int {
-	wrapped := "eval " + shellQuote(command) + " "
-	var pids []int
-	for pid, proc := range tree {
-		if proc.Command == command || strings.Contains(proc.Command, wrapped) {
-			pids = append(pids, pid)
-		}
-	}
-	return pids
-}
-
-func shellQuote(s string) string {
-	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
 }
 
 func normalizeLabel(label string) string {

@@ -1050,29 +1050,30 @@ across every agent scope.
 rather than guessing:
 
 - **Shell or monitor**: find the process group under the session's pty child.
-  The candidates are the processes that hold the task's own
-  `…/tasks/<taskId>.output` open for writing; the exact-command fallback runs
-  only when that file is unknown. A group that contains the session root, an
+  The only candidates are the processes that hold the task's own
+  `…/tasks/<taskId>.output` open for writing. There is no command-line
+  fallback: Claude Code wraps a foreground Bash call exactly like a background
+  one, so a task whose output file is unknown (in practice a monitor, whose
+  path is only reported when it ends) is `canStop: false` and a stop answers
+  `TASK_STOP_UNSUPPORTED`. A group that contains the session root, an
   ancestor of the match, a process outside the session, or a process with a
   child in another group is refused (`TASK_UNSAFE`); several safe groups are
   `TASK_AMBIGUOUS`. SIGTERM goes to the group and SIGKILL follows after 3s
   only if the group, not just its leader, is still alive and a fresh lookup
-  still finds it writing the task's output. Descriptions and commands
-  are redacted before storage, so a command carrying a secret cannot be
-  matched by the fallback.
+  still finds it writing the task's output.
 - **Agent**: Claude Code offers no external stop, so the daemon drives its
   `/tasks` panel under an exclusive per-session pane drive. While it runs, that
   session's input fails fast the way it does during an exclusive operation: a
   mux keystroke gets an error frame and never blocks the read loop, and a REST
-  send answers 409 `SESSION_BUSY`. Model and compact commands wait for the
-  drive; exclusive operations wait for it too. If anything fails, or the
-  request is cancelled after `/tasks` was typed, a cleanup that outlives the
-  request clears it with Ctrl-U and confirms the composer no longer holds it. It types `/tasks` only into a composer the empty detector
-  confirms, submits only once `/tasks` is the top suggestion, and clears what
-  it typed if the panel never opens. It opens the agent's row with Enter and
-  presses `x` only in a detail view confirmed on a fresh read, and sends Esc
-  only to a panel still confirmed open after it has had a second to close
-  itself. Every read is the parser's screen, never the
+  send answers 409 `SESSION_BUSY`. The composer's stop, compact and model
+  commands wait for the drive, and so do exclusive operations. It types
+  `/tasks` only into a composer the empty detector confirms and submits only
+  once `/tasks` is the top suggestion. If anything fails, or the request is
+  cancelled after `/tasks` was typed, a cleanup that outlives the request
+  clears it with Ctrl-U and confirms the composer no longer holds it. It opens
+  the agent's row with Enter, presses `x` only in a detail view confirmed on a
+  fresh read, and sends Esc only to a panel still confirmed open after it has
+  had a second to close itself. Every read is the parser's screen, never the
   output ring, which lags a redrawing TUI. The stop succeeds only when the
   transcript reports the task stopped. `canStop` is true for an agent only on
   claude-code, on a Claude Code version the panel reader was verified against,
