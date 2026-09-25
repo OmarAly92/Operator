@@ -1,4 +1,5 @@
 mod blocks;
+mod cold;
 mod colour;
 mod history;
 mod perform;
@@ -62,6 +63,8 @@ pub(crate) struct Parser {
     last_width: usize,
     width_mode: WidthMode,
     hyperlinks: HyperlinkRegistry,
+    cold: crate::cold_ring::ColdRing,
+    committed_rows: u64,
     #[cfg(feature = "trace")]
     pub(crate) trace: crate::trace::Trace,
 }
@@ -98,6 +101,8 @@ impl Parser {
             last_width: width,
             width_mode: WidthMode::default(),
             hyperlinks: HyperlinkRegistry::default(),
+            cold: crate::cold_ring::ColdRing::default(),
+            committed_rows: 0,
             #[cfg(feature = "trace")]
             trace: Default::default(),
         }
@@ -453,6 +458,7 @@ impl Parser {
                 &mut self.rows,
                 &mut self.styles,
             );
+            self.committed_rows += 1;
             self.grid.note_row_completed();
         }
         if std::mem::take(&mut self.rewrap_pending) {
@@ -500,6 +506,10 @@ impl Parser {
                 .min(lowest),
         );
         self.note_mutation();
+    }
+
+    pub(crate) fn committed_rows(&self) -> u64 {
+        self.committed_rows
     }
 
     pub fn stale_row_count(&self) -> usize {

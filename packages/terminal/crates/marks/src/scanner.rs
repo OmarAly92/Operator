@@ -172,6 +172,8 @@ fn extension_events(fields: ExtensionFields) -> Vec<MarkEvent> {
     let mut replay_ready = false;
     let mut origin: Option<u64> = None;
     let mut history: Option<(u64, usize)> = None;
+    let mut cols: Option<usize> = None;
+    let mut older: Option<u64> = None;
     for (key, value) in fields.pairs {
         match key.as_str() {
             "input-ready" => ready = true,
@@ -179,6 +181,8 @@ fn extension_events(fields: ExtensionFields) -> Vec<MarkEvent> {
             "ready" => replay_ready = value == "1",
             "origin" => origin = value.parse::<u64>().ok(),
             "history" => history = parse_history(&value),
+            "cols" => cols = value.parse::<usize>().ok().filter(|cols| *cols > 0),
+            "older" => older = value.parse::<u64>().ok(),
             _ => {
                 if key != "v" {
                     has_extension_field = true;
@@ -205,7 +209,11 @@ fn extension_events(fields: ExtensionFields) -> Vec<MarkEvent> {
         out.push(MarkEvent::HistoryChunk {
             first_stable_row,
             rows,
+            cols,
         });
+    }
+    if let Some(floor) = older {
+        out.push(MarkEvent::OlderFloor(floor));
     }
     out
 }
@@ -313,7 +321,8 @@ mod tests {
             events,
             vec![MarkEvent::HistoryChunk {
                 first_stable_row: 4096,
-                rows: 512
+                rows: 512,
+                cols: None
             }]
         );
     }
@@ -351,8 +360,69 @@ mod tests {
             events_only(s.feed(b"ory=7,3\x1b\\")),
             vec![MarkEvent::HistoryChunk {
                 first_stable_row: 7,
-                rows: 3
+                rows: 3,
+                cols: None
             }]
+        );
+    }
+
+    #[test]
+    fn a_history_mark_carries_the_width_its_rows_need() {
+        let mut s = Scanner::new();
+        let events = events_only(s.feed(b"\x1b]7000;v=1;history=10,2;cols=180\x1b\\"));
+        assert_eq!(
+            events,
+            vec![MarkEvent::HistoryChunk {
+                first_stable_row: 10,
+                rows: 2,
+                cols: Some(180)
+            }]
+        );
+    }
+
+    #[test]
+    fn a_zero_or_malformed_width_is_no_width() {
+        let mut s = Scanner::new();
+        for mark in [
+            b"\x1b]7000;v=1;history=10,2;cols=0\x1b\\".as_slice(),
+            b"\x1b]7000;v=1;history=10,2;cols=wide\x1b\\".as_slice(),
+        ] {
+            assert_eq!(
+                events_only(s.feed(mark)),
+                vec![MarkEvent::HistoryChunk {
+                    first_stable_row: 10,
+                    rows: 2,
+                    cols: None
+                }]
+            );
+        }
+    }
+
+    #[test]
+    fn an_older_mark_decodes_to_the_older_floor() {
+        let mut s = Scanner::new();
+        let events = events_only(s.feed(b"\x1b]7000;v=1;older=4096\x1b\\"));
+        assert_eq!(events, vec![MarkEvent::OlderFloor(4096)]);
+    }
+
+    #[test]
+    fn a_malformed_older_mark_emits_nothing() {
+        let mut s = Scanner::new();
+        assert_eq!(
+            events_only(s.feed(b"\x1b]7000;v=1;older=soon\x1b\\")),
+            vec![]
+        );
+    }
+
+    #[test]
+    fn older_and_cols_are_not_block_metadata() {
+        let mut s = Scanner::new();
+        let events = events_only(s.feed(b"\x1b]7000;v=1;older=3;cols=9\x1b\\"));
+        assert!(
+            !events
+                .iter()
+                .any(|event| matches!(event, MarkEvent::Extension(_))),
+            "older and cols must not reach the block grid as meta fields: {events:?}"
         );
     }
 }
