@@ -6,6 +6,7 @@ import 'package:operator_mobile/core/widgets/glass/scroll_under_bars.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/global_appbar.dart';
 import 'package:operator_mobile/feature/pull_request/presentation/pull_requests_screen/logic/pull_request_cubit.dart';
 import 'package:operator_mobile/feature/pull_request/presentation/pull_requests_screen/ui/widgets/pull_requests_body.dart';
+import 'package:operator_mobile/feature/sessions/presentation/sessions_screen/ui/widgets/home_title.dart';
 
 class PullRequestsScreen extends StatelessWidget {
   const PullRequestsScreen({super.key});
@@ -16,7 +17,7 @@ class PullRequestsScreen extends StatelessWidget {
     child: Scaffold(
       backgroundColor: context.skin.bgBase,
       extendBodyBehindAppBar: true,
-      appBar: const GlobalAppbar.main(titleText: 'Pull Requests'),
+      appBar: const GlobalAppbar.main(title: HomeTitle(title: 'Pull Requests')),
       body: const ScrollUnderBars(child: PullRequestsBody()),
     ),
   );

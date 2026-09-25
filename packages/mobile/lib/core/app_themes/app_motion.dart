@@ -38,6 +38,8 @@ sealed class AppMotion {
 
   static const Duration jumpToLatest = Duration(milliseconds: 320);
 
+  static const Duration statusLineTick = Duration(seconds: 30);
+
   static const Duration composerMorph = Duration(milliseconds: 220);
 
   static const Duration shimmerSweep = Duration(milliseconds: 1350);

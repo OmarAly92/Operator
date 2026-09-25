@@ -5,18 +5,17 @@ import 'package:operator_mobile/core/app_routes/routes_strings.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/app_themes/text_style/app_text_style.dart';
 import 'package:operator_mobile/core/utils/haptics.dart';
-import 'package:operator_mobile/core/widgets/failure_widgets/app_error_widget.dart';
-import 'package:operator_mobile/core/widgets/loading_widget/app_loader.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_empty_state.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_text.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/fade_up_entrance.dart';
-import 'package:operator_mobile/core/widgets/main_widgets/primary_button.dart';
 import 'package:operator_mobile/core/widgets/pickers/project_switcher.dart';
 import 'package:operator_mobile/feature/sessions/data/model/session_model.dart';
 import 'package:operator_mobile/feature/sessions/logic/agents_view.dart';
 import 'package:operator_mobile/feature/sessions/logic/session_status.dart';
 import 'package:operator_mobile/feature/sessions/logic/sessions_filter.dart';
 import 'package:operator_mobile/feature/sessions/presentation/sessions_screen/logic/sessions_cubit.dart';
+import 'package:operator_mobile/feature/sessions/presentation/sessions_screen/ui/widgets/board_error.dart';
+import 'package:operator_mobile/feature/sessions/presentation/sessions_screen/ui/widgets/board_skeleton.dart';
 import 'package:operator_mobile/feature/sessions/presentation/sessions_screen/ui/widgets/session_actions_sheet.dart';
 import 'package:operator_mobile/feature/sessions/presentation/sessions_screen/ui/widgets/session_card.dart';
 import 'package:operator_mobile/feature/sessions/presentation/sessions_screen/ui/widgets/session_filter_chips_row.dart';
@@ -74,13 +73,14 @@ class _SessionsBodyState extends State<SessionsBody> with WidgetsBindingObserver
 
     return BlocBuilder<SessionsCubit, SessionsState>(
       buildWhen: (previous, current) =>
-          current is GetSessionsLoadingState || current is GetSessionsSuccessState || current is GetSessionsFailureState,
+          current is SessionsInitialState ||
+          current is GetSessionsLoadingState ||
+          current is GetSessionsSuccessState ||
+          current is GetSessionsFailureState,
       builder: (context, state) {
-        if (cubit.visibleSessions.isEmpty && state is GetSessionsLoadingState) {
-          return Center(child: AppExpressiveLoader(label: 'Syncing agents…'));
-        }
-        if (cubit.visibleSessions.isEmpty && state is GetSessionsFailureState) {
-          return AppErrorWidget(failure: state.failure, onPressed: cubit.refresh);
+        if (cubit.boardFetchedAt == null) {
+          if (state is GetSessionsFailureState) return BoardError(failure: state.failure, onRetry: cubit.refresh);
+          return const BoardSkeleton();
         }
 
         final grouped = groupSessions(skin, cubit.visibleSessions);
@@ -190,35 +190,28 @@ class _SessionsBodyState extends State<SessionsBody> with WidgetsBindingObserver
                   ),
                 ),
               if (grouped.sections.isEmpty && grouped.archived.isEmpty)
-                Padding(
-                  padding: const EdgeInsets.only(top: 80),
-                  child: AppEmptyState(
-                    title: 'No agents running',
-                    message: 'Spawn an agent to start work, or refresh if you expected one here.',
-                    action: Column(
-                      children: [
-                        PrimaryButton(
-                          text: 'Spawn agent',
-                          onPressed: () => Navigator.of(context).pushNamed(RoutesStrings.spawn),
-                        ),
-                        TextButton(
-                          onPressed: () {
-                            Haptics.tap();
-                            cubit.refresh();
-                          },
-                          child: AppText(
-                            'Refresh',
-                            style: AppTextStyle.style13p5Medium.copyWith(color: skin.textSecondary),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
+                const Padding(padding: EdgeInsets.only(top: 80), child: _EmptyBoard()),
             ],
           ),
         );
       },
+    );
+  }
+}
+
+class _EmptyBoard extends StatelessWidget {
+  const _EmptyBoard();
+
+  @override
+  Widget build(BuildContext context) {
+    final skin = context.skin;
+    return AppEmptyState(
+      title: 'No agents yet',
+      message: 'Spawn your first agent',
+      action: Align(
+        alignment: Alignment.centerRight,
+        child: Icon(Icons.south_east_rounded, size: 28, color: skin.textTertiary, semanticLabel: 'The + button'),
+      ),
     );
   }
 }

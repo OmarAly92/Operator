@@ -15,9 +15,8 @@ void main() {
       expect(classifyConnectionFailure(StatusCode.receiveTimeout), ConnectionFailure.unreachable);
     });
 
-    test('maps 401 and 403 to auth', () {
+    test('maps 401 to auth', () {
       expect(classifyConnectionFailure(401), ConnectionFailure.auth);
-      expect(classifyConnectionFailure(403), ConnectionFailure.auth);
     });
 
     test('maps 429 to rateLimited', () {
@@ -27,6 +26,7 @@ void main() {
     test('maps any other status to serverError', () {
       expect(classifyConnectionFailure(500), ConnectionFailure.serverError);
       expect(classifyConnectionFailure(404), ConnectionFailure.serverError);
+      expect(classifyConnectionFailure(403), ConnectionFailure.serverError);
     });
   });
 
@@ -150,6 +150,25 @@ void main() {
       expect(copy.showLocalNetworkHint, isFalse);
     });
 
+    test('names the desktop when one is known, and keeps the pairing copy when not', () {
+      final named = describeConnectionFailure(
+        ConnectionFailure.unreachable,
+        host: '10.0.0.5',
+        port: '3011',
+        platform: TargetPlatform.android,
+        desktopName: 'MacBook',
+      );
+      final unnamed = describeConnectionFailure(
+        ConnectionFailure.unreachable,
+        host: '10.0.0.5',
+        port: '3011',
+        platform: TargetPlatform.android,
+      );
+
+      expect(named.title, "Can't reach MacBook");
+      expect(unnamed.title, 'Your desktop disconnected');
+    });
+
     group('the iOS Local Network hint', () {
       test('shows for an unreachable LAN host on iOS', () {
         final d = describeConnectionFailure(
@@ -206,7 +225,6 @@ void main() {
   group('shouldKeepPolling', () {
     test('stops on rejection', () {
       expect(shouldKeepPolling(401), isFalse);
-      expect(shouldKeepPolling(403), isFalse);
       expect(shouldKeepPolling(429), isFalse);
     });
 
@@ -217,8 +235,8 @@ void main() {
       expect(shouldKeepPolling(404), isTrue);
     });
 
-    test('catches 403', () {
-      expect(shouldKeepPolling(403), isFalse);
+    test('keeps going on 403', () {
+      expect(shouldKeepPolling(403), isTrue);
     });
   });
 }

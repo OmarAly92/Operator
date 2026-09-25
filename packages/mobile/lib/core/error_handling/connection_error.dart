@@ -4,7 +4,7 @@ enum ConnectionFailure { notOprQr, unsupportedPayload, unreachable, auth, rateLi
 
 ConnectionFailure classifyConnectionFailure(int? status) {
   if (status == null || status < 0) return ConnectionFailure.unreachable;
-  if (status == 401 || status == 403) return ConnectionFailure.auth;
+  if (status == 401) return ConnectionFailure.auth;
   if (status == 429) return ConnectionFailure.rateLimited;
   return ConnectionFailure.serverError;
 }
@@ -49,6 +49,7 @@ ConnectionErrorCopy describeConnectionFailure(
   required String host,
   required String port,
   required TargetPlatform platform,
+  String? desktopName,
 }) {
   final showLocalNetworkHint =
       reason == ConnectionFailure.unreachable && platform == TargetPlatform.iOS && isLocalNetworkHost(host);
@@ -69,7 +70,7 @@ ConnectionErrorCopy describeConnectionFailure(
       );
     case ConnectionFailure.unreachable:
       return ConnectionErrorCopy(
-        title: 'Your desktop disconnected',
+        title: desktopName == null ? 'Your desktop disconnected' : "Can't reach $desktopName",
         message: 'Reached nothing at $host:$port. '
             'Is Connect Mobile still on, and is your phone on the same Wi-Fi?',
         showLocalNetworkHint: showLocalNetworkHint,

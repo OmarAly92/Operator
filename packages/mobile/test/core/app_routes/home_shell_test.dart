@@ -11,11 +11,16 @@ import 'package:operator_mobile/core/app_routes/routes_strings.dart';
 import 'package:operator_mobile/core/app_themes/colors/dark_skin.dart';
 import 'package:operator_mobile/core/app_themes/colors/logic/skin_cubit.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
+import 'package:operator_mobile/core/connection/connection_cubit.dart';
+import 'package:operator_mobile/core/connection/connection_report.dart';
+import 'package:operator_mobile/core/error_handling/failures/failure.dart';
 import 'package:operator_mobile/core/preferences/app_preferences.dart';
+import 'package:operator_mobile/core/replica/replicated.dart';
 import 'package:operator_mobile/core/helpers/result/result.dart';
 import 'package:operator_mobile/core/mux/mux_client.dart';
 import 'package:operator_mobile/core/mux/session_patch.dart';
 import 'package:operator_mobile/core/utils/service_locator.dart';
+import 'package:operator_mobile/core/widgets/connection/desktop_status_line.dart';
 import 'package:operator_mobile/core/widgets/glass/glass_button.dart';
 import 'package:operator_mobile/core/widgets/glass/glass_metrics.dart';
 import 'package:operator_mobile/core/widgets/glass/glass_tab_bar.dart';
@@ -39,6 +44,8 @@ import 'package:operator_mobile/feature/settings/presentation/settings_screen/lo
 import 'package:operator_mobile/feature/settings/presentation/settings_screen/logic/settings_cubit.dart';
 import 'package:operator_mobile/feature/settings/presentation/settings_screen/ui/settings_screen.dart';
 
+import '../../helpers/connection_harness.dart';
+
 class _MockSessionsRepository extends Mock implements SessionsRepository {}
 
 class _MockMuxClient extends Mock implements MuxClient {}
@@ -55,6 +62,7 @@ void main() {
   late _MockSessionsRepository repository;
   late _MockMuxClient mux;
   late _MockNotificationRepository notificationRepository;
+  late ConnectionHarness connection;
 
   setUpAll(() {
     registerFallbackValue(const GetNotificationsParams());
@@ -101,9 +109,13 @@ void main() {
         ntfyDeepLink: false,
       ),
     );
+    connection = ConnectionHarness();
   });
 
-  tearDown(() => sl.reset());
+  tearDown(() async {
+    await connection.dispose();
+    await sl.reset();
+  });
 
   // A board full of `working` sessions renders a perpetually-breathing
   // `StatusDot` on each card (`docs/design/components.md`'s testing note) —
@@ -129,6 +141,7 @@ void main() {
                 MaterialPageRoute<void>(builder: (_) => Text('route ${settings.name}'), settings: settings),
             home: MultiBlocProvider(
               providers: [
+                BlocProvider<ConnectionCubit>.value(value: connection.cubit),
                 BlocProvider<SessionsCubit>(create: (_) => SessionsCubit(repository, mux, sl<ServerConfigStore>())),
                 BlocProvider<SkinCubit>(create: (_) => SkinCubit()),
                 BlocProvider<NotificationsCubit>(
@@ -398,5 +411,37 @@ void main() {
     final lastCard = tester.getRect(find.byType(SessionCard).last);
     expect(lastCard.bottom, lessThanOrEqualTo(tester.getRect(find.byKey(HomeShell.spawnButtonKey)).top));
     expect(lastCard.bottom, lessThanOrEqualTo(tester.getRect(find.byType(GlassTabBar)).top));
+  });
+
+  testWidgets('the Agents header names the desktop and its status, and tapping it opens the desktop list', (tester) async {
+    connection.report(ConnectionOutcome.online);
+    await pumpShell(tester);
+
+    expect(find.text('Mac'), findsWidgets);
+    expect(find.text('Updated just now'), findsWidgets);
+
+    await tester.tap(find.byKey(DesktopStatusLine.tapKey).first);
+    await settle(tester);
+
+    expect(find.text('route /connections'), findsOneWidget);
+  });
+
+  testWidgets('a cached board stays up under an offline header on a cold start', (tester) async {
+    when(() => repository.cachedBoard()).thenAnswer(
+      (_) async => Replicated(
+        value: const BoardSnapshot(
+          sessions: [SessionModel(id: 'w-1', projectId: 'proj', displayName: 'Cached worker', status: 'working')],
+        ),
+        fetchedAt: DateTime.now().subtract(const Duration(minutes: 5)),
+      ),
+    );
+    when(() => repository.getBoard()).thenAnswer(
+      (_) async => Result.failure(ServerFailure(error: 'down', message: 'down', statusCode: -6)),
+    );
+    connection.report(ConnectionOutcome.unreachable);
+    await pumpShell(tester);
+
+    expect(find.text('Cached worker'), findsOneWidget);
+    expect(find.text('Offline · last seen 5m ago'), findsWidgets);
   });
 }

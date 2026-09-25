@@ -1,13 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
-import 'package:operator_mobile/core/app_themes/text_style/app_text_style.dart';
 import 'package:operator_mobile/core/utils/extensions.dart';
 import 'package:operator_mobile/core/widgets/glass/scroll_under_bars.dart';
-import 'package:operator_mobile/core/widgets/main_widgets/app_text.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/global_appbar.dart';
 import 'package:operator_mobile/feature/notification/presentation/notifications_screen/ui/widgets/notification_bell.dart';
 import 'package:operator_mobile/feature/sessions/presentation/sessions_screen/logic/sessions_cubit.dart';
+import 'package:operator_mobile/feature/sessions/presentation/sessions_screen/ui/widgets/home_title.dart';
 import 'package:operator_mobile/feature/sessions/presentation/sessions_screen/ui/widgets/sessions_body.dart';
 
 class SessionsScreen extends StatelessWidget {
@@ -23,7 +22,7 @@ class SessionsScreen extends StatelessWidget {
       backgroundColor: context.skin.bgBase,
       extendBodyBehindAppBar: true,
       appBar: GlobalAppbar.main(
-        title: AppText('Agents', style: AppTextStyle.style19SemiBold.copyWith(letterSpacing: -0.3)),
+        title: const HomeTitle(title: 'Agents'),
         actions: const [NotificationBell()],
       ),
       body: const ScrollUnderBars(child: SessionsBody()),

@@ -1,19 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:operator_mobile/core/api/server_config_store.dart';
 import 'package:operator_mobile/core/app_routes/home_shell.dart';
 import 'package:operator_mobile/core/app_routes/routes_strings.dart';
-import 'package:operator_mobile/core/error_handling/connection_error.dart';
 import 'package:operator_mobile/core/utils/haptics.dart';
-import 'package:operator_mobile/core/utils/service_locator.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_empty_state.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_pill.dart';
-import 'package:operator_mobile/core/widgets/main_widgets/primary_button.dart';
 import 'package:operator_mobile/feature/pull_request/logic/pr_view.dart';
 import 'package:operator_mobile/feature/pull_request/presentation/pull_requests_screen/logic/pull_request_cubit.dart';
 import 'package:operator_mobile/feature/pull_request/presentation/pull_requests_screen/ui/widgets/pr_card.dart';
 import 'package:operator_mobile/core/widgets/pickers/project_switcher.dart';
 import 'package:operator_mobile/feature/sessions/presentation/sessions_screen/logic/sessions_cubit.dart';
+import 'package:operator_mobile/feature/sessions/presentation/sessions_screen/ui/widgets/board_error.dart';
+import 'package:operator_mobile/feature/sessions/presentation/sessions_screen/ui/widgets/board_skeleton.dart';
 
 bool _inBucket(PrFilter filter, PrLifecycle life) {
   if (filter == PrFilter.all) return true;
@@ -31,6 +29,12 @@ class PullRequestsBody extends StatelessWidget {
 
     return BlocBuilder<SessionsCubit, SessionsState>(
       builder: (context, sessionsState) {
+        if (sessionsCubit.boardFetchedAt == null) {
+          if (sessionsState is GetSessionsFailureState) {
+            return BoardError(failure: sessionsState.failure, onRetry: sessionsCubit.refresh);
+          }
+          return const BoardSkeleton();
+        }
         return BlocBuilder<PullRequestCubit, PullRequestState>(
           builder: (context, prState) {
             final entries = collectPrs(sessionsCubit.visibleSessions);
@@ -53,10 +57,6 @@ class PullRequestsBody extends StatelessWidget {
               Haptics.tap();
               return Future.wait([prCubit.reload(sessionIds), sessionsCubit.refresh()]);
             }
-
-            final noCache = sessionsCubit.visibleSessions.isEmpty;
-            final failureState = sessionsState is GetSessionsFailureState ? sessionsState : null;
-            final isConnectionFailure = filtered.isEmpty && failureState != null && noCache;
 
             final insets = MediaQuery.paddingOf(context);
             return RefreshIndicator(
@@ -95,15 +95,13 @@ class PullRequestsBody extends StatelessWidget {
                     ),
                   ),
                   if (filtered.isEmpty)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 80),
-                      child: isConnectionFailure
-                          ? _connectionFailureState(context, sessionsCubit, failureState)
-                          : const AppEmptyState(
-                              icon: Icons.merge_outlined,
-                              title: 'No pull requests',
-                              message: 'Pull requests opened from your sessions will show up here.',
-                            ),
+                    const Padding(
+                      padding: EdgeInsets.only(top: 80),
+                      child: AppEmptyState(
+                        icon: Icons.merge_outlined,
+                        title: 'No pull requests',
+                        message: 'Pull requests opened from your sessions will show up here.',
+                      ),
                     )
                   else
                     for (var i = 0; i < filtered.length; i++)
@@ -124,22 +122,6 @@ class PullRequestsBody extends StatelessWidget {
           },
         );
       },
-    );
-  }
-
-  Widget _connectionFailureState(BuildContext context, SessionsCubit sessionsCubit, GetSessionsFailureState state) {
-    final target = sl<ServerConfigStore>().current;
-    final copy = describeConnectionFailure(
-      classifyConnectionFailure(state.failure.statusCode),
-      host: target?.host ?? '',
-      port: target?.httpPort ?? '',
-      platform: Theme.of(context).platform,
-    );
-    return AppEmptyState(
-      icon: Icons.wifi_off,
-      title: copy.title,
-      message: copy.message,
-      action: PrimaryButton(text: 'Retry', onPressed: sessionsCubit.refresh),
     );
   }
 }
