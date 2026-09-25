@@ -806,6 +806,31 @@ void main() {
     expect(size.curve, AppMotion.sheetPushCurve);
   });
 
+  testWidgets('under reduce motion push and pop switch pages, header and height in one frame', (tester) async {
+    tester.platformDispatcher.accessibilityFeaturesTestValue = const FakeAccessibilityFeatures(disableAnimations: true);
+    addTearDown(tester.platformDispatcher.clearAccessibilityFeaturesTestValue);
+    await openRootWithPush(tester, detent: AppSheetDetent.fit);
+    final rest = tester.getRect(find.text('Go')).left;
+
+    await tester.tap(find.text('Go'));
+    await tester.pump();
+    await tester.pump();
+    expect(tester.getRect(find.text('Apple')).left, moreOrLessEquals(rest));
+    expect(find.text('Go'), findsNothing);
+    expect(find.text('Root'), findsNothing);
+    expect(find.byKey(AppSheet.backKey), findsOneWidget);
+    expect(tester.hasRunningAnimations, isFalse);
+    expect(find.descendant(of: find.byKey(AppSheet.surfaceKey), matching: find.byType(AnimatedSize)), findsNothing);
+
+    await tester.tap(find.byKey(AppSheet.backKey));
+    await tester.pump();
+    await tester.pump();
+    expect(tester.getRect(find.text('Go')).left, moreOrLessEquals(rest));
+    expect(find.text('Apple'), findsNothing);
+    expect(find.byKey(AppSheet.backKey), findsNothing);
+    expect(tester.hasRunningAnimations, isFalse);
+  });
+
   testWidgets('the header title cross-fades and the back button fades in on push and out on pop', (tester) async {
     await openRootWithPush(tester);
     double opacityOf(Finder finder) => tester

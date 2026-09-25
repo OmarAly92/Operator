@@ -155,10 +155,23 @@ class _AppSheetState extends State<AppSheet> with TickerProviderStateMixin {
         motion: AnimationController.unbounded(vsync: this, value: offset),
       );
 
+  final GlobalKey _sizedKey = GlobalKey();
+
+  Widget _sized(Widget child) => MediaQuery.disableAnimationsOf(context)
+      ? child
+      : AnimatedSize(
+          duration: AppMotion.sheetPush,
+          curve: AppMotion.sheetPushCurve,
+          alignment: Alignment.bottomCenter,
+          child: child,
+        );
+
+  Duration get _pushDuration => MediaQuery.disableAnimationsOf(context) ? Duration.zero : AppMotion.sheetPush;
+
   void _slide(_PageEntry entry, double target) {
     entry.target = target;
     entry.motion
-        .animateTo(target, duration: AppMotion.sheetPush, curve: AppMotion.sheetPushCurve)
+        .animateTo(target, duration: _pushDuration, curve: AppMotion.sheetPushCurve)
         .whenCompleteOrCancel(() => _settle(entry));
   }
 
@@ -179,7 +192,11 @@ class _AppSheetState extends State<AppSheet> with TickerProviderStateMixin {
   void _startHandoff() {
     _handoffFrom = _shownVisibility;
     _headerVisibility.value = 0;
-    _handoff.forward(from: 0);
+    if (_pushDuration == Duration.zero) {
+      _handoff.value = 1;
+    } else {
+      _handoff.forward(from: 0);
+    }
   }
 
   void _push(AppSheetPage page) {
@@ -309,7 +326,7 @@ class _AppSheetState extends State<AppSheet> with TickerProviderStateMixin {
   Widget _fade(Widget child, Animation<double> animation) => FadeTransition(opacity: animation, child: child);
 
   Widget _crossFade(Widget child) => AnimatedSwitcher(
-        duration: AppMotion.sheetPush,
+        duration: _pushDuration,
         switchInCurve: AppMotion.sheetPushCurve,
         switchOutCurve: AppMotion.sheetPushCurve.flipped,
         transitionBuilder: _fade,
@@ -455,13 +472,13 @@ class _AppSheetState extends State<AppSheet> with TickerProviderStateMixin {
                       ),
                       child: Material(
                         type: MaterialType.transparency,
-                        child: AnimatedSize(
-                          duration: AppMotion.sheetPush,
-                          curve: AppMotion.sheetPushCurve,
-                          alignment: Alignment.bottomCenter,
-                          child: height == null
-                              ? ConstrainedBox(constraints: BoxConstraints(maxHeight: maxHeight), child: stack)
-                              : SizedBox(height: height, child: stack),
+                        child: _sized(
+                          KeyedSubtree(
+                            key: _sizedKey,
+                            child: height == null
+                                ? ConstrainedBox(constraints: BoxConstraints(maxHeight: maxHeight), child: stack)
+                                : SizedBox(height: height, child: stack),
+                          ),
                         ),
                       ),
                     ),
