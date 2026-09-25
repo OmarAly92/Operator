@@ -588,3 +588,29 @@ const (
 	PromptDeliveryAfterStart  PromptDeliveryStrategy = "after_start"
 	PromptDeliveryCustomAgent PromptDeliveryStrategy = "custom_agent"
 )
+
+type TasksPanelRow struct {
+	Label  string
+	Status string
+}
+
+type TasksPanel struct {
+	Detail       bool
+	Rows         []TasksPanelRow
+	Selected     int
+	DetailLabel  string
+	DetailStatus string
+}
+
+type TasksPanelKeys struct {
+	Open  string
+	Up    string
+	Down  string
+	Stop  string
+	Close string
+}
+
+type TerminalTasksPanelReader interface {
+	ReadTasksPanel(pane string) (TasksPanel, bool)
+	TasksPanelKeys() TasksPanelKeys
+}
