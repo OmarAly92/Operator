@@ -25,6 +25,7 @@ const STRINGS: TerminalStrings = {
 	paletteLabel: "Command palette",
 	paletteNoMatches: "No matching commands",
 	jumpToBottom: "Jump to bottom",
+	loadOlderOutput: "Load older output",
 };
 
 function key(init: Partial<KeyboardEventInit> & { key: string }): KeyboardEvent {
