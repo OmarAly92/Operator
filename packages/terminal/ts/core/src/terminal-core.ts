@@ -11,6 +11,7 @@ import {
 	type WasmInput,
 } from "./wasm-runtime.js";
 import { snapshotLogicalLines, type LogicalLine } from "./logical-lines.js";
+import { ProgramMessages, type ProgramMessageListener } from "./program-messages.js";
 import type {
 	BlockId,
 	ChangeListener,
@@ -75,9 +76,11 @@ export class TerminalCore {
 	private readonly rowEventListeners = new Set<RowEventListener>();
 	private readonly decoder = new TextDecoder("utf-8", { fatal: true });
 	private readonly linkUris = new Map<number, string>();
+	private readonly program: ProgramMessages;
 
 	constructor(inner: WasmTerminalCore, host: HostCapabilities) {
 		this.inner = inner;
+		this.program = new ProgramMessages(inner, host);
 		this.completions = new CompletionDispatcher(
 			() => decodeBlocks(this.snapshot()).at(-1)?.cwd ?? "",
 			host,
@@ -117,6 +120,7 @@ export class TerminalCore {
 			return;
 		}
 		this.inner.feed(bytes, Date.now());
+		this.program.poll();
 		if (!this.notifyIfChanged() && this.inner.synchronized_output()) {
 			this.notifyAll();
 		}
@@ -177,6 +181,7 @@ export class TerminalCore {
 		if (!this.inner.tick(nowMs)) {
 			return false;
 		}
+		this.program.poll();
 		this.notifyIfChanged();
 		return true;
 	}
@@ -471,6 +476,18 @@ export class TerminalCore {
 		return this.inner.block_bookmarked(idLo, idHi);
 	}
 
+	title(): string {
+		return this.program.title();
+	}
+
+	pointerShape(): string {
+		return this.program.pointerShape();
+	}
+
+	onProgramMessage(listener: ProgramMessageListener): () => void {
+		return this.program.onMessage(listener);
+	}
+
 	lineEditorState(): LineEditorState {
 		return LINE_EDITOR_STATES[this.snapshot().lineEditorState] ?? "unknown";
 	}
@@ -521,6 +538,7 @@ export class TerminalCore {
 		}
 		this.disposed = true;
 		this.completions.dispose();
+		this.program.dispose();
 		this.listeners.clear();
 		this.backlog = [];
 		this.backlogBytes = 0;

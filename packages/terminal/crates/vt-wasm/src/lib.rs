@@ -1,9 +1,12 @@
 mod export;
+mod program;
 
 use std::collections::HashMap;
 
 use vt_core::{FindQuery, FindSession, TerminalCore};
 use wasm_bindgen::prelude::*;
+
+pub use program::flatten_notifications;
 
 pub use export::{
     checked_u32_from_u64, ExportBuffers, ExportError, BLOCK_RECORD_WORDS, CELL_SPAN_WORDS,

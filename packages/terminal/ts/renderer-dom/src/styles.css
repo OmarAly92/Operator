@@ -201,7 +201,7 @@
 .terminal-alt-surface {
 	-webkit-user-select: none;
 	user-select: none;
-	cursor: default;
+	cursor: var(--terminal-pointer-shape, default);
 }
 
 /* The hand appears only while a link is under the pointer, the way Warp swaps

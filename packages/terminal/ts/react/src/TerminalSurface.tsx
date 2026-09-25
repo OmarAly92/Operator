@@ -28,6 +28,9 @@ import {
 import { AltScreenSlot } from "./AltScreenSlot.js";
 import { isMacPlatform } from "./surface-geometry.js";
 import { useSurfaceInput } from "./use-surface-input.js";
+import { useProgramMessages } from "./use-program-messages.js";
+
+export type CellSize = Readonly<{ width: number; height: number }>;
 
 export interface TerminalSurfaceProps {
 	core: TerminalCore;
@@ -40,7 +43,8 @@ export interface TerminalSurfaceProps {
 	strings?: TerminalStrings;
 	onSend(text: string): void;
 	onSendRaw(data: string): void;
-	onGeometry?: (columns: number, rows: number) => void;
+	onGeometry?: (columns: number, rows: number, cell?: CellSize) => void;
+	onTitle?: (title: string) => void;
 	/**
 	 * Bump to force the surface to re-derive its grid from the live box.
 	 *
@@ -85,6 +89,7 @@ export function TerminalSurface({
 	onSend,
 	onSendRaw,
 	onGeometry,
+	onTitle,
 	onPaint,
 	onBlockFinished,
 	onHint,
@@ -107,6 +112,8 @@ export function TerminalSurface({
 	onHintRef.current = onHint;
 	const onDraftChangeRef = useRef(onDraftChange);
 	onDraftChangeRef.current = onDraftChange;
+	const onTitleRef = useRef(onTitle);
+	onTitleRef.current = onTitle;
 	const visibleRef = useRef(visible);
 	visibleRef.current = visible;
 	const findBarRef = useRef<FindBar | null>(null);
@@ -286,7 +293,7 @@ export function TerminalSurface({
 			gridRowsRef.current = rows;
 			if (changed) renderer.selectionClear();
 			core.resize(columns, rows);
-			onGeometry?.(columns, rows);
+			onGeometry?.(columns, rows, { width: cellWidth, height: cellHeight });
 		};
 		apply(true);
 		if (typeof ResizeObserver !== "function") {
@@ -368,6 +375,8 @@ export function TerminalSurface({
 			composition.dispose();
 		};
 	}, [altActive, core, onSendRaw]);
+
+	useProgramMessages(core, surfaceRef, onTitleRef);
 
 	useSurfaceInput(
 		{ hostRef, editorHostRef, surfaceRef, rendererRef, compositionRef, gridColumnsRef, gridRowsRef, hostCapsRef, onHintRef },
