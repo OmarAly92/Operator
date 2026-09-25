@@ -943,6 +943,72 @@ history of `master`.
   `TerminalPane.test.tsx` "terminal not responding",
   `useTerminalSession.test.tsx` health tests.
 
+### 4.32 Text typed during a command reached the shell, not the input box — roadmap Plan 6
+- Symptom: in a zsh pane, keys typed while a command ran went to the pty
+  (deliberate since `4b31952aa`, so a `y/n` prompt, a password or Claude Code
+  gets them: `ts/editor/src/line-editor.ts` `passthrough`). When the prompt
+  returned, zsh held the text in its own line buffer, invisible in the input
+  box, and the next thing submitted from the box was appended to it: `echo hi`
+  typed during `sleep`, then `ls` in the box, ran `echo hils`.
+- Cause: a shell reads typeahead only after its prompt starts, and nothing
+  told the line editor what it read. At `line-init`, zsh's `$BUFFER` is still
+  empty; the text is waiting on the tty.
+- Now: behaviour taken from the survey's description of Warp's shell-reported
+  typeahead (§7.2; Warp is AGPL-3.0 — clean-room, no Warp file read).
+  `shell/zsh.sh`'s `line-init` hook, once per finished command
+  (`__operator_terminal_TYPEAHEAD_ARMED`, set in `precmd`) and only at a
+  primary prompt (`$CONTEXT == start`), reads what is waiting
+  (`read -t 0 -k 1`, at most 257 characters), pushes it straight back into zle
+  (`zle -U`), and — when it is at most 256 characters with no control
+  character — reports it right after `input-ready` as
+  `OSC 7000;v=1;typeahead=<percent-encoded UTF-8>` (`protocol/SPEC.md` §4.5).
+  vt-core keeps the report only while the line is owned
+  (`LineEditorTracker::on_typeahead`; `input-released` and the alternate
+  screen drop it) and `TerminalCore.takeTypeahead()` hands it over once.
+  `LineEditor` takes it on every change, visible or not, and adopts it only if
+  the user sent keys, IME text or a paste to the pty since the last report
+  (`TypeaheadGate`, `ts/editor/src/typeahead.ts`): it appends the text to the
+  buffer, never submits it, and sends `^U` (0x15) to clear zsh's copy. Keys are
+  still never held back.
+- Why the shell does not clear its own buffer (the first design did): the
+  daemon's `SendMessage` writes text, pauses, then sends Enter as a separate
+  frame (`backend/internal/adapters/runtime/ptyhost/client.go:38-70`). Text
+  arriving while a command is finishing looks exactly like typeahead to the
+  shell; a shell that cleared it lost the command and ran an empty line —
+  `TestShellBlocksAlternateScreenAtCaptureStartExcludesRepaint` failed 3 of 3
+  runs that way. Only the line editor knows the user typed the text, so only
+  it clears the shell's copy. `^U` is `kill-whole-line` in zsh's emacs keymap
+  and `vi-kill-line` in `viins`; both clear the pushed text.
+- bash and fish are not covered, by decision. bash: `READLINE_LINE` is
+  reachable only inside a `bind -x` binding, which the additive-only contract
+  forbids (`docs/superpowers/specs/2026-08-29-warp-terminal-package-design.md`
+  §8, line 872); a `PROMPT_COMMAND` drain (`read -r -s -n 1 -t …`) can read the
+  text but cannot hand it back to readline, so it would lose the `SendMessage`
+  case; macOS `/bin/bash` 3.2 also takes whole-second timeouts only (`-t 0`
+  read nothing). fish: `commandline` is empty in a `fish_prompt` handler (fish
+  reads the typeahead after drawing the prompt) and its `read` has no timeout.
+  Both keep the old doubling.
+- Limits: a line typed ahead with Enter runs as before and is not moved; the
+  typed text also stays in the finished command's output, where the tty echoed
+  it while the command ran (as in every terminal); keys that reach zsh after
+  its report and before the `^U` (one pty round trip) are cleared with it; a
+  client without a line editor (the phone) leaves the text in the shell, as
+  before; a user who rebinds `^U` gets the old doubling.
+- Also fixed: `__operator_terminal_pct_encode` in `zsh.sh` encoded a code
+  point, not bytes (`é` → `%e9`, `€` → `%c`); it now encodes UTF-8 bytes under
+  `no_multibyte`. `bash.sh`'s encoder has the same bug and is not fixed here.
+- Guards: `shell/zsh.test.mjs` (reports and is cleared by Ctrl-U, kept when
+  nothing clears it, UTF-8, Enter typed ahead runs, multi-line submission,
+  over the cap, `read -s` password never surfaced, a program's own prompt
+  still gets its keys, vi insert mode, byte encoding); `bash.test.mjs` and
+  `fish.test.mjs` "reports no typeahead"; `crates/vt-core/tests/typeahead.rs`
+  (incl. the Claude Code recording); `ts/core/src/typeahead.test.ts`;
+  `ts/editor/src/line-editor-typeahead.test.ts` (incl. the Claude Code
+  recording and a faked report); `protocol/vectors/typeahead.json`;
+  `backend/internal/terminal/block_assembler_test.go`
+  `TestAssemblerIgnoresATypeaheadMark`; `backend/internal/integration`
+  `TestShellBlocks*`.
+
 ### 4.33 Output older than the row cap was dropped — roadmap Plan 7
 - Symptom: past 200,000 rows (or 128 MiB) the oldest output was gone for good,
   in the pane and in the mirror (`Parser::trim_to` dropped it).
@@ -1346,6 +1412,11 @@ history of `master`.
   2-hour real-app soak (WebContent RSS and CPU, a minimised stretch, and
   2 visible split panes + parked) is not verified: dev ports busy.
   Measurement note "Memory and long run" and "Long run after unload".
+- **Typing ahead covers zsh only.** bash and fish panes keep the old
+  behaviour: text typed during a command lands in the shell's own line and
+  is doubled by the next submission from the input box. The reasons and the
+  evidence are in §4.32; `bash.sh`'s percent-encoder still encodes code
+  points, not UTF-8 bytes, so a non-ASCII `cmd=`/`cwd=` from bash is wrong.
 
 ---
 

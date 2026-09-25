@@ -355,6 +355,11 @@ impl WasmTerminalCore {
         self.export.line_editor_state()
     }
 
+    #[wasm_bindgen(js_name = takeTypeahead)]
+    pub fn take_typeahead(&mut self) -> String {
+        self.core.take_typeahead().unwrap_or_default()
+    }
+
     pub fn cursor_row(&self) -> u32 {
         self.export.cursor_row()
     }

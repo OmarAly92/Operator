@@ -73,8 +73,11 @@ func clientSendMessage(addr, message string) error {
 	if err != nil {
 		return err
 	}
-	_, err = conn.Write(frame)
-	return err
+	if _, err := conn.Write(frame); err != nil {
+		return err
+	}
+	awaitInputApplied(conn)
+	return nil
 }
 
 func clientSendInput(addr, input string) error {
@@ -87,8 +90,38 @@ func clientSendInput(addr, input string) error {
 	if err != nil {
 		return err
 	}
-	_, err = conn.Write(frame)
-	return err
+	if _, err := conn.Write(frame); err != nil {
+		return err
+	}
+	awaitInputApplied(conn)
+	return nil
+}
+
+func awaitInputApplied(conn net.Conn) {
+	_ = conn.SetDeadline(time.Now().Add(getOutputTimeout))
+	frame, err := EncodeMessage(MsgStatusReq, nil)
+	if err != nil {
+		return
+	}
+	if _, err := conn.Write(frame); err != nil {
+		return
+	}
+	done := false
+	parser := NewMessageParser(func(msgType byte, _ []byte) {
+		if msgType == MsgStatusRes {
+			done = true
+		}
+	})
+	buf := make([]byte, 4096)
+	for !done {
+		n, err := conn.Read(buf)
+		if n > 0 {
+			parser.Feed(buf[:n])
+		}
+		if err != nil {
+			return
+		}
+	}
 }
 
 // clientRequestText sends reqType and reads frames until resType arrives.

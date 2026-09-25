@@ -151,8 +151,12 @@ You'd only notice these as fewer rare glitches or slightly less CPU use.
   session is restored. Still missing: the board does not show a stuck
   terminal, shells are not checked, and a replay is not redrawn at the sizes
   the output was produced at (§6.3).
-- **Typing ahead:** while a command runs, what you type goes straight to the
-  running program instead of waiting in the input box (§7.2).
+- **Typing ahead (done for zsh, roadmap Plan 6, 2026-09-25):** in a zsh
+  shell, what you type while a command runs still reaches the running
+  program, and whatever it did not read shows up in the input box when the
+  command finishes, ready to edit; it runs only when you press Enter. A line
+  you finish with Enter while the command runs still runs right after it,
+  as before. Still missing: bash and fish shells behave the old way (§7.2).
 - The rest are small or test-only: §1.14, §3.6, §3.13, §3.15, §4.4, §4.10,
   §6.2.
 

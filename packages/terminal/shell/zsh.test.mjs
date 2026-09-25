@@ -200,3 +200,121 @@ test("emits the real zsh lifecycle for successful, failed, multiline, interrupte
 		assert.ok(commandIndex < releasedIndex && releasedIndex < outputIndex && outputIndex < exitIndex && exitIndex < endIndex);
 	}
 });
+
+const TYPEAHEAD_PREFIX = "7000;v=1;typeahead=";
+
+function typeaheadReports(records) {
+	return records
+		.filter((record) => record.payload.startsWith(TYPEAHEAD_PREFIX))
+		.map((record) => record.payload.slice(TYPEAHEAD_PREFIX.length));
+}
+
+function commandsRun(records) {
+	return records.map((record) => field(record.payload, "cmd")).filter((command) => command !== undefined);
+}
+
+function typeaheadSession(steps) {
+	const raw = runInPty("zsh -f -i", [`source ${bootstrap}`, ...steps], {
+		settleMs: 300,
+		env: { OPERATOR_TERMINAL_ID: "terminal-1", LANG: "C.UTF-8", LC_ALL: "C.UTF-8" },
+	});
+	return { raw, records: parseOscRecords(raw) };
+}
+
+test("reports text typed during a command once the prompt returns, and a Ctrl-U clears the shell's copy", { skip: ptySkip }, () => {
+	const { records } = typeaheadSession([
+		{ keys: "sleep 1", waitMs: 200 },
+		{ keys: "echo hi", enter: false, waitMs: 1800 },
+		{ keys: "C-u", enter: false, waitMs: 200 },
+		{ keys: "echo second", waitMs: 500 },
+	]);
+	assert.deepEqual(typeaheadReports(records), ["echo%20hi"]);
+	assert.deepEqual(commandsRun(records), ["sleep%201", "echo%20second"]);
+	const report = records.findIndex((record) => record.payload.startsWith(TYPEAHEAD_PREFIX));
+	const finished = records.findIndex((record) => record.payload === "133;D;0");
+	assert.ok(finished >= 0 && finished < report, "the report comes after the command finished");
+	assert.equal(records[report - 1].payload, "7000;v=1;input-ready=1", "the report directly follows input-ready");
+});
+
+test("keeps the reported text in the shell when nothing clears it, so a separate Enter still runs it", { skip: ptySkip }, () => {
+	const { records } = typeaheadSession([
+		{ keys: "sleep 1", waitMs: 200 },
+		{ keys: "echo sent", enter: false, waitMs: 1800 },
+		{ keys: "", waitMs: 500 },
+	]);
+	assert.deepEqual(typeaheadReports(records), ["echo%20sent"]);
+	assert.deepEqual(commandsRun(records), ["sleep%201", "echo%20sent"]);
+});
+
+test("reports typed-ahead UTF-8 as percent-encoded bytes", { skip: ptySkip }, () => {
+	const { records } = typeaheadSession([
+		{ keys: "sleep 1", waitMs: 200 },
+		{ keys: "echo café €", enter: false, waitMs: 1800 },
+	]);
+	assert.deepEqual(typeaheadReports(records), ["echo%20caf%c3%a9%20%e2%82%ac"]);
+});
+
+test("runs a line typed ahead with Enter exactly as before and reports nothing", { skip: ptySkip }, () => {
+	const { records } = typeaheadSession([
+		{ keys: "sleep 1", waitMs: 200 },
+		{ keys: "echo queued", waitMs: 1800 },
+	]);
+	assert.deepEqual(typeaheadReports(records), []);
+	assert.deepEqual(commandsRun(records), ["sleep%201", "echo%20queued"]);
+});
+
+test("runs every command of a multi-line submission and reports nothing", { skip: ptySkip }, () => {
+	const { records } = typeaheadSession([{ keys: "sleep 1\necho two\necho three", waitMs: 2000 }]);
+	assert.deepEqual(typeaheadReports(records), []);
+	assert.deepEqual(commandsRun(records), ["sleep%201", "echo%20two", "echo%20three"]);
+});
+
+test("does not report text longer than the cap and leaves it to the shell", { skip: ptySkip }, () => {
+	const long = `echo ${"x".repeat(300)}`;
+	const { records } = typeaheadSession([
+		{ keys: "sleep 1", waitMs: 200 },
+		{ keys: long, enter: false, waitMs: 1800 },
+		{ keys: "", waitMs: 600 },
+	]);
+	assert.deepEqual(typeaheadReports(records), []);
+	assert.deepEqual(commandsRun(records), ["sleep%201", `echo%20${"x".repeat(300)}`]);
+});
+
+test("never surfaces a password a program read with echo off", { skip: ptySkip }, () => {
+	const { raw, records } = typeaheadSession([
+		{ keys: "read -s -k 7 pw; echo got-${#pw}", waitMs: 300 },
+		{ keys: "hunter2", enter: false, waitMs: 800 },
+	]);
+	assert.deepEqual(typeaheadReports(records), []);
+	assert.equal(raw.includes("hunter2"), false, "the password must appear nowhere in the pane");
+	assert.match(raw, /got-7/);
+});
+
+test("a program's own prompt still receives the keys typed at it", { skip: ptySkip }, () => {
+	const { raw, records } = typeaheadSession([
+		{ keys: "read 'name?name: '; echo got-$name", waitMs: 300 },
+		{ keys: "bob", waitMs: 800 },
+	]);
+	assert.deepEqual(typeaheadReports(records), []);
+	assert.match(raw, /got-bob/);
+});
+
+test("clears the reported text with Ctrl-U in vi insert mode too", { skip: ptySkip }, () => {
+	const { records } = typeaheadSession([
+		"bindkey -v",
+		{ keys: "sleep 1", waitMs: 200 },
+		{ keys: "echo hi", enter: false, waitMs: 1800 },
+		{ keys: "C-u", enter: false, waitMs: 200 },
+		{ keys: "echo second", waitMs: 500 },
+	]);
+	assert.deepEqual(typeaheadReports(records), ["echo%20hi"]);
+	assert.deepEqual(commandsRun(records), ["bindkey%20-v", "sleep%201", "echo%20second"]);
+});
+
+test("percent-encodes non-ASCII bytes as UTF-8", { skip }, () => {
+	const out = execFileSync("zsh", ["-f", "-c", `source ${bootstrap}; __operator_terminal_pct_encode 'café € ?[x]'`], {
+		encoding: "utf8",
+		env: { ...process.env, LANG: "C.UTF-8", LC_ALL: "C.UTF-8" },
+	});
+	assert.equal(out, "caf%c3%a9%20%e2%82%ac%20%3f%5bx%5d");
+});

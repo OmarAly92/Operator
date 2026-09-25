@@ -19,6 +19,7 @@ import { mapKey, type EditorCommand } from "./keymap.js";
 import { renderPromptRow } from "./prompt-row.js";
 import { ReverseSearch } from "./reverse-search.js";
 import { editorStyles } from "./styles.js";
+import { CLEAR_SHELL_LINE, TypeaheadGate } from "./typeahead.js";
 
 export type EditorHost = {
 	send(text: string): void;
@@ -52,6 +53,8 @@ export class LineEditor {
 	private staleWhileHidden = false;
 	private reportedDraft = "";
 	private pasteConfirm: PasteConfirm | null = null;
+	private readonly typeahead = new TypeaheadGate();
+	private typeaheadLineState: string | null = null;
 
 	mount(container: HTMLElement, core: TerminalCore, host: EditorHost): void {
 		this.dispose();
@@ -65,6 +68,8 @@ export class LineEditor {
 		this.promptExitCode = null;
 		this.promptDurationMs = null;
 		this.reportedDraft = "";
+		this.typeahead.reset();
+		this.typeaheadLineState = null;
 		this.search.cancel();
 		this.searchOpen = false;
 		this.dropdownOpen = false;
@@ -90,6 +95,7 @@ export class LineEditor {
 		this.dropdown.mount(root);
 		this.unsubscribe = core.onChange(() => {
 			this.ingestHistory();
+			this.adoptTypeahead();
 			if (!this.visible) {
 				this.staleWhileHidden = true;
 				return;
@@ -102,6 +108,7 @@ export class LineEditor {
 			this.render();
 		});
 		this.ingestHistory();
+		this.adoptTypeahead();
 		this.render();
 	}
 
@@ -181,6 +188,7 @@ export class LineEditor {
 	private commitComposedText(text: string): void {
 		if (this.core?.lineEditorState() !== "owned") {
 			this.host?.sendRaw(text);
+			this.typeahead.noteSent(text);
 			return;
 		}
 		this.apply({ kind: "insert", text });
@@ -241,7 +249,9 @@ export class LineEditor {
 		void deliverPaste(
 			plan,
 			(data) => {
-				if (this.root === root) host.sendRaw(data);
+				if (this.root !== root) return;
+				host.sendRaw(data);
+				this.typeahead.noteSent(data);
 			},
 			this.pasteConfirm ?? undefined,
 		);
@@ -257,6 +267,7 @@ export class LineEditor {
 		if (data === null) return "";
 		this.host?.beforePassthrough?.(event);
 		this.host?.sendRaw(data);
+		this.typeahead.noteSent(data);
 		return data;
 	}
 
@@ -511,6 +522,19 @@ export class LineEditor {
 		}
 		this.render();
 		return true;
+	}
+
+	private adoptTypeahead(): void {
+		const core = this.core;
+		if (!core) return;
+		const state = core.lineEditorState();
+		if (state !== "owned" && this.typeaheadLineState === "owned") this.typeahead.reset();
+		this.typeaheadLineState = state;
+		const typed = this.typeahead.take(core);
+		if (typed === null) return;
+		this.buffer.setText(this.buffer.text + typed);
+		this.historyPrefix = null;
+		this.host?.sendRaw(CLEAR_SHELL_LINE);
 	}
 
 	private ingestHistory(): void {

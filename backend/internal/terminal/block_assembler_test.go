@@ -405,3 +405,17 @@ func TestAssemblerKeepsTheShellsOwnStartTime(t *testing.T) {
 		t.Fatalf("blocks = %+v, want StartedAt from start_ms %d", blocks, start)
 	}
 }
+
+func TestAssemblerIgnoresATypeaheadMark(t *testing.T) {
+	first := "\x1b]133;A\x07\x1b]7000;v=1;id=t-1;cmd=sleep%201\x1b\\\x1b]133;C\x07done\r\n\x1b]7000;v=1;id=t-1;exit=0\x1b\\\x1b]133;D;0\x07"
+	prompt := "\x1b]133;A\x07\x1b]133;B\x07\x1b]7000;v=1;input-ready=1\x07\x1b]7000;v=1;typeahead=echo%20hi\x07"
+	second := "\x1b]7000;v=1;input-released=1\x07\x1b]7000;v=1;id=t-2;cmd=ls\x1b\\\x1b]133;C\x07a\r\n\x1b]7000;v=1;id=t-2;exit=0\x1b\\\x1b]133;D;0\x07"
+	a, dec := newAssembler(false)
+	blocks := assembleChunks(a, dec, first, prompt, second)
+	if len(blocks) != 2 {
+		t.Fatalf("got %d blocks, want 2", len(blocks))
+	}
+	if blocks[0].Command != "sleep 1" || blocks[1].Command != "ls" {
+		t.Fatalf("commands = %q, %q; a typeahead mark must not become block metadata", blocks[0].Command, blocks[1].Command)
+	}
+}
