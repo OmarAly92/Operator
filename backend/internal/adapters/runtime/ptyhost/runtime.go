@@ -51,8 +51,9 @@ type Runtime struct {
 	destroyPoll   time.Duration
 	probeTimeout  time.Duration
 
-	mu       sync.Mutex
-	sessions map[string]*hostSession // sessionID -> live session
+	mu         sync.Mutex
+	sessions   map[string]*hostSession // sessionID -> live session
+	inputGates map[string]chan struct{}
 
 	watchMu     sync.Mutex
 	watchers    map[int]func(string, ports.TerminalHealth)
@@ -74,6 +75,7 @@ func New(opts Options) *Runtime {
 		destroyPoll:   25 * time.Millisecond,
 		probeTimeout:  isAliveTimeout,
 		sessions:      make(map[string]*hostSession),
+		inputGates:    make(map[string]chan struct{}),
 		watchers:      make(map[int]func(string, ports.TerminalHealth)),
 	}
 }
@@ -174,6 +176,7 @@ func (r *Runtime) Destroy(ctx context.Context, handle ports.RuntimeHandle) error
 	r.mu.Lock()
 	wasHung := sess.failedProbes >= hungAfterFailedProbes
 	delete(r.sessions, handle.ID)
+	delete(r.inputGates, handle.ID)
 	r.mu.Unlock()
 	if wasHung {
 		r.notifyHealth(handle.ID, ports.TerminalHealthy)
@@ -336,6 +339,11 @@ func (r *Runtime) SendMessage(ctx context.Context, handle ports.RuntimeHandle, m
 	if sess == nil {
 		return fmt.Errorf("ptyhost: session %q not found", handle.ID)
 	}
+	release, err := r.acquireInput(ctx, handle.ID)
+	if err != nil {
+		return err
+	}
+	defer release()
 	return clientSendMessage(sess.addr, message)
 }
 
@@ -345,6 +353,11 @@ func (r *Runtime) Interrupt(ctx context.Context, handle ports.RuntimeHandle) err
 	if sess == nil {
 		return fmt.Errorf("ptyhost: session %q not found", handle.ID)
 	}
+	release, err := r.acquireInput(ctx, handle.ID)
+	if err != nil {
+		return err
+	}
+	defer release()
 	return clientSendInput(sess.addr, "\x03")
 }
 
@@ -355,7 +368,28 @@ func (r *Runtime) SendInput(ctx context.Context, handle ports.RuntimeHandle, inp
 	if sess == nil {
 		return fmt.Errorf("ptyhost: session %q not found", handle.ID)
 	}
+	release, err := r.acquireInput(ctx, handle.ID)
+	if err != nil {
+		return err
+	}
+	defer release()
 	return clientSendInput(sess.addr, input)
+}
+
+func (r *Runtime) acquireInput(ctx context.Context, id string) (func(), error) {
+	r.mu.Lock()
+	gate := r.inputGates[id]
+	if gate == nil {
+		gate = make(chan struct{}, 1)
+		r.inputGates[id] = gate
+	}
+	r.mu.Unlock()
+	select {
+	case gate <- struct{}{}:
+		return func() { <-gate }, nil
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
 }
 
 // GetOutput returns the last lines lines from the pty-host ring buffer.
