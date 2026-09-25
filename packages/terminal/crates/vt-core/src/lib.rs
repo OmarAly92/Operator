@@ -350,6 +350,7 @@ impl TerminalCore {
             self.vte.advance(&mut self.parser, bytes);
             self.fed_total += bytes.len() as u64;
         }
+        self.parser.flush_run();
     }
 
     #[cfg(feature = "trace")]

@@ -4,8 +4,16 @@ use crate::screen::{Cell, ScreenGrid};
 use crate::style::CellStyle;
 use crate::width::{self, WidthMode};
 
+fn printable_ascii(ch: char) -> bool {
+    matches!(ch, ' '..='~')
+}
+
 impl ScreenGrid {
     pub fn print(&mut self, ch: char, style: CellStyle) {
+        if printable_ascii(ch) && !self.pending_wrap && self.ascii_starts_a_cluster() {
+            self.put_ascii(ch, style);
+            return;
+        }
         if self.width_mode == WidthMode::Grapheme && self.join_previous(ch, style) {
             return;
         }
@@ -28,6 +36,63 @@ impl ScreenGrid {
         if self.col >= self.cols {
             self.col = self.cols - 1;
             self.pending_wrap = true;
+        }
+    }
+
+    pub fn print_ascii_run(&mut self, run: &[u8], style: CellStyle) {
+        let Some((first, rest)) = run.split_first() else {
+            return;
+        };
+        self.print(char::from(*first), style);
+        let mut at = 0;
+        while at < rest.len() {
+            if self.pending_wrap {
+                self.set_row_wrapped(self.row, true);
+                self.carriage_return();
+                self.line_feed();
+            }
+            let row = self.row;
+            self.raise_max_cursor_row(row);
+            let take = (self.cols - self.col).min(rest.len() - at);
+            let start = self.phys_start(row) + self.col;
+            for (cell, byte) in self.cells[start..start + take]
+                .iter_mut()
+                .zip(&rest[at..at + take])
+            {
+                *cell = Cell::new(char::from(*byte), style);
+            }
+            self.col += take;
+            at += take;
+            if self.col == self.cols {
+                self.set_row_wrapped(row, false);
+                self.col = self.cols - 1;
+                self.pending_wrap = true;
+            }
+            self.mark_dirty(row);
+        }
+    }
+
+    fn put_ascii(&mut self, ch: char, style: CellStyle) {
+        let row = self.row;
+        self.raise_max_cursor_row(row);
+        let index = self.phys_start(row) + self.col;
+        self.cells[index] = Cell::new(ch, style);
+        if self.col + 1 == self.cols {
+            self.set_row_wrapped(row, false);
+            self.pending_wrap = true;
+        } else {
+            self.col += 1;
+        }
+        self.mark_dirty(row);
+    }
+
+    fn ascii_starts_a_cluster(&self) -> bool {
+        if self.width_mode == WidthMode::Scalar {
+            return true;
+        }
+        match self.previous_cell() {
+            None => true,
+            Some((row, col)) => self.cells[self.phys_start(row) + col].is_plain_ascii(),
         }
     }
 
@@ -60,8 +125,7 @@ impl ScreenGrid {
         };
         let index = self.phys_start(row) + col;
         let mut buffer = [0u8; 4];
-        let previous = self.cells[index].text(&mut buffer).to_string();
-        if !width::joins_previous(&previous, ch) {
+        if !width::joins_previous(self.cells[index].text(&mut buffer), ch) {
             return false;
         }
         let old_width = self.cell_width_at(row, col);

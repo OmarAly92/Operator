@@ -67,6 +67,7 @@ pub(crate) struct Parser {
     program: crate::program::ProgramState,
     cold: crate::cold_ring::ColdRing,
     committed_rows: u64,
+    run: Vec<u8>,
     #[cfg(feature = "trace")]
     pub(crate) trace: crate::trace::Trace,
 }
@@ -106,6 +107,7 @@ impl Parser {
             program: crate::program::ProgramState::default(),
             cold: crate::cold_ring::ColdRing::default(),
             committed_rows: 0,
+            run: Vec::new(),
             #[cfg(feature = "trace")]
             trace: Default::default(),
         }

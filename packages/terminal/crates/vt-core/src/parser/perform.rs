@@ -2,10 +2,28 @@ use vte::{Params, Perform};
 
 use super::Parser;
 
+impl Parser {
+    pub(crate) fn flush_run(&mut self) {
+        if self.run.is_empty() {
+            return;
+        }
+        let style = self.pending_style.resolved();
+        let run = std::mem::take(&mut self.run);
+        self.active_screen_mut().print_ascii_run(&run, style);
+        self.run = run;
+        self.run.clear();
+    }
+}
+
 impl Perform for Parser {
     fn print(&mut self, c: char) {
         #[cfg(feature = "trace")]
         self.trace.record(crate::trace::TraceAction::Print(c));
+        if matches!(c, ' '..='~') {
+            self.run.push(c as u8);
+            return;
+        }
+        self.flush_run();
         let style = self.pending_style.resolved();
         self.active_screen_mut().print(c, style);
     }
@@ -13,6 +31,7 @@ impl Perform for Parser {
     fn execute(&mut self, byte: u8) {
         #[cfg(feature = "trace")]
         self.trace.record(crate::trace::TraceAction::Execute(byte));
+        self.flush_run();
         let screen = self.active_screen_mut();
         match byte {
             0x08 => screen.move_by(0, -1),
@@ -30,6 +49,7 @@ impl Perform for Parser {
             intermediates: intermediates.to_vec(),
             action: c,
         });
+        self.flush_run();
         if c == 'm' && intermediates.is_empty() {
             self.apply_sgr(params);
             return;
@@ -87,6 +107,7 @@ impl Perform for Parser {
         });
         #[cfg(not(feature = "trace"))]
         let _ = intermediates;
+        self.flush_run();
         self.active_screen_mut().esc(byte);
     }
 
@@ -95,6 +116,7 @@ impl Perform for Parser {
         self.trace.record(crate::trace::TraceAction::Osc(
             params.iter().map(|p| p.to_vec()).collect(),
         ));
+        self.flush_run();
         match crate::program::OscKind::of(params) {
             crate::program::OscKind::Hyperlink => {
                 let id = crate::hyperlink::parse_osc8(&params[1..])

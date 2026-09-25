@@ -65,6 +65,10 @@ impl Cell {
         }
     }
 
+    pub(crate) fn is_plain_ascii(&self) -> bool {
+        self.ch.is_ascii() && self.extra.is_none()
+    }
+
     pub fn is_blank(&self) -> bool {
         matches!(self.ch, ' ' | '\0') && self.extra.is_none() && self.style.is_default_paint()
     }
