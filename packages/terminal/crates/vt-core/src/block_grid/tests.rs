@@ -222,3 +222,15 @@ fn prepended_blocks_sort_before_the_existing_ones() {
     let ids: Vec<_> = grid.blocks().map(|block| block.id).collect();
     assert_eq!(ids, vec![900, 0]);
 }
+
+#[test]
+fn open_block_ref_is_the_open_block_and_nothing_after_it_closes() {
+    let mut grid = BlockGrid::new();
+    assert!(grid.open_block_ref().is_none());
+    grid.sync_next_row(3);
+    grid.open_block(BlockSource::Osc133);
+    let open = grid.open_block_ref().expect("an open block");
+    assert_eq!(grid.flat_extent(open).0, 3);
+    grid.close_block(Some(0));
+    assert!(grid.open_block_ref().is_none());
+}

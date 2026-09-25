@@ -525,7 +525,8 @@ impl TerminalCore {
         let columns = columns.clamp(1, alt::MAX_DIMENSION);
         let rows = rows.clamp(1, alt::MAX_DIMENSION);
         self.rows = rows;
-        self.parser.resize(columns, rows);
+        self.parser
+            .resize_for(columns, rows, self.line_editor.state());
         self.parser.trim_to(self.limits);
         self.parser.note_mutation();
         self.debug_check();

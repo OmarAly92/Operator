@@ -199,6 +199,10 @@ impl BlockGrid {
         self.next_row - self.origin
     }
 
+    pub fn open_block_ref(&self) -> Option<&Block> {
+        self.open.as_ref()
+    }
+
     pub fn has_open_block(&self) -> bool {
         self.open.is_some()
     }
