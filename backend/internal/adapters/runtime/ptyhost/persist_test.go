@@ -49,7 +49,14 @@ func startServeWithHistory(t *testing.T, pid, cols, rows int, parser *vtwasm.Par
 	go func() {
 		done <- h.run(ctx)
 	}()
-	t.Cleanup(cancel)
+	t.Cleanup(func() {
+		cancel()
+		select {
+		case <-done:
+		case <-time.After(2 * time.Second):
+			t.Log("warning: startServeWithHistory did not stop within 2s")
+		}
+	})
 	return &serveFixture{pty: pty, ring: ring, ln: ln, addr: ln.Addr().String(), cancel: cancel, done: done, host: h}
 }
 
