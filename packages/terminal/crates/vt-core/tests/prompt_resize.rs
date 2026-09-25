@@ -544,3 +544,38 @@ fn find_hits_stay_on_their_text_when_pulled_rows_are_rewritten_before_the_next_u
         );
     }
 }
+
+#[test]
+fn a_prompt_resize_keeps_a_finished_find_session_without_rescanning() {
+    let mut core = core(80, 24);
+    prompt(&mut core, "$ ");
+    let output: String = (0..300).map(|i| format!("needle line {i}\r\n")).collect();
+    run(&mut core, "seq", &output);
+    prompt(&mut core, "$ ");
+    let mut session = FindSession::new(FindQuery::literal("needle"));
+    assert!(core.find_update(&mut session, usize::MAX).complete);
+    let hits = core.find_results(&session).len();
+    for (cols, rows) in [
+        (79, 24),
+        (78, 24),
+        (77, 24),
+        (80, 24),
+        (80, 24),
+        (81, 23),
+        (80, 22),
+    ] {
+        let scanned = session.history_bytes_scanned();
+        core.resize(cols, rows);
+        let update = core.find_update(&mut session, 4096);
+        assert!(update.complete, "{cols}x{rows}");
+        assert!(
+            session.history_bytes_scanned() - scanned < 80,
+            "{cols}x{rows}"
+        );
+        if rows == 24 {
+            assert_eq!(update.removed, 0, "{cols}x{rows}");
+        }
+        assert_eq!(core.find_results(&session).len(), hits, "{cols}x{rows}");
+        assert_eq!(hits, count(&core, "needle"), "{cols}x{rows}");
+    }
+}

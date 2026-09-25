@@ -143,6 +143,9 @@ impl Content {
             back.bytes.truncate(keep);
         }
         self.next_offset = offset;
+    }
+
+    pub fn note_reuse(&mut self) {
         self.truncations += 1;
     }
 

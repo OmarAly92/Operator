@@ -45,6 +45,7 @@ impl Parser {
     }
 
     fn resize_at_prompt(&mut self, columns: usize, rows: usize) -> bool {
+        let before = self.content.end_offset();
         let completed = self.rows.completed().len();
         let prompt_row = self
             .grid
@@ -55,14 +56,14 @@ impl Parser {
         };
         self.note_width(columns);
         self.commit_evicted();
-        self.pull_back(wanted);
+        self.pull_back(wanted, before);
         self.grid
             .clamp_to_rows(self.rows.completed().len() + self.screen.rows());
         self.send_in_band_report();
         true
     }
 
-    fn pull_back(&mut self, wanted: usize) {
+    fn pull_back(&mut self, wanted: usize, before: u64) {
         let stale_end = self
             .rows
             .stale_runs()
@@ -85,6 +86,9 @@ impl Parser {
         }
         if pulled.is_empty() {
             return;
+        }
+        if self.content.end_offset() < before {
+            self.content.note_reuse();
         }
         pulled.reverse();
         self.screen.push_rows_on_top(pulled);
