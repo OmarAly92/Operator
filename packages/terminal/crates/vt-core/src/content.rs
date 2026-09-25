@@ -126,6 +126,21 @@ impl Content {
         }
     }
 
+    pub fn truncate_to(&mut self, offset: u64) {
+        while self
+            .chunks
+            .back()
+            .is_some_and(|chunk| chunk.start >= offset)
+        {
+            self.chunks.pop_back();
+        }
+        if let Some(back) = self.chunks.back_mut() {
+            let keep = ((offset - back.start) as usize).min(back.bytes.len());
+            back.bytes.truncate(keep);
+        }
+        self.next_offset = offset;
+    }
+
     pub fn resident_bytes(&self) -> usize {
         self.chunks.iter().map(|chunk| chunk.bytes.len()).sum()
     }
@@ -218,6 +233,30 @@ mod tests {
         let start = c.prepend(b"ab");
         assert_eq!(start, 1028);
         assert_eq!(c.copy_range(1028, 1034), b"abxxxx");
+    }
+
+    #[test]
+    fn truncate_to_drops_the_tail_and_the_next_push_lands_at_the_cut() {
+        let mut c = Content::with_base(1024);
+        for _ in 0..(CHUNK_SIZE + 10) {
+            c.push_char("x");
+        }
+        c.truncate_to(1030);
+        assert_eq!(c.end_offset(), 1030);
+        assert_eq!(c.resident_bytes(), 6);
+        c.push_char("y");
+        assert_eq!(c.copy_range(1024, 1031), b"xxxxxxy");
+    }
+
+    #[test]
+    fn truncate_to_the_start_empties_a_prepended_content() {
+        let mut c = Content::with_base(1024);
+        c.push_char("z");
+        let start = c.prepend(b"ab");
+        c.truncate_to(start);
+        assert_eq!(c.resident_bytes(), 0);
+        assert_eq!(c.start_offset(), start);
+        assert_eq!(c.end_offset(), start);
     }
 
     #[test]

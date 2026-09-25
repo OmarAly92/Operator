@@ -313,3 +313,21 @@ fn rows_for_clips_the_touch_and_leaves_the_remainders_at_the_old_width() {
     let remainder_len: usize = r.stale_runs().iter().map(|run| run.len).sum();
     assert_eq!(remainder_len + touched_len, lines);
 }
+
+#[test]
+fn pop_completed_reopens_the_row_and_shortens_a_stale_run() {
+    let mut r = RowIndex::new(0);
+    r.complete_row(10, false);
+    r.complete_row(20, true);
+    r.complete_row(30, false);
+    r.mark_stale(1, 3, 80);
+    let popped = r.pop_completed().expect("a row");
+    assert_eq!((popped.start, popped.end, popped.wrapped), (20, 30, false));
+    assert_eq!(r.open_start(), 20);
+    assert_eq!(ranges(&r), vec![(0, 10, false), (10, 20, true)]);
+    assert_eq!(r.stale_runs().len(), 1);
+    assert_eq!((r.stale_runs()[0].start, r.stale_runs()[0].len), (1, 1));
+    r.pop_completed();
+    assert!(r.stale_runs().is_empty());
+    assert_eq!(r.open_start(), 10);
+}

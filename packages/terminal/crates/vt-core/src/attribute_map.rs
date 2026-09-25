@@ -66,6 +66,14 @@ impl<A: Copy + Eq> AttributeMap<A> {
         result
     }
 
+    pub fn truncate_to(&mut self, offset: u64) {
+        let cut = self.ends.split_off(&offset);
+        if let Some(value) = cut.values().next() {
+            self.tail = *value;
+        }
+        self.run_start = self.ends.keys().next_back().copied().unwrap_or(0);
+    }
+
     pub fn drop_before(&mut self, offset: u64) {
         let to_drop: Vec<u64> = self.ends.range(..offset).map(|(k, _)| *k).collect();
         for k in to_drop {
@@ -159,6 +167,29 @@ mod tests {
         assert_eq!(m.tail(), 1);
         m.set_from(5, 0);
         assert_eq!(runs(&m, 0, 9), vec![(5, 1), (9, 0)]);
+    }
+
+    #[test]
+    fn truncate_to_keeps_the_value_of_the_last_kept_byte() {
+        let mut m = AttributeMap::<u32>::new(0);
+        m.set_from(0, 1);
+        m.set_from(3, 2);
+        m.set_from(7, 0);
+        m.truncate_to(5);
+        assert_eq!(runs(&m, 0, 5), vec![(3, 1), (5, 2)]);
+        m.set_from(5, 4);
+        assert_eq!(runs(&m, 0, 8), vec![(3, 1), (5, 2), (8, 4)]);
+    }
+
+    #[test]
+    fn truncate_to_at_a_run_end_then_the_same_value_extends_it() {
+        let mut m = AttributeMap::<u32>::new(0);
+        m.set_from(0, 1);
+        m.set_from(3, 0);
+        m.truncate_to(3);
+        assert_eq!(runs(&m, 0, 3), vec![(3, 1)]);
+        m.set_from(3, 1);
+        assert_eq!(runs(&m, 0, 6), vec![(6, 1)]);
     }
 
     #[test]

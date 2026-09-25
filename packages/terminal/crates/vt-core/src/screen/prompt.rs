@@ -60,4 +60,22 @@ impl ScreenGrid {
         self.saved = None;
         Some(wanted.min(rows - kept))
     }
+
+    pub(crate) fn push_rows_on_top(&mut self, pulled: Vec<(Vec<Cell>, bool)>) {
+        let count = pulled.len();
+        if count == 0 || self.max_cursor_row + count >= self.rows {
+            return;
+        }
+        self.materialize();
+        let cols = self.cols;
+        self.cells.rotate_right(count * cols);
+        self.wrapped.rotate_right(count);
+        for (index, (cells, wrapped)) in pulled.into_iter().enumerate() {
+            self.cells[index * cols..(index + 1) * cols].clone_from_slice(&cells);
+            self.wrapped[index] = wrapped;
+        }
+        self.row += count;
+        self.max_cursor_row += count;
+        self.mark_all_dirty();
+    }
 }
