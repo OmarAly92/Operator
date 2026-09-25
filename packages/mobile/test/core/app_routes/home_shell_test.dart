@@ -322,6 +322,15 @@ void main() {
   });
 
   testWidgets('the bottom edge effect shows only while a tab has content under the bar', (tester) async {
+    when(() => repository.getBoard()).thenAnswer(
+      (_) async => Result.success(
+        GlobalResponse(
+          data: BoardSnapshot(
+            sessions: [for (var i = 0; i < 12; i++) SessionModel(id: 's-$i', displayName: 'Agent $i', status: 'idle')],
+          ),
+        ),
+      ),
+    );
     await pumpShell(tester);
     ScrollEdgeEffect bottomFade() =>
         tester.widgetList<ScrollEdgeEffect>(find.byType(ScrollEdgeEffect)).singleWhere((e) => e.edge == ScrollEdge.bottom);
