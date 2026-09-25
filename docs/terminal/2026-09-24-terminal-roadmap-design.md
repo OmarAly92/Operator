@@ -517,4 +517,17 @@ and the shell scripts are current). Each plan adds its checks here when it merge
   dragged over a hit row sits on top. A mark and a find hit on one row layer
   as selection > current hit > find tint > mark. Park a pane, edit a highlight,
   switch back: new colour. Remove all highlights: nothing stays tinted.
+- **Plan 3 — messages from programs:** start a Claude Code session: the
+  session card and the pane header show the live title without the spinner
+  glyph, update as Claude works, and clear after "Relaunch in a cleared
+  session". Close the pane: the card still updates. In a shell pane that is off
+  screen (or with the window unfocused) run `printf '\e]9;hello\a'`: a Mac
+  notification appears, and clicking it opens that terminal; on screen, none.
+  `printf '\e[18t'`, `printf '\e]11;?\a'` get answers; `printf '\e]22;text\a'`
+  changes the pointer.
+- **Plan 7 — very old output:** in a shell pane run `seq 1 400000`. Scroll to
+  the top: the first row is about 200001 and "Load older output" shows. Click
+  it: the view does not jump and rows up to about 200000 appear above; the
+  button comes back. Keep clicking until it disappears (near 1). `echo hi`:
+  loaded rows trim away and the button returns at the top.
 - **Input ordering fix (d1a962b8f):** nothing to click; covered by tests.
