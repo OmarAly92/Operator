@@ -53,7 +53,10 @@ func (m *Manager) StopAgentTask(ctx context.Context, id domain.SessionID, label 
 
 func (m *Manager) taskStopLock(id domain.SessionID) *sync.Mutex {
 	lock, _ := m.taskStops.LoadOrStore(id, &sync.Mutex{})
-	return lock.(*sync.Mutex)
+	if mutex, ok := lock.(*sync.Mutex); ok {
+		return mutex
+	}
+	return &sync.Mutex{}
 }
 
 func (m *Manager) tasksPanelReaderFor(harness domain.AgentHarness) (ports.TerminalTasksPanelReader, bool) {
@@ -102,8 +105,7 @@ func stopTaskOnPanel(ctx context.Context, screen dialogdriver.Screen, reader por
 			}
 			return s.closeWith(ctx, nil)
 		}
-		panel, err = s.navigate(ctx, panel, label)
-		if err != nil {
+		if _, err := s.navigate(ctx, panel, label); err != nil {
 			return s.closeWith(ctx, err)
 		}
 		if err := s.write(ctx, s.keys.Stop); err != nil {

@@ -58,7 +58,7 @@ func (t *Table) OpenFileHolders(ctx context.Context, path string) ([]int, error)
 func lsofHolders(ctx context.Context, lsof, path string) ([]int, error) {
 	out, err := exec.CommandContext(ctx, lsof, "-t", "--", path).Output()
 	var exit *exec.ExitError
-	if err != nil && !(errors.As(err, &exit) && len(bytes.TrimSpace(out)) == 0) {
+	if err != nil && !errors.As(err, &exit) {
 		return nil, fmt.Errorf("process: lsof: %w", err)
 	}
 	var pids []int
