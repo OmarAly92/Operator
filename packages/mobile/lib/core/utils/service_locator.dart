@@ -45,6 +45,7 @@ import 'package:operator_mobile/feature/preview/presentation/preview_screen/logi
 import 'package:operator_mobile/feature/pull_request/data/data_source/pull_request_remote_data_source.dart';
 import 'package:operator_mobile/feature/pull_request/data/repository/pull_request_repository.dart';
 import 'package:operator_mobile/feature/pull_request/presentation/pull_requests_screen/logic/pull_request_cubit.dart';
+import 'package:operator_mobile/feature/sessions/data/data_source/sessions_local_data_source.dart';
 import 'package:operator_mobile/feature/sessions/data/data_source/sessions_remote_data_source.dart';
 import 'package:operator_mobile/feature/sessions/data/repository/sessions_repository.dart';
 import 'package:operator_mobile/feature/sessions/presentation/sessions_screen/logic/sessions_cubit.dart';
@@ -153,7 +154,12 @@ class ServiceLocator {
       () => SessionsRepositoryImp(
         sl<SessionsRemoteDataSource>(),
         sl<NetworkStatus>(),
+        sl<SessionsLocalDataSource>(),
+        sl<ServerConfigStore>(),
       ),
+    );
+    sl.registerLazySingleton<SessionsLocalDataSource>(
+      () => SessionsLocalDataSourceImp(sl<ReplicaDocumentDao>()),
     );
     sl.registerLazySingleton<SessionsRemoteDataSource>(
       () => SessionsRemoteDataSourceImp(sl<ApiConsumer>()),

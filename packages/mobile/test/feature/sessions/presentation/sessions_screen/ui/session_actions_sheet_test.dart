@@ -37,6 +37,7 @@ void main() {
   setUp(() async {
     AppPreferences.debugLoad(const {});
     repository = _MockSessionsRepository();
+    when(() => repository.cachedBoard()).thenAnswer((_) async => null);
     mux = _MockMuxClient();
     when(() => mux.sessionPatches).thenAnswer((_) => const Stream<List<SessionPatch>>.empty());
     when(() => mux.boardChanges).thenAnswer((_) => const Stream<void>.empty());

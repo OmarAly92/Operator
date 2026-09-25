@@ -145,6 +145,7 @@ void main() {
 
   test('the board reports connected once per open, with launch then reconnect', () async {
     final repository = _MockSessionsRepository();
+    when(() => repository.cachedBoard()).thenAnswer((_) async => null);
     final mux = _MockMuxClient();
     when(() => mux.sessionPatches).thenAnswer((_) => const Stream.empty());
     when(() => mux.boardChanges).thenAnswer((_) => const Stream<void>.empty());
@@ -176,6 +177,7 @@ void main() {
 
   test('kill and restore report their feature and outcome', () async {
     final repository = _MockSessionsRepository();
+    when(() => repository.cachedBoard()).thenAnswer((_) async => null);
     final mux = _MockMuxClient();
     when(() => mux.sessionPatches).thenAnswer((_) => const Stream.empty());
     when(() => mux.boardChanges).thenAnswer((_) => const Stream<void>.empty());

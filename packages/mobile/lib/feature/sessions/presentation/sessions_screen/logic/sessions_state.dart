@@ -16,12 +16,13 @@ final class GetSessionsLoadingState extends SessionsState {
 }
 
 final class GetSessionsSuccessState extends SessionsState {
-  const GetSessionsSuccessState(this.revision);
+  const GetSessionsSuccessState(this.revision, {this.fromCache = false});
 
   final int revision;
+  final bool fromCache;
 
   @override
-  List<Object?> get props => [revision];
+  List<Object?> get props => [revision, fromCache];
 }
 
 final class GetSessionsFailureState extends SessionsState {

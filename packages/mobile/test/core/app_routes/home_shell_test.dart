@@ -64,6 +64,7 @@ void main() {
     HomeShell.selectedTab.value = 0;
     AppPreferences.debugLoad(const {});
     repository = _MockSessionsRepository();
+    when(() => repository.cachedBoard()).thenAnswer((_) async => null);
     mux = _MockMuxClient();
     notificationRepository = _MockNotificationRepository();
     when(() => mux.sessionPatches).thenAnswer((_) => const Stream<List<SessionPatch>>.empty());

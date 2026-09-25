@@ -10,6 +10,7 @@ import 'package:operator_mobile/core/api/models/global_response.dart';
 import 'package:operator_mobile/core/api/server_config.dart';
 import 'package:operator_mobile/core/app_routes/app_router.dart';
 import 'package:operator_mobile/core/deep_link/deep_link_target.dart';
+import 'package:operator_mobile/core/error_handling/failures/failure.dart';
 import 'package:operator_mobile/core/mux/mux_notification.dart';
 import 'package:operator_mobile/core/notifications/local_alert_sink.dart';
 import 'package:operator_mobile/core/notifications/phone_alerts_runtime.dart';
@@ -18,6 +19,7 @@ import 'package:operator_mobile/feature/blocks/data/model/params/get_session_blo
 import 'package:operator_mobile/core/app_themes/colors/dark_skin.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/preferences/app_preferences.dart';
+import 'package:operator_mobile/core/replica/replicated.dart';
 import 'package:operator_mobile/core/helpers/result/result.dart';
 import 'package:operator_mobile/core/mux/mux_client.dart';
 import 'package:operator_mobile/core/mux/session_patch.dart';
@@ -120,6 +122,7 @@ void main() {
     repository = _MockSessionsRepository();
     mux = _MockMuxClient();
     terminalRepository = _MockTerminalRepository();
+    when(() => repository.cachedBoard()).thenAnswer((_) async => null);
     when(
       () => mux.sessionPatches,
     ).thenAnswer((_) => const Stream<List<SessionPatch>>.empty());
@@ -218,16 +221,7 @@ void main() {
     await sl.reset();
   });
 
-  Future<void> pumpRoute(
-    WidgetTester tester, {
-    required List<SessionModel> sessions,
-  }) async {
-    when(() => repository.getBoard()).thenAnswer(
-      (_) async => Result.success(
-        GlobalResponse(data: BoardSnapshot(sessions: sessions)),
-      ),
-    );
-
+  Future<void> pumpScreen(WidgetTester tester) async {
     await tester.pumpWidget(
       SkinScope(
         skin: const DarkSkin(),
@@ -248,6 +242,18 @@ void main() {
     );
     await tester.pump(const Duration(milliseconds: 20));
     await tester.pump();
+  }
+
+  Future<void> pumpRoute(
+    WidgetTester tester, {
+    required List<SessionModel> sessions,
+  }) async {
+    when(() => repository.getBoard()).thenAnswer(
+      (_) async => Result.success(
+        GlobalResponse(data: BoardSnapshot(sessions: sessions)),
+      ),
+    );
+    await pumpScreen(tester);
   }
 
   Future<SessionsCubit> settledCubit(List<SessionModel> sessions) async {
@@ -302,6 +308,23 @@ void main() {
     await tester.pump(const Duration(milliseconds: 50));
     expect(find.text('Session not found.'), findsOneWidget);
     verify(() => repository.getBoard()).called(1);
+  });
+
+  testWidgets('a session missing from the cached board waits for the fresh board before saying so', (tester) async {
+    final gate = Completer<Result<GlobalResponse<BoardSnapshot>, Failure>>();
+    when(() => repository.cachedBoard()).thenAnswer(
+      (_) async => Replicated(value: const BoardSnapshot(), fetchedAt: DateTime.utc(2026, 9, 25)),
+    );
+    when(() => repository.getBoard()).thenAnswer((_) => gate.future);
+
+    await pumpScreen(tester);
+    expect(find.text('Session not found.'), findsNothing);
+
+    gate.complete(Result.success(GlobalResponse(data: const BoardSnapshot())));
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.text('Session not found.'), findsOneWidget);
   });
 
   testWidgets(

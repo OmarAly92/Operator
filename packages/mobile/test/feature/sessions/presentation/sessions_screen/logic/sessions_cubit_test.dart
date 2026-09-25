@@ -12,6 +12,7 @@ import 'package:operator_mobile/core/helpers/result/result.dart';
 import 'package:operator_mobile/core/mux/mux_client.dart';
 import 'package:operator_mobile/core/preferences/app_preferences.dart';
 import 'package:operator_mobile/core/preferences/preference_keys.dart';
+import 'package:operator_mobile/core/replica/replicated.dart';
 import 'package:operator_mobile/feature/sessions/data/model/board_snapshot.dart';
 import 'package:operator_mobile/feature/sessions/data/model/project_model.dart';
 import 'package:operator_mobile/feature/sessions/data/model/session_model.dart';
@@ -60,6 +61,7 @@ void main() {
     when(() => mux.boardStreamReady).thenAnswer((_) => streamReady);
     when(() => mux.connect()).thenReturn(null);
     when(() => mux.subscribeSessions()).thenReturn(null);
+    when(() => repository.cachedBoard()).thenAnswer((_) async => null);
   });
 
   tearDown(() async {
@@ -498,5 +500,108 @@ void main() {
     expect(AppPreferences.activeProjectId('d-b'), 'p9');
     expect(AppPreferences.activeProjectId('d-a'), 'p2');
     await cubit.close();
+  });
+
+  group('replica', () {
+    Replicated<BoardSnapshot> cached(String id) => Replicated(
+      value: BoardSnapshot(sessions: [SessionModel(id: id)]),
+      fetchedAt: DateTime.utc(2026, 9, 25, 8),
+    );
+
+    test('paints the cached board before the network answers, then swaps in the fresh board', () async {
+      final gate = Completer<Result<GlobalResponse<BoardSnapshot>, Failure>>();
+      when(() => repository.cachedBoard()).thenAnswer((_) async => cached('cached'));
+      when(() => repository.getBoard()).thenAnswer((_) => gate.future);
+
+      final cubit = SessionsCubit(repository, mux, source);
+      await cubit.cacheReady;
+
+      expect(cubit.sessions.single.id, 'cached');
+      expect(cubit.boardIsCached, isTrue);
+      expect(cubit.boardFetchedAt, DateTime.utc(2026, 9, 25, 8));
+      expect(cubit.state, isA<GetSessionsSuccessState>().having((s) => s.fromCache, 'fromCache', isTrue));
+
+      gate.complete(Result.success(GlobalResponse(data: const BoardSnapshot(sessions: [SessionModel(id: 'fresh')]))));
+      await Future<void>.delayed(Duration.zero);
+
+      expect(cubit.sessions.single.id, 'fresh');
+      expect(cubit.boardIsCached, isFalse);
+      expect(cubit.state, isA<GetSessionsSuccessState>().having((s) => s.fromCache, 'fromCache', isFalse));
+      await cubit.close();
+    });
+
+    test('a failed refresh keeps the cached board on screen', () async {
+      when(() => repository.cachedBoard()).thenAnswer((_) async => cached('cached'));
+      when(() => repository.getBoard()).thenAnswer(
+        (_) async => Result.failure(ServerFailure(error: 'down', message: 'down', statusCode: -6)),
+      );
+
+      final cubit = SessionsCubit(repository, mux, source);
+      await cubit.cacheReady;
+      await Future<void>.delayed(Duration.zero);
+
+      expect(cubit.sessions.single.id, 'cached');
+      expect(cubit.boardFetchedAt, DateTime.utc(2026, 9, 25, 8));
+      expect(cubit.state, isA<GetSessionsFailureState>());
+      await cubit.close();
+    });
+
+    test('a cache read that resolves after the fresh board is ignored', () async {
+      final read = Completer<Replicated<BoardSnapshot>?>();
+      when(() => repository.cachedBoard()).thenAnswer((_) => read.future);
+      when(() => repository.getBoard()).thenAnswer(
+        (_) async => Result.success(GlobalResponse(data: const BoardSnapshot(sessions: [SessionModel(id: 'fresh')]))),
+      );
+
+      final cubit = SessionsCubit(repository, mux, source);
+      await Future<void>.delayed(Duration.zero);
+      read.complete(cached('stale'));
+      await Future<void>.delayed(Duration.zero);
+
+      expect(cubit.sessions.single.id, 'fresh');
+      expect(cubit.boardIsCached, isFalse);
+      await cubit.close();
+    });
+
+    test('switching desktops never shows the previous desktop cache', () async {
+      final firstRead = Completer<Replicated<BoardSnapshot>?>();
+      var reads = 0;
+      when(() => repository.cachedBoard()).thenAnswer((_) {
+        reads++;
+        return reads == 1 ? firstRead.future : Future.value(null);
+      });
+      when(() => repository.getBoard()).thenAnswer(
+        (_) => Completer<Result<GlobalResponse<BoardSnapshot>, Failure>>().future,
+      );
+
+      final cubit = SessionsCubit(repository, mux, source);
+      source.set(_configB);
+      firstRead.complete(cached('from-a'));
+      await Future<void>.delayed(Duration.zero);
+
+      expect(cubit.sessions, isEmpty);
+      expect(cubit.boardFetchedAt, isNull);
+      await cubit.close();
+    });
+
+    test('a desktop switch paints the new desktop cache', () async {
+      var reads = 0;
+      when(() => repository.cachedBoard()).thenAnswer((_) async {
+        reads++;
+        return reads == 1 ? null : cached('from-b');
+      });
+      when(() => repository.getBoard()).thenAnswer(
+        (_) => Completer<Result<GlobalResponse<BoardSnapshot>, Failure>>().future,
+      );
+
+      final cubit = SessionsCubit(repository, mux, source);
+      await cubit.cacheReady;
+      source.set(_configB);
+      await cubit.cacheReady;
+
+      expect(cubit.sessions.single.id, 'from-b');
+      expect(cubit.boardIsCached, isTrue);
+      await cubit.close();
+    });
   });
 }

@@ -76,6 +76,7 @@ void main() {
       buildSignature: '',
     );
     sessionsRepository = _MockSessionsRepository();
+    when(() => sessionsRepository.cachedBoard()).thenAnswer((_) async => null);
     mux = _MockMuxClient();
     serverConfigStore = _MockServerConfigStore();
     desktopsRepository = _MockDesktopsRepository();

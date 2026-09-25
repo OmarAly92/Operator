@@ -50,6 +50,7 @@ void main() {
   setUp(() async {
     AppPreferences.debugLoad(const {});
     sessionsRepository = _MockSessionsRepository();
+    when(() => sessionsRepository.cachedBoard()).thenAnswer((_) async => null);
     mux = _MockMuxClient();
     prRepository = _MockPullRequestRepository();
     when(() => mux.sessionPatches).thenAnswer((_) => const Stream<List<SessionPatch>>.empty());

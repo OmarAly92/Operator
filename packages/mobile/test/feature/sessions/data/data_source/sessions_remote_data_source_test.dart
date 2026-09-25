@@ -6,6 +6,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:operator_mobile/core/api/api_request_helpers/api_consumer.dart';
 import 'package:operator_mobile/core/api/api_request_helpers/end_points.dart';
 import 'package:operator_mobile/feature/sessions/data/data_source/sessions_remote_data_source.dart';
+import 'package:operator_mobile/feature/sessions/data/model/board_snapshot.dart';
 
 class _MockApiConsumer extends Mock implements ApiConsumer {}
 
@@ -62,12 +63,12 @@ void main() {
         }),
       );
 
-      final board = await dataSource.getBoard();
-      expect(board.data!.accountLabels, {'default': 'Default', 'personal': 'Personal'});
+      final board = BoardSnapshot.fromPayload(await dataSource.getBoard());
+      expect(board.accountLabels, {'default': 'Default', 'personal': 'Personal'});
 
       when(() => apiConsumer.get(EndPoints.claudeAccounts)).thenThrow(Exception('older daemon'));
-      final degraded = await dataSource.getBoard();
-      expect(degraded.data!.accountLabels, isEmpty);
+      final degraded = BoardSnapshot.fromPayload(await dataSource.getBoard());
+      expect(degraded.accountLabels, isEmpty);
     });
 
     test('degrades to no projects rather than failing the whole board', () async {
@@ -75,8 +76,20 @@ void main() {
           .thenAnswer((_) async => jsonResponse({'sessions': <dynamic>[]}));
       when(() => apiConsumer.get(EndPoints.projects)).thenAnswer((_) async => throw Exception('404'));
 
-      final board = await dataSource.getBoard();
-      expect(board.data!.projects, isEmpty);
+      final board = BoardSnapshot.fromPayload(await dataSource.getBoard());
+      expect(board.projects, isEmpty);
+    });
+
+    test('returns each body exactly as the daemon sent it', () async {
+      when(() => apiConsumer.get(EndPoints.sessions)).thenAnswer((_) async => jsonResponse({'sessions': <dynamic>[]}));
+      when(() => apiConsumer.get(EndPoints.projects)).thenAnswer((_) async => jsonResponse({'projects': <dynamic>[]}));
+      when(() => apiConsumer.get(EndPoints.claudeAccounts)).thenThrow(Exception('older daemon'));
+
+      final payload = await dataSource.getBoard();
+
+      expect(payload.sessions, {'sessions': <dynamic>[]});
+      expect(payload.projects, {'projects': <dynamic>[]});
+      expect(payload.accounts, isNull);
     });
   });
 

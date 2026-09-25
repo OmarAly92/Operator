@@ -38,12 +38,12 @@ class _SessionRouteScreenState extends State<SessionRouteScreen> {
   }
 
   Future<void> _resolve(SessionsCubit cubit) async {
-    if (cubit.state is SessionsInitialState ||
-        cubit.state is GetSessionsLoadingState) {
+    final current = cubit.state;
+    if (current is SessionsInitialState ||
+        current is GetSessionsLoadingState ||
+        (current is GetSessionsSuccessState && current.fromCache)) {
       await cubit.stream.firstWhere(
-        (state) =>
-            state is GetSessionsSuccessState ||
-            state is GetSessionsFailureState,
+        (state) => (state is GetSessionsSuccessState && !state.fromCache) || state is GetSessionsFailureState,
       );
     } else {
       await cubit.refresh();
