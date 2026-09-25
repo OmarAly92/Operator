@@ -94,7 +94,12 @@ func (m *Manager) SetPermissionMode(ctx context.Context, id domain.SessionID, ta
 	if !reader.PermissionModeVerified(observation.Version) {
 		return PermissionModeResult{}, ErrPermissionModeUnsupported
 	}
-	if slices.Contains(reader.PermissionModeCycle(ports.NormalizePermissionMode(rec.LaunchPermissionMode)), target) {
+	project, err := m.loadProject(ctx, rec.ProjectID)
+	if err != nil {
+		return PermissionModeResult{}, fmt.Errorf("permission mode %s: %w", id, err)
+	}
+	launch := sessionAgentConfig(rec, project.Config).Permissions
+	if slices.Contains(reader.PermissionModeCycle(ports.NormalizePermissionMode(launch)), target) {
 		return m.cyclePermissionMode(ctx, id, reader, target)
 	}
 	return m.restartWithPermissionMode(ctx, id, target)
@@ -118,19 +123,27 @@ func (m *Manager) cyclePermissionMode(ctx context.Context, id domain.SessionID, 
 		return PermissionModeResult{}, commandDriveError(err)
 	}
 	defer end()
-	rec, err := m.commandRecord(ctx, id)
+	allowed := func(ctx context.Context) (domain.SessionRecord, error) {
+		rec, err := m.commandRecord(ctx, id)
+		if err != nil {
+			return domain.SessionRecord{}, err
+		}
+		return rec, permissionChangeAllowed(rec, ErrWrongActivityState)
+	}
+	rec, err := allowed(ctx)
 	if err != nil {
 		return PermissionModeResult{}, err
 	}
-	if err := permissionChangeAllowed(rec, ErrWrongActivityState); err != nil {
-		return PermissionModeResult{}, err
-	}
 	screen := runtimeScreen{runtime: m.runtime, handle: runtimeHandle(rec.Metadata)}
-	mode, err := drivePermissionMode(ctx, screen, reader, target, m.permissionModeTiming)
+	pressAllowed := func(ctx context.Context) error {
+		_, err := allowed(ctx)
+		return err
+	}
+	mode, err := drivePermissionMode(ctx, screen, reader, target, m.permissionModeTiming, pressAllowed)
 	return PermissionModeResult{Mode: mode}, err
 }
 
-func drivePermissionMode(ctx context.Context, screen dialogdriver.Screen, reader ports.TerminalPermissionModeReader, target domain.PermissionMode, timing permissionModeTiming) (domain.PermissionMode, error) {
+func drivePermissionMode(ctx context.Context, screen dialogdriver.Screen, reader ports.TerminalPermissionModeReader, target domain.PermissionMode, timing permissionModeTiming, pressAllowed func(context.Context) error) (domain.PermissionMode, error) {
 	current, err := awaitPermissionMode(ctx, screen, reader, "", timing)
 	if err != nil {
 		return "", err
@@ -139,6 +152,9 @@ func drivePermissionMode(ctx context.Context, screen dialogdriver.Screen, reader
 	for presses := 0; current != target; presses++ {
 		if presses == maxPermissionModePresses {
 			return current, ErrPermissionModeUnconfirmed
+		}
+		if err := pressAllowed(ctx); err != nil {
+			return current, err
 		}
 		if err := screen.Write(ctx, reader.PermissionModeKeys().Cycle); err != nil {
 			return current, fmt.Errorf("permission mode: press: %w", err)
@@ -182,6 +198,9 @@ func (m *Manager) restartWithPermissionMode(ctx context.Context, id domain.Sessi
 	if err := permissionChangeAllowed(rec, ErrSessionBusy); err != nil {
 		return PermissionModeResult{}, err
 	}
+	if m.paneDriveActive(id) {
+		return PermissionModeResult{}, ErrSessionBusy
+	}
 	if err := m.beginAgentOperation(ctx, id, agentOperationRelaunch); err != nil {
 		if errors.Is(err, errAgentOperationInProgress) {
 			return PermissionModeResult{}, ErrSessionBusy
@@ -189,6 +208,9 @@ func (m *Manager) restartWithPermissionMode(ctx context.Context, id domain.Sessi
 		return PermissionModeResult{}, err
 	}
 	defer m.endAgentOperation(id, agentOperationRelaunch)
+	if m.paneDriveActive(id) {
+		return PermissionModeResult{}, ErrSessionBusy
+	}
 	if err := m.permissionRestartSettle(ctx); err != nil {
 		return PermissionModeResult{}, err
 	}

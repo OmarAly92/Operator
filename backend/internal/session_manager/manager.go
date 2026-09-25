@@ -1440,7 +1440,8 @@ func (m *Manager) relaunchSessionWithPolicy(ctx context.Context, operation strin
 
 	// Restore re-applies the project's resolved agent config so a configured
 	// model carries across a restore, matching fresh spawn; permissions come
-	// from the session's recorded launch mode when set, else the project's.
+	// from the relaunch policy's requested mode when set, else the session's
+	// recorded launch mode, else the project's.
 	agentConfig := sessionAgentConfig(rec, project.Config)
 	if policy.permissions != "" {
 		agentConfig.Permissions = policy.permissions

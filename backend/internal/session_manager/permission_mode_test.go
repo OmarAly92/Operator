@@ -334,3 +334,156 @@ func TestPermissionModeRestartWaitsOnABlockedSession(t *testing.T) {
 		t.Fatalf("err = %v, want ErrAwaitingDecision", err)
 	}
 }
+
+type hookedPermissionModeReader struct {
+	fakePermissionModeReader
+	withLaunch bool
+	onRead     func()
+}
+
+func (h hookedPermissionModeReader) ReadPermissionMode(pane string) (domain.PermissionMode, bool) {
+	if h.onRead != nil {
+		h.onRead()
+	}
+	return h.fakePermissionModeReader.ReadPermissionMode(pane)
+}
+
+func (h hookedPermissionModeReader) PermissionModeCycle(launch domain.PermissionMode) []domain.PermissionMode {
+	cycle := slices.Clone(h.cycle)
+	if h.withLaunch && !slices.Contains(cycle, launch) {
+		cycle = append(cycle, launch)
+	}
+	return cycle
+}
+
+func TestPermissionModeRestartIsRefusedWhileAPaneDriveHoldsTheSession(t *testing.T) {
+	m, _, runtime, agent := newPermissionRestartManager(t)
+	end, err := m.beginPaneDrive(ctx, "mer-1")
+	if err != nil {
+		t.Fatalf("beginPaneDrive: %v", err)
+	}
+	defer end()
+
+	if _, err := m.SetPermissionMode(ctx, "mer-1", domain.PermissionModeAuto); !errors.Is(err, ErrSessionBusy) {
+		t.Fatalf("err = %v, want ErrSessionBusy", err)
+	}
+	if runtime.destroyed != 0 || runtime.created != 0 || agent.restoreCalls != 0 {
+		t.Fatalf("the restart went ahead under a pane drive: destroyed=%d created=%d restores=%d", runtime.destroyed, runtime.created, agent.restoreCalls)
+	}
+}
+
+func TestPermissionModeIsBusyWhileAnotherOperationOwnsTheSession(t *testing.T) {
+	m, _, runtime, agent := newPermissionRestartManager(t)
+	if err := m.beginAgentOperation(ctx, "mer-1", agentOperationRetire); err != nil {
+		t.Fatalf("beginAgentOperation: %v", err)
+	}
+	defer m.endAgentOperation("mer-1", agentOperationRetire)
+
+	for _, target := range []domain.PermissionMode{domain.PermissionModePlan, domain.PermissionModeAuto} {
+		if _, err := m.SetPermissionMode(ctx, "mer-1", target); !errors.Is(err, ErrSessionBusy) {
+			t.Fatalf("%s: err = %v, want ErrSessionBusy", target, err)
+		}
+	}
+	if len(runtime.inputs) != 0 || runtime.destroyed != 0 || agent.restoreCalls != 0 {
+		t.Fatalf("a busy change touched the session: inputs=%q destroyed=%d restores=%d", runtime.inputs, runtime.destroyed, agent.restoreCalls)
+	}
+}
+
+func TestPermissionModeDriveHoldsInputWhilePressing(t *testing.T) {
+	m, _ := newPermissionDriveManager(t, domain.ActivityIdle, "MODE:default", "MODE:accept-edits", "MODE:plan")
+	admitted := 0
+	m.permissionModeReader = hookedPermissionModeReader{
+		fakePermissionModeReader: fakePermissionModeReader{verified: "2.1.280", cycle: threeModeCycle},
+		onRead: func() {
+			if release, ok := m.AcquireSessionInput("s1"); ok {
+				admitted++
+				release()
+			}
+		},
+	}
+
+	if _, err := m.SetPermissionMode(ctx, "s1", domain.PermissionModePlan); err != nil {
+		t.Fatalf("SetPermissionMode: %v", err)
+	}
+	if admitted != 0 {
+		t.Fatalf("input was admitted %d times during the drive", admitted)
+	}
+	release, ok := m.AcquireSessionInput("s1")
+	if !ok {
+		t.Fatal("input stayed closed after the drive")
+	}
+	release()
+}
+
+func TestPermissionModeDriveStopsWhenATurnStartsMidDrive(t *testing.T) {
+	m, rt := newPermissionDriveManager(t, domain.ActivityIdle, "MODE:default", "MODE:accept-edits")
+	st := m.store.(*fakeStore)
+	m.permissionModeReader = hookedPermissionModeReader{
+		fakePermissionModeReader: fakePermissionModeReader{verified: "2.1.280", cycle: threeModeCycle},
+		onRead: func() {
+			if len(rt.inputs) == 1 {
+				rec := st.sessions["s1"]
+				rec.Activity.State = domain.ActivityActive
+				st.sessions["s1"] = rec
+			}
+		},
+	}
+
+	result, err := m.SetPermissionMode(ctx, "s1", domain.PermissionModePlan)
+	if !errors.Is(err, ErrWrongActivityState) {
+		t.Fatalf("err = %v, want ErrWrongActivityState", err)
+	}
+	if result.Mode != domain.PermissionModeAcceptEdits || len(rt.inputs) != 1 {
+		t.Fatalf("result = %+v inputs = %q; want one press, stopped at accept-edits", result, rt.inputs)
+	}
+}
+
+func TestPermissionModeDriveReleasesThePaneWhenCancelled(t *testing.T) {
+	m, rt := newPermissionDriveManager(t, domain.ActivityIdle, "MODE:default")
+	driveCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	m.permissionModeReader = hookedPermissionModeReader{
+		fakePermissionModeReader: fakePermissionModeReader{verified: "2.1.280", cycle: threeModeCycle},
+		onRead: func() {
+			if len(rt.inputs) == 1 {
+				cancel()
+			}
+		},
+	}
+
+	if _, err := m.SetPermissionMode(driveCtx, "s1", domain.PermissionModePlan); !errors.Is(err, context.Canceled) {
+		t.Fatalf("err = %v, want context.Canceled", err)
+	}
+	waitCtx, stop := context.WithTimeout(ctx, time.Second)
+	defer stop()
+	end, err := m.beginPaneDrive(waitCtx, "s1")
+	if err != nil {
+		t.Fatalf("the cancelled drive kept the pane: %v", err)
+	}
+	end()
+}
+
+func TestPermissionModeCycleCountsALaunchModeFromTheProjectConfig(t *testing.T) {
+	m, st, runtime, agent := newPermissionRestartManager(t)
+	rec := st.sessions["mer-1"]
+	rec.LaunchPermissionMode = ""
+	st.sessions["mer-1"] = rec
+	project := st.projects[string(rec.ProjectID)]
+	project.ID = string(rec.ProjectID)
+	project.Config.AgentConfig.Permissions = domain.PermissionModeBypassPermissions
+	st.projects[string(rec.ProjectID)] = project
+	m.permissionModeReader = hookedPermissionModeReader{
+		fakePermissionModeReader: fakePermissionModeReader{verified: "2.1.280", cycle: threeModeCycle},
+		withLaunch:               true,
+	}
+	m.permissionModeTiming = permissionModeTiming{appear: 20 * time.Millisecond, poll: time.Millisecond}
+	runtime.panes = []string{"MODE:default", "MODE:accept-edits", "MODE:plan", "MODE:bypass-permissions"}
+
+	result, err := m.SetPermissionMode(ctx, "mer-1", domain.PermissionModeBypassPermissions)
+	if err != nil {
+		t.Fatalf("SetPermissionMode: %v", err)
+	}
+	if result.Restarted || agent.restoreCalls != 0 || shiftTabs(runtime.inputs) != 3 {
+		t.Fatalf("result = %+v restores = %d inputs = %q; want a three-press cycle drive", result, agent.restoreCalls, runtime.inputs)
+	}
+}
