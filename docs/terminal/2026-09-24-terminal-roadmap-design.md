@@ -530,4 +530,9 @@ and the shell scripts are current). Each plan adds its checks here when it merge
   it: the view does not jump and rows up to about 200000 appear above; the
   button comes back. Keep clicking until it disappears (near 1). `echo hi`:
   loaded rows trim away and the button returns at the top.
+- **Plan 9 — parser rework (nothing should look different):** a Claude Code
+  session's banner, spinner, markdown reply and diff render as before; a zsh
+  pane with a long `ls -la` and `seq 1 100000` scrolls and wraps as before;
+  `vim` and `htop` (alternate screen, edits, colours) look right; selection
+  and copy across a long line still work.
 - **Input ordering fix (d1a962b8f):** nothing to click; covered by tests.
