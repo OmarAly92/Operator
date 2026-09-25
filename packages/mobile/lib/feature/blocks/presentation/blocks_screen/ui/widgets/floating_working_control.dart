@@ -27,7 +27,7 @@ class FloatingWorkingControl extends StatefulWidget {
   static const Key latestKey = ValueKey('floating-jump-latest');
   static const double size = 38;
   static const double gap = 8;
-  static const double lift = 10;
+  static const double lift = 12;
   static const double coverageHeight = size + lift;
 
   final bool working;

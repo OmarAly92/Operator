@@ -7,6 +7,7 @@ import 'package:operator_mobile/core/search/text_match.dart';
 import 'package:operator_mobile/core/utils/haptics.dart';
 import 'package:operator_mobile/core/utils/working_clock.dart';
 import 'package:operator_mobile/core/widgets/chat/chat_insets.dart';
+import 'package:operator_mobile/core/widgets/glass/scroll_edge_effect.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_text.dart';
 import 'package:operator_mobile/feature/blocks/logic/background_tasks.dart';
 import 'package:operator_mobile/feature/blocks/logic/block_actions.dart';
@@ -69,10 +70,27 @@ class BlocksBodyState extends State<BlocksBody> {
   String? _activeMatchId;
   final TextEditingController _queryController = TextEditingController();
   final ValueNotifier<double> _coverage = ValueNotifier<double>(0);
+  final ValueNotifier<double> _bottomEdge = ValueNotifier<double>(0);
   _ListInset? _listInset;
+
+  static const double bottomFadeExtent = 28;
+  static const Key bottomEdgeKey = ValueKey('blocks-bottom-edge');
+
+  bool _onListScroll(Notification notification) {
+    final metrics = switch (notification) {
+      ScrollNotification(:final metrics, depth: 0) => metrics,
+      ScrollMetricsNotification(:final metrics, depth: 0) => metrics,
+      _ => null,
+    };
+    if (metrics != null && metrics.axis == Axis.vertical) {
+      _bottomEdge.value = ScrollEdgeEffect.bottomVisibility(metrics);
+    }
+    return false;
+  }
 
   @override
   void dispose() {
+    _bottomEdge.dispose();
     _listInset?.dispose();
     _coverage.dispose();
     _sticky.dispose();
@@ -322,58 +340,61 @@ class BlocksBodyState extends State<BlocksBody> {
                         hiddenCount: filterResult.hiddenCount,
                       ),
                     Expanded(
-                      child: BlockList(
-                        key: _listKey,
-                        sessionId: cubit.sessionId,
-                        blocks: visibleBlocks,
-                        sessionActive: cubit.active,
-                        header: _olderControl(context, cubit),
-                        sticky: _sticky,
-                        pinnedListenable: _pinned,
-                        actionContext: actionContext,
-                        onAction: _onAction,
-                        collapsedIds: collapsedIds,
-                        onToggleCollapse: (id) => setState(() {
-                          final block = visibleBlocks.firstWhere(
-                            (candidate) => candidate.id == id,
-                            orElse: () => visibleBlocks.first,
-                          );
-                          if (block.kind == BlockKind.reasoning) {
-                            if (!_expandedReasoning.add(id)) {
-                              _expandedReasoning.remove(id);
+                      child: NotificationListener<Notification>(
+                        onNotification: _onListScroll,
+                        child: BlockList(
+                          key: _listKey,
+                          sessionId: cubit.sessionId,
+                          blocks: visibleBlocks,
+                          sessionActive: cubit.active,
+                          header: _olderControl(context, cubit),
+                          sticky: _sticky,
+                          pinnedListenable: _pinned,
+                          actionContext: actionContext,
+                          onAction: _onAction,
+                          collapsedIds: collapsedIds,
+                          onToggleCollapse: (id) => setState(() {
+                            final block = visibleBlocks.firstWhere(
+                              (candidate) => candidate.id == id,
+                              orElse: () => visibleBlocks.first,
+                            );
+                            if (block.kind == BlockKind.reasoning) {
+                              if (!_expandedReasoning.add(id)) {
+                                _expandedReasoning.remove(id);
+                              }
+                              return;
                             }
-                            return;
-                          }
-                          if (!_collapsed.add(id)) _collapsed.remove(id);
-                        }),
-                        highlights: {for (final match in matches) match.blockId: match},
-                        activeMatchId: _activeMatchId,
-                        selectedIds: _selected,
-                        selectionMode: _selectionMode,
-                        onToggleSelect: _toggleSelected,
-                        onLongPressHeader: _selectionMode
-                            ? null
-                            : _enterSelectionMode,
-                        bottomInset: _selectionMode ? null : listInset,
-                        bottomGap: dockInset == null || _selectionMode ? 6 : dockGap + ChatInsets.listGap,
-                        topInset: _findOpen ? 0 : top,
-                        trailingShown: runningTasks > 0,
-                        trailing: widget.showRunningTasks
-                            ? Padding(
-                                padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
-                                child: Align(
-                                  alignment: Alignment.centerLeft,
-                                  child: RunningTasksBubble(
-                                    count: runningTasks,
-                                    onTap: () => showBackgroundTasksSheet(
-                                      context,
-                                      parentTitle: widget.parentTitle,
-                                      clock: widget.clock,
+                            if (!_collapsed.add(id)) _collapsed.remove(id);
+                          }),
+                          highlights: {for (final match in matches) match.blockId: match},
+                          activeMatchId: _activeMatchId,
+                          selectedIds: _selected,
+                          selectionMode: _selectionMode,
+                          onToggleSelect: _toggleSelected,
+                          onLongPressHeader: _selectionMode
+                              ? null
+                              : _enterSelectionMode,
+                          bottomInset: _selectionMode ? null : listInset,
+                          bottomGap: dockInset == null || _selectionMode ? 6 : dockGap + ChatInsets.listGap,
+                          topInset: _findOpen ? 0 : top,
+                          trailingShown: runningTasks > 0,
+                          trailing: widget.showRunningTasks
+                              ? Padding(
+                                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+                                  child: Align(
+                                    alignment: Alignment.centerLeft,
+                                    child: RunningTasksBubble(
+                                      count: runningTasks,
+                                      onTap: () => showBackgroundTasksSheet(
+                                        context,
+                                        parentTitle: widget.parentTitle,
+                                        clock: widget.clock,
+                                      ),
                                     ),
                                   ),
-                                ),
-                              )
-                            : null,
+                                )
+                              : null,
+                        ),
                       ),
                     ),
                     if (_selectionMode)
@@ -389,6 +410,28 @@ class BlocksBodyState extends State<BlocksBody> {
                   ],
                 ),
               ),
+              if (dockInset != null && !_selectionMode)
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  child: ValueListenableBuilder<double>(
+                    valueListenable: dockInset,
+                    builder: (context, dock, _) {
+                      final height = dock + dockGap + FloatingWorkingControl.coverageHeight + bottomFadeExtent;
+                      return ValueListenableBuilder<double>(
+                        valueListenable: _bottomEdge,
+                        builder: (context, visibility, _) => ScrollEdgeEffect(
+                          key: bottomEdgeKey,
+                          edge: ScrollEdge.bottom,
+                          height: height,
+                          knee: bottomFadeExtent / height,
+                          visibility: visibility,
+                        ),
+                      );
+                    },
+                  ),
+                ),
               Positioned(
                 top: top + 6,
                 left: 0,

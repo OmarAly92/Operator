@@ -11,10 +11,13 @@ import 'package:operator_mobile/core/helpers/result/result.dart';
 import 'package:operator_mobile/feature/blocks/data/model/params/session_command_params.dart';
 import 'package:operator_mobile/feature/blocks/data/model/session_command_result_model.dart';
 import 'package:operator_mobile/feature/blocks/data/model/block_event_model.dart';
+import 'package:operator_mobile/core/widgets/glass/scroll_edge_effect.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/block_list.dart';
+import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/blocks_body.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/floating_working_control.dart';
 import 'package:operator_mobile/feature/terminal/data/model/params/send_session_message_params.dart';
 import 'package:operator_mobile/core/widgets/chat/chat_insets.dart';
+import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/ui/widgets/composer_action_button.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/ui/widgets/raw_terminal_pane.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/ui/widgets/terminal_body.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/ui/widgets/terminal_chat_header.dart';
@@ -174,6 +177,62 @@ void main() {
     expect(capsule(tester).top - pill.bottom, moreOrLessEquals(FloatingWorkingControl.lift, epsilon: 0.5));
     expect(find.descendant(of: find.byKey(FloatingWorkingControl.pillKey), matching: find.textContaining('Working')), findsOneWidget);
     await tester.pump(const Duration(minutes: 1));
+  });
+
+  testWidgets('the working pill sits 12pt above the composer', (tester) async {
+    harness = TerminalHarness()..start(harness: 'claude-code', blockRecords: _conversation(1), activity: 'active');
+    await harness.pump(tester, const TerminalBody());
+    await _settleWhileWorking(tester);
+
+    final pill = tester.getRect(find.byKey(FloatingWorkingControl.pillKey));
+    expect(capsule(tester).top - pill.bottom, moreOrLessEquals(12, epsilon: 0.5));
+    await tester.pump(const Duration(minutes: 1));
+  });
+
+  ScrollEdgeEffect bottomEdge(WidgetTester tester) => tester.widget<ScrollEdgeEffect>(find.byKey(BlocksBodyState.bottomEdgeKey));
+
+  Finder bottomBlur() => find.descendant(of: find.byKey(BlocksBodyState.bottomEdgeKey), matching: find.byType(BackdropFilter));
+
+  testWidgets('pinned while working, the last message clears the pill and no fade band shows', (tester) async {
+    harness = TerminalHarness()..start(harness: 'claude-code', blockRecords: _conversation(12), activity: 'active');
+    await harness.pump(tester, const TerminalBody());
+    await _settleWhileWorking(tester);
+
+    final pill = tester.getRect(find.byKey(FloatingWorkingControl.pillKey));
+    expect(tester.getRect(find.textContaining('reply 11')).bottom, lessThanOrEqualTo(pill.top));
+    expect(bottomEdge(tester).visibility, 0);
+    expect(bottomBlur(), findsNothing);
+    await tester.pump(const Duration(minutes: 1));
+  });
+
+  testWidgets('scrolled up, a fade band covers the pill and composer zone', (tester) async {
+    harness = TerminalHarness()..start(harness: 'claude-code', blockRecords: _conversation(12), activity: 'active');
+    await harness.pump(tester, const TerminalBody());
+    await _settleWhileWorking(tester);
+
+    await tester.drag(find.byType(BlockList), const Offset(0, 300));
+    await _settleWhileWorking(tester);
+
+    expect(bottomEdge(tester).visibility, 1);
+    expect(bottomBlur(), findsOneWidget);
+    final band = tester.getRect(find.byKey(BlocksBodyState.bottomEdgeKey));
+    final body = tester.getRect(find.byType(TerminalBody));
+    final pill = tester.getRect(find.byKey(FloatingWorkingControl.pillKey));
+    expect(band.bottom, body.bottom);
+    expect(band.top, lessThan(pill.top));
+    expect(pill.top - band.top, moreOrLessEquals(BlocksBodyState.bottomFadeExtent, epsilon: 0.5));
+    await tester.pump(const Duration(minutes: 1));
+  });
+
+  testWidgets('the send button sits as far in from the capsule end as the fixed inset, not flush', (tester) async {
+    harness = TerminalHarness()..start(harness: 'claude-code', blockRecords: _conversation(1));
+    await harness.pump(tester, const TerminalBody());
+    await tester.pumpAndSettle();
+
+    final dock = capsule(tester);
+    final action = tester.getRect(find.byType(ComposerActionButton));
+    expect(dock.right - action.right, 10);
+    expect(dock.bottom - action.bottom, 6);
   });
 
   testWidgets('the header pill and the floating pill read the same elapsed time on every frame', (tester) async {

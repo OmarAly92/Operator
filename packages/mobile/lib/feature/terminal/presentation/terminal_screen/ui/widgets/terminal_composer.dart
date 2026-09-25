@@ -41,6 +41,8 @@ class TerminalComposer extends StatefulWidget {
 class _TerminalComposerState extends State<TerminalComposer> {
   static const double _buttonInset = 6;
   static const double _buttonZone = _buttonInset * 2 + ComposerActionButton.size;
+  static const double _trailingInset = 10;
+  static const double _trailingZone = _buttonInset + ComposerActionButton.size + _trailingInset;
   static const double _textInset = 18;
   static const double _cardTop = 14;
   static const double _measureSlack = 4;
@@ -249,7 +251,7 @@ class _TerminalComposerState extends State<TerminalComposer> {
     final voice = context.read<VoiceInputCubit>();
     final recording = voice.phase == VoiceState.starting || voice.phase == VoiceState.recording;
     final showStop = composerShowsStop(hasText: hasText, canStop: !shellOnly && commands.enabled('stop'));
-    final trailing = _buttonZone + (showStop ? ComposerActionButton.size + ComposerStopButton.gap : 0);
+    final trailing = _trailingZone + (showStop ? ComposerActionButton.size + ComposerStopButton.gap : 0);
     final expanded = _expands(text, style, scaler, width - leading - trailing - _measureSlack);
     final lineHeight = _lineHeight(style, scaler);
 
@@ -330,7 +332,7 @@ class _TerminalComposerState extends State<TerminalComposer> {
           ),
         ),
         Positioned(
-          right: _buttonInset,
+          right: _trailingInset,
           bottom: _buttonInset,
           child: Row(
             mainAxisSize: MainAxisSize.min,
