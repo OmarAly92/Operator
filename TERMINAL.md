@@ -1199,27 +1199,57 @@ history of `master`.
   (attach history, older answers) go to the `HistoryReceiver`, whose
   `osc_dispatch` only interns hyperlinks, and their marks are held back by
   `AnswerGate`; the attach replay frame does reach vte, so `AgentChannel` is
-  silenced from an adopted `origin=` mark to `ready=` (`lib.rs` `feed_raw`).
+  silenced from any `origin=` mark to `ready=`, adopted or not
+  (`crates/vt-core/src/live_output.rs:2` `open_replay_window`, called from
+  `lib.rs` `feed_raw`).
 - Activity: `vt-core` counts bytes handed to vte outside the replay window
-  (`live_output_bytes`, reset when a fresh core adopts a replay origin).
+  (`live_output_bytes`, reset when a fresh core adopts a replay origin). The
+  origin mark's own bytes are outside the count: the pre-mark bytes of the
+  chunk are fed first, the mark after the window opens; a mark split across
+  feeds takes back what the previous feed counted of it
+  (`MarkDecoder::open_osc_bytes`, `crates/marks/src/scanner.rs:69`, less the
+  answer gate's held bytes, `live_output.rs:21`).
   `AgentActivityMonitor` (`ts/core/src/agent-activity.ts`) turns it into
   `active` (output in the last 500 ms), `pollingForIdle`, `idle` (1,500 ms
   quiet) or `prompting` (quiet and the cursor line matches VS Code's
   high-confidence prompt patterns, `input-patterns.ts`) — VS Code's
   500 ms / two-idle-polls behaviour (`chatAgentTools/.../monitoring/types.ts`
   `PollingConsts`) as a clock. The timer runs only while someone listens and
-  stops at `idle`.
+  stops at `idle`; every output restarts it, so each threshold is timed from
+  the latest output (`agent-activity.ts:81` `schedule`). The reported state
+  changes only in `publish` (`agent-activity.ts:71`), which reaches every
+  listener; a listener that subscribes when the state has moved on gets it
+  through a 0 ms timer, so `onChange` never calls a listener or throws. The
+  cursor line is padded to the cursor column in cells from the exported cell
+  spans (`agent-activity.ts:127` `cellWidth`). `prompting` is not reported
+  while the shell's line editor owns the line (`agent-activity.ts:67`): VS
+  Code applies the patterns only while a command runs, and an idle
+  `[~] $ ` prompt matches them. A pane without shell integration (Claude
+  Code) has the line editor `unknown` and is checked as before.
+- Listener failures: agent event and activity listeners each run isolated
+  (`listener-failures.ts`); every listener gets every event, internal state
+  settles first, and the failures are thrown together as an `AggregateError`
+  afterwards, as `TerminalCore.notifyAll` already did. `feed()` and `tick()`
+  run polling, activity and change notification whatever throws
+  (`terminal-core.ts:200` `afterParse`).
 - `readBlockOutput(id, { compact, maxLines })`: a block's logical lines;
-  `compact` drops spinner status lines (a spinner glyph, text, an ellipsis),
-  blank runs, back-to-back repeats and any run of ≥ 3 non-blank lines that
-  repeats one within the last 256 kept lines (a repainted frame). Lossy by
-  design and opt-in; redaction is not applied (renderer only).
+  `compact` drops lines that are wholly a spinner frame (a spinner glyph,
+  text, an ellipsis, an optional parenthesised status; `compact-output.ts:5`),
+  blank runs, back-to-back repeats and a run of ≥ 3 non-blank lines that
+  redraws the kept lines immediately before it, up to 256 lines
+  (`compact-output.ts:49`). A run separated from its twin by a distinct line
+  is kept (a later test's setup/run/teardown). Lossy by design and opt-in;
+  redaction is not applied (renderer only). `maxLines` of 0 or less gives
+  nothing, `Infinity` no cap, a fraction its floor (`compact-output.ts:64`).
 - Measured (planning run, 2026-09-25): the Claude Code recordings replayed one
   frame per 100 ms (120, 157 and 1,048 frames) are `active` throughout and
   `idle` 1,500 ms after the last byte, `prompting` at none of 1,325 frame
   boundaries; compact keeps all 60,000 number lines of `claude-long-50k`
   (24.9–30.5 ms per call) and cuts `claude-markdown-reply` without agent-TUI
-  mode from 101 to 88 lines.
+  mode from 101 to 88 lines. After the review fixes (2026-09-25) that cut is
+  101 to 96 lines with 3 of the 4 banners kept: two of the banner frames are
+  separated by the `⏵⏵ auto mode on` and `◐` lines, the same shape as a
+  legitimate repeated run, so the redraw rule no longer drops them.
 - Operator: nothing consumes these yet (user decision 2026-09-25). The mirror
   parses the events into its capped queue and drops them;
   `publishProgramLocked` (`ptyhost/program.go`) publishes only titles and
@@ -1234,7 +1264,15 @@ history of `master`.
   `vtwasm/program_test.go` `TestAnAgentEventIsNeitherATitleNorANotificationInTheMirror`,
   `ts/core/src/agent-events.test.ts`, `agent-activity.test.ts` (incl. the three
   recordings and a hidden window's one-second drains), `compact-output.test.ts`,
-  `block-output.test.ts`.
+  `block-output.test.ts`. Review fixes: `agent_events.rs`
+  `a_replay_into_a_reused_core_is_neither_live_output_nor_an_event`,
+  `a_replay_split_byte_by_byte_into_a_reused_core_is_not_live_output`,
+  `an_origin_mark_after_rows_exist_silences_events_until_ready`; `scanner.rs`
+  `open_osc_bytes_counts_the_sequence_in_flight`; `agent-activity.test.ts`
+  (reconnect replay, late joiner, threshold timing, throwing listener, line
+  editor ownership, wide-character padding, idle shell prompt);
+  `agent-events.test.ts` "AgentEvents listener failures";
+  `compact-output.test.ts` (whole-line spinner, separated runs, `maxLines`).
 
 ## 5. Known gaps (not bugs, decisions pending)
 
@@ -1629,19 +1667,33 @@ history of `master`.
 - **Nothing emits or consumes agent events yet** (§4.34). Operator keeps its
   local hooks; the in-band channel waits for remote agents. A sender must keep
   each sequence under 1,024 bytes and 14 fields (vte limits).
-- **A replay that never sends `ready=` silences agent events** on that core
-  until a later `ready=`: the window opens at an adopted `origin=` mark. The
-  pty-host always sends both (§4.19).
+- **A replay that never sends `ready=` silences agent events** and live
+  output on that core until a later `ready=`: the window opens at any
+  `origin=` mark. The pty-host always sends both
+  (`crates/vt-host/src/lib.rs:378-380` and `:438`). The pty-host does not
+  filter marks out of the child's output, so a child that prints an
+  `origin=` mark (`cat` of a recorded session) silences agent events and the
+  activity counter until something prints `ready=`; before the review fix
+  this happened only on a core with no rows.
+- **An agent event pending in an open DEC 2026 sync block at attach is
+  dropped as replayed.** `vt_replay` appends the mirror's pending sync bytes
+  (`crates/vt-host/src/lib.rs:434`) before the `ready=` mark (`:438`), so the
+  event reaches the renderer core inside the replay window. The mirror never
+  delivers it either (Operator drops mirror events, §4.34).
 - **Agent activity flickers in a hidden window.** WebKit throttles the drain
   and the monitor's timer to about once a second (§4.25), so a streaming agent
   reads `active` → `pollingForIdle` between bursts; it never reaches `idle`
   while bursts keep coming (1,500 ms threshold).
-- **The prompt check counts code points, not cells**, when it pads the cursor
-  line to the cursor column; on a row with wide characters the padding is
-  short and a "trailing space" prompt pattern can miss.
+- **`prompting` is not known to detect Claude Code's own permission
+  dialog** (its numbered choice list). No recording under
+  `bench/agent-session/fixtures` contains one, so whether any of VS Code's
+  high-confidence patterns matches its cursor line is not known. Add a
+  pattern only once a real recording of the dialog exists.
 - **`readBlockOutput` ignores redaction** (`secretPatterns` is applied by the
-  renderer's text sources only) and `compact` is lossy: a legitimately
-  repeated run of three or more lines within 256 lines is dropped.
+  renderer's text sources only) and `compact` is lossy: a run of three or
+  more lines that exactly repeats the lines just before it is dropped even
+  when the program printed it twice, and a repainted frame with a distinct
+  line between the copies is kept (`claude-markdown-reply`, §4.34).
 
 ---
 
