@@ -329,6 +329,7 @@ type Session struct {
 	AgentReportState          string
 	AgentReportReason         string
 	AgentReportAt             sql.NullTime
+	LaunchPermissionMode      domain.PermissionMode
 }
 
 type SessionCleanupFact struct {

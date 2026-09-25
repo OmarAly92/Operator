@@ -46,6 +46,7 @@ func TestGetLaunchCommandMapsPermissionModes(t *testing.T) {
 		{"default omits flag (defers to settings.json)", ports.PermissionModeDefault, nil, "--permission-mode"},
 		{"accept-edits", ports.PermissionModeAcceptEdits, []string{"--permission-mode", "acceptEdits"}, ""},
 		{"auto", ports.PermissionModeAuto, []string{"--permission-mode", "auto"}, ""},
+		{"plan", ports.PermissionModePlan, []string{"--permission-mode", "plan"}, ""},
 		{"bypass-permissions", ports.PermissionModeBypassPermissions, []string{"--permission-mode", "bypassPermissions"}, ""},
 		{"empty omits permission flags", "", nil, "--permission-mode"},
 	}
@@ -1090,5 +1091,22 @@ func TestGetRestoreCommandReappliesMCPServers(t *testing.T) {
 	assertOperatorMCPConfig(t, cmd)
 	if !containsSubsequence(cmd, []string{"--resume", "claude-native-1"}) {
 		t.Fatalf("restore lost --resume: %#v", cmd)
+	}
+}
+
+func TestGetRestoreCommandCarriesPlanMode(t *testing.T) {
+	p := &Plugin{resolvedBinary: "claude"}
+	cmd, ok, err := p.GetRestoreCommand(context.Background(), ports.RestoreConfig{
+		Permissions: ports.PermissionModePlan,
+		Session: ports.SessionRef{
+			ID:       "s1",
+			Metadata: map[string]string{ports.MetadataKeyAgentSessionID: "11111111-2222-3333-4444-555555555555"},
+		},
+	})
+	if err != nil || !ok {
+		t.Fatalf("restore command: ok=%v err=%v", ok, err)
+	}
+	if !containsSubsequence(cmd, []string{"--permission-mode", "plan"}) {
+		t.Fatalf("command %#v does not carry plan mode", cmd)
 	}
 }

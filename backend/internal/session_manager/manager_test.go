@@ -70,6 +70,7 @@ func (f *fakeStore) UpdateSession(_ context.Context, rec domain.SessionRecord) e
 	prev, ok := f.sessions[rec.ID]
 	if ok {
 		rec.ClaudeAccountID = prev.ClaudeAccountID
+		rec.LaunchPermissionMode = prev.LaunchPermissionMode
 	}
 	f.sessions[rec.ID] = rec
 	return nil
@@ -6295,5 +6296,58 @@ func TestRestore_WorkspaceProjectAppliesPreservedWork(t *testing.T) {
 		if row.State != "active" || row.PreservedRef != "" {
 			t.Fatalf("row %s = state %q ref %q, want active with the ref consumed", row.RepoName, row.State, row.PreservedRef)
 		}
+	}
+}
+
+func TestSpawn_RecordsTheLaunchPermissionMode(t *testing.T) {
+	st := newFakeStore()
+	st.projects["mer"] = domain.ProjectRecord{ID: "mer", Config: domain.ProjectConfig{Harness: domain.HarnessClaudeCode}}
+	agent := &recordingAgent{}
+	m := New(Deps{Runtime: &fakeRuntime{}, Agents: singleAgent{agent: agent}, Workspace: &fakeWorkspace{}, Store: st, Messenger: &fakeMessenger{}, Lifecycle: &fakeLCM{store: st}, LookPath: func(string) (string, error) { return "/bin/true", nil }})
+
+	rec, _, _, err := m.Spawn(ctx, ports.SpawnConfig{ProjectID: "mer", AgentConfig: ports.AgentConfig{Permissions: domain.PermissionModeBypassPermissions}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := st.sessions[rec.ID].LaunchPermissionMode; got != domain.PermissionModeBypassPermissions {
+		t.Fatalf("launch mode = %q, want bypass-permissions", got)
+	}
+	if agent.lastLaunch.Permissions != domain.PermissionModeBypassPermissions {
+		t.Fatalf("launch permissions = %q, want bypass-permissions", agent.lastLaunch.Permissions)
+	}
+}
+
+func TestSpawn_RecordsDefaultWhenNothingIsConfigured(t *testing.T) {
+	m, st, _, _ := newManager()
+
+	rec, _, _, err := m.Spawn(ctx, ports.SpawnConfig{ProjectID: "mer"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := st.sessions[rec.ID].LaunchPermissionMode; got != domain.PermissionModeDefault {
+		t.Fatalf("launch mode = %q, want default", got)
+	}
+}
+
+func TestRestore_PrefersTheSessionLaunchPermissionMode(t *testing.T) {
+	st := newFakeStore()
+	st.projects["mer"] = domain.ProjectRecord{ID: "mer", Config: domain.ProjectConfig{
+		AgentConfig: domain.AgentConfig{Permissions: domain.PermissionModeBypassPermissions},
+	}}
+	st.sessions["mer-1"] = domain.SessionRecord{
+		ID:                   "mer-1",
+		ProjectID:            "mer",
+		IsTerminated:         true,
+		LaunchPermissionMode: domain.PermissionModePlan,
+		Metadata:             domain.SessionMetadata{Branch: "opr/mer-1", WorkspacePath: "/tmp/ws", AgentSessionID: "native-1"},
+	}
+	agent := &recordingAgent{}
+	m := New(Deps{Runtime: &fakeRuntime{}, Agents: singleAgent{agent: agent}, Workspace: &fakeWorkspace{}, Store: st, Messenger: &fakeMessenger{}, Lifecycle: &fakeLCM{store: st}, LookPath: func(string) (string, error) { return "/bin/true", nil }})
+
+	if _, err := m.RestoreWithMode(ctx, "mer-1", ports.PaneGrid{}); err != nil {
+		t.Fatal(err)
+	}
+	if agent.lastRestore.Permissions != domain.PermissionModePlan {
+		t.Fatalf("restore permissions = %q, want the session's plan launch mode", agent.lastRestore.Permissions)
 	}
 }

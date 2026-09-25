@@ -15,6 +15,7 @@ const (
 	// adapters may map it to a safer non-interactive default.
 	PermissionModeDefault           PermissionMode = "default"
 	PermissionModeAcceptEdits       PermissionMode = "accept-edits"
+	PermissionModePlan              PermissionMode = "plan"
 	PermissionModeAuto              PermissionMode = "auto"
 	PermissionModeBypassPermissions PermissionMode = "bypass-permissions"
 )
@@ -44,7 +45,7 @@ func (c AgentConfig) IsZero() bool {
 // one.
 func (m PermissionMode) Valid() bool {
 	switch m {
-	case "", PermissionModeDefault, PermissionModeAcceptEdits,
+	case "", PermissionModeDefault, PermissionModeAcceptEdits, PermissionModePlan,
 		PermissionModeAuto, PermissionModeBypassPermissions:
 		return true
 	default:
@@ -63,5 +64,5 @@ func (c AgentConfig) Validate() error {
 	if c.Permissions.Valid() {
 		return nil
 	}
-	return fmt.Errorf("invalid permissions %q: want one of default, accept-edits, auto, bypass-permissions", c.Permissions)
+	return fmt.Errorf("invalid permissions %q: want one of default, accept-edits, plan, auto, bypass-permissions", c.Permissions)
 }

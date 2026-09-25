@@ -13,6 +13,7 @@ func TestProjectConfigValidate(t *testing.T) {
 	}{
 		{"empty ok", ProjectConfig{}, false},
 		{"good agent config", ProjectConfig{AgentConfig: AgentConfig{Model: "m", Permissions: PermissionModeAuto}}, false},
+		{"plan permission", ProjectConfig{AgentConfig: AgentConfig{Permissions: PermissionModePlan}}, false},
 		{"good agent mode", ProjectConfig{AgentConfig: AgentConfig{Mode: "ultra"}}, false},
 		{"bad agent mode", ProjectConfig{AgentConfig: AgentConfig{Mode: "turbo"}}, true},
 		{"bad permission", ProjectConfig{AgentConfig: AgentConfig{Permissions: "yolo"}}, true},

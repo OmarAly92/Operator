@@ -10,13 +10,13 @@ INSERT INTO sessions (
     latest_user_prompt, latest_assistant_update, native_transcript_path,
     preview_url, preview_revision, preview_opened_revision, terminate_on_pr_merge, cleanup_generation, browser_capability_verifier,
     provider_conversation_id, controller_generation,
-    created_at, updated_at, is_pinned, pinned_at, auto_inject_review, claude_account_id
+    created_at, updated_at, is_pinned, pinned_at, auto_inject_review, claude_account_id, launch_permission_mode
 ) VALUES (
     ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
     ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
     ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
     ?, ?,
-    ?, ?, ?, ?, ?, ?
+    ?, ?, ?, ?, ?, ?, ?
 );
 
 -- name: UpdateSession :exec
@@ -50,7 +50,7 @@ SELECT id, project_id, num, issue_id, harness,
     reviewer_harness, is_pinned, pinned_at,
     provider_conversation_id, controller_generation, browser_capability_verifier,
     latest_user_prompt, latest_assistant_update, native_transcript_path, auto_inject_review, claude_account_id,
-    agent_report_state, agent_report_reason, agent_report_at
+    agent_report_state, agent_report_reason, agent_report_at, launch_permission_mode
 FROM sessions WHERE id = ?;
 
 -- name: ListSessionsByProject :many
@@ -63,7 +63,7 @@ SELECT id, project_id, num, issue_id, harness,
     reviewer_harness, is_pinned, pinned_at,
     provider_conversation_id, controller_generation, browser_capability_verifier,
     latest_user_prompt, latest_assistant_update, native_transcript_path, auto_inject_review, claude_account_id,
-    agent_report_state, agent_report_reason, agent_report_at
+    agent_report_state, agent_report_reason, agent_report_at, launch_permission_mode
 FROM sessions WHERE project_id = ? ORDER BY num;
 
 -- name: ListAllSessions :many
@@ -76,7 +76,7 @@ SELECT id, project_id, num, issue_id, harness,
     reviewer_harness, is_pinned, pinned_at,
     provider_conversation_id, controller_generation, browser_capability_verifier,
     latest_user_prompt, latest_assistant_update, native_transcript_path, auto_inject_review, claude_account_id,
-    agent_report_state, agent_report_reason, agent_report_at
+    agent_report_state, agent_report_reason, agent_report_at, launch_permission_mode
 FROM sessions ORDER BY project_id, num;
 
 
@@ -111,6 +111,9 @@ UPDATE sessions SET reviewer_harness = ?, updated_at = ? WHERE id = ?;
 
 -- name: SetSessionClaudeAccount :execrows
 UPDATE sessions SET claude_account_id = ?, updated_at = ? WHERE id = ?;
+
+-- name: SetSessionLaunchPermissionMode :execrows
+UPDATE sessions SET launch_permission_mode = ?, updated_at = ? WHERE id = ?;
 
 -- name: SetSessionAgentReport :execrows
 UPDATE sessions SET agent_report_state = ?, agent_report_reason = ?, agent_report_at = ?, updated_at = ? WHERE id = ?;

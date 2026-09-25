@@ -751,7 +751,7 @@ func (m *Manager) prepareTargetActivation(ctx context.Context, store ports.Agent
 	if err != nil {
 		return preparedTargetActivation{}, fmt.Errorf("system prompt file: %w", err)
 	}
-	config := effectiveAgentConfig(project.Config)
+	config := sessionAgentConfig(rec, project.Config)
 	if err := m.prepareClaudeAccountLaunch(ctx, harness, sw.TargetClaudeAccountID); err != nil {
 		return preparedTargetActivation{}, fmt.Errorf("target env: %w", err)
 	}

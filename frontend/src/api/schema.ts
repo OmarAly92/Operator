@@ -3283,6 +3283,11 @@ export interface components {
             /** @enum {string} */
             harness?: "claude-code" | "codex" | "aider" | "opencode" | "grok" | "droid" | "amp" | "agy" | "crush" | "cursor" | "qwen" | "copilot" | "goose" | "auggie" | "continue" | "devin" | "cline" | "kimi" | "muse" | "kiro" | "kilocode" | "vibe" | "pi" | "kimchi" | "prime-agent" | "autohand";
             issueId?: string;
+            /**
+             * @description Starting permission mode for the agent. Omit to use the project's configured mode.
+             * @enum {string}
+             */
+            permissionMode?: "default" | "accept-edits" | "plan" | "auto" | "bypass-permissions";
             projectId: string;
             prompt?: string;
             /** @description Rows of the terminal pane that will show the session; see cols. */

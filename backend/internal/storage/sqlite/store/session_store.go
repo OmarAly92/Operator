@@ -257,6 +257,20 @@ func (s *Store) SetSessionClaudeAccount(ctx context.Context, id domain.SessionID
 	return rows > 0, nil
 }
 
+func (s *Store) SetSessionLaunchPermissionMode(ctx context.Context, id domain.SessionID, mode domain.PermissionMode, updatedAt time.Time) (bool, error) {
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
+	rows, err := s.qw.SetSessionLaunchPermissionMode(ctx, gen.SetSessionLaunchPermissionModeParams{
+		LaunchPermissionMode: mode,
+		UpdatedAt:            updatedAt,
+		ID:                   id,
+	})
+	if err != nil {
+		return false, fmt.Errorf("set launch permission mode for %s: %w", id, err)
+	}
+	return rows > 0, nil
+}
+
 // SetSessionReviewerHarness persists the reviewer preference for one session.
 func (s *Store) SetSessionReviewerHarness(ctx context.Context, id domain.SessionID, harness domain.ReviewerHarness, updatedAt time.Time) (bool, error) {
 	s.writeMu.Lock()
@@ -434,11 +448,12 @@ func rowToRecord(row gen.GetSessionRow) domain.SessionRecord {
 			ProviderConversationID:    row.ProviderConversationID,
 			ControllerGeneration:      row.ControllerGeneration,
 		},
-		ClaudeAccountID:   domain.NormalizeClaudeAccountID(row.ClaudeAccountID),
-		CleanupGeneration: row.CleanupGeneration,
-		CreatedAt:         row.CreatedAt,
-		UpdatedAt:         row.UpdatedAt,
-		AgentReport:       agentReportFromRow(row.AgentReportState, row.AgentReportReason, row.AgentReportAt),
+		ClaudeAccountID:      domain.NormalizeClaudeAccountID(row.ClaudeAccountID),
+		CleanupGeneration:    row.CleanupGeneration,
+		CreatedAt:            row.CreatedAt,
+		UpdatedAt:            row.UpdatedAt,
+		AgentReport:          agentReportFromRow(row.AgentReportState, row.AgentReportReason, row.AgentReportAt),
+		LaunchPermissionMode: row.LaunchPermissionMode,
 	}
 }
 
@@ -500,6 +515,7 @@ func recordToInsert(rec domain.SessionRecord, num int64) gen.InsertSessionParams
 		ProviderConversationID:    rec.Metadata.ProviderConversationID,
 		ControllerGeneration:      rec.Metadata.ControllerGeneration,
 		ClaudeAccountID:           domain.NormalizeClaudeAccountID(rec.ClaudeAccountID),
+		LaunchPermissionMode:      rec.LaunchPermissionMode,
 		CreatedAt:                 rec.CreatedAt,
 		UpdatedAt:                 rec.UpdatedAt,
 	}

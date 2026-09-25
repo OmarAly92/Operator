@@ -469,6 +469,8 @@ func appendPermissionFlags(cmd *[]string, permissions ports.PermissionMode) {
 		// No flag: defer to the user's settings.json defaultMode.
 	case ports.PermissionModeAcceptEdits:
 		*cmd = append(*cmd, "--permission-mode", "acceptEdits")
+	case ports.PermissionModePlan:
+		*cmd = append(*cmd, "--permission-mode", "plan")
 	case ports.PermissionModeAuto:
 		*cmd = append(*cmd, "--permission-mode", "auto")
 	case ports.PermissionModeBypassPermissions:

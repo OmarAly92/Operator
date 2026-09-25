@@ -96,9 +96,10 @@ type SessionRecord struct {
 	// AgentReport is what the agent last reported about its own card through
 	// the Operator MCP server (needs_you / ready_for_review); nil when nothing
 	// is reported. deriveStatus reads it below live activity signals.
-	AgentReport     *AgentReport    `json:"agentReport,omitempty"`
-	Metadata        SessionMetadata `json:"-"`
-	ClaudeAccountID ClaudeAccountID `json:"claudeAccountId"`
+	AgentReport          *AgentReport    `json:"agentReport,omitempty"`
+	Metadata             SessionMetadata `json:"-"`
+	ClaudeAccountID      ClaudeAccountID `json:"claudeAccountId"`
+	LaunchPermissionMode PermissionMode  `json:"-"`
 	// CleanupGeneration is a monotonic counter bumped each time the session is
 	// un-terminated (spawn/restore). The terminal-resource reconciler stamps its
 	// durable cleanup facts with the generation they were written for so a

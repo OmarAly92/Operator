@@ -352,7 +352,13 @@ func (c *SessionsController) spawn(w http.ResponseWriter, r *http.Request) {
 		}
 		workspaceMode = parsed
 	}
-	sess, promptBytes, systemPromptBytes, err := c.Svc.Spawn(r.Context(), ports.SpawnConfig{ProjectID: in.ProjectID, IssueID: in.IssueID, Harness: in.Harness, Branch: in.Branch, Prompt: in.Prompt, DisplayName: displayName, Attachments: attachments, WorkspaceMode: workspaceMode, Cols: in.Cols, Rows: in.Rows, ClaudeAccountID: in.ClaudeAccountID})
+	permissionMode := domain.PermissionMode(strings.TrimSpace(in.PermissionMode))
+	if !permissionMode.Valid() {
+		envelope.WriteAPIError(w, r, http.StatusBadRequest, "bad_request", "INVALID_PERMISSION_MODE",
+			"permissionMode must be one of default, accept-edits, plan, auto, bypass-permissions", nil)
+		return
+	}
+	sess, promptBytes, systemPromptBytes, err := c.Svc.Spawn(r.Context(), ports.SpawnConfig{ProjectID: in.ProjectID, IssueID: in.IssueID, Harness: in.Harness, Branch: in.Branch, Prompt: in.Prompt, DisplayName: displayName, Attachments: attachments, WorkspaceMode: workspaceMode, Cols: in.Cols, Rows: in.Rows, ClaudeAccountID: in.ClaudeAccountID, AgentConfig: ports.AgentConfig{Permissions: permissionMode}})
 	if err != nil {
 		envelope.WriteError(w, r, err)
 		return

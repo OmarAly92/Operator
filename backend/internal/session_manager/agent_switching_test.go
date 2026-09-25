@@ -369,6 +369,8 @@ type switchTestAgent struct {
 	launchSystemFile    string
 	restoreSystemFile   string
 	launchMCPServers    []ports.MCPServerSpec
+	launchPermissions   ports.PermissionMode
+	restorePermissions  ports.PermissionMode
 }
 
 type switchReleaseLCM struct {
@@ -478,6 +480,7 @@ func (a *switchTestAgent) GetLaunchCommand(_ context.Context, cfg ports.LaunchCo
 	a.launchSystemPrompt = cfg.SystemPrompt
 	a.launchSystemFile = cfg.SystemPromptFile
 	a.launchMCPServers = cfg.MCPServers
+	a.launchPermissions = cfg.Permissions
 	return []string{"agent", "fresh", cfg.Prompt}, nil
 }
 
@@ -489,6 +492,7 @@ func (a *switchTestAgent) GetRestoreCommand(_ context.Context, cfg ports.Restore
 	a.restorePrompt = cfg.Prompt
 	a.restoreSystemPrompt = cfg.SystemPrompt
 	a.restoreSystemFile = cfg.SystemPromptFile
+	a.restorePermissions = cfg.Permissions
 	return []string{"agent", "resume", id, cfg.Prompt}, true, nil
 }
 
@@ -1443,6 +1447,46 @@ func TestSwitchAgentLeavesFreshProviderAssignedNativeIDForTarget(t *testing.T) {
 	}
 	if target.launchNativeID != "" {
 		t.Fatalf("fresh provider-assigned launch received native id %q", target.launchNativeID)
+	}
+}
+
+func TestSwitchAgentTargetKeepsTheSessionLaunchPermissionMode(t *testing.T) {
+	for _, resumed := range []bool{false, true} {
+		runtime := &fakeRestartRuntime{fakeRuntime: &fakeRuntime{}}
+		manager, store, _ := newSwitchTestManager(t, runtime)
+		target := manager.agents.(switchTestAgents)[domain.HarnessCodex].(*switchTestAgent)
+		rec := store.sessions["proj-1"]
+		rec.LaunchPermissionMode = domain.PermissionModePlan
+		project := store.projects[string(rec.ProjectID)]
+		project.Config.AgentConfig.Permissions = domain.PermissionModeBypassPermissions
+		if resumed {
+			target.available["codex-prior"] = ports.NativeSessionAvailabilityAvailable
+			now := time.Now().UTC().Add(-time.Hour)
+			store.native["native-prior"] = domain.AgentNativeSession{
+				ID: "native-prior", OperatorSessionID: "proj-1", Harness: domain.HarnessCodex,
+				ConfigDir: target.configDir, NativeSessionID: "codex-prior",
+				LastGenerationID: "old-generation", CreatedAt: now, LastUsedAt: now,
+			}
+		}
+		caps, err := validateContinuationAgent(target)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		prepared, err := manager.prepareTargetActivation(context.Background(), store, rec, project, target, caps, domain.AgentSwitch{TargetHarness: domain.HarnessCodex})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if prepared.launch.Permissions != domain.PermissionModePlan || prepared.launch.Config.Permissions != domain.PermissionModePlan {
+			t.Fatalf("resumed=%v launch permissions = %q/%q, want plan", resumed, prepared.launch.Permissions, prepared.launch.Config.Permissions)
+		}
+		got := target.launchPermissions
+		if resumed {
+			got = target.restorePermissions
+		}
+		if got != domain.PermissionModePlan {
+			t.Fatalf("resumed=%v target command permissions = %q, want the session's plan launch mode", resumed, got)
+		}
 	}
 }
 

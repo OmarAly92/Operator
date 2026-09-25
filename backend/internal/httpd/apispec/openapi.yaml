@@ -9172,6 +9172,16 @@ components:
           type: string
         issueId:
           type: string
+        permissionMode:
+          description: Starting permission mode for the agent. Omit to use the project's
+            configured mode.
+          enum:
+          - default
+          - accept-edits
+          - plan
+          - auto
+          - bypass-permissions
+          type: string
         projectId:
           type: string
         prompt:

@@ -193,6 +193,7 @@ type SpawnSessionRequest struct {
 	Cols            int                    `json:"cols,omitempty" description:"Columns of the terminal pane that will show the session, so the pty is born at that width instead of being resized on first attach. Omit when unknown." minimum:"1" maximum:"1000"`
 	Rows            int                    `json:"rows,omitempty" description:"Rows of the terminal pane that will show the session; see cols." minimum:"1" maximum:"1000"`
 	ClaudeAccountID domain.ClaudeAccountID `json:"claudeAccountId,omitempty" maxLength:"64" description:"Claude account for a claude-code session. Omit for the default account."`
+	PermissionMode  string                 `json:"permissionMode,omitempty" enum:"default,accept-edits,plan,auto,bypass-permissions" description:"Starting permission mode for the agent. Omit to use the project's configured mode."`
 }
 
 // AttachmentInput is one file attached to a spawn, delegate, stage, or send

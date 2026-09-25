@@ -577,7 +577,10 @@ func (m *Manager) Spawn(ctx context.Context, cfg ports.SpawnConfig) (domain.Sess
 	promptBytes := len(prompt)
 	systemPromptBytes := len(systemPrompt)
 
-	rec, err := m.store.CreateSession(ctx, seedRecord(cfg, m.clock()))
+	agentConfig := applySpawnAgentConfig(effectiveAgentConfig(project.Config), cfg.AgentConfig)
+	seed := seedRecord(cfg, m.clock())
+	seed.LaunchPermissionMode = ports.NormalizePermissionMode(agentConfig.Permissions)
+	rec, err := m.store.CreateSession(ctx, seed)
 	if err != nil {
 		return domain.SessionRecord{}, 0, 0, fmt.Errorf("spawn: create: %w", err)
 	}
@@ -633,7 +636,6 @@ func (m *Manager) Spawn(ctx context.Context, cfg ports.SpawnConfig) (domain.Sess
 		m.rollbackSeedSpawnWorkspace(ctx, rec, ws, workspaceProject, false)
 		return domain.SessionRecord{}, 0, 0, fmt.Errorf("spawn %s: no agent adapter for harness %q", id, cfg.Harness)
 	}
-	agentConfig := applySpawnAgentConfig(effectiveAgentConfig(project.Config), cfg.AgentConfig)
 	env, browserCapabilityVerifier, err := m.launchRuntimeEnv(ctx, rec, rec.ClaudeAccountID, project.Config.Env)
 	if err != nil {
 		m.rollbackSeedSpawnWorkspace(ctx, rec, ws, workspaceProject, true)
@@ -944,6 +946,14 @@ func effectiveHarness(explicit domain.AgentHarness, cfg domain.ProjectConfig) do
 // effectiveAgentConfig returns the project's base agent config.
 func effectiveAgentConfig(cfg domain.ProjectConfig) ports.AgentConfig {
 	return cfg.AgentConfig
+}
+
+func sessionAgentConfig(rec domain.SessionRecord, cfg domain.ProjectConfig) ports.AgentConfig {
+	agentConfig := effectiveAgentConfig(cfg)
+	if rec.LaunchPermissionMode != "" {
+		agentConfig.Permissions = rec.LaunchPermissionMode
+	}
+	return agentConfig
 }
 
 func applySpawnAgentConfig(base, override ports.AgentConfig) ports.AgentConfig {
@@ -1421,7 +1431,7 @@ func (m *Manager) relaunchSessionWithPolicy(ctx context.Context, operation strin
 
 	// Restore re-applies the project's resolved agent config so a configured
 	// model/permissions carry across a restore, matching fresh spawn.
-	agentConfig := effectiveAgentConfig(project.Config)
+	agentConfig := sessionAgentConfig(rec, project.Config)
 	env, browserCapabilityVerifier, err := m.launchRuntimeEnv(ctx, rec, rec.ClaudeAccountID, project.Config.Env)
 	if err != nil {
 		return RestoreResult{}, fmt.Errorf("%s %s: launch env: %w", operation, rec.ID, err)

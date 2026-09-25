@@ -294,7 +294,7 @@ func newProjectSetConfigCommand(ctx *commandContext) *cobra.Command {
 	f.StringVar(&opts.defaultBranch, "default-branch", "", "Base branch new session worktrees are created from")
 	f.StringVar(&opts.sessionPrefix, "session-prefix", "", "Displayed session-id prefix")
 	f.StringVar(&opts.model, "model", "", "Agent model override (e.g. claude-opus-5)")
-	f.StringVar(&opts.permission, "permission", "", "Permission mode: default, accept-edits, auto, bypass-permissions")
+	f.StringVar(&opts.permission, "permission", "", "Permission mode: default, accept-edits, plan, auto, bypass-permissions")
 	f.StringVar(&opts.agent, "agent", "", "Harness override for the project")
 	f.StringArrayVar(&opts.env, "env", nil, "Env var KEY=VALUE forwarded into sessions (repeatable)")
 	f.StringArrayVar(&opts.symlink, "symlink", nil, "Repo-relative path to symlink into workspaces (repeatable)")
