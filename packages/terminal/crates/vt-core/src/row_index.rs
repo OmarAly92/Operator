@@ -133,6 +133,10 @@ impl RowIndex {
     ) -> Vec<usize> {
         let total = self.completed.len();
         let hot_start = self.line_start_at_or_below(total.saturating_sub(HOT_ROWS));
+        self.stale.retain_mut(|run| {
+            run.len = run.len.min(hot_start.saturating_sub(run.start));
+            run.len > 0
+        });
         if hot_start > 0 {
             self.mark_stale(0, hot_start, cut_at);
         }
