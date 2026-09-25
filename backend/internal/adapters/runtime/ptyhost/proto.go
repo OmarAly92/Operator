@@ -30,6 +30,7 @@ const (
 	MsgRespawnReq      byte = 0x0F // client -> host: JSON {cwd, shell, launchCmd, launchId}
 	MsgRespawnRes      byte = 0x10 // host -> client: JSON {ok, pid?, error?}
 	MsgAck             byte = 0x11 // client -> host: JSON {bytes}
+	MsgOlderReq        byte = 0x12
 )
 
 // JSON payload structs shared with later tasks (kept minimal).
@@ -83,6 +84,10 @@ type RespawnResPayload struct {
 // terminal bytes this client has consumed since it attached.
 type AckPayload struct {
 	Bytes int `json:"bytes"`
+}
+
+type OlderReq struct {
+	Before uint64 `json:"before"`
 }
 
 const frameHeaderBytes = 5
