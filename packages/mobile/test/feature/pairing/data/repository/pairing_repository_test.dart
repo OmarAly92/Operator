@@ -19,6 +19,13 @@ class _MockStore extends Mock implements ServerConfigStore {}
 
 const _target = ServerConfig(host: '10.0.0.5', httpPort: '3011', secure: false, password: 'secret12');
 const _saved = DesktopModel(id: 'a', name: 'Mac', host: '10.0.0.5', port: '3011', secure: false, isActive: true);
+const _savedConfig = ServerConfig(
+  host: '10.0.0.5',
+  httpPort: '3011',
+  secure: false,
+  password: 'secret12',
+  desktopId: 'a',
+);
 
 void main() {
   late _MockRemote remote;
@@ -48,7 +55,7 @@ void main() {
     final results = verifyInOrder([
       () => remote.identify(_target),
       () => desktops.save(captureAny()),
-      () => store.set(_target),
+      () => store.set(_savedConfig),
     ]);
     final params = results[1].captured.single as SaveDesktopParams;
     expect(params.name, 'Mac');
