@@ -28,6 +28,7 @@ import {
 	terminalSecretRedactionStorageKey,
 } from "../lib/terminal-secret-redaction";
 import { readStoredTerminalPredictiveEcho, terminalPredictiveEchoStorageKey } from "../lib/terminal-predictive-echo";
+import { MAX_TERMINAL_MARKS, readStoredTerminalMarks, writeStoredTerminalMarks, type TerminalMark } from "../lib/terminal-marks";
 import { openFilesInStorageKey, readStoredOpenFilesIn, type OpenFilesIn } from "../lib/open-files-in";
 export { readStoredTerminalBackground } from "../lib/terminal-background";
 export { readStoredThemePreference, readStoredThemeStyle, resolveTheme } from "../lib/theme";
@@ -69,6 +70,7 @@ type UiState = {
 	terminalSecretRedaction: boolean;
 	/** Paint typed characters provisionally while the round trip is slow. Off by default. */
 	terminalPredictiveEcho: boolean;
+	terminalMarks: readonly TerminalMark[];
 	openFilesIn: OpenFilesIn;
 	// Transient "open the New Task dialog for this project" signal. The nonce
 	// bumps on every request so a repeat press (even for the same project) still
@@ -101,6 +103,7 @@ type UiState = {
 	setTerminalFontSize: (size: TerminalFontSize) => void;
 	setTerminalSecretRedaction: (enabled: boolean) => void;
 	setTerminalPredictiveEcho: (enabled: boolean) => void;
+	setTerminalMarks: (marks: readonly TerminalMark[]) => void;
 	setOpenFilesIn: (openFilesIn: OpenFilesIn) => void;
 	openGlobalSettings: () => void;
 	openMobileSettings: () => void;
@@ -155,6 +158,7 @@ const initialTerminalBackground = readStoredTerminalBackground();
 const initialTerminalFontSize = readStoredTerminalFontSize();
 const initialTerminalSecretRedaction = readStoredTerminalSecretRedaction();
 const initialTerminalPredictiveEcho = readStoredTerminalPredictiveEcho();
+const initialTerminalMarks = readStoredTerminalMarks();
 const initialOpenFilesIn = readStoredOpenFilesIn();
 
 export const useUiStore = create<UiState>((set, get) => ({
@@ -170,6 +174,7 @@ export const useUiStore = create<UiState>((set, get) => ({
 	terminalFontSize: initialTerminalFontSize,
 	terminalSecretRedaction: initialTerminalSecretRedaction,
 	terminalPredictiveEcho: initialTerminalPredictiveEcho,
+	terminalMarks: initialTerminalMarks,
 	openFilesIn: initialOpenFilesIn,
 	newTaskRequest: null,
 	createProjectNonce: 0,
@@ -214,6 +219,11 @@ export const useUiStore = create<UiState>((set, get) => ({
 		if (get().terminalPredictiveEcho === terminalPredictiveEcho) return;
 		getLocalStorage()?.setItem(terminalPredictiveEchoStorageKey, terminalPredictiveEcho ? "1" : "0");
 		set({ terminalPredictiveEcho });
+	},
+	setTerminalMarks: (marks) => {
+		const terminalMarks = marks.slice(0, MAX_TERMINAL_MARKS);
+		writeStoredTerminalMarks(terminalMarks);
+		set({ terminalMarks });
 	},
 	setOpenFilesIn: (openFilesIn) => {
 		if (get().openFilesIn === openFilesIn) return;

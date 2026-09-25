@@ -264,7 +264,9 @@ rebuilt (§6).
    Find cites two MIT/Apache references for behaviour only, no code adapted:
    Ghostty `src/terminal/search/active.zig:11-19` (re-search only what can
    change) and Alacritty `alacritty_terminal/src/term/search.rs:39-40` (smart
-   case).
+   case). Highlights (§4.31) cite Ghostty `src/terminal/highlight.zig:1-10`
+   (one representation for selection, search and marks) for behaviour only, no
+   code adapted; Kitty's marks are GPL-3.0 and were not read.
 3. **No comments in new code** (user's global instruction). Existing comments may
    be corrected when they become false; do not add new ones.
 4. **Root cause before fix.** Every entry in §4 was mis-diagnosed first. Capture
@@ -943,6 +945,73 @@ history of `master`.
   `TerminalPane.test.tsx` "terminal not responding",
   `useTerminalSession.test.tsx` health tests.
 
+### 4.31 One look for highlights; user marks — roadmap Plan 5
+- Before: the selection painted its own `background-image` per row
+  (`selection-view.ts` `selectionFills`), the find bar added and removed row
+  classes itself on every repaint (`find-bar.ts` `applyHighlights`), and there
+  were no user marks. Two paint paths for one idea, and nothing to put a third
+  kind on.
+- Now: `highlights.ts` is the model — `Highlight { kind, range, colour, rank }`,
+  `range` in stable rows (§2), priority selection 3 > current find hit 2 > find
+  hit 1 > mark 0, earlier mark rule above a later one. `highlight-painter.ts` is
+  the only code that paints them: a row's layers, top first, as one
+  `background-image` of `fillGradient` strings, the same layers clipped by
+  `runFill` onto runs with their own background (the §4.11 rule, now for every
+  kind), and the find classes. It diffs against what it painted, so an unchanged
+  row gets no write. `renderer-highlights.ts` collects selection, find and
+  marks and calls it from `finishPaint` and on every change; it never schedules
+  a repaint, and it paints nothing while the pane is parked.
+- Find keeps its old pixels on purpose: a hit row keeps
+  `terminal-find-row-match` (a background colour) and the current hit keeps the
+  `terminal-find-row-active` outline. A gradient layer of the same colour
+  differs by up to 1 level per channel (measured while planning: 8,278 channel
+  values in a 900×60 Chromium shot), so the colour stays a colour — except on a
+  row that also has a mark, where the find tint becomes a layer above the mark
+  so the priority holds. Find paints only transcript rows, never the alternate
+  screen, as before.
+- Marks: `setMarks(rules)` / `TerminalSurface` `marks`, `MarkRule { pattern,
+  regex, colour }`. Literal = escaped, any case; regex = as written. Invalid
+  regex, empty pattern, zero-length matches and colours `CSS.supports` rejects
+  are dropped; touching matches of one rule merge. Each paint joins the logical
+  lines of the rendered rows once (`visibleLogicalLines`), matches each line,
+  and maps back with `rangeOf`; `MarkCache` keeps each line's spans while its
+  text is unchanged. Nothing is stored in rows, so a trim or a rewrap cannot
+  strand a mark. Marks read the masked text, so they never outline a redacted
+  secret. Operator: Settings → Terminal highlights, five colours
+  (`color-mix(in srgb, var(--terminal-ansi-N) 40%, transparent)` for yellow 3,
+  red 1, green 2, cyan 6, magenta 5 — no blue, the selection's colour), at most
+  10 rules, stored under `opr.terminal.marks`.
+- Not moved onto the model: links, hints, redaction and prediction. They are
+  overlays above the text (`.terminal-decorations { z-index: 2 }`); a redaction
+  must cover glyphs. The model paints under the text.
+- Cost (`run.mjs --panes-only`, `claude-spinner-10s`, alternated A/B, three
+  pairs, 5 `BENCH_MARKS`, planning machine): 10-visible TaskDuration control
+  1.088–1.277 s, marks 1.085–1.155 s, ScriptDuration +0.03–0.12 s per 10 s
+  across ten panes. On the cloud sandbox this plan was implemented in (three
+  pairs, same fixture), the same A/B ran slower overall and did not clear the
+  gate — control 2.248–2.338 s, marks=5 2.854–3.110 s — but a CPU profile of
+  the marks 10-visible row
+  (`bench/agent-session/baselines/pane-cost/2026-09-25-marks-profile-visible10.txt`)
+  put `highlight-painter.js` self time at ~119 ms of a 10 s window against
+  ~1,145 ms in `getBoundingClientRect` (paid by every visible pane regardless
+  of marks), showing no highlight-specific blowup; the gap looks like sandbox
+  noise, not a regression, but it was not re-measured on the planning machine
+  to confirm. The painter measures only rows a highlight touches; a first
+  build that measured every rendered row per paint doubled ScriptDuration.
+- Known risk, not fixed: JavaScript has no regex time limit. A user regex with
+  catastrophic backtracking runs on each changed painted line. The per-line
+  cache means only lines whose text changed are rescanned.
+- Guards: `highlights.test.ts`, `highlight-painter.test.ts`, `marks.test.ts`,
+  `dom-block-renderer.highlights.test.ts` (overlap order, trim, rewrap, no
+  repaint scheduled, no layout read when idle, parked, alternate screen,
+  rejected colour, dispose), `find-bar.incremental.test.ts` "hands its hits…",
+  `TerminalSurface.marks.test.tsx`, `terminal-selection.test.ts` (unchanged),
+  `bench:affordances --action select|find --compare <Task 0 captures>` (byte
+  identical), `bench:selection`, `bench:feel`; Operator:
+  `terminal-marks.test.ts`, `ui-store.terminal-marks.test.ts`,
+  `TerminalMarksSection.test.tsx`, `BlockTerminal.test.tsx` "hands Settings'
+  highlights…".
+
 ### 4.32 Text typed during a command reached the shell, not the input box — roadmap Plan 6
 - Symptom: in a zsh pane, keys typed while a command ran went to the pty
   (deliberate since `4b31952aa`, so a `y/n` prompt, a password or Claude Code
@@ -1050,8 +1119,9 @@ history of `master`.
 - **Find exports every hit on every change.** `findResults` copies all hits
   out of wasm whenever an update adds or removes one; while Claude streams, a
   query with hundreds of thousands of hits (a single letter) pays that per
-  paint. Hits are still row classes, not decorations (survey §1.8, Plan 5),
-  and there is no host `onResultsChanged` (survey §3.12).
+  paint. Hits paint through the highlight model since Plan 5 (§4.31) but still
+  as whole rows, not the hit's cells, and there is no host `onResultsChanged`
+  (survey §3.12).
 - **SGR attributes render by default since 2026-09-23.**
   `RendererFeatures.attributes` defaults to `"warp"` (italic, underline in 5
   styles, SGR 58 colour, strike, overline, hidden, blink); `"plain"` keeps

@@ -89,6 +89,7 @@ function mount(lines: readonly string[]): Mounted {
 		},
 		invalidate: (range) => renderer.invalidate(range),
 		afterRepaint: (listener) => renderer.onPaint(listener),
+		highlightFind: (find) => renderer.setFindHighlights(find),
 	};
 	const bar = createFindBar({ core, renderer: renderer as unknown as BlockRenderer, host: barHost, strings: defaultStrings });
 	bar.mount(host);
@@ -207,6 +208,7 @@ describe("find-bar while output streams", () => {
 			scrollToBlock: () => undefined,
 			invalidate: (range) => renderer.invalidate(range),
 			afterRepaint,
+			highlightFind: (find) => renderer.setFindHighlights(find),
 		};
 		const bar = createFindBar({ core, renderer: renderer as unknown as BlockRenderer, host: barHost, strings: defaultStrings });
 		bar.mount(host);
@@ -237,7 +239,7 @@ describe("find-bar while output streams", () => {
 		const bar = createFindBar({
 			core,
 			renderer: renderer as unknown as BlockRenderer,
-			host: { scrollToBlock: () => undefined, invalidate: (range) => renderer.invalidate(range), afterRepaint: (listener) => renderer.onPaint(listener) },
+			host: { scrollToBlock: () => undefined, invalidate: (range) => renderer.invalidate(range), afterRepaint: (listener) => renderer.onPaint(listener), highlightFind: (find) => renderer.setFindHighlights(find) },
 			strings: defaultStrings,
 		});
 		bar.mount(host);
@@ -247,5 +249,36 @@ describe("find-bar while output streams", () => {
 		type(input, "hello");
 		await flushFrames();
 		expect(mounted.count.textContent).toBe("1 of 12");
+	});
+
+	it("hands its hits to the host's highlight model instead of marking rows, and clears them on close and dispose", async () => {
+		const core = createTerminalCore({ columns: 40, scrollback: 1000, rows: 1 });
+		for (const line of lines(3)) feedBlock(core, line);
+		const host = document.createElement("div");
+		const renderer = new DomBlockRenderer();
+		renderer.mount(host, core);
+		renderer.setFont(font);
+		const highlightFind = vi.fn();
+		const bar = createFindBar({
+			core,
+			renderer: renderer as unknown as BlockRenderer,
+			host: { scrollToBlock: () => undefined, invalidate: (range) => renderer.invalidate(range), afterRepaint: (listener) => renderer.onPaint(listener), highlightFind },
+			strings: defaultStrings,
+		});
+		bar.mount(host);
+		bar.open();
+		type(host.querySelector<HTMLInputElement>("input[data-terminal-find-input]")!, "line 1");
+		await flushFrames();
+		expect(highlightFind).toHaveBeenLastCalledWith({ rows: new Set([1]), current: { row: 1, endRow: 1 } });
+		expect(host.querySelector("[data-terminal-find-row-match]")).toBeNull();
+		bar.close();
+		expect(highlightFind).toHaveBeenLastCalledWith(null);
+		bar.open();
+		type(host.querySelector<HTMLInputElement>("input[data-terminal-find-input]")!, "line");
+		await flushFrames();
+		expect(highlightFind).toHaveBeenLastCalledWith({ rows: new Set([0, 1, 2]), current: { row: 0, endRow: 0 } });
+		bar.dispose();
+		expect(highlightFind).toHaveBeenLastCalledWith(null);
+		renderer.dispose();
 	});
 });

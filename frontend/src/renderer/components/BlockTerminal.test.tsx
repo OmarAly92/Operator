@@ -53,6 +53,7 @@ const mockState = vi.hoisted(() => {
 		wasmInits: 0,
 		focusToken: undefined as number | undefined,
 		visible: undefined as boolean | undefined,
+		marks: undefined as readonly { pattern: string; regex: boolean; colour: string }[] | undefined,
 		// The real surface only reports geometry once its host has a non-zero
 		// client box. Off means "mounted but never laid out", which is what a
 		// pane behind another tab looks like.
@@ -178,9 +179,11 @@ vi.mock("@operator/terminal-react", () => {
 			}) => void;
 			focusToken?: number;
 			visible?: boolean;
+			marks?: readonly { pattern: string; regex: boolean; colour: string }[];
 		}) => {
 			mockState.focusToken = props.focusToken;
 			mockState.visible = props.visible;
+			mockState.marks = props.marks;
 			mockState.onHint = props.onHint;
 			mockState.onBlockFinished = props.onBlockFinished;
 			mockState.altScreenActive = props.altScreenActive;
@@ -413,6 +416,7 @@ beforeEach(() => {
 	mockState.emitGeometry = undefined;
 	mockState.focusToken = undefined;
 	mockState.visible = undefined;
+	mockState.marks = undefined;
 	subscribers.clear();
 });
 
@@ -560,6 +564,31 @@ describe("BlockTerminal", () => {
 		renderTerminal();
 		await waitFor(() => expect(mockState.host?.predictiveEcho).toEqual({ thresholdMs: terminalPredictiveEchoThresholdMs }));
 		useUiStore.setState({ terminalPredictiveEcho: false });
+	});
+
+	it("gives the surface no marks while Settings has none", async () => {
+		useUiStore.setState({ terminalMarks: [] });
+		renderTerminal();
+		await waitFor(() => expect(mockState.marks).toEqual([]));
+	});
+
+	it("hands Settings' highlights to the surface as renderer rules and follows edits", async () => {
+		useUiStore.setState({ terminalMarks: [{ id: "a", pattern: "error", regex: false, colour: "red" }] });
+		renderTerminal();
+		await waitFor(() =>
+			expect(mockState.marks).toEqual([{ pattern: "error", regex: false, colour: "color-mix(in srgb, var(--terminal-ansi-1) 40%, transparent)" }]),
+		);
+		act(() => {
+			useUiStore.setState({
+				terminalMarks: [
+					{ id: "a", pattern: "error", regex: false, colour: "red" },
+					{ id: "b", pattern: "(broken", regex: true, colour: "green" },
+					{ id: "c", pattern: "FAIL|panic", regex: true, colour: "yellow" },
+				],
+			});
+		});
+		await waitFor(() => expect(mockState.marks?.map((mark) => mark.pattern)).toEqual(["error", "FAIL|panic"]));
+		useUiStore.setState({ terminalMarks: [] });
 	});
 
 	it("hands the host's focus token to the surface", async () => {

@@ -111,6 +111,7 @@ function makeBarHost(
 		scrollToBlock: (id, align) => renderer.scrollToBlock(id, align),
 		invalidate: (range) => renderer.invalidate(range),
 		afterRepaint: (listener) => renderer.onPaint(listener),
+		highlightFind: (find) => renderer.setFindHighlights(find),
 	};
 }
 
