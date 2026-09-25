@@ -52,6 +52,8 @@ sealed class AppMotion {
 
   static const Duration freshReplyWindow = Duration(seconds: 3);
 
+  static const Duration runningTasksSpin = Duration(seconds: 6);
+
   /// Expressive loader shape-morph container spin.
   static const Duration loaderSpin = Duration(milliseconds: 1730);
 

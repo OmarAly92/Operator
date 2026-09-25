@@ -7,22 +7,32 @@ import 'package:operator_mobile/core/search/text_match.dart';
 import 'package:operator_mobile/core/utils/haptics.dart';
 import 'package:operator_mobile/core/widgets/chat/chat_insets.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_text.dart';
+import 'package:operator_mobile/feature/blocks/logic/background_tasks.dart';
 import 'package:operator_mobile/feature/blocks/logic/block_actions.dart';
 import 'package:operator_mobile/feature/blocks/logic/block_find.dart';
 import 'package:operator_mobile/feature/blocks/logic/session_activity.dart';
 import 'package:operator_mobile/feature/blocks/logic/session_block.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/blocks_cubit.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/session_command_cubit.dart';
+import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/background_tasks_sheet.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/block_find_bar.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/block_list.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/block_selection_bar.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/context_readout_chip.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/floating_working_control.dart';
+import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/running_tasks_bubble.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/sticky_block_header.dart';
 import 'package:operator_mobile/feature/usage/logic/context_readout.dart';
 
 class BlocksBody extends StatefulWidget {
-  const BlocksBody({super.key, this.onRerun, this.workingSince, this.stopped = false});
+  const BlocksBody({
+    super.key,
+    this.onRerun,
+    this.workingSince,
+    this.stopped = false,
+    this.showRunningTasks = false,
+    this.parentTitle,
+  });
 
   /// Fills the composer with a past prompt. Null means the screen has no
   /// composer to fill, and the re-run action is not offered at all.
@@ -31,6 +41,10 @@ class BlocksBody extends StatefulWidget {
   final DateTime? Function()? workingSince;
 
   final bool stopped;
+
+  final bool showRunningTasks;
+
+  final String? parentTitle;
 
   @override
   State<BlocksBody> createState() => BlocksBodyState();
@@ -267,6 +281,9 @@ class BlocksBodyState extends State<BlocksBody> {
           if (index >= 0) list.scrollBlockIntoView(index);
         });
 
+        final runningTasks = widget.showRunningTasks && !_selectionMode
+            ? backgroundTasksOf(cubit.blocks, cubit.subagentSummaries).where((task) => task.running).length
+            : 0;
         final insets = ChatInsets.maybeOf(context);
         final dockInset = insets?.bottom;
         final listInset = _insetFor(dockInset);
@@ -332,6 +349,19 @@ class BlocksBodyState extends State<BlocksBody> {
                         bottomInset: _selectionMode ? null : listInset,
                         bottomGap: dockInset == null || _selectionMode ? 6 : dockGap + ChatInsets.listGap,
                         topInset: _findOpen ? 0 : top,
+                        trailingShown: runningTasks > 0,
+                        trailing: widget.showRunningTasks
+                            ? Padding(
+                                padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+                                child: Align(
+                                  alignment: Alignment.centerLeft,
+                                  child: RunningTasksBubble(
+                                    count: runningTasks,
+                                    onTap: () => showBackgroundTasksSheet(context, parentTitle: widget.parentTitle),
+                                  ),
+                                ),
+                              )
+                            : null,
                       ),
                     ),
                     if (_selectionMode)

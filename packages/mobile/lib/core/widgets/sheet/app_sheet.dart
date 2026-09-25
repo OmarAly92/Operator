@@ -24,6 +24,7 @@ class AppSheetPage {
     this.actions = const [],
     this.searchHint,
     this.emptyText,
+    this.closeable = false,
   });
 
   final String title;
@@ -32,6 +33,7 @@ class AppSheetPage {
   final List<Widget> actions;
   final String? searchHint;
   final String? emptyText;
+  final bool closeable;
 }
 
 sealed class AppSheetMetrics {
@@ -110,6 +112,7 @@ class AppSheet extends StatefulWidget {
   static const Key grabberKey = ValueKey('app-sheet-grabber');
   static const Key searchFieldKey = ValueKey('app-sheet-search');
   static const Key backKey = ValueKey('app-sheet-back');
+  static const Key closeKey = ValueKey('app-sheet-close');
   static const Key headerBarKey = ValueKey('app-sheet-header-bar');
   static const Key contentClipKey = ValueKey('app-sheet-content-clip');
   static const Key searchCapsuleKey = ValueKey('app-sheet-search-capsule');
@@ -351,7 +354,21 @@ class _AppSheetState extends State<AppSheet> with TickerProviderStateMixin {
                   onPressed: _pop,
                 ),
               )
-            : const SizedBox.shrink(key: ValueKey<bool>(false)),
+            : page.closeable
+                ? Center(
+                    key: const ValueKey<String>('close'),
+                    widthFactor: 1,
+                    heightFactor: 1,
+                    child: FrostedCircleButton(
+                      key: AppSheet.closeKey,
+                      icon: Icons.close_rounded,
+                      semanticLabel: 'Close',
+                      foreground: skin.textPrimary,
+                      frost: frost,
+                      onPressed: () => Navigator.of(context).maybePop(),
+                    ),
+                  )
+                : const SizedBox.shrink(key: ValueKey<bool>(false)),
       ),
       middle: _crossFade(
         AppText(

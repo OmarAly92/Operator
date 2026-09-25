@@ -12,7 +12,6 @@ import 'package:operator_mobile/core/widgets/glass/frosted_header.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_text.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/session_view_cubit.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/blocks_body.dart';
-import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/subagent_strip.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/logic/terminal_cubit.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/ui/widgets/raw_terminal_pane.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/ui/widgets/terminal_chat_header.dart';
@@ -121,6 +120,8 @@ class _TerminalBodyState extends State<TerminalBody> {
                                   onRerun: _fillComposer,
                                   workingSince: () => TerminalChatHeader.workingSinceOf(context),
                                   stopped: cubit.notFound,
+                                  showRunningTasks: !cubit.args.shellOnly,
+                                  parentTitle: cubit.args.title,
                                 ),
                               )
                             : ValueListenableBuilder<double>(
@@ -142,7 +143,6 @@ class _TerminalBodyState extends State<TerminalBody> {
                             mainAxisSize: MainAxisSize.min,
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
-                              if (blocksMode && !cubit.args.shellOnly) SubagentStrip(parentTitle: cubit.args.title),
                               if (!blocksMode) const TerminalKeyRow(),
                               const TerminalComposer(),
                             ],

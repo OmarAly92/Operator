@@ -107,6 +107,35 @@ void main() {
     expect(tester.getRect(find.textContaining('reply 11')).bottom, lessThanOrEqualTo(capsule(tester).top));
   });
 
+  testWidgets('running subagents show as a bubble in the transcript, never as a strip above the composer', (tester) async {
+    harness = TerminalHarness()
+      ..start(
+        harness: 'claude-code',
+        blockRecords: [
+          ..._conversation(2),
+          const BlockEventModel(
+            seq: 5,
+            sessionId: 's-1',
+            sourceId: 'toolu_a',
+            toolUseId: 'toolu_a',
+            kind: 'tool_start',
+            toolName: 'Agent',
+            source: 'transcript',
+            toolInput: '{"description":"Explore the repo","prompt":"look","run_in_background":true}',
+          ),
+        ],
+      );
+    await harness.pump(tester, const TerminalBody());
+    for (var frame = 0; frame < 30; frame++) {
+      await tester.pump(const Duration(milliseconds: 50));
+    }
+
+    expect(find.descendant(of: find.byType(BlockList), matching: find.text('1 running task')), findsOneWidget);
+    final body = tester.getRect(find.byType(TerminalBody));
+    expect(dockInset(tester), body.bottom - capsule(tester).top);
+    expect(find.text('Explore the repo'), findsOneWidget);
+  });
+
   testWidgets('the raw terminal ends above the dock instead of running under it', (tester) async {
     harness = TerminalHarness()..start();
     await harness.pump(tester, const TerminalBody());

@@ -918,4 +918,33 @@ void main() {
     await tester.pumpAndSettle();
     expect(fired, hasLength(1));
   });
+  testWidgets('a closeable root page leads with a glass close button that closes the sheet', (tester) async {
+    phone(tester);
+    var closed = false;
+    await tester.pumpWidget(
+      host(
+        const LightSkin(),
+        (context) async {
+          await showAppSheet<void>(
+            context: context,
+            page: AppSheetPage(title: 'Tasks', closeable: true, rows: (context, query) => const [Text('row')]),
+          );
+          closed = true;
+        },
+      ),
+    );
+    await open(tester);
+
+    expect(find.byKey(AppSheet.backKey), findsNothing);
+    expect(find.byKey(AppSheet.closeKey), findsOneWidget);
+    expect(tester.getSize(find.byKey(AppSheet.closeKey)), const Size(38, 38));
+    expect(tester.widget(find.byKey(AppSheet.closeKey)), isA<FrostedCircleButton>());
+    expect(find.bySemanticsLabel('Close'), findsOneWidget);
+    expect(tester.getRect(find.text('Tasks')).left, greaterThanOrEqualTo(tester.getRect(find.byKey(AppSheet.closeKey)).right));
+
+    await tester.tap(find.byKey(AppSheet.closeKey));
+    await tester.pumpAndSettle();
+    expect(find.text('row'), findsNothing);
+    expect(closed, isTrue);
+  });
 }

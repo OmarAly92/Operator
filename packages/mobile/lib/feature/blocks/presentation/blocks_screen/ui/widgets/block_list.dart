@@ -48,6 +48,8 @@ class BlockList extends StatefulWidget {
     this.bottomGap = 6,
     this.topInset = 0,
     this.onStreamingHaptic,
+    this.trailing,
+    this.trailingShown = false,
   });
 
   static const double topGap = 14;
@@ -75,6 +77,8 @@ class BlockList extends StatefulWidget {
   final double bottomGap;
   final double topInset;
   final VoidCallback? onStreamingHaptic;
+  final Widget? trailing;
+  final bool trailingShown;
 
   @override
   State<BlockList> createState() => BlockListState();
@@ -191,6 +195,7 @@ class BlockListState extends State<BlockList> {
     } else if (!setEquals(widget.collapsedIds, oldWidget.collapsedIds)) {
       _holdDuringDisclosure(anchorId: _changedCollapse(oldWidget));
     }
+    if (widget.trailingShown != oldWidget.trailingShown) _holdDuringDisclosure();
     if (_pinned && !_seeking) _scheduleFollow();
   }
 
@@ -738,6 +743,12 @@ class BlockListState extends State<BlockList> {
               ),
               SliverToBoxAdapter(
                 child: Disclosure(expanded: _thinking, child: const ThinkingRow()),
+              ),
+              SliverToBoxAdapter(
+                child: Disclosure(
+                  expanded: widget.trailingShown && widget.trailing != null,
+                  child: widget.trailing ?? const SizedBox.shrink(),
+                ),
               ),
               SliverToBoxAdapter(
                 child: widget.bottomInset == null
