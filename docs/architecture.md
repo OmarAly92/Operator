@@ -1032,6 +1032,46 @@ words are projected; a session whose transcript has not appeared yet is
 re-resolved on a backoff, because Codex's fallback resolution walks its whole
 sessions tree.
 
+#### Background tasks
+
+Claude Code's background shells, monitors and subagents are projected as
+`task_update` block events. The per-tail mapper keeps a little state: it ties a
+launch (`toolUseResult.backgroundTaskId`, `Monitor started (task …`, an
+`async_launched` agent) to its `tool_use` for the description, command, start
+time and Claude Code version, and maps the `<task-notification>` that ends it
+(from the `queue-operation` enqueue record or the matching `task-notification`
+user record, deduplicated by task id and status). The event's `detail` is the
+task as JSON, redacted like the rest of the event. `task_update` rows sit
+outside the per-session block trim on their own budget, and
+`GET /api/v1/sessions/{id}/tasks` folds them to the latest state per task
+across every agent scope.
+
+`POST /api/v1/sessions/{id}/tasks/{taskId}/stop` has two paths, both refusing
+rather than guessing:
+
+- **Shell or monitor**: find the process group under the session's pty child.
+  The candidates are the processes that hold the task's own
+  `…/tasks/<taskId>.output` open for writing; the exact-command fallback runs
+  only when that file is unknown. A group that contains the session root, an
+  ancestor of the match, a process outside the session, or a process with a
+  child in another group is refused (`TASK_UNSAFE`); several safe groups are
+  `TASK_AMBIGUOUS`. SIGTERM goes to the group and SIGKILL follows after 3s
+  if the group, not just its leader, is still alive. Descriptions and commands
+  are redacted before storage, so a command carrying a secret cannot be
+  matched by the fallback.
+- **Agent**: Claude Code offers no external stop, so the daemon drives its
+  `/tasks` panel under an exclusive per-session pane drive that holds off
+  desktop keystrokes, sends, model and compact commands and exclusive
+  operations. It types `/tasks` only into a composer the empty detector
+  confirms, submits only once `/tasks` is the top suggestion, and clears what
+  it typed if the panel never opens. It opens the agent's row with Enter and
+  presses `x` only in a detail view confirmed on a fresh read, and sends Esc
+  only to a panel confirmed open. Every read is the parser's screen, never the
+  output ring, which lags a redrawing TUI. The stop succeeds only when the
+  transcript reports the task stopped. `canStop` is true for an agent only on
+  claude-code, on a Claude Code version the panel reader was verified against,
+  and when its description is unique among running agents.
+
 ### Durable shell-block capture
 
 Each eligible standalone shell has one capture writer, tee'd off the pty-host's
