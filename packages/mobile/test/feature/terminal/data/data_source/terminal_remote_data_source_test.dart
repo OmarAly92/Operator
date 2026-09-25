@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
@@ -6,6 +8,8 @@ import 'package:operator_mobile/core/api/api_request_helpers/end_points.dart';
 import 'package:operator_mobile/feature/terminal/data/data_source/terminal_remote_data_source.dart';
 import 'package:operator_mobile/feature/terminal/data/model/params/open_session_shell_params.dart';
 import 'package:operator_mobile/feature/terminal/data/model/params/send_session_message_params.dart';
+import 'package:operator_mobile/feature/terminal/data/model/params/stage_session_attachments_params.dart';
+import 'package:operator_mobile/feature/terminal/logic/composer_attachment.dart';
 
 class _MockApiConsumer extends Mock implements ApiConsumer {}
 
@@ -100,5 +104,31 @@ void main() {
 
     expect(suggestion, 'what is new in iOS 27');
     verify(() => apiConsumer.get(EndPoints.sessionSuggestion('s-1'))).called(1);
+  });
+
+  test('stages attachments as base64 with their mime type and reads back the paths', () async {
+    when(() => apiConsumer.post(any(), body: any(named: 'body'))).thenAnswer(
+      (_) async => _response({
+        'sessionId': 's-1',
+        'paths': ['.operator/attachments/attachment-aa.png'],
+      }),
+    );
+
+    final staged = (await dataSource.stageAttachments(
+      's-1',
+      StageSessionAttachmentsParams(files: [
+        ComposerAttachment(id: 'a', name: 'a.png', mimeType: 'image/png', bytes: Uint8List.fromList([1, 2, 3])),
+      ]),
+    )).data!;
+
+    expect(staged.paths, ['.operator/attachments/attachment-aa.png']);
+    final body = verify(
+      () => apiConsumer.post(EndPoints.sessionAttachments('s-1'), body: captureAny(named: 'body')),
+    ).captured.single as Map<String, dynamic>;
+    expect(body, {
+      'attachments': [
+        {'mimeType': 'image/png', 'data': 'AQID'},
+      ],
+    });
   });
 }

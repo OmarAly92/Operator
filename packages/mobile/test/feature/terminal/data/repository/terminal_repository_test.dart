@@ -7,8 +7,10 @@ import 'package:operator_mobile/core/helpers/result/result.dart';
 import 'package:operator_mobile/feature/terminal/data/data_source/terminal_remote_data_source.dart';
 import 'package:operator_mobile/feature/terminal/data/model/params/open_session_shell_params.dart';
 import 'package:operator_mobile/feature/terminal/data/model/params/send_session_message_params.dart';
+import 'package:operator_mobile/feature/terminal/data/model/params/stage_session_attachments_params.dart';
 import 'package:operator_mobile/feature/terminal/data/repository/terminal_repository.dart';
 import 'package:operator_mobile/feature/terminal/data/model/shell_terminal_model.dart';
+import 'package:operator_mobile/feature/terminal/data/model/staged_attachments_model.dart';
 
 class _MockDataSource extends Mock implements TerminalRemoteDataSource {}
 
@@ -24,6 +26,7 @@ void main() {
   setUpAll(() {
     registerFallbackValue(params);
     registerFallbackValue(const SendSessionMessageParams(message: ''));
+    registerFallbackValue(const StageSessionAttachmentsParams(files: []));
   });
 
   setUp(() {
@@ -173,5 +176,24 @@ void main() {
       expect((await repository.getDraft('s-1')).isFailure, isTrue);
       verifyNever(() => dataSource.getDraft(any()));
     });
+  });
+
+  test('stageAttachments passes the daemon paths through', () async {
+    when(() => dataSource.stageAttachments(any(), any())).thenAnswer(
+      (_) async => const GlobalResponse(data: StagedAttachmentsModel(sessionId: 's-1', paths: ['p'])),
+    );
+
+    final result = await repository.stageAttachments('s-1', const StageSessionAttachmentsParams(files: []));
+
+    expect(result.getOrDefault(const GlobalResponse()).data?.paths, ['p']);
+  });
+
+  test('stageAttachments reports no network without calling the daemon', () async {
+    when(() => network.isConnected).thenAnswer((_) async => false);
+
+    final result = await repository.stageAttachments('s-1', const StageSessionAttachmentsParams(files: []));
+
+    expect(result.isSuccess, isFalse);
+    verifyNever(() => dataSource.stageAttachments(any(), any()));
   });
 }

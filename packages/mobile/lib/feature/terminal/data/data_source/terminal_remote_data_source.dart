@@ -3,8 +3,10 @@ import 'package:operator_mobile/core/api/api_request_helpers/end_points.dart';
 import 'package:operator_mobile/core/api/models/global_response.dart';
 import 'package:operator_mobile/feature/terminal/data/model/params/open_session_shell_params.dart';
 import 'package:operator_mobile/feature/terminal/data/model/params/send_session_message_params.dart';
+import 'package:operator_mobile/feature/terminal/data/model/params/stage_session_attachments_params.dart';
 import 'package:operator_mobile/feature/terminal/data/model/shell_terminal_model.dart';
 import 'package:operator_mobile/feature/terminal/data/model/slash_command_model.dart';
+import 'package:operator_mobile/feature/terminal/data/model/staged_attachments_model.dart';
 
 abstract class TerminalRemoteDataSource {
   Future<GlobalResponse<List<ShellTerminalModel>>> getShellTerminals();
@@ -14,6 +16,10 @@ abstract class TerminalRemoteDataSource {
   Future<GlobalResponse<String?>> getDraft(String sessionId);
   Future<GlobalResponse<String?>> getSuggestion(String sessionId);
   Future<GlobalResponse<List<SlashCommandModel>>> getSlashCommands(String sessionId);
+  Future<GlobalResponse<StagedAttachmentsModel>> stageAttachments(
+    String sessionId,
+    StageSessionAttachmentsParams params,
+  );
 }
 
 class TerminalRemoteDataSourceImp implements TerminalRemoteDataSource {
@@ -81,6 +87,19 @@ class TerminalRemoteDataSourceImp implements TerminalRemoteDataSource {
       response.data as Map<String, dynamic>,
       withDataKey: false,
       fromJsonT: SlashCommandModel.listFromJson,
+    );
+  }
+
+  @override
+  Future<GlobalResponse<StagedAttachmentsModel>> stageAttachments(
+    String sessionId,
+    StageSessionAttachmentsParams params,
+  ) async {
+    final response = await _apiConsumer.post(EndPoints.sessionAttachments(sessionId), body: params.toJson());
+    return GlobalResponse<StagedAttachmentsModel>.fromJson(
+      response.data as Map<String, dynamic>,
+      withDataKey: false,
+      fromJsonT: StagedAttachmentsModel.fromJson,
     );
   }
 }
