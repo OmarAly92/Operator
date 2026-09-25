@@ -10,6 +10,9 @@ uniform float uFromTop;
 uniform float uBandOriginY;
 uniform vec4 uTint;
 uniform float uKnee;
+uniform float uCapHeight;
+uniform float uCapAlpha;
+uniform float uCapRadius;
 uniform sampler2D uTexture;
 
 out vec4 fragColor;
@@ -20,7 +23,9 @@ void main() {
     float s = clamp(distFromEdge / uBandHeight, 0.0, 1.0);
     float t = 1.0 - s;
     float w = smoothstep(0.0, uKnee, t);
-    float r = uMaxRadius * w;
+    float cap = uCapHeight > 0.0 ? 1.0 - smoothstep(uCapHeight * 0.6, uCapHeight, distFromEdge) : 0.0;
+    float r = mix(uMaxRadius * w, uCapRadius, cap);
+    float a = mix(uTint.a * w, uCapAlpha, cap);
     vec4 acc = vec4(0.0);
     float wsum = 0.0;
     for (int i = -3; i <= 3; i++) {
@@ -32,5 +37,5 @@ void main() {
         }
     }
     vec4 blurred = acc / wsum;
-    fragColor = mix(blurred, vec4(uTint.rgb * blurred.a, blurred.a), uTint.a * w);
+    fragColor = mix(blurred, vec4(uTint.rgb * blurred.a, blurred.a), a);
 }

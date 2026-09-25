@@ -39,6 +39,11 @@ class HomeShell extends StatefulWidget {
 }
 
 class _HomeShellState extends State<HomeShell> {
+  final List<ValueNotifier<double>> _bottomVisibility = List<ValueNotifier<double>>.generate(
+    HomeShell.tabs.length,
+    (_) => ValueNotifier<double>(0),
+  );
+
   @override
   void initState() {
     super.initState();
@@ -48,8 +53,26 @@ class _HomeShellState extends State<HomeShell> {
   @override
   void dispose() {
     HomeShell.selectedTab.removeListener(_onTabChanged);
+    for (final notifier in _bottomVisibility) {
+      notifier.dispose();
+    }
     super.dispose();
   }
+
+  Widget _tracked(int tab, Widget child) => NotificationListener<Notification>(
+        onNotification: (notification) {
+          final metrics = switch (notification) {
+            ScrollNotification(:final metrics, depth: 0) => metrics,
+            ScrollMetricsNotification(:final metrics, depth: 0) => metrics,
+            _ => null,
+          };
+          if (metrics != null && metrics.axis == Axis.vertical) {
+            _bottomVisibility[tab].value = ScrollEdgeEffect.bottomVisibility(metrics);
+          }
+          return false;
+        },
+        child: child,
+      );
 
   void _onTabChanged() => setState(() {});
 
@@ -84,20 +107,24 @@ class _HomeShellState extends State<HomeShell> {
               child: IndexedStack(
                 index: selected,
                 children: [
-                  const SessionsScreen(),
-                  const PullRequestsScreen(),
-                  SettingsScreen(onOpenBoard: () => HomeShell.selectedTab.value = 0),
+                  _tracked(0, const SessionsScreen()),
+                  _tracked(1, const PullRequestsScreen()),
+                  _tracked(2, SettingsScreen(onOpenBoard: () => HomeShell.selectedTab.value = 0)),
                 ],
               ),
             ),
           ),
-          const Positioned(
+          Positioned(
             left: 0,
             right: 0,
             bottom: 0,
-            child: ScrollEdgeEffect(
-              edge: ScrollEdge.bottom,
-              height: GlassMetrics.tabBarBottomInset + GlassMetrics.tabBarHeight + GlassMetrics.bottomEdgeFadeExtent,
+            child: ValueListenableBuilder<double>(
+              valueListenable: _bottomVisibility[selected],
+              builder: (context, visibility, _) => ScrollEdgeEffect(
+                edge: ScrollEdge.bottom,
+                height: GlassMetrics.tabBarBottomInset + GlassMetrics.tabBarHeight + GlassMetrics.bottomEdgeFadeExtent,
+                visibility: visibility,
+              ),
             ),
           ),
           if (selected == 0)

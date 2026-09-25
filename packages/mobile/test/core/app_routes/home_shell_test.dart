@@ -288,6 +288,40 @@ void main() {
     expect(bottomFade.single.height, 120);
   });
 
+  testWidgets('the bottom edge effect shows only while a tab has content under the bar', (tester) async {
+    await pumpShell(tester);
+    ScrollEdgeEffect bottomFade() =>
+        tester.widgetList<ScrollEdgeEffect>(find.byType(ScrollEdgeEffect)).singleWhere((e) => e.edge == ScrollEdge.bottom);
+    Finder bottomBlur() => find.descendant(
+          of: find.byWidgetPredicate((w) => w is ScrollEdgeEffect && w.edge == ScrollEdge.bottom),
+          matching: find.byType(BackdropFilter),
+        );
+    final agents = HomeShell.controllerFor(0);
+    expect(agents.position.maxScrollExtent, greaterThan(16));
+    expect(bottomFade().visibility, 1);
+    expect(bottomBlur(), findsOneWidget);
+
+    agents.jumpTo(agents.position.maxScrollExtent);
+    await tester.pump();
+    expect(bottomFade().visibility, 0);
+    expect(bottomBlur(), findsNothing);
+
+    agents.jumpTo(agents.position.maxScrollExtent - 8);
+    await tester.pump();
+    expect(bottomFade().visibility, 0.5);
+
+    await tester.tap(tabLabel('PRs'));
+    await settle(tester);
+    expect(HomeShell.controllerFor(1).position.maxScrollExtent, 0);
+    expect(bottomFade().visibility, 0);
+    expect(bottomBlur(), findsNothing);
+
+    await tester.tap(tabLabel('Agents'));
+    await settle(tester);
+    expect(bottomFade().visibility, 0.5);
+    agents.jumpTo(0);
+  });
+
   testWidgets('the + button is prominent glass and opens spawn', (tester) async {
     await pumpShell(tester);
     expect(tester.widget<GlassButton>(find.byKey(HomeShell.spawnButtonKey)).prominent, isTrue);
