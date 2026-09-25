@@ -509,4 +509,12 @@ and the shell scripts are current). Each plan adds its checks here when it merge
 - **Plan 6 — typing ahead:** in a zsh pane run `sleep 3` and type `echo hi`
   during it: afterwards `echo hi` is in the input box and did not run. In a
   Claude pane, typing while Claude works behaves as before.
+- **Plan 5 — highlights and marks:** Settings → Terminal highlights → add
+  `error` (red): Claude output containing it is tinted, including inside the
+  grey message band, and follows rewrap and streaming. Turn on `.*` and type
+  `(`: an inline error, no terminal change; `err(or)?` matches, `ERROR` does
+  not. Cmd+F: hit tint as before; Enter outlines the current row; a selection
+  dragged over a hit row sits on top. A mark and a find hit on one row layer
+  as selection > current hit > find tint > mark. Park a pane, edit a highlight,
+  switch back: new colour. Remove all highlights: nothing stays tinted.
 - **Input ordering fix (d1a962b8f):** nothing to click; covered by tests.
