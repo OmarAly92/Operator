@@ -1,5 +1,7 @@
 package domain
 
+import "errors"
+
 type BackgroundTaskKind string
 
 const (
@@ -45,3 +47,12 @@ type BackgroundTask struct {
 	StartedAt   string               `json:"startedAt,omitempty"`
 	EndedAt     string               `json:"endedAt,omitempty"`
 }
+
+var (
+	ErrTaskNotFound        = errors.New("background task not found")
+	ErrTaskProcessNotFound = errors.New("background task process not found")
+	ErrTaskFinished        = errors.New("background task already finished")
+	ErrTaskAmbiguous       = errors.New("background task matches more than one target")
+	ErrTaskStopUnsupported = errors.New("background task cannot be stopped")
+	ErrTaskStopUnconfirmed = errors.New("background task stop was not confirmed")
+)
