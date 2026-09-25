@@ -70,6 +70,7 @@ func newHost(ctx context.Context, cfg ServeConfig) *host {
 		cfg:       cfg,
 		ctx:       ctx,
 		clients:   make(map[net.Conn]*clientState),
+		watchers:  make(map[net.Conn]*clientState),
 		shutdownC: make(chan struct{}),
 		capture:   &captureSink{},
 		pty:       cfg.PTY,
@@ -228,6 +229,11 @@ type host struct {
 	fedBytes       uint64
 	persistMu      sync.Mutex
 	persistedBytes uint64
+
+	watchers   map[net.Conn]*clientState
+	programGen uint32
+	shownTitle string
+	appearance *AppearancePayload
 }
 
 // runWriter drains one client's outbound queue, blocking on each conn.Write
@@ -348,6 +354,9 @@ func (h *host) applyLargestLocked(pending *clientState) {
 	_ = h.pty.Resize(bestCols, bestRows)
 	if h.parser != nil {
 		_ = h.parser.Resize(uint32(bestCols), uint32(bestRows))
+		if replies := h.takeQueryRepliesLocked(); len(replies) > 0 {
+			go func(pty ptyConn) { _, _ = pty.Write(replies) }(h.pty)
+		}
 	}
 	h.recorder.resize(bestCols, bestRows)
 }
@@ -412,6 +421,11 @@ func (h *host) shutdown() {
 			states = append(states, cs)
 		}
 		h.clients = make(map[net.Conn]*clientState)
+		for c, cs := range h.watchers {
+			_ = c.Close()
+			states = append(states, cs)
+		}
+		h.watchers = make(map[net.Conn]*clientState)
 		h.mu.Unlock()
 		// Closing a conn does not wake a writer parked on an empty queue, and
 		// a deliver parked in awaitCapacity would never be signalled either.
@@ -629,6 +643,7 @@ func (h *host) deliver(batch []byte) bool {
 	h.fedBytes += uint64(len(batch))
 	inSync := h.parserInSyncLocked()
 	replies := h.takeQueryRepliesLocked()
+	h.publishProgramLocked()
 	pty := h.pty
 	h.mu.Unlock()
 
@@ -671,6 +686,9 @@ func (h *host) parserInSyncLocked() bool {
 func (h *host) tickParser() {
 	if parser := h.currentParser(); parser != nil {
 		_, _ = parser.Tick(time.Now().UnixMilli())
+		h.mu.Lock()
+		h.publishProgramLocked()
+		h.mu.Unlock()
 	}
 }
 
@@ -803,6 +821,10 @@ func (h *host) handleConn(conn net.Conn) {
 		// The connection died before it was ever registered; there is nothing
 		// to unwind.
 		_ = conn.Close()
+		return
+	}
+	if opening == nil && len(deferred) > 0 && deferred[0].typ == MsgWatchReq {
+		h.serveWatcher(conn, cs, buf)
 		return
 	}
 
@@ -1142,6 +1164,9 @@ func (h *host) handleClientMsg(conn net.Conn, msgType byte, payload []byte) {
 
 	case MsgRespawnReq:
 		h.handleRespawn(conn, payload)
+
+	case MsgAppearance:
+		h.handleAppearance(payload)
 
 	case MsgAck:
 		var ack AckPayload
