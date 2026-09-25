@@ -1,0 +1,4 @@
+abstract class ConnectionSignals {
+  Stream<void> get retries;
+  bool get authFailed;
+}

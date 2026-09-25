@@ -1,16 +1,19 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:operator_mobile/core/api/api_request_helpers/api_consumer.dart';
+import 'package:operator_mobile/core/api/interceptors/connection_report_interceptor.dart';
 import 'package:operator_mobile/core/api/interceptors/server_config_interceptor.dart';
+import 'package:operator_mobile/core/connection/connection_report.dart';
 import 'package:operator_mobile/core/error_handling/dio_error_handler/dio_error_handler.dart';
 import 'package:operator_mobile/core/helpers/logging/app_logger.dart';
 import 'package:talker_dio_logger/talker_dio_logger.dart';
 
 class DioConsumer implements ApiConsumer {
-  DioConsumer(this._configSource) {
+  DioConsumer(this._configSource, {ConnectionReports? reports}) {
     setDefaultDioOptions();
 
     client.interceptors.add(ServerConfigInterceptor(_configSource));
+    if (reports != null) client.interceptors.add(ConnectionReportInterceptor(reports));
 
     if (kDebugMode) {
       client.interceptors.add(

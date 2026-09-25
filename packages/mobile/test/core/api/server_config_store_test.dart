@@ -78,4 +78,15 @@ void main() {
     expect(store.current, isNull);
     verifyZeroInteractions(local);
   });
+
+  test('activeDesktopName follows the active desktop row', () async {
+    when(() => local.watchAll()).thenAnswer(
+      (_) => Stream.value(const [
+        DesktopModel(id: 'b', name: 'iMac', isActive: false),
+        DesktopModel(id: 'a', name: 'Mac', isActive: true),
+      ]),
+    );
+
+    expect(await store.activeDesktopName.first, 'Mac');
+  });
 }

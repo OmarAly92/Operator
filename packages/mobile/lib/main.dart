@@ -13,6 +13,7 @@ import 'package:operator_mobile/core/app_routes/routes_strings.dart';
 import 'package:operator_mobile/core/app_themes/colors/logic/skin_cubit.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/app_themes/themes/app_themes.dart';
+import 'package:operator_mobile/core/connection/connection_cubit.dart';
 import 'package:operator_mobile/core/database/tables/settings/settings_dao.dart';
 import 'package:operator_mobile/core/deep_link/deep_link_service.dart';
 import 'package:operator_mobile/core/notifications/phone_alerts_runtime.dart';
@@ -30,6 +31,7 @@ Future<void> main() async {
   await EasyLocalization.ensureInitialized();
   await ServiceLocator.init();
   await AppPreferences.load(sl<SettingsDao>());
+  sl<ConnectionCubit>();
 
   LaunchDestination destination;
   try {
@@ -86,7 +88,10 @@ class OperatorApp extends StatefulWidget {
 class _OperatorAppState extends State<OperatorApp> {
   late final AppLifecycleListener _lifecycle = phoneAlertsLifecycle(
     () => sl<PhoneAlertsRuntime>(),
-    onResume: () => unawaited(TelemetryRuntime.active()),
+    onResume: () {
+      unawaited(TelemetryRuntime.active());
+      sl<ConnectionCubit>().resumed();
+    },
   );
 
   @override
@@ -106,8 +111,11 @@ class _OperatorAppState extends State<OperatorApp> {
   }
 
   @override
-  Widget build(BuildContext context) => BlocProvider(
-        create: (context) => SkinCubit(),
+  Widget build(BuildContext context) => MultiBlocProvider(
+        providers: [
+          BlocProvider(create: (context) => SkinCubit()),
+          BlocProvider<ConnectionCubit>.value(value: sl<ConnectionCubit>()),
+        ],
         child: BlocBuilder<SkinCubit, SkinState>(
           buildWhen: (previous, current) => current is SkinChangedState,
           builder: (context, state) {

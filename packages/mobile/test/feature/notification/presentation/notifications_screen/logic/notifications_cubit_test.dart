@@ -5,6 +5,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:operator_mobile/core/api/models/global_response.dart';
 import 'package:operator_mobile/core/api/server_config.dart';
 import 'package:operator_mobile/core/api/server_config_store.dart';
+import 'package:operator_mobile/core/connection/connection_signals.dart';
 import 'package:operator_mobile/core/error_handling/failures/failure.dart';
 import 'package:operator_mobile/core/helpers/result/result.dart';
 import 'package:operator_mobile/core/replica/replicated.dart';
@@ -41,6 +42,16 @@ Result<GlobalResponse<NotificationPageModel>, Failure> page(
     ),
   ),
 );
+
+class _Signals implements ConnectionSignals {
+  _Signals(this.retries);
+
+  @override
+  final Stream<void> retries;
+
+  @override
+  bool authFailed = false;
+}
 
 void main() {
   late _MockRepository repository;
@@ -267,5 +278,42 @@ void main() {
       expect(cubit.unreadCount, 0);
       await cubit.close();
     });
+  });
+
+  test('a connection retry reloads the list', () async {
+    final retries = StreamController<void>.broadcast();
+    when(() => repository.getNotifications(any())).thenAnswer((_) async => page([item('n-1')]));
+    final cubit = NotificationsCubit(
+      repository,
+      serverConfigStore,
+      unreadPoll: const Duration(hours: 1),
+      connection: _Signals(retries.stream),
+    );
+    await Future<void>.delayed(Duration.zero);
+
+    retries.add(null);
+    await Future<void>.delayed(Duration.zero);
+
+    verify(() => repository.getNotifications(any())).called(2);
+    await cubit.close();
+    await retries.close();
+  });
+
+  test('the unread poll holds while re-pairing is needed, so it spends no auth attempts', () async {
+    when(() => repository.getNotifications(any())).thenAnswer((_) async => page([]));
+    final signals = _Signals(const Stream.empty())..authFailed = true;
+    final cubit = NotificationsCubit(
+      repository,
+      serverConfigStore,
+      unreadPoll: const Duration(hours: 1),
+      connection: signals,
+    );
+    await Future<void>.delayed(Duration.zero);
+    clearInteractions(repository);
+
+    await cubit.refreshUnread();
+
+    verifyNever(() => repository.getNotifications(any()));
+    await cubit.close();
   });
 }

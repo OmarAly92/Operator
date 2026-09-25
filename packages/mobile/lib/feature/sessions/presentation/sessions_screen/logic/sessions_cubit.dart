@@ -4,6 +4,7 @@ import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:operator_mobile/core/api/interceptors/server_config_interceptor.dart';
 import 'package:operator_mobile/core/api/server_config.dart';
+import 'package:operator_mobile/core/connection/connection_signals.dart';
 import 'package:operator_mobile/core/error_handling/connection_error.dart';
 import 'package:operator_mobile/core/error_handling/failures/failure.dart';
 import 'package:operator_mobile/core/helpers/result/result.dart';
@@ -21,9 +22,15 @@ part 'sessions_state.dart';
 const String kAllProjects = 'all';
 
 class SessionsCubit extends Cubit<SessionsState> {
-  SessionsCubit(this._repository, this._muxClient, this._configSource, {DateTime Function()? clock})
-    : _clock = clock ?? DateTime.now,
-      super(const SessionsInitialState()) {
+  SessionsCubit(
+    this._repository,
+    this._muxClient,
+    this._configSource, {
+    ConnectionSignals? connection,
+    DateTime Function()? clock,
+  }) : _connection = connection,
+       _clock = clock ?? DateTime.now,
+       super(const SessionsInitialState()) {
     _desktopId = _configSource.current?.desktopId;
     activeProjectId = _savedProject(_desktopId);
     _muxSub = _muxClient.boardChanges.listen((_) {
@@ -35,6 +42,7 @@ class SessionsCubit extends Cubit<SessionsState> {
       if (status == MuxStatus.open) _scheduleRefresh();
     });
     _configSub = _configSource.changes.listen(_onConfigChanged);
+    _retrySub = connection?.retries.listen((_) => unawaited(refresh()));
     _muxClient.connect();
     _muxClient.subscribeSessions();
     _cacheReady = _primeFromCache(_boardEpoch);
@@ -45,6 +53,7 @@ class SessionsCubit extends Cubit<SessionsState> {
   final SessionsRepository _repository;
   final MuxClient _muxClient;
   final ServerConfigSource _configSource;
+  final ConnectionSignals? _connection;
   final DateTime Function() _clock;
 
   List<SessionModel> sessions = [];
@@ -78,6 +87,7 @@ class SessionsCubit extends Cubit<SessionsState> {
   StreamSubscription<void>? _muxSub;
   StreamSubscription<MuxStatus>? _statusSub;
   StreamSubscription<ServerConfig?>? _configSub;
+  StreamSubscription<void>? _retrySub;
   int _boardEpoch = 0;
   Timer? _refreshTimer;
   Future<void>? _refreshFuture;
@@ -220,6 +230,7 @@ class SessionsCubit extends Cubit<SessionsState> {
   void resumeUpdates() {
     if (!_paused) return;
     _paused = false;
+    if (_connection?.authFailed ?? false) return;
     unawaited(refresh());
   }
 
@@ -249,6 +260,7 @@ class SessionsCubit extends Cubit<SessionsState> {
     unawaited(_muxSub?.cancel());
     unawaited(_statusSub?.cancel());
     unawaited(_configSub?.cancel());
+    unawaited(_retrySub?.cancel());
     return super.close();
   }
 }

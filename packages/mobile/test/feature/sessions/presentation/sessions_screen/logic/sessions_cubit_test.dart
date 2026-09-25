@@ -7,6 +7,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:operator_mobile/core/api/interceptors/server_config_interceptor.dart';
 import 'package:operator_mobile/core/api/models/global_response.dart';
 import 'package:operator_mobile/core/api/server_config.dart';
+import 'package:operator_mobile/core/connection/connection_signals.dart';
 import 'package:operator_mobile/core/error_handling/failures/failure.dart';
 import 'package:operator_mobile/core/helpers/result/result.dart';
 import 'package:operator_mobile/core/mux/mux_client.dart';
@@ -39,6 +40,16 @@ class _StubConfigSource implements ServerConfigSource {
 }
 
 const _configB = ServerConfig(host: '10.0.0.9', httpPort: '3011', secure: false, password: 'pw');
+
+class _Signals implements ConnectionSignals {
+  _Signals(this.retries);
+
+  @override
+  final Stream<void> retries;
+
+  @override
+  bool authFailed = false;
+}
 
 void main() {
   late _MockSessionsRepository repository;
@@ -639,6 +650,53 @@ void main() {
 
       expect(cubit.sessions.single.id, 'from-b');
       expect(cubit.boardIsCached, isTrue);
+      await cubit.close();
+    });
+  });
+
+  group('connection signals', () {
+    late StreamController<void> retries;
+    late _Signals signals;
+
+    setUp(() {
+      retries = StreamController<void>.broadcast();
+      signals = _Signals(retries.stream);
+    });
+
+    tearDown(() => retries.close());
+
+    test('a connection retry refreshes the board', () async {
+      var fetches = 0;
+      when(() => repository.getBoard()).thenAnswer((_) async {
+        fetches++;
+        return Result.success(GlobalResponse(data: const BoardSnapshot()));
+      });
+      final cubit = SessionsCubit(repository, mux, source, connection: signals);
+      await Future<void>.delayed(Duration.zero);
+      expect(fetches, 1);
+
+      retries.add(null);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(fetches, 2);
+      await cubit.close();
+    });
+
+    test('resuming the app while re-pairing is needed spends no auth attempt', () async {
+      var fetches = 0;
+      when(() => repository.getBoard()).thenAnswer((_) async {
+        fetches++;
+        return Result.failure(ServerFailure(error: 'x', message: 'bad', statusCode: 401));
+      });
+      final cubit = SessionsCubit(repository, mux, source, connection: signals);
+      await Future<void>.delayed(Duration.zero);
+      signals.authFailed = true;
+
+      cubit.pauseUpdates();
+      cubit.resumeUpdates();
+      await Future<void>.delayed(Duration.zero);
+
+      expect(fetches, 1);
       await cubit.close();
     });
   });

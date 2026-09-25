@@ -4,6 +4,7 @@ import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:operator_mobile/core/api/server_config.dart';
 import 'package:operator_mobile/core/api/server_config_store.dart';
+import 'package:operator_mobile/core/connection/connection_signals.dart';
 import 'package:operator_mobile/core/helpers/result/result.dart';
 import 'package:operator_mobile/feature/notification/data/model/notification_model.dart';
 import 'package:operator_mobile/feature/notification/data/model/params/get_notifications_params.dart';
@@ -18,11 +19,18 @@ class NotificationsCubit extends Cubit<NotificationsState> {
     NotificationRepository repository,
     ServerConfigStore serverConfigStore, {
     Duration unreadPoll = const Duration(seconds: 30),
-  }) => NotificationsCubit._(repository, serverConfigStore, unreadPoll: unreadPoll);
+    ConnectionSignals? connection,
+  }) => NotificationsCubit._(repository, serverConfigStore, unreadPoll: unreadPoll, connection: connection);
 
-  NotificationsCubit._(this._repository, this._serverConfigStore, {required this._unreadPoll})
-    : super(const NotificationsInitialState()) {
+  NotificationsCubit._(
+    this._repository,
+    this._serverConfigStore, {
+    required this._unreadPoll,
+    ConnectionSignals? connection,
+  }) : _connection = connection,
+       super(const NotificationsInitialState()) {
     _configSub = _serverConfigStore.changes.listen(_onConfigChanged);
+    _retrySub = connection?.retries.listen((_) => unawaited(load()));
     unawaited(_start(_epoch));
     _timer = Timer.periodic(_unreadPoll, (_) => unawaited(refreshUnread()));
   }
@@ -30,6 +38,7 @@ class NotificationsCubit extends Cubit<NotificationsState> {
   final NotificationRepository _repository;
   final ServerConfigStore _serverConfigStore;
   final Duration _unreadPoll;
+  final ConnectionSignals? _connection;
 
   bool get _hasServer => hasServer(_serverConfigStore.current);
 
@@ -43,6 +52,7 @@ class NotificationsCubit extends Cubit<NotificationsState> {
   String? _nextCursor;
   Timer? _timer;
   StreamSubscription<ServerConfig?>? _configSub;
+  StreamSubscription<void>? _retrySub;
   int _revision = 0;
   int _epoch = 0;
   bool _freshLoaded = false;
@@ -138,7 +148,7 @@ class NotificationsCubit extends Cubit<NotificationsState> {
   }
 
   Future<void> refreshUnread() async {
-    if (!_hasServer) return;
+    if (!_hasServer || (_connection?.authFailed ?? false)) return;
     final epoch = _epoch;
     final result = await _repository.getNotifications(
       const GetNotificationsParams(status: 'unread', limit: 1),
@@ -180,6 +190,7 @@ class NotificationsCubit extends Cubit<NotificationsState> {
   Future<void> close() {
     _timer?.cancel();
     unawaited(_configSub?.cancel());
+    unawaited(_retrySub?.cancel());
     return super.close();
   }
 }

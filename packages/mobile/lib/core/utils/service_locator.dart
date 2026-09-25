@@ -6,6 +6,8 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:operator_mobile/core/api/api_request_helpers/api_consumer.dart';
 import 'package:operator_mobile/core/api/api_request_helpers/dio_consumer.dart';
 import 'package:operator_mobile/core/api/server_config_store.dart';
+import 'package:operator_mobile/core/connection/connection_cubit.dart';
+import 'package:operator_mobile/core/connection/connection_report.dart';
 import 'package:operator_mobile/core/database/app_database.dart';
 import 'package:operator_mobile/core/database/tables/desktop/desktop_dao.dart';
 import 'package:operator_mobile/core/database/tables/replica_block_event/replica_block_event_dao.dart';
@@ -102,14 +104,23 @@ class ServiceLocator {
     sl.registerLazySingleton<ServerConfigStore>(
       () => ServerConfigStore(sl<DesktopsLocalDataSource>()),
     );
+    sl.registerLazySingleton<ConnectionReports>(ConnectionReports.new);
     sl.registerLazySingleton<ApiConsumer>(
-      () => DioConsumer(sl<ServerConfigStore>()),
+      () => DioConsumer(sl<ServerConfigStore>(), reports: sl<ConnectionReports>()),
     );
     sl.registerLazySingleton<NetworkStatus>(
       () => NetworkStatusImp(sl<ApiConsumer>(), sl<ServerConfigStore>()),
     );
     sl.registerLazySingleton<MuxClient>(
       () => MuxClient(sl<ServerConfigStore>()),
+    );
+    sl.registerLazySingleton<ConnectionCubit>(
+      () => ConnectionCubit(
+        sl<ConnectionReports>(),
+        sl<MuxClient>().status,
+        sl<ServerConfigStore>(),
+        desktopNames: sl<ServerConfigStore>().activeDesktopName,
+      ),
     );
     sl.registerLazySingleton<GlobalKey<NavigatorState>>(
       () => GlobalKey<NavigatorState>(),
@@ -149,7 +160,12 @@ class ServiceLocator {
 
   static void _sessionsFeatureSetup() {
     sl.registerLazySingleton<SessionsCubit>(
-      () => SessionsCubit(sl<SessionsRepository>(), sl<MuxClient>(), sl<ServerConfigStore>()),
+      () => SessionsCubit(
+        sl<SessionsRepository>(),
+        sl<MuxClient>(),
+        sl<ServerConfigStore>(),
+        connection: sl<ConnectionCubit>(),
+      ),
     );
 
     sl.registerLazySingleton<SessionsRepository>(
@@ -302,6 +318,7 @@ class ServiceLocator {
       () => NotificationsCubit(
         sl<NotificationRepository>(),
         sl<ServerConfigStore>(),
+        connection: sl<ConnectionCubit>(),
       ),
     );
 
