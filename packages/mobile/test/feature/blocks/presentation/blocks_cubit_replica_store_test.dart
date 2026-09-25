@@ -198,4 +198,40 @@ void main() {
     expect(calls, 2);
     expect(await nextOpenAnchor(), 120);
   });
+
+  Future<void> staleAfterFreshFetch({required bool staleSucceeds}) async {
+    final remote = _MockRemote();
+    final stale = Completer<Map<String, dynamic>>();
+    var calls = 0;
+    when(() => remote.getSessionBlocks(any(), any())).thenAnswer((_) {
+      calls++;
+      return calls == 1 ? stale.future : Future.value(_page([for (var seq = 101; seq <= 120; seq++) seq]));
+    });
+    final cubit = open(remote);
+    await pumpEventQueue();
+
+    statuses.add(MuxStatus.closed);
+    statuses.add(MuxStatus.open);
+    await pumpEventQueue();
+    if (staleSucceeds) {
+      stale.complete(_page([for (var seq = 101; seq <= 110; seq++) seq]));
+    } else {
+      stale.completeError(ServerFailure(error: 'timeout', message: 'timeout', statusCode: 408));
+    }
+    await pumpEventQueue();
+    events.add(BlockEventEnvelope('s-1', _stop(121)));
+    await pumpEventQueue();
+    await cubit.close();
+
+    expect(calls, 2);
+    expect(await nextOpenAnchor(), 121);
+  }
+
+  test('a stale fetch that succeeds after the fresh one leaves history caught up', () async {
+    await staleAfterFreshFetch(staleSucceeds: true);
+  });
+
+  test('a stale fetch that fails after the fresh one leaves history caught up', () async {
+    await staleAfterFreshFetch(staleSucceeds: false);
+  });
 }

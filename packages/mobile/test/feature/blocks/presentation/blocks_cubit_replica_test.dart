@@ -196,4 +196,30 @@ void main() {
     verifyNever(() => repository.rememberLive(any(), any()));
     await cubit.close();
   });
+
+  test('a fetch whose held live rows overflowed fetches again, then live rows persist', () async {
+    final gate = Completer<Result<List<BlockEventModel>, Failure>>();
+    var calls = 0;
+    when(() => repository.getSessionBlocks(any(), any())).thenAnswer((_) {
+      calls++;
+      return calls == 1 ? gate.future : Future.value(Result.success(const <BlockEventModel>[]));
+    });
+
+    final cubit = build();
+    await Future<void>.delayed(Duration.zero);
+    for (var seq = 1; seq <= ReplicaLimits.blockEventsPerSession + 50; seq++) {
+      events.add(BlockEventEnvelope('s-1', _stop(seq)));
+    }
+    await Future<void>.delayed(Duration.zero);
+    gate.complete(Result.success(const <BlockEventModel>[]));
+    await Future<void>.delayed(Duration.zero);
+    await Future<void>.delayed(Duration.zero);
+
+    expect(calls, 2);
+    events.add(BlockEventEnvelope('s-1', _stop(ReplicaLimits.blockEventsPerSession + 51)));
+    await Future<void>.delayed(Duration.zero);
+
+    verify(() => repository.rememberLive('s-1', _stop(ReplicaLimits.blockEventsPerSession + 51))).called(1);
+    await cubit.close();
+  });
 }

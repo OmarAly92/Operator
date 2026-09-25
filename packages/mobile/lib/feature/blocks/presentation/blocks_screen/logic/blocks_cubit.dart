@@ -85,7 +85,8 @@ class BlocksCubit extends Cubit<BlocksState> {
   int _revision = 0;
   int _capacity = kBlockWindow;
   int? _syncedThrough;
-  int _fetching = 0;
+  int _generation = 0;
+  bool _latestPending = false;
   bool _lastFetchOk = false;
   int _connection = 0;
   final List<Map<String, dynamic>> _unsynced = [];
@@ -95,7 +96,7 @@ class BlocksCubit extends Cubit<BlocksState> {
   @visibleForTesting
   int get unsyncedCount => _unsynced.length;
 
-  bool get _caughtUp => _fetching == 0 && _lastFetchOk;
+  bool get _caughtUp => !_latestPending && _lastFetchOk;
 
   StreamSubscription<BlockEventEnvelope>? _eventsSub;
   StreamSubscription<MuxStatus>? _statusSub;
@@ -141,8 +142,9 @@ class BlocksCubit extends Cubit<BlocksState> {
   Future<void> refresh() async {
     loading = true;
     _emit();
-    _fetching++;
+    final generation = ++_generation;
     final connection = _connection;
+    _latestPending = true;
     _unsynced.clear();
     _unsyncedThrough = null;
     _unsyncedDropped = false;
@@ -150,25 +152,31 @@ class BlocksCubit extends Cubit<BlocksState> {
       sessionId,
       GetSessionBlocksParams(afterSeq: _syncedThrough, agentId: agentId),
     );
-    _fetching--;
+    final latest = generation == _generation;
+    final owns = latest && connection == _connection;
+    if (latest) _latestPending = false;
+    var dropped = false;
     result.when(
       onSuccess: (records) {
-        error = null;
-        final current = connection == _connection;
-        _lastFetchOk = current && !_unsyncedDropped;
         for (final record in records) {
           _merge(record);
-          if (current) _syncedThrough = _later(_syncedThrough, record.seq);
+          if (owns) _syncedThrough = _later(_syncedThrough, record.seq);
         }
+        if (!owns) return;
+        error = null;
+        dropped = _unsyncedDropped;
+        _lastFetchOk = !dropped;
       },
       onFailure: (failure) {
+        if (!owns) return;
         _lastFetchOk = false;
         error = failure.message.isEmpty ? 'Could not load this session\'s blocks' : failure.message;
       },
     );
-    if (_caughtUp) _flushUnsynced();
-    loading = false;
+    if (owns && _caughtUp) _flushUnsynced();
+    loading = _latestPending;
     _rebuild();
+    if (dropped && !isClosed) unawaited(refresh());
   }
 
   void _flushUnsynced() {
