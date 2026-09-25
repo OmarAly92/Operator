@@ -5,14 +5,18 @@ import 'package:operator_mobile/core/error_handling/dio_error_handler/status_cod
 
 void main() {
   group('classifyConnectionFailure', () {
-    test('treats no answer as unreachable', () {
-      expect(classifyConnectionFailure(null), ConnectionFailure.unreachable);
+    test('treats a failure with no status that is not a network failure as serverError', () {
+      expect(classifyConnectionFailure(null), ConnectionFailure.serverError);
+      expect(classifyConnectionFailure(StatusCode.mappingFailure), ConnectionFailure.serverError);
+      expect(classifyConnectionFailure(StatusCode.cacheError), ConnectionFailure.serverError);
+      expect(classifyConnectionFailure(StatusCode.kDefault), ConnectionFailure.serverError);
     });
 
-    test('treats a local transport failure as unreachable', () {
+    test('treats a connection error or timeout as unreachable', () {
       expect(classifyConnectionFailure(StatusCode.noInternetConnection), ConnectionFailure.unreachable);
       expect(classifyConnectionFailure(StatusCode.connectionTimeout), ConnectionFailure.unreachable);
       expect(classifyConnectionFailure(StatusCode.receiveTimeout), ConnectionFailure.unreachable);
+      expect(classifyConnectionFailure(StatusCode.sendTimeout), ConnectionFailure.unreachable);
     });
 
     test('maps 401 to auth', () {

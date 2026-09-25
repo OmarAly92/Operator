@@ -1,9 +1,17 @@
 import 'package:flutter/foundation.dart';
+import 'package:operator_mobile/core/error_handling/dio_error_handler/status_code.dart';
 
 enum ConnectionFailure { notOprQr, unsupportedPayload, unreachable, auth, rateLimited, serverError, local }
 
+const Set<int> _unreachableStatuses = {
+  StatusCode.connectionTimeout,
+  StatusCode.sendTimeout,
+  StatusCode.receiveTimeout,
+  StatusCode.noInternetConnection,
+};
+
 ConnectionFailure classifyConnectionFailure(int? status) {
-  if (status == null || status < 0) return ConnectionFailure.unreachable;
+  if (_unreachableStatuses.contains(status)) return ConnectionFailure.unreachable;
   if (status == 401) return ConnectionFailure.auth;
   if (status == 429) return ConnectionFailure.rateLimited;
   return ConnectionFailure.serverError;
