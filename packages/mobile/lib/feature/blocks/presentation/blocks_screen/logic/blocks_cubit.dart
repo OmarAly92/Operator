@@ -87,13 +87,19 @@ class BlocksCubit extends Cubit<BlocksState> {
   StreamSubscription<List<SessionPatch>>? _patchesSub;
 
   int _taskSeq = 0;
+  int? _lowestTaskSeq;
 
   int? get _highestSeq {
     final highest = _events.isEmpty ? _taskSeq : max(_events.lastKey()!, _taskSeq);
     return highest == 0 ? null : highest;
   }
 
-  int? get _lowestSeq => _events.isEmpty ? null : _events.firstKey();
+  int? get _lowestSeq {
+    final kept = _events.isEmpty ? null : _events.firstKey();
+    final task = _lowestTaskSeq;
+    if (kept == null || task == null) return kept ?? task;
+    return min(kept, task);
+  }
 
   Future<void> refresh() async {
     loading = true;
@@ -288,11 +294,14 @@ class BlocksCubit extends Cubit<BlocksState> {
     if (seq == null) return;
     if (record.kind == 'task_update') {
       _taskSeq = max(_taskSeq, seq);
+      _lowestTaskSeq = min(_lowestTaskSeq ?? seq, seq);
       return;
     }
     _events[seq] = record;
     while (_events.length > _capacity) {
-      _events.remove(_events.firstKey());
+      final evicted = _events.firstKey()!;
+      _events.remove(evicted);
+      if ((_lowestTaskSeq ?? evicted) < evicted) _lowestTaskSeq = null;
       hasOlder = _capacity < kBlockMaxWindow;
     }
   }

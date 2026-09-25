@@ -322,4 +322,63 @@ void main() {
     expect(cubit.blocks.map((block) => block.id), ['seq-1']);
     await cubit.close();
   });
+
+  BlockEventModel stopRow(int seq) =>
+      BlockEventModel.fromJson({'seq': seq, 'sessionId': 's-1', 'kind': 'stop', 'text': 'line $seq'});
+
+  test('an older page of only task rows moves the cursor past them, so the next page reaches the transcript', () async {
+    when(() => blocks.getSessionBlocks(any(), any())).thenAnswer(
+      (_) async => Result.success([for (var seq = 999; seq < 1000 + kBlockWindow; seq++) stopRow(seq)]),
+    );
+    final cubit = build();
+    await settle();
+    expect(cubit.hasOlder, isTrue);
+    expect(cubit.blocks.first.id, 'seq-1000');
+
+    when(() => blocks.getSessionBlocks(any(), any())).thenAnswer((invocation) async {
+      final params = invocation.positionalArguments[1] as GetSessionBlocksParams;
+      final before = params.beforeSeq!;
+      if (before == 1000) {
+        return Result.success([
+          for (var seq = before - kBlockPage; seq < before; seq++) BlockEventModel.fromJson(_update(seq, 'b$seq', 'completed')),
+        ]);
+      }
+      return Result.success([for (var seq = before - 10; seq < before; seq++) stopRow(seq)]);
+    });
+
+    await cubit.loadOlder();
+    expect(cubit.blocks.first.id, 'seq-1000');
+    expect(cubit.hasOlder, isTrue);
+
+    await cubit.loadOlder();
+    final cursors = verify(() => blocks.getSessionBlocks('s-1', captureAny()))
+        .captured
+        .cast<GetSessionBlocksParams>()
+        .where((params) => params.beforeSeq != null)
+        .map((params) => params.beforeSeq)
+        .toList();
+    expect(cursors, [1000, 1000 - kBlockPage]);
+    expect(cubit.blocks.first.id, 'seq-${1000 - kBlockPage - 10}');
+    expect(cubit.hasOlder, isFalse);
+    await cubit.close();
+  });
+
+  test('a task row below an evicted transcript row does not let paging skip that row', () async {
+    when(() => blocks.getSessionBlocks(any(), any())).thenAnswer(
+      (_) async => Result.success([
+        BlockEventModel.fromJson(_update(10, 'b10', 'completed')),
+        for (var seq = 11; seq <= 11 + kBlockWindow; seq++) stopRow(seq),
+      ]),
+    );
+    final cubit = build();
+    await settle();
+    expect(cubit.blocks.first.id, 'seq-12');
+    when(() => blocks.getSessionBlocks(any(), any())).thenAnswer((_) async => Result.success(const <BlockEventModel>[]));
+
+    await cubit.loadOlder();
+
+    final params = verify(() => blocks.getSessionBlocks('s-1', captureAny())).captured.last as GetSessionBlocksParams;
+    expect(params.beforeSeq, 12);
+    await cubit.close();
+  });
 }
