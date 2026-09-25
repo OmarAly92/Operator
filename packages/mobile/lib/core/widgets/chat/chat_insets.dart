@@ -12,8 +12,6 @@ class ChatInsets extends InheritedWidget {
   final double gap;
   final double top;
 
-  double get inset => bottom.value + gap;
-
   static ChatInsets? maybeOf(BuildContext context) => context.dependOnInheritedWidgetOfExactType<ChatInsets>();
 
   @override

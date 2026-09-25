@@ -59,6 +59,11 @@ void main() {
 
   Rect capsule(WidgetTester tester) => tester.getRect(find.byKey(TerminalComposer.capsuleKey));
 
+  double dockInset(WidgetTester tester) {
+    final insets = tester.widget<ChatInsets>(find.byType(ChatInsets));
+    return insets.bottom.value + insets.gap;
+  }
+
   testWidgets('the transcript runs under the floating capsule and its last message clears it', (tester) async {
     harness = TerminalHarness()..start(harness: 'claude-code', blockRecords: _conversation(12));
     await harness.pump(tester, const TerminalBody());
@@ -90,12 +95,12 @@ void main() {
     harness = TerminalHarness()..start(harness: 'claude-code', blockRecords: _conversation(12));
     await harness.pump(tester, const TerminalBody());
     await tester.pumpAndSettle();
-    final resting = tester.widget<ChatInsets>(find.byType(ChatInsets)).inset;
+    final resting = dockInset(tester);
 
     await tester.enterText(find.byType(TextField), 'one\ntwo\nthree');
     await tester.pumpAndSettle();
 
-    final grown = tester.widget<ChatInsets>(find.byType(ChatInsets)).inset;
+    final grown = dockInset(tester);
     expect(grown, greaterThan(resting));
     final body = tester.getRect(find.byType(TerminalBody));
     expect(grown, body.bottom - capsule(tester).top);
@@ -108,7 +113,7 @@ void main() {
     await tester.pumpAndSettle();
 
     final pane = tester.getRect(find.byType(RawTerminalPane));
-    final insets = tester.widget<ChatInsets>(find.byType(ChatInsets)).inset;
+    final insets = dockInset(tester);
     final body = tester.getRect(find.byType(TerminalBody));
     expect(pane.bottom, body.bottom - insets);
   });

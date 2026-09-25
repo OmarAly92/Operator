@@ -49,7 +49,6 @@ sealed class AppSheetMetrics {
   static const double searchBottom = 12;
   static const double mediumFraction = 0.55;
   static const double largeFraction = 0.92;
-  static const double headerFadeExtent = FrostedBand.fadeExtent;
   static const double pushParallax = 0.3;
 }
 
