@@ -9,10 +9,29 @@ __operator_terminal_guard() {
 
 	autoload -Uz add-zsh-hook 2>/dev/null
 
+	typeset -gri __operator_terminal_TYPEAHEAD_MAX=256
+
 	__operator_terminal_input_ready() {
 		emulate -L zsh
 		print -nr -- $'\e]133;B\a'
 		print -nr -- $'\e]7000;v=1;input-ready=1\a'
+		__operator_terminal_report_typeahead
+	}
+
+	__operator_terminal_report_typeahead() {
+		emulate -L zsh
+		[[ ${__operator_terminal_TYPEAHEAD_ARMED:-0} == 1 ]] || return 0
+		unset __operator_terminal_TYPEAHEAD_ARMED
+		[[ $CONTEXT == start ]] || return 0
+		local typed='' key
+		while (( ${#typed} <= __operator_terminal_TYPEAHEAD_MAX )) && read -t 0 -k 1 key; do
+			typed+=$key
+		done
+		[[ -n $typed ]] || return 0
+		zle -U -- "$typed"
+		(( ${#typed} <= __operator_terminal_TYPEAHEAD_MAX )) || return 0
+		[[ $typed != *[[:cntrl:]]* ]] || return 0
+		print -nr -- $'\e]7000;v=1;typeahead='"$(__operator_terminal_pct_encode "$typed")"$'\a'
 	}
 
 	__operator_terminal_input_released() {
@@ -29,28 +48,16 @@ __operator_terminal_guard() {
 
 	__operator_terminal_pct_encode() {
 		emulate -L zsh
-		local s=$1 out='' i ch code hi lo
+		setopt no_multibyte
+		local s=$1 out='' ch encoded
+		local -i i
 		for ((i = 1; i <= ${#s}; i++)); do
-			ch=${s[$i]}
-			if [[ -n "${(M)__operator_terminal_SAFE##*${ch}*}" ]]; then
+			ch=${s[i]}
+			if [[ $__operator_terminal_SAFE == *"$ch"* ]]; then
 				out+=$ch
 			else
-				code=$(printf '%d' "'$ch")
-				hi=$(( code >> 4 ))
-				lo=$(( code & 0x0f ))
-				out+='%'
-				case $hi in
-					0) out+='0' ;; 1) out+='1' ;; 2) out+='2' ;; 3) out+='3' ;;
-					4) out+='4' ;; 5) out+='5' ;; 6) out+='6' ;; 7) out+='7' ;;
-					8) out+='8' ;; 9) out+='9' ;; 10) out+='a' ;; 11) out+='b' ;;
-					12) out+='c' ;; 13) out+='d' ;; 14) out+='e' ;; 15) out+='f' ;;
-				esac
-				case $lo in
-					0) out+='0' ;; 1) out+='1' ;; 2) out+='2' ;; 3) out+='3' ;;
-					4) out+='4' ;; 5) out+='5' ;; 6) out+='6' ;; 7) out+='7' ;;
-					8) out+='8' ;; 9) out+='9' ;; 10) out+='a' ;; 11) out+='b' ;;
-					12) out+='c' ;; 13) out+='d' ;; 14) out+='e' ;; 15) out+='f' ;;
-				esac
+				printf -v encoded '%%%02x' "'$ch"
+				out+=$encoded
 			fi
 		done
 		print -nr -- $out
@@ -94,6 +101,7 @@ __operator_terminal_guard() {
 			print -nr -- $'\e]7000;v=1;id='${__operator_terminal_CURRENT_ID}$';exit='${__operator_terminal_status}$'\e\\'
 			print -nr -- $'\e]133;D;'${__operator_terminal_status}$'\a'
 			unset __operator_terminal_COMMAND_RUNNING
+			__operator_terminal_TYPEAHEAD_ARMED=1
 		fi
 		__operator_terminal_next_id
 		local cwd branch
