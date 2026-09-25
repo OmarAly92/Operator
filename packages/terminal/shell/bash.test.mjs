@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
-import { haveTmux, parseOscRecords, runInPty, splitEveryByte } from "./pty.mjs";
+import { haveTmux, parseOscRecords, runInPty, runInPtySegments, splitEveryByte } from "./pty.mjs";
 
 const bootstrap = fileURLToPath(new URL("./bash.sh", import.meta.url));
 const ptySkip = haveTmux() ? false : "tmux is required";
@@ -264,4 +264,15 @@ test("percent-encodes non-ASCII bytes as UTF-8", () => {
 		{ encoding: "utf8", env: { ...process.env, LANG: "en_US.UTF-8", LC_ALL: "en_US.UTF-8" } },
 	);
 	assert.equal(out.replace(/\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)/g, ""), "caf%c3%a9%20%e2%82%ac%20%e6%97%a5%20%3f%5bx%5d");
+});
+
+test("after a width change redraws only the last prompt line and never moves above it", { skip: ptySkip }, () => {
+	const [, afterResize] = runInPtySegments(
+		"bash --noprofile --norc -i",
+		[`source ${bootstrap}`, "PS1='first-line\\nsecond $ '", { keys: "clear", waitMs: 800 }, { resize: [60, 40] }],
+		{ settleMs: 800 },
+	);
+	assert.doesNotMatch(afterResize, /\x1bM|\x1b\[\d*A/, JSON.stringify(afterResize));
+	assert.doesNotMatch(afterResize, /first-line/);
+	assert.match(afterResize, /second \$ /);
 });
