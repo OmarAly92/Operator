@@ -2,6 +2,7 @@ package blockevent
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 	"sync"
 	"testing"
@@ -13,9 +14,16 @@ import (
 )
 
 type fakeStore struct {
-	inserted []Record
-	trimmed  []string
-	nextSeq  int64
+	inserted    []Record
+	trimmed     []string
+	nextSeq     int64
+	taskUpdates []Record
+	taskSession string
+}
+
+func (f *fakeStore) SelectTaskUpdates(_ context.Context, sessionID string) ([]Record, error) {
+	f.taskSession = sessionID
+	return f.taskUpdates, nil
 }
 
 func (f *fakeStore) InsertBlockEvent(_ context.Context, rec Record) (int64, error) {
@@ -152,6 +160,10 @@ func (s *concurrentStore) SelectBlockEventsBeforeSeq(context.Context, string, st
 
 func (s *concurrentStore) TrimBlockEvents(context.Context, string, string, int) (int64, error) {
 	return 0, nil
+}
+
+func (s *concurrentStore) SelectTaskUpdates(context.Context, string) ([]Record, error) {
+	return nil, nil
 }
 
 func TestRecordIsSafeUnderConcurrentCalls(t *testing.T) {
@@ -370,5 +382,53 @@ func TestRecordTranscriptIgnoresEmptyKind(t *testing.T) {
 	}
 	if len(store.inserted) != 0 {
 		t.Fatal("an event with no kind is not a block event")
+	}
+}
+
+func TestRecordTranscriptRedactsTaskDetailFields(t *testing.T) {
+	store := &fakeStore{}
+	svc := NewService(store, nil, 500)
+	detail := `{"taskId":"b1","kind":"shell","status":"running","description":"push with ghp_abcdefghijklmnopqrstuvwxyz0123","command":"curl -H 'Authorization: token ghp_abcdefghijklmnopqrstuvwxyz0123' x","summary":"ok ghp_abcdefghijklmnopqrstuvwxyz0123","outputFile":"/tmp/tasks/b1.output","startedAt":"2026-09-25T00:00:00.000Z"}`
+	err := svc.RecordTranscript(context.Background(), "s-1", "claude-code", domain.BlockTranscriptEvent{
+		Kind:     domain.BlockEventTaskUpdate,
+		SourceID: "b1",
+		Detail:   detail,
+	})
+	if err != nil {
+		t.Fatalf("RecordTranscript: %v", err)
+	}
+	rec := store.inserted[0]
+	if strings.Contains(rec.Detail, "ghp_abcdefghijklmnopqrstuvwxyz0123") {
+		t.Fatalf("secret survived in detail: %s", rec.Detail)
+	}
+	var task domain.BackgroundTask
+	if err := json.Unmarshal([]byte(rec.Detail), &task); err != nil {
+		t.Fatalf("detail is no longer JSON: %v", err)
+	}
+	if task.TaskID != "b1" || task.OutputFile != "/tmp/tasks/b1.output" || task.StartedAt == "" {
+		t.Fatalf("task = %+v", task)
+	}
+}
+
+func TestRecordTranscriptDropsTaskUpdateWithUnreadableDetail(t *testing.T) {
+	store := &fakeStore{}
+	svc := NewService(store, nil, 500)
+	if err := svc.RecordTranscript(context.Background(), "s-1", "claude-code", domain.BlockTranscriptEvent{
+		Kind:   domain.BlockEventTaskUpdate,
+		Detail: "{not json",
+	}); err != nil {
+		t.Fatalf("RecordTranscript: %v", err)
+	}
+	if len(store.inserted) != 0 {
+		t.Fatalf("inserted %+v", store.inserted)
+	}
+}
+
+func TestTaskUpdatesReadsTheMainScope(t *testing.T) {
+	store := &fakeStore{taskUpdates: []Record{{Seq: 3, Kind: domain.BlockEventTaskUpdate}}}
+	svc := NewService(store, nil, 500)
+	got, err := svc.TaskUpdates(context.Background(), "s-1")
+	if err != nil || len(got) != 1 || got[0].Seq != 3 || store.taskSession != "s-1" {
+		t.Fatalf("TaskUpdates = %+v, %v (session %q)", got, err, store.taskSession)
 	}
 }

@@ -276,14 +276,66 @@ func (q *Queries) SelectLatestTurnModels(ctx context.Context) ([]SelectLatestTur
 	return items, nil
 }
 
+const selectTaskUpdatesBySession = `-- name: SelectTaskUpdatesBySession :many
+SELECT seq, session_id, source_id, kind, raw_event, harness, tool_name, tool_use_id, text, redacted_spans, error_type, hook_version, truncated_lines, created_at, tool_input, source, interaction_id, agent_id, detail
+FROM block_events
+WHERE session_id = ? AND agent_id = '' AND kind = 'task_update'
+ORDER BY seq
+`
+
+func (q *Queries) SelectTaskUpdatesBySession(ctx context.Context, sessionID string) ([]BlockEvent, error) {
+	rows, err := q.db.QueryContext(ctx, selectTaskUpdatesBySession, sessionID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []BlockEvent{}
+	for rows.Next() {
+		var i BlockEvent
+		if err := rows.Scan(
+			&i.Seq,
+			&i.SessionID,
+			&i.SourceID,
+			&i.Kind,
+			&i.RawEvent,
+			&i.Harness,
+			&i.ToolName,
+			&i.ToolUseID,
+			&i.Text,
+			&i.RedactedSpans,
+			&i.ErrorType,
+			&i.HookVersion,
+			&i.TruncatedLines,
+			&i.CreatedAt,
+			&i.ToolInput,
+			&i.Source,
+			&i.InteractionID,
+			&i.AgentID,
+			&i.Detail,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const trimBlockEventsForSession = `-- name: TrimBlockEventsForSession :execrows
 DELETE FROM block_events AS outer_be
 WHERE outer_be.session_id = ?
   AND outer_be.agent_id = ?
+  AND outer_be.kind <> 'task_update'
   AND outer_be.seq < (
     SELECT be.seq FROM block_events AS be
     WHERE be.session_id = ?
       AND be.agent_id = ?
+      AND be.kind <> 'task_update'
     ORDER BY be.seq DESC
     LIMIT 1 OFFSET ?
   )
@@ -299,6 +351,43 @@ type TrimBlockEventsForSessionParams struct {
 
 func (q *Queries) TrimBlockEventsForSession(ctx context.Context, arg TrimBlockEventsForSessionParams) (int64, error) {
 	result, err := q.db.ExecContext(ctx, trimBlockEventsForSession,
+		arg.SessionID,
+		arg.AgentID,
+		arg.SessionID_2,
+		arg.AgentID_2,
+		arg.Offset,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const trimTaskUpdatesForSession = `-- name: TrimTaskUpdatesForSession :execrows
+DELETE FROM block_events AS outer_be
+WHERE outer_be.session_id = ?
+  AND outer_be.agent_id = ?
+  AND outer_be.kind = 'task_update'
+  AND outer_be.seq < (
+    SELECT be.seq FROM block_events AS be
+    WHERE be.session_id = ?
+      AND be.agent_id = ?
+      AND be.kind = 'task_update'
+    ORDER BY be.seq DESC
+    LIMIT 1 OFFSET ?
+  )
+`
+
+type TrimTaskUpdatesForSessionParams struct {
+	SessionID   string
+	AgentID     string
+	SessionID_2 string
+	AgentID_2   string
+	Offset      int64
+}
+
+func (q *Queries) TrimTaskUpdatesForSession(ctx context.Context, arg TrimTaskUpdatesForSessionParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, trimTaskUpdatesForSession,
 		arg.SessionID,
 		arg.AgentID,
 		arg.SessionID_2,

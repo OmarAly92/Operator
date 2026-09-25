@@ -318,3 +318,51 @@ func TestBlockEventTrimIsScopedPerAgent(t *testing.T) {
 		t.Fatalf("agent a1 rows = %d, want 2 untouched by the main scope's trim", len(agent))
 	}
 }
+
+func TestTaskUpdatesSurviveTheBlockTrimOnTheirOwnBudget(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	insert := func(kind domain.BlockEventKind, agentID, source string) {
+		t.Helper()
+		if _, err := s.InsertBlockEvent(ctx, blockeventsvc.Record{
+			SessionID: "s1",
+			AgentID:   agentID,
+			SourceID:  source,
+			Kind:      kind,
+			CreatedAt: time.Now().UTC(),
+		}); err != nil {
+			t.Fatalf("insert: %v", err)
+		}
+	}
+	insert(domain.BlockEventTaskUpdate, "", "t1")
+	insert(domain.BlockEventTaskUpdate, "", "t2")
+	for range 4 {
+		insert(domain.BlockEventStop, "", "")
+	}
+	insert(domain.BlockEventTaskUpdate, "", "t3")
+	insert(domain.BlockEventTaskUpdate, "a1", "t4")
+
+	if _, err := s.TrimBlockEvents(ctx, "s1", "", 2); err != nil {
+		t.Fatalf("trim: %v", err)
+	}
+	tasks, err := s.SelectTaskUpdates(ctx, "s1")
+	if err != nil {
+		t.Fatalf("select task updates: %v", err)
+	}
+	if len(tasks) != 2 || tasks[0].SourceID != "t2" || tasks[1].SourceID != "t3" {
+		t.Fatalf("task updates = %+v, want t2,t3 in order", tasks)
+	}
+	all, err := s.SelectBlockEventsBySession(ctx, "s1", "", 0, 100)
+	if err != nil {
+		t.Fatalf("select: %v", err)
+	}
+	stops := 0
+	for _, rec := range all {
+		if rec.Kind == domain.BlockEventStop {
+			stops++
+		}
+	}
+	if stops != 2 || len(all) != 4 {
+		t.Fatalf("rows after trim = %+v", all)
+	}
+}

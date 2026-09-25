@@ -28,13 +28,35 @@ SELECT * FROM (
 DELETE FROM block_events AS outer_be
 WHERE outer_be.session_id = ?
   AND outer_be.agent_id = ?
+  AND outer_be.kind <> 'task_update'
   AND outer_be.seq < (
     SELECT be.seq FROM block_events AS be
     WHERE be.session_id = ?
       AND be.agent_id = ?
+      AND be.kind <> 'task_update'
     ORDER BY be.seq DESC
     LIMIT 1 OFFSET ?
   );
+
+-- name: TrimTaskUpdatesForSession :execrows
+DELETE FROM block_events AS outer_be
+WHERE outer_be.session_id = ?
+  AND outer_be.agent_id = ?
+  AND outer_be.kind = 'task_update'
+  AND outer_be.seq < (
+    SELECT be.seq FROM block_events AS be
+    WHERE be.session_id = ?
+      AND be.agent_id = ?
+      AND be.kind = 'task_update'
+    ORDER BY be.seq DESC
+    LIMIT 1 OFFSET ?
+  );
+
+-- name: SelectTaskUpdatesBySession :many
+SELECT *
+FROM block_events
+WHERE session_id = ? AND agent_id = '' AND kind = 'task_update'
+ORDER BY seq;
 
 -- name: SelectLatestTurnModels :many
 SELECT session_id, text
