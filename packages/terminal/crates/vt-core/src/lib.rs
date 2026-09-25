@@ -15,6 +15,7 @@ pub mod hyperlink;
 pub mod integrity;
 pub mod limits;
 mod line_editor;
+pub mod mark_regex;
 pub mod parser;
 pub mod program;
 pub mod row_index;

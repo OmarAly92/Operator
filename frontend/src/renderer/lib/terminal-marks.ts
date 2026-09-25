@@ -1,4 +1,4 @@
-import type { MarkRule } from "@operator/terminal-react";
+import { markRegexValid, type MarkRule } from "@operator/terminal-react";
 
 export const terminalMarksStorageKey = "opr.terminal.marks";
 export const MAX_TERMINAL_MARKS = 10;
@@ -35,6 +35,8 @@ export function terminalMarkColourCss(colour: TerminalMarkColour): string {
 
 export function terminalMarkPatternValid(pattern: string, regex: boolean): boolean {
 	if (!regex) return true;
+	const engine = markRegexValid(pattern);
+	if (engine !== null) return engine;
 	try {
 		new RegExp(pattern, "g");
 		return true;

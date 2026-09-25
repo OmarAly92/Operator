@@ -71,6 +71,7 @@ export {
 } from "./style-runs.js";
 export { CELL_SPAN_WORDS } from "./cell-spans.js";
 export { joinLogicalLine, type LogicalLine } from "./logical-lines.js";
+export { compileMarkRegex, markRegexValid, type MarkRegex } from "./mark-regex.js";
 export {
 	ProgramMessages,
 	type ProgramMessageEvent,

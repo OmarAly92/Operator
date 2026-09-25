@@ -74,8 +74,33 @@ export class HighlightIndex {
 	}
 }
 
+type RowCache = Readonly<{ key: string; entries: readonly (readonly [HTMLElement, ElementPaint])[] }>;
+
+type RowFrame = Readonly<{ left: number; width: number; key: string }>;
+
+function highlightKey(highlights: readonly Highlight[]): string {
+	return highlights
+		.map(({ kind, colour, rank, range: { start, end } }) => `${kind}:${colour}:${rank}:${start.blockId}:${start.row}:${start.cell}:${end.blockId}:${end.row}:${end.cell}`)
+		.join("|");
+}
+
+function rowEntries(element: HTMLElement, paint: ReturnType<typeof rowPaint>, rowLeft: number): (readonly [HTMLElement, ElementPaint])[] {
+	if (paint.layers.length === 0 && !paint.findMatch && !paint.findCurrent) return [];
+	const entries: (readonly [HTMLElement, ElementPaint])[] = [
+		[element, { image: rowImage(paint.layers), findMatch: paint.findMatch, findFill: paint.findFill, findCurrent: paint.findCurrent }],
+	];
+	if (paint.layers.length === 0) return entries;
+	for (const run of element.querySelectorAll<HTMLElement>("[data-terminal-run]")) {
+		if (run.style.backgroundColor === "") continue;
+		const image = runImage(paint.layers, run, rowLeft);
+		if (image !== "") entries.push([run, { ...BLANK, image }]);
+	}
+	return entries;
+}
+
 export class HighlightPainter {
 	private painted = new Map<HTMLElement, ElementPaint>();
+	private rows = new Map<HTMLElement, RowCache>();
 
 	idle(): boolean {
 		return this.painted.size === 0;
@@ -83,21 +108,23 @@ export class HighlightPainter {
 
 	paint(rows: readonly RowRef[], highlights: readonly Highlight[], order: BlockOrder, cellWidth: number): void {
 		const next = new Map<HTMLElement, ElementPaint>();
+		const cached = new Map<HTMLElement, RowCache>();
 		if (highlights.length > 0) {
 			const index = new HighlightIndex(highlights, order);
+			let frame: RowFrame | null = null;
 			for (const ref of rows) {
 				const here = index.at(ref);
 				if (here.length === 0) continue;
-				const { box, element } = measureRow(ref);
-				const paint = rowPaint(here, box, order, cellWidth);
-				if (paint.layers.length === 0 && !paint.findMatch && !paint.findCurrent) continue;
-				next.set(element, { image: rowImage(paint.layers), findMatch: paint.findMatch, findFill: paint.findFill, findCurrent: paint.findCurrent });
-				if (paint.layers.length === 0) continue;
-				for (const run of element.querySelectorAll<HTMLElement>("[data-terminal-run]")) {
-					if (run.style.backgroundColor === "") continue;
-					const image = runImage(paint.layers, run, box.left);
-					if (image !== "") next.set(run, { ...BLANK, image });
+				if (frame === null) {
+					const { box } = measureRow(ref);
+					frame = { left: box.left, width: box.width, key: `${box.left}:${box.width}:${cellWidth}` };
 				}
+				const key = `${frame.key}|${highlightKey(here)}`;
+				const previous = this.rows.get(ref.element);
+				const entry = previous && previous.key === key ? previous : null;
+				const row = entry ?? this.measure(ref, here, order, cellWidth, key, frame);
+				cached.set(ref.element, row);
+				for (const [element, paint] of row.entries) next.set(element, paint);
 			}
 		}
 		for (const [element, before] of this.painted) {
@@ -105,9 +132,16 @@ export class HighlightPainter {
 		}
 		for (const [element, after] of next) apply(element, this.painted.get(element) ?? BLANK, after);
 		this.painted = next;
+		this.rows = cached;
 	}
 
 	reset(): void {
 		this.painted = new Map();
+		this.rows = new Map();
+	}
+
+	private measure(ref: RowRef, here: readonly Highlight[], order: BlockOrder, cellWidth: number, key: string, frame: RowFrame): RowCache {
+		const box = { blockId: ref.blockId, row: ref.row, firstRow: ref.firstRow, rowCount: ref.rowCount, left: frame.left, top: 0, bottom: 0, width: frame.width };
+		return { key, entries: rowEntries(ref.element, rowPaint(here, box, order, cellWidth), frame.left) };
 	}
 }
