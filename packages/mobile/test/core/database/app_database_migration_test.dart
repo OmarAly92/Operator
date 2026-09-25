@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:operator_mobile/core/database/app_database.dart';
@@ -59,5 +61,27 @@ void main() {
     addTearDown(db.close);
 
     expect(await db.desktopDao.getAll(), isEmpty);
+  });
+
+  test('an upgrade from v2 keeps local state and saved passwords', () async {
+    final dir = Directory.systemTemp.createTempSync('app_database_v2');
+    addTearDown(() => dir.deleteSync(recursive: true));
+    final file = File('${dir.path}/db.sqlite');
+    var wipes = 0;
+
+    final v2 = AppDatabase.forTesting(NativeDatabase(file), onWipe: () async => wipes++);
+    await v2.customStatement(
+      'INSERT INTO desktops (id, name, host, port, secure, is_active, renamed, last_connected_at, created_at) '
+      "VALUES ('a', 'Mac', '10.0.0.5', '3011', 0, 1, 0, NULL, '2026-09-01T00:00:00.000')",
+    );
+    await v2.close();
+    expect(wipes, 1);
+
+    final v3 = AppDatabase.forTesting(NativeDatabase(file), onWipe: () async => wipes++, schemaVersion: 3);
+    addTearDown(v3.close);
+
+    expect((await v3.desktopDao.getAll()).map((desktop) => desktop.id), ['a']);
+    expect(wipes, 1);
+    expect(await _userVersion(v3), 3);
   });
 }

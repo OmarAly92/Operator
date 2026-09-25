@@ -17,14 +17,18 @@ part 'app_database.g.dart';
   daos: [DesktopDao, SettingsDao, ReplicaDocumentDao, ReplicaBlockEventDao],
 )
 class AppDatabase extends _$AppDatabase {
-  AppDatabase({this._onWipe}) : super(driftDatabase(name: 'operator_mobile'));
+  AppDatabase({this._onWipe}) : _schemaVersion = currentSchemaVersion, super(driftDatabase(name: 'operator_mobile'));
 
-  AppDatabase.forTesting(super.executor, {this._onWipe});
+  AppDatabase.forTesting(super.executor, {this._onWipe, int? schemaVersion})
+    : _schemaVersion = schemaVersion ?? currentSchemaVersion;
+
+  static const int currentSchemaVersion = 2;
 
   final Future<void> Function()? _onWipe;
+  final int _schemaVersion;
 
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => _schemaVersion;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -33,11 +37,13 @@ class AppDatabase extends _$AppDatabase {
       await _wipeSecrets();
     },
     onUpgrade: (m, from, to) async {
-      for (final table in allTables) {
-        await m.deleteTable(table.actualTableName);
+      if (from < 2) {
+        for (final table in allTables) {
+          await m.deleteTable(table.actualTableName);
+        }
+        await m.createAll();
+        await _wipeSecrets();
       }
-      await m.createAll();
-      await _wipeSecrets();
     },
   );
 

@@ -188,8 +188,9 @@ Settings → Phone alerts covers install, subscribe and a test send against
   the replica stores the daemon's JSON for the same `fromJson` to parse. Passwords never enter
   SQLite; the Keychain (`flutter_secure_storage`, `server.password.<id>`) holds passwords only.
   There is no SharedPreferences in first-party code (`easy_localization` still pulls it in
-  transitively), and `test/core/no_shared_preferences_test.dart` pins that. A schema bump may
-  wipe and recreate every table, and the wipe purges the Keychain passwords with it. Generated
+  transitively), and `test/core/no_shared_preferences_test.dart` pins that. The v1→v2 upgrade
+  wiped and recreated every table and purged the Keychain passwords with it; every later schema
+  bump must migrate in `onUpgrade`, never wipe. Generated
   `*.g.dart` is committed, because CI runs `flutter analyze` and `flutter test` with no
   generation step. Regenerate with `dart run build_runner build --delete-conflicting-outputs`.
 - Parameterized paths get static methods on `EndPoints`; interpolating at a call site is
