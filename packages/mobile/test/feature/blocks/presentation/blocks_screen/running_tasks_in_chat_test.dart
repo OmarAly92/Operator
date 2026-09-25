@@ -10,7 +10,9 @@ import 'package:mocktail/mocktail.dart';
 import 'package:operator_mobile/core/app_themes/app_motion.dart';
 import 'package:operator_mobile/core/app_themes/colors/dark_skin.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
+import 'package:operator_mobile/core/utils/working_clock.dart';
 import 'package:operator_mobile/core/widgets/motion/disclosure.dart';
+import 'package:operator_mobile/feature/blocks/data/model/background_task_model.dart';
 import 'package:operator_mobile/feature/blocks/logic/session_block.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/blocks_cubit.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/session_command_cubit.dart';
@@ -24,7 +26,17 @@ class _MockBlocksCubit extends MockCubit<BlocksState> implements BlocksCubit {}
 
 class _MockSessionCommandCubit extends MockCubit<SessionCommandState> implements SessionCommandCubit {}
 
-String _recent(int secondsAgo) => DateTime.now().toUtc().subtract(Duration(seconds: secondsAgo)).toIso8601String();
+final DateTime _now = DateTime.utc(2026, 9, 25, 12);
+
+String _recent(int secondsAgo) => _now.subtract(Duration(seconds: secondsAgo)).toIso8601String();
+
+BackgroundTaskModel _feedTask(String id, {String kind = 'shell', String status = 'running'}) => BackgroundTaskModel(
+  taskId: id,
+  kind: kind,
+  status: status,
+  description: 'Feed $id',
+  startedAt: _recent(30),
+);
 
 SessionBlock _agent(int seq, {bool running = true}) => SessionBlock(
   id: 'agent-$seq',
@@ -55,6 +67,8 @@ SessionBlock _text(int seq, {BlockKind kind = BlockKind.assistant, int lines = 1
 void main() {
   late _MockBlocksCubit cubit;
   late StreamController<BlocksState> states;
+  late Map<String, BackgroundTaskModel> feed;
+  final clock = WorkingClock(now: () => _now);
   final haptics = <String>[];
 
   setUp(() {
@@ -71,6 +85,8 @@ void main() {
     when(() => cubit.hasOlder).thenReturn(false);
     when(() => cubit.error).thenReturn(null);
     when(() => cubit.subagentSummaries).thenReturn(const {});
+    feed = {};
+    when(() => cubit.taskFeed).thenAnswer((_) => feed);
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(
       SystemChannels.platform,
       (call) async {
@@ -108,7 +124,7 @@ void main() {
                 child: SizedBox(
                   width: 400,
                   height: 700,
-                  child: BlocksBody(showRunningTasks: showRunningTasks, parentTitle: 'Parent'),
+                  child: BlocksBody(showRunningTasks: showRunningTasks, parentTitle: 'Parent', clock: clock),
                 ),
               ),
             ),
@@ -202,7 +218,7 @@ void main() {
     Finder inSheet(Finder finder) => find.descendant(of: find.byType(BackgroundTasksView), matching: finder);
     expect(inSheet(find.text('Task 2')), findsOneWidget);
     expect(inSheet(find.text('Task 3')), findsOneWidget);
-    expect(inSheet(find.textContaining(RegExp(r'^\d+s$'))), findsNWidgets(2));
+    expect(inSheet(find.text('5s')), findsNWidgets(2));
   });
 
   testWidgets('appearing while pinned keeps the list pinned to the new tail', (tester) async {
@@ -233,6 +249,51 @@ void main() {
 
     await tester.longPress(find.text('line 0 of block 3'));
     await frames(tester);
+    expect(find.byType(RunningTasksBubble), findsNothing);
+  });
+
+  testWidgets('the bubble counts running shells and monitors from the feed beside running subagents', (tester) async {
+    feed = {
+      'b1': _feedTask('b1'),
+      'b2': _feedTask('b2'),
+      'm1': _feedTask('m1', kind: 'monitor'),
+      'b3': _feedTask('b3', status: 'completed'),
+      'b4': _feedTask('b4', status: 'killed'),
+    };
+    when(() => cubit.blocks).thenReturn([_text(1, kind: BlockKind.prompt), _agent(2)]);
+    await pump(tester);
+    await frames(tester);
+
+    expect(find.text('4 running tasks'), findsOneWidget);
+  });
+
+  testWidgets('a running-task change with no new block keeps the list pinned on every frame as the bubble grows and shrinks', (tester) async {
+    final long = [_text(1, kind: BlockKind.prompt), _text(2, lines: 80)];
+    when(() => cubit.blocks).thenReturn(long);
+    await pump(tester);
+    await frames(tester);
+    final list = tester.state<BlockListState>(find.byType(BlockList));
+    final position = list.controller.position;
+    expect(list.pinned, isTrue);
+
+    feed = {'b1': _feedTask('b1')};
+    states.add(const BlocksReadyState(2));
+    await tester.pump();
+    for (var frame = 0; frame < 16; frame++) {
+      await tester.pump(const Duration(milliseconds: 16));
+      expect(list.pinned, isTrue);
+      expect(position.pixels, closeTo(position.maxScrollExtent, 0.5));
+    }
+    expect(find.text('1 running task'), findsOneWidget);
+
+    feed = {'b1': _feedTask('b1', status: 'completed')};
+    states.add(const BlocksReadyState(3));
+    await tester.pump();
+    for (var frame = 0; frame < 16; frame++) {
+      await tester.pump(const Duration(milliseconds: 16));
+      expect(list.pinned, isTrue);
+      expect(position.pixels, closeTo(position.maxScrollExtent, 0.5));
+    }
     expect(find.byType(RunningTasksBubble), findsNothing);
   });
 }

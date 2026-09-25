@@ -5,6 +5,7 @@ import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/app_themes/text_style/app_text_style.dart';
 import 'package:operator_mobile/core/search/text_match.dart';
 import 'package:operator_mobile/core/utils/haptics.dart';
+import 'package:operator_mobile/core/utils/working_clock.dart';
 import 'package:operator_mobile/core/widgets/chat/chat_insets.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_text.dart';
 import 'package:operator_mobile/feature/blocks/logic/background_tasks.dart';
@@ -32,6 +33,7 @@ class BlocksBody extends StatefulWidget {
     this.stopped = false,
     this.showRunningTasks = false,
     this.parentTitle,
+    this.clock,
   });
 
   /// Fills the composer with a past prompt. Null means the screen has no
@@ -45,6 +47,8 @@ class BlocksBody extends StatefulWidget {
   final bool showRunningTasks;
 
   final String? parentTitle;
+
+  final WorkingClock? clock;
 
   @override
   State<BlocksBody> createState() => BlocksBodyState();
@@ -282,7 +286,11 @@ class BlocksBodyState extends State<BlocksBody> {
         });
 
         final runningTasks = widget.showRunningTasks && !_selectionMode
-            ? backgroundTasksOf(cubit.blocks, cubit.subagentSummaries).where((task) => task.running).length
+            ? backgroundTasksOf(
+                cubit.blocks,
+                cubit.subagentSummaries,
+                feed: cubit.taskFeed.values,
+              ).where((task) => task.running).length
             : 0;
         final insets = ChatInsets.maybeOf(context);
         final dockInset = insets?.bottom;
@@ -357,7 +365,11 @@ class BlocksBodyState extends State<BlocksBody> {
                                   alignment: Alignment.centerLeft,
                                   child: RunningTasksBubble(
                                     count: runningTasks,
-                                    onTap: () => showBackgroundTasksSheet(context, parentTitle: widget.parentTitle),
+                                    onTap: () => showBackgroundTasksSheet(
+                                      context,
+                                      parentTitle: widget.parentTitle,
+                                      clock: widget.clock,
+                                    ),
                                   ),
                                 ),
                               )

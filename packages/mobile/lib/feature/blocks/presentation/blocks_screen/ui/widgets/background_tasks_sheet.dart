@@ -1,10 +1,13 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:operator_mobile/core/app_routes/routes_strings.dart';
+import 'package:operator_mobile/core/app_themes/app_motion.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/app_themes/text_style/app_text_style.dart';
+import 'package:operator_mobile/core/error_handling/failures/failure.dart';
 import 'package:operator_mobile/core/utils/haptics.dart';
 import 'package:operator_mobile/core/utils/turn_elapsed.dart';
 import 'package:operator_mobile/core/utils/working_clock.dart';
@@ -16,8 +19,10 @@ import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/
 
 typedef BackgroundTasksOf = List<BackgroundTask> Function(BlocksCubit cubit);
 
+typedef StopBackgroundTask = Future<Failure?> Function(BackgroundTask task);
+
 List<BackgroundTask> defaultBackgroundTasksOf(BlocksCubit cubit) =>
-    backgroundTasksOf(cubit.blocks, cubit.subagentSummaries);
+    backgroundTasksOf(cubit.blocks, cubit.subagentSummaries, feed: cubit.taskFeed.values);
 
 void openSubagentTask(NavigatorState navigator, BlocksCubit cubit, BackgroundTask task, {String? parentTitle}) {
   final entry = task.subagent;
@@ -39,7 +44,7 @@ Future<void> showBackgroundTasksSheet(
   String? parentTitle,
   WorkingClock? clock,
   BackgroundTasksOf? tasksOf,
-  void Function(BackgroundTask task)? onStop,
+  StopBackgroundTask? onStop,
 }) {
   final cubit = context.read<BlocksCubit>();
   final navigator = Navigator.of(context);
@@ -54,7 +59,7 @@ Future<void> showBackgroundTasksSheet(
         BackgroundTasksView(
           clock: clock ?? WorkingClock.shared,
           tasksOf: tasksOf ?? defaultBackgroundTasksOf,
-          onStop: onStop,
+          onStop: onStop ?? (task) => cubit.stopTask(task.id),
           onOpen: (task) {
             AppSheet.of(context).close();
             openSubagentTask(navigator, cubit, task, parentTitle: parentTitle);
@@ -76,12 +81,13 @@ class BackgroundTasksView extends StatefulWidget {
 
   static const Key cardKey = ValueKey('background-task-card');
   static const Key stopKey = ValueKey('background-task-stop');
+  static const Key stoppingKey = ValueKey('background-task-stopping');
   static const Key agentGlyphKey = ValueKey('background-task-agent-glyph');
 
   final WorkingClock clock;
   final BackgroundTasksOf tasksOf;
   final void Function(BackgroundTask task) onOpen;
-  final void Function(BackgroundTask task)? onStop;
+  final StopBackgroundTask? onStop;
 
   @override
   State<BackgroundTasksView> createState() => _BackgroundTasksViewState();
@@ -94,6 +100,43 @@ class _BackgroundTasksViewState extends State<BackgroundTasksView> {
 
   bool _runningOpen = true;
   bool _finishedOpen = true;
+  final Set<String> _stopping = <String>{};
+  final Map<String, String> _stopErrors = <String, String>{};
+  final Map<String, Timer> _errorTimers = <String, Timer>{};
+
+  @override
+  void dispose() {
+    for (final timer in _errorTimers.values) {
+      timer.cancel();
+    }
+    super.dispose();
+  }
+
+  void _clearError(String id) {
+    _errorTimers.remove(id)?.cancel();
+    _stopErrors.remove(id);
+  }
+
+  Future<void> _stop(BackgroundTask task) async {
+    final onStop = widget.onStop;
+    if (onStop == null || _stopping.contains(task.id)) return;
+    Haptics.tap();
+    setState(() {
+      _stopping.add(task.id);
+      _clearError(task.id);
+    });
+    final failure = await onStop(task);
+    if (!mounted || failure == null) return;
+    Haptics.error();
+    setState(() {
+      _stopping.remove(task.id);
+      _stopErrors[task.id] = taskStopErrorMessage(failure.apiStatus);
+    });
+    _errorTimers[task.id] = Timer(AppMotion.taskStopErrorHold, () {
+      if (!mounted) return;
+      setState(() => _clearError(task.id));
+    });
+  }
 
   @override
   Widget build(BuildContext context) => BlocBuilder<BlocksCubit, BlocksState>(
@@ -102,6 +145,8 @@ class _BackgroundTasksViewState extends State<BackgroundTasksView> {
       final tasks = widget.tasksOf(context.read<BlocksCubit>());
       final running = tasks.where((task) => task.running).toList();
       final finished = tasks.where((task) => !task.running).toList();
+      final runningIds = {for (final task in running) task.id};
+      _stopping.removeWhere((id) => !runningIds.contains(id));
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -124,16 +169,24 @@ class _BackgroundTasksViewState extends State<BackgroundTasksView> {
                   )
                 : _cards(running),
           ),
-          if (finished.isNotEmpty) ...[
-            const SizedBox(height: _sectionGap),
-            _SectionHeader(
-              key: const ValueKey('section-Finished'),
-              label: 'Finished ${finished.length}',
-              expanded: _finishedOpen,
-              onTap: () => setState(() => _finishedOpen = !_finishedOpen),
-            ),
-            Disclosure(expanded: _finishedOpen, child: _cards(finished)),
-          ],
+          Disclosure(
+            expanded: finished.isNotEmpty,
+            child: finished.isEmpty
+                ? const SizedBox.shrink()
+                : Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      const SizedBox(height: _sectionGap),
+                      _SectionHeader(
+                        key: const ValueKey('section-Finished'),
+                        label: 'Finished ${finished.length}',
+                        expanded: _finishedOpen,
+                        onTap: () => setState(() => _finishedOpen = !_finishedOpen),
+                      ),
+                      Disclosure(expanded: _finishedOpen, child: _cards(finished)),
+                    ],
+                  ),
+          ),
         ],
       );
     },
@@ -150,7 +203,9 @@ class _BackgroundTasksViewState extends State<BackgroundTasksView> {
             task: tasks[index],
             clock: widget.clock,
             onOpen: tasks[index].subagent == null ? null : () => widget.onOpen(tasks[index]),
-            onStop: widget.onStop == null ? null : () => widget.onStop!(tasks[index]),
+            onStop: widget.onStop == null ? null : () => _stop(tasks[index]),
+            stopping: _stopping.contains(tasks[index].id),
+            stopError: _stopErrors[tasks[index].id],
           ),
         ),
     ],
@@ -204,7 +259,14 @@ class _SectionHeader extends StatelessWidget {
 }
 
 class _TaskCard extends StatelessWidget {
-  const _TaskCard({required this.task, required this.clock, this.onOpen, this.onStop});
+  const _TaskCard({
+    required this.task,
+    required this.clock,
+    this.onOpen,
+    this.onStop,
+    this.stopping = false,
+    this.stopError,
+  });
 
   static const double _titleLine = 22;
 
@@ -212,11 +274,14 @@ class _TaskCard extends StatelessWidget {
   final WorkingClock clock;
   final VoidCallback? onOpen;
   final VoidCallback? onStop;
+  final bool stopping;
+  final String? stopError;
 
   @override
   Widget build(BuildContext context) {
     final skin = context.skin;
     final agent = task.kind == BackgroundTaskKind.agent;
+    final error = stopError;
     final titleStyle = AppTextStyle.style17Medium.copyWith(color: skin.textPrimary, height: _titleLine / 17);
     final title = Text(task.title, maxLines: 2, overflow: TextOverflow.ellipsis, style: titleStyle);
     return Material(
@@ -261,12 +326,30 @@ class _TaskCard extends StatelessWidget {
                     Row(
                       children: [
                         Text(
-                          agent ? 'Agent' : 'Shell',
+                          switch (task.kind) {
+                            BackgroundTaskKind.agent => 'Agent',
+                            BackgroundTaskKind.shell => 'Shell',
+                            BackgroundTaskKind.monitor => 'Monitor',
+                          },
                           style: AppTextStyle.style15Regular.copyWith(color: skin.textPrimary),
                         ),
                         const SizedBox(width: 12),
                         Flexible(child: _TaskStatus(task: task, clock: clock)),
                       ],
+                    ),
+                    Disclosure(
+                      expanded: error != null,
+                      child: error == null
+                          ? const SizedBox.shrink()
+                          : Padding(
+                              padding: const EdgeInsets.only(top: 6),
+                              child: Text(
+                                error,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: AppTextStyle.style13Regular.copyWith(color: skin.red),
+                              ),
+                            ),
                     ),
                     if (agent) ...[
                       const SizedBox(height: 10),
@@ -277,7 +360,7 @@ class _TaskCard extends StatelessWidget {
               ),
               if (task.canStop) ...[
                 const SizedBox(width: 12),
-                _StopButton(onTap: onStop),
+                _StopButton(onTap: onStop, stopping: stopping),
               ],
             ],
           ),
@@ -319,41 +402,46 @@ class _TaskStatus extends StatelessWidget {
 }
 
 class _StopButton extends StatelessWidget {
-  const _StopButton({required this.onTap});
+  const _StopButton({required this.onTap, required this.stopping});
 
   static const double size = 28;
 
   final VoidCallback? onTap;
+  final bool stopping;
 
   @override
   Widget build(BuildContext context) {
     final skin = context.skin;
     return Semantics(
       button: true,
-      label: 'Stop task',
+      label: stopping ? 'Stopping task' : 'Stop task',
       excludeSemantics: true,
       child: GestureDetector(
         key: BackgroundTasksView.stopKey,
         behavior: HitTestBehavior.opaque,
-        onTap: onTap == null
-            ? null
-            : () {
-                Haptics.tap();
-                onTap!();
-              },
-        child: Container(
-          width: size,
-          height: size,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            border: Border.all(color: skin.textSecondary, width: 1.5),
-          ),
-          alignment: Alignment.center,
-          child: Container(
-            width: 10,
-            height: 10,
-            decoration: BoxDecoration(color: skin.textSecondary, borderRadius: BorderRadius.circular(2.5)),
-          ),
+        onTap: stopping ? null : onTap,
+        child: SizedBox.square(
+          dimension: size,
+          child: stopping
+              ? Center(
+                  child: SizedBox.square(
+                    key: BackgroundTasksView.stoppingKey,
+                    dimension: 16,
+                    child: CircularProgressIndicator(strokeWidth: 1.5, color: skin.textSecondary),
+                  ),
+                )
+              : Container(
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(color: skin.textSecondary, width: 1.5),
+                  ),
+                  alignment: Alignment.center,
+                  child: Container(
+                    width: 10,
+                    height: 10,
+                    decoration: BoxDecoration(color: skin.textSecondary, borderRadius: BorderRadius.circular(2.5)),
+                  ),
+                ),
         ),
       ),
     );

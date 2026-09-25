@@ -947,4 +947,31 @@ void main() {
     expect(find.text('row'), findsNothing);
     expect(closed, isTrue);
   });
+
+  testWidgets('the close button closes the way AppSheet.close does, past a page PopScope', (tester) async {
+    phone(tester);
+    var closed = false;
+    await tester.pumpWidget(
+      host(
+        const LightSkin(),
+        (context) async {
+          await showAppSheet<void>(
+            context: context,
+            page: AppSheetPage(
+              title: 'Tasks',
+              closeable: true,
+              rows: (context, query) => const [PopScope(canPop: false, child: Text('row'))],
+            ),
+          );
+          closed = true;
+        },
+      ),
+    );
+    await open(tester);
+
+    await tester.tap(find.byKey(AppSheet.closeKey));
+    await tester.pumpAndSettle();
+    expect(find.text('row'), findsNothing);
+    expect(closed, isTrue);
+  });
 }

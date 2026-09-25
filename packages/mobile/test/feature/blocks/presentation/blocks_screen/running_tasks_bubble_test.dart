@@ -110,9 +110,23 @@ void main() {
   });
 
   testWidgets('the asterisk holds still while TickerMode is off', (tester) async {
+    AnimationController spin() => tester.widget<RotationTransition>(
+      find.descendant(of: find.byType(RunningTasksAsterisk), matching: find.byType(RotationTransition)),
+    ).turns as AnimationController;
+
     await tester.pumpWidget(host(TickerMode(enabled: false, child: RunningTasksBubble(count: 1, onTap: () {}))));
     await tester.pump(const Duration(seconds: 1));
+    expect(spin().isAnimating, isFalse);
+    expect(spin().value, 0);
 
-    expect(tester.hasRunningAnimations, isFalse);
+    await tester.pumpWidget(host(TickerMode(enabled: true, child: RunningTasksBubble(count: 1, onTap: () {}))));
+    await tester.pump(AppMotion.runningTasksSpin ~/ 4);
+    expect(spin().isAnimating, isTrue);
+
+    await tester.pumpWidget(host(TickerMode(enabled: false, child: RunningTasksBubble(count: 1, onTap: () {}))));
+    final held = spin().value;
+    await tester.pump(const Duration(seconds: 1));
+    expect(spin().isAnimating, isFalse);
+    expect(spin().value, held);
   });
 }

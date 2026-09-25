@@ -365,7 +365,7 @@ class _AppSheetState extends State<AppSheet> with TickerProviderStateMixin {
                       semanticLabel: 'Close',
                       foreground: skin.textPrimary,
                       frost: frost,
-                      onPressed: () => Navigator.of(context).maybePop(),
+                      onPressed: _controller.close,
                     ),
                   )
                 : const SizedBox.shrink(key: ValueKey<bool>(false)),

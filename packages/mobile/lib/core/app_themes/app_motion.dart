@@ -54,6 +54,8 @@ sealed class AppMotion {
 
   static const Duration runningTasksSpin = Duration(seconds: 6);
 
+  static const Duration taskStopErrorHold = Duration(seconds: 4);
+
   /// Expressive loader shape-morph container spin.
   static const Duration loaderSpin = Duration(milliseconds: 1730);
 
