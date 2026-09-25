@@ -1,3 +1,4 @@
+pub mod agent;
 pub mod alt;
 pub mod alt_screen;
 mod answer_gate;
@@ -8,6 +9,7 @@ pub mod block_selection;
 pub mod block_tree;
 pub mod cold_ring;
 pub mod content;
+mod core_modes;
 pub mod delta;
 pub mod event_bridge;
 pub mod find;
@@ -86,6 +88,7 @@ pub struct TerminalCore {
     history: history::HistoryReceiver,
     replay_ready: bool,
     older: OlderState,
+    live_output: u64,
 }
 
 impl TerminalCore {
@@ -115,6 +118,7 @@ impl TerminalCore {
             history: history::HistoryReceiver::new(),
             replay_ready: false,
             older: OlderState::default(),
+            live_output: 0,
         })
     }
 
@@ -248,12 +252,17 @@ impl TerminalCore {
             }
             match event {
                 MarkEvent::ReplayOrigin(origin) => {
-                    self.parser.adopt_origin(origin);
+                    let adopted = self.parser.adopt_origin(origin);
+                    if adopted {
+                        self.live_output = 0;
+                    }
+                    self.parser.program_mut().agent_mut().set_replaying(adopted);
                     parsed = upto;
                     continue;
                 }
                 MarkEvent::ReplayReady => {
                     self.replay_ready = true;
+                    self.parser.program_mut().agent_mut().set_replaying(false);
                     parsed = upto;
                     continue;
                 }
@@ -319,6 +328,9 @@ impl TerminalCore {
 
     fn advance_vte(&mut self, bytes: &[u8]) {
         let bytes: &[u8] = &self.answer_gate.filter(bytes);
+        if !self.parser.program().agent().replaying() {
+            self.live_output = self.live_output.wrapping_add(bytes.len() as u64);
+        }
         #[cfg(feature = "trace")]
         {
             for byte in bytes {
@@ -563,30 +575,6 @@ impl TerminalCore {
 
     pub fn alt_grid(&self) -> Option<&alt::AltGrid> {
         self.parser.alt()
-    }
-
-    pub fn application_cursor_keys(&self) -> bool {
-        self.parser.app_cursor()
-    }
-
-    pub fn sgr_mouse(&self) -> bool {
-        self.parser.sgr_mouse()
-    }
-
-    pub fn bracketed_paste(&self) -> bool {
-        self.parser.bracketed_paste()
-    }
-
-    pub fn focus_reporting(&self) -> bool {
-        self.parser.focus_reporting()
-    }
-
-    pub fn mouse_tracking(&self) -> bool {
-        self.parser.mouse_tracking()
-    }
-
-    pub fn mouse_tracking_level(&self) -> u8 {
-        self.parser.mouse_tracking_level()
     }
 }
 
