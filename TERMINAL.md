@@ -991,7 +991,11 @@ history of `master`.
   before; a user who rebinds `^U` gets the old doubling.
 - Also fixed: `__operator_terminal_pct_encode` in `zsh.sh` encoded a code
   point, not bytes (`é` → `%e9`, `€` → `%c`); it now encodes UTF-8 bytes under
-  `no_multibyte`. `bash.sh`'s encoder has the same bug and is not fixed here.
+  `no_multibyte`. `bash.sh`'s encoder had the same bug and also let `é` through
+  unencoded (its `[A-Za-z]` range matches accented letters in a UTF-8 locale);
+  it now walks bytes under `LC_ALL=C` and masks each to 0–255, because bash
+  3.2 sign-extends bytes above 127 (`%ffffffffffffffc3`). Guard:
+  `bash.test.mjs` "percent-encodes non-ASCII bytes as UTF-8".
 - Guards: `shell/zsh.test.mjs` (reports and is cleared by Ctrl-U, kept when
   nothing clears it, UTF-8, Enter typed ahead runs, multi-line submission,
   over the cap, `read -s` password never surfaced, a program's own prompt
