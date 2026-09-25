@@ -2,7 +2,7 @@ export const COMPACT_REDRAW_LOOKBACK = 256;
 
 export const COMPACT_MIN_REDRAW_LINES = 3;
 
-const SPINNER_LINE = /^\s*[⠀-⣿·✢✳✶✻✽◐-◓]\s+\S.*(?:…|\.\.\.)/u;
+const SPINNER_LINE = /^\s*[⠀-⣿·✢✳✶✻✽◐-◓]\s+\S[^…]*?(?:…|\.\.\.)(?:\s+\([^()]*\))?$/u;
 
 export function isSpinnerLine(line: string): boolean {
 	return SPINNER_LINE.test(line);
@@ -46,24 +46,26 @@ function repeatedRun(lines: readonly string[], at: number, kept: readonly string
 	for (let slot = positions.length - 1; slot >= 0; slot -= 1) {
 		const start = positions[slot]!;
 		if (start < floor) break;
-		let length = 0;
+		const length = kept.length - start;
+		if (length <= best || at + length > lines.length) continue;
 		let visible = 0;
-		while (at + length < lines.length && start + length < kept.length && lines[at + length] === kept[start + length]) {
-			if (lines[at + length] !== "") visible += 1;
-			length += 1;
+		let offset = 0;
+		while (offset < length && lines[at + offset] === kept[start + offset]) {
+			if (lines[at + offset] !== "") visible += 1;
+			offset += 1;
 		}
-		if (visible >= COMPACT_MIN_REDRAW_LINES && length > best) best = length;
+		if (offset === length && visible >= COMPACT_MIN_REDRAW_LINES) best = length;
 	}
 	return best;
 }
 
 export function capLines(lines: readonly string[], maxLines: number): string[] {
-	if (!Number.isInteger(maxLines) || maxLines < 3) {
-		throw new RangeError(`maxLines must be an integer of at least 3, got ${maxLines}`);
-	}
-	if (lines.length <= maxLines) return [...lines];
-	const head = Math.ceil((maxLines - 1) / 2);
-	const tail = maxLines - 1 - head;
+	if (Number.isNaN(maxLines)) throw new RangeError("maxLines must be a number, got NaN");
+	const cap = Math.floor(maxLines);
+	if (cap <= 0) return [];
+	if (lines.length <= cap) return [...lines];
+	const head = Math.ceil((cap - 1) / 2);
+	const tail = cap - 1 - head;
 	const omitted = lines.length - head - tail;
 	return [...lines.slice(0, head), `… ${omitted} lines omitted …`, ...lines.slice(lines.length - tail)];
 }

@@ -63,6 +63,8 @@ describe("readBlockOutput", () => {
 		const core = createTerminalCore({ columns: 20, rows: 30, limits: { rows: 100, bytes: 1 << 20 } });
 		for (let index = 0; index < 20; index += 1) core.feed(encoder.encode(`row ${index}\r\n`));
 		expect(core.readBlockOutput(lastBlockId(core), { maxLines: 5 })).toBe("row 0\nrow 1\n… 16 lines omitted …\nrow 18\nrow 19");
+		expect(core.readBlockOutput(lastBlockId(core), { maxLines: 0 })).toBe("");
+		expect(core.readBlockOutput(lastBlockId(core), { maxLines: Number.POSITIVE_INFINITY })!.split("\n")).toHaveLength(20);
 		core.dispose();
 	});
 
@@ -79,7 +81,7 @@ describe("readBlockOutput", () => {
 		core.dispose();
 	});
 
-	it("claude-markdown-reply without agent mode: compact keeps one banner of the three the resizes pushed", async () => {
+	it("claude-markdown-reply without agent mode: compact collapses the back-to-back banner and keeps the ones distinct lines separate", async () => {
 		const core = await replay("claude-markdown-reply", false);
 		const id = lastBlockId(core);
 		const raw = core.readBlockOutput(id)!.split("\n");
@@ -87,10 +89,10 @@ describe("readBlockOutput", () => {
 		const banner = raw[0]!;
 		expect(banner.endsWith("Claude Code v2.1.280")).toBe(true);
 		expect(count(raw, banner)).toBe(4);
-		expect(count(compact, banner)).toBe(1);
+		expect(count(compact, banner)).toBe(3);
 		expect(compact.some((line) => line.startsWith("⏺ I updated greet.py"))).toBe(true);
 		expect(raw).toHaveLength(101);
-		expect(compact).toHaveLength(88);
+		expect(compact).toHaveLength(96);
 		core.dispose();
 	});
 
