@@ -710,13 +710,16 @@ type SendSessionMessageResponse struct {
 }
 
 type SessionCommandRequest struct {
-	Command string `json:"command"`
+	Command string `json:"command" enum:"stop,compact,model,permission-mode"`
 	Model   string `json:"model,omitempty"`
+	Mode    string `json:"mode,omitempty" enum:"default,accept-edits,plan,auto,bypass-permissions" description:"Target mode for the permission-mode command."`
 }
 
 type SessionCommandResponse struct {
-	State  string   `json:"state"`
-	Models []string `json:"models,omitempty"`
+	State          string   `json:"state"`
+	Models         []string `json:"models,omitempty"`
+	PermissionMode string   `json:"permissionMode,omitempty" description:"The mode the terminal confirmed, for the permission-mode command."`
+	Restarted      bool     `json:"restarted,omitempty" description:"The permission-mode command restarted the agent with --resume to reach the mode."`
 }
 
 // SessionDecisionRequest is the body of POST /api/v1/sessions/{sessionId}/decision.

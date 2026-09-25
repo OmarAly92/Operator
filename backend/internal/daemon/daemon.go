@@ -223,6 +223,7 @@ func Run() error {
 		return fmt.Errorf("wire session service: %w", err)
 	}
 	lifecycleMessenger.Bind(sessionLifecycleMessenger{sessMgr})
+	sessMgr.SetPermissionModeObserver(blockEvents)
 	lcStack.LCM.SetCompletionTerminator(sessMgr)
 	lcStack.LCM.SetSessionInputLease(sessMgr)
 	lcStack.LCM.SetSessionOperationGate(sessMgr)

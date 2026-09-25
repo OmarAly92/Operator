@@ -142,6 +142,7 @@ type sessionLifecycle interface {
 	AgentTaskStopSupported(harness domain.AgentHarness, version string) bool
 	PermissionModeSupport(harness domain.AgentHarness, launch domain.PermissionMode, version string) (bool, []domain.PermissionMode)
 	PermissionModeReadable(harness domain.AgentHarness) bool
+	SetPermissionModeObserver(observer sessionmanager.PermissionModeObserver)
 }
 
 // sessionLifecycleMessenger adapts sessionLifecycle to ports.AgentMessenger so

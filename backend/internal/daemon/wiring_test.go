@@ -669,6 +669,8 @@ func (f *fakeSessionLifecycle) PermissionModeReadable(domain.AgentHarness) bool 
 	return false
 }
 
+func (f *fakeSessionLifecycle) SetPermissionModeObserver(sessionmanager.PermissionModeObserver) {}
+
 // TestWiring_SessionLifecycleInterfaceInvokedByDaemon asserts the
 // sessionLifecycle interface is satisfied by *sessionmanager.Manager (compile
 // check) and that Reconcile and RestoreAll dispatch correctly through the

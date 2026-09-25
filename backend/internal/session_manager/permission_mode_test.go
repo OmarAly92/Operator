@@ -487,3 +487,33 @@ func TestPermissionModeCycleCountsALaunchModeFromTheProjectConfig(t *testing.T) 
 		t.Fatalf("result = %+v restores = %d inputs = %q; want a three-press cycle drive", result, agent.restoreCalls, runtime.inputs)
 	}
 }
+
+func TestPermissionModeRestartRefusesASendAsBusy(t *testing.T) {
+	m, _, _, _ := newPermissionRestartManager(t)
+	var sendErr error
+	m.permissionRestartSettle = func(context.Context) error {
+		sendErr = m.Send(ctx, "mer-1", "hello", nil)
+		return nil
+	}
+
+	if _, err := m.SetPermissionMode(ctx, "mer-1", domain.PermissionModeAuto); err != nil {
+		t.Fatalf("SetPermissionMode: %v", err)
+	}
+	if !errors.Is(sendErr, ErrSessionBusy) || errors.Is(sendErr, ErrSwitchInProgress) {
+		t.Fatalf("send during the restart = %v, want ErrSessionBusy", sendErr)
+	}
+}
+
+func TestPermissionModeIsUnsupportedWhenTheObservationCannotBeRead(t *testing.T) {
+	m, rt := newPermissionDriveManager(t, domain.ActivityIdle, "MODE:default")
+	readErr := errors.New("block events unavailable")
+	m.SetPermissionModeObserver(fakePermissionModeObserver{err: readErr})
+
+	_, err := m.SetPermissionMode(ctx, "s1", domain.PermissionModePlan)
+	if !errors.Is(err, ErrPermissionModeUnsupported) || !errors.Is(err, readErr) {
+		t.Fatalf("err = %v, want ErrPermissionModeUnsupported wrapping the read error", err)
+	}
+	if len(rt.inputs) != 0 {
+		t.Fatalf("an unreadable observation touched the pane: %q", rt.inputs)
+	}
+}

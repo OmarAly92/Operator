@@ -3006,11 +3006,21 @@ export interface components {
             permissionModeCycle?: string[];
         };
         SessionCommandRequest: {
-            command: string;
+            /** @enum {string} */
+            command: "stop" | "compact" | "model" | "permission-mode";
+            /**
+             * @description Target mode for the permission-mode command.
+             * @enum {string}
+             */
+            mode?: "default" | "accept-edits" | "plan" | "auto" | "bypass-permissions";
             model?: string;
         };
         SessionCommandResponse: {
             models?: string[];
+            /** @description The mode the terminal confirmed, for the permission-mode command. */
+            permissionMode?: string;
+            /** @description The permission-mode command restarted the agent with --resume to reach the mode. */
+            restarted?: boolean;
             state: string;
         };
         SessionContextResponse: {

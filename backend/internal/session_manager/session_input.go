@@ -20,7 +20,8 @@ const (
 	agentOperationRetire   agentOperationKind = "retire"
 	agentOperationRelaunch agentOperationKind = "relaunch"
 
-	agentOperationRestartTerminal agentOperationKind = "restart-terminal"
+	agentOperationRestartTerminal   agentOperationKind = "restart-terminal"
+	agentOperationPermissionRestart agentOperationKind = "permission-restart"
 )
 
 var errAgentOperationInProgress = errors.New("session: another exclusive operation is in progress")
@@ -82,6 +83,13 @@ func (m *Manager) SessionMutationInProgress(id domain.SessionID) bool {
 func (m *Manager) agentOperationActiveLocked(id domain.SessionID) bool {
 	_, ok := m.agentOperations[id]
 	return ok
+}
+
+func (m *Manager) permissionRestartActive(id domain.SessionID) bool {
+	id = domain.SessionID(strings.TrimSpace(string(id)))
+	m.agentOpMu.Lock()
+	defer m.agentOpMu.Unlock()
+	return m.agentOperations[id] == agentOperationPermissionRestart
 }
 
 func (m *Manager) agentSwitchDecisionInputAllowedLocked(id domain.SessionID) bool {

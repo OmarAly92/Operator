@@ -1195,6 +1195,7 @@ type fakeCommander struct {
 
 	restartedTerminals  []domain.SessionID
 	restartTerminalGrid ports.PaneGrid
+	permissionModes     []domain.PermissionMode
 }
 
 func (f *fakeCommander) Spawn(_ context.Context, cfg ports.SpawnConfig) (domain.SessionRecord, int, int, error) {
@@ -1279,6 +1280,11 @@ func (*fakeCommander) Draft(context.Context, domain.SessionID) (string, error) {
 func (*fakeCommander) Suggestion(context.Context, domain.SessionID) (string, error) {
 	return "", nil
 }
+func (f *fakeCommander) SetPermissionMode(_ context.Context, _ domain.SessionID, mode domain.PermissionMode) (sessionmanager.PermissionModeResult, error) {
+	f.permissionModes = append(f.permissionModes, mode)
+	return sessionmanager.PermissionModeResult{Mode: mode}, nil
+}
+
 func (*fakeCommander) Models(context.Context, domain.SessionID) ([]sessionmanager.ModelOption, error) {
 	return nil, nil
 }
@@ -2566,5 +2572,15 @@ func TestSessionAckPreviewOpenedSurvivesRestart(t *testing.T) {
 	}
 	if err := restarted.AckPreviewOpened(ctx, "mer-1", 2); err != nil {
 		t.Fatalf("ack pending revision after restart: %v", err)
+	}
+}
+
+func TestSetPermissionModeDelegatesToTheManager(t *testing.T) {
+	fc := &fakeCommander{}
+	svc := NewWithDeps(Deps{Manager: fc})
+
+	result, err := svc.SetPermissionMode(context.Background(), "mer-1", domain.PermissionModePlan)
+	if err != nil || result.Mode != domain.PermissionModePlan || len(fc.permissionModes) != 1 {
+		t.Fatalf("result = %+v err = %v calls = %v", result, err, fc.permissionModes)
 	}
 }

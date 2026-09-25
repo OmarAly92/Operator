@@ -112,7 +112,7 @@ func (m *Manager) observedPermissionMode(ctx context.Context, id domain.SessionI
 	}
 	observation, _, err := observer.LatestPermissionMode(ctx, id)
 	if err != nil {
-		return domain.PermissionModeObservation{}, fmt.Errorf("permission mode %s: %w", id, err)
+		return domain.PermissionModeObservation{}, fmt.Errorf("permission mode %s: %w: %w", id, ErrPermissionModeUnsupported, err)
 	}
 	return observation, nil
 }
@@ -201,13 +201,13 @@ func (m *Manager) restartWithPermissionMode(ctx context.Context, id domain.Sessi
 	if m.paneDriveActive(id) {
 		return PermissionModeResult{}, ErrSessionBusy
 	}
-	if err := m.beginAgentOperation(ctx, id, agentOperationRelaunch); err != nil {
+	if err := m.beginAgentOperation(ctx, id, agentOperationPermissionRestart); err != nil {
 		if errors.Is(err, errAgentOperationInProgress) {
 			return PermissionModeResult{}, ErrSessionBusy
 		}
 		return PermissionModeResult{}, err
 	}
-	defer m.endAgentOperation(id, agentOperationRelaunch)
+	defer m.endAgentOperation(id, agentOperationPermissionRestart)
 	if m.paneDriveActive(id) {
 		return PermissionModeResult{}, ErrSessionBusy
 	}

@@ -103,6 +103,7 @@ type SessionService interface {
 	SetReviewerHarness(ctx context.Context, id domain.SessionID, harness domain.ReviewerHarness) (domain.Session, error)
 	Send(ctx context.Context, id domain.SessionID, message string, attachment *ports.SpawnAttachment) error
 	Command(ctx context.Context, id domain.SessionID, command domain.SessionCommand, model string) (sessionmanager.CommandResult, error)
+	SetPermissionMode(ctx context.Context, id domain.SessionID, mode domain.PermissionMode) (sessionmanager.PermissionModeResult, error)
 	Models(ctx context.Context, id domain.SessionID) ([]sessionmanager.ModelOption, error)
 	Draft(ctx context.Context, id domain.SessionID) (string, error)
 	Suggestion(ctx context.Context, id domain.SessionID) (string, error)
@@ -1613,12 +1614,16 @@ func (c *SessionsController) command(w http.ResponseWriter, r *http.Request) {
 	command, ok := domain.ParseSessionCommand(in.Command)
 	if !ok {
 		envelope.WriteAPIError(w, r, http.StatusBadRequest, "validation", "SESSION_COMMAND_UNKNOWN",
-			"unknown command; expected one of stop, compact, model", nil)
+			"unknown command; expected one of stop, compact, model, permission-mode", nil)
 		return
 	}
 	if command == domain.CommandModel && strings.TrimSpace(in.Model) == "" {
 		envelope.WriteAPIError(w, r, http.StatusBadRequest, "validation", "SESSION_COMMAND_MODEL_REQUIRED",
 			"the model command requires a model label", nil)
+		return
+	}
+	if command == domain.CommandPermissionMode {
+		c.permissionModeCommand(w, r, in.Mode)
 		return
 	}
 
@@ -1628,6 +1633,25 @@ func (c *SessionsController) command(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	envelope.WriteJSON(w, http.StatusOK, SessionCommandResponse{State: "sent", Models: result.Models})
+}
+
+func (c *SessionsController) permissionModeCommand(w http.ResponseWriter, r *http.Request, raw string) {
+	mode := domain.PermissionMode(strings.TrimSpace(raw))
+	if mode == "" || !mode.Valid() {
+		envelope.WriteAPIError(w, r, http.StatusBadRequest, "validation", "SESSION_COMMAND_MODE_REQUIRED",
+			"the permission-mode command requires a mode: one of default, accept-edits, plan, auto, bypass-permissions", nil)
+		return
+	}
+	result, err := c.Svc.SetPermissionMode(r.Context(), sessionID(r), mode)
+	if err != nil {
+		c.writeCommandError(w, r, err, nil)
+		return
+	}
+	envelope.WriteJSON(w, http.StatusOK, SessionCommandResponse{
+		State:          "sent",
+		PermissionMode: string(result.Mode),
+		Restarted:      result.Restarted,
+	})
 }
 
 func (c *SessionsController) decision(w http.ResponseWriter, r *http.Request) {
@@ -1726,6 +1750,12 @@ func (c *SessionsController) writeCommandError(w http.ResponseWriter, r *http.Re
 	case errors.Is(err, sessionmanager.ErrAwaitingDecision):
 		envelope.WriteAPIError(w, r, http.StatusConflict, "conflict", "SESSION_AWAITING_DECISION",
 			"the session is paused on a permission decision", nil)
+	case errors.Is(err, sessionmanager.ErrPermissionModeUnsupported):
+		envelope.WriteAPIError(w, r, http.StatusConflict, "conflict", "PERMISSION_MODE_UNSUPPORTED",
+			"this session's agent cannot change permission mode from here", nil)
+	case errors.Is(err, sessionmanager.ErrPermissionModeUnconfirmed):
+		envelope.WriteAPIError(w, r, http.StatusConflict, "conflict", "PERMISSION_MODE_UNCONFIRMED",
+			"the terminal did not confirm the new permission mode", nil)
 	case errors.Is(err, sessionmanager.ErrSessionBusy):
 		envelope.WriteAPIError(w, r, http.StatusConflict, "conflict", "SESSION_BUSY",
 			"another operation owns the session's terminal", nil)

@@ -8453,6 +8453,20 @@ components:
     SessionCommandRequest:
       properties:
         command:
+          enum:
+          - stop
+          - compact
+          - model
+          - permission-mode
+          type: string
+        mode:
+          description: Target mode for the permission-mode command.
+          enum:
+          - default
+          - accept-edits
+          - plan
+          - auto
+          - bypass-permissions
           type: string
         model:
           type: string
@@ -8465,6 +8479,13 @@ components:
           items:
             type: string
           type: array
+        permissionMode:
+          description: The mode the terminal confirmed, for the permission-mode command.
+          type: string
+        restarted:
+          description: The permission-mode command restarted the agent with --resume
+            to reach the mode.
+          type: boolean
         state:
           type: string
       required:

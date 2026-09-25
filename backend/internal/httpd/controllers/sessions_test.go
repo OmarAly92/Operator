@@ -43,6 +43,9 @@ type fakeSessionService struct {
 	commandResult           sessionmanager.CommandResult
 	commandErr              error
 	commandCalls            int
+	permissionModeResult    sessionmanager.PermissionModeResult
+	permissionModeErr       error
+	permissionModeTargets   []domain.PermissionMode
 	suggestionResult        string
 	suggestionErr           error
 	draftResult             string
@@ -413,6 +416,11 @@ func (f *fakeSessionService) Send(_ context.Context, _ domain.SessionID, message
 func (f *fakeSessionService) Command(_ context.Context, _ domain.SessionID, _ domain.SessionCommand, _ string) (sessionmanager.CommandResult, error) {
 	f.commandCalls++
 	return f.commandResult, f.commandErr
+}
+
+func (f *fakeSessionService) SetPermissionMode(_ context.Context, _ domain.SessionID, mode domain.PermissionMode) (sessionmanager.PermissionModeResult, error) {
+	f.permissionModeTargets = append(f.permissionModeTargets, mode)
+	return f.permissionModeResult, f.permissionModeErr
 }
 
 func (f *fakeSessionService) Draft(_ context.Context, _ domain.SessionID) (string, error) {

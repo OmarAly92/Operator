@@ -3514,7 +3514,7 @@ func promptOutputContains(output string, patterns []string) bool {
 }
 
 func (m *Manager) inputGatedError(id domain.SessionID) error {
-	if m.paneDriveActive(id) {
+	if m.paneDriveActive(id) || m.permissionRestartActive(id) {
 		return ErrSessionBusy
 	}
 	return ErrSwitchInProgress
