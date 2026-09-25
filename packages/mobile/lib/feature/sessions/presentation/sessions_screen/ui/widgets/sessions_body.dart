@@ -5,7 +5,6 @@ import 'package:operator_mobile/core/app_routes/routes_strings.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/app_themes/text_style/app_text_style.dart';
 import 'package:operator_mobile/core/utils/haptics.dart';
-import 'package:operator_mobile/core/widgets/glass/glass_metrics.dart';
 import 'package:operator_mobile/core/widgets/failure_widgets/app_error_widget.dart';
 import 'package:operator_mobile/core/widgets/loading_widget/app_loader.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_empty_state.dart';
@@ -152,7 +151,7 @@ class _SessionsBodyState extends State<SessionsBody> with WidgetsBindingObserver
             controller: HomeShell.controllerFor(0),
             padding: EdgeInsets.only(
               top: insets.top,
-              bottom: insets.bottom + GlassMetrics.primaryButtonBottomGap + GlassMetrics.hitTarget,
+              bottom: insets.bottom + 40,
             ),
             children: [
               const ProjectSwitcher(),

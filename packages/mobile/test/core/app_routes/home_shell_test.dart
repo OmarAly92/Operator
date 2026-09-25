@@ -17,6 +17,7 @@ import 'package:operator_mobile/core/mux/mux_client.dart';
 import 'package:operator_mobile/core/mux/session_patch.dart';
 import 'package:operator_mobile/core/utils/service_locator.dart';
 import 'package:operator_mobile/core/widgets/glass/glass_button.dart';
+import 'package:operator_mobile/core/widgets/glass/glass_metrics.dart';
 import 'package:operator_mobile/core/widgets/glass/glass_tab_bar.dart';
 import 'package:operator_mobile/core/widgets/glass/scroll_edge_effect.dart';
 import 'package:operator_mobile/feature/notification/data/model/notification_page_model.dart';
@@ -322,20 +323,26 @@ void main() {
     agents.jumpTo(0);
   });
 
-  testWidgets('the + button is prominent glass and opens spawn', (tester) async {
+  testWidgets('the + button is regular glass in the tab bar row and opens spawn', (tester) async {
     await pumpShell(tester);
-    expect(tester.widget<GlassButton>(find.byKey(HomeShell.spawnButtonKey)).prominent, isTrue);
+    final button = tester.widget<GlassButton>(find.byKey(HomeShell.spawnButtonKey));
+    expect(button.prominent, isFalse);
+    expect(button.diameter, GlassMetrics.tabBarHeight);
+    final buttonRect = tester.getRect(find.byKey(HomeShell.spawnButtonKey));
+    final barRect = tester.getRect(find.byType(GlassTabBar));
+    expect(buttonRect.center.dy, closeTo(barRect.center.dy, 0.5));
+    expect(buttonRect.left - barRect.right, GlassMetrics.bottomBarItemGap);
     expect(find.byType(FloatingActionButton), findsNothing);
     await tester.tap(find.byKey(HomeShell.spawnButtonKey));
     await settle(tester);
     expect(find.text('route ${RoutesStrings.spawn}'), findsOneWidget);
   });
 
-  testWidgets('the + button shows only on the Agents tab', (tester) async {
+  testWidgets('the + button stays on every tab', (tester) async {
     await pumpShell(tester);
     await tester.tap(tabLabel('PRs'));
     await settle(tester);
-    expect(find.byKey(HomeShell.spawnButtonKey), findsNothing);
+    expect(find.byKey(HomeShell.spawnButtonKey), findsOneWidget);
     await tester.tap(tabLabel('Agents'));
     await settle(tester);
     expect(find.byKey(HomeShell.spawnButtonKey), findsOneWidget);
@@ -376,7 +383,7 @@ void main() {
 
     expect(HomeShell.contentBottomInset(0), 83);
     expect(HomeShell.contentBottomInset(100), 100);
-    expect((tabList(tester, 0).padding! as EdgeInsets).bottom, 83 + 12 + 44);
+    expect((tabList(tester, 0).padding! as EdgeInsets).bottom, 83 + 40);
     expect((tabList(tester, 1).padding! as EdgeInsets).bottom, 83 + 40);
     expect((tabList(tester, 2).padding! as EdgeInsets).bottom, 83 + 40);
 

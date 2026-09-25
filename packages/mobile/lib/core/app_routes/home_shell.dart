@@ -127,23 +127,26 @@ class _HomeShellState extends State<HomeShell> {
               ),
             ),
           ),
-          if (selected == 0)
-            Positioned(
-              right: GlassMetrics.primaryButtonInset,
-              bottom: GlassMetrics.tabBarBottomInset + GlassMetrics.tabBarHeight + GlassMetrics.primaryButtonBottomGap,
-              child: GlassButton.icon(
-                key: HomeShell.spawnButtonKey,
-                icon: Icons.add,
-                semanticLabel: 'Spawn agent',
-                prominent: true,
-                onPressed: () => Navigator.of(context).pushNamed(RoutesStrings.spawn),
-              ),
-            ),
           Positioned(
-            left: GlassMetrics.tabBarSideInset,
-            right: GlassMetrics.tabBarSideInset,
+            left: GlassMetrics.bottomBarSideInset,
+            right: GlassMetrics.bottomBarSideInset,
             bottom: GlassMetrics.tabBarBottomInset,
-            child: GlassTabBar(items: HomeShell.tabs, selectedIndex: selected, onSelected: _select),
+            child: Row(
+              children: [
+                Expanded(
+                  child: GlassTabBar(items: HomeShell.tabs, selectedIndex: selected, onSelected: _select),
+                ),
+                const SizedBox(width: GlassMetrics.bottomBarItemGap),
+                GlassButton.icon(
+                  key: HomeShell.spawnButtonKey,
+                  icon: Icons.add,
+                  semanticLabel: 'Spawn agent',
+                  diameter: GlassMetrics.tabBarHeight,
+                  foreground: skin.textPrimary,
+                  onPressed: () => Navigator.of(context).pushNamed(RoutesStrings.spawn),
+                ),
+              ],
+            ),
           ),
         ],
       ),

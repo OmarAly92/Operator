@@ -5,6 +5,8 @@ sealed class GlassMetrics {
   static const double toolbarItemGap = 8;
   static const double tabBarHeight = 62;
   static const double tabBarSideInset = 64;
+  static const double bottomBarSideInset = 20;
+  static const double bottomBarItemGap = 12;
   static const double tabBarBottomInset = 21;
   static const double tabGlyph = 24;
   static const double dropletInset = 4;
