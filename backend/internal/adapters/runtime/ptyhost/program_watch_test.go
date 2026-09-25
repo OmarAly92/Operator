@@ -216,3 +216,48 @@ func TestAStreamSendsItsAppearanceToTheHost(t *testing.T) {
 		time.Sleep(5 * time.Millisecond)
 	}
 }
+
+func TestAHostThatDiesWithoutDestroyLosesItsTitle(t *testing.T) {
+	f := startServeParsed(t, 926, 80, 24)
+	rt, rec := watchedRuntime(t, "sess-dead", f)
+	writeOutput(t, f, "\x1b]2;◐ Task\x07")
+	rec.waitFor(t, programRecord{id: "sess-dead", event: ports.TerminalProgramEvent{Kind: ports.TerminalProgramTitle, Title: "Task"}})
+
+	f.cancel()
+	rec.waitFor(t, programRecord{id: "sess-dead", event: ports.TerminalProgramEvent{Kind: ports.TerminalProgramTitle}})
+	if got := rt.TerminalTitles(); len(got) != 0 {
+		t.Fatalf("titles after the host died = %v, want none", got)
+	}
+}
+
+func TestALateProbeDoesNotReopenTheWatchOfADestroyedSession(t *testing.T) {
+	f := startServeParsed(t, 927, 80, 24)
+	defer f.cancel()
+	rt, _ := watchedRuntime(t, "sess-late", f)
+	sess := rt.sessions["sess-late"]
+	rt.mu.Lock()
+	delete(rt.sessions, "sess-late")
+	rt.mu.Unlock()
+	rt.stopProgramWatch("sess-late")
+	waitWatchers(t, f, 0)
+
+	rt.ensureProgramWatch("sess-late", sess)
+	rt.programMu.Lock()
+	_, running := rt.programWatches["sess-late"]
+	rt.programMu.Unlock()
+	if running {
+		t.Fatal("a probe that resolved the session before Destroy reopened its watch")
+	}
+	expectNoWatchers(t, f, 150*time.Millisecond)
+}
+
+func expectNoWatchers(t *testing.T, f *serveFixture, within time.Duration) {
+	t.Helper()
+	deadline := time.Now().Add(within)
+	for time.Now().Before(deadline) {
+		if watcherCount(f) != 0 {
+			t.Fatalf("host watchers = %d, want 0", watcherCount(f))
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+}

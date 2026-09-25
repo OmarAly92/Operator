@@ -42,6 +42,8 @@ func (m *Manager) publishProgramEvent(handleID string, event ports.TerminalProgr
 func (c *connState) handlePrograms(msg clientMsg) {
 	switch msg.Type {
 	case msgSubscribe:
+		c.mgr.mu.Lock()
+		defer c.mgr.mu.Unlock()
 		c.mu.Lock()
 		already := c.programsSubscribed
 		c.programsSubscribed = true

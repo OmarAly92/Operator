@@ -241,3 +241,60 @@ func TestParseHexColor(t *testing.T) {
 		}
 	}
 }
+
+func TestAFloodOfProgramNotificationsIsCapped(t *testing.T) {
+	window := programNotificationWindow
+	programNotificationWindow = 300 * time.Millisecond
+	defer func() { programNotificationWindow = window }()
+	f := startServeParsed(t, 911, 80, 24)
+	defer f.cancel()
+	w := newWatcher(t, f.addr)
+	defer w.close()
+	readProgramEvent(t, w)
+
+	flood := ""
+	for i := 0; i < 50; i++ {
+		flood += "\x1b]9;spam\x07"
+	}
+	writeOutput(t, f, flood)
+	for i := 0; i < programNotificationBurst; i++ {
+		if got := readProgramEvent(t, w); got.Kind != ProgramEventNotification {
+			t.Fatalf("event %d = %+v, want a notification", i, got)
+		}
+	}
+	expectNoFrame(t, w, 150*time.Millisecond)
+
+	time.Sleep(programNotificationWindow)
+	writeOutput(t, f, "\x1b]9;later\x07")
+	if got := readProgramEvent(t, w); got != (ProgramEventPayload{Kind: ProgramEventNotification, Body: "later"}) {
+		t.Fatalf("after the window = %+v, want the new notification", got)
+	}
+}
+
+func TestACappedFloodStillDeliversTitleChanges(t *testing.T) {
+	f := startServeParsed(t, 912, 80, 24)
+	defer f.cancel()
+	w := newWatcher(t, f.addr)
+	defer w.close()
+	readProgramEvent(t, w)
+
+	flood := ""
+	for i := 0; i < 20; i++ {
+		flood += "\x1b]9;spam\x07"
+	}
+	writeOutput(t, f, flood)
+	for i := 0; i < programNotificationBurst; i++ {
+		readProgramEvent(t, w)
+	}
+	writeOutput(t, f, "\x1b]2;◐ Still titled\x07")
+	if got := readProgramEvent(t, w); got != (ProgramEventPayload{Kind: ProgramEventTitle, Title: "Still titled"}) {
+		t.Fatalf("title after a capped flood = %+v", got)
+	}
+}
+
+func TestAQueryParsedWhenASyncBlockTimesOutIsAnswered(t *testing.T) {
+	f := startServeParsed(t, 913, 80, 24)
+	defer f.cancel()
+	writeOutput(t, f, "\x1b[?2026h\x1b[18t")
+	readPTYInput(t, f, "\x1b[8;24;80t")
+}

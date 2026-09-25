@@ -233,7 +233,10 @@ type host struct {
 	watchers   map[net.Conn]*clientState
 	programGen uint32
 	shownTitle string
-	appearance *AppearancePayload
+
+	notifyWindowStart time.Time
+	notifyCount       int
+	appearance        *AppearancePayload
 }
 
 // runWriter drains one client's outbound queue, blocking on each conn.Write
@@ -687,8 +690,13 @@ func (h *host) tickParser() {
 	if parser := h.currentParser(); parser != nil {
 		_, _ = parser.Tick(time.Now().UnixMilli())
 		h.mu.Lock()
+		replies := h.takeQueryRepliesLocked()
 		h.publishProgramLocked()
+		pty := h.pty
 		h.mu.Unlock()
+		if len(replies) > 0 {
+			_, _ = pty.Write(replies)
+		}
 	}
 }
 

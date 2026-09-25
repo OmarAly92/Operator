@@ -5,11 +5,16 @@ import (
 	"net"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/OmarAly92/operator/backend/internal/domain"
 )
 
 const maxAppearancePixels = 4096
+
+const programNotificationBurst = 3
+
+var programNotificationWindow = 10 * time.Second
 
 func programFrame(event ProgramEventPayload) []byte {
 	payload, _ := json.Marshal(event)
@@ -54,13 +59,29 @@ func (h *host) publishProgramLocked() {
 		}
 	}
 	if notes, err := h.parser.TakeNotifications(); err == nil {
+		now := time.Now()
 		for _, note := range notes {
+			if !h.allowNotificationLocked(now) {
+				continue
+			}
 			events = append(events, ProgramEventPayload{Kind: ProgramEventNotification, Title: note.Title, Body: note.Body})
 		}
 	}
 	for _, event := range events {
 		h.sendWatchersLocked(programFrame(event))
 	}
+}
+
+func (h *host) allowNotificationLocked(now time.Time) bool {
+	if now.Sub(h.notifyWindowStart) >= programNotificationWindow {
+		h.notifyWindowStart = now
+		h.notifyCount = 0
+	}
+	if h.notifyCount >= programNotificationBurst {
+		return false
+	}
+	h.notifyCount++
+	return true
 }
 
 func (h *host) sendWatchersLocked(frame []byte) {

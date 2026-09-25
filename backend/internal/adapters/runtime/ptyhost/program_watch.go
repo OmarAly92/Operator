@@ -41,6 +41,11 @@ func (r *Runtime) ensureProgramWatch(id string, sess *hostSession) {
 	if sess == nil || sess.addr == "" {
 		return
 	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.sessions[id] != sess {
+		return
+	}
 	r.programMu.Lock()
 	if _, running := r.programWatches[id]; running {
 		r.programMu.Unlock()
@@ -56,10 +61,14 @@ func (r *Runtime) runProgramWatch(id, addr string, w *programWatch) {
 	defer close(w.done)
 	defer func() {
 		r.programMu.Lock()
-		if r.programWatches[id] == w {
+		current := r.programWatches[id] == w
+		if current {
 			delete(r.programWatches, id)
 		}
 		r.programMu.Unlock()
+		if current {
+			r.recordProgramEvent(id, ProgramEventPayload{Kind: ProgramEventTitle})
+		}
 	}()
 	conn, err := dialHost(addr, dialTimeout)
 	if err != nil {

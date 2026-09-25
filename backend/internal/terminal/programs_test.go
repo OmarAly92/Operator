@@ -231,3 +231,34 @@ func TestAppearanceForAnUnknownTerminalIsIgnored(t *testing.T) {
 	conn.in <- clientMsg{Ch: chSystem, Type: msgPing}
 	recv(t, conn, chSystem, msgPong, time.Second)
 }
+
+type slowSnapshotSource struct {
+	*programSource
+	entered chan struct{}
+	release chan struct{}
+}
+
+func (s *slowSnapshotSource) TerminalTitles() map[string]string {
+	snapshot := s.programSource.TerminalTitles()
+	close(s.entered)
+	<-s.release
+	return snapshot
+}
+
+func TestATitleClearedDuringSubscribeIsNotOverwrittenByTheSnapshot(t *testing.T) {
+	src := &slowSnapshotSource{programSource: newProgramSource(&fakeSource{alive: true}), entered: make(chan struct{}), release: make(chan struct{})}
+	src.titles["sess-1"] = "Task"
+	mgr := NewManager(src, nil, testLogger(), WithHeartbeat(0))
+	defer mgr.Close()
+	conn := serveConn(t, mgr, false)
+	conn.in <- clientMsg{Ch: chPrograms, Type: msgSubscribe}
+	<-src.entered
+	go src.emit("sess-1", ports.TerminalProgramEvent{Kind: ports.TerminalProgramTitle})
+	time.Sleep(50 * time.Millisecond)
+	close(src.release)
+	first := recv(t, conn, chPrograms, msgTitle, time.Second)
+	second := recv(t, conn, chPrograms, msgTitle, time.Second)
+	if first.Title != "Task" || second.Title != "" {
+		t.Fatalf("title frames = %q then %q, want the snapshot then the clear", first.Title, second.Title)
+	}
+}
