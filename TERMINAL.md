@@ -1274,6 +1274,34 @@ history of `master`.
   `agent-events.test.ts` "AgentEvents listener failures";
   `compact-output.test.ts` (whole-line spinner, separated runs, `maxLines`).
 
+### 4.35 The parser rework — roadmap Plan 9
+- **Part A: `vte::ansi::Handler` measured, not adopted (2026-09-26).** A
+  scratch crate fed vte 0.15's `ansi::Processor` the sequences vt-core relies
+  on. XTVERSION (`CSI > 0 q`), `CSI 16 t`, OSC 9/99/777/1/133/7000 and a bare
+  `OSC 8 ;` reach no `Handler` method; SGR 53/55 are dropped, SGR 21 becomes
+  cancel-bold, `38;5;300` is rejected, `4:6` becomes an underline; DECRQM
+  passes one mode; `CSI b` (REP), `ESC Z` (DA1) and `ESC # 8` (DECALN) would
+  start doing something, which changes `tests/ref/csi_rep` and
+  `decaln_reset`; and `Processor::new` allocates a 2 MiB sync buffer per core
+  (`vte-0.15.0/src/ansi.rs:39,261-264`). The `Processor` owns its parser and
+  its `Performer` is private (`ansi.rs:425`), so nothing can be handled half
+  by `Handler` and half by us. Dispatch stays on `vte::Perform`
+  (`crates/vt-core/src/parser/perform.rs`). The `ansi` feature does not need
+  `std` (vte's `Cargo.toml`: `ansi = ["log", "cursor-icon", "bitflags"]`), and
+  vt-core must keep vte without `std`: the 1,024-byte OSC cap of §4.34 is the
+  no-std buffer (`vte-0.15.0/src/lib.rs:46`).
+- Guard for the whole plan: `crates/vt-core/tests/parser_goldens.rs` replays
+  the 46 `tests/ref` recordings, the 3 Claude Code fixtures and 4 synthetic
+  streams (`tests/golden_support/synthetic.rs`) in four configurations
+  (renderer: grapheme mode, 4 KiB feeds; renderer with feeds of 1, 3, 7, 64,
+  509 and 4,093 bytes in turn; mirror: scalar, no reflow, 20,000 rows /
+  256 KiB, cold ring; agent-TUI mode with the odd feeds) and compares a
+  digest of rows, styles, cell spans, wrapped flags, blocks, links, cursor,
+  alternate screen, modes, title, notifications, agent events, query replies
+  and every per-feed `Delta` with `tests/goldens/*.golden`, generated on the
+  tree before the rework (`UPDATE_GOLDENS=1`). Regenerate only for a
+  deliberate behaviour change, and name it in the commit.
+
 ## 5. Known gaps (not bugs, decisions pending)
 
 - **Find exports every hit on every change.** `findResults` copies all hits

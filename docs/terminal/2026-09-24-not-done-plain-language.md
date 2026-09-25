@@ -125,10 +125,12 @@ You'd only notice these as fewer rare glitches or slightly less CPU use.
     terminal doesn't understand are logged so they can be fixed.
 17. **Faster line edits (§1.12).** Rows don't remember "nothing fancy is on
     me". *If done:* erasing and inserting in plain rows gets quicker.
-18. **Tidier code for control codes (§2.2).** The part that reads the
-    invisible commands programs send (colours, cursor moves) is hand-written.
-    *If done:* it uses a standard, well-tested library, so fewer odd bugs
-    from unusual programs.
+18. **Tidier code for control codes (§2.2) — tried and dropped (2026-09-26,
+    roadmap Plan 9).** The standard library we checked cannot answer the
+    questions Claude Code asks at startup, drops program notifications and
+    would change how some colours and codes behave, so the terminal keeps its
+    own reader. A new safety net now checks that no future change to that
+    reader alters anything on screen.
 19. **Safety caps (§2.14) — done (2026-09-25, roadmap Plan 3).** Programs can
     push window titles onto a stack; it now stops at 4,096 and drops the
     oldest, so a runaway program cannot grow memory.

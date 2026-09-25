@@ -47,7 +47,7 @@ Absent evidence is written as "not known", never guessed.
 
 ## Implementation status (updated 2026-09-25)
 
-Every entry below carries a **Status** line under its heading, checked against the tree on 2026-09-24 (`development`): 45 done, 19 partial, 15 not done, 7 not pursued, 1 not needed, 1 n/a. "Plan A–F" are the agent-TUI spec's plans (`docs/superpowers/specs/2026-09-19-agent-tui-experience-design.md`); "Plan 4" is the background-pane plan (`docs/superpowers/plans/2026-09-23-terminal-background-pane-cost.md`). Entries marked non-goal were excluded by the agent-TUI spec, not rejected. "Roadmap Plan 1" is the paste-safety plan (`docs/superpowers/plans/2026-09-24-terminal-plan-1-paste-safety.md`); "Roadmap Plan 3" is the program-messages plan (docs/superpowers/plans/2026-09-25-terminal-plan-3-program-messages.md); "Roadmap Plan 5" is the highlights plan (`docs/superpowers/plans/2026-09-25-terminal-plan-5-highlights-marks.md`); "Roadmap Plan 7" is the very-old-output plan (`docs/superpowers/plans/2026-09-25-terminal-plan-7-old-output.md`). "Roadmap Plan 8" is the agent-awareness plan (`docs/superpowers/plans/2026-09-25-terminal-plan-8-agent-awareness.md`).
+Every entry below carries a **Status** line under its heading, checked against the tree on 2026-09-24 (`development`): 45 done, 19 partial, 14 not done, 8 not pursued, 1 not needed, 1 n/a. "Plan A–F" are the agent-TUI spec's plans (`docs/superpowers/specs/2026-09-19-agent-tui-experience-design.md`); "Plan 4" is the background-pane plan (`docs/superpowers/plans/2026-09-23-terminal-background-pane-cost.md`). Entries marked non-goal were excluded by the agent-TUI spec, not rejected. "Roadmap Plan 1" is the paste-safety plan (`docs/superpowers/plans/2026-09-24-terminal-plan-1-paste-safety.md`); "Roadmap Plan 3" is the program-messages plan (docs/superpowers/plans/2026-09-25-terminal-plan-3-program-messages.md); "Roadmap Plan 5" is the highlights plan (`docs/superpowers/plans/2026-09-25-terminal-plan-5-highlights-marks.md`); "Roadmap Plan 7" is the very-old-output plan (`docs/superpowers/plans/2026-09-25-terminal-plan-7-old-output.md`). "Roadmap Plan 8" is the agent-awareness plan (`docs/superpowers/plans/2026-09-25-terminal-plan-8-agent-awareness.md`). "Roadmap Plan 9" is the parser-rework plan (`docs/superpowers/plans/2026-09-26-terminal-plan-9-parser-rework.md`).
 
 | Entry | Status | What landed / what is missing |
 |---|---|---|
@@ -70,7 +70,7 @@ Every entry below carries a **Status** line under its heading, checked against t
 | §1.17 | Partial | Plan D — contrast-inverted and hollow-unfocused cursor behind flags (both off); box drawing measured and ruled out (`boxGapPx` = 0). Not done: the `minContrast` theme option, dropped by the Plan D spec without a recorded decision. |
 | §1.18 | Not done | The shell scripts still emit bare `133;A/B/C/D`; no `redraw=`, `k=s` or `133;P`. Folded into §1.6. |
 | §2.1 | Done | Plan A — DEC 2026 buffered in `vt-core` (`SyncBuffer`, 150 ms / 2 MiB), pump holds across a block. |
-| §2.2 | Not done | `Parser` still implements `vte::Perform` with hand-decoded SGR and modes. A non-goal of the agent-TUI spec. |
+| §2.2 | Not pursued | Roadmap Plan 9 (2026-09-26) measured `vte::ansi::Handler`: XTVERSION, `CSI 16 t`, OSC 9/99/777/133/7000 and raw parameters reach no method, SGR 21/53/`38;5;300`/`4:6` decode differently, REP/`ESC Z`/`ESC # 8` start doing something, and `Processor::new` allocates 2 MiB per core; there is no partial adoption (`TERMINAL.md` §4.35). The `ansi` feature does not need `std`. |
 | §2.3 | Done | Plan B — selection damage diffed against the previous paint (one row repainted per selection step) and one moved cursor element. Column bounds were ruled out by the entry itself for a DOM renderer. |
 | §2.4 | Not done | No pull-back on height growth and no cursor-carrying reflow; waits on §1.5. The wide-character-at-the-cut case was already covered. |
 | §2.5 | Partial | Plan B — `onRowEvents` (trim and rewrap `remap`) and stable rows make trims harmless. Not done: the selection does not apply `remap`, so a width change moves it. |
@@ -1294,7 +1294,7 @@ and tests there still apply)
 
 ### 2.2 Typed VT dispatch through `vte::ansi::Handler` instead of hand-rolled CSI/OSC/SGR
 
-> **Status: Not done.** `Parser` still implements `vte::Perform` with hand-decoded SGR and modes. A non-goal of the agent-TUI spec.
+> **Status: Not pursued.** Roadmap Plan 9 (2026-09-26) — measured with a scratch crate: vte 0.15's `ansi::Processor` cannot express XTVERSION, `CSI 16 t`, OSC 9/99/777/133/7000, a bare `OSC 8 ;`, multi-mode DECRQM or raw parameters (the `trace` feature, the unknown-sequence ring), decodes SGR 21/53/`38;5;300`/`4:6` differently, would start executing REP, `ESC Z` and `ESC # 8` (changing two `tests/ref` screens), and allocates a 2 MiB sync buffer per core (`vte-0.15.0/src/ansi.rs:39,261-264`); its `Performer` is private (`:425`), so no sequence can be handed back. Dispatch stays on `vte::Perform` (`TERMINAL.md` §4.35). The proposal's "`std` is required by `ansi`" is wrong: `ansi = ["log", "cursor-icon", "bitflags"]` builds without `std`.
 
 **Reference**
 - `vte-0.15.0/src/ansi.rs:495` `pub trait Handler` — one method per
