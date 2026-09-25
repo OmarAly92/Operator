@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:intl/intl.dart';
 import 'package:operator_mobile/core/app_themes/app_motion.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/app_themes/text_style/app_text_style.dart';
@@ -10,14 +11,28 @@ import 'package:operator_mobile/core/widgets/main_widgets/app_text.dart';
 
 enum MessageMetaSide { user, assistant }
 
-String messageTimeLabel(String? createdAt) {
+String _clockTime(DateTime local) {
+  final hour = local.hour % 12 == 0 ? 12 : local.hour % 12;
+  final period = local.hour < 12 ? 'AM' : 'PM';
+  return '$hour:${local.minute.toString().padLeft(2, '0')} $period';
+}
+
+String messageTimeLabel(String? createdAt, {DateTime? now}) {
   if (createdAt == null) return 'now';
   final parsed = DateTime.tryParse(createdAt);
   if (parsed == null) return 'now';
   final local = parsed.toLocal();
-  final hour = local.hour % 12 == 0 ? 12 : local.hour % 12;
-  final period = local.hour < 12 ? 'AM' : 'PM';
-  return '$hour:${local.minute.toString().padLeft(2, '0')} $period';
+  final today = now ?? DateTime.now();
+  final time = _clockTime(local);
+  if (local.year == today.year && local.month == today.month && local.day == today.day) {
+    return time;
+  }
+  final yesterday = today.subtract(const Duration(days: 1));
+  if (local.year == yesterday.year && local.month == yesterday.month && local.day == yesterday.day) {
+    return 'Yesterday $time';
+  }
+  final datePattern = local.year == today.year ? 'MMM d' : 'MMM d, yyyy';
+  return '${DateFormat(datePattern).format(local)}, $time';
 }
 
 class MessageMetaRow extends StatelessWidget {

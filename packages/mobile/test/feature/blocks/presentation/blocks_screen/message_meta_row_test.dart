@@ -152,8 +152,40 @@ void main() {
 
   test('time labels read as 12-hour clock times', () {
     final local = DateTime(2026, 9, 24, 13, 5);
-    expect(messageTimeLabel(local.toIso8601String()), '1:05 PM');
-    expect(messageTimeLabel(DateTime(2026, 9, 24, 0, 7).toIso8601String()), '12:07 AM');
+    expect(messageTimeLabel(local.toIso8601String(), now: local), '1:05 PM');
+    expect(messageTimeLabel(DateTime(2026, 9, 24, 0, 7).toIso8601String(), now: local), '12:07 AM');
     expect(messageTimeLabel(null), 'now');
+  });
+
+  group('day-aware message time labels', () {
+    test('a message from today shows only the time', () {
+      final now = DateTime(2026, 9, 25, 20, 18);
+      final createdAt = DateTime(2026, 9, 25, 20, 18);
+      expect(messageTimeLabel(createdAt.toIso8601String(), now: now), '8:18 PM');
+    });
+
+    test('a message from yesterday is prefixed with Yesterday', () {
+      final now = DateTime(2026, 9, 25, 20, 18);
+      final createdAt = DateTime(2026, 9, 24, 20, 28);
+      expect(messageTimeLabel(createdAt.toIso8601String(), now: now), 'Yesterday 8:28 PM');
+    });
+
+    test('a message just after midnight is still yesterday, not two days back', () {
+      final now = DateTime(2026, 9, 25, 0, 5);
+      final createdAt = DateTime(2026, 9, 24, 23, 55);
+      expect(messageTimeLabel(createdAt.toIso8601String(), now: now), 'Yesterday 11:55 PM');
+    });
+
+    test('an older message in the same year shows a short date', () {
+      final now = DateTime(2026, 9, 25, 20, 18);
+      final createdAt = DateTime(2026, 9, 20, 8, 28);
+      expect(messageTimeLabel(createdAt.toIso8601String(), now: now), 'Sep 20, 8:28 AM');
+    });
+
+    test('an older message from a previous year includes the year', () {
+      final now = DateTime(2026, 1, 3, 20, 18);
+      final createdAt = DateTime(2025, 12, 24, 8, 28);
+      expect(messageTimeLabel(createdAt.toIso8601String(), now: now), 'Dec 24, 2025, 8:28 AM');
+    });
   });
 }
