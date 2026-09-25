@@ -53,7 +53,9 @@ pub use integrity::IntegrityError;
 pub use limits::{Limits, MemoryStats};
 pub use line_editor::LineEditorState;
 pub use older::{OlderChunk, OlderState, OLDER_CHUNK_ROWS};
-pub use parser::{HistoryBlock, HistoryRow};
+pub use parser::{
+    HistoryBlock, HistoryRow, UnknownSequence, UNKNOWN_SEQUENCES_CAP, UNKNOWN_TEXT_BYTES,
+};
 pub use style::{Attrs, CellStyle, StyleCode};
 pub use width::{clusters, Cluster, WidthMode};
 
@@ -350,6 +352,7 @@ impl TerminalCore {
             self.vte.advance(&mut self.parser, bytes);
             self.fed_total += bytes.len() as u64;
         }
+        self.parser.flush_run();
     }
 
     #[cfg(feature = "trace")]

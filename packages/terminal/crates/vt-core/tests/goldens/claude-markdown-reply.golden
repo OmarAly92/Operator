@@ -1,0 +1,52 @@
+renderer rows 107
+renderer rows[0..] text fcfebd0fe9bc603e styles 48d5ea1a4793b8a3 spans bcc1d7c35462a580
+renderer blocks 1 9cc4522a1fe7e3b0
+renderer links dcd1781a213827ee
+renderer cursor 102 2 true history 72 first_stable 0 editor 0
+renderer alt none
+renderer modes app_cursor=false sgr_mouse=false paste=true focus=true mouse=0 sync=false pending_sync=0
+renderer program title="✳ Greeting helpers" pointer="" stack=0 live_output=46272 older=OlderState { floor: None, marks: 0 }
+renderer replies "\u{1b}P>|GoldenTerm\u{1b}\\\u{1b}[?62;22c\u{1b}[?2026;2$y\u{1b}[6;18;9t\u{1b}[?1016;0$y\u{1b}[?62;22c\u{1b}P>|GoldenTerm\u{1b}\\\u{1b}[?62;22c\u{1b}[?2026;2$y\u{1b}[?62;22c"
+renderer notifications 0 cbf29ce484222325
+renderer agent_events 0 cbf29ce484222325
+renderer typeahead []
+renderer deltas 13 3366fda4e1603d61
+renderer-odd rows 107
+renderer-odd rows[0..] text fcfebd0fe9bc603e styles 48d5ea1a4793b8a3 spans bcc1d7c35462a580
+renderer-odd blocks 1 9cc4522a1fe7e3b0
+renderer-odd links dcd1781a213827ee
+renderer-odd cursor 102 2 true history 72 first_stable 0 editor 0
+renderer-odd alt none
+renderer-odd modes app_cursor=false sgr_mouse=false paste=true focus=true mouse=0 sync=false pending_sync=0
+renderer-odd program title="✳ Greeting helpers" pointer="" stack=0 live_output=46272 older=OlderState { floor: None, marks: 0 }
+renderer-odd replies "\u{1b}P>|GoldenTerm\u{1b}\\\u{1b}[?62;22c\u{1b}[?2026;2$y\u{1b}[6;18;9t\u{1b}[?1016;0$y\u{1b}[?62;22c\u{1b}P>|GoldenTerm\u{1b}\\\u{1b}[?62;22c\u{1b}[?2026;2$y\u{1b}[?62;22c"
+renderer-odd notifications 0 cbf29ce484222325
+renderer-odd agent_events 0 cbf29ce484222325
+renderer-odd typeahead []
+renderer-odd deltas 72 edb04ee7855009d1
+mirror rows 85
+mirror rows[0..] text a64596170a6394e9 styles c7f2d9bb9ecaa932 spans 5767d61eea94395a
+mirror blocks 1 f1c31d1fd5303ce9
+mirror links dcd1781a213827ee
+mirror cursor 80 2 true history 50 first_stable 0 editor 0
+mirror alt none
+mirror modes app_cursor=false sgr_mouse=false paste=true focus=true mouse=0 sync=false pending_sync=0
+mirror program title="✳ Greeting helpers" pointer="" stack=0 live_output=46272 older=OlderState { floor: None, marks: 0 }
+mirror replies "\u{1b}P>|GoldenTerm\u{1b}\\\u{1b}[?62;22c\u{1b}[?2026;2$y\u{1b}[6;18;9t\u{1b}[?1016;0$y\u{1b}[?62;22c\u{1b}P>|GoldenTerm\u{1b}\\\u{1b}[?62;22c\u{1b}[?2026;2$y\u{1b}[?62;22c"
+mirror notifications 0 cbf29ce484222325
+mirror agent_events 0 cbf29ce484222325
+mirror typeahead []
+mirror deltas 13 fa695b0ce1f6e6a3
+agent-odd rows 85
+agent-odd rows[0..] text a64596170a6394e9 styles c7f2d9bb9ecaa932 spans 5767d61eea94395a
+agent-odd blocks 1 f1c31d1fd5303ce9
+agent-odd links dcd1781a213827ee
+agent-odd cursor 80 2 true history 50 first_stable 0 editor 0
+agent-odd alt none
+agent-odd modes app_cursor=false sgr_mouse=false paste=true focus=true mouse=0 sync=false pending_sync=0
+agent-odd program title="✳ Greeting helpers" pointer="" stack=0 live_output=46272 older=OlderState { floor: None, marks: 0 }
+agent-odd replies "\u{1b}P>|GoldenTerm\u{1b}\\\u{1b}[?62;22c\u{1b}[?2026;2$y\u{1b}[6;18;9t\u{1b}[?1016;0$y\u{1b}[?62;22c\u{1b}P>|GoldenTerm\u{1b}\\\u{1b}[?62;22c\u{1b}[?2026;2$y\u{1b}[?62;22c"
+agent-odd notifications 0 cbf29ce484222325
+agent-odd agent_events 0 cbf29ce484222325
+agent-odd typeahead []
+agent-odd deltas 72 ec2318f2eaabe627

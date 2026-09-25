@@ -1,0 +1,452 @@
+renderer rows 60137
+renderer rows[0..] text c538952182f02f1e styles b29a135f9ded3067 spans 6188700df9c12a39
+renderer rows[500..] text 1bb2641248b47fd1 styles 64d1c80ec07ca589 spans 6188700df9c12a39
+renderer rows[1000..] text a6c004b6ded3bf2b styles 471f83f83d343c1d spans 6188700df9c12a39
+renderer rows[1500..] text 661140deb47d1463 styles 4d67c70f02d55285 spans 6188700df9c12a39
+renderer rows[2000..] text e730e89e3c0d7fbf styles 4d67c70f02d55285 spans 6188700df9c12a39
+renderer rows[2500..] text f0367a8a12bff927 styles 4d67c70f02d55285 spans 6188700df9c12a39
+renderer rows[3000..] text f088c454b82f6e5c styles 14d23b15e66c8641 spans 6188700df9c12a39
+renderer rows[3500..] text 4e0ac423b350f531 styles 64d1c80ec07ca589 spans 6188700df9c12a39
+renderer rows[4000..] text 4c0b768ee9fad177 styles cc1be7eebfdc0ebb spans 6188700df9c12a39
+renderer rows[4500..] text c4fe5c4ec00219b9 styles 4d67c70f02d55285 spans 6188700df9c12a39
+renderer rows[5000..] text db53fd9b42cda71f styles 4d67c70f02d55285 spans 6188700df9c12a39
+renderer rows[5500..] text 03b1fee4757b5875 styles 4d67c70f02d55285 spans 6188700df9c12a39
+renderer rows[6000..] text 49f0789d724bb64d styles 8826a4b093daeaf4 spans 6188700df9c12a39
+renderer rows[6500..] text d78bfdfe0dc736b5 styles 64d1c80ec07ca589 spans 6188700df9c12a39
+renderer rows[7000..] text 3b30401826294571 styles c2361b3dad38eaa9 spans 6188700df9c12a39
+renderer rows[7500..] text ca5d02f9730a16d3 styles 4d67c70f02d55285 spans 6188700df9c12a39
+renderer rows[8000..] text 3e8e98b62e6fe46b styles 4d67c70f02d55285 spans 6188700df9c12a39
+renderer rows[8500..] text e926339cec09a22f styles 4d67c70f02d55285 spans 6188700df9c12a39
+renderer rows[9000..] text 06880eef480de7f8 styles 75b8c8a88405db35 spans 6188700df9c12a39
+renderer rows[9500..] text 993de9a9c9789319 styles 64d1c80ec07ca589 spans 6188700df9c12a39
+renderer rows[10000..] text 7415e9dddc1f51d5 styles 2363ef1752bd1717 spans 6188700df9c12a39
+renderer rows[10500..] text 17c9d1f534943d19 styles 4d67c70f02d55285 spans 6188700df9c12a39
+renderer rows[11000..] text 5757c95ad2f42c67 styles 4d67c70f02d55285 spans 6188700df9c12a39
+renderer rows[11500..] text 951d73c353855c25 styles 4d67c70f02d55285 spans 6188700df9c12a39
+renderer rows[12000..] text 0dadb9813adebca2 styles 2241d01bf3c2fb36 spans 6188700df9c12a39
+renderer rows[12500..] text c0a1d9f723232321 styles 64d1c80ec07ca589 spans 6188700df9c12a39
+renderer rows[13000..] text 5d13df677c2b3f77 styles 7deb8a3e9df7f925 spans 6188700df9c12a39
+renderer rows[13500..] text e50fc5cd087352a3 styles 4d67c70f02d55285 spans 6188700df9c12a39
+renderer rows[14000..] text 7b9d4c3cf22b8dbf styles 4d67c70f02d55285 spans 6188700df9c12a39
+renderer rows[14500..] text cf36c68cd2360e77 styles 4d67c70f02d55285 spans 6188700df9c12a39
+renderer rows[15000..] text fe7a6662e64f8f7c styles 6984e128c13fdd00 spans 6188700df9c12a39
+renderer rows[15500..] text 1c02f3bfbad7b6c1 styles 64d1c80ec07ca589 spans 6188700df9c12a39
+renderer rows[16000..] text 63cc773a4041fec1 styles e1c1a551dbb3aa23 spans 6188700df9c12a39
+renderer rows[16500..] text 104d48fa810464b5 styles 4d67c70f02d55285 spans 6188700df9c12a39
+renderer rows[17000..] text 920d6f815b1cfe8f styles 4d67c70f02d55285 spans 6188700df9c12a39
+renderer rows[17500..] text 66ccb4ea55fceb51 styles 4d67c70f02d55285 spans 6188700df9c12a39
+renderer rows[18000..] text 88c2bd9d3f8bd0dd styles e7c9b610058d3ea7 spans 6188700df9c12a39
+renderer rows[18500..] text 5357433e1dc1bd79 styles 64d1c80ec07ca589 spans 6188700df9c12a39
+renderer rows[19000..] text 6969a1c2a3c0ff8b styles 0e74f558188792b1 spans 6188700df9c12a39
+renderer rows[19500..] text 3300f2fd041cfe6f styles 4d67c70f02d55285 spans 6188700df9c12a39
+renderer rows[20000..] text 0f3bef2accd817c7 styles 4d67c70f02d55285 spans 6188700df9c12a39
+renderer rows[20500..] text bee135ef830b2c33 styles 4d67c70f02d55285 spans 6188700df9c12a39
+renderer rows[21000..] text 7aa880d2bd61b940 styles ec67f24236b7d628 spans 6188700df9c12a39
+renderer rows[21500..] text 995da2c13acfa650 styles 64d1c80ec07ca589 spans 6188700df9c12a39
+renderer rows[22000..] text 48cc2222b00c96b9 styles 996affbee7e3b814 spans 6188700df9c12a39
+renderer rows[22500..] text 9270706e8e6370da styles 4d67c70f02d55285 spans 6188700df9c12a39
+renderer rows[23000..] text c6ad64f18995b85b styles 4d67c70f02d55285 spans 6188700df9c12a39
+renderer rows[23500..] text ad3a1d3b0f1b5a96 styles 4d67c70f02d55285 spans 6188700df9c12a39
+renderer rows[24000..] text 32785faa9362cd40 styles 8702a6b00fadcd4a spans 6188700df9c12a39
+renderer rows[24500..] text 1c8f9a0c9c3c0a4c styles 64d1c80ec07ca589 spans 6188700df9c12a39
+renderer rows[25000..] text 281dabf6f03ccaaf styles 370622fa64869e76 spans 6188700df9c12a39
+renderer rows[25500..] text 07aecf9a43b72270 styles 4d67c70f02d55285 spans 6188700df9c12a39
+renderer rows[26000..] text c12d7f06bd9c9687 styles 4d67c70f02d55285 spans 6188700df9c12a39
+renderer rows[26500..] text c68ae96fe3689004 styles 4d67c70f02d55285 spans 6188700df9c12a39
+renderer rows[27000..] text 103e1cf3ea026fac styles b891aa0d4782fade spans 6188700df9c12a39
+renderer rows[27500..] text ab2de17a3a3e2b20 styles 64d1c80ec07ca589 spans 6188700df9c12a39
+renderer rows[28000..] text 4e0fdca8a315b213 styles c1965aeb4cb37330 spans 6188700df9c12a39
+renderer rows[28500..] text 485d5676c7071042 styles 4d67c70f02d55285 spans 6188700df9c12a39
+renderer rows[29000..] text 4ee9b8f8c9216153 styles 4d67c70f02d55285 spans 6188700df9c12a39
+renderer rows[29500..] text 837b00fdcea3f27e styles 4d67c70f02d55285 spans 6188700df9c12a39
+renderer rows[30000..] text c0c38144cd214510 styles e13163833571331e spans 6188700df9c12a39
+renderer rows[30500..] text a16fece3155baef4 styles 64d1c80ec07ca589 spans 6188700df9c12a39
+renderer rows[31000..] text cb80458df0078a93 styles 8dda57383cf75842 spans 6188700df9c12a39
+renderer rows[31500..] text 5d7559cebc381498 styles 4d67c70f02d55285 spans 6188700df9c12a39
+renderer rows[32000..] text 6a7036516656b7bb styles 4d67c70f02d55285 spans 6188700df9c12a39
+renderer rows[32500..] text 4bea366a9534f36c styles 4d67c70f02d55285 spans 6188700df9c12a39
+renderer rows[33000..] text 5d739afb2119cdac styles bb4bf23239b42c0e spans 6188700df9c12a39
+renderer rows[33500..] text 2d56e1c15f2ca8a8 styles 64d1c80ec07ca589 spans 6188700df9c12a39
+renderer rows[34000..] text 23718a12a890db9f styles ad66a3702f1b3e5c spans 6188700df9c12a39
+renderer rows[34500..] text ce1b2f74495c519e styles 4d67c70f02d55285 spans 6188700df9c12a39
+renderer rows[35000..] text 672e43eb1392dc97 styles 4d67c70f02d55285 spans 6188700df9c12a39
+renderer rows[35500..] text 11cc1bb99bdb69da styles 4d67c70f02d55285 spans 6188700df9c12a39
+renderer rows[36000..] text 47498440c43fb3be styles 3f132a9ed38766e1 spans 6188700df9c12a39
+renderer rows[36500..] text 1341b10f5bd93ac0 styles 64d1c80ec07ca589 spans 6188700df9c12a39
+renderer rows[37000..] text 8cac09a157b2026d styles 2ef1682a90a4ca5e spans 6188700df9c12a39
+renderer rows[37500..] text 9b43912d53251804 styles 4d67c70f02d55285 spans 6188700df9c12a39
+renderer rows[38000..] text 4409a17d2037eef3 styles 4d67c70f02d55285 spans 6188700df9c12a39
+renderer rows[38500..] text 1324534a2a606870 styles 4d67c70f02d55285 spans 6188700df9c12a39
+renderer rows[39000..] text 6cec4500b32b874d styles 4d93602cbe0601f5 spans 6188700df9c12a39
+renderer rows[39500..] text 949b25c51f015e88 styles 64d1c80ec07ca589 spans 6188700df9c12a39
+renderer rows[40000..] text 8da2b3d6ac8fc7fd styles dc1c4817c622ab58 spans 6188700df9c12a39
+renderer rows[40500..] text fad43c79b770d25e styles 4d67c70f02d55285 spans 6188700df9c12a39
+renderer rows[41000..] text f9ee79218cd11917 styles 4d67c70f02d55285 spans 6188700df9c12a39
+renderer rows[41500..] text 3fa75c7191f0c882 styles 4d67c70f02d55285 spans 6188700df9c12a39
+renderer rows[42000..] text c38dcc7ddd56b0f1 styles b6525e87ff183955 spans 6188700df9c12a39
+renderer rows[42500..] text cdcd6d6192db5bdc styles 64d1c80ec07ca589 spans 6188700df9c12a39
+renderer rows[43000..] text e6f46cc86209c5df styles 34922b37f6e30e8a spans 6188700df9c12a39
+renderer rows[43500..] text c5679b47d416dd9c styles 4d67c70f02d55285 spans 6188700df9c12a39
+renderer rows[44000..] text 006c4acada2287cf styles 4d67c70f02d55285 spans 6188700df9c12a39
+renderer rows[44500..] text 1f71d41257b234b8 styles 4d67c70f02d55285 spans 6188700df9c12a39
+renderer rows[45000..] text c951b0d385ef52a3 styles d79d6933aca34a57 spans 6188700df9c12a39
+renderer rows[45500..] text f6ffc9c5eaa5a258 styles 64d1c80ec07ca589 spans 6188700df9c12a39
+renderer rows[46000..] text 73745d1a4b4cd8ed styles 7028161084999cc4 spans 6188700df9c12a39
+renderer rows[46500..] text 5d5ee474285c68aa styles 4d67c70f02d55285 spans 6188700df9c12a39
+renderer rows[47000..] text 300c24bd22a51393 styles 4d67c70f02d55285 spans 6188700df9c12a39
+renderer rows[47500..] text 2029aba0114d15ce styles 4d67c70f02d55285 spans 6188700df9c12a39
+renderer rows[48000..] text 0841f1aa91426e63 styles b16b5c2a7aa1566d spans 6188700df9c12a39
+renderer rows[48500..] text c068de431007b95d styles 64d1c80ec07ca589 spans 6188700df9c12a39
+renderer rows[49000..] text 306312cc7edbe363 styles 0d40ae659b178aa7 spans 6188700df9c12a39
+renderer rows[49500..] text 25e61240e90493d5 styles 4d67c70f02d55285 spans 6188700df9c12a39
+renderer rows[50000..] text 942a4bcb172d20df styles 4d67c70f02d55285 spans 6188700df9c12a39
+renderer rows[50500..] text 26e25efc93e1e109 styles 4d67c70f02d55285 spans 6188700df9c12a39
+renderer rows[51000..] text e9c0db80537e30a8 styles 0bbfab32bd482190 spans 6188700df9c12a39
+renderer rows[51500..] text 3269bfab127c671d styles 64d1c80ec07ca589 spans 6188700df9c12a39
+renderer rows[52000..] text bd314e5b253c3267 styles c4a468f740ec59b5 spans 6188700df9c12a39
+renderer rows[52500..] text 4d337297116e8b17 styles 4d67c70f02d55285 spans 6188700df9c12a39
+renderer rows[53000..] text e7645fcec8c0ccdb styles 4d67c70f02d55285 spans 6188700df9c12a39
+renderer rows[53500..] text 9c58641f37f2708b styles 4d67c70f02d55285 spans 6188700df9c12a39
+renderer rows[54000..] text 248cba5b642deaf7 styles 256c155251e4a2d0 spans 6188700df9c12a39
+renderer rows[54500..] text 194941a254b3d485 styles 64d1c80ec07ca589 spans 6188700df9c12a39
+renderer rows[55000..] text 5e7f4f6599c72ecb styles c1d7b8deb3846773 spans 6188700df9c12a39
+renderer rows[55500..] text 6f5e2dc302b98345 styles 4d67c70f02d55285 spans 6188700df9c12a39
+renderer rows[56000..] text 5d502907b8a27c53 styles 4d67c70f02d55285 spans 6188700df9c12a39
+renderer rows[56500..] text c7cd5f342bfdcba1 styles 4d67c70f02d55285 spans 6188700df9c12a39
+renderer rows[57000..] text 6fd40d75f76045d1 styles 76fd45272920fae4 spans 6188700df9c12a39
+renderer rows[57500..] text 7dfd82222d298935 styles 64d1c80ec07ca589 spans 6188700df9c12a39
+renderer rows[58000..] text 0752a6cdefdf302f styles 4c882a31e5711981 spans 6188700df9c12a39
+renderer rows[58500..] text de6872ad9ed37d8f styles 4d67c70f02d55285 spans 6188700df9c12a39
+renderer rows[59000..] text 303505879c7935b7 styles 4d67c70f02d55285 spans 6188700df9c12a39
+renderer rows[59500..] text 50d3343af01ce013 styles 4d67c70f02d55285 spans 6188700df9c12a39
+renderer rows[60000..] text ac9801988862d63e styles f764781e454eb807 spans 791b9940eeb55456
+renderer blocks 1 6f33a0d2a7a6ec97
+renderer links dcd1781a213827ee
+renderer cursor 60129 2 true history 60097 first_stable 0 editor 0
+renderer alt none
+renderer modes app_cursor=false sgr_mouse=false paste=true focus=true mouse=0 sync=false pending_sync=0
+renderer program title="✳ Number list 1 to 3000" pointer="" stack=0 live_output=7915950 older=OlderState { floor: None, marks: 0 }
+renderer replies "\u{1b}P>|GoldenTerm\u{1b}\\\u{1b}[?62;22c\u{1b}P>|GoldenTerm\u{1b}\\\u{1b}[?62;22c"
+renderer notifications 0 cbf29ce484222325
+renderer agent_events 0 cbf29ce484222325
+renderer typeahead []
+renderer deltas 1933 9227ea55fa4f9b65
+renderer-odd rows 60137
+renderer-odd rows[0..] text c538952182f02f1e styles b29a135f9ded3067 spans 6188700df9c12a39
+renderer-odd rows[500..] text 1bb2641248b47fd1 styles 64d1c80ec07ca589 spans 6188700df9c12a39
+renderer-odd rows[1000..] text a6c004b6ded3bf2b styles 471f83f83d343c1d spans 6188700df9c12a39
+renderer-odd rows[1500..] text 661140deb47d1463 styles 4d67c70f02d55285 spans 6188700df9c12a39
+renderer-odd rows[2000..] text e730e89e3c0d7fbf styles 4d67c70f02d55285 spans 6188700df9c12a39
+renderer-odd rows[2500..] text f0367a8a12bff927 styles 4d67c70f02d55285 spans 6188700df9c12a39
+renderer-odd rows[3000..] text f088c454b82f6e5c styles 14d23b15e66c8641 spans 6188700df9c12a39
+renderer-odd rows[3500..] text 4e0ac423b350f531 styles 64d1c80ec07ca589 spans 6188700df9c12a39
+renderer-odd rows[4000..] text 4c0b768ee9fad177 styles cc1be7eebfdc0ebb spans 6188700df9c12a39
+renderer-odd rows[4500..] text c4fe5c4ec00219b9 styles 4d67c70f02d55285 spans 6188700df9c12a39
+renderer-odd rows[5000..] text db53fd9b42cda71f styles 4d67c70f02d55285 spans 6188700df9c12a39
+renderer-odd rows[5500..] text 03b1fee4757b5875 styles 4d67c70f02d55285 spans 6188700df9c12a39
+renderer-odd rows[6000..] text 49f0789d724bb64d styles 8826a4b093daeaf4 spans 6188700df9c12a39
+renderer-odd rows[6500..] text d78bfdfe0dc736b5 styles 64d1c80ec07ca589 spans 6188700df9c12a39
+renderer-odd rows[7000..] text 3b30401826294571 styles c2361b3dad38eaa9 spans 6188700df9c12a39
+renderer-odd rows[7500..] text ca5d02f9730a16d3 styles 4d67c70f02d55285 spans 6188700df9c12a39
+renderer-odd rows[8000..] text 3e8e98b62e6fe46b styles 4d67c70f02d55285 spans 6188700df9c12a39
+renderer-odd rows[8500..] text e926339cec09a22f styles 4d67c70f02d55285 spans 6188700df9c12a39
+renderer-odd rows[9000..] text 06880eef480de7f8 styles 75b8c8a88405db35 spans 6188700df9c12a39
+renderer-odd rows[9500..] text 993de9a9c9789319 styles 64d1c80ec07ca589 spans 6188700df9c12a39
+renderer-odd rows[10000..] text 7415e9dddc1f51d5 styles 2363ef1752bd1717 spans 6188700df9c12a39
+renderer-odd rows[10500..] text 17c9d1f534943d19 styles 4d67c70f02d55285 spans 6188700df9c12a39
+renderer-odd rows[11000..] text 5757c95ad2f42c67 styles 4d67c70f02d55285 spans 6188700df9c12a39
+renderer-odd rows[11500..] text 951d73c353855c25 styles 4d67c70f02d55285 spans 6188700df9c12a39
+renderer-odd rows[12000..] text 0dadb9813adebca2 styles 2241d01bf3c2fb36 spans 6188700df9c12a39
+renderer-odd rows[12500..] text c0a1d9f723232321 styles 64d1c80ec07ca589 spans 6188700df9c12a39
+renderer-odd rows[13000..] text 5d13df677c2b3f77 styles 7deb8a3e9df7f925 spans 6188700df9c12a39
+renderer-odd rows[13500..] text e50fc5cd087352a3 styles 4d67c70f02d55285 spans 6188700df9c12a39
+renderer-odd rows[14000..] text 7b9d4c3cf22b8dbf styles 4d67c70f02d55285 spans 6188700df9c12a39
+renderer-odd rows[14500..] text cf36c68cd2360e77 styles 4d67c70f02d55285 spans 6188700df9c12a39
+renderer-odd rows[15000..] text fe7a6662e64f8f7c styles 6984e128c13fdd00 spans 6188700df9c12a39
+renderer-odd rows[15500..] text 1c02f3bfbad7b6c1 styles 64d1c80ec07ca589 spans 6188700df9c12a39
+renderer-odd rows[16000..] text 63cc773a4041fec1 styles e1c1a551dbb3aa23 spans 6188700df9c12a39
+renderer-odd rows[16500..] text 104d48fa810464b5 styles 4d67c70f02d55285 spans 6188700df9c12a39
+renderer-odd rows[17000..] text 920d6f815b1cfe8f styles 4d67c70f02d55285 spans 6188700df9c12a39
+renderer-odd rows[17500..] text 66ccb4ea55fceb51 styles 4d67c70f02d55285 spans 6188700df9c12a39
+renderer-odd rows[18000..] text 88c2bd9d3f8bd0dd styles e7c9b610058d3ea7 spans 6188700df9c12a39
+renderer-odd rows[18500..] text 5357433e1dc1bd79 styles 64d1c80ec07ca589 spans 6188700df9c12a39
+renderer-odd rows[19000..] text 6969a1c2a3c0ff8b styles 0e74f558188792b1 spans 6188700df9c12a39
+renderer-odd rows[19500..] text 3300f2fd041cfe6f styles 4d67c70f02d55285 spans 6188700df9c12a39
+renderer-odd rows[20000..] text 0f3bef2accd817c7 styles 4d67c70f02d55285 spans 6188700df9c12a39
+renderer-odd rows[20500..] text bee135ef830b2c33 styles 4d67c70f02d55285 spans 6188700df9c12a39
+renderer-odd rows[21000..] text 7aa880d2bd61b940 styles ec67f24236b7d628 spans 6188700df9c12a39
+renderer-odd rows[21500..] text 995da2c13acfa650 styles 64d1c80ec07ca589 spans 6188700df9c12a39
+renderer-odd rows[22000..] text 48cc2222b00c96b9 styles 996affbee7e3b814 spans 6188700df9c12a39
+renderer-odd rows[22500..] text 9270706e8e6370da styles 4d67c70f02d55285 spans 6188700df9c12a39
+renderer-odd rows[23000..] text c6ad64f18995b85b styles 4d67c70f02d55285 spans 6188700df9c12a39
+renderer-odd rows[23500..] text ad3a1d3b0f1b5a96 styles 4d67c70f02d55285 spans 6188700df9c12a39
+renderer-odd rows[24000..] text 32785faa9362cd40 styles 8702a6b00fadcd4a spans 6188700df9c12a39
+renderer-odd rows[24500..] text 1c8f9a0c9c3c0a4c styles 64d1c80ec07ca589 spans 6188700df9c12a39
+renderer-odd rows[25000..] text 281dabf6f03ccaaf styles 370622fa64869e76 spans 6188700df9c12a39
+renderer-odd rows[25500..] text 07aecf9a43b72270 styles 4d67c70f02d55285 spans 6188700df9c12a39
+renderer-odd rows[26000..] text c12d7f06bd9c9687 styles 4d67c70f02d55285 spans 6188700df9c12a39
+renderer-odd rows[26500..] text c68ae96fe3689004 styles 4d67c70f02d55285 spans 6188700df9c12a39
+renderer-odd rows[27000..] text 103e1cf3ea026fac styles b891aa0d4782fade spans 6188700df9c12a39
+renderer-odd rows[27500..] text ab2de17a3a3e2b20 styles 64d1c80ec07ca589 spans 6188700df9c12a39
+renderer-odd rows[28000..] text 4e0fdca8a315b213 styles c1965aeb4cb37330 spans 6188700df9c12a39
+renderer-odd rows[28500..] text 485d5676c7071042 styles 4d67c70f02d55285 spans 6188700df9c12a39
+renderer-odd rows[29000..] text 4ee9b8f8c9216153 styles 4d67c70f02d55285 spans 6188700df9c12a39
+renderer-odd rows[29500..] text 837b00fdcea3f27e styles 4d67c70f02d55285 spans 6188700df9c12a39
+renderer-odd rows[30000..] text c0c38144cd214510 styles e13163833571331e spans 6188700df9c12a39
+renderer-odd rows[30500..] text a16fece3155baef4 styles 64d1c80ec07ca589 spans 6188700df9c12a39
+renderer-odd rows[31000..] text cb80458df0078a93 styles 8dda57383cf75842 spans 6188700df9c12a39
+renderer-odd rows[31500..] text 5d7559cebc381498 styles 4d67c70f02d55285 spans 6188700df9c12a39
+renderer-odd rows[32000..] text 6a7036516656b7bb styles 4d67c70f02d55285 spans 6188700df9c12a39
+renderer-odd rows[32500..] text 4bea366a9534f36c styles 4d67c70f02d55285 spans 6188700df9c12a39
+renderer-odd rows[33000..] text 5d739afb2119cdac styles bb4bf23239b42c0e spans 6188700df9c12a39
+renderer-odd rows[33500..] text 2d56e1c15f2ca8a8 styles 64d1c80ec07ca589 spans 6188700df9c12a39
+renderer-odd rows[34000..] text 23718a12a890db9f styles ad66a3702f1b3e5c spans 6188700df9c12a39
+renderer-odd rows[34500..] text ce1b2f74495c519e styles 4d67c70f02d55285 spans 6188700df9c12a39
+renderer-odd rows[35000..] text 672e43eb1392dc97 styles 4d67c70f02d55285 spans 6188700df9c12a39
+renderer-odd rows[35500..] text 11cc1bb99bdb69da styles 4d67c70f02d55285 spans 6188700df9c12a39
+renderer-odd rows[36000..] text 47498440c43fb3be styles 3f132a9ed38766e1 spans 6188700df9c12a39
+renderer-odd rows[36500..] text 1341b10f5bd93ac0 styles 64d1c80ec07ca589 spans 6188700df9c12a39
+renderer-odd rows[37000..] text 8cac09a157b2026d styles 2ef1682a90a4ca5e spans 6188700df9c12a39
+renderer-odd rows[37500..] text 9b43912d53251804 styles 4d67c70f02d55285 spans 6188700df9c12a39
+renderer-odd rows[38000..] text 4409a17d2037eef3 styles 4d67c70f02d55285 spans 6188700df9c12a39
+renderer-odd rows[38500..] text 1324534a2a606870 styles 4d67c70f02d55285 spans 6188700df9c12a39
+renderer-odd rows[39000..] text 6cec4500b32b874d styles 4d93602cbe0601f5 spans 6188700df9c12a39
+renderer-odd rows[39500..] text 949b25c51f015e88 styles 64d1c80ec07ca589 spans 6188700df9c12a39
+renderer-odd rows[40000..] text 8da2b3d6ac8fc7fd styles dc1c4817c622ab58 spans 6188700df9c12a39
+renderer-odd rows[40500..] text fad43c79b770d25e styles 4d67c70f02d55285 spans 6188700df9c12a39
+renderer-odd rows[41000..] text f9ee79218cd11917 styles 4d67c70f02d55285 spans 6188700df9c12a39
+renderer-odd rows[41500..] text 3fa75c7191f0c882 styles 4d67c70f02d55285 spans 6188700df9c12a39
+renderer-odd rows[42000..] text c38dcc7ddd56b0f1 styles b6525e87ff183955 spans 6188700df9c12a39
+renderer-odd rows[42500..] text cdcd6d6192db5bdc styles 64d1c80ec07ca589 spans 6188700df9c12a39
+renderer-odd rows[43000..] text e6f46cc86209c5df styles 34922b37f6e30e8a spans 6188700df9c12a39
+renderer-odd rows[43500..] text c5679b47d416dd9c styles 4d67c70f02d55285 spans 6188700df9c12a39
+renderer-odd rows[44000..] text 006c4acada2287cf styles 4d67c70f02d55285 spans 6188700df9c12a39
+renderer-odd rows[44500..] text 1f71d41257b234b8 styles 4d67c70f02d55285 spans 6188700df9c12a39
+renderer-odd rows[45000..] text c951b0d385ef52a3 styles d79d6933aca34a57 spans 6188700df9c12a39
+renderer-odd rows[45500..] text f6ffc9c5eaa5a258 styles 64d1c80ec07ca589 spans 6188700df9c12a39
+renderer-odd rows[46000..] text 73745d1a4b4cd8ed styles 7028161084999cc4 spans 6188700df9c12a39
+renderer-odd rows[46500..] text 5d5ee474285c68aa styles 4d67c70f02d55285 spans 6188700df9c12a39
+renderer-odd rows[47000..] text 300c24bd22a51393 styles 4d67c70f02d55285 spans 6188700df9c12a39
+renderer-odd rows[47500..] text 2029aba0114d15ce styles 4d67c70f02d55285 spans 6188700df9c12a39
+renderer-odd rows[48000..] text 0841f1aa91426e63 styles b16b5c2a7aa1566d spans 6188700df9c12a39
+renderer-odd rows[48500..] text c068de431007b95d styles 64d1c80ec07ca589 spans 6188700df9c12a39
+renderer-odd rows[49000..] text 306312cc7edbe363 styles 0d40ae659b178aa7 spans 6188700df9c12a39
+renderer-odd rows[49500..] text 25e61240e90493d5 styles 4d67c70f02d55285 spans 6188700df9c12a39
+renderer-odd rows[50000..] text 942a4bcb172d20df styles 4d67c70f02d55285 spans 6188700df9c12a39
+renderer-odd rows[50500..] text 26e25efc93e1e109 styles 4d67c70f02d55285 spans 6188700df9c12a39
+renderer-odd rows[51000..] text e9c0db80537e30a8 styles 0bbfab32bd482190 spans 6188700df9c12a39
+renderer-odd rows[51500..] text 3269bfab127c671d styles 64d1c80ec07ca589 spans 6188700df9c12a39
+renderer-odd rows[52000..] text bd314e5b253c3267 styles c4a468f740ec59b5 spans 6188700df9c12a39
+renderer-odd rows[52500..] text 4d337297116e8b17 styles 4d67c70f02d55285 spans 6188700df9c12a39
+renderer-odd rows[53000..] text e7645fcec8c0ccdb styles 4d67c70f02d55285 spans 6188700df9c12a39
+renderer-odd rows[53500..] text 9c58641f37f2708b styles 4d67c70f02d55285 spans 6188700df9c12a39
+renderer-odd rows[54000..] text 248cba5b642deaf7 styles 256c155251e4a2d0 spans 6188700df9c12a39
+renderer-odd rows[54500..] text 194941a254b3d485 styles 64d1c80ec07ca589 spans 6188700df9c12a39
+renderer-odd rows[55000..] text 5e7f4f6599c72ecb styles c1d7b8deb3846773 spans 6188700df9c12a39
+renderer-odd rows[55500..] text 6f5e2dc302b98345 styles 4d67c70f02d55285 spans 6188700df9c12a39
+renderer-odd rows[56000..] text 5d502907b8a27c53 styles 4d67c70f02d55285 spans 6188700df9c12a39
+renderer-odd rows[56500..] text c7cd5f342bfdcba1 styles 4d67c70f02d55285 spans 6188700df9c12a39
+renderer-odd rows[57000..] text 6fd40d75f76045d1 styles 76fd45272920fae4 spans 6188700df9c12a39
+renderer-odd rows[57500..] text 7dfd82222d298935 styles 64d1c80ec07ca589 spans 6188700df9c12a39
+renderer-odd rows[58000..] text 0752a6cdefdf302f styles 4c882a31e5711981 spans 6188700df9c12a39
+renderer-odd rows[58500..] text de6872ad9ed37d8f styles 4d67c70f02d55285 spans 6188700df9c12a39
+renderer-odd rows[59000..] text 303505879c7935b7 styles 4d67c70f02d55285 spans 6188700df9c12a39
+renderer-odd rows[59500..] text 50d3343af01ce013 styles 4d67c70f02d55285 spans 6188700df9c12a39
+renderer-odd rows[60000..] text ac9801988862d63e styles f764781e454eb807 spans 791b9940eeb55456
+renderer-odd blocks 1 6f33a0d2a7a6ec97
+renderer-odd links dcd1781a213827ee
+renderer-odd cursor 60129 2 true history 60097 first_stable 0 editor 0
+renderer-odd alt none
+renderer-odd modes app_cursor=false sgr_mouse=false paste=true focus=true mouse=0 sync=false pending_sync=0
+renderer-odd program title="✳ Number list 1 to 3000" pointer="" stack=0 live_output=7915950 older=OlderState { floor: None, marks: 0 }
+renderer-odd replies "\u{1b}P>|GoldenTerm\u{1b}\\\u{1b}[?62;22c\u{1b}P>|GoldenTerm\u{1b}\\\u{1b}[?62;22c"
+renderer-odd notifications 0 cbf29ce484222325
+renderer-odd agent_events 0 cbf29ce484222325
+renderer-odd typeahead []
+renderer-odd deltas 10158 613da0635d084146
+mirror rows 20039
+mirror rows[0..] text 338d949ba90805ec styles 4d67c70f02d55285 spans 6188700df9c12a39
+mirror rows[500..] text 66149768623c142b styles 4d67c70f02d55285 spans 6188700df9c12a39
+mirror rows[1000..] text 920ff32f72643580 styles 4d67c70f02d55285 spans 6188700df9c12a39
+mirror rows[1500..] text 942d684bdb8342b5 styles 3b313007b4dc03ff spans 6188700df9c12a39
+mirror rows[2000..] text 40701e5e08851d06 styles 830683e44e622ae9 spans 6188700df9c12a39
+mirror rows[2500..] text 2f7486e6dfc1808d styles 01427c21895b8ea0 spans 6188700df9c12a39
+mirror rows[3000..] text e3d2ccdc92c9921e styles 4d67c70f02d55285 spans 6188700df9c12a39
+mirror rows[3500..] text 8b2177d4baf4c063 styles 4d67c70f02d55285 spans 6188700df9c12a39
+mirror rows[4000..] text 770794e94e9e2c22 styles 4d67c70f02d55285 spans 6188700df9c12a39
+mirror rows[4500..] text a05254c879cb7dc5 styles 08d3a39daf4ac0a8 spans 6188700df9c12a39
+mirror rows[5000..] text 4235a3aa8bf0d04a styles 582dcaccfc27209c spans 6188700df9c12a39
+mirror rows[5500..] text 0486b5fa4b5779b0 styles 64d1c80ec07ca589 spans 6188700df9c12a39
+mirror rows[6000..] text dd3c86193c88da95 styles 5aa2999d80d75b8e spans 6188700df9c12a39
+mirror rows[6500..] text 23c05f9a56eb2ff4 styles 4d67c70f02d55285 spans 6188700df9c12a39
+mirror rows[7000..] text 4f9e80c7d111fb33 styles 4d67c70f02d55285 spans 6188700df9c12a39
+mirror rows[7500..] text 86bc7f398d304a40 styles 4d67c70f02d55285 spans 6188700df9c12a39
+mirror rows[8000..] text 75b9d2327dc916b4 styles 4ff88c5e371ea147 spans 6188700df9c12a39
+mirror rows[8500..] text 1bb2641248b47fd1 styles 64d1c80ec07ca589 spans 6188700df9c12a39
+mirror rows[9000..] text a6c004b6ded3bf2b styles 471f83f83d343c1d spans 6188700df9c12a39
+mirror rows[9500..] text 661140deb47d1463 styles 4d67c70f02d55285 spans 6188700df9c12a39
+mirror rows[10000..] text e730e89e3c0d7fbf styles 4d67c70f02d55285 spans 6188700df9c12a39
+mirror rows[10500..] text f0367a8a12bff927 styles 4d67c70f02d55285 spans 6188700df9c12a39
+mirror rows[11000..] text a31e189d922e7b3a styles d78e6369106b1922 spans 6188700df9c12a39
+mirror rows[11500..] text 4e0ac423b350f531 styles 64d1c80ec07ca589 spans 6188700df9c12a39
+mirror rows[12000..] text 4c0b768ee9fad177 styles cc1be7eebfdc0ebb spans 6188700df9c12a39
+mirror rows[12500..] text c4fe5c4ec00219b9 styles 4d67c70f02d55285 spans 6188700df9c12a39
+mirror rows[13000..] text db53fd9b42cda71f styles 4d67c70f02d55285 spans 6188700df9c12a39
+mirror rows[13500..] text 03b1fee4757b5875 styles 4d67c70f02d55285 spans 6188700df9c12a39
+mirror rows[14000..] text cb55f9d32f37a5f1 styles 5757cebcf4b461a2 spans 6188700df9c12a39
+mirror rows[14500..] text d78bfdfe0dc736b5 styles 64d1c80ec07ca589 spans 6188700df9c12a39
+mirror rows[15000..] text 3b30401826294571 styles c2361b3dad38eaa9 spans 6188700df9c12a39
+mirror rows[15500..] text ca5d02f9730a16d3 styles 4d67c70f02d55285 spans 6188700df9c12a39
+mirror rows[16000..] text 3e8e98b62e6fe46b styles 4d67c70f02d55285 spans 6188700df9c12a39
+mirror rows[16500..] text e926339cec09a22f styles 4d67c70f02d55285 spans 6188700df9c12a39
+mirror rows[17000..] text 0485a91d32038c79 styles 9b8aaf54094b5e36 spans 6188700df9c12a39
+mirror rows[17500..] text 993de9a9c9789319 styles 64d1c80ec07ca589 spans 6188700df9c12a39
+mirror rows[18000..] text 7415e9dddc1f51d5 styles 2363ef1752bd1717 spans 6188700df9c12a39
+mirror rows[18500..] text 17c9d1f534943d19 styles 4d67c70f02d55285 spans 6188700df9c12a39
+mirror rows[19000..] text 5757c95ad2f42c67 styles 4d67c70f02d55285 spans 6188700df9c12a39
+mirror rows[19500..] text 951d73c353855c25 styles 4d67c70f02d55285 spans 6188700df9c12a39
+mirror rows[20000..] text 51bc3d2af98c9687 styles f89af927b13992b7 spans f82463197a5f6774
+mirror blocks 1 d59691fa5a518414
+mirror links dcd1781a213827ee
+mirror cursor 20031 2 true history 19999 first_stable 40098 editor 0
+mirror alt none
+mirror modes app_cursor=false sgr_mouse=false paste=true focus=true mouse=0 sync=false pending_sync=0
+mirror program title="✳ Number list 1 to 3000" pointer="" stack=0 live_output=7915950 older=OlderState { floor: None, marks: 0 }
+mirror replies "\u{1b}P>|GoldenTerm\u{1b}\\\u{1b}[?62;22c\u{1b}P>|GoldenTerm\u{1b}\\\u{1b}[?62;22c"
+mirror notifications 0 cbf29ce484222325
+mirror agent_events 0 cbf29ce484222325
+mirror typeahead []
+mirror deltas 1933 95a0a78debd01a32
+agent-odd rows 60137
+agent-odd rows[0..] text c538952182f02f1e styles b29a135f9ded3067 spans 6188700df9c12a39
+agent-odd rows[500..] text 1bb2641248b47fd1 styles 64d1c80ec07ca589 spans 6188700df9c12a39
+agent-odd rows[1000..] text a6c004b6ded3bf2b styles 471f83f83d343c1d spans 6188700df9c12a39
+agent-odd rows[1500..] text 661140deb47d1463 styles 4d67c70f02d55285 spans 6188700df9c12a39
+agent-odd rows[2000..] text e730e89e3c0d7fbf styles 4d67c70f02d55285 spans 6188700df9c12a39
+agent-odd rows[2500..] text f0367a8a12bff927 styles 4d67c70f02d55285 spans 6188700df9c12a39
+agent-odd rows[3000..] text f088c454b82f6e5c styles 14d23b15e66c8641 spans 6188700df9c12a39
+agent-odd rows[3500..] text 4e0ac423b350f531 styles 64d1c80ec07ca589 spans 6188700df9c12a39
+agent-odd rows[4000..] text 4c0b768ee9fad177 styles cc1be7eebfdc0ebb spans 6188700df9c12a39
+agent-odd rows[4500..] text c4fe5c4ec00219b9 styles 4d67c70f02d55285 spans 6188700df9c12a39
+agent-odd rows[5000..] text db53fd9b42cda71f styles 4d67c70f02d55285 spans 6188700df9c12a39
+agent-odd rows[5500..] text 03b1fee4757b5875 styles 4d67c70f02d55285 spans 6188700df9c12a39
+agent-odd rows[6000..] text 49f0789d724bb64d styles 8826a4b093daeaf4 spans 6188700df9c12a39
+agent-odd rows[6500..] text d78bfdfe0dc736b5 styles 64d1c80ec07ca589 spans 6188700df9c12a39
+agent-odd rows[7000..] text 3b30401826294571 styles c2361b3dad38eaa9 spans 6188700df9c12a39
+agent-odd rows[7500..] text ca5d02f9730a16d3 styles 4d67c70f02d55285 spans 6188700df9c12a39
+agent-odd rows[8000..] text 3e8e98b62e6fe46b styles 4d67c70f02d55285 spans 6188700df9c12a39
+agent-odd rows[8500..] text e926339cec09a22f styles 4d67c70f02d55285 spans 6188700df9c12a39
+agent-odd rows[9000..] text 06880eef480de7f8 styles 75b8c8a88405db35 spans 6188700df9c12a39
+agent-odd rows[9500..] text 993de9a9c9789319 styles 64d1c80ec07ca589 spans 6188700df9c12a39
+agent-odd rows[10000..] text 7415e9dddc1f51d5 styles 2363ef1752bd1717 spans 6188700df9c12a39
+agent-odd rows[10500..] text 17c9d1f534943d19 styles 4d67c70f02d55285 spans 6188700df9c12a39
+agent-odd rows[11000..] text 5757c95ad2f42c67 styles 4d67c70f02d55285 spans 6188700df9c12a39
+agent-odd rows[11500..] text 951d73c353855c25 styles 4d67c70f02d55285 spans 6188700df9c12a39
+agent-odd rows[12000..] text 0dadb9813adebca2 styles 2241d01bf3c2fb36 spans 6188700df9c12a39
+agent-odd rows[12500..] text c0a1d9f723232321 styles 64d1c80ec07ca589 spans 6188700df9c12a39
+agent-odd rows[13000..] text 5d13df677c2b3f77 styles 7deb8a3e9df7f925 spans 6188700df9c12a39
+agent-odd rows[13500..] text e50fc5cd087352a3 styles 4d67c70f02d55285 spans 6188700df9c12a39
+agent-odd rows[14000..] text 7b9d4c3cf22b8dbf styles 4d67c70f02d55285 spans 6188700df9c12a39
+agent-odd rows[14500..] text cf36c68cd2360e77 styles 4d67c70f02d55285 spans 6188700df9c12a39
+agent-odd rows[15000..] text fe7a6662e64f8f7c styles 6984e128c13fdd00 spans 6188700df9c12a39
+agent-odd rows[15500..] text 1c02f3bfbad7b6c1 styles 64d1c80ec07ca589 spans 6188700df9c12a39
+agent-odd rows[16000..] text 63cc773a4041fec1 styles e1c1a551dbb3aa23 spans 6188700df9c12a39
+agent-odd rows[16500..] text 104d48fa810464b5 styles 4d67c70f02d55285 spans 6188700df9c12a39
+agent-odd rows[17000..] text 920d6f815b1cfe8f styles 4d67c70f02d55285 spans 6188700df9c12a39
+agent-odd rows[17500..] text 66ccb4ea55fceb51 styles 4d67c70f02d55285 spans 6188700df9c12a39
+agent-odd rows[18000..] text 88c2bd9d3f8bd0dd styles e7c9b610058d3ea7 spans 6188700df9c12a39
+agent-odd rows[18500..] text 5357433e1dc1bd79 styles 64d1c80ec07ca589 spans 6188700df9c12a39
+agent-odd rows[19000..] text 6969a1c2a3c0ff8b styles 0e74f558188792b1 spans 6188700df9c12a39
+agent-odd rows[19500..] text 3300f2fd041cfe6f styles 4d67c70f02d55285 spans 6188700df9c12a39
+agent-odd rows[20000..] text 0f3bef2accd817c7 styles 4d67c70f02d55285 spans 6188700df9c12a39
+agent-odd rows[20500..] text bee135ef830b2c33 styles 4d67c70f02d55285 spans 6188700df9c12a39
+agent-odd rows[21000..] text 7aa880d2bd61b940 styles ec67f24236b7d628 spans 6188700df9c12a39
+agent-odd rows[21500..] text 995da2c13acfa650 styles 64d1c80ec07ca589 spans 6188700df9c12a39
+agent-odd rows[22000..] text 48cc2222b00c96b9 styles 996affbee7e3b814 spans 6188700df9c12a39
+agent-odd rows[22500..] text 9270706e8e6370da styles 4d67c70f02d55285 spans 6188700df9c12a39
+agent-odd rows[23000..] text c6ad64f18995b85b styles 4d67c70f02d55285 spans 6188700df9c12a39
+agent-odd rows[23500..] text ad3a1d3b0f1b5a96 styles 4d67c70f02d55285 spans 6188700df9c12a39
+agent-odd rows[24000..] text 32785faa9362cd40 styles 8702a6b00fadcd4a spans 6188700df9c12a39
+agent-odd rows[24500..] text 1c8f9a0c9c3c0a4c styles 64d1c80ec07ca589 spans 6188700df9c12a39
+agent-odd rows[25000..] text 281dabf6f03ccaaf styles 370622fa64869e76 spans 6188700df9c12a39
+agent-odd rows[25500..] text 07aecf9a43b72270 styles 4d67c70f02d55285 spans 6188700df9c12a39
+agent-odd rows[26000..] text c12d7f06bd9c9687 styles 4d67c70f02d55285 spans 6188700df9c12a39
+agent-odd rows[26500..] text c68ae96fe3689004 styles 4d67c70f02d55285 spans 6188700df9c12a39
+agent-odd rows[27000..] text 103e1cf3ea026fac styles b891aa0d4782fade spans 6188700df9c12a39
+agent-odd rows[27500..] text ab2de17a3a3e2b20 styles 64d1c80ec07ca589 spans 6188700df9c12a39
+agent-odd rows[28000..] text 4e0fdca8a315b213 styles c1965aeb4cb37330 spans 6188700df9c12a39
+agent-odd rows[28500..] text 485d5676c7071042 styles 4d67c70f02d55285 spans 6188700df9c12a39
+agent-odd rows[29000..] text 4ee9b8f8c9216153 styles 4d67c70f02d55285 spans 6188700df9c12a39
+agent-odd rows[29500..] text 837b00fdcea3f27e styles 4d67c70f02d55285 spans 6188700df9c12a39
+agent-odd rows[30000..] text c0c38144cd214510 styles e13163833571331e spans 6188700df9c12a39
+agent-odd rows[30500..] text a16fece3155baef4 styles 64d1c80ec07ca589 spans 6188700df9c12a39
+agent-odd rows[31000..] text cb80458df0078a93 styles 8dda57383cf75842 spans 6188700df9c12a39
+agent-odd rows[31500..] text 5d7559cebc381498 styles 4d67c70f02d55285 spans 6188700df9c12a39
+agent-odd rows[32000..] text 6a7036516656b7bb styles 4d67c70f02d55285 spans 6188700df9c12a39
+agent-odd rows[32500..] text 4bea366a9534f36c styles 4d67c70f02d55285 spans 6188700df9c12a39
+agent-odd rows[33000..] text 5d739afb2119cdac styles bb4bf23239b42c0e spans 6188700df9c12a39
+agent-odd rows[33500..] text 2d56e1c15f2ca8a8 styles 64d1c80ec07ca589 spans 6188700df9c12a39
+agent-odd rows[34000..] text 23718a12a890db9f styles ad66a3702f1b3e5c spans 6188700df9c12a39
+agent-odd rows[34500..] text ce1b2f74495c519e styles 4d67c70f02d55285 spans 6188700df9c12a39
+agent-odd rows[35000..] text 672e43eb1392dc97 styles 4d67c70f02d55285 spans 6188700df9c12a39
+agent-odd rows[35500..] text 11cc1bb99bdb69da styles 4d67c70f02d55285 spans 6188700df9c12a39
+agent-odd rows[36000..] text 47498440c43fb3be styles 3f132a9ed38766e1 spans 6188700df9c12a39
+agent-odd rows[36500..] text 1341b10f5bd93ac0 styles 64d1c80ec07ca589 spans 6188700df9c12a39
+agent-odd rows[37000..] text 8cac09a157b2026d styles 2ef1682a90a4ca5e spans 6188700df9c12a39
+agent-odd rows[37500..] text 9b43912d53251804 styles 4d67c70f02d55285 spans 6188700df9c12a39
+agent-odd rows[38000..] text 4409a17d2037eef3 styles 4d67c70f02d55285 spans 6188700df9c12a39
+agent-odd rows[38500..] text 1324534a2a606870 styles 4d67c70f02d55285 spans 6188700df9c12a39
+agent-odd rows[39000..] text 6cec4500b32b874d styles 4d93602cbe0601f5 spans 6188700df9c12a39
+agent-odd rows[39500..] text 949b25c51f015e88 styles 64d1c80ec07ca589 spans 6188700df9c12a39
+agent-odd rows[40000..] text 8da2b3d6ac8fc7fd styles dc1c4817c622ab58 spans 6188700df9c12a39
+agent-odd rows[40500..] text fad43c79b770d25e styles 4d67c70f02d55285 spans 6188700df9c12a39
+agent-odd rows[41000..] text f9ee79218cd11917 styles 4d67c70f02d55285 spans 6188700df9c12a39
+agent-odd rows[41500..] text 3fa75c7191f0c882 styles 4d67c70f02d55285 spans 6188700df9c12a39
+agent-odd rows[42000..] text c38dcc7ddd56b0f1 styles b6525e87ff183955 spans 6188700df9c12a39
+agent-odd rows[42500..] text cdcd6d6192db5bdc styles 64d1c80ec07ca589 spans 6188700df9c12a39
+agent-odd rows[43000..] text e6f46cc86209c5df styles 34922b37f6e30e8a spans 6188700df9c12a39
+agent-odd rows[43500..] text c5679b47d416dd9c styles 4d67c70f02d55285 spans 6188700df9c12a39
+agent-odd rows[44000..] text 006c4acada2287cf styles 4d67c70f02d55285 spans 6188700df9c12a39
+agent-odd rows[44500..] text 1f71d41257b234b8 styles 4d67c70f02d55285 spans 6188700df9c12a39
+agent-odd rows[45000..] text c951b0d385ef52a3 styles d79d6933aca34a57 spans 6188700df9c12a39
+agent-odd rows[45500..] text f6ffc9c5eaa5a258 styles 64d1c80ec07ca589 spans 6188700df9c12a39
+agent-odd rows[46000..] text 73745d1a4b4cd8ed styles 7028161084999cc4 spans 6188700df9c12a39
+agent-odd rows[46500..] text 5d5ee474285c68aa styles 4d67c70f02d55285 spans 6188700df9c12a39
+agent-odd rows[47000..] text 300c24bd22a51393 styles 4d67c70f02d55285 spans 6188700df9c12a39
+agent-odd rows[47500..] text 2029aba0114d15ce styles 4d67c70f02d55285 spans 6188700df9c12a39
+agent-odd rows[48000..] text 0841f1aa91426e63 styles b16b5c2a7aa1566d spans 6188700df9c12a39
+agent-odd rows[48500..] text c068de431007b95d styles 64d1c80ec07ca589 spans 6188700df9c12a39
+agent-odd rows[49000..] text 306312cc7edbe363 styles 0d40ae659b178aa7 spans 6188700df9c12a39
+agent-odd rows[49500..] text 25e61240e90493d5 styles 4d67c70f02d55285 spans 6188700df9c12a39
+agent-odd rows[50000..] text 942a4bcb172d20df styles 4d67c70f02d55285 spans 6188700df9c12a39
+agent-odd rows[50500..] text 26e25efc93e1e109 styles 4d67c70f02d55285 spans 6188700df9c12a39
+agent-odd rows[51000..] text e9c0db80537e30a8 styles 0bbfab32bd482190 spans 6188700df9c12a39
+agent-odd rows[51500..] text 3269bfab127c671d styles 64d1c80ec07ca589 spans 6188700df9c12a39
+agent-odd rows[52000..] text bd314e5b253c3267 styles c4a468f740ec59b5 spans 6188700df9c12a39
+agent-odd rows[52500..] text 4d337297116e8b17 styles 4d67c70f02d55285 spans 6188700df9c12a39
+agent-odd rows[53000..] text e7645fcec8c0ccdb styles 4d67c70f02d55285 spans 6188700df9c12a39
+agent-odd rows[53500..] text 9c58641f37f2708b styles 4d67c70f02d55285 spans 6188700df9c12a39
+agent-odd rows[54000..] text 248cba5b642deaf7 styles 256c155251e4a2d0 spans 6188700df9c12a39
+agent-odd rows[54500..] text 194941a254b3d485 styles 64d1c80ec07ca589 spans 6188700df9c12a39
+agent-odd rows[55000..] text 5e7f4f6599c72ecb styles c1d7b8deb3846773 spans 6188700df9c12a39
+agent-odd rows[55500..] text 6f5e2dc302b98345 styles 4d67c70f02d55285 spans 6188700df9c12a39
+agent-odd rows[56000..] text 5d502907b8a27c53 styles 4d67c70f02d55285 spans 6188700df9c12a39
+agent-odd rows[56500..] text c7cd5f342bfdcba1 styles 4d67c70f02d55285 spans 6188700df9c12a39
+agent-odd rows[57000..] text 6fd40d75f76045d1 styles 76fd45272920fae4 spans 6188700df9c12a39
+agent-odd rows[57500..] text 7dfd82222d298935 styles 64d1c80ec07ca589 spans 6188700df9c12a39
+agent-odd rows[58000..] text 0752a6cdefdf302f styles 4c882a31e5711981 spans 6188700df9c12a39
+agent-odd rows[58500..] text de6872ad9ed37d8f styles 4d67c70f02d55285 spans 6188700df9c12a39
+agent-odd rows[59000..] text 303505879c7935b7 styles 4d67c70f02d55285 spans 6188700df9c12a39
+agent-odd rows[59500..] text 50d3343af01ce013 styles 4d67c70f02d55285 spans 6188700df9c12a39
+agent-odd rows[60000..] text ac9801988862d63e styles f764781e454eb807 spans 791b9940eeb55456
+agent-odd blocks 1 6f33a0d2a7a6ec97
+agent-odd links dcd1781a213827ee
+agent-odd cursor 60129 2 true history 60097 first_stable 0 editor 0
+agent-odd alt none
+agent-odd modes app_cursor=false sgr_mouse=false paste=true focus=true mouse=0 sync=false pending_sync=0
+agent-odd program title="✳ Number list 1 to 3000" pointer="" stack=0 live_output=7915950 older=OlderState { floor: None, marks: 0 }
+agent-odd replies "\u{1b}P>|GoldenTerm\u{1b}\\\u{1b}[?62;22c\u{1b}P>|GoldenTerm\u{1b}\\\u{1b}[?62;22c"
+agent-odd notifications 0 cbf29ce484222325
+agent-odd agent_events 0 cbf29ce484222325
+agent-odd typeahead []
+agent-odd deltas 10158 613da0635d084146

@@ -4,8 +4,10 @@ mod colour;
 mod history;
 mod perform;
 mod program;
+mod unknown;
 
 pub(crate) use colour::read_extended_colour;
+pub use unknown::{UnknownSequence, UNKNOWN_SEQUENCES_CAP, UNKNOWN_TEXT_BYTES};
 
 use vte::Params;
 
@@ -67,6 +69,8 @@ pub(crate) struct Parser {
     program: crate::program::ProgramState,
     cold: crate::cold_ring::ColdRing,
     committed_rows: u64,
+    run: Vec<u8>,
+    unknown: unknown::UnknownRing,
     #[cfg(feature = "trace")]
     pub(crate) trace: crate::trace::Trace,
 }
@@ -106,6 +110,8 @@ impl Parser {
             program: crate::program::ProgramState::default(),
             cold: crate::cold_ring::ColdRing::default(),
             committed_rows: 0,
+            run: Vec::new(),
+            unknown: unknown::UnknownRing::default(),
             #[cfg(feature = "trace")]
             trace: Default::default(),
         }

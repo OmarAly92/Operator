@@ -1,0 +1,52 @@
+renderer rows 22
+renderer rows[0..] text fddb0f3f9730b4e2 styles 65540d30a6cac08f spans 6fbbb3aba65597ef
+renderer blocks 1 2bfe5c3f65af5884
+renderer links dcd1781a213827ee
+renderer cursor 20 0 true history 0 first_stable 0 editor 0
+renderer alt none
+renderer modes app_cursor=false sgr_mouse=false paste=false focus=false mouse=0 sync=false pending_sync=0
+renderer program title="clear; cat ~/Downloads/xtest.txt; sleep 100" pointer="" stack=0 live_output=1030 older=OlderState { floor: None, marks: 0 }
+renderer replies ""
+renderer notifications 0 cbf29ce484222325
+renderer agent_events 0 cbf29ce484222325
+renderer typeahead []
+renderer deltas 1 e07f4caa92a29414
+renderer-odd rows 22
+renderer-odd rows[0..] text fddb0f3f9730b4e2 styles 65540d30a6cac08f spans 6fbbb3aba65597ef
+renderer-odd blocks 1 2bfe5c3f65af5884
+renderer-odd links dcd1781a213827ee
+renderer-odd cursor 20 0 true history 0 first_stable 0 editor 0
+renderer-odd alt none
+renderer-odd modes app_cursor=false sgr_mouse=false paste=false focus=false mouse=0 sync=false pending_sync=0
+renderer-odd program title="clear; cat ~/Downloads/xtest.txt; sleep 100" pointer="" stack=0 live_output=1030 older=OlderState { floor: None, marks: 0 }
+renderer-odd replies ""
+renderer-odd notifications 0 cbf29ce484222325
+renderer-odd agent_events 0 cbf29ce484222325
+renderer-odd typeahead []
+renderer-odd deltas 6 7f0f9de49c344f96
+mirror rows 22
+mirror rows[0..] text fddb0f3f9730b4e2 styles 65540d30a6cac08f spans 6fbbb3aba65597ef
+mirror blocks 1 2bfe5c3f65af5884
+mirror links dcd1781a213827ee
+mirror cursor 20 0 true history 0 first_stable 0 editor 0
+mirror alt none
+mirror modes app_cursor=false sgr_mouse=false paste=false focus=false mouse=0 sync=false pending_sync=0
+mirror program title="clear; cat ~/Downloads/xtest.txt; sleep 100" pointer="" stack=0 live_output=1030 older=OlderState { floor: None, marks: 0 }
+mirror replies ""
+mirror notifications 0 cbf29ce484222325
+mirror agent_events 0 cbf29ce484222325
+mirror typeahead []
+mirror deltas 1 e07f4caa92a29414
+agent-odd rows 22
+agent-odd rows[0..] text fddb0f3f9730b4e2 styles 65540d30a6cac08f spans 6fbbb3aba65597ef
+agent-odd blocks 1 2bfe5c3f65af5884
+agent-odd links dcd1781a213827ee
+agent-odd cursor 20 0 true history 0 first_stable 0 editor 0
+agent-odd alt none
+agent-odd modes app_cursor=false sgr_mouse=false paste=false focus=false mouse=0 sync=false pending_sync=0
+agent-odd program title="clear; cat ~/Downloads/xtest.txt; sleep 100" pointer="" stack=0 live_output=1030 older=OlderState { floor: None, marks: 0 }
+agent-odd replies ""
+agent-odd notifications 0 cbf29ce484222325
+agent-odd agent_events 0 cbf29ce484222325
+agent-odd typeahead []
+agent-odd deltas 6 7f0f9de49c344f96

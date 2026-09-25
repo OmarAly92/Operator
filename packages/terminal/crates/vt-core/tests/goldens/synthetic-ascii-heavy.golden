@@ -1,0 +1,83 @@
+renderer rows 4892
+renderer rows[0..] text 64ce407c0f08c2f4 styles e8f9ac6a833669f3 spans 6188700df9c12a39
+renderer rows[500..] text 530c88d6918abada styles 510f04966439ebb1 spans 6188700df9c12a39
+renderer rows[1000..] text 4827410bbd3c203a styles 300f15e41734e65b spans 6188700df9c12a39
+renderer rows[1500..] text caff57502297b871 styles 0cca4cd3f2c22137 spans 6188700df9c12a39
+renderer rows[2000..] text 0f839e74d0d06ea1 styles fc339d2daa9176de spans 6188700df9c12a39
+renderer rows[2500..] text 566dbc4927e584a8 styles c3a8adfd78b014fa spans 6188700df9c12a39
+renderer rows[3000..] text 0b0bf5dfb9e1a0d2 styles a39a4ea1b15585d9 spans 6188700df9c12a39
+renderer rows[3500..] text 7a378943da7a4025 styles c3329e7f8a38f4fb spans 6188700df9c12a39
+renderer rows[4000..] text d920e0baf8de8f8c styles f263a8aba953ee74 spans 6188700df9c12a39
+renderer rows[4500..] text 4471fade58fa2a64 styles db723ef7f7a1ac7d spans 393535040912cfed
+renderer blocks 1 794e33077605c6b5
+renderer links dcd1781a213827ee
+renderer cursor 4892 0 true history 4863 first_stable 0 editor 0
+renderer alt none
+renderer modes app_cursor=false sgr_mouse=false paste=false focus=false mouse=0 sync=false pending_sync=0
+renderer program title="" pointer="" stack=0 live_output=262168 older=OlderState { floor: None, marks: 0 }
+renderer replies ""
+renderer notifications 0 cbf29ce484222325
+renderer agent_events 0 cbf29ce484222325
+renderer typeahead []
+renderer deltas 66 27da1802c2307ba9
+renderer-odd rows 4892
+renderer-odd rows[0..] text 64ce407c0f08c2f4 styles e8f9ac6a833669f3 spans 6188700df9c12a39
+renderer-odd rows[500..] text 530c88d6918abada styles 510f04966439ebb1 spans 6188700df9c12a39
+renderer-odd rows[1000..] text 4827410bbd3c203a styles 300f15e41734e65b spans 6188700df9c12a39
+renderer-odd rows[1500..] text caff57502297b871 styles 0cca4cd3f2c22137 spans 6188700df9c12a39
+renderer-odd rows[2000..] text 0f839e74d0d06ea1 styles fc339d2daa9176de spans 6188700df9c12a39
+renderer-odd rows[2500..] text 566dbc4927e584a8 styles c3a8adfd78b014fa spans 6188700df9c12a39
+renderer-odd rows[3000..] text 0b0bf5dfb9e1a0d2 styles a39a4ea1b15585d9 spans 6188700df9c12a39
+renderer-odd rows[3500..] text 7a378943da7a4025 styles c3329e7f8a38f4fb spans 6188700df9c12a39
+renderer-odd rows[4000..] text d920e0baf8de8f8c styles f263a8aba953ee74 spans 6188700df9c12a39
+renderer-odd rows[4500..] text 4471fade58fa2a64 styles db723ef7f7a1ac7d spans 393535040912cfed
+renderer-odd blocks 1 794e33077605c6b5
+renderer-odd links dcd1781a213827ee
+renderer-odd cursor 4892 0 true history 4863 first_stable 0 editor 0
+renderer-odd alt none
+renderer-odd modes app_cursor=false sgr_mouse=false paste=false focus=false mouse=0 sync=false pending_sync=0
+renderer-odd program title="" pointer="" stack=0 live_output=262168 older=OlderState { floor: None, marks: 0 }
+renderer-odd replies ""
+renderer-odd notifications 0 cbf29ce484222325
+renderer-odd agent_events 0 cbf29ce484222325
+renderer-odd typeahead []
+renderer-odd deltas 342 1cf88cc141544a7b
+mirror rows 2399
+mirror rows[0..] text eed815ef61d8cd96 styles d3f6d31f29c1225d spans 6188700df9c12a39
+mirror rows[500..] text 1d605028ac34bccf styles eeed11843c61a390 spans 6188700df9c12a39
+mirror rows[1000..] text 1c17346d4e54e01e styles 0b9661443b8a427d spans 6188700df9c12a39
+mirror rows[1500..] text 8280484a062ecd1a styles bacb99803f6d06eb spans 6188700df9c12a39
+mirror rows[2000..] text 4547d9761c912c81 styles 5e5ebfb39c7fa5dd spans 120eee7c26019a7c
+mirror blocks 1 fba7d013d125e627
+mirror links dcd1781a213827ee
+mirror cursor 2399 0 true history 2370 first_stable 2485 editor 0
+mirror alt none
+mirror modes app_cursor=false sgr_mouse=false paste=false focus=false mouse=0 sync=false pending_sync=0
+mirror program title="" pointer="" stack=0 live_output=262168 older=OlderState { floor: None, marks: 0 }
+mirror replies ""
+mirror notifications 0 cbf29ce484222325
+mirror agent_events 0 cbf29ce484222325
+mirror typeahead []
+mirror deltas 66 4393f50bd9f8a92c
+agent-odd rows 4884
+agent-odd rows[0..] text 64ce407c0f08c2f4 styles e8f9ac6a833669f3 spans 6188700df9c12a39
+agent-odd rows[500..] text 530c88d6918abada styles 510f04966439ebb1 spans 6188700df9c12a39
+agent-odd rows[1000..] text 4827410bbd3c203a styles 300f15e41734e65b spans 6188700df9c12a39
+agent-odd rows[1500..] text caff57502297b871 styles 0cca4cd3f2c22137 spans 6188700df9c12a39
+agent-odd rows[2000..] text 0f839e74d0d06ea1 styles fc339d2daa9176de spans 6188700df9c12a39
+agent-odd rows[2500..] text ffcde0401bedc77a styles 92debb97ec0cde4c spans 6188700df9c12a39
+agent-odd rows[3000..] text 9141895348825482 styles 723abede3d13d955 spans 6188700df9c12a39
+agent-odd rows[3500..] text 21e6179a1e3bffad styles 7b4f5aa685965817 spans 6188700df9c12a39
+agent-odd rows[4000..] text 9cb96750372e8010 styles c29ca46bd5e9046c spans 6188700df9c12a39
+agent-odd rows[4500..] text a15b29595446a00e styles 66c4a2cb1e1ae8c0 spans 2d94a3f45fee8ba5
+agent-odd blocks 1 48b53a48ad15861c
+agent-odd links dcd1781a213827ee
+agent-odd cursor 4884 0 true history 4855 first_stable 0 editor 0
+agent-odd alt none
+agent-odd modes app_cursor=false sgr_mouse=false paste=false focus=false mouse=0 sync=false pending_sync=0
+agent-odd program title="" pointer="" stack=0 live_output=262168 older=OlderState { floor: None, marks: 0 }
+agent-odd replies ""
+agent-odd notifications 0 cbf29ce484222325
+agent-odd agent_events 0 cbf29ce484222325
+agent-odd typeahead []
+agent-odd deltas 342 a4ae5b5c5a63d9a0
