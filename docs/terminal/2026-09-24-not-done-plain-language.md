@@ -5,7 +5,7 @@ A plain-language companion to the status lines in
 (checked against the tree on 2026-09-24). The `§` numbers point at the survey
 entries. The 26 entries marked **Not done** on 2026-09-24 are grouped below
 into 20 items (items 3, 4 and 5 have since been done, roadmap Plans 5 and 1;
-items 19 and 20 have since been done, roadmap Plan 3); the 16 marked
+items 19 and 20 have since been done, roadmap Plan 3; item 16 has been done and items 17 and 18 decided, roadmap Plan 9); the 16 marked
 **Partial** follow with what each is missing.
 
 Two words used throughout:
@@ -125,15 +125,17 @@ You'd only notice these as fewer rare glitches or slightly less CPU use.
     Claude Code's long output is read noticeably faster in the
     terminal's own measurements. Codes the terminal doesn't understand are
     kept in a short list developers can read.
-17. **Faster line edits (§1.12).** Rows don't remember "nothing fancy is on
-    me". *If done:* erasing and inserting in plain rows gets quicker.
+17. **Faster line edits (§1.12) — done differently (roadmap Plan 9).**
+    Erasing and inserting text in a line now moves the whole stretch at
+    once. The "nothing fancy on this row" markers were tried as well and
+    made no difference, so they were left out.
 18. **Tidier code for control codes (§2.2) — tried and dropped (2026-09-26,
     roadmap Plan 9).** The standard library we checked cannot answer the
     questions Claude Code asks at startup, drops program notifications and
     would change how some colours and codes behave, so the terminal keeps its
     own reader. A new safety net now checks that no future change to that
     reader alters anything on screen.
-19. **Safety caps (§2.14) — done (2026-09-25, roadmap Plan 3).** Programs can
+19. **Safety caps (§2.14) — done (2026-09-25, roadmap Plan 3; unchanged by Plan 9).** Programs can
     push window titles onto a stack; it now stops at 4,096 and drops the
     oldest, so a runaway program cannot grow memory.
 20. **Reporting the window size (§1.16) — done (2026-09-25, roadmap Plan 3).**

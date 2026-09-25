@@ -47,7 +47,7 @@ Absent evidence is written as "not known", never guessed.
 
 ## Implementation status (updated 2026-09-25)
 
-Every entry below carries a **Status** line under its heading, checked against the tree on 2026-09-24 (`development`): 46 done, 19 partial, 13 not done, 8 not pursued, 1 not needed, 1 n/a. "Plan A–F" are the agent-TUI spec's plans (`docs/superpowers/specs/2026-09-19-agent-tui-experience-design.md`); "Plan 4" is the background-pane plan (`docs/superpowers/plans/2026-09-23-terminal-background-pane-cost.md`). Entries marked non-goal were excluded by the agent-TUI spec, not rejected. "Roadmap Plan 1" is the paste-safety plan (`docs/superpowers/plans/2026-09-24-terminal-plan-1-paste-safety.md`); "Roadmap Plan 3" is the program-messages plan (docs/superpowers/plans/2026-09-25-terminal-plan-3-program-messages.md); "Roadmap Plan 5" is the highlights plan (`docs/superpowers/plans/2026-09-25-terminal-plan-5-highlights-marks.md`); "Roadmap Plan 7" is the very-old-output plan (`docs/superpowers/plans/2026-09-25-terminal-plan-7-old-output.md`). "Roadmap Plan 8" is the agent-awareness plan (`docs/superpowers/plans/2026-09-25-terminal-plan-8-agent-awareness.md`). "Roadmap Plan 9" is the parser-rework plan (`docs/superpowers/plans/2026-09-26-terminal-plan-9-parser-rework.md`).
+Every entry below carries a **Status** line under its heading, checked against the tree on 2026-09-24 (`development`): 46 done, 19 partial, 12 not done, 9 not pursued, 1 not needed, 1 n/a. "Plan A–F" are the agent-TUI spec's plans (`docs/superpowers/specs/2026-09-19-agent-tui-experience-design.md`); "Plan 4" is the background-pane plan (`docs/superpowers/plans/2026-09-23-terminal-background-pane-cost.md`). Entries marked non-goal were excluded by the agent-TUI spec, not rejected. "Roadmap Plan 1" is the paste-safety plan (`docs/superpowers/plans/2026-09-24-terminal-plan-1-paste-safety.md`); "Roadmap Plan 3" is the program-messages plan (docs/superpowers/plans/2026-09-25-terminal-plan-3-program-messages.md); "Roadmap Plan 5" is the highlights plan (`docs/superpowers/plans/2026-09-25-terminal-plan-5-highlights-marks.md`); "Roadmap Plan 7" is the very-old-output plan (`docs/superpowers/plans/2026-09-25-terminal-plan-7-old-output.md`). "Roadmap Plan 8" is the agent-awareness plan (`docs/superpowers/plans/2026-09-25-terminal-plan-8-agent-awareness.md`). "Roadmap Plan 9" is the parser-rework plan (`docs/superpowers/plans/2026-09-26-terminal-plan-9-parser-rework.md`).
 
 | Entry | Status | What landed / what is missing |
 |---|---|---|
@@ -62,7 +62,7 @@ Every entry below carries a **Status** line under its heading, checked against t
 | §1.9 | Done | Plan C — `vt_replay` sends origin, modes, the frame, `READY`, then history in 512-row chunks; the pane paints at `READY`. |
 | §1.10 | Done | Roadmap Plan 1 — `encodePaste` returns the bytes and a verdict; outside bracketed paste a newline, a C0 control other than tab, or `ESC[201~` is unsafe and goes to `HostCapabilities.confirmPaste` (Operator: a dialog with the first five lines); no handler sends as before. The editor-owned line never asks. The confirm is a host seam, not surface chrome as the entry proposed. |
 | §1.11 | Done | Roadmap Plan 9 — printable ASCII is buffered between control sequences and written a row segment at a time (`ScreenGrid::print_ascii_run`), ASCII after ASCII skips the grapheme join, the join no longer allocates; `TerminalCore::unknown_sequences()` keeps the newest 64 distinct unhandled CSI/ESC/DCS/OSC (OSC by number only). vte still decodes UTF-8 per character (no SIMD). Measured in `TERMINAL.md` §4.35. |
-| §1.12 | Not done | No `RowFlags`; `ScreenGrid` keeps separate `wrapped` and `dirty` vectors. |
+| §1.12 | Not pursued | Roadmap Plan 9 — erase/insert/delete now fill and rotate a row slice instead of writing cell by cell (`screen/edit.rs`); the row flags themselves (`styled`, `grapheme`, a plain-row commit path) were built and measured with no gain and are not applied (`TERMINAL.md` §4.35). `hyperlink` needs no flag (the link id is in the style); `wrapped` stays its own vector. |
 | §1.13 | Done | Plan B — `Limits { rows: 200_000, bytes: 128 MiB }` in both cores, plus `memory_stats`. Compression was excluded by the proposal itself. Open: the OSC 8 registry sits outside the byte budget (`TERMINAL.md` §5). |
 | §1.14 | Partial | Plan A — `verify_integrity`, the proptest generator and the `trace` feature. Not done: failure injection, pyte agreement in the proptest. |
 | §1.15 | Done | Plan E — OSC 8 and hover links. Roadmap Plan 3 — OSC 0/2 title (card and pane header in Operator), OSC 9/777/99 notifications (toast when the pane is not on screen), OSC 10/11 replies from the pane's colours, OSC 22 pointer shape. |
@@ -82,7 +82,7 @@ Every entry below carries a **Status** line under its heading, checked against t
 | §2.11 | Done | Roadmap Plan 1 — inside bracketed paste `ESC[201~`, every `ESC` and every `^C` are removed and the paste is sent without asking; outside, `\r\n`/`\n` still become `\r`. |
 | §2.12 | Done | Plan D — `cursorContrast` and `cursorHollowUnfocused` flags, both still off: `cursorContrast` changes 0 px on the Claude Code recordings (`TERMINAL.md` §5). |
 | §2.13 | Not pursued | The entry itself says not recommended, and the agent-TUI spec lists it under non-goals. |
-| §2.14 | Done | Roadmap Plan 3 — title stack capped at 4,096 (oldest dropped), pending notifications at 16, titles at 1,024 bytes. There is no keyboard-mode stack to cap. The grapheme byte cap (256) was already in place. |
+| §2.14 | Done | Roadmap Plan 3 — title stack capped at 4,096 (oldest dropped), pending notifications at 16, titles at 1,024 bytes. There is no keyboard-mode stack to cap. The grapheme byte cap (256) was already in place. Roadmap Plan 9 did not adopt `vte::ansi::Handler` (§2.2), so the caps stay in `program.rs`. |
 | §3.1 | Done | Plan B — row-element pool with dirty-row patching. The ≤ 2 nodes per changed row target was missed (≈7 per styled row). Since Plan 4 a parked pane does not paint; row layout containment was measured with no gain (`TERMINAL.md` §4.26). |
 | §3.2 | Done | Plan D — per-cluster letter-spacing from a width cache, on by default together with `graphemes` since 2026-09-22 (`7395b910c`); ZWJ and flag clusters are measured as one span. The ligature joiner is not adopted (Hack has no ligatures). |
 | §3.3 | Done | Plan A — char metrics cached, invalidated by `setFont`, `setTheme` and the DPR query. No `ResizeObserver` on the measure host and no `TextMetrics` path, both by decision (Plan A deviations). |
@@ -865,7 +865,7 @@ happened with 2026) is invisible until someone `strings` the binary.
 
 ### 1.12 Row-level flags that make erase/insert fast when nothing fancy is on the row
 
-> **Status: Not done.** No `RowFlags`; `ScreenGrid` keeps separate `wrapped` and `dirty` vectors.
+> **Status: Not pursued.** Roadmap Plan 9 — the per-cell erase/insert/delete loops became slice fills and rotations (`fill_cells`, `shift_cells`); `RowFlags` (`styled`, `grapheme`) with a plain-row commit path were prototyped and measured: no workload faster beyond noise, so not applied. Numbers: `TERMINAL.md` §4.35.
 
 **Reference**
 - `src/terminal/page.zig:2020-2058`: `Row.wrap`, `wrap_continuation`,
@@ -1872,7 +1872,7 @@ for completeness.
 
 ### 2.14 Robustness caps on app-driven stacks
 
-> **Status: Done.** Roadmap Plan 3 — title stack capped at 4,096 (oldest dropped), pending notifications at 16, titles at 1,024 bytes. There is no keyboard-mode stack to cap. The grapheme byte cap (256) was already in place.
+> **Status: Done.** Roadmap Plan 3 — title stack capped at 4,096 (oldest dropped), pending notifications at 16, titles at 1,024 bytes. There is no keyboard-mode stack to cap. The grapheme byte cap (256) was already in place. Unchanged by roadmap Plan 9: `vte::ansi::Handler` was not adopted (§2.2), so the caps stay where Plan 3 put them (`crates/vt-core/src/program.rs:7-9`).
 
 **Reference**
 - `alacritty_terminal/src/term/mod.rs:42-48` `TITLE_STACK_MAX_DEPTH = 4096`,

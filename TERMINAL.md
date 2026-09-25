@@ -1334,6 +1334,43 @@ history of `master`.
   invalid UTF-8, DEL), `tests/unknown_sequences.rs`, `vt-wasm`
   `program_exports.rs` `the_wasm_core_lists_unknown_sequences_with_their_counts`,
   and the goldens.
+- **Part C: erase and insert on a row.** `screen/edit.rs` erases with one
+  slice `fill` of the erase cell and inserts/deletes characters with one
+  `rotate_right`/`rotate_left` of the row slice (`fill_cells`,
+  `shift_cells`); `wrapped` is cleared exactly when the per-cell `set` used
+  to clear it (an edit that reaches the last column, every ICH/DCH), and an
+  empty span marks nothing dirty. Claude Code sends no ICH/DCH/ECH
+  (`claude-long-50k`: 0 `@`, 0 `P`, 0 `X`, 32,808 `K`), so the gain is for
+  shells and full-screen programs. **Row flags** after Ghostty
+  (`src/terminal/page.zig:2020-2058`, behaviour only): a per-row
+  `styled`/`grapheme` flag and a plain-row commit path in
+  `scrollback::commit_row` were built and measured — no line faster beyond
+  noise (numbers below) — so they are not applied.
+  `hyperlink` would need no flag (the link id rides in `CellStyle.link`) and
+  `wrapped` stays its own vector. The prototype's one bug (a prepended
+  history chunk longer than `CHUNK_SIZE` underflowed a subtraction) was
+  caught by `tests/older_seams.rs`.
+- Part C measured (same method as Part B; bulk edits against Part B, then
+  row flags against bulk edits):
+  - claude-long-50k grapheme: partB 27.48-28.25 partC 27.28-30.75 (2.6% median) noise
+  - claude-long-50k scalar: partB 44.02-45.42 partC 47.84-52.81 (8.9% median) faster
+  - ascii-heavy grapheme: partB 30.15-32.89 partC 30.17-32.81 (2.5% median) noise
+  - ascii-heavy scalar: partB 32.90-33.66 partC 31.08-32.25 (-5.3% median) noise
+  - edit-heavy grapheme: partB 46.62-50.02 partC 62.26-65.12 (35.1% median) faster
+  - edit-heavy scalar: partB 47.21-48.52 partC 63.00-67.46 (36.3% median) faster
+  - wasm claude-long-50k grapheme: partB 20.15-21.10 partC 21.28-21.84 (5.2% median) faster
+  - wasm claude-long-50k scalar: partB 34.92-35.90 partC 35.54-37.38 (1.4% median) noise
+  - claude-long-50k grapheme: partC 28.27-30.29 flags 29.78-30.26 (4.9% median) noise
+  - claude-long-50k scalar: partC 50.41-51.73 flags 50.75-52.42 (0.1% median) noise
+  - ascii-heavy grapheme: partC 32.07-33.06 flags 31.59-32.40 (-3.2% median) noise
+  - ascii-heavy scalar: partC 32.51-33.01 flags 30.96-32.46 (-2.4% median) noise
+  - edit-heavy grapheme: partC 61.19-64.32 flags 62.68-64.73 (1.3% median) noise
+  - edit-heavy scalar: partC 62.58-65.61 flags 63.13-64.54 (-1.9% median) noise
+  - wasm claude-long-50k grapheme: partC 20.73-21.76 flags 20.78-21.33 (1.9% median) noise
+  - wasm claude-long-50k scalar: partC 35.07-37.07 flags 34.06-36.83 (-2.6% median) noise
+  - Environment: Linux x86_64, Intel(R) Xeon(R) Processor @ 2.10GHz
+- Guards (Part C): `tests/bulk_edits.rs` (passes on the tree before Part C
+  too), `synthetic-edits-styled` in the goldens.
 
 ## 5. Known gaps (not bugs, decisions pending)
 
