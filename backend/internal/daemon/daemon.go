@@ -18,6 +18,7 @@ import (
 
 	"github.com/OmarAly92/operator/backend/internal/adapters/agent/modelcatalog"
 	agentbrowser "github.com/OmarAly92/operator/backend/internal/adapters/agentbrowser"
+	"github.com/OmarAly92/operator/backend/internal/adapters/process"
 	"github.com/OmarAly92/operator/backend/internal/adapters/projectscan"
 	"github.com/OmarAly92/operator/backend/internal/adapters/runtime/runtimeselect"
 	"github.com/OmarAly92/operator/backend/internal/config"
@@ -36,6 +37,7 @@ import (
 	"github.com/OmarAly92/operator/backend/internal/redact"
 	"github.com/OmarAly92/operator/backend/internal/runfile"
 	agentsvc "github.com/OmarAly92/operator/backend/internal/service/agent"
+	"github.com/OmarAly92/operator/backend/internal/service/backgroundtask"
 	blockevent "github.com/OmarAly92/operator/backend/internal/service/blockevent"
 	browsersvc "github.com/OmarAly92/operator/backend/internal/service/browser"
 	claudeaccountssvc "github.com/OmarAly92/operator/backend/internal/service/claudeaccounts"
@@ -369,6 +371,20 @@ func Run() error {
 	ticketSvc := ticketsvc.New(ticketsvc.Deps{Store: store, Sessions: sessionSvc})
 	ticketsvc.NewAutoReviewer(ticketSvc, log).Subscribe(ctx, cdcPipe.Broadcaster)
 
+	processTable := process.New()
+	var runtimeProcesses ports.RuntimeProcessReader
+	if reader, ok := runtimeAdapter.(ports.RuntimeProcessReader); ok {
+		runtimeProcesses = reader
+	}
+	backgroundTasks := backgroundtask.New(backgroundtask.Deps{
+		Events:    blockEvents,
+		Sessions:  store,
+		Runtime:   runtimeProcesses,
+		Processes: processTable,
+		Signals:   processTable,
+		Agents:    sessMgr,
+	})
+
 	srv, err := httpd.NewWithDeps(cfg, log, termMgr, httpd.APIDeps{
 		Projects:            projectSvc,
 		Agents:              agentSvc,
@@ -389,6 +405,7 @@ func Run() error {
 		Activity:            lcStack.LCM,
 		BlockEvents:         blockEvents,
 		BlockHistory:        blockEvents,
+		BackgroundTasks:     backgroundTasks,
 		SessionModels:       blockEvents,
 		Interactions:        sessMgr,
 		SlashCommands:       slashcommandssvc.New(store, agents, claudeAccounts),

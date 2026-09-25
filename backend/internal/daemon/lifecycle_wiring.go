@@ -138,6 +138,7 @@ type sessionLifecycle interface {
 	ClearInteractions(id domain.SessionID)
 	Interactions(ctx context.Context, id domain.SessionID) ([]domain.PendingInteraction, error)
 	DialogOnScreen(ctx context.Context, id domain.SessionID) (bool, error)
+	StopAgentTask(ctx context.Context, id domain.SessionID, label string) error
 }
 
 // sessionLifecycleMessenger adapts sessionLifecycle to ports.AgentMessenger so

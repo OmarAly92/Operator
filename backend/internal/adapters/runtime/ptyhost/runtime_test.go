@@ -963,3 +963,35 @@ func TestCreate_ForwardsThePaneGridToTheSpawner(t *testing.T) {
 		t.Fatalf("spawner grid = %dx%d, want 132x43", gotCols, gotRows)
 	}
 }
+
+func TestChildPIDReportsTheLiveChildAndRefusesAnUnknownSession(t *testing.T) {
+	isolateRegistry(t)
+	hosts := map[string]*inProcHost{}
+	rt := New(Options{Spawner: fakeSpawnerFor(t, hosts, livePID())})
+	ctx := context.Background()
+	handle, err := rt.Create(ctx, ports.RuntimeConfig{SessionID: "sess-pid", WorkspacePath: "/tmp/w", Argv: []string{"sh"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	h := hosts["sess-pid"]
+	t.Cleanup(func() { h.cleanup(t) })
+
+	pid, err := rt.ChildPID(ctx, handle)
+	if err != nil || pid != h.pty.PID() {
+		t.Fatalf("ChildPID = (%d, %v), want (%d, nil)", pid, err, h.pty.PID())
+	}
+	if _, err := rt.ChildPID(ctx, ports.RuntimeHandle{ID: "ghost"}); err == nil {
+		t.Fatal("unknown session must not report a pid")
+	}
+	h.pty.signalExit(0)
+	deadline := time.Now().Add(time.Second)
+	for {
+		if _, err := rt.ChildPID(ctx, handle); err != nil {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("exited child still reported")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+}

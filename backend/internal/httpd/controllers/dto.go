@@ -306,6 +306,36 @@ type ListSessionBlockEventsResponse struct {
 	Blocks []BlockEventView `json:"blocks"`
 }
 
+type SessionTaskView struct {
+	TaskID      string `json:"taskId"`
+	Kind        string `json:"kind" enum:"shell,agent,monitor"`
+	Status      string `json:"status" enum:"running,completed,failed,killed,stopped"`
+	ToolUseID   string `json:"toolUseId,omitempty"`
+	Description string `json:"description,omitempty"`
+	Command     string `json:"command,omitempty"`
+	Summary     string `json:"summary,omitempty"`
+	ExitCode    *int   `json:"exitCode,omitempty"`
+	DurationMs  *int64 `json:"durationMs,omitempty"`
+	OutputFile  string `json:"outputFile,omitempty"`
+	StartedAt   string `json:"startedAt,omitempty"`
+	EndedAt     string `json:"endedAt,omitempty"`
+	CanStop     bool   `json:"canStop"`
+	UpdatedSeq  int64  `json:"updatedSeq"`
+}
+
+type ListSessionTasksResponse struct {
+	Tasks []SessionTaskView `json:"tasks"`
+}
+
+type StopSessionTaskResponse struct {
+	Task      SessionTaskView `json:"task"`
+	Confirmed bool            `json:"confirmed"`
+}
+
+type SessionTaskIDParam struct {
+	TaskID string `path:"taskId" description:"Background task id (a shell or monitor task id, or a subagent's agentId)."`
+}
+
 func blockEventViews(recs []blockeventsvc.Record) []BlockEventView {
 	views := make([]BlockEventView, 0, len(recs))
 	for _, rec := range recs {

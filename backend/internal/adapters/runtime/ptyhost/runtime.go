@@ -414,3 +414,20 @@ type processKiller interface {
 // The real defaultOSProcessFinder is in pidalive_unix.go / pidalive_windows.go
 // (same files that provide pidAlive).
 var osProcessFinder = defaultOSProcessFinder
+
+func (r *Runtime) ChildPID(ctx context.Context, handle ports.RuntimeHandle) (int, error) {
+	sess := r.resolve(handle.ID)
+	if sess == nil {
+		return 0, fmt.Errorf("ptyhost: session %q not found", handle.ID)
+	}
+	status, hostAlive, err := clientStatus(sess.addr)
+	if err != nil {
+		return 0, err
+	}
+	if !hostAlive || !status.Alive || status.PID <= 0 {
+		return 0, fmt.Errorf("ptyhost: session %q has no live child", handle.ID)
+	}
+	return status.PID, nil
+}
+
+var _ ports.RuntimeProcessReader = (*Runtime)(nil)

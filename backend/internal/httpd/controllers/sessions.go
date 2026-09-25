@@ -198,6 +198,7 @@ type SessionsController struct {
 	Usage         UsageHookRecorder
 	PreviewServer ManagedPreviewServer
 	Capabilities  SessionCapabilityValidator
+	Tasks         BackgroundTaskService
 }
 
 // Register mounts the session routes on the supplied router.
@@ -228,6 +229,8 @@ func (c *SessionsController) Register(r chi.Router) {
 	r.Get("/sessions/{sessionId}/agent-switches", c.listAgentSwitches)
 	r.Post("/sessions/{sessionId}/agent-switches/{switchId}/handoff", c.submitAgentHandoff)
 	r.Get("/sessions/{sessionId}/blocks", c.listBlockEvents)
+	r.Get("/sessions/{sessionId}/tasks", c.listTasks)
+	r.Post("/sessions/{sessionId}/tasks/{taskId}/stop", c.stopTask)
 	r.Post("/sessions/{sessionId}/kill", c.kill)
 	r.Post("/sessions/{sessionId}/rollback", c.rollback)
 	r.Post("/sessions/{sessionId}/send", c.send)

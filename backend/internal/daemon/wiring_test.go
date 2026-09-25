@@ -653,6 +653,10 @@ func (f *fakeSessionLifecycle) DialogOnScreen(context.Context, domain.SessionID)
 	return false, nil
 }
 
+func (f *fakeSessionLifecycle) StopAgentTask(context.Context, domain.SessionID, string) error {
+	return nil
+}
+
 // TestWiring_SessionLifecycleInterfaceInvokedByDaemon asserts the
 // sessionLifecycle interface is satisfied by *sessionmanager.Manager (compile
 // check) and that Reconcile and RestoreAll dispatch correctly through the
