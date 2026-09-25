@@ -59,7 +59,10 @@ sealed class AppRouter {
 
       case RoutesStrings.manualConnect:
         return MaterialPageRoute<bool>(
-          builder: (context) => BlocProvider(create: (_) => sl<ManualConnectCubit>(param1: ManualConnectMode.manual), child: const ManualConnectScreen()),
+          builder: (context) => BlocProvider(
+            create: (_) => sl<ManualConnectCubit>(param1: ManualConnectMode.manual),
+            child: const ManualConnectScreen(),
+          ),
           settings: settings,
         );
 

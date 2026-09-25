@@ -9,21 +9,25 @@ import 'package:operator_mobile/core/api/interceptors/server_config_interceptor.
 import 'package:operator_mobile/core/api/models/global_response.dart';
 import 'package:operator_mobile/core/api/server_config.dart';
 import 'package:operator_mobile/core/api/server_config_store.dart';
-import 'package:operator_mobile/core/utils/service_locator.dart';
-import 'package:operator_mobile/feature/pairing/data/repository/pairing_repository.dart';
-import 'package:operator_mobile/feature/pairing/presentation/manual_connect_screen/logic/manual_connect_cubit.dart';
-import 'package:operator_mobile/feature/pairing/presentation/re_pair_sheet/ui/re_pair_sheet.dart';
 import 'package:operator_mobile/core/app_routes/routes_strings.dart';
 import 'package:operator_mobile/core/app_themes/colors/dark_skin.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/connection/connection_cubit.dart';
 import 'package:operator_mobile/core/error_handling/failures/failure.dart';
-import 'package:operator_mobile/core/preferences/app_preferences.dart';
 import 'package:operator_mobile/core/helpers/result/result.dart';
 import 'package:operator_mobile/core/mux/mux_client.dart';
 import 'package:operator_mobile/core/mux/session_patch.dart';
+import 'package:operator_mobile/core/preferences/app_preferences.dart';
 import 'package:operator_mobile/core/replica/replicated.dart';
+import 'package:operator_mobile/core/utils/service_locator.dart';
 import 'package:operator_mobile/core/widgets/connection/connection_error_state.dart';
+import 'package:operator_mobile/feature/pairing/data/data_source/pairing_remote_data_source.dart';
+import 'package:operator_mobile/feature/pairing/data/repository/desktops_repository.dart';
+import 'package:operator_mobile/feature/pairing/data/repository/pairing_repository.dart';
+import 'package:operator_mobile/feature/pairing/presentation/connections_screen/logic/connections_cubit.dart';
+import 'package:operator_mobile/feature/pairing/presentation/desktop_switcher/ui/desktop_switcher_sheet.dart';
+import 'package:operator_mobile/feature/pairing/presentation/manual_connect_screen/logic/manual_connect_cubit.dart';
+import 'package:operator_mobile/feature/pairing/presentation/re_pair_sheet/ui/re_pair_sheet.dart';
 import 'package:operator_mobile/feature/pull_request/data/model/session_pr_summary_model.dart';
 import 'package:operator_mobile/feature/pull_request/data/repository/pull_request_repository.dart';
 import 'package:operator_mobile/feature/pull_request/presentation/pull_requests_screen/logic/pull_request_cubit.dart';
@@ -51,6 +55,19 @@ void _registerRePair() {
   when(() => store.current).thenReturn(kTestDesktop);
   sl.registerFactoryParam<ManualConnectCubit, ManualConnectMode, void>(
     (mode, _) => ManualConnectCubit(_MockPairingRepository(), store, mode: mode),
+  );
+  addTearDown(sl.reset);
+}
+
+class _MockDesktopsRepository extends Mock implements DesktopsRepository {}
+
+class _MockPairingRemoteDataSource extends Mock implements PairingRemoteDataSource {}
+
+void _registerSwitcher() {
+  final desktops = _MockDesktopsRepository();
+  when(() => desktops.watchDesktops()).thenAnswer((_) => Stream.value(const []));
+  sl.registerFactory<ConnectionsCubit>(
+    () => ConnectionsCubit(desktops, _MockPairingRemoteDataSource(), _MockServerConfigStore()),
   );
   addTearDown(sl.reset);
 }
@@ -300,6 +317,7 @@ void main() {
     });
 
     testWidgets('with nothing cached and the desktop down, the full-screen error names it and offers Switch desktop', (tester) async {
+      _registerSwitcher();
       when(() => sessionsRepository.getBoard()).thenAnswer(
         (_) async => Result.failure(ServerFailure(error: 'down', message: 'down', statusCode: -6)),
       );
@@ -314,7 +332,7 @@ void main() {
       await tester.tap(find.byKey(ConnectionErrorState.switchKey));
       await tester.pumpAndSettle();
 
-      expect(find.text('route ${RoutesStrings.connections}'), findsOneWidget);
+      expect(find.byType(DesktopSwitcherList), findsOneWidget);
     });
 
     testWidgets('Retry on the full-screen error fetches the board again', (tester) async {

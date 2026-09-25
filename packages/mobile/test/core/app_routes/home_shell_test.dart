@@ -33,8 +33,11 @@ import 'package:operator_mobile/feature/notification/data/model/params/get_notif
 import 'package:operator_mobile/feature/notification/data/model/phone_alert_status_model.dart';
 import 'package:operator_mobile/feature/notification/data/repository/notification_repository.dart';
 import 'package:operator_mobile/feature/notification/presentation/notifications_screen/logic/notifications_cubit.dart';
+import 'package:operator_mobile/feature/pairing/data/data_source/pairing_remote_data_source.dart';
 import 'package:operator_mobile/feature/pairing/data/repository/desktops_repository.dart';
 import 'package:operator_mobile/feature/pairing/data/repository/pairing_repository.dart';
+import 'package:operator_mobile/feature/pairing/presentation/connections_screen/logic/connections_cubit.dart';
+import 'package:operator_mobile/feature/pairing/presentation/desktop_switcher/ui/desktop_switcher_sheet.dart';
 import 'package:operator_mobile/feature/pairing/presentation/manual_connect_screen/logic/manual_connect_cubit.dart';
 import 'package:operator_mobile/feature/pairing/presentation/re_pair_sheet/ui/re_pair_sheet.dart';
 import 'package:operator_mobile/feature/pull_request/data/repository/pull_request_repository.dart';
@@ -65,6 +68,8 @@ class _MockNotificationRepository extends Mock implements NotificationRepository
 class _MockDesktopsRepository extends Mock implements DesktopsRepository {}
 
 class _MockPairingRepository extends Mock implements PairingRepository {}
+
+class _MockPairingRemoteDataSource extends Mock implements PairingRemoteDataSource {}
 
 void main() {
   late _MockSessionsRepository repository;
@@ -107,6 +112,11 @@ void main() {
     when(() => serverConfigStore.current).thenReturn(null);
     when(() => serverConfigStore.changes).thenAnswer((_) => const Stream.empty());
     sl.registerLazySingleton<ServerConfigStore>(() => serverConfigStore);
+    final switcherDesktops = _MockDesktopsRepository();
+    when(() => switcherDesktops.watchDesktops()).thenAnswer((_) => Stream.value(const []));
+    sl.registerFactory<ConnectionsCubit>(
+      () => ConnectionsCubit(switcherDesktops, _MockPairingRemoteDataSource(), serverConfigStore),
+    );
     final desktopsRepository = _MockDesktopsRepository();
     when(() => desktopsRepository.deactivate()).thenAnswer((_) async => Result.success(null));
     sl.registerFactory<SettingsCubit>(() => SettingsCubit(repository, serverConfigStore, desktopsRepository));
@@ -422,7 +432,7 @@ void main() {
     expect(lastCard.bottom, lessThanOrEqualTo(tester.getRect(find.byType(GlassTabBar)).top));
   });
 
-  testWidgets('the Agents header names the desktop and its status, and tapping it opens the desktop list', (tester) async {
+  testWidgets('the Agents header names the desktop and its status, and tapping it opens the desktop switcher', (tester) async {
     connection().report(ConnectionOutcome.online);
     await pumpShell(tester);
 
@@ -431,8 +441,9 @@ void main() {
 
     await tester.tap(find.byKey(DesktopStatusLine.tapKey).first);
     await settle(tester);
+    await settle(tester);
 
-    expect(find.text('route /connections'), findsOneWidget);
+    expect(find.byType(DesktopSwitcherList), findsOneWidget);
   });
 
   testWidgets('a cached board stays up under an offline header on a cold start', (tester) async {
@@ -486,6 +497,24 @@ void main() {
     testWidgets('the + dims while the desktop is unreachable, and explains itself instead of opening Spawn', (tester) async {
       connection().report(ConnectionOutcome.unreachable);
       await pumpShell(tester);
+
+      expect(spawnOpacity(tester), HomeShell.offlineSpawnOpacity);
+      await tester.tap(find.byKey(HomeShell.spawnButtonKey));
+      await settle(tester);
+
+      expect(notified, ['error']);
+      expect(find.text(HomeShell.offlineSpawnMessage), findsOneWidget);
+      expect(find.text('route /spawn'), findsNothing);
+      await tester.pump(const Duration(seconds: 5));
+      await settle(tester);
+    });
+
+    testWidgets('the + dims while the desktop rejects the password, and explains itself instead of opening Spawn', (tester) async {
+      connection().report(ConnectionOutcome.auth);
+      await pumpShell(tester);
+      await tester.tap(find.byKey(AppSheet.closeKey));
+      await settle(tester);
+      await settle(tester);
 
       expect(spawnOpacity(tester), HomeShell.offlineSpawnOpacity);
       await tester.tap(find.byKey(HomeShell.spawnButtonKey));

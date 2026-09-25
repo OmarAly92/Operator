@@ -68,8 +68,8 @@ class _HomeShellState extends State<HomeShell> {
       state is ConnectionAuthFailedState && state.episode != _rePairEpisode;
 
   void _offerRePair(AppConnectionState state) {
-    if (state is! ConnectionAuthFailedState || state.episode == _rePairEpisode) return;
-    _rePairEpisode = state.episode;
+    if (!_isNewAuthFailure(state)) return;
+    _rePairEpisode = (state as ConnectionAuthFailedState).episode;
     showRePairSheet(context);
   }
 

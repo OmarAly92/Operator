@@ -10,26 +10,30 @@ import 'package:operator_mobile/core/api/interceptors/server_config_interceptor.
 import 'package:operator_mobile/core/api/models/global_response.dart';
 import 'package:operator_mobile/core/api/server_config.dart';
 import 'package:operator_mobile/core/api/server_config_store.dart';
-import 'package:operator_mobile/core/utils/service_locator.dart';
-import 'package:operator_mobile/feature/pairing/data/repository/pairing_repository.dart';
-import 'package:operator_mobile/feature/pairing/presentation/manual_connect_screen/logic/manual_connect_cubit.dart';
-import 'package:operator_mobile/feature/pairing/presentation/re_pair_sheet/ui/re_pair_sheet.dart';
 import 'package:operator_mobile/core/app_routes/routes_strings.dart';
 import 'package:operator_mobile/core/app_themes/colors/dark_skin.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/connection/connection_cubit.dart';
-import 'package:operator_mobile/core/replica/replicated.dart';
 import 'package:operator_mobile/core/error_handling/failures/failure.dart';
 import 'package:operator_mobile/core/helpers/result/result.dart';
 import 'package:operator_mobile/core/mux/mux_client.dart';
 import 'package:operator_mobile/core/mux/session_patch.dart';
 import 'package:operator_mobile/core/preferences/app_preferences.dart';
 import 'package:operator_mobile/core/preferences/preference_keys.dart';
+import 'package:operator_mobile/core/replica/replicated.dart';
+import 'package:operator_mobile/core/utils/service_locator.dart';
+import 'package:operator_mobile/core/widgets/connection/connection_error_state.dart';
+import 'package:operator_mobile/feature/pairing/data/data_source/pairing_remote_data_source.dart';
+import 'package:operator_mobile/feature/pairing/data/repository/desktops_repository.dart';
+import 'package:operator_mobile/feature/pairing/data/repository/pairing_repository.dart';
+import 'package:operator_mobile/feature/pairing/presentation/connections_screen/logic/connections_cubit.dart';
+import 'package:operator_mobile/feature/pairing/presentation/desktop_switcher/ui/desktop_switcher_sheet.dart';
+import 'package:operator_mobile/feature/pairing/presentation/manual_connect_screen/logic/manual_connect_cubit.dart';
+import 'package:operator_mobile/feature/pairing/presentation/re_pair_sheet/ui/re_pair_sheet.dart';
 import 'package:operator_mobile/feature/sessions/data/model/board_snapshot.dart';
 import 'package:operator_mobile/feature/sessions/data/model/project_model.dart';
 import 'package:operator_mobile/feature/sessions/data/model/session_model.dart';
 import 'package:operator_mobile/feature/sessions/data/repository/sessions_repository.dart';
-import 'package:operator_mobile/core/widgets/connection/connection_error_state.dart';
 import 'package:operator_mobile/feature/sessions/presentation/sessions_screen/logic/sessions_cubit.dart';
 import 'package:operator_mobile/feature/sessions/presentation/sessions_screen/ui/widgets/board_skeleton.dart';
 import 'package:operator_mobile/feature/sessions/presentation/sessions_screen/ui/widgets/session_section_header.dart';
@@ -50,6 +54,19 @@ void _registerRePair() {
   when(() => store.current).thenReturn(kTestDesktop);
   sl.registerFactoryParam<ManualConnectCubit, ManualConnectMode, void>(
     (mode, _) => ManualConnectCubit(_MockPairingRepository(), store, mode: mode),
+  );
+  addTearDown(sl.reset);
+}
+
+class _MockDesktopsRepository extends Mock implements DesktopsRepository {}
+
+class _MockPairingRemoteDataSource extends Mock implements PairingRemoteDataSource {}
+
+void _registerSwitcher() {
+  final desktops = _MockDesktopsRepository();
+  when(() => desktops.watchDesktops()).thenAnswer((_) => Stream.value(const []));
+  sl.registerFactory<ConnectionsCubit>(
+    () => ConnectionsCubit(desktops, _MockPairingRemoteDataSource(), _MockServerConfigStore()),
   );
   addTearDown(sl.reset);
 }
@@ -426,7 +443,8 @@ void main() {
       expect(fetches, 1);
     });
 
-    testWidgets('Switch desktop on the full-screen error opens the desktop list', (tester) async {
+    testWidgets('Switch desktop on the full-screen error opens the desktop switcher', (tester) async {
+      _registerSwitcher();
       await pumpWithBoard(
         tester,
         () async => Result.failure(ServerFailure(error: 'down', message: 'down', statusCode: -6)),
@@ -434,8 +452,9 @@ void main() {
 
       await tester.tap(find.byKey(ConnectionErrorState.switchKey));
       await settle(tester);
+      await settle(tester);
 
-      expect(find.text('route ${RoutesStrings.connections}'), findsOneWidget);
+      expect(find.byType(DesktopSwitcherList), findsOneWidget);
     });
 
     testWidgets('with a cached board, a failure keeps the board on screen', (tester) async {
