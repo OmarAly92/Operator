@@ -176,4 +176,24 @@ void main() {
     expect(asked.map((params) => params.afterSeq), [100, 100]);
     await cubit.close();
   });
+
+  test('live rows held while a fetch is in flight never exceed the replica cap', () async {
+    final gate = Completer<Result<List<BlockEventModel>, Failure>>();
+    when(() => repository.getSessionBlocks(any(), any())).thenAnswer((_) => gate.future);
+
+    final cubit = build();
+    await Future<void>.delayed(Duration.zero);
+    for (var seq = 1; seq <= ReplicaLimits.blockEventsPerSession + 50; seq++) {
+      events.add(BlockEventEnvelope('s-1', _stop(seq)));
+    }
+    await Future<void>.delayed(Duration.zero);
+
+    expect(cubit.unsyncedCount, ReplicaLimits.blockEventsPerSession);
+
+    gate.complete(Result.success(const <BlockEventModel>[]));
+    await Future<void>.delayed(Duration.zero);
+
+    verifyNever(() => repository.rememberLive(any(), any()));
+    await cubit.close();
+  });
 }

@@ -173,4 +173,29 @@ void main() {
     expect(await nextOpenAnchor(), 150);
     expect((await local.readHistory('a', 's-1')).map((row) => row['seq']), [for (var seq = 1; seq <= 150; seq++) seq]);
   });
+
+  test('a fetch that started before a reconnect cannot mark history caught up', () async {
+    final remote = _MockRemote();
+    final before = Completer<Map<String, dynamic>>();
+    var calls = 0;
+    when(() => remote.getSessionBlocks(any(), any())).thenAnswer((_) {
+      calls++;
+      if (calls == 1) return before.future;
+      return Future.error(ServerFailure(error: 'down', message: 'down', statusCode: 503));
+    });
+    final cubit = open(remote);
+    await pumpEventQueue();
+
+    statuses.add(MuxStatus.closed);
+    statuses.add(MuxStatus.open);
+    await pumpEventQueue();
+    before.complete(_page([for (var seq = 101; seq <= 120; seq++) seq]));
+    await pumpEventQueue();
+    events.add(BlockEventEnvelope('s-1', _stop(150)));
+    await pumpEventQueue();
+    await cubit.close();
+
+    expect(calls, 2);
+    expect(await nextOpenAnchor(), 120);
+  });
 }

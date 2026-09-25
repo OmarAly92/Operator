@@ -3,6 +3,7 @@ import 'dart:collection';
 import 'dart:math';
 
 import 'package:equatable/equatable.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:operator_mobile/core/mux/mux_client.dart';
 import 'package:operator_mobile/core/mux/session_patch.dart';
@@ -86,8 +87,13 @@ class BlocksCubit extends Cubit<BlocksState> {
   int? _syncedThrough;
   int _fetching = 0;
   bool _lastFetchOk = false;
+  int _connection = 0;
   final List<Map<String, dynamic>> _unsynced = [];
   int? _unsyncedThrough;
+  bool _unsyncedDropped = false;
+
+  @visibleForTesting
+  int get unsyncedCount => _unsynced.length;
 
   bool get _caughtUp => _fetching == 0 && _lastFetchOk;
 
@@ -136,8 +142,10 @@ class BlocksCubit extends Cubit<BlocksState> {
     loading = true;
     _emit();
     _fetching++;
+    final connection = _connection;
     _unsynced.clear();
     _unsyncedThrough = null;
+    _unsyncedDropped = false;
     final result = await _repository.getSessionBlocks(
       sessionId,
       GetSessionBlocksParams(afterSeq: _syncedThrough, agentId: agentId),
@@ -146,10 +154,11 @@ class BlocksCubit extends Cubit<BlocksState> {
     result.when(
       onSuccess: (records) {
         error = null;
-        _lastFetchOk = true;
+        final current = connection == _connection;
+        _lastFetchOk = current && !_unsyncedDropped;
         for (final record in records) {
           _merge(record);
-          _syncedThrough = _later(_syncedThrough, record.seq);
+          if (current) _syncedThrough = _later(_syncedThrough, record.seq);
         }
       },
       onFailure: (failure) {
@@ -178,7 +187,12 @@ class BlocksCubit extends Cubit<BlocksState> {
       return;
     }
     _unsyncedThrough = _later(_unsyncedThrough, seq);
-    if (main) _unsynced.add(envelope.block);
+    if (!main) return;
+    _unsynced.add(envelope.block);
+    if (_unsynced.length > ReplicaLimits.blockEventsPerSession) {
+      _unsynced.removeAt(0);
+      _unsyncedDropped = true;
+    }
   }
 
   static int? _later(int? a, int? b) => a == null ? b : (b == null ? a : max(a, b));
@@ -258,6 +272,7 @@ class BlocksCubit extends Cubit<BlocksState> {
 
   void _onStatus(MuxStatus status) {
     if (status != MuxStatus.open) {
+      _connection++;
       _lastFetchOk = false;
       return;
     }
