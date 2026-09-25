@@ -185,6 +185,43 @@ void main() {
     });
   });
 
+  test('switching away from a desktop whose fetch hangs fetches the new desktop at once', () {
+    fakeAsync((async) {
+      final hanging = Completer<Result<GlobalResponse<BoardSnapshot>, Failure>>();
+      final third = Completer<Result<GlobalResponse<BoardSnapshot>, Failure>>();
+      var fetches = 0;
+      when(() => repository.getBoard()).thenAnswer((_) {
+        fetches++;
+        if (fetches == 1) return hanging.future;
+        if (fetches == 2) {
+          return Future.value(Result.success(GlobalResponse(data: const BoardSnapshot(sessions: [SessionModel(id: 'b')]))));
+        }
+        return third.future;
+      });
+      final cubit = SessionsCubit(repository, mux, source);
+      async.flushMicrotasks();
+      expect(fetches, 1);
+
+      source.set(_configB);
+      async.flushMicrotasks();
+      expect(fetches, 2);
+      expect(cubit.sessions.map((s) => s.id), ['b']);
+      expect(cubit.state, isA<GetSessionsSuccessState>());
+
+      unawaited(cubit.refresh());
+      async.flushMicrotasks();
+      expect(fetches, 3);
+      hanging.complete(Result.failure(ServerFailure(error: 'x', message: 'timeout')));
+      async.flushMicrotasks();
+      unawaited(cubit.refresh());
+      async.flushMicrotasks();
+      async.elapse(const Duration(seconds: 1));
+      expect(fetches, 3);
+      expect(cubit.sessions.map((s) => s.id), ['b']);
+      cubit.close();
+    });
+  });
+
   blocTest<SessionsCubit, SessionsState>(
     'fetches sessions on construction and connects mux',
     build: () {

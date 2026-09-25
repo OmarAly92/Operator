@@ -122,14 +122,17 @@ class SessionsCubit extends Cubit<SessionsState> {
     }
     _refreshTimer?.cancel();
     _refreshTimer = null;
-    _refreshFuture = _loadBoard();
+    final future = _loadBoard();
+    _refreshFuture = future;
     try {
-      await _refreshFuture;
+      await future;
     } finally {
-      _refreshFuture = null;
-      if (_refreshQueued) {
-        _refreshQueued = false;
-        _scheduleRefresh();
+      if (identical(_refreshFuture, future)) {
+        _refreshFuture = null;
+        if (_refreshQueued) {
+          _refreshQueued = false;
+          _scheduleRefresh();
+        }
       }
     }
   }
@@ -139,6 +142,7 @@ class SessionsCubit extends Cubit<SessionsState> {
     _boardEpoch++;
     _refreshTimer?.cancel();
     _refreshTimer = null;
+    _refreshFuture = null;
     _refreshQueued = false;
     sessions = [];
     projects = [];
