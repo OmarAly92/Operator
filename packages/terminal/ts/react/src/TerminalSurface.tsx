@@ -10,6 +10,7 @@ import {
 	type BlockFinishedEvent,
 	type FindBar,
 	type HintEvent,
+	type MarkRule,
 	type RendererFeatures,
 } from "@operator/terminal-renderer-dom";
 import { isCopyChord } from "./selection-gesture.js";
@@ -60,6 +61,7 @@ export interface TerminalSurfaceProps {
 	focusToken?: number;
 	visible?: boolean;
 	features?: Partial<RendererFeatures>;
+	marks?: readonly MarkRule[];
 	onPaint?: () => void;
 	onBlockFinished?: (event: BlockFinishedEvent) => void;
 	onHint?: (hint: HintEvent) => void;
@@ -93,6 +95,7 @@ export function TerminalSurface({
 	focusToken,
 	visible,
 	features,
+	marks,
 }: TerminalSurfaceProps): ReactElement {
 	const hostRef = useRef<HTMLDivElement | null>(null);
 	const surfaceRef = useRef<HTMLDivElement | null>(null);
@@ -117,6 +120,8 @@ export function TerminalSurface({
 	hostCapsRef.current = host;
 	const featuresRef = useRef(features);
 	featuresRef.current = features;
+	const marksRef = useRef(marks);
+	marksRef.current = marks;
 	const secretPatterns = host?.secretPatterns;
 	const secretPatternsRef = useRef(secretPatterns);
 	secretPatternsRef.current = secretPatterns;
@@ -160,6 +165,7 @@ export function TerminalSurface({
 		renderer.mount(blockHost, core);
 		renderer.setFeatures(featuresRef.current ?? {});
 		renderer.setSecretPatterns(secretPatternsRef.current ?? []);
+		renderer.setMarks(marksRef.current ?? []);
 		renderer.setTheme(theme);
 		renderer.setFont(font);
 		const editor = new LineEditor();
@@ -182,6 +188,7 @@ export function TerminalSurface({
 				scrollToRow: (row, align) => renderer.scrollToRow(row, align),
 				invalidate: (range) => renderer.invalidate(range),
 				afterRepaint: (listener) => renderer.onPaint(listener),
+				highlightFind: (find) => renderer.setFindHighlights(find),
 			},
 			strings,
 		});
@@ -240,6 +247,11 @@ export function TerminalSurface({
 	useLayoutEffect(() => {
 		rendererRef.current?.setSecretPatterns(secretPatterns ?? []);
 	}, [secretPatterns]);
+
+	const marksKey = JSON.stringify(marks ?? []);
+	useLayoutEffect(() => {
+		rendererRef.current?.setMarks(marksRef.current ?? []);
+	}, [marksKey]);
 
 	useLayoutEffect(() => {
 		applyPredictiveEcho();
