@@ -113,7 +113,8 @@ void main() {
       ),
     );
     await open(tester);
-    expect(tester.getSize(find.byKey(AppSheet.surfaceKey)).height, moreOrLessEquals(874 * 0.92 > 874 - 62 - 16 ? 874 - 62 - 16 : 874 * 0.92, epsilon: 0.5));
+    expect(tester.getSize(find.byKey(AppSheet.surfaceKey)).height, moreOrLessEquals(874 * 0.92 > 874 - 62 - 8 ? 874 - 62 - 8 : 874 * 0.92, epsilon: 0.5));
+    expect(tester.getRect(find.byKey(AppSheet.surfaceKey)).top, moreOrLessEquals(62, epsilon: 0.5));
   });
 
   testWidgets('a large sheet shrinks to stay between the status bar and the keyboard', (tester) async {
@@ -126,7 +127,8 @@ void main() {
     );
     await open(tester);
     final surface = tester.getRect(find.byKey(AppSheet.surfaceKey));
-    expect(surface.height, moreOrLessEquals(874 - 300 - 62 - 16, epsilon: 0.5));
+    expect(surface.height, moreOrLessEquals(874 - 300 - 62 - 8, epsilon: 0.5));
+    expect(surface.top, moreOrLessEquals(62, epsilon: 0.5));
     expect(surface.bottom, moreOrLessEquals(874 - 300 - 8, epsilon: 0.5));
     expect(tester.takeException(), isNull);
   });
@@ -325,7 +327,7 @@ void main() {
     expect(AppSheetLogic.fixedHeight(AppSheetDetent.fit, 874), isNull);
     expect(AppSheetLogic.fixedHeight(AppSheetDetent.medium, 874), moreOrLessEquals(480.7));
     expect(AppSheetLogic.fixedHeight(AppSheetDetent.large, 874), moreOrLessEquals(804.08));
-    expect(AppSheetLogic.maxHeight(available: 874, topSafe: 62), 796);
+    expect(AppSheetLogic.maxHeight(available: 874, topSafe: 62), 804);
     expect(AppSheetLogic.maxHeight(available: 10, topSafe: 62), 0);
     expect(AppSheetLogic.cornerRadius(), 56);
     expect(AppSheetLogic.topCornerRadius(), 44);
@@ -516,7 +518,7 @@ void main() {
     final band = tester.getRect(headerBlurs());
     expect(band.width, surface.width);
     expect(band.top, surface.top);
-    expect(band.height, AppSheetMetrics.contentTop);
+    expect(band.height, moreOrLessEquals(AppSheetMetrics.contentTop, epsilon: 1e-6));
     expect(find.descendant(of: headerBar, matching: find.byType(ClipRect)), findsOneWidget);
     expect(find.descendant(of: headerBar, matching: find.byType(ClipRSuperellipse)), findsNothing);
     expect(find.descendant(of: headerBar, matching: find.byType(ClipRRect)), findsNothing);
@@ -973,5 +975,35 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('row'), findsNothing);
     expect(closed, isTrue);
+  });
+
+  testWidgets('rows fade out above the search capsule only while rows run under it', (tester) async {
+    await openMany(tester, page: searchPage());
+    Finder fadeBox() => find.descendant(of: find.byKey(AppSheet.searchFadeKey), matching: find.byType(DecoratedBox));
+    expect(fadeBox(), findsOneWidget);
+    final fade = tester.getRect(find.byKey(AppSheet.searchFadeKey));
+    final capsule = tester.getRect(find.byKey(AppSheet.searchCapsuleKey));
+    expect(fade.bottom, moreOrLessEquals(tester.getRect(find.byKey(AppSheet.surfaceKey)).bottom, epsilon: 0.5));
+    expect(capsule.top - fade.top, AppSheetMetrics.searchFade);
+    final gradient = (tester.widget<DecoratedBox>(fadeBox()).decoration as BoxDecoration).gradient! as LinearGradient;
+    expect(gradient.colors.last, const LightSkin().bgSurface);
+    expect(gradient.stops![1], closeTo(AppSheetMetrics.searchFade / fade.height, 0.001));
+
+    final position = listPosition(tester);
+    await scrollTo(tester, position.maxScrollExtent);
+    expect(fadeBox(), findsNothing);
+  });
+
+  testWidgets('a short search page draws no fade', (tester) async {
+    phone(tester);
+    await tester.pumpWidget(
+      host(
+        const LightSkin(),
+        (context) => showAppSheet<String>(context: context, page: fruitPage(searchHint: 'Search fruit'), detent: AppSheetDetent.large),
+      ),
+    );
+    await open(tester);
+    expect(find.byKey(AppSheet.searchFadeKey), findsOneWidget);
+    expect(find.descendant(of: find.byKey(AppSheet.searchFadeKey), matching: find.byType(DecoratedBox)), findsNothing);
   });
 }

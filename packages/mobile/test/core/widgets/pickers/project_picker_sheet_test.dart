@@ -114,7 +114,7 @@ void main() {
     );
     await tester.tap(find.text('Open'));
     await tester.pumpAndSettle();
-    expect(tester.getSize(find.byKey(AppSheet.surfaceKey)).height, moreOrLessEquals(796, epsilon: 0.5));
+    expect(tester.getSize(find.byKey(AppSheet.surfaceKey)).height, moreOrLessEquals(804, epsilon: 0.5));
     expect(find.textContaining('No projects yet'), findsOneWidget);
   });
 }

@@ -10,6 +10,7 @@ import 'package:operator_mobile/core/widgets/glass/frosted_header.dart';
 import 'package:operator_mobile/core/widgets/glass/glass_metrics.dart';
 import 'package:operator_mobile/core/widgets/glass/glass_sheet.dart';
 import 'package:operator_mobile/core/widgets/glass/glass_surface.dart';
+import 'package:operator_mobile/core/widgets/glass/scroll_edge_effect.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_text.dart';
 
 enum AppSheetDetent { fit, medium, large }
@@ -49,6 +50,7 @@ sealed class AppSheetMetrics {
   static const double searchHeight = 48;
   static const double searchSide = 16;
   static const double searchBottom = 12;
+  static const double searchFade = 20;
   static const double mediumFraction = 0.55;
   static const double largeFraction = 0.92;
   static const double pushParallax = 0.3;
@@ -62,7 +64,7 @@ sealed class AppSheetLogic {
       };
 
   static double maxHeight({required double available, required double topSafe}) =>
-      math.max(0, available - topSafe - GlassMetrics.sheetInset * 2);
+      math.max(0, available - topSafe - GlassMetrics.sheetInset);
 
   static double cornerRadius() => GlassMetrics.displayCornerRadius - GlassMetrics.sheetInset;
 
@@ -120,6 +122,7 @@ class AppSheet extends StatefulWidget {
   static const Key pagesKey = ValueKey('app-sheet-pages');
   static const Key outerClipKey = ValueKey('app-sheet-outer-clip');
   static const Key layerClipKey = ValueKey('app-sheet-layer-clip');
+  static const Key searchFadeKey = ValueKey('app-sheet-search-fade');
 
   final AppSheetPage root;
   final List<AppSheetPage> pushed;
@@ -146,6 +149,7 @@ class _AppSheetState extends State<AppSheet> with TickerProviderStateMixin {
   late final AppSheetController _controller = AppSheetController._(this);
   final TextEditingController _search = TextEditingController();
   final ValueNotifier<double> _headerVisibility = ValueNotifier<double>(0);
+  final ValueNotifier<double> _underSearch = ValueNotifier<double>(0);
   late final AnimationController _handoff = AnimationController(vsync: this, duration: AppMotion.sheetPush);
   late final Listenable _headerListenable = Listenable.merge([_headerVisibility, _handoff]);
   double _handoffFrom = 0;
@@ -247,6 +251,7 @@ class _AppSheetState extends State<AppSheet> with TickerProviderStateMixin {
   void dispose() {
     _search.dispose();
     _headerVisibility.dispose();
+    _underSearch.dispose();
     _handoff.dispose();
     for (final entry in _entries) {
       entry.motion.dispose();
@@ -263,6 +268,7 @@ class _AppSheetState extends State<AppSheet> with TickerProviderStateMixin {
     };
     if (metrics != null && metrics.axis == Axis.vertical) {
       _headerVisibility.value = AppSheetLogic.headerBarVisibility(metrics.pixels);
+      _underSearch.value = ScrollEdgeEffect.bottomVisibility(metrics);
     }
     return false;
   }
@@ -501,6 +507,17 @@ class _AppSheetState extends State<AppSheet> with TickerProviderStateMixin {
                   ),
                   if (page.searchHint != null)
                     Positioned(
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      height: AppSheetMetrics.searchBottom + AppSheetMetrics.searchHeight + AppSheetMetrics.searchFade,
+                      child: ValueListenableBuilder<double>(
+                        valueListenable: _underSearch,
+                        builder: (context, visibility, _) => _SearchFade(key: AppSheet.searchFadeKey, visibility: visibility),
+                      ),
+                    ),
+                  if (page.searchHint != null)
+                    Positioned(
                       left: AppSheetMetrics.searchSide,
                       right: AppSheetMetrics.searchSide,
                       bottom: AppSheetMetrics.searchBottom,
@@ -534,6 +551,30 @@ class _HeaderBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => FrostedBand(visibility: visibility);
+}
+
+class _SearchFade extends StatelessWidget {
+  const _SearchFade({super.key, required this.visibility});
+
+  final double visibility;
+
+  @override
+  Widget build(BuildContext context) {
+    if (visibility <= 0) return const SizedBox.expand();
+    final surface = context.skin.bgSurface;
+    return IgnorePointer(
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [surface.withValues(alpha: 0), surface.withValues(alpha: visibility)],
+            stops: const [0, AppSheetMetrics.searchFade / (AppSheetMetrics.searchBottom + AppSheetMetrics.searchHeight + AppSheetMetrics.searchFade)],
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class _SearchCapsule extends StatelessWidget {
