@@ -1,4 +1,5 @@
 mod block_marks;
+mod program;
 mod sgr;
 
 use std::cell::RefCell;
