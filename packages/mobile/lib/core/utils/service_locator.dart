@@ -8,6 +8,9 @@ import 'package:operator_mobile/core/api/api_request_helpers/dio_consumer.dart';
 import 'package:operator_mobile/core/api/server_config_store.dart';
 import 'package:operator_mobile/core/database/app_database.dart';
 import 'package:operator_mobile/core/database/tables/desktop/desktop_dao.dart';
+import 'package:operator_mobile/core/database/tables/replica_block_event/replica_block_event_dao.dart';
+import 'package:operator_mobile/core/database/tables/replica_document/replica_document_dao.dart';
+import 'package:operator_mobile/core/database/tables/settings/settings_dao.dart';
 import 'package:operator_mobile/core/deep_link/deep_link_service.dart';
 import 'package:operator_mobile/core/helpers/network/network_status.dart';
 import 'package:operator_mobile/core/mux/mux_client.dart';
@@ -84,8 +87,13 @@ class ServiceLocator {
       () => const FlutterSecureStorage(),
     );
 
-    sl.registerLazySingleton<AppDatabase>(AppDatabase.new);
+    sl.registerLazySingleton<AppDatabase>(
+      () => AppDatabase(onWipe: () => DesktopsLocalDataSourceImp.purgePasswords(sl<FlutterSecureStorage>())),
+    );
     sl.registerLazySingleton<DesktopDao>(() => DesktopDao(sl<AppDatabase>()));
+    sl.registerLazySingleton<SettingsDao>(() => SettingsDao(sl<AppDatabase>()));
+    sl.registerLazySingleton<ReplicaDocumentDao>(() => ReplicaDocumentDao(sl<AppDatabase>()));
+    sl.registerLazySingleton<ReplicaBlockEventDao>(() => ReplicaBlockEventDao(sl<AppDatabase>()));
     sl.registerLazySingleton<DesktopsLocalDataSource>(
       () => DesktopsLocalDataSourceImp(sl<DesktopDao>(), sl<FlutterSecureStorage>()),
     );
