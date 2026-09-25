@@ -1,0 +1,109 @@
+use unicode_width::UnicodeWidthChar;
+
+use crate::screen::{Cell, ScreenGrid};
+use crate::style::CellStyle;
+use crate::width::{self, WidthMode};
+
+impl ScreenGrid {
+    pub fn print(&mut self, ch: char, style: CellStyle) {
+        if self.width_mode == WidthMode::Grapheme && self.join_previous(ch, style) {
+            return;
+        }
+        let width = UnicodeWidthChar::width(ch).unwrap_or(0);
+        if width == 0 {
+            self.attach_zerowidth(ch);
+            return;
+        }
+        if self.pending_wrap || self.col + width > self.cols {
+            self.set_row_wrapped(self.row, true);
+            self.carriage_return();
+            self.line_feed();
+        }
+        self.raise_max_cursor_row(self.row);
+        self.set(self.row, self.col, Cell::new(ch, style));
+        for offset in 1..width {
+            self.set(self.row, self.col + offset, Cell::new('\0', style));
+        }
+        self.col += width;
+        if self.col >= self.cols {
+            self.col = self.cols - 1;
+            self.pending_wrap = true;
+        }
+    }
+
+    fn previous_cell(&self) -> Option<(usize, usize)> {
+        let mut col = self.col;
+        if !self.pending_wrap {
+            col = col.checked_sub(1)?;
+        }
+        if self
+            .cell_ref(self.row, col)
+            .is_some_and(|cell| cell.ch == '\0')
+        {
+            col = col.checked_sub(1)?;
+        }
+        (self.row < self.rows && col < self.cols).then_some((self.row, col))
+    }
+
+    fn cell_width_at(&self, row: usize, col: usize) -> usize {
+        1 + (col + 1..self.cols)
+            .take_while(|next| {
+                self.cell_ref(row, *next)
+                    .is_some_and(|cell| cell.ch == '\0')
+            })
+            .count()
+    }
+
+    fn join_previous(&mut self, ch: char, style: CellStyle) -> bool {
+        let Some((row, col)) = self.previous_cell() else {
+            return false;
+        };
+        let index = self.phys_start(row) + col;
+        let mut buffer = [0u8; 4];
+        let previous = self.cells[index].text(&mut buffer).to_string();
+        if !width::joins_previous(&previous, ch) {
+            return false;
+        }
+        let old_width = self.cell_width_at(row, col);
+        self.cells[index].append_scalar(ch);
+        let new_width = width::cluster_width(self.cells[index].text(&mut buffer));
+        if new_width > old_width && col + 1 < self.cols {
+            self.set(row, col + 1, Cell::new('\0', style));
+            if self.row == row && self.col == col + 1 {
+                self.col += 1;
+                if self.col >= self.cols {
+                    self.col = self.cols - 1;
+                    self.pending_wrap = true;
+                }
+            }
+        }
+        self.raise_max_cursor_row(row);
+        self.mark_dirty(row);
+        true
+    }
+
+    /// Attaches a zero-width scalar to the cell that owns it. Warp resolves the
+    /// same target at `grid/ansi_handler.rs:201-215`: the column before the
+    /// cursor unless a wrap is pending, stepping back once more off a
+    /// wide-character spacer so the scalar lands on the base cell.
+    fn attach_zerowidth(&mut self, ch: char) {
+        let mut col = self.col;
+        if !self.pending_wrap {
+            col = col.saturating_sub(1);
+        }
+        if self
+            .cell_ref(self.row, col)
+            .is_some_and(|cell| cell.ch == '\0')
+        {
+            col = col.saturating_sub(1);
+        }
+        let row = self.row;
+        self.raise_max_cursor_row(row);
+        if row >= self.rows || col >= self.cols {
+            return;
+        }
+        let index = self.phys_start(row) + col;
+        self.cells[index].append_scalar(ch);
+        self.mark_dirty(row);
+    }
+}
