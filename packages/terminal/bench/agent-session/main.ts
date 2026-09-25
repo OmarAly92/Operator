@@ -8,12 +8,13 @@ import {
 	type DomBlockRenderer,
 	type RendererFeatures,
 } from "@operator/terminal-renderer-dom";
+import { highlightProbe, type HighlightProbe } from "./highlight-probe";
 
 type SizeEntry = { offset: number; cols: number; rows: number };
 
 declare global {
 	interface Window {
-		__agentSession: AgentSession;
+		__agentSession: AgentSession & HighlightProbe;
 		__agentSessionReady: boolean;
 	}
 }
@@ -543,5 +544,6 @@ window.__agentSession = {
 	hintCancel: () => domRenderer.hintCancel(),
 	setSecretPatterns: (patterns) => domRenderer.setSecretPatterns(patterns),
 	blocks: () => decodeBlocks(core.snapshot()).length,
-} as AgentSession & { blocks(): number };
+	...highlightProbe(host, core, domRenderer),
+} as AgentSession & HighlightProbe & { blocks(): number };
 window.__agentSessionReady = true;
