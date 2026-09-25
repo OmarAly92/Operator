@@ -33,6 +33,9 @@ class TerminalComposer extends StatefulWidget {
   static const double restHeight = 48;
   static const double cardRadius = 26;
   static const int maxLines = 5;
+  static const double actionGlyph = 21;
+  static const double boltInkLeft = 7 / 24;
+  static const double leadingInkInset = 6 + (ComposerActionButton.size - actionGlyph) / 2 + actionGlyph * boltInkLeft;
 
   @override
   State<TerminalComposer> createState() => _TerminalComposerState();
@@ -41,7 +44,7 @@ class TerminalComposer extends StatefulWidget {
 class _TerminalComposerState extends State<TerminalComposer> {
   static const double _buttonInset = 6;
   static const double _buttonZone = _buttonInset * 2 + ComposerActionButton.size;
-  static const double _trailingInset = 10;
+  static const double _trailingInset = TerminalComposer.leadingInkInset;
   static const double _trailingZone = _buttonInset + ComposerActionButton.size + _trailingInset;
   static const double _textInset = 18;
   static const double _cardTop = 14;
@@ -303,7 +306,7 @@ class _TerminalComposerState extends State<TerminalComposer> {
                 tooltip: 'Session actions',
                 onPressed: () => _openActions(context),
                 padding: EdgeInsets.zero,
-                icon: Icon(Icons.bolt_rounded, size: 21, color: skin.textSecondary),
+                icon: Icon(Icons.bolt_rounded, size: TerminalComposer.actionGlyph, color: skin.textSecondary),
               ),
             ),
           ),

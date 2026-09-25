@@ -224,14 +224,18 @@ void main() {
     await tester.pump(const Duration(minutes: 1));
   });
 
-  testWidgets('the send button sits as far in from the capsule end as the fixed inset, not flush', (tester) async {
+  testWidgets('the mic sits as far in from the capsule end as the bolt glyph\'s ink does from the start', (tester) async {
     harness = TerminalHarness()..start(harness: 'claude-code', blockRecords: _conversation(1));
     await harness.pump(tester, const TerminalBody());
     await tester.pumpAndSettle();
 
     final dock = capsule(tester);
+    final bolt = tester.getRect(find.byIcon(Icons.bolt_rounded));
+    expect(bolt.width, TerminalComposer.actionGlyph);
+    final leadingInk = bolt.left + bolt.width * TerminalComposer.boltInkLeft - dock.left;
     final action = tester.getRect(find.byType(ComposerActionButton));
-    expect(dock.right - action.right, 10);
+    final trailingFill = dock.right - action.right;
+    expect((leadingInk - trailingFill).abs(), lessThanOrEqualTo(1));
     expect(dock.bottom - action.bottom, 6);
   });
 
