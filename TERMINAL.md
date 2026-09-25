@@ -95,7 +95,8 @@ rebuilt (§6).
 - **Modes** (`parser.rs`):
   - default ("shell"): `reflow_on_resize = true` → a resize evicts the frame up to
     its last non-blank row into scrollback and restarts the screen; `ESC[2J` scrolls
-    the frame into scrollback (`ClearPolicy::Scroll`).
+    the frame into scrollback (`ClearPolicy::Scroll`). At a prompt (line editor
+    `Owned`) a resize keeps the prompt rows instead and pulls scrollback back (§4.36).
   - `set_agent_tui_mode(true)` (Claude Code and every "worker" session): no reflow
     of the live frame (`resize_cells` truncates in place) and `ESC[2J` clears in
     place. Mirrors Warp's `FullGridClearBehavior::Clear` (`warp/crates/warp_terminal/src/model/grid/resize.rs:60`).
@@ -412,7 +413,9 @@ history of `master`.
 - Resizing an agent TUI must not push the pre-resize frame into scrollback
   (`resizing_an_agent_tui_appends_no_frame_to_scrollback`); a shell resize moves
   the frame to scrollback exactly once, never copies it. Height shrink drops rows
-  below the cursor first, then from the top (tmux `screen_resize_y`).
+  below the cursor first, then from the top (tmux `screen_resize_y`). At a shell
+  prompt the prompt rows stay instead (§4.36); every other state, and the pty-host
+  mirror, keeps this policy (`tests/resize_goldens.rs`).
 
 ### 4.11 Selection hidden under Claude Code's user-message band — `559ba747b`
 - Symptom: a selection dragged over the grey user-message band stayed grey,
@@ -1392,6 +1395,85 @@ history of `master`.
   - Environment: Linux x86_64, Intel(R) Xeon(R) Processor @ 2.10GHz
 - Guards (Part C): `tests/bulk_edits.rs` (passes on the tree before Part C
   too), `synthetic-edits-styled` in the goldens.
+
+### 4.36 A shell prompt copied into scrollback on every resize — roadmap Plan 10
+- Symptom: with a visible prompt, every resize at the prompt left one stale copy
+  of it in scrollback, and a prompt taller than one row left its upper rows too.
+  Replaying 15 captured zsh 5.9 / bash 3.2 / bash 5.3 sessions with four resizes
+  each ended with 5 copies of the prompt. Operator's own shell panes suppress the
+  prompt (`backend/internal/service/shellterm/service.go:439`
+  `SuppressPrompt: true`), so there the row is empty and nothing showed.
+- Cause: the shell-mode resize evicted the whole frame, prompt included, and
+  restarted the screen with the cursor at (0,0). The shells redraw relative to
+  where they drew: measured 2026-09-26, zsh moves up by the rows its prompt and
+  buffer took at the **old** width minus one, clears (`ESC[J`) and redraws; bash
+  redraws only its last prompt line (moving up only within it); fish 4.8.1
+  writes nothing on a width change and, on the next key, moves up by its old
+  prompt height and repaints. Clamped at row 0, the redraw drew a second prompt.
+- Now: while the line editor is `Owned`, on the primary screen, in a core that
+  reflows on resize, `Parser::resize_for` (`crates/vt-core/src/parser/resize.rs:28`)
+  keeps the prompt: the rows above the open block's first row go to scrollback
+  and rewrap there like any evicted row (§4.2–4.4); the rows from the prompt
+  start to the cursor's last row stay unrewrapped — cut at the new width (a wide
+  character cut in half becomes a blank) or padded — with the cursor at the same
+  row offset and column (`ScreenGrid::resize_keeping_prompt`,
+  `crates/vt-core/src/screen/prompt.rs:4`). Kitty's "keep the current prompt from
+  rewrapping" (survey §5.4; GPL-3.0, clean-room from the survey's description,
+  not read), chosen over Ghostty's reflow-then-clear (`Screen.zig:2232-2290`,
+  behaviour only): a reflowed prompt changes its row count, so the shells'
+  old-width up-moves land mid-prompt (narrower) or in the output above it
+  (wider — zsh's `ESC[J` then erases output rows), and fish would show a blank
+  prompt until the next key. Then `Parser::pull_back` (`parser/resize.rs:65`)
+  moves the newest scrollback rows back onto the top of the screen so the
+  prompt keeps its distance from the bottom (Alacritty `grow_lines`/`shrink_lines`,
+  Ghostty `pull_scrollback`; behaviour only), but only rows that commit back to
+  the same bytes and style runs (`Parser::row_cells`, `parser/resize.rs:100`,
+  commits them into a scratch buffer and compares; `Content::truncate_to`
+  `content.rs:133`, `AttributeMap::truncate_to` `attribute_map.rs:72`,
+  `RowIndex::pop_completed` `row_index.rs:434`). Flat and stable row numbers
+  never change, so blocks, the scroll anchor and the older-output floor are
+  untouched.
+- Content byte offsets are reusable now: before this plan content only grew or
+  was trimmed from the front, so an offset once written always meant the same
+  byte; `Content::truncate_to` lets the next push reuse offsets of pulled-back
+  rows. Two things relied on the old rule and were fixed (review fix 75baad0):
+  `AttributeMap::prepend_runs` raises `run_start` past the runs it prepends
+  (`crates/vt-core/src/attribute_map.rs:31-33`) — without it an older-output
+  chunk loaded after a full pull-back lost the style of its last run at the
+  next style change; and `Content` counts truncations (`content.rs:146`,
+  `truncations()` `content.rs:149`), and `FindSession::update` resets and
+  rescans history when that count changes, not only when the settled end moves
+  back (`crates/vt-core/src/find.rs:185-193`) — without it pulled rows rewritten
+  before the next find update left hits pointing at the new text. Whether any
+  other reader keys state by content offset across a pull-back is not known.
+- Unchanged: a command running, the alternate screen, no shell integration
+  (every Claude Code pane), agent-TUI mode, and the pty-host mirror (reflow off,
+  `crates/vt-host/src/lib.rs:39`) take the old path — `tests/resize_goldens.rs`
+  (12 streams generated before this change) and `tests/parser_goldens.rs` are
+  unchanged and `bench:feel` has zero diff.
+- Not covered: bash's upper prompt lines stay cut at a narrower width (bash
+  redraws only its last line; xterm behaves the same); a prompt region taller
+  than the new screen takes the old path; the pull-back stops at the first row
+  that would not restore exactly (a word-cut continuation, a hanging indent, a
+  trailing blank), so the prompt can sit higher on the screen than before (not
+  visible in the pane); Windows ConPTY repaints its own viewport after a resize
+  — whether a Git Bash pane there looks better or worse is not known. The
+  pre-existing blank before a wide character that the printer wrapped still
+  commits as a space (`abcd中` printed at 5 columns rewraps as `abcd 中`).
+- Guards: `crates/vt-core/tests/prompt_resize.rs` (22 tests, built from the
+  shells' captured bytes, including
+  `an_older_output_chunk_keeps_its_styles_after_a_prompt_resize_pulled_every_row_back`
+  and `find_hits_stay_on_their_text_when_pulled_rows_are_rewritten_before_the_next_update`),
+  `tests/prompt_resize_integrity.rs` (32 seeds × 300 steps, `verify_integrity`
+  and cell spans after every step, ≥ 200 resizes at a prompt),
+  `tests/resize_goldens.rs`, `content.rs`/`attribute_map.rs`/`row_index` unit
+  tests (among them
+  `runs_prepended_after_a_full_truncation_survive_a_style_change_at_the_seam`),
+  `block_grid` `open_block_ref_is_the_open_block_and_nothing_after_it_closes`,
+  `shell/{zsh,bash,fish}.test.mjs` "after a width change …". Those shell tests
+  pass on macOS (planning: zsh 5.9, bash 3.2 and 5.3, fish 4.8.1, tmux 3.6b)
+  and on Linux (zsh 5.9, bash 5.2.21, fish 4.8.1, tmux 3.4); the redraw bytes
+  above were captured on macOS only.
 
 ## 5. Known gaps (not bugs, decisions pending)
 

@@ -5,7 +5,7 @@ A plain-language companion to the status lines in
 (checked against the tree on 2026-09-24). The `§` numbers point at the survey
 entries. The 26 entries marked **Not done** on 2026-09-24 are grouped below
 into 20 items (items 3, 4 and 5 have since been done, roadmap Plans 5 and 1;
-items 19 and 20 have since been done, roadmap Plan 3; item 16 has been done and items 17 and 18 decided, roadmap Plan 9); the 16 marked
+items 19 and 20 have since been done, roadmap Plan 3; item 16 has been done and items 17 and 18 decided, roadmap Plan 9; item 6 has been done, roadmap Plan 10); the 16 marked
 **Partial** follow with what each is missing.
 
 Two words used throughout:
@@ -62,6 +62,12 @@ says so.
    narrower or wider can push your current line into the history or wrap it
    oddly. *If done:* the text reflows neatly and your prompt stays where it
    is. Claude Code redraws its own screen, so this mostly affects the shell.
+   **Done (roadmap Plan 10):** at a prompt, resizing leaves your prompt where
+   the shell redraws it, so no old copy piles up above; the output above it
+   reflows, and making the window taller brings older lines back into view.
+   While a command runs, and in Claude Code panes, resizing works as before.
+   Operator hides the shell's own prompt, so there you mostly see the output
+   reflowing.
 
 ### Reusing things
 
