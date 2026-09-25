@@ -51,6 +51,17 @@ function paste(root: HTMLElement, text: string) {
 }
 
 describe("typing ahead into the line editor", () => {
+	it("forgets keys sent during an earlier command once the next command starts", () => {
+		const { editor, core, raw, lines } = mount();
+		core.feed(encode(READY + RELEASED));
+		typeWhileRunning(editor, "y");
+		core.feed(encode(READY));
+		core.feed(encode(RELEASED));
+		core.feed(encode(READY + report("echo from-elsewhere")));
+		expect(lines()).toEqual([""]);
+		expect(raw.join("")).toBe("y");
+	});
+
 	it("puts the text the shell reports into the input box without running it", () => {
 		const { editor, core, sent, raw, drafts, lines } = mount();
 		core.feed(encode(READY + RELEASED));

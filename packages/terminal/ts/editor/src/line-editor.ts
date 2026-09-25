@@ -54,6 +54,7 @@ export class LineEditor {
 	private reportedDraft = "";
 	private pasteConfirm: PasteConfirm | null = null;
 	private readonly typeahead = new TypeaheadGate();
+	private typeaheadLineState: string | null = null;
 
 	mount(container: HTMLElement, core: TerminalCore, host: EditorHost): void {
 		this.dispose();
@@ -68,6 +69,7 @@ export class LineEditor {
 		this.promptDurationMs = null;
 		this.reportedDraft = "";
 		this.typeahead.reset();
+		this.typeaheadLineState = null;
 		this.search.cancel();
 		this.searchOpen = false;
 		this.dropdownOpen = false;
@@ -525,6 +527,9 @@ export class LineEditor {
 	private adoptTypeahead(): void {
 		const core = this.core;
 		if (!core) return;
+		const state = core.lineEditorState();
+		if (state !== "owned" && this.typeaheadLineState === "owned") this.typeahead.reset();
+		this.typeaheadLineState = state;
 		const typed = this.typeahead.take(core);
 		if (typed === null) return;
 		this.buffer.setText(this.buffer.text + typed);
