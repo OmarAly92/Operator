@@ -63,7 +63,7 @@ SessionBlock? finalReplyOf(List<SessionBlock> blocks) {
 
 String _label(TurnGroup group, int steps) {
   final ms = group.durationMs ?? _between(group.startedAt, group.completedAt);
-  if (ms != null) return 'Worked for ${turnElapsed(Duration(milliseconds: ms), spaced: true)}';
+  if (ms != null) return 'Worked for ${turnElapsed(Duration(milliseconds: ms))}';
   return 'Worked · $steps ${steps == 1 ? 'step' : 'steps'}';
 }
 

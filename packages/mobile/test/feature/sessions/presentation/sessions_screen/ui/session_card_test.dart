@@ -80,7 +80,7 @@ void main() {
       ),
     );
     expect(find.text('Working'), findsNothing);
-    expect(find.textContaining(RegExp(r'^2m[23]s$')), findsOneWidget);
+    expect(find.textContaining(RegExp(r'^2m [23]s$')), findsOneWidget);
   });
 
   testWidgets('an agent that is not working keeps its status label', (tester) async {

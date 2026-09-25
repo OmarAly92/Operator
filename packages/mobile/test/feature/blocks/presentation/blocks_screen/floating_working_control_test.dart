@@ -6,18 +6,19 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:operator_mobile/core/app_themes/app_motion.dart';
 import 'package:operator_mobile/core/app_themes/colors/dark_skin.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
+import 'package:operator_mobile/core/utils/working_clock.dart';
 import 'package:operator_mobile/core/widgets/motion/shimmer.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/floating_working_control.dart';
 
 class _Host extends StatefulWidget {
-  const _Host({required this.working, required this.showLatest, this.since, this.coverage, this.onLatest, this.now});
+  const _Host({required this.working, required this.showLatest, this.since, this.coverage, this.onLatest, this.clock});
 
   final bool working;
   final bool showLatest;
   final DateTime? Function()? since;
   final ValueNotifier<double>? coverage;
   final VoidCallback? onLatest;
-  final DateTime Function()? now;
+  final WorkingClock? clock;
 
   @override
   State<_Host> createState() => _HostState();
@@ -44,7 +45,7 @@ class _HostState extends State<_Host> {
         since: widget.since,
         coverage: widget.coverage,
         onLatest: widget.onLatest ?? () {},
-        now: widget.now ?? DateTime.now,
+        clock: widget.clock,
       ),
     ),
   );
@@ -79,7 +80,7 @@ Future<_HostState> _pump(
                     since: since,
                     coverage: coverage,
                     onLatest: onLatest,
-                    now: now,
+                    clock: now == null ? null : WorkingClock(now: now),
                   ),
                 ),
               ),

@@ -9,9 +9,10 @@ void main() {
   });
 
   test('under an hour prints minutes and seconds', () {
-    expect(turnElapsed(const Duration(seconds: 60)), '1m0s');
-    expect(turnElapsed(const Duration(minutes: 2, seconds: 5)), '2m5s');
-    expect(turnElapsed(const Duration(minutes: 59, seconds: 59)), '59m59s');
+    expect(turnElapsed(const Duration(seconds: 60)), '1m 0s');
+    expect(turnElapsed(const Duration(minutes: 2, seconds: 5)), '2m 5s');
+    expect(turnElapsed(const Duration(minutes: 59, seconds: 59)), '59m 59s');
+    expect(turnElapsed(const Duration(minutes: 6, seconds: 56)), '6m 56s');
   });
 
   test('an hour or more prints hours and minutes, no seconds', () {
@@ -19,12 +20,6 @@ void main() {
     expect(turnElapsed(const Duration(hours: 3, minutes: 30, seconds: 59)), '3h 30m');
     expect(turnElapsed(const Duration(minutes: 210, seconds: 59)), '3h 30m');
     expect(turnElapsed(const Duration(hours: 26, minutes: 4)), '26h 4m');
-  });
-
-  test('spaced separates minutes and seconds only', () {
-    expect(turnElapsed(const Duration(seconds: 12), spaced: true), '12s');
-    expect(turnElapsed(const Duration(minutes: 6, seconds: 56), spaced: true), '6m 56s');
-    expect(turnElapsed(const Duration(hours: 3, minutes: 30), spaced: true), '3h 30m');
   });
 
   test('a negative duration clamps to zero', () {

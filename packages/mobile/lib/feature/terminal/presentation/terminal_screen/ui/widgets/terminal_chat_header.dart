@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:operator_mobile/core/app_themes/app_motion.dart';
@@ -15,6 +13,7 @@ import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/app_themes/text_style/app_text_style.dart';
 import 'package:operator_mobile/core/mux/mux_client.dart';
 import 'package:operator_mobile/core/utils/turn_elapsed.dart';
+import 'package:operator_mobile/core/utils/working_clock.dart';
 import 'package:operator_mobile/feature/sessions/data/model/session_model.dart';
 import 'package:operator_mobile/feature/terminal/logic/working_since.dart';
 import 'package:operator_mobile/feature/sessions/presentation/sessions_screen/logic/sessions_cubit.dart';
@@ -285,28 +284,28 @@ class _SessionActivityPill extends StatefulWidget {
 }
 
 class _SessionActivityPillState extends State<_SessionActivityPill> {
-  Timer? _timer;
-
   @override
   void initState() {
     super.initState();
-    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (mounted && sessionIsWorking(context.read<SessionCommandCubit>().activity)) {
-        setState(() {});
-      }
-    });
+    WorkingClock.shared.addListener(_tick);
+  }
+
+  void _tick() {
+    if (mounted && sessionIsWorking(context.read<SessionCommandCubit>().activity)) {
+      setState(() {});
+    }
   }
 
   @override
   void dispose() {
-    _timer?.cancel();
+    WorkingClock.shared.removeListener(_tick);
     super.dispose();
   }
 
   String _elapsed(BuildContext context) {
     final since = TerminalChatHeader.workingSinceOf(context);
     if (since == null) return 'Working';
-    return turnElapsed(DateTime.now().difference(since));
+    return turnElapsed(WorkingClock.shared.value.difference(since));
   }
 
   @override

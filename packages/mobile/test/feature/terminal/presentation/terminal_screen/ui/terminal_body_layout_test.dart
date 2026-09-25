@@ -17,6 +17,7 @@ import 'package:operator_mobile/feature/terminal/data/model/params/send_session_
 import 'package:operator_mobile/core/widgets/chat/chat_insets.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/ui/widgets/raw_terminal_pane.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/ui/widgets/terminal_body.dart';
+import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/ui/widgets/terminal_chat_header.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/ui/widgets/terminal_composer.dart';
 
 import '../../../terminal_harness.dart';
@@ -138,6 +139,30 @@ void main() {
     final pill = tester.getRect(find.byKey(FloatingWorkingControl.pillKey));
     expect(capsule(tester).top - pill.bottom, moreOrLessEquals(FloatingWorkingControl.lift, epsilon: 0.5));
     expect(find.descendant(of: find.byKey(FloatingWorkingControl.pillKey), matching: find.textContaining('Working')), findsOneWidget);
+    await tester.pump(const Duration(minutes: 1));
+  });
+
+  testWidgets('the header pill and the floating pill read the same elapsed time on every frame', (tester) async {
+    final started = DateTime.now().subtract(const Duration(seconds: 12, milliseconds: 500)).toUtc().toIso8601String();
+    harness = TerminalHarness()
+      ..start(
+        harness: 'claude-code',
+        activity: 'active',
+        blockRecords: [
+          BlockEventModel(seq: 1, sessionId: 's-1', sourceId: 'p0', kind: 'prompt_submit', text: 'prompt', createdAt: started),
+        ],
+      );
+    await harness.pump(tester, const TerminalBody());
+    await _settleWhileWorking(tester);
+
+    final header = find.descendant(of: find.byKey(TerminalChatHeader.activityKey), matching: find.byType(Text));
+    final pill = find.descendant(of: find.byKey(FloatingWorkingControl.pillKey), matching: find.textContaining('Working'));
+    for (var frame = 0; frame < 30; frame++) {
+      await tester.pump(const Duration(milliseconds: 100));
+      final elapsed = tester.widget<Text>(header).data!;
+      expect(elapsed, matches(RegExp(r'^\d+s$')));
+      expect(tester.widget<Text>(pill).data, 'Working $elapsed');
+    }
     await tester.pump(const Duration(minutes: 1));
   });
 
