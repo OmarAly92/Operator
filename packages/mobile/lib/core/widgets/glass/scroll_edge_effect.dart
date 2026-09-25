@@ -17,7 +17,7 @@ class ScrollEdgeEffect extends StatefulWidget {
   });
 
   static const double fadeExtent = 16;
-  static const double capRadius = 12;
+  static const double capRadius = 6;
 
   static double topVisibility(ScrollMetrics metrics) =>
       ((metrics.pixels - metrics.minScrollExtent) / fadeExtent).clamp(0.0, 1.0).toDouble();
