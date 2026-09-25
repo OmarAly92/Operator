@@ -221,6 +221,8 @@ void main() {
     expect(band.bottom, body.bottom);
     expect(band.top, lessThan(pill.top));
     expect(pill.top - band.top, moreOrLessEquals(BlocksBodyState.bottomFadeExtent, epsilon: 0.5));
+    expect(bottomEdge(tester).knee, moreOrLessEquals(BlocksBodyState.bottomFadeExtent / band.height, epsilon: 1e-9));
+    expect(bottomEdge(tester).knee, lessThan(0.25));
     await tester.pump(const Duration(minutes: 1));
   });
 
