@@ -7,7 +7,9 @@ import 'package:mocktail/mocktail.dart';
 import 'package:operator_mobile/core/app_routes/routes_strings.dart';
 import 'package:operator_mobile/core/app_themes/app_motion.dart';
 import 'package:operator_mobile/core/app_themes/colors/dark_skin.dart';
+import 'package:operator_mobile/core/app_themes/colors/light_skin.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
+import 'package:operator_mobile/core/widgets/main_widgets/app_text.dart';
 import 'package:operator_mobile/feature/pairing/presentation/pairing_scan_screen/logic/pairing_scan_cubit.dart';
 import 'package:operator_mobile/feature/pairing/presentation/pairing_scan_screen/ui/pairing_scan_screen.dart';
 
@@ -60,5 +62,27 @@ void main() {
     expect(find.text('BOARD'), findsOneWidget);
     expect(find.text('go to pairing'), findsNothing);
     expect(Navigator.of(tester.element(find.text('BOARD'))).canPop(), isFalse);
+  });
+
+  testWidgets('the manual entry link uses the text-safe accent color on light', (tester) async {
+    final cubit = _MockPairingScanCubit();
+    when(() => cubit.fromOnboarding).thenReturn(false);
+    whenListen(cubit, const Stream<PairingScanState>.empty(), initialState: const PairingScanInitialState());
+
+    await tester.pumpWidget(
+      SkinScope(
+        skin: const LightSkin(),
+        child: ScreenUtilInit(
+          designSize: const Size(390, 844),
+          builder: (context, _) => MaterialApp(
+            home: BlocProvider<PairingScanCubit>.value(value: cubit, child: const PairingScanScreen()),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    final link = tester.widget<AppText>(find.byWidgetPredicate((w) => w is AppText && w.text == 'Enter manually'));
+    expect(link.style?.color, const LightSkin().accentText);
   });
 }

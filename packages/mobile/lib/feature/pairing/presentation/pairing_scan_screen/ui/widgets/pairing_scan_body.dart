@@ -67,7 +67,7 @@ class _PairingScanBodyState extends State<PairingScanBody> {
             child: SafeArea(
               child: TextButton(
                 onPressed: _onManualConnect,
-                child: AppText('Enter manually', style: AppTextStyle.style14Medium.copyWith(color: skin.accent)),
+                child: AppText('Enter manually', style: AppTextStyle.style14Medium.copyWith(color: skin.accentText)),
               ),
             ),
           ),
