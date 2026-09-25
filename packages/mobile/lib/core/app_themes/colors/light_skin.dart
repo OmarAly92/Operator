@@ -104,6 +104,9 @@ class LightSkin extends AppSkin {
   Color get accentText => const Color(0xFF0E6E37);
 
   @override
+  Color get attentionText => const Color(0xFF0E6E37);
+
+  @override
   Color get scrollEdgeTint => const Color(0xFFFAF7F2);
 
   @override

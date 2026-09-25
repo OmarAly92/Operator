@@ -211,7 +211,7 @@ Widget? _phaseIndicator(BuildContext context, CommandPhase? phase) {
     CommandPhase.unconfirmed => Icon(
       Icons.error_outline,
       size: 13,
-      color: skin.attention,
+      color: skin.attentionText,
     ),
     _ => null,
   };

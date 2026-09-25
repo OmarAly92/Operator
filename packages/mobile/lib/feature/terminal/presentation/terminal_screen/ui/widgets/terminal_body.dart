@@ -180,7 +180,7 @@ class _TerminalBodyState extends State<TerminalBody> {
                                         ),
                                         child: AppText(
                                           '$banner (tap to dismiss)',
-                                          style: AppTextStyle.style12Regular.copyWith(color: skin.attention),
+                                          style: AppTextStyle.style12Regular.copyWith(color: skin.attentionText),
                                           maxLines: 3,
                                         ),
                                       ),

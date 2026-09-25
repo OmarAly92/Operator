@@ -149,6 +149,8 @@ abstract class AppSkin {
 
   Color get accentText;
 
+  Color get attentionText;
+
   Color get scrollEdgeTint;
 
   Color get glassRim;

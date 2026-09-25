@@ -227,7 +227,7 @@ class BlocksBodyState extends State<BlocksBody> {
                 AppText(
                   error,
                   style: AppTextStyle.style12Regular.copyWith(
-                    color: skin.attention,
+                    color: skin.attentionText,
                   ),
                   maxLines: 3,
                   textAlign: TextAlign.center,

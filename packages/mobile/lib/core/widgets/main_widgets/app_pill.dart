@@ -44,7 +44,7 @@ class AppPill extends StatelessWidget {
   /// promoted to a shared `AppSkin` getter — this is the only call site.
   Color _activeTextColor(BuildContext context) {
     final skin = context.skin;
-    return skin.themeMode == ThemeMode.dark ? skin.accent : const Color(0xFF117E3F);
+    return skin.themeMode == ThemeMode.dark ? skin.accent : const Color(0xFF0E6E37);
   }
 
   @override

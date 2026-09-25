@@ -38,7 +38,7 @@ class ConnectionRow extends StatelessWidget {
 
   Color _brandInk(BuildContext context) {
     final skin = context.skin;
-    return skin.themeMode == ThemeMode.dark ? skin.accent : const Color(0xFF117E3F);
+    return skin.themeMode == ThemeMode.dark ? skin.accent : const Color(0xFF0E6E37);
   }
 
   String _metaText() {
