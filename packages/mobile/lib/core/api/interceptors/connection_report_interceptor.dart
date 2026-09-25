@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:operator_mobile/core/api/interceptors/server_config_interceptor.dart';
 import 'package:operator_mobile/core/api/server_config.dart';
 import 'package:operator_mobile/core/connection/connection_report.dart';
+import 'package:operator_mobile/core/error_handling/dio_error_handler/dio_error_handler.dart';
 
 class ConnectionReportInterceptor extends Interceptor {
   ConnectionReportInterceptor(this._reports, {DateTime Function()? clock}) : _clock = clock ?? DateTime.now;
@@ -30,16 +31,11 @@ class ConnectionReportInterceptor extends Interceptor {
     );
   }
 
-  static ConnectionOutcome? _outcomeOf(DioException error) => switch (error.type) {
-    DioExceptionType.connectionTimeout ||
-    DioExceptionType.sendTimeout ||
-    DioExceptionType.receiveTimeout ||
-    DioExceptionType.transformTimeout ||
-    DioExceptionType.connectionError ||
-    DioExceptionType.badCertificate => ConnectionOutcome.unreachable,
-    DioExceptionType.badResponse => _fromStatus(error.response?.statusCode),
-    DioExceptionType.cancel || DioExceptionType.unknown => null,
-  };
+  static ConnectionOutcome? _outcomeOf(DioException error) {
+    if (isTransportFailure(error)) return ConnectionOutcome.unreachable;
+    if (error.type == DioExceptionType.badResponse) return _fromStatus(error.response?.statusCode);
+    return null;
+  }
 
   static ConnectionOutcome _fromStatus(int? status) {
     if (status == 401) return ConnectionOutcome.auth;

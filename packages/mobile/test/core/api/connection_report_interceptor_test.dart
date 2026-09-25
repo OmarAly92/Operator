@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
@@ -125,6 +126,18 @@ void main() {
     );
 
     expect(seen, isEmpty);
+  });
+
+  test('a socket dropped after the connection opened means unreachable', () async {
+    final seen = await outcomeOf(
+      (options) async => throw DioException(
+        requestOptions: options,
+        type: DioExceptionType.unknown,
+        error: const SocketException('reset'),
+      ),
+    );
+
+    expect(seen.single.outcome, ConnectionOutcome.unreachable);
   });
 
   test('each report names the desktop the request was sent to', () async {

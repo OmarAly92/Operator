@@ -1,20 +1,27 @@
+import 'dart:io';
+
 import 'package:dio/dio.dart';
 import 'package:operator_mobile/core/error_handling/dio_error_handler/status_code.dart';
 import 'package:operator_mobile/core/error_handling/failures/failure.dart';
 
+bool isTransportFailure(DioException error) => switch (error.type) {
+  DioExceptionType.connectionTimeout ||
+  DioExceptionType.sendTimeout ||
+  DioExceptionType.receiveTimeout ||
+  DioExceptionType.transformTimeout ||
+  DioExceptionType.connectionError ||
+  DioExceptionType.badCertificate => true,
+  DioExceptionType.unknown => error.error is SocketException || error.error is HttpException || error.error is TlsException,
+  DioExceptionType.badResponse || DioExceptionType.cancel => false,
+};
+
 ServerFailure<Map<String, dynamic>> handleDioError(DioException error) {
-  switch (error.type) {
-    case DioExceptionType.connectionTimeout:
-    case DioExceptionType.sendTimeout:
-    case DioExceptionType.receiveTimeout:
-    case DioExceptionType.connectionError:
-      return ServerFailure<Map<String, dynamic>>(
-        error: error,
-        message: 'Could not reach your Operator server',
-        statusCode: StatusCode.noInternetConnection,
-      );
-    default:
-      break;
+  if (isTransportFailure(error)) {
+    return ServerFailure<Map<String, dynamic>>(
+      error: error,
+      message: 'Could not reach your Operator server',
+      statusCode: StatusCode.noInternetConnection,
+    );
   }
 
   final body = error.response?.data;
