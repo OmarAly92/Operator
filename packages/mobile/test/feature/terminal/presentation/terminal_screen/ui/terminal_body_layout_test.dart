@@ -312,6 +312,25 @@ void main() {
     expect(find.bySemanticsLabel('Stop'), findsOneWidget);
   });
 
+  testWidgets('a stop refused during an agent switch or kill says the agent is busy, not idle', (tester) async {
+    harness = TerminalHarness()..start(harness: 'claude-code', blockRecords: _conversation(1));
+    when(() => harness.controlRepository.sendCommand(any(), any())).thenAnswer(
+      (_) async => Result.failure(
+        ServerFailure<Map<String, dynamic>>(error: 'busy', message: 'busy', statusCode: 409, apiStatus: 'SESSION_BUSY'),
+      ),
+    );
+    harness.commandCubit.onActivity('active');
+    await harness.pump(tester, const TerminalBody());
+    await _settleWhileWorking(tester);
+
+    await tester.tap(find.bySemanticsLabel('Stop'));
+    await _settleWhileWorking(tester);
+
+    expect(find.text('The agent is busy — try again in a moment'), findsOneWidget);
+    expect(find.text('The agent is idle'), findsNothing);
+    await tester.pump(const Duration(minutes: 1));
+  });
+
   testWidgets('a fading-out stop no longer takes taps', (tester) async {
     harness = TerminalHarness()..start(harness: 'claude-code', blockRecords: _conversation(1));
     when(

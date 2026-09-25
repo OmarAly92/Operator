@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:operator_mobile/feature/blocks/logic/command_refusal.dart';
 import 'package:operator_mobile/core/error_handling/failures/failure.dart';
 import 'package:operator_mobile/core/helpers/result/result.dart';
 import 'package:operator_mobile/core/mux/mux_client.dart';
@@ -50,6 +51,9 @@ class SessionCommandCubit extends Cubit<SessionCommandState> {
   final Map<String, Timer> _timers = {};
   final Set<String> _pendingConfirm = {};
   String? _activity;
+  String? _refusal;
+
+  String? get lastRefusal => _refusal;
 
   StreamSubscription<List<SessionPatch>>? _patchesSub;
   StreamSubscription<BlockEventEnvelope>? _eventsSub;
@@ -149,6 +153,7 @@ class SessionCommandCubit extends Cubit<SessionCommandState> {
 
   /// A refusal must never leave a command at sent; failures reset to idle.
   Future<void> run(String command, {String? model}) async {
+    _refusal = null;
     _setPhase(command, CommandPhase.sending);
     final result = await _repo.sendCommand(
       sessionId,
@@ -178,6 +183,7 @@ class SessionCommandCubit extends Cubit<SessionCommandState> {
               .cast<String>();
         }
         _pendingConfirm.remove(command);
+        _refusal = commandRefusalMessage(command, failure.apiStatus);
         _setPhase(command, CommandPhase.idle, models: offered);
       },
     );

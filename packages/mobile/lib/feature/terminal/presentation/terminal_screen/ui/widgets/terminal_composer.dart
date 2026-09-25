@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:operator_mobile/core/app_themes/app_motion.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/app_themes/text_style/app_text_style.dart';
+import 'package:operator_mobile/core/utils/extensions.dart';
 import 'package:operator_mobile/core/utils/haptics.dart';
 import 'package:operator_mobile/core/utils/service_locator.dart';
 import 'package:operator_mobile/core/widgets/glass/glass_surface.dart';
@@ -165,7 +166,10 @@ class _TerminalComposerState extends State<TerminalComposer> {
     Haptics.tap();
     await commands.run('stop');
     if (!mounted || commands.isClosed) return;
-    if (commands.phases['stop'] == CommandPhase.idle) Haptics.error();
+    if (commands.phases['stop'] != CommandPhase.idle) return;
+    Haptics.error();
+    final refusal = commands.lastRefusal;
+    if (refusal != null) context.showSnackBar(refusal);
   }
 
   Future<void> _openModelPicker(BuildContext context, String? harness) async {

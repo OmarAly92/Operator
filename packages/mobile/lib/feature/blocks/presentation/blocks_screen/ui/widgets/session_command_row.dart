@@ -128,7 +128,15 @@ class SessionCommandRow extends StatelessWidget {
       showModelPicker(context, harness: context.read<TerminalCubit>().args.harness);
       return;
     }
-    cubit.run(command);
+    _run(context, cubit, command);
+  }
+
+  Future<void> _run(BuildContext context, SessionCommandCubit cubit, String command) async {
+    await cubit.run(command);
+    if (!context.mounted || cubit.isClosed) return;
+    if (cubit.phases[command] != CommandPhase.idle) return;
+    final refusal = cubit.lastRefusal;
+    if (refusal != null) context.showSnackBar(refusal);
   }
 }
 
