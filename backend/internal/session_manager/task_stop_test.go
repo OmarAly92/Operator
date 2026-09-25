@@ -32,6 +32,11 @@ type fakeTasksTUI struct {
 	openOnArrival  bool
 	closeAtRead    int
 	shiftOnView    bool
+	ignoreClear    bool
+	lateClose      int
+	pendingClose   int
+	failWrite      map[string]error
+	onWrite        func(keys string)
 	reads          int
 	writes         []string
 }
@@ -60,6 +65,13 @@ func (f *fakeTasksTUI) Read(context.Context) (string, error) {
 	}
 	if f.closeAtRead > 0 && f.reads == f.closeAtRead {
 		f.open = false
+	}
+	if f.pendingClose > 0 {
+		f.pendingClose--
+		if f.pendingClose == 0 {
+			f.open = false
+			f.detail = false
+		}
 	}
 	pane := fakeTUIPane{Composer: f.draft, Ready: f.draft == "/tasks" && !f.noSuggestion}
 	if f.open {
@@ -93,13 +105,23 @@ func (f *fakeTasksTUI) Draft(context.Context) (string, bool, error) {
 
 func (f *fakeTasksTUI) Write(_ context.Context, keys string) error {
 	f.writes = append(f.writes, keys)
+	if f.onWrite != nil {
+		f.onWrite(keys)
+	}
+	if err := f.failWrite[keys]; err != nil {
+		delete(f.failWrite, keys)
+		if keys == "\r" && !f.open {
+			return err
+		}
+		return err
+	}
 	switch keys {
 	case "/tasks":
 		if !f.open {
 			f.draft += keys
 		}
 	case "\x15":
-		if !f.open {
+		if !f.open && !f.ignoreClear {
 			f.draft = ""
 		}
 	case "\r":
@@ -151,7 +173,10 @@ func (f *fakeTasksTUI) Write(_ context.Context, keys string) error {
 				break
 			}
 		}
-		if !f.keepOpenOnStop {
+		switch {
+		case f.lateClose > 0:
+			f.pendingClose = f.lateClose
+		case !f.keepOpenOnStop:
 			f.open = false
 			f.detail = false
 		}
@@ -195,7 +220,11 @@ func (f fakePanelReader) TasksPanelVerified(version string) bool {
 
 func stopOn(t *testing.T, tui *fakeTasksTUI, label string) error {
 	t.Helper()
-	return stopTaskOnPanel(context.Background(), tui, fakePanelReader{}, label, panelTiming{appear: 5 * time.Millisecond, poll: time.Millisecond})
+	return stopOnCtx(context.Background(), tui, label)
+}
+
+func stopOnCtx(ctx context.Context, tui *fakeTasksTUI, label string) error {
+	return stopTaskOnPanel(ctx, tui, fakePanelReader{}, label, panelTiming{appear: 5 * time.Millisecond, poll: time.Millisecond}, nil)
 }
 
 func assertWrites(t *testing.T, tui *fakeTasksTUI, want ...string) {
@@ -422,34 +451,34 @@ func TestPaneDriveSerialisesAModelSwitch(t *testing.T) {
 	}
 }
 
-func TestPaneDriveHoldsOffOtherInput(t *testing.T) {
+func TestPaneDriveRefusesOtherInputImmediately(t *testing.T) {
 	m, _ := newCommandTestManager(t, domain.ActivityIdle)
 	end, err := m.beginPaneDrive(context.Background(), "s1")
 	if err != nil {
 		t.Fatalf("beginPaneDrive: %v", err)
 	}
-	admitted := make(chan time.Time, 1)
-	go func() {
-		release, ok := m.AcquireSessionInput("s1")
-		if ok {
-			release()
-		}
-		admitted <- time.Now()
-	}()
-	time.Sleep(100 * time.Millisecond)
-	if len(admitted) != 0 {
-		t.Fatal("desktop input admitted during a pane drive")
+	started := time.Now()
+	if release, ok := m.AcquireSessionInput("s1"); ok {
+		release()
+		t.Fatal("input admitted during a pane drive")
 	}
-	ended := time.Now()
+	if waited := time.Since(started); waited > 50*time.Millisecond {
+		t.Fatalf("refusal took %v", waited)
+	}
+	if release, ok := m.AcquireSessionInput("s2"); !ok {
+		t.Fatal("another session's input was refused")
+	} else {
+		release()
+	}
+	if err := m.Send(context.Background(), "s1", "hello", nil); !errors.Is(err, ErrSessionBusy) {
+		t.Fatalf("send during a drive = %v", err)
+	}
 	end()
-	select {
-	case got := <-admitted:
-		if got.Before(ended) {
-			t.Fatal("input admitted before the drive ended")
-		}
-	case <-time.After(2 * time.Second):
-		t.Fatal("input never admitted after the drive")
+	release, ok := m.AcquireSessionInput("s1")
+	if !ok {
+		t.Fatal("input refused after the drive ended")
 	}
+	release()
 }
 
 func TestPaneDriveHoldsOffAnExclusiveOperation(t *testing.T) {
@@ -527,5 +556,77 @@ func TestPanelScreenReadsTheParsedScreenNotTheRing(t *testing.T) {
 	pane, err := screen.Read(context.Background())
 	if err != nil || pane != "styled" || rt.styledCalls != 1 {
 		t.Fatalf("pane = %q, %v, styled calls %d", pane, err, rt.styledCalls)
+	}
+}
+
+func TestStopTaskOnPanelWaitsForALateSelfCloseInsteadOfEscaping(t *testing.T) {
+	tui := &fakeTasksTUI{tasks: []panelTask{{"sleeper", true}}, lateClose: 3}
+	if err := stopOn(t, tui, "sleeper"); err != nil {
+		t.Fatalf("stop: %v", err)
+	}
+	assertWrites(t, tui, "/tasks", "\r", "x")
+}
+
+func TestStopTaskOnPanelCleansUpWhenCancelledAfterTyping(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	tui := &fakeTasksTUI{tasks: []panelTask{{"a", true}}}
+	tui.onWrite = func(keys string) {
+		if keys == "/tasks" {
+			cancel()
+		}
+	}
+	if err := stopOnCtx(ctx, tui, "a"); !errors.Is(err, context.Canceled) {
+		t.Fatalf("err = %v", err)
+	}
+	if tui.draft != "" || tui.open || !slices.Contains(tui.writes, "\x15") || slices.Contains(tui.writes, "\r") {
+		t.Fatalf("writes = %q draft %q open %v", tui.writes, tui.draft, tui.open)
+	}
+}
+
+func TestStopTaskOnPanelCleansUpAfterASubmitWriteError(t *testing.T) {
+	boom := errors.New("pty write failed")
+	tui := &fakeTasksTUI{tasks: []panelTask{{"a", true}}, failWrite: map[string]error{"\r": boom}}
+	if err := stopOn(t, tui, "a"); !errors.Is(err, boom) {
+		t.Fatalf("err = %v", err)
+	}
+	assertWrites(t, tui, "/tasks", "\r", "\x15")
+	if tui.draft != "" {
+		t.Fatalf("left %q in the composer", tui.draft)
+	}
+}
+
+func TestStopTaskOnPanelClosesThePanelWhenCancelledWhileOpen(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	tui := &fakeTasksTUI{tasks: []panelTask{{"a", true}, {"b", true}}}
+	tui.onWrite = func(keys string) {
+		if keys == "\x1b[B" {
+			cancel()
+		}
+	}
+	if err := stopOnCtx(ctx, tui, "b"); !errors.Is(err, context.Canceled) {
+		t.Fatalf("err = %v", err)
+	}
+	if tui.open || slices.Contains(tui.writes, "x") {
+		t.Fatalf("writes = %q open %v", tui.writes, tui.open)
+	}
+}
+
+func TestStopTaskOnPanelRetriesTheClearOnceThenReportsTheLeftoverCommand(t *testing.T) {
+	tui := &fakeTasksTUI{tasks: []panelTask{{"a", true}}, noSuggestion: true, ignoreClear: true}
+	err := stopOn(t, tui, "a")
+	if !errors.Is(err, domain.ErrTaskCommandLeftTyped) || !errors.Is(err, domain.ErrTaskPanelUnavailable) {
+		t.Fatalf("err = %v", err)
+	}
+	assertWrites(t, tui, "/tasks", "\x15", "\x15")
+}
+
+func TestStopAgentTaskInAnUnknownStateIsNotReady(t *testing.T) {
+	m, rt := newCommandTestManager(t, domain.ActivityState("starting"))
+	m.tasksPanelReader = fakePanelReader{}
+	if err := m.StopAgentTask(context.Background(), "s1", "sleeper"); !errors.Is(err, domain.ErrTaskSessionNotReady) || errors.Is(err, domain.ErrTaskSessionBusy) {
+		t.Fatalf("err = %v", err)
+	}
+	if len(rt.inputs) != 0 {
+		t.Fatalf("writes = %q", rt.inputs)
 	}
 }

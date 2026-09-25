@@ -111,6 +111,8 @@ var (
 	// would answer it on the user's behalf. The API maps it to a 409; the
 	// caller retries once the user has answered in the terminal.
 	ErrAwaitingDecision = errors.New("session: awaiting a user decision")
+
+	ErrSessionBusy = errors.New("session: another operation is driving the terminal")
 	// ErrAgentNotResponding means the paste was written to the pane but the
 	// session never went active across the whole confirmation budget, despite
 	// every Enter the loop is allowed to send. A successful write is not
@@ -2465,7 +2467,7 @@ func (m *Manager) send(ctx context.Context, id domain.SessionID, message string)
 	case sessionguard.SuppressedAwaitingUser:
 		return fmt.Errorf("send %s: %w", id, ErrAwaitingDecision)
 	case sessionguard.SuppressedInputGated:
-		return fmt.Errorf("send %s: %w", id, ErrSwitchInProgress)
+		return fmt.Errorf("send %s: %w", id, m.inputGatedError(id))
 	}
 	if isBuiltin {
 		return nil
@@ -3362,7 +3364,7 @@ func (m *Manager) deliverAfterStartPrompt(ctx context.Context, agent ports.Agent
 	case sessionguard.SuppressedAwaitingUser:
 		return fmt.Errorf("send %s: %w", id, ErrAwaitingDecision)
 	case sessionguard.SuppressedInputGated:
-		return fmt.Errorf("send %s: %w", id, ErrSwitchInProgress)
+		return fmt.Errorf("send %s: %w", id, m.inputGatedError(id))
 	case sessionguard.SuppressedUnknown:
 		return fmt.Errorf("send %s: pre-write session read failed", id)
 	default:
@@ -3432,6 +3434,13 @@ func promptOutputContains(output string, patterns []string) bool {
 		}
 	}
 	return false
+}
+
+func (m *Manager) inputGatedError(id domain.SessionID) error {
+	if m.paneDriveActive(id) {
+		return ErrSessionBusy
+	}
+	return ErrSwitchInProgress
 }
 
 func sleepContext(ctx context.Context, d time.Duration) error {

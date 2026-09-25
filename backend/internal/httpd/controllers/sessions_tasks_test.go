@@ -155,6 +155,8 @@ func TestStopSessionTaskErrorEnvelopes(t *testing.T) {
 		{domain.ErrTaskAwaitingDecision, http.StatusConflict, "SESSION_AWAITING_DECISION"},
 		{domain.ErrTaskComposerNotEmpty, http.StatusConflict, "SESSION_COMPOSER_NOT_EMPTY"},
 		{domain.ErrTaskSessionBusy, http.StatusConflict, "SESSION_BUSY"},
+		{domain.ErrTaskSessionNotReady, http.StatusConflict, "SESSION_NOT_READY"},
+		{fmt.Errorf("%w: %w", domain.ErrTaskCommandLeftTyped, domain.ErrTaskPanelUnavailable), http.StatusConflict, "TASK_PANEL_UNAVAILABLE"},
 		{domain.ErrTaskSessionNotRunning, http.StatusConflict, "SESSION_NOT_RUNNING"},
 	} {
 		srv := newTasksTestServer(t, &fakeBackgroundTasks{stopErr: tc.err})

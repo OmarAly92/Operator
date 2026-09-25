@@ -570,3 +570,39 @@ func TestAgentCanStopGates(t *testing.T) {
 		t.Fatal("a finished namesake must not block the running agent")
 	}
 }
+
+func TestStopShellSkipsTheKillWhenTheGroupNoLongerHoldsTheOutput(t *testing.T) {
+	for name, change := range map[string]func(h *harness){
+		"writers gone": func(h *harness) {
+			h.procs.holders[outputFile] = nil
+		},
+		"group id reused by a stranger": func(h *harness) {
+			h.procs.procs = []ports.ProcessInfo{
+				{PID: 100, PPID: 1, PGID: 100, Command: "opr pty-host"},
+				{PID: 200, PPID: 100, PGID: 200, Command: "claude"},
+				{PID: 300, PPID: 1, PGID: 300, Command: "unrelated"},
+			}
+			h.procs.holders[outputFile] = nil
+		},
+		"writer now in another group": func(h *harness) {
+			h.procs.procs = append(h.procs.procs, ports.ProcessInfo{PID: 500, PPID: 200, PGID: 500, Command: "other"})
+			h.procs.holders[outputFile] = []int{500}
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			h := newHarness(t)
+			h.events.add(t, runningShell())
+			h.signals.alive[300] = true
+			h.svc.deps.After = func(_ time.Duration, fn func()) {
+				change(h)
+				fn()
+			}
+			if _, err := h.svc.Stop(context.Background(), "s-1", "b1"); err != nil {
+				t.Fatalf("Stop: %v", err)
+			}
+			if len(h.signals.sent) != 1 || h.signals.sent[0].kill {
+				t.Fatalf("signals = %+v", h.signals.sent)
+			}
+		})
+	}
+}

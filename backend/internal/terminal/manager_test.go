@@ -979,3 +979,42 @@ func TestLastInputAtRecordsTheLatestWrite(t *testing.T) {
 	conn.in <- clientMsg{Ch: chTerminal, ID: "t1", Type: msgData, Data: base64.StdEncoding.EncodeToString([]byte("x"))}
 	eventually(t, time.Second, func() bool { return !mgr.LastInputAt("t1").Before(before) })
 }
+
+type drivenSessionLease struct{ driven domain.SessionID }
+
+func (l drivenSessionLease) AcquireSessionInput(id domain.SessionID) (func(), bool) {
+	if id == l.driven {
+		return nil, false
+	}
+	return func() {}, true
+}
+
+func TestServeRefusesDrivenSessionInputAndKeepsServingOthers(t *testing.T) {
+	driven, other := newFakePTY(), newFakePTY()
+	src := &fakeSource{alive: true, spawner: &fakeSpawner{ptys: []*fakePTY{driven, other}}}
+	mgr := NewManager(src, nil, testLogger(), WithHeartbeat(0))
+	mgr.SetSessionInputLease(drivenSessionLease{driven: "worker-1"})
+	defer mgr.Close()
+
+	conn := newFakeConn()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go mgr.Serve(ctx, conn)
+
+	conn.in <- clientMsg{Ch: chTerminal, ID: "worker-1", Type: msgOpen}
+	recv(t, conn, chTerminal, msgOpened, time.Second)
+	conn.in <- clientMsg{Ch: chTerminal, ID: "worker-2", Type: msgOpen}
+	recv(t, conn, chTerminal, msgOpened, time.Second)
+
+	sent := time.Now()
+	conn.in <- clientMsg{Ch: chTerminal, ID: "worker-1", Type: msgData, Data: base64.StdEncoding.EncodeToString([]byte("typed"))}
+	errFrame := recv(t, conn, chTerminal, msgError, time.Second)
+	if errFrame.ID != "worker-1" || time.Since(sent) > 500*time.Millisecond {
+		t.Fatalf("error frame = %#v after %v", errFrame, time.Since(sent))
+	}
+	conn.in <- clientMsg{Ch: chTerminal, ID: "worker-2", Type: msgData, Data: base64.StdEncoding.EncodeToString([]byte("ls\n"))}
+	eventually(t, time.Second, func() bool { return string(other.writtenBytes()) == "ls\n" })
+	if got := string(driven.writtenBytes()); got != "" {
+		t.Fatalf("driven session received input %q", got)
+	}
+}

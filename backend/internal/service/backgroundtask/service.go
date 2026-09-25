@@ -230,27 +230,13 @@ func (s *Service) stopAgent(ctx context.Context, rec domain.SessionRecord, task 
 }
 
 func (s *Service) stopProcess(ctx context.Context, rec domain.SessionRecord, task Task) error {
-	root, err := s.deps.Runtime.ChildPID(ctx, ports.RuntimeHandle{ID: rec.Metadata.RuntimeHandleID})
-	if err != nil || root <= 0 {
-		return s.notFound(ctx, rec, task)
-	}
-	procs, err := s.deps.Processes.ListProcesses(ctx)
+	safe, unsafe, found, err := s.locate(ctx, rec, task)
 	if err != nil {
-		return fmt.Errorf("background tasks %s: list processes: %w", rec.ID, err)
+		return err
 	}
-	tree := descendants(procs, root)
-	var candidates []int
-	if file := taskOutputFile(task.BackgroundTask); file != "" {
-		holders, err := s.deps.Processes.OpenFileWriters(ctx, file)
-		if err != nil {
-			return fmt.Errorf("background tasks %s: find output writers: %w", rec.ID, err)
-		}
-		candidates = holders
-	} else if task.Command != "" {
-		candidates = commandMatches(tree, task.Command)
-	}
-	safe, unsafe := targetGroups(procs, tree, root, candidates)
 	switch {
+	case !found:
+		return s.notFound(ctx, rec, task)
 	case unsafe:
 		return domain.ErrTaskUnsafe
 	case len(safe) > 1:
@@ -262,13 +248,55 @@ func (s *Service) stopProcess(ctx context.Context, rec domain.SessionRecord, tas
 	if err := s.deps.Signals.Terminate(pgid, true); err != nil {
 		return fmt.Errorf("background tasks %s: terminate group %d: %w", rec.ID, pgid, err)
 	}
-	signals := s.deps.Signals
 	s.deps.After(s.deps.Grace, func() {
-		if signals.Alive(pgid, true) {
-			_ = signals.Kill(pgid, true)
-		}
+		s.escalate(context.WithoutCancel(ctx), rec, task, pgid)
 	})
 	return nil
+}
+
+func (s *Service) escalate(ctx context.Context, rec domain.SessionRecord, task Task, pgid int) {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	if !s.deps.Signals.Alive(pgid, true) {
+		return
+	}
+	safe, unsafe, found, err := s.locate(ctx, rec, task)
+	if err != nil || !found || unsafe || len(safe) != 1 || safe[0] != pgid {
+		return
+	}
+	_ = s.deps.Signals.Kill(pgid, true)
+}
+
+func (s *Service) sessionRoot(ctx context.Context, rec domain.SessionRecord) int {
+	root, err := s.deps.Runtime.ChildPID(ctx, ports.RuntimeHandle{ID: rec.Metadata.RuntimeHandleID})
+	if err != nil {
+		return 0
+	}
+	return root
+}
+
+func (s *Service) locate(ctx context.Context, rec domain.SessionRecord, task Task) ([]int, bool, bool, error) {
+	root := s.sessionRoot(ctx, rec)
+	if root <= 0 {
+		return nil, false, false, nil
+	}
+	procs, err := s.deps.Processes.ListProcesses(ctx)
+	if err != nil {
+		return nil, false, false, fmt.Errorf("background tasks %s: list processes: %w", rec.ID, err)
+	}
+	tree := descendants(procs, root)
+	var candidates []int
+	if file := taskOutputFile(task.BackgroundTask); file != "" {
+		writers, err := s.deps.Processes.OpenFileWriters(ctx, file)
+		if err != nil {
+			return nil, false, false, fmt.Errorf("background tasks %s: find output writers: %w", rec.ID, err)
+		}
+		candidates = writers
+	} else if task.Command != "" {
+		candidates = commandMatches(tree, task.Command)
+	}
+	safe, unsafe := targetGroups(procs, tree, root, candidates)
+	return safe, unsafe, true, nil
 }
 
 func (s *Service) notFound(ctx context.Context, rec domain.SessionRecord, task Task) error {

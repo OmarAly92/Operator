@@ -61,6 +61,8 @@ var (
 	ErrTaskSessionNotFound   = errors.New("background tasks: session not found")
 	ErrTaskSessionNotRunning = errors.New("background tasks: session is not running")
 	ErrTaskSessionBusy       = errors.New("background tasks: another operation owns the session")
+	ErrTaskSessionNotReady   = errors.New("background tasks: session is not in a state that accepts the stop")
+	ErrTaskCommandLeftTyped  = errors.New("background tasks: the typed panel command could not be cleared")
 	ErrTaskAwaitingDecision  = errors.New("background tasks: session is paused on a decision")
 	ErrTaskComposerNotEmpty  = errors.New("background tasks: composer holds an unsent draft")
 )

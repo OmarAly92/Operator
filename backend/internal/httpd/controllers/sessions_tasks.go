@@ -75,6 +75,8 @@ func writeTaskError(w http.ResponseWriter, r *http.Request, err error) {
 		envelope.WriteAPIError(w, r, http.StatusUnprocessableEntity, "unprocessable", "TASK_STOP_UNSUPPORTED", "this background task cannot be stopped from here", nil)
 	case errors.Is(err, domain.ErrTaskStopUnconfirmed):
 		envelope.WriteAPIError(w, r, http.StatusGatewayTimeout, "timeout", "TASK_STOP_UNCONFIRMED", "the stop was sent but the task has not reported stopping yet", nil)
+	case errors.Is(err, domain.ErrTaskCommandLeftTyped):
+		conflict("TASK_PANEL_UNAVAILABLE", "the agent's background tasks panel could not be driven, and /tasks may still be typed in its composer")
 	case errors.Is(err, domain.ErrTaskPanelUnavailable):
 		conflict("TASK_PANEL_UNAVAILABLE", "the agent's background tasks panel could not be driven")
 	case errors.Is(err, domain.ErrTaskAwaitingDecision):
@@ -83,6 +85,8 @@ func writeTaskError(w http.ResponseWriter, r *http.Request, err error) {
 		conflict("SESSION_COMPOSER_NOT_EMPTY", "the terminal composer holds an unsent draft")
 	case errors.Is(err, domain.ErrTaskSessionBusy):
 		conflict("SESSION_BUSY", "another operation owns the session's terminal")
+	case errors.Is(err, domain.ErrTaskSessionNotReady):
+		conflict("SESSION_NOT_READY", "the session is not at a prompt or in a turn that accepts the stop")
 	case errors.Is(err, domain.ErrTaskSessionNotRunning):
 		conflict("SESSION_NOT_RUNNING", "the session is not running")
 	default:

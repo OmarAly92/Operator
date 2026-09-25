@@ -747,6 +747,8 @@ func toAPIError(err error) error {
 	case errors.Is(err, sessionmanager.ErrSwitchDeliveryUnconfirmed):
 		return apierr.Conflict("AGENT_SWITCH_DELIVERY_UNCONFIRMED",
 			"The target agent started, but Operator could not confirm that it accepted the continuation", nil)
+	case errors.Is(err, sessionmanager.ErrSessionBusy):
+		return apierr.Conflict("SESSION_BUSY", "Another operation is driving the session's terminal; try again in a moment", nil)
 	case errors.Is(err, sessionmanager.ErrSwitchInProgress):
 		return apierr.Conflict("AGENT_SWITCH_IN_PROGRESS",
 			"This session already has an agent switch in progress", nil)
