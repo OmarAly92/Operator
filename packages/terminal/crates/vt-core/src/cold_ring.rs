@@ -1,7 +1,10 @@
 use std::collections::VecDeque;
 use std::ops::Range;
 
-pub const COLD_ROW_OVERHEAD_BYTES: usize = std::mem::size_of::<(u32, u16)>();
+const HEAD_BYTES: usize = 6;
+const TAIL_BYTES: usize = 4;
+
+pub const COLD_ROW_OVERHEAD_BYTES: usize = HEAD_BYTES + TAIL_BYTES;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ColdRow {
@@ -21,7 +24,7 @@ pub struct ColdStats {
 pub struct ColdRing {
     cap: usize,
     data: VecDeque<u8>,
-    rows: VecDeque<(u32, u16)>,
+    count: usize,
     first_stable: u64,
 }
 
@@ -30,7 +33,7 @@ impl ColdRing {
         Self {
             cap,
             data: VecDeque::new(),
-            rows: VecDeque::new(),
+            count: 0,
             first_stable,
         }
     }
@@ -40,15 +43,15 @@ impl ColdRing {
     }
 
     pub fn len(&self) -> usize {
-        self.rows.len()
+        self.count
     }
 
     pub fn is_empty(&self) -> bool {
-        self.rows.is_empty()
+        self.count == 0
     }
 
     pub fn bytes(&self) -> usize {
-        self.data.len() + COLD_ROW_OVERHEAD_BYTES * self.rows.len()
+        self.data.len()
     }
 
     pub fn first_stable(&self) -> u64 {
@@ -56,12 +59,12 @@ impl ColdRing {
     }
 
     pub fn end_stable(&self) -> u64 {
-        self.first_stable + self.rows.len() as u64
+        self.first_stable + self.count as u64
     }
 
     pub fn stats(&self) -> ColdStats {
         ColdStats {
-            rows: self.rows.len(),
+            rows: self.count,
             bytes: self.bytes(),
             cap: self.cap,
             first_stable_row: self.first_stable,
@@ -70,7 +73,7 @@ impl ColdRing {
 
     pub fn reset_at(&mut self, stable: u64) {
         self.data.clear();
-        self.rows.clear();
+        self.count = 0;
         self.first_stable = stable;
     }
 
@@ -82,7 +85,7 @@ impl ColdRing {
             self.reset_at(stable);
         }
         let need = row.bytes.len() + COLD_ROW_OVERHEAD_BYTES;
-        if need > self.cap {
+        if need > self.cap || u32::try_from(row.bytes.len()).is_err() {
             self.reset_at(stable + 1);
             return;
         }
@@ -92,16 +95,48 @@ impl ColdRing {
         if self.data.capacity() == 0 {
             self.data.reserve_exact(self.cap);
         }
+        let len = (row.bytes.len() as u32).to_le_bytes();
+        let cols = u16::try_from(row.cols).unwrap_or(u16::MAX).to_le_bytes();
+        self.data.extend(len);
+        self.data.extend(cols);
         self.data.extend(row.bytes.iter());
-        let cols = u16::try_from(row.cols).unwrap_or(u16::MAX);
-        self.rows.push_back((row.bytes.len() as u32, cols));
+        self.data.extend(len);
+        self.count += 1;
     }
 
     fn pop_front(&mut self) {
-        if let Some((len, _)) = self.rows.pop_front() {
-            self.data.drain(..len as usize);
-            self.first_stable += 1;
+        if self.count == 0 {
+            return;
         }
+        let len = self.read_u32(0);
+        self.data.drain(..HEAD_BYTES + len + TAIL_BYTES);
+        self.count -= 1;
+        self.first_stable += 1;
+    }
+
+    fn read_u32(&self, at: usize) -> usize {
+        let bytes = [
+            self.data[at],
+            self.data[at + 1],
+            self.data[at + 2],
+            self.data[at + 3],
+        ];
+        u32::from_le_bytes(bytes) as usize
+    }
+
+    fn offset_of(&self, index: usize) -> usize {
+        if index <= self.count - index {
+            let mut offset = 0;
+            for _ in 0..index {
+                offset += HEAD_BYTES + self.read_u32(offset) + TAIL_BYTES;
+            }
+            return offset;
+        }
+        let mut offset = self.data.len();
+        for _ in index..self.count {
+            offset -= HEAD_BYTES + self.read_u32(offset - TAIL_BYTES) + TAIL_BYTES;
+        }
+        offset
     }
 
     pub fn rows(&self, range: Range<u64>) -> Vec<ColdRow> {
@@ -110,28 +145,28 @@ impl ColdRing {
         if hi <= lo {
             return Vec::new();
         }
-        let skip = (lo - self.first_stable) as usize;
-        let take = (hi - lo) as usize;
-        let mut offset: usize = self
-            .rows
-            .iter()
-            .take(skip)
-            .map(|(len, _)| *len as usize)
-            .sum();
-        let mut out = Vec::with_capacity(take);
-        for (len, cols) in self.rows.iter().skip(skip).take(take) {
-            let end = offset + *len as usize;
+        let mut offset = self.offset_of((lo - self.first_stable) as usize);
+        let mut out = Vec::with_capacity((hi - lo) as usize);
+        for _ in lo..hi {
+            let len = self.read_u32(offset);
+            let cols = u16::from_le_bytes([self.data[offset + 4], self.data[offset + 5]]);
+            let start = offset + HEAD_BYTES;
             out.push(ColdRow {
-                bytes: self.data.range(offset..end).copied().collect(),
-                cols: usize::from(*cols),
+                bytes: self.data.range(start..start + len).copied().collect(),
+                cols: usize::from(cols),
             });
-            offset = end;
+            offset = start + len + TAIL_BYTES;
         }
         out
     }
 
     #[cfg(test)]
     pub(crate) fn data_capacity(&self) -> usize {
+        self.data.capacity()
+    }
+
+    #[cfg(test)]
+    pub(crate) fn heap_bytes(&self) -> usize {
         self.data.capacity()
     }
 }
@@ -202,6 +237,39 @@ mod tests {
             );
         }
         assert_eq!(ring.data_capacity(), cap);
+    }
+
+    #[test]
+    fn the_heap_stays_within_the_cap_for_blank_and_long_rows() {
+        let cap = 64 * 1024;
+        for width in [0usize, 1, 7, 100, 5_000] {
+            let mut ring = ColdRing::new(cap, 0);
+            let mut peak = 0;
+            for index in 0..(cap as u64) {
+                ring.push(index, &row(&"x".repeat(width)));
+                peak = peak.max(ring.heap_bytes());
+            }
+            assert!(
+                peak <= cap + 64,
+                "rows of {width} bytes: heap {peak} > cap {cap}"
+            );
+            assert!(!ring.is_empty(), "rows of {width} bytes");
+        }
+    }
+
+    #[test]
+    fn any_range_reads_back_from_either_end() {
+        let mut ring = ColdRing::new(1 << 20, 100);
+        for index in 0..1_000u64 {
+            ring.push(100 + index, &row(&"r".repeat((index % 13) as usize)));
+        }
+        for start in (100..1_100u64).step_by(37) {
+            let got = ring.rows(start..start + 3);
+            let want: Vec<String> = (start..(start + 3).min(1_100))
+                .map(|stable| "r".repeat(((stable - 100) % 13) as usize))
+                .collect();
+            assert_eq!(texts(&got), want, "from {start}");
+        }
     }
 
     #[test]
