@@ -1317,6 +1317,27 @@ history of `master`.
   ≤ 48 bytes; debugging only, also `WasmTerminalCore.unknown_sequences()`).
   The three Claude Code recordings leave `CSI <0u`, `CSI >4;2m`, `CSI >4m`,
   `CSI >5u`, `CSI ?0u`, `CSI ?2031h/l` and `ESC (B` in it.
+- Review fixes (2026-09-26, after a differential fuzz of about 700k streams
+  against the pre-Plan-9 core found no screen difference):
+  the run buffer flushes at `RUN_FLUSH_BYTES` = 4 KiB and gives its memory
+  back after an oversized flush (`parser/perform.rs`), so one 8 MiB line no
+  longer pins 8 MiB per core (live heap 3,280 KiB against the old core's
+  3,276 KiB, was 11,468 KiB); an OSC is recorded by its number only when it
+  is 1–5 ASCII digits and as `OSC ?` otherwise, so `ESC ] L title` and other
+  payload-first OSCs no longer leak their text; the ring formats into one
+  reusable buffer, checks the newest entry first, and records at most
+  `UNKNOWN_FEED_BUDGET` = 128 sequences per feed, so a flood of unknown
+  sequences costs at most 0.59× (was 0.23×) of the pre-Plan-9 throughput and
+  repeats no longer allocate; an ESC with intermediates (`ESC # 8` DECALN,
+  `ESC ( 0`) is no longer dispatched to the screen: before, the screen
+  ignored the intermediate and `ESC # 8` ran DECRC. Guards:
+  `tests/unknown_sequences.rs` (payload, `ESC # 8`, flood budget),
+  `parser/perform.rs` `run_tests`.
+- Hazard for future work: charsets (`ESC ( 0`, SO/SI), insert mode
+  (`CSI 4 h`), autowrap off (`CSI ? 7 l`) and origin mode are not implemented
+  by the old or the new core. Whoever adds them must also gate the ASCII fast
+  path (`Parser::print` buffering and `ScreenGrid::print_ascii_run`), or those
+  modes will silently not apply to printable runs.
 - Part B measured (`examples/parse_throughput.rs` and
   `bench/parse-throughput.mjs`, 3 alternated pairs, medians of 7, MB/s):
   - ascii-heavy grapheme: control 16.69-17.33 partB 31.91-32.50 (86.3% median) faster

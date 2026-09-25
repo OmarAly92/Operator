@@ -98,6 +98,7 @@ mod tests {
         parser.resize(20, 1);
         let mut vte = VteParser::new();
         vte.advance(&mut parser, text);
+        parser.flush_run();
         parser.commit_evicted();
         parser
     }

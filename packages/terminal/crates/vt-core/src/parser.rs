@@ -7,7 +7,9 @@ mod program;
 mod unknown;
 
 pub(crate) use colour::read_extended_colour;
-pub use unknown::{UnknownSequence, UNKNOWN_SEQUENCES_CAP, UNKNOWN_TEXT_BYTES};
+pub use unknown::{
+    UnknownSequence, UNKNOWN_FEED_BUDGET, UNKNOWN_SEQUENCES_CAP, UNKNOWN_TEXT_BYTES,
+};
 
 use vte::Params;
 
@@ -70,7 +72,7 @@ pub(crate) struct Parser {
     cold: crate::cold_ring::ColdRing,
     committed_rows: u64,
     run: Vec<u8>,
-    unknown: unknown::UnknownRing,
+    pub(crate) unknown: unknown::UnknownRing,
     #[cfg(feature = "trace")]
     pub(crate) trace: crate::trace::Trace,
 }
