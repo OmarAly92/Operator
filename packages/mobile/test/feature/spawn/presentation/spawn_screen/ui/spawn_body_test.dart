@@ -8,7 +8,7 @@ import 'package:operator_mobile/core/api/models/global_response.dart';
 import 'package:operator_mobile/core/api/server_config.dart';
 import 'package:operator_mobile/core/app_themes/colors/dark_skin.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
-import 'package:operator_mobile/core/helpers/cache/cache_helper.dart';
+import 'package:operator_mobile/core/preferences/app_preferences.dart';
 import 'package:operator_mobile/core/helpers/result/result.dart';
 import 'package:operator_mobile/core/mux/mux_client.dart';
 import 'package:operator_mobile/core/mux/session_patch.dart';
@@ -24,7 +24,6 @@ import 'package:operator_mobile/feature/spawn/data/repository/spawn_repository.d
 import 'package:operator_mobile/feature/spawn/logic/agent_picker.dart';
 import 'package:operator_mobile/feature/spawn/presentation/spawn_screen/logic/spawn_cubit.dart';
 import 'package:operator_mobile/feature/spawn/presentation/spawn_screen/ui/widgets/spawn_body.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 class _MockSpawnRepository extends Mock implements SpawnRepository {}
 
@@ -50,8 +49,7 @@ void main() {
   setUpAll(() => registerFallbackValue(const SpawnSessionParams(projectId: 'p1')));
 
   setUp(() async {
-    SharedPreferences.setMockInitialValues({});
-    await CacheHelper.init();
+    AppPreferences.debugLoad(const {});
     spawnRepository = _MockSpawnRepository();
     sessionsRepository = _MockSessionsRepository();
     mux = _MockMuxClient();

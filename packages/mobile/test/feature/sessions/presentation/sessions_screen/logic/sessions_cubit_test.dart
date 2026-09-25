@@ -8,15 +8,15 @@ import 'package:operator_mobile/core/api/interceptors/server_config_interceptor.
 import 'package:operator_mobile/core/api/models/global_response.dart';
 import 'package:operator_mobile/core/api/server_config.dart';
 import 'package:operator_mobile/core/error_handling/failures/failure.dart';
-import 'package:operator_mobile/core/helpers/cache/cache_helper.dart';
 import 'package:operator_mobile/core/helpers/result/result.dart';
 import 'package:operator_mobile/core/mux/mux_client.dart';
+import 'package:operator_mobile/core/preferences/app_preferences.dart';
+import 'package:operator_mobile/core/preferences/preference_keys.dart';
 import 'package:operator_mobile/feature/sessions/data/model/board_snapshot.dart';
 import 'package:operator_mobile/feature/sessions/data/model/project_model.dart';
 import 'package:operator_mobile/feature/sessions/data/model/session_model.dart';
 import 'package:operator_mobile/feature/sessions/data/repository/sessions_repository.dart';
 import 'package:operator_mobile/feature/sessions/presentation/sessions_screen/logic/sessions_cubit.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 class _MockSessionsRepository extends Mock implements SessionsRepository {}
 
@@ -48,8 +48,7 @@ void main() {
   var streamReady = false;
 
   setUp(() async {
-    SharedPreferences.setMockInitialValues({});
-    await CacheHelper.init();
+    AppPreferences.debugLoad(const {});
     repository = _MockSessionsRepository();
     mux = _MockMuxClient();
     source = _StubConfigSource();
@@ -475,4 +474,29 @@ void main() {
     },
     verify: (cubit) => expect(cubit.activeProjectId, kAllProjects),
   );
+
+  test('remembers the project filter per desktop', () async {
+    AppPreferences.debugLoad({PreferenceKeys.activeProject('d-a'): 'p2'});
+    when(() => repository.getBoard()).thenAnswer(
+      (_) async => Result.success(GlobalResponse(data: const BoardSnapshot())),
+    );
+    source.current = const ServerConfig(
+      host: '10.0.0.5',
+      httpPort: '3011',
+      secure: false,
+      password: 'pw',
+      desktopId: 'd-a',
+    );
+
+    final cubit = SessionsCubit(repository, mux, source);
+    expect(cubit.activeProjectId, 'p2');
+
+    source.set(const ServerConfig(host: '10.0.0.9', httpPort: '3011', secure: false, password: 'pw', desktopId: 'd-b'));
+    expect(cubit.activeProjectId, kAllProjects);
+
+    cubit.setActiveProject('p9');
+    expect(AppPreferences.activeProjectId('d-b'), 'p9');
+    expect(AppPreferences.activeProjectId('d-a'), 'p2');
+    await cubit.close();
+  });
 }

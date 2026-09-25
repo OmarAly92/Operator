@@ -9,10 +9,11 @@ import 'package:operator_mobile/core/api/models/global_response.dart';
 import 'package:operator_mobile/core/api/server_config.dart';
 import 'package:operator_mobile/core/app_themes/colors/dark_skin.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
-import 'package:operator_mobile/core/helpers/cache/cache_helper.dart';
 import 'package:operator_mobile/core/helpers/result/result.dart';
 import 'package:operator_mobile/core/mux/mux_client.dart';
 import 'package:operator_mobile/core/mux/session_patch.dart';
+import 'package:operator_mobile/core/preferences/app_preferences.dart';
+import 'package:operator_mobile/core/preferences/preference_keys.dart';
 import 'package:operator_mobile/feature/sessions/data/model/board_snapshot.dart';
 import 'package:operator_mobile/feature/sessions/data/model/project_model.dart';
 import 'package:operator_mobile/feature/sessions/data/model/session_model.dart';
@@ -20,15 +21,16 @@ import 'package:operator_mobile/feature/sessions/data/repository/sessions_reposi
 import 'package:operator_mobile/feature/sessions/presentation/sessions_screen/logic/sessions_cubit.dart';
 import 'package:operator_mobile/feature/sessions/presentation/sessions_screen/ui/widgets/session_section_header.dart';
 import 'package:operator_mobile/feature/sessions/presentation/sessions_screen/ui/widgets/sessions_body.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 class _MockSessionsRepository extends Mock implements SessionsRepository {}
 
 class _MockMuxClient extends Mock implements MuxClient {}
 
 class _StubConfigSource implements ServerConfigSource {
+  const _StubConfigSource([this.current]);
+
   @override
-  ServerConfig? get current => null;
+  final ServerConfig? current;
 
   @override
   Stream<ServerConfig?> get changes => const Stream.empty();
@@ -40,8 +42,7 @@ void main() {
   final List<String> fired = <String>[];
 
   setUp(() async {
-    SharedPreferences.setMockInitialValues({});
-    await CacheHelper.init();
+    AppPreferences.debugLoad(const {});
     repository = _MockSessionsRepository();
     mux = _MockMuxClient();
     when(() => mux.sessionPatches).thenAnswer((_) => const Stream<List<SessionPatch>>.empty());
@@ -76,7 +77,11 @@ void main() {
     }
   }
 
-  Future<void> pumpBody(WidgetTester tester, BoardSnapshot snapshot) async {
+  Future<void> pumpBody(
+    WidgetTester tester,
+    BoardSnapshot snapshot, {
+    ServerConfigSource source = const _StubConfigSource(),
+  }) async {
     when(() => repository.getBoard()).thenAnswer(
       (_) async => Result.success(GlobalResponse(data: snapshot)),
     );
@@ -90,7 +95,7 @@ void main() {
           home: SkinScope(
             skin: const DarkSkin(),
             child: BlocProvider(
-              create: (_) => SessionsCubit(repository, mux, _StubConfigSource()),
+              create: (_) => SessionsCubit(repository, mux, source),
               child: const Scaffold(body: SessionsBody()),
             ),
           ),
@@ -262,8 +267,7 @@ void main() {
 
   group('project filter', () {
     testWidgets('names the project a persisted filter is pinned to', (tester) async {
-      SharedPreferences.setMockInitialValues({'flutter.${CacheKeys.activeProjectId}': 'scratch'});
-      await CacheHelper.init();
+      AppPreferences.debugLoad({PreferenceKeys.activeProject('d-1'): 'scratch'});
 
       await pumpBody(
         tester,
@@ -273,6 +277,9 @@ void main() {
             SessionModel(id: 'b', projectId: 'other', displayName: 'Other one', status: 'working'),
           ],
           projects: [ProjectModel(id: 'scratch', name: 'Scratch')],
+        ),
+        source: const _StubConfigSource(
+          ServerConfig(host: '10.0.0.5', httpPort: '3011', secure: false, password: 'pw', desktopId: 'd-1'),
         ),
       );
 

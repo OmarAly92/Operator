@@ -13,9 +13,10 @@ import 'package:operator_mobile/core/app_routes/routes_strings.dart';
 import 'package:operator_mobile/core/app_themes/colors/logic/skin_cubit.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/app_themes/themes/app_themes.dart';
+import 'package:operator_mobile/core/database/tables/settings/settings_dao.dart';
 import 'package:operator_mobile/core/deep_link/deep_link_service.dart';
-import 'package:operator_mobile/core/helpers/cache/cache_helper.dart';
 import 'package:operator_mobile/core/notifications/phone_alerts_runtime.dart';
+import 'package:operator_mobile/core/preferences/app_preferences.dart';
 import 'package:operator_mobile/core/telemetry/runtime.dart';
 import 'package:operator_mobile/core/utils/device_kind.dart';
 import 'package:operator_mobile/core/utils/service_locator.dart';
@@ -27,8 +28,8 @@ import 'package:package_info_plus/package_info_plus.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await EasyLocalization.ensureInitialized();
-  await CacheHelper.init();
   await ServiceLocator.init();
+  await AppPreferences.load(sl<SettingsDao>());
 
   LaunchDestination destination;
   try {

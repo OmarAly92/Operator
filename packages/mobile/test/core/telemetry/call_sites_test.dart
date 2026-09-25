@@ -13,7 +13,7 @@ import 'package:operator_mobile/core/app_routes/routes_strings.dart';
 import 'package:operator_mobile/core/app_themes/colors/dark_skin.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/error_handling/failures/failure.dart';
-import 'package:operator_mobile/core/helpers/cache/cache_helper.dart';
+import 'package:operator_mobile/core/preferences/app_preferences.dart';
 import 'package:operator_mobile/core/helpers/result/result.dart';
 import 'package:operator_mobile/core/mux/mux_client.dart';
 import 'package:operator_mobile/core/telemetry/events.dart';
@@ -29,7 +29,6 @@ import 'package:operator_mobile/feature/sessions/presentation/sessions_screen/lo
 import 'package:operator_mobile/feature/spawn/data/model/params/spawn_session_params.dart';
 import 'package:operator_mobile/feature/spawn/data/repository/spawn_repository.dart';
 import 'package:operator_mobile/feature/spawn/presentation/spawn_screen/logic/spawn_cubit.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import 'telemetry_test.dart' show RecordingClient;
 
@@ -79,8 +78,7 @@ void main() {
 
   setUp(() async {
     TestWidgetsFlutterBinding.ensureInitialized();
-    SharedPreferences.setMockInitialValues({});
-    await CacheHelper.init();
+    AppPreferences.debugLoad(const {});
     TelemetryRuntime.reset();
     client = RecordingClient();
     TelemetryRuntime.init(

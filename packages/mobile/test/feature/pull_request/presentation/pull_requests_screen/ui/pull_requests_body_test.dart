@@ -10,7 +10,7 @@ import 'package:operator_mobile/core/api/server_config_store.dart';
 import 'package:operator_mobile/core/app_themes/colors/dark_skin.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/error_handling/failures/failure.dart';
-import 'package:operator_mobile/core/helpers/cache/cache_helper.dart';
+import 'package:operator_mobile/core/preferences/app_preferences.dart';
 import 'package:operator_mobile/core/helpers/result/result.dart';
 import 'package:operator_mobile/core/mux/mux_client.dart';
 import 'package:operator_mobile/core/mux/session_patch.dart';
@@ -25,7 +25,6 @@ import 'package:operator_mobile/feature/sessions/data/model/session_model.dart';
 import 'package:operator_mobile/feature/sessions/data/model/session_pr_model.dart';
 import 'package:operator_mobile/feature/sessions/data/repository/sessions_repository.dart';
 import 'package:operator_mobile/feature/sessions/presentation/sessions_screen/logic/sessions_cubit.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 class _MockSessionsRepository extends Mock implements SessionsRepository {}
 
@@ -49,8 +48,7 @@ void main() {
   late _MockPullRequestRepository prRepository;
 
   setUp(() async {
-    SharedPreferences.setMockInitialValues({});
-    await CacheHelper.init();
+    AppPreferences.debugLoad(const {});
     sessionsRepository = _MockSessionsRepository();
     mux = _MockMuxClient();
     prRepository = _MockPullRequestRepository();

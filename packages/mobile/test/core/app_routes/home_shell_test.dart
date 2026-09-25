@@ -11,7 +11,7 @@ import 'package:operator_mobile/core/app_routes/routes_strings.dart';
 import 'package:operator_mobile/core/app_themes/colors/dark_skin.dart';
 import 'package:operator_mobile/core/app_themes/colors/logic/skin_cubit.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
-import 'package:operator_mobile/core/helpers/cache/cache_helper.dart';
+import 'package:operator_mobile/core/preferences/app_preferences.dart';
 import 'package:operator_mobile/core/helpers/result/result.dart';
 import 'package:operator_mobile/core/mux/mux_client.dart';
 import 'package:operator_mobile/core/mux/session_patch.dart';
@@ -38,7 +38,6 @@ import 'package:operator_mobile/feature/sessions/presentation/sessions_screen/ui
 import 'package:operator_mobile/feature/settings/presentation/settings_screen/logic/phone_alerts_cubit.dart';
 import 'package:operator_mobile/feature/settings/presentation/settings_screen/logic/settings_cubit.dart';
 import 'package:operator_mobile/feature/settings/presentation/settings_screen/ui/settings_screen.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 class _MockSessionsRepository extends Mock implements SessionsRepository {}
 
@@ -63,8 +62,7 @@ void main() {
 
   setUp(() async {
     HomeShell.selectedTab.value = 0;
-    SharedPreferences.setMockInitialValues({});
-    await CacheHelper.init();
+    AppPreferences.debugLoad(const {});
     repository = _MockSessionsRepository();
     mux = _MockMuxClient();
     notificationRepository = _MockNotificationRepository();

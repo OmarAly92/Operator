@@ -60,7 +60,6 @@ import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/lo
 import 'package:operator_mobile/feature/usage/data/data_source/usage_remote_data_source.dart';
 import 'package:operator_mobile/feature/usage/data/repository/usage_repository.dart';
 import 'package:operator_mobile/feature/usage/presentation/usage_screen/logic/usage_cubit.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 final sl = GetIt.instance;
 
@@ -81,8 +80,6 @@ class ServiceLocator {
   }
 
   static Future<void> _coreSetup() async {
-    final preferences = await SharedPreferences.getInstance();
-    sl.registerLazySingleton<SharedPreferences>(() => preferences);
     sl.registerLazySingleton<FlutterSecureStorage>(
       () => const FlutterSecureStorage(),
     );

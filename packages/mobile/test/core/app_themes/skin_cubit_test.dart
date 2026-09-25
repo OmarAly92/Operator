@@ -5,13 +5,11 @@ import 'package:operator_mobile/core/app_themes/colors/dark_skin.dart';
 import 'package:operator_mobile/core/app_themes/colors/light_skin.dart';
 import 'package:operator_mobile/core/app_themes/colors/logic/skin_cubit.dart';
 import 'package:operator_mobile/core/app_themes/colors/theme_preference.dart';
-import 'package:operator_mobile/core/helpers/cache/cache_helper.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:operator_mobile/core/preferences/app_preferences.dart';
 
 void main() {
   setUp(() async {
-    SharedPreferences.setMockInitialValues({});
-    await CacheHelper.init();
+    AppPreferences.debugLoad(const {});
   });
 
   blocTest<SkinCubit, SkinState>(

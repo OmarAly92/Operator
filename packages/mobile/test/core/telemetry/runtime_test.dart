@@ -1,11 +1,11 @@
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:operator_mobile/core/helpers/cache/cache_helper.dart';
+import 'package:operator_mobile/core/preferences/app_preferences.dart';
+import 'package:operator_mobile/core/preferences/preference_keys.dart';
 import 'package:operator_mobile/core/telemetry/events.dart';
 import 'package:operator_mobile/core/telemetry/rate_limit.dart';
 import 'package:operator_mobile/core/telemetry/runtime.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import 'telemetry_test.dart' show RecordingClient;
 
@@ -19,8 +19,7 @@ const TelemetryContextInput _context = TelemetryContextInput(
 void main() {
   setUp(() async {
     TestWidgetsFlutterBinding.ensureInitialized();
-    SharedPreferences.setMockInitialValues({});
-    await CacheHelper.init();
+    AppPreferences.debugLoad(const {});
     TelemetryRuntime.reset();
   });
 
@@ -60,8 +59,8 @@ void main() {
 
   test('seeds the daily ceiling from persisted state so a restart cannot reset it', () async {
     final today = DateTime.now().toUtc().toIso8601String().substring(0, 10);
-    SharedPreferences.setMockInitialValues({
-      CacheKeys.telemetryRateLimit: jsonEncode({
+    AppPreferences.debugLoad({
+      PreferenceKeys.telemetryRateLimit: jsonEncode({
         MobileEvents.paired: NameWindow(
           minuteStart: 0,
           minuteCount: 0,
@@ -70,7 +69,6 @@ void main() {
         ).toJson(),
       }),
     });
-    await CacheHelper.init();
     final client = RecordingClient();
 
     TelemetryRuntime.init(client: client, context: _context);

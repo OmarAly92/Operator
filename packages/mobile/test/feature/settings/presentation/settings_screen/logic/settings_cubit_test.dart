@@ -4,7 +4,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:operator_mobile/core/api/models/global_response.dart';
 import 'package:operator_mobile/core/api/server_config_store.dart';
 import 'package:operator_mobile/core/error_handling/failures/failure.dart';
-import 'package:operator_mobile/core/helpers/cache/cache_helper.dart';
+import 'package:operator_mobile/core/preferences/app_preferences.dart';
 import 'package:operator_mobile/core/helpers/result/result.dart';
 import 'package:operator_mobile/feature/pairing/data/repository/desktops_repository.dart';
 import 'package:operator_mobile/feature/sessions/data/model/board_snapshot.dart';
@@ -12,7 +12,6 @@ import 'package:operator_mobile/feature/sessions/data/model/session_model.dart';
 import 'package:operator_mobile/feature/sessions/data/repository/sessions_repository.dart';
 import 'package:operator_mobile/feature/settings/presentation/settings_screen/logic/settings_cubit.dart';
 import 'package:operator_mobile/feature/settings/presentation/settings_screen/logic/settings_state.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 class _MockSessionsRepository extends Mock implements SessionsRepository {}
 
@@ -26,8 +25,7 @@ void main() {
   late _MockDesktopsRepository desktops;
 
   setUp(() async {
-    SharedPreferences.setMockInitialValues({});
-    await CacheHelper.init();
+    AppPreferences.debugLoad(const {});
     repository = _MockSessionsRepository();
     store = _MockServerConfigStore();
     desktops = _MockDesktopsRepository();

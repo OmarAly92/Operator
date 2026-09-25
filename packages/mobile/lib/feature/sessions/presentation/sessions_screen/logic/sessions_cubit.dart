@@ -6,8 +6,8 @@ import 'package:operator_mobile/core/api/interceptors/server_config_interceptor.
 import 'package:operator_mobile/core/api/server_config.dart';
 import 'package:operator_mobile/core/error_handling/connection_error.dart';
 import 'package:operator_mobile/core/error_handling/failures/failure.dart';
-import 'package:operator_mobile/core/helpers/cache/cache_helper.dart';
 import 'package:operator_mobile/core/helpers/result/result.dart';
+import 'package:operator_mobile/core/preferences/app_preferences.dart';
 import 'package:operator_mobile/core/mux/mux_client.dart';
 import 'package:operator_mobile/core/telemetry/events.dart';
 import 'package:operator_mobile/core/telemetry/runtime.dart';
@@ -22,6 +22,8 @@ const String kAllProjects = 'all';
 
 class SessionsCubit extends Cubit<SessionsState> {
   SessionsCubit(this._repository, this._muxClient, this._configSource) : super(const SessionsInitialState()) {
+    _desktopId = _configSource.current?.desktopId;
+    activeProjectId = _savedProject(_desktopId);
     _muxSub = _muxClient.boardChanges.listen((_) {
       _syncFallback();
       _scheduleRefresh();
@@ -44,7 +46,11 @@ class SessionsCubit extends Cubit<SessionsState> {
   List<SessionModel> sessions = [];
   List<ProjectModel> projects = [];
   Map<String, String> accountLabels = const {};
-  String activeProjectId = (CacheHelper.get(CacheKeys.activeProjectId) as String?) ?? kAllProjects;
+  String activeProjectId = kAllProjects;
+  String? _desktopId;
+
+  static String _savedProject(String? desktopId) =>
+      desktopId == null ? kAllProjects : AppPreferences.activeProjectId(desktopId) ?? kAllProjects;
 
   List<SessionModel> get visibleSessions => activeProjectId == kAllProjects
       ? sessions
@@ -52,7 +58,8 @@ class SessionsCubit extends Cubit<SessionsState> {
 
   void setActiveProject(String id) {
     activeProjectId = id;
-    CacheHelper.save(CacheKeys.activeProjectId, id);
+    final desktopId = _desktopId;
+    if (desktopId != null) AppPreferences.setActiveProjectId(desktopId, id);
     _emitSessions();
   }
 
@@ -101,6 +108,8 @@ class SessionsCubit extends Cubit<SessionsState> {
     _refreshQueued = false;
     sessions = [];
     projects = [];
+    _desktopId = next?.desktopId;
+    activeProjectId = _savedProject(_desktopId);
     _needsRetry = false;
     _connectionOpen = false;
     _revision = 0;

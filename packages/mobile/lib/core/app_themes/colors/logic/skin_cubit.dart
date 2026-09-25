@@ -4,7 +4,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:operator_mobile/core/app_themes/colors/app_skin.dart';
 import 'package:operator_mobile/core/app_themes/colors/dark_skin.dart';
 import 'package:operator_mobile/core/app_themes/colors/light_skin.dart';
-import 'package:operator_mobile/core/helpers/cache/cache_helper.dart';
+import 'package:operator_mobile/core/preferences/app_preferences.dart';
 
 part 'skin_state.dart';
 
@@ -14,11 +14,10 @@ class SkinCubit extends Cubit<SkinState> {
   AppSkin skin;
 
   static AppSkin _savedSkin() {
-    final savedTheme = CacheHelper.get(CacheKeys.currentTheme) as String?;
-    if (savedTheme == ThemeMode.dark.name) return const DarkSkin();
-    if (savedTheme == ThemeMode.system.name) {
-      return WidgetsBinding.instance.platformDispatcher.platformBrightness ==
-              Brightness.dark
+    final saved = AppPreferences.themeMode;
+    if (saved == ThemeMode.dark) return const DarkSkin();
+    if (saved == ThemeMode.system) {
+      return WidgetsBinding.instance.platformDispatcher.platformBrightness == Brightness.dark
           ? const DarkSkin()
           : const LightSkin();
     }
@@ -27,7 +26,7 @@ class SkinCubit extends Cubit<SkinState> {
 
   void setSkin(AppSkin newSkin) {
     skin = newSkin;
-    CacheHelper.save(CacheKeys.currentTheme, newSkin.themeMode.name);
+    AppPreferences.setThemeMode(newSkin.themeMode);
     emit(SkinChangedState(newSkin));
   }
 
@@ -38,12 +37,10 @@ class SkinCubit extends Cubit<SkinState> {
   }
 
   void setSystemSkin() {
-    skin =
-        WidgetsBinding.instance.platformDispatcher.platformBrightness ==
-            Brightness.dark
+    skin = WidgetsBinding.instance.platformDispatcher.platformBrightness == Brightness.dark
         ? const DarkSkin()
         : const LightSkin();
-    CacheHelper.save(CacheKeys.currentTheme, ThemeMode.system.name);
+    AppPreferences.setThemeMode(ThemeMode.system);
     emit(SkinChangedState(skin));
   }
 }
