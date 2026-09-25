@@ -514,6 +514,9 @@ void main() {
       expect(notified, ['error']);
       expect(find.text(HomeShell.offlineSpawnMessage), findsOneWidget);
       expect(find.text('route /spawn'), findsNothing);
+      final toastRect = tester.getRect(find.text(HomeShell.offlineSpawnMessage));
+      final barRect = tester.getRect(find.byType(GlassTabBar));
+      expect(toastRect.bottom, lessThan(barRect.top));
       await tester.pump(const Duration(seconds: 5));
       await settle(tester);
     });

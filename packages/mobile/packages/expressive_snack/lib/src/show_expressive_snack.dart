@@ -36,6 +36,7 @@ void showExpressiveSnack({
   String? actionLabel,
   VoidCallback? onAction,
   OverlayState? overlay,
+  double bottomOffset = 0,
 }) {
   final OverlayState? target =
       overlay ?? Overlay.maybeOf(context, rootOverlay: true);
@@ -76,6 +77,7 @@ void showExpressiveSnack({
       iconBackgroundColor: iconBackgroundColor,
       actionLabel: actionLabel,
       onAction: onAction,
+      bottomOffset: bottomOffset,
     ),
     target,
   );

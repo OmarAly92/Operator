@@ -198,7 +198,14 @@ class _SpawnButton extends StatelessWidget {
             haptic: reachable ? Haptics.tap : Haptics.error,
             onPressed: reachable
                 ? () => Navigator.of(context).pushNamed(RoutesStrings.spawn)
-                : () => AppToast.show(context, message: HomeShell.offlineSpawnMessage, icon: Icons.cloud_off_rounded),
+                : () => AppToast.show(
+                    context,
+                    message: HomeShell.offlineSpawnMessage,
+                    icon: Icons.cloud_off_rounded,
+                    bottomOffset: GlassMetrics.tabBarBottomInset +
+                        GlassMetrics.tabBarHeight +
+                        GlassMetrics.primaryButtonBottomGap,
+                  ),
           ),
         );
       },
