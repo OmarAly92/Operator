@@ -13,6 +13,7 @@ import {
 import { snapshotLogicalLines, type LogicalLine } from "./logical-lines.js";
 import { ProgramMessages, type ProgramMessageListener } from "./program-messages.js";
 import { AgentEvents, type AgentEventListener } from "./agent-events.js";
+import { AgentActivityMonitor, cursorLineText, type AgentActivityListener, type AgentActivityState } from "./agent-activity.js";
 import { budgetNow, decodeFindMatches, parseBlockId, validateEvenLength, validateMultipleOf } from "./core-checks.js";
 import type {
 	BlockId,
@@ -81,11 +82,17 @@ export class TerminalCore {
 	private readonly linkUris = new Map<number, string>();
 	private readonly program: ProgramMessages;
 	private readonly agentEvents: AgentEvents;
+	private readonly activity: AgentActivityMonitor;
 
 	constructor(inner: WasmTerminalCore, host: HostCapabilities) {
 		this.inner = inner;
 		this.program = new ProgramMessages(inner, host);
 		this.agentEvents = new AgentEvents(inner);
+		this.activity = new AgentActivityMonitor({
+			liveOutputBytes: () => (this.disposed ? 0 : this.inner.live_output_bytes()),
+			cursorLine: () => (this.disposed ? "" : cursorLineText(this.snapshot(), this.decoder)),
+			now: () => Date.now(),
+		});
 		this.completions = new CompletionDispatcher(
 			() => decodeBlocks(this.snapshot()).at(-1)?.cwd ?? "",
 			host,
@@ -127,6 +134,7 @@ export class TerminalCore {
 		this.inner.feed(bytes, Date.now());
 		this.program.poll();
 		this.agentEvents.poll();
+		this.activity.observe();
 		if (!this.notifyIfChanged() && this.inner.synchronized_output()) {
 			this.notifyAll();
 		}
@@ -189,6 +197,7 @@ export class TerminalCore {
 		}
 		this.program.poll();
 		this.agentEvents.poll();
+		this.activity.observe();
 		this.notifyIfChanged();
 		return true;
 	}
@@ -494,6 +503,14 @@ export class TerminalCore {
 		return this.agentEvents.onEvent(listener);
 	}
 
+	agentActivity(): AgentActivityState {
+		return this.activity.state();
+	}
+
+	onAgentActivity(listener: AgentActivityListener): () => void {
+		return this.activity.onChange(listener);
+	}
+
 	lineEditorState(): LineEditorState {
 		return LINE_EDITOR_STATES[this.snapshot().lineEditorState] ?? "unknown";
 	}
@@ -553,6 +570,7 @@ export class TerminalCore {
 		this.completions.dispose();
 		this.program.dispose();
 		this.agentEvents.dispose();
+		this.activity.dispose();
 		this.listeners.clear();
 		this.backlog = [];
 		this.backlogBytes = 0;
