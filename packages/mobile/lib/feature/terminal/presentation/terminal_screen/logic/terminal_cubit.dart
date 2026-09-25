@@ -10,7 +10,11 @@ import 'package:operator_mobile/core/mux/mux_client.dart';
 import 'package:operator_mobile/core/mux/session_patch.dart';
 import 'package:operator_mobile/feature/sessions/data/repository/sessions_repository.dart';
 import 'package:operator_mobile/feature/terminal/data/model/params/send_session_message_params.dart';
+import 'package:operator_mobile/feature/terminal/data/model/params/stage_session_attachments_params.dart';
 import 'package:operator_mobile/feature/terminal/data/repository/terminal_repository.dart';
+import 'package:operator_mobile/feature/terminal/logic/attachment_limits.dart';
+import 'package:operator_mobile/feature/terminal/logic/attachment_references.dart';
+import 'package:operator_mobile/feature/terminal/logic/composer_attachment.dart';
 import 'package:operator_mobile/feature/terminal/logic/send_route.dart';
 import 'package:operator_mobile/feature/terminal/logic/terminal_fit.dart';
 import 'package:operator_mobile/feature/terminal/logic/terminal_scroll.dart';
@@ -123,6 +127,10 @@ class TerminalCubit extends Cubit<TerminalState> {
   bool notFound = false;
   bool restoring = false;
   bool sending = false;
+  bool staging = false;
+  List<ComposerAttachment> attachments = const [];
+  String? attachmentNotice;
+  List<String>? _stagedPaths;
   String? banner;
   String? draft;
   String? suggestion;
@@ -291,11 +299,49 @@ class TerminalCubit extends Cubit<TerminalState> {
     _emit();
   }
 
+  bool get hasContent => composer.text.trim().isNotEmpty || attachments.isNotEmpty;
+
+  bool hasAttachment(String id) => attachments.any((attachment) => attachment.id == id);
+
+  void addAttachments(List<ComposerAttachment> incoming) {
+    if (sending) return;
+    final admission = admitAttachments(attachments, incoming);
+    attachmentNotice = admission.notice;
+    if (admission.accepted.isNotEmpty) {
+      attachments = [...attachments, ...admission.accepted];
+      _stagedPaths = null;
+    }
+    _emit();
+  }
+
+  void removeAttachment(String id) {
+    if (sending || !hasAttachment(id)) return;
+    attachments = attachments.where((attachment) => attachment.id != id).toList();
+    _stagedPaths = null;
+    attachmentNotice = null;
+    _emit();
+  }
+
+  void toggleAttachment(ComposerAttachment attachment) =>
+      hasAttachment(attachment.id) ? removeAttachment(attachment.id) : addAttachments([attachment]);
+
+  void showAttachmentNotice(String message) {
+    attachmentNotice = message;
+    _emit();
+  }
+
+  void dismissAttachmentNotice() {
+    if (attachmentNotice == null) return;
+    attachmentNotice = null;
+    _emit();
+  }
+
   Future<void> send() async {
     final text = composer.text.trim();
-    if (text.isEmpty) return;
+    if (sending) return;
 
     if (args.shellOnly) {
+      if (text.isEmpty) return;
       if (!_writeToPty(text)) {
         Haptics.error();
         banner = kTerminalUnavailableNotice;
@@ -311,36 +357,80 @@ class TerminalCubit extends Cubit<TerminalState> {
       return;
     }
 
+    if (text.isEmpty && attachments.isEmpty) return;
     sending = true;
+    attachmentNotice = null;
     _emit();
-    final result = await _repository.sendSessionMessage(
-      args.sessionId,
-      SendSessionMessageParams(message: text),
-    );
+    final paths = await _stage();
+    if (paths == null) {
+      sending = false;
+      _emit();
+      return;
+    }
+    final message = appendAttachmentReferences(text, paths);
+    final hadAttachments = attachments.isNotEmpty;
+    final result = await _repository.sendSessionMessage(args.sessionId, SendSessionMessageParams(message: message));
     result.when(
       onSuccess: (_) {
         Haptics.success();
-        composer.clear();
-        dismissSuggestion();
+        _clearDraft();
         unawaited(fetchDraft());
       },
       onFailure: (failure) {
-        // Only reroute onto a socket we actually hold open — otherwise the write
-        // is a no-op and we would clear the field having sent nothing.
-        if (shouldRetryOnTerminal(failure) && _writeToPty(text)) {
+        if (shouldRetryOnTerminal(failure) && _writeToPty(message)) {
           Haptics.success();
           banner = kReroutedNotice;
-          composer.clear();
-          dismissSuggestion();
+          _clearDraft();
           unawaited(fetchDraft());
           return;
         }
         Haptics.error();
-        banner = 'Send failed: ${failure.message}';
+        if (hadAttachments) {
+          attachmentNotice = 'Send failed: ${failure.message}';
+        } else {
+          banner = 'Send failed: ${failure.message}';
+        }
       },
     );
     sending = false;
     _emit();
+  }
+
+  Future<List<String>?> _stage() async {
+    if (attachments.isEmpty) return const [];
+    final cached = _stagedPaths;
+    if (cached != null) return cached;
+    final snapshot = attachments;
+    staging = true;
+    _emit();
+    final result = await _repository.stageAttachments(args.sessionId, StageSessionAttachmentsParams(files: snapshot));
+    staging = false;
+    List<String>? paths;
+    result.when(
+      onSuccess: (response) {
+        final staged = response.data?.paths ?? const <String>[];
+        if (staged.length == snapshot.length) {
+          paths = staged;
+        } else {
+          attachmentNotice = "Couldn't attach the files.";
+        }
+      },
+      onFailure: (failure) => attachmentNotice = "Couldn't attach: ${failure.message}",
+    );
+    if (paths == null) {
+      Haptics.error();
+      return null;
+    }
+    if (identical(snapshot, attachments)) _stagedPaths = paths;
+    return paths;
+  }
+
+  void _clearDraft() {
+    composer.clear();
+    attachments = const [];
+    _stagedPaths = null;
+    attachmentNotice = null;
+    dismissSuggestion();
   }
 
   bool _writeToPty(String text) {
