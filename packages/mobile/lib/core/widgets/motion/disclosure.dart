@@ -105,10 +105,6 @@ class _DisclosureState extends State<Disclosure> with SingleTickerProviderStateM
 
   @override
   Widget build(BuildContext context) {
-    if (MediaQuery.disableAnimationsOf(context)) {
-      return ClipRect(child: widget.expanded ? widget.child : const SizedBox.shrink());
-    }
-
     final showChild = widget.expanded || !_controller.isDismissed;
     return SizeTransition(
       sizeFactor: _size,

@@ -286,6 +286,18 @@ void main() {
       expect(tester.getSize(find.byType(Disclosure)).height, 0);
     });
 
+    testWidgets('keeps child state when reduce motion is switched on while expanded', (tester) async {
+      const key = ValueKey('counter');
+      await tester.pumpWidget(disclosureHost(true, child: const _Counter(key: key)));
+      await tester.tap(find.text('inc'));
+      await tester.pump();
+
+      await tester.pumpWidget(disclosureHost(true, reduceMotion: true, child: const _Counter(key: key)));
+      await tester.pump();
+
+      expect(find.text('1'), findsOneWidget);
+    });
+
     testWidgets('keeps child state while expanded across rebuilds', (tester) async {
       const key = ValueKey('counter');
       await tester.pumpWidget(disclosureHost(true, child: const _Counter(key: key)));
