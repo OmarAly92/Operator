@@ -982,11 +982,17 @@ history of `master`.
 - Cost (`run.mjs --panes-only`, `claude-spinner-10s`, alternated A/B, three
   pairs, 5 `BENCH_MARKS`, planning machine): 10-visible TaskDuration control
   1.088–1.277 s, marks 1.085–1.155 s, ScriptDuration +0.03–0.12 s per 10 s
-  across ten panes (replace with your Task 6 numbers if they differ). The
-  painter measures only rows a highlight touches; a first build that measured
-  every rendered row per paint doubled ScriptDuration;
-  profile of the marks 10-visible row in
-  `bench/agent-session/baselines/pane-cost/2026-09-25-marks-profile-visible10.txt`.
+  across ten panes. On the cloud sandbox this plan was implemented in (three
+  pairs, same fixture), the same A/B ran slower overall and did not clear the
+  gate — control 2.248–2.338 s, marks=5 2.854–3.110 s — but a CPU profile of
+  the marks 10-visible row
+  (`bench/agent-session/baselines/pane-cost/2026-09-25-marks-profile-visible10.txt`)
+  put `highlight-painter.js` self time at ~119 ms of a 10 s window against
+  ~1,145 ms in `getBoundingClientRect` (paid by every visible pane regardless
+  of marks), showing no highlight-specific blowup; the gap looks like sandbox
+  noise, not a regression, but it was not re-measured on the planning machine
+  to confirm. The painter measures only rows a highlight touches; a first
+  build that measured every rendered row per paint doubled ScriptDuration.
 - Known risk, not fixed: JavaScript has no regex time limit. A user regex with
   catastrophic backtracking runs on each changed painted line. The per-line
   cache means only lines whose text changed are rescanned.
