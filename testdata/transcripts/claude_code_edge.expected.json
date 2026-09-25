@@ -16,7 +16,7 @@
       { "kind": "compaction", "sourceId": "u-13", "text": "Conversation compacted (manual)" }
     ] },
     { "known": true, "events": [] },
-    { "known": true, "events": [] },
+    { "known": true, "events": [{ "kind": "permission_mode", "sourceId": "permission-mode", "text": "bypass-permissions" }] },
     { "known": true, "events": [] },
     { "known": true, "events": [] },
     { "known": true, "events": [] },

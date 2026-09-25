@@ -29,12 +29,15 @@ type knownTask struct {
 }
 
 type TranscriptMapper struct {
-	agentID  string
-	launches map[string]taskLaunch
-	order    []string
-	tasks    map[string]knownTask
-	seen     map[string]struct{}
-	finished []string
+	agentID     string
+	launches    map[string]taskLaunch
+	order       []string
+	tasks       map[string]knownTask
+	seen        map[string]struct{}
+	finished    []string
+	version     string
+	mode        domain.PermissionMode
+	modeVersion string
 }
 
 func NewTranscriptMapper(agentID string) *TranscriptMapper {
@@ -71,6 +74,11 @@ func (m *TranscriptMapper) Map(line []byte) ([]domain.BlockTranscriptEvent, bool
 			if rec.Origin.Kind == "task-notification" {
 				events = append(events, m.notificationEvents(claudeFlattenText(rec.Message.Content), rec.Timestamp)...)
 			}
+		}
+	}
+	if !sidechain {
+		if event, ok := m.permissionModeEvent(rec); ok {
+			events = append(events, event)
 		}
 	}
 	if sidechain {
@@ -393,4 +401,29 @@ func validTagName(name string) bool {
 		}
 	}
 	return true
+}
+
+func (m *TranscriptMapper) permissionModeEvent(rec claudeTranscriptRecord) (domain.BlockTranscriptEvent, bool) {
+	if version := strings.TrimSpace(rec.Version); version != "" {
+		m.version = version
+	}
+	if rec.Type != "permission-mode" && rec.Type != "user" {
+		return domain.BlockTranscriptEvent{}, false
+	}
+	mode, ok := claudePermissionModes[strings.TrimSpace(rec.PermissionMode)]
+	if !ok {
+		return domain.BlockTranscriptEvent{}, false
+	}
+	if mode == m.mode && m.version == m.modeVersion {
+		return domain.BlockTranscriptEvent{}, false
+	}
+	m.mode = mode
+	m.modeVersion = m.version
+	observation := domain.PermissionModeObservation{Mode: mode, Version: m.version}
+	return domain.BlockTranscriptEvent{
+		Kind:     domain.BlockEventPermissionMode,
+		SourceID: "permission-mode",
+		Text:     string(mode),
+		Detail:   observation.Detail(),
+	}, true
 }

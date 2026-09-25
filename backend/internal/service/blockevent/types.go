@@ -45,6 +45,8 @@ type Store interface {
 	TrimBlockEvents(ctx context.Context, sessionID, agentID string, keep int) (int64, error)
 	SelectLatestTurnModels(ctx context.Context) (map[string]string, error)
 	SelectTaskUpdates(ctx context.Context, sessionID string) ([]Record, error)
+	SelectLatestPermissionModes(ctx context.Context) (map[string]string, error)
+	SelectLatestPermissionMode(ctx context.Context, sessionID string) (string, bool, error)
 }
 
 // Publisher fans a recorded event out to live clients.

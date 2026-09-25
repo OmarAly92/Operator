@@ -1430,7 +1430,8 @@ func (m *Manager) relaunchSessionWithPolicy(ctx context.Context, operation strin
 	}
 
 	// Restore re-applies the project's resolved agent config so a configured
-	// model/permissions carry across a restore, matching fresh spawn.
+	// model carries across a restore, matching fresh spawn; permissions come
+	// from the session's recorded launch mode when set, else the project's.
 	agentConfig := sessionAgentConfig(rec, project.Config)
 	env, browserCapabilityVerifier, err := m.launchRuntimeEnv(ctx, rec, rec.ClaudeAccountID, project.Config.Env)
 	if err != nil {

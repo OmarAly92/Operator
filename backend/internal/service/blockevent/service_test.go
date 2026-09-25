@@ -14,11 +14,12 @@ import (
 )
 
 type fakeStore struct {
-	inserted    []Record
-	trimmed     []string
-	nextSeq     int64
-	taskUpdates []Record
-	taskSession string
+	inserted        []Record
+	trimmed         []string
+	nextSeq         int64
+	taskUpdates     []Record
+	taskSession     string
+	permissionModes map[string]string
 }
 
 func (f *fakeStore) SelectTaskUpdates(_ context.Context, sessionID string) ([]Record, error) {
@@ -35,6 +36,15 @@ func (f *fakeStore) InsertBlockEvent(_ context.Context, rec Record) (int64, erro
 
 func (f *fakeStore) SelectLatestTurnModels(context.Context) (map[string]string, error) {
 	return nil, nil
+}
+
+func (f *fakeStore) SelectLatestPermissionModes(context.Context) (map[string]string, error) {
+	return f.permissionModes, nil
+}
+
+func (f *fakeStore) SelectLatestPermissionMode(_ context.Context, sessionID string) (string, bool, error) {
+	detail, ok := f.permissionModes[sessionID]
+	return detail, ok, nil
 }
 
 func (f *fakeStore) SelectBlockEventsBySession(context.Context, string, string, int64, int) ([]Record, error) {
@@ -148,6 +158,14 @@ func (s *concurrentStore) InsertBlockEvent(context.Context, Record) (int64, erro
 
 func (s *concurrentStore) SelectLatestTurnModels(context.Context) (map[string]string, error) {
 	return nil, nil
+}
+
+func (s *concurrentStore) SelectLatestPermissionModes(context.Context) (map[string]string, error) {
+	return nil, nil
+}
+
+func (s *concurrentStore) SelectLatestPermissionMode(context.Context, string) (string, bool, error) {
+	return "", false, nil
 }
 
 func (s *concurrentStore) SelectBlockEventsBySession(context.Context, string, string, int64, int) ([]Record, error) {
@@ -430,5 +448,50 @@ func TestTaskUpdatesPassesTheSessionThrough(t *testing.T) {
 	got, err := svc.TaskUpdates(context.Background(), "s-1")
 	if err != nil || len(got) != 1 || got[0].Seq != 3 || store.taskSession != "s-1" {
 		t.Fatalf("TaskUpdates = %+v, %v (session %q)", got, err, store.taskSession)
+	}
+}
+
+func TestLatestPermissionModesDecodeTheDetail(t *testing.T) {
+	store := &fakeStore{permissionModes: map[string]string{
+		"s-1": `{"mode":"plan","version":"2.1.280"}`,
+		"s-2": `not json`,
+	}}
+	svc := NewService(store, nil, 500)
+
+	modes, err := svc.LatestPermissionModes(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := modes["s-1"]; got != (domain.PermissionModeObservation{Mode: domain.PermissionModePlan, Version: "2.1.280"}) {
+		t.Fatalf("s-1 = %+v", got)
+	}
+	if _, ok := modes["s-2"]; ok {
+		t.Fatal("an unreadable detail became an observation")
+	}
+	one, ok, err := svc.LatestPermissionMode(context.Background(), "s-1")
+	if err != nil || !ok || one.Mode != domain.PermissionModePlan {
+		t.Fatalf("one = %+v, %v, %v", one, ok, err)
+	}
+	if _, ok, err := svc.LatestPermissionMode(context.Background(), "s-9"); err != nil || ok {
+		t.Fatalf("missing = %v, %v", ok, err)
+	}
+}
+
+func TestRecordTranscriptKeepsThePermissionModeDetail(t *testing.T) {
+	store, pub := &fakeStore{}, &fakePublisher{}
+	svc := NewService(store, pub, 500)
+	detail := `{"mode":"plan","version":"2.1.280"}`
+
+	err := svc.RecordTranscript(context.Background(), "s-1", "claude-code", domain.BlockTranscriptEvent{
+		Kind: domain.BlockEventPermissionMode, SourceID: "permission-mode", Text: "plan", Detail: detail,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(store.inserted) != 1 || store.inserted[0].Detail != detail || store.inserted[0].Text != "plan" {
+		t.Fatalf("inserted = %+v", store.inserted)
+	}
+	if len(pub.published) != 1 {
+		t.Fatalf("published %d events, want 1", len(pub.published))
 	}
 }

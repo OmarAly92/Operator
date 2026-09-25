@@ -238,6 +238,59 @@ func (q *Queries) SelectBlockEventsBySession(ctx context.Context, arg SelectBloc
 	return items, nil
 }
 
+const selectLatestPermissionMode = `-- name: SelectLatestPermissionMode :one
+SELECT detail
+FROM block_events
+WHERE session_id = ? AND kind = 'permission_mode' AND agent_id = ''
+ORDER BY seq DESC
+LIMIT 1
+`
+
+func (q *Queries) SelectLatestPermissionMode(ctx context.Context, sessionID string) (string, error) {
+	row := q.db.QueryRowContext(ctx, selectLatestPermissionMode, sessionID)
+	var detail string
+	err := row.Scan(&detail)
+	return detail, err
+}
+
+const selectLatestPermissionModes = `-- name: SelectLatestPermissionModes :many
+SELECT session_id, detail
+FROM block_events
+WHERE kind = 'permission_mode'
+  AND agent_id = ''
+  AND seq IN (
+    SELECT MAX(seq) FROM block_events WHERE kind = 'permission_mode' AND agent_id = '' GROUP BY session_id
+  )
+`
+
+type SelectLatestPermissionModesRow struct {
+	SessionID string
+	Detail    string
+}
+
+func (q *Queries) SelectLatestPermissionModes(ctx context.Context) ([]SelectLatestPermissionModesRow, error) {
+	rows, err := q.db.QueryContext(ctx, selectLatestPermissionModes)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []SelectLatestPermissionModesRow{}
+	for rows.Next() {
+		var i SelectLatestPermissionModesRow
+		if err := rows.Scan(&i.SessionID, &i.Detail); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const selectLatestTurnModels = `-- name: SelectLatestTurnModels :many
 SELECT session_id, text
 FROM block_events
@@ -330,12 +383,12 @@ const trimBlockEventsForSession = `-- name: TrimBlockEventsForSession :execrows
 DELETE FROM block_events AS outer_be
 WHERE outer_be.session_id = ?
   AND outer_be.agent_id = ?
-  AND outer_be.kind <> 'task_update'
+  AND outer_be.kind NOT IN ('task_update', 'permission_mode')
   AND outer_be.seq < (
     SELECT be.seq FROM block_events AS be
     WHERE be.session_id = ?
       AND be.agent_id = ?
-      AND be.kind <> 'task_update'
+      AND be.kind NOT IN ('task_update', 'permission_mode')
     ORDER BY be.seq DESC
     LIMIT 1 OFFSET ?
   )

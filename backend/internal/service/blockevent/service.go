@@ -163,6 +163,29 @@ func (s *Service) LatestModels(ctx context.Context) (map[domain.SessionID]string
 	return out, nil
 }
 
+func (s *Service) LatestPermissionModes(ctx context.Context) (map[domain.SessionID]domain.PermissionModeObservation, error) {
+	rows, err := s.store.SelectLatestPermissionModes(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[domain.SessionID]domain.PermissionModeObservation, len(rows))
+	for id, detail := range rows {
+		if observation, ok := domain.ParsePermissionModeObservation(detail); ok {
+			out[domain.SessionID(id)] = observation
+		}
+	}
+	return out, nil
+}
+
+func (s *Service) LatestPermissionMode(ctx context.Context, id domain.SessionID) (domain.PermissionModeObservation, bool, error) {
+	detail, ok, err := s.store.SelectLatestPermissionMode(ctx, string(id))
+	if err != nil || !ok {
+		return domain.PermissionModeObservation{}, false, err
+	}
+	observation, ok := domain.ParsePermissionModeObservation(detail)
+	return observation, ok, nil
+}
+
 // History returns persisted events after afterSeq so a reconnecting client can
 // replay what it missed instead of only seeing what arrives next.
 func (s *Service) History(ctx context.Context, sessionID domain.SessionID, agentID string, afterSeq int64, limit int) ([]Record, error) {

@@ -10,12 +10,13 @@ import (
 )
 
 type claudeTranscriptRecord struct {
-	Type      string `json:"type"`
-	Subtype   string `json:"subtype"`
-	Operation string `json:"operation"`
-	Timestamp string `json:"timestamp"`
-	Version   string `json:"version"`
-	Origin    struct {
+	Type           string `json:"type"`
+	Subtype        string `json:"subtype"`
+	Operation      string `json:"operation"`
+	Timestamp      string `json:"timestamp"`
+	Version        string `json:"version"`
+	PermissionMode string `json:"permissionMode"`
+	Origin         struct {
 		Kind string `json:"kind"`
 	} `json:"origin"`
 	UUID            string          `json:"uuid"`
@@ -59,6 +60,14 @@ var claudeIgnoredRecordTypes = map[string]struct{}{
 	"ai-title":              {},
 	"summary":               {},
 	"file-history-snapshot": {},
+}
+
+var claudePermissionModes = map[string]domain.PermissionMode{
+	"default":           domain.PermissionModeDefault,
+	"acceptEdits":       domain.PermissionModeAcceptEdits,
+	"plan":              domain.PermissionModePlan,
+	"auto":              domain.PermissionModeAuto,
+	"bypassPermissions": domain.PermissionModeBypassPermissions,
 }
 
 // MapTranscriptRecord maps one line of Claude Code's native JSONL transcript

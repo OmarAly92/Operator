@@ -457,6 +457,8 @@ func validateClaudeSystemPromptFile(path string) error {
 //     from ~/.claude/settings.json (defaultMode), exactly as a normal launch.
 //   - accept-edits       → --permission-mode acceptEdits (auto-accept edits +
 //     safe filesystem bash; still prompts for network/system bash, MCP, web)
+//   - plan               → --permission-mode plan (read-only planning; no
+//     edits or commands run until the plan is approved)
 //   - auto               → --permission-mode auto (classifier-gated
 //     auto-approval; auto-runs what a safety model deems safe)
 //   - bypass-permissions → --permission-mode bypassPermissions (skip all

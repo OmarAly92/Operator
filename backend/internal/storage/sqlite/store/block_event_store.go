@@ -2,7 +2,9 @@ package store
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -66,6 +68,29 @@ func (s *Store) SelectLatestTurnModels(ctx context.Context) (map[string]string, 
 		}
 	}
 	return out, nil
+}
+
+func (s *Store) SelectLatestPermissionModes(ctx context.Context) (map[string]string, error) {
+	rows, err := s.qr.SelectLatestPermissionModes(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("select latest permission modes: %w", err)
+	}
+	out := make(map[string]string, len(rows))
+	for _, row := range rows {
+		out[row.SessionID] = row.Detail
+	}
+	return out, nil
+}
+
+func (s *Store) SelectLatestPermissionMode(ctx context.Context, sessionID string) (string, bool, error) {
+	detail, err := s.qr.SelectLatestPermissionMode(ctx, sessionID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", false, nil
+	}
+	if err != nil {
+		return "", false, fmt.Errorf("select latest permission mode for %s: %w", sessionID, err)
+	}
+	return detail, true, nil
 }
 
 // SelectBlockEventsBySession returns events after afterSeq in ascending order.
