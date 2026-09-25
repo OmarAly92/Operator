@@ -356,6 +356,25 @@ void main() {
 
       expect(find.text('PROJECTS'), findsNothing);
     });
+
+    testWidgets('a project filter that hides every session says nothing is here, not that there are no agents', (tester) async {
+      AppPreferences.debugLoad({PreferenceKeys.activeProject('d-1'): 'scratch'});
+
+      await pumpBody(
+        tester,
+        const BoardSnapshot(
+          sessions: [SessionModel(id: 'b', projectId: 'other', displayName: 'Other one', status: 'working')],
+          projects: [ProjectModel(id: 'scratch', name: 'Scratch'), ProjectModel(id: 'other', name: 'Other')],
+        ),
+        source: const _StubConfigSource(
+          ServerConfig(host: '10.0.0.5', httpPort: '3011', secure: false, password: 'pw', desktopId: 'd-1'),
+        ),
+      );
+
+      expect(find.text('Other one'), findsNothing);
+      expect(find.text('Nothing here right now.'), findsOneWidget);
+      expect(find.text('No agents yet'), findsNothing);
+    });
   });
 
   Future<void> pumpWithBoard(WidgetTester tester, Future<Result<GlobalResponse<BoardSnapshot>, Failure>> Function() board) async {
@@ -479,6 +498,7 @@ void main() {
       expect(find.text('No agents yet'), findsOneWidget);
       expect(find.text('Spawn your first agent'), findsOneWidget);
       expect(find.byIcon(Icons.south_east_rounded), findsOneWidget);
+      expect(find.text('Nothing here right now.'), findsNothing);
     });
 
     testWidgets('with the cache applied before the first frame, frame one is the board', (tester) async {

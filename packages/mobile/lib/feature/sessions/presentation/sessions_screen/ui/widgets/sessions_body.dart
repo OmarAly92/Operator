@@ -115,7 +115,8 @@ class _SessionsBodyState extends State<SessionsBody> with WidgetsBindingObserver
             .toList();
         final showArchive = _filter == SessionsFilter.all || _filter == SessionsFilter.archive;
         final archiveForcedOpen = _filter == SessionsFilter.archive;
-        final nothingHere = visibleSections.isEmpty && (!showArchive || grouped.archived.isEmpty);
+        final boardEmpty = cubit.sessions.isEmpty;
+        final nothingHere = !boardEmpty && visibleSections.isEmpty && (!showArchive || grouped.archived.isEmpty);
 
         void openActions(SessionModel session) => showSessionActionsSheet(context, session);
 
@@ -189,7 +190,7 @@ class _SessionsBodyState extends State<SessionsBody> with WidgetsBindingObserver
                     maxLines: 2,
                   ),
                 ),
-              if (grouped.sections.isEmpty && grouped.archived.isEmpty)
+              if (boardEmpty)
                 const Padding(padding: EdgeInsets.only(top: 80), child: _EmptyBoard()),
             ],
           ),
