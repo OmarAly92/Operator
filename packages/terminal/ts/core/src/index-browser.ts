@@ -98,6 +98,14 @@ export {
 } from "./agent-activity.js";
 export { detectsHighConfidenceInputPattern } from "./input-patterns.js";
 export {
+	COMPACT_MIN_REDRAW_LINES,
+	COMPACT_REDRAW_LOOKBACK,
+	capLines,
+	compactLines,
+	isSpinnerLine,
+} from "./compact-output.js";
+export { blockOutputText, type BlockOutputOptions } from "./block-output.js";
+export {
 	FEED_BUDGET_MS,
 	FEED_SLICE_BYTES,
 	FIND_UPDATE_BUDGET_BYTES,

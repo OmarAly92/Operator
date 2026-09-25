@@ -14,6 +14,7 @@ import { snapshotLogicalLines, type LogicalLine } from "./logical-lines.js";
 import { ProgramMessages, type ProgramMessageListener } from "./program-messages.js";
 import { AgentEvents, type AgentEventListener } from "./agent-events.js";
 import { AgentActivityMonitor, cursorLineText, type AgentActivityListener, type AgentActivityState } from "./agent-activity.js";
+import { blockOutputText, type BlockOutputOptions } from "./block-output.js";
 import { budgetNow, decodeFindMatches, parseBlockId, validateEvenLength, validateMultipleOf } from "./core-checks.js";
 import type {
 	BlockId,
@@ -509,6 +510,13 @@ export class TerminalCore {
 
 	onAgentActivity(listener: AgentActivityListener): () => void {
 		return this.activity.onChange(listener);
+	}
+
+	readBlockOutput(id: BlockId, options: BlockOutputOptions = {}): string | null {
+		if (this.disposed) return null;
+		const snapshot = this.snapshot();
+		const block = decodeBlocks(snapshot).find((view) => view.id === id);
+		return block ? blockOutputText(snapshot, block, this.decoder, options) : null;
 	}
 
 	lineEditorState(): LineEditorState {
