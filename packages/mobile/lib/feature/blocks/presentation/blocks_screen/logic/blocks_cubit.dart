@@ -44,7 +44,7 @@ class BlocksScope extends Equatable {
 }
 
 class BlocksCubit extends Cubit<BlocksState> {
-  BlocksCubit(this._mux, this._repository, this.scope, {this._tasks})
+  BlocksCubit(this._mux, this._repository, this.scope, {required this._tasks})
     : supported = BlockHarnesses.covers(scope.harness),
       super(const BlocksInitialState()) {
     if (!supported) {
@@ -61,7 +61,7 @@ class BlocksCubit extends Cubit<BlocksState> {
 
   final MuxClient _mux;
   final BlocksRepository _repository;
-  final BackgroundTasksRepository? _tasks;
+  final BackgroundTasksRepository _tasks;
   final BlocksScope scope;
   String get sessionId => scope.sessionId;
   String? get agentId => scope.agentId;
@@ -86,7 +86,12 @@ class BlocksCubit extends Cubit<BlocksState> {
   StreamSubscription<MuxStatus>? _statusSub;
   StreamSubscription<List<SessionPatch>>? _patchesSub;
 
-  int? get _highestSeq => _events.isEmpty ? null : _events.lastKey();
+  int _taskSeq = 0;
+
+  int? get _highestSeq {
+    final highest = _events.isEmpty ? _taskSeq : max(_events.lastKey()!, _taskSeq);
+    return highest == 0 ? null : highest;
+  }
 
   int? get _lowestSeq => _events.isEmpty ? null : _events.firstKey();
 
@@ -155,9 +160,10 @@ class BlocksCubit extends Cubit<BlocksState> {
   void _onLive(BlockEventEnvelope envelope) {
     final record = BlockEventModel.fromJson(envelope.block);
     final scopeId = record.agentId ?? '';
-    if (record.kind == 'task_update' && agentId == null) {
-      _absorbTask(record);
-      if (scopeId.isNotEmpty) return;
+    if (record.kind == 'task_update') {
+      if (agentId == null) _absorbTask(record);
+      if (scopeId == (agentId ?? '')) _merge(record);
+      return;
     }
     if (scopeId == (agentId ?? '')) {
       if (agentId == null && record.kind == 'agent_stop' && (record.sourceId ?? '').isNotEmpty) {
@@ -196,9 +202,11 @@ class BlocksCubit extends Cubit<BlocksState> {
   bool _seeding = false;
   bool _reseed = false;
 
+  Future<void> reseedTasks() => _seedTasks();
+
   Future<void> _seedTasks() async {
     final tasks = _tasks;
-    if (tasks == null || agentId != null || !supported || _taskFeedMissing) return;
+    if (agentId != null || !supported || _taskFeedMissing) return;
     if (_seeding) {
       _reseed = true;
       return;
@@ -216,7 +224,8 @@ class BlocksCubit extends Cubit<BlocksState> {
           _emit();
         },
         onFailure: (failure) {
-          if (failure.statusCode == StatusCode.notFound) _taskFeedMissing = true;
+          final status = failure.statusCode;
+          if (status == StatusCode.notFound || status == StatusCode.notImplemented) _taskFeedMissing = true;
         },
       );
     } while (_reseed && !_taskFeedMissing);
@@ -238,9 +247,7 @@ class BlocksCubit extends Cubit<BlocksState> {
   }
 
   Future<Failure?> stopTask(String taskId) async {
-    final tasks = _tasks;
-    if (tasks == null) return LocalFailure(error: 'No task service', message: 'Stopping tasks is unavailable');
-    final result = await tasks.stopTask(StopSessionTaskParams(sessionId: sessionId, taskId: taskId));
+    final result = await _tasks.stopTask(StopSessionTaskParams(sessionId: sessionId, taskId: taskId));
     Failure? failure;
     result.when(
       onSuccess: (response) {
@@ -279,6 +286,10 @@ class BlocksCubit extends Cubit<BlocksState> {
   void _merge(BlockEventModel record) {
     final seq = record.seq;
     if (seq == null) return;
+    if (record.kind == 'task_update') {
+      _taskSeq = max(_taskSeq, seq);
+      return;
+    }
     _events[seq] = record;
     while (_events.length > _capacity) {
       _events.remove(_events.firstKey());

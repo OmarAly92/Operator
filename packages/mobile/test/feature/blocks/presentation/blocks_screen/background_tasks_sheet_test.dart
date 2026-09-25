@@ -84,6 +84,7 @@ void main() {
     whenListen(cubit, states.stream, initialState: const BlocksReadyState(1));
     when(() => cubit.subagentSummaries).thenReturn(const {});
     when(() => cubit.taskFeed).thenReturn(const {});
+    when(() => cubit.reseedTasks()).thenAnswer((_) async {});
     when(() => cubit.sessionId).thenReturn('s-1');
     when(() => cubit.harness).thenReturn('claude-code');
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(
@@ -483,6 +484,56 @@ void main() {
     expect(find.text('Stopped'), findsOneWidget);
     expect(find.byKey(BackgroundTasksView.stopKey), findsNothing);
     expect(find.text('No running tasks'), findsOneWidget);
+
+    await tester.pump(AppMotion.taskStopConfirmTimeout + const Duration(seconds: 1));
+    expect(find.text("Couldn't confirm stop"), findsNothing);
+    expect(haptics, ['HapticFeedbackType.lightImpact']);
+    verifyNever(() => cubit.reseedTasks());
+  });
+
+  testWidgets('a stop the feed never confirms gives up after the timeout, buzzes, says so and reseeds', (tester) async {
+    when(() => cubit.blocks).thenReturn(const []);
+    await open(
+      tester,
+      tasksOf: (_) => [_shell('a', canStop: true)],
+      onStop: (_) async => null,
+    );
+    haptics.clear();
+
+    await tester.tap(find.byKey(BackgroundTasksView.stopKey));
+    await tester.pump();
+    await tester.pump(AppMotion.taskStopConfirmTimeout - const Duration(milliseconds: 50));
+    expect(find.byKey(BackgroundTasksView.stoppingKey), findsOneWidget);
+    verifyNever(() => cubit.reseedTasks());
+
+    await tester.pump(const Duration(milliseconds: 100));
+    await tester.pump();
+    expect(find.byKey(BackgroundTasksView.stoppingKey), findsNothing);
+    expect(find.byKey(BackgroundTasksView.stopKey), findsOneWidget);
+    expect(find.text("Couldn't confirm stop"), findsOneWidget);
+    expect(haptics, ['HapticFeedbackType.lightImpact', 'notify:error']);
+    verify(() => cubit.reseedTasks()).called(1);
+
+    await tester.pump(AppMotion.taskStopErrorHold);
+    await settle(tester);
+    expect(find.text("Couldn't confirm stop"), findsNothing);
+  });
+
+  testWidgets('closing the sheet mid-stop cancels the confirm timer', (tester) async {
+    when(() => cubit.blocks).thenReturn(const []);
+    await open(
+      tester,
+      tasksOf: (_) => [_shell('a', canStop: true)],
+      onStop: (_) async => null,
+    );
+
+    await tester.tap(find.byKey(BackgroundTasksView.stopKey));
+    await tester.pump();
+    await tester.tap(find.byKey(AppSheet.closeKey));
+    await settle(tester);
+    await tester.pump(AppMotion.taskStopConfirmTimeout + const Duration(seconds: 1));
+
+    verifyNever(() => cubit.reseedTasks());
   });
 
   for (final (code, message) in [
@@ -494,6 +545,7 @@ void main() {
     ('TASK_PANEL_UNAVAILABLE', "Couldn't stop — tasks panel busy"),
     ('SESSION_COMPOSER_NOT_EMPTY', "Couldn't stop — draft in composer"),
     ('SESSION_AWAITING_DECISION', "Couldn't stop — waiting on a decision"),
+    ('TASK_UNSAFE', "Couldn't stop safely"),
     ('SOMETHING_ELSE', "Couldn't stop"),
     (null, "Couldn't stop"),
   ]) {

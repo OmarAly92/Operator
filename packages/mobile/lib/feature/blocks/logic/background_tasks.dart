@@ -160,5 +160,6 @@ String taskStopErrorMessage(String? code) => switch (code) {
   'TASK_PANEL_UNAVAILABLE' => "Couldn't stop — tasks panel busy",
   'SESSION_COMPOSER_NOT_EMPTY' => "Couldn't stop — draft in composer",
   'SESSION_AWAITING_DECISION' => "Couldn't stop — waiting on a decision",
+  'TASK_UNSAFE' => "Couldn't stop safely",
   _ => "Couldn't stop",
 };

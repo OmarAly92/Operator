@@ -8,6 +8,8 @@ import 'package:operator_mobile/core/mux/mux_client.dart';
 import 'package:operator_mobile/core/mux/session_patch.dart';
 import 'package:operator_mobile/feature/blocks/data/model/block_event_model.dart';
 import 'package:operator_mobile/feature/blocks/data/model/params/get_session_blocks_params.dart';
+import 'package:operator_mobile/feature/blocks/data/model/params/get_session_tasks_params.dart';
+import 'package:operator_mobile/feature/blocks/data/repository/background_tasks_repository.dart';
 import 'package:operator_mobile/feature/blocks/data/repository/blocks_repository.dart';
 import 'package:operator_mobile/feature/blocks/logic/session_block.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/blocks_cubit.dart';
@@ -15,6 +17,8 @@ import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/
 class _MockMux extends Mock implements MuxClient {}
 
 class _MockRepository extends Mock implements BlocksRepository {}
+
+class _MockTasksRepository extends Mock implements BackgroundTasksRepository {}
 
 Map<String, dynamic> _wire(
   int seq,
@@ -43,15 +47,23 @@ List<BlockEventModel> _historyWindow(int first) => [
 void main() {
   late _MockMux mux;
   late _MockRepository repository;
+  late _MockTasksRepository tasks;
   late StreamController<BlockEventEnvelope> events;
   late StreamController<MuxStatus> statuses;
   late StreamController<List<SessionPatch>> patches;
 
-  setUpAll(() => registerFallbackValue(const GetSessionBlocksParams()));
+  setUpAll(() {
+    registerFallbackValue(const GetSessionBlocksParams());
+    registerFallbackValue(const GetSessionTasksParams(sessionId: ''));
+  });
 
   setUp(() {
     mux = _MockMux();
     repository = _MockRepository();
+    tasks = _MockTasksRepository();
+    when(() => tasks.getTasks(any())).thenAnswer(
+      (_) async => Result.failure(ServerFailure(error: 'nf', statusCode: 404)),
+    );
     events = StreamController<BlockEventEnvelope>.broadcast();
     statuses = StreamController<MuxStatus>.broadcast();
     patches = StreamController<List<SessionPatch>>.broadcast();
@@ -72,7 +84,12 @@ void main() {
   });
 
   BlocksCubit build({String? harness = 'claude-code', String? agentId}) =>
-      BlocksCubit(mux, repository, BlocksScope(sessionId: 's-1', harness: harness, agentId: agentId));
+      BlocksCubit(
+        mux,
+        repository,
+        BlocksScope(sessionId: 's-1', harness: harness, agentId: agentId),
+        tasks: tasks,
+      );
 
   test('complete initial history does not offer older blocks', () async {
     when(() => repository.getSessionBlocks(any(), any())).thenAnswer(

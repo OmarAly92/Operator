@@ -23,6 +23,9 @@ import 'package:operator_mobile/core/mux/mux_client.dart';
 import 'package:operator_mobile/core/mux/session_patch.dart';
 import 'package:operator_mobile/core/utils/service_locator.dart';
 import 'package:operator_mobile/feature/blocks/data/model/pending_interaction_model.dart';
+import 'package:operator_mobile/feature/blocks/data/model/background_task_model.dart';
+import 'package:operator_mobile/feature/blocks/data/model/params/get_session_tasks_params.dart';
+import 'package:operator_mobile/feature/blocks/data/repository/background_tasks_repository.dart';
 import 'package:operator_mobile/feature/blocks/data/repository/blocks_repository.dart';
 import 'package:operator_mobile/feature/blocks/data/repository/session_control_repository.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/blocks_cubit.dart';
@@ -62,6 +65,8 @@ class _MockTerminalRepository extends Mock implements TerminalRepository {}
 class _MockPreviewRepository extends Mock implements PreviewRepository {}
 
 class _MockBlocksRepository extends Mock implements BlocksRepository {}
+
+class _MockBackgroundTasksRepository extends Mock implements BackgroundTasksRepository {}
 
 class _MockSessionControlRepository extends Mock
     implements SessionControlRepository {}
@@ -112,6 +117,7 @@ void main() {
     SharedPreferences.setMockInitialValues({});
     await CacheHelper.init();
     registerFallbackValue(const GetSessionBlocksParams());
+    registerFallbackValue(const GetSessionTasksParams(sessionId: ''));
 
     repository = _MockSessionsRepository();
     mux = _MockMuxClient();
@@ -164,8 +170,12 @@ void main() {
     when(
       () => blocksRepository.getSessionBlocks(any(), any()),
     ).thenAnswer((_) async => Result.success(const []));
+    final tasksRepository = _MockBackgroundTasksRepository();
+    when(() => tasksRepository.getTasks(any())).thenAnswer(
+      (_) async => Result.success(GlobalResponse<List<BackgroundTaskModel>>(data: const [])),
+    );
     sl.registerFactoryParam<BlocksCubit, BlocksScope, void>(
-      (scope, _) => BlocksCubit(mux, blocksRepository, scope),
+      (scope, _) => BlocksCubit(mux, blocksRepository, scope, tasks: tasksRepository),
     );
     final sessionControlRepository = _MockSessionControlRepository();
     when(() => sessionControlRepository.getInteractions(any())).thenAnswer(

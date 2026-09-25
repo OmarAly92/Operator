@@ -252,4 +252,74 @@ void main() {
     expect(failure?.apiStatus, 'TASK_AMBIGUOUS');
     await cubit.close();
   });
+
+  test('a 501 from a daemon without the task service turns the feed off too', () async {
+    when(() => tasks.getTasks(any())).thenAnswer(
+      (_) async => Result.failure(ServerFailure(error: 'ni', message: 'not wired', statusCode: 501)),
+    );
+    final cubit = build();
+    await settle();
+
+    statuses.add(MuxStatus.open);
+    await settle();
+    await cubit.reseedTasks();
+
+    verify(() => tasks.getTasks(any())).called(1);
+    expect(cubit.taskFeed, isEmpty);
+    await cubit.close();
+  });
+
+  test('reseedTasks fetches the list again', () async {
+    final cubit = build();
+    await settle();
+
+    await cubit.reseedTasks();
+
+    verify(() => tasks.getTasks(any())).called(2);
+    await cubit.close();
+  });
+
+  test('task events stay out of the block window but still advance the refresh cursor', () async {
+    when(() => blocks.getSessionBlocks(any(), any())).thenAnswer(
+      (_) async => Result.success([
+        for (var seq = 1; seq <= kBlockWindow; seq++)
+          BlockEventModel.fromJson({'seq': seq, 'sessionId': 's-1', 'kind': 'stop', 'text': 'line $seq'}),
+      ]),
+    );
+    final cubit = build();
+    await settle();
+    final before = cubit.blocks.length;
+    final first = cubit.blocks.first.id;
+
+    for (var seq = kBlockWindow + 1; seq <= kBlockWindow + 500; seq++) {
+      events.add(BlockEventEnvelope('s-1', _update(seq, 'b$seq', 'completed')));
+    }
+    await settle();
+
+    expect(cubit.blocks.length, before);
+    expect(cubit.blocks.first.id, first);
+    expect(cubit.hasOlder, isFalse);
+    expect(cubit.taskFeed, hasLength(500));
+
+    when(() => blocks.getSessionBlocks(any(), any())).thenAnswer((_) async => Result.success(const <BlockEventModel>[]));
+    statuses.add(MuxStatus.open);
+    await settle();
+    final params = verify(() => blocks.getSessionBlocks('s-1', captureAny())).captured.last as GetSessionBlocksParams;
+    expect(params.afterSeq, kBlockWindow + 500);
+    await cubit.close();
+  });
+
+  test('task events from history are dropped from the window too', () async {
+    when(() => blocks.getSessionBlocks(any(), any())).thenAnswer(
+      (_) async => Result.success([
+        BlockEventModel.fromJson(const {'seq': 1, 'sessionId': 's-1', 'kind': 'stop', 'text': 'done'}),
+        BlockEventModel.fromJson(_update(2, 'b1', 'running')),
+      ]),
+    );
+    final cubit = build();
+    await settle();
+
+    expect(cubit.blocks.map((block) => block.id), ['seq-1']);
+    await cubit.close();
+  });
 }

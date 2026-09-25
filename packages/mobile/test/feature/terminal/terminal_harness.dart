@@ -15,6 +15,9 @@ import 'package:operator_mobile/core/utils/service_locator.dart';
 import 'package:operator_mobile/feature/blocks/data/model/block_event_model.dart';
 import 'package:operator_mobile/feature/blocks/data/model/params/get_session_blocks_params.dart';
 import 'package:operator_mobile/feature/blocks/data/model/pending_interaction_model.dart';
+import 'package:operator_mobile/feature/blocks/data/model/background_task_model.dart';
+import 'package:operator_mobile/feature/blocks/data/model/params/get_session_tasks_params.dart';
+import 'package:operator_mobile/feature/blocks/data/repository/background_tasks_repository.dart';
 import 'package:operator_mobile/feature/blocks/data/repository/blocks_repository.dart';
 import 'package:operator_mobile/feature/blocks/data/repository/session_control_repository.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/blocks_cubit.dart';
@@ -40,6 +43,8 @@ class MockSessionsRepository extends Mock implements SessionsRepository {}
 class MockPreviewRepository extends Mock implements PreviewRepository {}
 
 class MockBlocksRepository extends Mock implements BlocksRepository {}
+
+class MockBackgroundTasksRepository extends Mock implements BackgroundTasksRepository {}
 
 class MockSessionControlRepository extends Mock
     implements SessionControlRepository {}
@@ -118,6 +123,7 @@ class TerminalHarness {
       );
     }
     registerFallbackValue(const GetSessionBlocksParams());
+    registerFallbackValue(const GetSessionTasksParams(sessionId: ''));
     when(() => terminalRepository.getSlashCommands(any())).thenAnswer(
       (_) async => Result.success(GlobalResponse<List<SlashCommandModel>>(data: const [])),
     );
@@ -168,10 +174,15 @@ class TerminalHarness {
     ).thenAnswer((_) async => Result.success(blockRecords));
 
     viewCubit = SessionViewCubit(defaultViewMode(cubit.args));
+    final tasksRepository = MockBackgroundTasksRepository();
+    when(() => tasksRepository.getTasks(any())).thenAnswer(
+      (_) async => Result.success(GlobalResponse<List<BackgroundTaskModel>>(data: const [])),
+    );
     blocksCubit = BlocksCubit(
       mux,
       blocksRepository,
       BlocksScope(sessionId: cubit.args.sessionId, harness: harness),
+      tasks: tasksRepository,
     );
     when(() => controlRepository.getInteractions(any())).thenAnswer(
       (_) async =>

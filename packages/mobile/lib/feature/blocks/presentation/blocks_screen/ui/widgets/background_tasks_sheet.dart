@@ -102,19 +102,47 @@ class _BackgroundTasksViewState extends State<BackgroundTasksView> {
   bool _finishedOpen = true;
   final Set<String> _stopping = <String>{};
   final Map<String, String> _stopErrors = <String, String>{};
-  final Map<String, Timer> _errorTimers = <String, Timer>{};
+  final Map<String, Timer> _timers = <String, Timer>{};
 
   @override
   void dispose() {
-    for (final timer in _errorTimers.values) {
+    for (final timer in _timers.values) {
       timer.cancel();
     }
     super.dispose();
   }
 
   void _clearError(String id) {
-    _errorTimers.remove(id)?.cancel();
+    _timers.remove(id)?.cancel();
     _stopErrors.remove(id);
+  }
+
+  void _showError(String id, String message) {
+    Haptics.error();
+    setState(() {
+      _stopping.remove(id);
+      _stopErrors[id] = message;
+    });
+    _timers.remove(id)?.cancel();
+    _timers[id] = Timer(AppMotion.taskStopErrorHold, () {
+      if (!mounted) return;
+      setState(() => _clearError(id));
+    });
+  }
+
+  void _pruneStopping(BlocksCubit cubit) {
+    final running = {
+      for (final task in widget.tasksOf(cubit))
+        if (task.running) task.id,
+    };
+    final done = _stopping.where((id) => !running.contains(id)).toList();
+    if (done.isEmpty) return;
+    setState(() {
+      for (final id in done) {
+        _stopping.remove(id);
+        _timers.remove(id)?.cancel();
+      }
+    });
   }
 
   Future<void> _stop(BackgroundTask task) async {
@@ -126,27 +154,27 @@ class _BackgroundTasksViewState extends State<BackgroundTasksView> {
       _clearError(task.id);
     });
     final failure = await onStop(task);
-    if (!mounted || failure == null) return;
-    Haptics.error();
-    setState(() {
-      _stopping.remove(task.id);
-      _stopErrors[task.id] = taskStopErrorMessage(failure.apiStatus);
-    });
-    _errorTimers[task.id] = Timer(AppMotion.taskStopErrorHold, () {
-      if (!mounted) return;
-      setState(() => _clearError(task.id));
+    if (!mounted || !_stopping.contains(task.id)) return;
+    if (failure != null) {
+      _showError(task.id, taskStopErrorMessage(failure.apiStatus));
+      return;
+    }
+    final cubit = context.read<BlocksCubit>();
+    _timers[task.id] = Timer(AppMotion.taskStopConfirmTimeout, () {
+      if (!mounted || !_stopping.contains(task.id)) return;
+      _showError(task.id, "Couldn't confirm stop");
+      unawaited(cubit.reseedTasks());
     });
   }
 
   @override
-  Widget build(BuildContext context) => BlocBuilder<BlocksCubit, BlocksState>(
+  Widget build(BuildContext context) => BlocConsumer<BlocksCubit, BlocksState>(
+    listener: (context, _) => _pruneStopping(context.read<BlocksCubit>()),
     builder: (context, _) {
       final skin = context.skin;
       final tasks = widget.tasksOf(context.read<BlocksCubit>());
       final running = tasks.where((task) => task.running).toList();
       final finished = tasks.where((task) => !task.running).toList();
-      final runningIds = {for (final task in running) task.id};
-      _stopping.removeWhere((id) => !runningIds.contains(id));
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
