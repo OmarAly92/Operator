@@ -45,6 +45,33 @@ type tail struct {
 	unknown    int
 	logged     int
 	interrupts InterruptSink
+	mapper     blocktranscript.MapFunc
+}
+
+const primeWindowBytes = 4 << 20
+
+func primeMapper(file *os.File, offset int64, mapper blocktranscript.MapFunc) {
+	start := max(0, offset-primeWindowBytes)
+	if _, err := file.Seek(start, io.SeekStart); err != nil {
+		return
+	}
+	reader := bufio.NewReaderSize(io.LimitReader(file, offset-start), 64<<10)
+	if start > 0 {
+		if _, err := reader.ReadBytes('\n'); err != nil {
+			return
+		}
+	}
+	for {
+		line, err := reader.ReadBytes('\n')
+		if err != nil {
+			return
+		}
+		record := bytes.TrimRight(line, "\r\n")
+		if len(record) == 0 || len(record) > maxTranscriptLineBytes {
+			continue
+		}
+		mapper(record)
+	}
 }
 
 func offsetKey(sessionID domain.SessionID, agentID string) string {
@@ -70,9 +97,16 @@ func (t *tail) pump(ctx context.Context, sink Sink, offsets OffsetStore, now fun
 	if info.Size() < t.offset {
 		t.offset = 0
 		t.lastModel = ""
+		t.mapper = nil
 	}
 	if info.Size() == t.offset {
 		return nil
+	}
+	if t.mapper == nil {
+		t.mapper = blocktranscript.NewMapper(t.harness, t.agentID)
+		if t.mapper != nil && t.offset > 0 {
+			primeMapper(file, t.offset, t.mapper)
+		}
 	}
 	if _, err := file.Seek(t.offset, io.SeekStart); err != nil {
 		return err
@@ -104,11 +138,9 @@ func (t *tail) pump(ctx context.Context, sink Sink, offsets OffsetStore, now fun
 			continue
 		}
 		var events []domain.BlockTranscriptEvent
-		var known bool
-		if t.agentID == "" {
-			events, known = blocktranscript.Map(t.harness, record)
-		} else {
-			events, known = blocktranscript.MapSidechain(t.harness, t.agentID, record)
+		known := false
+		if t.mapper != nil {
+			events, known = t.mapper(record)
 		}
 		if !known {
 			t.unknown++

@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -295,5 +296,51 @@ func TestPumpDoesNotReportASubagentInterrupt(t *testing.T) {
 	_ = tl.pump(context.Background(), &fakeSink{}, &fakeOffsets{}, time.Now)
 	if len(interrupts.ids) != 0 {
 		t.Fatalf("interrupts = %v, want none", interrupts.ids)
+	}
+}
+
+func TestPumpTiesABackgroundLaunchToItsToolUseAcrossPumps(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "native.jsonl")
+	appendLines(t, path, `{"type":"assistant","uuid":"u-1","timestamp":"2026-09-25T00:00:00.000Z","message":{"content":[{"type":"tool_use","id":"toolu_bg","name":"Bash","input":{"command":"sleep 900","description":"Nap","run_in_background":true}}]}}`)
+
+	sink, offsets := &fakeSink{}, &fakeOffsets{}
+	tl := newTail(path)
+	if err := tl.pump(context.Background(), sink, offsets, time.Now); err != nil {
+		t.Fatalf("pump: %v", err)
+	}
+	appendLines(t, path, `{"type":"user","uuid":"u-2","timestamp":"2026-09-25T00:00:01.000Z","message":{"content":[{"type":"tool_result","tool_use_id":"toolu_bg","content":"Command running in background with ID: b1. Output is being written to: /tmp/t/tasks/b1.output."}]},"toolUseResult":{"backgroundTaskId":"b1"}}`)
+	if err := tl.pump(context.Background(), sink, offsets, time.Now); err != nil {
+		t.Fatalf("pump: %v", err)
+	}
+	var detail string
+	for _, e := range sink.recorded() {
+		if e.event.Kind == domain.BlockEventTaskUpdate {
+			detail = e.event.Detail
+		}
+	}
+	want := `{"taskId":"b1","kind":"shell","status":"running","toolUseId":"toolu_bg","description":"Nap","command":"sleep 900","outputFile":"/tmp/t/tasks/b1.output","startedAt":"2026-09-25T00:00:00.000Z"}`
+	if detail != want {
+		t.Fatalf("detail = %s\nwant %s", detail, want)
+	}
+}
+
+func TestPumpPrimesLaunchStateBeforeAResumedCursor(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "native.jsonl")
+	appendLines(t, path, assistantLine, `{"type":"assistant","uuid":"u-1","timestamp":"2026-09-25T00:00:00.000Z","message":{"content":[{"type":"tool_use","id":"toolu_bg","name":"Bash","input":{"command":"sleep 900","run_in_background":true}}]}}`)
+	info, _ := os.Stat(path)
+	appendLines(t, path, `{"type":"user","uuid":"u-2","timestamp":"2026-09-25T00:00:01.000Z","message":{"content":[{"type":"tool_result","tool_use_id":"toolu_bg","content":"Command running in background with ID: b1. Output is being written to: /tmp/t/tasks/b1.output."}]},"toolUseResult":{"backgroundTaskId":"b1"}}`)
+
+	sink, offsets := &fakeSink{}, &fakeOffsets{}
+	tl := newTail(path)
+	tl.offset = info.Size()
+	if err := tl.pump(context.Background(), sink, offsets, time.Now); err != nil {
+		t.Fatalf("pump: %v", err)
+	}
+	got := sink.recorded()
+	if len(got) != 2 || got[1].event.Kind != domain.BlockEventTaskUpdate {
+		t.Fatalf("events = %+v", got)
+	}
+	if want := `"command":"sleep 900"`; !strings.Contains(got[1].event.Detail, want) {
+		t.Fatalf("detail = %s", got[1].event.Detail)
 	}
 }

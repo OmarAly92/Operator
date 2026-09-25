@@ -207,6 +207,7 @@ func (s *Supervisor) reconcile(ctx context.Context) []*tail {
 			existing.path = path
 			existing.offset = 0
 			existing.lastModel = ""
+			existing.mapper = nil
 		}
 		if blocktranscript.SupportsSidechain(string(rec.Harness)) {
 			for _, agentPath := range subagentPaths(path) {

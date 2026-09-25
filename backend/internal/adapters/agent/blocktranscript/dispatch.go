@@ -80,3 +80,25 @@ func Interrupt(harness string, line []byte) (interrupted, turn bool) {
 	}
 	return detect(line)
 }
+
+var StatefulMappers = map[string]func(agentID string) MapFunc{
+	"claude-code": func(agentID string) MapFunc { return claudecode.NewTranscriptMapper(agentID).Map },
+}
+
+func NewMapper(harness, agentID string) MapFunc {
+	if factory, found := StatefulMappers[harness]; found {
+		return factory(agentID)
+	}
+	if agentID != "" {
+		sidechain, found := SidechainMappers[harness]
+		if !found {
+			return nil
+		}
+		return func(line []byte) ([]domain.BlockTranscriptEvent, bool) { return sidechain(agentID, line) }
+	}
+	mapper, found := Mappers[harness]
+	if !found {
+		return nil
+	}
+	return mapper
+}
