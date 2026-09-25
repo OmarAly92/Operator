@@ -9,7 +9,9 @@ import 'package:operator_mobile/core/preferences/app_preferences.dart';
 part 'skin_state.dart';
 
 class SkinCubit extends Cubit<SkinState> {
-  SkinCubit() : preference = _savedPreference(), skin = _resolvedSkin(_savedPreference()), super(const SkinInitialState()) {
+  factory SkinCubit() => SkinCubit._(_savedPreference());
+
+  SkinCubit._(this.preference) : skin = _resolvedSkin(preference), super(const SkinInitialState()) {
     if (preference == ThemeMode.system) _startFollowingBrightness();
   }
 

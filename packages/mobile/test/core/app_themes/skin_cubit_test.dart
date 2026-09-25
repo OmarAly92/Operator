@@ -73,6 +73,38 @@ void main() {
       },
       expect: () => [const SkinChangedState(DarkSkin()), const SkinChangedState(LightSkin())],
     );
+
+    int preExistingCalls = 0;
+
+    blocTest<SkinCubit, SkinState>(
+      'chains a pre-existing platform brightness handler instead of replacing it',
+      build: () {
+        preExistingCalls = 0;
+        dispatcher.onPlatformBrightnessChanged = () => preExistingCalls++;
+        return SkinCubit();
+      },
+      act: (cubit) => dispatcher.platformBrightnessTestValue = Brightness.dark,
+      expect: () => [const SkinChangedState(DarkSkin())],
+      verify: (cubit) {
+        expect(preExistingCalls, 1);
+        expect(cubit.skin, isA<DarkSkin>());
+      },
+    );
+
+    test('close() restores the previously chained brightness handler', () async {
+      void preExisting() {}
+      dispatcher.onPlatformBrightnessChanged = preExisting;
+      final cubit = SkinCubit();
+      await cubit.close();
+      expect(dispatcher.onPlatformBrightnessChanged, same(preExisting));
+    });
+
+    test('close() restores null when there was no previously chained handler', () async {
+      dispatcher.onPlatformBrightnessChanged = null;
+      final cubit = SkinCubit();
+      await cubit.close();
+      expect(dispatcher.onPlatformBrightnessChanged, isNull);
+    });
   });
 
   group('not following the platform brightness with an explicit preference', () {
