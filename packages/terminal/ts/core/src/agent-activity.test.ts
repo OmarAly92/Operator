@@ -61,10 +61,15 @@ function frameEnds(recording: Uint8Array): number[] {
 
 function fakeSource(line = "") {
 	let bytes = 0;
+	let owned = false;
 	const source = {
 		cursorLine: vi.fn(() => line),
 		liveOutputBytes: () => bytes,
+		lineEditorOwnsLine: () => owned,
 		now: () => Date.now(),
+		setOwned: (next: boolean) => {
+			owned = next;
+		},
 		setLine: (next: string) => {
 			line = next;
 		},
@@ -201,6 +206,71 @@ describe("AgentActivityMonitor", () => {
 		expect(second).not.toHaveBeenCalled();
 	});
 
+	it("tells every listener when a late joiner finds the state already moved on", () => {
+		const source = fakeSource();
+		const monitor = new AgentActivityMonitor(source);
+		const first: AgentActivityState[] = [];
+		const second: AgentActivityState[] = [];
+		monitor.onChange((state) => first.push(state));
+		source.write(1);
+		monitor.observe();
+		vi.setSystemTime(Date.now() + ACTIVITY_IDLE_AFTER_MS + 100);
+		monitor.onChange((state) => second.push(state));
+		vi.advanceTimersByTime(5_000);
+		expect(first.at(-1)).toBe("idle");
+		expect(second.at(-1)).toBe("idle");
+	});
+
+	it("fires each threshold on time after the latest output", () => {
+		const source = fakeSource();
+		const monitor = new AgentActivityMonitor(source);
+		const start = Date.now();
+		const seen: Array<[AgentActivityState, number]> = [];
+		monitor.onChange((state) => seen.push([state, Date.now() - start]));
+		source.write(1);
+		monitor.observe();
+		vi.advanceTimersByTime(600);
+		source.write(1);
+		monitor.observe();
+		vi.advanceTimersByTime(5_000);
+		expect(seen).toEqual([
+			["active", 0],
+			["pollingForIdle", ACTIVITY_POLLING_AFTER_MS],
+			["active", 600],
+			["pollingForIdle", 600 + ACTIVITY_POLLING_AFTER_MS],
+			["idle", 600 + ACTIVITY_IDLE_AFTER_MS],
+		]);
+	});
+
+	it("a throwing listener neither silences the others nor stops the timer", () => {
+		const source = fakeSource();
+		const monitor = new AgentActivityMonitor(source);
+		const seen: AgentActivityState[] = [];
+		monitor.onChange(() => {
+			throw new Error("boom");
+		});
+		monitor.onChange((state) => seen.push(state));
+		source.write(1);
+		expect(() => monitor.observe()).toThrow(AggregateError);
+		expect(seen).toEqual(["active"]);
+		expect(() => vi.advanceTimersByTime(5_000)).toThrow();
+		vi.advanceTimersByTime(5_000);
+		expect(seen).toEqual(["active", "pollingForIdle", "idle"]);
+		expect(monitor.state()).toBe("idle");
+	});
+
+	it("does not report prompting while the line editor owns the line", () => {
+		const source = fakeSource("[~] $ ");
+		const monitor = new AgentActivityMonitor(source);
+		source.setOwned(true);
+		source.write(1);
+		monitor.observe();
+		vi.advanceTimersByTime(ACTIVITY_POLLING_AFTER_MS);
+		expect(monitor.state()).toBe("pollingForIdle");
+		source.setOwned(false);
+		expect(monitor.state()).toBe("prompting");
+	});
+
 	it("dispose cancels the timer and silences every listener", () => {
 		const source = fakeSource();
 		const monitor = new AgentActivityMonitor(source);
@@ -270,6 +340,42 @@ describe("TerminalCore agent activity", () => {
 		vi.advanceTimersByTime(5_000);
 		target.feed(encoder.encode("c"));
 		expect(kept).not.toHaveBeenCalled();
+	});
+
+	it("pads the cursor line in cells, so a wide-character line gets no false trailing space", () => {
+		const target = core(80, 24);
+		target.feed(encoder.encode("继续吗 [y/n]"));
+		expect(cursorLineText(target.snapshot(), decoder)).toBe("继续吗 [y/n]");
+		target.feed(encoder.encode("\x1b[2C"));
+		expect(cursorLineText(target.snapshot(), decoder)).toBe("继续吗 [y/n]  ");
+		vi.advanceTimersByTime(ACTIVITY_POLLING_AFTER_MS);
+		target.dispose();
+		const plain = core(80, 24);
+		plain.feed(encoder.encode("继续吗 [y/n]"));
+		vi.advanceTimersByTime(ACTIVITY_POLLING_AFTER_MS);
+		expect(plain.agentActivity()).toBe("pollingForIdle");
+		plain.dispose();
+	});
+
+	it("an idle shell prompt is not a question: prompting only while a command holds the line", () => {
+		const target = core(80, 24);
+		target.feed(encoder.encode("\x1b]7000;v=1;input-ready=1\x07[~] $ "));
+		expect(target.lineEditorState()).toBe("owned");
+		vi.advanceTimersByTime(ACTIVITY_POLLING_AFTER_MS);
+		expect(target.agentActivity()).toBe("pollingForIdle");
+		target.feed(encoder.encode("\x1b]7000;v=1;input-released=1\x07\r\nOverwrite greet.py? (y/n) "));
+		vi.advanceTimersByTime(ACTIVITY_POLLING_AFTER_MS);
+		expect(target.agentActivity()).toBe("prompting");
+		target.dispose();
+	});
+
+	it("a pane with no shell integration keeps matching the cursor line", () => {
+		const target = core(80, 24);
+		target.feed(encoder.encode("[~] $ "));
+		expect(target.lineEditorState()).toBe("unknown");
+		vi.advanceTimersByTime(ACTIVITY_POLLING_AFTER_MS);
+		expect(target.agentActivity()).toBe("prompting");
+		target.dispose();
 	});
 
 	it("reports prompting for a y/n question at the cursor", () => {

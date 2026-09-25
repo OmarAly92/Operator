@@ -13,6 +13,7 @@ import {
 import { snapshotLogicalLines, type LogicalLine } from "./logical-lines.js";
 import { ProgramMessages, type ProgramMessageListener } from "./program-messages.js";
 import { AgentEvents, type AgentEventListener } from "./agent-events.js";
+import { attempt, throwFailures } from "./listener-failures.js";
 import { AgentActivityMonitor, cursorLineText, type AgentActivityListener, type AgentActivityState } from "./agent-activity.js";
 import { blockOutputText, type BlockOutputOptions } from "./block-output.js";
 import { budgetNow, decodeFindMatches, parseBlockId, validateEvenLength, validateMultipleOf } from "./core-checks.js";
@@ -92,6 +93,7 @@ export class TerminalCore {
 		this.activity = new AgentActivityMonitor({
 			liveOutputBytes: () => (this.disposed ? 0 : this.inner.live_output_bytes()),
 			cursorLine: () => (this.disposed ? "" : cursorLineText(this.snapshot(), this.decoder)),
+			lineEditorOwnsLine: () => !this.disposed && LINE_EDITOR_STATES[this.snapshot().lineEditorState] === "owned",
 			now: () => Date.now(),
 		});
 		this.completions = new CompletionDispatcher(
@@ -133,12 +135,7 @@ export class TerminalCore {
 			return;
 		}
 		this.inner.feed(bytes, Date.now());
-		this.program.poll();
-		this.agentEvents.poll();
-		this.activity.observe();
-		if (!this.notifyIfChanged() && this.inner.synchronized_output()) {
-			this.notifyAll();
-		}
+		this.afterParse(true);
 	}
 
 	enqueue(bytes: Uint8Array): void {
@@ -196,11 +193,20 @@ export class TerminalCore {
 		if (!this.inner.tick(nowMs)) {
 			return false;
 		}
-		this.program.poll();
-		this.agentEvents.poll();
-		this.activity.observe();
-		this.notifyIfChanged();
+		this.afterParse(false);
 		return true;
+	}
+
+	private afterParse(fed: boolean): void {
+		const failures: unknown[] = [];
+		attempt(() => this.program.poll(), failures);
+		attempt(() => this.agentEvents.poll(), failures);
+		attempt(() => this.activity.observe(), failures);
+		attempt(() => {
+			if (!this.notifyIfChanged() && fed && this.inner.synchronized_output()) this.notifyAll();
+		}, failures);
+		if (failures.length === 1) throw failures[0];
+		throwFailures(failures, "terminal core listener failed");
 	}
 
 	synchronizedOutput(): boolean {

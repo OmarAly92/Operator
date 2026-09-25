@@ -1,3 +1,5 @@
+import { callEach, throwFailures } from "./listener-failures.js";
+
 export type AgentState = "working" | "waiting" | "idle" | "done";
 
 export type AgentEvent = Readonly<{ state: AgentState; detail: string }>;
@@ -32,12 +34,13 @@ export class AgentEvents {
 		if (generation === this.generation) return;
 		this.generation = generation;
 		const flat = this.source.take_agent_events();
+		const failures: unknown[] = [];
 		for (let index = 0; index + 1 < flat.length; index += 2) {
 			const state = flat[index]!;
 			if (!STATES.has(state)) continue;
-			const event: AgentEvent = { state: state as AgentState, detail: flat[index + 1]! };
-			for (const listener of [...this.listeners]) listener(event);
+			callEach(this.listeners, { state: state as AgentState, detail: flat[index + 1]! }, failures);
 		}
+		throwFailures(failures, "agent event listener failed");
 	}
 
 	dispose(): void {

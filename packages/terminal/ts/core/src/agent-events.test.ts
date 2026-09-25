@@ -79,6 +79,50 @@ describe("AgentEvents", () => {
 	});
 });
 
+describe("AgentEvents listener failures", () => {
+	it("delivers every taken event to every listener, then throws the failures together", () => {
+		const source = { program_generation: () => 1, take_agent_events: () => ["working", "", "waiting", "Allow?"] };
+		const events = new AgentEvents(source);
+		const seen: AgentEvent[] = [];
+		events.onEvent(() => {
+			throw new Error("boom");
+		});
+		events.onEvent((event) => seen.push(event));
+		let thrown: unknown;
+		try {
+			events.poll();
+		} catch (error) {
+			thrown = error;
+		}
+		expect(thrown).toBeInstanceOf(AggregateError);
+		expect((thrown as AggregateError).errors).toHaveLength(2);
+		expect(seen).toEqual([
+			{ state: "working", detail: "" },
+			{ state: "waiting", detail: "Allow?" },
+		]);
+	});
+
+	it("a throwing agent-event listener does not skip the feed's activity and change notifications", () => {
+		vi.useFakeTimers();
+		try {
+			const target = core();
+			const changes = vi.fn();
+			const activity = vi.fn();
+			target.onChange(changes);
+			target.onAgentActivity(activity);
+			target.onAgentEvent(() => {
+				throw new Error("boom");
+			});
+			expect(() => target.feed(encoder.encode("out\x1b]777;agent-state;v=1;state=working\x07"))).toThrow(AggregateError);
+			expect(changes).toHaveBeenCalledTimes(1);
+			expect(activity).toHaveBeenCalledWith("active");
+			target.dispose();
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+});
+
 describe("TerminalCore.onAgentEvent", () => {
 	it("yields every vector case's events, whole and split byte by byte", async () => {
 		const cases = await vectorCases();

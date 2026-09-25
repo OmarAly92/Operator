@@ -1,4 +1,6 @@
+import { CELL_SPAN_WORDS } from "./cell-spans.js";
 import { detectsHighConfidenceInputPattern } from "./input-patterns.js";
+import { callEach, throwFailures } from "./listener-failures.js";
 import type { TerminalSnapshot } from "./types.js";
 
 export type AgentActivityState = "active" | "pollingForIdle" | "idle" | "prompting";
@@ -12,6 +14,7 @@ export const ACTIVITY_IDLE_AFTER_MS = 1500;
 export type AgentActivitySource = Readonly<{
 	liveOutputBytes(): number;
 	cursorLine(): string;
+	lineEditorOwnsLine?(): boolean;
 	now(): number;
 }>;
 
@@ -36,7 +39,6 @@ export class AgentActivityMonitor {
 
 	onChange(listener: AgentActivityListener): () => void {
 		this.listeners.add(listener);
-		this.reported = this.evaluate(this.source.now());
 		this.schedule();
 		return () => {
 			this.listeners.delete(listener);
@@ -50,8 +52,7 @@ export class AgentActivityMonitor {
 		if (bytes === this.lastOutputBytes) return;
 		this.lastOutputBytes = bytes;
 		this.lastOutputAt = this.source.now();
-		this.report("active");
-		this.schedule();
+		this.publish("active");
 	}
 
 	dispose(): void {
@@ -63,32 +64,38 @@ export class AgentActivityMonitor {
 	private evaluate(now: number): AgentActivityState {
 		const quiet = now - this.lastOutputAt;
 		if (quiet < ACTIVITY_POLLING_AFTER_MS) return "active";
-		if (detectsHighConfidenceInputPattern(this.source.cursorLine())) return "prompting";
+		if (!this.source.lineEditorOwnsLine?.() && detectsHighConfidenceInputPattern(this.source.cursorLine())) return "prompting";
 		return quiet < ACTIVITY_IDLE_AFTER_MS ? "pollingForIdle" : "idle";
 	}
 
-	private report(state: AgentActivityState): void {
-		if (state === this.reported) return;
+	private publish(state: AgentActivityState): void {
+		const changed = state !== this.reported;
 		this.reported = state;
-		for (const listener of [...this.listeners]) listener(state);
+		this.schedule();
+		if (!changed) return;
+		const failures: unknown[] = [];
+		callEach(this.listeners, state, failures);
+		throwFailures(failures, "agent activity listener failed");
 	}
 
 	private schedule(): void {
-		if (this.disposed || this.timer !== null || this.listeners.size === 0) return;
+		this.cancel();
+		if (this.disposed || this.listeners.size === 0) return;
 		const now = this.source.now();
 		const quiet = now - this.lastOutputAt;
 		const due =
-			quiet < ACTIVITY_POLLING_AFTER_MS
-				? ACTIVITY_POLLING_AFTER_MS - quiet
-				: quiet < ACTIVITY_IDLE_AFTER_MS
-					? ACTIVITY_IDLE_AFTER_MS - quiet
-					: null;
+			this.evaluate(now) !== this.reported
+				? 0
+				: quiet < ACTIVITY_POLLING_AFTER_MS
+					? ACTIVITY_POLLING_AFTER_MS - quiet
+					: quiet < ACTIVITY_IDLE_AFTER_MS
+						? ACTIVITY_IDLE_AFTER_MS - quiet
+						: null;
 		if (due === null) return;
 		this.timer = setTimeout(() => {
 			this.timer = null;
 			if (this.disposed) return;
-			this.report(this.evaluate(this.source.now()));
-			this.schedule();
+			this.publish(this.evaluate(this.source.now()));
 		}, due);
 	}
 
@@ -103,11 +110,34 @@ export function cursorLineText(snapshot: TerminalSnapshot, decoder: TextDecoder)
 	const alt = snapshot.altScreen;
 	const content = alt ? alt.content : snapshot.content;
 	const ranges = alt ? alt.rowRanges : snapshot.rows;
+	const spanRanges = alt ? alt.spanRanges : snapshot.spanRanges;
+	const cellSpans = alt ? alt.cellSpans : snapshot.cellSpans;
 	const row = alt ? alt.cursorRow : snapshot.cursorRow;
 	const column = alt ? alt.cursorColumn : snapshot.cursorColumn;
 	const start = ranges[row * 2];
 	const end = ranges[row * 2 + 1];
-	const text = start === undefined || end === undefined || end <= start ? "" : decoder.decode(content.subarray(start, end));
-	const width = [...text].length;
+	const bytes = start === undefined || end === undefined || end <= start ? new Uint8Array(0) : content.subarray(start, end);
+	const spanStart = spanRanges[row * 2] ?? 0;
+	const spanEnd = spanRanges[row * 2 + 1] ?? spanStart;
+	const width = cellWidth(bytes, cellSpans.subarray(spanStart * CELL_SPAN_WORDS, spanEnd * CELL_SPAN_WORDS));
+	const text = decoder.decode(bytes);
 	return width < column ? text + " ".repeat(column - width) : text;
+}
+
+function cellWidth(bytes: Uint8Array, spans: Uint32Array): number {
+	let cells = 0;
+	let next = 0;
+	let skipTo = 0;
+	for (let at = 0; at < bytes.length; at += 1) {
+		if (at < skipTo || (bytes[at]! & 0xc0) === 0x80) continue;
+		while (next * CELL_SPAN_WORDS < spans.length && spans[next * CELL_SPAN_WORDS]! < at) next += 1;
+		if (next * CELL_SPAN_WORDS < spans.length && spans[next * CELL_SPAN_WORDS] === at) {
+			skipTo = spans[next * CELL_SPAN_WORDS + 1]!;
+			cells += spans[next * CELL_SPAN_WORDS + 2]!;
+			next += 1;
+		} else {
+			cells += 1;
+		}
+	}
+	return cells;
 }
