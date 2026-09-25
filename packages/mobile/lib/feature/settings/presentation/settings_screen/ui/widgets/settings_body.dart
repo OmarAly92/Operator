@@ -69,7 +69,7 @@ class _SettingsBodyState extends State<SettingsBody> {
   }
 
   Future<void> _openThemePicker(BuildContext context, SkinCubit skinCubit) async {
-    final selected = await showThemePickerSheet(context, selected: skinCubit.skin.themeMode);
+    final selected = await showThemePickerSheet(context, selected: skinCubit.preference);
     if (selected == null) return;
     switch (selected) {
       case ThemeMode.system:
@@ -201,7 +201,7 @@ class _SettingsBodyState extends State<SettingsBody> {
                 SettingsRow(
                   icon: Icons.palette_outlined,
                   label: 'Theme',
-                  value: preferenceLabel(skinCubit.skin.themeMode),
+                  value: preferenceLabel(skinCubit.preference),
                   onTap: () => _openThemePicker(context, skinCubit),
                 ),
               ],

@@ -264,6 +264,16 @@ void main() {
     expect(skinCubit.skin, isA<LightSkin>());
   });
 
+  testWidgets('the Theme row reads System when the system preference is chosen', (tester) async {
+    final skinCubit = SkinCubit()..setSystemSkin();
+
+    await pumpBody(tester, sessionsCubit: buildSessionsCubit(), skinCubit: skinCubit);
+
+    expect(find.text('System'), findsOneWidget);
+    expect(find.text('Light'), findsNothing);
+    expect(find.text('Dark'), findsNothing);
+  });
+
   testWidgets('the About section renders the formatted version', (tester) async {
     await pumpBody(tester, sessionsCubit: buildSessionsCubit());
 
