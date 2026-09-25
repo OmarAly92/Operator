@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strconv"
 	"testing"
 
 	"github.com/OmarAly92/operator/backend/internal/domain"
@@ -60,34 +61,34 @@ func TestTranscriptMapperBackgroundTaskFeed(t *testing.T) {
 		2: {
 			TaskID: "buulbcjq7", Kind: domain.BackgroundTaskShell, Status: domain.BackgroundTaskRunning,
 			ToolUseID: "toolu_bash1", Description: "Background sleep for 900 seconds", Command: "sleep 900",
-			OutputFile: fixtureTaskDir + "buulbcjq7.output", StartedAt: "2026-09-25T00:54:00.000Z",
+			OutputFile: fixtureTaskDir + "buulbcjq7.output", StartedAt: "2026-09-25T00:54:00.000Z", HarnessVersion: "2.1.280",
 		},
 		4: {
 			TaskID: "a152cb13a6e30331f", Kind: domain.BackgroundTaskAgent, Status: domain.BackgroundTaskRunning,
 			ToolUseID: "toolu_agent1", Description: "sleeper",
-			OutputFile: fixtureTaskDir + "a152cb13a6e30331f.output", StartedAt: "2026-09-25T00:54:02.000Z",
+			OutputFile: fixtureTaskDir + "a152cb13a6e30331f.output", StartedAt: "2026-09-25T00:54:02.000Z", HarnessVersion: "2.1.280",
 		},
 		6: {
 			TaskID: "bxjzu4uqc", Kind: domain.BackgroundTaskMonitor, Status: domain.BackgroundTaskRunning,
 			ToolUseID: "toolu_mon1", Description: "disk free space", Command: "df -g / | tail -1",
-			StartedAt: "2026-09-25T00:54:03.000Z",
+			StartedAt: "2026-09-25T00:54:03.000Z", HarnessVersion: "2.1.280",
 		},
 		8: {
 			TaskID: "bq7x2mdh1", Kind: domain.BackgroundTaskShell, Status: domain.BackgroundTaskRunning,
 			ToolUseID: "toolu_bash2", Description: "npm run build", Command: "npm run build",
-			OutputFile: fixtureTaskDir + "bq7x2mdh1.output", StartedAt: "2026-09-25T00:54:04.000Z",
+			OutputFile: fixtureTaskDir + "bq7x2mdh1.output", StartedAt: "2026-09-25T00:54:04.000Z", HarnessVersion: "2.1.280",
 		},
 		9: {
 			TaskID: "a152cb13a6e30331f", Kind: domain.BackgroundTaskAgent, Status: domain.BackgroundTaskCompleted,
 			ToolUseID: "toolu_agent1", Description: "sleeper", Summary: `Agent "sleeper" finished`,
 			DurationMs: int64Ptr(7412), OutputFile: fixtureTaskDir + "a152cb13a6e30331f.output",
-			StartedAt: "2026-09-25T00:54:02.000Z", EndedAt: "2026-09-25T00:56:38.546Z",
+			StartedAt: "2026-09-25T00:54:02.000Z", HarnessVersion: "2.1.280", EndedAt: "2026-09-25T00:56:38.546Z",
 		},
 		11: {
 			TaskID: "buulbcjq7", Kind: domain.BackgroundTaskShell, Status: domain.BackgroundTaskKilled,
 			ToolUseID: "toolu_bash1", Description: "Background sleep for 900 seconds", Command: "sleep 900",
 			Summary:    `Task "Background sleep for 900 seconds" was stopped by the user`,
-			OutputFile: fixtureTaskDir + "buulbcjq7.output", StartedAt: "2026-09-25T00:54:00.000Z",
+			OutputFile: fixtureTaskDir + "buulbcjq7.output", StartedAt: "2026-09-25T00:54:00.000Z", HarnessVersion: "2.1.280",
 			EndedAt: "2026-09-25T00:58:45.929Z",
 		},
 		12: {
@@ -95,13 +96,13 @@ func TestTranscriptMapperBackgroundTaskFeed(t *testing.T) {
 			ToolUseID: "toolu_bash2", Description: "npm run build", Command: "npm run build",
 			Summary:  `Background command "npm run build && echo "done"" failed with exit code 144`,
 			ExitCode: intPtr(144), OutputFile: fixtureTaskDir + "bq7x2mdh1.output",
-			StartedAt: "2026-09-25T00:54:04.000Z", EndedAt: "2026-09-25T00:59:00.000Z",
+			StartedAt: "2026-09-25T00:54:04.000Z", HarnessVersion: "2.1.280", EndedAt: "2026-09-25T00:59:00.000Z",
 		},
 		18: {
 			TaskID: "bxjzu4uqc", Kind: domain.BackgroundTaskMonitor, Status: domain.BackgroundTaskCompleted,
 			ToolUseID: "toolu_mon1", Description: "disk free space", Command: "df -g / | tail -1",
 			Summary:   `Monitor "disk free space" stream ended`,
-			StartedAt: "2026-09-25T00:54:03.000Z", EndedAt: "2026-09-25T01:00:00.000Z",
+			StartedAt: "2026-09-25T00:54:03.000Z", HarnessVersion: "2.1.280", EndedAt: "2026-09-25T01:00:00.000Z",
 		},
 		19: {
 			TaskID: "b0325un0b", Kind: domain.BackgroundTaskShell, Status: domain.BackgroundTaskCompleted,
@@ -210,5 +211,28 @@ func TestExitCodeFromSummary(t *testing.T) {
 		if (got == nil) != (want == nil) || (got != nil && *got != *want) {
 			t.Fatalf("exitCodeFromSummary(%q) = %v want %v", summary, got, want)
 		}
+	}
+}
+
+func TestTranscriptMapperForgetsOldFinishedTasks(t *testing.T) {
+	mapper := NewTranscriptMapper("")
+	for i := range 3 * maxRememberedFinished {
+		id := "b" + strconv.Itoa(i)
+		line := `{"type":"queue-operation","operation":"enqueue","timestamp":"2026-09-25T00:00:00.000Z","content":"<task-notification><task-id>` + id + `</task-id><status>completed</status><summary>Background command \"x\" completed (exit code 0)</summary></task-notification>"}`
+		if events, _ := mapper.Map([]byte(line)); len(events) != 1 {
+			t.Fatalf("notification %d emitted %d events", i, len(events))
+		}
+	}
+	if len(mapper.tasks) > maxRememberedFinished || len(mapper.seen) > maxRememberedFinished || len(mapper.finished) > maxRememberedFinished {
+		t.Fatalf("tasks %d seen %d finished %d", len(mapper.tasks), len(mapper.seen), len(mapper.finished))
+	}
+	running := `{"type":"user","uuid":"u","message":{"content":[{"type":"tool_result","tool_use_id":"t","content":"Command running in background with ID: keep. Output is being written to: /tmp/tasks/keep.output."}]},"toolUseResult":{"backgroundTaskId":"keep"}}`
+	mapper.Map([]byte(running))
+	for i := range 2 * maxRememberedFinished {
+		line := `{"type":"queue-operation","operation":"enqueue","content":"<task-notification><task-id>c` + strconv.Itoa(i) + `</task-id><status>failed</status></task-notification>"}`
+		mapper.Map([]byte(line))
+	}
+	if _, ok := mapper.tasks["keep"]; !ok {
+		t.Fatal("a running task was evicted")
 	}
 }

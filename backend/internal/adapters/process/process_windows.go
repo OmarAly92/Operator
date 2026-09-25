@@ -15,7 +15,7 @@ func (t *Table) ListProcesses(context.Context) ([]ports.ProcessInfo, error) {
 	return nil, errUnsupported
 }
 
-func (t *Table) OpenFileHolders(context.Context, string) ([]int, error) {
+func (t *Table) OpenFileWriters(context.Context, string) ([]int, error) {
 	return nil, errUnsupported
 }
 
@@ -23,4 +23,4 @@ func (t *Table) Terminate(int, bool) error { return errUnsupported }
 
 func (t *Table) Kill(int, bool) error { return errUnsupported }
 
-func (t *Table) Alive(int) bool { return false }
+func (t *Table) Alive(int, bool) bool { return false }

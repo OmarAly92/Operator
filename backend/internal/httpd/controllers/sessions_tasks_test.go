@@ -3,6 +3,7 @@ package controllers_test
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -15,7 +16,6 @@ import (
 	"github.com/OmarAly92/operator/backend/internal/httpd/controllers"
 	"github.com/OmarAly92/operator/backend/internal/httpd/envelope"
 	"github.com/OmarAly92/operator/backend/internal/service/backgroundtask"
-	sessionmanager "github.com/OmarAly92/operator/backend/internal/session_manager"
 )
 
 type fakeBackgroundTasks struct {
@@ -143,18 +143,19 @@ func TestStopSessionTaskErrorEnvelopes(t *testing.T) {
 		status int
 		code   string
 	}{
-		{backgroundtask.ErrSessionNotFound, http.StatusNotFound, "SESSION_NOT_FOUND"},
+		{domain.ErrTaskSessionNotFound, http.StatusNotFound, "SESSION_NOT_FOUND"},
 		{domain.ErrTaskNotFound, http.StatusNotFound, "TASK_NOT_FOUND"},
 		{domain.ErrTaskProcessNotFound, http.StatusNotFound, "TASK_NOT_FOUND"},
 		{domain.ErrTaskFinished, http.StatusConflict, "TASK_FINISHED"},
 		{domain.ErrTaskAmbiguous, http.StatusConflict, "TASK_AMBIGUOUS"},
+		{domain.ErrTaskUnsafe, http.StatusConflict, "TASK_UNSAFE"},
 		{domain.ErrTaskStopUnsupported, http.StatusUnprocessableEntity, "TASK_STOP_UNSUPPORTED"},
 		{domain.ErrTaskStopUnconfirmed, http.StatusGatewayTimeout, "TASK_STOP_UNCONFIRMED"},
-		{sessionmanager.ErrTaskPanelUnavailable, http.StatusConflict, "TASK_PANEL_UNAVAILABLE"},
-		{sessionmanager.ErrAwaitingDecision, http.StatusConflict, "SESSION_AWAITING_DECISION"},
-		{sessionmanager.ErrComposerNotEmpty, http.StatusConflict, "SESSION_COMPOSER_NOT_EMPTY"},
-		{sessionmanager.ErrTerminated, http.StatusConflict, "SESSION_NOT_RUNNING"},
-		{sessionmanager.ErrNotFound, http.StatusNotFound, "SESSION_NOT_FOUND"},
+		{fmt.Errorf("wrapped: %w", domain.ErrTaskPanelUnavailable), http.StatusConflict, "TASK_PANEL_UNAVAILABLE"},
+		{domain.ErrTaskAwaitingDecision, http.StatusConflict, "SESSION_AWAITING_DECISION"},
+		{domain.ErrTaskComposerNotEmpty, http.StatusConflict, "SESSION_COMPOSER_NOT_EMPTY"},
+		{domain.ErrTaskSessionBusy, http.StatusConflict, "SESSION_BUSY"},
+		{domain.ErrTaskSessionNotRunning, http.StatusConflict, "SESSION_NOT_RUNNING"},
 	} {
 		srv := newTasksTestServer(t, &fakeBackgroundTasks{stopErr: tc.err})
 		body, status, _ := doRequest(t, srv, http.MethodPost, "/api/v1/sessions/s-1/tasks/b1/stop", "")

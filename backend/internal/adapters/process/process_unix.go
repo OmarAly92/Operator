@@ -42,7 +42,7 @@ func (t *Table) ListProcesses(ctx context.Context) ([]ports.ProcessInfo, error) 
 	return procs, scanner.Err()
 }
 
-func (t *Table) OpenFileHolders(ctx context.Context, path string) ([]int, error) {
+func (t *Table) OpenFileWriters(ctx context.Context, path string) ([]int, error) {
 	if _, err := os.Stat(path); err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return nil, nil
@@ -50,27 +50,48 @@ func (t *Table) OpenFileHolders(ctx context.Context, path string) ([]int, error)
 		return nil, err
 	}
 	if lsof, err := exec.LookPath("lsof"); err == nil {
-		return lsofHolders(ctx, lsof, path)
+		return lsofWriters(ctx, lsof, path)
 	}
-	return procHolders(path)
+	return procWriters(path)
 }
 
-func lsofHolders(ctx context.Context, lsof, path string) ([]int, error) {
-	out, err := exec.CommandContext(ctx, lsof, "-t", "--", path).Output()
+func lsofWriters(ctx context.Context, lsof, path string) ([]int, error) {
+	out, err := exec.CommandContext(ctx, lsof, "-F", "pa", "--", path).Output()
 	var exit *exec.ExitError
 	if err != nil && !errors.As(err, &exit) {
 		return nil, fmt.Errorf("process: lsof: %w", err)
 	}
-	var pids []int
-	for _, field := range strings.Fields(string(out)) {
-		if pid, err := strconv.Atoi(field); err == nil {
-			pids = append(pids, pid)
-		}
-	}
-	return pids, nil
+	return parseLsofWriters(string(out)), nil
 }
 
-func procHolders(path string) ([]int, error) {
+func parseLsofWriters(out string) []int {
+	seen := map[int]bool{}
+	var pids []int
+	current := 0
+	for _, line := range strings.Split(out, "\n") {
+		if line == "" {
+			continue
+		}
+		switch line[0] {
+		case 'p':
+			pid, err := strconv.Atoi(line[1:])
+			if err != nil {
+				current = 0
+				continue
+			}
+			current = pid
+		case 'a':
+			mode := line[1:]
+			if current > 0 && !seen[current] && (mode == "w" || mode == "u") {
+				seen[current] = true
+				pids = append(pids, current)
+			}
+		}
+	}
+	return pids
+}
+
+func procWriters(path string) ([]int, error) {
 	target, err := filepath.EvalSymlinks(path)
 	if err != nil {
 		return nil, err
@@ -86,14 +107,32 @@ func procHolders(path string) ([]int, error) {
 		if err != nil || link != target {
 			continue
 		}
-		pid, err := strconv.Atoi(strings.Split(strings.TrimPrefix(fd, "/proc/"), "/")[0])
-		if err != nil || seen[pid] {
+		parts := strings.Split(strings.TrimPrefix(fd, "/proc/"), "/")
+		pid, err := strconv.Atoi(parts[0])
+		if err != nil || seen[pid] || !procFDWritable(parts[0], parts[len(parts)-1]) {
 			continue
 		}
 		seen[pid] = true
 		pids = append(pids, pid)
 	}
 	return pids, nil
+}
+
+func procFDWritable(pid, fd string) bool {
+	raw, err := os.ReadFile("/proc/" + pid + "/fdinfo/" + fd)
+	if err != nil {
+		return false
+	}
+	scanner := bufio.NewScanner(bytes.NewReader(raw))
+	for scanner.Scan() {
+		value, ok := strings.CutPrefix(scanner.Text(), "flags:")
+		if !ok {
+			continue
+		}
+		flags, err := strconv.ParseInt(strings.TrimSpace(value), 8, 64)
+		return err == nil && flags&(syscall.O_WRONLY|syscall.O_RDWR) != 0
+	}
+	return false
 }
 
 func (t *Table) Terminate(pid int, group bool) error {
@@ -104,11 +143,15 @@ func (t *Table) Kill(pid int, group bool) error {
 	return send(pid, group, syscall.SIGKILL)
 }
 
-func (t *Table) Alive(pid int) bool {
-	if pid <= 0 {
+func (t *Table) Alive(pid int, group bool) bool {
+	if pid <= 1 {
 		return false
 	}
-	err := syscall.Kill(pid, 0)
+	target := pid
+	if group {
+		target = -pid
+	}
+	err := syscall.Kill(target, 0)
 	return err == nil || errors.Is(err, syscall.EPERM)
 }
 

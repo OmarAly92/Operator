@@ -34,25 +34,33 @@ func (s BackgroundTaskStatus) Finished() bool {
 }
 
 type BackgroundTask struct {
-	TaskID      string               `json:"taskId"`
-	Kind        BackgroundTaskKind   `json:"kind"`
-	Status      BackgroundTaskStatus `json:"status"`
-	ToolUseID   string               `json:"toolUseId,omitempty"`
-	Description string               `json:"description,omitempty"`
-	Command     string               `json:"command,omitempty"`
-	Summary     string               `json:"summary,omitempty"`
-	ExitCode    *int                 `json:"exitCode,omitempty"`
-	DurationMs  *int64               `json:"durationMs,omitempty"`
-	OutputFile  string               `json:"outputFile,omitempty"`
-	StartedAt   string               `json:"startedAt,omitempty"`
-	EndedAt     string               `json:"endedAt,omitempty"`
+	TaskID         string               `json:"taskId"`
+	Kind           BackgroundTaskKind   `json:"kind"`
+	Status         BackgroundTaskStatus `json:"status"`
+	ToolUseID      string               `json:"toolUseId,omitempty"`
+	Description    string               `json:"description,omitempty"`
+	Command        string               `json:"command,omitempty"`
+	Summary        string               `json:"summary,omitempty"`
+	ExitCode       *int                 `json:"exitCode,omitempty"`
+	DurationMs     *int64               `json:"durationMs,omitempty"`
+	OutputFile     string               `json:"outputFile,omitempty"`
+	StartedAt      string               `json:"startedAt,omitempty"`
+	EndedAt        string               `json:"endedAt,omitempty"`
+	HarnessVersion string               `json:"harnessVersion,omitempty"`
 }
 
 var (
-	ErrTaskNotFound        = errors.New("background task not found")
-	ErrTaskProcessNotFound = errors.New("background task process not found")
-	ErrTaskFinished        = errors.New("background task already finished")
-	ErrTaskAmbiguous       = errors.New("background task matches more than one target")
-	ErrTaskStopUnsupported = errors.New("background task cannot be stopped")
-	ErrTaskStopUnconfirmed = errors.New("background task stop was not confirmed")
+	ErrTaskNotFound          = errors.New("background task not found")
+	ErrTaskProcessNotFound   = errors.New("background task process not found")
+	ErrTaskFinished          = errors.New("background task already finished")
+	ErrTaskAmbiguous         = errors.New("background task matches more than one target")
+	ErrTaskUnsafe            = errors.New("background task's process group is shared with the agent")
+	ErrTaskStopUnsupported   = errors.New("background task cannot be stopped")
+	ErrTaskStopUnconfirmed   = errors.New("background task stop was not confirmed")
+	ErrTaskPanelUnavailable  = errors.New("background tasks panel could not be driven")
+	ErrTaskSessionNotFound   = errors.New("background tasks: session not found")
+	ErrTaskSessionNotRunning = errors.New("background tasks: session is not running")
+	ErrTaskSessionBusy       = errors.New("background tasks: another operation owns the session")
+	ErrTaskAwaitingDecision  = errors.New("background tasks: session is paused on a decision")
+	ErrTaskComposerNotEmpty  = errors.New("background tasks: composer holds an unsent draft")
 )

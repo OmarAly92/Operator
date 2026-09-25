@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/OmarAly92/operator/backend/internal/domain"
@@ -13,50 +12,112 @@ import (
 	"github.com/OmarAly92/operator/backend/internal/service/dialogdriver"
 )
 
-var ErrTaskPanelUnavailable = errors.New("session: the background tasks panel is not available")
-
 type panelTiming struct {
 	settle time.Duration
 	appear time.Duration
 	poll   time.Duration
 }
 
-var livePanelTiming = panelTiming{settle: 150 * time.Millisecond, appear: menuAppearBudget, poll: menuAppearPoll}
+var livePanelTiming = panelTiming{settle: 250 * time.Millisecond, appear: 2 * time.Second, poll: 100 * time.Millisecond}
 
 const maxPanelSteps = 64
 
+type composerScreen interface {
+	dialogdriver.Screen
+	Draft(ctx context.Context) (string, bool, error)
+}
+
+func (m *Manager) AgentTaskStopSupported(harness domain.AgentHarness, version string) bool {
+	reader, ok := m.tasksPanelReaderFor(harness)
+	if !ok {
+		return false
+	}
+	if _, ok := m.composerReaderFor(harness); !ok {
+		return false
+	}
+	return reader.TasksPanelVerified(version)
+}
+
 func (m *Manager) StopAgentTask(ctx context.Context, id domain.SessionID, label string) error {
-	lock := m.taskStopLock(id)
-	lock.Lock()
-	defer lock.Unlock()
+	if err := m.stopAgentTask(ctx, id, label); err != nil {
+		return taskStopError(err)
+	}
+	return nil
+}
+
+func (m *Manager) stopAgentTask(ctx context.Context, id domain.SessionID, label string) error {
+	if _, err := m.commandRecord(ctx, id); err != nil {
+		return err
+	}
+	end, err := m.beginPaneDrive(ctx, id)
+	if err != nil {
+		return err
+	}
+	defer end()
 
 	rec, err := m.commandRecord(ctx, id)
 	if err != nil {
 		return err
 	}
-	if rec.Activity.State == domain.ActivityBlocked {
+	switch rec.Activity.State {
+	case domain.ActivityIdle, domain.ActivityActive:
+	case domain.ActivityBlocked:
 		return ErrAwaitingDecision
+	default:
+		return ErrWrongActivityState
 	}
 	reader, ok := m.tasksPanelReaderFor(rec.Harness)
 	if !ok {
 		return domain.ErrTaskStopUnsupported
 	}
-	if err := m.requireEmptyComposer(ctx, rec); err != nil {
-		return err
+	composer, ok := m.composerReaderFor(rec.Harness)
+	if !ok {
+		return domain.ErrTaskStopUnsupported
 	}
-	screen := runtimeScreen{runtime: m.runtime, handle: runtimeHandle(rec.Metadata)}
-	if err := stopTaskOnPanel(ctx, screen, reader, label, livePanelTiming); err != nil {
-		return fmt.Errorf("stop task %s: %w", rec.ID, err)
+	styled, ok := m.runtime.(ports.StyledTerminalOutputReader)
+	if !ok {
+		return domain.ErrTaskStopUnsupported
 	}
-	return nil
+	screen := panelScreen{
+		runtimeScreen: runtimeScreen{runtime: m.runtime, handle: runtimeHandle(rec.Metadata)},
+		styled:        styled,
+		composer:      composer,
+	}
+	return stopTaskOnPanel(ctx, screen, reader, label, livePanelTiming)
 }
 
-func (m *Manager) taskStopLock(id domain.SessionID) *sync.Mutex {
-	lock, _ := m.taskStops.LoadOrStore(id, &sync.Mutex{})
-	if mutex, ok := lock.(*sync.Mutex); ok {
-		return mutex
+type panelScreen struct {
+	runtimeScreen
+	styled   ports.StyledTerminalOutputReader
+	composer ports.TerminalComposerReader
+}
+
+func (s panelScreen) Draft(ctx context.Context) (string, bool, error) {
+	pane, err := s.styled.GetStyledOutput(ctx, s.handle, sourceComposerProbeLines)
+	if err != nil {
+		return "", false, err
 	}
-	return &sync.Mutex{}
+	draft, ok := s.composer.ReadComposerDraft(pane)
+	return draft, ok, nil
+}
+
+func taskStopError(err error) error {
+	switch {
+	case errors.Is(err, ErrNotFound):
+		return fmt.Errorf("%w: %w", domain.ErrTaskSessionNotFound, err)
+	case errors.Is(err, ErrTerminated), errors.Is(err, ErrAgentExited), errors.Is(err, ErrIncompleteHandle):
+		return fmt.Errorf("%w: %w", domain.ErrTaskSessionNotRunning, err)
+	case errors.Is(err, ErrAwaitingDecision):
+		return fmt.Errorf("%w: %w", domain.ErrTaskAwaitingDecision, err)
+	case errors.Is(err, ErrComposerNotEmpty):
+		return fmt.Errorf("%w: %w", domain.ErrTaskComposerNotEmpty, err)
+	case errors.Is(err, errAgentOperationInProgress), errors.Is(err, ErrWrongActivityState):
+		return fmt.Errorf("%w: %w", domain.ErrTaskSessionBusy, err)
+	case errors.Is(err, dialogdriver.ErrNotOnScreen), errors.Is(err, dialogdriver.ErrStuck):
+		return fmt.Errorf("%w: %w", domain.ErrTaskPanelUnavailable, err)
+	default:
+		return err
+	}
 }
 
 func (m *Manager) tasksPanelReaderFor(harness domain.AgentHarness) (ports.TerminalTasksPanelReader, bool) {
@@ -72,89 +133,146 @@ func (m *Manager) tasksPanelReaderFor(harness domain.AgentHarness) (ports.Termin
 }
 
 type panelSession struct {
-	screen dialogdriver.Screen
+	screen composerScreen
 	reader ports.TerminalTasksPanelReader
 	keys   ports.TasksPanelKeys
 	timing panelTiming
 }
 
-func stopTaskOnPanel(ctx context.Context, screen dialogdriver.Screen, reader ports.TerminalTasksPanelReader, label string, timing panelTiming) error {
+func stopTaskOnPanel(ctx context.Context, screen composerScreen, reader ports.TerminalTasksPanelReader, label string, timing panelTiming) error {
 	s := panelSession{screen: screen, reader: reader, keys: reader.TasksPanelKeys(), timing: timing}
-	if _, open, err := s.read(ctx); err != nil {
-		return err
-	} else if open {
-		return ErrTaskPanelUnavailable
-	}
-	if err := s.write(ctx, s.keys.Open); err != nil {
+	if err := s.openPanel(ctx); err != nil {
 		return err
 	}
-	panel, open, err := s.await(ctx)
+	panel, open, err := s.read(ctx)
 	if err != nil {
 		return err
 	}
 	if !open {
-		return ErrTaskPanelUnavailable
+		return domain.ErrTaskPanelUnavailable
 	}
-	for attempt := 0; attempt < 2; attempt++ {
-		if panel.Detail {
-			if panel.DetailStatus != "running" || !taskLabelMatches(panel.DetailLabel, label) {
-				return s.closeWith(ctx, domain.ErrTaskNotFound)
-			}
-			if err := s.write(ctx, s.keys.Stop); err != nil {
-				return err
-			}
-			return s.closeWith(ctx, nil)
-		}
-		if _, err := s.navigate(ctx, panel, label); err != nil {
+	if !panel.Detail {
+		if err := s.navigate(ctx, label); err != nil {
 			return s.closeWith(ctx, err)
 		}
-		if err := s.write(ctx, s.keys.Stop); err != nil {
-			return err
+		if err := s.viewSelected(ctx, label); err != nil {
+			return s.closeWith(ctx, err)
 		}
-		after, open, err := s.read(ctx)
-		if err != nil {
-			return err
-		}
-		if !open {
-			return nil
-		}
-		if after.Detail {
-			return s.closeWith(ctx, nil)
-		}
-		if _, err := runningRow(after.Rows, label); err != nil {
-			return s.closeWith(ctx, nil)
-		}
-		panel = after
+	}
+	panel, open, err = s.read(ctx)
+	if err != nil {
+		return err
+	}
+	if !open || !panel.Detail {
+		return s.closeWith(ctx, domain.ErrTaskPanelUnavailable)
+	}
+	if panel.DetailStatus != "running" || !taskLabelMatches(panel.DetailLabel, label) {
+		return s.closeWith(ctx, domain.ErrTaskNotFound)
+	}
+	if err := s.write(ctx, s.keys.Stop); err != nil {
+		return err
 	}
 	return s.closeWith(ctx, nil)
 }
 
-func (s panelSession) navigate(ctx context.Context, panel ports.TasksPanel, label string) (ports.TasksPanel, error) {
+func (s panelSession) openPanel(ctx context.Context) error {
+	if _, open, err := s.read(ctx); err != nil {
+		return err
+	} else if open {
+		return domain.ErrTaskPanelUnavailable
+	}
+	draft, known, err := s.screen.Draft(ctx)
+	if err != nil {
+		return err
+	}
+	if !known {
+		return domain.ErrTaskPanelUnavailable
+	}
+	if draft != "" {
+		return ErrComposerNotEmpty
+	}
+	if err := s.write(ctx, s.keys.Command); err != nil {
+		return err
+	}
+	ready, err := s.until(ctx, s.reader.TasksCommandReady)
+	if err != nil {
+		return err
+	}
+	if !ready {
+		return s.clearTyped(ctx)
+	}
+	if draft, known, err := s.screen.Draft(ctx); err != nil {
+		return err
+	} else if !known || draft != s.keys.Command {
+		return s.clearTyped(ctx)
+	}
+	if err := s.write(ctx, s.keys.Submit); err != nil {
+		return err
+	}
+	opened, err := s.until(ctx, func(pane string) bool {
+		_, open := s.reader.ReadTasksPanel(pane)
+		return open
+	})
+	if err != nil {
+		return err
+	}
+	if !opened {
+		return s.clearTyped(ctx)
+	}
+	return nil
+}
+
+func (s panelSession) clearTyped(ctx context.Context) error {
+	draft, known, err := s.screen.Draft(ctx)
+	if err == nil && known && draft == s.keys.Command {
+		_ = s.write(ctx, s.keys.Clear)
+	}
+	return domain.ErrTaskPanelUnavailable
+}
+
+func (s panelSession) navigate(ctx context.Context, label string) error {
 	for step := 0; step <= maxPanelSteps; step++ {
+		panel, open, err := s.read(ctx)
+		if err != nil {
+			return err
+		}
+		if !open || panel.Detail {
+			return domain.ErrTaskPanelUnavailable
+		}
 		target, err := runningRow(panel.Rows, label)
 		if err != nil {
-			return panel, err
+			return err
 		}
 		if panel.Selected == target {
-			return panel, nil
+			return nil
 		}
 		key := s.keys.Down
 		if panel.Selected > target {
 			key = s.keys.Up
 		}
 		if err := s.write(ctx, key); err != nil {
-			return panel, err
+			return err
 		}
-		next, open, err := s.read(ctx)
-		if err != nil {
-			return panel, err
-		}
-		if !open || next.Detail {
-			return panel, dialogdriver.ErrNotOnScreen
-		}
-		panel = next
 	}
-	return panel, dialogdriver.ErrStuck
+	return dialogdriver.ErrStuck
+}
+
+func (s panelSession) viewSelected(ctx context.Context, label string) error {
+	panel, open, err := s.read(ctx)
+	if err != nil {
+		return err
+	}
+	if !open || panel.Detail {
+		return domain.ErrTaskPanelUnavailable
+	}
+	target, err := runningRow(panel.Rows, label)
+	if err != nil {
+		return err
+	}
+	if panel.Selected != target {
+		return domain.ErrTaskPanelUnavailable
+	}
+	return s.write(ctx, s.keys.View)
 }
 
 func (s panelSession) closeWith(ctx context.Context, result error) error {
@@ -180,18 +298,21 @@ func (s panelSession) write(ctx context.Context, keys string) error {
 	return sleepContext(ctx, s.timing.settle)
 }
 
-func (s panelSession) await(ctx context.Context) (ports.TasksPanel, bool, error) {
+func (s panelSession) until(ctx context.Context, done func(pane string) bool) (bool, error) {
 	deadline := time.Now().Add(s.timing.appear)
 	for {
-		panel, open, err := s.read(ctx)
-		if err != nil || open {
-			return panel, open, err
+		pane, err := s.screen.Read(ctx)
+		if err != nil {
+			return false, fmt.Errorf("read tasks panel: %w", err)
+		}
+		if done(pane) {
+			return true, nil
 		}
 		if time.Now().After(deadline) {
-			return ports.TasksPanel{}, false, nil
+			return false, nil
 		}
 		if err := sleepContext(ctx, s.timing.poll); err != nil {
-			return ports.TasksPanel{}, false, err
+			return false, err
 		}
 	}
 }
@@ -199,7 +320,7 @@ func (s panelSession) await(ctx context.Context) (ports.TasksPanel, bool, error)
 func runningRow(rows []ports.TasksPanelRow, label string) (int, error) {
 	found := -1
 	for i, row := range rows {
-		if row.Status != "running" || !taskLabelMatches(row.Label, label) {
+		if !taskLabelMatches(row.Label, label) {
 			continue
 		}
 		if found >= 0 {
@@ -207,7 +328,7 @@ func runningRow(rows []ports.TasksPanelRow, label string) (int, error) {
 		}
 		found = i
 	}
-	if found < 0 {
+	if found < 0 || rows[found].Status != "running" {
 		return -1, domain.ErrTaskNotFound
 	}
 	return found, nil

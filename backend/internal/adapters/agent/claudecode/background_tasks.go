@@ -4,13 +4,17 @@ import (
 	"encoding/json"
 	"html"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 
 	"github.com/OmarAly92/operator/backend/internal/domain"
 )
 
-const maxRememberedLaunches = 512
+const (
+	maxRememberedLaunches = 512
+	maxRememberedFinished = 256
+)
 
 type taskLaunch struct {
 	name        string
@@ -30,6 +34,7 @@ type TranscriptMapper struct {
 	order    []string
 	tasks    map[string]knownTask
 	seen     map[string]struct{}
+	finished []string
 }
 
 func NewTranscriptMapper(agentID string) *TranscriptMapper {
@@ -140,6 +145,7 @@ func (m *TranscriptMapper) launchEvents(rec claudeTranscriptRecord) []domain.Blo
 		task.ToolUseID = block.ToolUseID
 		task.Status = domain.BackgroundTaskRunning
 		task.StartedAt = rec.Timestamp
+		task.HarnessVersion = strings.TrimSpace(rec.Version)
 		if remembered {
 			if launch.timestamp != "" {
 				task.StartedAt = launch.timestamp
@@ -238,6 +244,9 @@ func (m *TranscriptMapper) taskEvent(task domain.BackgroundTask, tool string) (d
 		return domain.BlockTranscriptEvent{}, false
 	}
 	m.tasks[task.TaskID] = knownTask{task: task, tool: tool}
+	if task.Status.Finished() {
+		m.rememberFinished(task.TaskID)
+	}
 	return domain.BlockTranscriptEvent{
 		Kind:      domain.BlockEventTaskUpdate,
 		SourceID:  task.TaskID,
@@ -246,6 +255,25 @@ func (m *TranscriptMapper) taskEvent(task domain.BackgroundTask, tool string) (d
 		Text:      task.Summary,
 		Detail:    string(encoded),
 	}, true
+}
+
+func (m *TranscriptMapper) rememberFinished(id string) {
+	m.finished = append(m.finished, id)
+	for len(m.finished) > maxRememberedFinished {
+		oldest := m.finished[0]
+		m.finished = m.finished[1:]
+		if slices.Contains(m.finished, oldest) {
+			continue
+		}
+		if known, ok := m.tasks[oldest]; ok && known.task.Status.Finished() {
+			delete(m.tasks, oldest)
+		}
+		for key := range m.seen {
+			if strings.HasPrefix(key, oldest+"\x00") {
+				delete(m.seen, key)
+			}
+		}
+	}
 }
 
 func inferTaskKind(note taskNotification) domain.BackgroundTaskKind {

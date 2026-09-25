@@ -12,8 +12,6 @@ import (
 	"github.com/OmarAly92/operator/backend/internal/httpd/apispec"
 	"github.com/OmarAly92/operator/backend/internal/httpd/envelope"
 	"github.com/OmarAly92/operator/backend/internal/service/backgroundtask"
-	"github.com/OmarAly92/operator/backend/internal/service/dialogdriver"
-	sessionmanager "github.com/OmarAly92/operator/backend/internal/session_manager"
 )
 
 type BackgroundTaskService interface {
@@ -61,7 +59,7 @@ func writeTaskError(w http.ResponseWriter, r *http.Request, err error) {
 		envelope.WriteAPIError(w, r, http.StatusConflict, "conflict", code, message, nil)
 	}
 	switch {
-	case errors.Is(err, backgroundtask.ErrSessionNotFound), errors.Is(err, sessionmanager.ErrNotFound):
+	case errors.Is(err, domain.ErrTaskSessionNotFound):
 		envelope.WriteAPIError(w, r, http.StatusNotFound, "not_found", "SESSION_NOT_FOUND", "session not found", nil)
 	case errors.Is(err, domain.ErrTaskNotFound):
 		envelope.WriteAPIError(w, r, http.StatusNotFound, "not_found", "TASK_NOT_FOUND", "background task not found", nil)
@@ -71,17 +69,21 @@ func writeTaskError(w http.ResponseWriter, r *http.Request, err error) {
 		conflict("TASK_FINISHED", "the background task has already finished")
 	case errors.Is(err, domain.ErrTaskAmbiguous):
 		conflict("TASK_AMBIGUOUS", "more than one running task matches; refusing to guess")
+	case errors.Is(err, domain.ErrTaskUnsafe):
+		conflict("TASK_UNSAFE", "the task's process group is shared with the agent or the session; refusing to signal it")
 	case errors.Is(err, domain.ErrTaskStopUnsupported):
 		envelope.WriteAPIError(w, r, http.StatusUnprocessableEntity, "unprocessable", "TASK_STOP_UNSUPPORTED", "this background task cannot be stopped from here", nil)
 	case errors.Is(err, domain.ErrTaskStopUnconfirmed):
 		envelope.WriteAPIError(w, r, http.StatusGatewayTimeout, "timeout", "TASK_STOP_UNCONFIRMED", "the stop was sent but the task has not reported stopping yet", nil)
-	case errors.Is(err, sessionmanager.ErrTaskPanelUnavailable), errors.Is(err, dialogdriver.ErrNotOnScreen), errors.Is(err, dialogdriver.ErrStuck):
+	case errors.Is(err, domain.ErrTaskPanelUnavailable):
 		conflict("TASK_PANEL_UNAVAILABLE", "the agent's background tasks panel could not be driven")
-	case errors.Is(err, sessionmanager.ErrAwaitingDecision):
+	case errors.Is(err, domain.ErrTaskAwaitingDecision):
 		conflict("SESSION_AWAITING_DECISION", "the session is paused on a permission decision")
-	case errors.Is(err, sessionmanager.ErrComposerNotEmpty):
+	case errors.Is(err, domain.ErrTaskComposerNotEmpty):
 		conflict("SESSION_COMPOSER_NOT_EMPTY", "the terminal composer holds an unsent draft")
-	case errors.Is(err, sessionmanager.ErrTerminated), errors.Is(err, sessionmanager.ErrAgentExited), errors.Is(err, sessionmanager.ErrIncompleteHandle):
+	case errors.Is(err, domain.ErrTaskSessionBusy):
+		conflict("SESSION_BUSY", "another operation owns the session's terminal")
+	case errors.Is(err, domain.ErrTaskSessionNotRunning):
 		conflict("SESSION_NOT_RUNNING", "the session is not running")
 	default:
 		envelope.WriteError(w, r, err)

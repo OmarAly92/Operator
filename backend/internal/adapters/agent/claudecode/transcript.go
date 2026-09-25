@@ -14,6 +14,7 @@ type claudeTranscriptRecord struct {
 	Subtype   string `json:"subtype"`
 	Operation string `json:"operation"`
 	Timestamp string `json:"timestamp"`
+	Version   string `json:"version"`
 	Origin    struct {
 		Kind string `json:"kind"`
 	} `json:"origin"`

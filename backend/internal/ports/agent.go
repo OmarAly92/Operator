@@ -603,14 +603,19 @@ type TasksPanel struct {
 }
 
 type TasksPanelKeys struct {
-	Open  string
-	Up    string
-	Down  string
-	Stop  string
-	Close string
+	Command string
+	Submit  string
+	Clear   string
+	Up      string
+	Down    string
+	View    string
+	Stop    string
+	Close   string
 }
 
 type TerminalTasksPanelReader interface {
 	ReadTasksPanel(pane string) (TasksPanel, bool)
+	TasksCommandReady(pane string) bool
 	TasksPanelKeys() TasksPanelKeys
+	TasksPanelVerified(version string) bool
 }

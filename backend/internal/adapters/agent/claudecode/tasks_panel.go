@@ -27,13 +27,47 @@ func (p *Plugin) ReadTasksPanel(pane string) (ports.TasksPanel, bool) {
 		return ports.TasksPanel{}, false
 	}
 	if detail {
-		return readTasksDetail(body)
+		return readTasksDetail(body, footerOffersStop(lines[at]))
 	}
 	return readTasksList(body)
 }
 
 func (p *Plugin) TasksPanelKeys() ports.TasksPanelKeys {
-	return ports.TasksPanelKeys{Open: "/tasks\r", Up: "\x1b[A", Down: "\x1b[B", Stop: "x", Close: "\x1b"}
+	return ports.TasksPanelKeys{
+		Command: "/tasks",
+		Submit:  "\r",
+		Clear:   "\x15",
+		Up:      "\x1b[A",
+		Down:    "\x1b[B",
+		View:    "\r",
+		Stop:    "x",
+		Close:   "\x1b",
+	}
+}
+
+var tasksPanelVerifiedVersions = map[string]struct{}{
+	"2.1.280": {},
+}
+
+func (p *Plugin) TasksPanelVerified(version string) bool {
+	_, ok := tasksPanelVerifiedVersions[strings.TrimSpace(version)]
+	return ok
+}
+
+func (p *Plugin) TasksCommandReady(pane string) bool {
+	lines := paneLines(pane)
+	for i := len(lines) - 1; i >= 0; i-- {
+		if lines[i] != "❯ /tasks" {
+			continue
+		}
+		if i+2 >= len(lines) || !isRule(lines[i+1]) {
+			return false
+		}
+		first := lines[i+2]
+		rest, ok := strings.CutPrefix(first, "/tasks")
+		return ok && (rest == "" || strings.HasPrefix(rest, " "))
+	}
+	return false
 }
 
 func panelFooter(lines []string) (int, bool) {
@@ -50,6 +84,15 @@ func panelFooter(lines []string) (int, bool) {
 		return -1, false
 	}
 	return -1, false
+}
+
+func footerOffersStop(footer string) bool {
+	for _, hint := range strings.Split(footer, " · ") {
+		if strings.TrimSpace(hint) == "x to stop" {
+			return true
+		}
+	}
+	return false
 }
 
 func panelBody(lines []string) []string {
@@ -89,16 +132,23 @@ func readTasksList(body []string) (ports.TasksPanel, bool) {
 	return panel, true
 }
 
-func readTasksDetail(body []string) (ports.TasksPanel, bool) {
-	panel := ports.TasksPanel{Detail: true, Selected: -1, DetailStatus: "running"}
+func readTasksDetail(body []string, stoppable bool) (ports.TasksPanel, bool) {
+	panel := ports.TasksPanel{Detail: true, Selected: -1, DetailStatus: "unknown"}
 	if body[0] == "Shell details" || body[0] == "Monitor details" {
+		status := ""
 		for _, line := range body[1:] {
-			if value, ok := strings.CutPrefix(line, "Status:"); ok {
-				panel.DetailStatus = strings.TrimSpace(value)
+			if value, ok := strings.CutPrefix(line, "Status:"); ok && status == "" {
+				status = strings.TrimSpace(value)
 			}
 			if value, ok := strings.CutPrefix(line, "Command:"); ok && panel.DetailLabel == "" {
 				panel.DetailLabel = strings.TrimSpace(value)
 			}
+		}
+		switch {
+		case status == "running" && stoppable:
+			panel.DetailStatus = "running"
+		case status != "" && status != "running":
+			panel.DetailStatus = status
 		}
 		return panel, panel.DetailLabel != ""
 	}
@@ -107,10 +157,17 @@ func readTasksDetail(body []string) (ports.TasksPanel, bool) {
 		return ports.TasksPanel{}, false
 	}
 	panel.DetailLabel = strings.TrimSpace(label)
+	finished := ""
 	if len(body) > 1 {
 		if match := tasksPanelStatus.FindStringSubmatch(body[1]); match != nil {
-			panel.DetailStatus = strings.ToLower(match[1])
+			finished = strings.ToLower(match[1])
 		}
+	}
+	switch {
+	case finished != "":
+		panel.DetailStatus = finished
+	case stoppable:
+		panel.DetailStatus = "running"
 	}
 	return panel, true
 }

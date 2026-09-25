@@ -11,13 +11,13 @@ type ProcessInfo struct {
 
 type ProcessInspector interface {
 	ListProcesses(ctx context.Context) ([]ProcessInfo, error)
-	OpenFileHolders(ctx context.Context, path string) ([]int, error)
+	OpenFileWriters(ctx context.Context, path string) ([]int, error)
 }
 
 type ProcessSignaller interface {
 	Terminate(pid int, group bool) error
 	Kill(pid int, group bool) error
-	Alive(pid int) bool
+	Alive(pid int, group bool) bool
 }
 
 type RuntimeProcessReader interface {

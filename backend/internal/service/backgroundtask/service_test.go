@@ -71,7 +71,7 @@ func (f *fakeProcs) ListProcesses(context.Context) ([]ports.ProcessInfo, error) 
 	return f.procs, nil
 }
 
-func (f *fakeProcs) OpenFileHolders(_ context.Context, path string) ([]int, error) {
+func (f *fakeProcs) OpenFileWriters(_ context.Context, path string) ([]int, error) {
 	return f.holders[path], nil
 }
 
@@ -82,8 +82,9 @@ type signal struct {
 }
 
 type fakeSignaller struct {
-	sent  []signal
-	alive map[int]bool
+	sent       []signal
+	alive      map[int]bool
+	aliveQuery []signal
 }
 
 func (f *fakeSignaller) Terminate(pid int, group bool) error {
@@ -96,12 +97,20 @@ func (f *fakeSignaller) Kill(pid int, group bool) error {
 	return nil
 }
 
-func (f *fakeSignaller) Alive(pid int) bool { return f.alive[pid] }
+func (f *fakeSignaller) Alive(pid int, group bool) bool {
+	f.aliveQuery = append(f.aliveQuery, signal{pid: pid, group: group})
+	return group && f.alive[pid]
+}
 
 type fakeAgents struct {
-	labels []string
-	err    error
-	after  func()
+	labels   []string
+	err      error
+	after    func()
+	verified string
+}
+
+func (f *fakeAgents) AgentTaskStopSupported(harness domain.AgentHarness, version string) bool {
+	return harness == domain.HarnessClaudeCode && version != "" && version == f.verified
 }
 
 func (f *fakeAgents) StopAgentTask(_ context.Context, _ domain.SessionID, label string) error {
@@ -141,12 +150,12 @@ func newHarness(t *testing.T) *harness {
 		events: &fakeEvents{},
 		sessions: &fakeSessions{found: true, rec: domain.SessionRecord{
 			ID:       "s-1",
-			Harness:  "claude-code",
+			Harness:  domain.HarnessClaudeCode,
 			Metadata: domain.SessionMetadata{RuntimeHandleID: "h-1"},
 		}},
 		procs:   &fakeProcs{procs: claudeTree(), holders: map[string][]int{outputFile: {300, 301}}},
 		signals: &fakeSignaller{alive: map[int]bool{}},
-		agents:  &fakeAgents{},
+		agents:  &fakeAgents{verified: "2.1.280"},
 	}
 	h.svc = New(Deps{
 		Events:      h.events,
@@ -174,7 +183,7 @@ func runningShell() domain.BackgroundTask {
 func TestListFoldsLatestStatusAndKeepsLaunchFields(t *testing.T) {
 	h := newHarness(t)
 	h.events.add(t, runningShell())
-	h.events.add(t, domain.BackgroundTask{TaskID: "a1", Kind: domain.BackgroundTaskAgent, Status: domain.BackgroundTaskRunning, Description: "sleeper", StartedAt: "2026-09-25T00:00:01.000Z"})
+	h.events.add(t, domain.BackgroundTask{TaskID: "a1", Kind: domain.BackgroundTaskAgent, Status: domain.BackgroundTaskRunning, Description: "sleeper", HarnessVersion: "2.1.280", StartedAt: "2026-09-25T00:00:01.000Z"})
 	code := 143
 	h.events.add(t, domain.BackgroundTask{TaskID: "b1", Kind: domain.BackgroundTaskShell, Status: domain.BackgroundTaskFailed, Summary: "failed with exit code 143", ExitCode: &code, EndedAt: "2026-09-25T00:01:00.000Z"})
 	h.events.records = append(h.events.records, blockeventsvc.Record{Seq: 99, Kind: domain.BlockEventTaskUpdate, Detail: "{broken"})
@@ -251,15 +260,15 @@ func TestStopShellSkipsTheKillWhenTheGroupExited(t *testing.T) {
 	}
 }
 
-func TestStopShellNeverTargetsTheAgentsOwnGroup(t *testing.T) {
+func TestStopShellRefusesWhenTheAgentAlsoWritesTheOutput(t *testing.T) {
 	h := newHarness(t)
 	h.events.add(t, runningShell())
 	h.procs.holders[outputFile] = []int{200, 300, 301}
-	if _, err := h.svc.Stop(context.Background(), "s-1", "b1"); err != nil {
-		t.Fatalf("Stop: %v", err)
+	if _, err := h.svc.Stop(context.Background(), "s-1", "b1"); !errors.Is(err, domain.ErrTaskUnsafe) {
+		t.Fatalf("err = %v", err)
 	}
-	if len(h.signals.sent) == 0 || h.signals.sent[0].pid != 300 {
-		t.Fatalf("signals = %+v", h.signals.sent)
+	if len(h.signals.sent) != 0 {
+		t.Fatalf("signalled %+v", h.signals.sent)
 	}
 }
 
@@ -350,7 +359,7 @@ func TestStopOnATerminatedSessionIsUnsupported(t *testing.T) {
 
 func TestStopAgentDrivesTheTUIAndWaitsForTheNotification(t *testing.T) {
 	h := newHarness(t)
-	h.events.add(t, domain.BackgroundTask{TaskID: "a1", Kind: domain.BackgroundTaskAgent, Status: domain.BackgroundTaskRunning, Description: "sleeper"})
+	h.events.add(t, domain.BackgroundTask{TaskID: "a1", Kind: domain.BackgroundTaskAgent, Status: domain.BackgroundTaskRunning, Description: "sleeper", HarnessVersion: "2.1.280"})
 	h.agents.after = func() {
 		h.events.add(t, domain.BackgroundTask{TaskID: "a1", Kind: domain.BackgroundTaskAgent, Status: domain.BackgroundTaskKilled, Summary: `Agent "sleeper" was stopped by user`})
 	}
@@ -368,7 +377,7 @@ func TestStopAgentDrivesTheTUIAndWaitsForTheNotification(t *testing.T) {
 
 func TestStopAgentUnconfirmed(t *testing.T) {
 	h := newHarness(t)
-	h.events.add(t, domain.BackgroundTask{TaskID: "a1", Kind: domain.BackgroundTaskAgent, Status: domain.BackgroundTaskRunning, Description: "sleeper"})
+	h.events.add(t, domain.BackgroundTask{TaskID: "a1", Kind: domain.BackgroundTaskAgent, Status: domain.BackgroundTaskRunning, Description: "sleeper", HarnessVersion: "2.1.280"})
 	if _, err := h.svc.Stop(context.Background(), "s-1", "a1"); !errors.Is(err, domain.ErrTaskStopUnconfirmed) {
 		t.Fatalf("err = %v", err)
 	}
@@ -376,7 +385,7 @@ func TestStopAgentUnconfirmed(t *testing.T) {
 
 func TestStopAgentPassesTheDriverErrorThrough(t *testing.T) {
 	h := newHarness(t)
-	h.events.add(t, domain.BackgroundTask{TaskID: "a1", Kind: domain.BackgroundTaskAgent, Status: domain.BackgroundTaskRunning, Description: "sleeper"})
+	h.events.add(t, domain.BackgroundTask{TaskID: "a1", Kind: domain.BackgroundTaskAgent, Status: domain.BackgroundTaskRunning, Description: "sleeper", HarnessVersion: "2.1.280"})
 	h.agents.err = domain.ErrTaskAmbiguous
 	if _, err := h.svc.Stop(context.Background(), "s-1", "a1"); !errors.Is(err, domain.ErrTaskAmbiguous) {
 		t.Fatalf("err = %v", err)
@@ -390,7 +399,7 @@ func TestStopAgentWithoutADescriptionOrStopperIsUnsupported(t *testing.T) {
 		t.Fatalf("err = %v", err)
 	}
 	h.svc.deps.Agents = nil
-	h.events.add(t, domain.BackgroundTask{TaskID: "a2", Kind: domain.BackgroundTaskAgent, Status: domain.BackgroundTaskRunning, Description: "x"})
+	h.events.add(t, domain.BackgroundTask{TaskID: "a2", Kind: domain.BackgroundTaskAgent, Status: domain.BackgroundTaskRunning, Description: "x", HarnessVersion: "2.1.280"})
 	tasks, _ := h.svc.List(context.Background(), "s-1")
 	for _, task := range tasks {
 		if task.CanStop {
@@ -414,5 +423,150 @@ func TestListMergesASubagentShellWithItsMainScopeNotification(t *testing.T) {
 	got := tasks[0]
 	if got.AgentID != "a9" || got.Status != domain.BackgroundTaskStopped || got.Command != "sleep 900" || got.Description != "Sleep for 15 minutes" {
 		t.Fatalf("task = %+v", got)
+	}
+}
+
+func TestStopShellEscalationAsksAboutTheGroupNotTheLeader(t *testing.T) {
+	h := newHarness(t)
+	h.events.add(t, runningShell())
+	if _, err := h.svc.Stop(context.Background(), "s-1", "b1"); err != nil {
+		t.Fatalf("Stop: %v", err)
+	}
+	if len(h.signals.aliveQuery) != 1 || h.signals.aliveQuery[0] != (signal{pid: 300, group: true}) {
+		t.Fatalf("liveness queries = %+v", h.signals.aliveQuery)
+	}
+}
+
+func TestStopShellWithAKnownOutputFileNeverFallsBackToTheCommand(t *testing.T) {
+	h := newHarness(t)
+	h.procs.holders = map[string][]int{}
+	h.events.add(t, runningShell())
+	if _, err := h.svc.Stop(context.Background(), "s-1", "b1"); !errors.Is(err, domain.ErrTaskProcessNotFound) {
+		t.Fatalf("err = %v", err)
+	}
+	if len(h.signals.sent) != 0 {
+		t.Fatalf("signalled %+v", h.signals.sent)
+	}
+}
+
+func TestStopShellThatFinishedMeanwhileReportsFinished(t *testing.T) {
+	h := newHarness(t)
+	h.procs.holders = map[string][]int{}
+	h.events.add(t, runningShell())
+	reads := 0
+	h.events.onRead = func() {
+		reads++
+		if reads == 2 {
+			h.events.add(t, domain.BackgroundTask{TaskID: "b1", Kind: domain.BackgroundTaskShell, Status: domain.BackgroundTaskCompleted})
+		}
+	}
+	if _, err := h.svc.Stop(context.Background(), "s-1", "b1"); !errors.Is(err, domain.ErrTaskFinished) {
+		t.Fatalf("err = %v", err)
+	}
+}
+
+func TestStopShellRefusesUnsafeGroups(t *testing.T) {
+	for name, procs := range map[string][]ports.ProcessInfo{
+		"shares the session root's group": {
+			{PID: 100, PPID: 1, PGID: 100, Command: "claude"},
+			{PID: 300, PPID: 100, PGID: 100, Command: "/bin/zsh -c eval 'sleep 900'"},
+			{PID: 301, PPID: 300, PGID: 100, Command: "sleep 900"},
+		},
+		"shares the agent's group": {
+			{PID: 100, PPID: 1, PGID: 100, Command: "opr agent-process supervise"},
+			{PID: 200, PPID: 100, PGID: 200, Command: "claude"},
+			{PID: 300, PPID: 200, PGID: 200, Command: "/bin/zsh -c eval 'sleep 900'"},
+			{PID: 301, PPID: 300, PGID: 200, Command: "sleep 900"},
+		},
+		"has a member outside the session": {
+			{PID: 100, PPID: 1, PGID: 100, Command: "claude"},
+			{PID: 300, PPID: 100, PGID: 300, Command: "/bin/zsh -c eval 'sleep 900'"},
+			{PID: 301, PPID: 300, PGID: 300, Command: "sleep 900"},
+			{PID: 950, PPID: 1, PGID: 300, Command: "stranger"},
+		},
+		"has a child in another group": {
+			{PID: 100, PPID: 1, PGID: 100, Command: "claude"},
+			{PID: 300, PPID: 100, PGID: 300, Command: "/bin/zsh -c eval 'sleep 900'"},
+			{PID: 301, PPID: 300, PGID: 301, Command: "setsid worker"},
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			h := newHarness(t)
+			h.procs.procs = procs
+			h.procs.holders = map[string][]int{outputFile: {300, 301}}
+			h.events.add(t, runningShell())
+			if _, err := h.svc.Stop(context.Background(), "s-1", "b1"); !errors.Is(err, domain.ErrTaskUnsafe) {
+				t.Fatalf("err = %v", err)
+			}
+			if len(h.signals.sent) != 0 {
+				t.Fatalf("signalled %+v", h.signals.sent)
+			}
+		})
+	}
+}
+
+func TestAgentCanStopGates(t *testing.T) {
+	agent := func(id, description, version string) domain.BackgroundTask {
+		return domain.BackgroundTask{TaskID: id, Kind: domain.BackgroundTaskAgent, Status: domain.BackgroundTaskRunning, Description: description, HarnessVersion: version}
+	}
+	stoppable := func(t *testing.T, h *harness, id string) bool {
+		t.Helper()
+		tasks, err := h.svc.List(context.Background(), "s-1")
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, task := range tasks {
+			if task.TaskID == id {
+				return task.CanStop
+			}
+		}
+		t.Fatalf("task %s missing", id)
+		return false
+	}
+
+	h := newHarness(t)
+	h.events.add(t, agent("a1", "sleeper", "2.1.280"))
+	if !stoppable(t, h, "a1") {
+		t.Fatal("verified claude-code agent with a unique description must be stoppable")
+	}
+
+	h = newHarness(t)
+	h.events.add(t, agent("a1", "sleeper", ""))
+	if stoppable(t, h, "a1") {
+		t.Fatal("unknown version must not be stoppable")
+	}
+
+	h = newHarness(t)
+	h.events.add(t, agent("a1", "sleeper", "2.1.999"))
+	if stoppable(t, h, "a1") {
+		t.Fatal("unverified version must not be stoppable")
+	}
+
+	h = newHarness(t)
+	h.sessions.rec.Harness = "codex"
+	h.events.add(t, agent("a1", "sleeper", "2.1.280"))
+	if stoppable(t, h, "a1") {
+		t.Fatal("non claude-code harness must not be stoppable")
+	}
+
+	h = newHarness(t)
+	h.events.add(t, agent("a1", "sleeper", "2.1.280"))
+	h.events.add(t, agent("a2", "sleeper ", "2.1.280"))
+	if stoppable(t, h, "a1") || stoppable(t, h, "a2") {
+		t.Fatal("duplicate running descriptions must not be stoppable")
+	}
+	if _, err := h.svc.Stop(context.Background(), "s-1", "a1"); !errors.Is(err, domain.ErrTaskStopUnsupported) {
+		t.Fatalf("stop err = %v", err)
+	}
+	if len(h.agents.labels) != 0 {
+		t.Fatalf("drove the panel for an ambiguous agent: %v", h.agents.labels)
+	}
+
+	h = newHarness(t)
+	h.events.add(t, agent("a1", "sleeper", "2.1.280"))
+	h.events.add(t, agent("a2", "sleeper", "2.1.280"))
+	h.events.add(t, domain.BackgroundTask{TaskID: "a2", Kind: domain.BackgroundTaskAgent, Status: domain.BackgroundTaskCompleted})
+	if !stoppable(t, h, "a1") {
+		t.Fatal("a finished namesake must not block the running agent")
 	}
 }

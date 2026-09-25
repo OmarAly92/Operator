@@ -2,6 +2,7 @@ package sessionmanager
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"regexp"
 	"strings"
@@ -26,6 +27,14 @@ type ModelOption struct {
 }
 
 func (m *Manager) Command(ctx context.Context, id domain.SessionID, cmd domain.SessionCommand, model string) (CommandResult, error) {
+	if _, err := m.commandRecord(ctx, id); err != nil {
+		return CommandResult{}, err
+	}
+	end, err := m.beginPaneDrive(ctx, id)
+	if err != nil {
+		return CommandResult{}, commandDriveError(err)
+	}
+	defer end()
 	rec, err := m.commandRecord(ctx, id)
 	if err != nil {
 		return CommandResult{}, err
@@ -41,6 +50,13 @@ func (m *Manager) Command(ctx context.Context, id domain.SessionID, cmd domain.S
 	default:
 		return CommandResult{}, fmt.Errorf("command %s: %w", id, ErrWrongActivityState)
 	}
+}
+
+func commandDriveError(err error) error {
+	if errors.Is(err, errAgentOperationInProgress) {
+		return ErrWrongActivityState
+	}
+	return err
 }
 
 func (m *Manager) commandRecord(ctx context.Context, id domain.SessionID) (domain.SessionRecord, error) {
@@ -68,6 +84,14 @@ func (m *Manager) commandRecord(ctx context.Context, id domain.SessionID) (domai
 // Code build offers and which one the session is on: the picker marks the
 // current row with ✔ and neither fact is written anywhere else.
 func (m *Manager) Models(ctx context.Context, id domain.SessionID) ([]ModelOption, error) {
+	if _, err := m.commandRecord(ctx, id); err != nil {
+		return nil, err
+	}
+	end, err := m.beginPaneDrive(ctx, id)
+	if err != nil {
+		return nil, commandDriveError(err)
+	}
+	defer end()
 	rec, err := m.commandRecord(ctx, id)
 	if err != nil {
 		return nil, err

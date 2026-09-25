@@ -261,7 +261,6 @@ type Manager struct {
 	// their fakeAgents do not implement ports.EmptyComposerDetector.
 	emptyComposerDetector ports.EmptyComposerDetector
 	tasksPanelReader      ports.TerminalTasksPanelReader
-	taskStops             sync.Map
 	// messenger is a sessionguard.Guard wrapping the raw messenger, so every
 	// pane write is guarded (re-read state, refuse a blocked session) without
 	// each call site re-deriving the check. Send/confirmActive use Deliver for
@@ -300,6 +299,7 @@ type Manager struct {
 	retainedSwitches map[domain.SessionID]struct{}
 	inputLeases      map[domain.SessionID]int
 	inputDrained     map[domain.SessionID]chan struct{}
+	paneDrives       map[domain.SessionID]chan struct{}
 	// handoffWait bounds optional source-agent enrichment. Deterministic Operator
 	// context is sufficient, so expiry never prevents the actual switch.
 	handoffWait time.Duration

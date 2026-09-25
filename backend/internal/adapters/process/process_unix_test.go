@@ -68,19 +68,66 @@ func TestListProcessesSeesAStartedShell(t *testing.T) {
 	t.Fatalf("pid %d not listed", pid)
 }
 
-func TestOpenFileHoldersFindsTheRedirectedShell(t *testing.T) {
+func TestOpenFileWritersFindsTheRedirectedShellButNotAReader(t *testing.T) {
 	output := filepath.Join(t.TempDir(), "bt2.output")
 	cmd := startBackgroundShell(t, output, "sleep 612")
-	holders, err := New().OpenFileHolders(context.Background(), output)
+	reader := exec.Command("/bin/sh", "-c", "exec sleep 616 < \""+output+"\"")
+	if err := reader.Start(); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		_ = reader.Process.Kill()
+		_, _ = reader.Process.Wait()
+	})
+	time.Sleep(200 * time.Millisecond)
+	writers, err := New().OpenFileWriters(context.Background(), output)
 	if err != nil {
-		t.Fatalf("OpenFileHolders: %v", err)
+		t.Fatalf("OpenFileWriters: %v", err)
 	}
-	if !slices.Contains(holders, cmd.Process.Pid) {
-		t.Fatalf("holders = %v, want %d", holders, cmd.Process.Pid)
+	if !slices.Contains(writers, cmd.Process.Pid) {
+		t.Fatalf("writers = %v, want %d", writers, cmd.Process.Pid)
 	}
-	none, err := New().OpenFileHolders(context.Background(), filepath.Join(t.TempDir(), "absent.output"))
+	if slices.Contains(writers, reader.Process.Pid) {
+		t.Fatalf("reader %d reported as a writer: %v", reader.Process.Pid, writers)
+	}
+	none, err := New().OpenFileWriters(context.Background(), filepath.Join(t.TempDir(), "absent.output"))
 	if err != nil || len(none) != 0 {
-		t.Fatalf("absent holders = %v, %v", none, err)
+		t.Fatalf("absent writers = %v, %v", none, err)
+	}
+}
+
+func TestParseLsofWriters(t *testing.T) {
+	got := parseLsofWriters("p10\nf1\naw\nf2\naw\np11\nf7\nar\np12\nf3\nau\npbad\naw\n")
+	if !slices.Equal(got, []int{10, 12}) {
+		t.Fatalf("writers = %v", got)
+	}
+}
+
+func TestGroupAliveOutlivesItsLeaderAndTheKillReachesIt(t *testing.T) {
+	output := filepath.Join(t.TempDir(), "bt4.output")
+	cmd := startBackgroundShell(t, output, "sh -c \"trap \\\"\\\" TERM; while :; do sleep 1; done\" & wait")
+	pgid := cmd.Process.Pid
+	table := New()
+	time.Sleep(300 * time.Millisecond)
+	if err := table.Terminate(pgid, true); err != nil {
+		t.Fatalf("Terminate: %v", err)
+	}
+	waitExit(t, cmd)
+	if table.Alive(pgid, false) {
+		t.Fatal("leader survived SIGTERM")
+	}
+	if !table.Alive(pgid, true) {
+		t.Fatal("group reported dead while a TERM-ignoring member lives")
+	}
+	if err := table.Kill(pgid, true); err != nil {
+		t.Fatalf("Kill: %v", err)
+	}
+	deadline := time.Now().Add(5 * time.Second)
+	for table.Alive(pgid, true) {
+		if time.Now().After(deadline) {
+			t.Fatal("group survived SIGKILL")
+		}
+		time.Sleep(20 * time.Millisecond)
 	}
 }
 
@@ -88,7 +135,7 @@ func TestTerminateGroupStopsTheShellAndItsChild(t *testing.T) {
 	cmd := startBackgroundShell(t, filepath.Join(t.TempDir(), "bt3.output"), "sleep 613")
 	signals := New()
 	pid := cmd.Process.Pid
-	if !signals.Alive(pid) {
+	if !signals.Alive(pid, true) {
 		t.Fatal("shell not alive")
 	}
 	if err := signals.Terminate(pid, true); err != nil {

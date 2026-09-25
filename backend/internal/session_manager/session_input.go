@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/OmarAly92/operator/backend/internal/domain"
 	"github.com/OmarAly92/operator/backend/internal/sessionguard"
@@ -32,6 +33,17 @@ var _ sessionguard.InputLease = (*Manager)(nil)
 func (m *Manager) AcquireSessionInput(id domain.SessionID) (release func(), ok bool) {
 	id = domain.SessionID(strings.TrimSpace(string(id)))
 	m.agentOpMu.Lock()
+	for drive := m.paneDrives[id]; drive != nil; drive = m.paneDrives[id] {
+		m.agentOpMu.Unlock()
+		timer := time.NewTimer(paneDriveInputWait)
+		select {
+		case <-drive:
+			timer.Stop()
+		case <-timer.C:
+			return nil, false
+		}
+		m.agentOpMu.Lock()
+	}
 	if m.agentOperationActiveLocked(id) && !m.agentSwitchDecisionInputAllowedLocked(id) {
 		m.agentOpMu.Unlock()
 		return nil, false
@@ -262,4 +274,71 @@ func (m *Manager) beginAgentResume(ctx context.Context, id domain.SessionID) err
 
 func (m *Manager) endAgentResume(id domain.SessionID) {
 	m.endAgentOperation(id, agentOperationResume)
+}
+
+const paneDriveInputWait = 10 * time.Second
+
+func (m *Manager) beginPaneDrive(ctx context.Context, id domain.SessionID) (func(), error) {
+	id = domain.SessionID(strings.TrimSpace(string(id)))
+	for {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		m.agentOpMu.Lock()
+		if m.agentOperationActiveLocked(id) {
+			m.agentOpMu.Unlock()
+			return nil, errAgentOperationInProgress
+		}
+		if drive := m.paneDrives[id]; drive != nil {
+			m.agentOpMu.Unlock()
+			select {
+			case <-drive:
+				continue
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			}
+		}
+		if m.paneDrives == nil {
+			m.paneDrives = make(map[domain.SessionID]chan struct{})
+		}
+		drive := make(chan struct{})
+		m.paneDrives[id] = drive
+		drained := m.inputDrained[id]
+		m.agentOpMu.Unlock()
+
+		end := func() {
+			m.agentOpMu.Lock()
+			if m.paneDrives[id] == drive {
+				delete(m.paneDrives, id)
+			}
+			m.agentOpMu.Unlock()
+			close(drive)
+		}
+		if drained != nil {
+			select {
+			case <-drained:
+			case <-ctx.Done():
+				end()
+				return nil, ctx.Err()
+			}
+		}
+		m.agentOpMu.Lock()
+		if m.agentOperationActiveLocked(id) {
+			m.agentOpMu.Unlock()
+			end()
+			return nil, errAgentOperationInProgress
+		}
+		if m.inputLeases[id] == 0 {
+			m.inputDrained[id] = make(chan struct{})
+		}
+		m.inputLeases[id]++
+		m.agentOpMu.Unlock()
+		var once sync.Once
+		return func() {
+			once.Do(func() {
+				m.releaseSessionInput(id)
+				end()
+			})
+		}, nil
+	}
 }

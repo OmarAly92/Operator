@@ -3,7 +3,6 @@ package backgroundtask
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"path/filepath"
 	"sort"
@@ -15,7 +14,7 @@ import (
 	blockeventsvc "github.com/OmarAly92/operator/backend/internal/service/blockevent"
 )
 
-var ErrSessionNotFound = errors.New("background tasks: session not found")
+var ErrSessionNotFound = domain.ErrTaskSessionNotFound
 
 type EventSource interface {
 	TaskUpdates(ctx context.Context, sessionID domain.SessionID) ([]blockeventsvc.Record, error)
@@ -27,6 +26,7 @@ type SessionLookup interface {
 
 type AgentStopper interface {
 	StopAgentTask(ctx context.Context, id domain.SessionID, label string) error
+	AgentTaskStopSupported(harness domain.AgentHarness, version string) bool
 }
 
 type Deps struct {
@@ -145,9 +145,15 @@ func (s *Service) fold(ctx context.Context, rec domain.SessionRecord) ([]Task, e
 			existing.AgentID = record.AgentID
 		}
 	}
+	runningAgents := map[string]int{}
+	for _, task := range byID {
+		if task.Kind == domain.BackgroundTaskAgent && task.Status == domain.BackgroundTaskRunning {
+			runningAgents[normalizeLabel(task.Description)]++
+		}
+	}
 	out := make([]Task, 0, len(byID))
 	for _, task := range byID {
-		task.CanStop = s.canStop(rec, task.BackgroundTask)
+		task.CanStop = s.canStop(rec, task.BackgroundTask, runningAgents)
 		out = append(out, *task)
 	}
 	sort.Slice(out, func(i, j int) bool { return firstSeen[out[i].TaskID] > firstSeen[out[j].TaskID] })
@@ -166,18 +172,24 @@ func merge(existing, update domain.BackgroundTask) domain.BackgroundTask {
 	keep(&merged.Command, existing.Command)
 	keep(&merged.OutputFile, existing.OutputFile)
 	keep(&merged.StartedAt, existing.StartedAt)
+	keep(&merged.HarnessVersion, existing.HarnessVersion)
 	if merged.Kind == "" {
 		merged.Kind = existing.Kind
 	}
 	return merged
 }
 
-func (s *Service) canStop(rec domain.SessionRecord, task domain.BackgroundTask) bool {
+func (s *Service) canStop(rec domain.SessionRecord, task domain.BackgroundTask, runningAgents map[string]int) bool {
 	if task.Status != domain.BackgroundTaskRunning || rec.IsTerminated || rec.Metadata.RuntimeHandleID == "" {
 		return false
 	}
 	if task.Kind == domain.BackgroundTaskAgent {
-		return s.deps.Agents != nil && task.Description != ""
+		label := normalizeLabel(task.Description)
+		return s.deps.Agents != nil &&
+			rec.Harness == domain.HarnessClaudeCode &&
+			label != "" &&
+			runningAgents[label] == 1 &&
+			s.deps.Agents.AgentTaskStopSupported(rec.Harness, task.HarnessVersion)
 	}
 	return s.deps.Runtime != nil && s.deps.Processes != nil && s.deps.Signals != nil
 }
@@ -220,42 +232,53 @@ func (s *Service) stopAgent(ctx context.Context, rec domain.SessionRecord, task 
 func (s *Service) stopProcess(ctx context.Context, rec domain.SessionRecord, task Task) error {
 	root, err := s.deps.Runtime.ChildPID(ctx, ports.RuntimeHandle{ID: rec.Metadata.RuntimeHandleID})
 	if err != nil || root <= 0 {
-		return domain.ErrTaskProcessNotFound
+		return s.notFound(ctx, rec, task)
 	}
 	procs, err := s.deps.Processes.ListProcesses(ctx)
 	if err != nil {
 		return fmt.Errorf("background tasks %s: list processes: %w", rec.ID, err)
 	}
 	tree := descendants(procs, root)
-	var groups []int
+	var candidates []int
 	if file := taskOutputFile(task.BackgroundTask); file != "" {
-		holders, err := s.deps.Processes.OpenFileHolders(ctx, file)
+		holders, err := s.deps.Processes.OpenFileWriters(ctx, file)
 		if err != nil {
-			return fmt.Errorf("background tasks %s: find output holders: %w", rec.ID, err)
+			return fmt.Errorf("background tasks %s: find output writers: %w", rec.ID, err)
 		}
-		groups = targetGroups(tree, root, holders)
+		candidates = holders
+	} else if task.Command != "" {
+		candidates = commandMatches(tree, task.Command)
 	}
-	if len(groups) == 0 && task.Command != "" {
-		groups = targetGroups(tree, root, commandMatches(tree, task.Command))
-	}
-	switch len(groups) {
-	case 0:
-		return domain.ErrTaskProcessNotFound
-	case 1:
-	default:
+	safe, unsafe := targetGroups(procs, tree, root, candidates)
+	switch {
+	case unsafe:
+		return domain.ErrTaskUnsafe
+	case len(safe) > 1:
 		return domain.ErrTaskAmbiguous
+	case len(safe) == 0:
+		return s.notFound(ctx, rec, task)
 	}
-	pid, group := signalTarget(tree, groups[0])
-	if err := s.deps.Signals.Terminate(pid, group); err != nil {
-		return fmt.Errorf("background tasks %s: terminate %d: %w", rec.ID, pid, err)
+	pgid := safe[0]
+	if err := s.deps.Signals.Terminate(pgid, true); err != nil {
+		return fmt.Errorf("background tasks %s: terminate group %d: %w", rec.ID, pgid, err)
 	}
 	signals := s.deps.Signals
 	s.deps.After(s.deps.Grace, func() {
-		if signals.Alive(pid) {
-			_ = signals.Kill(pid, group)
+		if signals.Alive(pgid, true) {
+			_ = signals.Kill(pgid, true)
 		}
 	})
 	return nil
+}
+
+func (s *Service) notFound(ctx context.Context, rec domain.SessionRecord, task Task) error {
+	tasks, err := s.fold(ctx, rec)
+	if err == nil {
+		if latest, found := findTask(tasks, task.TaskID); found && latest.Status.Finished() {
+			return domain.ErrTaskFinished
+		}
+	}
+	return domain.ErrTaskProcessNotFound
 }
 
 func taskOutputFile(task domain.BackgroundTask) string {
@@ -293,35 +316,68 @@ func descendants(procs []ports.ProcessInfo, root int) map[int]ports.ProcessInfo 
 	return tree
 }
 
-func targetGroups(tree map[int]ports.ProcessInfo, root int, pids []int) []int {
-	matched := map[int]ports.ProcessInfo{}
+func targetGroups(procs []ports.ProcessInfo, tree map[int]ports.ProcessInfo, root int, pids []int) ([]int, bool) {
+	members := map[int][]ports.ProcessInfo{}
+	children := map[int][]ports.ProcessInfo{}
+	for _, proc := range procs {
+		members[proc.PGID] = append(members[proc.PGID], proc)
+		children[proc.PPID] = append(children[proc.PPID], proc)
+	}
+	matched := map[int][]ports.ProcessInfo{}
 	for _, pid := range pids {
 		if proc, inTree := tree[pid]; inTree && pid != root {
-			matched[pid] = proc
+			matched[proc.PGID] = append(matched[proc.PGID], proc)
 		}
 	}
-	excluded := map[int]bool{tree[root].PGID: true}
-	for _, proc := range matched {
-		for parent, ok := tree[proc.PPID]; ok; parent, ok = tree[parent.PPID] {
-			if parent.PGID != proc.PGID {
-				excluded[parent.PGID] = true
+	unsafe := false
+	var groups []int
+	for pgid, hits := range matched {
+		if groupIsSafe(pgid, members[pgid], children, tree, root, hits) {
+			groups = append(groups, pgid)
+		} else {
+			unsafe = true
+		}
+	}
+	sort.Ints(groups)
+	return groups, unsafe
+}
+
+func groupIsSafe(pgid int, members []ports.ProcessInfo, children map[int][]ports.ProcessInfo, tree map[int]ports.ProcessInfo, root int, hits []ports.ProcessInfo) bool {
+	if pgid <= 1 || len(members) == 0 {
+		return false
+	}
+	inGroup := map[int]bool{}
+	for _, member := range members {
+		if _, inTree := tree[member.PID]; !inTree || member.PID == root {
+			return false
+		}
+		inGroup[member.PID] = true
+	}
+	for _, member := range members {
+		for _, child := range children[member.PID] {
+			if !inGroup[child.PID] {
+				return false
+			}
+		}
+	}
+	hit := map[int]bool{}
+	for _, proc := range hits {
+		hit[proc.PID] = true
+	}
+	for _, match := range hits {
+		if hit[match.PPID] {
+			continue
+		}
+		for parent, ok := tree[match.PPID]; ok; parent, ok = tree[parent.PPID] {
+			if inGroup[parent.PID] {
+				return false
 			}
 			if parent.PID == root {
 				break
 			}
 		}
 	}
-	seen := map[int]bool{}
-	var groups []int
-	for _, proc := range matched {
-		if excluded[proc.PGID] || seen[proc.PGID] {
-			continue
-		}
-		seen[proc.PGID] = true
-		groups = append(groups, proc.PGID)
-	}
-	sort.Ints(groups)
-	return groups
+	return true
 }
 
 func commandMatches(tree map[int]ports.ProcessInfo, command string) []int {
@@ -339,21 +395,6 @@ func shellQuote(s string) string {
 	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
 }
 
-func signalTarget(tree map[int]ports.ProcessInfo, pgid int) (int, bool) {
-	if leader, ok := tree[pgid]; ok && leader.PGID == pgid {
-		return pgid, true
-	}
-	lowest := 0
-	for pid, proc := range tree {
-		if proc.PGID != pgid {
-			continue
-		}
-		if _, parentInGroup := tree[proc.PPID]; parentInGroup && tree[proc.PPID].PGID == pgid {
-			continue
-		}
-		if lowest == 0 || pid < lowest {
-			lowest = pid
-		}
-	}
-	return lowest, false
+func normalizeLabel(label string) string {
+	return strings.Join(strings.Fields(label), " ")
 }

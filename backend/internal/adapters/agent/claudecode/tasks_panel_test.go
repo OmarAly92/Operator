@@ -159,9 +159,74 @@ func TestReadTasksPanelClosed(t *testing.T) {
 
 func TestTasksPanelKeys(t *testing.T) {
 	keys := (&Plugin{}).TasksPanelKeys()
-	want := ports.TasksPanelKeys{Open: "/tasks\r", Up: "\x1b[A", Down: "\x1b[B", Stop: "x", Close: "\x1b"}
+	want := ports.TasksPanelKeys{Command: "/tasks", Submit: "\r", Clear: "\x15", Up: "\x1b[A", Down: "\x1b[B", View: "\r", Stop: "x", Close: "\x1b"}
 	if keys != want {
 		t.Fatalf("keys = %+v", keys)
+	}
+}
+
+func TestTasksPanelVerifiedVersions(t *testing.T) {
+	p := &Plugin{}
+	if !p.TasksPanelVerified("2.1.280") {
+		t.Fatal("2.1.280 must be verified")
+	}
+	for _, version := range []string{"", "2.1.281", "2.1.28", "unknown"} {
+		if p.TasksPanelVerified(version) {
+			t.Fatalf("%q must not be verified", version)
+		}
+	}
+}
+
+func TestTasksCommandReady(t *testing.T) {
+	p := &Plugin{}
+	ready := pane(
+		panelRule,
+		"❯ /tasks",
+		panelRule,
+		"  /tasks                                          View and manage everything running in the background",
+		"  /superpowers:subagent-driven-development        (superpowers) Use when executing implementation plans",
+	)
+	if !p.TasksCommandReady(ready) {
+		t.Fatal("typed /tasks with its suggestion on top not recognised")
+	}
+	for name, text := range map[string]string{
+		"other suggestion first": pane(panelRule, "❯ /tasks", panelRule, "  /tasks-extra   something"),
+		"draft differs":          pane(panelRule, "❯ /task", panelRule, "  /tasks   View and manage"),
+		"no suggestion list":     pane(panelRule, "❯ /tasks", "  ⏸ manual mode on"),
+		"empty composer":         pane(panelRule, "❯ ", panelRule, "  ⏸ manual mode on"),
+	} {
+		if p.TasksCommandReady(text) {
+			t.Fatalf("%s: reported ready", name)
+		}
+	}
+}
+
+func TestReadTasksPanelDetailWithoutAStopHintIsNeverRunning(t *testing.T) {
+	for name, text := range map[string]string{
+		"agent": pane(
+			panelRule,
+			"  general-purpose › sleeper",
+			"  37s · 20.9k tokens · 1 tool · Haiku 4.5",
+			"  ← to go back · Esc/Enter/Space to close · f to foreground",
+		),
+		"shell without status": pane(
+			panelRule,
+			"  Shell details",
+			"  Command:  sleep 9",
+			"  ← to go back · Esc/Enter/Space to close · x to stop",
+		),
+		"shell running but no stop hint": pane(
+			panelRule,
+			"  Shell details",
+			"  Status:   running",
+			"  Command:  sleep 9",
+			"  ← to go back · Esc/Enter/Space to close",
+		),
+	} {
+		got, ok := (&Plugin{}).ReadTasksPanel(text)
+		if !ok || got.DetailStatus != "unknown" {
+			t.Fatalf("%s: panel = %+v, %v", name, got, ok)
+		}
 	}
 }
 
