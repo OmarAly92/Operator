@@ -19,6 +19,7 @@ List<Widget> spawnOptionRows({
       onTap: () => onOpen(SpawnOption.project),
     ),
     SettingsRow(
+      icon: Icons.smart_toy_outlined,
       label: 'Agent',
       value: SpawnOptionValues.agentValue(cubit.agents, cubit.harness, loading: state is CatalogLoadingState),
       leading: AgentLogo(harness: cubit.harness.isEmpty ? null : cubit.harness, size: 20),

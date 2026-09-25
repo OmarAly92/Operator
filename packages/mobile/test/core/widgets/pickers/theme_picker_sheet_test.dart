@@ -34,4 +34,14 @@ void main() {
     expect(picked, ThemeMode.dark);
     expect(find.byKey(AppSheet.surfaceKey), findsNothing);
   });
+
+  testWidgets('the subtitle and the options start on the same column', (tester) async {
+    await tester.pumpWidget(host(const LightSkin(), (context) => showThemePickerSheet(context, selected: ThemeMode.system)));
+    await tester.tap(find.text('Open'));
+    await tester.pumpAndSettle();
+    final subtitle = tester.getTopLeft(find.text('Applies across the app.')).dx;
+    for (final label in ['System', 'Light', 'Dark']) {
+      expect(tester.getTopLeft(find.text(label)).dx, subtitle, reason: label);
+    }
+  });
 }

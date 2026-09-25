@@ -108,6 +108,26 @@ void main() {
     expect(find.text('Codex'), findsOneWidget);
   });
 
+  testWidgets('the options sheet fits its three rows instead of taking the full height', (tester) async {
+    await open(tester, SpawnOption.agent);
+    expect(tester.widget<AppSheet>(find.byType(AppSheet)).detent, AppSheetDetent.fit);
+    await tester.tap(find.byKey(AppSheet.backKey));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Spawn options'), findsOneWidget);
+    expect(tester.getSize(find.byKey(AppSheet.surfaceKey)).height, lessThan(874 * 0.5));
+  });
+
+  testWidgets('the Agent row carries a leading icon so its label lines up with Project and Account', (tester) async {
+    await open(tester, SpawnOption.agent);
+    await tester.tap(find.byKey(AppSheet.backKey));
+    await tester.pumpAndSettle();
+
+    final project = tester.getTopLeft(find.text('Project')).dx;
+    expect(tester.getTopLeft(find.text('Agent')).dx, project);
+    expect(tester.getTopLeft(find.text('Account')).dx, project);
+  });
+
   testWidgets('the root has an Account row only for Claude Code with accounts', (tester) async {
     await open(tester, SpawnOption.agent);
     await tester.tap(find.byKey(AppSheet.backKey));

@@ -51,7 +51,7 @@ Future<void> showSpawnOptionsSheet(
     context: context,
     page: root,
     pushed: [pageFor(open)],
-    detent: AppSheetDetent.large,
+    detent: AppSheetDetent.fit,
     scope: (sheetContext, sheet) => BlocProvider<SpawnCubit>.value(value: cubit, child: sheet),
   );
 }

@@ -42,7 +42,7 @@ class _ThemeOption extends StatelessWidget {
       onTap: onTap,
       hapticsOnTap: false,
       margin: const EdgeInsets.symmetric(vertical: 2),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      padding: const EdgeInsets.symmetric(vertical: 10),
       child: Row(
         children: [
           Expanded(child: AppText(label, style: AppTextStyle.style15Medium)),
