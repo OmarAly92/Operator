@@ -83,6 +83,7 @@ impl Scanner {
                     self.private_digits.clear();
                     self.state = State::CsiPrivate;
                 }
+                ESC => {}
                 // Some other escape (e.g. `ESC c` for full reset). Drop it
                 // and resume scanning — a stray ESC never opens an OSC.
                 _ => self.state = State::Ground,
@@ -116,7 +117,12 @@ impl Scanner {
                 }
             }
             State::CsiPrivate => {
-                if !self.private_question && byte == QUESTION && self.private_digits.is_empty() {
+                if byte == ESC {
+                    self.state = State::AfterEsc;
+                } else if !self.private_question
+                    && byte == QUESTION
+                    && self.private_digits.is_empty()
+                {
                     self.private_question = true;
                 } else if self.private_question && (byte.is_ascii_digit() || byte == b';') {
                     if byte != b';' {
@@ -424,5 +430,16 @@ mod tests {
                 .any(|event| matches!(event, MarkEvent::Extension(_))),
             "older and cols must not reach the block grid as meta fields: {events:?}"
         );
+    }
+
+    #[test]
+    fn an_escape_inside_a_csi_or_after_an_escape_still_opens_a_mark() {
+        for prefix in [&b"\x1b["[..], b"\x1b[?10", b"\x1b"] {
+            let mut s = Scanner::new();
+            let mut stream = prefix.to_vec();
+            stream.extend_from_slice(b"\x1b]7000;v=1;older=3\x1b\\");
+            let events = events_only(s.feed(&stream));
+            assert_eq!(events, [MarkEvent::OlderFloor(3)], "{prefix:?}");
+        }
     }
 }

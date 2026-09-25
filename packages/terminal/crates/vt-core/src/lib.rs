@@ -1,5 +1,6 @@
 pub mod alt;
 pub mod alt_screen;
+mod answer_gate;
 pub mod attribute_map;
 pub mod block;
 pub mod block_grid;
@@ -73,6 +74,7 @@ pub const DEFAULT_ROWS: usize = 24;
 pub struct TerminalCore {
     parser: parser::Parser,
     vte: VteParser,
+    answer_gate: answer_gate::AnswerGate,
     mark_decoder: MarkDecoder,
     alt_screen: alt_screen::AltScreen,
     line_editor: line_editor::LineEditorTracker,
@@ -101,6 +103,7 @@ impl TerminalCore {
         Ok(Self {
             parser: parser::Parser::new(columns),
             vte: VteParser::new(),
+            answer_gate: answer_gate::AnswerGate::default(),
             mark_decoder: MarkDecoder::new(),
             alt_screen: alt_screen::AltScreen::new(),
             line_editor: line_editor::LineEditorTracker::default(),
@@ -315,6 +318,7 @@ impl TerminalCore {
     }
 
     fn advance_vte(&mut self, bytes: &[u8]) {
+        let bytes: &[u8] = &self.answer_gate.filter(bytes);
         #[cfg(feature = "trace")]
         {
             for byte in bytes {
