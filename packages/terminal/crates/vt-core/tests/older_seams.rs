@@ -196,3 +196,28 @@ fn random_feeds_loads_resizes_and_touches_keep_the_core_consistent() {
         }
     }
 }
+
+#[test]
+fn a_row_larger_than_the_answer_budget_does_not_stop_the_load() {
+    let mut source = mirror(1_000, 10);
+    source.feed(&numbered(0, 5));
+    source.feed(format!("{}\x1b[0m\r\n", "\x1b[31mx\x1b[32my".repeat(500)).as_bytes());
+    source.feed(&numbered(6, 40));
+    let mut target = pane_at(40, source.first_stable_row());
+    target.feed(b"live\r\n");
+    for _ in 0..8 {
+        let before = target.first_stable_row();
+        let Some(chunk) = source.older_chunk(before, OLDER_CHUNK_ROWS, 4_096) else {
+            break;
+        };
+        assert!(chunk.bytes.len() <= 4_096, "{}", chunk.bytes.len());
+        target.feed(&chunk.bytes);
+        assert_eq!(target.first_stable_row(), chunk.first_stable_row);
+    }
+    assert_eq!(target.first_stable_row(), 0);
+    let snapshot = target.snapshot().expect("snapshot");
+    assert_eq!(snapshot.row_text(4), "row 00004");
+    assert_eq!(snapshot.row_text(5), "");
+    assert_eq!(snapshot.row_text(6), "row 00006");
+    common::check(&target);
+}

@@ -61,7 +61,13 @@ impl TerminalCore {
         max_rows: usize,
         max_bytes: usize,
     ) -> Option<OlderChunk> {
-        let rows = self.parser.older_rows(before, max_rows.max(1));
+        let mut rows = self.parser.older_rows(before, max_rows.max(1));
+        if let Some(newest) = rows.last_mut() {
+            if 64 + newest.bytes.len() + 2 > max_bytes {
+                newest.bytes.clear();
+                newest.cols = 0;
+            }
+        }
         let mut taken = 0usize;
         let mut cols = 1usize;
         let mut size = 64usize;
