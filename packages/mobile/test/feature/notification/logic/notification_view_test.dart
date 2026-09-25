@@ -93,4 +93,26 @@ void main() {
       expect(relativeTime('not-a-date', now), isEmpty);
     });
   });
+
+  group('plainPreview', () {
+    test('strips bold, code and headings to plain text', () {
+      expect(plainPreview('## Done\nWrote **`spec.md`** and ran `flutter test`.'), 'Done Wrote spec.md and ran flutter test.');
+    });
+
+    test('keeps link and image text and drops the target', () {
+      expect(plainPreview('See [the PR](https://x.test/1) ![shot](a.png)'), 'See the PR shot');
+    });
+
+    test('drops quote, list and fence markers and folds lines', () {
+      expect(plainPreview('> quoted\n- one\n2. two\n```dart\ncode\n```'), 'quoted one two code');
+    });
+
+    test('unwraps emphasis and strikethrough without eating snake_case or lone stars', () {
+      expect(plainPreview('*really* ~~old~~ keep_this_name and 2 * 3'), 'really old keep_this_name and 2 * 3');
+    });
+
+    test('leaves plain text alone', () {
+      expect(plainPreview('Improve code finished its turn.'), 'Improve code finished its turn.');
+    });
+  });
 }

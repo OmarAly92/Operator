@@ -24,11 +24,14 @@ class NotificationRow extends StatelessWidget {
   final bool unread;
   final VoidCallback onTap;
 
+  static const Key stampKey = ValueKey('notification-row-stamp');
+
   @override
   Widget build(BuildContext context) {
     final skin = context.skin;
     final visual = notificationVisual(skin, type);
     final stamp = relativeTime(createdAt);
+    final preview = plainPreview(body);
 
     return AppInkWell(
       onTap: onTap,
@@ -54,34 +57,42 @@ class NotificationRow extends StatelessWidget {
                 children: [
                   Row(
                     children: [
-                      Flexible(
-                        child: AppText(
-                          title.isEmpty ? visual.label : title,
-                          style: AppTextStyle.style15SemiBold.copyWith(
-                            color: unread ? skin.textPrimary : skin.textSecondary,
-                          ),
+                      Expanded(
+                        child: Row(
+                          children: [
+                            Flexible(
+                              child: AppText(
+                                title.isEmpty ? visual.label : title,
+                                style: AppTextStyle.style15SemiBold.copyWith(
+                                  color: unread ? skin.textPrimary : skin.textSecondary,
+                                ),
+                              ),
+                            ),
+                            if (unread) ...[
+                              const HorizontalSpace(7),
+                              Container(
+                                width: 7,
+                                height: 7,
+                                decoration: BoxDecoration(color: skin.blue, shape: BoxShape.circle),
+                              ),
+                            ],
+                          ],
                         ),
                       ),
-                      if (unread) ...[
-                        const HorizontalSpace(7),
-                        Container(
-                          width: 7,
-                          height: 7,
-                          decoration: BoxDecoration(color: skin.blue, shape: BoxShape.circle),
-                        ),
-                      ],
-                      const Spacer(),
-                      if (stamp.isNotEmpty)
+                      if (stamp.isNotEmpty) ...[
+                        const HorizontalSpace(8),
                         AppText(
                           stamp,
+                          key: NotificationRow.stampKey,
                           style: AppTextStyle.style12Regular.copyWith(color: skin.textFaint),
                         ),
+                      ],
                     ],
                   ),
-                  if (body.isNotEmpty) ...[
+                  if (preview.isNotEmpty) ...[
                     const VerticalSpace(3),
                     AppText(
-                      body,
+                      preview,
                       style: AppTextStyle.style13Regular.copyWith(color: skin.textTertiary),
                       maxLines: 2,
                     ),

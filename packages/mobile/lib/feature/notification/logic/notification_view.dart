@@ -75,3 +75,28 @@ String relativeTime(String iso, [DateTime? now]) {
   if (days < 7) return '${days}d';
   return '${days ~/ 7}w';
 }
+
+final _fence = RegExp(r'```[^\n]*');
+final _image = RegExp(r'!\[([^\]]*)\]\([^)]*\)');
+final _link = RegExp(r'\[([^\]]+)\]\([^)]*\)');
+final _heading = RegExp(r'^\s{0,3}#{1,6}\s*', multiLine: true);
+final _quote = RegExp(r'^\s{0,3}>\s?', multiLine: true);
+final _bullet = RegExp(r'^\s*(?:[-*+]|\d+[.)])\s+', multiLine: true);
+final _strong = RegExp(r'(\*\*|__)(.+?)\1');
+final _emphasis = RegExp(r'(?<![\w*])\*(?!\s)([^*\n]+?)(?<!\s)\*(?![\w*])');
+final _strike = RegExp(r'~~(.+?)~~');
+final _whitespace = RegExp(r'\s+');
+
+String plainPreview(String markdown) => markdown
+    .replaceAll(_fence, ' ')
+    .replaceAllMapped(_image, (m) => m[1]!)
+    .replaceAllMapped(_link, (m) => m[1]!)
+    .replaceAll(_heading, '')
+    .replaceAll(_quote, '')
+    .replaceAll(_bullet, '')
+    .replaceAllMapped(_strong, (m) => m[2]!)
+    .replaceAllMapped(_strike, (m) => m[1]!)
+    .replaceAllMapped(_emphasis, (m) => m[1]!)
+    .replaceAll('`', '')
+    .replaceAll(_whitespace, ' ')
+    .trim();
