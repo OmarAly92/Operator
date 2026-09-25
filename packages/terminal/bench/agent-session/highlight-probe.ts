@@ -1,11 +1,22 @@
 import { defaultStrings, type BlockRenderer, type TerminalCore } from "@operator/terminal-core";
-import { createFindBar, type DomBlockRenderer, type FindBar, type SelectionPoint } from "@operator/terminal-renderer-dom";
+import { createFindBar, type DomBlockRenderer, type FindBar, type MarkRule, type SelectionPoint } from "@operator/terminal-renderer-dom";
+
+const tint = (ansi: number): string => `color-mix(in srgb, var(--terminal-ansi-${ansi}) 40%, transparent)`;
+
+export const BENCH_MARKS: readonly MarkRule[] = [
+	{ pattern: "thinking", regex: false, colour: tint(3) },
+	{ pattern: "effort", regex: false, colour: tint(1) },
+	{ pattern: "\\d+", regex: true, colour: tint(2) },
+	{ pattern: "claude", regex: false, colour: tint(6) },
+	{ pattern: "multipl\\w*", regex: true, colour: tint(5) },
+];
 
 export type HighlightProbe = {
 	selectCells(fromRow: number, fromCell: number, toRow: number, toCell: number): Promise<void>;
 	selectionClear(): Promise<void>;
 	findShow(query: string, steps: number): Promise<string>;
 	findHide(): Promise<void>;
+	setMarks(rules: readonly MarkRule[]): Promise<void>;
 };
 
 function frame(): Promise<void> {
@@ -69,6 +80,10 @@ export function highlightProbe(host: HTMLElement, core: TerminalCore, renderer: 
 		},
 		async findHide() {
 			bar?.close();
+			await frames(2);
+		},
+		async setMarks(rules) {
+			renderer.setMarks(rules);
 			await frames(2);
 		},
 	};

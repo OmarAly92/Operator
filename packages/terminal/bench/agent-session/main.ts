@@ -8,7 +8,7 @@ import {
 	type DomBlockRenderer,
 	type RendererFeatures,
 } from "@operator/terminal-renderer-dom";
-import { highlightProbe, type HighlightProbe } from "./highlight-probe";
+import { BENCH_MARKS, highlightProbe, type HighlightProbe } from "./highlight-probe";
 
 type SizeEntry = { offset: number; cols: number; rows: number };
 
@@ -97,6 +97,8 @@ const featureList = params.get("features") ?? "";
 if (featureList !== "") domRenderer.setFeatures(parseFeatureList(featureList));
 core.setGraphemeClusters(domRenderer.features().graphemes);
 domRenderer.setFocused(params.get("focused") !== "0");
+const benchMarks = BENCH_MARKS.slice(0, Number(params.get("marks") ?? "0"));
+if (benchMarks.length > 0) domRenderer.setMarks(benchMarks);
 const benchCss = params.get("css");
 if (benchCss) {
 	const tag = document.createElement("style");
@@ -288,6 +290,7 @@ async function mountPanes(count: number, mode: PaneMode = "visible"): Promise<vo
 		const pane = new DomBenchmarkRenderer();
 		await pane.mount(paneHost, { columns: sizes[0].cols, rows: sizes[0].rows, scrollback });
 		(pane.getCoreForBench() as TerminalCore).setAgentTuiMode(true);
+		if (benchMarks.length > 0) (pane as unknown as { renderer: DomBlockRenderer }).renderer.setMarks(benchMarks);
 		if (mode === "parked") {
 			park(paneHost);
 			if (params.get("ungated") !== "1") pane.setVisible(false);

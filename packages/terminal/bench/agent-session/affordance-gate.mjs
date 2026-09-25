@@ -80,6 +80,24 @@ const actions = {
 		await shoot("find-closed");
 		return [["find-count", first, next]];
 	},
+	async marks(page, shoot) {
+		await shoot("marks-before");
+		await page.evaluate(() => window.__agentSession.setMarks([
+			{ pattern: "example", regex: false, colour: "color-mix(in srgb, var(--terminal-ansi-3) 40%, transparent)" },
+			{ pattern: "TEXT", regex: false, colour: "color-mix(in srgb, var(--terminal-ansi-1) 40%, transparent)" },
+			{ pattern: "\\d+", regex: true, colour: "color-mix(in srgb, var(--terminal-ansi-2) 40%, transparent)" },
+		]));
+		await shoot("marks-on");
+		await page.evaluate(() => window.__agentSession.findShow("example", 1));
+		await page.evaluate(() => window.__agentSession.selectCells(0, 2, 0, 30));
+		await shoot("marks-overlap");
+		await page.evaluate(() => window.__agentSession.selectionClear());
+		await page.evaluate(() => window.__agentSession.findHide());
+		await page.evaluate(() => window.__agentSession.setMarks([]));
+		await shoot("marks-after");
+		const painted = await page.evaluate(() => [...document.querySelectorAll("[data-terminal-row]")].filter((row) => row.style.backgroundImage !== "").length);
+		return [["marks-rows-painted-after", painted, null]];
+	},
 };
 
 const server = await createServer({ configFile, logLevel: "error" });
