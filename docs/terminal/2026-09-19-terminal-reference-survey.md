@@ -45,7 +45,7 @@ Each approach has the same shape:
 
 Absent evidence is written as "not known", never guessed.
 
-## Implementation status (updated 2026-09-24)
+## Implementation status (updated 2026-09-25)
 
 Every entry below carries a **Status** line under its heading, checked against the tree on 2026-09-24 (`development`): 39 done, 19 partial, 21 not done, 7 not pursued, 1 not needed, 1 n/a. "Plan A–F" are the agent-TUI spec's plans (`docs/superpowers/specs/2026-09-19-agent-tui-experience-design.md`); "Plan 4" is the background-pane plan (`docs/superpowers/plans/2026-09-23-terminal-background-pane-cost.md`). Entries marked non-goal were excluded by the agent-TUI spec, not rejected. "Roadmap Plan 1" is the paste-safety plan (`docs/superpowers/plans/2026-09-24-terminal-plan-1-paste-safety.md`).
 
@@ -130,7 +130,7 @@ Every entry below carries a **Status** line under its heading, checked against t
 | §6.10 | Done | Already before the survey: block headers show duration (`fa6cec10b`); block actions include copy, share, bookmark, filter, jump and rerun; `block-nav`. Nonce gating is §6.1. |
 | §6.11 | Done | A parked pane sends no resize; on show its grid goes through the normal debounced publish (`be9d35222`, `TERMINAL.md` §4.24). Plan 4 added the visibility seam, paint gate and 30-minute unload. Rows-immediate not adopted (`TERMINAL.md` §4.6). |
 | §7.1 | Not done | A non-goal of the agent-TUI spec. `vt-core` parses no OSC 777 or OSC 9; agent events reach the daemon out of band (hooks, `opr mcp` `session_report`, the transcript's interrupt marker). |
-| §7.2 | Partial | Background output after the last block is kept as a running synthetic block (`e7684bed8`). Typeahead not done; since `4b31952aa` keys typed during a command go straight to the pty. |
+| §7.2 | Partial | Background output after the last block is kept as a running synthetic block (`e7684bed8`). Typeahead done for zsh (roadmap Plan 6): the shell reports text typed during a command at its next prompt, the line editor adopts it only if the user typed it and clears the shell's copy with `^U` (`TERMINAL.md` §4.32). bash and fish keep the old behaviour. |
 | §7.3 | Done | Plan E — the daemon's patterns masked in copy, selection, links, hints and block text; default off. The phone view is not masked, and a masked token stays readable by assistive tech (`TERMINAL.md` §5). |
 | §7.4 | Done | Plan E — capped, never-reclaimed registry; the link id is the sixth style word. |
 | §7.5 | Done | Plan D — cells, word boundaries and selection step by exported cell spans. The cursor covers a whole cluster only with `cursorContrast` (off); the line editor steps by code point. |
@@ -4112,7 +4112,7 @@ until Operator runs agents remotely.
 
 ### 7.2 Early output: typeahead and background output between blocks
 
-> **Status: Partial.** Background output after the last block is kept as a running synthetic block (`e7684bed8`). Typeahead not done; since `4b31952aa` keys typed during a command go straight to the pty.
+> **Status: Partial.** Background output after the last block is kept as a running synthetic block (`e7684bed8`). Typeahead done for zsh (roadmap Plan 6, `TERMINAL.md` §4.32); bash and fish keep the old behaviour.
 
 **Reference**
 - `warp/app/src/terminal/model/early_output.rs:26-48`: output that arrives
@@ -4128,11 +4128,12 @@ until Operator runs agents remotely.
 **Ours today**
 - Rows before the first `A` and after the last `D` are synthetic blocks
   (`TERMINAL.md` §4.15 / CHANGELOG "markless rows"), so background output
-  is kept and rendered. Typeahead: the line editor owns input in shell
-  mode, so keys typed while a command runs stay in the editor (not sent) —
-  equivalent by construction; the shell-reported input buffer (Warp's
-  `ShellReported`) is what `input-ready`/`input-released` on OSC 7000
-  approximate (`packages/terminal/shell/zsh.sh:15-20`).
+  is kept and rendered. Typeahead: keys typed while a command runs go to
+  the pty (`ts/editor/src/line-editor.ts` `passthrough`, since
+  `4b31952aa`). Since roadmap Plan 6, zsh reports what was waiting on the
+  tty at its next prompt as `OSC 7000;v=1;typeahead=` (Warp's
+  `ShellReported`, clean-room) and the line editor adopts it
+  (`TERMINAL.md` §4.32); bash and fish do not report it.
 
 **Priority:** equal; noted so nobody ports it.
 
