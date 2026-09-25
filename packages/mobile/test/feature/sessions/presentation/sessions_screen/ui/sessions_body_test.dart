@@ -480,5 +480,43 @@ void main() {
       expect(find.text('Spawn your first agent'), findsOneWidget);
       expect(find.byIcon(Icons.south_east_rounded), findsOneWidget);
     });
+
+    testWidgets('with the cache applied before the first frame, frame one is the board', (tester) async {
+      when(() => repository.cachedBoard()).thenAnswer(
+        (_) async => Replicated(
+          value: const BoardSnapshot(sessions: [SessionModel(id: 'w-1', displayName: 'Cached worker', status: 'working')]),
+          fetchedAt: DateTime.utc(2026, 9, 25, 8),
+        ),
+      );
+      when(() => repository.getBoard()).thenAnswer(
+        (_) => Completer<Result<GlobalResponse<BoardSnapshot>, Failure>>().future,
+      );
+      final cubit = SessionsCubit(repository, mux, const _StubConfigSource());
+      await cubit.cacheReady;
+
+      await tester.pumpWidget(
+        ScreenUtilInit(
+          designSize: const Size(390, 844),
+          builder: (context, child) => MaterialApp(
+            home: SkinScope(
+              skin: const DarkSkin(),
+              child: MultiBlocProvider(
+                providers: [
+                  BlocProvider<ConnectionCubit>.value(value: connection.cubit),
+                  BlocProvider<SessionsCubit>.value(value: cubit),
+                ],
+                child: const Scaffold(body: SessionsBody()),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('Cached worker'), findsOneWidget);
+      expect(find.byType(BoardSkeleton), findsNothing);
+
+      await tester.pumpWidget(const SizedBox.shrink());
+      await cubit.close();
+    });
   });
 }

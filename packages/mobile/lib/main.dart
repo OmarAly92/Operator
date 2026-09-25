@@ -10,6 +10,7 @@ import 'package:operator_mobile/core/api/server_config_store.dart';
 import 'package:operator_mobile/core/app_routes/app_route_observer.dart';
 import 'package:operator_mobile/core/app_routes/app_router.dart';
 import 'package:operator_mobile/core/app_routes/routes_strings.dart';
+import 'package:operator_mobile/core/app_themes/app_motion.dart';
 import 'package:operator_mobile/core/app_themes/colors/logic/skin_cubit.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/app_themes/themes/app_themes.dart';
@@ -18,12 +19,14 @@ import 'package:operator_mobile/core/database/tables/settings/settings_dao.dart'
 import 'package:operator_mobile/core/deep_link/deep_link_service.dart';
 import 'package:operator_mobile/core/notifications/phone_alerts_runtime.dart';
 import 'package:operator_mobile/core/preferences/app_preferences.dart';
+import 'package:operator_mobile/core/replica/launch_cache_wait.dart';
 import 'package:operator_mobile/core/telemetry/runtime.dart';
 import 'package:operator_mobile/core/utils/device_kind.dart';
 import 'package:operator_mobile/core/utils/service_locator.dart';
 import 'package:operator_mobile/core/widgets/glass/lab/glass_lab_scene.dart';
 import 'package:operator_mobile/feature/onboarding/logic/onboarding.dart';
 import 'package:operator_mobile/feature/pairing/data/repository/desktops_repository.dart';
+import 'package:operator_mobile/feature/sessions/presentation/sessions_screen/logic/sessions_cubit.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
 Future<void> main() async {
@@ -43,6 +46,10 @@ Future<void> main() async {
     );
   } on Object {
     destination = LaunchDestination.onboarding;
+  }
+
+  if (destination == LaunchDestination.sessions) {
+    await waitForLaunchCache(sl<SessionsCubit>().cacheReady, AppMotion.launchCacheBudget);
   }
 
   final packageInfo = await PackageInfo.fromPlatform();

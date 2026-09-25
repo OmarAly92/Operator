@@ -60,6 +60,8 @@ sealed class AppMotion {
 
   static const Duration taskStopConfirmTimeout = Duration(seconds: 10);
 
+  static const Duration launchCacheBudget = Duration(milliseconds: 400);
+
   /// Expressive loader shape-morph container spin.
   static const Duration loaderSpin = Duration(milliseconds: 1730);
 
