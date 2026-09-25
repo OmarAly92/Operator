@@ -63,7 +63,7 @@ class _AccountOption extends StatelessWidget {
                 children: [
                   AppText(
                     account.label ?? account.id ?? '',
-                    style: AppTextStyle.style15Medium.copyWith(color: selected ? skin.accent : skin.textPrimary),
+                    style: AppTextStyle.style15Medium.copyWith(color: selected ? skin.accentText : skin.textPrimary),
                   ),
                   AppText(
                     account.planLabel,
@@ -74,7 +74,7 @@ class _AccountOption extends StatelessWidget {
                 ],
               ),
             ),
-            if (selected) Icon(Icons.check, size: 18, color: skin.accent),
+            if (selected) Icon(Icons.check, size: 18, color: skin.accentText),
           ],
         ),
       ),

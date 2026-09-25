@@ -269,7 +269,7 @@ class BlockCard extends StatelessWidget {
                   child: Icon(
                     selected ? Icons.check_circle : Icons.radio_button_unchecked,
                     size: 16,
-                    color: selected ? skin.accent : skin.textTertiary,
+                    color: selected ? skin.accentText : skin.textTertiary,
                   ),
                 ),
                 Expanded(child: selectable),

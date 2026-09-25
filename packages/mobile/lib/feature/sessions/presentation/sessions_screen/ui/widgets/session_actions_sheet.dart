@@ -38,7 +38,7 @@ class SessionActionsSheet extends StatelessWidget {
           ),
           if (terminated)
             ListTile(
-              leading: Icon(Icons.replay, color: skin.accent),
+              leading: Icon(Icons.replay, color: skin.accentText),
               title: const AppText('Restore'),
               onTap: () {
                 Haptics.tap();

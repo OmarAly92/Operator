@@ -147,6 +147,8 @@ abstract class AppSkin {
   /// background of the currently selected tab in the sidebar.
   Color get accentTint;
 
+  Color get accentText;
+
   /// The color drawing the eye to something that needs attention, outside
   /// the per-session state hues. Example: the dot on the notifications
   /// bell icon when there are unread notifications.

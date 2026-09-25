@@ -76,7 +76,7 @@ class _GlassButtonState extends State<GlassButton> {
   Widget build(BuildContext context) {
     final skin = context.skin;
     final reduceMotion = MediaQuery.disableAnimationsOf(context);
-    final foreground = widget.foreground ?? (widget.prominent ? skin.onGlassProminent : skin.accent);
+    final foreground = widget.foreground ?? (widget.prominent ? skin.onGlassProminent : skin.accentText);
     final isIcon = widget.label == null;
     final capsuleHeight = widget.compact ? GlassMetrics.compactButtonHeight : GlassMetrics.hitTarget;
     final horizontalPadding = widget.compact ? GlassMetrics.compactLabelButtonPadding : GlassMetrics.labelButtonPadding;

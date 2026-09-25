@@ -75,7 +75,7 @@ class _GlassLabScreenState extends State<GlassLabScreen> {
       actions: [
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 12),
-          child: Text('Done', style: AppTextStyle.style15SemiBold.copyWith(color: skin.accent)),
+          child: Text('Done', style: AppTextStyle.style15SemiBold.copyWith(color: skin.accentText)),
         ),
       ],
       rows: (context, query) => [

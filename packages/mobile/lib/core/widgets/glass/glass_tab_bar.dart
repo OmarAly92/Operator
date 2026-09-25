@@ -213,7 +213,7 @@ class _TabItemView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final skin = context.skin;
-    final color = selected ? skin.accent : skin.textPrimary;
+    final color = selected ? skin.accentText : skin.textPrimary;
     return Semantics(
       button: true,
       selected: selected,

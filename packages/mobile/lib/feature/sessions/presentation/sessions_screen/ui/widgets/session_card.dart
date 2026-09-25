@@ -335,7 +335,7 @@ class _MetaChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final skin = context.skin;
-    final color = accent ? skin.accent : skin.textSecondary;
+    final color = accent ? skin.accentText : skin.textSecondary;
     return Container(
       padding: const EdgeInsets.fromLTRB(7, 3, 8, 3),
       decoration: BoxDecoration(
@@ -345,7 +345,7 @@ class _MetaChip extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 11, color: accent ? skin.accent : skin.textTertiary),
+          Icon(icon, size: 11, color: accent ? skin.accentText : skin.textTertiary),
           const HorizontalSpace(4),
           AppText(
             label,

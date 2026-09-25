@@ -96,7 +96,7 @@ class _ProjectOption extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       child: Row(
         children: [
-          Icon(icon, size: 18, color: selected ? skin.accent : skin.textTertiary),
+          Icon(icon, size: 18, color: selected ? skin.accentText : skin.textTertiary),
           const HorizontalSpace(10),
           Expanded(
             child: Column(
@@ -108,7 +108,7 @@ class _ProjectOption extends StatelessWidget {
               ],
             ),
           ),
-          if (selected) Icon(Icons.check, size: 18, color: skin.accent),
+          if (selected) Icon(Icons.check, size: 18, color: skin.accentText),
         ],
       ),
     );

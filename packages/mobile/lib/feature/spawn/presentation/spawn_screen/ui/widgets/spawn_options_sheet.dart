@@ -38,7 +38,7 @@ Future<void> showSpawnOptionsSheet(
       Builder(
         builder: (context) => TextButton(
           onPressed: () => AppSheet.of(context).close(),
-          child: AppText('Done', style: AppTextStyle.style15SemiBold.copyWith(color: context.skin.accent)),
+          child: AppText('Done', style: AppTextStyle.style15SemiBold.copyWith(color: context.skin.accentText)),
         ),
       ),
     ],
@@ -137,7 +137,7 @@ class _RefreshAgentsAction extends StatelessWidget {
           return const SizedBox(width: 16, height: 16, child: AppLoader(strokeWidth: 2));
         }
         return IconButton(
-          icon: Icon(Icons.refresh, size: 20, color: skin.accent),
+          icon: Icon(Icons.refresh, size: 20, color: skin.accentText),
           tooltip: 'Refresh agents',
           onPressed: () {
             Haptics.tap();

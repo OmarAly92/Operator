@@ -174,7 +174,7 @@ class _ModelRow extends StatelessWidget {
                 ),
                 if (current) ...[
                   const SizedBox(width: 10),
-                  Icon(Icons.check_rounded, size: 18, color: skin.accent),
+                  Icon(Icons.check_rounded, size: 18, color: skin.accentText),
                 ],
               ],
             ),

@@ -101,6 +101,9 @@ class DarkSkin extends AppSkin {
   Color get accentTint => const Color(0x291ACB64);
 
   @override
+  Color get accentText => const Color(0xFF1ACB64);
+
+  @override
   Color get attention => const Color(0xFF1ACB64);
 
   @override

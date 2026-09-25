@@ -157,7 +157,7 @@ class _BlockQuestionOptionsState extends State<BlockQuestionOptions> {
           if (chosen)
             Padding(
               padding: const EdgeInsets.only(left: 8),
-              child: Icon(Icons.check_rounded, size: 16, color: skin.accent),
+              child: Icon(Icons.check_rounded, size: 16, color: skin.accentText),
             ),
         ],
       ),

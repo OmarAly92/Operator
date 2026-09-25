@@ -97,7 +97,7 @@ class _Bubble extends StatelessWidget {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.auto_awesome, size: 13, color: skin.accent),
+                    Icon(Icons.auto_awesome, size: 13, color: skin.accentText),
                     const HorizontalSpace(7),
                     Flexible(
                       child: AppText(

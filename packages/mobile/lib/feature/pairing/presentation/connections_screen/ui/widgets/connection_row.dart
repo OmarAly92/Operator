@@ -103,7 +103,7 @@ class ConnectionRow extends StatelessWidget {
                       onTap: onScanAgain,
                       child: AppText(
                         'Scan again',
-                        style: AppTextStyle.style11SemiBold.copyWith(color: skin.accent),
+                        style: AppTextStyle.style11SemiBold.copyWith(color: skin.accentText),
                       ),
                     ),
                 ],

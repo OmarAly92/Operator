@@ -46,7 +46,7 @@ class _ThemeOption extends StatelessWidget {
       child: Row(
         children: [
           Expanded(child: AppText(label, style: AppTextStyle.style15Medium)),
-          if (selected) Icon(Icons.check, size: 18, color: skin.accent),
+          if (selected) Icon(Icons.check, size: 18, color: skin.accentText),
         ],
       ),
     );
