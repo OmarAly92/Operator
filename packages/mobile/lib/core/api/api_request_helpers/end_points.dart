@@ -42,6 +42,9 @@ sealed class EndPoints {
   static String sessionSuggestion(String sessionId) => '${_session(sessionId)}/suggestion';
   static String sessionSlashCommands(String sessionId) => '${_session(sessionId)}/slash-commands';
   static String sessionBlocks(String sessionId) => '${_session(sessionId)}/blocks';
+  static String sessionTasks(String sessionId) => '${_session(sessionId)}/tasks';
+  static String sessionTaskStop(String sessionId, String taskId) =>
+      '${sessionTasks(sessionId)}/${Uri.encodeComponent(taskId)}/stop';
 
   static String sessionPreview(String sessionId) => '${_session(sessionId)}/preview';
 

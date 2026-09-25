@@ -6,9 +6,16 @@ import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:operator_mobile/core/mux/mux_client.dart';
 import 'package:operator_mobile/core/mux/session_patch.dart';
+import 'package:operator_mobile/core/error_handling/dio_error_handler/status_code.dart';
+import 'package:operator_mobile/core/error_handling/failures/failure.dart';
+import 'package:operator_mobile/feature/blocks/data/model/background_task_model.dart';
 import 'package:operator_mobile/feature/blocks/data/model/block_event_model.dart';
 import 'package:operator_mobile/feature/blocks/data/model/params/get_session_blocks_params.dart';
+import 'package:operator_mobile/feature/blocks/data/model/params/get_session_tasks_params.dart';
+import 'package:operator_mobile/feature/blocks/data/model/params/stop_session_task_params.dart';
+import 'package:operator_mobile/feature/blocks/data/repository/background_tasks_repository.dart';
 import 'package:operator_mobile/feature/blocks/data/repository/blocks_repository.dart';
+import 'package:operator_mobile/feature/blocks/logic/background_tasks.dart';
 import 'package:operator_mobile/feature/blocks/logic/block_assembly.dart';
 import 'package:operator_mobile/feature/blocks/logic/block_harnesses.dart';
 import 'package:operator_mobile/feature/blocks/logic/session_block.dart';
@@ -37,7 +44,7 @@ class BlocksScope extends Equatable {
 }
 
 class BlocksCubit extends Cubit<BlocksState> {
-  BlocksCubit(this._mux, this._repository, this.scope)
+  BlocksCubit(this._mux, this._repository, this.scope, {this._tasks})
     : supported = BlockHarnesses.covers(scope.harness),
       super(const BlocksInitialState()) {
     if (!supported) {
@@ -49,10 +56,12 @@ class BlocksCubit extends Cubit<BlocksState> {
     _patchesSub = _mux.sessionPatches.listen(_onPatches);
     _mux.subscribeBlocks(sessionId);
     unawaited(refresh());
+    unawaited(_seedTasks());
   }
 
   final MuxClient _mux;
   final BlocksRepository _repository;
+  final BackgroundTasksRepository? _tasks;
   final BlocksScope scope;
   String get sessionId => scope.sessionId;
   String? get agentId => scope.agentId;
@@ -146,6 +155,10 @@ class BlocksCubit extends Cubit<BlocksState> {
   void _onLive(BlockEventEnvelope envelope) {
     final record = BlockEventModel.fromJson(envelope.block);
     final scopeId = record.agentId ?? '';
+    if (record.kind == 'task_update' && agentId == null) {
+      _absorbTask(record);
+      if (scopeId.isNotEmpty) return;
+    }
     if (scopeId == (agentId ?? '')) {
       if (agentId == null && record.kind == 'agent_stop' && (record.sourceId ?? '').isNotEmpty) {
         _summarise(record.sourceId!, record);
@@ -174,6 +187,72 @@ class BlocksCubit extends Cubit<BlocksState> {
     if (status != MuxStatus.open) return;
     _mux.subscribeBlocks(sessionId);
     unawaited(refresh());
+    unawaited(_seedTasks());
+  }
+
+  final Map<String, BackgroundTaskModel> _taskFeed = {};
+  Map<String, BackgroundTaskModel> get taskFeed => UnmodifiableMapView(_taskFeed);
+  bool _taskFeedMissing = false;
+  bool _seeding = false;
+  bool _reseed = false;
+
+  Future<void> _seedTasks() async {
+    final tasks = _tasks;
+    if (tasks == null || agentId != null || !supported || _taskFeedMissing) return;
+    if (_seeding) {
+      _reseed = true;
+      return;
+    }
+    _seeding = true;
+    do {
+      _reseed = false;
+      final result = await tasks.getTasks(GetSessionTasksParams(sessionId: sessionId));
+      if (isClosed) return;
+      result.when(
+        onSuccess: (response) {
+          for (final task in response.data ?? const <BackgroundTaskModel>[]) {
+            _foldTask(task);
+          }
+          _emit();
+        },
+        onFailure: (failure) {
+          if (failure.statusCode == StatusCode.notFound) _taskFeedMissing = true;
+        },
+      );
+    } while (_reseed && !_taskFeedMissing);
+    _seeding = false;
+  }
+
+  void _absorbTask(BlockEventModel record) {
+    final update = BackgroundTaskModel.fromEvent(record);
+    if (update == null) return;
+    final merged = _foldTask(update);
+    if (merged.status == 'running' && merged.canStop == null) unawaited(_seedTasks());
+    _emit();
+  }
+
+  BackgroundTaskModel _foldTask(BackgroundTaskModel update) {
+    final id = update.taskId;
+    if (id == null || id.isEmpty) return update;
+    return _taskFeed[id] = mergeBackgroundTask(_taskFeed[id], update);
+  }
+
+  Future<Failure?> stopTask(String taskId) async {
+    final tasks = _tasks;
+    if (tasks == null) return LocalFailure(error: 'No task service', message: 'Stopping tasks is unavailable');
+    final result = await tasks.stopTask(StopSessionTaskParams(sessionId: sessionId, taskId: taskId));
+    Failure? failure;
+    result.when(
+      onSuccess: (response) {
+        final task = response.data?.task;
+        if (task != null && !isClosed) {
+          _foldTask(task);
+          _emit();
+        }
+      },
+      onFailure: (error) => failure = error,
+    );
+    return failure;
   }
 
   void _onPatches(List<SessionPatch> patches) {

@@ -17,8 +17,10 @@ import 'package:operator_mobile/feature/dictation/device_provider.dart';
 import 'package:operator_mobile/feature/dictation/logic/voice_input_cubit.dart';
 import 'package:operator_mobile/feature/dictation/speech_recognizer.dart';
 import 'package:operator_mobile/feature/dictation/voice_types.dart';
+import 'package:operator_mobile/feature/blocks/data/data_source/background_tasks_remote_data_source.dart';
 import 'package:operator_mobile/feature/blocks/data/data_source/blocks_remote_data_source.dart';
 import 'package:operator_mobile/feature/blocks/data/data_source/session_control_remote_data_source.dart';
+import 'package:operator_mobile/feature/blocks/data/repository/background_tasks_repository.dart';
 import 'package:operator_mobile/feature/blocks/data/repository/blocks_repository.dart';
 import 'package:operator_mobile/feature/blocks/data/repository/session_control_repository.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/blocks_cubit.dart';
@@ -221,7 +223,7 @@ class ServiceLocator {
       ),
     );
     sl.registerFactoryParam<BlocksCubit, BlocksScope, void>(
-      (scope, _) => BlocksCubit(sl<MuxClient>(), sl<BlocksRepository>(), scope),
+      (scope, _) => BlocksCubit(sl<MuxClient>(), sl<BlocksRepository>(), scope, tasks: sl<BackgroundTasksRepository>()),
     );
     sl.registerFactoryParam<SessionViewCubit, TerminalArgs, void>(
       (args, _) => SessionViewCubit(
@@ -237,6 +239,15 @@ class ServiceLocator {
     );
     sl.registerLazySingleton<BlocksRemoteDataSource>(
       () => BlocksRemoteDataSourceImp(sl<ApiConsumer>()),
+    );
+    sl.registerLazySingleton<BackgroundTasksRepository>(
+      () => BackgroundTasksRepositoryImp(
+        sl<BackgroundTasksRemoteDataSource>(),
+        sl<NetworkStatus>(),
+      ),
+    );
+    sl.registerLazySingleton<BackgroundTasksRemoteDataSource>(
+      () => BackgroundTasksRemoteDataSourceImp(sl<ApiConsumer>()),
     );
     sl.registerLazySingleton<SessionControlRepository>(
       () => SessionControlRepositoryImp(

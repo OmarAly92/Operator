@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:operator_mobile/feature/blocks/data/model/background_task_model.dart';
 import 'package:operator_mobile/feature/blocks/logic/background_tasks.dart';
 import 'package:operator_mobile/feature/blocks/logic/session_block.dart';
 import 'package:operator_mobile/feature/blocks/logic/subagents.dart';
@@ -106,5 +107,136 @@ void main() {
     ]);
 
     expect(sorted.map((task) => task.id), ['r-early', 'r-late', 'f-new', 'f-old']);
+  });
+
+  BackgroundTaskModel feedTask(
+    String id, {
+    String kind = 'shell',
+    String status = 'running',
+    int? seq,
+    bool? canStop,
+    String? description,
+    String? command,
+    String? startedAt,
+    String? endedAt,
+  }) => BackgroundTaskModel(
+    taskId: id,
+    kind: kind,
+    status: status,
+    updatedSeq: seq,
+    canStop: canStop,
+    description: description,
+    command: command,
+    startedAt: startedAt,
+    endedAt: endedAt,
+  );
+
+  group('the task feed', () {
+    test('maps daemon statuses: killed and stopped are Stopped', () {
+      final tasks = backgroundTasksOf(const [], const {}, feed: [
+        feedTask('r', status: 'running'),
+        feedTask('c', status: 'completed'),
+        feedTask('f', status: 'failed'),
+        feedTask('k', status: 'killed'),
+        feedTask('s', status: 'stopped'),
+      ]);
+
+      final byId = {for (final task in tasks) task.id: task.status};
+      expect(byId, {
+        'r': BackgroundTaskStatus.running,
+        'c': BackgroundTaskStatus.completed,
+        'f': BackgroundTaskStatus.failed,
+        'k': BackgroundTaskStatus.stopped,
+        's': BackgroundTaskStatus.stopped,
+      });
+    });
+
+    test('shells and monitors take the description, then the command, as their title and their times from the feed', () {
+      final tasks = backgroundTasksOf(const [], const {}, feed: [
+        feedTask('b1', description: 'Run the tests', command: 'npm test', startedAt: '2026-09-25T01:00:00Z'),
+        feedTask('m1', kind: 'monitor', command: 'tail -f log', status: 'completed', endedAt: '2026-09-25T01:05:00Z'),
+      ]);
+
+      final shell = tasks.firstWhere((task) => task.id == 'b1');
+      expect(shell.kind, BackgroundTaskKind.shell);
+      expect(shell.title, 'Run the tests');
+      expect(shell.startedAt, DateTime.utc(2026, 9, 25, 1));
+      final monitor = tasks.firstWhere((task) => task.id == 'm1');
+      expect(monitor.kind, BackgroundTaskKind.monitor);
+      expect(monitor.title, 'tail -f log');
+      expect(monitor.finishedAt, DateTime.utc(2026, 9, 25, 1, 5));
+    });
+
+    test('canStop holds only while the task runs', () {
+      final tasks = backgroundTasksOf(const [], const {}, feed: [
+        feedTask('a', canStop: true),
+        feedTask('b', status: 'completed', canStop: true),
+        feedTask('c'),
+      ]);
+
+      final byId = {for (final task in tasks) task.id: task.canStop};
+      expect(byId, {'a': true, 'b': false, 'c': false});
+    });
+
+    test('the feed owns an agent it knows, keeping the subagent entry for its transcript', () {
+      final tasks = backgroundTasksOf(
+        [_agent('c1', agentId: 'a1'), _agent('c2', agentId: 'a2')],
+        const {},
+        feed: [feedTask('a1', kind: 'agent', status: 'killed', description: 'Feed title')],
+      );
+
+      expect(tasks, hasLength(2));
+      final fed = tasks.firstWhere((task) => task.id == 'a1');
+      expect(fed.kind, BackgroundTaskKind.agent);
+      expect(fed.status, BackgroundTaskStatus.stopped);
+      expect(fed.title, 'Feed title');
+      expect(fed.subagent?.agentId, 'a1');
+      final fallback = tasks.firstWhere((task) => task.id == 'a2');
+      expect(fallback.running, isTrue);
+      expect(fallback.subagent?.agentId, 'a2');
+    });
+  });
+
+  group('folding updates', () {
+    test('a newer update replaces the status and keeps launch fields it lacks', () {
+      final merged = mergeBackgroundTask(
+        feedTask('b1', seq: 5, description: 'Sleep', command: 'sleep 9', startedAt: '2026-09-25T01:00:00Z', canStop: true),
+        feedTask('b1', seq: 9, status: 'killed', endedAt: '2026-09-25T01:01:00Z'),
+      );
+
+      expect(merged.status, 'killed');
+      expect(merged.description, 'Sleep');
+      expect(merged.command, 'sleep 9');
+      expect(merged.startedAt, '2026-09-25T01:00:00Z');
+      expect(merged.endedAt, '2026-09-25T01:01:00Z');
+      expect(merged.updatedSeq, 9);
+    });
+
+    test('an older update arriving late never rolls the status back but fills missing fields', () {
+      final merged = mergeBackgroundTask(
+        feedTask('b1', seq: 9, status: 'completed'),
+        feedTask('b1', seq: 5, description: 'Sleep', canStop: true),
+      );
+
+      expect(merged.status, 'completed');
+      expect(merged.description, 'Sleep');
+      expect(merged.updatedSeq, 9);
+    });
+
+    test('a duplicate seq keeps the status and takes canStop from whichever copy has it', () {
+      final seeded = feedTask('b1', seq: 7, canStop: true, description: 'Sleep');
+      final live = feedTask('b1', seq: 7);
+
+      final merged = mergeBackgroundTask(seeded, live);
+      expect(merged, mergeBackgroundTask(seeded, seeded));
+      expect(merged.canStop, isTrue);
+      expect(merged.status, 'running');
+      expect(mergeBackgroundTask(live, seeded).canStop, isTrue);
+    });
+
+    test('the first update for a task is taken as is', () {
+      final update = feedTask('b1', seq: 1);
+      expect(mergeBackgroundTask(null, update), update);
+    });
   });
 }

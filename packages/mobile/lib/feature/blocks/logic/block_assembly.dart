@@ -288,6 +288,7 @@ List<SessionBlock> assembleBlocks(Iterable<BlockEventModel> events) {
         }
 
       case 'unknown':
+      case 'task_update':
         break;
 
       default:
