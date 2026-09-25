@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:operator_mobile/core/api/api_request_helpers/end_points.dart';
@@ -165,5 +167,28 @@ void main() {
     verifyNever(() => local.writeHistory(any(), 's-1', [
       {'seq': 10, 'kind': 'stop'},
     ]));
+  });
+
+  test('a fetch that finishes after a desktop switch is stored under neither desktop', () async {
+    final gate = Completer<Map<String, dynamic>>();
+    when(() => source.getSessionBlocks(any(), any())).thenAnswer((_) => gate.future);
+
+    final pending = online().getSessionBlocks('s-1', const GetSessionBlocksParams());
+    await Future<void>.delayed(Duration.zero);
+    config.current = const ServerConfig(
+      host: '10.0.0.6',
+      httpPort: '3011',
+      secure: false,
+      password: 'pw',
+      desktopId: 'b',
+    );
+    gate.complete({
+      'blocks': [
+        {'seq': 1, 'kind': 'stop'},
+      ],
+    });
+    await pending;
+
+    verifyNever(() => local.writeHistory(any(), any(), any()));
   });
 }

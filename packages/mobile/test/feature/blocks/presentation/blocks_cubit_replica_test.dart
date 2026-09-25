@@ -35,6 +35,7 @@ void main() {
   late _MockRepository repository;
   late _MockTasks tasks;
   late StreamController<BlockEventEnvelope> events;
+  late StreamController<MuxStatus> statuses;
 
   setUpAll(() {
     registerFallbackValue(const GetSessionBlocksParams());
@@ -47,8 +48,9 @@ void main() {
     repository = _MockRepository();
     tasks = _MockTasks();
     events = StreamController<BlockEventEnvelope>.broadcast();
+    statuses = StreamController<MuxStatus>.broadcast();
     when(() => mux.blockEvents).thenAnswer((_) => events.stream);
-    when(() => mux.status).thenAnswer((_) => const Stream<MuxStatus>.empty());
+    when(() => mux.status).thenAnswer((_) => statuses.stream);
     when(() => mux.sessionPatches).thenAnswer((_) => const Stream<List<SessionPatch>>.empty());
     when(() => mux.subscribeBlocks(any())).thenReturn(null);
     when(() => mux.unsubscribeBlocks(any())).thenReturn(null);
@@ -62,7 +64,10 @@ void main() {
     );
   });
 
-  tearDown(() => events.close());
+  tearDown(() async {
+    await events.close();
+    await statuses.close();
+  });
 
   BlocksCubit build({String? agentId}) => BlocksCubit(
     mux,
@@ -136,6 +141,39 @@ void main() {
 
     verifyNever(() => repository.cachedHistory(any()));
     verifyNever(() => repository.rememberLive(any(), any()));
+    await cubit.close();
+  });
+
+  test('a live copy that lands before the cache is not overwritten by the cached one', () async {
+    final cache = Completer<List<BlockEventModel>>();
+    when(() => repository.cachedHistory('s-1')).thenAnswer((_) => cache.future);
+
+    final cubit = build();
+    events.add(BlockEventEnvelope('s-1', {..._stop(5), 'text': 'new'}));
+    await Future<void>.delayed(Duration.zero);
+    cache.complete([BlockEventModel.fromJson({..._stop(5), 'text': 'old'})]);
+    await Future<void>.delayed(Duration.zero);
+
+    expect(cubit.blocks.single.id, 'seq-5');
+    expect(cubit.blocks.single.body, 'new');
+    await cubit.close();
+  });
+
+  test('after a failed first fetch the retry still asks from the cached tail', () async {
+    when(() => repository.cachedHistory('s-1')).thenAnswer((_) async => [for (var seq = 1; seq <= 100; seq++) _row(seq)]);
+    when(() => repository.getSessionBlocks(any(), any())).thenAnswer(
+      (_) async => Result.failure(ServerFailure(error: 'down', message: 'down', statusCode: 503)),
+    );
+
+    final cubit = build();
+    await Future<void>.delayed(Duration.zero);
+    events.add(BlockEventEnvelope('s-1', _stop(150)));
+    await Future<void>.delayed(Duration.zero);
+    statuses.add(MuxStatus.open);
+    await Future<void>.delayed(Duration.zero);
+
+    final asked = verify(() => repository.getSessionBlocks('s-1', captureAny())).captured.cast<GetSessionBlocksParams>();
+    expect(asked.map((params) => params.afterSeq), [100, 100]);
     await cubit.close();
   });
 }

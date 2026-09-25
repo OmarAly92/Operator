@@ -6,9 +6,9 @@ import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:operator_mobile/core/mux/mux_client.dart';
 import 'package:operator_mobile/core/mux/session_patch.dart';
-import 'package:operator_mobile/core/replica/replica_limits.dart';
 import 'package:operator_mobile/core/error_handling/dio_error_handler/status_code.dart';
 import 'package:operator_mobile/core/error_handling/failures/failure.dart';
+import 'package:operator_mobile/core/replica/replica_limits.dart';
 import 'package:operator_mobile/feature/blocks/data/model/background_task_model.dart';
 import 'package:operator_mobile/feature/blocks/data/model/block_event_model.dart';
 import 'package:operator_mobile/feature/blocks/data/model/params/get_session_blocks_params.dart';
@@ -83,8 +83,13 @@ class BlocksCubit extends Cubit<BlocksState> {
   int _answeredThroughSeq = 0;
   int _revision = 0;
   int _capacity = kBlockWindow;
-  bool _historyLoaded = false;
-  int? _cachedThrough;
+  int? _syncedThrough;
+  int _fetching = 0;
+  bool _lastFetchOk = false;
+  final List<Map<String, dynamic>> _unsynced = [];
+  int? _unsyncedThrough;
+
+  bool get _caughtUp => _fetching == 0 && _lastFetchOk;
 
   StreamSubscription<BlockEventEnvelope>? _eventsSub;
   StreamSubscription<MuxStatus>? _statusSub;
@@ -122,7 +127,7 @@ class BlocksCubit extends Cubit<BlocksState> {
       if (_events.containsKey(seq)) continue;
       _merge(record);
     }
-    _cachedThrough = through == 0 ? null : through;
+    if (through > 0) _syncedThrough = _later(_syncedThrough, through);
     if (cached.length >= ReplicaLimits.blockEventsPerSession) hasOlder = true;
     _rebuild();
   }
@@ -130,25 +135,53 @@ class BlocksCubit extends Cubit<BlocksState> {
   Future<void> refresh() async {
     loading = true;
     _emit();
+    _fetching++;
+    _unsynced.clear();
+    _unsyncedThrough = null;
     final result = await _repository.getSessionBlocks(
       sessionId,
-      GetSessionBlocksParams(afterSeq: _historyLoaded ? _highestSeq : _cachedThrough, agentId: agentId),
+      GetSessionBlocksParams(afterSeq: _syncedThrough, agentId: agentId),
     );
+    _fetching--;
     result.when(
       onSuccess: (records) {
         error = null;
-        _historyLoaded = true;
+        _lastFetchOk = true;
         for (final record in records) {
           _merge(record);
+          _syncedThrough = _later(_syncedThrough, record.seq);
         }
       },
-      onFailure: (failure) => error = failure.message.isEmpty
-          ? 'Could not load this session\'s blocks'
-          : failure.message,
+      onFailure: (failure) {
+        _lastFetchOk = false;
+        error = failure.message.isEmpty ? 'Could not load this session\'s blocks' : failure.message;
+      },
     );
+    if (_caughtUp) _flushUnsynced();
     loading = false;
     _rebuild();
   }
+
+  void _flushUnsynced() {
+    _syncedThrough = _later(_syncedThrough, _unsyncedThrough);
+    _unsyncedThrough = null;
+    for (final row in _unsynced) {
+      unawaited(_repository.rememberLive(sessionId, row));
+    }
+    _unsynced.clear();
+  }
+
+  void _track(BlockEventEnvelope envelope, int? seq, bool main) {
+    if (_caughtUp) {
+      _syncedThrough = _later(_syncedThrough, seq);
+      if (main) unawaited(_repository.rememberLive(sessionId, envelope.block));
+      return;
+    }
+    _unsyncedThrough = _later(_unsyncedThrough, seq);
+    if (main) _unsynced.add(envelope.block);
+  }
+
+  static int? _later(int? a, int? b) => a == null ? b : (b == null ? a : max(a, b));
 
   Future<void> loadOlder() async {
     if (loadingOlder || !hasOlder) return;
@@ -193,7 +226,7 @@ class BlocksCubit extends Cubit<BlocksState> {
   void _onLive(BlockEventEnvelope envelope) {
     final record = BlockEventModel.fromJson(envelope.block);
     final scopeId = record.agentId ?? '';
-    if (agentId == null && scopeId.isEmpty) unawaited(_repository.rememberLive(sessionId, envelope.block));
+    _track(envelope, record.seq, agentId == null && scopeId.isEmpty);
     if (record.kind == 'task_update') {
       if (agentId == null) _absorbTask(record);
       if (scopeId == (agentId ?? '')) _merge(record);
@@ -224,7 +257,10 @@ class BlocksCubit extends Cubit<BlocksState> {
   }
 
   void _onStatus(MuxStatus status) {
-    if (status != MuxStatus.open) return;
+    if (status != MuxStatus.open) {
+      _lastFetchOk = false;
+      return;
+    }
     _mux.subscribeBlocks(sessionId);
     unawaited(refresh());
     unawaited(_seedTasks());
