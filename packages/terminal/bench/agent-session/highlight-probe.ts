@@ -47,6 +47,7 @@ export function highlightProbe(host: HTMLElement, core: TerminalCore, renderer: 
 						scrollToRow: (row, align) => renderer.scrollToRow(row, align),
 						invalidate: (range) => renderer.invalidate(range),
 						afterRepaint: (listener) => renderer.onPaint(listener),
+						highlightFind: (find) => renderer.setFindHighlights(find),
 					},
 					strings: defaultStrings,
 				});

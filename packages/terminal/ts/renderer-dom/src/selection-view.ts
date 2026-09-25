@@ -1,8 +1,7 @@
 import { CELL_SPAN_WORDS, decodeBlocks, STYLE_RUN_WORDS, STYLE_WORD_LINK, type BlockId, type BlockView, type TerminalSnapshot } from "@operator/terminal-core";
 import { applyFilter, type BlockFilter } from "./block-filter.js";
 import { trimTrailingBlankRows } from "./block-rows.js";
-import { fillGradient, runFill } from "./selection-fill.js";
-import { rowFillSpan, type RowBox } from "./selection-geometry.js";
+import type { RowBox } from "./selection-geometry.js";
 import { resolveRange, type BlockOrder, type SelectionRange, type SelectionState } from "./selection-model.js";
 import { type TextRows } from "./selection-text.js";
 
@@ -146,21 +145,4 @@ export function renderedRows(
 	firstStableRow: number,
 ): RenderedRow[] {
 	return renderedRowRefs(altRoot, filteredBlocks, blockElements, firstStableRow).map(measureRow);
-}
-
-export function selectionFills(view: SelectionView, rows: readonly RenderedRow[], cellWidth: number): Map<HTMLElement, string> {
-	const fills = new Map<HTMLElement, string>();
-	const colour = "var(--terminal-selection)";
-	for (const { box, element } of rows) {
-		const span = rowFillSpan(view.range, box, view.order, cellWidth);
-		if (!span) continue;
-		fills.set(element, fillGradient(span, colour));
-		for (const run of element.querySelectorAll<HTMLElement>("[data-terminal-run]")) {
-			if (run.style.backgroundColor === "") continue;
-			const runSpan = runFill(run.getBoundingClientRect(), box.left, span);
-			if (!runSpan) continue;
-			fills.set(run, fillGradient(runSpan, colour));
-		}
-	}
-	return fills;
 }
