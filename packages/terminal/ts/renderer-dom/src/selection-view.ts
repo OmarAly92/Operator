@@ -104,34 +104,48 @@ export function snapshotTextRows(
 	};
 }
 
+export type RowRef = Readonly<{ element: HTMLElement; blockId: string; row: number; firstRow: number; rowCount: number }>;
+
+export function renderedRowRefs(
+	altRoot: HTMLElement | null,
+	filteredBlocks: readonly BlockView[],
+	blockElements: ReadonlyMap<BlockId, HTMLElement>,
+	firstStableRow: number,
+): RowRef[] {
+	const out: RowRef[] = [];
+	const alt = altRoot && !altRoot.hidden ? altRoot : null;
+	if (alt) {
+		const rows = alt.querySelectorAll<HTMLElement>("[data-terminal-row]");
+		for (const element of rows) out.push({ element, blockId: ALT_BLOCK_ID, row: Number(element.dataset.terminalRow), firstRow: 0, rowCount: rows.length });
+		return out;
+	}
+	const byId = new Map(filteredBlocks.map((block) => [block.id, block] as const));
+	for (const [id, section] of blockElements) {
+		const block = byId.get(id);
+		const firstRow = firstStableRow + (block?.firstRow ?? 0);
+		const rowCount = block?.rowCount ?? 0;
+		for (const element of section.querySelectorAll<HTMLElement>("[data-terminal-row]")) {
+			out.push({ element, blockId: id, row: Number(element.dataset.terminalRow), firstRow, rowCount });
+		}
+	}
+	return out;
+}
+
+export function measureRow(ref: RowRef): RenderedRow {
+	const rect = ref.element.getBoundingClientRect();
+	return {
+		element: ref.element,
+		box: { blockId: ref.blockId, row: ref.row, firstRow: ref.firstRow, rowCount: ref.rowCount, left: rect.left, top: rect.top, bottom: rect.bottom, width: rect.width },
+	};
+}
+
 export function renderedRows(
 	altRoot: HTMLElement | null,
 	filteredBlocks: readonly BlockView[],
 	blockElements: ReadonlyMap<BlockId, HTMLElement>,
 	firstStableRow: number,
 ): RenderedRow[] {
-	const out: RenderedRow[] = [];
-	const push = (blockId: string, firstRow: number, rowCount: number, element: HTMLElement) => {
-		const rect = element.getBoundingClientRect();
-		out.push({
-			element,
-			box: { blockId, row: Number(element.dataset.terminalRow), firstRow, rowCount, left: rect.left, top: rect.top, bottom: rect.bottom, width: rect.width },
-		});
-	};
-	const alt = altRoot && !altRoot.hidden ? altRoot : null;
-	if (alt) {
-		const rows = alt.querySelectorAll<HTMLElement>("[data-terminal-row]");
-		for (const row of rows) push(ALT_BLOCK_ID, 0, rows.length, row);
-		return out;
-	}
-	const byId = new Map(filteredBlocks.map((block) => [block.id, block] as const));
-	for (const [id, section] of blockElements) {
-		const block = byId.get(id);
-		for (const row of section.querySelectorAll<HTMLElement>("[data-terminal-row]")) {
-			push(id, firstStableRow + (block?.firstRow ?? 0), block?.rowCount ?? 0, row);
-		}
-	}
-	return out;
+	return renderedRowRefs(altRoot, filteredBlocks, blockElements, firstStableRow).map(measureRow);
 }
 
 export function selectionFills(view: SelectionView, rows: readonly RenderedRow[], cellWidth: number): Map<HTMLElement, string> {
