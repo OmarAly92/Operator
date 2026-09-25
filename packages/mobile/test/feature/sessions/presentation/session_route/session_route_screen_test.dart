@@ -118,6 +118,7 @@ void main() {
     AppPreferences.debugLoad(const {});
     registerFallbackValue(const GetSessionBlocksParams());
     registerFallbackValue(const GetSessionTasksParams(sessionId: ''));
+    registerFallbackValue(<String, dynamic>{});
 
     repository = _MockSessionsRepository();
     mux = _MockMuxClient();
@@ -171,6 +172,8 @@ void main() {
     when(
       () => blocksRepository.getSessionBlocks(any(), any()),
     ).thenAnswer((_) async => Result.success(const []));
+    when(() => blocksRepository.cachedHistory(any())).thenAnswer((_) async => const []);
+    when(() => blocksRepository.rememberLive(any(), any())).thenAnswer((_) async {});
     final tasksRepository = _MockBackgroundTasksRepository();
     when(() => tasksRepository.getTasks(any())).thenAnswer(
       (_) async => Result.success(GlobalResponse<List<BackgroundTaskModel>>(data: const [])),

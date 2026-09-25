@@ -55,11 +55,14 @@ void main() {
   setUpAll(() {
     registerFallbackValue(const GetSessionBlocksParams());
     registerFallbackValue(const GetSessionTasksParams(sessionId: ''));
+    registerFallbackValue(<String, dynamic>{});
   });
 
   setUp(() {
     mux = _MockMux();
     repository = _MockRepository();
+    when(() => repository.cachedHistory(any())).thenAnswer((_) async => const []);
+    when(() => repository.rememberLive(any(), any())).thenAnswer((_) async {});
     tasks = _MockTasksRepository();
     when(() => tasks.getTasks(any())).thenAnswer(
       (_) async => Result.failure(ServerFailure(error: 'nf', statusCode: 404)),

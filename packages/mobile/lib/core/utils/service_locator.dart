@@ -21,6 +21,7 @@ import 'package:operator_mobile/feature/dictation/logic/voice_input_cubit.dart';
 import 'package:operator_mobile/feature/dictation/speech_recognizer.dart';
 import 'package:operator_mobile/feature/dictation/voice_types.dart';
 import 'package:operator_mobile/feature/blocks/data/data_source/background_tasks_remote_data_source.dart';
+import 'package:operator_mobile/feature/blocks/data/data_source/blocks_local_data_source.dart';
 import 'package:operator_mobile/feature/blocks/data/data_source/blocks_remote_data_source.dart';
 import 'package:operator_mobile/feature/blocks/data/data_source/session_control_remote_data_source.dart';
 import 'package:operator_mobile/feature/blocks/data/repository/background_tasks_repository.dart';
@@ -252,7 +253,12 @@ class ServiceLocator {
       () => BlocksRepositoryImp(
         sl<BlocksRemoteDataSource>(),
         sl<NetworkStatus>(),
+        sl<BlocksLocalDataSource>(),
+        sl<ServerConfigStore>(),
       ),
+    );
+    sl.registerLazySingleton<BlocksLocalDataSource>(
+      () => BlocksLocalDataSourceImp(sl<ReplicaBlockEventDao>()),
     );
     sl.registerLazySingleton<BlocksRemoteDataSource>(
       () => BlocksRemoteDataSourceImp(sl<ApiConsumer>()),

@@ -49,6 +49,7 @@ void main() {
   setUpAll(() {
     registerFallbackValue(const GetSessionBlocksParams());
     registerFallbackValue(const GetSessionTasksParams(sessionId: ''));
+    registerFallbackValue(<String, dynamic>{});
     registerFallbackValue(const StopSessionTaskParams(sessionId: '', taskId: ''));
   });
 
@@ -66,6 +67,8 @@ void main() {
     when(() => mux.subscribeBlocks(any())).thenReturn(null);
     when(() => mux.unsubscribeBlocks(any())).thenReturn(null);
     when(() => blocks.getSessionBlocks(any(), any())).thenAnswer((_) async => Result.success(const <BlockEventModel>[]));
+    when(() => blocks.cachedHistory(any())).thenAnswer((_) async => const []);
+    when(() => blocks.rememberLive(any(), any())).thenAnswer((_) async {});
     when(() => tasks.getTasks(any())).thenAnswer((_) => _seed(const []));
   });
 

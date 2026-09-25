@@ -6,6 +6,7 @@ import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:operator_mobile/core/mux/mux_client.dart';
 import 'package:operator_mobile/core/mux/session_patch.dart';
+import 'package:operator_mobile/core/replica/replica_limits.dart';
 import 'package:operator_mobile/core/error_handling/dio_error_handler/status_code.dart';
 import 'package:operator_mobile/core/error_handling/failures/failure.dart';
 import 'package:operator_mobile/feature/blocks/data/model/background_task_model.dart';
@@ -55,7 +56,8 @@ class BlocksCubit extends Cubit<BlocksState> {
     _statusSub = _mux.status.listen(_onStatus);
     _patchesSub = _mux.sessionPatches.listen(_onPatches);
     _mux.subscribeBlocks(sessionId);
-    unawaited(refresh());
+    loading = true;
+    unawaited(_start());
     unawaited(_seedTasks());
   }
 
@@ -81,6 +83,8 @@ class BlocksCubit extends Cubit<BlocksState> {
   int _answeredThroughSeq = 0;
   int _revision = 0;
   int _capacity = kBlockWindow;
+  bool _historyLoaded = false;
+  int? _cachedThrough;
 
   StreamSubscription<BlockEventEnvelope>? _eventsSub;
   StreamSubscription<MuxStatus>? _statusSub;
@@ -101,16 +105,39 @@ class BlocksCubit extends Cubit<BlocksState> {
     return min(kept, task);
   }
 
+  Future<void> _start() async {
+    if (agentId == null) await _seedFromCache();
+    if (isClosed) return;
+    await refresh();
+  }
+
+  Future<void> _seedFromCache() async {
+    final cached = await _repository.cachedHistory(sessionId);
+    if (isClosed || cached.isEmpty) return;
+    var through = 0;
+    for (final record in cached) {
+      final seq = record.seq;
+      if (seq == null) continue;
+      through = max(through, seq);
+      if (_events.containsKey(seq)) continue;
+      _merge(record);
+    }
+    _cachedThrough = through == 0 ? null : through;
+    if (cached.length >= ReplicaLimits.blockEventsPerSession) hasOlder = true;
+    _rebuild();
+  }
+
   Future<void> refresh() async {
     loading = true;
     _emit();
     final result = await _repository.getSessionBlocks(
       sessionId,
-      GetSessionBlocksParams(afterSeq: _highestSeq, agentId: agentId),
+      GetSessionBlocksParams(afterSeq: _historyLoaded ? _highestSeq : _cachedThrough, agentId: agentId),
     );
     result.when(
       onSuccess: (records) {
         error = null;
+        _historyLoaded = true;
         for (final record in records) {
           _merge(record);
         }
@@ -166,6 +193,7 @@ class BlocksCubit extends Cubit<BlocksState> {
   void _onLive(BlockEventEnvelope envelope) {
     final record = BlockEventModel.fromJson(envelope.block);
     final scopeId = record.agentId ?? '';
+    if (agentId == null && scopeId.isEmpty) unawaited(_repository.rememberLive(sessionId, envelope.block));
     if (record.kind == 'task_update') {
       if (agentId == null) _absorbTask(record);
       if (scopeId == (agentId ?? '')) _merge(record);

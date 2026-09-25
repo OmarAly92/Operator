@@ -124,6 +124,7 @@ class TerminalHarness {
     }
     registerFallbackValue(const GetSessionBlocksParams());
     registerFallbackValue(const GetSessionTasksParams(sessionId: ''));
+    registerFallbackValue(<String, dynamic>{});
     when(() => terminalRepository.getSlashCommands(any())).thenAnswer(
       (_) async => Result.success(GlobalResponse<List<SlashCommandModel>>(data: const [])),
     );
@@ -172,6 +173,8 @@ class TerminalHarness {
     when(
       () => blocksRepository.getSessionBlocks(any(), any()),
     ).thenAnswer((_) async => Result.success(blockRecords));
+    when(() => blocksRepository.cachedHistory(any())).thenAnswer((_) async => const []);
+    when(() => blocksRepository.rememberLive(any(), any())).thenAnswer((_) async {});
 
     viewCubit = SessionViewCubit(defaultViewMode(cubit.args));
     final tasksRepository = MockBackgroundTasksRepository();
