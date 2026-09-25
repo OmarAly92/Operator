@@ -1,0 +1,52 @@
+renderer rows 27
+renderer rows[0..] text 2ce120c68c009504 styles eb0594808bfae6d0 spans 18d7673ecde85170
+renderer blocks 1 4b8ee8605cd05859
+renderer links dcd1781a213827ee
+renderer cursor 19 2 true history 0 first_stable 0 editor 0
+renderer alt none
+renderer modes app_cursor=false sgr_mouse=false paste=true focus=true mouse=0 sync=false pending_sync=0
+renderer program title="◑ Multiplication verification session" pointer="" stack=0 live_output=23835 older=OlderState { floor: None, marks: 0 }
+renderer replies "\u{1b}P>|GoldenTerm\u{1b}\\\u{1b}[?62;22c\u{1b}P>|GoldenTerm\u{1b}\\\u{1b}[?62;22c"
+renderer notifications 0 cbf29ce484222325
+renderer agent_events 0 cbf29ce484222325
+renderer typeahead []
+renderer deltas 6 3352f182761e89e0
+renderer-odd rows 27
+renderer-odd rows[0..] text 2ce120c68c009504 styles eb0594808bfae6d0 spans 18d7673ecde85170
+renderer-odd blocks 1 4b8ee8605cd05859
+renderer-odd links dcd1781a213827ee
+renderer-odd cursor 19 2 true history 0 first_stable 0 editor 0
+renderer-odd alt none
+renderer-odd modes app_cursor=false sgr_mouse=false paste=true focus=true mouse=0 sync=false pending_sync=0
+renderer-odd program title="◑ Multiplication verification session" pointer="" stack=0 live_output=23835 older=OlderState { floor: None, marks: 0 }
+renderer-odd replies "\u{1b}P>|GoldenTerm\u{1b}\\\u{1b}[?62;22c\u{1b}P>|GoldenTerm\u{1b}\\\u{1b}[?62;22c"
+renderer-odd notifications 0 cbf29ce484222325
+renderer-odd agent_events 0 cbf29ce484222325
+renderer-odd typeahead []
+renderer-odd deltas 35 8600c452dd7162fb
+mirror rows 27
+mirror rows[0..] text 2ce120c68c009504 styles eb0594808bfae6d0 spans 18d7673ecde85170
+mirror blocks 1 4b8ee8605cd05859
+mirror links dcd1781a213827ee
+mirror cursor 19 2 true history 0 first_stable 0 editor 0
+mirror alt none
+mirror modes app_cursor=false sgr_mouse=false paste=true focus=true mouse=0 sync=false pending_sync=0
+mirror program title="◑ Multiplication verification session" pointer="" stack=0 live_output=23835 older=OlderState { floor: None, marks: 0 }
+mirror replies "\u{1b}P>|GoldenTerm\u{1b}\\\u{1b}[?62;22c\u{1b}P>|GoldenTerm\u{1b}\\\u{1b}[?62;22c"
+mirror notifications 0 cbf29ce484222325
+mirror agent_events 0 cbf29ce484222325
+mirror typeahead []
+mirror deltas 6 3352f182761e89e0
+agent-odd rows 27
+agent-odd rows[0..] text 2ce120c68c009504 styles eb0594808bfae6d0 spans 18d7673ecde85170
+agent-odd blocks 1 4b8ee8605cd05859
+agent-odd links dcd1781a213827ee
+agent-odd cursor 19 2 true history 0 first_stable 0 editor 0
+agent-odd alt none
+agent-odd modes app_cursor=false sgr_mouse=false paste=true focus=true mouse=0 sync=false pending_sync=0
+agent-odd program title="◑ Multiplication verification session" pointer="" stack=0 live_output=23835 older=OlderState { floor: None, marks: 0 }
+agent-odd replies "\u{1b}P>|GoldenTerm\u{1b}\\\u{1b}[?62;22c\u{1b}P>|GoldenTerm\u{1b}\\\u{1b}[?62;22c"
+agent-odd notifications 0 cbf29ce484222325
+agent-odd agent_events 0 cbf29ce484222325
+agent-odd typeahead []
+agent-odd deltas 35 8600c452dd7162fb

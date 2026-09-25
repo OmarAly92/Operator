@@ -18,13 +18,14 @@ impl Parser {
         }
     }
 
-    pub(crate) fn xtwinops(&mut self, params: &Params) {
+    pub(crate) fn xtwinops(&mut self, params: &Params) -> bool {
         let mut groups = params.iter();
         let kind = groups.next().and_then(|g| g.first().copied()).unwrap_or(0);
         let which = groups.next().and_then(|g| g.first().copied()).unwrap_or(0);
         match kind {
             22 if which != 1 => self.program.push_title(),
             23 if which != 1 => self.program.pop_title(),
+            22 | 23 => {}
             14 | 16 | 18 => {
                 if let Some(reply) = self
                     .program
@@ -33,8 +34,9 @@ impl Parser {
                     self.push_reply(&reply);
                 }
             }
-            _ => {}
+            _ => return false,
         }
+        true
     }
 
     pub(crate) fn note_in_band_resize_mode(&mut self, set: bool) {

@@ -1,15 +1,38 @@
 use crate::screen::{ClearPolicy, ScreenGrid};
 
 impl ScreenGrid {
+    fn fill_cells(&mut self, row: usize, from: usize, to: usize) {
+        if from >= to {
+            return;
+        }
+        let start = self.phys_start(row);
+        let blank = self.erased_cell();
+        self.cells[start + from..start + to].fill(blank);
+        if to == self.cols() {
+            self.set_row_wrapped(row, false);
+        }
+        self.mark_dirty(row);
+    }
+
+    fn shift_cells(&mut self, row: usize, from: usize, to: usize, by: isize) {
+        let start = self.phys_start(row);
+        let span = &mut self.cells[start + from..start + to];
+        if by > 0 {
+            span.rotate_right(by.unsigned_abs());
+        } else {
+            span.rotate_left(by.unsigned_abs());
+        }
+        self.set_row_wrapped(row, false);
+        self.mark_dirty(row);
+    }
+
     pub fn erase_in_display(&mut self, mode: u16) {
         let (row, col) = self.cursor();
         let rows = self.rows();
         let cols = self.cols();
         match mode {
             0 => {
-                for c in col..cols {
-                    self.set(row, c, self.erased_cell());
-                }
+                self.fill_cells(row, col, cols);
                 for r in (row + 1)..rows {
                     self.blank_row(r);
                 }
@@ -18,9 +41,7 @@ impl ScreenGrid {
                 for r in 0..row {
                     self.blank_row(r);
                 }
-                for c in 0..=col {
-                    self.set(row, c, self.erased_cell());
-                }
+                self.fill_cells(row, 0, col + 1);
             }
             2 => match self.clear_policy {
                 ClearPolicy::Scroll => {
@@ -59,16 +80,8 @@ impl ScreenGrid {
         let (row, col) = self.cursor();
         let cols = self.cols();
         match mode {
-            0 => {
-                for c in col..cols {
-                    self.set(row, c, self.erased_cell());
-                }
-            }
-            1 => {
-                for c in 0..=col {
-                    self.set(row, c, self.erased_cell());
-                }
-            }
+            0 => self.fill_cells(row, col, cols),
+            1 => self.fill_cells(row, 0, col + 1),
             _ => self.blank_row(row),
         }
     }
@@ -80,13 +93,8 @@ impl ScreenGrid {
         if count == 0 {
             return;
         }
-        for c in ((col + count)..cols).rev() {
-            let cell = self.cell(row, c - count);
-            self.set(row, c, cell);
-        }
-        for c in col..(col + count) {
-            self.set(row, c, self.erased_cell());
-        }
+        self.shift_cells(row, col, cols, count as isize);
+        self.fill_cells(row, col, col + count);
     }
 
     pub fn delete_chars(&mut self, count: usize) {
@@ -96,22 +104,15 @@ impl ScreenGrid {
         if count == 0 {
             return;
         }
-        for c in col..(cols - count) {
-            let cell = self.cell(row, c + count);
-            self.set(row, c, cell);
-        }
-        for c in (cols - count)..cols {
-            self.set(row, c, self.erased_cell());
-        }
+        self.shift_cells(row, col, cols, -(count as isize));
+        self.fill_cells(row, cols - count, cols);
     }
 
     pub fn erase_chars(&mut self, count: usize) {
         let (row, col) = self.cursor();
         let cols = self.cols();
         let count = count.min(cols - col);
-        for c in col..(col + count) {
-            self.set(row, c, self.erased_cell());
-        }
+        self.fill_cells(row, col, col + count);
     }
 
     pub fn insert_lines(&mut self, count: usize) {

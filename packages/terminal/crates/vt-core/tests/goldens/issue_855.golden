@@ -1,0 +1,52 @@
+renderer rows 29
+renderer rows[0..] text 8fb598333c1aba3e styles 4ef53e32fe618464 spans 3d7a243ef5b18d42
+renderer blocks 1 e742531d09c3b3ff
+renderer links dcd1781a213827ee
+renderer cursor 28 38 true history 0 first_stable 0 editor 0
+renderer alt none
+renderer modes app_cursor=true sgr_mouse=false paste=true focus=false mouse=0 sync=false pending_sync=0
+renderer program title="jwilm@jwilm-desk: ~/code/alacritty" pointer="" stack=0 live_output=16625 older=OlderState { floor: None, marks: 0 }
+renderer replies ""
+renderer notifications 0 cbf29ce484222325
+renderer agent_events 0 cbf29ce484222325
+renderer typeahead []
+renderer deltas 5 381bdbf87b702a19
+renderer-odd rows 29
+renderer-odd rows[0..] text 8fb598333c1aba3e styles 4ef53e32fe618464 spans 3d7a243ef5b18d42
+renderer-odd blocks 1 e742531d09c3b3ff
+renderer-odd links dcd1781a213827ee
+renderer-odd cursor 28 38 true history 0 first_stable 0 editor 0
+renderer-odd alt none
+renderer-odd modes app_cursor=true sgr_mouse=false paste=true focus=false mouse=0 sync=false pending_sync=0
+renderer-odd program title="jwilm@jwilm-desk: ~/code/alacritty" pointer="" stack=0 live_output=16625 older=OlderState { floor: None, marks: 0 }
+renderer-odd replies ""
+renderer-odd notifications 0 cbf29ce484222325
+renderer-odd agent_events 0 cbf29ce484222325
+renderer-odd typeahead []
+renderer-odd deltas 24 b6edc431dc35629f
+mirror rows 29
+mirror rows[0..] text 8fb598333c1aba3e styles 4ef53e32fe618464 spans 3d7a243ef5b18d42
+mirror blocks 1 e742531d09c3b3ff
+mirror links dcd1781a213827ee
+mirror cursor 28 38 true history 0 first_stable 0 editor 0
+mirror alt none
+mirror modes app_cursor=true sgr_mouse=false paste=true focus=false mouse=0 sync=false pending_sync=0
+mirror program title="jwilm@jwilm-desk: ~/code/alacritty" pointer="" stack=0 live_output=16625 older=OlderState { floor: None, marks: 0 }
+mirror replies ""
+mirror notifications 0 cbf29ce484222325
+mirror agent_events 0 cbf29ce484222325
+mirror typeahead []
+mirror deltas 5 381bdbf87b702a19
+agent-odd rows 29
+agent-odd rows[0..] text 8fb598333c1aba3e styles 4ef53e32fe618464 spans 3d7a243ef5b18d42
+agent-odd blocks 1 e742531d09c3b3ff
+agent-odd links dcd1781a213827ee
+agent-odd cursor 28 38 true history 0 first_stable 0 editor 0
+agent-odd alt none
+agent-odd modes app_cursor=true sgr_mouse=false paste=true focus=false mouse=0 sync=false pending_sync=0
+agent-odd program title="jwilm@jwilm-desk: ~/code/alacritty" pointer="" stack=0 live_output=16625 older=OlderState { floor: None, marks: 0 }
+agent-odd replies ""
+agent-odd notifications 0 cbf29ce484222325
+agent-odd agent_events 0 cbf29ce484222325
+agent-odd typeahead []
+agent-odd deltas 24 b6edc431dc35629f

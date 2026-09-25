@@ -1,0 +1,52 @@
+renderer rows 139
+renderer rows[0..] text f236d30fdf932bfc styles f58491c0fe920ea3 spans 7159d586fc4d0fe0
+renderer blocks 1 69a4ab78ebe70623
+renderer links dcd1781a213827ee
+renderer cursor 115 59 true history 115 first_stable 0 editor 0
+renderer alt none
+renderer modes app_cursor=false sgr_mouse=false paste=false focus=false mouse=0 sync=false pending_sync=0
+renderer program title="vttest" pointer="" stack=0 live_output=18521 older=OlderState { floor: None, marks: 0 }
+renderer replies "\u{1b}[?62;22c"
+renderer notifications 0 cbf29ce484222325
+renderer agent_events 0 cbf29ce484222325
+renderer typeahead []
+renderer deltas 5 c6b785b391bb5461
+renderer-odd rows 139
+renderer-odd rows[0..] text f236d30fdf932bfc styles f58491c0fe920ea3 spans 7159d586fc4d0fe0
+renderer-odd blocks 1 69a4ab78ebe70623
+renderer-odd links dcd1781a213827ee
+renderer-odd cursor 115 59 true history 115 first_stable 0 editor 0
+renderer-odd alt none
+renderer-odd modes app_cursor=false sgr_mouse=false paste=false focus=false mouse=0 sync=false pending_sync=0
+renderer-odd program title="vttest" pointer="" stack=0 live_output=18521 older=OlderState { floor: None, marks: 0 }
+renderer-odd replies "\u{1b}[?62;22c"
+renderer-odd notifications 0 cbf29ce484222325
+renderer-odd agent_events 0 cbf29ce484222325
+renderer-odd typeahead []
+renderer-odd deltas 24 f08f68586310c8fa
+mirror rows 139
+mirror rows[0..] text f236d30fdf932bfc styles f58491c0fe920ea3 spans 7159d586fc4d0fe0
+mirror blocks 1 69a4ab78ebe70623
+mirror links dcd1781a213827ee
+mirror cursor 115 59 true history 115 first_stable 0 editor 0
+mirror alt none
+mirror modes app_cursor=false sgr_mouse=false paste=false focus=false mouse=0 sync=false pending_sync=0
+mirror program title="vttest" pointer="" stack=0 live_output=18521 older=OlderState { floor: None, marks: 0 }
+mirror replies "\u{1b}[?62;22c"
+mirror notifications 0 cbf29ce484222325
+mirror agent_events 0 cbf29ce484222325
+mirror typeahead []
+mirror deltas 5 c6b785b391bb5461
+agent-odd rows 24
+agent-odd rows[0..] text 0fcdf5a83c062578 styles a0ed59253e24bbf5 spans c8dea3ee698354bd
+agent-odd blocks 1 3b5d6e52d14e810a
+agent-odd links dcd1781a213827ee
+agent-odd cursor 0 59 true history 0 first_stable 0 editor 0
+agent-odd alt none
+agent-odd modes app_cursor=false sgr_mouse=false paste=false focus=false mouse=0 sync=false pending_sync=0
+agent-odd program title="vttest" pointer="" stack=0 live_output=18521 older=OlderState { floor: None, marks: 0 }
+agent-odd replies "\u{1b}[?62;22c"
+agent-odd notifications 0 cbf29ce484222325
+agent-odd agent_events 0 cbf29ce484222325
+agent-odd typeahead []
+agent-odd deltas 24 965dbf7f8b379537

@@ -1274,6 +1274,104 @@ history of `master`.
   `agent-events.test.ts` "AgentEvents listener failures";
   `compact-output.test.ts` (whole-line spinner, separated runs, `maxLines`).
 
+### 4.35 The parser rework — roadmap Plan 9
+- **Part A: `vte::ansi::Handler` measured, not adopted (2026-09-26).** A
+  scratch crate fed vte 0.15's `ansi::Processor` the sequences vt-core relies
+  on. XTVERSION (`CSI > 0 q`), `CSI 16 t`, OSC 9/99/777/1/133/7000 and a bare
+  `OSC 8 ;` reach no `Handler` method; SGR 53/55 are dropped, SGR 21 becomes
+  cancel-bold, `38;5;300` is rejected, `4:6` becomes an underline; DECRQM
+  passes one mode; `CSI b` (REP), `ESC Z` (DA1) and `ESC # 8` (DECALN) would
+  start doing something, which changes `tests/ref/csi_rep` and
+  `decaln_reset`; and `Processor::new` allocates a 2 MiB sync buffer per core
+  (`vte-0.15.0/src/ansi.rs:39,261-264`). The `Processor` owns its parser and
+  its `Performer` is private (`ansi.rs:425`), so nothing can be handled half
+  by `Handler` and half by us. Dispatch stays on `vte::Perform`
+  (`crates/vt-core/src/parser/perform.rs`). The `ansi` feature does not need
+  `std` (vte's `Cargo.toml`: `ansi = ["log", "cursor-icon", "bitflags"]`), and
+  vt-core must keep vte without `std`: the 1,024-byte OSC cap of §4.34 is the
+  no-std buffer (`vte-0.15.0/src/lib.rs:46`).
+- Guard for the whole plan: `crates/vt-core/tests/parser_goldens.rs` replays
+  the 46 `tests/ref` recordings, the 3 Claude Code fixtures and 4 synthetic
+  streams (`tests/golden_support/synthetic.rs`) in four configurations
+  (renderer: grapheme mode, 4 KiB feeds; renderer with feeds of 1, 3, 7, 64,
+  509 and 4,093 bytes in turn; mirror: scalar, no reflow, 20,000 rows /
+  256 KiB, cold ring; agent-TUI mode with the odd feeds) and compares a
+  digest of rows, styles, cell spans, wrapped flags, blocks, links, cursor,
+  alternate screen, modes, title, notifications, agent events, query replies
+  and every per-feed `Delta` with `tests/goldens/*.golden`, generated on the
+  tree before the rework (`UPDATE_GOLDENS=1`). Regenerate only for a
+  deliberate behaviour change, and name it in the commit.
+- **Part B: printable runs and unknown sequences.** The parser buffers
+  printable ASCII between control sequences (`Parser.run`, flushed before
+  every other callback and at the end of every `advance_vte`, so a mark, an
+  alternate-screen switch or a sync flush never sees bytes pending) and
+  `ScreenGrid::print_ascii_run` (`crates/vt-core/src/screen/print.rs`) writes
+  it a row segment at a time; `ScreenGrid::print` skips the width lookup and
+  the grapheme join for ASCII after an ASCII cell (an ASCII scalar joins a
+  cluster only after a `Prepend`, UAX #29 GB9b); `joins_previous` no longer
+  allocates (`width.rs`). Ghostty's run decode (`src/terminal/stream.zig:599-720`)
+  is the idea, not the code: vte owns the byte loop, so the batching happens
+  on its `print` callbacks. `TerminalCore::unknown_sequences()` keeps the
+  newest 64 distinct CSI/ESC/DCS/OSC that nothing handled
+  (`parser/unknown.rs`; an OSC by its number only, never its payload; text
+  ≤ 48 bytes; debugging only, also `WasmTerminalCore.unknown_sequences()`).
+  The three Claude Code recordings leave `CSI <0u`, `CSI >4;2m`, `CSI >4m`,
+  `CSI >5u`, `CSI ?0u`, `CSI ?2031h/l` and `ESC (B` in it.
+- Part B measured (`examples/parse_throughput.rs` and
+  `bench/parse-throughput.mjs`, 3 alternated pairs, medians of 7, MB/s):
+  - ascii-heavy grapheme: control 16.69-17.33 partB 31.91-32.50 (86.3% median) faster
+  - ascii-heavy scalar: control 26.79-27.86 partB 32.59-33.97 (22.4% median) faster
+  - claude-long-50k grapheme: control 22.94-23.12 partB 27.42-28.39 (19.9% median) faster
+  - claude-long-50k scalar: control 45.54-46.08 partB 44.38-46.21 (-0.5% median) noise
+  - edit-heavy grapheme: control 23.21-24.76 partB 45.80-47.46 (101.4% median) faster
+  - edit-heavy scalar: control 37.96-41.60 partB 47.05-49.36 (20.9% median) faster
+  - wasm claude-long-50k grapheme: control 15.96-16.58 partB 19.79-20.40 (23.2% median) faster
+  - wasm claude-long-50k scalar: control 34.22-34.89 partB 33.61-35.00 (-0.5% median) noise
+  - Environment: Linux x86_64, Intel(R) Xeon(R) Processor @ 2.10GHz
+- Guards (Part B): `tests/print_run.rs` (a 512-case proptest against
+  one-character-at-a-time printing, the `Prepend` join, runs split at every
+  byte, a run before a boundary mark and before the alternate screen,
+  invalid UTF-8, DEL), `tests/unknown_sequences.rs`, `vt-wasm`
+  `program_exports.rs` `the_wasm_core_lists_unknown_sequences_with_their_counts`,
+  and the goldens.
+- **Part C: erase and insert on a row.** `screen/edit.rs` erases with one
+  slice `fill` of the erase cell and inserts/deletes characters with one
+  `rotate_right`/`rotate_left` of the row slice (`fill_cells`,
+  `shift_cells`); `wrapped` is cleared exactly when the per-cell `set` used
+  to clear it (an edit that reaches the last column, every ICH/DCH), and an
+  empty span marks nothing dirty. Claude Code sends no ICH/DCH/ECH
+  (`claude-long-50k`: 0 `@`, 0 `P`, 0 `X`, 32,808 `K`), so the gain is for
+  shells and full-screen programs. **Row flags** after Ghostty
+  (`src/terminal/page.zig:2020-2058`, behaviour only): a per-row
+  `styled`/`grapheme` flag and a plain-row commit path in
+  `scrollback::commit_row` were built and measured — no line faster beyond
+  noise (numbers below) — so they are not applied.
+  `hyperlink` would need no flag (the link id rides in `CellStyle.link`) and
+  `wrapped` stays its own vector. The prototype's one bug (a prepended
+  history chunk longer than `CHUNK_SIZE` underflowed a subtraction) was
+  caught by `tests/older_seams.rs`.
+- Part C measured (same method as Part B; bulk edits against Part B, then
+  row flags against bulk edits):
+  - claude-long-50k grapheme: partB 27.48-28.25 partC 27.28-30.75 (2.6% median) noise
+  - claude-long-50k scalar: partB 44.02-45.42 partC 47.84-52.81 (8.9% median) faster
+  - ascii-heavy grapheme: partB 30.15-32.89 partC 30.17-32.81 (2.5% median) noise
+  - ascii-heavy scalar: partB 32.90-33.66 partC 31.08-32.25 (-5.3% median) noise
+  - edit-heavy grapheme: partB 46.62-50.02 partC 62.26-65.12 (35.1% median) faster
+  - edit-heavy scalar: partB 47.21-48.52 partC 63.00-67.46 (36.3% median) faster
+  - wasm claude-long-50k grapheme: partB 20.15-21.10 partC 21.28-21.84 (5.2% median) faster
+  - wasm claude-long-50k scalar: partB 34.92-35.90 partC 35.54-37.38 (1.4% median) noise
+  - claude-long-50k grapheme: partC 28.27-30.29 flags 29.78-30.26 (4.9% median) noise
+  - claude-long-50k scalar: partC 50.41-51.73 flags 50.75-52.42 (0.1% median) noise
+  - ascii-heavy grapheme: partC 32.07-33.06 flags 31.59-32.40 (-3.2% median) noise
+  - ascii-heavy scalar: partC 32.51-33.01 flags 30.96-32.46 (-2.4% median) noise
+  - edit-heavy grapheme: partC 61.19-64.32 flags 62.68-64.73 (1.3% median) noise
+  - edit-heavy scalar: partC 62.58-65.61 flags 63.13-64.54 (-1.9% median) noise
+  - wasm claude-long-50k grapheme: partC 20.73-21.76 flags 20.78-21.33 (1.9% median) noise
+  - wasm claude-long-50k scalar: partC 35.07-37.07 flags 34.06-36.83 (-2.6% median) noise
+  - Environment: Linux x86_64, Intel(R) Xeon(R) Processor @ 2.10GHz
+- Guards (Part C): `tests/bulk_edits.rs` (passes on the tree before Part C
+  too), `synthetic-edits-styled` in the goldens.
+
 ## 5. Known gaps (not bugs, decisions pending)
 
 - **Find exports every hit on every change.** `findResults` copies all hits
@@ -1694,6 +1792,14 @@ history of `master`.
   more lines that exactly repeats the lines just before it is dropped even
   when the program printed it twice, and a repainted frame with a distinct
   line between the copies is kept (`claude-markdown-reply`, §4.34).
+- **Unknown sequences are recorded, not reported** (§4.35). Only code reads
+  the ring (`TerminalCore::unknown_sequences()`, or
+  `WasmTerminalCore.unknown_sequences()` from a devtools console); the
+  pty-host mirror's ring is never read, and SOS/PM/APC strings reach no vte
+  callback, so they are not recorded at all.
+- **The history receiver prints one character at a time.** History chunks and
+  older answers go through `crates/vt-core/src/history.rs`'s own `Perform`,
+  which gets `ScreenGrid::print`'s ASCII fast path but not the run buffer.
 
 ---
 
