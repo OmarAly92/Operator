@@ -50,6 +50,8 @@ void main() {
     repository = _MockRepository();
     serverConfigStore = _MockServerConfigStore();
     when(() => serverConfigStore.current).thenReturn(_pairedServer);
+    when(() => serverConfigStore.changes).thenAnswer((_) => const Stream.empty());
+    when(() => repository.cachedFirstPage()).thenAnswer((_) async => null);
   });
 
   void stubPage(List<NotificationModel> notifications, {int unreadCount = 0}) {

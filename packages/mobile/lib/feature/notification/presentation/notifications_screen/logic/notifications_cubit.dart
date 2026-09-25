@@ -22,7 +22,8 @@ class NotificationsCubit extends Cubit<NotificationsState> {
 
   NotificationsCubit._(this._repository, this._serverConfigStore, {required this._unreadPoll})
     : super(const NotificationsInitialState()) {
-    unawaited(load());
+    _configSub = _serverConfigStore.changes.listen(_onConfigChanged);
+    unawaited(_start(_epoch));
     _timer = Timer.periodic(_unreadPoll, (_) => unawaited(refreshUnread()));
   }
 
@@ -41,9 +42,45 @@ class NotificationsCubit extends Cubit<NotificationsState> {
 
   String? _nextCursor;
   Timer? _timer;
+  StreamSubscription<ServerConfig?>? _configSub;
   int _revision = 0;
+  int _epoch = 0;
+  bool _freshLoaded = false;
 
-  void _emit() => emit(NotificationsReadyState(++_revision));
+  void _emit() {
+    if (isClosed) return;
+    emit(NotificationsReadyState(++_revision));
+  }
+
+  Future<void> _start(int epoch) async {
+    await _primeFromCache(epoch);
+    if (isClosed || epoch != _epoch) return;
+    await load();
+  }
+
+  Future<void> _primeFromCache(int epoch) async {
+    if (!_hasServer) return;
+    final cached = await _repository.cachedFirstPage();
+    if (cached == null || isClosed || epoch != _epoch || _freshLoaded) return;
+    items = cached.value.notifications;
+    _nextCursor = cached.value.nextCursor;
+    unreadCount = cached.value.unreadCount;
+    loading = false;
+    _emit();
+  }
+
+  void _onConfigChanged(ServerConfig? next) {
+    if (isClosed) return;
+    _epoch++;
+    items = [];
+    unreadCount = 0;
+    _nextCursor = null;
+    error = null;
+    loading = true;
+    _freshLoaded = false;
+    _emit();
+    unawaited(_start(_epoch));
+  }
 
   Future<void> load() => _fetch(reset: true);
 
@@ -65,6 +102,7 @@ class NotificationsCubit extends Cubit<NotificationsState> {
   }
 
   Future<void> _fetch({required bool reset}) async {
+    final epoch = _epoch;
     error = null;
     if (!_hasServer) {
       loading = false;
@@ -78,12 +116,14 @@ class NotificationsCubit extends Cubit<NotificationsState> {
         cursor: reset ? null : _nextCursor,
       ),
     );
+    if (isClosed || epoch != _epoch) return;
     result.when(
       onSuccess: (response) {
         final page = response.data;
         final fetched = page?.notifications ?? const <NotificationModel>[];
         if (reset) {
           items = fetched;
+          _freshLoaded = true;
         } else {
           final seen = items.map((notification) => notification.id).toSet();
           items = [...items, ...fetched.where((notification) => !seen.contains(notification.id))];
@@ -99,9 +139,11 @@ class NotificationsCubit extends Cubit<NotificationsState> {
 
   Future<void> refreshUnread() async {
     if (!_hasServer) return;
+    final epoch = _epoch;
     final result = await _repository.getNotifications(
       const GetNotificationsParams(status: 'unread', limit: 1),
     );
+    if (isClosed || epoch != _epoch) return;
     result.when(
       onSuccess: (response) => unreadCount = response.data?.unreadCount ?? 0,
       onFailure: (_) {},
@@ -137,6 +179,7 @@ class NotificationsCubit extends Cubit<NotificationsState> {
   @override
   Future<void> close() {
     _timer?.cancel();
+    unawaited(_configSub?.cancel());
     return super.close();
   }
 }

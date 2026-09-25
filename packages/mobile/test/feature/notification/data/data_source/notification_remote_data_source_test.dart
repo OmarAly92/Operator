@@ -4,6 +4,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:operator_mobile/core/api/api_request_helpers/api_consumer.dart';
 import 'package:operator_mobile/core/api/api_request_helpers/end_points.dart';
 import 'package:operator_mobile/feature/notification/data/data_source/notification_remote_data_source.dart';
+import 'package:operator_mobile/feature/notification/data/model/notification_page_model.dart';
 import 'package:operator_mobile/feature/notification/data/model/params/get_notifications_params.dart';
 
 class _MockApiConsumer extends Mock implements ApiConsumer {}
@@ -30,9 +31,9 @@ void main() {
       }),
     );
 
-    final page = (await dataSource.getNotifications(
-      const GetNotificationsParams(status: 'all', limit: 50),
-    )).data!;
+    final page = NotificationPageModel.fromJson(
+      await dataSource.getNotifications(const GetNotificationsParams(status: 'all', limit: 50)),
+    );
 
     expect(page.notifications.single.id, 'n-1');
     verify(

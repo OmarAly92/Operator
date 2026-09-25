@@ -29,6 +29,7 @@ import 'package:operator_mobile/feature/blocks/data/repository/session_control_r
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/blocks_cubit.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/session_command_cubit.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/session_view_cubit.dart';
+import 'package:operator_mobile/feature/notification/data/data_source/notification_local_data_source.dart';
 import 'package:operator_mobile/feature/notification/data/data_source/notification_remote_data_source.dart';
 import 'package:operator_mobile/feature/notification/data/repository/notification_repository.dart';
 import 'package:operator_mobile/feature/notification/presentation/notifications_screen/logic/notifications_cubit.dart';
@@ -302,7 +303,12 @@ class ServiceLocator {
       () => NotificationRepositoryImp(
         sl<NotificationRemoteDataSource>(),
         sl<NetworkStatus>(),
+        sl<NotificationLocalDataSource>(),
+        sl<ServerConfigStore>(),
       ),
+    );
+    sl.registerLazySingleton<NotificationLocalDataSource>(
+      () => NotificationLocalDataSourceImp(sl<ReplicaDocumentDao>()),
     );
     sl.registerLazySingleton<NotificationRemoteDataSource>(
       () => NotificationRemoteDataSourceImp(sl<ApiConsumer>()),

@@ -80,6 +80,7 @@ void main() {
         GlobalResponse(data: const NotificationPageModel(notifications: [], unreadCount: 0)),
       ),
     );
+    when(() => notificationRepository.cachedFirstPage()).thenAnswer((_) async => null);
     when(() => notificationRepository.getPhoneAlerts()).thenAnswer(
       (_) async => Result.success(const PhoneAlertStatusModel(enabled: false, claimed: false)),
     );
