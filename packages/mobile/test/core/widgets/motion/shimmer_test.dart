@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:operator_mobile/core/app_themes/app_motion.dart';
 import 'package:operator_mobile/core/widgets/motion/shimmer.dart';
 
 void main() {
@@ -107,6 +108,36 @@ void main() {
       await tester.pump();
 
       expect(tester.hasRunningAnimations, isTrue);
+    });
+
+    testWidgets('parks the ticker through the pause and sweeps again after it', (tester) async {
+      await tester.pumpWidget(host());
+      await tester.pump();
+      expect(tester.hasRunningAnimations, isTrue);
+
+      await tester.pump(AppMotion.shimmerSweep);
+      await tester.pump(const Duration(milliseconds: 16));
+      expect(tester.hasRunningAnimations, isFalse);
+      expect(find.byType(ShaderMask), findsOneWidget);
+
+      await tester.pump(AppMotion.shimmerPause ~/ 2);
+      expect(tester.hasRunningAnimations, isFalse);
+
+      await tester.pump(AppMotion.shimmerPause ~/ 2);
+      await tester.pump(const Duration(milliseconds: 16));
+      expect(tester.hasRunningAnimations, isTrue);
+    });
+
+    testWidgets('a pause cut short by TickerMode leaves no pending sweep', (tester) async {
+      await tester.pumpWidget(host());
+      await tester.pump();
+      await tester.pump(AppMotion.shimmerSweep);
+      await tester.pump(const Duration(milliseconds: 16));
+
+      await tester.pumpWidget(host(tickerEnabled: false));
+      await tester.pump(AppMotion.shimmerPause * 2);
+
+      expect(tester.hasRunningAnimations, isFalse);
     });
   });
 }

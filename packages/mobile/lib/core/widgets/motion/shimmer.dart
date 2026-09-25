@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:operator_mobile/core/app_themes/app_motion.dart';
 
@@ -37,7 +39,11 @@ class Shimmer extends StatefulWidget {
 }
 
 class _ShimmerState extends State<Shimmer> with SingleTickerProviderStateMixin {
+  static final double _sweepEnd =
+      AppMotion.shimmerSweep.inMicroseconds / (AppMotion.shimmerSweep + AppMotion.shimmerPause).inMicroseconds;
+
   late final AnimationController _controller;
+  Timer? _pause;
 
   @override
   void initState() {
@@ -45,7 +51,20 @@ class _ShimmerState extends State<Shimmer> with SingleTickerProviderStateMixin {
     _controller = AnimationController(
       vsync: this,
       duration: AppMotion.shimmerSweep + AppMotion.shimmerPause,
-    );
+    )..addStatusListener(_onStatus);
+  }
+
+  void _onStatus(AnimationStatus status) {
+    if (status != AnimationStatus.completed) return;
+    _pause?.cancel();
+    _pause = Timer(AppMotion.shimmerPause, _sweep);
+  }
+
+  void _sweep() {
+    _pause = null;
+    if (!mounted) return;
+    _controller.value = 0;
+    _controller.animateTo(_sweepEnd);
   }
 
   @override
@@ -62,6 +81,7 @@ class _ShimmerState extends State<Shimmer> with SingleTickerProviderStateMixin {
 
   @override
   void dispose() {
+    _pause?.cancel();
     _controller.dispose();
     super.dispose();
   }
@@ -71,9 +91,11 @@ class _ShimmerState extends State<Shimmer> with SingleTickerProviderStateMixin {
 
   void _syncController(BuildContext context) {
     if (_animates(context)) {
-      if (!_controller.isAnimating) _controller.repeat();
-    } else if (_controller.isAnimating) {
-      _controller.stop();
+      if (!_controller.isAnimating && _pause == null) _sweep();
+    } else {
+      _pause?.cancel();
+      _pause = null;
+      if (_controller.isAnimating) _controller.stop();
     }
   }
 
