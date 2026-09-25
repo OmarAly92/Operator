@@ -9,6 +9,11 @@ import 'package:mocktail/mocktail.dart';
 import 'package:operator_mobile/core/api/interceptors/server_config_interceptor.dart';
 import 'package:operator_mobile/core/api/models/global_response.dart';
 import 'package:operator_mobile/core/api/server_config.dart';
+import 'package:operator_mobile/core/api/server_config_store.dart';
+import 'package:operator_mobile/core/utils/service_locator.dart';
+import 'package:operator_mobile/feature/pairing/data/repository/pairing_repository.dart';
+import 'package:operator_mobile/feature/pairing/presentation/manual_connect_screen/logic/manual_connect_cubit.dart';
+import 'package:operator_mobile/feature/pairing/presentation/re_pair_sheet/ui/re_pair_sheet.dart';
 import 'package:operator_mobile/core/app_routes/routes_strings.dart';
 import 'package:operator_mobile/core/app_themes/colors/dark_skin.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
@@ -35,6 +40,19 @@ import '../../../../../helpers/connection_harness.dart';
 class _MockSessionsRepository extends Mock implements SessionsRepository {}
 
 class _MockMuxClient extends Mock implements MuxClient {}
+
+class _MockPairingRepository extends Mock implements PairingRepository {}
+
+class _MockServerConfigStore extends Mock implements ServerConfigStore {}
+
+void _registerRePair() {
+  final store = _MockServerConfigStore();
+  when(() => store.current).thenReturn(kTestDesktop);
+  sl.registerFactoryParam<ManualConnectCubit, ManualConnectMode, void>(
+    (mode, _) => ManualConnectCubit(_MockPairingRepository(), store, mode: mode),
+  );
+  addTearDown(sl.reset);
+}
 
 class _StubConfigSource implements ServerConfigSource {
   const _StubConfigSource([this.current]);
@@ -110,6 +128,7 @@ void main() {
                   : 'route ${settings.name}',
             ),
           ),
+          builder: (context, child) => SkinScope(skin: const DarkSkin(), child: child!),
           home: SkinScope(
             skin: const DarkSkin(),
             child: MultiBlocProvider(
@@ -329,6 +348,7 @@ void main() {
         designSize: const Size(390, 844),
         builder: (context, child) => MaterialApp(
           onGenerateRoute: (settings) => MaterialPageRoute(builder: (_) => Text('route ${settings.name}')),
+          builder: (context, child) => SkinScope(skin: const DarkSkin(), child: child!),
           home: SkinScope(
             skin: const DarkSkin(),
             child: MultiBlocProvider(
@@ -352,6 +372,7 @@ void main() {
 
       expect(find.byType(BoardSkeleton), findsOneWidget);
       expect(find.text('No agents yet'), findsNothing);
+      expect(tester.widget<BoardSkeleton>(find.byType(BoardSkeleton)).label, 'Loading agents');
 
       gate.complete(Result.success(GlobalResponse(data: const BoardSnapshot(
         sessions: [SessionModel(id: 'w-1', displayName: 'Worker', status: 'working')],
@@ -388,6 +409,7 @@ void main() {
     });
 
     testWidgets('an auth failure offers Re-pair instead of a retry that would spend an attempt', (tester) async {
+      _registerRePair();
       var fetches = 0;
       await pumpWithBoard(tester, () async {
         fetches++;
@@ -399,7 +421,8 @@ void main() {
       await tester.tap(find.byKey(ConnectionErrorState.retryKey));
       await settle(tester);
 
-      expect(find.text('route ${RoutesStrings.pairingScan}'), findsOneWidget);
+      expect(find.byType(RePairForm), findsOneWidget);
+      expect(find.text('route ${RoutesStrings.pairingScan}'), findsNothing);
       expect(fetches, 1);
     });
 

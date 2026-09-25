@@ -12,13 +12,18 @@ import 'package:operator_mobile/feature/pairing/logic/host_address.dart';
 
 part 'manual_connect_state.dart';
 
+enum ManualConnectMode { manual, rePair }
+
 class ManualConnectCubit extends Cubit<ManualConnectState> {
-  ManualConnectCubit(this._repository, ServerConfigStore serverConfigStore)
+  ManualConnectCubit(this._repository, ServerConfigStore serverConfigStore, {this.mode = ManualConnectMode.manual})
     : hostController = TextEditingController(text: _prefillHost(serverConfigStore.current)),
-      passwordController = TextEditingController(text: serverConfigStore.current?.password ?? ''),
+      passwordController = TextEditingController(
+        text: mode == ManualConnectMode.manual ? serverConfigStore.current?.password ?? '' : '',
+      ),
       _secure = serverConfigStore.current?.secure ?? false,
       super(const ManualConnectInitialState());
 
+  final ManualConnectMode mode;
   final PairingRepository _repository;
   final TextEditingController hostController;
   final TextEditingController passwordController;

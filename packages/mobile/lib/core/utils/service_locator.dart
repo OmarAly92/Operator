@@ -140,9 +140,8 @@ class ServiceLocator {
         fromOnboarding: fromOnboarding,
       ),
     );
-    sl.registerFactory<ManualConnectCubit>(
-      () =>
-          ManualConnectCubit(sl<PairingRepository>(), sl<ServerConfigStore>()),
+    sl.registerFactoryParam<ManualConnectCubit, ManualConnectMode, void>(
+      (mode, _) => ManualConnectCubit(sl<PairingRepository>(), sl<ServerConfigStore>(), mode: mode),
     );
     sl.registerFactory<ConnectionsCubit>(
       () => ConnectionsCubit(sl<DesktopsRepository>(), sl<PairingRemoteDataSource>(), sl<ServerConfigStore>()),

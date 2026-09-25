@@ -124,4 +124,19 @@ void main() {
     },
     expect: () => [isA<ConnectLoadingState>(), isA<ConnectFailureState>()],
   );
+
+  blocTest<ManualConnectCubit, ManualConnectState>(
+    're-pair mode keeps the paired host and asks for a fresh password',
+    build: () {
+      when(() => store.current).thenReturn(
+        const ServerConfig(host: '10.0.0.5', httpPort: '58682', secure: true, password: 'rotated-away'),
+      );
+      return ManualConnectCubit(repository, store, mode: ManualConnectMode.rePair);
+    },
+    verify: (cubit) {
+      expect(cubit.hostController.text, '10.0.0.5:58682');
+      expect(cubit.passwordController.text, isEmpty);
+      expect(cubit.secure, isTrue);
+    },
+  );
 }

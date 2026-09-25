@@ -6,15 +6,17 @@ import 'package:operator_mobile/core/widgets/main_widgets/space_widgets.dart';
 import 'package:operator_mobile/core/widgets/motion/shimmer.dart';
 
 class BoardSkeleton extends StatelessWidget {
-  const BoardSkeleton({super.key});
+  const BoardSkeleton({super.key, this.label = 'Loading agents'});
 
   static const int cardCount = 6;
+
+  final String label;
 
   @override
   Widget build(BuildContext context) {
     final insets = MediaQuery.paddingOf(context);
     return Semantics(
-      label: 'Loading agents',
+      label: label,
       child: ListView(
         physics: const NeverScrollableScrollPhysics(),
         padding: EdgeInsets.only(top: insets.top + 12, bottom: insets.bottom + 40),

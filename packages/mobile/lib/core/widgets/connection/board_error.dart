@@ -7,6 +7,7 @@ import 'package:operator_mobile/core/connection/connection_cubit.dart';
 import 'package:operator_mobile/core/error_handling/connection_error.dart';
 import 'package:operator_mobile/core/error_handling/failures/failure.dart';
 import 'package:operator_mobile/core/widgets/connection/connection_error_state.dart';
+import 'package:operator_mobile/feature/pairing/presentation/re_pair_sheet/ui/re_pair_sheet.dart';
 
 class BoardError extends StatelessWidget {
   const BoardError({super.key, required this.failure, required this.onRetry});
@@ -25,7 +26,7 @@ class BoardError extends StatelessWidget {
       desktopName: connection.state.desktopName,
       onRetry: () => unawaited(onRetry()),
       onSwitchDesktop: () => Navigator.of(context).pushNamed(RoutesStrings.connections),
-      onRePair: () => Navigator.of(context).pushNamed(RoutesStrings.pairingScan),
+      onRePair: () => showRePairSheet(context),
     );
   }
 }

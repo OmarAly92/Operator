@@ -11,6 +11,7 @@ import 'package:operator_mobile/core/app_routes/routes_strings.dart';
 import 'package:operator_mobile/core/app_themes/colors/dark_skin.dart';
 import 'package:operator_mobile/core/app_themes/colors/logic/skin_cubit.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
+import 'package:operator_mobile/core/connection/connection_backoff.dart';
 import 'package:operator_mobile/core/connection/connection_cubit.dart';
 import 'package:operator_mobile/core/connection/connection_report.dart';
 import 'package:operator_mobile/core/error_handling/failures/failure.dart';
@@ -19,18 +20,23 @@ import 'package:operator_mobile/core/replica/replicated.dart';
 import 'package:operator_mobile/core/helpers/result/result.dart';
 import 'package:operator_mobile/core/mux/mux_client.dart';
 import 'package:operator_mobile/core/mux/session_patch.dart';
+import 'package:operator_mobile/core/utils/haptics.dart';
 import 'package:operator_mobile/core/utils/service_locator.dart';
 import 'package:operator_mobile/core/widgets/connection/desktop_status_line.dart';
 import 'package:operator_mobile/core/widgets/glass/glass_button.dart';
 import 'package:operator_mobile/core/widgets/glass/glass_metrics.dart';
 import 'package:operator_mobile/core/widgets/glass/glass_tab_bar.dart';
 import 'package:operator_mobile/core/widgets/glass/scroll_edge_effect.dart';
+import 'package:operator_mobile/core/widgets/sheet/app_sheet.dart';
 import 'package:operator_mobile/feature/notification/data/model/notification_page_model.dart';
 import 'package:operator_mobile/feature/notification/data/model/params/get_notifications_params.dart';
 import 'package:operator_mobile/feature/notification/data/model/phone_alert_status_model.dart';
 import 'package:operator_mobile/feature/notification/data/repository/notification_repository.dart';
 import 'package:operator_mobile/feature/notification/presentation/notifications_screen/logic/notifications_cubit.dart';
 import 'package:operator_mobile/feature/pairing/data/repository/desktops_repository.dart';
+import 'package:operator_mobile/feature/pairing/data/repository/pairing_repository.dart';
+import 'package:operator_mobile/feature/pairing/presentation/manual_connect_screen/logic/manual_connect_cubit.dart';
+import 'package:operator_mobile/feature/pairing/presentation/re_pair_sheet/ui/re_pair_sheet.dart';
 import 'package:operator_mobile/feature/pull_request/data/repository/pull_request_repository.dart';
 import 'package:operator_mobile/feature/pull_request/presentation/pull_requests_screen/logic/pull_request_cubit.dart';
 import 'package:operator_mobile/feature/pull_request/presentation/pull_requests_screen/ui/pull_requests_screen.dart';
@@ -58,11 +64,14 @@ class _MockNotificationRepository extends Mock implements NotificationRepository
 
 class _MockDesktopsRepository extends Mock implements DesktopsRepository {}
 
+class _MockPairingRepository extends Mock implements PairingRepository {}
+
 void main() {
   late _MockSessionsRepository repository;
   late _MockMuxClient mux;
   late _MockNotificationRepository notificationRepository;
-  late ConnectionHarness connection;
+  ConnectionHarness? harness;
+  ConnectionHarness connection() => harness ??= ConnectionHarness();
 
   setUpAll(() {
     registerFallbackValue(const GetNotificationsParams());
@@ -109,11 +118,11 @@ void main() {
         ntfyDeepLink: false,
       ),
     );
-    connection = ConnectionHarness();
   });
 
   tearDown(() async {
-    await connection.dispose();
+    await harness?.dispose();
+    harness = null;
     await sl.reset();
   });
 
@@ -141,7 +150,7 @@ void main() {
                 MaterialPageRoute<void>(builder: (_) => Text('route ${settings.name}'), settings: settings),
             home: MultiBlocProvider(
               providers: [
-                BlocProvider<ConnectionCubit>.value(value: connection.cubit),
+                BlocProvider<ConnectionCubit>.value(value: connection().cubit),
                 BlocProvider<SessionsCubit>(create: (_) => SessionsCubit(repository, mux, sl<ServerConfigStore>())),
                 BlocProvider<SkinCubit>(create: (_) => SkinCubit()),
                 BlocProvider<NotificationsCubit>(
@@ -414,7 +423,7 @@ void main() {
   });
 
   testWidgets('the Agents header names the desktop and its status, and tapping it opens the desktop list', (tester) async {
-    connection.report(ConnectionOutcome.online);
+    connection().report(ConnectionOutcome.online);
     await pumpShell(tester);
 
     expect(find.text('Mac'), findsWidgets);
@@ -438,10 +447,114 @@ void main() {
     when(() => repository.getBoard()).thenAnswer(
       (_) async => Result.failure(ServerFailure(error: 'down', message: 'down', statusCode: -6)),
     );
-    connection.report(ConnectionOutcome.unreachable);
+    connection().report(ConnectionOutcome.unreachable);
     await pumpShell(tester);
 
     expect(find.text('Cached worker'), findsOneWidget);
     expect(find.text('Offline · last seen 5m ago'), findsWidgets);
+    await tester.pump(ConnectionBackoff.initial);
+  });
+
+  group('connection-aware chrome', () {
+    final notified = <String>[];
+
+    setUp(() {
+      notified.clear();
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(
+        const MethodChannel(Haptics.channelName),
+        (call) async {
+          notified.add(call.arguments as String);
+          return null;
+        },
+      );
+      sl.registerFactoryParam<ManualConnectCubit, ManualConnectMode, void>(
+        (mode, _) => ManualConnectCubit(_MockPairingRepository(), sl<ServerConfigStore>(), mode: mode),
+      );
+    });
+
+    tearDown(() {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(const MethodChannel(Haptics.channelName), null);
+    });
+
+    double spawnOpacity(WidgetTester tester) => tester
+        .widget<AnimatedOpacity>(
+          find.ancestor(of: find.byKey(HomeShell.spawnButtonKey), matching: find.byType(AnimatedOpacity)).first,
+        )
+        .opacity;
+
+    testWidgets('the + dims while the desktop is unreachable, and explains itself instead of opening Spawn', (tester) async {
+      connection().report(ConnectionOutcome.unreachable);
+      await pumpShell(tester);
+
+      expect(spawnOpacity(tester), HomeShell.offlineSpawnOpacity);
+      await tester.tap(find.byKey(HomeShell.spawnButtonKey));
+      await settle(tester);
+
+      expect(notified, ['error']);
+      expect(find.text(HomeShell.offlineSpawnMessage), findsOneWidget);
+      expect(find.text('route /spawn'), findsNothing);
+      await tester.pump(const Duration(seconds: 5));
+      await settle(tester);
+    });
+
+    testWidgets('the + opens Spawn while the desktop answers', (tester) async {
+      connection().report(ConnectionOutcome.online);
+      await pumpShell(tester);
+
+      expect(spawnOpacity(tester), 1);
+      await tester.tap(find.byKey(HomeShell.spawnButtonKey));
+      await settle(tester);
+
+      expect(find.text('route /spawn'), findsOneWidget);
+    });
+
+    testWidgets('the re-pair sheet opens once per auth failure', (tester) async {
+      await pumpShell(tester);
+
+      connection().report(ConnectionOutcome.auth);
+      await settle(tester);
+      connection().report(ConnectionOutcome.auth);
+      await settle(tester);
+      expect(find.byType(RePairForm), findsOneWidget);
+
+      await tester.tap(find.byKey(AppSheet.closeKey));
+      await settle(tester);
+      await settle(tester);
+      expect(find.byType(RePairForm), findsNothing);
+
+      connection().report(ConnectionOutcome.auth);
+      await settle(tester);
+      expect(find.byType(RePairForm), findsNothing);
+
+      connection().report(ConnectionOutcome.online);
+      connection().report(ConnectionOutcome.auth);
+      await settle(tester);
+      expect(find.byType(RePairForm), findsOneWidget);
+    });
+
+    testWidgets('after the sheet is dismissed, tapping Needs re-pairing in the header reopens it', (tester) async {
+      await pumpShell(tester);
+      connection().report(ConnectionOutcome.auth);
+      await settle(tester);
+      await tester.tap(find.byKey(AppSheet.closeKey));
+      await settle(tester);
+      await settle(tester);
+      expect(find.byType(RePairForm), findsNothing);
+
+      await tester.tap(find.byKey(DesktopStatusLine.tapKey).first);
+      await settle(tester);
+
+      expect(find.byType(RePairForm), findsOneWidget);
+      expect(find.text('route /connections'), findsNothing);
+    });
+
+    testWidgets('an auth failure from before the shell mounted still opens the re-pair sheet', (tester) async {
+      connection().report(ConnectionOutcome.auth);
+      await pumpShell(tester);
+      await settle(tester);
+
+      expect(find.byType(RePairForm), findsOneWidget);
+    });
   });
 }

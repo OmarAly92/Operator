@@ -14,7 +14,7 @@ import 'package:operator_mobile/feature/sessions/logic/agents_view.dart';
 import 'package:operator_mobile/feature/sessions/logic/session_status.dart';
 import 'package:operator_mobile/feature/sessions/logic/sessions_filter.dart';
 import 'package:operator_mobile/feature/sessions/presentation/sessions_screen/logic/sessions_cubit.dart';
-import 'package:operator_mobile/feature/sessions/presentation/sessions_screen/ui/widgets/board_error.dart';
+import 'package:operator_mobile/core/widgets/connection/board_error.dart';
 import 'package:operator_mobile/feature/sessions/presentation/sessions_screen/ui/widgets/board_skeleton.dart';
 import 'package:operator_mobile/feature/sessions/presentation/sessions_screen/ui/widgets/session_actions_sheet.dart';
 import 'package:operator_mobile/feature/sessions/presentation/sessions_screen/ui/widgets/session_card.dart';

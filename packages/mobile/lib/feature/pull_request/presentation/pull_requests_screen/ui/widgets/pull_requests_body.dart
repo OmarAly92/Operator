@@ -10,7 +10,7 @@ import 'package:operator_mobile/feature/pull_request/presentation/pull_requests_
 import 'package:operator_mobile/feature/pull_request/presentation/pull_requests_screen/ui/widgets/pr_card.dart';
 import 'package:operator_mobile/core/widgets/pickers/project_switcher.dart';
 import 'package:operator_mobile/feature/sessions/presentation/sessions_screen/logic/sessions_cubit.dart';
-import 'package:operator_mobile/feature/sessions/presentation/sessions_screen/ui/widgets/board_error.dart';
+import 'package:operator_mobile/core/widgets/connection/board_error.dart';
 import 'package:operator_mobile/feature/sessions/presentation/sessions_screen/ui/widgets/board_skeleton.dart';
 
 bool _inBucket(PrFilter filter, PrLifecycle life) {
@@ -33,7 +33,7 @@ class PullRequestsBody extends StatelessWidget {
           if (sessionsState is GetSessionsFailureState) {
             return BoardError(failure: sessionsState.failure, onRetry: sessionsCubit.refresh);
           }
-          return const BoardSkeleton();
+          return const BoardSkeleton(label: 'Loading pull requests');
         }
         return BlocBuilder<PullRequestCubit, PullRequestState>(
           builder: (context, prState) {
