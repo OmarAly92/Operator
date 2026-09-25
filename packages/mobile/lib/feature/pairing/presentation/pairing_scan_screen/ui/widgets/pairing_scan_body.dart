@@ -10,6 +10,7 @@ import 'package:operator_mobile/core/widgets/main_widgets/app_text.dart';
 import 'package:operator_mobile/feature/pairing/presentation/pairing_scan_screen/logic/pairing_scan_cubit.dart';
 import 'package:operator_mobile/feature/pairing/presentation/pairing_scan_screen/ui/widgets/camera_permission_gate.dart';
 import 'package:operator_mobile/feature/pairing/presentation/pairing_scan_screen/ui/widgets/connection_failure_banner.dart';
+import 'package:operator_mobile/feature/pairing/presentation/pairing_success/ui/pairing_success_view.dart';
 
 class PairingScanBody extends StatefulWidget {
   const PairingScanBody({super.key});
@@ -71,8 +72,15 @@ class _PairingScanBodyState extends State<PairingScanBody> {
             ),
           ),
           BlocBuilder<PairingScanCubit, PairingScanState>(
-            buildWhen: (previous, current) => current is VerifyLoadingState || current is VerifyFailureState || current is PairingScanInitialState,
+            buildWhen: (previous, current) =>
+                current is VerifyLoadingState ||
+                current is VerifyFailureState ||
+                current is VerifySuccessState ||
+                current is PairingScanInitialState,
             builder: (context, state) {
+              if (state is VerifySuccessState) {
+                return PairingSuccessView(desktopName: state.desktopName);
+              }
               if (state is VerifyLoadingState) {
                 return ColoredBox(color: skin.scrim, child: const AppLoader.center());
               }

@@ -139,4 +139,18 @@ void main() {
       expect(cubit.secure, isTrue);
     },
   );
+
+  blocTest<ManualConnectCubit, ManualConnectState>(
+    'a verified connect names the saved desktop for the success step',
+    build: () {
+      when(() => store.current).thenReturn(null);
+      when(() => repository.verifyAndConnect(any())).thenAnswer((_) async => Result.success(_desktop));
+      return ManualConnectCubit(repository, store);
+    },
+    act: (cubit) {
+      cubit.hostController.text = '10.0.0.9';
+      return cubit.connect(TargetPlatform.iOS);
+    },
+    expect: () => [isA<ConnectLoadingState>(), const ConnectSuccessState('Mac')],
+  );
 }

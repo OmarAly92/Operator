@@ -45,13 +45,13 @@ class PairingScanCubit extends Cubit<PairingScanState> {
     emit(const VerifyLoadingState());
     final result = await _repository.verifyAndConnect(target);
     result.when(
-      onSuccess: (_) {
+      onSuccess: (desktop) {
         TelemetryRuntime.capture(MobileEvents.paired, {
           'method': 'qr',
           'from_onboarding': fromOnboarding,
         });
         if (fromOnboarding) TelemetryRuntime.capture(MobileEvents.onboardingCompleted);
-        emit(const VerifySuccessState());
+        emit(VerifySuccessState(desktop.name ?? target.host));
       },
       onFailure: (failure) {
         _scanned = false;

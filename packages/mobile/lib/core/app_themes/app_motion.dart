@@ -62,6 +62,8 @@ sealed class AppMotion {
 
   static const Duration launchCacheBudget = Duration(milliseconds: 400);
 
+  static const Duration pairingSuccessHold = Duration(milliseconds: 1200);
+
   /// Expressive loader shape-morph container spin.
   static const Duration loaderSpin = Duration(milliseconds: 1730);
 

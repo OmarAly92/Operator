@@ -127,4 +127,14 @@ void main() {
     },
     verify: (_) => verify(() => repository.verifyAndConnect(any())).called(2),
   );
+
+  blocTest<PairingScanCubit, PairingScanState>(
+    'a verified scan names the saved desktop for the success step',
+    build: () {
+      when(() => repository.verifyAndConnect(any())).thenAnswer((_) async => Result.success(_desktop));
+      return PairingScanCubit(repository, store, fromOnboarding: true);
+    },
+    act: (cubit) => cubit.onScan('{"v":1,"host":"10.0.0.5","port":"3011","password":"secret12"}', TargetPlatform.iOS),
+    expect: () => [isA<VerifyLoadingState>(), const VerifySuccessState('Mac')],
+  );
 }

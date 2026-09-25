@@ -16,7 +16,12 @@ final class VerifyLoadingState extends PairingScanState {
 }
 
 final class VerifySuccessState extends PairingScanState {
-  const VerifySuccessState();
+  const VerifySuccessState(this.desktopName);
+
+  final String desktopName;
+
+  @override
+  List<Object?> get props => [desktopName];
 }
 
 final class VerifyFailureState extends PairingScanState {

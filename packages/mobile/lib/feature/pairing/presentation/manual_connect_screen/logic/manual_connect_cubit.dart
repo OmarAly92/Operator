@@ -47,9 +47,9 @@ class ManualConnectCubit extends Cubit<ManualConnectState> {
     );
     final result = await _repository.verifyAndConnect(target);
     result.when(
-      onSuccess: (_) {
+      onSuccess: (desktop) {
         TelemetryRuntime.capture(MobileEvents.paired, {'method': 'manual'});
-        emit(const ConnectSuccessState());
+        emit(ConnectSuccessState(desktop.name ?? target.host));
       },
       onFailure: (failure) => emit(
         ConnectFailureState(
