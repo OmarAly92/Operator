@@ -1,6 +1,6 @@
 import { HighlightPainter } from "./highlight-painter.js";
 import { SELECTION_COLOUR, type Highlight } from "./highlights.js";
-import { compileMarks, markHighlights, MarkCache, visibleLogicalLines, type CompiledMark, type MarkRule } from "./marks.js";
+import { compileMarks, disposeMarks, markHighlights, MarkCache, visibleLogicalLines, type CompiledMark, type MarkRule } from "./marks.js";
 import { RendererSelection } from "./renderer-selection.js";
 import { ROW_END, type BlockOrder } from "./selection-model.js";
 import type { TextRows } from "./selection-text.js";
@@ -35,6 +35,7 @@ export class RendererHighlights {
 	}
 
 	setMarks(rules: readonly MarkRule[]): void {
+		disposeMarks(this.marks);
 		this.marks = compileMarks(rules);
 		this.markCache.clear();
 		this.paint();
@@ -57,6 +58,7 @@ export class RendererHighlights {
 	reset(): void {
 		this.selection.reset();
 		this.find = null;
+		disposeMarks(this.marks);
 		this.marks = [];
 		this.markCache.clear();
 		this.painter.reset();

@@ -1,7 +1,7 @@
 import { Plus, Trash2 } from "lucide-react";
-import { Fragment } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { warpDarkTheme } from "@operator/terminal-react";
+import { initTerminalCoreFromUrl, warpDarkTheme } from "@operator/terminal-react";
 import type { MessageKey } from "../../i18n/messages";
 import {
 	MAX_TERMINAL_MARK_PATTERN,
@@ -39,6 +39,19 @@ function Swatch({ ansi }: { ansi: number }) {
 export function TerminalMarksSection({ titleHidden }: { titleHidden?: boolean }) {
 	const { t } = useTranslation();
 	const marks = useUiStore((state) => state.terminalMarks);
+	const [, setEngineReady] = useState(false);
+	useEffect(() => {
+		let live = true;
+		void initTerminalCoreFromUrl().then(
+			() => {
+				if (live) setEngineReady(true);
+			},
+			() => undefined,
+		);
+		return () => {
+			live = false;
+		};
+	}, []);
 	const setMarks = useUiStore((state) => state.setTerminalMarks);
 	const update = (id: string, patch: Partial<Omit<TerminalMark, "id">>) =>
 		setMarks(marks.map((mark) => (mark.id === id ? { ...mark, ...patch } : mark)));

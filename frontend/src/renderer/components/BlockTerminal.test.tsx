@@ -212,6 +212,7 @@ vi.mock("@operator/terminal-react", () => {
 		initTerminalCoreFromUrl: async () => {
 			mockState.wasmInits += 1;
 		},
+		markRegexValid: (_pattern: string): boolean | null => null,
 		createTerminalCore: () => {
 			let generation = 0;
 			const core: MockCore = {

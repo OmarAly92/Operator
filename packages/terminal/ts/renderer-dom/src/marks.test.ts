@@ -1,6 +1,10 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { readFile } from "node:fs/promises";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { initTerminalCore } from "@operator/terminal-core";
 import { logicalLineAt } from "./logical-lines";
-import { compileMarks, markHighlights, MarkCache, MARK_CACHE_LINES, markSpans, visibleLogicalLines, type RowId } from "./marks";
+import { compileMarks, disposeMarks, markHighlights, MarkCache, MARK_CACHE_LINES, markSpans, visibleLogicalLines, type RowId } from "./marks";
 import type { TextRows } from "./selection-text";
 
 const RED = "rgb(255 0 0 / 0.4)";
@@ -23,6 +27,11 @@ function rendered(rows: readonly number[]): RowId[] {
 
 afterEach(() => {
 	vi.unstubAllGlobals();
+});
+
+beforeAll(async () => {
+	const bytes = await readFile(join(dirname(fileURLToPath(import.meta.url)), "..", "..", "core", "wasm", "vt_core_bg.wasm"));
+	await initTerminalCore(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer);
 });
 
 describe("compileMarks", () => {
@@ -64,6 +73,39 @@ describe("compileMarks", () => {
 			{ pattern: "y", regex: false, colour: RED },
 		]);
 		expect(marks.map((mark) => mark.colour)).toEqual([RED]);
+	});
+});
+
+describe("regex safety", () => {
+	it("finishes a pattern that would hang a backtracking engine", () => {
+		const marks = compileMarks([{ pattern: "(a+)+$", regex: true, colour: RED }]);
+		expect(marks).toHaveLength(1);
+		const started = performance.now();
+		expect(markSpans(`${"a".repeat(20_000)}!`, marks)).toEqual([]);
+		expect(performance.now() - started).toBeLessThan(2000);
+		disposeMarks(marks);
+	});
+
+	it("drops a pattern the linear-time engine does not support", () => {
+		const marks = compileMarks([
+			{ pattern: "(?=x)", regex: true, colour: RED },
+			{ pattern: "(a)\\1", regex: true, colour: RED },
+			{ pattern: "ok", regex: true, colour: BLUE },
+		]);
+		expect(marks.map((mark) => mark.colour)).toEqual([BLUE]);
+		disposeMarks(marks);
+	});
+
+	it("counts offsets in UTF-16 units past non-ASCII text", () => {
+		const marks = compileMarks([{ pattern: "x", regex: true, colour: RED }]);
+		expect(markSpans("é日😀x", marks)).toEqual([{ start: 4, end: 5, rank: 0 }]);
+		disposeMarks(marks);
+	});
+
+	it("matches nothing once disposed", () => {
+		const marks = compileMarks([{ pattern: "x", regex: true, colour: RED }]);
+		disposeMarks(marks);
+		expect(markSpans("x", marks)).toEqual([]);
 	});
 });
 

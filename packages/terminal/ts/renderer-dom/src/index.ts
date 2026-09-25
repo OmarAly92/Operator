@@ -15,7 +15,7 @@ export { styleCodeToCssVar } from "./style-code.js";
 export { terminalStyles } from "./styles.js";
 export { createFindBar, type FindBar, type FindBarHost, type FindBarOptions } from "./find-bar.js";
 export type { FindHighlights } from "./renderer-highlights.js";
-export { compileMarks, type MarkRule } from "./marks.js";
+export { compileMarks, disposeMarks, type MarkRule } from "./marks.js";
 export { HIGHLIGHT_PRIORITY, type HighlightKind } from "./highlights.js";
 export { mountJumpToBottom, type JumpToBottom, type JumpToBottomOptions } from "./jump-to-bottom.js";
 export { LOAD_OLDER_RETRY_MS, mountLoadOlder, type LoadOlder, type LoadOlderOptions, type LoadOlderSource } from "./load-older.js";

@@ -985,22 +985,37 @@ history of `master`.
   overlays above the text (`.terminal-decorations { z-index: 2 }`); a redaction
   must cover glyphs. The model paints under the text.
 - Cost (`run.mjs --panes-only`, `claude-spinner-10s`, alternated A/B, three
-  pairs, 5 `BENCH_MARKS`, planning machine): 10-visible TaskDuration control
-  1.088–1.277 s, marks 1.085–1.155 s, ScriptDuration +0.03–0.12 s per 10 s
-  across ten panes. On the cloud sandbox this plan was implemented in (three
-  pairs, same fixture), the same A/B ran slower overall and did not clear the
-  gate — control 2.248–2.338 s, marks=5 2.854–3.110 s — but a CPU profile of
-  the marks 10-visible row
-  (`bench/agent-session/baselines/pane-cost/2026-09-25-marks-profile-visible10.txt`)
-  put `highlight-painter.js` self time at ~119 ms of a 10 s window against
-  ~1,145 ms in `getBoundingClientRect` (paid by every visible pane regardless
-  of marks), showing no highlight-specific blowup; the gap looks like sandbox
-  noise, not a regression, but it was not re-measured on the planning machine
-  to confirm. The painter measures only rows a highlight touches; a first
+  pairs, 5 `BENCH_MARKS`, re-measured on the owner's Mac 2026-09-25 at review):
+  10-visible TaskDuration control 0.846–0.877 s, marks 1.038–1.117 s;
+  ScriptDuration 0.28 → 0.43–0.47 s; solo 0.207 → 0.244–0.254 s. That is a real
+  cost, not noise (the planning-machine "overlap" came from a noisy control,
+  1.088–1.277 s; the cloud sandbox ran 2.2–3.1 s overall). It is the cost of the
+  feature on a worst case: `\d+` touches almost every row of the recording, and
+  Claude Code's spinner rewrites those rows every frame, so they are rebuilt as
+  new elements (`block-body.ts:74-77`) and must be painted again, one extra
+  style recalc per pane per frame (RecalcStyleCount 2,256 → 3,237). About 1–2 %
+  of one core across ten streaming panes, zero with no marks. The painter
+  caches each row's paint by element, highlights and pane geometry and reuses
+  it for a row whose element did not change, and measures one touched row per
+  paint for the pane's left edge and width instead of every touched row
+  (review fix; selection, find and marks screenshots byte-identical before and
+  after, 11 of 11). A first
   build that measured every rendered row per paint doubled ScriptDuration.
-- Known risk, not fixed: JavaScript has no regex time limit. A user regex with
-  catastrophic backtracking runs on each changed painted line. The per-line
-  cache means only lines whose text changed are rescanned.
+- Regex marks run on vt-core's linear-time engine, not JavaScript's
+  backtracking one (fixed at review 2026-09-25): `crates/vt-core/src/mark_regex.rs`
+  (`regex-automata` meta regex, NFA size limit 1 MiB, empty matches skipped,
+  offsets returned in UTF-16 units), exported as `WasmMarkRegex`
+  (`crates/vt-wasm/src/mark.rs`) and wrapped by `compileMarkRegex` /
+  `markRegexValid` in `ts/core/src/mark-regex.ts`. `(a+)+$` over 20,000
+  characters returns at once instead of hanging the pane. The syntax is Rust's:
+  lookaround and backreferences are rejected, and Operator's Settings validates
+  with the same engine (`markRegexValid`, loaded when the section opens; a
+  JavaScript syntax check is the fallback before the wasm is ready). Literal
+  words stay a case-insensitive escaped JavaScript regex, which cannot
+  backtrack. Compiled regexes live in wasm memory and are freed by
+  `disposeMarks` when the rules change or the renderer resets. Guards:
+  `crates/vt-core/tests/mark_regex.rs`, `ts/core/src/mark-regex.test.ts`,
+  `marks.test.ts` "regex safety", `frontend/src/renderer/lib/terminal-marks.test.ts`.
 - Guards: `highlights.test.ts`, `highlight-painter.test.ts`, `marks.test.ts`,
   `dom-block-renderer.highlights.test.ts` (overlap order, trim, rewrap, no
   repaint scheduled, no layout read when idle, parked, alternate screen,
