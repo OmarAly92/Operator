@@ -149,7 +149,7 @@ void main() {
   Finder tabLabel(String label) =>
       find.descendant(of: find.byType(GlassTabBar), matching: find.text(label));
 
-  Future<void> pumpShell(WidgetTester tester) async {
+  Future<void> pumpShell(WidgetTester tester, {Key? shellKey}) async {
     await tester.pumpWidget(
       SkinScope(
         skin: const DarkSkin(),
@@ -171,7 +171,7 @@ void main() {
                   ),
                 ),
               ],
-              child: const HomeShell(),
+              child: HomeShell(key: shellKey),
             ),
           ),
         ),
@@ -576,6 +576,22 @@ void main() {
 
       expect(find.byType(RePairForm), findsOneWidget);
       expect(find.text('route /connections'), findsNothing);
+    });
+
+    testWidgets('rebuilding the shell in the same auth episode does not reopen the re-pair sheet', (tester) async {
+      await pumpShell(tester, shellKey: const ValueKey('first'));
+      connection().report(ConnectionOutcome.auth);
+      await settle(tester);
+      expect(find.byType(RePairForm), findsOneWidget);
+      await tester.tap(find.byKey(AppSheet.closeKey));
+      await settle(tester);
+      await settle(tester);
+      expect(find.byType(RePairForm), findsNothing);
+
+      await pumpShell(tester, shellKey: const ValueKey('second'));
+      await settle(tester);
+
+      expect(find.byType(RePairForm), findsNothing);
     });
 
     testWidgets('an auth failure from before the shell mounted still opens the re-pair sheet', (tester) async {

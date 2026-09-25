@@ -45,6 +45,7 @@ class ConnectionCubit extends Cubit<AppConnectionState> implements ConnectionSig
   Duration _delay = ConnectionBackoff.initial;
   DateTime? _lastSeenAt;
   int _episode = 0;
+  int? _rePairOfferedEpisode;
 
   ServerConfig? get config => _config.current;
 
@@ -53,6 +54,10 @@ class ConnectionCubit extends Cubit<AppConnectionState> implements ConnectionSig
 
   @override
   bool get authFailed => state is ConnectionAuthFailedState;
+
+  bool rePairOffered(int episode) => _rePairOfferedEpisode == episode;
+
+  void markRePairOffered(int episode) => _rePairOfferedEpisode = episode;
 
   void resumed() {
     if (isClosed || state is! ConnectionOfflineState) return;

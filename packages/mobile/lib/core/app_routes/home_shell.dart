@@ -53,8 +53,6 @@ class _HomeShellState extends State<HomeShell> {
     (_) => ValueNotifier<double>(0),
   );
 
-  int? _rePairEpisode;
-
   @override
   void initState() {
     super.initState();
@@ -65,11 +63,11 @@ class _HomeShellState extends State<HomeShell> {
   }
 
   bool _isNewAuthFailure(AppConnectionState state) =>
-      state is ConnectionAuthFailedState && state.episode != _rePairEpisode;
+      state is ConnectionAuthFailedState && !context.read<ConnectionCubit>().rePairOffered(state.episode);
 
   void _offerRePair(AppConnectionState state) {
     if (!_isNewAuthFailure(state)) return;
-    _rePairEpisode = (state as ConnectionAuthFailedState).episode;
+    context.read<ConnectionCubit>().markRePairOffered((state as ConnectionAuthFailedState).episode);
     showRePairSheet(context);
   }
 
