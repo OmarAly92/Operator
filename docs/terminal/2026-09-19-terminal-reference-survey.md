@@ -47,7 +47,7 @@ Absent evidence is written as "not known", never guessed.
 
 ## Implementation status (updated 2026-09-24)
 
-Every entry below carries a **Status** line under its heading, checked against the tree on 2026-09-24 (`development`): 39 done, 19 partial, 21 not done, 7 not pursued, 1 not needed, 1 n/a. "Plan A–F" are the agent-TUI spec's plans (`docs/superpowers/specs/2026-09-19-agent-tui-experience-design.md`); "Plan 4" is the background-pane plan (`docs/superpowers/plans/2026-09-23-terminal-background-pane-cost.md`). Entries marked non-goal were excluded by the agent-TUI spec, not rejected. "Roadmap Plan 1" is the paste-safety plan (`docs/superpowers/plans/2026-09-24-terminal-plan-1-paste-safety.md`).
+Every entry below carries a **Status** line under its heading, checked against the tree on 2026-09-24 (`development`): 40 done, 18 partial, 21 not done, 7 not pursued, 1 not needed, 1 n/a. "Plan A–F" are the agent-TUI spec's plans (`docs/superpowers/specs/2026-09-19-agent-tui-experience-design.md`); "Plan 4" is the background-pane plan (`docs/superpowers/plans/2026-09-23-terminal-background-pane-cost.md`). Entries marked non-goal were excluded by the agent-TUI spec, not rejected. "Roadmap Plan 1" is the paste-safety plan (`docs/superpowers/plans/2026-09-24-terminal-plan-1-paste-safety.md`). "Roadmap Plan 7" is the very-old-output plan (`docs/superpowers/plans/2026-09-25-terminal-plan-7-old-output.md`).
 
 | Entry | Status | What landed / what is missing |
 |---|---|---|
@@ -115,7 +115,7 @@ Every entry below carries a **Status** line under its heading, checked against t
 | §5.5 | Done | Plan E — `path:line` hints and links open through the host; since `fdc202778` the editor chosen in Settings (VS Code, Cursor, Zed) opens at the line and column. The default "system" opener opens the file without the line. |
 | §5.6 | Not done | No host highlight-rule or marker API. |
 | §5.7 | Not pursued | Replaced by the pump hold (1/60 s coalescing, held across a DEC 2026 block) and the 12 ms drain budget (agent-TUI spec). |
-| §5.8 | Partial | Plan C — lazy rewrap for cold scrollback (`HOT_ROWS = 2_000`). Fixed segments and an ANSI ring beyond the cap not done. |
+| §5.8 | Done | Roadmap Plan 7 (2026-09-25) — the pty-host mirror keeps rows trimmed past the cap as SGR text in a 32 MiB cold ring; the pane's Load older output fetches ≤ 2,048 rows as a history chunk. Plan C — lazy rewrap for cold scrollback (`HOT_ROWS = 2_000`). Fixed segments were already ours (`Content` is chunked). |
 | §5.9 | Done | Plan D — `unicode-width`/`unicode-segmentation` on Unicode 17, tested against `GraphemeBreakTest.json`; `graphemes` on by default since `7395b910c`. |
 | §5.10 | Done | Plan A — `vt-core` `feature = "trace"` records every dispatched action with its stream offset (Kitty's `REPORT_COMMAND`), which was the whole proposal. |
 | §6.1 | Not done | No nonce, `trusted` flag or continuation property. The rerun action fills the line editor and does not execute. |
@@ -3399,7 +3399,7 @@ proposal.
 
 ### 5.8 Scrollback in fixed segments plus an ANSI ring beyond the row cap
 
-> **Status: Partial.** Plan C — lazy rewrap for cold scrollback (`HOT_ROWS = 2_000`). Fixed segments and an ANSI ring beyond the cap not done.
+> **Status: Done.** Roadmap Plan 7 (2026-09-25) — cold ring in the pty-host mirror (32 MiB, not persisted) and Load older output in the pane (`TERMINAL.md` §4.33). Plan C — lazy rewrap for cold scrollback.
 
 **Reference**
 - `kitty/kitty/history.c:17-45`: history is allocated in segments of
