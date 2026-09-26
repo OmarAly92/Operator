@@ -376,3 +376,31 @@ fn a_hyperlink_in_an_evicted_row_still_resolves_after_loading() {
         .expect("a linked run");
     assert_eq!(snapshot.link_uri(link), Some("https://example.com/doc"));
 }
+
+#[test]
+fn a_full_older_chunk_lands_every_row_with_its_text() {
+    let mut bytes = Vec::new();
+    for line in 1..=6_000 {
+        bytes.extend_from_slice(format!("{line}\r\n").as_bytes());
+    }
+    let mut source = mirror(88, 1_000);
+    source.feed(&bytes);
+    let mut target = pane(88, 1_000);
+    target.feed(&bytes);
+    let before = target.first_stable_row();
+    assert_eq!(before, source.first_stable_row());
+
+    let chunk = source
+        .older_chunk(before, OLDER_CHUNK_ROWS, OUT)
+        .expect("rows");
+    assert_eq!(chunk.rows, OLDER_CHUNK_ROWS);
+    target.feed(&chunk.bytes);
+
+    assert_eq!(target.first_stable_row(), chunk.first_stable_row);
+    let rows = texts(&target);
+    let first = chunk.first_stable_row as usize + 1;
+    for (index, row) in rows.iter().take(OLDER_CHUNK_ROWS + 10).enumerate() {
+        assert_eq!(row, &(first + index).to_string(), "row {index}");
+    }
+    common::check(&target);
+}

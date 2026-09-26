@@ -95,3 +95,41 @@ func TestTheColdRingNeverPassesItsCap(t *testing.T) {
 		t.Fatalf("the oldest rows were never dropped: %+v", stats)
 	}
 }
+
+func TestAFullOlderChunkLandsEveryRowInTheReceivingCore(t *testing.T) {
+	mirror := newRingParser(t, 88, 3, 1000, 1<<20)
+	feedRows(t, mirror, 0, 6000)
+	stats, err := mirror.ColdStats()
+	if err != nil {
+		t.Fatalf("cold stats: %v", err)
+	}
+	front := stats.FirstStableRow + uint64(stats.Rows)
+	chunk, _, ok, err := mirror.OlderChunk(front, OlderChunkRows)
+	if err != nil || !ok {
+		t.Fatalf("older chunk: ok=%v err=%v", ok, err)
+	}
+	first := front - OlderChunkRows
+	if !strings.HasPrefix(chunk, fmt.Sprintf("\x1b]7000;v=1;history=%d,%d;", first, OlderChunkRows)) {
+		t.Fatalf("chunk starts %q", chunk[:min(len(chunk), 60)])
+	}
+
+	pane := newRingParser(t, 88, 3, 10000, 0)
+	feed(t, pane, fmt.Sprintf("\x1b]7000;v=1;origin=%d\x1b\\", front))
+	feed(t, pane, chunk)
+
+	out, err := pane.RenderTail(OlderChunkRows + 3)
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	lines := strings.Split(out, "\n")
+	for index := 0; index < OlderChunkRows; index++ {
+		want := fmt.Sprintf("row %06d", int(first)+index)
+		if index >= len(lines) || strings.TrimRight(lines[index], " \r") != want {
+			got := ""
+			if index < len(lines) {
+				got = lines[index]
+			}
+			t.Fatalf("row %d = %q, want %q", index, got, want)
+		}
+	}
+}

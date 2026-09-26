@@ -49,6 +49,22 @@ describe("olderOutput", () => {
 		core.dispose();
 	});
 
+	it("lands every row of a full 2,048-row chunk with its text", () => {
+		const core = createTerminalCore({ columns: 88, rows: 3, limits: { rows: 1000, bytes: 1 << 24 } });
+		let live = "";
+		for (let index = 0; index < 6000; index += 1) live += `${index + 1}\r\n`;
+		core.feed(encoder.encode(live));
+		const front = core.snapshot().firstStableRow;
+		const first = front - 2048;
+		let chunk = `\x1b]7000;v=1;history=${first},2048;cols=4\x1b\\`;
+		for (let index = 0; index < 2048; index += 1) chunk += `${first + index + 1}\r\n`;
+		core.feed(encoder.encode(chunk));
+		expect(core.snapshot().firstStableRow).toBe(first);
+		const expected = Array.from({ length: 2048 }, (_, index) => `${first + index + 1}`);
+		expect(rowTexts(core).slice(0, 2048)).toEqual(expected);
+		core.dispose();
+	});
+
 	it("forgets the floor at a process boundary so the pane stops offering older rows", () => {
 		const core = createTerminalCore({ columns: 20, rows: 3, limits: { rows: 10, bytes: 1 << 20 } });
 		core.feed(encoder.encode("\x1b]7000;v=1;older=3\x1b\\"));
