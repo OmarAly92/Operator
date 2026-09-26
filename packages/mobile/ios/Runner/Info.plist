@@ -74,7 +74,7 @@
 		<key>NSLocalNetworkUsageDescription</key>
 		<string>Operator connects to Operator running on your computer over your local network.</string>
 		<key>NSCameraUsageDescription</key>
-		<string>Operator uses your camera to scan the pairing QR code shown by Connect Mobile.</string>
+		<string>Operator uses your camera to scan the pairing QR code and to take photos you attach for your agent.</string>
 		<key>NSPhotoLibraryUsageDescription</key>
 		<string>Operator attaches images you pick to the message you send your agent.</string>
 		<key>NSMicrophoneUsageDescription</key>

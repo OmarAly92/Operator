@@ -1,6 +1,7 @@
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:get_it/get_it.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:operator_mobile/core/api/api_request_helpers/api_consumer.dart';
@@ -58,6 +59,7 @@ import 'package:operator_mobile/feature/settings/presentation/settings_screen/lo
 import 'package:operator_mobile/feature/spawn/data/data_source/spawn_remote_data_source.dart';
 import 'package:operator_mobile/feature/spawn/data/repository/spawn_repository.dart';
 import 'package:operator_mobile/feature/spawn/presentation/spawn_screen/logic/spawn_cubit.dart';
+import 'package:operator_mobile/feature/terminal/data/data_source/attachment_picker.dart';
 import 'package:operator_mobile/feature/terminal/data/data_source/terminal_remote_data_source.dart';
 import 'package:operator_mobile/feature/terminal/data/repository/terminal_repository.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/logic/slash_menu_cubit.dart';
@@ -237,6 +239,7 @@ class ServiceLocator {
     sl.registerLazySingleton<TerminalRemoteDataSource>(
       () => TerminalRemoteDataSourceImp(sl<ApiConsumer>()),
     );
+    sl.registerLazySingleton<AttachmentPicker>(() => AttachmentPickerImp(ImagePicker()));
     sl.registerFactoryParam<SlashMenuCubit, TextEditingController, String>(
       (composer, sessionId) => SlashMenuCubit(sl<TerminalRepository>(), composer, sessionId: sessionId),
     );
