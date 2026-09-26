@@ -31,7 +31,7 @@ sealed class LabControlScenes {
     ),
     'button.press': (launch) => LabCentered(
       backdrop: launch.backdrop,
-      gap: 60,
+      gap: 69,
       children: [
         GlassLabMarker('btn.glass', child: GlassButton.label(label: 'Glass button', onPressed: () {})),
         GlassLabMarker('btn.prominent', child: GlassButton.label(label: 'Prominent button', prominent: true, onPressed: () {})),

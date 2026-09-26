@@ -30,7 +30,13 @@ sealed class LabMaterialScenes {
       backdrop: launch.backdrop,
       children: [
         const LabBlock(width: 250, height: 88, variant: GlassVariant.prominent),
-        GlassButton.label(label: 'Run', icon: Icons.play_arrow_rounded, prominent: true, onPressed: () {}),
+        SizedBox(
+          height: 36,
+          child: OverflowBox(
+            maxHeight: 44,
+            child: GlassButton.label(label: 'Run', icon: Icons.play_arrow_rounded, prominent: true, onPressed: () {}),
+          ),
+        ),
       ],
     ),
     'material.interactive': (launch) => LabCentered(

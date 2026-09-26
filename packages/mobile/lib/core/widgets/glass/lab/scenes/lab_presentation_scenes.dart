@@ -38,7 +38,19 @@ class _SheetSceneState extends State<_SheetScene> {
         detent: AppSheetDetent.medium,
         page: AppSheetPage(
           title: 'Sheet',
-          rows: (context, _) => const [GlassLabMarker('sheet.top', child: SizedBox(height: 56))],
+          rows: (context, _) => [
+            Stack(
+              fit: StackFit.passthrough,
+              children: [
+                const GlassLabMarker('sheet.top', child: SizedBox(height: 56)),
+                Positioned(
+                  left: 0,
+                  top: 0,
+                  child: Semantics(label: 'scene.ready', container: true, child: const SizedBox(width: 1, height: 1)),
+                ),
+              ],
+            ),
+          ],
         ),
         scope: (_, sheet) => SkinScope(skin: skin, child: sheet),
       ),
