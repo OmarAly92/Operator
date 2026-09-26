@@ -344,3 +344,21 @@ func (p *Parser) AltActive() (bool, error) {
 	}
 	return res[0] == 1, nil
 }
+
+type LineEditorState uint32
+
+const (
+	LineEditorUnknown  LineEditorState = 0
+	LineEditorOwned    LineEditorState = 1
+	LineEditorReleased LineEditorState = 2
+)
+
+func (p *Parser) LineEditorState() (LineEditorState, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	res, err := p.module.ExportedFunction("vt_line_editor_state").Call(p.ctx, uint64(p.handle))
+	if err != nil {
+		return LineEditorUnknown, fmt.Errorf("vtwasm: line_editor_state: %w", err)
+	}
+	return LineEditorState(res[0]), nil
+}

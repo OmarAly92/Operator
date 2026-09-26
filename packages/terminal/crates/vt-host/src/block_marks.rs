@@ -48,7 +48,7 @@ pub(crate) fn write_block_close(text: &mut String, snapshot: &vt_core::GridSnaps
     }
 }
 
-fn percent_encode_into(text: &mut String, value: &str) {
+pub(crate) fn percent_encode_into(text: &mut String, value: &str) {
     for ch in value.chars() {
         if ch.is_ascii() && matches!(ch as u8, b';' | b'=' | b'%' | 0x00..=0x1f) {
             text.push_str(&format!("%{:02X}", ch as u8));

@@ -74,6 +74,16 @@ impl Parser {
         });
     }
 
+    pub(crate) fn open_prompt(&self) -> Option<(usize, usize, &crate::block::BlockMeta)> {
+        let block = self.grid.open_block_ref()?;
+        let first = self.grid.flat_extent(block).0;
+        let input = match self.input_mark {
+            Some((id, offset)) if id == block.id => first + offset,
+            _ => first,
+        };
+        Some((first, input, &block.meta))
+    }
+
     pub(crate) fn start_output(&mut self) {
         self.commit_evicted();
         self.grid.start_output(self.block_start_row());

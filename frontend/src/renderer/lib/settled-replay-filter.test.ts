@@ -112,4 +112,38 @@ describe("createSettledReplayFilter", () => {
 		]);
 		core.dispose();
 	});
+
+	it("hands the line editor back and keeps one two-line prompt over resizes after durable history and the host's replay", () => {
+		const prompt = "~ first line\r\nsecond $ ";
+		const durable =
+			`\x1b]7000;v=1;id=t-1;cwd=%2Ftmp;branch=\x1b\\\x1b]133;A\x07${prompt}\x1b]133;B\x07\x1b]7000;v=1;input-ready=1\x07echo one\r\n` +
+			`\x1b]7000;v=1;id=t-1;cmd=echo%20one\x1b\\\x1b]7000;v=1;input-released=1\x07\x1b]133;C\x07one\r\n` +
+			`\x1b]7000;v=1;id=t-1;exit=0\x1b\\\x1b]133;D;0\x07`;
+		const replay =
+			ORIGIN +
+			SETTLED_BEGIN +
+			"\x1b[0m~ first line\x1b[0m\r\n\x1b[0msecond $ echo one\x1b[0m\r\n\x1b[0mone\x1b[0m\r\n" +
+			SETTLED_END +
+			"\x1b[0m~ first line\x1b[0m\r\n\x1b[0msecond $\x1b[0m" +
+			"\x1b[1A\x1b]7000;v=1;cwd=/tmp;branch=\x1b\\\x1b]133;A\x1b\\\x1b[1B\x1b]7000;v=1;input-ready=1\x1b\\" +
+			"\r\x1b[9C" +
+			READY;
+		const redraw = "\r\r\x1bM\x1b[J~ first line\r\nsecond $ ";
+		const core = createTerminalCore({ columns: 80, rows: 24, limits: { rows: 1000, bytes: 1 << 24 } });
+		core.feed(encoder.encode(durable));
+		const filter = createSettledReplayFilter();
+		for (let at = 0; at < replay.length; at += 16) {
+			core.feed(filter.push(encoder.encode(replay.slice(at, at + 16))));
+		}
+		expect(core.lineEditorState()).toBe("owned");
+
+		for (let round = 0; round < 4; round += 1) {
+			core.resize(40, 24);
+			core.feed(encoder.encode(redraw));
+			core.resize(80, 24);
+			core.feed(encoder.encode(redraw));
+		}
+		expect(rowTexts(core)).toEqual(["~ first line", "second $ echo one", "one", "~ first line", "second $"]);
+		core.dispose();
+	});
 });
