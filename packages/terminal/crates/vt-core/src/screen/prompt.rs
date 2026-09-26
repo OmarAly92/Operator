@@ -39,7 +39,12 @@ impl ScreenGrid {
         for (offset, flag) in wrapped.iter_mut().enumerate().take(kept) {
             let source = self.phys_start(top + offset);
             let target = offset * cols;
-            cells[target..target + width].clone_from_slice(&self.cells[source..source + width]);
+            for (to, from) in cells[target..target + width]
+                .iter_mut()
+                .zip(&self.cells[source..source + width])
+            {
+                *to = from.clone();
+            }
             if width < self.cols
                 && self.cells[source + width].ch == '\0'
                 && self.cells[source + width - 1].ch != '\0'
@@ -90,7 +95,9 @@ impl ScreenGrid {
         self.cells.rotate_right(count * cols);
         self.wrapped.rotate_right(count);
         for (index, (cells, wrapped)) in pulled.into_iter().enumerate() {
-            self.cells[index * cols..(index + 1) * cols].clone_from_slice(&cells);
+            for (col, cell) in cells.into_iter().enumerate() {
+                self.cells[index * cols + col] = cell;
+            }
             self.wrapped[index] = wrapped;
         }
         self.row += count;
