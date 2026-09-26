@@ -114,6 +114,16 @@ describe("typing ahead into the line editor", () => {
 		expect(lines()).toEqual(["l"]);
 	});
 
+	it("puts a report that arrives after keys typed into the box at the prompt ahead of them, since the shell got its keys first", () => {
+		const { editor, core, lines } = mount();
+		core.feed(encode(READY + RELEASED));
+		typeWhileRunning(editor, "l");
+		core.feed(encode(READY));
+		typeWhileRunning(editor, "s");
+		core.feed(encode(report("l")));
+		expect(lines()).toEqual(["ls"]);
+	});
+
 	it("appends the report to a draft the host put back while the command ran", () => {
 		const { editor, core, lines } = mount();
 		core.feed(encode(READY + RELEASED));

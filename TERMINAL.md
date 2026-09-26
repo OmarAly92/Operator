@@ -1954,6 +1954,13 @@ history of `master`.
   focuses the input box if the full-screen input had focus; keys sent after zsh's
   report were cleared by the `^U`, and the gate now appends what followed the newest
   copy of the report when it has no control character (`sentAfterReport`).
+  A report that arrives after keys were already typed into the box at the new prompt
+  goes in front of them (`LineEditor.adoptTypeahead` inserts after the text the box
+  held when the prompt became owned): `qls` quitting `less` gave `sl` before. Limit: a
+  key that reaches zsh after its `line-init` check is read by zle as ordinary input
+  and never reported, so the box shows only the later keys while the command still
+  runs whole (`l` + `s` runs `ls`). Guard: `line-editor-typeahead.test.ts` "puts a
+  report that arrives after keys typed into the box at the prompt ahead of them…".
 - The paste-confirm dialog focused nothing on close; `usePasteConfirm(restoreFocus)`
   prevents that default in `onCloseAutoFocus` and `BlockTerminal` gives the surface a
   new focus token. (Enter in that dialog cancels: the close button has initial focus,
