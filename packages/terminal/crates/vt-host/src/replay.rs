@@ -1,4 +1,4 @@
-use vt_core::TerminalCore;
+use vt_core::{CellSpan, CellStyle, GridSnapshot, TerminalCore};
 
 use crate::block_marks::{settled_rows_end, SETTLED_BEGIN, SETTLED_END};
 use crate::line_editor_marks::write_line_editor_marks;
@@ -82,8 +82,9 @@ pub(crate) fn replay_frame(core: &TerminalCore, lines: u32) -> Option<Vec<u8>> {
         // row below it down by one -- the client's grid no longer agrees
         // with the host's about which row is which.
         let cols = core.columns();
-        let settled_end = settled_rows_end(&snapshot).min(total - 1);
-        if settled_end > first {
+        let (settled_row, settled_col) = settled_point(core, &snapshot, total);
+        let settled = settled_row > first || (settled_row == first && settled_col > 0);
+        if settled {
             text.push_str(SETTLED_BEGIN);
         }
         for i in first..total {
@@ -94,15 +95,39 @@ pub(crate) fn replay_frame(core: &TerminalCore, lines: u32) -> Option<Vec<u8>> {
                 cols - indent,
             );
             let last = i + 1 == total;
+            let terminator = if last { "" } else { "\r\n" };
+            if settled && i == settled_row && settled_col > 0 {
+                let split = settled_col.saturating_sub(indent);
+                write_indent(&mut text, indent.min(settled_col));
+                let at = byte_at_column(row_bytes, snapshot.row_cell_spans(i), split);
+                let (head, tail) = split_pairs(&pairs, at);
+                write_styled_row_with(
+                    &mut text,
+                    &row_bytes[..at],
+                    &head,
+                    &|id| snapshot.link_uri(id),
+                    "",
+                );
+                text.push_str(SETTLED_END);
+                write_indent(&mut text, indent.saturating_sub(settled_col));
+                write_styled_row_with(
+                    &mut text,
+                    &row_bytes[at..],
+                    &tail,
+                    &|id| snapshot.link_uri(id),
+                    terminator,
+                );
+                continue;
+            }
             write_indent(&mut text, indent);
             write_styled_row_with(
                 &mut text,
                 row_bytes,
                 &pairs,
                 &|id| snapshot.link_uri(id),
-                if last { "" } else { "\r\n" },
+                terminator,
             );
-            if i + 1 == settled_end && settled_end > first {
+            if settled && settled_col == 0 && i + 1 == settled_row {
                 text.push_str(SETTLED_END);
             }
         }
@@ -138,4 +163,50 @@ pub(crate) fn replay_frame(core: &TerminalCore, lines: u32) -> Option<Vec<u8>> {
         out.extend_from_slice(READY_MARK.as_bytes());
     }
     Some(out)
+}
+
+fn settled_point(core: &TerminalCore, snapshot: &GridSnapshot, total: usize) -> (usize, usize) {
+    let end = settled_rows_end(snapshot);
+    match core.command_end() {
+        Some((row, col)) if end > 0 && (row == end || row + 1 == end) && row < total => (row, col),
+        _ => (end.min(total - 1), 0),
+    }
+}
+
+fn byte_at_column(row: &[u8], spans: &[CellSpan], column: usize) -> usize {
+    let text = std::str::from_utf8(row).unwrap_or("");
+    let mut at = 0;
+    let mut filled = 0;
+    while at < text.len() && filled < column {
+        match spans.iter().find(|span| span.start as usize == at) {
+            Some(span) => {
+                filled += usize::from(span.width);
+                at = span.end as usize;
+            }
+            None => {
+                filled += 1;
+                at += text[at..].chars().next().map_or(1, char::len_utf8);
+            }
+        }
+    }
+    at.min(row.len())
+}
+
+type StylePairs = Vec<(u32, CellStyle)>;
+
+fn split_pairs(pairs: &[(u32, CellStyle)], at: usize) -> (StylePairs, StylePairs) {
+    let at = at as u32;
+    let mut head = Vec::new();
+    let mut tail = Vec::new();
+    for &(end, style) in pairs {
+        if end <= at {
+            head.push((end, style));
+            continue;
+        }
+        if head.last().is_none_or(|&(last, _)| last < at) && at > 0 {
+            head.push((at, style));
+        }
+        tail.push((end - at, style));
+    }
+    (head, tail)
 }

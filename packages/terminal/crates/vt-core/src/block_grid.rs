@@ -32,6 +32,7 @@ pub struct BlockGrid {
     trailing_started_at_ms: Option<u64>,
     open_start_fixed: bool,
     open_output_started: bool,
+    command_end: Option<(BlockId, usize, usize)>,
 }
 
 impl BlockGrid {
@@ -49,6 +50,7 @@ impl BlockGrid {
             trailing_started_at_ms: None,
             open_start_fixed: false,
             open_output_started: false,
+            command_end: None,
         }
     }
 
@@ -157,6 +159,27 @@ impl BlockGrid {
             meta,
         });
         self.next_id += 1;
+    }
+
+    pub(crate) fn note_command_end(&mut self, point: Option<(usize, usize)>) {
+        self.command_end = match (self.open.as_ref(), point) {
+            (Some(open), Some((row, col))) => (self.origin + row)
+                .checked_sub(self.retreat_slack)
+                .map(|stable| (open.id, stable, col)),
+            _ => None,
+        };
+    }
+
+    pub fn command_end(&self) -> Option<(usize, usize)> {
+        let (id, row, col) = self.command_end?;
+        let finished = self
+            .closed
+            .iter()
+            .any(|block| block.id == id && block.state == BlockState::Finished);
+        if !finished || row < self.origin {
+            return None;
+        }
+        Some((row - self.origin + self.retreat_slack, col))
     }
 
     /// Close the currently open block with an optional exit code. A close
@@ -421,6 +444,13 @@ impl BlockGrid {
             block.first_row = remap(block.first_row);
         }
         self.next_row = remap(self.next_row);
+        self.command_end = self.command_end.and_then(|(id, stable, col)| {
+            let row = stable.checked_sub(origin)?;
+            if row < old_len && (map[row] != row || map[row + 1] != row + 1) {
+                return None;
+            }
+            Some((id, remap(stable), col))
+        });
     }
 
     /// Every block, closed and open, in insertion order. The open block

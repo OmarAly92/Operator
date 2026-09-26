@@ -376,6 +376,10 @@ impl ScreenGrid {
         self.set_row_wrapped(to, wrapped);
     }
 
+    pub(crate) fn pending_wrap(&self) -> bool {
+        self.pending_wrap
+    }
+
     pub(crate) fn clear_pending_wrap(&mut self) {
         self.pending_wrap = false;
     }

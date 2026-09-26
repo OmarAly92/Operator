@@ -22,4 +22,8 @@ impl TerminalCore {
             git_branch: meta.git_branch.clone(),
         })
     }
+
+    pub fn command_end(&self) -> Option<(usize, usize)> {
+        self.parser.grid().command_end()
+    }
 }
