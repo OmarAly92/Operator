@@ -9,6 +9,7 @@ import 'package:operator_mobile/core/api/models/global_response.dart';
 import 'package:operator_mobile/core/app_themes/app_motion.dart';
 import 'package:operator_mobile/core/error_handling/failures/failure.dart';
 import 'package:operator_mobile/core/helpers/result/result.dart';
+import 'package:operator_mobile/core/utils/service_locator.dart';
 import 'package:operator_mobile/core/widgets/glass/glass_style.dart';
 import 'package:operator_mobile/core/widgets/glass/glass_surface.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_text.dart';
@@ -18,7 +19,6 @@ import 'package:operator_mobile/feature/blocks/data/model/session_model_option_m
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/model_picker_sheet.dart';
 import 'package:operator_mobile/feature/dictation/ui/mic_key.dart';
 import 'package:operator_mobile/feature/sessions/presentation/sessions_screen/ui/widgets/agent_logo.dart';
-import 'package:operator_mobile/core/utils/service_locator.dart';
 import 'package:operator_mobile/feature/terminal/data/data_source/recent_photos_data_source.dart';
 import 'package:operator_mobile/feature/terminal/data/model/params/send_session_message_params.dart';
 import 'package:operator_mobile/feature/terminal/data/model/params/stage_session_attachments_params.dart';

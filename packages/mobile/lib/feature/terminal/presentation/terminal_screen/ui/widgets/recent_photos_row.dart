@@ -13,12 +13,15 @@ import 'package:operator_mobile/feature/terminal/data/model/recent_photo_model.d
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/logic/recent_photos_cubit.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/logic/terminal_cubit.dart';
 
+const String kRecentPhotoLoadFailed = "That photo couldn't be loaded.";
+
 class RecentPhotosRow extends StatelessWidget {
   const RecentPhotosRow({super.key});
 
   static const Key rowKey = ValueKey('recent-photos-row');
   static const Key stripKey = ValueKey('recent-photos-strip');
   static const Key manageKey = ValueKey('recent-photos-manage');
+  static const Key noticeKey = ValueKey('recent-photos-notice');
   static const double thumbSize = 72;
 
   @override
@@ -49,7 +52,7 @@ class _RecentPhotosView extends StatelessWidget {
                   : DisclosureChevron(expanded: state.expanded, color: skin.textFaint),
               onTap: () {
                 Haptics.tap();
-                unawaited(denied ? cubit.openSettings() : cubit.toggle());
+                unawaited(denied ? cubit.allowAccess() : cubit.toggle());
               },
             ),
             Disclosure(
@@ -69,9 +72,18 @@ class _RecentPhotosView extends StatelessWidget {
                               scrollDirection: Axis.horizontal,
                               itemCount: state.photos.length,
                               separatorBuilder: (_, _) => const SizedBox(width: 8),
-                              itemBuilder: (context, index) => _RecentPhotoThumb(photo: state.photos[index]),
+                              itemBuilder: (context, index) {
+                                final photo = state.photos[index];
+                                return _RecentPhotoThumb(photo: photo, loading: state.loadingIds.contains(photo.id));
+                              },
                             ),
                     ),
+                    if (state.notice case final notice?)
+                      Text(
+                        notice,
+                        key: RecentPhotosRow.noticeKey,
+                        style: AppTextStyle.style12Medium.copyWith(color: skin.red),
+                      ),
                     if (state.access == PhotoAccess.limited)
                       Align(
                         alignment: Alignment.centerLeft,
@@ -93,9 +105,10 @@ class _RecentPhotosView extends StatelessWidget {
 }
 
 class _RecentPhotoThumb extends StatelessWidget {
-  const _RecentPhotoThumb({required this.photo});
+  const _RecentPhotoThumb({required this.photo, required this.loading});
 
   final RecentPhotoModel photo;
+  final bool loading;
 
   @override
   Widget build(BuildContext context) {
@@ -133,6 +146,16 @@ class _RecentPhotoThumb extends StatelessWidget {
                           ),
                         ),
                 ),
+                if (loading)
+                  Positioned.fill(
+                    child: Center(
+                      child: SizedBox.square(
+                        key: ValueKey('recent-photo-loading-$id'),
+                        dimension: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: skin.accent),
+                      ),
+                    ),
+                  ),
                 if (selected)
                   Positioned(
                     right: 4,
@@ -149,15 +172,20 @@ class _RecentPhotoThumb extends StatelessWidget {
 }
 
 Future<void> _toggle(BuildContext context, TerminalCubit terminal, String id, bool selected) async {
+  final photos = context.read<RecentPhotosCubit>();
+  if (photos.isLoading(id)) return;
   Haptics.select();
+  photos.showNotice(null);
   if (selected) {
     terminal.removeAttachment(recentPhotoAttachmentId(id));
     return;
   }
-  final attachment = await context.read<RecentPhotosCubit>().load(id);
+  final attachment = await photos.load(id);
   if (attachment == null) {
-    terminal.showAttachmentNotice("That photo couldn't be loaded.");
+    terminal.showAttachmentNotice(kRecentPhotoLoadFailed);
+    photos.showNotice(kRecentPhotoLoadFailed);
     return;
   }
   terminal.toggleAttachment(attachment);
+  photos.showNotice(terminal.attachmentNotice);
 }

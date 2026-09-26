@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:bloc_test/bloc_test.dart';
@@ -58,4 +59,62 @@ void main() {
     expect: () => [RecentPhotosState(access: PhotoAccess.granted, photos: source.photos)],
     verify: (_) => expect(source.requested, isNull),
   );
+
+  blocTest<RecentPhotosCubit, RecentPhotosState>(
+    'a denied row asks again and expands when access was granted in Settings since',
+    build: () => RecentPhotosCubit(source),
+    seed: () => const RecentPhotosState(access: PhotoAccess.denied),
+    act: (cubit) => cubit.allowAccess(),
+    expect: () => [
+      const RecentPhotosState(expanded: true, loading: true),
+      RecentPhotosState(expanded: true, access: PhotoAccess.granted, photos: source.photos),
+    ],
+    verify: (_) {
+      expect(source.accessRequests, 1);
+      expect(source.settings, 0);
+    },
+  );
+
+  blocTest<RecentPhotosCubit, RecentPhotosState>(
+    'a row that is still denied opens Settings without expanding',
+    build: () => RecentPhotosCubit(source..access = PhotoAccess.denied),
+    seed: () => const RecentPhotosState(access: PhotoAccess.denied),
+    act: (cubit) => cubit.allowAccess(),
+    expect: () => const <RecentPhotosState>[],
+    verify: (_) {
+      expect(source.accessRequests, 1);
+      expect(source.settings, 1);
+      expect(source.requested, isNull);
+    },
+  );
+
+  test('collapsing the row during its first load keeps it collapsed', () async {
+    source.latestGate = Completer<void>();
+    final cubit = RecentPhotosCubit(source);
+    final opening = cubit.toggle();
+    await Future<void>.delayed(Duration.zero);
+    await cubit.toggle();
+    source.latestGate!.complete();
+    await opening;
+
+    expect(cubit.state.expanded, isFalse);
+    await cubit.close();
+  });
+
+  test('a photo is marked loading while it loads and a repeat load is refused', () async {
+    source.loadGate = Completer<void>();
+    final cubit = RecentPhotosCubit(source);
+    final first = cubit.load('1');
+    await Future<void>.delayed(Duration.zero);
+
+    expect(cubit.isLoading('1'), isTrue);
+    expect(cubit.state.loadingIds, {'1'});
+    expect(await cubit.load('1'), isNull);
+
+    source.loadGate!.complete();
+    expect(await first, isNotNull);
+    expect(cubit.isLoading('1'), isFalse);
+    expect(source.loads, 1);
+    await cubit.close();
+  });
 }

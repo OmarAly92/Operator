@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:operator_mobile/feature/terminal/data/data_source/recent_photos_data_source.dart';
@@ -10,19 +11,33 @@ class FakeRecentPhotos implements RecentPhotosDataSource {
   int? requested;
   int settings = 0;
   int manages = 0;
+  int loads = 0;
+  int accessRequests = 0;
+  ComposerAttachment? Function(String id)? loadResult;
+  Completer<void>? loadGate;
+  Completer<void>? latestGate;
 
   @override
-  Future<PhotoAccess> requestAccess() async => access;
+  Future<PhotoAccess> requestAccess() async {
+    accessRequests++;
+    return access;
+  }
 
   @override
   Future<List<RecentPhotoModel>> latest(int count) async {
     requested = count;
+    await latestGate?.future;
     return photos;
   }
 
   @override
-  Future<ComposerAttachment?> load(String id) async =>
-      ComposerAttachment(id: recentPhotoAttachmentId(id), name: 'photo-$id.jpg', mimeType: 'image/jpeg', bytes: Uint8List(2));
+  Future<ComposerAttachment?> load(String id) async {
+    loads++;
+    await loadGate?.future;
+    final result = loadResult;
+    if (result != null) return result(id);
+    return ComposerAttachment(id: recentPhotoAttachmentId(id), name: 'photo-$id.jpg', mimeType: 'image/jpeg', bytes: Uint8List(2));
+  }
 
   @override
   Future<void> openSettings() async => settings++;

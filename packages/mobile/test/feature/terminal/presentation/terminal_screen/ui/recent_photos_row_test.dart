@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -5,6 +6,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:operator_mobile/core/utils/service_locator.dart';
 import 'package:operator_mobile/feature/terminal/data/data_source/recent_photos_data_source.dart';
 import 'package:operator_mobile/feature/terminal/data/model/recent_photo_model.dart';
+import 'package:operator_mobile/feature/terminal/logic/attachment_limits.dart';
+import 'package:operator_mobile/feature/terminal/logic/composer_attachment.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/ui/widgets/add_context_sheet.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/ui/widgets/recent_photos_row.dart';
 
@@ -68,6 +71,71 @@ void main() {
     await tester.tap(find.byKey(RecentPhotosRow.rowKey));
     await tester.pumpAndSettle();
     expect(source.settings, 1);
+  });
+
+  testWidgets('access granted in Settings expands the denied row on the next tap', (tester) async {
+    source.access = PhotoAccess.denied;
+    await open(tester);
+    await tester.tap(find.byKey(RecentPhotosRow.rowKey));
+    await tester.pumpAndSettle();
+
+    source.access = PhotoAccess.granted;
+    await tester.tap(find.byKey(RecentPhotosRow.rowKey));
+    await tester.pumpAndSettle();
+
+    expect(source.settings, 0);
+    expect(find.text('Show recent photos'), findsOneWidget);
+    expect(find.byKey(const ValueKey('recent-photo-1')), findsOneWidget);
+  });
+
+  testWidgets('a second tap while a photo loads is ignored and the tile shows progress', (tester) async {
+    source.loadGate = Completer<void>();
+    await open(tester);
+    await tester.tap(find.byKey(RecentPhotosRow.rowKey));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const ValueKey('recent-photo-1')));
+    await tester.pump();
+    expect(find.byKey(const ValueKey('recent-photo-loading-1')), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('recent-photo-1')));
+    await tester.pump();
+
+    source.loadGate!.complete();
+    await tester.pumpAndSettle();
+
+    expect(source.loads, 1);
+    expect(harness.cubit.hasAttachment('photo:1'), isTrue);
+    expect(find.byKey(const ValueKey('recent-photo-loading-1')), findsNothing);
+  });
+
+  testWidgets('a photo that cannot be loaded says so inside the sheet and in the tray', (tester) async {
+    source.loadResult = (_) => null;
+    await open(tester);
+    await tester.tap(find.byKey(RecentPhotosRow.rowKey));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const ValueKey('recent-photo-1')));
+    await tester.pumpAndSettle();
+
+    expect(harness.cubit.attachmentNotice, kRecentPhotoLoadFailed);
+    expect(tester.widget<Text>(find.byKey(RecentPhotosRow.noticeKey)).data, kRecentPhotoLoadFailed);
+    expect(harness.cubit.hasAttachment('photo:1'), isFalse);
+  });
+
+  testWidgets('a photo over the limits is refused inside the sheet and in the tray', (tester) async {
+    harness.cubit.addAttachments([
+      for (var i = 0; i < AttachmentLimits.maxCount; i++)
+        ComposerAttachment(id: 'f$i', name: 'f$i.png', mimeType: 'image/png', bytes: Uint8List(4)),
+    ]);
+    await open(tester);
+    await tester.tap(find.byKey(RecentPhotosRow.rowKey));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const ValueKey('recent-photo-1')));
+    await tester.pumpAndSettle();
+
+    expect(harness.cubit.attachmentNotice, kTooManyFiles);
+    expect(tester.widget<Text>(find.byKey(RecentPhotosRow.noticeKey)).data, kTooManyFiles);
   });
 
   testWidgets('limited access offers Manage', (tester) async {
