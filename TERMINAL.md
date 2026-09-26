@@ -1970,6 +1970,20 @@ history of `master`.
   `TerminalSurface.test.tsx` focus hand-off, `usePasteConfirm.test.tsx`,
   `BlockTerminal.test.tsx`.
 
+### 4.50 The first command at a suppressed prompt had no header (end-to-end run, 2026-09-27)
+- Symptom: a page attaching right after bash (banner silenced) or zsh printed its
+  suppressed first prompt showed `echo hello` as plain rows in a header-less block.
+- Cause: the suppressed prompt leaves the mirror blank at 0,0, and `replay_frame`
+  (`crates/vt-host/src/replay.rs`) returned on `primary_is_blank` before the
+  line-editor marks, so the page had no cwd, no `133;A` and no `input-ready`.
+- Now: a blank primary still sends origin, modes and `write_line_editor_marks`; with
+  no marks it still sends nothing (`TestAnEmptyTerminalStillReplaysNothing`).
+- Not a bug: bash's zsh-migration banner and fish's greeting form a header-less,
+  zero-height synthetic block before the first prompt (Warp's bootstrap block does
+  the same); a reload drops it (§4.45).
+- Guards: `crates/vt-host/src/replay_first_prompt_tests.rs`; `vtwasm/line_editor_test.go`
+  `TestReplayAtTheFirstSuppressedPromptHandsTheLineEditorToTheAttachingCore`.
+
 ## 5. Known gaps (not bugs, decisions pending)
 
 - **A prompt resize that would cut output falls back to the stale-copy
