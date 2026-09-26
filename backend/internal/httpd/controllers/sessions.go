@@ -1658,9 +1658,14 @@ func (c *SessionsController) command(w http.ResponseWriter, r *http.Request) {
 
 func (c *SessionsController) permissionModeCommand(w http.ResponseWriter, r *http.Request, raw string) {
 	mode := domain.PermissionMode(strings.TrimSpace(raw))
-	if mode == "" || !mode.Valid() {
+	if mode == "" {
 		envelope.WriteAPIError(w, r, http.StatusBadRequest, "validation", "SESSION_COMMAND_MODE_REQUIRED",
 			"the permission-mode command requires a mode: one of default, accept-edits, plan, auto, bypass-permissions", nil)
+		return
+	}
+	if !mode.Valid() {
+		envelope.WriteAPIError(w, r, http.StatusBadRequest, "bad_request", "INVALID_PERMISSION_MODE",
+			"permissionMode must be one of default, accept-edits, plan, auto, bypass-permissions", nil)
 		return
 	}
 	result, err := c.Svc.SetPermissionMode(r.Context(), sessionID(r), mode)

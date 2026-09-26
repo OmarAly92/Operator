@@ -44,10 +44,9 @@ func TestSessionCommandPermissionModeReportsARestart(t *testing.T) {
 	}
 }
 
-func TestSessionCommandPermissionModeRequiresAValidMode(t *testing.T) {
+func TestSessionCommandPermissionModeRequiresAMode(t *testing.T) {
 	for _, payload := range []string{
 		`{"command":"permission-mode"}`,
-		`{"command":"permission-mode","mode":"yolo"}`,
 		`{"command":"permission-mode","mode":"  "}`,
 	} {
 		svc := newFakeSessionService()
@@ -57,6 +56,21 @@ func TestSessionCommandPermissionModeRequiresAValidMode(t *testing.T) {
 		if len(svc.permissionModeTargets) != 0 {
 			t.Fatalf("payload %s reached the service", payload)
 		}
+	}
+}
+
+func TestSessionCommandPermissionModeRejectsAnInvalidModeLikeSpawn(t *testing.T) {
+	svc := newFakeSessionService()
+	srv := newSessionTestServer(t, svc)
+	body, status, _ := doRequest(t, srv, http.MethodPost, "/api/v1/sessions/opr-1/command", `{"command":"permission-mode","mode":"yolo"}`)
+	assertErrorCode(t, body, status, http.StatusBadRequest, "INVALID_PERMISSION_MODE")
+	var got errorBody
+	mustJSON(t, body, &got)
+	if got.Error != "bad_request" {
+		t.Fatalf("error = %q, want bad_request like spawn", got.Error)
+	}
+	if len(svc.permissionModeTargets) != 0 {
+		t.Fatal("an invalid mode reached the service")
 	}
 }
 
