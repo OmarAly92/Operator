@@ -173,6 +173,25 @@ the daemon sends through ntfy (ntfy.sh) to a per-pairing topic claimed via
 Settings → Phone alerts covers install, subscribe and a test send against
 `/api/v1/phone-alerts`. There is no Firebase or APNs dependency.
 
+**Composer attachments and permission mode.** The agent composer is a two-row
+glass card: the text on top, then **+**, the model chip, the mic, and one slot
+for Send or Stop. **+** opens the Add context sheet (Camera, Photos, Files,
+Show recent photos via `photo_manager`, and a Permission row). Attachments are
+admitted against the daemon's caps (8 files, 10 MiB each, 25 MiB total, no
+SVG), staged with `POST /sessions/{id}/attachments`, and named in the message
+in the daemon's own reference format (`attachment_references.dart` mirrors
+`appendAttachmentReferences`). A failed stage or send keeps the text and the
+attachments; a send with attachments never reroutes to the terminal on
+`SESSION_AWAITING_DECISION` the way a plain send does — it keeps the draft and
+shows "Agent is waiting on a prompt — answer it, then send again." — and a
+retry reuses already staged paths. The Permission row shows only when the
+session DTO's `capabilities.permissionMode` is true; the live mode comes from
+`permission_mode` block events, and a change goes through the
+`permission-mode` session command, which answers `restarted: true` when it had
+to relaunch the agent with `--resume`. `PermissionModeCubit` holds an
+observed or chosen mode until a session DTO agrees, a newer block event
+arrives, or the mux reconnects. Phone spawns default to `bypass-permissions`.
+
 ### Conventions specific to this package
 
 - **Cubit only** — never `Bloc` with events. Static-only classes are `sealed class X`.

@@ -170,6 +170,10 @@ surface (`npm run sqlc`, `npm run api`).
   foreground-absent, coalesced session; the app itself raises local
   notifications from the live mux `notifications` channel while open. The
   earlier Expo push path and `/api/v1/push/devices` are removed.
+- The agent composer attaches camera shots, library photos, files and recent
+  photos (staged into the worktree and named in the message), and reads and
+  changes a Claude Code session's permission mode from the Add context sheet;
+  phone spawns start in Bypass permissions.
 
 ## In flight / not yet a runtime feature
 

@@ -1079,6 +1079,45 @@ rather than guessing:
   claude-code, on a Claude Code version the panel reader was verified against,
   and when its description is unique among running agents.
 
+#### Permission mode
+
+Claude Code writes `{"type":"permission-mode","permissionMode":…}` at start
+and on every live change, and stamps `permissionMode` and `version` on user
+records. The per-tail mapper turns either into a `permission_mode` block event
+(Operator's mode in `text`, `{"mode","version"}` in `detail`) only when the
+mode or the version changes, and `permission_mode` rows sit outside the
+per-session trim so the latest one per session survives. The session DTO
+reports that mode as `permissionMode` (falling back to the durable
+`sessions.launch_permission_mode`, written at spawn and by a mode restart and
+used by every resume), plus `capabilities.permissionMode` and
+`capabilities.permissionModeCycle`; both are filled on the session list and
+get endpoints only, and `permissionMode` is omitted for a harness Operator
+cannot read the mode of.
+
+`POST /api/v1/sessions/{id}/command` with `{"command":"permission-mode","mode":…}`
+has two paths, both refusing rather than guessing, and both allow-listed to the
+Claude Code version the footer reader was checked against:
+
+- **In the Shift+Tab cycle** (Ask, Accept edits, Plan, plus Bypass or Auto
+  when the agent was launched in it): under the same exclusive per-session
+  pane drive as the task stop, on an idle or waiting-for-input session only,
+  the daemon reads the composer footer, presses Shift+Tab, and waits for the
+  footer to change, at most six times, re-checking the session is still
+  eligible before every press. The footer reads "⏸ manual mode on" for
+  Default (Ask); any other or missing footer line is unknown and never counts
+  as a mode. The drive stops at the target, stops without pressing again when
+  the footer is no longer readable (a dialog opened) or the session state
+  changes mid-drive, and stops when the cycle returns to its start. A miss is
+  `PERMISSION_MODE_UNCONFIRMED`; an observer error (the mode can't be read at
+  all) is `PERMISSION_MODE_UNSUPPORTED`.
+- **Outside the cycle**: input admission closes first, the daemon waits a
+  settle interval and re-reads the session, refusing with `SESSION_BUSY`
+  without destroying anything if it is no longer idle or if a pane drive
+  already holds it, then relaunches through the ordinary `--resume` path with
+  the new `--permission-mode` and records it as the launch mode. A `/send`
+  that lands while a restart holds input admission closed also gets
+  `SESSION_BUSY`.
+
 ### Durable shell-block capture
 
 Each eligible standalone shell has one capture writer, tee'd off the pty-host's
