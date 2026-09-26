@@ -4,21 +4,22 @@ import { useEffect } from "react";
 import { describe, expect, it } from "vitest";
 import { pastePreviewLines, usePasteConfirm, type PasteConfirmFn } from "./usePasteConfirm";
 
-function Harness({ onReady }: { onReady: (confirm: PasteConfirmFn) => void }) {
-	const { confirmPaste, dialog } = usePasteConfirm();
+function Harness({ onReady, restoreFocus }: { onReady: (confirm: PasteConfirmFn) => void; restoreFocus?: () => void }) {
+	const { confirmPaste, dialog } = usePasteConfirm(restoreFocus);
 	useEffect(() => {
 		onReady(confirmPaste);
 	}, [confirmPaste, onReady]);
 	return dialog;
 }
 
-function mount() {
+function mount(restoreFocus?: () => void) {
 	let confirm: PasteConfirmFn = async () => false;
 	const view = render(
 		<Harness
 			onReady={(next) => {
 				confirm = next;
 			}}
+			restoreFocus={restoreFocus}
 		/>,
 	);
 	const ask = (preview: string, reason: Parameters<PasteConfirmFn>[1]) => {
@@ -41,6 +42,19 @@ describe("usePasteConfirm", () => {
 		await userEvent.click(screen.getByRole("button", { name: "Paste" }));
 		await expect(answer).resolves.toBe(true);
 		await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+	});
+
+	it.each(["Paste", "Cancel", "Close dialog"])("hands focus back to the terminal after %s", async (name) => {
+		const input = document.createElement("textarea");
+		document.body.append(input);
+		input.focus();
+		const { ask } = mount(() => input.focus());
+		void ask("one\ntwo", "newline");
+		await waitFor(() => expect(screen.getByRole("dialog")).toContainElement(document.activeElement as HTMLElement));
+		await userEvent.click(screen.getByRole("button", { name }));
+		await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+		await waitFor(() => expect(document.activeElement).toBe(input));
+		input.remove();
 	});
 
 	it("answers no on Cancel", async () => {

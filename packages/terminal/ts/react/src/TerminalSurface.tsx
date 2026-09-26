@@ -359,9 +359,13 @@ export function TerminalSurface({
 		}
 		const appCursor = () => core.snapshot().applicationCursorKeys;
 		let active = true;
+		const sendTyped = (data: string) => {
+			onSendRaw(data);
+			editorRef.current?.noteSent(data);
+		};
 		const composition = createCompositionTarget({
 			parent: blockHost,
-			onCommit: (text) => onSendRaw(text),
+			onCommit: sendTyped,
 			anchor: (parent) => anchorFromElement(parent, parent.querySelector("[data-terminal-cursor]")),
 		});
 		const onKeyDown = (event: KeyboardEvent) => {
@@ -381,7 +385,7 @@ export function TerminalSurface({
 			event.preventDefault();
 			rendererRef.current?.selectionClear();
 			predictKeystroke(rendererRef.current, event);
-			onSendRaw(data);
+			sendTyped(data);
 		};
 		// The alt screen has no line editor to hold the line, so every paste
 		// belongs to the child.
@@ -398,7 +402,7 @@ export function TerminalSurface({
 			void deliverPaste(
 				plan,
 				(bytes) => {
-					if (active) onSendRaw(bytes);
+					if (active) sendTyped(bytes);
 				},
 				hostCapsRef.current?.confirmPaste,
 			);
@@ -407,6 +411,7 @@ export function TerminalSurface({
 		blockHost.addEventListener("paste", onPaste);
 		compositionRef.current = composition;
 		composition.focus();
+		refocusEditorRef.current = false;
 		return () => {
 			active = false;
 			refocusEditorRef.current = blockHost.contains(document.activeElement);

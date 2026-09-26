@@ -961,6 +961,20 @@ describe("BlockTerminal paste confirm", () => {
 		await expect(answer).resolves.toBe(true);
 	});
 
+	it.each(["Paste", "Cancel"])("hands the surface a new focus token after %s so typing reaches the terminal", async (name) => {
+		renderTerminal({ focusToken: 3 });
+		await waitFor(() => expect(mockState.host?.confirmPaste).toBeTypeOf("function"));
+		await waitFor(() => expect(mockState.focusToken).toBe(3));
+		act(() => {
+			void mockState.host!.confirmPaste!("one\ntwo", "newline");
+		});
+		await screen.findByRole("dialog", { name: "Paste into the terminal?" });
+		await userEvent.click(screen.getByRole("button", { name }));
+		await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+		await waitFor(() => expect(mockState.focusToken).not.toBe(3));
+		expect(mockState.focusToken).toBeTypeOf("number");
+	});
+
 	it("answers no when the user cancels", async () => {
 		renderTerminal();
 		await waitFor(() => expect(mockState.host?.confirmPaste).toBeTypeOf("function"));
