@@ -14,16 +14,13 @@ class GlassBarItem extends StatelessWidget {
     return GlassSurface(
       kind: GlassShapeKind.capsule,
       size: resolvedExtent,
+      pressable: true,
       child: Theme(
         data: Theme.of(context).copyWith(materialTapTargetSize: MaterialTapTargetSize.shrinkWrap),
         child: Material(
           type: MaterialType.transparency,
           child: ConstrainedBox(
-            constraints: BoxConstraints(
-              minWidth: resolvedExtent,
-              minHeight: resolvedExtent,
-              maxHeight: resolvedExtent,
-            ),
+            constraints: BoxConstraints(minWidth: resolvedExtent, minHeight: resolvedExtent, maxHeight: resolvedExtent),
             child: Center(widthFactor: 1, child: child),
           ),
         ),

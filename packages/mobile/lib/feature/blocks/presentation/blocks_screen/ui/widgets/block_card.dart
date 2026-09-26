@@ -97,6 +97,8 @@ Color railNodeColor(AppSkin skin, SessionBlock block) => switch (railKindOf(bloc
 };
 
 class BlockCard extends StatelessWidget {
+  static const double itemGap = 14;
+
   const BlockCard({
     super.key,
     required this.block,
@@ -193,7 +195,7 @@ class BlockCard extends StatelessWidget {
       ),
       RailKind.notice => _NoticeRow(block: block),
       RailKind.text => Padding(
-        padding: EdgeInsets.only(bottom: showReplyMeta ? 12 : 22, top: 4),
+        padding: const EdgeInsets.only(bottom: BlockCard.itemGap),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -215,7 +217,7 @@ class BlockCard extends StatelessWidget {
       ),
       RailKind.group || RailKind.mcpGroup => railBody,
       RailKind.agent => Padding(
-        padding: EdgeInsets.only(bottom: collapsed ? 0 : 6),
+        padding: EdgeInsets.only(bottom: collapsed ? 0 : BlockCard.itemGap),
         child: railBody,
       ),
       _ => _RailRow(
@@ -316,7 +318,7 @@ class _RailRow extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 12),
-        Expanded(child: Padding(padding: const EdgeInsets.only(bottom: 14), child: body)),
+        Expanded(child: Padding(padding: const EdgeInsets.only(bottom: BlockCard.itemGap), child: body)),
       ],
     ),
   );
@@ -1187,7 +1189,7 @@ class _NoticeRow extends StatelessWidget {
     final skin = context.skin;
     final label = (block.body.isNotEmpty ? block.body : block.title).toUpperCase();
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
+      padding: const EdgeInsets.only(bottom: BlockCard.itemGap),
       child: Row(
         children: [
           Expanded(child: Container(height: 1, color: skin.borderSubtle)),
@@ -1224,7 +1226,7 @@ class _UserBubble extends StatelessWidget {
   Widget build(BuildContext context) {
     final skin = context.skin;
     return Padding(
-      padding: const EdgeInsets.only(bottom: 5),
+      padding: const EdgeInsets.only(bottom: BlockCard.itemGap),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [

@@ -172,7 +172,7 @@ class _GlassTabBarState extends State<GlassTabBar> {
                             ? const GlassSurface(
                                 kind: GlassShapeKind.capsule,
                                 size: GlassMetrics.tabBarHeight,
-                                grouped: true,
+                                ownLayer: true,
                                 child: SizedBox.expand(),
                               )
                             : DecoratedBox(

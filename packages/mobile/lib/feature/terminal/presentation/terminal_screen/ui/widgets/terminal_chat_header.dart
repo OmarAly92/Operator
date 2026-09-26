@@ -210,6 +210,7 @@ class _TrailingCapsule extends StatelessWidget {
       key: TerminalChatHeader.capsuleKey,
       kind: GlassShapeKind.capsule,
       size: TerminalChatHeader.buttonSize,
+      pressable: true,
       child: Theme(
         data: Theme.of(context).copyWith(materialTapTargetSize: MaterialTapTargetSize.shrinkWrap),
         child: Material(

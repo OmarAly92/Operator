@@ -805,9 +805,8 @@ class BlockListState extends State<BlockList> {
   Widget _toolOrBlock(SessionBlock block, List<SessionBlock>? tools, bool hasFollowingRailItem) {
     if (tools == null) return _blockCard(block, hasFollowingRailItem);
     if (tools.length == 1) {
-      return Padding(
+      return KeyedSubtree(
         key: ValueKey(block.id),
-        padding: const EdgeInsets.symmetric(vertical: 4),
         child: _toolCard(block, first: true, last: true),
       );
     }
@@ -849,7 +848,7 @@ class BlockListState extends State<BlockList> {
   Widget _toolCard(SessionBlock block, {required bool first, required bool last}) {
     final border = BorderSide(color: context.skin.borderSubtle);
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
+      margin: EdgeInsets.fromLTRB(16, 0, 16, last ? BlockCard.itemGap : 0),
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
         color: context.skin.bgSurface,

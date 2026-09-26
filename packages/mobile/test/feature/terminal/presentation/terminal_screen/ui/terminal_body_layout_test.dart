@@ -208,7 +208,7 @@ void main() {
     await tester.pump(const Duration(minutes: 1));
   });
 
-  testWidgets('scrolled up, a fade band covers the pill and composer zone', (tester) async {
+  testWidgets('scrolled up, the fade band sits under the composer only', (tester) async {
     harness = TerminalHarness()..start(harness: 'claude-code', blockRecords: _conversation(12), activity: 'active');
     await harness.pump(tester, const TerminalBody());
     await _settleWhileWorking(tester);
@@ -222,10 +222,9 @@ void main() {
     final body = tester.getRect(find.byType(TerminalBody));
     final pill = tester.getRect(find.byKey(FloatingWorkingControl.pillKey));
     expect(band.bottom, body.bottom);
-    expect(band.top, lessThan(pill.top));
-    expect(pill.top - band.top, moreOrLessEquals(BlocksBodyState.bottomFadeExtent, epsilon: 0.5));
+    expect(band.top, moreOrLessEquals(capsule(tester).top, epsilon: 0.5));
+    expect(band.top, greaterThan(pill.bottom));
     expect(bottomEdge(tester).knee, moreOrLessEquals(BlocksBodyState.bottomFadeExtent / band.height, epsilon: 1e-9));
-    expect(bottomEdge(tester).knee, lessThan(0.25));
     await tester.pump(const Duration(minutes: 1));
   });
 

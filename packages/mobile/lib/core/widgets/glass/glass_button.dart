@@ -1,6 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:liquid_glass_renderer/liquid_glass_renderer.dart';
-import 'package:operator_mobile/core/app_themes/app_motion.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/app_themes/text_style/app_text_style.dart';
 import 'package:operator_mobile/core/utils/haptics.dart';
@@ -19,8 +17,8 @@ class GlassButton extends StatefulWidget {
     this.foreground,
     this.diameter,
     this.haptic = Haptics.tap,
-  })  : label = null,
-        compact = false;
+  }) : label = null,
+       compact = false;
 
   const GlassButton.label({
     super.key,
@@ -30,11 +28,9 @@ class GlassButton extends StatefulWidget {
     this.prominent = false,
     this.compact = false,
     this.haptic = Haptics.tap,
-  })  : semanticLabel = null,
-        foreground = null,
-        diameter = null;
-
-  static const double pressedScale = 1.08;
+  }) : semanticLabel = null,
+       foreground = null,
+       diameter = null;
 
   final IconData? icon;
   final String? label;
@@ -51,21 +47,7 @@ class GlassButton extends StatefulWidget {
 }
 
 class _GlassButtonState extends State<GlassButton> {
-  bool _pressed = false;
-
   bool get _enabled => widget.onPressed != null;
-
-  void _setPressed(bool value) {
-    if (value && !_enabled) return;
-    if (_pressed == value) return;
-    setState(() => _pressed = value);
-  }
-
-  @override
-  void didUpdateWidget(covariant GlassButton oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (!_enabled && _pressed) setState(() => _pressed = false);
-  }
 
   void _handleTap() {
     widget.haptic();
@@ -75,7 +57,6 @@ class _GlassButtonState extends State<GlassButton> {
   @override
   Widget build(BuildContext context) {
     final skin = context.skin;
-    final reduceMotion = MediaQuery.disableAnimationsOf(context);
     final foreground = widget.foreground ?? (widget.prominent ? skin.onGlassProminent : skin.accentText);
     final isIcon = widget.label == null;
     final capsuleHeight = widget.compact ? GlassMetrics.compactButtonHeight : GlassMetrics.hitTarget;
@@ -103,36 +84,25 @@ class _GlassButtonState extends State<GlassButton> {
               ),
             ),
           );
-    final scaled = AnimatedScale(
-      scale: _pressed && !reduceMotion ? GlassButton.pressedScale : 1.0,
-      duration: AppMotion.slow,
-      curve: AppMotion.spring,
-      child: GlassSurface(
-        kind: isIcon ? GlassShapeKind.circle : GlassShapeKind.capsule,
-        size: isIcon ? iconDiameter : capsuleHeight,
-        variant: widget.prominent ? GlassVariant.prominent : GlassVariant.regular,
-        child: _enabled
-            ? GlassGlow(
-                glowColor: const Color(0xFFFFFFFF).withValues(alpha: widget.prominent ? 0.25 : 0.35),
-                child: content,
-              )
-            : content,
-      ),
+    final surface = GlassSurface(
+      kind: isIcon ? GlassShapeKind.circle : GlassShapeKind.capsule,
+      size: isIcon ? iconDiameter : capsuleHeight,
+      variant: widget.prominent ? GlassVariant.prominent : GlassVariant.regular,
+      pressable: true,
+      enabled: _enabled,
+      glowAlpha: widget.prominent ? 0.25 : 0.35,
+      child: content,
     );
-    final tappable = widget.compact ? SizedBox(height: GlassMetrics.hitTarget, child: Center(child: scaled)) : scaled;
+    final tappable = widget.compact
+        ? SizedBox(
+            height: GlassMetrics.hitTarget,
+            child: Center(child: surface),
+          )
+        : surface;
     return Semantics(
       button: true,
       enabled: _enabled,
-      child: Listener(
-        onPointerDown: (_) => _setPressed(true),
-        onPointerUp: (_) => _setPressed(false),
-        onPointerCancel: (_) => _setPressed(false),
-        child: GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: _enabled ? _handleTap : null,
-          child: tappable,
-        ),
-      ),
+      child: GestureDetector(behavior: HitTestBehavior.opaque, onTap: _enabled ? _handleTap : null, child: tappable),
     );
   }
 }

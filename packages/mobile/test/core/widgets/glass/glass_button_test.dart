@@ -52,7 +52,7 @@ void main() {
     await tester.pumpWidget(host(GlassButton.label(label: 'Edit', onPressed: () {})));
     final gesture = await tester.startGesture(tester.getCenter(find.byType(GlassButton)));
     await tester.pump();
-    expect(scaleOf(tester), GlassButton.pressedScale);
+    expect(scaleOf(tester), GlassSurface.pressedScale);
     await gesture.up();
     await tester.pumpAndSettle();
     expect(scaleOf(tester), 1.0);
@@ -119,7 +119,7 @@ void main() {
     );
     final gesture = await tester.startGesture(tester.getCenter(find.byType(GlassButton)));
     await tester.pump();
-    expect(scaleOf(tester), GlassButton.pressedScale);
+    expect(scaleOf(tester), GlassSurface.pressedScale);
     onPressed = null;
     await tester.pumpWidget(
       host(

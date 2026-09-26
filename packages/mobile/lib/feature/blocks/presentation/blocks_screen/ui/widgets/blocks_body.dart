@@ -418,7 +418,7 @@ class BlocksBodyState extends State<BlocksBody> {
                   child: ValueListenableBuilder<double>(
                     valueListenable: dockInset,
                     builder: (context, dock, _) {
-                      final height = dock + dockGap + FloatingWorkingControl.coverageHeight + bottomFadeExtent;
+                      final height = dock + dockGap;
                       return ValueListenableBuilder<double>(
                         valueListenable: _bottomEdge,
                         builder: (context, visibility, _) => ScrollEdgeEffect(
