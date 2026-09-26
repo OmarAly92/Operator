@@ -18,6 +18,8 @@ import 'package:operator_mobile/feature/blocks/data/model/session_model_option_m
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/model_picker_sheet.dart';
 import 'package:operator_mobile/feature/dictation/ui/mic_key.dart';
 import 'package:operator_mobile/feature/sessions/presentation/sessions_screen/ui/widgets/agent_logo.dart';
+import 'package:operator_mobile/core/utils/service_locator.dart';
+import 'package:operator_mobile/feature/terminal/data/data_source/recent_photos_data_source.dart';
 import 'package:operator_mobile/feature/terminal/data/model/params/send_session_message_params.dart';
 import 'package:operator_mobile/feature/terminal/data/model/params/stage_session_attachments_params.dart';
 import 'package:operator_mobile/feature/terminal/data/model/staged_attachments_model.dart';
@@ -29,6 +31,7 @@ import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/ui
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/ui/widgets/terminal_composer.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/ui/widgets/terminal_composer_draft_hint.dart';
 
+import '../../../fake_recent_photos.dart';
 import '../../../terminal_harness.dart';
 
 ComposerAttachment png(String id) =>
@@ -46,7 +49,11 @@ void main() {
     registerFallbackValue(const StageSessionAttachmentsParams(files: []));
   });
 
-  setUp(() => harness = TerminalHarness()..start());
+  setUp(() {
+    harness = TerminalHarness()..start();
+    if (sl.isRegistered<RecentPhotosDataSource>()) sl.unregister<RecentPhotosDataSource>();
+    sl.registerSingleton<RecentPhotosDataSource>(FakeRecentPhotos());
+  });
 
   tearDown(() => harness.dispose());
 

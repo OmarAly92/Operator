@@ -13,6 +13,7 @@ import 'package:operator_mobile/feature/terminal/data/data_source/attachment_pic
 import 'package:operator_mobile/feature/terminal/logic/attachment_limits.dart';
 import 'package:operator_mobile/feature/terminal/logic/composer_attachment.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/logic/terminal_cubit.dart';
+import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/ui/widgets/recent_photos_row.dart';
 
 const String kAttachFailed = 'Could not attach that. Try again.';
 
@@ -73,6 +74,7 @@ class AddContextBody extends StatelessWidget {
           ),
         ],
       ),
+      const RecentPhotosRow(),
     ],
   );
 }

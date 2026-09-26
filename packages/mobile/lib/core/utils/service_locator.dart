@@ -60,6 +60,7 @@ import 'package:operator_mobile/feature/spawn/data/data_source/spawn_remote_data
 import 'package:operator_mobile/feature/spawn/data/repository/spawn_repository.dart';
 import 'package:operator_mobile/feature/spawn/presentation/spawn_screen/logic/spawn_cubit.dart';
 import 'package:operator_mobile/feature/terminal/data/data_source/attachment_picker.dart';
+import 'package:operator_mobile/feature/terminal/data/data_source/recent_photos_data_source.dart';
 import 'package:operator_mobile/feature/terminal/data/data_source/terminal_remote_data_source.dart';
 import 'package:operator_mobile/feature/terminal/data/repository/terminal_repository.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/logic/slash_menu_cubit.dart';
@@ -239,6 +240,7 @@ class ServiceLocator {
     sl.registerLazySingleton<TerminalRemoteDataSource>(
       () => TerminalRemoteDataSourceImp(sl<ApiConsumer>()),
     );
+    sl.registerLazySingleton<RecentPhotosDataSource>(RecentPhotosDataSourceImp.new);
     sl.registerLazySingleton<AttachmentPicker>(() => AttachmentPickerImp(ImagePicker()));
     sl.registerFactoryParam<SlashMenuCubit, TextEditingController, String>(
       (composer, sessionId) => SlashMenuCubit(sl<TerminalRepository>(), composer, sessionId: sessionId),

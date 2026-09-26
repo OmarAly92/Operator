@@ -77,6 +77,8 @@
 		<string>Operator uses your camera to scan the pairing QR code and to take photos you attach for your agent.</string>
 		<key>NSPhotoLibraryUsageDescription</key>
 		<string>Operator attaches images you pick to the message you send your agent.</string>
+		<key>PHPhotoLibraryPreventAutomaticLimitedAccessAlert</key>
+		<true/>
 		<key>NSMicrophoneUsageDescription</key>
 		<string>Operator uses the microphone so you can dictate prompts to an agent.</string>
 		<key>NSSpeechRecognitionUsageDescription</key>

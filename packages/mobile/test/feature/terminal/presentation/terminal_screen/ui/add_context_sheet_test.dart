@@ -5,10 +5,12 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:operator_mobile/core/utils/service_locator.dart';
 import 'package:operator_mobile/core/widgets/sheet/app_sheet.dart';
 import 'package:operator_mobile/feature/terminal/data/data_source/attachment_picker.dart';
+import 'package:operator_mobile/feature/terminal/data/data_source/recent_photos_data_source.dart';
 import 'package:operator_mobile/feature/terminal/logic/attachment_limits.dart';
 import 'package:operator_mobile/feature/terminal/logic/composer_attachment.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/ui/widgets/add_context_sheet.dart';
 
+import '../../../fake_recent_photos.dart';
 import '../../../terminal_harness.dart';
 
 class FakeAttachmentPicker implements AttachmentPicker {
@@ -47,6 +49,8 @@ void main() {
     picker = FakeAttachmentPicker();
     if (sl.isRegistered<AttachmentPicker>()) sl.unregister<AttachmentPicker>();
     sl.registerSingleton<AttachmentPicker>(picker);
+    if (sl.isRegistered<RecentPhotosDataSource>()) sl.unregister<RecentPhotosDataSource>();
+    sl.registerSingleton<RecentPhotosDataSource>(FakeRecentPhotos());
   });
 
   tearDown(() => harness.dispose());
