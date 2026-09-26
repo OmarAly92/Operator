@@ -146,11 +146,11 @@ describe("find-bar while output streams", () => {
 		type(input, "line 3");
 		await flushFrames();
 		expect(count.textContent).toBe("1 of 1");
-		expect(scrolled).toHaveBeenLastCalledWith(3, "center");
+		expect(scrolled).toHaveBeenLastCalledWith(3, "center-if-hidden");
 		type(input, "line");
 		await flushFrames();
 		expect(count.textContent).toBe("1 of 5");
-		expect(scrolled).toHaveBeenLastCalledWith(0, "center");
+		expect(scrolled).toHaveBeenLastCalledWith(0, "center-if-hidden");
 		press(input, "Enter");
 		await flushFrames(2);
 		expect(count.textContent).toBe("2 of 5");
@@ -170,6 +170,19 @@ describe("find-bar while output streams", () => {
 		await flushFrames();
 		expect(count.textContent).toBe("1 of 2");
 		expect(scrolled).toHaveBeenCalledTimes(1);
+	});
+
+	it("reveals a first match only when it is off screen, and Enter always centres", async () => {
+		const { core, input, count, scrolled } = mount(lines(5));
+		type(input, "needle");
+		await flushFrames();
+		feedBlock(core, "a needle arrives");
+		await flushFrames();
+		expect(count.textContent).toBe("1 of 1");
+		expect(scrolled).toHaveBeenLastCalledWith(5, "center-if-hidden");
+		press(input, "Enter");
+		await flushFrames(2);
+		expect(scrolled).toHaveBeenLastCalledWith(5, "center");
 	});
 
 	it("keeps the current hit anchored while output streams", async () => {

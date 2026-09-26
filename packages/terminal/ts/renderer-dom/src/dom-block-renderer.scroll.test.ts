@@ -320,3 +320,29 @@ describe("scrollToRow", () => {
 		renderer.dispose();
 	});
 });
+
+describe("scrollToRow center-if-hidden", () => {
+	it("leaves the view and stick-to-bottom alone for a row already on screen, and centres a hidden one", async () => {
+		const container = scrollable();
+		const core = createTerminalCore({ columns: 20, limits: { rows: 1000, bytes: 0xffff_ffff }, rows: 2 });
+		for (let i = 0; i < 500; i += 1) feed(core, `line ${i}\r\n`);
+		const renderer = new DomBlockRenderer();
+		renderer.mount(container, core);
+		renderer.setFont(font);
+		await flushRepaint();
+		const rowHeight = renderer.measure().cellHeight;
+		Object.defineProperty(container, "scrollHeight", { value: Math.ceil(rowHeight * 500) + 20, configurable: true });
+		renderer.scrollToLatest();
+		await flushRepaint();
+		expect(renderer.scrollAnchor()).toBeNull();
+		const bottom = container.scrollTop;
+		expect(renderer.scrollToRow(core.snapshot().firstStableRow + 498, "center-if-hidden")).toBe(true);
+		expect(container.scrollTop).toBe(bottom);
+		expect(renderer.scrollAnchor()).toBeNull();
+		expect(renderer.scrollToRow(10, "center-if-hidden")).toBe(true);
+		expect(container.scrollTop).toBeLessThan(bottom);
+		expect(renderer.scrollAnchor()).not.toBeNull();
+		expect(renderer.scrollToRow(100_000, "center-if-hidden")).toBe(false);
+		renderer.dispose();
+	});
+});

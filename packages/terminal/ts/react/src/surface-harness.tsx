@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { render, screen } from "@testing-library/react";
+import { render, within } from "@testing-library/react";
 import {
 	createTerminalCore,
 	initTerminalCore,
@@ -95,7 +95,7 @@ export function renderSurface(
 		/>
 	);
 	const result = render(surfaceWith());
-	const host = screen.getByTestId("terminal-block-list").parentElement as HTMLElement;
+	const host = within(result.container).getByTestId("terminal-block-list").parentElement as HTMLElement;
 	const surface = host.parentElement as HTMLElement;
 	const rerenderWithPaint = (onPaint: () => void) => result.rerender(surfaceWith(onPaint));
 	const refit = (token: number) => result.rerender(surfaceWith(undefined, token));

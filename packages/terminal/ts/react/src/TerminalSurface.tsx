@@ -424,6 +424,7 @@ export function TerminalSurface({
 		const onKeyDown = (event: KeyboardEvent) => {
 			const findBar = findBarRef.current;
 			if (!findBar || !isFindChord(event, isMacPlatform())) return;
+			if (!(event.target instanceof Node) || !surfaceRef.current?.contains(event.target)) return;
 			event.preventDefault();
 			event.stopPropagation();
 			findBar.open();

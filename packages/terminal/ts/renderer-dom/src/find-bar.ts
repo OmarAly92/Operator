@@ -22,7 +22,7 @@ const ATTR_REGEX = "data-terminal-find-regex";
 
 export type FindBarHost = Readonly<{
 	scrollToBlock(id: BlockId, align: "start" | "center" | "end"): void;
-	scrollToRow?(row: number, align: "start" | "center" | "end"): boolean;
+	scrollToRow?(row: number, align: "start" | "center" | "end" | "center-if-hidden"): boolean;
 	invalidate(range: RowRange): void;
 	afterRepaint(listener: () => void): () => void;
 	highlightFind(find: FindHighlights | null): void;
@@ -150,8 +150,8 @@ export function createFindBar(options: FindBarOptions): FindBar {
 		active.loaded = true;
 	};
 
-	const reveal = (match: FindMatch): void => {
-		if (!host.scrollToRow?.(match.row, "center")) {
+	const reveal = (match: FindMatch, align: "center" | "center-if-hidden" = "center"): void => {
+		if (!host.scrollToRow?.(match.row, align)) {
 			host.scrollToBlock(match.blockId, "center");
 		}
 	};
@@ -179,7 +179,7 @@ export function createFindBar(options: FindBarOptions): FindBar {
 		}
 		if (revealed) {
 			try {
-				reveal(revealed);
+				reveal(revealed, "center-if-hidden");
 			} catch {
 				void 0;
 			}
@@ -283,8 +283,9 @@ export function createFindBar(options: FindBarOptions): FindBar {
 
 	function open(): void {
 		if (!container) return;
-		previousFocus = document.activeElement as HTMLElement | null;
 		const node = ensureBar();
+		const focused = document.activeElement as HTMLElement | null;
+		if (!focused || !node.contains(focused)) previousFocus = focused;
 		if (!anchor) {
 			anchor = document.createElement("div");
 			anchor.className = CLASS_ANCHOR;

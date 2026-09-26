@@ -46,7 +46,7 @@ import {
 } from "./renderer-chrome.js";
 import { RendererOverlays } from "./renderer-overlays.js";
 import { RendererHighlights, type FindHighlights, type MarkRule } from "./renderer-highlights.js";
-import { ScrollTracker, type ScrollAnchor } from "./scroll-tracker.js";
+import { ScrollTracker, type RowAlign, type ScrollAnchor } from "./scroll-tracker.js";
 import { wireRenderer, type RendererWiring } from "./renderer-wiring.js";
 import { ListenerSet } from "./listener-set.js";
 import { tooSoonToPaint } from "./frame-budget.js";
@@ -243,7 +243,7 @@ export class DomBlockRenderer implements BlockRenderer {
 		this.elements.scrollTo(id, align, this.knownBlockId);
 	}
 
-	scrollToRow(row: number, align: "start" | "center" | "end"): boolean {
+	scrollToRow(row: number, align: RowAlign): boolean {
 		const moved = this.scroll.scrollToRow(row, align);
 		if (moved) this.scheduleRepaint();
 		return moved;

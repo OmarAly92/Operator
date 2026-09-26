@@ -159,6 +159,35 @@ describe("LineEditor ownership", () => {
 		expect(openWith("README.md")).toEqual([]);
 	});
 
+	it("walks the completion list on Ctrl-N and Ctrl-P instead of recalling history under it", () => {
+		const { editor, core, host } = mount();
+		core.feed(
+			encode(
+				"\x1b]133;A\x07\x1b]7000;v=1;cmd=git%20log\x07\x1b]133;C\x07ok\n\x1b]133;D;0\x07\x1b]7000;v=1;input-ready=1\x07",
+			),
+		);
+		const internal = editor as unknown as {
+			dropdown: { isOpen(): boolean; setResult(result: unknown): void };
+			dropdownOpen: boolean;
+		};
+		editor.setText("git ");
+		internal.dropdown.setResult({
+			items: [
+				{ value: "status", displayValue: "status", description: null, kind: "subcommand", matchedIndices: [] },
+				{ value: "stash", displayValue: "stash", description: null, kind: "subcommand", matchedIndices: [] },
+			],
+			span: { start: 4, end: 4 },
+			query: "",
+		});
+		internal.dropdownOpen = internal.dropdown.isOpen();
+		editor.handleKey(key({ key: "n", ctrlKey: true }));
+		editor.handleKey(key({ key: "n", ctrlKey: true }));
+		editor.handleKey(key({ key: "p", ctrlKey: true }));
+		editor.handleKey(key({ key: "Enter" }));
+		editor.handleKey(key({ key: "Enter" }));
+		expect(host.sent).toEqual(["git stash"]);
+	});
+
 	it("accepts a Ctrl-R match without submitting it", () => {
 		const { editor, container, core, host } = mount();
 		core.feed(

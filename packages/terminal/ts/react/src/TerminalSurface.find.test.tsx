@@ -105,6 +105,52 @@ describe("TerminalSurface find shortcut", () => {
 	});
 });
 
+describe("TerminalSurface find shortcut with several panes", () => {
+	beforeAll(loadWasm);
+
+	afterEach(() => {
+		cleanup();
+		restorePlatform();
+	});
+
+	it("opens find only in the pane that has focus", () => {
+		setPlatform("MacIntel");
+		const first = renderSurface();
+		const second = renderSurface();
+		const editor = editorOf(first.container);
+		editor.focus();
+		press(editor, { key: "f", code: "KeyF", metaKey: true });
+		expect(findInput(first.container)).not.toBeNull();
+		expect(findInput(second.container)).toBeNull();
+		expect(document.activeElement).toBe(findInput(first.container));
+	});
+
+	it("leaves Cmd+F alone while focus is outside every terminal", () => {
+		setPlatform("MacIntel");
+		const { container } = renderSurface();
+		const field = document.createElement("input");
+		document.body.append(field);
+		field.focus();
+		const event = press(field, { key: "f", code: "KeyF", metaKey: true });
+		expect(event.defaultPrevented).toBe(false);
+		expect(findInput(container)).toBeNull();
+		expect(document.activeElement).toBe(field);
+		field.remove();
+	});
+
+	it("hands focus back to the editor on Escape after Cmd+F is pressed again in the open bar", () => {
+		setPlatform("MacIntel");
+		const { container } = renderSurface();
+		const editor = editorOf(container);
+		editor.focus();
+		press(editor, { key: "f", code: "KeyF", metaKey: true });
+		press(findInput(container)!, { key: "f", code: "KeyF", metaKey: true });
+		press(findInput(container)!, { key: "Escape" });
+		expect(findInput(container)).toBeNull();
+		expect(editor.contains(document.activeElement)).toBe(true);
+	});
+});
+
 describe("TerminalSurface find bar focus", () => {
 	beforeAll(loadWasm);
 
