@@ -103,7 +103,7 @@ func TestReplayEndsTheSettledRowsWhereOutputWithoutANewlineEnded(t *testing.T) {
 		t.Fatalf("replay: %v", err)
 	}
 	tail := stripSGR(stripOSC(withoutSettledRows(t, out)))
-	if !strings.HasPrefix(tail, "\r\n$\r") || strings.Contains(tail, "x") {
+	if !strings.HasPrefix(tail, "$\r") || strings.Contains(tail, "x") {
 		t.Fatalf("the rows after the settled pair must start where the command ended, after its x:\n%q", tail)
 	}
 }

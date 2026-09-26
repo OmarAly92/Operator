@@ -15,19 +15,13 @@ fn first_param(params: &Params) -> u16 {
 }
 
 impl Parser {
-    fn note_printed(&mut self) {
-        if self.alt.is_none() && self.output_printed == Some(false) {
-            self.output_printed = Some(true);
-        }
-    }
-
     pub(crate) fn flush_run(&mut self) {
         if self.run.is_empty() {
             return;
         }
-        self.note_printed();
         let style = self.pending_style.resolved();
         let mut run = std::mem::take(&mut self.run);
+        self.printed_since_output_start |= self.alt.is_none();
         self.active_screen_mut().print_ascii_run(&run, style);
         if run.capacity() > 2 * RUN_FLUSH_BYTES {
             run = Vec::with_capacity(RUN_FLUSH_BYTES);
@@ -88,8 +82,8 @@ impl Perform for Parser {
             return;
         }
         self.flush_run();
-        self.note_printed();
         let style = self.pending_style.resolved();
+        self.printed_since_output_start |= self.alt.is_none();
         self.active_screen_mut().print(c, style);
     }
 

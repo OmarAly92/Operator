@@ -74,8 +74,8 @@ pub(crate) struct Parser {
     committed_rows: u64,
     run: Vec<u8>,
     input_mark: Option<(crate::block::BlockId, usize)>,
-    output_printed: Option<bool>,
-    command_end_at: Option<(usize, usize)>,
+    command_start_mark: Option<(crate::block::BlockId, usize)>,
+    printed_since_output_start: bool,
     pub(crate) unknown: unknown::UnknownRing,
     #[cfg(feature = "trace")]
     pub(crate) trace: crate::trace::Trace,
@@ -118,8 +118,8 @@ impl Parser {
             committed_rows: 0,
             run: Vec::new(),
             input_mark: None,
-            output_printed: None,
-            command_end_at: None,
+            command_start_mark: None,
+            printed_since_output_start: false,
             unknown: unknown::UnknownRing::default(),
             #[cfg(feature = "trace")]
             trace: Default::default(),

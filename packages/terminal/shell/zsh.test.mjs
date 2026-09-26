@@ -3,6 +3,7 @@ import { fileURLToPath } from "node:url";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { haveTmux, parseOscRecords, runInPty, runInPtySegments, splitEveryByte } from "./pty.mjs";
+import { abortedPromptsSession, commandOutputs, coreSkip, productionSession } from "./core.mjs";
 
 const bootstrap = fileURLToPath(new URL("./zsh.sh", import.meta.url));
 const haveZsh = (() => {
@@ -329,4 +330,60 @@ test("after a width change redraws the prompt from its first row, counted at the
 	assert.equal(ups.length, 1, JSON.stringify(afterResize));
 	assert.ok(afterResize.indexOf("\x1b[J") < afterResize.indexOf("first-line"), JSON.stringify(afterResize));
 	assert.match(afterResize, /second \$ /);
+});
+
+test("each command block holds only its output: no echoed command line and no partial-line mark", { skip: ptySkip || coreSkip }, async () => {
+	const { blocks } = await abortedPromptsSession("zsh");
+	assert.deepEqual(commandOutputs(blocks), [["printf x", "x"], ["echo one", "one"], ["echo two", "two"]]);
+});
+
+test("Ctrl-C and an empty Enter at the prompt add no block, and every block keeps the cwd", { skip: ptySkip || coreSkip }, async () => {
+	const { blocks } = await abortedPromptsSession("zsh");
+	assert.deepEqual(blocks.map((block) => block.command), ["printf x", "echo one", "echo two", ""]);
+	assert.notEqual(blocks[0].cwd, "");
+	assert.deepEqual(blocks.map((block) => block.cwd), blocks.map(() => blocks[0].cwd));
+});
+
+function commandTail(stream, command) {
+	const at = stream.indexOf(`cmd=${command}`);
+	assert.ok(at >= 0, `no cmd=${command} in ${JSON.stringify(stream)}`);
+	const next = stream.indexOf("cmd=", at + 4);
+	return stream.slice(at, next < 0 ? stream.length : next);
+}
+
+test("closes a command's block before zsh prints its partial-line mark", { skip: ptySkip }, () => {
+	const { stream } = productionSession("zsh", ["printf x", "echo one"]);
+	for (const command of ["printf%20x", "echo%20one"]) {
+		const tail = commandTail(stream, command);
+		const end = tail.indexOf("\x1b]133;D;0\x07");
+		const mark = tail.indexOf("\x1b[7m%");
+		assert.ok(end > 0 && mark > end, JSON.stringify(tail));
+		assert.equal(tail.match(/\x1b\]133;D/g).length, 1, JSON.stringify(tail));
+		assert.equal(tail.match(/;exit=0/g).length, 1, JSON.stringify(tail));
+	}
+});
+
+test("keeps the user's PROMPT_EOL_MARK, and ends every command once with PROMPT_SP off", { skip: ptySkip }, () => {
+	const raw = runInPty("zsh -f -i", [
+		`source ${bootstrap}`,
+		"show() { print -r -- \"eol=[${PROMPT_EOL_MARK-unset}]\" }; precmd_functions+=(show)",
+		"PROMPT_EOL_MARK=MINE",
+		"printf x",
+		"false",
+		"setopt no_prompt_sp",
+		"printf y",
+		"unset PROMPT_EOL_MARK",
+		"setopt prompt_sp",
+		"printf z",
+	], { settleMs: 600, env: { OPERATOR_TERMINAL_ID: "t" } });
+	assert.match(commandTail(raw, "printf%20x"), /eol=\[MINE\]/);
+	assert.match(commandTail(raw, "printf%20z"), /eol=\[unset\]/);
+	const printfX = commandTail(raw, "printf%20x");
+	assert.ok(printfX.indexOf("\x1b]133;D;0") < printfX.indexOf("MINE"), JSON.stringify(printfX));
+	assert.match(commandTail(raw, "false"), /;exit=1\x1b\\\x1b\]133;D;1\x07/);
+	for (const command of ["printf%20x", "false", "printf%20y", "printf%20z"]) {
+		const tail = commandTail(raw, command);
+		assert.equal(tail.match(/\x1b\]133;D/g).length, 1, `${command}: ${JSON.stringify(tail)}`);
+	}
+	assert.doesNotMatch(commandTail(raw, "printf%20y"), /yMINE/);
 });

@@ -15,7 +15,7 @@ fn feed_lines(core: &mut TerminalCore, lines: impl IntoIterator<Item = String>) 
 }
 
 fn feed_block(core: &mut TerminalCore, text: &str) {
-    core.feed(format!("\x1b]133;A\x07\x1b]133;C\x07{text}\x1b]133;D;0\x07\r\n").as_bytes());
+    core.feed(format!("\x1b]133;A\x07\x1b]133;C\x07{text}\r\n\x1b]133;D;0\x07").as_bytes());
 }
 
 fn search(core: &TerminalCore, query: FindQuery) -> (FindSession, Vec<FindMatch>) {

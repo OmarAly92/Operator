@@ -12,7 +12,7 @@ describe("mapKey", () => {
 
 	it("maps the readline motions users expect", () => {
 		expect(mapKey(key({ key: "a", ctrlKey: true }))).toEqual({ kind: "home" });
-		expect(mapKey(key({ key: "e", ctrlKey: true }))).toEqual({ kind: "accept-suggestion" });
+		expect(mapKey(key({ key: "e", ctrlKey: true }))).toEqual({ kind: "end-or-accept-suggestion" });
 		expect(mapKey(key({ key: "w", ctrlKey: true }))).toEqual({ kind: "delete-word-backward" });
 		expect(mapKey(key({ key: "r", ctrlKey: true }))).toEqual({ kind: "reverse-search" });
 	});

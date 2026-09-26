@@ -30,8 +30,10 @@ export function pastePreviewLines(preview: string): { lines: string[]; hidden: n
 	};
 }
 
-export function usePasteConfirm() {
+export function usePasteConfirm(restoreFocus?: () => void) {
 	const { t } = useTranslation();
+	const restoreFocusRef = useRef(restoreFocus);
+	restoreFocusRef.current = restoreFocus;
 	const [pending, setPending] = useState<PendingPaste | null>(null);
 	const pendingRef = useRef<PendingPaste | null>(null);
 
@@ -80,6 +82,12 @@ export function usePasteConfirm() {
 			onConfirm={() => settle(true)}
 			onOpenChange={(open) => {
 				if (!open) settle(false);
+			}}
+			onCloseAutoFocus={(event) => {
+				const restore = restoreFocusRef.current;
+				if (!restore) return;
+				event.preventDefault();
+				restore();
 			}}
 		/>
 	);

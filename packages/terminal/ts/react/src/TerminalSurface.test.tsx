@@ -473,6 +473,36 @@ describe("TerminalSurface", () => {
 		expect(container.querySelector(".terminal-editor-host")?.hasAttribute("hidden")).toBe(false);
 	});
 
+	it("hands focus to the input box when a program leaves the alternate screen, so keys typed next are not dropped", () => {
+		const { container, core } = renderSurface();
+		act(() => {
+			feed(core, "\x1b[?1049h");
+		});
+		const host = container.querySelector(".terminal-host") as HTMLElement;
+		expect(document.activeElement).toBe(host.querySelector("textarea"));
+		act(() => {
+			feed(core, "\x1b[?1049l");
+		});
+		const editorHost = container.querySelector(".terminal-editor-host") as HTMLElement;
+		expect(editorHost.contains(document.activeElement)).toBe(true);
+	});
+
+	it("leaves focus where it is when the alternate screen closes while the user was elsewhere", () => {
+		const { container, core } = renderSurface();
+		const outside = document.createElement("input");
+		document.body.append(outside);
+		act(() => {
+			feed(core, "\x1b[?1049h");
+		});
+		outside.focus();
+		act(() => {
+			feed(core, "\x1b[?1049l");
+		});
+		expect(document.activeElement).toBe(outside);
+		expect(container.contains(document.activeElement)).toBe(false);
+		outside.remove();
+	});
+
 	it("returns to the block list when the program leaves the alternate screen", async () => {
 		const { container, core } = renderSurface();
 		act(() => {

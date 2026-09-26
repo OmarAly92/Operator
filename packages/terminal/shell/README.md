@@ -16,6 +16,12 @@ recipe's `argv`.
   and the previous command's exit code, then emits `OSC 133 A` (prompt
   start) for the next prompt.
 
+While a command runs, `PROMPT_EOL_MARK` carries the command's `exit=` mark
+and `OSC 133 D` in a zero-width `%{…%}` prefix, so zsh's `PROMPT_SP` step
+prints them before its partial-line mark and a block never ends with it;
+`precmd` puts the user's value back (or unsets it) and prints the two marks
+itself only when `PROMPT_SP` did not.
+
 The branch read is the only command run for the package's own bookkeeping;
 it is gated on `git rev-parse --is-inside-work-tree` and tolerates git
 being absent.

@@ -2,7 +2,9 @@ package terminal
 
 import (
 	"bytes"
+	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/OmarAly92/operator/backend/internal/domain"
@@ -220,17 +222,44 @@ func (a *BlockAssembler) applyExtension(m marks.Mark, tok marks.Token) {
 }
 
 func (a *BlockAssembler) startBlockAtA(tok marks.Token) {
-	if a.pending != nil && !a.pending.outputStarted {
+	if a.pending != nil && !a.pending.sawPromptA && !a.pending.outputStarted {
 		a.pending.sawPromptA = true
 		a.record(tok)
 		return
 	}
-	a.pending = &pendingBlock{
+	next := &pendingBlock{
 		startOffset: tok.Start,
 		lastOffset:  tok.Start,
 		sawPromptA:  true,
 	}
+	if p := a.pending; p != nil && !p.outputStarted {
+		next.id, next.idFromExt, next.cwd, next.branch = p.id, p.idFromExt, p.cwd, p.branch
+		writeIdentityMark(&next.raw, p.cwd, p.branch)
+	}
+	a.pending = next
 	a.record(tok)
+}
+
+func writeIdentityMark(raw *bytes.Buffer, cwd, branch string) {
+	if cwd == "" && branch == "" {
+		return
+	}
+	raw.WriteString("\x1b]7000;v=1")
+	for _, field := range [][2]string{{"cwd", cwd}, {"branch", branch}} {
+		if field[1] == "" {
+			continue
+		}
+		raw.WriteString(";" + field[0] + "=")
+		for i := 0; i < len(field[1]); i++ {
+			c := field[1][i]
+			if c >= 'A' && c <= 'Z' || c >= 'a' && c <= 'z' || c >= '0' && c <= '9' || strings.IndexByte("._~/:@!$&()*+,-", c) >= 0 {
+				raw.WriteByte(c)
+				continue
+			}
+			fmt.Fprintf(raw, "%%%02x", c)
+		}
+	}
+	raw.WriteString("\x1b\\")
 }
 
 func (a *BlockAssembler) finishBlock(tok marks.Token, m marks.Mark) (domain.Block, bool) {
@@ -280,7 +309,8 @@ func (a *BlockAssembler) record(tok marks.Token) {
 	if a.pending == nil || a.AlternateOn {
 		return
 	}
-	if len(tok.Raw) > 0 {
+	betweenBlocks := tok.Kind == marks.TokenText && !a.pending.sawPromptA && !a.pending.outputStarted
+	if len(tok.Raw) > 0 && !betweenBlocks {
 		a.pending.raw.Write(tok.Raw)
 	}
 	if tok.End > a.pending.lastOffset {
