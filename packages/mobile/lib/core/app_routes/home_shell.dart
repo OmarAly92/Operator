@@ -195,6 +195,7 @@ class _SpawnButton extends StatelessWidget {
             semanticLabel: reachable ? 'Spawn agent' : 'Spawn agent. Needs a connection to your desktop',
             diameter: GlassMetrics.tabBarHeight,
             foreground: skin.textPrimary,
+            chrome: true,
             haptic: reachable ? Haptics.tap : Haptics.error,
             onPressed: reachable
                 ? () => Navigator.of(context).pushNamed(RoutesStrings.spawn)

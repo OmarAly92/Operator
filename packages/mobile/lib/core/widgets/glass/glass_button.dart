@@ -16,6 +16,7 @@ class GlassButton extends StatefulWidget {
     this.prominent = false,
     this.foreground,
     this.diameter,
+    this.chrome = false,
     this.haptic = Haptics.tap,
   }) : label = null,
        compact = false;
@@ -30,7 +31,8 @@ class GlassButton extends StatefulWidget {
     this.haptic = Haptics.tap,
   }) : semanticLabel = null,
        foreground = null,
-       diameter = null;
+       diameter = null,
+       chrome = false;
 
   final IconData? icon;
   final String? label;
@@ -38,6 +40,7 @@ class GlassButton extends StatefulWidget {
   final VoidCallback? onPressed;
   final bool prominent;
   final bool compact;
+  final bool chrome;
   final Color? foreground;
   final double? diameter;
   final VoidCallback haptic;
@@ -87,7 +90,11 @@ class _GlassButtonState extends State<GlassButton> {
     final surface = GlassSurface(
       kind: isIcon ? GlassShapeKind.circle : GlassShapeKind.capsule,
       size: isIcon ? iconDiameter : capsuleHeight,
-      variant: widget.prominent ? GlassVariant.prominent : GlassVariant.regular,
+      variant: widget.prominent
+          ? GlassVariant.prominent
+          : widget.chrome
+          ? GlassVariant.chrome
+          : GlassVariant.regular,
       pressable: true,
       enabled: _enabled,
       glowAlpha: widget.prominent ? 0.25 : 0.35,

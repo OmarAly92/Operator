@@ -201,3 +201,4 @@ flutter:
 
   shaders:
     - shaders/scroll_edge_blur.frag
+    - shaders/tab_lens.frag

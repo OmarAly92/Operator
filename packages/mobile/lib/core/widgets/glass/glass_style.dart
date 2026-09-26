@@ -5,11 +5,12 @@ import 'package:flutter/material.dart';
 import 'package:liquid_glass_renderer/liquid_glass_renderer.dart';
 import 'package:operator_mobile/core/app_themes/colors/app_skin.dart';
 
-enum GlassVariant { regular, clear, prominent }
+enum GlassVariant { regular, clear, prominent, chrome }
 
 sealed class GlassStyle {
   static const double _minSize = 20;
   static const double _maxSize = 600;
+  static const double chromeLight = 0.15;
 
   static double sizeProgress(double size) =>
       ((size.clamp(_minSize, _maxSize) - _minSize) / (_maxSize - _minSize))
@@ -27,7 +28,8 @@ sealed class GlassStyle {
     final dark = skin.themeMode == ThemeMode.dark;
     final t = sizeProgress(size);
     final baseTint = switch (variant) {
-      GlassVariant.regular =>
+      GlassVariant.chrome when dark => skin.bgElevated.withValues(alpha: 0.03),
+      GlassVariant.regular || GlassVariant.chrome =>
         dark
             ? skin.bgElevated.withValues(alpha: lerpDouble(0.1, 0.9, t)!)
             : const Color(
@@ -48,12 +50,14 @@ sealed class GlassStyle {
       blur: lerpDouble(4.2, 5, t)! * (variant == GlassVariant.clear ? 0.5 : 1),
       chromaticAberration: 0.005,
       lightAngle: 0.5 * math.pi,
-      lightIntensity: lerpDouble(0.55, 0.8, t)!,
+      lightIntensity: variant == GlassVariant.chrome && dark
+          ? chromeLight
+          : lerpDouble(0.55, 0.8, t)!,
       ambientStrength: 0.1,
       refractiveIndex: 1.2,
       saturation: switch (variant) {
         GlassVariant.clear => 1.2,
-        GlassVariant.regular =>
+        GlassVariant.regular || GlassVariant.chrome =>
           dark ? lerpDouble(1.2, 1.1, t)! : lerpDouble(2.0, 1.24, t)!,
         GlassVariant.prominent => 1.0,
       },
@@ -61,9 +65,23 @@ sealed class GlassStyle {
     );
   }
 
-  static List<BoxShadow> shadows(AppSkin skin, {required double size}) {
+  static List<BoxShadow> shadows(
+    AppSkin skin, {
+    required double size,
+    GlassVariant variant = GlassVariant.regular,
+  }) {
     final dark = skin.themeMode == ThemeMode.dark;
     final t = sizeProgress(size);
+    if (variant == GlassVariant.chrome && !dark) {
+      return const [
+        BoxShadow(
+          blurStyle: BlurStyle.outer,
+          color: Color(0x12000000),
+          blurRadius: 28,
+          offset: Offset(0, 3),
+        ),
+      ];
+    }
     return [
       BoxShadow(
         blurStyle: BlurStyle.outer,

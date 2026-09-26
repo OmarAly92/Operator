@@ -14,7 +14,6 @@ class GlassSurface extends StatelessWidget {
     required this.child,
     this.radius = 0,
     this.grouped = false,
-    this.ownLayer = false,
     this.pressable = false,
     this.enabled = true,
     this.glowAlpha = 0.35,
@@ -30,7 +29,6 @@ class GlassSurface extends StatelessWidget {
   final double size;
   final double radius;
   final bool grouped;
-  final bool ownLayer;
   final bool pressable;
   final bool enabled;
   final double glowAlpha;
@@ -75,7 +73,7 @@ class GlassSurface extends StatelessWidget {
             ),
             child: glowing,
           )
-        : skin.glassRim.a > 0 && variant != GlassVariant.prominent
+        : skin.glassRim.a > 0 && variant != GlassVariant.prominent && variant != GlassVariant.chrome
         ? DecoratedBox(
             key: rimKey,
             position: DecorationPosition.foreground,
@@ -87,9 +85,9 @@ class GlassSurface extends StatelessWidget {
             child: glowing,
           )
         : glowing;
-    final shadows = GlassStyle.shadows(skin, size: size);
+    final shadows = GlassStyle.shadows(skin, size: size, variant: variant);
     final settings = GlassStyle.resolve(skin: skin, variant: variant, size: size, highContrast: highContrast);
-    if (ownLayer || variant != GlassVariant.regular) {
+    if (variant != GlassVariant.regular) {
       return LiquidGlass.withOwnLayer(shape: _shape, shadows: shadows, settings: settings, child: content);
     }
     if (grouped) {

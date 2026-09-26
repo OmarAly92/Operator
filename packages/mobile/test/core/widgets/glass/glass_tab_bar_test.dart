@@ -7,6 +7,7 @@ import 'package:operator_mobile/core/app_themes/colors/light_skin.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/widgets/glass/glass_metrics.dart';
 import 'package:operator_mobile/core/widgets/glass/glass_tab_bar.dart';
+import 'package:operator_mobile/core/widgets/glass/glass_tab_bar_logic.dart';
 
 const _items = [
   GlassTabItem(icon: Icons.layers_outlined, label: 'Agents'),
@@ -127,12 +128,10 @@ void main() {
     await tester.pump();
     await gesture.moveTo(tester.getCenter(find.text('Settings')));
     await tester.pump();
-    final positioned = tester.widget<AnimatedPositioned>(find.byKey(GlassTabBar.dropletKey));
-    expect(positioned.height, closeTo(GlassMetrics.tabBarHeight - GlassMetrics.dropletInset * 2, 0.01));
-    final transform = tester.widget<Transform>(
-      find.descendant(of: find.byKey(GlassTabBar.dropletKey), matching: find.byType(Transform)).first,
-    );
-    expect(transform.transform.getMaxScaleOnAxis(), closeTo(1.0, 0.01));
+    final body = tester.getRect(find.byKey(GlassTabBar.dropletBodyKey));
+    expect(body.height, closeTo(GlassMetrics.tabBarHeight - GlassMetrics.dropletInset * 2, 0.01));
+    expect(body.width, closeTo(GlassTabBarLogic.pillWidth(360, 3), 0.01));
+    expect(find.byType(DecoratedBox), findsWidgets);
     await gesture.up();
     await tester.pumpAndSettle();
   });
@@ -153,7 +152,7 @@ void main() {
     expect(tester.takeException(), isNull);
     for (final item in _items) {
       final paragraph = tester.renderObject<RenderParagraph>(find.text(item.label));
-      final contentHeight = 24 + 2 + paragraph.size.height;
+      final contentHeight = GlassMetrics.tabGlyph + 1 + paragraph.size.height;
       expect(contentHeight, lessThanOrEqualTo(GlassMetrics.tabBarHeight));
     }
   });
@@ -181,5 +180,58 @@ void main() {
     await gesture.up();
     await tester.pumpAndSettle();
     expect(picked, [1]);
+  });
+
+  testWidgets('holding lifts the bar and turns the pill into a wider, taller lens', (tester) async {
+    await tester.pumpWidget(host(selected: 0, onSelected: (_) {}));
+    final restBar = tester.getRect(find.byType(GlassTabBar));
+    final restPill = tester.getRect(find.byKey(GlassTabBar.dropletBodyKey));
+    final gesture = await tester.startGesture(tester.getCenter(find.text('PRs')));
+    await tester.pumpAndSettle();
+    final lens = tester.getRect(find.byKey(GlassTabBar.dropletBodyKey));
+    expect(lens.width, closeTo(restPill.width * GlassTabBar.lensWidthScale * GlassTabBar.pressScale, 0.5));
+    expect(lens.height, closeTo(restBar.height * GlassTabBar.lensHeightScale * GlassTabBar.pressScale, 0.5));
+    expect(lens.center.dx, closeTo(tester.getCenter(find.byType(GlassTabBar)).dx, 1));
+    await gesture.up();
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('the item under the lens is magnified and the others only grow with the bar', (tester) async {
+    await tester.pumpWidget(host(selected: 0, onSelected: (_) {}));
+    final restPrs = tester.getSize(find.text('PRs'));
+    final restAgents = tester.getRect(find.text('Agents'));
+    final gesture = await tester.startGesture(tester.getCenter(find.text('PRs')));
+    await tester.pumpAndSettle();
+    final heldPrs = tester.getRect(find.text('PRs'));
+    final heldAgents = tester.getRect(find.text('Agents'));
+    expect(heldPrs.width / restPrs.width, closeTo(GlassTabBar.pressScale * GlassTabBar.lensMagnify, 0.02));
+    expect(heldAgents.width / restAgents.width, closeTo(GlassTabBar.pressScale, 0.02));
+    await gesture.up();
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('releasing settles the lens back into the flat pill', (tester) async {
+    await tester.pumpWidget(host(selected: 0, onSelected: (_) {}));
+    final gesture = await tester.startGesture(tester.getCenter(find.text('Agents')));
+    await tester.pumpAndSettle();
+    await gesture.up();
+    await tester.pump(GlassTabBar.minLift);
+    await tester.pumpAndSettle();
+    final pill = tester.getRect(find.byKey(GlassTabBar.dropletBodyKey));
+    expect(pill.height, closeTo(GlassMetrics.tabBarHeight - GlassMetrics.dropletInset * 2, 0.01));
+    expect(tester.getSize(find.byType(GlassTabBar)).width, 360);
+  });
+
+  testWidgets('a quick tap keeps the lens lifted for the minimum lift, then lands', (tester) async {
+    await tester.pumpWidget(host(selected: 0, onSelected: (_) {}));
+    final restPill = tester.getRect(find.byKey(GlassTabBar.dropletBodyKey));
+    final gesture = await tester.startGesture(tester.getCenter(find.text('PRs')));
+    await tester.pump(const Duration(milliseconds: 16));
+    await gesture.up();
+    await tester.pump(GlassTabBar.minLift ~/ 2);
+    expect(tester.getRect(find.byKey(GlassTabBar.dropletBodyKey)).height, greaterThan(restPill.height));
+    await tester.pump(GlassTabBar.minLift);
+    await tester.pumpAndSettle();
+    expect(tester.getRect(find.byKey(GlassTabBar.dropletBodyKey)).height, closeTo(restPill.height, 0.01));
   });
 }
