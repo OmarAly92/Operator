@@ -14,6 +14,23 @@ pub(crate) fn write_block_open(text: &mut String, snapshot: &vt_core::GridSnapsh
     }
 }
 
+pub(crate) const SETTLED_BEGIN: &str = "\x1b]7000;v=1;settled=begin\x1b\\";
+pub(crate) const SETTLED_END: &str = "\x1b]7000;v=1;settled=end\x1b\\";
+
+pub(crate) fn settled_rows_end(snapshot: &vt_core::GridSnapshot) -> usize {
+    snapshot
+        .blocks
+        .iter()
+        .filter(|block| {
+            block.source != vt_core::BlockSource::Synthetic
+                && block.state == vt_core::BlockState::Finished
+                && block.row_count > 0
+        })
+        .map(|block| block.first_row as usize + block.row_count as usize)
+        .max()
+        .unwrap_or(0)
+}
+
 pub(crate) fn write_block_close(text: &mut String, snapshot: &vt_core::GridSnapshot, row: usize) {
     for block in snapshot.blocks.iter() {
         if block.source == vt_core::BlockSource::Synthetic {

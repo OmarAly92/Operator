@@ -777,6 +777,31 @@ describe("BlockTerminal", () => {
 		expect(Array.from(mockState.feeds[4])).toEqual([...laterLive]);
 	});
 
+	it("drops the replay's settled rows after durable history, even when the frame arrives split", async () => {
+		const history = historyBlock("h1", "cat", "one two");
+		renderTerminal({ historyBlocks: [history] });
+		await waitFor(() => expect(mockState.feeds.length).toBeGreaterThanOrEqual(1));
+
+		const replay =
+			"\x1b]7000;v=1;origin=0\x1b\\\x1b]7000;v=1;settled=begin\x1b\\\x1b[0mtmp % cat\x1b[0m\r\n\x1b[0mone two\x1b[0m\r\n" +
+			"\x1b]7000;v=1;settled=end\x1b\\\x1b[0mtmp %\x1b[0m\r\x1b[6C\x1b]7000;v=1;ready=1\x1b\\";
+		for (let at = 0; at < replay.length; at += 9) emit(encode(replay.slice(at, at + 9)));
+
+		const expected = "\x1b]7000;v=1;origin=0\x1b\\\x1b[0mtmp %\x1b[0m\r\x1b[6C\x1b]7000;v=1;ready=1\x1b\\";
+		await waitFor(() =>
+			expect(concatFeeds(mockState.feeds)).toEqual([...history.rawOutput, ...encode(expected)]),
+		);
+	});
+
+	it("keeps every replayed row when there was no durable history to cover them", async () => {
+		renderTerminal();
+		const replay =
+			"\x1b]7000;v=1;origin=0\x1b\\\x1b]7000;v=1;settled=begin\x1b\\\x1b[0mone two\x1b[0m\r\n" +
+			"\x1b]7000;v=1;settled=end\x1b\\\x1b[0mtmp %\x1b[0m\x1b]7000;v=1;ready=1\x1b\\";
+		emit(encode(replay));
+		await waitFor(() => expect(concatFeeds(mockState.feeds)).toEqual([...encode(replay)]));
+	});
+
 	it("upserts a live block whose id was already replayed from history, via the mock core's id-keyed seam", async () => {
 		const { transport, emit } = harness();
 		renderWithQuery(

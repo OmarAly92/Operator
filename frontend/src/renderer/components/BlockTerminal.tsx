@@ -27,6 +27,7 @@ import { externalEditorLabel } from "../lib/open-files-in";
 import { usePasteConfirm } from "../hooks/usePasteConfirm";
 import type { TerminalAppearance } from "../lib/terminal-mux";
 import { terminalAppearance, type TerminalColors } from "../lib/terminal-appearance";
+import { createSettledReplayFilter, type SettledReplayFilter } from "../lib/settled-replay-filter";
 
 export type BlockTerminalClipboard = {
 	writeText: (text: string) => Promise<void>;
@@ -164,7 +165,14 @@ function reportTerminalActionFailure(work: Promise<unknown>): Promise<void> {
 	);
 }
 
-function feedToCore(core: TerminalCore, bytes: Uint8Array, historyIds: Set<string>): void {
+function feedToCore(
+	core: TerminalCore,
+	incoming: Uint8Array,
+	historyIds: Set<string>,
+	settledFilter: SettledReplayFilter,
+): void {
+	const bytes = historyIds.size > 0 ? settledFilter.push(incoming) : incoming;
+	if (bytes.length === 0) return;
 	const marks = scanSourceIdMarks(bytes);
 	const reconnectsHistoryBlock = marks.some((mark) => historyIds.has(mark.id));
 	core.enqueue(reconnectsHistoryBlock ? withoutRanges(bytes, marks) : bytes);
@@ -205,6 +213,7 @@ export function BlockTerminal({
 	const [altScreenActive, setAltScreenActive] = useState(false);
 	const [coreError, setCoreError] = useState<Error | null>(null);
 	const historyIdsRef = useRef<Set<string>>(new Set());
+	const settledFilterRef = useRef<SettledReplayFilter>(createSettledReplayFilter());
 	const historyBlocksRef = useRef(historyBlocks);
 	historyBlocksRef.current = historyBlocks;
 	const recordsSpawnGridRef = useRef(recordsSpawnGrid);
@@ -289,7 +298,7 @@ export function BlockTerminal({
 		if (pending.length === 0) return;
 		terminalDebug("block-terminal", "grid sized", { columns, rows, buffered: pending.length });
 		for (const bytes of pending) {
-			feedToCore(core, bytes, historyIdsRef.current);
+			feedToCore(core, bytes, historyIdsRef.current, settledFilterRef.current);
 		}
 		reportReplayPainted();
 	}, [publishAppearance, reportReplayPainted]);
@@ -353,7 +362,7 @@ export function BlockTerminal({
 					const pending = pendingBytesRef.current;
 					pendingBytesRef.current = [];
 					for (const bytes of pending) {
-						feedToCore(created, bytes, historyIdsRef.current);
+						feedToCore(created, bytes, historyIdsRef.current, settledFilterRef.current);
 					}
 					if (pending.length > 0) reportReplayPainted();
 				}
@@ -374,6 +383,7 @@ export function BlockTerminal({
 			replayPaintedReportedRef.current = false;
 			replayReadyFiredRef.current = false;
 			historyIdsRef.current = new Set();
+			settledFilterRef.current = createSettledReplayFilter();
 			setCore(null);
 		};
 	}, [sessionId]);
@@ -420,7 +430,7 @@ export function BlockTerminal({
 				});
 			}
 			if (coreRef.current && gridSizedRef.current) {
-				feedToCore(coreRef.current, bytes, historyIdsRef.current);
+				feedToCore(coreRef.current, bytes, historyIdsRef.current, settledFilterRef.current);
 			} else {
 				pendingBytesRef.current.push(bytes);
 			}
