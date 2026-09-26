@@ -1092,7 +1092,16 @@ reports that mode as `permissionMode` (falling back to the durable
 used by every resume), plus `capabilities.permissionMode` and
 `capabilities.permissionModeCycle`; both are filled on the session list and
 get endpoints only, and `permissionMode` is omitted for a harness Operator
-cannot read the mode of.
+cannot read the mode of. A transcript value outside Operator's vocabulary (for
+example `dontAsk`) becomes a `permission_mode` event with an empty mode, and the
+DTO then omits `permissionMode` rather than keep reporting the last known one;
+the phone shows it as Unknown.
+
+A session's recorded launch mode wins over the project's configuration: once
+`launch_permission_mode` is set, restore, resume and every other relaunch use
+it, so editing the project's permission setting later changes new sessions
+only. Sessions without a recorded launch mode (created before the column)
+still take the project's current setting.
 
 `POST /api/v1/sessions/{id}/command` with `{"command":"permission-mode","mode":…}`
 has two paths, both refusing rather than guessing, and both allow-listed to the
@@ -1109,12 +1118,16 @@ Claude Code version the footer reader was checked against:
   the footer is no longer readable (a dialog opened) or the session state
   changes mid-drive, and stops when the cycle returns to its start. A miss is
   `PERMISSION_MODE_UNCONFIRMED`; an observer error (the mode can't be read at
-  all) is `PERMISSION_MODE_UNSUPPORTED`.
+  all) is `PERMISSION_MODE_UNSUPPORTED`. A request without a mode is
+  `SESSION_COMMAND_MODE_REQUIRED`; a mode outside the vocabulary is
+  `INVALID_PERMISSION_MODE`, as on spawn.
 - **Outside the cycle**: input admission closes first, the daemon waits a
   settle interval and re-reads the session, refusing with `SESSION_BUSY`
   without destroying anything if it is no longer idle or if a pane drive
   already holds it, then relaunches through the ordinary `--resume` path with
-  the new `--permission-mode` and records it as the launch mode. A `/send`
+  the new `--permission-mode` and records it as the launch mode. The restart
+  runs to completion even if the requesting client disconnects; the Shift+Tab
+  drive still stops when the request is cancelled. A `/send`
   that lands while a restart holds input admission closed also gets
   `SESSION_BUSY`.
 
