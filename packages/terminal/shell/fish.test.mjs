@@ -6,6 +6,7 @@ import { join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 import { haveTmux, parseOscRecords, runInPty, runInPtySegments, splitEveryByte } from "./pty.mjs";
+import { abortedPromptsSession, commandOutputs } from "./core.mjs";
 
 const bootstrap = fileURLToPath(new URL("./fish.fish", import.meta.url));
 const haveFish = (() => {
@@ -202,4 +203,16 @@ test("a prompt repaint on every resize at an idle prompt adds no block", { skip:
 	const after = blocks();
 	assert.equal(after.length, before, JSON.stringify(after.map((block) => [block.command, block.rowCount])));
 	terminal.dispose?.();
+});
+
+test("each command block holds only its output: no echoed command line and no partial-line mark", { skip: fishSkip || nativeOsc133Skip || (haveTmux() ? false : "tmux is not installed") || coreSkip }, async () => {
+	const { blocks } = await abortedPromptsSession("fish");
+	assert.deepEqual(commandOutputs(blocks), [["printf x", "x"], ["echo one", "one"], ["echo two", "two"]]);
+});
+
+test("Ctrl-C and an empty Enter at the prompt add no block, and every block keeps the cwd", { skip: fishSkip || nativeOsc133Skip || (haveTmux() ? false : "tmux is not installed") || coreSkip }, async () => {
+	const { blocks } = await abortedPromptsSession("fish");
+	assert.deepEqual(blocks.map((block) => block.command), ["printf x", "echo one", "echo two", ""]);
+	assert.notEqual(blocks[0].cwd, "");
+	assert.deepEqual(blocks.map((block) => block.cwd), blocks.map(() => blocks[0].cwd));
 });

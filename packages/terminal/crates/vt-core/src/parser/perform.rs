@@ -21,6 +21,7 @@ impl Parser {
         }
         let style = self.pending_style.resolved();
         let mut run = std::mem::take(&mut self.run);
+        self.printed_since_output_start |= self.alt.is_none();
         self.active_screen_mut().print_ascii_run(&run, style);
         if run.capacity() > 2 * RUN_FLUSH_BYTES {
             run = Vec::with_capacity(RUN_FLUSH_BYTES);
@@ -78,6 +79,7 @@ impl Perform for Parser {
         }
         self.flush_run();
         let style = self.pending_style.resolved();
+        self.printed_since_output_start |= self.alt.is_none();
         self.active_screen_mut().print(c, style);
     }
 

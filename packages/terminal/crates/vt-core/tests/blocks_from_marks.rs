@@ -71,8 +71,11 @@ fn successive_blocks_on_screen_have_distinct_row_ranges() {
     assert_eq!(snapshot.blocks.len(), 2);
     assert_eq!(snapshot.blocks[0].first_row, 0);
     assert_eq!(snapshot.blocks[0].row_count, 1);
-    assert_eq!(snapshot.blocks[1].first_row, 1);
+    assert_eq!(snapshot.blocks[1].first_row, 2);
     assert_eq!(snapshot.blocks[1].row_count, 1);
+    assert_eq!(snapshot.row_text(0), "one");
+    assert_eq!(snapshot.row_text(1), "");
+    assert_eq!(snapshot.row_text(2), "two");
 }
 
 #[test]
@@ -135,7 +138,7 @@ fn blocks_survive_scrollback_trimming() {
     core.resize(20, 1);
     for index in 0..50 {
         core.feed(
-            format!("\x1b]133;A\x07\x1b]133;C\x07row{index:03}\x1b]133;D;0\x07\r\n").as_bytes(),
+            format!("\x1b]133;A\x07\x1b]133;C\x07row{index:03}\r\n\x1b]133;D;0\x07").as_bytes(),
         );
     }
     let snapshot = core.snapshot().unwrap();

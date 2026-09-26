@@ -42,7 +42,7 @@ function flushFrames(count: number = 8): Promise<void> {
 }
 
 function feedBlock(core: TerminalCore, text: string): void {
-	core.feed(encoder.encode(`\x1b]133;A\x07\x1b]133;C\x07${text}\x1b]133;D;0\x07\r\n`));
+	core.feed(encoder.encode(`\x1b]133;A\x07\x1b]133;C\x07${text}\r\n\x1b]133;D;0\x07`));
 }
 
 type Mounted = {

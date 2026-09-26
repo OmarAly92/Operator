@@ -85,11 +85,15 @@ fn a_repainted_two_line_fish_prompt_adds_no_block() {
 }
 
 #[test]
-fn a_prompt_started_below_an_unused_prompt_still_opens_a_new_block() {
+fn a_prompt_started_below_an_unused_prompt_moves_it_instead_of_opening_a_new_block() {
     let mut core = core(40, 10);
-    core.feed(b"\x1b]133;A\x07$ \x1b]133;B\x07\r\n\x1b]133;A\x07$ \x1b]133;B\x07");
+    core.feed(
+        b"\x1b]7000;v=1;cwd=/w\x07\x1b]133;A\x07$ \x1b]133;B\x07\r\n\x1b]133;A\x07$ \x1b]133;B\x07",
+    );
+    common::check(&core);
     let snapshot = core.snapshot().unwrap();
-    assert_eq!(snapshot.blocks.len(), 2);
-    assert_eq!(snapshot.blocks[0].state, BlockState::Abandoned);
-    assert_eq!(snapshot.blocks[0].row_count, 1);
+    assert_eq!(snapshot.blocks.len(), 1);
+    assert_eq!(snapshot.blocks[0].state, BlockState::Running);
+    assert_eq!(snapshot.blocks[0].first_row, 1);
+    assert_eq!(snapshot.block_cwd(0), "/w");
 }

@@ -15,7 +15,7 @@ pub(crate) fn apply_event(parser: &mut Parser, alt: &mut AltScreen, event: MarkE
         MarkEvent::PromptStart { tier } => {
             parser.open_block(source_for_tier(tier));
         }
-        MarkEvent::CommandStart { .. } => {}
+        MarkEvent::CommandStart { .. } => parser.note_command_start(),
         MarkEvent::OutputStart { .. } => parser.start_output(),
         MarkEvent::CommandEnd { exit_code, .. } => {
             parser.close_block(exit_code);
