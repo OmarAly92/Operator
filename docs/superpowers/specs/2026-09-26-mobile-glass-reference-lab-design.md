@@ -365,13 +365,14 @@ Static math uses the full 3× lossless screenshots. Motion math uses video frame
 
 1. The Xcode project builds, and GlassLab shows every scene in the catalog on the iOS 27 simulator in light and dark.
 2. Every scene runs through the driver on GlassLab without error. The Apple app references run on their apps after `prepare`.
-3. Operator's lab resolves every `app: lab` id. The existing components render their scenes, positioned so their settled bounding box is within 1 pt of native:
+3. Operator's lab resolves every `app: lab` id. The existing components render their scenes, and each scene places its component where the native one sits. For example, the tab bar goes at the measured native rectangle and centred blocks are centred in the safe area. The glass box centres must be within 1 pt of native for these scenes:
    - `tabbar.rest`, `tabbar.press`, `tabbar.drag`;
    - `button.press`;
    - `sheet.detents`;
-   - `material.edge.*`, which have no glass box and are exempt from the box check;
    - `navbar.inline`;
    - `material.regular`, `material.tinted`, `material.clear`, `material.interactive`.
+
+   Differences that come from how a component draws are not fixed here; the baseline records them for projects 2–4. That covers box size (for example a glass shadow's spread) and the component's own internal layout (for example the nav bar's item spacing). `material.edge.*` have no glass box.
 4. The harness unit tests pass, and the repeatability check passes.
 5. `lab.py baseline` completes. Its report shows every scene, with native iOS 27 against Operator's current glass.
 6. **Committed:** `docs/superpowers/specs/2026-09-26-mobile-glass-reference-lab-baseline.md`, a summary with the coverage table and each scene's worst measures. It is the ordered backlog for projects 2–4. The HTML report and frames stay in `build/`; the report may also be published as an artifact for the user.
