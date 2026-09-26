@@ -17,6 +17,13 @@ describe("mapKey", () => {
 		expect(mapKey(key({ key: "r", ctrlKey: true }))).toEqual({ kind: "reverse-search" });
 	});
 
+	it("moves and walks history on Ctrl-F, Ctrl-B, Ctrl-P and Ctrl-N instead of sending them to the shell", () => {
+		expect(mapKey(key({ key: "f", ctrlKey: true }))).toEqual({ kind: "move", delta: 1 });
+		expect(mapKey(key({ key: "b", ctrlKey: true }))).toEqual({ kind: "move", delta: -1 });
+		expect(mapKey(key({ key: "p", ctrlKey: true }))).toEqual({ kind: "history", direction: -1 });
+		expect(mapKey(key({ key: "n", ctrlKey: true }))).toEqual({ kind: "history", direction: 1 });
+	});
+
 	// Warp binds cmd-backspace to kill_to_line_start and ctrl-u alongside it
 	// (warp_tui/editor_interaction.rs); ctrl-u already killed the word here, so
 	// it moves to the line to match, and cmd-delete kills forward.

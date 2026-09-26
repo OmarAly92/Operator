@@ -294,8 +294,7 @@ export function TerminalSurface({
 
 	useLayoutEffect(() => {
 		const blockHost = hostRef.current;
-		const renderer = rendererRef.current;
-		if (!blockHost || !renderer) {
+		if (!blockHost || !rendererRef.current) {
 			return;
 		}
 		// force skips the unchanged-geometry guard. Warp draws the same
@@ -305,7 +304,8 @@ export function TerminalSurface({
 		const apply = (force = false) => {
 			// A pane laid out at zero -- collapsed, or not laid out yet -- is
 			// skipped rather than recorded, so the next observation still applies.
-			if (blockHost.clientWidth <= 0 || blockHost.clientHeight <= 0) {
+			const renderer = rendererRef.current;
+			if (!renderer || blockHost.clientWidth <= 0 || blockHost.clientHeight <= 0) {
 				return;
 			}
 			const { cellWidth, cellHeight } = renderer.measure();
@@ -421,10 +421,9 @@ export function TerminalSurface({
 	);
 
 	useLayoutEffect(() => {
-		const findBar = findBarRef.current;
-		if (!findBar) return;
 		const onKeyDown = (event: KeyboardEvent) => {
-			if (!isFindChord(event, isMacPlatform())) return;
+			const findBar = findBarRef.current;
+			if (!findBar || !isFindChord(event, isMacPlatform())) return;
 			event.preventDefault();
 			event.stopPropagation();
 			findBar.open();

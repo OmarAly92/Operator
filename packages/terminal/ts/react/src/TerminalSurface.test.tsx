@@ -300,6 +300,22 @@ describe("TerminalSurface", () => {
 		expect(rows).toBeGreaterThan(0);
 	});
 
+	it("measures with the live renderer after the surface rebuilds it", () => {
+		const measured: DomBlockRenderer[] = [];
+		const original = DomBlockRenderer.prototype.measure;
+		const measure = vi.spyOn(DomBlockRenderer.prototype, "measure").mockImplementation(function (this: DomBlockRenderer) {
+			measured.push(this);
+			return original.call(this);
+		});
+		const { host, rebuild } = renderSurface();
+		rebuild();
+		measured.length = 0;
+		setHostSize(host, 900, 450);
+		expect(measured.length).toBeGreaterThan(0);
+		expect(measured.every((renderer) => (renderer as unknown as { core: unknown }).core !== null)).toBe(true);
+		measure.mockRestore();
+	});
+
 	it("leaves the whole horizontal inset to the block, the way Warp does", () => {
 		// Warp's BlockPadding (warp/app/src/terminal/mod.rs) carries padding_top,
 		// command_padding_top, middle and bottom and has no horizontal field -- but

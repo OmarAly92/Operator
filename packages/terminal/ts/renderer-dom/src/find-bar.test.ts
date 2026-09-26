@@ -12,7 +12,7 @@ import {
 	type TerminalCore,
 	type TerminalTheme,
 } from "@operator/terminal-core";
-import { DomBlockRenderer, warpDarkTheme } from "./index";
+import { DomBlockRenderer, terminalStyles, warpDarkTheme } from "./index";
 import { createFindBar, type FindBarHost } from "./find-bar";
 
 const wasmPath = join(
@@ -172,6 +172,29 @@ describe("find-bar", () => {
 		);
 
 		bar.dispose();
+	});
+
+	it("pins the bar to the top of the visible pane in a sticky anchor, not to the scrolled content", () => {
+		const { core, host, renderer } = makeMountedCore();
+		unmount = () => renderer.dispose();
+		const bar = createFindBar({
+			core,
+			renderer: renderer as unknown as BlockRenderer,
+			host: makeBarHost(renderer),
+			strings: defaultStrings,
+		});
+		bar.mount(host);
+		bar.open();
+		const node = host.querySelector<HTMLElement>("[data-terminal-find-bar]");
+		const anchor = node?.parentElement;
+		expect(anchor?.classList.contains("terminal-find-anchor")).toBe(true);
+		expect(host.firstElementChild).toBe(anchor);
+		expect(terminalStyles).toMatch(/\.terminal-find-anchor \{[^}]*position: sticky;[^}]*top: 0;[^}]*height: 0;/);
+		bar.close();
+		expect(host.querySelector(".terminal-find-anchor")).toBeNull();
+		bar.open();
+		bar.dispose();
+		expect(host.querySelector(".terminal-find-anchor")).toBeNull();
 	});
 
 	it("labels a match from a non-zero stable base after a trim", async () => {

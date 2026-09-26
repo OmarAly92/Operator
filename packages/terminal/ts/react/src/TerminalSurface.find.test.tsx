@@ -52,6 +52,18 @@ describe("TerminalSurface find shortcut", () => {
 		expect(onSendRaw).not.toHaveBeenCalled();
 	});
 
+	it("still opens find with Cmd+F after the surface rebuilds its renderer", () => {
+		setPlatform("MacIntel");
+		const { container, rebuild } = renderSurface();
+		rebuild();
+		const editor = editorOf(container);
+		editor.focus();
+		const event = press(editor, { key: "f", code: "KeyF", metaKey: true });
+		expect(event.defaultPrevented).toBe(true);
+		expect(findInput(container)).not.toBeNull();
+		expect(document.activeElement).toBe(findInput(container));
+	});
+
 	it("leaves Ctrl+F to the shell on macOS", () => {
 		setPlatform("MacIntel");
 		const onSendRaw = vi.fn();

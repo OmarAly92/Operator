@@ -38,6 +38,14 @@ export function mapKey(event: KeyboardEvent): EditorCommand | null {
 				return { kind: "home" };
 			case "e":
 				return { kind: "accept-suggestion" };
+			case "f":
+				return { kind: "move", delta: 1 };
+			case "b":
+				return { kind: "move", delta: -1 };
+			case "p":
+				return { kind: "history", direction: -1 };
+			case "n":
+				return { kind: "history", direction: 1 };
 			case "w":
 				return { kind: "delete-word-backward" };
 			case "u":

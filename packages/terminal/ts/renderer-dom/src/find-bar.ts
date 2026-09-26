@@ -11,6 +11,7 @@ import {
 import type { FindHighlights } from "./renderer-highlights.js";
 
 const CLASS_BAR = "terminal-find-bar";
+const CLASS_ANCHOR = "terminal-find-anchor";
 const CLASS_INPUT = "terminal-find-input";
 const CLASS_COUNT = "terminal-find-count";
 const CLASS_REGEX = "terminal-find-regex";
@@ -53,6 +54,7 @@ export function createFindBar(options: FindBarOptions): FindBar {
 	const { core, host, strings } = options;
 	let container: HTMLElement | null = null;
 	let bar: HTMLElement | null = null;
+	let anchor: HTMLElement | null = null;
 	let input: HTMLInputElement | null = null;
 	let countNode: HTMLElement | null = null;
 	let session: Session | null = null;
@@ -283,8 +285,13 @@ export function createFindBar(options: FindBarOptions): FindBar {
 		if (!container) return;
 		previousFocus = document.activeElement as HTMLElement | null;
 		const node = ensureBar();
-		if (node.parentElement !== container) {
-			container.append(node);
+		if (!anchor) {
+			anchor = document.createElement("div");
+			anchor.className = CLASS_ANCHOR;
+		}
+		if (node.parentElement !== anchor) anchor.append(node);
+		if (anchor.parentElement !== container || container.firstElementChild !== anchor) {
+			container.prepend(anchor);
 		}
 		bar = node;
 		if (repaintOff === null) {
@@ -311,9 +318,8 @@ export function createFindBar(options: FindBarOptions): FindBar {
 			repaintOff();
 			repaintOff = null;
 		}
-		if (bar && bar.parentElement === container) {
-			container.removeChild(bar);
-		}
+		anchor?.remove();
+		anchor = null;
 		bar = null;
 		input = null;
 		countNode = null;
@@ -334,9 +340,8 @@ export function createFindBar(options: FindBarOptions): FindBar {
 			repaintOff();
 			repaintOff = null;
 		}
-		if (bar && container && bar.parentElement === container) {
-			container.removeChild(bar);
-		}
+		anchor?.remove();
+		anchor = null;
 		bar = null;
 		input = null;
 		countNode = null;
