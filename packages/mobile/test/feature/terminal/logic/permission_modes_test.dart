@@ -5,7 +5,9 @@ void main() {
   test('every mode has the phone label, with Ask for default', () {
     expect(kPermissionModes, ['bypass-permissions', 'auto', 'accept-edits', 'plan', 'default']);
     expect(kPermissionModes.map(permissionModeLabel), ['Bypass permissions', 'Auto', 'Accept edits', 'Plan', 'Ask']);
-    expect(permissionModeLabel(null), 'Ask');
+    expect(permissionModeLabel('default'), 'Ask');
+    expect(permissionModeLabel(null), 'Unknown');
+    expect(permissionModeLabel(''), 'Unknown');
   });
 
   test('refusals name the reason', () {

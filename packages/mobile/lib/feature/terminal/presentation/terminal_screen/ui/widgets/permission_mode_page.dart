@@ -67,7 +67,7 @@ class PermissionModeList extends StatelessWidget {
     return BlocBuilder<PermissionModeCubit, PermissionModeState>(
       builder: (context, state) {
         final cubit = context.read<PermissionModeCubit>();
-        final selected = state.pending ?? state.mode ?? 'default';
+        final selected = state.pending ?? state.mode;
         final error = state.error;
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,

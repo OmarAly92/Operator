@@ -88,6 +88,36 @@ void main() {
     await cubit.close();
   });
 
+  test('an unknown mode from the transcript clears the mode instead of keeping a stale one', () async {
+    final cubit = build();
+
+    events.add(modeEvent(''));
+    await Future<void>.delayed(Duration.zero);
+    expect(cubit.state.mode, isNull);
+
+    events.add(modeEvent('plan'));
+    await Future<void>.delayed(Duration.zero);
+    expect(cubit.state.mode, 'plan');
+    await cubit.close();
+  });
+
+  test('a refresh reporting no mode shows the mode as unknown', () async {
+    final cubit = build();
+
+    session = const SessionModel(
+      id: 's-1',
+      harness: 'claude-code',
+      permissionModeSupported: true,
+      permissionModeCycle: ['default', 'accept-edits', 'plan'],
+    );
+    sessionChanges.add(null);
+    await Future<void>.delayed(Duration.zero);
+
+    expect(cubit.state.mode, isNull);
+    expect(cubit.state.supported, isTrue);
+    await cubit.close();
+  });
+
   test('another session and a subagent never move the mode', () async {
     final cubit = build();
 

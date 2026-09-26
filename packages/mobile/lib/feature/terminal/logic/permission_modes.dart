@@ -9,7 +9,8 @@ String permissionModeLabel(String? mode) => switch (mode) {
   'auto' => 'Auto',
   'accept-edits' => 'Accept edits',
   'plan' => 'Plan',
-  _ => 'Ask',
+  'default' => 'Ask',
+  _ => 'Unknown',
 };
 
 String permissionModeRefusal(String? code) => switch (code) {

@@ -81,6 +81,26 @@ void main() {
     expect(find.descendant(of: find.byKey(const ValueKey('permission-mode-plan')), matching: find.text(kPermissionRestartNote)), findsNothing);
   });
 
+  testWidgets('an unknown mode reads Unknown and the page checks nothing', (tester) async {
+    await open(
+      tester,
+      const SessionModel(
+        id: 's-1',
+        harness: 'claude-code',
+        permissionModeSupported: true,
+        permissionModeCycle: ['default', 'accept-edits', 'plan'],
+      ),
+    );
+    expect(find.text('Unknown'), findsOneWidget);
+
+    await tester.tap(find.byKey(PermissionModeRow.rowKey));
+    await tester.pumpAndSettle();
+
+    for (final mode in kPermissionModes) {
+      expect(check(mode), findsNothing);
+    }
+  });
+
   testWidgets('choosing a mode applies it and returns to the sheet showing it', (tester) async {
     await openPage(tester);
     when(() => harness.controlRepository.sendCommand(any(), any())).thenAnswer(

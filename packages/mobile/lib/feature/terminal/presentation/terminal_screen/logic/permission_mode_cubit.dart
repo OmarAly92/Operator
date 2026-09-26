@@ -25,12 +25,13 @@ class PermissionModeState extends Equatable {
     String? mode,
     bool? supported,
     List<String>? cycle,
+    bool clearMode = false,
     String? pending,
     bool clearPending = false,
     String? error,
     bool clearError = false,
   }) => PermissionModeState(
-    mode: mode ?? this.mode,
+    mode: clearMode ? null : mode ?? this.mode,
     supported: supported ?? this.supported,
     cycle: cycle ?? this.cycle,
     pending: clearPending ? null : pending ?? this.pending,
@@ -70,7 +71,7 @@ class PermissionModeCubit extends Cubit<PermissionModeState> {
   StreamSubscription<MuxStatus>? _statusSub;
 
   static PermissionModeState _fromSession(SessionModel? session) => PermissionModeState(
-    mode: session?.permissionMode,
+    mode: _known(session?.permissionMode),
     supported: session?.permissionModeSupported ?? false,
     cycle: session?.permissionModeCycle ?? const [],
   );
@@ -78,13 +79,15 @@ class PermissionModeCubit extends Cubit<PermissionModeState> {
   void _onEvent(BlockEventEnvelope envelope) {
     final event = BlockEventModel.fromJson(envelope.block);
     if (event.kind != kPermissionModeEventKind || (event.agentId ?? '').isNotEmpty) return;
-    final mode = event.text;
-    if (mode == null || !kPermissionModes.contains(mode)) return;
+    final mode = _known(event.text);
+    if (mode == null && (event.text ?? '').isNotEmpty) return;
     _held = mode;
     _observed = mode;
     if (state.pending != null) return;
-    emit(state.copyWith(mode: mode, clearError: true));
+    emit(state.copyWith(mode: mode, clearMode: mode == null, clearError: true));
   }
+
+  static String? _known(String? mode) => kPermissionModes.contains(mode) ? mode : null;
 
   void _onStatus(MuxStatus status) {
     final reopened = status == MuxStatus.open && _muxStatus != MuxStatus.open;
@@ -97,17 +100,13 @@ class PermissionModeCubit extends Cubit<PermissionModeState> {
     if (session == null) return;
     final fresh = _fromSession(session);
     final reported = fresh.mode;
-    String? mode;
-    if (reported != null) {
-      if (_held == null) {
-        mode = reported;
-      } else if (reported == _held) {
-        _held = null;
-      }
-    }
-    if (mode != null) _observed = mode;
+    final follow = _held == null;
+    if (!follow && reported == _held) _held = null;
+    if (follow) _observed = reported;
+    final apply = follow && state.pending == null;
     emit(state.copyWith(
-      mode: state.pending == null ? mode : null,
+      mode: apply ? reported : null,
+      clearMode: apply && reported == null,
       supported: fresh.supported,
       cycle: fresh.cycle,
     ));
