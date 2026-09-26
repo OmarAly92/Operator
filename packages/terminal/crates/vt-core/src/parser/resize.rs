@@ -81,7 +81,8 @@ impl Parser {
             };
             self.rows.pop_completed();
             self.content.truncate_to(row.start);
-            self.styles.truncate_to(row.start);
+            self.styles
+                .truncate_to(row.start, self.content.start_offset());
             pulled.push((cells, row.wrapped));
         }
         if pulled.is_empty() {

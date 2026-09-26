@@ -1429,10 +1429,14 @@ history of `master`.
   moves the newest scrollback rows back onto the top of the screen so the
   prompt keeps its distance from the bottom (Alacritty `grow_lines`/`shrink_lines`,
   Ghostty `pull_scrollback`; behaviour only), but only rows that commit back to
-  the same bytes and style runs (`Parser::row_cells`, `parser/resize.rs:105`,
+  the same bytes and style runs (`Parser::row_cells`, `parser/resize.rs:106`,
   commits them into a scratch buffer and compares; `Content::truncate_to`
   `content.rs:137`, `AttributeMap::truncate_to` `attribute_map.rs:72`,
-  `RowIndex::pop_completed` `row_index.rs:434`). Flat and stable row numbers
+  `RowIndex::pop_completed` `row_index.rs:434`). When no style key is left
+  below the cut, `AttributeMap::truncate_to` takes the content's first byte
+  as the start of its last run (`attribute_map.rs:77`): the map's base would
+  let the next style change restyle an older-output chunk still resident
+  below it, and 0 added a key that covers no byte. Flat and stable row numbers
   never change, so blocks, the scroll anchor and the older-output floor are
   untouched.
 - Content byte offsets are reusable now: before this plan content only grew or
@@ -1457,7 +1461,7 @@ history of `master`.
   dragging the window taller with the find bar open reset a long history on
   every step and it never finished scanning. Only a pull-back that cuts below
   the content end from before the resize counts (`parser/resize.rs:48`,
-  `:90-93`): every resize
+  `:91-94`): every resize
   at a prompt evicts the rows above it and usually pulls those same
   just-appended bytes back, and counting that reset an open find session on
   every width change (dragging the window with the find bar open made the hit
@@ -1492,8 +1496,10 @@ history of `master`.
   and cell spans after every step, ≥ 200 resizes at a prompt),
   `tests/resize_goldens.rs`, `content.rs`/`attribute_map.rs`/`row_index` unit
   tests (among them
-  `runs_prepended_after_a_full_truncation_survive_a_style_change_at_the_seam`
-  and `the_lowest_cut_since_a_count_covers_every_later_reuse_only`), the
+  `runs_prepended_after_a_full_truncation_survive_a_style_change_at_the_seam`,
+  `the_lowest_cut_since_a_count_covers_every_later_reuse_only`,
+  `a_full_truncation_to_the_first_byte_adds_no_key_at_the_next_style_change`
+  and `a_full_truncation_above_prepended_bytes_keeps_their_style`), the
   `find.rs` unit test `a_cut_inside_a_soft_wrapped_line_rescans_from_the_line_start`,
   `block_grid` `open_block_ref_is_the_open_block_and_nothing_after_it_closes`,
   `shell/{zsh,bash,fish}.test.mjs` "after a width change …". Those shell tests
