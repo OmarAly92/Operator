@@ -6,7 +6,9 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use vt_core::{CellStyle, TerminalCore};
 
-use block_marks::{write_block_close, write_block_open};
+use block_marks::{
+    settled_rows_end, write_block_close, write_block_open, SETTLED_BEGIN, SETTLED_END,
+};
 use vt_core::style_sgr::{write_styled_row, write_styled_row_with};
 
 thread_local! {
@@ -388,6 +390,10 @@ pub extern "C" fn vt_replay(handle: u32, lines: u32, out_ptr: u32, out_cap: u32)
             // row below it down by one -- the client's grid no longer agrees
             // with the host's about which row is which.
             let cols = core.columns();
+            let settled_end = settled_rows_end(&snapshot).min(total - 1);
+            if settled_end > first {
+                text.push_str(SETTLED_BEGIN);
+            }
             for i in first..total {
                 let indent = snapshot.row_indent(i).min(cols.saturating_sub(1));
                 let (row_bytes, pairs) = clip_row(
@@ -404,6 +410,9 @@ pub extern "C" fn vt_replay(handle: u32, lines: u32, out_ptr: u32, out_cap: u32)
                     &|id| snapshot.link_uri(id),
                     if last { "" } else { "\r\n" },
                 );
+                if i + 1 == settled_end && settled_end > first {
+                    text.push_str(SETTLED_END);
+                }
             }
             // The cursor is addressed RELATIVELY, from the last row written.
             // Absolute addressing would be wrong: these rows scroll up into
