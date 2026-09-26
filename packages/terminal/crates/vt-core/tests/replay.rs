@@ -258,3 +258,55 @@ fn a_chunk_shaped_like_the_hosts_prepends_cleanly() {
     assert_eq!(rows_of(&core), vec!["old one", "old two", "live", "next"]);
     assert_eq!(core.verify_integrity(), Ok(()));
 }
+
+#[test]
+fn a_history_row_wider_than_the_pane_lands_whole_and_rewraps_when_touched() {
+    let mut core = TerminalCore::new(10, 10_000).expect("core");
+    attach(&mut core, 1000, "live\r\n");
+    core.feed(
+        b"\x1b]7000;v=1;history=997,3\x1b\\first\r\n\x1b[31m0123456789\x1b[0mABCDE\r\nthird\r\n",
+    );
+
+    assert_eq!(core.first_stable_row(), 997);
+    let snapshot = core.snapshot().expect("snapshot");
+    assert_eq!(snapshot.row_text(1), "0123456789ABCDE");
+    assert_eq!(snapshot.row_style_pairs(1)[0].0, 10);
+    assert_eq!(snapshot.row_style_pairs(1)[0].1.fg, StyleCode::indexed(1));
+
+    core.touch_rows(0..usize::MAX);
+    assert_eq!(core.stale_row_count(), 0);
+    assert_eq!(
+        rows_of(&core),
+        vec!["first", "0123456789", "ABCDE", "third", "live"]
+    );
+    assert_eq!(core.verify_integrity(), Ok(()));
+}
+
+#[test]
+fn a_history_mark_announcing_more_rows_than_a_chunk_carries_is_ignored() {
+    let mut core = TerminalCore::new(20, 10_000).expect("core");
+    attach(&mut core, 1000, "live\r\n");
+    core.feed(b"\x1b]7000;v=1;history=0,4294967295\x1b\\");
+    for line in 0..3_000 {
+        core.feed(format!("after {line}\r\n").as_bytes());
+    }
+
+    assert_eq!(core.first_stable_row(), 1000);
+    let rows = rows_of(&core);
+    assert_eq!(rows.first().map(String::as_str), Some("live"));
+    assert_eq!(rows.last().map(String::as_str), Some("after 2999"));
+    assert_eq!(rows.len(), 3_001);
+    assert_eq!(core.verify_integrity(), Ok(()));
+}
+
+#[test]
+fn a_wide_character_past_the_panes_edge_keeps_its_history_row_whole() {
+    let mut core = TerminalCore::new(4, 10_000).expect("core");
+    core.set_grapheme_clusters(true);
+    attach(&mut core, 1000, "live\r\n");
+    core.feed("\x1b]7000;v=1;history=999,1\x1b\\abc\u{1f468}\u{200d}\u{1f469}z\r\n".as_bytes());
+
+    let snapshot = core.snapshot().expect("snapshot");
+    assert_eq!(snapshot.row_text(0), "abc\u{1f468}\u{200d}\u{1f469}z");
+    assert_eq!(core.verify_integrity(), Ok(()));
+}

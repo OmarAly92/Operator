@@ -1,10 +1,11 @@
 use terminal_marks::{MarkDecoder, MarkEvent};
+use unicode_width::UnicodeWidthChar;
 use vte::Parser as VteParser;
 use vte::{Params, Perform};
 
 use crate::hyperlink::HyperlinkRegistry;
 use crate::parser::{HistoryBlock, HistoryRow};
-use crate::screen::ScreenGrid;
+use crate::screen::{ScreenGrid, MAX_DIMENSION};
 use crate::style::CellStyle;
 use crate::width::WidthMode;
 
@@ -18,6 +19,7 @@ pub(crate) struct HistoryReceiver {
     first_stable_row: u64,
     wanted: usize,
     cols: usize,
+    widest: usize,
     seen_rows: usize,
     rows: Vec<HistoryRow>,
     vte: VteParser,
@@ -35,6 +37,7 @@ impl HistoryReceiver {
             first_stable_row: 0,
             wanted: 0,
             cols: 0,
+            widest: 0,
             seen_rows: 0,
             rows: Vec::new(),
             vte: VteParser::new(),
@@ -52,14 +55,23 @@ impl HistoryReceiver {
     }
 
     pub fn begin(&mut self, first_stable_row: u64, rows: usize, cols: usize, mode: WidthMode) {
+        if rows > crate::older::OLDER_CHUNK_ROWS {
+            self.screen = None;
+            self.rows = Vec::new();
+            self.blocks.clear();
+            self.open = None;
+            self.done = false;
+            return;
+        }
         let mut screen = ScreenGrid::new(1, cols.max(1));
         self.cols = screen.cols();
+        self.widest = 0;
         screen.set_records_eviction(false);
         screen.set_width_mode(mode);
         self.first_stable_row = first_stable_row;
         self.wanted = rows;
         self.seen_rows = 0;
-        self.rows = Vec::with_capacity(rows.min(crate::older::OLDER_CHUNK_ROWS));
+        self.rows = Vec::with_capacity(rows);
         self.vte = VteParser::new();
         self.screen = Some(screen);
         self.marks = MarkDecoder::new();
@@ -88,6 +100,10 @@ impl HistoryReceiver {
                 self.vte.advance(&mut perform, std::slice::from_ref(byte));
             } else {
                 self.rows.push(history_row(screen, screen.cursor().0));
+                if screen.cols() > self.cols {
+                    self.widest = self.widest.max(screen.row_width(0));
+                    screen.resize_without_reflow(1, self.cols);
+                }
                 screen.reset();
                 self.seen_rows += 1;
                 if self.seen_rows == self.wanted {
@@ -118,7 +134,7 @@ impl HistoryReceiver {
             self.first_stable_row,
             rows,
             std::mem::take(&mut self.blocks),
-            self.cols,
+            self.cols.max(self.widest),
         ))
     }
 }
@@ -147,6 +163,10 @@ struct ScreenPerform<'a> {
 
 impl Perform for ScreenPerform<'_> {
     fn print(&mut self, c: char) {
+        let width = UnicodeWidthChar::width(c).unwrap_or(0);
+        if self.screen.cols() < MAX_DIMENSION && self.screen.wraps_before(width) {
+            self.screen.widen_keeping_cursor(MAX_DIMENSION);
+        }
         self.screen.print(c, self.style.resolved());
     }
 
@@ -228,5 +248,32 @@ fn history_row(screen: &ScreenGrid, row: usize) -> HistoryRow {
         wrapped: false,
         indent: exported.indent,
         styles: exported.styles,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_chunk_larger_than_any_producer_sends_never_starts_buffering_rows() {
+        let mut receiver = HistoryReceiver::new();
+        let mut links = HyperlinkRegistry::default();
+        receiver.begin(0, usize::MAX, 20, WidthMode::Scalar);
+        assert!(!receiver.is_active());
+        assert_eq!(receiver.consume(&b"row\r\n".repeat(5_000), &mut links), 0);
+        assert!(receiver.rows.is_empty());
+    }
+
+    #[test]
+    fn the_largest_chunk_a_producer_sends_is_received() {
+        let mut receiver = HistoryReceiver::new();
+        let mut links = HyperlinkRegistry::default();
+        let rows = crate::older::OLDER_CHUNK_ROWS;
+        receiver.begin(0, rows, 20, WidthMode::Scalar);
+        let bytes = b"row\r\n".repeat(rows);
+        assert_eq!(receiver.consume(&bytes, &mut links), bytes.len());
+        let (_, taken, _, _) = receiver.take().expect("a whole chunk");
+        assert_eq!(taken.len(), rows);
     }
 }

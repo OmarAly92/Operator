@@ -39,6 +39,24 @@ impl ScreenGrid {
         self.resize_cells(clamp_dimension(rows), clamp_dimension(cols));
     }
 
+    pub(crate) fn widen_keeping_cursor(&mut self, cols: usize) {
+        let after_last = self.pending_wrap.then_some(self.cols);
+        self.resize_cells(self.rows, clamp_dimension(cols).max(self.cols));
+        if let Some(col) = after_last {
+            self.col = col.min(self.cols - 1);
+        }
+    }
+
+    pub(crate) fn wraps_before(&self, width: usize) -> bool {
+        width > 0 && (self.pending_wrap || self.col + width > self.cols)
+    }
+
+    pub(crate) fn row_width(&self, row: usize) -> usize {
+        (0..self.cols)
+            .rposition(|col| self.cell_ref(row, col).is_some_and(|cell| !cell.is_blank()))
+            .map_or(0, |col| col + 1)
+    }
+
     /// Rows that a height shrink cannot keep come off the bottom first and only
     /// then off the top, which is what `tmux`'s `screen_resize_y` does: it
     /// deletes the lines below the cursor, then pushes the lines above it into
