@@ -242,6 +242,44 @@ void main() {
       expect(harness.cubit.attachments.map((a) => a.id), ['a']);
     });
 
+    testWidgets('each remove badge answers taps across a 44pt area inside its item', (tester) async {
+      await pumpComposer(tester);
+      harness.cubit.addAttachments([png('a'), pdf('b')]);
+      await tester.pumpAndSettle();
+
+      final hit = tester.getRect(find.bySemanticsLabel('Remove b.pdf'));
+      expect(hit.width, greaterThanOrEqualTo(44));
+      expect(hit.height, greaterThanOrEqualTo(44));
+      expect(tester.getRect(find.byType(ComposerAttachmentTray)).contains(hit.topLeft), isTrue);
+
+      await tester.tapAt(hit.bottomLeft + const Offset(2, -2));
+      await tester.pumpAndSettle();
+      expect(harness.cubit.attachments.map((a) => a.id), ['a']);
+    });
+
+    testWidgets('closing Add context returns focus to the field', (tester) async {
+      await pumpComposer(tester);
+
+      await tester.tap(find.byType(ComposerAddButton));
+      await tester.pumpAndSettle();
+      Navigator.of(tester.element(find.text('Add context'))).pop();
+      await tester.pumpAndSettle();
+
+      final focused = FocusManager.instance.primaryFocus?.context;
+      expect(focused, isNotNull);
+      expect(
+        find.ancestor(of: find.byElementPredicate((e) => e == focused), matching: find.byType(TextField)),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('the resting card is agentRestHeight tall', (tester) async {
+      await pumpComposer(tester);
+      await tester.pumpAndSettle();
+
+      expect(card(tester).height, moreOrLessEquals(TerminalComposer.agentRestHeight, epsilon: 0.5));
+    });
+
     testWidgets('a notice shows in the tray and tapping it dismisses it', (tester) async {
       await pumpComposer(tester);
       harness.cubit.showAttachmentNotice('Each file must be under 10 MB.');
@@ -383,6 +421,28 @@ void main() {
 
       expect(find.byType(TerminalComposerDraftHint), findsOneWidget);
       expect(find.descendant(of: find.byType(TerminalComposerDraftHint), matching: find.byType(AppText)), findsNothing);
+    });
+  });
+
+  group('send slot', () {
+    Widget slot(ComposerTrailing trailing) => MediaQuery(
+      data: const MediaQueryData(disableAnimations: true),
+      child: Center(child: ComposerSendSlot(trailing: trailing, staging: false, onSend: () {}, onStop: () {})),
+    );
+
+    testWidgets('swaps without a transition when animations are disabled', (tester) async {
+      await harness.pump(tester, slot(ComposerTrailing.stop));
+      await tester.pumpAndSettle();
+      expect(find.bySemanticsLabel('Stop'), findsOneWidget);
+
+      await harness.pump(tester, slot(ComposerTrailing.send));
+
+      expect(find.bySemanticsLabel('Stop'), findsNothing);
+      expect(find.bySemanticsLabel('Send'), findsOneWidget);
+      final fades = tester.widgetList<FadeTransition>(
+        find.descendant(of: find.byType(ComposerSendSlot), matching: find.byType(FadeTransition)),
+      );
+      expect(fades.every((fade) => fade.opacity.value == 1), isTrue);
     });
   });
 

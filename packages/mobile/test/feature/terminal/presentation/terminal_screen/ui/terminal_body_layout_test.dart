@@ -16,6 +16,7 @@ import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/wid
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/blocks_body.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/floating_working_control.dart';
 import 'package:operator_mobile/feature/terminal/data/model/params/send_session_message_params.dart';
+import 'package:operator_mobile/feature/terminal/logic/composer_attachment.dart';
 import 'package:operator_mobile/core/widgets/chat/chat_insets.dart';
 import 'package:operator_mobile/feature/dictation/ui/mic_key.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/ui/widgets/composer_add_button.dart';
@@ -226,6 +227,25 @@ void main() {
     expect(bottomEdge(tester).knee, moreOrLessEquals(BlocksBodyState.bottomFadeExtent / band.height, epsilon: 1e-9));
     expect(bottomEdge(tester).knee, lessThan(0.25));
     await tester.pump(const Duration(minutes: 1));
+  });
+
+  testWidgets('the attachment tray grows the dock inset and keeps the last message clear', (tester) async {
+    harness = TerminalHarness()..start(harness: 'claude-code', blockRecords: _conversation(12));
+    await harness.pump(tester, const TerminalBody());
+    await tester.pumpAndSettle();
+    final resting = dockInset(tester);
+    expect(tester.widget<ChatInsets>(find.byType(ChatInsets)).bottom.value, moreOrLessEquals(TerminalComposer.agentRestHeight, epsilon: 0.5));
+
+    harness.cubit.addAttachments([
+      ComposerAttachment(id: 'a', name: 'a.png', mimeType: 'image/png', bytes: Uint8List(4)),
+    ]);
+    await tester.pumpAndSettle();
+
+    final grown = dockInset(tester);
+    expect(grown, greaterThan(resting));
+    final body = tester.getRect(find.byType(TerminalBody));
+    expect(grown, body.bottom - capsule(tester).top);
+    expect(tester.getRect(find.textContaining('reply 11')).bottom, lessThanOrEqualTo(capsule(tester).top));
   });
 
   testWidgets('the + and the mic sit in the card corners, the field keeps its inset', (tester) async {

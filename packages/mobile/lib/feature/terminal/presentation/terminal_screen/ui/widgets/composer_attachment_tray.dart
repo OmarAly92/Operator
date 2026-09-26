@@ -15,6 +15,7 @@ class ComposerAttachmentTray extends StatelessWidget {
   static const double thumbSize = 56;
   static const double fileCardWidth = 148;
   static const double badgeSize = 22;
+  static const double removeHitSize = 44;
   static const Key noticeKey = ValueKey('composer-attachment-notice');
 
   final List<ComposerAttachment> attachments;
@@ -43,11 +44,15 @@ class ComposerAttachmentTray extends StatelessWidget {
               ),
             ),
           if (text != null)
-            GestureDetector(
-              key: noticeKey,
-              behavior: HitTestBehavior.opaque,
-              onTap: onDismissNotice,
-              child: Text(text, style: AppTextStyle.style12Medium.copyWith(color: skin.red)),
+            Semantics(
+              button: true,
+              hint: 'Dismiss',
+              child: GestureDetector(
+                key: noticeKey,
+                behavior: HitTestBehavior.opaque,
+                onTap: onDismissNotice,
+                child: Text(text, style: AppTextStyle.style12Medium.copyWith(color: skin.red)),
+              ),
             ),
         ],
       ),
@@ -82,6 +87,7 @@ class _TrayItem extends StatelessWidget {
                     fit: BoxFit.cover,
                     cacheWidth: 168,
                     gaplessPlayback: true,
+                    semanticLabel: attachment.name,
                     errorBuilder: (_, _, _) =>
                         _FileCard(name: attachment.name, width: ComposerAttachmentTray.thumbSize),
                   )
@@ -100,16 +106,22 @@ class _TrayItem extends StatelessWidget {
             child: GestureDetector(
               behavior: HitTestBehavior.opaque,
               onTap: remove == null ? null : () => remove(attachment.id),
-              child: Container(
-                width: ComposerAttachmentTray.badgeSize,
-                height: ComposerAttachmentTray.badgeSize,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: skin.bgElevated,
-                  shape: BoxShape.circle,
-                  border: Border.all(color: skin.borderSubtle),
+              child: SizedBox.square(
+                dimension: ComposerAttachmentTray.removeHitSize,
+                child: Align(
+                  alignment: Alignment.topRight,
+                  child: Container(
+                    width: ComposerAttachmentTray.badgeSize,
+                    height: ComposerAttachmentTray.badgeSize,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: skin.bgElevated,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: skin.borderSubtle),
+                    ),
+                    child: Icon(Icons.close_rounded, size: 14, color: skin.textSecondary),
+                  ),
                 ),
-                child: Icon(Icons.close_rounded, size: 14, color: skin.textSecondary),
               ),
             ),
           ),

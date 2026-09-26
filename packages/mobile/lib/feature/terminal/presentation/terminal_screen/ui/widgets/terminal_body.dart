@@ -30,10 +30,20 @@ class _TerminalBodyState extends State<TerminalBody> {
   static const double kDockSide = 8;
 
   final GlobalKey<BlocksBodyState> _blocks = GlobalKey<BlocksBodyState>();
-  final ValueNotifier<double> _dockHeight = ValueNotifier<double>(TerminalComposer.restHeight);
+  late final ValueNotifier<double> _dockHeight;
   final ValueNotifier<double> _frost = ValueNotifier<double>(0);
   final ValueNotifier<double> _clear = ValueNotifier<double>(0);
   double _topExtra = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _dockHeight = ValueNotifier<double>(
+      context.read<TerminalCubit>().args.shellOnly
+          ? TerminalComposer.restHeight
+          : TerminalComposer.agentRestHeight,
+    );
+  }
 
   @override
   void dispose() {

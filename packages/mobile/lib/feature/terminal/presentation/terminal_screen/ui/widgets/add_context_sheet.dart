@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/app_themes/text_style/app_text_style.dart';
+import 'package:operator_mobile/core/helpers/logging/app_logger.dart';
 import 'package:operator_mobile/core/utils/haptics.dart';
 import 'package:operator_mobile/core/utils/service_locator.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/press_scale.dart';
@@ -91,7 +92,8 @@ Future<void> _pick(BuildContext context, AttachmentPick pick) async {
     terminal.addAttachments(picked);
   } on AttachmentPickFailure catch (failure) {
     terminal.showAttachmentNotice(failure.message);
-  } catch (_) {
+  } catch (error, stackTrace) {
+    AppLogger.warning('Could not attach the picked files', exception: error, stackTrace: stackTrace);
     terminal.showAttachmentNotice(kAttachFailed);
   }
   sheet.close();

@@ -11,8 +11,6 @@ ComposerAction composerActionFor({required bool hasText, required bool recording
   return hasText ? ComposerAction.send : ComposerAction.mic;
 }
 
-bool composerShowsStop({required bool hasText, required bool canStop}) => canStop && !hasText;
-
 Widget _swapTransition(Widget child, Animation<double> animation) => _IgnoreWhileLeaving(
   animation: animation,
   child: FadeTransition(
@@ -98,39 +96,6 @@ class ComposerActionButton extends StatelessWidget {
   }
 }
 
-class ComposerStopButton extends StatelessWidget {
-  const ComposerStopButton({super.key, required this.visible, required this.onStop});
-
-  static const double gap = 6;
-
-  final bool visible;
-  final VoidCallback? onStop;
-
-  @override
-  Widget build(BuildContext context) {
-    final reduceMotion = MediaQuery.disableAnimationsOf(context);
-    return AnimatedSwitcher(
-      duration: reduceMotion ? Duration.zero : AppMotion.chatActionSwap,
-      switchInCurve: AppMotion.easeOut,
-      switchOutCurve: AppMotion.easeOut,
-      transitionBuilder: _swapTransition,
-      child: visible
-          ? Padding(
-              key: const ValueKey('composer-stop'),
-              padding: const EdgeInsets.only(right: gap),
-              child: _RoundAction(
-                label: 'Stop',
-                icon: Icons.stop_rounded,
-                color: context.skin.red,
-                ink: context.skin.onAccent,
-                onTap: onStop,
-              ),
-            )
-          : const SizedBox.shrink(key: ValueKey('composer-no-stop')),
-    );
-  }
-}
-
 class _RoundAction extends StatelessWidget {
   const _RoundAction({
     super.key,
@@ -179,6 +144,7 @@ class ComposerSendSlot extends StatelessWidget {
   const ComposerSendSlot({super.key, required this.trailing, required this.staging, this.onSend, this.onStop});
 
   static const Key stagingKey = ValueKey('composer-staging');
+  static const double gap = 6;
 
   final ComposerTrailing trailing;
   final bool staging;
@@ -197,12 +163,12 @@ class ComposerSendSlot extends StatelessWidget {
       child: switch (trailing) {
         ComposerTrailing.send when staging => const Padding(
           key: stagingKey,
-          padding: EdgeInsets.only(left: ComposerStopButton.gap),
+          padding: EdgeInsets.only(left: ComposerSendSlot.gap),
           child: _StagingIndicator(),
         ),
         ComposerTrailing.send => Padding(
           key: const ValueKey(ComposerTrailing.send),
-          padding: const EdgeInsets.only(left: ComposerStopButton.gap),
+          padding: const EdgeInsets.only(left: ComposerSendSlot.gap),
           child: _RoundAction(
             label: 'Send',
             icon: Icons.arrow_upward_rounded,
@@ -213,7 +179,7 @@ class ComposerSendSlot extends StatelessWidget {
         ),
         ComposerTrailing.stop => Padding(
           key: const ValueKey(ComposerTrailing.stop),
-          padding: const EdgeInsets.only(left: ComposerStopButton.gap),
+          padding: const EdgeInsets.only(left: ComposerSendSlot.gap),
           child: _RoundAction(
             label: 'Stop',
             icon: Icons.stop_rounded,
