@@ -1449,8 +1449,12 @@ history of `master`.
   next style change; and `Content` counts reuses and keeps, for each count,
   the lowest cut made since it (`Content::note_reuse` `content.rs:152` keeps
   `(count, cut)` pairs with rising cuts, dropping any older pair a new lower
-  cut covers; `lowest_cut_since` `content.rs:160`, `truncations()`
-  `content.rs:165`). When the count moved since its last update,
+  cut covers, and merging the pairs whose cut a front trim has passed into
+  one with the oldest cut and the newest count, `content.rs:158-164`, so the
+  list stays bounded by the resident rows; every count answered by a merged
+  pair still gets a cut below all resident bytes, so a find session rescans
+  all of history as before; `lowest_cut_since` `content.rs:167`,
+  `truncations()` `content.rs:172`). When the count moved since its last update,
   `FindSession::update` drops only the history hits that end after the start
   of the line holding that cut, and rescans from there
   (`crates/vt-core/src/find.rs:185-192`, `line_start` `find.rs:335`; the
@@ -1503,6 +1507,7 @@ history of `master`.
   tests (among them
   `runs_prepended_after_a_full_truncation_survive_a_style_change_at_the_seam`,
   `the_lowest_cut_since_a_count_covers_every_later_reuse_only`,
+  `the_cut_list_stays_bounded_over_alternating_cuts_and_front_trims`,
   `a_full_truncation_to_the_first_byte_adds_no_key_at_the_next_style_change`
   and `a_full_truncation_above_prepended_bytes_keeps_their_style`), the
   `find.rs` unit test `a_cut_inside_a_soft_wrapped_line_rescans_from_the_line_start`,

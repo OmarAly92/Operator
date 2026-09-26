@@ -155,6 +155,13 @@ impl Content {
             self.cuts.pop();
         }
         self.cuts.push((self.truncations, cut));
+        let start = self.start_offset();
+        let trimmed = self.cuts.partition_point(|&(_, lower)| lower < start);
+        if trimmed > 1 {
+            let oldest = self.cuts[0].1;
+            self.cuts.drain(..trimmed - 1);
+            self.cuts[0].1 = oldest;
+        }
     }
 
     pub fn lowest_cut_since(&self, seen: u64) -> Option<u64> {
@@ -296,6 +303,29 @@ mod tests {
         assert_eq!(c.lowest_cut_since(1), Some(1500));
         assert_eq!(c.lowest_cut_since(2), Some(1800));
         assert_eq!(c.lowest_cut_since(3), None);
+    }
+
+    #[test]
+    fn the_cut_list_stays_bounded_over_alternating_cuts_and_front_trims() {
+        let mut c = Content::with_base(1024);
+        let mut cuts = Vec::new();
+        for _ in 0..1000 {
+            for _ in 0..100 {
+                c.push_char("a");
+            }
+            c.truncate_to(c.end_offset() - 10);
+            c.note_reuse(c.end_offset());
+            cuts.push(c.end_offset());
+            c.trim_front_to(c.end_offset() - 20);
+        }
+        assert!(c.cuts.len() <= 3, "{} cuts", c.cuts.len());
+        let count = c.truncations();
+        assert_eq!(c.lowest_cut_since(count), None);
+        assert_eq!(c.lowest_cut_since(count - 1), cuts.last().copied());
+        for seen in 0..count - 1 {
+            assert!(c.lowest_cut_since(seen).unwrap() < c.start_offset());
+        }
+        assert_eq!(c.lowest_cut_since(0), Some(cuts[0]));
     }
 
     #[test]
