@@ -28,6 +28,7 @@ impl ScreenGrid {
             self.line_feed();
         }
         self.raise_max_cursor_row(self.row);
+        self.clear_split_wide(self.row, self.col, self.col + width);
         self.set(self.row, self.col, Cell::new(ch, style));
         for offset in 1..width {
             self.set(self.row, self.col + offset, Cell::new('\0', style));
@@ -54,6 +55,7 @@ impl ScreenGrid {
             let row = self.row;
             self.raise_max_cursor_row(row);
             let take = (self.cols - self.col).min(rest.len() - at);
+            self.clear_split_wide(row, self.col, self.col + take);
             let start = self.phys_start(row) + self.col;
             for (cell, byte) in self.cells[start..start + take]
                 .iter_mut()
@@ -75,6 +77,7 @@ impl ScreenGrid {
     fn put_ascii(&mut self, ch: char, style: CellStyle) {
         let row = self.row;
         self.raise_max_cursor_row(row);
+        self.clear_split_wide(row, self.col, self.col + 1);
         let index = self.phys_start(row) + self.col;
         self.cells[index] = Cell::new(ch, style);
         if self.col + 1 == self.cols {
@@ -84,6 +87,25 @@ impl ScreenGrid {
             self.col += 1;
         }
         self.mark_dirty(row);
+    }
+
+    fn clear_split_wide(&mut self, row: usize, start: usize, end: usize) {
+        let base = self.phys_start(row);
+        let blank = self.erased_cell();
+        let mut cleared = false;
+        if start > 0 && self.cells[base + start].ch == '\0' {
+            self.cells[base + start - 1] = blank.clone();
+            cleared = true;
+        }
+        let mut col = end;
+        while col < self.cols && self.cells[base + col].ch == '\0' {
+            self.cells[base + col] = blank.clone();
+            cleared = true;
+            col += 1;
+        }
+        if cleared {
+            self.mark_dirty(row);
+        }
     }
 
     fn ascii_starts_a_cluster(&self) -> bool {
@@ -132,6 +154,7 @@ impl ScreenGrid {
         self.cells[index].append_scalar(ch);
         let new_width = width::cluster_width(self.cells[index].text(&mut buffer));
         if new_width > old_width && col + 1 < self.cols {
+            self.clear_split_wide(row, col + 1, col + 2);
             self.set(row, col + 1, Cell::new('\0', style));
             if self.row == row && self.col == col + 1 {
                 self.col += 1;

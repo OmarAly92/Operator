@@ -94,3 +94,96 @@ fn the_alternate_screen_exports_spans_too() {
         }
     );
 }
+
+fn overwrite(cols: usize, graphemes: bool, input: &str) -> (String, Vec<(u32, u32, u8)>) {
+    let mut core = TerminalCore::new(cols, 100).expect("core");
+    core.resize(cols, 3);
+    core.set_grapheme_clusters(graphemes);
+    core.feed(input.as_bytes());
+    common::check(&core);
+    let snapshot = core.snapshot().expect("snapshot");
+    let spans = snapshot
+        .row_cell_spans(0)
+        .iter()
+        .map(|span| (span.start, span.end, span.width))
+        .collect();
+    (snapshot.row_text(0).to_string(), spans)
+}
+
+#[test]
+fn a_wide_character_over_a_continuation_blanks_both_orphaned_halves() {
+    for graphemes in [false, true] {
+        assert_eq!(
+            overwrite(4, graphemes, "\u{65e5}\u{65e5}\x1b[1;2H\u{65e5}"),
+            (" \u{65e5}".to_string(), vec![(1, 4, 2)]),
+            "graphemes={graphemes}"
+        );
+    }
+}
+
+#[test]
+fn a_wide_character_over_a_continuation_blanks_the_lead_before_it() {
+    for graphemes in [false, true] {
+        assert_eq!(
+            overwrite(5, graphemes, "\u{65e5}ab\x1b[1;2H\u{65e5}"),
+            (" \u{65e5}b".to_string(), vec![(1, 4, 2)]),
+            "graphemes={graphemes}"
+        );
+    }
+}
+
+#[test]
+fn a_wide_character_over_a_lead_blanks_the_continuation_after_it() {
+    for graphemes in [false, true] {
+        assert_eq!(
+            overwrite(5, graphemes, "ab\u{65e5}c\x1b[1;2H\u{65e5}"),
+            ("a\u{65e5} c".to_string(), vec![(1, 4, 2)]),
+            "graphemes={graphemes}"
+        );
+    }
+}
+
+#[test]
+fn a_narrow_character_over_a_lead_blanks_the_continuation() {
+    for graphemes in [false, true] {
+        for narrow in ["x", "\u{e9}"] {
+            assert_eq!(
+                overwrite(5, graphemes, &format!("\u{65e5}b\x1b[1;1H{narrow}")),
+                (format!("{narrow} b"), vec![]),
+                "graphemes={graphemes} narrow={narrow}"
+            );
+        }
+    }
+}
+
+#[test]
+fn a_narrow_character_over_a_continuation_blanks_the_lead() {
+    for graphemes in [false, true] {
+        for narrow in ["x", "\u{e9}"] {
+            assert_eq!(
+                overwrite(5, graphemes, &format!("\u{65e5}b\x1b[1;2H{narrow}")),
+                (format!(" {narrow}b"), vec![]),
+                "graphemes={graphemes} narrow={narrow}"
+            );
+        }
+    }
+}
+
+#[test]
+fn an_ascii_run_across_two_wide_characters_blanks_the_halves_at_both_ends() {
+    for graphemes in [false, true] {
+        assert_eq!(
+            overwrite(5, graphemes, "\u{65e5}\u{65e5}z\x1b[1;2Hxy"),
+            (" xy z".to_string(), vec![]),
+            "graphemes={graphemes}"
+        );
+    }
+}
+
+#[test]
+fn a_cluster_widened_by_a_selector_blanks_the_continuation_it_orphans() {
+    assert_eq!(
+        overwrite(5, true, "\u{2764}\u{65e5}z\x1b[1;2H\u{fe0f}"),
+        ("\u{2764}\u{fe0f} z".to_string(), vec![(0, 6, 2)]),
+    );
+}

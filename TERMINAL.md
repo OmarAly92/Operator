@@ -1507,6 +1507,27 @@ history of `master`.
   and on Linux (zsh 5.9, bash 5.2.21, fish 4.8.1, tmux 3.4); the redraw bytes
   above were captured on macOS only.
 
+### 4.37 A wide character cut in half by an overwrite
+- **Symptom (before 2026-09-26):** a character printed over one half of a
+  wide character left the other half behind. At 4 columns `日日\x1b[1;2H日`
+  left the cells `日 日 \0 \0`, and `row_cell_spans` reported a span 3 cells
+  wide. A narrow character over a lead kept the orphaned continuation, and a
+  narrow character over a continuation kept a one-cell lead that the next
+  cell overlapped. Found by a review fuzz of Plan 10; it predates Plan 10.
+- **Now:** `ScreenGrid::clear_split_wide`
+  (`crates/vt-core/src/screen/print.rs:92`) runs before every write that can
+  split a wide character: `print` (`:31`), `print_ascii_run` (`:58`),
+  `put_ascii` (`:80`) and the grapheme widening in `join_previous` (`:157`).
+  A lead whose continuation is overwritten, and every continuation after the
+  written cells, become erased cells with the current background (xterm and
+  Ghostty behaviour; no code taken). The row's wrapped flag is kept.
+- **Goldens re-recorded deliberately** (the one change of that kind on the
+  Plan 10 branch): `synthetic-unicode-mix`, `synthetic-edits-styled` and
+  `resize-running-3` had recorded the split halves (spans up to 4 cells wide
+  in the first two when fed in 64-byte chunks). No other golden changed.
+- Guards: `crates/vt-core/tests/cell_spans.rs:114-189` (seven tests, both
+  width modes, each through `common::check`).
+
 ## 5. Known gaps (not bugs, decisions pending)
 
 - **Find exports every hit on every change.** `findResults` copies all hits
