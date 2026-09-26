@@ -7,6 +7,7 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import align
+import analyze
 import metrics
 import springfit
 
@@ -142,6 +143,23 @@ class ThresholdTests(unittest.TestCase):
         self.assertLessEqual(3.9, metrics.THRESHOLDS["mad"])
         self.assertGreater(4.1, metrics.THRESHOLDS["mad"])
         self.assertEqual(metrics.THRESHOLDS["time_ms"], 17.0)
+
+
+class OnsetAlignmentTests(unittest.TestCase):
+    def _series(self, shift, count=60):
+        native = {key: [10.0] * count for key in align.KEYS}
+        native["width"] = [float(i) for i in range(count)]
+        flutter = {key: [10.0] * count for key in align.KEYS}
+        flutter["width"] = [float(i + shift) for i in range(count)]
+        return native, flutter
+
+    def test_recovers_a_positive_offset_within_one_frame(self):
+        native, flutter = self._series(5)
+        self.assertLessEqual(abs(analyze.best_lag(native, flutter) - 5), 1)
+
+    def test_recovers_a_negative_offset_within_one_frame(self):
+        native, flutter = self._series(-7)
+        self.assertLessEqual(abs(analyze.best_lag(native, flutter) - -7), 1)
 
 
 if __name__ == "__main__":
