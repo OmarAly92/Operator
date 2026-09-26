@@ -470,11 +470,7 @@ export const terminalStyles = `@font-face {
 	opacity: 0.8;
 }
 
-.terminal-find-anchor {
-	position: sticky;
-	top: 0;
-	height: 0;
-}
+.terminal-find-anchor { position: sticky; top: 0; height: 0; z-index: 4; }
 
 .terminal-find-bar {
 	position: absolute;

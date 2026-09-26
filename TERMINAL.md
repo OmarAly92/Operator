@@ -1729,8 +1729,9 @@ history of `master`.
 - The find bar scrolled away with the transcript: it was `position: absolute` inside
   the scrolling host, so a reveal or Enter that scrolled far put it off screen. It
   now sits in a zero-height `position: sticky; top: 0` anchor
-  (`.terminal-find-anchor`), the host's first child, so it stays at the top of the
-  visible pane without moving a row.
+  (`.terminal-find-anchor`, `z-index: 4` so the block list does not paint over it and
+  take its clicks), the host's first child, so it stays at the top of the visible pane
+  without moving a row.
 - Not a bug (verified): a pane in a hidden page (`document.visibilityState` hidden)
   neither drains nor paints until it is shown (`catchUp`), so a check run against a
   background browser tab sees no new output and no OSC 22 until the tab is visible.

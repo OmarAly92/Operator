@@ -190,6 +190,7 @@ describe("find-bar", () => {
 		expect(anchor?.classList.contains("terminal-find-anchor")).toBe(true);
 		expect(host.firstElementChild).toBe(anchor);
 		expect(terminalStyles).toMatch(/\.terminal-find-anchor \{[^}]*position: sticky;[^}]*top: 0;[^}]*height: 0;/);
+		expect(terminalStyles).toMatch(/\.terminal-find-anchor \{[^}]*z-index: [1-9]/);
 		bar.close();
 		expect(host.querySelector(".terminal-find-anchor")).toBeNull();
 		bar.open();
