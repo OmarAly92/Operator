@@ -73,6 +73,7 @@ pub(crate) struct Parser {
     cold: crate::cold_ring::ColdRing,
     committed_rows: u64,
     run: Vec<u8>,
+    input_mark: Option<(crate::block::BlockId, usize)>,
     pub(crate) unknown: unknown::UnknownRing,
     #[cfg(feature = "trace")]
     pub(crate) trace: crate::trace::Trace,
@@ -114,6 +115,7 @@ impl Parser {
             cold: crate::cold_ring::ColdRing::default(),
             committed_rows: 0,
             run: Vec::new(),
+            input_mark: None,
             unknown: unknown::UnknownRing::default(),
             #[cfg(feature = "trace")]
             trace: Default::default(),

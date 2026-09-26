@@ -47,11 +47,21 @@ impl Parser {
     fn resize_at_prompt(&mut self, columns: usize, rows: usize) -> bool {
         let before = self.content.end_offset();
         let completed = self.rows.completed().len();
-        let prompt_row = self
-            .grid
-            .open_block_ref()
-            .map(|block| self.grid.flat_extent(block).0.saturating_sub(completed));
-        let Some(wanted) = self.screen.resize_keeping_prompt(rows, columns, prompt_row) else {
+        let prompt_row = match self.grid.open_block_ref() {
+            Some(block) => match self.grid.flat_extent(block).0.checked_sub(completed) {
+                Some(row) => Some(row),
+                None => return false,
+            },
+            None => None,
+        };
+        let owned = match (self.grid.open_block_ref(), self.input_mark) {
+            (Some(block), Some((id, offset))) if block.id == id => offset,
+            _ => 0,
+        };
+        let Some(wanted) = self
+            .screen
+            .resize_keeping_prompt(rows, columns, prompt_row, owned)
+        else {
             return false;
         };
         self.note_width(columns);

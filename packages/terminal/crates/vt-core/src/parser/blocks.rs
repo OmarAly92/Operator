@@ -65,6 +65,15 @@ impl Parser {
         })
     }
 
+    pub(crate) fn note_input_ready(&mut self) {
+        self.commit_evicted();
+        let row = self.block_start_row();
+        self.input_mark = self.grid.open_block_ref().and_then(|block| {
+            row.checked_sub(self.grid.flat_extent(block).0)
+                .map(|offset| (block.id, offset))
+        });
+    }
+
     pub(crate) fn start_output(&mut self) {
         self.commit_evicted();
         self.grid.start_output(self.block_start_row());

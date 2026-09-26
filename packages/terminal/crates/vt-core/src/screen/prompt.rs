@@ -6,6 +6,7 @@ impl ScreenGrid {
         rows: usize,
         cols: usize,
         prompt_row: Option<usize>,
+        owned_rows: usize,
     ) -> Option<usize> {
         let rows = clamp_dimension(rows);
         let cols = clamp_dimension(cols);
@@ -18,7 +19,14 @@ impl ScreenGrid {
             bottom -= 1;
         }
         let kept = bottom - top + 1;
-        if kept > rows {
+        if kept > rows || (top > 0 && self.row_wrapped(top - 1)) {
+            return None;
+        }
+        let mut owned_end = (top + owned_rows).min(bottom);
+        while owned_end < bottom && self.row_wrapped(owned_end) {
+            owned_end += 1;
+        }
+        if (owned_end + 1..=bottom).any(|row| self.row_loses_cells(row, cols)) {
             return None;
         }
         let trailing = self.rows - 1 - bottom;
@@ -59,6 +67,16 @@ impl ScreenGrid {
         self.pending_wrap = false;
         self.saved = None;
         Some(wanted.min(rows - kept))
+    }
+
+    fn row_loses_cells(&self, row: usize, cols: usize) -> bool {
+        if cols >= self.cols {
+            return false;
+        }
+        let start = self.phys_start(row);
+        let cells = &self.cells[start..start + self.cols];
+        (cells[cols].ch == '\0' && cells[cols - 1].ch != '\0')
+            || cells[cols..].iter().any(|cell| !cell.is_blank())
     }
 
     pub(crate) fn push_rows_on_top(&mut self, pulled: Vec<(Vec<Cell>, bool)>) {
