@@ -1109,11 +1109,17 @@ footer reader was checked against, and never predicts which modes the
 Shift+Tab loop contains. Which modes it holds, and in what order, depends on
 the launch mode and on the account's `permissions.defaultMode`: a session
 launched in Bypass on an account whose default is Auto was observed on
-2.1.280 to loop Bypass → Auto → Ask → Accept edits → Plan → Bypass. Every
-change therefore tries the loop first:
+2.1.280, with auto mode enabled, to loop Bypass → Auto → Ask → Accept edits →
+Plan → Bypass. Ask is recognised by its "manual mode on" footer; an account
+or build whose footer reads differently is unknown to the reader, so the
+drive stops unconfirmed and never restarts. Every change therefore tries the
+loop first:
 
 - **Shift+Tab drive**: under the same exclusive per-session pane drive as the
-  task stop, on an idle or waiting-for-input session only, the daemon reads
+  task stop, except that a permission-mode change never waits for the pane:
+  a second change, or one that arrives while another drive or operation holds
+  the session, gets `SESSION_BUSY` at once. On an idle or
+  waiting-for-input session only, the daemon reads
   the composer footer, presses Shift+Tab, and waits for the footer to change,
   at most eight times, re-checking the session is still eligible before every
   press. The footer reads "⏸ manual mode on" for Default (Ask); any other or

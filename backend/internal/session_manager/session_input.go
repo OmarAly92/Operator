@@ -286,6 +286,14 @@ func (m *Manager) paneDriveActive(id domain.SessionID) bool {
 }
 
 func (m *Manager) beginPaneDrive(ctx context.Context, id domain.SessionID) (func(), error) {
+	return m.acquirePaneDrive(ctx, id, true)
+}
+
+func (m *Manager) tryBeginPaneDrive(ctx context.Context, id domain.SessionID) (func(), error) {
+	return m.acquirePaneDrive(ctx, id, false)
+}
+
+func (m *Manager) acquirePaneDrive(ctx context.Context, id domain.SessionID, wait bool) (func(), error) {
 	id = domain.SessionID(strings.TrimSpace(string(id)))
 	for {
 		if err := ctx.Err(); err != nil {
@@ -298,6 +306,9 @@ func (m *Manager) beginPaneDrive(ctx context.Context, id domain.SessionID) (func
 		}
 		if drive := m.paneDrives[id]; drive != nil {
 			m.agentOpMu.Unlock()
+			if !wait {
+				return nil, ErrSessionBusy
+			}
 			select {
 			case <-drive:
 				continue

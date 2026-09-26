@@ -5,6 +5,7 @@ import (
 	"errors"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -366,11 +367,9 @@ func TestPermissionModeRestartIsRefusedWhileAPaneDriveHoldsTheSession(t *testing
 		t.Fatalf("beginPaneDrive: %v", err)
 	}
 	defer end()
-	callCtx, cancel := context.WithTimeout(ctx, 50*time.Millisecond)
-	defer cancel()
 
-	if _, err := m.SetPermissionMode(callCtx, "mer-1", domain.PermissionModeAuto); !errors.Is(err, context.DeadlineExceeded) {
-		t.Fatalf("err = %v, want the call to wait on the held pane and time out", err)
+	if _, err := m.SetPermissionMode(ctx, "mer-1", domain.PermissionModeAuto); !errors.Is(err, ErrSessionBusy) {
+		t.Fatalf("err = %v, want ErrSessionBusy", err)
 	}
 	if len(runtime.inputs) != 0 || runtime.destroyed != 0 || runtime.created != 0 || agent.restoreCalls != 0 {
 		t.Fatalf("the restart went ahead under a pane drive: destroyed=%d created=%d restores=%d", runtime.destroyed, runtime.created, agent.restoreCalls)
@@ -579,5 +578,39 @@ func TestPermissionModeKeepsACancelledObservationReadAsACancellation(t *testing.
 	}
 	if len(rt.inputs) != 0 {
 		t.Fatalf("a cancelled read touched the pane: %q", rt.inputs)
+	}
+}
+
+func TestPermissionModeASecondChangeMidDriveIsBusyAtOnce(t *testing.T) {
+	m, rt := newPermissionDriveManager(t, domain.ActivityIdle, "MODE:default", "MODE:accept-edits", "MODE:plan")
+	second := make(chan error, 1)
+	var once sync.Once
+	m.permissionModeReader = hookedPermissionModeReader{
+		fakePermissionModeReader: fakePermissionModeReader{verified: "2.1.280"},
+		onRead: func() {
+			once.Do(func() {
+				go func() {
+					_, err := m.SetPermissionMode(ctx, "s1", domain.PermissionModeAuto)
+					second <- err
+				}()
+				select {
+				case err := <-second:
+					second <- err
+				case <-time.After(time.Second):
+					second <- errors.New("the second change waited on the running drive")
+				}
+			})
+		},
+	}
+
+	result, err := m.SetPermissionMode(ctx, "s1", domain.PermissionModePlan)
+	if err != nil || result != (PermissionModeResult{Mode: domain.PermissionModePlan}) {
+		t.Fatalf("first change = %+v, %v", result, err)
+	}
+	if err := <-second; !errors.Is(err, ErrSessionBusy) {
+		t.Fatalf("second change = %v, want ErrSessionBusy", err)
+	}
+	if shiftTabs(rt.inputs) != 2 {
+		t.Fatalf("inputs = %q, want only the first change's two presses", rt.inputs)
 	}
 }

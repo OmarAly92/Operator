@@ -114,7 +114,7 @@ func (m *Manager) observedPermissionMode(ctx context.Context, id domain.SessionI
 }
 
 func (m *Manager) cyclePermissionMode(ctx context.Context, id domain.SessionID, reader ports.TerminalPermissionModeReader, target domain.PermissionMode) (PermissionModeResult, error) {
-	end, err := m.beginPaneDrive(ctx, id)
+	end, err := m.tryBeginPaneDrive(ctx, id)
 	if err != nil {
 		return PermissionModeResult{}, commandDriveError(err)
 	}
