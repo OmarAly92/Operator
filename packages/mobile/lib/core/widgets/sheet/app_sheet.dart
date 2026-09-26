@@ -1,7 +1,9 @@
 import 'dart:math' as math;
 
 import 'package:expressive_sheet/expressive_sheet.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:operator_mobile/core/app_themes/app_motion.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/app_themes/text_style/app_text_style.dart';
@@ -58,10 +60,10 @@ sealed class AppSheetMetrics {
 
 sealed class AppSheetLogic {
   static double? fixedHeight(AppSheetDetent detent, double screenHeight) => switch (detent) {
-        AppSheetDetent.fit => null,
-        AppSheetDetent.medium => screenHeight * AppSheetMetrics.mediumFraction,
-        AppSheetDetent.large => screenHeight * AppSheetMetrics.largeFraction,
-      };
+    AppSheetDetent.fit => null,
+    AppSheetDetent.medium => screenHeight * AppSheetMetrics.mediumFraction,
+    AppSheetDetent.large => screenHeight * AppSheetMetrics.largeFraction,
+  };
 
   static double maxHeight({required double available, required double topSafe}) =>
       math.max(0, available - math.max(topSafe, GlassMetrics.sheetInset) - GlassMetrics.sheetInset);
@@ -78,6 +80,20 @@ sealed class AppSheetLogic {
 
   static Clip surfaceClip(double headerVisibility) =>
       headerVisibility > 0 ? Clip.antiAliasWithSaveLayer : Clip.antiAlias;
+
+  static double pageWeight(double offset) => offset >= 0
+      ? (1 - offset).clamp(0.0, 1.0).toDouble()
+      : (1 + offset / AppSheetMetrics.pushParallax).clamp(0.0, 1.0).toDouble();
+
+  static double blendedHeight(List<double> heights, List<double> weights) {
+    var total = 0.0;
+    var sum = 0.0;
+    for (var i = 0; i < heights.length; i++) {
+      total += weights[i];
+      sum += heights[i] * weights[i];
+    }
+    return total <= 0 ? heights.fold(0.0, math.max) : sum / total;
+  }
 
   static double bottomClearance({required bool hasSearch}) => hasSearch
       ? AppSheetMetrics.searchBottom + AppSheetMetrics.searchHeight + AppSheetMetrics.contentBottom
@@ -156,21 +172,10 @@ class _AppSheetState extends State<AppSheet> with TickerProviderStateMixin {
   late final List<_PageEntry> _entries = [_entry(_pages.length, _pages.last, AppSheetLogic.pageShown)];
 
   _PageEntry _entry(int depth, AppSheetPage page, double offset) => _PageEntry(
-        depth: depth,
-        page: page,
-        motion: AnimationController.unbounded(vsync: this, value: offset),
-      );
-
-  final GlobalKey _sizedKey = GlobalKey();
-
-  Widget _sized(Widget child) => MediaQuery.disableAnimationsOf(context)
-      ? child
-      : AnimatedSize(
-          duration: AppMotion.sheetPush,
-          curve: AppMotion.sheetPushCurve,
-          alignment: Alignment.bottomCenter,
-          child: child,
-        );
+    depth: depth,
+    page: page,
+    motion: AnimationController.unbounded(vsync: this, value: offset),
+  );
 
   Duration get _pushDuration => MediaQuery.disableAnimationsOf(context) ? Duration.zero : AppMotion.sheetPush;
 
@@ -214,7 +219,9 @@ class _AppSheetState extends State<AppSheet> with TickerProviderStateMixin {
       _pages.add(page);
       final depth = _pages.length;
       final returning = _entries
-          .where((entry) => entry.depth == depth && entry.target == AppSheetLogic.pageRemoved && identical(entry.page, page))
+          .where(
+            (entry) => entry.depth == depth && entry.target == AppSheetLogic.pageRemoved && identical(entry.page, page),
+          )
           .lastOrNull;
       final incoming = returning ?? _entry(depth, page, AppSheetLogic.pageRemoved);
       _entries
@@ -331,15 +338,27 @@ class _AppSheetState extends State<AppSheet> with TickerProviderStateMixin {
     );
   }
 
+  Widget _followSearch(Widget child) => AnimatedBuilder(
+    animation: Listenable.merge([for (final entry in _entries) entry.motion]),
+    builder: (context, child) {
+      var visible = 0.0;
+      for (final entry in _entries) {
+        if (entry.page.searchHint != null) visible += AppSheetLogic.pageWeight(entry.motion.value);
+      }
+      return Opacity(opacity: visible.clamp(0.0, 1.0).toDouble(), child: child);
+    },
+    child: child,
+  );
+
   Widget _fade(Widget child, Animation<double> animation) => FadeTransition(opacity: animation, child: child);
 
   Widget _crossFade(Widget child) => AnimatedSwitcher(
-        duration: _pushDuration,
-        switchInCurve: AppMotion.sheetPushCurve,
-        switchOutCurve: AppMotion.sheetPushCurve.flipped,
-        transitionBuilder: _fade,
-        child: child,
-      );
+    duration: _pushDuration,
+    switchInCurve: AppMotion.sheetPushCurve,
+    switchOutCurve: AppMotion.sheetPushCurve.flipped,
+    transitionBuilder: _fade,
+    child: child,
+  );
 
   Widget _header(AppSheetPage page, double frost) {
     final skin = context.skin;
@@ -352,29 +371,29 @@ class _AppSheetState extends State<AppSheet> with TickerProviderStateMixin {
                 widthFactor: 1,
                 heightFactor: 1,
                 child: FrostedCircleButton(
-                key: AppSheet.backKey,
-                icon: Icons.arrow_back_ios_new_rounded,
-                semanticLabel: 'Back',
-                foreground: skin.textPrimary,
+                  key: AppSheet.backKey,
+                  icon: Icons.arrow_back_ios_new_rounded,
+                  semanticLabel: 'Back',
+                  foreground: skin.textPrimary,
                   frost: frost,
                   onPressed: _pop,
                 ),
               )
             : page.closeable
-                ? Center(
-                    key: const ValueKey<String>('close'),
-                    widthFactor: 1,
-                    heightFactor: 1,
-                    child: FrostedCircleButton(
-                      key: AppSheet.closeKey,
-                      icon: Icons.close_rounded,
-                      semanticLabel: 'Close',
-                      foreground: skin.textPrimary,
-                      frost: frost,
-                      onPressed: _controller.close,
-                    ),
-                  )
-                : const SizedBox.shrink(key: ValueKey<bool>(false)),
+            ? Center(
+                key: const ValueKey<String>('close'),
+                widthFactor: 1,
+                heightFactor: 1,
+                child: FrostedCircleButton(
+                  key: AppSheet.closeKey,
+                  icon: Icons.close_rounded,
+                  semanticLabel: 'Close',
+                  foreground: skin.textPrimary,
+                  frost: frost,
+                  onPressed: _controller.close,
+                ),
+              )
+            : const SizedBox.shrink(key: ValueKey<bool>(false)),
       ),
       middle: _crossFade(
         AppText(
@@ -419,12 +438,25 @@ class _AppSheetState extends State<AppSheet> with TickerProviderStateMixin {
           final maxHeight = AppSheetLogic.maxHeight(available: constraints.maxHeight, topSafe: media.padding.top);
           final fixed = AppSheetLogic.fixedHeight(widget.detent, media.size.height);
           final height = fixed == null ? null : math.min(fixed, maxHeight);
-          final switcher = Stack(
-            key: AppSheet.pagesKey,
-            alignment: Alignment.topCenter,
-            children: [for (final entry in _entries) _pageLayer(entry, height == null)],
+          final searchHint = _entries
+              .lastWhere((entry) => entry.page.searchHint != null, orElse: () => _entries.last)
+              .page
+              .searchHint;
+          final switcher = AnimatedBuilder(
+            animation: Listenable.merge([for (final entry in _entries) entry.motion]),
+            builder: (context, _) => _SheetPages(
+              key: AppSheet.pagesKey,
+              weights: [for (final entry in _entries) AppSheetLogic.pageWeight(entry.motion.value)],
+              height: height,
+              maxHeight: maxHeight,
+              children: [for (final entry in _entries) _pageLayer(entry, height == null)],
+            ),
           );
-          final content = ClipRect(key: AppSheet.contentClipKey, clipper: const _BelowGrabberClipper(), child: switcher);
+          final content = ClipRect(
+            key: AppSheet.contentClipKey,
+            clipper: const _BelowGrabberClipper(),
+            child: switcher,
+          );
           final stack = Stack(
             children: [
               if (height == null) content else Positioned.fill(child: content),
@@ -494,35 +526,34 @@ class _AppSheetState extends State<AppSheet> with TickerProviderStateMixin {
                       ),
                       child: Material(
                         type: MaterialType.transparency,
-                        child: _sized(
-                          KeyedSubtree(
-                            key: _sizedKey,
-                            child: height == null
-                                ? ConstrainedBox(constraints: BoxConstraints(maxHeight: maxHeight), child: stack)
-                                : SizedBox(height: height, child: stack),
-                          ),
-                        ),
+                        child: height == null ? stack : SizedBox(height: height, child: stack),
                       ),
                     ),
                   ),
-                  if (page.searchHint != null)
+                  if (searchHint != null)
                     Positioned(
                       left: 0,
                       right: 0,
                       bottom: 0,
                       height: AppSheetMetrics.searchBottom + AppSheetMetrics.searchHeight + AppSheetMetrics.searchFade,
-                      child: ValueListenableBuilder<double>(
-                        valueListenable: _underSearch,
-                        builder: (context, visibility, _) => _SearchFade(key: AppSheet.searchFadeKey, visibility: visibility),
+                      child: _followSearch(
+                        ValueListenableBuilder<double>(
+                          valueListenable: _underSearch,
+                          builder: (context, visibility, _) =>
+                              _SearchFade(key: AppSheet.searchFadeKey, visibility: visibility),
+                        ),
                       ),
                     ),
-                  if (page.searchHint != null)
+                  if (searchHint != null)
                     Positioned(
                       left: AppSheetMetrics.searchSide,
                       right: AppSheetMetrics.searchSide,
                       bottom: AppSheetMetrics.searchBottom,
                       height: AppSheetMetrics.searchHeight,
-                      child: _SearchCapsule(controller: _search, hint: page.searchHint!),
+                      child: IgnorePointer(
+                        ignoring: page.searchHint == null,
+                        child: _followSearch(_SearchCapsule(controller: _search, hint: searchHint)),
+                      ),
                     ),
                 ],
               ),
@@ -532,6 +563,92 @@ class _AppSheetState extends State<AppSheet> with TickerProviderStateMixin {
       ),
     );
   }
+}
+
+class _SheetPages extends MultiChildRenderObjectWidget {
+  const _SheetPages({
+    super.key,
+    required this.weights,
+    required this.height,
+    required this.maxHeight,
+    required super.children,
+  });
+
+  final List<double> weights;
+  final double? height;
+  final double maxHeight;
+
+  @override
+  RenderObject createRenderObject(BuildContext context) => _RenderSheetPages(weights, height, maxHeight);
+
+  @override
+  void updateRenderObject(BuildContext context, _RenderSheetPages renderObject) {
+    renderObject
+      ..weights = weights
+      ..height = height
+      ..maxHeight = maxHeight;
+  }
+}
+
+class _SheetPagesParentData extends ContainerBoxParentData<RenderBox> {}
+
+class _RenderSheetPages extends RenderBox
+    with
+        ContainerRenderObjectMixin<RenderBox, _SheetPagesParentData>,
+        RenderBoxContainerDefaultsMixin<RenderBox, _SheetPagesParentData> {
+  _RenderSheetPages(this._weights, this._height, this._maxHeight);
+
+  List<double> _weights;
+  set weights(List<double> value) {
+    if (listEquals(_weights, value)) return;
+    _weights = value;
+    markNeedsLayout();
+  }
+
+  double? _height;
+  set height(double? value) {
+    if (_height == value) return;
+    _height = value;
+    markNeedsLayout();
+  }
+
+  double _maxHeight;
+  set maxHeight(double value) {
+    if (_maxHeight == value) return;
+    _maxHeight = value;
+    markNeedsLayout();
+  }
+
+  @override
+  void setupParentData(RenderBox child) {
+    if (child.parentData is! _SheetPagesParentData) child.parentData = _SheetPagesParentData();
+  }
+
+  @override
+  void performLayout() {
+    final width = constraints.maxWidth;
+    final fixed = _height;
+    final childConstraints = fixed == null
+        ? BoxConstraints(minWidth: width, maxWidth: width, maxHeight: _maxHeight)
+        : BoxConstraints.tightFor(width: width, height: fixed);
+    final heights = <double>[];
+    var child = firstChild;
+    while (child != null) {
+      child.layout(childConstraints, parentUsesSize: true);
+      heights.add(child.size.height);
+      child = childAfter(child);
+    }
+    final weights = _weights.length == heights.length ? _weights : List<double>.filled(heights.length, 1);
+    final blended = fixed ?? AppSheetLogic.blendedHeight(heights, weights);
+    size = constraints.constrain(Size(width, math.min(blended, _maxHeight)));
+  }
+
+  @override
+  void paint(PaintingContext context, Offset offset) => defaultPaint(context, offset);
+
+  @override
+  bool hitTestChildren(BoxHitTestResult result, {required Offset position}) =>
+      defaultHitTestChildren(result, position: position);
 }
 
 class _BelowGrabberClipper extends CustomClipper<Rect> {
@@ -568,8 +685,15 @@ class _SearchFade extends StatelessWidget {
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [surface.withValues(alpha: 0), surface.withValues(alpha: visibility)],
-            stops: const [0, AppSheetMetrics.searchFade / (AppSheetMetrics.searchBottom + AppSheetMetrics.searchHeight + AppSheetMetrics.searchFade)],
+            colors: [
+              surface.withValues(alpha: 0),
+              surface.withValues(alpha: visibility),
+            ],
+            stops: const [
+              0,
+              AppSheetMetrics.searchFade /
+                  (AppSheetMetrics.searchBottom + AppSheetMetrics.searchHeight + AppSheetMetrics.searchFade),
+            ],
           ),
         ),
       ),

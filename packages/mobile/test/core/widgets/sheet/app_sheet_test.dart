@@ -614,7 +614,7 @@ void main() {
     expect(tester.getRect(find.text('Go')).left, moreOrLessEquals(rest - width * 0.3 * p, epsilon: 1));
     expect(tester.getRect(find.text('Apple')).left - rest, greaterThan(width * 0.05));
     expect(rest - tester.getRect(find.text('Go')).left, lessThan(width * 0.3));
-    final order = tester.widget<Stack>(find.ancestor(of: find.text('Apple'), matching: find.byType(Stack)).first).children;
+    final order = tester.widget<MultiChildRenderObjectWidget>(find.byKey(AppSheet.pagesKey)).children;
     expect(find.descendant(of: find.byWidget(order.last), matching: find.text('Apple')), findsOneWidget);
     await tester.pumpAndSettle();
     expect(tester.getRect(find.text('Apple')).left, moreOrLessEquals(rest));
@@ -624,7 +624,7 @@ void main() {
     await tester.pump(half);
     expect(tester.getRect(find.text('Apple')).left, moreOrLessEquals(rest + width * p, epsilon: 1));
     expect(tester.getRect(find.text('Go')).left, moreOrLessEquals(rest - width * 0.3 * (1 - p), epsilon: 1));
-    final popOrder = tester.widget<Stack>(find.ancestor(of: find.text('Go'), matching: find.byType(Stack)).first).children;
+    final popOrder = tester.widget<MultiChildRenderObjectWidget>(find.byKey(AppSheet.pagesKey)).children;
     expect(find.descendant(of: find.byWidget(popOrder.last), matching: find.text('Apple')), findsOneWidget);
     expect(find.descendant(of: find.byWidget(popOrder.first), matching: find.text('Go')), findsOneWidget);
     await tester.pumpAndSettle();
@@ -704,7 +704,7 @@ void main() {
   }
 
   int layerOf(WidgetTester tester, String label) {
-    final layers = tester.widget<Stack>(find.ancestor(of: find.text(label), matching: find.byType(Stack)).first).children;
+    final layers = tester.widget<MultiChildRenderObjectWidget>(find.byKey(AppSheet.pagesKey)).children;
     return layers.indexWhere((layer) => find.descendant(of: find.byWidget(layer), matching: find.text(label)).evaluate().isNotEmpty);
   }
 
@@ -803,11 +803,34 @@ void main() {
       expect(tester.getRect(find.text('Go')).left, moreOrLessEquals(rest - width * 0.3 * p, epsilon: 1.5));
     }
     await tester.pumpAndSettle();
-    final size = tester.widget<AnimatedSize>(
-      find.descendant(of: find.byKey(AppSheet.surfaceKey), matching: find.byType(AnimatedSize)),
-    );
-    expect(size.duration, AppMotion.sheetPush);
-    expect(size.curve, AppMotion.sheetPushCurve);
+  });
+
+  testWidgets('the fit height blends between the two pages in step with the slide, both ways', (tester) async {
+    await openRootWithPush(tester, detent: AppSheetDetent.fit);
+    final small = tester.getSize(find.byKey(AppSheet.surfaceKey)).height;
+    await tester.tap(find.text('Go'));
+    await tester.pumpAndSettle();
+    final tall = tester.getSize(find.byKey(AppSheet.surfaceKey)).height;
+    expect(tall, greaterThan(small));
+
+    await tester.tap(find.byKey(AppSheet.backKey));
+    await tester.pump();
+    var elapsed = 0.0;
+    for (final t in [0.1, 0.25, 0.5, 0.8]) {
+      await tester.pump(AppMotion.sheetPush * (t - elapsed));
+      elapsed = t;
+      final p = AppMotion.sheetPushCurve.transform(t);
+      expect(tester.getSize(find.byKey(AppSheet.surfaceKey)).height, moreOrLessEquals(tall + (small - tall) * p, epsilon: 1.5));
+    }
+    await tester.pumpAndSettle();
+    expect(tester.getSize(find.byKey(AppSheet.surfaceKey)).height, moreOrLessEquals(small, epsilon: 0.5));
+
+    await tester.tap(find.text('Go'));
+    await tester.pump();
+    await tester.pump(AppMotion.sheetPush * 0.5);
+    final p = AppMotion.sheetPushCurve.transform(0.5);
+    expect(tester.getSize(find.byKey(AppSheet.surfaceKey)).height, moreOrLessEquals(small + (tall - small) * p, epsilon: 1.5));
+    await tester.pumpAndSettle();
   });
 
   testWidgets('under reduce motion push and pop switch pages, header and height in one frame', (tester) async {
@@ -1022,5 +1045,45 @@ void main() {
     );
     await open(tester);
     expect(tester.getRect(find.byKey(AppSheet.surfaceKey)).top, moreOrLessEquals(8, epsilon: 0.5));
+  });
+
+  testWidgets('the search capsule of a pushed page fades in and out with the slide and ignores taps once leaving', (tester) async {
+    phone(tester);
+    await tester.pumpWidget(
+      host(
+        const LightSkin(),
+        (context) => showAppSheet<String>(
+          context: context,
+          page: AppSheetPage(
+            title: 'Root',
+            rows: (context, query) => [
+              ListTile(title: const Text('Go'), onTap: () => AppSheet.of(context).push(fruitPage(searchHint: 'Search fruit'))),
+            ],
+          ),
+        ),
+      ),
+    );
+    await open(tester);
+    double capsuleOpacity() => tester
+        .widget<Opacity>(find.ancestor(of: find.byKey(AppSheet.searchCapsuleKey), matching: find.byType(Opacity)).first)
+        .opacity;
+
+    await tester.tap(find.text('Go'));
+    await tester.pump();
+    await tester.pump(AppMotion.sheetPush ~/ 2);
+    expect(capsuleOpacity(), moreOrLessEquals(AppMotion.sheetPushCurve.transform(0.5), epsilon: 0.02));
+    await tester.pumpAndSettle();
+    expect(capsuleOpacity(), 1);
+
+    await tester.tap(find.byKey(AppSheet.backKey));
+    await tester.pump();
+    await tester.pump(AppMotion.sheetPush ~/ 2);
+    expect(capsuleOpacity(), moreOrLessEquals(1 - AppMotion.sheetPushCurve.transform(0.5), epsilon: 0.02));
+    expect(
+      tester.widget<IgnorePointer>(find.ancestor(of: find.byKey(AppSheet.searchCapsuleKey), matching: find.byType(IgnorePointer)).first).ignoring,
+      isTrue,
+    );
+    await tester.pumpAndSettle();
+    expect(find.byKey(AppSheet.searchCapsuleKey), findsNothing);
   });
 }
