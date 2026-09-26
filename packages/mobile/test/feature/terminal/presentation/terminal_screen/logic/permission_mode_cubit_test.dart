@@ -237,6 +237,23 @@ void main() {
     await cubit.close();
   });
 
+  test('a failure after a refresh during the pending choice reverts to the refreshed mode', () async {
+    final reply = Completer<Result<GlobalResponse<SessionCommandResultModel>, Failure>>();
+    when(() => control.sendCommand(any(), any())).thenAnswer((_) => reply.future);
+    final cubit = build();
+
+    final choosing = cubit.choose('plan');
+    await Future<void>.delayed(Duration.zero);
+    await refresh('accept-edits');
+    expect(cubit.state.mode, 'plan');
+    reply.complete(Result.failure(ServerFailure(error: 'x', message: 'no', apiStatus: 'PERMISSION_MODE_UNCONFIRMED')));
+
+    expect(await choosing, isFalse);
+    expect(cubit.state.mode, 'accept-edits');
+    expect(cubit.state.pending, isNull);
+    await cubit.close();
+  });
+
   test('a refresh that no longer finds the session keeps the row', () async {
     final cubit = build();
 
