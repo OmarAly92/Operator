@@ -46,19 +46,14 @@ void main() {
       final session = SessionModel.fromJson({
         'id': 'a',
         'permissionMode': 'plan',
-        'capabilities': {
-          'permissionMode': true,
-          'permissionModeCycle': ['default', 'accept-edits', 'plan'],
-        },
+        'capabilities': {'permissionMode': true},
       });
       expect(session.permissionMode, 'plan');
       expect(session.permissionModeSupported, isTrue);
-      expect(session.permissionModeCycle, ['default', 'accept-edits', 'plan']);
 
       final bare = SessionModel.fromJson({'id': 'b'});
       expect(bare.permissionMode, isNull);
       expect(bare.permissionModeSupported, isNull);
-      expect(bare.permissionModeCycle, isNull);
     });
   });
 }

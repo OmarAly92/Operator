@@ -14,6 +14,7 @@ class PermissionModeRow extends StatelessWidget {
   const PermissionModeRow({super.key});
 
   static const Key rowKey = ValueKey('permission-mode-row');
+  static const Key restartedKey = ValueKey('permission-mode-row-restarted');
 
   @override
   Widget build(BuildContext context) {
@@ -42,7 +43,9 @@ class PermissionModeRow extends StatelessWidget {
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 4),
                 child: Text(error, style: AppTextStyle.style12Medium.copyWith(color: skin.red)),
-              ),
+              )
+            else if (state.restarted)
+              _RestartedNotice(key: restartedKey),
           ],
         );
       },
@@ -60,6 +63,7 @@ class PermissionModeList extends StatelessWidget {
   const PermissionModeList({super.key});
 
   static const Key errorKey = ValueKey('permission-mode-error');
+  static const Key restartedKey = ValueKey('permission-mode-restarted');
 
   @override
   Widget build(BuildContext context) {
@@ -81,7 +85,6 @@ class PermissionModeList extends StatelessWidget {
                     mode: mode,
                     selected: mode == selected && state.pending == null,
                     busy: state.pending == mode,
-                    restarts: state.restarts(mode),
                     onTap: state.pending != null ? null : () => unawaited(_choose(context, cubit, mode)),
                   ),
               ],
@@ -89,8 +92,14 @@ class PermissionModeList extends StatelessWidget {
             if (error != null)
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 4),
-                child: Text(error, key: errorKey, style: AppTextStyle.style12Medium.copyWith(color: skin.red)),
-              ),
+                child: Text(
+                  error,
+                  key: errorKey,
+                  style: AppTextStyle.style12Medium.copyWith(color: skin.red),
+                ),
+              )
+            else if (state.restarted)
+              _RestartedNotice(key: restartedKey),
           ],
         );
       },
@@ -104,20 +113,31 @@ Future<void> _choose(BuildContext context, PermissionModeCubit cubit, String mod
   if (await cubit.choose(mode) && context.mounted) sheet.pop();
 }
 
+class _RestartedNotice extends StatelessWidget {
+  const _RestartedNotice({super.key});
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 4),
+    child: Text(
+      kPermissionRestartedNotice,
+      style: AppTextStyle.style12Regular.copyWith(color: context.skin.textTertiary),
+    ),
+  );
+}
+
 class _PermissionModeOption extends StatelessWidget {
   const _PermissionModeOption({
     super.key,
     required this.mode,
     required this.selected,
     required this.busy,
-    required this.restarts,
     required this.onTap,
   });
 
   final String mode;
   final bool selected;
   final bool busy;
-  final bool restarts;
   final VoidCallback? onTap;
 
   @override
@@ -137,15 +157,9 @@ class _PermissionModeOption extends StatelessWidget {
             child: Row(
               children: [
                 Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    spacing: 2,
-                    children: [
-                      Text(permissionModeLabel(mode), style: AppTextStyle.style15Regular.copyWith(color: skin.textPrimary)),
-                      if (restarts)
-                        Text(kPermissionRestartNote, style: AppTextStyle.style12Regular.copyWith(color: skin.textTertiary)),
-                    ],
+                  child: Text(
+                    permissionModeLabel(mode),
+                    style: AppTextStyle.style15Regular.copyWith(color: skin.textPrimary),
                   ),
                 ),
                 if (busy)

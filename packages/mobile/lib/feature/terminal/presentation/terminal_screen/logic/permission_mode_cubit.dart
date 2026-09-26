@@ -11,35 +11,33 @@ import 'package:operator_mobile/feature/sessions/data/model/session_model.dart';
 import 'package:operator_mobile/feature/terminal/logic/permission_modes.dart';
 
 class PermissionModeState extends Equatable {
-  const PermissionModeState({this.mode, this.supported = false, this.cycle = const [], this.pending, this.error});
+  const PermissionModeState({this.mode, this.supported = false, this.pending, this.error, this.restarted = false});
 
   final String? mode;
   final bool supported;
-  final List<String> cycle;
   final String? pending;
   final String? error;
-
-  bool restarts(String target) => !cycle.contains(target);
+  final bool restarted;
 
   PermissionModeState copyWith({
     String? mode,
     bool? supported,
-    List<String>? cycle,
     bool clearMode = false,
     String? pending,
     bool clearPending = false,
     String? error,
     bool clearError = false,
+    bool? restarted,
   }) => PermissionModeState(
     mode: clearMode ? null : mode ?? this.mode,
     supported: supported ?? this.supported,
-    cycle: cycle ?? this.cycle,
     pending: clearPending ? null : pending ?? this.pending,
     error: clearError ? null : error ?? this.error,
+    restarted: restarted ?? this.restarted,
   );
 
   @override
-  List<Object?> get props => [mode, supported, cycle, pending, error];
+  List<Object?> get props => [mode, supported, pending, error, restarted];
 }
 
 class PermissionModeCubit extends Cubit<PermissionModeState> {
@@ -73,7 +71,6 @@ class PermissionModeCubit extends Cubit<PermissionModeState> {
   static PermissionModeState _fromSession(SessionModel? session) => PermissionModeState(
     mode: _known(session?.permissionMode),
     supported: session?.permissionModeSupported ?? false,
-    cycle: session?.permissionModeCycle ?? const [],
   );
 
   void _onEvent(BlockEventEnvelope envelope) {
@@ -108,14 +105,13 @@ class PermissionModeCubit extends Cubit<PermissionModeState> {
       mode: apply ? reported : null,
       clearMode: apply && reported == null,
       supported: fresh.supported,
-      cycle: fresh.cycle,
     ));
   }
 
   Future<bool> choose(String mode) async {
     if (state.pending != null) return false;
     if (mode == state.mode) return true;
-    emit(state.copyWith(mode: mode, pending: mode, clearError: true));
+    emit(state.copyWith(mode: mode, pending: mode, clearError: true, restarted: false));
     final result = await _control.sendCommand(
       sessionId,
       SessionCommandParams(command: 'permission-mode', mode: mode),
@@ -128,12 +124,11 @@ class PermissionModeCubit extends Cubit<PermissionModeState> {
         _observed = confirmed;
         _held = confirmed;
         applied = true;
-        emit(state.copyWith(mode: confirmed, clearPending: true));
+        emit(state.copyWith(mode: confirmed, clearPending: true, restarted: response.data?.restarted ?? false));
       },
       onFailure: (failure) => emit(PermissionModeState(
         mode: _observed,
         supported: state.supported,
-        cycle: state.cycle,
         error: permissionModeRefusal(failure.apiStatus),
       )),
     );

@@ -187,8 +187,10 @@ shows "Agent is waiting on a prompt — answer it, then send again." — and a
 retry reuses already staged paths. The Permission row shows only when the
 session DTO's `capabilities.permissionMode` is true; the live mode comes from
 `permission_mode` block events, and a change goes through the
-`permission-mode` session command, which answers `restarted: true` when it had
-to relaunch the agent with `--resume`. `PermissionModeCubit` holds an
+`permission-mode` session command. The daemon always tries Shift+Tab first and
+relaunches the agent with `--resume` only when a full loop never showed the
+mode, answering `restarted: true`; the phone never predicts which modes need a
+restart and says so only after one happened. `PermissionModeCubit` holds an
 observed or chosen mode until a session DTO agrees, a newer block event
 arrives, or the mux reconnects. Phone spawns default to `bypass-permissions`.
 

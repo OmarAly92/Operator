@@ -21,7 +21,6 @@ const _claudeSession = SessionModel(
   harness: 'claude-code',
   permissionMode: 'bypass-permissions',
   permissionModeSupported: true,
-  permissionModeCycle: ['default', 'accept-edits', 'plan', 'bypass-permissions'],
 );
 
 BlockEventEnvelope modeEvent(String mode, {String sessionId = 's-1', String? agentId}) => BlockEventEnvelope(sessionId, {
@@ -68,13 +67,12 @@ void main() {
     sessionChanges: sessionChanges.stream,
   );
 
-  test('seeds the mode, support and cycle from the session', () async {
+  test('seeds the mode and support from the session without a restart notice', () async {
     final cubit = build();
 
     expect(cubit.state.mode, 'bypass-permissions');
     expect(cubit.state.supported, isTrue);
-    expect(cubit.state.restarts('auto'), isTrue);
-    expect(cubit.state.restarts('plan'), isFalse);
+    expect(cubit.state.restarted, isFalse);
     await cubit.close();
   });
 
@@ -108,7 +106,6 @@ void main() {
       id: 's-1',
       harness: 'claude-code',
       permissionModeSupported: true,
-      permissionModeCycle: ['default', 'accept-edits', 'plan'],
     );
     sessionChanges.add(null);
     await Future<void>.delayed(Duration.zero);
@@ -141,6 +138,30 @@ void main() {
     verify(() => control.sendCommand('s-1', const SessionCommandParams(command: 'permission-mode', mode: 'plan'))).called(1);
     expect(cubit.state.mode, 'plan');
     expect(cubit.state.pending, isNull);
+    expect(cubit.state.restarted, isFalse);
+    await cubit.close();
+  });
+
+  test('a change the daemon reached by restarting the agent is flagged until the next choice', () async {
+    when(() => control.sendCommand(any(), any())).thenAnswer(
+      (_) async => Result.success(
+        const GlobalResponse(data: SessionCommandResultModel(state: 'sent', permissionMode: 'auto', restarted: true)),
+      ),
+    );
+    final cubit = build();
+
+    expect(await cubit.choose('auto'), isTrue);
+    expect(cubit.state.mode, 'auto');
+    expect(cubit.state.restarted, isTrue);
+
+    final reply = Completer<Result<GlobalResponse<SessionCommandResultModel>, Failure>>();
+    when(() => control.sendCommand(any(), any())).thenAnswer((_) => reply.future);
+    unawaited(cubit.choose('plan'));
+    await Future<void>.delayed(Duration.zero);
+    expect(cubit.state.restarted, isFalse);
+    reply.complete(Result.success(const GlobalResponse(data: SessionCommandResultModel(permissionMode: 'plan'))));
+    await Future<void>.delayed(Duration.zero);
+    expect(cubit.state.restarted, isFalse);
     await cubit.close();
   });
 
@@ -188,7 +209,6 @@ void main() {
     await Future<void>.delayed(Duration.zero);
 
     expect(cubit.state.supported, isTrue);
-    expect(cubit.state.cycle, contains('plan'));
     await cubit.close();
   });
 
@@ -198,7 +218,6 @@ void main() {
       harness: 'claude-code',
       permissionMode: mode,
       permissionModeSupported: true,
-      permissionModeCycle: _claudeSession.permissionModeCycle,
     );
     sessionChanges.add(null);
     await Future<void>.delayed(Duration.zero);
@@ -292,7 +311,6 @@ void main() {
     await Future<void>.delayed(Duration.zero);
 
     expect(cubit.state.supported, isTrue);
-    expect(cubit.state.cycle, contains('plan'));
     expect(cubit.state.mode, 'bypass-permissions');
     await cubit.close();
   });

@@ -2,7 +2,7 @@ const String kPermissionModeEventKind = 'permission_mode';
 
 const List<String> kPermissionModes = ['bypass-permissions', 'auto', 'accept-edits', 'plan', 'default'];
 
-const String kPermissionRestartNote = 'Restarts the agent; the conversation continues';
+const String kPermissionRestartedNotice = 'Restarted the agent to switch mode; the conversation continued.';
 
 String permissionModeLabel(String? mode) => switch (mode) {
   'bypass-permissions' => 'Bypass permissions',

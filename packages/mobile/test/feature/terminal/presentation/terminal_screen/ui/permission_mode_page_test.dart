@@ -23,7 +23,6 @@ const _supported = SessionModel(
   harness: 'claude-code',
   permissionMode: 'bypass-permissions',
   permissionModeSupported: true,
-  permissionModeCycle: ['default', 'accept-edits', 'plan', 'bypass-permissions'],
 );
 
 void main() {
@@ -70,15 +69,15 @@ void main() {
     expect(find.text('Bypass permissions'), findsOneWidget);
   });
 
-  testWidgets('the page lists every mode, checks the current one and notes restarts', (tester) async {
+  testWidgets('the page lists every mode, checks the current one and predicts no restart', (tester) async {
     await openPage(tester);
 
     for (final mode in kPermissionModes) {
       expect(find.byKey(ValueKey('permission-mode-$mode')), findsOneWidget);
     }
     expect(check('bypass-permissions'), findsOneWidget);
-    expect(find.descendant(of: find.byKey(const ValueKey('permission-mode-auto')), matching: find.text(kPermissionRestartNote)), findsOneWidget);
-    expect(find.descendant(of: find.byKey(const ValueKey('permission-mode-plan')), matching: find.text(kPermissionRestartNote)), findsNothing);
+    expect(find.textContaining('Restart'), findsNothing);
+    expect(find.byKey(PermissionModeList.restartedKey), findsNothing);
   });
 
   testWidgets('an unknown mode reads Unknown and the page checks nothing', (tester) async {
@@ -88,7 +87,6 @@ void main() {
         id: 's-1',
         harness: 'claude-code',
         permissionModeSupported: true,
-        permissionModeCycle: ['default', 'accept-edits', 'plan'],
       ),
     );
     expect(find.text('Unknown'), findsOneWidget);
@@ -113,6 +111,23 @@ void main() {
     verify(() => harness.controlRepository.sendCommand('s-1', const SessionCommandParams(command: 'permission-mode', mode: 'plan'))).called(1);
     expect(find.byKey(PermissionModeRow.rowKey), findsOneWidget);
     expect(find.descendant(of: find.byKey(PermissionModeRow.rowKey), matching: find.text('Plan')), findsOneWidget);
+    expect(find.byKey(PermissionModeRow.restartedKey), findsNothing);
+  });
+
+  testWidgets('a change that restarted the agent says so under the row', (tester) async {
+    await openPage(tester);
+    when(() => harness.controlRepository.sendCommand(any(), any())).thenAnswer(
+      (_) async => Result.success(
+        const GlobalResponse(data: SessionCommandResultModel(state: 'sent', permissionMode: 'auto', restarted: true)),
+      ),
+    );
+
+    await tester.tap(find.byKey(const ValueKey('permission-mode-auto')));
+    await tester.pumpAndSettle();
+
+    expect(find.descendant(of: find.byKey(PermissionModeRow.rowKey), matching: find.text('Auto')), findsOneWidget);
+    expect(find.byKey(PermissionModeRow.restartedKey), findsOneWidget);
+    expect(find.text(kPermissionRestartedNotice), findsOneWidget);
   });
 
   testWidgets('a failure stays on the page, reverts the check and shows why', (tester) async {

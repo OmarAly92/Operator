@@ -26,7 +26,6 @@ class SessionModel extends Equatable {
     this.agentReportReason,
     this.permissionMode,
     this.permissionModeSupported,
-    this.permissionModeCycle,
   });
 
   final String? id;
@@ -57,7 +56,6 @@ class SessionModel extends Equatable {
 
   final String? permissionMode;
   final bool? permissionModeSupported;
-  final List<String>? permissionModeCycle;
 
   factory SessionModel.fromJson(Map<String, dynamic> json) => SessionModel(
     id: json['id'] as String?,
@@ -84,7 +82,6 @@ class SessionModel extends Equatable {
     agentReportReason: _agentReport(json)?['reason'] as String?,
     permissionMode: json['permissionMode'] as String?,
     permissionModeSupported: _capabilities(json)?['permissionMode'] as bool?,
-    permissionModeCycle: (_capabilities(json)?['permissionModeCycle'] as List<dynamic>?)?.whereType<String>().toList(),
   );
 
   static Map<String, dynamic>? _agentReport(Map<String, dynamic> json) {
@@ -103,6 +100,6 @@ class SessionModel extends Equatable {
     displayName, createdAt, updatedAt, previewUrl, isTerminated, prs,
     workspaceMode, workspacePath, claudeAccountId, model,
     agentReportState, agentReportReason,
-    permissionMode, permissionModeSupported, permissionModeCycle,
+    permissionMode, permissionModeSupported,
   ];
 }
