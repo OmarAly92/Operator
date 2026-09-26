@@ -222,11 +222,15 @@ func (a *BlockAssembler) startBlockAtA(tok marks.Token) {
 		a.record(tok)
 		return
 	}
-	a.pending = &pendingBlock{
+	next := &pendingBlock{
 		startOffset: tok.Start,
 		lastOffset:  tok.Start,
 		sawPromptA:  true,
 	}
+	if p := a.pending; p != nil && !p.outputStarted {
+		next.id, next.idFromExt, next.cwd, next.branch = p.id, p.idFromExt, p.cwd, p.branch
+	}
+	a.pending = next
 	a.record(tok)
 }
 
