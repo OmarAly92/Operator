@@ -221,6 +221,9 @@ type host struct {
 
 	capture *captureSink
 
+	preCapture     []byte
+	preCaptureDone bool
+
 	recorder *recorder
 
 	readCond   *sync.Cond
@@ -644,6 +647,7 @@ func (h *host) deliver(batch []byte) bool {
 	// client, and runWriter drains those queues without h.mu.
 	h.feedParserLocked(batch)
 	h.fedBytes += uint64(len(batch))
+	toCapture := h.holdForFirstCaptureLocked(batch)
 	inSync := h.parserInSyncLocked()
 	replies := h.takeQueryRepliesLocked()
 	h.publishProgramLocked()
@@ -662,7 +666,9 @@ func (h *host) deliver(batch []byte) bool {
 		cs.awaitCapacity()
 	}
 
-	h.capture.write(batch)
+	if toCapture {
+		h.capture.write(batch)
+	}
 	h.recorder.write(batch)
 	return inSync
 }
@@ -1135,6 +1141,8 @@ func (h *host) handleClientMsg(conn net.Conn, msgType byte, payload []byte) {
 		if err := json.Unmarshal(payload, &req); err == nil && len(req.Argv) > 0 {
 			if err := h.capture.start(req.Argv); err != nil {
 				h.logf("start capture: %v", err)
+			} else {
+				h.releaseHeldCapture()
 			}
 		}
 

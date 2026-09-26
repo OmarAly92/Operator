@@ -24,6 +24,7 @@ type BlockAssembler struct {
 	pending                  *pendingBlock
 	suppressAlternateCommand bool
 	recoveringGap            bool
+	alternateBeforeCapture   bool
 }
 
 type pendingBlock struct {
@@ -48,11 +49,12 @@ func NewBlockAssembler(terminalID, sessionID, epoch string, alternateOn bool, no
 		now = func() time.Time { return time.Now().UTC() }
 	}
 	return &BlockAssembler{
-		TerminalID:  terminalID,
-		SessionID:   sessionID,
-		AlternateOn: alternateOn,
-		epoch:       epoch,
-		now:         now,
+		TerminalID:             terminalID,
+		SessionID:              sessionID,
+		AlternateOn:            alternateOn,
+		alternateBeforeCapture: alternateOn,
+		epoch:                  epoch,
+		now:                    now,
 	}
 }
 
@@ -111,12 +113,14 @@ func (a *BlockAssembler) step(tok marks.Token) (domain.Block, bool) {
 	switch m.Kind {
 	case "alt_screen_enter":
 		a.AlternateOn = true
+		a.alternateBeforeCapture = false
 		return domain.Block{}, false
 	case "alt_screen_leave":
-		if a.AlternateOn && a.pending == nil {
+		if a.AlternateOn && a.pending == nil && a.alternateBeforeCapture {
 			a.suppressAlternateCommand = true
 		}
 		a.AlternateOn = false
+		a.alternateBeforeCapture = false
 		return domain.Block{}, false
 	}
 	if a.recoveringGap {

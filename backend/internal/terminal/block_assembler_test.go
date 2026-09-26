@@ -514,3 +514,21 @@ func TestAssemblerEndsAZshBlockBeforeThePartialLineMark(t *testing.T) {
 		t.Fatalf("raw = %q; the durable output must end at the command-end mark, before zsh's partial-line mark", blocks[0].RawOutput)
 	}
 }
+
+func TestAssemblerKeepsTheFirstPromptsIdentityAfterAnAlternateScreenProbeBeforeIt(t *testing.T) {
+	probe := "\x1b[?u\x1b[>0q\x1b]11;?\x1b\\\x1b[?1049h\x1bP+q696e646e\x1b\\\x1b[?1049l\x1b[0c\rWelcome to fish\r\n"
+	prompt := "\x1b]7000;v=1;id=t-1;cwd=/w;branch=main\x1b\\\x1b]7000;v=1;input-ready=1\x07\x1b]133;A;click_events=1\x1b\\\x1b]133;B\x1b\\\x1b[K"
+	command := "echo hi\r\n\x1b]133;C;cmdline_url=echo%20hi\x1b\\\x1b]7000;v=1;id=t-1;cmd=echo%20hi\x1b\\hi\r\n\x1b]133;D;0\x1b\\"
+	a, dec := newAssembler(false)
+	blocks := assembleChunks(a, dec, probe, prompt, command)
+	if len(blocks) != 1 {
+		t.Fatalf("got %d blocks, want 1", len(blocks))
+	}
+	b := blocks[0]
+	if b.SourceID != "t-1" || b.Cwd != "/w" || b.GitBranch != "main" || b.Command != "echo hi" {
+		t.Fatalf("block = id %q cwd %q branch %q cmd %q; an alternate screen entered and left before the first prompt must not drop its identity", b.SourceID, b.Cwd, b.GitBranch, b.Command)
+	}
+	if got := reassembled(t, b.RawOutput); got.Cwd != "/w" {
+		t.Fatalf("reassembled cwd = %q, want /w", got.Cwd)
+	}
+}

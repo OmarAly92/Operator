@@ -79,6 +79,8 @@ func (c *captureSink) start(argv []string) error {
 // bounded amount of memory rather than the whole session.
 const maxQueuedCaptureBytes = 4 * readBufferSize
 
+const maxPreCaptureBytes = 64 << 10
+
 // write queues batch for forward rather than writing to stdin directly. See
 // the comment on captureSink's queue fields for why. It blocks once the queue
 // is at its cap, so a stopped consumer applies back-pressure instead of growing
@@ -193,4 +195,30 @@ func (r *Runtime) StopCapture(ctx context.Context, handle ports.RuntimeHandle) e
 		return fmt.Errorf("ptyhost: session %q not found", handle.ID)
 	}
 	return clientStopCapture(sess.addr)
+}
+
+func (h *host) holdForFirstCaptureLocked(batch []byte) bool {
+	if h.preCaptureDone {
+		return true
+	}
+	if len(h.preCapture)+len(batch) > maxPreCaptureBytes {
+		h.preCapture = nil
+		h.preCaptureDone = true
+		return false
+	}
+	h.preCapture = append(h.preCapture, batch...)
+	return false
+}
+
+func (h *host) releaseHeldCapture() {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.preCaptureDone {
+		return
+	}
+	if len(h.preCapture) > 0 {
+		h.capture.write(h.preCapture)
+	}
+	h.preCapture = nil
+	h.preCaptureDone = true
 }

@@ -2,6 +2,7 @@ package ptyhost
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -238,3 +239,112 @@ type blockingWriteCloser struct{ block chan struct{} }
 
 func (b blockingWriteCloser) Write(p []byte) (int, error) { <-b.block; return len(p), nil }
 func (b blockingWriteCloser) Close() error                { return nil }
+
+func waitForRingTail(t *testing.T, f *serveFixture, want string) {
+	t.Helper()
+	deadline := time.Now().Add(2 * time.Second)
+	for !strings.Contains(f.ring.Tail(50), want) {
+		if time.Now().After(deadline) {
+			t.Fatalf("ring never received %q", want)
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+}
+
+func waitForFileEqual(t *testing.T, path, want string) {
+	t.Helper()
+	deadline := time.Now().Add(2 * time.Second)
+	var got string
+	for time.Now().Before(deadline) {
+		data, _ := os.ReadFile(path)
+		got = string(data)
+		if got == want {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if len(got) > 200 {
+		got = fmt.Sprintf("%d bytes ending %q", len(got), got[len(got)-80:])
+	}
+	t.Fatalf("%s = %q, want %q", path, got, want)
+}
+
+func useShForCapture(t *testing.T) {
+	t.Helper()
+	if runtime.GOOS == "windows" {
+		t.Skip("shells out to /bin/sh")
+	}
+	prevExecutable := captureExecutablePath
+	captureExecutablePath = func() (string, error) { return "/bin/sh", nil }
+	t.Cleanup(func() { captureExecutablePath = prevExecutable })
+}
+
+func TestFirstCaptureStartsWithOutputPrintedBeforeIt(t *testing.T) {
+	useShForCapture(t)
+	f, c := newTestHostWithParser(t)
+	defer f.cancel()
+	defer c.close()
+	syncClientRegistered(t, c)
+
+	f.feedPTY(t, "motd\r\n\x1b]133;A\x07$ \x1b]133;B\x07\r\n")
+	waitForRingTail(t, f, "133;B")
+
+	first := filepath.Join(t.TempDir(), "first.log")
+	if err := c.startCapture(t, []string{"-c", "cat > " + first}); err != nil {
+		t.Fatalf("startCapture: %v", err)
+	}
+	c.captureState(t)
+	f.feedPTY(t, "echo one\r\n")
+	waitForFileEqual(t, first, "motd\r\n\x1b]133;A\x07$ \x1b]133;B\x07\r\necho one\r\n")
+
+	if err := c.stopCapture(t); err != nil {
+		t.Fatalf("stopCapture: %v", err)
+	}
+	c.captureState(t)
+	f.feedPTY(t, "between\r\n")
+	waitForRingTail(t, f, "between")
+
+	second := filepath.Join(t.TempDir(), "second.log")
+	if err := c.startCapture(t, []string{"-c", "cat > " + second}); err != nil {
+		t.Fatalf("startCapture: %v", err)
+	}
+	c.captureState(t)
+	f.feedPTY(t, "after\r\n")
+	waitForFileContaining(t, second, "after\r\n")
+	data, err := os.ReadFile(second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(data), "motd") {
+		t.Fatalf("a later capture replayed the output held for the first one: %q", data)
+	}
+}
+
+func TestOutputBeforeTheFirstCaptureIsDroppedPastItsCap(t *testing.T) {
+	useShForCapture(t)
+	f, c := newTestHostWithParser(t)
+	defer f.cancel()
+	defer c.close()
+	syncClientRegistered(t, c)
+
+	for i := 0; i <= maxPreCaptureBytes/1024; i++ {
+		f.feedPTY(t, fmt.Sprintf("line-%03d %s\n", i, strings.Repeat("x", 1014)))
+	}
+	f.feedPTY(t, "OVER-THE-CAP\n")
+	waitForRingTail(t, f, "OVER-THE-CAP")
+
+	sink := filepath.Join(t.TempDir(), "capture.log")
+	if err := c.startCapture(t, []string{"-c", "cat > " + sink}); err != nil {
+		t.Fatalf("startCapture: %v", err)
+	}
+	c.captureState(t)
+	f.feedPTY(t, "live\n")
+	waitForFileContaining(t, sink, "live\n")
+	data, err := os.ReadFile(sink)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(data), "line-000") {
+		t.Fatalf("capture replayed output held past the cap: %d bytes", len(data))
+	}
+}
