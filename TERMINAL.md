@@ -1715,9 +1715,31 @@ history of `master`.
 - Typing a query showed "1 of N" without scrolling to it. `find-bar.ts` now
   reveals the current hit when a query first finds something (typed, or the first
   match arriving later); later streaming hits never move the view (§4.28).
+- Ctrl+F still ended up in the command after that: at an owned prompt the line
+  editor sent unmapped Ctrl letters to the pty, and zsh put `^F` in the next command
+  line (`zsh: command not found: ^Fecho`). `keymap.ts` now maps Ctrl+F/Ctrl+B to
+  cursor moves and Ctrl+P/Ctrl+N to history, as readline does.
+- Cmd+F stopped opening find after the surface rebuilt its renderer (the setup
+  effect re-runs when `onSend`/`onSendRaw` change): the capture listener kept the
+  first, disposed find bar. It now reads `findBarRef.current` per key. The geometry
+  observer had the same stale capture and measured with the disposed renderer's
+  font; it now reads `rendererRef.current` on every observation.
+- The find bar scrolled away with the transcript: it was `position: absolute` inside
+  the scrolling host, so a reveal or Enter that scrolled far put it off screen. It
+  now sits in a zero-height `position: sticky; top: 0` anchor
+  (`.terminal-find-anchor`), the host's first child, so it stays at the top of the
+  visible pane without moving a row.
+- Not a bug (verified): a pane in a hidden page (`document.visibilityState` hidden)
+  neither drains nor paints until it is shown (`catchUp`), so a check run against a
+  background browser tab sees no new output and no OSC 22 until the tab is visible.
 - Guards: `ts/react/src/TerminalSurface.find.test.tsx` ("find shortcut", "find bar
-  focus"); `find-bar.incremental.test.ts` "reveals the current match as the query
-  is typed…" and "reveals the first match that arrives after the query…".
+  focus", "still opens find with Cmd+F after the surface rebuilds its renderer");
+  `TerminalSurface.test.tsx` "measures with the live renderer after the surface
+  rebuilds it"; `find-bar.incremental.test.ts` "reveals the current match as the
+  query is typed…" and "reveals the first match that arrives after the query…";
+  `find-bar.test.ts` "pins the bar to the top of the visible pane in a sticky
+  anchor…"; `ts/editor/src/keymap.test.ts` "moves and walks history on Ctrl-F,
+  Ctrl-B, Ctrl-P and Ctrl-N…".
 
 ## 5. Known gaps (not bugs, decisions pending)
 
