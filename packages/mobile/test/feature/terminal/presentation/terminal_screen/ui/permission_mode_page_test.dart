@@ -142,7 +142,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byKey(PermissionModeList.errorKey), findsOneWidget);
-    expect(find.text('The agent is working — try again when it is idle'), findsOneWidget);
+    expect(find.text('Another change is in progress — try again in a moment'), findsOneWidget);
     expect(check('bypass-permissions'), findsOneWidget);
     expect(find.byKey(const ValueKey('permission-mode-auto')), findsOneWidget);
   });

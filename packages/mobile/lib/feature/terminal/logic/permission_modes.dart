@@ -14,7 +14,8 @@ String permissionModeLabel(String? mode) => switch (mode) {
 };
 
 String permissionModeRefusal(String? code) => switch (code) {
-  'SESSION_BUSY' || 'SESSION_COMMAND_UNAVAILABLE' => 'The agent is working — try again when it is idle',
+  'SESSION_BUSY' => 'Another change is in progress — try again in a moment',
+  'SESSION_COMMAND_UNAVAILABLE' => 'The agent is working — try again when it is idle',
   'SESSION_AWAITING_DECISION' => 'Answer the permission request first',
   'PERMISSION_MODE_UNSUPPORTED' => "This agent can't change mode from the phone",
   'PERMISSION_MODE_UNCONFIRMED' => "The terminal didn't confirm the new mode",

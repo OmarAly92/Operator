@@ -165,6 +165,49 @@ void main() {
     await cubit.close();
   });
 
+  Future<PermissionModeCubit> restartedToAuto() async {
+    when(() => control.sendCommand(any(), any())).thenAnswer(
+      (_) async => Result.success(
+        const GlobalResponse(data: SessionCommandResultModel(state: 'sent', permissionMode: 'auto', restarted: true)),
+      ),
+    );
+    final cubit = build();
+    await cubit.choose('auto');
+    expect(cubit.state.restarted, isTrue);
+    return cubit;
+  }
+
+  test('the restart notice survives the relaunched agent reporting the same mode and clears on a change', () async {
+    final cubit = await restartedToAuto();
+
+    events.add(modeEvent('auto'));
+    await Future<void>.delayed(Duration.zero);
+    expect(cubit.state.restarted, isTrue);
+
+    events.add(modeEvent('plan'));
+    await Future<void>.delayed(Duration.zero);
+
+    expect(cubit.state.mode, 'plan');
+    expect(cubit.state.restarted, isFalse);
+    await cubit.close();
+  });
+
+  test('the restart notice survives a refresh that agrees and clears when a later refresh moves the mode', () async {
+    final cubit = await restartedToAuto();
+
+    session = const SessionModel(id: 's-1', harness: 'claude-code', permissionMode: 'auto', permissionModeSupported: true);
+    sessionChanges.add(null);
+    await Future<void>.delayed(Duration.zero);
+    expect(cubit.state.restarted, isTrue);
+
+    session = const SessionModel(id: 's-1', harness: 'claude-code', permissionMode: 'plan', permissionModeSupported: true);
+    sessionChanges.add(null);
+    await Future<void>.delayed(Duration.zero);
+    expect(cubit.state.mode, 'plan');
+    expect(cubit.state.restarted, isFalse);
+    await cubit.close();
+  });
+
   test('a failed change reverts to the last observed mode and says why', () async {
     final reply = Completer<Result<GlobalResponse<SessionCommandResultModel>, Failure>>();
     when(() => control.sendCommand(any(), any())).thenAnswer((_) => reply.future);
@@ -181,7 +224,7 @@ void main() {
     expect(await choosing, isFalse);
     expect(cubit.state.mode, 'accept-edits');
     expect(cubit.state.pending, isNull);
-    expect(cubit.state.error, 'The agent is working — try again when it is idle');
+    expect(cubit.state.error, 'Another change is in progress — try again in a moment');
     await cubit.close();
   });
 

@@ -81,7 +81,7 @@ class PermissionModeCubit extends Cubit<PermissionModeState> {
     _held = mode;
     _observed = mode;
     if (state.pending != null) return;
-    emit(state.copyWith(mode: mode, clearMode: mode == null, clearError: true));
+    emit(state.copyWith(mode: mode, clearMode: mode == null, clearError: true, restarted: mode != state.mode ? false : null));
   }
 
   static String? _known(String? mode) => kPermissionModes.contains(mode) ? mode : null;
@@ -105,6 +105,7 @@ class PermissionModeCubit extends Cubit<PermissionModeState> {
       mode: apply ? reported : null,
       clearMode: apply && reported == null,
       supported: fresh.supported,
+      restarted: apply && reported != state.mode ? false : null,
     ));
   }
 

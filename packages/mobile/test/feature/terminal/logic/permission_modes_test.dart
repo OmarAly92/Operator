@@ -11,7 +11,7 @@ void main() {
   });
 
   test('refusals name the reason', () {
-    expect(permissionModeRefusal('SESSION_BUSY'), 'The agent is working — try again when it is idle');
+    expect(permissionModeRefusal('SESSION_BUSY'), 'Another change is in progress — try again in a moment');
     expect(permissionModeRefusal('SESSION_COMMAND_UNAVAILABLE'), 'The agent is working — try again when it is idle');
     expect(permissionModeRefusal('SESSION_AWAITING_DECISION'), 'Answer the permission request first');
     expect(permissionModeRefusal('PERMISSION_MODE_UNSUPPORTED'), "This agent can't change mode from the phone");
