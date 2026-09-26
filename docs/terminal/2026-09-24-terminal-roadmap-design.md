@@ -488,7 +488,7 @@ cut and a multi-line prompt.
 
 ## Real-app checks, deferred to the end (user decision 2026-09-25)
 
-Results (2026-09-26): see the table in `docs/terminal/2026-09-26-real-app-test-runbook.md` §4; P9, P10 and the desktop-only steps are still open.
+Results (2026-09-26): see the table in `docs/terminal/2026-09-26-real-app-test-runbook.md` §4; only the macOS notification toast, the cleared-session relaunch and the Claude-pane resize are still open.
 
 Run all of these once every plan has merged, in the desktop app (`npm run tauri:dev`
 with the CLAUDE* environment scrubbed, daemon and app restarted so both wasm builds
