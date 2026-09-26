@@ -72,6 +72,17 @@ impl Parser {
         })
     }
 
+    pub(crate) fn erase_saved_lines(&mut self) {
+        self.commit_evicted();
+        let owned = self
+            .grid
+            .covered_end()
+            .saturating_sub(self.rows.completed().len());
+        for row in owned..self.screen.rows() {
+            self.screen.blank_row(row);
+        }
+    }
+
     pub(crate) fn note_input_ready(&mut self) {
         self.commit_evicted();
         let row = self.block_start_row();
@@ -110,6 +121,15 @@ impl Parser {
             _ => first,
         };
         Some((first, input, &block.meta))
+    }
+
+    pub(crate) fn running_command(&self) -> Option<(usize, usize, &crate::block::BlockMeta)> {
+        if !self.grid.open_output_started() {
+            return None;
+        }
+        let block = self.grid.open_block_ref()?;
+        let output = self.grid.flat_extent(block).0;
+        Some((self.grid.closed_end().min(output), output, &block.meta))
     }
 
     pub(crate) fn start_output(&mut self) {

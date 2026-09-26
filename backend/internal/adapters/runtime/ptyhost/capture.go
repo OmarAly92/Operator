@@ -41,7 +41,13 @@ type captureSink struct {
 	queueBytes int
 	stopping   bool
 	drained    chan struct{}
+
+	started   bool
+	early     []byte
+	earlyLost bool
 }
+
+const maxEarlyCaptureBytes = 256 * 1024
 
 func (c *captureSink) start(argv []string) error {
 	c.mu.Lock()
@@ -67,6 +73,12 @@ func (c *captureSink) start(argv []string) error {
 	c.queueCond = sync.NewCond(&c.queueMu)
 	c.queue = nil
 	c.queueBytes = 0
+	if !c.started && len(c.early) > 0 {
+		c.queue = [][]byte{c.early}
+		c.queueBytes = len(c.early)
+	}
+	c.started = true
+	c.early = nil
 	c.stopping = false
 	c.drained = make(chan struct{})
 	go c.forward(stdin, c.drained)
@@ -88,6 +100,9 @@ const maxPreCaptureBytes = 64 << 10
 func (c *captureSink) write(batch []byte) {
 	c.mu.Lock()
 	active := c.stdin != nil
+	if !active {
+		c.keepEarlyLocked(batch)
+	}
 	c.mu.Unlock()
 	if !active {
 		return
@@ -105,6 +120,18 @@ func (c *captureSink) write(batch []byte) {
 	c.queueBytes += len(cp)
 	c.queueCond.Broadcast()
 	c.queueMu.Unlock()
+}
+
+func (c *captureSink) keepEarlyLocked(batch []byte) {
+	if c.started || c.earlyLost {
+		return
+	}
+	if len(c.early)+len(batch) > maxEarlyCaptureBytes {
+		c.early = nil
+		c.earlyLost = true
+		return
+	}
+	c.early = append(c.early, batch...)
 }
 
 // forward drains the queue into stdin, one batch at a time, blocking on each

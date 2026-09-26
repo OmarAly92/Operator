@@ -96,6 +96,90 @@ func TestStartCaptureTeesOutputToArgv(t *testing.T) {
 	}
 }
 
+func waitForFile(t *testing.T, path, want string) {
+	t.Helper()
+	deadline := time.Now().Add(2 * time.Second)
+	var data []byte
+	for time.Now().Before(deadline) {
+		data, _ = os.ReadFile(path)
+		if string(data) == want {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatalf("%s holds %q, want %q", path, data, want)
+}
+
+func TestTheFirstCaptureStartsWithTheOutputDeliveredBeforeIt(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("shells out to /bin/sh")
+	}
+	prevExecutable := captureExecutablePath
+	captureExecutablePath = func() (string, error) { return "/bin/sh", nil }
+	defer func() { captureExecutablePath = prevExecutable }()
+
+	f, c := newTestHostWithParser(t)
+	defer f.cancel()
+	defer c.close()
+
+	syncClientRegistered(t, c)
+	f.feedPTY(t, "first prompt\n")
+	c.readFrame(t)
+
+	sink := filepath.Join(t.TempDir(), "capture.log")
+	if err := c.startCapture(t, []string{"-c", "cat > " + sink}); err != nil {
+		t.Fatalf("startCapture: %v", err)
+	}
+	c.captureState(t)
+	f.feedPTY(t, "later\n")
+	waitForFile(t, sink, "first prompt\nlater\n")
+}
+
+func TestARestartedCaptureDoesNotRepeatEarlierOutput(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("shells out to /bin/sh")
+	}
+	prevExecutable := captureExecutablePath
+	captureExecutablePath = func() (string, error) { return "/bin/sh", nil }
+	defer func() { captureExecutablePath = prevExecutable }()
+
+	f, c := newTestHostWithParser(t)
+	defer f.cancel()
+	defer c.close()
+
+	syncClientRegistered(t, c)
+	first := filepath.Join(t.TempDir(), "first.log")
+	if err := c.startCapture(t, []string{"-c", "cat > " + first}); err != nil {
+		t.Fatalf("startCapture: %v", err)
+	}
+	c.captureState(t)
+	f.feedPTY(t, "one\n")
+	waitForFile(t, first, "one\n")
+	if err := c.stopCapture(t); err != nil {
+		t.Fatalf("stopCapture: %v", err)
+	}
+	c.captureState(t)
+	f.feedPTY(t, "gap\n")
+	c.readFrame(t)
+
+	second := filepath.Join(t.TempDir(), "second.log")
+	if err := c.startCapture(t, []string{"-c", "cat > " + second}); err != nil {
+		t.Fatalf("startCapture: %v", err)
+	}
+	c.captureState(t)
+	f.feedPTY(t, "two\n")
+	waitForFile(t, second, "two\n")
+}
+
+func TestCaptureSinkDropsItsEarlyBufferPastTheCap(t *testing.T) {
+	c := &captureSink{}
+	c.write(make([]byte, maxEarlyCaptureBytes))
+	c.write([]byte("x"))
+	if c.early != nil || !c.earlyLost {
+		t.Fatalf("early buffer kept %d bytes past the cap", len(c.early))
+	}
+}
+
 // TestCaptureBackpressureDoesNotStallDelivery pins the fix for a hot-path
 // stall: write() used to write straight into the capture subprocess's stdin
 // pipe from inside deliver(), the same call that appends to the ring and

@@ -253,6 +253,23 @@ impl BlockGrid {
         self.open.as_ref()
     }
 
+    pub fn open_output_started(&self) -> bool {
+        self.open.is_some() && self.open_output_started
+    }
+
+    pub fn closed_end(&self) -> usize {
+        match self.closed.len() {
+            0 => self.retreat_slack,
+            len => self
+                .closed
+                .get(len - 1)
+                .map_or(self.retreat_slack, |block| {
+                    let (first, count) = self.flat_extent(block);
+                    first + count
+                }),
+        }
+    }
+
     pub fn has_open_block(&self) -> bool {
         self.open.is_some()
     }

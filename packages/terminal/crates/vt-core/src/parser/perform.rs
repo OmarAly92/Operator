@@ -50,6 +50,10 @@ impl Parser {
         if intermediates.is_empty() && c == 't' {
             return self.xtwinops(params);
         }
+        if intermediates.is_empty() && c == 'J' && first_param(params) == 3 && self.alt.is_none() {
+            self.erase_saved_lines();
+            return true;
+        }
         if intermediates.first() == Some(&b'?') && matches!(c, 'h' | 'l') {
             let set = c == 'h';
             for group in params.iter() {

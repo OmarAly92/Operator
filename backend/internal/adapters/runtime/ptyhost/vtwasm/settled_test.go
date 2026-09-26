@@ -69,7 +69,7 @@ func TestReplayKeepsARunningCommandOutsideTheSettledRows(t *testing.T) {
 	if err != nil {
 		t.Fatalf("replay: %v", err)
 	}
-	tail := stripSGR(stripOSC(withoutSettledRows(t, out)))
+	tail := strings.NewReplacer(promptStartMark, "", outputStartMark, "").Replace(stripSGR(stripOSC(withoutSettledRows(t, out))))
 	if strings.Contains(tail, "done") {
 		t.Fatalf("the finished command leaked out of the settled rows:\n%q", tail)
 	}

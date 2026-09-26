@@ -392,3 +392,195 @@ fn a_command_end_scrolled_into_scrollback_keeps_its_point_when_a_width_change_mo
     assert_eq!(rows.last().map(String::as_str), Some("l9"));
     assert_eq!(rows.len(), 17);
 }
+
+fn real_bash_block(id: &str, command: &str, output: &str) -> String {
+    format!(
+        "{}{command}\r\n\x1b]7000;v=1;id={id};cmd={}\x1b\\\x1b]7000;v=1;input-released=1\x07\x1b]133;C\x07{output}\x1b]7000;v=1;id={id};exit=0\x1b\\\x1b]133;D;0\x07",
+        real_bash_prompt(id),
+        command.replace(' ', "%20")
+    )
+}
+
+fn real_bash_prompt(id: &str) -> String {
+    format!("\x1b]7000;v=1;id={id};cwd=%2Ftmp;branch=\x1b\\\x1b]133;A\x07\x1b]133;B\x07\x1b]7000;v=1;input-ready=1\x07")
+}
+
+const READLINE_REDRAW: &str = "\r\x1b[K";
+
+#[test]
+fn a_reattached_bash_pane_keeps_output_without_a_newline_through_readline_redraws() {
+    let durable = format!(
+        "{}{}",
+        real_bash_block("t-1", "echo first", "first\r\n"),
+        real_bash_block("t-2", "printf x", "x")
+    );
+    let prompt = format!("{}{READLINE_REDRAW}", real_bash_prompt("t-3"));
+    let (mut live, mut reattached) = reattach(&durable, &prompt);
+    let after = format!(
+        "{}{}",
+        READLINE_REDRAW.repeat(3),
+        &real_bash_block("t-3", "echo next", "next\r\n")[real_bash_prompt("t-3").len()..]
+    );
+    live.feed(after.as_bytes());
+    reattached.feed(after.as_bytes());
+    let expected = ["echo first", "first", "printf x", "x", "echo next", "next"];
+    assert_eq!(row_texts(&live), expected);
+    assert_eq!(row_texts(&reattached), expected);
+    let block = block_with_command(&reattached, "printf x").unwrap();
+    assert_eq!(block.rows, ["x"]);
+    assert_eq!(reattached.verify_integrity(), Ok(()));
+}
+
+fn real_zsh_block(id: &str, typed: &str, command: &str, encoded: &str, output: &str) -> String {
+    let sp = format!(
+        "\x1b[1m\x1b[7m%\x1b[27m\x1b[1m\x1b[0m{}\r \r",
+        " ".repeat(79)
+    );
+    format!("\x1b]7000;v=1;id={id};cwd=%2Ftmp;branch=\x1b\\\x1b]133;A\x07\r\x1b[0m\x1b[27m\x1b[24m\x1b[J\x1b[K\x1b]133;B\x07\x1b]7000;v=1;input-ready=1\x07\x1b[?2004h\x1b[K{typed}{command}\x1b[?2004l\r\r\n\x1b]7000;v=1;input-released=1\x07\x1b]7000;v=1;id={id};cmd={encoded}\x1b\\\x1b]7000;v=1;input-released=1\x07\x1b]133;C\x07{output}{sp}\x1b]7000;v=1;id={id};exit=0\x1b\\\x1b]133;D;0\x07")
+}
+
+fn zsh_running(id: &str, command: &str) -> String {
+    format!(
+        "{}{command}\r\n\x1b]7000;v=1;id={id};cmd={}\x1b\\\x1b]7000;v=1;input-released=1\x07\x1b]133;C\x07",
+        zsh_precmd_prompt(id, "$ "),
+        command.replace(' ', "%20").replace(';', "%3b")
+    )
+}
+
+fn zsh_finish(id: &str, output: &str) -> String {
+    format!("{output}\x1b]7000;v=1;id={id};exit=0\x1b\\\x1b]133;D;0\x07")
+}
+
+struct Found {
+    state: vt_core::BlockState,
+    exit_code: Option<i32>,
+    cwd: String,
+    started_at_ms: Option<u64>,
+    rows: Vec<String>,
+}
+
+fn block_with_command(core: &TerminalCore, command: &str) -> Option<Found> {
+    let snapshot = core.snapshot().unwrap();
+    let index = (0..snapshot.blocks.len()).find(|&i| snapshot.block_command(i) == command)?;
+    let block = snapshot.blocks[index];
+    let first = block.first_row as usize;
+    Some(Found {
+        state: block.state,
+        exit_code: block.exit_code,
+        cwd: snapshot.block_cwd(index).to_string(),
+        started_at_ms: block.started_at_ms,
+        rows: (first..first + block.row_count as usize)
+            .map(|row| snapshot.row_text(row).trim_end().to_string())
+            .collect(),
+    })
+}
+
+fn reattached_while_running(
+    durable: &str,
+    running: &str,
+    rest: &str,
+) -> (TerminalCore, TerminalCore) {
+    let mut host = mirror(80, 24);
+    host.feed_at(durable.as_bytes(), 1_000);
+    host.feed_at(running.as_bytes(), 5_000);
+    let mut live = renderer(80, 24);
+    live.feed_at(durable.as_bytes(), 1_000);
+    live.feed_at(running.as_bytes(), 5_000);
+    live.feed_at(rest.as_bytes(), 9_000);
+    let mut reattached = renderer(80, 24);
+    reattached.feed_at(durable.as_bytes(), 8_000);
+    reattached.feed_at(without_settled_rows(&replay(&host)).as_bytes(), 8_000);
+    reattached.feed_at(rest.as_bytes(), 9_000);
+    (live, reattached)
+}
+
+#[test]
+fn a_command_running_at_reattach_gets_its_header_and_its_end() {
+    let durable = zsh_precmd_command("t-1", "$ ", "echo before", "before\r\n");
+    let running = format!("{}part\r\n", zsh_running("t-2", "sleep 3; echo slept"));
+    let rest = format!(
+        "{}{}",
+        zsh_finish("t-2", "slept\r\n"),
+        zsh_precmd_prompt("t-3", "$ ")
+    );
+    let (live, reattached) = reattached_while_running(&durable, &running, &rest);
+    assert_eq!(row_texts(&reattached), row_texts(&live));
+    let block =
+        block_with_command(&reattached, "sleep 3; echo slept").expect("no block for the command");
+    assert_eq!(block.state, vt_core::BlockState::Finished);
+    assert_eq!(block.exit_code, Some(0));
+    assert_eq!(block.cwd, "/tmp");
+    assert_eq!(block.started_at_ms, Some(5_000));
+    assert_eq!(block.rows, ["part", "slept"]);
+    assert_eq!(reattached.line_editor_state(), LineEditorState::Owned);
+    assert_eq!(reattached.verify_integrity(), Ok(()));
+}
+
+#[test]
+fn a_full_screen_program_running_at_reattach_keeps_its_block_after_it_exits() {
+    let durable = zsh_precmd_command("t-1", "$ ", "echo before", "before\r\n");
+    let running = format!(
+        "{}\x1b[?1049h\x1b[H\x1b[2Jfile text\x1b[24;1H\"big.txt\" 1L",
+        zsh_running("t-2", "vim big.txt")
+    );
+    let prompt_sp = format!(
+        "\x1b[1m\x1b[7m%\x1b[27m\x1b[1m\x1b[0m{}\r \r",
+        " ".repeat(79)
+    );
+    let rest = format!(
+        "\x1b[?1049l{}{}",
+        zsh_finish("t-2", &prompt_sp),
+        zsh_precmd_prompt("t-3", "$ ")
+    );
+    let (live, reattached) = reattached_while_running(&durable, &running, &rest);
+    assert_eq!(row_texts(&reattached), row_texts(&live));
+    assert_eq!(reattached.export_cursor(), live.export_cursor());
+    let block = block_with_command(&reattached, "vim big.txt").expect("no block for vim");
+    assert_eq!(block.state, vt_core::BlockState::Finished);
+    assert_eq!(block.exit_code, Some(0));
+    assert!(!row_texts(&reattached).iter().any(|row| row.contains('%')));
+    assert_eq!(reattached.verify_integrity(), Ok(()));
+}
+
+const REAL_ZSH_NEXT_PROMPT: &str = "\x1b]7000;v=1;id=t-3;cwd=%2Ftmp;branch=\x1b\\\x1b]133;A\x07\r\x1b[0m\x1b[27m\x1b[24m\x1b[J\x1b[K\x1b]133;B\x07\x1b]7000;v=1;input-ready=1\x07\x1b[?2004h\x1b[K";
+
+fn echo_then_clear() -> String {
+    format!(
+        "{}{}",
+        real_zsh_block(
+            "t-1",
+            "e\r",
+            "echo one; echo two",
+            "echo%20one%3b%20echo%20two",
+            "one\r\ntwo\r\n"
+        ),
+        real_zsh_block("t-2", "c\r", "clear", "clear", "\x1b[3J\x1b[H\x1b[2J")
+    )
+}
+
+#[test]
+fn a_reattached_page_after_clear_keeps_every_finished_block_and_the_line_editor() {
+    let (live, reattached) = reattach(&echo_then_clear(), REAL_ZSH_NEXT_PROMPT);
+    assert_eq!(
+        row_texts(&live),
+        ["echo one; echo two", "one", "two", "clear"]
+    );
+    assert_eq!(row_texts(&reattached), row_texts(&live));
+    assert_eq!(reattached.export_cursor(), live.export_cursor());
+    assert_eq!(reattached.line_editor_state(), LineEditorState::Owned);
+    assert_eq!(reattached.verify_integrity(), Ok(()));
+}
+
+#[test]
+fn a_command_typed_at_a_reattached_prompt_after_clear_lands_below_the_clear_block() {
+    let next = real_zsh_block("t-3", "e\r", "echo typed", "echo%20typed", "typed\r\n");
+    let rest = next.strip_prefix(REAL_ZSH_NEXT_PROMPT).unwrap();
+    let (mut live, mut reattached) = reattach(&echo_then_clear(), REAL_ZSH_NEXT_PROMPT);
+    live.feed(rest.as_bytes());
+    reattached.feed(rest.as_bytes());
+    assert_eq!(row_texts(&reattached), row_texts(&live));
+    assert_eq!(
+        row_texts(&reattached)[..5],
+        ["echo one; echo two", "one", "two", "clear", "echo typed"]
+    );
+}

@@ -1,6 +1,6 @@
-use vt_core::{CellSpan, CellStyle, GridSnapshot, TerminalCore};
+use vt_core::{CellSpan, CellStyle, GridSnapshot, RunningCommand, TerminalCore};
 
-use crate::block_marks::{settled_rows_end, SETTLED_BEGIN, SETTLED_END};
+use crate::block_marks::{percent_encode_into, settled_rows_end, SETTLED_BEGIN, SETTLED_END};
 use crate::line_editor_marks::write_line_editor_marks;
 use crate::{
     clip_row, frame_first_stable, write_cursor_position, write_indent, write_modes, READY_MARK,
@@ -38,7 +38,14 @@ pub(crate) fn replay_frame(core: &TerminalCore, lines: u32) -> Option<Vec<u8>> {
             "\x1b]7000;v=1;origin={}\x1b\\",
             frame_first_stable(&snapshot, lines)
         ));
-        write_modes(&mut text, core, true);
+        match core.running_command() {
+            Some(running) if !primary_is_blank(&snapshot, lines) => {
+                write_modes(&mut text, core, false);
+                write_primary(&mut text, core, &snapshot, lines, Some(running));
+                text.push_str("\x1b[?1049h");
+            }
+            _ => write_modes(&mut text, core, true),
+        }
         text.push_str("\x1b[H");
         for (i, (start, end)) in alt.row_ranges.iter().enumerate() {
             let row_bytes = &alt.content[*start as usize..*end as usize];
@@ -58,15 +65,10 @@ pub(crate) fn replay_frame(core: &TerminalCore, lines: u32) -> Option<Vec<u8>> {
             text.push_str("\x1b[?25l");
         }
     } else {
-        let total = snapshot.row_count();
-        let first = total.saturating_sub(lines as usize);
         // A terminal that has drawn nothing still reports a cursor at the
         // origin over blank rows. Replaying that is not wrong, only
         // useless -- and the host reads 0 as "no replay frame to send".
-        let blank = snapshot.cursor_row == 0
-            && snapshot.cursor_col == 0
-            && (first..total).all(|i| snapshot.row_text(i).is_empty());
-        if total == 0 || blank {
+        if primary_is_blank(&snapshot, lines) {
             return Some(core.pending_sync_bytes().to_vec());
         }
         text.push_str(&format!(
@@ -74,84 +76,7 @@ pub(crate) fn replay_frame(core: &TerminalCore, lines: u32) -> Option<Vec<u8>> {
             frame_first_stable(&snapshot, lines)
         ));
         write_modes(&mut text, core, false);
-        // Rows are clipped to the grid. vt-core rewraps the hot window on
-        // resize and `vt_touch_history` rewraps the cold rest before the
-        // host renders this frame, so a row wider than the grid should not
-        // exist; the clip guards the replay anyway, because a row wider
-        // than the receiving grid wraps, lands as two rows and pushes every
-        // row below it down by one -- the client's grid no longer agrees
-        // with the host's about which row is which.
-        let cols = core.columns();
-        let (settled_row, settled_col) = settled_point(core, &snapshot, total);
-        let settled = settled_row > first || (settled_row == first && settled_col > 0);
-        if settled {
-            text.push_str(SETTLED_BEGIN);
-        }
-        for i in first..total {
-            let indent = snapshot.row_indent(i).min(cols.saturating_sub(1));
-            let (row_bytes, pairs) = clip_row(
-                snapshot.row_text(i).as_bytes(),
-                snapshot.row_style_pairs(i),
-                cols - indent,
-            );
-            let last = i + 1 == total;
-            let terminator = if last { "" } else { "\r\n" };
-            if settled && i == settled_row && settled_col > 0 {
-                let split = settled_col.saturating_sub(indent);
-                write_indent(&mut text, indent.min(settled_col));
-                let at = byte_at_column(row_bytes, snapshot.row_cell_spans(i), split);
-                let (head, tail) = split_pairs(&pairs, at);
-                write_styled_row_with(
-                    &mut text,
-                    &row_bytes[..at],
-                    &head,
-                    &|id| snapshot.link_uri(id),
-                    "",
-                );
-                text.push_str(SETTLED_END);
-                write_indent(&mut text, indent.saturating_sub(settled_col));
-                write_styled_row_with(
-                    &mut text,
-                    &row_bytes[at..],
-                    &tail,
-                    &|id| snapshot.link_uri(id),
-                    terminator,
-                );
-                continue;
-            }
-            write_indent(&mut text, indent);
-            write_styled_row_with(
-                &mut text,
-                row_bytes,
-                &pairs,
-                &|id| snapshot.link_uri(id),
-                terminator,
-            );
-            if settled && settled_col == 0 && i + 1 == settled_row {
-                text.push_str(SETTLED_END);
-            }
-        }
-        // The cursor is addressed RELATIVELY, from the last row written.
-        // Absolute addressing would be wrong: these rows scroll up into
-        // the client's scrollback as they are written, so the row the
-        // cursor belongs on has no fixed screen coordinate.
-        let cursor_row = snapshot.cursor_row as usize;
-        let last_row = total - 1;
-        if cursor_row > last_row {
-            // The cursor sits on a trailing blank row that the snapshot
-            // does not materialise; walk down to it.
-            for _ in 0..(cursor_row - last_row) {
-                text.push_str("\r\n");
-            }
-        } else if cursor_row < last_row {
-            text.push_str(&format!("\x1b[{}A", last_row - cursor_row));
-        }
-        write_line_editor_marks(&mut text, core, first, cursor_row);
-        text.push('\r');
-        let cursor_col = (snapshot.cursor_col as usize).min(cols.saturating_sub(1));
-        if cursor_col > 0 {
-            text.push_str(&format!("\x1b[{}C", cursor_col));
-        }
+        write_primary(&mut text, core, &snapshot, lines, core.running_command());
         if !snapshot.cursor_visible {
             text.push_str("\x1b[?25l");
         }
@@ -163,6 +88,163 @@ pub(crate) fn replay_frame(core: &TerminalCore, lines: u32) -> Option<Vec<u8>> {
         out.extend_from_slice(READY_MARK.as_bytes());
     }
     Some(out)
+}
+
+fn primary_is_blank(snapshot: &GridSnapshot, lines: u32) -> bool {
+    let total = snapshot.row_count();
+    let first = total.saturating_sub(lines as usize);
+    total == 0
+        || (snapshot.cursor_row == 0
+            && snapshot.cursor_col == 0
+            && (first..total).all(|i| snapshot.row_text(i).is_empty()))
+}
+
+struct RunningMarks {
+    prompt_row: usize,
+    output_row: usize,
+    prompt: String,
+    output: String,
+}
+
+impl RunningMarks {
+    fn new(running: RunningCommand, floor: usize) -> Self {
+        let prompt_row = running.prompt_row.max(floor);
+        let mut prompt = String::new();
+        if !running.cwd.is_empty() || !running.git_branch.is_empty() {
+            prompt.push_str("\x1b]7000;v=1;cwd=");
+            percent_encode_into(&mut prompt, &running.cwd);
+            prompt.push_str(";branch=");
+            percent_encode_into(&mut prompt, &running.git_branch);
+            prompt.push_str("\x1b\\");
+        }
+        prompt.push_str("\x1b]133;A\x1b\\");
+        let mut output = String::from("\x1b]7000;v=1;cmd=");
+        percent_encode_into(&mut output, &running.command);
+        if let Some(started) = running.started_at_ms {
+            output.push_str(&format!(";start_ms={started}"));
+        }
+        output.push_str("\x1b\\\x1b]133;C\x1b\\");
+        Self {
+            prompt_row,
+            output_row: running.output_row.max(prompt_row),
+            prompt,
+            output,
+        }
+    }
+
+    fn write_at(&mut self, text: &mut String, row: usize) {
+        if row >= self.prompt_row && !self.prompt.is_empty() {
+            text.push_str(&std::mem::take(&mut self.prompt));
+        }
+        if row >= self.output_row && !self.output.is_empty() {
+            text.push_str(&std::mem::take(&mut self.output));
+        }
+    }
+}
+
+fn write_primary(
+    text: &mut String,
+    core: &TerminalCore,
+    snapshot: &GridSnapshot,
+    lines: u32,
+    running: Option<RunningCommand>,
+) {
+    let total = snapshot.row_count();
+    let first = total.saturating_sub(lines as usize);
+    // Rows are clipped to the grid. vt-core rewraps the hot window on
+    // resize and `vt_touch_history` rewraps the cold rest before the
+    // host renders this frame, so a row wider than the grid should not
+    // exist; the clip guards the replay anyway, because a row wider
+    // than the receiving grid wraps, lands as two rows and pushes every
+    // row below it down by one -- the client's grid no longer agrees
+    // with the host's about which row is which.
+    let cols = core.columns();
+    let (settled_row, settled_col) = settled_point(core, snapshot, total);
+    let settled = settled_row > first || (settled_row == first && settled_col > 0);
+    let floor = if settled { settled_row } else { first };
+    let mut marks = running.map(|running| RunningMarks::new(running, floor));
+    if settled {
+        text.push_str(SETTLED_BEGIN);
+    }
+    for i in first..total {
+        let indent = snapshot.row_indent(i).min(cols.saturating_sub(1));
+        let (row_bytes, pairs) = clip_row(
+            snapshot.row_text(i).as_bytes(),
+            snapshot.row_style_pairs(i),
+            cols - indent,
+        );
+        let last = i + 1 == total;
+        let terminator = if last { "" } else { "\r\n" };
+        if settled && i == settled_row && settled_col > 0 {
+            let split = settled_col.saturating_sub(indent);
+            write_indent(text, indent.min(settled_col));
+            let at = byte_at_column(row_bytes, snapshot.row_cell_spans(i), split);
+            let (head, tail) = split_pairs(&pairs, at);
+            write_styled_row_with(
+                text,
+                &row_bytes[..at],
+                &head,
+                &|id| snapshot.link_uri(id),
+                "",
+            );
+            text.push_str(SETTLED_END);
+            if let Some(marks) = marks.as_mut() {
+                marks.write_at(text, i);
+            }
+            write_indent(text, indent.saturating_sub(settled_col));
+            write_styled_row_with(
+                text,
+                &row_bytes[at..],
+                &tail,
+                &|id| snapshot.link_uri(id),
+                terminator,
+            );
+            continue;
+        }
+        if !settled || i >= settled_row {
+            if let Some(marks) = marks.as_mut() {
+                marks.write_at(text, i);
+            }
+        }
+        write_indent(text, indent);
+        write_styled_row_with(
+            text,
+            row_bytes,
+            &pairs,
+            &|id| snapshot.link_uri(id),
+            terminator,
+        );
+        if settled && settled_col == 0 && i + 1 == settled_row {
+            text.push_str(SETTLED_END);
+        }
+    }
+    // The cursor is addressed RELATIVELY, from the last row written.
+    // Absolute addressing would be wrong: these rows scroll up into
+    // the client's scrollback as they are written, so the row the
+    // cursor belongs on has no fixed screen coordinate.
+    let cursor_row = snapshot.cursor_row as usize;
+    let last_row = total - 1;
+    if cursor_row > last_row {
+        // The cursor sits on a trailing blank row that the snapshot
+        // does not materialise; walk down to it.
+        for row in last_row..cursor_row {
+            text.push_str("\r\n");
+            if let Some(marks) = marks.as_mut() {
+                marks.write_at(text, row + 1);
+            }
+        }
+    } else if cursor_row < last_row {
+        text.push_str(&format!("\x1b[{}A", last_row - cursor_row));
+    }
+    if let Some(marks) = marks.as_mut() {
+        marks.write_at(text, usize::MAX);
+    }
+    write_line_editor_marks(text, core, first, cursor_row);
+    text.push('\r');
+    let cursor_col = (snapshot.cursor_col as usize).min(cols.saturating_sub(1));
+    if cursor_col > 0 {
+        text.push_str(&format!("\x1b[{}C", cursor_col));
+    }
 }
 
 fn settled_point(core: &TerminalCore, snapshot: &GridSnapshot, total: usize) -> (usize, usize) {

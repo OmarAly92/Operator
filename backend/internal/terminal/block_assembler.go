@@ -131,15 +131,18 @@ func (a *BlockAssembler) step(tok marks.Token) (domain.Block, bool) {
 		return domain.Block{}, false
 	}
 	if a.suppressAlternateCommand {
-		if m.Kind == "command_end" {
+		switch m.Kind {
+		case "command_end":
 			a.suppressAlternateCommand = false
 			a.pending = nil
-			return domain.Block{}, false
-		}
-		if m.Kind == "prompt_start" {
+		case "prompt_start":
 			a.suppressAlternateCommand = false
-			a.pending = nil
+			if a.pending != nil && (a.pending.command != "" || a.pending.haveExtExit) {
+				a.pending = nil
+			}
 			a.startBlockAtA(tok)
+		case "extension":
+			a.applyExtension(m, tok)
 		}
 		return domain.Block{}, false
 	}

@@ -54,7 +54,7 @@ pub use integrity::IntegrityError;
 pub use limits::{Limits, MemoryStats};
 pub use line_editor::LineEditorState;
 pub use older::{OlderChunk, OlderState, OLDER_CHUNK_ROWS};
-pub use owned_prompt::OwnedPrompt;
+pub use owned_prompt::{OwnedPrompt, RunningCommand};
 pub use parser::{
     HistoryBlock, HistoryRow, UnknownSequence, UNKNOWN_SEQUENCES_CAP, UNKNOWN_TEXT_BYTES,
 };
