@@ -59,8 +59,15 @@ impl ScreenGrid {
         let mut next = vec![Cell::BLANK; rows * cols];
         let mut wrapped = vec![false; rows];
         for row in 0..rows.min(self.rows - dropped) {
+            let source = self.phys_start(row + dropped);
             for col in 0..cols.min(self.cols) {
-                next[row * cols + col] = self.cells[self.phys_start(row + dropped) + col].clone();
+                next[row * cols + col] = self.cells[source + col].clone();
+            }
+            if cols < self.cols
+                && self.cells[source + cols].ch == '\0'
+                && self.cells[source + cols - 1].ch != '\0'
+            {
+                next[row * cols + cols - 1] = Cell::BLANK;
             }
             wrapped[row] = cols == self.cols && self.row_wrapped(row + dropped);
         }

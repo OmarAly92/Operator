@@ -25,7 +25,7 @@ renderer-odd agent_events 0 cbf29ce484222325
 renderer-odd typeahead []
 renderer-odd deltas 148 64d34791ad461f55
 mirror rows 27
-mirror rows[0..] text 3fc815d2ca3bbe21 styles 972e550128ede8ac spans 6ad38cb139b046f4
+mirror rows[0..] text e90f1a5e4bd812db styles 5b8bcfc7d1618a1a spans 6ad38cb139b046f4
 mirror blocks 24 e1c2411079a9e004
 mirror links 07f8088fb0e8a3f9
 mirror cursor 26 6 true history 24 first_stable 0 editor 2
@@ -38,7 +38,7 @@ mirror agent_events 0 cbf29ce484222325
 mirror typeahead []
 mirror deltas 49 8c230d8862b67cf8
 agent-odd rows 27
-agent-odd rows[0..] text 3fc815d2ca3bbe21 styles 972e550128ede8ac spans 6ad38cb139b046f4
+agent-odd rows[0..] text e90f1a5e4bd812db styles 5b8bcfc7d1618a1a spans 6ad38cb139b046f4
 agent-odd blocks 24 081b9984838176f7
 agent-odd links 07f8088fb0e8a3f9
 agent-odd cursor 26 6 true history 24 first_stable 0 editor 2
