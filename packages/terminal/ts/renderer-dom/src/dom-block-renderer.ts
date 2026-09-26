@@ -96,6 +96,7 @@ export class DomBlockRenderer implements BlockRenderer {
 		blocks: () => this.filteredBlocks,
 		layout: () => this.layout(),
 		paintedFirstStableRow: () => this.paintedFirstStableRow,
+		topInset: () => (this.chrome && !this.chrome.pinned.hidden ? this.chrome.pinned.getBoundingClientRect().height : 0),
 	});
 	private readonly highlights = new RendererHighlights({
 		hasCore: () => this.core !== null,

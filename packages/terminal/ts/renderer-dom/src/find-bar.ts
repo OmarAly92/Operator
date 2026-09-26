@@ -179,15 +179,13 @@ export function createFindBar(options: FindBarOptions): FindBar {
 		let revealed: FindMatch | undefined;
 		try {
 			update = core.findUpdate(active.id, FIND_UPDATE_BUDGET_BYTES);
+			const picking = !active.settled || active.results[active.current] === undefined;
 			if (!active.loaded || update.added > 0 || update.removed > 0) {
-				const before = active.results[active.current];
-				const picking = !active.settled || before === undefined;
 				refresh(active);
 				applyHighlights();
 				renderCount();
-				const after = active.results[active.current];
-				if (picking && after && (after.row !== before?.row || after.startByte !== before?.startByte)) revealed = after;
 			}
+			if (picking && update.complete) revealed = active.results[active.current];
 			if (update.complete && active.results.length > 0) active.settled = true;
 		} catch {
 			stopSession();

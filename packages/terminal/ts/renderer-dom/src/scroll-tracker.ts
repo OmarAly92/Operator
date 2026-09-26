@@ -14,6 +14,7 @@ export type ScrollTrackerDeps = Readonly<{
 	blocks: () => readonly BlockView[];
 	layout: () => ScrollLayout;
 	paintedFirstStableRow: () => number;
+	topInset?: () => number;
 }>;
 
 export class ScrollTracker {
@@ -108,7 +109,7 @@ export class ScrollTracker {
 		const { rowHeight, headerHeight, paddingY } = this.deps.layout();
 		const top = rowTop(this.deps.blocks(), flat, rowHeight, headerHeight, paddingY);
 		if (top === null) return false;
-		if (align === "center-if-hidden" && top >= container.scrollTop && top + rowHeight <= container.scrollTop + container.clientHeight) {
+		if (align === "center-if-hidden" && top >= container.scrollTop + (this.deps.topInset?.() ?? 0) && top + rowHeight <= container.scrollTop + container.clientHeight) {
 			return true;
 		}
 		const room = Math.max(0, container.clientHeight - rowHeight);

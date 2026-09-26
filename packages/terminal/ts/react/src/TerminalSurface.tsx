@@ -74,6 +74,8 @@ export interface TerminalSurfaceProps {
 	onDraftChange?: (draft: string) => void;
 }
 
+let lastFocusedSurface: HTMLElement | null = null;
+
 function predictKeystroke(renderer: DomBlockRenderer | null, event: KeyboardEvent): void {
 	if (!renderer) return;
 	const now = performance.now();
@@ -122,6 +124,7 @@ export function TerminalSurface({
 	const visibleRef = useRef(visible);
 	visibleRef.current = visible;
 	const findBarRef = useRef<FindBar | null>(null);
+	const refocusEditorRef = useRef(false);
 	const loadOlderRef = useRef<LoadOlder | null>(null);
 	const gridColumnsRef = useRef(0);
 	const gridRowsRef = useRef(0);
@@ -406,12 +409,19 @@ export function TerminalSurface({
 		composition.focus();
 		return () => {
 			active = false;
+			refocusEditorRef.current = blockHost.contains(document.activeElement);
 			blockHost.removeEventListener("keydown", onKeyDown);
 			blockHost.removeEventListener("paste", onPaste);
 			compositionRef.current = null;
 			composition.dispose();
 		};
 	}, [altActive, core, onSendRaw]);
+
+	useLayoutEffect(() => {
+		if (altActive || !refocusEditorRef.current) return;
+		refocusEditorRef.current = false;
+		editorRef.current?.focus();
+	}, [altActive]);
 
 	useProgramMessages(core, surfaceRef, onTitleRef);
 
@@ -422,16 +432,28 @@ export function TerminalSurface({
 	);
 
 	useLayoutEffect(() => {
+		const surface = surfaceRef.current;
+		const onFocusIn = () => {
+			lastFocusedSurface = surface;
+		};
 		const onKeyDown = (event: KeyboardEvent) => {
 			const findBar = findBarRef.current;
-			if (!findBar || !isFindChord(event, isMacPlatform())) return;
-			if (!(event.target instanceof Node) || !surfaceRef.current?.contains(event.target)) return;
+			if (!findBar || !surface || !isFindChord(event, isMacPlatform())) return;
+			const target = event.target;
+			if (!(target instanceof Node)) return;
+			const unfocused = target === document.body || target === document.documentElement;
+			if (!surface.contains(target) && !(unfocused && lastFocusedSurface === surface && visibleRef.current !== false)) return;
 			event.preventDefault();
 			event.stopPropagation();
 			findBar.open();
 		};
+		surface?.addEventListener("focusin", onFocusIn);
 		document.addEventListener("keydown", onKeyDown, true);
-		return () => document.removeEventListener("keydown", onKeyDown, true);
+		return () => {
+			surface?.removeEventListener("focusin", onFocusIn);
+			document.removeEventListener("keydown", onKeyDown, true);
+			if (lastFocusedSurface === surface) lastFocusedSurface = null;
+		};
 	}, []);
 
 	// Clicking the transcript belongs to the editor, the way clicking anywhere in

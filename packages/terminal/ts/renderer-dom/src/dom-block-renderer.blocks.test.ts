@@ -119,6 +119,27 @@ describe("pinned command header", () => {
 		renderer.dispose();
 	});
 
+	it("counts a row under the pinned header as hidden when revealing it only if hidden", async () => {
+		vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+			const height = this.dataset.testid === "terminal-pinned-header" ? 50 : 0;
+			return { top: this.classList.contains("terminal-block") ? -200 : 0, left: 0, right: 0, bottom: height, width: 0, height, x: 0, y: 0, toJSON: () => ({}) };
+		});
+		const { host, renderer } = mountTall();
+		Object.defineProperty(host, "scrollHeight", { value: 100_000, configurable: true });
+		Object.defineProperty(host, "scrollTop", { value: 0, configurable: true, writable: true });
+		await flushRepaint();
+		expect(renderer.scrollToRow(100, "start")).toBe(true);
+		await flushRepaint();
+		const pinned = host.querySelector('[data-testid="terminal-pinned-header"]') as HTMLElement;
+		expect(pinned.hidden).toBe(false);
+		const top = host.scrollTop;
+		expect(renderer.scrollToRow(103, "center-if-hidden")).toBe(true);
+		expect(host.scrollTop).toBe(top);
+		expect(renderer.scrollToRow(100, "center-if-hidden")).toBe(true);
+		expect(host.scrollTop).toBeLessThan(top);
+		renderer.dispose();
+	});
+
 	it("does not duplicate an unscrolled header or show it over the alternate screen", async () => {
 		const core = createTerminalCore({ columns: 20, scrollback: 100 });
 		feedOsc133Block(core, "pre-alt", 2);

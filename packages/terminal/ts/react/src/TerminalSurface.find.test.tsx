@@ -139,6 +139,40 @@ describe("TerminalSurface find shortcut with several panes", () => {
 		field.remove();
 	});
 
+	it("opens find in the pane that last held focus when nothing has focus", () => {
+		setPlatform("MacIntel");
+		const first = renderSurface();
+		const second = renderSurface();
+		const parked = renderSurface({ visible: false });
+		editorOf(first.container).focus();
+		const editor = editorOf(second.container);
+		editor.focus();
+		editor.blur();
+		expect(document.activeElement).toBe(document.body);
+		const event = press(document.body, { key: "f", code: "KeyF", metaKey: true });
+		expect(event.defaultPrevented).toBe(true);
+		expect(findInput(first.container)).toBeNull();
+		expect(findInput(parked.container)).toBeNull();
+		expect(document.activeElement).toBe(findInput(second.container));
+		second.setVisible(false);
+		press(findInput(second.container)!, { key: "Escape" });
+		(document.activeElement as HTMLElement | null)?.blur();
+		const hidden = press(document.body, { key: "f", code: "KeyF", metaKey: true });
+		expect(hidden.defaultPrevented).toBe(false);
+	});
+
+	it("hands focus back to the editor when a full-screen program exits, so Cmd+F finds in that pane", () => {
+		setPlatform("MacIntel");
+		const { container, core } = renderSurface();
+		editorOf(container).focus();
+		act(() => feed(core, "\x1b[?1049hvim"));
+		expect(container.contains(document.activeElement)).toBe(true);
+		act(() => feed(core, "\x1b[?1049l"));
+		expect(editorOf(container).contains(document.activeElement)).toBe(true);
+		press(document.activeElement!, { key: "f", code: "KeyF", metaKey: true });
+		expect(document.activeElement).toBe(findInput(container));
+	});
+
 	it("hands focus back to the editor on Escape after Cmd+F is pressed again in the open bar", () => {
 		setPlatform("MacIntel");
 		const { container } = renderSurface();
