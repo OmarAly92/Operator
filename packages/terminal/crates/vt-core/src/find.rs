@@ -333,7 +333,7 @@ fn settled_rows(completed: &std::collections::VecDeque<RowRange>) -> usize {
 }
 
 fn line_start(completed: &std::collections::VecDeque<RowRange>, cut: u64) -> u64 {
-    let mut first = completed.partition_point(|row| row.start < cut);
+    let mut first = completed.partition_point(|row| row.end <= cut);
     while first > 0 && completed[first - 1].wrapped {
         first -= 1;
     }
@@ -500,6 +500,8 @@ mod tests {
         assert_eq!(line_start(&rows, 8), 4);
         assert_eq!(line_start(&rows, 4), 4);
         assert_eq!(line_start(&rows, 20), 4);
+        assert_eq!(line_start(&rows, 2), 0);
+        assert_eq!(line_start(&rows, 6), 4);
         assert_eq!(line_start(&rows.range(..1).cloned().collect(), 4), 4);
     }
 

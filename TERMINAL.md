@@ -1455,7 +1455,10 @@ history of `master`.
   of the line holding that cut, and rescans from there
   (`crates/vt-core/src/find.rs:185-192`, `line_start` `find.rs:335`; the
   line start, not the cut, because a pulled row can be the continuation of a
-  soft-wrapped line and a match must not start mid-line) — without it pulled
+  soft-wrapped line and a match must not start mid-line; the row holding the
+  cut is the first whose end is past it, because a later rewrap can leave a
+  cut mid-row, and taking the first row starting at or after it skipped the
+  rest of that row) — without it pulled
   rows rewritten before the next find update left hits pointing at the new
   text. Review fix 75baad0 dropped and rescanned all history instead, so
   dragging the window taller with the find bar open reset a long history on
@@ -1486,12 +1489,14 @@ history of `master`.
   — whether a Git Bash pane there looks better or worse is not known. The
   pre-existing blank before a wide character that the printer wrapped still
   commits as a space (`abcd中` printed at 5 columns rewraps as `abcd 中`).
-- Guards: `crates/vt-core/tests/prompt_resize.rs` (24 tests, built from the
+- Guards: `crates/vt-core/tests/prompt_resize.rs` (20 tests, built from the
   shells' captured bytes, including
-  `an_older_output_chunk_keeps_its_styles_after_a_prompt_resize_pulled_every_row_back`,
+  `an_older_output_chunk_keeps_its_styles_after_a_prompt_resize_pulled_every_row_back`),
+  `tests/prompt_resize_find.rs` (5 tests:
   `find_hits_stay_on_their_text_when_pulled_rows_are_rewritten_before_the_next_update`,
-  `a_prompt_resize_keeps_a_finished_find_session_without_rescanning` and
-  `a_taller_prompt_resize_keeps_the_find_hits_below_the_pulled_rows`),
+  `a_prompt_resize_keeps_a_finished_find_session_without_rescanning`,
+  `a_taller_prompt_resize_keeps_the_find_hits_below_the_pulled_rows` and
+  `find_hits_after_a_cut_that_a_rewrap_moved_mid_row_are_rescanned`),
   `tests/prompt_resize_integrity.rs` (32 seeds × 300 steps, `verify_integrity`
   and cell spans after every step, ≥ 200 resizes at a prompt),
   `tests/resize_goldens.rs`, `content.rs`/`attribute_map.rs`/`row_index` unit
