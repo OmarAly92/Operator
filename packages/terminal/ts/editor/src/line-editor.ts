@@ -11,15 +11,17 @@ import {
 } from "@operator/terminal-core";
 import { EditorBuffer } from "./buffer.js";
 import { CompletionsDropdown } from "./completions-dropdown.js";
-import { tokenize, type TokenKind } from "./highlight.js";
+import { tokenize } from "./highlight.js";
 import { HistoryModel } from "./history.js";
 import { encodeKey } from "./encode-key.js";
 import { clipboardHasImage, deliverPaste, planPaste, type PasteConfirm } from "./paste.js";
 import { mapKey, type EditorCommand } from "./keymap.js";
 import { renderPromptRow } from "./prompt-row.js";
 import { ReverseSearch } from "./reverse-search.js";
-import { editorStyles } from "./styles.js";
+import { appendRange, createCaret, ensurePackageStyleTag } from "./line-editor-dom.js";
 import { CLEAR_SHELL_LINE, TypeaheadGate } from "./typeahead.js";
+
+const INTERRUPT = "\x03";
 
 export type EditorHost = {
 	send(text: string): void;
@@ -162,6 +164,10 @@ export class LineEditor {
 		this.composition?.focus();
 	}
 
+	noteSent(data: string): void {
+		this.typeahead.noteSent(data);
+	}
+
 	dispose(): void {
 		this.unsubscribe?.();
 		this.unsubscribe = null;
@@ -288,6 +294,7 @@ export class LineEditor {
 		if (!host) return;
 		if (command.kind === "passthrough") {
 			host.sendRaw(command.data);
+			if (command.data === INTERRUPT) this.discardLine();
 			return;
 		}
 		const wasDropdownOpen = this.dropdownOpen;
@@ -360,16 +367,14 @@ export class LineEditor {
 				if (recalled !== null) this.buffer.setText(recalled);
 				break;
 			}
-			case "accept-suggestion": {
-				if (this.buffer.cursor === this.buffer.text.length) {
-					const suggestion = this.history.suggest(this.buffer.text);
-					if (suggestion !== null) this.buffer.setText(suggestion);
-					this.historyPrefix = null;
-				} else {
-					this.buffer.moveBy(1);
-				}
+			case "accept-suggestion":
+				if (this.buffer.cursor === this.buffer.text.length) this.acceptSuggestion();
+				else this.buffer.moveBy(1);
 				break;
-			}
+			case "end-or-accept-suggestion":
+				if (this.buffer.cursor === this.buffer.text.length) this.acceptSuggestion();
+				else this.buffer.moveEnd();
+				break;
 			case "complete":
 				if (wasDropdownOpen) {
 					this.applySelectedCompletion();
@@ -382,6 +387,19 @@ export class LineEditor {
 				this.searchOpen = true;
 				break;
 		}
+		this.render();
+	}
+
+	private acceptSuggestion(): void {
+		const suggestion = this.history.suggest(this.buffer.text);
+		if (suggestion !== null) this.buffer.setText(suggestion);
+		this.historyPrefix = null;
+	}
+
+	private discardLine(): void {
+		this.buffer.clear();
+		this.historyPrefix = null;
+		this.cancelDropdownIfOpen();
 		this.render();
 	}
 
@@ -548,53 +566,4 @@ export class LineEditor {
 		this.promptExitCode = newest?.exitCode ?? null;
 		this.promptDurationMs = newest?.durationMs ?? null;
 	}
-}
-
-function appendRange(
-	row: HTMLElement,
-	text: string,
-	start: number,
-	end: number,
-	kind: TokenKind | null,
-	cursor: number,
-): void {
-	if (start >= end) return;
-	const parent = kind ? document.createElement("span") : document.createDocumentFragment();
-	if (parent instanceof HTMLElement) {
-		parent.className = "terminal-editor-token";
-		parent.dataset.tokenKind = kind ?? undefined;
-	}
-	if (cursor >= start && cursor < end) {
-		parent.append(
-			document.createTextNode(text.slice(start, cursor)),
-			createCaret(text[cursor]),
-			document.createTextNode(text.slice(cursor + 1, end)),
-		);
-	} else {
-		parent.append(document.createTextNode(text.slice(start, end)));
-	}
-	row.append(parent);
-}
-
-function createCaret(character = "\u00a0"): HTMLElement {
-	const caret = document.createElement("span");
-	caret.className = "terminal-editor-caret";
-	caret.textContent = character;
-	return caret;
-}
-
-function ensurePackageStyleTag(): void {
-	// Refresh the tag rather than skipping it when one is already there. Under
-	// HMR the module re-evaluates with new CSS while the tag from the previous
-	// version survives, so the new rules never land and the DOM ends up running
-	// current markup against a stale stylesheet.
-	const existing = document.getElementById("operator-terminal-editor-styles");
-	if (existing) {
-		if (existing.textContent !== editorStyles) existing.textContent = editorStyles;
-		return;
-	}
-	const tag = document.createElement("style");
-	tag.id = "operator-terminal-editor-styles";
-	tag.textContent = editorStyles;
-	document.head.append(tag);
 }

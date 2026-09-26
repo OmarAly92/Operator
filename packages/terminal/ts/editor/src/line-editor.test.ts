@@ -271,6 +271,68 @@ describe("LineEditor ownership", () => {
 		editor.handleKey(key({ key: "c", ctrlKey: true }));
 		expect(host.raw.join("")).toBe("\x03");
 	});
+
+	it("discards the typed line on Ctrl-C while Owned, so the next command starts empty", () => {
+		const drafts: string[] = [];
+		const { editor, host, core, container } = mount({ onDraftChange: (draft) => drafts.push(draft) });
+		core.feed(encode("\x1b]7000;v=1;input-ready=1\x07"));
+		for (const character of "partial") editor.handleKey(key({ key: character }));
+		editor.handleKey(key({ key: "c", ctrlKey: true }));
+		expect(host.raw.join("")).toBe("\x03");
+		expect(container.querySelector(".terminal-editor-line")?.textContent?.trim()).toBe("");
+		expect(drafts.at(-1)).toBe("");
+		core.feed(encode("\x1b]7000;v=1;input-ready=1\x07"));
+		for (const character of "echo b") editor.handleKey(key({ key: character }));
+		editor.handleKey(key({ key: "Enter" }));
+		expect(host.sent).toEqual(["echo b"]);
+	});
+
+	it("leaves Ctrl-C a plain passthrough while a program owns the line", () => {
+		const { editor, host, core } = mount();
+		core.feed(encode("\x1b]7000;v=1;input-ready=1\x07"));
+		for (const character of "draft") editor.handleKey(key({ key: character }));
+		core.feed(encode("\x1b]7000;v=1;input-released=1\x07"));
+		editor.handleKey(key({ key: "c", ctrlKey: true }));
+		expect(host.raw.join("")).toBe("\x03");
+	});
+
+	it("moves to the end of the line on Ctrl-E, not one character", () => {
+		const { editor, host, core } = mount();
+		core.feed(encode("\x1b]7000;v=1;input-ready=1\x07"));
+		for (const character of "echo hello world") editor.handleKey(key({ key: character }));
+		editor.handleKey(key({ key: "a", ctrlKey: true }));
+		editor.handleKey(key({ key: "X" }));
+		editor.handleKey(key({ key: "e", ctrlKey: true }));
+		editor.handleKey(key({ key: "Y" }));
+		editor.handleKey(key({ key: "Enter" }));
+		expect(host.sent).toEqual(["Xecho hello worldY"]);
+	});
+
+	it("moves to the end of the current line on Ctrl-E in a multi-line buffer", () => {
+		const { editor, host, core } = mount();
+		core.feed(encode("\x1b]7000;v=1;input-ready=1\x07"));
+		editor.setText("one\ntwo");
+		for (let step = 0; step < 4; step += 1) editor.handleKey(key({ key: "b", ctrlKey: true }));
+		editor.handleKey(key({ key: "a", ctrlKey: true }));
+		editor.handleKey(key({ key: "e", ctrlKey: true }));
+		editor.handleKey(key({ key: "Z" }));
+		editor.handleKey(key({ key: "Enter" }));
+		expect(host.sent).toEqual(["oneZ\ntwo"]);
+	});
+
+	it("accepts the ghost suggestion on Ctrl-E once the cursor is at the end", () => {
+		const { editor, container, core, host } = mount();
+		core.feed(
+			encode(
+				"\x1b]133;A\x07\x1b]7000;v=1;cmd=git%20status\x07\x1b]133;C\x07ok\n\x1b]133;D;0\x07\x1b]7000;v=1;input-ready=1\x07",
+			),
+		);
+		editor.setText("git ");
+		expect(container.querySelector(".terminal-editor-ghost")?.textContent).toBe("status");
+		editor.handleKey(key({ key: "e", ctrlKey: true }));
+		editor.handleKey(key({ key: "Enter" }));
+		expect(host.sent).toEqual(["git status"]);
+	});
 });
 
 describe("LineEditor passthrough encoding", () => {

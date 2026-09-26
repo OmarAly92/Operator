@@ -87,6 +87,33 @@ describe("typing ahead into the line editor", () => {
 		expect(raw).toEqual(["l", "s", CLEAR_SHELL_LINE]);
 	});
 
+	it("keeps keys that reached the shell after its report, since the Ctrl-U clears them too", () => {
+		const { editor, core, raw, lines } = mount();
+		core.feed(encode(READY + RELEASED));
+		typeWhileRunning(editor, "qls");
+		core.feed(encode(READY + report("l")));
+		expect(lines()).toEqual(["ls"]);
+		expect(raw.join("")).toBe("qls\x15");
+	});
+
+	it("keeps only what follows the newest copy of the report, so keys a program read are never replayed", () => {
+		const { editor, core, lines } = mount();
+		core.feed(encode(READY + RELEASED));
+		typeWhileRunning(editor, "lql");
+		core.feed(encode(READY + report("l")));
+		expect(lines()).toEqual(["l"]);
+	});
+
+	it("keeps no later keys when what followed the report holds a control character", () => {
+		const { editor, core, lines } = mount();
+		core.feed(encode(READY + RELEASED));
+		typeWhileRunning(editor, "l");
+		editor.handleKey(key({ key: "Escape" }));
+		typeWhileRunning(editor, "x");
+		core.feed(encode(READY + report("l")));
+		expect(lines()).toEqual(["l"]);
+	});
+
 	it("appends the report to a draft the host put back while the command ran", () => {
 		const { editor, core, lines } = mount();
 		core.feed(encode(READY + RELEASED));

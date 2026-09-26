@@ -24,6 +24,7 @@ type ConfirmDialogProps = {
 	error?: string | null;
 	onConfirm: () => void;
 	onOpenChange: (open: boolean) => void;
+	onCloseAutoFocus?: (event: Event) => void;
 };
 
 // Shared confirmation modal styled exactly like the settings dialogs
@@ -40,11 +41,16 @@ export function ConfirmDialog({
 	error,
 	onConfirm,
 	onOpenChange,
+	onCloseAutoFocus,
 }: ConfirmDialogProps) {
 	const { t } = useTranslation();
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
-			<DialogContent showCloseButton={false} className={settingsDialogContentClass}>
+			<DialogContent
+				showCloseButton={false}
+				className={settingsDialogContentClass}
+				onCloseAutoFocus={onCloseAutoFocus}
+			>
 				<DialogClose asChild>
 					<button
 						type="button"

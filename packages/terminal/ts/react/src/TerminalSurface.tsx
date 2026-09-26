@@ -343,6 +343,7 @@ export function TerminalSurface({
 	}, [visible]);
 
 	const [altActive, setAltActive] = useState(false);
+	const refocusEditorRef = useRef(false);
 	useLayoutEffect(() => {
 		const read = () => setAltActive(core.snapshot().altScreen !== null);
 		read();
@@ -356,9 +357,13 @@ export function TerminalSurface({
 		}
 		const appCursor = () => core.snapshot().applicationCursorKeys;
 		let active = true;
+		const sendTyped = (data: string) => {
+			onSendRaw(data);
+			editorRef.current?.noteSent(data);
+		};
 		const composition = createCompositionTarget({
 			parent: blockHost,
-			onCommit: (text) => onSendRaw(text),
+			onCommit: sendTyped,
 			anchor: (parent) => anchorFromElement(parent, parent.querySelector("[data-terminal-cursor]")),
 		});
 		const onKeyDown = (event: KeyboardEvent) => {
@@ -378,7 +383,7 @@ export function TerminalSurface({
 			event.preventDefault();
 			rendererRef.current?.selectionClear();
 			predictKeystroke(rendererRef.current, event);
-			onSendRaw(data);
+			sendTyped(data);
 		};
 		// The alt screen has no line editor to hold the line, so every paste
 		// belongs to the child.
@@ -395,7 +400,7 @@ export function TerminalSurface({
 			void deliverPaste(
 				plan,
 				(bytes) => {
-					if (active) onSendRaw(bytes);
+					if (active) sendTyped(bytes);
 				},
 				hostCapsRef.current?.confirmPaste,
 			);
@@ -404,14 +409,23 @@ export function TerminalSurface({
 		blockHost.addEventListener("paste", onPaste);
 		compositionRef.current = composition;
 		composition.focus();
+		refocusEditorRef.current = false;
 		return () => {
 			active = false;
+			const focused = document.activeElement;
 			blockHost.removeEventListener("keydown", onKeyDown);
 			blockHost.removeEventListener("paste", onPaste);
 			compositionRef.current = null;
 			composition.dispose();
+			refocusEditorRef.current = focused === composition.element || focused === blockHost;
 		};
 	}, [altActive, core, onSendRaw]);
+
+	useLayoutEffect(() => {
+		if (altActive || !refocusEditorRef.current) return;
+		refocusEditorRef.current = false;
+		editorRef.current?.focus();
+	}, [altActive]);
 
 	useProgramMessages(core, surfaceRef, onTitleRef);
 

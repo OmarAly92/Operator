@@ -498,7 +498,10 @@ export function BlockTerminal({
 	const marks = useMemo(() => terminalMarkRules(terminalMarks), [terminalMarks]);
 	const predictiveEcho = useUiStore((state) => state.terminalPredictiveEcho);
 	const predictiveThresholdMs = predictiveEcho ? terminalPredictiveEchoThresholdMs : undefined;
-	const { confirmPaste, dialog: pasteConfirmDialog } = usePasteConfirm();
+	const [pasteFocusCount, setPasteFocusCount] = useState(0);
+	const restoreFocusAfterPaste = useCallback(() => setPasteFocusCount((count) => count + 1), []);
+	const surfaceFocusToken = pasteFocusCount === 0 ? focusToken : (focusToken ?? 0) + pasteFocusCount;
+	const { confirmPaste, dialog: pasteConfirmDialog } = usePasteConfirm(restoreFocusAfterPaste);
 	const host = useMemo<HostCapabilities>(
 		() => ({
 			writeClipboard: async (text: string) => {
@@ -632,7 +635,7 @@ export function BlockTerminal({
 		onSendRaw,
 		onGeometry,
 		refitToken,
-		focusToken,
+		focusToken: surfaceFocusToken,
 		visible,
 		marks,
 		onDraftChange,
