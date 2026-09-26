@@ -10,10 +10,19 @@ class AttachmentPickFailure implements Exception {
   final String message;
 }
 
+class PickedAttachments {
+  const PickedAttachments(this.attachments, {this.notice});
+
+  static const PickedAttachments none = PickedAttachments([]);
+
+  final List<ComposerAttachment> attachments;
+  final String? notice;
+}
+
 abstract class AttachmentPicker {
-  Future<List<ComposerAttachment>> camera();
-  Future<List<ComposerAttachment>> photos({required int limit});
-  Future<List<ComposerAttachment>> files();
+  Future<PickedAttachments> camera();
+  Future<PickedAttachments> photos({required int limit});
+  Future<PickedAttachments> files();
 }
 
 class AttachmentPickerImp implements AttachmentPicker {
@@ -29,7 +38,7 @@ class AttachmentPickerImp implements AttachmentPicker {
   final int Function() _now;
 
   @override
-  Future<List<ComposerAttachment>> camera() => _guard('Camera', () async {
+  Future<PickedAttachments> camera() => _guard('Camera', () async {
     final shot = await _images.pickImage(
       source: ImageSource.camera,
       maxWidth: maxDimension,
@@ -37,12 +46,12 @@ class AttachmentPickerImp implements AttachmentPicker {
       imageQuality: quality,
       requestFullMetadata: false,
     );
-    return shot == null ? const [] : _readAll('camera', [shot]);
+    return shot == null ? PickedAttachments.none : _readAll('camera', [shot]);
   });
 
   @override
-  Future<List<ComposerAttachment>> photos({required int limit}) => _guard('Photos', () async {
-    if (limit <= 0) return const [];
+  Future<PickedAttachments> photos({required int limit}) => _guard('Photos', () async {
+    if (limit <= 0) return PickedAttachments.none;
     if (limit == 1) {
       final one = await _images.pickImage(
         source: ImageSource.gallery,
@@ -51,7 +60,7 @@ class AttachmentPickerImp implements AttachmentPicker {
         imageQuality: quality,
         requestFullMetadata: false,
       );
-      return one == null ? const [] : _readAll('photo', [one]);
+      return one == null ? PickedAttachments.none : _readAll('photo', [one]);
     }
     final picked = await _images.pickMultiImage(
       maxWidth: maxDimension,
@@ -64,22 +73,31 @@ class AttachmentPickerImp implements AttachmentPicker {
   });
 
   @override
-  Future<List<ComposerAttachment>> files() => _guard('Files', () async => _readAll('file', await _pickFiles()));
+  Future<PickedAttachments> files() => _guard('Files', () async => _readAll('file', await _pickFiles()));
 
-  Future<List<ComposerAttachment>> _readAll(String source, List<XFile> picked) async {
+  Future<PickedAttachments> _readAll(String source, List<XFile> picked) async {
     final stamp = _now();
-    return [
-      for (var i = 0; i < picked.length; i++)
+    final attachments = <ComposerAttachment>[];
+    var refused = false;
+    for (var i = 0; i < picked.length; i++) {
+      if (await picked[i].length() > AttachmentLimits.maxBytes) {
+        refused = true;
+        continue;
+      }
+      attachments.add(
         ComposerAttachment(
           id: '$source:$stamp:$i',
           name: picked[i].name.isEmpty ? '$source-$i' : picked[i].name,
           mimeType: attachmentMimeType(picked[i].name, picked[i].mimeType),
           bytes: await picked[i].readAsBytes(),
         ),
-    ];
+      );
+    }
+    if (refused && attachments.isEmpty) throw const AttachmentPickFailure(kFileTooLarge);
+    return PickedAttachments(attachments, notice: refused ? kFileTooLarge : null);
   }
 
-  Future<List<ComposerAttachment>> _guard(String source, Future<List<ComposerAttachment>> Function() pick) async {
+  Future<PickedAttachments> _guard(String source, Future<PickedAttachments> Function() pick) async {
     try {
       return await pick();
     } on PlatformException catch (error) {

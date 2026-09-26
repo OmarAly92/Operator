@@ -15,26 +15,27 @@ import '../../../terminal_harness.dart';
 
 class FakeAttachmentPicker implements AttachmentPicker {
   List<ComposerAttachment> next = const [];
+  String? notice;
   Object? error;
   int? lastLimit;
 
-  Future<List<ComposerAttachment>> _answer() async {
+  Future<PickedAttachments> _answer() async {
     final failure = error;
     if (failure != null) throw failure;
-    return next;
+    return PickedAttachments(next, notice: notice);
   }
 
   @override
-  Future<List<ComposerAttachment>> camera() => _answer();
+  Future<PickedAttachments> camera() => _answer();
 
   @override
-  Future<List<ComposerAttachment>> photos({required int limit}) {
+  Future<PickedAttachments> photos({required int limit}) {
     lastLimit = limit;
     return _answer();
   }
 
   @override
-  Future<List<ComposerAttachment>> files() => _answer();
+  Future<PickedAttachments> files() => _answer();
 }
 
 ComposerAttachment png(String id) =>
@@ -134,5 +135,17 @@ void main() {
     expect(picker.lastLimit, isNull);
     expect(harness.cubit.attachmentNotice, kTooManyFiles);
     expect(harness.cubit.attachments, hasLength(AttachmentLimits.maxCount));
+  });
+
+  testWidgets('files the picker refused as too large are named alongside the ones it kept', (tester) async {
+    picker.next = [png('kept')];
+    picker.notice = kFileTooLarge;
+    await open(tester);
+
+    await tester.tap(find.byKey(AddContextBody.filesKey));
+    await tester.pumpAndSettle();
+
+    expect(harness.cubit.attachments.map((a) => a.id), ['kept']);
+    expect(harness.cubit.attachmentNotice, kFileTooLarge);
   });
 }

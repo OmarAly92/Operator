@@ -3,8 +3,24 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:operator_mobile/feature/terminal/data/data_source/attachment_picker.dart';
+import 'package:operator_mobile/feature/terminal/logic/attachment_limits.dart';
 
 class _MockImagePicker extends Mock implements ImagePicker {}
+
+class _HugeFile extends XFile {
+  _HugeFile(super.path);
+
+  int reads = 0;
+
+  @override
+  Future<int> length() async => 2 * 1024 * 1024 * 1024;
+
+  @override
+  Future<Uint8List> readAsBytes() async {
+    reads++;
+    throw StateError('read an oversized file');
+  }
+}
 
 void main() {
   late _MockImagePicker images;
@@ -30,7 +46,7 @@ void main() {
       ),
     ).thenAnswer((_) async => [XFile.fromData(Uint8List.fromList([1, 2]), path: '/picked/IMG_0001.jpg')]);
 
-    final picked = await picker.photos(limit: 5);
+    final picked = (await picker.photos(limit: 5)).attachments;
 
     verify(
       () => images.pickMultiImage(
@@ -57,7 +73,7 @@ void main() {
       ),
     ).thenAnswer((_) async => XFile.fromData(Uint8List.fromList([3]), path: '/picked/one.jpg'));
 
-    final picked = await picker.photos(limit: 1);
+    final picked = (await picker.photos(limit: 1)).attachments;
 
     expect(picked, hasLength(1));
     verify(
@@ -106,7 +122,7 @@ void main() {
       XFile.fromData(Uint8List.fromList([6]), path: '/picked/report.pdf'),
     ];
 
-    final picked = await picker.files();
+    final picked = (await picker.files()).attachments;
 
     expect(picked.map((file) => file.mimeType), ['application/pdf', 'application/pdf']);
     expect(picked.map((file) => file.id).toSet(), hasLength(2));
@@ -123,6 +139,28 @@ void main() {
       ),
     ).thenAnswer((_) async => null);
 
-    expect(await picker.camera(), isEmpty);
+    expect((await picker.camera()).attachments, isEmpty);
+  });
+
+  test('an oversized file is refused by its length without reading it, and the rest are kept', () async {
+    final huge = _HugeFile('/picked/movie.mov');
+    files = [huge, XFile.fromData(Uint8List.fromList([9]), path: '/picked/notes.txt')];
+
+    final picked = await picker.files();
+
+    expect(huge.reads, 0);
+    expect(picked.attachments.map((file) => file.name), ['notes.txt']);
+    expect(picked.notice, kFileTooLarge);
+  });
+
+  test('only oversized files become a too-large failure', () async {
+    final huge = _HugeFile('/picked/movie.mov');
+    files = [huge];
+
+    await expectLater(
+      picker.files(),
+      throwsA(isA<AttachmentPickFailure>().having((failure) => failure.message, 'message', kFileTooLarge)),
+    );
+    expect(huge.reads, 0);
   });
 }

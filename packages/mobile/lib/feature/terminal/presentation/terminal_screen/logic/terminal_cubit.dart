@@ -305,10 +305,11 @@ class TerminalCubit extends Cubit<TerminalState> {
 
   bool hasAttachment(String id) => attachments.any((attachment) => attachment.id == id);
 
-  void addAttachments(List<ComposerAttachment> incoming) {
+  void addAttachments(List<ComposerAttachment> incoming, {String? refused}) {
     if (sending) return;
     final admission = admitAttachments(attachments, incoming);
-    attachmentNotice = admission.notice;
+    final notices = {?refused, ?admission.notice};
+    attachmentNotice = notices.isEmpty ? null : notices.join(' ');
     if (admission.accepted.isNotEmpty) {
       attachments = [...attachments, ...admission.accepted];
       _stagedPaths = null;

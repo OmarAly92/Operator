@@ -19,7 +19,7 @@ import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/ui
 
 const String kAttachFailed = 'Could not attach that. Try again.';
 
-typedef AttachmentPick = Future<List<ComposerAttachment>> Function(AttachmentPicker picker, int room);
+typedef AttachmentPick = Future<PickedAttachments> Function(AttachmentPicker picker, int room);
 
 Future<void> showAddContextSheet(BuildContext context) {
   final terminal = context.read<TerminalCubit>();
@@ -100,8 +100,8 @@ Future<void> _pick(BuildContext context, AttachmentPick pick) async {
   }
   try {
     final picked = await pick(sl<AttachmentPicker>(), room);
-    if (picked.isEmpty) return;
-    terminal.addAttachments(picked);
+    if (picked.attachments.isEmpty && picked.notice == null) return;
+    terminal.addAttachments(picked.attachments, refused: picked.notice);
   } on AttachmentPickFailure catch (failure) {
     terminal.showAttachmentNotice(failure.message);
   } catch (error, stackTrace) {
