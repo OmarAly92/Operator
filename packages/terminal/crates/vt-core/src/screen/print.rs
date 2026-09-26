@@ -89,23 +89,27 @@ impl ScreenGrid {
         self.mark_dirty(row);
     }
 
+    #[inline]
     fn clear_split_wide(&mut self, row: usize, start: usize, end: usize) {
         let base = self.phys_start(row);
+        let lead = start > 0 && self.cells[base + start].ch == '\0';
+        if lead || (end < self.cols && self.cells[base + end].ch == '\0') {
+            self.blank_split_wide(row, base, start, end, lead);
+        }
+    }
+
+    #[cold]
+    fn blank_split_wide(&mut self, row: usize, base: usize, start: usize, end: usize, lead: bool) {
         let blank = self.erased_cell();
-        let mut cleared = false;
-        if start > 0 && self.cells[base + start].ch == '\0' {
+        if lead {
             self.cells[base + start - 1] = blank.clone();
-            cleared = true;
         }
-        let mut col = end;
-        while col < self.cols && self.cells[base + col].ch == '\0' {
-            self.cells[base + col] = blank.clone();
-            cleared = true;
-            col += 1;
+        let mut last = end;
+        while last < self.cols && self.cells[base + last].ch == '\0' {
+            last += 1;
         }
-        if cleared {
-            self.mark_dirty(row);
-        }
+        self.cells[base + end..base + last].fill(blank);
+        self.mark_dirty(row);
     }
 
     fn ascii_starts_a_cluster(&self) -> bool {

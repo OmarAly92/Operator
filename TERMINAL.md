@@ -1525,9 +1525,12 @@ history of `master`.
   narrow character over a continuation kept a one-cell lead that the next
   cell overlapped. Found by a review fuzz of Plan 10; it predates Plan 10.
 - **Now:** `ScreenGrid::clear_split_wide`
-  (`crates/vt-core/src/screen/print.rs:92`) runs before every write that can
+  (`crates/vt-core/src/screen/print.rs:93`) runs before every write that can
   split a wide character: `print` (`:31`), `print_ascii_run` (`:58`),
-  `put_ascii` (`:80`) and the grapheme widening in `join_previous` (`:157`).
+  `put_ascii` (`:80`) and the grapheme widening in `join_previous` (`:161`).
+  It only reads the two cells at the edges of the write; the blanking and
+  the erase cell are built in the cold `blank_split_wide` (`:102`) only when
+  one of them is a continuation.
   A lead whose continuation is overwritten, and every continuation after the
   written cells, become erased cells with the current background (xterm and
   Ghostty behaviour; no code taken). The row's wrapped flag is kept.
