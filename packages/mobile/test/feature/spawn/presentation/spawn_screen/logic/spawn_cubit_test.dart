@@ -9,6 +9,7 @@ import 'package:operator_mobile/feature/spawn/data/model/claude_account_model.da
 import 'package:operator_mobile/feature/spawn/data/model/params/spawn_session_params.dart';
 import 'package:operator_mobile/feature/spawn/data/repository/spawn_repository.dart';
 import 'package:operator_mobile/feature/spawn/logic/agent_picker.dart';
+import 'package:operator_mobile/feature/spawn/logic/spawn_option_values.dart';
 import 'package:operator_mobile/feature/spawn/presentation/spawn_screen/logic/spawn_cubit.dart';
 
 class _MockSpawnRepository extends Mock implements SpawnRepository {}
@@ -285,5 +286,43 @@ void main() {
   test('SpawnSessionParams omits claudeAccountId when absent', () {
     expect(const SpawnSessionParams(projectId: 'p').toJson().containsKey('claudeAccountId'), isFalse);
     expect(const SpawnSessionParams(projectId: 'p', claudeAccountId: 'personal').toJson()['claudeAccountId'], 'personal');
+  });
+
+  blocTest<SpawnCubit, SpawnState>(
+    'spawns in bypass permissions unless another mode is chosen',
+    build: buildCubit,
+    act: (cubit) async {
+      await cubit.loadCatalog();
+      cubit.setProject('p');
+      cubit.name = 'flaky login';
+      cubit.prompt = 'fix it';
+      await cubit.submit();
+      cubit.setPermissionMode('accept-edits');
+      await cubit.submit();
+    },
+    verify: (cubit) {
+      final captured = verify(() => repository.spawn(captureAny())).captured.cast<SpawnSessionParams>();
+      expect(captured.map((params) => params.permissionMode), ['bypass-permissions', 'accept-edits']);
+      expect(captured.first.toJson()['permissionMode'], 'bypass-permissions');
+    },
+  );
+
+  test('plan is offered only for Claude Code and falls back to bypass on another agent', () async {
+    final cubit = buildCubit();
+    await cubit.loadCatalog();
+    cubit.setHarness('claude-code');
+    cubit.setPermissionMode('plan');
+
+    cubit.setHarness('codex');
+
+    expect(cubit.permissionMode, kDefaultSpawnPermissionMode);
+    expect(SpawnOptionValues.permissionModesFor('codex'), isNot(contains('plan')));
+    expect(SpawnOptionValues.permissionModesFor('claude-code'), contains('plan'));
+    await cubit.close();
+  });
+
+  test('a params object without a permission mode sends none', () {
+    expect(const SpawnSessionParams(projectId: 'p').toJson().containsKey('permissionMode'), isFalse);
+    expect(const SpawnSessionParams(projectId: 'p', permissionMode: 'auto').toJson()['permissionMode'], 'auto');
   });
 }

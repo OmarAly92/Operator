@@ -32,5 +32,11 @@ List<Widget> spawnOptionRows({
         value: SpawnOptionValues.accountValue(cubit.claudeAccounts, cubit.claudeAccountId),
         onTap: () => onOpen(SpawnOption.account),
       ),
+    SettingsRow(
+      icon: Icons.shield_outlined,
+      label: 'Permission',
+      value: SpawnOptionValues.permissionValue(cubit.permissionMode),
+      onTap: () => onOpen(SpawnOption.permission),
+    ),
   ];
 }

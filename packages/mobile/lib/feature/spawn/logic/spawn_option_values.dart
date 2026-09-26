@@ -1,8 +1,9 @@
 import 'package:operator_mobile/feature/sessions/data/model/project_model.dart';
 import 'package:operator_mobile/feature/spawn/data/model/claude_account_model.dart';
 import 'package:operator_mobile/feature/spawn/logic/agent_picker.dart';
+import 'package:operator_mobile/feature/terminal/logic/permission_modes.dart';
 
-enum SpawnOption { project, agent, account }
+enum SpawnOption { project, agent, account, permission }
 
 sealed class SpawnOptionValues {
   static ProjectModel? projectById(List<ProjectModel> projects, String? id) {
@@ -39,4 +40,9 @@ sealed class SpawnOptionValues {
     }
     return 'Default';
   }
+
+  static List<String> permissionModesFor(String harness) =>
+      harness == 'claude-code' ? kPermissionModes : kPermissionModes.where((mode) => mode != 'plan').toList();
+
+  static String permissionValue(String mode) => permissionModeLabel(mode);
 }

@@ -8,6 +8,7 @@ class SpawnSessionParams extends Equatable {
     this.harness,
     this.workspaceMode,
     this.claudeAccountId,
+    this.permissionMode,
   });
 
   final String projectId;
@@ -16,6 +17,7 @@ class SpawnSessionParams extends Equatable {
   final String? harness;
   final String? workspaceMode;
   final String? claudeAccountId;
+  final String? permissionMode;
 
   Map<String, dynamic> toJson() => {
     'projectId': projectId,
@@ -24,8 +26,9 @@ class SpawnSessionParams extends Equatable {
     if (harness != null && harness!.isNotEmpty) 'harness': harness,
     if (workspaceMode != null) 'workspaceMode': workspaceMode,
     if (claudeAccountId != null && claudeAccountId!.isNotEmpty) 'claudeAccountId': claudeAccountId,
+    if (permissionMode != null && permissionMode!.isNotEmpty) 'permissionMode': permissionMode,
   };
 
   @override
-  List<Object?> get props => [projectId, prompt, issueId, harness, workspaceMode, claudeAccountId];
+  List<Object?> get props => [projectId, prompt, issueId, harness, workspaceMode, claudeAccountId, permissionMode];
 }

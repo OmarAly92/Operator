@@ -8,8 +8,11 @@ import 'package:operator_mobile/feature/spawn/data/model/claude_account_model.da
 import 'package:operator_mobile/feature/spawn/data/model/params/spawn_session_params.dart';
 import 'package:operator_mobile/feature/spawn/data/repository/spawn_repository.dart';
 import 'package:operator_mobile/feature/spawn/logic/agent_picker.dart';
+import 'package:operator_mobile/feature/spawn/logic/spawn_option_values.dart';
 
 part 'spawn_state.dart';
+
+const String kDefaultSpawnPermissionMode = 'bypass-permissions';
 
 class SpawnCubit extends Cubit<SpawnState> {
   SpawnCubit(this._repository) : super(const SpawnInitialState());
@@ -25,6 +28,7 @@ class SpawnCubit extends Cubit<SpawnState> {
   String name = '';
   String prompt = '';
   bool useWorktree = false;
+  String permissionMode = kDefaultSpawnPermissionMode;
 
   List<ClaudeAccountModel> claudeAccounts = const [];
   String claudeAccountId = 'default';
@@ -42,6 +46,9 @@ class SpawnCubit extends Cubit<SpawnState> {
     harness = next;
     claudeAccountId = ClaudeAccountModel.preferredId(claudeAccounts);
     _accountChosen = false;
+    if (!SpawnOptionValues.permissionModesFor(next).contains(permissionMode)) {
+      permissionMode = kDefaultSpawnPermissionMode;
+    }
     _bump();
   }
 
@@ -53,6 +60,11 @@ class SpawnCubit extends Cubit<SpawnState> {
 
   void setUseWorktree(bool value) {
     useWorktree = value;
+    _bump();
+  }
+
+  void setPermissionMode(String next) {
+    permissionMode = next;
     _bump();
   }
 
@@ -122,6 +134,7 @@ class SpawnCubit extends Cubit<SpawnState> {
       harness: harness,
       workspaceMode: projectKind == 'single_repo' ? (useWorktree ? 'worktree' : 'in_place') : null,
       claudeAccountId: harness == 'claude-code' ? claudeAccountId : null,
+      permissionMode: permissionMode,
     ));
     TelemetryRuntime.featureUsed('spawn', succeeded: result.isSuccess);
     result.when(

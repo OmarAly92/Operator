@@ -14,6 +14,7 @@ import 'package:operator_mobile/feature/sessions/data/model/project_model.dart';
 import 'package:operator_mobile/feature/spawn/logic/spawn_option_values.dart';
 import 'package:operator_mobile/feature/spawn/presentation/spawn_screen/logic/spawn_cubit.dart';
 import 'package:operator_mobile/feature/spawn/presentation/spawn_screen/ui/widgets/spawn_option_rows.dart';
+import 'package:operator_mobile/feature/terminal/logic/permission_modes.dart';
 
 export 'package:operator_mobile/feature/spawn/logic/spawn_option_values.dart' show SpawnOption;
 
@@ -30,6 +31,7 @@ Future<void> showSpawnOptionsSheet(
         SpawnOption.project => _projectPage(cubit, projects),
         SpawnOption.agent => _agentPage(cubit, onRefreshAgents),
         SpawnOption.account => _accountPage(cubit),
+        SpawnOption.permission => _permissionPage(cubit),
       };
 
   final root = AppSheetPage(
@@ -122,6 +124,31 @@ AppSheetPage _accountPage(SpawnCubit cubit) {
     ],
   );
 }
+
+AppSheetPage _permissionPage(SpawnCubit cubit) => AppSheetPage(
+      title: 'Permission',
+      subtitle: 'How much the agent asks before it acts.',
+      rows: (context, _) => [
+        BlocBuilder<SpawnCubit, SpawnState>(
+          builder: (context, _) => SettingsGroup(
+            children: [
+              for (final mode in SpawnOptionValues.permissionModesFor(cubit.harness))
+                SettingsRow(
+                  key: ValueKey('spawn-permission-$mode'),
+                  label: permissionModeLabel(mode),
+                  trailing: mode == cubit.permissionMode
+                      ? Icon(Icons.check_rounded, size: 18, color: context.skin.accent)
+                      : const SizedBox.shrink(),
+                  onTap: () {
+                    cubit.setPermissionMode(mode);
+                    AppSheet.of(context).pop();
+                  },
+                ),
+            ],
+          ),
+        ),
+      ],
+    );
 
 class _RefreshAgentsAction extends StatelessWidget {
   const _RefreshAgentsAction({required this.onRefresh});

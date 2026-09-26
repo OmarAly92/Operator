@@ -213,4 +213,33 @@ void main() {
     expect(find.byIcon(Icons.refresh), findsOneWidget);
     expect(find.text('Could not reach your Operator server'), findsOneWidget);
   });
+
+  testWidgets('the permission option defaults to Bypass and picking one pops back showing it', (tester) async {
+    await open(tester, SpawnOption.permission);
+
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('spawn-permission-bypass-permissions')),
+        matching: find.byIcon(Icons.check_rounded),
+      ),
+      findsOneWidget,
+    );
+    expect(find.byKey(const ValueKey('spawn-permission-plan')), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('spawn-permission-accept-edits')));
+    await tester.pumpAndSettle();
+
+    expect(cubit.permissionMode, 'accept-edits');
+    expect(find.text('Spawn options'), findsOneWidget);
+    expect(find.text('Accept edits'), findsOneWidget);
+  });
+
+  testWidgets('the root lists Permission reading Bypass permissions', (tester) async {
+    await open(tester, SpawnOption.agent);
+    await tester.tap(find.byKey(AppSheet.backKey));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Permission'), findsOneWidget);
+    expect(find.text('Bypass permissions'), findsOneWidget);
+  });
 }
