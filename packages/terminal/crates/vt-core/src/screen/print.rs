@@ -90,7 +90,7 @@ impl ScreenGrid {
     }
 
     #[inline]
-    fn clear_split_wide(&mut self, row: usize, start: usize, end: usize) {
+    pub(super) fn clear_split_wide(&mut self, row: usize, start: usize, end: usize) {
         let base = self.phys_start(row);
         let lead = start > 0 && self.cells[base + start].ch == '\0';
         if lead || (end < self.cols && self.cells[base + end].ch == '\0') {

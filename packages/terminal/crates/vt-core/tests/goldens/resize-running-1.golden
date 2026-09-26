@@ -1,5 +1,5 @@
 renderer rows 471
-renderer rows[0..] text a6f12ed4cb7a2b3b styles d9d4b9107c903c4c spans f6ef6be21351bdd1
+renderer rows[0..] text afba04c1b5187108 styles 2283f2789819ecd8 spans 73ae3221db1d2dbc
 renderer blocks 24 4183997644957ca5
 renderer links 07f8088fb0e8a3f9
 renderer cursor 470 0 true history 470 first_stable 0 editor 2
@@ -12,7 +12,7 @@ renderer agent_events 0 cbf29ce484222325
 renderer typeahead []
 renderer deltas 90 1fb846ce228d5ec5
 renderer-odd rows 471
-renderer-odd rows[0..] text a6f12ed4cb7a2b3b styles d9d4b9107c903c4c spans f6ef6be21351bdd1
+renderer-odd rows[0..] text afba04c1b5187108 styles 2283f2789819ecd8 spans 73ae3221db1d2dbc
 renderer-odd blocks 24 aadc36c80c353b7a
 renderer-odd links 07f8088fb0e8a3f9
 renderer-odd cursor 470 0 true history 470 first_stable 0 editor 2
@@ -25,7 +25,7 @@ renderer-odd agent_events 0 cbf29ce484222325
 renderer-odd typeahead []
 renderer-odd deltas 252 41d936d381ec6a48
 mirror rows 542
-mirror rows[0..] text c0076986dea0ebd5 styles 21f9ffe8e576ccf7 spans 09ab13ea2ff0023d
+mirror rows[0..] text 0e6445f4ae80e035 styles 0e986c1d19bee83f spans 2e518e2fc920a8eb
 mirror rows[500..] text 090ecf8e881bee3e styles 7e3d702b6b245bf2 spans 726f105a2043ced1
 mirror blocks 24 fac720a2a916ca92
 mirror links 07f8088fb0e8a3f9
@@ -37,9 +37,9 @@ mirror replies ""
 mirror notifications 0 cbf29ce484222325
 mirror agent_events 0 cbf29ce484222325
 mirror typeahead []
-mirror deltas 90 daf0da78e1d24877
+mirror deltas 90 29f7f6e6b8ddc199
 agent-odd rows 542
-agent-odd rows[0..] text c0076986dea0ebd5 styles 21f9ffe8e576ccf7 spans 09ab13ea2ff0023d
+agent-odd rows[0..] text 0e6445f4ae80e035 styles 0e986c1d19bee83f spans 2e518e2fc920a8eb
 agent-odd rows[500..] text 090ecf8e881bee3e styles 7e3d702b6b245bf2 spans 726f105a2043ced1
 agent-odd blocks 24 5773640281eebaf5
 agent-odd links 07f8088fb0e8a3f9
@@ -51,4 +51,4 @@ agent-odd replies ""
 agent-odd notifications 0 cbf29ce484222325
 agent-odd agent_events 0 cbf29ce484222325
 agent-odd typeahead []
-agent-odd deltas 252 820f64fbf1e80ea6
+agent-odd deltas 252 cc9499c629063cfa

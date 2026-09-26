@@ -14,6 +14,13 @@ impl ScreenGrid {
         self.mark_dirty(row);
     }
 
+    fn erase_cells(&mut self, row: usize, from: usize, to: usize) {
+        if from < to {
+            self.clear_split_wide(row, from, to);
+        }
+        self.fill_cells(row, from, to);
+    }
+
     fn shift_cells(&mut self, row: usize, from: usize, to: usize, by: isize) {
         let start = self.phys_start(row);
         let span = &mut self.cells[start + from..start + to];
@@ -32,7 +39,7 @@ impl ScreenGrid {
         let cols = self.cols();
         match mode {
             0 => {
-                self.fill_cells(row, col, cols);
+                self.erase_cells(row, col, cols);
                 for r in (row + 1)..rows {
                     self.blank_row(r);
                 }
@@ -41,7 +48,7 @@ impl ScreenGrid {
                 for r in 0..row {
                     self.blank_row(r);
                 }
-                self.fill_cells(row, 0, col + 1);
+                self.erase_cells(row, 0, col + 1);
             }
             2 => match self.clear_policy {
                 ClearPolicy::Scroll => {
@@ -80,8 +87,8 @@ impl ScreenGrid {
         let (row, col) = self.cursor();
         let cols = self.cols();
         match mode {
-            0 => self.fill_cells(row, col, cols),
-            1 => self.fill_cells(row, 0, col + 1),
+            0 => self.erase_cells(row, col, cols),
+            1 => self.erase_cells(row, 0, col + 1),
             _ => self.blank_row(row),
         }
     }
@@ -93,6 +100,8 @@ impl ScreenGrid {
         if count == 0 {
             return;
         }
+        self.clear_split_wide(row, col, col);
+        self.clear_split_wide(row, cols - count, cols - count);
         self.shift_cells(row, col, cols, count as isize);
         self.fill_cells(row, col, col + count);
     }
@@ -104,6 +113,7 @@ impl ScreenGrid {
         if count == 0 {
             return;
         }
+        self.clear_split_wide(row, col, col + count);
         self.shift_cells(row, col, cols, -(count as isize));
         self.fill_cells(row, cols - count, cols);
     }
@@ -112,7 +122,7 @@ impl ScreenGrid {
         let (row, col) = self.cursor();
         let cols = self.cols();
         let count = count.min(cols - col);
-        self.fill_cells(row, col, col + count);
+        self.erase_cells(row, col, col + count);
     }
 
     pub fn insert_lines(&mut self, count: usize) {

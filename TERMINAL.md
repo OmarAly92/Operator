@@ -1517,14 +1517,18 @@ history of `master`.
   and on Linux (zsh 5.9, bash 5.2.21, fish 4.8.1, tmux 3.4); the redraw bytes
   above were captured on macOS only.
 
-### 4.37 A wide character cut in half by an overwrite
+### 4.37 A wide character cut in half by an overwrite or an edit
 - **Symptom (before 2026-09-26):** a character printed over one half of a
   wide character left the other half behind. At 4 columns `日日\x1b[1;2H日`
   left the cells `日 日 \0 \0`, and `row_cell_spans` reported a span 3 cells
   wide. A narrow character over a lead kept the orphaned continuation, and a
   narrow character over a continuation kept a one-cell lead that the next
   cell overlapped. Found by a review fuzz of Plan 10; it predates Plan 10.
-- **Now:** `ScreenGrid::clear_split_wide`
+  The edit commands did the same: at 6 columns `日日` then `CUP(1;3)` and
+  `DCH` left a span 3 cells wide, `a日日` then `CUP(1;2)` and `ECH` left a
+  space 2 cells wide, `a日b` then `CUP(1;3)` and `ICH` moved a continuation
+  away from its lead, and `EL`/`ED` from or up to a continuation did too.
+- **Now:** no span is wider than two cells. `ScreenGrid::clear_split_wide`
   (`crates/vt-core/src/screen/print.rs:93`) runs before every write that can
   split a wide character: `print` (`:31`), `print_ascii_run` (`:58`),
   `put_ascii` (`:80`) and the grapheme widening in `join_previous` (`:161`).
@@ -1534,12 +1538,29 @@ history of `master`.
   A lead whose continuation is overwritten, and every continuation after the
   written cells, become erased cells with the current background (xterm and
   Ghostty behaviour; no code taken). The row's wrapped flag is kept.
+  The edit commands run it on the cells they remove, before they move or
+  fill anything (`crates/vt-core/src/screen/edit.rs`): `EL` 0/1, `ED` 0/1 on
+  the cursor row and `ECH` through `erase_cells` (`:17`, called at `:42`,
+  `:51`, `:90`, `:91`, `:125`), `DCH` on the deleted cells (`:116`), and `ICH`
+  at the cursor and at the first cell pushed off the right edge (`:103-104`).
+  A wide character any of them cuts in half becomes blanks with the current
+  erase background (xterm and Ghostty behaviour; no code taken).
 - **Goldens re-recorded deliberately** (the one change of that kind on the
-  Plan 10 branch): `synthetic-unicode-mix`, `synthetic-edits-styled` and
-  `resize-running-3` had recorded the split halves (spans up to 4 cells wide
-  in the first two when fed in 64-byte chunks). No other golden changed.
-- Guards: `crates/vt-core/tests/cell_spans.rs:114-189` (seven tests, both
-  width modes, each through `common::check`).
+  Plan 10 branch): for the print paths, `synthetic-unicode-mix`,
+  `synthetic-edits-styled` and `resize-running-3` had recorded the split
+  halves (spans up to 4 cells wide in the first two when fed in 64-byte
+  chunks). For the edit commands, `synthetic-edits-styled`,
+  `resize-no-integration-1` and `resize-running-1`: replayed with the edit
+  blanking switched off they match the old goldens exactly, and they are the
+  only streams in which an edit cut a wide character (63 edits in
+  `synthetic-edits-styled`: 28 `EL`, 18 `ECH`, 9 `ICH`, 8 `ED`; 6 `EL` in
+  each of the other two; none in the other 62 streams). No other golden
+  changed.
+- Guards: `crates/vt-core/tests/cell_spans.rs:114-189` (seven print tests)
+  and `:191-334` (five edit tests and
+  `no_mix_of_prints_moves_and_edits_leaves_a_span_wider_than_two_cells`,
+  300 seeds of prints, cursor moves, `ICH`/`DCH`/`ECH`/`EL`/`ED`/`IL`/`DL`),
+  both width modes, each through `common::check`.
 
 ## 5. Known gaps (not bugs, decisions pending)
 

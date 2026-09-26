@@ -1,5 +1,5 @@
 renderer rows 1125
-renderer rows[0..] text 50f3ec3b5692dbea styles 781cd27375a6d1ec spans 9cd784143c2063f2
+renderer rows[0..] text 52017b0b8cfedfbe styles e9752257262b2142 spans 67648f6753b1ca8a
 renderer rows[500..] text 70074d7ecdfca184 styles e779e900b6e5fb34 spans bf9647728c751e70
 renderer rows[1000..] text 20ee987323d31303 styles d1f9300aeba2d26e spans e809b09925599315
 renderer blocks 1 9720e2a2d9a04e3d
@@ -14,7 +14,7 @@ renderer agent_events 0 cbf29ce484222325
 renderer typeahead []
 renderer deltas 50 3060ee3d711200bb
 renderer-odd rows 1125
-renderer-odd rows[0..] text 50f3ec3b5692dbea styles 781cd27375a6d1ec spans 9cd784143c2063f2
+renderer-odd rows[0..] text 52017b0b8cfedfbe styles e9752257262b2142 spans 67648f6753b1ca8a
 renderer-odd rows[500..] text 70074d7ecdfca184 styles e779e900b6e5fb34 spans bf9647728c751e70
 renderer-odd rows[1000..] text 20ee987323d31303 styles d1f9300aeba2d26e spans e809b09925599315
 renderer-odd blocks 1 9720e2a2d9a04e3d
@@ -29,7 +29,7 @@ renderer-odd agent_events 0 cbf29ce484222325
 renderer-odd typeahead []
 renderer-odd deltas 258 cba3361d244e12f5
 mirror rows 1145
-mirror rows[0..] text 245f39c8205965d9 styles 640571d1efb8abb4 spans 15a9f1b70a97d38f
+mirror rows[0..] text 73b948690e9465ec styles 939e1828ac1bec26 spans ab57e176da90ceea
 mirror rows[500..] text 67318ada8ede3945 styles c90fe66217687745 spans dc76facc76b59da2
 mirror rows[1000..] text fc190aa232e450aa styles f9e6ae8171b4d8cf spans b086ce6894123ffe
 mirror blocks 1 d917453e124c93d3
