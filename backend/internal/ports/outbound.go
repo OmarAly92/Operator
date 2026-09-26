@@ -346,6 +346,8 @@ var (
 	// every session on the board). Adapters wrap this sentinel via fmt.Errorf
 	// so callers can match it with errors.Is.
 	ErrRuntimeUnavailable = errors.New("runtime: infrastructure unavailable")
+
+	ErrRuntimeSessionExists = errors.New("runtime: session already has a live host")
 )
 
 // WorkspaceConfig is the spec for creating or restoring a session's workspace.

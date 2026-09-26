@@ -105,10 +105,12 @@ func (r *Runtime) Create(ctx context.Context, cfg ports.RuntimeConfig) (ports.Ru
 		return ports.RuntimeHandle{}, fmt.Errorf("ptyhost: argv required")
 	}
 
+	r.dropDeadHost(id)
+
 	r.mu.Lock()
 	if _, dup := r.sessions[id]; dup {
 		r.mu.Unlock()
-		return ports.RuntimeHandle{}, fmt.Errorf("ptyhost: session %q already exists; destroy before re-creating", id)
+		return ports.RuntimeHandle{}, fmt.Errorf("ptyhost: session %q already exists; destroy before re-creating: %w", id, ports.ErrRuntimeSessionExists)
 	}
 	// Reserve the slot before the async spawn so a concurrent Create for the
 	// same id fails immediately (no gap between check and set).
@@ -184,20 +186,45 @@ func (r *Runtime) Destroy(ctx context.Context, handle ports.RuntimeHandle) error
 		return errors.Join(gracefulErr, forceErr, fmt.Errorf("ptyhost: pty-host pid %d is still alive after teardown", sess.pid))
 	}
 
-	r.mu.Lock()
-	wasHung := sess.failedProbes >= hungAfterFailedProbes
-	delete(r.sessions, handle.ID)
-	delete(r.inputGates, handle.ID)
-	r.mu.Unlock()
-	r.stopProgramWatch(handle.ID)
-	if wasHung {
-		r.notifyHealth(handle.ID, ports.TerminalHealthy)
-	}
-
-	if err := ptyregistry.Unregister(handle.ID); err != nil {
+	if err := r.forgetHost(handle.ID, sess); err != nil {
 		return fmt.Errorf("ptyhost: unregister destroyed session %q: %w", handle.ID, err)
 	}
 	return nil
+}
+
+func (r *Runtime) forgetHost(id string, sess *hostSession) error {
+	r.mu.Lock()
+	if r.sessions[id] != sess {
+		r.mu.Unlock()
+		return nil
+	}
+	wasHung := sess.failedProbes >= hungAfterFailedProbes
+	delete(r.sessions, id)
+	delete(r.inputGates, id)
+	r.mu.Unlock()
+	r.stopProgramWatch(id)
+	if wasHung {
+		r.notifyHealth(id, ports.TerminalHealthy)
+	}
+	return ptyregistry.Unregister(id)
+}
+
+func (r *Runtime) dropDeadHost(id string) {
+	r.mu.Lock()
+	sess := r.sessions[id]
+	r.mu.Unlock()
+	if sess == nil || !r.hostGone(sess) {
+		return
+	}
+	_ = r.forgetHost(id, sess)
+}
+
+func (r *Runtime) hostGone(sess *hostSession) bool {
+	if sess.pid > 0 && !r.pidIsAlive(sess.pid) {
+		return true
+	}
+	_, alive, err := clientStatusWithin(sess.addr, r.probeTimeout)
+	return !alive && err == nil
 }
 
 func (r *Runtime) waitForPIDExit(ctx context.Context, pid int) (bool, error) {

@@ -796,6 +796,9 @@ func toAPIError(err error) error {
 		return apierr.Conflict("WORKSPACE_CWD_MISMATCH", err.Error(), nil)
 	case errors.Is(err, ports.ErrWorkspaceLocked):
 		return apierr.Conflict("WORKSPACE_LOCKED", err.Error(), nil)
+	case errors.Is(err, ports.ErrRuntimeSessionExists):
+		return apierr.Conflict("TERMINAL_HOST_RUNNING",
+			"The session's terminal host is still running; restart the terminal or kill the session first", nil)
 	default:
 		return err
 	}
