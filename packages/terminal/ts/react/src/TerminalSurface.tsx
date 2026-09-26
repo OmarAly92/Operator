@@ -196,6 +196,7 @@ export function TerminalSurface({
 			host: {
 				scrollToBlock: (id, align) => renderer.scrollToBlock(id, align),
 				scrollToRow: (row, align) => renderer.scrollToRow(row, align),
+				bottomVisibleRow: () => renderer.bottomVisibleRow(),
 				invalidate: (range) => renderer.invalidate(range),
 				afterRepaint: (listener) => renderer.onPaint(listener),
 				highlightFind: (find) => renderer.setFindHighlights(find),
@@ -424,6 +425,7 @@ export function TerminalSurface({
 		const onKeyDown = (event: KeyboardEvent) => {
 			const findBar = findBarRef.current;
 			if (!findBar || !isFindChord(event, isMacPlatform())) return;
+			if (!(event.target instanceof Node) || !surfaceRef.current?.contains(event.target)) return;
 			event.preventDefault();
 			event.stopPropagation();
 			findBar.open();

@@ -5,6 +5,8 @@ const STICK_THRESHOLD_PX = 4;
 
 export type ScrollAnchor = Readonly<{ stableRow: number; offsetPx: number }>;
 
+export type RowAlign = "start" | "center" | "end" | "center-if-hidden";
+
 export type ScrollLayout = { rowHeight: number; headerHeight: number; paddingY: number };
 
 export type ScrollTrackerDeps = Readonly<{
@@ -99,19 +101,33 @@ export class ScrollTracker {
 		return top === null ? fallback : Math.max(0, top + anchor.offsetPx);
 	}
 
-	scrollToRow(row: number, align: "start" | "center" | "end"): boolean {
+	scrollToRow(row: number, align: RowAlign): boolean {
 		const container = this.deps.container();
 		const flat = row - this.deps.paintedFirstStableRow();
 		if (!container || flat < 0) return false;
 		const { rowHeight, headerHeight, paddingY } = this.deps.layout();
 		const top = rowTop(this.deps.blocks(), flat, rowHeight, headerHeight, paddingY);
 		if (top === null) return false;
+		if (align === "center-if-hidden" && top >= container.scrollTop && top + rowHeight <= container.scrollTop + container.clientHeight) {
+			return true;
+		}
 		const room = Math.max(0, container.clientHeight - rowHeight);
 		const offset = align === "start" ? 0 : align === "end" ? room : room / 2;
 		this.stickToBottom = false;
 		container.scrollTop = Math.max(0, top - offset);
 		this.captureAnchor();
 		return true;
+	}
+
+	bottomVisibleRow(): number | null {
+		const container = this.deps.container();
+		if (!container) return null;
+		const { rowHeight, headerHeight, paddingY } = this.deps.layout();
+		const bottom = container.scrollTop + container.clientHeight - 1;
+		const anchor = anchorAt(this.deps.blocks(), bottom, rowHeight, headerHeight, paddingY);
+		if (!anchor) return null;
+		const flat = anchor.offsetPx < 0 ? anchor.flatRow - 1 : anchor.flatRow;
+		return flat < 0 ? null : this.deps.paintedFirstStableRow() + flat;
 	}
 
 	updateStickiness(): void {

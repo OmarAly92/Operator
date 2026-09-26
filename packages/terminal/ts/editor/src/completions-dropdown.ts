@@ -36,6 +36,13 @@ export class CompletionsDropdown {
 
 	handleKey(event: KeyboardEvent): boolean {
 		if (this.current === null) return false;
+		if (event.ctrlKey && !event.altKey && !event.metaKey) {
+			const lower = event.key.toLowerCase();
+			if (lower === "n" || lower === "p") {
+				this.move(lower === "n" ? 1 : -1);
+				return true;
+			}
+		}
 		switch (event.key) {
 			case "ArrowDown":
 				this.move(1);

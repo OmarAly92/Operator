@@ -1,5 +1,6 @@
 import { act, cleanup } from "@testing-library/react";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { DomBlockRenderer } from "@operator/terminal-renderer-dom";
 import { feed, loadWasm, renderSurface } from "./surface-harness";
 
 const originalPlatform = Object.getOwnPropertyDescriptor(navigator, "platform");
@@ -102,6 +103,81 @@ describe("TerminalSurface find shortcut", () => {
 		const event = press(composition, { key: "f", code: "KeyF", metaKey: true });
 		expect(event.defaultPrevented).toBe(true);
 		expect(onSendRaw).not.toHaveBeenCalled();
+	});
+});
+
+describe("TerminalSurface find shortcut with several panes", () => {
+	beforeAll(loadWasm);
+
+	afterEach(() => {
+		cleanup();
+		restorePlatform();
+	});
+
+	it("opens find only in the pane that has focus", () => {
+		setPlatform("MacIntel");
+		const first = renderSurface();
+		const second = renderSurface();
+		const editor = editorOf(first.container);
+		editor.focus();
+		press(editor, { key: "f", code: "KeyF", metaKey: true });
+		expect(findInput(first.container)).not.toBeNull();
+		expect(findInput(second.container)).toBeNull();
+		expect(document.activeElement).toBe(findInput(first.container));
+	});
+
+	it("leaves Cmd+F alone while focus is outside every terminal", () => {
+		setPlatform("MacIntel");
+		const { container } = renderSurface();
+		const field = document.createElement("input");
+		document.body.append(field);
+		field.focus();
+		const event = press(field, { key: "f", code: "KeyF", metaKey: true });
+		expect(event.defaultPrevented).toBe(false);
+		expect(findInput(container)).toBeNull();
+		expect(document.activeElement).toBe(field);
+		field.remove();
+	});
+
+	it("hands focus back to the editor on Escape after Cmd+F is pressed again in the open bar", () => {
+		setPlatform("MacIntel");
+		const { container } = renderSurface();
+		const editor = editorOf(container);
+		editor.focus();
+		press(editor, { key: "f", code: "KeyF", metaKey: true });
+		press(findInput(container)!, { key: "f", code: "KeyF", metaKey: true });
+		press(findInput(container)!, { key: "Escape" });
+		expect(findInput(container)).toBeNull();
+		expect(editor.contains(document.activeElement)).toBe(true);
+	});
+});
+
+describe("TerminalSurface find current match", () => {
+	beforeAll(loadWasm);
+
+	afterEach(() => {
+		cleanup();
+		restorePlatform();
+		vi.restoreAllMocks();
+	});
+
+	it("starts at the newest match at or above the renderer's bottom visible row", async () => {
+		setPlatform("MacIntel");
+		vi.spyOn(DomBlockRenderer.prototype, "bottomVisibleRow").mockReturnValue(2);
+		const { container, core } = renderSurface();
+		act(() => {
+			feed(core, "hit 0\r\nhit 1\r\nhit 2\r\nhit 3\r\n");
+		});
+		const editor = editorOf(container);
+		editor.focus();
+		press(editor, { key: "f", code: "KeyF", metaKey: true });
+		const input = findInput(container)!;
+		await act(async () => {
+			input.value = "hit";
+			input.dispatchEvent(new Event("input", { bubbles: true }));
+			await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+		});
+		expect(container.querySelector("[data-terminal-find-count]")?.textContent).toBe("3 of 4");
 	});
 });
 

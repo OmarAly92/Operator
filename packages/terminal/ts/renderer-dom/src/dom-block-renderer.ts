@@ -46,7 +46,7 @@ import {
 } from "./renderer-chrome.js";
 import { RendererOverlays } from "./renderer-overlays.js";
 import { RendererHighlights, type FindHighlights, type MarkRule } from "./renderer-highlights.js";
-import { ScrollTracker, type ScrollAnchor } from "./scroll-tracker.js";
+import { ScrollTracker, type RowAlign, type ScrollAnchor } from "./scroll-tracker.js";
 import { wireRenderer, type RendererWiring } from "./renderer-wiring.js";
 import { ListenerSet } from "./listener-set.js";
 import { tooSoonToPaint } from "./frame-budget.js";
@@ -230,30 +230,27 @@ export class DomBlockRenderer implements BlockRenderer {
 	}
 
 	rowOrigin(row: number): RowOrigin | null {
-		return paintedRowOrigin(
-			this.filteredBlocks,
-			this.elements.blockElements,
-			row,
-			this.cellMetrics().cellHeight,
-			this.paintedFirstStableRow,
-		);
+		return paintedRowOrigin(this.filteredBlocks, this.elements.blockElements, row, this.cellMetrics().cellHeight, this.paintedFirstStableRow);
 	}
 
 	scrollToBlock(id: BlockId, align: "start" | "center" | "end"): void {
 		this.elements.scrollTo(id, align, this.knownBlockId);
 	}
 
-	scrollToRow(row: number, align: "start" | "center" | "end"): boolean {
+	scrollToRow(row: number, align: RowAlign): boolean {
 		const moved = this.scroll.scrollToRow(row, align);
 		if (moved) this.scheduleRepaint();
 		return moved;
 	}
 
 	scrollToLatest(): void {
-		const c = this.container;
-		if (!c) return;
-		this.scroll.stickToLatest(c);
+		if (!this.container) return;
+		this.scroll.stickToLatest(this.container);
 		this.scheduleRepaint();
+	}
+
+	bottomVisibleRow(): number | null {
+		return this.scroll.bottomVisibleRow();
 	}
 
 	scrollAnchor(): ScrollAnchor | null {
