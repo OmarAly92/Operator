@@ -101,7 +101,7 @@ class PermissionModeList extends StatelessWidget {
 Future<void> _choose(BuildContext context, PermissionModeCubit cubit, String mode) async {
   Haptics.select();
   final sheet = AppSheet.of(context);
-  if (await cubit.choose(mode)) sheet.pop();
+  if (await cubit.choose(mode) && context.mounted) sheet.pop();
 }
 
 class _PermissionModeOption extends StatelessWidget {

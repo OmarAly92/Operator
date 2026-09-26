@@ -37,6 +37,7 @@ void main() {
   late _MockControl control;
   late StreamController<BlockEventEnvelope> events;
   late StreamController<Object?> sessionChanges;
+  late StreamController<MuxStatus> statuses;
   late SessionModel? session;
 
   setUpAll(() => registerFallbackValue(const SessionCommandParams(command: '')));
@@ -46,13 +47,17 @@ void main() {
     control = _MockControl();
     events = StreamController<BlockEventEnvelope>.broadcast();
     sessionChanges = StreamController<Object?>.broadcast();
+    statuses = StreamController<MuxStatus>.broadcast();
     session = _claudeSession;
     when(() => mux.blockEvents).thenAnswer((_) => events.stream);
+    when(() => mux.status).thenAnswer((_) => statuses.stream);
+    when(() => mux.currentStatus).thenReturn(MuxStatus.open);
   });
 
   tearDown(() async {
     await events.close();
     await sessionChanges.close();
+    await statuses.close();
   });
 
   PermissionModeCubit build() => PermissionModeCubit(
@@ -154,6 +159,94 @@ void main() {
 
     expect(cubit.state.supported, isTrue);
     expect(cubit.state.cycle, contains('plan'));
+    await cubit.close();
+  });
+
+  Future<void> refresh(String mode) async {
+    session = SessionModel(
+      id: 's-1',
+      harness: 'claude-code',
+      permissionMode: mode,
+      permissionModeSupported: true,
+      permissionModeCycle: _claudeSession.permissionModeCycle,
+    );
+    sessionChanges.add(null);
+    await Future<void>.delayed(Duration.zero);
+  }
+
+  Future<void> reconnect() async {
+    statuses
+      ..add(MuxStatus.closed)
+      ..add(MuxStatus.open);
+    await Future<void>.delayed(Duration.zero);
+  }
+
+  test('a refresh after an event does not revert the mode while it is held', () async {
+    final cubit = build();
+
+    events.add(modeEvent('plan'));
+    await Future<void>.delayed(Duration.zero);
+    await refresh('bypass-permissions');
+
+    expect(cubit.state.mode, 'plan');
+    await cubit.close();
+  });
+
+  test('a reconnect releases the held mode so the next refresh is followed', () async {
+    final cubit = build();
+
+    events.add(modeEvent('plan'));
+    await Future<void>.delayed(Duration.zero);
+    await reconnect();
+    await refresh('accept-edits');
+
+    expect(cubit.state.mode, 'accept-edits');
+    await cubit.close();
+  });
+
+  test('a chosen mode survives a stale refresh and is released once a refresh agrees', () async {
+    when(() => control.sendCommand(any(), any())).thenAnswer(
+      (_) async => Result.success(const GlobalResponse(data: SessionCommandResultModel(state: 'sent', permissionMode: 'plan'))),
+    );
+    final cubit = build();
+    await cubit.choose('plan');
+
+    await refresh('bypass-permissions');
+    expect(cubit.state.mode, 'plan');
+
+    await refresh('plan');
+    await refresh('accept-edits');
+    expect(cubit.state.mode, 'accept-edits');
+    await cubit.close();
+  });
+
+  test('a refresh while a choice is pending leaves the pending choice alone', () async {
+    final reply = Completer<Result<GlobalResponse<SessionCommandResultModel>, Failure>>();
+    when(() => control.sendCommand(any(), any())).thenAnswer((_) => reply.future);
+    final cubit = build();
+
+    unawaited(cubit.choose('plan'));
+    await Future<void>.delayed(Duration.zero);
+    await refresh('accept-edits');
+
+    expect(cubit.state.pending, 'plan');
+    expect(cubit.state.mode, 'plan');
+    reply.complete(Result.success(const GlobalResponse(data: SessionCommandResultModel(permissionMode: 'plan'))));
+    await Future<void>.delayed(Duration.zero);
+    expect(cubit.state.mode, 'plan');
+    await cubit.close();
+  });
+
+  test('a refresh that no longer finds the session keeps the row', () async {
+    final cubit = build();
+
+    session = null;
+    sessionChanges.add(null);
+    await Future<void>.delayed(Duration.zero);
+
+    expect(cubit.state.supported, isTrue);
+    expect(cubit.state.cycle, contains('plan'));
+    expect(cubit.state.mode, 'bypass-permissions');
     await cubit.close();
   });
 }

@@ -53,6 +53,8 @@ class PermissionModeCubit extends Cubit<PermissionModeState> {
     _observed = state.mode;
     _eventsSub = _mux.blockEvents.where((envelope) => envelope.sessionId == sessionId).listen(_onEvent);
     _sessionsSub = sessionChanges.listen((_) => _onSession());
+    _muxStatus = _mux.currentStatus;
+    _statusSub = _mux.status.listen(_onStatus);
   }
 
   final MuxClient _mux;
@@ -61,9 +63,11 @@ class PermissionModeCubit extends Cubit<PermissionModeState> {
   final SessionModel? Function() _session;
 
   String? _observed;
-  bool _eventSeen = false;
+  String? _held;
+  MuxStatus? _muxStatus;
   StreamSubscription<BlockEventEnvelope>? _eventsSub;
   StreamSubscription<Object?>? _sessionsSub;
+  StreamSubscription<MuxStatus>? _statusSub;
 
   static PermissionModeState _fromSession(SessionModel? session) => PermissionModeState(
     mode: session?.permissionMode,
@@ -76,15 +80,31 @@ class PermissionModeCubit extends Cubit<PermissionModeState> {
     if (event.kind != kPermissionModeEventKind || (event.agentId ?? '').isNotEmpty) return;
     final mode = event.text;
     if (mode == null || !kPermissionModes.contains(mode)) return;
-    _eventSeen = true;
+    _held = mode;
     _observed = mode;
     if (state.pending != null) return;
     emit(state.copyWith(mode: mode, clearError: true));
   }
 
+  void _onStatus(MuxStatus status) {
+    final reopened = status == MuxStatus.open && _muxStatus != MuxStatus.open;
+    _muxStatus = status;
+    if (reopened) _held = null;
+  }
+
   void _onSession() {
-    final fresh = _fromSession(_session());
-    final mode = _eventSeen ? null : fresh.mode;
+    final session = _session();
+    if (session == null) return;
+    final fresh = _fromSession(session);
+    final reported = fresh.mode;
+    String? mode;
+    if (reported != null) {
+      if (_held == null) {
+        mode = reported;
+      } else if (reported == _held) {
+        _held = null;
+      }
+    }
     if (mode != null) _observed = mode;
     emit(state.copyWith(
       mode: state.pending == null ? mode : null,
@@ -107,6 +127,7 @@ class PermissionModeCubit extends Cubit<PermissionModeState> {
       onSuccess: (response) {
         final confirmed = response.data?.permissionMode ?? mode;
         _observed = confirmed;
+        _held = confirmed;
         applied = true;
         emit(state.copyWith(mode: confirmed, clearPending: true));
       },
@@ -124,6 +145,7 @@ class PermissionModeCubit extends Cubit<PermissionModeState> {
   Future<void> close() {
     unawaited(_eventsSub?.cancel());
     unawaited(_sessionsSub?.cancel());
+    unawaited(_statusSub?.cancel());
     return super.close();
   }
 }
