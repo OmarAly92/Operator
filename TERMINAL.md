@@ -960,6 +960,11 @@ history of `master`.
 - Symptom: Claude Code sets its window title about ten times a second (`claude-long-50k`: 1,047 `OSC 0`) and Operator showed none of it; a program's own "done" notification (OSC 9/777/99) went nowhere; `CSI 16 t` (sent by Claude Code v2.1.280, `claude-markdown-reply`), `CSI 14/18 t`, mode 2048 and `OSC 10/11 ; ?` went unanswered; OSC 22 was ignored.
 - Now: `vt-core` `program.rs` holds the title, a title stack capped at 4,096, up to 16 pending notifications and a pointer shape; both OSC dispatchers classify through `OscKind` and the history receiver handles only hyperlinks, so replayed history never changes the title or notifies. Replies use the same queue as the XTVERSION/DECRQM/DA1 answers (§4.16): only the mirror answers. The mirror learns the cell size (device pixels) and colours from the pane's `appearance` mux frame (last writer wins; nothing is answered for 14/16/2048/10/11 before one arrives). The pty-host strips a leading glyph+space (`domain.TerminalDisplayTitle`) and pushes only a changed stripped title, plus every notification, to **watcher** connections (`MsgWatchReq`, `MsgProgramEvent`); the daemon's runtime keeps one watch per live host in memory (opened by `Create`, `Attach` and each successful reaper probe; closed by `Destroy`) and the terminal mux relays on `ch:"programs"` with a snapshot on subscribe. The renderer's `ProgramRuntime` feeds `useTerminalTitle` (session card under the name, pane header) and shows a program notification as a desktop toast only when its terminal is not on screen in a focused window (agent-alerts rule D2); the pointer shape is the surface's `--terminal-pointer-shape`.
 - Guards: `vt-core/tests/program_messages.rs`, `program_replies.rs`; `vt-wasm/tests/program_exports.rs`; `ts/core/src/program-messages.test.ts`; `ts/react/src/TerminalSurface.program.test.tsx`; `vtwasm/program_test.go`; `ptyhost/program_test.go`, `program_watch_test.go`; `domain/terminal_title_test.go`; `terminal/programs_test.go`; renderer `terminal-mux.programs.test.ts`, `terminal-titles.test.tsx`, `on-screen-terminals.test.ts`, `program-feed.test.ts`, `ProgramRuntime.test.tsx`, `SplitWorkspaceOnScreenTerminals.test.tsx`, `ShellTerminalsView.onscreen.test.tsx`, `terminal-appearance.test.ts`, and the new cases in `SessionsBoard.test.tsx`, `SplitPane.test.tsx`, `BlockTerminal.test.tsx`, `useTerminalSession.test.tsx`.
+- Pointer shape on reattach (real-app run, 2026-09-26): the attach replay
+  (`vt-host` `write_modes`) now carries `ESC ] 22 ; <css> ST` after the modes, so a
+  pane attached after a program set a shape shows it; history chunks still ignore
+  OSC 22 (`history.rs`). Guard: `vtwasm/replay_test.go`
+  `TestReplayCarriesThePointerShapeTheChildSet`.
 - References, behaviour only (no code adapted, so no attribution file): Ghostty `src/terminal/size_report.zig:5-80`, `stream_terminal.zig:256-280,1456-1476,1602-1605`, `osc/parsers/osc9.zig`, `rxvt_extension.zig`, `mouse.zig:100-150`; Alacritty `alacritty_terminal/src/term/mod.rs:42-48,2235-2248`; kitty's desktop-notification protocol description (no kitty code read).
 
 ### 4.31 One look for highlights; user marks — roadmap Plan 5
@@ -1167,6 +1172,20 @@ history of `master`.
   scanner `an_escape_inside_a_csi_or_after_an_escape_still_opens_a_mark`,
   `ptyhost/older_test.go` `TestAnOlderRequestPastTheMirrorsRowsAnswersNothingOlder`,
   `ts/core/src/older-output.test.ts` "forgets the floor at a process boundary".
+  (f) **a full older chunk landed 999 rows and 1,049 blanks** (real-app run,
+  2026-09-26). `HistoryReceiver::begin` (`crates/vt-core/src/history.rs`) parsed
+  a chunk into one `ScreenGrid` of `rows + 1` rows, and `ScreenGrid::new` clamps
+  to `MAX_DIMENSION` (1,000, `screen.rs:14`). Attach-history chunks (512 rows)
+  fit; a 2,048-row older answer scrolled its oldest 1,049 rows off that screen
+  and prepended 999 real rows then 1,049 blank ones under the chunk's labels
+  (`seq 1 400000`, one click: 198970..199968, about 1,000 empty rows, 199969).
+  The receiver now saves each row when its `\n` arrives and resets a one-row
+  screen (the `\n` never reaches vte), so it holds O(cols) cells whatever the
+  row count. Guards: `tests/cold_ring.rs`
+  `a_full_older_chunk_lands_every_row_with_its_text`, `vtwasm/older_test.go`
+  `TestAFullOlderChunkLandsEveryRowInTheReceivingCore`,
+  `ts/core/src/older-output.test.ts` "lands every row of a full 2,048-row chunk
+  with its text".
 - Not persisted: the saved history (§4.29) is 4 MiB and 20 chunks; cold rows are
   older than anything it can hold.
 - Measured (`docs/superpowers/specs/2026-09-25-old-output-measurement.md`): a
@@ -1641,6 +1660,64 @@ history of `master`.
   `no_mix_of_prints_moves_and_edits_leaves_a_span_wider_than_two_cells`,
   300 seeds of prints, cursor moves, `ICH`/`DCH`/`ECH`/`EL`/`ED`/`IL`/`DL`),
   both width modes, each through `common::check`.
+
+### 4.38 A killed pty-host blocked Restore with a 500 (real-app run, 2026-09-26)
+- Symptom: after a session's pty-host was killed (`kill -KILL`),
+  `POST /api/v1/sessions/{id}/restore` answered 500 `INTERNAL_ERROR`.
+- Cause: the reaper sees a refused dial (`client.go:297`), and the session is
+  terminated, but nothing called `Destroy`, so the dead `hostSession` stayed in
+  `Runtime.sessions` and the relaunch's `Runtime.Create`
+  (`session_manager/manager.go:1510`) was refused as "already exists"; the plain
+  error had no `toAPIError` mapping.
+- Now: `Create` first checks an existing entry; if its pid is gone or its address
+  refuses connections it drops the entry and its registry row (`forgetHost`,
+  shared with `Destroy`) and starts a fresh host. The history file is kept, so the
+  new host replays it (§4.29). A live, hung or in-flight duplicate still fails,
+  wrapping `ports.ErrRuntimeSessionExists` (409 `TERMINAL_HOST_RUNNING`).
+- Guards: `ptyhost/runtime_dead_host_test.go`,
+  `session_manager/restore_dead_host_integration_test.go` (real pty-host, SIGKILL,
+  then Restore), `service/session` `TestToAPIErrorMapsWorkspaceBranchSentinels`.
+
+### 4.39 A reopened shell pane showed every finished command twice (real-app run, 2026-09-26)
+- Symptom: a shell pane opened in a second window or after a reload drew the
+  durable blocks, then one header-less block repeating the same history as raw
+  text, then the live prompt. A shell with no finished command was fine.
+- Cause: `TerminalPane` holds the attach until `useShellTerminalBlocks` loads and
+  `BlockTerminal.feedHistory` writes the durable blocks into the core. The attach
+  replay is the mirror's grid of up to 1,000 rows (`vt_replay`) with no block
+  marks; `Parser::adopt_origin` refuses its origin on a core that already has rows,
+  so it lands below the durable blocks as one synthetic block.
+- Now: `vt_replay` brackets the settled rows (up to the end of the last finished,
+  non-synthetic block, never the last row) with `OSC 7000;v=1;settled=begin ST` /
+  `settled=end ST`; `BlockTerminal` drops the bracketed rows through
+  `lib/settled-replay-filter.ts` only when it fed durable history. The filter
+  survives any transport split and stops dropping at the next `origin=`/`ready=`
+  if a frame was cut. Other clients ignore the key.
+- Limits: a command that finishes between the blocks fetch and the attach shows
+  on the next reload, not this one; output before the first prompt is not
+  replayed on a seeded attach.
+- Guards: `vtwasm/settled_test.go`; `lib/settled-replay-filter.test.ts`
+  (including a real-core case with the host's replay bytes); `BlockTerminal.test.tsx`
+  "drops the replay's settled rows after durable history…" and "keeps every
+  replayed row when there was no durable history…".
+
+### 4.40 Find bar: Ctrl+F typed ^F, clicks left the find field, no reveal (real-app run, 2026-09-26)
+- Ctrl+F opened the find bar **and** sent `\x06`: the next command ran as
+  `^Fsleep`. A bubbling `document` keydown matched `metaKey || ctrlKey` after the
+  line editor had sent the key. Now `isFindChord` (`ts/react/src/selection-gesture.ts`)
+  is Cmd+F on macOS and Ctrl+Shift+F elsewhere, caught in the capture phase with
+  `preventDefault` + `stopPropagation`; plain Ctrl+F reaches the shell.
+- Clicking the find input or its `.*` toggle moved focus to the line editor: the
+  find bar is mounted in the host, whose `onClick` focused the editor. Now the
+  host ignores clicks inside `OWNS_FOCUS` (the find bar and editable controls,
+  `surface-geometry.ts`); presses on host chrome are not mouse-reported, and keys
+  or pastes in the find input never reach a full-screen program.
+- Typing a query showed "1 of N" without scrolling to it. `find-bar.ts` now
+  reveals the current hit when a query first finds something (typed, or the first
+  match arriving later); later streaming hits never move the view (§4.28).
+- Guards: `ts/react/src/TerminalSurface.find.test.tsx` ("find shortcut", "find bar
+  focus"); `find-bar.incremental.test.ts` "reveals the current match as the query
+  is typed…" and "reveals the first match that arrives after the query…".
 
 ## 5. Known gaps (not bugs, decisions pending)
 
