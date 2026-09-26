@@ -7,7 +7,6 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
-	"slices"
 	"strings"
 	"testing"
 
@@ -37,15 +36,8 @@ func (f fakePermissionModes) LatestPermissionMode(_ context.Context, id domain.S
 
 type fakePermissionModeGate struct{ version string }
 
-func (f fakePermissionModeGate) PermissionModeSupport(harness domain.AgentHarness, launch domain.PermissionMode, version string) (bool, []domain.PermissionMode) {
-	if harness != domain.HarnessClaudeCode || version != f.version {
-		return false, nil
-	}
-	cycle := []domain.PermissionMode{domain.PermissionModeDefault, domain.PermissionModeAcceptEdits, domain.PermissionModePlan}
-	if launch == domain.PermissionModeBypassPermissions {
-		cycle = append(cycle, launch)
-	}
-	return true, cycle
+func (f fakePermissionModeGate) PermissionModeSupport(harness domain.AgentHarness, version string) bool {
+	return harness == domain.HarnessClaudeCode && version == f.version
 }
 
 func (fakePermissionModeGate) PermissionModeReadable(harness domain.AgentHarness) bool {
@@ -85,9 +77,8 @@ func TestSessionViewsReportTheObservedPermissionMode(t *testing.T) {
 	if got.Session.PermissionMode != "plan" || !got.Session.Capabilities.PermissionMode {
 		t.Fatalf("session = %+v", got.Session)
 	}
-	want := []string{"default", "accept-edits", "plan", "bypass-permissions"}
-	if !slices.Equal(got.Session.Capabilities.PermissionModeCycle, want) {
-		t.Fatalf("cycle = %v, want %v", got.Session.Capabilities.PermissionModeCycle, want)
+	if strings.Contains(string(body), "permissionModeCycle") {
+		t.Fatalf("the session view still carries a predicted Shift+Tab cycle: %s", body)
 	}
 }
 

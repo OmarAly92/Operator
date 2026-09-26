@@ -132,8 +132,7 @@ type WorkspaceFileQuery struct {
 }
 
 type SessionCapabilitiesView struct {
-	PermissionMode      bool     `json:"permissionMode" description:"The session's permission mode can be changed through the permission-mode command. Filled on the session list and get endpoints only; false elsewhere."`
-	PermissionModeCycle []string `json:"permissionModeCycle,omitempty" description:"Modes the command reaches with Shift+Tab. Any other mode restarts the agent with --resume. Filled on the session list and get endpoints only."`
+	PermissionMode bool `json:"permissionMode" description:"The session's permission mode can be changed through the permission-mode command. Filled on the session list and get endpoints only; false elsewhere."`
 }
 
 // SessionView is the session wire shape: the domain read model plus the
@@ -719,7 +718,7 @@ type SessionCommandResponse struct {
 	State          string   `json:"state"`
 	Models         []string `json:"models,omitempty"`
 	PermissionMode string   `json:"permissionMode,omitempty" description:"The mode the terminal confirmed, for the permission-mode command."`
-	Restarted      bool     `json:"restarted,omitempty" description:"The permission-mode command restarted the agent with --resume to reach the mode."`
+	Restarted      bool     `json:"restarted,omitempty" description:"The permission-mode command restarted the agent with --resume because a full Shift+Tab loop never showed the mode."`
 }
 
 // SessionDecisionRequest is the body of POST /api/v1/sessions/{sessionId}/decision.

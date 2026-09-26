@@ -1,7 +1,6 @@
 package claudecode
 
 import (
-	"slices"
 	"testing"
 
 	"github.com/OmarAly92/operator/backend/internal/domain"
@@ -41,20 +40,6 @@ func TestReadPermissionModeFromTheComposerFooter(t *testing.T) {
 				t.Fatalf("ReadPermissionMode = %q, %v; want %q, %v", got, ok, tt.want, tt.ok)
 			}
 		})
-	}
-}
-
-func TestPermissionModeCycleAddsALaunchModeThatCycles(t *testing.T) {
-	p := &Plugin{}
-	base := []domain.PermissionMode{domain.PermissionModeDefault, domain.PermissionModeAcceptEdits, domain.PermissionModePlan}
-	if got := p.PermissionModeCycle(domain.PermissionModeDefault); !slices.Equal(got, base) {
-		t.Fatalf("default launch cycle = %v", got)
-	}
-	if got := p.PermissionModeCycle(domain.PermissionModeBypassPermissions); !slices.Equal(got, append(slices.Clone(base), domain.PermissionModeBypassPermissions)) {
-		t.Fatalf("bypass launch cycle = %v", got)
-	}
-	if got := p.PermissionModeCycle(domain.PermissionModeAuto); !slices.Equal(got, append(slices.Clone(base), domain.PermissionModeAuto)) {
-		t.Fatalf("auto launch cycle = %v", got)
 	}
 }
 

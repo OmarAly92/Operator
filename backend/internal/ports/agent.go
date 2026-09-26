@@ -630,6 +630,5 @@ type PermissionModeKeys struct {
 type TerminalPermissionModeReader interface {
 	ReadPermissionMode(pane string) (PermissionMode, bool)
 	PermissionModeKeys() PermissionModeKeys
-	PermissionModeCycle(launch PermissionMode) []PermissionMode
 	PermissionModeVerified(version string) bool
 }

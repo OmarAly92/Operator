@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"slices"
 	"time"
 
 	"github.com/OmarAly92/operator/backend/internal/domain"
@@ -15,10 +14,11 @@ import (
 var (
 	ErrPermissionModeUnsupported = errors.New("session: permission mode cannot be changed for this session")
 	ErrPermissionModeUnconfirmed = errors.New("session: the terminal did not confirm the permission mode")
+	errPermissionModeNotInLoop   = fmt.Errorf("%w: the Shift+Tab loop returned to its start without the target", ErrPermissionModeUnconfirmed)
 )
 
 const (
-	maxPermissionModePresses     = 6
+	maxPermissionModePresses     = 8
 	permissionRestartSettleDelay = 750 * time.Millisecond
 )
 
@@ -67,12 +67,9 @@ func (m *Manager) PermissionModeReadable(harness domain.AgentHarness) bool {
 	return ok
 }
 
-func (m *Manager) PermissionModeSupport(harness domain.AgentHarness, launch domain.PermissionMode, version string) (bool, []domain.PermissionMode) {
+func (m *Manager) PermissionModeSupport(harness domain.AgentHarness, version string) bool {
 	reader, ok := m.permissionModeReaderFor(harness)
-	if !ok || !reader.PermissionModeVerified(version) {
-		return false, nil
-	}
-	return true, reader.PermissionModeCycle(ports.NormalizePermissionMode(launch))
+	return ok && reader.PermissionModeVerified(version)
 }
 
 func (m *Manager) SetPermissionMode(ctx context.Context, id domain.SessionID, target domain.PermissionMode) (PermissionModeResult, error) {
@@ -94,13 +91,9 @@ func (m *Manager) SetPermissionMode(ctx context.Context, id domain.SessionID, ta
 	if !reader.PermissionModeVerified(observation.Version) {
 		return PermissionModeResult{}, ErrPermissionModeUnsupported
 	}
-	project, err := m.loadProject(ctx, rec.ProjectID)
-	if err != nil {
-		return PermissionModeResult{}, fmt.Errorf("permission mode %s: %w", id, err)
-	}
-	launch := sessionAgentConfig(rec, project.Config).Permissions
-	if slices.Contains(reader.PermissionModeCycle(ports.NormalizePermissionMode(launch)), target) {
-		return m.cyclePermissionMode(ctx, id, reader, target)
+	result, err := m.cyclePermissionMode(ctx, id, reader, target)
+	if !errors.Is(err, errPermissionModeNotInLoop) {
+		return result, err
 	}
 	return m.restartWithPermissionMode(context.WithoutCancel(ctx), id, target)
 }
@@ -168,7 +161,7 @@ func drivePermissionMode(ctx context.Context, screen dialogdriver.Screen, reader
 		}
 		current = next
 		if current == start {
-			return current, ErrPermissionModeUnconfirmed
+			return current, errPermissionModeNotInLoop
 		}
 	}
 	return current, nil

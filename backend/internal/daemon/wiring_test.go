@@ -661,8 +661,8 @@ func (f *fakeSessionLifecycle) AgentTaskStopSupported(domain.AgentHarness, strin
 	return false
 }
 
-func (f *fakeSessionLifecycle) PermissionModeSupport(domain.AgentHarness, domain.PermissionMode, string) (bool, []domain.PermissionMode) {
-	return false, nil
+func (f *fakeSessionLifecycle) PermissionModeSupport(domain.AgentHarness, string) bool {
+	return false
 }
 
 func (f *fakeSessionLifecycle) PermissionModeReadable(domain.AgentHarness) bool {

@@ -8441,13 +8441,6 @@ components:
           description: The session's permission mode can be changed through the permission-mode
             command. Filled on the session list and get endpoints only; false elsewhere.
           type: boolean
-        permissionModeCycle:
-          description: Modes the command reaches with Shift+Tab. Any other mode restarts
-            the agent with --resume. Filled on the session list and get endpoints
-            only.
-          items:
-            type: string
-          type: array
       required:
       - permissionMode
       type: object
@@ -8485,7 +8478,7 @@ components:
           type: string
         restarted:
           description: The permission-mode command restarted the agent with --resume
-            to reach the mode.
+            because a full Shift+Tab loop never showed the mode.
           type: boolean
         state:
           type: string

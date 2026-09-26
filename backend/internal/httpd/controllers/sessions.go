@@ -160,7 +160,7 @@ type SessionPermissionModeReader interface {
 }
 
 type PermissionModeGate interface {
-	PermissionModeSupport(harness domain.AgentHarness, launch domain.PermissionMode, version string) (bool, []domain.PermissionMode)
+	PermissionModeSupport(harness domain.AgentHarness, version string) bool
 	PermissionModeReadable(harness domain.AgentHarness) bool
 }
 
@@ -578,20 +578,8 @@ func (c *SessionsController) attachPermissionModes(views []SessionView, observed
 		if c.PermissionModeGate == nil {
 			continue
 		}
-		supported, cycle := c.PermissionModeGate.PermissionModeSupport(views[i].Harness, views[i].LaunchPermissionMode, observation.Version)
-		views[i].Capabilities = SessionCapabilitiesView{PermissionMode: supported, PermissionModeCycle: permissionModeStrings(cycle)}
+		views[i].Capabilities = SessionCapabilitiesView{PermissionMode: c.PermissionModeGate.PermissionModeSupport(views[i].Harness, observation.Version)}
 	}
-}
-
-func permissionModeStrings(modes []domain.PermissionMode) []string {
-	if len(modes) == 0 {
-		return nil
-	}
-	out := make([]string, 0, len(modes))
-	for _, mode := range modes {
-		out = append(out, string(mode))
-	}
-	return out
 }
 
 func (c *SessionsController) preview(w http.ResponseWriter, r *http.Request) {

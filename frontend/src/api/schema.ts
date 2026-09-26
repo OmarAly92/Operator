@@ -3002,8 +3002,6 @@ export interface components {
         SessionCapabilitiesView: {
             /** @description The session's permission mode can be changed through the permission-mode command. Filled on the session list and get endpoints only; false elsewhere. */
             permissionMode: boolean;
-            /** @description Modes the command reaches with Shift+Tab. Any other mode restarts the agent with --resume. Filled on the session list and get endpoints only. */
-            permissionModeCycle?: string[];
         };
         SessionCommandRequest: {
             /** @enum {string} */
@@ -3019,7 +3017,7 @@ export interface components {
             models?: string[];
             /** @description The mode the terminal confirmed, for the permission-mode command. */
             permissionMode?: string;
-            /** @description The permission-mode command restarted the agent with --resume to reach the mode. */
+            /** @description The permission-mode command restarted the agent with --resume because a full Shift+Tab loop never showed the mode. */
             restarted?: boolean;
             state: string;
         };

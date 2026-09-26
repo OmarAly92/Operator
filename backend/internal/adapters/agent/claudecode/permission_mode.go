@@ -58,14 +58,6 @@ func (p *Plugin) PermissionModeKeys() ports.PermissionModeKeys {
 	return ports.PermissionModeKeys{Cycle: "\x1b[Z"}
 }
 
-func (p *Plugin) PermissionModeCycle(launch domain.PermissionMode) []domain.PermissionMode {
-	cycle := []domain.PermissionMode{domain.PermissionModeDefault, domain.PermissionModeAcceptEdits, domain.PermissionModePlan}
-	if launch == domain.PermissionModeBypassPermissions || launch == domain.PermissionModeAuto {
-		cycle = append(cycle, launch)
-	}
-	return cycle
-}
-
 func (p *Plugin) PermissionModeVerified(version string) bool {
 	_, ok := permissionModeVerifiedVersions[strings.TrimSpace(version)]
 	return ok

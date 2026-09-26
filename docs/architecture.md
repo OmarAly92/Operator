@@ -1089,9 +1089,9 @@ mode or the version changes, and `permission_mode` rows sit outside the
 per-session trim so the latest one per session survives. The session DTO
 reports that mode as `permissionMode` (falling back to the durable
 `sessions.launch_permission_mode`, written at spawn and by a mode restart and
-used by every resume), plus `capabilities.permissionMode` and
-`capabilities.permissionModeCycle`; both are filled on the session list and
-get endpoints only, and `permissionMode` is omitted for a harness Operator
+used by every resume), plus `capabilities.permissionMode`, filled on the
+session list and get endpoints only. The DTO does not predict which modes
+Shift+Tab reaches; `permissionMode` is omitted for a harness Operator
 cannot read the mode of. A transcript value outside Operator's vocabulary (for
 example `dontAsk`) becomes a `permission_mode` event with an empty mode, and the
 DTO then omits `permissionMode` rather than keep reporting the last known one;
@@ -1104,32 +1104,37 @@ only. Sessions without a recorded launch mode (created before the column)
 still take the project's current setting.
 
 `POST /api/v1/sessions/{id}/command` with `{"command":"permission-mode","mode":…}`
-has two paths, both refusing rather than guessing, and both allow-listed to the
-Claude Code version the footer reader was checked against:
+refuses rather than guesses, is allow-listed to the Claude Code version the
+footer reader was checked against, and never predicts which modes the
+Shift+Tab loop contains. Which modes it holds, and in what order, depends on
+the launch mode and on the account's `permissions.defaultMode`: a session
+launched in Bypass on an account whose default is Auto was observed on
+2.1.280 to loop Bypass → Auto → Ask → Accept edits → Plan → Bypass. Every
+change therefore tries the loop first:
 
-- **In the Shift+Tab cycle** (Ask, Accept edits, Plan, plus Bypass or Auto
-  when the agent was launched in it): under the same exclusive per-session
-  pane drive as the task stop, on an idle or waiting-for-input session only,
-  the daemon reads the composer footer, presses Shift+Tab, and waits for the
-  footer to change, at most six times, re-checking the session is still
-  eligible before every press. The footer reads "⏸ manual mode on" for
-  Default (Ask); any other or missing footer line is unknown and never counts
-  as a mode. The drive stops at the target, stops without pressing again when
-  the footer is no longer readable (a dialog opened) or the session state
-  changes mid-drive, and stops when the cycle returns to its start. A miss is
-  `PERMISSION_MODE_UNCONFIRMED`; an observer error (the mode can't be read at
-  all) is `PERMISSION_MODE_UNSUPPORTED`. A request without a mode is
-  `SESSION_COMMAND_MODE_REQUIRED`; a mode outside the vocabulary is
-  `INVALID_PERMISSION_MODE`, as on spawn.
-- **Outside the cycle**: input admission closes first, the daemon waits a
-  settle interval and re-reads the session, refusing with `SESSION_BUSY`
-  without destroying anything if it is no longer idle or if a pane drive
-  already holds it, then relaunches through the ordinary `--resume` path with
-  the new `--permission-mode` and records it as the launch mode. The restart
-  runs to completion even if the requesting client disconnects; the Shift+Tab
-  drive still stops when the request is cancelled. A `/send`
-  that lands while a restart holds input admission closed also gets
-  `SESSION_BUSY`.
+- **Shift+Tab drive**: under the same exclusive per-session pane drive as the
+  task stop, on an idle or waiting-for-input session only, the daemon reads
+  the composer footer, presses Shift+Tab, and waits for the footer to change,
+  at most eight times, re-checking the session is still eligible before every
+  press. The footer reads "⏸ manual mode on" for Default (Ask); any other or
+  missing footer line is unknown and never counts as a mode. The drive stops
+  at the target, stops without pressing again when the footer is no longer
+  readable (a dialog opened) or the session state changes mid-drive, and
+  stops when the loop returns to its start. Any miss other than a return to
+  the start is `PERMISSION_MODE_UNCONFIRMED` and never restarts; an observer
+  error (the mode can't be read at all) is `PERMISSION_MODE_UNSUPPORTED`. A
+  request without a mode is `SESSION_COMMAND_MODE_REQUIRED`; a mode outside
+  the vocabulary is `INVALID_PERMISSION_MODE`, as on spawn.
+- **Restart with `--resume`**, only when the drive went all the way round
+  without ever showing the target: input admission closes first, the daemon
+  waits a settle interval and re-reads the session, refusing with
+  `SESSION_BUSY` without destroying anything if it is no longer idle or if a
+  pane drive already holds it, then relaunches through the ordinary
+  `--resume` path with the new `--permission-mode` and records it as the
+  launch mode. The result carries `restarted: true`. The restart runs to
+  completion even if the requesting client disconnects; the Shift+Tab drive
+  still stops when the request is cancelled. A `/send` that lands while a
+  restart holds input admission closed also gets `SESSION_BUSY`.
 
 ### Durable shell-block capture
 

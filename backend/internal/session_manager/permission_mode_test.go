@@ -14,7 +14,6 @@ import (
 
 type fakePermissionModeReader struct {
 	verified string
-	cycle    []domain.PermissionMode
 }
 
 func (f fakePermissionModeReader) ReadPermissionMode(pane string) (domain.PermissionMode, bool) {
@@ -29,32 +28,31 @@ func (fakePermissionModeReader) PermissionModeKeys() ports.PermissionModeKeys {
 	return ports.PermissionModeKeys{Cycle: "\x1b[Z"}
 }
 
-func (f fakePermissionModeReader) PermissionModeCycle(domain.PermissionMode) []domain.PermissionMode {
-	return f.cycle
-}
-
 func (f fakePermissionModeReader) PermissionModeVerified(version string) bool {
 	return version == f.verified
 }
 
-var threeModeCycle = []domain.PermissionMode{domain.PermissionModeDefault, domain.PermissionModeAcceptEdits, domain.PermissionModePlan}
+var observedShiftTabLoop = []string{
+	"MODE:bypass-permissions", "MODE:auto", "MODE:default", "MODE:accept-edits", "MODE:plan", "MODE:bypass-permissions",
+}
+
+var loopWithoutAutoOrBypass = []string{"MODE:default", "MODE:accept-edits", "MODE:plan", "MODE:default"}
 
 func TestPermissionModeSupportNeedsAVerifiedVersion(t *testing.T) {
 	m, _, _, _ := newManager()
-	m.permissionModeReader = fakePermissionModeReader{verified: "2.1.280", cycle: threeModeCycle}
+	m.permissionModeReader = fakePermissionModeReader{verified: "2.1.280"}
 
-	ok, cycle := m.PermissionModeSupport(domain.HarnessClaudeCode, domain.PermissionModeDefault, "2.1.280")
-	if !ok || !slices.Equal(cycle, threeModeCycle) {
-		t.Fatalf("support = %v, %v", ok, cycle)
+	if !m.PermissionModeSupport(domain.HarnessClaudeCode, "2.1.280") {
+		t.Fatal("a verified version reported no support")
 	}
-	if ok, cycle := m.PermissionModeSupport(domain.HarnessClaudeCode, domain.PermissionModeDefault, "2.1.279"); ok || cycle != nil {
-		t.Fatalf("unverified version = %v, %v; want unsupported", ok, cycle)
+	if m.PermissionModeSupport(domain.HarnessClaudeCode, "2.1.279") {
+		t.Fatal("an unverified version reported support")
 	}
 }
 
 func TestPermissionModeSupportIsOffForAHarnessWithoutAReader(t *testing.T) {
 	m, _, _, _ := newManager()
-	if ok, _ := m.PermissionModeSupport(domain.HarnessCodex, domain.PermissionModeDefault, "2.1.280"); ok {
+	if m.PermissionModeSupport(domain.HarnessCodex, "2.1.280") {
 		t.Fatal("a harness whose adapter has no reader reported support")
 	}
 	if m.PermissionModeReadable(domain.HarnessCodex) {
@@ -80,10 +78,7 @@ var verifiedObservation = fakePermissionModeObserver{
 func newPermissionDriveManager(t *testing.T, state domain.ActivityState, panes ...string) (*Manager, *fakeRuntime) {
 	t.Helper()
 	m, rt := newCommandTestManager(t, state)
-	m.permissionModeReader = fakePermissionModeReader{
-		verified: "2.1.280",
-		cycle:    append(slices.Clone(threeModeCycle), domain.PermissionModeBypassPermissions),
-	}
+	m.permissionModeReader = fakePermissionModeReader{verified: "2.1.280"}
 	m.SetPermissionModeObserver(verifiedObservation)
 	m.permissionModeTiming = permissionModeTiming{appear: 20 * time.Millisecond, poll: time.Millisecond}
 	rt.panes = panes
@@ -152,15 +147,30 @@ func TestPermissionModeDriveNeverPressesWithoutAFooter(t *testing.T) {
 	}
 }
 
-func TestPermissionModeDriveGivesUpWhenTheCycleReturnsToTheStart(t *testing.T) {
-	m, rt := newPermissionDriveManager(t, domain.ActivityIdle, "MODE:default", "MODE:accept-edits", "MODE:default")
+func TestPermissionModeDriveReachesAutoFromBypassInOnePress(t *testing.T) {
+	m, rt := newPermissionDriveManager(t, domain.ActivityIdle, observedShiftTabLoop...)
 
-	result, err := m.SetPermissionMode(ctx, "s1", domain.PermissionModeBypassPermissions)
-	if !errors.Is(err, ErrPermissionModeUnconfirmed) {
-		t.Fatalf("err = %v, want ErrPermissionModeUnconfirmed", err)
+	result, err := m.SetPermissionMode(ctx, "s1", domain.PermissionModeAuto)
+	if err != nil {
+		t.Fatalf("SetPermissionMode: %v", err)
 	}
-	if result.Mode != domain.PermissionModeDefault || len(rt.inputs) != 2 {
-		t.Fatalf("result = %+v inputs = %q; want back at default after two presses", result, rt.inputs)
+	if result != (PermissionModeResult{Mode: domain.PermissionModeAuto}) {
+		t.Fatalf("result = %+v, want auto without a restart", result)
+	}
+	if len(rt.inputs) != 1 || shiftTabs(rt.inputs) != 1 {
+		t.Fatalf("inputs = %q, want exactly one Shift+Tab press", rt.inputs)
+	}
+}
+
+func TestPermissionModeDriveWalksTheObservedLoopToPlan(t *testing.T) {
+	m, rt := newPermissionDriveManager(t, domain.ActivityIdle, observedShiftTabLoop...)
+
+	result, err := m.SetPermissionMode(ctx, "s1", domain.PermissionModePlan)
+	if err != nil || result != (PermissionModeResult{Mode: domain.PermissionModePlan}) {
+		t.Fatalf("result = %+v err = %v", result, err)
+	}
+	if shiftTabs(rt.inputs) != 4 {
+		t.Fatalf("inputs = %q, want four Shift+Tab presses", rt.inputs)
 	}
 }
 
@@ -173,16 +183,16 @@ func TestPermissionModeDriveGivesUpWhenAPressChangesNothing(t *testing.T) {
 	}
 }
 
-func TestPermissionModeDrivePressesAtMostSixTimes(t *testing.T) {
+func TestPermissionModeDrivePressesAtMostEightTimes(t *testing.T) {
 	m, rt := newPermissionDriveManager(t, domain.ActivityIdle,
-		"MODE:default", "MODE:m1", "MODE:m2", "MODE:m3", "MODE:m4", "MODE:m5", "MODE:m6", "MODE:m7")
+		"MODE:default", "MODE:m1", "MODE:m2", "MODE:m3", "MODE:m4", "MODE:m5", "MODE:m6", "MODE:m7", "MODE:m8", "MODE:m9")
 
 	_, err := m.SetPermissionMode(ctx, "s1", domain.PermissionModePlan)
 	if !errors.Is(err, ErrPermissionModeUnconfirmed) {
 		t.Fatalf("err = %v, want ErrPermissionModeUnconfirmed", err)
 	}
-	if len(rt.inputs) != 6 {
-		t.Fatalf("pressed %d times, want 6", len(rt.inputs))
+	if len(rt.inputs) != 8 {
+		t.Fatalf("pressed %d times, want 8", len(rt.inputs))
 	}
 }
 
@@ -248,9 +258,11 @@ func newPermissionRestartManager(t *testing.T) (*Manager, *fakeStore, *fakeRunti
 	rec.Harness = domain.HarnessClaudeCode
 	rec.LaunchPermissionMode = domain.PermissionModeDefault
 	st.sessions["mer-1"] = rec
-	m.permissionModeReader = fakePermissionModeReader{verified: "2.1.280", cycle: threeModeCycle}
+	m.permissionModeReader = fakePermissionModeReader{verified: "2.1.280"}
 	m.SetPermissionModeObserver(verifiedObservation)
+	m.permissionModeTiming = permissionModeTiming{appear: 20 * time.Millisecond, poll: time.Millisecond}
 	m.permissionRestartSettle = func(context.Context) error { return nil }
+	runtime.panes = slices.Clone(loopWithoutAutoOrBypass)
 	return m, st, runtime, agent
 }
 
@@ -273,8 +285,8 @@ func TestPermissionModeRestartResumesWithTheNewMode(t *testing.T) {
 	if got := st.sessions["mer-1"].LaunchPermissionMode; got != domain.PermissionModeAuto {
 		t.Fatalf("launch mode = %q, want auto", got)
 	}
-	if len(runtime.inputs) != 0 {
-		t.Fatalf("a restart typed into the pane: %q", runtime.inputs)
+	if len(runtime.inputs) != 3 || shiftTabs(runtime.inputs) != 3 {
+		t.Fatalf("inputs = %q, want the three Shift+Tab presses of the loop and nothing typed by the restart", runtime.inputs)
 	}
 }
 
@@ -293,10 +305,10 @@ func TestPermissionModeRestartIsRefusedWhileTheAgentWorks(t *testing.T) {
 	rec.Activity.State = domain.ActivityActive
 	st.sessions["mer-1"] = rec
 
-	if _, err := m.SetPermissionMode(ctx, "mer-1", domain.PermissionModeAuto); !errors.Is(err, ErrSessionBusy) {
-		t.Fatalf("err = %v, want ErrSessionBusy", err)
+	if _, err := m.SetPermissionMode(ctx, "mer-1", domain.PermissionModeAuto); !errors.Is(err, ErrWrongActivityState) {
+		t.Fatalf("err = %v, want ErrWrongActivityState", err)
 	}
-	if runtime.destroyed != 0 || agent.restoreCalls != 0 {
+	if len(runtime.inputs) != 0 || runtime.destroyed != 0 || agent.restoreCalls != 0 {
 		t.Fatalf("a refused restart touched the runtime: destroyed=%d restores=%d", runtime.destroyed, agent.restoreCalls)
 	}
 }
@@ -337,8 +349,7 @@ func TestPermissionModeRestartWaitsOnABlockedSession(t *testing.T) {
 
 type hookedPermissionModeReader struct {
 	fakePermissionModeReader
-	withLaunch bool
-	onRead     func()
+	onRead func()
 }
 
 func (h hookedPermissionModeReader) ReadPermissionMode(pane string) (domain.PermissionMode, bool) {
@@ -348,14 +359,6 @@ func (h hookedPermissionModeReader) ReadPermissionMode(pane string) (domain.Perm
 	return h.fakePermissionModeReader.ReadPermissionMode(pane)
 }
 
-func (h hookedPermissionModeReader) PermissionModeCycle(launch domain.PermissionMode) []domain.PermissionMode {
-	cycle := slices.Clone(h.cycle)
-	if h.withLaunch && !slices.Contains(cycle, launch) {
-		cycle = append(cycle, launch)
-	}
-	return cycle
-}
-
 func TestPermissionModeRestartIsRefusedWhileAPaneDriveHoldsTheSession(t *testing.T) {
 	m, _, runtime, agent := newPermissionRestartManager(t)
 	end, err := m.beginPaneDrive(ctx, "mer-1")
@@ -363,11 +366,13 @@ func TestPermissionModeRestartIsRefusedWhileAPaneDriveHoldsTheSession(t *testing
 		t.Fatalf("beginPaneDrive: %v", err)
 	}
 	defer end()
+	callCtx, cancel := context.WithTimeout(ctx, 50*time.Millisecond)
+	defer cancel()
 
-	if _, err := m.SetPermissionMode(ctx, "mer-1", domain.PermissionModeAuto); !errors.Is(err, ErrSessionBusy) {
-		t.Fatalf("err = %v, want ErrSessionBusy", err)
+	if _, err := m.SetPermissionMode(callCtx, "mer-1", domain.PermissionModeAuto); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("err = %v, want the call to wait on the held pane and time out", err)
 	}
-	if runtime.destroyed != 0 || runtime.created != 0 || agent.restoreCalls != 0 {
+	if len(runtime.inputs) != 0 || runtime.destroyed != 0 || runtime.created != 0 || agent.restoreCalls != 0 {
 		t.Fatalf("the restart went ahead under a pane drive: destroyed=%d created=%d restores=%d", runtime.destroyed, runtime.created, agent.restoreCalls)
 	}
 }
@@ -393,7 +398,7 @@ func TestPermissionModeDriveHoldsInputWhilePressing(t *testing.T) {
 	m, _ := newPermissionDriveManager(t, domain.ActivityIdle, "MODE:default", "MODE:accept-edits", "MODE:plan")
 	admitted := 0
 	m.permissionModeReader = hookedPermissionModeReader{
-		fakePermissionModeReader: fakePermissionModeReader{verified: "2.1.280", cycle: threeModeCycle},
+		fakePermissionModeReader: fakePermissionModeReader{verified: "2.1.280"},
 		onRead: func() {
 			if release, ok := m.AcquireSessionInput("s1"); ok {
 				admitted++
@@ -419,7 +424,7 @@ func TestPermissionModeDriveStopsWhenATurnStartsMidDrive(t *testing.T) {
 	m, rt := newPermissionDriveManager(t, domain.ActivityIdle, "MODE:default", "MODE:accept-edits")
 	st := m.store.(*fakeStore)
 	m.permissionModeReader = hookedPermissionModeReader{
-		fakePermissionModeReader: fakePermissionModeReader{verified: "2.1.280", cycle: threeModeCycle},
+		fakePermissionModeReader: fakePermissionModeReader{verified: "2.1.280"},
 		onRead: func() {
 			if len(rt.inputs) == 1 {
 				rec := st.sessions["s1"]
@@ -443,7 +448,7 @@ func TestPermissionModeDriveReleasesThePaneWhenCancelled(t *testing.T) {
 	driveCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	m.permissionModeReader = hookedPermissionModeReader{
-		fakePermissionModeReader: fakePermissionModeReader{verified: "2.1.280", cycle: threeModeCycle},
+		fakePermissionModeReader: fakePermissionModeReader{verified: "2.1.280"},
 		onRead: func() {
 			if len(rt.inputs) == 1 {
 				cancel()
@@ -463,28 +468,51 @@ func TestPermissionModeDriveReleasesThePaneWhenCancelled(t *testing.T) {
 	end()
 }
 
-func TestPermissionModeCycleCountsALaunchModeFromTheProjectConfig(t *testing.T) {
+func TestPermissionModeRestartsOnlyAfterTheLoopReturnsToItsStart(t *testing.T) {
 	m, st, runtime, agent := newPermissionRestartManager(t)
 	rec := st.sessions["mer-1"]
-	rec.LaunchPermissionMode = ""
+	rec.LaunchPermissionMode = domain.PermissionModeBypassPermissions
 	st.sessions["mer-1"] = rec
-	project := st.projects[string(rec.ProjectID)]
-	project.ID = string(rec.ProjectID)
-	project.Config.AgentConfig.Permissions = domain.PermissionModeBypassPermissions
-	st.projects[string(rec.ProjectID)] = project
-	m.permissionModeReader = hookedPermissionModeReader{
-		fakePermissionModeReader: fakePermissionModeReader{verified: "2.1.280", cycle: threeModeCycle},
-		withLaunch:               true,
-	}
-	m.permissionModeTiming = permissionModeTiming{appear: 20 * time.Millisecond, poll: time.Millisecond}
-	runtime.panes = []string{"MODE:default", "MODE:accept-edits", "MODE:plan", "MODE:bypass-permissions"}
+	runtime.panes = []string{"MODE:bypass-permissions", "MODE:default", "MODE:accept-edits", "MODE:plan", "MODE:bypass-permissions"}
 
-	result, err := m.SetPermissionMode(ctx, "mer-1", domain.PermissionModeBypassPermissions)
+	result, err := m.SetPermissionMode(ctx, "mer-1", domain.PermissionModeAuto)
 	if err != nil {
 		t.Fatalf("SetPermissionMode: %v", err)
 	}
-	if result.Restarted || agent.restoreCalls != 0 || shiftTabs(runtime.inputs) != 3 {
-		t.Fatalf("result = %+v restores = %d inputs = %q; want a three-press cycle drive", result, agent.restoreCalls, runtime.inputs)
+	if !result.Restarted || agent.restoreCalls != 1 || agent.lastRestore.Permissions != domain.PermissionModeAuto {
+		t.Fatalf("result = %+v restores = %d permissions = %q; want one --resume with auto", result, agent.restoreCalls, agent.lastRestore.Permissions)
+	}
+	if shiftTabs(runtime.inputs) != 4 {
+		t.Fatalf("inputs = %q, want the full four-press loop before restarting", runtime.inputs)
+	}
+}
+
+func TestPermissionModeNeverRestartsAfterAnUnconfirmedDrive(t *testing.T) {
+	tests := []struct {
+		name  string
+		panes []string
+	}{
+		{"a dialog replaces the footer", []string{"MODE:default", "DIALOG"}},
+		{"no footer before the first press", []string{"DIALOG"}},
+		{"a press changes nothing", []string{"MODE:default"}},
+		{"the loop never ends", []string{"MODE:default", "MODE:m1", "MODE:m2", "MODE:m3", "MODE:m4", "MODE:m5", "MODE:m6", "MODE:m7", "MODE:m8", "MODE:m9"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m, _, runtime, agent := newPermissionRestartManager(t)
+			runtime.panes = tt.panes
+
+			result, err := m.SetPermissionMode(ctx, "mer-1", domain.PermissionModeAuto)
+			if !errors.Is(err, ErrPermissionModeUnconfirmed) {
+				t.Fatalf("err = %v, want ErrPermissionModeUnconfirmed", err)
+			}
+			if result.Restarted || agent.restoreCalls != 0 || runtime.destroyed != 0 || runtime.created != 0 {
+				t.Fatalf("an unconfirmed drive restarted: result = %+v restores = %d destroyed = %d created = %d", result, agent.restoreCalls, runtime.destroyed, runtime.created)
+			}
+			if shiftTabs(runtime.inputs) > maxPermissionModePresses {
+				t.Fatalf("pressed %d times, want at most %d", shiftTabs(runtime.inputs), maxPermissionModePresses)
+			}
+		})
 	}
 }
 
