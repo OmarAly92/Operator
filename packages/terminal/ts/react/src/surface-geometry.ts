@@ -29,6 +29,14 @@ export function isMacPlatform(): boolean {
 export const SELECTION_CHROME =
 	".terminal-block-header, .terminal-block-actions, .terminal-pinned-header, .terminal-jump-to-bottom, .terminal-find-bar, .terminal-palette";
 
+export const FIND_BAR = ".terminal-find-bar";
+
+export const OWNS_FOCUS = `${FIND_BAR}, input, textarea, select, [contenteditable]`;
+
+export function withinChrome(target: EventTarget | null, selector: string): boolean {
+	return target instanceof Element && target.closest(selector) !== null;
+}
+
 export function accelerationGain(velocityPxPerSec: number): number {
 	const gain = velocityPxPerSec / ACCEL_REFERENCE_PX_PER_SEC;
 	return Math.min(Math.max(gain, 1), ACCEL_MAX_GAIN);

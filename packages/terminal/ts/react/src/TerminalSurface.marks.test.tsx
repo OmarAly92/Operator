@@ -68,7 +68,7 @@ describe("TerminalSurface marks", () => {
 		feed(core, "one\r\nerror\r\n");
 		const { container, unmount } = render(<TerminalSurface core={core} theme={theme} font={font} altScreenActive={false} onSend={() => undefined} onSendRaw={ignoreRaw} />);
 		await act(async () => {
-			document.dispatchEvent(new KeyboardEvent("keydown", { key: "f", metaKey: true, bubbles: true }));
+			document.dispatchEvent(new KeyboardEvent("keydown", { key: "F", code: "KeyF", ctrlKey: true, shiftKey: true, bubbles: true }));
 		});
 		const input = container.querySelector<HTMLInputElement>("input[data-terminal-find-input]")!;
 		await act(async () => {

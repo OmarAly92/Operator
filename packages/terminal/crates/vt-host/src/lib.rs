@@ -201,6 +201,12 @@ fn write_modes(text: &mut String, core: &TerminalCore, alt: bool) {
     if core.application_cursor_keys() {
         text.push_str("\x1b[?1h");
     }
+    let shape = core.pointer_shape();
+    if !shape.is_empty() {
+        text.push_str("\x1b]22;");
+        text.push_str(shape);
+        text.push_str("\x1b\\");
+    }
 }
 
 // Writes the last `lines` rendered rows as UTF-8 into out_ptr, returning the
