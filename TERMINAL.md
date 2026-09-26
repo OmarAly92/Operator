@@ -1755,6 +1755,31 @@ history of `master`.
 - Guard: `alt-surface.test.ts` "translates the cursor from the surface's top-left
   corner, not from after the last row".
 
+### 4.42 A reattached shell pane lost the input box and copied its prompt on every resize (real-app run, 2026-09-26)
+- Symptom: after `echo one`, the page that ran it had the line editor `owned` and the
+  input box; the same shell opened from a reload, a second window or a restored tab
+  was `released` (no input box, keys straight to the shell until the next command),
+  and with a visible two-line prompt each narrow→wide resize added a stale prompt copy.
+- Cause: `vt_replay` restored rows, cursor and modes but not the line editor: the frame
+  carried only `origin`, `settled`, `ready` and `older`. `feedHistory` ends every
+  durable block with `input-released`, so the core stayed `released`; even an owned
+  core had no open prompt block or `input_mark`, so `Parser::resize_at_prompt` kept
+  rows from the cursor row only and evicted the upper prompt line.
+- Now: `replay_frame` (`crates/vt-host/src/replay.rs`) calls `write_line_editor_marks`
+  (`line_editor_marks.rs`) after the cursor reaches its row. An `Owned` mirror with an
+  open prompt block (`TerminalCore::owned_prompt`) gets `CSI n A` to the prompt's first
+  row, the block's `cwd`/`branch` (`OSC 7000`) when set, `OSC 133;A ST`, `CSI n B` to
+  the row where `input-ready` arrived and `OSC 7000;v=1;input-ready=1 ST`, then `CSI n B`
+  back to the cursor row. A prompt outside the replayed rows or taller than the screen
+  sends only `input-ready`; `Released` sends `input-released`; `Unknown` (every agent
+  session), an owned mirror with no open block and the alternate screen send nothing.
+  The marks follow `settled=end` (§4.39) and a pending typeahead report is never replayed.
+- Guards: `crates/vt-host/src/replay_tests.rs` (9 tests, incl.
+  `a_reattached_page_keeps_one_two_line_prompt_over_narrow_and_wide_resizes`);
+  `vtwasm/line_editor_test.go`; `lib/settled-replay-filter.test.ts` "hands the line
+  editor back and keeps one two-line prompt over resizes after durable history and
+  the host's replay".
+
 ## 5. Known gaps (not bugs, decisions pending)
 
 - **A prompt resize that would cut output falls back to the stale-copy
