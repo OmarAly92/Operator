@@ -24,7 +24,6 @@ pub(crate) fn settled_rows_end(snapshot: &vt_core::GridSnapshot) -> usize {
         .filter(|block| {
             block.source != vt_core::BlockSource::Synthetic
                 && block.state == vt_core::BlockState::Finished
-                && block.row_count > 0
         })
         .map(|block| block.first_row as usize + block.row_count as usize)
         .max()

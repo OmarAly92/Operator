@@ -14,6 +14,13 @@ impl Parser {
 
     pub(crate) fn open_block(&mut self, source: BlockSource) {
         self.commit_evicted();
+        self.output_printed = None;
+        let ended_here = self.command_end_at.take() == Some(self.stable_cursor());
+        if ended_here && self.alt.is_none() && self.screen.cursor().1 > 0 {
+            self.screen.carriage_return();
+            self.screen.line_feed();
+            self.commit_evicted();
+        }
         let first_row = self.block_start_row();
         if self.screen.cursor().1 == 0 && self.grid.repaint_open_prompt(first_row) {
             return;
@@ -68,6 +75,17 @@ impl Parser {
         })
     }
 
+    pub(crate) fn erase_saved_lines(&mut self) {
+        self.commit_evicted();
+        let owned = self
+            .grid
+            .covered_end()
+            .saturating_sub(self.rows.completed().len());
+        for row in owned..self.screen.rows() {
+            self.screen.blank_row(row);
+        }
+    }
+
     pub(crate) fn note_input_ready(&mut self) {
         self.commit_evicted();
         let row = self.block_start_row();
@@ -87,13 +105,32 @@ impl Parser {
         Some((first, input, &block.meta))
     }
 
+    pub(crate) fn running_command(&self) -> Option<(usize, usize, &crate::block::BlockMeta)> {
+        if !self.grid.open_output_started() {
+            return None;
+        }
+        let block = self.grid.open_block_ref()?;
+        let output = self.grid.flat_extent(block).0;
+        Some((self.grid.closed_end().min(output), output, &block.meta))
+    }
+
+    fn stable_cursor(&self) -> (usize, usize) {
+        let (row, col) = self.screen.cursor();
+        (self.grid.origin() + self.rows.completed().len() + row, col)
+    }
+
     pub(crate) fn start_output(&mut self) {
         self.commit_evicted();
+        self.output_printed = Some(false);
         self.grid.start_output(self.block_start_row());
     }
 
     pub(crate) fn close_block(&mut self, exit_code: Option<i32>) {
         self.commit_evicted();
+        if self.grid.has_open_block() {
+            let printed = self.output_printed.take() == Some(true);
+            self.command_end_at = printed.then(|| self.stable_cursor());
+        }
         let point = self.alt.is_none().then(|| {
             let (row, col) = self.screen.cursor();
             let col = if self.screen.pending_wrap() {

@@ -125,15 +125,18 @@ func (a *BlockAssembler) step(tok marks.Token) (domain.Block, bool) {
 		return domain.Block{}, false
 	}
 	if a.suppressAlternateCommand {
-		if m.Kind == "command_end" {
+		switch m.Kind {
+		case "command_end":
 			a.suppressAlternateCommand = false
 			a.pending = nil
-			return domain.Block{}, false
-		}
-		if m.Kind == "prompt_start" {
+		case "prompt_start":
 			a.suppressAlternateCommand = false
-			a.pending = nil
+			if a.pending != nil && (a.pending.command != "" || a.pending.haveExtExit) {
+				a.pending = nil
+			}
 			a.startBlockAtA(tok)
+		case "extension":
+			a.applyExtension(m, tok)
 		}
 		return domain.Block{}, false
 	}
@@ -217,20 +220,16 @@ func (a *BlockAssembler) applyExtension(m marks.Mark, tok marks.Token) {
 }
 
 func (a *BlockAssembler) startBlockAtA(tok marks.Token) {
-	if a.pending != nil && !a.pending.sawPromptA && !a.pending.outputStarted {
+	if a.pending != nil && !a.pending.outputStarted {
 		a.pending.sawPromptA = true
 		a.record(tok)
 		return
 	}
-	next := &pendingBlock{
+	a.pending = &pendingBlock{
 		startOffset: tok.Start,
 		lastOffset:  tok.Start,
 		sawPromptA:  true,
 	}
-	if p := a.pending; p != nil && !p.outputStarted {
-		next.id, next.idFromExt, next.cwd, next.branch = p.id, p.idFromExt, p.cwd, p.branch
-	}
-	a.pending = next
 	a.record(tok)
 }
 
