@@ -66,8 +66,10 @@ class BlocksRepositoryImp implements BlocksRepository {
 
   static bool _replicable(Map<String, dynamic> row) {
     final agent = row['agentId'];
-    return row['seq'] is num && (agent is! String || agent.isEmpty) && row['kind'] != 'task_update';
+    return row['seq'] is num && (agent is! String || agent.isEmpty) && !_outlivesTrim.contains(row['kind']);
   }
+
+  static const Set<String> _outlivesTrim = {'task_update', 'permission_mode'};
 
   Future<void> _remember(String? desktopId, String sessionId, List<Map<String, dynamic>> rows) async {
     final kept = rows.where(_replicable).toList();

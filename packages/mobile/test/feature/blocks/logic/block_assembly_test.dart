@@ -45,6 +45,10 @@ String _question(String question) =>
 void main() {
   _unknownKindTests();
   group('assembleBlocks', () {
+    test('a permission_mode event is bookkeeping, not a block', () {
+      expect(assembleBlocks([_event(1, 'permission_mode', text: 'plan', source: 'transcript')]), isEmpty);
+    });
+
     test('a new prompt clears an obsolete waiting notice', () {
       final blocks = assembleBlocks([
         _event(1, 'question_asked', text: 'Waiting on you'),

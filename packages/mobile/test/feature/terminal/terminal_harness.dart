@@ -27,9 +27,11 @@ import 'package:operator_mobile/feature/dictation/logic/voice_input_cubit.dart';
 import 'package:operator_mobile/feature/dictation/voice_types.dart';
 import 'package:operator_mobile/feature/preview/data/repository/preview_repository.dart';
 import 'package:operator_mobile/feature/preview/presentation/preview_screen/logic/preview_cubit.dart';
+import 'package:operator_mobile/feature/sessions/data/model/session_model.dart';
 import 'package:operator_mobile/feature/sessions/data/repository/sessions_repository.dart';
 import 'package:operator_mobile/feature/terminal/data/model/slash_command_model.dart';
 import 'package:operator_mobile/feature/terminal/data/repository/terminal_repository.dart';
+import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/logic/permission_mode_cubit.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/logic/slash_menu_cubit.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/logic/terminal_cubit.dart';
 import 'package:operator_mobile/feature/usage/data/repository/usage_repository.dart';
@@ -91,16 +93,26 @@ class TerminalHarness {
       StreamController<BlockEventEnvelope>.broadcast();
   final StreamController<List<SessionPatch>> sessionPatches =
       StreamController<List<SessionPatch>>.broadcast();
+  final StreamController<Object?> sessionChanges = StreamController<Object?>.broadcast();
+  SessionModel? session;
 
   late TerminalCubit cubit;
   late SessionViewCubit viewCubit;
   late BlocksCubit blocksCubit;
   late SessionCommandCubit commandCubit;
   late SlashMenuCubit slashMenuCubit;
+  late PermissionModeCubit permissionCubit;
   final HarnessVoiceProvider voice = HarnessVoiceProvider();
   final MockSessionControlRepository controlRepository = MockSessionControlRepository();
 
-  void start({bool shellOnly = false, String? harness, List<BlockEventModel> blockRecords = const [], String? activity}) {
+  void start({
+    bool shellOnly = false,
+    String? harness,
+    List<BlockEventModel> blockRecords = const [],
+    String? activity,
+    SessionModel? session,
+  }) {
+    this.session = session;
     if (sl.isRegistered<VoiceInputCubit>()) sl.unregister<VoiceInputCubit>();
     sl.registerFactoryParam<VoiceInputCubit, void Function(String), void>(
       (onTranscript, _) => VoiceInputCubit(voice, onTranscript: onTranscript),
@@ -202,6 +214,13 @@ class TerminalHarness {
       sessionId: cubit.args.sessionId,
       initialActivity: activity,
     );
+    permissionCubit = PermissionModeCubit(
+      mux,
+      controlRepository,
+      sessionId: cubit.args.sessionId,
+      session: () => this.session,
+      sessionChanges: sessionChanges.stream,
+    );
   }
 
   Future<void> pump(WidgetTester tester, Widget child) async {
@@ -219,6 +238,7 @@ class TerminalHarness {
                   BlocProvider<BlocksCubit>.value(value: blocksCubit),
                   BlocProvider<SessionCommandCubit>.value(value: commandCubit),
                   BlocProvider<SlashMenuCubit>.value(value: slashMenuCubit),
+                  BlocProvider<PermissionModeCubit>.value(value: permissionCubit),
                   BlocProvider<PreviewCubit>(
                     create: (_) => sl<PreviewCubit>(
                       param1: cubit.args.sessionId,
@@ -241,7 +261,9 @@ class TerminalHarness {
     await blocksCubit.close();
     await commandCubit.close();
     await slashMenuCubit.close();
+    await permissionCubit.close();
     await blockEvents.close();
+    await sessionChanges.close();
     await sessionPatches.close();
     await cubit.close();
     await statuses.close();

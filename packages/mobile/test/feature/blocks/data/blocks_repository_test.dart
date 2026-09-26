@@ -118,6 +118,23 @@ void main() {
     ])).called(1);
   });
 
+  test('permission mode rows outlive the trim, so they are never stored', () async {
+    when(() => source.getSessionBlocks(any(), any())).thenAnswer(
+      (_) async => {
+        'blocks': [
+          {'seq': 1, 'kind': 'permission_mode', 'text': 'plan'},
+          {'seq': 5, 'kind': 'stop'},
+        ],
+      },
+    );
+
+    await online().getSessionBlocks('s-1', const GetSessionBlocksParams());
+
+    verify(() => local.writeHistory('a', 's-1', [
+      {'seq': 5, 'kind': 'stop'},
+    ])).called(1);
+  });
+
   test('a subagent page is never stored', () async {
     when(() => source.getSessionBlocks(any(), any())).thenAnswer(
       (_) async => {

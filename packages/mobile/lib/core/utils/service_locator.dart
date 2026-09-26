@@ -63,6 +63,7 @@ import 'package:operator_mobile/feature/terminal/data/data_source/attachment_pic
 import 'package:operator_mobile/feature/terminal/data/data_source/recent_photos_data_source.dart';
 import 'package:operator_mobile/feature/terminal/data/data_source/terminal_remote_data_source.dart';
 import 'package:operator_mobile/feature/terminal/data/repository/terminal_repository.dart';
+import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/logic/permission_mode_cubit.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/logic/slash_menu_cubit.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/logic/terminal_cubit.dart';
 import 'package:operator_mobile/feature/usage/data/data_source/usage_remote_data_source.dart';
@@ -229,6 +230,15 @@ class ServiceLocator {
         sl<TerminalRepository>(),
         sl<SessionsRepository>(),
         args,
+      ),
+    );
+    sl.registerFactoryParam<PermissionModeCubit, String, void>(
+      (sessionId, _) => PermissionModeCubit(
+        sl<MuxClient>(),
+        sl<SessionControlRepository>(),
+        sessionId: sessionId,
+        session: () => sl<SessionsCubit>().sessions.where((session) => session.id == sessionId).firstOrNull,
+        sessionChanges: sl<SessionsCubit>().stream,
       ),
     );
     sl.registerLazySingleton<TerminalRepository>(

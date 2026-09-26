@@ -30,6 +30,7 @@ import 'package:operator_mobile/feature/sessions/presentation/session_route/ui/s
 import 'package:operator_mobile/feature/sessions/presentation/sessions_screen/logic/sessions_cubit.dart';
 import 'package:operator_mobile/feature/spawn/presentation/spawn_screen/logic/spawn_cubit.dart';
 import 'package:operator_mobile/feature/spawn/presentation/spawn_screen/ui/spawn_screen.dart';
+import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/logic/permission_mode_cubit.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/logic/slash_menu_cubit.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/logic/terminal_cubit.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/ui/terminal_screen.dart';
@@ -143,6 +144,10 @@ sealed class AppRouter {
                     param1: terminalArgs.sessionId,
                     param2: terminalArgs.previewUrl,
                   ),
+                ),
+              if (!terminalArgs.shellOnly)
+                BlocProvider<PermissionModeCubit>(
+                  create: (_) => sl<PermissionModeCubit>(param1: terminalArgs.sessionId),
                 ),
             ],
             child: ViewedSessionMarker(sessionId: terminalArgs.sessionId, child: const TerminalScreen()),

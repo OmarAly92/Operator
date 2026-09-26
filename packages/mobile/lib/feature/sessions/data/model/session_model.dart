@@ -24,6 +24,9 @@ class SessionModel extends Equatable {
     this.model,
     this.agentReportState,
     this.agentReportReason,
+    this.permissionMode,
+    this.permissionModeSupported,
+    this.permissionModeCycle,
   });
 
   final String? id;
@@ -52,6 +55,10 @@ class SessionModel extends Equatable {
   /// The agent's one-line reason for [agentReportState].
   final String? agentReportReason;
 
+  final String? permissionMode;
+  final bool? permissionModeSupported;
+  final List<String>? permissionModeCycle;
+
   factory SessionModel.fromJson(Map<String, dynamic> json) => SessionModel(
     id: json['id'] as String?,
     projectId: json['projectId'] as String?,
@@ -75,11 +82,19 @@ class SessionModel extends Equatable {
     model: json['model'] as String?,
     agentReportState: _agentReport(json)?['state'] as String?,
     agentReportReason: _agentReport(json)?['reason'] as String?,
+    permissionMode: json['permissionMode'] as String?,
+    permissionModeSupported: _capabilities(json)?['permissionMode'] as bool?,
+    permissionModeCycle: (_capabilities(json)?['permissionModeCycle'] as List<dynamic>?)?.whereType<String>().toList(),
   );
 
   static Map<String, dynamic>? _agentReport(Map<String, dynamic> json) {
     final report = json['agentReport'];
     return report is Map<String, dynamic> ? report : null;
+  }
+
+  static Map<String, dynamic>? _capabilities(Map<String, dynamic> json) {
+    final capabilities = json['capabilities'];
+    return capabilities is Map<String, dynamic> ? capabilities : null;
   }
 
   @override
@@ -88,5 +103,6 @@ class SessionModel extends Equatable {
     displayName, createdAt, updatedAt, previewUrl, isTerminated, prs,
     workspaceMode, workspacePath, claudeAccountId, model,
     agentReportState, agentReportReason,
+    permissionMode, permissionModeSupported, permissionModeCycle,
   ];
 }

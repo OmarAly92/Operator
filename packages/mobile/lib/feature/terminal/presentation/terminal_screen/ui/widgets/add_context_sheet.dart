@@ -12,7 +12,9 @@ import 'package:operator_mobile/core/widgets/sheet/app_sheet.dart';
 import 'package:operator_mobile/feature/terminal/data/data_source/attachment_picker.dart';
 import 'package:operator_mobile/feature/terminal/logic/attachment_limits.dart';
 import 'package:operator_mobile/feature/terminal/logic/composer_attachment.dart';
+import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/logic/permission_mode_cubit.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/logic/terminal_cubit.dart';
+import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/ui/widgets/permission_mode_page.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/ui/widgets/recent_photos_row.dart';
 
 const String kAttachFailed = 'Could not attach that. Try again.';
@@ -21,10 +23,17 @@ typedef AttachmentPick = Future<List<ComposerAttachment>> Function(AttachmentPic
 
 Future<void> showAddContextSheet(BuildContext context) {
   final terminal = context.read<TerminalCubit>();
+  final permission = context.read<PermissionModeCubit>();
   return showAppSheet<void>(
     context: context,
     detent: AppSheetDetent.fit,
-    scope: (sheetContext, sheet) => BlocProvider<TerminalCubit>.value(value: terminal, child: sheet),
+    scope: (sheetContext, sheet) => MultiBlocProvider(
+      providers: [
+        BlocProvider<TerminalCubit>.value(value: terminal),
+        BlocProvider<PermissionModeCubit>.value(value: permission),
+      ],
+      child: sheet,
+    ),
     page: AppSheetPage(
       title: 'Add context',
       closeable: true,
@@ -75,6 +84,7 @@ class AddContextBody extends StatelessWidget {
         ],
       ),
       const RecentPhotosRow(),
+      const PermissionModeRow(),
     ],
   );
 }

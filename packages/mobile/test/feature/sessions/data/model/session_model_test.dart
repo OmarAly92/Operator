@@ -41,5 +41,24 @@ void main() {
       expect(session.activity, 'active');
       expect(session.activitySince, '2026-09-23T12:00:00Z');
     });
+
+    test('parses the permission mode and its capabilities, and tolerates their absence', () {
+      final session = SessionModel.fromJson({
+        'id': 'a',
+        'permissionMode': 'plan',
+        'capabilities': {
+          'permissionMode': true,
+          'permissionModeCycle': ['default', 'accept-edits', 'plan'],
+        },
+      });
+      expect(session.permissionMode, 'plan');
+      expect(session.permissionModeSupported, isTrue);
+      expect(session.permissionModeCycle, ['default', 'accept-edits', 'plan']);
+
+      final bare = SessionModel.fromJson({'id': 'b'});
+      expect(bare.permissionMode, isNull);
+      expect(bare.permissionModeSupported, isNull);
+      expect(bare.permissionModeCycle, isNull);
+    });
   });
 }

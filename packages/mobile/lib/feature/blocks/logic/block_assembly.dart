@@ -35,6 +35,7 @@ List<SessionBlock> assembleBlocks(Iterable<BlockEventModel> events) {
     switch (event.kind) {
       case 'idle_prompt':
       case 'session_start':
+      case 'permission_mode':
         continue;
 
       case 'prompt_submit':
