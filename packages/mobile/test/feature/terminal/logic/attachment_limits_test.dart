@@ -53,6 +53,37 @@ void main() {
     expect(attachmentMimeType('README', null), 'application/octet-stream');
   });
 
+  test('text and code files get a type the daemon turns back into their extension', () {
+    const expected = {
+      'md': 'text/markdown',
+      'txt': 'text/plain',
+      'json': 'application/json',
+      'yaml': 'application/yaml',
+      'yml': 'application/yaml',
+      'toml': 'application/toml',
+      'dart': 'text/x-dart',
+      'go': 'text/x-go',
+      'ts': 'text/typescript',
+      'tsx': 'text/tsx',
+      'js': 'text/javascript',
+      'py': 'text/x-python',
+      'rb': 'text/x-ruby',
+      'rs': 'text/x-rust',
+      'swift': 'text/x-swift',
+      'kt': 'text/x-kotlin',
+      'java': 'text/x-java',
+      'sh': 'application/x-sh',
+      'sql': 'application/sql',
+      'csv': 'text/csv',
+      'xml': 'application/xml',
+      'html': 'text/html',
+      'css': 'text/css',
+    };
+    for (final entry in expected.entries) {
+      expect(attachmentMimeType('file.${entry.key}', null), entry.value, reason: entry.key);
+    }
+  });
+
   test('an svg is blocked by name or by type', () {
     expect(isBlockedAttachment(name: 'a.SVG', mimeType: 'application/octet-stream'), isTrue);
     expect(isBlockedAttachment(name: 'a', mimeType: 'image/svg+xml'), isTrue);

@@ -395,9 +395,30 @@ func extensionForMimeType(mimeType string) string {
 
 	// Preferred extensions for MIME types with multiple options
 	preferredExts := map[string]string{
-		"image/jpeg": ".jpg",
-		"image/jpg":  ".jpg",
-		"text/plain": ".txt",
+		"image/jpeg":       ".jpg",
+		"image/jpg":        ".jpg",
+		"text/plain":       ".txt",
+		"text/markdown":    ".md",
+		"application/json": ".json",
+		"application/yaml": ".yaml",
+		"application/toml": ".toml",
+		"text/x-dart":      ".dart",
+		"text/x-go":        ".go",
+		"text/typescript":  ".ts",
+		"text/tsx":         ".tsx",
+		"text/javascript":  ".js",
+		"text/x-python":    ".py",
+		"text/x-ruby":      ".rb",
+		"text/x-rust":      ".rs",
+		"text/x-swift":     ".swift",
+		"text/x-kotlin":    ".kt",
+		"text/x-java":      ".java",
+		"application/x-sh": ".sh",
+		"application/sql":  ".sql",
+		"text/csv":         ".csv",
+		"application/xml":  ".xml",
+		"text/html":        ".html",
+		"text/css":         ".css",
 	}
 
 	// Check if we have a preferred extension for this MIME type
