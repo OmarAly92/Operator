@@ -1767,6 +1767,18 @@ history of `master`.
   "bottomVisibleRow…"; `find-bar.incremental.test.ts` "reveals a first match only when
   it is off screen…" and "makes the newest match at or above the bottom of the view
   current…"; `line-editor.test.ts` "walks the completion list on Ctrl-N and Ctrl-P…".
+- Second bug hunt (2026-09-26): the first history scan runs oldest first in 1 MiB
+  steps, and revealing each step's partial pick scrolled to the first step's newest
+  hit, so every later pick followed the moved bottom row; the first match is now
+  revealed only when the scan completes. `center-if-hidden` counts rows under the
+  pinned command header as hidden (`ScrollTracker` `topInset`). Leaving the alternate
+  screen destroyed the focused composition target and left focus on `body`, where
+  Cmd+F and typing did nothing; the editor is refocused, and Cmd+F with nothing
+  focused opens find in the visible surface that last held focus. Guards:
+  `find-bar.nearest.test.ts`; `dom-block-renderer.blocks.test.ts` "counts a row under
+  the pinned header as hidden…"; `TerminalSurface.find.test.tsx` "opens find in the
+  pane that last held focus when nothing has focus" and "hands focus back to the
+  editor when a full-screen program exits…".
 - Not a bug (verified): a pane in a hidden page (`document.visibilityState` hidden)
   neither drains nor paints until it is shown (`catchUp`), so a check run against a
   background browser tab sees no new output and no OSC 22 until the tab is visible.
@@ -1854,11 +1866,102 @@ history of `master`.
   `replay_frame` splits that row at the point (`settled_point`, `byte_at_column`,
   `split_pairs`, `crates/vt-host/src/replay.rs`) and falls back to the row boundary
   without a point.
+- Review fixes (second bug hunt): a `133;D` with no open block leaves the recorded
+  point alone (a second integration's D used to clear it and put the prompt back on
+  the output row); a remap moves the point when its row starts a line
+  (`Parser::close_block` notes whether the row above soft-wrapped into it) and maps
+  to exactly one new row, and drops it otherwise. Guards: `replay_tests.rs`
+  `a_second_command_end_mark_keeps_the_point_where_the_command_ended`,
+  `a_command_end_scrolled_into_scrollback_keeps_its_point_when_a_width_change_moves_its_row`;
+  `block_grid/tests.rs` `a_command_end_on_a_line_moved_but_not_rewrapped_by_a_remap_moves_with_it`,
+  `a_command_end_on_a_continuation_row_is_forgotten_when_a_remap_moves_it`,
+  `a_second_command_end_without_an_open_block_keeps_the_first`.
 - Limit: a last output line wider than the window, with a width change before the
   reattach, can disagree on the column.
 - Guards: `crates/vt-host/src/replay_tests.rs` (`a_reattached_prompt_starts_below_output_that_ended_without_a_newline`
   and six more), `block_grid/tests.rs` `a_command_end_*`, `vtwasm/settled_test.go`
   `TestReplayEndsTheSettledRowsWhereOutputWithoutANewlineEnded`.
+
+### 4.45 Shell partial-line marks, fish echo rows and Ctrl-C blocks (end-to-end run, 2026-09-26)
+- Symptom: a narrower reopen added an inverse `%` row to every zsh block; fish showed
+  `x⏎`, repeated each command line as its first output row, and reopened blocks lost
+  the cwd; Ctrl-C or an empty Enter left an empty "1s" block and the next header had
+  no cwd.
+- Cause: zsh prints PROMPT_SP before precmd, so the mark sat before `133;D`; fish
+  writes `⏎` after D onto the output row, and `133;C` before `7000 cmd=`; an unused
+  prompt block took the next prompt's cwd and was then abandoned; the assembler
+  restarted durable bytes at a repeated A without the cwd.
+- Now: zsh carries the exit mark and D at the front of `PROMPT_EOL_MARK` while a
+  command runs (`shell/zsh.sh`; `precmd` restores the user's value). D ends a mid-row
+  output row when the command printed since C (`parser/blocks.rs`). `cmd=` after C
+  moves the block start (`block_grid.rs`). An unused prompt with blank rows below its
+  B row moves down instead of being abandoned (this replaces §4.43's "a prompt below
+  an unused prompt still abandons it"; a prompt below other output still abandons).
+  The assembler writes a cwd/branch mark at a restart and drops text before the first A.
+- Limit: a newline-leading visible prompt after output without a newline draws one
+  blank row. A command that reads `$PROMPT_EOL_MARK` sees the wrapped value.
+- Guards: `crates/vt-core/tests/shell_captures.rs`; `shell/*.test.mjs` block tests
+  and the zsh mark-order tests; three `block_assembler_test.go` tests.
+
+### 4.46 Reload after `clear` blanked every block (end-to-end run, 2026-09-26)
+- Cause: macOS `clear` sends `ESC[3J ESC[H ESC[2J`; vt-core treated `3J` as "blank
+  every screen row", erasing earlier blocks' output in both cores, so the mirror
+  looked empty and the replay sent no READY and no line-editor marks; the zero-row
+  `clear` block was also left out of the settled rows and drawn twice.
+- Now: `Parser::erase_saved_lines` (`parser/blocks.rs`) blanks only rows no closed
+  block owns (with no marks it still blanks everything, so the `clear_underline`
+  golden is unchanged); settled rows include zero-row finished blocks.
+- Guards: `tests/clear_policy.rs`, `replay_tests.rs` after-clear tests,
+  `vtwasm/reattach_test.go`.
+
+### 4.47 A command running at reattach lost its block (end-to-end run, 2026-09-26)
+- Cause: `replay_frame` sent a running block's rows with no block marks, so the page
+  had no open block and ignored the later `133;D` (also inside vim: `:q!` made the
+  block vanish and left a stray `%`).
+- Now: `TerminalCore::running_command`; the replay sends cwd/branch and `133;A` at the
+  prompt row, then `cmd=…;start_ms=…` and `133;C` at the output row. On the alternate
+  screen it writes the primary rows and these marks before `ESC[?1049h`, only when a
+  shell command runs, so agent replays are byte-identical.
+- Limit: scrollback owned by the running command itself is not cleared by `3J`.
+- Guards: `replay_tests.rs` (`a_command_running_at_reattach_gets_its_header_and_its_end`,
+  the vim test), `vtwasm/reattach_test.go`.
+
+### 4.48 The first durable block had no cwd (end-to-end run, 2026-09-27)
+- Symptom: after a reload the first block of a bash pane had no command, cwd or
+  duration; its durable block had `cwd ""`.
+- Cause: the daemon starts pane capture after `Create` and the row insert
+  (`shellterm/service.go`), after bash 3.2 has printed its first prompt, so the
+  journal began at the typed command's echo.
+- Now: the pty-host holds output delivered before the first capture (up to 64 KiB,
+  `maxPreCaptureBytes`, decided under `h.mu`) and writes it to that capture first; a
+  later capture never replays it. fish 4's alternate-screen probe before its first
+  prompt no longer triggers the assembler's suppression (only an alternate screen
+  already on at capture start does), and extension marks are kept while suppressing.
+- Guards: `ptyhost/capture_test.go` (`TestFirstCaptureStartsWithOutputPrintedBeforeIt`,
+  `TestTheFirstCaptureStartsWithTheOutputDeliveredBeforeIt`,
+  `TestARestartedCaptureDoesNotRepeatEarlierOutput`, `…DroppedPastItsCap`);
+  `block_assembler_test.go` first-prompt probe tests; integration
+  `TestShellBlocksFirstBlockCarriesTheFirstPrompt` (bash, zsh, fish).
+
+### 4.49 Input-box keys and focus (end-to-end run, 2026-09-26)
+- Ctrl+C at an owned prompt sent `^C` but kept the typed line (`partial`, Ctrl+C,
+  `echo b` ran `partialecho b`); `LineEditor.apply` now discards the line after
+  sending `^C`, and a program-owned line still gets a plain passthrough.
+- Ctrl+E moved one character; `end-or-accept-suggestion` moves to the end of the
+  line and accepts the ghost only when the cursor is already there.
+- Keys typed as `less` quits went to zsh's buffer: the alternate-screen key, IME and
+  paste handlers now call `LineEditor.noteSent`; leaving the alternate screen
+  focuses the input box if the full-screen input had focus; keys sent after zsh's
+  report were cleared by the `^U`, and the gate now appends what followed the newest
+  copy of the report when it has no control character (`sentAfterReport`).
+- The paste-confirm dialog focused nothing on close; `usePasteConfirm(restoreFocus)`
+  prevents that default in `onCloseAutoFocus` and `BlockTerminal` gives the surface a
+  new focus token. (Enter in that dialog cancels: the close button has initial focus,
+  the safe default for a paste-safety prompt.)
+- Guards: `line-editor.test.ts` (Ctrl-C, Ctrl-E), `keymap.test.ts`,
+  `line-editor-typeahead.test.ts`, `TerminalSurface.typeahead.test.tsx`,
+  `TerminalSurface.test.tsx` focus hand-off, `usePasteConfirm.test.tsx`,
+  `BlockTerminal.test.tsx`.
 
 ## 5. Known gaps (not bugs, decisions pending)
 
