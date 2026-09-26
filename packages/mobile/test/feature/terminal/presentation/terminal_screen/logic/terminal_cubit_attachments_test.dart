@@ -1,6 +1,6 @@
 import 'dart:async';
-import 'dart:typed_data';
 
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:operator_mobile/core/api/models/global_response.dart';
@@ -8,6 +8,7 @@ import 'package:operator_mobile/core/error_handling/failures/failure.dart';
 import 'package:operator_mobile/core/helpers/result/result.dart';
 import 'package:operator_mobile/core/mux/mux_client.dart';
 import 'package:operator_mobile/core/mux/session_patch.dart';
+import 'package:operator_mobile/core/utils/haptics.dart';
 import 'package:operator_mobile/feature/sessions/data/repository/sessions_repository.dart';
 import 'package:operator_mobile/feature/terminal/data/model/params/send_session_message_params.dart';
 import 'package:operator_mobile/feature/terminal/data/model/params/stage_session_attachments_params.dart';
@@ -15,6 +16,7 @@ import 'package:operator_mobile/feature/terminal/data/model/staged_attachments_m
 import 'package:operator_mobile/feature/terminal/data/repository/terminal_repository.dart';
 import 'package:operator_mobile/feature/terminal/logic/attachment_limits.dart';
 import 'package:operator_mobile/feature/terminal/logic/composer_attachment.dart';
+import 'package:operator_mobile/feature/terminal/logic/send_route.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/logic/terminal_cubit.dart';
 
 class _MockMuxClient extends Mock implements MuxClient {}
@@ -36,7 +38,18 @@ void main() {
   setUpAll(() {
     registerFallbackValue(const SendSessionMessageParams(message: ''));
     registerFallbackValue(const StageSessionAttachmentsParams(files: []));
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(
+      const MethodChannel(Haptics.channelName),
+      (_) async => null,
+    );
   });
+
+  tearDownAll(
+    () => TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(
+      const MethodChannel(Haptics.channelName),
+      null,
+    ),
+  );
 
   setUp(() {
     mux = _MockMuxClient();
@@ -217,5 +230,69 @@ void main() {
     cubit.toggleAttachment(png('photo:1'));
     expect(cubit.hasAttachment('photo:1'), isFalse);
     expect(cubit.hasContent, isFalse);
+  });
+
+  test('an awaiting-decision failure with attachments keeps the draft and never types into the terminal', () async {
+    when(() => mux.openTerminal(any(), projectId: any(named: 'projectId'))).thenReturn(null);
+    when(() => mux.closeTerminal(any(), projectId: any(named: 'projectId'))).thenReturn(null);
+    when(() => mux.sendInput(any(), any(), projectId: any(named: 'projectId'))).thenReturn(null);
+    stubStage(['.operator/attachments/attachment-aa.png']);
+    var sends = 0;
+    when(() => repository.sendSessionMessage(any(), any())).thenAnswer((_) async {
+      sends++;
+      return sends == 1
+          ? Result.failure(ServerFailure(error: 'x', message: 'waiting', apiStatus: kAwaitingDecision))
+          : Result.success(true);
+    });
+    cubit.attach();
+    cubit.composer.text = 'look at this';
+    cubit.addAttachments([png('a')]);
+
+    await cubit.send();
+
+    verifyNever(() => mux.sendInput(any(), any(), projectId: any(named: 'projectId')));
+    expect(cubit.composer.text, 'look at this');
+    expect(cubit.attachments.single.id, 'a');
+    expect(cubit.attachmentNotice, 'Agent is waiting on a prompt — answer it, then send again.');
+    expect(cubit.banner, isNull);
+
+    await cubit.send();
+
+    verify(() => repository.stageAttachments(any(), any())).called(1);
+    verify(() => repository.sendSessionMessage(any(), any())).called(2);
+    expect(cubit.attachments, isEmpty);
+  });
+
+  test('a second send while the first is in flight is ignored', () async {
+    final upload = Completer<Result<GlobalResponse<StagedAttachmentsModel>, Failure>>();
+    when(() => repository.stageAttachments(any(), any())).thenAnswer((_) => upload.future);
+    stubSend();
+    cubit.addAttachments([png('a')]);
+
+    final first = cubit.send();
+    final second = cubit.send();
+    upload.complete(Result.success(const GlobalResponse(data: StagedAttachmentsModel(paths: ['p']))));
+    await Future.wait([first, second]);
+
+    verify(() => repository.stageAttachments(any(), any())).called(1);
+    verify(() => repository.sendSessionMessage(any(), any())).called(1);
+  });
+
+  test('text edited while staging survives a successful send', () async {
+    final upload = Completer<Result<GlobalResponse<StagedAttachmentsModel>, Failure>>();
+    when(() => repository.stageAttachments(any(), any())).thenAnswer((_) => upload.future);
+    stubSend();
+    cubit.composer.text = 'first';
+    cubit.addAttachments([png('a')]);
+
+    final sending = cubit.send();
+    await Future<void>.delayed(Duration.zero);
+    cubit.composer.text = 'second thought';
+    upload.complete(Result.success(const GlobalResponse(data: StagedAttachmentsModel(paths: ['p']))));
+    await sending;
+
+    expect(sentMessage(), startsWith('first\n\nAttached files'));
+    expect(cubit.composer.text, 'second thought');
+    expect(cubit.attachments, isEmpty);
   });
 }

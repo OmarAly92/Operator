@@ -26,6 +26,8 @@ const double kTerminalMinFontSize = 7;
 const double kTerminalMaxFontSize = 20;
 const double kTerminalFontSize = 12;
 
+const String kAwaitingPromptNotice = 'Agent is waiting on a prompt — answer it, then send again.';
+
 const List<Duration> kSuggestionRetryDelays = [
   Duration(milliseconds: 600),
   Duration(milliseconds: 1400),
@@ -369,18 +371,28 @@ class TerminalCubit extends Cubit<TerminalState> {
     }
     final message = appendAttachmentReferences(text, paths);
     final hadAttachments = attachments.isNotEmpty;
-    final result = await _repository.sendSessionMessage(args.sessionId, SendSessionMessageParams(message: message));
+    final result = await _repository.sendSessionMessage(
+      args.sessionId,
+      SendSessionMessageParams(message: message),
+    );
     result.when(
       onSuccess: (_) {
         Haptics.success();
-        _clearDraft();
+        _clearDraft(text);
         unawaited(fetchDraft());
       },
       onFailure: (failure) {
+        if (hadAttachments && shouldRetryOnTerminal(failure)) {
+          Haptics.error();
+          attachmentNotice = kAwaitingPromptNotice;
+          return;
+        }
+        // Only reroute onto a socket we actually hold open — otherwise the write
+        // is a no-op and we would clear the field having sent nothing.
         if (shouldRetryOnTerminal(failure) && _writeToPty(message)) {
           Haptics.success();
           banner = kReroutedNotice;
-          _clearDraft();
+          _clearDraft(text);
           unawaited(fetchDraft());
           return;
         }
@@ -425,8 +437,8 @@ class TerminalCubit extends Cubit<TerminalState> {
     return paths;
   }
 
-  void _clearDraft() {
-    composer.clear();
+  void _clearDraft(String sent) {
+    if (composer.text.trim() == sent) composer.clear();
     attachments = const [];
     _stagedPaths = null;
     attachmentNotice = null;
