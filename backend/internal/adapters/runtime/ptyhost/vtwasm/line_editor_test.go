@@ -82,3 +82,19 @@ func TestReplayWithoutShellIntegrationLeavesTheLineEditorUnknown(t *testing.T) {
 		t.Fatalf("attaching core state = %v, want unknown", got)
 	}
 }
+
+func TestReplayAtTheFirstSuppressedPromptHandsTheLineEditorToTheAttachingCore(t *testing.T) {
+	p := newTestParser(t, 80, 24)
+	feed(t, p, "\x1b]7000;v=1;exit=0\x07\x1b]7000;v=1;id=t-1;cwd=%2Ftmp;branch=\x1b\\\x1b]133;A\x07\x1b]133;B\x07\x1b]7000;v=1;input-ready=1\x07\x1b[?1034h\r\x1b[K")
+
+	out, err := p.Replay(1000)
+	if err != nil {
+		t.Fatalf("replay: %v", err)
+	}
+	if !strings.Contains(out, "\x1b]133;A") || strings.Count(out, inputReadyMark) != 1 || !strings.HasSuffix(out, readyMark) {
+		t.Fatalf("want the prompt start, one input-ready and READY in the replay:\n%q", out)
+	}
+	if got := lineEditorStateAfter(t, out); got != LineEditorOwned {
+		t.Fatalf("attaching core state = %v, want owned", got)
+	}
+}

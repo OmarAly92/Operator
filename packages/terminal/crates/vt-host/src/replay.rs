@@ -68,15 +68,24 @@ pub(crate) fn replay_frame(core: &TerminalCore, lines: u32) -> Option<Vec<u8>> {
         // A terminal that has drawn nothing still reports a cursor at the
         // origin over blank rows. Replaying that is not wrong, only
         // useless -- and the host reads 0 as "no replay frame to send".
-        if primary_is_blank(&snapshot, lines) {
-            return Some(core.pending_sync_bytes().to_vec());
+        let blank = primary_is_blank(&snapshot, lines);
+        let mut blank_marks = String::new();
+        if blank {
+            write_line_editor_marks(&mut blank_marks, core, 0, 0);
+            if blank_marks.is_empty() {
+                return Some(core.pending_sync_bytes().to_vec());
+            }
         }
         text.push_str(&format!(
             "\x1b]7000;v=1;origin={}\x1b\\",
             frame_first_stable(&snapshot, lines)
         ));
         write_modes(&mut text, core, false);
-        write_primary(&mut text, core, &snapshot, lines, core.running_command());
+        if blank {
+            text.push_str(&blank_marks);
+        } else {
+            write_primary(&mut text, core, &snapshot, lines, core.running_command());
+        }
         if !snapshot.cursor_visible {
             text.push_str("\x1b[?25l");
         }

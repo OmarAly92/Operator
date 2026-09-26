@@ -442,4 +442,6 @@ fn write_cursor_position(text: &mut String, row: usize, col: usize) {
 }
 
 #[cfg(test)]
+mod replay_first_prompt_tests;
+#[cfg(test)]
 mod replay_tests;
