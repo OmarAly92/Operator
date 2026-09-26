@@ -1429,8 +1429,10 @@ history of `master`.
   where they drew: measured 2026-09-26, zsh moves up by the rows its prompt and
   buffer took at the **old** width minus one, clears (`ESC[J`) and redraws; bash
   redraws only its last prompt line (moving up only within it); fish 4.8.1
-  writes nothing on a width change and, on the next key, moves up by its old
-  prompt height and repaints. Clamped at row 0, the redraw drew a second prompt.
+  started with `--no-config` writes nothing on a width change and, on the next
+  key, moves up by its old prompt height and repaints; with its stock interactive
+  config (what `fish -C 'source fish.fish'` runs) it repaints on every SIGWINCH
+  (§4.43). Clamped at row 0, the redraw drew a second prompt.
 - Now: while the line editor is `Owned`, on the primary screen, in a core that
   reflows on resize, `Parser::resize_for` (`crates/vt-core/src/parser/resize.rs:28`)
   keeps the prompt: the rows above the open block's first row go to scrollback
@@ -1779,6 +1781,31 @@ history of `master`.
   `vtwasm/line_editor_test.go`; `lib/settled-replay-filter.test.ts` "hands the line
   editor back and keeps one two-line prompt over resizes after durable history and
   the host's replay".
+
+### 4.43 Every resize at an idle fish prompt added an empty block (real-app run, 2026-09-26)
+- Symptom: in a fish pane each resize while idle at the prompt added one or two
+  block headers showing only a duration ("2s", "0ms"), no command and no output;
+  a few "0ms" headers also appeared before the first command. Durable blocks were
+  unaffected; zsh and bash were fine.
+- Cause: fish 4.8.1 with its stock interactive config repaints its prompt on
+  SIGWINCH: suppressed prompt `\r\r OSC 133;A;click_events=1 ST OSC 133;B ST ESC[J
+  OSC 133;A;click_events=1 ST`; visible prompt `\r\r ESC[A ESC[K OSC 133;A … OSC 133;B
+  ESC[J`, with no `C`/`D` and no OSC 7000 (`fish_prompt` does not fire). `fish
+  --no-config` writes nothing, so the §4.36 shell test never saw it. Each `133;A`
+  went through `BlockGrid::open_block`, which closed the open prompt block as a
+  zero-row Abandoned block. The daemon's `BlockAssembler.startBlockAtA` replaced the
+  pending block on the repeated A and lost the prompt's `id`/`cwd`/`branch`.
+- Now: `Parser::open_block` (`parser/blocks.rs`) asks `BlockGrid::repaint_open_prompt`
+  first when the cursor is at column 0: an open block with no output start
+  (`open_output_started`), no command and no exit code, whose new prompt starts on
+  or above its first row, moves its start there and no block opens. A prompt below
+  an unused prompt (empty Enter, Ctrl-C) still abandons the old one; a mid-row A
+  keeps the old path. `startBlockAtA` keeps `id`/`cwd`/`branch` across a repeated A
+  with no output. Goldens unchanged.
+- Guards: `crates/vt-core/tests/prompt_repaint.rs` (captured fish bytes);
+  `shell/fish.test.mjs` "a prompt repaint on every resize at an idle prompt adds no
+  block" (real fish, stock config, under tmux; skips below fish 4 or without tmux);
+  `block_assembler_test.go` `TestAssemblerKeepsAFishPromptsIdentityAcrossAResizeRepaint`.
 
 ## 5. Known gaps (not bugs, decisions pending)
 
