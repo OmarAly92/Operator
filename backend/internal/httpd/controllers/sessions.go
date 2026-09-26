@@ -566,10 +566,10 @@ func (c *SessionsController) latestPermissionMode(ctx context.Context, id domain
 
 func (c *SessionsController) attachPermissionModes(views []SessionView, observed map[domain.SessionID]domain.PermissionModeObservation) {
 	for i := range views {
-		observation := observed[views[i].ID]
+		observation, seen := observed[views[i].ID]
 		readable := c.PermissionModeGate == nil || c.PermissionModeGate.PermissionModeReadable(views[i].Harness)
 		mode := ports.NormalizePermissionMode(views[i].LaunchPermissionMode)
-		if observation.Mode != "" {
+		if seen {
 			mode = observation.Mode
 		} else if !readable {
 			mode = ""

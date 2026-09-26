@@ -91,6 +91,22 @@ func TestSessionViewsReportTheObservedPermissionMode(t *testing.T) {
 	}
 }
 
+func TestSessionViewsOmitAModeTheTranscriptReportedAsUnknown(t *testing.T) {
+	srv := permissionModeServer(t, fakePermissionModes{modes: map[domain.SessionID]domain.PermissionModeObservation{
+		"opr-1": {Version: "2.1.280"},
+	}})
+
+	for _, path := range []string{"/api/v1/sessions/opr-1", "/api/v1/sessions"} {
+		body, status, _ := doRequest(t, srv, http.MethodGet, path, "")
+		if status != http.StatusOK {
+			t.Fatalf("%s status = %d body = %s", path, status, body)
+		}
+		if strings.Contains(string(body), `"permissionMode":"`) || !strings.Contains(string(body), `"permissionMode":true`) {
+			t.Fatalf("%s body = %s; want no mode, still changeable", path, body)
+		}
+	}
+}
+
 func TestSessionViewsFallBackToTheLaunchModeBeforeTheTranscriptReports(t *testing.T) {
 	srv := permissionModeServer(t, fakePermissionModes{})
 

@@ -172,7 +172,7 @@ type SessionView struct {
 	// the unserialized domain Metadata; clients need only the yes/no to decide
 	// whether a replay action applies.
 	HasSavedPrompt bool                    `json:"hasSavedPrompt,omitempty"`
-	PermissionMode string                  `json:"permissionMode,omitempty" enum:"default,accept-edits,plan,auto,bypass-permissions" description:"The mode the transcript last reported, or the launch mode before it reports. Omitted for a harness Operator cannot read the mode of. Filled on the session list and get endpoints only."`
+	PermissionMode string                  `json:"permissionMode,omitempty" enum:"default,accept-edits,plan,auto,bypass-permissions" description:"The mode the transcript last reported, or the launch mode before it reports. Omitted for a harness Operator cannot read the mode of, and when the transcript last reported a mode outside this list. Filled on the session list and get endpoints only."`
 	Capabilities   SessionCapabilitiesView `json:"capabilities" description:"What a client can change on this session. Filled on the session list and get endpoints only."`
 }
 

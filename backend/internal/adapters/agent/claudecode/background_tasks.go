@@ -38,6 +38,7 @@ type TranscriptMapper struct {
 	version     string
 	mode        domain.PermissionMode
 	modeVersion string
+	modeSeen    bool
 }
 
 func NewTranscriptMapper(agentID string) *TranscriptMapper {
@@ -410,13 +411,15 @@ func (m *TranscriptMapper) permissionModeEvent(rec claudeTranscriptRecord) (doma
 	if rec.Type != "permission-mode" && rec.Type != "user" {
 		return domain.BlockTranscriptEvent{}, false
 	}
-	mode, ok := claudePermissionModes[strings.TrimSpace(rec.PermissionMode)]
-	if !ok {
+	raw := strings.TrimSpace(rec.PermissionMode)
+	if raw == "" {
 		return domain.BlockTranscriptEvent{}, false
 	}
-	if mode == m.mode && m.version == m.modeVersion {
+	mode := claudePermissionModes[raw]
+	if m.modeSeen && mode == m.mode && m.version == m.modeVersion {
 		return domain.BlockTranscriptEvent{}, false
 	}
+	m.modeSeen = true
 	m.mode = mode
 	m.modeVersion = m.version
 	observation := domain.PermissionModeObservation{Mode: mode, Version: m.version}

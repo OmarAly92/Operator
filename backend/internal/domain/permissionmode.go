@@ -20,7 +20,7 @@ func ParsePermissionModeObservation(detail string) (PermissionModeObservation, b
 	if err := json.Unmarshal([]byte(detail), &observation); err != nil {
 		return PermissionModeObservation{}, false
 	}
-	if observation.Mode == "" || !observation.Mode.Valid() {
+	if observation.Mode != "" && !observation.Mode.Valid() {
 		return PermissionModeObservation{}, false
 	}
 	return observation, true

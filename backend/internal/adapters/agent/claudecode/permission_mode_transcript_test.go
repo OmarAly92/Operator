@@ -44,9 +44,22 @@ func TestPermissionModeEventsAreEmittedOnChangeOnly(t *testing.T) {
 		{Mode: domain.PermissionModeBypassPermissions, Version: "2.1.280"},
 		{Mode: domain.PermissionModePlan, Version: "2.1.280"},
 		{Mode: domain.PermissionModeAcceptEdits, Version: "2.1.280"},
+		{Mode: "", Version: "2.1.280"},
+		{Mode: domain.PermissionModeAcceptEdits, Version: "2.1.280"},
 	}
 	if !slices.Equal(got, want) {
 		t.Fatalf("observations = %+v, want %+v", got, want)
+	}
+}
+
+func TestPermissionModeOutsideOperatorsVocabularyIsReportedAsUnknown(t *testing.T) {
+	got := permissionModeObservations(t, NewTranscriptMapper(""),
+		`{"type":"permission-mode","permissionMode":"dontAsk","sessionId":"s-1"}`,
+		`{"type":"permission-mode","permissionMode":"dontAsk","sessionId":"s-1"}`,
+		`{"type":"permission-mode","permissionMode":"somethingNew","sessionId":"s-1"}`,
+	)
+	if want := []domain.PermissionModeObservation{{Mode: ""}}; !slices.Equal(got, want) {
+		t.Fatalf("observations = %+v, want one unknown observation", got)
 	}
 }
 

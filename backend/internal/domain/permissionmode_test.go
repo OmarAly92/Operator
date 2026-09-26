@@ -11,10 +11,18 @@ func TestPermissionModeObservationRoundTrips(t *testing.T) {
 }
 
 func TestPermissionModeObservationRefusesJunk(t *testing.T) {
-	for _, detail := range []string{"", "not json", `{"mode":""}`, `{"mode":"yolo"}`} {
+	for _, detail := range []string{"", "not json", `{"mode":"yolo"}`} {
 		if _, ok := ParsePermissionModeObservation(detail); ok {
 			t.Fatalf("detail %q parsed as an observation", detail)
 		}
+	}
+}
+
+func TestPermissionModeObservationCarriesAnUnknownMode(t *testing.T) {
+	in := PermissionModeObservation{Version: "2.1.280"}
+	out, ok := ParsePermissionModeObservation(in.Detail())
+	if !ok || out != in {
+		t.Fatalf("unknown mode = %+v, %v; want %+v", out, ok, in)
 	}
 }
 
