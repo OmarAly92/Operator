@@ -1186,6 +1186,20 @@ history of `master`.
   `TestAFullOlderChunkLandsEveryRowInTheReceivingCore`,
   `ts/core/src/older-output.test.ts` "lands every row of a full 2,048-row chunk
   with its text".
+  (g) **a history row wider than the pane kept only its tail; an oversized `history=`
+  mark grew memory without bound** (bug hunt, 2026-09-26). The one-row receiver screen
+  soft-wrapped a row wider than the pane onto itself (at 10 columns `0123456789ABCDE`
+  landed as `ABCDE`); an attach chunk, cut at the mirror's width, reaches this whenever
+  the pane is narrower than the mirror. `ScreenPerform::print` (`history.rs`) now widens
+  the screen before a print would wrap (`ScreenGrid::wraps_before`,
+  `widen_keeping_cursor`, `screen/resize.rs`) and `take()` reports the widest row, so the
+  chunk is marked stale and rewraps lazily. A mark such as `history=0,4294967295` made
+  the receiver buffer every later row; `HistoryReceiver::begin` now ignores chunks of more
+  than `OLDER_CHUNK_ROWS`. Guards: `tests/replay.rs`
+  `a_history_row_wider_than_the_pane_lands_whole_and_rewraps_when_touched`,
+  `a_wide_character_past_the_panes_edge_keeps_its_history_row_whole`,
+  `a_history_mark_announcing_more_rows_than_a_chunk_carries_is_ignored`; `history.rs`
+  unit tests.
 - Not persisted: the saved history (§4.29) is 4 MiB and 20 chunks; cold rows are
   older than anything it can hold.
 - Measured (`docs/superpowers/specs/2026-09-25-old-output-measurement.md`): a
@@ -1732,6 +1746,27 @@ history of `master`.
   (`.terminal-find-anchor`, `z-index: 4` so the block list does not paint over it and
   take its clicks), the host's first child, so it stays at the top of the visible pane
   without moving a row.
+- Bug hunt (2026-09-26): Cmd+F opened a find bar in every mounted surface (split
+  and parked panes; `stopPropagation` does not stop other listeners on the same node);
+  the capture listener now acts only when the key's target is inside its own
+  `.terminal-surface`, and Cmd+F outside every terminal is left alone. A second Cmd+F
+  in an open bar recorded the find input as the focus to restore, so Escape left focus
+  nowhere; `open()` records only focus outside the bar. The first-match reveal
+  centred a match already on screen and cleared stick-to-bottom, so a streaming pane
+  stopped following; it uses `scrollToRow(row, "center-if-hidden")` (Enter still
+  centres). Ctrl+N/P with the completion list open recalled history under it and Enter
+  spliced the completion at a stale span (`git statuslog`); the list takes Ctrl+N/P
+  like the arrows. A new query makes current the newest match at or above the pane's
+  bottom visible row (`DomBlockRenderer.bottomVisibleRow`), falling back to the newest
+  match, as VS Code and xterm.js do (the oldest match was current, so typing in a long
+  pane jumped to the top); numbering stays oldest first, and the pick is remade while
+  the first history scan runs and while there are no hits, then the current hit stays
+  anchored (§4.28). Guards: `TerminalSurface.find.test.tsx` "…with several panes" and
+  "starts at the newest match at or above the renderer's bottom visible row";
+  `dom-block-renderer.scroll.test.ts` "scrollToRow center-if-hidden" and
+  "bottomVisibleRow…"; `find-bar.incremental.test.ts` "reveals a first match only when
+  it is off screen…" and "makes the newest match at or above the bottom of the view
+  current…"; `line-editor.test.ts` "walks the completion list on Ctrl-N and Ctrl-P…".
 - Not a bug (verified): a pane in a hidden page (`document.visibilityState` hidden)
   neither drains nor paints until it is shown (`catchUp`), so a check run against a
   background browser tab sees no new output and no OSC 22 until the tab is visible.
@@ -1807,6 +1842,23 @@ history of `master`.
   `shell/fish.test.mjs` "a prompt repaint on every resize at an idle prompt adds no
   block" (real fish, stock config, under tmux; skips below fish 4 or without tmux);
   `block_assembler_test.go` `TestAssemblerKeepsAFishPromptsIdentityAcrossAResizeRepaint`.
+
+### 4.44 A reattached prompt landed on output that ended without a newline (bug hunt, 2026-09-26)
+- Symptom: after `printf x`, a reload drew zsh's prompt on the `x` row; in Operator's
+  suppressed-prompt panes the next command's echo overwrote `x`; bash drew `xx$`.
+- Cause: a page that fed durable history sits where `OSC 133;D` left the cursor,
+  mid-row, while `settled=end` (§4.39) was always at the next row boundary.
+- Now: `Parser::close_block` records the `133;D` point in `BlockGrid`
+  (`TerminalCore::command_end`; a pending wrap counts as one past the last column); a
+  remap moves it and it is dropped when its row is rewrapped or trimmed.
+  `replay_frame` splits that row at the point (`settled_point`, `byte_at_column`,
+  `split_pairs`, `crates/vt-host/src/replay.rs`) and falls back to the row boundary
+  without a point.
+- Limit: a last output line wider than the window, with a width change before the
+  reattach, can disagree on the column.
+- Guards: `crates/vt-host/src/replay_tests.rs` (`a_reattached_prompt_starts_below_output_that_ended_without_a_newline`
+  and six more), `block_grid/tests.rs` `a_command_end_*`, `vtwasm/settled_test.go`
+  `TestReplayEndsTheSettledRowsWhereOutputWithoutANewlineEnded`.
 
 ## 5. Known gaps (not bugs, decisions pending)
 
