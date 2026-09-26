@@ -25,6 +25,7 @@ pub mod older;
 mod owned_prompt;
 pub mod parser;
 pub mod program;
+mod remap_end;
 pub mod row_index;
 mod screen;
 mod scrollback;
