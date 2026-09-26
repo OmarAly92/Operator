@@ -256,17 +256,18 @@ Each check lists: **Setup**, **Steps** (Y = you, U = user), **Pass when**, **Evi
 
 | ID | Check | Result (PASS / FAIL / NOT RUN) | Evidence (file or observed text) | Notes / repro for FAIL |
 |---|---|---|---|---|
-| P1 | Paste safety | | | |
-| P2 | Search | | | |
-| P3 | Messages from programs | | | |
-| P4 | Crash recovery | | | |
-| P5 | Highlights and marks | | | |
-| P6 | Typing ahead (zsh) | | | |
-| P7 | Very old output | | | |
-| P8 | Agent awareness (silent) | | | |
-| P9 | Parser rework (nothing different) | | | |
-| P10 | Shell resize | | | |
+| P1 | Paste safety | PASS (steps 1-6); step 7 NOT RUN | `cat` + two-line paste: dialog "Paste into the terminal?"; Cancel sent nothing (pane read over mux); Paste sent both; at the prompt a two-line paste landed in the input box with no dialog and nothing ran | Claude-pane paste not run (no usable Claude pane in the browser copy) |
+| P2 | Search | PASS after fixes | count 833→863 while streaming; `error` 1164 vs `Error` 577; current hit held at "2 of 11" while output streamed; regex `tick [0-9]+ marker` 150, `tick [0-` invalid | F3 Ctrl+F typed ^F, F4 click left the find field, F5 no reveal, F12 bar scrolled away — all fixed (TERMINAL.md §4.40), re-verified live |
+| P3 | Messages from programs | PASS (frames); Mac-notification and Claude-title steps NOT RUN | `CSI 18 t` → `ESC[8;28;80`; `OSC 11 ?` → `rgb:1d1d/2020/2222`; `OSC 2 ✳ …` → title frame without the glyph; `OSC 9` → notification frame; 50-message flood → 2 frames | F11 (OSC 22 not applied) traced to a hidden browser tab, not a bug; replay now carries OSC 22 (§4.30) |
+| P4 | Crash recovery | PASS after fix | `kill -STOP` → `health: hung` in 16 s; `kill -CONT` → `health: ok`; restart-terminal 200 and Claude resumed with its conversation; guard 409 `TERMINAL_RESPONDING`; SIGKILL then restore → 200, history back | F10 restore after a killed host was HTTP 500 — fixed (§4.38), re-verified live without a daemon restart; on-screen strip NOT RUN |
+| P5 | Highlights and marks | PASS | literal `error` tints Error/error; `(` and `(?=x)` invalid; `err(or)?` tints only `error`; selection > current hit > find tint > mark; colour change seen after a tab switch; removal clears; `(a+)+$` + 5000 `a`s: worst event-loop lag 1 ms | |
+| P6 | Typing ahead (zsh) | PASS (zsh); Claude, bash, fish NOT RUN | `sleep 4` ran 13:00:17-13:00:21 and `echo typedahead` waited in the input box, not run; `read -s` → `got-6`, `secret` nowhere on the page | |
+| P7 | Very old output | PASS after fix (by tests; live re-check NOT RUN) | top row 199969 + Load older output; 0.1-0.6 s per click, no jump, trimmed on new output | F9 each click landed ~1,000 lines and ~1,000 blank rows — fixed (§4.33 f) with real-wasm tests on both sides |
+| P8 | Agent awareness (silent) | PASS | block shows only `P8-END`; no title or notification frame | |
+| P9 | Parser rework (nothing different) | NOT RUN | | needs the desktop window / a Claude pane |
+| P10 | Shell resize | NOT RUN | | browser pane hidden when reached |
 | P11 | Input ordering | NOT RUN (by design) | tests | |
+| F1 | Reopened shell showed history twice | FIXED | found in P8 setup | §4.39, verified live after a reload |
 
 ## 5. After the run
 
@@ -280,3 +281,8 @@ Each check lists: **Setup**, **Steps** (Y = you, U = user), **Pass when**, **Evi
 4. Tell the user plainly: what passed, what failed with repro, what was not run
    and why. Leave the dev app running unless the user asks to stop it (stopping it
    kills live sessions).
+
+### Run notes (2026-09-26)
+- The Operator window cannot be driven by computer-use (the installed app is classed as a browser; the dev binary is not a bundle). The run used the renderer in the built-in browser against the live dev daemon (Vite proxy sending the daemon's allowed origin, `VITE_FORCE_NATIVE_SHELL=1`), which runs the same terminal code; user-approved.
+- A browser tab that is not visible pauses draining and painting; checks must run with the pane shown.
+- Fix commits: `ef029dbbf` (F10), `9611c8571` (F1), `0578a210f` (F3/F4/F5/F11 replay), `6605059ce` (F9), `7e71beb1d` (Ctrl+F/B/P/N, stale find bar and renderer, F12).
