@@ -32,7 +32,7 @@ pub struct BlockGrid {
     trailing_started_at_ms: Option<u64>,
     open_start_fixed: bool,
     open_output_started: bool,
-    command_end: Option<(BlockId, usize, usize)>,
+    command_end: Option<(BlockId, usize, usize, bool)>,
 }
 
 impl BlockGrid {
@@ -161,17 +161,19 @@ impl BlockGrid {
         self.next_id += 1;
     }
 
-    pub(crate) fn note_command_end(&mut self, point: Option<(usize, usize)>) {
-        self.command_end = match (self.open.as_ref(), point) {
-            (Some(open), Some((row, col))) => (self.origin + row)
-                .checked_sub(self.retreat_slack)
-                .map(|stable| (open.id, stable, col)),
-            _ => None,
+    pub(crate) fn note_command_end(&mut self, point: Option<(usize, usize)>, starts_line: bool) {
+        let Some(open) = self.open.as_ref() else {
+            return;
         };
+        self.command_end = point.and_then(|(row, col)| {
+            (self.origin + row)
+                .checked_sub(self.retreat_slack)
+                .map(|stable| (open.id, stable, col, starts_line))
+        });
     }
 
     pub fn command_end(&self) -> Option<(usize, usize)> {
-        let (id, row, col) = self.command_end?;
+        let (id, row, col, _) = self.command_end?;
         let finished = self
             .closed
             .iter()
@@ -444,12 +446,12 @@ impl BlockGrid {
             block.first_row = remap(block.first_row);
         }
         self.next_row = remap(self.next_row);
-        self.command_end = self.command_end.and_then(|(id, stable, col)| {
+        self.command_end = self.command_end.and_then(|(id, stable, col, starts_line)| {
             let row = stable.checked_sub(origin)?;
-            if row < old_len && (map[row] != row || map[row + 1] != row + 1) {
+            if row < old_len && !(starts_line && map[row + 1] == map[row] + 1) {
                 return None;
             }
-            Some((id, remap(stable), col))
+            Some((id, remap(stable), col, starts_line))
         });
     }
 

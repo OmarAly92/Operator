@@ -359,3 +359,36 @@ fn output_that_ended_with_a_newline_still_replays_below_the_settled_rows() {
     assert_eq!(row_texts(&reattached), row_texts(&live));
     assert_eq!(reattached.export_cursor(), live.export_cursor());
 }
+
+#[test]
+fn a_second_command_end_mark_keeps_the_point_where_the_command_ended() {
+    let durable = format!("{}\x1b]133;D;0\x07", bash_command("t-1", "printf x", "x"));
+    let (live, reattached) = reattach(&durable, &bash_prompt("t-2"));
+    assert_eq!(row_texts(&live), ["$ printf x", "x$"]);
+    assert_eq!(row_texts(&reattached), row_texts(&live));
+}
+
+#[test]
+fn a_command_end_scrolled_into_scrollback_keeps_its_point_when_a_width_change_moves_its_row() {
+    let long = "L".repeat(150);
+    let durable = format!(
+        "{}{}",
+        bash_command("t-1", "echo long", &format!("{long}\r\n")),
+        bash_command("t-2", "printf x", "x")
+    );
+    let mut rest = format!("{}seq\r\n\x1b]7000;v=1;id=t-3;cmd=seq\x1b\\\x1b]7000;v=1;input-released=1\x07\x1b]133;C\x07", bash_prompt("t-3"));
+    for i in 0..10 {
+        rest.push_str(&format!("l{i}\r\n"));
+    }
+    let mut host = mirror(80, 5);
+    host.feed(format!("{durable}{rest}").as_bytes());
+    host.resize(60, 5);
+    let frame = replay(&host);
+    let mut reattached = renderer(60, 5);
+    reattached.feed(durable.as_bytes());
+    reattached.feed(without_settled_rows(&frame).as_bytes());
+    let rows = row_texts(&reattached);
+    assert_eq!(rows[4..7], ["$ printf x", "x$ seq", "l0"]);
+    assert_eq!(rows.last().map(String::as_str), Some("l9"));
+    assert_eq!(rows.len(), 16);
+}
