@@ -1,6 +1,7 @@
 use std::collections::VecDeque;
 
 const CHUNK_SIZE: usize = 4096;
+const MAX_CUTS: usize = 1024;
 pub(crate) const CONTENT_BASE: u64 = 1 << 48;
 
 #[derive(Clone)]
@@ -13,6 +14,7 @@ pub(crate) struct Content {
     chunks: VecDeque<Chunk>,
     next_offset: u64,
     truncations: u64,
+    prepends: u64,
     cuts: Vec<(u64, u64)>,
 }
 
@@ -22,6 +24,7 @@ impl Clone for Content {
             chunks: self.chunks.clone(),
             next_offset: self.next_offset,
             truncations: self.truncations,
+            prepends: self.prepends,
             cuts: self.cuts.clone(),
         }
     }
@@ -34,6 +37,7 @@ impl Content {
             chunks: VecDeque::new(),
             next_offset: 0,
             truncations: 0,
+            prepends: 0,
             cuts: Vec::new(),
         }
     }
@@ -43,6 +47,7 @@ impl Content {
             chunks: VecDeque::new(),
             next_offset: base,
             truncations: 0,
+            prepends: 0,
             cuts: Vec::new(),
         }
     }
@@ -52,6 +57,7 @@ impl Content {
             return self.start_offset();
         }
         let start = self.start_offset() - bytes.len() as u64;
+        self.prepends += 1;
         self.chunks.push_front(Chunk {
             start,
             bytes: bytes.to_vec(),
@@ -162,11 +168,20 @@ impl Content {
             self.cuts.drain(..trimmed - 1);
             self.cuts[0].1 = oldest;
         }
+        if self.cuts.len() > MAX_CUTS {
+            let lowest = self.cuts[0].1;
+            self.cuts.clear();
+            self.cuts.push((self.truncations, lowest));
+        }
     }
 
     pub fn lowest_cut_since(&self, seen: u64) -> Option<u64> {
         let first = self.cuts.partition_point(|&(count, _)| count <= seen);
         self.cuts.get(first).map(|&(_, cut)| cut)
+    }
+
+    pub fn prepends(&self) -> u64 {
+        self.prepends
     }
 
     pub fn truncations(&self) -> u64 {
@@ -326,6 +341,26 @@ mod tests {
             assert!(c.lowest_cut_since(seen).unwrap() < c.start_offset());
         }
         assert_eq!(c.lowest_cut_since(0), Some(cuts[0]));
+    }
+
+    #[test]
+    fn the_cut_list_never_holds_more_than_its_cap_and_never_answers_too_high() {
+        let mut c = Content::with_base(1024);
+        let mut cuts = Vec::new();
+        for _ in 0..3000 {
+            for _ in 0..10 {
+                c.push_char("a");
+            }
+            c.truncate_to(c.end_offset() - 5);
+            c.note_reuse(c.end_offset());
+            cuts.push(c.end_offset());
+            assert!(c.cuts.len() <= 1024, "{} cuts", c.cuts.len());
+        }
+        let count = c.truncations();
+        assert_eq!(c.lowest_cut_since(count), None);
+        for seen in 0..count {
+            assert!(c.lowest_cut_since(seen).unwrap() <= cuts[seen as usize]);
+        }
     }
 
     #[test]

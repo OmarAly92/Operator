@@ -128,6 +128,7 @@ pub struct FindSession {
     screen_generation: Option<u64>,
     screen_scans: u64,
     truncations: u64,
+    prepends: u64,
 }
 
 pub(crate) struct FindView<'a> {
@@ -151,6 +152,7 @@ impl FindSession {
             screen_generation: None,
             screen_scans: 0,
             truncations: 0,
+            prepends: 0,
         }
     }
 
@@ -190,7 +192,13 @@ impl FindSession {
             self.scanned_to = self.scanned_to.min(floor);
         }
         self.truncations = view.content.truncations();
-        if !self.started || history_start < self.scanned_from || settled_end < self.scanned_to {
+        let prepended = view.content.prepends() != self.prepends;
+        self.prepends = view.content.prepends();
+        if !self.started
+            || prepended
+            || history_start < self.scanned_from
+            || settled_end < self.scanned_to
+        {
             update.removed += self.history.len();
             self.history.clear();
             self.started = true;
