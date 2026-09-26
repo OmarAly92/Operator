@@ -103,7 +103,16 @@ impl Parser {
             };
             (self.rows.completed().len() + row, col)
         });
-        self.grid.note_command_end(point);
+        let (row, _) = self.screen.cursor();
+        let continues_above = match row.checked_sub(1) {
+            Some(above) => self.screen.row_wrapped(above),
+            None => self
+                .rows
+                .completed()
+                .back()
+                .is_some_and(|range| range.wrapped),
+        };
+        self.grid.note_command_end(point, !continues_above);
         let next_row = self.block_end_row();
         self.grid.sync_next_row(next_row);
         self.grid.close_block(exit_code);

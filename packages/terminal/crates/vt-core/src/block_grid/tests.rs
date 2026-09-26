@@ -166,7 +166,7 @@ fn remapping_rows_shifts_a_block_that_starts_on_the_screen() {
 fn a_command_end_on_the_screen_moves_with_a_remap_of_the_rows_above_it() {
     let mut grid = BlockGrid::new();
     grid.open_block(BlockSource::Osc133);
-    grid.note_command_end(Some((5, 3)));
+    grid.note_command_end(Some((5, 3)), true);
     grid.close_block(Some(0));
 
     grid.remap_rows(&[0, 2, 4]);
@@ -178,7 +178,7 @@ fn a_command_end_on_the_screen_moves_with_a_remap_of_the_rows_above_it() {
 fn a_command_end_in_rewrapped_rows_is_forgotten() {
     let mut grid = BlockGrid::new();
     grid.open_block(BlockSource::Osc133);
-    grid.note_command_end(Some((1, 3)));
+    grid.note_command_end(Some((1, 3)), true);
     grid.close_block(Some(0));
 
     grid.remap_rows(&[0, 2, 4]);
@@ -190,7 +190,7 @@ fn a_command_end_in_rewrapped_rows_is_forgotten() {
 fn a_command_end_in_rows_a_remap_left_alone_is_kept() {
     let mut grid = BlockGrid::new();
     grid.open_block(BlockSource::Osc133);
-    grid.note_command_end(Some((1, 3)));
+    grid.note_command_end(Some((1, 3)), true);
     grid.close_block(Some(0));
 
     grid.remap_rows(&[0, 1, 2, 5]);
@@ -199,10 +199,46 @@ fn a_command_end_in_rows_a_remap_left_alone_is_kept() {
 }
 
 #[test]
+fn a_command_end_on_a_line_moved_but_not_rewrapped_by_a_remap_moves_with_it() {
+    let mut grid = BlockGrid::new();
+    grid.open_block(BlockSource::Osc133);
+    grid.note_command_end(Some((2, 3)), true);
+    grid.close_block(Some(0));
+
+    grid.remap_rows(&[0, 2, 3, 4]);
+
+    assert_eq!(grid.command_end(), Some((3, 3)));
+}
+
+#[test]
+fn a_command_end_on_a_continuation_row_is_forgotten_when_a_remap_moves_it() {
+    let mut grid = BlockGrid::new();
+    grid.open_block(BlockSource::Osc133);
+    grid.note_command_end(Some((2, 3)), false);
+    grid.close_block(Some(0));
+
+    grid.remap_rows(&[0, 2, 3, 4]);
+
+    assert_eq!(grid.command_end(), None);
+}
+
+#[test]
+fn a_second_command_end_without_an_open_block_keeps_the_first() {
+    let mut grid = BlockGrid::new();
+    grid.open_block(BlockSource::Osc133);
+    grid.note_command_end(Some((1, 3)), true);
+    grid.close_block(Some(0));
+    grid.note_command_end(Some((1, 3)), true);
+    grid.close_block(Some(0));
+
+    assert_eq!(grid.command_end(), Some((1, 3)));
+}
+
+#[test]
 fn a_command_end_is_forgotten_once_its_row_is_trimmed() {
     let mut grid = BlockGrid::new();
     grid.open_block(BlockSource::Osc133);
-    grid.note_command_end(Some((1, 3)));
+    grid.note_command_end(Some((1, 3)), true);
     grid.close_block(Some(0));
 
     grid.advance_origin(2);
