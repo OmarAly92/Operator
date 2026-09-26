@@ -228,3 +228,134 @@ fn history_chunks_after_a_replay_at_an_owned_prompt_keep_the_prompt_block_and_th
     assert_eq!(rows_containing(&core, "line-0"), 1);
     assert_eq!(core.verify_integrity(), Ok(()));
 }
+
+fn zsh_precmd_prompt(id: &str, prompt: &str) -> String {
+    format!(
+        "\x1b]7000;v=1;id={id};cwd=%2Ftmp;branch=\x1b\\\x1b]133;A\x07\x1b[1m\x1b[7m%\x1b[27m\x1b[1m\x1b[0m{}\r \r{prompt}\x1b]7000;v=1;input-ready=1\x07",
+        " ".repeat(79)
+    )
+}
+
+fn zsh_precmd_command(id: &str, prompt: &str, command: &str, output: &str) -> String {
+    format!(
+        "{}{command}\r\n\x1b]7000;v=1;id={id};cmd={}\x1b\\\x1b]7000;v=1;input-released=1\x07\x1b]133;C\x07{output}\x1b]7000;v=1;id={id};exit=0\x1b\\\x1b]133;D;0\x07",
+        zsh_precmd_prompt(id, prompt),
+        command.replace(' ', "%20")
+    )
+}
+
+fn bash_command(id: &str, command: &str, output: &str) -> String {
+    format!(
+        "{}{command}\r\n\x1b]7000;v=1;id={id};cmd={}\x1b\\\x1b]7000;v=1;input-released=1\x07\x1b]133;C\x07{output}\x1b]7000;v=1;id={id};exit=0\x1b\\\x1b]133;D;0\x07",
+        bash_prompt(id),
+        command.replace(' ', "%20")
+    )
+}
+
+fn bash_prompt(id: &str) -> String {
+    format!("\x1b]7000;v=1;id={id};cwd=%2Ftmp;branch=\x1b\\\x1b]133;A\x07$ \x1b]133;B\x07\x1b]7000;v=1;input-ready=1\x07")
+}
+
+fn row_texts(core: &TerminalCore) -> Vec<String> {
+    let snapshot = core.snapshot().unwrap();
+    let mut rows: Vec<String> = (0..snapshot.row_count())
+        .map(|row| snapshot.row_text(row).trim_end().to_string())
+        .collect();
+    while rows.last().is_some_and(|row| row.is_empty()) {
+        rows.pop();
+    }
+    rows
+}
+
+fn live_and_reattached(
+    host: &mut TerminalCore,
+    durable: &str,
+    rest: &str,
+    cols: usize,
+) -> (TerminalCore, TerminalCore) {
+    host.feed(rest.as_bytes());
+    let mut live = renderer(cols, 24);
+    live.feed(format!("{durable}{rest}").as_bytes());
+    let mut reattached = renderer(cols, 24);
+    reattached.feed(durable.as_bytes());
+    reattached.feed(without_settled_rows(&replay(host)).as_bytes());
+    (live, reattached)
+}
+
+fn reattach(durable: &str, rest: &str) -> (TerminalCore, TerminalCore) {
+    let mut host = mirror(80, 24);
+    host.feed(durable.as_bytes());
+    live_and_reattached(&mut host, durable, rest, 80)
+}
+
+#[test]
+fn a_reattached_prompt_starts_below_output_that_ended_without_a_newline() {
+    let durable = zsh_precmd_command("t-1", "$ ", "printf x", "x");
+    let (live, reattached) = reattach(&durable, &zsh_precmd_prompt("t-2", "$ "));
+    assert_eq!(row_texts(&live), ["$ printf x", "x%", "$"]);
+    assert_eq!(row_texts(&reattached), row_texts(&live));
+    assert_eq!(reattached.export_cursor(), live.export_cursor());
+    assert_eq!(reattached.line_editor_state(), LineEditorState::Owned);
+}
+
+#[test]
+fn the_next_command_at_a_reattached_suppressed_prompt_keeps_output_that_ended_without_a_newline() {
+    let durable = zsh_precmd_command("t-1", "", "printf x", "x");
+    let (mut live, mut reattached) = reattach(&durable, &zsh_precmd_prompt("t-2", ""));
+    let next = "echo hi\r\n\x1b]7000;v=1;id=t-2;cmd=echo%20hi\x1b\\\x1b]7000;v=1;input-released=1\x07\x1b]133;C\x07hi\r\n";
+    live.feed(next.as_bytes());
+    reattached.feed(next.as_bytes());
+    assert_eq!(row_texts(&live), ["printf x", "x%", "echo hi", "hi"]);
+    assert_eq!(row_texts(&reattached), row_texts(&live));
+    assert_eq!(reattached.verify_integrity(), Ok(()));
+}
+
+#[test]
+fn a_reattached_bash_prompt_that_shares_the_output_row_is_drawn_once() {
+    let durable = bash_command("t-1", "printf x", "x");
+    let (live, reattached) = reattach(&durable, &bash_prompt("t-2"));
+    assert_eq!(row_texts(&live), ["$ printf x", "x$"]);
+    assert_eq!(row_texts(&reattached), row_texts(&live));
+    assert_eq!(reattached.export_cursor(), live.export_cursor());
+}
+
+#[test]
+fn a_reattached_bash_prompt_after_styled_wide_output_keeps_the_cells_and_their_styles() {
+    let durable = bash_command("t-1", "printf x", "\x1b[32m中\x1b[0mx");
+    let (live, reattached) = reattach(&durable, &bash_prompt("t-2"));
+    assert_eq!(row_texts(&live), ["$ printf x", "中x$"]);
+    assert_eq!(row_texts(&reattached), row_texts(&live));
+    assert_eq!(reattached.export_cursor(), live.export_cursor());
+    let (live, reattached) = (live.snapshot().unwrap(), reattached.snapshot().unwrap());
+    assert_eq!(reattached.row_style_pairs(1), live.row_style_pairs(1));
+}
+
+#[test]
+fn a_reattached_prompt_after_output_that_filled_its_last_row_starts_on_the_next_row() {
+    let durable = bash_command("t-1", "printf y", &"y".repeat(80));
+    let (live, reattached) = reattach(&durable, &bash_prompt("t-2"));
+    assert_eq!(row_texts(&live), ["$ printf y", &"y".repeat(80), "$"]);
+    assert_eq!(row_texts(&reattached), row_texts(&live));
+    assert_eq!(reattached.export_cursor(), live.export_cursor());
+}
+
+#[test]
+fn a_reattached_prompt_after_output_without_a_newline_survives_a_width_change() {
+    let durable = zsh_precmd_command("t-1", "$ ", "printf x", "x");
+    let mut host = mirror(80, 24);
+    host.feed(format!("{durable}{}", zsh_precmd_prompt("t-2", "$ ")).as_bytes());
+    host.resize(60, 24);
+    let (_, reattached) = live_and_reattached(&mut host, &durable, "\r\x1b[J$ ", 60);
+    let rows = row_texts(&reattached);
+    assert_eq!(rows[rows.len() - 3..], ["$ printf x", "x%", "$"]);
+    assert_eq!(reattached.export_cursor().0, rows.len() - 1);
+    assert_eq!(reattached.line_editor_state(), LineEditorState::Owned);
+}
+
+#[test]
+fn output_that_ended_with_a_newline_still_replays_below_the_settled_rows() {
+    let durable = zsh_precmd_command("t-1", "$ ", "echo one", "one\r\n");
+    let (live, reattached) = reattach(&durable, &zsh_precmd_prompt("t-2", "$ "));
+    assert_eq!(row_texts(&reattached), row_texts(&live));
+    assert_eq!(reattached.export_cursor(), live.export_cursor());
+}

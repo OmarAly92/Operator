@@ -94,6 +94,16 @@ impl Parser {
 
     pub(crate) fn close_block(&mut self, exit_code: Option<i32>) {
         self.commit_evicted();
+        let point = self.alt.is_none().then(|| {
+            let (row, col) = self.screen.cursor();
+            let col = if self.screen.pending_wrap() {
+                col + 1
+            } else {
+                col
+            };
+            (self.rows.completed().len() + row, col)
+        });
+        self.grid.note_command_end(point);
         let next_row = self.block_end_row();
         self.grid.sync_next_row(next_row);
         self.grid.close_block(exit_code);

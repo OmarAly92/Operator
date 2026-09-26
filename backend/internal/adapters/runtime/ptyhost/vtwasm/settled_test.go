@@ -91,6 +91,23 @@ func TestReplayWithoutAFinishedCommandHasNoSettledRows(t *testing.T) {
 	}
 }
 
+func TestReplayEndsTheSettledRowsWhereOutputWithoutANewlineEnded(t *testing.T) {
+	p := newTestParser(t, 80, 24)
+	feed(t, p, "\x1b]133;A\x07$ \x1b]133;B\x07printf x\r\n"+
+		"\x1b]7000;v=1;id=t-1;cmd=printf%20x\x1b\\\x1b]133;C\x07x"+
+		"\x1b]7000;v=1;id=t-1;exit=0\x1b\\\x1b]133;D;0\x07"+
+		"\x1b]133;A\x07$ \x1b]133;B\x07")
+
+	out, err := p.Replay(1000)
+	if err != nil {
+		t.Fatalf("replay: %v", err)
+	}
+	tail := stripSGR(stripOSC(withoutSettledRows(t, out)))
+	if !strings.HasPrefix(tail, "$\r") || strings.Contains(tail, "x") {
+		t.Fatalf("the rows after the settled pair must start where the command ended, after its x:\n%q", tail)
+	}
+}
+
 func TestReplayKeepsTheCursorRowOutsideTheSettledRows(t *testing.T) {
 	p := newTestParser(t, 80, 24)
 	feed(t, p, zshCommand("t-1", "true", "done\r\n"))
