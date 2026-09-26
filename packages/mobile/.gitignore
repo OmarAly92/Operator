@@ -45,3 +45,7 @@ app.*.map.json
 /android/app/release
 
 tool/glass_reference/build/
+
+tool/glass_lab/**/__pycache__/
+tool/glass_lab/native/GlassLab.xcodeproj/xcuserdata/
+tool/glass_lab/native/GlassLab.xcodeproj/project.xcworkspace/
