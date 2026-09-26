@@ -517,3 +517,39 @@ func TestPermissionModeIsUnsupportedWhenTheObservationCannotBeRead(t *testing.T)
 		t.Fatalf("an unreadable observation touched the pane: %q", rt.inputs)
 	}
 }
+
+func TestPermissionModeRestartFinishesWhenTheClientDropsMidway(t *testing.T) {
+	m, st, runtime, agent := newPermissionRestartManager(t)
+	callCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	m.permissionRestartSettle = func(settleCtx context.Context) error {
+		cancel()
+		return settleCtx.Err()
+	}
+
+	result, err := m.SetPermissionMode(callCtx, "mer-1", domain.PermissionModeAuto)
+	if err != nil {
+		t.Fatalf("SetPermissionMode: %v", err)
+	}
+	if !result.Restarted || agent.restoreCalls != 1 || runtime.created != 1 {
+		t.Fatalf("result = %+v restores = %d created = %d; want one finished relaunch", result, agent.restoreCalls, runtime.created)
+	}
+	if got := st.sessions["mer-1"].LaunchPermissionMode; got != domain.PermissionModeAuto {
+		t.Fatalf("launch mode = %q, want auto", got)
+	}
+}
+
+func TestPermissionModeKeepsACancelledObservationReadAsACancellation(t *testing.T) {
+	m, rt := newPermissionDriveManager(t, domain.ActivityIdle, "MODE:default")
+	callCtx, cancel := context.WithCancel(ctx)
+	cancel()
+	m.SetPermissionModeObserver(fakePermissionModeObserver{err: context.Canceled})
+
+	_, err := m.SetPermissionMode(callCtx, "s1", domain.PermissionModePlan)
+	if !errors.Is(err, context.Canceled) || errors.Is(err, ErrPermissionModeUnsupported) {
+		t.Fatalf("err = %v, want context.Canceled and not ErrPermissionModeUnsupported", err)
+	}
+	if len(rt.inputs) != 0 {
+		t.Fatalf("a cancelled read touched the pane: %q", rt.inputs)
+	}
+}

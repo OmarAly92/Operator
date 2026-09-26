@@ -102,7 +102,7 @@ func (m *Manager) SetPermissionMode(ctx context.Context, id domain.SessionID, ta
 	if slices.Contains(reader.PermissionModeCycle(ports.NormalizePermissionMode(launch)), target) {
 		return m.cyclePermissionMode(ctx, id, reader, target)
 	}
-	return m.restartWithPermissionMode(ctx, id, target)
+	return m.restartWithPermissionMode(context.WithoutCancel(ctx), id, target)
 }
 
 func (m *Manager) observedPermissionMode(ctx context.Context, id domain.SessionID) (domain.PermissionModeObservation, error) {
@@ -112,6 +112,9 @@ func (m *Manager) observedPermissionMode(ctx context.Context, id domain.SessionI
 	}
 	observation, _, err := observer.LatestPermissionMode(ctx, id)
 	if err != nil {
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return domain.PermissionModeObservation{}, ctxErr
+		}
 		return domain.PermissionModeObservation{}, fmt.Errorf("permission mode %s: %w: %w", id, ErrPermissionModeUnsupported, err)
 	}
 	return observation, nil
