@@ -168,3 +168,42 @@ fn the_claude_code_recordings_leave_eight_unhandled_sequences() {
         ]
     );
 }
+
+#[test]
+fn an_osc_without_a_number_does_not_leak_its_payload() {
+    let mut core = core();
+    core.feed(b"\x1b]Lhunter2-secret-title\x07\x1b]my-api-token-abcdef\x07\x1b]99999999;x\x07");
+    let got = texts(&core);
+    assert!(
+        got.iter().all(|(text, _)| !text.contains("hunter2")
+            && !text.contains("api-token")
+            && !text.contains("99999999")),
+        "{got:?}"
+    );
+    assert_eq!(got, vec![("OSC ?".to_string(), 3)]);
+}
+
+#[test]
+fn an_escape_with_an_unsupported_intermediate_does_nothing() {
+    let mut core = core();
+    core.feed(b"\x1b7\x1b[3;9H\x1b#8");
+    let (row, col, _) = core.export_cursor();
+    assert_eq!((row, col), (2, 8));
+    assert!(texts(&core).contains(&("ESC #8".to_string(), 1)));
+}
+
+#[test]
+fn a_flood_of_unknown_sequences_in_one_feed_is_recorded_only_up_to_the_budget() {
+    let mut core = core();
+    let mut flood = Vec::new();
+    for n in 0..1000 {
+        flood.extend_from_slice(format!("\x1b[{n}~").as_bytes());
+    }
+    core.feed(&flood);
+    let last = format!("CSI {}~", vt_core::parser::UNKNOWN_FEED_BUDGET - 1);
+    let got = texts(&core);
+    assert_eq!(got.last().map(|(text, _)| text.clone()), Some(last));
+    assert!(!got.iter().any(|(text, _)| text == "CSI 999~"));
+    core.feed(b"\x1b[>7u");
+    assert!(texts(&core).contains(&("CSI >7u".to_string(), 1)));
+}

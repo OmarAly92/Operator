@@ -334,6 +334,7 @@ impl TerminalCore {
     }
 
     fn advance_vte(&mut self, bytes: &[u8]) {
+        self.parser.unknown.begin_feed();
         let bytes: &[u8] = &self.answer_gate.filter(bytes);
         if !self.parser.program().agent().replaying() {
             self.live_output = self.live_output.wrapping_add(bytes.len() as u64);
@@ -524,7 +525,8 @@ impl TerminalCore {
         let columns = columns.clamp(1, alt::MAX_DIMENSION);
         let rows = rows.clamp(1, alt::MAX_DIMENSION);
         self.rows = rows;
-        self.parser.resize(columns, rows);
+        self.parser
+            .resize_for(columns, rows, self.line_editor.state());
         self.parser.trim_to(self.limits);
         self.parser.note_mutation();
         self.debug_check();

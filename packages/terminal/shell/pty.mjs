@@ -12,7 +12,11 @@ export function haveTmux() {
 	}
 }
 
-export function runInPty(command, input, { settleMs = 1000, env = {} } = {}) {
+export function runInPty(command, input, options = {}) {
+	return runInPtySegments(command, input, options).join("");
+}
+
+export function runInPtySegments(command, input, { settleMs = 1000, env = {} } = {}) {
 	const dir = mkdtempSync(join(tmpdir(), "opr-pty-"));
 	const raw = join(dir, "pane.raw");
 	const session = `opr_pty_${process.pid}_${Math.random().toString(36).slice(2, 8)}`;
@@ -22,13 +26,22 @@ export function runInPty(command, input, { settleMs = 1000, env = {} } = {}) {
 		tmux("new-session", "-d", "-s", session, "-x", "120", "-y", "40", ...environment, command);
 		tmux("pipe-pane", "-t", session, "-o", `cat >> ${raw}`);
 		sleep(settleMs);
+		const cuts = [];
 		for (const item of input) {
-			const { keys, enter = true, waitMs = settleMs } =
+			const { keys, enter = true, waitMs = settleMs, resize, cut = false } =
 				typeof item === "string" ? { keys: item } : item;
-			tmux("send-keys", "-t", session, keys, ...(enter ? ["Enter"] : []));
+			if (resize || cut) {
+				cuts.push(readFileSync(raw, "latin1").length);
+			}
+			if (resize) {
+				tmux("resize-window", "-t", session, "-x", String(resize[0]), "-y", String(resize[1]));
+			} else {
+				tmux("send-keys", "-t", session, keys, ...(enter ? ["Enter"] : []));
+			}
 			sleep(waitMs);
 		}
-		return readFileSync(raw, "latin1");
+		const all = readFileSync(raw, "latin1");
+		return [0, ...cuts].map((start, index) => all.slice(start, cuts[index] ?? all.length));
 	} finally {
 		try {
 			tmux("kill-session", "-t", session);

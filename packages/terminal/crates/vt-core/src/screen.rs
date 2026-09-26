@@ -1,6 +1,7 @@
 mod dispatch;
 mod edit;
 mod print;
+mod prompt;
 mod resize;
 mod scroll;
 mod snapshot;

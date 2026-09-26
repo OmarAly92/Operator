@@ -40,7 +40,8 @@ pub(crate) fn apply_event(parser: &mut Parser, alt: &mut AltScreen, event: MarkE
                 grid.set_meta_field(&key, &value);
             }
         }
-        MarkEvent::InputReady | MarkEvent::InputReleased => {}
+        MarkEvent::InputReady => parser.note_input_ready(),
+        MarkEvent::InputReleased => {}
         MarkEvent::ReplayOrigin(_)
         | MarkEvent::ReplayReady
         | MarkEvent::HistoryChunk { .. }

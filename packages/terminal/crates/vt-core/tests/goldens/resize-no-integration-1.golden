@@ -1,0 +1,56 @@
+renderer rows 967
+renderer rows[0..] text 034eaa1a66143a53 styles 396299ea805d491a spans 32353c4653652f92
+renderer rows[500..] text 8ecd976a6c68fb6e styles f3701796c9e21115 spans 6dade064ad909f03
+renderer blocks 1 15598c1a2e65c252
+renderer links 07f8088fb0e8a3f9
+renderer cursor 966 0 true history 966 first_stable 0 editor 0
+renderer alt none
+renderer modes app_cursor=false sgr_mouse=false paste=false focus=false mouse=0 sync=false pending_sync=0
+renderer program title="" pointer="" stack=0 live_output=30005 older=OlderState { floor: None, marks: 0 }
+renderer replies ""
+renderer notifications 0 cbf29ce484222325
+renderer agent_events 0 cbf29ce484222325
+renderer typeahead []
+renderer deltas 24 98820e07183a4071
+renderer-odd rows 967
+renderer-odd rows[0..] text 034eaa1a66143a53 styles 396299ea805d491a spans 32353c4653652f92
+renderer-odd rows[500..] text 8ecd976a6c68fb6e styles f3701796c9e21115 spans 6dade064ad909f03
+renderer-odd blocks 1 15598c1a2e65c252
+renderer-odd links 07f8088fb0e8a3f9
+renderer-odd cursor 966 0 true history 966 first_stable 0 editor 0
+renderer-odd alt none
+renderer-odd modes app_cursor=false sgr_mouse=false paste=false focus=false mouse=0 sync=false pending_sync=0
+renderer-odd program title="" pointer="" stack=0 live_output=30005 older=OlderState { floor: None, marks: 0 }
+renderer-odd replies ""
+renderer-odd notifications 0 cbf29ce484222325
+renderer-odd agent_events 0 cbf29ce484222325
+renderer-odd typeahead []
+renderer-odd deltas 126 7de6d33939c0f48a
+mirror rows 933
+mirror rows[0..] text 9b16626433427df2 styles 93fb066f90196993 spans d4f74b0d64054d43
+mirror rows[500..] text c4f1db3c9c6fb06b styles 51c2b23367fc5b12 spans 7ee20f25ab0c2936
+mirror blocks 1 b476dd5ed16ed9f9
+mirror links 07f8088fb0e8a3f9
+mirror cursor 932 2 true history 930 first_stable 0 editor 0
+mirror alt none
+mirror modes app_cursor=false sgr_mouse=false paste=false focus=false mouse=0 sync=false pending_sync=0
+mirror program title="" pointer="" stack=0 live_output=30005 older=OlderState { floor: None, marks: 0 }
+mirror replies ""
+mirror notifications 0 cbf29ce484222325
+mirror agent_events 0 cbf29ce484222325
+mirror typeahead []
+mirror deltas 24 d802ff6c23a3c6ba
+agent-odd rows 933
+agent-odd rows[0..] text 9b16626433427df2 styles 93fb066f90196993 spans d4f74b0d64054d43
+agent-odd rows[500..] text c4f1db3c9c6fb06b styles 51c2b23367fc5b12 spans 7ee20f25ab0c2936
+agent-odd blocks 1 b476dd5ed16ed9f9
+agent-odd links 07f8088fb0e8a3f9
+agent-odd cursor 932 2 true history 930 first_stable 0 editor 0
+agent-odd alt none
+agent-odd modes app_cursor=false sgr_mouse=false paste=false focus=false mouse=0 sync=false pending_sync=0
+agent-odd program title="" pointer="" stack=0 live_output=30005 older=OlderState { floor: None, marks: 0 }
+agent-odd replies ""
+agent-odd notifications 0 cbf29ce484222325
+agent-odd agent_events 0 cbf29ce484222325
+agent-odd typeahead []
+agent-odd deltas 126 6b46c808904fa0fc

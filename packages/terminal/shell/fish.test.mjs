@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
-import { parseOscRecords, runInPty, splitEveryByte } from "./pty.mjs";
+import { parseOscRecords, runInPty, runInPtySegments, splitEveryByte } from "./pty.mjs";
 
 const bootstrap = fileURLToPath(new URL("./fish.fish", import.meta.url));
 const haveFish = (() => {
@@ -131,4 +131,21 @@ test("reports no typeahead: text typed during a command stays with fish's reader
 	assert.equal(records.some((record) => record.payload.includes("typeahead=")), false);
 	const commands = records.map((record) => field(record.payload, "cmd")).filter((command) => command !== undefined);
 	assert.deepEqual(commands, ["sleep%201", "echo%20later"]);
+});
+
+test("after a width change writes nothing until the next key, then moves up by its old prompt height", { skip: fishSkip || nativeOsc133Skip }, () => {
+	const [, afterResize, afterKey] = runInPtySegments(
+		"fish --no-config --interactive",
+		[
+			"function fish_prompt; echo first-line; echo -n 'second $ '; end",
+			`source ${JSON.stringify(bootstrap)}`,
+			{ keys: "clear", waitMs: 800 },
+			{ resize: [60, 40] },
+			{ keys: "x", enter: false, cut: true },
+		],
+		{ settleMs: 800 },
+	);
+	assert.doesNotMatch(afterResize, /first-line|second \$/, JSON.stringify(afterResize));
+	const ups = afterKey.match(/\x1bM|\x1b\[1?A/g) ?? [];
+	assert.equal(ups.length, 1, JSON.stringify(afterKey));
 });

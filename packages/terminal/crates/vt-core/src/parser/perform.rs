@@ -4,6 +4,8 @@ use super::unknown::private_modes_known;
 use super::Parser;
 use crate::program::OscKind;
 
+pub(crate) const RUN_FLUSH_BYTES: usize = 4096;
+
 fn first_param(params: &Params) -> u16 {
     params
         .iter()
@@ -18,10 +20,13 @@ impl Parser {
             return;
         }
         let style = self.pending_style.resolved();
-        let run = std::mem::take(&mut self.run);
+        let mut run = std::mem::take(&mut self.run);
         self.active_screen_mut().print_ascii_run(&run, style);
+        if run.capacity() > 2 * RUN_FLUSH_BYTES {
+            run = Vec::with_capacity(RUN_FLUSH_BYTES);
+        }
+        run.clear();
         self.run = run;
-        self.run.clear();
     }
 
     fn dispatch_csi(&mut self, params: &Params, intermediates: &[u8], c: char) -> bool {
@@ -66,6 +71,9 @@ impl Perform for Parser {
         self.trace.record(crate::trace::TraceAction::Print(c));
         if matches!(c, ' '..='~') {
             self.run.push(c as u8);
+            if self.run.len() >= RUN_FLUSH_BYTES {
+                self.flush_run();
+            }
             return;
         }
         self.flush_run();
@@ -111,7 +119,9 @@ impl Perform for Parser {
             byte,
         });
         self.flush_run();
-        self.active_screen_mut().esc(byte);
+        if intermediates.is_empty() {
+            self.active_screen_mut().esc(byte);
+        }
         self.note_esc(intermediates, byte);
     }
 
@@ -131,5 +141,32 @@ impl Perform for Parser {
             OscKind::Other => self.note_other_osc(params),
             _ => self.program_osc(params, bell_terminated),
         }
+    }
+}
+
+#[cfg(test)]
+mod run_tests {
+    use super::RUN_FLUSH_BYTES;
+    use crate::parser::Parser;
+    use vte::Parser as VteParser;
+
+    #[test]
+    fn a_long_printable_line_never_holds_more_than_the_flush_size() {
+        let mut parser = Parser::new(80);
+        parser.resize(80, 24);
+        let mut vte = VteParser::new();
+        let line = vec![b'x'; 8 * 1024 * 1024];
+        vte.advance(&mut parser, &line);
+        assert!(
+            parser.run.capacity() <= 2 * RUN_FLUSH_BYTES,
+            "run capacity {}",
+            parser.run.capacity()
+        );
+        parser.flush_run();
+        assert!(
+            parser.run.capacity() <= 2 * RUN_FLUSH_BYTES,
+            "run capacity {}",
+            parser.run.capacity()
+        );
     }
 }

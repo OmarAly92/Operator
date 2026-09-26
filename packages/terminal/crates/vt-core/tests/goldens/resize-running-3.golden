@@ -1,0 +1,52 @@
+renderer rows 458
+renderer rows[0..] text 9b98806143ac6310 styles ed5e3492149b9269 spans cddb1c42bf9ba38b
+renderer blocks 24 207507222ccd0e89
+renderer links 07f8088fb0e8a3f9
+renderer cursor 457 0 true history 457 first_stable 0 editor 2
+renderer alt none
+renderer modes app_cursor=false sgr_mouse=false paste=false focus=false mouse=0 sync=false pending_sync=0
+renderer program title="" pointer="" stack=0 live_output=24995 older=OlderState { floor: None, marks: 0 }
+renderer replies ""
+renderer notifications 0 cbf29ce484222325
+renderer agent_events 0 cbf29ce484222325
+renderer typeahead []
+renderer deltas 64 0df7433825fff050
+renderer-odd rows 458
+renderer-odd rows[0..] text 9b98806143ac6310 styles ed5e3492149b9269 spans cddb1c42bf9ba38b
+renderer-odd blocks 24 20e35851a147c974
+renderer-odd links 07f8088fb0e8a3f9
+renderer-odd cursor 457 0 true history 457 first_stable 0 editor 2
+renderer-odd alt none
+renderer-odd modes app_cursor=false sgr_mouse=false paste=false focus=false mouse=0 sync=false pending_sync=0
+renderer-odd program title="" pointer="" stack=0 live_output=24995 older=OlderState { floor: None, marks: 0 }
+renderer-odd replies ""
+renderer-odd notifications 0 cbf29ce484222325
+renderer-odd agent_events 0 cbf29ce484222325
+renderer-odd typeahead []
+renderer-odd deltas 213 b0f725dff8ed4cae
+mirror rows 494
+mirror rows[0..] text 42fd032a19b82b2c styles f49edc19b6ded08d spans fa9f5f5875080905
+mirror blocks 24 4f749824ba71506d
+mirror links 07f8088fb0e8a3f9
+mirror cursor 493 0 true history 477 first_stable 0 editor 2
+mirror alt none
+mirror modes app_cursor=false sgr_mouse=false paste=false focus=false mouse=0 sync=false pending_sync=0
+mirror program title="" pointer="" stack=0 live_output=24995 older=OlderState { floor: None, marks: 0 }
+mirror replies ""
+mirror notifications 0 cbf29ce484222325
+mirror agent_events 0 cbf29ce484222325
+mirror typeahead []
+mirror deltas 64 7c7cfa79dcd63a2d
+agent-odd rows 494
+agent-odd rows[0..] text 42fd032a19b82b2c styles f49edc19b6ded08d spans fa9f5f5875080905
+agent-odd blocks 24 ddc9664112ee31f4
+agent-odd links 07f8088fb0e8a3f9
+agent-odd cursor 493 0 true history 477 first_stable 0 editor 2
+agent-odd alt none
+agent-odd modes app_cursor=false sgr_mouse=false paste=false focus=false mouse=0 sync=false pending_sync=0
+agent-odd program title="" pointer="" stack=0 live_output=24995 older=OlderState { floor: None, marks: 0 }
+agent-odd replies ""
+agent-odd notifications 0 cbf29ce484222325
+agent-odd agent_events 0 cbf29ce484222325
+agent-odd typeahead []
+agent-odd deltas 213 b934e72298e65570

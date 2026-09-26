@@ -431,6 +431,17 @@ impl RowIndex {
         Some(self.earliest_retained_start())
     }
 
+    pub(crate) fn pop_completed(&mut self) -> Option<RowRange> {
+        let row = self.completed.pop_back()?;
+        self.open_start = row.start;
+        let len = self.completed.len();
+        self.stale.retain_mut(|run| {
+            run.len = run.len.min(len.saturating_sub(run.start));
+            run.len > 0
+        });
+        Some(row)
+    }
+
     fn earliest_retained_start(&self) -> u64 {
         self.completed
             .front()

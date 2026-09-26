@@ -1,6 +1,7 @@
 use std::collections::VecDeque;
 
 const CHUNK_SIZE: usize = 4096;
+const MAX_CUTS: usize = 1024;
 pub(crate) const CONTENT_BASE: u64 = 1 << 48;
 
 #[derive(Clone)]
@@ -12,6 +13,9 @@ pub(crate) struct Chunk {
 pub(crate) struct Content {
     chunks: VecDeque<Chunk>,
     next_offset: u64,
+    truncations: u64,
+    prepends: u64,
+    cuts: Vec<(u64, u64)>,
 }
 
 impl Clone for Content {
@@ -19,6 +23,9 @@ impl Clone for Content {
         Self {
             chunks: self.chunks.clone(),
             next_offset: self.next_offset,
+            truncations: self.truncations,
+            prepends: self.prepends,
+            cuts: self.cuts.clone(),
         }
     }
 }
@@ -29,6 +36,9 @@ impl Content {
         Self {
             chunks: VecDeque::new(),
             next_offset: 0,
+            truncations: 0,
+            prepends: 0,
+            cuts: Vec::new(),
         }
     }
 
@@ -36,6 +46,9 @@ impl Content {
         Self {
             chunks: VecDeque::new(),
             next_offset: base,
+            truncations: 0,
+            prepends: 0,
+            cuts: Vec::new(),
         }
     }
 
@@ -44,6 +57,7 @@ impl Content {
             return self.start_offset();
         }
         let start = self.start_offset() - bytes.len() as u64;
+        self.prepends += 1;
         self.chunks.push_front(Chunk {
             start,
             bytes: bytes.to_vec(),
@@ -124,6 +138,54 @@ impl Content {
                 front.start += cut as u64;
             }
         }
+    }
+
+    pub fn truncate_to(&mut self, offset: u64) {
+        while self
+            .chunks
+            .back()
+            .is_some_and(|chunk| chunk.start >= offset)
+        {
+            self.chunks.pop_back();
+        }
+        if let Some(back) = self.chunks.back_mut() {
+            let keep = ((offset - back.start) as usize).min(back.bytes.len());
+            back.bytes.truncate(keep);
+        }
+        self.next_offset = offset;
+    }
+
+    pub fn note_reuse(&mut self, cut: u64) {
+        self.truncations += 1;
+        while self.cuts.last().is_some_and(|&(_, lower)| lower >= cut) {
+            self.cuts.pop();
+        }
+        self.cuts.push((self.truncations, cut));
+        let start = self.start_offset();
+        let trimmed = self.cuts.partition_point(|&(_, lower)| lower < start);
+        if trimmed > 1 {
+            let oldest = self.cuts[0].1;
+            self.cuts.drain(..trimmed - 1);
+            self.cuts[0].1 = oldest;
+        }
+        if self.cuts.len() > MAX_CUTS {
+            let lowest = self.cuts[0].1;
+            self.cuts.clear();
+            self.cuts.push((self.truncations, lowest));
+        }
+    }
+
+    pub fn lowest_cut_since(&self, seen: u64) -> Option<u64> {
+        let first = self.cuts.partition_point(|&(count, _)| count <= seen);
+        self.cuts.get(first).map(|&(_, cut)| cut)
+    }
+
+    pub fn prepends(&self) -> u64 {
+        self.prepends
+    }
+
+    pub fn truncations(&self) -> u64 {
+        self.truncations
     }
 
     pub fn resident_bytes(&self) -> usize {
@@ -218,6 +280,87 @@ mod tests {
         let start = c.prepend(b"ab");
         assert_eq!(start, 1028);
         assert_eq!(c.copy_range(1028, 1034), b"abxxxx");
+    }
+
+    #[test]
+    fn truncate_to_drops_the_tail_and_the_next_push_lands_at_the_cut() {
+        let mut c = Content::with_base(1024);
+        for _ in 0..(CHUNK_SIZE + 10) {
+            c.push_char("x");
+        }
+        c.truncate_to(1030);
+        assert_eq!(c.end_offset(), 1030);
+        assert_eq!(c.resident_bytes(), 6);
+        c.push_char("y");
+        assert_eq!(c.copy_range(1024, 1031), b"xxxxxxy");
+    }
+
+    #[test]
+    fn truncate_to_the_start_empties_a_prepended_content() {
+        let mut c = Content::with_base(1024);
+        c.push_char("z");
+        let start = c.prepend(b"ab");
+        c.truncate_to(start);
+        assert_eq!(c.resident_bytes(), 0);
+        assert_eq!(c.start_offset(), start);
+        assert_eq!(c.end_offset(), start);
+    }
+
+    #[test]
+    fn the_lowest_cut_since_a_count_covers_every_later_reuse_only() {
+        let mut c = Content::with_base(1024);
+        assert_eq!(c.lowest_cut_since(0), None);
+        c.note_reuse(2000);
+        c.note_reuse(1500);
+        c.note_reuse(1800);
+        assert_eq!(c.truncations(), 3);
+        assert_eq!(c.lowest_cut_since(0), Some(1500));
+        assert_eq!(c.lowest_cut_since(1), Some(1500));
+        assert_eq!(c.lowest_cut_since(2), Some(1800));
+        assert_eq!(c.lowest_cut_since(3), None);
+    }
+
+    #[test]
+    fn the_cut_list_stays_bounded_over_alternating_cuts_and_front_trims() {
+        let mut c = Content::with_base(1024);
+        let mut cuts = Vec::new();
+        for _ in 0..1000 {
+            for _ in 0..100 {
+                c.push_char("a");
+            }
+            c.truncate_to(c.end_offset() - 10);
+            c.note_reuse(c.end_offset());
+            cuts.push(c.end_offset());
+            c.trim_front_to(c.end_offset() - 20);
+        }
+        assert!(c.cuts.len() <= 3, "{} cuts", c.cuts.len());
+        let count = c.truncations();
+        assert_eq!(c.lowest_cut_since(count), None);
+        assert_eq!(c.lowest_cut_since(count - 1), cuts.last().copied());
+        for seen in 0..count - 1 {
+            assert!(c.lowest_cut_since(seen).unwrap() < c.start_offset());
+        }
+        assert_eq!(c.lowest_cut_since(0), Some(cuts[0]));
+    }
+
+    #[test]
+    fn the_cut_list_never_holds_more_than_its_cap_and_never_answers_too_high() {
+        let mut c = Content::with_base(1024);
+        let mut cuts = Vec::new();
+        for _ in 0..3000 {
+            for _ in 0..10 {
+                c.push_char("a");
+            }
+            c.truncate_to(c.end_offset() - 5);
+            c.note_reuse(c.end_offset());
+            cuts.push(c.end_offset());
+            assert!(c.cuts.len() <= 1024, "{} cuts", c.cuts.len());
+        }
+        let count = c.truncations();
+        assert_eq!(c.lowest_cut_since(count), None);
+        for seen in 0..count {
+            assert!(c.lowest_cut_since(seen).unwrap() <= cuts[seen as usize]);
+        }
     }
 
     #[test]

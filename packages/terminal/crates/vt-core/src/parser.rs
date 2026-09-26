@@ -4,10 +4,13 @@ mod colour;
 mod history;
 mod perform;
 mod program;
+mod resize;
 mod unknown;
 
 pub(crate) use colour::read_extended_colour;
-pub use unknown::{UnknownSequence, UNKNOWN_SEQUENCES_CAP, UNKNOWN_TEXT_BYTES};
+pub use unknown::{
+    UnknownSequence, UNKNOWN_FEED_BUDGET, UNKNOWN_SEQUENCES_CAP, UNKNOWN_TEXT_BYTES,
+};
 
 use vte::Params;
 
@@ -70,7 +73,8 @@ pub(crate) struct Parser {
     cold: crate::cold_ring::ColdRing,
     committed_rows: u64,
     run: Vec<u8>,
-    unknown: unknown::UnknownRing,
+    input_mark: Option<(crate::block::BlockId, usize)>,
+    pub(crate) unknown: unknown::UnknownRing,
     #[cfg(feature = "trace")]
     pub(crate) trace: crate::trace::Trace,
 }
@@ -111,6 +115,7 @@ impl Parser {
             cold: crate::cold_ring::ColdRing::default(),
             committed_rows: 0,
             run: Vec::new(),
+            input_mark: None,
             unknown: unknown::UnknownRing::default(),
             #[cfg(feature = "trace")]
             trace: Default::default(),
@@ -438,27 +443,6 @@ impl Parser {
 
     pub fn columns(&self) -> usize {
         self.width
-    }
-
-    pub fn resize(&mut self, columns: usize, rows: usize) {
-        self.mark_full();
-        if columns != self.width {
-            self.rewrap_pending = true;
-        }
-        self.last_width = self.width;
-        self.width = columns;
-        if self.alt.is_some() {
-            self.screen.resize_without_reflow(rows, columns);
-        } else {
-            self.screen.resize(rows, columns);
-            self.commit_evicted();
-        }
-        if let Some(alt) = self.alt.as_mut() {
-            alt.resize(rows, columns);
-        }
-        self.grid
-            .clamp_to_rows(self.rows.completed().len() + self.screen.rows());
-        self.send_in_band_report();
     }
 
     pub(crate) fn commit_evicted(&mut self) {
