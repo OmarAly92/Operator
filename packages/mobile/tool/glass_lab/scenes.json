@@ -912,13 +912,16 @@
         "wait": 0.5
       },
       {
-        "tap": "Search"
+        "tap": [
+          201,
+          822
+        ]
       },
       {
         "wait": 1.5
       },
       {
-        "tap": "Close"
+        "tap": "close"
       },
       {
         "wait": 1.0
@@ -943,13 +946,16 @@
         "wait": 0.5
       },
       {
-        "tap": "Search"
+        "tap": [
+          201,
+          822
+        ]
       },
       {
         "wait": 1.5
       },
       {
-        "tap": "Close"
+        "tap": "close"
       },
       {
         "wait": 1.0
@@ -974,7 +980,10 @@
         "wait": 0.5
       },
       {
-        "tap": "Search"
+        "tap": [
+          201,
+          822
+        ]
       },
       {
         "wait": 1.0
