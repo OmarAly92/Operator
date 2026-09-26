@@ -28,6 +28,20 @@
 - New `TERMINAL.md` section: the next free `### 4.N` at the time of Task 9. The sibling wave-1 plans claim §4.51 (selection) and §4.52 (agent signals); this plan writes **§4.53** and Task 9 Step 1 says how to renumber.
 - Docs and the report cite `file:line` or write "not known". A command that cannot run is reported as `not run: <reason>`, never as a pass.
 - Before running the daemon or integration tests from a Claude session, strip `CLAUDE*` variables (memory "Scrub CLAUDE* env before running Operator dev"). Never stop the user's `tauri:dev` (memory "Stopping tauri:dev kills live sessions").
+- **Amendment (2026-09-27):** the quick-fix on/off switch (Task 7.5) must not add a new prop or
+  flag to `packages/terminal` — `findQuickFix(rules, input)` (Task 4, `quick-fix.ts`) already
+  accepts an empty `rules` array and returns `null` for every block with no special case (it is a
+  plain loop), so Operator gates the setting entirely on its own side by passing
+  `DEFAULT_QUICK_FIX_RULES` or `[]` through the existing `quickFixRules` prop (Task 6). This keeps
+  the package product-independent per `TERMINAL.md` §3.1 above: it never learns that an on/off
+  setting exists.
+- **Amendment (2026-09-27):** retention (Task 7.6) never deletes or clears a block whose
+  `terminal_id` still has a row in `shell_terminals` — enforced in the `NOT IN (SELECT handle_id
+  FROM shell_terminals)` clause of both new queries, not in Go, so no future caller can bypass it
+  by skipping a check.
+- **Amendment (2026-09-27):** migration `0121` (Task 7.6) is additive (`ALTER TABLE … ADD COLUMN`)
+  per the existing "never edit a shipped migration" rule above; it must keep `TestMigrationVersionLedger`
+  green the same way `0120` does.
 
 ## Review Focus
 
@@ -36,6 +50,21 @@
 3. **A multi-line command.** Commands are stored with their newlines (`cmd=` is percent-decoded by the mark scanner, `packages/terminal/go/marks/scanner.go:351,399`, and stored as it arrives by the assembler, `backend/internal/terminal/block_assembler.go:200-202`). Expected: it is kept by the daemon (newline and tab are allowed), sent as one JSON string, recalled whole into the box and submitted unchanged. Pinned by `TestRecentCommandsLeavesOutSecretsHiddenAndBrokenCommands` (keeps the `for … done` entry), `TestTerminalHistoryAPI_ReturnsCommandsOldestFirst`, `HistoryModel` "recalls a multi-line command whole", `LineEditor shared history` "recalls a multi-line shared command whole".
 4. **A quick fix for a command the user already edited, or a fix that would overwrite typing.** Expected: the chip and the ghost show only while the box is empty and the line is owned; typing hides both and → then accepts nothing from the fix; **Use** is ignored if the box is not empty; once used (click or →) the fix is dismissed and never comes back for that block, even after the user edits it; a new command withdraws it; nothing is ever sent without Enter. Pinned by `LineEditor quick fixes` "hides the fix while the user types and never replaces what they typed", "does not bring an applied fix back after the user edits it", "withdraws the fix once the next command starts", "shows the fix … fills the box on click without sending", and Task 9 R6–R7.
 5. **History from a different project, cwd or closed terminal; forged marks steering a fix.** Shared history is global by decision (a normal Mac terminal's history is per user, not per directory). Expected: commands from any terminal, any cwd and any closed terminal are returned, survive a store reopen (daemon restart), and a failed block that was already on screen when the pane mounted (a replay) offers no fix. Anything on the pty can print `OSC 7000;cmd=…` and output (survey §6.1, no nonce yet), so a captured branch name, subcommand or option must pass a narrow character class and a fix with a control character or newline is dropped. Pinned by `TestRecentCommandsSpansTerminalsOldestFirstWithoutRepeats` (three terminals, three cwds), `TestRecentCommandsSurvivesAClosedTerminal`, the integration test (close + reopen), `LineEditor quick fixes` "offers nothing for a failed block that was already there when the editor mounted", `findQuickFix` "drops a branch name a program could use to smuggle a second command" and "drops a fix with a control character or a newline, or one equal to the command".
+6. **(Amendment 2026-09-27) The switch's on/off behavior and persistence.** Expected: the setting
+   persists across a reload (`readStoredTerminalQuickFixesEnabled`, `localStorage` key
+   `opr.terminal.quickFixesEnabled`, on by default); turning it off removes both the suggestion row
+   and the ghost text (empty `quickFixRules`); turning it back on shows fixes again on the next
+   finished block without a reload. Pinned by the three new `BlockTerminal.test.tsx` cases and the
+   `GeneralSettingsSection.test.tsx` reload case (Task 7.5).
+7. **(Amendment 2026-09-27) Retention cleanup's correctness, against a real SQLite store.**
+   Expected: reclaimed bytes (raw output zeroed — measured directly against the row, since
+   `ClearOldOrphanedRawOutput` itself returns only a row count) and reclaimed rows
+   (`DeleteFullyClearedOrphanedBlocks`) are both exercised; `ListRecentTerminalCommands`
+   (Task 1) still returns a cleaned terminal's commands until its row is actually deleted; a
+   terminal that still has a `shell_terminals` row is never touched, even far past both grace
+   periods. Pinned by `TestTickReclaimsRawOutputThenTheRowOnceTheDeleteGraceAlsoPasses`,
+   `TestTickKeepsCommandHistoryOfARecentlyClearedTerminal`, `TestTickNeverTouchesARestorableTerminal`
+   (Task 7.6).
 
 ---
 
@@ -116,7 +145,16 @@ Unaffected: it has no line editor (`TERMINAL.md` §4.32 "a client without a line
 | `packages/terminal/ts/editor/src/{quick-fix-offer.ts (new),line-editor.ts,styles.css,styles.ts,line-editor-quick-fix.test.ts (new)}`, `ts/renderer-dom/src/{palette.test.ts,jump-to-bottom.test.ts}` | 5 | offer, chip, ghost, → |
 | `packages/terminal/ts/react/src/{TerminalSurface.tsx,index.ts,TerminalSurface.history.test.tsx (new)}` | 6 | `commandHistory`, `quickFixRules` props |
 | `frontend/src/renderer/lib/{command-history.ts,command-history.test.ts}` (new), `components/BlockTerminal.tsx`, `components/BlockTerminal.test.tsx`, `test/setup.ts` | 7 | Operator store and wiring |
-| `TERMINAL.md`, `packages/terminal/CHANGELOG.md`, `docs/terminal/2026-09-19-terminal-reference-survey.md` | 9 | §4.53, changelog, status lines |
+| `frontend/src/renderer/lib/terminal-quick-fixes.ts` (new) | 7.5 | on/off setting storage, mirrors `terminal-predictive-echo.ts` |
+| `frontend/src/renderer/stores/ui-store.ts`, `components/settings/GeneralSettingsSection.tsx`, `components/settings/GeneralSettingsSection.test.tsx`, `i18n/en.json`, `components/BlockTerminal.tsx`, `components/BlockTerminal.test.tsx` | 7.5 | switch UI, gate on `quickFixRules` |
+| `backend/internal/storage/sqlite/migrations/0121_terminal_blocks_retention.sql` (new) | 7.6 | `raw_output_cleared_at` column |
+| `backend/internal/storage/sqlite/migrate_burned_versions_test.go` | 7.6 | ledger entry 121 |
+| `backend/internal/storage/sqlite/queries/terminal_blocks.sql`, `gen/terminal_blocks.sql.go` (generated) | 7.6 | `ClearOldOrphanedRawOutput`, `DeleteFullyClearedOrphanedBlocks` |
+| `backend/internal/service/terminalblock/types.go`, `backend/internal/storage/sqlite/store/terminal_block_store.go` | 7.6 | widened port, adapter methods |
+| `backend/internal/service/terminalcapture/supervisor_test.go`, `backend/internal/adapters/runtime/parity/decision_sites_test.go` | 7.6 | fakes implement the widened port (again) |
+| `backend/internal/observe/blockretention/{retention.go,retention_test.go}` (new) | 7.6 | the janitor, shaped like `observe/reaper` |
+| `backend/internal/daemon/lifecycle_wiring.go` | 7.6 | start the janitor with the reaper; `ReconcileBlockRetention` at boot |
+| `TERMINAL.md`, `packages/terminal/CHANGELOG.md`, `docs/terminal/2026-09-19-terminal-reference-survey.md` | 9 | §4.53, changelog, status lines, plus the switch and retention design |
 
 ---
 
@@ -3082,6 +3120,438 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
 ---
 
+## Amendment (2026-09-27): the quick-fix on/off switch and terminal-block retention
+
+Two of the plan's open decisions (above, "Open decisions for the user" 3 and 6) were decided by the
+user on 2026-09-27: quick fixes get a Settings toggle, on by default; retention for closed
+terminals' blocks is designed and built in this plan, not left as an open question. Tasks 7.5 and
+7.6 below implement them, inserted after Task 7 (they depend on Task 7's `BlockTerminal` wiring and
+Task 1's schema) and before Task 8 (Gates), which must now also cover them — see the Task 8 and
+Task 10 notes at the end of this amendment. Every other task, file and line citation elsewhere in
+this plan is unchanged.
+
+### Task 7.5: Settings — quick-fix on/off switch
+
+**Files:**
+- Create: `frontend/src/renderer/lib/terminal-quick-fixes.ts` — same shape as
+  `frontend/src/renderer/lib/terminal-predictive-echo.ts:1-16` (`terminalPredictiveEchoStorageKey`,
+  `defaultTerminalPredictiveEcho`, `getLocalStorage`, `readStoredTerminalPredictiveEcho`): exports
+  `terminalQuickFixesEnabledStorageKey = "opr.terminal.quickFixesEnabled"`,
+  `defaultTerminalQuickFixesEnabled = true` (on by default, per the user's decision — the one
+  difference from the predictive-echo default), `readStoredTerminalQuickFixesEnabled()`.
+- Modify: `frontend/src/renderer/stores/ui-store.ts` — add `terminalQuickFixesEnabled: boolean` to
+  the state type next to `terminalPredictiveEcho: boolean` (`:72`), seed it from
+  `readStoredTerminalQuickFixesEnabled()` next to `initialTerminalPredictiveEcho` (`:176`), and add
+  `setTerminalQuickFixesEnabled` following `setTerminalPredictiveEcho` verbatim (`:218-221`): early
+  return if unchanged, `getLocalStorage()?.setItem(terminalQuickFixesEnabledStorageKey, … ? "1" :
+  "0")`, then `set({ terminalQuickFixesEnabled })`.
+- Modify: `frontend/src/renderer/components/settings/GeneralSettingsSection.tsx` — add a
+  `SettingsRow`+`Switch` pair for the new setting immediately after the
+  `settings.terminalPredictiveEcho` row (`:124-130`), reading `terminalQuickFixesEnabled` /
+  `setTerminalQuickFixesEnabled` off `useUiStore` the same way (`:53-54` pattern).
+- Modify: `frontend/src/renderer/i18n/en.json` — add `"settings.terminalQuickFixes": "Suggest fixes
+  for failed commands"` next to `"settings.terminalPredictiveEcho"` (`:608`).
+- Modify: `frontend/src/renderer/components/BlockTerminal.tsx` — at the `quickFixRules={…}`
+  pass-through Task 7 adds for a shell `BlockTerminal` (Task 7 Interfaces, this plan's line 2646:
+  "A shell `BlockTerminal` passes `commandHistory` and `DEFAULT_QUICK_FIX_RULES`"), read
+  `terminalQuickFixesEnabled` off `useUiStore` and gate the value:
+  `quickFixRules={terminalQuickFixesEnabled ? DEFAULT_QUICK_FIX_RULES : EMPTY_QUICK_FIX_RULES}`
+  (a module-level `const EMPTY_QUICK_FIX_RULES: readonly QuickFixRule[] = []` so the prop is
+  reference-stable when off, matching how `commandHistory` is already kept stable). No new prop is
+  added to `packages/terminal` — `TerminalSurfaceProps.quickFixRules` (Task 6) already accepts any
+  `readonly QuickFixRule[]`, and `findQuickFix` (Task 4, `quick-fix.ts`) is a plain loop over its
+  `rules` argument, so an empty array already yields `null` for every block with no special case
+  (verified by reading `quick-fix.ts`'s design in Task 4: `findQuickFix(rules, input)` iterates
+  `rules` and returns on the first match, so `rules.length === 0` skips the loop body).
+- Test: `frontend/src/renderer/components/settings/GeneralSettingsSection.test.tsx` (new case),
+  `frontend/src/renderer/components/BlockTerminal.test.tsx` (three new cases).
+
+**Interfaces:**
+- Consumes: `useUiStore` (`frontend/src/renderer/stores/ui-store.ts`), `Switch`
+  (`frontend/src/renderer/components/ui/switch`), `DEFAULT_QUICK_FIX_RULES` and `QuickFixRule`
+  (Task 4/6), the shell `BlockTerminal`'s `quickFixRules` pass-through (Task 7).
+- Produces: `terminalQuickFixesEnabled: boolean` and `setTerminalQuickFixesEnabled(next: boolean):
+  void` on the ui-store; `readStoredTerminalQuickFixesEnabled(): boolean`,
+  `terminalQuickFixesEnabledStorageKey`, `defaultTerminalQuickFixesEnabled` in
+  `lib/terminal-quick-fixes.ts`. Nothing outside `frontend/` consumes this — `packages/terminal`
+  gains no new prop, per the Global Constraints addition below.
+
+- [ ] **Step 1: Write the failing tests**
+
+Add to `frontend/src/renderer/components/settings/GeneralSettingsSection.test.tsx` (same render
+harness the existing `terminalPredictiveEcho` toggle test uses):
+
+```tsx
+it("persists the quick-fix switch across a reload", () => {
+	const { getByLabelText, unmount } = render(<GeneralSettingsSection onConnectMobile={vi.fn()} />);
+	const toggle = getByLabelText("Suggest fixes for failed commands");
+	expect(toggle).toBeChecked();
+	fireEvent.click(toggle);
+	expect(toggle).not.toBeChecked();
+	unmount();
+	const remounted = render(<GeneralSettingsSection onConnectMobile={vi.fn()} />);
+	expect(remounted.getByLabelText("Suggest fixes for failed commands")).not.toBeChecked();
+});
+```
+
+Add to `frontend/src/renderer/components/BlockTerminal.test.tsx`, in the `describe` Task 7 adds
+for shared history and quick fixes:
+
+```tsx
+it("passes no quick-fix rules when the setting is off", () => {
+	useUiStore.getState().setTerminalQuickFixesEnabled(false);
+	render(<BlockTerminal {...shellProps} />);
+	expect(surfaceProps().quickFixRules).toEqual([]);
+});
+
+it("passes the starter rules when the setting is on", () => {
+	useUiStore.getState().setTerminalQuickFixesEnabled(true);
+	render(<BlockTerminal {...shellProps} />);
+	expect(surfaceProps().quickFixRules).toBe(DEFAULT_QUICK_FIX_RULES);
+});
+
+it("shows fixes again immediately after the setting is switched back on, without a reload", () => {
+	useUiStore.getState().setTerminalQuickFixesEnabled(false);
+	const { rerender } = render(<BlockTerminal {...shellProps} />);
+	expect(surfaceProps().quickFixRules).toEqual([]);
+	act(() => useUiStore.getState().setTerminalQuickFixesEnabled(true));
+	rerender(<BlockTerminal {...shellProps} />);
+	expect(surfaceProps().quickFixRules).toBe(DEFAULT_QUICK_FIX_RULES);
+});
+```
+
+`surfaceProps()` is this test file's existing helper that reads the last props the mocked
+`TerminalSurface` was rendered with (the same helper Task 7's own history tests must use to assert
+on `commandHistory`).
+
+- [ ] **Step 2: Run them to see them fail**
+
+```bash
+cd /Users/omaraly/development/AI/Operator-wave1-input-box/frontend
+npx vitest run --config vite.renderer.config.ts src/renderer/components/settings/GeneralSettingsSection.test.tsx src/renderer/components/BlockTerminal.test.tsx 2>&1 | grep -E "Test Files|Tests  |FAIL"
+```
+Expected: the three new `BlockTerminal` cases fail (`terminalQuickFixesEnabled`/
+`setTerminalQuickFixesEnabled` do not exist on the store yet); the settings case fails on the
+missing label.
+
+- [ ] **Step 3: Implement**
+
+Write `frontend/src/renderer/lib/terminal-quick-fixes.ts`, the `ui-store.ts` additions, the
+`GeneralSettingsSection.tsx` row, the `en.json` key and the `BlockTerminal.tsx` gate exactly as
+described in **Files** above, mirroring `terminalPredictiveEcho`'s existing shape at each cited
+line.
+
+- [ ] **Step 4: Run to see them pass; typecheck; lint**
+
+```bash
+cd /Users/omaraly/development/AI/Operator-wave1-input-box/frontend
+npx vitest run --config vite.renderer.config.ts src/renderer/lib/terminal-quick-fixes.test.ts src/renderer/components/settings/GeneralSettingsSection.test.tsx src/renderer/components/BlockTerminal.test.tsx 2>&1 | grep -E "Test Files|Tests  "
+npm run typecheck 2>&1 | tail -2
+```
+Expected: every file passes; typecheck silent.
+
+- [ ] **Step 5: Commit**
+
+```bash
+cd /Users/omaraly/development/AI/Operator-wave1-input-box
+git add frontend/src/renderer/lib/terminal-quick-fixes.ts frontend/src/renderer/stores/ui-store.ts frontend/src/renderer/components/settings/GeneralSettingsSection.tsx frontend/src/renderer/components/settings/GeneralSettingsSection.test.tsx frontend/src/renderer/i18n/en.json frontend/src/renderer/components/BlockTerminal.tsx frontend/src/renderer/components/BlockTerminal.test.tsx
+git commit -m "feat(settings): on/off switch for terminal quick fixes, on by default
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+```
+
+---
+
+### Task 7.6: Backend — retention cleanup for closed terminal blocks
+
+**Files:**
+- Create: `backend/internal/storage/sqlite/migrations/0121_terminal_blocks_retention.sql` — the
+  next free migration number after this plan's own `0120` (Task 1); `0120` is the highest number
+  on `development` as of this amendment (`ls backend/internal/storage/sqlite/migrations | sort -V |
+  tail -1` → `0119_session_launch_permission_mode.sql` before Task 1 lands `0120`), so `0121` is
+  free unless another branch claims it first, in which case renumber per Global Constraints.
+- Modify: `backend/internal/storage/sqlite/migrate_burned_versions_test.go:126` (append `121:
+  "0121_terminal_blocks_retention.sql",` after Task 1's `120:` entry) — this is the ledger
+  `TestMigrationVersionLedger` checks (`migrate_burned_versions_test.go:152`,
+  "every migration file has exactly one entry in shippedMigrations").
+- Create: `backend/internal/storage/sqlite/queries/terminal_blocks_retention.sql` (or appended to
+  `terminal_blocks.sql`) — `DeleteOrphanedTerminalBlocksOlderThan` and
+  `CountOrphanedTerminalBlocks`, see design below.
+- Regenerate: `backend/internal/storage/sqlite/gen/terminal_blocks.sql.go` (or a new
+  `terminal_blocks_retention.sql.go`) via `npm run sqlc`.
+- Create: `backend/internal/observe/blockretention/{retention.go,retention_test.go}` — the janitor,
+  following `backend/internal/observe/reaper/reaper.go`'s shape exactly (package doc, `Config{Tick,
+  Clock, Logger}`, `New(store, cfg) *Retention`, `Start(ctx) <-chan struct{}` launching
+  `time.NewTicker(r.tick)` in a goroutine, an exported `Tick(ctx) error` the daemon and tests can
+  also drive synchronously — `reaper.go:18-20,37-48,64-124`).
+- Modify: `backend/internal/daemon/lifecycle_wiring.go` — wire the janitor next to the reaper in
+  `startLifecycle` (`:57-72`): `New(store, blockretention.Config{Logger: logger})` then
+  `.Start(ctx)`, its done channel added to `lifecycleStack` next to `reaperDone` (`:46-51`).
+- Modify: `backend/internal/service/terminalblock/types.go:13` (widen `Store` again, after Task 1's
+  `ListRecentTerminalCommands` line) and `backend/internal/storage/sqlite/store/terminal_block_store.go`
+  (new adapter methods after `ListRecentTerminalCommands`, Task 1's insertion point).
+- Modify: the same two test fakes Task 1 touches —
+  `backend/internal/service/terminalcapture/supervisor_test.go:206+` and
+  `backend/internal/adapters/runtime/parity/decision_sites_test.go:268+` — with one more method each
+  for the widened port.
+- Test: `backend/internal/observe/blockretention/retention_test.go` (new, real SQLite store per
+  Global Constraints "no network calls… prefer fakes" — a store is not a network call and Task 1's
+  own tests already open a real `sqlite.Open` in-process, `service/terminalblock/service_test.go`'s
+  `newService` helper).
+
+**Design (evidence-based, following the schema Task 1 already reads):**
+- What "closed and not restorable" means for a `terminal_blocks.terminal_id`: shell terminals are
+  the only source of `terminal_blocks` rows (Decision 1: "agent (worker) panes are not captured";
+  `backend/internal/service/terminalcapture/supervisor.go:80-97` records only shell terminal
+  blocks). A shell terminal has exactly one durable row while it can still be re-attached to —
+  `shell_terminals.handle_id` (`backend/internal/storage/sqlite/migrations/0027_shell_terminals.sql:20-27`,
+  primary key `handle_id`) — and that row is deleted only in
+  `backend/internal/service/shellterm/service.go`'s `destroyConfirmed` (`:356-368`, called from
+  `CloseShellTerminal` `:217-242`, `ListShellTerminalsForCurrentAppRun`'s dead-row prune `:274-302`,
+  and `ReapShellTerminalsFromPreviousAppRuns` `:315-339`) — never paused, never soft-deleted. There
+  is no restore/relaunch path for a shell terminal once its `shell_terminals` row is gone (that
+  concept — §4.38's `Restore`/relaunch — is `session_manager`'s, for agent sessions, which do not
+  write `terminal_blocks` at all). So a terminal is "closed and not restorable" for this feature
+  exactly when its `terminal_id` has **no** matching row left in `shell_terminals`; a
+  `terminal_blocks.terminal_id` that still has a `shell_terminals` row is either still open or was
+  merely disconnected and can still be re-attached (`ListShellTerminalsForCurrentAppRun` repopulates
+  tabs after a daemon restart, `service.go:244-264`), so its blocks are never touched.
+- Cleanup, in the plan's own words for Decision 4 ("Retention is unchanged: 100 blocks per
+  terminal… open decision 6 covers the unbounded growth of closed terminals' rows"): rather than a
+  new small table, keep the existing `terminal_blocks` schema (Global Constraint: do not modify a
+  shipped migration) and add one column and one query pair, since the shared-history feature this
+  plan builds needs exactly `command`, `cwd`, `finished_at` per row (`0092_terminal_blocks.sql:14-34`)
+  and nothing from `raw_output` once a terminal is gone — `raw_output BLOB NOT NULL` is the only
+  column that can hold megabytes (Decision 1's table: "100 blocks × 8 MiB raw output each per
+  terminal"). Migration `0121` adds `raw_output_cleared_at TIMESTAMP` (nullable) to `terminal_blocks`
+  (an `ALTER TABLE … ADD COLUMN`, additive and safe on a live SQLite file, the same shape as
+  `0118_session_agent_report.sql`/`0119_session_launch_permission_mode.sql` use for their own
+  additive columns — not read here in full, but every migration after `0092` in this directory adds
+  columns/indexes rather than rewriting tables, per `ls` above).
+- `DeleteOrphanedTerminalBlocksOlderThan(ctx, cutoff)`:
+  `UPDATE terminal_blocks SET raw_output = x'', raw_output_cleared_at = ? WHERE raw_output_cleared_at
+  IS NULL AND finished_at < ? AND terminal_id NOT IN (SELECT handle_id FROM shell_terminals)` clears
+  the heavy bytes but keeps the row (`command`, `cwd`, `finished_at`, `exit_code` survive, so
+  `ListRecentTerminalCommands` — Task 1 — and the durable-block list a reopened pane would have shown
+  keep working); a second statement,
+  `DELETE FROM terminal_blocks WHERE raw_output_cleared_at IS NOT NULL AND raw_output_cleared_at <
+  ? AND terminal_id NOT IN (SELECT handle_id FROM shell_terminals)`, drops the whole row once it has
+  been cleared for a second, longer grace period (rows already contributing nothing but their small
+  metadata are removed once history has no further use for them). Never touches a `terminal_id`
+  that still has a `shell_terminals` row — the `NOT IN` guard is the "never delete a restorable
+  terminal's blocks" rule from the task brief, enforced in the SQL itself rather than in Go, so it
+  cannot be bypassed by a future caller.
+- Defaults (documented in the janitor's `Config`, following `reaper.DefaultTickInterval`
+  `reaper.go:18-20`): clear raw output 7 days after `finished_at` for an orphaned terminal, delete
+  the row 30 days after clearing; the janitor ticks once at daemon start (via the same
+  `ReconcileRuntime`-style synchronous `Tick` call `lifecycle_wiring.go:74-79` pattern) and every 6
+  hours after.
+
+**Interfaces:**
+- Consumes: `terminalblock.Store` (widened again), `shell_terminals` via a plain `NOT IN` subquery
+  (no new Go port needed for the join — it is one SQL statement against two tables already in the
+  same SQLite file, matching how `TrimTerminalBlocks` (`terminal_block_store.go:63-75`) is already a
+  single multi-row statement).
+- Produces: `blockretention.Retention`, `blockretention.Config{Tick, Clock, Logger, RawOutputGrace,
+  RowGrace}`, `blockretention.New(store, cfg) *Retention`, `(*Retention).Start(ctx) <-chan
+  struct{}`, `(*Retention).Tick(ctx) (cleared, deleted int64, err error)` — `cleared` is the number
+  of rows whose `raw_output` was just zeroed (a count, not a byte total: sqlc's `:execrows` only
+  reports rows affected) and `deleted` the number of rows removed outright, both asserted on by the
+  tests below; `terminalblock.Store.ClearOldOrphanedRawOutput(ctx, cutoff time.Time) (rows int64,
+  err error)`, `terminalblock.Store.DeleteFullyClearedOrphanedBlocks(ctx, cutoff time.Time) (rows
+  int64, err error)`. "Reclaimed bytes" (Review Focus 7) is verified in the test by measuring
+  `LENGTH(raw_output)` (via a small test-only query, or by reading the row back through the store)
+  before and after `Tick`, not by a byte count the store returns.
+
+- [ ] **Step 1: Write the failing tests**
+
+Create `backend/internal/observe/blockretention/retention_test.go` (real SQLite, following
+`service/terminalblock/service_test.go`'s `newService`/`sampleBlock` shape and Task 1's
+`recordCommand` helper for inserting blocks; `insertShellTerminal` is this test file's own small
+helper around `store.InsertShellTerminal`):
+
+```go
+package blockretention_test
+
+import (
+	"context"
+	"testing"
+	"time"
+
+	"github.com/OmarAly92/operator/backend/internal/observe/blockretention"
+)
+
+func TestTickReclaimsRawOutputThenTheRowOnceTheDeleteGraceAlsoPasses(t *testing.T) {
+	ctx := context.Background()
+	store := newTestStore(t)
+	now := time.Date(2026, 9, 27, 12, 0, 0, 0, time.UTC)
+	insertBlock(t, store, "closed-term", "1", "make build", []byte("a lot of output"), now.Add(-40*24*time.Hour))
+
+	clock := now
+	r := blockretention.New(store, blockretention.Config{Clock: func() time.Time { return clock }})
+	cleared, deleted, err := r.Tick(ctx)
+	if err != nil {
+		t.Fatalf("tick 1: %v", err)
+	}
+	if cleared != 1 || deleted != 0 {
+		t.Fatalf("tick 1 cleared=%d deleted=%d, want 1,0 (raw_output_cleared_at is set to now, so the delete grace has not started yet)", cleared, deleted)
+	}
+	if runs, err := listCommandRuns(t, store); err != nil || len(runs) != 1 || runs[0] != "make build" {
+		t.Fatalf("history right after clearing = %v, err %v, want [make build] (the row survives, only raw_output is gone)", runs, err)
+	}
+
+	clock = now.Add(31 * 24 * time.Hour)
+	cleared, deleted, err = r.Tick(ctx)
+	if err != nil {
+		t.Fatalf("tick 2: %v", err)
+	}
+	if cleared != 0 || deleted != 1 {
+		t.Fatalf("tick 2 cleared=%d deleted=%d, want 0,1 (31 days past the clear, past the row-delete grace)", cleared, deleted)
+	}
+	runs, err := listCommandRuns(t, store)
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	if len(runs) != 0 {
+		t.Fatalf("history after full retention = %v, want empty (row deleted)", runs)
+	}
+}
+
+func TestTickKeepsCommandHistoryOfARecentlyClearedTerminal(t *testing.T) {
+	ctx := context.Background()
+	store := newTestStore(t)
+	now := time.Date(2026, 9, 27, 12, 0, 0, 0, time.UTC)
+	insertBlock(t, store, "closed-term", "1", "make build", []byte("output"), now.Add(-8*24*time.Hour))
+
+	r := blockretention.New(store, blockretention.Config{Clock: func() time.Time { return now }})
+	cleared, deleted, err := r.Tick(ctx)
+	if err != nil {
+		t.Fatalf("tick: %v", err)
+	}
+	if cleared != 1 || deleted != 0 {
+		t.Fatalf("cleared=%d deleted=%d, want 1,0", cleared, deleted)
+	}
+	runs, err := listCommandRuns(t, store)
+	if err != nil || len(runs) != 1 || runs[0] != "make build" {
+		t.Fatalf("history = %v, err %v, want [make build]", runs, err)
+	}
+}
+
+func TestTickNeverTouchesARestorableTerminal(t *testing.T) {
+	ctx := context.Background()
+	store := newTestStore(t)
+	now := time.Date(2026, 9, 27, 12, 0, 0, 0, time.UTC)
+	insertShellTerminal(t, store, "open-term", now.Add(-90*24*time.Hour))
+	insertBlock(t, store, "open-term", "1", "make build", []byte("output"), now.Add(-90*24*time.Hour))
+
+	r := blockretention.New(store, blockretention.Config{Clock: func() time.Time { return now }})
+	cleared, deleted, err := r.Tick(ctx)
+	if err != nil {
+		t.Fatalf("tick: %v", err)
+	}
+	if cleared != 0 || deleted != 0 {
+		t.Fatalf("cleared=%d deleted=%d, want 0,0 (the terminal still has a shell_terminals row)", cleared, deleted)
+	}
+}
+```
+
+- [ ] **Step 2: Run them to see them fail**
+
+```bash
+cd /Users/omaraly/development/AI/Operator-wave1-input-box/backend && go test ./internal/observe/blockretention/... -count=1 2>&1 | head -10
+```
+Expected: build failure — the `blockretention` package does not exist yet.
+
+- [ ] **Step 3: Migration, ledger, queries, generated code**
+
+Create `backend/internal/storage/sqlite/migrations/0121_terminal_blocks_retention.sql`:
+
+```sql
+-- +goose Up
+-- +goose StatementBegin
+ALTER TABLE terminal_blocks ADD COLUMN raw_output_cleared_at TIMESTAMP;
+-- +goose StatementEnd
+
+-- +goose Down
+-- +goose StatementBegin
+ALTER TABLE terminal_blocks DROP COLUMN raw_output_cleared_at;
+-- +goose StatementEnd
+```
+
+In `backend/internal/storage/sqlite/migrate_burned_versions_test.go`, after Task 1's `120:` entry
+(`:126` before Task 1 lands, one line lower after it) add:
+
+```go
+	121: "0121_terminal_blocks_retention.sql",
+```
+
+Append to `backend/internal/storage/sqlite/queries/terminal_blocks.sql`:
+
+```sql
+
+-- name: ClearOldOrphanedRawOutput :execrows
+UPDATE terminal_blocks
+SET raw_output = x'', raw_output_cleared_at = ?
+WHERE raw_output_cleared_at IS NULL
+  AND finished_at < ?
+  AND terminal_id NOT IN (SELECT handle_id FROM shell_terminals);
+
+-- name: DeleteFullyClearedOrphanedBlocks :execrows
+DELETE FROM terminal_blocks
+WHERE raw_output_cleared_at IS NOT NULL
+  AND raw_output_cleared_at < ?
+  AND terminal_id NOT IN (SELECT handle_id FROM shell_terminals);
+```
+
+Run `npm run sqlc` and confirm only the generated file changes, as Task 1 Step 3 does.
+
+- [ ] **Step 4: Store methods, port, janitor**
+
+Add `ClearOldOrphanedRawOutput`/`DeleteFullyClearedOrphanedBlocks` to
+`backend/internal/storage/sqlite/store/terminal_block_store.go` (after Task 1's
+`ListRecentTerminalCommands`), each wrapping the generated `:execrows` call and returning the
+affected-row count as `int64`; widen `terminalblock.Store` (`types.go:13`) with both methods; add
+the two no-op implementations to the two test fakes Task 1 already touches.
+
+Create `backend/internal/observe/blockretention/retention.go` matching
+`backend/internal/observe/reaper/reaper.go`'s shape: `Config{Tick, Clock, Logger, RawOutputGrace,
+RowGrace}` with defaults `DefaultRawOutputGrace = 7 * 24 * time.Hour`, `DefaultRowGrace = 30 * 24 *
+time.Hour`, `DefaultTickInterval = 6 * time.Hour`; `New(store, cfg) *Retention`; `Start(ctx) <-chan
+struct{}` launching the same ticker-loop shape as `reaper.go:104-124`; `Tick(ctx) (cleared, deleted
+int64, err error)` calling the two store methods with `now.Add(-RawOutputGrace)` and
+`now.Add(-RowGrace)` and logging counts at `Info` when non-zero, matching the reaper's log-but-
+never-propagate-per-item posture (`reaper.go:181-186`).
+
+- [ ] **Step 5: Run to see them pass**
+
+```bash
+cd /Users/omaraly/development/AI/Operator-wave1-input-box/backend
+go test ./internal/observe/blockretention/... ./internal/service/terminalblock/... ./internal/storage/sqlite/... -count=1 2>&1 | grep -v "no test files"
+```
+Expected: every line `ok`, `TestMigrationVersionLedger` included.
+
+- [ ] **Step 6: Wire into the daemon**
+
+In `backend/internal/daemon/lifecycle_wiring.go`, add the janitor to `startLifecycle` next to the
+reaper (`:64-71`) and its done channel to `lifecycleStack` (`:46-51`); add a
+`ReconcileBlockRetention(ctx) error` next to `ReconcileRuntime` (`:74-79`) calling the janitor's
+`Tick` once at boot, following the same rationale comment ("folds work missed while Operator was
+stopped… before the API starts serving").
+
+- [ ] **Step 7: Lint and commit**
+
+```bash
+cd /Users/omaraly/development/AI/Operator-wave1-input-box/backend && gofmt -l internal/ && go vet ./internal/observe/... ./internal/storage/... ./internal/daemon/... && go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2 run --path-mode=abs ./internal/observe/blockretention/... ./internal/storage/sqlite/... ./internal/daemon/...
+cd /Users/omaraly/development/AI/Operator-wave1-input-box
+git add backend/internal/storage/sqlite/migrations/0121_terminal_blocks_retention.sql backend/internal/storage/sqlite/migrate_burned_versions_test.go backend/internal/storage/sqlite/queries/terminal_blocks.sql backend/internal/storage/sqlite/gen/terminal_blocks.sql.go backend/internal/service/terminalblock/types.go backend/internal/storage/sqlite/store/terminal_block_store.go backend/internal/observe/blockretention/retention.go backend/internal/observe/blockretention/retention_test.go backend/internal/service/terminalcapture/supervisor_test.go backend/internal/adapters/runtime/parity/decision_sites_test.go backend/internal/daemon/lifecycle_wiring.go
+git commit -m "feat(backend): retention cleanup for closed terminals' blocks, never touching a restorable one
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+```
+Expected: `gofmt` prints nothing, `0 issues.`, one commit.
+
+---
+
 ### Task 8: Gates
 
 **Files:** none changed (a gate that fails sends you back to the owning task).
@@ -3105,7 +3575,7 @@ Expected: no `error`; `core 180`, `renderer-dom 995`, `react 159`, `editor 218`,
 ```bash
 cd /Users/omaraly/development/AI/Operator-wave1-input-box/frontend && npm run typecheck 2>&1 | tail -1 && npm run test 2>&1 | grep -E "Test Files|Tests  "
 ```
-Expected: typecheck silent; every file passes (planning run: `Test Files  173 passed (173)`, `Tests  1742 passed (1742)` — 11 more tests than the base: 7 store + 4 `BlockTerminal`).
+Expected: typecheck silent; every file passes (planning run: `Test Files  173 passed (173)`, `Tests  1742 passed (1742)` — 11 more tests than the base: 7 store + 4 `BlockTerminal`; **amendment 2026-09-27, Tasks 7.5/7.6:** add 1 more test file (`GeneralSettingsSection.test.tsx` already exists, gains 1 case) and 4 more `BlockTerminal.test.tsx` cases — the exact new totals were not run and are `not known`; report the actual numbers from this run).
 
 - [ ] **Step 3: Backend**
 
@@ -3115,7 +3585,7 @@ env $(env | grep -o '^CLAUDE[A-Z_0-9]*=' | sed 's/=$//; s/^/-u /') go test ./...
 go vet ./... && go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2 run --path-mode=abs 2>&1 | tail -2
 cd /Users/omaraly/development/AI/Operator-wave1-input-box && npm run api >/dev/null 2>&1 && git status --short backend/internal/httpd/apispec/openapi.yaml frontend/src/api/schema.ts
 ```
-Expected: the first command prints nothing (every package `ok`); `0 issues.`; the last prints nothing (regenerating the spec changes nothing that is not already committed). If `TestProcessEnvironmentLetsOverridesWin` fails in `ptyhost`, it is the known pre-existing failure (`TERMINAL.md` §8) — rerun it alone and report.
+Expected: the first command prints nothing (every package `ok`); `0 issues.`; the last prints nothing (regenerating the spec changes nothing that is not already committed). If `TestProcessEnvironmentLetsOverridesWin` fails in `ptyhost`, it is the known pre-existing failure (`TERMINAL.md` §8) — rerun it alone and report. **Amendment 2026-09-27:** `go test ./...` already walks `./internal/observe/blockretention/...` and the widened `TestMigrationVersionLedger`, so no new backend gate command is needed for Task 7.6; the same is true of Step 2 above for Task 7.5's frontend tests (`npm run test` is repo-wide).
 
 - [ ] **Step 4: Shell integration suites (unchanged scripts; only if tmux is installed)**
 
@@ -3129,7 +3599,7 @@ Expected: `ℹ fail 0`, or `not run: tmux unavailable` in the report. No shell s
 ### Task 9: Real checks, docs, changelog
 
 **Files:**
-- Modify: `TERMINAL.md` — insert `### 4.53 …` after §4.50 (which ends before `## 5. Known gaps`, line 1987 on `611254eb3`; after the sibling plans land it is the line before `## 5.`)
+- Modify: `TERMINAL.md` — insert `### 4.53 …` after §4.50 (which ends before `## 5. Known gaps`, line 1987 on `611254eb3`; after the sibling plans land it is the line before `## 5.`); the amendment (2026-09-27) adds the switch and retention design to the same §4.53 body (see the "Now, the switch and retention" bullet below), so no second section number is needed
 - Modify: `packages/terminal/CHANGELOG.md:3-4` (two entries at the top of "Unreleased")
 - Modify: `docs/terminal/2026-09-19-terminal-reference-survey.md:3827` (§6.6 status), `:3886` (§6.8 status)
 
@@ -3371,6 +3841,15 @@ Insert before `## 5. Known gaps (not bugs, decisions pending)`:
   subcommand, two-dash git option, free a busy port. Captures pass narrow character
   classes and `safeFix` drops controls, newlines and no-op fixes, because anything on the
   pty can forge `cmd=` and output (no nonce yet, survey §6.1).
+- Now, the switch and retention (amendment, 2026-09-27): quick fixes have an on/off switch in
+  Settings → General, on by default (`frontend/src/renderer/lib/terminal-quick-fixes.ts`,
+  `localStorage` key `opr.terminal.quickFixesEnabled`), gating `quickFixRules` between
+  `DEFAULT_QUICK_FIX_RULES` and an empty array — the package needed no new prop, since an empty
+  rule list already disables every fix. A closed shell terminal's blocks (no row left in
+  `shell_terminals`) have their raw output cleared 7 days after the last command finished and the
+  whole row deleted 30 days after that (`backend/internal/observe/blockretention`, migration 0121);
+  a terminal that can still be re-attached to is never touched, checked in the SQL itself. The
+  janitor runs once at daemon start and every 6 hours, the same shape as `observe/reaper`.
 - Limits: history holds only commands run in Operator's standalone shell panes, 100 per
   terminal (`retainPerTerminal`); agent panes are not captured. Redaction matches shapes,
   not intent (`mysql -phunter2` is kept). A pane's own commands stay in its own ↑, secrets
@@ -3385,7 +3864,8 @@ Insert before `## 5. Known gaps (not bugs, decisions pending)`:
   `ts/editor/src/{history,line-editor-history,quick-fix,line-editor-quick-fix}.test.ts`,
   `ts/react/src/TerminalSurface.history.test.tsx`,
   `frontend/src/renderer/lib/command-history.test.ts`, `BlockTerminal.test.tsx` "BlockTerminal
-  shared history and quick fixes".
+  shared history and quick fixes", `GeneralSettingsSection.test.tsx` (switch reload case),
+  `observe/blockretention/retention_test.go` (Task 7.5/7.6).
 ```
 
 - [ ] **Step 5: CHANGELOG and survey status**
@@ -3434,7 +3914,8 @@ Expected: the §4.53 heading right before `## 5. Known gaps`; the two changelog 
 cd /Users/omaraly/development/AI/Operator-wave1-input-box && git log --oneline origin/development..HEAD && git diff --stat origin/development...HEAD | tail -1
 grep -rn "HistoryStore\|historyPrefix" packages/terminal/ts/*/src frontend/src | grep -v node_modules; echo "stale refs: $?"
 ```
-Expected: eight commits (Tasks 1–7 and 9); `stale refs: 1`.
+Expected: eight commits (Tasks 1–7 and 9); `stale refs: 1`. **Amendment 2026-09-27:** with Tasks
+7.5 and 7.6 built, ten commits (Tasks 1–7, 7.5, 7.6, 9).
 
 - [ ] **Step 2: Push**
 
@@ -3452,10 +3933,12 @@ Report: the branch; each task's commit; the Task 0 baselines and Task 8 numbers;
 
 1. **Ordering.** Chosen: the pane's own commands first, then everything else newest first (macOS Terminal and Warp). Alternative: one global timeline for every pane (zsh `SHARE_HISTORY`), which needs the shells to report command times (`start_ms`/`end_ms` in `shell/*.sh`) so replayed blocks stop looking new.
 2. **Also read `~/.zsh_history` / `~/.bash_history` / fish history?** Not built. It would add commands typed outside Operator; it is a privacy decision (the file holds everything ever typed, unredacted) and Operator's zsh panes may not write to it (Decision 1). A daemon-side reader behind a Settings toggle, redacted the same way, fits the same route.
-3. **A setting to turn quick fixes off.** Not built; on for every shell pane. Warp has one (`terminal.input.command_corrections`, `warp/app/src/settings/input.rs:88-96`).
-4. **The busy-port fix kills the listener.** `kill $(lsof -t -iTCP:<port> -sTCP:LISTEN)` goes into the box and needs Enter; a gentler variant shows only `lsof -nP -iTCP:<port> -sTCP:LISTEN`.
+3. **A setting to turn quick fixes off.** ~~Not built; on for every shell pane. Warp has one (`terminal.input.command_corrections`, `warp/app/src/settings/input.rs:88-96`).~~ **Decided 2026-09-27 by the user:** quick fixes get an on/off switch in Operator's Settings → Terminal, on by default. Built in Task 7.5.
+4. **The busy-port fix kills the listener.** `kill $(lsof -t -iTCP:<port> -sTCP:LISTEN)` goes into the box and needs Enter; a gentler variant shows only `lsof -nP -iTCP:<port> -sTCP:LISTEN`. Still open — unrelated to decisions 3 and 6 below.
 5. **Agent panes.** No "ask the agent to fix this" (survey §6.6 proposal) and no history for Claude Code panes.
-6. **Retention.** Closed terminals' blocks are never deleted (`DeleteTerminalBlocks` has no caller), up to 100 blocks × 8 MiB raw output each per terminal ever opened. The history depends on those rows; a global cap (for example keep blocks from the last N terminals or N days) would bound the database without losing much history.
+6. **Retention.** ~~Closed terminals' blocks are never deleted (`DeleteTerminalBlocks` has no caller), up to 100 blocks × 8 MiB raw output each per terminal ever opened. The history depends on those rows; a global cap (for example keep blocks from the last N terminals or N days) would bound the database without losing much history.~~ **Decided 2026-09-27 by the user:** retention for old terminal blocks is fixed in this plan. Built in Task 7.6.
+
+> **Deviation note (amendment, 2026-09-27):** the user's decision referred to these as "Open Questions entries 3 and 4." This section is titled "Open decisions for the user" and its own numbering has the quick-fix switch at item 3 (an exact match) and retention at item **6**, not item 4 — item 4 here is the unrelated busy-port-kill-variant question, left open. This amendment applies the user's two decisions to items 3 and 6 by content, not by the literal number 4, and leaves item 4 open as before.
 7. **The phone.** The route works over the LAN listener; a "recent commands" sheet in `packages/mobile` would need no daemon work.
 
 ## Risks
