@@ -1,4 +1,5 @@
-import 'dart:io';
+import 'dart:math';
+import 'dart:typed_data';
 
 import 'package:operator_mobile/core/helpers/logging/app_logger.dart';
 import 'package:operator_mobile/feature/terminal/data/model/recent_photo_model.dart';
@@ -8,6 +9,29 @@ import 'package:photo_manager/photo_manager.dart';
 enum PhotoAccess { granted, limited, denied }
 
 String recentPhotoAttachmentId(String assetId) => 'photo:$assetId';
+
+ThumbnailSize fittedPhotoSize(int width, int height, {int longEdge = RecentPhotosDataSourceImp.fullSide}) {
+  final longest = max(width, height);
+  if (width <= 0 || height <= 0) return ThumbnailSize.square(longEdge);
+  if (longest <= longEdge) return ThumbnailSize(width, height);
+  final scale = longEdge / longest;
+  return ThumbnailSize(max(1, (width * scale).round()), max(1, (height * scale).round()));
+}
+
+Future<List<RecentPhotoModel>> recentPhotoModels<T>(
+  List<T> assets, {
+  required String Function(T asset) id,
+  required Future<Uint8List?> Function(T asset) thumbnail,
+}) => Future.wait([for (final asset in assets) _recentPhotoModel(id(asset), () => thumbnail(asset))]);
+
+Future<RecentPhotoModel> _recentPhotoModel(String id, Future<Uint8List?> Function() thumbnail) async {
+  try {
+    return RecentPhotoModel(id: id, thumbnail: await thumbnail());
+  } catch (error, stackTrace) {
+    AppLogger.warning('Could not load a recent photo thumbnail', exception: error, stackTrace: stackTrace);
+    return RecentPhotoModel(id: id);
+  }
+}
 
 abstract class RecentPhotosDataSource {
   Future<PhotoAccess> requestAccess();
@@ -47,12 +71,11 @@ class RecentPhotosDataSourceImp implements RecentPhotosDataSource {
       final albums = await PhotoManager.getAssetPathList(type: RequestType.image, onlyAll: true);
       if (albums.isEmpty) return const [];
       final assets = await albums.first.getAssetListPaged(page: 0, size: count);
-      return Future.wait([
-        for (final asset in assets)
-          asset
-              .thumbnailDataWithSize(const ThumbnailSize.square(thumbnailSide), quality: quality)
-              .then((thumbnail) => RecentPhotoModel(id: asset.id, thumbnail: thumbnail)),
-      ]);
+      return recentPhotoModels(
+        assets,
+        id: (asset) => asset.id,
+        thumbnail: (asset) => asset.thumbnailDataWithSize(const ThumbnailSize.square(thumbnailSide), quality: quality),
+      );
     } catch (error, stackTrace) {
       AppLogger.warning('Could not list recent photos', exception: error, stackTrace: stackTrace);
       return const [];
@@ -64,16 +87,14 @@ class RecentPhotosDataSourceImp implements RecentPhotosDataSource {
     try {
       final asset = await AssetEntity.fromId(id);
       if (asset == null) return null;
-      const size = ThumbnailSize(fullSide, fullSide);
-      final option = Platform.isIOS
-          ? ThumbnailOption.ios(
-              size: size,
-              quality: quality,
-              deliveryMode: DeliveryMode.highQualityFormat,
-              resizeMode: ResizeMode.exact,
-            )
-          : const ThumbnailOption(size: size, quality: quality);
-      final bytes = await asset.thumbnailDataWithOption(option);
+      final bytes = await asset.thumbnailDataWithOption(
+        ThumbnailOption.ios(
+          size: fittedPhotoSize(asset.orientatedWidth, asset.orientatedHeight),
+          quality: quality,
+          deliveryMode: DeliveryMode.highQualityFormat,
+          resizeMode: ResizeMode.exact,
+        ),
+      );
       if (bytes == null) return null;
       return ComposerAttachment(
         id: recentPhotoAttachmentId(id),
