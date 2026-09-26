@@ -19,7 +19,10 @@ import 'package:operator_mobile/feature/dictation/voice_types.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/model_picker_sheet.dart';
 import 'package:operator_mobile/feature/terminal/logic/model_command.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/logic/terminal_cubit.dart';
+import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/ui/widgets/add_context_sheet.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/ui/widgets/composer_action_button.dart';
+import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/ui/widgets/composer_add_button.dart';
+import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/ui/widgets/composer_attachment_tray.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/ui/widgets/composer_model_chip.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/ui/widgets/slash_command_menu.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/ui/widgets/suggested_prompt_bubble.dart';
@@ -44,6 +47,7 @@ class _TerminalComposerState extends State<TerminalComposer> {
   static const double _trailingInset = _textInset;
   static const double _trailingZone = _buttonInset + ComposerActionButton.size + _trailingInset;
   static const double _cardTop = 14;
+  static const double _rowGap = 6;
   static const double _measureSlack = 4;
   static const double _lineSpacing = 1.3;
 
@@ -82,7 +86,9 @@ class _TerminalComposerState extends State<TerminalComposer> {
   }
 
   void _send(BuildContext context, TerminalCubit cubit) {
-    final command = cubit.args.shellOnly ? null : parseModelCommand(cubit.composer.text);
+    final command = cubit.args.shellOnly || cubit.attachments.isNotEmpty
+        ? null
+        : parseModelCommand(cubit.composer.text);
     if (command == null) {
       unawaited(cubit.send());
       return;
@@ -105,6 +111,13 @@ class _TerminalComposerState extends State<TerminalComposer> {
     Haptics.error();
     final refusal = commands.lastRefusal;
     if (refusal != null) context.showSnackBar(refusal);
+  }
+
+  Future<void> _openAddContext(BuildContext context) async {
+    setState(() => _pickerOpen = true);
+    await showAddContextSheet(context);
+    if (!mounted) return;
+    setState(() => _pickerOpen = false);
   }
 
   Future<void> _openModelPicker(BuildContext context, String? harness) async {
@@ -166,7 +179,9 @@ class _TerminalComposerState extends State<TerminalComposer> {
                 listenable: Listenable.merge([_focus, cubit.composer]),
                 builder: (context, _) => BlocBuilder<SessionCommandCubit, SessionCommandState>(
                   builder: (context, _) => BlocBuilder<VoiceInputCubit, VoiceInputState>(
-                    builder: (context, _) => _capsule(context, cubit, constraints.maxWidth),
+                    builder: (context, _) => cubit.args.shellOnly
+                        ? _shellCapsule(context, cubit, constraints.maxWidth)
+                        : _agentCard(context, cubit),
                   ),
                 ),
               ),
@@ -177,7 +192,7 @@ class _TerminalComposerState extends State<TerminalComposer> {
     );
   }
 
-  Widget _capsule(BuildContext context, TerminalCubit cubit, double width) {
+  Widget _shellCapsule(BuildContext context, TerminalCubit cubit, double width) {
     final skin = context.skin;
     final shellOnly = cubit.args.shellOnly;
     final keyboardUp = MediaQuery.viewInsetsOf(context).bottom > 0;
@@ -289,6 +304,106 @@ class _TerminalComposerState extends State<TerminalComposer> {
         radius: radius,
         child: child!,
       ),
+      child: Material(
+        type: MaterialType.transparency,
+        child: reduceMotion
+            ? body
+            : AnimatedSize(
+                duration: duration,
+                curve: AppMotion.easeOut,
+                alignment: Alignment.bottomCenter,
+                child: body,
+              ),
+      ),
+    );
+  }
+
+  Widget _agentCard(BuildContext context, TerminalCubit cubit) {
+    final skin = context.skin;
+    final keyboardUp = MediaQuery.viewInsetsOf(context).bottom > 0;
+    final reduceMotion = MediaQuery.disableAnimationsOf(context);
+    final duration = reduceMotion ? Duration.zero : AppMotion.composerMorph;
+    final style = AppTextStyle.style17Regular.copyWith(color: skin.textPrimary, height: _lineSpacing);
+    final commands = context.read<SessionCommandCubit>();
+    final trailing = composerTrailingFor(hasContent: cubit.hasContent, canStop: commands.enabled('stop'));
+    final editable = !cubit.sending;
+
+    final body = Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (cubit.attachments.isNotEmpty || cubit.attachmentNotice != null)
+          ComposerAttachmentTray(
+            attachments: cubit.attachments,
+            notice: cubit.attachmentNotice,
+            onRemove: editable ? cubit.removeAttachment : null,
+            onDismissNotice: cubit.dismissAttachmentNotice,
+          ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(_textInset, _cardTop, _textInset, 0),
+          child: Stack(
+            children: [
+              TextField(
+                controller: cubit.composer,
+                focusNode: _focus,
+                minLines: 1,
+                maxLines: TerminalComposer.maxLines,
+                keyboardType: TextInputType.multiline,
+                style: style,
+                cursorColor: skin.accent,
+                decoration: InputDecoration.collapsed(
+                  hintText: 'Message the agent...',
+                  hintStyle: style.copyWith(color: skin.textTertiary),
+                  hintMaxLines: 1,
+                ),
+              ),
+              const TerminalComposerDraftHint(),
+            ],
+          ),
+        ),
+        const SizedBox(height: _rowGap),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(_buttonInset, 0, _buttonInset, _buttonInset),
+          child: Row(
+            children: [
+              ComposerAddButton(onTap: editable ? () => unawaited(_openAddContext(context)) : null),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: ComposerModelChip(
+                    harness: cubit.args.harness,
+                    onTap: () => unawaited(_openModelPicker(context, cubit.args.harness)),
+                  ),
+                ),
+              ),
+              if (keyboardUp)
+                IconButton(
+                  style: IconButton.styleFrom(tapTargetSize: MaterialTapTargetSize.shrinkWrap),
+                  tooltip: 'Hide keyboard',
+                  onPressed: () => SystemChannels.textInput.invokeMethod<void>('TextInput.hide'),
+                  constraints: const BoxConstraints.tightFor(width: 36, height: 36),
+                  padding: EdgeInsets.zero,
+                  icon: Icon(Icons.keyboard_arrow_down_rounded, size: 22, color: skin.textTertiary),
+                ),
+              const MicKey(quiet: true, size: ComposerActionButton.size),
+              ComposerSendSlot(
+                trailing: trailing,
+                staging: cubit.staging,
+                onSend: cubit.sending ? null : () => _send(context, cubit),
+                onStop: commands.phases['stop'] == CommandPhase.sending ? null : () => unawaited(_stop(commands)),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+
+    return GlassSurface(
+      key: TerminalComposer.capsuleKey,
+      kind: GlassShapeKind.roundedRect,
+      size: TerminalComposer.restHeight,
+      radius: TerminalComposer.cardRadius,
       child: Material(
         type: MaterialType.transparency,
         child: reduceMotion

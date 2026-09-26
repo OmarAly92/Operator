@@ -167,3 +167,82 @@ class _RoundAction extends StatelessWidget {
     ),
   );
 }
+
+enum ComposerTrailing { none, send, stop }
+
+ComposerTrailing composerTrailingFor({required bool hasContent, required bool canStop}) {
+  if (hasContent) return ComposerTrailing.send;
+  return canStop ? ComposerTrailing.stop : ComposerTrailing.none;
+}
+
+class ComposerSendSlot extends StatelessWidget {
+  const ComposerSendSlot({super.key, required this.trailing, required this.staging, this.onSend, this.onStop});
+
+  static const Key stagingKey = ValueKey('composer-staging');
+
+  final ComposerTrailing trailing;
+  final bool staging;
+  final VoidCallback? onSend;
+  final VoidCallback? onStop;
+
+  @override
+  Widget build(BuildContext context) {
+    final skin = context.skin;
+    final reduceMotion = MediaQuery.disableAnimationsOf(context);
+    return AnimatedSwitcher(
+      duration: reduceMotion ? Duration.zero : AppMotion.chatActionSwap,
+      switchInCurve: AppMotion.easeOut,
+      switchOutCurve: AppMotion.easeOut,
+      transitionBuilder: _swapTransition,
+      child: switch (trailing) {
+        ComposerTrailing.send when staging => const Padding(
+          key: stagingKey,
+          padding: EdgeInsets.only(left: ComposerStopButton.gap),
+          child: _StagingIndicator(),
+        ),
+        ComposerTrailing.send => Padding(
+          key: const ValueKey(ComposerTrailing.send),
+          padding: const EdgeInsets.only(left: ComposerStopButton.gap),
+          child: _RoundAction(
+            label: 'Send',
+            icon: Icons.arrow_upward_rounded,
+            color: skin.accent,
+            ink: skin.onAccent,
+            onTap: onSend,
+          ),
+        ),
+        ComposerTrailing.stop => Padding(
+          key: const ValueKey(ComposerTrailing.stop),
+          padding: const EdgeInsets.only(left: ComposerStopButton.gap),
+          child: _RoundAction(
+            label: 'Stop',
+            icon: Icons.stop_rounded,
+            color: skin.red,
+            ink: skin.onAccent,
+            onTap: onStop,
+          ),
+        ),
+        ComposerTrailing.none => const SizedBox.shrink(key: ValueKey(ComposerTrailing.none)),
+      },
+    );
+  }
+}
+
+class _StagingIndicator extends StatelessWidget {
+  const _StagingIndicator();
+
+  @override
+  Widget build(BuildContext context) {
+    final skin = context.skin;
+    return Semantics(
+      label: 'Uploading attachments',
+      child: Container(
+        width: ComposerActionButton.size,
+        height: ComposerActionButton.size,
+        padding: const EdgeInsets.all(9),
+        decoration: BoxDecoration(color: skin.accent.withValues(alpha: 0.5), shape: BoxShape.circle),
+        child: CircularProgressIndicator(strokeWidth: 2, color: skin.onAccent),
+      ),
+    );
+  }
+}

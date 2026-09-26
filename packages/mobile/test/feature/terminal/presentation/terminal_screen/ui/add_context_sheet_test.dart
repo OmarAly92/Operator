@@ -107,6 +107,18 @@ void main() {
     expect(find.text('Add context'), findsNothing);
   });
 
+  testWidgets('an unexpected picker error explains itself in the composer and closes', (tester) async {
+    picker.error = StateError('file vanished');
+    await open(tester);
+
+    await tester.tap(find.byKey(AddContextBody.filesKey));
+    await tester.pumpAndSettle();
+
+    expect(harness.cubit.attachmentNotice, kAttachFailed);
+    expect(harness.cubit.attachments, isEmpty);
+    expect(find.text('Add context'), findsNothing);
+  });
+
   testWidgets('a full tray says so instead of opening a picker', (tester) async {
     harness.cubit.addAttachments([for (var i = 0; i < AttachmentLimits.maxCount; i++) png('f$i')]);
     picker.next = [png('extra')];

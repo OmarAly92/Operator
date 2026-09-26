@@ -17,7 +17,8 @@ import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/wid
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/floating_working_control.dart';
 import 'package:operator_mobile/feature/terminal/data/model/params/send_session_message_params.dart';
 import 'package:operator_mobile/core/widgets/chat/chat_insets.dart';
-import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/ui/widgets/composer_action_button.dart';
+import 'package:operator_mobile/feature/dictation/ui/mic_key.dart';
+import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/ui/widgets/composer_add_button.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/ui/widgets/raw_terminal_pane.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/ui/widgets/terminal_body.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/ui/widgets/terminal_chat_header.dart';
@@ -227,16 +228,19 @@ void main() {
     await tester.pump(const Duration(minutes: 1));
   });
 
-  testWidgets('the mic sits as far in from the capsule end as the text field does from the start', (tester) async {
+  testWidgets('the + and the mic sit in the card corners, the field keeps its inset', (tester) async {
     harness = TerminalHarness()..start(harness: 'claude-code', blockRecords: _conversation(1));
     await harness.pump(tester, const TerminalBody());
     await tester.pumpAndSettle();
 
     final dock = capsule(tester);
     final field = tester.getRect(find.descendant(of: find.byKey(TerminalComposer.capsuleKey), matching: find.byType(TextField)));
-    final action = tester.getRect(find.byType(ComposerActionButton));
-    expect((field.left - dock.left) - (dock.right - action.right), moreOrLessEquals(0, epsilon: 0.5));
-    expect(dock.bottom - action.bottom, 6);
+    final plus = tester.getRect(find.byType(ComposerAddButton));
+    final mic = tester.getRect(find.byType(MicKey));
+    expect(field.left - dock.left, 18);
+    expect(plus.left - dock.left, 6);
+    expect(dock.right - mic.right, 6);
+    expect(dock.bottom - mic.bottom, 6);
   });
 
   testWidgets('the key row shows in the raw terminal and gives way to the composer in chat', (tester) async {

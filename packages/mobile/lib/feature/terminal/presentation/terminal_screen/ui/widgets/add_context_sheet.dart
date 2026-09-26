@@ -13,6 +13,8 @@ import 'package:operator_mobile/feature/terminal/logic/attachment_limits.dart';
 import 'package:operator_mobile/feature/terminal/logic/composer_attachment.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/logic/terminal_cubit.dart';
 
+const String kAttachFailed = 'Could not attach that. Try again.';
+
 typedef AttachmentPick = Future<List<ComposerAttachment>> Function(AttachmentPicker picker, int room);
 
 Future<void> showAddContextSheet(BuildContext context) {
@@ -89,6 +91,8 @@ Future<void> _pick(BuildContext context, AttachmentPick pick) async {
     terminal.addAttachments(picked);
   } on AttachmentPickFailure catch (failure) {
     terminal.showAttachmentNotice(failure.message);
+  } catch (_) {
+    terminal.showAttachmentNotice(kAttachFailed);
   }
   sheet.close();
 }
