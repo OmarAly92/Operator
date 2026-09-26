@@ -192,7 +192,7 @@ Every row is at least one scene id. `§` refers to `apple-inventory.md`. Steps a
 | `swipe.row` | `swipeActions` on a list row (§5.14) | none | drag the row left 180 pt, hold 0.4 s, release |
 | `progress` | `ProgressView` linear and circular, thumbless slider (§5.13) | white | rest |
 
-**Accessibility variants** (§7.1–7.3). The harness can run any scene under Reduce Transparency, Increase Contrast or Reduce Motion. The baseline runs those three on `material.regular`, `tabbar.rest`, `tabbar.drag`, `menu.bar` and `sheet.detents`. Whether each setting can be switched from the command line on the iOS 27 simulator is verified first (see Risks). A setting that cannot be scripted is marked `manual` in the report, never faked.
+**Accessibility variants** (§7.1–7.3). The harness can run any scene under Reduce Transparency, Increase Contrast or Reduce Motion. The baseline runs those three on `material.regular`, `tabbar.rest`, `tabbar.drag`, `menu.bar` and `sheet.detents`. All three can be switched from the command line on the iOS 27 simulator (see Risks).
 
 **Apple app references** (native only, no Flutter counterpart). The same driver plays steps on Apple's own apps for behaviours that are best seen in real apps. The manifest marks these with `"app": "<bundle id>"`:
 
@@ -331,7 +331,7 @@ Static math uses the full 3× lossless screenshots. Motion math uses video frame
 
 `report.html` is self-contained apart from image files in the run directory. It has:
 
-- **Summary:** counts of scenes passing, failing, missing in Flutter, native-only, and manual accessibility variants.
+- **Summary:** counts of cases passing, failing, missing in Flutter, native-only references, and harness errors.
 - **Coverage table:** one row per scene. Columns are the Flutter status (implemented or missing), worst measure, pass or fail, and a link.
 - **Per-scene page**, for each appearance and backdrop:
   - settled frames side by side: native, Flutter, and a difference map ×4;
