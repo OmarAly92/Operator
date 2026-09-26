@@ -87,8 +87,9 @@ impl Parser {
         if pulled.is_empty() {
             return;
         }
-        if self.content.end_offset() < before {
-            self.content.note_reuse();
+        let cut = self.content.end_offset();
+        if cut < before {
+            self.content.note_reuse(cut);
         }
         pulled.reverse();
         self.screen.push_rows_on_top(pulled);

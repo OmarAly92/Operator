@@ -579,3 +579,22 @@ fn a_prompt_resize_keeps_a_finished_find_session_without_rescanning() {
         assert_eq!(hits, count(&core, "needle"), "{cols}x{rows}");
     }
 }
+
+#[test]
+fn a_taller_prompt_resize_keeps_the_find_hits_below_the_pulled_rows() {
+    let mut core = core(80, 24);
+    run(&mut core, "seq", &"needle\r\nhay\r\n".repeat(450));
+    prompt(&mut core, "$ ");
+    let mut session = FindSession::new(FindQuery::literal("needle"));
+    assert!(core.find_update(&mut session, usize::MAX).complete);
+    let (full, history) = (session.history_bytes_scanned(), core.history_rows());
+    core.resize(80, 30);
+    let update = core.find_update(&mut session, 256);
+    assert!(core.history_rows() < history && update.complete && update.removed < 20);
+    assert!(session.history_bytes_scanned() - full < 256);
+    let (hits, rows) = (core.find_results(&session), texts(&core));
+    assert_eq!(hits.len(), count(&core, "needle"));
+    for hit in hits {
+        assert!(rows[core.flat_row(hit.row).unwrap()].contains("needle"));
+    }
+}

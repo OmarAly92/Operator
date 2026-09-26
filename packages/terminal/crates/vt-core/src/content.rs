@@ -13,6 +13,7 @@ pub(crate) struct Content {
     chunks: VecDeque<Chunk>,
     next_offset: u64,
     truncations: u64,
+    cuts: Vec<(u64, u64)>,
 }
 
 impl Clone for Content {
@@ -21,6 +22,7 @@ impl Clone for Content {
             chunks: self.chunks.clone(),
             next_offset: self.next_offset,
             truncations: self.truncations,
+            cuts: self.cuts.clone(),
         }
     }
 }
@@ -32,6 +34,7 @@ impl Content {
             chunks: VecDeque::new(),
             next_offset: 0,
             truncations: 0,
+            cuts: Vec::new(),
         }
     }
 
@@ -40,6 +43,7 @@ impl Content {
             chunks: VecDeque::new(),
             next_offset: base,
             truncations: 0,
+            cuts: Vec::new(),
         }
     }
 
@@ -145,8 +149,17 @@ impl Content {
         self.next_offset = offset;
     }
 
-    pub fn note_reuse(&mut self) {
+    pub fn note_reuse(&mut self, cut: u64) {
         self.truncations += 1;
+        while self.cuts.last().is_some_and(|&(_, lower)| lower >= cut) {
+            self.cuts.pop();
+        }
+        self.cuts.push((self.truncations, cut));
+    }
+
+    pub fn lowest_cut_since(&self, seen: u64) -> Option<u64> {
+        let first = self.cuts.partition_point(|&(count, _)| count <= seen);
+        self.cuts.get(first).map(|&(_, cut)| cut)
     }
 
     pub fn truncations(&self) -> u64 {
@@ -269,6 +282,20 @@ mod tests {
         assert_eq!(c.resident_bytes(), 0);
         assert_eq!(c.start_offset(), start);
         assert_eq!(c.end_offset(), start);
+    }
+
+    #[test]
+    fn the_lowest_cut_since_a_count_covers_every_later_reuse_only() {
+        let mut c = Content::with_base(1024);
+        assert_eq!(c.lowest_cut_since(0), None);
+        c.note_reuse(2000);
+        c.note_reuse(1500);
+        c.note_reuse(1800);
+        assert_eq!(c.truncations(), 3);
+        assert_eq!(c.lowest_cut_since(0), Some(1500));
+        assert_eq!(c.lowest_cut_since(1), Some(1500));
+        assert_eq!(c.lowest_cut_since(2), Some(1800));
+        assert_eq!(c.lowest_cut_since(3), None);
     }
 
     #[test]

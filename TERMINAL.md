@@ -898,10 +898,12 @@ history of `master`.
   (1 MiB) steps, then only from `scanned_to`. Hits are content byte ranges:
   a trim drops those below the first row, a rewrap only changes the rows
   they resolve to in `find_results`, a history prepend (attach replay)
-  restarts the scan. The unsettled tail (a soft-wrapped last history row)
-  plus the live screen is re-searched when `generation()` changed, so a
-  match across the scrollback/screen boundary is one hit. A soft-wrapped
-  line is one line to the search; a hard break is a `\n` the query cannot
+  restarts the scan, a prompt resize that rewrites pulled-back rows drops
+  only the hits from the cut's line on and rescans from there (§4.36). The
+  unsettled tail (a soft-wrapped last history row) plus the live screen is
+  re-searched when `generation()` changed, so a match across the
+  scrollback/screen boundary is one hit. A soft-wrapped line is one line to
+  the search; a hard break is a `\n` the query cannot
   cross (a match that would cross is searched again inside its own line).
   Literal queries use `memchr` when case-sensitive and an escaped regex
   (`regex-syntax`'s meta-character set) when not. The bar calls
@@ -1427,9 +1429,9 @@ history of `master`.
   moves the newest scrollback rows back onto the top of the screen so the
   prompt keeps its distance from the bottom (Alacritty `grow_lines`/`shrink_lines`,
   Ghostty `pull_scrollback`; behaviour only), but only rows that commit back to
-  the same bytes and style runs (`Parser::row_cells`, `parser/resize.rs:104`,
+  the same bytes and style runs (`Parser::row_cells`, `parser/resize.rs:105`,
   commits them into a scratch buffer and compares; `Content::truncate_to`
-  `content.rs:133`, `AttributeMap::truncate_to` `attribute_map.rs:72`,
+  `content.rs:137`, `AttributeMap::truncate_to` `attribute_map.rs:72`,
   `RowIndex::pop_completed` `row_index.rs:434`). Flat and stable row numbers
   never change, so blocks, the scroll anchor and the older-output floor are
   untouched.
@@ -1440,20 +1442,31 @@ history of `master`.
   `AttributeMap::prepend_runs` raises `run_start` past the runs it prepends
   (`crates/vt-core/src/attribute_map.rs:31-33`) — without it an older-output
   chunk loaded after a full pull-back lost the style of its last run at the
-  next style change; and `Content` counts reuses (`Content::note_reuse`
-  `content.rs:148`, `truncations()` `content.rs:152`), and
-  `FindSession::update` resets and rescans history when that count changes,
-  not only when the settled end moves back (`crates/vt-core/src/find.rs:185-193`)
-  — without it pulled rows rewritten before the next find update left hits
-  pointing at the new text. Only a pull-back that cuts below the content end
-  from before the resize counts (`parser/resize.rs:48`, `:90-92`): every resize
+  next style change; and `Content` counts reuses and keeps, for each count,
+  the lowest cut made since it (`Content::note_reuse` `content.rs:152` keeps
+  `(count, cut)` pairs with rising cuts, dropping any older pair a new lower
+  cut covers; `lowest_cut_since` `content.rs:160`, `truncations()`
+  `content.rs:165`). When the count moved since its last update,
+  `FindSession::update` drops only the history hits that end after the start
+  of the line holding that cut, and rescans from there
+  (`crates/vt-core/src/find.rs:185-192`, `line_start` `find.rs:335`; the
+  line start, not the cut, because a pulled row can be the continuation of a
+  soft-wrapped line and a match must not start mid-line) — without it pulled
+  rows rewritten before the next find update left hits pointing at the new
+  text. Review fix 75baad0 dropped and rescanned all history instead, so
+  dragging the window taller with the find bar open reset a long history on
+  every step and it never finished scanning. Only a pull-back that cuts below
+  the content end from before the resize counts (`parser/resize.rs:48`,
+  `:90-93`): every resize
   at a prompt evicts the rows above it and usually pulls those same
   just-appended bytes back, and counting that reset an open find session on
   every width change (dragging the window with the find bar open made the hit
   count flicker and a long history never finished scanning). A find session
   only ever scanned bytes that existed before the resize, so a cut at or above
   that end reuses nothing it saw. Growing the window pulls pre-existing
-  scrollback rows back, so it still resets and rescans. Whether any other
+  scrollback rows back, so it counts; the session keeps every hit above the
+  pulled rows and scans nothing new (the pulled rows are screen rows now,
+  searched with the screen). Whether any other
   reader keys state by content offset across a pull-back is not known.
 - Unchanged: a command running, the alternate screen, no shell integration
   (every Claude Code pane), agent-TUI mode, and the pty-host mirror (reflow off,
@@ -1469,16 +1482,19 @@ history of `master`.
   — whether a Git Bash pane there looks better or worse is not known. The
   pre-existing blank before a wide character that the printer wrapped still
   commits as a space (`abcd中` printed at 5 columns rewraps as `abcd 中`).
-- Guards: `crates/vt-core/tests/prompt_resize.rs` (23 tests, built from the
+- Guards: `crates/vt-core/tests/prompt_resize.rs` (24 tests, built from the
   shells' captured bytes, including
   `an_older_output_chunk_keeps_its_styles_after_a_prompt_resize_pulled_every_row_back`,
-  `find_hits_stay_on_their_text_when_pulled_rows_are_rewritten_before_the_next_update`
-  and `a_prompt_resize_keeps_a_finished_find_session_without_rescanning`),
+  `find_hits_stay_on_their_text_when_pulled_rows_are_rewritten_before_the_next_update`,
+  `a_prompt_resize_keeps_a_finished_find_session_without_rescanning` and
+  `a_taller_prompt_resize_keeps_the_find_hits_below_the_pulled_rows`),
   `tests/prompt_resize_integrity.rs` (32 seeds × 300 steps, `verify_integrity`
   and cell spans after every step, ≥ 200 resizes at a prompt),
   `tests/resize_goldens.rs`, `content.rs`/`attribute_map.rs`/`row_index` unit
   tests (among them
-  `runs_prepended_after_a_full_truncation_survive_a_style_change_at_the_seam`),
+  `runs_prepended_after_a_full_truncation_survive_a_style_change_at_the_seam`
+  and `the_lowest_cut_since_a_count_covers_every_later_reuse_only`), the
+  `find.rs` unit test `a_cut_inside_a_soft_wrapped_line_rescans_from_the_line_start`,
   `block_grid` `open_block_ref_is_the_open_block_and_nothing_after_it_closes`,
   `shell/{zsh,bash,fish}.test.mjs` "after a width change …". Those shell tests
   pass on macOS (planning: zsh 5.9, bash 3.2 and 5.3, fish 4.8.1, tmux 3.6b)
