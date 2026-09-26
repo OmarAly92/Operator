@@ -125,6 +125,13 @@ describe("renderAltSurface", () => {
 		expect(cursor.style.transform).not.toContain("var(");
 	});
 
+	it("translates the cursor from the surface's top-left corner, not from after the last row", () => {
+		const host = mountAlt(5, 10, ["abc", "", "", "", ""], { cursorRow: 0, cursorColumn: 2 });
+		const cursor = host.querySelector("[data-terminal-cursor]") as HTMLElement;
+		expect(cursor.style.top).toBe("0px");
+		expect(cursor.style.left).toBe("0px");
+	});
+
 	it("sizes the cursor to one cell", () => {
 		const host = mountAlt(3, 10, ["abc", "", ""], { cursorRow: 0, cursorColumn: 0 });
 		const cursor = host.querySelector("[data-terminal-cursor]") as HTMLElement;
