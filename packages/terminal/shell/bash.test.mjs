@@ -6,6 +6,7 @@ import { join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 import { haveTmux, parseOscRecords, runInPty, runInPtySegments, splitEveryByte } from "./pty.mjs";
+import { abortedPromptsSession, commandOutputs, coreSkip } from "./core.mjs";
 
 const bootstrap = fileURLToPath(new URL("./bash.sh", import.meta.url));
 const ptySkip = haveTmux() ? false : "tmux is required";
@@ -275,4 +276,16 @@ test("after a width change redraws only the last prompt line and never moves abo
 	assert.doesNotMatch(afterResize, /\x1bM|\x1b\[\d*A/, JSON.stringify(afterResize));
 	assert.doesNotMatch(afterResize, /first-line/);
 	assert.match(afterResize, /second \$ /);
+});
+
+test("each command block holds only its output: no echoed command line and no partial-line mark", { skip: ptySkip || coreSkip }, async () => {
+	const { blocks } = await abortedPromptsSession("bash");
+	assert.deepEqual(commandOutputs(blocks), [["printf x", "x"], ["echo one", "one"], ["echo two", "two"]]);
+});
+
+test("Ctrl-C and an empty Enter at the prompt add no block, and every block keeps the cwd", { skip: ptySkip || coreSkip }, async () => {
+	const { blocks } = await abortedPromptsSession("bash");
+	assert.deepEqual(blocks.map((block) => block.command), ["printf x", "echo one", "echo two", ""]);
+	assert.notEqual(blocks[0].cwd, "");
+	assert.deepEqual(blocks.map((block) => block.cwd), blocks.map(() => blocks[0].cwd));
 });

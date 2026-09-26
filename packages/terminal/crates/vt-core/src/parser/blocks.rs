@@ -15,7 +15,11 @@ impl Parser {
     pub(crate) fn open_block(&mut self, source: BlockSource) {
         self.commit_evicted();
         let first_row = self.block_start_row();
-        if self.screen.cursor().1 == 0 && self.grid.repaint_open_prompt(first_row) {
+        if self.screen.cursor().1 == 0
+            && self
+                .grid
+                .repaint_open_prompt(first_row, self.nothing_drawn_below_open_prompt(first_row))
+        {
             return;
         }
         self.materialize_uncovered_rows(first_row, BlockState::Abandoned, None);
@@ -77,6 +81,27 @@ impl Parser {
         });
     }
 
+    pub(crate) fn note_command_start(&mut self) {
+        self.commit_evicted();
+        let row = self.block_start_row();
+        self.command_start_mark = self.grid.open_block_ref().and_then(|block| {
+            row.checked_sub(self.grid.flat_extent(block).0)
+                .map(|offset| (block.id, offset))
+        });
+    }
+
+    fn nothing_drawn_below_open_prompt(&self, first_row: usize) -> bool {
+        let Some(block) = self.grid.open_block_ref() else {
+            return false;
+        };
+        let start = self.grid.flat_extent(block).0;
+        let drawn_end = match self.command_start_mark {
+            Some((id, offset)) if id == block.id => start + offset + 1,
+            _ => start,
+        };
+        first_row <= drawn_end || !self.rows_have_content(drawn_end, first_row)
+    }
+
     pub(crate) fn open_prompt(&self) -> Option<(usize, usize, &crate::block::BlockMeta)> {
         let block = self.grid.open_block_ref()?;
         let first = self.grid.flat_extent(block).0;
@@ -88,11 +113,19 @@ impl Parser {
     }
 
     pub(crate) fn start_output(&mut self) {
+        self.printed_since_output_start = false;
         self.commit_evicted();
         self.grid.start_output(self.block_start_row());
     }
 
     pub(crate) fn close_block(&mut self, exit_code: Option<i32>) {
+        if self.alt.is_none()
+            && self.grid.has_open_block()
+            && std::mem::take(&mut self.printed_since_output_start)
+            && (self.screen.cursor().1 > 0 || self.screen.pending_wrap())
+        {
+            self.screen.next_line();
+        }
         self.commit_evicted();
         let point = self.alt.is_none().then(|| {
             let (row, col) = self.screen.cursor();

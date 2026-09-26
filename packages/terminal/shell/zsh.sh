@@ -88,18 +88,48 @@ __operator_terminal_guard() {
 		print -nr -- $'\e]7000;v=1;input-released=1\a'
 		print -nr -- $'\e]133;C\a'
 		__operator_terminal_COMMAND_RUNNING=1
+		__operator_terminal_arm_end_mark
+	}
+
+	__operator_terminal_arm_end_mark() {
+		emulate -L zsh
+		if (( ${+PROMPT_EOL_MARK} )); then
+			typeset -g __operator_terminal_USER_EOL_MARK=$PROMPT_EOL_MARK
+		else
+			unset __operator_terminal_USER_EOL_MARK
+		fi
+		typeset -g __operator_terminal_END_MARK=$'%{\e]7000;v=1;id='${__operator_terminal_CURRENT_ID}$';exit=%?\e\\\e]133;D;%?\a%}'"${PROMPT_EOL_MARK-%B%S%#%s%b}"
+		typeset -g PROMPT_EOL_MARK=$__operator_terminal_END_MARK
+	}
+
+	__operator_terminal_disarm_end_mark() {
+		emulate -L zsh
+		local armed=0
+		[[ ${+PROMPT_EOL_MARK} == 1 && $PROMPT_EOL_MARK == "${__operator_terminal_END_MARK-}" ]] && armed=1
+		if (( armed )); then
+			if (( ${+__operator_terminal_USER_EOL_MARK} )); then
+				typeset -g PROMPT_EOL_MARK=$__operator_terminal_USER_EOL_MARK
+			else
+				unset PROMPT_EOL_MARK
+			fi
+		fi
+		unset __operator_terminal_END_MARK __operator_terminal_USER_EOL_MARK
+		(( armed && $1 ))
 	}
 
 	__operator_terminal_precmd() {
-		local __operator_terminal_status=$?
+		local __operator_terminal_status=$? __operator_terminal_sp=0
+		[[ -o interactive && -o prompt_sp && -o prompt_cr ]] && __operator_terminal_sp=1
 		emulate -L zsh
 		if [[ ${OPERATOR_TERMINAL_SUPPRESS_PROMPT:-0} == 1 ]]; then
 			PROMPT=''
 			RPROMPT=''
 		fi
 		if [[ ${__operator_terminal_COMMAND_RUNNING:-0} == 1 ]]; then
-			print -nr -- $'\e]7000;v=1;id='${__operator_terminal_CURRENT_ID}$';exit='${__operator_terminal_status}$'\e\\'
-			print -nr -- $'\e]133;D;'${__operator_terminal_status}$'\a'
+			if ! __operator_terminal_disarm_end_mark $__operator_terminal_sp; then
+				print -nr -- $'\e]7000;v=1;id='${__operator_terminal_CURRENT_ID}$';exit='${__operator_terminal_status}$'\e\\'
+				print -nr -- $'\e]133;D;'${__operator_terminal_status}$'\a'
+			fi
 			unset __operator_terminal_COMMAND_RUNNING
 			__operator_terminal_TYPEAHEAD_ARMED=1
 		fi

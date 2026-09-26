@@ -32,6 +32,7 @@ pub struct BlockGrid {
     trailing_started_at_ms: Option<u64>,
     open_start_fixed: bool,
     open_output_started: bool,
+    open_output_row: Option<usize>,
     command_end: Option<(BlockId, usize, usize, bool)>,
 }
 
@@ -50,6 +51,7 @@ impl BlockGrid {
             trailing_started_at_ms: None,
             open_start_fixed: false,
             open_output_started: false,
+            open_output_row: None,
             command_end: None,
         }
     }
@@ -146,6 +148,7 @@ impl BlockGrid {
         };
         self.pending_extension = false;
         self.open_output_started = false;
+        self.open_output_row = None;
         let mut meta = std::mem::take(&mut self.pending_meta);
         self.open_start_fixed = meta.started_at_ms.is_some();
         meta.started_at_ms.get_or_insert(self.clock_ms);
@@ -199,7 +202,7 @@ impl BlockGrid {
         self.closed.push(block);
     }
 
-    pub(crate) fn repaint_open_prompt(&mut self, first_row: usize) -> bool {
+    pub(crate) fn repaint_open_prompt(&mut self, first_row: usize, may_move_down: bool) -> bool {
         let row = self.origin + first_row;
         let Some(open) = self.open.as_mut() else {
             return false;
@@ -207,7 +210,7 @@ impl BlockGrid {
         if self.open_output_started
             || !open.meta.command.is_empty()
             || open.meta.exit_code.is_some()
-            || row > open.first_row
+            || (row > open.first_row && !may_move_down)
         {
             return false;
         }
@@ -219,6 +222,7 @@ impl BlockGrid {
     pub(crate) fn start_output(&mut self, first_row: usize) {
         if let Some(block) = self.open.as_mut() {
             self.open_output_started = true;
+            self.open_output_row = Some(self.origin + first_row);
             if !block.meta.command.is_empty() {
                 block.first_row = self.origin + first_row;
             }
@@ -322,6 +326,9 @@ impl BlockGrid {
         let recognised = match key {
             "cmd" => {
                 meta.command = value.to_string();
+                if let Some(row) = self.open_output_row.filter(|_| !value.is_empty()) {
+                    block.first_row = block.first_row.max(row);
+                }
                 true
             }
             "cwd" => {
@@ -397,6 +404,7 @@ impl BlockGrid {
         if let Some(block) = self.open.as_mut() {
             block.first_row = block.first_row.min(limit);
         }
+        self.open_output_row = self.open_output_row.map(|row| row.min(limit));
         let needs_clamp = self
             .closed
             .iter()
@@ -445,6 +453,7 @@ impl BlockGrid {
         if let Some(block) = self.open.as_mut() {
             block.first_row = remap(block.first_row);
         }
+        self.open_output_row = self.open_output_row.map(remap);
         self.next_row = remap(self.next_row);
         self.command_end = self.command_end.and_then(|(id, stable, col, starts_line)| {
             let row = stable.checked_sub(origin)?;

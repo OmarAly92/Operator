@@ -434,3 +434,83 @@ func TestAssemblerKeepsAFishPromptsIdentityAcrossAResizeRepaint(t *testing.T) {
 		t.Fatalf("block = id %q cwd %q branch %q cmd %q; a prompt repaint must keep the prompt's identity", b.SourceID, b.Cwd, b.GitBranch, b.Command)
 	}
 }
+
+func reassembled(t *testing.T, raw []byte) domain.Block {
+	t.Helper()
+	a, dec := newAssembler(false)
+	blocks := assembleChunks(a, dec, string(raw))
+	if len(blocks) != 1 {
+		t.Fatalf("the durable bytes %q assemble into %d blocks, want 1", raw, len(blocks))
+	}
+	return blocks[0]
+}
+
+func TestAssemblerKeepsThePromptIdentityInTheDurableBytesAcrossARepeatedPrompt(t *testing.T) {
+	fishPrompt := "\x1b]7000;v=1;id=t-2;cwd=%2Fw%20x;branch=main\x1b\\\x1b]7000;v=1;input-ready=1\x07\x1b]133;A;click_events=1\x1b\\\x1b]133;B\x1b\\\x1b[K"
+	fishRepaint := "\r\r\x1b]133;A;click_events=1\x1b\\\x1b]133;B\x1b\\\x1b[J\x1b]133;A;click_events=1\x1b\\"
+	fishEmptyEnter := "\r\n\x1b[2m⏎\x1b[m\r⏎ \r\x1b[K\x1b]7000;v=1;input-ready=1\x07\x1b]133;A;click_events=1\x1b\\\x1b]133;B\x1b\\\x1b[K"
+	fishCommand := "echo hi\r\n\x1b]133;C;cmdline_url=echo%20hi\x1b\\\x1b]7000;v=1;id=t-2;cmd=echo%20hi\x1b\\\x1b]7000;v=1;input-released=1\x07hi\r\n\x1b]133;D;0\x1b\\"
+	zshPrompt := func(id string) string {
+		return "\x1b]7000;v=1;id=" + id + ";cwd=%2Fw%20x;branch=main\x1b\\\x1b]133;A\x07\r\x1b[J\x1b]133;B\x07\x1b]7000;v=1;input-ready=1\x07"
+	}
+	zshCtrlC := "\x1b[?2004l\x1b[K\r\r\n\x1b[1m\x1b[7m%\x1b[27m\x1b[1m\x1b[0m \r \r"
+	zshCommand := "echo hi\r\r\n\x1b]7000;v=1;input-released=1\x07\x1b]7000;v=1;id=t-3;cmd=echo%20hi\x1b\\\x1b]133;C\x07hi\r\n\x1b]7000;v=1;id=t-3;exit=0\x1b\\\x1b]133;D;0\x07"
+	for name, chunks := range map[string][]string{
+		"fish resize repaint": {fishPrompt, fishRepaint, fishRepaint, fishCommand},
+		"fish empty Enter":    {fishPrompt, fishEmptyEnter, fishCommand},
+		"zsh Ctrl-C":          {zshPrompt("t-2"), zshCtrlC, zshPrompt("t-3"), zshCommand},
+	} {
+		a, dec := newAssembler(false)
+		blocks := assembleChunks(a, dec, chunks...)
+		if len(blocks) != 1 {
+			t.Fatalf("%s: got %d blocks, want 1", name, len(blocks))
+		}
+		if blocks[0].Cwd != "/w x" || blocks[0].GitBranch != "main" {
+			t.Fatalf("%s: block cwd %q branch %q", name, blocks[0].Cwd, blocks[0].GitBranch)
+		}
+		again := reassembled(t, blocks[0].RawOutput)
+		if again.Cwd != "/w x" || again.GitBranch != "main" || again.Command != "echo hi" {
+			t.Fatalf("%s: the durable bytes %q replay as cwd %q branch %q cmd %q; a reopened block must keep its cwd", name, blocks[0].RawOutput, again.Cwd, again.GitBranch, again.Command)
+		}
+	}
+}
+
+func TestAssemblerLeavesFishsOmittedNewlineMarkOutOfTheNextBlock(t *testing.T) {
+	marker := "\x1b[?25h\x1b[2m⏎\x1b[m" + strings.Repeat(" ", 119) + "\r⏎ \r\x1b[K"
+	prompt := "\x1b]7000;v=1;input-ready=1\x07\x1b]0;~/w\x1b\\\x1b[m\x1b[6n\x1b[?2004h\x1b]133;A;click_events=1\x1b\\\x1b]133;B\x1b\\\x1b[K"
+	command := func(id, next, cmd, output string) string {
+		return cmd + "\r\n\x1b[m\x1b]133;C;cmdline_url=x\x1b\\\x1b]7000;v=1;id=" + id + ";cmd=" + strings.ReplaceAll(cmd, " ", "%20") + "\x1b\\\x1b]7000;v=1;input-released=1\x07\r" + output + "\x1b]133;D;0\x1b\\\x1b]7000;v=1;id=" + id + ";exit=0\x1b\\\x1b]7000;v=1;id=" + next + ";cwd=%2Fw;branch=main\x1b\\" + marker
+	}
+	a, dec := newAssembler(false)
+	blocks := assembleChunks(a, dec,
+		"\x1b]7000;v=1;id=t-1;cwd=%2Fw;branch=main\x1b\\", prompt,
+		command("t-1", "t-2", "printf x", "x"), prompt,
+		command("t-2", "t-3", "echo two", "two\r\n"), prompt)
+	if len(blocks) != 2 {
+		t.Fatalf("got %d blocks, want 2", len(blocks))
+	}
+	for _, b := range blocks {
+		if bytes.Contains(b.RawOutput, []byte("⏎")) {
+			t.Fatalf("%s: raw %q carries fish's omitted-newline mark, which a narrower reopen wraps into its own row", b.Command, b.RawOutput)
+		}
+		if again := reassembled(t, b.RawOutput); again.Cwd != "/w" || again.Command != b.Command {
+			t.Fatalf("%s: the durable bytes replay as cwd %q cmd %q", b.Command, again.Cwd, again.Command)
+		}
+	}
+}
+
+func TestAssemblerEndsAZshBlockBeforeThePartialLineMark(t *testing.T) {
+	prompt := func(id string) string {
+		return "\x1b]7000;v=1;id=" + id + ";cwd=%2Fw;branch=main\x1b\\\x1b]133;A\x07\r\x1b[J\x1b]133;B\x07\x1b]7000;v=1;input-ready=1\x07"
+	}
+	partialLineMark := "\x1b[1m\x1b[7m%\x1b[27m\x1b[1m\x1b[0m" + strings.Repeat(" ", 119) + "\r \r"
+	command := "printf x\r\r\n\x1b]7000;v=1;input-released=1\x07\x1b]7000;v=1;id=t-1;cmd=printf%20x\x1b\\\x1b]133;C\x07x\x1b]7000;v=1;id=t-1;exit=0\x1b\\\x1b]133;D;0\x07" + partialLineMark
+	a, dec := newAssembler(false)
+	blocks := assembleChunks(a, dec, prompt("t-1"), command, prompt("t-2"))
+	if len(blocks) != 1 {
+		t.Fatalf("got %d blocks, want 1", len(blocks))
+	}
+	if bytes.Contains(blocks[0].RawOutput, []byte("\x1b[7m%")) || !bytes.HasSuffix(blocks[0].RawOutput, []byte("x\x1b]7000;v=1;id=t-1;exit=0\x1b\\\x1b]133;D;0\x07")) {
+		t.Fatalf("raw = %q; the durable output must end at the command-end mark, before zsh's partial-line mark", blocks[0].RawOutput)
+	}
+}

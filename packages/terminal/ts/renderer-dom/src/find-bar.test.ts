@@ -55,7 +55,7 @@ function feedBlocks(core: TerminalCore, count: number): void {
 	for (let index = 0; index < count; index += 1) {
 		core.feed(
 			encoder.encode(
-				`\x1b]133;A\x07\x1b]133;C\x07line ${index} of text\x1b]133;D;0\x07\r\n`,
+				`\x1b]133;A\x07\x1b]133;C\x07line ${index} of text\r\n\x1b]133;D;0\x07`,
 			),
 		);
 	}
@@ -373,7 +373,7 @@ describe("find-bar", () => {
 		for (let index = 0; index < 600; index += 1) {
 			core.feed(
 				encoder.encode(
-					`\x1b]133;A\x07\x1b]133;C\x07line ${index} of text\x1b]133;D;0\x07\r\n`,
+					`\x1b]133;A\x07\x1b]133;C\x07line ${index} of text\r\n\x1b]133;D;0\x07`,
 				),
 			);
 		}

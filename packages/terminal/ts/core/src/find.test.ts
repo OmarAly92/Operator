@@ -13,7 +13,7 @@ const encoder = new TextEncoder();
 
 function feedBlocks(core: ReturnType<typeof createTerminalCore>, count: number, from: number = 0): void {
 	for (let index = from; index < from + count; index += 1) {
-		core.feed(encoder.encode(`\x1b]133;A\x07\x1b]133;C\x07line ${index} of text\x1b]133;D;0\x07\r\n`));
+		core.feed(encoder.encode(`\x1b]133;A\x07\x1b]133;C\x07line ${index} of text\r\n\x1b]133;D;0\x07`));
 	}
 }
 
@@ -112,7 +112,7 @@ describe("TerminalCore.findUpdate on a growing buffer", () => {
 		const session = core.findOpen("UNIQUE_NEEDLE", false);
 		expect(core.findUpdate(session).complete).toBe(true);
 		expect(core.findResults(session)).toEqual([]);
-		core.feed(encoder.encode("\x1b]133;A\x07\x1b]133;C\x07UNIQUE_NEEDLE appears here\x1b]133;D;0\x07\r\n"));
+		core.feed(encoder.encode("\x1b]133;A\x07\x1b]133;C\x07UNIQUE_NEEDLE appears here\r\n\x1b]133;D;0\x07"));
 		const update = core.findUpdate(session);
 		expect(update.added).toBe(1);
 		expect(update.complete).toBe(true);
