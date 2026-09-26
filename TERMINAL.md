@@ -1741,6 +1741,20 @@ history of `master`.
   anchor…"; `ts/editor/src/keymap.test.ts` "moves and walks history on Ctrl-F,
   Ctrl-B, Ctrl-P and Ctrl-N…".
 
+### 4.41 The full-screen cursor was drawn below the last row (real-app run, 2026-09-26)
+- Symptom: in vim (and every alternate-screen program) the cursor block sat one
+  row below the program's last row, at the right column: vim's ruler said `1,14`
+  and the block was on the row under the ruler.
+- Cause: `alt-surface.ts` `applyCursor` appends `.terminal-alt-cursor` after the
+  rows and positions it with `transform: translate(x, y)` only; the element is
+  `position: absolute` with no `top`/`left`, so its origin is its static position,
+  which is after the last row. Columns looked right because the static left edge
+  is 0.
+- Now: the cursor is created with `top: 0px; left: 0px`, so the translate is
+  measured from the surface's top-left corner.
+- Guard: `alt-surface.test.ts` "translates the cursor from the surface's top-left
+  corner, not from after the last row".
+
 ## 5. Known gaps (not bugs, decisions pending)
 
 - **A prompt resize that would cut output falls back to the stale-copy
