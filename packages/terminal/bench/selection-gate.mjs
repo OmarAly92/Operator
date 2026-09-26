@@ -43,7 +43,7 @@ try {
 
 	await page.waitForTimeout(500);
 
-	await page.keyboard.press("Meta+c");
+	await page.keyboard.press(process.platform === "darwin" ? "Meta+c" : "Control+Shift+c");
 
 	const result = await page.evaluate(() => ({
 		copiedLength: window.__gate.copied[0]?.length ?? 0,

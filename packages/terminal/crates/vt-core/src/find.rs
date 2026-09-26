@@ -127,6 +127,7 @@ pub struct FindSession {
     screen: Vec<ScreenHit>,
     screen_generation: Option<u64>,
     screen_scans: u64,
+    truncations: u64,
 }
 
 pub(crate) struct FindView<'a> {
@@ -149,6 +150,7 @@ impl FindSession {
             screen: Vec::new(),
             screen_generation: None,
             screen_scans: 0,
+            truncations: 0,
         }
     }
 
@@ -180,6 +182,14 @@ impl FindSession {
         } else {
             completed[settled - 1].end
         };
+        if let Some(cut) = view.content.lowest_cut_since(self.truncations) {
+            let floor = line_start(completed, cut);
+            let kept = self.history.partition_point(|hit| hit.end <= floor);
+            update.removed += self.history.len() - kept;
+            self.history.truncate(kept);
+            self.scanned_to = self.scanned_to.min(floor);
+        }
+        self.truncations = view.content.truncations();
         if !self.started || history_start < self.scanned_from || settled_end < self.scanned_to {
             update.removed += self.history.len();
             self.history.clear();
@@ -320,6 +330,14 @@ fn settled_rows(completed: &std::collections::VecDeque<RowRange>) -> usize {
         settled -= 1;
     }
     settled
+}
+
+fn line_start(completed: &std::collections::VecDeque<RowRange>, cut: u64) -> u64 {
+    let mut first = completed.partition_point(|row| row.end <= cut);
+    while first > 0 && completed[first - 1].wrapped {
+        first -= 1;
+    }
+    completed.get(first).map_or(cut, |row| row.start.min(cut))
 }
 
 fn block_at(blocks: &[BlockRecord], flat: usize) -> BlockId {
@@ -466,6 +484,25 @@ mod tests {
     fn anchors_match_at_every_line() {
         let query = FindQuery::regex("^b").unwrap();
         assert_eq!(found(&query, &["ab", "bc", "b"]).len(), 2);
+    }
+
+    #[test]
+    fn a_cut_inside_a_soft_wrapped_line_rescans_from_the_line_start() {
+        let row = |start, end, wrapped| RowRange {
+            start,
+            end,
+            wrapped,
+            indent: 0,
+        };
+        let rows =
+            std::collections::VecDeque::from([row(0, 4, false), row(4, 8, true), row(8, 12, true)]);
+        assert_eq!(line_start(&rows, 12), 4);
+        assert_eq!(line_start(&rows, 8), 4);
+        assert_eq!(line_start(&rows, 4), 4);
+        assert_eq!(line_start(&rows, 20), 4);
+        assert_eq!(line_start(&rows, 2), 0);
+        assert_eq!(line_start(&rows, 6), 4);
+        assert_eq!(line_start(&rows.range(..1).cloned().collect(), 4), 4);
     }
 
     #[test]

@@ -45,9 +45,9 @@ Each approach has the same shape:
 
 Absent evidence is written as "not known", never guessed.
 
-## Implementation status (updated 2026-09-25)
+## Implementation status (updated 2026-09-26)
 
-Every entry below carries a **Status** line under its heading, checked against the tree on 2026-09-24 (`development`): 46 done, 19 partial, 12 not done, 9 not pursued, 1 not needed, 1 n/a. "Plan A–F" are the agent-TUI spec's plans (`docs/superpowers/specs/2026-09-19-agent-tui-experience-design.md`); "Plan 4" is the background-pane plan (`docs/superpowers/plans/2026-09-23-terminal-background-pane-cost.md`). Entries marked non-goal were excluded by the agent-TUI spec, not rejected. "Roadmap Plan 1" is the paste-safety plan (`docs/superpowers/plans/2026-09-24-terminal-plan-1-paste-safety.md`); "Roadmap Plan 3" is the program-messages plan (docs/superpowers/plans/2026-09-25-terminal-plan-3-program-messages.md); "Roadmap Plan 5" is the highlights plan (`docs/superpowers/plans/2026-09-25-terminal-plan-5-highlights-marks.md`); "Roadmap Plan 7" is the very-old-output plan (`docs/superpowers/plans/2026-09-25-terminal-plan-7-old-output.md`). "Roadmap Plan 8" is the agent-awareness plan (`docs/superpowers/plans/2026-09-25-terminal-plan-8-agent-awareness.md`). "Roadmap Plan 9" is the parser-rework plan (`docs/superpowers/plans/2026-09-26-terminal-plan-9-parser-rework.md`).
+Every entry below carries a **Status** line under its heading, checked against the tree on 2026-09-24 (`development`): 48 done, 20 partial, 9 not done, 9 not pursued, 1 not needed, 1 n/a. "Plan A–F" are the agent-TUI spec's plans (`docs/superpowers/specs/2026-09-19-agent-tui-experience-design.md`); "Plan 4" is the background-pane plan (`docs/superpowers/plans/2026-09-23-terminal-background-pane-cost.md`). Entries marked non-goal were excluded by the agent-TUI spec, not rejected. "Roadmap Plan 1" is the paste-safety plan (`docs/superpowers/plans/2026-09-24-terminal-plan-1-paste-safety.md`); "Roadmap Plan 3" is the program-messages plan (docs/superpowers/plans/2026-09-25-terminal-plan-3-program-messages.md); "Roadmap Plan 5" is the highlights plan (`docs/superpowers/plans/2026-09-25-terminal-plan-5-highlights-marks.md`); "Roadmap Plan 7" is the very-old-output plan (`docs/superpowers/plans/2026-09-25-terminal-plan-7-old-output.md`). "Roadmap Plan 8" is the agent-awareness plan (`docs/superpowers/plans/2026-09-25-terminal-plan-8-agent-awareness.md`). "Roadmap Plan 9" is the parser-rework plan (`docs/superpowers/plans/2026-09-26-terminal-plan-9-parser-rework.md`). "Roadmap Plan 10" is the shell-resize plan (`docs/superpowers/plans/2026-09-26-terminal-plan-10-shell-resize.md`).
 
 | Entry | Status | What landed / what is missing |
 |---|---|---|
@@ -55,7 +55,7 @@ Every entry below carries a **Status** line under its heading, checked against t
 | §1.2 | Done | Plan B — per-row dirty tracking, `Delta`/`take_delta`, incremental `ExportBuffers`, snapshot memoised per generation. Since Plan 4 (2026-09-23) a parked pane does not paint. |
 | §1.3 | Partial | Plan B — selection and find hits are keyed by stable row ids, so they survive a trim. Not done: the rewrap `remap` reaches only the viewport anchor, not the selection; no `PinSet`; the cursor is not carried through a reflow. |
 | §1.4 | Partial | Plan E — copy joins a soft-wrapped line. Not done: rectangle (Alt-drag), Shift+click / Shift+arrow adjust, the select-block-output gesture, configurable click behaviours. |
-| §1.5 | Not done | Shell resize still evicts the frame once (Warp model). A non-goal of the agent-TUI spec. |
+| §1.5 | Done | Roadmap Plan 10 — at a prompt (line editor `Owned`) the prompt rows stay unrewrapped for the shell's own redraw, the rows above go to scrollback and rewrap there, and growth pulls back rows that restore exactly (`TERMINAL.md` §4.36). Kitty's answer (§5.4) rather than Ghostty's clear, chosen by measuring zsh, bash and fish. Not taken: `redraw=` on `OSC 133;A` (no measured shell needs it), the mirror (reflow off, unchanged). A running command, the alternate screen and panes without shell integration keep evict-once. |
 | §1.6 | Not done | `decode_osc133` still reads only `A`/`B`/`C`/`D` and `D;<exit>`. A non-goal of the agent-TUI spec. |
 | §1.7 | Done | Plan 2 — `FindSession` on the core: settled history scanned once from `scanned_to` and never again; the unsettled tail and the live screen re-searched only when the generation changes; hits re-resolve through the row index after a trim or rewrap. Also fixed: panes without OSC 133 marks (Claude Code) and rows still on the screen were never searched. |
 | §1.8 | Done | Roadmap Plan 5 — `highlights.ts` (ranges in stable rows, a kind, a priority) painted only by `highlight-painter.ts`; selection, find hits and user marks all go through it (`renderer-highlights.ts`). Links, hints, redaction and prediction stay overlays in `decorations.ts` because they paint above the text. Find hits keep their whole-row look. |
@@ -72,7 +72,7 @@ Every entry below carries a **Status** line under its heading, checked against t
 | §2.1 | Done | Plan A — DEC 2026 buffered in `vt-core` (`SyncBuffer`, 150 ms / 2 MiB), pump holds across a block. |
 | §2.2 | Not pursued | Roadmap Plan 9 (2026-09-26) measured `vte::ansi::Handler`: XTVERSION, `CSI 16 t`, OSC 9/99/777/133/7000 and raw parameters reach no method, SGR 21/53/`38;5;300`/`4:6` decode differently, REP/`ESC Z`/`ESC # 8` start doing something, and `Processor::new` allocates 2 MiB per core; there is no partial adoption (`TERMINAL.md` §4.35). The `ansi` feature does not need `std`. |
 | §2.3 | Done | Plan B — selection damage diffed against the previous paint (one row repainted per selection step) and one moved cursor element. Column bounds were ruled out by the entry itself for a DOM renderer. |
-| §2.4 | Not done | No pull-back on height growth and no cursor-carrying reflow; waits on §1.5. The wide-character-at-the-cut case was already covered. |
+| §2.4 | Partial | Roadmap Plan 10 — at a prompt the cursor keeps its place and growth pulls scrollback rows back onto the screen (only rows that commit back byte for byte). Not done: a cell-level reflow of the live frame with the cursor carried (the rows above the prompt rewrap in scrollback instead), and anywhere but at a prompt. |
 | §2.5 | Partial | Plan B — `onRowEvents` (trim and rewrap `remap`) and stable rows make trims harmless. Not done: the selection does not apply `remap`, so a width change moves it. |
 | §2.6 | Partial | Plan 2 — smart case (Alacritty `search.rs:39-40`) for literals and regexes, and a regex toggle in the find bar. Next/previous is an index step through the session's sorted results, so directional DFAs were not needed. Not done: `bracket_search`, `semantic_search_*`. |
 | §2.7 | Done | Plan E — hint mode on Ctrl+Shift+Space with labels and `onHint`. Not done: host-supplied rules (package constant only) and Alacritty's bracket post-processing. |
@@ -111,7 +111,7 @@ Every entry below carries a **Status** line under its heading, checked against t
 | §5.1 | Done | Covered by §2.1 (`vt-core` buffers DEC 2026; the pump holds across a block). |
 | §5.2 | Not done | `zsh.sh` still emits bare `133;A/B/C/D`; no `k=s`, no `cmdline`, no cursor shape by keymap. A non-goal of the agent-TUI spec. |
 | §5.3 | Partial | Plan E — `onBlockFinished` with duration and visibility. Plan 4 — a hidden window still drains and reports (`cb7b34b3b`); unloaded shell panes notify from the daemon (`13ad4994d`). macOS toasts `59624c9a9`. Not done: `lastVisitedBlockId` and `readBlockOutput` defaulting to it. |
-| §5.4 | Not done | Shell resize still evicts the frame; Kitty's exempt-the-prompt option was not taken up. A non-goal of the agent-TUI spec. |
+| §5.4 | Done | Roadmap Plan 10 — the current prompt's rows are kept unrewrapped where the shell's SIGWINCH redraw overwrites them (clean-room from this entry; Kitty not read). |
 | §5.5 | Done | Plan E — `path:line` hints and links open through the host; since `fdc202778` the editor chosen in Settings (VS Code, Cursor, Zed) opens at the line and column. The default "system" opener opens the file without the line. |
 | §5.6 | Done | Roadmap Plan 5 — `DomBlockRenderer.setMarks` / `TerminalSurface` `marks` (`MarkRule { pattern, regex, colour }`), matched per painted logical line; Operator Settings → Terminal highlights. Not built: next/previous-mark navigation. |
 | §5.7 | Not pursued | Replaced by the pump hold (1/60 s coalescing, held across a DEC 2026 block) and the 12 ms drain budget (agent-TUI spec). |
@@ -470,7 +470,7 @@ is the piece that makes "copy the logical line, not the visual rows" and
 
 ### 1.5 Resize: redraw the prompt in place instead of pushing the frame into scrollback; pull scrollback back on growth
 
-> **Status: Not done.** Shell resize still evicts the frame once (Warp model). A non-goal of the agent-TUI spec.
+> **Status: Done.** Roadmap Plan 10 (2026-09-26) — at a prompt the prompt rows stay for the shell's redraw, the rows above rewrap in scrollback, growth pulls back rows that restore exactly; Kitty's answer (§5.4) over Ghostty's clear, by measurement (`TERMINAL.md` §4.36). `redraw=` is not parsed and the mirror is unchanged.
 
 **Reference**
 - `src/terminal/Terminal.zig:4092-4099`: the primary screen resizes with
@@ -1409,7 +1409,7 @@ not by asking the model — which is exactly the missing piece in
 
 ### 2.4 Reflow across the whole buffer with the cursor carried through it
 
-> **Status: Not done.** No pull-back on height growth and no cursor-carrying reflow; waits on §1.5. The wide-character-at-the-cut case was already covered.
+> **Status: Partial.** Roadmap Plan 10 — at a prompt the cursor keeps its place and growth pulls back scrollback rows that restore byte for byte. Not done: a cell-level live-frame reflow with the cursor carried, or anywhere but a prompt. The wide-character-at-the-cut case was already covered.
 
 **Reference**
 - `alacritty_terminal/src/grid/resize.rs:14-35` — order of operations: lines
@@ -3293,7 +3293,7 @@ users, asciinema) see the command too. Keep 7000.
 
 ### 5.4 Resize keeps the current prompt from rewrapping
 
-> **Status: Not done.** Shell resize still evicts the frame; Kitty's exempt-the-prompt option was not taken up. A non-goal of the agent-TUI spec.
+> **Status: Done.** Roadmap Plan 10 — the prompt rows are kept unrewrapped for the shell's redraw (clean-room; `TERMINAL.md` §4.36).
 
 **Reference**
 - `kitty/kitty/screen.c:555-600` `prevent_current_prompt_from_rewrapping`:

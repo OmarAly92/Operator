@@ -2,7 +2,7 @@ import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 import assert from "node:assert/strict";
-import { haveTmux, parseOscRecords, runInPty, splitEveryByte } from "./pty.mjs";
+import { haveTmux, parseOscRecords, runInPty, runInPtySegments, splitEveryByte } from "./pty.mjs";
 
 const bootstrap = fileURLToPath(new URL("./zsh.sh", import.meta.url));
 const haveZsh = (() => {
@@ -317,4 +317,16 @@ test("percent-encodes non-ASCII bytes as UTF-8", { skip }, () => {
 		env: { ...process.env, LANG: "C.UTF-8", LC_ALL: "C.UTF-8" },
 	});
 	assert.equal(out, "caf%c3%a9%20%e2%82%ac%20%3f%5bx%5d");
+});
+
+test("after a width change redraws the prompt from its first row, counted at the old width", { skip: ptySkip }, () => {
+	const [, afterResize] = runInPtySegments(
+		"zsh -f -i",
+		[`source ${bootstrap}`, "PROMPT=$'first-line\\nsecond $ '", { keys: "clear", waitMs: 800 }, { resize: [60, 40] }],
+		{ settleMs: 800 },
+	);
+	const ups = afterResize.match(/\x1bM|\x1b\[1?A/g) ?? [];
+	assert.equal(ups.length, 1, JSON.stringify(afterResize));
+	assert.ok(afterResize.indexOf("\x1b[J") < afterResize.indexOf("first-line"), JSON.stringify(afterResize));
+	assert.match(afterResize, /second \$ /);
 });

@@ -95,7 +95,8 @@ rebuilt (§6).
 - **Modes** (`parser.rs`):
   - default ("shell"): `reflow_on_resize = true` → a resize evicts the frame up to
     its last non-blank row into scrollback and restarts the screen; `ESC[2J` scrolls
-    the frame into scrollback (`ClearPolicy::Scroll`).
+    the frame into scrollback (`ClearPolicy::Scroll`). At a prompt (line editor
+    `Owned`) a resize keeps the prompt rows instead and pulls scrollback back (§4.36).
   - `set_agent_tui_mode(true)` (Claude Code and every "worker" session): no reflow
     of the live frame (`resize_cells` truncates in place) and `ESC[2J` clears in
     place. Mirrors Warp's `FullGridClearBehavior::Clear` (`warp/crates/warp_terminal/src/model/grid/resize.rs:60`).
@@ -412,7 +413,9 @@ history of `master`.
 - Resizing an agent TUI must not push the pre-resize frame into scrollback
   (`resizing_an_agent_tui_appends_no_frame_to_scrollback`); a shell resize moves
   the frame to scrollback exactly once, never copies it. Height shrink drops rows
-  below the cursor first, then from the top (tmux `screen_resize_y`).
+  below the cursor first, then from the top (tmux `screen_resize_y`). At a shell
+  prompt the prompt rows stay instead (§4.36); every other state, and the pty-host
+  mirror, keeps this policy (`tests/resize_goldens.rs`).
 
 ### 4.11 Selection hidden under Claude Code's user-message band — `559ba747b`
 - Symptom: a selection dragged over the grey user-message band stayed grey,
@@ -895,10 +898,12 @@ history of `master`.
   (1 MiB) steps, then only from `scanned_to`. Hits are content byte ranges:
   a trim drops those below the first row, a rewrap only changes the rows
   they resolve to in `find_results`, a history prepend (attach replay)
-  restarts the scan. The unsettled tail (a soft-wrapped last history row)
-  plus the live screen is re-searched when `generation()` changed, so a
-  match across the scrollback/screen boundary is one hit. A soft-wrapped
-  line is one line to the search; a hard break is a `\n` the query cannot
+  restarts the scan, a prompt resize that rewrites pulled-back rows drops
+  only the hits from the cut's line on and rescans from there (§4.36). The
+  unsettled tail (a soft-wrapped last history row) plus the live screen is
+  re-searched when `generation()` changed, so a match across the
+  scrollback/screen boundary is one hit. A soft-wrapped line is one line to
+  the search; a hard break is a `\n` the query cannot
   cross (a match that would cross is searched again inside its own line).
   Literal queries use `memchr` when case-sensitive and an escaped regex
   (`regex-syntax`'s meta-character set) when not. The bar calls
@@ -1392,6 +1397,170 @@ history of `master`.
   - Environment: Linux x86_64, Intel(R) Xeon(R) Processor @ 2.10GHz
 - Guards (Part C): `tests/bulk_edits.rs` (passes on the tree before Part C
   too), `synthetic-edits-styled` in the goldens.
+
+### 4.36 A shell prompt copied into scrollback on every resize — roadmap Plan 10
+- Symptom: with a visible prompt, every resize at the prompt left one stale copy
+  of it in scrollback, and a prompt taller than one row left its upper rows too.
+  Replaying 15 captured zsh 5.9 / bash 3.2 / bash 5.3 sessions with four resizes
+  each ended with 5 copies of the prompt. Operator's own shell panes suppress the
+  prompt (`backend/internal/service/shellterm/service.go:439`
+  `SuppressPrompt: true`), so there the row is empty and nothing showed.
+- Cause: the shell-mode resize evicted the whole frame, prompt included, and
+  restarted the screen with the cursor at (0,0). The shells redraw relative to
+  where they drew: measured 2026-09-26, zsh moves up by the rows its prompt and
+  buffer took at the **old** width minus one, clears (`ESC[J`) and redraws; bash
+  redraws only its last prompt line (moving up only within it); fish 4.8.1
+  writes nothing on a width change and, on the next key, moves up by its old
+  prompt height and repaints. Clamped at row 0, the redraw drew a second prompt.
+- Now: while the line editor is `Owned`, on the primary screen, in a core that
+  reflows on resize, `Parser::resize_for` (`crates/vt-core/src/parser/resize.rs:28`)
+  keeps the prompt: the rows above the open block's first row go to scrollback
+  and rewrap there like any evicted row (§4.2–4.4); the rows from the prompt
+  start to the cursor's last row stay unrewrapped — cut at the new width (a wide
+  character cut in half becomes a blank) or padded — with the cursor at the same
+  row offset and column (`ScreenGrid::resize_keeping_prompt`,
+  `crates/vt-core/src/screen/prompt.rs:4`). Kitty's "keep the current prompt from
+  rewrapping" (survey §5.4; GPL-3.0, clean-room from the survey's description,
+  not read), chosen over Ghostty's reflow-then-clear (`Screen.zig:2232-2290`,
+  behaviour only): a reflowed prompt changes its row count, so the shells'
+  old-width up-moves land mid-prompt (narrower) or in the output above it
+  (wider — zsh's `ESC[J` then erases output rows), and fish would show a blank
+  prompt until the next key. Then `Parser::pull_back` (`parser/resize.rs:66`)
+  moves the newest scrollback rows back onto the top of the screen so the
+  prompt keeps its distance from the bottom (Alacritty `grow_lines`/`shrink_lines`,
+  Ghostty `pull_scrollback`; behaviour only), but only rows that commit back to
+  the same bytes and style runs (`Parser::row_cells`, `parser/resize.rs:106`,
+  commits them into a scratch buffer and compares; `Content::truncate_to`
+  `content.rs:137`, `AttributeMap::truncate_to` `attribute_map.rs:72`,
+  `RowIndex::pop_completed` `row_index.rs:434`). When no style key is left
+  below the cut, `AttributeMap::truncate_to` takes the content's first byte
+  as the start of its last run (`attribute_map.rs:77`): the map's base would
+  let the next style change restyle an older-output chunk still resident
+  below it, and 0 added a key that covers no byte. Flat and stable row numbers
+  never change, so blocks, the scroll anchor and the older-output floor are
+  untouched.
+- Content byte offsets are reusable now: before this plan content only grew or
+  was trimmed from the front, so an offset once written always meant the same
+  byte; `Content::truncate_to` lets the next push reuse offsets of pulled-back
+  rows. Two things relied on the old rule and were fixed (review fix 75baad0):
+  `AttributeMap::prepend_runs` raises `run_start` past the runs it prepends
+  (`crates/vt-core/src/attribute_map.rs:31-33`) — without it an older-output
+  chunk loaded after a full pull-back lost the style of its last run at the
+  next style change; and `Content` counts reuses and keeps, for each count,
+  the lowest cut made since it (`Content::note_reuse` `content.rs:152` keeps
+  `(count, cut)` pairs with rising cuts, dropping any older pair a new lower
+  cut covers, and merging the pairs whose cut a front trim has passed into
+  one with the oldest cut and the newest count, `content.rs:158-164`, so the
+  list stays bounded by the resident rows; every count answered by a merged
+  pair still gets a cut below all resident bytes, so a find session rescans
+  all of history as before; `lowest_cut_since` `content.rs:167`,
+  `truncations()` `content.rs:172`). When the count moved since its last update,
+  `FindSession::update` drops only the history hits that end after the start
+  of the line holding that cut, and rescans from there
+  (`crates/vt-core/src/find.rs:185-192`, `line_start` `find.rs:335`; the
+  line start, not the cut, because a pulled row can be the continuation of a
+  soft-wrapped line and a match must not start mid-line; the row holding the
+  cut is the first whose end is past it, because a later rewrap can leave a
+  cut mid-row, and taking the first row starting at or after it skipped the
+  rest of that row) — without it pulled
+  rows rewritten before the next find update left hits pointing at the new
+  text. Review fix 75baad0 dropped and rescanned all history instead, so
+  dragging the window taller with the find bar open reset a long history on
+  every step and it never finished scanning. Only a pull-back that cuts below
+  the content end from before the resize counts (`parser/resize.rs:48`,
+  `:91-94`): every resize
+  at a prompt evicts the rows above it and usually pulls those same
+  just-appended bytes back, and counting that reset an open find session on
+  every width change (dragging the window with the find bar open made the hit
+  count flicker and a long history never finished scanning). A find session
+  only ever scanned bytes that existed before the resize, so a cut at or above
+  that end reuses nothing it saw. Growing the window pulls pre-existing
+  scrollback rows back, so it counts; the session keeps every hit above the
+  pulled rows and scans nothing new (the pulled rows are screen rows now,
+  searched with the screen). Whether any other
+  reader keys state by content offset across a pull-back is not known.
+- Unchanged: a command running, the alternate screen, no shell integration
+  (every Claude Code pane), agent-TUI mode, and the pty-host mirror (reflow off,
+  `crates/vt-host/src/lib.rs:39`) take the old path — `tests/resize_goldens.rs`
+  (12 streams generated before this change) and `tests/parser_goldens.rs` are
+  unchanged and `bench:feel` has zero diff.
+- Not covered: bash's upper prompt lines stay cut at a narrower width (bash
+  redraws only its last line; xterm behaves the same); a prompt region taller
+  than the new screen takes the old path; the pull-back stops at the first row
+  that would not restore exactly (a word-cut continuation, a hanging indent, a
+  trailing blank), so the prompt can sit higher on the screen than before (not
+  visible in the pane); Windows ConPTY repaints its own viewport after a resize
+  — whether a Git Bash pane there looks better or worse is not known. The
+  pre-existing blank before a wide character that the printer wrapped still
+  commits as a space (`abcd中` printed at 5 columns rewraps as `abcd 中`).
+- Guards: `crates/vt-core/tests/prompt_resize.rs` (20 tests, built from the
+  shells' captured bytes, including
+  `an_older_output_chunk_keeps_its_styles_after_a_prompt_resize_pulled_every_row_back`),
+  `tests/prompt_resize_find.rs` (5 tests:
+  `find_hits_stay_on_their_text_when_pulled_rows_are_rewritten_before_the_next_update`,
+  `a_prompt_resize_keeps_a_finished_find_session_without_rescanning`,
+  `a_taller_prompt_resize_keeps_the_find_hits_below_the_pulled_rows` and
+  `find_hits_after_a_cut_that_a_rewrap_moved_mid_row_are_rescanned`),
+  `tests/prompt_resize_integrity.rs` (32 seeds × 300 steps, `verify_integrity`
+  and cell spans after every step, ≥ 200 resizes at a prompt),
+  `tests/resize_goldens.rs`, `content.rs`/`attribute_map.rs`/`row_index` unit
+  tests (among them
+  `runs_prepended_after_a_full_truncation_survive_a_style_change_at_the_seam`,
+  `the_lowest_cut_since_a_count_covers_every_later_reuse_only`,
+  `the_cut_list_stays_bounded_over_alternating_cuts_and_front_trims`,
+  `a_full_truncation_to_the_first_byte_adds_no_key_at_the_next_style_change`
+  and `a_full_truncation_above_prepended_bytes_keeps_their_style`), the
+  `find.rs` unit test `a_cut_inside_a_soft_wrapped_line_rescans_from_the_line_start`,
+  `block_grid` `open_block_ref_is_the_open_block_and_nothing_after_it_closes`,
+  `shell/{zsh,bash,fish}.test.mjs` "after a width change …". Those shell tests
+  pass on macOS (planning: zsh 5.9, bash 3.2 and 5.3, fish 4.8.1, tmux 3.6b)
+  and on Linux (zsh 5.9, bash 5.2.21, fish 4.8.1, tmux 3.4); the redraw bytes
+  above were captured on macOS only.
+
+### 4.37 A wide character cut in half by an overwrite or an edit
+- **Symptom (before 2026-09-26):** a character printed over one half of a
+  wide character left the other half behind. At 4 columns `日日\x1b[1;2H日`
+  left the cells `日 日 \0 \0`, and `row_cell_spans` reported a span 3 cells
+  wide. A narrow character over a lead kept the orphaned continuation, and a
+  narrow character over a continuation kept a one-cell lead that the next
+  cell overlapped. Found by a review fuzz of Plan 10; it predates Plan 10.
+  The edit commands did the same: at 6 columns `日日` then `CUP(1;3)` and
+  `DCH` left a span 3 cells wide, `a日日` then `CUP(1;2)` and `ECH` left a
+  space 2 cells wide, `a日b` then `CUP(1;3)` and `ICH` moved a continuation
+  away from its lead, and `EL`/`ED` from or up to a continuation did too.
+- **Now:** no span is wider than two cells. `ScreenGrid::clear_split_wide`
+  (`crates/vt-core/src/screen/print.rs:93`) runs before every write that can
+  split a wide character: `print` (`:31`), `print_ascii_run` (`:58`),
+  `put_ascii` (`:80`) and the grapheme widening in `join_previous` (`:161`).
+  It only reads the two cells at the edges of the write; the blanking and
+  the erase cell are built in the cold `blank_split_wide` (`:102`) only when
+  one of them is a continuation.
+  A lead whose continuation is overwritten, and every continuation after the
+  written cells, become erased cells with the current background (xterm and
+  Ghostty behaviour; no code taken). The row's wrapped flag is kept.
+  The edit commands run it on the cells they remove, before they move or
+  fill anything (`crates/vt-core/src/screen/edit.rs`): `EL` 0/1, `ED` 0/1 on
+  the cursor row and `ECH` through `erase_cells` (`:17`, called at `:42`,
+  `:51`, `:90`, `:91`, `:125`), `DCH` on the deleted cells (`:116`), and `ICH`
+  at the cursor and at the first cell pushed off the right edge (`:103-104`).
+  A wide character any of them cuts in half becomes blanks with the current
+  erase background (xterm and Ghostty behaviour; no code taken).
+- **Goldens re-recorded deliberately** (the one change of that kind on the
+  Plan 10 branch): for the print paths, `synthetic-unicode-mix`,
+  `synthetic-edits-styled` and `resize-running-3` had recorded the split
+  halves (spans up to 4 cells wide in the first two when fed in 64-byte
+  chunks). For the edit commands, `synthetic-edits-styled`,
+  `resize-no-integration-1` and `resize-running-1`: replayed with the edit
+  blanking switched off they match the old goldens exactly, and they are the
+  only streams in which an edit cut a wide character (63 edits in
+  `synthetic-edits-styled`: 28 `EL`, 18 `ECH`, 9 `ICH`, 8 `ED`; 6 `EL` in
+  each of the other two; none in the other 62 streams). No other golden
+  changed.
+- Guards: `crates/vt-core/tests/cell_spans.rs:114-189` (seven print tests)
+  and `:191-334` (five edit tests and
+  `no_mix_of_prints_moves_and_edits_leaves_a_span_wider_than_two_cells`,
+  300 seeds of prints, cursor moves, `ICH`/`DCH`/`ECH`/`EL`/`ED`/`IL`/`DL`),
+  both width modes, each through `common::check`.
 
 ## 5. Known gaps (not bugs, decisions pending)
 
