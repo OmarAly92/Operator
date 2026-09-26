@@ -19,6 +19,7 @@ pub(crate) struct HistoryReceiver {
     wanted: usize,
     cols: usize,
     seen_rows: usize,
+    rows: Vec<HistoryRow>,
     vte: VteParser,
     screen: Option<ScreenGrid>,
     marks: MarkDecoder,
@@ -35,6 +36,7 @@ impl HistoryReceiver {
             wanted: 0,
             cols: 0,
             seen_rows: 0,
+            rows: Vec::new(),
             vte: VteParser::new(),
             screen: None,
             marks: MarkDecoder::new(),
@@ -50,13 +52,14 @@ impl HistoryReceiver {
     }
 
     pub fn begin(&mut self, first_stable_row: u64, rows: usize, cols: usize, mode: WidthMode) {
-        let mut screen = ScreenGrid::new(rows.max(1) + 1, cols.max(1));
+        let mut screen = ScreenGrid::new(1, cols.max(1));
         self.cols = screen.cols();
         screen.set_records_eviction(false);
         screen.set_width_mode(mode);
         self.first_stable_row = first_stable_row;
         self.wanted = rows;
         self.seen_rows = 0;
+        self.rows = Vec::with_capacity(rows.min(crate::older::OLDER_CHUNK_ROWS));
         self.vte = VteParser::new();
         self.screen = Some(screen);
         self.marks = MarkDecoder::new();
@@ -75,14 +78,17 @@ impl HistoryReceiver {
             for (_, event) in self.marks.feed_with_offsets(std::slice::from_ref(byte)) {
                 note_mark(&mut self.open, &mut self.blocks, self.seen_rows, event);
             }
-            let mut perform = ScreenPerform {
-                screen,
-                style: &mut self.pending_style,
-                links,
-            };
-            self.vte.advance(&mut perform, std::slice::from_ref(byte));
             consumed = index + 1;
-            if *byte == b'\n' {
+            if *byte != b'\n' {
+                let mut perform = ScreenPerform {
+                    screen,
+                    style: &mut self.pending_style,
+                    links,
+                };
+                self.vte.advance(&mut perform, std::slice::from_ref(byte));
+            } else {
+                self.rows.push(history_row(screen, screen.cursor().0));
+                screen.reset();
                 self.seen_rows += 1;
                 if self.seen_rows == self.wanted {
                     self.done = true;
@@ -97,11 +103,9 @@ impl HistoryReceiver {
         if !self.done {
             return None;
         }
-        let screen = self.screen.take()?;
+        self.screen.take()?;
         self.done = false;
-        let rows = (0..self.wanted)
-            .map(|row| history_row(&screen, row))
-            .collect();
+        let rows = std::mem::take(&mut self.rows);
         if let Some(open) = self.open.take() {
             self.blocks.push(HistoryBlock {
                 first_row: open.first_row,
