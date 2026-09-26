@@ -119,6 +119,17 @@ export class ScrollTracker {
 		return true;
 	}
 
+	bottomVisibleRow(): number | null {
+		const container = this.deps.container();
+		if (!container) return null;
+		const { rowHeight, headerHeight, paddingY } = this.deps.layout();
+		const bottom = container.scrollTop + container.clientHeight - 1;
+		const anchor = anchorAt(this.deps.blocks(), bottom, rowHeight, headerHeight, paddingY);
+		if (!anchor) return null;
+		const flat = anchor.offsetPx < 0 ? anchor.flatRow - 1 : anchor.flatRow;
+		return flat < 0 ? null : this.deps.paintedFirstStableRow() + flat;
+	}
+
 	updateStickiness(): void {
 		const container = this.deps.container();
 		if (!container) return;

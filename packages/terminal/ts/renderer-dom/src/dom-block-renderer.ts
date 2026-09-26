@@ -230,13 +230,7 @@ export class DomBlockRenderer implements BlockRenderer {
 	}
 
 	rowOrigin(row: number): RowOrigin | null {
-		return paintedRowOrigin(
-			this.filteredBlocks,
-			this.elements.blockElements,
-			row,
-			this.cellMetrics().cellHeight,
-			this.paintedFirstStableRow,
-		);
+		return paintedRowOrigin(this.filteredBlocks, this.elements.blockElements, row, this.cellMetrics().cellHeight, this.paintedFirstStableRow);
 	}
 
 	scrollToBlock(id: BlockId, align: "start" | "center" | "end"): void {
@@ -250,10 +244,13 @@ export class DomBlockRenderer implements BlockRenderer {
 	}
 
 	scrollToLatest(): void {
-		const c = this.container;
-		if (!c) return;
-		this.scroll.stickToLatest(c);
+		if (!this.container) return;
+		this.scroll.stickToLatest(this.container);
 		this.scheduleRepaint();
+	}
+
+	bottomVisibleRow(): number | null {
+		return this.scroll.bottomVisibleRow();
 	}
 
 	scrollAnchor(): ScrollAnchor | null {

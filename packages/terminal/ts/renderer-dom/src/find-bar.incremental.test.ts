@@ -56,6 +56,7 @@ type Mounted = {
 };
 
 let mounted: Mounted | null = null;
+let bottomRow: number | null = null;
 
 beforeAll(async () => {
 	const bytes = await readFile(wasmPath);
@@ -66,6 +67,7 @@ afterEach(() => {
 	mounted?.bar.dispose();
 	mounted?.renderer.dispose();
 	mounted = null;
+	bottomRow = null;
 	vi.restoreAllMocks();
 });
 
@@ -83,6 +85,7 @@ function mount(lines: readonly string[]): Mounted {
 	const scrolled = vi.fn();
 	const barHost: FindBarHost = {
 		scrollToBlock: () => undefined,
+		bottomVisibleRow: () => bottomRow,
 		scrollToRow: (row, align) => {
 			scrolled(row, align);
 			return true;
@@ -149,12 +152,12 @@ describe("find-bar while output streams", () => {
 		expect(scrolled).toHaveBeenLastCalledWith(3, "center-if-hidden");
 		type(input, "line");
 		await flushFrames();
-		expect(count.textContent).toBe("1 of 5");
-		expect(scrolled).toHaveBeenLastCalledWith(0, "center-if-hidden");
+		expect(count.textContent).toBe("5 of 5");
+		expect(scrolled).toHaveBeenLastCalledWith(4, "center-if-hidden");
 		press(input, "Enter");
 		await flushFrames(2);
-		expect(count.textContent).toBe("2 of 5");
-		expect(scrolled).toHaveBeenLastCalledWith(1, "center");
+		expect(count.textContent).toBe("1 of 5");
+		expect(scrolled).toHaveBeenLastCalledWith(0, "center");
 	});
 
 	it("reveals the first match that arrives after the query and leaves the view alone for later ones", async () => {
@@ -185,11 +188,36 @@ describe("find-bar while output streams", () => {
 		expect(scrolled).toHaveBeenLastCalledWith(5, "center");
 	});
 
+	it("makes the newest match at or above the bottom of the view current, keeping oldest-first numbering", async () => {
+		const { input, count, scrolled } = mount(lines(10));
+		bottomRow = 6;
+		type(input, "line");
+		await flushFrames();
+		expect(count.textContent).toBe("7 of 10");
+		expect(scrolled).toHaveBeenLastCalledWith(6, "center-if-hidden");
+		press(input, "Enter");
+		await flushFrames(2);
+		expect(count.textContent).toBe("8 of 10");
+		press(input, "Enter", true);
+		press(input, "Enter", true);
+		await flushFrames(2);
+		expect(count.textContent).toBe("6 of 10");
+		bottomRow = 3;
+		type(input, "line ");
+		await flushFrames();
+		expect(count.textContent).toBe("4 of 10");
+		bottomRow = null;
+		type(input, "line");
+		await flushFrames();
+		expect(count.textContent).toBe("10 of 10");
+	});
+
 	it("keeps the current hit anchored while output streams", async () => {
 		const { core, host, input, count, scrolled } = mount(lines(5));
 		type(input, "line");
 		await flushFrames();
-		expect(count.textContent).toBe("1 of 5");
+		expect(count.textContent).toBe("5 of 5");
+		press(input, "Enter");
 		press(input, "Enter");
 		press(input, "Enter");
 		await flushFrames(2);
@@ -215,7 +243,7 @@ describe("find-bar while output streams", () => {
 		toggle.click();
 		await flushFrames();
 		expect(toggle.getAttribute("aria-pressed")).toBe("true");
-		expect(count.textContent).toBe("1 of 3");
+		expect(count.textContent).toBe("3 of 3");
 		type(input, "line [0-");
 		await flushFrames();
 		expect(input.getAttribute("aria-invalid")).toBe("true");
@@ -230,7 +258,7 @@ describe("find-bar while output streams", () => {
 		const { input, count } = mount(["Error one", "error two"]);
 		type(input, "error");
 		await flushFrames();
-		expect(count.textContent).toBe("1 of 2");
+		expect(count.textContent).toBe("2 of 2");
 		type(input, "Error");
 		await flushFrames();
 		expect(count.textContent).toBe("1 of 1");
@@ -292,7 +320,7 @@ describe("find-bar while output streams", () => {
 		mounted = { core, host, renderer, bar, input, count: host.querySelector<HTMLElement>("[data-terminal-find-count]")!, scrolled: vi.fn() };
 		type(input, "hello");
 		await flushFrames();
-		expect(mounted.count.textContent).toBe("1 of 12");
+		expect(mounted.count.textContent).toBe("12 of 12");
 	});
 
 	it("hands its hits to the host's highlight model instead of marking rows, and clears them on close and dispose", async () => {
@@ -320,7 +348,7 @@ describe("find-bar while output streams", () => {
 		bar.open();
 		type(host.querySelector<HTMLInputElement>("input[data-terminal-find-input]")!, "line");
 		await flushFrames();
-		expect(highlightFind).toHaveBeenLastCalledWith({ rows: new Set([0, 1, 2]), current: { row: 0, endRow: 0 } });
+		expect(highlightFind).toHaveBeenLastCalledWith({ rows: new Set([0, 1, 2]), current: { row: 2, endRow: 2 } });
 		bar.dispose();
 		expect(highlightFind).toHaveBeenLastCalledWith(null);
 		renderer.dispose();

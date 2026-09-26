@@ -1,5 +1,6 @@
 import { act, cleanup } from "@testing-library/react";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { DomBlockRenderer } from "@operator/terminal-renderer-dom";
 import { feed, loadWasm, renderSurface } from "./surface-harness";
 
 const originalPlatform = Object.getOwnPropertyDescriptor(navigator, "platform");
@@ -148,6 +149,35 @@ describe("TerminalSurface find shortcut with several panes", () => {
 		press(findInput(container)!, { key: "Escape" });
 		expect(findInput(container)).toBeNull();
 		expect(editor.contains(document.activeElement)).toBe(true);
+	});
+});
+
+describe("TerminalSurface find current match", () => {
+	beforeAll(loadWasm);
+
+	afterEach(() => {
+		cleanup();
+		restorePlatform();
+		vi.restoreAllMocks();
+	});
+
+	it("starts at the newest match at or above the renderer's bottom visible row", async () => {
+		setPlatform("MacIntel");
+		vi.spyOn(DomBlockRenderer.prototype, "bottomVisibleRow").mockReturnValue(2);
+		const { container, core } = renderSurface();
+		act(() => {
+			feed(core, "hit 0\r\nhit 1\r\nhit 2\r\nhit 3\r\n");
+		});
+		const editor = editorOf(container);
+		editor.focus();
+		press(editor, { key: "f", code: "KeyF", metaKey: true });
+		const input = findInput(container)!;
+		await act(async () => {
+			input.value = "hit";
+			input.dispatchEvent(new Event("input", { bubbles: true }));
+			await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+		});
+		expect(container.querySelector("[data-terminal-find-count]")?.textContent).toBe("3 of 4");
 	});
 });
 

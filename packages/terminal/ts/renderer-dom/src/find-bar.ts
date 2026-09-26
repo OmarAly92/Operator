@@ -23,6 +23,7 @@ const ATTR_REGEX = "data-terminal-find-regex";
 export type FindBarHost = Readonly<{
 	scrollToBlock(id: BlockId, align: "start" | "center" | "end"): void;
 	scrollToRow?(row: number, align: "start" | "center" | "end" | "center-if-hidden"): boolean;
+	bottomVisibleRow?(): number | null;
 	invalidate(range: RowRange): void;
 	afterRepaint(listener: () => void): () => void;
 	highlightFind(find: FindHighlights | null): void;
@@ -48,6 +49,7 @@ type Session = {
 	rows: ReadonlySet<number>;
 	current: number;
 	loaded: boolean;
+	settled: boolean;
 };
 
 export function createFindBar(options: FindBarOptions): FindBar {
@@ -133,6 +135,19 @@ export function createFindBar(options: FindBarOptions): FindBar {
 		return Math.min(low, results.length - 1);
 	};
 
+	const nearestBottom = (results: readonly FindMatch[]): number => {
+		const bottom = host.bottomVisibleRow?.() ?? null;
+		if (bottom === null) return Math.max(0, results.length - 1);
+		let low = 0;
+		let high = results.length;
+		while (low < high) {
+			const mid = (low + high) >> 1;
+			if (results[mid]!.row <= bottom) low = mid + 1;
+			else high = mid;
+		}
+		return low > 0 ? low - 1 : Math.max(0, results.length - 1);
+	};
+
 	const rowsOf = (results: readonly FindMatch[]): Set<number> => {
 		const rows = new Set<number>();
 		for (const hit of results) {
@@ -142,11 +157,11 @@ export function createFindBar(options: FindBarOptions): FindBar {
 	};
 
 	const refresh = (active: Session): void => {
-		const anchor = active.loaded ? active.results[active.current] : undefined;
+		const anchor = active.loaded && active.settled ? active.results[active.current] : undefined;
 		const results = core.findResults(active.id);
 		active.results = results;
 		active.rows = rowsOf(results);
-		active.current = indexNear(results, anchor);
+		active.current = anchor ? indexNear(results, anchor) : nearestBottom(results);
 		active.loaded = true;
 	};
 
@@ -165,12 +180,15 @@ export function createFindBar(options: FindBarOptions): FindBar {
 		try {
 			update = core.findUpdate(active.id, FIND_UPDATE_BUDGET_BYTES);
 			if (!active.loaded || update.added > 0 || update.removed > 0) {
-				const hadHit = active.results.length > 0;
+				const before = active.results[active.current];
+				const picking = !active.settled || before === undefined;
 				refresh(active);
 				applyHighlights();
 				renderCount();
-				if (!hadHit) revealed = active.results[active.current];
+				const after = active.results[active.current];
+				if (picking && after && (after.row !== before?.row || after.startByte !== before?.startByte)) revealed = after;
 			}
+			if (update.complete && active.results.length > 0) active.settled = true;
 		} catch {
 			stopSession();
 			clearMarks();
@@ -211,7 +229,7 @@ export function createFindBar(options: FindBarOptions): FindBar {
 			renderCount();
 			return;
 		}
-		session = { id, results: [], rows: new Set(), current: 0, loaded: false };
+		session = { id, results: [], rows: new Set(), current: 0, loaded: false, settled: false };
 		schedulePump();
 	};
 
@@ -221,6 +239,7 @@ export function createFindBar(options: FindBarOptions): FindBar {
 		const total = active.results.length;
 		if (total === 0) return;
 		active.current = (active.current + delta + total) % total;
+		active.settled = true;
 		reveal(active.results[active.current]!);
 		applyHighlights();
 		renderCount();

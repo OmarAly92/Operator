@@ -196,6 +196,7 @@ export function TerminalSurface({
 			host: {
 				scrollToBlock: (id, align) => renderer.scrollToBlock(id, align),
 				scrollToRow: (row, align) => renderer.scrollToRow(row, align),
+				bottomVisibleRow: () => renderer.bottomVisibleRow(),
 				invalidate: (range) => renderer.invalidate(range),
 				afterRepaint: (listener) => renderer.onPaint(listener),
 				highlightFind: (find) => renderer.setFindHighlights(find),
