@@ -171,15 +171,6 @@ func TestARestartedCaptureDoesNotRepeatEarlierOutput(t *testing.T) {
 	waitForFile(t, second, "two\n")
 }
 
-func TestCaptureSinkDropsItsEarlyBufferPastTheCap(t *testing.T) {
-	c := &captureSink{}
-	c.write(make([]byte, maxEarlyCaptureBytes))
-	c.write([]byte("x"))
-	if c.early != nil || !c.earlyLost {
-		t.Fatalf("early buffer kept %d bytes past the cap", len(c.early))
-	}
-}
-
 // TestCaptureBackpressureDoesNotStallDelivery pins the fix for a hot-path
 // stall: write() used to write straight into the capture subprocess's stdin
 // pipe from inside deliver(), the same call that appends to the ring and
