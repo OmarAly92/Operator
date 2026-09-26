@@ -15,6 +15,9 @@ impl Parser {
     pub(crate) fn open_block(&mut self, source: BlockSource) {
         self.commit_evicted();
         let first_row = self.block_start_row();
+        if self.screen.cursor().1 == 0 && self.grid.repaint_open_prompt(first_row) {
+            return;
+        }
         self.materialize_uncovered_rows(first_row, BlockState::Abandoned, None);
         self.grid.sync_next_row(first_row);
         self.grid.open_block(source);

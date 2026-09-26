@@ -419,3 +419,18 @@ func TestAssemblerIgnoresATypeaheadMark(t *testing.T) {
 		t.Fatalf("commands = %q, %q; a typeahead mark must not become block metadata", blocks[0].Command, blocks[1].Command)
 	}
 }
+
+func TestAssemblerKeepsAFishPromptsIdentityAcrossAResizeRepaint(t *testing.T) {
+	prompt := "\x1b]7000;v=1;id=t-2;cwd=/w;branch=main\x1b\\\x1b]7000;v=1;input-ready=1\x07\x1b]133;A;click_events=1\x1b\\\x1b]133;B\x1b\\\x1b[K"
+	repaint := "\x1b[6n\x1b[0c\x1b[?2004l\x1b[?2031l\x1b[>4;0m\x1b>\x1b]0;~/w\x1b\\\x1b[m\x1b[?2004h\x1b[?2031h\x1b[>4;1m\x1b=\r\r\x1b]133;A;click_events=1\x1b\\\x1b]133;B\x1b\\\x1b[J\x1b]133;A;click_events=1\x1b\\"
+	command := "echo hi\r\n\x1b]133;C;cmdline_url=echo%20hi\x1b\\\x1b]7000;v=1;id=t-2;cmd=echo%20hi\x1b\\\x1b]7000;v=1;input-released=1\x07hi\r\n\x1b]133;D;0\x1b\\\x1b]7000;v=1;id=t-2;exit=0\x1b\\"
+	a, dec := newAssembler(false)
+	blocks := assembleChunks(a, dec, prompt, repaint, repaint, command)
+	if len(blocks) != 1 {
+		t.Fatalf("got %d blocks, want 1", len(blocks))
+	}
+	b := blocks[0]
+	if b.SourceID != "t-2" || b.Cwd != "/w" || b.GitBranch != "main" || b.Command != "echo hi" {
+		t.Fatalf("block = id %q cwd %q branch %q cmd %q; a prompt repaint must keep the prompt's identity", b.SourceID, b.Cwd, b.GitBranch, b.Command)
+	}
+}

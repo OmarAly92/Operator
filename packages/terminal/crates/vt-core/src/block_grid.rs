@@ -31,6 +31,7 @@ pub struct BlockGrid {
     clock_ms: u64,
     trailing_started_at_ms: Option<u64>,
     open_start_fixed: bool,
+    open_output_started: bool,
 }
 
 impl BlockGrid {
@@ -47,6 +48,7 @@ impl BlockGrid {
             clock_ms: 0,
             trailing_started_at_ms: None,
             open_start_fixed: false,
+            open_output_started: false,
         }
     }
 
@@ -141,6 +143,7 @@ impl BlockGrid {
             source
         };
         self.pending_extension = false;
+        self.open_output_started = false;
         let mut meta = std::mem::take(&mut self.pending_meta);
         self.open_start_fixed = meta.started_at_ms.is_some();
         meta.started_at_ms.get_or_insert(self.clock_ms);
@@ -171,8 +174,26 @@ impl BlockGrid {
         self.closed.push(block);
     }
 
+    pub(crate) fn repaint_open_prompt(&mut self, first_row: usize) -> bool {
+        let row = self.origin + first_row;
+        let Some(open) = self.open.as_mut() else {
+            return false;
+        };
+        if self.open_output_started
+            || !open.meta.command.is_empty()
+            || open.meta.exit_code.is_some()
+            || row > open.first_row
+        {
+            return false;
+        }
+        open.first_row = row;
+        self.next_row = row;
+        true
+    }
+
     pub(crate) fn start_output(&mut self, first_row: usize) {
         if let Some(block) = self.open.as_mut() {
+            self.open_output_started = true;
             if !block.meta.command.is_empty() {
                 block.first_row = self.origin + first_row;
             }
