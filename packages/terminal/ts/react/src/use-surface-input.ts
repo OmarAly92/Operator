@@ -9,6 +9,7 @@ import {
 	MIN_VELOCITY_SAMPLE_MS,
 	pointerCell,
 	SELECTION_CHROME,
+	withinChrome,
 	VELOCITY_SMOOTHING,
 } from "./surface-geometry.js";
 import { encodeMouseReport, type MouseReportKind } from "./mouse-report.js";
@@ -152,6 +153,7 @@ export function useSurfaceInput(refs: SurfaceInputRefs, core: TerminalCore, onSe
 			compositionRef.current?.focus();
 			const button = buttonOf(event);
 			if (button === null) return;
+			if (withinChrome(event.target, SELECTION_CHROME)) return;
 			if (button === 0 && linkModifierHeld(event, isMacPlatform())) {
 				renderer()?.hoverAt(event.clientX, event.clientY);
 				const link = renderer()?.hoveredLink();
@@ -170,7 +172,6 @@ export function useSurfaceInput(refs: SurfaceInputRefs, core: TerminalCore, onSe
 				return;
 			}
 			if (button !== 0) return;
-			if (event.target instanceof Element && event.target.closest(SELECTION_CHROME)) return;
 			const target = renderer();
 			if (!target) return;
 			const point = target.pointAt(event.clientX, event.clientY);
@@ -195,7 +196,7 @@ export function useSurfaceInput(refs: SurfaceInputRefs, core: TerminalCore, onSe
 			if (button === null) return;
 			const target = event.target;
 			const inside = target instanceof Node && blockHost.contains(target);
-			if (dragButton === null && !inside) return;
+			if (dragButton === null && (!inside || withinChrome(target, SELECTION_CHROME))) return;
 			dragButton = null;
 			const data = reportFor("release", button, event);
 			if (data === null) return;

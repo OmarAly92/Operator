@@ -1,4 +1,4 @@
-import { useCallback, useLayoutEffect, useRef, useState, type ReactElement, type ReactNode } from "react";
+import { useCallback, useLayoutEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactElement, type ReactNode } from "react";
 import { clipboardHasImage, deliverPaste, encodeKey, LineEditor, planPaste } from "@operator/terminal-editor";
 import {
 	createFindBar,
@@ -15,7 +15,7 @@ import {
 	type MarkRule,
 	type RendererFeatures,
 } from "@operator/terminal-renderer-dom";
-import { isCopyChord } from "./selection-gesture.js";
+import { isCopyChord, isFindChord } from "./selection-gesture.js";
 import {
 	anchorFromElement,
 	createCompositionTarget,
@@ -29,7 +29,7 @@ import {
 	type TerminalTheme,
 } from "@operator/terminal-core";
 import { AltScreenSlot } from "./AltScreenSlot.js";
-import { isMacPlatform } from "./surface-geometry.js";
+import { FIND_BAR, isMacPlatform, OWNS_FOCUS, withinChrome } from "./surface-geometry.js";
 import { useSurfaceInput } from "./use-surface-input.js";
 import { useProgramMessages } from "./use-program-messages.js";
 
@@ -361,6 +361,9 @@ export function TerminalSurface({
 			anchor: (parent) => anchorFromElement(parent, parent.querySelector("[data-terminal-cursor]")),
 		});
 		const onKeyDown = (event: KeyboardEvent) => {
+			if (withinChrome(event.target, FIND_BAR)) {
+				return;
+			}
 			if (composition.isComposing() || event.isComposing || event.keyCode === 229) {
 				return;
 			}
@@ -379,6 +382,7 @@ export function TerminalSurface({
 		// The alt screen has no line editor to hold the line, so every paste
 		// belongs to the child.
 		const onPaste = (event: ClipboardEvent) => {
+			if (withinChrome(event.target, FIND_BAR)) return;
 			event.preventDefault();
 			const data = event.clipboardData;
 			const plan = planPaste({
@@ -420,13 +424,13 @@ export function TerminalSurface({
 		const findBar = findBarRef.current;
 		if (!findBar) return;
 		const onKeyDown = (event: KeyboardEvent) => {
-			if ((event.metaKey || event.ctrlKey) && (event.key === "f" || event.key === "F")) {
-				event.preventDefault();
-				findBar.open();
-			}
+			if (!isFindChord(event, isMacPlatform())) return;
+			event.preventDefault();
+			event.stopPropagation();
+			findBar.open();
 		};
-		document.addEventListener("keydown", onKeyDown);
-		return () => document.removeEventListener("keydown", onKeyDown);
+		document.addEventListener("keydown", onKeyDown, true);
+		return () => document.removeEventListener("keydown", onKeyDown, true);
 	}, []);
 
 	// Clicking the transcript belongs to the editor, the way clicking anywhere in
@@ -442,6 +446,14 @@ export function TerminalSurface({
 		}
 		editorRef.current?.focus();
 	}, []);
+
+	const onHostClick = useCallback(
+		(event: ReactMouseEvent<HTMLDivElement>) => {
+			if (withinChrome(event.target, OWNS_FOCUS)) return;
+			focusInput();
+		},
+		[focusInput],
+	);
 
 	useLayoutEffect(() => {
 		if (focusToken === undefined) return;
@@ -459,7 +471,7 @@ export function TerminalSurface({
 			<div
 				ref={hostRef}
 				className={hostClassName}
-				onClick={focusInput}
+				onClick={onHostClick}
 				tabIndex={altActive ? 0 : undefined}
 			/>
 			<div ref={editorHostRef} className="terminal-editor-host" hidden={altActive} />

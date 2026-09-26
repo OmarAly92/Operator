@@ -141,6 +141,37 @@ describe("find-bar while output streams", () => {
 		expect(core.findHistoryBytesScanned(id)).toBe(scanned);
 	});
 
+	it("reveals the current match as the query is typed and Enter moves on from it", async () => {
+		const { input, count, scrolled } = mount(lines(5));
+		type(input, "line 3");
+		await flushFrames();
+		expect(count.textContent).toBe("1 of 1");
+		expect(scrolled).toHaveBeenLastCalledWith(3, "center");
+		type(input, "line");
+		await flushFrames();
+		expect(count.textContent).toBe("1 of 5");
+		expect(scrolled).toHaveBeenLastCalledWith(0, "center");
+		press(input, "Enter");
+		await flushFrames(2);
+		expect(count.textContent).toBe("2 of 5");
+		expect(scrolled).toHaveBeenLastCalledWith(1, "center");
+	});
+
+	it("reveals the first match that arrives after the query and leaves the view alone for later ones", async () => {
+		const { core, input, count, scrolled } = mount(lines(5));
+		type(input, "needle");
+		await flushFrames();
+		expect(scrolled).not.toHaveBeenCalled();
+		feedBlock(core, "a needle arrives");
+		await flushFrames();
+		expect(count.textContent).toBe("1 of 1");
+		expect(scrolled).toHaveBeenCalledTimes(1);
+		feedBlock(core, "another needle");
+		await flushFrames();
+		expect(count.textContent).toBe("1 of 2");
+		expect(scrolled).toHaveBeenCalledTimes(1);
+	});
+
 	it("keeps the current hit anchored while output streams", async () => {
 		const { core, host, input, count, scrolled } = mount(lines(5));
 		type(input, "line");

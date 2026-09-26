@@ -148,23 +148,39 @@ export function createFindBar(options: FindBarOptions): FindBar {
 		active.loaded = true;
 	};
 
+	const reveal = (match: FindMatch): void => {
+		if (!host.scrollToRow?.(match.row, "center")) {
+			host.scrollToBlock(match.blockId, "center");
+		}
+	};
+
 	const pump = (): void => {
 		rafHandle = null;
 		const active = session;
 		if (!active) return;
 		let update: FindUpdate;
+		let revealed: FindMatch | undefined;
 		try {
 			update = core.findUpdate(active.id, FIND_UPDATE_BUDGET_BYTES);
 			if (!active.loaded || update.added > 0 || update.removed > 0) {
+				const hadHit = active.results.length > 0;
 				refresh(active);
 				applyHighlights();
 				renderCount();
+				if (!hadHit) revealed = active.results[active.current];
 			}
 		} catch {
 			stopSession();
 			clearMarks();
 			renderCount();
 			return;
+		}
+		if (revealed) {
+			try {
+				reveal(revealed);
+			} catch {
+				void 0;
+			}
 		}
 		if (!update.complete) schedulePump();
 	};
@@ -203,10 +219,7 @@ export function createFindBar(options: FindBarOptions): FindBar {
 		const total = active.results.length;
 		if (total === 0) return;
 		active.current = (active.current + delta + total) % total;
-		const match = active.results[active.current]!;
-		if (!host.scrollToRow?.(match.row, "center")) {
-			host.scrollToBlock(match.blockId, "center");
-		}
+		reveal(active.results[active.current]!);
 		applyHighlights();
 		renderCount();
 	};
