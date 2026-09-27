@@ -111,10 +111,45 @@ def case_section(scene_id, case_dir, result, assets):
     return "".join(parts)
 
 
+BACKLOG_FIRST = (
+    "tabbar.rest", "tabbar.press", "tabbar.drag", "button.press", "sheet.detents",
+    "navbar.inline", "material.regular", "material.tinted", "material.clear", "material.interactive",
+)
+STATUS_ORDER = ("fail", "pass", "missing", "reference", "error")
+
+
+def ratio(value, limit, bound):
+    low, high = (value, limit) if bound == "min" else (limit, value)
+    return high / low if low > 0 else float("inf")
+
+
+def ranked(result):
+    checks = result.get("checks") or {}
+    measures = result.get("measures") or {}
+    failing = [(name, *measures[name]) for name, ok in checks.items() if not ok and name in measures]
+    return sorted(failing, key=lambda entry: -ratio(*entry[1:]))
+
+
 def worst(result):
     checks = result.get("checks") or {}
-    failing = [k for k, ok in checks.items() if not ok]
-    return ", ".join(failing[:3]) if failing else "—"
+    measures = result.get("measures") or {}
+    entries = [f"{name} {fmt(value)} {'<' if bound == 'min' else '>'} {fmt(limit)}" for name, value, limit, bound in ranked(result)]
+    entries += [name for name, ok in checks.items() if not ok and name not in measures]
+    return ", ".join(entries[:3]) if entries else "—"
+
+
+def status_of(result):
+    kind = result.get("kind")
+    return ("pass" if result.get("pass") else "fail") if kind == "compared" else kind
+
+
+def backlog_key(result):
+    scene, case, status = result["scene"], result["case"], status_of(result)
+    if scene in BACKLOG_FIRST:
+        return (0, BACKLOG_FIRST.index(scene), (), case)
+    ratios = tuple(-ratio(*entry[1:]) for entry in ranked(result))
+    group = 1 + (STATUS_ORDER.index(status) if status in STATUS_ORDER else len(STATUS_ORDER))
+    return (group, 0, ratios, scene, case)
 
 
 def build(run_dir, scenes):
@@ -171,9 +206,8 @@ def markdown(run_dir, counts, results, scenes):
     ]
     lines += [f"| {key} | {value} |" for key, value in counts.items()]
     lines += ["", "| Scene | Case | Title | Status | Failing measures |", "|---|---|---|---|---|"]
-    for _, result in results:
-        kind = result.get("kind")
-        status = ("pass" if result.get("pass") else "fail") if kind == "compared" else kind
+    for result in sorted((r for _, r in results), key=backlog_key):
+        status = status_of(result)
         scene = by_scene.get(result["scene"])
         title = scene.title if scene else ""
         lines.append(f"| {result['scene']} | {result['case']} | {title} | {status} | {worst(result)} |")

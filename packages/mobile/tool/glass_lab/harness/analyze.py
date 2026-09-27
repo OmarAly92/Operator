@@ -198,13 +198,21 @@ def motion_measures(result):
     return measures
 
 
-def motion_checks(result, noise=None):
+def motion_limits(result, noise=None):
     noise = noise or {}
-    checks = {"events.count": result["event_count"][0] == result["event_count"][1]}
+    native, flutter = result["event_count"]
+    limits = {"events.count": (abs(native - flutter), 0, "max"), "events.native_motion": (native, 1, "min")}
     for name, (value, limit) in motion_measures(result).items():
-        allowed = max(metrics.THRESHOLDS[limit], NOISE_FACTOR * noise.get(name, 0.0))
-        checks[name] = value <= allowed
-    return checks
+        limits[name] = (value, max(metrics.THRESHOLDS[limit], NOISE_FACTOR * noise.get(name, 0.0)), "max")
+    return limits
+
+
+def within(value, limit, bound):
+    return value >= limit if bound == "min" else value <= limit
+
+
+def motion_checks(result, noise=None):
+    return {name: within(*entry) for name, entry in motion_limits(result, noise).items()}
 
 
 def analyze(scene, case_dir, noise=None):
@@ -232,12 +240,16 @@ def analyze(scene, case_dir, noise=None):
             region,
         )
     checks = {f"{name}.{key}": value for name, stat in result["static"].items() for key, value in stat["pass"].items()}
+    measures = {f"{name}.{key}": (stat[key], metrics.THRESHOLDS[key], "max") for name, stat in result["static"].items() for key in stat["pass"]}
     if not scene.rest:
         native, flutter = motion(native_dir, region), motion(flutter_dir, region)
         result["motion"] = compare_motion(native, flutter)
         result["native_stalls"] = native["stalls"]
         result["flutter_stalls"] = flutter["stalls"]
-        checks.update({f"motion.{k}": v for k, v in motion_checks(result["motion"], noise).items()})
+        limits = motion_limits(result["motion"], noise)
+        measures.update({f"motion.{k}": v for k, v in limits.items()})
+        checks.update({f"motion.{k}": within(*v) for k, v in limits.items()})
     result["checks"] = checks
+    result["measures"] = measures
     result["pass"] = bool(checks) and all(checks.values())
     return result

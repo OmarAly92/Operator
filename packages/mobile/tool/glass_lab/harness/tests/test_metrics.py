@@ -162,5 +162,17 @@ class OnsetAlignmentTests(unittest.TestCase):
         self.assertLessEqual(abs(analyze.best_lag(native, flutter) - -7), 1)
 
 
+class MotionCheckTests(unittest.TestCase):
+    def test_no_native_motion_fails_even_when_counts_match(self):
+        checks = analyze.motion_checks({"event_count": [0, 0], "events": []})
+        self.assertTrue(checks["events.count"])
+        self.assertFalse(checks["events.native_motion"])
+
+    def test_native_motion_passes_when_present(self):
+        checks = analyze.motion_checks({"event_count": [2, 2], "events": []})
+        self.assertTrue(checks["events.native_motion"])
+        self.assertTrue(checks["events.count"])
+
+
 if __name__ == "__main__":
     unittest.main()
