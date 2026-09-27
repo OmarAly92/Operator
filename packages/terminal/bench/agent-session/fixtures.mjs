@@ -55,3 +55,22 @@ export function frameBoundaries(recording) {
 	}
 	return ends;
 }
+
+export const SIGNALS_DIR = fileURLToPath(new URL("./signals/", import.meta.url));
+
+export function listSignals() {
+	return readdirSync(SIGNALS_DIR, { withFileTypes: true })
+		.filter((entry) => entry.isDirectory() && entry.name !== "scenarios")
+		.map((entry) => entry.name)
+		.sort();
+}
+
+export async function loadSignal(name) {
+	const dir = join(SIGNALS_DIR, name);
+	const recording = new Uint8Array(await readFile(join(dir, "recording")));
+	const sizes = JSON.parse(await readFile(join(dir, "size.json"), "utf8"));
+	const timing = JSON.parse(await readFile(join(dir, "timing.json"), "utf8"));
+	const truth = JSON.parse(await readFile(join(dir, "truth.json"), "utf8"));
+	if (!Array.isArray(sizes) || !Array.isArray(timing)) throw new Error(`${name}: size.json and timing.json must be JSON arrays`);
+	return { name, recording, sizes, timing, truth };
+}
