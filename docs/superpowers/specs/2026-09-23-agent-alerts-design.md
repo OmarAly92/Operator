@@ -48,7 +48,7 @@ What exists does not reach the user either:
 | D3 | Phone, app not running: **ntfy** via the public `ntfy.sh` server and the free ntfy iOS app. No Firebase project, no APNs key, no Apple Developer account. |
 | D4 | Phone, Operator app open: the app raises its **own local notification**, skipping the session being viewed. |
 | D5 | The phone gets every alert the Mac gets ("always both"), **only while Connect Mobile is on and a phone is paired**. Paired means paired, not "socket open": a locked phone still gets ntfy. |
-| D6 | ntfy messages carry the session display name and the event only, never terminal output or assistant text. **Superseded 2026-09-27 by the user:** needs-you and finished alerts carry the notification body (the question or the turn summary), cleaned and secret-masked by `redact.Clean` and capped at 4,096 bytes; PR alerts keep the event word (agent signals wave 1 phase B, `TERMINAL.md` §4.52). |
+| D6 | ntfy messages carry the session display name and the event only, never terminal output or assistant text. **Superseded 2026-09-27 by the user:** needs-you and finished alerts carry the notification body (the question or the turn summary), cleaned and secret-masked by `redact.Clean` and capped at 4,096 bytes; the title is cleaned and masked the same way; PR and exited alerts keep the event word (agent signals wave 1 phase B, `TERMINAL.md` §4.52). |
 | D7 | macOS toasts move to **UNUserNotificationCenter** through `objc2`, gated by a step-0 check on the installed ad-hoc build. Fallback if Apple refuses: keep the plugin and add a click path through `mac-notification-sys` (approach B). |
 | D8 | The phone sender sits behind an interface so a direct-APNs sender can replace ntfy later if a paid Apple account appears. Nothing else changes when that happens. |
 | D9 | Delete the Expo push path and the Flutter push scaffolding; rename the mobile deep-link scheme `aomobile` to `operator`. Breaking changes and data resets are free ([[operator-has-no-users-yet]]). |
@@ -144,8 +144,10 @@ changes the plan as stated; nothing is built on an unverified assumption.
   resolves `needs_input` (`manager.go:668`, `needsInputResolutions`).
 - Title `"<display name> finished"`. Body on the Mac and in the app: the first
   ~120 characters of the session's `LatestAssistantUpdate` (captured from the
-  Stop hook, `backend/internal/cli/hooks.go:196-221`, capped at 16 KiB). Body
-  on ntfy: none (D6).
+  Stop hook, `backend/internal/cli/hooks.go:196-221`, capped at 16 KiB); when
+  the screen, not the Stop hook, ends the turn, the screen's turn summary
+  instead (changed 2026-09-27, `TERMINAL.md` §4.52). Body on ntfy: the same
+  body, cleaned and secret-masked (D6, superseded 2026-09-27).
 
 ### 4.2 Needs input (existing `needs_input`)
 
@@ -245,7 +247,7 @@ when the session leaves `exited` or is terminated, and the boot-time reconcile
 - New interface `PhoneSender { Send(ctx, Alert) error }` with one
   implementation, `NtfySender`: `POST https://ntfy.sh/<topic>` with headers
   `Title`, `Tags`, `Priority`, `Click: operator://session/<id>`. Body is the
-  event word for PR alerts and the masked notification body for needs-you and finished alerts (D6, superseded 2026-09-27). 5 s timeout, one retry after 2 s, no retry after that.
+  event word for PR and exited alerts and the masked notification body for needs-you and finished alerts (D6, superseded 2026-09-27). 5 s timeout, one retry after 2 s, no retry after that.
 - The dispatcher sends only when: Connect Mobile is on
   (`LANManager.Running()`), a phone has **claimed** the current topic (below),
   no phone holds a foreground `notifications` subscription (§5.4), the
@@ -391,8 +393,16 @@ Every rule gets a positive and a negative test.
   a claimed topic; skips when `PhoneForeground()`; skips `quiet`; coalesces
   per session and type within 10 s and sends again after, except a
   needs-input alert whose message differs from the last one sent for that
-  session, which always sends (changed 2026-09-27); records failures with the error; the
-  request body and headers contain no assistant text; the topic changes on
+  session, which always sends (changed 2026-09-27); records failures with the error;
+  a needs-you or finished message is the notification body cleaned and
+  secret-masked, at most 4,096 bytes of valid UTF-8, and falls back to the
+  event word when nothing is left; PR and exited messages are the event word
+  and a PR alert's title never carries the PR title; the ntfy title is cleaned
+  and masked (`push/alerts_test.go` `TestAlertsSendsWhenPairedAndBackgrounded`,
+  `TestAlertsMaskSecretsAndStripControlsInTheBody`,
+  `TestAlertsCapTheBodyAtNtfysMessageLimit`,
+  `TestAlertsPRTypesNeverCarryThePRTitle`, `TestAlertsCleanAndMaskTheTitle`,
+  changed 2026-09-27); the topic changes on
   password rotation; the test route returns the real result.
 - **Live feed (Go):** a subscribed connection receives each created
   notification once; an unsubscribed one receives none; a LAN-origin
