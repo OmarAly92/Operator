@@ -261,7 +261,7 @@ func TestAlertsCapTheBodyAtNtfysMessageLimit(t *testing.T) {
 func TestAlertsCleanAndMaskTheTitle(t *testing.T) {
 	a, sender, _ := setup(t, paired, true, false)
 	rec := record(domain.NotificationTurnFinished, "s1")
-	rec.Title = "\x1b[31mfix\x1b[0m‮ sk-abcdefghijklmnopqrstuvwxyz\x07 finished"
+	rec.Title = "\x1b[31mfix\x1b[0m\u202e sk-abcdefghijklmnopqrstuvwxyz\x07 finished"
 	a.dispatch(context.Background(), rec)
 	if len(sender.sent) != 1 || sender.sent[0].Title != "fix [redacted] finished" {
 		t.Fatalf("sent = %+v", sender.sent)

@@ -134,7 +134,7 @@ func TestEnrichMasksBeforeTruncating(t *testing.T) {
 
 func TestEnrichCleansAndMasksTheTitle(t *testing.T) {
 	t.Parallel()
-	name := "fix \x1b]0;evil\x07‮auth\x1b[1m password=hunter2hunter2"
+	name := "fix \x1b]0;evil\x07\u202eauth\x1b[1m password=hunter2hunter2"
 	needs, err := enrich(Intent{Type: domain.NotificationNeedsInput, SessionID: "s", ProjectID: "p", SessionDisplayName: name, CreatedAt: time.Now()})
 	if err != nil || needs.Title != "fix auth password=[redacted] needs your input" {
 		t.Fatalf("title = %q, %v", needs.Title, err)
