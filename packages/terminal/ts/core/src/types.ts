@@ -273,8 +273,3 @@ export type HostCapabilities = Readonly<{
 	confirmPaste?(preview: string, reason: PasteUnsafeReason): Promise<boolean>;
 	loadOlderOutput?(beforeStableRow: number): void;
 }>;
-
-export type HistoryStore = {
-	load(): Promise<readonly string[]>;
-	save(entries: readonly string[]): Promise<void>;
-};
