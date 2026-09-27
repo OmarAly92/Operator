@@ -14,10 +14,14 @@ import time
 
 ESCAPE = re.compile(rb"\x1b\[[0-9;?>=]*[ -/]*[@-~]|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)|\x1b[()][0-9A-Za-z]|\x1b[=>78DEHMNOZc]")
 FORWARD = re.compile(rb"\x1b\[([0-9]*)C")
+COLUMN = re.compile(rb"\x1b\[[0-9;]*[GH]")
+QUERY = re.compile(rb"\x1b\[(>0?q|0?c|\?([0-9;]*)\$p|\?([0-9;]*)([hl]))")
+TRACKED = {1, 25, 1000, 1002, 1003, 1004, 1006, 1049, 2004, 2048}
+IDENTITY = b"Operator"
 
 
 def plain(data):
-    spaced = FORWARD.sub(lambda match: b" " * int(match.group(1) or b"1"), data)
+    spaced = COLUMN.sub(b" ", FORWARD.sub(lambda match: b" " * int(match.group(1) or b"1"), data))
     return ESCAPE.sub(b"", spaced).replace(b"\r", b"\n").decode("utf-8", "replace")
 
 
@@ -40,7 +44,28 @@ class Session:
         self.current = {"from": 0, "state": "working"}
         self.last_output_ms = 0
         self.since = 0
+        self.modes = {25}
         self.closed = False
+
+    def answer(self, data):
+        replies = bytearray()
+        for match in QUERY.finditer(data):
+            if match.group(4):
+                for mode in (int(part) for part in match.group(3).split(b";") if part):
+                    if match.group(4) == b"h":
+                        self.modes.add(mode)
+                    else:
+                        self.modes.discard(mode)
+            elif match.group(1).endswith(b"q"):
+                replies += b"\x1bP>|" + IDENTITY + b"\x1b\\"
+            elif match.group(1).endswith(b"c"):
+                replies += b"\x1b[?62;22c"
+            else:
+                for mode in (int(part) for part in match.group(2).split(b";") if part):
+                    status = 0 if mode not in TRACKED and mode != 2026 else (1 if mode in self.modes and mode != 2026 else 2)
+                    replies += b"\x1b[?%d;%d$y" % (mode, status)
+        if replies:
+            os.write(self.master, bytes(replies))
 
     def now(self):
         return int((time.monotonic() - self.started) * 1000)
@@ -65,6 +90,7 @@ class Session:
             self.timing.append([len(self.recording), at])
             self.recording.extend(data)
             self.last_output_ms = at
+            self.answer(data)
             sys.stdout.buffer.write(data)
             sys.stdout.buffer.flush()
 
@@ -111,6 +137,30 @@ class Session:
             if self.now() - self.last_output_ms >= seconds * 1000:
                 return self.last_output_ms
         raise SystemExit(f"expect_quiet {seconds}s timed out after {timeout}s")
+
+    def stop(self):
+        for signum in (signal.SIGHUP, signal.SIGTERM, signal.SIGKILL):
+            try:
+                os.kill(self.pid, signum)
+            except ProcessLookupError:
+                pass
+            deadline = time.monotonic() + 3
+            while time.monotonic() < deadline:
+                try:
+                    pid, _ = os.waitpid(self.pid, os.WNOHANG)
+                except ChildProcessError:
+                    return
+                if pid:
+                    return
+                if self.closed:
+                    time.sleep(0.05)
+                else:
+                    self.pump(0.05)
+        os.close(self.master)
+        try:
+            os.waitpid(self.pid, 0)
+        except ChildProcessError:
+            pass
 
     def resize(self, cols, rows):
         set_winsize(self.master, cols, rows)
@@ -162,18 +212,21 @@ def main():
     with open(args.scenario) as handle:
         scenario = json.load(handle)
     session = Session(command, args.cols, args.rows)
+    finished = False
     try:
         run(session, scenario["steps"])
         session.pump(scenario.get("tail_seconds", 2))
+        finished = True
     finally:
         end = max(session.now(), session.last_output_ms + 1)
         session.begin(end, session.current["state"])
-        if not session.closed:
-            os.kill(session.pid, signal.SIGHUP)
-        try:
-            os.waitpid(session.pid, 0)
-        except ChildProcessError:
-            pass
+        length, reads = len(session.recording), len(session.timing)
+        session.stop()
+        if not finished:
+            with open(args.out.rstrip("/") + ".failed.recording", "wb") as handle:
+                handle.write(bytes(session.recording))
+    del session.recording[length:]
+    del session.timing[reads:]
     os.makedirs(args.out, exist_ok=True)
     with open(os.path.join(args.out, "recording"), "wb") as handle:
         handle.write(bytes(session.recording))
