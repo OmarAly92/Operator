@@ -56,3 +56,54 @@ describe("RendererSelection follows row events", () => {
 		expect(selection.text()).toBe("two");
 	});
 });
+
+describe("RendererSelection extends", () => {
+	it("extends the current selection from its anchor and keeps its kind", () => {
+		const rows = { current: rowsOf("b", ["alpha beta", "gamma delta"]) };
+		const selection = selectionOver(rows);
+		selection.begin({ blockId: "b", row: 0, column: 1, side: "left" }, "word");
+		selection.update({ blockId: "b", row: 1, column: 7, side: "left" }, true);
+		expect(selection.text()).toBe("alpha beta\ngamma delta");
+	});
+	it("selects from the last plain click when there is no selection", () => {
+		const rows = { current: rowsOf("b", ["alpha beta", "gamma delta"]) };
+		const selection = selectionOver(rows);
+		selection.clear({ blockId: "b", row: 0, column: 6, side: "left" });
+		selection.update({ blockId: "b", row: 1, column: 4, side: "right" }, true);
+		expect(selection.text()).toBe("beta\ngamma");
+	});
+	it("does nothing on a plain update with no selection", () => {
+		const rows = { current: rowsOf("b", ["alpha beta"]) };
+		const selection = selectionOver(rows);
+		selection.clear({ blockId: "b", row: 0, column: 0, side: "left" });
+		selection.update({ blockId: "b", row: 0, column: 4, side: "right" });
+		expect(selection.text()).toBeNull();
+	});
+	it("only places the caret when nothing was clicked before", () => {
+		const rows = { current: rowsOf("b", ["alpha beta"]) };
+		const selection = selectionOver(rows);
+		selection.update({ blockId: "b", row: 0, column: 6, side: "left" }, true);
+		expect(selection.text()).toBeNull();
+		selection.update({ blockId: "b", row: 0, column: 9, side: "right" }, true);
+		expect(selection.text()).toBe("beta");
+	});
+	it("keeps the caret on its text through a rewrap", () => {
+		const rows = { current: rowsOf("b", ["alpha beta gamma delta"]) };
+		const selection = selectionOver(rows);
+		selection.clear({ blockId: "b", row: 0, column: 11, side: "left" });
+		rows.current = rowsOf("b", ["alpha beta ", "gamma delta"], new Set([0]));
+		selection.followRows({ trimmed: 0, remap: [[0, 0]], remapEnd: [1, 2] });
+		selection.update({ blockId: "b", row: 1, column: 4, side: "right" }, true);
+		expect(selection.text()).toBe("gamma");
+	});
+	it("replaces a caret whose block is gone", () => {
+		const rows = { current: rowsOf("old", ["gone"]) };
+		const selection = selectionOver(rows);
+		selection.clear({ blockId: "old", row: 0, column: 0, side: "left" });
+		rows.current = rowsOf("new", ["alpha beta"]);
+		selection.update({ blockId: "new", row: 0, column: 6, side: "left" }, true);
+		expect(selection.text()).toBeNull();
+		selection.update({ blockId: "new", row: 0, column: 9, side: "right" }, true);
+		expect(selection.text()).toBe("beta");
+	});
+});

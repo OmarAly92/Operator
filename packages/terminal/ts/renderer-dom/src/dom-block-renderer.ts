@@ -272,12 +272,12 @@ export class DomBlockRenderer implements BlockRenderer {
 		this.highlights.selection.begin(point, kind);
 	}
 
-	selectionUpdate(point: SelectionPoint): void {
-		this.highlights.selection.update(point);
+	selectionUpdate(point: SelectionPoint, extendFromCaret = false): void {
+		this.highlights.selection.update(point, extendFromCaret);
 	}
 
-	selectionClear(): void {
-		this.highlights.selection.clear();
+	selectionClear(caret?: SelectionPoint): void {
+		this.highlights.selection.clear(caret);
 	}
 
 	hasSelection(): boolean {

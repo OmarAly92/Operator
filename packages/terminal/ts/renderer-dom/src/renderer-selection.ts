@@ -17,28 +17,41 @@ export class RendererSelection {
 	private anchors: Anchors | null = null;
 	private anchoredFor: SelectionState | null = null;
 	private moved = false;
+	private caret: SelectionPoint | null = null;
+	private caretAnchor: LineAnchor | null = null;
 	private readonly selectionListeners = new Set<() => void>();
 
 	constructor(private readonly deps: RendererSelectionDeps) {}
 
 	begin(point: SelectionPoint, kind: SelectionKind): void {
+		this.placeCaret(point);
 		this.set({ head: point, tail: point, kind });
 	}
 
-	update(point: SelectionPoint): void {
-		if (!this.selection) return;
-		this.set({ ...this.selection, tail: point });
+	update(point: SelectionPoint, extendFromCaret = false): void {
+		if (this.selection) {
+			this.set({ ...this.selection, tail: point });
+			return;
+		}
+		if (!extendFromCaret) return;
+		const head = this.currentCaret();
+		if (head) this.set({ head, tail: point, kind: "simple" });
+		else this.placeCaret(point);
 	}
 
-	clear(): void {
+	clear(caret?: SelectionPoint): void {
+		if (caret) this.placeCaret(caret);
 		if (!this.selection) return;
 		this.forget();
 		this.changed();
 	}
 
 	followRows(event: RowEvent): void {
+		if (!event.remap && !event.remapEnd) return;
+		if (this.caret) this.caret = followPoint(this.caret, event);
+		if (this.caretAnchor) this.caretAnchor = followAnchor(this.caretAnchor, event);
 		const selection = this.selection;
-		if (!selection || (!event.remap && !event.remapEnd)) return;
+		if (!selection) return;
 		this.selection = { ...selection, head: followPoint(selection.head, event), tail: followPoint(selection.tail, event) };
 		if (this.anchors && this.anchoredFor === selection) {
 			this.anchors = {
@@ -87,11 +100,25 @@ export class RendererSelection {
 
 	reset(): void {
 		this.forget();
+		this.caret = null;
+		this.caretAnchor = null;
 	}
 
 	private set(selection: SelectionState): void {
 		this.selection = selection;
 		this.changed();
+	}
+
+	private placeCaret(point: SelectionPoint): void {
+		this.caret = point;
+		this.caretAnchor = this.deps.hasCore() ? anchorOf(point, this.deps.textRows()) : null;
+	}
+
+	private currentCaret(): SelectionPoint | null {
+		if (!this.caret || !this.deps.hasCore()) return null;
+		const rows = this.deps.textRows();
+		const caret = (this.caretAnchor && pointOf(this.caretAnchor, rows)) ?? this.caret;
+		return rows.blockIds.includes(caret.blockId) ? caret : null;
 	}
 
 	private settle(rows: TextRows): SelectionState | null {
