@@ -7,7 +7,7 @@ Last updated: 2026-09-27. Owner: Omar Aly (the user). This is the single source 
 | # | Project | Status |
 |---|---|---|
 | 1 | Reference lab (measuring instrument) | **DONE**, merged to `development` (`7f74f5a0b`), not pushed |
-| 2A | Package foundation + how glass looks | **SPEC APPROVED** (2026-09-27). **Plan in progress**: prototype in `../Operator-2a-proto`, see `PROTOTYPE-2A.md` there |
+| 2A | Package foundation + how glass looks | **PLAN WRITTEN** (2026-09-27): `02a-looks/plan.md`, 13 tasks, prototype-proven. Awaiting the user's review. |
 | 2B | How glass moves | NOT STARTED |
 | 3 | Every iOS component inside the package | NOT STARTED |
 | 4 | Operator adopts the package | NOT STARTED |
@@ -98,7 +98,7 @@ Repository: `/Users/omaraly/development/AI/Operator`. Default branch `developmen
 | `docs/liquid_glass/research/non-flutter.md` | Non-Flutter implementations: Kyant0/AndroidLiquidGlass shader, kube.io optics, SDF smooth-union, dual-lobe rim; ranked techniques |
 | `docs/liquid_glass/research/operator-audit.md` | Every Operator screen and the component each uses (the input to project 4) |
 | `docs/liquid_glass/01-reference-lab/spec.md`, `plan.md`, `baseline.md` | Project 1 |
-| `docs/liquid_glass/02a-looks/spec.md` | Project 2A spec |
+| `docs/liquid_glass/02a-looks/spec.md`, `plan.md` | Project 2A spec and plan. The plan's header lists 15 rulings that refine the spec, each with its evidence. |
 | `docs/superpowers/specs/2026-09-23-mobile-liquid-glass-engine-design.md`, `2026-09-24-mobile-glass-chrome-design.md`, `2026-09-24-mobile-sheets-design.md` (+ plans and reports in `docs/superpowers/`) | History: the first engine and chrome work on iOS 26.5, before this roadmap |
 
 ### Worktrees
@@ -148,6 +148,16 @@ Repository: `/Users/omaraly/development/AI/Operator`. Default branch `developmen
 11. **On iOS 27 the search tab sits inside the tab bar capsule** as a fourth item; on 26.5 it was a separate circle. The native tab bar measures x 20, y 791, 362 × 62 pt.
 12. **Flutter's `find.bySemanticsIdentifier` needs `tester.ensureSemantics()`.** Flutter semantics identifiers and labels do reach XCUITest.
 13. **Color.clear in SwiftUI is not hit-testable** unless it has a content shape. This did not explain gotcha 10.
+14. **A scroll view whose content is an `Image.file` has no height at first layout**, so `ScrollController(initialScrollOffset:)` clamps to 0. Jump to the offset after the image's first frame (2A prototype, edge scenes).
+15. **Accessibility changes reach a running app live on the simulator:**
+    - `defaults write com.apple.Accessibility EnhancedBackgroundContrastEnabled` (Reduce Transparency) and `ReduceMotionEnabled`;
+    - `simctl ui <udid> increase_contrast`.
+    No `notifyutil` is needed (2A prototype, `lab.py a11y`).
+16. **`FrameTiming` raster durations work in simulator debug builds.** Always alternate A/B order.
+17. **A linear `lift + gain·L` tone curve cannot fit native glass over both mid-tones and white.** Use three points: black, mid, white.
+18. **Detected glass boxes miss light glass on white.** Only the end caps show. Score pinned manifest regions instead.
+19. **Name clash:** Operator has a `GlassScope`, so the package's inherited widget is `GlassEffectScope`.
+20. **Native `.glassEffect()` glass does not flip light/dark with the content behind it** on the iOS 27 simulator, at 44 or 200 pt (2A flip spike).
 
 ---
 
@@ -195,8 +205,24 @@ Repository: `/Users/omaraly/development/AI/Operator`. Default branch `developmen
   - Apple prepare taps are not idempotent.
   - `events.count` compares by order only.
 
-### Project 2A: Package foundation + how glass looks (SPEC APPROVED, plan in progress)
+### Project 2A: Package foundation + how glass looks (PLAN WRITTEN, awaiting review)
 - **Spec:** `docs/liquid_glass/02a-looks/spec.md`. Read it for every detail.
+- **Plan:** `docs/liquid_glass/02a-looks/plan.md`. Its 13 tasks, in order:
+  1. rename;
+  2. plugin;
+  3. final render model;
+  4. API and material;
+  5. Operator adapters;
+  6. scroll edge into the package;
+  7. example app as the lab target;
+  8. probes (`perf`, `a11y`);
+  9. flip spike and frame cost;
+  10. `tune`;
+  11. tuning campaign;
+  12. verification runs;
+  13. documents.
+
+  Its header lists **15 rulings that refine the spec**, each with prototype evidence: a three-point tone curve, a tint brightness range, no geometry change, no flip to build, static pre-scrolled edge scenes, measured foreground colours, and others.
 - **Summary:**
   - Rename to `ios_liquid_glass` and make it a plugin with an iOS part for Reduce Transparency.
   - A SwiftUI-mirroring public API (`Glass`, `GlassEffect`, `GlassEffectContainer`).
@@ -206,16 +232,15 @@ Repository: `/Users/omaraly/development/AI/Operator`. Default branch `developmen
   - Clear and tinted variants, the scroll edge effect, the accessibility modes, and a spike on light/dark flipping.
   - A `lab.py tune` automatic parameter search.
   - Operator's `GlassStyle`, `GlassSurface` and `GlassScope` replaced by the package API.
-- **Prototype (2026-09-27):** worktree `/Users/omaraly/development/AI/Operator-2a-proto` (branch `proto/2a`, uncommitted, throwaway). **`PROTOTYPE-2A.md` at its root** records what is proven and where the code is:
-  - rename;
-  - plugin;
-  - new shader;
-  - API and material table;
-  - scroll edge moved into the package;
-  - Operator migration (2,145 tests green);
-  - example app;
-  - harness `--flutter` target and `tune`, with one real loop improving the score from 15.33 to 14.67.
-- **Next:** finish the plan in `docs/liquid_glass/02a-looks/plan.md` from that prototype → the user reviews it → a fresh session executes it → review here.
+- **Prototype (2026-09-27):** worktree `/Users/omaraly/development/AI/Operator-2a-proto` (branch `proto/2a`, uncommitted, throwaway, never merged). `PROTOTYPE-2A.md` at its root has the final gate counts and evidence:
+  - package 46 tests, example 6, harness 75, Operator 2,145;
+  - builds under Xcode 27;
+  - a11y toggles live;
+  - perf: new 12.54 ms against old 12.63 ms;
+  - no native flip;
+  - edge content aligned to 0 px;
+  - tone-curve tune: dark regular 88 pt from 17.85 to 7.18 in one pass.
+- **Next:** the user reviews the plan → a fresh session executes it subagent-driven, in worktree `../Operator-ios-liquid-glass`, branch `feat/ios-liquid-glass-2a` → review here.
 
 ### Project 2B: How glass moves (NOT STARTED)
 - **Scope:**
@@ -369,15 +394,12 @@ Out of scope: iPad and Mac items (sidebar, pointer, iPad tab bar), app icons, wi
 
 ## 9. Exact next steps
 
-1. **Spec approved on 2026-09-27.** Still pending from the user: whether to push `development`, and the `material.interactive` decision.
-2. **Write the 2A plan prototype-first. The prototype is mostly done**; read `/Users/omaraly/development/AI/Operator-2a-proto/PROTOTYPE-2A.md` first. Its original steps were, into `docs/liquid_glass/02a-looks/plan.md`:
-   - Create a worktree `../Operator-ios-liquid-glass` on a new branch `feat/ios-liquid-glass-2a` off `development`.
-   - Prototype in the session scratchpad:
-     - the rename;
-     - the plugin (Swift, `UIAccessibility.isReduceTransparencyEnabled` plus its notification);
-     - the `example/` app building under Xcode 27 with the lab launch file;
-     - the new final render shader compiling under Impeller;
-     - `lab.py tune` driving parameter overrides through `launch.json`.
-   - Make each piece run on the iOS 27 simulator, then embed the tested code in the plan the way `01-reference-lab/plan.md` does.
-3. **Hand off** to a fresh session with a prompt that names this file, the 2A spec and plan, the worktree and the hard rules. Use project 1's handoff prompt as the model.
-4. **Review** the result here: rerun the lab on the material scenes, compare with the baseline, and update §6 and §8.
+1. **The user reviews `docs/liquid_glass/02a-looks/plan.md`**, written on 2026-09-27. Still pending from the user: whether to push `development`, and the `material.interactive` decision.
+2. **Hand off** once the plan is approved: write the fresh-session prompt. It names this file, the 2A spec and plan, the worktree `../Operator-ios-liquid-glass` on branch `feat/ios-liquid-glass-2a` (Task 1 Step 1 creates it), subagent-driven execution, and the hard rules. Use project 1's handoff prompt as the model. Tasks 10–12 run the simulator for many hours; the session runs them in the background and records every run in `02a-looks/tuning-log.md`.
+3. **Review** the result here:
+   - diff the branch against the plan's code;
+   - rerun every gate;
+   - open `02a-looks/results.md`, the reports and the filmstrips;
+   - fix what is wrong and re-measure;
+   - then update §6, §7 and §8.
+4. **Merge** into `development` when the user says, then write project 2B's spec.

@@ -1,6 +1,6 @@
 # Project 2A: ios_liquid_glass package foundation and how glass looks
 
-Date: 2026-09-27. Status: **written, awaiting the user's review.** The plan is not written yet.
+Date: 2026-09-27. Status: **approved by the user on 2026-09-27.** The plan is `plan.md` in this folder; its header lists the rulings that refine this spec.
 Master roadmap: `docs/liquid_glass/ROADMAP.md`; read it first, especially §3–§5.
 Measuring instrument: project 1 (`docs/liquid_glass/01-reference-lab/`) and `packages/mobile/tool/glass_lab/`.
 
