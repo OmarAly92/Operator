@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
+	DEFAULT_QUICK_FIX_RULES,
 	TerminalSurface,
 	createTerminalCore,
 	initTerminalCoreFromUrl,
@@ -14,6 +15,7 @@ import {
 	type TerminalTheme,
 } from "@operator/terminal-react";
 import { operatorBridge } from "../lib/bridge";
+import { commandHistory } from "../lib/command-history";
 import { rememberPaneGrid } from "../lib/pane-grid";
 import { BLOCK_NOTIFY_AFTER_MS } from "../lib/retained-terminal";
 import { terminalBackgroundColor, type TerminalBackground } from "../lib/terminal-background";
@@ -566,6 +568,8 @@ export function BlockTerminal({
 			}),
 			jumpToBottom: t("blocks.jumpToBottom", { defaultValue: "Jump to bottom" }),
 			loadOlderOutput: t("blocks.loadOlderOutput", { defaultValue: "Load older output" }),
+			quickFixLabel: t("blocks.quickFixLabel", { defaultValue: "Suggested fix" }),
+			quickFixUse: t("blocks.quickFixUse", { defaultValue: "Use" }),
 			shellBlocksUnavailable: t("blocks.shellBlocksUnavailable", {
 				defaultValue: "Shell blocks are unavailable in this terminal.",
 			}),
@@ -639,6 +643,7 @@ export function BlockTerminal({
 		visible,
 		marks,
 		onDraftChange,
+		...(agentTui ? {} : { commandHistory, quickFixRules: DEFAULT_QUICK_FIX_RULES }),
 		onHint: (hint) => {
 			// A hint's path is the text as it was printed, so it is relative as
 			// often as not; open_path only answers for an absolute file. Resolving
@@ -661,6 +666,7 @@ export function BlockTerminal({
 			void reportTerminalActionFailure(host.writeClipboard(hint.text));
 		},
 		onBlockFinished: ({ id, exitCode, durationMs, visible }) => {
+			if (!agentTui) commandHistory.noteCommandFinished();
 			if (visible || durationMs === null || durationMs < BLOCK_NOTIFY_AFTER_MS) return;
 			void reportTerminalActionFailure(
 				operatorBridge.notifications.show({
