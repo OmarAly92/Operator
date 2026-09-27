@@ -249,6 +249,7 @@ type host struct {
 	activitySeq   uint64
 	activityFrame []byte
 	pokedAt       time.Time
+	tickedAt      time.Time
 }
 
 // runWriter drains one client's outbound queue, blocking on each conn.Write
@@ -708,6 +709,7 @@ func (h *host) tickParser() {
 	if parser := h.currentParser(); parser != nil {
 		_, _ = parser.Tick(time.Now().UnixMilli())
 		h.mu.Lock()
+		h.tickedAt = time.Now()
 		replies := h.takeQueryRepliesLocked()
 		h.publishProgramLocked()
 		pty := h.pty
