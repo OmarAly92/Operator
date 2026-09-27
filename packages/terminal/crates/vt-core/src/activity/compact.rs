@@ -136,7 +136,7 @@ impl TerminalCore {
         } else {
             let total = snapshot.row_count();
             let mut first = total.saturating_sub(rows);
-            while first > 0 && snapshot.row_wrapped(first - 1) {
+            while first > 0 && first < total && snapshot.row_wrapped(first - 1) {
                 first -= 1;
             }
             let mut line = String::new();

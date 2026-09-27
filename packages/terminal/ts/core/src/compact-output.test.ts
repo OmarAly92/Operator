@@ -89,3 +89,18 @@ describe("capLines", () => {
 		expect(() => capLines(lines, Number.NaN)).toThrow(RangeError);
 	});
 });
+
+describe("whitespace", () => {
+	it("counts next line as whitespace and the byte order mark as text", () => {
+		expect(isSpinnerLine("\u0085✽ Working…")).toBe(true);
+		expect(isSpinnerLine("✽\u0085Working…")).toBe(true);
+		expect(isSpinnerLine("✽ Working…\u0085(3s)")).toBe(true);
+		expect(isSpinnerLine("﻿✽ Working…")).toBe(false);
+		expect(isSpinnerLine("✽﻿Working…")).toBe(false);
+		expect(isSpinnerLine("✽ Working…﻿(3s)")).toBe(false);
+		expect(compactLines(["a\u0085", "a"])).toEqual(["a"]);
+		expect(compactLines(["x", "\u0085", "\u0085", "y"])).toEqual(["x", "", "y"]);
+		expect(compactLines(["b﻿", "b"])).toEqual(["b﻿", "b"]);
+		expect(compactLines(["x", "﻿", "y"])).toEqual(["x", "﻿", "y"]);
+	});
+});

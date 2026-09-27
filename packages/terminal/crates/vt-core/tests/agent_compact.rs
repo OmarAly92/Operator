@@ -125,3 +125,39 @@ fn the_tail_is_the_newest_logical_lines_compacted_and_capped() {
     );
     assert_eq!(core.tail_output(1, false, 10), "");
 }
+
+#[test]
+fn a_zero_row_tail_is_empty_even_when_the_last_row_is_soft_wrapped() {
+    let mut core = TerminalCore::new(20, 1_000).expect("core");
+    core.resize(20, 10);
+    core.feed(b"1\r\n2\r\n3\r\n4\r\n5\r\n6\r\n7\r\n8\r\nabcdefghijklmnopqrstuvwxyz0123");
+    core.feed(b"\x1b[H\x1b[T");
+    let snapshot = core.snapshot().expect("snapshot");
+    assert!(snapshot.row_wrapped(snapshot.row_count() - 1));
+    assert_eq!(core.tail_output(0, false, 10), "");
+    assert_eq!(core.tail_output(0, true, 10), "");
+    assert_eq!(core.tail_output(1, false, 10), "abcdefghijklmnopqrst");
+}
+
+#[test]
+fn next_line_is_whitespace_and_the_byte_order_mark_is_not() {
+    assert!(is_spinner_line("\u{85}✽ Working…"));
+    assert!(is_spinner_line("✽\u{85}Working…"));
+    assert!(is_spinner_line("✽ Working…\u{85}(3s)"));
+    assert!(!is_spinner_line("\u{feff}✽ Working…"));
+    assert!(!is_spinner_line("✽\u{feff}Working…"));
+    assert!(!is_spinner_line("✽ Working…\u{feff}(3s)"));
+    assert_eq!(compact_lines(&["a\u{85}", "a"]), strings(&["a"]));
+    assert_eq!(
+        compact_lines(&["x", "\u{85}", "\u{85}", "y"]),
+        strings(&["x", "", "y"])
+    );
+    assert_eq!(
+        compact_lines(&["b\u{feff}", "b"]),
+        strings(&["b\u{feff}", "b"])
+    );
+    assert_eq!(
+        compact_lines(&["x", "\u{feff}", "y"]),
+        strings(&["x", "\u{feff}", "y"])
+    );
+}
