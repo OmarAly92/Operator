@@ -95,18 +95,41 @@ func TestAlertsGate(t *testing.T) {
 	}
 }
 
-func TestAlertsCoalescePerSessionForTenSeconds(t *testing.T) {
+func TestAlertsCoalescePerSessionAndTypeForTenSeconds(t *testing.T) {
 	a, sender, now := setup(t, paired, true, false)
 	a.dispatch(context.Background(), record(domain.NotificationTurnFinished, "s1"))
 	a.dispatch(context.Background(), record(domain.NotificationNeedsInput, "s1"))
 	a.dispatch(context.Background(), record(domain.NotificationTurnFinished, "s2"))
-	if len(sender.sent) != 2 {
-		t.Fatalf("sent %d, want 2 (one per session)", len(sender.sent))
+	if len(sender.sent) != 3 {
+		t.Fatalf("sent %d, want 3 (a needs-you alert is not swallowed by a finished one)", len(sender.sent))
+	}
+	a.dispatch(context.Background(), record(domain.NotificationNeedsInput, "s1"))
+	if len(sender.sent) != 3 {
+		t.Fatalf("sent %d, want the second needs-you inside the window coalesced", len(sender.sent))
 	}
 	*now = now.Add(11 * time.Second)
-	a.dispatch(context.Background(), record(domain.NotificationTurnFinished, "s1"))
-	if len(sender.sent) != 3 {
-		t.Fatalf("sent %d after the window, want 3", len(sender.sent))
+	a.dispatch(context.Background(), record(domain.NotificationNeedsInput, "s1"))
+	if len(sender.sent) != 4 {
+		t.Fatalf("sent %d after the window, want 4", len(sender.sent))
+	}
+}
+
+func TestAlertsTwoDifferentNeedsInputQuestionsInTheWindowAreBothSent(t *testing.T) {
+	a, sender, _ := setup(t, paired, true, false)
+	first := record(domain.NotificationNeedsInput, "s1")
+	first.Body = "Overwrite file A?"
+	a.dispatch(context.Background(), first)
+	second := record(domain.NotificationNeedsInput, "s1")
+	second.Body = "Delete branch B?"
+	a.dispatch(context.Background(), second)
+	if len(sender.sent) != 2 || sender.sent[0].Message == sender.sent[1].Message {
+		t.Fatalf("sent %+v, want two different needs-you alerts", sender.sent)
+	}
+	third := record(domain.NotificationNeedsInput, "s1")
+	third.Body = "Delete branch B?"
+	a.dispatch(context.Background(), third)
+	if len(sender.sent) != 2 {
+		t.Fatalf("sent %d, want the repeated question coalesced", len(sender.sent))
 	}
 }
 
