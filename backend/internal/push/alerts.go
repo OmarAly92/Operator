@@ -212,7 +212,7 @@ func (a *Alerts) recordDelivery(err error) Delivery {
 }
 
 func alertFor(rec domain.NotificationRecord) Alert {
-	alert := Alert{Title: rec.Title, Message: phoneMessage(rec), Priority: PriorityDefault}
+	alert := Alert{Title: strings.Join(strings.Fields(redact.Clean(rec.Title)), " "), Message: phoneMessage(rec), Priority: PriorityDefault}
 	if rec.SessionID != "" {
 		alert.Click = "operator://session/" + url.PathEscape(string(rec.SessionID))
 	}

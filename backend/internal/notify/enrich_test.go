@@ -131,3 +131,16 @@ func TestEnrichMasksBeforeTruncating(t *testing.T) {
 		t.Fatalf("body = %q, want %q (%v)", rec.Body, want, err)
 	}
 }
+
+func TestEnrichCleansAndMasksTheTitle(t *testing.T) {
+	t.Parallel()
+	name := "fix \x1b]0;evil\x07‮auth\x1b[1m password=hunter2hunter2"
+	needs, err := enrich(Intent{Type: domain.NotificationNeedsInput, SessionID: "s", ProjectID: "p", SessionDisplayName: name, CreatedAt: time.Now()})
+	if err != nil || needs.Title != "fix auth password=[redacted] needs your input" {
+		t.Fatalf("title = %q, %v", needs.Title, err)
+	}
+	blank, _ := enrich(Intent{Type: domain.NotificationTurnFinished, SessionID: "s", ProjectID: "p", SessionDisplayName: "\x1b[0m\x07", CreatedAt: time.Now()})
+	if blank.Title != "s finished" {
+		t.Fatalf("blank name title = %q", blank.Title)
+	}
+}

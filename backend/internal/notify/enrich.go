@@ -26,7 +26,7 @@ func enrich(intent Intent) (domain.NotificationRecord, error) {
 	if !intent.Type.SessionScoped() && rec.PRURL == "" {
 		return domain.NotificationRecord{}, domain.ErrInvalidNotificationRecord
 	}
-	rec.Title = titleForIntent(intent)
+	rec.Title = oneLine(titleForIntent(intent))
 	rec.Body = bodyForIntent(intent)
 	if err := rec.Validate(); err != nil {
 		return domain.NotificationRecord{}, err
@@ -116,8 +116,12 @@ func agentText(text string) string {
 	return summarize(redact.Clean(text), turnSummaryRunes)
 }
 
+func oneLine(text string) string {
+	return strings.Join(strings.Fields(redact.Clean(text)), " ")
+}
+
 func sessionLabel(intent Intent) string {
-	if v := strings.TrimSpace(intent.SessionDisplayName); v != "" {
+	if v := oneLine(intent.SessionDisplayName); v != "" {
 		return v
 	}
 	if intent.SessionID != "" {
