@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:operator_mobile/core/app_routes/home_shell.dart';
 import 'package:operator_mobile/core/app_routes/routes_strings.dart';
-import 'package:operator_mobile/core/widgets/glass/lab/glass_lab_scene.dart';
+import 'package:operator_mobile/core/widgets/glass/lab/glass_lab_launch.dart';
 import 'package:operator_mobile/core/widgets/glass/lab/glass_lab_screen.dart';
 import 'package:operator_mobile/core/notifications/viewed_session.dart';
 import 'package:operator_mobile/core/utils/service_locator.dart';
@@ -202,7 +202,9 @@ sealed class AppRouter {
           );
         }
         return MaterialPageRoute(
-          builder: (_) => GlassLabScreen(scene: GlassLabScene.fromEnvironment() ?? GlassLabScene.rest),
+          builder: (_) => GlassLabScreen(
+            launch: GlassLabLaunch.current ?? const GlassLabLaunch(scene: 'tabbar.rest'),
+          ),
           settings: settings,
         );
 

@@ -1,0 +1,295 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+		EC8D852BA6BBB132088FC360 = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 46F86FAA6BBF9AC94A7E4595;
+			proxyType = 1;
+			remoteGlobalIDString = F01C2E624E08A72BC055B46F;
+			remoteInfo = GlassLab;
+		};
+		996AD237BC284D463E664FFE = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = GlassLab.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		3499F22378954C3F4072FB0B = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = GlassLabDriver.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		C77E3C2BD92658F710989DA6 = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = GlassLab;
+			sourceTree = "<group>";
+		};
+		BF9754AF7A896266418B2B6B = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = GlassLabDriver;
+			sourceTree = "<group>";
+		};
+		CBA70B1D277F5FF53A8A503E = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		91C2BCBCA69AA5ADFA40FCA3 = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		F42021F9A2E99042943DF410 = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		3A93EDF2A31E64FC96A7011A = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		93852BA4F741F785A4549192 = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		F5057117EE28078FB56F0F39 = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		71DC27D9F8E3B109C877BFC4 = {
+			isa = PBXGroup;
+			children = (
+				C77E3C2BD92658F710989DA6,
+				BF9754AF7A896266418B2B6B,
+				113236722DEE1DC96F378B9D,
+			);
+			sourceTree = "<group>";
+		};
+		113236722DEE1DC96F378B9D = {
+			isa = PBXGroup;
+			children = (
+				996AD237BC284D463E664FFE,
+				3499F22378954C3F4072FB0B,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		F01C2E624E08A72BC055B46F = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 0170D159820A9A0B14EA6897;
+			buildPhases = (
+				F42021F9A2E99042943DF410,
+				CBA70B1D277F5FF53A8A503E,
+				91C2BCBCA69AA5ADFA40FCA3,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				C77E3C2BD92658F710989DA6,
+			);
+			name = GlassLab;
+			packageProductDependencies = (
+			);
+			productName = GlassLab;
+			productReference = 996AD237BC284D463E664FFE;
+			productType = "com.apple.product-type.application";
+		};
+		181E19E62AB711A8DC5D2989 = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = D5F7A6B71968CAD2488925A4;
+			buildPhases = (
+				F5057117EE28078FB56F0F39,
+				3A93EDF2A31E64FC96A7011A,
+				93852BA4F741F785A4549192,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				85B2F1A7AF40BE9081FD9404,
+			);
+			fileSystemSynchronizedGroups = (
+				BF9754AF7A896266418B2B6B,
+			);
+			name = GlassLabDriver;
+			packageProductDependencies = (
+			);
+			productName = GlassLabDriver;
+			productReference = 3499F22378954C3F4072FB0B;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
+		46F86FAA6BBF9AC94A7E4595 = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 2700;
+				LastUpgradeCheck = 2700;
+				TargetAttributes = {
+					F01C2E624E08A72BC055B46F = {
+						CreatedWithXcodeVersion = 27.0;
+					};
+					181E19E62AB711A8DC5D2989 = {
+						CreatedWithXcodeVersion = 27.0;
+						TestTargetID = F01C2E624E08A72BC055B46F;
+					};
+				};
+			};
+			buildConfigurationList = 946392D46B65BE2E368A0D3B;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = 71DC27D9F8E3B109C877BFC4;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 113236722DEE1DC96F378B9D;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				F01C2E624E08A72BC055B46F,
+				181E19E62AB711A8DC5D2989,
+			);
+		};
+		85B2F1A7AF40BE9081FD9404 = {
+			isa = PBXTargetDependency;
+			target = F01C2E624E08A72BC055B46F;
+			targetProxy = EC8D852BA6BBB132088FC360;
+		};
+		218037AB54AB59F5BE8E874E = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGN_STYLE = Manual;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 27.0;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		0CF8206AA0B385A93D33097D = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGN_STYLE = Manual;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 27.0;
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		946392D46B65BE2E368A0D3B = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				218037AB54AB59F5BE8E874E,
+				0CF8206AA0B385A93D33097D,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		DCC1C523FEAA6CC4162B06F3 = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
+				LD_RUNPATH_SEARCH_PATHS = ("$(inherited)", "@executable_path/Frameworks");
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = dev.operator.glasslab;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = Debug;
+		};
+		380161B2DFE648D1234B91D4 = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
+				LD_RUNPATH_SEARCH_PATHS = ("$(inherited)", "@executable_path/Frameworks");
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = dev.operator.glasslab;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = Release;
+		};
+		0170D159820A9A0B14EA6897 = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				DCC1C523FEAA6CC4162B06F3,
+				380161B2DFE648D1234B91D4,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		4357AB8AF35CB7260CB6CA7C = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = ("$(inherited)", "@executable_path/Frameworks", "@loader_path/Frameworks");
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = dev.operator.glasslab.driver;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				TEST_TARGET_NAME = GlassLab;
+			};
+			name = Debug;
+		};
+		B22F81DAF48CF5ABC8867BA5 = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = ("$(inherited)", "@executable_path/Frameworks", "@loader_path/Frameworks");
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = dev.operator.glasslab.driver;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				TEST_TARGET_NAME = GlassLab;
+			};
+			name = Release;
+		};
+		D5F7A6B71968CAD2488925A4 = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				4357AB8AF35CB7260CB6CA7C,
+				B22F81DAF48CF5ABC8867BA5,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+	};
+	rootObject = 46F86FAA6BBF9AC94A7E4595;
+}

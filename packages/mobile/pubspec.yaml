@@ -78,6 +78,7 @@ dependencies:
   flutter_markdown_plus: ^1.0.12
   drift: ^2.34.1
   drift_flutter: ^0.3.0
+  path_provider: ^2.1.6
   flutter_local_notifications: ^22.3.0
   photo_manager: ^3.12.0
 

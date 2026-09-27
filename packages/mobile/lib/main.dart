@@ -23,7 +23,7 @@ import 'package:operator_mobile/core/replica/launch_cache_wait.dart';
 import 'package:operator_mobile/core/telemetry/runtime.dart';
 import 'package:operator_mobile/core/utils/device_kind.dart';
 import 'package:operator_mobile/core/utils/service_locator.dart';
-import 'package:operator_mobile/core/widgets/glass/lab/glass_lab_scene.dart';
+import 'package:operator_mobile/core/widgets/glass/lab/glass_lab_launch.dart';
 import 'package:operator_mobile/feature/onboarding/logic/onboarding.dart';
 import 'package:operator_mobile/feature/pairing/data/repository/desktops_repository.dart';
 import 'package:operator_mobile/feature/sessions/presentation/sessions_screen/logic/sessions_cubit.dart';
@@ -64,8 +64,8 @@ Future<void> main() async {
   );
   unawaited(TelemetryRuntime.active());
 
-  final labScene = kDebugMode ? GlassLabScene.fromEnvironment() : null;
-  final initialRoute = labScene != null
+  final labLaunch = kDebugMode ? await GlassLabLaunch.load() : null;
+  final initialRoute = labLaunch != null
       ? RoutesStrings.glassLab
       : switch (destination) {
           LaunchDestination.onboarding => RoutesStrings.onboarding,
