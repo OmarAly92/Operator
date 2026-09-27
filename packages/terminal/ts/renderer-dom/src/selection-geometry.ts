@@ -51,6 +51,12 @@ export function rowFillSpan(
 	cellWidth: number,
 ): FillSpan | null {
 	const here = { blockId: box.blockId, row: box.row, cell: 0 };
+	if (range.rectangle) {
+		if (compareBoundary(here, { ...range.start, cell: 0 }, order) < 0 || compareBoundary(here, { ...range.end, cell: 0 }, order) > 0) return null;
+		const left = Math.min(range.start.cell * cellWidth, box.width);
+		const right = Math.min(range.end.cell * cellWidth, box.width);
+		return right - left <= 0.5 ? null : { left, right };
+	}
 	const startsHere = range.start.blockId === box.blockId && range.start.row === box.row;
 	const endsHere = range.end.blockId === box.blockId && range.end.row === box.row;
 	if (!startsHere && compareBoundary(here, range.start, order) < 0) return null;

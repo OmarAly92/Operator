@@ -1,7 +1,7 @@
 import { useLayoutEffect, type RefObject } from "react";
 import type { CompositionTarget, HostCapabilities, TerminalCore } from "@operator/terminal-core";
 import type { DetectedLink, DomBlockRenderer, HintEvent, SelectionKind, SelectionPoint } from "@operator/terminal-renderer-dom";
-import { autoScrollRows, exceedsDragThreshold, isCopyChord, isHintChord, kindForClickCount, linkModifierHeld } from "./selection-gesture.js";
+import { autoScrollRows, exceedsDragThreshold, isCopyChord, isHintChord, kindForClickCount, linkModifierHeld, rectangleModifierHeld } from "./selection-gesture.js";
 import {
 	accelerationGain,
 	GESTURE_IDLE_MS,
@@ -39,6 +39,7 @@ export function useSurfaceInput(refs: SurfaceInputRefs, core: TerminalCore, onSe
 		let pressOrigin: { x: number; y: number } | null = null;
 		let pressPoint: SelectionPoint | null = null;
 		let pressKind: SelectionKind = "simple";
+		let pressExtends = false;
 		let dragging = false;
 		let autoScroll: number | null = null;
 		let lastPointer = { x: 0, y: 0 };
@@ -54,7 +55,7 @@ export function useSurfaceInput(refs: SurfaceInputRefs, core: TerminalCore, onSe
 			const clampedX = bounds.width > 0 ? Math.min(Math.max(x, bounds.left), bounds.right) : x;
 			const clampedY = bounds.height > 0 ? Math.min(Math.max(y, bounds.top), bounds.bottom) : y;
 			const point = target.pointAt(clampedX, clampedY);
-			if (point) target.selectionUpdate(point);
+			if (point) target.selectionUpdate(point, pressExtends);
 		};
 		const autoScrollStep = () => {
 			autoScroll = null;
@@ -74,7 +75,7 @@ export function useSurfaceInput(refs: SurfaceInputRefs, core: TerminalCore, onSe
 			if (!dragging) {
 				if (!exceedsDragThreshold(pressOrigin, event.clientX, event.clientY)) return;
 				dragging = true;
-				if (pressKind === "simple") target.selectionBegin(pressPoint, "simple");
+				if (!pressExtends && (pressKind === "simple" || pressKind === "rectangle")) target.selectionBegin(pressPoint, pressKind);
 			}
 			extendTo(event.clientX, event.clientY);
 			const bounds = blockHost.getBoundingClientRect();
@@ -86,10 +87,10 @@ export function useSurfaceInput(refs: SurfaceInputRefs, core: TerminalCore, onSe
 		};
 		const onWindowMouseUp = () => {
 			const target = renderer();
-			if (target && pressOrigin && !dragging && pressKind === "simple") target.selectionClear();
+			if (target && pressOrigin && pressPoint && !dragging && !pressExtends && (pressKind === "simple" || pressKind === "rectangle")) target.selectionClear(pressPoint);
 			pressOrigin = null;
 			pressPoint = null;
-			dragging = false;
+			pressExtends = false;
 			stopAutoScroll();
 			window.removeEventListener("mousemove", onWindowMouseMove);
 			window.removeEventListener("mouseup", onWindowMouseUp);
@@ -179,9 +180,11 @@ export function useSurfaceInput(refs: SurfaceInputRefs, core: TerminalCore, onSe
 			event.preventDefault();
 			pressOrigin = { x: event.clientX, y: event.clientY };
 			pressPoint = point;
-			pressKind = kindForClickCount(event.detail);
+			pressKind = rectangleModifierHeld(event) ? "rectangle" : kindForClickCount(event.detail);
+			pressExtends = event.shiftKey && pressKind === "simple";
 			dragging = false;
-			if (pressKind !== "simple") target.selectionBegin(point, pressKind);
+			if (pressExtends) target.selectionUpdate(point, true);
+			else if (pressKind === "word" || pressKind === "line") target.selectionBegin(point, pressKind);
 			window.addEventListener("mousemove", onWindowMouseMove);
 			window.addEventListener("mouseup", onWindowMouseUp);
 		};

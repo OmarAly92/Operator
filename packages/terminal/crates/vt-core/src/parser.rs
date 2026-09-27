@@ -65,6 +65,7 @@ pub(crate) struct Parser {
     pending_full: bool,
     pending_trimmed: usize,
     pending_remap: Option<Vec<(u64, u64)>>,
+    pending_remap_end: Option<(u64, u64)>,
     pending_rewritten_from: Option<usize>,
     last_width: usize,
     width_mode: WidthMode,
@@ -109,6 +110,7 @@ impl Parser {
             pending_full: true,
             pending_trimmed: 0,
             pending_remap: None,
+            pending_remap_end: None,
             pending_rewritten_from: None,
             last_width: width,
             width_mode: WidthMode::default(),
@@ -186,10 +188,24 @@ impl Parser {
     }
 
     fn note_remap(&mut self, map: &[usize]) {
-        let Some((_, old_rows)) = map.split_last() else {
+        let Some((&new_len, old_rows)) = map.split_last() else {
             return;
         };
         let origin = self.trimmed_total;
+        let through = |stable: u64| -> u64 {
+            let Some(row) = stable.checked_sub(origin).map(|row| row as usize) else {
+                return stable;
+            };
+            match old_rows.get(row) {
+                Some(&new) => new as u64 + origin,
+                None => (row - old_rows.len() + new_len) as u64 + origin,
+            }
+        };
+        let end = (origin + old_rows.len() as u64, origin + new_len as u64);
+        self.pending_remap_end = Some(match self.pending_remap_end.take() {
+            None => end,
+            Some((first, mid)) => (first, through(mid)),
+        });
         let pairs: Vec<(u64, u64)> = old_rows
             .iter()
             .enumerate()
@@ -234,6 +250,10 @@ impl Parser {
         };
         self.history_exported_rows = completed;
         delta
+    }
+
+    pub fn take_remap_end(&mut self) -> Option<(u64, u64)> {
+        self.pending_remap_end.take()
     }
 
     pub fn stable_row(&self, flat: usize) -> u64 {
