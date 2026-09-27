@@ -15,6 +15,8 @@ export {
 export { mapKey, type EditorCommand } from "./keymap.js";
 export { tokenize, type Token, type TokenKind } from "./highlight.js";
 export { HistoryModel, type CommandHistoryEntry, type CommandHistorySource } from "./history.js";
+export { findQuickFix, type QuickFix, type QuickFixInput, type QuickFixMatch, type QuickFixOutputMatcher, type QuickFixRule } from "./quick-fix.js";
+export { DEFAULT_QUICK_FIX_RULES, freePort, gitPushSetUpstream, gitSimilar, gitTwoDashes } from "./quick-fix-rules.js";
 export { ReverseSearch, type ReverseSearchState } from "./reverse-search.js";
 export { renderPromptRow, type PromptContext } from "./prompt-row.js";
 export { editorStyles } from "./styles.js";
