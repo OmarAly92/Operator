@@ -106,20 +106,33 @@ abstract class LiquidGlassRenderObject extends RenderProxyBox {
       value
         ..setColor(settings.effectiveGlassColor)
         ..setFloats([
-          settings.refractiveIndex,
-          settings.effectiveChromaticAberration,
           settings.effectiveThickness * devicePixelRatio,
-          settings.effectiveLightIntensity,
-          settings.effectiveAmbientStrength,
+          settings.effectiveChromaticAberration,
           settings.effectiveSaturation,
+          0,
+          settings.effectiveToneBlack,
+          settings.effectiveToneMid,
+          settings.effectiveToneWhite,
+          0,
+          settings.tintBlack,
+          settings.tintWhite,
+          0,
+          0,
+          settings.effectiveHairline,
+          settings.hairlineWidth * devicePixelRatio,
+          settings.hairlineDark,
+          settings.hairlineLight,
+          settings.effectiveSpecular,
+          settings.specularWidth * devicePixelRatio,
+          settings.specularPower,
+          settings.specularFill,
         ])
         ..setOffset(
           Offset(
             cos(settings.lightAngle),
             sin(settings.lightAngle),
           ),
-        )
-        ..setFloat(settings.fillRatio);
+        );
     });
   }
 

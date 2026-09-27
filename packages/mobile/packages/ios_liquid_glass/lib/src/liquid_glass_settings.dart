@@ -20,6 +20,19 @@ class LiquidGlassSettings with Equatable {
     this.refractiveIndex = 1.2,
     this.saturation = 1.5,
     this.fillRatio = 0.8,
+    this.toneBlack = 0,
+    this.toneMid = 0.5,
+    this.toneWhite = 1,
+    this.tintBlack = 1,
+    this.tintWhite = 1,
+    this.hairline = 0,
+    this.hairlineWidth = 1,
+    this.hairlineDark = 0,
+    this.hairlineLight = 1,
+    this.specular = 0,
+    this.specularWidth = 1.5,
+    this.specularPower = 2,
+    this.specularFill = 0.4,
   });
 
   /// Creates a new [LiquidGlassSettings] with the given settings where each
@@ -136,6 +149,42 @@ class LiquidGlassSettings with Equatable {
 
   final double fillRatio;
 
+  final double toneBlack;
+
+  double get effectiveToneBlack => toneBlack * visibility;
+
+  final double toneMid;
+
+  double get effectiveToneMid => 0.5 + (toneMid - 0.5) * visibility;
+
+  final double toneWhite;
+
+  double get effectiveToneWhite => 1 + (toneWhite - 1) * visibility;
+
+  final double tintBlack;
+
+  final double tintWhite;
+
+  final double hairline;
+
+  double get effectiveHairline => hairline * visibility;
+
+  final double hairlineWidth;
+
+  final double hairlineDark;
+
+  final double hairlineLight;
+
+  final double specular;
+
+  double get effectiveSpecular => specular * visibility;
+
+  final double specularWidth;
+
+  final double specularPower;
+
+  final double specularFill;
+
   /// Creates a new [LiquidGlassSettings] with the given settings.
   LiquidGlassSettings copyWith({
     double? visibility,
@@ -150,6 +199,19 @@ class LiquidGlassSettings with Equatable {
     double? refractiveIndex,
     double? saturation,
     double? fillRatio,
+    double? toneBlack,
+    double? toneMid,
+    double? toneWhite,
+    double? tintBlack,
+    double? tintWhite,
+    double? hairline,
+    double? hairlineWidth,
+    double? hairlineDark,
+    double? hairlineLight,
+    double? specular,
+    double? specularWidth,
+    double? specularPower,
+    double? specularFill,
   }) =>
       LiquidGlassSettings(
         visibility: visibility ?? this.visibility,
@@ -163,6 +225,19 @@ class LiquidGlassSettings with Equatable {
         refractiveIndex: refractiveIndex ?? this.refractiveIndex,
         saturation: saturation ?? this.saturation,
         fillRatio: fillRatio ?? this.fillRatio,
+        toneBlack: toneBlack ?? this.toneBlack,
+        toneMid: toneMid ?? this.toneMid,
+        toneWhite: toneWhite ?? this.toneWhite,
+        tintBlack: tintBlack ?? this.tintBlack,
+        tintWhite: tintWhite ?? this.tintWhite,
+        hairline: hairline ?? this.hairline,
+        hairlineWidth: hairlineWidth ?? this.hairlineWidth,
+        hairlineDark: hairlineDark ?? this.hairlineDark,
+        hairlineLight: hairlineLight ?? this.hairlineLight,
+        specular: specular ?? this.specular,
+        specularWidth: specularWidth ?? this.specularWidth,
+        specularPower: specularPower ?? this.specularPower,
+        specularFill: specularFill ?? this.specularFill,
       );
 
   @override
@@ -178,5 +253,18 @@ class LiquidGlassSettings with Equatable {
         refractiveIndex,
         saturation,
         fillRatio,
+        toneBlack,
+        toneMid,
+        toneWhite,
+        tintBlack,
+        tintWhite,
+        hairline,
+        hairlineWidth,
+        hairlineDark,
+        hairlineLight,
+        specular,
+        specularWidth,
+        specularPower,
+        specularFill,
       ];
 }
