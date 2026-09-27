@@ -2159,10 +2159,7 @@
         "wait": 1.0
       },
       {
-        "tap": [
-          363,
-          84
-        ]
+        "tap": "OverflowBarButtonItem"
       },
       {
         "wait": 1.2
