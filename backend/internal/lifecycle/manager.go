@@ -161,6 +161,8 @@ type Manager struct {
 	// flights tracks, per session, the in-flight tool executions and the
 	// pending permission dialog's identity (see toolFlight). Guarded by mu.
 	flights map[domain.SessionID]*toolFlight
+	hookAt  map[domain.SessionID]time.Time
+	alerted map[domain.SessionID]alertedQuestion
 	// pendingLaunches closes the small ordering gap between starting a supervised
 	// process and durably recording its generation in MarkSpawned. A hook from
 	// that exact generation waits on ready instead of being discarded as stale.
@@ -184,6 +186,13 @@ type Manager struct {
 	recencyMu sync.RWMutex
 	recency   InputRecency
 }
+
+type alertedQuestion struct {
+	identity string
+	at       time.Time
+}
+
+const questionRealertAfter = 2 * time.Minute
 
 const quietInputWindow = 3 * time.Second
 
@@ -225,6 +234,8 @@ func New(store sessionStore, messenger ports.AgentMessenger, opts ...Option) *Ma
 		clock:           clock,
 		react:           newReactionState(),
 		flights:         map[domain.SessionID]*toolFlight{},
+		hookAt:          map[domain.SessionID]time.Time{},
+		alerted:         map[domain.SessionID]alertedQuestion{},
 		pendingLaunches: map[domain.SessionID]pendingLaunch{},
 		steerActive:     func(domain.AgentHarness) bool { return false },
 	}
@@ -465,6 +476,14 @@ func (m *Manager) sessionIntent(typ domain.NotificationType, rec domain.SessionR
 	return intent
 }
 
+func (m *Manager) alertedRecently(id domain.SessionID, identity string, now time.Time) bool {
+	if identity == "" {
+		return false
+	}
+	last, ok := m.alerted[id]
+	return ok && last.identity == identity && now.Sub(last.at) < questionRealertAfter
+}
+
 // ApplyRuntimeObservation only writes when runtime liveness is unambiguous. A
 // failed probe or liveness disagreement is ignored. Runtime death keeps the
 // existing recent-activity guard; supervised workload death is independently
@@ -617,6 +636,8 @@ func (m *Manager) ApplyActivitySignal(ctx context.Context, id domain.SessionID, 
 	now := m.clock()
 	if rec.IsTerminated {
 		delete(m.flights, id)
+		delete(m.hookAt, id)
+		delete(m.alerted, id)
 		m.mu.Unlock()
 		return nil
 	}
@@ -632,6 +653,16 @@ func (m *Manager) ApplyActivitySignal(ctx context.Context, id domain.SessionID, 
 		!rec.UpdatedAt.Equal(s.ExpectedUpdatedAt) {
 		m.mu.Unlock()
 		return nil
+	}
+	if s.Valid && s.ScreenReading != "" {
+		merged, apply := domain.MergeScreenReading(rec.Activity.State, s.ScreenReading, m.hookAt[id], now)
+		if !apply {
+			m.mu.Unlock()
+			return nil
+		}
+		s.State = merged
+	} else if s.Valid && !ports.IsScreenEvent(s.Event) {
+		m.hookAt[id] = now
 	}
 	// An explicit prompt submission is proof that an agent was relaunched in the
 	// preserved shell. Other same-generation callbacks may have been delayed
@@ -713,7 +744,7 @@ func (m *Manager) ApplyActivitySignal(ctx context.Context, id domain.SessionID, 
 	}
 	next := rec
 	next.Activity = act
-	if next.FirstSignalAt.IsZero() {
+	if next.FirstSignalAt.IsZero() && s.ScreenReading == "" {
 		next.FirstSignalAt = timeOr(s.Timestamp, now)
 	}
 	if s.State == domain.ActivityExited {
@@ -740,7 +771,12 @@ func (m *Manager) ApplyActivitySignal(ctx context.Context, id domain.SessionID, 
 	gated := m.sessionMutationInProgress(id)
 	switch {
 	case !rec.Activity.State.NeedsInput() && next.Activity.State.NeedsInput() && !next.IsTerminated:
-		intent = m.sessionIntent(domain.NotificationNeedsInput, next)
+		if !m.alertedRecently(id, s.ScreenIdentity, now) {
+			intent = m.sessionIntent(domain.NotificationNeedsInput, next)
+		}
+		if s.ScreenIdentity != "" {
+			m.alerted[id] = alertedQuestion{identity: s.ScreenIdentity, at: now}
+		}
 	case !gated && s.Event != "notification" && s.Event != ports.EventUserInterrupt && rec.Activity.State == domain.ActivityActive && next.Activity.State == domain.ActivityIdle && !next.IsTerminated:
 		// A turn that ends on a needs_you report is a Needs you alert carrying
 		// the agent's reason, not a plain "finished" ping.
@@ -751,6 +787,9 @@ func (m *Manager) ApplyActivitySignal(ctx context.Context, id domain.SessionID, 
 		}
 	case !gated && rec.Activity.State != domain.ActivityExited && next.Activity.State == domain.ActivityExited && !next.IsTerminated:
 		intent = m.sessionIntent(domain.NotificationAgentExited, next)
+	}
+	if next.Activity.State == domain.ActivityIdle {
+		delete(m.alerted, id)
 	}
 	resolutions := sessionResolutions(rec, next, now)
 	waitingEvents := m.waitingInputEvents(next, prevState, prevAt, now)
@@ -1025,7 +1064,8 @@ func (m *Manager) applyToolPrecedenceLocked(id domain.SessionID, cur domain.Acti
 		// Paused on a decision: only a turn boundary or the correlated post
 		// may change the state.
 		switch {
-		case isTurnBoundaryEvent(s.Event), s.Event == ports.EventDialogAbsent:
+		case isTurnBoundaryEvent(s.Event), s.Event == ports.EventDialogAbsent,
+			s.Event == ports.EventScreenWorking, s.Event == ports.EventScreenSettled, s.Event == ports.EventScreenWaiting:
 			delete(m.flights, id)
 			m.clearInteractions(id)
 			return s

@@ -1,6 +1,7 @@
 package ports
 
 import (
+	"strings"
 	"time"
 
 	"github.com/OmarAly92/operator/backend/internal/domain"
@@ -31,6 +32,21 @@ const EventDialogAbsent = "dialog-absent"
 // EventUserInterrupt tags the idle signal lifecycle derives when the user
 // interrupts a turn. It ends the turn like Stop, which the harness skips then.
 const EventUserInterrupt = "user-interrupt"
+
+const (
+	EventScreenWorking  = "screen-working"
+	EventScreenQuestion = "screen-question"
+	EventScreenWaiting  = "screen-waiting"
+	EventScreenSettled  = "screen-settled"
+)
+
+func ScreenEvent(reading domain.ScreenReading) string {
+	return "screen-" + string(reading)
+}
+
+func IsScreenEvent(event string) bool {
+	return strings.HasPrefix(event, "screen-") || strings.HasPrefix(event, "terminal-")
+}
 
 // ActivitySignal is pushed by the agent hooks. Only a Valid activity state is
 // authoritative; a stale/absent one is ignored rather than read as idleness.
@@ -81,5 +97,8 @@ type ActivitySignal struct {
 	ControllerGeneration string
 	// InteractionID is minted by the controller, not decoded from the wire: the
 	// hook payload does not reliably carry the blocking tool's own id.
-	InteractionID string
+	InteractionID  string
+	ScreenReading  domain.ScreenReading
+	ScreenIdentity string
+	ScreenText     string
 }
