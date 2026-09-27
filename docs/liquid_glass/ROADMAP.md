@@ -7,7 +7,7 @@ Last updated: 2026-09-27. Owner: Omar Aly (the user). This is the single source 
 | # | Project | Status |
 |---|---|---|
 | 1 | Reference lab (measuring instrument) | **DONE**, merged to `development` (`7f74f5a0b`), not pushed |
-| 2A | Package foundation + how glass looks | **SPEC WRITTEN**, awaiting the user's review. Plan not written |
+| 2A | Package foundation + how glass looks | **SPEC APPROVED** (2026-09-27). **Plan in progress**: prototype in `../Operator-2a-proto`, see `PROTOTYPE-2A.md` there |
 | 2B | How glass moves | NOT STARTED |
 | 3 | Every iOS component inside the package | NOT STARTED |
 | 4 | Operator adopts the package | NOT STARTED |
@@ -195,7 +195,7 @@ Repository: `/Users/omaraly/development/AI/Operator`. Default branch `developmen
   - Apple prepare taps are not idempotent.
   - `events.count` compares by order only.
 
-### Project 2A: Package foundation + how glass looks (SPEC WRITTEN, awaiting review)
+### Project 2A: Package foundation + how glass looks (SPEC APPROVED, plan in progress)
 - **Spec:** `docs/liquid_glass/02a-looks/spec.md`. Read it for every detail.
 - **Summary:**
   - Rename to `ios_liquid_glass` and make it a plugin with an iOS part for Reduce Transparency.
@@ -206,7 +206,16 @@ Repository: `/Users/omaraly/development/AI/Operator`. Default branch `developmen
   - Clear and tinted variants, the scroll edge effect, the accessibility modes, and a spike on light/dark flipping.
   - A `lab.py tune` automatic parameter search.
   - Operator's `GlassStyle`, `GlassSurface` and `GlassScope` replaced by the package API.
-- **Next:** the user reviews the spec → write the plan prototype-first → fresh session executes → review here.
+- **Prototype (2026-09-27):** worktree `/Users/omaraly/development/AI/Operator-2a-proto` (branch `proto/2a`, uncommitted, throwaway). **`PROTOTYPE-2A.md` at its root** records what is proven and where the code is:
+  - rename;
+  - plugin;
+  - new shader;
+  - API and material table;
+  - scroll edge moved into the package;
+  - Operator migration (2,145 tests green);
+  - example app;
+  - harness `--flutter` target and `tune`, with one real loop improving the score from 15.33 to 14.67.
+- **Next:** finish the plan in `docs/liquid_glass/02a-looks/plan.md` from that prototype → the user reviews it → a fresh session executes it → review here.
 
 ### Project 2B: How glass moves (NOT STARTED)
 - **Scope:**
@@ -360,8 +369,8 @@ Out of scope: iPad and Mac items (sidebar, pointer, iPad tab bar), app icons, wi
 
 ## 9. Exact next steps
 
-1. **The user reviews `docs/liquid_glass/02a-looks/spec.md`** and approves it or asks for changes. Also pending: whether to push `development`, and the `material.interactive` decision.
-2. **Write the 2A plan prototype-first**, into `docs/liquid_glass/02a-looks/plan.md`:
+1. **Spec approved on 2026-09-27.** Still pending from the user: whether to push `development`, and the `material.interactive` decision.
+2. **Write the 2A plan prototype-first. The prototype is mostly done**; read `/Users/omaraly/development/AI/Operator-2a-proto/PROTOTYPE-2A.md` first. Its original steps were, into `docs/liquid_glass/02a-looks/plan.md`:
    - Create a worktree `../Operator-ios-liquid-glass` on a new branch `feat/ios-liquid-glass-2a` off `development`.
    - Prototype in the session scratchpad:
      - the rename;
