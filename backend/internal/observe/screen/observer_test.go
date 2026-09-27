@@ -290,3 +290,54 @@ func TestObserverForgetsATerminatedSession(t *testing.T) {
 		t.Fatalf("signals=%d tracked=%d, want 1 and 0", len(sink.signals), len(o.tracked))
 	}
 }
+
+func TestObserverWatchesQuestionsOnlyForATrackedSessionWhoseAgentReadsThem(t *testing.T) {
+	o, sessions, _ := observerFixture(t, domain.ActivityActive)
+	if o.WatchesQuestions("opr-1") {
+		t.Fatalf("a session with no screen seen yet is watched")
+	}
+	o.Enqueue("handle-1", ports.TerminalProgramEvent{Kind: ports.TerminalProgramActivity, Activity: ports.TerminalActivityActive, At: t0})
+	o.Drain(context.Background())
+	if !o.WatchesQuestions("opr-1") {
+		t.Fatalf("a tracked Claude Code session is not watched")
+	}
+	if o.WatchesQuestions("opr-404") {
+		t.Fatalf("an unknown session is watched")
+	}
+	sessions.mu.Lock()
+	rec := sessions.rows["opr-1"]
+	rec.Metadata.RuntimeHandleID = ""
+	sessions.rows["opr-1"] = rec
+	sessions.mu.Unlock()
+	o.Step(context.Background(), t0.Add(time.Second+reassertEvery))
+	if o.WatchesQuestions("opr-1") {
+		t.Fatalf("a session whose handle was released is still watched")
+	}
+
+	sessions.mu.Lock()
+	sessions.rows["opr-2"] = domain.SessionRecord{ID: "opr-2", Harness: domain.HarnessAider, Metadata: domain.SessionMetadata{RuntimeHandleID: "handle-2"}}
+	sessions.mu.Unlock()
+	o.Enqueue("handle-2", ports.TerminalProgramEvent{Kind: ports.TerminalProgramActivity, Activity: ports.TerminalActivityActive, At: t0})
+	o.Drain(context.Background())
+	if o.WatchesQuestions("opr-2") {
+		t.Fatalf("a session whose agent has no question reader is watched")
+	}
+}
+
+func TestObserverKeepsWatchingASessionThatMovedToANewHandle(t *testing.T) {
+	o, sessions, _ := observerFixture(t, domain.ActivityActive)
+	o.Enqueue("handle-1", ports.TerminalProgramEvent{Kind: ports.TerminalProgramActivity, Activity: ports.TerminalActivityActive, At: t0})
+	o.Drain(context.Background())
+	o.Step(context.Background(), t0.Add(ScreenActiveConfirm))
+	sessions.mu.Lock()
+	rec := sessions.rows["opr-1"]
+	rec.Metadata.RuntimeHandleID = "handle-2"
+	sessions.rows["opr-1"] = rec
+	sessions.mu.Unlock()
+	o.Enqueue("handle-2", ports.TerminalProgramEvent{Kind: ports.TerminalProgramActivity, Activity: ports.TerminalActivityActive, At: t0.Add(4 * time.Second)})
+	o.Drain(context.Background())
+	o.Step(context.Background(), t0.Add(time.Second+reassertEvery))
+	if len(o.tracked) != 1 || !o.WatchesQuestions("opr-1") {
+		t.Fatalf("tracked = %d, watched = %v; want the new handle still watched", len(o.tracked), o.WatchesQuestions("opr-1"))
+	}
+}

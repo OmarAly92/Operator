@@ -57,6 +57,9 @@ type Observer struct {
 
 	tracked   map[string]*tracked
 	untracked map[string]time.Time
+
+	watchMu  sync.Mutex
+	watching map[domain.SessionID]domain.AgentHarness
 }
 
 func New(sessions sessionSource, sink activitySink, programs programSource, agents ports.AgentResolver, cfg Config) *Observer {
@@ -71,6 +74,7 @@ func New(sessions sessionSource, sink activitySink, programs programSource, agen
 		wake:      make(chan struct{}, 1),
 		tracked:   map[string]*tracked{},
 		untracked: map[string]time.Time{},
+		watching:  map[domain.SessionID]domain.AgentHarness{},
 	}
 	if o.clock == nil {
 		o.clock = func() time.Time { return time.Now().UTC() }
@@ -159,6 +163,7 @@ func (o *Observer) Step(ctx context.Context, now time.Time) {
 		}
 		if !owns(rec, ok, handleID) {
 			delete(o.tracked, handleID)
+			o.unwatchUntracked(t.session)
 			continue
 		}
 		if t.confirmed != nil && t.debouncer.Holds() {
@@ -182,6 +187,7 @@ func (o *Observer) apply(ctx context.Context, t *tracked, decisions []Decision) 
 
 func (o *Observer) send(ctx context.Context, t *tracked, rec domain.SessionRecord, decision Decision, reassert bool) {
 	t.harness = rec.Harness
+	o.watch(t.session, rec.Harness)
 	target, ok := decision.Reading.State()
 	if !ok {
 		return
@@ -234,7 +240,36 @@ func (o *Observer) adopt(handleID string, rec domain.SessionRecord) *tracked {
 	delete(o.untracked, handleID)
 	t := &tracked{session: rec.ID, harness: rec.Harness, checkAt: o.clock().Add(reassertEvery)}
 	o.tracked[handleID] = t
+	o.watch(rec.ID, rec.Harness)
 	return t
+}
+
+func (o *Observer) watch(id domain.SessionID, harness domain.AgentHarness) {
+	o.watchMu.Lock()
+	defer o.watchMu.Unlock()
+	o.watching[id] = harness
+}
+
+func (o *Observer) unwatchUntracked(id domain.SessionID) {
+	for _, t := range o.tracked {
+		if t.session == id {
+			return
+		}
+	}
+	o.watchMu.Lock()
+	defer o.watchMu.Unlock()
+	delete(o.watching, id)
+}
+
+func (o *Observer) WatchesQuestions(id domain.SessionID) bool {
+	o.watchMu.Lock()
+	harness, ok := o.watching[id]
+	o.watchMu.Unlock()
+	if !ok {
+		return false
+	}
+	_, reads := o.agentFor(harness).(ports.TerminalQuestionReader)
+	return reads
 }
 
 func owns(rec domain.SessionRecord, ok bool, handleID string) bool {

@@ -100,6 +100,10 @@ type DialogObserver interface {
 	DialogOnScreen(ctx context.Context, id domain.SessionID) (bool, error)
 }
 
+type QuestionWatcher interface {
+	WatchesQuestions(id domain.SessionID) bool
+}
+
 type pendingLaunch struct {
 	launchID string
 	ready    chan struct{}
@@ -149,9 +153,10 @@ type Manager struct {
 	operationGateMu  sync.RWMutex
 	operationGate    sessionOperationGate
 
-	interactionsMu sync.RWMutex
-	interactions   InteractionRegistry
-	dialogObserver DialogObserver
+	interactionsMu  sync.RWMutex
+	interactions    InteractionRegistry
+	dialogObserver  DialogObserver
+	questionWatcher QuestionWatcher
 
 	mu        sync.Mutex
 	window    time.Duration
@@ -164,6 +169,10 @@ type Manager struct {
 	hookAt   map[domain.SessionID]time.Time
 	alerted  map[domain.SessionID]alertedQuestion
 	screenAt map[domain.SessionID]time.Time
+	held     map[domain.SessionID]*heldAlert
+	closed   bool
+
+	afterFunc func(time.Duration, func()) func() bool
 	// pendingLaunches closes the small ordering gap between starting a supervised
 	// process and durably recording its generation in MarkSpawned. A hook from
 	// that exact generation waits on ready instead of being discarded as stale.
@@ -193,7 +202,16 @@ type alertedQuestion struct {
 	at       time.Time
 }
 
+type heldAlert struct {
+	ctx      context.Context
+	intent   *ports.NotificationIntent
+	launchID string
+	stop     func() bool
+}
+
 const questionRealertAfter = 2 * time.Minute
+
+const questionTextWait = 2500 * time.Millisecond
 
 const quietInputWindow = 3 * time.Second
 
@@ -238,6 +256,8 @@ func New(store sessionStore, messenger ports.AgentMessenger, opts ...Option) *Ma
 		hookAt:          map[domain.SessionID]time.Time{},
 		alerted:         map[domain.SessionID]alertedQuestion{},
 		screenAt:        map[domain.SessionID]time.Time{},
+		held:            map[domain.SessionID]*heldAlert{},
+		afterFunc:       func(d time.Duration, f func()) func() bool { return time.AfterFunc(d, f).Stop },
 		pendingLaunches: map[domain.SessionID]pendingLaunch{},
 		steerActive:     func(domain.AgentHarness) bool { return false },
 	}
@@ -305,6 +325,66 @@ func (m *Manager) SetDialogObserver(o DialogObserver) {
 	m.interactionsMu.Lock()
 	defer m.interactionsMu.Unlock()
 	m.dialogObserver = o
+}
+
+func (m *Manager) SetQuestionWatcher(w QuestionWatcher) {
+	m.interactionsMu.Lock()
+	defer m.interactionsMu.Unlock()
+	m.questionWatcher = w
+}
+
+func (m *Manager) watchesQuestions(id domain.SessionID) bool {
+	m.interactionsMu.RLock()
+	w := m.questionWatcher
+	m.interactionsMu.RUnlock()
+	return w != nil && w.WatchesQuestions(id)
+}
+
+func (m *Manager) Close() {
+	m.mu.Lock()
+	m.closed = true
+	held := m.held
+	m.held = map[domain.SessionID]*heldAlert{}
+	m.mu.Unlock()
+	for _, h := range held {
+		h.stop()
+	}
+}
+
+func (m *Manager) holdLocked(ctx context.Context, id domain.SessionID, intent *ports.NotificationIntent, launchID string) {
+	m.dropHeldLocked(id)
+	h := &heldAlert{ctx: context.WithoutCancel(ctx), intent: intent, launchID: launchID}
+	m.held[id] = h
+	h.stop = m.afterFunc(questionTextWait, func() { m.releaseHeld(id, h) })
+}
+
+func (m *Manager) takeHeldLocked(id domain.SessionID) *heldAlert {
+	h, ok := m.held[id]
+	if !ok {
+		return nil
+	}
+	delete(m.held, id)
+	h.stop()
+	return h
+}
+
+func (m *Manager) dropHeldLocked(id domain.SessionID) {
+	m.takeHeldLocked(id)
+}
+
+func (m *Manager) releaseHeld(id domain.SessionID, h *heldAlert) {
+	m.mu.Lock()
+	if m.held[id] != h {
+		m.mu.Unlock()
+		return
+	}
+	delete(m.held, id)
+	rec, ok, err := m.store.GetSession(h.ctx, id)
+	stale := err == nil && (!ok || rec.IsTerminated || !rec.Activity.State.NeedsInput() || rec.Metadata.RuntimeLaunchID != h.launchID)
+	m.mu.Unlock()
+	if !stale {
+		m.emitNotification(h.ctx, h.intent)
+	}
 }
 
 func (m *Manager) observeDialogAbsent(ctx context.Context, id domain.SessionID, s ports.ActivitySignal) ports.ActivitySignal {
@@ -489,6 +569,7 @@ func (m *Manager) rememberQuestionOnScreenLocked(id domain.SessionID, cur domain
 }
 
 func (m *Manager) forgetSignalsLocked(id domain.SessionID) {
+	m.dropHeldLocked(id)
 	delete(m.hookAt, id)
 	delete(m.alerted, id)
 	delete(m.screenAt, id)
@@ -628,6 +709,12 @@ func (m *Manager) ApplyActivitySignal(ctx context.Context, id domain.SessionID, 
 	}
 	s = m.observeDialogAbsent(ctx, id, s)
 	var intent *ports.NotificationIntent
+	var released *heldAlert
+	defer func() {
+		if released != nil {
+			m.emitNotification(released.ctx, released.intent)
+		}
+	}()
 	m.mu.Lock()
 	for {
 		pending, ok := m.pendingLaunches[id]
@@ -666,6 +753,12 @@ func (m *Manager) ApplyActivitySignal(ctx context.Context, id domain.SessionID, 
 	if s.ControllerGeneration != "" {
 		m.mu.Unlock()
 		return nil
+	}
+	if s.Valid && s.ScreenReading == domain.ScreenQuestion && s.ScreenIdentity != "" && !s.ScreenReassert && rec.Activity.State.NeedsInput() {
+		if released = m.takeHeldLocked(id); released != nil {
+			released.intent.ScreenText = s.ScreenText
+			m.alerted[id] = alertedQuestion{identity: s.ScreenIdentity, at: now}
+		}
 	}
 	if !s.ExpectedUpdatedAt.IsZero() &&
 		!rec.UpdatedAt.Equal(s.ExpectedUpdatedAt) {
@@ -803,6 +896,10 @@ func (m *Manager) ApplyActivitySignal(ctx context.Context, id domain.SessionID, 
 		if !m.alertedRecently(id, s.ScreenIdentity, now) {
 			intent = m.sessionIntent(domain.NotificationNeedsInput, next)
 			intent.ScreenText = s.ScreenText
+			if s.ScreenReading == "" && intent.ScreenText == "" && !m.closed && m.watchesQuestions(id) {
+				m.holdLocked(ctx, id, intent, next.Metadata.RuntimeLaunchID)
+				intent = nil
+			}
 		}
 		if s.ScreenIdentity != "" {
 			m.alerted[id] = alertedQuestion{identity: s.ScreenIdentity, at: now}
@@ -824,6 +921,9 @@ func (m *Manager) ApplyActivitySignal(ctx context.Context, id domain.SessionID, 
 	}
 	if next.Activity.State == domain.ActivityIdle {
 		delete(m.alerted, id)
+	}
+	if !next.Activity.State.NeedsInput() {
+		m.dropHeldLocked(id)
 	}
 	resolutions := sessionResolutions(rec, next, now)
 	waitingEvents := m.waitingInputEvents(next, prevState, prevAt, now)

@@ -78,7 +78,9 @@ func startLifecycle(ctx context.Context, store *sqlite.Store, runtime ports.Runt
 		retentionDone:  br.Start(ctx),
 	}
 	if programs, ok := runtime.(ports.TerminalProgramReader); ok {
-		stack.screenDone = screenobserver.New(store, lcm, programs, agents, screenobserver.Config{Logger: logger}).Start(ctx)
+		observer := screenobserver.New(store, lcm, programs, agents, screenobserver.Config{Logger: logger})
+		lcm.SetQuestionWatcher(observer)
+		stack.screenDone = observer.Start(ctx)
 	}
 	return stack
 }
@@ -117,6 +119,7 @@ func activeTurnSteering(agents ports.AgentResolver) func(domain.AgentHarness) bo
 // Stop waits for the reaper goroutine to exit. The caller must cancel the ctx
 // passed to startLifecycle before calling Stop.
 func (l *lifecycleStack) Stop() {
+	l.LCM.Close()
 	<-l.reaperDone
 	if l.activityDone != nil {
 		<-l.activityDone
