@@ -119,17 +119,45 @@ describe("TerminalSurface selection", () => {
 		}
 	});
 
-	it("keeps a selection across a same-geometry refit but clears it on a real resize", async () => {
-		const { container, core, host, refit } = renderSurface();
+	it("keeps a primary-screen selection on its words across a real resize", async () => {
+		const originalPlatform = Object.getOwnPropertyDescriptor(navigator, "platform");
+		Object.defineProperty(navigator, "platform", { value: "MacIntel", configurable: true });
+		try {
+			const writeClipboard = vi.fn(async () => {});
+			const caps = { writeClipboard, readClipboard: async () => "", openLink: async () => {} };
+			const { container, core, host, refit } = renderSurface({ host: caps });
+			setHostSize(host, 1000, 500);
+			act(() => { feed(core, "alpha beta gamma delta\r\nzeta\r\n"); });
+			await flushRepaint();
+			let rows = layoutRows(container);
+			mouse(rows[0]!, "mousedown", cellWidth * 11 + 1, cellHeight * 0.5, { detail: 1 });
+			mouse(window, "mousemove", cellWidth * 16 - 1, cellHeight * 0.5);
+			mouse(window, "mouseup", cellWidth * 16 - 1, cellHeight * 0.5);
+			const surface = container.querySelector(".terminal-host") as HTMLElement;
+			surface.dispatchEvent(new KeyboardEvent("keydown", { key: "c", metaKey: true, bubbles: true, cancelable: true }));
+			expect(writeClipboard).toHaveBeenLastCalledWith("gamma");
+			refit(1);
+			expect(rows[0]!.style.backgroundImage).toContain("var(--terminal-selection)");
+			setHostSize(host, 150, 500);
+			await flushRepaint();
+			rows = layoutRows(container);
+			surface.dispatchEvent(new KeyboardEvent("keydown", { key: "c", metaKey: true, bubbles: true, cancelable: true }));
+			expect(writeClipboard).toHaveBeenLastCalledWith("gamma");
+			expect(rows.map((row) => row.textContent?.trimEnd())).toContain("gamma delta");
+		} finally {
+			if (originalPlatform) Object.defineProperty(navigator, "platform", originalPlatform);
+		}
+	});
+
+	it("clears an alternate-screen selection on a real resize", async () => {
+		const { container, core, host } = renderSurface();
 		setHostSize(host, 1000, 500);
-		act(() => { feed(core, "alpha\r\nbeta\r\n"); });
+		act(() => { feed(core, "\x1b[?1049halpha beta\r\n"); });
 		await flushRepaint();
-		const rows = layoutRows(container);
+		const rows = layoutRows(container.querySelector(".terminal-alt-surface") as HTMLElement);
 		mouse(rows[0]!, "mousedown", 0, cellHeight * 0.5, { detail: 1 });
-		mouse(window, "mousemove", cellWidth * 3, cellHeight * 0.5);
-		mouse(window, "mouseup", cellWidth * 3, cellHeight * 0.5);
-		expect(rows[0]!.style.backgroundImage).toContain("var(--terminal-selection)");
-		refit(1);
+		mouse(window, "mousemove", cellWidth * 4, cellHeight * 0.5);
+		mouse(window, "mouseup", cellWidth * 4, cellHeight * 0.5);
 		expect(rows[0]!.style.backgroundImage).toContain("var(--terminal-selection)");
 		setHostSize(host, 300, 150);
 		expect(rows[0]!.style.backgroundImage).toBe("");
