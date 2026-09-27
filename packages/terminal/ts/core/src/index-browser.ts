@@ -91,7 +91,6 @@ export {
 	ACTIVITY_IDLE_AFTER_MS,
 	ACTIVITY_POLLING_AFTER_MS,
 	AgentActivityMonitor,
-	cursorLineText,
 	type AgentActivityListener,
 	type AgentActivitySource,
 	type AgentActivityState,

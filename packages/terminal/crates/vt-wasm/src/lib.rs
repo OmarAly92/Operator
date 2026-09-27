@@ -1,3 +1,4 @@
+mod agent;
 mod export;
 mod mark;
 mod program;
@@ -7,6 +8,7 @@ use std::collections::HashMap;
 use vt_core::{FindQuery, FindSession, TerminalCore};
 use wasm_bindgen::prelude::*;
 
+pub use agent::detects_high_confidence_input_pattern;
 pub use program::{flatten_agent_events, flatten_notifications};
 
 pub use export::{

@@ -14,7 +14,7 @@ import { snapshotLogicalLines, type LogicalLine } from "./logical-lines.js";
 import { ProgramMessages, type ProgramMessageListener } from "./program-messages.js";
 import { AgentEvents, type AgentEventListener } from "./agent-events.js";
 import { attempt, throwFailures } from "./listener-failures.js";
-import { AgentActivityMonitor, cursorLineText, type AgentActivityListener, type AgentActivityState } from "./agent-activity.js";
+import { AgentActivityMonitor, type AgentActivityListener, type AgentActivityState } from "./agent-activity.js";
 import { blockOutputText, type BlockOutputOptions } from "./block-output.js";
 import { budgetNow, decodeFindMatches, parseBlockId, validateEvenLength, validateMultipleOf } from "./core-checks.js";
 import type {
@@ -92,8 +92,7 @@ export class TerminalCore {
 		this.agentEvents = new AgentEvents(inner);
 		this.activity = new AgentActivityMonitor({
 			liveOutputBytes: () => (this.disposed ? 0 : this.inner.live_output_bytes()),
-			cursorLine: () => (this.disposed ? "" : cursorLineText(this.snapshot(), this.decoder)),
-			lineEditorOwnsLine: () => !this.disposed && LINE_EDITOR_STATES[this.snapshot().lineEditorState] === "owned",
+			prompting: () => !this.disposed && this.inner.cursor_line_prompts(),
 			now: () => Date.now(),
 		});
 		this.completions = new CompletionDispatcher(
