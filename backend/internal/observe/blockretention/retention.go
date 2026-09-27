@@ -1,15 +1,11 @@
-// Package blockretention implements the OBSERVE-layer janitor that reclaims
-// disk space from closed, non-restorable shell terminals' blocks.
-//
-// A terminal_blocks row is only ever cleared or deleted once its terminal_id
-// has no matching row left in shell_terminals — the guard lives in the SQL
-// itself, so a terminal that can still be re-attached to is never touched.
 package blockretention
 
 import (
 	"context"
 	"log/slog"
 	"time"
+
+	"github.com/OmarAly92/operator/backend/internal/domain"
 )
 
 const DefaultRawOutputGrace = 7 * 24 * time.Hour
@@ -24,11 +20,12 @@ type Config struct {
 	Logger         *slog.Logger
 	RawOutputGrace time.Duration
 	RowGrace       time.Duration
+	KeepCommands   int
 }
 
 type store interface {
 	ClearOldOrphanedRawOutput(ctx context.Context, now, finishedBefore time.Time) (int64, error)
-	DeleteFullyClearedOrphanedBlocks(ctx context.Context, cutoff time.Time) (int64, error)
+	DeleteFullyClearedOrphanedBlocks(ctx context.Context, cutoff time.Time, keepCommands int) (int64, error)
 }
 
 type Retention struct {
@@ -38,6 +35,7 @@ type Retention struct {
 	logger         *slog.Logger
 	rawOutputGrace time.Duration
 	rowGrace       time.Duration
+	keepCommands   int
 }
 
 func New(store store, cfg Config) *Retention {
@@ -48,6 +46,7 @@ func New(store store, cfg Config) *Retention {
 		logger:         cfg.Logger,
 		rawOutputGrace: cfg.RawOutputGrace,
 		rowGrace:       cfg.RowGrace,
+		keepCommands:   cfg.KeepCommands,
 	}
 	if r.tick <= 0 {
 		r.tick = DefaultTickInterval
@@ -63,6 +62,9 @@ func New(store store, cfg Config) *Retention {
 	}
 	if r.rowGrace <= 0 {
 		r.rowGrace = DefaultRowGrace
+	}
+	if r.keepCommands <= 0 {
+		r.keepCommands = domain.SharedHistoryScan
 	}
 	return r
 }
@@ -90,13 +92,13 @@ func (r *Retention) loop(ctx context.Context, done chan<- struct{}) {
 }
 
 func (r *Retention) Tick(ctx context.Context) (cleared, deleted int64, err error) {
-	now := r.clock()
+	now := r.clock().UTC()
 
 	cleared, err = r.store.ClearOldOrphanedRawOutput(ctx, now, now.Add(-r.rawOutputGrace))
 	if err != nil {
 		return 0, 0, err
 	}
-	deleted, err = r.store.DeleteFullyClearedOrphanedBlocks(ctx, now.Add(-r.rowGrace))
+	deleted, err = r.store.DeleteFullyClearedOrphanedBlocks(ctx, now.Add(-r.rowGrace), r.keepCommands)
 	if err != nil {
 		return cleared, 0, err
 	}

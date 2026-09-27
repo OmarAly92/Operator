@@ -17,6 +17,7 @@ export class QuickFixOffer {
 
 	setRules(rules: readonly QuickFixRule[]): void {
 		this.rules = rules;
+		if (rules.length === 0) this.current = null;
 	}
 
 	reset(core: TerminalCore): void {

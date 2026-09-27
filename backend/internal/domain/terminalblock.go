@@ -23,6 +23,8 @@ type Block struct {
 	CreatedAt      time.Time
 }
 
+const SharedHistoryScan = 5000
+
 type CommandRun struct {
 	Command    string
 	FinishedAt time.Time

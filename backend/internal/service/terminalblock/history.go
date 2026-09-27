@@ -13,7 +13,7 @@ import (
 const (
 	DefaultRecentCommands  = 500
 	MaxRecentCommands      = 1000
-	recentCommandScan      = 5000
+	recentCommandScan      = domain.SharedHistoryScan
 	maxHistoryCommandBytes = 4096
 )
 

@@ -72,6 +72,18 @@ describe("LineEditor quick fixes", () => {
 		expect(sent).toEqual(["l"]);
 	});
 
+	it("takes the offered fix away as soon as quick fixes are turned off", () => {
+		const { editor, core, container, sent } = mount();
+		core.feed(encode(run("git push", PUSH_OUTPUT, 1) + READY));
+		expect(row(container)).not.toBeNull();
+		editor.setQuickFixRules([]);
+		expect(row(container)).toBeNull();
+		expect(container.querySelector(".terminal-editor-ghost")?.textContent ?? "").toBe("");
+		editor.handleKey(key({ key: "ArrowRight" }));
+		editor.handleKey(key({ key: "Enter" }));
+		expect(sent).toEqual([""]);
+	});
+
 	it("does not bring an applied fix back after the user edits it", () => {
 		const { editor, core, container } = mount();
 		core.feed(encode(run("git push", PUSH_OUTPUT, 1) + READY));

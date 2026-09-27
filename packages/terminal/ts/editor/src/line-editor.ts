@@ -162,6 +162,7 @@ export class LineEditor {
 
 	setQuickFixRules(rules: readonly QuickFixRule[]): void {
 		this.quickFix.setRules(rules);
+		this.render();
 	}
 
 	setVisible(visible: boolean): void {

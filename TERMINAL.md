@@ -2114,6 +2114,20 @@ history of `master`.
   `frontend/src/renderer/lib/command-history.test.ts`, `BlockTerminal.test.tsx` "BlockTerminal
   shared history and quick fixes", `GeneralSettingsSection.test.tsx` (switch reload case),
   `observe/blockretention/retention_test.go` (Task 7.5/7.6).
+- Review fixes (2026-09-27): turning quick fixes off takes an offered fix away at
+  once (`QuickFixOffer.setRules([])` drops it and `setQuickFixRules` repaints; it
+  stayed usable until the next command). The set-upstream rule refuses a branch
+  that starts with `-`, so a remote line such as `git push --set-upstream origin
+  --mirror` is never offered. Retention measures its grace in UTC (the stored
+  `finished_at` is UTC and sqlite compares the text, so a UTC+3 clock cleared three
+  hours early), and it deletes a cleared row only when the row is outside the newest
+  `domain.SharedHistoryScan` (5,000) commands, the window shared history reads, so
+  a closed terminal's commands stay in ↑ for as long as history can show them.
+  Guards: `line-editor-quick-fix.test.ts` "takes the offered fix away as soon as
+  quick fixes are turned off", `quick-fix.test.ts` "never offers a git option as the
+  upstream branch", `retention_test.go` "ReclaimsRawOutputThenOnlyRowsSharedHistory
+  CanNoLongerShow", "KeepsEveryCommandSharedHistoryCanStillShow",
+  "MeasuresTheGraceInUTCWhateverTheLocalZone".
 
 ## 5. Known gaps (not bugs, decisions pending)
 

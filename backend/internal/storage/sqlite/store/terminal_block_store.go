@@ -108,10 +108,13 @@ func (s *Store) ClearOldOrphanedRawOutput(ctx context.Context, now, finishedBefo
 	return rows, nil
 }
 
-func (s *Store) DeleteFullyClearedOrphanedBlocks(ctx context.Context, cutoff time.Time) (int64, error) {
+func (s *Store) DeleteFullyClearedOrphanedBlocks(ctx context.Context, cutoff time.Time, keepCommands int) (int64, error) {
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
-	rows, err := s.qw.DeleteFullyClearedOrphanedBlocks(ctx, sql.NullTime{Time: cutoff, Valid: true})
+	rows, err := s.qw.DeleteFullyClearedOrphanedBlocks(ctx, gen.DeleteFullyClearedOrphanedBlocksParams{
+		ClearedBefore: sql.NullTime{Time: cutoff, Valid: true},
+		KeepCommands:  int64(keepCommands),
+	})
 	if err != nil {
 		return 0, fmt.Errorf("delete fully cleared orphaned blocks: %w", err)
 	}

@@ -7,7 +7,7 @@ const GIT_TWO_DASHES_OUTPUT = /error: did you mean `--(.+)` \(with two dashes\)\
 const GIT_PUSH_OUTPUT = /git push --set-upstream origin (?<branchName>[^\s]+)/;
 const FREE_PORT_OUTPUT = /(?:address already in use (?:0\.0\.0\.0|127\.0\.0\.1|localhost|::):|Unable to bind [^ ]*:|can't listen on port |listen EADDRINUSE [^ ]*:)(?<portNumber>\d{4,5})/;
 
-const BRANCH_NAME = /^[A-Za-z0-9._/@+-]+$/;
+const BRANCH_NAME = /^(?!-)[A-Za-z0-9._/@+-]+$/;
 const GIT_SUBCOMMAND = /^[a-z][a-z0-9-]*$/;
 const OPTION_NAME = /^[a-z][a-z0-9-]*$/;
 

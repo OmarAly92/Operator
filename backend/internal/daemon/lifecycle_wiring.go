@@ -90,10 +90,6 @@ func (l *lifecycleStack) ReconcileRuntime(ctx context.Context) error {
 	return l.runtimeReaper.Tick(ctx)
 }
 
-// ReconcileBlockRetention runs the same clear-then-delete cycle as the periodic
-// block retention janitor. The daemon calls it alongside ReconcileRuntime so
-// clearing and deletion missed while Operator was stopped are folded before
-// the API starts serving.
 func (l *lifecycleStack) ReconcileBlockRetention(ctx context.Context) error {
 	_, _, err := l.blockRetention.Tick(ctx)
 	return err

@@ -14,5 +14,5 @@ type Store interface {
 	DeleteTerminalBlocks(context.Context, string) error
 	ListRecentTerminalCommands(context.Context, int) ([]domain.CommandRun, error)
 	ClearOldOrphanedRawOutput(context.Context, time.Time, time.Time) (int64, error)
-	DeleteFullyClearedOrphanedBlocks(context.Context, time.Time) (int64, error)
+	DeleteFullyClearedOrphanedBlocks(context.Context, time.Time, int) (int64, error)
 }

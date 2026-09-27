@@ -65,6 +65,12 @@ WHERE raw_output_cleared_at IS NULL
 
 -- name: DeleteFullyClearedOrphanedBlocks :execrows
 DELETE FROM terminal_blocks
-WHERE raw_output_cleared_at IS NOT NULL
-  AND raw_output_cleared_at < ?
-  AND terminal_id NOT IN (SELECT handle_id FROM shell_terminals);
+WHERE terminal_blocks.raw_output_cleared_at IS NOT NULL
+  AND terminal_blocks.raw_output_cleared_at < sqlc.arg(cleared_before)
+  AND terminal_blocks.terminal_id NOT IN (SELECT handle_id FROM shell_terminals)
+  AND terminal_blocks.rowid NOT IN (
+    SELECT recent.rowid FROM terminal_blocks AS recent
+    WHERE recent.command <> ''
+    ORDER BY recent.finished_at DESC, recent.terminal_id DESC, recent.source_id DESC
+    LIMIT sqlc.arg(keep_commands)
+  );

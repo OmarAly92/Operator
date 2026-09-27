@@ -34,13 +34,24 @@ func (q *Queries) ClearOldOrphanedRawOutput(ctx context.Context, arg ClearOldOrp
 
 const deleteFullyClearedOrphanedBlocks = `-- name: DeleteFullyClearedOrphanedBlocks :execrows
 DELETE FROM terminal_blocks
-WHERE raw_output_cleared_at IS NOT NULL
-  AND raw_output_cleared_at < ?
-  AND terminal_id NOT IN (SELECT handle_id FROM shell_terminals)
+WHERE terminal_blocks.raw_output_cleared_at IS NOT NULL
+  AND terminal_blocks.raw_output_cleared_at < ?1
+  AND terminal_blocks.terminal_id NOT IN (SELECT handle_id FROM shell_terminals)
+  AND terminal_blocks.rowid NOT IN (
+    SELECT recent.rowid FROM terminal_blocks AS recent
+    WHERE recent.command <> ''
+    ORDER BY recent.finished_at DESC, recent.terminal_id DESC, recent.source_id DESC
+    LIMIT ?2
+  )
 `
 
-func (q *Queries) DeleteFullyClearedOrphanedBlocks(ctx context.Context, rawOutputClearedAt sql.NullTime) (int64, error) {
-	result, err := q.db.ExecContext(ctx, deleteFullyClearedOrphanedBlocks, rawOutputClearedAt)
+type DeleteFullyClearedOrphanedBlocksParams struct {
+	ClearedBefore sql.NullTime
+	KeepCommands  int64
+}
+
+func (q *Queries) DeleteFullyClearedOrphanedBlocks(ctx context.Context, arg DeleteFullyClearedOrphanedBlocksParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteFullyClearedOrphanedBlocks, arg.ClearedBefore, arg.KeepCommands)
 	if err != nil {
 		return 0, err
 	}

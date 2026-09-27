@@ -71,7 +71,6 @@ type UiState = {
 	terminalSecretRedaction: boolean;
 	/** Paint typed characters provisionally while the round trip is slow. Off by default. */
 	terminalPredictiveEcho: boolean;
-	/** Suggest fixes for failed commands. On by default. */
 	terminalQuickFixesEnabled: boolean;
 	terminalMarks: readonly TerminalMark[];
 	openFilesIn: OpenFilesIn;
