@@ -11,12 +11,12 @@ func TestMergeScreenReading(t *testing.T) {
 	stale := now.Add(-HookFreshWindow)
 	var never time.Time
 	for _, tc := range []struct {
-		name     string
-		current  ActivityState
-		reading  ScreenReading
-		hook     time.Time
-		want     ActivityState
-		apply    bool
+		name    string
+		current ActivityState
+		reading ScreenReading
+		hook    time.Time
+		want    ActivityState
+		apply   bool
 	}{
 		{"no hooks: working", ActivityIdle, ScreenWorking, never, ActivityActive, true},
 		{"no hooks: question", ActivityActive, ScreenQuestion, never, ActivityBlocked, true},
