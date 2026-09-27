@@ -11,38 +11,38 @@
   {
    "from": 0,
    "state": "working",
-   "to": 908
+   "to": 967
   },
   {
-   "from": 908,
+   "from": 967,
    "state": "settled",
-   "to": 1549
+   "to": 1607
   },
   {
-   "from": 1549,
+   "from": 1607,
    "state": "working",
-   "to": 3760
+   "to": 4058
   },
   {
-   "from": 3760,
+   "from": 4058,
    "state": "asking",
    "question": "Bash touch approved.txt",
-   "to": 9774
+   "to": 10101
   },
   {
-   "from": 9774,
+   "from": 10101,
    "state": "working",
-   "to": 17791
+   "to": 13230
   },
   {
-   "from": 17791,
+   "from": 13230,
    "state": "settled",
-   "to": 27838
+   "to": 27283
   }
  ],
  "inputs": [
-  945,
-  1549,
-  9774
+  1005,
+  1607,
+  10101
  ]
 }

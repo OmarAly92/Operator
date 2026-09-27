@@ -11,51 +11,51 @@
   {
    "from": 0,
    "state": "working",
-   "to": 1148
+   "to": 952
   },
   {
-   "from": 1148,
+   "from": 952,
    "state": "settled",
-   "to": 1794
+   "to": 1556
   },
   {
-   "from": 1794,
+   "from": 1556,
    "state": "working",
-   "to": 4100
+   "to": 4022
   },
   {
-   "from": 4100,
+   "from": 4022,
    "state": "asking",
    "question": "touch first-call.txt",
-   "to": 11346
+   "to": 11250
   },
   {
-   "from": 11346,
+   "from": 11250,
    "state": "working",
-   "to": 13501
+   "to": 13683
   },
   {
-   "from": 13501,
+   "from": 13683,
    "state": "asking",
    "question": "touch second-call.txt",
-   "to": 18547
+   "to": 18702
   },
   {
-   "from": 18547,
+   "from": 18702,
    "state": "working",
-   "to": 20064
+   "to": 20362
   },
   {
-   "from": 20064,
+   "from": 20362,
    "state": "settled",
-   "to": 30225
+   "to": 34406
   }
  ],
  "inputs": [
-  1187,
-  1794,
-  7134,
-  11346,
-  18547
+  952,
+  1556,
+  7045,
+  11250,
+  18702
  ]
 }
