@@ -44,7 +44,6 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 
-
 tool/glass_lab/**/__pycache__/
 tool/glass_lab/native/GlassLab.xcodeproj/xcuserdata/
 tool/glass_lab/native/GlassLab.xcodeproj/project.xcworkspace/
