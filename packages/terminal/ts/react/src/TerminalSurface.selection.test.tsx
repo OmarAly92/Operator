@@ -136,12 +136,14 @@ describe("TerminalSurface selection", () => {
 			const surface = container.querySelector(".terminal-host") as HTMLElement;
 			surface.dispatchEvent(new KeyboardEvent("keydown", { key: "c", metaKey: true, bubbles: true, cancelable: true }));
 			expect(writeClipboard).toHaveBeenLastCalledWith("gamma");
+			const callsAfterFirstCopy = writeClipboard.mock.calls.length;
 			refit(1);
 			expect(rows[0]!.style.backgroundImage).toContain("var(--terminal-selection)");
 			setHostSize(host, 150, 500);
 			await flushRepaint();
 			rows = layoutRows(container);
 			surface.dispatchEvent(new KeyboardEvent("keydown", { key: "c", metaKey: true, bubbles: true, cancelable: true }));
+			expect(writeClipboard.mock.calls.length).toBe(callsAfterFirstCopy + 1);
 			expect(writeClipboard).toHaveBeenLastCalledWith("gamma");
 			expect(rows.map((row) => row.textContent?.trimEnd())).toContain("gamma delta");
 		} finally {
