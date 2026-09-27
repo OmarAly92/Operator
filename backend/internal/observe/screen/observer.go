@@ -11,9 +11,10 @@ import (
 )
 
 const (
-	stepEvery     = 250 * time.Millisecond
-	reassertEvery = 5 * time.Second
-	maxQueued     = 32
+	stepEvery        = 250 * time.Millisecond
+	reassertEvery    = 5 * time.Second
+	maxQueued        = 32
+	untrackedRecheck = 30 * time.Second
 )
 
 type sessionSource interface {
@@ -35,11 +36,11 @@ type Config struct {
 }
 
 type tracked struct {
-	session    domain.SessionID
-	harness    domain.AgentHarness
-	debouncer  Debouncer
-	confirmed  *Decision
-	reassertAt time.Time
+	session   domain.SessionID
+	harness   domain.AgentHarness
+	debouncer Debouncer
+	confirmed *Decision
+	checkAt   time.Time
 }
 
 type Observer struct {
@@ -54,20 +55,22 @@ type Observer struct {
 	queued map[string][]ports.TerminalProgramEvent
 	wake   chan struct{}
 
-	tracked map[string]*tracked
+	tracked   map[string]*tracked
+	untracked map[string]time.Time
 }
 
 func New(sessions sessionSource, sink activitySink, programs programSource, agents ports.AgentResolver, cfg Config) *Observer {
 	o := &Observer{
-		sessions: sessions,
-		sink:     sink,
-		programs: programs,
-		agents:   agents,
-		clock:    cfg.Clock,
-		logger:   cfg.Logger,
-		queued:   map[string][]ports.TerminalProgramEvent{},
-		wake:     make(chan struct{}, 1),
-		tracked:  map[string]*tracked{},
+		sessions:  sessions,
+		sink:      sink,
+		programs:  programs,
+		agents:    agents,
+		clock:     cfg.Clock,
+		logger:    cfg.Logger,
+		queued:    map[string][]ports.TerminalProgramEvent{},
+		wake:      make(chan struct{}, 1),
+		tracked:   map[string]*tracked{},
+		untracked: map[string]time.Time{},
 	}
 	if o.clock == nil {
 		o.clock = func() time.Time { return time.Now().UTC() }
@@ -123,7 +126,7 @@ func (o *Observer) Drain(ctx context.Context) {
 	o.queued = map[string][]ports.TerminalProgramEvent{}
 	o.mu.Unlock()
 	for handleID, events := range queued {
-		t := o.track(ctx, handleID)
+		t := o.track(ctx, handleID, o.clock())
 		if t == nil {
 			continue
 		}
@@ -139,21 +142,28 @@ func (o *Observer) Drain(ctx context.Context) {
 }
 
 func (o *Observer) Step(ctx context.Context, now time.Time) {
+	for handleID, missed := range o.untracked {
+		if now.Sub(missed) >= untrackedRecheck {
+			delete(o.untracked, handleID)
+		}
+	}
 	for handleID, t := range o.tracked {
 		o.apply(ctx, t, t.debouncer.Due(now))
-		if t.confirmed == nil || now.Before(t.reassertAt) {
+		if now.Before(t.checkAt) {
 			continue
 		}
-		t.reassertAt = now.Add(reassertEvery)
+		t.checkAt = now.Add(reassertEvery)
 		rec, ok, err := o.sessions.GetSession(ctx, t.session)
 		if err != nil {
 			continue
 		}
-		if !ok || rec.IsTerminated {
+		if !owns(rec, ok, handleID) {
 			delete(o.tracked, handleID)
 			continue
 		}
-		o.send(ctx, t, rec, *t.confirmed)
+		if t.confirmed != nil && t.debouncer.Holds() {
+			o.send(ctx, t, rec, *t.confirmed, true)
+		}
 	}
 }
 
@@ -161,19 +171,22 @@ func (o *Observer) apply(ctx context.Context, t *tracked, decisions []Decision) 
 	for _, decision := range decisions {
 		confirmed := decision
 		t.confirmed = &confirmed
-		t.reassertAt = o.clock().Add(reassertEvery)
+		t.checkAt = o.clock().Add(reassertEvery)
 		rec, ok, err := o.sessions.GetSession(ctx, t.session)
 		if err != nil || !ok || rec.IsTerminated {
 			continue
 		}
-		o.send(ctx, t, rec, decision)
+		o.send(ctx, t, rec, decision, false)
 	}
 }
 
-func (o *Observer) send(ctx context.Context, t *tracked, rec domain.SessionRecord, decision Decision) {
+func (o *Observer) send(ctx context.Context, t *tracked, rec domain.SessionRecord, decision Decision, reassert bool) {
 	t.harness = rec.Harness
 	target, ok := decision.Reading.State()
-	if !ok || rec.Activity.State == target {
+	if !ok {
+		return
+	}
+	if rec.Activity.State == target && (reassert || decision.Reading != domain.ScreenQuestion) {
 		return
 	}
 	err := o.sink.ApplyActivitySignal(ctx, rec.ID, ports.ActivitySignal{
@@ -186,15 +199,22 @@ func (o *Observer) send(ctx context.Context, t *tracked, rec domain.SessionRecor
 		ScreenReading:     decision.Reading,
 		ScreenIdentity:    decision.Identity,
 		ScreenText:        decision.Text,
+		ScreenReassert:    reassert,
 	})
 	if err != nil {
 		o.logger.Error("screen observer: apply failed", "session", rec.ID, "reading", decision.Reading, "err", err)
 	}
 }
 
-func (o *Observer) track(ctx context.Context, handleID string) *tracked {
+func (o *Observer) track(ctx context.Context, handleID string, now time.Time) *tracked {
 	if t, ok := o.tracked[handleID]; ok {
 		return t
+	}
+	if rec, ok, err := o.sessions.GetSession(ctx, domain.SessionID(handleID)); err == nil && owns(rec, ok, handleID) {
+		return o.adopt(handleID, rec)
+	}
+	if missed, ok := o.untracked[handleID]; ok && now.Sub(missed) < untrackedRecheck {
+		return nil
 	}
 	sessions, err := o.sessions.ListAllSessions(ctx)
 	if err != nil {
@@ -202,13 +222,23 @@ func (o *Observer) track(ctx context.Context, handleID string) *tracked {
 		return nil
 	}
 	for _, rec := range sessions {
-		if rec.Metadata.RuntimeHandleID == handleID && !rec.IsTerminated {
-			t := &tracked{session: rec.ID, harness: rec.Harness}
-			o.tracked[handleID] = t
-			return t
+		if owns(rec, true, handleID) {
+			return o.adopt(handleID, rec)
 		}
 	}
+	o.untracked[handleID] = now
 	return nil
+}
+
+func (o *Observer) adopt(handleID string, rec domain.SessionRecord) *tracked {
+	delete(o.untracked, handleID)
+	t := &tracked{session: rec.ID, harness: rec.Harness, checkAt: o.clock().Add(reassertEvery)}
+	o.tracked[handleID] = t
+	return t
+}
+
+func owns(rec domain.SessionRecord, ok bool, handleID string) bool {
+	return ok && !rec.IsTerminated && rec.Metadata.RuntimeHandleID == handleID
 }
 
 func (o *Observer) agentFor(harness domain.AgentHarness) any {

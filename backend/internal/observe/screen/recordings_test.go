@@ -73,11 +73,12 @@ type simHook struct {
 }
 
 type simulator struct {
-	state      domain.ActivityState
-	lastHookAt time.Time
-	alerted    string
-	alertedAt  time.Time
-	out        []simTransition
+	state           domain.ActivityState
+	lastHookAt      time.Time
+	screenChangedAt time.Time
+	alerted         string
+	alertedAt       time.Time
+	out             []simTransition
 }
 
 func (s *simulator) set(ms int64, at time.Time, to domain.ActivityState, screen bool, identity string) {
@@ -96,6 +97,13 @@ func (s *simulator) set(ms int64, at time.Time, to domain.ActivityState, screen 
 	}
 	s.out = append(s.out, simTransition{at: ms, to: to, alert: alert, screen: screen})
 	s.state = to
+	if screen {
+		s.screenChangedAt = at
+	}
+}
+
+func (s *simulator) merge(reading domain.ScreenReading, reassert bool) domain.ScreenMerge {
+	return domain.ScreenMerge{Current: s.state, Reading: reading, LastHookAt: s.lastHookAt, ScreenChangedAt: s.screenChangedAt, Reassert: reassert}
 }
 
 func signalsDir() string {
@@ -196,7 +204,10 @@ func simulate(t *testing.T, rec signalRecording, mode simMode) []simTransition {
 			decision := d
 			confirmed = &decision
 			reassertAt = ms + reassertEvery.Milliseconds()
-			if merged, ok := domain.MergeScreenReading(sim.state, d.Reading, sim.lastHookAt, at(ms)); ok {
+			if d.Reading == domain.ScreenQuestion && d.Identity != "" && sim.state.NeedsInput() && sim.alerted != d.Identity {
+				sim.alerted, sim.alertedAt = d.Identity, at(ms)
+			}
+			if merged, ok := domain.MergeScreenReading(sim.merge(d.Reading, false), at(ms)); ok {
 				sim.set(ms, at(ms), merged, true, d.Identity)
 			}
 		}
@@ -226,7 +237,10 @@ func simulate(t *testing.T, rec signalRecording, mode simMode) []simTransition {
 		decide(ms, debouncer.Due(at(ms)))
 		if confirmed != nil && ms >= reassertAt {
 			reassertAt = ms + reassertEvery.Milliseconds()
-			if merged, ok := domain.MergeScreenReading(sim.state, confirmed.Reading, sim.lastHookAt, at(ms)); ok {
+			if !debouncer.Holds() {
+				return
+			}
+			if merged, ok := domain.MergeScreenReading(sim.merge(confirmed.Reading, true), at(ms)); ok {
 				sim.set(ms, at(ms), merged, true, confirmed.Identity)
 			}
 		}

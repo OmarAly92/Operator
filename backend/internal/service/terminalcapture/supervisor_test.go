@@ -213,7 +213,7 @@ func (f *fakeBlockStore) ClearOldOrphanedRawOutput(_ context.Context, _, _ time.
 	return 0, nil
 }
 
-func (f *fakeBlockStore) DeleteFullyClearedOrphanedBlocks(_ context.Context, _ time.Time) (int64, error) {
+func (f *fakeBlockStore) DeleteFullyClearedOrphanedBlocks(_ context.Context, _ time.Time, _ int) (int64, error) {
 	return 0, nil
 }
 

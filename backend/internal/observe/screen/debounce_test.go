@@ -116,3 +116,27 @@ func TestDebouncerAnUnreadableScreenCancelsWhatWasPending(t *testing.T) {
 		t.Fatalf("pending reading survived an unreadable screen: %+v", got)
 	}
 }
+
+func TestDebouncerHoldsOnlyWhileTheScreenStillReadsTheAppliedDecision(t *testing.T) {
+	var d Debouncer
+	if d.Holds() {
+		t.Fatal("holds before any decision")
+	}
+	d.Observe(question("q"), t0)
+	d.Due(t0.Add(time.Second))
+	if !d.Holds() {
+		t.Fatal("does not hold the question it just applied")
+	}
+	d.Observe(working(), t0.Add(2*time.Second))
+	if d.Holds() {
+		t.Fatal("holds the question while working is pending")
+	}
+	d.Observe(question("q"), t0.Add(3*time.Second))
+	if !d.Holds() {
+		t.Fatal("does not hold the question after a repaint")
+	}
+	d.Observe(Observation{}, t0.Add(4*time.Second))
+	if d.Holds() {
+		t.Fatal("holds the question on an unreadable screen")
+	}
+}

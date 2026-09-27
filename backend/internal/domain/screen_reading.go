@@ -28,16 +28,30 @@ func (r ScreenReading) State() (ActivityState, bool) {
 	}
 }
 
-func MergeScreenReading(current ActivityState, reading ScreenReading, lastHookAt, now time.Time) (ActivityState, bool) {
-	target, ok := reading.State()
-	if !ok || current == ActivityExited || target == current {
-		return current, false
+type ScreenMerge struct {
+	Current         ActivityState
+	Reading         ScreenReading
+	LastHookAt      time.Time
+	ScreenChangedAt time.Time
+	Reassert        bool
+}
+
+func MergeScreenReading(in ScreenMerge, now time.Time) (ActivityState, bool) {
+	target, ok := in.Reading.State()
+	if !ok || in.Current == ActivityExited || target == in.Current {
+		return in.Current, false
 	}
-	if !lastHookAt.IsZero() && now.Sub(lastHookAt) < HookFreshWindow {
-		if reading == ScreenQuestion && current == ActivityActive {
+	if in.LastHookAt.IsZero() || in.ScreenChangedAt.After(in.LastHookAt) {
+		return target, true
+	}
+	if in.Current == ActivityWaitingInput && target != ActivityBlocked {
+		return in.Current, false
+	}
+	if now.Sub(in.LastHookAt) < HookFreshWindow {
+		if in.Reading == ScreenQuestion && in.Current == ActivityActive && !in.Reassert {
 			return target, true
 		}
-		return current, false
+		return in.Current, false
 	}
 	return target, true
 }

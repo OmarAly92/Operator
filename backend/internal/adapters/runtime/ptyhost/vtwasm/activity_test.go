@@ -78,3 +78,38 @@ func TestANewClockTakesItsBaselineFromTheParser(t *testing.T) {
 		t.Fatal("bytes fed before the clock was made counted as new output")
 	}
 }
+
+func TestTheActivityClockIsSettledOnlyWhileNothingCanChangeItsState(t *testing.T) {
+	p := newTestParser(t, 80, 24)
+	clock := NewActivityClock(p)
+	start := time.Unix(1_800_000_000, 0)
+	var untouched time.Time
+	if clock.SettledSince(untouched) {
+		t.Fatal("a clock with no output is settled")
+	}
+	feed(t, p, "working")
+	clock.Step(p, start, untouched)
+	if clock.SettledSince(untouched) {
+		t.Fatal("active is settled")
+	}
+	clock.Step(p, start.Add(700*time.Millisecond), untouched)
+	if clock.SettledSince(untouched) {
+		t.Fatal("polling for idle is settled")
+	}
+	clock.Step(p, start.Add(1600*time.Millisecond), untouched)
+	if !clock.SettledSince(untouched) || !clock.SettledSince(start.Add(1600*time.Millisecond)) {
+		t.Fatal("idle is not settled")
+	}
+	if clock.SettledSince(start.Add(2 * time.Second)) {
+		t.Fatal("settled although the screen was touched afterwards")
+	}
+	feed(t, p, "\r\nOverwrite build.log? (y/n) ")
+	state, changed, _ := clock.Step(p, start.Add(3*time.Second), untouched)
+	if !changed || state != ActivityActive || clock.SettledSince(untouched) {
+		t.Fatalf("new output = %v %v, settled %v; want active and unsettled", state, changed, clock.SettledSince(untouched))
+	}
+	state, _, _ = clock.Step(p, start.Add(3600*time.Millisecond), untouched)
+	if state != ActivityPrompting || !clock.SettledSince(untouched) {
+		t.Fatalf("a question = %v, settled %v; want prompting and settled", state, clock.SettledSince(untouched))
+	}
+}

@@ -81,6 +81,11 @@ type ActivityClock struct {
 	started   bool
 	published bool
 	shown     AgentActivity
+	settledAt time.Time
+}
+
+func (c *ActivityClock) SettledSince(touched time.Time) bool {
+	return !c.settledAt.IsZero() && !touched.After(c.settledAt)
 }
 
 func NewActivityClock(p *Parser) ActivityClock {
@@ -105,7 +110,12 @@ func (c *ActivityClock) Step(p *Parser, now, pokedAt time.Time) (AgentActivity, 
 	}
 	state, err := p.AgentActivity(now.Sub(c.lastAt).Milliseconds())
 	if err != nil {
+		c.settledAt = time.Time{}
 		return c.shown, false, err
+	}
+	c.settledAt = time.Time{}
+	if state == ActivityIdle || state == ActivityPrompting {
+		c.settledAt = now
 	}
 	if state == ActivityPollingForIdle || (c.published && state == c.shown) {
 		return c.shown, false, nil

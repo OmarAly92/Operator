@@ -101,4 +101,5 @@ type ActivitySignal struct {
 	ScreenReading  domain.ScreenReading
 	ScreenIdentity string
 	ScreenText     string
+	ScreenReassert bool
 }

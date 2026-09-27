@@ -14,13 +14,15 @@ import (
 )
 
 type fakeSessions struct {
-	mu   sync.Mutex
-	rows map[domain.SessionID]domain.SessionRecord
+	mu    sync.Mutex
+	rows  map[domain.SessionID]domain.SessionRecord
+	lists int
 }
 
 func (f *fakeSessions) ListAllSessions(context.Context) ([]domain.SessionRecord, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	f.lists++
 	var out []domain.SessionRecord
 	for _, rec := range f.rows {
 		out = append(out, rec)
@@ -117,12 +119,139 @@ func TestObserverIgnoresTitlesAndUnknownHandles(t *testing.T) {
 }
 
 func TestObserverSkipsAReadingTheSessionAlreadyHas(t *testing.T) {
-	o, _, sink := observerFixture(t, domain.ActivityBlocked)
-	o.Enqueue("handle-1", ports.TerminalProgramEvent{Kind: ports.TerminalProgramActivity, Activity: ports.TerminalActivityIdle, At: t0, Tail: pane(t, "claudecode_permission.txt")})
+	o, _, sink := observerFixture(t, domain.ActivityIdle)
+	o.Enqueue("handle-1", ports.TerminalProgramEvent{Kind: ports.TerminalProgramActivity, Activity: ports.TerminalActivityIdle, At: t0, Tail: pane(t, "claudecode_idle.txt")})
 	o.Drain(context.Background())
 	o.Step(context.Background(), t0.Add(time.Minute))
 	if len(sink.signals) != 0 {
 		t.Fatalf("signals = %+v, want none", sink.signals)
+	}
+}
+
+func TestObserverTellsTheLifecycleOnceWhichQuestionAHookAlreadyBlockedOn(t *testing.T) {
+	o, _, sink := observerFixture(t, domain.ActivityBlocked)
+	o.Enqueue("handle-1", ports.TerminalProgramEvent{Kind: ports.TerminalProgramActivity, Activity: ports.TerminalActivityIdle, At: t0, Tail: pane(t, "claudecode_permission.txt")})
+	o.Drain(context.Background())
+	o.Step(context.Background(), t0.Add(ScreenQuestionConfirm))
+	for i := 1; i <= 3; i++ {
+		o.Step(context.Background(), t0.Add(ScreenQuestionConfirm+time.Duration(i)*reassertEvery))
+	}
+	if len(sink.signals) != 1 || sink.signals[0].ScreenReading != domain.ScreenQuestion || sink.signals[0].ScreenIdentity == "" || sink.signals[0].ScreenReassert {
+		t.Fatalf("signals = %+v, want the new question once, not re-asserted", sink.signals)
+	}
+}
+
+func TestObserverNeverReassertsAQuestionTheScreenHasMovedOnFrom(t *testing.T) {
+	o, sessions, sink := observerFixture(t, domain.ActivityActive)
+	ctx := context.Background()
+	o.Enqueue("handle-1", ports.TerminalProgramEvent{Kind: ports.TerminalProgramActivity, Activity: ports.TerminalActivityIdle, At: t0, Tail: pane(t, "claudecode_permission.txt")})
+	o.Drain(ctx)
+	o.Step(ctx, t0.Add(ScreenQuestionConfirm))
+	sessions.setState("opr-1", domain.ActivityActive)
+	o.Enqueue("handle-1", ports.TerminalProgramEvent{Kind: ports.TerminalProgramActivity, Activity: ports.TerminalActivityActive, At: t0.Add(ScreenQuestionConfirm + 3*time.Second)})
+	o.Drain(ctx)
+	o.Step(ctx, t0.Add(ScreenQuestionConfirm+reassertEvery))
+	for _, s := range sink.signals[1:] {
+		if s.ScreenReading == domain.ScreenQuestion {
+			t.Fatalf("an answered question was re-asserted while the screen reads working: %+v", s)
+		}
+	}
+}
+
+func TestObserverStopsReassertingWhenTheScreenNoLongerReadsTheQuestion(t *testing.T) {
+	o, sessions, sink := observerFixture(t, domain.ActivityActive)
+	ctx := context.Background()
+	o.Enqueue("handle-1", ports.TerminalProgramEvent{Kind: ports.TerminalProgramActivity, Activity: ports.TerminalActivityIdle, At: t0, Tail: pane(t, "claudecode_permission.txt")})
+	o.Drain(ctx)
+	o.Step(ctx, t0.Add(ScreenQuestionConfirm))
+	sessions.setState("opr-1", domain.ActivityActive)
+	o.Enqueue("handle-1", ports.TerminalProgramEvent{Kind: ports.TerminalProgramActivity, Activity: ports.TerminalActivityIdle, At: t0.Add(2 * time.Second), Tail: "✽ Thinking… (3s)\n  esc to interrupt\n"})
+	o.Drain(ctx)
+	for i := 1; i <= 3; i++ {
+		o.Step(ctx, t0.Add(ScreenQuestionConfirm+time.Duration(i)*reassertEvery))
+	}
+	if len(sink.signals) != 1 {
+		t.Fatalf("signals = %+v, want only the first question", sink.signals)
+	}
+}
+
+func TestObserverForgetsASessionThatEndsBeforeAnyReadingIsConfirmed(t *testing.T) {
+	o, sessions, _ := observerFixture(t, domain.ActivityIdle)
+	o.Enqueue("handle-1", ports.TerminalProgramEvent{Kind: ports.TerminalProgramActivity, Activity: ports.TerminalActivityActive, At: t0})
+	o.Drain(context.Background())
+	if len(o.tracked) != 1 {
+		t.Fatalf("tracked = %d, want the session tracked", len(o.tracked))
+	}
+	sessions.mu.Lock()
+	rec := sessions.rows["opr-1"]
+	rec.IsTerminated = true
+	sessions.rows["opr-1"] = rec
+	sessions.mu.Unlock()
+	o.Step(context.Background(), t0.Add(time.Second))
+	o.Step(context.Background(), t0.Add(time.Second+reassertEvery))
+	if len(o.tracked) != 0 {
+		t.Fatalf("tracked = %d, want the ended session forgotten", len(o.tracked))
+	}
+}
+
+func TestObserverForgetsAHandleItsSessionNoLongerOwns(t *testing.T) {
+	o, sessions, _ := observerFixture(t, domain.ActivityIdle)
+	o.Enqueue("handle-1", ports.TerminalProgramEvent{Kind: ports.TerminalProgramActivity, Activity: ports.TerminalActivityActive, At: t0})
+	o.Drain(context.Background())
+	sessions.mu.Lock()
+	rec := sessions.rows["opr-1"]
+	rec.Metadata.RuntimeHandleID = ""
+	sessions.rows["opr-1"] = rec
+	sessions.mu.Unlock()
+	o.Step(context.Background(), t0.Add(time.Second+reassertEvery))
+	if len(o.tracked) != 0 {
+		t.Fatalf("tracked = %d, want the released handle forgotten", len(o.tracked))
+	}
+}
+
+func TestObserverLooksForAnUnknownHandleOnlyOnceInAWhile(t *testing.T) {
+	o, sessions, sink := observerFixture(t, domain.ActivityIdle)
+	ctx := context.Background()
+	for i := 0; i < 5; i++ {
+		o.Enqueue("shell-1", ports.TerminalProgramEvent{Kind: ports.TerminalProgramActivity, Activity: ports.TerminalActivityActive, At: t0.Add(time.Duration(i) * time.Second)})
+		o.Drain(ctx)
+		o.Step(ctx, t0.Add(time.Duration(i)*time.Second))
+	}
+	if sessions.lists != 1 {
+		t.Fatalf("listed every session %d times for one unknown handle", sessions.lists)
+	}
+	o.Step(ctx, t0.Add(untrackedRecheck+time.Second))
+	if len(o.untracked) != 0 {
+		t.Fatalf("untracked = %v, want expired misses dropped", o.untracked)
+	}
+	o.Enqueue("shell-1", ports.TerminalProgramEvent{Kind: ports.TerminalProgramActivity, Activity: ports.TerminalActivityIdle, At: t0.Add(untrackedRecheck + time.Second)})
+	o.Drain(ctx)
+	if sessions.lists != 2 || len(sink.signals) != 0 {
+		t.Fatalf("lists = %d signals = %d, want a second look after the recheck and nothing sent", sessions.lists, len(sink.signals))
+	}
+}
+
+func TestObserverFindsASessionWhoseHandleAppearsAfterAMiss(t *testing.T) {
+	o, sessions, sink := observerFixture(t, domain.ActivityActive)
+	ctx := context.Background()
+	o.Enqueue("opr-2", ports.TerminalProgramEvent{Kind: ports.TerminalProgramActivity, Activity: ports.TerminalActivityActive, At: t0})
+	o.Drain(ctx)
+	sessions.mu.Lock()
+	sessions.rows["opr-2"] = domain.SessionRecord{
+		ID: "opr-2", Harness: domain.HarnessClaudeCode,
+		Activity:  domain.Activity{State: domain.ActivityActive},
+		UpdatedAt: t0,
+		Metadata:  domain.SessionMetadata{RuntimeHandleID: "opr-2", RuntimeLaunchID: "launch-2"},
+	}
+	sessions.mu.Unlock()
+	o.Enqueue("opr-2", ports.TerminalProgramEvent{Kind: ports.TerminalProgramActivity, Activity: ports.TerminalActivityIdle, At: t0.Add(time.Second), Tail: pane(t, "claudecode_permission.txt")})
+	o.Drain(ctx)
+	o.Step(ctx, t0.Add(time.Second+ScreenQuestionConfirm))
+	if len(sink.signals) != 1 || sink.signals[0].LaunchID != "launch-2" {
+		t.Fatalf("signals = %+v, want the new session's question", sink.signals)
+	}
+	if sessions.lists != 1 {
+		t.Fatalf("lists = %d, want the appearing handle found without another full listing", sessions.lists)
 	}
 }
 
@@ -139,6 +268,9 @@ func TestObserverReassertsAConfirmedReadingThatAHookOverrode(t *testing.T) {
 	o.Step(context.Background(), t0.Add(ScreenQuestionConfirm+reassertEvery))
 	if len(sink.signals) != 2 || sink.signals[1].ScreenIdentity != sink.signals[0].ScreenIdentity {
 		t.Fatalf("signals = %+v, want the same question re-asserted once", sink.signals)
+	}
+	if sink.signals[0].ScreenReassert || !sink.signals[1].ScreenReassert {
+		t.Fatalf("signals = %+v, want only the second marked as a re-assert", sink.signals)
 	}
 }
 

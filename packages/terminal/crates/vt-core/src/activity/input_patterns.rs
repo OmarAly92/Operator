@@ -3,33 +3,32 @@
  *  Licensed under the MIT License. See LICENSE-VSCODE-MIT beside this file.
  *--------------------------------------------------------------------------------------------*/
 
-use regex_automata::meta::Regex;
+use regex_automata::dfa::sparse::DFA;
+use regex_automata::dfa::Automaton;
+use regex_automata::Input;
 use std::sync::OnceLock;
 
-const HIGH_CONFIDENCE_INPUT_PATTERNS: [&str; 9] = [
-    r#"\s*(?:\[[^\]]\][^\[]*)+(?:\(default is\s+"[^"]+"\):)?\s+$"#,
-    r"(?i)(?:\(|\[)\s*(?:y(?:es)?\s*/\s*n(?:o)?|n(?:o)?\s*/\s*y(?:es)?)\s*(?:\]|\))\s+$",
-    r"(?i)[?:]\s*(?:\(|\[)?\s*y(?:es)?\s*/\s*n(?:o)?\s*(?:\]|\))?\s+$",
-    r"(?i)\(y\) +$",
-    r":\s+\([^)]*\) +$",
-    r"\(END\)$",
-    r"(?i)password(?: for [^:]+)?:\s*$",
-    r"(?i)press a(?:ny)? key",
-    r"^(?:\s|\x1b\[[0-9;]*m)*\?.*[›❯▸▶]\s*$",
-];
+include!("input_pattern_sources.rs");
 
-fn patterns() -> &'static [Regex] {
-    static PATTERNS: OnceLock<Vec<Regex>> = OnceLock::new();
-    PATTERNS.get_or_init(|| {
-        HIGH_CONFIDENCE_INPUT_PATTERNS
-            .iter()
-            .map(|pattern| Regex::new(pattern).expect("input pattern compiles"))
-            .collect()
+static AUTOMATA: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/input_patterns.dfa"));
+
+fn automata() -> &'static [DFA<&'static [u8]>] {
+    static DFAS: OnceLock<Vec<DFA<&'static [u8]>>> = OnceLock::new();
+    DFAS.get_or_init(|| {
+        let mut rest = AUTOMATA;
+        let mut out = Vec::with_capacity(HIGH_CONFIDENCE_INPUT_PATTERNS.len());
+        while !rest.is_empty() {
+            let (dfa, read) = DFA::from_bytes(rest).expect("input pattern automaton");
+            out.push(dfa);
+            rest = &rest[read..];
+        }
+        out
     })
 }
 
 pub fn detects_high_confidence_input_pattern(cursor_line: &str) -> bool {
-    patterns()
+    let input = Input::new(cursor_line).earliest(true);
+    automata()
         .iter()
-        .any(|pattern| pattern.is_match(cursor_line))
+        .any(|dfa| matches!(dfa.try_search_fwd(&input), Ok(Some(_))))
 }

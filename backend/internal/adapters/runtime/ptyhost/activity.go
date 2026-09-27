@@ -20,7 +20,9 @@ func (h *host) runActivityClock() {
 			return
 		case now := <-ticker.C:
 			h.mu.Lock()
-			h.publishActivityLocked(now)
+			if !h.activity.SettledSince(h.screenTouchedLocked()) {
+				h.publishActivityLocked(now)
+			}
 			h.mu.Unlock()
 		}
 	}
@@ -46,6 +48,13 @@ func (h *host) publishActivityLocked(now time.Time) {
 			cs.enqueue(h.activityFrame)
 		}
 	}
+}
+
+func (h *host) screenTouchedLocked() time.Time {
+	if h.tickedAt.After(h.pokedAt) {
+		return h.tickedAt
+	}
+	return h.pokedAt
 }
 
 func (h *host) resetActivityLocked() {

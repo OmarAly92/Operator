@@ -160,9 +160,10 @@ type Manager struct {
 	telemetry ports.EventSink
 	// flights tracks, per session, the in-flight tool executions and the
 	// pending permission dialog's identity (see toolFlight). Guarded by mu.
-	flights map[domain.SessionID]*toolFlight
-	hookAt  map[domain.SessionID]time.Time
-	alerted map[domain.SessionID]alertedQuestion
+	flights  map[domain.SessionID]*toolFlight
+	hookAt   map[domain.SessionID]time.Time
+	alerted  map[domain.SessionID]alertedQuestion
+	screenAt map[domain.SessionID]time.Time
 	// pendingLaunches closes the small ordering gap between starting a supervised
 	// process and durably recording its generation in MarkSpawned. A hook from
 	// that exact generation waits on ready instead of being discarded as stale.
@@ -236,6 +237,7 @@ func New(store sessionStore, messenger ports.AgentMessenger, opts ...Option) *Ma
 		flights:         map[domain.SessionID]*toolFlight{},
 		hookAt:          map[domain.SessionID]time.Time{},
 		alerted:         map[domain.SessionID]alertedQuestion{},
+		screenAt:        map[domain.SessionID]time.Time{},
 		pendingLaunches: map[domain.SessionID]pendingLaunch{},
 		steerActive:     func(domain.AgentHarness) bool { return false },
 	}
@@ -476,6 +478,22 @@ func (m *Manager) sessionIntent(typ domain.NotificationType, rec domain.SessionR
 	return intent
 }
 
+func (m *Manager) rememberQuestionOnScreenLocked(id domain.SessionID, cur domain.ActivityState, s ports.ActivitySignal, now time.Time) {
+	if s.ScreenReading != domain.ScreenQuestion || s.ScreenIdentity == "" || s.ScreenReassert || !cur.NeedsInput() {
+		return
+	}
+	if last, ok := m.alerted[id]; ok && last.identity == s.ScreenIdentity {
+		return
+	}
+	m.alerted[id] = alertedQuestion{identity: s.ScreenIdentity, at: now}
+}
+
+func (m *Manager) forgetSignalsLocked(id domain.SessionID) {
+	delete(m.hookAt, id)
+	delete(m.alerted, id)
+	delete(m.screenAt, id)
+}
+
 func (m *Manager) alertedRecently(id domain.SessionID, identity string, now time.Time) bool {
 	if identity == "" {
 		return false
@@ -546,6 +564,7 @@ func (m *Manager) ApplyRuntimeObservation(ctx context.Context, id domain.Session
 		next := cur
 		next.IsTerminated = true
 		next.Activity = domain.Activity{State: domain.ActivityExited, LastActivityAt: timeOr(f.ObservedAt, now)}
+		m.forgetSignalsLocked(id)
 		// Reaper-driven death (crash/SIGKILL) never fires a session-end hook,
 		// so this is the last chance to release the session's tool-flight
 		// state; a leaked entry would otherwise persist for the daemon's life
@@ -636,8 +655,7 @@ func (m *Manager) ApplyActivitySignal(ctx context.Context, id domain.SessionID, 
 	now := m.clock()
 	if rec.IsTerminated {
 		delete(m.flights, id)
-		delete(m.hookAt, id)
-		delete(m.alerted, id)
+		m.forgetSignalsLocked(id)
 		m.mu.Unlock()
 		return nil
 	}
@@ -655,14 +673,19 @@ func (m *Manager) ApplyActivitySignal(ctx context.Context, id domain.SessionID, 
 		return nil
 	}
 	if s.Valid && s.ScreenReading != "" {
-		merged, apply := domain.MergeScreenReading(rec.Activity.State, s.ScreenReading, m.hookAt[id], now)
+		m.rememberQuestionOnScreenLocked(id, rec.Activity.State, s, now)
+		merged, apply := domain.MergeScreenReading(domain.ScreenMerge{
+			Current:         rec.Activity.State,
+			Reading:         s.ScreenReading,
+			LastHookAt:      m.hookAt[id],
+			ScreenChangedAt: m.screenAt[id],
+			Reassert:        s.ScreenReassert,
+		}, now)
 		if !apply {
 			m.mu.Unlock()
 			return nil
 		}
 		s.State = merged
-	} else if s.Valid && !ports.IsScreenEvent(s.Event) {
-		m.hookAt[id] = now
 	}
 	// An explicit prompt submission is proof that an agent was relaunched in the
 	// preserved shell. Other same-generation callbacks may have been delayed
@@ -700,6 +723,9 @@ func (m *Manager) ApplyActivitySignal(ctx context.Context, id domain.SessionID, 
 		(s.TranscriptPath != "" && rec.Metadata.NativeTranscriptPath != s.TranscriptPath)
 	if s.Valid {
 		s = m.applyToolPrecedenceLocked(id, rec.Activity.State, s)
+	}
+	if s.Valid && s.ScreenReading == "" && !ports.IsScreenEvent(s.Event) {
+		m.hookAt[id] = now
 	}
 	if !s.Valid && !metadataChanged {
 		m.mu.Unlock()
@@ -764,6 +790,9 @@ func (m *Manager) ApplyActivitySignal(ctx context.Context, id domain.SessionID, 
 	if !applied {
 		m.mu.Unlock()
 		return nil
+	}
+	if s.ScreenReading != "" {
+		m.screenAt[id] = now
 	}
 	// Transition into the needs-input family (waiting_input or blocked) pings
 	// the user; an in-family escalation (waiting_input -> blocked) does not
@@ -1191,6 +1220,7 @@ func (m *Manager) MarkSpawned(ctx context.Context, id domain.SessionID, metadata
 		}
 		now := m.clock()
 		prev := rec
+		m.forgetSignalsLocked(id)
 		rec.IsTerminated = false
 		rec.Activity = domain.Activity{State: domain.ActivityIdle, LastActivityAt: now}
 		// Each spawn/restore must re-prove its hook pipeline: clear the receipt so
@@ -1290,6 +1320,7 @@ func (m *Manager) MarkTerminated(ctx context.Context, id domain.SessionID) error
 				cur.IsTerminated = true
 				cur.Activity = domain.Activity{State: domain.ActivityExited, LastActivityAt: now}
 				delete(m.flights, id) // runs under m.mu (mutate holds it)
+				m.forgetSignalsLocked(id)
 				outcome = terminationApplied
 				return cur, true
 			}
