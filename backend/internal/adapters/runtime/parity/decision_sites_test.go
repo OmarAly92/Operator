@@ -268,3 +268,7 @@ func (noopBlockStore) TrimTerminalBlocks(ctx context.Context, terminalID string,
 func (noopBlockStore) DeleteTerminalBlocks(ctx context.Context, terminalID string) error {
 	return nil
 }
+
+func (noopBlockStore) ListRecentTerminalCommands(ctx context.Context, limit int) ([]domain.CommandRun, error) {
+	return nil, nil
+}

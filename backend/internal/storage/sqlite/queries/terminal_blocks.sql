@@ -48,3 +48,10 @@ WHERE outer_tb.terminal_id = ?
 -- name: DeleteTerminalBlocks :exec
 DELETE FROM terminal_blocks
 WHERE terminal_id = ?;
+
+-- name: ListRecentTerminalCommands :many
+SELECT command, finished_at
+FROM terminal_blocks
+WHERE command <> ''
+ORDER BY finished_at DESC, terminal_id DESC, source_id DESC
+LIMIT ?;

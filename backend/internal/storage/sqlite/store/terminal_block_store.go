@@ -83,6 +83,18 @@ func (s *Store) DeleteTerminalBlocks(ctx context.Context, terminalID string) err
 	return nil
 }
 
+func (s *Store) ListRecentTerminalCommands(ctx context.Context, limit int) ([]domain.CommandRun, error) {
+	rows, err := s.qr.ListRecentTerminalCommands(ctx, int64(limit))
+	if err != nil {
+		return nil, fmt.Errorf("list recent terminal commands: %w", err)
+	}
+	out := make([]domain.CommandRun, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, domain.CommandRun{Command: row.Command, FinishedAt: row.FinishedAt})
+	}
+	return out, nil
+}
+
 func nullableExitCode(code *int) sql.NullInt64 {
 	if code == nil {
 		return sql.NullInt64{}

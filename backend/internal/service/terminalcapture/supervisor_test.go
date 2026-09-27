@@ -205,6 +205,10 @@ func (f *fakeBlockStore) ListTerminalBlocks(_ context.Context, _ string, _ int) 
 func (f *fakeBlockStore) TrimTerminalBlocks(_ context.Context, _ string, _ int) error { return nil }
 func (f *fakeBlockStore) DeleteTerminalBlocks(_ context.Context, _ string) error      { return nil }
 
+func (f *fakeBlockStore) ListRecentTerminalCommands(_ context.Context, _ int) ([]domain.CommandRun, error) {
+	return nil, nil
+}
+
 func (f *fakeBlockStore) distinct() int {
 	f.mu.Lock()
 	defer f.mu.Unlock()

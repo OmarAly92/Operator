@@ -21,6 +21,42 @@ func (q *Queries) DeleteTerminalBlocks(ctx context.Context, terminalID string) e
 	return err
 }
 
+const listRecentTerminalCommands = `-- name: ListRecentTerminalCommands :many
+SELECT command, finished_at
+FROM terminal_blocks
+WHERE command <> ''
+ORDER BY finished_at DESC, terminal_id DESC, source_id DESC
+LIMIT ?
+`
+
+type ListRecentTerminalCommandsRow struct {
+	Command    string
+	FinishedAt time.Time
+}
+
+func (q *Queries) ListRecentTerminalCommands(ctx context.Context, limit int64) ([]ListRecentTerminalCommandsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listRecentTerminalCommands, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListRecentTerminalCommandsRow{}
+	for rows.Next() {
+		var i ListRecentTerminalCommandsRow
+		if err := rows.Scan(&i.Command, &i.FinishedAt); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listTerminalBlocks = `-- name: ListTerminalBlocks :many
 SELECT terminal_id, source_id, session_id, command, cwd, git_branch, exit_code,
        raw_output, started_at, finished_at, shell_kind, shell_version,

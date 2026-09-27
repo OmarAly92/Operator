@@ -11,4 +11,5 @@ type Store interface {
 	ListTerminalBlocks(context.Context, string, int) ([]domain.Block, error)
 	TrimTerminalBlocks(context.Context, string, int) error
 	DeleteTerminalBlocks(context.Context, string) error
+	ListRecentTerminalCommands(context.Context, int) ([]domain.CommandRun, error)
 }
