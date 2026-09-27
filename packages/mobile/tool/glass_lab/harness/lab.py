@@ -24,9 +24,11 @@ BASELINE_A11Y_SCENES = ("material.regular", "tabbar.rest", "tabbar.drag", "menu.
 
 def cmd_build(args):
     udid = sim.device()
-    if args.target in ("native", "both"):
+    if args.target in ("native", "all"):
         build.native(udid)
-    if args.target in ("flutter", "both"):
+    if args.target in ("example", "all"):
+        build.example(udid)
+    if args.target in ("operator", "all"):
         build.flutter(udid)
     print(f"built for {udid}")
 
@@ -35,7 +37,7 @@ def cmd_prepare(args):
     udid = sim.device()
     sim.status_bar(udid)
     source = build.backdrops()
-    for bundle in (build.NATIVE_BUNDLE, build.FLUTTER_BUNDLE):
+    for bundle in (build.NATIVE_BUNDLE, *build.FLUTTER_TARGETS.values()):
         sim.install_backdrops(udid, bundle, source)
     for scene in manifest.load():
         if scene.native_only:
@@ -49,7 +51,7 @@ def case_name(appearance, backdrop, a11y):
     return f"{appearance}-{backdrop}" + ("" if a11y == "none" else f"-{a11y}")
 
 
-def run_cases(udid, scenes, apps, appearances, backdrop, a11y, run_dir):
+def run_cases(udid, scenes, apps, appearances, backdrop, a11y, run_dir, flutter_target="example"):
     sim.accessibility(udid, a11y)
     try:
         for scene in scenes:
@@ -61,7 +63,7 @@ def run_cases(udid, scenes, apps, appearances, backdrop, a11y, run_dir):
                     for app in ["native"] if scene.native_only else apps:
                         print(f"{scene.id} {case_dir.name} {app}", flush=True)
                         try:
-                            record.capture(udid, scene, app, chosen, case_dir / app)
+                            record.capture(udid, scene, app, chosen, case_dir / app, flutter_target)
                         except Exception as error:
                             (case_dir / app).mkdir(parents=True, exist_ok=True)
                             (case_dir / app / "error.txt").write_text(str(error))
@@ -88,7 +90,7 @@ def cmd_run(args):
     udid = sim.device()
     scenes = manifest.select(manifest.load(), args.scene)
     run_dir = new_run_dir()
-    run_cases(udid, scenes, apps_for(args.app), appearances_for(args.appearance), args.backdrop, args.a11y, run_dir)
+    run_cases(udid, scenes, apps_for(args.app), appearances_for(args.appearance), args.backdrop, args.a11y, run_dir, args.flutter)
     print(run_dir)
 
 
@@ -137,10 +139,10 @@ def cmd_baseline(args):
     udid = sim.device()
     run_dir = new_run_dir()
     scenes = manifest.load()
-    run_cases(udid, scenes, ["native", "flutter"], ["light", "dark"], None, "none", run_dir)
+    run_cases(udid, scenes, ["native", "flutter"], ["light", "dark"], None, "none", run_dir, args.flutter)
     chosen = [s for s in scenes if s.id in BASELINE_A11Y_SCENES]
     for mode in ("reduce-transparency", "increase-contrast", "reduce-motion"):
-        run_cases(udid, chosen, ["native", "flutter"], ["dark"], None, mode, run_dir)
+        run_cases(udid, chosen, ["native", "flutter"], ["dark"], None, mode, run_dir, args.flutter)
     analyze_run(run_dir)
     page, counts, _ = report.build(run_dir, scenes)
     print(page)
@@ -207,7 +209,7 @@ def parser():
     root = argparse.ArgumentParser(prog="lab.py")
     commands = root.add_subparsers(dest="command", required=True)
     b = commands.add_parser("build")
-    b.add_argument("target", nargs="?", default="both", choices=("native", "flutter", "both"))
+    b.add_argument("target", nargs="?", default="all", choices=("native", "example", "operator", "all"))
     b.set_defaults(func=cmd_build)
     commands.add_parser("prepare").set_defaults(func=cmd_prepare)
     r = commands.add_parser("run")
@@ -216,11 +218,14 @@ def parser():
     r.add_argument("--appearance", default="both", choices=("light", "dark", "both"))
     r.add_argument("--backdrop", choices=manifest.BACKDROPS)
     r.add_argument("--a11y", default="none", choices=sim.A11Y_MODES)
+    r.add_argument("--flutter", default="example", choices=tuple(build.FLUTTER_TARGETS))
     r.set_defaults(func=cmd_run)
     p = commands.add_parser("report")
     p.add_argument("run_dir", nargs="?")
     p.set_defaults(func=cmd_report)
-    commands.add_parser("baseline").set_defaults(func=cmd_baseline)
+    bl = commands.add_parser("baseline")
+    bl.add_argument("--flutter", default="example", choices=tuple(build.FLUTTER_TARGETS))
+    bl.set_defaults(func=cmd_baseline)
     m = commands.add_parser("summary")
     m.add_argument("out")
     m.add_argument("run_dir", nargs="?")

@@ -31,6 +31,7 @@ workspace:
   - packages/expressive_snack
   - packages/material_shapes
   - packages/ios_liquid_glass
+  - packages/ios_liquid_glass/example
 
 # Dependencies specify other packages that your package needs in order to work.
 # To automatically upgrade your package dependencies to the latest versions
