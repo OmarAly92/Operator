@@ -7,7 +7,7 @@ Last updated: 2026-09-27. Owner: Omar Aly (the user). This is the single source 
 | # | Project | Status |
 |---|---|---|
 | 1 | Reference lab (measuring instrument) | **DONE**, merged to `development` (`7f74f5a0b`), not pushed |
-| 2A | Package foundation + how glass looks | **PLAN APPROVED, EXECUTING** (2026-09-27): `02a-looks/plan.md` (13 tasks) is handed to a fresh local session with `02a-looks/handoff.md`. The branch is `feat/ios-liquid-glass-2a`. |
+| 2A | Package foundation + how glass looks | **PLAN WRITTEN** (2026-09-27): `02a-looks/plan.md`, 13 tasks, prototype-proven. Awaiting the user's review. |
 | 2B | How glass moves | NOT STARTED |
 | 3 | Every iOS component inside the package | NOT STARTED |
 | 4 | Operator adopts the package | NOT STARTED |
@@ -205,7 +205,7 @@ Repository: `/Users/omaraly/development/AI/Operator`. Default branch `developmen
   - Apple prepare taps are not idempotent.
   - `events.count` compares by order only.
 
-### Project 2A: Package foundation + how glass looks (PLAN APPROVED, executing in a fresh session)
+### Project 2A: Package foundation + how glass looks (PLAN WRITTEN, awaiting review)
 - **Spec:** `docs/liquid_glass/02a-looks/spec.md`. Read it for every detail.
 - **Plan:** `docs/liquid_glass/02a-looks/plan.md`. Its 13 tasks, in order:
   1. rename;
@@ -394,8 +394,8 @@ Out of scope: iPad and Mac items (sidebar, pointer, iPad tab bar), app icons, wi
 
 ## 9. Exact next steps
 
-1. **The plan was approved on 2026-09-27** and handed off. The prompt is saved in `docs/liquid_glass/02a-looks/handoff.md`; reuse its shape for later projects. Still pending from the user: whether to push `development`, and the `material.interactive` decision.
-2. **A fresh local session executes it**, subagent-driven, in `../Operator-ios-liquid-glass` on `feat/ios-liquid-glass-2a`. Tasks 10–12 run the simulator for many hours; every tuning run is logged in `02a-looks/tuning-log.md`. Do not use the iOS 27 simulator for anything else while it runs.
+1. **The user reviews `docs/liquid_glass/02a-looks/plan.md`**, written on 2026-09-27. Still pending from the user: whether to push `development`, and the `material.interactive` decision.
+2. **Hand off** once the plan is approved: write the fresh-session prompt. It names this file, the 2A spec and plan, the worktree `../Operator-ios-liquid-glass` on branch `feat/ios-liquid-glass-2a` (Task 1 Step 1 creates it), subagent-driven execution, and the hard rules. Use project 1's handoff prompt as the model. Tasks 10–12 run the simulator for many hours; the session runs them in the background and records every run in `02a-looks/tuning-log.md`.
 3. **Review** the result here:
    - diff the branch against the plan's code;
    - rerun every gate;
