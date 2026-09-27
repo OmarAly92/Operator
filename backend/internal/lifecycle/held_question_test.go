@@ -78,8 +78,8 @@ func TestHeldQuestion_AHookQuestionWaitsForTheScreenAndCarriesItsText(t *testing
 		t.Fatalf("the alert left before the screen question: %+v", got)
 	}
 	timer := timers.only(t)
-	if timer.after != questionTextWait || questionTextWait != 2500*time.Millisecond {
-		t.Fatalf("wait = %v (constant %v), want 2.5 s", timer.after, questionTextWait)
+	if timer.after != questionTextWait || questionTextWait != 4*time.Second {
+		t.Fatalf("wait = %v (constant %v), want 4 s", timer.after, questionTextWait)
 	}
 	applyAt(t, m, clock, now.Add(1500*time.Millisecond), screenQuestion("Which color? 1. Red 2. Blue", "Which color should the button be?"))
 	got := intentsOf(sink, domain.NotificationNeedsInput)

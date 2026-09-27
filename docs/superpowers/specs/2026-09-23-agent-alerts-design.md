@@ -160,7 +160,7 @@ screen reads, else "Your agent is waiting on you to continue." When a hook
 (Claude Code's `permission-request` or `notification`) enters needs-input
 first, the alert has no question text yet; if the screen observer tracks that
 session with a question reader for its agent, lifecycle holds the alert for
-`questionTextWait` (2.5 s) and sends it as soon as the screen's question for
+`questionTextWait` (4 s; a live Claude Code question reached the screen reading 3 s after its hook) and sends it as soon as the screen's question for
 that session arrives, carrying its text, or with the fixed sentence when the
 wait ends. An answer, a relaunch or a termination before then drops it, since
 the pause is already resolved. A session the observer does not track, and

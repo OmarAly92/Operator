@@ -211,7 +211,7 @@ type heldAlert struct {
 
 const questionRealertAfter = 2 * time.Minute
 
-const questionTextWait = 2500 * time.Millisecond
+const questionTextWait = 4 * time.Second
 
 const quietInputWindow = 3 * time.Second
 
