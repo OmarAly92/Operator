@@ -142,6 +142,7 @@ func (r *Runtime) recordProgramEvent(id string, event ProgramEventPayload) {
 			At:         time.UnixMilli(event.AtMs),
 			Tail:       event.Tail,
 			CursorLine: event.CursorLine,
+			Summary:    event.Summary,
 		}
 	default:
 		return

@@ -75,6 +75,34 @@ func (p *Parser) CursorLine() (string, error) {
 	return string(raw), err
 }
 
+const tailOutputBufferBytes = 256 << 10
+
+func (p *Parser) TailOutput(rows, maxLines int) (string, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	out, err := p.callLocked("vt_alloc", tailOutputBufferBytes)
+	if err != nil {
+		return "", err
+	}
+	defer func() { _, _ = p.module.ExportedFunction("vt_free").Call(p.ctx, out, tailOutputBufferBytes) }()
+	raw, err := p.callLocked("vt_tail_output", uint64(p.handle), uint64(rows), uint64(maxLines), out, tailOutputBufferBytes)
+	if err != nil {
+		return "", err
+	}
+	switch written := uint32(raw); written {
+	case 0:
+		return "", nil
+	case renderErr, renderTooBig:
+		return "", fmt.Errorf("vtwasm: tail_output failed for handle %d", p.handle)
+	default:
+		bytes, ok := p.module.Memory().Read(uint32(out), written)
+		if !ok {
+			return "", fmt.Errorf("vtwasm: read %d bytes at %d out of range", written, out)
+		}
+		return string(bytes), nil
+	}
+}
+
 type ActivityClock struct {
 	bytes     uint64
 	lastAt    time.Time

@@ -162,6 +162,20 @@ func TestASeededHostPublishesNoActivity(t *testing.T) {
 	expectNoActivity(t, w, 2*time.Second)
 }
 
+func TestASettledTransitionCarriesACompactSummary(t *testing.T) {
+	fastActivityTick(t)
+	f := startServeParsed(t, 947, 80, 24)
+	defer f.cancel()
+	w := newActivityWatcher(t, f.addr)
+	defer w.close()
+	writeOutput(t, f, "edited greet.py\r\n✽ Thinking… (1s)\r\nall 42 tests pass\r\n")
+	readActivity(t, w, 2*time.Second)
+	event := readActivity(t, w, 3*time.Second)
+	if event.Activity != "idle" || event.Summary != "edited greet.py\nall 42 tests pass" {
+		t.Fatalf("event = %+v, want a compact summary", event)
+	}
+}
+
 func decodeProgramEvent(t *testing.T, payload []byte) ProgramEventPayload {
 	t.Helper()
 	var event ProgramEventPayload

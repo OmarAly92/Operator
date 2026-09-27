@@ -27,3 +27,22 @@ pub extern "C" fn vt_cursor_line(handle: u32, out_ptr: u32, out_cap: u32) -> u32
         None => RENDER_ERR,
     })
 }
+
+#[no_mangle]
+pub extern "C" fn vt_tail_output(
+    handle: u32,
+    rows: u32,
+    max_lines: u32,
+    out_ptr: u32,
+    out_cap: u32,
+) -> u32 {
+    CORES.with(|c| match c.borrow().get(&handle) {
+        Some(core) => write_out(
+            core.tail_output(rows as usize, true, max_lines as usize)
+                .as_bytes(),
+            out_ptr,
+            out_cap,
+        ),
+        None => RENDER_ERR,
+    })
+}
