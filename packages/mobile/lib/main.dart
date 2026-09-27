@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:ios_liquid_glass/ios_liquid_glass.dart';
 import 'package:operator_mobile/core/api/server_config_store.dart';
 import 'package:operator_mobile/core/app_routes/app_route_observer.dart';
 import 'package:operator_mobile/core/app_routes/app_router.dart';
@@ -129,21 +130,28 @@ class _OperatorAppState extends State<OperatorApp> {
             final skin = context.read<SkinCubit>().skin;
             return SkinScope(
               skin: skin,
-              child: ScreenUtilInit(
-                designSize: const Size(390, 844),
-                minTextAdapt: true,
-                builder: (context, child) => MaterialApp(
-                  navigatorKey: sl<GlobalKey<NavigatorState>>(),
-                  navigatorObservers: [AppRouteObserver.instance],
-                  debugShowCheckedModeBanner: false,
-                  theme: AppThemes.fromSkin(skin),
-                  themeMode: skin.themeMode,
-                  localizationsDelegates: context.localizationDelegates,
-                  supportedLocales: context.supportedLocales,
-                  locale: context.locale,
-                  initialRoute: widget.initialRoute,
-                  onGenerateInitialRoutes: (name) => [AppRouter.generateRoute(RouteSettings(name: name))],
-                  onGenerateRoute: AppRouter.generateRoute,
+              child: GlassTheme(
+                data: GlassThemeData(
+                  brightness: skin.themeMode == ThemeMode.dark ? Brightness.dark : Brightness.light,
+                  accent: skin.accent,
+                  scrollEdgeTint: skin.scrollEdgeTint,
+                ),
+                child: ScreenUtilInit(
+                  designSize: const Size(390, 844),
+                  minTextAdapt: true,
+                  builder: (context, child) => MaterialApp(
+                    navigatorKey: sl<GlobalKey<NavigatorState>>(),
+                    navigatorObservers: [AppRouteObserver.instance],
+                    debugShowCheckedModeBanner: false,
+                    theme: AppThemes.fromSkin(skin),
+                    themeMode: skin.themeMode,
+                    localizationsDelegates: context.localizationDelegates,
+                    supportedLocales: context.supportedLocales,
+                    locale: context.locale,
+                    initialRoute: widget.initialRoute,
+                    onGenerateInitialRoutes: (name) => [AppRouter.generateRoute(RouteSettings(name: name))],
+                    onGenerateRoute: AppRouter.generateRoute,
+                  ),
                 ),
               ),
             );

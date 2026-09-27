@@ -10,7 +10,6 @@ import 'package:operator_mobile/core/app_themes/colors/light_skin.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/widgets/glass/frosted_header.dart';
 import 'package:operator_mobile/core/widgets/glass/glass_sheet.dart';
-import 'package:operator_mobile/core/widgets/glass/glass_style.dart';
 import 'package:operator_mobile/core/widgets/glass/glass_surface.dart';
 import 'package:operator_mobile/core/widgets/sheet/app_sheet.dart';
 
@@ -468,7 +467,10 @@ void main() {
     final glass = tester.widget<LiquidGlass>(
       find.descendant(of: find.byKey(AppSheet.searchCapsuleKey), matching: find.byType(LiquidGlass)),
     );
-    expect(glass.shadows, GlassStyle.shadows(const LightSkin(), size: AppSheetMetrics.searchHeight));
+    expect(
+      glass.shadows,
+      GlassMaterial.resolve(glass: Glass.regular, shorterSide: AppSheetMetrics.searchHeight, brightness: Brightness.light).shadows,
+    );
   });
 
   testWidgets('page content never paints in the grabber band at the top edge', (tester) async {

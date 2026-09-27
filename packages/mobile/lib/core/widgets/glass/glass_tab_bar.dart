@@ -8,7 +8,6 @@ import 'package:operator_mobile/core/app_themes/text_style/app_text_style.dart';
 import 'package:operator_mobile/core/utils/haptics.dart';
 import 'package:operator_mobile/core/widgets/glass/glass_lens.dart';
 import 'package:operator_mobile/core/widgets/glass/glass_metrics.dart';
-import 'package:operator_mobile/core/widgets/glass/glass_style.dart';
 import 'package:operator_mobile/core/widgets/glass/glass_surface.dart';
 import 'package:operator_mobile/core/widgets/glass/glass_tab_bar_logic.dart';
 

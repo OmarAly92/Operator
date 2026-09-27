@@ -10,7 +10,6 @@ import 'package:operator_mobile/core/app_themes/app_motion.dart';
 import 'package:operator_mobile/core/error_handling/failures/failure.dart';
 import 'package:operator_mobile/core/helpers/result/result.dart';
 import 'package:operator_mobile/core/utils/service_locator.dart';
-import 'package:operator_mobile/core/widgets/glass/glass_style.dart';
 import 'package:operator_mobile/core/widgets/glass/glass_surface.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_text.dart';
 import 'package:operator_mobile/feature/blocks/data/model/params/session_command_params.dart';
