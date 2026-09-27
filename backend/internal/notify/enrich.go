@@ -75,8 +75,8 @@ func bodyForIntent(intent Intent) string {
 		}
 		return "CI passed with no blocking review feedback."
 	case domain.NotificationPRMerged:
-		title := strings.TrimSpace(intent.PRTitle)
-		if target := strings.TrimSpace(intent.PRTargetBranch); title != "" && target != "" {
+		title := oneLine(intent.PRTitle)
+		if target := oneLine(intent.PRTargetBranch); title != "" && target != "" {
 			return fmt.Sprintf("%s is now on %s.", title, target)
 		}
 		if title != "" {
@@ -84,7 +84,7 @@ func bodyForIntent(intent Intent) string {
 		}
 		return "The pull request was merged."
 	case domain.NotificationPRClosedUnmerged:
-		if title := strings.TrimSpace(intent.PRTitle); title != "" {
+		if title := oneLine(intent.PRTitle); title != "" {
 			return fmt.Sprintf("%s was closed without merging. Reopen it if this wasn't intended.", title)
 		}
 		return "Closed without merging. Reopen it if this wasn't intended."

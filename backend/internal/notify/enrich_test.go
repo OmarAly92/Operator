@@ -144,3 +144,25 @@ func TestEnrichCleansAndMasksTheTitle(t *testing.T) {
 		t.Fatalf("blank name title = %q", blank.Title)
 	}
 }
+
+func TestEnrichCleansAndMasksThePRTitleInEveryPRBody(t *testing.T) {
+	t.Parallel()
+	title := "fix \x1b]0;evil\x07" + string(rune(0x202e)) + "auth\x1b[1m\n token=hunter2hunter2 ghp_abcdefghijklmnopqrstuvwxyz"
+	branch := "ma" + string(rune(0x2066)) + "in\x1b[0m"
+	for _, tc := range []struct {
+		typ  domain.NotificationType
+		want string
+	}{
+		{domain.NotificationPRMerged, "fix auth token=[redacted] [redacted] is now on main."},
+		{domain.NotificationPRClosedUnmerged, "fix auth token=[redacted] [redacted] was closed without merging. Reopen it if this wasn't intended."},
+	} {
+		rec, err := enrich(Intent{Type: tc.typ, SessionID: "s", ProjectID: "p", PRURL: "https://github.com/o/r/pull/7", PRTitle: title, PRTargetBranch: branch, CreatedAt: time.Now()})
+		if err != nil || rec.Body != tc.want {
+			t.Errorf("%s body = %q, %v; want %q", tc.typ, rec.Body, err, tc.want)
+		}
+	}
+	merged, _ := enrich(Intent{Type: domain.NotificationPRMerged, SessionID: "s", ProjectID: "p", PRURL: "https://github.com/o/r/pull/7", PRTitle: title, CreatedAt: time.Now()})
+	if merged.Body != "fix auth token=[redacted] [redacted] was merged." {
+		t.Errorf("merged without a target body = %q", merged.Body)
+	}
+}
