@@ -11,6 +11,7 @@ import analyze
 import build
 import manifest
 import metrics
+import probe
 import record
 import report
 import sim
@@ -192,6 +193,25 @@ def cmd_repeat(args):
         raise SystemExit(f"static repeatability failed for {', '.join(failed)}")
 
 
+def cmd_perf(args):
+    udid = sim.device()
+    sim.appearance(udid, args.appearance)
+    summary = probe.perf(udid, build.FLUTTER_TARGETS[args.flutter], args.takes)
+    text = json.dumps(summary, indent=2)
+    print(text)
+    if args.out:
+        Path(args.out).write_text(text + "\n")
+
+
+def cmd_a11y(args):
+    udid = sim.device()
+    results = probe.accessibility_check(udid, build.FLUTTER_TARGETS[args.flutter])
+    print(json.dumps(results, indent=2))
+    failed = [mode for mode, result in results.items() if not result["live"]]
+    if failed:
+        raise SystemExit(f"not delivered live: {', '.join(failed)}")
+
+
 def cmd_geometry(args):
     udid = sim.device()
     scene = manifest.select(manifest.load(), args.scene)[0]
@@ -234,6 +254,15 @@ def parser():
     t.add_argument("scene", nargs="?", default="default")
     t.add_argument("--times", type=int, default=3)
     t.set_defaults(func=cmd_repeat)
+    f = commands.add_parser("perf")
+    f.add_argument("--flutter", default="example", choices=tuple(build.FLUTTER_TARGETS))
+    f.add_argument("--appearance", default="dark", choices=("light", "dark"))
+    f.add_argument("--takes", type=int, default=3)
+    f.add_argument("--out")
+    f.set_defaults(func=cmd_perf)
+    y = commands.add_parser("a11y")
+    y.add_argument("--flutter", default="example", choices=tuple(build.FLUTTER_TARGETS))
+    y.set_defaults(func=cmd_a11y)
     g = commands.add_parser("geometry")
     g.add_argument("scene")
     g.add_argument("--appearance", default="dark", choices=("light", "dark"))
