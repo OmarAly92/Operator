@@ -212,6 +212,8 @@ export type TerminalStrings = Readonly<{
 	paletteNoMatches: string;
 	jumpToBottom: string;
 	loadOlderOutput: string;
+	quickFixLabel: string;
+	quickFixUse: string;
 }>;
 
 export const defaultStrings: TerminalStrings = Object.freeze({
@@ -238,6 +240,8 @@ export const defaultStrings: TerminalStrings = Object.freeze({
 	paletteNoMatches: "No matching commands",
 	jumpToBottom: "Jump to bottom",
 	loadOlderOutput: "Load older output",
+	quickFixLabel: "Suggested fix",
+	quickFixUse: "Use",
 });
 
 export type PaletteCommand = Readonly<{
@@ -273,8 +277,3 @@ export type HostCapabilities = Readonly<{
 	confirmPaste?(preview: string, reason: PasteUnsafeReason): Promise<boolean>;
 	loadOlderOutput?(beforeStableRow: number): void;
 }>;
-
-export type HistoryStore = {
-	load(): Promise<readonly string[]>;
-	save(entries: readonly string[]): Promise<void>;
-};

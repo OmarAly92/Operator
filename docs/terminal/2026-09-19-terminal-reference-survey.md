@@ -3824,7 +3824,7 @@ the reconciliation complexity of VS Code's timeline.
 
 ### 6.6 Quick fixes: match a failed command's line and output, offer an action
 
-> **Status: Not done.** No quick-fix matcher or `onQuickFix`. A non-goal of the agent-TUI spec.
+> **Status: Done (wishlist wave 1, 2026-09-27).** `QuickFixRule` matcher in `ts/editor` with a host-supplied rule list and four VS Code starter rules; the fix goes into the input box (chip + ghost), never runs by itself (`TERMINAL.md` §4.53). No `onQuickFix` event: every fix is a command. Not done: "ask the agent to fix this", opener fixes (`gitCreatePr`), the §6.1 nonce.
 
 **Reference**
 - `vscode/src/vs/workbench/contrib/terminalContrib/quickFix/browser/terminalQuickFixBuiltinActions.ts:27-330`:
@@ -3883,7 +3883,7 @@ literal prompt pinned.
 
 ### 6.8 Run recent command / recent directory from shell history and the command model
 
-> **Status: Not done.** Line-editor history reads only this session's blocks. A non-goal of the agent-TUI spec.
+> **Status: Partial (wishlist wave 1, 2026-09-27).** ↑ in the input box reaches every shell terminal's commands, closed ones and ones from before a restart, from the daemon's durable blocks with secrets left out (`GET /api/v1/terminal-history`, `TERMINAL.md` §4.53). Not done: a "run recent" palette, recent directories, the shell's own history file.
 
 **Reference**
 - `vscode/src/vs/workbench/contrib/terminalContrib/history/browser/terminalRunRecentQuickPick.ts:34-200`:

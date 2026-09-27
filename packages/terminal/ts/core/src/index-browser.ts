@@ -17,7 +17,6 @@ export type {
 	FindUpdate,
 	FontConfig,
 	HostCapabilities,
-	HistoryStore,
 	LineEditorState,
 	MemoryStats,
 	OlderOutput,

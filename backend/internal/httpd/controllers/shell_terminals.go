@@ -21,6 +21,8 @@ import (
 const (
 	defaultShellTerminalBlockLimit = 100
 	maxShellTerminalBlockLimit     = 500
+	defaultTerminalHistoryLimit    = 500
+	maxTerminalHistoryLimit        = 1000
 )
 
 // ShellTerminalService is the controller-facing standalone shell terminal
@@ -34,6 +36,7 @@ type ShellTerminalService interface {
 
 type ShellTerminalBlockHistory interface {
 	History(ctx context.Context, terminalID string, limit int) ([]domain.Block, error)
+	RecentCommands(ctx context.Context, limit int) ([]domain.CommandRun, error)
 }
 
 // ShellTerminalsController owns the /shell-terminals routes: standalone shells
@@ -50,6 +53,7 @@ func (c *ShellTerminalsController) Register(r chi.Router) {
 	r.Patch("/shell-terminals/{handleId}", c.rename)
 	r.Delete("/shell-terminals/{handleId}", c.close)
 	r.Get("/shell-terminals/{handleId}/blocks", c.blocks)
+	r.Get("/terminal-history", c.history)
 }
 
 func (c *ShellTerminalsController) list(w http.ResponseWriter, r *http.Request) {
@@ -161,6 +165,32 @@ func (c *ShellTerminalsController) blocks(w http.ResponseWriter, r *http.Request
 		return
 	}
 	envelope.WriteJSON(w, http.StatusOK, terminalBlockViews(blocks))
+}
+
+func (c *ShellTerminalsController) history(w http.ResponseWriter, r *http.Request) {
+	if c.Blocks == nil {
+		apispec.NotImplemented(w, r, "GET", "/api/v1/terminal-history")
+		return
+	}
+	limit := defaultTerminalHistoryLimit
+	if raw := strings.TrimSpace(r.URL.Query().Get("limit")); raw != "" {
+		n, err := strconv.Atoi(raw)
+		if err != nil || n < 1 || n > maxTerminalHistoryLimit {
+			envelope.WriteAPIError(w, r, http.StatusBadRequest, "bad_request", "INVALID_QUERY", "limit must be an integer between 1 and 1000", nil)
+			return
+		}
+		limit = n
+	}
+	runs, err := c.Blocks.RecentCommands(r.Context(), limit)
+	if err != nil {
+		envelope.WriteError(w, r, err)
+		return
+	}
+	commands := make([]TerminalHistoryEntry, 0, len(runs))
+	for _, run := range runs {
+		commands = append(commands, TerminalHistoryEntry{Command: run.Command, FinishedAt: run.FinishedAt})
+	}
+	envelope.WriteJSON(w, http.StatusOK, TerminalHistoryResponse{Commands: commands})
 }
 
 func parseShellTerminalBlockLimit(w http.ResponseWriter, r *http.Request) (int, bool) {

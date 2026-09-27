@@ -361,6 +361,9 @@ func Run() error {
 	if reconcileErr := lcStack.ReconcileRuntime(ctx); reconcileErr != nil {
 		log.Error("reconcile agent processes on boot failed", "err", reconcileErr)
 	}
+	if reconcileErr := lcStack.ReconcileBlockRetention(ctx); reconcileErr != nil {
+		log.Error("reconcile terminal block retention on boot failed", "err", reconcileErr)
+	}
 	phoneAlerts := push.NewAlerts(push.AlertsDeps{
 		Subscriber: notificationHub,
 		Sender:     push.NewNtfySender(push.DefaultNtfyServer, nil),

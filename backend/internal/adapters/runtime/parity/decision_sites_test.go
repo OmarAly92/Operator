@@ -268,3 +268,15 @@ func (noopBlockStore) TrimTerminalBlocks(ctx context.Context, terminalID string,
 func (noopBlockStore) DeleteTerminalBlocks(ctx context.Context, terminalID string) error {
 	return nil
 }
+
+func (noopBlockStore) ListRecentTerminalCommands(ctx context.Context, limit int) ([]domain.CommandRun, error) {
+	return nil, nil
+}
+
+func (noopBlockStore) ClearOldOrphanedRawOutput(ctx context.Context, now, cutoff time.Time) (int64, error) {
+	return 0, nil
+}
+
+func (noopBlockStore) DeleteFullyClearedOrphanedBlocks(ctx context.Context, cutoff time.Time) (int64, error) {
+	return 0, nil
+}

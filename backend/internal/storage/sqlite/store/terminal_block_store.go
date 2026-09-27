@@ -83,6 +83,41 @@ func (s *Store) DeleteTerminalBlocks(ctx context.Context, terminalID string) err
 	return nil
 }
 
+func (s *Store) ListRecentTerminalCommands(ctx context.Context, limit int) ([]domain.CommandRun, error) {
+	rows, err := s.qr.ListRecentTerminalCommands(ctx, int64(limit))
+	if err != nil {
+		return nil, fmt.Errorf("list recent terminal commands: %w", err)
+	}
+	out := make([]domain.CommandRun, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, domain.CommandRun{Command: row.Command, FinishedAt: row.FinishedAt})
+	}
+	return out, nil
+}
+
+func (s *Store) ClearOldOrphanedRawOutput(ctx context.Context, now, finishedBefore time.Time) (int64, error) {
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
+	rows, err := s.qw.ClearOldOrphanedRawOutput(ctx, gen.ClearOldOrphanedRawOutputParams{
+		RawOutputClearedAt: sql.NullTime{Time: now, Valid: true},
+		FinishedAt:         finishedBefore,
+	})
+	if err != nil {
+		return 0, fmt.Errorf("clear old orphaned raw output: %w", err)
+	}
+	return rows, nil
+}
+
+func (s *Store) DeleteFullyClearedOrphanedBlocks(ctx context.Context, cutoff time.Time) (int64, error) {
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
+	rows, err := s.qw.DeleteFullyClearedOrphanedBlocks(ctx, sql.NullTime{Time: cutoff, Valid: true})
+	if err != nil {
+		return 0, fmt.Errorf("delete fully cleared orphaned blocks: %w", err)
+	}
+	return rows, nil
+}
+
 func nullableExitCode(code *int) sql.NullInt64 {
 	if code == nil {
 		return sql.NullInt64{}
@@ -97,7 +132,7 @@ func nullableTime(t time.Time) sql.NullTime {
 	return sql.NullTime{Time: t, Valid: true}
 }
 
-func terminalBlockFromGen(row gen.TerminalBlock) domain.Block {
+func terminalBlockFromGen(row gen.ListTerminalBlocksRow) domain.Block {
 	b := domain.Block{
 		TerminalID:     row.TerminalID,
 		SourceID:       row.SourceID,

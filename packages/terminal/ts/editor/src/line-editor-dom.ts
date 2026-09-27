@@ -1,4 +1,4 @@
-import type { TokenKind } from "./highlight.js";
+import { tokenize, type TokenKind } from "./highlight.js";
 import { editorStyles } from "./styles.js";
 
 export function appendRange(
@@ -48,4 +48,36 @@ export function ensurePackageStyleTag(): void {
 	tag.id = "operator-terminal-editor-styles";
 	tag.textContent = editorStyles;
 	document.head.append(tag);
+}
+
+export function renderBufferRows(text: string, lines: readonly string[], cursor: number, ghost: string | null): HTMLElement[] {
+	const tokens = tokenize(text);
+	let offset = 0;
+	const nodes = lines.map((line) => {
+		const row = document.createElement("div");
+		row.className = "terminal-editor-line";
+		const lineStart = offset;
+		const lineEnd = lineStart + line.length;
+		let position = lineStart;
+		for (const token of tokens) {
+			const start = Math.max(token.start, lineStart);
+			const end = Math.min(token.end, lineEnd);
+			if (start >= end) continue;
+			appendRange(row, text, position, start, null, cursor);
+			appendRange(row, text, start, end, token.kind, cursor);
+			position = end;
+		}
+		appendRange(row, text, position, lineEnd, null, cursor);
+		if (cursor === lineEnd) row.append(createCaret());
+		else if (!row.hasChildNodes()) row.append(document.createTextNode(" "));
+		offset = lineEnd + 1;
+		return row;
+	});
+	if (ghost !== null && cursor === text.length) {
+		const span = document.createElement("span");
+		span.className = "terminal-editor-ghost";
+		span.textContent = ghost;
+		nodes[nodes.length - 1]?.append(span);
+	}
+	return nodes;
 }

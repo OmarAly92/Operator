@@ -1944,6 +1944,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/terminal-history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read recent distinct shell commands from every terminal, oldest first, leaving out commands that look like they hold a secret */
+        get: operations["listTerminalHistory"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/usage/quota": {
         parameters: {
             query?: never;
@@ -3401,6 +3418,14 @@ export interface components {
             terminalId: string;
             truncatedBytes: number;
             truncatedLines: number;
+        };
+        TerminalHistoryEntry: {
+            command: string;
+            /** Format: date-time */
+            finishedAt: string;
+        };
+        TerminalHistoryResponse: {
+            commands: components["schemas"]["TerminalHistoryEntry"][];
         };
         TicketDefaults: {
             disableAutoReview?: boolean;
@@ -10732,6 +10757,56 @@ export interface operations {
             };
             /** @description Not Found */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    listTerminalHistory: {
+        parameters: {
+            query?: {
+                /** @description Maximum distinct commands to return, oldest first. Defaults to 500. */
+                limit?: null | number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TerminalHistoryResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
                 headers: {
                     [name: string]: unknown;
                 };

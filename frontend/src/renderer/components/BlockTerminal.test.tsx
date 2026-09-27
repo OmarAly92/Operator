@@ -54,6 +54,8 @@ const mockState = vi.hoisted(() => {
 		focusToken: undefined as number | undefined,
 		visible: undefined as boolean | undefined,
 		marks: undefined as readonly { pattern: string; regex: boolean; colour: string }[] | undefined,
+		commandHistory: undefined as unknown,
+		quickFixRules: undefined as unknown,
 		// The real surface only reports geometry once its host has a non-zero
 		// client box. Off means "mounted but never laid out", which is what a
 		// pane behind another tab looks like.
@@ -180,7 +182,11 @@ vi.mock("@operator/terminal-react", () => {
 			focusToken?: number;
 			visible?: boolean;
 			marks?: readonly { pattern: string; regex: boolean; colour: string }[];
+			commandHistory?: unknown;
+			quickFixRules?: unknown;
 		}) => {
+			mockState.commandHistory = props.commandHistory;
+			mockState.quickFixRules = props.quickFixRules;
 			mockState.focusToken = props.focusToken;
 			mockState.visible = props.visible;
 			mockState.marks = props.marks;
@@ -213,6 +219,7 @@ vi.mock("@operator/terminal-react", () => {
 			mockState.wasmInits += 1;
 		},
 		markRegexValid: (_pattern: string): boolean | null => null,
+		DEFAULT_QUICK_FIX_RULES: Object.freeze([{ id: "mock-quick-fix" }]),
 		createTerminalCore: () => {
 			let generation = 0;
 			const core: MockCore = {
@@ -259,6 +266,15 @@ vi.mock("@operator/terminal-react", () => {
 	};
 });
 
+const mockCommandHistory = vi.hoisted(() => ({
+	entries: () => [],
+	subscribe: () => () => undefined,
+	refresh: vi.fn(),
+	noteCommandFinished: vi.fn(),
+}));
+
+vi.mock("../lib/command-history", () => ({ commandHistory: mockCommandHistory }));
+
 vi.mock("../lib/external-link-policy", () => ({
 	isWebLink: (url: string) => url.startsWith("http://") || url.startsWith("https://"),
 	openLinkInSystemBrowser: vi.fn(),
@@ -290,6 +306,7 @@ vi.mock("../theme/skin-context", () => ({
 
 
 import { BlockTerminal, type BlockTerminalHistoryBlock } from "./BlockTerminal";
+import { DEFAULT_QUICK_FIX_RULES } from "@operator/terminal-react";
 import { terminalPredictiveEchoThresholdMs } from "../lib/terminal-predictive-echo";
 import { useUiStore } from "../stores/ui-store";
 import { terminalBackgroundColor } from "../lib/terminal-background";
@@ -420,7 +437,11 @@ beforeEach(() => {
 	mockState.focusToken = undefined;
 	mockState.visible = undefined;
 	mockState.marks = undefined;
+	mockState.commandHistory = undefined;
+	mockState.quickFixRules = undefined;
+	mockCommandHistory.noteCommandFinished.mockClear();
 	subscribers.clear();
+	useUiStore.setState({ terminalQuickFixesEnabled: true });
 });
 
 describe("BlockTerminal", () => {
@@ -1022,5 +1043,61 @@ describe("BlockTerminal load older output", () => {
 		renderTerminal();
 		await waitFor(() => expect(mockState.host?.confirmPaste).toBeTypeOf("function"));
 		expect(mockState.host?.loadOlderOutput).toBeUndefined();
+	});
+});
+
+describe("BlockTerminal shared history and quick fixes", () => {
+	it("gives a shell surface the shared command history, the default quick-fix rules and their strings", async () => {
+		renderTerminal();
+		await waitFor(() => expect(mockState.commandHistory).toBe(mockCommandHistory));
+		expect(mockState.quickFixRules).toEqual([{ id: "mock-quick-fix" }]);
+		expect(mockState.strings?.quickFixLabel).toBe("Suggested fix");
+		expect(mockState.strings?.quickFixUse).toBe("Use");
+	});
+
+	it("gives an agent surface neither", async () => {
+		renderTerminal({ agentTui: true });
+		await waitFor(() => expect(mockState.onBlockFinished).toBeTypeOf("function"));
+		expect(mockState.commandHistory).toBeUndefined();
+		expect(mockState.quickFixRules).toBeUndefined();
+	});
+
+	it("asks the shared history to refresh when a shell command finishes, visible or not", async () => {
+		renderTerminal();
+		await waitFor(() => expect(mockState.onBlockFinished).toBeTypeOf("function"));
+		mockState.onBlockFinished!({ id: "0:1", exitCode: 0, durationMs: 10, visible: true });
+		mockState.onBlockFinished!({ id: "0:2", exitCode: 1, durationMs: 20_000, visible: false });
+		expect(mockCommandHistory.noteCommandFinished).toHaveBeenCalledTimes(2);
+	});
+
+	it("does not refresh it for an agent pane's blocks", async () => {
+		renderTerminal({ agentTui: true });
+		await waitFor(() => expect(mockState.onBlockFinished).toBeTypeOf("function"));
+		mockState.onBlockFinished!({ id: "0:1", exitCode: 0, durationMs: 10, visible: true });
+		expect(mockCommandHistory.noteCommandFinished).not.toHaveBeenCalled();
+	});
+
+	it("passes no quick-fix rules when the setting is off", async () => {
+		useUiStore.setState({ terminalQuickFixesEnabled: false });
+		renderTerminal();
+		await waitFor(() => expect(mockState.commandHistory).toBe(mockCommandHistory));
+		expect(mockState.quickFixRules).toEqual([]);
+		useUiStore.setState({ terminalQuickFixesEnabled: true });
+	});
+
+	it("passes the starter rules when the setting is on", async () => {
+		useUiStore.setState({ terminalQuickFixesEnabled: true });
+		renderTerminal();
+		await waitFor(() => expect(mockState.commandHistory).toBe(mockCommandHistory));
+		expect(mockState.quickFixRules).toBe(DEFAULT_QUICK_FIX_RULES);
+	});
+
+	it("shows fixes again immediately after the setting is switched back on, without a reload", async () => {
+		useUiStore.setState({ terminalQuickFixesEnabled: false });
+		renderTerminal();
+		await waitFor(() => expect(mockState.commandHistory).toBe(mockCommandHistory));
+		expect(mockState.quickFixRules).toEqual([]);
+		act(() => useUiStore.setState({ terminalQuickFixesEnabled: true }));
+		await waitFor(() => expect(mockState.quickFixRules).toBe(DEFAULT_QUICK_FIX_RULES));
 	});
 });

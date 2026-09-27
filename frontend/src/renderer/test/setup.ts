@@ -42,6 +42,7 @@ vi.mock("@operator/terminal-react", () => {
 			};
 		},
 		markRegexValid: vi.fn((_pattern: string): boolean | null => null),
+		DEFAULT_QUICK_FIX_RULES: Object.freeze([]),
 		initTerminalCoreFromUrl: vi.fn(async () => undefined),
 		warpDarkTheme: {
 			ansi: new Array(16).fill("#000000"),

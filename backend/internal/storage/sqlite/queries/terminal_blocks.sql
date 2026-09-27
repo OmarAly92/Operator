@@ -48,3 +48,23 @@ WHERE outer_tb.terminal_id = ?
 -- name: DeleteTerminalBlocks :exec
 DELETE FROM terminal_blocks
 WHERE terminal_id = ?;
+
+-- name: ListRecentTerminalCommands :many
+SELECT command, finished_at
+FROM terminal_blocks
+WHERE command <> ''
+ORDER BY finished_at DESC, terminal_id DESC, source_id DESC
+LIMIT ?;
+
+-- name: ClearOldOrphanedRawOutput :execrows
+UPDATE terminal_blocks
+SET raw_output = x'', raw_output_cleared_at = ?
+WHERE raw_output_cleared_at IS NULL
+  AND finished_at < ?
+  AND terminal_id NOT IN (SELECT handle_id FROM shell_terminals);
+
+-- name: DeleteFullyClearedOrphanedBlocks :execrows
+DELETE FROM terminal_blocks
+WHERE raw_output_cleared_at IS NOT NULL
+  AND raw_output_cleared_at < ?
+  AND terminal_id NOT IN (SELECT handle_id FROM shell_terminals);
