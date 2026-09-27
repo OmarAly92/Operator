@@ -8,7 +8,9 @@ use std::collections::HashMap;
 use vt_core::{FindQuery, FindSession, TerminalCore};
 use wasm_bindgen::prelude::*;
 
-pub use agent::detects_high_confidence_input_pattern;
+pub use agent::{
+    cap_lines_text, compact_lines_text, detects_high_confidence_input_pattern, is_spinner_line,
+};
 pub use program::{flatten_agent_events, flatten_notifications};
 
 pub use export::{

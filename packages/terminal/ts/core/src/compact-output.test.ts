@@ -1,5 +1,12 @@
-import { describe, expect, it } from "vitest";
-import { capLines, COMPACT_REDRAW_LOOKBACK, compactLines, isSpinnerLine } from "./index";
+import { readFile } from "node:fs/promises";
+import { fileURLToPath } from "node:url";
+import { beforeAll, describe, expect, it } from "vitest";
+import { capLines, COMPACT_REDRAW_LOOKBACK, compactLines, initTerminalCore, isSpinnerLine } from "./index";
+
+beforeAll(async () => {
+	const bytes = await readFile(fileURLToPath(new URL("../wasm/vt_core_bg.wasm", import.meta.url)));
+	await initTerminalCore(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer);
+});
 
 describe("isSpinnerLine", () => {
 	it.each([

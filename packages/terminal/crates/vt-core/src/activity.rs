@@ -1,3 +1,4 @@
+pub mod compact;
 pub mod input_patterns;
 
 use crate::{LineEditorState, TerminalCore};
