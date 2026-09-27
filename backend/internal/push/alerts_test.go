@@ -117,16 +117,15 @@ func TestAlertsCoalescePerSessionAndTypeForTenSeconds(t *testing.T) {
 func TestAlertsTwoDifferentNeedsInputQuestionsInTheWindowAreBothSent(t *testing.T) {
 	a, sender, _ := setup(t, paired, true, false)
 	first := record(domain.NotificationNeedsInput, "s1")
-	first.Body = "Overwrite file A?"
+	first.ID, first.Body = "n-first", "Overwrite file A?"
 	a.dispatch(context.Background(), first)
 	second := record(domain.NotificationNeedsInput, "s1")
-	second.Body = "Delete branch B?"
+	second.ID, second.Body = "n-second", "Delete branch B?"
 	a.dispatch(context.Background(), second)
 	if len(sender.sent) != 2 || sender.sent[0].Message == sender.sent[1].Message {
 		t.Fatalf("sent %+v, want two different needs-you alerts", sender.sent)
 	}
-	third := record(domain.NotificationNeedsInput, "s1")
-	third.Body = "Delete branch B?"
+	third := second
 	a.dispatch(context.Background(), third)
 	if len(sender.sent) != 2 {
 		t.Fatalf("sent %d, want the repeated question coalesced", len(sender.sent))
@@ -265,5 +264,52 @@ func TestAlertsCleanAndMaskTheTitle(t *testing.T) {
 	a.dispatch(context.Background(), rec)
 	if len(sender.sent) != 1 || sender.sent[0].Title != "fix [redacted] finished" {
 		t.Fatalf("sent = %+v", sender.sent)
+	}
+}
+
+func TestAlertsTwoNeedsInputRecordsWithTheSameBodyAreBothSent(t *testing.T) {
+	a, sender, _ := setup(t, paired, true, false)
+	first := record(domain.NotificationNeedsInput, "s1")
+	first.ID, first.Body = "n-first", "Your agent is waiting on you to continue."
+	second := first
+	second.ID = "n-second"
+	a.dispatch(context.Background(), first)
+	a.dispatch(context.Background(), second)
+	if len(sender.sent) != 2 {
+		t.Fatalf("sent %d, want both questions sent although their bodies match", len(sender.sent))
+	}
+	a.dispatch(context.Background(), second)
+	if len(sender.sent) != 2 {
+		t.Fatalf("sent %d, want the same record delivered twice sent once", len(sender.sent))
+	}
+}
+
+func TestAlertsForgetWhatTheySentOnceTheWindowHasPassed(t *testing.T) {
+	a, _, now := setup(t, paired, true, false)
+	for _, session := range []string{"s1", "s2", "s3"} {
+		a.dispatch(context.Background(), record(domain.NotificationTurnFinished, session))
+	}
+	*now = now.Add(coalesceWindow + time.Second)
+	a.dispatch(context.Background(), record(domain.NotificationTurnFinished, "s4"))
+	a.mu.Lock()
+	kept := len(a.lastSent)
+	a.mu.Unlock()
+	if kept != 1 {
+		t.Fatalf("remembered %d sent alerts, want only the one inside the window", kept)
+	}
+}
+
+func TestAlertsAFailedSendNeverSuppressesTheRetry(t *testing.T) {
+	a, sender, _ := setup(t, paired, true, false)
+	sender.err = errors.New("ntfy answered 503")
+	a.dispatch(context.Background(), record(domain.NotificationTurnFinished, "s1"))
+	sender.err = nil
+	a.dispatch(context.Background(), record(domain.NotificationTurnFinished, "s1"))
+	if len(sender.sent) != 2 {
+		t.Fatalf("attempted %d sends, want the retry after a failure sent", len(sender.sent))
+	}
+	a.dispatch(context.Background(), record(domain.NotificationTurnFinished, "s1"))
+	if len(sender.sent) != 2 {
+		t.Fatalf("attempted %d sends, want the one after a success coalesced", len(sender.sent))
 	}
 }

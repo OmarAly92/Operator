@@ -63,8 +63,8 @@ type alertKey struct {
 }
 
 type sentAlert struct {
-	at      time.Time
-	message string
+	at     time.Time
+	record string
 }
 
 type Alerts struct {
@@ -179,17 +179,26 @@ func (a *Alerts) dispatch(ctx context.Context, rec domain.NotificationRecord) {
 		a.mu.Unlock()
 		return
 	}
-	alert := alertFor(rec)
+	for key, last := range a.lastSent {
+		if now.Sub(last.at) >= coalesceWindow {
+			delete(a.lastSent, key)
+		}
+	}
 	key := alertKey{session: rec.SessionID, typ: rec.Type}
-	if last, ok := a.lastSent[key]; ok && now.Sub(last.at) < coalesceWindow {
-		if rec.Type != domain.NotificationNeedsInput || last.message == alert.Message {
+	if last, ok := a.lastSent[key]; ok {
+		if rec.Type != domain.NotificationNeedsInput || last.record == rec.ID {
 			a.mu.Unlock()
 			return
 		}
 	}
-	a.lastSent[key] = sentAlert{at: now, message: alert.Message}
 	a.mu.Unlock()
-	a.recordDelivery(a.d.Sender.Send(ctx, st.AlertTopic, alert))
+	err = a.d.Sender.Send(ctx, st.AlertTopic, alertFor(rec))
+	if err == nil {
+		a.mu.Lock()
+		a.lastSent[key] = sentAlert{at: now, record: rec.ID}
+		a.mu.Unlock()
+	}
+	a.recordDelivery(err)
 }
 
 func (a *Alerts) enabledLocked(st mobilebridge.State) bool {
