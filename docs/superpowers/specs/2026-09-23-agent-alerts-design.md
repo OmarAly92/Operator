@@ -124,9 +124,10 @@ changes the plan as stated; nothing is built on an unverified assumption.
    **Result (2026-09-23): 20 × `200`, no `429`.** `for i in $(seq 1 20); do curl
    ... -d "burst $i" https://ntfy.sh/<throwaway topic>; done | sort | uniq -c`
    printed `20 200`. The 10 s per-session coalescing stays (changed 2026-09-27:
-   coalescing is per session **and type**, and a needs-input alert whose
-   message differs from the last one sent for that session is never
-   swallowed, `TERMINAL.md` §4.52).
+   coalescing is per session **and type**, and a needs-input alert is never
+   swallowed by an earlier one for a different notification record, even when
+   both bodies read the same; only the same record delivered twice is
+   coalesced, `TERMINAL.md` §4.52 "Phase B review fixes").
 
 ## 4. Events
 
@@ -153,6 +154,18 @@ changes the plan as stated; nothing is built on an unverified assumption.
 
 Trigger unchanged (`manager.go:657`). It now also reaches the phone and obeys
 §4.4.
+
+Body (changed 2026-09-27): the agent's report reason, else the question the
+screen reads, else "Your agent is waiting on you to continue." When a hook
+(Claude Code's `permission-request` or `notification`) enters needs-input
+first, the alert has no question text yet; if the screen observer tracks that
+session with a question reader for its agent, lifecycle holds the alert for
+`questionTextWait` (2.5 s) and sends it as soon as the screen's question for
+that session arrives, carrying its text, or with the fixed sentence when the
+wait ends. An answer, a relaunch or a termination before then drops it, since
+the pause is already resolved. A session the observer does not track, and
+every screen-raised question, alert at once (`TERMINAL.md` §4.52 "Phase B
+review fixes").
 
 ### 4.3 Agent exited (new type `agent_exited`)
 
@@ -194,7 +207,7 @@ Applied in this order; the first match suppresses on the channel named.
 | The Operator app on the phone is in the foreground and connected | — | shows (unless viewing that session) | suppress |
 | The phone app is viewing this session | — | suppress | — |
 | Connect Mobile off, or no paired phone | — | — | suppress |
-| An ntfy message for this session and this alert type was sent under 10 s ago (changed 2026-09-27: coalescing is per session and type; a needs-input message with new text is not coalesced) | — | — | suppress (coalesced) |
+| An ntfy message for this session and this alert type was sent under 10 s ago (changed 2026-09-27: coalescing is per session and type; a needs-input alert for a different notification record is not coalesced, whatever its text; a failed send does not count as sent) | — | — | suppress (coalesced) |
 
 The 3-second rule covers Esc and a typed `/exit`: the user is at that session.
 The in-app bell (persisted notification history) is never suppressed.
@@ -252,8 +265,10 @@ when the session leaves `exited` or is terminated, and the boot-time reconcile
   (`LANManager.Running()`), a phone has **claimed** the current topic (below),
   no phone holds a foreground `notifications` subscription (§5.4), the
   notification is not `quiet`, and the per-session-and-type 10 s coalescing
-  window has passed (changed 2026-09-27: a needs-input alert whose message
-  differs from the last one sent for that session bypasses the window).
+  window has passed (changed 2026-09-27: a needs-input alert for a different
+  notification record than the last one sent for that session bypasses the
+  window; only a successful send starts the window, and entries older than it
+  are dropped on each dispatch).
 - Topic: 32 random URL-safe characters, stored in `mobilebridge.State`
   (`internal/mobilebridge/config.go`) as `alertTopic`, with `alertTopicClaimed`.
   A new topic is generated, unclaimed, every time `enableWithPassword` sets a
@@ -392,8 +407,12 @@ Every rule gets a positive and a negative test.
 - **Dispatcher (Go, fake HTTP server):** sends only with Connect Mobile on and
   a claimed topic; skips when `PhoneForeground()`; skips `quiet`; coalesces
   per session and type within 10 s and sends again after, except a
-  needs-input alert whose message differs from the last one sent for that
-  session, which always sends (changed 2026-09-27); records failures with the error;
+  needs-input alert for a different notification record than the last one
+  sent for that session, which always sends even with the same body; a failed
+  send never suppresses the retry, and expired entries are pruned (changed
+  2026-09-27, `TestAlertsTwoNeedsInputRecordsWithTheSameBodyAreBothSent`,
+  `TestAlertsAFailedSendNeverSuppressesTheRetry`,
+  `TestAlertsForgetWhatTheySentOnceTheWindowHasPassed`); records failures with the error;
   a needs-you or finished message is the notification body cleaned and
   secret-masked, at most 4,096 bytes of valid UTF-8, and falls back to the
   event word when nothing is left; PR and exited messages are the event word
