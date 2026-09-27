@@ -322,3 +322,20 @@ func TestScreen_IntentsCarryTheScreenText(t *testing.T) {
 		t.Fatalf("needs=%+v done=%+v", needs, done)
 	}
 }
+
+func TestScreen_AFinishedTurnAfterAMissedStopNeverCarriesTheLastHooksReply(t *testing.T) {
+	m, st, sink, now := alertManager(t, domain.ActivityActive)
+	movableClock(m, now)
+	rec := st.sessions["mer-1"]
+	rec.Metadata.LatestAssistantUpdate = "Reply from the previous turn."
+	st.sessions["mer-1"] = rec
+	settled := screenSignal(domain.ScreenSettled, "")
+	settled.ScreenText = "Reply from this turn."
+	if err := m.ApplyActivitySignal(ctx, "mer-1", settled); err != nil {
+		t.Fatal(err)
+	}
+	done := intentsOf(sink, domain.NotificationTurnFinished)
+	if len(done) != 1 || done[0].AssistantUpdate != "" || done[0].ScreenText != "Reply from this turn." {
+		t.Fatalf("turn_finished intents = %+v", done)
+	}
+}

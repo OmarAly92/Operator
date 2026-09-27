@@ -815,6 +815,9 @@ func (m *Manager) ApplyActivitySignal(ctx context.Context, id domain.SessionID, 
 		} else {
 			intent = m.sessionIntent(domain.NotificationTurnFinished, next)
 			intent.ScreenText = s.ScreenText
+			if s.ScreenReading != "" {
+				intent.AssistantUpdate = ""
+			}
 		}
 	case !gated && rec.Activity.State != domain.ActivityExited && next.Activity.State == domain.ActivityExited && !next.IsTerminated:
 		intent = m.sessionIntent(domain.NotificationAgentExited, next)
