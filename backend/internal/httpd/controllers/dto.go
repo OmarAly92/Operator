@@ -1286,6 +1286,15 @@ type TerminalBlockView struct {
 	EndOffset      int64     `json:"endOffset"`
 }
 
+type TerminalHistoryEntry struct {
+	Command    string    `json:"command"`
+	FinishedAt time.Time `json:"finishedAt"`
+}
+
+type TerminalHistoryResponse struct {
+	Commands []TerminalHistoryEntry `json:"commands"`
+}
+
 // ShellTerminalEnvelope is the { shellTerminal } response body for shell
 // terminal mutations.
 type ShellTerminalEnvelope struct {

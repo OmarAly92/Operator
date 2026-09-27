@@ -298,6 +298,8 @@ var schemaNames = map[string]string{ //nolint:gosec // G101: schema type names s
 	"ControllersListShellTerminalsResponse": "ListShellTerminalsResponse",
 	"ControllersShellTerminalEnvelope":      "ShellTerminalEnvelope",
 	"ControllersTerminalBlockView":          "TerminalBlockView",
+	"ControllersTerminalHistoryEntry":       "TerminalHistoryEntry",
+	"ControllersTerminalHistoryResponse":    "TerminalHistoryResponse",
 	"ControllersClaudeAccountView":          "ClaudeAccountView",
 	"ControllersClaudeAccountStatus":        "ClaudeAccountStatus",
 	"ControllersListClaudeAccountsResponse": "ListClaudeAccountsResponse",
@@ -627,6 +629,10 @@ type shellTerminalBlocksQuery struct {
 	Limit *int64 `query:"limit,omitempty" minimum:"1" maximum:"500" description:"Maximum blocks to return, oldest first. Defaults to 100."`
 }
 
+type terminalHistoryQuery struct {
+	Limit *int64 `query:"limit,omitempty" minimum:"1" maximum:"1000" description:"Maximum distinct commands to return, oldest first. Defaults to 500."`
+}
+
 type claudeAccountsListQuery struct {
 	Refresh *int64 `query:"refresh,omitempty" minimum:"1" maximum:"1" description:"Set to 1 to bypass the 30-second login status cache."`
 }
@@ -784,6 +790,17 @@ func shellTerminalOperations() []operation {
 				{http.StatusOK, []controllers.TerminalBlockView{}},
 				{http.StatusBadRequest, envelope.APIError{}},
 				{http.StatusNotFound, envelope.APIError{}},
+				{http.StatusInternalServerError, envelope.APIError{}},
+				{http.StatusNotImplemented, envelope.APIError{}},
+			},
+		},
+		{
+			method: http.MethodGet, path: "/api/v1/terminal-history", id: "listTerminalHistory", tag: "shellTerminals",
+			summary:    "Read recent distinct shell commands from every terminal, oldest first, leaving out commands that look like they hold a secret",
+			pathParams: []any{terminalHistoryQuery{}},
+			resps: []respUnit{
+				{http.StatusOK, controllers.TerminalHistoryResponse{}},
+				{http.StatusBadRequest, envelope.APIError{}},
 				{http.StatusInternalServerError, envelope.APIError{}},
 				{http.StatusNotImplemented, envelope.APIError{}},
 			},
