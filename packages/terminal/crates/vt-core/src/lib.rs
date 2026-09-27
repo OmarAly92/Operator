@@ -1,3 +1,4 @@
+pub mod activity;
 pub mod agent;
 pub mod alt;
 pub mod alt_screen;
