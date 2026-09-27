@@ -15,7 +15,7 @@ func (p *Plugin) ReadQuestion(pane string) (ports.TerminalQuestion, bool) {
 	if !ok {
 		return ports.TerminalQuestion{}, false
 	}
-	return terminalui.Question(lines[max(0, start-6):start], dialog.Menu), true
+	return terminalui.QuestionAt(lines, start, dialog.Menu), true
 }
 
 var _ ports.TerminalQuestionReader = (*Plugin)(nil)

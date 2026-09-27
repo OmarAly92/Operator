@@ -6,6 +6,7 @@ import (
 
 	"github.com/OmarAly92/operator/backend/internal/adapters/agent/terminalui"
 	"github.com/OmarAly92/operator/backend/internal/ports"
+	"github.com/OmarAly92/operator/backend/internal/redact"
 )
 
 var claudeTurnFooter = regexp.MustCompile(`^✻ \S+ for \S+`)
@@ -23,6 +24,7 @@ func (p *Plugin) ReadTurnSummary(summary string) (string, bool) {
 		}
 		kept = append(kept, line)
 	}
+	kept = redact.Lines(kept)
 	text := terminalui.TurnSummary(stripMarkers(kept), 6)
 	for i := len(kept) - 1; i >= 0; i-- {
 		if strings.HasPrefix(kept[i], "⏺") {

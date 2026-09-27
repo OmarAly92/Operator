@@ -6,6 +6,7 @@ import (
 
 	"github.com/OmarAly92/operator/backend/internal/adapters/agent/terminalui"
 	"github.com/OmarAly92/operator/backend/internal/ports"
+	"github.com/OmarAly92/operator/backend/internal/redact"
 )
 
 var codexTurnTime = regexp.MustCompile(`^\d{1,2}:\d{2}(?::\d{2})?(?:\s?[AP]M)?$`)
@@ -32,6 +33,7 @@ func (p *Plugin) ReadTurnSummary(summary string) (string, bool) {
 		}
 		kept = append(kept, line)
 	}
+	kept = redact.Lines(kept)
 	text := terminalui.TurnSummary(kept, 6)
 	for i := len(kept) - 1; i >= 0; i-- {
 		if strings.HasPrefix(kept[i], "• ") {

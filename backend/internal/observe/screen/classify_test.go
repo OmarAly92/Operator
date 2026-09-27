@@ -72,3 +72,18 @@ func TestClassifySettledCarriesTheTurnSummary(t *testing.T) {
 		t.Fatalf("default summary = %q", got.Text)
 	}
 }
+
+func TestClassifyDefaultSummaryMasksASecretWrappedAcrossLines(t *testing.T) {
+	key := "sk-proj-AbCdEfGhIjKlMnOpQrStUvWxYz0123"
+	plain := activity(ports.TerminalActivityIdle, "deploying", "")
+	plain.Summary = "export OPENAI_KEY=" + key[:12] + "\n" + key[12:] + " exported\ndeployed"
+	got := Classify(nil, plain)
+	for i := 0; i+8 <= len(key); i++ {
+		if strings.Contains(got.Text, key[i:i+8]) {
+			t.Fatalf("summary leaks %q of the secret: %q", key[i:i+8], got.Text)
+		}
+	}
+	if !strings.Contains(got.Text, "deployed") {
+		t.Fatalf("summary = %q", got.Text)
+	}
+}

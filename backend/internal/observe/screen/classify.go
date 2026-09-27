@@ -6,6 +6,7 @@ import (
 
 	"github.com/OmarAly92/operator/backend/internal/domain"
 	"github.com/OmarAly92/operator/backend/internal/ports"
+	"github.com/OmarAly92/operator/backend/internal/redact"
 )
 
 const (
@@ -71,5 +72,5 @@ func defaultTurnSummary(summary string) string {
 		}
 		kept = append(kept, line)
 	}
-	return strings.Join(kept[max(0, len(kept)-6):], "\n")
+	return strings.Join(redact.Lines(kept)[max(0, len(kept)-6):], "\n")
 }

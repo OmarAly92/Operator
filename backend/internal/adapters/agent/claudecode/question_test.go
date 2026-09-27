@@ -54,3 +54,37 @@ func TestReadQuestionNeverReadsThePromptAboveTheDialog(t *testing.T) {
 		t.Fatalf("question = %+v, %v", question, ok)
 	}
 }
+
+const wrappedToken = "ghx9Kd8Qm2Lp4Rt7Vw1Zy3Ab5Cd"
+
+func assertNoTokenFragment(t *testing.T, text, token string) {
+	t.Helper()
+	for i := 0; i+8 <= len(token); i++ {
+		if strings.Contains(text, token[i:i+8]) {
+			t.Fatalf("text leaks %q of the secret: %q", token[i:i+8], text)
+		}
+	}
+}
+
+func TestReadQuestionMasksABearerTokenWrappedOntoTheNextLine(t *testing.T) {
+	dialog := func(command ...string) string {
+		return "────────────────────────────────────────\n Bash command\n\n   " + strings.Join(command, "\n   ") +
+			"\n   Fetch the current user\n\n Do you want to proceed?\n ❯ 1. Yes\n   2. Yes, and don't ask again for curl commands\n   3. No\n\n Esc to cancel · Tab to amend\n"
+	}
+	for _, pane := range []string{
+		dialog("curl -s -H 'Authorization: Bearer", wrappedToken+"' https://api.example.com/v1/me"),
+		dialog("curl -s -H 'Authorization: Bearer "+wrappedToken[:10], wrappedToken[10:]+"' https://api.example.com/v1/me"),
+	} {
+		question, ok := (&Plugin{}).ReadQuestion(pane)
+		if !ok {
+			t.Fatalf("no question read from %q", pane)
+		}
+		assertNoTokenFragment(t, question.Text, wrappedToken)
+		if !strings.Contains(question.Text, "https://api.example.com/v1/me · Fetch the current user · Do you want to proceed?") || !strings.Contains(question.Text, "[redacted]") {
+			t.Fatalf("question text = %q", question.Text)
+		}
+		if !strings.Contains(question.Identity, wrappedToken[10:]) {
+			t.Fatalf("identity changed by masking: %q", question.Identity)
+		}
+	}
+}

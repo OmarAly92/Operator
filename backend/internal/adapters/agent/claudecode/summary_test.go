@@ -1,6 +1,9 @@
 package claudecode
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestReadTurnSummaryStopsAtTheComposerAndDropsTheTurnFooter(t *testing.T) {
 	summary := "⏺ Updated greet.py to print a farewell.\n  git diff --stat:\n   greet.py | 7 ++++++-\n✻ Baked for 11s · done 6:13 PM\n────────\n❯\n────────\n  ⏵⏵ auto mode on (shift+tab to cycle) · ← for agents"
@@ -40,5 +43,23 @@ func TestReadTurnSummaryReadsNothingWhenTheComposerHasNoRuleAbove(t *testing.T) 
 	summary := "⏺ Done: 42 tests pass.\n\n❯\n────────\n  ⏵⏵ auto mode on (shift+tab to cycle) · ← for agents"
 	if got, ok := (&Plugin{}).ReadTurnSummary(summary); ok || got != "" {
 		t.Fatalf("summary = %q, %v", got, ok)
+	}
+}
+
+func TestReadTurnSummaryMasksSecretsHardWrappedAcrossLines(t *testing.T) {
+	password := "Xk9mP2qR7vT4wZ1n"
+	key := "sk-proj-AbCdEfGhIjKlMnOpQrStUvWxYz0123"
+	summary := "⏺ I set the database password=\n  " + password + " and wired the key\n  " + key[:12] + "\n  " + key[12:] + " into .env.\n  All tests pass.\n\n" +
+		"✻ Baked for 11s · done 6:13 PM\n────────\n❯\n────────\n  ⏵⏵ auto mode on (shift+tab to cycle)"
+	got, ok := (&Plugin{}).ReadTurnSummary(summary)
+	if !ok {
+		t.Fatalf("no summary read")
+	}
+	assertNoTokenFragment(t, got, password)
+	assertNoTokenFragment(t, got, key)
+	for _, want := range []string{"I set the database password=", "and wired the key", "into .env.", "All tests pass.", "[redacted]"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("summary = %q, missing %q", got, want)
+		}
 	}
 }
