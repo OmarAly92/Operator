@@ -5,6 +5,7 @@ export type TextRows = Readonly<{
 	rowText(blockId: string, row: number): string;
 	rowSpans(blockId: string, row: number): ArrayLike<number>;
 	rowWrapped(blockId: string, row: number): boolean;
+	rowIndent?(blockId: string, row: number): number;
 	rowLinkRuns?(blockId: string, row: number): ArrayLike<number>;
 	linkUri?(id: number): string | null;
 	firstRow(blockId: string): number;
@@ -29,8 +30,9 @@ export function selectedText(range: SelectionRange, rows: TextRows): string {
 		if (index === last && range.end.cell === 0 && toRow > fromRow) toRow -= 1;
 		let pending = "";
 		for (let row = fromRow; row <= toRow; row += 1) {
-			const from = index === first && row === range.start.row ? range.start.cell : 0;
-			const to = index === last && row === range.end.row ? range.end.cell : ROW_END;
+			const indent = rows.rowIndent?.(blockId, row) ?? 0;
+			const from = Math.max((index === first && row === range.start.row ? range.start.cell : 0) - indent, 0);
+			const to = index === last && row === range.end.row ? Math.max(range.end.cell - indent, 0) : ROW_END;
 			const text = rows.rowText(blockId, row);
 			const spans = rows.rowSpans(blockId, row);
 			const joins = row < toRow && rows.rowWrapped(blockId, row);

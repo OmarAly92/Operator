@@ -62,3 +62,25 @@ describe("selectedText over logical lines", () => {
 		expect(selectedText({ start: { blockId: "w", row: 0, cell: 0 }, end: { blockId: "w", row: 1, cell: ROW_END } }, trailing)).toBe("abc def");
 	});
 });
+
+const indented: TextRows = {
+	blockIds: ["i"],
+	firstRow: () => 0,
+	rowCount: () => 2,
+	rowText: (_id, row) => ["- aaaa bbbb ", "cc dd ee"][row] ?? "",
+	rowSpans: () => [],
+	rowWrapped: (_id, row) => row === 0,
+	rowIndent: (_id, row) => (row === 1 ? 2 : 0),
+};
+
+describe("selectedText over a hanging indent", () => {
+	it("copies the painted cells of an indented row, not cells shifted by the indent", () => {
+		expect(selectedText({ start: { blockId: "i", row: 1, cell: 5 }, end: { blockId: "i", row: 1, cell: 7 } }, indented)).toBe("dd");
+	});
+	it("copies nothing from a range that covers only the indent", () => {
+		expect(selectedText({ start: { blockId: "i", row: 1, cell: 0 }, end: { blockId: "i", row: 1, cell: 2 } }, indented)).toBe("");
+	});
+	it("joins an indented continuation to its line", () => {
+		expect(selectedText({ start: { blockId: "i", row: 0, cell: 2 }, end: { blockId: "i", row: 1, cell: ROW_END } }, indented)).toBe("aaaa bbbb cc dd ee");
+	});
+});

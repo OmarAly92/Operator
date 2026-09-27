@@ -48,6 +48,20 @@ describe("resolveRange", () => {
 		expect(range.start).toEqual({ blockId: "0", row: 0, cell: 0 });
 		expect(range.end).toEqual({ blockId: "0", row: 1, cell: ROW_END });
 	});
+	it("expands a word on an indented row to the cells where that word is painted", () => {
+		const text = (_id: string, row: number) => (row === 1 ? "cc dd ee" : "");
+		const indent = (_id: string, row: number) => (row === 1 ? 2 : 0);
+		const range = resolveRange({ head: at("0", 1, 5), tail: at("0", 1, 5), kind: "word" }, order, text, () => [], indent)!;
+		expect(range.start).toEqual({ blockId: "0", row: 1, cell: 5 });
+		expect(range.end).toEqual({ blockId: "0", row: 1, cell: 7 });
+	});
+	it("expands a click inside the indent to the row's first word", () => {
+		const text = (_id: string, row: number) => (row === 1 ? "cc dd ee" : "");
+		const indent = (_id: string, row: number) => (row === 1 ? 2 : 0);
+		const range = resolveRange({ head: at("0", 1, 0), tail: at("0", 1, 0), kind: "word" }, order, text, () => [], indent)!;
+		expect(range.start.cell).toBe(2);
+		expect(range.end.cell).toBe(4);
+	});
 });
 
 describe("stable-row selection", () => {
