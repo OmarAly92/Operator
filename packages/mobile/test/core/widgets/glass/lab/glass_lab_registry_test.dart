@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:operator_mobile/core/widgets/glass/lab/glass_lab_launch.dart';
@@ -51,6 +52,16 @@ void main() {
       await tester.pump(const Duration(seconds: 1));
     }
     semantics.dispose();
+  });
+
+  testWidgets('status bar icons follow the appearance', (tester) async {
+    tester.platformDispatcher.platformBrightnessTestValue = Brightness.dark;
+    addTearDown(tester.platformDispatcher.clearPlatformBrightnessTestValue);
+    await pumpLab(tester, const GlassLabLaunch(scene: 'material.regular'));
+    final region = tester.widget<AnnotatedRegion<SystemUiOverlayStyle>>(
+      find.descendant(of: find.byType(GlassLabScreen), matching: find.byType(AnnotatedRegion<SystemUiOverlayStyle>)).first,
+    );
+    expect(region.value, SystemUiOverlayStyle.light);
   });
 
   testWidgets('bare mode renders only the backdrop', (tester) async {

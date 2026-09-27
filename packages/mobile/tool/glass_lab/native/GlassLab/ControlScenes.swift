@@ -143,7 +143,7 @@ struct StepperScene: View {
             Stepper("Agents: \(value)", value: $value, in: 0...10)
                 .frame(width: 300)
                 .padding(16)
-                .background(.white, in: RoundedRectangle(cornerRadius: 16))
+                .background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 16))
         }
     }
 }

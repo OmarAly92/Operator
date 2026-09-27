@@ -26,6 +26,13 @@ class WorstMeasureTests(unittest.TestCase):
             "motion.events.native_motion 0 < 1, ready.bbox_pt 30.00 > 1.00, ready.mad 8.00 > 4.00",
         )
 
+    def test_an_event_count_mismatch_ranks_by_its_size(self):
+        result = compared("x", "c", {
+            "motion.events.count": [1, 0, "max"],
+            "ready.bbox_pt": [30.0, 1.0, "max"],
+        })
+        self.assertEqual(report.worst(result), "ready.bbox_pt 30.00 > 1.00, motion.events.count 1 > 0")
+
     def test_passing_case_has_no_measures(self):
         self.assertEqual(report.worst({"checks": {"ready.mad": True}, "measures": {"ready.mad": [1.0, 4.0, "max"]}}), "—")
 

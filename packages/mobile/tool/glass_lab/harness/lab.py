@@ -62,7 +62,7 @@ def run_cases(udid, scenes, apps, appearances, backdrop, a11y, run_dir):
                         print(f"{scene.id} {case_dir.name} {app}", flush=True)
                         try:
                             record.capture(udid, scene, app, chosen, case_dir / app)
-                        except RuntimeError as error:
+                        except Exception as error:
                             (case_dir / app).mkdir(parents=True, exist_ok=True)
                             (case_dir / app / "error.txt").write_text(str(error))
                             print(f"  failed: {error}", flush=True)
@@ -153,6 +153,7 @@ def cmd_repeat(args):
     scenes = [manifest.select(manifest.load(), name)[0] for name in names]
     run_dir = new_run_dir()
     noise = load_noise()
+    failed = []
     for scene in scenes:
         appearance, backdrop = scene.appearances[0], scene.backdrops[0]
         sim.appearance(udid, appearance)
@@ -182,8 +183,11 @@ def cmd_repeat(args):
         print(f"{scene.id}: static mad {static_worst:.2f}, motion noise {json.dumps({k: round(v, 1) for k, v in worst.items()})}")
         if static_worst > 1.0:
             print(f"{scene.id}: static repeatability FAILED (mad {static_worst:.2f} > 1.0)")
+            failed.append(scene.id)
     NOISE.write_text(json.dumps(noise, indent=2, sort_keys=True) + "\n")
     print(NOISE)
+    if failed:
+        raise SystemExit(f"static repeatability failed for {', '.join(failed)}")
 
 
 def cmd_geometry(args):

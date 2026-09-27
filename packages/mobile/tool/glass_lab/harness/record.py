@@ -93,6 +93,7 @@ def _run_driver(udid, env):
             "-destination", build.destination(udid),
             "-derivedDataPath", str(build.NATIVE_DATA),
             "-only-testing:GlassLabDriver/DriverTests/testScene",
+            "-collect-test-diagnostics", "never",
         ],
         env=env,
         capture_output=True,

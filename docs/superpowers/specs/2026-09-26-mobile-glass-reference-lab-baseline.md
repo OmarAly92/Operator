@@ -12,10 +12,10 @@ Run: `20260927-035111`. Native iOS 27 (iPhone 17 Pro simulator) against Operator
 
 | Scene | Case | Title | Status | Failing measures |
 |---|---|---|---|---|
-| tabbar.rest | dark-black | Tab bar with a search tab | fail | ready.bbox_pt 264.00 > 1.00, settled.bbox_pt 264.00 > 1.00, ready.centre_pt 130.50 > 1.00 |
+| tabbar.rest | dark-black | Tab bar with a search tab | fail | ready.bbox_pt 13.00 > 1.00, settled.bbox_pt 13.00 > 1.00, ready.mad 24.86 > 4.00 |
 | tabbar.rest | dark-black-increase-contrast | Tab bar with a search tab | fail | ready.mad 18.32 > 4.00, settled.mad 18.32 > 4.00, ready.rim_rms 12.77 > 6.00 |
-| tabbar.rest | dark-black-reduce-motion | Tab bar with a search tab | fail | ready.bbox_pt 264.00 > 1.00, settled.bbox_pt 264.00 > 1.00, ready.centre_pt 130.50 > 1.00 |
-| tabbar.rest | dark-black-reduce-transparency | Tab bar with a search tab | fail | ready.bbox_pt 264.00 > 1.00, settled.bbox_pt 264.00 > 1.00, ready.centre_pt 130.50 > 1.00 |
+| tabbar.rest | dark-black-reduce-motion | Tab bar with a search tab | fail | ready.bbox_pt 13.00 > 1.00, settled.bbox_pt 13.00 > 1.00, ready.mad 24.86 > 4.00 |
+| tabbar.rest | dark-black-reduce-transparency | Tab bar with a search tab | fail | ready.bbox_pt 13.00 > 1.00, settled.bbox_pt 13.00 > 1.00, ready.mad 20.53 > 4.00 |
 | tabbar.rest | dark-photo | Tab bar with a search tab | fail | ready.bbox_pt 8.00 > 1.00, settled.bbox_pt 8.00 > 1.00, ready.mad 19.70 > 4.00 |
 | tabbar.rest | dark-photo-increase-contrast | Tab bar with a search tab | fail | ready.mad 40.88 > 4.00, settled.mad 40.88 > 4.00, ready.luminance 27.52 > 3.00 |
 | tabbar.rest | dark-photo-reduce-motion | Tab bar with a search tab | fail | ready.bbox_pt 8.00 > 1.00, settled.bbox_pt 8.00 > 1.00, ready.mad 19.79 > 4.00 |
@@ -31,32 +31,32 @@ Run: `20260927-035111`. Native iOS 27 (iPhone 17 Pro simulator) against Operator
 | tabbar.rest | light-black | Tab bar with a search tab | fail | ready.mad 19.08 > 4.00, settled.mad 19.08 > 4.00, ready.luminance 13.93 > 3.00 |
 | tabbar.rest | light-photo | Tab bar with a search tab | fail | ready.bbox_pt 4.00 > 1.00, settled.bbox_pt 4.00 > 1.00, ready.mad 12.47 > 4.00 |
 | tabbar.rest | light-stripes | Tab bar with a search tab | fail | ready.bbox_pt 8.00 > 1.00, settled.bbox_pt 8.00 > 1.00, ready.mad 14.27 > 4.00 |
-| tabbar.rest | light-white | Tab bar with a search tab | fail | ready.bbox_pt 263.00 > 1.00, settled.bbox_pt 263.00 > 1.00, ready.centre_pt 127.00 > 1.00 |
-| tabbar.press | dark-stripes | Tab bar press and hold | fail | motion.events.count 1 > 0, motion.event1.width.overshoot_pct 88.89 > 2.00, ready.bbox_pt 10.00 > 1.00 |
-| tabbar.press | light-stripes | Tab bar press and hold | fail | motion.events.count 1 > 0, motion.event1.luma.peak_ms 358.33 > 17.00, motion.event0.width.overshoot_pct 32.50 > 2.00 |
-| tabbar.drag | dark-stripes | Tab selection lens dragged across tabs | fail | motion.events.count 1 > 0, motion.event0.width.peak_ms 441.67 > 17.00, ready.bbox_pt 10.00 > 1.00 |
-| tabbar.drag | dark-stripes-increase-contrast | Tab selection lens dragged across tabs | fail | motion.events.count 2 > 0, motion.event1.width.response_pct 300.00 > 10.71, ready.luminance 39.73 > 3.00 |
-| tabbar.drag | dark-stripes-reduce-motion | Tab selection lens dragged across tabs | fail | motion.events.count 1 > 0, ready.bbox_pt 10.00 > 1.00, settled.bbox_pt 10.00 > 1.00 |
-| tabbar.drag | dark-stripes-reduce-transparency | Tab selection lens dragged across tabs | fail | motion.events.count 1 > 0, ready.luminance 66.46 > 3.00, settled.luminance 65.88 > 3.00 |
-| tabbar.drag | light-stripes | Tab selection lens dragged across tabs | fail | motion.events.count 2 > 0, ready.bbox_pt 8.00 > 1.00, settled.bbox_pt 8.00 > 1.00 |
-| button.press | dark-stripes | Glass and prominent button press | fail | motion.events.count 1 > 0, motion.event1.luma.response_pct 300.00 > 5.00, motion.event1.luma.settle_ms 108.33 > 17.00 |
-| button.press | light-stripes | Glass and prominent button press | fail | motion.events.count 2 > 0, motion.event2.width.response_pct 100.00 > 5.00, motion.event3.width.settle_ms 275.00 > 17.00 |
-| sheet.detents | dark-photo | Sheet moved between its detents | fail | motion.events.count 4 > 0, settled.bbox_pt 712.00 > 1.00, settled.centre_pt 356.00 > 1.00 |
-| sheet.detents | dark-photo-increase-contrast | Sheet moved between its detents | fail | motion.events.count 4 > 0, settled.bbox_pt 712.00 > 1.00, settled.centre_pt 356.00 > 1.00 |
-| sheet.detents | dark-photo-reduce-motion | Sheet moved between its detents | fail | motion.events.count 3 > 0, settled.bbox_pt 712.00 > 1.00, settled.centre_pt 356.00 > 1.00 |
-| sheet.detents | dark-photo-reduce-transparency | Sheet moved between its detents | fail | motion.events.count 4 > 0, settled.bbox_pt 712.00 > 1.00, settled.centre_pt 356.00 > 1.00 |
-| sheet.detents | dark-stripes | Sheet moved between its detents | fail | motion.events.count 3 > 0, settled.bbox_pt 710.00 > 1.00, settled.centre_pt 355.00 > 1.00 |
-| sheet.detents | dark-stripes-increase-contrast | Sheet moved between its detents | fail | motion.events.count 4 > 0, settled.bbox_pt 710.00 > 1.00, settled.centre_pt 355.00 > 1.00 |
-| sheet.detents | dark-stripes-reduce-motion | Sheet moved between its detents | fail | motion.events.count 3 > 0, settled.bbox_pt 710.00 > 1.00, settled.centre_pt 355.00 > 1.00 |
-| sheet.detents | dark-stripes-reduce-transparency | Sheet moved between its detents | fail | motion.events.count 4 > 0, settled.bbox_pt 710.00 > 1.00, settled.centre_pt 355.00 > 1.00 |
-| sheet.detents | light-photo | Sheet moved between its detents | fail | motion.events.count 4 > 0, settled.bbox_pt 717.00 > 1.00, settled.centre_pt 358.50 > 1.00 |
-| sheet.detents | light-stripes | Sheet moved between its detents | fail | motion.events.count 3 > 0, settled.bbox_pt 714.00 > 1.00, settled.centre_pt 357.00 > 1.00 |
-| navbar.inline | dark-black | Inline title, back button and trailing group | fail | ready.bbox_pt 327.00 > 1.00, settled.bbox_pt 327.00 > 1.00, ready.centre_pt 297.00 > 1.00 |
+| tabbar.rest | light-white | Tab bar with a search tab | fail | ready.bbox_pt 8.00 > 1.00, settled.bbox_pt 8.00 > 1.00, ready.centre_pt 3.00 > 1.00 |
+| tabbar.press | dark-stripes | Tab bar press and hold | fail | motion.event1.width.overshoot_pct 553.32 > 2.00, motion.event0.width.overshoot_pct 277.58 > 2.00, motion.event1.width.settle_ms 208.33 > 17.00 |
+| tabbar.press | light-stripes | Tab bar press and hold | fail | motion.event1.luma.peak_ms 375.00 > 17.00, motion.event1.luma.settle_ms 266.67 > 17.00, motion.event1.width.response_pct 74.19 > 5.00 |
+| tabbar.drag | dark-stripes | Tab selection lens dragged across tabs | fail | ready.bbox_pt 10.00 > 1.00, settled.bbox_pt 10.00 > 1.00, motion.event0.cx.overshoot_pct 19.11 > 2.00 |
+| tabbar.drag | dark-stripes-increase-contrast | Tab selection lens dragged across tabs | fail | ready.luminance 39.73 > 3.00, settled.luminance 38.83 > 3.00, ready.mad 44.72 > 4.00 |
+| tabbar.drag | dark-stripes-reduce-motion | Tab selection lens dragged across tabs | fail | ready.bbox_pt 10.00 > 1.00, settled.bbox_pt 10.00 > 1.00, settled.mad 17.81 > 4.00 |
+| tabbar.drag | dark-stripes-reduce-transparency | Tab selection lens dragged across tabs | fail | motion.event0.width.overshoot_pct 280.00 > 5.36, ready.luminance 66.46 > 3.00, settled.luminance 65.88 > 3.00 |
+| tabbar.drag | light-stripes | Tab selection lens dragged across tabs | fail | ready.bbox_pt 8.00 > 1.00, settled.bbox_pt 8.00 > 1.00, ready.mad 12.07 > 4.00 |
+| button.press | dark-stripes | Glass and prominent button press | fail | motion.event2.width.response_pct 60.71 > 5.00, motion.event2.width.damping 0.41 > 0.05, ready.bbox_pt 5.00 > 1.00 |
+| button.press | light-stripes | Glass and prominent button press | fail | motion.event2.width.response_pct 76.19 > 5.00, motion.event3.width.settle_ms 250.00 > 17.00, motion.event3.width.response_pct 64.71 > 5.00 |
+| sheet.detents | dark-photo | Sheet moved between its detents | fail | settled.bbox_pt 712.00 > 1.00, settled.centre_pt 356.00 > 1.00, settled.luminance 65.07 > 3.00 |
+| sheet.detents | dark-photo-increase-contrast | Sheet moved between its detents | fail | settled.bbox_pt 712.00 > 1.00, settled.centre_pt 356.00 > 1.00, settled.luminance 54.28 > 3.00 |
+| sheet.detents | dark-photo-reduce-motion | Sheet moved between its detents | fail | settled.bbox_pt 712.00 > 1.00, settled.centre_pt 356.00 > 1.00, settled.luminance 65.14 > 3.00 |
+| sheet.detents | dark-photo-reduce-transparency | Sheet moved between its detents | fail | settled.bbox_pt 712.00 > 1.00, settled.centre_pt 356.00 > 1.00, settled.luminance 51.76 > 3.00 |
+| sheet.detents | dark-stripes | Sheet moved between its detents | fail | settled.bbox_pt 710.00 > 1.00, settled.centre_pt 355.00 > 1.00, settled.luminance 92.42 > 3.00 |
+| sheet.detents | dark-stripes-increase-contrast | Sheet moved between its detents | fail | settled.bbox_pt 710.00 > 1.00, settled.centre_pt 355.00 > 1.00, settled.luminance 79.19 > 3.00 |
+| sheet.detents | dark-stripes-reduce-motion | Sheet moved between its detents | fail | settled.bbox_pt 710.00 > 1.00, settled.centre_pt 355.00 > 1.00, settled.luminance 92.44 > 3.00 |
+| sheet.detents | dark-stripes-reduce-transparency | Sheet moved between its detents | fail | settled.bbox_pt 710.00 > 1.00, settled.centre_pt 355.00 > 1.00, settled.luminance 76.33 > 3.00 |
+| sheet.detents | light-photo | Sheet moved between its detents | fail | settled.bbox_pt 717.00 > 1.00, settled.centre_pt 358.50 > 1.00, settled.rim_rms 119.57 > 6.00 |
+| sheet.detents | light-stripes | Sheet moved between its detents | fail | settled.bbox_pt 714.00 > 1.00, settled.centre_pt 357.00 > 1.00, settled.mad 63.00 > 4.00 |
+| navbar.inline | dark-black | Inline title, back button and trailing group | fail | ready.bbox_pt 7.00 > 1.00, settled.bbox_pt 7.00 > 1.00, ready.rim_rms 27.50 > 6.00 |
 | navbar.inline | dark-stripes | Inline title, back button and trailing group | fail | ready.bbox_pt 6.00 > 1.00, settled.bbox_pt 6.00 > 1.00, ready.rim_rms 16.37 > 6.00 |
 | navbar.inline | dark-white | Inline title, back button and trailing group | fail | ready.rim_rms 41.15 > 6.00, settled.rim_rms 41.15 > 6.00, ready.bbox_pt 6.00 > 1.00 |
-| navbar.inline | light-black | Inline title, back button and trailing group | fail | ready.bbox_pt 326.00 > 1.00, settled.bbox_pt 326.00 > 1.00, ready.centre_pt 297.00 > 1.00 |
+| navbar.inline | light-black | Inline title, back button and trailing group | fail | ready.rim_rms 96.06 > 6.00, settled.rim_rms 96.06 > 6.00, ready.bbox_pt 6.00 > 1.00 |
 | navbar.inline | light-stripes | Inline title, back button and trailing group | fail | ready.bbox_pt 11.00 > 1.00, settled.bbox_pt 11.00 > 1.00, ready.rim_rms 58.81 > 6.00 |
-| navbar.inline | light-white | Inline title, back button and trailing group | fail | ready.bbox_pt 185.00 > 1.00, settled.bbox_pt 185.00 > 1.00, ready.centre_pt 145.00 > 1.00 |
+| navbar.inline | light-white | Inline title, back button and trailing group | fail | ready.bbox_pt 8.00 > 1.00, settled.bbox_pt 8.00 > 1.00, ready.rim_rms 44.80 > 6.00 |
 | material.regular | dark-black | Regular glass at three sizes | fail | ready.luminance 10.48 > 3.00, settled.luminance 10.48 > 3.00, ready.rim_rms 16.26 > 6.00 |
 | material.regular | dark-black-increase-contrast | Regular glass at three sizes | fail | ready.rim_rms 9.77 > 6.00, settled.rim_rms 9.77 > 6.00 |
 | material.regular | dark-black-reduce-motion | Regular glass at three sizes | fail | ready.luminance 10.48 > 3.00, settled.luminance 10.48 > 3.00, ready.rim_rms 16.26 > 6.00 |
@@ -88,26 +88,26 @@ Run: `20260927-035111`. Native iOS 27 (iPhone 17 Pro simulator) against Operator
 | material.tinted | light-black | Tinted glass and a prominent button | fail | ready.rim_rms 22.77 > 6.00, settled.rim_rms 22.77 > 6.00, ready.mad 6.09 > 4.00 |
 | material.tinted | light-stripes | Tinted glass and a prominent button | fail | ready.bbox_pt 12.00 > 1.00, settled.bbox_pt 12.00 > 1.00, ready.mad 9.26 > 4.00 |
 | material.tinted | light-white | Tinted glass and a prominent button | fail | ready.bbox_pt 12.00 > 1.00, settled.bbox_pt 12.00 > 1.00, ready.mad 15.40 > 4.00 |
-| material.clear | dark-photo | Clear glass with and without the dimming layer | fail | ready.bbox_pt 155.00 > 1.00, settled.bbox_pt 155.00 > 1.00, ready.centre_pt 149.00 > 1.00 |
+| material.clear | dark-photo | Clear glass with and without the dimming layer | fail | ready.bbox_pt 10.00 > 1.00, settled.bbox_pt 10.00 > 1.00, ready.luminance 18.80 > 3.00 |
 | material.clear | dark-white | Clear glass with and without the dimming layer | fail | ready.bbox_pt 10.00 > 1.00, settled.bbox_pt 10.00 > 1.00, ready.luminance 23.39 > 3.00 |
 | material.clear | light-photo | Clear glass with and without the dimming layer | fail | ready.bbox_pt 15.00 > 1.00, settled.bbox_pt 15.00 > 1.00, ready.rim_rms 24.32 > 6.00 |
 | material.clear | light-white | Clear glass with and without the dimming layer | fail | ready.bbox_pt 12.00 > 1.00, settled.bbox_pt 12.00 > 1.00, ready.luminance 16.30 > 3.00 |
-| material.interactive | dark-photo | Interactive glass press and drag | fail | motion.events.count 4 > 0, motion.events.native_motion 0 < 1, ready.bbox_pt 8.00 > 1.00 |
-| material.interactive | dark-stripes | Interactive glass press and drag | fail | motion.events.count 4 > 0, motion.events.native_motion 0 < 1, ready.bbox_pt 10.00 > 1.00 |
-| material.interactive | light-photo | Interactive glass press and drag | fail | motion.events.count 4 > 0, motion.events.native_motion 0 < 1, ready.bbox_pt 12.00 > 1.00 |
-| material.interactive | light-stripes | Interactive glass press and drag | fail | motion.events.count 4 > 0, motion.events.native_motion 0 < 1, ready.bbox_pt 12.00 > 1.00 |
-| material.edge.soft | light-scroll | Soft scroll edge effect under an inline bar | fail | motion.events.count 2 > 0, ready.bbox_pt 733.00 > 1.00, ready.centre_pt 691.00 > 1.00 |
-| material.edge.automatic | light-scroll | Automatic scroll edge effect under an inline bar | fail | motion.events.count 2 > 0, ready.bbox_pt 683.00 > 1.00, ready.centre_pt 666.00 > 1.00 |
-| material.edge.hard | light-scroll | Hard scroll edge effect under an inline bar | fail | motion.events.count 2 > 0, ready.bbox_pt 683.00 > 1.00, ready.centre_pt 666.00 > 1.00 |
-| material.edge.automatic | dark-scroll | Automatic scroll edge effect under an inline bar | fail | motion.events.count 2 > 0, settled.bbox_pt 105.00 > 1.00, settled.centre_pt 52.50 > 1.00 |
-| material.edge.hard | dark-scroll | Hard scroll edge effect under an inline bar | fail | motion.events.count 2 > 0, settled.bbox_pt 105.00 > 1.00, settled.centre_pt 52.50 > 1.00 |
-| material.edge.soft | dark-scroll | Soft scroll edge effect under an inline bar | fail | motion.events.count 2 > 0, settled.bbox_pt 88.00 > 1.00, settled.centre_pt 44.00 > 1.00 |
-| button.styles | light-white | Glass button styles, sizes and shapes | fail | ready.bbox_pt 146.00 > 1.00, settled.bbox_pt 146.00 > 1.00, ready.centre_pt 16.00 > 1.00 |
-| button.styles | light-stripes | Glass button styles, sizes and shapes | fail | ready.bbox_pt 146.00 > 1.00, settled.bbox_pt 146.00 > 1.00, ready.centre_pt 16.00 > 1.00 |
-| button.styles | dark-white | Glass button styles, sizes and shapes | fail | ready.bbox_pt 142.00 > 1.00, settled.bbox_pt 142.00 > 1.00, ready.centre_pt 16.50 > 1.00 |
-| button.styles | dark-stripes | Glass button styles, sizes and shapes | fail | ready.bbox_pt 141.00 > 1.00, settled.bbox_pt 141.00 > 1.00, ready.centre_pt 16.00 > 1.00 |
-| button.styles | light-black | Glass button styles, sizes and shapes | fail | ready.bbox_pt 45.00 > 1.00, settled.bbox_pt 45.00 > 1.00, ready.centre_pt 42.00 > 1.00 |
-| button.styles | dark-black | Glass button styles, sizes and shapes | fail | ready.bbox_pt 44.00 > 1.00, settled.bbox_pt 44.00 > 1.00, ready.centre_pt 42.00 > 1.00 |
+| material.interactive | dark-photo | Interactive glass press and drag | fail | motion.events.native_motion 0 < 1, ready.bbox_pt 8.00 > 1.00, settled.bbox_pt 8.00 > 1.00 |
+| material.interactive | dark-stripes | Interactive glass press and drag | fail | motion.events.native_motion 0 < 1, ready.bbox_pt 10.00 > 1.00, settled.bbox_pt 10.00 > 1.00 |
+| material.interactive | light-photo | Interactive glass press and drag | fail | motion.events.native_motion 0 < 1, ready.bbox_pt 12.00 > 1.00, settled.bbox_pt 12.00 > 1.00 |
+| material.interactive | light-stripes | Interactive glass press and drag | fail | motion.events.native_motion 0 < 1, ready.bbox_pt 12.00 > 1.00, settled.bbox_pt 12.00 > 1.00 |
+| material.edge.hard | light-scroll | Hard scroll edge effect under an inline bar | fail | ready.bbox_pt ∞ > 1.00, ready.centre_pt ∞ > 1.00, motion.event0.cy.overshoot_pct 256.36 > 2.00 |
+| material.edge.automatic | light-scroll | Automatic scroll edge effect under an inline bar | fail | ready.bbox_pt ∞ > 1.00, ready.centre_pt ∞ > 1.00, motion.event0.cy.overshoot_pct 254.01 > 2.00 |
+| material.edge.soft | light-scroll | Soft scroll edge effect under an inline bar | fail | ready.bbox_pt ∞ > 1.00, ready.centre_pt ∞ > 1.00, ready.rim_rms 134.53 > 6.00 |
+| button.styles | dark-black | Glass button styles, sizes and shapes | fail | ready.bbox_pt 53.00 > 1.00, settled.bbox_pt 53.00 > 1.00, ready.rim_rms 104.91 > 6.00 |
+| button.styles | light-black | Glass button styles, sizes and shapes | fail | ready.bbox_pt 52.00 > 1.00, settled.bbox_pt 52.00 > 1.00, ready.rim_rms 92.19 > 6.00 |
+| button.styles | dark-stripes | Glass button styles, sizes and shapes | fail | ready.bbox_pt 49.00 > 1.00, settled.bbox_pt 49.00 > 1.00, ready.mad 19.79 > 4.00 |
+| button.styles | dark-white | Glass button styles, sizes and shapes | fail | ready.bbox_pt 48.00 > 1.00, settled.bbox_pt 48.00 > 1.00, ready.centre_pt 38.00 > 1.00 |
+| button.styles | light-stripes | Glass button styles, sizes and shapes | fail | ready.bbox_pt 44.00 > 1.00, settled.bbox_pt 44.00 > 1.00, ready.mad 25.12 > 4.00 |
+| button.styles | light-white | Glass button styles, sizes and shapes | fail | ready.bbox_pt 43.00 > 1.00, settled.bbox_pt 43.00 > 1.00, ready.centre_pt 14.00 > 1.00 |
+| material.edge.soft | dark-scroll | Soft scroll edge effect under an inline bar | fail | ready.mad 56.21 > 4.00, motion.event0.height.overshoot_pct 27.27 > 2.00, ready.rim_rms 79.78 > 6.00 |
+| material.edge.automatic | dark-scroll | Automatic scroll edge effect under an inline bar | fail | ready.mad 56.21 > 4.00, ready.rim_rms 79.78 > 6.00, settled.mad 50.64 > 4.00 |
+| material.edge.hard | dark-scroll | Hard scroll edge effect under an inline bar | fail | ready.mad 55.16 > 4.00, ready.rim_rms 76.39 > 6.00, settled.mad 50.64 > 4.00 |
 | alert.three | dark-stripes | Alert with three actions | missing | — |
 | alert.three | dark-white | Alert with three actions | missing | — |
 | alert.three | light-stripes | Alert with three actions | missing | — |

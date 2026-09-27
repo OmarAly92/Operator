@@ -119,6 +119,8 @@ STATUS_ORDER = ("fail", "pass", "missing", "reference", "error")
 
 
 def ratio(value, limit, bound):
+    if bound == "max" and limit == 0:
+        return 1.0 + value
     low, high = (value, limit) if bound == "min" else (limit, value)
     return high / low if low > 0 else float("inf")
 

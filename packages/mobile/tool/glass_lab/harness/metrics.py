@@ -5,6 +5,7 @@ from PIL import Image
 
 SCALE = 3
 SCREEN = (402, 874)
+LAYER_FRACTION = 0.5
 THRESHOLDS = {
     "mad": 4.0,
     "luminance": 3.0,
@@ -94,6 +95,24 @@ def box_delta(a, b):
     return float(max(abs(a[0] - b[0]), abs(a[1] - b[1]), abs(a[0] + a[2] - b[0] - b[2]), abs(a[1] + a[3] - b[1] - b[3])))
 
 
+def overlaps(a, b, slack=4):
+    return not (
+        a[0] + a[2] + slack <= b[0]
+        or b[0] + b[2] + slack <= a[0]
+        or a[1] + a[3] + slack <= b[1]
+        or b[1] + b[3] + slack <= a[1]
+    )
+
+
+def matching(boxes, target):
+    hits = [box for box in boxes if overlaps(box, target)]
+    if not hits:
+        return None
+    left, top = min(b[0] for b in hits), min(b[1] for b in hits)
+    right, bottom = max(b[0] + b[2] for b in hits), max(b[1] + b[3] for b in hits)
+    return (left, top, right - left, bottom - top)
+
+
 def centre_delta(a, b):
     if a is None or b is None:
         return float("inf")
@@ -105,8 +124,14 @@ def static_compare(native, flutter, native_bare, flutter_bare, region):
     native_boxes = glass_boxes(native_region, crop(native_bare, region))
     flutter_boxes = glass_boxes(flutter_region, crop(flutter_bare, region))
     offset = lambda boxes: [(b[0] + region[0], b[1] + region[1], b[2], b[3]) for b in boxes]
-    native_main = offset(native_boxes)[0] if native_boxes else None
-    flutter_main = offset(flutter_boxes)[0] if flutter_boxes else None
+    native_all, flutter_all = offset(native_boxes), offset(flutter_boxes)
+    native_main = native_all[0] if native_all else None
+    if native_main is None:
+        flutter_main = flutter_all[0] if flutter_all else None
+    else:
+        flutter_main = matching(flutter_all, native_main)
+        if flutter_main is not None and flutter_main[2] * flutter_main[3] < LAYER_FRACTION * SCREEN[0] * SCREEN[1]:
+            native_main = matching(native_all, flutter_main)
     result = {
         "mad": mad(native_region, flutter_region),
         "luminance": abs(float(luma(native_region).mean() - luma(flutter_region).mean())),

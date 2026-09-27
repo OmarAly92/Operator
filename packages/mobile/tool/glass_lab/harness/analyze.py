@@ -129,17 +129,18 @@ def motion(case_dir, region):
     return {"events": found_events, "stalls": align.stalls(diffs, crops.times), "first_time": crops.times[0]}
 
 
-def compare_series(key, a, b):
-    times = np.arange(len(a)) / align.GRID_HZ
+def compare_series(key, a, b, a_full, b_full):
     entry = {"rms": float(np.sqrt(np.mean((a - b) ** 2))), "native": a.tolist(), "flutter": b.tolist()}
-    if abs(a[-1] - a[0]) < MIN_TRAVEL[key] or abs(b[-1] - b[0]) < MIN_TRAVEL[key]:
+    if abs(a_full[-1] - a_full[0]) < MIN_TRAVEL[key] or abs(b_full[-1] - b_full[0]) < MIN_TRAVEL[key]:
         return entry
-    fa, fb = springfit.features(times, a), springfit.features(times, b)
+    a_times = np.arange(len(a_full)) / align.GRID_HZ
+    b_times = np.arange(len(b_full)) / align.GRID_HZ
+    fa, fb = springfit.features(a_times, a_full), springfit.features(b_times, b_full)
     if fa and fb:
         entry["peak_ms"] = abs(fa["peak_ms"] - fb["peak_ms"])
         entry["settle_ms"] = abs(fa["settle_ms"] - fb["settle_ms"])
         entry["overshoot_pct"] = abs(fa["overshoot_pct"] - fb["overshoot_pct"])
-    sa, sb = springfit.fit(times, a), springfit.fit(times, b)
+    sa, sb = springfit.fit(a_times, a_full), springfit.fit(b_times, b_full)
     if sa and sb and sa["rms"] < 0.15 and sb["rms"] < 0.15:
         entry["native_spring"], entry["flutter_spring"] = sa, sb
         entry["response_pct"] = abs(sa["response"] - sb["response"]) / sa["response"] * 100
@@ -149,22 +150,23 @@ def compare_series(key, a, b):
 
 def best_lag(a_series, b_series):
     limit = int(MAX_LAG_MS / 1000 * align.GRID_HZ)
-    for key in align.KEYS:
-        a = np.array(a_series[key])
-        if np.ptp(a) < MIN_TRAVEL[key]:
-            continue
-        b = np.array(b_series[key])
-        best, chosen = float("inf"), 0
-        for lag in range(-limit, limit + 1):
+    moving = [key for key in align.KEYS if np.ptp(np.array(a_series[key])) >= MIN_TRAVEL[key]]
+    if not moving:
+        return 0
+    series = [(np.array(a_series[key]) / np.ptp(a_series[key]), np.array(b_series[key]) / np.ptp(a_series[key])) for key in moving]
+    best, chosen = float("inf"), 0
+    for lag in range(-limit, limit + 1):
+        error = 0.0
+        for a, b in series:
             x, y = (a[lag:], b) if lag >= 0 else (a, b[-lag:])
             count = min(len(x), len(y))
             if count < 3:
-                continue
-            error = float(np.mean((x[:count] - y[:count]) ** 2))
+                break
+            error += float(np.mean((x[:count] - y[:count]) ** 2))
+        else:
             if error < best:
                 best, chosen = error, lag
-        return chosen
-    return 0
+    return chosen
 
 
 def compare_motion(native, flutter):
@@ -174,12 +176,12 @@ def compare_motion(native, flutter):
         lag = best_lag(a_series, b_series)
         event = {"lag_ms": lag * 1000 / align.GRID_HZ}
         for key in align.KEYS:
-            a, b = np.array(a_series[key]), np.array(b_series[key])
-            a, b = (a[lag:], b) if lag >= 0 else (a, b[-lag:])
+            a_full, b_full = np.array(a_series[key]), np.array(b_series[key])
+            a, b = (a_full[lag:], b_full) if lag >= 0 else (a_full, b_full[-lag:])
             count = min(len(a), len(b))
             if count < 3:
                 continue
-            event[key] = compare_series(key, a[:count], b[:count])
+            event[key] = compare_series(key, a[:count], b[:count], a_full, b_full)
         result["events"].append(event)
     return result
 

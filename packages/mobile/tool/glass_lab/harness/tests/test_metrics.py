@@ -74,6 +74,41 @@ class StaticCompareTests(unittest.TestCase):
         self.assertTrue(result["pass"]["centre_pt"])
         self.assertFalse(result["pass"]["bbox_pt"])
 
+    def test_matches_flutter_parts_that_overlap_the_native_element(self):
+        bare = canvas()
+        native = draw_box(canvas(), (20, 791, 360, 62))
+        flutter = canvas()
+        for box in ((24, 795, 93, 54), (150, 800, 30, 30), (300, 800, 30, 30), (20, 100, 120, 120)):
+            draw_box(flutter, box)
+        result = metrics.static_compare(native, flutter, bare, bare, (0, 80, 402, 794))
+        self.assertEqual(result["flutter_box"], (24, 795, 306, 54))
+
+    def test_a_faint_native_element_is_measured_by_its_parts(self):
+        bare = canvas()
+        native = canvas()
+        for box in ((25, 795, 98, 54), (170, 800, 30, 30), (330, 800, 30, 30)):
+            draw_box(native, box)
+        flutter = draw_box(canvas(), (16, 788, 370, 74))
+        result = metrics.static_compare(native, flutter, bare, bare, (0, 700, 402, 174))
+        self.assertEqual(result["native_box"], (25, 795, 335, 54))
+        self.assertEqual(result["flutter_box"], (16, 788, 370, 74))
+
+    def test_a_full_screen_flutter_layer_does_not_widen_the_native_element(self):
+        bare = canvas()
+        native = draw_box(draw_box(canvas(), (0, 710, 402, 164)), (300, 18, 60, 20))
+        flutter = draw_box(canvas(), (0, 0, 402, 874))
+        result = metrics.static_compare(native, flutter, bare, bare, (0, 0, 402, 874))
+        self.assertEqual(result["native_box"], (0, 710, 402, 164))
+        self.assertGreater(result["centre_pt"], 300)
+
+    def test_flutter_glass_missing_at_the_native_element_is_unmatched(self):
+        bare = canvas()
+        native = draw_box(canvas(), (284, 62, 102, 44))
+        flutter = draw_box(canvas(), (17, 62, 42, 44))
+        result = metrics.static_compare(native, flutter, bare, bare, (4, 50, 394, 68))
+        self.assertIsNone(result["flutter_box"])
+        self.assertFalse(result["pass"]["centre_pt"])
+
     def test_shifted_box_fails_bbox(self):
         bare = canvas()
         native = draw_box(canvas(), (100, 300, 150, 44))
@@ -160,6 +195,38 @@ class OnsetAlignmentTests(unittest.TestCase):
     def test_recovers_a_negative_offset_within_one_frame(self):
         native, flutter = self._series(-7)
         self.assertLessEqual(abs(analyze.best_lag(native, flutter) - -7), 1)
+
+
+class JointAlignmentTests(unittest.TestCase):
+    def test_aligns_all_moving_series_together(self):
+        count = 80
+        native = {key: [10.0] * count for key in align.KEYS}
+        flutter = {key: [10.0] * count for key in align.KEYS}
+        native["width"] = [float(i * 2) for i in range(count)]
+        flutter["width"] = [float((i + 6) * 2) for i in range(count)]
+        native["height"] = [float(i * 5) for i in range(count)]
+        flutter["height"] = [float((i + 6) * 5) for i in range(count)]
+        self.assertLessEqual(abs(analyze.best_lag(native, flutter) - 6), 1)
+
+    def test_no_moving_series_means_no_lag(self):
+        flat = {key: [10.0] * 30 for key in align.KEYS}
+        self.assertEqual(analyze.best_lag(flat, flat), 0)
+
+
+class SpringOnFullEventTests(unittest.TestCase):
+    def test_springs_are_fitted_on_each_full_event_not_the_aligned_overlap(self):
+        times = np.arange(0, 1.2, 1 / 120)
+        curve = [10.0] + list(10 + 90 * springfit.step_response(times, 0.4, 0.7))
+        native = {key: [10.0] * len(curve) for key in align.KEYS}
+        flutter = {key: [10.0] * len(curve) for key in align.KEYS}
+        native["width"], flutter["width"] = list(curve), list(curve)
+        native["height"] = [float(i) for i in range(len(curve))]
+        flutter["height"] = [float(i + 16) for i in range(len(curve))]
+        result = analyze.compare_motion({"events": [{"series": native}]}, {"events": [{"series": flutter}]})
+        event = result["events"][0]
+        self.assertNotEqual(event["lag_ms"], 0)
+        self.assertEqual(event["width"]["response_pct"], 0.0)
+        self.assertEqual(event["width"]["damping"], 0.0)
 
 
 class MotionCheckTests(unittest.TestCase):
