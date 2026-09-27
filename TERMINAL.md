@@ -248,6 +248,13 @@ rebuilt (§6).
   (`terminal-core.ts:65,179`), which only dedupes `onChange` notifications. `takeDirty()` (`terminal-core.ts:297`) and
   `onRowEvents()` (`terminal-core.ts:308`) are how `DomBlockRenderer` learns
   which rows to repaint without diffing the whole snapshot.
+  A rewrap's `remap` pairs cover only the old completed rows; where the rows
+  after them went (an agent's live frame, a prompt kept on screen) is
+  `TerminalCore::take_remap_end()` (`crates/vt-core/src/remap_end.rs`), kept
+  outside `Delta` so the parser goldens' delta digests do not change. vt-wasm
+  appends it as the last pair of its remap buffer and `takeRowEvent`
+  (`ts/core/src/row-events.ts`) pops it into `RowEvent.remapEnd`;
+  `remapStableRow(row, event)` applies both.
 
 ---
 
@@ -1984,6 +1991,50 @@ history of `master`.
 - Guards: `crates/vt-host/src/replay_first_prompt_tests.rs`; `vtwasm/line_editor_test.go`
   `TestReplayAtTheFirstSuppressedPromptHandsTheLineEditorToTheAttachingCore`.
 
+### 4.51 Shift+click, rectangles, and a selection that survives a width change (wishlist wave 1, 2026-09-27)
+- Before: Shift only bypassed mouse reporting (`ts/react/src/use-surface-input.ts:122`);
+  nothing remembered a plain click; there was no rectangle; and
+  `TerminalSurface.tsx:330` cleared the selection on every grid change. Warp also
+  clears on a resize (`app/src/terminal/model/blocks.rs:2299-2301`,
+  `model/alt_screen.rs:125-127`); the wishlist's owner asked for survival (item 6).
+  Copy and double-click on a rewrapped continuation row were shifted by its hanging
+  indent: the row is padded (`row-builder.ts:50-51`), columns count from the padded
+  edge, the text has no indent.
+- Now: Shift+press (one click, not reported) extends the selection's tail from its
+  head, keeping the kind; with no selection it selects from the *caret*, the last
+  plain press that went to the selection (Ghostty `src/Surface.zig:3852-3882`,
+  behaviour only; Warp's Shift+click selects blocks, `app/src/terminal/view.rs:18407`,
+  and Operator has no block selection). Alt held at the press (with or without
+  Cmd/Ctrl) selects a rectangle: `SelectionKind` `"rectangle"`, a range with
+  `rectangle: true`, the same cells painted on every row, copy one slice per row
+  (Warp's chord is Cmd+Option / Ctrl+Alt, `warpui_core/src/text/mod.rs:42-54`;
+  Ghostty's Option alone, `surface_mouse.zig:98-103`). Alt wins over Shift; in a
+  mouse-reporting program Shift+Alt selects. A primary-screen selection keeps a
+  *line anchor* per point (first row of its logical line + cells into it,
+  `selection-anchor.ts`); row events move the anchor and `RendererSelection.view()`
+  resolves the point against the new rows, so the highlight and the copy stay on
+  the same text; rows after the rewrapped ones move by `remapEnd` (§2). The
+  alternate screen is not remapped and a real resize still clears it. A rectangle is
+  kept only when a remap moves its rows as a block. `TextRows.rowIndent` makes copy,
+  word expansion, rectangles and anchors subtract a row's hanging indent.
+- Not covered: hover links and hint labels on an indented continuation row still
+  use the padded column space; a caret or selection on rows that a Plan 10 pull-back
+  rewrites keeps its stable row but not its text (not known to occur); two rewraps
+  delivered by two syncs without a snapshot in between lose the first remap
+  (`vt-wasm/src/lib.rs` clears the buffer per delta; not known to occur, every
+  renderer `sync` is followed by a snapshot).
+- Guards: `crates/vt-core/tests/remap_end.rs`; `ts/core/src/row-events.test.ts`,
+  `terminal-core.test.ts` "reports where the rows after the rewrapped ones went";
+  renderer-dom `selection-anchor.test.ts`, `renderer-selection.test.ts`,
+  `selection-rewrap.test.ts`, `selection-extend.test.ts`,
+  `selection-rectangle.test.ts`, `selection-indent.test.ts` and the new cases in
+  `selection-model.test.ts`, `selection-text.test.ts`, `selection-geometry.test.ts`,
+  `highlight-painter.test.ts`; react `TerminalSurface.shift-click.test.tsx`,
+  `TerminalSurface.rectangle.test.tsx`, `TerminalSurface.selection.test.tsx`
+  "keeps a primary-screen selection on its words across a real resize" and "clears
+  an alternate-screen selection on a real resize", `selection-gesture.test.ts`
+  "rectangleModifierHeld"; `npm run bench:selection:extras`.
+
 ## 5. Known gaps (not bugs, decisions pending)
 
 - **A prompt resize that would cut output falls back to the stale-copy
@@ -2450,6 +2501,7 @@ cd /Users/omaraly/development/AI/Operator/packages/terminal
 npm run build:wasm -- --force && npm run build:ts
 for p in core renderer-dom react; do (cd ts/$p && npx vitest run); done
 npm run bench:selection      # Playwright: a selection must survive 20 repaints
+npm run bench:selection:extras  # Playwright: Shift+click across scrolled rows, Alt-drag rectangle, a word selected across a resize
 npm run bench:feel           # Playwright: zero pixel diff vs bench/agent-session/baselines (record with -- --record)
 npm run bench:glyphs         # Playwright: evidence for the glyph probe (box-drawing gap, width-cache drift), writes baselines/glyph-probe/EVIDENCE*.json
 npm run bench:feel -- --feature <list>  # Playwright: side-by-side screenshots for a flag, e.g. attributes=plain — never diffed, only recorded

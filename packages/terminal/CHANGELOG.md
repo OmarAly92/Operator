@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- react: Shift+click extends the selection from its anchor to the clicked cell (across blocks and rows scrolled out of view); with no selection it selects from the last plain click. A Shift double-click is a plain double-click; Shift+drag keeps extending (`TERMINAL.md` §4.51).
+- react/renderer-dom: Alt-drag (Option-drag; Cmd+Option and Ctrl+Alt too) selects a rectangle; copy gives each row's slice, one line per row. In a mouse-reporting program use Shift+Alt.
+- renderer-dom/react: a selection on the transcript stays on the same text, and copies the same text, when the pane changes width; a full-screen program's selection is still cleared by a resize. core: `RowEvent.remapEnd` and `remapStableRow`; vt-core: `TerminalCore::take_remap_end`, outside `Delta`.
+- renderer-dom: copy and double-click on a rewrapped continuation row (a hanging indent) use the cells that are painted, not cells shifted by the indent.
 - editor: a typeahead report that arrives after keys were typed into the box at the new prompt is inserted ahead of them, so `qls` quitting `less` gives `ls`, not `sl` (`TERMINAL.md` §4.49).
 - vt-core: `CSI 3 J` (erase saved lines) no longer blanks the screen rows that belong to a closed block or to the gap before the open block; rows past them are blanked as before, so a stream with no shell marks (the Alacritty `clear_underline` recording) is unchanged. macOS `clear` sends `ESC[3J ESC[H ESC[2J`: the `3J` wiped every earlier command's output still on screen, live (fish) and on every reload of a shell pane (`TERMINAL.md` §4.46). Warp clears only the active block's history for `ClearMode::Saved` (`warp_terminal/src/model/grid/ansi_handler.rs:864`).
 - vt-host: the attach replay's settled rows include a finished block with no rows (`clear` ends with its `133;D` on an empty row), so its command row is not replayed a second time below the durable blocks.
