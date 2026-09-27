@@ -140,7 +140,7 @@ export class DomBlockRenderer implements BlockRenderer {
 				if (!this.scroll.stickToBottom) this.scroll.captureAnchor();
 				this.scheduleRepaint();
 			},
-			onRowRemap: (remap) => this.scroll.remapAnchor(remap),
+			onRowEvents: (event) => { this.scroll.remapAnchor(event.remap); this.highlights.selection.followRows(event); },
 			onChange: () => {
 				this.echo.noteReceived(performance.now());
 				this.scheduleRepaint();

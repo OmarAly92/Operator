@@ -1,4 +1,5 @@
-import type { BlockView } from "@operator/terminal-core";
+import type { BlockView, RowEvent } from "@operator/terminal-core";
+import { anchorOf, followAnchor, followPoint, pointOf, type LineAnchor } from "./selection-anchor.js";
 import type { SelectionKind, SelectionPoint, SelectionState } from "./selection-model.js";
 import { selectedText, type TextRows } from "./selection-text.js";
 import { resolveSelectionView, type SelectionView } from "./selection-view.js";
@@ -9,27 +10,47 @@ export type RendererSelectionDeps = Readonly<{
 	repaint: () => void;
 }>;
 
+type Anchors = Readonly<{ head: LineAnchor | null; tail: LineAnchor | null }>;
+
 export class RendererSelection {
 	private selection: SelectionState | null = null;
+	private anchors: Anchors | null = null;
+	private anchoredFor: SelectionState | null = null;
+	private moved = false;
 	private readonly selectionListeners = new Set<() => void>();
 
 	constructor(private readonly deps: RendererSelectionDeps) {}
 
 	begin(point: SelectionPoint, kind: SelectionKind): void {
-		this.selection = { head: point, tail: point, kind };
-		this.changed();
+		this.set({ head: point, tail: point, kind });
 	}
 
 	update(point: SelectionPoint): void {
 		if (!this.selection) return;
-		this.selection = { ...this.selection, tail: point };
-		this.changed();
+		this.set({ ...this.selection, tail: point });
 	}
 
 	clear(): void {
 		if (!this.selection) return;
-		this.selection = null;
+		this.forget();
 		this.changed();
+	}
+
+	followRows(event: RowEvent): void {
+		const selection = this.selection;
+		if (!selection || (!event.remap && !event.remapEnd)) return;
+		this.selection = { ...selection, head: followPoint(selection.head, event), tail: followPoint(selection.tail, event) };
+		if (this.anchors && this.anchoredFor === selection) {
+			this.anchors = {
+				head: this.anchors.head && followAnchor(this.anchors.head, event),
+				tail: this.anchors.tail && followAnchor(this.anchors.tail, event),
+			};
+			this.anchoredFor = this.selection;
+			this.moved = true;
+			return;
+		}
+		this.anchors = null;
+		this.anchoredFor = null;
 	}
 
 	text(): string | null {
@@ -46,7 +67,7 @@ export class RendererSelection {
 
 	drop(): void {
 		if (!this.selection) return;
-		this.selection = null;
+		this.forget();
 		this.notifyListeners();
 	}
 
@@ -58,13 +79,44 @@ export class RendererSelection {
 	}
 
 	view(): SelectionView | null {
-		const selection = this.selection;
-		if (!selection || !this.deps.hasCore()) return null;
-		return resolveSelectionView(selection, this.deps.textRows());
+		if (!this.selection || !this.deps.hasCore()) return null;
+		const rows = this.deps.textRows();
+		const selection = this.settle(rows);
+		return selection ? resolveSelectionView(selection, rows) : null;
 	}
 
 	reset(): void {
+		this.forget();
+	}
+
+	private set(selection: SelectionState): void {
+		this.selection = selection;
+		this.changed();
+	}
+
+	private settle(rows: TextRows): SelectionState | null {
+		const selection = this.selection;
+		if (!selection) return null;
+		if (this.moved && this.anchors) {
+			this.moved = false;
+			const head = (this.anchors.head && pointOf(this.anchors.head, rows)) ?? selection.head;
+			const tail = (this.anchors.tail && pointOf(this.anchors.tail, rows)) ?? selection.tail;
+			this.selection = { ...selection, head, tail };
+			this.anchoredFor = this.selection;
+			return this.selection;
+		}
+		if (this.anchoredFor !== selection) {
+			this.anchors = { head: anchorOf(selection.head, rows), tail: anchorOf(selection.tail, rows) };
+			this.anchoredFor = selection;
+		}
+		return selection;
+	}
+
+	private forget(): void {
 		this.selection = null;
+		this.anchors = null;
+		this.anchoredFor = null;
+		this.moved = false;
 	}
 
 	private changed(): void {
