@@ -1984,6 +1984,64 @@ history of `master`.
 - Guards: `crates/vt-host/src/replay_first_prompt_tests.rs`; `vtwasm/line_editor_test.go`
   `TestReplayAtTheFirstSuppressedPromptHandsTheLineEditorToTheAttachingCore`.
 
+### 4.51 The input box only knew this pane's commands and offered no fix for a failed one (wishlist wave 1, 2026-09-27)
+- Symptom: ↑ in a shell pane's input box reached only the commands of that pane's own
+  core (`LineEditor.ingestHistory` read `decodeBlocks` of this core, the model was reset at
+  every mount), so a new pane, a reopened pane or another pane's work was out of reach;
+  any output during a walk restarted it from the newest entry (`HistoryModel.ingest` reset
+  the walk on every core change). A failed `git push` with no upstream left the user to
+  copy the suggested command by hand.
+- Now, history: the daemon answers `GET /api/v1/terminal-history` from `terminal_blocks`
+  (every standalone shell block is already recorded there, closed terminals included):
+  the newest 5,000 rows across terminals (index `terminal_blocks_finished`, migration
+  0120), newest occurrence of each command, oldest first, 500 by default and 1,000 at
+  most. Commands `redact.Text` would mask (built-ins and `redact-patterns.txt`), commands
+  starting with a space, with a control character (newline and tab allowed), invalid
+  UTF-8 or over 4 KiB never leave the daemon. The editor takes a host
+  `CommandHistorySource { entries, subscribe, refresh? }` (`ts/editor/src/history.ts`);
+  `HistoryModel` puts the pane's own block commands after the shared timeline (macOS
+  Terminal's per-session history, `/etc/zshrc_Apple_Terminal:74-77`; Warp
+  `app/src/terminal/history.rs:828-887`), dedupes globally, keeps the entry on screen when
+  a refresh lands mid-walk, and ↓ past the newest returns the typed prefix. Operator's
+  store (`frontend/src/renderer/lib/command-history.ts`) refreshes on first use, window
+  focus, 500 ms after a shell block finishes and at the start of each walk.
+- Now, quick fixes: a host passes `QuickFixRule[]`; the editor evaluates them once per
+  block that becomes the newest settled block while mounted (never a replayed block,
+  never on the alternate screen), reading the output once with
+  `readBlockOutput(id, { maxLines: 201 })`. The fix shows above the prompt row ("Suggested
+  fix … [Use]") and as ghost text while the box is empty; → or Use puts it in the box;
+  typing hides it; nothing runs without Enter (Warp's command correction,
+  `app/src/terminal/view.rs:15175-15215`). Starter rules ported from VS Code (MIT,
+  `ts/editor/src/VSCODE-QUICK-FIX-ATTRIBUTION.md`): set-upstream push, similar git
+  subcommand, two-dash git option, free a busy port. Captures pass narrow character
+  classes and `safeFix` drops controls, newlines and no-op fixes, because anything on the
+  pty can forge `cmd=` and output (no nonce yet, survey §6.1).
+- Now, the switch and retention (amendment, 2026-09-27): quick fixes have an on/off switch in
+  Settings → General, on by default (`frontend/src/renderer/lib/terminal-quick-fixes.ts`,
+  `localStorage` key `opr.terminal.quickFixesEnabled`), gating `quickFixRules` between
+  `DEFAULT_QUICK_FIX_RULES` and an empty array — the package needed no new prop, since an empty
+  rule list already disables every fix. A closed shell terminal's blocks (no row left in
+  `shell_terminals`) have their raw output cleared 7 days after the last command finished and the
+  whole row deleted 30 days after that (`backend/internal/observe/blockretention`, migration 0121);
+  a terminal that can still be re-attached to is never touched, checked in the SQL itself. The
+  janitor runs once at daemon start and every 6 hours, the same shape as `observe/reaper`.
+- Limits: history holds only commands run in Operator's standalone shell panes, 100 per
+  terminal (`retainPerTerminal`); agent panes are not captured. Redaction matches shapes,
+  not intent (`mysql -phunter2` is kept). A pane's own commands stay in its own ↑, secrets
+  included, as before. A reopened pane's replayed commands rank above newer commands of
+  other panes (by design: they are the pane's own). The shell's history file is not read.
+- Real-app checks still open (need the Tauri window): two panes share ↑; ↑ after a daemon
+  and app restart; a closed pane's command; a secret not shared; the push fix chip, Use,
+  Enter; `git stauts`, `-amend`, busy port; no chip in a Claude Code pane; the phone reads
+  the route over the LAN listener.
+- Guards: `service/terminalblock/history_test.go`, `integration/shell_history_test.go`
+  (zsh, bash, fish; close and reopen), `controllers/terminal_history_test.go`,
+  `ts/editor/src/{history,line-editor-history,quick-fix,line-editor-quick-fix}.test.ts`,
+  `ts/react/src/TerminalSurface.history.test.tsx`,
+  `frontend/src/renderer/lib/command-history.test.ts`, `BlockTerminal.test.tsx` "BlockTerminal
+  shared history and quick fixes", `GeneralSettingsSection.test.tsx` (switch reload case),
+  `observe/blockretention/retention_test.go` (Task 7.5/7.6).
+
 ## 5. Known gaps (not bugs, decisions pending)
 
 - **A prompt resize that would cut output falls back to the stale-copy
