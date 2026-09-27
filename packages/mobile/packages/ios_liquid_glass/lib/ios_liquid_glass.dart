@@ -3,6 +3,7 @@ library;
 
 import 'package:flutter/foundation.dart' show kDebugMode;
 
+export 'src/accessibility/glass_accessibility.dart' show GlassAccessibility, GlassAccessibilityData;
 export 'src/fake_glass.dart' show FakeGlass;
 export 'src/glass_glow.dart' show GlassGlow, GlassGlowLayer;
 export 'src/internal/glass_drag_builder.dart' show GestureMode;

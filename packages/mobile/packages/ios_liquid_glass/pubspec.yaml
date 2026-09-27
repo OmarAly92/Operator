@@ -22,6 +22,10 @@ dev_dependencies:
     sdk: flutter
 
 flutter:
+  plugin:
+    platforms:
+      ios:
+        pluginClass: IosLiquidGlassPlugin
   shaders:
     - lib/assets/shaders/liquid_glass_geometry_blended.frag
     - lib/assets/shaders/liquid_glass_final_render.frag
