@@ -35,3 +35,10 @@ func TestReadTurnSummaryKeepsTheStartOfALongReply(t *testing.T) {
 		t.Fatalf("summary = %q", got)
 	}
 }
+
+func TestReadTurnSummaryReadsNothingWhenTheComposerHasNoRuleAbove(t *testing.T) {
+	summary := "⏺ Done: 42 tests pass.\n\n❯\n────────\n  ⏵⏵ auto mode on (shift+tab to cycle) · ← for agents"
+	if got, ok := (&Plugin{}).ReadTurnSummary(summary); ok || got != "" {
+		t.Fatalf("summary = %q, %v", got, ok)
+	}
+}
