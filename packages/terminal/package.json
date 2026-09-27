@@ -16,6 +16,7 @@
 		"bench:terminal": "node ./bench/runner.mjs",
 		"bench:scroll": "node ./bench/scroll-gate.mjs",
 		"bench:selection": "node ./bench/selection-gate.mjs",
+		"bench:selection:extras": "node ./bench/selection-extras-gate.mjs",
 		"bench:baseline": "node ./bench/runner.mjs",
 		"bench:gate": "node ./bench/gate.mjs",
 		"bench:agent": "node ./bench/agent-session/run.mjs",
