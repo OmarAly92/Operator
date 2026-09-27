@@ -309,6 +309,33 @@ fn the_claude_code_recordings_carry_no_agent_event() {
         core.set_agent_tui_mode(true);
         core.feed(&recording);
         assert!(core.take_agent_events().is_empty(), "{name}");
-        assert_eq!(core.live_output_bytes(), recording.len() as u64, "{name}");
+        assert_eq!(
+            core.live_output_bytes(),
+            (recording.len() - osc_bytes(&recording)) as u64,
+            "{name}"
+        );
     }
+}
+
+fn osc_bytes(bytes: &[u8]) -> usize {
+    let mut total = 0;
+    let mut from = 0;
+    while let Some(start) = bytes[from..]
+        .windows(2)
+        .position(|pair| pair == b"\x1b]")
+        .map(|at| at + from)
+    {
+        let body = start + 2;
+        let Some(stop) = (body..bytes.len()).find(|&at| matches!(bytes[at], 0x07 | 0x1b)) else {
+            break;
+        };
+        let end = match bytes[stop] {
+            0x07 => stop + 1,
+            _ if bytes.get(stop + 1) == Some(&b'\\') => stop + 2,
+            _ => stop,
+        };
+        total += end - start;
+        from = end;
+    }
+    total
 }

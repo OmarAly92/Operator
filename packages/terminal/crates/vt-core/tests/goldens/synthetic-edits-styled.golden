@@ -7,7 +7,7 @@ renderer links 83317850f1f3369a
 renderer cursor 1119 9 true history 1118 first_stable 0 editor 0
 renderer alt none
 renderer modes app_cursor=false sgr_mouse=false paste=false focus=false mouse=0 sync=false pending_sync=0
-renderer program title="" pointer="" stack=0 live_output=200887 older=OlderState { floor: None, marks: 0 }
+renderer program title="" pointer="" stack=0 live_output=175670 older=OlderState { floor: None, marks: 0 }
 renderer replies ""
 renderer notifications 0 cbf29ce484222325
 renderer agent_events 0 cbf29ce484222325
@@ -22,7 +22,7 @@ renderer-odd links 83317850f1f3369a
 renderer-odd cursor 1119 9 true history 1118 first_stable 0 editor 0
 renderer-odd alt none
 renderer-odd modes app_cursor=false sgr_mouse=false paste=false focus=false mouse=0 sync=false pending_sync=0
-renderer-odd program title="" pointer="" stack=0 live_output=200887 older=OlderState { floor: None, marks: 0 }
+renderer-odd program title="" pointer="" stack=0 live_output=175804 older=OlderState { floor: None, marks: 0 }
 renderer-odd replies ""
 renderer-odd notifications 0 cbf29ce484222325
 renderer-odd agent_events 0 cbf29ce484222325
@@ -37,7 +37,7 @@ mirror links 83317850f1f3369a
 mirror cursor 1139 9 true history 1138 first_stable 0 editor 0
 mirror alt none
 mirror modes app_cursor=false sgr_mouse=false paste=false focus=false mouse=0 sync=false pending_sync=0
-mirror program title="" pointer="" stack=0 live_output=200887 older=OlderState { floor: None, marks: 0 }
+mirror program title="" pointer="" stack=0 live_output=175670 older=OlderState { floor: None, marks: 0 }
 mirror replies ""
 mirror notifications 0 cbf29ce484222325
 mirror agent_events 0 cbf29ce484222325
@@ -50,7 +50,7 @@ agent-odd links 83317850f1f3369a
 agent-odd cursor 190 9 true history 189 first_stable 0 editor 0
 agent-odd alt none
 agent-odd modes app_cursor=false sgr_mouse=false paste=false focus=false mouse=0 sync=false pending_sync=0
-agent-odd program title="" pointer="" stack=0 live_output=200887 older=OlderState { floor: None, marks: 0 }
+agent-odd program title="" pointer="" stack=0 live_output=175804 older=OlderState { floor: None, marks: 0 }
 agent-odd replies ""
 agent-odd notifications 0 cbf29ce484222325
 agent-odd agent_events 0 cbf29ce484222325

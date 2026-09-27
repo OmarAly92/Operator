@@ -340,9 +340,7 @@ impl TerminalCore {
     fn advance_vte(&mut self, bytes: &[u8]) {
         self.parser.unknown.begin_feed();
         let bytes: &[u8] = &self.answer_gate.filter(bytes);
-        if !self.parser.program().agent().replaying() {
-            self.live_output = self.live_output.wrapping_add(bytes.len() as u64);
-        }
+        self.count_live_output(bytes);
         #[cfg(feature = "trace")]
         {
             for byte in bytes {

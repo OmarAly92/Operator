@@ -181,3 +181,16 @@ fn no_frame_of_the_claude_code_recordings_prompts() {
         assert_eq!(prompts, 0, "{name}");
     }
 }
+
+#[test]
+fn a_title_that_only_blinks_is_not_live_output() {
+    let mut core = core();
+    core.feed(b"working\r\n");
+    let live = core.live_output_bytes();
+    core.feed(b"\x1b]0;[ ! ] Action Required | Create approved.txt\x07");
+    core.feed(b"\x1b]0;[ . ] Action Required | Create approved.txt\x1b\\");
+    core.feed(b"\x1b]2;one\x07\x1b]0;two\x07");
+    assert_eq!(core.live_output_bytes(), live);
+    core.feed(b"\x1b]0;busy\x07x");
+    assert_eq!(core.live_output_bytes(), live + 1);
+}

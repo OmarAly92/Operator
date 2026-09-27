@@ -63,7 +63,7 @@ fn the_wasm_core_exposes_agent_events_and_live_output() {
     assert_eq!(core.take_agent_events(), vec!["working", "Read"]);
     assert!(core.take_agent_events().is_empty());
     assert_eq!(core.program_generation().wrapping_sub(start), 1);
-    assert_eq!(core.live_output_bytes(), bytes.len() as f64);
+    assert_eq!(core.live_output_bytes(), 2.0);
 }
 
 #[test]
