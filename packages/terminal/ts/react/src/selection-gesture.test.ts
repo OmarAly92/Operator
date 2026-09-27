@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { autoScrollRows, exceedsDragThreshold, isCopyChord, isHintChord, kindForClickCount, linkModifierHeld } from "./selection-gesture";
+import { autoScrollRows, exceedsDragThreshold, isCopyChord, isHintChord, kindForClickCount, linkModifierHeld, rectangleModifierHeld } from "./selection-gesture";
 
 describe("exceedsDragThreshold", () => {
 	it("ignores jitter under half a pixel, Warp's MIN_DELTA_FOR_TEXT_SELECTION", () => {
@@ -54,5 +54,12 @@ describe("isHintChord", () => {
 		expect(isHintChord({ key: " ", code: "Space", ctrlKey: true, shiftKey: false, metaKey: false, altKey: false })).toBe(false);
 		expect(isHintChord({ key: "a", code: "KeyA", ctrlKey: true, shiftKey: true, metaKey: false, altKey: false })).toBe(false);
 		expect(isHintChord({ key: " ", code: "Space", ctrlKey: true, shiftKey: true, metaKey: true, altKey: false })).toBe(false);
+	});
+});
+
+describe("rectangleModifierHeld", () => {
+	it("is Alt (Option) with or without other modifiers, so Warp's Cmd+Option and Ctrl+Alt count too", () => {
+		expect(rectangleModifierHeld({ altKey: true })).toBe(true);
+		expect(rectangleModifierHeld({ altKey: false })).toBe(false);
 	});
 });

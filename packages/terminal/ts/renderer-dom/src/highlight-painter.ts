@@ -80,7 +80,7 @@ type RowFrame = Readonly<{ left: number; width: number; key: string }>;
 
 function highlightKey(highlights: readonly Highlight[]): string {
 	return highlights
-		.map(({ kind, colour, rank, range: { start, end } }) => `${kind}:${colour}:${rank}:${start.blockId}:${start.row}:${start.cell}:${end.blockId}:${end.row}:${end.cell}`)
+		.map(({ kind, colour, rank, range: { start, end, rectangle } }) => `${kind}:${colour}:${rank}:${start.blockId}:${start.row}:${start.cell}:${end.blockId}:${end.row}:${end.cell}:${rectangle === true}`)
 		.join("|");
 }
 

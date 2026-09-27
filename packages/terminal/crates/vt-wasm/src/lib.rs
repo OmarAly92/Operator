@@ -164,6 +164,7 @@ impl WasmTerminalCore {
             return Ok(generation as u32);
         }
         let delta = self.core.take_delta();
+        let remap_end = self.core.take_remap_end();
         self.export.apply(&self.core, &delta)?;
         self.synced_generation = Some(generation);
         let first_stable = self.export.first_stable_row();
@@ -192,7 +193,7 @@ impl WasmTerminalCore {
             .saturating_add(delta.trimmed_rows as u32);
         if let Some(pairs) = delta.remap {
             self.remap.clear();
-            for (old, new) in pairs {
+            for (old, new) in pairs.into_iter().chain(remap_end) {
                 self.remap.push(checked_u32_from_u64(old)?);
                 self.remap.push(checked_u32_from_u64(new)?);
             }

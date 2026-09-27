@@ -1,4 +1,4 @@
-import { defaultStrings, type BlockId, type BlockView, type TerminalCore } from "@operator/terminal-core";
+import { defaultStrings, type BlockId, type BlockView, type RowEvent, type TerminalCore } from "@operator/terminal-core";
 import { bindActionEvents } from "./action-events.js";
 import type { BlockFilter } from "./block-filter.js";
 import { mountBlockNavFromRenderer, type BlockNavHandle } from "./block-nav.js";
@@ -7,7 +7,7 @@ import { mountJumpToBottom } from "./jump-to-bottom.js";
 
 export type RendererWiringHost = Readonly<{
 	onScroll: () => void;
-	onRowRemap: (remap: ReadonlyArray<readonly [number, number]> | null) => void;
+	onRowEvents: (event: RowEvent) => void;
 	onChange: () => void;
 	onVisibilityChange: () => void;
 	getBlocks: () => readonly BlockView[];
@@ -23,7 +23,7 @@ export type RendererWiring = Readonly<{ blockNav: BlockNavHandle; teardown: () =
 
 export function wireRenderer(container: HTMLElement, core: TerminalCore, host: RendererWiringHost): RendererWiring {
 	const scrollUnsubscribe = listenScroll(container, () => host.onScroll());
-	const rowEventsUnsubscribe = core.onRowEvents((event) => host.onRowRemap(event.remap));
+	const rowEventsUnsubscribe = core.onRowEvents((event) => host.onRowEvents(event));
 	const unsubscribe = core.onChange(() => host.onChange());
 	document.addEventListener("visibilitychange", host.onVisibilityChange);
 	const blockNav = mountBlockNavFromRenderer({ container, getBlocks: () => host.getBlocks(), scrollToBlock: (id, align) => host.scrollToBlock(id, align), isAltScreenActive: () => core.snapshot().altScreen !== null });

@@ -550,3 +550,12 @@ and the shell scripts are current). Each plan adds its checks here when it merge
   while it runs: as before. Resize a Claude Code pane: looks as before (its one
   duplicated row per width change is upstream, `TERMINAL.md` §4.8).
 - **Input ordering fix (d1a962b8f):** nothing to click; covered by tests.
+- **Wishlist wave 1 — selection:** in a zsh pane run `seq 1 300`; click on `10`,
+  scroll to the bottom, Shift+click after `290`, Cmd+C: the clipboard holds 10 to 290.
+  Plain click, then Shift+click in a Claude Code pane across a reply and the grey
+  message band: one selection, copy gives the text. Alt-drag over `ls -l` output:
+  a box; copy gives each row's slice. Cmd+Option-drag does the same. Select a
+  sentence in a long Claude reply and drag the window narrower and wider: the
+  highlight stays on the sentence and copy gives it unchanged. In `vim` (with
+  `:set mouse=a`) Shift+click extends and Shift+Alt-drag makes a box; resizing
+  clears a selection there.

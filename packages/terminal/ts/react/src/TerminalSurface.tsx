@@ -327,7 +327,7 @@ export function TerminalSurface({
 			}
 			gridColumnsRef.current = columns;
 			gridRowsRef.current = rows;
-			if (changed) renderer.selectionClear();
+			if (changed && core.snapshot().altScreen !== null) renderer.selectionClear();
 			core.resize(columns, rows);
 			onGeometry?.(columns, rows, { width: cellWidth, height: cellHeight });
 		};
