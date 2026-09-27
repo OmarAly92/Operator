@@ -79,6 +79,15 @@ describe("Shift+click", () => {
 		expect(copy()).toBe("delta");
 	});
 
+	it("extends a word-kind selection by whole words", async () => {
+		const { rows, copy } = await mounted("alpha beta gamma\r\n");
+		mouse(rows[0]!, "mousedown", cellWidth * 7 + 1, cellHeight * 0.5, { detail: 2 });
+		mouse(window, "mouseup", cellWidth * 7 + 1, cellHeight * 0.5, { detail: 2 });
+		expect(copy()).toBe("beta");
+		click(rows[0]!, cellWidth * 13 + 1, cellHeight * 0.5, { shiftKey: true });
+		expect(copy()).toBe("beta gamma");
+	});
+
 	it("extends inside a mouse-reporting program instead of reporting the click", async () => {
 		const { rows, copy, onSendRaw } = await mounted("\x1b[?1000h\x1b[?1006halpha\r\nbeta\r\n");
 		mouse(rows[0]!, "mousedown", 1, cellHeight * 0.5, { detail: 1, shiftKey: true });
