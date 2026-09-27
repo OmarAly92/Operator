@@ -2,7 +2,7 @@ use crate::{CORES, RENDER_ERR, RENDER_TOO_BIG};
 
 const KNOWN_COLOR: u32 = 0x0100_0000;
 
-fn write_out(bytes: &[u8], out_ptr: u32, out_cap: u32) -> u32 {
+pub(crate) fn write_out(bytes: &[u8], out_ptr: u32, out_cap: u32) -> u32 {
     if bytes.len() > out_cap as usize {
         return RENDER_TOO_BIG;
     }

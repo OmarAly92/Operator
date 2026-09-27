@@ -1,3 +1,4 @@
+mod activity;
 mod block_marks;
 mod line_editor_marks;
 mod older;
