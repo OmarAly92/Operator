@@ -8,6 +8,7 @@ import (
 	"sync"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/OmarAly92/operator/backend/internal/domain"
 	"github.com/OmarAly92/operator/backend/internal/mobilebridge"
@@ -59,11 +60,8 @@ func TestAlertsSendsWhenPairedAndBackgrounded(t *testing.T) {
 		t.Fatalf("sent=%+v topics=%v", sender.sent, sender.topics)
 	}
 	got := sender.sent[0]
-	if got.Title != "operator-4 finished" || got.Message != "finished" || got.Click != "operator://session/operator-4" {
-		t.Fatalf("alert = %+v", got)
-	}
-	if strings.Contains(got.Title+got.Message, "secret") {
-		t.Fatal("alert leaked the notification body")
+	if got.Title != "operator-4 finished" || got.Message != "Implemented X in /secret/path.go" || got.Click != "operator://session/operator-4" {
+		t.Fatalf("alert = %+v, want the notification body as the message", got)
 	}
 }
 
@@ -128,7 +126,7 @@ func TestAlertsPRTypesNeverCarryThePRTitle(t *testing.T) {
 	rec.Title = "Secret refactor · PR #12"
 	rec.PRURL = "https://github.com/o/r/pull/12"
 	a.dispatch(context.Background(), rec)
-	if len(sender.sent) != 1 || strings.Contains(sender.sent[0].Title, "Secret") {
+	if len(sender.sent) != 1 || strings.Contains(sender.sent[0].Title, "Secret") || sender.sent[0].Message != "ready to merge" {
 		t.Fatalf("sent = %+v", sender.sent)
 	}
 }
@@ -200,5 +198,39 @@ func TestTestWhenNotReadyIsNotRecordedAsADelivery(t *testing.T) {
 	}
 	if st := a.Status(); st.LastDelivery != nil {
 		t.Fatalf("last delivery = %+v, want none", st.LastDelivery)
+	}
+}
+
+func TestAlertsMaskSecretsAndStripControlsInTheBody(t *testing.T) {
+	a, sender, _ := setup(t, paired, true, false)
+	rec := record(domain.NotificationNeedsInput, "s1")
+	rec.Body = "Run \x1b[31mcurl -H 'Authorization: Bearer abcdefghijklmnop1234'\x1b[0m with password=hunter2hunter2?\x07\nnext line"
+	a.dispatch(context.Background(), rec)
+	if len(sender.sent) != 1 || sender.sent[0].Message != "Run curl -H 'Authorization: Bearer [redacted]' with password=[redacted] next line" {
+		t.Fatalf("sent = %+v", sender.sent)
+	}
+	a.dispatch(context.Background(), record(domain.NotificationAgentExited, "s2"))
+	if len(sender.sent) != 2 || sender.sent[1].Message != "exited" {
+		t.Fatalf("exited alert = %+v, want the event word", sender.sent)
+	}
+	blank := record(domain.NotificationTurnFinished, "s3")
+	blank.Body = "\x1b[0m\x07 "
+	a.dispatch(context.Background(), blank)
+	if len(sender.sent) != 3 || sender.sent[2].Message != "finished" {
+		t.Fatalf("blank body alert = %+v, want the event word", sender.sent)
+	}
+}
+
+func TestAlertsCapTheBodyAtNtfysMessageLimit(t *testing.T) {
+	a, sender, _ := setup(t, paired, true, false)
+	rec := record(domain.NotificationTurnFinished, "s1")
+	rec.Body = strings.Repeat("é", ntfyMessageBytes)
+	a.dispatch(context.Background(), rec)
+	if len(sender.sent) != 1 {
+		t.Fatalf("sent %d, want 1", len(sender.sent))
+	}
+	msg := sender.sent[0].Message
+	if len(msg) > ntfyMessageBytes || !utf8.ValidString(msg) || !strings.HasPrefix(msg, "éé") || !strings.HasSuffix(msg, "…") {
+		t.Fatalf("message is %d bytes, valid UTF-8 %v, want at most %d ending in …", len(msg), utf8.ValidString(msg), ntfyMessageBytes)
 	}
 }

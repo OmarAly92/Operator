@@ -14,6 +14,7 @@ const (
 	DefaultNtfyServer = "https://ntfy.sh"
 	ntfyTimeout       = 5 * time.Second
 	ntfyRetryDelay    = 2 * time.Second
+	ntfyMessageBytes  = 4096
 	PriorityDefault   = "default"
 	PriorityHigh      = "high"
 )

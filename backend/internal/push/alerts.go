@@ -6,11 +6,14 @@ import (
 	"io"
 	"log/slog"
 	"net/url"
+	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/OmarAly92/operator/backend/internal/domain"
 	"github.com/OmarAly92/operator/backend/internal/mobilebridge"
+	"github.com/OmarAly92/operator/backend/internal/redact"
 )
 
 const (
@@ -195,7 +198,7 @@ func (a *Alerts) recordDelivery(err error) Delivery {
 }
 
 func alertFor(rec domain.NotificationRecord) Alert {
-	alert := Alert{Title: rec.Title, Message: eventWord(rec.Type), Priority: PriorityDefault}
+	alert := Alert{Title: rec.Title, Message: phoneMessage(rec), Priority: PriorityDefault}
 	if rec.SessionID != "" {
 		alert.Click = "operator://session/" + url.PathEscape(string(rec.SessionID))
 	}
@@ -207,6 +210,28 @@ func alertFor(rec domain.NotificationRecord) Alert {
 		alert.Click = "operator://prs"
 	}
 	return alert
+}
+
+func phoneMessage(rec domain.NotificationRecord) string {
+	if rec.Type != domain.NotificationNeedsInput && rec.Type != domain.NotificationTurnFinished {
+		return eventWord(rec.Type)
+	}
+	body := strings.Join(strings.Fields(redact.Clean(rec.Body)), " ")
+	if body == "" {
+		return eventWord(rec.Type)
+	}
+	return truncateBytes(body, ntfyMessageBytes)
+}
+
+func truncateBytes(text string, limit int) string {
+	if len(text) <= limit {
+		return text
+	}
+	cut := limit - len("…")
+	for cut > 0 && !utf8.RuneStart(text[cut]) {
+		cut--
+	}
+	return text[:cut] + "…"
 }
 
 func eventWord(t domain.NotificationType) string {
