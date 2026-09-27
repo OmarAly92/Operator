@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net"
 	"sync"
+	"time"
 
 	"github.com/OmarAly92/operator/backend/internal/ports"
 )
@@ -79,7 +80,7 @@ func (r *Runtime) runProgramWatch(id, addr string, w *programWatch) {
 		return
 	}
 	defer func() { _ = conn.Close() }()
-	frame, _ := EncodeMessage(MsgWatchReq, nil)
+	frame, _ := EncodeMessage(MsgWatchReq, []byte(`{"activity":true}`))
 	if _, err := conn.Write(frame); err != nil {
 		return
 	}
@@ -134,6 +135,14 @@ func (r *Runtime) recordProgramEvent(id string, event ProgramEventPayload) {
 		out = ports.TerminalProgramEvent{Kind: ports.TerminalProgramTitle, Title: event.Title}
 	case ProgramEventNotification:
 		out = ports.TerminalProgramEvent{Kind: ports.TerminalProgramNotification, Title: event.Title, Body: event.Body}
+	case ProgramEventActivity:
+		out = ports.TerminalProgramEvent{
+			Kind:       ports.TerminalProgramActivity,
+			Activity:   ports.TerminalActivity(event.Activity),
+			At:         time.UnixMilli(event.AtMs),
+			Tail:       event.Tail,
+			CursorLine: event.CursorLine,
+		}
 	default:
 		return
 	}

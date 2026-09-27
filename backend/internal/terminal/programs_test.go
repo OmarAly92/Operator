@@ -262,3 +262,15 @@ func TestATitleClearedDuringSubscribeIsNotOverwrittenByTheSnapshot(t *testing.T)
 		t.Fatalf("title frames = %q then %q, want the snapshot then the clear", first.Title, second.Title)
 	}
 }
+
+func TestActivityEventsNeverReachTheProgramsChannel(t *testing.T) {
+	src := newProgramSource(&fakeSource{alive: true})
+	src.titles["sess-1"] = "Refactor"
+	mgr := NewManager(src, nil, testLogger(), WithHeartbeat(0))
+	defer mgr.Close()
+	conn := serveConn(t, mgr, false)
+	subscribePrograms(t, mgr, conn)
+	recv(t, conn, chPrograms, msgTitle, time.Second)
+	src.emit("sess-1", ports.TerminalProgramEvent{Kind: ports.TerminalProgramActivity, Activity: ports.TerminalActivityIdle, Tail: "screen"})
+	assertNoProgramFrame(t, conn, 200*time.Millisecond)
+}
