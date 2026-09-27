@@ -57,3 +57,7 @@ export function linkModifierHeld(
 	if (event.altKey || event.shiftKey) return false;
 	return mac ? event.metaKey && !event.ctrlKey : event.ctrlKey && !event.metaKey;
 }
+
+export function rectangleModifierHeld(event: { altKey: boolean }): boolean {
+	return event.altKey;
+}

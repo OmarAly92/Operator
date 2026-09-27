@@ -1,7 +1,7 @@
 import { useLayoutEffect, type RefObject } from "react";
 import type { CompositionTarget, HostCapabilities, TerminalCore } from "@operator/terminal-core";
 import type { DetectedLink, DomBlockRenderer, HintEvent, SelectionKind, SelectionPoint } from "@operator/terminal-renderer-dom";
-import { autoScrollRows, exceedsDragThreshold, isCopyChord, isHintChord, kindForClickCount, linkModifierHeld } from "./selection-gesture.js";
+import { autoScrollRows, exceedsDragThreshold, isCopyChord, isHintChord, kindForClickCount, linkModifierHeld, rectangleModifierHeld } from "./selection-gesture.js";
 import {
 	accelerationGain,
 	GESTURE_IDLE_MS,
@@ -75,7 +75,7 @@ export function useSurfaceInput(refs: SurfaceInputRefs, core: TerminalCore, onSe
 			if (!dragging) {
 				if (!exceedsDragThreshold(pressOrigin, event.clientX, event.clientY)) return;
 				dragging = true;
-				if (pressKind === "simple" && !pressExtends) target.selectionBegin(pressPoint, "simple");
+				if (!pressExtends && (pressKind === "simple" || pressKind === "rectangle")) target.selectionBegin(pressPoint, pressKind);
 			}
 			extendTo(event.clientX, event.clientY);
 			const bounds = blockHost.getBoundingClientRect();
@@ -87,7 +87,7 @@ export function useSurfaceInput(refs: SurfaceInputRefs, core: TerminalCore, onSe
 		};
 		const onWindowMouseUp = () => {
 			const target = renderer();
-			if (target && pressOrigin && pressPoint && !dragging && !pressExtends && pressKind === "simple") target.selectionClear(pressPoint);
+			if (target && pressOrigin && pressPoint && !dragging && !pressExtends && (pressKind === "simple" || pressKind === "rectangle")) target.selectionClear(pressPoint);
 			pressOrigin = null;
 			pressPoint = null;
 			pressExtends = false;
@@ -180,11 +180,11 @@ export function useSurfaceInput(refs: SurfaceInputRefs, core: TerminalCore, onSe
 			event.preventDefault();
 			pressOrigin = { x: event.clientX, y: event.clientY };
 			pressPoint = point;
-			pressKind = kindForClickCount(event.detail);
+			pressKind = rectangleModifierHeld(event) ? "rectangle" : kindForClickCount(event.detail);
 			pressExtends = event.shiftKey && pressKind === "simple";
 			dragging = false;
 			if (pressExtends) target.selectionUpdate(point, true);
-			else if (pressKind !== "simple") target.selectionBegin(point, pressKind);
+			else if (pressKind === "word" || pressKind === "line") target.selectionBegin(point, pressKind);
 			window.addEventListener("mousemove", onWindowMouseMove);
 			window.addEventListener("mouseup", onWindowMouseUp);
 		};
