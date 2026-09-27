@@ -26,7 +26,7 @@ import 'package:operator_mobile/core/widgets/connection/desktop_status_line.dart
 import 'package:operator_mobile/core/widgets/glass/glass_button.dart';
 import 'package:operator_mobile/core/widgets/glass/glass_metrics.dart';
 import 'package:operator_mobile/core/widgets/glass/glass_tab_bar.dart';
-import 'package:operator_mobile/core/widgets/glass/scroll_edge_effect.dart';
+import 'package:ios_liquid_glass/ios_liquid_glass.dart';
 import 'package:operator_mobile/core/widgets/sheet/app_sheet.dart';
 import 'package:operator_mobile/feature/notification/data/model/notification_page_model.dart';
 import 'package:operator_mobile/feature/notification/data/model/params/get_notifications_params.dart';

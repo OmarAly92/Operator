@@ -1,10 +1,11 @@
 import 'package:flutter/widgets.dart';
-import 'package:operator_mobile/core/widgets/glass/glass_metrics.dart';
-import 'package:operator_mobile/core/widgets/glass/scroll_edge_effect.dart';
+import 'package:ios_liquid_glass/src/material/scroll_edge_material.dart';
+import 'package:ios_liquid_glass/src/scroll_edge/scroll_edge_effect.dart';
 
 class ScrollUnderBars extends StatefulWidget {
-  const ScrollUnderBars({super.key, required this.child});
+  const ScrollUnderBars({super.key, this.style = ScrollEdgeStyle.automatic, required this.child});
 
+  final ScrollEdgeStyle style;
   final Widget child;
 
   @override
@@ -35,6 +36,7 @@ class _ScrollUnderBarsState extends State<ScrollUnderBars> {
   @override
   Widget build(BuildContext context) {
     final top = MediaQuery.paddingOf(context).top;
+    final extent = ScrollEdgeEffect.materialOf(context, widget.style)['extent'];
     return Stack(
       children: [
         Positioned.fill(
@@ -48,7 +50,8 @@ class _ScrollUnderBarsState extends State<ScrollUnderBars> {
             valueListenable: _visibility,
             builder: (context, visibility, _) => ScrollEdgeEffect(
               edge: ScrollEdge.top,
-              height: top + GlassMetrics.topEdgeFadeExtent,
+              style: widget.style,
+              height: top + extent,
               visibility: visibility,
               capExtent: top,
             ),

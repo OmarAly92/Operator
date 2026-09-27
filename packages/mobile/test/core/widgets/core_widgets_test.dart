@@ -3,7 +3,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:operator_mobile/core/app_themes/colors/dark_skin.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
-import 'package:operator_mobile/core/widgets/glass/scroll_under_bars.dart';
+import 'package:ios_liquid_glass/ios_liquid_glass.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_scaffold.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_text.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/global_appbar.dart';

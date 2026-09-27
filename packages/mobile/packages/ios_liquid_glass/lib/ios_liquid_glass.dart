@@ -22,7 +22,11 @@ export 'src/logging.dart' show LgrLogs;
 export 'src/material/glass_material.dart' show GlassMaterial;
 export 'src/material/glass_material_override.dart' show GlassMaterialOverride;
 export 'src/material/ios27.dart' show ios27Table;
+export 'src/material/ios27_scroll_edge.dart' show ios27ScrollEdgeTable;
+export 'src/material/scroll_edge_material.dart' show ScrollEdgeMaterial, ScrollEdgeStyle;
 export 'src/rendering/liquid_glass_layer.dart' show LiquidGlassLayer;
+export 'src/scroll_edge/scroll_edge_effect.dart' show ScrollEdge, ScrollEdgeEffect;
+export 'src/scroll_edge/scroll_under_bars.dart' show ScrollUnderBars;
 export 'src/stretch.dart'
     show LiquidStretch, OffsetResistanceExtension, RawLiquidStretch;
 

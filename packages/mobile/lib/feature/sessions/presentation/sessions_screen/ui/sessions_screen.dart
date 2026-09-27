@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/utils/extensions.dart';
-import 'package:operator_mobile/core/widgets/glass/scroll_under_bars.dart';
+import 'package:ios_liquid_glass/ios_liquid_glass.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/global_appbar.dart';
 import 'package:operator_mobile/feature/notification/presentation/notifications_screen/ui/widgets/notification_bell.dart';
 import 'package:operator_mobile/feature/sessions/presentation/sessions_screen/logic/sessions_cubit.dart';

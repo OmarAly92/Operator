@@ -12,7 +12,7 @@ import 'package:operator_mobile/core/widgets/glass/frosted_header.dart';
 import 'package:operator_mobile/core/widgets/glass/glass_metrics.dart';
 import 'package:operator_mobile/core/widgets/glass/glass_sheet.dart';
 import 'package:operator_mobile/core/widgets/glass/glass_surface.dart';
-import 'package:operator_mobile/core/widgets/glass/scroll_edge_effect.dart';
+import 'package:ios_liquid_glass/ios_liquid_glass.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_text.dart';
 
 enum AppSheetDetent { fit, medium, large }
