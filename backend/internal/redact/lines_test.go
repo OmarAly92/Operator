@@ -2,6 +2,8 @@ package redact
 
 import (
 	"reflect"
+	"strconv"
+	"strings"
 	"testing"
 )
 
@@ -36,5 +38,36 @@ func TestLinesMasksATokenWrappedOverManyLines(t *testing.T) {
 	want := []string{"Authorization: Bearer", "[redacted]", "[redacted]", "[redacted]", "[redacted] sent"}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("Lines = %q, want %q", got, want)
+	}
+}
+
+func longToken() string {
+	var b strings.Builder
+	for i := 0; b.Len() < 900; i++ {
+		b.WriteString("eyJ" + strconv.Itoa(i*7919) + "aZ" + strconv.Itoa(i) + "q_")
+	}
+	return b.String()[:900]
+}
+
+func wrapAt(text string, cols int) []string {
+	var out []string
+	for len(text) > cols {
+		out = append(out, text[:cols])
+		text = text[cols:]
+	}
+	return append(out, text)
+}
+
+func TestLinesMasksALongBearerTokenWrappedOverFifteenLines(t *testing.T) {
+	token := longToken()
+	lines := append([]string{"curl -H 'Authorization: Bearer"}, wrapAt(token+"' https://x.test", 60)...)
+	got := strings.Join(Lines(lines), "\n")
+	for i := 0; i+8 <= len(token); i++ {
+		if strings.Contains(got, token[i:i+8]) {
+			t.Fatalf("Lines leaks %q of the token:\n%s", token[i:i+8], got)
+		}
+	}
+	if !strings.HasPrefix(got, "curl -H 'Authorization: Bearer\n") || !strings.HasSuffix(got, "' https://x.test") {
+		t.Fatalf("Lines = %q", got)
 	}
 }

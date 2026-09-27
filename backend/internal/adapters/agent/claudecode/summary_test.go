@@ -63,3 +63,17 @@ func TestReadTurnSummaryMasksSecretsHardWrappedAcrossLines(t *testing.T) {
 		}
 	}
 }
+
+func TestReadTurnSummaryMasksALongBearerTokenWrappedOverFifteenLines(t *testing.T) {
+	token, wrapped := longWrappedToken()
+	summary := "  ⎿  curl -s -H 'Authorization: Bearer\n     " + strings.Join(wrapped, "\n     ") +
+		"\n\n✻ Baked for 3s · done 6:13 PM\n────────\n❯\n────────\n  ⏵⏵ auto mode on (shift+tab to cycle)"
+	got, ok := (&Plugin{}).ReadTurnSummary(summary)
+	if !ok {
+		t.Fatalf("no summary read")
+	}
+	assertNoTokenFragment(t, got, token)
+	if !strings.HasSuffix(got, "' https://api.example.com/v1/me") {
+		t.Fatalf("summary = %q", got)
+	}
+}

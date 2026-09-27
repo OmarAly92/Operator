@@ -27,8 +27,8 @@ func Question(context []string, menu ports.Menu) ports.TerminalQuestion {
 
 func QuestionAt(lines []string, start int, menu ports.Menu) ports.TerminalQuestion {
 	from := max(0, start-questionLines)
-	window := make([]string, 0, start-max(0, from-questionLines))
-	for _, line := range lines[max(0, from-questionLines):start] {
+	window := make([]string, 0, start)
+	for _, line := range lines[:start] {
 		window = append(window, strings.TrimSpace(line))
 	}
 	masked := redact.Lines(window)

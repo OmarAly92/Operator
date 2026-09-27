@@ -3,6 +3,7 @@ package codex
 import (
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -50,5 +51,43 @@ func TestReadQuestionMasksABearerTokenWrappedOntoTheNextLine(t *testing.T) {
 	}
 	if !strings.Contains(got.Identity, token) {
 		t.Fatalf("identity changed by masking: %q", got.Identity)
+	}
+}
+
+func longWrappedToken() (string, []string) {
+	var b strings.Builder
+	for i := 0; b.Len() < 900; i++ {
+		b.WriteString("eyJ" + strconv.Itoa(i*7919) + "aZ" + strconv.Itoa(i) + "q_")
+	}
+	token := b.String()[:900]
+	text := token + "' https://api.example.com/v1/me"
+	var lines []string
+	for len(text) > 60 {
+		lines = append(lines, text[:60])
+		text = text[60:]
+	}
+	return token, append(lines, text)
+}
+
+func assertNoFragmentOf(t *testing.T, text, token string) {
+	t.Helper()
+	for i := 0; i+8 <= len(token); i++ {
+		if strings.Contains(text, token[i:i+8]) {
+			t.Fatalf("text leaks %q of the secret: %q", token[i:i+8], text)
+		}
+	}
+}
+
+func TestReadQuestionMasksALongBearerTokenWrappedOverFifteenLines(t *testing.T) {
+	token, wrapped := longWrappedToken()
+	pane := "Would you like to run the following command?\n\nReason: Fetch the current user\n\n$ curl -s -H 'Authorization: Bearer\n" + strings.Join(wrapped, "\n") +
+		"\n\n› 1. Yes, proceed (y)\n  2. Yes, and don't ask again for this command (p)\n  3. No, and tell Codex what to do differently (esc)\n\nPress enter to confirm or esc to cancel\n"
+	got, ok := (&Plugin{}).ReadQuestion(pane)
+	if !ok {
+		t.Fatalf("no question read")
+	}
+	assertNoFragmentOf(t, got.Text, token)
+	if !strings.HasSuffix(got.Text, "' https://api.example.com/v1/me") || !strings.Contains(got.Identity, token[880:]) {
+		t.Fatalf("question = %+v", got)
 	}
 }

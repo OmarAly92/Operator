@@ -1,6 +1,7 @@
 package claudecode
 
 import (
+	"strconv"
 	"strings"
 	"testing"
 
@@ -86,5 +87,34 @@ func TestReadQuestionMasksABearerTokenWrappedOntoTheNextLine(t *testing.T) {
 		if !strings.Contains(question.Identity, wrappedToken[10:]) {
 			t.Fatalf("identity changed by masking: %q", question.Identity)
 		}
+	}
+}
+
+func longWrappedToken() (string, []string) {
+	var b strings.Builder
+	for i := 0; b.Len() < 900; i++ {
+		b.WriteString("eyJ" + strconv.Itoa(i*7919) + "aZ" + strconv.Itoa(i) + "q_")
+	}
+	token := b.String()[:900]
+	text := token + "' https://api.example.com/v1/me"
+	var lines []string
+	for len(text) > 60 {
+		lines = append(lines, text[:60])
+		text = text[60:]
+	}
+	return token, append(lines, text)
+}
+
+func TestReadQuestionMasksALongBearerTokenWrappedOverFifteenLines(t *testing.T) {
+	token, wrapped := longWrappedToken()
+	pane := "────────────────────────────────────────\n Bash command\n\n   curl -s -H 'Authorization: Bearer\n   " + strings.Join(wrapped, "\n   ") +
+		"\n\n Do you want to proceed?\n ❯ 1. Yes\n   2. Yes, and don't ask again for curl commands\n   3. No\n\n Esc to cancel · Tab to amend\n"
+	question, ok := (&Plugin{}).ReadQuestion(pane)
+	if !ok {
+		t.Fatalf("no question read")
+	}
+	assertNoTokenFragment(t, question.Text, token)
+	if !strings.HasSuffix(question.Text, "' https://api.example.com/v1/me · Do you want to proceed?") || !strings.Contains(question.Identity, token[880:]) {
+		t.Fatalf("question = %+v", question)
 	}
 }

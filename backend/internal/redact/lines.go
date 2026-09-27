@@ -5,10 +5,11 @@ import (
 	"strings"
 )
 
-const wrapLines = 8
+const wrapLines = 2
 
 func Lines(lines []string) []string {
 	masked := make([][]hit, len(lines))
+	continued := map[int]bool{}
 	collect := func(from int, seps []string) {
 		var b strings.Builder
 		starts := make([]int, len(seps)+1)
@@ -20,26 +21,43 @@ func Lines(lines []string) []string {
 			b.WriteString(lines[from+k])
 		}
 		for _, h := range find(b.String()) {
+			first, reachesEnd := -1, false
 			for k, start := range starts {
 				lo, hi := max(h.start, start), min(h.end, start+len(lines[from+k]))
-				if lo < hi {
-					masked[from+k] = append(masked[from+k], hit{lo - start, hi - start})
+				if lo >= hi {
+					continue
 				}
+				masked[from+k] = append(masked[from+k], hit{lo - start, hi - start})
+				if first < 0 {
+					first = from + k
+				}
+				reachesEnd = hi == start+len(lines[from+k]) && from+k < len(lines)-1
+			}
+			if first > 0 && reachesEnd {
+				continued[first] = true
 			}
 		}
 	}
-	if len(lines) > 0 {
-		for _, sep := range []string{"", " ", "\n"} {
-			seps := make([]string, len(lines)-1)
-			for k := range seps {
-				seps[k] = sep
+	joined := func(from, spaced int, sep string) []string {
+		seps := make([]string, len(lines)-1-from)
+		for k := range seps {
+			seps[k] = sep
+			if from+k == spaced {
+				seps[k] = " "
 			}
-			collect(0, seps)
 		}
+		return seps
+	}
+	if len(lines) == 0 {
+		return nil
+	}
+	for _, sep := range []string{"", " ", "\n"} {
+		collect(0, joined(0, -1, sep))
 	}
 	for first := range lines {
+		from := max(0, first-1)
 		for last := first + 1; last < min(len(lines), first+wrapLines+1); last++ {
-			from, to := max(0, first-1), min(len(lines)-1, last+1)
+			to := min(len(lines)-1, last+1)
 			seps := make([]string, to-from)
 			for k := range seps {
 				seps[k] = " "
@@ -49,6 +67,9 @@ func Lines(lines []string) []string {
 			}
 			collect(from, seps)
 		}
+	}
+	for first := range continued {
+		collect(first-1, joined(first-1, first-1, ""))
 	}
 	out := make([]string, len(lines))
 	for i, line := range lines {

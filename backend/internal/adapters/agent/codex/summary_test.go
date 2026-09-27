@@ -1,6 +1,9 @@
 package codex
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestReadTurnSummaryStopsAtTheComposer(t *testing.T) {
 	summary := "• Created approved.txt.\n────────\n› Improve documentation in @filename\n  gpt-5.6-luna medium · ~/demo"
@@ -33,5 +36,32 @@ func TestReadTurnSummaryReadsNothingFromTheStartupBanner(t *testing.T) {
 		"› Ask Codex to do anything\n\n  GPT-6-Sol medium · /private/tmp/…\n  ? for shortcuts"
 	if got, ok := (&Plugin{}).ReadTurnSummary(summary); ok || got != "" {
 		t.Fatalf("summary = %q, %v", got, ok)
+	}
+}
+
+func TestReadTurnSummaryMasksALongBearerTokenWrappedOverFifteenLines(t *testing.T) {
+	token, wrapped := longWrappedToken()
+	summary := "  └ curl -s -H 'Authorization: Bearer\n    " + strings.Join(wrapped, "\n    ") +
+		"\n\n› Ask Codex to do anything\n\n  GPT-6-Sol medium · /private/tmp/…"
+	got, ok := (&Plugin{}).ReadTurnSummary(summary)
+	if !ok {
+		t.Fatalf("no summary read")
+	}
+	assertNoFragmentOf(t, got, token)
+	if !strings.HasSuffix(got, "' https://api.example.com/v1/me") {
+		t.Fatalf("summary = %q", got)
+	}
+}
+
+func TestReadTurnSummaryMasksASecretHardWrappedAcrossLines(t *testing.T) {
+	key := "sk-proj-AbCdEfGhIjKlMnOpQrStUvWxYz0123"
+	summary := "• I wired the key\n  " + key[:12] + "\n  " + key[12:] + " into .env and all tests pass.\n\n› Ask Codex to do anything"
+	got, ok := (&Plugin{}).ReadTurnSummary(summary)
+	if !ok {
+		t.Fatalf("no summary read")
+	}
+	assertNoFragmentOf(t, got, key)
+	if !strings.HasPrefix(got, "• I wired the key\n") || !strings.HasSuffix(got, " into .env and all tests pass.") {
+		t.Fatalf("summary = %q", got)
 	}
 }
