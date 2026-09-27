@@ -22,3 +22,8 @@ type Block struct {
 	EndOffset      int64
 	CreatedAt      time.Time
 }
+
+type CommandRun struct {
+	Command    string
+	FinishedAt time.Time
+}

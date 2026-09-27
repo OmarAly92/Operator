@@ -28,6 +28,7 @@ import {
 	terminalSecretRedactionStorageKey,
 } from "../lib/terminal-secret-redaction";
 import { readStoredTerminalPredictiveEcho, terminalPredictiveEchoStorageKey } from "../lib/terminal-predictive-echo";
+import { readStoredTerminalQuickFixesEnabled, terminalQuickFixesEnabledStorageKey } from "../lib/terminal-quick-fixes";
 import { MAX_TERMINAL_MARKS, readStoredTerminalMarks, writeStoredTerminalMarks, type TerminalMark } from "../lib/terminal-marks";
 import { openFilesInStorageKey, readStoredOpenFilesIn, type OpenFilesIn } from "../lib/open-files-in";
 export { readStoredTerminalBackground } from "../lib/terminal-background";
@@ -70,6 +71,8 @@ type UiState = {
 	terminalSecretRedaction: boolean;
 	/** Paint typed characters provisionally while the round trip is slow. Off by default. */
 	terminalPredictiveEcho: boolean;
+	/** Suggest fixes for failed commands. On by default. */
+	terminalQuickFixesEnabled: boolean;
 	terminalMarks: readonly TerminalMark[];
 	openFilesIn: OpenFilesIn;
 	// Transient "open the New Task dialog for this project" signal. The nonce
@@ -103,6 +106,7 @@ type UiState = {
 	setTerminalFontSize: (size: TerminalFontSize) => void;
 	setTerminalSecretRedaction: (enabled: boolean) => void;
 	setTerminalPredictiveEcho: (enabled: boolean) => void;
+	setTerminalQuickFixesEnabled: (enabled: boolean) => void;
 	setTerminalMarks: (marks: readonly TerminalMark[]) => void;
 	setOpenFilesIn: (openFilesIn: OpenFilesIn) => void;
 	openGlobalSettings: () => void;
@@ -158,6 +162,7 @@ const initialTerminalBackground = readStoredTerminalBackground();
 const initialTerminalFontSize = readStoredTerminalFontSize();
 const initialTerminalSecretRedaction = readStoredTerminalSecretRedaction();
 const initialTerminalPredictiveEcho = readStoredTerminalPredictiveEcho();
+const initialTerminalQuickFixesEnabled = readStoredTerminalQuickFixesEnabled();
 const initialTerminalMarks = readStoredTerminalMarks();
 const initialOpenFilesIn = readStoredOpenFilesIn();
 
@@ -174,6 +179,7 @@ export const useUiStore = create<UiState>((set, get) => ({
 	terminalFontSize: initialTerminalFontSize,
 	terminalSecretRedaction: initialTerminalSecretRedaction,
 	terminalPredictiveEcho: initialTerminalPredictiveEcho,
+	terminalQuickFixesEnabled: initialTerminalQuickFixesEnabled,
 	terminalMarks: initialTerminalMarks,
 	openFilesIn: initialOpenFilesIn,
 	newTaskRequest: null,
@@ -219,6 +225,11 @@ export const useUiStore = create<UiState>((set, get) => ({
 		if (get().terminalPredictiveEcho === terminalPredictiveEcho) return;
 		getLocalStorage()?.setItem(terminalPredictiveEchoStorageKey, terminalPredictiveEcho ? "1" : "0");
 		set({ terminalPredictiveEcho });
+	},
+	setTerminalQuickFixesEnabled: (terminalQuickFixesEnabled) => {
+		if (get().terminalQuickFixesEnabled === terminalQuickFixesEnabled) return;
+		getLocalStorage()?.setItem(terminalQuickFixesEnabledStorageKey, terminalQuickFixesEnabled ? "1" : "0");
+		set({ terminalQuickFixesEnabled });
 	},
 	setTerminalMarks: (marks) => {
 		const terminalMarks = marks.slice(0, MAX_TERMINAL_MARKS);

@@ -11,14 +11,16 @@ import {
 } from "@operator/terminal-core";
 import { EditorBuffer } from "./buffer.js";
 import { CompletionsDropdown } from "./completions-dropdown.js";
-import { tokenize } from "./highlight.js";
-import { HistoryModel } from "./history.js";
+import { EditorHistory } from "./editor-history.js";
+import type { CommandHistorySource } from "./history.js";
 import { encodeKey } from "./encode-key.js";
 import { clipboardHasImage, deliverPaste, planPaste, type PasteConfirm } from "./paste.js";
 import { mapKey, type EditorCommand } from "./keymap.js";
 import { renderPromptRow } from "./prompt-row.js";
 import { ReverseSearch } from "./reverse-search.js";
-import { appendRange, createCaret, ensurePackageStyleTag } from "./line-editor-dom.js";
+import { ensurePackageStyleTag, renderBufferRows } from "./line-editor-dom.js";
+import { QuickFixOffer, renderQuickFixRow } from "./quick-fix-offer.js";
+import type { QuickFixRule } from "./quick-fix.js";
 import { CLEAR_SHELL_LINE, TypeaheadGate } from "./typeahead.js";
 
 const INTERRUPT = "\x03";
@@ -33,8 +35,8 @@ export type EditorHost = {
 
 export class LineEditor {
 	private readonly buffer = new EditorBuffer();
-	private history = new HistoryModel();
-	private historyPrefix: string | null = null;
+	private readonly history = new EditorHistory(() => this.historyChanged());
+	private readonly quickFix = new QuickFixOffer();
 	private readonly search = new ReverseSearch();
 	private searchOpen = false;
 	private readonly dropdown = new CompletionsDropdown();
@@ -64,8 +66,7 @@ export class LineEditor {
 		ensurePackageStyleTag();
 		this.core = core;
 		this.host = host;
-		this.history = new HistoryModel();
-		this.historyPrefix = null;
+		this.quickFix.reset(core);
 		this.promptCwd = "";
 		this.promptBranch = "";
 		this.promptExitCode = null;
@@ -141,7 +142,7 @@ export class LineEditor {
 
 	setText(text: string): void {
 		this.buffer.setText(text);
-		this.historyPrefix = null;
+		this.history.endWalk();
 		this.render();
 	}
 
@@ -152,6 +153,15 @@ export class LineEditor {
 
 	setPasteConfirm(confirm: PasteConfirm | null): void {
 		this.pasteConfirm = confirm;
+	}
+
+	setHistorySource(source: CommandHistorySource | null): void {
+		this.history.setSource(source);
+		this.render();
+	}
+
+	setQuickFixRules(rules: readonly QuickFixRule[]): void {
+		this.quickFix.setRules(rules);
 	}
 
 	setVisible(visible: boolean): void {
@@ -174,6 +184,8 @@ export class LineEditor {
 		this.unsubscribe = null;
 		this.unsubscribeCompletions?.();
 		this.unsubscribeCompletions = null;
+		this.history.dispose();
+		this.quickFix.dismiss();
 		this.dropdown.dispose();
 		this.dropdownOpen = false;
 		this.composition?.dispose();
@@ -302,49 +314,50 @@ export class LineEditor {
 		switch (command.kind) {
 			case "insert":
 				this.buffer.insert(command.text);
-				this.historyPrefix = null;
+				this.history.endWalk();
 				this.cancelDropdownIfOpen();
 				break;
 			case "newline":
 				this.buffer.insert("\n");
-				this.historyPrefix = null;
+				this.history.endWalk();
 				this.cancelDropdownIfOpen();
 				break;
 			case "submit":
 				if (wasDropdownOpen) {
 					this.applySelectedCompletion();
-					this.historyPrefix = null;
+					this.history.endWalk();
 					this.render();
 					return;
 				}
 				host.send(this.buffer.text);
 				this.buffer.clear();
-				this.historyPrefix = null;
+				this.quickFix.dismiss();
+				this.history.endWalk();
 				this.cancelDropdownIfOpen();
 				break;
 			case "delete-backward":
 				this.buffer.deleteBackward();
-				this.historyPrefix = null;
+				this.history.endWalk();
 				this.cancelDropdownIfOpen();
 				break;
 			case "delete-forward":
 				this.buffer.deleteForward();
-				this.historyPrefix = null;
+				this.history.endWalk();
 				this.cancelDropdownIfOpen();
 				break;
 			case "delete-word-backward":
 				this.buffer.deleteWordBackward();
-				this.historyPrefix = null;
+				this.history.endWalk();
 				this.cancelDropdownIfOpen();
 				break;
 			case "delete-line-backward":
 				this.buffer.deleteToLineStart();
-				this.historyPrefix = null;
+				this.history.endWalk();
 				this.cancelDropdownIfOpen();
 				break;
 			case "delete-line-forward":
 				this.buffer.deleteToLineEnd();
-				this.historyPrefix = null;
+				this.history.endWalk();
 				this.cancelDropdownIfOpen();
 				break;
 			case "move":
@@ -363,8 +376,7 @@ export class LineEditor {
 				this.buffer.moveEnd();
 				break;
 			case "history": {
-				this.historyPrefix ??= this.buffer.text;
-				const recalled = this.history.recall(this.historyPrefix, command.direction);
+				const recalled = this.history.recall(this.buffer.text, command.direction);
 				if (recalled !== null) this.buffer.setText(recalled);
 				break;
 			}
@@ -392,14 +404,35 @@ export class LineEditor {
 	}
 
 	private acceptSuggestion(): void {
-		const suggestion = this.history.suggest(this.buffer.text);
+		const fix = this.buffer.text.length === 0 ? this.quickFix.fix() : null;
+		const suggestion = fix?.command ?? this.history.suggest(this.buffer.text);
 		if (suggestion !== null) this.buffer.setText(suggestion);
-		this.historyPrefix = null;
+		if (fix) this.quickFix.dismiss();
+		this.history.endWalk();
+	}
+
+	private useQuickFix(): void {
+		const fix = this.quickFix.fix();
+		if (!fix || this.buffer.text.length > 0 || this.core?.lineEditorState() !== "owned") return;
+		this.buffer.setText(fix.command);
+		this.quickFix.dismiss();
+		this.history.endWalk();
+		this.cancelDropdownIfOpen();
+		this.render();
+		this.focus();
+	}
+
+	private historyChanged(): void {
+		if (!this.visible) {
+			this.staleWhileHidden = true;
+			return;
+		}
+		this.render();
 	}
 
 	private discardLine(): void {
 		this.buffer.clear();
-		this.historyPrefix = null;
+		this.history.endWalk();
 		this.cancelDropdownIfOpen();
 		this.render();
 	}
@@ -423,7 +456,7 @@ export class LineEditor {
 		const insertion = selected.value;
 		const cursor = before.length + insertion.length;
 		this.buffer.setText(before + insertion + after, cursor);
-		this.historyPrefix = null;
+		this.history.endWalk();
 		if (insertion.endsWith("/")) {
 			this.core?.requestCompletions(this.buffer.text, this.buffer.cursor);
 		}
@@ -452,39 +485,10 @@ export class LineEditor {
 			content.replaceChildren();
 			return;
 		}
-		const cursor = this.buffer.cursor;
-		const lines = this.buffer.lines();
-		const tokens = tokenize(this.buffer.text);
-		let offset = 0;
-		const nodes: HTMLElement[] = lines.map((text) => {
-			const row = document.createElement("div");
-			row.className = "terminal-editor-line";
-			const lineStart = offset;
-			const lineEnd = lineStart + text.length;
-			let position = lineStart;
-			for (const token of tokens) {
-				const start = Math.max(token.start, lineStart);
-				const end = Math.min(token.end, lineEnd);
-				if (start >= end) continue;
-				appendRange(row, this.buffer.text, position, start, null, cursor);
-				appendRange(row, this.buffer.text, start, end, token.kind, cursor);
-				position = end;
-			}
-			appendRange(row, this.buffer.text, position, lineEnd, null, cursor);
-			if (cursor === lineEnd) row.append(createCaret());
-			else if (!row.hasChildNodes()) row.append(document.createTextNode("\u00a0"));
-			offset = lineEnd + 1;
-			return row;
-		});
-		if (cursor === this.buffer.text.length) {
-			const suggestion = this.history.suggest(this.buffer.text);
-			if (suggestion !== null) {
-				const ghost = document.createElement("span");
-				ghost.className = "terminal-editor-ghost";
-				ghost.textContent = suggestion.slice(this.buffer.text.length);
-				nodes[nodes.length - 1]?.append(ghost);
-			}
-		}
+		const text = this.buffer.text;
+		const fix = text.length === 0 ? this.quickFix.fix() : null;
+		const ghost = fix ? fix.command : (this.history.suggest(text)?.slice(text.length) ?? null);
+		const nodes = renderBufferRows(text, this.buffer.lines(), this.buffer.cursor, ghost);
 		if (this.searchOpen) {
 			const state = this.search.state();
 			const search = document.createElement("div");
@@ -506,6 +510,7 @@ export class LineEditor {
 				this.strings,
 			),
 		);
+		if (fix) nodes.unshift(renderQuickFixRow(fix, this.strings.quickFixLabel, this.strings.quickFixUse, () => this.useQuickFix()));
 		content.replaceChildren(...nodes);
 	}
 
@@ -557,7 +562,7 @@ export class LineEditor {
 		const tail = text.slice(head.length);
 		const cursor = this.buffer.cursor;
 		this.buffer.setText(head + typed + tail, cursor >= head.length ? cursor + typed.length : cursor);
-		this.historyPrefix = null;
+		this.history.endWalk();
 		this.host?.sendRaw(CLEAR_SHELL_LINE);
 	}
 
@@ -565,7 +570,8 @@ export class LineEditor {
 		const core = this.core;
 		if (!core) return;
 		const blocks = decodeBlocks(core.snapshot());
-		this.history.ingest(blocks.map((block) => block.command).filter((command) => command.length > 0));
+		this.history.ingest(blocks);
+		this.quickFix.observe(core);
 		const newest = blocks.at(-1);
 		this.promptCwd = newest?.cwd ?? "";
 		this.promptBranch = newest?.gitBranch ?? "";

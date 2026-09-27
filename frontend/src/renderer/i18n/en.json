@@ -606,6 +606,7 @@
 	"settings.terminalFontSize.value": "{{size}} px",
 	"settings.terminalSecretRedaction": "Mask secrets in the terminal",
 	"settings.terminalPredictiveEcho": "Show typing instantly on slow connections",
+	"settings.terminalQuickFixes": "Suggest fixes for failed commands",
 	"settings.terminalMarks": "Terminal highlights",
 	"settings.terminalMarks.empty": "Highlight words like error in every terminal.",
 	"settings.terminalMarks.hint": "Words match in any case. Regular expressions match exactly as written.",

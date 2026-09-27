@@ -5725,6 +5725,51 @@ paths:
       summary: Read a shell terminal's retained raw block history, oldest first
       tags:
       - shellTerminals
+  /api/v1/terminal-history:
+    get:
+      operationId: listTerminalHistory
+      parameters:
+      - description: Maximum distinct commands to return, oldest first. Defaults to
+          500.
+        in: query
+        name: limit
+        schema:
+          description: Maximum distinct commands to return, oldest first. Defaults
+            to 500.
+          maximum: 1000
+          minimum: 1
+          type:
+          - "null"
+          - integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TerminalHistoryResponse'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Bad Request
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: Read recent distinct shell commands from every terminal, oldest first,
+        leaving out commands that look like they hold a secret
+      tags:
+      - shellTerminals
   /api/v1/usage/quota:
     get:
       operationId: getUsageQuota
@@ -9435,6 +9480,26 @@ components:
       - captureEpoch
       - startOffset
       - endOffset
+      type: object
+    TerminalHistoryEntry:
+      properties:
+        command:
+          type: string
+        finishedAt:
+          format: date-time
+          type: string
+      required:
+      - command
+      - finishedAt
+      type: object
+    TerminalHistoryResponse:
+      properties:
+        commands:
+          items:
+            $ref: '#/components/schemas/TerminalHistoryEntry'
+          type: array
+      required:
+      - commands
       type: object
     TicketDefaults:
       properties:

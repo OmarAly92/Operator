@@ -26,6 +26,8 @@ const STRINGS: TerminalStrings = {
 	paletteNoMatches: "No matching commands",
 	jumpToBottom: "Jump to bottom",
 	loadOlderOutput: "Load older output",
+	quickFixLabel: "Suggested fix",
+	quickFixUse: "Use",
 };
 
 function makeBlock(id: string, command: string, rowCount: number): BlockView {

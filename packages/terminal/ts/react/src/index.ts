@@ -9,6 +9,12 @@ export {
 	type MouseReportKind,
 } from "./mouse-report.js";
 export { warpDarkTheme, type MarkRule } from "@operator/terminal-renderer-dom";
+export {
+	DEFAULT_QUICK_FIX_RULES,
+	type CommandHistoryEntry,
+	type CommandHistorySource,
+	type QuickFixRule,
+} from "@operator/terminal-editor";
 export { createTerminalCore, markRegexValid, type TerminalCoreOptions } from "@operator/terminal-core";
 export { initTerminalCoreFromUrl } from "@operator/terminal-core/browser";
 export type {

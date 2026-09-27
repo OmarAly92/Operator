@@ -5,7 +5,7 @@ import { useUiStore } from "../../stores/ui-store";
 import { GeneralSettingsSection } from "./GeneralSettingsSection";
 
 afterEach(() => {
-	useUiStore.setState({ terminalFontSize: 14, openFilesIn: "system" });
+	useUiStore.setState({ terminalFontSize: 14, openFilesIn: "system", terminalQuickFixesEnabled: true });
 	window.localStorage.clear();
 });
 
@@ -28,4 +28,13 @@ test("open files in row shows the chosen editor and persists a new choice", asyn
 	expect(useUiStore.getState().openFilesIn).toBe("zed");
 	expect(window.localStorage.getItem("opr.openFilesIn")).toBe("zed");
 	expect(screen.getByRole("button", { name: "Open files in" })).toHaveTextContent("Zed");
+});
+
+test("terminal quick fixes switch is on by default and persists a change", async () => {
+	render(<GeneralSettingsSection onConnectMobile={() => {}} />);
+	const toggle = screen.getByLabelText("Suggest fixes for failed commands");
+	expect(toggle).toBeChecked();
+	await userEvent.click(toggle);
+	expect(toggle).not.toBeChecked();
+	expect(window.localStorage.getItem("opr.terminal.quickFixesEnabled")).toBe("0");
 });

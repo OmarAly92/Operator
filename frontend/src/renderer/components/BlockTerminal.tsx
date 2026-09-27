@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
+	DEFAULT_QUICK_FIX_RULES,
 	TerminalSurface,
 	createTerminalCore,
 	initTerminalCoreFromUrl,
@@ -9,11 +10,13 @@ import {
 	type CellSize,
 	type FontConfig,
 	type HostCapabilities,
+	type QuickFixRule,
 	type TerminalCore,
 	type TerminalStrings,
 	type TerminalTheme,
 } from "@operator/terminal-react";
 import { operatorBridge } from "../lib/bridge";
+import { commandHistory } from "../lib/command-history";
 import { rememberPaneGrid } from "../lib/pane-grid";
 import { BLOCK_NOTIFY_AFTER_MS } from "../lib/retained-terminal";
 import { terminalBackgroundColor, type TerminalBackground } from "../lib/terminal-background";
@@ -85,6 +88,7 @@ const DEFAULT_COLUMNS = 120;
 const DEFAULT_LIMITS = { rows: 200_000, bytes: 128 * 1024 * 1024 } as const;
 const SOURCE_ID_MARKER = new TextEncoder().encode("\x1b]7000;v=1;id=");
 const BEL = 0x07;
+const EMPTY_QUICK_FIX_RULES: readonly QuickFixRule[] = [];
 
 // The block terminal renders in Warp's own bundled dark theme, fixed, rather
 // than following the app skin (user decision 2026-09-02). DESIGN.md's carve-out
@@ -498,6 +502,7 @@ export function BlockTerminal({
 	const marks = useMemo(() => terminalMarkRules(terminalMarks), [terminalMarks]);
 	const predictiveEcho = useUiStore((state) => state.terminalPredictiveEcho);
 	const predictiveThresholdMs = predictiveEcho ? terminalPredictiveEchoThresholdMs : undefined;
+	const terminalQuickFixesEnabled = useUiStore((state) => state.terminalQuickFixesEnabled);
 	const [pasteFocusCount, setPasteFocusCount] = useState(0);
 	const restoreFocusAfterPaste = useCallback(() => setPasteFocusCount((count) => count + 1), []);
 	const surfaceFocusToken = pasteFocusCount === 0 ? focusToken : (focusToken ?? 0) + pasteFocusCount;
@@ -566,6 +571,8 @@ export function BlockTerminal({
 			}),
 			jumpToBottom: t("blocks.jumpToBottom", { defaultValue: "Jump to bottom" }),
 			loadOlderOutput: t("blocks.loadOlderOutput", { defaultValue: "Load older output" }),
+			quickFixLabel: t("blocks.quickFixLabel", { defaultValue: "Suggested fix" }),
+			quickFixUse: t("blocks.quickFixUse", { defaultValue: "Use" }),
 			shellBlocksUnavailable: t("blocks.shellBlocksUnavailable", {
 				defaultValue: "Shell blocks are unavailable in this terminal.",
 			}),
@@ -639,6 +646,9 @@ export function BlockTerminal({
 		visible,
 		marks,
 		onDraftChange,
+		...(agentTui
+			? {}
+			: { commandHistory, quickFixRules: terminalQuickFixesEnabled ? DEFAULT_QUICK_FIX_RULES : EMPTY_QUICK_FIX_RULES }),
 		onHint: (hint) => {
 			// A hint's path is the text as it was printed, so it is relative as
 			// often as not; open_path only answers for an absolute file. Resolving
@@ -661,6 +671,7 @@ export function BlockTerminal({
 			void reportTerminalActionFailure(host.writeClipboard(hint.text));
 		},
 		onBlockFinished: ({ id, exitCode, durationMs, visible }) => {
+			if (!agentTui) commandHistory.noteCommandFinished();
 			if (visible || durationMs === null || durationMs < BLOCK_NOTIFY_AFTER_MS) return;
 			void reportTerminalActionFailure(
 				operatorBridge.notifications.show({

@@ -72,6 +72,13 @@ type fakeShellTerminalBlockHistory struct {
 	gotLimit      int
 	blocks        []domain.Block
 	err           error
+	recent        []domain.CommandRun
+	gotRecent     int
+}
+
+func (f *fakeShellTerminalBlockHistory) RecentCommands(_ context.Context, limit int) ([]domain.CommandRun, error) {
+	f.gotRecent = limit
+	return f.recent, f.err
 }
 
 func (f *fakeShellTerminalBlockHistory) History(_ context.Context, terminalID string, limit int) ([]domain.Block, error) {

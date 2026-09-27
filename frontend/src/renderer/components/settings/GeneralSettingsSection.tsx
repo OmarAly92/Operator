@@ -52,6 +52,8 @@ export function GeneralSettingsSection({
 	const setTerminalSecretRedaction = useUiStore((state) => state.setTerminalSecretRedaction);
 	const terminalPredictiveEcho = useUiStore((state) => state.terminalPredictiveEcho);
 	const setTerminalPredictiveEcho = useUiStore((state) => state.setTerminalPredictiveEcho);
+	const terminalQuickFixesEnabled = useUiStore((state) => state.terminalQuickFixesEnabled);
+	const setTerminalQuickFixesEnabled = useUiStore((state) => state.setTerminalQuickFixesEnabled);
 	const openFilesIn = useUiStore((state) => state.openFilesIn);
 	const setOpenFilesIn = useUiStore((state) => state.setOpenFilesIn);
 
@@ -126,6 +128,13 @@ export function GeneralSettingsSection({
 					aria-label={t("settings.terminalPredictiveEcho")}
 					checked={terminalPredictiveEcho}
 					onCheckedChange={setTerminalPredictiveEcho}
+				/>
+			</SettingsRow>
+			<SettingsRow label={t("settings.terminalQuickFixes")}>
+				<Switch
+					aria-label={t("settings.terminalQuickFixes")}
+					checked={terminalQuickFixesEnabled}
+					onCheckedChange={setTerminalQuickFixesEnabled}
 				/>
 			</SettingsRow>
 			<SettingsRow label={t("settings.openFilesIn")}>
