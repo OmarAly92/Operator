@@ -92,12 +92,22 @@ type AckPayload struct {
 const (
 	ProgramEventTitle        = "title"
 	ProgramEventNotification = "notification"
+	ProgramEventActivity     = "activity"
 )
 
 type ProgramEventPayload struct {
-	Kind  string `json:"kind"`
-	Title string `json:"title"`
-	Body  string `json:"body,omitempty"`
+	Kind       string `json:"kind"`
+	Title      string `json:"title"`
+	Body       string `json:"body,omitempty"`
+	Activity   string `json:"activity,omitempty"`
+	Seq        uint64 `json:"seq,omitempty"`
+	AtMs       int64  `json:"atMs,omitempty"`
+	Tail       string `json:"tail,omitempty"`
+	CursorLine string `json:"cursorLine,omitempty"`
+}
+
+type WatchPayload struct {
+	Activity bool `json:"activity,omitempty"`
 }
 
 type AppearancePayload struct {

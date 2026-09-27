@@ -3,6 +3,7 @@ package ptyhost
 import (
 	"context"
 	"reflect"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -249,6 +250,36 @@ func TestALateProbeDoesNotReopenTheWatchOfADestroyedSession(t *testing.T) {
 		t.Fatal("a probe that resolved the session before Destroy reopened its watch")
 	}
 	expectNoWatchers(t, f, 150*time.Millisecond)
+}
+
+func TestTheProgramWatchAsksForActivityAndDeliversIt(t *testing.T) {
+	fastActivityTick(t)
+	f := startServeParsed(t, 923, 80, 24)
+	defer f.cancel()
+	_, rec := watchedRuntime(t, "sess-act", f)
+	writeOutput(t, f, "Overwrite build.log? (y/n) ")
+	deadline := time.Now().Add(3 * time.Second)
+	for {
+		rec.mu.Lock()
+		var got *ports.TerminalProgramEvent
+		for _, record := range rec.events {
+			if record.id == "sess-act" && record.event.Kind == ports.TerminalProgramActivity && record.event.Activity == ports.TerminalActivityPrompting {
+				event := record.event
+				got = &event
+			}
+		}
+		rec.mu.Unlock()
+		if got != nil {
+			if got.CursorLine != "Overwrite build.log? (y/n) " || got.At.IsZero() || !strings.Contains(got.Tail, "Overwrite build.log?") {
+				t.Fatalf("activity event = %+v", *got)
+			}
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("no prompting activity reached the runtime listeners")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
 }
 
 func expectNoWatchers(t *testing.T, f *serveFixture, within time.Duration) {

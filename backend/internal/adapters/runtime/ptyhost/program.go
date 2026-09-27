@@ -22,10 +22,14 @@ func programFrame(event ProgramEventPayload) []byte {
 	return frame
 }
 
-func (h *host) serveWatcher(conn net.Conn, cs *clientState, buf []byte) {
+func (h *host) serveWatcher(conn net.Conn, cs *clientState, buf, payload []byte) {
+	cs.wantsActivity = wantsActivity(payload)
 	h.mu.Lock()
 	h.watchers[conn] = cs
 	cs.enqueue(programFrame(ProgramEventPayload{Kind: ProgramEventTitle, Title: h.shownTitle}))
+	if cs.wantsActivity && h.activityFrame != nil {
+		cs.enqueue(h.activityFrame)
+	}
 	h.mu.Unlock()
 	go h.runWriter(conn, cs)
 	defer func() {
@@ -95,6 +99,7 @@ func (h *host) sendWatchersLocked(frame []byte) {
 
 func (h *host) resetProgramLocked() {
 	h.programGen = 0
+	h.resetActivityLocked()
 	if h.parser != nil && h.appearance != nil {
 		applyAppearance(h.parser, *h.appearance)
 	}

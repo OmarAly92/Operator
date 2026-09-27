@@ -23,6 +23,7 @@ import (
 	activityobserver "github.com/OmarAly92/operator/backend/internal/observe/activity"
 	"github.com/OmarAly92/operator/backend/internal/observe/blockretention"
 	"github.com/OmarAly92/operator/backend/internal/observe/reaper"
+	screenobserver "github.com/OmarAly92/operator/backend/internal/observe/screen"
 	"github.com/OmarAly92/operator/backend/internal/ports"
 	reviewcore "github.com/OmarAly92/operator/backend/internal/review"
 	claudeaccountssvc "github.com/OmarAly92/operator/backend/internal/service/claudeaccounts"
@@ -48,6 +49,7 @@ type lifecycleStack struct {
 	blockRetention *blockretention.Retention
 	reaperDone     <-chan struct{}
 	activityDone   <-chan struct{}
+	screenDone     <-chan struct{}
 	scmDone        <-chan struct{}
 	trackerDone    <-chan struct{}
 	retentionDone  <-chan struct{}
@@ -67,7 +69,7 @@ func startLifecycle(ctx context.Context, store *sqlite.Store, runtime ports.Runt
 	rp := reaper.New(lcm, store, runtime, reaper.Config{Logger: logger})
 	br := blockretention.New(store, blockretention.Config{Logger: logger})
 	activityPoller := activityobserver.New(store, lcm, runtime, agents, activityobserver.Config{Logger: logger})
-	return &lifecycleStack{
+	stack := &lifecycleStack{
 		LCM:            lcm,
 		runtimeReaper:  rp,
 		blockRetention: br,
@@ -75,6 +77,10 @@ func startLifecycle(ctx context.Context, store *sqlite.Store, runtime ports.Runt
 		activityDone:   activityPoller.Start(ctx),
 		retentionDone:  br.Start(ctx),
 	}
+	if programs, ok := runtime.(ports.TerminalProgramReader); ok {
+		stack.screenDone = screenobserver.New(store, lcm, programs, agents, screenobserver.Config{Logger: logger}).Start(ctx)
+	}
+	return stack
 }
 
 // ReconcileRuntime runs the same conservative runtime/workload observation as
@@ -118,6 +124,9 @@ func (l *lifecycleStack) Stop() {
 	<-l.reaperDone
 	if l.activityDone != nil {
 		<-l.activityDone
+	}
+	if l.screenDone != nil {
+		<-l.screenDone
 	}
 	if l.scmDone != nil {
 		<-l.scmDone

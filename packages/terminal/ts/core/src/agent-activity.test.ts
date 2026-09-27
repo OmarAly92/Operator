@@ -6,7 +6,6 @@ import {
 	ACTIVITY_POLLING_AFTER_MS,
 	AgentActivityMonitor,
 	createTerminalCore,
-	cursorLineText,
 	detectsHighConfidenceInputPattern,
 	initTerminalCore,
 	type AgentActivityState,
@@ -28,7 +27,6 @@ afterEach(() => {
 });
 
 const encoder = new TextEncoder();
-const decoder = new TextDecoder();
 const FRAME_MS = 100;
 const ESU = encoder.encode("\x1b[?2026l");
 const TITLE = encoder.encode("\x1b]0;");
@@ -63,9 +61,8 @@ function fakeSource(line = "") {
 	let bytes = 0;
 	let owned = false;
 	const source = {
-		cursorLine: vi.fn(() => line),
+		prompting: vi.fn(() => !owned && detectsHighConfidenceInputPattern(line)),
 		liveOutputBytes: () => bytes,
-		lineEditorOwnsLine: () => owned,
 		now: () => Date.now(),
 		setOwned: (next: boolean) => {
 			owned = next;
@@ -176,14 +173,14 @@ describe("AgentActivityMonitor", () => {
 		expect(seen).toEqual(["active", "prompting", "active", "pollingForIdle", "idle"]);
 	});
 
-	it("never reads the cursor line while output is active", () => {
+	it("never checks for a prompt while output is active", () => {
 		const source = fakeSource();
 		const monitor = new AgentActivityMonitor(source);
 		source.write(1);
 		monitor.observe();
-		source.cursorLine.mockClear();
+		source.prompting.mockClear();
 		expect(monitor.state()).toBe("active");
-		expect(source.cursorLine).not.toHaveBeenCalled();
+		expect(source.prompting).not.toHaveBeenCalled();
 	});
 
 	it("keeps no timer without a listener, and the last teardown cancels it", () => {
@@ -342,19 +339,15 @@ describe("TerminalCore agent activity", () => {
 		expect(kept).not.toHaveBeenCalled();
 	});
 
-	it("pads the cursor line in cells, so a wide-character line gets no false trailing space", () => {
+	it("a wide-character question prompts only once the cursor leaves a trailing space after it", () => {
 		const target = core(80, 24);
 		target.feed(encoder.encode("继续吗 [y/n]"));
-		expect(cursorLineText(target.snapshot(), decoder)).toBe("继续吗 [y/n]");
+		vi.advanceTimersByTime(ACTIVITY_POLLING_AFTER_MS);
+		expect(target.agentActivity()).toBe("pollingForIdle");
 		target.feed(encoder.encode("\x1b[2C"));
-		expect(cursorLineText(target.snapshot(), decoder)).toBe("继续吗 [y/n]  ");
 		vi.advanceTimersByTime(ACTIVITY_POLLING_AFTER_MS);
+		expect(target.agentActivity()).toBe("prompting");
 		target.dispose();
-		const plain = core(80, 24);
-		plain.feed(encoder.encode("继续吗 [y/n]"));
-		vi.advanceTimersByTime(ACTIVITY_POLLING_AFTER_MS);
-		expect(plain.agentActivity()).toBe("pollingForIdle");
-		plain.dispose();
 	});
 
 	it("an idle shell prompt is not a question: prompting only while a command holds the line", () => {
@@ -391,7 +384,7 @@ describe("TerminalCore agent activity", () => {
 		["claude-markdown-reply", 157],
 		["claude-long-50k", 1048],
 	] as const)(
-		"%s: active for all %i frames at a 100 ms cadence, idle 1500 ms after the last byte, never prompting",
+		"%s: active for all %i frames at a 100 ms cadence, idle 1500 ms after the last byte",
 		async (name, frames) => {
 			const { recording, sizes } = await fixture(name);
 			const target = core(sizes[0]!.cols, sizes[0]!.rows);
@@ -399,7 +392,6 @@ describe("TerminalCore agent activity", () => {
 			const seen: Array<[AgentActivityState, number]> = [];
 			target.onAgentActivity((state) => seen.push([state, Date.now() - start]));
 			let fed = 0;
-			let prompts = 0;
 			let nextSize = 1;
 			const ends = frameEnds(recording);
 			for (const end of ends) {
@@ -412,13 +404,11 @@ describe("TerminalCore agent activity", () => {
 				}
 				target.feed(recording.subarray(fed, end));
 				fed = end;
-				if (detectsHighConfidenceInputPattern(cursorLineText(target.snapshot(), decoder))) prompts += 1;
 				vi.advanceTimersByTime(FRAME_MS);
 			}
 			const last = (ends.length - 1) * FRAME_MS;
 			vi.advanceTimersByTime(ACTIVITY_IDLE_AFTER_MS);
 			expect(ends).toHaveLength(frames);
-			expect(prompts).toBe(0);
 			expect(seen).toEqual([
 				["active", 0],
 				["pollingForIdle", last + ACTIVITY_POLLING_AFTER_MS],

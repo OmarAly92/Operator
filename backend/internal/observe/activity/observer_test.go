@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/OmarAly92/operator/backend/internal/adapters/agent/claudecode"
+	"github.com/OmarAly92/operator/backend/internal/adapters/agent/aider"
 	"github.com/OmarAly92/operator/backend/internal/adapters/agent/codex"
 	"github.com/OmarAly92/operator/backend/internal/adapters/agent/muse"
 	"github.com/OmarAly92/operator/backend/internal/domain"
@@ -160,10 +160,10 @@ func TestPollLeavesOtherHarnessesUntouched(t *testing.T) {
 	sink := &fakeSink{}
 	runtime := &fakeRuntime{output: "› prompt\nmodel · ~/project\n"}
 	observer := New(
-		fakeSessions{rows: []domain.SessionRecord{activeSession(now, domain.HarnessClaudeCode)}},
+		fakeSessions{rows: []domain.SessionRecord{activeSession(now, domain.HarnessAider)}},
 		sink,
 		runtime,
-		fakeAgents{domain.HarnessClaudeCode: claudecode.New()},
+		fakeAgents{domain.HarnessAider: aider.New()},
 		Config{Clock: func() time.Time { return now }, Logger: testLogger()},
 	)
 

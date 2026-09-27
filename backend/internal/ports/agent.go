@@ -219,6 +219,15 @@ type TerminalDialogReader interface {
 	DenyRow(menu Menu) (int, bool)
 }
 
+type TerminalQuestion struct {
+	Text     string
+	Identity string
+}
+
+type TerminalQuestionReader interface {
+	ReadQuestion(pane string) (TerminalQuestion, bool)
+}
+
 // TerminalComposerReader is an optional adapter capability for reading a
 // harness's unsent composer draft. It takes STYLED pane text: a composer always
 // holds something, and only the styling separates dim placeholder text from what
