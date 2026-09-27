@@ -2021,8 +2021,19 @@ history of `master`.
   use the padded column space; a caret or selection on rows that a Plan 10 pull-back
   rewrites keeps its stable row but not its text (not known to occur); two rewraps
   delivered by two syncs without a snapshot in between lose the first remap
-  (`vt-wasm/src/lib.rs` clears the buffer per delta; not known to occur, every
-  renderer `sync` is followed by a snapshot).
+  (`vt-wasm/src/lib.rs` clears the buffer per delta; not known to occur, though
+  `TerminalCore.takeDirty()` syncs without reading row events, so it needs two
+  remapping syncs in a row).
+- Review fixes (2026-09-27): a line anchor whose logical line starts at or after
+  `remapEnd`'s first row is dropped, since those rows were moved, not reflowed; the
+  point then moves by row and keeps its column (an agent-mode live frame row after a
+  soft-wrapped row read `""` after a narrow resize). A drag or Shift+click that
+  arrives after a remap but before the next paint first settles the moved selection,
+  and every new selection forgets the old one's anchors (it was rebuilt from the
+  previous selection's anchors). Guards: `selection-rewrap.test.ts` "extends the
+  moved selection, not the one from before the width change, when the pointer moves
+  before a repaint" and "keeps a selection on a live agent frame row that follows a
+  soft-wrapped row the width change does not reflow".
 - Guards: `crates/vt-core/tests/remap_end.rs`; `ts/core/src/row-events.test.ts`,
   `terminal-core.test.ts` "reports where the rows after the rewrapped ones went";
   renderer-dom `selection-anchor.test.ts`, `renderer-selection.test.ts`,

@@ -94,4 +94,32 @@ describe("a selection across a width change", () => {
 		expect(renderer.selectedText()).toBe("gamma");
 		renderer.dispose();
 	});
+	it("extends the moved selection, not the one from before the width change, when the pointer moves before a repaint", () => {
+		const core = createTerminalCore({ columns: 40, scrollback: 100, rows: 2 });
+		core.feed(encoder.encode("alpha beta gamma delta epsilon\r\nx\r\ny\r\n"));
+		const { renderer, blockIds } = mounted(core);
+		const row = rowOf(core, "alpha beta gamma delta epsilon");
+		renderer.selectionBegin({ blockId: blockIds[0]!, row, column: 23, side: "left" }, "simple");
+		renderer.selectionUpdate({ blockId: blockIds[0]!, row, column: 29, side: "right" });
+		expect(renderer.selectedText()).toBe("epsilon");
+		core.resize(12, 2);
+		const x = rowOf(core, "x");
+		renderer.selectionUpdate({ blockId: blockIds[0]!, row: x, column: 0, side: "right" });
+		expect(renderer.selectedText()).toBe("epsilon\nx");
+	});
+
+	it("keeps a selection on a live agent frame row that follows a soft-wrapped row the width change does not reflow", () => {
+		const core = createTerminalCore({ columns: 20, scrollback: 100, rows: 4 });
+		core.setAgentTuiMode(true);
+		core.feed(encoder.encode("hist\r\nmore\r\nzz\r\n" + "a".repeat(20) + "bbbb cccc dddd\r\ntail"));
+		const { renderer, blockIds } = mounted(core);
+		const row = rowOf(core, "bbbb cccc dddd");
+		renderer.selectionBegin({ blockId: blockIds[0]!, row, column: 5, side: "left" }, "simple");
+		renderer.selectionUpdate({ blockId: blockIds[0]!, row, column: 8, side: "right" });
+		expect(renderer.selectedText()).toBe("cccc");
+		core.resize(15, 4);
+		expect(renderer.selectedText()).toBe("cccc");
+		core.resize(30, 4);
+		expect(renderer.selectedText()).toBe("cccc");
+	});
 });

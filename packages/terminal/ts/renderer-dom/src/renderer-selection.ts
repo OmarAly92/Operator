@@ -12,6 +12,10 @@ export type RendererSelectionDeps = Readonly<{
 
 type Anchors = Readonly<{ head: LineAnchor | null; tail: LineAnchor | null }>;
 
+function reflowed(anchor: LineAnchor, event: RowEvent): LineAnchor | null {
+	return event.remapEnd && anchor.lineRow >= event.remapEnd[0] ? null : followAnchor(anchor, event);
+}
+
 export class RendererSelection {
 	private selection: SelectionState | null = null;
 	private anchors: Anchors | null = null;
@@ -30,7 +34,8 @@ export class RendererSelection {
 
 	update(point: SelectionPoint, extendFromCaret = false): void {
 		if (this.selection) {
-			this.set({ ...this.selection, tail: point });
+			const current = this.moved && this.deps.hasCore() ? (this.settle(this.deps.textRows()) ?? this.selection) : this.selection;
+			this.set({ ...current, tail: point });
 			return;
 		}
 		if (!extendFromCaret) return;
@@ -49,7 +54,7 @@ export class RendererSelection {
 	followRows(event: RowEvent): void {
 		if (!event.remap && !event.remapEnd) return;
 		if (this.caret) this.caret = followPoint(this.caret, event);
-		if (this.caretAnchor) this.caretAnchor = followAnchor(this.caretAnchor, event);
+		if (this.caretAnchor) this.caretAnchor = reflowed(this.caretAnchor, event);
 		const selection = this.selection;
 		if (!selection) return;
 		if (selection.kind === "rectangle" && selection.head.blockId !== ALT_BLOCK_ID) {
@@ -61,8 +66,8 @@ export class RendererSelection {
 		this.selection = { ...selection, head: followPoint(selection.head, event), tail: followPoint(selection.tail, event) };
 		if (this.anchors && this.anchoredFor === selection) {
 			this.anchors = {
-				head: this.anchors.head && followAnchor(this.anchors.head, event),
-				tail: this.anchors.tail && followAnchor(this.anchors.tail, event),
+				head: this.anchors.head && reflowed(this.anchors.head, event),
+				tail: this.anchors.tail && reflowed(this.anchors.tail, event),
 			};
 			this.anchoredFor = this.selection;
 			this.moved = true;
@@ -112,6 +117,9 @@ export class RendererSelection {
 
 	private set(selection: SelectionState): void {
 		this.selection = selection;
+		this.anchors = null;
+		this.anchoredFor = null;
+		this.moved = false;
 		this.changed();
 	}
 
