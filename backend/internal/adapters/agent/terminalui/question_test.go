@@ -1,6 +1,7 @@
 package terminalui
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/OmarAly92/operator/backend/internal/ports"
@@ -48,5 +49,22 @@ func TestQuestionAtMasksATokenWhoseKeywordIsAboveTheContext(t *testing.T) {
 	}
 	if got.Identity != "abcdefghijklmnop1234' https://x.test Run it? 1. Yes 2. No" {
 		t.Fatalf("identity = %q", got.Identity)
+	}
+}
+
+func TestQuestionAtMasksAWrappedTokenSplitByAnInvisibleRune(t *testing.T) {
+	key := "sk-proj-AbCdEfGhIjKlMnOpQrStUvWxYz0123"
+	lines := []string{"export OPENAI_KEY=" + key[:12] + string(rune(0x2062)), key[12:] + " now", "Run it?", "1. Yes", "2. No"}
+	got := QuestionAt(lines, 3, ports.Menu{Rows: []string{"1. Yes", "2. No"}})
+	for i := 0; i+8 <= len(key); i++ {
+		if strings.Contains(got.Text, key[i:i+8]) {
+			t.Fatalf("text leaks %q of the secret: %q", key[i:i+8], got.Text)
+		}
+	}
+	if strings.ContainsRune(got.Text, 0x2062) || !strings.HasSuffix(got.Text, " now · Run it?") {
+		t.Fatalf("text = %q", got.Text)
+	}
+	if got.Identity != strings.Join(strings.Fields(strings.Join(append(lines[:3:3], "1. Yes", "2. No"), " ")), " ") {
+		t.Fatalf("identity = %q, want it built from the raw screen", got.Identity)
 	}
 }

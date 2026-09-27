@@ -77,3 +77,17 @@ func TestReadTurnSummaryMasksALongBearerTokenWrappedOverFifteenLines(t *testing.
 		t.Fatalf("summary = %q", got)
 	}
 }
+
+func TestReadTurnSummaryMasksAWrappedSecretSplitByAnInvisibleRune(t *testing.T) {
+	key := "sk-proj-AbCdEfGhIjKlMnOpQrStUvWxYz0123"
+	summary := "⏺ I wired the key\n  " + key[:12] + string(rune(0x00ad)) + "\n  " + key[12:] + " into .env.\n\n" +
+		"✻ Baked for 11s · done 6:13 PM\n────────\n❯\n────────\n  ⏵⏵ auto mode on (shift+tab to cycle)"
+	got, ok := (&Plugin{}).ReadTurnSummary(summary)
+	if !ok {
+		t.Fatalf("no summary read")
+	}
+	assertNoTokenFragment(t, got, key)
+	if strings.ContainsRune(got, 0x00ad) || !strings.Contains(got, "into .env.") {
+		t.Fatalf("summary = %q", got)
+	}
+}

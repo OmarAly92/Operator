@@ -29,3 +29,23 @@ func TestCleanMasksSecretsAndStripsEscapesAndControls(t *testing.T) {
 		}
 	}
 }
+
+func TestCleanDropsEveryInvisibleFormatRuneSoNoneCanSplitASecret(t *testing.T) {
+	for _, r := range []rune{0x00ad, 0x061c, 0x180e, 0x200b, 0x200d, 0x2062, 0x2064, 0x206a, 0xfeff, 0xfff9, 0x110bd, 0x1d173, 0xe0001, 0xe0041, 0xe007f} {
+		in := "key sk-abcdefghij" + string(r) + "klmnopqrstuvwxyz end"
+		if got := Clean(in); got != "key [redacted] end" {
+			t.Errorf("Clean with U+%04X = %q, want the secret masked and the rune dropped", r, got)
+		}
+	}
+}
+
+func TestCleanKeepsVisibleTextAndBreaksAnEmojiZWJSequenceIntoItsParts(t *testing.T) {
+	for _, tc := range []struct{ in, want string }{
+		{"café ✅ naïve 日本語 ❤️", "café ✅ naïve 日本語 ❤️"},
+		{"family \U0001f468‍\U0001f469‍\U0001f467 done", "family \U0001f468\U0001f469\U0001f467 done"},
+	} {
+		if got := Clean(tc.in); got != tc.want {
+			t.Errorf("Clean(%q) = %q, want %q", tc.in, got, tc.want)
+		}
+	}
+}

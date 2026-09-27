@@ -71,3 +71,12 @@ func TestLinesMasksALongBearerTokenWrappedOverFifteenLines(t *testing.T) {
 		t.Fatalf("Lines = %q", got)
 	}
 }
+
+func TestLinesMasksAWrappedSecretSplitByAnInvisibleFormatRune(t *testing.T) {
+	for _, r := range []rune{0x00ad, 0x200b, 0x200d, 0x2062, 0xe0041} {
+		got := strings.Join(Lines([]string{"key sk-abcdefghij" + string(r), "klmnopqrstuvwxyz end"}), "\n")
+		if strings.Contains(got, "abcdefghij") || strings.Contains(got, "klmnopqrstuvwxyz") || strings.ContainsRune(got, r) {
+			t.Errorf("Lines with U+%04X = %q, want the secret masked and the rune dropped", r, got)
+		}
+	}
+}

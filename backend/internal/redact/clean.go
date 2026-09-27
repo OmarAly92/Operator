@@ -14,22 +14,17 @@ var terminalEscape = regexp.MustCompile(`(?:\x1b\]|\x{9d})(?s:.*?)(?:\x07|\x1b\\
 func Clean(s string) string {
 	s = strings.ToValidUTF8(s, "")
 	s = terminalEscape.ReplaceAllString(s, "")
-	s = strings.Map(func(r rune) rune {
+	return Text(dropInvisible(s)).Text
+}
+
+func dropInvisible(s string) string {
+	return strings.Map(func(r rune) rune {
 		if r == '\n' || r == '\t' {
 			return r
 		}
-		if unicode.IsControl(r) || unicode.Is(unicode.Bidi_Control, r) || isZeroWidth(r) {
+		if unicode.IsControl(r) || unicode.Is(unicode.Cf, r) || unicode.Is(unicode.Bidi_Control, r) {
 			return -1
 		}
 		return r
 	}, s)
-	return Text(s).Text
-}
-
-func isZeroWidth(r rune) bool {
-	switch r {
-	case '\u200b', '\u200c', '\u200d', '\u2060', '\ufeff':
-		return true
-	}
-	return false
 }

@@ -65,3 +65,16 @@ func TestReadTurnSummaryMasksASecretHardWrappedAcrossLines(t *testing.T) {
 		t.Fatalf("summary = %q", got)
 	}
 }
+
+func TestReadTurnSummaryMasksAWrappedSecretSplitByAnInvisibleRune(t *testing.T) {
+	key := "sk-proj-AbCdEfGhIjKlMnOpQrStUvWxYz0123"
+	summary := "• I wired the key\n  " + key[:12] + string(rune(0x200b)) + "\n  " + key[12:] + " into .env and all tests pass.\n\n› Ask Codex to do anything"
+	got, ok := (&Plugin{}).ReadTurnSummary(summary)
+	if !ok {
+		t.Fatalf("no summary read")
+	}
+	assertNoFragmentOf(t, got, key)
+	if strings.ContainsRune(got, 0x200b) || !strings.HasSuffix(got, " into .env and all tests pass.") {
+		t.Fatalf("summary = %q", got)
+	}
+}

@@ -5,71 +5,108 @@ import (
 	"strings"
 )
 
-const wrapLines = 2
+const (
+	wrapLines = 2
+	wrapBytes = 64
+	keyBytes  = 32
+)
+
+type wrapRun struct{ lo, first int }
 
 func Lines(lines []string) []string {
-	masked := make([][]hit, len(lines))
-	continued := map[int]bool{}
-	collect := func(from int, seps []string) {
-		var b strings.Builder
-		starts := make([]int, len(seps)+1)
-		for k := range starts {
-			if k > 0 {
-				b.WriteString(seps[k-1])
-			}
-			starts[k] = b.Len()
-			b.WriteString(lines[from+k])
-		}
-		for _, h := range find(b.String()) {
-			first, reachesEnd := -1, false
-			for k, start := range starts {
-				lo, hi := max(h.start, start), min(h.end, start+len(lines[from+k]))
-				if lo >= hi {
-					continue
-				}
-				masked[from+k] = append(masked[from+k], hit{lo - start, hi - start})
-				if first < 0 {
-					first = from + k
-				}
-				reachesEnd = hi == start+len(lines[from+k]) && from+k < len(lines)-1
-			}
-			if first > 0 && reachesEnd {
-				continued[first] = true
-			}
-		}
-	}
-	joined := func(from, spaced int, sep string) []string {
-		seps := make([]string, len(lines)-1-from)
-		for k := range seps {
-			seps[k] = sep
-			if from+k == spaced {
-				seps[k] = " "
-			}
-		}
-		return seps
-	}
 	if len(lines) == 0 {
 		return nil
 	}
-	for _, sep := range []string{"", " ", "\n"} {
-		collect(0, joined(0, -1, sep))
+	visible := make([]string, len(lines))
+	for i, line := range lines {
+		visible[i] = dropInvisible(line)
 	}
-	for first := range lines {
-		from := max(0, first-1)
-		for last := first + 1; last < min(len(lines), first+wrapLines+1); last++ {
-			to := min(len(lines)-1, last+1)
-			seps := make([]string, to-from)
-			for k := range seps {
-				seps[k] = " "
-				if from+k >= first && from+k < last {
-					seps[k] = ""
+	lines = visible
+	masked := make([][]hit, len(lines))
+	continued := map[wrapRun]bool{}
+	scan := func(text string, starts []int, index []int) bool {
+		reached := false
+		for _, h := range find(text) {
+			for k, start := range starts {
+				i := index[k]
+				lo, hi := max(h.start, start), min(h.end, start+len(lines[i]))
+				if lo >= hi {
+					continue
+				}
+				masked[i] = append(masked[i], hit{lo - start, hi - start})
+				if hi == h.end && hi == start+len(lines[i]) && i < len(lines)-1 {
+					reached = true
 				}
 			}
-			collect(from, seps)
+		}
+		return reached
+	}
+	joined := func(sep string) {
+		var b strings.Builder
+		starts := make([]int, len(lines))
+		index := make([]int, len(lines))
+		for i, line := range lines {
+			if i > 0 {
+				b.WriteString(sep)
+			}
+			starts[i], index[i] = b.Len(), i
+			b.WriteString(line)
+		}
+		scan(b.String(), starts, index)
+	}
+	run := func(lo, first, last int) bool {
+		var b strings.Builder
+		var starts, index []int
+		add := func(i int) {
+			starts, index = append(starts, b.Len()), append(index, i)
+			b.WriteString(lines[i])
+		}
+		for i := lo; i < first; i++ {
+			add(i)
+		}
+		if lo < first {
+			b.WriteByte(' ')
+		}
+		for i := first; i <= last; i++ {
+			add(i)
+		}
+		if last+1 < len(lines) {
+			b.WriteByte(' ')
+			add(last + 1)
+		}
+		return scan(b.String(), starts, index)
+	}
+	for _, sep := range []string{"", " ", "\n"} {
+		joined(sep)
+	}
+	for first := range lines {
+		los := []int{max(0, first-1)}
+		if first > 0 && len(lines[first-1]) < keyBytes {
+			lo, glued := first-1, len(lines[first-1])
+			for lo > 0 && glued < keyBytes {
+				lo--
+				glued += len(lines[lo])
+			}
+			if lo < first-1 {
+				los = append(los, lo)
+			}
+		}
+		for _, lo := range los {
+			last := first + 1
+			if lo < first-1 {
+				last = first
+			}
+			glued := 0
+			for ; last < len(lines) && (last <= first+wrapLines || glued < wrapBytes); last++ {
+				glued += len(lines[last])
+				if run(lo, first, last) {
+					continued[wrapRun{lo, first}] = true
+				}
+			}
 		}
 	}
-	for first := range continued {
-		collect(first-1, joined(first-1, first-1, ""))
+	for r := range continued {
+		run(r.lo, r.first, len(lines)-1)
 	}
 	out := make([]string, len(lines))
 	for i, line := range lines {
