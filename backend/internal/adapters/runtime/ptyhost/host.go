@@ -79,6 +79,9 @@ func newHost(ctx context.Context, cfg ServeConfig) *host {
 		recorder:  cfg.Recorder,
 	}
 	h.readCond = sync.NewCond(&h.mu)
+	if cfg.Parser != nil {
+		h.activity = vtwasm.NewActivityClock(cfg.Parser)
+	}
 	return h
 }
 
@@ -88,9 +91,10 @@ func newHost(ctx context.Context, cfg ServeConfig) *host {
 // applyLargestLocked). A connection that never sends a resize stays sized=false
 // and never influences the shared grid.
 type clientState struct {
-	cols, rows   int
-	sized        bool
-	wantsHistory bool
+	cols, rows    int
+	sized         bool
+	wantsHistory  bool
+	wantsActivity bool
 
 	// out is this client's outbound queue, drained by a dedicated writer
 	// goroutine (runWriter). Every frame the host sends a client -- the
@@ -240,6 +244,11 @@ type host struct {
 	notifyWindowStart time.Time
 	notifyCount       int
 	appearance        *AppearancePayload
+
+	activity      vtwasm.ActivityClock
+	activitySeq   uint64
+	activityFrame []byte
+	pokedAt       time.Time
 }
 
 // runWriter drains one client's outbound queue, blocking on each conn.Write
@@ -358,6 +367,7 @@ func (h *host) applyLargestLocked(pending *clientState) {
 	}
 	h.curCols, h.curRows = bestCols, bestRows
 	_ = h.pty.Resize(bestCols, bestRows)
+	h.pokedAt = time.Now()
 	if h.parser != nil {
 		_ = h.parser.Resize(uint32(bestCols), uint32(bestRows))
 		if replies := h.takeQueryRepliesLocked(); len(replies) > 0 {
@@ -372,6 +382,7 @@ func (h *host) run(ctx context.Context) error {
 	// Pump PTY output to ring + broadcast.
 	go h.pumpPTY()
 	go h.runHistoryPersist()
+	go h.runActivityClock()
 
 	// Watch for ctx cancellation and trigger shutdown.
 	go func() {
@@ -651,6 +662,7 @@ func (h *host) deliver(batch []byte) bool {
 	inSync := h.parserInSyncLocked()
 	replies := h.takeQueryRepliesLocked()
 	h.publishProgramLocked()
+	h.publishActivityLocked(time.Now())
 	pty := h.pty
 	h.mu.Unlock()
 
@@ -838,7 +850,7 @@ func (h *host) handleConn(conn net.Conn) {
 		return
 	}
 	if opening == nil && len(deferred) > 0 && deferred[0].typ == MsgWatchReq {
-		h.serveWatcher(conn, cs, buf)
+		h.serveWatcher(conn, cs, buf, deferred[0].payload)
 		return
 	}
 
@@ -1074,6 +1086,9 @@ func (h *host) awaitAckedHistory(cs *clientState) {
 func (h *host) handleClientMsg(conn net.Conn, msgType byte, payload []byte) {
 	switch msgType {
 	case MsgTerminalInput:
+		h.mu.Lock()
+		h.pokedAt = time.Now()
+		h.mu.Unlock()
 		pty := h.currentPTY()
 		if _, alive := pty.ExitCode(); !alive {
 			_, _ = pty.Write(payload)
