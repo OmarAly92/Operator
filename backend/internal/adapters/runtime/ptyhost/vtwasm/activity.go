@@ -64,7 +64,7 @@ func (p *Parser) AgentActivity(quietMs int64) (AgentActivity, error) {
 	if err != nil {
 		return ActivityIdle, err
 	}
-	if uint32(raw) == renderErr {
+	if raw == uint64(renderErr) {
 		return ActivityIdle, fmt.Errorf("vtwasm: agent_activity failed for handle %d", p.handle)
 	}
 	return AgentActivity(uint32(raw)), nil

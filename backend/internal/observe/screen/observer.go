@@ -106,11 +106,10 @@ func (o *Observer) Enqueue(handleID string, event ports.TerminalProgramEvent) {
 		return
 	}
 	o.mu.Lock()
-	queue := append(o.queued[handleID], event)
-	if len(queue) > maxQueued {
-		queue = queue[len(queue)-maxQueued:]
+	o.queued[handleID] = append(o.queued[handleID], event)
+	if queue := o.queued[handleID]; len(queue) > maxQueued {
+		o.queued[handleID] = queue[len(queue)-maxQueued:]
 	}
-	o.queued[handleID] = queue
 	o.mu.Unlock()
 	select {
 	case o.wake <- struct{}{}:

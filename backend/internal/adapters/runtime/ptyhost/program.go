@@ -22,7 +22,7 @@ func programFrame(event ProgramEventPayload) []byte {
 	return frame
 }
 
-func (h *host) serveWatcher(conn net.Conn, cs *clientState, buf []byte, payload []byte) {
+func (h *host) serveWatcher(conn net.Conn, cs *clientState, buf, payload []byte) {
 	cs.wantsActivity = wantsActivity(payload)
 	h.mu.Lock()
 	h.watchers[conn] = cs
