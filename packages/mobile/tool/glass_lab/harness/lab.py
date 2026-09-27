@@ -9,6 +9,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import analyze
 import build
+import flip
 import manifest
 import metrics
 import probe
@@ -193,6 +194,14 @@ def cmd_repeat(args):
         raise SystemExit(f"static repeatability failed for {', '.join(failed)}")
 
 
+def cmd_flip(args):
+    run_dir = Path(args.run_dir) if args.run_dir else latest_run()
+    text = flip.report(run_dir, args.regular)
+    print(text)
+    if args.out:
+        Path(args.out).write_text(text)
+
+
 def cmd_perf(args):
     udid = sim.device()
     sim.appearance(udid, args.appearance)
@@ -254,6 +263,11 @@ def parser():
     t.add_argument("scene", nargs="?", default="default")
     t.add_argument("--times", type=int, default=3)
     t.set_defaults(func=cmd_repeat)
+    l = commands.add_parser("flip")
+    l.add_argument("run_dir", nargs="?")
+    l.add_argument("--regular")
+    l.add_argument("--out")
+    l.set_defaults(func=cmd_flip)
     f = commands.add_parser("perf")
     f.add_argument("--flutter", default="example", choices=tuple(build.FLUTTER_TARGETS))
     f.add_argument("--appearance", default="dark", choices=("light", "dark"))
