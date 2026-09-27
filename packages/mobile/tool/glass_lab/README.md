@@ -7,7 +7,7 @@ It has three parts:
 - an XCUITest driver that plays identical touches on any app (`native/GlassLabDriver`);
 - a Python harness that records both apps and compares them (`harness/`).
 
-The spec is `docs/superpowers/specs/2026-09-26-mobile-glass-reference-lab-design.md`.
+The spec is `docs/liquid_glass/01-reference-lab/spec.md`.
 
 ## Requirements
 

@@ -19,7 +19,7 @@
 
 **Tech stack.** Swift/SwiftUI (iOS 27 SDK, Xcode 27), XCTest UI testing, Python 3 (Pillow, numpy, stdlib `unittest`), ffmpeg, Flutter 3.44.5 / Dart.
 
-**Spec.** `docs/superpowers/specs/2026-09-26-mobile-glass-reference-lab-design.md`. Read its "Prototype findings" section first. Research inputs are in `docs/superpowers/specs/research/2026-09-26-liquid-glass/`.
+**Spec.** `docs/liquid_glass/01-reference-lab/spec.md`. Read its "Prototype findings" section first. Research inputs are in `docs/liquid_glass/research/`.
 
 **Where the code comes from.** Every code block in this plan was run on the iOS 27 simulator in a prototype before the plan was written:
 - the native catalog compiled;
@@ -90,7 +90,7 @@ Transcribe the code exactly, then run the verification steps. If a verification 
 | `lib/core/widgets/glass/lab/glass_lab_registry.dart` | Id → scene builder, missing placeholder |
 | `lib/core/widgets/glass/lab/glass_lab_screen.dart` | Lab route screen |
 | `lib/core/widgets/glass/lab/scenes/*.dart` | Flutter scenes for components Operator already has |
-| `docs/superpowers/specs/2026-09-26-mobile-glass-reference-lab-baseline.md` | Committed baseline summary |
+| `docs/liquid_glass/01-reference-lab/baseline.md` | Committed baseline summary |
 
 Deleted: `tool/glass_reference/`, `lib/core/widgets/glass/lab/glass_lab_scene.dart`, `test/core/widgets/glass/lab/glass_lab_scene_test.dart`.
 
@@ -6095,7 +6095,7 @@ It has three parts:
 - an XCUITest driver that plays identical touches on any app (`native/GlassLabDriver`);
 - a Python harness that records both apps and compares them (`harness/`).
 
-The spec is `docs/superpowers/specs/2026-09-26-mobile-glass-reference-lab-design.md`.
+The spec is `docs/liquid_glass/01-reference-lab/spec.md`.
 
 ## Requirements
 
@@ -7063,7 +7063,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
 **Files:**
 - Create: `tool/glass_lab/noise.json` (written by `lab.py repeat`)
-- Create: `docs/superpowers/specs/2026-09-26-mobile-glass-reference-lab-baseline.md` (written by `lab.py summary`)
+- Create: `docs/liquid_glass/01-reference-lab/baseline.md` (written by `lab.py summary`)
 - Delete: `tool/glass_reference/`
 - Modify: `.gitignore`, `tool/glass_lab/scenes.json` (only Apple `prepare` steps, if needed)
 
@@ -7094,12 +7094,12 @@ Open `report.html` and scan every filmstrip for system overlays, such as a keybo
 
 - [ ] **Step 5: Write the baseline summary**
 
-Run: `python3 tool/glass_lab/harness/lab.py summary ../../docs/superpowers/specs/2026-09-26-mobile-glass-reference-lab-baseline.md`
+Run: `python3 tool/glass_lab/harness/lab.py summary ../../docs/liquid_glass/01-reference-lab/baseline.md`
 Expected: the file exists, starting with "# Glass lab baseline". It has one row per case: scene, case, title, status and failing measures.
 
 - [ ] **Step 6: Remove the old reference tool**
 
-Delete `tool/glass_reference/` and remove the `tool/glass_reference/build/` line from `.gitignore`. Check with `grep -rn "glass_reference" lib test tool .gitignore ../../docs/superpowers/specs/2026-09-26-mobile-glass-reference-lab-design.md`. Expected: no hits outside the spec's own text.
+Delete `tool/glass_reference/` and remove the `tool/glass_reference/build/` line from `.gitignore`. Check with `grep -rn "glass_reference" lib test tool .gitignore ../../docs/liquid_glass/01-reference-lab/spec.md`. Expected: no hits outside the spec's own text.
 
 - [ ] **Step 7: Final gates**
 
@@ -7114,7 +7114,7 @@ Expected: `OK`, `No issues found!`, and all tests passed.
 - [ ] **Step 8: Commit**
 
 ```bash
-git add -A tool .gitignore ../../docs/superpowers/specs/2026-09-26-mobile-glass-reference-lab-baseline.md
+git add -A tool .gitignore ../../docs/liquid_glass/01-reference-lab/baseline.md
 git commit -m "feat(mobile): glass lab noise floor and iOS 27 baseline; retire glass_reference
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"

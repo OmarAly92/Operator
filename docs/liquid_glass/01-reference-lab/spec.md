@@ -6,7 +6,7 @@ Project 1 of 4 in the "complete native Liquid Glass" roadmap.
 
 ## Why
 
-The user wants the mobile glass to be complete and indistinguishable from native iOS 27 Liquid Glass: every component, animation and behaviour, first as a package, then applied across Operator. Apple publishes almost no numbers for Liquid Glass: no blur radii, durations, springs or sizes ([research/apple-inventory.md](research/2026-09-26-liquid-glass/apple-inventory.md) §9). The only reliable way to match it is to measure native output.
+The user wants the mobile glass to be complete and indistinguishable from native iOS 27 Liquid Glass: every component, animation and behaviour, first as a package, then applied across Operator. Apple publishes almost no numbers for Liquid Glass: no blur radii, durations, springs or sizes ([research/apple-inventory.md](../research/apple-inventory.md) §9). The only reliable way to match it is to measure native output.
 
 The tab bar proved this method (commit 947f03e8e), but it was done by hand, one component at a time, on iOS 26.5. The target is now **iOS 27**, which changed the material:
 - a darker edge;
@@ -31,7 +31,7 @@ Projects 2–4 each get their own spec. This project fixes no glass. It ends wit
 
 ## Research inputs
 
-These are committed beside this spec under `research/2026-09-26-liquid-glass/`:
+These are committed beside this spec under `docs/liquid_glass/research/`:
 - `apple-inventory.md` — the 80-item Apple component and behaviour inventory, iOS 27 deltas, numbers ledger, and "behaviours most implementations miss". It is the checklist of what "complete" means.
 - `flutter-repos.md`, `non-flutter.md` — techniques for projects 2–3. They are not used here.
 - `operator-audit.md` — every Operator screen and the component each one uses. It is used by project 4.
@@ -375,7 +375,7 @@ Static math uses the full 3× lossless screenshots. Motion math uses video frame
    Differences that come from how a component draws are not fixed here; the baseline records them for projects 2–4. That covers box size (for example a glass shadow's spread) and the component's own internal layout (for example the nav bar's item spacing). `material.edge.*` have no glass box.
 4. The harness unit tests pass, and the repeatability check passes.
 5. `lab.py baseline` completes. Its report shows every scene, with native iOS 27 against Operator's current glass.
-6. **Committed:** `docs/superpowers/specs/2026-09-26-mobile-glass-reference-lab-baseline.md`, a summary with the coverage table and each scene's worst measures. It is the ordered backlog for projects 2–4. The HTML report and frames stay in `build/`; the report may also be published as an artifact for the user.
+6. **Committed:** `docs/liquid_glass/01-reference-lab/baseline.md`, a summary with the coverage table and each scene's worst measures. It is the ordered backlog for projects 2–4. The HTML report and frames stay in `build/`; the report may also be published as an artifact for the user.
 7. `tool/glass_reference/` is deleted and its `.gitignore` entry replaced.
 8. `flutter analyze` and `flutter test` are green, and the README documents every command.
 
