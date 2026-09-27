@@ -3908,7 +3908,7 @@ product backlog.
 
 ### 6.9 Agent tools on top of the terminal: idle detection, output compression, prompt detection
 
-> **Status: Partial.** Roadmap Plan 8 (2026-09-25) — the idle/prompt detector (`TerminalCore.agentActivity()`/`onAgentActivity`) and `readBlockOutput({ compact })` are in `ts/core` (`TERMINAL.md` §4.34). Operator does not consume them; its board state still comes from `opr mcp` (`2e54a6bfb`) and the daemon (`0cd094f12`).
+> **Status: Partial.** Roadmap Plan 8 (2026-09-25) — the idle/prompt detector (`TerminalCore.agentActivity()`/`onAgentActivity`) and `readBlockOutput({ compact })` are in `ts/core` (`TERMINAL.md` §4.34). Operator consumes the classifier through the pty-host mirror since wave 1 (`TERMINAL.md` §4.52); compact summaries land in wave 1 phase B.
 
 **Reference**
 - `vscode/src/vs/workbench/contrib/terminalContrib/chatAgentTools/browser/executeStrategy/executeStrategy.ts:14-31`:
@@ -4050,7 +4050,7 @@ means `/Users/omaraly/development/AI/warp/app/src/terminal/cli_agent.rs`.
 
 ### 7.1 CLI-agent session events over OSC 777 from an installed agent plugin
 
-> **Status: Partial.** Roadmap Plan 8 (2026-09-25) — an in-band agent-state channel over OSC 777 (`protocol/SPEC.md` §10, `TERMINAL.md` §4.34) parsed by `vt-core` and surfaced by `ts/core`; Plan 3 parses OSC 777 `notify` and OSC 9. Agent events still reach the daemon out of band (hooks, `opr mcp` `session_report`, the transcript's interrupt marker); nothing emits or consumes the in-band channel yet.
+> **Status: Partial.** Roadmap Plan 8 (2026-09-25) — an in-band agent-state channel over OSC 777 (`protocol/SPEC.md` §10, `TERMINAL.md` §4.34) parsed by `vt-core` and surfaced by `ts/core`; Plan 3 parses OSC 777 `notify` and OSC 9. Agent events still reach the daemon out of band (hooks, `opr mcp` `session_report`, the transcript's interrupt marker); nothing emits or consumes the in-band channel yet. The daemon's screen observer (`backend/internal/observe/screen`) is where an in-band agent-state event would enter; nothing emits one yet.
 
 **Reference**
 - `warp/app/src/terminal/cli_agent.rs:1-4`: "detecting and working with

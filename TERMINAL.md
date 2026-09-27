@@ -269,8 +269,9 @@ rebuilt (§6).
    (one representation for selection, search and marks) for behaviour only, no
    code adapted; Kitty's marks are GPL-3.0 and were not read.
    Agent activity (§4.34) ports VS Code's `detectsHighConfidenceInputPattern`
-   (MIT; `ts/core/src/input-patterns.ts`, `VSCODE-INPUT-PATTERNS-ATTRIBUTION.md`
-   and `LICENSE-VSCODE-MIT` beside it) and follows VS Code's idle polling
+   (MIT; `crates/vt-core/src/activity/input_patterns.rs`,
+   `VSCODE-INPUT-PATTERNS-ATTRIBUTION.md` and `LICENSE-VSCODE-MIT` beside it)
+   and follows VS Code's idle polling
    behaviour without copying code; the in-band agent events are our own wire
    format (`protocol/SPEC.md` §10), written from the survey's description of
    Warp's (§7.1; AGPL-3.0, no Warp file read).
@@ -1250,7 +1251,7 @@ history of `master`.
   `AgentActivityMonitor` (`ts/core/src/agent-activity.ts`) turns it into
   `active` (output in the last 500 ms), `pollingForIdle`, `idle` (1,500 ms
   quiet) or `prompting` (quiet and the cursor line matches VS Code's
-  high-confidence prompt patterns, `input-patterns.ts`) — VS Code's
+  high-confidence prompt patterns, now in `vt-core` `activity/input_patterns.rs`, §4.52) — VS Code's
   500 ms / two-idle-polls behaviour (`chatAgentTools/.../monitoring/types.ts`
   `PollingConsts`) as a clock. The timer runs only while someone listens and
   stops at `idle`; every output restarts it, so each threshold is timed from
@@ -1311,6 +1312,8 @@ history of `master`.
   editor ownership, wide-character padding, idle shell prompt);
   `agent-events.test.ts` "AgentEvents listener failures";
   `compact-output.test.ts` (whole-line spinner, separated runs, `maxLines`).
+- Operator consumes the classifier since wave 1 (§4.52); the TS monitor asks
+  the core (`WasmTerminalCore::cursor_line_prompts`).
 
 ### 4.35 The parser rework — roadmap Plan 9
 - **Part A: `vte::ansi::Handler` measured, not adopted (2026-09-26).** A
@@ -1983,6 +1986,14 @@ history of `master`.
   the same); a reload drops it (§4.45).
 - Guards: `crates/vt-host/src/replay_first_prompt_tests.rs`; `vtwasm/line_editor_test.go`
   `TestReplayAtTheFirstSuppressedPromptHandsTheLineEditorToTheAttachingCore`.
+
+### 4.52 Operator's status came only from hooks — wave 1, agent signals
+- Before: a card's working / needs-you / done came only from agent hooks (`lifecycle/manager.go:547`), a missed hook left it stale until the next one (the 30 s poller corrected only Codex and Muse after 2 minutes, `observe/activity/observer.go:15-17`), and agents without hooks (aider, pi, auggie) were always idle.
+- Classifier in vt-core, shared: `TerminalCore::cursor_line_text`, `cursor_line_prompts`, `agent_activity(quiet_ms)` (`crates/vt-core/src/activity.rs`; VS Code's patterns in `activity/input_patterns.rs`). The renderer's `AgentActivityMonitor` asks the core; the mirror exports `vt_live_output_bytes`, `vt_agent_activity`, `vt_cursor_line`.
+- Detection runs in the pty-host (every byte, pane open or not): `vtwasm.ActivityClock` on a 250 ms tick and every feed; typing echo and resize repaints within 250 ms of a keystroke or resize are not activity; `PollingForIdle` is not published; transitions go to watchers that ask (`MsgWatchReq {"activity":true}`) with a 40-row tail and the cursor line; a late watcher gets the last one; seeding and respawn re-baseline.
+- Daemon: `observe/screen` classifies with the adapter (`TerminalQuestionReader` for Claude Code and Codex, Claude Code's new composer detector), debounces (working 3 s, question 1 s, settle 2 s, unconfirmed settle 60 s, leaving an answered question 2 s), re-asserts every 5 s, and calls `ApplyActivitySignal` with a screen reading. `domain.MergeScreenReading`: a hook within 30 s wins except a question drawn after its `active`; stale or absent hooks lose. One alert per question identity per 2 minutes. Screen signals never set `FirstSignalAt`.
+- Measured (Task 13, `backend/internal/observe/screen/recordings_test.go`, recordings in `packages/terminal/bench/agent-session/signals/`): pending — the recordings branch (`terminal/wave1-agent-signals-recordings`, Tasks 1/2) has not been merged into this branch yet; the harness compiles and is ready to run.
+- Guards: `crates/vt-core/tests/agent_activity.rs`, `vt-wasm/tests/agent_exports.rs`, `vtwasm/activity_test.go`, `ptyhost/activity_test.go`, `program_watch_test.go` `TestTheProgramWatchAsksForActivityAndDeliversIt`, `terminal/programs_test.go` `TestActivityEventsNeverReachTheProgramsChannel`, `domain/screen_reading_test.go`, `lifecycle/screen_signal_test.go`, `terminalui/question_test.go`, `claudecode/question_test.go`, `codex/question_test.go`, `observe/screen/{classify,debounce,observer,recordings}_test.go`.
 
 ## 5. Known gaps (not bugs, decisions pending)
 
