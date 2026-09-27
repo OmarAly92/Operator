@@ -21,6 +21,7 @@ import (
 	"github.com/OmarAly92/operator/backend/internal/domain"
 	"github.com/OmarAly92/operator/backend/internal/lifecycle"
 	activityobserver "github.com/OmarAly92/operator/backend/internal/observe/activity"
+	"github.com/OmarAly92/operator/backend/internal/observe/blockretention"
 	"github.com/OmarAly92/operator/backend/internal/observe/reaper"
 	"github.com/OmarAly92/operator/backend/internal/ports"
 	reviewcore "github.com/OmarAly92/operator/backend/internal/review"
@@ -42,12 +43,14 @@ type lifecycleStack struct {
 	// LCM is the Lifecycle Manager (the canonical write path). It is exposed so
 	// startSession can share the same reducer the reaper drives, rather than
 	// standing up a second store+LCM pair that would diverge under writes.
-	LCM           *lifecycle.Manager
-	runtimeReaper *reaper.Reaper
-	reaperDone    <-chan struct{}
-	activityDone  <-chan struct{}
-	scmDone       <-chan struct{}
-	trackerDone   <-chan struct{}
+	LCM            *lifecycle.Manager
+	runtimeReaper  *reaper.Reaper
+	blockRetention *blockretention.Retention
+	reaperDone     <-chan struct{}
+	activityDone   <-chan struct{}
+	scmDone        <-chan struct{}
+	trackerDone    <-chan struct{}
+	retentionDone  <-chan struct{}
 }
 
 // startLifecycle constructs the Lifecycle Manager over the store and starts the
@@ -62,12 +65,15 @@ func startLifecycle(ctx context.Context, store *sqlite.Store, runtime ports.Runt
 	)
 	lcm.SetInputRecency(recency)
 	rp := reaper.New(lcm, store, runtime, reaper.Config{Logger: logger})
+	br := blockretention.New(store, blockretention.Config{Logger: logger})
 	activityPoller := activityobserver.New(store, lcm, runtime, agents, activityobserver.Config{Logger: logger})
 	return &lifecycleStack{
-		LCM:           lcm,
-		runtimeReaper: rp,
-		reaperDone:    rp.Start(ctx),
-		activityDone:  activityPoller.Start(ctx),
+		LCM:            lcm,
+		runtimeReaper:  rp,
+		blockRetention: br,
+		reaperDone:     rp.Start(ctx),
+		activityDone:   activityPoller.Start(ctx),
+		retentionDone:  br.Start(ctx),
 	}
 }
 
@@ -76,6 +82,15 @@ func startLifecycle(ctx context.Context, store *sqlite.Store, runtime ports.Runt
 // so exits missed while Operator was stopped are folded before the API starts serving.
 func (l *lifecycleStack) ReconcileRuntime(ctx context.Context) error {
 	return l.runtimeReaper.Tick(ctx)
+}
+
+// ReconcileBlockRetention runs the same clear-then-delete cycle as the periodic
+// block retention janitor. The daemon calls it alongside ReconcileRuntime so
+// clearing and deletion missed while Operator was stopped are folded before
+// the API starts serving.
+func (l *lifecycleStack) ReconcileBlockRetention(ctx context.Context) error {
+	_, _, err := l.blockRetention.Tick(ctx)
+	return err
 }
 
 // activeTurnSteering resolves the per-harness active-turn steering capability
@@ -109,6 +124,9 @@ func (l *lifecycleStack) Stop() {
 	}
 	if l.trackerDone != nil {
 		<-l.trackerDone
+	}
+	if l.retentionDone != nil {
+		<-l.retentionDone
 	}
 }
 

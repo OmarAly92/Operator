@@ -125,6 +125,7 @@ var shippedMigrations = map[int64]string{
 	118: "0118_session_agent_report.sql",
 	119: "0119_session_launch_permission_mode.sql",
 	120: "0120_terminal_blocks_finished_index.sql",
+	121: "0121_terminal_blocks_retention.sql",
 }
 
 // burnedVersion reports version numbers that must never be (re)used: they

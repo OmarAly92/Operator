@@ -209,6 +209,14 @@ func (f *fakeBlockStore) ListRecentTerminalCommands(_ context.Context, _ int) ([
 	return nil, nil
 }
 
+func (f *fakeBlockStore) ClearOldOrphanedRawOutput(_ context.Context, _ time.Time) (int64, error) {
+	return 0, nil
+}
+
+func (f *fakeBlockStore) DeleteFullyClearedOrphanedBlocks(_ context.Context, _ time.Time) (int64, error) {
+	return 0, nil
+}
+
 func (f *fakeBlockStore) distinct() int {
 	f.mu.Lock()
 	defer f.mu.Unlock()

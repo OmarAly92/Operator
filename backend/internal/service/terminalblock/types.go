@@ -2,6 +2,7 @@ package terminalblock
 
 import (
 	"context"
+	"time"
 
 	"github.com/OmarAly92/operator/backend/internal/domain"
 )
@@ -12,4 +13,6 @@ type Store interface {
 	TrimTerminalBlocks(context.Context, string, int) error
 	DeleteTerminalBlocks(context.Context, string) error
 	ListRecentTerminalCommands(context.Context, int) ([]domain.CommandRun, error)
+	ClearOldOrphanedRawOutput(context.Context, time.Time) (int64, error)
+	DeleteFullyClearedOrphanedBlocks(context.Context, time.Time) (int64, error)
 }
