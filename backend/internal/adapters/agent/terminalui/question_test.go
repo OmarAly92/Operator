@@ -32,3 +32,21 @@ func TestQuestionTextSkipsRuleLines(t *testing.T) {
 		t.Fatalf("text = %q", got.Text)
 	}
 }
+
+func TestQuestionTextStartsBelowTheDialogsTopRule(t *testing.T) {
+	got := Question([]string{"❯ Ask me something", "────────", "Do you prefer tabs or spaces?"}, ports.Menu{Rows: []string{"1. Tabs", "2. Spaces"}})
+	if got.Text != "Do you prefer tabs or spaces?" || got.Identity != "❯ Ask me something ──────── Do you prefer tabs or spaces? 1. Tabs 2. Spaces" {
+		t.Fatalf("question = %+v", got)
+	}
+}
+
+func TestQuestionAtMasksATokenWhoseKeywordIsAboveTheContext(t *testing.T) {
+	lines := []string{"curl -H 'Authorization: Bearer", "abcdefghijklmnop1234' https://x.test", "", "", "", "", "Run it?", "1. Yes", "2. No"}
+	got := QuestionAt(lines, 7, ports.Menu{Rows: []string{"1. Yes", "2. No"}})
+	if got.Text != "[redacted]' https://x.test · Run it?" {
+		t.Fatalf("text = %q", got.Text)
+	}
+	if got.Identity != "abcdefghijklmnop1234' https://x.test Run it? 1. Yes 2. No" {
+		t.Fatalf("identity = %q", got.Identity)
+	}
+}

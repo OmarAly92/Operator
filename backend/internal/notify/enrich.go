@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/OmarAly92/operator/backend/internal/domain"
+	"github.com/OmarAly92/operator/backend/internal/redact"
 )
 
 const turnSummaryRunes = 120
@@ -25,7 +26,7 @@ func enrich(intent Intent) (domain.NotificationRecord, error) {
 	if !intent.Type.SessionScoped() && rec.PRURL == "" {
 		return domain.NotificationRecord{}, domain.ErrInvalidNotificationRecord
 	}
-	rec.Title = titleForIntent(intent)
+	rec.Title = oneLine(titleForIntent(intent))
 	rec.Body = bodyForIntent(intent)
 	if err := rec.Validate(); err != nil {
 		return domain.NotificationRecord{}, err
@@ -61,8 +62,11 @@ func titleForIntent(intent Intent) string {
 func bodyForIntent(intent Intent) string {
 	switch intent.Type {
 	case domain.NotificationNeedsInput:
-		if reason := summarize(intent.AgentReportReason, turnSummaryRunes); reason != "" {
+		if reason := agentText(intent.AgentReportReason); reason != "" {
 			return reason
+		}
+		if question := agentText(intent.ScreenText); question != "" {
+			return question
 		}
 		return "Your agent is waiting on you to continue."
 	case domain.NotificationReadyToMerge:
@@ -85,7 +89,10 @@ func bodyForIntent(intent Intent) string {
 		}
 		return "Closed without merging. Reopen it if this wasn't intended."
 	case domain.NotificationTurnFinished:
-		if summary := summarize(intent.AssistantUpdate, turnSummaryRunes); summary != "" {
+		if summary := agentText(intent.AssistantUpdate); summary != "" {
+			return summary
+		}
+		if summary := agentText(intent.ScreenText); summary != "" {
 			return summary
 		}
 		return "Your agent finished its turn."
@@ -105,8 +112,16 @@ func summarize(text string, limit int) string {
 	return string(runes[:limit]) + "…"
 }
 
+func agentText(text string) string {
+	return summarize(redact.Clean(text), turnSummaryRunes)
+}
+
+func oneLine(text string) string {
+	return strings.Join(strings.Fields(redact.Clean(text)), " ")
+}
+
 func sessionLabel(intent Intent) string {
-	if v := strings.TrimSpace(intent.SessionDisplayName); v != "" {
+	if v := oneLine(intent.SessionDisplayName); v != "" {
 		return v
 	}
 	if intent.SessionID != "" {

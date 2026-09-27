@@ -113,3 +113,12 @@ func TestTheActivityClockIsSettledOnlyWhileNothingCanChangeItsState(t *testing.T
 		t.Fatalf("a question = %v, settled %v; want prompting and settled", state, clock.SettledSince(untouched))
 	}
 }
+
+func TestTailOutputIsTheCompactNewestLines(t *testing.T) {
+	p := newTestParser(t, 80, 24)
+	feed(t, p, "built 3 crates\r\n✽ Compiling… (2s)\r\nall tests passed\r\n")
+	got, err := p.TailOutput(200, 40)
+	if err != nil || got != "built 3 crates\nall tests passed" {
+		t.Fatalf("tail = %q, %v", got, err)
+	}
+}

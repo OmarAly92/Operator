@@ -104,6 +104,7 @@ type ProgramEventPayload struct {
 	AtMs       int64  `json:"atMs,omitempty"`
 	Tail       string `json:"tail,omitempty"`
 	CursorLine string `json:"cursorLine,omitempty"`
+	Summary    string `json:"summary,omitempty"`
 }
 
 type WatchPayload struct {

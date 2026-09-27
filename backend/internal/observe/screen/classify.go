@@ -6,6 +6,7 @@ import (
 
 	"github.com/OmarAly92/operator/backend/internal/domain"
 	"github.com/OmarAly92/operator/backend/internal/ports"
+	"github.com/OmarAly92/operator/backend/internal/redact"
 )
 
 const (
@@ -36,7 +37,7 @@ func Classify(agent any, event ports.TerminalProgramEvent) Observation {
 	}
 	detector, ok := agent.(ports.TerminalActivityDetector)
 	if !ok {
-		return Observation{Reading: domain.ScreenSettled, Confirm: ScreenQuietSettle}
+		return Observation{Reading: domain.ScreenSettled, Text: turnSummary(agent, event.Summary), Confirm: ScreenQuietSettle}
 	}
 	state, ok := detector.DetectTerminalActivity(event.Tail)
 	if !ok {
@@ -44,12 +45,32 @@ func Classify(agent any, event ports.TerminalProgramEvent) Observation {
 	}
 	switch state {
 	case domain.ActivityIdle:
-		return Observation{Reading: domain.ScreenSettled, Confirm: ScreenSettleConfirm}
+		return Observation{Reading: domain.ScreenSettled, Text: turnSummary(agent, event.Summary), Confirm: ScreenSettleConfirm}
 	case domain.ActivityWaitingInput:
-		return Observation{Reading: domain.ScreenWaiting, Confirm: ScreenSettleConfirm}
+		return Observation{Reading: domain.ScreenWaiting, Text: turnSummary(agent, event.Summary), Confirm: ScreenSettleConfirm}
 	case domain.ActivityActive:
 		return Observation{Reading: domain.ScreenWorking, Confirm: ScreenActiveConfirm}
 	default:
 		return Observation{}
 	}
+}
+
+func turnSummary(agent any, summary string) string {
+	if reader, ok := agent.(ports.TerminalSummaryReader); ok {
+		text, _ := reader.ReadTurnSummary(summary)
+		return text
+	}
+	return defaultTurnSummary(summary)
+}
+
+func defaultTurnSummary(summary string) string {
+	var kept []string
+	for _, line := range strings.Split(summary, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.Trim(line, "─━═╌┄│╭╮╰╯ ") == "" {
+			continue
+		}
+		kept = append(kept, line)
+	}
+	return strings.Join(redact.Lines(kept)[max(0, len(kept)-6):], "\n")
 }

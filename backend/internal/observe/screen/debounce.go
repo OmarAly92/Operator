@@ -56,6 +56,8 @@ func (d *Debouncer) Observe(obs Observation, at time.Time) []Decision {
 		pending := obs
 		d.pending = &pending
 		d.pendingAt = at
+	} else {
+		d.pending.Text = obs.Text
 	}
 	return d.Due(at)
 }

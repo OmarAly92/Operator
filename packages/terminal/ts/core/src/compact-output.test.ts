@@ -1,5 +1,12 @@
-import { describe, expect, it } from "vitest";
-import { capLines, COMPACT_REDRAW_LOOKBACK, compactLines, isSpinnerLine } from "./index";
+import { readFile } from "node:fs/promises";
+import { fileURLToPath } from "node:url";
+import { beforeAll, describe, expect, it } from "vitest";
+import { capLines, COMPACT_REDRAW_LOOKBACK, compactLines, initTerminalCore, isSpinnerLine } from "./index";
+
+beforeAll(async () => {
+	const bytes = await readFile(fileURLToPath(new URL("../wasm/vt_core_bg.wasm", import.meta.url)));
+	await initTerminalCore(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer);
+});
 
 describe("isSpinnerLine", () => {
 	it.each([
@@ -80,5 +87,20 @@ describe("capLines", () => {
 		expect(capLines(lines, 1)).toEqual(["… 10 lines omitted …"]);
 		expect(capLines(lines, 2)).toEqual(["line 0", "… 9 lines omitted …"]);
 		expect(() => capLines(lines, Number.NaN)).toThrow(RangeError);
+	});
+});
+
+describe("whitespace", () => {
+	it("counts next line as whitespace and the byte order mark as text", () => {
+		expect(isSpinnerLine("\u0085✽ Working…")).toBe(true);
+		expect(isSpinnerLine("✽\u0085Working…")).toBe(true);
+		expect(isSpinnerLine("✽ Working…\u0085(3s)")).toBe(true);
+		expect(isSpinnerLine("﻿✽ Working…")).toBe(false);
+		expect(isSpinnerLine("✽﻿Working…")).toBe(false);
+		expect(isSpinnerLine("✽ Working…﻿(3s)")).toBe(false);
+		expect(compactLines(["a\u0085", "a"])).toEqual(["a"]);
+		expect(compactLines(["x", "\u0085", "\u0085", "y"])).toEqual(["x", "", "y"]);
+		expect(compactLines(["b﻿", "b"])).toEqual(["b﻿", "b"]);
+		expect(compactLines(["x", "﻿", "y"])).toEqual(["x", "﻿", "y"]);
 	});
 });

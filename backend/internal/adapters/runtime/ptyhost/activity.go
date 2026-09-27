@@ -9,7 +9,11 @@ import (
 
 var activityTick = 250 * time.Millisecond
 
-const activityTailRows = 40
+const (
+	activityTailRows     = 40
+	activitySummaryRows  = 200
+	activitySummaryLines = 40
+)
 
 func (h *host) runActivityClock() {
 	ticker := time.NewTicker(activityTick)
@@ -41,6 +45,7 @@ func (h *host) publishActivityLocked(now time.Time) {
 	if state != vtwasm.ActivityActive {
 		event.Tail, _ = h.parser.RenderTail(activityTailRows)
 		event.CursorLine, _ = h.parser.CursorLine()
+		event.Summary, _ = h.parser.TailOutput(activitySummaryRows, activitySummaryLines)
 	}
 	h.activityFrame = programFrame(event)
 	for _, cs := range h.watchers {

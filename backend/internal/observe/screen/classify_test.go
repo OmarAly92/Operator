@@ -59,3 +59,31 @@ func TestClassify(t *testing.T) {
 		t.Fatalf("a title read as %+v", got)
 	}
 }
+
+func TestClassifySettledCarriesTheTurnSummary(t *testing.T) {
+	event := activity(ports.TerminalActivityIdle, pane(t, "claudecode_idle.txt"), "")
+	event.Summary = "⏺ Done: 42 tests pass.\n✻ Brewed for 21s · done 5:42 AM\n────\n❯\n────"
+	if got := Classify(claudecode.New(), event); got.Reading != domain.ScreenSettled || got.Text != "Done: 42 tests pass." {
+		t.Fatalf("Classify = %+v", got)
+	}
+	plain := activity(ports.TerminalActivityIdle, "compiling", "")
+	plain.Summary = "step 1\n────\nstep 2"
+	if got := Classify(nil, plain); got.Text != "step 1\nstep 2" {
+		t.Fatalf("default summary = %q", got.Text)
+	}
+}
+
+func TestClassifyDefaultSummaryMasksASecretWrappedAcrossLines(t *testing.T) {
+	key := "sk-proj-AbCdEfGhIjKlMnOpQrStUvWxYz0123"
+	plain := activity(ports.TerminalActivityIdle, "deploying", "")
+	plain.Summary = "export OPENAI_KEY=" + key[:12] + "\n" + key[12:] + " exported\ndeployed"
+	got := Classify(nil, plain)
+	for i := 0; i+8 <= len(key); i++ {
+		if strings.Contains(got.Text, key[i:i+8]) {
+			t.Fatalf("summary leaks %q of the secret: %q", key[i:i+8], got.Text)
+		}
+	}
+	if !strings.Contains(got.Text, "deployed") {
+		t.Fatalf("summary = %q", got.Text)
+	}
+}

@@ -8,8 +8,9 @@ import (
 )
 
 func (p *Plugin) ReadQuestion(pane string) (ports.TerminalQuestion, bool) {
-	lines := terminalLines(pane)
-	lines = lines[max(0, len(lines)-24):]
+	all := terminalLines(pane)
+	offset := max(0, len(all)-24)
+	lines := all[offset:]
 	for _, line := range lines {
 		if strings.Contains(strings.ToLower(line), "esc to interrupt") || line == "Select Model and Effort" {
 			return ports.TerminalQuestion{}, false
@@ -19,7 +20,7 @@ func (p *Plugin) ReadQuestion(pane string) (ports.TerminalQuestion, bool) {
 	if !ok {
 		return ports.TerminalQuestion{}, false
 	}
-	return terminalui.Question(lines[max(0, start-6):start], menu), true
+	return terminalui.QuestionAt(all, offset+start, menu), true
 }
 
 var _ ports.TerminalQuestionReader = (*Plugin)(nil)

@@ -52,7 +52,26 @@ func Text(s string) Result {
 	if s == "" {
 		return Result{}
 	}
-	type hit struct{ start, end int }
+	hits := find(s)
+	if len(hits) == 0 {
+		return Result{Text: s}
+	}
+	var out []byte
+	var spans []Span
+	cursor := 0
+	for _, h := range hits {
+		out = append(out, s[cursor:h.start]...)
+		spans = append(spans, Span{Start: len(out), End: len(out) + len(mask)})
+		out = append(out, mask...)
+		cursor = h.end
+	}
+	out = append(out, s[cursor:]...)
+	return Result{Text: string(out), Spans: spans}
+}
+
+type hit struct{ start, end int }
+
+func find(s string) []hit {
 	var hits []hit
 	for _, set := range [][]*regexp.Regexp{builtinPatterns, userPatterns} {
 		for _, re := range set {
@@ -70,23 +89,15 @@ func Text(s string) Result {
 			}
 		}
 	}
-	if len(hits) == 0 {
-		return Result{Text: s}
-	}
 	sort.Slice(hits, func(i, j int) bool { return hits[i].start < hits[j].start })
-
-	var out []byte
-	var spans []Span
-	cursor, lastEnd := 0, -1
+	kept := hits[:0]
+	lastEnd := -1
 	for _, h := range hits {
 		if h.start < lastEnd {
 			continue
 		}
-		out = append(out, s[cursor:h.start]...)
-		spans = append(spans, Span{Start: len(out), End: len(out) + len(mask)})
-		out = append(out, mask...)
-		cursor, lastEnd = h.end, h.end
+		kept = append(kept, h)
+		lastEnd = h.end
 	}
-	out = append(out, s[cursor:]...)
-	return Result{Text: string(out), Spans: spans}
+	return kept
 }

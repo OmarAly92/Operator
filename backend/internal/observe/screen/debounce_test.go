@@ -140,3 +140,17 @@ func TestDebouncerHoldsOnlyWhileTheScreenStillReadsTheAppliedDecision(t *testing
 		t.Fatal("holds the question on an unreadable screen")
 	}
 }
+
+func TestDebouncerASettledDecisionCarriesTheNewestSummary(t *testing.T) {
+	var d Debouncer
+	first := settled(ScreenSettleConfirm)
+	first.Text = "Reading files"
+	d.Observe(first, t0)
+	newest := settled(ScreenSettleConfirm)
+	newest.Text = "Removed build/."
+	d.Observe(newest, t0.Add(time.Second))
+	got := d.Due(t0.Add(ScreenSettleConfirm))
+	if len(got) != 1 || got[0].Reading != domain.ScreenSettled || got[0].Text != "Removed build/." {
+		t.Fatalf("decision = %+v", got)
+	}
+}

@@ -155,11 +155,25 @@ func TestPhoneAlertsThroughTheLANListenerAndTheRealHub(t *testing.T) {
 
 	notifyTurn(domain.NotificationTurnFinished, "mer-1")
 	r := nextNtfy(t, sent)
-	if r.path != "/"+topic || r.title != "split fix finished" || r.body != "finished" || r.click != "operator://session/mer-1" || r.priority != "default" || r.tags != "robot" {
+	if r.path != "/"+topic || r.title != "split fix finished" || r.body != "Implemented X in /secret/path.go" || r.click != "operator://session/mer-1" || r.priority != "default" || r.tags != "robot" {
 		t.Fatalf("turn finished request: %s", r)
 	}
-	if strings.Contains(r.String(), "secret") || strings.Contains(r.String(), "Implemented") {
-		t.Fatalf("request leaked assistant text: %s", r)
+
+	if err := writer.Notify(ctx, notify.Intent{
+		Type:               domain.NotificationTurnFinished,
+		SessionID:          domain.SessionID("mer-1b"),
+		ProjectID:          "mer",
+		SessionDisplayName: "split fix",
+		AssistantUpdate:    "Set password=hunter2hunter2 then \x1b[31mrun\x1b[0m it",
+	}); err != nil {
+		t.Fatalf("notify: %v", err)
+	}
+	r = nextNtfy(t, sent)
+	if r.path != "/"+topic || r.title != "split fix finished" || r.click != "operator://session/mer-1b" || r.priority != "default" || r.tags != "robot" {
+		t.Fatalf("masked turn finished request: %s", r)
+	}
+	if !strings.Contains(r.body, "password=[redacted]") || strings.Contains(r.body, "hunter2hunter2") || strings.Contains(r.body, "\x1b") {
+		t.Fatalf("request did not mask the secret and strip the escape sequence: %s", r)
 	}
 
 	header := http.Header{}
@@ -179,7 +193,7 @@ func TestPhoneAlertsThroughTheLANListenerAndTheRealHub(t *testing.T) {
 
 	notifyTurn(domain.NotificationNeedsInput, "mer-3")
 	r = nextNtfy(t, sent)
-	if r.click != "operator://session/mer-3" || r.title != "split fix needs your input" || r.body != "needs input" || r.priority != "high" {
+	if r.click != "operator://session/mer-3" || r.title != "split fix needs your input" || r.body != "Your agent is waiting on you to continue." || r.priority != "high" {
 		t.Fatalf("after backgrounding, want mer-3 (mer-2 skipped while foreground): %s", r)
 	}
 

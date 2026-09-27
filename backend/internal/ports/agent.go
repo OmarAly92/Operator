@@ -228,6 +228,10 @@ type TerminalQuestionReader interface {
 	ReadQuestion(pane string) (TerminalQuestion, bool)
 }
 
+type TerminalSummaryReader interface {
+	ReadTurnSummary(summary string) (string, bool)
+}
+
 // TerminalComposerReader is an optional adapter capability for reading a
 // harness's unsent composer draft. It takes STYLED pane text: a composer always
 // holds something, and only the styling separates dim placeholder text from what

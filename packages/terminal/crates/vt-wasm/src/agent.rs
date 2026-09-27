@@ -13,3 +13,20 @@ impl WasmTerminalCore {
         self.core.cursor_line_prompts()
     }
 }
+
+#[wasm_bindgen]
+pub fn is_spinner_line(line: &str) -> bool {
+    vt_core::activity::compact::is_spinner_line(line)
+}
+
+#[wasm_bindgen]
+pub fn compact_lines_text(text: &str) -> String {
+    let lines: Vec<&str> = text.split('\n').collect();
+    vt_core::activity::compact::compact_lines(&lines).join("\n")
+}
+
+#[wasm_bindgen]
+pub fn cap_lines_text(text: &str, max_lines: u32) -> String {
+    let lines: Vec<&str> = text.split('\n').collect();
+    vt_core::activity::compact::cap_lines(&lines, max_lines as usize).join("\n")
+}

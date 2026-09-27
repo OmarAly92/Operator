@@ -26,6 +26,7 @@ type TerminalProgramEvent struct {
 	At         time.Time
 	Tail       string
 	CursorLine string
+	Summary    string
 }
 
 type TerminalProgramReader interface {

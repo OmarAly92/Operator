@@ -6,11 +6,14 @@ import (
 	"io"
 	"log/slog"
 	"net/url"
+	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/OmarAly92/operator/backend/internal/domain"
 	"github.com/OmarAly92/operator/backend/internal/mobilebridge"
+	"github.com/OmarAly92/operator/backend/internal/redact"
 )
 
 const (
@@ -54,12 +57,22 @@ type AlertsDeps struct {
 	Log        *slog.Logger
 }
 
+type alertKey struct {
+	session domain.SessionID
+	typ     domain.NotificationType
+}
+
+type sentAlert struct {
+	at      time.Time
+	message string
+}
+
 type Alerts struct {
 	d AlertsDeps
 
 	mu         sync.Mutex
 	bridge     Bridge
-	lastSent   map[domain.SessionID]time.Time
+	lastSent   map[alertKey]sentAlert
 	deliveries []Delivery
 }
 
@@ -73,7 +86,7 @@ func NewAlerts(d AlertsDeps) *Alerts {
 	if d.Server == "" {
 		d.Server = DefaultNtfyServer
 	}
-	return &Alerts{d: d, lastSent: map[domain.SessionID]time.Time{}}
+	return &Alerts{d: d, lastSent: map[alertKey]sentAlert{}}
 }
 
 func (a *Alerts) SetBridge(b Bridge) {
@@ -166,13 +179,17 @@ func (a *Alerts) dispatch(ctx context.Context, rec domain.NotificationRecord) {
 		a.mu.Unlock()
 		return
 	}
-	if last, ok := a.lastSent[rec.SessionID]; ok && now.Sub(last) < coalesceWindow {
-		a.mu.Unlock()
-		return
+	alert := alertFor(rec)
+	key := alertKey{session: rec.SessionID, typ: rec.Type}
+	if last, ok := a.lastSent[key]; ok && now.Sub(last.at) < coalesceWindow {
+		if rec.Type != domain.NotificationNeedsInput || last.message == alert.Message {
+			a.mu.Unlock()
+			return
+		}
 	}
-	a.lastSent[rec.SessionID] = now
+	a.lastSent[key] = sentAlert{at: now, message: alert.Message}
 	a.mu.Unlock()
-	a.recordDelivery(a.d.Sender.Send(ctx, st.AlertTopic, alertFor(rec)))
+	a.recordDelivery(a.d.Sender.Send(ctx, st.AlertTopic, alert))
 }
 
 func (a *Alerts) enabledLocked(st mobilebridge.State) bool {
@@ -195,7 +212,7 @@ func (a *Alerts) recordDelivery(err error) Delivery {
 }
 
 func alertFor(rec domain.NotificationRecord) Alert {
-	alert := Alert{Title: rec.Title, Message: eventWord(rec.Type), Priority: PriorityDefault}
+	alert := Alert{Title: strings.Join(strings.Fields(redact.Clean(rec.Title)), " "), Message: phoneMessage(rec), Priority: PriorityDefault}
 	if rec.SessionID != "" {
 		alert.Click = "operator://session/" + url.PathEscape(string(rec.SessionID))
 	}
@@ -207,6 +224,28 @@ func alertFor(rec domain.NotificationRecord) Alert {
 		alert.Click = "operator://prs"
 	}
 	return alert
+}
+
+func phoneMessage(rec domain.NotificationRecord) string {
+	if rec.Type != domain.NotificationNeedsInput && rec.Type != domain.NotificationTurnFinished {
+		return eventWord(rec.Type)
+	}
+	body := strings.Join(strings.Fields(redact.Clean(rec.Body)), " ")
+	if body == "" {
+		return eventWord(rec.Type)
+	}
+	return truncateBytes(body, ntfyMessageBytes)
+}
+
+func truncateBytes(text string, limit int) string {
+	if len(text) <= limit {
+		return text
+	}
+	cut := limit - len("…")
+	for cut > 0 && !utf8.RuneStart(text[cut]) {
+		cut--
+	}
+	return text[:cut] + "…"
 }
 
 func eventWord(t domain.NotificationType) string {
