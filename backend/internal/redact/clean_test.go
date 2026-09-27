@@ -42,7 +42,7 @@ func TestCleanDropsEveryInvisibleFormatRuneSoNoneCanSplitASecret(t *testing.T) {
 func TestCleanKeepsVisibleTextAndBreaksAnEmojiZWJSequenceIntoItsParts(t *testing.T) {
 	for _, tc := range []struct{ in, want string }{
 		{"café ✅ naïve 日本語 ❤️", "café ✅ naïve 日本語 ❤️"},
-		{"family \U0001f468‍\U0001f469‍\U0001f467 done", "family \U0001f468\U0001f469\U0001f467 done"},
+		{"family \U0001f468\u200d\U0001f469\u200d\U0001f467 done", "family \U0001f468\U0001f469\U0001f467 done"},
 	} {
 		if got := Clean(tc.in); got != tc.want {
 			t.Errorf("Clean(%q) = %q, want %q", tc.in, got, tc.want)
