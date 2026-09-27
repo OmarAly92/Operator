@@ -24,11 +24,17 @@ type Debouncer struct {
 	pendingAt time.Time
 	applied   *Decision
 	sawActive bool
+	agrees    bool
+}
+
+func (d *Debouncer) Holds() bool {
+	return d.applied != nil && d.agrees && d.pending == nil
 }
 
 func (d *Debouncer) Observe(obs Observation, at time.Time) []Decision {
 	if obs.Reading == "" {
 		d.pending = nil
+		d.agrees = false
 		return nil
 	}
 	if obs.Reading == domain.ScreenWorking {
@@ -36,11 +42,13 @@ func (d *Debouncer) Observe(obs Observation, at time.Time) []Decision {
 	}
 	if d.applied != nil && d.applied.Reading == obs.Reading && d.applied.Identity == obs.Identity {
 		d.pending = nil
+		d.agrees = true
 		if obs.Reading != domain.ScreenWorking {
 			d.sawActive = false
 		}
 		return nil
 	}
+	d.agrees = false
 	if d.applied != nil && d.applied.Reading == domain.ScreenQuestion && obs.Reading == domain.ScreenSettled && obs.Confirm > ScreenSettleConfirm {
 		obs.Confirm = ScreenSettleConfirm
 	}
@@ -65,6 +73,7 @@ func (d *Debouncer) Due(now time.Time) []Decision {
 	decision := Decision{Reading: obs.Reading, Identity: obs.Identity, Text: obs.Text}
 	out = append(out, decision)
 	d.applied = &decision
+	d.agrees = true
 	if obs.Reading != domain.ScreenWorking {
 		d.sawActive = false
 	}

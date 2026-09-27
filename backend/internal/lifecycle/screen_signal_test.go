@@ -162,3 +162,138 @@ func TestScreen_NeverResurrectsAnExitedAgent(t *testing.T) {
 		t.Fatalf("state = %q, want exited", got)
 	}
 }
+
+func applyAt(t *testing.T, m *Manager, clock *time.Time, at time.Time, s ports.ActivitySignal) {
+	t.Helper()
+	*clock = at
+	if err := m.ApplyActivitySignal(ctx, "mer-1", s); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func reasserted(s ports.ActivitySignal) ports.ActivitySignal {
+	s.ScreenReassert = true
+	return s
+}
+
+const editQuestion = "Do you want to make this edit? 1. Yes 2. No"
+
+func TestScreen_AReassertedQuestionNeverOverridesTheAnswerAFreshHookReported(t *testing.T) {
+	m, st, sink, now := alertManager(t, domain.ActivityIdle)
+	clock := movableClock(m, now)
+	applyAt(t, m, clock, now, ports.ActivitySignal{Valid: true, State: domain.ActivityActive, Event: "user-prompt-submit"})
+	applyAt(t, m, clock, now.Add(time.Second), ports.ActivitySignal{Valid: true, State: domain.ActivityActive, Event: "pre-tool-use", ToolName: "Edit", ToolUseID: "t1"})
+	applyAt(t, m, clock, now.Add(2*time.Second), ports.ActivitySignal{Valid: true, State: domain.ActivityBlocked, Event: "permission-request", ToolName: "Edit"})
+	applyAt(t, m, clock, now.Add(20*time.Second), ports.ActivitySignal{Valid: true, State: domain.ActivityActive, Event: "post-tool-use", ToolName: "Edit", ToolUseID: "t1"})
+	applyAt(t, m, clock, now.Add(21*time.Second), reasserted(screenSignal(domain.ScreenQuestion, editQuestion)))
+	if got := st.sessions["mer-1"].Activity.State; got != domain.ActivityActive {
+		t.Fatalf("a re-asserted question overrode a fresh answer: state = %q", got)
+	}
+	if got := intentsOf(sink, domain.NotificationNeedsInput); len(got) != 1 {
+		t.Fatalf("needs_input intents = %d, want the hook's one", len(got))
+	}
+}
+
+func TestScreen_AQuestionAHookAlreadyBlockedOnIsRememberedAndNeverAlertsTwice(t *testing.T) {
+	m, st, sink, now := alertManager(t, domain.ActivityIdle)
+	clock := movableClock(m, now)
+	applyAt(t, m, clock, now, ports.ActivitySignal{Valid: true, State: domain.ActivityActive, Event: "pre-tool-use", ToolName: "Edit", ToolUseID: "t1"})
+	applyAt(t, m, clock, now.Add(time.Second), ports.ActivitySignal{Valid: true, State: domain.ActivityBlocked, Event: "permission-request", ToolName: "Edit"})
+	applyAt(t, m, clock, now.Add(2*time.Second), screenSignal(domain.ScreenQuestion, editQuestion))
+	applyAt(t, m, clock, now.Add(20*time.Second), ports.ActivitySignal{Valid: true, State: domain.ActivityActive, Event: "post-tool-use", ToolName: "Edit", ToolUseID: "t1"})
+	applyAt(t, m, clock, now.Add(21*time.Second), screenSignal(domain.ScreenQuestion, editQuestion))
+	if got := st.sessions["mer-1"].Activity.State; got != domain.ActivityBlocked {
+		t.Fatalf("state = %q, want the question on screen to block", got)
+	}
+	if got := intentsOf(sink, domain.NotificationNeedsInput); len(got) != 1 {
+		t.Fatalf("one question alerted %d times", len(got))
+	}
+}
+
+func TestScreen_SuppressedHooksNeverKeepAScreenQuestionOnTheCard(t *testing.T) {
+	m, st, sink, now := alertManager(t, domain.ActivityIdle)
+	clock := movableClock(m, now)
+	applyAt(t, m, clock, now, ports.ActivitySignal{Valid: true, State: domain.ActivityActive, Event: "pre-tool-use", ToolName: "Edit", ToolUseID: "t1"})
+	applyAt(t, m, clock, now.Add(2*time.Second), screenSignal(domain.ScreenQuestion, editQuestion))
+	if got := st.sessions["mer-1"].Activity.State; got != domain.ActivityBlocked {
+		t.Fatalf("state = %q, want the lost permission hook filled by the screen", got)
+	}
+	applyAt(t, m, clock, now.Add(5*time.Second), ports.ActivitySignal{Valid: true, State: domain.ActivityActive, Event: "post-tool-use", ToolName: "Edit", ToolUseID: "t1"})
+	applyAt(t, m, clock, now.Add(6*time.Second), ports.ActivitySignal{Valid: true, State: domain.ActivityActive, Event: "pre-tool-use", ToolName: "Bash", ToolUseID: "t2"})
+	applyAt(t, m, clock, now.Add(9*time.Second), screenSignal(domain.ScreenWorking, ""))
+	if got := st.sessions["mer-1"].Activity.State; got != domain.ActivityActive {
+		t.Fatalf("an answered question stuck on the card: state = %q", got)
+	}
+	if got := intentsOf(sink, domain.NotificationNeedsInput); len(got) != 1 {
+		t.Fatalf("needs_input intents = %d, want one", len(got))
+	}
+}
+
+func TestScreen_AnAnsweredHookQuestionNeverComesBackOrSticks(t *testing.T) {
+	m, st, sink, now := alertManager(t, domain.ActivityIdle)
+	clock := movableClock(m, now)
+	applyAt(t, m, clock, now, ports.ActivitySignal{Valid: true, State: domain.ActivityActive, Event: "user-prompt-submit"})
+	applyAt(t, m, clock, now.Add(time.Second), ports.ActivitySignal{Valid: true, State: domain.ActivityActive, Event: "pre-tool-use", ToolName: "Edit", ToolUseID: "t1"})
+	applyAt(t, m, clock, now.Add(2*time.Second), ports.ActivitySignal{Valid: true, State: domain.ActivityBlocked, Event: "permission-request", ToolName: "Edit"})
+	applyAt(t, m, clock, now.Add(3*time.Second), screenSignal(domain.ScreenQuestion, editQuestion))
+	applyAt(t, m, clock, now.Add(20*time.Second), ports.ActivitySignal{Valid: true, State: domain.ActivityActive, Event: "post-tool-use", ToolName: "Edit", ToolUseID: "t1"})
+	applyAt(t, m, clock, now.Add(21*time.Second), reasserted(screenSignal(domain.ScreenQuestion, editQuestion)))
+	applyAt(t, m, clock, now.Add(23*time.Second), ports.ActivitySignal{Valid: true, State: domain.ActivityActive, Event: "pre-tool-use", ToolName: "Bash", ToolUseID: "t2"})
+	applyAt(t, m, clock, now.Add(24*time.Second), screenSignal(domain.ScreenWorking, ""))
+	applyAt(t, m, clock, now.Add(40*time.Second), ports.ActivitySignal{Valid: true, State: domain.ActivityActive, Event: "post-tool-use", ToolName: "Bash", ToolUseID: "t2"})
+	applyAt(t, m, clock, now.Add(41*time.Second), screenSignal(domain.ScreenWorking, ""))
+	if got := st.sessions["mer-1"].Activity.State; got != domain.ActivityActive {
+		t.Fatalf("working agent stuck at %q", got)
+	}
+	if got := intentsOf(sink, domain.NotificationNeedsInput); len(got) != 1 {
+		t.Fatalf("needs_input intents = %d, want one", len(got))
+	}
+}
+
+func TestScreen_NeverClearsAWaitingInputAHookReported(t *testing.T) {
+	m, st, _, now := alertManager(t, domain.ActivityActive)
+	clock := movableClock(m, now)
+	applyAt(t, m, clock, now, ports.ActivitySignal{Valid: true, State: domain.ActivityWaitingInput, Event: "notification"})
+	for _, reading := range []domain.ScreenReading{domain.ScreenSettled, domain.ScreenWorking} {
+		applyAt(t, m, clock, now.Add(domain.HookFreshWindow+time.Minute), screenSignal(reading, ""))
+		applyAt(t, m, clock, now.Add(domain.HookFreshWindow+time.Minute), reasserted(screenSignal(reading, "")))
+		if got := st.sessions["mer-1"].Activity.State; got != domain.ActivityWaitingInput {
+			t.Fatalf("screen %s cleared the hook's waiting_input: state = %q", reading, got)
+		}
+	}
+	applyAt(t, m, clock, now.Add(2*time.Minute), ports.ActivitySignal{Valid: true, State: domain.ActivityActive, Event: "user-prompt-submit"})
+	if got := st.sessions["mer-1"].Activity.State; got != domain.ActivityActive {
+		t.Fatalf("a newer hook did not move on: state = %q", got)
+	}
+}
+
+func TestScreen_AWaitingInputTheScreenSetCanBeClearedByTheScreen(t *testing.T) {
+	m, st, _, now := alertManager(t, domain.ActivityActive)
+	clock := movableClock(m, now)
+	applyAt(t, m, clock, now, screenSignal(domain.ScreenWaiting, ""))
+	applyAt(t, m, clock, now.Add(5*time.Second), screenSignal(domain.ScreenWorking, ""))
+	if got := st.sessions["mer-1"].Activity.State; got != domain.ActivityActive {
+		t.Fatalf("state = %q, want the screen's own waiting cleared", got)
+	}
+}
+
+func TestScreen_ForgetsHookAndQuestionMemoryWhenTheSessionEndsOrRelaunches(t *testing.T) {
+	m, _, _, now := alertManager(t, domain.ActivityActive)
+	clock := movableClock(m, now)
+	applyAt(t, m, clock, now, ports.ActivitySignal{Valid: true, State: domain.ActivityActive, Event: "pre-tool-use", ToolName: "Bash", ToolUseID: "t1"})
+	applyAt(t, m, clock, now.Add(time.Second), screenSignal(domain.ScreenQuestion, "q"))
+	if err := m.MarkSpawned(ctx, "mer-1", domain.SessionMetadata{}); err != nil {
+		t.Fatal(err)
+	}
+	if len(m.hookAt) != 0 || len(m.alerted) != 0 || len(m.screenAt) != 0 {
+		t.Fatalf("a relaunch kept hook=%v alerted=%v screen=%v", m.hookAt, m.alerted, m.screenAt)
+	}
+	applyAt(t, m, clock, now.Add(2*time.Second), ports.ActivitySignal{Valid: true, State: domain.ActivityActive, Event: "pre-tool-use", ToolName: "Bash", ToolUseID: "t2"})
+	applyAt(t, m, clock, now.Add(3*time.Second), screenSignal(domain.ScreenQuestion, "q"))
+	if err := m.MarkTerminated(ctx, "mer-1"); err != nil {
+		t.Fatal(err)
+	}
+	if len(m.hookAt) != 0 || len(m.alerted) != 0 || len(m.screenAt) != 0 {
+		t.Fatalf("a terminated session kept hook=%v alerted=%v screen=%v", m.hookAt, m.alerted, m.screenAt)
+	}
+}
