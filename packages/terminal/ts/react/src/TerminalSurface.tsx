@@ -1,5 +1,13 @@
 import { useCallback, useLayoutEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactElement, type ReactNode } from "react";
-import { clipboardHasImage, deliverPaste, encodeKey, LineEditor, planPaste } from "@operator/terminal-editor";
+import {
+	clipboardHasImage,
+	deliverPaste,
+	encodeKey,
+	LineEditor,
+	planPaste,
+	type CommandHistorySource,
+	type QuickFixRule,
+} from "@operator/terminal-editor";
 import {
 	createFindBar,
 	createPathProvider,
@@ -72,6 +80,8 @@ export interface TerminalSurfaceProps {
 	onBlockFinished?: (event: BlockFinishedEvent) => void;
 	onHint?: (hint: HintEvent) => void;
 	onDraftChange?: (draft: string) => void;
+	commandHistory?: CommandHistorySource;
+	quickFixRules?: readonly QuickFixRule[];
 }
 
 let lastFocusedSurface: HTMLElement | null = null;
@@ -105,6 +115,8 @@ export function TerminalSurface({
 	visible,
 	features,
 	marks,
+	commandHistory,
+	quickFixRules,
 }: TerminalSurfaceProps): ReactElement {
 	const hostRef = useRef<HTMLDivElement | null>(null);
 	const surfaceRef = useRef<HTMLDivElement | null>(null);
@@ -144,6 +156,10 @@ export function TerminalSurface({
 	const confirmPaste = host?.confirmPaste;
 	const confirmPasteRef = useRef(confirmPaste);
 	confirmPasteRef.current = confirmPaste;
+	const commandHistoryRef = useRef(commandHistory);
+	commandHistoryRef.current = commandHistory;
+	const quickFixRulesRef = useRef(quickFixRules);
+	quickFixRulesRef.current = quickFixRules;
 
 	const applyLinkProviders = useCallback(() => {
 		const renderer = rendererRef.current;
@@ -193,6 +209,8 @@ export function TerminalSurface({
 		editor.setFont(font);
 		editor.setStrings(strings);
 		editor.setPasteConfirm(confirmPasteRef.current ?? null);
+		editor.setHistorySource(commandHistoryRef.current ?? null);
+		editor.setQuickFixRules(quickFixRulesRef.current ?? []);
 		const findBar = createFindBar({
 			core,
 			renderer,
@@ -295,6 +313,14 @@ export function TerminalSurface({
 	useLayoutEffect(() => {
 		editorRef.current?.setPasteConfirm(confirmPaste ?? null);
 	}, [confirmPaste]);
+
+	useLayoutEffect(() => {
+		editorRef.current?.setHistorySource(commandHistory ?? null);
+	}, [commandHistory]);
+
+	useLayoutEffect(() => {
+		editorRef.current?.setQuickFixRules(quickFixRules ?? []);
+	}, [quickFixRules]);
 
 	useLayoutEffect(() => {
 		const blockHost = hostRef.current;
