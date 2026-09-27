@@ -3,12 +3,12 @@ import 'dart:ui';
 import 'package:equatable/equatable.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_shaders/flutter_shaders.dart';
-import 'package:liquid_glass_renderer/liquid_glass_renderer.dart';
-import 'package:liquid_glass_renderer/src/internal/snap_rect_to_pixels.dart';
-import 'package:liquid_glass_renderer/src/liquid_glass.dart';
-import 'package:liquid_glass_renderer/src/liquid_glass_blend_group.dart';
-import 'package:liquid_glass_renderer/src/logging.dart';
-import 'package:liquid_glass_renderer/src/rendering/liquid_glass_render_object.dart';
+import 'package:ios_liquid_glass/ios_liquid_glass.dart';
+import 'package:ios_liquid_glass/src/internal/snap_rect_to_pixels.dart';
+import 'package:ios_liquid_glass/src/liquid_glass.dart';
+import 'package:ios_liquid_glass/src/liquid_glass_blend_group.dart';
+import 'package:ios_liquid_glass/src/logging.dart';
+import 'package:ios_liquid_glass/src/rendering/liquid_glass_render_object.dart';
 import 'package:meta/meta.dart';
 
 /// The state of liquid glass geometry, used to determine if it needs to be

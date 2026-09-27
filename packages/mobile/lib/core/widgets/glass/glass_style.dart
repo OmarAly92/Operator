@@ -2,7 +2,7 @@ import 'dart:math' as math;
 import 'dart:ui' show lerpDouble;
 
 import 'package:flutter/material.dart';
-import 'package:liquid_glass_renderer/liquid_glass_renderer.dart';
+import 'package:ios_liquid_glass/ios_liquid_glass.dart';
 import 'package:operator_mobile/core/app_themes/colors/app_skin.dart';
 
 enum GlassVariant { regular, clear, prominent, chrome }

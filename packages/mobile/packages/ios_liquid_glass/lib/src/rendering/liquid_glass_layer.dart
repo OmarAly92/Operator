@@ -5,13 +5,13 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_shaders/flutter_shaders.dart';
-import 'package:liquid_glass_renderer/liquid_glass_renderer.dart';
-import 'package:liquid_glass_renderer/src/internal/render_liquid_glass_geometry.dart';
-import 'package:liquid_glass_renderer/src/internal/transform_tracking_repaint_boundary_mixin.dart';
-import 'package:liquid_glass_renderer/src/liquid_glass_render_scope.dart';
-import 'package:liquid_glass_renderer/src/logging.dart';
-import 'package:liquid_glass_renderer/src/rendering/liquid_glass_render_object.dart';
-import 'package:liquid_glass_renderer/src/shaders.dart';
+import 'package:ios_liquid_glass/ios_liquid_glass.dart';
+import 'package:ios_liquid_glass/src/internal/render_liquid_glass_geometry.dart';
+import 'package:ios_liquid_glass/src/internal/transform_tracking_repaint_boundary_mixin.dart';
+import 'package:ios_liquid_glass/src/liquid_glass_render_scope.dart';
+import 'package:ios_liquid_glass/src/logging.dart';
+import 'package:ios_liquid_glass/src/rendering/liquid_glass_render_object.dart';
+import 'package:ios_liquid_glass/src/shaders.dart';
 import 'package:meta/meta.dart';
 
 /// Represents a layer of multiple [LiquidGlass] shapes or

@@ -2,11 +2,11 @@ import 'dart:math';
 
 import 'package:equatable/equatable.dart';
 import 'package:flutter/widgets.dart';
-import 'package:liquid_glass_renderer/liquid_glass_renderer.dart';
-import 'package:liquid_glass_renderer/src/liquid_glass_render_scope.dart';
+import 'package:ios_liquid_glass/ios_liquid_glass.dart';
+import 'package:ios_liquid_glass/src/liquid_glass_render_scope.dart';
 
 /// Represents the settings for a liquid glass effect.
-class LiquidGlassSettings with EquatableMixin {
+class LiquidGlassSettings with Equatable {
   /// Creates a new [LiquidGlassSettings] with the given settings.
   const LiquidGlassSettings({
     this.visibility = 1.0,

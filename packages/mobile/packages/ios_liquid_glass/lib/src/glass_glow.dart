@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
-import 'package:liquid_glass_renderer/src/internal/glass_drag_builder.dart';
+import 'package:ios_liquid_glass/src/internal/glass_drag_builder.dart';
 import 'package:meta/meta.dart';
 import 'package:motor/motor.dart';
 

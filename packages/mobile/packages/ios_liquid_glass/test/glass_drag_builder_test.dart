@@ -1,6 +1,6 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:liquid_glass_renderer/src/internal/glass_drag_builder.dart';
+import 'package:ios_liquid_glass/src/internal/glass_drag_builder.dart';
 
 void main() {
   testWidgets('a cancelled pointer ends the drag in listener mode', (tester) async {

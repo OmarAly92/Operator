@@ -1,7 +1,7 @@
-name: liquid_glass_renderer
+name: ios_liquid_glass
 resolution: workspace
-description: "The raw renderer for a liquid glass effect in Flutter. Vendored fork, see FORK.md."
-version: 0.2.0-dev.4+operator
+description: "iOS 27 Liquid Glass for Flutter, measured against native. Forked from liquid_glass_renderer, see FORK.md."
+version: 0.1.0
 publish_to: "none"
 
 environment:

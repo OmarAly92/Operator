@@ -6,10 +6,10 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_shaders/flutter_shaders.dart';
-import 'package:liquid_glass_renderer/liquid_glass_renderer.dart';
-import 'package:liquid_glass_renderer/src/glass_shadow.dart';
-import 'package:liquid_glass_renderer/src/internal/optimized_clip.dart';
-import 'package:liquid_glass_renderer/src/shaders.dart';
+import 'package:ios_liquid_glass/ios_liquid_glass.dart';
+import 'package:ios_liquid_glass/src/glass_shadow.dart';
+import 'package:ios_liquid_glass/src/internal/optimized_clip.dart';
+import 'package:ios_liquid_glass/src/shaders.dart';
 import 'package:meta/meta.dart';
 
 /// A widget that aims to provide a similar look to [LiquidGlass], but without
@@ -34,7 +34,7 @@ class FakeGlass extends StatelessWidget {
     super.key,
   }) : settings = null;
 
-  /// {@macro liquid_glass_renderer.LiquidGlass.shape}
+  /// {@macro ios_liquid_glass.LiquidGlass.shape}
   final LiquidShape shape;
 
   /// The settings for the glass effect.

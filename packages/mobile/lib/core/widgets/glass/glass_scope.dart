@@ -1,5 +1,5 @@
 import 'package:flutter/widgets.dart';
-import 'package:liquid_glass_renderer/liquid_glass_renderer.dart';
+import 'package:ios_liquid_glass/ios_liquid_glass.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/widgets/glass/glass_style.dart';
 

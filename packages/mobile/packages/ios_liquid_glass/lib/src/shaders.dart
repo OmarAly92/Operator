@@ -7,7 +7,7 @@ import 'package:meta/meta.dart';
 bool isLocalTest = false;
 
 final String _shadersRoot =
-    !kIsWeb && isLocalTest ? '' : 'packages/liquid_glass_renderer/';
+    !kIsWeb && isLocalTest ? '' : 'packages/ios_liquid_glass/';
 
 @internal
 abstract class ShaderKeys {
