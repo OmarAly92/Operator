@@ -17,6 +17,7 @@ import { attempt, throwFailures } from "./listener-failures.js";
 import { AgentActivityMonitor, cursorLineText, type AgentActivityListener, type AgentActivityState } from "./agent-activity.js";
 import { blockOutputText, type BlockOutputOptions } from "./block-output.js";
 import { budgetNow, decodeFindMatches, parseBlockId, validateEvenLength, validateMultipleOf } from "./core-checks.js";
+import { takeRowEvent } from "./row-events.js";
 import type {
 	BlockId,
 	ChangeListener,
@@ -27,7 +28,6 @@ import type {
 	LineEditorState,
 	MemoryStats,
 	OlderOutput,
-	RowEvent,
 	RowEventListener,
 	RowRange,
 	TerminalCoreOptions,
@@ -380,14 +380,8 @@ export class TerminalCore {
 	}
 
 	private emitRowEvents(): void {
-		const trimmed = this.inner.row_events_trimmed();
-		const remapLen = this.inner.remap_len();
-		if (trimmed === 0 && remapLen === 0) return;
-		const words = u32View(getMemory(), this.inner.remap_ptr(), remapLen);
-		const remap: Array<readonly [number, number]> = [];
-		for (let index = 0; index + 1 < words.length; index += 2) remap.push([words[index]!, words[index + 1]!]);
-		this.inner.clear_row_events();
-		const event: RowEvent = { trimmed, remap: remap.length > 0 ? remap : null };
+		const event = takeRowEvent(this.inner);
+		if (!event) return;
 		for (const listener of [...this.rowEventListeners]) listener(event);
 	}
 

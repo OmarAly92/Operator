@@ -56,4 +56,13 @@ describe("rowFillSpan", () => {
 	it("runs a line selection to the edge", () => {
 		expect(rowFillSpan({ start: { blockId: "a", row: 1, cell: 0 }, end: { blockId: "a", row: 1, cell: ROW_END } }, rows[1]!, order, cw)).toEqual({ left: 0, right: 400 });
 	});
+	it("fills the same cells on every row of a rectangle", () => {
+		const box = { start: { blockId: "a", row: 0, cell: 2 }, end: { blockId: "b", row: 0, cell: 5 }, rectangle: true };
+		expect(rows.slice(0, 3).map((row) => rowFillSpan(box, row, order, cw))).toEqual([
+			{ left: 16, right: 40 },
+			{ left: 16, right: 40 },
+			{ left: 16, right: 40 },
+		]);
+		expect(rowFillSpan(box, rows[3]!, order, cw)).toBeNull();
+	});
 });

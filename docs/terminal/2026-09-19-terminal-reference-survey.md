@@ -326,7 +326,7 @@ cost and removed it.
 
 ### 1.3 Tracked pins: positions that survive scroll, eviction and reflow
 
-> **Status: Partial.** Plan B — selection and find hits are keyed by stable row ids, so they survive a trim. Not done: the rewrap `remap` reaches only the viewport anchor, not the selection; no `PinSet`; the cursor is not carried through a reflow.
+> **Status: Partial.** Plan B — selection and find hits are keyed by stable row ids, so they survive a trim. Wishlist wave 1 (2026-09-27) — the selection and the Shift+click caret follow the rewrap `remap` through line anchors and `RowEvent.remapEnd` (`TERMINAL.md` §4.51). Not done: no `PinSet`; find hits and the cursor are not carried through a reflow.
 
 **Reference**
 - `Pin` type: `src/terminal/PageList.zig:7113` — `(page node, row y, x)`.
@@ -401,7 +401,7 @@ event-driven marker variant, which is the recommended one.
 
 ### 1.4 Selection model and gesture
 
-> **Status: Partial.** Plan E — copy joins a soft-wrapped line. Not done: rectangle (Alt-drag), Shift+click / Shift+arrow adjust, the select-block-output gesture, configurable click behaviours.
+> **Status: Partial.** Plan E — copy joins a soft-wrapped line. Wishlist wave 1 — rectangle (Alt-drag) and Shift+click extension (`TERMINAL.md` §4.51). Not done: Shift+arrow adjust, the select-block-output gesture, configurable click behaviours.
 
 **Reference**
 - `src/terminal/Selection.zig`: `rectangle: bool` (`:30`) for column/block
@@ -1466,7 +1466,7 @@ approved; Ghostty's adds the prompt-clear on top.
 
 ### 2.5 Selection that rotates with the grid instead of tracked pins
 
-> **Status: Partial.** Plan B — `onRowEvents` (trim and rewrap `remap`) and stable rows make trims harmless. Not done: the selection does not apply `remap`, so a width change moves it.
+> **Status: Done for the selection.** Plan B — `onRowEvents` (trim and rewrap `remap`) and stable rows make trims harmless. Wishlist wave 1 — the selection applies `remap` plus `remapEnd` (`TERMINAL.md` §4.51). Find hits do not.
 
 **Reference**
 - `alacritty_terminal/src/selection.rs:93-99` `SelectionType::{Simple, Block, Semantic, Lines}`;
@@ -2296,7 +2296,7 @@ primitive.
 
 ### 3.8 Selection service: column mode, drag-scroll curve, trim handling, word separators
 
-> **Status: Partial.** Plan E — copy joins a soft-wrapped line; Plan B — selection on stable rows with a per-row damage diff. Not done: the overlay container (the fill is still per row) and column (Alt) selection.
+> **Status: Partial.** Plan E — copy joins a soft-wrapped line; Plan B — selection on stable rows with a per-row damage diff; wishlist wave 1 — column (Alt) selection (`TERMINAL.md` §4.51). Not done: the overlay container (the fill is still per row).
 
 **Reference**
 - `xterm.js/src/browser/services/SelectionService.ts:26-30`

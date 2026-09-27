@@ -77,7 +77,7 @@ export type TerminalTheme = Readonly<{
 
 export type DirtyRows = Readonly<{ full: boolean; rows: ReadonlySet<number> }>;
 
-export type RowEvent = Readonly<{ trimmed: number; remap: ReadonlyArray<readonly [number, number]> | null }>;
+export type RowEvent = Readonly<{ trimmed: number; remap: ReadonlyArray<readonly [number, number]> | null; remapEnd: readonly [number, number] | null }>;
 
 export type RowEventListener = (event: RowEvent) => void;
 

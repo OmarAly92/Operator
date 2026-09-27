@@ -14,7 +14,7 @@ export function resolveSelectionView(selection: SelectionState, rows: TextRows):
 	const index = new Map(rows.blockIds.map((id, position) => [id, position] as const));
 	const order: BlockOrder = (blockId) => index.get(blockId) ?? -1;
 	if (order(selection.head.blockId) < 0 || order(selection.tail.blockId) < 0) return null;
-	const range = resolveRange(selection, order, rows.rowText, rows.rowSpans);
+	const range = resolveRange(selection, order, rows.rowText, rows.rowSpans, rows.rowIndent ?? (() => 0));
 	return range ? { range, order, rows } : null;
 }
 
@@ -60,6 +60,7 @@ export function snapshotTextRows(
 			rowText: (_id, row) => rowString(alt.content, alt.rowRanges, row),
 			rowSpans: (_id, row) => spanSlice(alt.spanRanges, alt.cellSpans, row),
 			rowWrapped: () => false,
+			rowIndent: () => 0,
 			rowLinkRuns: (_id, row) => linkRuns(alt.runRanges, alt.stylePairs, row),
 			linkUri: (id) => linkUri?.(id) ?? null,
 		};
@@ -91,6 +92,13 @@ export function snapshotTextRows(
 			const flat = row - base;
 			if (flat < block.firstRow || flat + 1 >= block.firstRow + block.rowCount) return false;
 			return snapshot.rowWrapped[flat] === 1;
+		},
+		rowIndent: (id, row) => {
+			const block = byId.get(id);
+			if (!block) return 0;
+			const flat = row - base;
+			if (flat < block.firstRow || flat >= block.firstRow + block.rowCount) return 0;
+			return snapshot.rowIndents[flat] ?? 0;
 		},
 		rowLinkRuns: (id, row) => {
 			const block = byId.get(id);
