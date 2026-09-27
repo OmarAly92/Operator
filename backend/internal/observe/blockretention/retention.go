@@ -27,7 +27,7 @@ type Config struct {
 }
 
 type store interface {
-	ClearOldOrphanedRawOutput(ctx context.Context, cutoff time.Time) (int64, error)
+	ClearOldOrphanedRawOutput(ctx context.Context, now, finishedBefore time.Time) (int64, error)
 	DeleteFullyClearedOrphanedBlocks(ctx context.Context, cutoff time.Time) (int64, error)
 }
 
@@ -92,7 +92,7 @@ func (r *Retention) loop(ctx context.Context, done chan<- struct{}) {
 func (r *Retention) Tick(ctx context.Context) (cleared, deleted int64, err error) {
 	now := r.clock()
 
-	cleared, err = r.store.ClearOldOrphanedRawOutput(ctx, now.Add(-r.rawOutputGrace))
+	cleared, err = r.store.ClearOldOrphanedRawOutput(ctx, now, now.Add(-r.rawOutputGrace))
 	if err != nil {
 		return 0, 0, err
 	}

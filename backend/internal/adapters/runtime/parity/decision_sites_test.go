@@ -273,7 +273,7 @@ func (noopBlockStore) ListRecentTerminalCommands(ctx context.Context, limit int)
 	return nil, nil
 }
 
-func (noopBlockStore) ClearOldOrphanedRawOutput(ctx context.Context, cutoff time.Time) (int64, error) {
+func (noopBlockStore) ClearOldOrphanedRawOutput(ctx context.Context, now, cutoff time.Time) (int64, error) {
 	return 0, nil
 }
 

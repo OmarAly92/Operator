@@ -209,7 +209,7 @@ func (f *fakeBlockStore) ListRecentTerminalCommands(_ context.Context, _ int) ([
 	return nil, nil
 }
 
-func (f *fakeBlockStore) ClearOldOrphanedRawOutput(_ context.Context, _ time.Time) (int64, error) {
+func (f *fakeBlockStore) ClearOldOrphanedRawOutput(_ context.Context, _, _ time.Time) (int64, error) {
 	return 0, nil
 }
 

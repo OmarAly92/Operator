@@ -126,6 +126,29 @@ func TestTickKeepsCommandHistoryOfARecentlyClearedTerminal(t *testing.T) {
 	}
 }
 
+func TestTickRecordsTheActualClearTimeNotTheFinishedBeforeCutoff(t *testing.T) {
+	ctx := context.Background()
+	store := newTestStore(t)
+	now := time.Date(2026, 9, 27, 12, 0, 0, 0, time.UTC)
+	insertBlock(t, store, "closed-term", "1", "make build", []byte("output"), now.Add(-40*24*time.Hour))
+
+	clock := now
+	r := blockretention.New(store, blockretention.Config{Clock: func() time.Time { return clock }})
+	if cleared, _, err := r.Tick(ctx); err != nil || cleared != 1 {
+		t.Fatalf("tick 1 cleared=%d err=%v, want 1,nil", cleared, err)
+	}
+
+	clock = now.Add(24 * 24 * time.Hour)
+	if _, deleted, err := r.Tick(ctx); err != nil {
+		t.Fatalf("tick 2: %v", err)
+	} else if deleted != 0 {
+		t.Fatalf("tick 2 deleted=%d, want 0: raw_output_cleared_at must be the actual clear time (%s), not the finished_at cutoff (%s) used to find the orphan — using the cutoff backdates the row-delete grace by RawOutputGrace and deletes the row %s early", deleted, now, now.Add(-blockretention.DefaultRawOutputGrace), blockretention.DefaultRawOutputGrace)
+	}
+	if runs, err := listCommandRuns(t, store); err != nil || len(runs) != 1 {
+		t.Fatalf("history after tick 2 = %v, err %v, want [make build] still present (30-day row grace has not elapsed since the real clear)", runs, err)
+	}
+}
+
 func TestTickNeverTouchesARestorableTerminal(t *testing.T) {
 	ctx := context.Background()
 	store := newTestStore(t)

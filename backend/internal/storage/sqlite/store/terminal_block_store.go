@@ -95,12 +95,12 @@ func (s *Store) ListRecentTerminalCommands(ctx context.Context, limit int) ([]do
 	return out, nil
 }
 
-func (s *Store) ClearOldOrphanedRawOutput(ctx context.Context, cutoff time.Time) (int64, error) {
+func (s *Store) ClearOldOrphanedRawOutput(ctx context.Context, now, finishedBefore time.Time) (int64, error) {
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
 	rows, err := s.qw.ClearOldOrphanedRawOutput(ctx, gen.ClearOldOrphanedRawOutputParams{
-		RawOutputClearedAt: sql.NullTime{Time: cutoff, Valid: true},
-		FinishedAt:         cutoff,
+		RawOutputClearedAt: sql.NullTime{Time: now, Valid: true},
+		FinishedAt:         finishedBefore,
 	})
 	if err != nil {
 		return 0, fmt.Errorf("clear old orphaned raw output: %w", err)
