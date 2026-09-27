@@ -177,8 +177,9 @@ surface (`npm run sqlc`, `npm run api`).
 
 ## In flight / not yet a runtime feature
 
-- **Agent signals (wave 1 phase A, branch `terminal/wave1-agent-signals`)**: card
-  status from the terminal screen for any agent, hooks first; `TERMINAL.md` §4.52.
+- **Agent signals (wave 1 phase B, branch `terminal/wave1-agent-signals-b`)**: card
+  status from the terminal screen for any agent, hooks first; phone alerts through
+  ntfy carry the masked question or summary; `TERMINAL.md` §4.52.
 - **Operator MCP server (`docs/plans/kanban-mcp.md`)**: every worker session
   gets `opr mcp`: read tools (`board_get`, `session_get`, `ticket_get`),
   `session_report` (agent-driven Needs you / ready for review, with the reason on

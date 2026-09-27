@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- vt-core: output compaction (`compact_lines`, `cap_lines`, `is_spinner_line`) moved from `ts/core` and `TerminalCore::tail_output(rows, compact, max_lines)` added; vt-host exports `vt_tail_output`; `ts/core` `compactLines`/`capLines`/`isSpinnerLine` wrap the wasm exports and need `initTerminalCore` first (breaking). Both wasm artifacts and the daemon must be rebuilt.
 - react: Shift+click extends the selection from its anchor to the clicked cell (across blocks and rows scrolled out of view); with no selection it selects from the last plain click. A Shift double-click is a plain double-click; Shift+drag keeps extending (`TERMINAL.md` §4.51).
 - react/renderer-dom: Alt-drag (Option-drag; Cmd+Option and Ctrl+Alt too) selects a rectangle; copy gives each row's slice, one line per row. In a mouse-reporting program use Shift+Alt.
 - renderer-dom/react: a selection on the transcript stays on the same text, and copies the same text, when the pane changes width; a full-screen program's selection is still cleared by a resize. core: `RowEvent.remapEnd` and `remapStableRow`; vt-core: `TerminalCore::take_remap_end`, outside `Delta`.
