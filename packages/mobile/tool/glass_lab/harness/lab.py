@@ -16,6 +16,7 @@ import probe
 import record
 import report
 import sim
+import tune
 
 RUNS = build.OUT / "runs"
 RUN_NAME = re.compile(r"\d{8}-\d{6}")
@@ -194,6 +195,23 @@ def cmd_repeat(args):
         raise SystemExit(f"static repeatability failed for {', '.join(failed)}")
 
 
+def cmd_tune(args):
+    udid = sim.device()
+    scene = manifest.select(manifest.load(), args.scene)[0]
+    out = build.OUT / "tune" / time.strftime("%Y%m%d-%H%M%S")
+    sim.accessibility(udid, args.a11y)
+    try:
+        summary = tune.run(
+            udid, scene, args.appearance, args.backdrops.split(","), tune.parse_params(args.params),
+            args.row, args.size, args.flutter, out, write=args.write, max_passes=args.passes,
+            regions=args.region.split(",") if args.region else (),
+        )
+    finally:
+        sim.accessibility(udid, "none")
+    print(json.dumps(summary, indent=2))
+    print(out)
+
+
 def cmd_flip(args):
     run_dir = Path(args.run_dir) if args.run_dir else latest_run()
     text = flip.report(run_dir, args.regular)
@@ -263,6 +281,19 @@ def parser():
     t.add_argument("scene", nargs="?", default="default")
     t.add_argument("--times", type=int, default=3)
     t.set_defaults(func=cmd_repeat)
+    u = commands.add_parser("tune")
+    u.add_argument("--scene", required=True)
+    u.add_argument("--appearance", required=True, choices=("light", "dark"))
+    u.add_argument("--backdrops", required=True)
+    u.add_argument("--params", required=True)
+    u.add_argument("--row", default="regular", choices=("regular", "clear", "tinted", "reduceTransparency", "increaseContrast"))
+    u.add_argument("--size", type=int, default=88, choices=(44, 88, 200))
+    u.add_argument("--region")
+    u.add_argument("--a11y", default="none", choices=sim.A11Y_MODES)
+    u.add_argument("--flutter", default="example", choices=tuple(build.FLUTTER_TARGETS))
+    u.add_argument("--passes", type=int, default=4)
+    u.add_argument("--write", action="store_true")
+    u.set_defaults(func=cmd_tune)
     l = commands.add_parser("flip")
     l.add_argument("run_dir", nargs="?")
     l.add_argument("--regular")
