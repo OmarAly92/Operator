@@ -90,3 +90,44 @@ func TestEnrichAgentExited(t *testing.T) {
 		t.Fatalf("rec = %+v", rec)
 	}
 }
+
+func TestEnrichUsesScreenTextWhenTheHookGaveNone(t *testing.T) {
+	t.Parallel()
+	needs, err := enrich(Intent{Type: domain.NotificationNeedsInput, SessionID: "s", ProjectID: "p", ScreenText: "Allow command `rm -rf build`?", CreatedAt: time.Now()})
+	if err != nil || needs.Body != "Allow command `rm -rf build`?" {
+		t.Fatalf("needs body = %q, %v", needs.Body, err)
+	}
+	done, err := enrich(Intent{Type: domain.NotificationTurnFinished, SessionID: "s", ProjectID: "p", ScreenText: "Removed build/.\nAll tests pass.", CreatedAt: time.Now()})
+	if err != nil || done.Body != "Removed build/. All tests pass." {
+		t.Fatalf("done body = %q, %v", done.Body, err)
+	}
+	hook, _ := enrich(Intent{Type: domain.NotificationTurnFinished, SessionID: "s", ProjectID: "p", AssistantUpdate: "From the hook.", ScreenText: "From the screen.", CreatedAt: time.Now()})
+	if hook.Body != "From the hook." {
+		t.Fatalf("the hook's text lost to the screen: %q", hook.Body)
+	}
+}
+
+func TestEnrichMasksAndCleansAgentTextBeforeItLeaves(t *testing.T) {
+	t.Parallel()
+	question, err := enrich(Intent{Type: domain.NotificationNeedsInput, SessionID: "s", ProjectID: "p", ScreenText: "Allow \x1b[1mcurl -H 'Authorization: Bearer abcdefghijklmnop1234'\x1b[0m?", CreatedAt: time.Now()})
+	if err != nil || question.Body != "Allow curl -H 'Authorization: Bearer [redacted]'?" {
+		t.Fatalf("question body = %q, %v", question.Body, err)
+	}
+	reason, _ := enrich(Intent{Type: domain.NotificationNeedsInput, SessionID: "s", ProjectID: "p", AgentReportReason: "Paste the token: abcdefgh12345678\x07", CreatedAt: time.Now()})
+	if reason.Body != "Paste the token: [redacted]" {
+		t.Fatalf("reason body = %q", reason.Body)
+	}
+	done, _ := enrich(Intent{Type: domain.NotificationTurnFinished, SessionID: "s", ProjectID: "p", AssistantUpdate: "Set the key to sk-abcdefghijklmnopqrstuvwxyz and pushed.\n\x1b[32mdone\x1b[0m", CreatedAt: time.Now()})
+	if done.Body != "Set the key to [redacted] and pushed. done" {
+		t.Fatalf("done body = %q", done.Body)
+	}
+}
+
+func TestEnrichMasksBeforeTruncating(t *testing.T) {
+	t.Parallel()
+	text := strings.Repeat("x ", 55) + "sk-" + strings.Repeat("a", 30) + " tail"
+	rec, err := enrich(Intent{Type: domain.NotificationTurnFinished, SessionID: "s", ProjectID: "p", ScreenText: text, CreatedAt: time.Now()})
+	if want := strings.Repeat("x ", 55) + "[redacted]…"; err != nil || rec.Body != want {
+		t.Fatalf("body = %q, want %q (%v)", rec.Body, want, err)
+	}
+}

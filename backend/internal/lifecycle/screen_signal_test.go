@@ -297,3 +297,28 @@ func TestScreen_ForgetsHookAndQuestionMemoryWhenTheSessionEndsOrRelaunches(t *te
 		t.Fatalf("a terminated session kept hook=%v alerted=%v screen=%v", m.hookAt, m.alerted, m.screenAt)
 	}
 }
+
+func TestScreen_IntentsCarryTheScreenText(t *testing.T) {
+	m, _, sink, now := alertManager(t, domain.ActivityActive)
+	clock := movableClock(m, now)
+	question := screenSignal(domain.ScreenQuestion, "q")
+	question.ScreenText = "Allow command `rm -rf build`?"
+	if err := m.ApplyActivitySignal(ctx, "mer-1", question); err != nil {
+		t.Fatal(err)
+	}
+	*clock = now.Add(5 * time.Second)
+	if err := m.ApplyActivitySignal(ctx, "mer-1", screenSignal(domain.ScreenWorking, "")); err != nil {
+		t.Fatal(err)
+	}
+	settledSignal := screenSignal(domain.ScreenSettled, "")
+	settledSignal.ScreenText = "Removed build/."
+	*clock = now.Add(10 * time.Second)
+	if err := m.ApplyActivitySignal(ctx, "mer-1", settledSignal); err != nil {
+		t.Fatal(err)
+	}
+	needs := intentsOf(sink, domain.NotificationNeedsInput)
+	done := intentsOf(sink, domain.NotificationTurnFinished)
+	if len(needs) != 1 || needs[0].ScreenText != "Allow command `rm -rf build`?" || len(done) != 1 || done[0].ScreenText != "Removed build/." {
+		t.Fatalf("needs=%+v done=%+v", needs, done)
+	}
+}

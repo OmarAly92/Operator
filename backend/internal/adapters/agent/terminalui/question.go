@@ -20,10 +20,15 @@ func LastNumberedMenu(lines []string, marker string) (ports.Menu, int, bool) {
 
 func Question(context []string, menu ports.Menu) ports.TerminalQuestion {
 	var text []string
+	belowRule := false
 	for _, line := range context {
 		line = strings.TrimSpace(line)
-		if line == "" || strings.Trim(line, "─━═╌┄│╭╮╰╯ ") == "" {
+		if isRule(line) {
+			belowRule = belowRule || line != ""
 			continue
+		}
+		if belowRule {
+			text, belowRule = nil, false
 		}
 		text = append(text, line)
 	}

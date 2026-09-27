@@ -32,3 +32,10 @@ func TestQuestionTextSkipsRuleLines(t *testing.T) {
 		t.Fatalf("text = %q", got.Text)
 	}
 }
+
+func TestQuestionTextStartsBelowTheDialogsTopRule(t *testing.T) {
+	got := Question([]string{"❯ Ask me something", "────────", "Do you prefer tabs or spaces?"}, ports.Menu{Rows: []string{"1. Tabs", "2. Spaces"}})
+	if got.Text != "Do you prefer tabs or spaces?" || got.Identity != "❯ Ask me something ──────── Do you prefer tabs or spaces? 1. Tabs 2. Spaces" {
+		t.Fatalf("question = %+v", got)
+	}
+}

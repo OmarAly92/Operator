@@ -802,6 +802,7 @@ func (m *Manager) ApplyActivitySignal(ctx context.Context, id domain.SessionID, 
 	case !rec.Activity.State.NeedsInput() && next.Activity.State.NeedsInput() && !next.IsTerminated:
 		if !m.alertedRecently(id, s.ScreenIdentity, now) {
 			intent = m.sessionIntent(domain.NotificationNeedsInput, next)
+			intent.ScreenText = s.ScreenText
 		}
 		if s.ScreenIdentity != "" {
 			m.alerted[id] = alertedQuestion{identity: s.ScreenIdentity, at: now}
@@ -813,6 +814,7 @@ func (m *Manager) ApplyActivitySignal(ctx context.Context, id domain.SessionID, 
 			intent = m.agentReportIntent(next)
 		} else {
 			intent = m.sessionIntent(domain.NotificationTurnFinished, next)
+			intent.ScreenText = s.ScreenText
 		}
 	case !gated && rec.Activity.State != domain.ActivityExited && next.Activity.State == domain.ActivityExited && !next.IsTerminated:
 		intent = m.sessionIntent(domain.NotificationAgentExited, next)

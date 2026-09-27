@@ -227,12 +227,7 @@ func simulate(t *testing.T, rec signalRecording, mode simMode) []simTransition {
 			t.Fatalf("clock: %v", err)
 		}
 		if changed {
-			event := ports.TerminalProgramEvent{Kind: ports.TerminalProgramActivity, Activity: ports.TerminalActivity(state.String()), At: at(ms)}
-			if state != vtwasm.ActivityActive {
-				event.Tail, _ = p.RenderTail(40)
-				event.CursorLine, _ = p.CursorLine()
-			}
-			decide(ms, debouncer.Observe(Classify(agent, event), at(ms)))
+			decide(ms, debouncer.Observe(Classify(agent, activityEvent(p, state, at(ms))), at(ms)))
 		}
 		decide(ms, debouncer.Due(at(ms)))
 		if confirmed != nil && ms >= reassertAt {
@@ -244,6 +239,25 @@ func simulate(t *testing.T, rec signalRecording, mode simMode) []simTransition {
 				sim.set(ms, at(ms), merged, true, confirmed.Identity)
 			}
 		}
+	}
+	replayRecording(t, rec, p, step)
+	return sim.out
+}
+
+func activityEvent(p *vtwasm.Parser, state vtwasm.AgentActivity, at time.Time) ports.TerminalProgramEvent {
+	event := ports.TerminalProgramEvent{Kind: ports.TerminalProgramActivity, Activity: ports.TerminalActivity(state.String()), At: at}
+	if state != vtwasm.ActivityActive {
+		event.Tail, _ = p.RenderTail(40)
+		event.CursorLine, _ = p.CursorLine()
+		event.Summary, _ = p.TailOutput(200, 40)
+	}
+	return event
+}
+
+func replayRecording(t *testing.T, rec signalRecording, p *vtwasm.Parser, step func(ms int64)) {
+	t.Helper()
+	at := func(ms int64) time.Time {
+		return time.Date(2026, 9, 27, 0, 0, 0, 0, time.UTC).Add(time.Duration(ms) * time.Millisecond)
 	}
 	next := 1
 	var ticked int64
@@ -280,7 +294,6 @@ func simulate(t *testing.T, rec signalRecording, mode simMode) []simTransition {
 	for ms := ticked + simTickMs; ms <= last+simTailMs; ms += simTickMs {
 		step(ms)
 	}
-	return sim.out
 }
 
 func expectedState(state string) domain.ActivityState {

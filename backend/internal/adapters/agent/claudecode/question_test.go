@@ -42,3 +42,15 @@ func TestDetectTerminalActivityReadsTheComposer(t *testing.T) {
 		}
 	}
 }
+
+func TestReadQuestionNeverReadsThePromptAboveTheDialog(t *testing.T) {
+	pane := " ▐▛███▛█   Claude Code v2.1.280\n" +
+		"❯ Use the AskUserQuestion tool to ask me whether I prefer tabs or spaces, then reply with only my answer.\n" +
+		"────────────────────────────────────────\n ☐ Indentation \nDo you prefer tabs or spaces?\n" +
+		"❯ 1. Tabs\n     Indent with tab characters\n  2. Spaces\n     Indent with space characters\n  3. Type something.\n" +
+		"────────────────────────────────────────\n  4. Chat about this\nEnter to select · ↑/↓ to navigate · Esc to cancel\n"
+	question, ok := (&Plugin{}).ReadQuestion(pane)
+	if !ok || question.Text != "☐ Indentation · Do you prefer tabs or spaces?" {
+		t.Fatalf("question = %+v, %v", question, ok)
+	}
+}
