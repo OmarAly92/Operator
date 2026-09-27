@@ -12,6 +12,102 @@ Run: `20260927-035111`. Native iOS 27 (iPhone 17 Pro simulator) against Operator
 
 | Scene | Case | Title | Status | Failing measures |
 |---|---|---|---|---|
+| tabbar.rest | dark-black | Tab bar with a search tab | fail | ready.bbox_pt 264.00 > 1.00, settled.bbox_pt 264.00 > 1.00, ready.centre_pt 130.50 > 1.00 |
+| tabbar.rest | dark-black-increase-contrast | Tab bar with a search tab | fail | ready.mad 18.32 > 4.00, settled.mad 18.32 > 4.00, ready.rim_rms 12.77 > 6.00 |
+| tabbar.rest | dark-black-reduce-motion | Tab bar with a search tab | fail | ready.bbox_pt 264.00 > 1.00, settled.bbox_pt 264.00 > 1.00, ready.centre_pt 130.50 > 1.00 |
+| tabbar.rest | dark-black-reduce-transparency | Tab bar with a search tab | fail | ready.bbox_pt 264.00 > 1.00, settled.bbox_pt 264.00 > 1.00, ready.centre_pt 130.50 > 1.00 |
+| tabbar.rest | dark-photo | Tab bar with a search tab | fail | ready.bbox_pt 8.00 > 1.00, settled.bbox_pt 8.00 > 1.00, ready.mad 19.70 > 4.00 |
+| tabbar.rest | dark-photo-increase-contrast | Tab bar with a search tab | fail | ready.mad 40.88 > 4.00, settled.mad 40.88 > 4.00, ready.luminance 27.52 > 3.00 |
+| tabbar.rest | dark-photo-reduce-motion | Tab bar with a search tab | fail | ready.bbox_pt 8.00 > 1.00, settled.bbox_pt 8.00 > 1.00, ready.mad 19.79 > 4.00 |
+| tabbar.rest | dark-photo-reduce-transparency | Tab bar with a search tab | fail | ready.mad 66.79 > 4.00, settled.mad 66.79 > 4.00, ready.luminance 47.00 > 3.00 |
+| tabbar.rest | dark-stripes | Tab bar with a search tab | fail | ready.bbox_pt 10.00 > 1.00, settled.bbox_pt 10.00 > 1.00, ready.mad 17.26 > 4.00 |
+| tabbar.rest | dark-stripes-increase-contrast | Tab bar with a search tab | fail | ready.luminance 49.49 > 3.00, settled.luminance 49.49 > 3.00, ready.mad 54.84 > 4.00 |
+| tabbar.rest | dark-stripes-reduce-motion | Tab bar with a search tab | fail | ready.bbox_pt 10.00 > 1.00, settled.bbox_pt 10.00 > 1.00, ready.mad 17.26 > 4.00 |
+| tabbar.rest | dark-stripes-reduce-transparency | Tab bar with a search tab | fail | ready.luminance 82.51 > 3.00, settled.luminance 82.51 > 3.00, ready.mad 82.97 > 4.00 |
+| tabbar.rest | dark-white | Tab bar with a search tab | fail | ready.luminance 40.67 > 3.00, settled.luminance 40.67 > 3.00, ready.mad 47.37 > 4.00 |
+| tabbar.rest | dark-white-increase-contrast | Tab bar with a search tab | fail | ready.luminance 84.99 > 3.00, settled.luminance 84.99 > 3.00, ready.mad 93.26 > 4.00 |
+| tabbar.rest | dark-white-reduce-motion | Tab bar with a search tab | fail | ready.luminance 40.67 > 3.00, settled.luminance 40.67 > 3.00, ready.mad 47.37 > 4.00 |
+| tabbar.rest | dark-white-reduce-transparency | Tab bar with a search tab | fail | ready.luminance 139.05 > 3.00, settled.luminance 139.05 > 3.00, ready.mad 144.47 > 4.00 |
+| tabbar.rest | light-black | Tab bar with a search tab | fail | ready.mad 19.08 > 4.00, settled.mad 19.08 > 4.00, ready.luminance 13.93 > 3.00 |
+| tabbar.rest | light-photo | Tab bar with a search tab | fail | ready.bbox_pt 4.00 > 1.00, settled.bbox_pt 4.00 > 1.00, ready.mad 12.47 > 4.00 |
+| tabbar.rest | light-stripes | Tab bar with a search tab | fail | ready.bbox_pt 8.00 > 1.00, settled.bbox_pt 8.00 > 1.00, ready.mad 14.27 > 4.00 |
+| tabbar.rest | light-white | Tab bar with a search tab | fail | ready.bbox_pt 263.00 > 1.00, settled.bbox_pt 263.00 > 1.00, ready.centre_pt 127.00 > 1.00 |
+| tabbar.press | dark-stripes | Tab bar press and hold | fail | motion.events.count 1 > 0, motion.event1.width.overshoot_pct 88.89 > 2.00, ready.bbox_pt 10.00 > 1.00 |
+| tabbar.press | light-stripes | Tab bar press and hold | fail | motion.events.count 1 > 0, motion.event1.luma.peak_ms 358.33 > 17.00, motion.event0.width.overshoot_pct 32.50 > 2.00 |
+| tabbar.drag | dark-stripes | Tab selection lens dragged across tabs | fail | motion.events.count 1 > 0, motion.event0.width.peak_ms 441.67 > 17.00, ready.bbox_pt 10.00 > 1.00 |
+| tabbar.drag | dark-stripes-increase-contrast | Tab selection lens dragged across tabs | fail | motion.events.count 2 > 0, motion.event1.width.response_pct 300.00 > 10.71, ready.luminance 39.73 > 3.00 |
+| tabbar.drag | dark-stripes-reduce-motion | Tab selection lens dragged across tabs | fail | motion.events.count 1 > 0, ready.bbox_pt 10.00 > 1.00, settled.bbox_pt 10.00 > 1.00 |
+| tabbar.drag | dark-stripes-reduce-transparency | Tab selection lens dragged across tabs | fail | motion.events.count 1 > 0, ready.luminance 66.46 > 3.00, settled.luminance 65.88 > 3.00 |
+| tabbar.drag | light-stripes | Tab selection lens dragged across tabs | fail | motion.events.count 2 > 0, ready.bbox_pt 8.00 > 1.00, settled.bbox_pt 8.00 > 1.00 |
+| button.press | dark-stripes | Glass and prominent button press | fail | motion.events.count 1 > 0, motion.event1.luma.response_pct 300.00 > 5.00, motion.event1.luma.settle_ms 108.33 > 17.00 |
+| button.press | light-stripes | Glass and prominent button press | fail | motion.events.count 2 > 0, motion.event2.width.response_pct 100.00 > 5.00, motion.event3.width.settle_ms 275.00 > 17.00 |
+| sheet.detents | dark-photo | Sheet moved between its detents | fail | motion.events.count 4 > 0, settled.bbox_pt 712.00 > 1.00, settled.centre_pt 356.00 > 1.00 |
+| sheet.detents | dark-photo-increase-contrast | Sheet moved between its detents | fail | motion.events.count 4 > 0, settled.bbox_pt 712.00 > 1.00, settled.centre_pt 356.00 > 1.00 |
+| sheet.detents | dark-photo-reduce-motion | Sheet moved between its detents | fail | motion.events.count 3 > 0, settled.bbox_pt 712.00 > 1.00, settled.centre_pt 356.00 > 1.00 |
+| sheet.detents | dark-photo-reduce-transparency | Sheet moved between its detents | fail | motion.events.count 4 > 0, settled.bbox_pt 712.00 > 1.00, settled.centre_pt 356.00 > 1.00 |
+| sheet.detents | dark-stripes | Sheet moved between its detents | fail | motion.events.count 3 > 0, settled.bbox_pt 710.00 > 1.00, settled.centre_pt 355.00 > 1.00 |
+| sheet.detents | dark-stripes-increase-contrast | Sheet moved between its detents | fail | motion.events.count 4 > 0, settled.bbox_pt 710.00 > 1.00, settled.centre_pt 355.00 > 1.00 |
+| sheet.detents | dark-stripes-reduce-motion | Sheet moved between its detents | fail | motion.events.count 3 > 0, settled.bbox_pt 710.00 > 1.00, settled.centre_pt 355.00 > 1.00 |
+| sheet.detents | dark-stripes-reduce-transparency | Sheet moved between its detents | fail | motion.events.count 4 > 0, settled.bbox_pt 710.00 > 1.00, settled.centre_pt 355.00 > 1.00 |
+| sheet.detents | light-photo | Sheet moved between its detents | fail | motion.events.count 4 > 0, settled.bbox_pt 717.00 > 1.00, settled.centre_pt 358.50 > 1.00 |
+| sheet.detents | light-stripes | Sheet moved between its detents | fail | motion.events.count 3 > 0, settled.bbox_pt 714.00 > 1.00, settled.centre_pt 357.00 > 1.00 |
+| navbar.inline | dark-black | Inline title, back button and trailing group | fail | ready.bbox_pt 327.00 > 1.00, settled.bbox_pt 327.00 > 1.00, ready.centre_pt 297.00 > 1.00 |
+| navbar.inline | dark-stripes | Inline title, back button and trailing group | fail | ready.bbox_pt 6.00 > 1.00, settled.bbox_pt 6.00 > 1.00, ready.rim_rms 16.37 > 6.00 |
+| navbar.inline | dark-white | Inline title, back button and trailing group | fail | ready.rim_rms 41.15 > 6.00, settled.rim_rms 41.15 > 6.00, ready.bbox_pt 6.00 > 1.00 |
+| navbar.inline | light-black | Inline title, back button and trailing group | fail | ready.bbox_pt 326.00 > 1.00, settled.bbox_pt 326.00 > 1.00, ready.centre_pt 297.00 > 1.00 |
+| navbar.inline | light-stripes | Inline title, back button and trailing group | fail | ready.bbox_pt 11.00 > 1.00, settled.bbox_pt 11.00 > 1.00, ready.rim_rms 58.81 > 6.00 |
+| navbar.inline | light-white | Inline title, back button and trailing group | fail | ready.bbox_pt 185.00 > 1.00, settled.bbox_pt 185.00 > 1.00, ready.centre_pt 145.00 > 1.00 |
+| material.regular | dark-black | Regular glass at three sizes | fail | ready.luminance 10.48 > 3.00, settled.luminance 10.48 > 3.00, ready.rim_rms 16.26 > 6.00 |
+| material.regular | dark-black-increase-contrast | Regular glass at three sizes | fail | ready.rim_rms 9.77 > 6.00, settled.rim_rms 9.77 > 6.00 |
+| material.regular | dark-black-reduce-motion | Regular glass at three sizes | fail | ready.luminance 10.48 > 3.00, settled.luminance 10.48 > 3.00, ready.rim_rms 16.26 > 6.00 |
+| material.regular | dark-black-reduce-transparency | Regular glass at three sizes | fail | ready.rim_rms 10.44 > 6.00, settled.rim_rms 10.44 > 6.00, ready.luminance 4.34 > 3.00 |
+| material.regular | dark-photo | Regular glass at three sizes | fail | ready.bbox_pt 13.00 > 1.00, settled.bbox_pt 13.00 > 1.00, ready.centre_pt 7.00 > 1.00 |
+| material.regular | dark-photo-increase-contrast | Regular glass at three sizes | fail | ready.bbox_pt 13.00 > 1.00, settled.bbox_pt 13.00 > 1.00, ready.centre_pt 7.00 > 1.00 |
+| material.regular | dark-photo-reduce-motion | Regular glass at three sizes | fail | ready.bbox_pt 13.00 > 1.00, settled.bbox_pt 13.00 > 1.00, ready.centre_pt 7.00 > 1.00 |
+| material.regular | dark-photo-reduce-transparency | Regular glass at three sizes | fail | ready.bbox_pt 13.00 > 1.00, settled.bbox_pt 13.00 > 1.00, ready.luminance 30.69 > 3.00 |
+| material.regular | dark-stripes | Regular glass at three sizes | fail | ready.bbox_pt 14.00 > 1.00, settled.bbox_pt 14.00 > 1.00, ready.centre_pt 8.00 > 1.00 |
+| material.regular | dark-stripes-increase-contrast | Regular glass at three sizes | fail | ready.bbox_pt 14.00 > 1.00, settled.bbox_pt 14.00 > 1.00, ready.centre_pt 8.00 > 1.00 |
+| material.regular | dark-stripes-reduce-motion | Regular glass at three sizes | fail | ready.bbox_pt 14.00 > 1.00, settled.bbox_pt 14.00 > 1.00, ready.centre_pt 8.00 > 1.00 |
+| material.regular | dark-stripes-reduce-transparency | Regular glass at three sizes | fail | ready.luminance 49.97 > 3.00, settled.luminance 49.97 > 3.00, ready.bbox_pt 14.00 > 1.00 |
+| material.regular | dark-text | Regular glass at three sizes | fail | ready.bbox_pt 14.00 > 1.00, settled.bbox_pt 14.00 > 1.00, ready.centre_pt 8.00 > 1.00 |
+| material.regular | dark-text-increase-contrast | Regular glass at three sizes | fail | ready.bbox_pt 14.00 > 1.00, settled.bbox_pt 14.00 > 1.00, ready.centre_pt 8.00 > 1.00 |
+| material.regular | dark-text-reduce-motion | Regular glass at three sizes | fail | ready.bbox_pt 14.00 > 1.00, settled.bbox_pt 14.00 > 1.00, ready.centre_pt 8.00 > 1.00 |
+| material.regular | dark-text-reduce-transparency | Regular glass at three sizes | fail | ready.luminance 69.83 > 3.00, settled.luminance 69.83 > 3.00, ready.mad 71.41 > 4.00 |
+| material.regular | dark-white | Regular glass at three sizes | fail | ready.bbox_pt 14.00 > 1.00, settled.bbox_pt 14.00 > 1.00, ready.luminance 27.92 > 3.00 |
+| material.regular | dark-white-increase-contrast | Regular glass at three sizes | fail | ready.bbox_pt 14.00 > 1.00, settled.bbox_pt 14.00 > 1.00, ready.luminance 28.32 > 3.00 |
+| material.regular | dark-white-reduce-motion | Regular glass at three sizes | fail | ready.bbox_pt 14.00 > 1.00, settled.bbox_pt 14.00 > 1.00, ready.luminance 27.92 > 3.00 |
+| material.regular | dark-white-reduce-transparency | Regular glass at three sizes | fail | ready.luminance 79.61 > 3.00, settled.luminance 79.61 > 3.00, ready.mad 81.33 > 4.00 |
+| material.regular | light-black | Regular glass at three sizes | fail | ready.rim_rms 26.52 > 6.00, settled.rim_rms 26.52 > 6.00, ready.luminance 11.93 > 3.00 |
+| material.regular | light-photo | Regular glass at three sizes | fail | ready.bbox_pt 15.00 > 1.00, settled.bbox_pt 15.00 > 1.00, ready.centre_pt 8.50 > 1.00 |
+| material.regular | light-stripes | Regular glass at three sizes | fail | ready.bbox_pt 14.00 > 1.00, settled.bbox_pt 14.00 > 1.00, ready.centre_pt 8.50 > 1.00 |
+| material.regular | light-text | Regular glass at three sizes | fail | ready.bbox_pt 13.00 > 1.00, settled.bbox_pt 13.00 > 1.00, ready.centre_pt 8.50 > 1.00 |
+| material.regular | light-white | Regular glass at three sizes | fail | ready.bbox_pt 13.00 > 1.00, settled.bbox_pt 13.00 > 1.00, ready.centre_pt 8.50 > 1.00 |
+| material.tinted | dark-black | Tinted glass and a prominent button | fail | ready.rim_rms 28.43 > 6.00, settled.rim_rms 28.43 > 6.00, ready.luminance 8.32 > 3.00 |
+| material.tinted | dark-stripes | Tinted glass and a prominent button | fail | ready.bbox_pt 10.00 > 1.00, settled.bbox_pt 10.00 > 1.00, ready.centre_pt 4.50 > 1.00 |
+| material.tinted | dark-white | Tinted glass and a prominent button | fail | ready.bbox_pt 10.00 > 1.00, settled.bbox_pt 10.00 > 1.00, ready.centre_pt 4.50 > 1.00 |
+| material.tinted | light-black | Tinted glass and a prominent button | fail | ready.rim_rms 22.77 > 6.00, settled.rim_rms 22.77 > 6.00, ready.mad 6.09 > 4.00 |
+| material.tinted | light-stripes | Tinted glass and a prominent button | fail | ready.bbox_pt 12.00 > 1.00, settled.bbox_pt 12.00 > 1.00, ready.mad 9.26 > 4.00 |
+| material.tinted | light-white | Tinted glass and a prominent button | fail | ready.bbox_pt 12.00 > 1.00, settled.bbox_pt 12.00 > 1.00, ready.mad 15.40 > 4.00 |
+| material.clear | dark-photo | Clear glass with and without the dimming layer | fail | ready.bbox_pt 155.00 > 1.00, settled.bbox_pt 155.00 > 1.00, ready.centre_pt 149.00 > 1.00 |
+| material.clear | dark-white | Clear glass with and without the dimming layer | fail | ready.bbox_pt 10.00 > 1.00, settled.bbox_pt 10.00 > 1.00, ready.luminance 23.39 > 3.00 |
+| material.clear | light-photo | Clear glass with and without the dimming layer | fail | ready.bbox_pt 15.00 > 1.00, settled.bbox_pt 15.00 > 1.00, ready.rim_rms 24.32 > 6.00 |
+| material.clear | light-white | Clear glass with and without the dimming layer | fail | ready.bbox_pt 12.00 > 1.00, settled.bbox_pt 12.00 > 1.00, ready.luminance 16.30 > 3.00 |
+| material.interactive | dark-photo | Interactive glass press and drag | fail | motion.events.count 4 > 0, motion.events.native_motion 0 < 1, ready.bbox_pt 8.00 > 1.00 |
+| material.interactive | dark-stripes | Interactive glass press and drag | fail | motion.events.count 4 > 0, motion.events.native_motion 0 < 1, ready.bbox_pt 10.00 > 1.00 |
+| material.interactive | light-photo | Interactive glass press and drag | fail | motion.events.count 4 > 0, motion.events.native_motion 0 < 1, ready.bbox_pt 12.00 > 1.00 |
+| material.interactive | light-stripes | Interactive glass press and drag | fail | motion.events.count 4 > 0, motion.events.native_motion 0 < 1, ready.bbox_pt 12.00 > 1.00 |
+| material.edge.soft | light-scroll | Soft scroll edge effect under an inline bar | fail | motion.events.count 2 > 0, ready.bbox_pt 733.00 > 1.00, ready.centre_pt 691.00 > 1.00 |
+| material.edge.automatic | light-scroll | Automatic scroll edge effect under an inline bar | fail | motion.events.count 2 > 0, ready.bbox_pt 683.00 > 1.00, ready.centre_pt 666.00 > 1.00 |
+| material.edge.hard | light-scroll | Hard scroll edge effect under an inline bar | fail | motion.events.count 2 > 0, ready.bbox_pt 683.00 > 1.00, ready.centre_pt 666.00 > 1.00 |
+| material.edge.automatic | dark-scroll | Automatic scroll edge effect under an inline bar | fail | motion.events.count 2 > 0, settled.bbox_pt 105.00 > 1.00, settled.centre_pt 52.50 > 1.00 |
+| material.edge.hard | dark-scroll | Hard scroll edge effect under an inline bar | fail | motion.events.count 2 > 0, settled.bbox_pt 105.00 > 1.00, settled.centre_pt 52.50 > 1.00 |
+| material.edge.soft | dark-scroll | Soft scroll edge effect under an inline bar | fail | motion.events.count 2 > 0, settled.bbox_pt 88.00 > 1.00, settled.centre_pt 44.00 > 1.00 |
+| button.styles | light-white | Glass button styles, sizes and shapes | fail | ready.bbox_pt 146.00 > 1.00, settled.bbox_pt 146.00 > 1.00, ready.centre_pt 16.00 > 1.00 |
+| button.styles | light-stripes | Glass button styles, sizes and shapes | fail | ready.bbox_pt 146.00 > 1.00, settled.bbox_pt 146.00 > 1.00, ready.centre_pt 16.00 > 1.00 |
+| button.styles | dark-white | Glass button styles, sizes and shapes | fail | ready.bbox_pt 142.00 > 1.00, settled.bbox_pt 142.00 > 1.00, ready.centre_pt 16.50 > 1.00 |
+| button.styles | dark-stripes | Glass button styles, sizes and shapes | fail | ready.bbox_pt 141.00 > 1.00, settled.bbox_pt 141.00 > 1.00, ready.centre_pt 16.00 > 1.00 |
+| button.styles | light-black | Glass button styles, sizes and shapes | fail | ready.bbox_pt 45.00 > 1.00, settled.bbox_pt 45.00 > 1.00, ready.centre_pt 42.00 > 1.00 |
+| button.styles | dark-black | Glass button styles, sizes and shapes | fail | ready.bbox_pt 44.00 > 1.00, settled.bbox_pt 44.00 > 1.00, ready.centre_pt 42.00 > 1.00 |
 | alert.three | dark-stripes | Alert with three actions | missing | — |
 | alert.three | dark-white | Alert with three actions | missing | — |
 | alert.three | light-stripes | Alert with three actions | missing | — |
@@ -20,26 +116,6 @@ Run: `20260927-035111`. Native iOS 27 (iPhone 17 Pro simulator) against Operator
 | alert.two | dark-white | Alert with two actions | missing | — |
 | alert.two | light-stripes | Alert with two actions | missing | — |
 | alert.two | light-white | Alert with two actions | missing | — |
-| apple.calendar.toolbar | dark-none | Calendar grouped toolbar and bottom bar | reference | — |
-| apple.calendar.toolbar | light-none | Calendar grouped toolbar and bottom bar | reference | — |
-| apple.maps.sheet | dark-none | Maps sheet dragged to full, then to its smallest detent | reference | — |
-| apple.maps.sheet | light-none | Maps sheet dragged to full, then to its smallest detent | reference | — |
-| apple.photos.scroll | dark-none | Photos grid scrolled under the tab bar | reference | — |
-| apple.photos.scroll | light-none | Photos grid scrolled under the tab bar | reference | — |
-| apple.photos.search | dark-none | Photos search tab | reference | — |
-| apple.photos.search | light-none | Photos search tab | reference | — |
-| apple.reminders.menu | dark-none | Reminders list menu | reference | — |
-| apple.reminders.menu | light-none | Reminders list menu | reference | — |
-| apple.settings.large | dark-none | Settings large title under the bar | reference | — |
-| apple.settings.large | light-none | Settings large title under the bar | reference | — |
-| button.press | dark-stripes | Glass and prominent button press | fail | ready.mad, ready.rim_rms, ready.bbox_pt |
-| button.press | light-stripes | Glass and prominent button press | fail | ready.mad, ready.rim_rms, ready.bbox_pt |
-| button.styles | dark-black | Glass button styles, sizes and shapes | fail | ready.mad, ready.luminance, ready.rim_rms |
-| button.styles | dark-stripes | Glass button styles, sizes and shapes | fail | ready.mad, ready.luminance, ready.rim_rms |
-| button.styles | dark-white | Glass button styles, sizes and shapes | fail | ready.mad, ready.luminance, ready.rim_rms |
-| button.styles | light-black | Glass button styles, sizes and shapes | fail | ready.mad, ready.luminance, ready.rim_rms |
-| button.styles | light-stripes | Glass button styles, sizes and shapes | fail | ready.mad, ready.rim_rms, ready.bbox_pt |
-| button.styles | light-white | Glass button styles, sizes and shapes | fail | ready.mad, ready.rim_rms, ready.bbox_pt |
 | confirm.source | dark-stripes | Confirmation dialog anchored to its button | missing | — |
 | confirm.source | light-stripes | Confirmation dialog anchored to its button | missing | — |
 | contextmenu.card | dark-stripes | Context menu on a card | missing | — |
@@ -52,24 +128,10 @@ Run: `20260927-035111`. Native iOS 27 (iPhone 17 Pro simulator) against Operator
 | datepicker.wheel | light-white | Wheel date picker | missing | — |
 | list.form | dark-none | Inset grouped form | missing | — |
 | list.form | light-none | Inset grouped form | missing | — |
-| material.clear | dark-photo | Clear glass with and without the dimming layer | fail | ready.mad, ready.luminance, ready.rim_rms |
-| material.clear | dark-white | Clear glass with and without the dimming layer | fail | ready.mad, ready.luminance, ready.rim_rms |
-| material.clear | light-photo | Clear glass with and without the dimming layer | fail | ready.mad, ready.luminance, ready.rim_rms |
-| material.clear | light-white | Clear glass with and without the dimming layer | fail | ready.mad, ready.luminance, ready.rim_rms |
 | material.content | dark-photo | Content layer materials | missing | — |
 | material.content | light-photo | Content layer materials | missing | — |
-| material.edge.automatic | dark-scroll | Automatic scroll edge effect under an inline bar | fail | ready.mad, ready.luminance, ready.rim_rms |
-| material.edge.automatic | light-scroll | Automatic scroll edge effect under an inline bar | fail | ready.mad, ready.luminance, ready.rim_rms |
-| material.edge.hard | dark-scroll | Hard scroll edge effect under an inline bar | fail | ready.mad, ready.luminance, ready.rim_rms |
-| material.edge.hard | light-scroll | Hard scroll edge effect under an inline bar | fail | ready.mad, ready.luminance, ready.rim_rms |
-| material.edge.soft | dark-scroll | Soft scroll edge effect under an inline bar | fail | ready.mad, ready.luminance, ready.rim_rms |
-| material.edge.soft | light-scroll | Soft scroll edge effect under an inline bar | fail | ready.mad, ready.luminance, ready.rim_rms |
 | material.flip | dark-scroll | Small and large glass over content that turns white then black | missing | — |
 | material.flip | light-scroll | Small and large glass over content that turns white then black | missing | — |
-| material.interactive | dark-photo | Interactive glass press and drag | fail | ready.mad, ready.luminance, ready.rim_rms |
-| material.interactive | dark-stripes | Interactive glass press and drag | fail | ready.mad, ready.luminance, ready.rim_rms |
-| material.interactive | light-photo | Interactive glass press and drag | fail | ready.mad, ready.rim_rms, ready.bbox_pt |
-| material.interactive | light-stripes | Interactive glass press and drag | fail | ready.mad, ready.rim_rms, ready.bbox_pt |
 | material.materialize | dark-photo | Glass materializes in and out | missing | — |
 | material.materialize | dark-stripes | Glass materializes in and out | missing | — |
 | material.materialize | light-photo | Glass materializes in and out | missing | — |
@@ -80,39 +142,8 @@ Run: `20260927-035111`. Native iOS 27 (iPhone 17 Pro simulator) against Operator
 | material.morph | dark-stripes | Button morphs into a badge stack | missing | — |
 | material.morph | light-photo | Button morphs into a badge stack | missing | — |
 | material.morph | light-stripes | Button morphs into a badge stack | missing | — |
-| material.regular | dark-black | Regular glass at three sizes | fail | ready.mad, ready.luminance, ready.rim_rms |
-| material.regular | dark-black-increase-contrast | Regular glass at three sizes | fail | ready.rim_rms, settled.rim_rms |
-| material.regular | dark-black-reduce-motion | Regular glass at three sizes | fail | ready.mad, ready.luminance, ready.rim_rms |
-| material.regular | dark-black-reduce-transparency | Regular glass at three sizes | fail | ready.mad, ready.luminance, ready.rim_rms |
-| material.regular | dark-photo | Regular glass at three sizes | fail | ready.mad, ready.luminance, ready.rim_rms |
-| material.regular | dark-photo-increase-contrast | Regular glass at three sizes | fail | ready.mad, ready.luminance, ready.rim_rms |
-| material.regular | dark-photo-reduce-motion | Regular glass at three sizes | fail | ready.mad, ready.luminance, ready.rim_rms |
-| material.regular | dark-photo-reduce-transparency | Regular glass at three sizes | fail | ready.mad, ready.luminance, ready.rim_rms |
-| material.regular | dark-stripes | Regular glass at three sizes | fail | ready.mad, ready.rim_rms, ready.bbox_pt |
-| material.regular | dark-stripes-increase-contrast | Regular glass at three sizes | fail | ready.mad, ready.luminance, ready.rim_rms |
-| material.regular | dark-stripes-reduce-motion | Regular glass at three sizes | fail | ready.mad, ready.rim_rms, ready.bbox_pt |
-| material.regular | dark-stripes-reduce-transparency | Regular glass at three sizes | fail | ready.mad, ready.luminance, ready.rim_rms |
-| material.regular | dark-text | Regular glass at three sizes | fail | ready.mad, ready.luminance, ready.rim_rms |
-| material.regular | dark-text-increase-contrast | Regular glass at three sizes | fail | ready.mad, ready.luminance, ready.rim_rms |
-| material.regular | dark-text-reduce-motion | Regular glass at three sizes | fail | ready.mad, ready.luminance, ready.rim_rms |
-| material.regular | dark-text-reduce-transparency | Regular glass at three sizes | fail | ready.mad, ready.luminance, ready.rim_rms |
-| material.regular | dark-white | Regular glass at three sizes | fail | ready.mad, ready.luminance, ready.rim_rms |
-| material.regular | dark-white-increase-contrast | Regular glass at three sizes | fail | ready.mad, ready.luminance, ready.rim_rms |
-| material.regular | dark-white-reduce-motion | Regular glass at three sizes | fail | ready.mad, ready.luminance, ready.rim_rms |
-| material.regular | dark-white-reduce-transparency | Regular glass at three sizes | fail | ready.mad, ready.luminance, ready.rim_rms |
-| material.regular | light-black | Regular glass at three sizes | fail | ready.mad, ready.luminance, ready.rim_rms |
-| material.regular | light-photo | Regular glass at three sizes | fail | ready.mad, ready.rim_rms, ready.bbox_pt |
-| material.regular | light-stripes | Regular glass at three sizes | fail | ready.mad, ready.rim_rms, ready.bbox_pt |
-| material.regular | light-text | Regular glass at three sizes | fail | ready.mad, ready.rim_rms, ready.bbox_pt |
-| material.regular | light-white | Regular glass at three sizes | fail | ready.rim_rms, ready.bbox_pt, ready.centre_pt |
 | material.shapes | dark-stripes | Capsule, fixed radius and concentric shapes | missing | — |
 | material.shapes | light-stripes | Capsule, fixed radius and concentric shapes | missing | — |
-| material.tinted | dark-black | Tinted glass and a prominent button | fail | ready.mad, ready.luminance, ready.rim_rms |
-| material.tinted | dark-stripes | Tinted glass and a prominent button | fail | ready.mad, ready.luminance, ready.rim_rms |
-| material.tinted | dark-white | Tinted glass and a prominent button | fail | ready.mad, ready.rim_rms, ready.bbox_pt |
-| material.tinted | light-black | Tinted glass and a prominent button | fail | ready.mad, ready.luminance, ready.rim_rms |
-| material.tinted | light-stripes | Tinted glass and a prominent button | fail | ready.mad, ready.luminance, ready.rim_rms |
-| material.tinted | light-white | Tinted glass and a prominent button | fail | ready.mad, ready.rim_rms, ready.bbox_pt |
 | material.union | dark-stripes | Glass union of four items in two groups | missing | — |
 | material.union | light-stripes | Glass union of four items in two groups | missing | — |
 | menu.bar | dark-photo | Menu from a toolbar button | missing | — |
@@ -133,12 +164,6 @@ Run: `20260927-035111`. Native iOS 27 (iPhone 17 Pro simulator) against Operator
 | navbar.badge | light-stripes | Badge on a bar button | missing | — |
 | navbar.groups | dark-stripes | Toolbar groups, spacer and prominent action | missing | — |
 | navbar.groups | light-stripes | Toolbar groups, spacer and prominent action | missing | — |
-| navbar.inline | dark-black | Inline title, back button and trailing group | fail | ready.mad, ready.luminance, ready.rim_rms |
-| navbar.inline | dark-stripes | Inline title, back button and trailing group | fail | ready.mad, ready.luminance, ready.rim_rms |
-| navbar.inline | dark-white | Inline title, back button and trailing group | fail | ready.mad, ready.luminance, ready.rim_rms |
-| navbar.inline | light-black | Inline title, back button and trailing group | fail | ready.mad, ready.rim_rms, ready.bbox_pt |
-| navbar.inline | light-stripes | Inline title, back button and trailing group | fail | ready.mad, ready.rim_rms, ready.bbox_pt |
-| navbar.inline | light-white | Inline title, back button and trailing group | fail | ready.mad, ready.rim_rms, ready.bbox_pt |
 | navbar.large | dark-scroll | Large title with subtitle scrolling under the bar | missing | — |
 | navbar.large | light-scroll | Large title with subtitle scrolling under the bar | missing | — |
 | navbar.minimize | dark-scroll | Navigation bar minimizes on scroll | missing | — |
@@ -167,16 +192,6 @@ Run: `20260927-035111`. Native iOS 27 (iPhone 17 Pro simulator) against Operator
 | segmented | light-white | Segmented control tapped, then dragged | missing | — |
 | sheet.crossfade | dark-stripes | Cross-fade sheet presentation | missing | — |
 | sheet.crossfade | light-stripes | Cross-fade sheet presentation | missing | — |
-| sheet.detents | dark-photo | Sheet moved between its detents | fail | ready.mad, ready.luminance, ready.rim_rms |
-| sheet.detents | dark-photo-increase-contrast | Sheet moved between its detents | fail | ready.mad, ready.rim_rms, settled.mad |
-| sheet.detents | dark-photo-reduce-motion | Sheet moved between its detents | fail | ready.mad, ready.luminance, ready.rim_rms |
-| sheet.detents | dark-photo-reduce-transparency | Sheet moved between its detents | fail | ready.mad, ready.luminance, ready.rim_rms |
-| sheet.detents | dark-stripes | Sheet moved between its detents | fail | ready.mad, ready.luminance, ready.rim_rms |
-| sheet.detents | dark-stripes-increase-contrast | Sheet moved between its detents | fail | ready.mad, ready.luminance, ready.rim_rms |
-| sheet.detents | dark-stripes-reduce-motion | Sheet moved between its detents | fail | ready.mad, ready.luminance, ready.rim_rms |
-| sheet.detents | dark-stripes-reduce-transparency | Sheet moved between its detents | fail | ready.mad, ready.luminance, ready.rim_rms |
-| sheet.detents | light-photo | Sheet moved between its detents | fail | ready.mad, ready.luminance, ready.rim_rms |
-| sheet.detents | light-stripes | Sheet moved between its detents | fail | ready.mad, ready.luminance, ready.rim_rms |
 | sheet.scroll | dark-stripes | Large sheet with scrolling content | missing | — |
 | sheet.scroll | light-stripes | Large sheet with scrolling content | missing | — |
 | sheet.zoom | dark-stripes | Sheet zooms out of a toolbar button | missing | — |
@@ -193,37 +208,10 @@ Run: `20260927-035111`. Native iOS 27 (iPhone 17 Pro simulator) against Operator
 | tabbar.accessory | light-scroll | Tab bar bottom accessory, expanded then inline | missing | — |
 | tabbar.badge | dark-stripes | Tab badge | missing | — |
 | tabbar.badge | light-stripes | Tab badge | missing | — |
-| tabbar.drag | dark-stripes | Tab selection lens dragged across tabs | fail | ready.mad, ready.luminance, ready.rim_rms |
-| tabbar.drag | dark-stripes-increase-contrast | Tab selection lens dragged across tabs | fail | ready.mad, ready.luminance, ready.rim_rms |
-| tabbar.drag | dark-stripes-reduce-motion | Tab selection lens dragged across tabs | fail | ready.mad, ready.luminance, ready.rim_rms |
-| tabbar.drag | dark-stripes-reduce-transparency | Tab selection lens dragged across tabs | fail | ready.mad, ready.luminance, ready.rim_rms |
-| tabbar.drag | light-stripes | Tab selection lens dragged across tabs | fail | ready.mad, ready.luminance, ready.rim_rms |
 | tabbar.minimize | dark-scroll | Tab bar minimizes on scroll | missing | — |
 | tabbar.minimize | light-scroll | Tab bar minimizes on scroll | missing | — |
-| tabbar.press | dark-stripes | Tab bar press and hold | fail | ready.mad, ready.luminance, ready.rim_rms |
-| tabbar.press | light-stripes | Tab bar press and hold | fail | ready.mad, ready.luminance, ready.rim_rms |
 | tabbar.prominent | dark-stripes | Prominent tab | missing | — |
 | tabbar.prominent | light-stripes | Prominent tab | missing | — |
-| tabbar.rest | dark-black | Tab bar with a search tab | fail | ready.mad, ready.luminance, ready.rim_rms |
-| tabbar.rest | dark-black-increase-contrast | Tab bar with a search tab | fail | ready.mad, ready.luminance, ready.rim_rms |
-| tabbar.rest | dark-black-reduce-motion | Tab bar with a search tab | fail | ready.mad, ready.luminance, ready.rim_rms |
-| tabbar.rest | dark-black-reduce-transparency | Tab bar with a search tab | fail | ready.mad, ready.luminance, ready.rim_rms |
-| tabbar.rest | dark-photo | Tab bar with a search tab | fail | ready.mad, ready.luminance, ready.rim_rms |
-| tabbar.rest | dark-photo-increase-contrast | Tab bar with a search tab | fail | ready.mad, ready.luminance, ready.rim_rms |
-| tabbar.rest | dark-photo-reduce-motion | Tab bar with a search tab | fail | ready.mad, ready.luminance, ready.rim_rms |
-| tabbar.rest | dark-photo-reduce-transparency | Tab bar with a search tab | fail | ready.mad, ready.luminance, ready.rim_rms |
-| tabbar.rest | dark-stripes | Tab bar with a search tab | fail | ready.mad, ready.luminance, ready.rim_rms |
-| tabbar.rest | dark-stripes-increase-contrast | Tab bar with a search tab | fail | ready.mad, ready.luminance, ready.rim_rms |
-| tabbar.rest | dark-stripes-reduce-motion | Tab bar with a search tab | fail | ready.mad, ready.luminance, ready.rim_rms |
-| tabbar.rest | dark-stripes-reduce-transparency | Tab bar with a search tab | fail | ready.mad, ready.luminance, ready.rim_rms |
-| tabbar.rest | dark-white | Tab bar with a search tab | fail | ready.mad, ready.luminance, ready.rim_rms |
-| tabbar.rest | dark-white-increase-contrast | Tab bar with a search tab | fail | ready.mad, ready.luminance, ready.rim_rms |
-| tabbar.rest | dark-white-reduce-motion | Tab bar with a search tab | fail | ready.mad, ready.luminance, ready.rim_rms |
-| tabbar.rest | dark-white-reduce-transparency | Tab bar with a search tab | fail | ready.mad, ready.luminance, ready.rim_rms |
-| tabbar.rest | light-black | Tab bar with a search tab | fail | ready.mad, ready.luminance, ready.rim_rms |
-| tabbar.rest | light-photo | Tab bar with a search tab | fail | ready.mad, ready.luminance, ready.rim_rms |
-| tabbar.rest | light-stripes | Tab bar with a search tab | fail | ready.mad, ready.luminance, ready.rim_rms |
-| tabbar.rest | light-white | Tab bar with a search tab | fail | ready.mad, ready.rim_rms, ready.bbox_pt |
 | tabbar.search | dark-photo | Search tab morphs into a field | missing | — |
 | tabbar.search | light-photo | Search tab morphs into a field | missing | — |
 | textfield | dark-black | Text and search fields | missing | — |
@@ -240,3 +228,15 @@ Run: `20260927-035111`. Native iOS 27 (iPhone 17 Pro simulator) against Operator
 | toolbar.bottom | dark-stripes | Bottom toolbar with groups | missing | — |
 | toolbar.bottom | light-photo | Bottom toolbar with groups | missing | — |
 | toolbar.bottom | light-stripes | Bottom toolbar with groups | missing | — |
+| apple.calendar.toolbar | dark-none | Calendar grouped toolbar and bottom bar | reference | — |
+| apple.calendar.toolbar | light-none | Calendar grouped toolbar and bottom bar | reference | — |
+| apple.maps.sheet | dark-none | Maps sheet dragged to full, then to its smallest detent | reference | — |
+| apple.maps.sheet | light-none | Maps sheet dragged to full, then to its smallest detent | reference | — |
+| apple.photos.scroll | dark-none | Photos grid scrolled under the tab bar | reference | — |
+| apple.photos.scroll | light-none | Photos grid scrolled under the tab bar | reference | — |
+| apple.photos.search | dark-none | Photos search tab | reference | — |
+| apple.photos.search | light-none | Photos search tab | reference | — |
+| apple.reminders.menu | dark-none | Reminders list menu | reference | — |
+| apple.reminders.menu | light-none | Reminders list menu | reference | — |
+| apple.settings.large | dark-none | Settings large title under the bar | reference | — |
+| apple.settings.large | light-none | Settings large title under the bar | reference | — |
