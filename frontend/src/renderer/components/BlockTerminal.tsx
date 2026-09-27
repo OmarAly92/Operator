@@ -10,6 +10,7 @@ import {
 	type CellSize,
 	type FontConfig,
 	type HostCapabilities,
+	type QuickFixRule,
 	type TerminalCore,
 	type TerminalStrings,
 	type TerminalTheme,
@@ -87,6 +88,7 @@ const DEFAULT_COLUMNS = 120;
 const DEFAULT_LIMITS = { rows: 200_000, bytes: 128 * 1024 * 1024 } as const;
 const SOURCE_ID_MARKER = new TextEncoder().encode("\x1b]7000;v=1;id=");
 const BEL = 0x07;
+const EMPTY_QUICK_FIX_RULES: readonly QuickFixRule[] = [];
 
 // The block terminal renders in Warp's own bundled dark theme, fixed, rather
 // than following the app skin (user decision 2026-09-02). DESIGN.md's carve-out
@@ -500,6 +502,7 @@ export function BlockTerminal({
 	const marks = useMemo(() => terminalMarkRules(terminalMarks), [terminalMarks]);
 	const predictiveEcho = useUiStore((state) => state.terminalPredictiveEcho);
 	const predictiveThresholdMs = predictiveEcho ? terminalPredictiveEchoThresholdMs : undefined;
+	const terminalQuickFixesEnabled = useUiStore((state) => state.terminalQuickFixesEnabled);
 	const [pasteFocusCount, setPasteFocusCount] = useState(0);
 	const restoreFocusAfterPaste = useCallback(() => setPasteFocusCount((count) => count + 1), []);
 	const surfaceFocusToken = pasteFocusCount === 0 ? focusToken : (focusToken ?? 0) + pasteFocusCount;
@@ -643,7 +646,9 @@ export function BlockTerminal({
 		visible,
 		marks,
 		onDraftChange,
-		...(agentTui ? {} : { commandHistory, quickFixRules: DEFAULT_QUICK_FIX_RULES }),
+		...(agentTui
+			? {}
+			: { commandHistory, quickFixRules: terminalQuickFixesEnabled ? DEFAULT_QUICK_FIX_RULES : EMPTY_QUICK_FIX_RULES }),
 		onHint: (hint) => {
 			// A hint's path is the text as it was printed, so it is relative as
 			// often as not; open_path only answers for an absolute file. Resolving

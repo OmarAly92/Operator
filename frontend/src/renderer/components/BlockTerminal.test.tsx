@@ -306,6 +306,7 @@ vi.mock("../theme/skin-context", () => ({
 
 
 import { BlockTerminal, type BlockTerminalHistoryBlock } from "./BlockTerminal";
+import { DEFAULT_QUICK_FIX_RULES } from "@operator/terminal-react";
 import { terminalPredictiveEchoThresholdMs } from "../lib/terminal-predictive-echo";
 import { useUiStore } from "../stores/ui-store";
 import { terminalBackgroundColor } from "../lib/terminal-background";
@@ -440,6 +441,7 @@ beforeEach(() => {
 	mockState.quickFixRules = undefined;
 	mockCommandHistory.noteCommandFinished.mockClear();
 	subscribers.clear();
+	useUiStore.setState({ terminalQuickFixesEnabled: true });
 });
 
 describe("BlockTerminal", () => {
@@ -1073,5 +1075,29 @@ describe("BlockTerminal shared history and quick fixes", () => {
 		await waitFor(() => expect(mockState.onBlockFinished).toBeTypeOf("function"));
 		mockState.onBlockFinished!({ id: "0:1", exitCode: 0, durationMs: 10, visible: true });
 		expect(mockCommandHistory.noteCommandFinished).not.toHaveBeenCalled();
+	});
+
+	it("passes no quick-fix rules when the setting is off", async () => {
+		useUiStore.setState({ terminalQuickFixesEnabled: false });
+		renderTerminal();
+		await waitFor(() => expect(mockState.commandHistory).toBe(mockCommandHistory));
+		expect(mockState.quickFixRules).toEqual([]);
+		useUiStore.setState({ terminalQuickFixesEnabled: true });
+	});
+
+	it("passes the starter rules when the setting is on", async () => {
+		useUiStore.setState({ terminalQuickFixesEnabled: true });
+		renderTerminal();
+		await waitFor(() => expect(mockState.commandHistory).toBe(mockCommandHistory));
+		expect(mockState.quickFixRules).toBe(DEFAULT_QUICK_FIX_RULES);
+	});
+
+	it("shows fixes again immediately after the setting is switched back on, without a reload", async () => {
+		useUiStore.setState({ terminalQuickFixesEnabled: false });
+		renderTerminal();
+		await waitFor(() => expect(mockState.commandHistory).toBe(mockCommandHistory));
+		expect(mockState.quickFixRules).toEqual([]);
+		act(() => useUiStore.setState({ terminalQuickFixesEnabled: true }));
+		await waitFor(() => expect(mockState.quickFixRules).toBe(DEFAULT_QUICK_FIX_RULES));
 	});
 });
