@@ -107,3 +107,24 @@ describe("RendererSelection extends", () => {
 		expect(selection.text()).toBe("beta");
 	});
 });
+
+describe("a rectangle across a rewrap", () => {
+	it("keeps a rectangle whose rows only moved", () => {
+		const rows = { current: rowsOf("b", ["ab", "cd", "ef"]) };
+		const selection = selectionOver(rows);
+		selection.begin({ blockId: "b", row: 0, column: 0, side: "left" }, "rectangle");
+		selection.update({ blockId: "b", row: 2, column: 0, side: "right" });
+		expect(selection.text()).toBe("a\nc\ne");
+		rows.current = rowsOf("b", ["ab", "cd", "ef"], new Set(), 5);
+		selection.followRows({ trimmed: 0, remap: [[0, 5], [1, 6], [2, 7]], remapEnd: [3, 8] });
+		expect(selection.text()).toBe("a\nc\ne");
+	});
+	it("drops a rectangle whose rows a rewrap split or joined", () => {
+		const rows = { current: rowsOf("b", ["ab", "cd", "ef"]) };
+		const selection = selectionOver(rows);
+		selection.begin({ blockId: "b", row: 0, column: 0, side: "left" }, "rectangle");
+		selection.update({ blockId: "b", row: 2, column: 0, side: "right" });
+		selection.followRows({ trimmed: 0, remap: [[0, 0], [1, 2], [2, 3]], remapEnd: [3, 4] });
+		expect(selection.text()).toBeNull();
+	});
+});

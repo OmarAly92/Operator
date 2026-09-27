@@ -139,6 +139,17 @@ describe("HighlightPainter", () => {
 		expect(rows[7]!.element.style.backgroundImage).toContain("red");
 		expect(rows[30]!.element.classList.contains(CLASS_ROW_MATCH)).toBe(true);
 	});
+
+	it("repaints when a selection becomes a rectangle with the same corners", () => {
+		const rows = [row(0), row(1)];
+		const painter = new HighlightPainter();
+		const range = { start: { blockId: "b", row: 0, cell: 2 }, end: { blockId: "b", row: 1, cell: 5 } };
+		painter.paint(rows, [{ kind: "selection", range, colour: SELECTION_COLOUR, rank: 0 }], order, CELL);
+		const stream = rows[0]!.element.style.backgroundImage;
+		painter.paint(rows, [{ kind: "selection", range: { ...range, rectangle: true }, colour: SELECTION_COLOUR, rank: 0 }], order, CELL);
+		expect(rows[0]!.element.style.backgroundImage).not.toBe(stream);
+		expect(rows[0]!.element.style.backgroundImage).toContain("50px");
+	});
 });
 
 describe("HighlightIndex", () => {

@@ -62,6 +62,13 @@ describe("resolveRange", () => {
 		expect(range.start.cell).toBe(2);
 		expect(range.end.cell).toBe(4);
 	});
+	it("makes a rectangle from the two points' rows and the cells between them, in any drag direction", () => {
+		const range = resolveRange({ head: at("0", 1, 7, "right"), tail: at("0", 0, 2), kind: "rectangle" }, order, rowText)!;
+		expect(range).toEqual({ start: { blockId: "0", row: 0, cell: 2 }, end: { blockId: "0", row: 1, cell: 8 }, rectangle: true });
+	});
+	it("gives no rectangle with no width", () => {
+		expect(resolveRange({ head: at("0", 0, 3), tail: at("0", 1, 3), kind: "rectangle" }, order, rowText)).toBeNull();
+	});
 });
 
 describe("stable-row selection", () => {

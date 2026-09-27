@@ -1,8 +1,8 @@
 import type { BlockView, RowEvent } from "@operator/terminal-core";
-import { anchorOf, followAnchor, followPoint, pointOf, type LineAnchor } from "./selection-anchor.js";
+import { anchorOf, followAnchor, followPoint, pointOf, rowsKeepTheirShape, type LineAnchor } from "./selection-anchor.js";
 import type { SelectionKind, SelectionPoint, SelectionState } from "./selection-model.js";
 import { selectedText, type TextRows } from "./selection-text.js";
-import { resolveSelectionView, type SelectionView } from "./selection-view.js";
+import { ALT_BLOCK_ID, resolveSelectionView, type SelectionView } from "./selection-view.js";
 
 export type RendererSelectionDeps = Readonly<{
 	hasCore: () => boolean;
@@ -52,6 +52,12 @@ export class RendererSelection {
 		if (this.caretAnchor) this.caretAnchor = followAnchor(this.caretAnchor, event);
 		const selection = this.selection;
 		if (!selection) return;
+		if (selection.kind === "rectangle" && selection.head.blockId !== ALT_BLOCK_ID) {
+			if (!rowsKeepTheirShape(Math.min(selection.head.row, selection.tail.row), Math.max(selection.head.row, selection.tail.row), event)) {
+				this.drop();
+				return;
+			}
+		}
 		this.selection = { ...selection, head: followPoint(selection.head, event), tail: followPoint(selection.tail, event) };
 		if (this.anchors && this.anchoredFor === selection) {
 			this.anchors = {
@@ -133,7 +139,7 @@ export class RendererSelection {
 			return this.selection;
 		}
 		if (this.anchoredFor !== selection) {
-			this.anchors = { head: anchorOf(selection.head, rows), tail: anchorOf(selection.tail, rows) };
+			this.anchors = selection.kind === "rectangle" ? null : { head: anchorOf(selection.head, rows), tail: anchorOf(selection.tail, rows) };
 			this.anchoredFor = selection;
 		}
 		return selection;

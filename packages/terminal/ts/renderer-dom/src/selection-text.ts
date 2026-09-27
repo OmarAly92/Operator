@@ -18,7 +18,26 @@ function cut(text: string, spans: ArrayLike<number>, from: number, to: number): 
 	return sliced.replace(/ +$/u, "");
 }
 
+function rectangleText(range: SelectionRange, rows: TextRows): string {
+	const first = rows.blockIds.indexOf(range.start.blockId);
+	const last = rows.blockIds.indexOf(range.end.blockId);
+	if (first < 0 || last < 0 || last < first) return "";
+	const lines: string[] = [];
+	for (let index = first; index <= last; index += 1) {
+		const blockId = rows.blockIds[index]!;
+		const top = rows.firstRow(blockId);
+		const fromRow = Math.max(index === first ? range.start.row : top, top);
+		const toRow = index === last ? range.end.row : top + rows.rowCount(blockId) - 1;
+		for (let row = fromRow; row <= toRow; row += 1) {
+			const indent = rows.rowIndent?.(blockId, row) ?? 0;
+			lines.push(cut(rows.rowText(blockId, row), rows.rowSpans(blockId, row), Math.max(range.start.cell - indent, 0), Math.max(range.end.cell - indent, 0)));
+		}
+	}
+	return lines.join("\n");
+}
+
 export function selectedText(range: SelectionRange, rows: TextRows): string {
+	if (range.rectangle) return rectangleText(range, rows);
 	const first = rows.blockIds.indexOf(range.start.blockId);
 	const last = rows.blockIds.indexOf(range.end.blockId);
 	if (first < 0 || last < 0 || last < first) return "";

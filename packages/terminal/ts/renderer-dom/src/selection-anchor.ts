@@ -47,3 +47,9 @@ export function followAnchor(anchor: LineAnchor, event: RowEvent): LineAnchor {
 export function followPoint(point: SelectionPoint, event: RowEvent): SelectionPoint {
 	return point.blockId === ALT_BLOCK_ID ? point : { ...point, row: remapStableRow(point.row, event) };
 }
+
+export function rowsKeepTheirShape(top: number, bottom: number, event: RowEvent): boolean {
+	const base = remapStableRow(top, event);
+	for (let row = top + 1; row <= bottom; row += 1) if (remapStableRow(row, event) !== base + (row - top)) return false;
+	return true;
+}
