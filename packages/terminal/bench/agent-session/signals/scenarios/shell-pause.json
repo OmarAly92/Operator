@@ -1,0 +1,6 @@
+{"harness": "", "agentVersion": "bash", "steps": [
+ {"type": "expect", "pattern": "Overwrite build\\.log\\? \\(y/n\\)", "state": "asking", "question": "Overwrite build.log", "timeout": 90},
+ {"type": "wait", "seconds": 6},
+ {"type": "answer", "keys": "y\r"},
+ {"type": "expect", "pattern": "all done", "state": "settled", "timeout": 30}
+]}

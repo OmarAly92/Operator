@@ -1,0 +1,40 @@
+{
+ "harness": "codex",
+ "agentVersion": "0.157.1",
+ "command": [
+  "/private/tmp/claude-501/-Users-omaraly-development-AI-Operator/82bbcd8b-e64f-470c-92e3-6c4278144a31/scratchpad/scrub.sh",
+  "/opt/homebrew/bin/codex",
+  "-a",
+  "on-request",
+  "-s",
+  "read-only",
+  "-c",
+  "projects={\"/private/tmp/claude-501/-Users-omaraly-development-AI-Operator/82bbcd8b-e64f-470c-92e3-6c4278144a31/scratchpad/signal-codex\"={trust_level=\"trusted\"}}"
+ ],
+ "intervals": [
+  {
+   "from": 0,
+   "state": "working",
+   "to": 3773
+  },
+  {
+   "from": 3773,
+   "state": "settled",
+   "to": 9578
+  },
+  {
+   "from": 9578,
+   "state": "working",
+   "to": 23163
+  },
+  {
+   "from": 23163,
+   "state": "settled",
+   "to": 33185
+  }
+ ],
+ "inputs": [
+  8973,
+  9578
+ ]
+}

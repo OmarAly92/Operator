@@ -1,0 +1,61 @@
+{
+ "harness": "claude-code",
+ "agentVersion": "2.1.280",
+ "command": [
+  "/private/tmp/claude-501/-Users-omaraly-development-AI-Operator/82bbcd8b-e64f-470c-92e3-6c4278144a31/scratchpad/scrub.sh",
+  "/opt/homebrew/bin/claude",
+  "--permission-mode",
+  "default"
+ ],
+ "intervals": [
+  {
+   "from": 0,
+   "state": "working",
+   "to": 1148
+  },
+  {
+   "from": 1148,
+   "state": "settled",
+   "to": 1794
+  },
+  {
+   "from": 1794,
+   "state": "working",
+   "to": 4100
+  },
+  {
+   "from": 4100,
+   "state": "asking",
+   "question": "touch first-call.txt",
+   "to": 11346
+  },
+  {
+   "from": 11346,
+   "state": "working",
+   "to": 13501
+  },
+  {
+   "from": 13501,
+   "state": "asking",
+   "question": "touch second-call.txt",
+   "to": 18547
+  },
+  {
+   "from": 18547,
+   "state": "working",
+   "to": 20064
+  },
+  {
+   "from": 20064,
+   "state": "settled",
+   "to": 30225
+  }
+ ],
+ "inputs": [
+  1187,
+  1794,
+  7134,
+  11346,
+  18547
+ ]
+}

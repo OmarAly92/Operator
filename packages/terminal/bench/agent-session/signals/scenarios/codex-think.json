@@ -1,0 +1,6 @@
+{"harness": "codex", "agentVersion": "0.157.1", "steps": [
+ {"type": "expect_quiet", "seconds": 5, "state": "settled", "timeout": 90},
+ {"type": "text", "text": "Without running any commands or reading any files, explain in about 300 words how inserting a key into a B-tree works, including node splits."},
+ {"type": "submit"},
+ {"type": "expect_quiet", "seconds": 8, "state": "settled", "timeout": 600}
+]}

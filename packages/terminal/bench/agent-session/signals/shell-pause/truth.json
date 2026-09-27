@@ -1,0 +1,37 @@
+{
+ "harness": "",
+ "agentVersion": "bash",
+ "command": [
+  "bash",
+  "--noprofile",
+  "--norc",
+  "-c",
+  "echo \"building\"; sleep 40; echo \"wrote build.log\"; sleep 2; read -p \"Overwrite build.log? (y/n) \" a; echo \"answered $a\"; sleep 1; echo \"all done\"; sleep 1"
+ ],
+ "intervals": [
+  {
+   "from": 0,
+   "state": "working",
+   "to": 42031
+  },
+  {
+   "from": 42031,
+   "state": "asking",
+   "question": "Overwrite build.log",
+   "to": 48075
+  },
+  {
+   "from": 48075,
+   "state": "working",
+   "to": 49086
+  },
+  {
+   "from": 49086,
+   "state": "settled",
+   "to": 50095
+  }
+ ],
+ "inputs": [
+  48075
+ ]
+}

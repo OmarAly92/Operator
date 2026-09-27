@@ -1,0 +1,48 @@
+{
+ "harness": "claude-code",
+ "agentVersion": "2.1.280",
+ "command": [
+  "/private/tmp/claude-501/-Users-omaraly-development-AI-Operator/82bbcd8b-e64f-470c-92e3-6c4278144a31/scratchpad/scrub.sh",
+  "/opt/homebrew/bin/claude",
+  "--permission-mode",
+  "default"
+ ],
+ "intervals": [
+  {
+   "from": 0,
+   "state": "working",
+   "to": 908
+  },
+  {
+   "from": 908,
+   "state": "settled",
+   "to": 1549
+  },
+  {
+   "from": 1549,
+   "state": "working",
+   "to": 3760
+  },
+  {
+   "from": 3760,
+   "state": "asking",
+   "question": "Bash touch approved.txt",
+   "to": 9774
+  },
+  {
+   "from": 9774,
+   "state": "working",
+   "to": 17791
+  },
+  {
+   "from": 17791,
+   "state": "settled",
+   "to": 27838
+  }
+ ],
+ "inputs": [
+  945,
+  1549,
+  9774
+ ]
+}

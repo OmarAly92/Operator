@@ -1,0 +1,9 @@
+{"harness": "codex", "agentVersion": "0.157.1", "steps": [
+ {"type": "expect_quiet", "seconds": 5, "state": "settled", "timeout": 90},
+ {"type": "text", "text": "Run the shell command `touch approved.txt` and then tell me it is done."},
+ {"type": "submit"},
+ {"type": "expect", "pattern": "Would you like to run the following command\\?", "state": "asking", "question": "touch approved.txt", "timeout": 180},
+ {"type": "wait", "seconds": 6},
+ {"type": "answer", "keys": "\r"},
+ {"type": "expect_quiet", "seconds": 8, "state": "settled", "timeout": 300}
+]}

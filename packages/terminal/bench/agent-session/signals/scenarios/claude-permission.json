@@ -1,0 +1,9 @@
+{"harness": "claude-code", "agentVersion": "2.1.280", "steps": [
+ {"type": "expect", "pattern": "\\? for shortcuts", "state": "settled", "timeout": 90},
+ {"type": "text", "text": "Use the Bash tool to run `touch approved.txt` in this directory, then tell me it is done."},
+ {"type": "submit"},
+ {"type": "expect", "pattern": "Do you want to proceed\\?", "state": "asking", "question": "Bash touch approved.txt", "timeout": 180},
+ {"type": "wait", "seconds": 6},
+ {"type": "answer", "keys": "\r"},
+ {"type": "expect_quiet", "seconds": 8, "state": "settled", "timeout": 300}
+]}

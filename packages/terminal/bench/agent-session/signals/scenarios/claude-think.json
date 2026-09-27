@@ -1,0 +1,6 @@
+{"harness": "claude-code", "agentVersion": "2.1.280", "steps": [
+ {"type": "expect", "pattern": "\\? for shortcuts", "state": "settled", "timeout": 90},
+ {"type": "text", "text": "Do all of the following entirely in your head, without any tools: multiply 8763541 by 9236741, then multiply 5647213 by 3298471. For each one, compute it two different ways and confirm both ways agree. When both are verified, reply with only the two final products, one per line."},
+ {"type": "submit"},
+ {"type": "expect_quiet", "seconds": 8, "state": "settled", "timeout": 900}
+]}
