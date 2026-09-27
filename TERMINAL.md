@@ -1984,7 +1984,7 @@ history of `master`.
 - Guards: `crates/vt-host/src/replay_first_prompt_tests.rs`; `vtwasm/line_editor_test.go`
   `TestReplayAtTheFirstSuppressedPromptHandsTheLineEditorToTheAttachingCore`.
 
-### 4.51 The input box only knew this pane's commands and offered no fix for a failed one (wishlist wave 1, 2026-09-27)
+### 4.53 The input box only knew this pane's commands and offered no fix for a failed one (wishlist wave 1, 2026-09-27)
 - Symptom: ↑ in a shell pane's input box reached only the commands of that pane's own
   core (`LineEditor.ingestHistory` read `decodeBlocks` of this core, the model was reset at
   every mount), so a new pane, a reopened pane or another pane's work was out of reach;
