@@ -89,7 +89,7 @@ def filmstrip(native, flutter, region, dest):
 
 
 class Evaluator:
-    def __init__(self, udid, scene, backdrops, size, flutter_target, out, regions=()):
+    def __init__(self, udid, scene, backdrops, size, flutter_target, out, regions=(), row_overrides=None):
         self.udid = udid
         self.scene = scene
         self.backdrops = backdrops
@@ -100,6 +100,7 @@ class Evaluator:
         self.count = 0
         self.cache = {}
         self.records = []
+        self.row_overrides = dict(row_overrides or {})
 
     def _drive(self, target, backdrop, bare, folder, material=None):
         record.drive(self.udid, target, self.scene.id, [], backdrop, bare, folder, settle=1.0, material=material)
@@ -125,10 +126,11 @@ class Evaluator:
     def __call__(self, material):
         self.count += 1
         total, stats = 0.0, {}
+        sent = {**self.row_overrides, **material}
         for backdrop in self.backdrops:
             native, native_bare, flutter_bare, region = self.references(backdrop)
             folder = self.out / "candidates" / f"{self.count:04d}" / backdrop
-            flutter = self._drive(self.target, backdrop, False, folder, material)
+            flutter = self._drive(self.target, backdrop, False, folder, sent)
             stat = metrics.static_compare(native, flutter, native_bare, flutter_bare, region)
             stats[backdrop] = {key: stat[key] for key in self.scene.measures}
             total += score(stat, self.scene.measures)
@@ -156,7 +158,11 @@ def run(udid, scene, appearance, backdrops, grid, row, size, flutter_target, out
     key = table_key(scene, appearance, row, size)
     current = material_table.read(table=table).get(key, {})
     start = {name: current.get(field(name), grid[name][len(grid[name]) // 2]) for name in grid}
-    evaluate = Evaluator(udid, scene, backdrops, size, flutter_target, out, regions)
+    if table is material_table.SCROLL_EDGE:
+        row_overrides = {material_table.EDGE_PREFIX + name: value for name, value in current.items()}
+    else:
+        row_overrides = dict(current)
+    evaluate = Evaluator(udid, scene, backdrops, size, flutter_target, out, regions, row_overrides)
     best, best_score, _ = coordinate_descent(evaluate, grid, start, max_passes=max_passes)
     evaluate.filmstrips()
     summary = {"key": key, "scene": scene.id, "backdrops": backdrops, "start": start, "start_score": evaluate.records[0]["score"], "best": best, "best_score": best_score}

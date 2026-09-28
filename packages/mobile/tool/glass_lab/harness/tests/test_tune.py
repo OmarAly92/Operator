@@ -2,6 +2,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 import numpy as np
 from PIL import Image
@@ -101,6 +102,38 @@ class FilmstripTests(unittest.TestCase):
             image = np.asarray(Image.open(dest))
         self.assertEqual(image.shape, (30, 90, 3))
         self.assertEqual(int(image[0, 75, 0]), 40)
+
+
+class EvaluatorTests(unittest.TestCase):
+    def _evaluator(self, scene_obj, row_overrides):
+        with tempfile.TemporaryDirectory() as out:
+            evaluate = tune.Evaluator("udid", scene_obj, ["stripes"], 88, "example", out, row_overrides=row_overrides)
+            image = np.zeros((3, 3, 3), dtype=np.float32)
+            evaluate.references = lambda backdrop: (image, image, image, (0, 0, 3, 3))
+            yield evaluate
+
+    def test_sends_the_whole_material_row_merged_with_the_candidate(self):
+        row = {"toneBlack": 0.1, "toneWhite": 0.8}
+        for evaluate in self._evaluator(scene("material.regular"), row):
+            sent = []
+            with mock.patch.object(tune.record, "drive", side_effect=lambda *a, **k: sent.append(k.get("material"))), \
+                 mock.patch.object(tune.metrics, "load", return_value=np.zeros((3, 3, 3), dtype=np.float32)), \
+                 mock.patch.object(tune.metrics, "static_compare", return_value={"mad": 0, "luminance": 0, "rim_rms": 0, "centre_pt": 0, "bbox_pt": 0}):
+                evaluate({"toneBlack": 0.3})
+            self.assertEqual(sent, [{"toneBlack": 0.3, "toneWhite": 0.8}])
+            self.assertEqual(evaluate.records[-1]["material"], {"toneBlack": 0.3})
+
+    def test_sends_the_whole_scroll_edge_row_merged_with_the_candidate(self):
+        edge = scene("material.edge.hard", regions={"edge": [0, 0, 402, 240]}, track="edge")
+        row_overrides = {material_table.EDGE_PREFIX + "blur": 4.0, material_table.EDGE_PREFIX + "dim": 0.6}
+        for evaluate in self._evaluator(edge, row_overrides):
+            sent = []
+            with mock.patch.object(tune.record, "drive", side_effect=lambda *a, **k: sent.append(k.get("material"))), \
+                 mock.patch.object(tune.metrics, "load", return_value=np.zeros((3, 3, 3), dtype=np.float32)), \
+                 mock.patch.object(tune.metrics, "static_compare", return_value={"mad": 0, "luminance": 0, "rim_rms": 0, "centre_pt": 0, "bbox_pt": 0}):
+                evaluate({material_table.EDGE_PREFIX + "blur": 5.0})
+            self.assertEqual(sent, [{material_table.EDGE_PREFIX + "blur": 5.0, material_table.EDGE_PREFIX + "dim": 0.6}])
+            self.assertEqual(evaluate.records[-1]["material"], {material_table.EDGE_PREFIX + "blur": 5.0})
 
 
 class TableTests(unittest.TestCase):
