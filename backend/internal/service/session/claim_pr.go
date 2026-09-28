@@ -82,17 +82,22 @@ func (s *Service) ClaimPR(ctx context.Context, id domain.SessionID, ref string, 
 	if project.Kind.WithDefault() == domain.ProjectKindScratch {
 		return ClaimPRResult{}, ErrSessionNotClaimable
 	}
-	prURL, number, err := normalizePRRef(ref, project.RepoOriginURL)
+	origins, err := s.claimableOrigins(ctx, project)
 	if err != nil {
 		return ClaimPRResult{}, err
 	}
-	if err := requireSameGitHubRepo(prURL, project.RepoOriginURL); err != nil {
+	prURL, number, err := normalizePRRef(ref, bareNumberOrigin(origins))
+	if err != nil {
+		return ClaimPRResult{}, err
+	}
+	origin, err := matchingGitHubOrigin(prURL, origins)
+	if err != nil {
 		return ClaimPRResult{}, err
 	}
 	if s.scm == nil || s.prClaimer == nil {
 		return ClaimPRResult{}, ErrSCMUnavailable
 	}
-	repo, err := scmRepoForClaim(s.scm, project.RepoOriginURL, prURL)
+	repo, err := scmRepoForClaim(s.scm, origin, prURL)
 	if err != nil {
 		return ClaimPRResult{}, err
 	}
@@ -344,6 +349,68 @@ func normalizePRRef(ref, repoOrigin string) (string, int, error) {
 		return "", 0, ErrInvalidPRRef
 	}
 	return fmt.Sprintf("https://github.com/%s/%s/pull/%d", owner, repo, n), n, nil
+}
+
+// claimableOrigins lists the origin URLs a session's PR may belong to: the
+// project's own origin first, then, for a workspace, each child repo's origin.
+// A workspace session opens PRs in its child repos, so a claim checked against
+// the root origin alone would reject every one of them.
+func (s *Service) claimableOrigins(ctx context.Context, project domain.ProjectRecord) ([]string, error) {
+	origins := []string{project.RepoOriginURL}
+	if project.Kind.WithDefault() != domain.ProjectKindWorkspace {
+		return origins, nil
+	}
+	children, err := s.store.ListWorkspaceRepos(ctx, project.ID)
+	if err != nil {
+		return nil, fmt.Errorf("workspace repos %s: %w", project.ID, err)
+	}
+	for _, child := range children {
+		origins = append(origins, child.RepoOriginURL)
+	}
+	return origins, nil
+}
+
+// bareNumberOrigin is the repo a bare PR number ("#12") resolves against: the
+// project's own origin, or a workspace's only repo with an origin. With several
+// candidates a number is ambiguous, so it resolves nowhere and the caller must
+// pass the PR URL.
+func bareNumberOrigin(origins []string) string {
+	if strings.TrimSpace(origins[0]) != "" {
+		return origins[0]
+	}
+	found := ""
+	for _, origin := range origins[1:] {
+		if strings.TrimSpace(origin) == "" {
+			continue
+		}
+		if found != "" {
+			return ""
+		}
+		found = origin
+	}
+	return found
+}
+
+// matchingGitHubOrigin returns the first origin whose GitHub repo is the PR's.
+// When no origin is known at all the PR is accepted as is, as a single-repo
+// project without an origin always has been.
+func matchingGitHubOrigin(prURL string, origins []string) (string, error) {
+	known := false
+	for _, origin := range origins {
+		if strings.TrimSpace(origin) == "" {
+			continue
+		}
+		known = true
+		if err := requireSameGitHubRepo(prURL, origin); err == nil {
+			return origin, nil
+		} else if !errors.Is(err, ErrProjectMismatch) {
+			return "", err
+		}
+	}
+	if known {
+		return "", ErrProjectMismatch
+	}
+	return "", nil
 }
 
 func requireSameGitHubRepo(prURL, repoOrigin string) error {

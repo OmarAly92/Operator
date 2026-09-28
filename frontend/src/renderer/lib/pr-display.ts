@@ -81,6 +81,33 @@ export function prBrowserUrl(pr: SessionPRSummary): string {
 	return prBaseUrl(pr) ?? pr.htmlUrl ?? pr.url;
 }
 
+/**
+ * The repo a PR belongs to, as its short name ("api" for acme/api). A workspace
+ * session opens PRs in several repos whose numbers can collide, so "PR #12"
+ * alone does not say which one. Read from the PR's own URL first, since that
+ * is authoritative, then from the summary's repo field.
+ */
+export function prRepoName(pr: Pick<SessionPRSummary, "htmlUrl" | "url" | "repo">): string | undefined {
+	for (const raw of [pr.htmlUrl, pr.url]) {
+		if (!raw) continue;
+		try {
+			const [, owner, name, kind] = new URL(raw).pathname.split("/");
+			if (owner && name && kind === "pull") return name;
+		} catch {
+			// Not a URL; fall through to the repo field.
+		}
+	}
+	const repo = pr.repo?.trim().replace(/\.git$/, "");
+	if (!repo) return undefined;
+	return repo.slice(repo.lastIndexOf("/") + 1) || undefined;
+}
+
+/** Stable identity for a PR across repos: its URL, or its number when no URL is known. */
+export function prIdentityKey(pr: { url?: string; number: number }): string {
+	const url = pr.url?.trim().replace(/\/$/, "").toLowerCase();
+	return url || `#${pr.number}`;
+}
+
 export function prChecksUrl(pr: SessionPRSummary): string | undefined {
 	try {
 		const url = new URL(prBrowserUrl(pr));
@@ -244,7 +271,7 @@ function sessionPRFactToSummary(session: WorkspaceSession, pr: PullRequestFacts)
 		title: session.title,
 		state: pr.state,
 		provider: "github",
-		repo: session.workspaceName,
+		repo: prRepoName({ url: pr.url, repo: "" }) ?? session.workspaceName,
 		author: "",
 		sourceBranch: session.branch ?? "",
 		targetBranch: "",

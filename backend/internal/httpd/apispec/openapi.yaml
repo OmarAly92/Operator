@@ -9938,6 +9938,8 @@ components:
       type: object
     WorkspaceRepo:
       properties:
+        defaultBranch:
+          type: string
         name:
           type: string
         relativePath:

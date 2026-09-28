@@ -120,7 +120,12 @@ class _PrCardState extends State<PrCard> with SingleTickerProviderStateMixin {
               AppText(_lifecycleLabel(life), style: AppTextStyle.style12SemiBold.copyWith(color: headerColor)),
               const Spacer(),
               AppText(
-                shortLabel(richSummary?.repo ?? session.projectId ?? '', max: _projectLabelMax),
+                shortLabel(
+                  prRepoName(url: richSummary?.htmlUrl ?? richSummary?.url ?? pr.url, repo: richSummary?.repo) ??
+                      session.projectId ??
+                      '',
+                  max: _projectLabelMax,
+                ),
                 style: AppTextStyle.mono11Regular,
               ),
             ],

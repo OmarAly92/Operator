@@ -34,6 +34,7 @@ type fakeStore struct {
 	prs       map[domain.SessionID][]domain.PullRequest
 	projects  map[string]domain.ProjectRecord
 	worktrees map[domain.SessionID][]domain.SessionWorktreeRecord
+	children  map[string][]domain.WorkspaceRepoRecord
 	checks    map[string][]domain.PullRequestCheck
 	reviews   map[string][]domain.PullRequestReview
 	threads   map[string][]domain.PullRequestReviewThread
@@ -48,6 +49,7 @@ func newFakeStore() *fakeStore {
 		prs:       map[domain.SessionID][]domain.PullRequest{},
 		projects:  map[string]domain.ProjectRecord{},
 		worktrees: map[domain.SessionID][]domain.SessionWorktreeRecord{},
+		children:  map[string][]domain.WorkspaceRepoRecord{},
 		checks:    map[string][]domain.PullRequestCheck{},
 		reviews:   map[string][]domain.PullRequestReview{},
 		threads:   map[string][]domain.PullRequestReviewThread{},
@@ -271,6 +273,10 @@ func (f *fakeStore) GetProject(_ context.Context, id string) (domain.ProjectReco
 
 func (f *fakeStore) ListSessionWorktrees(_ context.Context, id domain.SessionID) ([]domain.SessionWorktreeRecord, error) {
 	return append([]domain.SessionWorktreeRecord(nil), f.worktrees[id]...), nil
+}
+
+func (f *fakeStore) ListWorkspaceRepos(_ context.Context, projectID string) ([]domain.WorkspaceRepoRecord, error) {
+	return append([]domain.WorkspaceRepoRecord(nil), f.children[projectID]...), nil
 }
 
 func TestSessionListAppliesActivityBeforePRFacts(t *testing.T) {
@@ -2009,6 +2015,49 @@ func TestClaimPRMapsObserverAndStoreErrors(t *testing.T) {
 	}
 	if len(res.TakenOverFrom) != 1 || res.TakenOverFrom[0] != "mer-2" || len(res.PRs) != 1 || res.PRs[0].URL == "" {
 		t.Fatalf("claim result = %+v", res)
+	}
+}
+
+func TestClaimPRAcceptsAnyRepoInAWorkspace(t *testing.T) {
+	st := newFakeStore()
+	st.sessions["ws-1"] = domain.SessionRecord{ID: "ws-1", ProjectID: "ws", Metadata: domain.SessionMetadata{WorkspacePath: "/ws"}}
+	st.projects["ws"] = domain.ProjectRecord{ID: "ws", Kind: domain.ProjectKindWorkspace, RepoOriginURL: "https://github.com/acme/root"}
+	st.children["ws"] = []domain.WorkspaceRepoRecord{
+		{ProjectID: "ws", Name: "api", RelativePath: "api", RepoOriginURL: "git@github.com:acme/api.git"},
+		{ProjectID: "ws", Name: "web", RelativePath: "web", RepoOriginURL: "https://github.com/acme/web.git"},
+	}
+	claim := func(ref, prURL string) error {
+		svc := NewWithDeps(Deps{Store: st, PRClaimer: fakePRClaimer{}, SCM: fakeSCM{obs: ports.SCMObservation{Fetched: true, Provider: "github", Host: "github.com", PR: ports.SCMPRObservation{URL: prURL, Number: 12}}}})
+		_, err := svc.ClaimPR(context.Background(), "ws-1", ref, ClaimPROptions{})
+		return err
+	}
+
+	for _, url := range []string{"https://github.com/acme/root/pull/12", "https://github.com/acme/api/pull/12", "https://github.com/acme/web/pull/12"} {
+		if err := claim(url, url); err != nil {
+			t.Fatalf("claim %s: %v", url, err)
+		}
+	}
+	if err := claim("https://github.com/acme/other/pull/12", "https://github.com/acme/other/pull/12"); !errors.Is(err, ErrProjectMismatch) {
+		t.Fatalf("claim outside workspace err = %v, want ErrProjectMismatch", err)
+	}
+	if err := claim("12", "https://github.com/acme/root/pull/12"); err != nil {
+		t.Fatalf("bare number resolves against the root origin: %v", err)
+	}
+}
+
+func TestClaimPRBareNumberInARootlessWorkspace(t *testing.T) {
+	st := newFakeStore()
+	st.sessions["ws-1"] = domain.SessionRecord{ID: "ws-1", ProjectID: "ws", Metadata: domain.SessionMetadata{WorkspacePath: "/ws"}}
+	st.projects["ws"] = domain.ProjectRecord{ID: "ws", Kind: domain.ProjectKindWorkspace}
+	st.children["ws"] = []domain.WorkspaceRepoRecord{{ProjectID: "ws", Name: "api", RelativePath: "api", RepoOriginURL: "https://github.com/acme/api"}}
+	svc := NewWithDeps(Deps{Store: st, PRClaimer: fakePRClaimer{}, SCM: fakeSCM{obs: ports.SCMObservation{Fetched: true, Provider: "github", Host: "github.com", PR: ports.SCMPRObservation{URL: "https://github.com/acme/api/pull/3", Number: 3}}}})
+	if _, err := svc.ClaimPR(context.Background(), "ws-1", "3", ClaimPROptions{}); err != nil {
+		t.Fatalf("bare number with one child origin: %v", err)
+	}
+
+	st.children["ws"] = append(st.children["ws"], domain.WorkspaceRepoRecord{ProjectID: "ws", Name: "web", RelativePath: "web", RepoOriginURL: "https://github.com/acme/web"})
+	if _, err := svc.ClaimPR(context.Background(), "ws-1", "3", ClaimPROptions{}); !errors.Is(err, ErrInvalidPRRef) {
+		t.Fatalf("ambiguous bare number err = %v, want ErrInvalidPRRef", err)
 	}
 }
 

@@ -7,6 +7,7 @@ import { workspaceQueryKey } from "../hooks/useWorkspaceQuery";
 import { apiClient, apiErrorMessage } from "../lib/api-client";
 import { captureRendererEvent } from "../lib/telemetry";
 import { buildIntake, deriveGitHubRepo, IntakeFields, type IntakeForm, intakeNeedsRule } from "./IntakeFields";
+import { SettingsRow } from "./settings/SettingsRow";
 import { SettingsSection } from "./settings/SettingsSection";
 import { cleanTicketDefaults, TicketDefaultsSection } from "./settings/TicketDefaultsSection";
 
@@ -14,6 +15,7 @@ type Project = components["schemas"]["Project"];
 type ProjectConfig = components["schemas"]["ProjectConfig"];
 type TrackerIntakeConfig = components["schemas"]["TrackerIntakeConfig"];
 type TicketDefaults = components["schemas"]["TicketDefaults"];
+type WorkspaceRepo = components["schemas"]["WorkspaceRepo"];
 
 const projectQueryKey = (id: string) => ["project", id] as const;
 
@@ -187,6 +189,7 @@ function SettingsBody({
 			{/* ── Intake: tracker intake ────────────────────────────────── */}
 			{section === "intake" && (
 				<>
+					{project.kind === "workspace" ? <WorkspaceReposSection repos={project.workspaceRepos ?? []} /> : null}
 					{!isScratchProject ? (
 						<SettingsSection title={t("settings.project.trackerIntake")} grouped>
 							<IntakeFields
@@ -221,5 +224,35 @@ function SettingsBody({
 				</>
 			)}
 		</form>
+	);
+}
+
+/**
+ * The child repos a workspace project spans, read-only. Each session gets a
+ * worktree of every one, so this is the list a user checks when a session
+ * opens a PR in a repo they did not expect, or misses one they did.
+ */
+function WorkspaceReposSection({ repos }: { repos: WorkspaceRepo[] }) {
+	const { t } = useTranslation();
+	return (
+		<SettingsSection title={t("settings.project.workspaceRepos")} sectionId="workspace-repos" grouped>
+			{repos.length === 0 ? (
+				<p className="px-3 text-xs text-settings-muted">{t("settings.project.workspaceRepos.empty")}</p>
+			) : (
+				repos.map((repo) => (
+					<SettingsRow key={repo.relativePath || repo.name} label={repo.name}>
+						<div className="flex min-w-0 flex-col items-end gap-0.5 text-right">
+							<span className="max-w-full truncate font-mono text-xs text-settings-label" title={repo.relativePath}>
+								{repo.relativePath}
+								{repo.defaultBranch ? <span className="text-settings-muted"> · {repo.defaultBranch}</span> : null}
+							</span>
+							<span className="max-w-full truncate font-mono text-2xs text-settings-muted" title={repo.repo || undefined}>
+								{repo.repo || t("settings.project.workspaceRepos.noRemote")}
+							</span>
+						</div>
+					</SettingsRow>
+				))
+			)}
+		</SettingsSection>
 	);
 }
