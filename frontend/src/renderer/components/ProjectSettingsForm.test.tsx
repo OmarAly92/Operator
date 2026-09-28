@@ -419,3 +419,42 @@ describe("ProjectSettingsForm", () => {
 		expect(screen.queryByRole("button", { name: "Planner agent" })).not.toBeInTheDocument();
 	});
 });
+
+describe("ProjectSettingsForm workspace repositories", () => {
+	beforeEach(() => {
+		getMock.mockReset();
+	});
+
+	function mockProject(project: Record<string, unknown>) {
+		getMock.mockImplementation(async (path: string) => {
+			if (path === "/api/v1/agents") return agentCatalogResponse;
+			return { data: { status: "ok", project: { id: "proj-1", name: "ws", path: "/ws", repo: "", defaultBranch: "main", ...project } } };
+		});
+	}
+
+	it("lists each child repo with its path, base branch and remote", async () => {
+		mockProject({
+			kind: "workspace",
+			workspaceRepos: [
+				{ name: "api", relativePath: "services/api", repo: "git@github.com:acme/api.git", defaultBranch: "main" },
+				{ name: "web", relativePath: "web", repo: "" },
+			],
+		});
+		renderSettings();
+
+		const section = await screen.findByText("Repositories");
+		const rows = section.closest("section") as HTMLElement;
+		expect(rows).toHaveTextContent("api");
+		expect(rows).toHaveTextContent("services/api · main");
+		expect(rows).toHaveTextContent("git@github.com:acme/api.git");
+		expect(rows).toHaveTextContent("No origin remote");
+	});
+
+	it("shows no repositories section for a single-repo project", async () => {
+		mockProject({ kind: "single_repo" });
+		renderSettings();
+
+		await screen.findByText("Tracker intake");
+		expect(screen.queryByText("Repositories")).not.toBeInTheDocument();
+	});
+});

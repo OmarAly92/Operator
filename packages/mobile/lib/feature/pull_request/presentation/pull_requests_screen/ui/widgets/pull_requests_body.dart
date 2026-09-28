@@ -106,10 +106,16 @@ class PullRequestsBody extends StatelessWidget {
                   else
                     for (var i = 0; i < filtered.length; i++)
                       PrCard(
-                        key: ValueKey('${prCubit.filter}-${filtered[i].session.id}-${filtered[i].pr.number}'),
+                        key: ValueKey(
+                          '${prCubit.filter}-${filtered[i].session.id}-${filtered[i].pr.url ?? filtered[i].pr.number}',
+                        ),
                         pr: filtered[i].pr,
                         session: filtered[i].session,
-                        summary: prCubit.summaryFor(filtered[i].session.id ?? '', filtered[i].pr.number ?? 0),
+                        summary: prCubit.summaryFor(
+                          filtered[i].session.id ?? '',
+                          filtered[i].pr.number ?? 0,
+                          url: filtered[i].pr.url,
+                        ),
                         index: i,
                         onOpenSession: () => Navigator.of(context).pushNamed(
                           RoutesStrings.session,

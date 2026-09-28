@@ -377,6 +377,36 @@ describe("SessionInspector PR section", () => {
 		expect(within(card).queryByText("Pull request merged")).not.toBeInTheDocument();
 	});
 
+	it("names the repo on each card in a workspace session, where PR numbers collide", () => {
+		const api = "https://github.com/acme/api/pull/12";
+		const web = "https://github.com/acme/web/pull/12";
+		renderWithQuery(
+			<SessionInspector
+				session={session([pr(12, "open", { url: api }), pr(12, "open", { url: web })], { projectKind: "workspace" })}
+			/>,
+			undefined,
+			(client) => {
+				client.setQueryData(sessionScmSummaryQueryKey("sess-1"), [
+					prSummary(12, "open", { url: api, htmlUrl: api, repo: "acme/api", title: "API change" }),
+					prSummary(12, "open", { url: web, htmlUrl: web, repo: "acme/web", title: "Web change" }),
+				]);
+			},
+		);
+
+		const section = prSection("Pull requests (2)");
+		expect(section.getAllByTestId("pr-card-repo").map((el) => el.textContent)).toEqual(["api", "web"]);
+		expect(section.getByRole("link", { name: "Open api PR #12" })).toHaveAttribute("href", api);
+		expect(section.getByRole("link", { name: "Open web PR #12" })).toHaveAttribute("href", web);
+	});
+
+	it("keeps the short PR label in a single-repo session", () => {
+		renderWithQuery(<SessionInspector session={session([pr(7, "open")])} />, undefined, (client) => {
+			client.setQueryData(sessionScmSummaryQueryKey("sess-1"), [prSummary(7, "open")]);
+		});
+		expect(screen.queryByTestId("pr-card-repo")).not.toBeInTheDocument();
+		expect(prSection("Pull request").getByRole("link", { name: "Open PR #7" })).toBeInTheDocument();
+	});
+
 	it("shows the empty state when there are no PRs", () => {
 		renderWithQuery(<SessionInspector session={session([])} />);
 		expect(screen.getByText("No pull request opened yet.")).toBeInTheDocument();
@@ -903,6 +933,29 @@ describe("SessionInspector summary reviews", () => {
 			if (row.getAttribute("aria-expanded") === "false") await userEvent.click(row);
 		}
 	};
+
+	it("keeps two repos' PRs with the same number as separate review rows", async () => {
+		const api = "https://github.com/acme/api/pull/12";
+		const web = "https://github.com/acme/web/pull/12";
+		mockCommonGets([], "", [
+			{ ...reviewState(12, "up_to_date"), prUrl: api, title: "API change" },
+			{ ...reviewState(12, "up_to_date"), prUrl: web, title: "Web change" },
+		]);
+		renderWithQuery(
+			<SessionInspector
+				session={session([pr(12, "open", { url: api }), pr(12, "open", { url: web })], { projectKind: "workspace" })}
+			/>,
+		);
+
+		const rows = await screen.findAllByTestId("review-pr-row");
+		expect(rows).toHaveLength(2);
+		expect(rows.map((row) => row.textContent)).toEqual([
+			expect.stringContaining("API change"),
+			expect.stringContaining("Web change"),
+		]);
+		expect(rows[0]).toHaveTextContent("api #12");
+		expect(rows[1]).toHaveTextContent("web #12");
+	});
 
 	it("triggers a review and opens the returned reviewer terminal", async () => {
 		mockCommonGets([], "", [reviewState(3, "needs_review")]);

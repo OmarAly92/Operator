@@ -85,6 +85,7 @@ async function fetchWorkspaces(): Promise<WorkspaceSummary[]> {
 						terminalHandleId: session.terminalHandleId,
 						workspaceId: project.id,
 						workspaceName: project.name,
+						projectKind: kind,
 						title: session.displayName ?? session.issueId ?? session.id,
 						issueId: session.issueId,
 						provider: toAgentProvider(session.harness),

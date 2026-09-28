@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:operator_mobile/core/helpers/result/result.dart';
 import 'package:operator_mobile/feature/pull_request/data/model/session_pr_summary_model.dart';
 import 'package:operator_mobile/feature/pull_request/data/repository/pull_request_repository.dart';
+import 'package:operator_mobile/feature/pull_request/logic/pr_view.dart';
 
 part 'pull_request_state.dart';
 
@@ -26,11 +27,24 @@ class PullRequestCubit extends Cubit<PullRequestState> {
     _bump();
   }
 
-  SessionPrSummaryModel? summaryFor(String sessionId, int number) {
-    for (final summary in _cache[sessionId] ?? const <SessionPrSummaryModel>[]) {
-      if (summary.number == number) return summary;
+  /// The loaded detail for one of a session's PRs. A workspace session can own
+  /// `api#12` and `web#12` at once, so the PR's [url] decides when known; the
+  /// number alone matches only a summary that names no other PR, and only when
+  /// it is the one summary with that number.
+  SessionPrSummaryModel? summaryFor(String sessionId, int number, {String? url}) {
+    final summaries = _cache[sessionId] ?? const <SessionPrSummaryModel>[];
+    final key = prUrlKey(url);
+    if (key != null) {
+      for (final summary in summaries) {
+        if (prUrlKey(summary.url) == key || prUrlKey(summary.htmlUrl) == key) return summary;
+      }
     }
-    return null;
+    final byNumber = summaries.where((summary) {
+      if (summary.number != number) return false;
+      final other = prUrlKey(summary.url) ?? prUrlKey(summary.htmlUrl);
+      return key == null || other == null;
+    }).toList();
+    return byNumber.length == 1 ? byNumber.single : null;
   }
 
   Future<void> reload(List<String> sessionIds) => _fetch(sessionIds, force: true);

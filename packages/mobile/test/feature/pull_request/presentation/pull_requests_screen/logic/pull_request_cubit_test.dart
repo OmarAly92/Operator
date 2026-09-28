@@ -37,6 +37,33 @@ void main() {
     await cubit.close();
   });
 
+  test('matches a summary by URL when two repos share a PR number', () async {
+    stub('s1', [
+      const SessionPrSummaryModel(number: 12, title: 'API change', url: 'https://github.com/acme/api/pull/12'),
+      const SessionPrSummaryModel(number: 12, title: 'Web change', url: 'https://github.com/acme/web/pull/12'),
+    ]);
+    final cubit = PullRequestCubit(repository);
+
+    await cubit.load(['s1']);
+
+    expect(cubit.summaryFor('s1', 12, url: 'https://github.com/acme/api/pull/12')?.title, 'API change');
+    expect(cubit.summaryFor('s1', 12, url: 'https://github.com/acme/web/pull/12/')?.title, 'Web change');
+    expect(cubit.summaryFor('s1', 12), isNull, reason: 'a bare number is ambiguous here');
+    await cubit.close();
+  });
+
+  test('never shows another repo\'s summary for a PR it has not loaded', () async {
+    stub('s1', [
+      const SessionPrSummaryModel(number: 12, title: 'API change', url: 'https://github.com/acme/api/pull/12'),
+    ]);
+    final cubit = PullRequestCubit(repository);
+
+    await cubit.load(['s1']);
+
+    expect(cubit.summaryFor('s1', 12, url: 'https://github.com/acme/web/pull/12'), isNull);
+    await cubit.close();
+  });
+
   test('fetches each session once across repeated loads', () async {
     stub('s1', [summary(1, 'one')]);
     final cubit = PullRequestCubit(repository);

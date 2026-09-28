@@ -125,6 +125,8 @@ export type WorkspaceSession = {
 	terminalHandleId?: string;
 	workspaceId: string;
 	workspaceName: string;
+	/** The kind of project the session runs in; a workspace spans several repos. */
+	projectKind?: ProjectKind;
 	title: string;
 	/** Raw issue/task identifier from the daemon. Intake ids are provider-prefixed. */
 	issueId?: string;

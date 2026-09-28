@@ -32,7 +32,7 @@ import {
 } from "../hooks/useSessionScmSummary";
 import { useSessionWorkspaceFilesChangedCount } from "../hooks/useSessionWorkspaceFiles";
 import { clearTerminateSessionState, useTerminateSession } from "../hooks/useTerminateSession";
-import { prBrowserUrl, prCardPresentation, sessionPRDisplaySummaries } from "../lib/pr-display";
+import { prBrowserUrl, prCardPresentation, prIdentityKey, prRepoName, sessionPRDisplaySummaries } from "../lib/pr-display";
 import type { WorkspaceSession, WorkspaceSummary } from "../types/workspace";
 import { sortedPRs } from "../types/workspace";
 import { getAgentActivityView, getSessionTimelinePillView } from "../lib/session-presentation";
@@ -281,6 +281,7 @@ function SummaryView({
 	const prSummaries = sessionPRDisplaySummaries(session, query.data);
 	const prSectionTitle = prSummaries.length > 1 ? t("inspector.pullRequests", { count: prSummaries.length }) : t("inspector.pullRequest");
 	const hasPRs = prSummaries.length > 0;
+	const showPRRepos = shouldShowPRRepos(session, prSummaries);
 
 	return (
 		<div role="tabpanel">
@@ -296,7 +297,12 @@ function SummaryView({
 				<div className="flex flex-col gap-1.5">
 					{hasPRs ? (
 						prSummaries.map((pr) => (
-							<PRSummaryCard key={pr.url || pr.htmlUrl || pr.number} pr={pr} sessionId={session.id} />
+							<PRSummaryCard
+								key={pr.url || pr.htmlUrl || pr.number}
+								pr={pr}
+								sessionId={session.id}
+								showRepo={showPRRepos}
+							/>
 						))
 					) : (
 						<p className={inspectorEmptyClass}>{t("inspector.noPROpened")}</p>
@@ -521,7 +527,7 @@ function updateSessionMergePolicy(
 	}));
 }
 
-function PRSummaryCard({ pr, sessionId }: { pr: SessionPRSummary; sessionId: string }) {
+function PRSummaryCard({ pr, sessionId, showRepo }: { pr: SessionPRSummary; sessionId: string; showRepo: boolean }) {
 	const { t } = useTranslation();
 	const queryClient = useQueryClient();
 	const presentation = prCardPresentation(pr);
@@ -547,6 +553,7 @@ function PRSummaryCard({ pr, sessionId }: { pr: SessionPRSummary; sessionId: str
 		},
 	});
 	const mergeError = mergePr.error instanceof Error ? mergePr.error.message : null;
+	const repoName = showRepo ? prRepoName(pr) : undefined;
 	return (
 		<article className="rounded-lg border border-(--color-border-settings-input) bg-(--color-bg-settings-input) px-3 py-2.5">
 			{pr.title ? (
@@ -561,14 +568,23 @@ function PRSummaryCard({ pr, sessionId }: { pr: SessionPRSummary; sessionId: str
 			) : null}
 			<div className={cn("flex min-w-0 items-center gap-2", pr.title && "mt-1.5")}>
 				<a
-					aria-label={t("inspector.openPR", { number: pr.number })}
+					aria-label={
+						repoName
+							? t("inspector.openRepoPR", { number: pr.number, repo: repoName })
+							: t("inspector.openPR", { number: pr.number })
+					}
 					className="inline-flex min-w-0 items-center gap-1 font-mono text-xs font-medium text-settings-label decoration-muted-foreground underline-offset-2 hover:text-settings-label hover:underline focus-visible:rounded-sm focus-visible:text-settings-label focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
 					href={prBrowserUrl(pr)}
 					rel="noopener noreferrer"
 					target="_blank"
 				>
 					<GitPullRequest className="size-icon-sm shrink-0" aria-hidden="true" />
-					<span>PR #{pr.number}</span>
+					{repoName ? (
+						<span className="min-w-0 truncate text-muted-foreground" data-testid="pr-card-repo" title={pr.repo || repoName}>
+							{repoName}
+						</span>
+					) : null}
+					<span className="shrink-0">PR #{pr.number}</span>
 					<ArrowUpRight aria-hidden="true" className="size-icon-2xs shrink-0" strokeWidth={2} />
 				</a>
 				<Badge
@@ -632,6 +648,7 @@ function ActivityTimeline({ prs, session }: { prs: SessionPRSummary[]; session: 
 		markerTone?: string;
 		markerBreathe?: boolean;
 	}[] = [];
+	const showRepo = shouldShowPRRepos(session, prs);
 
 	history.push({
 		tone: "neutral",
@@ -642,7 +659,7 @@ function ActivityTimeline({ prs, session }: { prs: SessionPRSummary[]; session: 
 	for (const pr of prs.filter((pr) => pr.state === "draft")) {
 		history.push({
 			tone: "neutral",
-			node: <PRTimelineLink pr={pr} verb={appI18n.t("inspector.timeline.draft")} />,
+			node: <PRTimelineLink pr={pr} showRepo={showRepo} verb={appI18n.t("inspector.timeline.draft")} />,
 			ts: prStateTime(pr),
 		});
 	}
@@ -650,7 +667,7 @@ function ActivityTimeline({ prs, session }: { prs: SessionPRSummary[]; session: 
 	for (const pr of prs.filter((pr) => pr.state !== "draft")) {
 		history.push({
 			tone: "neutral",
-			node: <PRTimelineLink pr={pr} verb={appI18n.t("inspector.timeline.opened")} />,
+			node: <PRTimelineLink pr={pr} showRepo={showRepo} verb={appI18n.t("inspector.timeline.opened")} />,
 			ts: prCreatedTime(pr),
 		});
 	}
@@ -658,7 +675,7 @@ function ActivityTimeline({ prs, session }: { prs: SessionPRSummary[]; session: 
 	for (const pr of prs.filter((pr) => pr.state === "merged")) {
 		history.push({
 			tone: "good",
-			node: <PRTimelineLink pr={pr} verb={appI18n.t("inspector.timeline.merged")} />,
+			node: <PRTimelineLink pr={pr} showRepo={showRepo} verb={appI18n.t("inspector.timeline.merged")} />,
 			ts: prStateTime(pr),
 		});
 	}
@@ -740,20 +757,32 @@ function ActivityTimeline({ prs, session }: { prs: SessionPRSummary[]; session: 
 	);
 }
 
-function PRTimelineLink({ pr, verb }: { pr: SessionPRSummary; verb: string }) {
+function PRTimelineLink({ pr, verb, showRepo }: { pr: SessionPRSummary; verb: string; showRepo: boolean }) {
+	const repoName = showRepo ? prRepoName(pr) : undefined;
+	const label = repoName ? `${repoName} PR #${pr.number}` : `PR #${pr.number}`;
 	return (
 		<a
-			aria-label={`${verb} PR #${pr.number}`}
+			aria-label={`${verb} ${label}`}
 			className="inline-flex min-w-0 items-center gap-1 rounded-xs text-foreground underline-offset-2 transition-colors hover:text-accent hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent/50"
 			href={prBrowserUrl(pr)}
 			rel="noopener noreferrer"
 			target="_blank"
 		>
 			<span>{verb} </span>
-			<b>PR #{pr.number}</b>
+			<b>{label}</b>
 			<ArrowUpRight aria-hidden="true" className="size-icon-2xs shrink-0" strokeWidth={2} />
 		</a>
 	);
+}
+
+/**
+ * Whether PR labels name their repo. A workspace session opens PRs in several
+ * child repos whose numbers can collide, so "PR #12" alone is ambiguous there;
+ * a single-repo session keeps the shorter label.
+ */
+function shouldShowPRRepos(session: WorkspaceSession, prs: SessionPRSummary[]): boolean {
+	if (session.projectKind === "workspace") return true;
+	return new Set(prs.map((pr) => prRepoName(pr) ?? "")).size > 1;
 }
 
 function prStateTime(pr: SessionPRSummary): string | null {
@@ -1080,15 +1109,29 @@ function MergedReviewsSection({
 	const runsByPR = runsByPRFrom(openReviewStates, runs);
 	const operatorStates = triggeredReviewStatesFrom(openReviewStates, runs);
 
-	// Union by PR number, newest PR first. A PR can appear on either side alone.
-	const byNumber = new Map<number, { opr?: PRReviewState; github?: SessionPRSummary }>();
+	// Union by PR URL, newest PR first. A PR can appear on either side alone.
+	// Keyed by URL, not number: a workspace session's api#12 and web#12 are
+	// two PRs, and merging them showed one repo's reviews under the other.
+	type ReviewRow = { number: number; repo?: string; opr?: PRReviewState; github?: SessionPRSummary };
+	const byPR = new Map<string, ReviewRow>();
 	for (const state of operatorStates) {
-		byNumber.set(state.prNumber, { ...byNumber.get(state.prNumber), opr: state });
+		const key = prIdentityKey({ url: state.prUrl, number: state.prNumber });
+		byPR.set(key, { number: state.prNumber, ...byPR.get(key), opr: state });
 	}
 	for (const pr of githubPRs) {
-		byNumber.set(pr.number, { ...byNumber.get(pr.number), github: pr });
+		// A summary carries its API url and its html url; a review state holds one of them.
+		const key =
+			[pr.url, pr.htmlUrl, pr.mergeability?.prUrl]
+				.filter((url): url is string => Boolean(url))
+				.map((url) => prIdentityKey({ url, number: pr.number }))
+				.find((candidate) => byPR.has(candidate)) ?? prIdentityKey(pr);
+		byPR.set(key, { number: pr.number, ...byPR.get(key), github: pr });
 	}
-	const rows = [...byNumber.entries()].sort(([a], [b]) => b - a);
+	for (const row of byPR.values()) {
+		row.repo = prRepoName(row.github ?? { url: row.opr?.prUrl ?? "", repo: "" });
+	}
+	const showRepo = session.projectKind === "workspace" || new Set([...byPR.values()].map((row) => row.repo ?? "")).size > 1;
+	const rows = [...byPR.entries()].sort(([, a], [, b]) => b.number - a.number);
 
 	if (isLoading && rows.length === 0) {
 		return (
@@ -1102,7 +1145,8 @@ function MergedReviewsSection({
 	return (
 		<Section surface={false} title={t("inspector.reviews")}>
 			<div className="flex flex-col gap-2">
-				{rows.map(([number, { opr, github }], index) => {
+				{rows.map(([key, { number, repo, opr, github }], index) => {
+					const prLabel = repo && showRepo ? `${repo} #${number}` : `#${number}`;
 					const operatorRuns = opr ? (runsByPR.get(opr.prUrl) ?? []) : [];
 					const operatorReviewNotInjected = operatorRuns.some((run) => run.autoInjectReview === false);
 					const entries = github?.review?.reviews ?? [];
@@ -1114,7 +1158,7 @@ function MergedReviewsSection({
 							reviewer.links.some((link) => link.autoInjectReview === false),
 						);
 					const meta = [
-						opr ? operatorReviewMeta(opr) : `#${number}`,
+						opr ? operatorReviewMeta(opr, prLabel) : prLabel,
 						unresolved > 0 ? t("inspector.unresolvedCount", { count: unresolved }) : null,
 					]
 						.filter(Boolean)
@@ -1123,9 +1167,9 @@ function MergedReviewsSection({
 						<ReviewDisclosure
 							collapsible={rows.length > 1}
 							defaultOpen={index === 0}
-							key={number}
+							key={key}
 							meta={meta}
-							title={(opr?.title ?? github?.title)?.trim() || `PR #${number}`}
+							title={(opr?.title ?? github?.title)?.trim() || `PR ${prLabel}`}
 							verdict={opr ? reviewVerdict(opr) : undefined}
 						>
 							{opr ? (
@@ -1968,15 +2012,15 @@ function triggeredReviewStatesFrom(openReviewStates: PRReviewState[], runs: Revi
 	);
 }
 
-function operatorReviewMeta(reviewState: PRReviewState): string {
+function operatorReviewMeta(reviewState: PRReviewState, prLabel = `#${reviewState.prNumber}`): string {
 	const displayRun = reviewState.latestRun ?? reviewState.previousRun;
 	if (displayRun?.createdAt) {
-		return `#${reviewState.prNumber} · ${formatTimeCompact(displayRun.createdAt)}`;
+		return `${prLabel} · ${formatTimeCompact(displayRun.createdAt)}`;
 	}
 	if (!displayRun && (reviewState.status === "needs_review" || reviewState.status === "ineligible")) {
-		return appI18n.t("inspector.notRunMeta", { number: reviewState.prNumber });
+		return appI18n.t("inspector.notRunMeta", { pr: prLabel });
 	}
-	return `#${reviewState.prNumber}`;
+	return prLabel;
 }
 
 // GitHub anchors a posted review at #pullrequestreview-<id> on the PR page; we
