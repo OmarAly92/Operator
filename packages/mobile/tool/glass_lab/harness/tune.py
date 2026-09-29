@@ -1,4 +1,5 @@
 import json
+import math
 import time
 from pathlib import Path
 
@@ -14,6 +15,43 @@ import sim
 CAP = 10.0
 WEIGHTS = {key: metrics.THRESHOLDS[key] for key in ("mad", "luminance", "rim_rms", "centre_pt", "bbox_pt")}
 PAD = 12
+
+RANGES = {
+    "toneBlack": (0.0, 1.5),
+    "toneMid": (0.0, 1.5),
+    "toneWhite": (0.0, 1.5),
+    "hairline": (0.0, 1.0),
+    "hairlineDark": (0.0, 1.0),
+    "hairlineLight": (0.0, 1.0),
+    "tintAmount": (0.0, 1.0),
+    "shadowOpacity": (0.0, 1.0),
+    "saturation": (0.0, math.inf),
+    "frost": (0.0, math.inf),
+    "thickness": (0.0, math.inf),
+    "dispersion": (0.0, math.inf),
+    "hairlineWidth": (0.0, math.inf),
+    "specular": (0.0, math.inf),
+    "specularWidth": (0.0, math.inf),
+    "specularPower": (0.0, math.inf),
+    "specularFill": (0.0, math.inf),
+    "shadowBlur": (0.0, math.inf),
+    "tintBlack": (0.0, math.inf),
+    "tintWhite": (0.0, math.inf),
+    "refractiveIndex": (1.0, math.inf),
+    "extent": (0.0, math.inf),
+    "blur": (0.0, math.inf),
+    "capBlur": (0.0, math.inf),
+    "dim": (0.0, 1.0),
+    "knee": (0.0, 1.0),
+    "cap": (0.0, 1.0),
+    "line": (0.0, 1.0),
+    "lineShade": (0.0, 1.0),
+}
+
+
+def clamp(name, value):
+    low, high = RANGES.get(field(name), (-math.inf, math.inf))
+    return min(max(value, low), high)
 
 
 def score(stat, measures=tuple(WEIGHTS)):
@@ -31,16 +69,22 @@ def parse_params(text):
 
 
 def coordinate_descent(evaluate, grid, start, min_gain=0.01, max_passes=4):
-    best = dict(start)
+    best = {name: clamp(name, value) for name, value in start.items()}
     best_score = evaluate(best)
     log = [(dict(best), best_score)]
+    seen = {tuple(sorted(best.items()))}
     for _ in range(max_passes):
         before = best_score
         for name, values in grid.items():
-            for value in values:
+            for raw_value in values:
+                value = clamp(name, raw_value)
                 if value == best.get(name):
                     continue
                 candidate = {**best, name: value}
+                key = tuple(sorted(candidate.items()))
+                if key in seen:
+                    continue
+                seen.add(key)
                 result = evaluate(candidate)
                 log.append((candidate, result))
                 if result < best_score:
@@ -51,8 +95,13 @@ def coordinate_descent(evaluate, grid, start, min_gain=0.01, max_passes=4):
         if len(values) < 2:
             continue
         step = (values[1] - values[0]) / 2
-        for value in (best[name] - step, best[name] + step):
-            candidate = {**best, name: round(value, 4)}
+        for raw_value in (best[name] - step, best[name] + step):
+            value = clamp(name, round(raw_value, 4))
+            candidate = {**best, name: value}
+            key = tuple(sorted(candidate.items()))
+            if key in seen:
+                continue
+            seen.add(key)
             result = evaluate(candidate)
             log.append((candidate, result))
             if result < best_score:
@@ -157,7 +206,7 @@ def run(udid, scene, appearance, backdrops, grid, row, size, flutter_target, out
     table = material_table.for_scene(scene.id)
     key = table_key(scene, appearance, row, size)
     current = material_table.read(table=table).get(key, {})
-    start = {name: current.get(field(name), grid[name][len(grid[name]) // 2]) for name in grid}
+    start = {name: clamp(name, current.get(field(name), grid[name][len(grid[name]) // 2])) for name in grid}
     if table is material_table.SCROLL_EDGE:
         row_overrides = {material_table.EDGE_PREFIX + name: value for name, value in current.items()}
     else:

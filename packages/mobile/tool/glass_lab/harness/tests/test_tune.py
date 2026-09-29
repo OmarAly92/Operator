@@ -74,6 +74,35 @@ class DescentTests(unittest.TestCase):
         self.assertEqual(value, 0)
 
 
+class ClampTests(unittest.TestCase):
+    def test_refinement_never_evaluates_below_the_floor_when_the_optimum_sits_there(self):
+        seen = []
+
+        def evaluate(material):
+            seen.append(material["toneBlack"])
+            return abs(material["toneBlack"])
+
+        grid = tune.parse_params("toneBlack=0:0.4:5")
+        tune.coordinate_descent(evaluate, grid, {"toneBlack": 0.2})
+        self.assertTrue(all(value >= 0.0 for value in seen))
+
+    def test_an_out_of_range_start_is_clamped_before_evaluation_and_before_writing(self):
+        seen = []
+
+        def evaluate(material):
+            seen.append(dict(material))
+            return abs(material["hairlineDark"])
+
+        grid = tune.parse_params("hairlineDark=0:0.2:3")
+        best, _, _ = tune.coordinate_descent(evaluate, grid, {"hairlineDark": -0.0688})
+        self.assertGreaterEqual(seen[0]["hairlineDark"], 0.0)
+        self.assertGreaterEqual(best["hairlineDark"], 0.0)
+
+    def test_an_edge_prefixed_field_is_clamped_by_its_field_range(self):
+        self.assertEqual(tune.clamp("edge.hairlineLight", 1.2833), 1.0)
+        self.assertEqual(tune.clamp("hairlineLight", -0.5), 0.0)
+
+
 class ElementTests(unittest.TestCase):
     def test_picks_the_box_whose_shorter_side_is_closest(self):
         boxes = [(4, 455, 395, 236), (75, 329, 252, 97), (125, 237, 152, 44)]
