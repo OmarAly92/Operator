@@ -1,3 +1,14 @@
+## 0.1.0
+
+ - **BREAKING** **REFACTOR**: renamed to `ios_liquid_glass`, with library `package:ios_liquid_glass/ios_liquid_glass.dart`.
+ - **BREAKING** **FEAT**: the final render step is the iOS 27 model (tone curve, tint range, adaptive hairline, two-lobe specular, rim-only dispersion). Upstream's rim light settings no longer affect the shader.
+ - **FEAT**: `Glass`, `GlassEffect`, `GlassEffectContainer`, `GlassShape`, `GlassTheme`, `GlassDimming` and `GlassForeground` mirror SwiftUI's glass API.
+ - **FEAT**: `GlassMaterial` and the tuned `ios27Table`, keyed by appearance, variant, accessibility and size.
+ - **FEAT**: an iOS plugin reports Reduce Transparency, Increase Contrast and Reduce Motion live.
+ - **FEAT**: `ScrollEdgeEffect` and `ScrollUnderBars` with `ScrollEdgeStyle.soft`, `.hard` and `.automatic`.
+ - **FEAT**: an `example/` app.
+ - **FIX**: `GlassMaterial.resolve` keeps a tinted glass's tint under Reduce Transparency and Increase Contrast instead of losing it to the accessibility row.
+
 ## 0.2.0-dev.4
 
 > Note: This release has breaking changes.

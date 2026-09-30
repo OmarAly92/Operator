@@ -230,6 +230,8 @@ that the published package does not expose — see `packages/speech_to_text/FORK
 before upgrading. `analysis_options.yaml` excludes `packages/**`, so upstream lints do
 not gate the app; keep fork diffs small enough to re-apply.
 
+`ios_liquid_glass` is the Liquid Glass package, forked from `liquid_glass_renderer` and turned into an iOS 27 look-alike for any Flutter app. Its `FORK.md` lists every change, its material tables are written only by `tool/glass_lab/harness/lab.py tune --write`, and `docs/liquid_glass/ROADMAP.md` is the source of truth for its roadmap.
+
 ### Deliberately unwired
 
 One subsystem is built and tested behind its seam but has no live SDK, and this

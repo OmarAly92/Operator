@@ -42,6 +42,31 @@ Changes from upstream:
 - Removed the public `ShaderKeys` fields `legacyLiquidGlass`, `liquidGlassFilterShader`
   and `glassify`, which only `Glassify` referenced.
 
+
+## ios_liquid_glass 0.1.0 (project 2A)
+
+The package was renamed from `liquid_glass_renderer` to `ios_liquid_glass`, with library `package:ios_liquid_glass/ios_liquid_glass.dart` and shader root `packages/ios_liquid_glass/`. Its goal changed from a vendored renderer to an iOS 27 Liquid Glass package for any Flutter app. Changes to upstream's code:
+
+- `liquid_glass_final_render.frag` is rewritten as the iOS 27 model:
+  - rim-only dispersion;
+  - a three-point tone curve on luminance with chroma saturation;
+  - a tint brightness range;
+  - an adaptive hairline;
+  - a two-lobe specular in the rim band.
+- Upstream's rim lighting (`render.glsl`, `lightIntensity`, `ambientStrength`, `fillRatio` in the shader) is gone. `render.glsl` is deleted. The geometry pass is unchanged.
+- `LiquidGlassSettings` gains `toneBlack`, `toneMid`, `toneWhite`, `tintBlack`, `tintWhite`, `hairline`, `hairlineWidth`, `hairlineDark`, `hairlineLight`, `specular`, `specularWidth`, `specularPower` and `specularFill`, with `effective*` getters where visibility applies. The old fields stay for `FakeGlass`.
+- `LiquidGlassRenderObject._updateShaderSettings` packs the new uniforms into `vec4`s from index 6.
+- `LiquidGlassSettings` and `LiquidShape` use `with Equatable` instead of the deprecated `EquatableMixin`. The library file declares `library;`.
+- `GlassMaterial.resolve` keeps a tinted glass's `tintAmount`, `tintBlack` and `tintWhite` from the tinted row, at the same appearance and anchors, when Reduce Transparency or Increase Contrast picks the accessibility row for the rest of the material — the accessibility rows share their tone/frost/rim values with plain mode but carry no tint of their own.
+- `GlassEffect` and `GlassEffectContainer` share one internal resolve helper, `resolveGlassMaterial` in `lib/src/api/glass_material_context.dart`, instead of each repeating the same `GlassMaterial.resolve` and `toSettings()` call.
+- New, not from upstream:
+  - `lib/src/api/` (`Glass`, `GlassShape`, `GlassTheme`, `GlassEffect`, `GlassEffectScope`, `GlassEffectContainer`, `GlassDimming`, `GlassForeground`, `glass_material_context.dart`);
+  - `lib/src/material/` (`GlassMaterial`, `ios27Table`, `ScrollEdgeMaterial`, `ios27ScrollEdgeTable`, `GlassMaterialOverride`);
+  - `lib/src/accessibility/`;
+  - `lib/src/scroll_edge/` and `scroll_edge_blur.frag`, moved from Operator;
+  - the iOS plugin in `ios/`;
+  - the `example/` app.
+
 Record every later change to `lib/` in this file.
 
 Upstream: https://github.com/whynotmake-it/flutter_liquid_glass/tree/main/packages/liquid_glass_renderer
