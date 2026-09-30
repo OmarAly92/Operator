@@ -217,7 +217,8 @@ void main() {
     await _settleWhileWorking(tester);
 
     expect(bottomEdge(tester).visibility, 1);
-    expect(bottomBlur(), findsOneWidget);
+    expect(bottomEdge(tester).style, ScrollEdgeStyle.soft);
+    expect(bottomBlur(), findsWidgets);
     final band = tester.getRect(find.byKey(BlocksBodyState.bottomEdgeKey));
     final body = tester.getRect(find.byType(TerminalBody));
     final pill = tester.getRect(find.byKey(FloatingWorkingControl.pillKey));

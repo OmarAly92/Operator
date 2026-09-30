@@ -319,6 +319,7 @@ void main() {
     expect(find.byType(GlassTabBar), findsOneWidget);
     final bottomFade = tester.widgetList<ScrollEdgeEffect>(find.byType(ScrollEdgeEffect)).where((e) => e.edge == ScrollEdge.bottom);
     expect(bottomFade.single.height, 120);
+    expect(bottomFade.single.style, ScrollEdgeStyle.soft);
   });
 
   testWidgets('the bottom edge effect shows only while a tab has content under the bar', (tester) async {
@@ -341,7 +342,7 @@ void main() {
     final agents = HomeShell.controllerFor(0);
     expect(agents.position.maxScrollExtent, greaterThan(16));
     expect(bottomFade().visibility, 1);
-    expect(bottomBlur(), findsOneWidget);
+    expect(bottomBlur(), findsWidgets);
 
     agents.jumpTo(agents.position.maxScrollExtent);
     await tester.pump();

@@ -424,6 +424,7 @@ class BlocksBodyState extends State<BlocksBody> {
                         builder: (context, visibility, _) => ScrollEdgeEffect(
                           key: bottomEdgeKey,
                           edge: ScrollEdge.bottom,
+                          style: ScrollEdgeStyle.soft,
                           height: height,
                           knee: bottomFadeExtent / height,
                           visibility: visibility,

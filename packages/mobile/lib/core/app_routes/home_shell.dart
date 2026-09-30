@@ -146,6 +146,7 @@ class _HomeShellState extends State<HomeShell> {
                 valueListenable: _bottomVisibility[selected],
                 builder: (context, visibility, _) => ScrollEdgeEffect(
                   edge: ScrollEdge.bottom,
+                  style: ScrollEdgeStyle.soft,
                   height:
                       GlassMetrics.tabBarBottomInset + GlassMetrics.tabBarHeight + GlassMetrics.bottomEdgeFadeExtent,
                   visibility: visibility,
