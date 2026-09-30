@@ -1,6 +1,8 @@
 # 2A results
 
-Date: 2026-09-30. Branch `feat/ios-liquid-glass-2a` at `7fef0baae`. Simulator: iPhone 17 Pro (iOS 27), UDID 708879DD-8B2A-4547-863F-F49EE1474D8B.
+Date: 2026-09-30. Branch `feat/ios-liquid-glass-2a` at `567d0e7ac`. Simulator: iPhone 17 Pro (iOS 27), UDID 708879DD-8B2A-4547-863F-F49EE1474D8B.
+
+Lab appearance defect (Task 12 rerun): `GlassLabScreen` picked its `DarkSkin`/`LightSkin` from platform brightness but never provided a matching `GlassTheme`, so the package's glass kept reading the app-root `GlassTheme` (light, from `SkinCubit`'s default) regardless of which appearance the lab was running — dark lab runs measured the wrong, light material rows. Fixed in `567d0e7ac` (`fix(mobile): Operator's glass lab gives the glass the lab's appearance`), which wraps the lab scene in its own `GlassTheme` matching the lab's chosen skin. The Operator component runs below supersede the earlier runs `20260930-100915`, `20260930-101816`, `20260930-102112`, which were taken before this fix and measured the light material in dark mode.
 
 | Done item | Result | Evidence |
 |---|---|---|
@@ -9,7 +11,7 @@ Date: 2026-09-30. Branch `feat/ios-liquid-glass-2a` at `7fef0baae`. Simulator: i
 | 3 Material scenes, strict thresholds | 0 of 20 cases pass | `summary-material.md`, run `20260930-082046` |
 | 4 Scroll edge MAD and luminance | 2 of 6 cases pass | run `20260930-082046` (edge scenes) |
 | 5 Reduce Transparency and Increase Contrast | 0 of 20 cases pass | runs `20260930-094506` (RT), `20260930-095626` (IC) |
-| 6 Operator components halve rim and luminance | 7 of 32 measures halved | comparison table below, runs `20260930-100915`/`20260930-101816`/`20260930-102112` |
+| 6 Operator components halve rim and luminance | 18 of 32 measures halved | comparison table below, runs `20260930-104535`/`20260930-105500`/`20260930-105756` (after the lab appearance fix; supersedes `20260930-100915`/`20260930-101816`/`20260930-102112`) |
 | 7 Flip spike | not evaluated in Task 12 (outside scope) | flip-spike.md |
 | 8 Frame cost within 20% | not evaluated in Task 12 (outside scope) | flip-spike.md |
 | 9 Documents | not evaluated in Task 12 (outside scope) | Task 13 |
@@ -81,18 +83,20 @@ Run `20260930-095626`. Same two patterns again, generally worse: dark-text (mad 
 
 ## Operator components (Done item 6)
 
-Runs: `tabbar.rest` → `20260930-100915`, `button.press` → `20260930-101816`, `navbar.inline` → `20260930-102112`, all `--app both --appearance both --flutter operator`.
+Runs (after the lab appearance fix, `567d0e7ac`): `tabbar.rest` → `20260930-104535`, `button.press` → `20260930-105500`, `navbar.inline` → `20260930-105756`, all `--app both --appearance both --flutter operator`. The comparison script (`task-12-brief.md` Step 4) now imports `LIMITS` from `tool/glass_lab/harness/metrics.THRESHOLDS` (`rim_rms` 6.0, `luminance` 3.0) instead of a hardcoded copy of the same numbers, so a future threshold change can't silently diverge between the two.
+
+Superseded runs `20260930-100915`/`20260930-101816`/`20260930-102112` (Operator rebuilt, but the lab still measured the light material in dark mode) are kept below for the record but are not evidence for Done item 6.
 
 | Case | Measure | Baseline | Now | Verdict |
 |---|---|---|---|---|
-| tabbar.rest dark-black | rim_rms | 25.57 | 70.19 | NOT HALVED |
-| tabbar.rest dark-black | luminance | 13.59 | 66.54 | NOT HALVED |
-| tabbar.rest dark-photo | rim_rms | 19.43 | 37.16 | NOT HALVED |
-| tabbar.rest dark-photo | luminance | 9.13 | 36.16 | NOT HALVED |
-| tabbar.rest dark-stripes | rim_rms | 9.54 | 37.20 | NOT HALVED |
-| tabbar.rest dark-stripes | luminance | 7.05 | 35.93 | NOT HALVED |
-| tabbar.rest dark-white | rim_rms | 44.09 | 48.35 | NOT HALVED |
-| tabbar.rest dark-white | luminance | 40.67 | 46.55 | NOT HALVED |
+| tabbar.rest dark-black | rim_rms | 25.57 | 7.29 | ok |
+| tabbar.rest dark-black | luminance | 13.59 | 5.54 | ok |
+| tabbar.rest dark-photo | rim_rms | 19.43 | 6.71 | ok |
+| tabbar.rest dark-photo | luminance | 9.13 | 2.51 | ok |
+| tabbar.rest dark-stripes | rim_rms | 9.54 | 7.90 | NOT HALVED |
+| tabbar.rest dark-stripes | luminance | 7.05 | 0.10 | ok |
+| tabbar.rest dark-white | rim_rms | 44.09 | 14.20 | ok |
+| tabbar.rest dark-white | luminance | 40.67 | 6.65 | ok |
 | tabbar.rest light-black | rim_rms | 22.69 | 16.17 | NOT HALVED |
 | tabbar.rest light-black | luminance | 13.93 | 4.57 | ok |
 | tabbar.rest light-photo | rim_rms | 12.49 | 14.79 | NOT HALVED |
@@ -101,16 +105,16 @@ Runs: `tabbar.rest` → `20260930-100915`, `button.press` → `20260930-101816`,
 | tabbar.rest light-stripes | luminance | 5.16 | 1.43 | ok |
 | tabbar.rest light-white | rim_rms | 5.22 | 4.36 | ok |
 | tabbar.rest light-white | luminance | 0.68 | 1.68 | ok |
-| button.press dark-stripes | rim_rms | 13.37 | 13.19 | NOT HALVED |
-| button.press dark-stripes | luminance | 2.95 | 4.05 | NOT HALVED |
+| button.press dark-stripes | rim_rms | 13.37 | 9.33 | NOT HALVED |
+| button.press dark-stripes | luminance | 2.95 | 0.08 | ok |
 | button.press light-stripes | rim_rms | 13.47 | 7.69 | NOT HALVED |
 | button.press light-stripes | luminance | 0.67 | 1.13 | ok |
-| navbar.inline dark-black | rim_rms | 27.50 | 62.68 | NOT HALVED |
-| navbar.inline dark-black | luminance | 6.71 | 21.96 | NOT HALVED |
-| navbar.inline dark-stripes | rim_rms | 16.37 | 30.03 | NOT HALVED |
-| navbar.inline dark-stripes | luminance | 3.79 | 10.73 | NOT HALVED |
-| navbar.inline dark-white | rim_rms | 41.15 | 47.37 | NOT HALVED |
-| navbar.inline dark-white | luminance | 7.38 | 13.22 | NOT HALVED |
+| navbar.inline dark-black | rim_rms | 27.50 | 22.36 | NOT HALVED |
+| navbar.inline dark-black | luminance | 6.71 | 0.15 | ok |
+| navbar.inline dark-stripes | rim_rms | 16.37 | 15.48 | NOT HALVED |
+| navbar.inline dark-stripes | luminance | 3.79 | 0.69 | ok |
+| navbar.inline dark-white | rim_rms | 41.15 | 28.53 | NOT HALVED |
+| navbar.inline dark-white | luminance | 7.38 | 1.80 | ok |
 | navbar.inline light-black | rim_rms | 96.06 | 60.80 | NOT HALVED |
 | navbar.inline light-black | luminance | 2.16 | 3.99 | NOT HALVED |
 | navbar.inline light-stripes | rim_rms | 58.81 | 37.17 | NOT HALVED |
@@ -118,9 +122,30 @@ Runs: `tabbar.rest` → `20260930-100915`, `button.press` → `20260930-101816`,
 | navbar.inline light-white | rim_rms | 44.80 | 44.80 | NOT HALVED |
 | navbar.inline light-white | luminance | 1.29 | 1.76 | ok |
 
-**25 of 32 measures not halved.** Only 7 pass, all in the light appearance (light-black, light-stripes, light-white across the three scenes) — every dark-appearance measure fails, and most of them are *worse* than the project 1 baseline, not merely short of halving (e.g. `tabbar.rest dark-black` rim_rms 25.57 → 70.19, `navbar.inline dark-black` rim_rms 27.50 → 62.68).
+**14 of 32 measures not halved** (18 of 32 halved), all of it a large improvement over the pre-fix run's 25 of 32 not halved. Every `luminance` measure now passes except `tabbar.rest light-photo` and `navbar.inline light-black`; the remaining failures are concentrated in `rim_rms`, still over threshold on 10 of 12 cases.
 
-A side-by-side of `tabbar.rest/dark-black/{native,flutter}/ready.png` confirms this is a real, visible regression and not a measurement artifact: native's tab bar over black is an almost-invisible dark capsule with a thin bright rim, while Flutter's capsule renders as a solidly lit, opaque light-grey pill — a materially different, much brighter piece of glass, not a subtle shading difference.
+Filmstrips for the still-failing cases (`ready.png`, native vs flutter, from the runs above):
+
+- **tabbar.rest dark-stripes** (rim): flutter's selected-tab pill reads slightly less saturated and warm than native's over the same stripe backdrop — a smaller version of the same rim residual, not a gross mismatch.
+- **tabbar.rest light-black** (rim): native's pill carries a soft, darker circular halo behind the selected "Agents" icon that flutter's pill lacks, leaving flutter's rim edge flatter.
+- **tabbar.rest light-photo** (rim, luminance): the two capsules are visually indistinguishable over the busy photo backdrop at this resolution; both measures are numeric residuals, not a visible difference.
+- **tabbar.rest light-stripes** (rim): same pattern as dark-stripes — flutter's pill edge is a shade less saturated than native's.
+- **button.press dark-stripes** (rim): the "Glass button" label renders white in native but green (Operator's accent color) in flutter — the label's own tint, not the capsule's rim, drives the residual.
+- **button.press light-stripes** (rim): same accent-tinted label difference as the dark case; the capsule edges themselves look close.
+- **navbar.inline dark-black** (rim): native's back-chevron and bell/more pill stay a neutral dark grey with white icons; flutter's back circle renders a saturated red-pink and its bell icon renders green — both accent/system-color bleed onto the glass, not a shading difference.
+- **navbar.inline dark-stripes** (rim): flutter's back-button circle is a solid, opaque red-pink where native's stays a translucent red-tinted circle that shows the stripe underneath; flutter's bell icon is green where native's is white.
+- **navbar.inline dark-white** (rim): same accent-tint pattern — flutter's bell/more icons render green, native's stay white.
+- **navbar.inline light-black** (rim, luminance): flutter's bell/more pill shows a bright radial glow along its top edge that native's pill does not have, and its icons pick up a green tint where native's stay black.
+- **navbar.inline light-stripes** (rim): flutter's back-button circle is again a more saturated red-pink than native's softer translucent one, and its bell icon is green versus native's black.
+- **navbar.inline light-white** (rim): the capsules read close at this resolution; the persistent icon-color difference (green bell/dots in flutter vs black in native) is the visible residual.
+
+A consistent pattern runs through the still-failing `navbar.inline` and `button.press` cases: flutter's glass icons and button labels pick up Operator's green accent color where native's stay neutral white or black, and flutter's opaque circular buttons (the nav back button) read more saturated than native's translucent ones. `tabbar.rest`'s remaining failures are smaller and mostly within the same rim-residual family documented for `material.regular` in Done item 3 (a crisper rim than native's soft highlight).
+
+### Superseded pre-fix runs (measured the light material in dark mode)
+
+Runs: `tabbar.rest` → `20260930-100915`, `button.press` → `20260930-101816`, `navbar.inline` → `20260930-102112`.
+
+**25 of 32 measures not halved.** Only 7 passed, all in the light appearance — every dark-appearance measure failed, and most were *worse* than the project 1 baseline (e.g. `tabbar.rest dark-black` rim_rms 25.57 → 70.19, `navbar.inline dark-black` rim_rms 27.50 → 62.68). A side-by-side of `tabbar.rest/dark-black/{native,flutter}/ready.png` from that run showed native's tab bar over black as an almost-invisible dark capsule with a thin bright rim, while flutter's capsule rendered as a solidly lit, opaque light-grey pill — consistent with the lab measuring the light material regardless of the requested dark appearance.
 
 ## Informational: Tinted under Reduce Transparency
 
@@ -139,4 +164,6 @@ The rim residual persists at the same magnitude as plain tinted (dark-black 48.8
 
 ## Gates
 
-`python3 -m unittest discover tool/glass_lab/harness/tests` (from `packages/mobile`): **80 tests, OK.** No code was changed in this task; the app/package/example gates are unaffected.
+`python3 -m unittest discover tool/glass_lab/harness/tests` (from `packages/mobile`): **80 tests, OK.** Harness code was not touched by the lab appearance fix.
+
+The lab appearance fix (`567d0e7ac`) changed `packages/mobile/lib/core/widgets/glass/lab/glass_lab_screen.dart` and added a widget test. App gates for that commit: `flutter analyze` — "No issues found!"; `flutter test` — all tests passed, **2,146** (2,145 before Task 12 plus the one new regression test for this fix).
