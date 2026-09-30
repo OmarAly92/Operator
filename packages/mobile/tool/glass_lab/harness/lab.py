@@ -55,8 +55,8 @@ def case_name(appearance, backdrop, a11y):
 
 
 def run_cases(udid, scenes, apps, appearances, backdrop, a11y, run_dir, flutter_target="example"):
-    sim.accessibility(udid, a11y)
     try:
+        sim.accessibility(udid, a11y)
         for scene in scenes:
             backdrops = [backdrop] if backdrop else list(scene.backdrops)
             for appearance in [a for a in scene.appearances if a in appearances]:
@@ -199,8 +199,8 @@ def cmd_tune(args):
     udid = sim.device()
     scene = manifest.select(manifest.load(), args.scene)[0]
     out = build.OUT / "tune" / time.strftime("%Y%m%d-%H%M%S")
-    sim.accessibility(udid, args.a11y)
     try:
+        sim.accessibility(udid, args.a11y)
         summary = tune.run(
             udid, scene, args.appearance, args.backdrops.split(","), tune.parse_params(args.params),
             args.row, args.size, args.flutter, out, write=args.write, max_passes=args.passes,
@@ -290,7 +290,7 @@ def parser():
     u.add_argument("--size", type=int, default=88, choices=(44, 88, 200))
     u.add_argument("--region")
     u.add_argument("--a11y", default="none", choices=sim.A11Y_MODES)
-    u.add_argument("--flutter", default="example", choices=tuple(build.FLUTTER_TARGETS))
+    u.add_argument("--flutter", default="example", choices=("example",))
     u.add_argument("--passes", type=int, default=4)
     u.add_argument("--write", action="store_true")
     u.set_defaults(func=cmd_tune)
