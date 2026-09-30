@@ -34,11 +34,12 @@ sealed class MaterialScenes {
           'tinted.run',
           child: GlassEffect(
             glass: Glass.regular.tint(labAccent).interactive(),
-            child: const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            child: const SizedBox(
+              width: 78,
+              height: 37,
               child: GlassForeground(
                 child: Row(
-                  mainAxisSize: MainAxisSize.min,
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [Icon(Icons.play_arrow_rounded, size: 20), SizedBox(width: 6), Text('Run', style: TextStyle(fontSize: 17))],
                 ),
               ),

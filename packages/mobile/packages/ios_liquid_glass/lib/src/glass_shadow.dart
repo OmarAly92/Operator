@@ -102,11 +102,19 @@ class _RenderGlassShadow extends RenderProxyBox {
         for (final shadow in shadows) {
           layerBounds = layerBounds.expandToInclude(
             rect.shift(shadow.offset).inflate(
-                  shadow.spreadRadius + shadow.blurRadius * visibility,
+                  shadow.spreadRadius + (shadow.blurRadius * 2 + 2) * visibility,
                 ),
           );
         }
-        canvas.saveLayer(layerBounds, Paint());
+        canvas
+          ..save()
+          ..clipPath(
+            Path.combine(
+              PathOperation.difference,
+              Path()..addRect(layerBounds),
+              _shapePath(rect.deflate(.5)),
+            ),
+          );
       }
 
       for (final shadow in shadows) {
@@ -126,17 +134,30 @@ class _RenderGlassShadow extends RenderProxyBox {
       }
 
       if (needsCutout) {
-        _drawShape(
-          canvas,
-          rect.deflate(.5),
-          Paint()..blendMode = BlendMode.dstOut,
-        );
         canvas.restore();
       }
     }
 
     super.paint(context, offset);
   }
+
+  Path _shapePath(Rect rect) => switch (shape) {
+        LiquidRoundedSuperellipse(:final borderRadius) => Path()
+          ..addRSuperellipse(
+            RSuperellipse.fromRectAndRadius(
+              rect,
+              Radius.circular(borderRadius),
+            ),
+          ),
+        LiquidOval() => Path()..addOval(rect),
+        LiquidRoundedRectangle(:final borderRadius) => Path()
+          ..addRRect(
+            RRect.fromRectAndRadius(
+              rect,
+              Radius.circular(borderRadius),
+            ),
+          ),
+      };
 
   void _drawShape(Canvas canvas, Rect rect, Paint paint) {
     switch (shape) {

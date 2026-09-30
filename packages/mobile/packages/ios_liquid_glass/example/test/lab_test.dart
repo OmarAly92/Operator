@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:ios_liquid_glass_example/lab/glass_lab_launch.dart';
 import 'package:ios_liquid_glass_example/lab/glass_lab_registry.dart';
 import 'package:ios_liquid_glass_example/lab/glass_lab_screen.dart';
+import 'package:ios_liquid_glass_example/lab/scenes/lab_parts.dart';
 import 'package:ios_liquid_glass_example/lab/scenes/perf_scenes.dart';
 
 List<String> labSceneIds() {
@@ -20,6 +21,8 @@ void main() {
   test('reads material overrides from the launch file', () {
     final launch = GlassLabLaunch.fromJson({'scene': 'material.regular', 'material': {'toneBlack': 0.2, 'toneWhite': 1}});
     expect(launch?.material, {'toneBlack': 0.2, 'toneWhite': 1.0});
+    expect(launch?.materialSide, isNull);
+    expect(GlassLabLaunch.fromJson({'scene': 'material.regular', 'materialSide': 200})?.materialSide, 200);
   });
 
   test('consume reads the launch file once and deletes it', () {
@@ -37,7 +40,24 @@ void main() {
 
   test('tool scenes are registered outside the manifest', () {
     expect(labSceneIds(), isNot(contains('perf.glass')));
-    expect(GlassLabRegistry.tools.keys, containsAll(['perf.none', 'perf.glass']));
+    expect(GlassLabRegistry.tools.keys, containsAll(['perf.none', 'perf.glass', 'perf.material', 'perf.edge']));
+  });
+
+  testWidgets('the tinted Run button has native geometry, 78 by 37 points', (tester) async {
+    tester.view.physicalSize = const Size(1206, 2622);
+    tester.view.devicePixelRatio = 3;
+    addTearDown(tester.view.reset);
+    final semantics = tester.ensureSemantics();
+    await tester.pumpWidget(MaterialApp(home: GlassLabScreen(launch: GlassLabLaunch(scene: 'material.tinted'))));
+    await tester.pump();
+    expect(tester.getSize(find.bySemanticsIdentifier('tinted.run')), const Size(78, 37));
+    semantics.dispose();
+  });
+
+  test('scenes centre on whole points, as SwiftUI places the native column', () {
+    const center = WholePointCenter();
+    expect(center.getPositionForChild(const Size(402, 778), const Size(250, 173)), const Offset(76, 303));
+    expect(center.getPositionForChild(const Size(402, 778), const Size(360, 428)), const Offset(21, 175));
   });
 
   test('every registered scene is in the manifest', () {

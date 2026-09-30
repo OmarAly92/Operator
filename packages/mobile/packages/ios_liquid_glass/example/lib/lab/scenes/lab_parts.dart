@@ -18,7 +18,8 @@ class LabCentered extends StatelessWidget {
       children: [
         Positioned.fill(child: GlassLabBackdrop(id: backdrop)),
         SafeArea(
-          child: Center(
+          child: CustomSingleChildLayout(
+            delegate: const WholePointCenter(),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -34,6 +35,20 @@ class LabCentered extends StatelessWidget {
       ],
     );
   }
+}
+
+class WholePointCenter extends SingleChildLayoutDelegate {
+  const WholePointCenter();
+
+  @override
+  BoxConstraints getConstraintsForChild(BoxConstraints constraints) => constraints.loosen();
+
+  @override
+  Offset getPositionForChild(Size size, Size childSize) =>
+      Offset(((size.width - childSize.width) / 2).roundToDouble(), ((size.height - childSize.height) / 2).roundToDouble());
+
+  @override
+  bool shouldRelayout(WholePointCenter oldDelegate) => false;
 }
 
 class LabBlock extends StatelessWidget {

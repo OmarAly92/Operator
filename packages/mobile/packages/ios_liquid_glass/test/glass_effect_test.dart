@@ -103,6 +103,28 @@ void main() {
     expect(tester.widget<LiquidGlassLayer>(find.byType(LiquidGlassLayer)).settings.blur, 17);
   });
 
+  testWidgets('side-scoped overrides reach only the glass at that anchor', (tester) async {
+    await tester.pumpWidget(MaterialApp(
+      home: GlassMaterialOverride(
+        values: const {'frost': 17},
+        side: 200,
+        child: const Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              GlassEffect(child: SizedBox(width: 360, height: 200)),
+              GlassEffect(child: SizedBox(width: 250, height: 88)),
+            ],
+          ),
+        ),
+      ),
+    ));
+    await tester.pump();
+    final blurs = tester.widgetList<LiquidGlassLayer>(find.byType(LiquidGlassLayer)).map((layer) => layer.settings.blur).toList();
+    expect(blurs.first, 17);
+    expect(blurs.last, isNot(17));
+  });
+
   testWidgets('foreground is white in dark, black in light and white on tinted glass', (tester) async {
     Color? seen;
     Widget probe() => GlassForeground(child: Builder(builder: (context) {

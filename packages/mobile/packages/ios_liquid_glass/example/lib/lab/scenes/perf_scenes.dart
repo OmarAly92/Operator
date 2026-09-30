@@ -14,8 +14,10 @@ sealed class PerfScenes {
   static const Duration window = Duration(seconds: 6);
 
   static final Map<String, Widget Function(GlassLabLaunch launch)> scenes = {
-    'perf.none': (launch) => const PerfScene(glass: false),
-    'perf.glass': (launch) => const PerfScene(glass: true),
+    'perf.none': (launch) => const PerfScene(id: 'perf.none'),
+    'perf.glass': (launch) => const PerfScene(id: 'perf.glass'),
+    'perf.material': (launch) => const PerfScene(id: 'perf.material'),
+    'perf.edge': (launch) => const PerfScene(id: 'perf.edge'),
   };
 
   static Map<String, double> stats(List<double> values) {
@@ -26,9 +28,9 @@ sealed class PerfScenes {
 }
 
 class PerfScene extends StatefulWidget {
-  const PerfScene({super.key, required this.glass});
+  const PerfScene({super.key, required this.id});
 
-  final bool glass;
+  final String id;
 
   @override
   State<PerfScene> createState() => _PerfSceneState();
@@ -61,7 +63,7 @@ class _PerfSceneState extends State<PerfScene> with SingleTickerProviderStateMix
     SchedulerBinding.instance.removeTimingsCallback(_collect);
     double ms(Duration d) => d.inMicroseconds / 1000;
     writeLabFile(PerfScenes.file, {
-      'scene': widget.glass ? 'perf.glass' : 'perf.none',
+      'scene': widget.id,
       'frames': _timings.length,
       'raster_ms': PerfScenes.stats([for (final t in _timings) ms(t.rasterDuration)]),
       'build_ms': PerfScenes.stats([for (final t in _timings) ms(t.buildDuration)]),
@@ -74,6 +76,14 @@ class _PerfSceneState extends State<PerfScene> with SingleTickerProviderStateMix
     _motion.dispose();
     super.dispose();
   }
+
+  Widget _glass(double radius, Widget child) => widget.id == 'perf.material'
+      ? GlassEffect(child: child)
+      : LiquidGlass.withOwnLayer(
+          settings: const LiquidGlassSettings(),
+          shape: LiquidRoundedSuperellipse(borderRadius: radius),
+          child: child,
+        );
 
   @override
   Widget build(BuildContext context) {
@@ -93,7 +103,14 @@ class _PerfSceneState extends State<PerfScene> with SingleTickerProviderStateMix
             ),
           ),
         ),
-        if (widget.glass)
+        if (widget.id == 'perf.edge')
+          Positioned(
+            left: 0,
+            right: 0,
+            top: 0,
+            child: ScrollEdgeEffect(edge: ScrollEdge.top, style: ScrollEdgeStyle.soft, height: MediaQuery.paddingOf(context).top + 94, capExtent: MediaQuery.paddingOf(context).top),
+          ),
+        if (widget.id == 'perf.glass' || widget.id == 'perf.material')
           SafeArea(
             child: Center(
               child: Column(
@@ -108,20 +125,12 @@ class _PerfSceneState extends State<PerfScene> with SingleTickerProviderStateMix
                           for (var column = 0; column < 3; column++)
                             Padding(
                               padding: const EdgeInsets.symmetric(horizontal: 6),
-                              child: LiquidGlass.withOwnLayer(
-                                settings: const LiquidGlassSettings(),
-                                shape: const LiquidRoundedSuperellipse(borderRadius: 22),
-                                child: const SizedBox(width: 110, height: 44),
-                              ),
+                              child: _glass(22, const SizedBox(width: 110, height: 44)),
                             ),
                         ],
                       ),
                     ),
-                  LiquidGlass.withOwnLayer(
-                    settings: const LiquidGlassSettings(),
-                    shape: const LiquidRoundedSuperellipse(borderRadius: 40),
-                    child: const SizedBox(width: 360, height: 200),
-                  ),
+                  _glass(40, const SizedBox(width: 360, height: 200)),
                 ],
               ),
             ),

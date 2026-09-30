@@ -19,6 +19,7 @@ class GlassLabScreen extends StatelessWidget {
       value: dark ? SystemUiOverlayStyle.light : SystemUiOverlayStyle.dark,
       child: GlassMaterialOverride(
         values: launch.material,
+        side: launch.materialSide,
         child: GlassLabAccessibilityProbe(
           child: Material(
             type: MaterialType.transparency,

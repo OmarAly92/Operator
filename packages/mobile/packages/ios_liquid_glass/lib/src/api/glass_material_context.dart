@@ -11,4 +11,4 @@ GlassMaterial resolveGlassMaterial(BuildContext context, {required Glass glass, 
       shorterSide: shorterSide,
       brightness: GlassTheme.brightnessOf(context),
       accessibility: GlassAccessibility.of(context),
-    ).withOverrides(GlassMaterialOverride.of(context));
+    ).withOverrides(GlassMaterialOverride.forSide(context, shorterSide));
