@@ -14,6 +14,8 @@ class ScrollEdgeMaterial {
     'blur': 4,
     'dim': 0.6,
     'knee': 0.45,
+    'blurKnee': 0.45,
+    'blurReach': 1,
     'cap': 0.88,
     'capBlur': 6,
     'line': 0,
