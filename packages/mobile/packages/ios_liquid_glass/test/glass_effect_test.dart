@@ -115,6 +115,8 @@ void main() {
     expect(seen, GlassForeground.light);
     await tester.pumpWidget(_host(GlassEffect(glass: Glass.regular.tint(_accent), child: probe()), brightness: Brightness.light));
     expect(seen, GlassForeground.tinted);
+    await tester.pumpWidget(_host(GlassEffect(glass: Glass.clear.tint(_accent), child: probe()), brightness: Brightness.light));
+    expect(seen, GlassForeground.light);
   });
 
   testWidgets('dimming paints the 35% black layer in the glass shape', (tester) async {

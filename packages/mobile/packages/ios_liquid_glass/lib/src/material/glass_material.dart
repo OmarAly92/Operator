@@ -100,7 +100,7 @@ class GlassMaterial {
     final appearance = brightness == Brightness.dark ? 'dark' : 'light';
     final row = rowFor(glass, accessibility);
     final material = _resolveRow(appearance, row, shorterSide, table);
-    if ((row == 'reduceTransparency' || row == 'increaseContrast') && glass.tintColor != null) {
+    if ((row == 'reduceTransparency' || row == 'increaseContrast') && glass.kind == GlassKind.regular && glass.tintColor != null) {
       final tinted = _resolveRow(appearance, 'tinted', shorterSide, table);
       return material.withOverrides({
         'tintAmount': tinted['tintAmount'],

@@ -1,4 +1,5 @@
 import 'package:flutter/widgets.dart';
+import 'package:ios_liquid_glass/src/api/glass.dart';
 import 'package:ios_liquid_glass/src/api/glass_effect.dart';
 import 'package:ios_liquid_glass/src/api/glass_theme.dart';
 
@@ -12,7 +13,8 @@ class GlassForeground extends StatelessWidget {
   final Widget child;
 
   static Color colorOf(BuildContext context) {
-    if (GlassEffectScope.maybeOf(context)?.tintColor != null) return tinted;
+    final glass = GlassEffectScope.maybeOf(context);
+    if (glass != null && glass.kind == GlassKind.regular && glass.tintColor != null) return tinted;
     return GlassTheme.brightnessOf(context) == Brightness.dark ? dark : light;
   }
 

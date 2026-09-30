@@ -124,6 +124,12 @@ void main() {
     expect(material['hairline'], 0.9);
   });
 
+  test('clear glass stays untinted under reduce transparency and increase contrast', () {
+    for (final accessibility in const [GlassAccessibilityData(reduceTransparency: true), GlassAccessibilityData(increaseContrast: true)]) {
+      expect(resolve(glass: Glass.clear.tint(accent), accessibility: accessibility)['tintAmount'], GlassMaterial.defaults['tintAmount']);
+    }
+  });
+
   test('untinted glass under reduce transparency keeps the RT row\'s own tintAmount', () {
     expect(resolve(accessibility: const GlassAccessibilityData(reduceTransparency: true))['tintAmount'], GlassMaterial.defaults['tintAmount']);
   });
