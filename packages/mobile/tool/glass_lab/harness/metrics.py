@@ -89,6 +89,33 @@ def rim_profile(frame, box, reach=12):
     return np.concatenate(pieces)
 
 
+RIM_SIDES = ("top", "bottom", "left", "right")
+
+
+def rim_sides(frame, box, reach=12):
+    x, y, w, h = box
+    lum = luma(frame)
+    height, width = lum.shape
+    span = reach * SCALE
+    column = min(width - 1, int(round((x + w / 2) * SCALE)))
+    row = min(height - 1, int(round((y + h / 2) * SCALE)))
+    top, bottom = int(round(y * SCALE)), int(round((y + h) * SCALE))
+    left, right = int(round(x * SCALE)), int(round((x + w) * SCALE))
+    return {
+        "top": lum[max(0, top - span) : min(height, top + span), column],
+        "bottom": lum[max(0, bottom - span) : min(height, bottom + span), column],
+        "left": lum[row, max(0, left - span) : min(width, left + span)],
+        "right": lum[row, max(0, right - span) : min(width, right + span)],
+    }
+
+
+def element_rim(native, flutter, box):
+    a, b = rim_sides(native, box), rim_sides(flutter, box)
+    sides = {side: float(np.sqrt(np.mean((a[side] - b[side]) ** 2))) for side in RIM_SIDES}
+    joined = np.concatenate([a[side] - b[side] for side in RIM_SIDES])
+    return {"rms": float(np.sqrt(np.mean(joined**2))), "sides": sides}
+
+
 def box_delta(a, b):
     if a is None or b is None:
         return float("inf")
@@ -119,7 +146,7 @@ def centre_delta(a, b):
     return float(max(abs(a[0] + a[2] / 2 - b[0] - b[2] / 2), abs(a[1] + a[3] / 2 - b[1] - b[3] / 2)))
 
 
-def static_compare(native, flutter, native_bare, flutter_bare, region):
+def static_compare(native, flutter, native_bare, flutter_bare, region, elements=None):
     native_region, flutter_region = crop(native, region), crop(flutter, region)
     native_boxes = glass_boxes(native_region, crop(native_bare, region))
     flutter_boxes = glass_boxes(flutter_region, crop(flutter_bare, region))
@@ -149,5 +176,10 @@ def static_compare(native, flutter, native_bare, flutter_bare, region):
         result["rim_rms"] = float(np.sqrt(np.mean((a[:size] - b[:size]) ** 2)))
     else:
         result["rim_rms"] = float("inf")
+    if elements:
+        result["rim_legacy"] = result["rim_rms"]
+        result["rim_elements"] = {name: element_rim(native, flutter, box) for name, box in elements.items()}
+        worst = max(entry["rms"] for entry in result["rim_elements"].values())
+        result["rim_rms"] = max(result["rim_rms"], worst)
     result["pass"] = {key: result[key] <= THRESHOLDS[key] for key in ("mad", "luminance", "rim_rms", "bbox_pt", "centre_pt")}
     return result

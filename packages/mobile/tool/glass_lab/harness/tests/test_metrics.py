@@ -58,6 +58,50 @@ class RimProfileTests(unittest.TestCase):
         np.testing.assert_allclose(profile[: len(top)], top, atol=1e-3)
 
 
+class ElementRimTests(unittest.TestCase):
+    def test_samples_all_four_sides_at_the_exact_edge(self):
+        frame = draw_box(canvas(value=0.0), (100, 300, 150, 44), 100.0)
+        sides = metrics.rim_sides(frame, (100, 300, 150, 44))
+        for side in metrics.RIM_SIDES:
+            self.assertEqual(len(sides[side]), 72)
+            self.assertEqual(float(sides[side].min()), 0.0)
+            self.assertAlmostEqual(float(sides[side].max()), 100.0, places=3)
+        self.assertEqual(float(sides["top"][35]), 0.0)
+        self.assertAlmostEqual(float(sides["top"][36]), 100.0, places=3)
+        self.assertAlmostEqual(float(sides["right"][35]), 100.0, places=3)
+        self.assertEqual(float(sides["right"][36]), 0.0)
+
+    def test_an_end_cap_difference_is_seen_that_the_centre_column_misses(self):
+        box = (100, 300, 150, 44)
+        native = draw_box(canvas(value=0.0), box, 100.0)
+        flutter = draw_box(native.copy(), (100, 300, 1, 44), 160.0)
+        rim = metrics.element_rim(native, flutter, box)
+        self.assertEqual(rim["sides"]["top"], 0.0)
+        self.assertEqual(rim["sides"]["bottom"], 0.0)
+        self.assertEqual(rim["sides"]["right"], 0.0)
+        self.assertGreater(rim["sides"]["left"], 10.0)
+        self.assertGreater(rim["rms"], 5.0)
+
+    def test_the_element_rim_only_makes_the_rim_measure_stricter(self):
+        box = (100, 300, 150, 44)
+        bare = canvas(value=0.0)
+        native = draw_box(canvas(value=0.0), box, 100.0)
+        flutter = draw_box(native.copy(), (100, 300, 1, 44), 160.0)
+        region = (88, 288, 174, 68)
+        legacy = metrics.static_compare(native, flutter, bare, bare, region)
+        pinned = metrics.static_compare(native, flutter, bare, bare, region, {"pill": box})
+        self.assertEqual(pinned["rim_legacy"], legacy["rim_rms"])
+        self.assertGreater(pinned["rim_rms"], legacy["rim_rms"])
+        self.assertEqual(pinned["rim_rms"], pinned["rim_elements"]["pill"]["rms"])
+
+    def test_analysis_scores_every_pinned_region_except_the_track(self):
+        import manifest
+        scenes = {s.id: s for s in manifest.load()}
+        self.assertEqual(sorted(analyze.elements_for(scenes["material.regular"])), ["s200", "s44", "s88"])
+        self.assertEqual(sorted(analyze.elements_for(scenes["material.tinted"])), ["block", "run"])
+        self.assertEqual(analyze.elements_for(scenes["material.edge.soft"]), {})
+
+
 class StaticCompareTests(unittest.TestCase):
     def test_identical_frames_pass(self):
         bare = canvas()
