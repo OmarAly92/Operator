@@ -19,6 +19,8 @@ class Glass {
 
   Glass interactive([bool enabled = true]) => Glass._(kind, tintColor: tintColor, isInteractive: enabled);
 
+  bool sameMaterial(Glass other) => other.kind == kind && other.tintColor == tintColor;
+
   @override
   bool operator ==(Object other) =>
       other is Glass && other.kind == kind && other.tintColor == tintColor && other.isInteractive == isInteractive;

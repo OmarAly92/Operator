@@ -10,7 +10,7 @@ void main() {
     'dark.regular.44': {'frost': 2.0, 'toneBlack': 0.1},
     'dark.regular.88': {'frost': 4.0, 'toneBlack': 0.2},
     'dark.regular.200': {'frost': 8.0, 'toneBlack': 0.3},
-    'dark.tinted.88': {'tintAmount': 0.9},
+    'dark.tinted.88': {'tintAmount': 0.9, 'tintBlack': 1.3, 'tintWhite': 0.7},
     'dark.clear.88': {'frost': 1.0},
     'dark.reduceTransparency.88': {'toneBlack': 0.16, 'toneWhite': 0.16},
     'dark.increaseContrast.88': {'hairline': 0.9},
@@ -112,5 +112,19 @@ void main() {
   test('tinted glass keeps its tint under reduce transparency', () {
     expect(resolve(glass: Glass.regular.tint(accent), accessibility: const GlassAccessibilityData(reduceTransparency: true))['tintAmount'], 0.9);
     expect(resolve(glass: Glass.regular.tint(accent), accessibility: const GlassAccessibilityData(reduceTransparency: true))['toneWhite'], 0.16);
+    expect(resolve(glass: Glass.regular.tint(accent), accessibility: const GlassAccessibilityData(reduceTransparency: true))['tintBlack'], 1.3);
+    expect(resolve(glass: Glass.regular.tint(accent), accessibility: const GlassAccessibilityData(reduceTransparency: true))['tintWhite'], 0.7);
+  });
+
+  test('tinted glass keeps its tint under increase contrast', () {
+    final material = resolve(glass: Glass.regular.tint(accent), accessibility: const GlassAccessibilityData(increaseContrast: true));
+    expect(material['tintAmount'], 0.9);
+    expect(material['tintBlack'], 1.3);
+    expect(material['tintWhite'], 0.7);
+    expect(material['hairline'], 0.9);
+  });
+
+  test('untinted glass under reduce transparency keeps the RT row\'s own tintAmount', () {
+    expect(resolve(accessibility: const GlassAccessibilityData(reduceTransparency: true))['tintAmount'], GlassMaterial.defaults['tintAmount']);
   });
 }

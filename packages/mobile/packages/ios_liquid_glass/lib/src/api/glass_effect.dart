@@ -54,7 +54,8 @@ class _GlassEffectState extends State<GlassEffect> {
           shorterSide: _shorterSide ?? widget.sideHint ?? GlassEffect.fallbackSide,
         );
         final tint = widget.glass.tintColor;
-        if (GlassEffectContainer.glassOf(context) == widget.glass) {
+        final container = GlassEffectContainer.glassOf(context);
+        if (container != null && container.sameMaterial(widget.glass)) {
           return LiquidGlass.grouped(shape: widget.shape.liquidShape, shadows: material.shadows, child: child);
         }
         return LiquidGlass.withOwnLayer(

@@ -30,11 +30,13 @@ void main() {
   isLocalTest = true;
 
   testWidgets('draws its own layer with the material resolved for its measured size', (tester) async {
-    await tester.pumpWidget(_host(const GlassEffect(child: SizedBox(width: 250, height: 88))));
+    await tester.pumpWidget(_host(const GlassEffect(child: SizedBox(width: 250, height: 60))));
     await tester.pump();
     final layer = tester.widget<LiquidGlassLayer>(find.byType(LiquidGlassLayer));
-    final expected = GlassMaterial.resolve(glass: Glass.regular, shorterSide: 88, brightness: Brightness.dark);
+    final expected = GlassMaterial.resolve(glass: Glass.regular, shorterSide: 60, brightness: Brightness.dark);
+    final unmeasured = GlassMaterial.resolve(glass: Glass.regular, shorterSide: 88, brightness: Brightness.dark);
     expect(layer.settings, expected.toSettings());
+    expect(layer.settings, isNot(unmeasured.toSettings()));
   });
 
   testWidgets('re-resolves when the appearance flips', (tester) async {
@@ -55,6 +57,21 @@ void main() {
     )));
     expect(find.byType(LiquidGlassLayer), findsOneWidget);
     expect(find.byType(LiquidGlassBlendGroup), findsOneWidget);
+  });
+
+  testWidgets('interactive glass inside a regular container joins it', (tester) async {
+    await tester.pumpWidget(_host(GlassEffectContainer(
+      child: GlassEffect(glass: Glass.regular.interactive(), child: const SizedBox.square(dimension: 64)),
+    )));
+    expect(find.byType(LiquidGlassLayer), findsOneWidget);
+    expect(find.byType(LiquidGlassBlendGroup), findsOneWidget);
+  });
+
+  testWidgets('clear glass inside a regular container keeps its own layer', (tester) async {
+    await tester.pumpWidget(_host(const GlassEffectContainer(
+      child: GlassEffect(glass: Glass.clear, child: SizedBox.square(dimension: 64)),
+    )));
+    expect(find.byType(LiquidGlassLayer), findsNWidgets(2));
   });
 
   testWidgets('tinted glass inside a regular container keeps its own layer', (tester) async {
