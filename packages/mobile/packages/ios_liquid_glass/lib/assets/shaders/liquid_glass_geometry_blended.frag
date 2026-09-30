@@ -18,6 +18,7 @@ layout(location = 3) uniform float uShapeData[MAX_SHAPES * 6];
 
 float uThickness = uOpticalProps.z;
 float uRefractiveIndex = uOpticalProps.x;
+float uOutlineBand = max(uOpticalProps.y, 0.0);
 float uBlend = uOpticalProps.w;
 
 layout(location = 0) out vec4 fragColor;
@@ -33,24 +34,26 @@ void main() {
     
     float sd = sceneSDF(fragCoord, int(uNumShapes), uShapeData, uBlend);
     
-    float foregroundAlpha = 1.0 - smoothstep(-2.0, 0.0, sd);
-    if (foregroundAlpha < 0.01) {
+    if (sd >= uOutlineBand + 1.0 || uThickness <= 0.0) {
         fragColor = vec4(0.0);
         return;
     }
     
     float dx = dFdx(sd);
     float dy = dFdy(sd);
+    float maxDisplacement = uThickness * 10.0;
+    
+    if (sd >= 0.0) {
+        vec2 gradient = vec2(dx, dy);
+        vec2 inward = length(gradient) > 0.0 ? -normalize(gradient) : vec2(0.0);
+        fragColor = encodeGeometry(inward * maxDisplacement * 0.5, maxDisplacement, sd, uThickness);
+        return;
+    }
     
     float n_cos = max(uThickness + sd, 0.0) / uThickness;
     float n_sin = sqrt(max(0.0, 1.0 - n_cos * n_cos));
     
     vec3 normal = normalize(vec3(dx * n_cos, dy * n_cos, n_sin));
-    
-    if (sd >= 0.0 || uThickness <= 0.0) {
-        fragColor = vec4(0.0);
-        return;
-    }
     
     float x = uThickness + sd;
     float sqrtTerm = sqrt(max(0.0, uThickness * uThickness - x * x));
@@ -64,7 +67,5 @@ void main() {
     float baseRefractLength = (height + baseHeight) / max(0.001, abs(baseRefract.z));
     vec2 displacement = baseRefract.xy * baseRefractLength;
     
-    float maxDisplacement = uThickness * 10.0;
-    
-    fragColor = encodeDisplacementData(displacement, maxDisplacement, height, uThickness, foregroundAlpha);
+    fragColor = encodeGeometry(displacement, maxDisplacement, sd, uThickness);
 }

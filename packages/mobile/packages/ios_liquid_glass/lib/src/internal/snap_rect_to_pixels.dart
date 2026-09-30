@@ -13,6 +13,11 @@ extension SnapRectToPixels on Rect {
   }
 }
 
+@internal
+extension PixelCount on double {
+  int toPixelCount() => round();
+}
+
 extension on double {
   double snapToPixel({required double devicePixelRatio}) {
     return (this * devicePixelRatio).roundToDouble() / devicePixelRatio;

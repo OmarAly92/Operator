@@ -252,8 +252,8 @@ abstract class RenderLiquidGlassGeometry extends RenderProxyBox {
   ) {
     final bounds = geometryBounds.snapToPixels(devicePixelRatio);
 
-    final width = (bounds.width * devicePixelRatio).ceil();
-    final height = (bounds.height * devicePixelRatio).ceil();
+    final width = (bounds.width * devicePixelRatio).toPixelCount();
+    final height = (bounds.height * devicePixelRatio).toPixelCount();
 
     geometryShader.setFloatUniforms((value) {
       value
@@ -345,8 +345,8 @@ class UnrenderedGeometryCache extends GeometryCache {
   @override
   Future<RenderedGeometryCache> renderAsync() async {
     final image = await matte.toImage(
-      matteBounds.width.ceil(),
-      matteBounds.height.ceil(),
+      matteBounds.width.toPixelCount(),
+      matteBounds.height.toPixelCount(),
     );
     return RenderedGeometryCache(
       matte: image,
@@ -360,8 +360,8 @@ class UnrenderedGeometryCache extends GeometryCache {
   @override
   RenderedGeometryCache render() {
     final image = matte.toImageSync(
-      matteBounds.width.ceil(),
-      matteBounds.height.ceil(),
+      matteBounds.width.toPixelCount(),
+      matteBounds.height.toPixelCount(),
     );
     dispose();
     return RenderedGeometryCache(
@@ -409,12 +409,14 @@ class RenderedGeometryCache extends GeometryCache {
   }
 }
 
-extension on LiquidGlassSettings {
+@internal
+extension GeometryRebuild on LiquidGlassSettings {
   bool requiresGeometryRebuild(LiquidGlassSettings? other) {
     if (other == null) return false;
 
     return effectiveThickness != other.effectiveThickness ||
-        refractiveIndex != other.refractiveIndex;
+        refractiveIndex != other.refractiveIndex ||
+        outlineWidth != other.outlineWidth;
   }
 }
 

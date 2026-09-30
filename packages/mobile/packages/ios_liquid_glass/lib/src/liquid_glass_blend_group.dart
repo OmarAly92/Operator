@@ -214,7 +214,7 @@ class RenderLiquidGlassBlendGroup extends RenderLiquidGlassGeometry
     geometryShader.setFloatUniforms(initialIndex: 2, (value) {
       value.setFloats([
         settings.refractiveIndex,
-        settings.effectiveChromaticAberration,
+        settings.outlineWidth * devicePixelRatio,
         settings.effectiveThickness * devicePixelRatio,
         blend * devicePixelRatio,
       ]);
@@ -293,7 +293,7 @@ class RenderLiquidGlassBlendGroup extends RenderLiquidGlassGeometry
     }
 
     return (
-      (layerBounds ?? Rect.zero).inflate(blend * .25),
+      (layerBounds ?? Rect.zero).inflate(blend * .25 + settings.outlineWidth + 1),
       shapes,
       anyShapeChangedInLayer,
     );

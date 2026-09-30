@@ -13,7 +13,7 @@ void main() {
     'dark.tinted.88': {'tintAmount': 0.9, 'tintBlack': 1.3, 'tintWhite': 0.7},
     'dark.clear.88': {'frost': 1.0},
     'dark.reduceTransparency.88': {'toneBlack': 0.16, 'toneWhite': 0.16},
-    'dark.increaseContrast.88': {'hairline': 0.9},
+    'dark.increaseContrast.88': {'outline': 0.9},
     'light.regular.88': {'frost': 5.0},
   };
 
@@ -76,8 +76,12 @@ void main() {
       'tintAmount': 0.9,
       'tintBlack': 0.8,
       'tintWhite': 1.1,
-      'hairline': 0.3,
+      'outline': 0.3,
+      'outlineTop': 0.1,
+      'outlineWidth': 0.6,
       'specular': 0.5,
+      'sheen': 0.07,
+      'sheenWidth': 2.4,
     });
     final settings = material.toSettings(tint: accent);
     expect(settings.thickness, 20);
@@ -87,8 +91,9 @@ void main() {
     expect([settings.toneBlack, settings.toneMid, settings.toneWhite], [0.1, 0.4, 0.8]);
     expect([settings.tintBlack, settings.tintWhite], [0.8, 1.1]);
     expect(settings.glassColor, accent.withValues(alpha: 0.9));
-    expect(settings.hairline, 0.3);
+    expect([settings.outline, settings.outlineTop, settings.outlineWidth], [0.3, 0.1, 0.6]);
     expect(settings.specular, 0.5);
+    expect([settings.sheen, settings.sheenWidth], [0.07, 2.4]);
     expect(material.toSettings().glassColor.a, 0);
   });
 
@@ -121,7 +126,7 @@ void main() {
     expect(material['tintAmount'], 0.9);
     expect(material['tintBlack'], 1.3);
     expect(material['tintWhite'], 0.7);
-    expect(material['hairline'], 0.9);
+    expect(material['outline'], 0.9);
   });
 
   test('clear glass stays untinted under reduce transparency and increase contrast', () {

@@ -12,8 +12,8 @@ uniform vec2 uGeometrySize;
 uniform vec4 uGlassColor;
 uniform vec4 uOptics;
 uniform vec4 uTone;
-uniform vec4 uTintTone;
-uniform vec4 uEdge;
+uniform vec4 uTintSheen;
+uniform vec4 uOutline;
 uniform vec4 uLight;
 uniform vec2 uLightDirection;
 
@@ -38,15 +38,28 @@ void main() {
     #endif
 
     vec4 geometryData = texture(uGeometryTexture, geometryUV);
-    if (geometryData.a < 0.01) {
+    if (geometryData.a < 0.5) {
         fragColor = vec4(0.0);
         return;
     }
 
     float thickness = max(uOptics.x, 0.001);
+    float signedDistance = decodeSignedDistance(geometryData, thickness);
     vec2 displacement = decodeDisplacement(geometryData, thickness * 10.0);
-    float heightNorm = clamp(geometryData.b, 0.0, 1.0);
-    float edgeDistance = thickness * (1.0 - sqrt(max(0.0, 1.0 - heightNorm * heightNorm)));
+    vec2 normal = length(displacement) > 0.0001 ? normalize(displacement) : vec2(0.0);
+
+    float coverage = clamp(0.5 - signedDistance, 0.0, 1.0);
+    float outlineStrength = mix(uOutline.y, uOutline.x, abs(normal.x));
+    float outlineCoverage = clamp(uOutline.z + 0.5 - signedDistance, 0.0, 1.0) * (1.0 - coverage);
+    float outlineAlpha = clamp(outlineStrength, 0.0, 1.0) * outlineCoverage;
+    if (coverage <= 0.0) {
+        fragColor = vec4(0.0, 0.0, 0.0, outlineAlpha);
+        return;
+    }
+
+    float edgeDistance = clamp(-signedDistance, 0.0, thickness);
+    float rise = 1.0 - edgeDistance / thickness;
+    float heightNorm = sqrt(max(0.0, 1.0 - rise * rise));
     float bevel = 1.0 - heightNorm;
 
     vec2 texel = 1.0 / uSize;
@@ -63,20 +76,16 @@ void main() {
     float toned = clamp(toneCurve(luminance), 0.0, 1.0);
     color = clamp(vec3(toned) + chroma * uOptics.z, 0.0, 1.0);
 
-    vec3 tintTone = clamp(uGlassColor.rgb * mix(uTintTone.x, uTintTone.y, luminance), 0.0, 1.0);
+    vec3 tintTone = clamp(uGlassColor.rgb * mix(uTintSheen.x, uTintSheen.y, luminance), 0.0, 1.0);
     color = mix(color, tintTone, uGlassColor.a);
 
-    vec3 hairlineColor = mix(vec3(uEdge.w), vec3(uEdge.z), smoothstep(0.35, 0.65, luminance));
-    float hairlineMask = 1.0 - smoothstep(0.0, max(uEdge.y, 0.001), edgeDistance);
-    color = mix(color, hairlineColor, clamp(uEdge.x * hairlineMask, 0.0, 1.0));
-
-    vec2 normal = length(displacement) > 0.0001 ? normalize(displacement) : vec2(0.0);
     float power = max(uLight.z, 0.001);
-    float key = pow(max(0.0, dot(normal, uLightDirection)), power);
-    float fill = uLight.w * pow(max(0.0, dot(normal, -uLightDirection)), power);
-    float specularMask = 1.0 - smoothstep(0.0, max(uLight.y, 0.001), edgeDistance);
-    color = clamp(color + vec3((key + fill) * uLight.x * specularMask), 0.0, 1.0);
+    float lobes = pow(max(0.0, dot(normal, uLightDirection)), power) + uLight.w * pow(max(0.0, dot(normal, -uLightDirection)), power);
+    float fade = 1.0 - smoothstep(0.7 * thickness, thickness, edgeDistance);
+    float line = uLight.x * exp(-edgeDistance / max(uLight.y, 0.001));
+    float sheen = uTintSheen.z * exp(-edgeDistance / max(uTintSheen.w, 0.001));
+    color = clamp(color + vec3(lobes * fade * (line + sheen)), 0.0, 1.0);
 
-    float alpha = geometryData.a;
-    fragColor = vec4(color * alpha, alpha);
+    float alpha = coverage + outlineAlpha;
+    fragColor = vec4(color * coverage, alpha);
 }

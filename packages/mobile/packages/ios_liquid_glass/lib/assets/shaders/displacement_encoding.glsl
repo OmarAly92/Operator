@@ -16,6 +16,16 @@ vec4 encodeDisplacementData(vec2 displacement, float maxDisplacement, float heig
     return vec4(normalizedDisp.x, normalizedDisp.y, normalizedHeight, alpha);
 }
 
+vec4 encodeGeometry(vec2 displacement, float maxDisplacement, float signedDistance, float thickness) {
+    vec2 normalizedDisp = clamp((displacement / maxDisplacement) * 0.5 + 0.5, 0.0, 1.0);
+    float distance = clamp(signedDistance / max(thickness, 0.001), -1.0, 1.0);
+    return vec4(normalizedDisp, 0.5 - 0.5 * distance, 1.0);
+}
+
+float decodeSignedDistance(vec4 encoded, float thickness) {
+    return (0.5 - encoded.b) * 2.0 * thickness;
+}
+
 // Decode displacement from RG channels
 vec2 decodeDisplacement(vec4 encoded, float maxDisplacement) {
     vec2 normalized = encoded.rg;

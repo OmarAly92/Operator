@@ -116,12 +116,12 @@ abstract class LiquidGlassRenderObject extends RenderProxyBox {
           0,
           settings.tintBlack,
           settings.tintWhite,
+          settings.effectiveSheen,
+          settings.sheenWidth * devicePixelRatio,
+          settings.effectiveOutline,
+          settings.effectiveOutlineTop,
+          settings.outlineWidth * devicePixelRatio,
           0,
-          0,
-          settings.effectiveHairline,
-          settings.hairlineWidth * devicePixelRatio,
-          settings.hairlineDark,
-          settings.hairlineLight,
           settings.effectiveSpecular,
           settings.specularWidth * devicePixelRatio,
           settings.specularPower,
@@ -368,8 +368,8 @@ abstract class LiquidGlassRenderObject extends RenderProxyBox {
 
     final picture = recorder.endRecording();
     final image = picture.toImageSync(
-      size.width.ceil(),
-      size.height.ceil(),
+      size.width.toPixelCount(),
+      size.height.toPixelCount(),
     );
 
     logger.fine(buffer.toString());
