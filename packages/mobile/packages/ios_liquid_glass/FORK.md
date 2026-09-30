@@ -27,9 +27,9 @@ Changes from upstream:
   `SQUIRCLE_EXTENT`) fitted to Flutter's `RoundedSuperellipseBorder`. Upstream used the
   rounded-rectangle formula, so the lens and the clip disagreed at the corners.
 
-- `LiquidGlassSettings.fillRatio` (default 0.8, upstream's hard-coded value) sets how
-  strongly the side facing away from the light is lit. The rim brightness is clamped to
-  [0, 1]. The app sets 0.7 after measuring a near-uniform native rim.
+- `LiquidGlassSettings.fillRatio` is kept as upstream's public API (default 0.8), but the
+  iOS 27 final pass does not read it; `GlassStyle`, which used to set it, was deleted with
+  the rest of Operator's old glass API.
 
 - `GlassDragBuilder` handles `onPointerCancel` in listener mode; upstream left a cancelled
   touch stuck pressed.

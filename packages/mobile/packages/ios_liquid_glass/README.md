@@ -62,6 +62,12 @@ Reduce Transparency, Increase Contrast and Reduce Motion are read live. On iOS a
 
 Native glass gets thicker and deeper as it grows. `GlassEffect` measures itself and interpolates the material between the 44, 88 and 200 pt anchors on its shorter side. Pass `sideHint` to avoid a one-frame default before the first layout.
 
+Inside a `GlassEffectContainer`, every grouped child shares the container's single glass layer, so the material is resolved once from the container's own `side` (default 88) — not from each child's measured size.
+
+### Clear glass has no tint
+
+`Glass.clear.tint(color)` still renders untinted: the tuned `clear` row's `tintAmount` is 0, and picking the `clear` row does not depend on `tintColor`. Use `Glass.regular.tint(color)` for tinted glass.
+
 ### Low level
 
 The renderer underneath is still public: `LiquidGlass`, `LiquidGlassLayer`, `LiquidGlassSettings`, `LiquidGlassBlendGroup`, `FakeGlass`, `GlassGlow` and `LiquidStretch`. `GlassMaterial.resolve(...)` returns the tuned material for any glass, size, appearance and accessibility state, and `toSettings()` turns it into `LiquidGlassSettings`.
@@ -71,7 +77,7 @@ The renderer underneath is still public: `LiquidGlass`, `LiquidGlassLayer`, `Liq
 - The geometry pass computes a signed-distance field of every shape in a layer, blends nearby shapes, and bakes a quarter-circle bevel with Snell refraction into a cached texture.
 - The final pass refracts the frosted backdrop through that texture, with dispersion at the rim only. It then maps brightness through a three-point tone curve (black, mid, white), tints with the accent across a brightness range, and draws an adaptive hairline and a two-lobe specular rim.
 
-Frame cost is the same as the upstream renderer's. Measured on the iOS 27 simulator, 13 glasses over a moving backdrop take 12.36 ms raster time per frame. Check your target devices.
+The new final pass costs the same as upstream's, at upstream's default settings (`const LiquidGlassSettings()`: default blur, identity tone curve, no hairline or specular). Measured on the iOS 27 simulator, 13 own-layer glasses over a moving backdrop: 12.10 ms median raster time per frame for the old renderer against 12.48 ms and 12.24 ms for the new one, in two separate takes. The cost of the tuned iOS 27 materials — frost as high as 72 under Reduce Transparency — is not yet measured. Check your target devices.
 
 ## Credits and licence
 

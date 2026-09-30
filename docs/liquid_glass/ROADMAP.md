@@ -7,7 +7,7 @@ Last updated: 2026-09-30. Owner: Omar Aly (the user). This is the single source 
 | # | Project | Status |
 |---|---|---|
 | 1 | Reference lab (measuring instrument) | **DONE**, merged to `development` (`7f74f5a0b`), not pushed |
-| 2A | Package foundation + how glass looks | **PARTLY DONE** on branch `feat/ios-liquid-glass-2a` (`c37be670e`, plus this documentation commit) — Done items 3, 4, 5 and 6 failed; awaiting review. |
+| 2A | Package foundation + how glass looks | **PARTLY DONE**, at the head of branch `feat/ios-liquid-glass-2a` — Done items 3, 4, 5 and 6 failed; awaiting review. |
 | 2B | How glass moves | NOT STARTED |
 | 3 | Every iOS component inside the package | NOT STARTED |
 | 4 | Operator adopts the package | NOT STARTED |
@@ -223,7 +223,7 @@ Repository: `/Users/omaraly/development/AI/Operator`. Default branch `developmen
 
 ### Project 2A: Package foundation + how glass looks (PARTLY DONE, awaiting review)
 - **Spec:** `docs/liquid_glass/02a-looks/spec.md`. Read it for every detail.
-- **Branch:** `feat/ios-liquid-glass-2a`, worktree `/Users/omaraly/development/AI/Operator-ios-liquid-glass`, at `c37be670e`, plus this documentation commit. Not merged, not pushed.
+- **Branch:** `feat/ios-liquid-glass-2a`, worktree `/Users/omaraly/development/AI/Operator-ios-liquid-glass`, at its head. Not merged, not pushed.
 - **Plan:** `docs/liquid_glass/02a-looks/plan.md`. Its 13 tasks, in order:
   1. rename;
   2. plugin;
@@ -265,7 +265,7 @@ Repository: `/Users/omaraly/development/AI/Operator`. Default branch `developmen
   5. Reduce Transparency and Increase Contrast — 0 of 20 cases pass.
   6. Operator components halve rim and luminance — 18 of 32 measures halved.
   7. Flip spike — no native flip; nothing to build; needs no 2A implementation.
-  8. Frame cost within 20% — pass, new 12.36 ms vs old 12.10 ms (+2.2%).
+  8. Frame cost within 20% — pass, new 12.36 ms vs old 12.10 ms (+2.2%), measured at `const LiquidGlassSettings()`, not the tuned material.
   9. Documents — done in Task 13.
 - **Open items** (every failing case from `results.md`, plus carried-forward decisions):
   - **`material.regular`** (10 of 10 fail): a crisp bright rim where native shows a soft diagonal highlight, worse in light appearance (dark-black rim 8.26, light-black 17.70); on every backdrop but black, `bbox_pt`/`centre_pt` fail because the scored box is native's *shadow extent*, not a placement difference — native's shadow is a long soft halo (reaches 0 by ~46 pt below the glass edge on dark-white), Flutter's is short and comparatively abrupt (reaches 0 by ~15 pt); `light-photo` is an untested backdrop combination (Group A/B tuning used `stripes,white,black` only) and fails mad/luminance/rim on top of the shadow-extent box delta.
@@ -274,11 +274,14 @@ Repository: `/Users/omaraly/development/AI/Operator`. Default branch `developmen
   - **`material.edge`** (4 of 6 fail): the soft scroll edge over-dims with a moiré texture in the blur band (likely blur aliasing), worse in dark (mad 21.27) than light (5.67); hard/automatic dark-scroll narrowly fail (mad 4.56, `automatic` uses the hard-style search so shares hard's residual); hard/automatic light-scroll pass.
   - **Reduce Transparency** (10 of 10 fail) and **Increase Contrast** (10 of 10 fail): mostly the same rim and shadow-extent residuals as plain `material.regular`, plus `photo`/`text` backdrops that were never part of either accessibility mode's tuning grid; IC additionally fails mad/luminance on `white` and `stripes`, which *were* tuned, so IC's regression is not confined to untested backdrops.
   - **Operator components** (14 of 32 measures not halved, all `rim_rms` except two `navbar.inline`/`tabbar.rest` `luminance` cases): flutter's glass icons and button labels pick up Operator's green accent colour where native's stay neutral white or black, flutter's opaque circular nav back button reads more saturated than native's translucent one, and `navbar.inline dark-black`'s residual is shape (native's trailing group is a clean capsule; Flutter's bell/more group fuses into a "peanut") rather than tint.
+  - The example app's tinted scene is misaligned with native: the 88 pt tinted block sits 2 pt higher than native (`flutter_box` y 363 vs native y 365, `results.md` Done item 3), and the "Run" capsule misses by 4–6 pt; every tinted row (including dark.tinted.44's specular −0.1) was tuned against this offset. First 2B lab session: re-geometry the scene against native (`lab.py geometry material.tinted`), rebuild, retune tinted D2/D3, re-verify.
   - Native `material.interactive` shows no press reaction on the simulator (pending decision, §1).
   - Swift Package Manager support (plan ruling 13): a follow-up, not enabled globally.
   - Adaptive shadow (plan ruling 15): the shadow is static in 2A, fitted on `white` and `text`; the flip spike built no backdrop readback, so this moves to project 3.
   - `FakeGlass` tone (plan ruling 14): `FakeGlass` keeps upstream's look in 2A; it gets the tone curve when a project 3 component needs a non-shader fallback.
-- **Rulings:** the plan's 15 header rulings and every controller ruling made during execution are in `.superpowers/sdd/plan/plan.md`'s header and `.superpowers/sdd/plan/progress.md` (every line starting `Ruling:`).
+  - Frame cost was measured with `perf.glass`, which draws every glass at `const LiquidGlassSettings()` (default blur, identity tone curve, no hairline or specular), not the tuned iOS 27 material rows (frost as high as 72 under Reduce Transparency). Add a `perf.material` scene built from `GlassEffect` and measure it.
+  - Operator's bottom scroll edges (`lib/core/app_routes/home_shell.dart:147`, `lib/feature/blocks/presentation/blocks_screen/ui/widgets/blocks_body.dart:424`) pass no `style`, so they now use the top-tuned `automatic` row: knee 0 (full-strength dim ~0.57 dark / 0.70 light across the band) and a divider line (0.23 dark / 0.35 light) at the band's inner edge, where before it was a 0.8-knee fade — `blocks_body.dart` overrides `knee` with its own dock-height computation, but keeps `automatic`'s dim and line — until project 3/4 tunes a bottom edge.
+- **Rulings:** the plan's 15 header rulings are in `docs/liquid_glass/02a-looks/plan.md`'s header; every controller ruling made during execution is tracked in `docs/liquid_glass/02a-looks/rulings.md`.
 - **Next:** review here — diff the branch against the plan, rerun every gate, open `results.md` and the filmstrips, fix what is wrong and re-measure, then merge when the user says.
 
 ### Project 2B: How glass moves (NOT STARTED)
@@ -429,15 +432,15 @@ Out of scope: iPad and Mac items (sidebar, pointer, iPad tab bar), app icons, wi
   | tabbar.drag event0 | width settle | 133 ms |
   | tabbar.drag event0 | luma response | 44% |
 
-### 2A results (`docs/liquid_glass/02a-looks/results.md`, branch `feat/ios-liquid-glass-2a` at `c37be670e`, plus this documentation commit)
+### 2A results (`docs/liquid_glass/02a-looks/results.md`, at the head of branch `feat/ios-liquid-glass-2a`)
 
 - Material scenes (`material.regular`, `.clear`, `.tinted`), strict thresholds: **0 of 20 cases pass**.
 - Scroll edge (`material.edge.soft/.hard/.automatic`), MAD and luminance: **2 of 6 cases pass** (`edge.hard` and `edge.automatic`, light appearance only).
 - Reduce Transparency: **0 of 10 cases pass**. Increase Contrast: **0 of 10 cases pass**.
 - Operator components (`tabbar.rest`, `button.press`, `navbar.inline`), halved-rim-and-luminance criterion: **18 of 32 measures halved** (up from 7 of 32 before the lab appearance fix, commit `567d0e7`).
 - Flip spike: no native flip at 44 pt or 200 pt, either appearance — nothing to build.
-- Frame cost: new renderer 12.36 ms vs old 12.10 ms raster mean, **+2.2%**, inside the 20% budget.
-- Gates: harness **80** tests OK; package **47**, example **6**, app **2,146** tests; `flutter analyze` "No issues found!" in app, package and example; `grep -rn liquid_glass_renderer` in `packages/mobile` (excluding `build/`, `.dart_tool`) matches only the package pubspec's fork-attribution description line.
+- Frame cost: new renderer 12.36 ms vs old 12.10 ms raster mean, **+2.2%**, inside the 20% budget — measured at `const LiquidGlassSettings()`, not the tuned iOS 27 material.
+- Gates: harness **84** tests OK; package **51**, example **6**, app **2,146** tests; `flutter analyze` "No issues found!" in app, package and example; `grep -rn liquid_glass_renderer` in `packages/mobile` (excluding `build/`, `.dart_tool`) matches only the package pubspec's fork-attribution description line.
 
 ---
 

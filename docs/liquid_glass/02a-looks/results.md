@@ -7,13 +7,13 @@ Lab appearance defect (Task 12 rerun): `GlassLabScreen` picked its `DarkSkin`/`L
 | Done item | Result | Evidence |
 |---|---|---|
 | 1 Package: rename, plugin live toggles, gates, no old imports | pass | Task 8 `lab.py a11y`: all 3 modes (reduce-transparency, increase-contrast, reduce-motion) live, no cross-talk; gates green: harness 80 tests OK, package 47 tests, example 6 tests, app 2,146 tests, `flutter analyze` "No issues found!" in app/package/example; `grep -rn liquid_glass_renderer` in `packages/mobile` (excluding build/.dart_tool) matches only `pubspec.yaml`'s fork-attribution description line, no code imports |
-| 2 Example app | pass | run `20260930-082046` builds and runs every scene registered in the manifest; `example/test/lab_test.dart`'s "every manifest scene renders its scene or the missing placeholder" covers the one missing scene (`material.content`); README still pending, due Task 13 |
+| 2 Example app | pass | run `20260930-082046` builds and runs every scene registered in the manifest; `example/test/lab_test.dart`'s "every manifest scene renders its scene or the missing placeholder" covers the one missing scene (`material.content`); README done (commit `4b268b0`) |
 | 3 Material scenes, strict thresholds | 0 of 20 cases pass | `summary-material.md`, run `20260930-082046` |
 | 4 Scroll edge MAD and luminance | 2 of 6 cases pass | run `20260930-082046` (edge scenes) |
 | 5 Reduce Transparency and Increase Contrast | 0 of 20 cases pass | runs `20260930-094506` (RT), `20260930-095626` (IC) |
 | 6 Operator components halve rim and luminance | 18 of 32 measures halved | comparison table below, runs `20260930-104535`/`20260930-105500`/`20260930-105756` (after the lab appearance fix; supersedes `20260930-100915`/`20260930-101816`/`20260930-102112`) |
 | 7 Flip spike | no flip; nothing to build | native small and large glass does not flip between light/dark content in either appearance, at 44 pt or 200 pt (flip-spike.md); the package already draws only the same-appearance material, so B8 needs no 2A implementation |
-| 8 Frame cost within 20% | pass — new 12.36 ms vs old 12.10 ms (+2.2%) | flip-spike.md, `perf.glass` raster mean, well inside the 20% budget |
+| 8 Frame cost within 20% | pass — new 12.36 ms vs old 12.10 ms (+2.2%), at `const LiquidGlassSettings()`, not the tuned material | flip-spike.md, `perf.glass` raster mean, well inside the 20% budget |
 | 9 Documents | done in Task 13 | — |
 
 ## Step 1: Rebuild
@@ -99,10 +99,10 @@ Per-case filmstrips:
 - **dark-stripes**: rim passes (5.80) but mad (8.20) and luminance (4.42) fail — the one case where IC's contrast boost creates a visible tonal difference on a tuned backdrop despite the rim itself matching.
 - **dark-text**: worst dark-mode case (mad 10.70, luminance 8.42, rim 9.66); IC's contrast boost most visibly separates native's and Flutter's text-backdrop dimming here.
 - **dark-white**: mad 10.19/luminance 7.49 fail despite white being a tuned IC backdrop; Flutter's glass reads visibly lighter and less contrasty than native's under IC on white.
-- **light-black**: the only IC case where mad (4.48) and luminance (3.77) also fail alongside rim (23.70); light-mode IC's contrast boost creates a genuine tonal gap on black, not just a rim residual.
+- **light-black**: mad (4.48) and luminance (3.77) also fail alongside rim (23.70) — not the only such case (dark-photo, dark-text, dark-white and light-photo fail all three too); light-mode IC's contrast boost creates a genuine tonal gap on black, not just a rim residual.
 - **light-photo**: worst case in the entire run (mad 13.25, luminance 13.20, rim 16.81) — the filmstrip shows Flutter's top rim as a distinct bright pink/magenta outline that native's softer, yellow-tinted highlight does not show, and Flutter's fill leans more uniformly green/pink than native's warmer, patchier tint.
-- **light-stripes**: rim passes (7.85, narrowly) but mad (8.08) fails while luminance (0.10) passes; a patchy, not systematically brighter or darker, difference across the stripes.
-- **light-text**: mad/luminance/rim all pass; only the shadow-extent box delta (10.0/6.0) keeps this case failing overall.
+- **light-stripes**: rim also fails (7.85, narrowly over the 6.00 threshold), alongside mad (8.08); luminance (0.10) passes — a patchy, not systematically brighter or darker, difference across the stripes.
+- **light-text**: mad (3.63) and luminance (2.86) pass; rim narrowly fails (6.51, over the 6.00 threshold); the shadow-extent box delta (10.0/6.0) also keeps this case failing overall.
 - **light-white**: closest to passing entirely — only box fails (rim 5.64, mad 1.26, luminance 0.54 all pass), the same shadow-extent mechanism as light-white RT.
 
 ## Operator components (Done item 6)
@@ -191,3 +191,5 @@ The rim residual persists at the same magnitude as plain tinted (dark-black 48.8
 `python3 -m unittest discover tool/glass_lab/harness/tests` (from `packages/mobile`): **80 tests, OK.** Harness code was not touched by the lab appearance fix.
 
 The lab appearance fix (`567d0e7ac`) changed `packages/mobile/lib/core/widgets/glass/lab/glass_lab_screen.dart` and added a widget test. App gates for that commit: `flutter analyze` — "No issues found!"; `flutter test` — all tests passed, **2,146** (2,145 before Task 12 plus the one new regression test for this fix).
+
+The final review's fix wave (this branch's head) added tests to the interactive-grouping fix, the widened reduce-transparency/increase-contrast material coverage, and `lab.py`: harness **84** tests OK, package **51** tests, example **6** tests unchanged, app **2,146** tests unchanged; `flutter analyze` "No issues found!" in app, package and example.
