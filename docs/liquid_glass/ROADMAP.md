@@ -1,13 +1,13 @@
 # ios_liquid_glass: master roadmap
 
-Last updated: 2026-09-30. Owner: Omar Aly (the user). This is the single source of truth for the whole Liquid Glass effort. Every other document in `docs/liquid_glass/` hangs off it.
+Last updated: 2026-10-01. Owner: Omar Aly (the user). This is the single source of truth for the whole Liquid Glass effort. Every other document in `docs/liquid_glass/` hangs off it.
 
 **Status at a glance**
 
 | # | Project | Status |
 |---|---|---|
 | 1 | Reference lab (measuring instrument) | **DONE**, merged to `development` (`7f74f5a0b`), not pushed |
-| 2A | Package foundation + how glass looks | **PARTLY DONE**, at the head of branch `feat/ios-liquid-glass-2a` — Done items 3, 4, 5 and 6 failed; awaiting review. |
+| 2A | Package foundation + how glass looks | **PARTLY DONE**, at the head of branch `feat/ios-liquid-glass-2a` — Done items 3, 4, 5 and 6 failed. The 2A review found gaps; 2A.1 is planned in `docs/liquid_glass/02a-looks/plan-2a1.md`, awaiting approval. |
 | 2B | How glass moves | NOT STARTED |
 | 3 | Every iOS component inside the package | NOT STARTED |
 | 4 | Operator adopts the package | NOT STARTED |
@@ -221,7 +221,7 @@ Repository: `/Users/omaraly/development/AI/Operator`. Default branch `developmen
   - Apple prepare taps are not idempotent.
   - `events.count` compares by order only.
 
-### Project 2A: Package foundation + how glass looks (PARTLY DONE, awaiting review)
+### Project 2A: Package foundation + how glass looks (PARTLY DONE; 2A.1 planned)
 - **Spec:** `docs/liquid_glass/02a-looks/spec.md`. Read it for every detail.
 - **Branch:** `feat/ios-liquid-glass-2a`, worktree `/Users/omaraly/development/AI/Operator-ios-liquid-glass`, at its head. Not merged, not pushed.
 - **Plan:** `docs/liquid_glass/02a-looks/plan.md`. Its 13 tasks, in order:
@@ -282,7 +282,8 @@ Repository: `/Users/omaraly/development/AI/Operator`. Default branch `developmen
   - Frame cost was measured with `perf.glass`, which draws every glass at `const LiquidGlassSettings()` (default blur, identity tone curve, no hairline or specular), not the tuned iOS 27 material rows (frost as high as 72 under Reduce Transparency). Add a `perf.material` scene built from `GlassEffect` and measure it.
   - Operator's bottom scroll edges (`lib/core/app_routes/home_shell.dart:147`, `lib/feature/blocks/presentation/blocks_screen/ui/widgets/blocks_body.dart:424`) pass no `style`, so they now use the top-tuned `automatic` row: knee 0 (full-strength dim ~0.57 dark / 0.70 light across the band) and a divider line (0.23 dark / 0.35 light) at the band's inner edge, where before it was a 0.8-knee fade — `blocks_body.dart` overrides `knee` with its own dock-height computation, but keeps `automatic`'s dim and line — until project 3/4 tunes a bottom edge.
 - **Rulings:** the plan's 15 header rulings are in `docs/liquid_glass/02a-looks/plan.md`'s header; every controller ruling made during execution is tracked in `docs/liquid_glass/02a-looks/rulings.md`.
-- **Next:** review here — diff the branch against the plan, rerun every gate, open `results.md` and the filmstrips, fix what is wrong and re-measure, then merge when the user says.
+- **2A review (2026-09-30): the review found gaps; 2A.1 is planned in `docs/liquid_glass/02a-looks/plan-2a1.md`.** The code was sound, but the look failed the spec's thresholds, mostly for tuning-setup reasons: a rim measure that sampled only the centre column, an edge model that could not draw native's edge, a tuner that never saw the shadow tail or the `photo` and `text` backdrops, a sparse scroll edge kernel, the tinted scene's offset, clear glass with a shadow, and an independent code review's four bugs and stale document facts (the plan restates each one). The plan's 10 tasks and 18 rulings come from the prototype `/Users/omaraly/development/AI/Operator-2a1-proto` (`PROTOTYPE-2A1.md`, uncommitted, throwaway).
+- **Next:** the user reviews and approves `plan-2a1.md`; a fresh session then executes it, subagent-driven, on this branch.
 
 ### Project 2B: How glass moves (NOT STARTED)
 - **Scope:**
@@ -446,11 +447,7 @@ Out of scope: iPad and Mac items (sidebar, pointer, iPad tab bar), app icons, wi
 
 ## 9. Exact next steps
 
-1. **Review project 2A here**, against `docs/liquid_glass/02a-looks/results.md`, the reports and the filmstrips:
-   - diff the branch (`feat/ios-liquid-glass-2a`, worktree `../Operator-ios-liquid-glass`) against the plan's code;
-   - rerun every gate;
-   - fix what is wrong and re-measure;
-   - then keep §6, §7 and §8 current with whatever the fix changes.
-2. **Pending user decisions:** whether to push `development`, whether to merge 2A now or after fixing the open items above, and the `material.interactive` decision (§1).
+1. **2A review found gaps; 2A.1 is planned in `docs/liquid_glass/02a-looks/plan-2a1.md`.** The user reviews and approves it; then a fresh session executes it, subagent-driven, on `feat/ios-liquid-glass-2a` (worktree `../Operator-ios-liquid-glass`), and its results go to `docs/liquid_glass/02a-looks/results-2a1.md`.
+2. **Pending user decisions:** approving `plan-2a1.md`, whether to push `development`, whether to merge 2A after 2A.1, and the `material.interactive` decision (§1).
 3. **Merge** into `development` when the user says.
 4. **Next step:** write project 2B's spec (how glass moves), once 2A is merged.
