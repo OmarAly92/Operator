@@ -47,12 +47,14 @@ def launch_folder(udid, target):
     return sim.container(udid, target) / "Documents" / "glass_lab"
 
 
-def write_launch_file(folder, scene_id, backdrop, bare, material=None):
+def write_launch_file(folder, scene_id, backdrop, bare, material=None, material_side=None):
     folder = Path(folder)
     folder.mkdir(parents=True, exist_ok=True)
     payload = {"scene": scene_id, "backdrop": backdrop, "bare": bare}
     if material:
         payload["material"] = material
+    if material and material_side:
+        payload["materialSide"] = material_side
     (folder / LAUNCH_FILE).write_text(json.dumps(payload))
 
 
@@ -60,12 +62,19 @@ def clear_launch_file(folder):
     (Path(folder) / LAUNCH_FILE).unlink(missing_ok=True)
 
 
-def drive(udid, target, scene_id, steps, backdrop, bare, out_dir, settle=1.5, material=None):
+def close_other_apps(udid, target):
+    for bundle in (build.NATIVE_BUNDLE, *build.FLUTTER_TARGETS.values()):
+        if bundle != target:
+            subprocess.run(["xcrun", "simctl", "terminate", udid, bundle], capture_output=True)
+
+
+def drive(udid, target, scene_id, steps, backdrop, bare, out_dir, settle=1.5, material=None, material_side=None):
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
+    close_other_apps(udid, target)
     folder = launch_folder(udid, target) if target in build.FLUTTER_TARGETS.values() and scene_id else None
     if folder:
-        write_launch_file(folder, scene_id, backdrop, bare, material)
+        write_launch_file(folder, scene_id, backdrop, bare, material, material_side)
     env = dict(
         os.environ,
         TEST_RUNNER_GLASS_TARGET=target,

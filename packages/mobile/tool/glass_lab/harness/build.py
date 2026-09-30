@@ -1,3 +1,4 @@
+import hashlib
 import subprocess
 import sys
 from pathlib import Path
@@ -21,6 +22,9 @@ NATIVE_BUNDLE = "dev.operator.glasslab"
 FLUTTER_BUNDLE = "dev.operator.operatorMobile"
 EXAMPLE_BUNDLE = "dev.operator.iosliquidglass.example"
 FLUTTER_TARGETS = {"example": EXAMPLE_BUNDLE, "operator": FLUTTER_BUNDLE}
+PACKAGE_LIB = MOBILE / "packages" / "ios_liquid_glass" / "lib"
+SOURCES = {"example": (PACKAGE_LIB, EXAMPLE / "lib"), "operator": (PACKAGE_LIB, MOBILE / "lib")}
+STAMPS = {"example": EXAMPLE_DATA / "sources.sha256", "operator": FLUTTER_DATA / "sources.sha256"}
 
 
 def stream(args, cwd=None):
@@ -62,12 +66,38 @@ def flutter_app(udid, root, data_path, app_path):
     sim.install(udid, app_path)
 
 
+def sources_hash(roots):
+    digest = hashlib.sha256()
+    for root in roots:
+        for path in sorted(p for p in Path(root).rglob("*") if p.is_file()):
+            digest.update(str(path.relative_to(root)).encode())
+            digest.update(path.read_bytes())
+    return digest.hexdigest()
+
+
+def stamp(target, digest, stamps=None):
+    stamps = stamps or STAMPS
+    stamps[target].parent.mkdir(parents=True, exist_ok=True)
+    stamps[target].write_text(digest + "\n")
+
+
+def require_fresh(target, sources=None, stamps=None):
+    sources, stamps = sources or SOURCES, stamps or STAMPS
+    built = stamps[target].read_text().strip() if stamps[target].exists() else None
+    if built != sources_hash(sources[target]):
+        raise SystemExit(f"the {target} app build is older than its sources; run lab.py build {target} first")
+
+
 def flutter(udid):
+    digest = sources_hash(SOURCES["operator"])
     flutter_app(udid, MOBILE, FLUTTER_DATA, FLUTTER_APP)
+    stamp("operator", digest)
 
 
 def example(udid):
+    digest = sources_hash(SOURCES["example"])
     flutter_app(udid, EXAMPLE, EXAMPLE_DATA, EXAMPLE_APP)
+    stamp("example", digest)
 
 
 def backdrops():

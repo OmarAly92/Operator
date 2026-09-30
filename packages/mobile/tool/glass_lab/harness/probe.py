@@ -9,7 +9,7 @@ import sim
 
 PERF_FILE = "perf.json"
 ACCESSIBILITY_FILE = "accessibility.json"
-PERF_SCENES = ("perf.none", "perf.glass")
+PERF_SCENES = ("perf.none", "perf.glass", "perf.material", "perf.edge")
 FLAGS = {"reduce-transparency": "reduceTransparency", "increase-contrast": "increaseContrast", "reduce-motion": "reduceMotion"}
 
 
@@ -66,14 +66,16 @@ def perf_summary(takes):
             "raster_p90_ms": statistics.median(r["raster_ms"]["p90"] for r in results),
             "build_median_ms": statistics.median(r["build_ms"]["median"] for r in results),
         }
-    if all(scene in summary for scene in PERF_SCENES):
-        summary["glass_cost_ms"] = summary["perf.glass"]["raster_median_ms"] - summary["perf.none"]["raster_median_ms"]
+    if "perf.none" in summary:
+        for scene_id in summary.copy():
+            if scene_id != "perf.none":
+                summary[f"{scene_id.removeprefix('perf.')}_cost_ms"] = summary[scene_id]["raster_median_ms"] - summary["perf.none"]["raster_median_ms"]
     return summary
 
 
-def perf(udid, bundle, takes=3):
-    results = {scene: [] for scene in PERF_SCENES}
-    for scene_id in perf_order(PERF_SCENES, takes):
+def perf(udid, bundle, takes=3, scenes=PERF_SCENES):
+    results = {scene: [] for scene in scenes}
+    for scene_id in perf_order(scenes, takes):
         results[scene_id].append(perf_take(udid, bundle, scene_id))
     return perf_summary(results)
 

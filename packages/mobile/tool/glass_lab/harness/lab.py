@@ -16,6 +16,7 @@ import probe
 import record
 import report
 import sim
+import tonefit
 import tune
 
 RUNS = build.OUT / "runs"
@@ -90,9 +91,12 @@ def appearances_for(value):
 
 
 def cmd_run(args):
-    udid = sim.device()
     scenes = manifest.select(manifest.load(), args.scene)
+    if "flutter" in apps_for(args.app) and any(not scene.native_only for scene in scenes):
+        build.require_fresh(args.flutter)
+    udid = sim.device()
     run_dir = new_run_dir()
+    (run_dir / "run.json").write_text(json.dumps({"flutter": args.flutter, "a11y": args.a11y}))
     run_cases(udid, scenes, apps_for(args.app), appearances_for(args.appearance), args.backdrop, args.a11y, run_dir, args.flutter)
     print(run_dir)
 
@@ -195,7 +199,20 @@ def cmd_repeat(args):
         raise SystemExit(f"static repeatability failed for {', '.join(failed)}")
 
 
+A11Y_ROWS = {"reduce-transparency": "reduceTransparency", "increase-contrast": "increaseContrast"}
+
+
+def tune_row(a11y, row):
+    expected = A11Y_ROWS.get(a11y)
+    if row is None:
+        return expected or "regular"
+    if expected != row and (expected or row in A11Y_ROWS.values()):
+        raise SystemExit(f"--a11y {a11y} renders the {expected or 'plain'} row, not --row {row}")
+    return row
+
+
 def cmd_tune(args):
+    row = tune_row(args.a11y, args.row)
     udid = sim.device()
     scene = manifest.select(manifest.load(), args.scene)[0]
     out = build.OUT / "tune" / time.strftime("%Y%m%d-%H%M%S")
@@ -203,13 +220,18 @@ def cmd_tune(args):
         sim.accessibility(udid, args.a11y)
         summary = tune.run(
             udid, scene, args.appearance, args.backdrops.split(","), tune.parse_params(args.params),
-            args.row, args.size, args.flutter, out, write=args.write, max_passes=args.passes,
-            regions=args.region.split(",") if args.region else (),
+            row, args.size, args.flutter, out, write=args.write, max_passes=args.passes,
+            regions=args.region.split(",") if args.region else (), pad=args.pad,
         )
     finally:
         sim.accessibility(udid, "none")
     print(json.dumps(summary, indent=2))
     print(out)
+
+
+def cmd_tonefit(args):
+    scene = manifest.select(manifest.load(), args.scene)[0]
+    print(json.dumps(tonefit.run_fit(args.run_dir, scene, args.a11y), indent=2))
 
 
 def cmd_flip(args):
@@ -221,9 +243,14 @@ def cmd_flip(args):
 
 
 def cmd_perf(args):
+    build.require_fresh(args.flutter)
     udid = sim.device()
     sim.appearance(udid, args.appearance)
-    summary = probe.perf(udid, build.FLUTTER_TARGETS[args.flutter], args.takes)
+    try:
+        sim.accessibility(udid, args.a11y)
+        summary = probe.perf(udid, build.FLUTTER_TARGETS[args.flutter], args.takes, tuple(args.scenes.split(",")))
+    finally:
+        sim.accessibility(udid, "none")
     text = json.dumps(summary, indent=2)
     print(text)
     if args.out:
@@ -286,14 +313,20 @@ def parser():
     u.add_argument("--appearance", required=True, choices=("light", "dark"))
     u.add_argument("--backdrops", required=True)
     u.add_argument("--params", required=True)
-    u.add_argument("--row", default="regular", choices=("regular", "clear", "tinted", "reduceTransparency", "increaseContrast"))
+    u.add_argument("--row", choices=("regular", "clear", "tinted", "reduceTransparency", "increaseContrast"))
     u.add_argument("--size", type=int, default=88, choices=(44, 88, 200))
     u.add_argument("--region")
+    u.add_argument("--pad", type=int, default=tune.PAD)
     u.add_argument("--a11y", default="none", choices=sim.A11Y_MODES)
     u.add_argument("--flutter", default="example", choices=("example",))
     u.add_argument("--passes", type=int, default=4)
     u.add_argument("--write", action="store_true")
     u.set_defaults(func=cmd_tune)
+    o = commands.add_parser("tonefit")
+    o.add_argument("run_dir")
+    o.add_argument("--scene", default="material.regular")
+    o.add_argument("--a11y", default="none", choices=sim.A11Y_MODES)
+    o.set_defaults(func=cmd_tonefit)
     l = commands.add_parser("flip")
     l.add_argument("run_dir", nargs="?")
     l.add_argument("--regular")
@@ -303,6 +336,8 @@ def parser():
     f.add_argument("--flutter", default="example", choices=tuple(build.FLUTTER_TARGETS))
     f.add_argument("--appearance", default="dark", choices=("light", "dark"))
     f.add_argument("--takes", type=int, default=3)
+    f.add_argument("--scenes", default=",".join(probe.PERF_SCENES))
+    f.add_argument("--a11y", default="none", choices=sim.A11Y_MODES)
     f.add_argument("--out")
     f.set_defaults(func=cmd_perf)
     y = commands.add_parser("a11y")

@@ -30,6 +30,17 @@ class PerfTests(unittest.TestCase):
         self.assertEqual(summary["perf.glass"]["frames"], 300)
         self.assertEqual(summary["glass_cost_ms"], 2.5)
 
+    def test_every_glass_scene_reports_its_cost_over_the_bare_scene(self):
+        summary = probe.perf_summary({
+            "perf.none": [take("perf.none", 2.0)],
+            "perf.glass": [take("perf.glass", 5.0)],
+            "perf.material": [take("perf.material", 6.5)],
+        })
+        self.assertEqual(summary["material_cost_ms"], 4.5)
+        self.assertEqual(summary["glass_cost_ms"], 3.0)
+        self.assertIn("perf.material", probe.PERF_SCENES)
+        self.assertIn("perf.edge", probe.PERF_SCENES)
+
 
 class WaitTests(unittest.TestCase):
     def test_returns_the_first_accepted_value(self):

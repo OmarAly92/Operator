@@ -1,6 +1,8 @@
 import contextlib
 import io
+import json
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -35,17 +37,53 @@ class TuneRejectsOperatorTests(unittest.TestCase):
         self.assertEqual(args.flutter, "example")
 
 
+class TuneRowTests(unittest.TestCase):
+    def test_the_accessibility_mode_picks_its_row(self):
+        self.assertEqual(lab.tune_row("reduce-transparency", None), "reduceTransparency")
+        self.assertEqual(lab.tune_row("increase-contrast", None), "increaseContrast")
+        self.assertEqual(lab.tune_row("none", None), "regular")
+        self.assertEqual(lab.tune_row("none", "tinted"), "tinted")
+        self.assertEqual(lab.tune_row("increase-contrast", "increaseContrast"), "increaseContrast")
+
+    def test_a_row_that_the_accessibility_mode_would_not_render_is_rejected(self):
+        for a11y, row in (("reduce-transparency", "regular"), ("increase-contrast", "reduceTransparency"), ("none", "increaseContrast")):
+            with self.assertRaises(SystemExit):
+                lab.tune_row(a11y, row)
+
+
+class RunFreshnessTests(unittest.TestCase):
+    def test_run_refuses_a_stale_flutter_build_before_touching_the_simulator(self):
+        args = lab.parser().parse_args(["run", "material.regular", "--app", "both"])
+        with mock.patch.object(lab.build, "require_fresh", side_effect=SystemExit("stale")) as fresh, \
+             mock.patch.object(lab.sim, "device") as device:
+            with self.assertRaises(SystemExit):
+                lab.cmd_run(args)
+        fresh.assert_called_once_with("example")
+        device.assert_not_called()
+
+    def test_a_native_only_run_needs_no_flutter_build_and_records_its_target(self):
+        args = lab.parser().parse_args(["run", "material.regular", "--app", "native"])
+        with tempfile.TemporaryDirectory() as temp, \
+             mock.patch.object(lab.build, "require_fresh") as fresh, \
+             mock.patch.object(lab.sim, "device", return_value="udid"), \
+             mock.patch.object(lab, "run_cases"), \
+             mock.patch.object(lab, "new_run_dir", return_value=Path(temp)):
+            lab.cmd_run(args)
+            self.assertEqual(json.loads((Path(temp) / "run.json").read_text()), {"flutter": "example", "a11y": "none"})
+        fresh.assert_not_called()
+
+
 class AccessibilityRestoredOnFailureTests(unittest.TestCase):
     def test_cmd_tune_restores_none_even_when_accessibility_set_fails(self):
         args = mock.Mock(
             scene="material.regular", appearance="dark", backdrops="white", params="frost",
-            row="regular", size=88, flutter="example", passes=4, write=False, region=None, a11y="increaseContrast",
+            row="increaseContrast", size=88, flutter="example", passes=4, write=False, region=None, pad=12, a11y="increase-contrast",
         )
         calls = []
 
         def fake_accessibility(udid, mode):
             calls.append(mode)
-            if mode == "increaseContrast":
+            if mode == "increase-contrast":
                 raise RuntimeError("boom")
 
         with mock.patch.object(lab.sim, "device", return_value="udid"), \
@@ -57,7 +95,7 @@ class AccessibilityRestoredOnFailureTests(unittest.TestCase):
             with self.assertRaises(RuntimeError):
                 lab.cmd_tune(args)
 
-        self.assertEqual(calls, ["increaseContrast", "none"])
+        self.assertEqual(calls, ["increase-contrast", "none"])
 
     def test_run_cases_restores_none_even_when_accessibility_set_fails(self):
         calls = []

@@ -79,28 +79,35 @@ class ClampTests(unittest.TestCase):
         seen = []
 
         def evaluate(material):
-            seen.append(material["toneBlack"])
-            return abs(material["toneBlack"])
+            seen.append(material["outline"])
+            return abs(material["outline"])
 
-        grid = tune.parse_params("toneBlack=0:0.4:5")
-        tune.coordinate_descent(evaluate, grid, {"toneBlack": 0.2})
+        grid = tune.parse_params("outline=0:0.4:5")
+        tune.coordinate_descent(evaluate, grid, {"outline": 0.2})
         self.assertTrue(all(value >= 0.0 for value in seen))
 
-    def test_an_out_of_range_start_is_clamped_before_evaluation_and_before_writing(self):
+    def test_the_start_is_evaluated_as_committed_even_outside_the_range(self):
         seen = []
 
         def evaluate(material):
             seen.append(dict(material))
-            return abs(material["hairlineDark"])
+            return abs(material["outline"] - 1.05)
 
-        grid = tune.parse_params("hairlineDark=0:0.2:3")
-        best, _, _ = tune.coordinate_descent(evaluate, grid, {"hairlineDark": -0.0688})
-        self.assertGreaterEqual(seen[0]["hairlineDark"], 0.0)
-        self.assertGreaterEqual(best["hairlineDark"], 0.0)
+        grid = tune.parse_params("outline=0.6:1.4:5")
+        best, _, _ = tune.coordinate_descent(evaluate, grid, {"outline": 1.05})
+        self.assertEqual(seen[0], {"outline": 1.05})
+        self.assertEqual(best, {"outline": 1.05})
+        self.assertTrue(all(entry["outline"] <= 1.0 for entry in seen[1:]))
+
+    def test_the_ranges_cover_the_shader_domain(self):
+        self.assertEqual(tune.clamp("specular", -0.1), -0.1)
+        self.assertEqual(tune.clamp("toneBlack", -0.0688), -0.0688)
+        self.assertEqual(tune.clamp("toneWhite", 1.4084), 1.4084)
+        self.assertEqual(tune.clamp("shadowOffsetY", -3.0), -3.0)
 
     def test_an_edge_prefixed_field_is_clamped_by_its_field_range(self):
-        self.assertEqual(tune.clamp("edge.hairlineLight", 1.2833), 1.0)
-        self.assertEqual(tune.clamp("hairlineLight", -0.5), 0.0)
+        self.assertEqual(tune.clamp("edge.dim", 1.2833), 1.0)
+        self.assertEqual(tune.clamp("outline", -0.5), 0.0)
 
 
 class ElementTests(unittest.TestCase):
@@ -114,6 +121,10 @@ class ElementTests(unittest.TestCase):
         tinted = scene("material.tinted", regions={"block": [76, 365, 250, 88], "run": [162, 501, 78, 37]})
         self.assertEqual(tune.named_region(tinted, ["block"]), (64, 353, 274, 112))
         self.assertEqual(tune.named_region(tinted, ["block", "run"]), (64, 353, 274, 197))
+
+    def test_a_wider_pad_reaches_the_shadow_tail_and_stops_at_the_screen(self):
+        regular = scene("material.regular", regions={"s200": [21, 465, 360, 200]})
+        self.assertEqual(tune.named_region(regular, ["s200"], pad=60), (0, 405, 402, 320))
 
     def test_keys_material_rows_by_row_and_size_and_edges_by_style(self):
         self.assertEqual(tune.table_key(scene("material.regular"), "dark", "regular", 88), "dark.regular.88")
@@ -152,6 +163,16 @@ class EvaluatorTests(unittest.TestCase):
             self.assertEqual(sent, [{"toneBlack": 0.3, "toneWhite": 0.8}])
             self.assertEqual(evaluate.records[-1]["material"], {"toneBlack": 0.3})
 
+    def test_material_candidates_reach_only_the_tuned_anchor_and_edge_candidates_every_glass(self):
+        for scene_obj, expected in ((scene("material.regular"), 88), (scene("material.edge.hard", regions={"edge": [0, 0, 402, 240]}, track="edge"), None)):
+            for evaluate in self._evaluator(scene_obj, {}):
+                sides = []
+                with mock.patch.object(tune.record, "drive", side_effect=lambda *a, **k: sides.append(k.get("material_side"))), \
+                     mock.patch.object(tune.metrics, "load", return_value=np.zeros((3, 3, 3), dtype=np.float32)), \
+                     mock.patch.object(tune.metrics, "static_compare", return_value={"mad": 0, "luminance": 0, "rim_rms": 0, "centre_pt": 0, "bbox_pt": 0}):
+                    evaluate({"toneBlack": 0.3})
+                self.assertEqual(sides, [expected])
+
     def test_sends_the_whole_scroll_edge_row_merged_with_the_candidate(self):
         edge = scene("material.edge.hard", regions={"edge": [0, 0, 402, 240]}, track="edge")
         row_overrides = {material_table.EDGE_PREFIX + "blur": 4.0, material_table.EDGE_PREFIX + "dim": 0.6}
@@ -163,6 +184,39 @@ class EvaluatorTests(unittest.TestCase):
                 evaluate({material_table.EDGE_PREFIX + "blur": 5.0})
             self.assertEqual(sent, [{material_table.EDGE_PREFIX + "blur": 5.0, material_table.EDGE_PREFIX + "dim": 0.6}])
             self.assertEqual(evaluate.records[-1]["material"], {material_table.EDGE_PREFIX + "blur": 5.0})
+
+
+class EvaluatorElementTests(unittest.TestCase):
+    def test_scores_the_rim_at_the_named_elements_exact_edges(self):
+        regular = scene("material.regular", regions={"s88": [76, 329, 250, 88]})
+        with tempfile.TemporaryDirectory() as out:
+            evaluate = tune.Evaluator("udid", regular, ["black"], 88, "example", out, regions=["s88"], pad=60)
+            image = np.zeros((3, 3, 3), dtype=np.float32)
+            evaluate.references = lambda backdrop: (image, image, image, (16, 269, 370, 208))
+            calls = []
+            stat = {"mad": 0, "luminance": 0, "rim_rms": 0, "centre_pt": 0, "bbox_pt": 0}
+            with mock.patch.object(tune.record, "drive"), \
+                 mock.patch.object(tune.metrics, "load", return_value=image), \
+                 mock.patch.object(tune.metrics, "static_compare", side_effect=lambda *a: calls.append(a) or stat):
+                evaluate({"toneBlack": 0.1})
+        self.assertEqual(calls[0][5], {"s88": (76, 329, 250, 88)})
+
+
+class FreshBuildTests(unittest.TestCase):
+    def test_refuses_a_build_older_than_its_sources_and_accepts_a_fresh_one(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp) / "lib"
+            root.mkdir()
+            (root / "ios27.dart").write_text("a")
+            sources = {"example": (root,)}
+            stamps = {"example": Path(temp) / "out" / "sources.sha256"}
+            with self.assertRaises(SystemExit):
+                tune.build.require_fresh("example", sources, stamps)
+            tune.build.stamp("example", tune.build.sources_hash(sources["example"]), stamps)
+            tune.build.require_fresh("example", sources, stamps)
+            (root / "ios27.dart").write_text("b")
+            with self.assertRaises(SystemExit):
+                tune.build.require_fresh("example", sources, stamps)
 
 
 class TableTests(unittest.TestCase):
