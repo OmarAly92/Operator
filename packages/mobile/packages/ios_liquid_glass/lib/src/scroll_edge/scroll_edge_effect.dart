@@ -50,6 +50,17 @@ class ScrollEdgeEffect extends StatefulWidget {
     return 1 - x * x * (3 - 2 * x);
   }
 
+  static ({double originY, double height}) bandOf({
+    required ScrollEdge edge,
+    required double originY,
+    required double height,
+    required double reach,
+    required double dpr,
+  }) => (
+    originY: edge == ScrollEdge.bottom ? originY + height * dpr * (1 - reach) : originY,
+    height: height * reach * dpr,
+  );
+
   static List<ScrollEdgeLevel> levels({required double blur, required double knee, required double capBlur, required double capExtent}) {
     final bands = <ScrollEdgeLevel>[];
     if (blur > 0) {
@@ -158,11 +169,12 @@ class _ScrollEdgeEffectState extends State<ScrollEdgeEffect> {
     }
     if (_program != null && originY != null) {
       final dpr = MediaQuery.devicePixelRatioOf(context);
+      final band = ScrollEdgeEffect.bandOf(edge: widget.edge, originY: originY, height: widget.height, reach: reach, dpr: dpr);
       final shader = _shaderAt(index)
         ..setFloat(0, 0)
         ..setFloat(1, 0)
-        ..setFloat(2, originY)
-        ..setFloat(3, widget.height * reach * dpr)
+        ..setFloat(2, band.originY)
+        ..setFloat(3, band.height)
         ..setFloat(4, widget.edge == ScrollEdge.top ? 1 : 0)
         ..setFloat(5, knee)
         ..setFloat(6, level.low)

@@ -155,4 +155,19 @@ void main() {
     expect(painter.alphaAt(80, 100), closeTo(0.6, 1e-9));
     expect(painter.alphaAt(100, 100), 0);
   });
+
+  test('a bottom band anchors a reduced ramp at its screen-bottom end and keeps the other cases', () {
+    final bottom = ScrollEdgeEffect.bandOf(edge: ScrollEdge.bottom, originY: 1000, height: 100, reach: 0.9, dpr: 3);
+    expect(bottom.originY, closeTo(1030, 1e-9));
+    expect(bottom.height, closeTo(270, 1e-9));
+    expect(bottom.originY + bottom.height, closeTo(1000 + 300, 1e-9));
+
+    final top = ScrollEdgeEffect.bandOf(edge: ScrollEdge.top, originY: 1000, height: 100, reach: 0.9, dpr: 3);
+    expect(top.originY, 1000);
+    expect(top.height, closeTo(270, 1e-9));
+
+    final full = ScrollEdgeEffect.bandOf(edge: ScrollEdge.bottom, originY: 1000, height: 100, reach: 1, dpr: 3);
+    expect(full.originY, 1000);
+    expect(full.height, 300);
+  });
 }
