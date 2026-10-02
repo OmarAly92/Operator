@@ -7,7 +7,8 @@ Last updated: 2026-10-02. Owner: Omar Aly (the user). This is the single source 
 | # | Project | Status |
 |---|---|---|
 | 1 | Reference lab (measuring instrument) | **DONE**, merged to `development` (`7f74f5a0b`), not pushed |
-| 2A | Package foundation + how glass looks | **PARTLY DONE** — 2A.1 fixes and their review fix wave on the same branch, at the head of `feat/ios-liquid-glass-2a`. After them, Done item 3 passes 10 of 20 cases, item 4 5 of 6, item 5 17 of 20 and item 6 22 of 32 measures; item 8 passes (+4.6%, measured before the fix wave). What still fails is classed in §6 (model work, lab scene, measurement artifacts, tuning objective, Operator components). The work awaits the user's review (`docs/liquid_glass/02a-looks/results-2a1.md`). |
+| 2A | Package foundation + how glass looks | **DONE**, merged to `development` on 2026-10-02 (2A, 2A.1 and the review fix wave). Done item 3 passes 10 of 20 cases, item 4 5 of 6, item 5 17 of 20, item 6 22 of 32 measures, item 8 passes. Results: `docs/liquid_glass/02a-looks/results-2a1.md`. |
+| 2A.2 | Static-look polish (shader residuals) | TODO, not planned: `docs/liquid_glass/02a-looks/todo-2a2.md` |
 | 2B | How glass moves | NOT STARTED |
 | 3 | Every iOS component inside the package | NOT STARTED |
 | 4 | Operator adopts the package | NOT STARTED |
@@ -232,9 +233,10 @@ Repository: `/Users/omaraly/development/AI/Operator`. Default branch `developmen
   - Apple prepare taps are not idempotent.
   - `events.count` compares by order only.
 
-### Project 2A: Package foundation + how glass looks (PARTLY DONE; 2A.1 executed, awaiting review)
+### Project 2A: Package foundation + how glass looks (DONE, merged 2026-10-02)
 - **Spec:** `docs/liquid_glass/02a-looks/spec.md`. Read it for every detail.
-- **Branch:** `feat/ios-liquid-glass-2a`, worktree `/Users/omaraly/development/AI/Operator-ios-liquid-glass`, at its head. Not merged, not pushed.
+- **Branch:** `feat/ios-liquid-glass-2a`, merged into `development` and pushed on 2026-10-02.
+- **What is left:** `docs/liquid_glass/02a-looks/todo-2a2.md` lists every residual by cause (shader work for a 2A.2 round, measurement noise, lab scene, a spec decision, and Operator component items for projects 3 and 4).
 - **Plan:** `docs/liquid_glass/02a-looks/plan.md`; the 2A.1 fix round has its own, `docs/liquid_glass/02a-looks/plan-2a1.md`. Plan.md's 13 tasks, in order:
   1. rename;
   2. plugin;
@@ -548,7 +550,6 @@ After the review fix wave (runs `20261002-200447` to `20261002-210140`; the firs
 
 ## 9. Exact next steps
 
-1. **2A.1 and its review fix wave are executed and await the user's review.** The results are in `docs/liquid_glass/02a-looks/results-2a1.md` and the tuning log in `docs/liquid_glass/02a-looks/tuning-log-2a1.md`; the open items that remain are listed in §6 under 2A.1, each with its cause class.
-2. **Pending user decisions:** the review of 2A.1, whether to merge 2A (branch `feat/ios-liquid-glass-2a`, worktree `../Operator-ios-liquid-glass`) into `development`, whether to push `development`, and the `material.interactive` decision (§1).
-3. **Merge** into `development` when the user says.
-4. **Next step:** write project 2B's spec (how glass moves), once 2A is merged.
+1. **Project 2B (how glass moves): write the spec.** Use brainstorming, then the user approves the written spec, then the plan is prototyped and written as for 2A. Start from §6 "Project 2B" and the measured native springs in §8.
+2. **2A.2 (static-look polish)** is a TODO list, not yet planned: `docs/liquid_glass/02a-looks/todo-2a2.md`. The user decides when, likely alongside project 3, since the tinted rings are a prominent-button detail.
+3. **Pending user decision:** native `material.interactive` (§1).
