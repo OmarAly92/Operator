@@ -1,13 +1,13 @@
 # ios_liquid_glass: master roadmap
 
-Last updated: 2026-10-01. Owner: Omar Aly (the user). This is the single source of truth for the whole Liquid Glass effort. Every other document in `docs/liquid_glass/` hangs off it.
+Last updated: 2026-10-02. Owner: Omar Aly (the user). This is the single source of truth for the whole Liquid Glass effort. Every other document in `docs/liquid_glass/` hangs off it.
 
 **Status at a glance**
 
 | # | Project | Status |
 |---|---|---|
 | 1 | Reference lab (measuring instrument) | **DONE**, merged to `development` (`7f74f5a0b`), not pushed |
-| 2A | Package foundation + how glass looks | **PARTLY DONE**, at the head of branch `feat/ios-liquid-glass-2a` — Done items 3, 4, 5 and 6 failed. The 2A review found gaps; 2A.1 is planned in `docs/liquid_glass/02a-looks/plan-2a1.md`, awaiting approval. |
+| 2A | Package foundation + how glass looks | **PARTLY DONE** — 2A.1 fixes on the same branch, at the head of `feat/ios-liquid-glass-2a`. After 2A.1, Done item 3 passes 9 of 20 cases, item 4 5 of 6, item 5 16 of 20 and item 6 22 of 32 measures; item 8 passes (+4.6%). The work awaits the user's review (`docs/liquid_glass/02a-looks/results-2a1.md`). |
 | 2B | How glass moves | NOT STARTED |
 | 3 | Every iOS component inside the package | NOT STARTED |
 | 4 | Operator adopts the package | NOT STARTED |
@@ -65,7 +65,7 @@ Repository: `/Users/omaraly/development/AI/Operator`. Default branch `developmen
 | `packages/ios_liquid_glass/lib/src/material/` | `GlassMaterial`, the tuned `ios27Table` (`ios27.dart`), `ScrollEdgeMaterial`, the tuned `ios27ScrollEdgeTable` (`ios27_scroll_edge.dart`), `GlassMaterialOverride`. Tables are written only by `lab.py tune --write`, never by hand. |
 | `packages/ios_liquid_glass/lib/src/accessibility/` | `GlassAccessibility`, the static `ValueNotifier` bridge to the iOS plugin |
 | `packages/ios_liquid_glass/lib/src/scroll_edge/` | `ScrollEdgeEffect`, `ScrollUnderBars`, moved from Operator in 2A |
-| `packages/ios_liquid_glass/lib/assets/shaders/` | `liquid_glass_geometry_blended.frag` (SDF geometry and blending, cached, unchanged), `liquid_glass_final_render.frag` (the iOS 27 model: rim-only dispersion, three-point tone curve, tint range, adaptive hairline, two-lobe specular), `sdf.glsl`, `displacement_encoding.glsl`, `fake_glass_color.frag`, `scroll_edge_blur.frag`. `render.glsl` is deleted (2A). |
+| `packages/ios_liquid_glass/lib/assets/shaders/` | `liquid_glass_geometry_blended.frag` (SDF geometry and blending, cached; since 2A.1 it encodes the signed distance to the silhouette and an outline band outside it), `liquid_glass_final_render.frag` (the iOS 27 model: rim-only dispersion, three-point tone curve, tint range, crisp silhouette, outer outline, line and sheen), `sdf.glsl`, `displacement_encoding.glsl`, `fake_glass_color.frag`, `scroll_edge_mask.frag` (replaced `scroll_edge_blur.frag` in 2A.1). `render.glsl` is deleted (2A). |
 | `packages/ios_liquid_glass/ios/` | The iOS plugin, reports Reduce Transparency live |
 | `packages/ios_liquid_glass/example/` | A plain Flutter app that uses only the package; the lab's Flutter target |
 | `packages/ios_liquid_glass/FORK.md` | Every change made to upstream. Upstream is `whynotmake-it/flutter_liquid_glass`, vendored at `ad3bcff` (2026-04-24), MIT, by Tim Lehmann. Keep `LICENSE` and credit forever. |
@@ -90,7 +90,7 @@ Repository: `/Users/omaraly/development/AI/Operator`. Default branch `developmen
 | `tool/glass_lab/noise.json` | Native-vs-native motion noise floor (committed) |
 | `tool/glass_lab/native/` | `gen_project.py` → `GlassLab.xcodeproj`. `GlassLab/` is the SwiftUI iOS 27 catalog (bundle `dev.operator.glasslab`). `GlassLabDriver/` is the XCUITest driver. |
 | `tool/glass_lab/backdrops/generate.py` | Deterministic backdrops (stripes, photo, white, black, text, scroll), generated into `build/glass_lab/backdrops/` and never committed |
-| `tool/glass_lab/harness/` | `lab.py` CLI; `manifest, sim, build, record, analyze, align, metrics, springfit, report` modules; `tests/` (45 unittest tests) |
+| `tool/glass_lab/harness/` | `lab.py` CLI; `manifest, sim, build, record, analyze, align, metrics, springfit, report, tune, tonefit, probe, flip, material_table` modules; `tests/` (104 unittest tests) |
 | `build/glass_lab/` | Build output and runs (git-ignored). The project 1 baseline run lives **in the worktree** `/Users/omaraly/development/AI/Operator-glass-lab/packages/mobile/build/glass_lab/runs/20260927-035111/` (report.html inside); the repeat takes are in `.../runs/20260927-024701/`. |
 
 ### Documents
@@ -103,6 +103,7 @@ Repository: `/Users/omaraly/development/AI/Operator`. Default branch `developmen
 | `docs/liquid_glass/research/operator-audit.md` | Every Operator screen and the component each uses (the input to project 4) |
 | `docs/liquid_glass/01-reference-lab/spec.md`, `plan.md`, `baseline.md` | Project 1 |
 | `docs/liquid_glass/02a-looks/spec.md`, `plan.md` | Project 2A spec and plan. The plan's header lists 15 rulings that refine the spec, each with its evidence. |
+| `docs/liquid_glass/02a-looks/plan-2a1.md`, `results-2a1.md`, `tuning-log-2a1.md` | The 2A.1 fix round: its plan (18 rulings), the measured results against iOS 27, and the tuning log of every `tune` step with its folder. |
 | `docs/superpowers/specs/2026-09-23-mobile-liquid-glass-engine-design.md`, `2026-09-24-mobile-glass-chrome-design.md`, `2026-09-24-mobile-sheets-design.md` (+ plans and reports in `docs/superpowers/`) | History: the first engine and chrome work on iOS 26.5, before this roadmap |
 
 ### Worktrees
@@ -128,18 +129,20 @@ Repository: `/Users/omaraly/development/AI/Operator`. Default branch `developmen
   - `lab.py build [native|example|operator|all]`, then `lab.py prepare`;
   - `lab.py run <scene|group|prefix|all> [--app native|flutter|both] [--appearance light|dark|both] [--backdrop id] [--a11y none|reduce-transparency|increase-contrast|reduce-motion] [--flutter example|operator]`;
   - `lab.py report [run]`, `lab.py summary <out.md> [run]`, `lab.py repeat [scene]`, `lab.py geometry <scene>`;
-  - `lab.py tune` (searches material parameters against native, `--write` updates the package's tables);
-  - `lab.py perf [--takes 3] [--out file]` (raster time, `perf.none`/`perf.glass` in the example app);
+  - `lab.py tonefit <run> [--a11y MODE]` (fits the three tone points from native captures alone);
+  - `lab.py tune [--pad N]` (searches material parameters against native, `--write` updates the package's tables; `--pad` is the region padding in points, 12 by default, 60 for shadow steps);
+  - `lab.py perf [--takes 3] [--scenes a,b] [--a11y MODE] [--out file]` (raster time of `perf.none`, `perf.glass`, `perf.material` and `perf.edge` in the example app);
+  - `tune`, `run` and `perf` refuse a stale build: run `lab.py build example` first;
   - `lab.py a11y` (drives all three accessibility modes live against a running app);
   - `lab.py flip [run] --regular run` (checks whether native glass flips light/dark with its backdrop);
   - `lab.py baseline [--flutter example|operator]`, which takes about 4 h, so run it in the background.
 
   Each case takes about 36 s. A driver failure no longer stalls for 600 s, because the harness passes `-collect-test-diagnostics never`.
 - **Gates:**
-  - App, from `packages/mobile`: `flutter analyze` must print "No issues found!", and `flutter test` must be green (**2,146** tests as of 2A);
-  - Package, from `packages/mobile/packages/ios_liquid_glass`: `flutter analyze`, `flutter test` (**47** tests);
-  - Example, from `packages/mobile/packages/ios_liquid_glass/example`: `flutter analyze`, `flutter test` (**6** tests);
-  - `python3 -m unittest discover tool/glass_lab/harness/tests` must print OK (**80** tests as of 2A).
+  - App, from `packages/mobile`: `flutter analyze` must print "No issues found!", and `flutter test` must be green (**2,146** tests after 2A.1);
+  - Package, from `packages/mobile/packages/ios_liquid_glass`: `flutter analyze`, `flutter test` (**63** tests after 2A.1);
+  - Example, from `packages/mobile/packages/ios_liquid_glass/example`: `flutter analyze`, `flutter test` (**8** tests after 2A.1);
+  - `python3 -m unittest discover tool/glass_lab/harness/tests` must print OK (**104** tests after 2A.1).
 
 ---
 
@@ -168,12 +171,20 @@ Repository: `/Users/omaraly/development/AI/Operator`. Default branch `developmen
 18. **Detected glass boxes miss light glass on white.** Only the end caps show. Score pinned manifest regions instead.
 19. **Name clash:** Operator has a `GlassScope`, so the package's inherited widget is `GlassEffectScope`.
 20. **Native `.glassEffect()` glass does not flip light/dark with the content behind it** on the iOS 27 simulator, at 44 or 200 pt (2A flip spike).
-21. **The material tables are Dart compiled into the apps.** `tune` must send the whole current table row (edge rows with the `edge.` prefix) merged with each candidate, not just the candidate, or later steps score against the stale compiled seed instead of earlier steps' writes; and `run`/`tune` against the example or Operator app needs a rebuild first, because a stale build still has the old table compiled in (commit `4b096dd`; Task 11 Group A redo).
+21. **The material tables are Dart compiled into the apps.** `tune` must send the whole current table row (edge rows with the `edge.` prefix) merged with each candidate, not just the candidate, or later steps score against the stale compiled seed instead of earlier steps' writes (commit `4b096dd`; Task 11 Group A redo). `tune`, `run` and `perf` refuse a stale build, so rebuild with `lab.py build example` before every step, including after the previous `tune --write` (2A.1).
 22. **`tune`'s start value and final refinement value can escape a parameter's physical range.** Before commit `380e328` clamped every value `tune` sends or writes (start, grid, refinement) to a per-field range, an unclamped narrowed rerun wrote values like `toneBlack -0.0688` and `dark.tinted.44`'s `specular -0.1` to the committed tables.
 23. **Operator's debug lab must give the glass the lab's own appearance, not the app's.** `GlassLabScreen` picked its `DarkSkin`/`LightSkin` from platform brightness but never provided a matching `GlassTheme`, so the glass kept reading the app-root `GlassTheme` (light, from `SkinCubit`'s default) regardless of which appearance the lab was running — dark lab runs measured the wrong, light material rows. Fixed by wrapping the lab scene in its own `GlassTheme` matching the lab's chosen skin (commit `567d0e7`).
 24. **Native `.scrollEdgeEffectStyle(.hard)` and `.automatic` are pixel-identical** in the edge scenes on the iOS 27 simulator — own captures, byte-identical (Task 11 Group F review). `automatic` resolves to `hard` here.
-25. **`material.regular`'s report `bbox_pt`/`centre_pt` measure the 200 pt glass's shadow extent, not a placement error**, on every backdrop except black. The scene has no `track`, so `analyze.region_for` pads the union of detected boxes and the box detector finds native's soft shadow tail as part of the glass; Task 11's pinned tuning regions (`s88`, `s200` padded by 12) clipped both shadow halos and never saw this residual during tuning (`results.md`, Done item 3).
+25. **`material.regular`'s report `bbox_pt`/`centre_pt` measure the 200 pt glass's shadow extent, not a placement error**, on every backdrop except black. The scene has no `track`, so `analyze.region_for` pads the union of detected boxes and the box detector finds native's soft shadow tail as part of the glass; Task 11's pinned tuning regions (`s88`, `s200` padded by 12) clipped both shadow halos and never saw this residual during tuning (`results.md`, Done item 3). Fixed in 2A.1 by the shadow fit and `--pad 60`.
 26. **`lab.py run` only records; `lab.py report <run>` analyses.** A run folder with no `report.html` has not been analysed yet — run `report` on it explicitly before reading pass/fail counts.
+27. **`ShaderMask` (and any save layer) over a `BackdropFilter` renders no blur under Impeller.** Mask a backdrop blur with `ImageFilter.compose(outer: ImageFilter.shader(mask), inner: ImageFilter.blur(...))`, which the backdrop filter draws source-over (2A.1 prototype `20260930-181321`).
+28. **A lab app launched while another lab app is still running can show iOS's "◀ App" back link under the clock.** The harness closes the other lab apps before every capture (2A.1).
+29. **Native iOS 27 glass edges:** a crisp silhouette pixel, a dark outline just outside the silhouette that is strongest where the normal is horizontal (none at the top in dark appearance), a bright line and a sheen inside at the top and bottom only, and no inner hairline. The 2A anti-aliasing faded the silhouette pixel to 26 where native reads 95 (2A.1).
+30. **Native shadows are one Gaussian:** sigma 17 pt and offset 8 pt at 200 pt (opacity 0.16–0.18 dark, 0.12 light), sigma 6–7 pt at 88, about 2.5 pt at 44. Clear glass casts none (2A.1).
+31. **Native capsules have continuous corners.** At 200 pt the flat top starts about 19 pt later than a circle-ended capsule, and the edge sits up to 1.3 pt lower near the arc start; the package's capsule is circle-ended. Not fixed (see §6).
+32. **Never `ceil()` a pixel-snapped extent.** Floating point makes 760 px into 760.0000000000001 and the geometry image one pixel too big, which drops the last lit column and row of glass at fractional positions (2A.1, `toPixelCount`).
+33. **A `saveLayer` per shadow is expensive under Impeller.** Thirteen offset shadows cut out with `saveLayer` + `dstOut` measured 14.72 ms raster median on the simulator against 12.62 ms with shadows off (2.1 ms); a difference clip measured 13.04 ms (0.4 ms) (2A.1 prototype, `perf-2a1.json`).
+34. **Native tone points can be read off native captures alone** (`lab.py tonefit`). Tune tone on all five backdrops, never on three: 2A's light rows missed `photo` by 20–35 luma (2A.1).
 
 ---
 
@@ -221,10 +232,10 @@ Repository: `/Users/omaraly/development/AI/Operator`. Default branch `developmen
   - Apple prepare taps are not idempotent.
   - `events.count` compares by order only.
 
-### Project 2A: Package foundation + how glass looks (PARTLY DONE; 2A.1 planned)
+### Project 2A: Package foundation + how glass looks (PARTLY DONE; 2A.1 executed, awaiting review)
 - **Spec:** `docs/liquid_glass/02a-looks/spec.md`. Read it for every detail.
 - **Branch:** `feat/ios-liquid-glass-2a`, worktree `/Users/omaraly/development/AI/Operator-ios-liquid-glass`, at its head. Not merged, not pushed.
-- **Plan:** `docs/liquid_glass/02a-looks/plan.md`. Its 13 tasks, in order:
+- **Plan:** `docs/liquid_glass/02a-looks/plan.md`; the 2A.1 fix round has its own, `docs/liquid_glass/02a-looks/plan-2a1.md`. Plan.md's 13 tasks, in order:
   1. rename;
   2. plugin;
   3. final render model;
@@ -267,23 +278,57 @@ Repository: `/Users/omaraly/development/AI/Operator`. Default branch `developmen
   7. Flip spike — no native flip; nothing to build; needs no 2A implementation.
   8. Frame cost within 20% — pass, new 12.36 ms vs old 12.10 ms (+2.2%), measured at `const LiquidGlassSettings()`, not the tuned material.
   9. Documents — done in Task 13.
-- **Open items** (every failing case from `results.md`, plus carried-forward decisions):
-  - **`material.regular`** (10 of 10 fail): a crisp bright rim where native shows a soft diagonal highlight, worse in light appearance (dark-black rim 8.26, light-black 17.70); on every backdrop but black, `bbox_pt`/`centre_pt` fail because the scored box is native's *shadow extent*, not a placement difference — native's shadow is a long soft halo (reaches 0 by ~46 pt below the glass edge on dark-white), Flutter's is short and comparatively abrupt (reaches 0 by ~15 pt); `light-photo` is an untested backdrop combination (Group A/B tuning used `stripes,white,black` only) and fails mad/luminance/rim on top of the shadow-extent box delta.
-  - **`material.clear`** (4 of 4 fail): the same inherited rim residual as `material.regular`; Flutter's clear glass casts a visible drop shadow (copied from `material.regular`, offsetY 6.5) that native's clear glass does not, extending Flutter's box 6–9 pt past native's on every backdrop but black; `light-photo`'s refraction visibly blurs shapes behind the glass where native keeps them crisp.
-  - **`material.tinted`** (6 of 6 fail): every case fails `rim_rms`, dominated by a 2–3 pt vertical placement offset in the example app's tinted scene between native and Flutter, which shifts `rim_profile`'s sample column off native's brighter top-edge glint — not a missing gloss highlight on the "Run" swatch.
-  - **`material.edge`** (4 of 6 fail): the soft scroll edge over-dims with a moiré texture in the blur band (likely blur aliasing), worse in dark (mad 21.27) than light (5.67); hard/automatic dark-scroll narrowly fail (mad 4.56, `automatic` uses the hard-style search so shares hard's residual); hard/automatic light-scroll pass.
-  - **Reduce Transparency** (10 of 10 fail) and **Increase Contrast** (10 of 10 fail): mostly the same rim and shadow-extent residuals as plain `material.regular`, plus `photo`/`text` backdrops that were never part of either accessibility mode's tuning grid; IC additionally fails mad/luminance on `white` and `stripes`, which *were* tuned, so IC's regression is not confined to untested backdrops.
-  - **Operator components** (14 of 32 measures not halved, all `rim_rms` except two `navbar.inline`/`tabbar.rest` `luminance` cases): flutter's glass icons and button labels pick up Operator's green accent colour where native's stay neutral white or black, flutter's opaque circular nav back button reads more saturated than native's translucent one, and `navbar.inline dark-black`'s residual is shape (native's trailing group is a clean capsule; Flutter's bell/more group fuses into a "peanut") rather than tint.
-  - The example app's tinted scene is misaligned with native: the 88 pt tinted block sits 2 pt higher than native (`flutter_box` y 363 vs native y 365, `results.md` Done item 3), and the "Run" capsule misses by 4–6 pt; every tinted row (including dark.tinted.44's specular −0.1) was tuned against this offset. First 2B lab session: re-geometry the scene against native (`lab.py geometry material.tinted`), rebuild, retune tinted D2/D3, re-verify.
+- **Open items from 2A** (2A's per-scene failure lists in `results.md` are superseded by 2A.1's results below; what still fails is in the 2A.1 subsection):
+  - **Operator components** (10 of 32 measures not halved after 2A.1, all `rim_rms` except `navbar.inline light-black` and `tabbar.rest light-stripes` luminance): Flutter's glass icons and button labels pick up Operator's green accent colour where native's stay neutral white or black, Flutter's trailing nav group is a figure-8 where native's is one capsule, and the button is shorter than native's. Operator component code, which project 3 replaces.
   - Native `material.interactive` shows no press reaction on the simulator (pending decision, §1).
   - Swift Package Manager support (plan ruling 13): a follow-up, not enabled globally.
-  - Adaptive shadow (plan ruling 15): the shadow is static in 2A, fitted on `white` and `text`; the flip spike built no backdrop readback, so this moves to project 3.
-  - `FakeGlass` tone (plan ruling 14): `FakeGlass` keeps upstream's look in 2A; it gets the tone curve when a project 3 component needs a non-shader fallback.
-  - Frame cost was measured with `perf.glass`, which draws every glass at `const LiquidGlassSettings()` (default blur, identity tone curve, no hairline or specular), not the tuned iOS 27 material rows (frost as high as 72 under Reduce Transparency). Add a `perf.material` scene built from `GlassEffect` and measure it.
-  - Operator's bottom scroll edges (`lib/core/app_routes/home_shell.dart:147`, `lib/feature/blocks/presentation/blocks_screen/ui/widgets/blocks_body.dart:424`) pass no `style`, so they now use the top-tuned `automatic` row: knee 0 (full-strength dim ~0.57 dark / 0.70 light across the band) and a divider line (0.23 dark / 0.35 light) at the band's inner edge, where before it was a 0.8-knee fade — `blocks_body.dart` overrides `knee` with its own dock-height computation, but keeps `automatic`'s dim and line — until project 3/4 tunes a bottom edge.
+  - Adaptive shadow (plan ruling 15): the shadow is static, since 2A.1 fitted to native's whole tail on `white`, `text` and `photo`; the flip spike built no backdrop readback, so adapting it moves to project 3.
+  - `FakeGlass` tone (plan ruling 14): `FakeGlass` keeps upstream's look; it gets the tone curve when a project 3 component needs a non-shader fallback.
 - **Rulings:** the plan's 15 header rulings are in `docs/liquid_glass/02a-looks/plan.md`'s header; every controller ruling made during execution is tracked in `docs/liquid_glass/02a-looks/rulings.md`.
-- **2A review (2026-09-30): the review found gaps; 2A.1 is planned in `docs/liquid_glass/02a-looks/plan-2a1.md`.** The code was sound, but the look failed the spec's thresholds, mostly for tuning-setup reasons: a rim measure that sampled only the centre column, an edge model that could not draw native's edge, a tuner that never saw the shadow tail or the `photo` and `text` backdrops, a sparse scroll edge kernel, the tinted scene's offset, clear glass with a shadow, and an independent code review's four bugs and stale document facts (the plan restates each one). The plan's 10 tasks and 18 rulings come from the prototype `/Users/omaraly/development/AI/Operator-2a1-proto` (`PROTOTYPE-2A1.md`, uncommitted, throwaway).
-- **Next:** the user reviews and approves `plan-2a1.md`; a fresh session then executes it, subagent-driven, on this branch.
+- **2A review (2026-09-30):** the code was sound, but the look failed the spec's thresholds, mostly for tuning-setup reasons. 2A.1 (below) is the fix round. Its plan is `docs/liquid_glass/02a-looks/plan-2a1.md` (10 tasks, 18 rulings), its prototype `/Users/omaraly/development/AI/Operator-2a1-proto` (`PROTOTYPE-2A1.md`, uncommitted, throwaway), its results `docs/liquid_glass/02a-looks/results-2a1.md` and its tuning log `docs/liquid_glass/02a-looks/tuning-log-2a1.md`.
+- **Next:** the user reviews 2A.1 and decides the merge (§9).
+
+#### 2A.1: the 2A review's fix round (executed; awaiting the user's review)
+
+Same branch, `feat/ios-liquid-glass-2a`. The review's findings, one line each:
+1. The rim measure sampled only the centre column; it now scores all four sides of every pinned glass at its exact edge, never looser than 2A's.
+2. The edge model could not draw native's edge; it is now a crisp silhouette, a dark outline outside it that is strongest at the curved ends, and a line and sheen at the top and bottom.
+3. The tuner never saw native's long shadow tail; the shadow is fitted to it and tuned with `--pad 60`.
+4. Tone was tuned on three backdrops and `photo` and `text` were never seen; tone points come from `lab.py tonefit` and every row is tuned on five backdrops.
+5. The tinted scene was offset from native (the Run button was 86 × 40 pt, native's is 78 × 37) and lab scenes did not centre on whole points; both are fixed.
+6. Clear glass cast a shadow; it casts none.
+7. The scroll edge used a sparse 7 × 7 kernel; it stacks real Gaussians behind a small mask shader.
+8. The independent code review's bugs and stale document facts: stale builds scored as current, `Glass.clear.tint(c)` tinted under Reduce Transparency and Increase Contrast, `tune` starts and refinements escaped their ranges, `--a11y` and `--row` mismatches, Operator's bottom edges used the top-tuned row, and stale facts in the package documents (all fixed).
+9. Frame cost was measured only at `const LiquidGlassSettings()`; `perf.material` now measures the tuned material, and the shadow cut-out is a clip instead of a `saveLayer`.
+
+**Results** (`results-2a1.md`; the strict thresholds are unchanged, the rim measure is the new one):
+
+| Done item | 2A | 2A.1 |
+|---|---|---|
+| 3 Material scenes, strict thresholds | 0 of 20 | **9 of 20** (`material.regular` 8 of 10, `.clear` 1 of 4, `.tinted` 0 of 6) |
+| 4 Scroll edge MAD and luminance | 2 of 6 | **5 of 6** (soft light MAD 4.07 > 4.00) |
+| 5 Reduce Transparency and Increase Contrast | 0 of 20 | **16 of 20** (Reduce Transparency 7 of 10, Increase Contrast 9 of 10) |
+| 6 Operator components halve rim and luminance | 18 of 32 | **22 of 32** (10 not halved) |
+| 8 Frame cost within 20% | +2.2% at default settings | **pass**: `perf.material` 12.659 ms against 12.10 ms, +4.6% (budget 14.52 ms); ratio method +2.6% |
+
+Items 3, 4 and 5 did not reach their targets. Item 6 was never expected to reach 32. Item 8 passes. `perf.edge` (a soft scroll edge) costs 4.976 ms over `perf.none` (5.816 ms raster median); the spec sets no budget for it, so project 5's device check records it.
+
+Done items still failing, from `results-2a1.md`: `material.regular` `dark-text` (rim_rms 10.18) and `light-photo` (bbox_pt 2.00); `material.clear` `dark-photo`, `dark-white` and `light-photo`; all six `material.tinted` cases (rim_rms 9.04 to 24.35); soft light scroll edge; Reduce Transparency `dark-stripes` (MAD 4.11), `light-photo` (bbox_pt 2.00) and `light-text` (rim_rms 7.90); Increase Contrast `light-photo` (bbox_pt 2.00).
+
+**Open items that remain** (from 2A.1):
+- The continuous-corner capsule (gotcha 31): needs a new SDF; not built.
+- A measured bottom scroll edge: no native bottom edge is measured and the lab has no bottom-edge scene, so Operator's bottom edges use `soft` until project 3 measures one.
+- Operator's accent-tinted icons in `navbar.inline` (and the trailing group's figure-8 shape): Operator component code, replaced in project 3 and 4.
+- `material.interactive`: pending decision (§1).
+- Dark clear glass edge: ours is too dark at the curved ends (white plain top row: native min luma 179, ours 64), and the plan's outline grid floor is 0.55 (`tune/20261001-182137`).
+- Dark clear glass over-frosts `photo` (MAD 8.72, rim 16.18): MAD falls as frost drops (14.2 gives 7.53, 25.56 gives 8.78), and the plan's frost grid floor is 14.2 (`tune/20261001-192958`).
+- The tinted Run button's play glyph is about 30 pt tall against native's 41, in the example app's lab scene, so Run MAD is glyph-dominated and does not respond to tint, specular, sheen or outline (`tune/20261001-233007`, `tune/20261002-020214`).
+- The light tinted block's edge rim is about 10 to 12 (12.35 on `light-black`, 8.69 on `light-white` in run `20261002-151504`; 12.39 and 10.73 in `tune/20261002-004439`), from the edge model's top ramp: native's top edge starts 2 px higher and ramps in over three rows, ours is a single hard step.
+- Dark Reduce Transparency keeps too much stripe hue: stripes MAD 4.11 over the scene and 5.08 over the 200 pt region (run `20261002-152923`), 7.34 at 200 pt in `tune/20261002-060153`.
+- Soft light scroll edge MAD is 4.07 (run `20261002-152214`). `tune`'s summed objective preferred it over nearby candidates that passed both measures, e.g. dim 0.315 at MAD 3.999 and luminance 0.11 (`tune/20261002-141622`).
+- Lab driver: two `xcodebuild` crashes with an empty `driver.log` during the campaign, both on the `photo` backdrop and retried by hand (`tune/20261002-035550`, `tune/20261002-072028`).
+- Lab harness: `baseline` and `repeat` lack the freshness guard that `tune`, `run` and `perf` have.
+
 
 ### Project 2B: How glass moves (NOT STARTED)
 - **Scope:**
@@ -336,23 +381,23 @@ Source: `research/apple-inventory.md` §1, which has 80 rows. The table lists th
 
 | Item (inventory §) | Lab scene | Project | Package |
 |---|---|---|---|
-| Regular glass (2.1) | material.regular | 2A | no (0 of 10 cases pass — results.md) |
-| Clear glass + 35% dimming (2.2) | material.clear | 2A | no (0 of 4 cases pass — results.md) |
+| Regular glass (2.1) | material.regular | 2A | partly (8 of 10 cases pass — results-2a1.md) |
+| Clear glass + 35% dimming (2.2) | material.clear | 2A | partly (1 of 4 cases pass — results-2a1.md) |
 | Identity glass (2.3) | none | 2A | partly (`Glass.identity` implemented; no native lab scene to measure) |
-| Tinted glass (2.4) | material.tinted | 2A | no (0 of 6 cases pass — results.md) |
+| Tinted glass (2.4) | material.tinted | 2A | no (0 of 6 cases pass, rim only — results-2a1.md) |
 | Interactive press (2.5) | material.interactive, button.press | 2B | no |
-| Lensing / edge refraction (2.6) | material.* | 2A | partly (thickness/refractive index tuned; rim residual remains — results.md) |
-| Specular rim, dark iOS 27 hairline (2.7) | material.* | 2A | no (rim_rms residual on every case — results.md) |
-| Adaptive shadow (2.8) | material.* on white and text | 2A | no (static shadow in 2A, deferred to project 3 — plan ruling 15) |
+| Lensing / edge refraction (2.6) | material.* | 2A | partly (thickness/refractive index tuned on five backdrops; residuals in results-2a1.md) |
+| Specular rim, dark iOS 27 outline, line and sheen (2.7) | material.* | 2A | partly (the iOS 27 edge model; rim passes on regular 9 of 10 cases, clear and tinted residuals — results-2a1.md) |
+| Adaptive shadow (2.8) | material.* on white and text | 2A | partly (static shadow fitted to native's whole tail in 2A.1; adapting it is project 3 — plan ruling 15) |
 | Light/dark flip of small glass (2.9) | material.flip | 2A (spike) | no native flip on iOS 27 simulator (flip-spike.md) |
-| Size-dependent thickness (2.10) | material.regular (3 sizes) | 2A | partly (tuned at 44/88/200 pt; shadow-extent bbox residual — results.md) |
+| Size-dependent thickness (2.10) | material.regular (3 sizes) | 2A | partly (tuned at 44/88/200 pt; `light-photo` bbox_pt 2.00 — results-2a1.md) |
 | Vibrant foreground (2.11) | material.* | 2A | partly (`GlassForeground` implemented per plan ruling 7; not separately measured) |
 | Materialize / dematerialize (2.13) | material.materialize | 2B | no |
 | Container shared sampling and merging (2.14) | material.merge | 2B | partly (renderer blend groups) |
 | Union (2.15) | material.union | 2B | no |
 | Identity morph (2.16) | material.morph | 2B | no |
 | Capsule, fixed, concentric shapes (2.17) | material.shapes | 2A shapes / 3 concentric | partly |
-| Scroll edge effect soft, hard, automatic (2.19) | material.edge.* | 2A | partly (2 of 6 cases pass: hard/automatic, light appearance — results.md) |
+| Scroll edge effect soft, hard, automatic (2.19) | material.edge.* | 2A | partly (5 of 6 cases pass, soft light MAD 4.07 — results-2a1.md) |
 | Content-layer materials (2.22) | material.content | 3 | no |
 | Floating tab bar + search tab (3.1, 3.5) | tabbar.rest, tabbar.search | 3 | no (Operator GlassTabBar) |
 | Tab selection lens (3.2) | tabbar.press, tabbar.drag | 3 | no (Operator lens, 26.5-tuned) |
@@ -389,8 +434,8 @@ Source: `research/apple-inventory.md` §1, which has 80 rows. The table lists th
 | Lists and forms (5.12) | list.form | 3 | no |
 | Progress (5.13) | progress | 3 | no |
 | Swipe actions (5.14) | swipe.row | 3 | no |
-| Reduce Transparency (7.1) | a11y runs | 2A | no (plugin live; 0 of 10 cases pass — results.md) |
-| Increase Contrast (7.2) | a11y runs | 2A | no (0 of 10 cases pass — results.md) |
+| Reduce Transparency (7.1) | a11y runs | 2A | partly (plugin live; 7 of 10 cases pass — results-2a1.md) |
+| Increase Contrast (7.2) | a11y runs | 2A | partly (9 of 10 cases pass — results-2a1.md) |
 | Reduce Motion (7.3) | a11y runs | 2B | no |
 
 Out of scope: iPad and Mac items (sidebar, pointer, iPad tab bar), app icons, widgets, system-owned UI (keyboard, share sheet).
@@ -443,11 +488,21 @@ Out of scope: iPad and Mac items (sidebar, pointer, iPad tab bar), app icons, wi
 - Frame cost: new renderer 12.36 ms vs old 12.10 ms raster mean, **+2.2%**, inside the 20% budget — measured at `const LiquidGlassSettings()`, not the tuned iOS 27 material.
 - Gates: harness **84** tests OK; package **51**, example **6**, app **2,146** tests; `flutter analyze` "No issues found!" in app, package and example; `grep -rn liquid_glass_renderer` in `packages/mobile` (excluding `build/`, `.dart_tool`) matches only the package pubspec's fork-attribution description line.
 
+### 2A.1 results (`docs/liquid_glass/02a-looks/results-2a1.md`, at the head of branch `feat/ios-liquid-glass-2a`)
+
+- Material scenes, strict thresholds: **9 of 20 cases pass** (`material.regular` 8 of 10, `material.clear` 1 of 4, `material.tinted` 0 of 6).
+- Scroll edge, MAD and luminance: **5 of 6 cases pass** (soft light-scroll MAD 4.07 > 4.00).
+- Reduce Transparency: **7 of 10 cases pass**. Increase Contrast: **9 of 10 cases pass**.
+- Operator components, halved-rim-and-luminance criterion: **22 of 32 measures halved or within threshold**.
+- Frame cost: `perf.material` (tuned material) 12.659 ms raster median against the old renderer's 12.10 ms, **+4.6%**, inside the 20% budget (14.52 ms); ratio method +2.6%; under Reduce Transparency 12.819 ms (+5.9%). `perf.edge` costs 4.976 ms over `perf.none`.
+- The rim measure changed (all four sides of every pinned glass), so 2A's numbers are not directly comparable with these.
+- Gates: harness **104** tests OK; package **63**, example **8**, app **2,146** tests; `flutter analyze` "No issues found!" in app, package and example.
+
 ---
 
 ## 9. Exact next steps
 
-1. **2A review found gaps; 2A.1 is planned in `docs/liquid_glass/02a-looks/plan-2a1.md`.** The user reviews and approves it; then a fresh session executes it, subagent-driven, on `feat/ios-liquid-glass-2a` (worktree `../Operator-ios-liquid-glass`), and its results go to `docs/liquid_glass/02a-looks/results-2a1.md`.
-2. **Pending user decisions:** approving `plan-2a1.md`, whether to push `development`, whether to merge 2A after 2A.1, and the `material.interactive` decision (§1).
+1. **2A.1 is executed and awaits the user's review.** Its results are in `docs/liquid_glass/02a-looks/results-2a1.md` and its tuning log in `docs/liquid_glass/02a-looks/tuning-log-2a1.md`; the open items that remain are listed in §6 under 2A.1.
+2. **Pending user decisions:** the review of 2A.1, whether to merge 2A (branch `feat/ios-liquid-glass-2a`, worktree `../Operator-ios-liquid-glass`) into `development`, whether to push `development`, and the `material.interactive` decision (§1).
 3. **Merge** into `development` when the user says.
 4. **Next step:** write project 2B's spec (how glass moves), once 2A is merged.

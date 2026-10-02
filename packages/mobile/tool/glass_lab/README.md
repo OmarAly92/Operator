@@ -48,7 +48,7 @@ python3 tool/glass_lab/harness/lab.py report
 - **`geometry <scene>`** prints the native glass boxes of a scene in points, for positioning Flutter scenes.
 - **`baseline [--flutter example|operator]`** runs every scene in both apps and both appearances, plus the accessibility runs, then `report`. It takes about four hours.
 - **`tune`** searches material parameters against native (see below).
-- **`perf [--takes 3] [--out file]`** measures raster time in the example's `perf.none` and `perf.glass` scenes. Takes run in alternating order.
+- **`perf [--takes 3] [--scenes a,b] [--a11y <mode>] [--out file]`** measures raster time in the example's `perf.none` (moving backdrop only), `perf.glass` (13 glasses at `const LiquidGlassSettings()`), `perf.material` (the same glasses as `GlassEffect`, drawing their tuned rows, outlines and shadows) and `perf.edge` (a soft scroll edge) scenes, and reports each scene's cost over `perf.none`. Takes run in alternating order.
 - **`a11y`** launches the example and turns each accessibility mode on and off while it runs. It fails unless every change reaches the app live.
 - **`flip [<run>] --regular <run>`** checks whether native glass in `material.flip` changes appearance with the content behind it.
 
@@ -73,9 +73,12 @@ For each case, the harness:
 2. Starts `simctl io recordVideo` and runs the driver. The driver launches the app, waits for `scene.ready`, settles for 1.5 s and saves `ready.png`, then plays the steps, settles again and saves `settled.png`.
 
 The native app reads its scene from the `GLASS_LAB_SCENE`, `GLASS_LAB_BACKDROP` and `GLASS_LAB_BARE` launch variables. Flutter cannot see launch variables on iOS. Instead:
-- the harness writes `Documents/glass_lab/launch.json` into the Flutter app's container before each launch, as `{scene, backdrop, bare, material}`;
+- the harness writes `Documents/glass_lab/launch.json` into the Flutter app's container before each launch, as `{scene, backdrop, bare, material, materialSide}`;
 - the debug build reads it and deletes it on start;
-- `material` is an optional map of material overrides by field name. Scroll edge fields are prefixed `edge.`.
+- `material` is an optional map of material overrides by field name. Scroll edge fields are prefixed `edge.`;
+- `materialSide` limits the overrides to glass at that size anchor (44, 88 or 200 pt, after clamping the glass's shorter side), so a 200 pt candidate does not repaint the 44 and 88 pt glass in the same scene.
+
+Before each capture the harness closes every other lab app, so the captured app is launched from the home screen and no "◀ app" back link appears in its status bar.
 
 Backgrounds live in each app's `Documents/glass_lab/`.
 
@@ -89,13 +92,14 @@ python3 tool/glass_lab/harness/lab.py tune --scene material.regular --appearance
   --params toneWhite=0.45:0.75:7,frost=12:40:8 --passes 2 --write
 ```
 
-- Each candidate sends the whole current table row merged with that candidate's values into the launch file's `material` map, so later steps build on the values earlier steps wrote instead of starting over from the compiled table (commit `4b096dd`), and captures `ready.png`.
-- Every value `tune` sends or writes — the start value, each grid candidate and the refinement step — is clamped to a per-field physical range (commit `380e328`), so a search cannot escape into a physically meaningless value.
-- It is scored against native as each measure divided by its threshold, capped at 10, and summed.
+- Each candidate sends the whole current table row merged with that candidate's values into the launch file's `material` map (commit `4b096dd`), scoped to `--size` by `materialSide` for material rows, and captures `ready.png`.
+- The first candidate is always the committed row, exactly as written. Grid and refinement candidates are clamped to `tune.RANGES`, which covers the shader's whole domain (tone points −0.5–2, `specular` and `sheen` from −1, alphas 0–1, widths and blurs from 0).
+- It is scored against native as each measure divided by its threshold, capped at 10, and summed. The rim is scored on all four sides of each `--region` at its exact edge.
 - The search is coordinate descent, then a half-step refinement.
-- `--region` names manifest regions to compare; scenes with a `track` use it. `--row`, `--size` and `--appearance` pick the table row to write.
+- `--region` names manifest regions to compare, padded by `--pad` points (default 12). Shadow steps use `--pad 60`, enough for native's shadow tail. Scenes with a `track` use it.
+- `--appearance`, `--size` and `--row` pick the table row to write. `--a11y reduce-transparency` and `--a11y increase-contrast` imply their row; a `--row` they would not render is rejected.
 
-Before running `tune` or `run` against the example or Operator app, rebuild it with `lab.py build example` or `lab.py build operator`: both apps compile the material tables into the binary, so a stale build measures a stale table.
+`tune`, `run` and `perf` refuse to start when the example (or Operator) app was built from other sources than the ones on disk: `build` stamps a hash of the package's `lib/` and the app's `lib/` next to the app. Run `lab.py build example` before every `tune`, including after the previous `tune --write`; it takes about 15 s when only Dart changed.
 
 Output goes to `build/glass_lab/tune/<timestamp>/`: `log.jsonl`, `best.json` and `best-<backdrop>.png`. `--write` rewrites the row in `packages/ios_liquid_glass/lib/src/material/ios27.dart`, or in `ios27_scroll_edge.dart` for `material.edge.*` scenes. Never edit those tables by hand.
 
@@ -104,8 +108,8 @@ Output goes to `build/glass_lab/tune/<timestamp>/`: `log.jsonl`, `best.json` and
 Still-image measures compare the lossless screenshots:
 - colour difference in the region;
 - brightness difference;
-- the edge profile;
-- the glass bounding box.
+- the edge profile: luma across each side of the glass, ±12 pt around its edge. For scenes with pinned regions (every region except the `track`), all four sides of each region are compared at its exact edge, and `rim_rms` is the worst of those and the older centre-column measure on the detected box (`rim_legacy`), so it can only be stricter;
+- the glass bounding box and its centre.
 
 Motion measures compare the recordings:
 - They use the recorder's real frame times, which run at up to 120 Hz.

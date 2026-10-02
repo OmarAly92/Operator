@@ -1,6 +1,6 @@
 # Glass lab baseline
 
-Run: `20260930-082046`. Native iOS 27 (iPhone 17 Pro simulator) against Operator's Flutter glass.
+Run: `20260930-082046`. Native iOS 27 (iPhone 17 Pro simulator) against Operator's Flutter glass (the run used the example app; `lab.py summary` names the target since 2A.1).
 
 | Status | Count |
 |---|---|

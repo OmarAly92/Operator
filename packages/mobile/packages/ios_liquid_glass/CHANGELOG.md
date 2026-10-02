@@ -8,6 +8,11 @@
  - **FEAT**: `ScrollEdgeEffect` and `ScrollUnderBars` with `ScrollEdgeStyle.soft`, `.hard` and `.automatic`.
  - **FEAT**: an `example/` app.
  - **FIX**: `GlassMaterial.resolve` keeps a tinted glass's tint under Reduce Transparency and Increase Contrast instead of losing it to the accessibility row.
+ - (2A.1) **BREAKING** **FEAT**: the edge is the iOS 27 edge measured on the simulator: a crisp silhouette, a dark outline outside it that is strongest at the curved ends, and a line and sheen at the top and bottom. `LiquidGlassSettings` replaces the `hairline*` fields with `outline`, `outlineTop`, `outlineWidth`, `sheen` and `sheenWidth`.
+ - (2A.1) **BREAKING** **FIX**: the scroll edge blurs with real Gaussians. Its `blur` and `capBlur` fields are now a sigma in points, and the soft style has its own `blurKnee` and `blurReach`.
+ - (2A.1) **FIX**: shadows reach native's soft tail, and clear glass casts none.
+ - (2A.1) **FIX**: `Glass.clear.tint(c)` stays untinted under Reduce Transparency and Increase Contrast, and its foreground is not the tinted one.
+ - (2A.1) **FEAT**: `GlassMaterialOverride.side` limits debug overrides to one size anchor.
 
 ## 0.2.0-dev.4
 

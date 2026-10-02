@@ -1,19 +1,21 @@
 # 2A results
 
+Superseded for Done items 3–6 and 8 by `results-2a1.md` (2A.1), which also changed the rim measure.
+
 Date: 2026-09-30. Branch `feat/ios-liquid-glass-2a` at `567d0e7ac`. Simulator: iPhone 17 Pro (iOS 27), UDID 708879DD-8B2A-4547-863F-F49EE1474D8B. The material and accessibility runs below (`20260930-082046`, `094506`, `095626`) were built and run at `7fef0baae`, the commit immediately before the lab appearance fix; the Operator component runs (`104535`/`105500`/`105756`) were rebuilt afterward at `567d0e7ac`.
 
 Lab appearance defect (Task 12 rerun): `GlassLabScreen` picked its `DarkSkin`/`LightSkin` from platform brightness but never provided a matching `GlassTheme`, so the package's glass kept reading the app-root `GlassTheme` (light, from `SkinCubit`'s default) regardless of which appearance the lab was running — dark lab runs measured the wrong, light material rows. Fixed in `567d0e7ac` (`fix(mobile): Operator's glass lab gives the glass the lab's appearance`), which wraps the lab scene in its own `GlassTheme` matching the lab's chosen skin. The Operator component runs below supersede the earlier runs `20260930-100915`, `20260930-101816`, `20260930-102112`, which were taken before this fix and measured the light material in dark mode.
 
 | Done item | Result | Evidence |
 |---|---|---|
-| 1 Package: rename, plugin live toggles, gates, no old imports | pass | Task 8 `lab.py a11y`: all 3 modes (reduce-transparency, increase-contrast, reduce-motion) live, no cross-talk; gates green: harness 80 tests OK, package 47 tests, example 6 tests, app 2,146 tests, `flutter analyze` "No issues found!" in app/package/example; `grep -rn liquid_glass_renderer` in `packages/mobile` (excluding build/.dart_tool) matches only `pubspec.yaml`'s fork-attribution description line, no code imports |
+| 1 Package: rename, plugin live toggles, gates, no old imports | pass | Task 8 `lab.py a11y`: all 3 modes (reduce-transparency, increase-contrast, reduce-motion) live, no cross-talk; gates green: harness 80 tests OK and package 47 tests at Task 12; 84 and 51 after the final fix wave (see Gates), example 6 tests, app 2,146 tests, `flutter analyze` "No issues found!" in app/package/example; `grep -rn liquid_glass_renderer` in `packages/mobile` (excluding build/.dart_tool) matches only `pubspec.yaml`'s fork-attribution description line, no code imports |
 | 2 Example app | pass | run `20260930-082046` builds and runs every scene registered in the manifest; `example/test/lab_test.dart`'s "every manifest scene renders its scene or the missing placeholder" covers the one missing scene (`material.content`); README done (commit `4b268b0`) |
 | 3 Material scenes, strict thresholds | 0 of 20 cases pass | `summary-material.md`, run `20260930-082046` |
 | 4 Scroll edge MAD and luminance | 2 of 6 cases pass | run `20260930-082046` (edge scenes) |
 | 5 Reduce Transparency and Increase Contrast | 0 of 20 cases pass | runs `20260930-094506` (RT), `20260930-095626` (IC) |
 | 6 Operator components halve rim and luminance | 18 of 32 measures halved | comparison table below, runs `20260930-104535`/`20260930-105500`/`20260930-105756` (after the lab appearance fix; supersedes `20260930-100915`/`20260930-101816`/`20260930-102112`) |
 | 7 Flip spike | no flip; nothing to build | native small and large glass does not flip between light/dark content in either appearance, at 44 pt or 200 pt (flip-spike.md); the package already draws only the same-appearance material, so B8 needs no 2A implementation |
-| 8 Frame cost within 20% | pass — new 12.36 ms vs old 12.10 ms (+2.2%), at `const LiquidGlassSettings()`, not the tuned material | flip-spike.md, `perf.glass` raster mean, well inside the 20% budget |
+| 8 Frame cost within 20% | pass — new 12.36 ms vs old 12.10 ms (+2.2%), at `const LiquidGlassSettings()`, not the tuned material | flip-spike.md, `perf.glass` the mean of two takes' raster medians, well inside the 20% budget |
 | 9 Documents | done in Task 13 | — |
 
 ## Step 1: Rebuild

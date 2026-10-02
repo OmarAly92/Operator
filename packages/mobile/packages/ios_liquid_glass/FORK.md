@@ -10,8 +10,9 @@ It is the renderer behind the iOS-style glass chrome (tab bar, navigation bars, 
 sheets). It is vendored rather than depended on so the app can tune the shaders and the
 fallback path to its own design, and so an experimental pre-release cannot change under it.
 
-`lib/`, `test/`, `LICENSE`, `README.md` and `CHANGELOG.md` are kept. Upstream's `example/`,
-`doc/` GIFs and `coverage/` are dropped; README image links therefore do not resolve.
+`lib/`, `test/`, `LICENSE` and `CHANGELOG.md` are kept. Upstream's `doc/` GIFs and `coverage/`
+are dropped. Upstream's `README.md` and `example/` were replaced in 2A by this package's own
+README and example app.
 
 Changes from upstream:
 
@@ -57,8 +58,8 @@ The package was renamed from `liquid_glass_renderer` to `ios_liquid_glass`, with
 - `LiquidGlassSettings` gains `toneBlack`, `toneMid`, `toneWhite`, `tintBlack`, `tintWhite`, `hairline`, `hairlineWidth`, `hairlineDark`, `hairlineLight`, `specular`, `specularWidth`, `specularPower` and `specularFill`, with `effective*` getters where visibility applies. The old fields stay for `FakeGlass`.
 - `LiquidGlassRenderObject._updateShaderSettings` packs the new uniforms into `vec4`s from index 6.
 - `LiquidGlassSettings` and `LiquidShape` use `with Equatable` instead of the deprecated `EquatableMixin`. The library file declares `library;`.
-- `GlassMaterial.resolve` keeps a tinted glass's `tintAmount`, `tintBlack` and `tintWhite` from the tinted row, at the same appearance and anchors, when Reduce Transparency or Increase Contrast picks the accessibility row for the rest of the material — the accessibility rows share their tone/frost/rim values with plain mode but carry no tint of their own.
-- `GlassEffect` and `GlassEffectContainer` share one internal resolve helper, `resolveGlassMaterial` in `lib/src/api/glass_material_context.dart`, instead of each repeating the same `GlassMaterial.resolve` and `toSettings()` call.
+- `GlassMaterial.resolve` keeps a tinted glass's `tintAmount`, `tintBlack` and `tintWhite` from the tinted row, at the same appearance and anchors, when Reduce Transparency or Increase Contrast picks the accessibility row for the rest of the material. The accessibility rows are tuned on their own for tone, frost and edge light, share only the lens and shadow fields with the regular rows, and carry a `tintAmount` of 0. Since 2A.1 this applies only to regular glass: `Glass.clear.tint(c)` stays untinted.
+- `GlassEffect` and `GlassEffectContainer` share one internal resolve helper, `resolveGlassMaterial` in `lib/src/api/glass_material_context.dart`, instead of each repeating the same `GlassMaterial.resolve` call; each widget still calls `toSettings()` itself.
 - New, not from upstream:
   - `lib/src/api/` (`Glass`, `GlassShape`, `GlassTheme`, `GlassEffect`, `GlassEffectScope`, `GlassEffectContainer`, `GlassDimming`, `GlassForeground`, `glass_material_context.dart`);
   - `lib/src/material/` (`GlassMaterial`, `ios27Table`, `ScrollEdgeMaterial`, `ios27ScrollEdgeTable`, `GlassMaterialOverride`);
@@ -66,6 +67,17 @@ The package was renamed from `liquid_glass_renderer` to `ios_liquid_glass`, with
   - `lib/src/scroll_edge/` and `scroll_edge_blur.frag`, moved from Operator;
   - the iOS plugin in `ios/`;
   - the `example/` app.
+
+## ios_liquid_glass 0.1.0, project 2A.1 fix round
+
+- The geometry pass (`liquid_glass_geometry_blended.frag`) writes the signed distance to the silhouette, normalised by the thickness, into the blue channel instead of the bevel height, uses alpha as an inside-the-shape-or-outline-band flag, and covers a band `outlineWidth` + 1 px outside every shape. Its second uniform float carries that band in physical pixels. `encodeGeometry` and `decodeSignedDistance` in `displacement_encoding.glsl` replace the old encoding.
+- The geometry bounds grow by `outlineWidth` + 1 pt so the band is inside the texture and the shader layer's clip; a change of `outlineWidth` rebuilds the geometry.
+- Geometry pictures and images are sized with `toPixelCount()` (rounding) instead of `ceil()`. The extents are already snapped to pixels, and `ceil` turned a floating-point 760.0000000000001 into 761, which sampled the geometry one pixel off at the right and bottom of glass at fractional positions.
+- `liquid_glass_final_render.frag`: coverage is a one-pixel ramp at the silhouette (upstream faded the last two pixels); a dark outline is drawn outside the silhouette with a strength that follows the normal (`outline` at the ends, `outlineTop` at the top and bottom); inside, an exponential line (`specular`, `specularWidth`) and sheen (`sheen`, `sheenWidth`) are weighted by the two light lobes and fade out over the last 30% of the bevel. The adaptive inner hairline is gone.
+- `LiquidGlassSettings` loses `hairline`, `hairlineWidth`, `hairlineDark`, `hairlineLight` and `effectiveHairline`, and gains `outline`, `outlineTop`, `outlineWidth`, `sheen` and `sheenWidth` with their `effective*` getters.
+- `GlassShadow` cuts an offset shadow out of the glass with a difference clip instead of a `saveLayer` and a `dstOut` shape, and sizes the clip to three sigma of the blur (upstream's layer bounds stopped the tail at one blur radius).
+- `scroll_edge_blur.frag` is replaced by `scroll_edge_mask.frag`. `ScrollEdgeEffect` stacks real Gaussians (`ImageFilter.compose` of a blur and the mask shader) and paints the dim, cap and divider line itself.
+- `GlassMaterialOverride` takes an optional `side`; `resolveGlassMaterial` applies overrides only to glass at that size anchor.
 
 Record every later change to `lib/` in this file.
 
