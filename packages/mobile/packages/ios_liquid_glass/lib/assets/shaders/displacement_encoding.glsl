@@ -22,6 +22,10 @@ vec4 encodeGeometry(vec2 displacement, float maxDisplacement, float signedDistan
     return vec4(normalizedDisp, 0.5 - 0.5 * distance, 1.0);
 }
 
+float signedDistanceReach(float thickness, float outlineBand) {
+    return max(thickness, max(outlineBand, 0.0) + 1.0);
+}
+
 float decodeSignedDistance(vec4 encoded, float thickness) {
     return (0.5 - encoded.b) * 2.0 * thickness;
 }

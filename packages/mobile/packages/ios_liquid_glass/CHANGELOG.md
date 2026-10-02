@@ -13,6 +13,7 @@
  - (2A.1) **FIX**: shadows reach native's soft tail, and clear glass casts none.
  - (2A.1) **FIX**: `Glass.clear.tint(c)` stays untinted under Reduce Transparency and Increase Contrast, and its foreground is not the tinted one.
  - (2A.1) **FEAT**: `GlassMaterialOverride.side` limits debug overrides to one size anchor.
+ - (2A.1) **FIX**: glass thinner than its outline band (thickness below `outlineWidth` + 1 px, as at the start of a visibility ramp) covers its interior fully and draws its outline only outside it, instead of a half-covered, darkened body.
 
 ## 0.2.0-dev.4
 

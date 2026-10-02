@@ -44,7 +44,7 @@ void main() {
     }
 
     float thickness = max(uOptics.x, 0.001);
-    float signedDistance = decodeSignedDistance(geometryData, thickness);
+    float signedDistance = decodeSignedDistance(geometryData, signedDistanceReach(thickness, uOutline.z));
     vec2 displacement = decodeDisplacement(geometryData, thickness * 10.0);
     vec2 normal = length(displacement) > 0.0001 ? normalize(displacement) : vec2(0.0);
 

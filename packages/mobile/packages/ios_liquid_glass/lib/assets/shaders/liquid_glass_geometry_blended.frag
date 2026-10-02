@@ -42,11 +42,12 @@ void main() {
     float dx = dFdx(sd);
     float dy = dFdy(sd);
     float maxDisplacement = uThickness * 10.0;
+    float reach = signedDistanceReach(uThickness, uOutlineBand);
     
     if (sd >= 0.0) {
         vec2 gradient = vec2(dx, dy);
         vec2 inward = length(gradient) > 0.0 ? -normalize(gradient) : vec2(0.0);
-        fragColor = encodeGeometry(inward * maxDisplacement * 0.5, maxDisplacement, sd, uThickness);
+        fragColor = encodeGeometry(inward * maxDisplacement * 0.5, maxDisplacement, sd, reach);
         return;
     }
     
@@ -67,5 +68,5 @@ void main() {
     float baseRefractLength = (height + baseHeight) / max(0.001, abs(baseRefract.z));
     vec2 displacement = baseRefract.xy * baseRefractLength;
     
-    fragColor = encodeGeometry(displacement, maxDisplacement, sd, uThickness);
+    fragColor = encodeGeometry(displacement, maxDisplacement, sd, reach);
 }
