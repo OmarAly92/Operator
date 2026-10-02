@@ -77,10 +77,11 @@ struct FlipScene: View {
     var body: some View {
         ZStack {
             ScrollBackdrop()
-            VStack {
+            VStack(spacing: 0) {
                 GlassBlock(width: 150, height: 44).padding(.top, 180)
                 Spacer()
-                GlassBlock(width: 360, height: 200).padding(.bottom, 180)
+                GlassBlock(width: 360, height: 200).padding(.bottom, 96)
+                GlassBlock(width: 150, height: 44).padding(.bottom, 40)
             }
             .allowsHitTesting(false)
         }
@@ -213,7 +214,10 @@ struct ShapesScene: View {
 }
 
 struct EdgeScene: View {
+    static let offset: CGFloat = 300
+
     let style: ScrollEdgeEffectStyle
+    @State private var position = ScrollPosition(edge: .top)
 
     var body: some View {
         NavigationStack {
@@ -222,6 +226,8 @@ struct EdgeScene: View {
                     Image(uiImage: image).resizable().aspectRatio(image.size, contentMode: .fit)
                 }
             }
+            .scrollPosition($position)
+            .onAppear { position.scrollTo(y: EdgeScene.offset) }
             .accessibilityIdentifier("scroll.content")
             .scrollEdgeEffectStyle(style, for: .all)
             .navigationTitle("Edge")

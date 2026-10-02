@@ -1,6 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:operator_mobile/core/widgets/glass/glass_style.dart';
-import 'package:operator_mobile/core/widgets/glass/glass_surface.dart';
 import 'package:operator_mobile/core/widgets/glass/lab/glass_lab_backdrop.dart';
 
 class LabCentered extends StatelessWidget {
@@ -29,36 +27,6 @@ class LabCentered extends StatelessWidget {
           ),
         ),
       ],
-    );
-  }
-}
-
-class LabBlock extends StatelessWidget {
-  const LabBlock({
-    super.key,
-    required this.width,
-    required this.height,
-    this.variant = GlassVariant.regular,
-    this.pressable = false,
-  });
-
-  final double width;
-  final double height;
-  final GlassVariant variant;
-  final bool pressable;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: width,
-      height: height,
-      child: GlassSurface(
-        kind: GlassShapeKind.capsule,
-        size: height,
-        variant: variant,
-        pressable: pressable,
-        child: const SizedBox.expand(),
-      ),
     );
   }
 }

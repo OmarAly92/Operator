@@ -1,5 +1,5 @@
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
-import 'package:operator_mobile/core/widgets/glass/scroll_under_bars.dart';
+import 'package:ios_liquid_glass/ios_liquid_glass.dart';
 import 'package:flutter/material.dart';
 
 class AppScaffold extends StatelessWidget {

@@ -26,7 +26,7 @@ import 'package:operator_mobile/core/widgets/connection/desktop_status_line.dart
 import 'package:operator_mobile/core/widgets/glass/glass_button.dart';
 import 'package:operator_mobile/core/widgets/glass/glass_metrics.dart';
 import 'package:operator_mobile/core/widgets/glass/glass_tab_bar.dart';
-import 'package:operator_mobile/core/widgets/glass/scroll_edge_effect.dart';
+import 'package:ios_liquid_glass/ios_liquid_glass.dart';
 import 'package:operator_mobile/core/widgets/sheet/app_sheet.dart';
 import 'package:operator_mobile/feature/notification/data/model/notification_page_model.dart';
 import 'package:operator_mobile/feature/notification/data/model/params/get_notifications_params.dart';
@@ -319,6 +319,7 @@ void main() {
     expect(find.byType(GlassTabBar), findsOneWidget);
     final bottomFade = tester.widgetList<ScrollEdgeEffect>(find.byType(ScrollEdgeEffect)).where((e) => e.edge == ScrollEdge.bottom);
     expect(bottomFade.single.height, 120);
+    expect(bottomFade.single.style, ScrollEdgeStyle.soft);
   });
 
   testWidgets('the bottom edge effect shows only while a tab has content under the bar', (tester) async {
@@ -341,7 +342,7 @@ void main() {
     final agents = HomeShell.controllerFor(0);
     expect(agents.position.maxScrollExtent, greaterThan(16));
     expect(bottomFade().visibility, 1);
-    expect(bottomBlur(), findsOneWidget);
+    expect(bottomBlur(), findsWidgets);
 
     agents.jumpTo(agents.position.maxScrollExtent);
     await tester.pump();

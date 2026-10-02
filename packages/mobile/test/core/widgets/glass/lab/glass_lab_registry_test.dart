@@ -5,7 +5,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ios_liquid_glass/ios_liquid_glass.dart';
 import 'package:operator_mobile/core/widgets/glass/lab/glass_lab_launch.dart';
+import 'package:operator_mobile/core/widgets/glass/lab/glass_lab_marker.dart';
 import 'package:operator_mobile/core/widgets/glass/lab/glass_lab_registry.dart';
 import 'package:operator_mobile/core/widgets/glass/lab/glass_lab_screen.dart';
 
@@ -70,5 +72,24 @@ void main() {
     expect(find.bySemanticsLabel('Agents'), findsNothing);
     expect(find.bySemanticsIdentifier('scene.ready'), findsOneWidget);
     semantics.dispose();
+  });
+
+  testWidgets('glass follows the lab appearance, not the ambient GlassTheme', (tester) async {
+    tester.platformDispatcher.platformBrightnessTestValue = Brightness.dark;
+    addTearDown(tester.platformDispatcher.clearPlatformBrightnessTestValue);
+    await tester.pumpWidget(
+      ScreenUtilInit(
+        designSize: const Size(390, 844),
+        builder: (context, child) => MaterialApp(
+          home: const GlassTheme(
+            data: GlassThemeData(brightness: Brightness.light),
+            child: GlassLabScreen(launch: GlassLabLaunch(scene: 'material.regular')),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    final darkContext = tester.element(find.byType(GlassLabReady));
+    expect(GlassTheme.brightnessOf(darkContext), Brightness.dark);
   });
 }

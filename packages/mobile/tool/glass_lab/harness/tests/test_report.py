@@ -1,4 +1,6 @@
+import json
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -52,6 +54,16 @@ class BacklogOrderTests(unittest.TestCase):
         self.assertEqual(lines[0], "# Glass lab baseline")
         rows = [line.split(" | ")[0].lstrip("| ") for line in lines if line.startswith("| ") and " | " in line and not line.startswith("| Status") and not line.startswith("| Scene") and not line.startswith("| fail")]
         self.assertEqual(rows, ["tabbar.rest", "tabbar.drag", "material.regular", "glass.large", "glass.small", "menu.bar", "apple.maps.sheet"])
+
+
+class SummaryTargetTests(unittest.TestCase):
+    def test_the_summary_names_the_flutter_target_the_run_captured(self):
+        with tempfile.TemporaryDirectory() as temp:
+            self.assertIn("against the Flutter lab app.", report.markdown(temp, {}, [], []))
+            (Path(temp) / "run.json").write_text(json.dumps({"flutter": "example", "a11y": "none"}))
+            self.assertIn("against the ios_liquid_glass example app.", report.markdown(temp, {}, [], []))
+            (Path(temp) / "run.json").write_text(json.dumps({"flutter": "operator", "a11y": "none"}))
+            self.assertIn("against Operator's debug glass lab.", report.markdown(temp, {}, [], []))
 
 
 if __name__ == "__main__":

@@ -1,7 +1,6 @@
 import 'package:flutter/widgets.dart';
-import 'package:liquid_glass_renderer/liquid_glass_renderer.dart';
-import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
-import 'package:operator_mobile/core/widgets/glass/glass_style.dart';
+import 'package:ios_liquid_glass/ios_liquid_glass.dart';
+import 'package:operator_mobile/core/widgets/glass/glass_surface.dart';
 
 class GlassScope extends StatelessWidget {
   const GlassScope({super.key, required this.variant, required this.size, required this.child});
@@ -11,15 +10,6 @@ class GlassScope extends StatelessWidget {
   final Widget child;
 
   @override
-  Widget build(BuildContext context) {
-    return LiquidGlassLayer(
-      settings: GlassStyle.resolve(
-        skin: context.skin,
-        variant: variant,
-        size: size,
-        highContrast: MediaQuery.highContrastOf(context),
-      ),
-      child: child,
-    );
-  }
+  Widget build(BuildContext context) =>
+      GlassEffectContainer(glass: glassForVariant(context, variant), side: size, child: child);
 }

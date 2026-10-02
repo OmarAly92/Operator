@@ -53,6 +53,18 @@ class ValidationTests(unittest.TestCase):
         self.assertTrue(rest.rest)
         self.assertFalse(moving.rest)
 
+    def test_measures_default_to_every_static_measure(self):
+        scene = manifest.parse([valid_scene()])[0]
+        self.assertEqual(scene.measures, manifest.STATIC_MEASURES)
+
+    def test_measures_restrict_and_are_validated(self):
+        scene = manifest.parse([valid_scene(measures=["mad", "luminance"])])[0]
+        self.assertEqual(scene.measures, ("mad", "luminance"))
+        errors = manifest.validate([valid_scene(measures=["mad", "sharpness"])])
+        self.assertTrue(any("unknown measure sharpness" in e for e in errors))
+        errors = manifest.validate([valid_scene(measures=[])])
+        self.assertTrue(any("measures must be a non-empty list" in e for e in errors))
+
     def test_select_by_id_group_and_prefix(self):
         scenes = manifest.parse([valid_scene(), valid_scene(id="menu.submenu"), valid_scene(id="toggle", group="controls")])
         self.assertEqual([s.id for s in manifest.select(scenes, "menu")], ["menu.bar", "menu.submenu"])

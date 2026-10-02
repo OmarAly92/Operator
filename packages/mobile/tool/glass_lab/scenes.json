@@ -16,7 +16,27 @@
       "light",
       "dark"
     ],
-    "steps": []
+    "steps": [],
+    "regions": {
+      "s44": [
+        126,
+        237,
+        150,
+        44
+      ],
+      "s88": [
+        76,
+        329,
+        250,
+        88
+      ],
+      "s200": [
+        21,
+        465,
+        360,
+        200
+      ]
+    }
   },
   {
     "id": "material.clear",
@@ -32,7 +52,21 @@
       "light",
       "dark"
     ],
-    "steps": []
+    "steps": [],
+    "regions": {
+      "plain": [
+        76,
+        331,
+        250,
+        88
+      ],
+      "dimmed": [
+        76,
+        483,
+        250,
+        88
+      ]
+    }
   },
   {
     "id": "material.tinted",
@@ -49,7 +83,21 @@
       "light",
       "dark"
     ],
-    "steps": []
+    "steps": [],
+    "regions": {
+      "block": [
+        76,
+        365,
+        250,
+        88
+      ],
+      "run": [
+        162,
+        501,
+        78,
+        37
+      ]
+    }
   },
   {
     "id": "material.interactive",
@@ -324,28 +372,19 @@
       "light",
       "dark"
     ],
-    "steps": [
-      {
-        "wait": 0.5
-      },
-      {
-        "pressDrag": {
-          "from": [
-            201,
-            600
-          ],
-          "to": [
-            201,
-            300
-          ],
-          "pressDuration": 0.05,
-          "velocity": 600,
-          "hold": 1.0
-        }
-      },
-      {
-        "wait": 0.5
-      }
+    "steps": [],
+    "regions": {
+      "edge": [
+        0,
+        0,
+        402,
+        240
+      ]
+    },
+    "track": "edge",
+    "measures": [
+      "mad",
+      "luminance"
     ]
   },
   {
@@ -361,28 +400,19 @@
       "light",
       "dark"
     ],
-    "steps": [
-      {
-        "wait": 0.5
-      },
-      {
-        "pressDrag": {
-          "from": [
-            201,
-            600
-          ],
-          "to": [
-            201,
-            300
-          ],
-          "pressDuration": 0.05,
-          "velocity": 600,
-          "hold": 1.0
-        }
-      },
-      {
-        "wait": 0.5
-      }
+    "steps": [],
+    "regions": {
+      "edge": [
+        0,
+        0,
+        402,
+        240
+      ]
+    },
+    "track": "edge",
+    "measures": [
+      "mad",
+      "luminance"
     ]
   },
   {
@@ -398,28 +428,19 @@
       "light",
       "dark"
     ],
-    "steps": [
-      {
-        "wait": 0.5
-      },
-      {
-        "pressDrag": {
-          "from": [
-            201,
-            600
-          ],
-          "to": [
-            201,
-            300
-          ],
-          "pressDuration": 0.05,
-          "velocity": 600,
-          "hold": 1.0
-        }
-      },
-      {
-        "wait": 0.5
-      }
+    "steps": [],
+    "regions": {
+      "edge": [
+        0,
+        0,
+        402,
+        240
+      ]
+    },
+    "track": "edge",
+    "measures": [
+      "mad",
+      "luminance"
     ]
   },
   {

@@ -11,7 +11,7 @@ import 'package:operator_mobile/core/helpers/result/result.dart';
 import 'package:operator_mobile/feature/blocks/data/model/params/session_command_params.dart';
 import 'package:operator_mobile/feature/blocks/data/model/session_command_result_model.dart';
 import 'package:operator_mobile/feature/blocks/data/model/block_event_model.dart';
-import 'package:operator_mobile/core/widgets/glass/scroll_edge_effect.dart';
+import 'package:ios_liquid_glass/ios_liquid_glass.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/block_list.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/blocks_body.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/floating_working_control.dart';
@@ -217,7 +217,8 @@ void main() {
     await _settleWhileWorking(tester);
 
     expect(bottomEdge(tester).visibility, 1);
-    expect(bottomBlur(), findsOneWidget);
+    expect(bottomEdge(tester).style, ScrollEdgeStyle.soft);
+    expect(bottomBlur(), findsWidgets);
     final band = tester.getRect(find.byKey(BlocksBodyState.bottomEdgeKey));
     final body = tester.getRect(find.byType(TerminalBody));
     final pill = tester.getRect(find.byKey(FloatingWorkingControl.pillKey));

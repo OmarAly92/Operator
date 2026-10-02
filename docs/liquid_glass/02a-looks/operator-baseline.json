@@ -1,0 +1,82 @@
+{
+ "tabbar.rest dark-black": {
+  "rim_rms": 25.57,
+  "luminance": 13.59,
+  "mad": 24.86
+ },
+ "tabbar.rest dark-photo": {
+  "rim_rms": 19.43,
+  "luminance": 9.13,
+  "mad": 19.7
+ },
+ "tabbar.rest dark-stripes": {
+  "rim_rms": 9.54,
+  "luminance": 7.05,
+  "mad": 17.26
+ },
+ "tabbar.rest dark-white": {
+  "rim_rms": 44.09,
+  "luminance": 40.67,
+  "mad": 47.37
+ },
+ "tabbar.rest light-black": {
+  "rim_rms": 22.69,
+  "luminance": 13.93,
+  "mad": 19.08
+ },
+ "tabbar.rest light-photo": {
+  "rim_rms": 12.49,
+  "luminance": 3.88,
+  "mad": 12.47
+ },
+ "tabbar.rest light-stripes": {
+  "rim_rms": 9.74,
+  "luminance": 5.16,
+  "mad": 14.27
+ },
+ "tabbar.rest light-white": {
+  "rim_rms": 5.22,
+  "luminance": 0.68,
+  "mad": 10.72
+ },
+ "button.press dark-stripes": {
+  "rim_rms": 13.37,
+  "luminance": 2.95,
+  "mad": 9.76
+ },
+ "button.press light-stripes": {
+  "rim_rms": 13.47,
+  "luminance": 0.67,
+  "mad": 12.22
+ },
+ "navbar.inline dark-black": {
+  "rim_rms": 27.5,
+  "luminance": 6.71,
+  "mad": 8.68
+ },
+ "navbar.inline dark-stripes": {
+  "rim_rms": 16.37,
+  "luminance": 3.79,
+  "mad": 5.84
+ },
+ "navbar.inline dark-white": {
+  "rim_rms": 41.15,
+  "luminance": 7.38,
+  "mad": 11.05
+ },
+ "navbar.inline light-black": {
+  "rim_rms": 96.06,
+  "luminance": 2.16,
+  "mad": 9.79
+ },
+ "navbar.inline light-stripes": {
+  "rim_rms": 58.81,
+  "luminance": 2.0,
+  "mad": 7.24
+ },
+ "navbar.inline light-white": {
+  "rim_rms": 44.8,
+  "luminance": 1.29,
+  "mad": 7.39
+ }
+}

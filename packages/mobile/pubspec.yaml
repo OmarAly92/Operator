@@ -30,7 +30,8 @@ workspace:
   - packages/expressive_sheet
   - packages/expressive_snack
   - packages/material_shapes
-  - packages/liquid_glass_renderer
+  - packages/ios_liquid_glass
+  - packages/ios_liquid_glass/example
 
 # Dependencies specify other packages that your package needs in order to work.
 # To automatically upgrade your package dependencies to the latest versions
@@ -72,7 +73,7 @@ dependencies:
   expressive_sheet:
   expressive_snack:
   material_shapes:
-  liquid_glass_renderer:
+  ios_liquid_glass:
   webview_flutter: ^4.14.1
   app_links: ^7.2.1
   flutter_markdown_plus: ^1.0.12
@@ -201,5 +202,4 @@ flutter:
           style: italic
 
   shaders:
-    - shaders/scroll_edge_blur.frag
     - shaders/tab_lens.frag

@@ -110,6 +110,10 @@ def region_for(scene, case_dir):
     return metrics.union(boxes, pad=12) or (0, 0, *metrics.SCREEN)
 
 
+def elements_for(scene):
+    return {name: tuple(rect) for name, rect in scene.regions.items() if name != scene.track}
+
+
 def motion(case_dir, region):
     found = window(case_dir)
     if found is None:
@@ -240,9 +244,10 @@ def analyze(scene, case_dir, noise=None):
             metrics.load(native_dir / "bare" / "ready.png"),
             metrics.load(flutter_dir / "bare" / "ready.png"),
             region,
+            elements_for(scene),
         )
-    checks = {f"{name}.{key}": value for name, stat in result["static"].items() for key, value in stat["pass"].items()}
-    measures = {f"{name}.{key}": (stat[key], metrics.THRESHOLDS[key], "max") for name, stat in result["static"].items() for key in stat["pass"]}
+    checks = {f"{name}.{key}": value for name, stat in result["static"].items() for key, value in stat["pass"].items() if key in scene.measures}
+    measures = {f"{name}.{key}": (stat[key], metrics.THRESHOLDS[key], "max") for name, stat in result["static"].items() for key in stat["pass"] if key in scene.measures}
     if not scene.rest:
         native, flutter = motion(native_dir, region), motion(flutter_dir, region)
         result["motion"] = compare_motion(native, flutter)

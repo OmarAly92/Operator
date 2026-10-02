@@ -10,7 +10,7 @@ import 'package:operator_mobile/core/utils/haptics.dart';
 import 'package:operator_mobile/core/widgets/glass/glass_button.dart';
 import 'package:operator_mobile/core/widgets/glass/glass_metrics.dart';
 import 'package:operator_mobile/core/widgets/glass/glass_tab_bar.dart';
-import 'package:operator_mobile/core/widgets/glass/scroll_edge_effect.dart';
+import 'package:ios_liquid_glass/ios_liquid_glass.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_toast.dart';
 import 'package:operator_mobile/feature/pairing/presentation/re_pair_sheet/ui/re_pair_sheet.dart';
 import 'package:operator_mobile/feature/pull_request/presentation/pull_requests_screen/ui/pull_requests_screen.dart';
@@ -146,6 +146,7 @@ class _HomeShellState extends State<HomeShell> {
                 valueListenable: _bottomVisibility[selected],
                 builder: (context, visibility, _) => ScrollEdgeEffect(
                   edge: ScrollEdge.bottom,
+                  style: ScrollEdgeStyle.soft,
                   height:
                       GlassMetrics.tabBarBottomInset + GlassMetrics.tabBarHeight + GlassMetrics.bottomEdgeFadeExtent,
                   visibility: visibility,

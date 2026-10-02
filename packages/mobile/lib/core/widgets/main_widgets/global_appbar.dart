@@ -7,7 +7,7 @@ import 'package:operator_mobile/core/widgets/glass/glass_bar_item.dart';
 import 'package:operator_mobile/core/widgets/glass/glass_button.dart';
 import 'package:operator_mobile/core/widgets/glass/glass_metrics.dart';
 import 'package:operator_mobile/core/widgets/glass/glass_scope.dart';
-import 'package:operator_mobile/core/widgets/glass/glass_style.dart';
+import 'package:operator_mobile/core/widgets/glass/glass_surface.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_text.dart';
 
 class GlobalAppbar extends StatelessWidget implements PreferredSizeWidget {

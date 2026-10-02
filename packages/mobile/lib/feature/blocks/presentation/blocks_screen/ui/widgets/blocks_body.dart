@@ -7,7 +7,7 @@ import 'package:operator_mobile/core/search/text_match.dart';
 import 'package:operator_mobile/core/utils/haptics.dart';
 import 'package:operator_mobile/core/utils/working_clock.dart';
 import 'package:operator_mobile/core/widgets/chat/chat_insets.dart';
-import 'package:operator_mobile/core/widgets/glass/scroll_edge_effect.dart';
+import 'package:ios_liquid_glass/ios_liquid_glass.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_text.dart';
 import 'package:operator_mobile/feature/blocks/logic/background_tasks.dart';
 import 'package:operator_mobile/feature/blocks/logic/block_actions.dart';
@@ -424,6 +424,7 @@ class BlocksBodyState extends State<BlocksBody> {
                         builder: (context, visibility, _) => ScrollEdgeEffect(
                           key: bottomEdgeKey,
                           edge: ScrollEdge.bottom,
+                          style: ScrollEdgeStyle.soft,
                           height: height,
                           knee: bottomFadeExtent / height,
                           visibility: visibility,

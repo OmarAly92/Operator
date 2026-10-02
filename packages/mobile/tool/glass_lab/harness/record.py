@@ -47,22 +47,34 @@ def launch_folder(udid, target):
     return sim.container(udid, target) / "Documents" / "glass_lab"
 
 
-def write_launch_file(folder, scene_id, backdrop, bare):
+def write_launch_file(folder, scene_id, backdrop, bare, material=None, material_side=None):
     folder = Path(folder)
     folder.mkdir(parents=True, exist_ok=True)
-    (folder / LAUNCH_FILE).write_text(json.dumps({"scene": scene_id, "backdrop": backdrop, "bare": bare}))
+    payload = {"scene": scene_id, "backdrop": backdrop, "bare": bare}
+    if material:
+        payload["material"] = material
+    if material and material_side:
+        payload["materialSide"] = material_side
+    (folder / LAUNCH_FILE).write_text(json.dumps(payload))
 
 
 def clear_launch_file(folder):
     (Path(folder) / LAUNCH_FILE).unlink(missing_ok=True)
 
 
-def drive(udid, target, scene_id, steps, backdrop, bare, out_dir, settle=1.5):
+def close_other_apps(udid, target):
+    for bundle in (build.NATIVE_BUNDLE, *build.FLUTTER_TARGETS.values()):
+        if bundle != target:
+            subprocess.run(["xcrun", "simctl", "terminate", udid, bundle], capture_output=True)
+
+
+def drive(udid, target, scene_id, steps, backdrop, bare, out_dir, settle=1.5, material=None, material_side=None):
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
-    folder = launch_folder(udid, target) if target == build.FLUTTER_BUNDLE and scene_id else None
+    close_other_apps(udid, target)
+    folder = launch_folder(udid, target) if target in build.FLUTTER_TARGETS.values() and scene_id else None
     if folder:
-        write_launch_file(folder, scene_id, backdrop, bare)
+        write_launch_file(folder, scene_id, backdrop, bare, material, material_side)
     env = dict(
         os.environ,
         TEST_RUNNER_GLASS_TARGET=target,
@@ -101,15 +113,15 @@ def _run_driver(udid, env):
     )
 
 
-def target_for(scene, app):
+def target_for(scene, app, flutter_target="example"):
     if scene.native_only:
         return scene.app
-    return build.NATIVE_BUNDLE if app == "native" else build.FLUTTER_BUNDLE
+    return build.NATIVE_BUNDLE if app == "native" else build.FLUTTER_TARGETS[flutter_target]
 
 
-def capture(udid, scene, app, backdrop, out_dir):
+def capture(udid, scene, app, backdrop, out_dir, flutter_target="example"):
     out_dir = Path(out_dir)
-    target = target_for(scene, app)
+    target = target_for(scene, app, flutter_target)
     scene_id = "" if scene.native_only else scene.id
     if not scene.native_only:
         drive(udid, target, scene_id, [], backdrop, True, out_dir / "bare", settle=1.0)

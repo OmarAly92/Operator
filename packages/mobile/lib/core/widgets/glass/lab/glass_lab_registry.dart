@@ -4,7 +4,6 @@ import 'package:operator_mobile/core/widgets/glass/lab/glass_lab_backdrop.dart';
 import 'package:operator_mobile/core/widgets/glass/lab/glass_lab_launch.dart';
 import 'package:operator_mobile/core/widgets/glass/lab/glass_lab_marker.dart';
 import 'package:operator_mobile/core/widgets/glass/lab/scenes/lab_control_scenes.dart';
-import 'package:operator_mobile/core/widgets/glass/lab/scenes/lab_material_scenes.dart';
 import 'package:operator_mobile/core/widgets/glass/lab/scenes/lab_navigation_scenes.dart';
 import 'package:operator_mobile/core/widgets/glass/lab/scenes/lab_presentation_scenes.dart';
 
@@ -12,7 +11,6 @@ typedef GlassLabSceneBuilder = Widget Function(GlassLabLaunch launch);
 
 sealed class GlassLabRegistry {
   static final Map<String, GlassLabSceneBuilder> scenes = {
-    ...LabMaterialScenes.scenes,
     ...LabNavigationScenes.scenes,
     ...LabPresentationScenes.scenes,
     ...LabControlScenes.scenes,

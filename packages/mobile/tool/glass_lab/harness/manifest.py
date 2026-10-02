@@ -9,6 +9,7 @@ BACKDROPS = ("stripes", "photo", "white", "black", "text", "scroll", "none")
 APPEARANCES = ("light", "dark")
 STEP_KINDS = ("wait", "tap", "doubleTap", "press", "pressDrag")
 FIELDS = ("id", "group", "title", "inventory", "app", "backdrops", "appearances", "steps")
+STATIC_MEASURES = ("mad", "luminance", "rim_rms", "bbox_pt", "centre_pt")
 
 
 @dataclass(frozen=True)
@@ -24,6 +25,7 @@ class Scene:
     regions: dict = field(default_factory=dict)
     track: str | None = None
     prepare: tuple = ()
+    measures: tuple = STATIC_MEASURES
 
     @property
     def native_only(self):
@@ -97,6 +99,11 @@ def validate(raw):
                 errors.append(f"{where}: region {name} must be [x, y, w, h]")
         if entry.get("track") is not None and entry["track"] not in regions:
             errors.append(f"{where}: track names an unknown region")
+        measures = entry.get("measures", list(STATIC_MEASURES))
+        if not isinstance(measures, list) or not measures:
+            errors.append(f"{where}: measures must be a non-empty list")
+        else:
+            errors += [f"{where}: unknown measure {m}" for m in measures if m not in STATIC_MEASURES]
         if entry.get("app") != "lab" and entry.get("group") != "apple":
             errors.append(f"{where}: only apple scenes may target another app")
     return errors
@@ -119,6 +126,7 @@ def parse(raw):
             regions=dict(entry.get("regions", {})),
             track=entry.get("track"),
             prepare=tuple(entry.get("prepare", [])),
+            measures=tuple(entry.get("measures", STATIC_MEASURES)),
         )
         for entry in raw
     ]

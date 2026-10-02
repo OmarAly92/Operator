@@ -196,12 +196,21 @@ img.strip{{max-width:100%}}.chart svg{{background:#fff;border:1px solid #eee}}h3
     return run_dir / "report.html", counts, results
 
 
+TARGETS = {"example": "the ios_liquid_glass example app", "operator": "Operator's debug glass lab"}
+
+
+def target_of(run_dir):
+    meta = Path(run_dir) / "run.json"
+    flutter = json.loads(meta.read_text()).get("flutter") if meta.exists() else None
+    return TARGETS.get(flutter, "the Flutter lab app")
+
+
 def markdown(run_dir, counts, results, scenes):
     by_scene = {s.id: s for s in scenes}
     lines = [
         "# Glass lab baseline",
         "",
-        f"Run: `{Path(run_dir).name}`. Native iOS 27 (iPhone 17 Pro simulator) against Operator's Flutter glass.",
+        f"Run: `{Path(run_dir).name}`. Native iOS 27 (iPhone 17 Pro simulator) against {target_of(run_dir)}.",
         "",
         "| Status | Count |",
         "|---|---|",
