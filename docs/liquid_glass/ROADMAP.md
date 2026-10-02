@@ -9,7 +9,7 @@ Last updated: 2026-10-02. Owner: Omar Aly (the user). This is the single source 
 | 1 | Reference lab (measuring instrument) | **DONE**, merged to `development` (`7f74f5a0b`), not pushed |
 | 2A | Package foundation + how glass looks | **DONE**, merged to `development` on 2026-10-02 (2A, 2A.1 and the review fix wave). Done item 3 passes 10 of 20 cases, item 4 5 of 6, item 5 17 of 20, item 6 22 of 32 measures, item 8 passes. Results: `docs/liquid_glass/02a-looks/results-2a1.md`. |
 | 2A.2 | Static-look polish (shader residuals) | TODO, not planned: `docs/liquid_glass/02a-looks/todo-2a2.md` |
-| 2B | How glass moves | **BRAINSTORMING** (started 2026-10-02). Research brief `02b-motion/context.md`; state, pending question and intentions in `02b-motion/brainstorm.md`. No spec yet. |
+| 2B | How glass moves | **SPEC IN REVIEW** (2026-10-03). `02b-motion/spec.md` awaits the user's approval; every decision is in `02b-motion/brainstorm.md`; native interactive spike in `02b-motion/spike-interactive.md`; research brief `02b-motion/context.md`. Three plans (2B.1–2B.3) follow, one at a time. |
 | 3 | Every iOS component inside the package | NOT STARTED |
 | 4 | Operator adopts the package | NOT STARTED |
 | 5 | Real-device verification pass | NOT STARTED |
@@ -376,7 +376,7 @@ Done cases still failing, with their cause class from `results-2a1.md`. Classes:
   - Operator's stamped sources omit its path-dependency packages `packages/xterm` and `speech_to_text` (`tool/glass_lab/harness/build.py`, `SOURCES`).
 
 
-### Project 2B: How glass moves (BRAINSTORMING, no spec yet)
+### Project 2B: How glass moves (SPEC IN REVIEW: `02b-motion/spec.md`)
 - **Read first:** `docs/liquid_glass/02b-motion/brainstorm.md`. It holds where the brainstorm stands, the question queue with my recommendation for each, the approaches and Done criteria I intend to propose, and the process. Then `02b-motion/context.md`, the research brief cited by file:line and run folder. The analysis scripts are in `02b-motion/research/`.
 - **Pending:** question 1, the press-response reference: A, B or C (recommendation A).
 - **Scope:**
