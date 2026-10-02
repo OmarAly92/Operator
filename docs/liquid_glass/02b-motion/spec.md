@@ -1,6 +1,6 @@
 # Project 2B: how glass moves
 
-Date: 2026-10-03. Status: **written for the user's review; not approved yet.**
+Date: 2026-10-03. Status: **approved by the user on 2026-10-03.** The 2B.1 plan will be `plan-2b1.md` in this folder; its header lists the rulings that refine this spec.
 Master roadmap: `docs/liquid_glass/ROADMAP.md`; read it first, especially §5 (working rules) and the gotchas.
 Evidence: `context.md` (research brief, cited by file:line and run folder) and `spike-interactive.md` (the native interactive glass spike), both in this folder. Every decision below was taken one question at a time with the user; `brainstorm.md` records each answer.
 Measuring instrument: `packages/mobile/tool/glass_lab/` (project 1, extended by 2A).

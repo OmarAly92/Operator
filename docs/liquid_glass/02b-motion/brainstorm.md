@@ -155,4 +155,4 @@ Other points the spec must settle (from `context.md` §6):
    - 2B.3: press passes (uniform scale on native's size law at every recorded size, glow first and growth second with native timings, release size spring and glow fade with its one-frame drop, touch-to-response delay); stretch and spread pass where native shows them and are absent where it does not; Reduce Motion passes; animated frame cost within 20%; README documents the API; Operator moves onto the press only if trivial; still glass no worse than 2A.
    - Testing: package tests on a fake clock (diffing on add, remove, move, re-id; retarget keeps velocity; removal animates out; animation precedence; Reduce Motion; hit tests at final layout; innermost nested glass only; inner button keeps its tap; 16-shape cap); harness tests on synthetic frames; gates on every task; review after each plan with independent code review and measurement audit, then a fix wave and merge on the user's word.
 
-Next: the user reviews `spec.md` (written 2026-10-03).
+**The user approved `spec.md` on 2026-10-03.** Next: the 2B.1 plan (`plan-2b1.md`), written prototype-first by a subagent and reviewed here.
