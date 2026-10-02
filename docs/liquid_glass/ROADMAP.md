@@ -9,7 +9,7 @@ Last updated: 2026-10-02. Owner: Omar Aly (the user). This is the single source 
 | 1 | Reference lab (measuring instrument) | **DONE**, merged to `development` (`7f74f5a0b`), not pushed |
 | 2A | Package foundation + how glass looks | **DONE**, merged to `development` on 2026-10-02 (2A, 2A.1 and the review fix wave). Done item 3 passes 10 of 20 cases, item 4 5 of 6, item 5 17 of 20, item 6 22 of 32 measures, item 8 passes. Results: `docs/liquid_glass/02a-looks/results-2a1.md`. |
 | 2A.2 | Static-look polish (shader residuals) | TODO, not planned: `docs/liquid_glass/02a-looks/todo-2a2.md` |
-| 2B | How glass moves | NOT STARTED |
+| 2B | How glass moves | **BRAINSTORMING** (started 2026-10-02). Research brief `02b-motion/context.md`; state, pending question and intentions in `02b-motion/brainstorm.md`. No spec yet. |
 | 3 | Every iOS component inside the package | NOT STARTED |
 | 4 | Operator adopts the package | NOT STARTED |
 | 5 | Real-device verification pass | NOT STARTED |
@@ -376,7 +376,9 @@ Done cases still failing, with their cause class from `results-2a1.md`. Classes:
   - Operator's stamped sources omit its path-dependency packages `packages/xterm` and `speech_to_text` (`tool/glass_lab/harness/build.py`, `SOURCES`).
 
 
-### Project 2B: How glass moves (NOT STARTED)
+### Project 2B: How glass moves (BRAINSTORMING, no spec yet)
+- **Read first:** `docs/liquid_glass/02b-motion/brainstorm.md`. It holds where the brainstorm stands, the question queue with my recommendation for each, the approaches and Done criteria I intend to propose, and the process. Then `02b-motion/context.md`, the research brief cited by file:line and run folder. The analysis scripts are in `02b-motion/research/`.
+- **Pending:** question 1, the press-response reference: A, B or C (recommendation A).
 - **Scope:**
   - interactive press response: scale up, bounce, glow spreading to neighbouring glass in the same container, drag stretch;
   - materialize and dematerialize, by ramping lensing, blur and highlight rather than alpha;
@@ -386,9 +388,10 @@ Done cases still failing, with their cause class from `results-2a1.md`. Classes:
 - **Measured native data to start from** (`noise.json`, baseline):
   - menu open width spring response about 0.26–0.30 s, damping 0.74–0.81 (fit error about 0.03);
   - tab bar drag width response about 0.27–0.34 s, damping about 0.37–0.40.
-  - Native materialize and dematerialize are about 250 ms and 350 ms in a third-party 120 fps capture (research/apple-inventory §2.13).
+  - Native materialize and dematerialize are about 250 ms and 350 ms in a third-party 120 fps capture (research/apple-inventory §2.13). **The lab's own native scene measures the reverse**: appear about 285–320 ms, disappear about 117–167 ms (10–90%), per `02b-motion/context.md` §1.
+  - Native glass button press (`button.press`, `.buttonStyle(.glass)`): width grows about +16–17 pt, a fixed outset; the release spring has response 0.18–0.34 s and damping 0.61–0.91. Native `material.interactive` has 0 events in every case.
 - **Lab scenes:** `material.interactive` (see the pending decision), `material.materialize`, `material.merge`, `material.union`, `material.morph`, `tabbar.press`, `tabbar.drag`, `button.press`.
-- **Next:** write the spec after 2A merges.
+- **Next:** continue the brainstorm in `02b-motion/brainstorm.md` (question 1 is pending), then write `02b-motion/spec.md`.
 
 ### Project 3: Every iOS component inside the package (NOT STARTED)
 - **Scope:** everything in §7 marked project 3.
@@ -550,6 +553,14 @@ After the review fix wave (runs `20261002-200447` to `20261002-210140`; the firs
 
 ## 9. Exact next steps
 
-1. **Project 2B (how glass moves): write the spec.** Use brainstorming, then the user approves the written spec, then the plan is prototyped and written as for 2A. Start from §6 "Project 2B" and the measured native springs in §8.
-2. **2A.2 (static-look polish)** is a TODO list, not yet planned: `docs/liquid_glass/02a-looks/todo-2a2.md`. The user decides when, likely alongside project 3, since the tinted rings are a prominent-button detail.
-3. **Pending user decision:** native `material.interactive` (§1).
+1. **Project 2B (how glass moves) is being brainstormed.** Read `docs/liquid_glass/02b-motion/brainstorm.md` and do exactly what it says next:
+   - get the user's answer to question 1 (the press-response reference: A, B or C; recommendation A);
+   - then ask questions 2–7 one at a time, each multiple choice with the recommendation first;
+   - then propose the approaches;
+   - then present the design in sections;
+   - then write `docs/liquid_glass/02b-motion/spec.md`, which the user approves;
+   - then the plan, prototype-first.
+2. **2A.2 (static-look polish)** is a to-do list, not yet planned: `docs/liquid_glass/02a-looks/todo-2a2.md`. The user decides when, likely alongside project 3, since the tinted rings are a prominent-button detail.
+3. **Pending user decisions:**
+   - native `material.interactive` (§1), which 2B question 1 settles;
+   - Swift Package Manager support for the plugin (a follow-up).

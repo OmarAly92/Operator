@@ -1,0 +1,3947 @@
+{
+ "20260927-035111/menu.bar/dark-stripes-reduce-motion": {
+  "region": [
+   116,
+   50,
+   286,
+   314
+  ],
+  "events": [
+   {
+    "start": 0.22,
+    "dur_s": 0.817,
+    "width": {
+     "from": 97.0,
+     "to": 274.0,
+     "min": 97.0,
+     "max": 274.0,
+     "peak_ms": 516.667,
+     "overshoot_pct": 0.0,
+     "settle_ms": 358.333,
+     "fit_response": 0.53,
+     "fit_damping": 0.74,
+     "fit_rms": 0.088
+    },
+    "height": {
+     "from": 314.0,
+     "to": 314.0,
+     "min": 314.0,
+     "max": 314.0
+    },
+    "cx": {
+     "from": 85.5,
+     "to": 145.0,
+     "min": 77.5,
+     "max": 146.0,
+     "peak_ms": 283.333,
+     "overshoot_pct": 1.681,
+     "settle_ms": 158.333,
+     "fit_response": 0.53,
+     "fit_damping": 0.64,
+     "fit_rms": 0.134
+    },
+    "cy": {
+     "from": 157.0,
+     "to": 157.0,
+     "min": 157.0,
+     "max": 157.0
+    },
+    "luma": {
+     "from": 158.9,
+     "to": 130.4,
+     "min": 130.4,
+     "max": 158.9,
+     "peak_ms": 758.333,
+     "overshoot_pct": 0.001,
+     "settle_ms": 491.667,
+     "fit_response": 0.77,
+     "fit_damping": 0.82,
+     "fit_rms": 0.014
+    }
+   },
+   {
+    "start": 2.997,
+    "dur_s": 0.467,
+    "width": {
+     "from": 274.0,
+     "to": 97.0,
+     "min": 97.0,
+     "max": 274.0,
+     "peak_ms": 116.667,
+     "overshoot_pct": 0.0,
+     "settle_ms": 108.333,
+     "fit_response": 0.3,
+     "fit_damping": 0.67,
+     "fit_rms": 0.075
+    },
+    "height": {
+     "from": 314.0,
+     "to": 314.0,
+     "min": 314.0,
+     "max": 314.0
+    },
+    "cx": {
+     "from": 145.0,
+     "to": 85.5,
+     "min": 76.5,
+     "max": 145.0,
+     "peak_ms": 91.667,
+     "overshoot_pct": 15.126,
+     "settle_ms": 108.333,
+     "fit_response": 0.3,
+     "fit_damping": 0.64,
+     "fit_rms": 0.11
+    },
+    "cy": {
+     "from": 157.0,
+     "to": 157.0,
+     "min": 157.0,
+     "max": 157.0
+    },
+    "luma": {
+     "from": 130.4,
+     "to": 158.1,
+     "min": 130.4,
+     "max": 158.2,
+     "peak_ms": 158.333,
+     "overshoot_pct": 0.412,
+     "settle_ms": 125.0,
+     "fit_response": 0.24,
+     "fit_damping": 0.75,
+     "fit_rms": 0.027
+    }
+   },
+   {
+    "start": 4.933,
+    "dur_s": 0.317,
+    "width": {
+     "from": 46.0,
+     "to": 286.0,
+     "min": 46.0,
+     "max": 286.0,
+     "peak_ms": 8.333,
+     "overshoot_pct": 0.0,
+     "settle_ms": 8.333,
+     "fit_response": 0.05,
+     "fit_damping": 0.5,
+     "fit_rms": 0.11
+    },
+    "height": {
+     "from": 44.0,
+     "to": 314.0,
+     "min": 44.0,
+     "max": 314.0,
+     "peak_ms": 8.333,
+     "overshoot_pct": 0.0,
+     "settle_ms": 8.333,
+     "fit_response": 0.05,
+     "fit_damping": 0.5,
+     "fit_rms": 0.11
+    },
+    "cx": {
+     "from": 248.0,
+     "to": 143.0,
+     "min": 143.0,
+     "max": 248.0,
+     "peak_ms": 8.333,
+     "overshoot_pct": 0.0,
+     "settle_ms": 8.333,
+     "fit_response": 0.05,
+     "fit_damping": 0.5,
+     "fit_rms": 0.11
+    },
+    "cy": {
+     "from": 34.0,
+     "to": 157.0,
+     "min": 34.0,
+     "max": 157.0,
+     "peak_ms": 8.333,
+     "overshoot_pct": 0.0,
+     "settle_ms": 8.333,
+     "fit_response": 0.05,
+     "fit_damping": 0.5,
+     "fit_rms": 0.11
+    },
+    "luma": {
+     "from": 158.1,
+     "to": 82.6,
+     "min": 82.6,
+     "max": 158.1,
+     "peak_ms": 8.333,
+     "overshoot_pct": 0.013,
+     "settle_ms": 8.333,
+     "fit_response": 0.05,
+     "fit_damping": 0.5,
+     "fit_rms": 0.11
+    }
+   }
+  ],
+  "stalls": [
+   131.7
+  ]
+ },
+ "20260927-035111/menu.bar/dark-stripes": {
+  "region": [
+   116,
+   50,
+   286,
+   330
+  ],
+  "events": [
+   {
+    "start": 0.133,
+    "dur_s": 0.8,
+    "width": {
+     "from": 50.0,
+     "to": 274.0,
+     "min": 50.0,
+     "max": 281.0,
+     "peak_ms": 258.333,
+     "overshoot_pct": 3.125,
+     "settle_ms": 333.333,
+     "fit_response": 0.43,
+     "fit_damping": 0.7,
+     "fit_rms": 0.031
+    },
+    "height": {
+     "from": 48.0,
+     "to": 330.0,
+     "min": 48.0,
+     "max": 330.0,
+     "peak_ms": 8.333,
+     "overshoot_pct": 0.0,
+     "settle_ms": 8.333,
+     "fit_response": 0.05,
+     "fit_damping": 0.5,
+     "fit_rms": 0.069
+    },
+    "cx": {
+     "from": 248.0,
+     "to": 147.0,
+     "min": 144.5,
+     "max": 248.5,
+     "peak_ms": 258.333,
+     "overshoot_pct": 2.475,
+     "settle_ms": 316.667,
+     "fit_response": 0.41,
+     "fit_damping": 0.71,
+     "fit_rms": 0.035
+    },
+    "cy": {
+     "from": 34.0,
+     "to": 165.0,
+     "min": 34.0,
+     "max": 165.0,
+     "peak_ms": 8.333,
+     "overshoot_pct": 0.0,
+     "settle_ms": 8.333,
+     "fit_response": 0.05,
+     "fit_damping": 0.5,
+     "fit_rms": 0.069
+    },
+    "luma": {
+     "from": 159.0,
+     "to": 131.9,
+     "min": 130.6,
+     "max": 159.0,
+     "peak_ms": 308.333,
+     "overshoot_pct": 4.566,
+     "settle_ms": 408.333,
+     "fit_response": 0.63,
+     "fit_damping": 0.65,
+     "fit_rms": 0.054
+    }
+   },
+   {
+    "start": 2.635,
+    "dur_s": 0.467,
+    "width": {
+     "from": 274.0,
+     "to": 97.0,
+     "min": 43.0,
+     "max": 274.0,
+     "peak_ms": 233.333,
+     "overshoot_pct": 30.508,
+     "settle_ms": 400.0,
+     "fit_response": 0.33,
+     "fit_damping": 0.43,
+     "fit_rms": 0.088
+    },
+    "height": {
+     "from": 330.0,
+     "to": 330.0,
+     "min": 54.7,
+     "max": 330.0
+    },
+    "cx": {
+     "from": 147.0,
+     "to": 85.5,
+     "min": 85.5,
+     "max": 246.8,
+     "peak_ms": 266.667,
+     "overshoot_pct": 0.0,
+     "settle_ms": 400.0,
+     "fit_response": 1.5,
+     "fit_damping": 1.2,
+     "fit_rms": 0.981
+    },
+    "cy": {
+     "from": 165.0,
+     "to": 165.0,
+     "min": 29.3,
+     "max": 165.0
+    },
+    "luma": {
+     "from": 131.9,
+     "to": 158.1,
+     "min": 131.9,
+     "max": 158.1,
+     "peak_ms": 216.667,
+     "overshoot_pct": 0.032,
+     "settle_ms": 158.333,
+     "fit_response": 0.08,
+     "fit_damping": 1.2,
+     "fit_rms": 0.043
+    }
+   },
+   {
+    "start": 3.915,
+    "dur_s": 0.317,
+    "width": {
+     "from": 97.0,
+     "to": 286.0,
+     "min": 97.0,
+     "max": 286.0,
+     "peak_ms": 8.333,
+     "overshoot_pct": 0.0,
+     "settle_ms": 8.333,
+     "fit_response": 0.05,
+     "fit_damping": 0.5,
+     "fit_rms": 0.11
+    },
+    "height": {
+     "from": 330.0,
+     "to": 330.0,
+     "min": 330.0,
+     "max": 330.0
+    },
+    "cx": {
+     "from": 85.5,
+     "to": 143.0,
+     "min": 85.5,
+     "max": 143.0,
+     "peak_ms": 8.333,
+     "overshoot_pct": 0.0,
+     "settle_ms": 8.333,
+     "fit_response": 0.05,
+     "fit_damping": 0.5,
+     "fit_rms": 0.11
+    },
+    "cy": {
+     "from": 165.0,
+     "to": 165.0,
+     "min": 165.0,
+     "max": 165.0
+    },
+    "luma": {
+     "from": 158.1,
+     "to": 80.8,
+     "min": 80.7,
+     "max": 158.1,
+     "peak_ms": 8.333,
+     "overshoot_pct": 0.024,
+     "settle_ms": 8.333,
+     "fit_response": 0.05,
+     "fit_damping": 0.5,
+     "fit_rms": 0.11
+    }
+   }
+  ],
+  "stalls": []
+ },
+ "20260927-035111/menu.bar/light-stripes": {
+  "region": [
+   116,
+   49,
+   286,
+   315
+  ],
+  "events": [
+   {
+    "start": 0.287,
+    "dur_s": 0.767,
+    "width": {
+     "from": 55.0,
+     "to": 262.0,
+     "min": 55.0,
+     "max": 270.0,
+     "peak_ms": 225.0,
+     "overshoot_pct": 3.865,
+     "settle_ms": 316.667,
+     "fit_response": 0.3,
+     "fit_damping": 0.74,
+     "fit_rms": 0.025
+    },
+    "height": {
+     "from": 60.0,
+     "to": 315.0,
+     "min": 60.0,
+     "max": 315.0,
+     "peak_ms": 8.333,
+     "overshoot_pct": 0.0,
+     "settle_ms": 8.333,
+     "fit_response": 0.05,
+     "fit_damping": 0.5,
+     "fit_rms": 0.071
+    },
+    "cx": {
+     "from": 249.5,
+     "to": 146.0,
+     "min": 143.0,
+     "max": 249.5,
+     "peak_ms": 225.0,
+     "overshoot_pct": 2.899,
+     "settle_ms": 275.0,
+     "fit_response": 0.24,
+     "fit_damping": 0.84,
+     "fit_rms": 0.035
+    },
+    "cy": {
+     "from": 42.0,
+     "to": 157.5,
+     "min": 42.0,
+     "max": 157.5,
+     "peak_ms": 8.333,
+     "overshoot_pct": 0.0,
+     "settle_ms": 8.333,
+     "fit_response": 0.05,
+     "fit_damping": 0.5,
+     "fit_rms": 0.071
+    },
+    "luma": {
+     "from": 158.1,
+     "to": 190.7,
+     "min": 157.6,
+     "max": 192.5,
+     "peak_ms": 250.0,
+     "overshoot_pct": 5.798,
+     "settle_ms": 358.333,
+     "fit_response": 0.47,
+     "fit_damping": 0.64,
+     "fit_rms": 0.033
+    }
+   },
+   {
+    "start": 2.688,
+    "dur_s": 0.517,
+    "width": {
+     "from": 262.0,
+     "to": 106.0,
+     "min": 43.2,
+     "max": 262.0,
+     "peak_ms": 233.333,
+     "overshoot_pct": 40.256,
+     "settle_ms": 266.667,
+     "fit_response": 0.36,
+     "fit_damping": 0.37,
+     "fit_rms": 0.076
+    },
+    "height": {
+     "from": 315.0,
+     "to": 315.0,
+     "min": 54.4,
+     "max": 315.0
+    },
+    "cx": {
+     "from": 146.0,
+     "to": 85.0,
+     "min": 85.0,
+     "max": 246.9,
+     "peak_ms": 266.667,
+     "overshoot_pct": 0.0,
+     "settle_ms": 266.667,
+     "fit_response": 1.5,
+     "fit_damping": 0.36,
+     "fit_rms": 0.918
+    },
+    "cy": {
+     "from": 157.5,
+     "to": 157.5,
+     "min": 30.6,
+     "max": 157.5
+    },
+    "luma": {
+     "from": 190.6,
+     "to": 157.6,
+     "min": 157.5,
+     "max": 190.6,
+     "peak_ms": 275.0,
+     "overshoot_pct": 0.103,
+     "settle_ms": 208.333,
+     "fit_response": 0.15,
+     "fit_damping": 1.2,
+     "fit_rms": 0.054
+    }
+   },
+   {
+    "start": 4.083,
+    "dur_s": 0.317,
+    "width": {
+     "from": 106.0,
+     "to": 286.0,
+     "min": 106.0,
+     "max": 286.0,
+     "peak_ms": 8.333,
+     "overshoot_pct": 0.0,
+     "settle_ms": 8.333,
+     "fit_response": 0.05,
+     "fit_damping": 0.5,
+     "fit_rms": 0.11
+    },
+    "height": {
+     "from": 315.0,
+     "to": 315.0,
+     "min": 315.0,
+     "max": 315.0
+    },
+    "cx": {
+     "from": 85.0,
+     "to": 143.0,
+     "min": 85.0,
+     "max": 143.0,
+     "peak_ms": 8.333,
+     "overshoot_pct": 0.0,
+     "settle_ms": 8.333,
+     "fit_response": 0.05,
+     "fit_damping": 0.5,
+     "fit_rms": 0.11
+    },
+    "cy": {
+     "from": 157.5,
+     "to": 157.5,
+     "min": 157.5,
+     "max": 157.5
+    },
+    "luma": {
+     "from": 157.5,
+     "to": 146.3,
+     "min": 146.3,
+     "max": 157.5,
+     "peak_ms": 8.333,
+     "overshoot_pct": 0.128,
+     "settle_ms": 8.333,
+     "fit_response": 0.05,
+     "fit_damping": 0.5,
+     "fit_rms": 0.11
+    }
+   }
+  ],
+  "stalls": []
+ },
+ "20260927-035111/tabbar.drag/dark-stripes-reduce-motion": {
+  "region": [
+   8,
+   779,
+   386,
+   89
+  ],
+  "events": [
+   {
+    "start": 0.003,
+    "dur_s": 0.367,
+    "width": {
+     "from": 362.0,
+     "to": 362.0,
+     "min": 361.0,
+     "max": 362.0
+    },
+    "height": {
+     "from": 89.0,
+     "to": 89.0,
+     "min": 89.0,
+     "max": 89.0
+    },
+    "cx": {
+     "from": 193.0,
+     "to": 193.0,
+     "min": 193.0,
+     "max": 193.5
+    },
+    "cy": {
+     "from": 44.5,
+     "to": 44.5,
+     "min": 44.5,
+     "max": 44.5
+    },
+    "luma": {
+     "from": 143.8,
+     "to": 151.9,
+     "min": 143.8,
+     "max": 151.9,
+     "peak_ms": 358.333,
+     "overshoot_pct": 0.0,
+     "settle_ms": 91.667,
+     "fit_response": 0.06,
+     "fit_damping": 1.18,
+     "fit_rms": 0.032
+    }
+   },
+   {
+    "start": 1.293,
+    "dur_s": 0.492,
+    "width": {
+     "from": 362.0,
+     "to": 362.0,
+     "min": 362.0,
+     "max": 362.0
+    },
+    "height": {
+     "from": 89.0,
+     "to": 89.0,
+     "min": 89.0,
+     "max": 89.0
+    },
+    "cx": {
+     "from": 193.0,
+     "to": 193.0,
+     "min": 193.0,
+     "max": 193.0
+    },
+    "cy": {
+     "from": 44.5,
+     "to": 44.5,
+     "min": 44.5,
+     "max": 44.5
+    },
+    "luma": {
+     "from": 152.2,
+     "to": 144.4,
+     "min": 144.4,
+     "max": 152.2,
+     "peak_ms": 483.333,
+     "overshoot_pct": 0.0,
+     "settle_ms": 400.0,
+     "fit_response": 0.48,
+     "fit_damping": 1.0,
+     "fit_rms": 0.017
+    }
+   },
+   {
+    "start": 2.162,
+    "dur_s": 0.317,
+    "width": {
+     "from": 362.0,
+     "to": 386.0,
+     "min": 362.0,
+     "max": 386.0,
+     "peak_ms": 8.333,
+     "overshoot_pct": 0.0,
+     "settle_ms": 8.333,
+     "fit_response": 0.05,
+     "fit_damping": 0.5,
+     "fit_rms": 0.11
+    },
+    "height": {
+     "from": 89.0,
+     "to": 89.0,
+     "min": 89.0,
+     "max": 89.0
+    },
+    "cx": {
+     "from": 193.0,
+     "to": 193.0,
+     "min": 193.0,
+     "max": 193.0
+    },
+    "cy": {
+     "from": 44.5,
+     "to": 44.5,
+     "min": 44.5,
+     "max": 44.5
+    },
+    "luma": {
+     "from": 144.4,
+     "to": 74.5,
+     "min": 74.5,
+     "max": 144.4,
+     "peak_ms": 41.667,
+     "overshoot_pct": 0.007,
+     "settle_ms": 8.333,
+     "fit_response": 0.05,
+     "fit_damping": 0.5,
+     "fit_rms": 0.11
+    }
+   }
+  ],
+  "stalls": []
+ },
+ "20260927-035111/tabbar.drag/dark-stripes": {
+  "region": [
+   0,
+   772,
+   402,
+   102
+  ],
+  "events": [
+   {
+    "start": 0.0,
+    "dur_s": 1.267,
+    "width": {
+     "from": 362.0,
+     "to": 314.0,
+     "min": 300.0,
+     "max": 382.0,
+     "peak_ms": 166.667,
+     "overshoot_pct": 29.167,
+     "settle_ms": 900.0,
+     "fit_response": 1.5,
+     "fit_damping": 1.2,
+     "fit_rms": 0.571
+    },
+    "height": {
+     "from": 102.0,
+     "to": 102.0,
+     "min": 102.0,
+     "max": 102.0
+    },
+    "cx": {
+     "from": 201.0,
+     "to": 172.0,
+     "min": 170.5,
+     "max": 240.0,
+     "peak_ms": 708.333,
+     "overshoot_pct": 5.172,
+     "settle_ms": 883.333,
+     "fit_response": 1.5,
+     "fit_damping": 1.2,
+     "fit_rms": 0.418
+    },
+    "cy": {
+     "from": 51.0,
+     "to": 51.0,
+     "min": 51.0,
+     "max": 51.0
+    },
+    "luma": {
+     "from": 143.3,
+     "to": 153.7,
+     "min": 143.3,
+     "max": 154.4,
+     "peak_ms": 741.667,
+     "overshoot_pct": 6.695,
+     "settle_ms": 833.333,
+     "fit_response": 0.14,
+     "fit_damping": 1.2,
+     "fit_rms": 0.032
+    }
+   },
+   {
+    "start": 1.262,
+    "dur_s": 0.617,
+    "width": {
+     "from": 314.0,
+     "to": 362.0,
+     "min": 299.0,
+     "max": 377.0,
+     "peak_ms": 8.333,
+     "overshoot_pct": 31.25,
+     "settle_ms": 266.667,
+     "fit_response": 0.34,
+     "fit_damping": 0.68,
+     "fit_rms": 0.241
+    },
+    "height": {
+     "from": 102.0,
+     "to": 102.0,
+     "min": 102.0,
+     "max": 102.0
+    },
+    "cx": {
+     "from": 172.0,
+     "to": 201.0,
+     "min": 166.5,
+     "max": 202.5,
+     "peak_ms": 8.333,
+     "overshoot_pct": 5.172,
+     "settle_ms": 108.333,
+     "fit_response": 0.35,
+     "fit_damping": 0.64,
+     "fit_rms": 0.2
+    },
+    "cy": {
+     "from": 51.0,
+     "to": 51.0,
+     "min": 51.0,
+     "max": 51.0
+    },
+    "luma": {
+     "from": 153.7,
+     "to": 143.9,
+     "min": 143.9,
+     "max": 153.7,
+     "peak_ms": 600.0,
+     "overshoot_pct": 0.0,
+     "settle_ms": 383.333,
+     "fit_response": 0.33,
+     "fit_damping": 1.2,
+     "fit_rms": 0.011
+    }
+   },
+   {
+    "start": 2.708,
+    "dur_s": 0.317,
+    "width": {
+     "from": 362.0,
+     "to": 402.0,
+     "min": 362.0,
+     "max": 402.0,
+     "peak_ms": 8.333,
+     "overshoot_pct": 0.0,
+     "settle_ms": 8.333,
+     "fit_response": 0.05,
+     "fit_damping": 0.5,
+     "fit_rms": 0.11
+    },
+    "height": {
+     "from": 102.0,
+     "to": 102.0,
+     "min": 102.0,
+     "max": 102.0
+    },
+    "cx": {
+     "from": 201.0,
+     "to": 201.0,
+     "min": 201.0,
+     "max": 201.0
+    },
+    "cy": {
+     "from": 51.0,
+     "to": 51.0,
+     "min": 51.0,
+     "max": 51.0
+    },
+    "luma": {
+     "from": 143.8,
+     "to": 70.9,
+     "min": 70.9,
+     "max": 143.8,
+     "peak_ms": 8.333,
+     "overshoot_pct": 0.014,
+     "settle_ms": 8.333,
+     "fit_response": 0.05,
+     "fit_damping": 0.5,
+     "fit_rms": 0.11
+    }
+   }
+  ],
+  "stalls": []
+ },
+ "20260927-035111/tabbar.drag/light-stripes": {
+  "region": [
+   0,
+   772,
+   402,
+   102
+  ],
+  "events": [
+   {
+    "start": 0.003,
+    "dur_s": 0.475,
+    "width": {
+     "from": 362.0,
+     "to": 377.0,
+     "min": 362.0,
+     "max": 382.0,
+     "peak_ms": 158.333,
+     "overshoot_pct": 33.333,
+     "settle_ms": 333.333,
+     "fit_response": 0.3,
+     "fit_damping": 0.33,
+     "fit_rms": 0.104
+    },
+    "height": {
+     "from": 102.0,
+     "to": 102.0,
+     "min": 102.0,
+     "max": 102.0
+    },
+    "cx": {
+     "from": 201.0,
+     "to": 201.5,
+     "min": 199.0,
+     "max": 202.5
+    },
+    "cy": {
+     "from": 51.0,
+     "to": 51.0,
+     "min": 51.0,
+     "max": 51.0
+    },
+    "luma": {
+     "from": 167.0,
+     "to": 175.5,
+     "min": 167.0,
+     "max": 175.6,
+     "peak_ms": 450.0,
+     "overshoot_pct": 1.41,
+     "settle_ms": 416.667,
+     "fit_response": 0.15,
+     "fit_damping": 1.2,
+     "fit_rms": 0.075
+    }
+   },
+   {
+    "start": 0.32,
+    "dur_s": 1.008,
+    "width": {
+     "from": 373.0,
+     "to": 370.4,
+     "min": 370.4,
+     "max": 378.7
+    },
+    "height": {
+     "from": 102.0,
+     "to": 102.0,
+     "min": 102.0,
+     "max": 102.0
+    },
+    "cx": {
+     "from": 202.5,
+     "to": 202.0,
+     "min": 200.5,
+     "max": 203.0
+    },
+    "cy": {
+     "from": 51.0,
+     "to": 51.0,
+     "min": 51.0,
+     "max": 51.0
+    },
+    "luma": {
+     "from": 174.8,
+     "to": 172.5,
+     "min": 172.5,
+     "max": 175.6
+    }
+   },
+   {
+    "start": 1.265,
+    "dur_s": 0.7,
+    "width": {
+     "from": 378.0,
+     "to": 362.0,
+     "min": 361.1,
+     "max": 378.0,
+     "peak_ms": 200.0,
+     "overshoot_pct": 5.826,
+     "settle_ms": 266.667,
+     "fit_response": 0.31,
+     "fit_damping": 0.7,
+     "fit_rms": 0.014
+    },
+    "height": {
+     "from": 102.0,
+     "to": 102.0,
+     "min": 102.0,
+     "max": 102.0
+    },
+    "cx": {
+     "from": 203.0,
+     "to": 201.0,
+     "min": 200.5,
+     "max": 203.0
+    },
+    "cy": {
+     "from": 51.0,
+     "to": 51.0,
+     "min": 51.0,
+     "max": 51.0
+    },
+    "luma": {
+     "from": 174.8,
+     "to": 167.2,
+     "min": 167.2,
+     "max": 174.8,
+     "peak_ms": 675.0,
+     "overshoot_pct": 0.025,
+     "settle_ms": 391.667,
+     "fit_response": 0.39,
+     "fit_damping": 1.01,
+     "fit_rms": 0.013
+    }
+   },
+   {
+    "start": 2.702,
+    "dur_s": 0.317,
+    "width": {
+     "from": 362.0,
+     "to": 402.0,
+     "min": 362.0,
+     "max": 402.0,
+     "peak_ms": 8.333,
+     "overshoot_pct": 0.0,
+     "settle_ms": 8.333,
+     "fit_response": 0.05,
+     "fit_damping": 0.5,
+     "fit_rms": 0.11
+    },
+    "height": {
+     "from": 102.0,
+     "to": 102.0,
+     "min": 102.0,
+     "max": 102.0
+    },
+    "cx": {
+     "from": 201.0,
+     "to": 201.0,
+     "min": 201.0,
+     "max": 201.0
+    },
+    "cy": {
+     "from": 51.0,
+     "to": 51.0,
+     "min": 51.0,
+     "max": 51.0
+    },
+    "luma": {
+     "from": 167.2,
+     "to": 111.1,
+     "min": 111.1,
+     "max": 167.2,
+     "peak_ms": 108.333,
+     "overshoot_pct": 0.008,
+     "settle_ms": 8.333,
+     "fit_response": 0.05,
+     "fit_damping": 0.5,
+     "fit_rms": 0.11
+    }
+   }
+  ],
+  "stalls": [
+   98.3,
+   100.0
+  ]
+ },
+ "20260927-035111/tabbar.press/dark-stripes": {
+  "region": [
+   4,
+   772,
+   398,
+   102
+  ],
+  "events": [
+   {
+    "start": 0.0,
+    "dur_s": 0.583,
+    "width": {
+     "from": 361.0,
+     "to": 376.0,
+     "min": 360.4,
+     "max": 378.0,
+     "peak_ms": 183.333,
+     "overshoot_pct": 13.333,
+     "settle_ms": 258.333,
+     "fit_response": 0.28,
+     "fit_damping": 0.61,
+     "fit_rms": 0.035
+    },
+    "height": {
+     "from": 102.0,
+     "to": 102.0,
+     "min": 102.0,
+     "max": 102.0
+    },
+    "cx": {
+     "from": 197.5,
+     "to": 197.0,
+     "min": 195.4,
+     "max": 197.5
+    },
+    "cy": {
+     "from": 51.0,
+     "to": 51.0,
+     "min": 51.0,
+     "max": 51.0
+    },
+    "luma": {
+     "from": 143.7,
+     "to": 154.3,
+     "min": 143.7,
+     "max": 154.3,
+     "peak_ms": 291.667,
+     "overshoot_pct": 0.492,
+     "settle_ms": 208.333,
+     "fit_response": 0.14,
+     "fit_damping": 1.2,
+     "fit_rms": 0.028
+    }
+   },
+   {
+    "start": 0.992,
+    "dur_s": 0.642,
+    "width": {
+     "from": 376.0,
+     "to": 361.0,
+     "min": 263.0,
+     "max": 376.0,
+     "peak_ms": 41.667,
+     "overshoot_pct": 653.32,
+     "settle_ms": 416.667,
+     "fit_response": 0.08,
+     "fit_damping": 0.1,
+     "fit_rms": 0.797
+    },
+    "height": {
+     "from": 102.0,
+     "to": 102.0,
+     "min": 102.0,
+     "max": 102.0
+    },
+    "cx": {
+     "from": 197.0,
+     "to": 197.5,
+     "min": 197.0,
+     "max": 251.5
+    },
+    "cy": {
+     "from": 51.0,
+     "to": 51.0,
+     "min": 51.0,
+     "max": 51.0
+    },
+    "luma": {
+     "from": 154.3,
+     "to": 143.4,
+     "min": 143.4,
+     "max": 154.3,
+     "peak_ms": 508.333,
+     "overshoot_pct": 0.043,
+     "settle_ms": 416.667,
+     "fit_response": 0.4,
+     "fit_damping": 1.16,
+     "fit_rms": 0.013
+    }
+   },
+   {
+    "start": 2.442,
+    "dur_s": 0.317,
+    "width": {
+     "from": 362.0,
+     "to": 398.0,
+     "min": 362.0,
+     "max": 398.0,
+     "peak_ms": 8.333,
+     "overshoot_pct": 0.0,
+     "settle_ms": 8.333,
+     "fit_response": 0.05,
+     "fit_damping": 0.5,
+     "fit_rms": 0.11
+    },
+    "height": {
+     "from": 102.0,
+     "to": 102.0,
+     "min": 102.0,
+     "max": 102.0
+    },
+    "cx": {
+     "from": 197.0,
+     "to": 199.0,
+     "min": 197.0,
+     "max": 199.0
+    },
+    "cy": {
+     "from": 51.0,
+     "to": 51.0,
+     "min": 51.0,
+     "max": 51.0
+    },
+    "luma": {
+     "from": 143.4,
+     "to": 71.5,
+     "min": 71.5,
+     "max": 143.4,
+     "peak_ms": 8.333,
+     "overshoot_pct": 0.014,
+     "settle_ms": 8.333,
+     "fit_response": 0.05,
+     "fit_damping": 0.5,
+     "fit_rms": 0.11
+    }
+   }
+  ],
+  "stalls": []
+ },
+ "20260927-035111/tabbar.press/light-stripes": {
+  "region": [
+   0,
+   772,
+   402,
+   102
+  ],
+  "events": [
+   {
+    "start": 0.003,
+    "dur_s": 0.642,
+    "width": {
+     "from": 362.0,
+     "to": 376.0,
+     "min": 362.0,
+     "max": 378.0,
+     "peak_ms": 125.0,
+     "overshoot_pct": 14.286,
+     "settle_ms": 291.667,
+     "fit_response": 0.1,
+     "fit_damping": 1.17,
+     "fit_rms": 0.078
+    },
+    "height": {
+     "from": 102.0,
+     "to": 102.0,
+     "min": 102.0,
+     "max": 102.0
+    },
+    "cx": {
+     "from": 201.0,
+     "to": 201.0,
+     "min": 200.6,
+     "max": 201.0
+    },
+    "cy": {
+     "from": 51.0,
+     "to": 51.0,
+     "min": 51.0,
+     "max": 51.0
+    },
+    "luma": {
+     "from": 167.0,
+     "to": 174.5,
+     "min": 167.0,
+     "max": 175.2,
+     "peak_ms": 225.0,
+     "overshoot_pct": 9.308,
+     "settle_ms": 300.0,
+     "fit_response": 0.05,
+     "fit_damping": 1.2,
+     "fit_rms": 0.052
+    }
+   },
+   {
+    "start": 0.985,
+    "dur_s": 0.642,
+    "width": {
+     "from": 376.0,
+     "to": 362.0,
+     "min": 362.0,
+     "max": 376.0,
+     "peak_ms": 150.0,
+     "overshoot_pct": 0.0,
+     "settle_ms": 141.667,
+     "fit_response": 0.31,
+     "fit_damping": 0.76,
+     "fit_rms": 0.022
+    },
+    "height": {
+     "from": 102.0,
+     "to": 102.0,
+     "min": 102.0,
+     "max": 102.0
+    },
+    "cx": {
+     "from": 201.0,
+     "to": 201.0,
+     "min": 200.6,
+     "max": 201.0
+    },
+    "cy": {
+     "from": 51.0,
+     "to": 51.0,
+     "min": 51.0,
+     "max": 51.0
+    },
+    "luma": {
+     "from": 174.6,
+     "to": 166.5,
+     "min": 166.5,
+     "max": 174.6,
+     "peak_ms": 583.333,
+     "overshoot_pct": 0.032,
+     "settle_ms": 391.667,
+     "fit_response": 0.45,
+     "fit_damping": 0.96,
+     "fit_rms": 0.015
+    }
+   },
+   {
+    "start": 2.463,
+    "dur_s": 0.317,
+    "width": {
+     "from": 362.0,
+     "to": 402.0,
+     "min": 362.0,
+     "max": 402.0,
+     "peak_ms": 8.333,
+     "overshoot_pct": 0.0,
+     "settle_ms": 8.333,
+     "fit_response": 0.05,
+     "fit_damping": 0.5,
+     "fit_rms": 0.11
+    },
+    "height": {
+     "from": 102.0,
+     "to": 102.0,
+     "min": 102.0,
+     "max": 102.0
+    },
+    "cx": {
+     "from": 201.0,
+     "to": 201.0,
+     "min": 201.0,
+     "max": 201.0
+    },
+    "cy": {
+     "from": 51.0,
+     "to": 51.0,
+     "min": 51.0,
+     "max": 51.0
+    },
+    "luma": {
+     "from": 166.4,
+     "to": 111.1,
+     "min": 111.1,
+     "max": 166.4,
+     "peak_ms": 175.0,
+     "overshoot_pct": 0.001,
+     "settle_ms": 8.333,
+     "fit_response": 0.05,
+     "fit_damping": 0.5,
+     "fit_rms": 0.11
+    }
+   }
+  ],
+  "stalls": []
+ },
+ "20260930-082046/material.interactive/dark-photo": {
+  "region": [
+   63,
+   395,
+   276,
+   115
+  ],
+  "events": [],
+  "stalls": []
+ },
+ "20260930-082046/material.interactive/dark-stripes": {
+  "region": [
+   63,
+   395,
+   276,
+   121
+  ],
+  "events": [],
+  "stalls": []
+ },
+ "20260930-082046/material.interactive/light-photo": {
+  "region": [
+   63,
+   394,
+   276,
+   114
+  ],
+  "events": [],
+  "stalls": []
+ },
+ "20260930-082046/material.interactive/light-stripes": {
+  "region": [
+   63,
+   394,
+   276,
+   119
+  ],
+  "events": [],
+  "stalls": []
+ },
+ "20260930-082046/material.materialize/dark-photo": {
+  "region": [
+   60,
+   388,
+   280,
+   344
+  ],
+  "events": [
+   {
+    "start": 0.088,
+    "dur_s": 0.45,
+    "width": {
+     "from": 254.0,
+     "to": 86.0,
+     "min": 86.0,
+     "max": 254.0,
+     "peak_ms": 133.333,
+     "overshoot_pct": 0.0,
+     "settle_ms": 133.333,
+     "fit_response": 0.16,
+     "fit_damping": 1.2,
+     "fit_rms": 0.087
+    },
+    "height": {
+     "from": 92.0,
+     "to": 40.0,
+     "min": 40.0,
+     "max": 97.0,
+     "peak_ms": 133.333,
+     "overshoot_pct": 0.0,
+     "settle_ms": 133.333,
+     "fit_response": 0.5,
+     "fit_damping": 0.63,
+     "fit_rms": 0.19
+    },
+    "cx": {
+     "from": 141.0,
+     "to": 141.0,
+     "min": 81.5,
+     "max": 141.0
+    },
+    "cy": {
+     "from": 63.0,
+     "to": 313.0,
+     "min": 61.0,
+     "max": 313.0,
+     "peak_ms": 133.333,
+     "overshoot_pct": 0.0,
+     "settle_ms": 133.333,
+     "fit_response": 0.49,
+     "fit_damping": 0.63,
+     "fit_rms": 0.173
+    },
+    "luma": {
+     "from": 109.9,
+     "to": 110.3,
+     "min": 109.5,
+     "max": 110.3
+    }
+   },
+   {
+    "start": 2.502,
+    "dur_s": 0.317,
+    "width": {
+     "from": 86.0,
+     "to": 142.0,
+     "min": 86.0,
+     "max": 146.0,
+     "peak_ms": 283.333,
+     "overshoot_pct": 7.143,
+     "settle_ms": 300.0,
+     "fit_response": 1.39,
+     "fit_damping": 0.1,
+     "fit_rms": 0.248
+    },
+    "height": {
+     "from": 40.0,
+     "to": 95.0,
+     "min": 40.0,
+     "max": 97.0,
+     "peak_ms": 258.333,
+     "overshoot_pct": 3.636,
+     "settle_ms": 275.0,
+     "fit_response": 1.35,
+     "fit_damping": 0.1,
+     "fit_rms": 0.263
+    },
+    "cx": {
+     "from": 141.0,
+     "to": 83.0,
+     "min": 81.5,
+     "max": 141.0,
+     "peak_ms": 266.667,
+     "overshoot_pct": 2.586,
+     "settle_ms": 291.667,
+     "fit_response": 1.36,
+     "fit_damping": 0.1,
+     "fit_rms": 0.258
+    },
+    "cy": {
+     "from": 313.0,
+     "to": 62.5,
+     "min": 62.5,
+     "max": 313.0,
+     "peak_ms": 275.0,
+     "overshoot_pct": 0.0,
+     "settle_ms": 250.0,
+     "fit_response": 1.36,
+     "fit_damping": 0.1,
+     "fit_rms": 0.257
+    },
+    "luma": {
+     "from": 110.3,
+     "to": 109.9,
+     "min": 109.2,
+     "max": 110.3
+    }
+   },
+   {
+    "start": 3.085,
+    "dur_s": 0.45,
+    "width": {
+     "from": 86.0,
+     "to": 253.0,
+     "min": 86.0,
+     "max": 254.0,
+     "peak_ms": 166.667,
+     "overshoot_pct": 0.599,
+     "settle_ms": 266.667,
+     "fit_response": 0.31,
+     "fit_damping": 1.2,
+     "fit_rms": 0.147
+    },
+    "height": {
+     "from": 40.0,
+     "to": 92.0,
+     "min": 40.0,
+     "max": 97.0,
+     "peak_ms": 8.333,
+     "overshoot_pct": 9.615,
+     "settle_ms": 308.333,
+     "fit_response": 0.05,
+     "fit_damping": 0.42,
+     "fit_rms": 0.109
+    },
+    "cx": {
+     "from": 141.0,
+     "to": 141.5,
+     "min": 81.5,
+     "max": 141.5
+    },
+    "cy": {
+     "from": 313.0,
+     "to": 63.0,
+     "min": 62.0,
+     "max": 313.0,
+     "peak_ms": 166.667,
+     "overshoot_pct": 0.4,
+     "settle_ms": 8.333,
+     "fit_response": 0.05,
+     "fit_damping": 0.5,
+     "fit_rms": 0.092
+    },
+    "luma": {
+     "from": 109.6,
+     "to": 111.0,
+     "min": 109.6,
+     "max": 111.0
+    }
+   },
+   {
+    "start": 4.01,
+    "dur_s": 0.317,
+    "width": {
+     "from": 253.0,
+     "to": 280.0,
+     "min": 253.0,
+     "max": 280.0,
+     "peak_ms": 8.333,
+     "overshoot_pct": 0.0,
+     "settle_ms": 8.333,
+     "fit_response": 0.05,
+     "fit_damping": 0.5,
+     "fit_rms": 0.11
+    },
+    "height": {
+     "from": 90.0,
+     "to": 344.0,
+     "min": 90.0,
+     "max": 344.0,
+     "peak_ms": 8.333,
+     "overshoot_pct": 0.0,
+     "settle_ms": 8.333,
+     "fit_response": 0.05,
+     "fit_damping": 0.5,
+     "fit_rms": 0.11
+    },
+    "cx": {
+     "from": 141.5,
+     "to": 140.0,
+     "min": 140.0,
+     "max": 141.5
+    },
+    "cy": {
+     "from": 63.0,
+     "to": 172.0,
+     "min": 63.0,
+     "max": 172.0,
+     "peak_ms": 8.333,
+     "overshoot_pct": 0.0,
+     "settle_ms": 8.333,
+     "fit_response": 0.05,
+     "fit_damping": 0.5,
+     "fit_rms": 0.11
+    },
+    "luma": {
+     "from": 111.0,
+     "to": 34.6,
+     "min": 34.5,
+     "max": 111.0,
+     "peak_ms": 8.333,
+     "overshoot_pct": 0.009,
+     "settle_ms": 8.333,
+     "fit_response": 0.05,
+     "fit_damping": 0.5,
+     "fit_rms": 0.11
+    }
+   }
+  ],
+  "stalls": []
+ },
+ "20260930-082046/material.materialize/dark-stripes": {
+  "region": [
+   60,
+   395,
+   280,
+   337
+  ],
+  "events": [
+   {
+    "start": 0.088,
+    "dur_s": 0.417,
+    "width": {
+     "from": 254.0,
+     "to": 87.0,
+     "min": 86.0,
+     "max": 256.0,
+     "peak_ms": 116.667,
+     "overshoot_pct": 0.599,
+     "settle_ms": 108.333,
+     "fit_response": 0.29,
+     "fit_damping": 0.65,
+     "fit_rms": 0.115
+    },
+    "height": {
+     "from": 337.0,
+     "to": 337.0,
+     "min": 337.0,
+     "max": 337.0
+    },
+    "cx": {
+     "from": 141.0,
+     "to": 141.5,
+     "min": 128.6,
+     "max": 141.5
+    },
+    "cy": {
+     "from": 168.5,
+     "to": 168.5,
+     "min": 168.5,
+     "max": 168.5
+    },
+    "luma": {
+     "from": 158.8,
+     "to": 165.8,
+     "min": 158.8,
+     "max": 165.8,
+     "peak_ms": 375.0,
+     "overshoot_pct": 0.036,
+     "settle_ms": 208.333,
+     "fit_response": 0.18,
+     "fit_damping": 1.2,
+     "fit_rms": 0.02
+    }
+   },
+   {
+    "start": 0.888,
+    "dur_s": 0.317,
+    "width": {
+     "from": 87.0,
+     "to": 256.0,
+     "min": 86.0,
+     "max": 256.0,
+     "peak_ms": 308.333,
+     "overshoot_pct": 0.0,
+     "settle_ms": 308.333,
+     "fit_response": 1.5,
+     "fit_damping": 1.2,
+     "fit_rms": 0.184
+    },
+    "height": {
+     "from": 337.0,
+     "to": 337.0,
+     "min": 337.0,
+     "max": 337.0
+    },
+    "cx": {
+     "from": 141.5,
+     "to": 141.0,
+     "min": 126.7,
+     "max": 141.5
+    },
+    "cy": {
+     "from": 168.5,
+     "to": 168.5,
+     "min": 168.5,
+     "max": 168.5
+    },
+    "luma": {
+     "from": 165.8,
+     "to": 162.7,
+     "min": 162.7,
+     "max": 165.8,
+     "peak_ms": 308.333,
+     "overshoot_pct": 0.0,
+     "settle_ms": 308.333,
+     "fit_response": 1.33,
+     "fit_damping": 0.1,
+     "fit_rms": 0.116
+    }
+   },
+   {
+    "start": 2.92,
+    "dur_s": 0.425,
+    "width": {
+     "from": 86.0,
+     "to": 254.0,
+     "min": 86.0,
+     "max": 256.0,
+     "peak_ms": 83.333,
+     "overshoot_pct": 1.19,
+     "settle_ms": 75.0,
+     "fit_response": 0.25,
+     "fit_damping": 0.65,
+     "fit_rms": 0.096
+    },
+    "height": {
+     "from": 337.0,
+     "to": 337.0,
+     "min": 337.0,
+     "max": 337.0
+    },
+    "cx": {
+     "from": 141.0,
+     "to": 141.0,
+     "min": 126.3,
+     "max": 141.0
+    },
+    "cy": {
+     "from": 168.5,
+     "to": 168.5,
+     "min": 168.5,
+     "max": 168.5
+    },
+    "luma": {
+     "from": 164.9,
+     "to": 159.1,
+     "min": 159.1,
+     "max": 164.9,
+     "peak_ms": 416.667,
+     "overshoot_pct": 0.0,
+     "settle_ms": 375.0,
+     "fit_response": 0.34,
+     "fit_damping": 1.2,
+     "fit_rms": 0.031
+    }
+   },
+   {
+    "start": 3.867,
+    "dur_s": 0.317,
+    "width": {
+     "from": 253.0,
+     "to": 280.0,
+     "min": 253.0,
+     "max": 280.0,
+     "peak_ms": 8.333,
+     "overshoot_pct": 0.0,
+     "settle_ms": 8.333,
+     "fit_response": 0.05,
+     "fit_damping": 0.5,
+     "fit_rms": 0.11
+    },
+    "height": {
+     "from": 337.0,
+     "to": 337.0,
+     "min": 337.0,
+     "max": 337.0
+    },
+    "cx": {
+     "from": 141.5,
+     "to": 140.0,
+     "min": 140.0,
+     "max": 141.5
+    },
+    "cy": {
+     "from": 168.5,
+     "to": 168.5,
+     "min": 168.5,
+     "max": 168.5
+    },
+    "luma": {
+     "from": 159.0,
+     "to": 34.6,
+     "min": 34.6,
+     "max": 159.0,
+     "peak_ms": 8.333,
+     "overshoot_pct": 0.012,
+     "settle_ms": 8.333,
+     "fit_response": 0.05,
+     "fit_damping": 0.5,
+     "fit_rms": 0.11
+    }
+   }
+  ],
+  "stalls": []
+ },
+ "20260930-082046/material.materialize/light-photo": {
+  "region": [
+   60,
+   388,
+   280,
+   344
+  ],
+  "events": [
+   {
+    "start": 0.037,
+    "dur_s": 0.475,
+    "width": {
+     "from": 253.0,
+     "to": 86.0,
+     "min": 86.0,
+     "max": 257.6,
+     "peak_ms": 141.667,
+     "overshoot_pct": 0.0,
+     "settle_ms": 141.667,
+     "fit_response": 0.54,
+     "fit_damping": 0.64,
+     "fit_rms": 0.18
+    },
+    "height": {
+     "from": 91.0,
+     "to": 40.0,
+     "min": 40.0,
+     "max": 99.2,
+     "peak_ms": 141.667,
+     "overshoot_pct": 0.0,
+     "settle_ms": 141.667,
+     "fit_response": 0.58,
+     "fit_damping": 0.62,
+     "fit_rms": 0.219
+    },
+    "cx": {
+     "from": 141.5,
+     "to": 141.0,
+     "min": 140.6,
+     "max": 141.5
+    },
+    "cy": {
+     "from": 63.5,
+     "to": 313.0,
+     "min": 62.0,
+     "max": 313.0,
+     "peak_ms": 141.667,
+     "overshoot_pct": 0.0,
+     "settle_ms": 141.667,
+     "fit_response": 0.54,
+     "fit_damping": 0.64,
+     "fit_rms": 0.18
+    },
+    "luma": {
+     "from": 126.6,
+     "to": 110.3,
+     "min": 110.2,
+     "max": 126.6,
+     "peak_ms": 291.667,
+     "overshoot_pct": 0.411,
+     "settle_ms": 191.667,
+     "fit_response": 0.23,
+     "fit_damping": 0.97,
+     "fit_rms": 0.008
+    }
+   },
+   {
+    "start": 0.887,
+    "dur_s": 0.317,
+    "width": {
+     "from": 87.0,
+     "to": 256.0,
+     "min": 86.0,
+     "max": 257.8,
+     "peak_ms": 258.333,
+     "overshoot_pct": 1.065,
+     "settle_ms": 258.333,
+     "fit_response": 1.33,
+     "fit_damping": 0.1,
+     "fit_rms": 0.24
+    },
+    "height": {
+     "from": 40.0,
+     "to": 95.0,
+     "min": 40.0,
+     "max": 99.4,
+     "peak_ms": 258.333,
+     "overshoot_pct": 8.0,
+     "settle_ms": 300.0,
+     "fit_response": 1.24,
+     "fit_damping": 0.1,
+     "fit_rms": 0.263
+    },
+    "cx": {
+     "from": 141.5,
+     "to": 141.0,
+     "min": 118.6,
+     "max": 141.5
+    },
+    "cy": {
+     "from": 313.0,
+     "to": 62.5,
+     "min": 61.7,
+     "max": 313.0,
+     "peak_ms": 283.333,
+     "overshoot_pct": 0.31,
+     "settle_ms": 241.667,
+     "fit_response": 1.27,
+     "fit_damping": 0.1,
+     "fit_rms": 0.248
+    },
+    "luma": {
+     "from": 110.3,
+     "to": 117.4,
+     "min": 109.3,
+     "max": 117.4,
+     "peak_ms": 308.333,
+     "overshoot_pct": 0.0,
+     "settle_ms": 308.333,
+     "fit_response": 1.5,
+     "fit_damping": 0.1,
+     "fit_rms": 0.225
+    }
+   },
+   {
+    "start": 3.017,
+    "dur_s": 0.617,
+    "width": {
+     "from": 86.0,
+     "to": 253.0,
+     "min": 86.0,
+     "max": 258.0,
+     "peak_ms": 75.0,
+     "overshoot_pct": 2.993,
+     "settle_ms": 108.333,
+     "fit_response": 0.23,
+     "fit_damping": 0.63,
+     "fit_rms": 0.077
+    },
+    "height": {
+     "from": 40.0,
+     "to": 92.0,
+     "min": 40.0,
+     "max": 100.0,
+     "peak_ms": 75.0,
+     "overshoot_pct": 15.385,
+     "settle_ms": 391.667,
+     "fit_response": 0.2,
+     "fit_damping": 0.51,
+     "fit_rms": 0.103
+    },
+    "cx": {
+     "from": 141.0,
+     "to": 141.5,
+     "min": 113.0,
+     "max": 141.5
+    },
+    "cy": {
+     "from": 313.0,
+     "to": 63.0,
+     "min": 61.6,
+     "max": 313.0,
+     "peak_ms": 108.333,
+     "overshoot_pct": 0.564,
+     "settle_ms": 58.333,
+     "fit_response": 0.21,
+     "fit_damping": 0.63,
+     "fit_rms": 0.089
+    },
+    "luma": {
+     "from": 109.6,
+     "to": 127.5,
+     "min": 109.6,
+     "max": 127.5,
+     "peak_ms": 600.0,
+     "overshoot_pct": 0.0,
+     "settle_ms": 475.0,
+     "fit_response": 0.53,
+     "fit_damping": 0.99,
+     "fit_rms": 0.008
+    }
+   },
+   {
+    "start": 3.995,
+    "dur_s": 0.317,
+    "width": {
+     "from": 253.0,
+     "to": 280.0,
+     "min": 253.0,
+     "max": 280.0,
+     "peak_ms": 8.333,
+     "overshoot_pct": 0.0,
+     "settle_ms": 8.333,
+     "fit_response": 0.05,
+     "fit_damping": 0.5,
+     "fit_rms": 0.11
+    },
+    "height": {
+     "from": 91.0,
+     "to": 344.0,
+     "min": 91.0,
+     "max": 344.0,
+     "peak_ms": 8.333,
+     "overshoot_pct": 0.0,
+     "settle_ms": 8.333,
+     "fit_response": 0.05,
+     "fit_damping": 0.5,
+     "fit_rms": 0.11
+    },
+    "cx": {
+     "from": 141.5,
+     "to": 140.0,
+     "min": 140.0,
+     "max": 141.5
+    },
+    "cy": {
+     "from": 63.5,
+     "to": 172.0,
+     "min": 63.5,
+     "max": 172.0,
+     "peak_ms": 8.333,
+     "overshoot_pct": 0.0,
+     "settle_ms": 8.333,
+     "fit_response": 0.05,
+     "fit_damping": 0.5,
+     "fit_rms": 0.11
+    },
+    "luma": {
+     "from": 127.6,
+     "to": 118.8,
+     "min": 118.8,
+     "max": 127.6,
+     "peak_ms": 75.0,
+     "overshoot_pct": 0.069,
+     "settle_ms": 8.333,
+     "fit_response": 0.05,
+     "fit_damping": 0.5,
+     "fit_rms": 0.11
+    }
+   }
+  ],
+  "stalls": []
+ },
+ "20260930-082046/material.materialize/light-stripes": {
+  "region": [
+   60,
+   388,
+   280,
+   344
+  ],
+  "events": [
+   {
+    "start": 0.023,
+    "dur_s": 0.442,
+    "width": {
+     "from": 253.0,
+     "to": 87.0,
+     "min": 86.0,
+     "max": 256.0,
+     "peak_ms": 125.0,
+     "overshoot_pct": 0.602,
+     "settle_ms": 125.0,
+     "fit_response": 0.37,
+     "fit_damping": 0.64,
+     "fit_rms": 0.117
+    },
+    "height": {
+     "from": 344.0,
+     "to": 344.0,
+     "min": 344.0,
+     "max": 344.0
+    },
+    "cx": {
+     "from": 141.5,
+     "to": 141.5,
+     "min": 141.0,
+     "max": 157.2
+    },
+    "cy": {
+     "from": 172.0,
+     "to": 172.0,
+     "min": 172.0,
+     "max": 172.0
+    },
+    "luma": {
+     "from": 174.6,
+     "to": 165.8,
+     "min": 165.7,
+     "max": 174.6,
+     "peak_ms": 225.0,
+     "overshoot_pct": 0.948,
+     "settle_ms": 191.667,
+     "fit_response": 0.22,
+     "fit_damping": 0.98,
+     "fit_rms": 0.011
+    }
+   },
+   {
+    "start": 2.035,
+    "dur_s": 0.317,
+    "width": {
+     "from": 87.0,
+     "to": 256.0,
+     "min": 86.0,
+     "max": 256.0,
+     "peak_ms": 300.0,
+     "overshoot_pct": 0.0,
+     "settle_ms": 300.0,
+     "fit_response": 1.5,
+     "fit_damping": 0.9,
+     "fit_rms": 0.199
+    },
+    "height": {
+     "from": 344.0,
+     "to": 344.0,
+     "min": 344.0,
+     "max": 344.0
+    },
+    "cx": {
+     "from": 141.5,
+     "to": 141.0,
+     "min": 141.0,
+     "max": 158.2
+    },
+    "cy": {
+     "from": 172.0,
+     "to": 172.0,
+     "min": 172.0,
+     "max": 172.0
+    },
+    "luma": {
+     "from": 165.8,
+     "to": 169.0,
+     "min": 165.3,
+     "max": 169.0,
+     "peak_ms": 300.0,
+     "overshoot_pct": 0.0,
+     "settle_ms": 300.0,
+     "fit_response": 1.5,
+     "fit_damping": 0.1,
+     "fit_rms": 0.239
+    }
+   },
+   {
+    "start": 2.87,
+    "dur_s": 0.517,
+    "width": {
+     "from": 86.0,
+     "to": 253.0,
+     "min": 86.0,
+     "max": 256.0,
+     "peak_ms": 91.667,
+     "overshoot_pct": 1.796,
+     "settle_ms": 91.667,
+     "fit_response": 0.3,
+     "fit_damping": 0.65,
+     "fit_rms": 0.086
+    },
+    "height": {
+     "from": 344.0,
+     "to": 344.0,
+     "min": 344.0,
+     "max": 344.0
+    },
+    "cx": {
+     "from": 141.0,
+     "to": 140.5,
+     "min": 140.5,
+     "max": 157.9
+    },
+    "cy": {
+     "from": 172.0,
+     "to": 172.0,
+     "min": 172.0,
+     "max": 172.0
+    },
+    "luma": {
+     "from": 165.7,
+     "to": 174.9,
+     "min": 165.7,
+     "max": 174.9,
+     "peak_ms": 508.333,
+     "overshoot_pct": 0.0,
+     "settle_ms": 450.0,
+     "fit_response": 0.45,
+     "fit_damping": 1.09,
+     "fit_rms": 0.016
+    }
+   },
+   {
+    "start": 3.828,
+    "dur_s": 0.317,
+    "width": {
+     "from": 254.0,
+     "to": 280.0,
+     "min": 254.0,
+     "max": 280.0,
+     "peak_ms": 8.333,
+     "overshoot_pct": 0.0,
+     "settle_ms": 8.333,
+     "fit_response": 0.05,
+     "fit_damping": 0.5,
+     "fit_rms": 0.11
+    },
+    "height": {
+     "from": 344.0,
+     "to": 344.0,
+     "min": 344.0,
+     "max": 344.0
+    },
+    "cx": {
+     "from": 141.0,
+     "to": 140.0,
+     "min": 140.0,
+     "max": 141.0
+    },
+    "cy": {
+     "from": 172.0,
+     "to": 172.0,
+     "min": 172.0,
+     "max": 172.0
+    },
+    "luma": {
+     "from": 175.0,
+     "to": 118.8,
+     "min": 118.8,
+     "max": 175.0,
+     "peak_ms": 133.333,
+     "overshoot_pct": 0.013,
+     "settle_ms": 8.333,
+     "fit_response": 0.05,
+     "fit_damping": 0.5,
+     "fit_rms": 0.11
+    }
+   }
+  ],
+  "stalls": []
+ },
+ "20260930-082046/material.merge/dark-stripes": {
+  "region": [
+   68,
+   396,
+   266,
+   336
+  ],
+  "events": [
+   {
+    "start": 0.155,
+    "dur_s": 0.425,
+    "width": {
+     "from": 84.0,
+     "to": 164.0,
+     "min": 82.0,
+     "max": 181.6,
+     "peak_ms": 125.0,
+     "overshoot_pct": 22.0,
+     "settle_ms": 350.0,
+     "fit_response": 0.44,
+     "fit_damping": 0.53,
+     "fit_rms": 0.206
+    },
+    "height": {
+     "from": 270.0,
+     "to": 336.0,
+     "min": 270.0,
+     "max": 336.0,
+     "peak_ms": 125.0,
+     "overshoot_pct": 0.0,
+     "settle_ms": 125.0,
+     "fit_response": 0.44,
+     "fit_damping": 0.65,
+     "fit_rms": 0.14
+    },
+    "cx": {
+     "from": 202.0,
+     "to": 133.0,
+     "min": 133.0,
+     "max": 202.0,
+     "peak_ms": 125.0,
+     "overshoot_pct": 0.0,
+     "settle_ms": 125.0,
+     "fit_response": 0.41,
+     "fit_damping": 0.67,
+     "fit_rms": 0.11
+    },
+    "cy": {
+     "from": 150.0,
+     "to": 168.0,
+     "min": 142.5,
+     "max": 168.0,
+     "peak_ms": 125.0,
+     "overshoot_pct": 0.0,
+     "settle_ms": 125.0,
+     "fit_response": 0.53,
+     "fit_damping": 0.62,
+     "fit_rms": 0.255
+    },
+    "luma": {
+     "from": 166.7,
+     "to": 166.6,
+     "min": 166.5,
+     "max": 166.7
+    }
+   },
+   {
+    "start": 0.713,
+    "dur_s": 0.317,
+    "width": {
+     "from": 170.0,
+     "to": 84.0,
+     "min": 82.0,
+     "max": 177.8,
+     "peak_ms": 216.667,
+     "overshoot_pct": 2.326,
+     "settle_ms": 275.0,
+     "fit_response": 1.01,
+     "fit_damping": 0.1,
+     "fit_rms": 0.245
+    },
+    "height": {
+     "from": 336.0,
+     "to": 270.0,
+     "min": 270.0,
+     "max": 336.0,
+     "peak_ms": 266.667,
+     "overshoot_pct": 0.0,
+     "settle_ms": 266.667,
+     "fit_response": 1.35,
+     "fit_damping": 0.1,
+     "fit_rms": 0.185
+    },
+    "cx": {
+     "from": 137.0,
+     "to": 202.0,
+     "min": 133.1,
+     "max": 202.0,
+     "peak_ms": 300.0,
+     "overshoot_pct": 0.0,
+     "settle_ms": 291.667,
+     "fit_response": 1.09,
+     "fit_damping": 0.1,
+     "fit_rms": 0.183
+    },
+    "cy": {
+     "from": 168.0,
+     "to": 150.0,
+     "min": 150.0,
+     "max": 170.0,
+     "peak_ms": 266.667,
+     "overshoot_pct": 0.0,
+     "settle_ms": 266.667,
+     "fit_response": 1.45,
+     "fit_damping": 0.1,
+     "fit_rms": 0.231
+    },
+    "luma": {
+     "from": 166.6,
+     "to": 166.9,
+     "min": 166.2,
+     "max": 166.9
+    }
+   },
+   {
+    "start": 3.19,
+    "dur_s": 0.375,
+    "width": {
+     "from": 176.0,
+     "to": 83.0,
+     "min": 82.0,
+     "max": 178.0,
+     "peak_ms": 158.333,
+     "overshoot_pct": 1.075,
+     "settle_ms": 308.333,
+     "fit_response": 0.07,
+     "fit_damping": 0.65,
+     "fit_rms": 0.053
+    },
+    "height": {
+     "from": 336.0,
+     "to": 270.0,
+     "min": 269.0,
+     "max": 336.0,
+     "peak_ms": 175.0,
+     "overshoot_pct": 1.515,
+     "settle_ms": 325.0,
+     "fit_response": 0.31,
+     "fit_damping": 0.77,
+     "fit_rms": 0.191
+    },
+    "cx": {
+     "from": 134.0,
+     "to": 211.5,
+     "min": 133.0,
+     "max": 211.5,
+     "peak_ms": 366.667,
+     "overshoot_pct": 0.0,
+     "settle_ms": 308.333,
+     "fit_response": 0.11,
+     "fit_damping": 1.2,
+     "fit_rms": 0.085
+    },
+    "cy": {
+     "from": 168.0,
+     "to": 150.0,
+     "min": 142.5,
+     "max": 170.0,
+     "peak_ms": 308.333,
+     "overshoot_pct": 41.667,
+     "settle_ms": 325.0,
+     "fit_response": 0.38,
+     "fit_damping": 0.68,
+     "fit_rms": 0.215
+    },
+    "luma": {
+     "from": 166.2,
+     "to": 167.1,
+     "min": 166.2,
+     "max": 167.1
+    }
+   },
+   {
+    "start": 3.772,
+    "dur_s": 0.317,
+    "width": {
+     "from": 82.0,
+     "to": 266.0,
+     "min": 82.0,
+     "max": 266.0,
+     "peak_ms": 8.333,
+     "overshoot_pct": 0.0,
+     "settle_ms": 8.333,
+     "fit_response": 0.05,
+     "fit_damping": 0.5,
+     "fit_rms": 0.11
+    },
+    "height": {
+     "from": 270.0,
+     "to": 336.0,
+     "min": 270.0,
+     "max": 336.0,
+     "peak_ms": 8.333,
+     "overshoot_pct": 0.0,
+     "settle_ms": 8.333,
+     "fit_response": 0.05,
+     "fit_damping": 0.5,
+     "fit_rms": 0.11
+    },
+    "cx": {
+     "from": 213.0,
+     "to": 133.0,
+     "min": 133.0,
+     "max": 213.0,
+     "peak_ms": 8.333,
+     "overshoot_pct": 0.0,
+     "settle_ms": 8.333,
+     "fit_response": 0.05,
+     "fit_damping": 0.5,
+     "fit_rms": 0.11
+    },
+    "cy": {
+     "from": 150.0,
+     "to": 168.0,
+     "min": 150.0,
+     "max": 168.0,
+     "peak_ms": 8.333,
+     "overshoot_pct": 0.0,
+     "settle_ms": 8.333,
+     "fit_response": 0.05,
+     "fit_damping": 0.5,
+     "fit_rms": 0.11
+    },
+    "luma": {
+     "from": 167.1,
+     "to": 34.7,
+     "min": 34.7,
+     "max": 167.1,
+     "peak_ms": 33.333,
+     "overshoot_pct": 0.007,
+     "settle_ms": 8.333,
+     "fit_response": 0.05,
+     "fit_damping": 0.5,
+     "fit_rms": 0.11
+    }
+   }
+  ],
+  "stalls": []
+ },
+ "20260930-082046/material.merge/light-stripes": {
+  "region": [
+   68,
+   396,
+   272,
+   336
+  ],
+  "events": [
+   {
+    "start": 0.077,
+    "dur_s": 0.508,
+    "width": {
+     "from": 83.0,
+     "to": 164.0,
+     "min": 82.0,
+     "max": 181.1,
+     "peak_ms": 191.667,
+     "overshoot_pct": 21.125,
+     "settle_ms": 391.667,
+     "fit_response": 0.7,
+     "fit_damping": 0.57,
+     "fit_rms": 0.237
+    },
+    "height": {
+     "from": 285.0,
+     "to": 336.0,
+     "min": 285.0,
+     "max": 336.0,
+     "peak_ms": 191.667,
+     "overshoot_pct": 0.0,
+     "settle_ms": 191.667,
+     "fit_response": 0.77,
+     "fit_damping": 0.6,
+     "fit_rms": 0.202
+    },
+    "cx": {
+     "from": 212.5,
+     "to": 133.0,
+     "min": 133.0,
+     "max": 212.5,
+     "peak_ms": 191.667,
+     "overshoot_pct": 0.0,
+     "settle_ms": 191.667,
+     "fit_response": 0.61,
+     "fit_damping": 0.68,
+     "fit_rms": 0.106
+    },
+    "cy": {
+     "from": 142.5,
+     "to": 168.0,
+     "min": 142.5,
+     "max": 168.0,
+     "peak_ms": 191.667,
+     "overshoot_pct": 0.0,
+     "settle_ms": 191.667,
+     "fit_response": 0.77,
+     "fit_damping": 0.6,
+     "fit_rms": 0.202
+    },
+    "luma": {
+     "from": 173.4,
+     "to": 173.9,
+     "min": 173.4,
+     "max": 173.9
+    }
+   },
+   {
+    "start": 0.697,
+    "dur_s": 0.633,
+    "width": {
+     "from": 162.0,
+     "to": 103.0,
+     "min": 82.0,
+     "max": 177.6,
+     "peak_ms": 250.0,
+     "overshoot_pct": 35.593,
+     "settle_ms": 533.333,
+     "fit_response": 0.74,
+     "fit_damping": 0.31,
+     "fit_rms": 0.291
+    },
+    "height": {
+     "from": 336.0,
+     "to": 336.0,
+     "min": 272.4,
+     "max": 336.0
+    },
+    "cx": {
+     "from": 133.0,
+     "to": 202.5,
+     "min": 133.0,
+     "max": 210.3,
+     "peak_ms": 458.333,
+     "overshoot_pct": 11.271,
+     "settle_ms": 483.333,
+     "fit_response": 0.86,
+     "fit_damping": 0.59,
+     "fit_rms": 0.156
+    },
+    "cy": {
+     "from": 168.0,
+     "to": 168.0,
+     "min": 142.5,
+     "max": 174.8
+    },
+    "luma": {
+     "from": 173.9,
+     "to": 173.8,
+     "min": 173.4,
+     "max": 173.9
+    }
+   },
+   {
+    "start": 3.763,
+    "dur_s": 0.317,
+    "width": {
+     "from": 103.0,
+     "to": 272.0,
+     "min": 103.0,
+     "max": 272.0,
+     "peak_ms": 8.333,
+     "overshoot_pct": 0.0,
+     "settle_ms": 8.333,
+     "fit_response": 0.05,
+     "fit_damping": 0.5,
+     "fit_rms": 0.11
+    },
+    "height": {
+     "from": 336.0,
+     "to": 336.0,
+     "min": 336.0,
+     "max": 336.0
+    },
+    "cx": {
+     "from": 202.5,
+     "to": 136.0,
+     "min": 136.0,
+     "max": 202.5,
+     "peak_ms": 8.333,
+     "overshoot_pct": 0.0,
+     "settle_ms": 8.333,
+     "fit_response": 0.05,
+     "fit_damping": 0.5,
+     "fit_rms": 0.11
+    },
+    "cy": {
+     "from": 168.0,
+     "to": 168.0,
+     "min": 168.0,
+     "max": 168.0
+    },
+    "luma": {
+     "from": 173.8,
+     "to": 119.5,
+     "min": 119.5,
+     "max": 173.8,
+     "peak_ms": 183.333,
+     "overshoot_pct": 0.003,
+     "settle_ms": 8.333,
+     "fit_response": 0.05,
+     "fit_damping": 0.5,
+     "fit_rms": 0.11
+    }
+   }
+  ],
+  "stalls": [
+   123.3
+  ]
+ },
+ "20260930-082046/material.morph/dark-photo": {
+  "region": [
+   148,
+   292,
+   104,
+   312
+  ],
+  "events": [
+   {
+    "start": 0.002,
+    "dur_s": 0.983,
+    "width": {
+     "from": 59.0,
+     "to": 82.0,
+     "min": 56.0,
+     "max": 82.0,
+     "peak_ms": 683.333,
+     "overshoot_pct": 0.0,
+     "settle_ms": 683.333,
+     "fit_response": 1.5,
+     "fit_damping": 1.2,
+     "fit_rms": 0.295
+    },
+    "height": {
+     "from": 57.0,
+     "to": 66.0,
+     "min": 57.0,
+     "max": 181.8,
+     "peak_ms": 416.667,
+     "overshoot_pct": 1286.667,
+     "settle_ms": 683.333,
+     "fit_response": 0.74,
+     "fit_damping": 0.1,
+     "fit_rms": 4.542
+    },
+    "cx": {
+     "from": 52.5,
+     "to": 41.0,
+     "min": 41.0,
+     "max": 53.0,
+     "peak_ms": 683.333,
+     "overshoot_pct": 0.0,
+     "settle_ms": 683.333,
+     "fit_response": 1.5,
+     "fit_damping": 1.2,
+     "fit_rms": 0.312
+    },
+    "cy": {
+     "from": 159.5,
+     "to": 39.0,
+     "min": 39.0,
+     "max": 259.5,
+     "peak_ms": 683.333,
+     "overshoot_pct": 0.0,
+     "settle_ms": 683.333,
+     "fit_response": 1.5,
+     "fit_damping": 1.2,
+     "fit_rms": 0.604
+    },
+    "luma": {
+     "from": 104.5,
+     "to": 108.8,
+     "min": 104.5,
+     "max": 109.1,
+     "peak_ms": 558.333,
+     "overshoot_pct": 6.602,
+     "settle_ms": 650.0,
+     "fit_response": 0.46,
+     "fit_damping": 1.2,
+     "fit_rms": 0.146
+    }
+   },
+   {
+    "start": 0.687,
+    "dur_s": 0.317,
+    "width": {
+     "from": 82.0,
+     "to": 82.0,
+     "min": 82.0,
+     "max": 82.0
+    },
+    "height": {
+     "from": 66.0,
+     "to": 60.0,
+     "min": 60.0,
+     "max": 66.0,
+     "peak_ms": 8.333,
+     "overshoot_pct": 0.0,
+     "settle_ms": 8.333,
+     "fit_response": 0.05,
+     "fit_damping": 0.5,
+     "fit_rms": 0.11
+    },
+    "cx": {
+     "from": 41.0,
+     "to": 41.0,
+     "min": 41.0,
+     "max": 41.0
+    },
+    "cy": {
+     "from": 39.0,
+     "to": 50.0,
+     "min": 39.0,
+     "max": 50.0,
+     "peak_ms": 8.333,
+     "overshoot_pct": 0.0,
+     "settle_ms": 8.333,
+     "fit_response": 0.05,
+     "fit_damping": 0.5,
+     "fit_rms": 0.11
+    },
+    "luma": {
+     "from": 108.8,
+     "to": 108.7,
+     "min": 108.7,
+     "max": 108.8
+    }
+   },
+   {
+    "start": 1.392,
+    "dur_s": 0.775,
+    "width": {
+     "from": 82.0,
+     "to": 53.0,
+     "min": 53.0,
+     "max": 82.0,
+     "peak_ms": 708.333,
+     "overshoot_pct": 0.0,
+     "settle_ms": 708.333,
+     "fit_response": 0.78,
+     "fit_damping": 1.2,
+     "fit_rms": 0.356
+    },
+    "height": {
+     "from": 60.0,
+     "to": 60.0,
+     "min": 56.3,
+     "max": 151.0
+    },
+    "cx": {
+     "from": 41.0,
+     "to": 49.5,
+     "min": 41.0,
+     "max": 53.0,
+     "peak_ms": 8.333,
+     "overshoot_pct": 41.176,
+     "settle_ms": 708.333,
+     "fit_response": 0.05,
+     "fit_damping": 0.31,
+     "fit_rms": 0.342
+    },
+    "cy": {
+     "from": 50.0,
+     "to": 161.0,
+     "min": 50.0,
+     "max": 267.0,
+     "peak_ms": 8.333,
+     "overshoot_pct": 95.495,
+     "settle_ms": 608.333,
+     "fit_response": 0.05,
+     "fit_damping": 0.23,
+     "fit_rms": 0.455
+    },
+    "luma": {
+     "from": 108.7,
+     "to": 103.1,
+     "min": 103.1,
+     "max": 112.7,
+     "peak_ms": 708.333,
+     "overshoot_pct": 0.303,
+     "settle_ms": 708.333,
+     "fit_response": 1.5,
+     "fit_damping": 0.64,
+     "fit_rms": 0.352
+    }
+   },
+   {
+    "start": 4.472,
+    "dur_s": 0.342,
+    "width": {
+     "from": 58.0,
+     "to": 59.0,
+     "min": 53.0,
+     "max": 59.0
+    },
+    "height": {
+     "from": 58.0,
+     "to": 57.0,
+     "min": 57.0,
+     "max": 60.0
+    },
+    "cx": {
+     "from": 52.0,
+     "to": 52.5,
+     "min": 49.5,
+     "max": 52.5
+    },
+    "cy": {
+     "from": 163.0,
+     "to": 159.5,
+     "min": 159.0,
+     "max": 163.0
+    },
+    "luma": {
+     "from": 103.8,
+     "to": 103.1,
+     "min": 103.1,
+     "max": 103.9
+    }
+   },
+   {
+    "start": 5.197,
+    "dur_s": 0.317,
+    "width": {
+     "from": 59.0,
+     "to": 104.0,
+     "min": 59.0,
+     "max": 104.0,
+     "peak_ms": 8.333,
+     "overshoot_pct": 0.0,
+     "settle_ms": 8.333,
+     "fit_response": 0.05,
+     "fit_damping": 0.5,
+     "fit_rms": 0.11
+    },
+    "height": {
+     "from": 58.0,
+     "to": 312.0,
+     "min": 58.0,
+     "max": 312.0,
+     "peak_ms": 8.333,
+     "overshoot_pct": 0.0,
+     "settle_ms": 8.333,
+     "fit_response": 0.05,
+     "fit_damping": 0.5,
+     "fit_rms": 0.11
+    },
+    "cx": {
+     "from": 52.5,
+     "to": 52.0,
+     "min": 52.0,
+     "max": 52.5
+    },
+    "cy": {
+     "from": 160.0,
+     "to": 156.0,
+     "min": 156.0,
+     "max": 160.0,
+     "peak_ms": 8.333,
+     "overshoot_pct": 0.0,
+     "settle_ms": 8.333,
+     "fit_response": 0.05,
+     "fit_damping": 0.5,
+     "fit_rms": 0.11
+    },
+    "luma": {
+     "from": 103.1,
+     "to": 60.5,
+     "min": 60.5,
+     "max": 103.1,
+     "peak_ms": 8.333,
+     "overshoot_pct": 0.017,
+     "settle_ms": 8.333,
+     "fit_response": 0.05,
+     "fit_damping": 0.5,
+     "fit_rms": 0.11
+    }
+   }
+  ],
+  "stalls": [
+   108.3
+  ]
+ },
+ "20260930-082046/material.morph/dark-stripes": {
+  "region": [
+   148,
+   292,
+   96,
+   312
+  ],
+  "events": [
+   {
+    "start": 0.002,
+    "dur_s": 1.1,
+    "width": {
+     "from": 58.0,
+     "to": 58.0,
+     "min": 56.0,
+     "max": 73.0
+    },
+    "height": {
+     "from": 312.0,
+     "to": 312.0,
+     "min": 312.0,
+     "max": 312.0
+    },
+    "cx": {
+     "from": 53.0,
+     "to": 53.0,
+     "min": 49.1,
+     "max": 53.5
+    },
+    "cy": {
+     "from": 156.0,
+     "to": 156.0,
+     "min": 156.0,
+     "max": 156.0
+    },
+    "luma": {
+     "from": 170.7,
+     "to": 168.4,
+     "min": 168.3,
+     "max": 174.1
+    }
+   },
+   {
+    "start": 3.787,
+    "dur_s": 0.825,
+    "width": {
+     "from": 58.0,
+     "to": 58.0,
+     "min": 42.0,
+     "max": 66.9
+    },
+    "height": {
+     "from": 312.0,
+     "to": 312.0,
+     "min": 312.0,
+     "max": 312.0
+    },
+    "cx": {
+     "from": 53.0,
+     "to": 53.0,
+     "min": 44.0,
+     "max": 53.0
+    },
+    "cy": {
+     "from": 156.0,
+     "to": 156.0,
+     "min": 156.0,
+     "max": 156.0
+    },
+    "luma": {
+     "from": 168.4,
+     "to": 170.7,
+     "min": 168.4,
+     "max": 172.3
+    }
+   },
+   {
+    "start": 5.09,
+    "dur_s": 0.317,
+    "width": {
+     "from": 58.0,
+     "to": 96.0,
+     "min": 58.0,
+     "max": 96.0,
+     "peak_ms": 8.333,
+     "overshoot_pct": 0.0,
+     "settle_ms": 8.333,
+     "fit_response": 0.05,
+     "fit_damping": 0.5,
+     "fit_rms": 0.11
+    },
+    "height": {
+     "from": 312.0,
+     "to": 312.0,
+     "min": 312.0,
+     "max": 312.0
+    },
+    "cx": {
+     "from": 53.0,
+     "to": 48.0,
+     "min": 48.0,
+     "max": 53.0,
+     "peak_ms": 8.333,
+     "overshoot_pct": 0.0,
+     "settle_ms": 8.333,
+     "fit_response": 0.05,
+     "fit_damping": 0.5,
+     "fit_rms": 0.11
+    },
+    "cy": {
+     "from": 156.0,
+     "to": 156.0,
+     "min": 156.0,
+     "max": 156.0
+    },
+    "luma": {
+     "from": 170.7,
+     "to": 59.5,
+     "min": 59.5,
+     "max": 170.7,
+     "peak_ms": 16.667,
+     "overshoot_pct": 0.02,
+     "settle_ms": 8.333,
+     "fit_response": 0.05,
+     "fit_damping": 0.5,
+     "fit_rms": 0.11
+    }
+   }
+  ],
+  "stalls": [
+   110.0
+  ]
+ },
+ "20260930-082046/material.morph/light-photo": {
+  "region": [
+   148,
+   292,
+   104,
+   312
+  ],
+  "events": [
+   {
+    "start": 0.002,
+    "dur_s": 1.092,
+    "width": {
+     "from": 59.0,
+     "to": 83.0,
+     "min": 57.0,
+     "max": 83.0,
+     "peak_ms": 791.667,
+     "overshoot_pct": 0.0,
+     "settle_ms": 716.667,
+     "fit_response": 1.5,
+     "fit_damping": 1.16,
+     "fit_rms": 0.291
+    },
+    "height": {
+     "from": 61.0,
+     "to": 72.0,
+     "min": 59.0,
+     "max": 183.7,
+     "peak_ms": 416.667,
+     "overshoot_pct": 1015.455,
+     "settle_ms": 783.333,
+     "fit_response": 0.75,
+     "fit_damping": 0.1,
+     "fit_rms": 3.21
+    },
+    "cx": {
+     "from": 52.5,
+     "to": 41.5,
+     "min": 40.5,
+     "max": 53.0,
+     "peak_ms": 608.333,
+     "overshoot_pct": 9.091,
+     "settle_ms": 725.0,
+     "fit_response": 1.5,
+     "fit_damping": 1.2,
+     "fit_rms": 0.328
+    },
+    "cy": {
+     "from": 160.5,
+     "to": 42.0,
+     "min": 39.6,
+     "max": 227.0,
+     "peak_ms": 641.667,
+     "overshoot_pct": 2.062,
+     "settle_ms": 650.0,
+     "fit_response": 1.5,
+     "fit_damping": 1.2,
+     "fit_rms": 0.521
+    },
+    "luma": {
+     "from": 108.5,
+     "to": 122.0,
+     "min": 108.5,
+     "max": 122.2,
+     "peak_ms": 641.667,
+     "overshoot_pct": 1.247,
+     "settle_ms": 616.667,
+     "fit_response": 1.08,
+     "fit_damping": 0.83,
+     "fit_rms": 0.094
+    }
+   },
+   {
+    "start": 0.788,
+    "dur_s": 0.317,
+    "width": {
+     "from": 83.0,
+     "to": 82.0,
+     "min": 82.0,
+     "max": 83.0
+    },
+    "height": {
+     "from": 72.0,
+     "to": 61.0,
+     "min": 59.0,
+     "max": 72.0,
+     "peak_ms": 8.333,
+     "overshoot_pct": 18.182,
+     "settle_ms": 116.667,
+     "fit_response": 0.05,
+     "fit_damping": 0.35,
+     "fit_rms": 0.138
+    },
+    "cx": {
+     "from": 41.5,
+     "to": 41.0,
+     "min": 41.0,
+     "max": 41.5
+    },
+    "cy": {
+     "from": 42.0,
+     "to": 50.5,
+     "min": 42.0,
+     "max": 51.5,
+     "peak_ms": 8.333,
+     "overshoot_pct": 11.765,
+     "settle_ms": 116.667,
+     "fit_response": 0.05,
+     "fit_damping": 0.39,
+     "fit_rms": 0.127
+    },
+    "luma": {
+     "from": 122.0,
+     "to": 121.5,
+     "min": 121.4,
+     "max": 122.0
+    }
+   },
+   {
+    "start": 3.897,
+    "dur_s": 0.85,
+    "width": {
+     "from": 82.0,
+     "to": 59.0,
+     "min": 57.0,
+     "max": 82.0,
+     "peak_ms": 550.0,
+     "overshoot_pct": 8.696,
+     "settle_ms": 708.333,
+     "fit_response": 0.67,
+     "fit_damping": 1.2,
+     "fit_rms": 0.212
+    },
+    "height": {
+     "from": 61.0,
+     "to": 60.0,
+     "min": 57.0,
+     "max": 167.2
+    },
+    "cx": {
+     "from": 41.0,
+     "to": 52.5,
+     "min": 41.0,
+     "max": 53.0,
+     "peak_ms": 150.0,
+     "overshoot_pct": 4.348,
+     "settle_ms": 708.333,
+     "fit_response": 0.52,
+     "fit_damping": 0.68,
+     "fit_rms": 0.166
+    },
+    "cy": {
+     "from": 50.5,
+     "to": 160.0,
+     "min": 50.0,
+     "max": 212.2,
+     "peak_ms": 150.0,
+     "overshoot_pct": 47.671,
+     "settle_ms": 625.0,
+     "fit_response": 0.52,
+     "fit_damping": 0.39,
+     "fit_rms": 0.19
+    },
+    "luma": {
+     "from": 121.5,
+     "to": 107.2,
+     "min": 107.2,
+     "max": 124.2,
+     "peak_ms": 758.333,
+     "overshoot_pct": 0.0,
+     "settle_ms": 708.333,
+     "fit_response": 1.06,
+     "fit_damping": 0.7,
+     "fit_rms": 0.131
+    }
+   },
+   {
+    "start": 5.215,
+    "dur_s": 0.317,
+    "width": {
+     "from": 59.0,
+     "to": 104.0,
+     "min": 59.0,
+     "max": 104.0,
+     "peak_ms": 8.333,
+     "overshoot_pct": 0.0,
+     "settle_ms": 8.333,
+     "fit_response": 0.05,
+     "fit_damping": 0.5,
+     "fit_rms": 0.11
+    },
+    "height": {
+     "from": 58.0,
+     "to": 312.0,
+     "min": 58.0,
+     "max": 312.0,
+     "peak_ms": 8.333,
+     "overshoot_pct": 0.0,
+     "settle_ms": 8.333,
+     "fit_response": 0.05,
+     "fit_damping": 0.5,
+     "fit_rms": 0.11
+    },
+    "cx": {
+     "from": 52.5,
+     "to": 52.0,
+     "min": 52.0,
+     "max": 52.5
+    },
+    "cy": {
+     "from": 159.0,
+     "to": 156.0,
+     "min": 156.0,
+     "max": 159.0
+    },
+    "luma": {
+     "from": 107.2,
+     "to": 139.9,
+     "min": 107.2,
+     "max": 139.9,
+     "peak_ms": 33.333,
+     "overshoot_pct": 0.038,
+     "settle_ms": 8.333,
+     "fit_response": 0.05,
+     "fit_damping": 0.5,
+     "fit_rms": 0.11
+    }
+   }
+  ],
+  "stalls": [
+   148.3
+  ]
+ },
+ "20260930-082046/material.morph/light-stripes": {
+  "region": [
+   156,
+   292,
+   96,
+   312
+  ],
+  "events": [
+   {
+    "start": 0.003,
+    "dur_s": 1.067,
+    "width": {
+     "from": 58.0,
+     "to": 58.0,
+     "min": 57.0,
+     "max": 73.0
+    },
+    "height": {
+     "from": 312.0,
+     "to": 312.0,
+     "min": 312.0,
+     "max": 312.0
+    },
+    "cx": {
+     "from": 45.0,
+     "to": 45.0,
+     "min": 45.0,
+     "max": 45.5
+    },
+    "cy": {
+     "from": 156.0,
+     "to": 156.0,
+     "min": 156.0,
+     "max": 156.0
+    },
+    "luma": {
+     "from": 172.4,
+     "to": 177.6,
+     "min": 172.4,
+     "max": 178.5,
+     "peak_ms": 316.667,
+     "overshoot_pct": 17.419,
+     "settle_ms": 783.333,
+     "fit_response": 0.65,
+     "fit_damping": 0.63,
+     "fit_rms": 0.101
+    }
+   },
+   {
+    "start": 1.423,
+    "dur_s": 0.767,
+    "width": {
+     "from": 58.0,
+     "to": 58.0,
+     "min": 55.0,
+     "max": 73.0
+    },
+    "height": {
+     "from": 312.0,
+     "to": 312.0,
+     "min": 312.0,
+     "max": 312.0
+    },
+    "cx": {
+     "from": 45.0,
+     "to": 45.0,
+     "min": 44.5,
+     "max": 45.5
+    },
+    "cy": {
+     "from": 156.0,
+     "to": 156.0,
+     "min": 156.0,
+     "max": 156.0
+    },
+    "luma": {
+     "from": 177.5,
+     "to": 172.5,
+     "min": 172.4,
+     "max": 179.4,
+     "peak_ms": 700.0,
+     "overshoot_pct": 1.324,
+     "settle_ms": 700.0,
+     "fit_response": 1.44,
+     "fit_damping": 0.61,
+     "fit_rms": 0.199
+    }
+   },
+   {
+    "start": 5.118,
+    "dur_s": 0.317,
+    "width": {
+     "from": 58.0,
+     "to": 96.0,
+     "min": 58.0,
+     "max": 96.0,
+     "peak_ms": 8.333,
+     "overshoot_pct": 0.0,
+     "settle_ms": 8.333,
+     "fit_response": 0.05,
+     "fit_damping": 0.5,
+     "fit_rms": 0.11
+    },
+    "height": {
+     "from": 312.0,
+     "to": 312.0,
+     "min": 312.0,
+     "max": 312.0
+    },
+    "cx": {
+     "from": 45.0,
+     "to": 48.0,
+     "min": 45.0,
+     "max": 48.0
+    },
+    "cy": {
+     "from": 156.0,
+     "to": 156.0,
+     "min": 156.0,
+     "max": 156.0
+    },
+    "luma": {
+     "from": 172.4,
+     "to": 139.5,
+     "min": 139.5,
+     "max": 172.4,
+     "peak_ms": 8.333,
+     "overshoot_pct": 0.047,
+     "settle_ms": 8.333,
+     "fit_response": 0.05,
+     "fit_damping": 0.5,
+     "fit_rms": 0.11
+    }
+   }
+  ],
+  "stalls": []
+ },
+ "20261002-205855/button.press/dark-stripes": {
+  "region": [
+   92,
+   356,
+   216,
+   192
+  ],
+  "events": [
+   {
+    "start": 0.002,
+    "dur_s": 0.508,
+    "width": {
+     "from": 174.0,
+     "to": 174.0,
+     "min": 174.0,
+     "max": 174.0
+    },
+    "height": {
+     "from": 192.0,
+     "to": 192.0,
+     "min": 192.0,
+     "max": 192.0
+    },
+    "cx": {
+     "from": 109.0,
+     "to": 109.0,
+     "min": 109.0,
+     "max": 109.0
+    },
+    "cy": {
+     "from": 96.0,
+     "to": 96.0,
+     "min": 96.0,
+     "max": 96.0
+    },
+    "luma": {
+     "from": 165.8,
+     "to": 169.1,
+     "min": 165.8,
+     "max": 169.1,
+     "peak_ms": 258.333,
+     "overshoot_pct": 0.757,
+     "settle_ms": 133.333,
+     "fit_response": 0.05,
+     "fit_damping": 1.09,
+     "fit_rms": 0.067
+    }
+   },
+   {
+    "start": 1.262,
+    "dur_s": 0.317,
+    "width": {
+     "from": 174.0,
+     "to": 174.0,
+     "min": 174.0,
+     "max": 174.0
+    },
+    "height": {
+     "from": 192.0,
+     "to": 192.0,
+     "min": 192.0,
+     "max": 192.0
+    },
+    "cx": {
+     "from": 109.0,
+     "to": 109.0,
+     "min": 109.0,
+     "max": 109.0
+    },
+    "cy": {
+     "from": 96.0,
+     "to": 96.0,
+     "min": 96.0,
+     "max": 96.0
+    },
+    "luma": {
+     "from": 167.7,
+     "to": 165.9,
+     "min": 165.8,
+     "max": 167.7
+    }
+   },
+   {
+    "start": 1.523,
+    "dur_s": 0.625,
+    "width": {
+     "from": 174.0,
+     "to": 190.0,
+     "min": 174.0,
+     "max": 190.0,
+     "peak_ms": 175.0,
+     "overshoot_pct": 0.0,
+     "settle_ms": 175.0,
+     "fit_response": 0.45,
+     "fit_damping": 0.68,
+     "fit_rms": 0.07
+    },
+    "height": {
+     "from": 192.0,
+     "to": 192.0,
+     "min": 192.0,
+     "max": 192.0
+    },
+    "cx": {
+     "from": 109.0,
+     "to": 109.0,
+     "min": 109.0,
+     "max": 109.0
+    },
+    "cy": {
+     "from": 96.0,
+     "to": 96.0,
+     "min": 96.0,
+     "max": 96.0
+    },
+    "luma": {
+     "from": 165.9,
+     "to": 169.9,
+     "min": 165.9,
+     "max": 170.0,
+     "peak_ms": 225.0,
+     "overshoot_pct": 1.553,
+     "settle_ms": 166.667,
+     "fit_response": 0.08,
+     "fit_damping": 1.2,
+     "fit_rms": 0.08
+    }
+   },
+   {
+    "start": 4.527,
+    "dur_s": 0.433,
+    "width": {
+     "from": 190.0,
+     "to": 174.0,
+     "min": 174.0,
+     "max": 190.0,
+     "peak_ms": 150.0,
+     "overshoot_pct": 0.0,
+     "settle_ms": 150.0,
+     "fit_response": 0.25,
+     "fit_damping": 0.87,
+     "fit_rms": 0.031
+    },
+    "height": {
+     "from": 192.0,
+     "to": 192.0,
+     "min": 192.0,
+     "max": 192.0
+    },
+    "cx": {
+     "from": 109.0,
+     "to": 109.0,
+     "min": 109.0,
+     "max": 109.5
+    },
+    "cy": {
+     "from": 96.0,
+     "to": 96.0,
+     "min": 96.0,
+     "max": 96.0
+    },
+    "luma": {
+     "from": 170.0,
+     "to": 165.9,
+     "min": 165.9,
+     "max": 170.0,
+     "peak_ms": 425.0,
+     "overshoot_pct": 0.0,
+     "settle_ms": 416.667,
+     "fit_response": 1.04,
+     "fit_damping": 1.2,
+     "fit_rms": 0.118
+    }
+   },
+   {
+    "start": 4.945,
+    "dur_s": 0.308,
+    "width": {
+     "from": 174.0,
+     "to": 174.0,
+     "min": 174.0,
+     "max": 174.0
+    },
+    "height": {
+     "from": 192.0,
+     "to": 192.0,
+     "min": 192.0,
+     "max": 192.0
+    },
+    "cx": {
+     "from": 109.0,
+     "to": 109.0,
+     "min": 109.0,
+     "max": 109.0
+    },
+    "cy": {
+     "from": 96.0,
+     "to": 96.0,
+     "min": 96.0,
+     "max": 96.0
+    },
+    "luma": {
+     "from": 168.2,
+     "to": 165.8,
+     "min": 165.8,
+     "max": 168.2
+    }
+   },
+   {
+    "start": 5.413,
+    "dur_s": 0.317,
+    "width": {
+     "from": 174.0,
+     "to": 216.0,
+     "min": 174.0,
+     "max": 216.0,
+     "peak_ms": 8.333,
+     "overshoot_pct": 0.0,
+     "settle_ms": 8.333,
+     "fit_response": 0.05,
+     "fit_damping": 0.5,
+     "fit_rms": 0.11
+    },
+    "height": {
+     "from": 192.0,
+     "to": 192.0,
+     "min": 192.0,
+     "max": 192.0
+    },
+    "cx": {
+     "from": 109.0,
+     "to": 108.0,
+     "min": 108.0,
+     "max": 109.0
+    },
+    "cy": {
+     "from": 96.0,
+     "to": 96.0,
+     "min": 96.0,
+     "max": 96.0
+    },
+    "luma": {
+     "from": 165.8,
+     "to": 39.0,
+     "min": 39.0,
+     "max": 165.8,
+     "peak_ms": 8.333,
+     "overshoot_pct": 0.006,
+     "settle_ms": 8.333,
+     "fit_response": 0.05,
+     "fit_damping": 0.5,
+     "fit_rms": 0.11
+    }
+   }
+  ],
+  "stalls": [
+   50.0,
+   50.0,
+   35.0,
+   51.7,
+   50.0,
+   50.0
+  ]
+ },
+ "20261002-205855/button.press/light-stripes": {
+  "region": [
+   92,
+   348,
+   216,
+   200
+  ],
+  "events": [
+   {
+    "start": 0.002,
+    "dur_s": 0.5,
+    "width": {
+     "from": 175.0,
+     "to": 175.0,
+     "min": 175.0,
+     "max": 175.0
+    },
+    "height": {
+     "from": 200.0,
+     "to": 200.0,
+     "min": 200.0,
+     "max": 200.0
+    },
+    "cx": {
+     "from": 109.5,
+     "to": 109.5,
+     "min": 109.5,
+     "max": 109.5
+    },
+    "cy": {
+     "from": 100.0,
+     "to": 100.0,
+     "min": 100.0,
+     "max": 100.0
+    },
+    "luma": {
+     "from": 168.1,
+     "to": 171.2,
+     "min": 168.1,
+     "max": 171.3,
+     "peak_ms": 191.667,
+     "overshoot_pct": 3.453,
+     "settle_ms": 266.667,
+     "fit_response": 0.14,
+     "fit_damping": 1.2,
+     "fit_rms": 0.079
+    }
+   },
+   {
+    "start": 0.75,
+    "dur_s": 0.433,
+    "width": {
+     "from": 175.0,
+     "to": 175.0,
+     "min": 175.0,
+     "max": 175.0
+    },
+    "height": {
+     "from": 200.0,
+     "to": 200.0,
+     "min": 200.0,
+     "max": 200.0
+    },
+    "cx": {
+     "from": 109.5,
+     "to": 109.5,
+     "min": 109.5,
+     "max": 109.5
+    },
+    "cy": {
+     "from": 100.0,
+     "to": 100.0,
+     "min": 100.0,
+     "max": 100.0
+    },
+    "luma": {
+     "from": 171.2,
+     "to": 169.1,
+     "min": 169.1,
+     "max": 171.2
+    }
+   },
+   {
+    "start": 1.643,
+    "dur_s": 0.525,
+    "width": {
+     "from": 175.0,
+     "to": 190.0,
+     "min": 175.0,
+     "max": 192.0,
+     "peak_ms": 225.0,
+     "overshoot_pct": 13.333,
+     "settle_ms": 325.0,
+     "fit_response": 0.47,
+     "fit_damping": 0.55,
+     "fit_rms": 0.083
+    },
+    "height": {
+     "from": 200.0,
+     "to": 200.0,
+     "min": 200.0,
+     "max": 200.0
+    },
+    "cx": {
+     "from": 109.5,
+     "to": 109.0,
+     "min": 109.0,
+     "max": 110.0
+    },
+    "cy": {
+     "from": 100.0,
+     "to": 100.0,
+     "min": 100.0,
+     "max": 100.0
+    },
+    "luma": {
+     "from": 168.1,
+     "to": 171.7,
+     "min": 168.1,
+     "max": 171.7,
+     "peak_ms": 325.0,
+     "overshoot_pct": 0.345,
+     "settle_ms": 116.667,
+     "fit_response": 0.05,
+     "fit_damping": 1.09,
+     "fit_rms": 0.061
+    }
+   },
+   {
+    "start": 4.443,
+    "dur_s": 0.433,
+    "width": {
+     "from": 190.0,
+     "to": 175.0,
+     "min": 174.0,
+     "max": 190.0,
+     "peak_ms": 158.333,
+     "overshoot_pct": 6.667,
+     "settle_ms": 425.0,
+     "fit_response": 0.31,
+     "fit_damping": 0.65,
+     "fit_rms": 0.045
+    },
+    "height": {
+     "from": 200.0,
+     "to": 200.0,
+     "min": 200.0,
+     "max": 200.0
+    },
+    "cx": {
+     "from": 109.0,
+     "to": 109.5,
+     "min": 109.0,
+     "max": 110.0
+    },
+    "cy": {
+     "from": 100.0,
+     "to": 100.0,
+     "min": 100.0,
+     "max": 100.0
+    },
+    "luma": {
+     "from": 171.7,
+     "to": 168.2,
+     "min": 168.2,
+     "max": 171.7,
+     "peak_ms": 425.0,
+     "overshoot_pct": 0.0,
+     "settle_ms": 425.0,
+     "fit_response": 1.5,
+     "fit_damping": 1.05,
+     "fit_rms": 0.097
+    }
+   },
+   {
+    "start": 4.862,
+    "dur_s": 0.308,
+    "width": {
+     "from": 175.0,
+     "to": 175.0,
+     "min": 175.0,
+     "max": 176.0
+    },
+    "height": {
+     "from": 200.0,
+     "to": 200.0,
+     "min": 200.0,
+     "max": 200.0
+    },
+    "cx": {
+     "from": 109.5,
+     "to": 109.5,
+     "min": 109.5,
+     "max": 110.0
+    },
+    "cy": {
+     "from": 100.0,
+     "to": 100.0,
+     "min": 100.0,
+     "max": 100.0
+    },
+    "luma": {
+     "from": 170.4,
+     "to": 168.1,
+     "min": 168.1,
+     "max": 170.4
+    }
+   },
+   {
+    "start": 5.347,
+    "dur_s": 0.317,
+    "width": {
+     "from": 175.0,
+     "to": 216.0,
+     "min": 175.0,
+     "max": 216.0,
+     "peak_ms": 8.333,
+     "overshoot_pct": 0.0,
+     "settle_ms": 8.333,
+     "fit_response": 0.05,
+     "fit_damping": 0.5,
+     "fit_rms": 0.11
+    },
+    "height": {
+     "from": 200.0,
+     "to": 200.0,
+     "min": 200.0,
+     "max": 200.0
+    },
+    "cx": {
+     "from": 109.5,
+     "to": 108.0,
+     "min": 108.0,
+     "max": 109.5
+    },
+    "cy": {
+     "from": 100.0,
+     "to": 100.0,
+     "min": 100.0,
+     "max": 100.0
+    },
+    "luma": {
+     "from": 168.1,
+     "to": 138.6,
+     "min": 138.6,
+     "max": 168.1,
+     "peak_ms": 8.333,
+     "overshoot_pct": 0.012,
+     "settle_ms": 8.333,
+     "fit_response": 0.05,
+     "fit_damping": 0.5,
+     "fit_rms": 0.11
+    }
+   }
+  ],
+  "stalls": [
+   33.3,
+   50.0,
+   38.3,
+   50.0
+  ]
+ }
+}
