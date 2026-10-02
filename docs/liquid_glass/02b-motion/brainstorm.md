@@ -1,6 +1,6 @@
 # Project 2B: how glass moves. Brainstorm state (no spec written yet)
 
-Updated: 2026-10-03. Status: **brainstorming, architectural path.** The research is done (`context.md`). All seven questions are answered (2026-10-03: 1 C, 2–7 A). The question 1 native spike is running. Next: approaches, then the design in sections. Nothing about 2B is approved yet.
+Updated: 2026-10-03. Status: **brainstorming, architectural path.** The research is done (`context.md`). All seven questions are answered (2026-10-03: 1 C, 2–7 A). The question 1 spike is done (`spike-interactive.md`): plain interactive glass reacts once it holds rendered content; the reference is v13. Approach 1 chosen (2026-10-03). Next: the design in sections. Nothing about 2B is approved yet.
 
 A fresh session continues from here. Read `docs/liquid_glass/ROADMAP.md` first, all of it, especially §5 (working rules), §6 Project 2B and §8. Then read `context.md` in this folder: the evidence brief, cited by file:line and run folder. Then this file.
 
@@ -49,7 +49,7 @@ Other points the spec must settle (from `context.md` §6):
 - **Glow spreading.** It needs a container-level glow layer; today the glow is per shape and clipped (`liquid_glass.dart:284-288`).
 - **Live example scenes.** They are static today: wire `LabButton.onTap`, use real state for materialize, merge and morph, and fix the union scene (circles, two union groups).
 
-## Approaches I intend to propose after the questions
+## Approaches (proposed 2026-10-03; the user chose 1)
 
 1. **Recommended: a glass motion layer inside the package.**
    - A container-level coordinator animates three things with `motor` springs (motor is already a dependency):
@@ -91,3 +91,59 @@ Other points the spec must settle (from `context.md` §6):
   - there is no union or identity morph;
   - animated geometry cost has never been measured.
 - **Example motion scenes are static:** taps do nothing, and the union scene does not match native.
+
+## Design sections (presented one at a time, 2026-10-03)
+
+1. **Order of work: approved.** One spec, three plans, each executed by a fresh local session, reviewed and merged before the next plan is written.
+   - 2B.1: lab upgrades (per-element tracking in pinned regions, topology, materialize progress and blur, teardown exclusion, time-based pairing, noise floors), each proven by reproducing known native numbers; new native references (materialize under `.snappy` and `.bouncy`; Reduce Motion press, materialize, merge, morph); repeat runs for noise; the coordinator with materialize as its first feature.
+   - 2B.2: merge and split with SwiftUI `spacing` calibrated against native, union by id, morph by id, live example scenes, union scene fixed.
+   - 2B.3: press (outset, spring, container glow spreading, drag stretch) on the spike's reference, Reduce Motion everywhere, animated perf scene within 20%, README API docs.
+   - Spring constants start from native fits, then are verified in the lab.
+2. **Lab upgrades and new native references: approved.** Each upgrade has synthetic-frame tests and must reproduce known native numbers first.
+   - Per-shape tracking: a scene names several shapes, each in its own pinned region (today `track` is one region); width, height (working on stripes), centre and luma per shape.
+   - Topology: component count and narrowest neck per frame.
+   - Materialize progress (between bare and full glass) and blur against a plain alpha mix.
+   - Glow spread (luma in neighbour regions) and stretch (aspect change): specified now, built at the start of 2B.3.
+   - Touch-down and touch-up timestamps logged by both drivers; events paired by causing step; touch-to-response latency.
+   - Teardown cut: nothing after the last settled frame.
+   - Per-scene motion measures in `scenes.json`.
+   - Noise floors: 5 native takes per 2B scene and case over 2 separate sessions; limit = max(fixed, 1.5 × noise).
+   - New native references: materialize under `.snappy` and `.bouncy`; `--a11y reduce-motion` runs of press, materialize, merge, morph; the spike's reacting variant, if any, replaces native `material.interactive`.
+3. **The coordinator: approved.**
+   - Every `GlassEffectContainer` owns one; a `GlassEffect` outside any container gets a private one.
+   - Members register layout rect, shape, glass id, union id, transition, interactive flag; each rebuild diffs and animates the difference.
+   - Animated per member: drawn rect (springs from old to new layout, FLIP style), visibility, press outset, glow; per container: spacing.
+   - Content is painted shifted to follow its glass; hit testing uses final layout (as SwiftUI).
+   - Removal animates: the coordinator keeps drawing removed glass (dematerialize or morph into its id) plus a fading content snapshot; prototyped first; fallback is glass animates out and content vanishes at once; the spec records what the prototype proves.
+   - Interruptible: retargets keep velocity.
+   - One ticker per coordinator writes into render objects; no widget rebuild per frame; geometry is redrawn per animated frame (cost measured in 2B.3).
+   - Standalone glass resolves material from its animated size every frame; container members share one material as today.
+   - Springs: motor spring physics parameterised by response and damping, the same units as the lab's native fits.
+4. **Press, glow and drag stretch: approved, with (a).**
+   - Reference from the spike (plain interactive if any variant reacts, else `.buttonStyle(.glass)`).
+   - Press down: fixed outset per side (native +16–17 pt width at 138 and 174 pt; spike's 44/250 pt controls and the new height tracker confirm); brightening (+4.6–5.2 luma glass, +17 prominent); rise, overshoot and release spring from native fits (release 0.18–0.34 s / 0.61–0.91, glass rise to 90% about 68 ms); label behaviour measured and copied.
+   - Glow: starts under the finger (today's `GlassGlow` physics), drawn by the container so it spills onto neighbours in the same container, clipped to the glass shapes; new native scene: two glass buttons close together in a container.
+   - Drag stretch: volume-preserving `LiquidStretch` maths moved into the coordinator; new native scene: press-and-drag on a glass button.
+   - Touch: raw pointer listening that never competes in the gesture arena (inner buttons keep their taps); nested interactive glass: innermost reacts; leaving the glass or turning into a scroll releases with the release spring.
+   - **(a):** anything native does not show on the simulator (glow spreading, stretch) is built from Apple's description, its constants kept in one place and marked "unverified" in spec and README, with a device check listed in project 5.
+5. **Appear, merge, union and morph: approved.**
+   - Materialize uses `visibility`; the asymmetric progress-to-visibility mapping is fitted on native default-animation frames, checked on `.snappy` and `.bouncy`; visibility clamps to [0, 1] unless native frames show otherwise.
+   - Edge light: width follows the material's full thickness, brightness follows visibility (still glass unchanged bit for bit); native mid-appear frames check it.
+   - Transitions: materialize (default; glass ramps, content fades), identity (none), matched geometry (morph by id).
+   - Merge/split: SwiftUI `spacing` semantics; spacing-to-blend mapping calibrated on native `material.merge` with the topology measures; the blend formula is replaced if it cannot match native's neck; merging emerges from drawn positions.
+   - Union: shared union id draws as one shape at any distance; native's union shape measured and copied; Flutter union scene rebuilt (four 64 pt circles in two pairs).
+   - Morph: id plus app-created namespace; an unpartnered appearing glass emerges from existing glass in the same container (source read off native morph frames; guess: nearest); targets expand about 460–550 ms, collapse about 210 ms.
+   - Live example scenes with native's tap ids (`toggle`, `merge`, `split`, `morph`).
+6. **API, Reduce Motion and frame cost: approved.**
+   - API: `Glass.regular.interactive()`; `GlassEffectContainer(spacing:)` with SwiftUI meaning and native's measured default; `GlassNamespace()`; `GlassEffect(id: GlassEffectID(id, ns), union: GlassEffectUnion(id, ns), transition: GlassEffectTransition.materialize | .identity | .matchedGeometry)`; `GlassAnimation` (`.defaultSpring`-style default, `.snappy`, `.bouncy`, `.smooth`, `.spring(duration:bounce:)`, `.spring(response:dampingFraction:)`, `.none`); `withGlassAnimation(animation, () => setState(...))`; `GlassAnimationScope(animation:)`.
+   - Precedence: `withGlassAnimation` > `GlassAnimationScope` > package default (SwiftUI default spring, verified against the lab). The press always uses its own native-fitted springs.
+   - Reduce Motion read as today (plugin or `disableAnimations`). Starting guess: press brightens only (no growth, overshoot or stretch); materialize and morph cross-fade without blur ramp; merge springs without bounce. Native Reduce Motion recordings decide and every Reduce Motion run is checked. A mid-animation switch applies from the next change.
+   - Frame cost: perf scene with continuous press pulses, materialize and merge; within 20% of the still-glass scene; alternating A/B pairs; over budget means 2B.3 fixes the cost (likely the per-frame geometry redraw).
+
+### Spike result (2026-10-03, `spike-interactive.md`, probe code `proto/2b` 5999b4412)
+
+- Native `.glassEffect(.regular.interactive())` reacts on the simulator once the glass holds rendered, hit content (`Text`, a `Button` label, or `Color.white.opacity(0.001)`); `material.interactive` never reacted because its content is `Color.clear`. The reaction coincides with UIKit's `_UIFlexInteractionPanGestureRecognizer` joining the touch (58 launches). Verified here: v13's `ready.png` is byte-identical to v0's (max difference 0).
+- Reference for `Glass.interactive()`: v13, `Color.white.opacity(0.001).frame(250×88).glassEffect(.regular.interactive())`. No fallback to `button.press`.
+- **Section 4 correction:** the press is a uniform scale whose factor falls with size, not a fixed outset. Glass up to about 60 pt tall grows about 17.5 pt in width; taller glass grows about 1100/h pt (inference from six sizes). `.buttonStyle(.glass)` and interactive `.glassEffect` press identically at the same size.
+- Glow first (luma to 90% in 0–120 ms), growth second (128–220 ms); release: size back in 123–183 ms, glow 270–615 ms; SwiftUI glow decays from about +17 to +11.5 over about 400 ms, then drops in one frame.
+- A slow pressDrag (+60 pt at 120 pt/s) neither moves nor stretches the glass; the glow dims during the drag. Two interactive shapes 10 pt apart in a `spacing: 20` container: only the pressed one scales, and the neighbour shows no glow (MAD 0.18–0.82).
