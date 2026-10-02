@@ -79,7 +79,7 @@ The renderer underneath is still public: `LiquidGlass`, `LiquidGlassLayer`, `Liq
 - The shadow is one Gaussian per glass, offset downward, fitted to native's.
 - The scroll edge effect stacks real Gaussian blurs, masked by a small shader, under a tinted gradient.
 
-Frame cost, measured on the iOS 27 simulator with 13 glasses over a moving backdrop (debug build, raster median): 12.66 ms with the tuned material through `GlassEffect`, against 12.10 ms for the pre-fork renderer at its defaults (+4.6%); a soft scroll edge adds 4.98 ms. Check your target devices.
+Frame cost, measured on the iOS 27 simulator with 13 glasses over a moving backdrop (debug build, raster median): 12.66 ms with the tuned material through `GlassEffect`, against 12.10 ms for this fork's renderer before 2A (the `liquid_glass_renderer` copy on Operator's `development` branch) at its defaults (+4.6%); a soft scroll edge adds 4.98 ms. Check your target devices.
 
 ## Credits and licence
 

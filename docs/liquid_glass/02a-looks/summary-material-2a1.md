@@ -1,6 +1,6 @@
 # Glass lab baseline
 
-Run: `20261002-145817`. Native iOS 27 (iPhone 17 Pro simulator) against the ios_liquid_glass example app.
+Run: `20261002-200447`. Native iOS 27 (iPhone 17 Pro simulator) against the ios_liquid_glass example app.
 
 | Status | Count |
 |---|---|
