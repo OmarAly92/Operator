@@ -70,7 +70,20 @@ class RunFreshnessTests(unittest.TestCase):
              mock.patch.object(lab, "new_run_dir", return_value=Path(temp)):
             lab.cmd_run(args)
             self.assertEqual(json.loads((Path(temp) / "run.json").read_text()), {"flutter": "example", "a11y": "none"})
-        fresh.assert_not_called()
+        fresh.assert_called_once_with("native")
+
+    def test_repeat_refuses_a_stale_native_build_before_touching_the_simulator(self):
+        args = lab.parser().parse_args(["repeat", "material.materialize"])
+        with mock.patch.object(lab.build, "require_fresh", side_effect=SystemExit("stale")) as fresh, \
+             mock.patch.object(lab.sim, "device") as device:
+            with self.assertRaises(SystemExit):
+                lab.cmd_repeat(args)
+        fresh.assert_called_once_with("native")
+        device.assert_not_called()
+
+    def test_the_native_build_is_stamped_from_its_swift_sources(self):
+        self.assertEqual(lab.build.SOURCES["native"], (lab.build.NATIVE / "GlassLab", lab.build.NATIVE / "GlassLabDriver"))
+        self.assertEqual(lab.build.STAMPS["native"].parent, lab.build.NATIVE_DATA)
 
 
 class AccessibilityRestoredOnFailureTests(unittest.TestCase):
@@ -110,6 +123,59 @@ class AccessibilityRestoredOnFailureTests(unittest.TestCase):
                 lab.run_cases("udid", [], [], [], None, "increaseContrast", Path("/tmp"))
 
         self.assertEqual(calls, ["increaseContrast", "none"])
+
+
+class NoiseTests(unittest.TestCase):
+    def test_per_case_noise_is_read_per_case_and_old_entries_stay_scene_wide(self):
+        noise = {"material.materialize": {"dark-photo": {"block.step1e0.progress.rms": 0.02}}, "menu.bar": {"event0.width.peak_ms": 8.0}}
+        self.assertEqual(lab.noise_for(noise, "material.materialize", "dark-photo"), {"block.step1e0.progress.rms": 0.02})
+        self.assertEqual(lab.noise_for(noise, "material.materialize", "light-photo"), {})
+        self.assertEqual(lab.noise_for(noise, "menu.bar", "dark-photo"), {"event0.width.peak_ms": 8.0})
+        self.assertEqual(lab.noise_for(noise, "material.regular", "dark-photo"), {})
+
+    def test_the_teardown_entries_are_gone_from_the_committed_noise(self):
+        noise = json.loads(lab.NOISE.read_text())
+        self.assertFalse([name for name in noise["tabbar.drag"] if name.startswith("event2.")])
+
+    def test_repeat_covers_every_case_unless_narrowed(self):
+        import manifest
+        scene = {s.id: s for s in manifest.load()}["material.materialize"]
+        self.assertEqual(lab.repeat_cases(scene), [("light", "stripes"), ("light", "photo"), ("dark", "stripes"), ("dark", "photo")])
+        self.assertEqual(lab.repeat_cases(scene, "dark", "photo"), [("dark", "photo")])
+
+    def test_pairs_of_takes_have_distinct_names_past_ten_takes_and_each_take_is_captured_once(self):
+        import manifest
+        scene = {s.id: s for s in manifest.load()}["material.materialize"]
+        calls = []
+
+        def analyze_pair(scene, case, cache=None):
+            for side in ("native", "flutter"):
+                key = (scene.id, str((case / side).resolve()))
+                if key not in cache:
+                    calls.append(key)
+                    cache[key] = {}
+            return {"static": {}, "measures": {"ready.mad": (1.5, 4.0, "max"), "ready.topology.g4.neck_pt": (float("nan"), 1.0, "max")}, "shapes": {"pairs": {"step1e0": {"shapes": {"block": {"progress": {"rms": 0.01, "response_pct": float("inf")}}}}}}}
+
+        with tempfile.TemporaryDirectory() as temp:
+            takes = []
+            for number in range(12):
+                (Path(temp) / "takes" / str(number)).mkdir(parents=True)
+                takes.append(Path(temp) / "takes" / str(number))
+            with mock.patch.object(lab.analyze, "analyze", side_effect=analyze_pair):
+                worst, _ = lab.case_noise(scene, takes, Path(temp) / "pairs")
+            names = [p.name for p in (Path(temp) / "pairs").iterdir()]
+        self.assertEqual(len(names), 66)
+        self.assertEqual(len(set(names)), 66)
+        self.assertIn("pair-1-11", names)
+        self.assertIn("pair-11-1", [f"pair-{b}-{a}" for a, b in (n.split("-")[1:] for n in names)])
+        self.assertEqual(len(calls), 12)
+        self.assertEqual(worst, {"ready.mad": 1.5, "block.step1e0.progress.rms": 0.01})
+
+    def test_takes_are_numbered_after_the_ones_already_there(self):
+        with tempfile.TemporaryDirectory() as temp:
+            for name in ("0", "1", "2", "pair-01"):
+                (Path(temp) / name).mkdir()
+            self.assertEqual(lab.take_numbers(temp), [0, 1, 2])
 
 
 if __name__ == "__main__":

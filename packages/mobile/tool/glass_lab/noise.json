@@ -75,17 +75,7 @@
     "event1.width.overshoot_pct": 6.25,
     "event1.width.peak_ms": 116.66666666666669,
     "event1.width.response_pct": 6.250000000000005,
-    "event1.width.settle_ms": 50.0,
-    "event2.luma.damping": 0.49,
-    "event2.luma.overshoot_pct": 0.0018722728124975774,
-    "event2.luma.peak_ms": 466.66666666666663,
-    "event2.luma.response_pct": 700.0,
-    "event2.luma.settle_ms": 391.6666666666667,
-    "event2.width.damping": 0.18999999999999995,
-    "event2.width.overshoot_pct": 6.25,
-    "event2.width.peak_ms": 191.66666666666666,
-    "event2.width.response_pct": 540.0,
-    "event2.width.settle_ms": 233.33333333333331
+    "event1.width.settle_ms": 50.0
   },
   "tabbar.rest": {}
 }

@@ -1,5 +1,6 @@
 import argparse
 import json
+import math
 import re
 import sys
 import time
@@ -15,6 +16,7 @@ import metrics
 import probe
 import record
 import report
+import shapes
 import sim
 import tonefit
 import tune
@@ -94,6 +96,8 @@ def cmd_run(args):
     scenes = manifest.select(manifest.load(), args.scene)
     if "flutter" in apps_for(args.app) and any(not scene.native_only for scene in scenes):
         build.require_fresh(args.flutter)
+    if "native" in apps_for(args.app) or any(scene.native_only for scene in scenes):
+        build.require_fresh("native")
     udid = sim.device()
     run_dir = new_run_dir()
     (run_dir / "run.json").write_text(json.dumps({"flutter": args.flutter, "a11y": args.a11y}))
@@ -103,6 +107,13 @@ def cmd_run(args):
 
 def load_noise():
     return json.loads(NOISE.read_text()) if NOISE.exists() else {}
+
+
+def noise_for(noise, scene_id, case):
+    entry = noise.get(scene_id) or {}
+    if entry and all(isinstance(value, dict) for value in entry.values()):
+        return entry.get(case, {})
+    return entry
 
 
 def analyze_run(run_dir):
@@ -115,7 +126,7 @@ def analyze_run(run_dir):
         if any((case_dir / app / "error.txt").exists() for app in ("native", "flutter")):
             (case_dir / "result.json").write_text(json.dumps({"scene": scene.id, "case": case_dir.name, "kind": "error"}))
             continue
-        result = analyze.analyze(scene, case_dir, noise.get(scene.id))
+        result = analyze.analyze(scene, case_dir, noise_for(noise, scene.id, case_dir.name))
         (case_dir / "result.json").write_text(json.dumps(result))
 
 
@@ -156,47 +167,95 @@ def cmd_baseline(args):
     print(json.dumps(counts))
 
 
+def repeat_cases(scene, appearance=None, backdrop=None):
+    appearances = [a for a in scene.appearances if appearance in (None, "both", a)]
+    backdrops = [b for b in scene.backdrops if backdrop in (None, b)]
+    return [(a, b) for a in appearances for b in backdrops]
+
+
+def take_numbers(folder):
+    return sorted(int(p.name) for p in Path(folder).glob("*") if p.is_dir() and p.name.isdigit())
+
+
+def case_noise(scene, takes, case_root):
+    worst, static_worst, cache = {}, 0.0, {}
+    for i in range(len(takes)):
+        for j in range(i + 1, len(takes)):
+            case = case_root / f"pair-{takes[i].name}-{takes[j].name}"
+            case.mkdir(parents=True, exist_ok=True)
+            for name, source in (("native", takes[i]), ("flutter", takes[j])):
+                link = case / name
+                if not link.exists():
+                    link.symlink_to(source.resolve())
+            result = analyze.analyze(scene, case, cache=cache)
+            (case / "result.json").write_text(json.dumps(result))
+            for stat in result.get("static", {}).values():
+                static_worst = max(static_worst, stat["mad"])
+            found = shapes.measures(result["shapes"]) if "shapes" in result else {
+                name: value for name, (value, _) in analyze.motion_measures(result.get("motion", {"events": []})).items()
+            }
+            found.update({name: value for name, (value, _, _) in result.get("measures", {}).items() if not name.startswith("motion.")})
+            for name, value in found.items():
+                if math.isfinite(value):
+                    worst[name] = max(worst.get(name, 0.0), value)
+    return worst, static_worst
+
+
 def cmd_repeat(args):
+    build.require_fresh("native")
     udid = sim.device()
     names = REPEAT_SCENES if args.scene == "default" else [args.scene]
     scenes = [manifest.select(manifest.load(), name)[0] for name in names]
-    run_dir = new_run_dir()
+    run_dir = Path(args.into) if args.into else new_run_dir()
     noise = load_noise()
     failed = []
-    for scene in scenes:
-        appearance, backdrop = scene.appearances[0], scene.backdrops[0]
-        sim.appearance(udid, appearance)
-        takes = []
-        for number in range(args.times):
-            take = run_dir / "takes" / scene.id / str(number)
-            print(f"{scene.id} take {number}", flush=True)
-            record.capture(udid, scene, "native", backdrop, take)
-            takes.append(take)
-        worst, static_worst = {}, 0.0
-        for i in range(len(takes)):
-            for j in range(i + 1, len(takes)):
-                case = run_dir / scene.id / f"pair-{i}{j}"
-                case.mkdir(parents=True, exist_ok=True)
-                for name, source in (("native", takes[i]), ("flutter", takes[j])):
-                    link = case / name
-                    if not link.exists():
-                        link.symlink_to(source)
-                result = analyze.analyze(scene, case)
-                (case / "result.json").write_text(json.dumps(result))
-                for stat in result.get("static", {}).values():
-                    static_worst = max(static_worst, stat["mad"])
-                if "motion" in result:
-                    for name, (value, _) in analyze.motion_measures(result["motion"]).items():
-                        worst[name] = max(worst.get(name, 0.0), value)
-        noise[scene.id] = worst
-        print(f"{scene.id}: static mad {static_worst:.2f}, motion noise {json.dumps({k: round(v, 1) for k, v in worst.items()})}")
-        if static_worst > 1.0:
-            print(f"{scene.id}: static repeatability FAILED (mad {static_worst:.2f} > 1.0)")
-            failed.append(scene.id)
+    try:
+        sim.accessibility(udid, args.a11y)
+        for scene in scenes:
+            entry = noise.get(scene.id, {})
+            if entry and not all(isinstance(value, dict) for value in entry.values()):
+                entry = {}
+            for appearance, backdrop in repeat_cases(scene, args.appearance, args.backdrop):
+                sim.appearance(udid, appearance)
+                name = case_name(appearance, backdrop, args.a11y)
+                folder = run_dir / "takes" / scene.id / name
+                start = (take_numbers(folder) or [-1])[-1] + 1
+                for number in range(start, start + args.times):
+                    print(f"{scene.id} {name} take {number}", flush=True)
+                    record.capture(udid, scene, "native", backdrop, folder / str(number))
+                takes = [folder / str(n) for n in take_numbers(folder)]
+                worst, static_worst = case_noise(scene, takes, run_dir / scene.id / name)
+                entry[name] = worst
+                print(f"{scene.id} {name}: {len(takes)} takes, static mad {static_worst:.2f}, motion noise {json.dumps({k: round(v, 1) for k, v in worst.items()})}")
+                if static_worst > 1.0:
+                    print(f"{scene.id} {name}: static repeatability FAILED (mad {static_worst:.2f} > 1.0)")
+                    failed.append(f"{scene.id} {name}")
+            noise[scene.id] = entry
+    finally:
+        sim.accessibility(udid, "none")
     NOISE.write_text(json.dumps(noise, indent=2, sort_keys=True) + "\n")
     print(NOISE)
+    print(run_dir)
     if failed:
         raise SystemExit(f"static repeatability failed for {', '.join(failed)}")
+
+
+def cmd_reboot(args):
+    udid = sim.reboot()
+    sim.status_bar(udid)
+    print(f"rebooted {udid}")
+
+
+def cmd_measure(args):
+    scene = manifest.select(manifest.load(), args.scene)[0]
+    case = Path(args.case_dir)
+    apps = [case / name for name in ("native", "flutter") if (case / name / "video.mp4").exists()] or [case]
+    summary = {}
+    for app_dir in apps:
+        found = analyze.window(app_dir)
+        capture = shapes.capture(scene, app_dir, found[:2] if found else None)
+        summary[app_dir.name] = shapes.summary(capture)
+    print(json.dumps(summary, indent=2))
 
 
 A11Y_ROWS = {"reduce-transparency": "reduceTransparency", "increase-contrast": "increaseContrast"}
@@ -307,7 +366,16 @@ def parser():
     t = commands.add_parser("repeat")
     t.add_argument("scene", nargs="?", default="default")
     t.add_argument("--times", type=int, default=3)
+    t.add_argument("--appearance", choices=("light", "dark", "both"))
+    t.add_argument("--backdrop", choices=manifest.BACKDROPS)
+    t.add_argument("--a11y", default="none", choices=sim.A11Y_MODES)
+    t.add_argument("--into")
     t.set_defaults(func=cmd_repeat)
+    commands.add_parser("reboot").set_defaults(func=cmd_reboot)
+    e = commands.add_parser("measure")
+    e.add_argument("case_dir")
+    e.add_argument("--scene", required=True)
+    e.set_defaults(func=cmd_measure)
     u = commands.add_parser("tune")
     u.add_argument("--scene", required=True)
     u.add_argument("--appearance", required=True, choices=("light", "dark"))
