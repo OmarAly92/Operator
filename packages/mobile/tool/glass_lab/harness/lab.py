@@ -10,6 +10,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import analyze
 import build
+import fitvis
 import flip
 import manifest
 import metrics
@@ -258,6 +259,15 @@ def cmd_measure(args):
     print(json.dumps(summary, indent=2))
 
 
+def cmd_fitvis(args):
+    udid = sim.device()
+    out = Path(args.out) if args.out else build.OUT / "fitvis" / time.strftime("%Y%m%d-%H%M%S")
+    ramps = tuple(float(r) for r in args.ramps.split(","))
+    summary = fitvis.run(udid, [Path(r) for r in args.runs], out, args.levels, args.write, ramps)
+    print(json.dumps({k: v for k, v in summary.items() if k in ("mapping", "default_spring_check", "blur_ramp", "visibility_for_progress")}, indent=2))
+    print(out)
+
+
 A11Y_ROWS = {"reduce-transparency": "reduceTransparency", "increase-contrast": "increaseContrast"}
 
 
@@ -376,6 +386,13 @@ def parser():
     e.add_argument("case_dir")
     e.add_argument("--scene", required=True)
     e.set_defaults(func=cmd_measure)
+    v = commands.add_parser("fitvis")
+    v.add_argument("runs", nargs="+")
+    v.add_argument("--levels", type=int, default=fitvis.LEVELS)
+    v.add_argument("--ramps", default=",".join(str(r) for r in fitvis.RAMPS))
+    v.add_argument("--out")
+    v.add_argument("--write", action="store_true")
+    v.set_defaults(func=cmd_fitvis)
     u = commands.add_parser("tune")
     u.add_argument("--scene", required=True)
     u.add_argument("--appearance", required=True, choices=("light", "dark"))
