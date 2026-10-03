@@ -31,7 +31,7 @@ class SceneTests(unittest.TestCase):
             self.assertTrue(any("press" in step for step in scene.steps))
             self.assertEqual(scene.motion, ())
         heights = sorted(self.scenes[s].regions["glass"][3] - 60 for s in PRESS)
-        self.assertEqual(len(heights), 6)
+        self.assertEqual(heights, [44, 54, 58, 88, 120, 200])
 
     def test_spacing_scenes_are_still_with_one_region_per_gap(self):
         gaps = []
