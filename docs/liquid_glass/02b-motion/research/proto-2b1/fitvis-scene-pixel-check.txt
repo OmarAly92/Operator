@@ -1,0 +1,2 @@
+dark-photo 0.5 3.0 max difference below the status bar 0.0 mean 0.0
+light-stripes 0.35 2.0 max difference below the status bar 0.0 mean 0.0

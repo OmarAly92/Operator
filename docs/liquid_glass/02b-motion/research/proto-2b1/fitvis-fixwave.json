@@ -1,0 +1,501 @@
+{
+  "roots": [
+    "/Users/omaraly/development/AI/Operator-2b1-proto/packages/mobile/build/glass_lab/runs/20261003-032332",
+    "/Users/omaraly/development/AI/Operator-2b1-proto/packages/mobile/build/glass_lab/runs/repeat-2b1",
+    "/Users/omaraly/development/AI/Operator-2b1-proto/packages/mobile/build/glass_lab/runs/20261003-033143"
+  ],
+  "mapping": {
+    "material.materialize": {
+      "spring": [
+        0.55,
+        1.0
+      ],
+      "exponent": {
+        "value": 3.1,
+        "rms": 0.03038519674451204,
+        "at_grid_edge": false,
+        "curves": 16,
+        "excluded": []
+      },
+      "gain": {
+        "value": 0.0,
+        "identifiable": false,
+        "from": "the spring does not overshoot, so no gain can be measured and none is used"
+      },
+      "reduce_motion_gain": {
+        "value": 0.0,
+        "identifiable": false,
+        "from": "the spring does not overshoot, so no gain can be measured and none is used"
+      },
+      "exponent_spread": {
+        "min": 3.05,
+        "max": 3.15,
+        "std": 0.041,
+        "per_take": {
+          "20261003-032332": 3.05,
+          "repeat-2b1/take0": 3.15,
+          "repeat-2b1/take1": 3.1,
+          "repeat-2b1/take2": 3.05
+        }
+      },
+      "gain_spread": null,
+      "reduce_motion_gain_spread": null,
+      "cases": [
+        "dark-photo",
+        "dark-stripes",
+        "light-photo",
+        "light-stripes"
+      ],
+      "reduce_motion_cases": [
+        "dark-photo-reduce-motion",
+        "dark-stripes-reduce-motion",
+        "light-photo-reduce-motion",
+        "light-stripes-reduce-motion"
+      ],
+      "takes": [
+        "20261003-032332",
+        "repeat-2b1/take0",
+        "repeat-2b1/take1",
+        "repeat-2b1/take2"
+      ]
+    },
+    "material.materialize.snappy": {
+      "spring": [
+        0.5,
+        0.85
+      ],
+      "exponent": {
+        "value": 2.7,
+        "rms": 0.029514502903087683,
+        "at_grid_edge": false,
+        "curves": 16,
+        "excluded": []
+      },
+      "gain": {
+        "value": 0.0,
+        "rms": 0.02536456861876526,
+        "at_grid_edge": false,
+        "at_floor": true,
+        "curves": 16,
+        "excluded": []
+      },
+      "reduce_motion_gain": {
+        "value": 0.0,
+        "rms": 0.025261794855733877,
+        "at_grid_edge": false,
+        "at_floor": true,
+        "curves": 4,
+        "excluded": []
+      },
+      "exponent_spread": {
+        "min": 2.7,
+        "max": 2.75,
+        "std": 0.025,
+        "per_take": {
+          "20261003-032332": 2.75,
+          "repeat-2b1/take0": 2.7,
+          "repeat-2b1/take1": 2.75,
+          "repeat-2b1/take2": 2.7
+        }
+      },
+      "gain_spread": {
+        "min": 0.0,
+        "max": 0.0,
+        "std": 0.0,
+        "per_take": {
+          "20261003-032332": 0.0,
+          "repeat-2b1/take0": 0.0,
+          "repeat-2b1/take1": 0.0,
+          "repeat-2b1/take2": 0.0
+        }
+      },
+      "reduce_motion_gain_spread": {
+        "min": 0.0,
+        "max": 0.0,
+        "std": 0.0,
+        "per_take": {
+          "20261003-033143": 0.0
+        }
+      },
+      "cases": [
+        "dark-photo",
+        "dark-stripes",
+        "light-photo",
+        "light-stripes"
+      ],
+      "reduce_motion_cases": [
+        "dark-photo-reduce-motion",
+        "dark-stripes-reduce-motion",
+        "light-photo-reduce-motion",
+        "light-stripes-reduce-motion"
+      ],
+      "takes": [
+        "20261003-032332",
+        "repeat-2b1/take0",
+        "repeat-2b1/take1",
+        "repeat-2b1/take2"
+      ]
+    },
+    "material.materialize.bouncy": {
+      "spring": [
+        0.5,
+        0.7
+      ],
+      "exponent": {
+        "value": 2.75,
+        "rms": 0.0286784268301693,
+        "at_grid_edge": false,
+        "curves": 15,
+        "excluded": [
+          {
+            "take": "repeat-2b1/take2",
+            "case": "dark-stripes",
+            "rms": 0.2403
+          }
+        ]
+      },
+      "gain": {
+        "value": 0.34,
+        "rms": 0.03702953127844955,
+        "at_grid_edge": false,
+        "at_floor": false,
+        "curves": 16,
+        "excluded": []
+      },
+      "reduce_motion_gain": {
+        "value": 0.62,
+        "rms": 0.03794767186730284,
+        "at_grid_edge": false,
+        "at_floor": false,
+        "curves": 4,
+        "excluded": []
+      },
+      "exponent_spread": {
+        "min": 2.7,
+        "max": 2.8,
+        "std": 0.043,
+        "per_take": {
+          "20261003-032332": 2.7,
+          "repeat-2b1/take0": 2.7,
+          "repeat-2b1/take1": 2.7,
+          "repeat-2b1/take2": 2.8
+        }
+      },
+      "gain_spread": {
+        "min": 0.32,
+        "max": 0.38,
+        "std": 0.022,
+        "per_take": {
+          "20261003-032332": 0.32,
+          "repeat-2b1/take0": 0.34,
+          "repeat-2b1/take1": 0.34,
+          "repeat-2b1/take2": 0.38
+        }
+      },
+      "reduce_motion_gain_spread": {
+        "min": 0.62,
+        "max": 0.62,
+        "std": 0.0,
+        "per_take": {
+          "20261003-033143": 0.62
+        }
+      },
+      "cases": [
+        "dark-photo",
+        "dark-stripes",
+        "light-photo",
+        "light-stripes"
+      ],
+      "reduce_motion_cases": [
+        "dark-photo-reduce-motion",
+        "dark-stripes-reduce-motion",
+        "light-photo-reduce-motion",
+        "light-stripes-reduce-motion"
+      ],
+      "takes": [
+        "20261003-032332",
+        "repeat-2b1/take0",
+        "repeat-2b1/take1",
+        "repeat-2b1/take2"
+      ]
+    }
+  },
+  "default_spring_check": {
+    "swiftui": [
+      0.55,
+      1.0
+    ],
+    "all": {
+      "response": 0.57,
+      "damping": 0.98,
+      "rms": 0.02741201513611214,
+      "at_grid_edge": false,
+      "pass": true
+    },
+    "cases": {
+      "dark-photo": {
+        "response": 0.58,
+        "damping": 0.95,
+        "rms": 0.007098222995191803,
+        "at_grid_edge": false,
+        "pass": false
+      },
+      "dark-stripes": {
+        "response": 0.71,
+        "damping": 0.8,
+        "rms": 0.04119526338142557,
+        "at_grid_edge": false,
+        "pass": false
+      },
+      "light-photo": {
+        "response": 0.49,
+        "damping": 1.12,
+        "rms": 0.015114759102428219,
+        "at_grid_edge": false,
+        "pass": false
+      },
+      "light-stripes": {
+        "response": 0.45,
+        "damping": 1.24,
+        "rms": 0.023328132107813464,
+        "at_grid_edge": false,
+        "pass": false
+      }
+    },
+    "pass": false
+  },
+  "blur_ramp": {
+    "value": 3.0,
+    "errors": {
+      "1.0": 1.1352717855151695,
+      "2.0": 0.914004462948083,
+      "3.0": 0.8385744489057855,
+      "4.0": 0.9680850789887442
+    },
+    "at_grid_edge": false
+  },
+  "native_sharpness": {
+    "dark-photo": {
+      "0.25": -1.48,
+      "0.5": -1.087,
+      "0.75": -0.429
+    },
+    "dark-stripes": {
+      "0.25": -0.037,
+      "0.5": 0.033,
+      "0.75": 0.096
+    },
+    "light-photo": {
+      "0.25": -1.996,
+      "0.5": -1.481,
+      "0.75": -0.631
+    },
+    "light-stripes": {
+      "0.25": -0.078,
+      "0.5": -0.035,
+      "0.75": 0.065
+    }
+  },
+  "flutter_sharpness": {
+    "1.0": {
+      "dark-photo": {
+        "0.25": -3.883,
+        "0.5": -2.689,
+        "0.75": -1.264
+      },
+      "dark-stripes": {
+        "0.25": -0.423,
+        "0.5": -0.309,
+        "0.75": -0.154
+      },
+      "light-photo": {
+        "0.25": -3.987,
+        "0.5": -2.71,
+        "0.75": -1.264
+      },
+      "light-stripes": {
+        "0.25": -0.426,
+        "0.5": -0.29,
+        "0.75": -0.146
+      }
+    },
+    "2.0": {
+      "dark-photo": {
+        "0.25": -3.594,
+        "0.5": -2.634,
+        "0.75": -1.262
+      },
+      "dark-stripes": {
+        "0.25": -0.269,
+        "0.5": -0.319,
+        "0.75": -0.184
+      },
+      "light-photo": {
+        "0.25": -2.561,
+        "0.5": -2.623,
+        "0.75": -1.274
+      },
+      "light-stripes": {
+        "0.25": -0.247,
+        "0.5": -0.333,
+        "0.75": -0.183
+      }
+    },
+    "3.0": {
+      "dark-photo": {
+        "0.25": -2.775,
+        "0.5": -2.614,
+        "0.75": -1.289
+      },
+      "dark-stripes": {
+        "0.25": -0.118,
+        "0.5": -0.3,
+        "0.75": -0.197
+      },
+      "light-photo": {
+        "0.25": -0.52,
+        "0.5": -2.357,
+        "0.75": -1.263
+      },
+      "light-stripes": {
+        "0.25": -0.075,
+        "0.5": -0.305,
+        "0.75": -0.199
+      }
+    },
+    "4.0": {
+      "dark-photo": {
+        "0.25": -2.275,
+        "0.5": -2.533,
+        "0.75": -1.31
+      },
+      "dark-stripes": {
+        "0.25": -0.019,
+        "0.5": -0.251,
+        "0.75": -0.21
+      },
+      "light-photo": {
+        "0.25": 0.637,
+        "0.5": -1.863,
+        "0.75": -1.244
+      },
+      "light-stripes": {
+        "0.25": 0.003,
+        "0.5": -0.238,
+        "0.75": -0.197
+      }
+    }
+  },
+  "flutter_sharpness_table": {
+    "dark-photo": {
+      "0.25": -3.01,
+      "0.5": -2.611,
+      "0.75": -1.268
+    },
+    "dark-stripes": {
+      "0.25": -0.104,
+      "0.5": -0.312,
+      "0.75": -0.201
+    },
+    "light-photo": {
+      "0.25": -0.325,
+      "0.5": -2.369,
+      "0.75": -1.267
+    },
+    "light-stripes": {
+      "0.25": -0.053,
+      "0.5": -0.308,
+      "0.75": -0.202
+    }
+  },
+  "flutter_progress": {
+    "dark-photo": {
+      "0.0": 0.0,
+      "0.1": 0.0471,
+      "0.2": 0.0934,
+      "0.3": 0.1474,
+      "0.4": 0.2164,
+      "0.5": 0.3124,
+      "0.6": 0.438,
+      "0.7": 0.5668,
+      "0.8": 0.713,
+      "0.9": 0.8699,
+      "1.0": 1.0
+    },
+    "dark-stripes": {
+      "0.0": 0.0,
+      "0.1": 0.0794,
+      "0.2": 0.1638,
+      "0.3": 0.2514,
+      "0.4": 0.3407,
+      "0.5": 0.4411,
+      "0.6": 0.5514,
+      "0.7": 0.6588,
+      "0.8": 0.7724,
+      "0.9": 0.8907,
+      "1.0": 1.0
+    },
+    "light-photo": {
+      "0.0": 0.0,
+      "0.1": 0.0904,
+      "0.2": 0.182,
+      "0.3": 0.2736,
+      "0.4": 0.3685,
+      "0.5": 0.4655,
+      "0.6": 0.5677,
+      "0.7": 0.6745,
+      "0.8": 0.7809,
+      "0.9": 0.8893,
+      "1.0": 1.0
+    },
+    "light-stripes": {
+      "0.0": 0.0,
+      "0.1": 0.0904,
+      "0.2": 0.18,
+      "0.3": 0.2759,
+      "0.4": 0.3745,
+      "0.5": 0.4704,
+      "0.6": 0.5723,
+      "0.7": 0.6786,
+      "0.8": 0.7812,
+      "0.9": 0.8883,
+      "1.0": 1.0
+    }
+  },
+  "flutter_progress_mean": [
+    0.0,
+    0.0768,
+    0.1548,
+    0.2371,
+    0.325,
+    0.4223,
+    0.5323,
+    0.6447,
+    0.7619,
+    0.8846,
+    1.0
+  ],
+  "visibility_for_progress": [
+    0.0,
+    0.0651,
+    0.1297,
+    0.1939,
+    0.2549,
+    0.3147,
+    0.3716,
+    0.4257,
+    0.477,
+    0.5251,
+    0.5706,
+    0.6157,
+    0.6602,
+    0.7045,
+    0.7472,
+    0.7899,
+    0.8311,
+    0.8718,
+    0.9134,
+    0.9567,
+    1.0
+  ]
+}

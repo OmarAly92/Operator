@@ -163,3 +163,7 @@ Other points the spec must settle (from `context.md` §6):
 - **Tap-to-response delay (review finding 12): A.** Native starts appearing 65–112 ms after a tap (disappearing 18–47 ms), ours 12–33 ms. It is reported per pair in the results and not copied: most likely the native render pipeline on the simulator, not motion design; project 5 re-checks on a real iPhone.
 - **Container spacing animation** moves from 2B.1 to 2B.2 with M4 (main-session ruling; `spacing` changes meaning there).
 - **For 2B.2:** the 2B.1 prototype found native merge reach is about half the `spacing`, which contradicts spec M4's "glass closer than `spacing` begins to merge"; 2B.2 must measure and settle it (N7 scenes).
+
+## 2B.1 plan ready (2026-10-03)
+
+`plan-2b1.md` (21 tasks, 34 rulings) is on `development`. It was written prototype-first on `proto/2b1` (prototype `bba17e92a`, plan `a35735fd3`; ruling 34 added here). An independent review (`plan-2b1-review.md`: 1 blocker, 11 major, 20 minor, then R1–R10) and two fix rounds (`plan-2b1-fixwave-status.md`) ended with "Ready to execute: yes". Execution is a fresh local session in worktree `/Users/omaraly/development/AI/Operator-2b1`, branch `feat/ios-liquid-glass-2b1`. Keep the worktrees `Operator-2b-proto` and `Operator-2b1-proto` until 2B.1 merges: the plan reads spike runs and prototype runs from them.

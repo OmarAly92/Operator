@@ -1,0 +1,25 @@
+exponent 3.0500000000000016 rms 0.0302
+material.materialize dark-photo disappear lag -0.012 rms 0.0070
+material.materialize dark-photo appear lag -0.008 rms 0.0076
+material.materialize dark-stripes disappear lag -0.010 rms 0.0495
+material.materialize dark-stripes appear lag -0.036 rms 0.0398
+material.materialize light-photo disappear lag -0.024 rms 0.0190
+material.materialize light-photo appear lag 0.032 rms 0.0129
+material.materialize light-stripes disappear lag -0.026 rms 0.0281
+material.materialize light-stripes appear lag 0.006 rms 0.0240
+material.materialize.snappy dark-photo disappear lag -0.010 rms 0.0151
+material.materialize.snappy dark-photo appear lag -0.010 rms 0.0101
+material.materialize.snappy dark-stripes disappear lag -0.004 rms 0.0504
+material.materialize.snappy dark-stripes appear lag -0.028 rms 0.0405
+material.materialize.snappy light-photo disappear lag -0.018 rms 0.0157
+material.materialize.snappy light-photo appear lag 0.006 rms 0.0141
+material.materialize.snappy light-stripes disappear lag -0.020 rms 0.0256
+material.materialize.snappy light-stripes appear lag 0.012 rms 0.0228
+material.materialize.bouncy dark-photo disappear lag -0.008 rms 0.0128
+material.materialize.bouncy dark-photo appear lag -0.022 rms 0.0251
+material.materialize.bouncy dark-stripes disappear lag -0.004 rms 0.0516
+material.materialize.bouncy dark-stripes appear lag -0.046 rms 0.0570
+material.materialize.bouncy light-photo disappear lag -0.016 rms 0.0211
+material.materialize.bouncy light-photo appear lag -0.010 rms 0.0324
+material.materialize.bouncy light-stripes disappear lag -0.018 rms 0.0266
+material.materialize.bouncy light-stripes appear lag -0.004 rms 0.0326
