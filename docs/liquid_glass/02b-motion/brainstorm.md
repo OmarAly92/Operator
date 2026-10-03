@@ -156,3 +156,10 @@ Other points the spec must settle (from `context.md` §6):
    - Testing: package tests on a fake clock (diffing on add, remove, move, re-id; retarget keeps velocity; removal animates out; animation precedence; Reduce Motion; hit tests at final layout; innermost nested glass only; inner button keeps its tap; 16-shape cap); harness tests on synthetic frames; gates on every task; review after each plan with independent code review and measurement audit, then a fix wave and merge on the user's word.
 
 **The user approved `spec.md` on 2026-10-03.** Next: the 2B.1 plan (`plan-2b1.md`), written prototype-first by a subagent and reviewed here.
+
+## Plan review decisions (2026-10-03, the user chose the recommendations)
+
+- **Glass the app moves every frame (re-review R1): A.** Changes still animate by default, but a glass whose layout changes on consecutive frames is treated as app-driven motion and followed exactly (no spring lag behind drags, app animations, keyboard). A single change (toggle, insert, remove) animates with the default spring. Known cost: two separate changes on back-to-back frames make the second one snap.
+- **Tap-to-response delay (review finding 12): A.** Native starts appearing 65–112 ms after a tap (disappearing 18–47 ms), ours 12–33 ms. It is reported per pair in the results and not copied: most likely the native render pipeline on the simulator, not motion design; project 5 re-checks on a real iPhone.
+- **Container spacing animation** moves from 2B.1 to 2B.2 with M4 (main-session ruling; `spacing` changes meaning there).
+- **For 2B.2:** the 2B.1 prototype found native merge reach is about half the `spacing`, which contradicts spec M4's "glass closer than `spacing` begins to merge"; 2B.2 must measure and settle it (N7 scenes).
