@@ -98,6 +98,21 @@ def case_section(scene_id, case_dir, result, assets):
             if "native_spring" in entry:
                 springs = f' · spring native {fmt(entry["native_spring"]["response"])}s/{fmt(entry["native_spring"]["damping"])}, flutter {fmt(entry["flutter_spring"]["response"])}s/{fmt(entry["flutter_spring"]["damping"])}'
             parts.append(f'<div class="small">rms {fmt(entry["rms"])}{springs}</div>')
+    shapes_result = result.get("shapes") or {}
+    if shapes_result:
+        parts.append(f'<div class="small">shape events native/flutter: {shapes_result["event_count"][0]}/{shapes_result["event_count"][1]}, touches {shapes_result["touches"][0]}/{shapes_result["touches"][1]}</div>')
+    for label, pair in shapes_result.get("pairs", {}).items():
+        for name, shape in pair["shapes"].items():
+            progress = shape.get("progress")
+            if not progress:
+                continue
+            native, flutter = progress["native"], progress["flutter"]
+            parts.append(f'<div class="label">{html.escape(name)} · {html.escape(label)} · progress</div>' + svg_lines(progress["curves"]))
+            parts.append(
+                f'<div class="small">10–90% {fmt(native.get("t10_90_ms"))}/{fmt(flutter.get("t10_90_ms"))} ms · settle {fmt(native["settle_ms"])}/{fmt(flutter["settle_ms"])} ms'
+                f' · overshoot {fmt(native["overshoot_pct"])}/{fmt(flutter["overshoot_pct"])} · sharpness at half {fmt(native["sharpness_mid"])}/{fmt(flutter["sharpness_mid"])}'
+                f' · curve rms {fmt(progress["rms"])}</div>'
+            )
     for name, stat in (result.get("static") or {}).items():
         if "rim_native" in stat:
             parts.append(f'<div class="label">rim profile ({name})</div>' + svg_lines({"native": stat["rim_native"], "flutter": stat["rim_flutter"]}))

@@ -1,0 +1,169 @@
+import sys
+import unittest
+from pathlib import Path
+
+import numpy as np
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+import analyze
+import manifest
+import shapes
+import springfit
+from synthetic import capture_of, spring_series
+
+
+class ShapeTopologyTests(unittest.TestCase):
+    def test_join_and_split_times_count_mismatches_and_neck_are_compared(self):
+        def series(join, split):
+            count = [2.0] * join + [1.0] * (split - join) + [2.0] * (80 - split)
+            neck = [0.0] * join + [10.0] * (split - join) + [0.0] * (80 - split)
+            return {"count": count, "neck": neck}
+        late = shapes.compare_topology(series(20, 60), series(23, 60))
+        self.assertAlmostEqual(late["join_ms"], 25, places=6)
+        self.assertEqual(late["split_ms"], 0)
+        self.assertEqual(late["count"], 0.0)
+        self.assertAlmostEqual(late["neck_rms"], (3 * 100 / 80) ** 0.5, places=6)
+        stuck = shapes.compare_topology(series(20, 60), series(23, 80))
+        self.assertNotIn("split_ms", stuck)
+        self.assertEqual(stuck["count"], 17.0)
+        self.assertIsNone(shapes.compare_topology({"count": [1.0] * 5, "neck": [5.0] * 5}, {"count": [1.0] * 5, "neck": [5.0] * 5}))
+
+
+class ProgressMeasureTests(unittest.TestCase):
+    def test_ten_to_ninety_matches_the_spring(self):
+        features = shapes.progress_features(spring_series(0.55, 1.0))
+        self.assertAlmostEqual(features["t10_90_ms"], 294, delta=9)
+        leaving = shapes.progress_features(spring_series(0.55, 1.0, appearing=False, exponent=3.2))
+        self.assertLess(leaving["t10_90_ms"], 170)
+
+    def test_a_variable_rate_capture_reads_the_same_ten_to_ninety_time_within_a_frame(self):
+        rng = np.random.default_rng(7)
+        times = np.cumsum(np.concatenate([[0.0], rng.choice([1 / 120, 1 / 60, 0.033, 0.053], 40)]))
+        rows = [{"width": 250.0, "height": 88.0, "cx": 201.0, "cy": 451.0, "luma": 100.0, "progress": float(p), "sharpness": 0.0, "residual": 0.0}
+                for p in springfit.step_response(times, 0.55, 1.0)]
+        series = shapes.event_series(list(times), rows, 0, len(times) - 1)
+        exact = shapes.progress_features(spring_series(0.55, 1.0))["t10_90_ms"]
+        self.assertAlmostEqual(shapes.progress_features(series)["t10_90_ms"], exact, delta=1000 / 120)
+
+    def test_overshoot_is_read_in_points_of_percent(self):
+        self.assertGreater(shapes.progress_features(spring_series(0.5, 0.7))["overshoot_pct"], 3)
+        self.assertEqual(shapes.progress_features(spring_series(0.55, 1.0))["overshoot_pct"], 0.0)
+
+    def test_identical_captures_measure_zero(self):
+        scene = manifest.parse([{
+            "id": "material.materialize", "group": "material", "title": "t", "inventory": "2.13", "app": "lab",
+            "backdrops": ["stripes"], "appearances": ["dark"], "steps": [{"wait": 0.5}, {"tap": "toggle"}],
+            "regions": {"block": [70, 400, 262, 104]}, "track": ["block"], "motion": ["progress.t10_90_ms", "progress.rms"],
+        }])[0]
+        a = capture_of(spring_series(0.55, 1.0, False, 3.2), spring_series(0.55, 1.0))
+        result = shapes.compare(scene, a, a)
+        found = shapes.measures(result)
+        self.assertEqual(found["block.event0.progress.t10_90_ms"], 0.0)
+        self.assertEqual(found["block.event1.progress.rms"], 0.0)
+        limits = shapes.limits(result, scene)
+        self.assertEqual(set(limits), {"events.native_motion", "events.unpaired", "touches.native", "touches.flutter", "block.event0.progress.t10_90_ms", "block.event0.progress.rms", "block.event1.progress.t10_90_ms", "block.event1.progress.rms"})
+        self.assertEqual(limits["block.event0.progress.rms"], (0.0, 0.05, "max"))
+
+    def test_a_slower_flutter_appear_fails_and_noise_raises_the_limit(self):
+        scene = manifest.parse([{
+            "id": "x", "group": "material", "title": "t", "inventory": "2.13", "app": "lab",
+            "backdrops": ["stripes"], "appearances": ["dark"], "steps": [{"tap": "toggle"}],
+            "regions": {"block": [0, 0, 10, 10]}, "track": "block", "motion": ["progress.t10_90_ms"],
+        }])[0]
+        result = shapes.compare(scene, capture_of(spring_series(0.55, 1.0)), capture_of(spring_series(0.7, 1.0)))
+        value, limit, _ = shapes.limits(result, scene)["block.event0.progress.t10_90_ms"]
+        self.assertGreater(value, 17)
+        self.assertEqual(limit, 17)
+        _, raised, _ = shapes.limits(result, scene, {"block.event0.progress.t10_90_ms": 100})["block.event0.progress.t10_90_ms"]
+        self.assertEqual(raised, 150)
+
+    def test_events_pair_by_the_step_that_caused_them(self):
+        scene = manifest.parse([{
+            "id": "x", "group": "material", "title": "t", "inventory": "2.13", "app": "lab",
+            "backdrops": ["stripes"], "appearances": ["dark"], "steps": [{"tap": "a"}, {"tap": "b"}],
+            "regions": {"block": [0, 0, 10, 10]}, "track": ["block"], "motion": ["progress.rms"],
+        }])[0]
+        native = capture_of(spring_series(0.55, 1.0, False, 3.2), spring_series(0.55, 1.0), steps=[0, 1])
+        flutter = capture_of(spring_series(0.55, 1.0), steps=[1])
+        result = shapes.compare(scene, native, flutter)
+        self.assertEqual(list(result["pairs"]), ["step1e0"])
+        self.assertEqual(shapes.measures(result)["block.step1e0.progress.rms"], 0.0)
+        self.assertEqual(shapes.limits(result, scene)["events.steps"], (1, 0, "max"))
+
+
+class NothingPassesByBeingAbsentTests(unittest.TestCase):
+    def scene(self, motion=("progress.t10_90_ms", "progress.rms", "progress.response_pct", "progress.damping"), steps=None):
+        return manifest.parse([{
+            "id": "x", "group": "material", "title": "t", "inventory": "2.13", "app": "lab",
+            "backdrops": ["stripes"], "appearances": ["dark"], "steps": steps or [{"tap": "a"}, {"tap": "b"}],
+            "regions": {"block": [0, 0, 10, 10]}, "track": ["block"], "motion": list(motion),
+        }])[0]
+
+    def test_an_extra_flutter_event_is_unpaired_and_fails(self):
+        scene = self.scene()
+        native = capture_of(spring_series(0.55, 1.0, False, 3.2), spring_series(0.55, 1.0), steps=[0, 1])
+        flutter = capture_of(spring_series(0.55, 1.0, False, 3.2), spring_series(0.55, 1.0), spring_series(0.5, 0.5), steps=[0, 1, 1])
+        result = shapes.compare(scene, native, flutter)
+        self.assertEqual(result["unpaired"], {"native": 0, "flutter": 1})
+        self.assertEqual(shapes.limits(result, scene)["events.unpaired"], (1, 0, "max"))
+        self.assertFalse(analyze.within(*shapes.limits(result, scene)["events.unpaired"]))
+
+    def test_a_missing_progress_entry_fails_as_infinite(self):
+        scene = self.scene()
+        flat = spring_series(0.55, 1.0)
+        flat["progress"] = np.full_like(flat["progress"], 0.5)
+        native = capture_of(spring_series(0.55, 1.0), steps=[0])
+        flutter = capture_of(flat, steps=[0])
+        result = shapes.compare(scene, native, flutter)
+        self.assertNotIn("progress", result["pairs"]["step0e0"]["shapes"]["block"])
+        limits = shapes.limits(result, scene)
+        for measure in ("t10_90_ms", "rms", "response_pct", "damping"):
+            value, _, _ = limits[f"block.step0e0.progress.{measure}"]
+            self.assertEqual(value, float("inf"))
+            self.assertFalse(analyze.within(*limits[f"block.step0e0.progress.{measure}"]))
+
+    def test_a_spring_fit_on_its_grid_edge_is_reported_and_fails(self):
+        entry = {}
+        shapes.apply_spring_fits(entry, {"response": 0.38, "damping": 2.0, "rms": 0.01, "at_grid_edge": True}, {"response": 0.4, "damping": 1.0, "rms": 0.01, "at_grid_edge": False})
+        self.assertEqual(entry["fit_invalid"], {"native": "at the grid edge"})
+        self.assertEqual((entry["response_pct"], entry["damping"]), (float("inf"), float("inf")))
+
+    def test_a_value_on_its_limit_passes_whatever_the_float_rounding(self):
+        self.assertTrue(analyze.within(abs(1.06 - 1.01), 0.05, "max"))
+        self.assertTrue(analyze.within(0.7 - 0.6, 0.1, "min"))
+        self.assertFalse(analyze.within(0.0501, 0.05, "max"))
+        self.assertFalse(analyze.within(float("inf"), 0.05, "max"))
+
+    def test_touches_are_counted_against_the_touch_steps(self):
+        scene = self.scene(steps=[{"wait": 0.5}, {"tap": "a"}, {"doubleTap": "b"}])
+        native, flutter = capture_of(spring_series(0.55, 1.0), steps=[1]), capture_of(spring_series(0.55, 1.0), steps=[1])
+        native["touches"] = [(1.0, 1.1), (2.0, 2.05), (2.1, 2.15)]
+        flutter["touches"] = [(1.0, 1.1)]
+        limits = shapes.limits(shapes.compare(scene, native, flutter), scene)
+        self.assertEqual(limits["touches.native"], (0, 0, "max"))
+        self.assertEqual(limits["touches.flutter"], (2, 0, "max"))
+
+    def test_stalls_and_the_first_changed_frame_are_kept_for_the_report(self):
+        rows = [{"progress": p} for p in (0.0, 0.0, 0.7, 0.9, 1.0)]
+        series = {"progress": [0.0, 0.5, 1.0]}
+        step = shapes.first_step([0.0, 0.1, 0.15, 0.2, 0.3], rows, series, 1, 4)
+        self.assertAlmostEqual(step["gap_ms"], 50, places=6)
+        self.assertAlmostEqual(step["progress"], 0.7, places=6)
+        scene = self.scene()
+        native, flutter = capture_of(spring_series(0.55, 1.0), steps=[0]), capture_of(spring_series(0.55, 1.0), steps=[0])
+        native["stalls"], flutter["stalls"] = [], [41.0]
+        flutter["events"][0]["first_frame"] = {"block": {"gap_ms": 33.0, "progress": 0.73}}
+        result = shapes.compare(scene, native, flutter)
+        self.assertEqual(result["stalls"], {"native": [], "flutter": [41.0]})
+        self.assertEqual(result["pairs"]["step0e0"]["shapes"]["block"]["first_frame"]["flutter"], {"gap_ms": 33.0, "progress": 0.73})
+
+
+class MotionMeasureNameTests(unittest.TestCase):
+    def test_the_harness_and_the_manifest_agree_on_motion_measures(self):
+        self.assertEqual(manifest.MOTION_MEASURES, shapes.MOTION_MEASURES)
+
+
+if __name__ == "__main__":
+    unittest.main()
