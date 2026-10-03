@@ -39,6 +39,24 @@ class LaunchFileTests(unittest.TestCase):
             self.assertNotIn("materialSide", json.loads((Path(temp) / record.LAUNCH_FILE).read_text()))
 
 
+class MarkerTests(unittest.TestCase):
+    def test_the_marker_and_extra_fields_travel_in_the_launch_file(self):
+        with tempfile.TemporaryDirectory() as temp:
+            record.write_launch_file(temp, "tool.visibility", "photo", False, marker=True, extra={"visibility": 0.4})
+            written = json.loads((Path(temp) / record.LAUNCH_FILE).read_text())
+            self.assertEqual(written, {"scene": "tool.visibility", "backdrop": "photo", "bare": False, "marker": True, "visibility": 0.4})
+
+    def test_touch_scenes_show_the_marker_in_both_launches_and_still_scenes_do_not(self):
+        scenes = {s.id: s for s in manifest.load()}
+        for scene_id, expected in (("material.materialize", True), ("material.regular", False)):
+            with mock.patch.object(record, "drive", return_value={}) as drive, \
+                 mock.patch.object(record, "Recording") as recording:
+                recording.return_value.__enter__.return_value.started = 0
+                with tempfile.TemporaryDirectory() as temp:
+                    record.capture("udid", scenes[scene_id], "native", "stripes", Path(temp))
+            self.assertEqual([call.kwargs["marker"] for call in drive.call_args_list], [expected, expected])
+
+
 class OtherAppsTests(unittest.TestCase):
     def test_every_other_lab_app_is_closed_so_no_back_link_shows_in_the_status_bar(self):
         with mock.patch.object(record.subprocess, "run") as run:

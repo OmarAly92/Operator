@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ios_liquid_glass_example/lab/glass_lab_launch.dart';
+import 'package:ios_liquid_glass_example/lab/glass_lab_marker.dart';
 import 'package:ios_liquid_glass_example/lab/glass_lab_registry.dart';
 import 'package:ios_liquid_glass_example/lab/glass_lab_screen.dart';
 import 'package:ios_liquid_glass_example/lab/scenes/lab_parts.dart';
@@ -80,5 +81,31 @@ void main() {
       await tester.pump(const Duration(seconds: 1));
     }
     semantics.dispose();
+  });
+
+  test('reads the touch marker and a fixed visibility from the launch file', () {
+    final launch = GlassLabLaunch.fromJson({'scene': 'tool.visibility', 'marker': true, 'visibility': 0.35, 'blurRamp': 2});
+    expect(launch?.marker, isTrue);
+    expect(launch?.visibility, 0.35);
+    expect(launch?.blurRamp, 2);
+    expect(GlassLabLaunch.fromJson({'scene': 'material.regular'})?.marker, isFalse);
+  });
+
+  testWidgets('the touch marker is red while down, blue after release and black again', (tester) async {
+    tester.view.physicalSize = const Size(1206, 2622);
+    tester.view.devicePixelRatio = 3;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(MaterialApp(home: GlassLabScreen(launch: GlassLabLaunch(scene: 'material.regular', marker: true))));
+    Color colour() => tester.widget<ColoredBox>(find.byKey(const ValueKey('touch.marker'))).color;
+    expect(tester.getRect(find.byKey(const ValueKey('touch.marker'))), GlassLabTouchMarker.rect);
+    expect(colour(), GlassLabTouchMarker.idle);
+    final gesture = await tester.startGesture(const Offset(201, 300));
+    await tester.pump();
+    expect(colour(), GlassLabTouchMarker.down);
+    await gesture.up();
+    await tester.pump();
+    expect(colour(), GlassLabTouchMarker.up);
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(colour(), GlassLabTouchMarker.idle);
   });
 }

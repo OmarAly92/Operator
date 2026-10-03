@@ -6,6 +6,7 @@ enum Lab {
     static let sceneID = environment["GLASS_LAB_SCENE"]
     static let bare = environment["GLASS_LAB_BARE"] == "1"
     static let backdropID = environment["GLASS_LAB_BACKDROP"] ?? "stripes"
+    static let marker = environment["GLASS_LAB_MARKER"] == "1"
     static let accent = Color(red: 0x1A / 255, green: 0xCB / 255, blue: 0x64 / 255)
 
     static func image(_ id: String) -> UIImage? {

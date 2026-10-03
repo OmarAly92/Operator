@@ -12,6 +12,8 @@ class GlassLabScreen extends StatelessWidget {
 
   final GlassLabLaunch launch;
 
+  Widget _marked(Widget child) => launch.marker ? GlassLabTouchMarker(child: child) : child;
+
   @override
   Widget build(BuildContext context) {
     final dark = MediaQuery.platformBrightnessOf(context) == Brightness.dark;
@@ -23,11 +25,13 @@ class GlassLabScreen extends StatelessWidget {
         child: GlassLabAccessibilityProbe(
           child: Material(
             type: MaterialType.transparency,
-            child: Stack(
-              children: [
-                Positioned.fill(child: GlassLabRegistry.build(launch)),
-                const Positioned(left: 0, top: 0, child: GlassLabReady()),
-              ],
+            child: _marked(
+              Stack(
+                children: [
+                  Positioned.fill(child: GlassLabRegistry.build(launch)),
+                  const Positioned(left: 0, top: 0, child: GlassLabReady()),
+                ],
+              ),
             ),
           ),
         ),

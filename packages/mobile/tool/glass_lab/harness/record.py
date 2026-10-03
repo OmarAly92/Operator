@@ -47,10 +47,14 @@ def launch_folder(udid, target):
     return sim.container(udid, target) / "Documents" / "glass_lab"
 
 
-def write_launch_file(folder, scene_id, backdrop, bare, material=None, material_side=None):
+def write_launch_file(folder, scene_id, backdrop, bare, material=None, material_side=None, marker=False, extra=None):
     folder = Path(folder)
     folder.mkdir(parents=True, exist_ok=True)
     payload = {"scene": scene_id, "backdrop": backdrop, "bare": bare}
+    if marker:
+        payload["marker"] = True
+    if extra:
+        payload.update(extra)
     if material:
         payload["material"] = material
     if material and material_side:
@@ -68,13 +72,13 @@ def close_other_apps(udid, target):
             subprocess.run(["xcrun", "simctl", "terminate", udid, bundle], capture_output=True)
 
 
-def drive(udid, target, scene_id, steps, backdrop, bare, out_dir, settle=1.5, material=None, material_side=None):
+def drive(udid, target, scene_id, steps, backdrop, bare, out_dir, settle=1.5, material=None, material_side=None, marker=False, extra=None):
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     close_other_apps(udid, target)
     folder = launch_folder(udid, target) if target in build.FLUTTER_TARGETS.values() and scene_id else None
     if folder:
-        write_launch_file(folder, scene_id, backdrop, bare, material, material_side)
+        write_launch_file(folder, scene_id, backdrop, bare, material, material_side, marker, extra)
     env = dict(
         os.environ,
         TEST_RUNNER_GLASS_TARGET=target,
@@ -82,6 +86,7 @@ def drive(udid, target, scene_id, steps, backdrop, bare, out_dir, settle=1.5, ma
         TEST_RUNNER_GLASS_STEPS=json.dumps(list(steps)),
         TEST_RUNNER_GLASS_BACKDROP=backdrop,
         TEST_RUNNER_GLASS_BARE="1" if bare else "0",
+        TEST_RUNNER_GLASS_MARKER="1" if marker else "0",
         TEST_RUNNER_GLASS_SETTLE=str(settle),
         TEST_RUNNER_GLASS_OUT=str(out_dir),
     )
@@ -123,10 +128,11 @@ def capture(udid, scene, app, backdrop, out_dir, flutter_target="example"):
     out_dir = Path(out_dir)
     target = target_for(scene, app, flutter_target)
     scene_id = "" if scene.native_only else scene.id
+    marker = not scene.native_only and scene.touches
     if not scene.native_only:
-        drive(udid, target, scene_id, [], backdrop, True, out_dir / "bare", settle=1.0)
+        drive(udid, target, scene_id, [], backdrop, True, out_dir / "bare", settle=1.0, marker=marker)
     with Recording(udid, out_dir / "video.mp4") as recording:
-        timing = drive(udid, target, scene_id, scene.steps, backdrop, False, out_dir)
+        timing = drive(udid, target, scene_id, scene.steps, backdrop, False, out_dir, marker=marker)
     timing["video_start"] = recording.started
     (out_dir / "timing.json").write_text(json.dumps(timing))
     return timing
