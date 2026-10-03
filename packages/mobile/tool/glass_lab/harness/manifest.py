@@ -8,8 +8,24 @@ GROUPS = ("material", "navigation", "presentations", "controls", "apple")
 BACKDROPS = ("stripes", "photo", "white", "black", "text", "scroll", "none")
 APPEARANCES = ("light", "dark")
 STEP_KINDS = ("wait", "tap", "doubleTap", "press", "pressDrag")
+TOUCH_STEPS = ("tap", "doubleTap", "press", "pressDrag")
 FIELDS = ("id", "group", "title", "inventory", "app", "backdrops", "appearances", "steps")
 STATIC_MEASURES = ("mad", "luminance", "rim_rms", "bbox_pt", "centre_pt")
+MOTION_MEASURES = (
+    "delay_ms",
+    "topology.count",
+    "topology.join_ms",
+    "topology.split_ms",
+    "topology.neck_rms",
+    *(f"{key}.{measure}" for key in ("width", "height", "cx", "cy", "luma") for measure in ("peak_ms", "settle_ms", "overshoot_pct", "response_pct", "damping")),
+    "progress.t10_90_ms",
+    "progress.settle_ms",
+    "progress.overshoot_pct",
+    "progress.response_pct",
+    "progress.damping",
+    "progress.rms",
+    "progress.sharpness",
+)
 
 
 @dataclass(frozen=True)
@@ -23,9 +39,11 @@ class Scene:
     appearances: tuple
     steps: tuple
     regions: dict = field(default_factory=dict)
-    track: str | None = None
+    track: tuple = ()
     prepare: tuple = ()
     measures: tuple = STATIC_MEASURES
+    motion: tuple = ()
+    topology: tuple = ()
 
     @property
     def native_only(self):
@@ -34,6 +52,10 @@ class Scene:
     @property
     def rest(self):
         return all("wait" in step for step in self.steps)
+
+    @property
+    def touches(self):
+        return any(next(iter(step)) in TOUCH_STEPS for step in self.steps)
 
 
 def _target_errors(where, value):
@@ -97,8 +119,25 @@ def validate(raw):
         for name, rect in regions.items():
             if not (isinstance(rect, list) and len(rect) == 4 and all(isinstance(v, (int, float)) for v in rect)):
                 errors.append(f"{where}: region {name} must be [x, y, w, h]")
-        if entry.get("track") is not None and entry["track"] not in regions:
+        track = entry.get("track")
+        names = [track] if isinstance(track, str) else track
+        if track is not None and not (isinstance(names, list) and names and all(isinstance(n, str) for n in names)):
+            errors.append(f"{where}: track must be a region name or a non-empty list of them")
+        elif track is not None and any(name not in regions for name in names):
             errors.append(f"{where}: track names an unknown region")
+        topology = entry.get("topology")
+        names = [topology] if isinstance(topology, str) else topology
+        if topology is not None and not (isinstance(names, list) and names and all(isinstance(n, str) for n in names)):
+            errors.append(f"{where}: topology must be a region name or a non-empty list of them")
+        elif topology is not None and any(name not in regions for name in names):
+            errors.append(f"{where}: topology names an unknown region")
+        motion = entry.get("motion", [])
+        if not isinstance(motion, list):
+            errors.append(f"{where}: motion must be a list")
+        else:
+            errors += [f"{where}: unknown motion measure {m}" for m in motion if m not in MOTION_MEASURES]
+            if motion and track is None:
+                errors.append(f"{where}: motion measures need a track")
         measures = entry.get("measures", list(STATIC_MEASURES))
         if not isinstance(measures, list) or not measures:
             errors.append(f"{where}: measures must be a non-empty list")
@@ -107,6 +146,12 @@ def validate(raw):
         if entry.get("app") != "lab" and entry.get("group") != "apple":
             errors.append(f"{where}: only apple scenes may target another app")
     return errors
+
+
+def tracks(value):
+    if value is None:
+        return ()
+    return (value,) if isinstance(value, str) else tuple(value)
 
 
 def parse(raw):
@@ -124,9 +169,11 @@ def parse(raw):
             appearances=tuple(entry["appearances"]),
             steps=tuple(entry["steps"]),
             regions=dict(entry.get("regions", {})),
-            track=entry.get("track"),
+            track=tracks(entry.get("track")),
             prepare=tuple(entry.get("prepare", [])),
             measures=tuple(entry.get("measures", STATIC_MEASURES)),
+            motion=tuple(entry.get("motion", [])),
+            topology=tracks(entry.get("topology")),
         )
         for entry in raw
     ]

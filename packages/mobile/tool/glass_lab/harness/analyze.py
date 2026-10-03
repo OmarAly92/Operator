@@ -8,6 +8,7 @@ import numpy as np
 import align
 import metrics
 import springfit
+import touch
 
 OVERVIEW_FPS = 20
 MATCH_MARGIN = 6.0
@@ -98,20 +99,20 @@ def window(case_dir):
 
 def region_for(scene, case_dir):
     if scene.track:
-        return tuple(scene.regions[scene.track])
+        return metrics.union([tuple(scene.regions[name]) for name in scene.track])
     bare = metrics.load(case_dir / "bare" / "ready.png")
     boxes = metrics.glass_boxes(metrics.load(case_dir / "ready.png"), bare)
     boxes += metrics.glass_boxes(metrics.load(case_dir / "settled.png"), bare)
     if not scene.rest and (case_dir / "video.mp4").exists():
         found = window(case_dir)
         if found:
-            boxes += align.extent(found[2])
-    boxes = [box for box in boxes if box[1] + box[3] > align.SKIP_TOP_POINTS]
+            boxes += align.extent(found[2], ignore=(touch.MARKER,))
+    boxes = [box for box in touch.without_marker(boxes) if box[1] + box[3] > align.SKIP_TOP_POINTS]
     return metrics.union(boxes, pad=12) or (0, 0, *metrics.SCREEN)
 
 
 def elements_for(scene):
-    return {name: tuple(rect) for name, rect in scene.regions.items() if name != scene.track}
+    return {name: tuple(rect) for name, rect in scene.regions.items() if name not in scene.track}
 
 
 def motion(case_dir, region):

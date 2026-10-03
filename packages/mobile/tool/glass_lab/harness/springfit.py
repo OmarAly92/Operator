@@ -1,7 +1,7 @@
 import numpy as np
 
 RESPONSES = np.linspace(0.05, 1.5, 146)
-DAMPINGS = np.linspace(0.1, 1.2, 111)
+DAMPINGS = np.linspace(0.1, 2.0, 191)
 
 
 def step_response(t, response, damping):
@@ -38,7 +38,8 @@ def fit(times, values):
     curves = step_response(t, RESPONSES[:, None, None], DAMPINGS[None, :, None])
     errors = np.sqrt(np.mean((curves - normalized[None, None, :]) ** 2, axis=2))
     i, j = np.unravel_index(np.argmin(errors), errors.shape)
-    return {"response": float(RESPONSES[i]), "damping": float(DAMPINGS[j]), "rms": float(errors[i, j])}
+    edge = i in (0, len(RESPONSES) - 1) or j in (0, len(DAMPINGS) - 1)
+    return {"response": float(RESPONSES[i]), "damping": float(DAMPINGS[j]), "rms": float(errors[i, j]), "at_grid_edge": bool(edge)}
 
 
 def features(times, values):
