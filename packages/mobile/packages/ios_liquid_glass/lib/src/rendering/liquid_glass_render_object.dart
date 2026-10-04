@@ -11,6 +11,7 @@ import 'package:ios_liquid_glass/ios_liquid_glass.dart';
 import 'package:ios_liquid_glass/src/internal/render_liquid_glass_geometry.dart';
 import 'package:ios_liquid_glass/src/internal/snap_rect_to_pixels.dart';
 import 'package:ios_liquid_glass/src/logging.dart';
+import 'package:ios_liquid_glass/src/motion/glass_material_source.dart';
 import 'package:meta/meta.dart';
 
 /// A render object that can assemble [RenderLiquidGlassGeometry] shapes and
@@ -48,10 +49,35 @@ abstract class LiquidGlassRenderObject extends RenderProxyBox {
   }
 
   LiquidGlassSettings? _settings;
-  LiquidGlassSettings get settings => _settings!;
+  LiquidGlassSettings? _effective;
+  LiquidGlassSettings get settings => _effective ??= _resolveVisibility(_settingsSource?.settings ?? _settings!, _visibility);
   set settings(LiquidGlassSettings value) {
     if (_settings == value) return;
     _settings = value;
+    _visibilityChanged();
+  }
+
+  Animation<double>? _visibility;
+  Animation<double>? get visibility => _visibility;
+  set visibility(Animation<double>? value) {
+    if (_visibility == value) return;
+    if (attached) _visibility?.removeListener(_visibilityChanged);
+    _visibility = value;
+    if (attached) _visibility?.addListener(_visibilityChanged);
+    _visibilityChanged();
+  }
+
+  GlassMaterialSource? _settingsSource;
+  set settingsSource(GlassMaterialSource? value) {
+    if (_settingsSource == value) return;
+    if (attached) _settingsSource?.removeListener(_visibilityChanged);
+    _settingsSource = value;
+    if (attached) _settingsSource?.addListener(_visibilityChanged);
+    _visibilityChanged();
+  }
+
+  void _visibilityChanged() {
+    _effective = null;
     _updateShaderSettings();
     markNeedsPaint();
   }
@@ -87,11 +113,16 @@ abstract class LiquidGlassRenderObject extends RenderProxyBox {
   @mustCallSuper
   void attach(PipelineOwner owner) {
     super.attach(owner);
+    _visibility?.addListener(_visibilityChanged);
+    _settingsSource?.addListener(_visibilityChanged);
+    _effective = null;
   }
 
   @override
   @mustCallSuper
   void detach() {
+    _visibility?.removeListener(_visibilityChanged);
+    _settingsSource?.removeListener(_visibilityChanged);
     super.detach();
   }
 
@@ -377,6 +408,13 @@ abstract class LiquidGlassRenderObject extends RenderProxyBox {
     return (image, boundsInMatteSpace);
   }
 }
+
+LiquidGlassSettings _resolveVisibility(LiquidGlassSettings settings, Animation<double>? visibility) =>
+    visibility == null ? settings : settings.atVisibility(visibility.value);
+
+@internal
+LiquidGlassSettings resolveVisibility(LiquidGlassSettings settings, Animation<double>? visibility) =>
+    _resolveVisibility(settings, visibility);
 
 @internal
 class GeometryRenderLink {

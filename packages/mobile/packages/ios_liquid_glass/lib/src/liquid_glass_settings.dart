@@ -4,6 +4,7 @@ import 'package:equatable/equatable.dart';
 import 'package:flutter/widgets.dart';
 import 'package:ios_liquid_glass/ios_liquid_glass.dart';
 import 'package:ios_liquid_glass/src/liquid_glass_render_scope.dart';
+import 'package:ios_liquid_glass/src/motion/ios27_motion.dart';
 
 /// Represents the settings for a liquid glass effect.
 class LiquidGlassSettings with Equatable {
@@ -191,6 +192,14 @@ class LiquidGlassSettings with Equatable {
   double get effectiveSheen => sheen * visibility;
 
   final double sheenWidth;
+
+  LiquidGlassSettings atVisibility(double visibility, {double blurRampExponent = ios27BlurRampExponent}) {
+    final value = max(0, visibility).toDouble();
+    return copyWith(
+      visibility: this.visibility * value,
+      blur: value > 0 ? blur * pow(value, blurRampExponent - 1) : 0,
+    );
+  }
 
   /// Creates a new [LiquidGlassSettings] with the given settings.
   LiquidGlassSettings copyWith({

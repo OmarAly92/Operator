@@ -9,6 +9,8 @@ import 'package:ios_liquid_glass/src/glass_shadow.dart';
 import 'package:ios_liquid_glass/src/internal/transform_tracking_repaint_boundary_mixin.dart';
 import 'package:ios_liquid_glass/src/liquid_glass_blend_group.dart';
 import 'package:ios_liquid_glass/src/liquid_glass_render_scope.dart';
+import 'package:ios_liquid_glass/src/motion/glass_material_source.dart';
+import 'package:ios_liquid_glass/src/motion/glass_shape_motion.dart';
 import 'package:meta/meta.dart';
 
 /// A liquid glass shape.
@@ -45,6 +47,10 @@ class LiquidGlass extends StatelessWidget {
   })  : grouped = false,
         blendGroupLink = null,
         ownLayerConfig = null,
+        motion = null,
+        visibility = null,
+        settingsSource = null,
+        shadowSource = null,
         _auto = false;
 
   /// Creates a new [LiquidGlass] that automatically renders on a parent
@@ -69,6 +75,10 @@ class LiquidGlass extends StatelessWidget {
   })  : grouped = true,
         blendGroupLink = null,
         ownLayerConfig = (settings, fake),
+        motion = null,
+        visibility = null,
+        settingsSource = null,
+        shadowSource = null,
         _auto = true;
 
   /// Creates a new [LiquidGlass] that is part of a [LiquidGlassBlendGroup].
@@ -84,8 +94,12 @@ class LiquidGlass extends StatelessWidget {
     this.clipBehavior = Clip.hardEdge,
     this.blendGroupLink,
     this.shadows = const [],
+    @internal this.motion,
+    @internal this.shadowSource,
   })  : ownLayerConfig = null,
         grouped = true,
+        visibility = null,
+        settingsSource = null,
         _auto = false;
 
   /// Creates a new [LiquidGlass] that creates its own [LiquidGlassLayer].
@@ -105,6 +119,10 @@ class LiquidGlass extends StatelessWidget {
     this.clipBehavior = Clip.hardEdge,
     this.blendGroupLink,
     this.shadows = const [],
+    @internal this.motion,
+    @internal this.visibility,
+    @internal this.settingsSource,
+    @internal this.shadowSource,
   })  : ownLayerConfig = (settings, fake),
         grouped = false,
         _auto = false;
@@ -152,6 +170,18 @@ class LiquidGlass extends StatelessWidget {
   /// bleed through the translucent glass body.
   final List<BoxShadow> shadows;
 
+  @internal
+  final GlassShapeMotion? motion;
+
+  @internal
+  final Animation<double>? visibility;
+
+  @internal
+  final GlassMaterialSource? settingsSource;
+
+  @internal
+  final GlassMaterialSource? shadowSource;
+
   /// Whether this glass should automatically detect a parent layer.
   final bool _auto;
 
@@ -177,6 +207,8 @@ class LiquidGlass extends StatelessWidget {
 
       return LiquidGlassLayer(
         settings: settings,
+        visibility: visibility,
+        settingsSource: settingsSource,
         child: LiquidGlassBlendGroup(
           blend: 0,
           child: Builder(
@@ -260,7 +292,8 @@ class LiquidGlass extends StatelessWidget {
   }
 
   Widget _buildContent(BuildContext context, [GlassGroupLink? blendGroupLink]) {
-    final settings = LiquidGlassSettings.of(context);
+    final scope = LiquidGlassRenderScope.of(context);
+    final settings = scope.settings;
 
     if (!ImageFilter.isShaderFilterSupported) {
       return FakeGlass(
@@ -270,23 +303,29 @@ class LiquidGlass extends StatelessWidget {
       );
     }
 
+    final content = Opacity(
+      opacity: settings.visibility.clamp(0, 1),
+      child: GlassGlowLayer(
+        child: child,
+      ),
+    );
+    final animated = scope.visibility;
     return GlassShadow(
       settings: settings,
       shape: shape,
       shadows: shadows,
+      visibility: animated,
+      motion: motion,
+      shadowSource: shadowSource,
       child: _RawLiquidGlass(
         blendGroupLink: blendGroupLink ?? LiquidGlassBlendGroup.of(context),
         shape: shape,
         glassContainsChild: glassContainsChild,
+        motion: motion,
         child: ClipPath(
           clipper: ShapeBorderClipper(shape: shape),
           clipBehavior: clipBehavior,
-          child: Opacity(
-            opacity: settings.visibility.clamp(0, 1),
-            child: GlassGlowLayer(
-              child: child,
-            ),
-          ),
+          child: animated == null ? content : FadeTransition(opacity: animated, child: content),
         ),
       ),
     );
@@ -299,6 +338,7 @@ class _RawLiquidGlass extends SingleChildRenderObjectWidget {
     required this.shape,
     required this.glassContainsChild,
     required this.blendGroupLink,
+    this.motion,
   });
 
   final LiquidShape shape;
@@ -307,13 +347,15 @@ class _RawLiquidGlass extends SingleChildRenderObjectWidget {
 
   final GlassGroupLink? blendGroupLink;
 
+  final GlassShapeMotion? motion;
+
   @override
   RenderObject createRenderObject(BuildContext context) {
     return RenderLiquidGlass(
       shape: shape,
       glassContainsChild: glassContainsChild,
       blendGroupLink: blendGroupLink,
-    );
+    )..motion = motion;
   }
 
   @override
@@ -324,7 +366,8 @@ class _RawLiquidGlass extends SingleChildRenderObjectWidget {
     renderObject
       ..shape = shape
       ..glassContainsChild = glassContainsChild
-      ..blendGroupLink = blendGroupLink;
+      ..blendGroupLink = blendGroupLink
+      ..motion = motion;
   }
 }
 
@@ -366,14 +409,33 @@ class RenderLiquidGlass extends RenderProxyBox
 
   final transformLayerHandle = LayerHandle<TransformLayer>();
 
+  GlassShapeMotion? _motion;
+  GlassShapeMotion? get motion => _motion;
+  set motion(GlassShapeMotion? value) {
+    if (_motion == value) return;
+    if (attached) _motion?.removeListener(_motionChanged);
+    _motion = value;
+    if (attached) _motion?.addListener(_motionChanged);
+    _motionChanged();
+  }
+
+  void _motionChanged() {
+    _blendGroupLink?.notifyShapeLayoutChanged(this);
+    markNeedsPaint();
+  }
+
+  Rect get drawnRect => _motion?.resolve(this) ?? Offset.zero & size;
+
   @override
   void attach(PipelineOwner owner) {
     super.attach(owner);
+    _motion?.addListener(_motionChanged);
     _registerWithLink();
   }
 
   @override
   void detach() {
+    _motion?.removeListener(_motionChanged);
     _unregisterFromParentLayer();
     transformLayerHandle.layer = null;
     super.detach();
@@ -428,10 +490,12 @@ class RenderLiquidGlass extends RenderProxyBox
     Offset offset,
   ) {
     if (attached) {
+      final layout = Offset.zero & size;
+      final shift = _motion == null ? Offset.zero : drawnRect.center - layout.center;
       transformLayerHandle.layer = context.pushTransform(
         needsCompositing,
         offset,
-        transform,
+        shift == Offset.zero ? transform : (Matrix4.copy(transform)..translateByDouble(shift.dx, shift.dy, 0, 1)),
         super.paint,
         oldLayer: transformLayerHandle.layer,
       );
@@ -439,6 +503,7 @@ class RenderLiquidGlass extends RenderProxyBox
   }
 
   Path getPath() {
-    return _lastPath;
+    if (_motion == null) return _lastPath;
+    return shape.getOuterPath(drawnRect);
   }
 }

@@ -5,6 +5,7 @@ import 'package:ios_liquid_glass/src/internal/render_liquid_glass_geometry.dart'
 import 'package:ios_liquid_glass/src/internal/transform_tracking_repaint_boundary_mixin.dart';
 import 'package:ios_liquid_glass/src/liquid_glass.dart';
 import 'package:ios_liquid_glass/src/liquid_glass_render_scope.dart';
+import 'package:ios_liquid_glass/src/motion/glass_material_source.dart';
 import 'package:ios_liquid_glass/src/rendering/liquid_glass_render_object.dart';
 import 'package:ios_liquid_glass/src/shaders.dart';
 import 'package:meta/meta.dart';
@@ -85,6 +86,8 @@ class _LiquidGlassBlendGroupState extends State<LiquidGlassBlendGroup> {
           link: _geometryLink,
           renderLink: InheritedGeometryRenderLink.of(context)!,
           settings: LiquidGlassRenderScope.of(context).settings,
+          visibility: LiquidGlassRenderScope.of(context).visibility,
+          settingsSource: LiquidGlassRenderScope.of(context).settingsSource,
           child: child,
         ),
         assetKey: ShaderKeys.blendedGeometry,
@@ -121,6 +124,8 @@ class _RawLiquidGlassBlendGroup extends SingleChildRenderObjectWidget {
     required this.renderLink,
     required this.link,
     required this.settings,
+    this.visibility,
+    this.settingsSource,
     super.child,
   });
 
@@ -129,6 +134,8 @@ class _RawLiquidGlassBlendGroup extends SingleChildRenderObjectWidget {
   final GeometryRenderLink renderLink;
   final GlassGroupLink link;
   final LiquidGlassSettings settings;
+  final Animation<double>? visibility;
+  final GlassMaterialSource? settingsSource;
 
   @override
   RenderObject createRenderObject(BuildContext context) {
@@ -139,7 +146,9 @@ class _RawLiquidGlassBlendGroup extends SingleChildRenderObjectWidget {
       settings: settings,
       link: link,
       blend: blend,
-    );
+    )
+      ..visibility = visibility
+      ..settingsSource = settingsSource;
   }
 
   @override
@@ -151,6 +160,8 @@ class _RawLiquidGlassBlendGroup extends SingleChildRenderObjectWidget {
       ..blend = blend
       ..devicePixelRatio = MediaQuery.devicePixelRatioOf(context)
       ..settings = settings
+      ..visibility = visibility
+      ..settingsSource = settingsSource
       ..link = link;
   }
 }
@@ -345,7 +356,7 @@ class RenderLiquidGlassBlendGroup extends RenderLiquidGlassGeometry
 
     final blendGroupRect = MatrixUtils.transformRect(
       transformToGeometry,
-      Offset.zero & renderObject.size,
+      renderObject.drawnRect,
     );
 
     return ShapeGeometry(

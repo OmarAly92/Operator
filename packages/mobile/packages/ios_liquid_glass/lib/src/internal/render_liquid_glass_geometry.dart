@@ -1,6 +1,7 @@
 import 'dart:ui';
 
 import 'package:equatable/equatable.dart';
+import 'package:flutter/animation.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_shaders/flutter_shaders.dart';
 import 'package:ios_liquid_glass/ios_liquid_glass.dart';
@@ -8,6 +9,7 @@ import 'package:ios_liquid_glass/src/internal/snap_rect_to_pixels.dart';
 import 'package:ios_liquid_glass/src/liquid_glass.dart';
 import 'package:ios_liquid_glass/src/liquid_glass_blend_group.dart';
 import 'package:ios_liquid_glass/src/logging.dart';
+import 'package:ios_liquid_glass/src/motion/glass_material_source.dart';
 import 'package:ios_liquid_glass/src/rendering/liquid_glass_render_object.dart';
 import 'package:meta/meta.dart';
 
@@ -57,21 +59,46 @@ abstract class RenderLiquidGlassGeometry extends RenderProxyBox {
   final FragmentShader geometryShader;
 
   LiquidGlassSettings? _settings;
+  LiquidGlassSettings? _effective;
 
   /// The settings used for liquid glass rendering.
   ///
   /// If these settings change in a way that affects geometry, the geometry
   /// will be marked as needing an update.
-  LiquidGlassSettings get settings => _settings!;
+  LiquidGlassSettings get settings => _effective ??= resolveVisibility(_settingsSource?.settings ?? _settings!, _visibility);
   set settings(LiquidGlassSettings value) {
     if (_settings == value) return;
+    _settings = value;
+    _applySettings();
+  }
 
-    if (value.requiresGeometryRebuild(_settings)) {
+  Animation<double>? _visibility;
+  Animation<double>? get visibility => _visibility;
+  set visibility(Animation<double>? value) {
+    if (_visibility == value) return;
+    if (attached) _visibility?.removeListener(_applySettings);
+    _visibility = value;
+    if (attached) _visibility?.addListener(_applySettings);
+    _applySettings();
+  }
+
+  GlassMaterialSource? _settingsSource;
+  set settingsSource(GlassMaterialSource? value) {
+    if (_settingsSource == value) return;
+    if (attached) _settingsSource?.removeListener(_applySettings);
+    _settingsSource = value;
+    if (attached) _settingsSource?.addListener(_applySettings);
+    _applySettings();
+  }
+
+  void _applySettings() {
+    final previous = _effective;
+    _effective = null;
+    final value = settings;
+    if (value.requiresGeometryRebuild(previous)) {
       logger.finer('$hashCode rebuild ');
       markGeometryNeedsUpdate(force: true);
     }
-
-    _settings = value;
     updateShaderWithSettings(value, _devicePixelRatio);
     markNeedsPaint();
   }
@@ -134,11 +161,16 @@ abstract class RenderLiquidGlassGeometry extends RenderProxyBox {
   void attach(PipelineOwner owner) {
     _renderLink?.registerGeometry(this);
     super.attach(owner);
+    _visibility?.addListener(_applySettings);
+    _settingsSource?.addListener(_applySettings);
+    _effective = null;
   }
 
   @override
   @mustCallSuper
   void detach() {
+    _visibility?.removeListener(_applySettings);
+    _settingsSource?.removeListener(_applySettings);
     _renderLink?.unregisterGeometry(this);
     super.detach();
   }

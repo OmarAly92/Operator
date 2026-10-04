@@ -1,6 +1,8 @@
 import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 import 'package:ios_liquid_glass/ios_liquid_glass.dart';
+import 'package:ios_liquid_glass/src/motion/glass_material_source.dart';
+import 'package:ios_liquid_glass/src/motion/glass_shape_motion.dart';
 import 'package:meta/meta.dart';
 
 /// Paints [BoxShadow]s for a [LiquidShape] using canvas primitives
@@ -17,9 +19,18 @@ class GlassShadow extends SingleChildRenderObjectWidget {
     required this.shape,
     required this.shadows,
     required this.settings,
+    this.visibility,
+    this.motion,
+    this.shadowSource,
     super.child,
     super.key,
   });
+
+  final Animation<double>? visibility;
+
+  final GlassShapeMotion? motion;
+
+  final GlassMaterialSource? shadowSource;
 
   /// The shape to paint shadows for.
   final LiquidShape shape;
@@ -40,7 +51,10 @@ class GlassShadow extends SingleChildRenderObjectWidget {
       shape: shape,
       shadows: shadows,
       visibility: settings.visibility,
-    );
+    )
+      ..animatedVisibility = visibility
+      ..motion = motion
+      ..shadowSource = shadowSource;
   }
 
   @override
@@ -52,7 +66,10 @@ class GlassShadow extends SingleChildRenderObjectWidget {
     renderObject
       ..shape = shape
       ..shadows = shadows
-      ..visibility = settings.visibility;
+      ..visibility = settings.visibility
+      ..animatedVisibility = visibility
+      ..motion = motion
+      ..shadowSource = shadowSource;
   }
 }
 
@@ -73,7 +90,7 @@ class _RenderGlassShadow extends RenderProxyBox {
     markNeedsPaint();
   }
 
-  List<BoxShadow> get shadows => _shadows;
+  List<BoxShadow> get shadows => _shadowSource?.shadows ?? _shadows;
   List<BoxShadow> _shadows;
   set shadows(List<BoxShadow> value) {
     if (_shadows == value) return;
@@ -81,7 +98,7 @@ class _RenderGlassShadow extends RenderProxyBox {
     markNeedsPaint();
   }
 
-  double get visibility => _visibility;
+  double get visibility => _visibility * (_animatedVisibility?.value.clamp(0.0, 1.0) ?? 1);
   double _visibility = 1;
   set visibility(double value) {
     if (_visibility == value) return;
@@ -89,10 +106,53 @@ class _RenderGlassShadow extends RenderProxyBox {
     markNeedsPaint();
   }
 
+  Animation<double>? _animatedVisibility;
+  set animatedVisibility(Animation<double>? value) {
+    if (_animatedVisibility == value) return;
+    if (attached) _animatedVisibility?.removeListener(markNeedsPaint);
+    _animatedVisibility = value;
+    if (attached) _animatedVisibility?.addListener(markNeedsPaint);
+    markNeedsPaint();
+  }
+
+  GlassMaterialSource? _shadowSource;
+  set shadowSource(GlassMaterialSource? value) {
+    if (_shadowSource == value) return;
+    if (attached) _shadowSource?.removeListener(markNeedsPaint);
+    _shadowSource = value;
+    if (attached) _shadowSource?.addListener(markNeedsPaint);
+    markNeedsPaint();
+  }
+
+  GlassShapeMotion? _motion;
+  set motion(GlassShapeMotion? value) {
+    if (_motion == value) return;
+    if (attached) _motion?.removeListener(markNeedsPaint);
+    _motion = value;
+    if (attached) _motion?.addListener(markNeedsPaint);
+    markNeedsPaint();
+  }
+
+  @override
+  void attach(PipelineOwner owner) {
+    super.attach(owner);
+    _animatedVisibility?.addListener(markNeedsPaint);
+    _motion?.addListener(markNeedsPaint);
+    _shadowSource?.addListener(markNeedsPaint);
+  }
+
+  @override
+  void detach() {
+    _animatedVisibility?.removeListener(markNeedsPaint);
+    _motion?.removeListener(markNeedsPaint);
+    _shadowSource?.removeListener(markNeedsPaint);
+    super.detach();
+  }
+
   @override
   void paint(PaintingContext context, Offset offset) {
-    if (shadows.isNotEmpty) {
-      final rect = offset & size;
+    if (shadows.isNotEmpty && visibility > 0) {
+      final rect = (_motion?.resolve(this) ?? Offset.zero & size).shift(offset);
       final canvas = context.canvas;
 
       final needsCutout = shadows.any((s) => s.offset != Offset.zero);

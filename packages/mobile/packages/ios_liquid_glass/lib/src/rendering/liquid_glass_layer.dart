@@ -10,6 +10,7 @@ import 'package:ios_liquid_glass/src/internal/render_liquid_glass_geometry.dart'
 import 'package:ios_liquid_glass/src/internal/transform_tracking_repaint_boundary_mixin.dart';
 import 'package:ios_liquid_glass/src/liquid_glass_render_scope.dart';
 import 'package:ios_liquid_glass/src/logging.dart';
+import 'package:ios_liquid_glass/src/motion/glass_material_source.dart';
 import 'package:ios_liquid_glass/src/rendering/liquid_glass_render_object.dart';
 import 'package:ios_liquid_glass/src/shaders.dart';
 import 'package:meta/meta.dart';
@@ -74,8 +75,16 @@ class LiquidGlassLayer extends StatefulWidget {
     this.settings = const LiquidGlassSettings(),
     this.fake = false,
     this.useBackdropGroup = false,
+    @internal this.visibility,
+    @internal this.settingsSource,
     super.key,
   });
+
+  @internal
+  final Animation<double>? visibility;
+
+  @internal
+  final GlassMaterialSource? settingsSource;
 
   /// The subtree in which you should include at least one [LiquidGlass] widget.
   ///
@@ -139,6 +148,8 @@ class _LiquidGlassLayerState extends State<LiquidGlassLayer>
 
       return LiquidGlassRenderScope(
         settings: widget.settings,
+        visibility: widget.visibility,
+        settingsSource: widget.settingsSource,
         useFake: true,
         child: InheritedGeometryRenderLink(
           link: _link,
@@ -150,6 +161,8 @@ class _LiquidGlassLayerState extends State<LiquidGlassLayer>
     return RepaintBoundary(
       child: LiquidGlassRenderScope(
         settings: widget.settings,
+        visibility: widget.visibility,
+        settingsSource: widget.settingsSource,
         child: InheritedGeometryRenderLink(
           link: _link,
           child: ShaderBuilder(
@@ -160,6 +173,8 @@ class _LiquidGlassLayerState extends State<LiquidGlassLayer>
                   ? BackdropGroup.of(context)?.backdropKey
                   : null,
               settings: widget.settings,
+              visibility: widget.visibility,
+              settingsSource: widget.settingsSource,
               link: _link,
               child: child!,
             ),
@@ -178,12 +193,16 @@ class _RawShapes extends SingleChildRenderObjectWidget {
     required this.settings,
     required Widget super.child,
     required this.link,
+    this.visibility,
+    this.settingsSource,
   });
 
   final FragmentShader renderShader;
   final BackdropKey? backdropKey;
   final LiquidGlassSettings settings;
   final GeometryRenderLink link;
+  final Animation<double>? visibility;
+  final GlassMaterialSource? settingsSource;
 
   @override
   RenderObject createRenderObject(BuildContext context) {
@@ -193,7 +212,9 @@ class _RawShapes extends SingleChildRenderObjectWidget {
       backdropKey: backdropKey,
       settings: settings,
       link: link,
-    );
+    )
+      ..visibility = visibility
+      ..settingsSource = settingsSource;
   }
 
   @override
@@ -205,6 +226,8 @@ class _RawShapes extends SingleChildRenderObjectWidget {
       ..link = link
       ..devicePixelRatio = MediaQuery.devicePixelRatioOf(context)
       ..settings = settings
+      ..visibility = visibility
+      ..settingsSource = settingsSource
       ..backdropKey = backdropKey;
   }
 }
