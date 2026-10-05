@@ -3,11 +3,11 @@ const double ios27BlurRampExponent = 3.0;
 const double ios27DefaultDisappearExponent = 3.1;
 const double ios27DefaultAppearGain = 0.0;
 const double ios27DefaultReduceMotionAppearGain = 0.0;
-const double ios27SnappyDisappearExponent = 2.7;
+const double ios27SnappyDisappearExponent = 2.65;
 const double ios27SnappyAppearGain = 0.0;
 const double ios27SnappyReduceMotionAppearGain = 0.0;
-const double ios27BouncyDisappearExponent = 2.75;
-const double ios27BouncyAppearGain = 0.34;
+const double ios27BouncyDisappearExponent = 2.8;
+const double ios27BouncyAppearGain = 0.36;
 const double ios27BouncyReduceMotionAppearGain = 0.62;
 
 const List<double> ios27VisibilityForProgress = [
