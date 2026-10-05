@@ -92,6 +92,16 @@ void main() {
     expect(find.byType(LiquidGlass), findsNothing);
   });
 
+  testWidgets('identity glass inserted into a laid-out container appears at once', (tester) async {
+    await tester.pumpWidget(_Toggle(children: (shown) => [if (!shown) const GlassEffect(transition: GlassEffectTransition.identity, child: SizedBox(width: 10, height: 10))]));
+    await tester.pump(const Duration(seconds: 1));
+    tester.state<_ToggleState>(find.byType(_Toggle)).toggle();
+    await tester.pump();
+    expect(find.byType(LiquidGlass), findsOneWidget);
+    expect(_layers(tester).length, 1);
+    expect(_visibility(tester), isNull);
+  });
+
   testWidgets('a container removed while its glass animates disposes cleanly', (tester) async {
     await tester.pumpWidget(_Toggle(children: (shown) => [if (!shown) _block()]));
     await tester.pump(const Duration(seconds: 1));
