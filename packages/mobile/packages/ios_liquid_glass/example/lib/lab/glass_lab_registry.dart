@@ -4,11 +4,12 @@ import 'glass_lab_backdrop.dart';
 import 'glass_lab_launch.dart';
 import 'glass_lab_marker.dart';
 import 'scenes/material_scenes.dart';
+import 'scenes/motion_scenes.dart';
 import 'scenes/perf_scenes.dart';
 
 sealed class GlassLabRegistry {
-  static final Map<String, Widget Function(GlassLabLaunch launch)> scenes = {...MaterialScenes.scenes};
-  static final Map<String, Widget Function(GlassLabLaunch launch)> tools = {...PerfScenes.scenes};
+  static final Map<String, Widget Function(GlassLabLaunch launch)> scenes = {...MaterialScenes.scenes, ...MotionScenes.scenes};
+  static final Map<String, Widget Function(GlassLabLaunch launch)> tools = {...PerfScenes.scenes, ...MotionScenes.tools};
 
   static Widget build(GlassLabLaunch launch) {
     if (launch.bare) return GlassLabBackdrop(id: launch.backdrop);

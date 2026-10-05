@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ios_liquid_glass/ios_liquid_glass.dart';
 import 'package:ios_liquid_glass_example/lab/glass_lab_launch.dart';
 import 'package:ios_liquid_glass_example/lab/glass_lab_marker.dart';
 import 'package:ios_liquid_glass_example/lab/glass_lab_registry.dart';
@@ -107,5 +108,51 @@ void main() {
     expect(colour(), GlassLabTouchMarker.up);
     await tester.pump(const Duration(milliseconds: 300));
     expect(colour(), GlassLabTouchMarker.idle);
+  });
+
+  testWidgets('the materialize scene removes and restores its glass on the toggle', (tester) async {
+    tester.view.physicalSize = const Size(1206, 2622);
+    tester.view.devicePixelRatio = 3;
+    addTearDown(tester.view.reset);
+    final semantics = tester.ensureSemantics();
+    await tester.pumpWidget(MaterialApp(home: GlassLabScreen(launch: GlassLabLaunch(scene: 'material.materialize.snappy'))));
+    await tester.pump(const Duration(seconds: 1));
+    expect(find.byType(GlassEffect), findsOneWidget);
+    await tester.tap(find.bySemanticsIdentifier('toggle'));
+    await tester.pump();
+    expect(find.byType(GlassEffect), findsNothing);
+    expect(find.byType(LiquidGlassLayer), findsNWidgets(2));
+    await tester.pumpAndSettle();
+    expect(find.byType(LiquidGlassLayer), findsOneWidget);
+    await tester.tap(find.bySemanticsIdentifier('toggle'));
+    await tester.pumpAndSettle();
+    expect(find.byType(GlassEffect), findsOneWidget);
+    semantics.dispose();
+  });
+
+  testWidgets('the visibility tool ramps blur by the launch exponent, as the package ramps it', (tester) async {
+    await tester.pumpWidget(MaterialApp(home: GlassLabScreen(launch: GlassLabLaunch(scene: 'tool.visibility', visibility: 0.5, blurRamp: 3))));
+    final settings = tester.widget<LiquidGlassLayer>(find.byType(LiquidGlassLayer)).settings;
+    final full = GlassMaterial.resolve(glass: Glass.regular, shorterSide: 88, brightness: GlassTheme.brightnessOf(tester.element(find.byType(LiquidGlassLayer)))).toSettings();
+    expect(settings.visibility, 0.5);
+    expect(settings.effectiveBlur, closeTo(full.blur * 0.125, 1e-9));
+  });
+
+  testWidgets('the standalone ghost tool removes glass that is in no container', (tester) async {
+    tester.view.physicalSize = const Size(1206, 2622);
+    tester.view.devicePixelRatio = 3;
+    addTearDown(tester.view.reset);
+    final semantics = tester.ensureSemantics();
+    await tester.pumpWidget(MaterialApp(home: GlassLabScreen(launch: GlassLabLaunch(scene: 'tool.ghost.standalone'))));
+    await tester.pump(const Duration(seconds: 1));
+    expect(find.byType(GlassEffectContainer), findsNothing);
+    final images = find.byType(RawImage).evaluate().length;
+    await tester.tap(find.bySemanticsIdentifier('toggle'));
+    await tester.pump();
+    expect(find.byType(GlassEffect), findsNothing);
+    expect(find.byType(RawImage).evaluate().length, images + 1);
+    await tester.pumpAndSettle();
+    expect(find.byType(RawImage).evaluate().length, images);
+    semantics.dispose();
   });
 }

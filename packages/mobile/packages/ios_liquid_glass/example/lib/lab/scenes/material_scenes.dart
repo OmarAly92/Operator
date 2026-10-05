@@ -71,11 +71,6 @@ sealed class MaterialScenes {
         ),
       ],
     ),
-    'material.materialize': (launch) => LabCentered(
-      backdrop: launch.backdrop,
-      bottom: const LabButton(title: 'Toggle', id: 'toggle'),
-      children: const [LabBlock(width: 250, height: 88)],
-    ),
     'material.merge': (launch) => LabCentered(
       backdrop: launch.backdrop,
       bottom: const Row(
