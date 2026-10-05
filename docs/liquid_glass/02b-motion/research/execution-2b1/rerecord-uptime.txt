@@ -1,0 +1,5 @@
+20:34  up 22 hrs, 1 user, load averages: 99.46 136.83 142.61
+20:37  up 22:02, 1 user, load averages: 298.31 202.29 167.90
+20:40  up 22:05, 1 user, load averages: 109.72 165.17 159.65
+20:42  up 22:07, 1 user, load averages: 115.66 151.35 155.18
+20:45  up 22:11, 1 user, load averages: 102.18 144.15 153.21
