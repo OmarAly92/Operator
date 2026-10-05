@@ -1,0 +1,72 @@
+# After 2B.1: what is still to do
+
+Date: 2026-10-06. Status: **TODO, not planned yet.** These are the residuals of 2B.1 (branch `feat/ios-liquid-glass-2b1`, measured at `58ab57e0c`). Every number and its run folder is in `results-2b1.md`. Files named `task-*` are in `.superpowers/sdd/plan-2b1/` of the 2B.1 worktree (git-ignored, like the run folders).
+
+Where 2B.1 ended: Done items 1, 2, 3, 5 and 6 pass; item 4 passes 129 of 168 progress measures in normal mode and 135 of 168 under Reduce Motion, with the event and touch gates 120 of 120. The 72 failures are classed in `results-2b1.md`: 69 (b), 3 (a).
+
+When an item becomes work, it follows ROADMAP §5 (prototype on the iOS 27 simulator, a plan with the tested code, a fresh session, review here) and never loosens a limit or a measure. Classes: **(a)** tunable, **(b)** model limitation, **(c)** lab scene, **(d)** measurement or harness, **(e)** debug build; **perf** for M10 and **defect** for package or harness behaviour found in review.
+
+## Motion against native (Done item 4 residuals)
+
+| Item | Class | Evidence | Deciding measure or candidate fix |
+|---|---|---|---|
+| Spring shape on `light` and `stripes`: 36 `response_pct` and `damping` failures, 33 of them on the appear | b | runs `20261005-233131`, `20261005-234750`; native's default appear fits 0.49 s / 1.02 (dark-photo) to 0.67 / 0.89 (light), Flutter's 0.56 / 0.98 to 0.42 / 1.20; `fit.json` `default_spring_check` per case 0.44–0.71 s / 0.80–1.30 | A per-appearance fit on `photo` alone, where no stripe shift enters: if `light-photo` and `dark-photo` still need different mappings, the difference is the light backdrop's brightening entering the progress measure, not the spring, and the measure (not the package) is what to change. |
+| Dark `photo` disappear runs ahead of native (11 failures: Flutter 10–90% 92–108 ms against 108–133) | b | `fit.json` `flutter_progress` at visibility 0.5: dark-photo 0.312, dark-stripes 0.441, light-photo 0.466, light-stripes 0.470, mean 0.422 | Find why Flutter's own partly visible frame reads less progressed on dark `photo` than on the other three; it may share the sharpness item's cause. One visibility table must serve every backdrop, so the fix is in the material's ramp, not the table. |
+| Half-progress sharpness on dark `photo`: 12 failures, 1.12–1.52 against 1.00 | b | ruling 25; `fit.json` `flutter_sharpness` at half progress −2.69 / −2.63 / −2.61 / −2.53 for blur ramps k = 1–4 against native −1.07 | What else softens Flutter's half-way frame: sweep the lens, light and tone ramps (linear with visibility today) on `tool.visibility` and compare sharpness at progress 0.5 on dark `photo`. |
+| `.bouncy` appear settles late where native overshoots more: normal `light-photo` 158 ms and `light-stripes` 125 ms over, Reduce Motion `dark-photo` 133 ms | a | native overshoot 2.5%, 2.4%, 3.0% against Flutter's 1.5%, 1.2%, 1.8%; native settle 400, 367, 375 ms against 242 | A per-appearance appear gain fitted by `fitvis`; check that it keeps `overshoot_pct` passing on `dark`. |
+| Timing by one to three frames: 10 `t10_90_ms` and `settle_ms` failures 4–25 ms over their limits | b | `results-2b1.md` group b4 | Expected to move with the spring-shape item; re-judge after it. |
+| Native's edge spread: mid-appear the native box measures 218–254 × 85–96 pt at progress 0.09–0.6, the package's 216–223 × 78–85 | b | ruling 13 (prototype runs `032332`, `045312`); no Done measure is a box size | A soft-coverage term in both shaders. Reduce Motion removes native's spread (ruling 12), so it stays off there. |
+| Native's rim mid-transition: 5–24 pt deep at progress 0.3–0.7 (5.0–5.33 pt under Reduce Motion) against 1.0–1.67 pt at rest; Flutter's stays 0.67–1.0 pt | b | ruling 14; `rim_check.py`, `task-20d-rim-normal.txt`, `task-20d-rim-rm.txt` | The band's profile across the edge: native at progress 0.3–0.7 under Reduce Motion against Flutter at the same visibility with `outlineWidth` and `specularWidth` swept. |
+| Lens displacement mid-transition against native: not measured | b | ruling 14 | The cross-correlation shift of a row just inside each end against the bare row, native at progress 0.5 against Flutter at the visibility the table gives for 0.5. |
+| Touch-to-response delay: native starts to disappear 15–50 ms and to appear 63–113 ms after the tap, the package 12–35 ms | not copied (ruling 33) | `results-2b1.md` delay table | Project 5 re-checks it on a device. |
+| Cold first transition: the launch's first disappear starts at progress 0.38 and reads 83 ms against native's 133 | e | `cold/20261006-002600`; ruling 24 | Project 5: re-check in a release build, where the JIT stall should not exist. |
+
+## Renderer fault found in 2B.1
+
+| Item | Class | Evidence | Candidate fixes |
+|---|---|---|---|
+| Glass at a fractional x snaps its side rims about 0.24 px onto the pixel grid once its geometry cache turns into an image. On a layer's first composite `GeometryTransformTrackingLayer` reports a transform change (`_lastTransform` starts null, `transform_tracking_repaint_boundary_mixin.dart:91`); the next paint calls `geometry!.render()` (`render_liquid_glass_geometry.dart:244`), and the image is drawn with nearest sampling at the fractional offset (`liquid_glass_render_object.dart:394`). It predates 2A; 2B.1's first-frame material (ruling 30) exposed it on `material.edge`'s "Edit" pill. No measure moved. | b | `task-20d-edge-debug.md`; runs `20261006-005342` (all 12 Flutter frames differ from 2A's), probe runs `20261006-020852` (no `render()`: byte-identical to 2A) and `20261006-021029` | 1. One line: keep the geometry as a Picture (`UnrenderedGeometryCache`) instead of `geometry = geometry!.render()`. Exact, but it gives up the geometry cache the roadmap decided to keep (2026-09-27): the geometry shader then runs on every final-image rebuild (geometry or link changes only). Measure it in M10 first. 2. Proper: rasterize the matte on the screen pixel grid, or keep the fractional offset when drawing the cached image (filtered sampling, or snap the cache's origin), then re-run `material.edge` against 2A. |
+
+## Harness and lab
+
+| Item | Class | Evidence | Fix |
+|---|---|---|---|
+| `align.stalls` and the noise floors skip each event's first gap (`align.py:61` starts at `first + 2`), so a screen-recorder capture hole at an event's first frames (no frames for 68–407 ms, then a burst 1.7–6.7 ms apart, a zero-length touch window) goes undetected. Four Task 9 noise takes had it and widened their floors (light-stripes `t10_90_ms` noise 75 ms with the take, 8.3 without). | d | `task-9-outliers.md`, `task-9-scan.md`, `noise-2b1/excluded/` | A capture-hole detector in `repeat` and `run`: flag a first-changed-frame gap over 30 ms followed by two or more gaps under 5 ms, or a zero-length touch window in a scene with touch steps; refuse the take into `noise.json` and list it in the report. The Task 9 scan script (`build/glass_lab/scratch/task9scan/scan.py`) holds the rule. Then check native first-frame gaps of up to 50 ms in the 2B.1 materialize runs against it. |
+| Press and interactive recordings show the same burst-after-gap pattern in both noise sessions: 24 takes flagged, 12 per session, 50 more matching the gap rule alone. The recorder writes nothing while the screen is still and the press starts on the touch frame, so it is endemic. Their floors were kept as recorded. | d | `task-9-scan.md` | **2B.3, before judging any press measure:** re-examine these recordings, decide whether the burst moves press timings, and re-measure the press floors if it does. |
+| `fitvis` groups per-take spreads by take number across cases (`fitvis.py` `by_take`, take id set as `<root>/take<N>`), so replacing a take under a new number made single-case groups that tripped two stop conditions in the first Step 4 fit. | d | `task-20b-report.md`; the renumbering ruling in `noise-2b1/excluded/README.txt` | Group by take within a session, or refuse a per-take group that does not hold every case. |
+| A narrowed `repeat` on a scene with an old scene-wide `noise.json` entry resets it to `{}` (`lab.py:236-238`), a silent tightening; `lab.py analyze` cannot run on a repeat run folder (pair folders are `run/<scene>/<case>/pair-i-j`). | d | Task 6 review | Merge instead of replacing; let `analyze` find pair folders. |
+| A `doubleTap` step yields two marker windows, but `touch.owner` and `step_times` zip one window per step, so every later step shifts (`touch.py:58-71`, `shapes.py:345`, `:538`). No 2B.1 scene uses `doubleTap`. | defect | Task 4 review | Map windows to steps by the step's touch count, with a synthetic-frame test, before any scene uses `doubleTap`. |
+| When every Reduce Motion curve of a preset is excluded, `reduce_motion_gain` is `None` and the table silently takes the normal gain (`fitvis.py:180`). | d | Task 7 review | Stop instead, as for a grid edge. |
+| A tap during a materialize scene's warm-up can fight its next step (`motion_scenes.dart:138-147`). | c | Task 19 review | Ignore taps until the warm-up ends. |
+
+## Package defects and test gaps found in review
+
+| Item | Class | Evidence | Fix |
+|---|---|---|---|
+| `FakeGlass` (the no-shader path) ignores visibility, motion and `settingsSource` (`liquid_glass.dart:198-205`), so glass on a device without the shader neither materializes nor fades. | defect | Task 11 review | Fade the fake glass with visibility; test it. |
+| `GlassEffect.dispose` disposes its material while a ghosted member may still hold it until `takeGhosts` (`glass_effect.dart:147`, `glass_motion_coordinator.dart:476-478`); a resize in that window would notify a disposed notifier. Speculative. | defect | Task 15 review | Hand the material to the ghost, or dispose it when the ghost is taken; a test that resizes in the window. |
+| No test removes a whole container while a ghost is in flight; the coordinator's dispose path for it (`glass_motion_coordinator.dart:531-539`) is untested (Review Focus 3 asks for it). | defect | Task 14 review | Add the test: no exception, ticker stopped, snapshots freed. |
+| A pending ghost with no host keeps the ticker running (`glass_motion_coordinator.dart:522`). | defect | Task 12 review | Drop the ghost when no host exists. |
+| Untested `Overlay` paths: the overlay entry removed once unused, standalone glass with no `Overlay` disappearing at once, a ghost drawn above a modal route, standalone glass removed with its parent. A standalone glass removed before the ghost layer's first build leaves no ghost, and later overlay entries draw above ghosts. | defect | Task 17 review | Tests for the four paths; decide whether the early-removal case needs a ghost. |
+| The geometry rebuild check uses the `_effective` cache as its baseline; a null cache after construction or attach misses a geometry-affecting settings change (`render_liquid_glass_geometry.dart:95-98`). `attach` clears `_effective` without refreshing the uniforms, so an animation that moved while detached leaves stale uniforms (`liquid_glass_render_object.dart:113-119`, geometry `:160-167`). | defect | Task 11 review | Compare against the last built settings, refresh uniforms on attach; tests for both. |
+| Smaller ones: the content slot switches widget type when visibility becomes null and may remount the child (`liquid_glass.dart:328`); reversing an overshooting appear steps visibility down to 1 (`glass_materialize.dart:85`); `GlassAnimation.spring(bounce >= 1)` gives damping ≤ 0 unvalidated; the `_childKey` `GlobalKey` is redundant since Task 14 (`glass_effect.dart:38`, `:161`); `_scrollables()` walks the ancestors on every build (`glass_effect.dart:168`). | defect | Tasks 10–16 reviews | Fix in passing with a test each. |
+
+## Frame cost (M10, 2B.3)
+
+| Item | Class | Evidence | Measure |
+|---|---|---|---|
+| Every member publishes and notifies on every tick while any member animates (`glass_motion_coordinator.dart:263-279`), so still glass in the same container repaints every animated frame. | perf | finding 22; Task 12 review | The animated perf scene with one glass moving among still ones; notify only members whose drawn rect or visibility changed. |
+| A `RepaintBoundary` per `GlassEffect`. | perf | finding 22 | Raster and layer counts in the perf scene. |
+| A full extra layer per ghost or appearing glass (ruling 18), so removing sixteen glasses at once adds sixteen layers. | perf | finding 22 | A perf scene that removes sixteen glasses at once. |
+| The geometry cache fix above, if the one-line form is chosen. | perf | above | Frame cost before and after. |
+
+## Belongs to 2B.2 (M4)
+
+- **Container spacing animation** moved here (ruling 29): a `spacing` change jumps in 2B.1, because 2B.2 changes what `spacing` means.
+- **Native's merge reach is about half its `spacing`** (ruling 23), like the package's smooth-min, not spec M4's "closer than `spacing`". Native N7 stills (run `20261004-003527`, dark-photo): the default container joins at gaps 0 and 4 pt (necks 25.33 and 4.00 pt) and keeps 8 pt and wider apart; `spacing: 40` joins at 0–20 pt (necks 50.67, 38.33, 40.67, 34.00, 24.67 and 2.00 pt) and keeps 24 pt and wider apart.
+- An appearing glass does not merge with its neighbours until it settles (ruling 18); decide from native morph frames whether that matters.
+
+## Facts, no action
+
+- Native's default animation fits 0.58 s / 0.99 over all cases and takes against SwiftUI's 0.55 / 1.0 (response 5.5% off, outside 5%), and no single case fits within tolerance (0.44–0.71 s / 0.80–1.30). One take's fitted spring varies by more than the tolerance between takes, so the presets stay SwiftUI's springs (ruling 10).
+- Done item 1's 250 × 44 growth reads +14.33, not the spike's +17.67: both capsule ends sit in L1's blind band at the peak (ruling 2). 2B.3 fits the size law on N2 on `photo`.
