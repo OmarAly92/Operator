@@ -34,13 +34,17 @@ class GlassEffect extends StatefulWidget {
 }
 
 class _GlassEffectState extends State<GlassEffect> with SingleTickerProviderStateMixin {
+  final _snapshotKey = GlobalKey();
   final _childKey = GlobalKey();
   double? _shorterSide;
+  double _pixelRatio = 1;
   GlassMotionCoordinator? _private;
   GlassMotionCoordinator? _coordinator;
   GlassMember? _member;
+  RenderObject? _parent;
   bool _joined = false;
   bool _left = false;
+  bool _ghosted = false;
 
   bool get _identity => widget.glass.kind == GlassKind.identity;
 
@@ -53,6 +57,7 @@ class _GlassEffectState extends State<GlassEffect> with SingleTickerProviderStat
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    _pixelRatio = MediaQuery.maybeDevicePixelRatioOf(context) ?? 1;
     _join();
   }
 
@@ -101,7 +106,19 @@ class _GlassEffectState extends State<GlassEffect> with SingleTickerProviderStat
   void deactivate() {
     final member = _member, coordinator = _coordinator;
     if (member != null && coordinator != null) {
-      coordinator.leave(member, animate: false);
+      final owner = coordinator == _private ? null : coordinator;
+      final parent = _parent;
+      final animate = owner != null && (pendingGlassAnimation != null || (parent != null && parent.attached));
+      final boundary = _snapshotKey.currentContext?.findRenderObject();
+      final keep = animate && member.animatesTransitions && boundary is RenderGlassSnapshotBoundary;
+      _ghosted = coordinator.leave(
+        member,
+        animate: animate,
+        owner: owner,
+        content: keep ? boundary.retain() : null,
+        contentSize: keep && boundary.hasSize ? boundary.size : null,
+        pixelRatio: _pixelRatio,
+      );
       _left = true;
     }
     super.deactivate();
@@ -111,8 +128,15 @@ class _GlassEffectState extends State<GlassEffect> with SingleTickerProviderStat
   void activate() {
     super.activate();
     final member = _member;
-    if (_left && member != null) member.coordinator.reattach(member);
+    if (_left && member != null) {
+      if (_ghosted) {
+        member.coordinator.rejoin(member);
+      } else {
+        member.coordinator.reattach(member);
+      }
+    }
     _left = false;
+    _ghosted = false;
   }
 
   @override
@@ -121,7 +145,7 @@ class _GlassEffectState extends State<GlassEffect> with SingleTickerProviderStat
     if (member != null) {
       if (!_left) {
         member.coordinator.drop(member);
-      } else {
+      } else if (!_ghosted) {
         member.dispose();
       }
     }
@@ -131,7 +155,11 @@ class _GlassEffectState extends State<GlassEffect> with SingleTickerProviderStat
 
   @override
   Widget build(BuildContext context) {
-    final content = _SizeReporter(key: _childKey, onSize: _measured, child: GlassEffectScope(glass: widget.glass, child: widget.child));
+    _parent = context.findAncestorRenderObjectOfType<RenderObject>();
+    final content = GlassSnapshotBoundary(
+      key: _snapshotKey,
+      child: _SizeReporter(key: _childKey, onSize: _measured, child: GlassEffectScope(glass: widget.glass, child: widget.child)),
+    );
     final member = _member;
     if (_identity || member == null) return content;
     return ListenableBuilder(

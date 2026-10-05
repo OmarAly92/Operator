@@ -76,6 +76,46 @@ void main() {
     expect(_layers(tester).length, 1);
   });
 
+  testWidgets('removed glass leaves a ghost in the same frame, with its content snapshot, and it is dropped after', (tester) async {
+    await tester.pumpWidget(_Toggle(children: (shown) => [if (shown) _block(child: const ColoredBox(color: Color(0xFFFF0000)))]));
+    await tester.pump(const Duration(seconds: 1));
+    tester.state<_ToggleState>(find.byType(_Toggle)).toggle();
+    await tester.pump();
+    expect(find.byType(RawImage), findsOneWidget);
+    expect(tester.widget<RawImage>(find.byType(RawImage)).image, isNotNull);
+    expect(_visibility(tester), 1);
+    await tester.pump(const Duration(milliseconds: 60));
+    expect(_visibility(tester), inExclusiveRange(0, 1));
+    await tester.pumpAndSettle();
+    expect(find.byType(RawImage), findsNothing);
+    expect(_layers(tester).length, 1);
+  });
+
+  testWidgets('a ghost stays where its glass was on screen when the container shrinks around the removal', (tester) async {
+    await tester.pumpWidget(_Toggle(children: (shown) => [if (shown) _block(child: const ColoredBox(color: Color(0xFFFF0000)))]));
+    await tester.pump(const Duration(seconds: 1));
+    final before = tester.getRect(find.byType(GlassEffect));
+    tester.state<_ToggleState>(find.byType(_Toggle)).toggle();
+    await tester.pump();
+    expect(tester.getSize(find.byType(GlassEffectContainer)), Size.zero);
+    expect(tester.getRect(find.byType(RawImage)).center, before.center);
+  });
+
+  testWidgets('disappearing is faster than appearing under the same spring', (tester) async {
+    await tester.pumpWidget(_Toggle(children: (shown) => [if (shown) _block()]));
+    await tester.pump(const Duration(seconds: 1));
+    tester.state<_ToggleState>(find.byType(_Toggle)).toggle();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 120));
+    final out = _visibility(tester)!;
+    await tester.pumpAndSettle();
+    tester.state<_ToggleState>(find.byType(_Toggle)).toggle();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 120));
+    final into = _visibility(tester)!;
+    expect(1 - out, greaterThan(into));
+  });
+
   testWidgets('GlassAnimation.none and the identity transition change at once', (tester) async {
     await tester.pumpWidget(_Toggle(animation: GlassAnimation.none, children: (shown) => [if (shown) _block()]));
     await tester.pump(const Duration(seconds: 1));
@@ -100,6 +140,20 @@ void main() {
     expect(find.byType(LiquidGlass), findsOneWidget);
     expect(_layers(tester).length, 1);
     expect(_visibility(tester), isNull);
+  });
+
+  testWidgets('removing glass while it appears continues from its current visibility', (tester) async {
+    await tester.pumpWidget(_Toggle(children: (shown) => [if (!shown) _block()]));
+    await tester.pump(const Duration(seconds: 1));
+    tester.state<_ToggleState>(find.byType(_Toggle)).toggle();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 150));
+    final before = _visibility(tester)!;
+    tester.state<_ToggleState>(find.byType(_Toggle)).toggle();
+    await tester.pump();
+    expect(_visibility(tester), closeTo(before, 1e-9));
+    await tester.pumpAndSettle();
+    expect(find.byType(LiquidGlass), findsNothing);
   });
 
   testWidgets('a container removed while its glass animates disposes cleanly', (tester) async {
@@ -141,6 +195,28 @@ void main() {
     expect(after, lessThan(1));
     await tester.pumpAndSettle();
     expect(_layers(tester).length, 1);
+  });
+
+  testWidgets('a ghost draws in its own layer, so sixteen glasses, one leaving and one arriving never share one group', (tester) async {
+    await tester.pumpWidget(_Toggle(children: (shown) => [
+      for (var i = 0; i < 15; i++) _block(key: ValueKey(i), width: 20, height: 10),
+      if (shown) _block(key: const ValueKey('leaving'), width: 20, height: 10),
+      if (!shown) _block(key: const ValueKey('arriving'), width: 20, height: 10),
+    ]));
+    await tester.pump(const Duration(seconds: 1));
+    expect(tester.takeException(), isNull);
+    tester.state<_ToggleState>(find.byType(_Toggle)).toggle();
+    await tester.pump();
+    for (var i = 0; i < 6; i++) {
+      await tester.pump(const Duration(milliseconds: 16));
+      expect(tester.takeException(), isNull);
+    }
+    final ghost = find.ancestor(of: find.byType(RawImage), matching: find.byType(LiquidGlassLayer)).first;
+    expect(ghost, findsOneWidget);
+    expect(find.descendant(of: ghost, matching: find.byType(GlassEffect)), findsNothing);
+    expect(find.byType(GlassEffect), findsNWidgets(16));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('a list scrolled inside a container moves its glass with the list at once, with no spring', (tester) async {
@@ -190,5 +266,56 @@ void main() {
     expect(_onScreen(member).left, inExclusiveRange(after.left, before.left));
     await tester.pumpAndSettle();
     expect(_onScreen(member).left, closeTo(after.left, 1e-6));
+  });
+
+  testWidgets('glass removed together with its parent disappears at once', (tester) async {
+    await tester.pumpWidget(_Toggle(children: (shown) => [if (shown) Padding(padding: const EdgeInsets.all(1), child: _block())]));
+    await tester.pump(const Duration(seconds: 1));
+    tester.state<_ToggleState>(find.byType(_Toggle)).toggle();
+    await tester.pump();
+    expect(find.byType(RawImage), findsNothing);
+    expect(find.byType(LiquidGlass), findsNothing);
+  });
+
+  testWidgets('visibility never rises after a removal, even right after insertion', (tester) async {
+    await tester.pumpWidget(_Toggle(children: (shown) => [if (!shown) _block()]));
+    await tester.pump(const Duration(seconds: 1));
+    final state = tester.state<_ToggleState>(find.byType(_Toggle));
+    state.toggle();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 8));
+    state.toggle();
+    await tester.pump();
+    var last = _visibility(tester)!;
+    while (find.byType(LiquidGlassLayer).evaluate().length > 1) {
+      await tester.pump(const Duration(milliseconds: 8));
+      final now = _visibility(tester);
+      if (now == null) break;
+      expect(now, lessThanOrEqualTo(last + 1e-12));
+      last = now;
+    }
+  });
+
+  testWidgets('glass moved to another container with a GlobalKey stays visible and leaves no ghost', (tester) async {
+    final key = GlobalKey();
+    var left = true;
+    late StateSetter rebuild;
+    await tester.pumpWidget(MaterialApp(
+      home: StatefulBuilder(builder: (context, setState) {
+        rebuild = setState;
+        final glass = GlassEffect(key: key, child: const SizedBox(width: 80, height: 40));
+        return Row(children: [
+          GlassEffectContainer(child: SizedBox(width: 100, height: 60, child: left ? glass : null)),
+          GlassEffectContainer(child: SizedBox(width: 100, height: 60, child: left ? null : glass)),
+        ]);
+      }),
+    ));
+    await tester.pump(const Duration(seconds: 1));
+    rebuild(() => left = false);
+    await tester.pump();
+    expect(find.byType(RawImage), findsNothing);
+    expect(_member(tester).presence, GlassPresence.present);
+    expect(_visibility(tester), isNull);
+    expect(tester.takeException(), isNull);
   });
 }
