@@ -1,0 +1,161 @@
+# SDD ledger — plan: docs/liquid_glass/02b-motion/plan-2b1.md
+
+Worktree: /Users/omaraly/development/AI/Operator-2b1, branch feat/ios-liquid-glass-2b1 from development d35df87fa.
+Spec: docs/liquid_glass/02b-motion/spec.md (binding); plan header rulings 1-34 refine it.
+Note: no code changed between the replay tip 6f42bb8c4 and d35df87fa (docs only).
+
+## Pre-flight scan
+Table: preflight-scan.md in this folder (84 rows: 48 task-pair, 21 per-task, 8 constraint, 7 defect-candidate). Test counts chain consistently (harness 104->175, package 67->121, example 8->13, app 2146). No comments, no `booted`, no pip, no dart format, no hand-typed fits.
+- F1 Ruling: line 88 says Task 8 commits the motion seed; Task 10 Step 3 creates ios27_motion.dart. Follow the task text (Task 10) — the header line is a misstatement, the task steps are the replayed truth — cost if wrong: none, the file is identical either way.
+- F2 Ruling: no conflict. fitvis.invert resamples onto a fixed GRID (np.linspace(0,1,GRID)), so 11 scan levels still give a 21-entry table; the seed's 21 entries match — cost if wrong: Task 20's comparison would be off; checked again at Task 20.
+- F3 Ruling: ruling 7's prose (8 pt tile in region_for, "ruling 28") mis-cites; the code (touch.is_marker 2 pt + align.extent(ignore=) 8 pt tiles) is what was replayed and verified on the simulator. Transcribe the code — cost if wrong: a still region could include the marker; Task 20's still check would show it.
+- F4 Ruling: Task 8's test_press_scenes_hold_one_press_on_one_tracked_glass asserts only six heights; transcribe as written and let the task review judge it (if flagged, strengthening to check the six sizes is allowed as a fix) — cost if wrong: a weak test, no behaviour change.
+- F5 Ruling: Task 9 "21 scenes" is prose; the commands (15 scenes, 18 repeat calls per session) govern — cost: none.
+- F6 Ruling: duplicated _resolveVisibility/resolveVisibility pass-through is plan-mandated; transcribe, task review judges — cost: minor duplication.
+- F7 Ruling: commit trailer is `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>` (handoff hard rule and the plan agree; subagents may see a different default and are told explicitly) — cost: none.
+
+Task 1: dispatched (BASE d35df87fa, implementer a77acdedec12a9440, sonnet)
+Task 1: complete (commits d35df87..68aabdc, review clean; byte-identical to brief)
+Task 1: minor (deferred): BAND_EDGE constant defined mid-file (track.py:297), plan-mandated
+Task 1: minor (deferred): lobes/neck run on full pixel mask incl. specks <20pt² dropped from count (track.py:412-453), plan-mandated
+Task 1: minor (deferred): count 0 reports neck 0.0 not NaN (track.py:466); comparisons must key on count first, plan-mandated
+Task 1: verify-later: callers pass point-resolution inputs and 16x8 inset to progress_row (Task 4)
+Task 2: dispatched (BASE 68aabdcc3, implementer afb8d085eb9113f48, sonnet)
+Task 2: Ruling: reviewer's plan-mandated Important (is_marker 2 pt tolerance vs ruling 7's 8 pt tile) — keep the plan's code. In region_for (plan line 1179-1180) motion boxes come from align.extent(ignore=MARKER), which zeroes the marker's tiles plus one tile around, so they never contain the marker; without_marker only filters detected boxes, and bare/ready/settled all hold the same black marker (ruling 7), so the detector never sees it. The prototype verified button.press's region returned to 2A's with exactly this code — cost if wrong: a still region stretched to the marker; Task 20's still check would expose it (same as pre-flight F3).
+Task 2: minor (deferred): touch run with down/move but no up frame is dropped silently (touch.py:146-158); touches.* count check catches it
+Task 2: complete (commits 68aabdc..d58354c, review clean after ruling)
+Task 3: dispatched (BASE d58354c01, implementer a392a8f3bf839e7ac, sonnet)
+Task 3: complete (commits d58354c..2b6218b, review clean)
+Task 3: minor (deferred): manifest requires track only when motion non-empty; topology.* measures without topology regions pass validation (manifest.py ~210), plan-mandated
+Task 3: minor (deferred): new threshold keys not cross-checked against MOTION_MEASURES, plan-mandated
+Task 4: dispatched (BASE 2b6218b56, sonnet)
+Task 4: note: implementer wrote impl before first test run; RED captured as 1/14 failing (float slack) rather than the brief's ModuleNotFoundError — process deviation, code byte-identical to brief.
+Task 4: complete (commits 2b6218b..78dba60, review clean)
+Task 4: minor (deferred): doubleTap yields two marker windows; touch.owner/step_times zip one window per step, so later steps shift (touch.py:58-71, shapes.py:345,538). No 2B.1 scene uses doubleTap. FINAL REVIEW: triage.
+Task 4: minor (deferred): touches before start-0.2s dropped shift step indices (shapes.py:337); touches.* catches the count
+Task 4: minor (deferred): compare_topology returns None / omits join_ms when both agree, so listed topology.* would read inf (false fail), plan-mandated; no 2B.1 scene lists them
+Task 4: minor (deferred): has-marker inferred from events having steps (shapes.py:502,518), plan-mandated
+Task 4: minor (deferred): duplication pairs/unpaired step buckets; shapes.shrink == analyze.shrink, plan-mandated
+Task 4: minor (deferred): event_series 0.3 s hold vs 0.15 s split gap may leak next event (shapes.py:374), inherited from 2A
+Task 4: verify-later (Task 6): non-finite noise filter in case_noise; lab.py:118 per-case noise shape
+Task 5: dispatched (BASE 78dba6062, implementer acb84b63ce48eba74, sonnet)
+Task 5: implemented ad9ef2ae4; sim proof run build/glass_lab/runs/20261003-234148: native touches (17.007,17.122) (19.722,19.863), flutter (17.542,17.58) (20.242,20.35).
+Task 5: Ruling: native tap durations 115 and 141 ms exceed the brief's 30-110 ms sanity range — accepted. The marker reading is right (two touches per app, right place); tap length is XCUITest's touch timing on a variable-rate video (ROADMAP gotcha 4, 7), not harness code, and no measure judges tap length (delay uses touch-up for taps). Re-checked in Task 8's recordings — cost if wrong: a marker-reading bug would mis-time touch-up and delay_ms; Task 8's touch reads would show it.
+Task 5: complete (commits 78dba60..ad9ef2a, review clean)
+Task 5: minor (deferred): TouchRelay reads only allTouches.first (TouchMarker.swift:134); observer never removed (:157), plan-mandated
+Task 6: dispatched (BASE ad9ef2ae4, sonnet)
+Task 6: reproduction output byte-identical to research/proto-2b1/reproduce.txt (controller checked diff).
+Task 6: complete (commits ad9ef2a..3e7a9e2, review clean)
+Task 6: minor (deferred): narrowed repeat on a scene with an old scene-wide entry resets it to {} (lab.py:236-238) — silent tightening. Task 9 check: noise.json diff must keep menu.bar/tabbar.drag entries.
+Task 6: minor (deferred): `lab.py analyze` cannot run on a repeat run dir (pair folders now run/<scene>/<case>/pair-i-j; analyze_run globs */*)
+Task 6: minor (deferred): reproduce.py writes symlinks into reference/menu-pairs, no guard for window None (reproduce.py:17,52-57), plan-mandated
+Task 6: minor (deferred): sim.reboot boots twice (sim.py:30-35), plan-mandated
+Task 7: dispatched (BASE 3e7a9e20f, implementer ac33bd27247bf489f, sonnet)
+Task 7: Ruling: plan-mandated Important — fitvis.table_source writes 1.0 for a preset whose exponent/gain fit is None and drops presets with no curves (fitvis.py:331-334). No code change: the tree stays the plan's (the main session diffs it against the plan), and the only --write (Task 20 Step 4) runs on complete runs of all three presets, normal and Reduce Motion. Guard instead: before committing the Task 20 table the controller checks fit.json has every preset with non-null exponent and gain (or INERT) — cost if wrong: a non-fitted 1.0 in ios27_motion.dart, caught by that check and by git diff of the table.
+Task 7: minor (deferred): all-excluded Reduce Motion curves -> reduce_motion_gain None, table silently uses normal gain (fitvis.py:180)
+Task 7: minor (deferred): INERT lacks at_grid_edge/at_floor keys (fitvis.py:173)
+Task 7: minor (deferred): invert takes keys from the first case; KeyError/StopIteration on partial scans (fitvis.py:319)
+Task 7: minor (deferred): best_lag recomputes step_response per candidate; curve_error duplicates the lag search (fitvis.py:103,209)
+Task 7: minor (deferred): recordings() untested
+Task 7: note: run() cannot execute until Tasks 8 and 19 add the scenes (expected order).
+Task 7: complete (commits 3e7a9e2..44d33b0, review clean after ruling)
+Task 8: dispatched (BASE 44d33b0d7, implementer a24e23a30a8d1cffe, sonnet)
+Task 8: implemented bea4bdb2b. Runs: materialize 20261004-000223, Reduce Motion 20261004-001040, interactive 20261004-001855, press 20261004-002204, spacing 20261004-003527. No driver crashes.
+Task 8: note: F4 test actually failed before implementation (on the interactive track) — pre-flight F4's premise was wrong, no harm.
+Task 8: Ruling: native 10-90% times one frame off the prototype's (default out 141.7 vs 125-133, snappy in 216.7 vs 200, bouncy in 141.7 vs 133, RM bouncy in 158.3) and native press holds longer (interactive 2.13 s / 2.87 s vs 0.95 / 1.31; marker phases checked by controller: down..up runs are clean, the hold itself is longer) — accepted as references. Machine load was very high during recording (load avg 45 over 15 min at 00:54, pairedsyncd/WindowServer/other apps), which slows XCUITest's touch-up delivery; the spec risk "native drifts between sessions" is what Task 9's two-session noise floors absorb, and ruling 6 allows up to 28 ms estimator spread. Sizes match exactly (252.0x88.67 -> 264.0x93.0; 250x44 matches). Cost if wrong: references recorded under load bias Done item 4 timings by a frame; Task 20's results note the load.
+Task 8: spacing topology dark-photo matches ruling 23 exactly (default joins g0/g4 necks 25.33/4.00; spacing 40 joins g0-g20 necks 50.67..2.00).
+Task 8: review approved; Important (plan-mandated) vacuous press-scene test -> Ruling: strengthen the one assertion to pin the six glass heights (F4 allowed it) — a deliberate, ledgered departure from the plan text; cost: none beyond a one-line test diff vs the plan.
+Task 8: review Important items 2-3 (hold durations, materialize times) already covered by the Task 8 load ruling above; no code change.
+Task 8: minor (deferred): spacing test doesn't check container spacing/region geometry
+Task 8: fix round 2/5 (1 addressed, 0 open — press test pins heights [44,54,58,88,120,200]; 138x53's region is 114 pt, region rounding, not a glass error; commits bea4bdb..4140c83)
+Task 8: complete (commits 44d33b0..4140c83, review clean after fix)
+Task 9: dispatched (BASE 4140c831a, sonnet) — run alone, no parallel CPU work, so noise floors are not widened by our own load
+Task 9: implemented 7c67ed4f1 (noise.json only; 2954 insertions, 0 deletions; menu.bar/tabbar.drag kept). Run build/glass_lab/runs/noise-2b1. 5 takes every case, no FAILED, static mad 0.00 everywhere, no crashes. Load avg 13-42 in session 1, 67-161 in session 2.
+Task 9: concern: most materialize noise sits in the prototype's ranges; three entries are outliers: material.materialize light-stripes step1e0 (t10_90 75 ms, rms 0.090), .bouncy dark-photo-reduce-motion step1e0 (t10_90 100 ms, rms 0.116), .bouncy dark-stripes-reduce-motion step1e0 (33 ms, 0.049). Investigating cause before deciding (outlier takes under load would widen those pairs' limits).
+Task 10: dispatched (BASE 7c67ed4f1, implementer a150e756a9c8e0338, sonnet); Task 9 outlier investigation running in parallel (read-only)
+Task 10: complete (commits 7c67ed4..ec16455, review clean; byte-identical)
+Task 10: minor (deferred): no direct tests of offsetBy/restart/copy/restoreFrom/GlassMotionValue (later tasks exercise them), plan-mandated
+Task 10: minor (deferred): precedence test lacks cleared-without-frame and later-call-wins cases, plan-mandated
+Task 10: minor (deferred): GlassAnimation.spring(bounce>=1) gives damping<=0, unvalidated, plan-mandated
+Task 11: dispatched (BASE ec1645539, implementer a62e1c02b23b68802, sonnet)
+Task 9: outliers diagnosed (task-9-outliers.md): all three from take 3 (session 2), a capture artifact — simctl recordVideo missed the event's first frames (68-407 ms hole) then delivered frames 1.7-6.7 ms apart; touch window zero length. Native states equal the other takes. align.py:61 stall check starts at the event's second frame so it misses it. Four-take noise falls back into the prototype range.
+Task 9: Ruling: noise floors must not be widened by capture artifacts (limits are never loosened). Scan every take of noise-2b1 for the artifact (first-changed-frame gap > 30 ms before the event's second frame, or a zero-length touch window where the scene has touch steps); move each flagged take folder to noise-2b1/excluded/ (moved, not deleted), record replacement takes for those cases with `lab.py repeat --into noise-2b1` narrowed to the case (run alone, after Task 11, no parallel CPU work), let repeat recompute noise.json (tool output only), and commit it with the evidence named in the message. The harness gap (stalls skip each event's first gap, so first-frame capture holes go undetected in noise and in runs) goes to todo-2b1 and the final review. Cost if wrong: noise floors that differ from a plain five-take run by the excluded takes; every exclusion is listed with its evidence.
+Task 11: complete (commits ec16455..a9288a0, review clean; byte-identical)
+Task 11: minor (deferred): _resolveVisibility/resolveVisibility pass-through (liquid_glass_render_object.dart:412-417), plan-mandated
+Task 11: minor (deferred): geometry rebuild check uses _effective cache as baseline; null cache after construct/attach misses a geometry-affecting settings change (render_liquid_glass_geometry.dart:95-98) — narrow departure from "no behaviour change". FINAL REVIEW: triage.
+Task 11: minor (deferred): attach clears _effective but does not refresh uniforms; animation moved while detached leaves stale uniforms (liquid_glass_render_object.dart:113-119, geometry :160-167)
+Task 11: minor (deferred): FakeGlass/no-shader path ignores visibility/motion/settingsSource (liquid_glass.dart:198-205) -> todo-2b1
+Task 11: minor (deferred): content slot switches widget type when visibility goes null (liquid_glass.dart:328), may remount child
+Task 11: minor (deferred): thin paint/gather coverage (content translation, blend gather of drawn rect, shadow cap, FadeTransition) — final review to confirm later tasks cover
+Task 12: dispatched (BASE a9288a005, implementer a84a1ea44a731f874, opus — coordinator is the riskiest piece)
+Task 12: implementer hit API weekly limit mid-task (files written, uncommitted, at 'Now gates'); scan agent also stopped. Resuming both on 2026-10-05.
+Task 9: scan not done (rate limit wiped its scratch; rerun too slow at load 216-230: mds_stores Spotlight indexing + dart tests + Claude renderer). Ready scripts in packages/mobile/build/glass_lab/scratch/task9scan (scan.py, report.py; flag = gap >30 ms with >=2 sub-5 ms gaps after; press scenes have ~400 ms pre-event gaps normally). Controller will run scan.py in the background after Task 12, then re-record flagged cases alone. The Mac rebooted since (uptime 21h); caffeinate restarted.
+Task 12: implemented 78df820ba (gates: package +91, example +10, app +2146, harness 171)
+Task 12: complete (commits a9288a0..78df820, review clean; byte-identical)
+Task 12: minor (deferred): every member publishes/notifies every tick while any member animates (glass_motion_coordinator.dart:263-279) -> static glass repaints each frame; M10 perf item for todo-2b1, plan-mandated
+Task 12: minor (deferred): reversing an overshooting appear steps visibility down to 1 (glass_materialize.dart:85), tiny, plan-mandated
+Task 12: minor (deferred): pending ghost with no host keeps ticker running (glass_motion_coordinator.dart:522)
+Task 12: minor (deferred): position compared on every drawn-rect read, not only the first per frame (:171), harmless
+Task 12: verify-later (Task 16): following/scroll-exclusion/structure-window/join(from:)/reattach/drop tests
+Task 13: dispatched (BASE 78df820ba, implementer a26a05fa5b5663c45, sonnet)
+Task 13: review approved; Important (plan-mandated): identity-on-insertion untested. Ruling: keep the plan's test, add one new test that inserts an identity glass and asserts it appears at once (fail-first by flipping the condition locally); no production change — cost: one extra test vs the plan.
+Task 13: minor (deferred): siblings of a removed glass jump (leave(animate:false) skips _structureChanged) until Task 14's ghost path — final review to confirm Task 14 sets it
+Task 13: minor (deferred): list with addRepaintBoundaries:false and addSemanticIndexes:false lets lazily built glass materialize (glass_effect.dart:71-75) — README caveat
+Task 13: minor (deferred): member.scrollables empty in this task; scroll within 2 frames of an insertion springs — confirm Task 15/16 populates scrollables
+Task 13: fix round 1/5 (1 addressed, 0 open — identity insertion test; commits 5f6aeba..9805686)
+Task 13: complete (commits 78df820..9805686, review clean after fix)
+NOTE for later dispatches: package test count is plan's expected +1 from here on (extra identity test).
+Task 14: dispatched (BASE 9805686bf, implementer adfb3f4534f955acd, sonnet)
+Task 9: scan done (240 takes; table task-9-scan.md). Materialize: 4 flagged takes, all session 2 — materialize light-stripes t3, bouncy dark-photo-RM t3, bouncy dark-stripes-RM t3, bouncy light-stripes-RM t4. Press/interactive: burst-after-gap pattern in both sessions (28 flagged, 50 rule-only) — the recorder writes nothing while the screen is still and the press starts on the touch frame, so the pattern is endemic, not a load artifact; re-recording would not remove it.
+Task 9: Ruling: re-record only the 4 flagged materialize takes (move them to noise-2b1/excluded/, add one replacement take per case with a narrowed `repeat --times 1 --into noise-2b1`, after Task 14, alone; back up noise.json and verify only those 4 case entries change). Press/interactive noise stays as recorded: 2B.1 judges no press measure (Done item 2 needs only that floors exist), and 2B.3 builds L4 and must re-examine capture holes in press recordings before judging (todo-2b1). Cost if wrong: press floors carry capture-timing noise into 2B.3 unless it re-measures.
+Task 14: implemented e6204018f (package +108 = plan +1; test patch conflict resolved keeping both)
+Task 14: complete (commits 9805686..e620401, review clean)
+Task 14: minor (deferred): no test for a container removed while a ghost is in flight (dispose path coordinator :531-539 untested) — Review Focus 3 asks for it. FINAL REVIEW: candidate fix.
+Task 14: minor (deferred): _childKey GlobalKey now redundant (glass_effect.dart:38,161)
+Task 14: minor (deferred): GlobalKey move inside a LayoutBuilder after the first container's host laid out may trip a debug mutation assertion (speculative)
+Task 15: waiting for the noise re-record to finish (no parallel CPU work during recording)
+Task 9: re-record done, commit fd30f969d (noise.json only; only the four target cases changed, 117 values). Replacement takes clean (one extra bad attempt excluded as 4-attempt1-bad-capture). Excluded takes and stale pair folders in noise-2b1/excluded/. Machine load 100-300 throughout (Spotlight mds_stores, Claude renderer, sims) — carried to results.
+Task 9: minor (deferred): bouncy dark-stripes-RM take 4 has a 36.7 ms gap + 1 burst frame, below the flag rule; left as recorded.
+Task 15: dispatched (BASE fd30f969d, implementer ab24f248d55aaad0e, sonnet); Task 9 review dispatched (afc9dafb450374b5a)
+Task 9: complete (commits 4140c83..7c67ed4 and fd30f96, review clean). Remaining widest: materialize dark-stripes step3 t10_90 noise 33.3 ms; several at 25.0; ready.rim_rms noise <=0.084 (irrelevant against the 6.0 fixed limit).
+Task 15: complete (commits fd30f96..76bc672, review clean)
+Task 15: minor (deferred): GlassEffect.dispose disposes _material while a ghosted member may still hold member.material until takeGhosts; a resize in that window would notify a disposed notifier (glass_effect.dart:147, coordinator :476-478) — speculative. FINAL REVIEW: triage.
+Task 16: dispatched (BASE 76bc672e3, sonnet)
+Task 16: complete (commits 76bc672..1833be3, review clean)
+Task 16: minor (deferred): no test for a scroll within two frames of an insertion (Task 13 carry-over holds by construction)
+Task 16: minor (deferred): isFollowing assertion at test :437 near-vacuous, plan-mandated
+Task 16: minor (deferred): _scrollables() walks ancestors every build (glass_effect.dart:168)
+Task 16: minor (deferred): _settled() setState opens a one-frame spring window (glass_effect.dart:95-97)
+Task 17: dispatched (BASE 1833be32f, sonnet)
+Task 17: complete (commits 1833be3..9579b73, review clean; byte-identical)
+Task 17: minor (deferred): untested: overlay entry removed when unused; no-Overlay disappears at once; ghost above a modal route; standalone glass removed with parent — plan-mandated test set. FINAL REVIEW: triage.
+Task 17: minor (deferred): standalone glass removed before the ghost layer's first build leaves no ghost; later overlay entries draw above ghosts
+Task 18: dispatched (BASE 9579b731e, sonnet)
+Task 18: complete (commits 9579b73..c7f1c9b, review clean; uniform indices verified: final uOptics.w=13, geometry uFullThickness=103)
+Task 18: minor (deferred): hand-computed base offset 7 in blend_group.dart:233, consistent with :225/:249, plan-mandated
+Task 19: dispatched (BASE c7f1c9b41, sonnet)
+Task 20: Ruling (planning): execute Task 20 in five sequential dispatches over the same steps, each its own review: 20a Steps 1-3 (helpers+tests, commit), 20b Step 4 (fitvis re-fit; controller checks fit.json stop conditions + no null exponent/gain before the table commit), 20c Steps 5-6 (materialize runs, repeats, cold probe), 20d Steps 7-9 (nine still runs + still_check, rim check, ghost probes), 20e Steps 10-12 (results-2b1.md, todo-2b1.md, gates, commit). Reason: hours-long simulator phases are safer to review and resume one at a time — cost: none; the step text is unchanged.
+Task 19: complete (commits c7f1c9b..0adc9a3, review clean; byte-identical)
+Task 19: minor (deferred): a tap during the warm-up can fight its next step (motion_scenes.dart:138-147), plan-mandated
+Task 20a: dispatched (Steps 1-3, BASE 0adc9a334, sonnet)
+Task 20a: implemented 4455a3377 (harness 175 OK); review dispatched. Task 20b: dispatched (Step 4 fitvis, BASE 4455a3377, sonnet, ac158fa19fedcf147)
+Task 20a: complete (commits 0adc9a3..4455a33, review clean; byte-identical)
+Task 20a: minor (deferred): still_check frames_equal no shape guard (:132); NaN prints every row (:176); relative sys.path in probes; still_check passes no noise (stricter than spec's "worse by more than noise") — all plan-mandated
+Task 20b: BLOCKED by two stop conditions (fit build/glass_lab/fitvis/20261005-211745): default take5 exponent 3.65 vs pooled 3.1; bouncy RM gain take3 0.0 / take5 1.24 vs pooled 0.62. Guard passes; no grid edges; default_spring_check pooled 0.58/0.99 pass false (marginal, 5.5% response).
+Task 20b: diagnosis: fitvis groups "takes" by take number across cases. After the Task 9 replacement, take5 exists only in the three replaced cases (materialize light-stripes; bouncy dark-photo-RM, dark-stripes-RM) and take3 lacks them, so those per-take groups are single cases or one appearance (take5 default = light-stripes only, whose curve shape differs by ruling 10; bouncy RM take3 = light cases only, take5 = dark replacements only). The stop conditions fire on case mix, not on a deviant take.
+Task 20b: Ruling: renumber the three replacement takes 5 -> 3 (the slot their excluded takes left; light-stripes-RM's replacement already sits at 4), so every take group again holds all four cases, then rerun fitvis reusing the scan shots (--out the same folder). noise.json is unaffected (computed from all takes regardless of number); dangling pair-*-5 symlinks noted. If a stop condition still holds on balanced groups, it is real: stop and report to the user. Cost if wrong: per-take groups mix the replacement session into take 3; recorded in results.
+Task 20b: round 2 after renumbering: all stop conditions clear; commit 58ab57e0c (ios27_motion.dart only): snappy exponent 2.7->2.65, bouncy exponent 2.75->2.8, bouncy gain 0.34->0.36; default 3.1 INERT; RM gains unchanged (bouncy 0.62); blur ramp 3.0; visibility table unchanged. default_spring_check pooled 0.58/0.99 pass false, per case all false (ruling 10, reported). Package +122.
+Task 20b: review: controller verified the committed file is byte-identical to fitvis.table_source(fit.json) of build/glass_lab/fitvis/20261005-211745 (tool output, 3-line diff). complete (commits 4455a33..58ab57e).
+Task 20c: dispatched (Steps 5-6, BASE 58ab57e0c, sonnet)
+Task 20c: runs normal 20261005-233131, RM 20261005-234750; repeats 20261006-001644 (default light-stripes, 27 ms gap), -002044 (snappy dark-photo, 32/25 ms), -002206 (RM bouncy light-stripes, 30 ms), all stall-free, kept. Progress (repeats substituted): normal 129/168/168, RM 135/168/168 (prototype 112/108; plan expected 120/119). Gates 120/120, unpaired 0. No first-frame lead > 0.2. Cold probe matches prototype (disappear 83 vs 133 ms; appear 300 vs 275). Oddity: RM snappy light-stripes step3 Flutter delay 0 ms. Native capture-hole signature not checked (native first-frame gaps 33-50 ms common) -> results.
+Task 20d: dispatched (Steps 7-9, BASE 58ab57e0c, sonnet); 20c output review dispatched in parallel (read-only)
+Task 20c: review clean (numbers recomputed with done_table's functions: normal 130->129, RM 133->135, gates 120/120). For results-2b1.md: snappy dark-photo repeat kept for being stall-free with one pass fewer (show both 130 and 129); Flutter first-frame gaps >25 ms in 4 pairs are VFR capture gaps (progress criterion clean); RM snappy light-stripes step3 0 ms delay = same-frame start, touch 90 ms press, not mis-owned. Failing by measure (normal/RM w/ repeats): t10_90 4/3, settle 7/3, overshoot 0/0, response 12/13, damping 10/8, rms 0/0, sharpness 6/6. Review notes saved: task-20c-review is the agent's report (in transcript).
+Task 20c: complete (no commits; outputs only)
+Task 20d: runs regular 20261006-003104, clear -004222, tinted -004700, edge -005342, RT -010032, IC -011154, tabbar.rest -012309, button.press -013200, navbar.inline -013445. still_check missing 0 / worse 0 in all nine; byte-identical Flutter frames 20/20, 8/8, 12/12, edge 0/12, 20/20, 20/20, 16/16, 4/4, 12/12. Rim check pass (both runs). Ghosts pass (ghost/20261006-014735, -014805).
+Task 20d: REGRESSION CANDIDATE: material.edge — all 12 Flutter frames differ from 2A (max channel 16-32), zero-mean speckle on the rim of the top-right "Edit" glass pill (~1,300 px), no measure moved. Brief: a changed Flutter frame in a 2A material scene is a regression to find. Investigating (systematic debugging) before 20e.
+Task 20d: edge diagnosis (task-20d-edge-debug.md): 2A edge runs are deterministic (20261002-152214 == -202042); the change is a 0.24 px leftward snap of the "Edit" pill's side rims (pill at fractional x 973.164 px). Cause: a latent fork fault — first composite reports a transform change (_lastTransform null, transform_tracking_repaint_boundary_mixin.dart:91), next paint turns the geometry into a cached image (render_liquid_glass_geometry.dart:244) drawn with nearest sampling at the fractional offset (liquid_glass_render_object.dart:394). 2A escaped because its post-frame material rebuild (88 -> 44) forced a later exact path; 2B.1 resolves the side at layout (glass_motion_coordinator.dart:284), so no later rebuild. Proven on sim: skipping render() matches 2A byte for byte (probe runs 20261006-020852, -021029). Springs, scroll, drawn rect, Task 18 uniforms ruled out.
+Task 20d: Ruling: no code change in 2B.1. Done item 5 passes by the spec's definition (every 2A-passing static measure still passes, none worse: missing 0 / worse 0 in all nine scenes); the edge frames' change is a latent upstream geometry-cache sampling fault (nearest sampling of a cached image at a fractional offset) that 2B.1's correct first-frame material exposed, not a motion regression. The one-line fix (never cache) disables the renderer's geometry cache, which the roadmap decided to keep (decision 2026-09-27) and which M10 measures in 2B.3; the proper fix (draw the matte on the pixel grid / keep the fractional offset) is model work. Recorded in results-2b1.md as a classed finding (b) with the evidence, and carried to todo-2b1.md with both candidate fixes. Cost if wrong: glass at fractional x positions shows its rim up to ~0.24 px off until fixed (no measure moves).
+Task 20d: complete (no commits; outputs only). Review: the 20d outputs are cross-checked by the edge investigation and are re-audited by the main session's measurement audit; still_check outputs saved per scene.
+Task 20e: dispatched (Steps 10-12, sonnet->opus for the write-up)
+Task 20e: implemented 1ec67aa7b (results-2b1.md, todo-2b1.md). Gates: app +2146, package +122, example +13 (analyze clean x3), harness 175 OK, ReduceMotion 0. Done: 1 pass (250x44 not reproduced, ruling 2); 2 pass (15 scenes, 60 cases); 3 pass; 4 partly failing (129/168 normal, 135/168 RM w/ repeats; gates 120/120; 72 failures classed 69 (b), 3 (a)); 5 pass (missing 0/worse 0 x9, 112/124 frames byte-identical, 12 edge frames 0.24 px snap); 6 pass. Notes: still measures move by <=0.0008 at full precision (no verdict change); 24 flagged press/interactive takes per task-9-scan.md (ledger said 28 — the table is authoritative).
+Task 20e: Ruling: evidence files cited from the git-ignored workspace get committed to docs/liquid_glass/02b-motion/research/execution-2b1/ (incl. the ledger) and the citations repointed — the workspace is deleted at finish. Fix round 1 in progress.

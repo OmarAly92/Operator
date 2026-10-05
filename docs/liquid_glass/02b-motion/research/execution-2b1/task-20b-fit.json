@@ -1,0 +1,527 @@
+{
+  "roots": [
+    "build/glass_lab/runs/20261004-000223",
+    "build/glass_lab/runs/20261004-001040",
+    "build/glass_lab/runs/noise-2b1"
+  ],
+  "mapping": {
+    "material.materialize": {
+      "spring": [
+        0.55,
+        1.0
+      ],
+      "exponent": {
+        "value": 3.1,
+        "rms": 0.03046116581811174,
+        "at_grid_edge": false,
+        "curves": 24,
+        "excluded": []
+      },
+      "gain": {
+        "value": 0.0,
+        "identifiable": false,
+        "from": "the spring does not overshoot, so no gain can be measured and none is used"
+      },
+      "reduce_motion_gain": {
+        "value": 0.0,
+        "identifiable": false,
+        "from": "the spring does not overshoot, so no gain can be measured and none is used"
+      },
+      "exponent_spread": {
+        "min": 3.1,
+        "max": 3.2,
+        "std": 0.038,
+        "per_take": {
+          "20261004-000223": 3.1,
+          "noise-2b1/take0": 3.1,
+          "noise-2b1/take1": 3.1,
+          "noise-2b1/take2": 3.15,
+          "noise-2b1/take3": 3.1,
+          "noise-2b1/take4": 3.2
+        }
+      },
+      "gain_spread": null,
+      "reduce_motion_gain_spread": null,
+      "cases": [
+        "dark-photo",
+        "dark-stripes",
+        "light-photo",
+        "light-stripes"
+      ],
+      "reduce_motion_cases": [
+        "dark-photo-reduce-motion",
+        "dark-stripes-reduce-motion",
+        "light-photo-reduce-motion",
+        "light-stripes-reduce-motion"
+      ],
+      "takes": [
+        "20261004-000223",
+        "noise-2b1/take0",
+        "noise-2b1/take1",
+        "noise-2b1/take2",
+        "noise-2b1/take3",
+        "noise-2b1/take4"
+      ]
+    },
+    "material.materialize.snappy": {
+      "spring": [
+        0.5,
+        0.85
+      ],
+      "exponent": {
+        "value": 2.65,
+        "rms": 0.029729996186798485,
+        "at_grid_edge": false,
+        "curves": 24,
+        "excluded": []
+      },
+      "gain": {
+        "value": 0.0,
+        "rms": 0.02643357405623564,
+        "at_grid_edge": false,
+        "at_floor": true,
+        "curves": 24,
+        "excluded": []
+      },
+      "reduce_motion_gain": {
+        "value": 0.0,
+        "rms": 0.0259002575637467,
+        "at_grid_edge": false,
+        "at_floor": true,
+        "curves": 24,
+        "excluded": []
+      },
+      "exponent_spread": {
+        "min": 2.65,
+        "max": 2.75,
+        "std": 0.041,
+        "per_take": {
+          "20261004-000223": 2.75,
+          "noise-2b1/take0": 2.65,
+          "noise-2b1/take1": 2.7,
+          "noise-2b1/take2": 2.65,
+          "noise-2b1/take3": 2.7,
+          "noise-2b1/take4": 2.75
+        }
+      },
+      "gain_spread": {
+        "min": 0.0,
+        "max": 0.0,
+        "std": 0.0,
+        "per_take": {
+          "20261004-000223": 0.0,
+          "noise-2b1/take0": 0.0,
+          "noise-2b1/take1": 0.0,
+          "noise-2b1/take2": 0.0,
+          "noise-2b1/take3": 0.0,
+          "noise-2b1/take4": 0.0
+        }
+      },
+      "reduce_motion_gain_spread": {
+        "min": 0.0,
+        "max": 0.0,
+        "std": 0.0,
+        "per_take": {
+          "20261004-001040": 0.0,
+          "noise-2b1/take0": 0.0,
+          "noise-2b1/take1": 0.0,
+          "noise-2b1/take2": 0.0,
+          "noise-2b1/take3": 0.0,
+          "noise-2b1/take4": 0.0
+        }
+      },
+      "cases": [
+        "dark-photo",
+        "dark-stripes",
+        "light-photo",
+        "light-stripes"
+      ],
+      "reduce_motion_cases": [
+        "dark-photo-reduce-motion",
+        "dark-stripes-reduce-motion",
+        "light-photo-reduce-motion",
+        "light-stripes-reduce-motion"
+      ],
+      "takes": [
+        "20261004-000223",
+        "noise-2b1/take0",
+        "noise-2b1/take1",
+        "noise-2b1/take2",
+        "noise-2b1/take3",
+        "noise-2b1/take4"
+      ]
+    },
+    "material.materialize.bouncy": {
+      "spring": [
+        0.5,
+        0.7
+      ],
+      "exponent": {
+        "value": 2.8,
+        "rms": 0.029426076311301008,
+        "at_grid_edge": false,
+        "curves": 23,
+        "excluded": [
+          {
+            "take": "noise-2b1/take0",
+            "case": "dark-stripes",
+            "rms": 0.4672
+          }
+        ]
+      },
+      "gain": {
+        "value": 0.36,
+        "rms": 0.03526453157871731,
+        "at_grid_edge": false,
+        "at_floor": false,
+        "curves": 24,
+        "excluded": []
+      },
+      "reduce_motion_gain": {
+        "value": 0.62,
+        "rms": 0.03580204533438774,
+        "at_grid_edge": false,
+        "at_floor": false,
+        "curves": 24,
+        "excluded": []
+      },
+      "exponent_spread": {
+        "min": 2.7,
+        "max": 2.95,
+        "std": 0.079,
+        "per_take": {
+          "20261004-000223": 2.8,
+          "noise-2b1/take0": 2.95,
+          "noise-2b1/take1": 2.75,
+          "noise-2b1/take2": 2.8,
+          "noise-2b1/take3": 2.7,
+          "noise-2b1/take4": 2.85
+        }
+      },
+      "gain_spread": {
+        "min": 0.32,
+        "max": 0.42,
+        "std": 0.031,
+        "per_take": {
+          "20261004-000223": 0.36,
+          "noise-2b1/take0": 0.42,
+          "noise-2b1/take1": 0.34,
+          "noise-2b1/take2": 0.36,
+          "noise-2b1/take3": 0.34,
+          "noise-2b1/take4": 0.32
+        }
+      },
+      "reduce_motion_gain_spread": {
+        "min": 0.58,
+        "max": 0.64,
+        "std": 0.028,
+        "per_take": {
+          "20261004-001040": 0.64,
+          "noise-2b1/take0": 0.64,
+          "noise-2b1/take1": 0.64,
+          "noise-2b1/take2": 0.64,
+          "noise-2b1/take3": 0.58,
+          "noise-2b1/take4": 0.58
+        }
+      },
+      "cases": [
+        "dark-photo",
+        "dark-stripes",
+        "light-photo",
+        "light-stripes"
+      ],
+      "reduce_motion_cases": [
+        "dark-photo-reduce-motion",
+        "dark-stripes-reduce-motion",
+        "light-photo-reduce-motion",
+        "light-stripes-reduce-motion"
+      ],
+      "takes": [
+        "20261004-000223",
+        "noise-2b1/take0",
+        "noise-2b1/take1",
+        "noise-2b1/take2",
+        "noise-2b1/take3",
+        "noise-2b1/take4"
+      ]
+    }
+  },
+  "default_spring_check": {
+    "swiftui": [
+      0.55,
+      1.0
+    ],
+    "all": {
+      "response": 0.58,
+      "damping": 0.99,
+      "rms": 0.02846219700191651,
+      "at_grid_edge": false,
+      "pass": false
+    },
+    "cases": {
+      "dark-photo": {
+        "response": 0.59,
+        "damping": 0.98,
+        "rms": 0.008039964553274591,
+        "at_grid_edge": false,
+        "pass": false
+      },
+      "dark-stripes": {
+        "response": 0.71,
+        "damping": 0.8,
+        "rms": 0.041474016859346825,
+        "at_grid_edge": false,
+        "pass": false
+      },
+      "light-photo": {
+        "response": 0.5,
+        "damping": 1.14,
+        "rms": 0.016859918881012643,
+        "at_grid_edge": false,
+        "pass": false
+      },
+      "light-stripes": {
+        "response": 0.44,
+        "damping": 1.3,
+        "rms": 0.024777028714272824,
+        "at_grid_edge": false,
+        "pass": false
+      }
+    },
+    "pass": false
+  },
+  "blur_ramp": {
+    "value": 3.0,
+    "errors": {
+      "1.0": 1.1380325827348405,
+      "2.0": 0.916583744316147,
+      "3.0": 0.839834962679416,
+      "4.0": 0.9682676805491718
+    },
+    "at_grid_edge": false
+  },
+  "native_sharpness": {
+    "dark-photo": {
+      "0.25": -1.473,
+      "0.5": -1.065,
+      "0.75": -0.454
+    },
+    "dark-stripes": {
+      "0.25": -0.035,
+      "0.5": 0.03,
+      "0.75": 0.1
+    },
+    "light-photo": {
+      "0.25": -1.992,
+      "0.5": -1.482,
+      "0.75": -0.634
+    },
+    "light-stripes": {
+      "0.25": -0.08,
+      "0.5": -0.03,
+      "0.75": 0.06
+    }
+  },
+  "flutter_sharpness": {
+    "1.0": {
+      "dark-photo": {
+        "0.25": -3.883,
+        "0.5": -2.689,
+        "0.75": -1.264
+      },
+      "dark-stripes": {
+        "0.25": -0.423,
+        "0.5": -0.309,
+        "0.75": -0.154
+      },
+      "light-photo": {
+        "0.25": -3.987,
+        "0.5": -2.71,
+        "0.75": -1.264
+      },
+      "light-stripes": {
+        "0.25": -0.426,
+        "0.5": -0.29,
+        "0.75": -0.146
+      }
+    },
+    "2.0": {
+      "dark-photo": {
+        "0.25": -3.594,
+        "0.5": -2.634,
+        "0.75": -1.262
+      },
+      "dark-stripes": {
+        "0.25": -0.269,
+        "0.5": -0.319,
+        "0.75": -0.184
+      },
+      "light-photo": {
+        "0.25": -2.561,
+        "0.5": -2.623,
+        "0.75": -1.274
+      },
+      "light-stripes": {
+        "0.25": -0.247,
+        "0.5": -0.333,
+        "0.75": -0.183
+      }
+    },
+    "3.0": {
+      "dark-photo": {
+        "0.25": -2.775,
+        "0.5": -2.614,
+        "0.75": -1.289
+      },
+      "dark-stripes": {
+        "0.25": -0.118,
+        "0.5": -0.3,
+        "0.75": -0.197
+      },
+      "light-photo": {
+        "0.25": -0.52,
+        "0.5": -2.357,
+        "0.75": -1.263
+      },
+      "light-stripes": {
+        "0.25": -0.075,
+        "0.5": -0.305,
+        "0.75": -0.199
+      }
+    },
+    "4.0": {
+      "dark-photo": {
+        "0.25": -2.275,
+        "0.5": -2.533,
+        "0.75": -1.31
+      },
+      "dark-stripes": {
+        "0.25": -0.019,
+        "0.5": -0.251,
+        "0.75": -0.21
+      },
+      "light-photo": {
+        "0.25": 0.637,
+        "0.5": -1.863,
+        "0.75": -1.244
+      },
+      "light-stripes": {
+        "0.25": 0.003,
+        "0.5": -0.238,
+        "0.75": -0.197
+      }
+    }
+  },
+  "flutter_sharpness_table": {
+    "dark-photo": {
+      "0.25": -3.01,
+      "0.5": -2.611,
+      "0.75": -1.268
+    },
+    "dark-stripes": {
+      "0.25": -0.104,
+      "0.5": -0.312,
+      "0.75": -0.201
+    },
+    "light-photo": {
+      "0.25": -0.325,
+      "0.5": -2.369,
+      "0.75": -1.267
+    },
+    "light-stripes": {
+      "0.25": -0.053,
+      "0.5": -0.308,
+      "0.75": -0.202
+    }
+  },
+  "flutter_progress": {
+    "dark-photo": {
+      "0.0": 0.0,
+      "0.1": 0.0471,
+      "0.2": 0.0934,
+      "0.3": 0.1474,
+      "0.4": 0.2164,
+      "0.5": 0.3124,
+      "0.6": 0.438,
+      "0.7": 0.5668,
+      "0.8": 0.713,
+      "0.9": 0.8699,
+      "1.0": 1.0
+    },
+    "dark-stripes": {
+      "0.0": 0.0,
+      "0.1": 0.0794,
+      "0.2": 0.1638,
+      "0.3": 0.2514,
+      "0.4": 0.3407,
+      "0.5": 0.4411,
+      "0.6": 0.5514,
+      "0.7": 0.6588,
+      "0.8": 0.7724,
+      "0.9": 0.8907,
+      "1.0": 1.0
+    },
+    "light-photo": {
+      "0.0": 0.0,
+      "0.1": 0.0904,
+      "0.2": 0.182,
+      "0.3": 0.2736,
+      "0.4": 0.3685,
+      "0.5": 0.4655,
+      "0.6": 0.5677,
+      "0.7": 0.6745,
+      "0.8": 0.7809,
+      "0.9": 0.8893,
+      "1.0": 1.0
+    },
+    "light-stripes": {
+      "0.0": 0.0,
+      "0.1": 0.0904,
+      "0.2": 0.18,
+      "0.3": 0.2759,
+      "0.4": 0.3745,
+      "0.5": 0.4704,
+      "0.6": 0.5723,
+      "0.7": 0.6786,
+      "0.8": 0.7812,
+      "0.9": 0.8883,
+      "1.0": 1.0
+    }
+  },
+  "flutter_progress_mean": [
+    0.0,
+    0.0768,
+    0.1548,
+    0.2371,
+    0.325,
+    0.4223,
+    0.5323,
+    0.6447,
+    0.7619,
+    0.8846,
+    1.0
+  ],
+  "visibility_for_progress": [
+    0.0,
+    0.0651,
+    0.1297,
+    0.1939,
+    0.2549,
+    0.3147,
+    0.3716,
+    0.4257,
+    0.477,
+    0.5251,
+    0.5706,
+    0.6157,
+    0.6602,
+    0.7045,
+    0.7472,
+    0.7899,
+    0.8311,
+    0.8718,
+    0.9134,
+    0.9567,
+    1.0
+  ]
+}

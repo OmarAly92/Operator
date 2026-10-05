@@ -1,0 +1,24 @@
+touch (17.581667, 17.655), 22 frames from release - 50 ms to + 350 ms
++0.000 s  mean difference from ready   2.29
++0.015 s  mean difference from ready   2.93
++0.033 s  mean difference from ready   5.04
++0.050 s  mean difference from ready   7.80
++0.065 s  mean difference from ready  10.09
++0.085 s  mean difference from ready  11.90
++0.098 s  mean difference from ready  13.30
++0.118 s  mean difference from ready  14.34
++0.133 s  mean difference from ready  15.25
++0.148 s  mean difference from ready  15.71
++0.168 s  mean difference from ready  16.08
++0.183 s  mean difference from ready  16.39
++0.202 s  mean difference from ready  16.58
++0.218 s  mean difference from ready  16.78
++0.235 s  mean difference from ready  16.75
++0.250 s  mean difference from ready  16.89
++0.268 s  mean difference from ready  16.93
++0.285 s  mean difference from ready  16.93
++0.300 s  mean difference from ready  16.93
++0.315 s  mean difference from ready  16.93
++0.333 s  mean difference from ready  16.94
++0.350 s  mean difference from ready  16.95
+/Users/omaraly/development/AI/Operator-2b1/packages/mobile/build/glass_lab/ghost/20261006-014735/removal.png
