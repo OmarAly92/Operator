@@ -230,6 +230,9 @@ class RenderLiquidGlassBlendGroup extends RenderLiquidGlassGeometry
         blend * devicePixelRatio,
       ]);
     });
+    geometryShader.setFloatUniforms(initialIndex: 7 + LiquidGlassBlendGroup.maxShapesPerLayer * 6, (value) {
+      value.setFloat(settings.thickness * devicePixelRatio);
+    });
   }
 
   @override

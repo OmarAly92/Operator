@@ -140,7 +140,7 @@ abstract class LiquidGlassRenderObject extends RenderProxyBox {
           settings.effectiveThickness * devicePixelRatio,
           settings.effectiveChromaticAberration,
           settings.effectiveSaturation,
-          0,
+          settings.thickness * devicePixelRatio,
           settings.effectiveToneBlack,
           settings.effectiveToneMid,
           settings.effectiveToneWhite,

@@ -44,7 +44,8 @@ void main() {
     }
 
     float thickness = max(uOptics.x, 0.001);
-    float signedDistance = decodeSignedDistance(geometryData, signedDistanceReach(thickness, uOutline.z));
+    float fullThickness = max(uOptics.w, thickness);
+    float signedDistance = decodeSignedDistance(geometryData, signedDistanceReach(fullThickness, uOutline.z));
     vec2 displacement = decodeDisplacement(geometryData, thickness * 10.0);
     vec2 normal = length(displacement) > 0.0001 ? normalize(displacement) : vec2(0.0);
 
@@ -57,8 +58,8 @@ void main() {
         return;
     }
 
-    float edgeDistance = clamp(-signedDistance, 0.0, thickness);
-    float rise = 1.0 - edgeDistance / thickness;
+    float bevelDistance = clamp(-signedDistance, 0.0, thickness);
+    float rise = 1.0 - bevelDistance / thickness;
     float heightNorm = sqrt(max(0.0, 1.0 - rise * rise));
     float bevel = 1.0 - heightNorm;
 
@@ -81,7 +82,8 @@ void main() {
 
     float power = max(uLight.z, 0.001);
     float lobes = pow(max(0.0, dot(normal, uLightDirection)), power) + uLight.w * pow(max(0.0, dot(normal, -uLightDirection)), power);
-    float fade = 1.0 - smoothstep(0.7 * thickness, thickness, edgeDistance);
+    float edgeDistance = clamp(-signedDistance, 0.0, fullThickness);
+    float fade = 1.0 - smoothstep(0.7 * fullThickness, fullThickness, edgeDistance);
     float line = uLight.x * exp(-edgeDistance / max(uLight.y, 0.001));
     float sheen = uTintSheen.z * exp(-edgeDistance / max(uTintSheen.w, 0.001));
     color = clamp(color + vec3(lobes * fade * (line + sheen)), 0.0, 1.0);
