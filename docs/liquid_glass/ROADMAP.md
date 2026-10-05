@@ -1,6 +1,6 @@
 # ios_liquid_glass: master roadmap
 
-Last updated: 2026-10-02. Owner: Omar Aly (the user). This is the single source of truth for the whole Liquid Glass effort. Every other document in `docs/liquid_glass/` hangs off it.
+Last updated: 2026-10-06. Owner: Omar Aly (the user). This is the single source of truth for the whole Liquid Glass effort. Every other document in `docs/liquid_glass/` hangs off it.
 
 **Status at a glance**
 
@@ -9,7 +9,7 @@ Last updated: 2026-10-02. Owner: Omar Aly (the user). This is the single source 
 | 1 | Reference lab (measuring instrument) | **DONE**, merged to `development` (`7f74f5a0b`), not pushed |
 | 2A | Package foundation + how glass looks | **DONE**, merged to `development` on 2026-10-02 (2A, 2A.1 and the review fix wave). Done item 3 passes 10 of 20 cases, item 4 5 of 6, item 5 17 of 20, item 6 22 of 32 measures, item 8 passes. Results: `docs/liquid_glass/02a-looks/results-2a1.md`. |
 | 2A.2 | Static-look polish (shader residuals) | TODO, not planned: `docs/liquid_glass/02a-looks/todo-2a2.md` |
-| 2B | How glass moves | **SPEC APPROVED** (2026-10-03); the 2B.1 plan is being written (`02b-motion/plan-2b1.md`). Spec `02b-motion/spec.md`; every decision is in `02b-motion/brainstorm.md`; native interactive spike in `02b-motion/spike-interactive.md`; research brief `02b-motion/context.md`. Three plans (2B.1–2B.3) follow, one at a time. |
+| 2B | How glass moves | **2B.1 EXECUTED** on `feat/ios-liquid-glass-2b1`, awaiting review: the lab measures motion per shape, the native references N1, N2, N5, N7 and the materialize Reduce Motion runs are recorded with noise floors, and the package has its coordinator with materialize. Results: `02b-motion/results-2b1.md`. Plan `02b-motion/plan-2b1.md`; spec `02b-motion/spec.md`. Done item 4 passes 129 of 168 progress measures in normal mode and 135 of 168 under Reduce Motion (event and touch gates 120 of 120); item 5 passes with `worse` 0 and `missing` 0 in all nine scenes. The 72 residual failures are in `02b-motion/todo-2b1.md`. 2B.2 (merge, union, morph) is planned after 2B.1 merges. |
 | 3 | Every iOS component inside the package | NOT STARTED |
 | 4 | Operator adopts the package | NOT STARTED |
 | 5 | Real-device verification pass | NOT STARTED |
@@ -140,10 +140,10 @@ Repository: `/Users/omaraly/development/AI/Operator`. Default branch `developmen
 
   Each case takes about 36 s. A driver failure no longer stalls for 600 s, because the harness passes `-collect-test-diagnostics never`.
 - **Gates:**
-  - App, from `packages/mobile`: `flutter analyze` must print "No issues found!", and `flutter test` must be green (**2,146** tests after the 2A.1 review fix wave);
-  - Package, from `packages/mobile/packages/ios_liquid_glass`: `flutter analyze`, `flutter test` (**67** tests after the 2A.1 review fix wave);
-  - Example, from `packages/mobile/packages/ios_liquid_glass/example`: `flutter analyze`, `flutter test` (**8** tests after the 2A.1 review fix wave);
-  - `python3 -m unittest discover tool/glass_lab/harness/tests` must print OK (**104** tests after the 2A.1 review fix wave).
+  - App, from `packages/mobile`: `flutter analyze` must print "No issues found!", and `flutter test` must be green (**2,146** tests after 2B.1);
+  - Package, from `packages/mobile/packages/ios_liquid_glass`: `flutter analyze`, `flutter test` (**122** tests after 2B.1);
+  - Example, from `packages/mobile/packages/ios_liquid_glass/example`: `flutter analyze`, `flutter test` (**13** tests after 2B.1);
+  - `python3 -m unittest discover tool/glass_lab/harness/tests` must print OK (**175** tests after 2B.1).
 
 ---
 
@@ -158,10 +158,10 @@ Repository: `/Users/omaraly/development/AI/Operator`. Default branch `developmen
 7. **XCUITest touch timing jitters.** Motion limits are max(fixed threshold, 1.5 × native-vs-native noise). Still images are exact (0.00 between native takes).
 8. **Glass box matching.** Faint glass (dark glass on black, white on white) shows only its contents. The harness therefore matches Flutter's shapes to the native element they overlap, and widens native to its parts, never to a full-screen dim layer. This fix is commit `caf1991ab`. Before it, the baseline reported fake 130–300 pt placement errors.
 9. **Spring fits must use each app's full event.** Fits on lag-trimmed curves moved with the alignment (fixed in `caf1991ab`).
-10. **Native `.glassEffect(.regular.interactive())` shows no visible press reaction** to XCUITest touches on the iOS 27 simulator. Six variants were tried and the touches do arrive. `.buttonStyle(.glass)` does react.
+10. **Native `.glassEffect(.regular.interactive())` reacts to presses on the iOS 27 simulator only when the glass holds rendered content that the touch hits** (a `Text`, a `Button` label, or `Color.white.opacity(0.001)`). With only `Color.clear` inside, the touch hits nothing in the effect and UIKit's `_UIFlexInteractionPanGestureRecognizer` never joins it, so nothing reacts; that was the old `material.interactive` (`02b-motion/spike-interactive.md`, 58 launches, XCUITest and HID touches alike). Since 2B.1 `material.interactive` holds v13's `Color.white.opacity(0.001)` and reacts: 252.0 × 88.67 → 264.0 × 93.33 pt on `dark-stripes`. `.buttonStyle(.glass)` and interactive `.glassEffect` press identically at the same size.
 11. **On iOS 27 the search tab sits inside the tab bar capsule** as a fourth item; on 26.5 it was a separate circle. The native tab bar measures x 20, y 791, 362 × 62 pt.
 12. **Flutter's `find.bySemanticsIdentifier` needs `tester.ensureSemantics()`.** Flutter semantics identifiers and labels do reach XCUITest.
-13. **Color.clear in SwiftUI is not hit-testable** unless it has a content shape. This did not explain gotcha 10.
+13. **Color.clear in SwiftUI is not hit-testable** unless it has a content shape, but a content shape (or a SwiftUI gesture) does not make interactive glass react: only rendered content does (spike v12, v14, v2, v9; gotcha 10).
 14. **A scroll view whose content is an `Image.file` has no height at first layout**, so `ScrollController(initialScrollOffset:)` clamps to 0. Jump to the offset after the image's first frame (2A prototype, edge scenes).
 15. **Accessibility changes reach a running app live on the simulator:**
     - `defaults write com.apple.Accessibility EnhancedBackgroundContrastEnabled` (Reduce Transparency) and `ReduceMotionEnabled`;
@@ -186,6 +186,20 @@ Repository: `/Users/omaraly/development/AI/Operator`. Default branch `developmen
 32. **Never `ceil()` a pixel-snapped extent.** Floating point makes 760 px into 760.0000000000001 and the geometry image one pixel too big, which drops the last lit column and row of glass at fractional positions (2A.1, `toPixelCount`).
 33. **A `saveLayer` per shadow is expensive under Impeller.** Thirteen offset shadows cut out with `saveLayer` + `dstOut` measured 14.72 ms raster median on the simulator against 12.62 ms with shadows off (2.1 ms); a difference clip measured 13.04 ms (0.4 ms) (2A.1 prototype: 14.72 ms is the prototype's own `Operator-2a1-proto/packages/mobile/build/glass_lab/perf-2a1.json` and 13.04 ms its `perf-2a1b.json`, neither the same file as this branch's `perf-2a1.json`; 12.62 ms is from the prototype's shadows-off probe, recorded in `PROTOTYPE-2A1.md` and `plan-2a1.md` header ruling 16, because its `perf_variants.py` is not on disk).
 34. **Native tone points can be read off native captures alone** (`lab.py tonefit`). Tune tone on all five backdrops, never on three: 2A's light rows missed `photo` by 20–35 luma (2A.1).
+35. **H.264 rings at every backdrop edge in every video frame** (1–3 px lines of up to 87 levels at the stripe boundaries x = 67, 201 and 335 pt). A glass box found against the bare screenshot with a fixed threshold therefore spans the whole region on `stripes`; `track.py` raises the threshold by the backdrop's own edge strength (2B.1 ruling 1). The cost is a blind band: within ±2 px (±0.67 pt) of a backdrop edge stronger than about 20 levels a dim rim can be hidden (v18's left rim sat under a threshold of 92), so the tracker flags box edges in that band (`edge_in_band`); fit size laws on `photo`.
+36. **The overview window let the app's teardown frame into every capture**, as a final one-frame "event" (the old `tabbar.drag` `event2` noise). Nothing after the last frame that matches `settled.png` is analysed now (2B.1).
+37. **A removed widget's render objects are detached before `State.deactivate`, but a `RepaintBoundary`'s layer lives until `finalizeTree`**, so `deactivate` can still snapshot the content's last painted frame with `toImageSync`. A `LayoutBuilder` is the one element that may be marked dirty during build (it rebuilds in layout), which is how the removal ghost appears in the removal frame (2B.1 ruling 15).
+38. **The debug JIT stalls the first frame that runs new code.** The first ghost or appearing-glass frame of a launch dropped a frame (a 28–33 ms gap), after which Flutter's first changed frame sat at progress 0.735 against native's 0.963 (prototype run `20261003-042321`). `align.stalls` skips each event's first gap, so it cannot see this; `done_table.py` compares each app's first changed frame instead. The example's materialize scenes run their transition once, quickly, before they are measured, and `cold_probe.py` records the cold first transition for project 5.
+39. **`flutter test` has no shader image filter**, so every `LiquidGlassLayer` in a widget test draws `FakeGlass` and no `RenderLiquidGlass` exists. Test render-level glass code by constructing its render objects; the geometry shader cannot be compiled by `flutter test`'s SkSL backend at all (gotcha 3).
+40. **Native materialize under Reduce Motion keeps its timing and its blur**; it drops the edge spread that makes the native glass box grow up to 7 pt taller mid-transition, and `.bouncy` overshoots more (2.8–3.8% against 1.4–2.5%), so the package fits a Reduce Motion appear gain per preset (2B.1 rulings 11, 12 and 13).
+41. **Flutter has no hook between layout and paint, and a ticker runs before layout.** A drawn rect kept as absolute springs and compared in a paint method goes stale when its glass is only re-composited (a `ListView` item's `RepaintBoundary` on scroll). 2B.1 anchors each drawn rect to the live layout and adds offset springs, compares a size at layout and a position at the first read in a frame, and animates only after a rebuild, a structure change or a transaction (ruling 26).
+42. **An `Overlay` cannot take a new entry during build** (it is an ancestor; `setState` would assert), so standalone glass's ghost host is an `OverlayEntry` inserted after the frame in which the first standalone glass is built, not when one is removed (ruling 27).
+43. **`lab.py repeat --into` needs an absolute path.** The driver resolves a relative output path against `/` (`The file “ready.png” doesn't exist` in `bare/driver.log`).
+44. **`State.deactivate` runs in the build phase; read no render transform there.** An ancestor can be a fresh render object not yet laid out (a route's `FractionalTranslation` in the first frame), and `getTransformTo` through it asserts, replacing the screen with Flutter's error until the next rebuild. A warm-up transition hides it; `cold_probe.py` found it (2B.1 ruling 31).
+45. **`align.extent` returns one box around every changed tile, so anything else that changes on screen joins it.** The touch marker's colour changes stretched `button.press`'s still region from the glass to the bottom-left corner and moved its measures on an unchanged Flutter frame; `extent` now takes `ignore=` and the analysis passes the marker.
+46. **A move rule keyed on rebuilds makes app-driven motion lag.** Most `GlassEffect`s are rebuilt on every frame of a `setState` drag or an `AnimatedBuilder`, so "animate a change that follows a rebuild" sprang every frame's step and the glass trailed its layout by up to 130 pt. 2B.1 follows a glass whose layout changes on consecutive frames and animates only a single change (ruling 32); the first frame of a motion still holds, because it cannot be told from a single change.
+47. **`simctl io recordVideo` can drop the frames at the start of an animation and flush the rest in a burst.** Three of the 60 noise takes (all take 3, session 2) showed a first-frame gap of 68–407 ms and then frames 1.7–6.7 ms apart; the animation's states matched the other takes' exactly, only their timestamps were squeezed, so a 125 ms 10–90% time read 50, 8.3 and 66.7 ms. `align.stalls` does not see it (it starts counting at the event's second frame) and the touch window comes out zero-length. Such takes were excluded and replaced (`02b-motion/research/execution-2b1/task-9-outliers.md`).
+48. **The geometry cache rasterises the matte on the glass's local pixel grid and draws it with nearest sampling, so glass at a fractional x shows its rim up to 0.5 px off.** Which path a frame ends on depends on whether a rebuild follows the first composite's transform event: `material.edge`'s pill (x = 973.164 px) moved left 0.24 px (`-0.245`/`-0.235` least-squares shift, 12 frames) when 2B.1 resolved material during layout and dropped 2A's later forced rebuild. Whole-point scenes are unchanged. Keeping the geometry as a Picture (`render_liquid_glass_geometry.dart:244`) restored 2A byte for byte in a probe (not shipped, perf unmeasured); `02b-motion/research/execution-2b1/task-20d-edge-debug.md`.
 
 ---
 
@@ -376,22 +390,24 @@ Done cases still failing, with their cause class from `results-2a1.md`. Classes:
   - Operator's stamped sources omit its path-dependency packages `packages/xterm` and `speech_to_text` (`tool/glass_lab/harness/build.py`, `SOURCES`).
 
 
-### Project 2B: How glass moves (SPEC APPROVED 2026-10-03: `02b-motion/spec.md`; 2B.1 plan in progress)
-- **Read first:** `docs/liquid_glass/02b-motion/brainstorm.md`. It holds where the brainstorm stands, the question queue with my recommendation for each, the approaches and Done criteria I intend to propose, and the process. Then `02b-motion/context.md`, the research brief cited by file:line and run folder. The analysis scripts are in `02b-motion/research/`.
-- **Pending:** question 1, the press-response reference: A, B or C (recommendation A).
-- **Scope:**
-  - interactive press response: scale up, bounce, glow spreading to neighbouring glass in the same container, drag stretch;
-  - materialize and dematerialize, by ramping lensing, blur and highlight rather than alpha;
-  - shape merging with container spacing, union, identity morph (`glassEffectID` equivalent);
-  - re-tuned springs for any glass the package owns;
-  - Reduce Motion (no elasticity; fades instead of blur ramps).
-- **Measured native data to start from** (`noise.json`, baseline):
-  - menu open width spring response about 0.26–0.30 s, damping 0.74–0.81 (fit error about 0.03);
-  - tab bar drag width response about 0.27–0.34 s, damping about 0.37–0.40.
-  - Native materialize and dematerialize are about 250 ms and 350 ms in a third-party 120 fps capture (research/apple-inventory §2.13). **The lab's own native scene measures the reverse**: appear about 285–320 ms, disappear about 117–167 ms (10–90%), per `02b-motion/context.md` §1.
-  - Native glass button press (`button.press`, `.buttonStyle(.glass)`): width grows about +16–17 pt, a fixed outset; the release spring has response 0.18–0.34 s and damping 0.61–0.91. Native `material.interactive` has 0 events in every case.
-- **Lab scenes:** `material.interactive` (see the pending decision), `material.materialize`, `material.merge`, `material.union`, `material.morph`, `tabbar.press`, `tabbar.drag`, `button.press`.
-- **Next:** continue the brainstorm in `02b-motion/brainstorm.md` (question 1 is pending), then write `02b-motion/spec.md`.
+### Project 2B: How glass moves (2B.1 executed, awaiting review; spec `02b-motion/spec.md`)
+
+#### 2B.1: the instrument and the first motion
+- **Plan:** `02b-motion/plan-2b1.md` (21 tasks; 33 rulings in its header, each with prototype evidence; written, reviewed and fixed twice before execution). Prototype: worktree `/Users/omaraly/development/AI/Operator-2b1-proto`, branch `proto/2b1` (throwaway, never merged).
+- **Branch:** `feat/ios-liquid-glass-2b1`. **Results:** `02b-motion/results-2b1.md` (the spec §8 2B.1 Done table, with run folders; still glass against 2A, Operator's scenes included; failures classed by cause; delays, stalls and the cold first transition reported). **To do:** `02b-motion/todo-2b1.md`.
+- **Lab:** `track.py` (per-shape boxes against the bare frame with an edge-aware threshold and a flagged blind band; progress, residual and sharpness; topology), `touch.py` (marker), `shapes.py` (teardown cut, events by step, per-shape comparison; an absent measure, an unpaired event or a missing touch fails), `fitvis.py` (per-preset materialize mapping, blur ramp, visibility table, default-spring check), `lab.py measure | reboot | fitvis`, per-case `repeat` over two sessions with static and topology noise, a native build stamp, `reproduce.py`, `still_check.py`, `done_table.py`, `rim_check.py`, `ghost_probe.py`, `cold_probe.py`.
+- **Native references:** `material.interactive` (v13), `material.press.*` (N2), `material.materialize.snappy|bouncy` (N5), `material.spacing.*` (N7), Reduce Motion materialize runs (N6).
+- **Package:** `GlassAnimation` (SwiftUI's presets), `withGlassAnimation`, `GlassAnimationScope`, `GlassEffectTransition.materialize|identity`; a coordinator per container and per standalone glass (insertion and removal by one rule, removal ghosts with a content snapshot, in the container or the nearest `Overlay`; drawn rects anchored to the live layout, a single change animated after a rebuild or a transaction, app-driven motion followed exactly, never behind a scroll); each glass's material from its drawn size; the fitted `ios27_motion.dart`; the edge light keeps the full thickness while glass materializes.
+- **Measured native facts:** appear progress is the animation's spring, overshooting by a fitted share of the spring's overshoot (`snappy` 0, `bouncy` 0.36, and 0.62 for `bouncy` under Reduce Motion); disappear is the spring's remainder to a fitted power (default 3.1, `snappy` 2.65, `bouncy` 2.8); the backdrop blur ramps as visibility^3; Reduce Motion keeps materialize's timing and blur; native starts to appear 65–112 ms after a tap and to disappear 18–47 ms after it; the 250 × 44 press grows about +15 pt, not +17.67; native's merge reach is about half its `spacing`.
+- **User rulings:** the touch-to-response delay is reported and classed, not copied and not judged; project 5 re-checks it on a device (2B.1 ruling 33). A glass the app moves on consecutive frames follows its layout exactly, and a single change animates (2B.1 ruling 32).
+- **Done counts (`results-2b1.md`):** item 4 passes 129 / 168 progress measures normal and 135 / 168 under Reduce Motion (judged and expected 168 each; event and touch gates 120 / 120); item 5 has `missing` 0 and `worse` 0 in all nine scenes, 112 of 124 Flutter frames byte-identical to 2A's (`material.edge`'s 12 differ by a 0.24 px rim snap, gotcha 48); gates app 2,146, package 122, example 13, harness 175. What is left is `02b-motion/todo-2b1.md`.
+- **Open for 2B.2:** animated container spacing with M4 (2B.1 ruling 29), calibrated on the merge reach above; `.matchedGeometry`, ids, union; whether appearing glass merges with neighbours.
+- **Open model items:** native's mid-materialize edge spread (rulings 12, 13); the lens displacement mid-transition (ruling 14); whatever `results-2b1.md` classes as (b).
+
+#### What 2B as a whole covers (spec §2, §4)
+- **Plans:** 2B.1 (above); 2B.2 merge, split, union and morph; 2B.3 press, Reduce Motion everywhere, frame cost. Each is written prototype-first after the previous one merges.
+- **Native facts carried from before 2B.1:** menu open width spring 0.26–0.30 s / 0.74–0.81 (reproduced by the 2B.1 lab); tab bar drag width 0.27–0.34 s / 0.37–0.40; a third-party capture's materialize 250 / 350 ms runs the other way from the lab's 275–292 / 117–133 ms; the glass button press grows +16 pt at 53 pt tall, and plain interactive glass presses like it once it holds rendered content (gotcha 10).
+- **Lab scenes for 2B:** `material.interactive`, `material.press.*`, `material.materialize*`, `material.spacing.*`, `material.merge`, `material.union`, `material.morph`; `tabbar.press`, `tabbar.drag` and `button.press` stay project 3 component references.
 
 ### Project 3: Every iOS component inside the package (NOT STARTED)
 - **Scope:** everything in §7 marked project 3.
@@ -553,13 +569,7 @@ After the review fix wave (runs `20261002-200447` to `20261002-210140`; the firs
 
 ## 9. Exact next steps
 
-1. **Project 2B (how glass moves) is being brainstormed.** Read `docs/liquid_glass/02b-motion/brainstorm.md` and do exactly what it says next:
-   - get the user's answer to question 1 (the press-response reference: A, B or C; recommendation A);
-   - then ask questions 2–7 one at a time, each multiple choice with the recommendation first;
-   - then propose the approaches;
-   - then present the design in sections;
-   - then write `docs/liquid_glass/02b-motion/spec.md`, which the user approves;
-   - then the plan, prototype-first.
+1. **2B.1 is executed and awaits review** (§5 step 4): rerun every gate, run an independent code review against `02b-motion/plan-2b1.md` and an independent measurement audit that recomputes `results-2b1.md` from `result.json` and looks at full-resolution crops; fix, re-measure, and merge only when the user says. Then write the 2B.2 plan (merge, split, union, morph), prototype-first, from the merged baseline.
 2. **2A.2 (static-look polish)** is a to-do list, not yet planned: `docs/liquid_glass/02a-looks/todo-2a2.md`. The user decides when, likely alongside project 3, since the tinted rings are a prominent-button detail.
 3. **Pending user decisions:**
    - native `material.interactive` (§1), which 2B question 1 settles;
