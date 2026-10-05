@@ -12,10 +12,13 @@ class GlassMaterialOverride extends InheritedWidget {
     return context.dependOnInheritedWidgetOfExactType<GlassMaterialOverride>()?.values ?? const {};
   }
 
-  static Map<String, double> forSide(BuildContext context, double shorterSide) {
-    if (!kDebugMode) return const {};
-    final scope = context.dependOnInheritedWidgetOfExactType<GlassMaterialOverride>();
-    if (scope == null) return const {};
+  static Map<String, double> forSide(BuildContext context, double shorterSide) => valuesFor(scopeOf(context), shorterSide);
+
+  static GlassMaterialOverride? scopeOf(BuildContext context) =>
+      kDebugMode ? context.dependOnInheritedWidgetOfExactType<GlassMaterialOverride>() : null;
+
+  static Map<String, double> valuesFor(GlassMaterialOverride? scope, double shorterSide) {
+    if (!kDebugMode || scope == null) return const {};
     final side = scope.side;
     if (side != null && (shorterSide.clamp(44.0, 200.0) - side).abs() >= 1) return const {};
     return scope.values;

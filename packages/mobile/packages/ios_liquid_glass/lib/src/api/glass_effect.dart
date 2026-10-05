@@ -8,6 +8,7 @@ import 'package:ios_liquid_glass/src/api/glass_material_context.dart';
 import 'package:ios_liquid_glass/src/api/glass_shape.dart';
 import 'package:ios_liquid_glass/src/liquid_glass.dart';
 import 'package:ios_liquid_glass/src/motion/glass_animation.dart';
+import 'package:ios_liquid_glass/src/motion/glass_material_source.dart';
 import 'package:ios_liquid_glass/src/motion/glass_motion_coordinator.dart';
 import 'package:ios_liquid_glass/src/motion/glass_motion_widgets.dart';
 
@@ -35,24 +36,17 @@ class GlassEffect extends StatefulWidget {
 
 class _GlassEffectState extends State<GlassEffect> with SingleTickerProviderStateMixin {
   final _snapshotKey = GlobalKey();
-  final _childKey = GlobalKey();
-  double? _shorterSide;
   double _pixelRatio = 1;
   GlassMotionCoordinator? _private;
   GlassMotionCoordinator? _coordinator;
   GlassMember? _member;
+  GlassMaterialSource? _material;
   RenderObject? _parent;
   bool _joined = false;
   bool _left = false;
   bool _ghosted = false;
 
   bool get _identity => widget.glass.kind == GlassKind.identity;
-
-  void _measured(Size size) {
-    final side = size.shortestSide;
-    if (_shorterSide != null && (side - _shorterSide!).abs() < 0.5) return;
-    setState(() => _shorterSide = side);
-  }
 
   @override
   void didChangeDependencies() {
@@ -150,37 +144,41 @@ class _GlassEffectState extends State<GlassEffect> with SingleTickerProviderStat
       }
     }
     _private?.dispose();
+    _material?.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     _parent = context.findAncestorRenderObjectOfType<RenderObject>();
-    final content = GlassSnapshotBoundary(
-      key: _snapshotKey,
-      child: _SizeReporter(key: _childKey, onSize: _measured, child: GlassEffectScope(glass: widget.glass, child: widget.child)),
-    );
+    final content = GlassSnapshotBoundary(key: _snapshotKey, child: GlassEffectScope(glass: widget.glass, child: widget.child));
     final member = _member;
     if (_identity || member == null) return content;
     return ListenableBuilder(
       listenable: GlassAccessibility.platform,
       builder: (context, _) {
-        final material = resolveGlassMaterial(context, glass: widget.glass, shorterSide: _shorterSide ?? widget.sideHint ?? GlassEffect.fallbackSide);
+        final resolve = glassMaterialResolver(context, glass: widget.glass);
+        final tint = widget.glass.tintColor;
+        final material = _material ??= GlassMaterialSource(resolve: resolve, tint: tint, side: widget.sideHint ?? GlassEffect.fallbackSide);
+        material.configure(resolve: resolve, tint: tint);
         final shape = widget.shape.liquidShape;
         final container = GlassEffectContainer.scopeOf(context);
         final grouped = container != null && container.glass.sameMaterial(widget.glass);
         member
           ..shape = shape
+          ..material = material
           ..sharedSettings = grouped ? container.settings : null
           ..reduceMotion = GlassAccessibility.of(context).reduceMotion;
         final Widget glass;
         if (grouped && !member.ownsLayer) {
-          glass = LiquidGlass.grouped(shape: shape, shadows: material.shadows, motion: member, child: content);
+          glass = LiquidGlass.grouped(shape: shape, shadows: material.shadows, shadowSource: material, motion: member, child: content);
         } else {
           glass = LiquidGlass.withOwnLayer(
-            settings: grouped ? container.settings : material.toSettings(tint: widget.glass.tintColor),
+            settings: grouped ? container.settings : material.settings,
+            settingsSource: grouped ? null : material,
             shape: shape,
             shadows: material.shadows,
+            shadowSource: material,
             motion: member,
             visibility: member.visibility,
             child: content,
@@ -203,36 +201,4 @@ class GlassEffectScope extends InheritedWidget {
 
   @override
   bool updateShouldNotify(GlassEffectScope oldWidget) => oldWidget.glass != glass;
-}
-
-class _SizeReporter extends SingleChildRenderObjectWidget {
-  const _SizeReporter({super.key, required this.onSize, required super.child});
-
-  final ValueChanged<Size> onSize;
-
-  @override
-  RenderObject createRenderObject(BuildContext context) => _RenderSizeReporter(onSize);
-
-  @override
-  void updateRenderObject(BuildContext context, _RenderSizeReporter renderObject) {
-    renderObject.onSize = onSize;
-  }
-}
-
-class _RenderSizeReporter extends RenderProxyBox {
-  _RenderSizeReporter(this.onSize);
-
-  ValueChanged<Size> onSize;
-  Size? _reported;
-
-  @override
-  void performLayout() {
-    super.performLayout();
-    if (_reported == size) return;
-    _reported = size;
-    final measured = size;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (attached) onSize(measured);
-    });
-  }
 }
