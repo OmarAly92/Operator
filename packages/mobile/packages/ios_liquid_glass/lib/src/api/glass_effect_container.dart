@@ -3,9 +3,13 @@ import 'package:ios_liquid_glass/src/accessibility/glass_accessibility.dart';
 import 'package:ios_liquid_glass/src/api/glass.dart';
 import 'package:ios_liquid_glass/src/api/glass_material_context.dart';
 import 'package:ios_liquid_glass/src/liquid_glass_blend_group.dart';
+import 'package:ios_liquid_glass/src/liquid_glass_settings.dart';
+import 'package:ios_liquid_glass/src/motion/glass_motion_coordinator.dart';
+import 'package:ios_liquid_glass/src/motion/glass_motion_widgets.dart';
 import 'package:ios_liquid_glass/src/rendering/liquid_glass_layer.dart';
+import 'package:meta/meta.dart';
 
-class GlassEffectContainer extends StatelessWidget {
+class GlassEffectContainer extends StatefulWidget {
   const GlassEffectContainer({super.key, this.spacing = 20, this.glass = Glass.regular, this.side = 88, required this.child});
 
   final double spacing;
@@ -13,28 +17,60 @@ class GlassEffectContainer extends StatelessWidget {
   final double side;
   final Widget child;
 
-  static Glass? glassOf(BuildContext context) => context.dependOnInheritedWidgetOfExactType<_ContainerScope>()?.glass;
+  static Glass? glassOf(BuildContext context) => scopeOf(context)?.glass;
+
+  @internal
+  static GlassContainerScope? scopeOf(BuildContext context) => context.dependOnInheritedWidgetOfExactType<GlassContainerScope>();
+
+  @override
+  State<GlassEffectContainer> createState() => _GlassEffectContainerState();
+}
+
+class _GlassEffectContainerState extends State<GlassEffectContainer> with SingleTickerProviderStateMixin {
+  late final GlassMotionCoordinator _coordinator = GlassMotionCoordinator(vsync: this);
+
+  @override
+  void dispose() {
+    _coordinator.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
       listenable: GlassAccessibility.platform,
       builder: (context, _) {
-        final material = resolveGlassMaterial(context, glass: glass, shorterSide: side);
-        return LiquidGlassLayer(
-          settings: material.toSettings(tint: glass.tintColor),
-          child: LiquidGlassBlendGroup(blend: spacing, child: _ContainerScope(glass: glass, child: child)),
+        final material = resolveGlassMaterial(context, glass: widget.glass, shorterSide: widget.side);
+        final settings = material.toSettings(tint: widget.glass.tintColor);
+        return GlassCoordinatorSpace(
+          coordinator: _coordinator,
+          child: LiquidGlassLayer(
+            settings: settings,
+            child: LiquidGlassBlendGroup(
+              blend: widget.spacing,
+              child: GlassContainerScope(
+                glass: widget.glass,
+                settings: settings,
+                coordinator: _coordinator,
+                child: widget.child,
+              ),
+            ),
+          ),
         );
       },
     );
   }
 }
 
-class _ContainerScope extends InheritedWidget {
-  const _ContainerScope({required this.glass, required super.child});
+@internal
+class GlassContainerScope extends InheritedWidget {
+  const GlassContainerScope({super.key, required this.glass, required this.settings, required this.coordinator, required super.child});
 
   final Glass glass;
+  final LiquidGlassSettings settings;
+  final GlassMotionCoordinator coordinator;
 
   @override
-  bool updateShouldNotify(_ContainerScope oldWidget) => oldWidget.glass != glass;
+  bool updateShouldNotify(GlassContainerScope oldWidget) =>
+      oldWidget.glass != glass || oldWidget.settings != settings || oldWidget.coordinator != coordinator;
 }
