@@ -96,6 +96,16 @@ class _GlassEffectState extends State<GlassEffect> with SingleTickerProviderStat
     if (mounted) setState(() {});
   }
 
+  List<ScrollableState> _scrollables() {
+    final found = <ScrollableState>[];
+    for (var scrollable = context.findAncestorStateOfType<ScrollableState>();
+        scrollable != null;
+        scrollable = scrollable.context.findAncestorStateOfType<ScrollableState>()) {
+      found.add(scrollable);
+    }
+    return found;
+  }
+
   @override
   void deactivate() {
     final member = _member, coordinator = _coordinator;
@@ -154,6 +164,9 @@ class _GlassEffectState extends State<GlassEffect> with SingleTickerProviderStat
     final content = GlassSnapshotBoundary(key: _snapshotKey, child: GlassEffectScope(glass: widget.glass, child: widget.child));
     final member = _member;
     if (_identity || member == null) return content;
+    member
+      ..scrollables = _scrollables()
+      ..rebuilt();
     return ListenableBuilder(
       listenable: GlassAccessibility.platform,
       builder: (context, _) {

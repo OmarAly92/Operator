@@ -219,6 +219,76 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('a resized glass springs its drawn rect with no widget rebuilds while it moves', (tester) async {
+    var builds = 0;
+    var wide = false;
+    late StateSetter rebuild;
+    await tester.pumpWidget(MaterialApp(
+      home: Center(
+        child: StatefulBuilder(builder: (context, setState) {
+          rebuild = setState;
+          return GlassEffectContainer(
+            child: GlassEffect(
+              child: Builder(builder: (context) {
+                builds++;
+                return SizedBox(width: wide ? 300 : 100, height: 60);
+              }),
+            ),
+          );
+        }),
+      ),
+    ));
+    await tester.pump(const Duration(seconds: 1));
+    final box = tester.renderObject<RenderGlassMemberBox>(find.byType(GlassMemberBox));
+    expect(box.member.drawn!.width, 100);
+    final centre = _onScreen(box.member).center;
+    rebuild(() => wide = true);
+    await tester.pump();
+    final buildsAfterChange = builds;
+    expect(box.member.drawn!.width, closeTo(100, 0.5));
+    await tester.pump(const Duration(milliseconds: 100));
+    final mid = box.member.drawn!.width;
+    expect(mid, inExclusiveRange(100, 300));
+    expect(_onScreen(box.member).center.dx, closeTo(centre.dx, 1e-6));
+    expect(box.member.resolve(box).width, mid);
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(box.member.drawn!.width, greaterThan(mid));
+    expect(builds, buildsAfterChange);
+    await tester.pumpAndSettle();
+    expect(box.member.drawn!.width, 300);
+  });
+
+  testWidgets('hit testing uses the final layout while the glass is still moving', (tester) async {
+    var taps = 0;
+    var right = false;
+    late StateSetter rebuild;
+    await tester.pumpWidget(MaterialApp(
+      home: Align(
+        alignment: Alignment.topLeft,
+        child: StatefulBuilder(builder: (context, setState) {
+          rebuild = setState;
+          return GlassEffectContainer(
+            child: Padding(
+              padding: EdgeInsets.only(left: right ? 200 : 0),
+              child: GlassEffect(child: GestureDetector(behavior: HitTestBehavior.opaque, onTap: () => taps++, child: const SizedBox(width: 80, height: 80))),
+            ),
+          );
+        }),
+      ),
+    ));
+    await tester.pump(const Duration(seconds: 1));
+    rebuild(() => right = true);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+    final box = tester.renderObject<RenderGlassMemberBox>(find.byType(GlassMemberBox));
+    expect(box.member.drawn!.left, inExclusiveRange(0, 200));
+    await tester.tapAt(const Offset(240, 40));
+    await tester.pump();
+    await tester.tapAt(const Offset(40, 40));
+    await tester.pump();
+    expect(taps, 1);
+  });
+
   testWidgets('a list scrolled inside a container moves its glass with the list at once, with no spring', (tester) async {
     final controller = ScrollController();
     addTearDown(controller.dispose);
@@ -248,6 +318,223 @@ void main() {
     expect(_visibility(tester), isNull);
   });
 
+  testWidgets('a glass resized by a rebuild while its list scrolls follows the scroll exactly and springs only its size', (tester) async {
+    final controller = ScrollController();
+    addTearDown(controller.dispose);
+    var wide = false;
+    late StateSetter rebuild;
+    await tester.pumpWidget(MaterialApp(
+      home: Align(
+        alignment: Alignment.topLeft,
+        child: GlassEffectContainer(
+          child: SizedBox(
+            height: 300,
+            width: 300,
+            child: StatefulBuilder(builder: (context, setState) {
+              rebuild = setState;
+              return ListView(controller: controller, children: [
+                for (var i = 0; i < 12; i++)
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: _block(key: ValueKey(i), width: i == 2 && wide ? 200 : 100, height: 60),
+                  ),
+              ]);
+            }),
+          ),
+        ),
+      ),
+    ));
+    await tester.pump(const Duration(seconds: 1));
+    final member = _member(tester, find.byKey(const ValueKey(2)));
+    final before = _onScreen(member);
+    rebuild(() => wide = true);
+    controller.jumpTo(50);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+    final layout = tester.getRect(find.byKey(const ValueKey(2)));
+    final drawn = _onScreen(member);
+    expect(layout.top, closeTo(before.top - 50, 1e-6));
+    expect(drawn.top, closeTo(layout.top, 1e-6));
+    expect(drawn.width, inExclusiveRange(100, 200));
+    await tester.pumpAndSettle();
+    expect(_onScreen(member), tester.getRect(find.byKey(const ValueKey(2))));
+  });
+
+  testWidgets('a glass dragged by setState holds still in its first frame, then sits on its layout within 0.5 pt in every frame', (tester) async {
+    var x = 0.0;
+    late StateSetter drag;
+    await tester.pumpWidget(MaterialApp(
+      home: StatefulBuilder(builder: (context, setState) {
+        drag = setState;
+        return Stack(children: [
+          Positioned(left: x, top: 100, child: _block(key: const ValueKey('thumb'), width: 60, height: 40, child: Text('${x.round()}'))),
+        ]);
+      }),
+    ));
+    await tester.pump(const Duration(seconds: 1));
+    final member = _member(tester);
+    var previous = tester.getRect(find.byKey(const ValueKey('thumb')));
+    for (var i = 0; i < 12; i++) {
+      drag(() => x += 15);
+      await tester.pump(const Duration(milliseconds: 16));
+      final layout = tester.getRect(find.byKey(const ValueKey('thumb')));
+      final drawn = _onScreen(member);
+      if (i == 0) {
+        expect(drawn.left, closeTo(previous.left, 0.5));
+        expect(member.isFollowing, isFalse);
+      } else {
+        expect(drawn.left, closeTo(layout.left, 0.5));
+        expect(drawn.top, closeTo(layout.top, 0.5));
+        expect(member.isFollowing, isTrue);
+      }
+      previous = layout;
+    }
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(member.isMoving, isFalse);
+    expect(_onScreen(member), tester.getRect(find.byKey(const ValueKey('thumb'))));
+  });
+
+  testWidgets('a glass moved by an app animation every frame sits on its layout within 0.5 pt from the animation\'s second moving frame', (tester) async {
+    final controller = AnimationController(vsync: const TestVSync(), duration: const Duration(milliseconds: 300));
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(MaterialApp(
+      home: Align(
+        alignment: Alignment.topLeft,
+        child: GlassEffectContainer(
+          child: SizedBox(
+            width: 400,
+            height: 100,
+            child: AnimatedBuilder(
+              animation: controller,
+              builder: (context, _) => Padding(
+                padding: EdgeInsets.only(left: controller.value * 200),
+                child: Align(alignment: Alignment.topLeft, child: _block(key: const ValueKey('moved'), width: 80, height: 60)),
+              ),
+            ),
+          ),
+        ),
+      ),
+    ));
+    await tester.pump(const Duration(seconds: 1));
+    final member = _member(tester);
+    controller.forward();
+    var moved = 0;
+    var last = tester.getRect(find.byKey(const ValueKey('moved')));
+    for (var i = 0; i < 30; i++) {
+      await tester.pump(const Duration(milliseconds: 16));
+      final layout = tester.getRect(find.byKey(const ValueKey('moved')));
+      if (layout != last) moved++;
+      if (moved >= 2 && layout != last) expect(_onScreen(member).left, closeTo(layout.left, 0.5));
+      last = layout;
+    }
+    expect(moved, greaterThan(10));
+    expect(_onScreen(member).left, closeTo(200, 0.5));
+  });
+
+  testWidgets('a single change springs, and so do changes inside withGlassAnimation on back-to-back frames', (tester) async {
+    var left = 0.0;
+    late StateSetter move;
+    await tester.pumpWidget(MaterialApp(
+      home: Align(
+        alignment: Alignment.topLeft,
+        child: GlassEffectContainer(
+          child: SizedBox(
+            width: 400,
+            height: 100,
+            child: StatefulBuilder(builder: (context, setState) {
+              move = setState;
+              return Padding(padding: EdgeInsets.only(left: left), child: Align(alignment: Alignment.topLeft, child: _block(key: const ValueKey('glass'), width: 80, height: 60)));
+            }),
+          ),
+        ),
+      ),
+    ));
+    await tester.pump(const Duration(seconds: 1));
+    final member = _member(tester);
+    move(() => left = 100);
+    await tester.pump();
+    expect(_onScreen(member).left, closeTo(0, 1e-6));
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(_onScreen(member).left, inExclusiveRange(0, 100));
+    expect(member.isFollowing, isFalse);
+    await tester.pumpAndSettle();
+    expect(_onScreen(member).left, closeTo(100, 1e-6));
+    withGlassAnimation(GlassAnimation.defaultSpring, () => move(() => left = 150));
+    await tester.pump(const Duration(milliseconds: 16));
+    withGlassAnimation(GlassAnimation.defaultSpring, () => move(() => left = 200));
+    await tester.pump(const Duration(milliseconds: 16));
+    expect(_onScreen(member).left, lessThan(150));
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(_onScreen(member).left, inExclusiveRange(100, 200));
+    await tester.pumpAndSettle();
+    expect(_onScreen(member).left, closeTo(200, 1e-6));
+  });
+
+  testWidgets('a drag is followed, and a toggle after its release springs again', (tester) async {
+    var x = 0.0;
+    late StateSetter drag;
+    await tester.pumpWidget(MaterialApp(
+      home: StatefulBuilder(builder: (context, setState) {
+        drag = setState;
+        return Stack(children: [
+          Positioned(left: x, top: 100, child: _block(key: const ValueKey('thumb'), width: 60, height: 40)),
+        ]);
+      }),
+    ));
+    await tester.pump(const Duration(seconds: 1));
+    final member = _member(tester);
+    for (var i = 0; i < 6; i++) {
+      drag(() => x += 15);
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+    expect(_onScreen(member).left, closeTo(90, 0.5));
+    await tester.pump(const Duration(milliseconds: 200));
+    drag(() => x = 200);
+    await tester.pump(const Duration(milliseconds: 16));
+    expect(_onScreen(member).left, closeTo(90, 0.5));
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(_onScreen(member).left, inExclusiveRange(90, 200));
+    await tester.pumpAndSettle();
+    expect(_onScreen(member).left, closeTo(200, 1e-6));
+  });
+
+  testWidgets('a glass removed after its list scrolled leaves its ghost where the glass was on screen', (tester) async {
+    final controller = ScrollController();
+    addTearDown(controller.dispose);
+    var shown = true;
+    late StateSetter remove;
+    await tester.pumpWidget(MaterialApp(
+      home: Align(
+        alignment: Alignment.topLeft,
+        child: GlassEffectContainer(
+          child: SizedBox(
+            width: 300,
+            height: 400,
+            child: StatefulBuilder(builder: (context, setState) {
+              remove = setState;
+              return ListView(controller: controller, children: [
+                for (var i = 0; i < 8; i++)
+                  Padding(
+                    padding: const EdgeInsets.all(8),
+                    child: Row(children: [if (i != 2 || shown) _block(key: ValueKey(i), width: 100, height: 60)]),
+                  ),
+              ]);
+            }),
+          ),
+        ),
+      ),
+    ));
+    await tester.pump(const Duration(seconds: 1));
+    controller.jumpTo(60);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+    final onScreen = tester.getRect(find.byKey(const ValueKey(2)));
+    remove(() => shown = false);
+    await tester.pump();
+    expect(find.byType(RawImage), findsOneWidget);
+    expect(tester.getRect(find.byType(RawImage)).top, closeTo(onScreen.top, 0.5));
+  });
+
   testWidgets('glass keeps its place on screen when a sibling is inserted and the centred container re-centres, then springs to its new place', (tester) async {
     await tester.pumpWidget(_Toggle(row: true, children: (shown) => [
       _block(key: const ValueKey('a'), width: 100, height: 60),
@@ -275,6 +562,45 @@ void main() {
     await tester.pump();
     expect(find.byType(RawImage), findsNothing);
     expect(find.byType(LiquidGlass), findsNothing);
+  });
+
+  testWidgets('standalone glass takes its material from its drawn size on every frame of a resize, with no rebuild', (tester) async {
+    var tall = false;
+    var builds = 0;
+    late StateSetter rebuild;
+    await tester.pumpWidget(MaterialApp(
+      home: Center(
+        child: StatefulBuilder(builder: (context, setState) {
+          rebuild = setState;
+          return GlassEffect(
+            child: Builder(builder: (context) {
+              builds++;
+              return SizedBox(width: 300, height: tall ? 200 : 44);
+            }),
+          );
+        }),
+      ),
+    ));
+    await tester.pump(const Duration(seconds: 1));
+    final member = _member(tester);
+    expect(member.material!.side, 44);
+    rebuild(() => tall = true);
+    await tester.pump();
+    final buildsAfterChange = builds;
+    final sides = <double>[];
+    final settings = <LiquidGlassSettings>[];
+    for (var i = 0; i < 3; i++) {
+      await tester.pump(const Duration(milliseconds: 40));
+      sides.add(member.material!.side);
+      settings.add(member.material!.settings);
+      expect(member.material!.side, closeTo(member.drawnSize!.shortestSide, 0.5));
+    }
+    expect(sides.first, inExclusiveRange(44, 200));
+    expect(sides.last, greaterThan(sides.first));
+    expect(settings.first, isNot(settings.last));
+    expect(builds, buildsAfterChange);
+    await tester.pumpAndSettle();
+    expect(member.material!.side, 200);
   });
 
   testWidgets('visibility never rises after a removal, even right after insertion', (tester) async {
