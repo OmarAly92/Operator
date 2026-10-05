@@ -1,4 +1,5 @@
 import 'package:flutter/rendering.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
 import 'package:ios_liquid_glass/src/liquid_glass.dart';
 import 'package:ios_liquid_glass/src/motion/glass_motion_coordinator.dart';
@@ -139,6 +140,81 @@ class GlassGhostHost extends StatelessWidget {
       },
     );
   }
+}
+
+@internal
+class GlassOverlayGhosts {
+  GlassOverlayGhosts._(this._overlay);
+
+  static final Expando<GlassOverlayGhosts> _hosts = Expando();
+
+  final OverlayState _overlay;
+  OverlayEntry? _entry;
+  bool _inserted = false;
+  GlassMotionCoordinator? _coordinator;
+  int _users = 0;
+
+  static GlassOverlayGhosts? of(BuildContext context) {
+    final overlay = Overlay.maybeOf(context);
+    if (overlay == null) return null;
+    return _hosts[overlay] ??= GlassOverlayGhosts._(overlay);
+  }
+
+  GlassMotionCoordinator? get coordinator => _coordinator;
+
+  void retain() {
+    _users++;
+    if (_entry != null) return;
+    final entry = _entry = OverlayEntry(builder: (context) => _OverlayGhostLayer(host: this));
+    SchedulerBinding.instance.addPostFrameCallback((_) {
+      if (!identical(_entry, entry) || !_overlay.mounted) return;
+      _overlay.insert(entry);
+      _inserted = true;
+    });
+  }
+
+  void release() {
+    _users--;
+    _removeIfIdle();
+  }
+
+  void _removeIfIdle() {
+    final entry = _entry;
+    if (_users > 0 || entry == null || (_coordinator?.hasGhosts ?? false)) return;
+    _entry = null;
+    if (_inserted) entry.remove();
+    _inserted = false;
+    SchedulerBinding.instance.addPostFrameCallback((_) => entry.dispose());
+  }
+}
+
+class _OverlayGhostLayer extends StatefulWidget {
+  const _OverlayGhostLayer({required this.host});
+
+  final GlassOverlayGhosts host;
+
+  @override
+  State<_OverlayGhostLayer> createState() => _OverlayGhostLayerState();
+}
+
+class _OverlayGhostLayerState extends State<_OverlayGhostLayer> with SingleTickerProviderStateMixin {
+  late final GlassMotionCoordinator _coordinator = GlassMotionCoordinator(vsync: this, onIdle: widget.host._removeIfIdle);
+
+  @override
+  void initState() {
+    super.initState();
+    widget.host._coordinator = _coordinator;
+  }
+
+  @override
+  void dispose() {
+    if (identical(widget.host._coordinator, _coordinator)) widget.host._coordinator = null;
+    _coordinator.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => GlassGhostHost(coordinator: _coordinator);
 }
 
 class _GhostParentData extends ContainerBoxParentData<RenderBox> {

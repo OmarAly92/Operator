@@ -41,6 +41,7 @@ class _GlassEffectState extends State<GlassEffect> with SingleTickerProviderStat
   GlassMotionCoordinator? _coordinator;
   GlassMember? _member;
   GlassMaterialSource? _material;
+  GlassOverlayGhosts? _overlay;
   RenderObject? _parent;
   bool _joined = false;
   bool _left = false;
@@ -70,6 +71,7 @@ class _GlassEffectState extends State<GlassEffect> with SingleTickerProviderStat
   void _join() {
     final container = GlassEffectContainer.scopeOf(context)?.coordinator;
     final coordinator = _identity ? null : container ?? (_private ??= GlassMotionCoordinator(vsync: this));
+    _useOverlay(coordinator != null && container == null);
     final scope = GlassAnimationScope.maybeOf(context);
     final animate = widget.transition == GlassEffectTransition.materialize;
     final current = _member;
@@ -79,7 +81,7 @@ class _GlassEffectState extends State<GlassEffect> with SingleTickerProviderStat
         ..animatesTransitions = animate;
       return;
     }
-    final inserted = container != null && !_joined && (pendingGlassAnimation != null || _laidOut(context.findAncestorRenderObjectOfType<RenderObject>()));
+    final inserted = !_joined && (pendingGlassAnimation != null || _laidOut(context.findAncestorRenderObjectOfType<RenderObject>()));
     _joined = true;
     _coordinator = coordinator;
     _member = coordinator?.join(
@@ -90,6 +92,13 @@ class _GlassEffectState extends State<GlassEffect> with SingleTickerProviderStat
       reduceMotion: GlassAccessibility.of(context).reduceMotion,
     )?..onSettled = _settled;
     if (current != null) current.coordinator.drop(current);
+  }
+
+  void _useOverlay(bool standalone) {
+    final overlay = standalone ? GlassOverlayGhosts.of(context) : null;
+    if (identical(overlay, _overlay)) return;
+    _overlay?.release();
+    _overlay = overlay?..retain();
   }
 
   void _settled() {
@@ -110,7 +119,8 @@ class _GlassEffectState extends State<GlassEffect> with SingleTickerProviderStat
   void deactivate() {
     final member = _member, coordinator = _coordinator;
     if (member != null && coordinator != null) {
-      final owner = coordinator == _private ? null : coordinator;
+      final standalone = coordinator == _private;
+      final owner = standalone ? _overlay?.coordinator : coordinator;
       final parent = _parent;
       final animate = owner != null && (pendingGlassAnimation != null || (parent != null && parent.attached));
       final boundary = _snapshotKey.currentContext?.findRenderObject();
@@ -154,6 +164,8 @@ class _GlassEffectState extends State<GlassEffect> with SingleTickerProviderStat
       }
     }
     _private?.dispose();
+    _overlay?.release();
+    _overlay = null;
     _material?.dispose();
     super.dispose();
   }

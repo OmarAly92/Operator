@@ -7,11 +7,12 @@ import 'package:ios_liquid_glass/src/motion/glass_motion_widgets.dart';
 import 'package:ios_liquid_glass/src/shaders.dart';
 
 class _Toggle extends StatefulWidget {
-  const _Toggle({required this.children, this.animation, this.row = false});
+  const _Toggle({required this.children, this.animation, this.row = false, this.container = true});
 
   final List<Widget> Function(bool shown) children;
   final GlassAnimation? animation;
   final bool row;
+  final bool container;
 
   @override
   State<_Toggle> createState() => _ToggleState();
@@ -26,7 +27,7 @@ class _ToggleState extends State<_Toggle> {
   Widget build(BuildContext context) {
     final children = widget.children(shown);
     final Widget flex = widget.row ? Row(mainAxisSize: MainAxisSize.min, children: children) : Column(mainAxisSize: MainAxisSize.min, children: children);
-    final container = GlassEffectContainer(child: flex);
+    final container = widget.container ? GlassEffectContainer(child: flex) : flex;
     final animation = widget.animation;
     return MaterialApp(
       home: GlassTheme(
@@ -553,6 +554,42 @@ void main() {
     expect(_onScreen(member).left, inExclusiveRange(after.left, before.left));
     await tester.pumpAndSettle();
     expect(_onScreen(member).left, closeTo(after.left, 1e-6));
+  });
+
+  testWidgets('standalone glass inserted later materializes, and glass built with its page appears at once', (tester) async {
+    await tester.pumpWidget(_Toggle(container: false, children: (shown) => [if (!shown) _block()]));
+    await tester.pump(const Duration(seconds: 1));
+    tester.state<_ToggleState>(find.byType(_Toggle)).toggle();
+    await tester.pump();
+    expect(_visibility(tester), 0);
+    await tester.pump(const Duration(milliseconds: 120));
+    expect(_visibility(tester), inExclusiveRange(0, 1));
+    await tester.pumpAndSettle();
+    expect(_visibility(tester), 1);
+    final navigator = tester.state<NavigatorState>(find.byType(Navigator));
+    navigator.push(MaterialPageRoute<void>(builder: (context) => Center(child: _block(key: const ValueKey('page')))));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 16));
+    final page = find.descendant(of: find.byKey(const ValueKey('page')), matching: find.byType(LiquidGlassLayer));
+    expect(tester.widget<LiquidGlassLayer>(page).visibility!.value, 1);
+  });
+
+  testWidgets('removed standalone glass dematerializes in the nearest Overlay, with its content snapshot', (tester) async {
+    await tester.pumpWidget(_Toggle(container: false, children: (shown) => [if (shown) _block(child: const ColoredBox(color: Color(0xFFFF0000)))]));
+    await tester.pump(const Duration(seconds: 1));
+    final before = tester.getRect(find.byType(GlassEffect));
+    tester.state<_ToggleState>(find.byType(_Toggle)).toggle();
+    await tester.pump();
+    expect(find.byType(GlassEffect), findsNothing);
+    expect(find.byType(RawImage), findsOneWidget);
+    expect(tester.widget<RawImage>(find.byType(RawImage)).image, isNotNull);
+    expect(tester.getRect(find.byType(RawImage)).center, before.center);
+    expect(find.ancestor(of: find.byType(RawImage), matching: find.byType(Overlay)), findsWidgets);
+    await tester.pump(const Duration(milliseconds: 60));
+    expect(_visibility(tester), inExclusiveRange(0, 1));
+    await tester.pumpAndSettle();
+    expect(find.byType(RawImage), findsNothing);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('glass removed together with its parent disappears at once', (tester) async {
