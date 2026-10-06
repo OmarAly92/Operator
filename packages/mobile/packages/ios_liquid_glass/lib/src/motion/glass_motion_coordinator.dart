@@ -30,6 +30,7 @@ class GlassMember extends ChangeNotifier implements GlassShapeMotion {
   bool _reduceMotionAtStart = false;
   bool dark = true;
   bool _darkAtStart = true;
+  bool onScreen = true;
   GlassAnimation? scopeAnimation;
   bool animatesTransitions = true;
   LiquidShape? shape;
@@ -91,8 +92,10 @@ class GlassMember extends ChangeNotifier implements GlassShapeMotion {
     if (identical(_box, box)) _box = null;
   }
 
+  bool get _offScreen => !onScreen || coordinator._ticker.muted;
+
   void rebuilt() {
-    _animateUntil = GlassFrame.current + 1;
+    _animateUntil = _offScreen ? -1 : GlassFrame.current + 1;
     _requested = resolveGlassAnimation(scopeAnimation);
   }
 
@@ -116,6 +119,7 @@ class GlassMember extends ChangeNotifier implements GlassShapeMotion {
       _changeFrame = frame;
       _changeTime = now;
     }
+    if (_offScreen) return null;
     final pending = pendingGlassAnimation;
     if (pending != null) return pending.isNone ? null : pending;
     if (_following) {
@@ -128,6 +132,15 @@ class GlassMember extends ChangeNotifier implements GlassShapeMotion {
       _heldFrame = frame;
     }
     return animation;
+  }
+
+  void settle() {
+    _presence.jumpTo(_presence.target);
+    for (final spring in _offset) {
+      spring.jumpTo(spring.target);
+    }
+    _held = null;
+    _publish();
   }
 
   void _letGo(int frame) {

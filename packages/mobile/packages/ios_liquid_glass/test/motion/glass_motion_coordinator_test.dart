@@ -869,6 +869,80 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('a glass moved while its route is covered sits at its new place when the route shows again, with no spring', (tester) async {
+    final left = ValueNotifier(0.0);
+    addTearDown(left.dispose);
+    await tester.pumpWidget(MaterialApp(
+      home: GlassTheme(
+        data: const GlassThemeData(brightness: Brightness.dark),
+        child: Align(
+          alignment: Alignment.topLeft,
+          child: ValueListenableBuilder<double>(
+            valueListenable: left,
+            builder: (context, x, _) => GlassEffectContainer(child: Padding(padding: EdgeInsets.only(left: x), child: _block(width: 80, height: 40))),
+          ),
+        ),
+      ),
+    ));
+    await tester.pump(const Duration(seconds: 1));
+    final member = _member(tester);
+    final navigator = tester.state<NavigatorState>(find.byType(Navigator));
+    navigator.push(PageRouteBuilder<void>(
+      transitionDuration: Duration.zero,
+      reverseTransitionDuration: Duration.zero,
+      pageBuilder: (context, _, _) => const ColoredBox(color: Color(0xFF0000FF)),
+    ));
+    await tester.pump();
+    await tester.pump();
+    left.value = 100;
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
+    navigator.pop();
+    for (var i = 0; i < 10; i++) {
+      await tester.pump(const Duration(milliseconds: 16));
+      expect(_onScreen(member).left, closeTo(100, 0.5), reason: 'frame $i after the pop');
+    }
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('a glass springing when its route is covered settles there, so the pop shows it at its new place', (tester) async {
+    final left = ValueNotifier(0.0);
+    addTearDown(left.dispose);
+    await tester.pumpWidget(MaterialApp(
+      home: GlassTheme(
+        data: const GlassThemeData(brightness: Brightness.dark),
+        child: Align(
+          alignment: Alignment.topLeft,
+          child: ValueListenableBuilder<double>(
+            valueListenable: left,
+            builder: (context, x, _) => GlassEffectContainer(child: Padding(padding: EdgeInsets.only(left: x), child: _block(width: 80, height: 40))),
+          ),
+        ),
+      ),
+    ));
+    await tester.pump(const Duration(seconds: 1));
+    final member = _member(tester);
+    left.value = 100;
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(_onScreen(member).left, inExclusiveRange(0, 100));
+    final navigator = tester.state<NavigatorState>(find.byType(Navigator));
+    navigator.push(PageRouteBuilder<void>(
+      transitionDuration: Duration.zero,
+      reverseTransitionDuration: Duration.zero,
+      pageBuilder: (context, _, _) => const ColoredBox(color: Color(0xFF0000FF)),
+    ));
+    await tester.pump();
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
+    navigator.pop();
+    for (var i = 0; i < 10; i++) {
+      await tester.pump(const Duration(milliseconds: 16));
+      expect(_onScreen(member).left, closeTo(100, 0.5), reason: 'frame $i after the pop');
+    }
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('standalone glass with no Overlay appears at once', (tester) async {
     await tester.pumpWidget(Directionality(
       textDirection: TextDirection.ltr,

@@ -1,5 +1,6 @@
 import 'dart:ui' show ImageFilter;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 import 'package:ios_liquid_glass/src/accessibility/glass_accessibility.dart';
@@ -46,18 +47,20 @@ class _GlassEffectState extends State<GlassEffect> with SingleTickerProviderStat
   GlassMaterialSource? _material;
   GlassOverlayGhosts? _overlay;
   RenderObject? _parent;
-  bool _onScreen = true;
+  ValueListenable<TickerModeData>? _tickerMode;
   bool _joined = false;
   bool _left = false;
   bool _ghosted = false;
 
   bool get _identity => widget.glass.kind == GlassKind.identity;
 
+  bool get _onScreen => _tickerMode?.value.enabled ?? true;
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     _pixelRatio = MediaQuery.maybeDevicePixelRatioOf(context) ?? 1;
-    _onScreen = TickerMode.valuesOf(context).enabled;
+    _watchTickerMode();
     _join();
   }
 
@@ -97,8 +100,25 @@ class _GlassEffectState extends State<GlassEffect> with SingleTickerProviderStat
       from: current,
       reduceMotion: GlassAccessibility.of(context).reduceMotion,
       dark: GlassTheme.brightnessOf(context) == Brightness.dark,
-    )?..onSettled = _settled;
+    )
+      ?..onSettled = _settled
+      ..onScreen = _onScreen;
     if (current != null) current.coordinator.drop(current);
+  }
+
+  void _watchTickerMode() {
+    final next = TickerMode.getValuesNotifier(context);
+    if (identical(next, _tickerMode)) return;
+    _tickerMode?.removeListener(_tickerModeChanged);
+    _tickerMode = next..addListener(_tickerModeChanged);
+    _member?.onScreen = _onScreen;
+  }
+
+  void _tickerModeChanged() {
+    final member = _member;
+    if (member == null) return;
+    member.onScreen = _onScreen;
+    if (!_onScreen) member.settle();
   }
 
   void _useOverlay(bool standalone) {
@@ -148,6 +168,7 @@ class _GlassEffectState extends State<GlassEffect> with SingleTickerProviderStat
   @override
   void activate() {
     super.activate();
+    _watchTickerMode();
     final member = _member;
     if (_left && member != null) {
       if (_ghosted) {
@@ -162,6 +183,7 @@ class _GlassEffectState extends State<GlassEffect> with SingleTickerProviderStat
 
   @override
   void dispose() {
+    _tickerMode?.removeListener(_tickerModeChanged);
     final member = _member;
     if (member != null) {
       if (!_left) {
