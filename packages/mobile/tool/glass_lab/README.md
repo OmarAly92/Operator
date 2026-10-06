@@ -83,7 +83,7 @@ The native app reads its scene from the `GLASS_LAB_SCENE`, `GLASS_LAB_BACKDROP` 
 - `material` is an optional map of material overrides by field name. Scroll edge fields are prefixed `edge.`;
 - `materialSide` limits the overrides to glass at that size anchor (44, 88 or 200 pt, after clamping the glass's shorter side), so a 200 pt candidate does not repaint the 44 and 88 pt glass in the same scene.
 
-`build native` stamps the native sources (`build/glass_lab/native/sources.sha256`, from `native/GlassLab` and `native/GlassLabDriver`), and `run`, `repeat` and `reproduce.py` refuse a native build older than its sources, as `run` refuses a stale Flutter build.
+`build native` stamps the native sources (`build/glass_lab/native/sources.sha256`, from `native/GlassLab` and `native/GlassLabDriver`), and `run` and `repeat` refuse a native build older than its sources, as `run` refuses a stale Flutter build. `reproduce.py` only reads existing recordings, so it needs no build and checks none.
 
 Before each capture the harness closes every other lab app, so the captured app is launched from the home screen and no "◀ app" back link appears in its status bar.
 

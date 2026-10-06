@@ -335,7 +335,7 @@ No static measure changed pass or fail in any scene. Recomputed with `still_chec
 
 ## Gates
 
-At `58ab57e0c`, with `--no-pub`:
+At `abe33abbc`, with `--no-pub` (the measured code is `58ab57e0c`, where the package had 122 tests; the final review's fix wave `8767603f3` added three, to 125):
 - app (`packages/mobile`): `flutter analyze` "No issues found!", `flutter test` `+2146: All tests passed!`;
 - package (`packages/ios_liquid_glass`): `flutter analyze` "No issues found!", `flutter test` `+125: All tests passed!`;
 - example: `flutter analyze` "No issues found!", `flutter test` `+13: All tests passed!`;

@@ -21,6 +21,8 @@
  - (2B.1) **FEAT**: `LiquidGlassSettings.atVisibility(v)`, the settings glass draws with at materialize visibility `v`.
  - (2B.1) **FEAT**: `GlassEffect` resolves its material from its drawn size at layout and on every animated frame, instead of one frame after layout.
  - (2B.1) **FIX**: the edge line and sheen keep their full width while the lens ramps with `visibility`; still glass is unchanged.
+ - (2B.1) **FIX**: glass at a fractional position draws its rim at its exact position once its geometry is cached, instead of up to half a pixel off.
+ - (2B.1) **FEAT**: `debugResetGlassAnimation()` is exported for tests.
 
 ## 0.2.0-dev.4
 
