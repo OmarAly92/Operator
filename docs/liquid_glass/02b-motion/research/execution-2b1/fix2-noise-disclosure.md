@@ -1106,6 +1106,7 @@ The largest judged loosenings and their cause, read from the pair results under 
 
 `noise.json` after `material.press.circle58` dark-stripes take 1 (press 1.225 s, outside the touch gate) was replaced by a boot-C take (press 0.985 s), recomputed for that case only by `lab.case_noise`, against `noise.json` at `644972ba7`. 12 limits moved, 4 tighter and 8 looser, none judged in 2B.1; every other entry is byte-identical. The take's release delays (`step1e1`, `step1e2` `delay_ms`, 262 and 270 ms) no longer set the floors (68 and 78 ms).
 
+| Scene | Case | Measure | Old noise | New noise | Old limit | New limit | Direction | Judged in item 4 |
 |---|---|---|---|---|---|---|---|---|
 | material.press.circle58 | dark-stripes | glass.step1e0.height.response_pct | 24.24 | 27.27 | 36.36 | 40.91 | looser |  |
 | material.press.circle58 | dark-stripes | glass.step1e0.luma.peak_ms | 16.67 | 25 | 25 | 37.5 | looser |  |

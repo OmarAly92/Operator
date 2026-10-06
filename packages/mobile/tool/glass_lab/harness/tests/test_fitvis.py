@@ -205,6 +205,36 @@ class RampTests(unittest.TestCase):
         self.assertFalse(chosen["at_grid_edge"])
         self.assertTrue(fitvis.choose_ramp(native, level, {1.0: rows(2.4), 2.0: rows(1.0)})["at_grid_edge"])
 
+    def test_the_ramp_scan_has_visibility_levels_below_0_2(self):
+        levels = fitvis.RAMP_LEVELS
+        self.assertEqual(list(levels), sorted(levels))
+        self.assertEqual((levels[0], levels[-1]), (0.0, 1.0))
+        for visibility in (0.05, 0.1, 0.15):
+            self.assertIn(visibility, levels)
+
+    def test_a_sharpness_target_bracketed_by_the_glass_absent_shot_is_not_measured(self):
+        rows = {"dark-photo": {0.0: (0.0, 0.0), 0.2: (0.44, -3.0), 0.35: (0.6, -2.5), 1.0: (1.0, -0.1)}}
+        found = fitvis.flutter_sharpness(rows)["dark-photo"]
+        self.assertTrue(np.isnan(found[0.25]))
+        self.assertAlmostEqual(found[0.5], -3.0 + (0.5 - 0.44) / (0.6 - 0.44) * 0.5, places=9)
+        exact = fitvis.flutter_sharpness({"x": {0.0: (0.0, 0.0), 0.2: (0.25, -3.0), 1.0: (1.0, 0.0)}})["x"]
+        self.assertAlmostEqual(exact[0.25], -3.0, places=9)
+
+    def test_the_ramp_objective_scores_sharpness_only_where_every_k_measures_it_and_names_the_rest(self):
+        native_sharp = {"dark-photo": {0.25: -1.0, 0.5: -1.0, 0.75: -1.0}}
+        native_dev = {"dark-photo": {target: [0.0] for target in fitvis.SHARPNESS_AT}}
+
+        def rows(first_progress):
+            return {"dark-photo": {0.0: (0.0, 0.0), 0.1: (first_progress, -4.0), 0.5: (0.5, -1.0), 0.75: (0.75, -1.0), 1.0: (1.0, -1.0)}}
+
+        chosen = fitvis.choose_ramp(native_sharp, native_dev, {0.5: rows(0.4), 1.0: rows(0.25)})
+        for k in ("0.5", "1.0"):
+            self.assertAlmostEqual(chosen["table"][k]["sharpness_rms"], 0.0, places=9)
+        self.assertEqual(chosen["table"]["0.5"]["unmeasured"], ["dark-photo@0.25"])
+        self.assertEqual(chosen["table"]["1.0"]["unmeasured"], [])
+        self.assertEqual(chosen["dropped_targets"], ["dark-photo@0.25"])
+        self.assertIn("dark-photo@0.25", "\n".join(fitvis.ramp_lines(chosen)))
+
     def test_native_per_backdrop_deviation_is_read_at_the_same_point_of_the_transition(self):
         curves = {"material.materialize": [curve("dark-photo", True, 0.45, 1.0), curve("light-photo", True, 0.65, 1.0), curve("dark-photo", False, 0.45, 1.0, 3.0), curve("light-photo", False, 0.65, 1.0, 3.0)]}
         found = fitvis.native_deviation(curves)

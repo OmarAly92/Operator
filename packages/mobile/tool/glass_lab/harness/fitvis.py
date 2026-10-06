@@ -24,7 +24,7 @@ TOOL = "tool.visibility"
 TABLE = build.PACKAGE_LIB / "src" / "motion" / "ios27_motion.dart"
 GRID = 21
 LEVELS = 11
-RAMP_LEVELS = (0.0, 0.2, 0.35, 0.5, 0.65, 0.8, 1.0)
+RAMP_LEVELS = (0.0, 0.05, 0.1, 0.15, 0.2, 0.35, 0.5, 0.65, 0.8, 1.0)
 OVER_LEVELS = (1.05, 1.1, 1.15, 1.2, 1.3, 1.4, 1.5)
 RAMPS = (1.0, 2.0, 3.0, 4.0)
 SHARPNESS_LIMIT = 1.0
@@ -397,18 +397,31 @@ def native_sharpness(curves):
     return found
 
 
+def anchored(visibilities, progress, target):
+    return len(visibilities) > 1 and visibilities[0] <= 0.0 and target < progress[1]
+
+
 def flutter_sharpness(rows):
     found = {}
     for case, by_visibility in rows.items():
         visibilities = sorted(by_visibility)
         progress = np.maximum.accumulate(np.array([by_visibility[v][0] for v in visibilities]))
         sharpness = np.array([by_visibility[v][1] for v in visibilities])
-        found[case] = {target: float(np.interp(target, progress, sharpness)) for target in SHARPNESS_AT}
+        found[case] = {
+            target: float("nan") if anchored(visibilities, progress, target) else float(np.interp(target, progress, sharpness))
+            for target in SHARPNESS_AT
+        }
     return found
 
 
-def ramp_error(native, flutter):
-    differences = [flutter[case][target] - value for case, targets in native.items() if case in flutter for target, value in targets.items()]
+def ramp_error(native, flutter, keep=None):
+    differences = [
+        flutter[case][target] - value
+        for case, targets in native.items()
+        if case in flutter
+        for target, value in targets.items()
+        if (keep is None or (case, target) in keep) and np.isfinite(flutter[case][target])
+    ]
     return float(np.sqrt(np.mean(np.square(differences)))) if differences else float("inf")
 
 
@@ -462,25 +475,44 @@ def deviation_error(native, flutter):
     return float(np.sqrt(np.mean(np.square(differences)))) if differences else float("inf")
 
 
-def ramp_objective(native_sharp, native_dev, rows):
-    sharpness = ramp_error(native_sharp, flutter_sharpness(rows))
+def finite(value, digits=3):
+    return round(value, digits) if np.isfinite(value) else None
+
+
+def unmeasured(flutter):
+    return sorted(f"{case}@{target}" for case, found in flutter.items() for target, value in found.items() if not np.isfinite(value))
+
+
+def ramp_objective(native_sharp, native_dev, rows, keep=None):
+    flutter = flutter_sharpness(rows)
+    sharpness = ramp_error(native_sharp, flutter, keep)
     deviation = deviation_error(native_dev, flutter_deviation(rows))
     return {
         "sharpness_rms": round(sharpness, 4),
         "progress_deviation_rms": round(deviation, 4),
         "objective": round(sharpness / SHARPNESS_LIMIT + deviation / PROGRESS_LIMIT, 4),
+        "unmeasured": unmeasured(flutter),
         "flutter_deviation": {case: {str(t): round(v, 4) for t, v in found.items()} for case, found in flutter_deviation(rows).items()},
     }
 
 
 def choose_ramp(native_sharp, native_dev, rows_by_ramp):
-    table = {ramp: ramp_objective(native_sharp, native_dev, rows) for ramp, rows in rows_by_ramp.items()}
+    flutter = {ramp: flutter_sharpness(rows) for ramp, rows in rows_by_ramp.items()}
+    keep = {
+        (case, target)
+        for case, targets in native_sharp.items()
+        for target in targets
+        if all(case in found and np.isfinite(found[case][target]) for found in flutter.values())
+    }
+    dropped = sorted(f"{case}@{target}" for case, targets in native_sharp.items() for target in targets if (case, target) not in keep and any(case in found for found in flutter.values()))
+    table = {ramp: ramp_objective(native_sharp, native_dev, rows, keep) for ramp, rows in rows_by_ramp.items()}
     best = min(table, key=lambda ramp: table[ramp]["objective"])
     ordered = sorted(table)
     return {
         "value": best,
-        "objective": "sharpness RMS at matched progress / 1.0 + per-backdrop progress deviation RMS at fixed visibility / 0.05",
+        "objective": "sharpness RMS at matched progress, over the targets every k measures, / 1.0 + per-backdrop progress deviation RMS at fixed visibility / 0.05",
         "table": {str(ramp): table[ramp] for ramp in ordered},
+        "dropped_targets": dropped,
         "native_deviation": {case: {str(t): round(float(np.mean(v)), 4) for t, v in found.items()} for case, found in native_dev.items()},
         "at_grid_edge": len(ordered) > 1 and best in (ordered[0], ordered[-1]),
     }
@@ -491,6 +523,7 @@ def ramp_lines(ramp):
     for k, row in ramp["table"].items():
         mark = "  <- chosen" if float(k) == float(ramp["value"]) else ""
         lines.append(f"  {float(k):<5} {row['sharpness_rms']:<14} {row['progress_deviation_rms']:<14} {row['objective']}{mark}")
+    lines.append(f"  sharpness targets left out because a k reads them between the glass-absent shot and its first level: {', '.join(ramp.get('dropped_targets', [])) or 'none'}")
     return lines
 
 
@@ -651,8 +684,8 @@ def run(udid, roots, out, count=LEVELS, write=False, ramps=RAMPS, mode="pooled",
         "default_spring_check": check,
         "blur_ramp": ramp,
         "native_sharpness": {case: {str(k): round(v, 3) for k, v in found.items()} for case, found in native.items()},
-        "flutter_sharpness": {str(r): {case: {str(k): round(v, 3) for k, v in found.items()} for case, found in flutter_sharpness(rows).items()} for r, rows in rows_by_ramp.items()},
-        "flutter_sharpness_table": {case: {str(k): round(v, 3) for k, v in found.items()} for case, found in flutter_sharpness(final).items()},
+        "flutter_sharpness": {str(r): {case: {str(k): finite(v) for k, v in found.items()} for case, found in flutter_sharpness(rows).items()} for r, rows in rows_by_ramp.items()},
+        "flutter_sharpness_table": {case: {str(k): finite(v) for k, v in found.items()} for case, found in flutter_sharpness(final).items()},
         "flutter_progress": {case: {str(v): round(row[0], 4) for v, row in rows.items()} for case, rows in final.items()},
         "flutter_progress_mean": mean,
         "flutter_progress_mean_above_full": above_mean,
