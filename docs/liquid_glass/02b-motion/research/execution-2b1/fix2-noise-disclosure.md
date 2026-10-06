@@ -1101,3 +1101,21 @@ The largest judged loosenings and their cause, read from the pair results under 
 | material.press.circle58 | light-stripes | step1e0.delay_ms | 16.67 | 20 | 25 | 30 | looser |  |
 | material.press.circle58 | light-stripes | step1e1.delay_ms | 2118 | 15 | 3177 | 22.5 | tighter |  |
 | material.press.circle58 | light-stripes | step1e2.delay_ms | 2288 | 193.3 | 3432 | 290 | tighter |  |
+
+## Re-audit fix round (P2A-4): the press take replaced
+
+`noise.json` after `material.press.circle58` dark-stripes take 1 (press 1.225 s, outside the touch gate) was replaced by a boot-C take (press 0.985 s), recomputed for that case only by `lab.case_noise`, against `noise.json` at `644972ba7`. 12 limits moved, 4 tighter and 8 looser, none judged in 2B.1; every other entry is byte-identical. The take's release delays (`step1e1`, `step1e2` `delay_ms`, 262 and 270 ms) no longer set the floors (68 and 78 ms).
+
+|---|---|---|---|---|---|---|---|---|
+| material.press.circle58 | dark-stripes | glass.step1e0.height.response_pct | 24.24 | 27.27 | 36.36 | 40.91 | looser |  |
+| material.press.circle58 | dark-stripes | glass.step1e0.luma.peak_ms | 16.67 | 25 | 25 | 37.5 | looser |  |
+| material.press.circle58 | dark-stripes | glass.step1e0.width.peak_ms | 58.33 | 66.67 | 87.5 | 100 | looser |  |
+| material.press.circle58 | dark-stripes | glass.step1e0.width.response_pct | 24.24 | 27.27 | 36.36 | 40.91 | looser |  |
+| material.press.circle58 | dark-stripes | glass.step1e1.height.response_pct | 22.58 | 19.35 | 33.87 | 29.03 | tighter |  |
+| material.press.circle58 | dark-stripes | glass.step1e1.luma.damping | 0.12 | 0.32 | 0.18 | 0.48 | looser |  |
+| material.press.circle58 | dark-stripes | glass.step1e1.luma.response_pct | 5.263 | 20 | 7.895 | 30 | looser |  |
+| material.press.circle58 | dark-stripes | glass.step1e1.progress.damping | 0.13 | 0.52 | 0.195 | 0.78 | looser |  |
+| material.press.circle58 | dark-stripes | glass.step1e1.progress.response_pct | 6.667 | 25 | 10 | 37.5 | looser |  |
+| material.press.circle58 | dark-stripes | glass.step1e2.progress.settle_ms | 50 | 41.67 | 75 | 62.5 | tighter |  |
+| material.press.circle58 | dark-stripes | step1e1.delay_ms | 261.7 | 68.33 | 392.5 | 102.5 | tighter |  |
+| material.press.circle58 | dark-stripes | step1e2.delay_ms | 270 | 78.33 | 405 | 117.5 | tighter |  |
