@@ -21,8 +21,23 @@ void main() {
     const both = GlassMaterializeMapping(disappearExponent: 3, appearGain: 0.3, reduceMotionAppearGain: 0.8);
     expect(GlassMaterialize.progress(1.1, appearing: true, mapping: both), closeTo(1.03, 1e-12));
     expect(GlassMaterialize.progress(1.1, appearing: true, mapping: both, reduceMotion: true), closeTo(1.08, 1e-12));
-    expect(const GlassMaterializeMapping(disappearExponent: 3, appearGain: 0.3).reduceMotionAppearGain, 0.3);
-    expect(GlassMaterializeMapping.bouncy.reduceMotionAppearGain, ios27BouncyReduceMotionAppearGain);
+    expect(const GlassMaterializeMapping(disappearExponent: 3, appearGain: 0.3).darkReduceMotionAppearGain, 0.3);
+    expect(GlassMaterializeMapping.bouncy.darkReduceMotionAppearGain, ios27BouncyDarkReduceMotionAppearGain);
+    expect(GlassMaterializeMapping.bouncy.lightReduceMotionAppearGain, ios27BouncyLightReduceMotionAppearGain);
+  });
+
+  test('a glass that begins to appear in light or dark takes that appearance\'s fitted gain', () {
+    const split = GlassMaterializeMapping(disappearExponent: 3, appearGain: 0.3, lightAppearGain: 0.6, reduceMotionAppearGain: 0.8, lightReduceMotionAppearGain: 1.0);
+    expect(GlassMaterialize.progress(1.1, appearing: true, mapping: split), closeTo(1.03, 1e-12));
+    expect(GlassMaterialize.progress(1.1, appearing: true, mapping: split, dark: false), closeTo(1.06, 1e-12));
+    expect(GlassMaterialize.progress(1.1, appearing: true, mapping: split, reduceMotion: true), closeTo(1.08, 1e-12));
+    expect(GlassMaterialize.progress(1.1, appearing: true, mapping: split, reduceMotion: true, dark: false), closeTo(1.1, 1e-12));
+    const pooled = GlassMaterializeMapping(disappearExponent: 3, appearGain: 0.3, reduceMotionAppearGain: 0.8);
+    expect((pooled.lightAppearGain, pooled.lightReduceMotionAppearGain), (0.3, 0.8));
+    expect(GlassMaterializeMapping.bouncy.lightAppearGain, ios27BouncyLightAppearGain);
+    final (_, rate) = GlassMaterialize.reverse(1.1, -2, toAppearing: false, from: split, to: split, dark: false);
+    final (_, darkRate) = GlassMaterialize.reverse(1.1, -2, toAppearing: false, from: split, to: split);
+    expect(rate, isNot(darkRate));
   });
 
   test('each preset uses its own fitted mapping, and a custom spring the preset nearest its damping', () {
@@ -34,7 +49,7 @@ void main() {
     expect(GlassMaterializeMapping.of(const GlassAnimation.dampedSpring(response: 0.3, dampingFraction: 0.9)), GlassMaterializeMapping.snappy);
     expect(GlassMaterializeMapping.of(const GlassAnimation.dampedSpring(response: 0.3, dampingFraction: 1.4)), GlassMaterializeMapping.defaultSpring);
     expect(GlassMaterializeMapping.defaultSpring.disappearExponent, ios27DefaultDisappearExponent);
-    expect(GlassMaterializeMapping.snappy.appearGain, ios27SnappyAppearGain);
+    expect(GlassMaterializeMapping.snappy.darkAppearGain, ios27SnappyDarkAppearGain);
     expect(GlassMaterializeMapping.bouncy.disappearExponent, ios27BouncyDisappearExponent);
   });
 
@@ -46,10 +61,27 @@ void main() {
     expect(GlassMaterialize.visibility(1, table: table), 1);
     expect(GlassMaterialize.visibility(1.05, table: table), closeTo(1.08, 1e-12));
     expect(GlassMaterialize.visibility(-1, table: table), 0);
+    expect(GlassMaterialize.visibility(1.05, table: table, above: const []), closeTo(1.08, 1e-12));
     expect(ios27VisibilityForProgress.first, 0);
     expect(ios27VisibilityForProgress.last, 1);
     for (var i = 1; i < ios27VisibilityForProgress.length; i++) {
       expect(ios27VisibilityForProgress[i], greaterThanOrEqualTo(ios27VisibilityForProgress[i - 1]));
+    }
+  });
+
+  test('above full progress, visibility follows the fitted table above full and extends its last slope past it, as fitvis assumes', () {
+    const table = [0.0, 0.2, 1.0];
+    expect(GlassMaterialize.visibility(1, table: table, above: const [1.5]), 1);
+    expect(GlassMaterialize.visibility(1.25, table: table, above: const [1.5]), closeTo(1.25, 1e-12));
+    expect(GlassMaterialize.visibility(1.5, table: table, above: const [1.5]), closeTo(1.5, 1e-12));
+    expect(GlassMaterialize.visibility(2.0, table: table, above: const [1.5]), closeTo(2.0, 1e-12));
+    expect(GlassMaterialize.visibility(1.75, table: table, above: const [1.5, 1.8]), closeTo(1.65, 1e-12));
+    expect(GlassMaterialize.visibility(2.5, table: table, above: const [1.5, 1.8]), closeTo(2.1, 1e-12));
+    expect(GlassMaterialize.visibility(0.75, table: table, above: const [1.5]), closeTo(0.6, 1e-12));
+    var previous = 1.0;
+    for (final value in ios27VisibilityAboveFull) {
+      expect(value, greaterThanOrEqualTo(previous));
+      previous = value;
     }
   });
 

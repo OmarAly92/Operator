@@ -78,7 +78,7 @@ void main() {
     }
     final overshoot = peak.normal - 1;
     expect(overshoot, greaterThan(0));
-    expect(peak.reduced - 1, closeTo(overshoot * ios27BouncyReduceMotionAppearGain / ios27BouncyAppearGain, 1e-3));
+    expect(peak.reduced - 1, closeTo(overshoot * ios27BouncyDarkReduceMotionAppearGain / ios27BouncyDarkAppearGain, 1e-3));
     await tester.pump(const Duration(seconds: 2));
     await tester.pump(const Duration(milliseconds: 16));
   });

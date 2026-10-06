@@ -971,6 +971,14 @@ void main() {
     expect(ghost.center.dy, closeTo(glass.center.dy, 0.5));
   });
 
+  testWidgets('a glass reads its appearance for the appear gain from its theme', (tester) async {
+    for (final brightness in Brightness.values) {
+      await tester.pumpWidget(MaterialApp(home: GlassTheme(data: GlassThemeData(brightness: brightness), child: Center(child: _block()))));
+      expect(_member(tester).dark, brightness == Brightness.dark);
+      await tester.pumpWidget(const SizedBox());
+    }
+  });
+
   testWidgets('a resting sibling is not notified while another glass of its container animates', (tester) async {
     await tester.pumpWidget(_Toggle(children: (shown) => [
       SizedBox(width: 200, height: 100, child: Stack(children: [

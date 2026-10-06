@@ -8,6 +8,7 @@ import 'package:ios_liquid_glass/src/api/glass_effect_container.dart';
 import 'package:ios_liquid_glass/src/api/glass_effect_transition.dart';
 import 'package:ios_liquid_glass/src/api/glass_material_context.dart';
 import 'package:ios_liquid_glass/src/api/glass_shape.dart';
+import 'package:ios_liquid_glass/src/api/glass_theme.dart';
 import 'package:ios_liquid_glass/src/liquid_glass.dart';
 import 'package:ios_liquid_glass/src/motion/glass_animation.dart';
 import 'package:ios_liquid_glass/src/motion/glass_material_source.dart';
@@ -95,6 +96,7 @@ class _GlassEffectState extends State<GlassEffect> with SingleTickerProviderStat
       inserted: inserted,
       from: current,
       reduceMotion: GlassAccessibility.of(context).reduceMotion,
+      dark: GlassTheme.brightnessOf(context) == Brightness.dark,
     )?..onSettled = _settled;
     if (current != null) current.coordinator.drop(current);
   }
@@ -198,7 +200,8 @@ class _GlassEffectState extends State<GlassEffect> with SingleTickerProviderStat
           ..shape = shape
           ..material = material
           ..sharedSettings = grouped ? container.settings : null
-          ..reduceMotion = GlassAccessibility.of(context).reduceMotion;
+          ..reduceMotion = GlassAccessibility.of(context).reduceMotion
+          ..dark = GlassTheme.brightnessOf(context) == Brightness.dark;
         final Widget glass;
         if (grouped && !member.ownsLayer) {
           glass = LiquidGlass.grouped(shape: shape, shadows: material.shadows, shadowSource: material, motion: member, child: content);

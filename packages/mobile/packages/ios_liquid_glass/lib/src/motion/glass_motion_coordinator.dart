@@ -28,6 +28,8 @@ class GlassMember extends ChangeNotifier implements GlassShapeMotion {
   GlassMaterializeMapping _mapping = GlassMaterializeMapping.defaultSpring;
   bool reduceMotion = false;
   bool _reduceMotionAtStart = false;
+  bool dark = true;
+  bool _darkAtStart = true;
   GlassAnimation? scopeAnimation;
   bool animatesTransitions = true;
   LiquidShape? shape;
@@ -64,6 +66,7 @@ class GlassMember extends ChangeNotifier implements GlassShapeMotion {
     appearing: presence != GlassPresence.disappearing,
     mapping: _mapping,
     reduceMotion: _reduceMotionAtStart,
+    dark: _darkAtStart,
   );
 
   Size? get drawnSize {
@@ -232,6 +235,7 @@ class GlassMember extends ChangeNotifier implements GlassShapeMotion {
     presence = other.presence;
     _mapping = other._mapping;
     _reduceMotionAtStart = other._reduceMotionAtStart;
+    _darkAtStart = other._darkAtStart;
     _presence.jumpTo(other._presence.value, velocity: other._presence.velocity);
     if (other._presence.isMoving) {
       _presence.restart(other._presence.value, other._presence.velocity, other._presence.target, resolveGlassAnimation(scopeAnimation), coordinator._now);
@@ -250,6 +254,7 @@ class GlassMember extends ChangeNotifier implements GlassShapeMotion {
     }
     _mapping = mapping;
     _reduceMotionAtStart = reduceMotion;
+    _darkAtStart = dark;
     presence = GlassPresence.appearing;
     _publish();
   }
@@ -264,6 +269,7 @@ class GlassMember extends ChangeNotifier implements GlassShapeMotion {
         from: _mapping,
         to: mapping,
         reduceMotion: _reduceMotionAtStart,
+        dark: _darkAtStart,
       );
       _presence.restart(value, velocity, 0, animation, now);
     } else {
@@ -406,11 +412,12 @@ class GlassMotionCoordinator {
     return binding.schedulerPhase == SchedulerPhase.idle ? null : binding.currentFrameTimeStamp;
   }
 
-  GlassMember join({GlassAnimation? scope, bool animate = true, bool inserted = false, GlassMember? from, bool reduceMotion = false}) {
+  GlassMember join({GlassAnimation? scope, bool animate = true, bool inserted = false, GlassMember? from, bool reduceMotion = false, bool dark = true}) {
     final member = GlassMember(this)
       ..scopeAnimation = scope
       ..animatesTransitions = animate
-      ..reduceMotion = reduceMotion;
+      ..reduceMotion = reduceMotion
+      ..dark = dark;
     _members.add(member);
     if (from != null) {
       member._adopt(from);

@@ -275,8 +275,8 @@ def cmd_fitvis(args):
     udid = sim.device()
     out = Path(args.out) if args.out else build.OUT / "fitvis" / time.strftime("%Y%m%d-%H%M%S")
     ramps = tuple(float(r) for r in args.ramps.split(","))
-    summary = fitvis.run(udid, [Path(r) for r in args.runs], out, args.levels, args.write, ramps)
-    print(json.dumps({k: v for k, v in summary.items() if k in ("mapping", "default_spring_check", "blur_ramp", "visibility_for_progress")}, indent=2))
+    summary = fitvis.run(udid, [Path(r) for r in args.runs], out, args.levels, args.write, ramps, args.gain_mode, tuple(args.allow_case_edge))
+    print(json.dumps({k: v for k, v in summary.items() if k in ("gain_mode", "mapping", "default_spring_check", "blur_ramp", "visibility_for_progress", "visibility_above_full", "overrides", "write")}, indent=2))
     print(out)
 
 
@@ -404,6 +404,8 @@ def parser():
     v.add_argument("--ramps", default=",".join(str(r) for r in fitvis.RAMPS))
     v.add_argument("--out")
     v.add_argument("--write", action="store_true")
+    v.add_argument("--gain-mode", default="pooled", choices=fitvis.GAIN_MODES)
+    v.add_argument("--allow-case-edge", action="append", default=[], metavar="SCENE/KIND/CASE")
     v.set_defaults(func=cmd_fitvis)
     u = commands.add_parser("tune")
     u.add_argument("--scene", required=True)
