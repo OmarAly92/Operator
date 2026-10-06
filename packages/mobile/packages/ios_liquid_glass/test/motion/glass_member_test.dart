@@ -3,7 +3,6 @@ import 'dart:math' as math;
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ios_liquid_glass/ios_liquid_glass.dart';
-import 'package:ios_liquid_glass/src/motion/glass_animation.dart';
 import 'package:ios_liquid_glass/src/motion/glass_materialize.dart';
 import 'package:ios_liquid_glass/src/motion/glass_motion_coordinator.dart';
 import 'package:ios_liquid_glass/src/motion/ios27_motion.dart';

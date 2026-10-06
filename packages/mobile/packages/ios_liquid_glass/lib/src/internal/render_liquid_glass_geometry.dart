@@ -163,7 +163,7 @@ abstract class RenderLiquidGlassGeometry extends RenderProxyBox {
     super.attach(owner);
     _visibility?.addListener(_applySettings);
     _settingsSource?.addListener(_applySettings);
-    _effective = null;
+    _applySettings();
   }
 
   @override
@@ -444,7 +444,7 @@ class RenderedGeometryCache extends GeometryCache {
 @internal
 extension GeometryRebuild on LiquidGlassSettings {
   bool requiresGeometryRebuild(LiquidGlassSettings? other) {
-    if (other == null) return false;
+    if (other == null) return true;
 
     return effectiveThickness != other.effectiveThickness ||
         refractiveIndex != other.refractiveIndex ||

@@ -1,7 +1,9 @@
+import 'dart:ui' as ui;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ios_liquid_glass/ios_liquid_glass.dart';
-import 'package:ios_liquid_glass/src/motion/glass_animation.dart';
+import 'package:ios_liquid_glass/src/api/glass_effect_container.dart';
 import 'package:ios_liquid_glass/src/motion/glass_motion_coordinator.dart';
 import 'package:ios_liquid_glass/src/motion/glass_motion_widgets.dart';
 import 'package:ios_liquid_glass/src/shaders.dart';
@@ -536,6 +538,41 @@ void main() {
     expect(tester.getRect(find.byType(RawImage)).top, closeTo(onScreen.top, 0.5));
   });
 
+  testWidgets('a standalone glass removed after its list scrolled leaves its ghost where the glass was on screen', (tester) async {
+    final controller = ScrollController();
+    addTearDown(controller.dispose);
+    var shown = true;
+    late StateSetter remove;
+    await tester.pumpWidget(MaterialApp(
+      home: GlassTheme(
+        data: const GlassThemeData(brightness: Brightness.dark),
+        child: Align(
+          alignment: Alignment.topLeft,
+          child: SizedBox(
+            width: 300,
+            height: 400,
+            child: StatefulBuilder(builder: (context, setState) {
+              remove = setState;
+              return ListView(controller: controller, children: [
+                for (var i = 0; i < 8; i++)
+                  Padding(padding: const EdgeInsets.all(8), child: Row(children: [if (i != 2 || shown) _block(key: ValueKey(i), width: 100, height: 60)])),
+              ]);
+            }),
+          ),
+        ),
+      ),
+    ));
+    await tester.pump(const Duration(seconds: 1));
+    controller.jumpTo(60);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+    final onScreen = tester.getRect(find.byKey(const ValueKey(2)));
+    remove(() => shown = false);
+    await tester.pump();
+    expect(find.byType(RawImage), findsOneWidget);
+    expect(tester.getRect(find.byType(RawImage)).top, closeTo(onScreen.top, 0.5));
+  });
+
   testWidgets('glass keeps its place on screen when a sibling is inserted and the centred container re-centres, then springs to its new place', (tester) async {
     await tester.pumpWidget(_Toggle(row: true, children: (shown) => [
       _block(key: const ValueKey('a'), width: 100, height: 60),
@@ -595,12 +632,31 @@ void main() {
   testWidgets('a container removed while a ghost is in flight disposes cleanly', (tester) async {
     await tester.pumpWidget(_Toggle(children: (shown) => [if (shown) _block(child: const ColoredBox(color: Color(0xFFFF0000)))]));
     await tester.pump(const Duration(seconds: 1));
+    final coordinator = tester.widget<GlassContainerScope>(find.byType(GlassContainerScope)).coordinator;
     tester.state<_ToggleState>(find.byType(_Toggle)).toggle();
     await tester.pump();
+    expect(coordinator.ghosts, hasLength(1));
+    final ui.Image image = coordinator.ghosts.single.snapshot!;
     await tester.pump(const Duration(milliseconds: 30));
     await tester.pumpWidget(const SizedBox());
     await tester.pump();
     expect(tester.takeException(), isNull);
+    expect(image.debugDisposed, isTrue);
+    expect(tester.binding.transientCallbackCount, 0);
+  });
+
+  testWidgets('a standalone ghost replaced with the whole app mid-flight disposes its snapshot and leaves no ticker', (tester) async {
+    await tester.pumpWidget(_Toggle(container: false, children: (shown) => [if (shown) _block(child: const ColoredBox(color: Color(0xFFFF0000)))]));
+    await tester.pump(const Duration(seconds: 1));
+    tester.state<_ToggleState>(find.byType(_Toggle)).toggle();
+    await tester.pump();
+    final ui.Image image = tester.widget<RawImage>(find.byType(RawImage)).image!;
+    await tester.pump(const Duration(milliseconds: 30));
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump();
+    await tester.pump();
+    expect(tester.takeException(), isNull);
+    expect(image.debugDisposed, isTrue);
     expect(tester.binding.transientCallbackCount, 0);
   });
 
@@ -717,4 +773,302 @@ void main() {
     expect(_visibility(tester), isNull);
     expect(tester.takeException(), isNull);
   });
+  testWidgets('a container glass removed while its route is covered goes at once, and no frame shows it after the pop', (tester) async {
+    final shown = ValueNotifier(true);
+    addTearDown(shown.dispose);
+    await tester.pumpWidget(_Covered(shown: shown, container: true));
+    await tester.pump(const Duration(seconds: 1));
+    final coordinator = tester.widget<GlassContainerScope>(find.byType(GlassContainerScope)).coordinator;
+    final navigator = tester.state<NavigatorState>(find.byType(Navigator));
+    navigator.push(MaterialPageRoute<void>(builder: (context) => const ColoredBox(color: Color(0xFF0000FF))));
+    await tester.pumpAndSettle();
+    shown.value = false;
+    await tester.pump();
+    expect(coordinator.hasGhosts, isFalse);
+    expect(find.byType(RawImage, skipOffstage: false), findsNothing);
+    await tester.pump(const Duration(seconds: 2));
+    navigator.pop();
+    for (var i = 0; i < 30; i++) {
+      await tester.pump(const Duration(milliseconds: 16));
+      expect(find.byType(RawImage, skipOffstage: false), findsNothing);
+      expect(find.byType(LiquidGlass, skipOffstage: false), findsNothing);
+    }
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('a standalone glass removed while its route is covered goes at once, with no ghost over the covering route', (tester) async {
+    final shown = ValueNotifier(true);
+    addTearDown(shown.dispose);
+    await tester.pumpWidget(_Covered(shown: shown, container: false));
+    await tester.pump(const Duration(seconds: 1));
+    final navigator = tester.state<NavigatorState>(find.byType(Navigator));
+    navigator.push(MaterialPageRoute<void>(builder: (context) => const ColoredBox(color: Color(0xFF0000FF))));
+    await tester.pumpAndSettle();
+    shown.value = false;
+    await tester.pump();
+    expect(find.byType(RawImage, skipOffstage: false), findsNothing);
+    await tester.pump(const Duration(seconds: 2));
+    navigator.pop();
+    for (var i = 0; i < 30; i++) {
+      await tester.pump(const Duration(milliseconds: 16));
+      expect(find.byType(RawImage, skipOffstage: false), findsNothing);
+      expect(find.byType(LiquidGlass, skipOffstage: false), findsNothing);
+    }
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('a ghost in flight when its route is covered is dropped, so the pop shows no frame of it', (tester) async {
+    final shown = ValueNotifier(true);
+    addTearDown(shown.dispose);
+    await tester.pumpWidget(_Covered(shown: shown, container: true));
+    await tester.pump(const Duration(seconds: 1));
+    final coordinator = tester.widget<GlassContainerScope>(find.byType(GlassContainerScope)).coordinator;
+    final navigator = tester.state<NavigatorState>(find.byType(Navigator));
+    shown.value = false;
+    await tester.pump();
+    expect(find.byType(RawImage), findsOneWidget);
+    await tester.pump(const Duration(milliseconds: 16));
+    navigator.push(PageRouteBuilder<void>(
+      transitionDuration: Duration.zero,
+      reverseTransitionDuration: Duration.zero,
+      pageBuilder: (context, _, _) => const ColoredBox(color: Color(0xFF0000FF)),
+    ));
+    await tester.pump();
+    await tester.pump();
+    expect(coordinator.hasGhosts, isFalse);
+    await tester.pump(const Duration(seconds: 1));
+    navigator.pop();
+    for (var i = 0; i < 20; i++) {
+      await tester.pump(const Duration(milliseconds: 16));
+      expect(find.byType(RawImage, skipOffstage: false), findsNothing);
+    }
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('a glass inserted while its route is covered is present at once when the route shows again', (tester) async {
+    final shown = ValueNotifier(false);
+    addTearDown(shown.dispose);
+    await tester.pumpWidget(_Covered(shown: shown, container: true));
+    await tester.pump(const Duration(seconds: 1));
+    final navigator = tester.state<NavigatorState>(find.byType(Navigator));
+    navigator.push(MaterialPageRoute<void>(builder: (context) => const ColoredBox(color: Color(0xFF0000FF))));
+    await tester.pumpAndSettle();
+    shown.value = true;
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
+    navigator.pop();
+    for (var i = 0; i < 30; i++) {
+      await tester.pump(const Duration(milliseconds: 16));
+      expect(find.byType(LiquidGlass, skipOffstage: false), findsOneWidget);
+      expect(_visibility(tester), anyOf(isNull, 1.0));
+    }
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('standalone glass with no Overlay appears at once', (tester) async {
+    await tester.pumpWidget(Directionality(
+      textDirection: TextDirection.ltr,
+      child: GlassTheme(
+        data: const GlassThemeData(brightness: Brightness.dark),
+        child: Center(child: _Bare(children: (shown) => [const SizedBox(width: 10, height: 10), if (!shown) _block()])),
+      ),
+    ));
+    await tester.pump(const Duration(seconds: 1));
+    tester.state<_BareState>(find.byType(_Bare)).toggle();
+    await tester.pump();
+    expect(find.byType(LiquidGlass), findsOneWidget);
+    expect(_visibility(tester), 1);
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(_visibility(tester), 1);
+    expect(tester.binding.transientCallbackCount, 0);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('standalone glass with no Overlay disappears at once', (tester) async {
+    await tester.pumpWidget(Directionality(
+      textDirection: TextDirection.ltr,
+      child: GlassTheme(
+        data: const GlassThemeData(brightness: Brightness.dark),
+        child: Center(child: _Bare(children: (shown) => [const SizedBox(width: 10, height: 10), if (shown) _block()])),
+      ),
+    ));
+    await tester.pump(const Duration(seconds: 1));
+    tester.state<_BareState>(find.byType(_Bare)).toggle();
+    await tester.pump();
+    expect(find.byType(LiquidGlass), findsNothing);
+    expect(find.byType(RawImage), findsNothing);
+    expect(tester.binding.transientCallbackCount, 0);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('inside withGlassAnimation, container glass leaving with its container ghosts in the nearest Overlay, as standalone glass does', (tester) async {
+    late StateSetter set;
+    var tab = 0;
+    await tester.pumpWidget(MaterialApp(
+      home: GlassTheme(
+        data: const GlassThemeData(brightness: Brightness.dark),
+        child: Center(child: StatefulBuilder(builder: (context, setState) {
+          set = setState;
+          return tab == 0
+              ? Column(mainAxisSize: MainAxisSize.min, children: [
+                  GlassEffectContainer(child: _block(key: const ValueKey('c'), width: 100, height: 40, child: const ColoredBox(color: Color(0xFF00FF00)))),
+                  _block(key: const ValueKey('s'), width: 100, height: 40, child: const ColoredBox(color: Color(0xFFFF0000))),
+                ])
+              : const SizedBox(width: 10, height: 10);
+        })),
+      ),
+    ));
+    await tester.pump(const Duration(seconds: 1));
+    final container = tester.getRect(find.byKey(const ValueKey('c')));
+    withGlassAnimation(GlassAnimation.bouncy, () => set(() => tab = 1));
+    await tester.pump();
+    expect(find.byType(RawImage), findsNWidgets(2));
+    expect(find.descendant(of: find.byType(Overlay), matching: find.byType(RawImage)), findsNWidgets(2));
+    expect(tester.getRect(find.byType(RawImage).first).center, container.center);
+    await tester.pump(const Duration(milliseconds: 60));
+    expect(find.byType(RawImage), findsNWidgets(2));
+    await tester.pumpAndSettle();
+    expect(find.byType(RawImage), findsNothing);
+    expect(tester.binding.transientCallbackCount, 0);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('a container glass removed after its page slid in leaves its ghost where the glass is on screen', (tester) async {
+    await tester.pumpWidget(MaterialApp(home: GlassTheme(data: const GlassThemeData(brightness: Brightness.dark), child: const SizedBox())));
+    tester.state<NavigatorState>(find.byType(Navigator)).push(MaterialPageRoute<void>(builder: (context) => GlassTheme(
+      data: const GlassThemeData(brightness: Brightness.dark),
+      child: Center(child: _Bare(children: (shown) => [GlassEffectContainer(child: SizedBox(width: 250, height: 88, child: shown ? _block(child: const ColoredBox(color: Color(0xFFFF0000))) : null))])),
+    )));
+    await tester.pump();
+    await tester.pumpAndSettle();
+    final glass = tester.getRect(find.byType(GlassEffect));
+    tester.state<_BareState>(find.byType(_Bare)).toggle();
+    await tester.pump();
+    expect(find.byType(RawImage), findsOneWidget);
+    final ghost = tester.getRect(find.byType(RawImage));
+    expect(ghost.center.dx, closeTo(glass.center.dx, 0.5));
+    expect(ghost.center.dy, closeTo(glass.center.dy, 0.5));
+  });
+
+  testWidgets('a standalone glass removed after its page slid in leaves its ghost where the glass is on screen', (tester) async {
+    await tester.pumpWidget(MaterialApp(home: GlassTheme(data: const GlassThemeData(brightness: Brightness.dark), child: const SizedBox())));
+    tester.state<NavigatorState>(find.byType(Navigator)).push(MaterialPageRoute<void>(builder: (context) => GlassTheme(
+      data: const GlassThemeData(brightness: Brightness.dark),
+      child: Center(child: _Bare(children: (shown) => [SizedBox(width: 250, height: 88, child: shown ? _block(child: const ColoredBox(color: Color(0xFFFF0000))) : null)])),
+    )));
+    await tester.pump();
+    await tester.pumpAndSettle();
+    final glass = tester.getRect(find.byType(GlassEffect));
+    tester.state<_BareState>(find.byType(_Bare)).toggle();
+    await tester.pump();
+    expect(find.byType(RawImage), findsOneWidget);
+    final ghost = tester.getRect(find.byType(RawImage));
+    expect(ghost.center.dx, closeTo(glass.center.dx, 0.5));
+    expect(ghost.center.dy, closeTo(glass.center.dy, 0.5));
+  });
+
+  testWidgets('a resting sibling is not notified while another glass of its container animates', (tester) async {
+    await tester.pumpWidget(_Toggle(children: (shown) => [
+      SizedBox(width: 200, height: 100, child: Stack(children: [
+        Positioned(left: 0, top: 0, child: _block(key: const ValueKey('resting'), width: 60, height: 40)),
+        if (!shown) Positioned(left: 100, top: 0, child: _block(key: const ValueKey('new'), width: 60, height: 40)),
+      ])),
+    ]));
+    await tester.pump(const Duration(seconds: 1));
+    final resting = _member(tester, find.byKey(const ValueKey('resting')));
+    var notified = 0;
+    resting.addListener(() => notified++);
+    tester.state<_ToggleState>(find.byType(_Toggle)).toggle();
+    await tester.pump();
+    final arriving = _member(tester, find.byKey(const ValueKey('new')));
+    var frames = 0;
+    for (var i = 0; i < 20; i++) {
+      await tester.pump(const Duration(milliseconds: 16));
+      if (arriving.isMoving) frames++;
+    }
+    expect(frames, greaterThan(10));
+    expect(notified, 0);
+  });
+
+  testWidgets('a snap to a detent right after a drag lands at once, and withGlassAnimation around the release springs it', (tester) async {
+    var x = 0.0;
+    late StateSetter drag;
+    await tester.pumpWidget(MaterialApp(
+      home: StatefulBuilder(builder: (context, setState) {
+        drag = setState;
+        return Stack(children: [
+          Positioned(left: x, top: 100, child: _block(key: const ValueKey('thumb'), width: 60, height: 40)),
+        ]);
+      }),
+    ));
+    await tester.pump(const Duration(seconds: 1));
+    final member = _member(tester);
+    for (var i = 0; i < 6; i++) {
+      drag(() => x += 15);
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+    drag(() => x = 200);
+    await tester.pump(const Duration(milliseconds: 16));
+    expect(_onScreen(member).left, closeTo(200, 0.5));
+    await tester.pumpAndSettle();
+    for (var i = 0; i < 6; i++) {
+      drag(() => x -= 15);
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+    expect(_onScreen(member).left, closeTo(110, 0.5));
+    withGlassAnimation(GlassAnimation.defaultSpring, () => drag(() => x = 0));
+    await tester.pump(const Duration(milliseconds: 16));
+    expect(_onScreen(member).left, closeTo(110, 0.5));
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(_onScreen(member).left, inExclusiveRange(0, 110));
+    await tester.pumpAndSettle();
+    expect(_onScreen(member).left, closeTo(0, 1e-6));
+  });
+}
+
+class _Covered extends StatelessWidget {
+  const _Covered({required this.shown, required this.container});
+
+  final ValueNotifier<bool> shown;
+  final bool container;
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      home: GlassTheme(
+        data: const GlassThemeData(brightness: Brightness.dark),
+        child: Center(
+          child: ValueListenableBuilder<bool>(
+            valueListenable: shown,
+            builder: (context, on, _) {
+              final slot = SizedBox(width: 250, height: 88, child: on ? _block(child: const ColoredBox(color: Color(0xFFFF0000))) : null);
+              return container ? GlassEffectContainer(child: slot) : slot;
+            },
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _Bare extends StatefulWidget {
+  const _Bare({required this.children});
+
+  final List<Widget> Function(bool shown) children;
+
+  @override
+  State<_Bare> createState() => _BareState();
+}
+
+class _BareState extends State<_Bare> {
+  bool shown = true;
+
+  void toggle() => setState(() => shown = !shown);
+
+  @override
+  Widget build(BuildContext context) => Column(mainAxisSize: MainAxisSize.min, children: widget.children(shown));
 }

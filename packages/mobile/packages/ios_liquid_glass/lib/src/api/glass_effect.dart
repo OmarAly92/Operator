@@ -1,3 +1,5 @@
+import 'dart:ui' show ImageFilter;
+
 import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 import 'package:ios_liquid_glass/src/accessibility/glass_accessibility.dart';
@@ -43,6 +45,7 @@ class _GlassEffectState extends State<GlassEffect> with SingleTickerProviderStat
   GlassMaterialSource? _material;
   GlassOverlayGhosts? _overlay;
   RenderObject? _parent;
+  bool _onScreen = true;
   bool _joined = false;
   bool _left = false;
   bool _ghosted = false;
@@ -53,6 +56,7 @@ class _GlassEffectState extends State<GlassEffect> with SingleTickerProviderStat
   void didChangeDependencies() {
     super.didChangeDependencies();
     _pixelRatio = MediaQuery.maybeDevicePixelRatioOf(context) ?? 1;
+    _onScreen = TickerMode.valuesOf(context).enabled;
     _join();
   }
 
@@ -81,7 +85,8 @@ class _GlassEffectState extends State<GlassEffect> with SingleTickerProviderStat
         ..animatesTransitions = animate;
       return;
     }
-    final inserted = !_joined && (pendingGlassAnimation != null || _laidOut(context.findAncestorRenderObjectOfType<RenderObject>()));
+    final hosted = container != null || _overlay != null;
+    final inserted = !_joined && hosted && _onScreen && (pendingGlassAnimation != null || _laidOut(context.findAncestorRenderObjectOfType<RenderObject>()));
     _joined = true;
     _coordinator = coordinator;
     _member = coordinator?.join(
@@ -120,9 +125,9 @@ class _GlassEffectState extends State<GlassEffect> with SingleTickerProviderStat
     final member = _member, coordinator = _coordinator;
     if (member != null && coordinator != null) {
       final standalone = coordinator == _private;
-      final owner = standalone ? _overlay?.coordinator : coordinator;
+      final owner = standalone ? _overlay?.coordinator : coordinator.ghostOwner;
       final parent = _parent;
-      final animate = owner != null && (pendingGlassAnimation != null || (parent != null && parent.attached));
+      final animate = owner != null && _onScreen && (pendingGlassAnimation != null || (parent != null && parent.attached));
       final boundary = _snapshotKey.currentContext?.findRenderObject();
       final keep = animate && member.animatesTransitions && boundary is RenderGlassSnapshotBoundary;
       _ghosted = coordinator.leave(
@@ -209,7 +214,7 @@ class _GlassEffectState extends State<GlassEffect> with SingleTickerProviderStat
             child: content,
           );
         }
-        final box = GlassMemberBox(member: member, child: glass);
+        final box = GlassMemberBox(member: member, tracksSpace: !ImageFilter.isShaderFilterSupported, child: glass);
         final private = _private;
         return container == null && private != null ? GlassCoordinatorSpace(coordinator: private, child: box) : box;
       },

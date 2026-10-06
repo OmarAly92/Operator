@@ -115,7 +115,7 @@ abstract class LiquidGlassRenderObject extends RenderProxyBox {
     super.attach(owner);
     _visibility?.addListener(_visibilityChanged);
     _settingsSource?.addListener(_visibilityChanged);
-    _effective = null;
+    _visibilityChanged();
   }
 
   @override

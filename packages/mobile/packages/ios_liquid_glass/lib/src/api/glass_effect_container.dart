@@ -28,10 +28,34 @@ class GlassEffectContainer extends StatefulWidget {
 
 class _GlassEffectContainerState extends State<GlassEffectContainer> with SingleTickerProviderStateMixin {
   late final GlassMotionCoordinator _coordinator = GlassMotionCoordinator(vsync: this);
+  GlassOverlayGhosts? _overlay;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final overlay = GlassOverlayGhosts.of(context);
+    if (identical(overlay, _overlay)) return;
+    _overlay?.release();
+    _overlay = overlay?..retain();
+  }
+
+  @override
+  void deactivate() {
+    _coordinator.depart(_overlay?.coordinator);
+    super.deactivate();
+  }
+
+  @override
+  void activate() {
+    super.activate();
+    _coordinator.stay();
+  }
 
   @override
   void dispose() {
     _coordinator.dispose();
+    _overlay?.release();
+    _overlay = null;
     super.dispose();
   }
 

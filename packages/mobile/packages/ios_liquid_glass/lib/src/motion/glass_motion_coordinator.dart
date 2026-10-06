@@ -39,8 +39,10 @@ class GlassMember extends ChangeNotifier implements GlassShapeMotion {
   Size? _size;
   Offset? _anchor;
   Offset? _live;
+  RenderObject? _liveSpace;
   Offset? _spaceOrigin;
-  Offset _shiftAtRead = Offset.zero;
+  Offset _innerAtLive = Offset.zero;
+  Offset _outerAtOrigin = Offset.zero;
   int _originFrame = -1;
   int _animateUntil = -1;
   int _changeFrame = -2;
@@ -158,13 +160,15 @@ class GlassMember extends ChangeNotifier implements GlassShapeMotion {
     final space = coordinator.space;
     if (box == null || space == null || !box.attached || !space.attached || !box.hasSize) return;
     final live = MatrixUtils.transformPoint(box.getTransformTo(space), Offset.zero);
-    final anchor = live - _scrollShift(space);
+    final inner = _scrollShift(space);
+    final anchor = live - inner;
     _live = live;
+    _liveSpace = space;
+    _innerAtLive = inner;
     final frame = GlassFrame.current;
     if (_originFrame != frame) {
       _originFrame = frame;
-      _spaceOrigin = MatrixUtils.transformPoint(space.getTransformTo(null), Offset.zero);
-      _shiftAtRead = _scrollShift(null);
+      _readSpace(space, inner);
     }
     final previous = _anchor;
     _anchor = anchor;
@@ -175,6 +179,16 @@ class GlassMember extends ChangeNotifier implements GlassShapeMotion {
     _offset[0].offsetBy(previous.dx - anchor.dx, animation, now);
     _offset[1].offsetBy(previous.dy - anchor.dy, animation, now);
     coordinator._start();
+  }
+
+  void _readSpace(RenderObject space, Offset inner) {
+    _spaceOrigin = MatrixUtils.transformPoint(space.getTransformTo(null), Offset.zero);
+    _outerAtOrigin = _scrollShift(null) - inner;
+  }
+
+  void spaceComposited() {
+    final space = _liveSpace;
+    if (space != null && space.attached && identical(space, coordinator.space)) _readSpace(space, _scrollShift(space));
   }
 
   Offset _scrollShift(RenderObject? space) {
@@ -259,6 +273,8 @@ class GlassMember extends ChangeNotifier implements GlassShapeMotion {
     presence = GlassPresence.disappearing;
     _publish();
   }
+
+  bool get _due => isMoving || presence == GlassPresence.appearing;
 
   bool _sample(Duration now) {
     var moving = _presence.sample(now);
@@ -362,10 +378,24 @@ class GlassMotionCoordinator {
   RenderObject? marker;
   Element? _ghostHost;
   bool _disposed = false;
+  bool _departing = false;
+  GlassMotionCoordinator? _successor;
   int _structureUntil = -1;
   GlassAnimation? _structureAnimation;
 
   Iterable<GlassMember> get members => _members;
+
+  GlassMotionCoordinator? get ghostOwner => _departing ? _successor : this;
+
+  void depart(GlassMotionCoordinator? successor) {
+    _departing = true;
+    _successor = successor;
+  }
+
+  void stay() {
+    _departing = false;
+    _successor = null;
+  }
 
   bool get hasGhosts => ghosts.isNotEmpty || _leaving.isNotEmpty;
 
@@ -414,6 +444,8 @@ class GlassMotionCoordinator {
     final settings = member.settings, shape = member.shape;
     if (_disposed ||
         ghostOwner._disposed ||
+        _ticker.muted ||
+        ghostOwner._ticker.muted ||
         !animate ||
         !member.animatesTransitions ||
         animation.isNone ||
@@ -453,7 +485,7 @@ class GlassMotionCoordinator {
     final drawn = member._lastDrawn;
     final origin = member._spaceOrigin;
     if (drawn == null || origin == null) return null;
-    return drawn.shift(origin + member._scrollShift(null) - member._shiftAtRead);
+    return drawn.shift(origin + member._scrollShift(null) - member._innerAtLive - member._outerAtOrigin);
   }
 
   void drop(GlassMember member) {
@@ -471,6 +503,10 @@ class GlassMotionCoordinator {
   }
 
   List<GlassGhost> takeGhosts() {
+    if (_ticker.muted) {
+      _dropLeaving();
+      dropGhosts();
+    }
     for (final MapEntry(key: member, value: leaving) in _leaving.entries) {
       final snapshot = leaving.snapshot();
       leaving.release();
@@ -493,6 +529,21 @@ class GlassMotionCoordinator {
 
   set ghostHost(Element? element) => _ghostHost = element;
 
+  void dropGhosts() {
+    for (final ghost in ghosts) {
+      ghost.dispose();
+    }
+    ghosts.clear();
+  }
+
+  void _dropLeaving() {
+    for (final MapEntry(key: member, value: leaving) in _leaving.entries) {
+      leaving.release();
+      member.dispose();
+    }
+    _leaving.clear();
+  }
+
   void _structureChanged(GlassAnimation animation) {
     _structureUntil = GlassFrame.current + 1;
     _structureAnimation = animation;
@@ -506,7 +557,7 @@ class GlassMotionCoordinator {
     final now = SchedulerBinding.instance.currentFrameTimeStamp;
     var moving = false;
     for (final member in _members.toList()) {
-      moving = member._sample(now) || moving;
+      if (member._due) moving = member._sample(now) || moving;
     }
     var finished = false;
     for (final ghost in ghosts.toList()) {
@@ -528,15 +579,8 @@ class GlassMotionCoordinator {
   void dispose() {
     _disposed = true;
     _ticker.dispose();
-    for (final ghost in ghosts) {
-      ghost.dispose();
-    }
-    ghosts.clear();
-    for (final MapEntry(key: member, value: leaving) in _leaving.entries) {
-      leaving.release();
-      member.dispose();
-    }
-    _leaving.clear();
+    dropGhosts();
+    _dropLeaving();
     for (final member in _members) {
       member.dispose();
     }

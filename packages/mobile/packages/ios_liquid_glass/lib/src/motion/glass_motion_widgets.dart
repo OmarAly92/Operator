@@ -1,3 +1,5 @@
+import 'dart:ui' as ui;
+
 import 'package:flutter/rendering.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
@@ -47,22 +49,38 @@ class RenderGlassCoordinatorSpace extends RenderProxyBox {
 
 @internal
 class GlassMemberBox extends SingleChildRenderObjectWidget {
-  const GlassMemberBox({super.key, required this.member, super.child});
+  const GlassMemberBox({super.key, required this.member, this.tracksSpace = false, super.child});
 
   final GlassMember member;
+  final bool tracksSpace;
 
   @override
-  RenderObject createRenderObject(BuildContext context) => RenderGlassMemberBox(member);
+  RenderObject createRenderObject(BuildContext context) => RenderGlassMemberBox(member, tracksSpace: tracksSpace);
 
   @override
   void updateRenderObject(BuildContext context, RenderGlassMemberBox renderObject) {
-    renderObject.member = member;
+    renderObject
+      ..member = member
+      ..tracksSpace = tracksSpace;
   }
 }
 
 @internal
 class RenderGlassMemberBox extends RenderProxyBox {
-  RenderGlassMemberBox(this._member);
+  RenderGlassMemberBox(this._member, {bool tracksSpace = false}) : _tracksSpace = tracksSpace;
+
+  final LayerHandle<_SpaceTrackingLayer> _tracking = LayerHandle();
+
+  bool _tracksSpace;
+  set tracksSpace(bool value) {
+    if (_tracksSpace == value) return;
+    _tracksSpace = value;
+    markNeedsCompositingBitsUpdate();
+    markNeedsPaint();
+  }
+
+  @override
+  bool get alwaysNeedsCompositing => _tracksSpace;
 
   GlassMember _member;
   GlassMember get member => _member;
@@ -97,7 +115,33 @@ class RenderGlassMemberBox extends RenderProxyBox {
   @override
   void paint(PaintingContext context, Offset offset) {
     _member.sync();
-    super.paint(context, offset);
+    if (!_tracksSpace) {
+      _tracking.layer = null;
+      super.paint(context, offset);
+      return;
+    }
+    final layer = _tracking.layer ??= _SpaceTrackingLayer();
+    layer.member = _member;
+    context.pushLayer(layer, super.paint, offset);
+  }
+
+  @override
+  void dispose() {
+    _tracking.layer = null;
+    super.dispose();
+  }
+}
+
+class _SpaceTrackingLayer extends ContainerLayer {
+  GlassMember? member;
+
+  @override
+  bool get alwaysNeedsAddToScene => true;
+
+  @override
+  void addToScene(ui.SceneBuilder builder) {
+    member?.spaceComposited();
+    addChildrenToScene(builder);
   }
 }
 
@@ -126,6 +170,7 @@ class GlassGhostHost extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (!TickerMode.valuesOf(context).enabled) coordinator.dropGhosts();
     return LayoutBuilder(
       builder: (context, constraints) {
         coordinator.ghostHost = context as Element;
@@ -133,7 +178,7 @@ class GlassGhostHost extends StatelessWidget {
         return IgnorePointer(
           child: ExcludeSemantics(
             child: _GhostStack(
-              children: [for (final ghost in ghosts) _GhostSlot(key: ObjectKey(ghost), global: ghost.rect, child: _Ghost(ghost: ghost))],
+              children: [for (final ghost in ghosts) _GhostSlot(key: ObjectKey(ghost), ghost: ghost, child: _Ghost(ghost: ghost))],
             ),
           ),
         );
@@ -218,19 +263,19 @@ class _OverlayGhostLayerState extends State<_OverlayGhostLayer> with SingleTicke
 }
 
 class _GhostParentData extends ContainerBoxParentData<RenderBox> {
-  Rect global = Rect.zero;
+  GlassGhost? ghost;
 }
 
 class _GhostSlot extends ParentDataWidget<_GhostParentData> {
-  const _GhostSlot({super.key, required this.global, required super.child});
+  const _GhostSlot({super.key, required this.ghost, required super.child});
 
-  final Rect global;
+  final GlassGhost ghost;
 
   @override
   void applyParentData(RenderObject renderObject) {
     final data = renderObject.parentData! as _GhostParentData;
-    if (data.global == global) return;
-    data.global = global;
+    if (identical(data.ghost, ghost)) return;
+    data.ghost = ghost;
     renderObject.parent?.markNeedsLayout();
   }
 
@@ -258,12 +303,15 @@ class _RenderGhostStack extends RenderBox
     var child = firstChild;
     while (child != null) {
       final data = child.parentData! as _GhostParentData;
-      child.layout(BoxConstraints.tight(data.global.size));
+      child.layout(BoxConstraints.tight(data.ghost?.rect.size ?? Size.zero));
       child = data.nextSibling;
     }
   }
 
-  Offset _placement(RenderBox child) => globalToLocal((child.parentData! as _GhostParentData).global.topLeft);
+  Offset _placement(RenderBox child) {
+    final ghost = (child.parentData! as _GhostParentData).ghost;
+    return ghost == null ? Offset.zero : globalToLocal(ghost.rect.topLeft);
+  }
 
   @override
   void paint(PaintingContext context, Offset offset) {
