@@ -1,5 +1,3 @@
-import 'dart:ui' show ImageFilter;
-
 import 'package:flutter/foundation.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
@@ -239,7 +237,7 @@ class _GlassEffectState extends State<GlassEffect> with SingleTickerProviderStat
             child: content,
           );
         }
-        final box = GlassMemberBox(member: member, tracksSpace: !ImageFilter.isShaderFilterSupported, child: glass);
+        final box = GlassMemberBox(member: member, child: glass);
         final private = _private;
         return container == null && private != null ? GlassCoordinatorSpace(coordinator: private, child: box) : box;
       },

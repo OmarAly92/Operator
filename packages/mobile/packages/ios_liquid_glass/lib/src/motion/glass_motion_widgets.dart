@@ -49,38 +49,27 @@ class RenderGlassCoordinatorSpace extends RenderProxyBox {
 
 @internal
 class GlassMemberBox extends SingleChildRenderObjectWidget {
-  const GlassMemberBox({super.key, required this.member, this.tracksSpace = false, super.child});
+  const GlassMemberBox({super.key, required this.member, super.child});
 
   final GlassMember member;
-  final bool tracksSpace;
 
   @override
-  RenderObject createRenderObject(BuildContext context) => RenderGlassMemberBox(member, tracksSpace: tracksSpace);
+  RenderObject createRenderObject(BuildContext context) => RenderGlassMemberBox(member);
 
   @override
   void updateRenderObject(BuildContext context, RenderGlassMemberBox renderObject) {
-    renderObject
-      ..member = member
-      ..tracksSpace = tracksSpace;
+    renderObject.member = member;
   }
 }
 
 @internal
 class RenderGlassMemberBox extends RenderProxyBox {
-  RenderGlassMemberBox(this._member, {bool tracksSpace = false}) : _tracksSpace = tracksSpace;
+  RenderGlassMemberBox(this._member);
 
   final LayerHandle<_SpaceTrackingLayer> _tracking = LayerHandle();
 
-  bool _tracksSpace;
-  set tracksSpace(bool value) {
-    if (_tracksSpace == value) return;
-    _tracksSpace = value;
-    markNeedsCompositingBitsUpdate();
-    markNeedsPaint();
-  }
-
   @override
-  bool get alwaysNeedsCompositing => _tracksSpace;
+  bool get alwaysNeedsCompositing => true;
 
   GlassMember _member;
   GlassMember get member => _member;
@@ -115,11 +104,6 @@ class RenderGlassMemberBox extends RenderProxyBox {
   @override
   void paint(PaintingContext context, Offset offset) {
     _member.sync();
-    if (!_tracksSpace) {
-      _tracking.layer = null;
-      super.paint(context, offset);
-      return;
-    }
     final layer = _tracking.layer ??= _SpaceTrackingLayer();
     layer.member = _member;
     context.pushLayer(layer, super.paint, offset);

@@ -1045,6 +1045,13 @@ void main() {
     expect(ghost.center.dy, closeTo(glass.center.dy, 0.5));
   });
 
+  test('a glass member box tracks its space with no platform switch, so the shader path refreshes the origin at compositing as FakeGlass does', () {
+    final coordinator = GlassMotionCoordinator(vsync: const TestVSync());
+    final box = RenderGlassMemberBox(GlassMember(coordinator));
+    expect(box.alwaysNeedsCompositing, isTrue);
+    coordinator.dispose();
+  });
+
   testWidgets('a glass reads its appearance for the appear gain from its theme', (tester) async {
     for (final brightness in Brightness.values) {
       await tester.pumpWidget(MaterialApp(home: GlassTheme(data: GlassThemeData(brightness: brightness), child: Center(child: _block()))));
