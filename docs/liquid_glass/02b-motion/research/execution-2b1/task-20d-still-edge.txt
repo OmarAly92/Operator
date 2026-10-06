@@ -1,0 +1,27 @@
+12 scene, case and frame triples compared; 0 Flutter frames byte-identical to the 2A run
+material.edge.automatic dark-scroll ready mad: 3.47 -> 3.47 (pass -> pass), flutter frame max difference 29.0, native 0.0
+material.edge.automatic dark-scroll ready luminance: 0.00 -> 0.00 (pass -> pass), flutter frame max difference 29.0, native 0.0
+material.edge.automatic dark-scroll settled mad: 3.47 -> 3.47 (pass -> pass), flutter frame max difference 29.0, native 0.0
+material.edge.automatic dark-scroll settled luminance: 0.00 -> 0.00 (pass -> pass), flutter frame max difference 29.0, native 0.0
+material.edge.automatic light-scroll ready mad: 2.07 -> 2.07 (pass -> pass), flutter frame max difference 16.0, native 1.0
+material.edge.automatic light-scroll ready luminance: 0.00 -> 0.00 (pass -> pass), flutter frame max difference 16.0, native 1.0
+material.edge.automatic light-scroll settled mad: 2.07 -> 2.07 (pass -> pass), flutter frame max difference 16.0, native 1.0
+material.edge.automatic light-scroll settled luminance: 0.00 -> 0.00 (pass -> pass), flutter frame max difference 16.0, native 1.0
+material.edge.hard dark-scroll ready mad: 3.47 -> 3.47 (pass -> pass), flutter frame max difference 29.0, native 0.0
+material.edge.hard dark-scroll ready luminance: 0.00 -> 0.00 (pass -> pass), flutter frame max difference 29.0, native 0.0
+material.edge.hard dark-scroll settled mad: 3.47 -> 3.47 (pass -> pass), flutter frame max difference 29.0, native 0.0
+material.edge.hard dark-scroll settled luminance: 0.00 -> 0.00 (pass -> pass), flutter frame max difference 29.0, native 0.0
+material.edge.hard light-scroll ready mad: 2.07 -> 2.07 (pass -> pass), flutter frame max difference 16.0, native 1.0
+material.edge.hard light-scroll ready luminance: 0.00 -> 0.00 (pass -> pass), flutter frame max difference 16.0, native 1.0
+material.edge.hard light-scroll settled mad: 2.07 -> 2.07 (pass -> pass), flutter frame max difference 16.0, native 1.0
+material.edge.hard light-scroll settled luminance: 0.00 -> 0.00 (pass -> pass), flutter frame max difference 16.0, native 1.0
+material.edge.soft dark-scroll ready mad: 3.95 -> 3.95 (pass -> pass), flutter frame max difference 32.0, native 2.0
+material.edge.soft dark-scroll ready luminance: 0.15 -> 0.15 (pass -> pass), flutter frame max difference 32.0, native 2.0
+material.edge.soft dark-scroll settled mad: 3.95 -> 3.95 (pass -> pass), flutter frame max difference 32.0, native 2.0
+material.edge.soft dark-scroll settled luminance: 0.15 -> 0.15 (pass -> pass), flutter frame max difference 32.0, native 2.0
+material.edge.soft light-scroll ready mad: 4.07 -> 4.07 (fail -> fail), flutter frame max difference 19.0, native 1.0
+material.edge.soft light-scroll ready luminance: 0.00 -> 0.00 (pass -> pass), flutter frame max difference 19.0, native 1.0
+material.edge.soft light-scroll settled mad: 4.07 -> 4.07 (fail -> fail), flutter frame max difference 19.0, native 1.0
+material.edge.soft light-scroll settled luminance: 0.00 -> 0.00 (pass -> pass), flutter frame max difference 19.0, native 1.0
+missing: 0
+worse: 0

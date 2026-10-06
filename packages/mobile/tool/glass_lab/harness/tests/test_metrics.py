@@ -216,6 +216,12 @@ class SpringFitTests(unittest.TestCase):
     def test_flat_series_has_no_fit(self):
         self.assertIsNone(springfit.fit([0, 1, 2], [5, 5, 5]))
 
+    def test_a_fit_on_its_grid_edge_says_so_and_the_damping_grid_reaches_2(self):
+        times = np.arange(0, 0.9, 1 / 120)
+        self.assertTrue(springfit.fit(times, springfit.step_response(times, 0.04, 1.0))["at_grid_edge"])
+        self.assertFalse(springfit.fit(times, springfit.step_response(times, 0.4, 1.6))["at_grid_edge"])
+        self.assertEqual(springfit.DAMPINGS[-1], 2.0)
+
 
 class ThresholdTests(unittest.TestCase):
     def test_thresholds_classify_known_inputs(self):

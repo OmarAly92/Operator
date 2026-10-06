@@ -162,7 +162,7 @@ class Evaluator:
 
     def region(self, native, native_bare):
         if self.scene.track:
-            return tuple(self.scene.regions[self.scene.track])
+            return metrics.union([tuple(self.scene.regions[name]) for name in self.scene.track])
         if self.regions:
             return named_region(self.scene, self.regions, self.pad)
         box = element_box(metrics.glass_boxes(native, native_bare), self.size)

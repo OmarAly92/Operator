@@ -36,6 +36,11 @@ struct SceneHost: View {
             }
         }
         .overlay(alignment: .topLeading) { ReadyMarker() }
+        .overlay(alignment: .bottomLeading) {
+            if Lab.marker {
+                TouchMarker().frame(width: 18, height: 18).padding(.leading, 16).padding(.bottom, 160)
+            }
+        }
     }
 }
 

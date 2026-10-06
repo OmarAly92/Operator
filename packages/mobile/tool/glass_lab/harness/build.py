@@ -23,8 +23,16 @@ FLUTTER_BUNDLE = "dev.operator.operatorMobile"
 EXAMPLE_BUNDLE = "dev.operator.iosliquidglass.example"
 FLUTTER_TARGETS = {"example": EXAMPLE_BUNDLE, "operator": FLUTTER_BUNDLE}
 PACKAGE_LIB = MOBILE / "packages" / "ios_liquid_glass" / "lib"
-SOURCES = {"example": (PACKAGE_LIB, EXAMPLE / "lib"), "operator": (PACKAGE_LIB, MOBILE / "lib")}
-STAMPS = {"example": EXAMPLE_DATA / "sources.sha256", "operator": FLUTTER_DATA / "sources.sha256"}
+SOURCES = {
+    "example": (PACKAGE_LIB, EXAMPLE / "lib"),
+    "operator": (PACKAGE_LIB, MOBILE / "lib"),
+    "native": (NATIVE / "GlassLab", NATIVE / "GlassLabDriver"),
+}
+STAMPS = {
+    "example": EXAMPLE_DATA / "sources.sha256",
+    "operator": FLUTTER_DATA / "sources.sha256",
+    "native": NATIVE_DATA / "sources.sha256",
+}
 
 
 def stream(args, cwd=None):
@@ -40,6 +48,7 @@ def destination(udid):
 
 
 def native(udid):
+    digest = sources_hash(SOURCES["native"])
     stream([sys.executable, str(NATIVE / "gen_project.py")])
     stream([
         "xcodebuild", "build-for-testing",
@@ -49,6 +58,7 @@ def native(udid):
         "-derivedDataPath", str(NATIVE_DATA),
     ])
     sim.install(udid, NATIVE_APP)
+    stamp("native", digest)
 
 
 def flutter_app(udid, root, data_path, app_path):

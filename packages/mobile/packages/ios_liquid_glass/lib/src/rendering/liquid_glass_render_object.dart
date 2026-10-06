@@ -11,6 +11,7 @@ import 'package:ios_liquid_glass/ios_liquid_glass.dart';
 import 'package:ios_liquid_glass/src/internal/render_liquid_glass_geometry.dart';
 import 'package:ios_liquid_glass/src/internal/snap_rect_to_pixels.dart';
 import 'package:ios_liquid_glass/src/logging.dart';
+import 'package:ios_liquid_glass/src/motion/glass_material_source.dart';
 import 'package:meta/meta.dart';
 
 /// A render object that can assemble [RenderLiquidGlassGeometry] shapes and
@@ -48,10 +49,35 @@ abstract class LiquidGlassRenderObject extends RenderProxyBox {
   }
 
   LiquidGlassSettings? _settings;
-  LiquidGlassSettings get settings => _settings!;
+  LiquidGlassSettings? _effective;
+  LiquidGlassSettings get settings => _effective ??= _resolveVisibility(_settingsSource?.settings ?? _settings!, _visibility);
   set settings(LiquidGlassSettings value) {
     if (_settings == value) return;
     _settings = value;
+    _visibilityChanged();
+  }
+
+  Animation<double>? _visibility;
+  Animation<double>? get visibility => _visibility;
+  set visibility(Animation<double>? value) {
+    if (_visibility == value) return;
+    if (attached) _visibility?.removeListener(_visibilityChanged);
+    _visibility = value;
+    if (attached) _visibility?.addListener(_visibilityChanged);
+    _visibilityChanged();
+  }
+
+  GlassMaterialSource? _settingsSource;
+  set settingsSource(GlassMaterialSource? value) {
+    if (_settingsSource == value) return;
+    if (attached) _settingsSource?.removeListener(_visibilityChanged);
+    _settingsSource = value;
+    if (attached) _settingsSource?.addListener(_visibilityChanged);
+    _visibilityChanged();
+  }
+
+  void _visibilityChanged() {
+    _effective = null;
     _updateShaderSettings();
     markNeedsPaint();
   }
@@ -87,11 +113,16 @@ abstract class LiquidGlassRenderObject extends RenderProxyBox {
   @mustCallSuper
   void attach(PipelineOwner owner) {
     super.attach(owner);
+    _visibility?.addListener(_visibilityChanged);
+    _settingsSource?.addListener(_visibilityChanged);
+    _visibilityChanged();
   }
 
   @override
   @mustCallSuper
   void detach() {
+    _visibility?.removeListener(_visibilityChanged);
+    _settingsSource?.removeListener(_visibilityChanged);
     super.detach();
   }
 
@@ -109,7 +140,7 @@ abstract class LiquidGlassRenderObject extends RenderProxyBox {
           settings.effectiveThickness * devicePixelRatio,
           settings.effectiveChromaticAberration,
           settings.effectiveSaturation,
-          0,
+          settings.thickness * devicePixelRatio,
           settings.effectiveToneBlack,
           settings.effectiveToneMid,
           settings.effectiveToneWhite,
@@ -334,7 +365,25 @@ abstract class LiquidGlassRenderObject extends RenderProxyBox {
 
     final canvas = Canvas(recorder);
 
+    final toMatte = matteTransform;
+
     for (final (_, geometry, transform) in geometries) {
+      if (geometry is RenderedGeometryCache) {
+        final translation = pixelTranslation(
+          Matrix4.diagonal3Values(devicePixelRatio, devicePixelRatio, 1)
+            ..translateByDouble(-boundsInMatteSpace.left, -boundsInMatteSpace.top, 0, 1)
+            ..multiply(toMatte)
+            ..multiply(transform)
+            ..scaleByDouble(1 / devicePixelRatio, 1 / devicePixelRatio, 1, 1)
+            ..translateByDouble(geometry.matteBounds.left, geometry.matteBounds.top, 0, 1),
+        );
+        if (translation != null) {
+          buffer.writeln('\t- Rendered @ ${geometry.bounds}, at $translation');
+          drawMatteAt(canvas, geometry, translation);
+          continue;
+        }
+      }
+
       canvas
         ..save()
         ..scale(devicePixelRatio)
@@ -342,7 +391,7 @@ abstract class LiquidGlassRenderObject extends RenderProxyBox {
           -boundsInMatteSpace.left,
           -boundsInMatteSpace.top,
         )
-        ..transform(matteTransform.storage)
+        ..transform(toMatte.storage)
         ..transform(transform.storage)
         ..scale(1 / devicePixelRatio)
         ..translate(
@@ -356,11 +405,11 @@ abstract class LiquidGlassRenderObject extends RenderProxyBox {
             '\t- Unrendered @ ${geometry.bounds}',
           );
           canvas.drawPicture(picture);
-        case RenderedGeometryCache(matte: final image):
+        case RenderedGeometryCache():
           buffer.writeln(
             '\t- Rendered @ ${geometry.bounds}',
           );
-          canvas.drawImage(image, Offset.zero, Paint());
+          canvas.drawImage(geometry.matteAt(Offset.zero), Offset.zero, Paint());
       }
 
       canvas.restore();
@@ -377,6 +426,13 @@ abstract class LiquidGlassRenderObject extends RenderProxyBox {
     return (image, boundsInMatteSpace);
   }
 }
+
+LiquidGlassSettings _resolveVisibility(LiquidGlassSettings settings, Animation<double>? visibility) =>
+    visibility == null ? settings : settings.atVisibility(visibility.value);
+
+@internal
+LiquidGlassSettings resolveVisibility(LiquidGlassSettings settings, Animation<double>? visibility) =>
+    _resolveVisibility(settings, visibility);
 
 @internal
 class GeometryRenderLink {

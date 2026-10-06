@@ -1,5 +1,6 @@
 import 'package:flutter/widgets.dart';
 import 'package:ios_liquid_glass/ios_liquid_glass.dart';
+import 'package:ios_liquid_glass/src/motion/glass_material_source.dart';
 import 'package:meta/meta.dart';
 
 @internal
@@ -9,10 +10,16 @@ class LiquidGlassRenderScope extends InheritedWidget {
     required this.settings,
     required super.child,
     this.useFake = false,
+    this.visibility,
+    this.settingsSource,
     super.key,
   });
 
   final LiquidGlassSettings settings;
+
+  final Animation<double>? visibility;
+
+  final GlassMaterialSource? settingsSource;
 
   final bool useFake;
 
@@ -45,6 +52,8 @@ class LiquidGlassRenderScope extends InheritedWidget {
   bool updateShouldNotify(covariant InheritedWidget oldWidget) {
     return oldWidget is! LiquidGlassRenderScope ||
         oldWidget.settings != settings ||
-        oldWidget.useFake != useFake;
+        oldWidget.useFake != useFake ||
+        oldWidget.visibility != visibility ||
+        oldWidget.settingsSource != settingsSource;
   }
 }

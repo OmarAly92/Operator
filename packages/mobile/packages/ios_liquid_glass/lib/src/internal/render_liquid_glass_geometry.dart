@@ -1,6 +1,7 @@
 import 'dart:ui';
 
 import 'package:equatable/equatable.dart';
+import 'package:flutter/animation.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_shaders/flutter_shaders.dart';
 import 'package:ios_liquid_glass/ios_liquid_glass.dart';
@@ -8,6 +9,7 @@ import 'package:ios_liquid_glass/src/internal/snap_rect_to_pixels.dart';
 import 'package:ios_liquid_glass/src/liquid_glass.dart';
 import 'package:ios_liquid_glass/src/liquid_glass_blend_group.dart';
 import 'package:ios_liquid_glass/src/logging.dart';
+import 'package:ios_liquid_glass/src/motion/glass_material_source.dart';
 import 'package:ios_liquid_glass/src/rendering/liquid_glass_render_object.dart';
 import 'package:meta/meta.dart';
 
@@ -57,21 +59,46 @@ abstract class RenderLiquidGlassGeometry extends RenderProxyBox {
   final FragmentShader geometryShader;
 
   LiquidGlassSettings? _settings;
+  LiquidGlassSettings? _effective;
 
   /// The settings used for liquid glass rendering.
   ///
   /// If these settings change in a way that affects geometry, the geometry
   /// will be marked as needing an update.
-  LiquidGlassSettings get settings => _settings!;
+  LiquidGlassSettings get settings => _effective ??= resolveVisibility(_settingsSource?.settings ?? _settings!, _visibility);
   set settings(LiquidGlassSettings value) {
     if (_settings == value) return;
+    _settings = value;
+    _applySettings();
+  }
 
-    if (value.requiresGeometryRebuild(_settings)) {
+  Animation<double>? _visibility;
+  Animation<double>? get visibility => _visibility;
+  set visibility(Animation<double>? value) {
+    if (_visibility == value) return;
+    if (attached) _visibility?.removeListener(_applySettings);
+    _visibility = value;
+    if (attached) _visibility?.addListener(_applySettings);
+    _applySettings();
+  }
+
+  GlassMaterialSource? _settingsSource;
+  set settingsSource(GlassMaterialSource? value) {
+    if (_settingsSource == value) return;
+    if (attached) _settingsSource?.removeListener(_applySettings);
+    _settingsSource = value;
+    if (attached) _settingsSource?.addListener(_applySettings);
+    _applySettings();
+  }
+
+  void _applySettings() {
+    final previous = _effective;
+    _effective = null;
+    final value = settings;
+    if (value.requiresGeometryRebuild(previous)) {
       logger.finer('$hashCode rebuild ');
       markGeometryNeedsUpdate(force: true);
     }
-
-    _settings = value;
     updateShaderWithSettings(value, _devicePixelRatio);
     markNeedsPaint();
   }
@@ -134,11 +161,16 @@ abstract class RenderLiquidGlassGeometry extends RenderProxyBox {
   void attach(PipelineOwner owner) {
     _renderLink?.registerGeometry(this);
     super.attach(owner);
+    _visibility?.addListener(_applySettings);
+    _settingsSource?.addListener(_applySettings);
+    _applySettings();
   }
 
   @override
   @mustCallSuper
   void detach() {
+    _visibility?.removeListener(_applySettings);
+    _settingsSource?.removeListener(_applySettings);
     _renderLink?.unregisterGeometry(this);
     super.detach();
   }
@@ -349,6 +381,7 @@ class UnrenderedGeometryCache extends GeometryCache {
       matteBounds.height.toPixelCount(),
     );
     return RenderedGeometryCache(
+      picture: matte,
       matte: image,
       matteBounds: matteBounds,
       bounds: bounds,
@@ -363,8 +396,8 @@ class UnrenderedGeometryCache extends GeometryCache {
       matteBounds.width.toPixelCount(),
       matteBounds.height.toPixelCount(),
     );
-    dispose();
     return RenderedGeometryCache(
+      picture: matte,
       matte: image,
       matteBounds: matteBounds,
       bounds: bounds,
@@ -385,16 +418,24 @@ class UnrenderedGeometryCache extends GeometryCache {
 @immutable
 @internal
 class RenderedGeometryCache extends GeometryCache {
-  const RenderedGeometryCache({
-    required this.matte,
+  RenderedGeometryCache({
+    required this.picture,
+    required Image matte,
     required super.matteBounds,
     required super.bounds,
     required super.shapes,
     required super.path,
-  });
+  }) : _raster = _PhasedRaster(matte);
+
+  final Picture picture;
+  final _PhasedRaster _raster;
 
   /// The matte image representing the geometry.
-  final Image matte;
+  Image get matte => _raster.image;
+
+  Offset get phase => _raster.phase;
+
+  Image matteAt(Offset phase) => _raster.at(picture, phase, matteBounds);
 
   @override
   RenderedGeometryCache render() => this;
@@ -405,14 +446,68 @@ class RenderedGeometryCache extends GeometryCache {
   /// Disposes of the resources used by the geometry.
   @override
   void dispose() {
-    matte.dispose();
+    _raster.dispose();
+    picture.dispose();
   }
+}
+
+class _PhasedRaster {
+  _PhasedRaster(this.image);
+
+  static const double tolerance = 1 / 256;
+
+  Image image;
+  Offset phase = Offset.zero;
+
+  Image at(Picture picture, Offset next, Rect matteBounds) {
+    if ((next.dx - phase.dx).abs() <= tolerance && (next.dy - phase.dy).abs() <= tolerance) return image;
+    final width = matteBounds.width.toPixelCount(), height = matteBounds.height.toPixelCount();
+    final recorder = PictureRecorder();
+    Canvas(recorder)
+      ..translate(next.dx, next.dy)
+      ..drawPicture(picture);
+    final shifted = recorder.endRecording();
+    final raster = shifted.toImageSync(width + (next.dx > 0 ? 1 : 0), height + (next.dy > 0 ? 1 : 0));
+    shifted.dispose();
+    image.dispose();
+    image = raster;
+    phase = next;
+    return raster;
+  }
+
+  void dispose() => image.dispose();
+}
+
+@internal
+Offset? pixelTranslation(Matrix4 transform) {
+  const epsilon = 1e-9;
+  final m = transform.storage;
+  final pure = (m[0] - 1).abs() < epsilon &&
+      (m[5] - 1).abs() < epsilon &&
+      m[1].abs() < epsilon &&
+      m[4].abs() < epsilon &&
+      m[3].abs() < epsilon &&
+      m[7].abs() < epsilon &&
+      (m[15] - 1).abs() < epsilon;
+  return pure ? Offset(m[12], m[13]) : null;
+}
+
+@internal
+void drawMatteAt(Canvas canvas, RenderedGeometryCache geometry, Offset translation) {
+  double whole(double value) {
+    final nearest = value.roundToDouble();
+    return (value - nearest).abs() < 1e-6 ? nearest : value.floorToDouble();
+  }
+
+  final origin = Offset(whole(translation.dx), whole(translation.dy));
+  final phase = translation - origin;
+  canvas.drawImage(geometry.matteAt(Offset(phase.dx.abs() < 1e-6 ? 0 : phase.dx, phase.dy.abs() < 1e-6 ? 0 : phase.dy)), origin, Paint());
 }
 
 @internal
 extension GeometryRebuild on LiquidGlassSettings {
   bool requiresGeometryRebuild(LiquidGlassSettings? other) {
-    if (other == null) return false;
+    if (other == null) return true;
 
     return effectiveThickness != other.effectiveThickness ||
         refractiveIndex != other.refractiveIndex ||

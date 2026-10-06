@@ -1,0 +1,61 @@
+12 scene, case and frame triples compared; 12 Flutter frames byte-identical to the 2A run
+identical flutter navbar.inline dark-black ready: native frame max difference 0.0
+identical flutter navbar.inline dark-black settled: native frame max difference 0.0
+identical flutter navbar.inline dark-stripes ready: native frame max difference 0.0
+identical flutter navbar.inline dark-stripes settled: native frame max difference 0.0
+identical flutter navbar.inline dark-white ready: native frame max difference 0.0
+identical flutter navbar.inline dark-white settled: native frame max difference 0.0
+identical flutter navbar.inline light-black ready: native frame max difference 0.0
+identical flutter navbar.inline light-black settled: native frame max difference 0.0
+identical flutter navbar.inline light-stripes ready: native frame max difference 0.0
+identical flutter navbar.inline light-stripes settled: native frame max difference 0.0
+identical flutter navbar.inline light-white ready: native frame max difference 0.0
+identical flutter navbar.inline light-white settled: native frame max difference 0.0
+navbar.inline dark-black ready mad: 4.81 -> 4.81 (fail -> fail), flutter frame max difference 0.0, native 0.0
+navbar.inline dark-black ready rim_rms: 22.20 -> 22.20 (fail -> fail), flutter frame max difference 0.0, native 0.0
+navbar.inline dark-black ready bbox_pt: 5.00 -> 5.00 (fail -> fail), flutter frame max difference 0.0, native 0.0
+navbar.inline dark-black ready centre_pt: 3.00 -> 3.00 (fail -> fail), flutter frame max difference 0.0, native 0.0
+navbar.inline dark-black settled mad: 4.81 -> 4.81 (fail -> fail), flutter frame max difference 0.0, native 0.0
+navbar.inline dark-black settled rim_rms: 22.20 -> 22.20 (fail -> fail), flutter frame max difference 0.0, native 0.0
+navbar.inline dark-black settled bbox_pt: 5.00 -> 5.00 (fail -> fail), flutter frame max difference 0.0, native 0.0
+navbar.inline dark-black settled centre_pt: 3.00 -> 3.00 (fail -> fail), flutter frame max difference 0.0, native 0.0
+navbar.inline dark-stripes ready rim_rms: 16.70 -> 16.70 (fail -> fail), flutter frame max difference 0.0, native 0.0
+navbar.inline dark-stripes ready bbox_pt: 6.00 -> 6.00 (fail -> fail), flutter frame max difference 0.0, native 0.0
+navbar.inline dark-stripes ready centre_pt: 2.50 -> 2.50 (fail -> fail), flutter frame max difference 0.0, native 0.0
+navbar.inline dark-stripes settled rim_rms: 16.70 -> 16.70 (fail -> fail), flutter frame max difference 0.0, native 0.0
+navbar.inline dark-stripes settled bbox_pt: 6.00 -> 6.00 (fail -> fail), flutter frame max difference 0.0, native 0.0
+navbar.inline dark-stripes settled centre_pt: 2.50 -> 2.50 (fail -> fail), flutter frame max difference 0.0, native 0.0
+navbar.inline dark-white ready rim_rms: 26.60 -> 26.60 (fail -> fail), flutter frame max difference 0.0, native 0.0
+navbar.inline dark-white ready bbox_pt: 6.00 -> 6.00 (fail -> fail), flutter frame max difference 0.0, native 0.0
+navbar.inline dark-white ready centre_pt: 2.50 -> 2.50 (fail -> fail), flutter frame max difference 0.0, native 0.0
+navbar.inline dark-white settled rim_rms: 26.60 -> 26.60 (fail -> fail), flutter frame max difference 0.0, native 0.0
+navbar.inline dark-white settled bbox_pt: 6.00 -> 6.00 (fail -> fail), flutter frame max difference 0.0, native 0.0
+navbar.inline dark-white settled centre_pt: 2.50 -> 2.50 (fail -> fail), flutter frame max difference 0.0, native 0.0
+navbar.inline light-black ready mad: 6.30 -> 6.30 (fail -> fail), flutter frame max difference 0.0, native 0.0
+navbar.inline light-black ready luminance: 4.05 -> 4.05 (fail -> fail), flutter frame max difference 0.0, native 0.0
+navbar.inline light-black ready rim_rms: 57.60 -> 57.60 (fail -> fail), flutter frame max difference 0.0, native 0.0
+navbar.inline light-black ready bbox_pt: 5.00 -> 5.00 (fail -> fail), flutter frame max difference 0.0, native 0.0
+navbar.inline light-black ready centre_pt: 3.00 -> 3.00 (fail -> fail), flutter frame max difference 0.0, native 0.0
+navbar.inline light-black settled mad: 6.30 -> 6.30 (fail -> fail), flutter frame max difference 0.0, native 0.0
+navbar.inline light-black settled luminance: 4.05 -> 4.05 (fail -> fail), flutter frame max difference 0.0, native 0.0
+navbar.inline light-black settled rim_rms: 57.60 -> 57.60 (fail -> fail), flutter frame max difference 0.0, native 0.0
+navbar.inline light-black settled bbox_pt: 5.00 -> 5.00 (fail -> fail), flutter frame max difference 0.0, native 0.0
+navbar.inline light-black settled centre_pt: 3.00 -> 3.00 (fail -> fail), flutter frame max difference 0.0, native 0.0
+navbar.inline light-stripes ready mad: 4.93 -> 4.93 (fail -> fail), flutter frame max difference 0.0, native 0.0
+navbar.inline light-stripes ready rim_rms: 35.56 -> 35.56 (fail -> fail), flutter frame max difference 0.0, native 0.0
+navbar.inline light-stripes ready bbox_pt: 5.00 -> 5.00 (fail -> fail), flutter frame max difference 0.0, native 0.0
+navbar.inline light-stripes ready centre_pt: 2.50 -> 2.50 (fail -> fail), flutter frame max difference 0.0, native 0.0
+navbar.inline light-stripes settled mad: 4.93 -> 4.93 (fail -> fail), flutter frame max difference 0.0, native 0.0
+navbar.inline light-stripes settled rim_rms: 35.56 -> 35.56 (fail -> fail), flutter frame max difference 0.0, native 0.0
+navbar.inline light-stripes settled bbox_pt: 5.00 -> 5.00 (fail -> fail), flutter frame max difference 0.0, native 0.0
+navbar.inline light-stripes settled centre_pt: 2.50 -> 2.50 (fail -> fail), flutter frame max difference 0.0, native 0.0
+navbar.inline light-white ready mad: 4.79 -> 4.79 (fail -> fail), flutter frame max difference 0.0, native 0.0
+navbar.inline light-white ready rim_rms: 44.80 -> 44.80 (fail -> fail), flutter frame max difference 0.0, native 0.0
+navbar.inline light-white ready bbox_pt: 8.00 -> 8.00 (fail -> fail), flutter frame max difference 0.0, native 0.0
+navbar.inline light-white ready centre_pt: 4.00 -> 4.00 (fail -> fail), flutter frame max difference 0.0, native 0.0
+navbar.inline light-white settled mad: 4.79 -> 4.79 (fail -> fail), flutter frame max difference 0.0, native 0.0
+navbar.inline light-white settled rim_rms: 44.80 -> 44.80 (fail -> fail), flutter frame max difference 0.0, native 0.0
+navbar.inline light-white settled bbox_pt: 8.00 -> 8.00 (fail -> fail), flutter frame max difference 0.0, native 0.0
+navbar.inline light-white settled centre_pt: 4.00 -> 4.00 (fail -> fail), flutter frame max difference 0.0, native 0.0
+missing: 0
+worse: 0

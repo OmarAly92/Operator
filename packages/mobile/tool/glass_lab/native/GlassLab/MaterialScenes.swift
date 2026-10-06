@@ -8,6 +8,19 @@ enum MaterialScenes {
         "material.interactive": { AnyView(InteractiveScene()) },
         "material.flip": { AnyView(FlipScene()) },
         "material.materialize": { AnyView(MaterializeScene()) },
+        "material.materialize.snappy": { AnyView(MaterializeScene(animation: .snappy)) },
+        "material.materialize.bouncy": { AnyView(MaterializeScene(animation: .bouncy)) },
+        "material.press.circle58": { AnyView(PressScene(width: 58, height: 58, circle: true)) },
+        "material.press.138x53": { AnyView(PressScene(width: 138, height: 53)) },
+        "material.press.250x44": { AnyView(PressScene(width: 250, height: 44)) },
+        "material.press.300x120": { AnyView(PressScene(width: 300, height: 120)) },
+        "material.press.360x200": { AnyView(PressScene(width: 360, height: 200, cornerRadius: 32)) },
+        "material.spacing.default.a": { AnyView(SpacingScene(gaps: [0, 4, 8, 12], spacing: nil)) },
+        "material.spacing.default.b": { AnyView(SpacingScene(gaps: [16, 20, 24, 32], spacing: nil)) },
+        "material.spacing.default.c": { AnyView(SpacingScene(gaps: [40, 48, 60], spacing: nil)) },
+        "material.spacing.40.a": { AnyView(SpacingScene(gaps: [0, 4, 8, 12], spacing: 40)) },
+        "material.spacing.40.b": { AnyView(SpacingScene(gaps: [16, 20, 24, 32], spacing: 40)) },
+        "material.spacing.40.c": { AnyView(SpacingScene(gaps: [40, 48, 60], spacing: 40)) },
         "material.merge": { AnyView(MergeScene()) },
         "material.union": { AnyView(UnionScene()) },
         "material.morph": { AnyView(MorphScene()) },
@@ -66,9 +79,64 @@ struct InteractiveScene: View {
     var body: some View {
         ZStack {
             Backdrop()
-            GlassBlock(width: 250, height: 88, glass: .regular.interactive())
+            Color.white.opacity(0.001)
+                .frame(width: 250, height: 88)
+                .glassEffect(.regular.interactive())
                 .accessibilityElement()
                 .accessibilityIdentifier("glass")
+        }
+    }
+}
+
+struct PressScene: View {
+    let width: CGFloat
+    let height: CGFloat
+    var circle = false
+    var cornerRadius: CGFloat?
+
+    var body: some View {
+        ZStack {
+            Backdrop()
+            Group {
+                if circle {
+                    Color.white.opacity(0.001).frame(width: width, height: height).glassEffect(.regular.interactive(), in: .circle)
+                } else if let cornerRadius {
+                    Color.white.opacity(0.001).frame(width: width, height: height).glassEffect(.regular.interactive(), in: .rect(cornerRadius: cornerRadius))
+                } else {
+                    Color.white.opacity(0.001).frame(width: width, height: height).glassEffect(.regular.interactive())
+                }
+            }
+            .accessibilityElement()
+            .accessibilityIdentifier("glass")
+        }
+    }
+}
+
+struct SpacingScene: View {
+    let gaps: [CGFloat]
+    let spacing: CGFloat?
+
+    var body: some View {
+        ZStack {
+            Backdrop()
+            VStack(spacing: 100) {
+                ForEach(gaps, id: \.self) { gap in
+                    pair(gap)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func pair(_ gap: CGFloat) -> some View {
+        let circles = HStack(spacing: gap) {
+            Color.clear.frame(width: 80, height: 80).glassEffect(.regular, in: .circle)
+            Color.clear.frame(width: 80, height: 80).glassEffect(.regular, in: .circle)
+        }
+        if let spacing {
+            GlassEffectContainer(spacing: spacing) { circles }
+        } else {
+            GlassEffectContainer { circles }
         }
     }
 }
@@ -89,6 +157,7 @@ struct FlipScene: View {
 }
 
 struct MaterializeScene: View {
+    var animation: Animation?
     @State private var shown = true
 
     var body: some View {
@@ -102,7 +171,11 @@ struct MaterializeScene: View {
             VStack {
                 Spacer()
                 LabButton(title: "Toggle", id: "toggle") {
-                    withAnimation { shown.toggle() }
+                    if let animation {
+                        withAnimation(animation) { shown.toggle() }
+                    } else {
+                        withAnimation { shown.toggle() }
+                    }
                 }
                 .padding(.bottom, 120)
             }

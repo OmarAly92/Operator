@@ -3,6 +3,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:ios_liquid_glass/ios_liquid_glass.dart';
 import 'package:ios_liquid_glass/src/shaders.dart';
 
+LiquidGlassSettings _drawn(LiquidGlassLayer layer) => layer.settingsSource?.settings ?? layer.settings;
+
 const _accent = Color(0xFF1ACB64);
 
 Widget _host(Widget child, {Brightness brightness = Brightness.dark, Map<String, double> overrides = const {}}) => MaterialApp(
@@ -32,20 +34,26 @@ void main() {
   testWidgets('draws its own layer with the material resolved for its measured size', (tester) async {
     await tester.pumpWidget(_host(const GlassEffect(child: SizedBox(width: 250, height: 60))));
     await tester.pump();
-    final layer = tester.widget<LiquidGlassLayer>(find.byType(LiquidGlassLayer));
+    final layer = _drawn(tester.widget<LiquidGlassLayer>(find.byType(LiquidGlassLayer)));
     final expected = GlassMaterial.resolve(glass: Glass.regular, shorterSide: 60, brightness: Brightness.dark);
     final unmeasured = GlassMaterial.resolve(glass: Glass.regular, shorterSide: 88, brightness: Brightness.dark);
-    expect(layer.settings, expected.toSettings());
-    expect(layer.settings, isNot(unmeasured.toSettings()));
+    expect(layer, expected.toSettings());
+    expect(layer, isNot(unmeasured.toSettings()));
+  });
+
+  testWidgets('has the material of its own size in its first frame', (tester) async {
+    await tester.pumpWidget(_host(const GlassEffect(child: SizedBox(width: 250, height: 60))));
+    final layer = _drawn(tester.widget<LiquidGlassLayer>(find.byType(LiquidGlassLayer)));
+    expect(layer, GlassMaterial.resolve(glass: Glass.regular, shorterSide: 60, brightness: Brightness.dark).toSettings());
   });
 
   testWidgets('re-resolves when the appearance flips', (tester) async {
     await tester.pumpWidget(_host(const GlassEffect(child: SizedBox(width: 250, height: 88))));
     await tester.pump();
-    final dark = tester.widget<LiquidGlassLayer>(find.byType(LiquidGlassLayer)).settings;
+    final dark = _drawn(tester.widget<LiquidGlassLayer>(find.byType(LiquidGlassLayer)));
     await tester.pumpWidget(_host(const GlassEffect(child: SizedBox(width: 250, height: 88)), brightness: Brightness.light));
     await tester.pump();
-    expect(tester.widget<LiquidGlassLayer>(find.byType(LiquidGlassLayer)).settings, isNot(dark));
+    expect(_drawn(tester.widget<LiquidGlassLayer>(find.byType(LiquidGlassLayer))), isNot(dark));
   });
 
   testWidgets('joins a container that holds the same glass', (tester) async {
@@ -80,7 +88,7 @@ void main() {
     )));
     expect(find.byType(LiquidGlassLayer), findsNWidgets(2));
     final inner = tester.widgetList<LiquidGlassLayer>(find.byType(LiquidGlassLayer)).last;
-    expect(inner.settings.glassColor.withValues(alpha: 1), _accent);
+    expect(_drawn(inner).glassColor.withValues(alpha: 1), _accent);
   });
 
   testWidgets('identity glass draws no glass', (tester) async {
@@ -100,7 +108,7 @@ void main() {
   testWidgets('debug overrides reach the renderer', (tester) async {
     await tester.pumpWidget(_host(const GlassEffect(child: SizedBox(width: 250, height: 88)), overrides: const {'frost': 17}));
     await tester.pump();
-    expect(tester.widget<LiquidGlassLayer>(find.byType(LiquidGlassLayer)).settings.blur, 17);
+    expect(_drawn(tester.widget<LiquidGlassLayer>(find.byType(LiquidGlassLayer))).blur, 17);
   });
 
   testWidgets('side-scoped overrides reach only the glass at that anchor', (tester) async {
@@ -120,7 +128,7 @@ void main() {
       ),
     ));
     await tester.pump();
-    final blurs = tester.widgetList<LiquidGlassLayer>(find.byType(LiquidGlassLayer)).map((layer) => layer.settings.blur).toList();
+    final blurs = tester.widgetList<LiquidGlassLayer>(find.byType(LiquidGlassLayer)).map((layer) => _drawn(layer).blur).toList();
     expect(blurs.first, 17);
     expect(blurs.last, isNot(17));
   });

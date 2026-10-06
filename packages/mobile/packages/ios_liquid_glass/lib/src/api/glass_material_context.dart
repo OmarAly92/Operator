@@ -6,9 +6,16 @@ import 'package:ios_liquid_glass/src/material/glass_material.dart';
 import 'package:ios_liquid_glass/src/material/glass_material_override.dart';
 
 GlassMaterial resolveGlassMaterial(BuildContext context, {required Glass glass, required double shorterSide}) =>
-    GlassMaterial.resolve(
-      glass: glass,
-      shorterSide: shorterSide,
-      brightness: GlassTheme.brightnessOf(context),
-      accessibility: GlassAccessibility.of(context),
-    ).withOverrides(GlassMaterialOverride.forSide(context, shorterSide));
+    glassMaterialResolver(context, glass: glass)(shorterSide);
+
+GlassMaterial Function(double shorterSide) glassMaterialResolver(BuildContext context, {required Glass glass}) {
+  final brightness = GlassTheme.brightnessOf(context);
+  final accessibility = GlassAccessibility.of(context);
+  final override = GlassMaterialOverride.scopeOf(context);
+  return (side) => GlassMaterial.resolve(
+    glass: glass,
+    shorterSide: side,
+    brightness: brightness,
+    accessibility: accessibility,
+  ).withOverrides(GlassMaterialOverride.valuesFor(override, side));
+}

@@ -14,6 +14,15 @@
  - (2A.1) **FIX**: `Glass.clear.tint(c)` stays untinted under Reduce Transparency and Increase Contrast, and its foreground is not the tinted one.
  - (2A.1) **FEAT**: `GlassMaterialOverride.side` limits debug overrides to one size anchor.
  - (2A.1) **FIX**: glass thinner than its outline band (thickness below `outlineWidth` + 1 px, as at the start of a visibility ramp) covers its interior fully and draws its outline only outside it, instead of a half-covered, darkened body.
+ - (2B.1) **FEAT**: glass materializes and dematerializes with native's timing, in a `GlassEffectContainer` and on its own; a removed glass keeps drawing with a snapshot of its content until it has gone (glass outside a container in the nearest `Overlay`).
+ - (2B.1) **FEAT**: `GlassAnimation` (`defaultSpring`, `snappy`, `bouncy`, `smooth`, `spring`, `dampedSpring`, `none`, SwiftUI's springs), `withGlassAnimation` and `GlassAnimationScope`; how far glass has materialized follows a per-animation mapping fitted to native on the iOS 27 simulator.
+ - (2B.1) **FEAT**: `GlassEffect(transition: GlassEffectTransition.materialize | .identity)`.
+ - (2B.1) **FEAT**: glass that moves or resizes after a rebuild springs its drawn rect; content follows, taps go to the new layout, and scrolling never lags. Glass the app moves on consecutive frames (a drag, its own animation) follows its layout exactly.
+ - (2B.1) **FEAT**: `LiquidGlassSettings.atVisibility(v)`, the settings glass draws with at materialize visibility `v`.
+ - (2B.1) **FEAT**: `GlassEffect` resolves its material from its drawn size at layout and on every animated frame, instead of one frame after layout.
+ - (2B.1) **FIX**: the edge line and sheen keep their full width while the lens ramps with `visibility`; still glass is unchanged.
+ - (2B.1) **FIX**: glass at a fractional position draws its rim at its exact position once its geometry is cached, instead of up to half a pixel off.
+ - (2B.1) **FEAT**: `debugResetGlassAnimation()` is exported for tests.
 
 ## 0.2.0-dev.4
 

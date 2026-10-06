@@ -16,6 +16,10 @@ THRESHOLDS = {
     "overshoot_pct": 2.0,
     "response_pct": 5.0,
     "damping": 0.05,
+    "progress_rms": 0.05,
+    "sharpness": 1.0,
+    "neck_pt": 1.0,
+    "count": 0.0,
 }
 
 

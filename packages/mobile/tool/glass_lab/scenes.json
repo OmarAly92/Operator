@@ -141,6 +141,217 @@
       {
         "wait": 1.0
       }
+    ],
+    "regions": {
+      "glass": [
+        46,
+        377,
+        310,
+        148
+      ]
+    },
+    "track": [
+      "glass"
+    ]
+  },
+  {
+    "id": "material.press.circle58",
+    "group": "material",
+    "title": "Interactive glass press, 58 pt circle",
+    "inventory": "2.5",
+    "app": "lab",
+    "backdrops": [
+      "stripes",
+      "photo"
+    ],
+    "appearances": [
+      "light",
+      "dark"
+    ],
+    "steps": [
+      {
+        "wait": 0.5
+      },
+      {
+        "press": {
+          "at": "glass",
+          "duration": 1.0
+        }
+      },
+      {
+        "wait": 1.0
+      }
+    ],
+    "regions": {
+      "glass": [
+        142,
+        392,
+        118,
+        118
+      ]
+    },
+    "track": [
+      "glass"
+    ]
+  },
+  {
+    "id": "material.press.138x53",
+    "group": "material",
+    "title": "Interactive glass press, 138 by 53 capsule",
+    "inventory": "2.5",
+    "app": "lab",
+    "backdrops": [
+      "stripes",
+      "photo"
+    ],
+    "appearances": [
+      "light",
+      "dark"
+    ],
+    "steps": [
+      {
+        "wait": 0.5
+      },
+      {
+        "press": {
+          "at": "glass",
+          "duration": 1.0
+        }
+      },
+      {
+        "wait": 1.0
+      }
+    ],
+    "regions": {
+      "glass": [
+        102,
+        394,
+        198,
+        114
+      ]
+    },
+    "track": [
+      "glass"
+    ]
+  },
+  {
+    "id": "material.press.250x44",
+    "group": "material",
+    "title": "Interactive glass press, 250 by 44 capsule",
+    "inventory": "2.5",
+    "app": "lab",
+    "backdrops": [
+      "stripes",
+      "photo"
+    ],
+    "appearances": [
+      "light",
+      "dark"
+    ],
+    "steps": [
+      {
+        "wait": 0.5
+      },
+      {
+        "press": {
+          "at": "glass",
+          "duration": 1.0
+        }
+      },
+      {
+        "wait": 1.0
+      }
+    ],
+    "regions": {
+      "glass": [
+        46,
+        399,
+        310,
+        104
+      ]
+    },
+    "track": [
+      "glass"
+    ]
+  },
+  {
+    "id": "material.press.300x120",
+    "group": "material",
+    "title": "Interactive glass press, 300 by 120 capsule",
+    "inventory": "2.5",
+    "app": "lab",
+    "backdrops": [
+      "stripes",
+      "photo"
+    ],
+    "appearances": [
+      "light",
+      "dark"
+    ],
+    "steps": [
+      {
+        "wait": 0.5
+      },
+      {
+        "press": {
+          "at": "glass",
+          "duration": 1.0
+        }
+      },
+      {
+        "wait": 1.0
+      }
+    ],
+    "regions": {
+      "glass": [
+        21,
+        361,
+        360,
+        180
+      ]
+    },
+    "track": [
+      "glass"
+    ]
+  },
+  {
+    "id": "material.press.360x200",
+    "group": "material",
+    "title": "Interactive glass press, 360 by 200 rounded rectangle",
+    "inventory": "2.5",
+    "app": "lab",
+    "backdrops": [
+      "stripes",
+      "photo"
+    ],
+    "appearances": [
+      "light",
+      "dark"
+    ],
+    "steps": [
+      {
+        "wait": 0.5
+      },
+      {
+        "press": {
+          "at": "glass",
+          "duration": 1.0
+        }
+      },
+      {
+        "wait": 1.0
+      }
+    ],
+    "regions": {
+      "glass": [
+        1,
+        321,
+        400,
+        260
+      ]
+    },
+    "track": [
+      "glass"
     ]
   },
   {
@@ -264,6 +475,130 @@
       {
         "wait": 1.2
       }
+    ],
+    "regions": {
+      "block": [
+        70,
+        400,
+        262,
+        104
+      ]
+    },
+    "track": [
+      "block"
+    ],
+    "motion": [
+      "progress.t10_90_ms",
+      "progress.settle_ms",
+      "progress.overshoot_pct",
+      "progress.response_pct",
+      "progress.damping",
+      "progress.rms",
+      "progress.sharpness"
+    ]
+  },
+  {
+    "id": "material.materialize.snappy",
+    "group": "material",
+    "title": "Glass materializes in and out under withAnimation(.snappy)",
+    "inventory": "2.13",
+    "app": "lab",
+    "backdrops": [
+      "stripes",
+      "photo"
+    ],
+    "appearances": [
+      "light",
+      "dark"
+    ],
+    "steps": [
+      {
+        "wait": 0.5
+      },
+      {
+        "tap": "toggle"
+      },
+      {
+        "wait": 1.2
+      },
+      {
+        "tap": "toggle"
+      },
+      {
+        "wait": 1.2
+      }
+    ],
+    "regions": {
+      "block": [
+        70,
+        400,
+        262,
+        104
+      ]
+    },
+    "track": [
+      "block"
+    ],
+    "motion": [
+      "progress.t10_90_ms",
+      "progress.settle_ms",
+      "progress.overshoot_pct",
+      "progress.response_pct",
+      "progress.damping",
+      "progress.rms",
+      "progress.sharpness"
+    ]
+  },
+  {
+    "id": "material.materialize.bouncy",
+    "group": "material",
+    "title": "Glass materializes in and out under withAnimation(.bouncy)",
+    "inventory": "2.13",
+    "app": "lab",
+    "backdrops": [
+      "stripes",
+      "photo"
+    ],
+    "appearances": [
+      "light",
+      "dark"
+    ],
+    "steps": [
+      {
+        "wait": 0.5
+      },
+      {
+        "tap": "toggle"
+      },
+      {
+        "wait": 1.2
+      },
+      {
+        "tap": "toggle"
+      },
+      {
+        "wait": 1.2
+      }
+    ],
+    "regions": {
+      "block": [
+        70,
+        400,
+        262,
+        104
+      ]
+    },
+    "track": [
+      "block"
+    ],
+    "motion": [
+      "progress.t10_90_ms",
+      "progress.settle_ms",
+      "progress.overshoot_pct",
+      "progress.response_pct",
+      "progress.damping",
+      "progress.rms",
+      "progress.sharpness"
     ]
   },
   {
@@ -342,6 +677,274 @@
       {
         "wait": 1.5
       }
+    ]
+  },
+  {
+    "id": "material.spacing.default.a",
+    "group": "material",
+    "title": "Two 80 pt circles at gaps 0, 4, 8, 12 pt in the default GlassEffectContainer()",
+    "inventory": "2.14",
+    "app": "lab",
+    "backdrops": [
+      "photo"
+    ],
+    "appearances": [
+      "light",
+      "dark"
+    ],
+    "steps": [],
+    "regions": {
+      "g0": [
+        109,
+        129,
+        184,
+        104
+      ],
+      "g4": [
+        107,
+        309,
+        188,
+        104
+      ],
+      "g8": [
+        105,
+        489,
+        192,
+        104
+      ],
+      "g12": [
+        103,
+        669,
+        196,
+        104
+      ]
+    },
+    "topology": [
+      "g0",
+      "g4",
+      "g8",
+      "g12"
+    ]
+  },
+  {
+    "id": "material.spacing.default.b",
+    "group": "material",
+    "title": "Two 80 pt circles at gaps 16, 20, 24, 32 pt in the default GlassEffectContainer()",
+    "inventory": "2.14",
+    "app": "lab",
+    "backdrops": [
+      "photo"
+    ],
+    "appearances": [
+      "light",
+      "dark"
+    ],
+    "steps": [],
+    "regions": {
+      "g16": [
+        101,
+        129,
+        200,
+        104
+      ],
+      "g20": [
+        99,
+        309,
+        204,
+        104
+      ],
+      "g24": [
+        97,
+        489,
+        208,
+        104
+      ],
+      "g32": [
+        93,
+        669,
+        216,
+        104
+      ]
+    },
+    "topology": [
+      "g16",
+      "g20",
+      "g24",
+      "g32"
+    ]
+  },
+  {
+    "id": "material.spacing.default.c",
+    "group": "material",
+    "title": "Two 80 pt circles at gaps 40, 48, 60 pt in the default GlassEffectContainer()",
+    "inventory": "2.14",
+    "app": "lab",
+    "backdrops": [
+      "photo"
+    ],
+    "appearances": [
+      "light",
+      "dark"
+    ],
+    "steps": [],
+    "regions": {
+      "g40": [
+        89,
+        219,
+        224,
+        104
+      ],
+      "g48": [
+        85,
+        399,
+        232,
+        104
+      ],
+      "g60": [
+        79,
+        579,
+        244,
+        104
+      ]
+    },
+    "topology": [
+      "g40",
+      "g48",
+      "g60"
+    ]
+  },
+  {
+    "id": "material.spacing.40.a",
+    "group": "material",
+    "title": "Two 80 pt circles at gaps 0, 4, 8, 12 pt in GlassEffectContainer(spacing: 40)",
+    "inventory": "2.14",
+    "app": "lab",
+    "backdrops": [
+      "photo"
+    ],
+    "appearances": [
+      "light",
+      "dark"
+    ],
+    "steps": [],
+    "regions": {
+      "g0": [
+        109,
+        129,
+        184,
+        104
+      ],
+      "g4": [
+        107,
+        309,
+        188,
+        104
+      ],
+      "g8": [
+        105,
+        489,
+        192,
+        104
+      ],
+      "g12": [
+        103,
+        669,
+        196,
+        104
+      ]
+    },
+    "topology": [
+      "g0",
+      "g4",
+      "g8",
+      "g12"
+    ]
+  },
+  {
+    "id": "material.spacing.40.b",
+    "group": "material",
+    "title": "Two 80 pt circles at gaps 16, 20, 24, 32 pt in GlassEffectContainer(spacing: 40)",
+    "inventory": "2.14",
+    "app": "lab",
+    "backdrops": [
+      "photo"
+    ],
+    "appearances": [
+      "light",
+      "dark"
+    ],
+    "steps": [],
+    "regions": {
+      "g16": [
+        101,
+        129,
+        200,
+        104
+      ],
+      "g20": [
+        99,
+        309,
+        204,
+        104
+      ],
+      "g24": [
+        97,
+        489,
+        208,
+        104
+      ],
+      "g32": [
+        93,
+        669,
+        216,
+        104
+      ]
+    },
+    "topology": [
+      "g16",
+      "g20",
+      "g24",
+      "g32"
+    ]
+  },
+  {
+    "id": "material.spacing.40.c",
+    "group": "material",
+    "title": "Two 80 pt circles at gaps 40, 48, 60 pt in GlassEffectContainer(spacing: 40)",
+    "inventory": "2.14",
+    "app": "lab",
+    "backdrops": [
+      "photo"
+    ],
+    "appearances": [
+      "light",
+      "dark"
+    ],
+    "steps": [],
+    "regions": {
+      "g40": [
+        89,
+        219,
+        224,
+        104
+      ],
+      "g48": [
+        85,
+        399,
+        232,
+        104
+      ],
+      "g60": [
+        79,
+        579,
+        244,
+        104
+      ]
+    },
+    "topology": [
+      "g40",
+      "g48",
+      "g60"
     ]
   },
   {

@@ -7,7 +7,10 @@ import numpy as np
 
 import align
 import metrics
+import shapes
 import springfit
+import touch
+import track
 
 OVERVIEW_FPS = 20
 MATCH_MARGIN = 6.0
@@ -98,20 +101,20 @@ def window(case_dir):
 
 def region_for(scene, case_dir):
     if scene.track:
-        return tuple(scene.regions[scene.track])
+        return metrics.union([tuple(scene.regions[name]) for name in scene.track])
     bare = metrics.load(case_dir / "bare" / "ready.png")
     boxes = metrics.glass_boxes(metrics.load(case_dir / "ready.png"), bare)
     boxes += metrics.glass_boxes(metrics.load(case_dir / "settled.png"), bare)
     if not scene.rest and (case_dir / "video.mp4").exists():
         found = window(case_dir)
         if found:
-            boxes += align.extent(found[2])
-    boxes = [box for box in boxes if box[1] + box[3] > align.SKIP_TOP_POINTS]
+            boxes += align.extent(found[2], ignore=(touch.MARKER,))
+    boxes = [box for box in touch.without_marker(boxes) if box[1] + box[3] > align.SKIP_TOP_POINTS]
     return metrics.union(boxes, pad=12) or (0, 0, *metrics.SCREEN)
 
 
 def elements_for(scene):
-    return {name: tuple(rect) for name, rect in scene.regions.items() if name != scene.track}
+    return {name: tuple(rect) for name, rect in scene.regions.items() if name not in scene.track}
 
 
 def motion(case_dir, region):
@@ -120,6 +123,9 @@ def motion(case_dir, region):
         return {"events": [], "stalls": []}
     start, end, _ = found
     crops = frames(case_dir / "video.mp4", max(0.0, start - LEAD_SECONDS), end, region, case_dir / "frames")
+    settled_path = case_dir / "settled.png"
+    if settled_path.exists():
+        crops = track.teardown_cut(crops, shrink(metrics.crop(metrics.load(settled_path), region)))
     if len(crops) < 2:
         return {"events": [], "stalls": []}
     bare_path = case_dir / "bare" / "ready.png"
@@ -131,6 +137,27 @@ def motion(case_dir, region):
         if align.significant(series):
             found_events.append({"start": crops.times[first], "series": series})
     return {"events": found_events, "stalls": align.stalls(diffs, crops.times), "first_time": crops.times[0]}
+
+
+def shape_capture(scene, case_dir, cache=None):
+    key = (scene.id, str(Path(case_dir).resolve()))
+    if cache is not None and key in cache:
+        return cache[key]
+    found = window(case_dir)
+    captured = shapes.capture(scene, case_dir, found[:2] if found else None)
+    if cache is not None:
+        cache[key] = captured
+    return captured
+
+
+def cached_motion(case_dir, region, cache=None):
+    key = ("motion", str(Path(case_dir).resolve()), tuple(region))
+    if cache is not None and key in cache:
+        return cache[key]
+    found = motion(case_dir, region)
+    if cache is not None:
+        cache[key] = found
+    return found
 
 
 def compare_series(key, a, b, a_full, b_full):
@@ -213,15 +240,23 @@ def motion_limits(result, noise=None):
     return limits
 
 
+FLOAT_SLACK = 1e-9
+
+
 def within(value, limit, bound):
-    return value >= limit if bound == "min" else value <= limit
+    return value >= limit - FLOAT_SLACK if bound == "min" else value <= limit + FLOAT_SLACK
 
 
 def motion_checks(result, noise=None):
     return {name: within(*entry) for name, entry in motion_limits(result, noise).items()}
 
 
-def analyze(scene, case_dir, noise=None):
+def limit(key, name, noise, value):
+    return (value, max(metrics.THRESHOLDS[key], NOISE_FACTOR * noise.get(name, 0.0)), "max")
+
+
+def analyze(scene, case_dir, noise=None, cache=None):
+    noise = noise or {}
     case_dir = Path(case_dir)
     native_dir, flutter_dir = case_dir / "native", case_dir / "flutter"
     result = {"scene": scene.id, "case": case_dir.name}
@@ -246,10 +281,29 @@ def analyze(scene, case_dir, noise=None):
             region,
             elements_for(scene),
         )
-    checks = {f"{name}.{key}": value for name, stat in result["static"].items() for key, value in stat["pass"].items() if key in scene.measures}
-    measures = {f"{name}.{key}": (stat[key], metrics.THRESHOLDS[key], "max") for name, stat in result["static"].items() for key in stat["pass"] if key in scene.measures}
-    if not scene.rest:
-        native, flutter = motion(native_dir, region), motion(flutter_dir, region)
+    measures = {
+        f"{name}.{key}": limit(key, f"{name}.{key}", noise, stat[key])
+        for name, stat in result["static"].items()
+        for key in stat["pass"]
+        if key in scene.measures
+    }
+    if scene.topology:
+        result["topology"] = shapes.static_topology(scene, native_dir, flutter_dir)
+        for name, entry in result["topology"].items():
+            for key, threshold in (("count", "count"), ("neck_pt", "neck_pt")):
+                measures[f"ready.topology.{name}.{key}"] = limit(threshold, f"ready.topology.{name}.{key}", noise, entry[key])
+    checks = {name: within(*entry) for name, entry in measures.items()}
+    if not scene.rest and (scene.track or scene.topology):
+        native, flutter = shape_capture(scene, native_dir, cache), shape_capture(scene, flutter_dir, cache)
+        result["shapes"] = shapes.compare(scene, native, flutter)
+        result["shape_rest"] = {"native": native.get("rest"), "flutter": flutter.get("rest")}
+        result["native_stalls"] = native.get("stalls", [])
+        result["flutter_stalls"] = flutter.get("stalls", [])
+        limits = shapes.limits(result["shapes"], scene, noise)
+        measures.update({f"motion.{k}": v for k, v in limits.items()})
+        checks.update({f"motion.{k}": within(*v) for k, v in limits.items()})
+    elif not scene.rest:
+        native, flutter = cached_motion(native_dir, region, cache), cached_motion(flutter_dir, region, cache)
         result["motion"] = compare_motion(native, flutter)
         result["native_stalls"] = native["stalls"]
         result["flutter_stalls"] = flutter["stalls"]

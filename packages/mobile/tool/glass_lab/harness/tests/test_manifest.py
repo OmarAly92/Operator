@@ -6,6 +6,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+import analyze
 import manifest
 
 REGISTERED = re.compile(r'^\s*"([a-z0-9.]+)": \{ AnyView', re.M)
@@ -83,6 +84,39 @@ class RealManifestTests(unittest.TestCase):
         registered = set(REGISTERED.findall(swift))
         lab = {scene.id for scene in manifest.load() if not scene.native_only}
         self.assertEqual(lab, registered)
+
+
+class TrackTests(unittest.TestCase):
+    def base(self, **changes):
+        entry = {"id": "x", "group": "material", "title": "t", "inventory": "2.13", "app": "lab", "backdrops": ["stripes"], "appearances": ["dark"], "steps": [], "regions": {"a": [0, 0, 1, 1], "b": [1, 1, 1, 1]}}
+        entry.update(changes)
+        return entry
+
+    def test_a_single_track_name_means_a_list_of_one(self):
+        self.assertEqual(manifest.parse([self.base(track="a")])[0].track, ("a",))
+        self.assertEqual(manifest.parse([self.base(track=["a", "b"])])[0].track, ("a", "b"))
+        self.assertEqual(manifest.parse([self.base()])[0].track, ())
+
+    def test_topology_regions_are_validated(self):
+        self.assertEqual(manifest.parse([self.base(topology="a")])[0].topology, ("a",))
+        self.assertTrue(any("topology names an unknown region" in e for e in manifest.validate([self.base(topology=["z"])])))
+        self.assertEqual(manifest.validate([self.base(topology=["a", "b"])]), [])
+
+    def test_tracks_and_motion_measures_are_validated(self):
+        self.assertTrue(any("unknown region" in e for e in manifest.validate([self.base(track=["a", "c"])])))
+        self.assertTrue(any("non-empty list" in e for e in manifest.validate([self.base(track=[])])))
+        self.assertTrue(any("unknown motion measure progress.wobble" in e for e in manifest.validate([self.base(track="a", motion=["progress.wobble"])])))
+        self.assertTrue(any("need a track" in e for e in manifest.validate([self.base(motion=["progress.rms"])])))
+        self.assertEqual(manifest.validate([self.base(track="a", motion=list(manifest.MOTION_MEASURES))]), [])
+
+    def test_tracked_regions_are_not_rim_elements_and_the_union_is_the_region(self):
+        scene = manifest.parse([self.base(track=["a"])])[0]
+        self.assertEqual(analyze.elements_for(scene), {"b": (1, 1, 1, 1)})
+        self.assertEqual(analyze.region_for(scene, Path("/nonexistent")), (0, 0, 1, 1))
+
+    def test_touch_scenes_are_the_ones_with_touch_steps(self):
+        self.assertTrue(manifest.parse([self.base(steps=[{"wait": 1}, {"tap": "x"}])])[0].touches)
+        self.assertFalse(manifest.parse([self.base(steps=[{"wait": 1}])])[0].touches)
 
 
 if __name__ == "__main__":

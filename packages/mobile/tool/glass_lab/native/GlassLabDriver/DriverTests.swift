@@ -13,6 +13,7 @@ final class DriverTests: XCTestCase {
             app.launchEnvironment["GLASS_LAB_SCENE"] = scene
             app.launchEnvironment["GLASS_LAB_BACKDROP"] = environment["GLASS_BACKDROP"] ?? "stripes"
             app.launchEnvironment["GLASS_LAB_BARE"] = environment["GLASS_BARE"] ?? "0"
+            app.launchEnvironment["GLASS_LAB_MARKER"] = environment["GLASS_MARKER"] ?? "0"
         }
         app.launch()
         dismissSystemPrompts()

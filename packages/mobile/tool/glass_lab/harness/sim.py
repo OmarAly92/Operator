@@ -27,6 +27,14 @@ def device():
     return udid
 
 
+def reboot():
+    udid = device()
+    subprocess.run(["xcrun", "simctl", "shutdown", udid], capture_output=True)
+    subprocess.run(["xcrun", "simctl", "boot", udid], capture_output=True)
+    simctl("bootstatus", udid, "-b")
+    return udid
+
+
 def status_bar(udid):
     simctl("status_bar", udid, "override", "--time", "9:41", "--batteryState", "charged", "--batteryLevel", "100", "--wifiBars", "3", "--cellularBars", "4")
 

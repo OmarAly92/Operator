@@ -35,7 +35,7 @@ def run_fit(run_dir, scene, a11y="none"):
     fits = {}
     for appearance in scene.appearances:
         for name, box in scene.regions.items():
-            if name == scene.track:
+            if name in scene.track:
                 continue
             points = []
             for backdrop in BACKDROPS:

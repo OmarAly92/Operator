@@ -1,0 +1,19 @@
+4 scene, case and frame triples compared; 0 Flutter frames byte-identical to the 2A run
+button.press dark-stripes ready mad: 7.13 -> 7.07 (fail -> fail), flutter frame max difference 133.0, native 229.0
+button.press dark-stripes ready luminance: 0.02 -> 0.02 (pass -> pass), flutter frame max difference 133.0, native 229.0
+button.press dark-stripes ready rim_rms: 10.69 -> 10.38 (fail -> fail), flutter frame max difference 133.0, native 229.0
+button.press dark-stripes ready bbox_pt: 4.00 -> 4.00 (fail -> fail), flutter frame max difference 133.0, native 229.0
+button.press dark-stripes settled mad: 7.13 -> 7.07 (fail -> fail), flutter frame max difference 133.0, native 229.0
+button.press dark-stripes settled luminance: 0.02 -> 0.02 (pass -> pass), flutter frame max difference 133.0, native 229.0
+button.press dark-stripes settled rim_rms: 10.69 -> 10.38 (fail -> fail), flutter frame max difference 133.0, native 229.0
+button.press dark-stripes settled bbox_pt: 4.00 -> 4.00 (fail -> fail), flutter frame max difference 133.0, native 229.0
+button.press light-stripes ready mad: 8.07 -> 7.99 (fail -> fail), flutter frame max difference 110.0, native 229.0
+button.press light-stripes ready luminance: 0.86 -> 0.84 (pass -> pass), flutter frame max difference 110.0, native 229.0
+button.press light-stripes ready rim_rms: 8.54 -> 8.30 (fail -> fail), flutter frame max difference 110.0, native 229.0
+button.press light-stripes ready bbox_pt: 5.00 -> 5.00 (fail -> fail), flutter frame max difference 110.0, native 229.0
+button.press light-stripes settled mad: 8.07 -> 7.99 (fail -> fail), flutter frame max difference 110.0, native 229.0
+button.press light-stripes settled luminance: 0.86 -> 0.84 (pass -> pass), flutter frame max difference 110.0, native 229.0
+button.press light-stripes settled rim_rms: 8.54 -> 8.30 (fail -> fail), flutter frame max difference 110.0, native 229.0
+button.press light-stripes settled bbox_pt: 5.00 -> 5.00 (fail -> fail), flutter frame max difference 110.0, native 229.0
+missing: 0
+worse: 0

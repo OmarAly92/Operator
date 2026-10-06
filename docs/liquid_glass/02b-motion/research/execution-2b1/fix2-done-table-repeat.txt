@@ -1,0 +1,11 @@
+material.materialize.bouncy dark-photo: progress measures 7 pass / 14 judged / 14 expected; events and touches 5/5; events [2, 2] unpaired {'native': 0, 'flutter': 0} touches [2, 2] of 2; stalls native [] flutter []
+   step1e0 block: delay 42/17 ms, first frame 0.05@42ms/0.05@17ms; t10_90 100/125 settle 167/192 overshoot 0.0/0.0 spring 0.24/0.88 vs 0.29/0.85 rms 0.022 sharp -1.24/-2.48
+   step3e0 block: delay 62/13 ms, first frame 0.01@17ms/0.07@13ms; t10_90 133/175 settle 233/233 overshoot 1.5/1.1 spring 0.50/0.70 vs 0.30/0.99 rms 0.029 sharp -1.16/-2.36
+   FAIL block.step1e0.progress.response_pct 20.833 > 6.250
+   FAIL block.step1e0.progress.settle_ms 25.000 > 17.000
+   FAIL block.step1e0.progress.sharpness 1.247 > 1.000
+   FAIL block.step3e0.progress.damping 0.290 > 0.060
+   FAIL block.step3e0.progress.response_pct 40.000 > 34.286
+   FAIL block.step3e0.progress.sharpness 1.208 > 1.000
+   FAIL block.step3e0.progress.t10_90_ms 41.667 > 17.000
+total: progress measures 7 pass / 14 judged / 14 expected; events and touches 5/5

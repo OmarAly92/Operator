@@ -15,6 +15,7 @@ layout(location = 0) uniform vec2 uSize;
 layout(location = 1) uniform vec4 uOpticalProps;
 layout(location = 2) uniform float uNumShapes;
 layout(location = 3) uniform float uShapeData[MAX_SHAPES * 6];
+layout(location = 99) uniform float uFullThickness;
 
 float uThickness = uOpticalProps.z;
 float uRefractiveIndex = uOpticalProps.x;
@@ -42,7 +43,7 @@ void main() {
     float dx = dFdx(sd);
     float dy = dFdy(sd);
     float maxDisplacement = uThickness * 10.0;
-    float reach = signedDistanceReach(uThickness, uOutlineBand);
+    float reach = signedDistanceReach(max(uFullThickness, uThickness), uOutlineBand);
     
     if (sd >= 0.0) {
         vec2 gradient = vec2(dx, dy);

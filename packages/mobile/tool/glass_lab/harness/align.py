@@ -97,7 +97,7 @@ def resample(times, rows, hz=GRID_HZ):
     return {key: np.interp(grid, times, [r[key] for r in rows]).tolist() for key in KEYS}
 
 
-def extent(frames, threshold=EXTENT_THRESHOLD, tile=EXTENT_TILE):
+def extent(frames, threshold=EXTENT_THRESHOLD, tile=EXTENT_TILE, ignore=()):
     first, peak = None, None
     for frame in frames:
         if first is None:
@@ -110,6 +110,8 @@ def extent(frames, threshold=EXTENT_THRESHOLD, tile=EXTENT_TILE):
     if peak is None:
         return []
     peak[: SKIP_TOP_POINTS // tile] = 0
+    for x, y, w, h in ignore:
+        peak[max(0, y // tile - 1) : (y + h) // tile + 2, max(0, x // tile - 1) : (x + w) // tile + 2] = 0
     ys, xs = np.nonzero(peak > threshold)
     if len(xs) == 0:
         return []

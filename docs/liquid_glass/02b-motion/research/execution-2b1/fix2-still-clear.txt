@@ -1,0 +1,19 @@
+8 scene, case and frame triples compared; 8 Flutter frames byte-identical to the 2A run
+identical flutter material.clear dark-photo ready: native frame max difference 2.0
+identical flutter material.clear dark-photo settled: native frame max difference 2.0
+identical flutter material.clear dark-white ready: native frame max difference 0.0
+identical flutter material.clear dark-white settled: native frame max difference 0.0
+identical flutter material.clear light-photo ready: native frame max difference 0.0
+identical flutter material.clear light-photo settled: native frame max difference 0.0
+identical flutter material.clear light-white ready: native frame max difference 0.0
+identical flutter material.clear light-white settled: native frame max difference 0.0
+material.clear dark-photo ready mad: 2.02 -> 2.02 (pass -> pass), flutter frame max difference 0.0, native 2.0
+material.clear dark-photo ready luminance: 0.27 -> 0.27 (pass -> pass), flutter frame max difference 0.0, native 2.0
+material.clear dark-photo ready rim_rms: 10.92 -> 10.92 (fail -> fail), flutter frame max difference 0.0, native 2.0
+material.clear dark-photo settled mad: 2.02 -> 2.02 (pass -> pass), flutter frame max difference 0.0, native 2.0
+material.clear dark-photo settled luminance: 0.27 -> 0.27 (pass -> pass), flutter frame max difference 0.0, native 2.0
+material.clear dark-photo settled rim_rms: 10.92 -> 10.92 (fail -> fail), flutter frame max difference 0.0, native 2.0
+material.clear light-photo ready rim_rms: 10.92 -> 10.92 (fail -> fail), flutter frame max difference 0.0, native 0.0
+material.clear light-photo settled rim_rms: 10.92 -> 10.92 (fail -> fail), flutter frame max difference 0.0, native 0.0
+missing: 0
+worse: 0
