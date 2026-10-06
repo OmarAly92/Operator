@@ -365,7 +365,25 @@ abstract class LiquidGlassRenderObject extends RenderProxyBox {
 
     final canvas = Canvas(recorder);
 
+    final toMatte = matteTransform;
+
     for (final (_, geometry, transform) in geometries) {
+      if (geometry is RenderedGeometryCache) {
+        final translation = pixelTranslation(
+          Matrix4.diagonal3Values(devicePixelRatio, devicePixelRatio, 1)
+            ..translateByDouble(-boundsInMatteSpace.left, -boundsInMatteSpace.top, 0, 1)
+            ..multiply(toMatte)
+            ..multiply(transform)
+            ..scaleByDouble(1 / devicePixelRatio, 1 / devicePixelRatio, 1, 1)
+            ..translateByDouble(geometry.matteBounds.left, geometry.matteBounds.top, 0, 1),
+        );
+        if (translation != null) {
+          buffer.writeln('\t- Rendered @ ${geometry.bounds}, at $translation');
+          drawMatteAt(canvas, geometry, translation);
+          continue;
+        }
+      }
+
       canvas
         ..save()
         ..scale(devicePixelRatio)
@@ -373,7 +391,7 @@ abstract class LiquidGlassRenderObject extends RenderProxyBox {
           -boundsInMatteSpace.left,
           -boundsInMatteSpace.top,
         )
-        ..transform(matteTransform.storage)
+        ..transform(toMatte.storage)
         ..transform(transform.storage)
         ..scale(1 / devicePixelRatio)
         ..translate(
@@ -387,11 +405,11 @@ abstract class LiquidGlassRenderObject extends RenderProxyBox {
             '\t- Unrendered @ ${geometry.bounds}',
           );
           canvas.drawPicture(picture);
-        case RenderedGeometryCache(matte: final image):
+        case RenderedGeometryCache():
           buffer.writeln(
             '\t- Rendered @ ${geometry.bounds}',
           );
-          canvas.drawImage(image, Offset.zero, Paint());
+          canvas.drawImage(geometry.matteAt(Offset.zero), Offset.zero, Paint());
       }
 
       canvas.restore();

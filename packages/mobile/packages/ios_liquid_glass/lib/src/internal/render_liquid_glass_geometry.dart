@@ -381,6 +381,7 @@ class UnrenderedGeometryCache extends GeometryCache {
       matteBounds.height.toPixelCount(),
     );
     return RenderedGeometryCache(
+      picture: matte,
       matte: image,
       matteBounds: matteBounds,
       bounds: bounds,
@@ -395,8 +396,8 @@ class UnrenderedGeometryCache extends GeometryCache {
       matteBounds.width.toPixelCount(),
       matteBounds.height.toPixelCount(),
     );
-    dispose();
     return RenderedGeometryCache(
+      picture: matte,
       matte: image,
       matteBounds: matteBounds,
       bounds: bounds,
@@ -417,16 +418,24 @@ class UnrenderedGeometryCache extends GeometryCache {
 @immutable
 @internal
 class RenderedGeometryCache extends GeometryCache {
-  const RenderedGeometryCache({
-    required this.matte,
+  RenderedGeometryCache({
+    required this.picture,
+    required Image matte,
     required super.matteBounds,
     required super.bounds,
     required super.shapes,
     required super.path,
-  });
+  }) : _raster = _PhasedRaster(matte);
+
+  final Picture picture;
+  final _PhasedRaster _raster;
 
   /// The matte image representing the geometry.
-  final Image matte;
+  Image get matte => _raster.image;
+
+  Offset get phase => _raster.phase;
+
+  Image matteAt(Offset phase) => _raster.at(picture, phase, matteBounds);
 
   @override
   RenderedGeometryCache render() => this;
@@ -437,8 +446,62 @@ class RenderedGeometryCache extends GeometryCache {
   /// Disposes of the resources used by the geometry.
   @override
   void dispose() {
-    matte.dispose();
+    _raster.dispose();
+    picture.dispose();
   }
+}
+
+class _PhasedRaster {
+  _PhasedRaster(this.image);
+
+  static const double tolerance = 1 / 256;
+
+  Image image;
+  Offset phase = Offset.zero;
+
+  Image at(Picture picture, Offset next, Rect matteBounds) {
+    if ((next.dx - phase.dx).abs() <= tolerance && (next.dy - phase.dy).abs() <= tolerance) return image;
+    final width = matteBounds.width.toPixelCount(), height = matteBounds.height.toPixelCount();
+    final recorder = PictureRecorder();
+    Canvas(recorder)
+      ..translate(next.dx, next.dy)
+      ..drawPicture(picture);
+    final shifted = recorder.endRecording();
+    final raster = shifted.toImageSync(width + (next.dx > 0 ? 1 : 0), height + (next.dy > 0 ? 1 : 0));
+    shifted.dispose();
+    image.dispose();
+    image = raster;
+    phase = next;
+    return raster;
+  }
+
+  void dispose() => image.dispose();
+}
+
+@internal
+Offset? pixelTranslation(Matrix4 transform) {
+  const epsilon = 1e-9;
+  final m = transform.storage;
+  final pure = (m[0] - 1).abs() < epsilon &&
+      (m[5] - 1).abs() < epsilon &&
+      m[1].abs() < epsilon &&
+      m[4].abs() < epsilon &&
+      m[3].abs() < epsilon &&
+      m[7].abs() < epsilon &&
+      (m[15] - 1).abs() < epsilon;
+  return pure ? Offset(m[12], m[13]) : null;
+}
+
+@internal
+void drawMatteAt(Canvas canvas, RenderedGeometryCache geometry, Offset translation) {
+  double whole(double value) {
+    final nearest = value.roundToDouble();
+    return (value - nearest).abs() < 1e-6 ? nearest : value.floorToDouble();
+  }
+
+  final origin = Offset(whole(translation.dx), whole(translation.dy));
+  final phase = translation - origin;
+  canvas.drawImage(geometry.matteAt(Offset(phase.dx.abs() < 1e-6 ? 0 : phase.dx, phase.dy.abs() < 1e-6 ? 0 : phase.dy)), origin, Paint());
 }
 
 @internal
