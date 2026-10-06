@@ -393,8 +393,11 @@ def measures(result):
 
 
 def expected(result, scene):
+    labels = list(result["pairs"])
+    if scene.touches:
+        labels += [label for label in (f"step{index}e0" for index in touch.touch_steps(scene.steps)) if label not in labels]
     names = []
-    for label in result["pairs"]:
+    for label in labels:
         for measure in scene.motion:
             if measure == "delay_ms":
                 names.append(f"{label}.delay_ms")

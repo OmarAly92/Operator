@@ -63,8 +63,9 @@ class ProgressMeasureTests(unittest.TestCase):
         self.assertEqual(found["block.event0.progress.t10_90_ms"], 0.0)
         self.assertEqual(found["block.event1.progress.rms"], 0.0)
         limits = shapes.limits(result, scene)
-        self.assertEqual(set(limits), {"events.native_motion", "events.unpaired", "touches.native", "touches.flutter", "block.event0.progress.t10_90_ms", "block.event0.progress.rms", "block.event1.progress.t10_90_ms", "block.event1.progress.rms"})
+        self.assertEqual(set(limits), {"events.native_motion", "events.unpaired", "touches.native", "touches.flutter", "block.event0.progress.t10_90_ms", "block.event0.progress.rms", "block.event1.progress.t10_90_ms", "block.event1.progress.rms", "block.step1e0.progress.t10_90_ms", "block.step1e0.progress.rms"})
         self.assertEqual(limits["block.event0.progress.rms"], (0.0, 0.05, "max"))
+        self.assertEqual(limits["block.step1e0.progress.rms"], (float("inf"), 0.05, "max"))
 
     def test_a_slower_flutter_appear_fails_and_noise_raises_the_limit(self):
         scene = manifest.parse([{
@@ -135,6 +136,27 @@ class NothingPassesByBeingAbsentTests(unittest.TestCase):
         self.assertTrue(analyze.within(0.7 - 0.6, 0.1, "min"))
         self.assertFalse(analyze.within(0.0501, 0.05, "max"))
         self.assertFalse(analyze.within(float("inf"), 0.05, "max"))
+
+    def test_a_step_both_apps_miss_fails_every_measure_it_lists(self):
+        scene = self.scene(steps=[{"wait": 0.5}, {"tap": "a"}, {"wait": 1.2}, {"tap": "b"}, {"wait": 1.2}])
+        native = capture_of(spring_series(0.55, 1.0, False, 3.2), steps=[1])
+        flutter = capture_of(spring_series(0.55, 1.0, False, 3.2), steps=[1])
+        native["touches"] = flutter["touches"] = [(1.0, 1.05), (3.0, 3.05)]
+        result = shapes.compare(scene, native, flutter)
+        self.assertEqual(list(result["pairs"]), ["step1e0"])
+        limits = shapes.limits(result, scene)
+        for measure in ("t10_90_ms", "rms", "response_pct", "damping"):
+            self.assertTrue(analyze.within(*limits[f"block.step1e0.progress.{measure}"]))
+            value, _, _ = limits[f"block.step3e0.progress.{measure}"]
+            self.assertEqual(value, float("inf"))
+            self.assertFalse(analyze.within(*limits[f"block.step3e0.progress.{measure}"]))
+
+    def test_a_scene_whose_apps_show_no_event_at_all_still_expects_every_touch_step(self):
+        scene = self.scene(steps=[{"wait": 0.5}, {"tap": "a"}, {"wait": 1.2}, {"tap": "b"}])
+        native, flutter = capture_of(), capture_of()
+        native["touches"] = flutter["touches"] = [(1.0, 1.05), (3.0, 3.05)]
+        names = shapes.expected(shapes.compare(scene, native, flutter), scene)
+        self.assertEqual(names, [f"block.step{k}e0.progress.{m}" for k in (1, 3) for m in ("t10_90_ms", "rms", "response_pct", "damping")])
 
     def test_touches_are_counted_against_the_touch_steps(self):
         scene = self.scene(steps=[{"wait": 0.5}, {"tap": "a"}, {"doubleTap": "b"}])

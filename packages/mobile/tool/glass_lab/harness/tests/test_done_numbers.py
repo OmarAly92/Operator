@@ -1,3 +1,5 @@
+import contextlib
+import io
 import json
 import sys
 import tempfile
@@ -10,6 +12,7 @@ from PIL import Image
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import done_table
+import manifest
 import rim
 import still_check
 
@@ -47,6 +50,42 @@ class StillCheckTests(unittest.TestCase):
         self.assertEqual({row[9] for row in rows}, {1.0})
 
 
+class EmptyRunTests(unittest.TestCase):
+    def test_still_check_fails_on_an_empty_or_mistyped_run_or_when_nothing_was_compared(self):
+        with tempfile.TemporaryDirectory() as before, tempfile.TemporaryDirectory() as after:
+            for args in ([before, after], [before, str(Path(after) / "typo")]):
+                with self.assertRaises(SystemExit) as caught, contextlib.redirect_stdout(io.StringIO()):
+                    still_check.main(args)
+                self.assertNotIn(caught.exception.code, (0, None))
+            write_case(before, "tabbar.rest", "dark-photo", 3.0, True, 50)
+            (Path(after) / "tabbar.rest" / "dark-photo").mkdir(parents=True)
+            (Path(after) / "tabbar.rest" / "dark-photo" / "result.json").write_text(json.dumps({"kind": "error"}))
+            with self.assertRaises(SystemExit) as caught, contextlib.redirect_stdout(io.StringIO()):
+                still_check.main([before, after])
+            self.assertNotIn(caught.exception.code, (0, None))
+
+    def test_still_check_passes_a_run_that_compared_something(self):
+        with tempfile.TemporaryDirectory() as before, tempfile.TemporaryDirectory() as after:
+            write_case(before, "tabbar.rest", "dark-photo", 3.0, True, 50)
+            write_case(after, "tabbar.rest", "dark-photo", 3.0, True, 50)
+            with contextlib.redirect_stdout(io.StringIO()) as printed:
+                still_check.main([before, after])
+            self.assertIn("2 scene, case and frame triples compared", printed.getvalue())
+
+    def test_done_table_fails_on_an_empty_or_mistyped_run_or_when_nothing_was_compared(self):
+        with tempfile.TemporaryDirectory() as run:
+            for args in ([run], [str(Path(run) / "typo")], []):
+                with self.assertRaises(SystemExit) as caught, contextlib.redirect_stdout(io.StringIO()):
+                    done_table.main(args)
+                self.assertNotIn(caught.exception.code, (0, None))
+            folder = Path(run) / "material.materialize" / "dark-photo"
+            folder.mkdir(parents=True)
+            (folder / "result.json").write_text(json.dumps({"kind": "error"}))
+            with self.assertRaises(SystemExit) as caught, contextlib.redirect_stdout(io.StringIO()):
+                done_table.main([run])
+            self.assertNotIn(caught.exception.code, (0, None))
+
+
 class RimTests(unittest.TestCase):
     def test_the_lit_band_under_the_top_edge_is_measured_in_points_whatever_its_brightness(self):
         bare = np.full((90, 300, 3), 60, dtype=np.float32)
@@ -80,6 +119,16 @@ class DoneTableTests(unittest.TestCase):
         self.assertEqual(found["gates"], (1, 2))
         self.assertEqual(found["progress"], (1, 1, 2))
         self.assertEqual(found["failing"], ["block.step1e0.progress.t10_90_ms", "events.unpaired"])
+
+    def test_expected_comes_from_the_scene_steps_so_a_result_missing_a_step_counts_it_as_failing(self):
+        scene = manifest.select(manifest.load(), "material.materialize")[0]
+        result = {
+            "measures": {f"motion.block.step1e0.{measure}": (0.0, 1.0, "max") for measure in scene.motion},
+            "checks": {f"motion.block.step1e0.{measure}": True for measure in scene.motion},
+        }
+        found = done_table.summary(result, scene)
+        self.assertEqual(found["progress"], (7, 7, 14))
+        self.assertEqual(found["failing"], sorted(f"block.step3e0.{measure}" for measure in scene.motion))
 
 
 if __name__ == "__main__":

@@ -1,10 +1,15 @@
-import sys, json, datetime
+import argparse, sys, json, datetime
 from pathlib import Path
 from multiprocessing import Pool
-sys.path.insert(0, '/Users/omaraly/development/AI/Operator-2b1/packages/mobile/tool/glass_lab/harness')
+ARGS = argparse.ArgumentParser(description='Scan noise takes for capture holes.')
+ARGS.add_argument('scratch', help='folder for staged takes and scan.json')
+ARGS.add_argument('--harness', required=True, help='packages/mobile/tool/glass_lab/harness of the checkout to analyse with')
+ARGS.add_argument('--takes', required=True, help='the noise run\'s takes folder, e.g. <runs>/noise-2b1/takes')
+OPTIONS = ARGS.parse_args()
+sys.path.insert(0, str(Path(OPTIONS.harness).resolve()))
 import manifest, analyze, shapes, touch
-RUN = Path('/Users/omaraly/development/AI/Operator-2b1/packages/mobile/build/glass_lab/runs/noise-2b1/takes')
-SCR = Path(sys.argv[1])
+RUN = Path(OPTIONS.takes)
+SCR = Path(OPTIONS.scratch)
 SCENES = ['material.materialize', 'material.materialize.snappy', 'material.materialize.bouncy', 'material.interactive'] + [f'material.press.{s}' for s in ('138x53','250x44','300x120','360x200','circle58')]
 BOUNDARY = datetime.datetime(2026,10,4,4,2,30).timestamp()
 

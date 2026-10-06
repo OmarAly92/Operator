@@ -1,9 +1,14 @@
-import json, sys, math
+import argparse, json, sys, math
 from pathlib import Path
-sys.path.insert(0, '/Users/omaraly/development/AI/Operator-2b1/packages/mobile/tool/glass_lab/harness')
+ARGS = argparse.ArgumentParser(description='Write the capture-hole table and the noise with and without flagged takes.')
+ARGS.add_argument('scratch', help='folder whose takes/scan.json scan.py wrote')
+ARGS.add_argument('--harness', required=True, help='packages/mobile/tool/glass_lab/harness of the checkout to analyse with')
+ARGS.add_argument('--run', required=True, help='the noise run folder holding <scene>/<case>/pair-*, e.g. <runs>/noise-2b1')
+OPTIONS = ARGS.parse_args()
+sys.path.insert(0, str(Path(OPTIONS.harness).resolve()))
 import shapes, analyze, touch, manifest
-S = Path(sys.argv[1])
-RUNP = Path('/Users/omaraly/development/AI/Operator-2b1/packages/mobile/build/glass_lab/runs/noise-2b1')
+S = Path(OPTIONS.scratch)
+RUNP = Path(OPTIONS.run)
 res = json.load(open(S / 'takes' / 'scan.json'))
 order = ['material.materialize', 'material.materialize.snappy', 'material.materialize.bouncy', 'material.interactive'] + [f'material.press.{s}' for s in ('138x53','250x44','300x120','360x200','circle58')]
 res.sort(key=lambda r: (order.index(r['scene']), r['case'], r['take']))

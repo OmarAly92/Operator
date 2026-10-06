@@ -25,6 +25,32 @@ class TouchTests(unittest.TestCase):
     def test_a_tap_shorter_than_a_frame_shows_only_its_release(self):
         self.assertEqual(touch.touches([(0.0, "idle"), (17.578, "up"), (17.797, "idle")]), [(17.578, 17.578)])
 
+    def test_a_touch_whose_release_frame_was_lost_keeps_its_window(self):
+        states = [(0.0, "idle"), (1.0, "down"), (1.4, "move"), (1.9, "idle"), (3.0, "down"), (3.1, "up"), (3.35, "idle")]
+        self.assertEqual(touch.touches(states), [(1.0, 1.65), (3.0, 3.1)])
+        self.assertEqual(touch.touches([(0.0, "idle"), (1.0, "down"), (1.1, "idle")]), [(1.0, 1.0)])
+
+    def test_a_lone_release_frame_shorter_than_the_marker_hold_is_not_a_touch(self):
+        states = [(0.0, "idle"), (1.0, "down"), (1.1, "idle"), (2.0, "idle"), (2.1, "up"), (2.117, "idle"), (3.0, "down"), (3.1, "up"), (3.35, "idle")]
+        self.assertEqual(touch.touches(states), [(1.0, 1.0), (3.0, 3.1)])
+        self.assertEqual(touch.touches([(0.0, "idle"), (2.0, "up"), (2.1, "down"), (2.2, "up"), (2.45, "idle")]), [(2.0, 2.0), (2.1, 2.2)])
+        self.assertEqual(touch.touches([(0.0, "idle"), (5.0, "up")]), [(5.0, 5.0)])
+
+    def test_a_double_tap_owns_both_of_its_windows_and_later_steps_keep_theirs(self):
+        steps = [{"wait": 0.5}, {"doubleTap": "glass"}, {"wait": 1.2}, {"tap": "toggle"}]
+        windows = [(1.0, 1.05), (1.2, 1.25), (3.0, 3.05)]
+        self.assertEqual(touch.step_windows(steps, windows), {1: [(1.0, 1.05), (1.2, 1.25)], 3: [(3.0, 3.05)]})
+        self.assertEqual(touch.owner(1.3, steps, windows), 1)
+        self.assertEqual(touch.owner(3.1, steps, windows), 3)
+        self.assertEqual(touch.step_times(steps, windows), {1: 1.25, 3: 3.05})
+
+    def test_a_double_tap_that_lost_one_window_does_not_take_the_next_steps(self):
+        steps = [{"wait": 0.5}, {"doubleTap": "glass"}, {"wait": 1.2}, {"tap": "toggle"}]
+        windows = [(1.0, 1.05), (3.0, 3.05)]
+        self.assertEqual(touch.step_windows(steps, windows), {1: [(1.0, 1.05)], 3: [(3.0, 3.05)]})
+        self.assertEqual(touch.owner(3.1, steps, windows), 3)
+        self.assertEqual(touch.step_times(steps, windows), {1: 1.05, 3: 3.05})
+
     def test_events_belong_to_the_step_whose_touch_came_last(self):
         steps = [{"wait": 0.5}, {"tap": "toggle"}, {"wait": 1.2}, {"press": {"at": "glass", "duration": 1.0}}]
         windows = [(1.0, 1.1), (3.0, 4.0)]
