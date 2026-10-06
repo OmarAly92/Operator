@@ -1,0 +1,12 @@
+dark-stripes  2A      glass     L  402.389 R  804.254 centre x  603.322 (layout 603.0)  width 401.865 | T 1119.398 B 1248.603 centre y 1184.000 (layout 1183.5) height 129.205
+dark-stripes  2A      prominent L  343.107 R  862.231 centre x  602.669 (layout 603.0)  width 519.124 | T 1457.360 B 1588.427 centre y 1522.893 (layout 1522.5) height 131.067
+dark-stripes  pre-fix glass     L  402.389 R  804.254 centre x  603.322 (layout 603.0)  width 401.865 | T 1119.398 B 1248.603 centre y 1184.000 (layout 1183.5) height 129.205
+dark-stripes  pre-fix prominent L  343.107 R  862.231 centre x  602.669 (layout 603.0)  width 519.124 | T 1457.360 B 1588.427 centre y 1522.893 (layout 1522.5) height 131.067
+dark-stripes  new     glass     L  402.182 R  804.033 centre x  603.107 (layout 603.0)  width 401.851 | T 1118.558 B 1248.428 centre y 1183.493 (layout 1183.5) height 129.870
+dark-stripes  new     prominent L  343.449 R  862.547 centre x  602.998 (layout 603.0)  width 519.099 | T 1456.995 B 1588.001 centre y 1522.498 (layout 1522.5) height 131.006
+light-stripes 2A      glass     L  402.534 R  803.806 centre x  603.170 (layout 603.0)  width 401.272 | T 1117.995 B 1249.386 centre y 1183.690 (layout 1183.5) height 131.390
+light-stripes 2A      prominent L  343.155 R  862.058 centre x  602.607 (layout 603.0)  width 518.903 | T 1457.160 B 1587.999 centre y 1522.580 (layout 1522.5) height 130.839
+light-stripes pre-fix glass     L  402.534 R  803.806 centre x  603.170 (layout 603.0)  width 401.272 | T 1117.995 B 1249.386 centre y 1183.690 (layout 1183.5) height 131.390
+light-stripes pre-fix prominent L  343.155 R  862.058 centre x  602.607 (layout 603.0)  width 518.903 | T 1457.160 B 1587.999 centre y 1522.580 (layout 1522.5) height 130.839
+light-stripes new     glass     L  402.319 R  803.648 centre x  602.984 (layout 603.0)  width 401.329 | T 1117.677 B 1249.346 centre y 1183.511 (layout 1183.5) height 131.669
+light-stripes new     prominent L  343.483 R  862.518 centre x  603.000 (layout 603.0)  width 519.036 | T 1456.982 B 1588.051 centre y 1522.517 (layout 1522.5) height 131.069
