@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- renderer-dom/react: the cell is measured again once the configured font finishes loading (`document.fonts.load`), so a webfont that loads after the first measurement no longer leaves the cursor drifting right of the text in WebKit. `DomBlockRenderer.onMetricsChange(listener)` reports a change in cell metrics, and `TerminalSurface` re-derives the grid from it (`TERMINAL.md` §4.54).
 - vt-core: output compaction (`compact_lines`, `cap_lines`, `is_spinner_line`) moved from `ts/core` and `TerminalCore::tail_output(rows, compact, max_lines)` added; vt-host exports `vt_tail_output`; `ts/core` `compactLines`/`capLines`/`isSpinnerLine` wrap the wasm exports and need `initTerminalCore` first (breaking). `compactLines` and `capLines` pass the lines through the wasm boundary joined with `"\n"` and split the result, so an element that contains `"\n"` counts as more than one line. Whitespace now follows Unicode `White_Space`: U+0085 is whitespace and U+FEFF is not. Both wasm artifacts and the daemon must be rebuilt.
 - react: Shift+click extends the selection from its anchor to the clicked cell (across blocks and rows scrolled out of view); with no selection it selects from the last plain click. A Shift double-click is a plain double-click; Shift+drag keeps extending (`TERMINAL.md` §4.51).
 - react/renderer-dom: Alt-drag (Option-drag; Cmd+Option and Ctrl+Alt too) selects a rectangle; copy gives each row's slice, one line per row. In a mouse-reporting program use Shift+Alt.

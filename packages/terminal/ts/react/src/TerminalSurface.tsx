@@ -122,6 +122,7 @@ export function TerminalSurface({
 	const surfaceRef = useRef<HTMLDivElement | null>(null);
 	const editorHostRef = useRef<HTMLDivElement | null>(null);
 	const rendererRef = useRef<DomBlockRenderer | null>(null);
+	const applyGeometryRef = useRef<(() => void) | null>(null);
 	const editorRef = useRef<LineEditor | null>(null);
 	const onPaintRef = useRef(onPaint);
 	onPaintRef.current = onPaint;
@@ -248,6 +249,7 @@ export function TerminalSurface({
 		blockHost.addEventListener(RERUN_EVENT, onRerun);
 		const offPaint = renderer.onPaint(() => onPaintRef.current?.());
 		const offFinished = renderer.onBlockFinished((event) => onBlockFinishedRef.current?.(event));
+		const offMetrics = renderer.onMetricsChange(() => applyGeometryRef.current?.());
 		rendererRef.current = renderer;
 		editorRef.current = editor;
 		findBarRef.current = findBar;
@@ -259,6 +261,7 @@ export function TerminalSurface({
 			blockHost.removeEventListener(RERUN_EVENT, onRerun);
 			offPaint();
 			offFinished();
+			offMetrics();
 			offOlder();
 			loadOlder.dispose();
 			loadOlderRef.current = null;
@@ -358,12 +361,19 @@ export function TerminalSurface({
 			onGeometry?.(columns, rows, { width: cellWidth, height: cellHeight });
 		};
 		apply(true);
+		applyGeometryRef.current = () => apply();
+		const release = () => {
+			applyGeometryRef.current = null;
+		};
 		if (typeof ResizeObserver !== "function") {
-			return;
+			return release;
 		}
 		const observer = new ResizeObserver(() => apply());
 		observer.observe(blockHost);
-		return () => observer.disconnect();
+		return () => {
+			observer.disconnect();
+			release();
+		};
 	}, [core, onGeometry, refitToken]);
 
 	useLayoutEffect(() => {

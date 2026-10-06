@@ -357,6 +357,38 @@ describe("TerminalSurface", () => {
 		measure.mockRestore();
 	});
 
+	it("re-derives the grid once the terminal font finishes loading", async () => {
+		let loaded = false;
+		let finishLoad: () => void = () => undefined;
+		const fonts = {
+			load: () =>
+				new Promise((resolve) => {
+					finishLoad = () => {
+						loaded = true;
+						resolve([]);
+					};
+				}),
+		};
+		Object.defineProperty(document, "fonts", { value: fonts, configurable: true });
+		const original = HTMLElement.prototype.getBoundingClientRect;
+		const rect = vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+			if (this.id === "terminal-m-measure") return { width: loaded ? 7.828125 : 8, height: 16 } as DOMRect;
+			return original.call(this);
+		});
+		const { core, host } = renderSurface();
+		setHostSize(host, 816, 416);
+		const resize = vi.spyOn(core, "resize");
+
+		await act(async () => {
+			finishLoad();
+			await new Promise((resolve) => setTimeout(resolve, 0));
+		});
+
+		expect(resize).toHaveBeenLastCalledWith(100, 23);
+		rect.mockRestore();
+		delete (document as { fonts?: unknown }).fonts;
+	});
+
 	it("does not resize when the measured geometry has not changed", () => {
 		const { core, host } = renderSurface();
 		setHostSize(host, 1000, 500);

@@ -76,6 +76,7 @@ export class DomBlockRenderer implements BlockRenderer {
 	private filteredBlocks: readonly BlockView[] = [];
 	private currentFilter: BlockFilter | null = null;
 	private readonly measurer = new CellMeasurer(() => this.invalidateMetrics());
+	readonly onMetricsChange = (listener: () => void): (() => void) => this.measurer.onChange(listener);
 	private paintedFirstStableRow = 0;
 	private cursorElement: HTMLElement | null = null;
 	private rebuildAll = false;

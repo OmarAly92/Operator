@@ -2149,6 +2149,31 @@ history of `master`.
   CanNoLongerShow", "KeepsEveryCommandSharedHistoryCanStillShow",
   "MeasuresTheGraceInUTCWhateverTheLocalZone".
 
+### 4.54 The cursor drifted right of the text in the app (real-app report, 2026-10-07)
+- Symptom: in Claude Code's input box the cursor sat a gap to the right of the last
+  typed character, so it looked like a trailing space; Backspace removed the last
+  letter, not a space. The gap grew along the row.
+- Not the cursor column. Claude Code 2.1.289 places the real cursor with
+  relative moves (`\r` + `CSI n C` after each keystroke, and a typed space is only
+  `CSI 1 C`); vt-core's cursor column was exact on captured bytes.
+- Cause: `CellMeasurer` measured the cell once and cached it, before the bundled
+  Hack webfont (`font-display: swap`) had loaded, so the cell was the fallback's.
+  In WebKit (the Tauri window) the fallback is `ui-monospace` = SF Mono, 8.05 px at
+  13 px against Hack's 7.83, and the cursor is placed at `column × cellWidth`
+  while the text advances by Hack's real width: ~5 px off by column 23. Chromium
+  has no `ui-monospace` and falls back to Menlo, whose advance equals Hack's, so
+  every Chromium bench and test hid it. WebKit fires no `loadingdone` for these
+  faces and its `document.fonts.check()` returns true while a face is still
+  loading, so neither can detect the late font.
+- Now: every measure `document.fonts.load()`s the configured font once per
+  shorthand and re-measures when it resolves, notifying only if the cell size
+  changed; `DomBlockRenderer.onMetricsChange` reports metric changes and
+  `TerminalSurface` re-derives the grid from them, so the pane also gets the
+  columns the real font fits.
+- Guards: `renderer-dom/src/cell-measurer.test.ts`, `TerminalSurface.test.tsx`
+  "re-derives the grid once the terminal font finishes loading". To see it, replay
+  captured bytes in Playwright's `webkit` with the app's font, not `chromium`.
+
 ## 5. Known gaps (not bugs, decisions pending)
 
 - **A prompt resize that would cut output falls back to the stale-copy

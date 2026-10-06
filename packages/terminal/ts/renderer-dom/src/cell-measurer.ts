@@ -1,6 +1,7 @@
 import type { FontConfig } from "@operator/terminal-core";
 import { BLOCK_COMMAND_GAP_LINES, blockPaddingY } from "./block-metrics.js";
 import { ensureMeasureHost, HIDDEN_MEASURE_ID } from "./host-dom.js";
+import { ListenerSet } from "./listener-set.js";
 import { createDomMeasurer, WidthCache } from "./width-cache.js";
 
 export type CellSize = { cellWidth: number; cellHeight: number };
@@ -11,8 +12,10 @@ export class CellMeasurer {
 	private measureNode: HTMLElement | null = null;
 	private metricsCache: CellSize | null = null;
 	private dprQuery: MediaQueryList | null = null;
+	private awaitedFont: string | null = null;
+	private readonly changes = new ListenerSet();
 
-	constructor(private readonly onDprChange: () => void) {}
+	constructor(private readonly onMetricsChange: () => void) {}
 
 	attach(): void {
 		this.measureHost = ensureMeasureHost();
@@ -36,18 +39,25 @@ export class CellMeasurer {
 			this.widths = new WidthCache(createDomMeasurer(node));
 		}
 		this.watchDevicePixelRatio();
+		this.awaitFont(font);
 		return this.metricsCache;
 	}
 
 	invalidate(): void {
 		this.metricsCache = null;
 		this.widths?.clear();
+		this.changes.emit();
+	}
+
+	onChange(listener: () => void): () => void {
+		return this.changes.add(listener);
 	}
 
 	reset(): void {
 		this.measureNode = null;
-		this.dprQuery?.removeEventListener("change", this.onDprChange);
+		this.dprQuery?.removeEventListener("change", this.onMetricsChange);
 		this.dprQuery = null;
+		this.awaitedFont = null;
 		this.metricsCache = null;
 		this.widths = null;
 	}
@@ -55,9 +65,32 @@ export class CellMeasurer {
 	// xterm.js src/browser/renderer/dom/DomRenderer.ts:330-334 (handleDevicePixelRatioChange)
 	private watchDevicePixelRatio(): void {
 		if (typeof matchMedia !== "function") return;
-		this.dprQuery?.removeEventListener("change", this.onDprChange);
+		this.dprQuery?.removeEventListener("change", this.onMetricsChange);
 		this.dprQuery = matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`);
-		this.dprQuery.addEventListener("change", this.onDprChange);
+		this.dprQuery.addEventListener("change", this.onMetricsChange);
+	}
+
+	private awaitFont(font: FontConfig): void {
+		const fonts = typeof document === "undefined" ? undefined : (document.fonts as FontFaceSet | undefined);
+		if (!fonts || typeof fonts.load !== "function") return;
+		const shorthand = `${font.weight} ${font.sizePx}px ${font.family}`;
+		if (this.awaitedFont === shorthand) return;
+		this.awaitedFont = shorthand;
+		fonts.load(shorthand).then(
+			() => {
+				if (this.awaitedFont === shorthand && this.measuredChanged(font)) this.onMetricsChange();
+			},
+			() => undefined,
+		);
+	}
+
+	private measuredChanged(font: FontConfig): boolean {
+		const cached = this.metricsCache;
+		const node = this.measureNode ?? document.getElementById(HIDDEN_MEASURE_ID);
+		if (!cached || !node) return false;
+		applyFontToMeasureNode(node, font);
+		const rect = node.getBoundingClientRect();
+		return rect.width > 0 && (rect.width !== cached.cellWidth || rect.height !== cached.cellHeight);
 	}
 }
 
