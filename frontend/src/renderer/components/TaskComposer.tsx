@@ -17,13 +17,15 @@ import { cn } from "../lib/utils";
 import { paneGridBody } from "../lib/pane-grid";
 import { RequiredAgentField } from "./CreateProjectAgentSheet";
 import type { components } from "../../api/schema";
-import { apiClient, apiErrorMessage } from "../lib/api-client";
+import { apiClient, apiErrorCode, apiErrorMessage } from "../lib/api-client";
 import { captureRendererEvent } from "../lib/telemetry";
 import { agentsQueryKey, agentsQueryOptions, refreshAgentsIfStale } from "../hooks/useAgentsQuery";
 import { type FileAttachmentPayload, useFileAttachments } from "../hooks/useFileAttachments";
 import { agentModelsQueryOptions } from "../hooks/useAgentModelsQuery";
 import { ClaudeAccountSelect } from "./ClaudeAccountSelect";
 import { TaskModelPicker } from "./TaskModelPicker";
+import { TaskBranchPicker } from "./TaskBranchPicker";
+import { projectBranchesQueryKey, useProjectBranches } from "../hooks/useProjectBranches";
 import { preferredClaudeAccountId, useClaudeAccounts } from "../hooks/useClaudeAccounts";
 import { MAX_TASK_BRIEF_LENGTH } from "../../shared/task-brief";
 
@@ -40,6 +42,7 @@ type CreateTaskInput = {
 	model?: string;
 	attachments?: FileAttachmentPayload[];
 	workspaceMode?: "worktree" | "in_place";
+	branch?: string;
 	claudeAccountId?: string;
 };
 
@@ -64,6 +67,7 @@ export function TaskComposer({
 	const modelId = useId();
 	const agentId = useId();
 	const worktreeId = useId();
+	const branchId = useId();
 	const fileInputRef = useRef<HTMLInputElement>(null);
 	const [prompt, setPrompt] = useState("");
 	const [model, setModel] = useState("");
@@ -71,6 +75,9 @@ export function TaskComposer({
 	const [agent, setAgent] = useState("");
 	const [agentTouched, setAgentTouched] = useState(false);
 	const [useWorktree, setUseWorktree] = useState(false);
+	const [branchPick, setBranchPick] = useState<{ projectId?: string; name: string }>({ name: "" });
+	const branch = branchPick.projectId === projectId ? branchPick.name : "";
+	const setBranch = (name: string) => setBranchPick({ projectId, name });
 	const [modelTouched, setModelTouched] = useState(false);
 	const [claudeAccount, setClaudeAccount] = useState("");
 	const claudeAccountSelectId = useId();
@@ -99,15 +106,24 @@ export function TaskComposer({
 						agent: input.agent,
 						model: input.model,
 						workspaceMode: input.workspaceMode,
+						...(input.branch ? { branch: input.branch } : {}),
 						claudeAccountId: input.claudeAccountId,
 						...paneGridBody(),
 						...(input.attachments && input.attachments.length > 0 ? { attachments: input.attachments } : {}),
 					},
 				});
 				if (error) {
+					const code = apiErrorCode(error);
+					if (code === "BRANCH_CHECKED_OUT_ELSEWHERE" || code === "BRANCH_NOT_CHECKED_OUT") {
+						void queryClient.invalidateQueries({ queryKey: projectBranchesQueryKey(input.projectId) });
+						throw new Error(
+							t(code === "BRANCH_NOT_CHECKED_OUT" ? "newTask.branchNotCheckedOut" : "newTask.branchCheckedOutElsewhere"),
+						);
+					}
 					throw new Error(apiErrorMessage(error, t("newTask.unableToStart")));
 				}
 				if (!data?.workerId) throw new Error(t("newTask.noSession"));
+				void queryClient.invalidateQueries({ queryKey: projectBranchesQueryKey(input.projectId) });
 				void captureRendererEvent("opr.renderer.task_create_succeeded", { project_id: input.projectId });
 				return data.workerId;
 			} catch (err) {
@@ -132,6 +148,8 @@ export function TaskComposer({
 		},
 	});
 	const canChooseWorktree = projectQuery.data?.kind === "single_repo";
+	const branchesQuery = useProjectBranches(projectId, canChooseWorktree);
+	const currentBranch = branchesQuery.data?.current ?? "";
 	const agentsQuery = useQuery(agentsQueryOptions);
 	// Freshen the inventory on open so a just-installed or just-authenticated agent
 	// is present without the user asking for it.
@@ -215,6 +233,7 @@ export function TaskComposer({
 				model: requestedModel,
 				attachments: attachmentPayloads.length > 0 ? attachmentPayloads : undefined,
 				workspaceMode: canChooseWorktree ? (useWorktree ? "worktree" : "in_place") : undefined,
+				branch: canChooseWorktree ? (useWorktree ? branch : currentBranch) || undefined : undefined,
 				claudeAccountId: selectedAgent === "claude-code" ? selectedClaudeAccount : undefined,
 			});
 			onCreated(sessionId);
@@ -410,10 +429,29 @@ export function TaskComposer({
 					) : null}
 				</div>
 				{canChooseWorktree && (
-					<label htmlFor={worktreeId} className="flex items-center gap-1.5 text-caption text-muted-foreground">
-						<Checkbox id={worktreeId} checked={useWorktree} onCheckedChange={(checked) => setUseWorktree(checked === true)} />
-						{t("newTask.createWorktree")}
-					</label>
+					<div className="composer-workspace-controls flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
+						<label htmlFor={worktreeId} className="flex items-center gap-1.5 text-caption text-muted-foreground">
+							<Checkbox
+								id={worktreeId}
+								checked={useWorktree}
+								onCheckedChange={(checked) => {
+									setUseWorktree(checked === true);
+									setBranch("");
+								}}
+							/>
+							{t("newTask.createWorktree")}
+						</label>
+						<TaskBranchPicker
+							id={branchId}
+							worktree={useWorktree}
+							value={branch}
+							current={currentBranch}
+							branches={branchesQuery.data?.branches ?? []}
+							loading={branchesQuery.isPending && branchesQuery.fetchStatus !== "idle"}
+							failed={branchesQuery.isError}
+							onChange={setBranch}
+						/>
+					</div>
 				)}
 				<button
 					type="button"
