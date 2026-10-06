@@ -592,6 +592,42 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('a container removed while a ghost is in flight disposes cleanly', (tester) async {
+    await tester.pumpWidget(_Toggle(children: (shown) => [if (shown) _block(child: const ColoredBox(color: Color(0xFFFF0000)))]));
+    await tester.pump(const Duration(seconds: 1));
+    tester.state<_ToggleState>(find.byType(_Toggle)).toggle();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 30));
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump();
+    expect(tester.takeException(), isNull);
+    expect(tester.binding.transientCallbackCount, 0);
+  });
+
+  testWidgets('the standalone ghost overlay entry is removed once unused and no ghost remains', (tester) async {
+    final layer = find.byWidgetPredicate((widget) => widget.runtimeType.toString() == '_OverlayGhostLayer');
+    await tester.pumpWidget(_Toggle(container: false, children: (shown) => [if (shown) _block(child: const ColoredBox(color: Color(0xFFFF0000)))]));
+    await tester.pump(const Duration(seconds: 1));
+    final before = layer.evaluate().length;
+    expect(before, 1);
+    tester.state<_ToggleState>(find.byType(_Toggle)).toggle();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 60));
+    expect(find.byType(RawImage), findsOneWidget);
+    expect(layer, findsNWidgets(before));
+    await tester.pumpAndSettle();
+    await tester.pump();
+    expect(find.byType(RawImage), findsNothing);
+    expect(layer, findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('a container with glass builds without a Directionality ancestor', (tester) async {
+    await tester.pumpWidget(GlassTheme(data: const GlassThemeData(brightness: Brightness.dark), child: GlassEffectContainer(child: _block())));
+    expect(tester.takeException(), isNull);
+    expect(find.byType(GlassEffect), findsOneWidget);
+  });
+
   testWidgets('glass removed together with its parent disappears at once', (tester) async {
     await tester.pumpWidget(_Toggle(children: (shown) => [if (shown) Padding(padding: const EdgeInsets.all(1), child: _block())]));
     await tester.pump(const Duration(seconds: 1));

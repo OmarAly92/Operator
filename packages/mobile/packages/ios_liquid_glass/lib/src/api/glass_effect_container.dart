@@ -53,6 +53,7 @@ class _GlassEffectContainerState extends State<GlassEffectContainer> with Single
                 settings: settings,
                 coordinator: _coordinator,
                 child: Stack(
+                  alignment: Alignment.topLeft,
                   fit: StackFit.passthrough,
                   clipBehavior: Clip.none,
                   children: [widget.child, Positioned.fill(child: GlassGhostHost(coordinator: _coordinator))],
